@@ -28,7 +28,7 @@ struct ins{
 ins code[] = {
   {KSHORT, 1, 2},
   {ISGE, 0, 1},
-  {JMP, 1, 4},
+  {JMP, 1, 2},
   {RET1, 0, 1},
   {SUBVN, 3, 0, 1},
   {CALL, 0, 1, 1},
@@ -38,17 +38,35 @@ ins code[] = {
   {RET1, 0, 1}
 };
 
+#define PARAMS long pc, void* table, long* frame, unsigned char ra
+#define ARGS pc, table, frame, ra
+
+#define MUSTTAIL __attribute__((musttail))
+
+typedef void (*op_func)(PARAMS);
+
+void INS_KSHORT(PARAMS) {
+  pc++;
+  op_func *op_table = (op_func*)table;
+  auto ins = code[pc];
+  unsigned char op = ins.code;
+  ra = ins.a;
+  MUSTTAIL return op_table[op](ARGS);
+}
+
+op_func op_table[] = {NULL, INS_KSHORT/*, INS_ISGE, INS_JMP, INS_RET1, INS_SUBVN, INS_CALL, INS_ADDVV*/};
+
 int main() {
   long*  stack = (long*)malloc(sizeof(long)*10000);
-  stack[0] = -1;
-  stack[1] = -1;
+  stack[0] = 0; // return pc
+  stack[1] = 0; // frame size
   stack[2] = 40; // VALUE
   long* frame = &stack[2];
 
-  long pc = 0;
+  ins* pc = &code[0];
 
-  while (pc >= 0) {
-    ins i = code[pc];
+  while (pc >= code) {
+    ins i = *pc;
     // printf("Running PC %li code %i\n", pc, i.code);
     // printf("%li %li \n", frame[0], frame[3]);
 
@@ -70,12 +88,12 @@ int main() {
     }
     case 3: {
       //printf("JMP\n");
-      pc = i.b;
+      pc += i.b;
       break;
     }
     case 4: {
       //printf("RET\n");
-      pc = frame[-2];
+      pc = (ins*)frame[-2];
       frame[-2] = frame[i.a];
       frame -= frame[-1];
       //printf("Frame is %x\n", frame);
@@ -90,9 +108,9 @@ int main() {
     case 6: {
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
-      frame[i.b] = pc + 1;
+      frame[i.b] = (long)(pc + 1);
       frame[i.b+1] = i.b + 2;
-      pc = i.a;
+      pc = code;
       frame += i.b + 2;
       // printf("Frame is %x\n", frame);
       break;
