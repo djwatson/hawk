@@ -9,6 +9,8 @@
     ((_ getter setter)
      (set! getter (getter-with-setter getter setter)))))
 
+(define program '())
+
 ;; TODO reg = free reg set
 (define-record-type func-bc #t #t
 		    (name) (code) (consts) (reg))
@@ -23,6 +25,12 @@
 (define-syntax push!
   (syntax-rules ()
     ((_ var val) (set! var (cons val var)))))
+
+(define next-id
+  (let ((cur-node 0))
+    (lambda ()
+      (inc! cur-node)
+      cur-node)))
 
 (define (finish bc tail r)
   ;; TODO reg
@@ -46,7 +54,7 @@
   (define r1 (compile-sexp (second f) bc env #f))
   (define r2 (compile-sexp (third f) bc env #f))
   (define r (func-bc-reg bc))
-  (define op (second (assq (first f) '((+ ADDVV) (- SUBVV)))))
+  (define op (second (assq (first f) '((+ ADDVV) (- SUBVV) (< ISLT)))))
   (inc! (func-bc-reg bc))
   (push! (func-bc-code bc) (list op r r1 r2))
   (finish bc tail r))
@@ -55,6 +63,8 @@
   (define r (compile-sexp (second f) bc env #f))
   (define jop (list 'JMP 0))
   (define jop2 (list 'JMP 0))
+  (when (= 3 (length f))
+    (set! f (append f (list #f))))
   (push! (func-bc-code bc) (list 'ISF r))
   (push! (func-bc-code bc) jop)
   (let ((rt (compile-sexp (third f) bc env tail)))
@@ -69,6 +79,56 @@
 	(set! (second jop2) (length (func-bc-code bc)))
 	rt))))
 
+(define (compile-lambda f bc tail)
+  (define env '())
+  (define f-id (length program))
+  (define f-bc (make-func-bc (format "lambda~a" (next-id)) '() '() (length (second f))))
+  (define r (func-bc-reg bc))
+  (inc! (func-bc-reg bc))
+  (fold (lambda (n num)
+	  (push! env (cons n num))
+	  (+ num 1))
+	0
+	(second f))
+  (finish f-bc #t (compile-sexps (cddr f) f-bc env tail))
+  (push! program f-bc)
+  (push! (func-bc-code bc) (list 'KFUNC r f-id))
+  (finish bc tail r))
+
+(define (compile-lookup f bc env tail)
+  (define l (assq f env))
+  (if l
+      (cdr l)
+      (let* ((r (func-bc-reg bc))
+	     (c (length (func-bc-consts bc))))
+	(inc! (func-bc-reg bc))
+	(push! (func-bc-consts bc) f)
+	(push! (func-bc-code bc) (list 'GGET r c))
+	(finish bc tail r))))
+
+(define (compile-call f bc env tail)
+  (define r (func-bc-reg bc))
+  ;; start reg
+  ;; TODO mov to correct reg place
+  (for-each
+   (lambda (f) (compile-sexp f bc env #f))
+   f)
+  (push! (func-bc-code bc) (list 'CALL r (length f)))
+  ;; TODO tailcall
+  (finish bc tail r))
+
+(define (compile-define f bc env tail)
+  (if (pair? (second f))
+      (compile-define
+       `(define ,(car (second f)) (lambda ,(cdr (second f)) ,@(cddr f)))
+       bc env tail)
+      (let* ((r (compile-sexp (third f) bc env #f))
+	     (g (length (func-bc-consts bc))))
+	(push! (func-bc-consts bc) (second f))
+	(push! (func-bc-code bc) (list 'GSET g r))
+	;; TODO undef
+	(finish bc tail r))))
+
 (define (compile-sexp f bc env tail)
   (if (not (pair? f))
       (if (symbol? f)
@@ -76,14 +136,16 @@
 	  (compile-self-evaluating f bc tail))
       (case (car f)
 	((define) (compile-define f bc env tail))
-	((letrec (compile-letrec f bc env tail)))
-	((lambda) (compile-lambda f bc env tail))
+	((letrec) (compile-letrec f bc env tail))
+	((let (compile-let f bc env tail)))
+	((lambda) (compile-lambda f bc tail))
 	((begin) (compile-sexps (cdr f) bc env tail))
 	((if) (compile-if f bc env tail))
 	((set!) (compile-set! f bc env tail))
 	((quote) (compile-self-evaluating (second f) bc tail))
-	((+ -) (compile-binary f bc env tail))
+	((+ - <) (compile-binary f bc env tail))
 	(else (compile-call f bc env tail)))))
+
 
 (define (compile-sexps program bc env tail)
   (if (null? (cdr program)) 
@@ -95,7 +157,7 @@
 (define (compile d)
   (define bc (make-func-bc "repl" '() '() 0))
   (compile-sexps d bc '() #t)
-  (display-bc bc))
+  (push! program bc))
 
 (define (display-bc bc)
   (display (format "~a:\n" (func-bc-name bc)))
@@ -108,9 +170,26 @@
   (fold (lambda (a b)
 	  (display (format "~a: ~a\n" b a))
 	  (+ b 1))
-	0 (reverse (func-bc-code bc))))
+	0 (reverse (func-bc-code bc)))
+  (newline))
 
-(compile (list (read)))
+(define (read-file)
+  (define (read-file-rec sexps)
+    (define next (read))
+    (if (eof-object? next) 
+      (reverse sexps)
+      (read-file-rec (cons next sexps))))
+
+  (read-file-rec '()))
+
+(compile (read-file))
+
+(fold (lambda (a b)
+	(display (format "~a -- " b))
+	(display-bc a)
+	(+ b 1))
+      0
+      (reverse program))
 
 ;; (define-record-type compile-ctx #t #t
 ;; 		    (memory))

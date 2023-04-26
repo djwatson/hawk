@@ -1,4 +1,4 @@
-;(import (scheme r5rs))
+
 (letrec ((fib (lambda (n)
 		(if (< n 2) n
 		  (+
