@@ -41,35 +41,37 @@ unsigned int code[] = {
     };
 
 
-#define PARAMS unsigned char ra, void* table, unsigned instr,unsigned* pc, long* frame
-#define ARGS ra, table, instr, pc, frame
-
+#define PARAMS unsigned char ra, unsigned instr,unsigned* pc, long* frame
+#define ARGS ra, instr, pc, frame
 #define MUSTTAIL __attribute__((musttail))
+#define NEXT_INSTR { instr = *pc;		\
+  unsigned char op = instr & 0xff;		\
+  ra = (instr >> 8) & 0xff;			\
+  instr >>= 16;					\
+  MUSTTAIL return op_table[op](ARGS);		\
+}
+  
+
 
 typedef void (*op_func)(PARAMS);
 
 //#define DEBUG(name) printf("%s %li %li %li %li\n", name, frame[0], frame[1], frame[2], frame[3]);
 #define DEBUG(name)
 
+static op_func op_table[10];
 void INS_KSHORT(PARAMS) {
   DEBUG("KSHORT");
-  op_func *op_table = (op_func*)table;
-  unsigned char rb = instr & 0xff;
+  unsigned char rb = instr;
   
   frame[ra] = rb;
   
   pc++;
-  instr = *pc;
-  unsigned char op = instr & 0xff;
-  ra = (instr >> 8) & 0xff;
-  instr >>= 16;
-  MUSTTAIL return op_table[op](ARGS);
+  NEXT_INSTR;
 }
 
 void INS_ISGE(PARAMS) {
   DEBUG("ISGE");
-  op_func *op_table = (op_func*)table;
-  unsigned char rb = instr & 0xff;
+  unsigned char rb = instr;
   
   if (frame[ra] >= frame[rb]) {
     pc+=1;
@@ -77,89 +79,60 @@ void INS_ISGE(PARAMS) {
     pc+=2;
   }
   
-  instr = *pc;
-  unsigned char op = instr & 0xff;
-  ra = (instr >> 8) & 0xff;
-  instr >>= 16;
-  MUSTTAIL return op_table[op](ARGS);
+  NEXT_INSTR;
 }
 
 void INS_JMP(PARAMS) {
   DEBUG("JMP");
-  op_func *op_table = (op_func*)table;
-  unsigned char rb = instr & 0xff;
+  unsigned char rb = instr;
   
   pc += rb;
   
-  instr = *pc;
-  unsigned char op = instr & 0xff;
-  ra = (instr >> 8) & 0xff;
-  instr >>= 16;
-  MUSTTAIL return op_table[op](ARGS);
+  NEXT_INSTR;
 }
 
 void INS_RET1(PARAMS) {
   DEBUG("RET1");
-  op_func *op_table = (op_func*)table;
   
   pc = (unsigned int*)frame[-2];
   frame[-2] = frame[ra];
   frame -= frame[-1];
   
-  instr = *pc;
-  unsigned char op = instr & 0xff;
-  ra = (instr >> 8) & 0xff;
-  instr >>= 16;
-  MUSTTAIL return op_table[op](ARGS);
+  NEXT_INSTR;
 }
 
 void INS_SUBVN(PARAMS) {
   DEBUG("SUBVN");
-  op_func *op_table = (op_func*)table;
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
   
   frame[ra] = frame[rb] - rc;
   
   pc++;
-  instr = *pc;
-  unsigned char op = instr & 0xff;
-  ra = (instr >> 8) & 0xff;
-  instr >>= 16;
-  MUSTTAIL return op_table[op](ARGS);
+  NEXT_INSTR;
 }
 
 void INS_CALL(PARAMS) {
   DEBUG("CALL");
-  op_func *op_table = (op_func*)table;
-  unsigned char rb = instr & 0xff;
+  unsigned char rb = instr;
   
   frame[rb] = (long)(pc + 1);
   frame[rb+1] = rb + 2;
   pc = code;
   frame += rb + 2;
   
-  instr = *pc;
-  unsigned char op = instr & 0xff;
-  ra = (instr >> 8) & 0xff;
-  instr >>= 16;
-  MUSTTAIL return op_table[op](ARGS);
+  NEXT_INSTR;
 }
 
 void INS_ADDVV(PARAMS) {
   DEBUG("ADDVV");
-  op_func *op_table = (op_func*)table;
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
   
   frame[ra] = frame[rb] + frame[rc];
   
   pc++;
-  instr = *pc;
-  unsigned char op = instr & 0xff;
-  ra = (instr >> 8) & 0xff;
-  instr >>= 16;
-  MUSTTAIL return op_table[op](ARGS);
+  NEXT_INSTR;
 }
 
 void INS_HALT(PARAMS) {
@@ -174,18 +147,16 @@ void INS_UNKNOWN(PARAMS) {
   exit(-1);
 }
 
-op_func op_table[] = {
-  INS_UNKNOWN,
-  INS_KSHORT,
-INS_ISGE,
-INS_JMP,
-INS_RET1,
-INS_SUBVN,
-INS_CALL,
-INS_ADDVV,
-INS_HALT, };
 
 int main() {
+  op_table[1] = INS_KSHORT;
+  op_table[2] = INS_ISGE;
+  op_table[3] = INS_JMP;
+  op_table[4] = INS_RET1;
+  op_table[5] = INS_SUBVN;
+  op_table[6] = INS_CALL;
+  op_table[7] = INS_ADDVV;
+  op_table[8] = INS_HALT;
   long*  stack = (long*)malloc(sizeof(long)*10000);
   stack[0] = (unsigned long)&code[10]; // return pc
   stack[1] = 2; // frame size
@@ -196,7 +167,6 @@ int main() {
 
   //////////NEW:
   if(1) {
-  void* table = (void*)op_table;
   unsigned int instr = *pc;
   unsigned char op = instr & 0xff;
   unsigned char ra = (instr >> 8) & 0xff;
