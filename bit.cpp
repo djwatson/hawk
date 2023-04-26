@@ -48,7 +48,11 @@ unsigned int code[] = {
 
 typedef void (*op_func)(PARAMS);
 
+//#define DEBUG(name) printf("%s %li %li %li %li\n", name, frame[0], frame[1], frame[2], frame[3]);
+#define DEBUG(name)
+
 void INS_KSHORT(PARAMS) {
+  DEBUG("KSHORT");
   op_func *op_table = (op_func*)table;
   unsigned char rb = instr & 0xff;
   
@@ -62,7 +66,124 @@ void INS_KSHORT(PARAMS) {
   MUSTTAIL return op_table[op](ARGS);
 }
 
-op_func op_table[] = {NULL, INS_KSHORT/*, INS_ISGE, INS_JMP, INS_RET1, INS_SUBVN, INS_CALL, INS_ADDVV*/};
+void INS_ISGE(PARAMS) {
+  DEBUG("ISGE");
+  op_func *op_table = (op_func*)table;
+  unsigned char rb = instr & 0xff;
+  
+  if (frame[ra] >= frame[rb]) {
+    pc+=1;
+  } else {
+    pc+=2;
+  }
+  
+  instr = *pc;
+  unsigned char op = instr & 0xff;
+  ra = (instr >> 8) & 0xff;
+  instr >>= 16;
+  MUSTTAIL return op_table[op](ARGS);
+}
+
+void INS_JMP(PARAMS) {
+  DEBUG("JMP");
+  op_func *op_table = (op_func*)table;
+  unsigned char rb = instr & 0xff;
+  
+  pc += rb;
+  
+  instr = *pc;
+  unsigned char op = instr & 0xff;
+  ra = (instr >> 8) & 0xff;
+  instr >>= 16;
+  MUSTTAIL return op_table[op](ARGS);
+}
+
+void INS_RET1(PARAMS) {
+  DEBUG("RET1");
+  op_func *op_table = (op_func*)table;
+  
+  pc = (unsigned int*)frame[-2];
+  frame[-2] = frame[ra];
+  frame -= frame[-1];
+  
+  instr = *pc;
+  unsigned char op = instr & 0xff;
+  ra = (instr >> 8) & 0xff;
+  instr >>= 16;
+  MUSTTAIL return op_table[op](ARGS);
+}
+
+void INS_SUBVN(PARAMS) {
+  DEBUG("SUBVN");
+  op_func *op_table = (op_func*)table;
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+  
+  frame[ra] = frame[rb] - rc;
+  
+  pc++;
+  instr = *pc;
+  unsigned char op = instr & 0xff;
+  ra = (instr >> 8) & 0xff;
+  instr >>= 16;
+  MUSTTAIL return op_table[op](ARGS);
+}
+
+void INS_CALL(PARAMS) {
+  DEBUG("CALL");
+  op_func *op_table = (op_func*)table;
+  unsigned char rb = instr & 0xff;
+  
+  frame[rb] = (long)(pc + 1);
+  frame[rb+1] = rb + 2;
+  pc = code;
+  frame += rb + 2;
+  
+  instr = *pc;
+  unsigned char op = instr & 0xff;
+  ra = (instr >> 8) & 0xff;
+  instr >>= 16;
+  MUSTTAIL return op_table[op](ARGS);
+}
+
+void INS_ADDVV(PARAMS) {
+  DEBUG("ADDVV");
+  op_func *op_table = (op_func*)table;
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+  
+  frame[ra] = frame[rb] + frame[rc];
+  
+  pc++;
+  instr = *pc;
+  unsigned char op = instr & 0xff;
+  ra = (instr >> 8) & 0xff;
+  instr >>= 16;
+  MUSTTAIL return op_table[op](ARGS);
+}
+
+void INS_HALT(PARAMS) {
+  DEBUG("HALT");
+  printf("Result:%li\n", frame[ra]);
+  exit(0);
+}
+
+void INS_UNKNOWN(PARAMS) {
+  unsigned int c = *pc;
+  printf("UNKNOWN INSTRUCTION %i\n", INS_OP(c));
+  exit(-1);
+}
+
+op_func op_table[] = {
+  INS_UNKNOWN,
+  INS_KSHORT,
+INS_ISGE,
+INS_JMP,
+INS_RET1,
+INS_SUBVN,
+INS_CALL,
+INS_ADDVV,
+INS_HALT, };
 
 int main() {
   long*  stack = (long*)malloc(sizeof(long)*10000);
@@ -72,6 +193,18 @@ int main() {
   long* frame = &stack[2];
 
   unsigned int* pc = &code[0];
+
+  //////////NEW:
+  if(1) {
+  void* table = (void*)op_table;
+  unsigned int instr = *pc;
+  unsigned char op = instr & 0xff;
+  unsigned char ra = (instr >> 8) & 0xff;
+  instr >>= 16;
+  op_table[op](ARGS);
+  }
+
+  //////////////// OLD:
 
   while (true) {
     unsigned int i = *pc;
