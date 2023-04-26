@@ -13,44 +13,50 @@ enum {
   ADDVV,
 };
 
-struct ins{
-  unsigned char code;
-  unsigned char a;
-  unsigned char b;
-  unsigned char c;
-};
 /*
  (if (< n 2)
      n
      (+ (recursive (- n 1))
         (recursive (- n 2))))
  */
-ins code[] = {
-  {KSHORT, 1, 2},
-  {ISGE, 0, 1},
-  {JMP, 1, 2},
-  {RET1, 0, 1},
-  {SUBVN, 3, 0, 1},
-  {CALL, 0, 1, 1},
-  {SUBVN, 4, 0, 2},
-  {CALL, 0, 2, 1},
-  {ADDVV, 0, 1, 2},
-  {RET1, 0, 1}
-};
+#define CODE(i,a,b,c) ((c << 24) | (b << 16) | (a << 8) | i)
+#define INS_OP(i) (i&0xff)
+#define INS_A(i) ((i>>8)&0xff)
+#define INS_B(i) ((i>>16)&0xff)
+#define INS_C(i) ((i>>24)&0xff)
 
-#define PARAMS long pc, void* table, long* frame, unsigned char ra
-#define ARGS pc, table, frame, ra
+unsigned int code[] = {
+  CODE(KSHORT, 1, 2, 0),
+    CODE(ISGE, 0, 1, 0),
+    CODE(JMP, 1, 2, 0),
+    CODE(RET1, 0, 1, 0),
+    CODE(SUBVN, 3, 0, 1),
+    CODE(CALL, 0, 1, 1),
+    CODE(SUBVN, 4, 0, 2),
+    CODE(CALL, 0, 2, 1),
+    CODE(ADDVV, 0, 1, 2),
+    CODE(RET1, 0, 0, 0)
+    };
+
+
+#define PARAMS unsigned char ra, void* table, unsigned instr,unsigned* pc, long* frame
+#define ARGS ra, table, instr, pc, frame
 
 #define MUSTTAIL __attribute__((musttail))
 
 typedef void (*op_func)(PARAMS);
 
 void INS_KSHORT(PARAMS) {
-  pc++;
   op_func *op_table = (op_func*)table;
-  auto ins = code[pc];
-  unsigned char op = ins.code;
-  ra = ins.a;
+  unsigned char rb = instr & 0xff;
+  
+  frame[ra] = rb;
+  
+  pc++;
+  instr = *pc;
+  unsigned char op = instr & 0xff;
+  ra = (instr >> 8) & 0xff;
+  instr >>= 16;
   MUSTTAIL return op_table[op](ARGS);
 }
 
@@ -63,17 +69,17 @@ int main() {
   stack[2] = 40; // VALUE
   long* frame = &stack[2];
 
-  ins* pc = &code[0];
+  unsigned int* pc = &code[0];
 
   while (pc >= code) {
-    ins i = *pc;
-    // printf("Running PC %li code %i\n", pc, i.code);
+    unsigned int i = *pc;
+    // printf("Running PC %li code %i %i %i %i %x\n", pc - code, INS_OP(i), INS_A(i), INS_B(i), INS_C(i), i);
     // printf("%li %li \n", frame[0], frame[3]);
 
-    switch (i.code) {
+    switch (INS_OP(i)) {
     case 1: {
       //      printf("KSHORT\n");
-      frame[i.a] = i.b;
+      frame[INS_A(i)] = INS_B(i);
       pc++;
       break;
     }
@@ -88,41 +94,41 @@ int main() {
     }
     case 3: {
       //printf("JMP\n");
-      pc += i.b;
+      pc += INS_B(i);
       break;
     }
     case 4: {
       //printf("RET\n");
-      pc = (ins*)frame[-2];
-      frame[-2] = frame[i.a];
+      pc = (unsigned int*)frame[-2];
+      frame[-2] = frame[INS_A(i)];
       frame -= frame[-1];
       //printf("Frame is %x\n", frame);
       break;
     }
     case 5: {
       //printf("SUBVN\n");
-      frame[i.a] = frame[i.b] - i.c;
+      frame[INS_A(i)] = frame[INS_B(i)] - INS_C(i);
       pc++;
       break;
     }
     case 6: {
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
-      frame[i.b] = (long)(pc + 1);
-      frame[i.b+1] = i.b + 2;
+      frame[INS_B(i)] = (long)(pc + 1);
+      frame[INS_B(i)+1] = INS_B(i) + 2;
       pc = code;
-      frame += i.b + 2;
+      frame += INS_B(i) + 2;
       // printf("Frame is %x\n", frame);
       break;
     }
     case 7: {
       //printf("ADDVV");
-      frame[i.a] = frame[i.b] + frame[i.c];
+      frame[INS_A(i)] = frame[INS_B(i)] + frame[INS_C(i)];
       pc++;
       break;
     }
     default: {
-      printf("Unknown i %i", i.code);
+      printf("Unknown i %i", INS_OP(i));
       exit(-1);
     }
     }
