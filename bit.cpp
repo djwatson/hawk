@@ -148,7 +148,17 @@ void INS_UNKNOWN(PARAMS) {
   exit(-1);
 }
 
+
 */
+#define likely(x)      __builtin_expect(!!(x), 1)
+#define unlikely(x)    __builtin_expect(!!(x), 0)
+
+__attribute__((noinline))
+long ADDVV_SLOWPATH(long a, long b) {
+  double c = (double)a + (double)b;
+  c+= 1.1;
+  return c;
+}
 int main() {
   /*
   op_table[1] = INS_KSHORT;
@@ -191,7 +201,7 @@ int main() {
   };
 
   //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
-#define DIRECT
+  #define DIRECT
   while (true) {
     unsigned int i = *pc;
     // printf("Running PC %li code %i %i %i %i %x\n", pc - code, INS_OP(i), INS_A(i), INS_B(i), INS_C(i), i);
@@ -259,7 +269,15 @@ int main() {
     case 7: {
       L_INS_ADDVV:
       //printf("ADDVV");
-      frame[INS_A(i)] = frame[INS_B(i)] + frame[INS_C(i)];
+      auto rb = frame[INS_B(i)];
+      auto rc = frame[INS_C(i)];
+      if (unlikely((1UL<<63)&(rb|rc))) {
+	frame[INS_A(i)] = ADDVV_SLOWPATH(rb, rc);
+      } else {
+	if (__builtin_add_overflow(rb, rc, &frame[INS_A(i)])) {
+	  frame[INS_A(i)] = ADDVV_SLOWPATH(rb, rc);
+	}
+      }
       pc++;
       DIRECT;
       break;
