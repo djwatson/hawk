@@ -32,12 +32,15 @@ unsigned int code[] = {
     CODE(ISGE, 0, 1, 0),
     CODE(JMP, 1, 2, 0),
     CODE(RET1, 0, 1, 0),
-    CODE(SUBVN, 3, 0, 1),
-    CODE(CALL, 0, 1, 1),
-    CODE(SUBVN, 4, 0, 2),
-    CODE(CALL, 0, 2, 1),
+    CODE(SUBVN, 2, 0, 1),
+    CODE(CALL, 0, 1, 2),
+    CODE(SUBVN, 3, 0, 2),
+    CODE(CALL, 0, 2, 2),
     CODE(ADDVV, 0, 1, 2),
     CODE(RET1, 0, 0, 0),
+
+    // FAKE call setup
+    CODE(CALL, 0, 0, 2),
     CODE(HALT, 0, 0, 0)
     };
 
@@ -171,10 +174,9 @@ int main() {
   op_table[8] = INS_HALT;
   */
   long*  stack = (long*)malloc(sizeof(long)*10000);
-  stack[0] = (unsigned long)&code[10]; // return pc
-  stack[1] = 2; // frame size
-  stack[2] = 40; // VALUE
-  long* frame = &stack[2];
+  stack[0] = (unsigned long)&code[11]; // return pc
+  stack[1] = 40; // VALUE
+  long* frame = &stack[1];
 
   unsigned int* pc = &code[0];
 
@@ -239,9 +241,9 @@ int main() {
     case 4: {
       L_INS_RET1:
       //printf("RET\n");
-      pc = (unsigned int*)frame[-2];
-      frame[-2] = frame[INS_A(i)];
-      frame -= frame[-1];
+      pc = (unsigned int*)frame[-1];
+      frame[-1] = frame[INS_A(i)];
+      frame -= (INS_B(*(pc-1)) + 1);
       //printf("Frame is %x\n", frame);
       DIRECT;
       break;
@@ -259,9 +261,8 @@ int main() {
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
       frame[INS_B(i)] = (long)(pc + 1);
-      frame[INS_B(i)+1] = INS_B(i) + 2;
       pc = code;
-      frame += INS_B(i) + 2;
+      frame += INS_B(i) + 1;
       // printf("Frame is %x\n", frame);
       DIRECT;
       break;
