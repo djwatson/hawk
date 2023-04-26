@@ -11,6 +11,7 @@ enum {
   SUBVN,
   CALL,
   ADDVV,
+  HALT,
 };
 
 /*
@@ -35,7 +36,8 @@ unsigned int code[] = {
     CODE(SUBVN, 4, 0, 2),
     CODE(CALL, 0, 2, 1),
     CODE(ADDVV, 0, 1, 2),
-    CODE(RET1, 0, 0, 0)
+    CODE(RET1, 0, 0, 0),
+    CODE(HALT, 0, 0, 0)
     };
 
 
@@ -64,14 +66,14 @@ op_func op_table[] = {NULL, INS_KSHORT/*, INS_ISGE, INS_JMP, INS_RET1, INS_SUBVN
 
 int main() {
   long*  stack = (long*)malloc(sizeof(long)*10000);
-  stack[0] = 0; // return pc
-  stack[1] = 0; // frame size
+  stack[0] = (unsigned long)&code[10]; // return pc
+  stack[1] = 2; // frame size
   stack[2] = 40; // VALUE
   long* frame = &stack[2];
 
   unsigned int* pc = &code[0];
 
-  while (pc >= code) {
+  while (true) {
     unsigned int i = *pc;
     // printf("Running PC %li code %i %i %i %i %x\n", pc - code, INS_OP(i), INS_A(i), INS_B(i), INS_C(i), i);
     // printf("%li %li \n", frame[0], frame[3]);
@@ -127,6 +129,11 @@ int main() {
       pc++;
       break;
     }
+    case 8: {
+      printf("Result:%li\n", frame[INS_A(i)]);
+      exit(0);
+      break;
+    }
     default: {
       printf("Unknown i %i", INS_OP(i));
       exit(-1);
@@ -135,8 +142,6 @@ int main() {
 
     //assert(pc < 10);
   }
-
-  printf("Result:%li\n", stack[0]);
   
   return 0;
 }
