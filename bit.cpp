@@ -12,6 +12,7 @@ enum {
   CALL,
   ADDVV,
   HALT,
+  ALLOC,
 };
 
 /*
@@ -40,7 +41,7 @@ unsigned int code[] = {
     CODE(HALT, 0, 0, 0)
     };
 
-
+/*
 #define PARAMS unsigned char ra, unsigned instr,unsigned* pc, long* frame
 #define ARGS ra, instr, pc, frame
 #define MUSTTAIL __attribute__((musttail))
@@ -147,8 +148,9 @@ void INS_UNKNOWN(PARAMS) {
   exit(-1);
 }
 
-
+*/
 int main() {
+  /*
   op_table[1] = INS_KSHORT;
   op_table[2] = INS_ISGE;
   op_table[3] = INS_JMP;
@@ -157,6 +159,7 @@ int main() {
   op_table[6] = INS_CALL;
   op_table[7] = INS_ADDVV;
   op_table[8] = INS_HALT;
+  */
   long*  stack = (long*)malloc(sizeof(long)*10000);
   stack[0] = (unsigned long)&code[10]; // return pc
   stack[1] = 2; // frame size
@@ -166,57 +169,83 @@ int main() {
   unsigned int* pc = &code[0];
 
   //////////NEW:
-  if(1) {
-  unsigned int instr = *pc;
-  unsigned char op = instr & 0xff;
-  unsigned char ra = (instr >> 8) & 0xff;
-  instr >>= 16;
-  op_table[op](ARGS);
-  }
+  // if(0) {
+  // unsigned int instr = *pc;
+  // unsigned char op = instr & 0xff;
+  // unsigned char ra = (instr >> 8) & 0xff;
+  // instr >>= 16;
+  // op_table[op](ARGS);
+  // }
 
   //////////////// OLD:
 
+  void* l_op_table[] = {NULL,
+    &&L_INS_KSHORT,
+    &&L_INS_ISGE,
+    &&L_INS_JMP,
+    &&L_INS_RET1,
+    &&L_INS_SUBVN,
+    &&L_INS_CALL,
+    &&L_INS_ADDVV,
+    &&L_INS_HALT,
+  };
+
+  //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
+#define DIRECT
   while (true) {
     unsigned int i = *pc;
     // printf("Running PC %li code %i %i %i %i %x\n", pc - code, INS_OP(i), INS_A(i), INS_B(i), INS_C(i), i);
     // printf("%li %li \n", frame[0], frame[3]);
-
+    
+    goto *l_op_table[INS_OP(i)];
+      
     switch (INS_OP(i)) {
     case 1: {
+      L_INS_KSHORT:
       //      printf("KSHORT\n");
       frame[INS_A(i)] = INS_B(i);
       pc++;
+      DIRECT;
       break;
     }
     case 2: {
+      L_INS_ISGE:
       //printf("ISGE\n");
       if (frame[0] >= frame[1]) {
 	pc+=1;
       } else {
 	pc+=2;
       }
+      DIRECT;
       break;
     }
     case 3: {
+      L_INS_JMP:
       //printf("JMP\n");
       pc += INS_B(i);
+      DIRECT;
       break;
     }
     case 4: {
+      L_INS_RET1:
       //printf("RET\n");
       pc = (unsigned int*)frame[-2];
       frame[-2] = frame[INS_A(i)];
       frame -= frame[-1];
       //printf("Frame is %x\n", frame);
+      DIRECT;
       break;
     }
     case 5: {
+      L_INS_SUBVN:
       //printf("SUBVN\n");
       frame[INS_A(i)] = frame[INS_B(i)] - INS_C(i);
       pc++;
+      DIRECT;
       break;
     }
     case 6: {
+      L_INS_CALL:
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
       frame[INS_B(i)] = (long)(pc + 1);
@@ -224,17 +253,25 @@ int main() {
       pc = code;
       frame += INS_B(i) + 2;
       // printf("Frame is %x\n", frame);
+      DIRECT;
       break;
     }
     case 7: {
+      L_INS_ADDVV:
       //printf("ADDVV");
       frame[INS_A(i)] = frame[INS_B(i)] + frame[INS_C(i)];
       pc++;
+      DIRECT;
       break;
     }
     case 8: {
+      L_INS_HALT:
       printf("Result:%li\n", frame[INS_A(i)]);
       exit(0);
+      break;
+    }
+    case 9: {
+      frame[INS_A(i)] = (long)malloc(INS_B(i));
       break;
     }
     default: {
