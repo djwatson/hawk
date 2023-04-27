@@ -218,20 +218,6 @@
   (compile-sexps d bc '() #t)
   (push! program bc))
 
-(define (display-bc bc)
-  (display (format "~a:\n" (func-bc-name bc)))
-  (display "Consts:\n")
-  (fold (lambda (a b)
-	  (display (format "~a: ~a\n" b a))
-	  (+ b 1))
-	0 (reverse (func-bc-consts bc)))
-  (display "Code:\n")
-  (fold (lambda (a b)
-	  (display (format "~a: ~a\n" b a))
-	  (+ b 1))
-	0 (reverse (func-bc-code bc)))
-  (newline))
-
 ;;;;;;;;;;;;;expander
 (define (read-file)
   (define (read-file-rec sexps)
@@ -246,9 +232,25 @@
 (define (expander )
   (expand-top-level-forms! (read-file) store))
 
+;;;;;;;;;;;;;print
+(define (display-bc bc)
+  (display (format "~a:\n" (func-bc-name bc)))
+  (display "Consts:\n")
+  (fold (lambda (a b)
+	  (display (format "~a: ~a\n" b a))
+	  (+ b 1))
+	0 (reverse (func-bc-consts bc)))
+  (display "Code:\n")
+  (fold (lambda (a b)
+	  (display (format "~a: ~a\n" b a))
+	  (+ b 1))
+	0 (reverse (func-bc-code bc)))
+  (newline))
+
+;;;;;;;;;;;;;;;;;; main
+
 (compile (expander))
 
-;;;;;;;;;;;;;print
 (fold (lambda (a b)
 	(display (format "~a -- " b))
 	(display-bc a)
