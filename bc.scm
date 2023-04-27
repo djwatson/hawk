@@ -79,16 +79,20 @@
 	  (push! (func-bc-code bc) (list 'KONST rd c))))))
 
 (define (compile-binary f bc env rd cd)
-  (define op (second (assq (first f) '((+ ADDVV) (- SUBVV) (< ISLT)))))
-  (define r2 (+ rd 1))
+  (define op (second (assq (first f)
+			   '((+ ADDVV) (- SUBVV) (< ISLT)
+			     (= ISEQ)))))
+  (define r1 (exp-loc (second f) env rd))
+  (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
     (finish bc cd rd)
-    (push! (func-bc-code bc) (list op rd rd r2))
+    (push! (func-bc-code bc) (list op rd r1 r2))
     (compile-sexp (third f) bc env r2 'next)
-    (compile-sexp (second f) bc env rd 'next)))
+    (compile-sexp (second f) bc env r1 'next)))
 
 (define (compile-if f bc env rd cd)
   (define dest (if (eq? cd 'ret) 'ret (length (func-bc-code bc))))
+  (define r1 (exp-loc (second f) env rd))
   (when (= 3 (length f))
     (set! f (append f (list #f))))
   (when cd
@@ -96,8 +100,8 @@
     (let ((pos (length (func-bc-code bc))))
       (compile-sexp (third f) bc env rd dest)
       (push! (func-bc-code bc) (list 'JMP (- (length (func-bc-code bc))  pos -1)))
-      (push! (func-bc-code bc) (list 'ISF rd))
-      (compile-sexp (second f) bc env rd 'if))))
+      (push! (func-bc-code bc) (list 'ISF r1))
+      (compile-sexp (second f) bc env r1 'if))))
 
 (define (compile-lambda f bc rd cd)
   (define f-bc (make-func-bc (format "lambda~a" (next-id)) '() '() (length (second f))))
@@ -117,19 +121,29 @@
 	(second f))
   (compile-sexps (cddr f) f-bc env r 'ret))
 
-(define (compile-lookup f bc env rd cd)
+(define (exp-loc f env rd)
+  (if (symbol? f)
+      (or (find-symbol f env) rd)
+      rd))
+
+(define (find-symbol f env)
   (define l (assq f env))
+  (if l (cdr l) #f))
+
+(define (compile-lookup f bc env rd cd)
+  (define loc (find-symbol f env))
   ;;(display (format "Lookup ~a ~a\n" f env))
-  (finish bc cd rd)
-  (if l
-      (when (not (= (cdr l) rd))
-	(push! (func-bc-code bc) (list 'MOV (cdr l) rd)))
+  (define r (if (eq? cd 'ret) (exp-loc f env rd) rd))
+  (finish bc cd r)
+  (if loc
+      (when (not (= loc r))
+	(push! (func-bc-code bc) (list 'MOV loc r)))
       (let* ((c (length (func-bc-consts bc))))
 	(push! (func-bc-consts bc) f)
-	(push! (func-bc-code bc) (list 'GGET rd c)))))
+	(push! (func-bc-code bc) (list 'GGET r c)))))
 
 (define (compile-call f bc env rd cd)
-  (push! (func-bc-code bc) (list (if cd 'CALLT 'CALL) rd (length f)))
+  (push! (func-bc-code bc) (list (if (eq? cd 'ret) 'CALLT 'CALL) rd (length f)))
   (fold
    (lambda (f num)
      (compile-sexp f bc env num 'next)
@@ -207,7 +221,7 @@
 	((if) (compile-if f bc env rd cd))
 	((set!) (compile-set! f bc env rd cd))
 	((quote) (compile-self-evaluating (second f) bc rd cd))
-	((+ - <) (compile-binary f bc env rd cd))
+	((+ - < =) (compile-binary f bc env rd cd))
 	(else (compile-call f bc env rd cd)))))
 
 
@@ -254,7 +268,7 @@
 
 ;;;;;;;;;;;;;;;;;; main
 
-(compile (read-file))
+(compile (expander))
 
 (fold (lambda (a b)
 	(display (format "~a -- " b))
