@@ -1,21 +1,18 @@
-;; TODO: everything should really pass in the register to use
-;; * control dst
-;; * use 'any reg' for return, params, to prevent moves
-;; * pretty much only call, local vars should cause moves
-;; * check via lua
-;;
-;; * tail call register alloc?
+;; TODO
+;; * control dst for branches
 ;; * intern consts
+;; * serializer, for both vm and bc
+;;
 ;; * comments in output
 ;; * name more lambdas, define, let
 
-;; * serializer, for both vm and bc
 
-;; * lets shouldn't be modified by alexpander, but get let loop working
+;; * lets shouldn't be modified by alexpander, but get let loop working (let-internal?)
 ;; * rest params
 ;; * fix letrec
 ;; * assignment conversion
 ;; * closure conversion
+;; * tail call register alloc?
 
 ;;;;;;;;;;;;;;chicken stuff
 (import (r7rs))
