@@ -1,11 +1,16 @@
 ;; TODO: everything should really pass in the register to use
-;; * Destination driven code gen
-;; * fix reg usage
-;; * fix reg in call
-;; * tailcall
+;; * control dst
+;; * use 'any reg' for return, params, to prevent moves
+;; * pretty much only call, local vars should cause moves
+;; * check via lua
+;;
+;; * intern consts
 ;; * comments in output
 ;; * name more lambdas, define, let
 
+;; * serializer, for both vm and bc
+
+;; * lets shouldn't be modified by alexpander, but get let loop working
 ;; * rest params
 ;; * fix letrec
 ;; * assignment conversion
@@ -248,7 +253,7 @@
 
 ;;;;;;;;;;;;;;;;;; main
 
-(compile (read-file))
+(compile (expander))
 
 (fold (lambda (a b)
 	(display (format "~a -- " b))
