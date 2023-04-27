@@ -1,3 +1,17 @@
+;; TODO: everything should really pass in the register to use
+;; * Destination driven code gen
+;; * fix reg usage
+;; * fix reg in call
+;; * tailcall
+;; * comments in output
+;; * name more lambdas, define, let
+
+;; * rest params
+;; * fix letrec
+;; * assignment conversion
+;; * closure conversion
+
+;;;;;;;;;;;;;;chicken stuff
 (import (r7rs))
 (import (srfi 1)) ;; lists
 (import (srfi 17)) ;; generalized-set!
@@ -9,15 +23,11 @@
     ((_ getter setter)
      (set! getter (getter-with-setter getter setter)))))
 
-(define program '())
+;;;;;;;;;;;;; include
 
-;; TODO reg = free reg set
-(define-record-type func-bc #t #t
-		    (name) (code) (consts) (reg))
- (define-getter-with-setter func-bc-code func-bc-code-set!)
- (define-getter-with-setter func-bc-consts func-bc-consts-set!)
- (define-getter-with-setter func-bc-reg func-bc-reg-set!)
+(include "third-party/alexpander.scm")
 
+;;;;;;;;;;;;;;;;; util
 (define-syntax inc!
   (syntax-rules ()
     ((_ var) (set! var (+ 1 var)))))
@@ -31,11 +41,22 @@
     (lambda ()
       (inc! cur-node)
       cur-node)))
+;;;;;;;;;;;;;;;;;;; code
+
+(define program '())
+
+;; TODO reg = free reg set
+(define-record-type func-bc #t #t
+		    (name) (code) (consts) (reg))
+ (define-getter-with-setter func-bc-code func-bc-code-set!)
+ (define-getter-with-setter func-bc-consts func-bc-consts-set!)
+ (define-getter-with-setter func-bc-reg func-bc-reg-set!)
 
 (define (finish bc tail r)
   ;; TODO reg
-  (if tail
-      (push! (func-bc-code bc) (list 'RET1 r))
+  (if (and r tail)
+      (begin (push! (func-bc-code bc) (list 'RET1 r))
+	     #f)
       r))
 
 (define (compile-self-evaluating f bc tail)
@@ -68,37 +89,49 @@
   (push! (func-bc-code bc) (list 'ISF r))
   (push! (func-bc-code bc) jop)
   (let ((rt (compile-sexp (third f) bc env tail)))
-    (when (not tail)
-      (push! (func-bc-code bc) jop2))
+    (if (not tail)
+	(push! (func-bc-code bc) jop2)
+	(finish bc tail rt))
     ;; TODO len
     (set! (second jop) (length (func-bc-code bc)))
     (let ((rf (compile-sexp (fourth f) bc env tail)))
-      (when (not tail)
-	(when (not (eqv? rf rt))
-	  (push! (func-bc-code bc) `(MOV ,rf ,rt)))
-	(set! (second jop2) (length (func-bc-code bc)))
-	rt))))
+      (if (not tail)
+	  (begin
+	    (when (not (eqv? rf rt))
+	      (push! (func-bc-code bc) `(MOV ,rf ,rt)))
+	    (set! (second jop2) (length (func-bc-code bc)))
+	    (finish bc tail rf))
+	  #f))))
 
 (define (compile-lambda f bc tail)
-  (define env '())
-  (define f-id (length program))
   (define f-bc (make-func-bc (format "lambda~a" (next-id)) '() '() (length (second f))))
+  (define f-id (length program))
+  (push! program f-bc)
   (define r (func-bc-reg bc))
   (inc! (func-bc-reg bc))
+  (compile-lambda-internal f f-bc '())
+  (push! (func-bc-code bc) (list 'KFUNC r f-id))    
+  (finish bc tail r))
+
+(define (compile-lambda-internal f f-bc env)
+  (display (format "Lambda: ~a\n" f))
   (fold (lambda (n num)
 	  (push! env (cons n num))
 	  (+ num 1))
 	0
 	(second f))
-  (finish f-bc #t (compile-sexps (cddr f) f-bc env tail))
-  (push! program f-bc)
-  (push! (func-bc-code bc) (list 'KFUNC r f-id))
-  (finish bc tail r))
+  (finish f-bc #t (compile-sexps (cddr f) f-bc env #t)))
 
 (define (compile-lookup f bc env tail)
   (define l (assq f env))
+  ;;(display (format "Lookup ~a ~a\n" f env))
   (if l
-      (cdr l)
+      (if (number? (cdr l))
+	  (cdr l)
+	  (let ((r (func-bc-reg bc)))
+	    (inc! (func-bc-reg bc))
+	    (push! (func-bc-code bc) (list 'KFUNC r (second (cdr l))))
+	    r))
       (let* ((r (func-bc-reg bc))
 	     (c (length (func-bc-consts bc))))
 	(inc! (func-bc-reg bc))
@@ -113,9 +146,8 @@
   (for-each
    (lambda (f) (compile-sexp f bc env #f))
    f)
-  (push! (func-bc-code bc) (list 'CALL r (length f)))
-  ;; TODO tailcall
-  (finish bc tail r))
+  (push! (func-bc-code bc) (list (if tail 'CALLT 'CALL) r (length f)))
+  (if tail #f r))
 
 (define (compile-define f bc env tail)
   (if (pair? (second f))
@@ -129,6 +161,32 @@
 	;; TODO undef
 	(finish bc tail r))))
 
+(define (compile-let f bc env tail)
+  (define rs (map (lambda (f) (compile-sexp (second f) bc env #f))
+		  (second f)))
+  (for-each (lambda (name r) (push! env (cons name r)))
+	    (map first (second f))
+	    rs)
+  (finish bc tail (compile-sexps (cddr f) bc env tail)))
+
+(define (compile-letrec f bc env tail)
+  (define mapping (map (lambda (f)
+			 (define f-bc (make-func-bc (first f) '() '() (length (second (second f)))))
+			 (define f-id (length program))
+			 (inc! (func-bc-reg bc))
+			 (push! program f-bc)
+			 (list f-id f-bc))
+		       (second f)))
+  (define new-env (map (lambda (name r)
+		(cons name (list 'KFUNC r)))
+	      (map first (second f))
+	      (map first mapping)))
+  (map (lambda (f mapping)
+	 (compile-lambda-internal (second f) (second mapping) new-env))
+       (second f)
+       mapping)
+  (finish bc tail (compile-sexps (cddr f) bc env tail)))
+
 (define (compile-sexp f bc env tail)
   (if (not (pair? f))
       (if (symbol? f)
@@ -137,7 +195,7 @@
       (case (car f)
 	((define) (compile-define f bc env tail))
 	((letrec) (compile-letrec f bc env tail))
-	((let (compile-let f bc env tail)))
+	((let) (compile-let f bc env tail))
 	((lambda) (compile-lambda f bc tail))
 	((begin) (compile-sexps (cdr f) bc env tail))
 	((if) (compile-if f bc env tail))
@@ -156,6 +214,7 @@
 
 (define (compile d)
   (define bc (make-func-bc "repl" '() '() 0))
+  (display (format "Compile: ~a \n" d))
   (compile-sexps d bc '() #t)
   (push! program bc))
 
@@ -173,6 +232,7 @@
 	0 (reverse (func-bc-code bc)))
   (newline))
 
+;;;;;;;;;;;;;expander
 (define (read-file)
   (define (read-file-rec sexps)
     (define next (read))
@@ -182,167 +242,17 @@
 
   (read-file-rec '()))
 
-(compile (read-file))
+(define store (null-mstore))
+(define (expander )
+  (expand-top-level-forms! (read-file) store))
 
+(compile (expander))
+
+;;;;;;;;;;;;;print
 (fold (lambda (a b)
 	(display (format "~a -- " b))
 	(display-bc a)
 	(+ b 1))
       0
       (reverse program))
-
-;; (define-record-type compile-ctx #t #t
-;; 		    (memory))
-;; (define-getter-with-setter compile-ctx-memory compile-ctx-memory-set!)
-
-;; (define (compile-self-evaluating s)
-;;   (build-const s))
-
-;; (define (compile-builtin s ctx env)
-;;   (define arg-outputs (map (lambda (s)
-;; 			     (compile-sexp s ctx env))
-;; 			   (cdr s)))
-;;   (define op (build-op-from-inputs (first s) arg-outputs))
-;;   (add-node-output op 'scheme))
-
-;; (define (compile-call s ctx env)
-;;   (define args (map (lambda (s) (compile-sexp s ctx env)) s))
-;;   (define arg-outputs (append args (list (compile-ctx-memory ctx))))
-;;   (define op (build-op-from-inputs 'call arg-outputs))
-;;   (define call-res (add-node-output op 'scheme))
-;;   (define mem-res (add-node-output op 'memory))
-;;   (set! (compile-ctx-memory ctx) mem-res)
-;;   call-res)
-
-;; (define (env-keys env)
-;;   (map first env))
-
-;; ;; See if symbol exists in *any* scope
-;; (define (env-exists env symbol)
-;;   (assq symbol env))
-
-;; ;; Returns param num, possibly inserted in to current env.
-;; (define (env-lookup env symbol)
-;;   (define res (assq symbol env))
-;;   (if res (cdr res)
-;;       ;; Otherwise we have to add a new argument to the env.
-;;       (compiler-error "could not find env")))
-
-;; (define (compile-lookup s ctx env)
-;;   (if (env-exists env s)
-;;       (cdr (env-exists env s))
-;;       (let ((lu (build-lookup s (compile-ctx-memory ctx))))
-;; 	(set! (compile-ctx-memory ctx) (vector-ref (node-outputs lu) 1))
-;; 	(vector-ref (node-outputs lu) 0))))
-
-;; (define (compile-define s ctx env)
-;;   (define res (compile-sexp (third s) ctx env))
-;;   (let ((def (build-define (second s) res (compile-ctx-memory ctx))))
-;;     (set! (compile-ctx-memory ctx) def)
-;;     ;; TODO undef
-;;     (compile-self-evaluating -1)))
-
-;; (define (compile-if s ctx env)
-;;   (define demands (demand-set (cddr s) (env-keys env)))
-
-;;   (define cond (compile-sexp (second s) ctx env))
-;;   (define captures (map (lambda (e) (env-lookup env e)) demands))
-  
-;;   (define sw (build-switch (append (list cond) captures (list (compile-ctx-memory ctx))) 2))
-;;   (define true-region (vector-ref (structural-regions sw) 0))
-;;   (define false-region (vector-ref (structural-regions sw) 1))
-
-;;   ;; Note region outputs is one longer: 'memory', which isn't in env.
-;;   (define true-env (map (lambda (demand capture)
-;; 			  (cons demand capture))
-;; 			demands (vector->list (node-outputs true-region))))
-;;   (define false-env (map (lambda (demand capture)
-;; 			  (cons demand capture))
-;; 			demands (vector->list (node-outputs false-region))))
-;;   (define true-mem (vector-last (node-outputs true-region)))
-;;   (define false-mem (vector-last (node-outputs false-region)))
-
-;;   (set! (compile-ctx-memory ctx) true-mem)
-;;   (let ((true (compile-sexp (third s) ctx true-env)))
-;;     (region-add-result true-region true)
-;;     (region-add-result true-region (compile-ctx-memory ctx)))
-  
-;;   (set! (compile-ctx-memory ctx) false-mem)
-;;   (let ((false (compile-sexp (fourth s) ctx false-env)))
-;;     (region-add-result false-region false)
-;;     (region-add-result false-region (compile-ctx-memory ctx)))
-  
-;;   ;;output
-;;   (let ((res (add-node-output sw 'scheme)))
-;;     (set! (compile-ctx-memory ctx) (add-node-output sw 'memory))
-;;     res))
-
-;; (define (compile-lambda name s ctx env)
-;;   (define demands (demand-set (list s) (env-keys env)))
-;;   (define captures (map (lambda (e) (env-lookup env e)) demands))
-;;   (define params (append (second s) (list (cons 'memory 'memory))))
-;;   (define f (build-func name (map (lambda (n) (if (pair? n) n (cons n 'scheme))) params) captures))
-;;   (define region (body-region f))
-
-;;   (define new-env (filter-map (lambda (sym output)
-;; 				(if (eq? 'memory (node-output-type output))
-;; 				    #f
-;; 				    (cons sym output)))
-;; 		       (append params demands)
-;; 		       (vector->list (node-outputs region))))
-;;   (define new-memory (car (drop (vector->list (node-outputs region)) (- (length params) 1) )))
-;;   (define body-ctx (begin
-;; 		     (node-output-type-set! new-memory 'memory)
-;; 		     (make-compile-ctx new-memory)))
-;;   (define body (compile-sexps (cddr s) body-ctx new-env))
-;;   (region-add-result region body)
-;;   (region-add-result region (compile-ctx-memory body-ctx))
-;;   (vector-ref (node-outputs f) 0))
-
-;; (define (compile-fix s ctx env)
-;;   (define demands (demand-set (list s) (env-keys env)))
-;;   (define captures (map (lambda (e) (env-lookup env e)) demands))
-;;   (define params (map car (second s)))
-;;   (define f (build-fix (map (lambda (n) (cons n 'scheme)) params) captures))
-;;   (define region (body-region f))
-
-;;   (define new-env (map (lambda (sym output) (cons sym output))
-;; 		       (append params demands)
-;; 		       (vector->list (node-outputs region))))
-
-;;   (define lams (map (lambda (l)
-;; 		      (compile-lambda (first l) (second l) ctx new-env))
-;; 		    (second s)))
-;;   (for lam lams
-;;        (region-add-result region lam))
-;;   ;; Push fixed to env temporarily
-;;   (map (lambda (param output) (push! env (cons param output)))
-;; 	 params
-;; 	 (vector->list (node-outputs f)))
-;;   (compile-sexps (cddr s) ctx env))
-
-;; (define (compile-sexp s ctx env)
-;;   (if (not (pair? s))
-;;       (if (symbol? s)
-;; 	  (compile-lookup s ctx env)
-;; 	  (compile-self-evaluating s))
-;;       (case (car s)
-;; 	((fix) (compile-fix s ctx env))
-;; 	((lambda) (compile-lambda "lambda" s ctx env))
-;; 	((if) (compile-if s ctx env))
-;; 	((define) (compile-define s ctx env))
-;; 	((- < + =) (compile-builtin s ctx env))
-;; 	(else
-;; 	 (compile-call s ctx env)))))
-
-;; (define (compile-sexps program ctx env)
-;;   (if (null? (cdr program))
-;;       (compile-sexp (car program) ctx env)
-;;       (begin
-;; 	(compile-sexp (car program) ctx env)
-;; 	(compile-sexps (cdr program) ctx env))))
-
-;; (define (compile-program s)
-;;   (define fout (compile-lambda "repl" `(lambda () ,@s) (make-compile-ctx #f) '()))
-;;   (node-output-node fout))
 
