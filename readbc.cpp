@@ -81,18 +81,17 @@ long ADDVV_SLOWPATH(long a, long b) {
 }
 int run() {
   unsigned int final_code[] = {
-    CODE(CALL, 0, 0, 2),
+    CODE(CALL, 0, 1, 0),
     CODE(HALT, 0, 0, 0)
   };
-  unsigned int* code = &funcs[funcs.size()-1].code[0];
+  unsigned int* code = &funcs[0].code[0];
     
   long*  stack = (long*)malloc(sizeof(long)*10000);
   stack[0] = (unsigned long)&final_code[1]; // return pc
-  stack[1] = 40; // VALUE
   long* frame = &stack[1];
 
   unsigned int* pc = &code[0];
-  bcfunc* func = &funcs[funcs.size()-1];
+  bcfunc* func = &funcs[0];
 
   //////////NEW:
   // if(0) {
@@ -121,7 +120,7 @@ int run() {
   while (true) {
     unsigned int i = *pc;
      printf("Running PC %li code %s %i %i %i\n", pc - code, ins_names[INS_OP(i)], INS_A(i), INS_B(i), INS_C(i));
-    // printf("%li %li \n", frame[0], frame[3]);
+     printf("%li %li %li %li\n", frame[0], frame[1], frame[2], frame[3]);
     
     //goto *l_op_table[INS_OP(i)];
       
@@ -157,7 +156,7 @@ int run() {
       //printf("RET\n");
       pc = (unsigned int*)frame[-1];
       frame[-1] = frame[INS_A(i)];
-      frame -= (INS_B(*(pc-1)) + 1);
+      frame -= (INS_B(*(pc-1)));
       //printf("Frame is %x\n", frame);
       DIRECT;
       break;
@@ -174,13 +173,31 @@ int run() {
       L_INS_CALL:
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
-      frame[INS_B(i)] = (long)(pc + 1);
-      pc = code;
-      frame += INS_B(i) + 1;
+      func = (bcfunc*)frame[INS_A(i)];
+      auto old_pc = pc;
+      pc = &func->code[0];
+      frame[INS_A(i)] = (long)(old_pc + 1);
+      frame += INS_A(i) + 1;
       // printf("Frame is %x\n", frame);
       DIRECT;
       break;
     }
+    case 16: {
+      L_INS_CALLT:
+      // printf("CALL\n");
+      // printf("Frame is %x\n", frame);
+      func = (bcfunc*)frame[INS_A(i)];
+      pc = &func->code[0];
+      long start = INS_A(i) + 1;
+      auto cnt = INS_B(i) - 1;
+      for(auto i = 0; i < cnt; i++) {
+	frame[i] = frame[start+i];
+      }
+      // printf("Frame is %x\n", frame);
+      DIRECT;
+      break;
+    }
+      
     case 7: {
       L_INS_ADDVV:
       //printf("ADDVV");
@@ -227,6 +244,14 @@ int run() {
       L_INS_GSET:
       long* gp = (long*)func->consts[INS_A(i)];
       *gp = frame[INS_B(i)];
+      pc++;
+      DIRECT;
+      break;
+    }
+    case 15: {
+      L_INS_KFUNC:
+      bcfunc* f = &funcs[INS_B(i)];
+      frame[INS_A(i)] = (long)f;
       pc++;
       DIRECT;
       break;

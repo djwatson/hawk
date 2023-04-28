@@ -229,9 +229,9 @@
 
 (define (compile d)
   (define bc (make-func-bc "repl" '() '()))
+  (push! program bc)
   (display (format "Compile: ~a \n" d))
-  (compile-sexps d bc '() 0 'ret)
-  (push! program bc))
+  (compile-sexps d bc '() 0 'ret))
 
 ;;;;;;;;;;;;;expander
 (define (read-file)
