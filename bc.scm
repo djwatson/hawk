@@ -1,7 +1,9 @@
 ;; TODO
 ;; * control dst for branches
 ;; * intern consts
-;; * serializer, for both vm and bc
+;; * serializer: consts need to be long, fix sum
+;; * get 'ack' test working
+;; * get 'nqueens' test working
 ;;
 ;; * comments in output
 ;; * name more lambdas, define, let
