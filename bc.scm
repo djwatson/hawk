@@ -1,8 +1,12 @@
+;; CLEANUP
+;; * cleanup bytecode ops order
+;; * split bc to separate files
+;; * use bitops in bc
+
 ;; TODO
 ;; * control dst for branches
 ;; * intern consts
 ;; * serializer: consts need to be long, fix sum
-;; * get 'ack' test working
 ;; * get 'nqueens' test working
 ;;
 ;; * comments in output
@@ -11,9 +15,9 @@
 
 ;; * lets shouldn't be modified by alexpander, but get let loop working (let-internal?)
 ;; * rest params
-;; * fix letrec
 ;; * assignment conversion
 ;; * closure conversion
+;; * fix letrec
 ;; * tail call register alloc?
 
 ;;;;;;;;;;;;;;chicken stuff
@@ -285,7 +289,8 @@
 	       (KFUNC 15)
 	       (CALLT 16)
 	       (KONST 17)
-	       (MOV 18)))
+	       (MOV 18)
+	       (ISEQ 19)))
 
 (define bc-ins '(KSHORT))
 

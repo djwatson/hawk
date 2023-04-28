@@ -28,6 +28,7 @@ enum {
   CALLT,
   KONST,
   MOV,
+  ISEQ,
 };
 
 const char* ins_names[] = {
@@ -50,6 +51,7 @@ const char* ins_names[] = {
   "CALLT",
   "KONST",
   "MOV",
+  "ISEQ",
 };
 
 /*
@@ -95,7 +97,7 @@ int run() {
   };
   unsigned int* code = &funcs[0].code[0];
     
-  long*  stack = (long*)malloc(sizeof(long)*10000);
+  long*  stack = (long*)malloc(sizeof(long)*100000);
   stack[0] = (unsigned long)&final_code[1]; // return pc
   long* frame = &stack[1];
 
@@ -133,6 +135,7 @@ int run() {
     &&L_INS_CALLT,
     &&L_INS_KONST,
     &&L_INS_MOV,
+    &&L_INS_ISEQ,
   };
 
   //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
@@ -170,6 +173,17 @@ int run() {
     case 10: {
       L_INS_ISLT:
       if (frame[INS_B(i)] < frame[INS_C(i)]) {
+	frame[INS_A(i)] = 1;
+      } else {
+	frame[INS_A(i)] = 0;
+      }
+      pc++;
+      DIRECT;
+      break;
+    }
+    case 19: {
+      L_INS_ISEQ:
+      if (frame[INS_B(i)] == frame[INS_C(i)]) {
 	frame[INS_A(i)] = 1;
       } else {
 	frame[INS_A(i)] = 0;
