@@ -27,6 +27,7 @@ enum {
   KFUNC,
   CALLT,
   KONST,
+  MOV,
 };
 
 const char* ins_names[] = {
@@ -48,6 +49,7 @@ const char* ins_names[] = {
   "KFUNC",
   "CALLT",
   "KONST",
+  "MOV",
 };
 
 /*
@@ -130,6 +132,7 @@ int run() {
     &&L_INS_KFUNC,
     &&L_INS_CALLT,
     &&L_INS_KONST,
+    &&L_INS_MOV,
   };
 
   //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
@@ -303,6 +306,13 @@ int run() {
     case 17: {
       L_INS_KONST:
       frame[INS_A(i)] = func->consts[INS_B(i)] >> 3;
+      pc++;
+      DIRECT;
+      break;
+    }
+    case 18: {
+      L_INS_MOV:
+      frame[INS_B(i)] = frame[INS_A(i)];
       pc++;
       DIRECT;
       break;

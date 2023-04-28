@@ -282,7 +282,8 @@
 	       (GSET 14)
 	       (KFUNC 15)
 	       (CALLT 16)
-	       (KONST 17)))
+	       (KONST 17)
+	       (MOV 18)))
 
 (define bc-ins '(KSHORT))
 
