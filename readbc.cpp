@@ -1,3 +1,5 @@
+// TODO: func isn't reset on RET
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <vector>
@@ -104,7 +106,8 @@ int run() {
 
   //////////////// OLD:
 
-  void* l_op_table[] = {NULL,
+  void* l_op_table[] = {
+    NULL,
     &&L_INS_KSHORT,
     &&L_INS_ISGE,
     &&L_INS_JMP,
@@ -113,16 +116,24 @@ int run() {
     &&L_INS_CALL,
     &&L_INS_ADDVV,
     &&L_INS_HALT,
+    &&L_INS_ALLOC,
+    &&L_INS_ISLT, //10
+    &&L_INS_ISF,
+    &&L_INS_SUBVV,
+    &&L_INS_GGET,
+    &&L_INS_GSET,
+    &&L_INS_KFUNC,
+    &&L_INS_CALLT,
   };
 
   //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
   #define DIRECT
   while (true) {
     unsigned int i = *pc;
-     printf("Running PC %li code %s %i %i %i\n", pc - code, ins_names[INS_OP(i)], INS_A(i), INS_B(i), INS_C(i));
-     printf("%li %li %li %li\n", frame[0], frame[1], frame[2], frame[3]);
+     // printf("Running PC %li code %s %i %i %i\n", pc - code, ins_names[INS_OP(i)], INS_A(i), INS_B(i), INS_C(i));
+     // printf("frame %li: %li %li %li %li\n", frame-stack, frame[0], frame[1], frame[2], frame[3]);
     
-    //goto *l_op_table[INS_OP(i)];
+    goto *l_op_table[INS_OP(i)];
       
     switch (INS_OP(i)) {
     case 1: {
@@ -136,7 +147,29 @@ int run() {
     case 2: {
       L_INS_ISGE:
       //printf("ISGE\n");
-      if (frame[0] >= frame[1]) {
+      if (frame[INS_A(i)] >= frame[INS_B(i)]) {
+	pc+=1;
+      } else {
+	pc+=2;
+      }
+      DIRECT;
+      break;
+    }
+    case 10: {
+      L_INS_ISLT:
+      if (frame[INS_B(i)] < frame[INS_C(i)]) {
+	frame[INS_A(i)] = 1;
+      } else {
+	frame[INS_A(i)] = 0;
+      }
+      pc++;
+      DIRECT;
+      break;
+    }
+    case 11: {
+      L_INS_ISF:
+      //printf("ISGE\n");
+      if (0 == frame[INS_A(i)]) {
 	pc+=1;
       } else {
 	pc+=2;
@@ -147,16 +180,17 @@ int run() {
     case 3: {
       L_INS_JMP:
       //printf("JMP\n");
-      pc += INS_B(i);
+      pc += INS_A(i);
       DIRECT;
       break;
     }
     case 4: {
       L_INS_RET1:
+      // TODO constants
       //printf("RET\n");
       pc = (unsigned int*)frame[-1];
       frame[-1] = frame[INS_A(i)];
-      frame -= (INS_B(*(pc-1)));
+      frame -= (INS_A(*(pc-1)) + 1);
       //printf("Frame is %x\n", frame);
       DIRECT;
       break;
@@ -221,6 +255,7 @@ int run() {
       break;
     }
     case 9: {
+      L_INS_ALLOC:
       frame[INS_A(i)] = (long)malloc(INS_B(i));
       break;
     }
@@ -234,8 +269,8 @@ int run() {
     }
     case 13: {
       L_INS_GGET:
-      long* gp = (long*)func->consts[INS_A(i)];
-      frame[INS_B(i)] = *gp;
+      long* gp = (long*)func->consts[INS_B(i)];
+      frame[INS_A(i)] = *gp;
       pc++;
       DIRECT;
       break;
@@ -331,6 +366,7 @@ int main() {
 	symbol_table[n] = new symbol;
       }
       c = (unsigned long)&symbol_table[n]->val;
+      printf("Link global %s %lx\n", n.c_str(), c);
     }
   }
   run();
