@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <string>
 
+//#define DEBUG
+
 enum {
   RET=0,
   KSHORT,
@@ -24,6 +26,7 @@ enum {
   GSET,
   KFUNC,
   CALLT,
+  KONST,
 };
 
 const char* ins_names[] = {
@@ -44,6 +47,7 @@ const char* ins_names[] = {
   "GSET",
   "KFUNC",
   "CALLT",
+  "KONST",
 };
 
 /*
@@ -57,6 +61,7 @@ const char* ins_names[] = {
 #define INS_A(i) ((i>>8)&0xff)
 #define INS_B(i) ((i>>16)&0xff)
 #define INS_C(i) ((i>>24)&0xff)
+#define INS_BC(i) (i>>16)
 
 struct bcfunc {
   std::vector<unsigned int> code;
@@ -124,22 +129,26 @@ int run() {
     &&L_INS_GSET,
     &&L_INS_KFUNC,
     &&L_INS_CALLT,
+    &&L_INS_KONST,
   };
 
   //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
   #define DIRECT
   while (true) {
     unsigned int i = *pc;
-     // printf("Running PC %li code %s %i %i %i\n", pc - code, ins_names[INS_OP(i)], INS_A(i), INS_B(i), INS_C(i));
-     // printf("frame %li: %li %li %li %li\n", frame-stack, frame[0], frame[1], frame[2], frame[3]);
+    #ifdef DEBUG
+     printf("Running PC %li code %s %i %i %i\n", pc - code, ins_names[INS_OP(i)], INS_A(i), INS_B(i), INS_C(i));
+     printf("frame %li: %li %li %li %li\n", frame-stack, frame[0], frame[1], frame[2], frame[3]);
+     #else
     
     goto *l_op_table[INS_OP(i)];
+    #endif
       
     switch (INS_OP(i)) {
     case 1: {
       L_INS_KSHORT:
       //      printf("KSHORT\n");
-      frame[INS_A(i)] = INS_B(i);
+      frame[INS_A(i)] = INS_BC(i);
       pc++;
       DIRECT;
       break;
@@ -291,6 +300,13 @@ int run() {
       DIRECT;
       break;
     }
+    case 17: {
+      L_INS_KONST:
+      frame[INS_A(i)] = func->consts[INS_B(i)] >> 3;
+      pc++;
+      DIRECT;
+      break;
+    }
 
     default: {
       printf("Unknown instruction %i %s\n", INS_OP(i), ins_names[INS_OP(i)]);
@@ -327,18 +343,23 @@ int main() {
     for(unsigned j = 0; j < const_count; j++) {
       f.consts[j] = 0;
       fread(&f.consts[j], 4, 1, fptr);
-      printf("const: %li\n", (f.consts[j]-4)/8);
+      if ((f.consts[j]&0xf) == 4) {
+	printf("symbol: %li\n", (f.consts[j]-4)/8);
+      } else {
+	printf("const: %li\n", f.consts[j] >> 3);
+      }
     }
     fread(&code_count, 4, 1, fptr);
     f.code.resize(code_count);
     for(unsigned j = 0; j < code_count; j++) {
       fread(&f.code[j], 4, 1, fptr);
       unsigned int code = f.code[j];
-      printf("code: %s %i %i %i\n", 
+      printf("code: %s %i %i %i BC: %i\n", 
 	     ins_names[INS_OP(code)],
 	     INS_A(code),
 	     INS_B(code),
-	     INS_C(code));
+	     INS_C(code),
+	     INS_BC(code));
     }
     printf("%i: const %i code %i\n", i, const_count, code_count);
     funcs.push_back(f);
@@ -361,12 +382,14 @@ int main() {
   // Link the symbols
   for(auto &bc : funcs) {
     for(auto &c : bc.consts) {
-      std::string n = symbols[(c - 4)/8];
-      if (symbol_table.find(n) == symbol_table.end()) {
-	symbol_table[n] = new symbol;
+      if ((c&0x7) == 4) {
+	std::string n = symbols[(c - 4)/8];
+	if (symbol_table.find(n) == symbol_table.end()) {
+	  symbol_table[n] = new symbol;
+	}
+	c = (unsigned long)&symbol_table[n]->val;
+	printf("Link global %s %lx\n", n.c_str(), c);
       }
-      c = (unsigned long)&symbol_table[n]->val;
-      printf("Link global %s %lx\n", n.c_str(), c);
     }
   }
   run();

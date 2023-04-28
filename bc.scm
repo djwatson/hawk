@@ -68,7 +68,7 @@
   (define c (length (func-bc-consts bc)))
   (when cd
     (finish bc cd rd)
-    (if (and  (number? f) (< (abs f) 30000))
+    (if (and  (number? f) (< (abs f) 65536))
 	(push! (func-bc-code bc) (list 'KSHORT rd f))
 	(begin
 	  (push! (func-bc-consts bc) f)
@@ -281,13 +281,20 @@
 	       (GGET 13)
 	       (GSET 14)
 	       (KFUNC 15)
-	       (CALLT 16)))
+	       (CALLT 16)
+	       (KONST 17)))
+
+(define bc-ins '(KSHORT))
 
 (define (write-uint v p)
   (write-u8 (remainder v 256) p)
   (write-u8 (remainder (quotient v 256) 256) p)
   (write-u8 (remainder (quotient v 65536) 256) p)
   (write-u8 (remainder (quotient v 16777216) 256) p))
+
+(define (write-u16 v p)
+  (write-u8 (remainder v 256) p)
+  (write-u8 (remainder (quotient v 256) 256) p))
 
 (define (bc-write name program)
   (define p (open-output-file name))
@@ -308,11 +315,13 @@
       (lambda (c)
 	(define pos (length globals))
 	;; TODO intern
-	(when (not (symbol? c))
-	  (display (format "Error: can't serislize: ~a\n" c))
-	  (exit -1))
-	(push! globals c)
-	(write-uint (+ (* pos 8) 4) p))
+	(cond
+	 ((symbol? c)
+	  (push! globals c)
+	  (write-uint (+ (* pos 8) 4) p))
+	 ((integer? c)
+	  (write-uint (* 8 c) p))
+	 (else (display (format "Can't serialize: ~a\n" c)) (exit -1))))
       (func-bc-consts bc))
      (write-uint (length (func-bc-code bc)) p)
      (for-each
@@ -323,8 +332,11 @@
 	  (exit -1))
 	(write-u8 (second ins) p)
 	(write-u8 (if (> (length c) 1) (second c) 0) p)
-	(write-u8 (if (> (length c) 2) (third c) 0) p)
-	(write-u8 (if (> (length c) 3) (fourth c) 0) p))
+	(if (memq (first c) bc-ins)
+	    (write-u16 (third c) p)
+	    (begin
+	      (write-u8 (if (> (length c) 2) (third c) 0) p)
+	      (write-u8 (if (> (length c) 3) (fourth c) 0) p))))
       (func-bc-code bc)))
    program)
   (write-uint (length globals) p)
