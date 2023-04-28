@@ -156,7 +156,7 @@
 	(finish bc cd rd)
 	(push! (func-bc-consts bc) (second f))
 	(push! (func-bc-code bc) (list 'GSET g rd))
-	(compile-sexp (third f) bc env rd #f)
+	(compile-sexp (third f) bc env rd 'next)
 	)))
 
 (define (compile-let f bc env rd cd)
