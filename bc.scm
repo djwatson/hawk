@@ -50,10 +50,9 @@
 
 ;; TODO reg = free reg set
 (define-record-type func-bc #t #t
-		    (name) (code) (consts) (reg))
+		    (name) (code) (consts))
  (define-getter-with-setter func-bc-code func-bc-code-set!)
  (define-getter-with-setter func-bc-consts func-bc-consts-set!)
- (define-getter-with-setter func-bc-reg func-bc-reg-set!)
 
 (define (finish bc cd r)
   ;; TODO reg
@@ -101,7 +100,7 @@
       (compile-sexp (second f) bc env r1 'if))))
 
 (define (compile-lambda f bc rd cd)
-  (define f-bc (make-func-bc (format "lambda~a" (next-id)) '() '() (length (second f))))
+  (define f-bc (make-func-bc (format "lambda~a" (next-id)) '() '() ))
   (define f-id (length program))
   (push! program f-bc)
   (compile-lambda-internal f f-bc '())
@@ -181,7 +180,7 @@
 (define (compile-letrec f bc env rd cd)
   (define ord rd)
   (define mapping (map (lambda (f)
-			 (define f-bc (make-func-bc (first f) '() '() (length (second (second f)))))
+			 (define f-bc (make-func-bc (first f) '() '()))
 			 (define f-id (length program))
 			 (define r ord)
 			 (inc! ord)
@@ -229,7 +228,7 @@
 	(loop (cdr program) #f))))
 
 (define (compile d)
-  (define bc (make-func-bc "repl" '() '() 0))
+  (define bc (make-func-bc "repl" '() '()))
   (display (format "Compile: ~a \n" d))
   (compile-sexps d bc '() 0 'ret)
   (push! program bc))
@@ -255,7 +254,7 @@
   (fold (lambda (a b)
 	  (display (format "~a: ~a\n" b a))
 	  (+ b 1))
-	0 (reverse (func-bc-consts bc)))
+	0 (func-bc-consts bc))
   (display "Code:\n")
   (fold (lambda (a b)
 	  (display (format "~a: ~a\n" b a))
@@ -263,14 +262,97 @@
 	0 (func-bc-code bc))
   (newline))
 
+;;;;;;;;;;;;;; serialize bc
+
+(define enum '(
+	       (RET 0)
+	       (KSHORT 1)
+	       (ISGE 2)
+	       (JMP 3)
+	       (RET1 4)
+	       (SUBVN 5)
+	       (CALL 6)
+	       (ADDVV 7)
+	       (HALT 8)
+	       (ALLOC 9)
+	       (ISLT 10)
+	       (ISF 11)
+	       (SUBVV 12)
+	       (GGET 13)
+	       (GSET 14)
+	       (KFUNC 15)
+	       (CALLT 16)))
+
+(define (write-uint v p)
+  (write-u8 (remainder v 256) p)
+  (write-u8 (remainder (quotient v 256) 256) p)
+  (write-u8 (remainder (quotient v 65536) 256) p)
+  (write-u8 (remainder (quotient v 16777216) 256) p))
+
+(define (bc-write name program)
+  (define p (open-output-file name))
+  (define globals '())
+  ;; Magic
+  (write-u8 (char->integer #\B) p)
+  (write-u8 (char->integer #\O) p)
+  (write-u8 (char->integer #\O) p)
+  (write-u8 (char->integer #\M) p)
+  ;; version
+  (write-uint 0 p)
+  ;; number of bc
+  (write-uint (length program) p)
+  (for-each
+   (lambda (bc)
+     (write-uint (length (func-bc-consts bc)) p)
+     (for-each
+      (lambda (c)
+	(define pos (length globals))
+	;; TODO intern
+	(when (not (symbol? c))
+	  (display (format "Error: can't serislize: ~a\n" c))
+	  (exit -1))
+	(push! globals c)
+	(write-uint (+ (* pos 8) 4) p))
+      (func-bc-consts bc))
+     (write-uint (length (func-bc-code bc)) p)
+     (for-each
+      (lambda (c)
+	(define ins (assq (first c) enum))
+	(when (not ins)
+	  (display (format "ERROR could not find ins ~a\n" c))
+	  (exit -1))
+	(write-u8 (second ins) p)
+	(write-u8 (if (> (length c) 1) (second c) 0) p)
+	(write-u8 (if (> (length c) 2) (third c) 0) p)
+	(write-u8 (if (> (length c) 3) (fourth c) 0) p))
+      (func-bc-code bc)))
+   program)
+  (write-uint (length globals) p)
+  (for-each
+   (lambda (c)
+     (define s (symbol->string c))
+     (write-uint (string-length s) p)
+     (display (symbol->string c) p))
+   (reverse! globals))
+  (close-output-port p))
+
 ;;;;;;;;;;;;;;;;;; main
 
 (compile (expander))
+;; Get everything in correct order
+;; TODO do this as we are generating with extendable vectors
+(set! program
+      (map (lambda (bc)
+	     (set! (func-bc-consts bc) (reverse (func-bc-consts bc)))
+	     bc)
+	   (reverse! program)))
 
 (fold (lambda (a b)
 	(display (format "~a -- " b))
 	(display-bc a)
 	(+ b 1))
       0
-      (reverse program))
+      program)
+
+(bc-write "out.bc" program)
 
