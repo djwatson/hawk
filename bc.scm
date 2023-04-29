@@ -3,10 +3,9 @@
 ;; * split bc to separate files
 
 ;; TODO
-;; * get 'nqueens' test working
-;;
 ;; * comments in output
 ;; * name more lambdas, define, let
+;; *could add sume 'VN' variations of < >, EQ, etc
 
 
 ;; * lets shouldn't be modified by alexpander, but get let loop working (let-internal?)

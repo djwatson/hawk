@@ -2,6 +2,7 @@
 // Makefile
 // figure out why bit is fatste
 // error checking bytecode reader
+// remove indirection through vector, func directly points to array
 
 #include <stdio.h>
 #include <stdlib.h>
