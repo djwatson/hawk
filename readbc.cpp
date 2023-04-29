@@ -3,7 +3,6 @@
 // error checking bytecode reader
 // remove indirection through vector, func directly points to array
 // remove consts:
-//    hotmap size
 //    various tags
 
 // TODO:
@@ -139,8 +138,9 @@ int run() {
 
   unsigned int* pc = &code[0];
 
-  unsigned char hotmap[64];
-  for(int i = 0; i < 64; i++) {
+  constexpr int hotmap_sz = 64;
+  unsigned char hotmap[hotmap_sz];
+  for(int i = 0; i < hotmap_sz; i++) {
     hotmap[i] = 100;
   }
 
@@ -339,9 +339,9 @@ int run() {
       L_INS_CALL:
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
-      if (hotmap[((long)pc)%64]-- == 0) {
+      if (hotmap[((long)pc)%hotmap_sz]-- == 0) {
 	HOTMAP_SLOWPATH(pc, frame[-1]);
-	hotmap[((long)pc)%64] = 100;
+	hotmap[((long)pc)%hotmap_sz] = 100;
       }
       auto v = frame[INS_A(i) + 1];
       if(unlikely((v & 0x7) != 5)) {
@@ -365,9 +365,9 @@ int run() {
     }
     case 16: {
       L_INS_CALLT:
-      if (hotmap[((long)pc)%64]-- == 0) {
+      if (hotmap[((long)pc)%hotmap_sz]-- == 0) {
 	HOTMAP_SLOWPATH(pc, frame[-1]);
-	hotmap[((long)pc)%64] = 100;
+	hotmap[((long)pc)%hotmap_sz] = 100;
       }
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
