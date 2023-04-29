@@ -34,6 +34,8 @@ enum {
   MOV,
   ISEQ,
   ADDVN,
+  JISEQ,
+  JISLT,
 };
 
 const char* ins_names[] = {
@@ -58,6 +60,8 @@ const char* ins_names[] = {
   "MOV",
   "ISEQ",
   "ADDVN",
+  "JISEQ",
+  "JISLT",
 };
 
 #define CODE(i,a,b,c) ((c << 24) | (b << 16) | (a << 8) | i)
@@ -136,7 +140,9 @@ int run() {
     &&L_INS_KONST,
     &&L_INS_MOV,
     &&L_INS_ISEQ,
-    &&L_INS_ADDVN,
+    &&L_INS_ADDVN, //20
+    &&L_INS_JISEQ,
+    &&L_INS_JISLT,
   };
 
   //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
@@ -167,6 +173,28 @@ int run() {
 	pc+=1;
       } else {
 	pc+=2;
+      }
+      DIRECT;
+      break;
+    }
+    case 21: {
+      L_INS_JISEQ:
+      //printf("ISGE\n");
+      if (frame[INS_B(i)] == frame[INS_C(i)]) {
+	pc+=2;
+      } else {
+	pc+=1;
+      }
+      DIRECT;
+      break;
+    }
+    case 22: {
+      L_INS_JISLT:
+      //printf("ISGE\n");
+      if (frame[INS_B(i)] < frame[INS_C(i)]) {
+	pc+=2;
+      } else {
+	pc+=1;
       }
       DIRECT;
       break;

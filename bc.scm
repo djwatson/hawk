@@ -73,6 +73,9 @@
 	(push! (func-bc-consts bc) c)
 	i)))
 
+(define (branch-dest? cd)
+  (and (pair? cd) (eq? 'if (first cd))))
+
 (define (finish bc cd r)
   (cond
    ((eq? cd 'ret)
@@ -81,7 +84,7 @@
     (let ((jlen (- (length (func-bc-code bc)) cd -1)))
 	    (when (not (eq? jlen 1))
 	      (push! (func-bc-code bc) (list 'JMP jlen)))))
-   ((and (pair? cd) (eq? 'if (first cd)))
+   ((branch-dest? cd)
       (push! (func-bc-code bc) (list 'JMP (third cd)))
       (push! (func-bc-code bc) (list 'ISF r)))
    ((eq? cd 'next))
@@ -105,13 +108,18 @@
       (compile-binary-vv f bc env rd cd)))
 
 (define (compile-binary-vv f bc env rd cd)
-  (define op (second (assq (first f)
-			   '((+ ADDVV) (- SUBVV) (< ISLT)
-			     (= ISEQ)))))
+  (define op (second (if (branch-dest? cd)
+			 (assq (first f)
+			       '((< JISLT) (= JISEQ)))
+			 (assq (first f)
+			       '((+ ADDVV) (- SUBVV) (< ISLT)
+				 (= ISEQ))))))
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
-    (finish bc cd rd)
+    (if (branch-dest? cd)
+	(push! (func-bc-code bc) (list 'JMP (third cd)))
+	(finish bc cd rd))
     (push! (func-bc-code bc) (list op rd r1 r2))
     (compile-sexp (third f) bc env r2 'next)
     (compile-sexp (second f) bc env r1 'next)))
@@ -320,7 +328,9 @@
 	       (KONST 17)
 	       (MOV 18)
 	       (ISEQ 19)
-	       (ADDVN 20)))
+	       (ADDVN 20)
+	       (JISEQ 21)
+	       (JISLT 22)))
 
 (define bc-ins '(KSHORT))
 
