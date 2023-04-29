@@ -3,8 +3,6 @@
 ;; * split bc to separate files
 
 ;; TODO
-;; * control dst for branches
-;; * serializer: consts need to be long, fix sum
 ;; * get 'nqueens' test working
 ;;
 ;; * comments in output
@@ -76,13 +74,18 @@
 	i)))
 
 (define (finish bc cd r)
-  ;; TODO reg
-  (if (eq? cd 'ret)
-      (push! (func-bc-code bc) (list 'RET1 r))
-      (if (number? cd)
-	  (let ((jlen (- (length (func-bc-code bc)) cd -1)))
+  (cond
+   ((eq? cd 'ret)
+    (push! (func-bc-code bc) (list 'RET1 r)))
+   ((number? cd)
+    (let ((jlen (- (length (func-bc-code bc)) cd -1)))
 	    (when (not (eq? jlen 1))
-	      (push! (func-bc-code bc) (list 'JMP jlen)))))))
+	      (push! (func-bc-code bc) (list 'JMP jlen)))))
+   ((and (pair? cd) (eq? 'if (first cd)))
+      (push! (func-bc-code bc) (list 'JMP (third cd)))
+      (push! (func-bc-code bc) (list 'ISF r)))
+   ((eq? cd 'next))
+   (else (display (format "UNKNOWN CONTROL DEST:~a" cd)) (exit -1))))
 
 (define (compile-self-evaluating f bc rd cd)
   ;; TODO save len
@@ -131,9 +134,7 @@
     (compile-sexp (fourth f) bc env rd dest)
     (let ((pos (length (func-bc-code bc))))
       (compile-sexp (third f) bc env rd dest)
-      (push! (func-bc-code bc) (list 'JMP (- (length (func-bc-code bc))  pos -1)))
-      (push! (func-bc-code bc) (list 'ISF r1))
-      (compile-sexp (second f) bc env r1 'if))))
+      (compile-sexp (second f) bc env r1 `(if ,(length (func-bc-code bc)) ,(- (length (func-bc-code bc)) pos -1))))))
 
 (define (compile-lambda f bc rd cd)
   (define f-bc (make-func-bc (format "lambda~a" (next-id)) '() '() ))
@@ -259,7 +260,7 @@
   (let loop ((program (reverse program)) (cd cd))
     (compile-sexp (car program) bc env rd cd)
     (if (pair? (cdr program))
-	(loop (cdr program) #f))))
+	(loop (cdr program) 'next))))
 
 (define (compile d)
   (define bc (make-func-bc "repl" '() '()))
