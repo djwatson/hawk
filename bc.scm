@@ -187,12 +187,13 @@
   (fold
    (lambda (f num)
      (compile-sexp f bc env num 'next)
-     (+ num 1))
-   (if (eq? cd 'ret)
-       rd
-       ;; Leave space for return PC
-       (+ rd 1))
-   f))
+     (- num 1))
+   (+ (length f) -1
+    (if (eq? cd 'ret)
+	rd
+	;; Leave space for return PC
+	(+ rd 1)))
+   (reverse f)))
 
 (define (compile-define f bc env rd cd)
   (if (pair? (second f))
