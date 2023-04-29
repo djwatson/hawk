@@ -2,6 +2,9 @@
 // Makefile
 // error checking bytecode reader
 // remove indirection through vector, func directly points to array
+// remove consts:
+//    hotmap size
+//    various tags
 
 // TODO:
 // recording
@@ -90,7 +93,6 @@ std::vector<std::string> symbols;
 std::vector<bcfunc*> funcs;
 std::unordered_map<std::string, symbol*> symbol_table;
 
-
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
 __attribute__((noinline))
@@ -109,6 +111,11 @@ __attribute__((noinline))
 void UNDEFINED_SYMBOL_SLOWPATH(symbol* s) {
   printf("FAIL undefined symbol: %s\n", s->name.c_str());
   exit(-1);
+}
+__attribute__((noinline))
+void HOTMAP_SLOWPATH(unsigned int* pc, unsigned long f) {
+  bcfunc* func = (bcfunc*)f;
+  //printf("Hotmap hit pc %li\n", pc - &func->code[0]);
 }
 unsigned int stacksz = 1000;
 long*  stack = (long*)malloc(sizeof(long)*stacksz);
@@ -131,6 +138,11 @@ int run() {
   long* frame_top = stack + stacksz;
 
   unsigned int* pc = &code[0];
+
+  unsigned char hotmap[64];
+  for(int i = 0; i < 64; i++) {
+    hotmap[i] = 100;
+  }
 
   //////////NEW:
   // if(0) {
@@ -327,6 +339,10 @@ int run() {
       L_INS_CALL:
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
+      if (hotmap[((long)pc)%64]-- == 0) {
+	HOTMAP_SLOWPATH(pc, frame[-1]);
+	hotmap[((long)pc)%64] = 100;
+      }
       auto v = frame[INS_A(i) + 1];
       if(unlikely((v & 0x7) != 5)) {
 	FAIL_SLOWPATH(v, 0);
@@ -349,6 +365,10 @@ int run() {
     }
     case 16: {
       L_INS_CALLT:
+      if (hotmap[((long)pc)%64]-- == 0) {
+	HOTMAP_SLOWPATH(pc, frame[-1]);
+	hotmap[((long)pc)%64] = 100;
+      }
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
       auto v = frame[INS_A(i)];
@@ -517,7 +537,8 @@ int main() {
     for(unsigned j = 0; j < code_count; j++) {
       fread(&f->code[j], 4, 1, fptr);
       unsigned int code = f->code[j];
-      printf("code: %s %i %i %i BC: %i\n", 
+      printf("%i code: %s %i %i %i BC: %i\n",
+	     j,
 	     ins_names[INS_OP(code)],
 	     INS_A(code),
 	     INS_B(code),
