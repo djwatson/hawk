@@ -333,12 +333,14 @@
      (write-uint (length (func-bc-consts bc)) p)
      (for-each
       (lambda (c)
-	(define pos (length globals))
 	;; TODO intern
 	(cond
 	 ((symbol? c)
-	  (push! globals c)
-	  (write-uint (+ (* pos 8) 4) p))
+	  (let* ((search (find-const globals (- (length globals) 1) c))
+		 (pos (if search search (let ((pos (length globals)))
+					  (push! globals c)
+					  pos))))
+	    (write-uint (+ (* pos 8) 4) p)))
 	 ((integer? c)
 	  (write-uint (* 8 c) p))
 	 (else (display (format "Can't serialize: ~a\n" c)) (exit -1))))
