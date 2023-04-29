@@ -124,7 +124,7 @@ void EXPAND_STACK_SLOWPATH() {
   stacksz *= 2;
   stack = (long*)realloc(stack, stacksz * sizeof(long));
 }
-int run() {
+void run() {
   unsigned int final_code[] = {
     CODE(CALL, 0, 1, 0),
     CODE(HALT, 0, 0, 0)
@@ -413,8 +413,7 @@ int run() {
     case 8: {
       L_INS_HALT:
       printf("Result:%li\n", frame[INS_A(i)] >> 3);
-      exit(0);
-      break;
+      return;
     }
     case 9: {
       L_INS_ALLOC:
@@ -491,8 +490,6 @@ int run() {
 
     //assert(pc < 10);
   }
-  
-  return 0;
 }
 int main() {
   FILE *fptr;
@@ -510,7 +507,7 @@ int main() {
   unsigned int bccount;
   fread(&bccount, 4, 1, fptr);
   for(unsigned i = 0; i < bccount; i++) {
-    bcfunc* f = (bcfunc*)malloc(sizeof(bcfunc));
+    bcfunc* f = new bcfunc;
     if ((((long)f)&0x7)!= 0) {
       printf("Alloc fail\n");
       exit(-1);
@@ -576,5 +573,12 @@ int main() {
     }
   }
   run();
+  free(stack);
+  for(auto& func : funcs) {
+    delete func;
+  }
+  for(auto&s:symbol_table) {
+    delete s.second;
+  }
   return 0;
 }
