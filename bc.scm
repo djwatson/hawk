@@ -57,8 +57,24 @@
 ;; TODO reg = free reg set
 (define-record-type func-bc #t #t
 		    (name) (code) (consts))
- (define-getter-with-setter func-bc-code func-bc-code-set!)
- (define-getter-with-setter func-bc-consts func-bc-consts-set!)
+(define-getter-with-setter func-bc-code func-bc-code-set!)
+(define-getter-with-setter func-bc-consts func-bc-consts-set!)
+
+(define (find-const l i c)
+  (if (pair? l)
+      (if (eq? (car l) c)
+	  i
+	  (find-const (cdr l) (- i 1) c))
+      #f))
+
+(define (get-or-push-const bc c)
+  (define consts (func-bc-consts bc))
+  (define f (find-const consts (- (length consts) 1) c))
+  (if f
+      f
+      (let ((i (length (func-bc-consts bc))))
+	(push! (func-bc-consts bc) c)
+	i)))
 
 (define (finish bc cd r)
   ;; TODO reg
@@ -71,13 +87,11 @@
 
 (define (compile-self-evaluating f bc rd cd)
   ;; TODO save len
-  (define c (length (func-bc-consts bc)))
   (when cd
     (finish bc cd rd)
     (if (and  (number? f) (< (abs f) 65536))
 	(push! (func-bc-code bc) (list 'KSHORT rd f))
-	(begin
-	  (push! (func-bc-consts bc) f)
+	(let ((c (get-or-push-const bc f)))
 	  (push! (func-bc-code bc) (list 'KONST rd c))))))
 
 (define (compile-binary f bc env rd cd)
@@ -140,8 +154,7 @@
   (if loc
       (when (not (= loc r))
 	(push! (func-bc-code bc) (list 'MOV loc r)))
-      (let* ((c (length (func-bc-consts bc))))
-	(push! (func-bc-consts bc) f)
+      (let* ((c (get-or-push-const bc f)))
 	(push! (func-bc-code bc) (list 'GGET r c)))))
 
 (define (compile-call f bc env rd cd)
@@ -157,11 +170,10 @@
       (compile-define
        `(define ,(car (second f)) (lambda ,(cdr (second f)) ,@(cddr f)))
        bc env rd cd)
-      (let* ((g (length (func-bc-consts bc))))
+      (let* ((c (get-or-push-const bc (second f))))
 	;; TODO undef
 	(finish bc cd rd)
-	(push! (func-bc-consts bc) (second f))
-	(push! (func-bc-code bc) (list 'GSET g rd))
+	(push! (func-bc-code bc) (list 'GSET c rd))
 	(compile-sexp (third f) bc env rd 'next)
 	)))
 
