@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
+#include <vector>
 
 enum {
   RET=0,
@@ -13,6 +14,7 @@ enum {
   ADDVV,
   HALT,
   ALLOC,
+  GGET,
 };
 
 /*
@@ -32,9 +34,11 @@ unsigned int code[] = {
     CODE(ISGE, 0, 1, 0),
     CODE(JMP, 1, 2, 0),
     CODE(RET1, 0, 1, 0),
-    CODE(SUBVN, 2, 0, 1),
+    CODE(SUBVN, 3, 0, 1),
+    CODE(GGET, 2, 0, 1),
     CODE(CALL, 0, 1, 2),
-    CODE(SUBVN, 3, 0, 2),
+    CODE(SUBVN, 4, 0, 2),
+    CODE(GGET, 3, 0, 1),
     CODE(CALL, 0, 2, 2),
     CODE(ADDVV, 0, 1, 2),
     CODE(RET1, 0, 0, 0),
@@ -43,6 +47,13 @@ unsigned int code[] = {
     CODE(CALL, 0, 0, 2),
     CODE(HALT, 0, 0, 0)
     };
+
+struct bcfunc{
+  std::vector<long*> consts;
+  unsigned int* code;
+};
+
+std::vector<bcfunc> funcs;
 
 /*
 #define PARAMS unsigned char ra, unsigned instr,unsigned* pc, long* frame
@@ -162,7 +173,13 @@ long ADDVV_SLOWPATH(long a, long b) {
   c+= 1.1;
   return c;
 }
+long sym;
 int main() {
+  bcfunc f;
+  f.consts.push_back(&sym);
+  f.code = code;
+  funcs.push_back(f);
+  sym = (long)&funcs[0];
   /*
   op_table[1] = INS_KSHORT;
   op_table[2] = INS_ISGE;
@@ -174,9 +191,10 @@ int main() {
   op_table[8] = INS_HALT;
   */
   long*  stack = (long*)malloc(sizeof(long)*10000);
-  stack[0] = (unsigned long)&code[11]; // return pc
-  stack[1] = 40; // VALUE
-  long* frame = &stack[1];
+  stack[0] = (unsigned long)&code[13]; // return pc
+  stack[1] = (unsigned long)&funcs[0];
+  stack[2] = 40; // VALUE
+  long* frame = &stack[2];
 
   unsigned int* pc = &code[0];
 
@@ -191,7 +209,8 @@ int main() {
 
   //////////////// OLD:
 
-  void* l_op_table[] = {NULL,
+  void* l_op_table[] = {
+    NULL,
     &&L_INS_KSHORT,
     &&L_INS_ISGE,
     &&L_INS_JMP,
@@ -200,14 +219,16 @@ int main() {
     &&L_INS_CALL,
     &&L_INS_ADDVV,
     &&L_INS_HALT,
+    NULL,
+    &&L_INS_GGET,
   };
 
   //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
   #define DIRECT
   while (true) {
     unsigned int i = *pc;
-    // printf("Running PC %li code %i %i %i %i %x\n", pc - code, INS_OP(i), INS_A(i), INS_B(i), INS_C(i), i);
-    // printf("%li %li \n", frame[0], frame[3]);
+    // printf("Running PC %li frame %li code %i  %i %i %i %x\n", pc - code, frame-stack, INS_OP(i), INS_A(i), INS_B(i), INS_C(i), i);
+    // printf("%li %li %li %li \n", frame[0], frame[1], frame[2], frame[3]);
     
     goto *l_op_table[INS_OP(i)];
       
@@ -223,7 +244,7 @@ int main() {
     case 2: {
       L_INS_ISGE:
       //printf("ISGE\n");
-      if (frame[0] >= frame[1]) {
+      if (frame[INS_A(i)] >= frame[INS_B(i)]) {
 	pc+=1;
       } else {
 	pc+=2;
@@ -241,9 +262,9 @@ int main() {
     case 4: {
       L_INS_RET1:
       //printf("RET\n");
-      pc = (unsigned int*)frame[-1];
-      frame[-1] = frame[INS_A(i)];
-      frame -= (INS_B(*(pc-1)) + 1);
+      pc = (unsigned int*)frame[-2];
+      frame[-2] = frame[INS_A(i)];
+      frame -= (INS_B(*(pc-1)) + 2);
       //printf("Frame is %x\n", frame);
       DIRECT;
       break;
@@ -260,9 +281,12 @@ int main() {
       L_INS_CALL:
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
-      frame[INS_B(i)] = (long)(pc + 1);
-      pc = code;
-      frame += INS_B(i) + 1;
+      unsigned int* old_pc = pc;
+
+      bcfunc* f = (bcfunc*)frame[INS_B(i) + 1];
+      pc = f->code;
+      frame[INS_B(i)] = (long)(old_pc + 1);
+      frame += INS_B(i) + 2;
       // printf("Frame is %x\n", frame);
       DIRECT;
       break;
@@ -291,6 +315,14 @@ int main() {
     }
     case 9: {
       frame[INS_A(i)] = (long)malloc(INS_B(i));
+      break;
+    }
+    case 10: {
+      L_INS_GGET:
+      bcfunc* fp = (bcfunc*)frame[-1];
+      frame[INS_A(i)] = (long)*fp->consts[INS_B(i)];
+      pc++;
+      DIRECT;
       break;
     }
     default: {
