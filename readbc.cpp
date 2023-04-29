@@ -105,6 +105,11 @@ long FAIL_SLOWPATH(long a, long b) {
   exit(-1);
   return a;
 }
+__attribute__((noinline))
+void UNDEFINED_SYMBOL_SLOWPATH(symbol* s) {
+  printf("FAIL undefined symbol: %s\n", s->name.c_str());
+  exit(-1);
+}
 int run() {
   unsigned int final_code[] = {
     CODE(CALL, 0, 1, 0),
@@ -395,11 +400,11 @@ int run() {
     case 13: {
       L_INS_GGET:
       bcfunc* func = (bcfunc*)frame[-1];
-      long* gp = (long*)func->consts[INS_B(i)];
-      if(unlikely(*gp == UNDEFINED)) {
-	FAIL_SLOWPATH(0, 0);
+      symbol* gp = (symbol*)func->consts[INS_B(i)];
+      if(unlikely(gp->val == UNDEFINED)) {
+	UNDEFINED_SYMBOL_SLOWPATH(gp);
       }
-      frame[INS_A(i)] = *gp;
+      frame[INS_A(i)] = gp->val;
       pc++;
       DIRECT;
       break;
@@ -407,8 +412,8 @@ int run() {
     case 14: {
       L_INS_GSET:
       bcfunc* func = (bcfunc*)frame[-1];
-      long* gp = (long*)func->consts[INS_A(i)];
-      *gp = frame[INS_B(i)];
+      symbol* gp = (symbol*)func->consts[INS_A(i)];
+      gp->val = frame[INS_B(i)];
       pc++;
       DIRECT;
       break;
@@ -416,6 +421,7 @@ int run() {
     case 15: {
       L_INS_KFUNC:
       bcfunc* f = funcs[INS_B(i)];
+      // TODO func tag define
       frame[INS_A(i)] = ((long)f)+5;
       pc++;
       DIRECT;
@@ -521,10 +527,9 @@ int main() {
       if ((c&0x7) == 4) {
 	std::string n = symbols[(c - 4)/8];
 	if (symbol_table.find(n) == symbol_table.end()) {
-	  symbol_table[n] = new symbol;
-	  symbol_table[n]->val = UNDEFINED;
+	  symbol_table[n] = new symbol{n, UNDEFINED};
 	}
-	c = (unsigned long)&symbol_table[n]->val;
+	c = (unsigned long)symbol_table[n];
 	printf("Link global %s %lx\n", n.c_str(), c);
       }
     }
