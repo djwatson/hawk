@@ -110,6 +110,14 @@ void UNDEFINED_SYMBOL_SLOWPATH(symbol* s) {
   printf("FAIL undefined symbol: %s\n", s->name.c_str());
   exit(-1);
 }
+unsigned int stacksz = 1000;
+long*  stack = (long*)malloc(sizeof(long)*stacksz);
+__attribute__((noinline))
+void EXPAND_STACK_SLOWPATH() {
+  printf("Expand stack from %i to %i\n", stacksz, stacksz*2);
+  stacksz *= 2;
+  stack = (long*)realloc(stack, stacksz * sizeof(long));
+}
 int run() {
   unsigned int final_code[] = {
     CODE(CALL, 0, 1, 0),
@@ -117,10 +125,10 @@ int run() {
   };
   unsigned int* code = &funcs[0]->code[0];
     
-  long*  stack = (long*)malloc(sizeof(long)*100000);
   stack[0] = (unsigned long)&final_code[1]; // return pc
   stack[1] = (unsigned long)funcs[0]; // func
   long* frame = &stack[2];
+  long* frame_top = stack + stacksz;
 
   unsigned int* pc = &code[0];
 
@@ -328,6 +336,12 @@ int run() {
       auto old_pc = pc;
       pc = &func->code[0];
       frame[INS_A(i)] = (long)(old_pc + 1);
+      if (unlikely((frame + 256 + 2 + INS_A(i)) > frame_top)) {
+	auto pos = frame - stack;
+	EXPAND_STACK_SLOWPATH();
+	frame = stack + pos;
+	frame_top = stack + stacksz;
+      }
       frame += INS_A(i) + 2;
       // printf("Frame is %x\n", frame);
       DIRECT;
@@ -348,6 +362,12 @@ int run() {
       auto cnt = INS_B(i) - 1;
       for(auto i = 0; i < cnt; i++) {
 	frame[i] = frame[start+i];
+      }
+      if (unlikely((frame + 256) > frame_top)) {
+	auto pos = frame - stack;
+	EXPAND_STACK_SLOWPATH();
+	frame = stack + pos;
+	frame_top = stack + stacksz;
       }
       // printf("Frame is %x\n", frame);
       DIRECT;
