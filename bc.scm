@@ -1,6 +1,7 @@
 ;; CLEANUP
 ;; * cleanup bytecode ops order
 ;; * split bc to separate files
+;; * Double check 'VN' use D reg
 
 ;; TODO
 ;; * comments in output

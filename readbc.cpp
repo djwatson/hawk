@@ -4,6 +4,11 @@
 // error checking bytecode reader
 // remove indirection through vector, func directly points to array
 
+// TODO:
+// Do all safety checking
+// recording
+// super-simple jit: sum, fib, ack, tak
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <vector>
