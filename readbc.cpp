@@ -1,4 +1,3 @@
-// TODO: func isn't reset on RET
 // Split to separate files
 // Makefile
 // figure out why bit is fatste
@@ -103,10 +102,10 @@ int run() {
     
   long*  stack = (long*)malloc(sizeof(long)*100000);
   stack[0] = (unsigned long)&final_code[1]; // return pc
-  long* frame = &stack[1];
+  stack[1] = (unsigned long)&funcs[0]; // func
+  long* frame = &stack[2];
 
   unsigned int* pc = &code[0];
-  bcfunc* func = &funcs[0];
 
   //////////NEW:
   // if(0) {
@@ -243,9 +242,9 @@ int run() {
       L_INS_RET1:
       // TODO constants
       //printf("RET\n");
-      pc = (unsigned int*)frame[-1];
-      frame[-1] = frame[INS_A(i)];
-      frame -= (INS_A(*(pc-1)) + 1);
+      pc = (unsigned int*)frame[-2];
+      frame[-2] = frame[INS_A(i)];
+      frame -= (INS_A(*(pc-1)) + 2);
       //printf("Frame is %x\n", frame);
       DIRECT;
       break;
@@ -270,11 +269,11 @@ int run() {
       L_INS_CALL:
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
-      func = (bcfunc*)frame[INS_A(i)];
+      bcfunc* func = (bcfunc*)frame[INS_A(i) + 1];
       auto old_pc = pc;
       pc = &func->code[0];
       frame[INS_A(i)] = (long)(old_pc + 1);
-      frame += INS_A(i) + 1;
+      frame += INS_A(i) + 2;
       // printf("Frame is %x\n", frame);
       DIRECT;
       break;
@@ -283,7 +282,7 @@ int run() {
       L_INS_CALLT:
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
-      func = (bcfunc*)frame[INS_A(i)];
+      bcfunc* func = (bcfunc*)frame[INS_A(i)];
       pc = &func->code[0];
       long start = INS_A(i) + 1;
       auto cnt = INS_B(i) - 1;
@@ -332,6 +331,7 @@ int run() {
     }
     case 13: {
       L_INS_GGET:
+      bcfunc* func = (bcfunc*)frame[-1];
       long* gp = (long*)func->consts[INS_B(i)];
       frame[INS_A(i)] = *gp;
       pc++;
@@ -340,6 +340,7 @@ int run() {
     }
     case 14: {
       L_INS_GSET:
+      bcfunc* func = (bcfunc*)frame[-1];
       long* gp = (long*)func->consts[INS_A(i)];
       *gp = frame[INS_B(i)];
       pc++;
@@ -356,6 +357,7 @@ int run() {
     }
     case 17: {
       L_INS_KONST:
+      bcfunc* func = (bcfunc*)frame[-1];
       frame[INS_A(i)] = func->consts[INS_B(i)] >> 3;
       pc++;
       DIRECT;

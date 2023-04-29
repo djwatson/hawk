@@ -188,7 +188,11 @@
    (lambda (f num)
      (compile-sexp f bc env num 'next)
      (+ num 1))
-   rd f))
+   (if (eq? cd 'ret)
+       rd
+       ;; Leave space for return PC
+       (+ rd 1))
+   f))
 
 (define (compile-define f bc env rd cd)
   (if (pair? (second f))
