@@ -88,12 +88,20 @@
   ;; TODO save len
   (when cd
     (finish bc cd rd)
-    (if (and  (number? f) (< (abs f) 65536))
+    (if (and  (number? f) (< (abs f) 65535))
 	(push! (func-bc-code bc) (list 'KSHORT rd f))
 	(let ((c (get-or-push-const bc f)))
 	  (push! (func-bc-code bc) (list 'KONST rd c))))))
 
 (define (compile-binary f bc env rd cd)
+  (define vn '(- +))
+  (if (and (memq (first f) vn)
+	   (number? (third f))
+	   (< (abs (third f)) 65535))
+      (compile-binary-vn f bc env rd cd)
+      (compile-binary-vv f bc env rd cd)))
+
+(define (compile-binary-vv f bc env rd cd)
   (define op (second (assq (first f)
 			   '((+ ADDVV) (- SUBVV) (< ISLT)
 			     (= ISEQ)))))
@@ -103,6 +111,15 @@
     (finish bc cd rd)
     (push! (func-bc-code bc) (list op rd r1 r2))
     (compile-sexp (third f) bc env r2 'next)
+    (compile-sexp (second f) bc env r1 'next)))
+
+(define (compile-binary-vn f bc env rd cd)
+  (define op (second (assq (first f)
+			   '((+ ADDVN) (- SUBVN)))))
+  (define r1 (exp-loc (second f) env rd))
+  (when cd
+    (finish bc cd rd)
+    (push! (func-bc-code bc) (list op rd r1 (third f)))
     (compile-sexp (second f) bc env r1 'next)))
 
 (define (compile-if f bc env rd cd)
@@ -301,7 +318,8 @@
 	       (CALLT 16)
 	       (KONST 17)
 	       (MOV 18)
-	       (ISEQ 19)))
+	       (ISEQ 19)
+	       (ADDVN 20)))
 
 (define bc-ins '(KSHORT))
 

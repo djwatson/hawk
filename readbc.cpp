@@ -33,6 +33,7 @@ enum {
   KONST,
   MOV,
   ISEQ,
+  ADDVN,
 };
 
 const char* ins_names[] = {
@@ -56,6 +57,7 @@ const char* ins_names[] = {
   "KONST",
   "MOV",
   "ISEQ",
+  "ADDVN",
 };
 
 #define CODE(i,a,b,c) ((c << 24) | (b << 16) | (a << 8) | i)
@@ -134,6 +136,7 @@ int run() {
     &&L_INS_KONST,
     &&L_INS_MOV,
     &&L_INS_ISEQ,
+    &&L_INS_ADDVN,
   };
 
   //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
@@ -223,6 +226,14 @@ int run() {
       L_INS_SUBVN:
       //printf("SUBVN\n");
       frame[INS_A(i)] = frame[INS_B(i)] - INS_C(i);
+      pc++;
+      DIRECT;
+      break;
+    }
+    case 20: {
+      L_INS_ADDVN:
+      //printf("SUBVN\n");
+      frame[INS_A(i)] = frame[INS_B(i)] + INS_C(i);
       pc++;
       DIRECT;
       break;
