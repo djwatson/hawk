@@ -98,6 +98,12 @@ long ADDVV_SLOWPATH(long a, long b) {
   c+= 1.1;
   return c;
 }
+__attribute__((noinline))
+long FAIL_SLOWPATH(long a, long b) {
+  printf("FAIL not an int\n");
+  exit(-1);
+  return a;
+}
 int run() {
   unsigned int final_code[] = {
     CODE(CALL, 0, 1, 0),
@@ -165,7 +171,7 @@ int run() {
     case 1: {
       L_INS_KSHORT:
       //      printf("KSHORT\n");
-      frame[INS_A(i)] = INS_BC(i);
+      frame[INS_A(i)] = INS_BC(i) << 3;
       pc++;
       DIRECT;
       break;
@@ -173,7 +179,12 @@ int run() {
     case 2: {
       L_INS_ISGE:
       //printf("ISGE\n");
-      if (frame[INS_A(i)] >= frame[INS_B(i)]) {
+      long fa = frame[INS_A(i)];
+      long fb = frame[INS_B(i)];
+      if (unlikely(1&(fa | fb))) {
+	FAIL_SLOWPATH(fa, fb);
+      }
+      if (fa >= fb) {
 	pc+=1;
       } else {
 	pc+=2;
@@ -184,7 +195,12 @@ int run() {
     case 21: {
       L_INS_JISEQ:
       //printf("ISGE\n");
-      if (frame[INS_B(i)] == frame[INS_C(i)]) {
+      long fb = frame[INS_B(i)];
+      long fc = frame[INS_C(i)];
+      if (unlikely(1&(fc | fb))) {
+	FAIL_SLOWPATH(fb, fc);
+      }
+      if (fb == fc) {
 	pc+=2;
       } else {
 	pc+=1;
@@ -195,7 +211,12 @@ int run() {
     case 22: {
       L_INS_JISLT:
       //printf("ISGE\n");
-      if (frame[INS_B(i)] < frame[INS_C(i)]) {
+      long fb = frame[INS_B(i)];
+      long fc = frame[INS_C(i)];
+      if (unlikely(1&(fc | fb))) {
+	FAIL_SLOWPATH(fb, fc);
+      }
+      if (fb < fc) {
 	pc+=2;
       } else {
 	pc+=1;
@@ -205,7 +226,12 @@ int run() {
     }
     case 10: {
       L_INS_ISLT:
-      if (frame[INS_B(i)] < frame[INS_C(i)]) {
+      long fb = frame[INS_B(i)];
+      long fc = frame[INS_C(i)];
+      if (unlikely(1&(fc | fb))) {
+	FAIL_SLOWPATH(fb, fc);
+      }
+      if (fb < fc) {
 	frame[INS_A(i)] = 1;
       } else {
 	frame[INS_A(i)] = 0;
@@ -216,7 +242,12 @@ int run() {
     }
     case 19: {
       L_INS_ISEQ:
-      if (frame[INS_B(i)] == frame[INS_C(i)]) {
+      long fb = frame[INS_B(i)];
+      long fc = frame[INS_C(i)];
+      if (unlikely(1&(fc | fb))) {
+	FAIL_SLOWPATH(fb, fc);
+      }
+      if (fb == fc) {
 	frame[INS_A(i)] = 1;
       } else {
 	frame[INS_A(i)] = 0;
@@ -257,7 +288,11 @@ int run() {
     case 5: {
       L_INS_SUBVN:
       //printf("SUBVN\n");
-      frame[INS_A(i)] = frame[INS_B(i)] - INS_C(i);
+      long fb = frame[INS_B(i)];
+      if (unlikely(1&fb)) {
+	FAIL_SLOWPATH(fb, 0);
+      }
+      frame[INS_A(i)] = fb - (INS_C(i) << 3);
       pc++;
       DIRECT;
       break;
@@ -265,7 +300,11 @@ int run() {
     case 20: {
       L_INS_ADDVN:
       //printf("SUBVN\n");
-      frame[INS_A(i)] = frame[INS_B(i)] + INS_C(i);
+      long fb = frame[INS_B(i)];
+      if (unlikely(1&fb)) {
+	FAIL_SLOWPATH(fb, 0);
+      }
+      frame[INS_A(i)] = fb + (INS_C(i) << 3);
       pc++;
       DIRECT;
       break;
@@ -305,7 +344,7 @@ int run() {
       //printf("ADDVV");
       auto rb = frame[INS_B(i)];
       auto rc = frame[INS_C(i)];
-      if (unlikely((1UL<<63)&(rb|rc))) {
+      if (unlikely(1&(rb|rc))) {
 	frame[INS_A(i)] = ADDVV_SLOWPATH(rb, rc);
       } else {
 	if (__builtin_add_overflow(rb, rc, &frame[INS_A(i)])) {
@@ -318,7 +357,7 @@ int run() {
     }
     case 8: {
       L_INS_HALT:
-      printf("Result:%li\n", frame[INS_A(i)]);
+      printf("Result:%li\n", frame[INS_A(i)] >> 3);
       exit(0);
       break;
     }
@@ -329,8 +368,13 @@ int run() {
     }
     case 12: {
       L_INS_SUBVV:
+      long fb = frame[INS_B(i)];
+      long fc = frame[INS_C(i)];
+      if (unlikely(1&(fc | fb))) {
+	FAIL_SLOWPATH(fb, fc);
+      }
       //printf("SUBVN\n");
-      frame[INS_A(i)] = frame[INS_B(i)] - frame[INS_C(i)];
+      frame[INS_A(i)] = fb - fc;
       pc++;
       DIRECT;
       break;
@@ -364,7 +408,7 @@ int run() {
     case 17: {
       L_INS_KONST:
       bcfunc* func = (bcfunc*)frame[-1];
-      frame[INS_A(i)] = func->consts[INS_B(i)] >> 3;
+      frame[INS_A(i)] = func->consts[INS_B(i)];
       pc++;
       DIRECT;
       break;
@@ -418,7 +462,7 @@ int main() {
       if ((f.consts[j]&0xf) == 4) {
 	printf("symbol: %li\n", (f.consts[j]-4)/8);
       } else {
-	printf("const: %li\n", f.consts[j] >> 3);
+	printf("const: %li\n", f.consts[j]>> 3);
       }
     }
     fread(&code_count, 4, 1, fptr);
