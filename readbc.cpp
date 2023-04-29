@@ -284,6 +284,7 @@ int run() {
       // printf("Frame is %x\n", frame);
       bcfunc* func = (bcfunc*)frame[INS_A(i)];
       pc = &func->code[0];
+      frame[-1] = frame[INS_A(i)];
       long start = INS_A(i) + 1;
       auto cnt = INS_B(i) - 1;
       for(auto i = 0; i < cnt; i++) {
