@@ -4,7 +4,6 @@
 // remove indirection through vector, func directly points to array
 
 // TODO:
-// Do all safety checking
 // recording
 // super-simple jit: sum, fib, ack, tak
 
@@ -13,6 +12,8 @@
 #include <vector>
 #include <unordered_map>
 #include <string>
+
+#define UNDEFINED 27
 
 //#define DEBUG
 
@@ -86,7 +87,7 @@ struct symbol {
 };
 
 std::vector<std::string> symbols;
-std::vector<bcfunc> funcs;
+std::vector<bcfunc*> funcs;
 std::unordered_map<std::string, symbol*> symbol_table;
 
 
@@ -109,11 +110,11 @@ int run() {
     CODE(CALL, 0, 1, 0),
     CODE(HALT, 0, 0, 0)
   };
-  unsigned int* code = &funcs[0].code[0];
+  unsigned int* code = &funcs[0]->code[0];
     
   long*  stack = (long*)malloc(sizeof(long)*100000);
   stack[0] = (unsigned long)&final_code[1]; // return pc
-  stack[1] = (unsigned long)&funcs[0]; // func
+  stack[1] = (unsigned long)funcs[0]; // func
   long* frame = &stack[2];
 
   unsigned int* pc = &code[0];
@@ -170,7 +171,6 @@ int run() {
     switch (INS_OP(i)) {
     case 1: {
       L_INS_KSHORT:
-      //      printf("KSHORT\n");
       frame[INS_A(i)] = INS_BC(i) << 3;
       pc++;
       DIRECT;
@@ -178,7 +178,6 @@ int run() {
     }
     case 2: {
       L_INS_ISGE:
-      //printf("ISGE\n");
       long fa = frame[INS_A(i)];
       long fb = frame[INS_B(i)];
       if (unlikely(1&(fa | fb))) {
@@ -231,6 +230,7 @@ int run() {
       if (unlikely(1&(fc | fb))) {
 	FAIL_SLOWPATH(fb, fc);
       }
+      // TODO true/false
       if (fb < fc) {
 	frame[INS_A(i)] = 1;
       } else {
@@ -247,6 +247,7 @@ int run() {
       if (unlikely(1&(fc | fb))) {
 	FAIL_SLOWPATH(fb, fc);
       }
+      // TODO true/false
       if (fb == fc) {
 	frame[INS_A(i)] = 1;
       } else {
@@ -258,7 +259,7 @@ int run() {
     }
     case 11: {
       L_INS_ISF:
-      //printf("ISGE\n");
+      // TODO false
       if (0 == frame[INS_A(i)]) {
 	pc+=1;
       } else {
@@ -269,7 +270,6 @@ int run() {
     }
     case 3: {
       L_INS_JMP:
-      //printf("JMP\n");
       pc += INS_A(i);
       DIRECT;
       break;
@@ -277,22 +277,21 @@ int run() {
     case 4: {
       L_INS_RET1:
       // TODO constants
-      //printf("RET\n");
       pc = (unsigned int*)frame[-2];
       frame[-2] = frame[INS_A(i)];
       frame -= (INS_A(*(pc-1)) + 2);
-      //printf("Frame is %x\n", frame);
       DIRECT;
       break;
     }
     case 5: {
       L_INS_SUBVN:
-      //printf("SUBVN\n");
       long fb = frame[INS_B(i)];
       if (unlikely(1&fb)) {
 	FAIL_SLOWPATH(fb, 0);
       }
-      frame[INS_A(i)] = fb - (INS_C(i) << 3);
+      if (unlikely(__builtin_sub_overflow(fb, (INS_C(i) << 3), &frame[INS_A(i)]))) {
+	FAIL_SLOWPATH(fb, 0);
+      }
       pc++;
       DIRECT;
       break;
@@ -304,7 +303,9 @@ int run() {
       if (unlikely(1&fb)) {
 	FAIL_SLOWPATH(fb, 0);
       }
-      frame[INS_A(i)] = fb + (INS_C(i) << 3);
+      if (unlikely(__builtin_add_overflow(fb, (INS_C(i) << 3), &frame[INS_A(i)]))) {
+	FAIL_SLOWPATH(fb, 0);
+      }
       pc++;
       DIRECT;
       break;
@@ -313,7 +314,12 @@ int run() {
       L_INS_CALL:
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
-      bcfunc* func = (bcfunc*)frame[INS_A(i) + 1];
+      auto v = frame[INS_A(i) + 1];
+      if(unlikely((v & 0x7) != 5)) {
+	FAIL_SLOWPATH(v, 0);
+      }
+      bcfunc* func = (bcfunc*)(v -5);
+      frame[INS_A(i) + 1] = (long)func;
       auto old_pc = pc;
       pc = &func->code[0];
       frame[INS_A(i)] = (long)(old_pc + 1);
@@ -326,9 +332,13 @@ int run() {
       L_INS_CALLT:
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
-      bcfunc* func = (bcfunc*)frame[INS_A(i)];
+      auto v = frame[INS_A(i)];
+      if(unlikely((v & 0x7) != 5)) {
+	FAIL_SLOWPATH(v, 0);
+      }
+      bcfunc* func = (bcfunc*)(v -5);
       pc = &func->code[0];
-      frame[-1] = frame[INS_A(i)];
+      frame[-1] = (long)func;
       long start = INS_A(i) + 1;
       auto cnt = INS_B(i) - 1;
       for(auto i = 0; i < cnt; i++) {
@@ -347,7 +357,7 @@ int run() {
       if (unlikely(1&(rb|rc))) {
 	frame[INS_A(i)] = ADDVV_SLOWPATH(rb, rc);
       } else {
-	if (__builtin_add_overflow(rb, rc, &frame[INS_A(i)])) {
+	if (unlikely(__builtin_add_overflow(rb, rc, &frame[INS_A(i)]))) {
 	  frame[INS_A(i)] = ADDVV_SLOWPATH(rb, rc);
 	}
       }
@@ -363,18 +373,21 @@ int run() {
     }
     case 9: {
       L_INS_ALLOC:
+      // TODO
       frame[INS_A(i)] = (long)malloc(INS_B(i));
       break;
     }
     case 12: {
       L_INS_SUBVV:
-      long fb = frame[INS_B(i)];
-      long fc = frame[INS_C(i)];
-      if (unlikely(1&(fc | fb))) {
-	FAIL_SLOWPATH(fb, fc);
+      long rb = frame[INS_B(i)];
+      long rc = frame[INS_C(i)];
+      if (unlikely(1&(rb|rc))) {
+	frame[INS_A(i)] = ADDVV_SLOWPATH(rb, rc);
+      } else {
+	if (unlikely(__builtin_sub_overflow(rb, rc, &frame[INS_A(i)]))) {
+	  FAIL_SLOWPATH(rb, rc);
+	}
       }
-      //printf("SUBVN\n");
-      frame[INS_A(i)] = fb - fc;
       pc++;
       DIRECT;
       break;
@@ -383,6 +396,9 @@ int run() {
       L_INS_GGET:
       bcfunc* func = (bcfunc*)frame[-1];
       long* gp = (long*)func->consts[INS_B(i)];
+      if(unlikely(*gp == UNDEFINED)) {
+	FAIL_SLOWPATH(0, 0);
+      }
       frame[INS_A(i)] = *gp;
       pc++;
       DIRECT;
@@ -399,8 +415,8 @@ int run() {
     }
     case 15: {
       L_INS_KFUNC:
-      bcfunc* f = &funcs[INS_B(i)];
-      frame[INS_A(i)] = (long)f;
+      bcfunc* f = funcs[INS_B(i)];
+      frame[INS_A(i)] = ((long)f)+5;
       pc++;
       DIRECT;
       break;
@@ -448,29 +464,33 @@ int main() {
   unsigned int bccount;
   fread(&bccount, 4, 1, fptr);
   for(unsigned i = 0; i < bccount; i++) {
-    bcfunc f;
+    bcfunc* f = (bcfunc*)malloc(sizeof(bcfunc));
+    if ((((long)f)&0x7)!= 0) {
+      printf("Alloc fail\n");
+      exit(-1);
+    }
     unsigned int const_count;
     unsigned int code_count;
     fread(&const_count, 4, 1, fptr);
     printf("%i: constsize %i \n", i, const_count);
-    f.consts.resize(const_count);
+    f->consts.resize(const_count);
     for(unsigned j = 0; j < const_count; j++) {
-      if (fread(&f.consts[j], 8, 1, fptr) != 1) {
+      if (fread(&f->consts[j], 8, 1, fptr) != 1) {
 	printf("Error: Could not read consts\n");
 	exit(-1);
       }
-      if ((f.consts[j]&0xf) == 4) {
-	printf("symbol: %li\n", (f.consts[j]-4)/8);
+      if ((f->consts[j]&0xf) == 4) {
+	printf("symbol: %li\n", (f->consts[j]-4)/8);
       } else {
-	printf("const: %li\n", f.consts[j]>> 3);
+	printf("const: %li\n", f->consts[j]>> 3);
       }
     }
     fread(&code_count, 4, 1, fptr);
-    f.code.resize(code_count);
+    f->code.resize(code_count);
     printf("%i: code %i\n", i, code_count);
     for(unsigned j = 0; j < code_count; j++) {
-      fread(&f.code[j], 4, 1, fptr);
-      unsigned int code = f.code[j];
+      fread(&f->code[j], 4, 1, fptr);
+      unsigned int code = f->code[j];
       printf("code: %s %i %i %i BC: %i\n", 
 	     ins_names[INS_OP(code)],
 	     INS_A(code),
@@ -497,11 +517,12 @@ int main() {
   fclose(fptr);
   // Link the symbols
   for(auto &bc : funcs) {
-    for(auto &c : bc.consts) {
+    for(auto &c : bc->consts) {
       if ((c&0x7) == 4) {
 	std::string n = symbols[(c - 4)/8];
 	if (symbol_table.find(n) == symbol_table.end()) {
 	  symbol_table[n] = new symbol;
+	  symbol_table[n]->val = UNDEFINED;
 	}
 	c = (unsigned long)&symbol_table[n]->val;
 	printf("Link global %s %lx\n", n.c_str(), c);
