@@ -1,4 +1,8 @@
 // TODO: func isn't reset on RET
+// Split to separate files
+// Makefile
+// figure out why bit is fatste
+// error checking bytecode reader
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -54,12 +58,6 @@ const char* ins_names[] = {
   "ISEQ",
 };
 
-/*
- (if (< n 2)
-     n
-     (+ (recursive (- n 1))
-        (recursive (- n 2))))
- */
 #define CODE(i,a,b,c) ((c << 24) | (b << 16) | (a << 8) | i)
 #define INS_OP(i) (i&0xff)
 #define INS_A(i) ((i>>8)&0xff)
@@ -363,10 +361,13 @@ int main() {
     unsigned int const_count;
     unsigned int code_count;
     fread(&const_count, 4, 1, fptr);
+    printf("%i: constsize %i \n", i, const_count);
     f.consts.resize(const_count);
     for(unsigned j = 0; j < const_count; j++) {
-      f.consts[j] = 0;
-      fread(&f.consts[j], 4, 1, fptr);
+      if (fread(&f.consts[j], 8, 1, fptr) != 1) {
+	printf("Error: Could not read consts\n");
+	exit(-1);
+      }
       if ((f.consts[j]&0xf) == 4) {
 	printf("symbol: %li\n", (f.consts[j]-4)/8);
       } else {
@@ -375,6 +376,7 @@ int main() {
     }
     fread(&code_count, 4, 1, fptr);
     f.code.resize(code_count);
+    printf("%i: code %i\n", i, code_count);
     for(unsigned j = 0; j < code_count; j++) {
       fread(&f.code[j], 4, 1, fptr);
       unsigned int code = f.code[j];
@@ -385,7 +387,6 @@ int main() {
 	     INS_C(code),
 	     INS_BC(code));
     }
-    printf("%i: const %i code %i\n", i, const_count, code_count);
     funcs.push_back(f);
   }
   unsigned int g_count;

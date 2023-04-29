@@ -1,11 +1,9 @@
 ;; CLEANUP
 ;; * cleanup bytecode ops order
 ;; * split bc to separate files
-;; * use bitops in bc
 
 ;; TODO
 ;; * control dst for branches
-;; * intern consts
 ;; * serializer: consts need to be long, fix sum
 ;; * get 'nqueens' test working
 ;;
@@ -27,6 +25,7 @@
 (import (srfi 28)) ;; basic format
 (import (srfi 69)) ;; hash-table
 (import (srfi 99)) ;; define-record-type
+(import (srfi 151)) ;; bitwise-ops
 (define-syntax define-getter-with-setter
   (syntax-rules ()
     ((_ getter setter)
@@ -307,10 +306,20 @@
 (define bc-ins '(KSHORT))
 
 (define (write-uint v p)
-  (write-u8 (remainder v 256) p)
-  (write-u8 (remainder (quotient v 256) 256) p)
-  (write-u8 (remainder (quotient v 65536) 256) p)
-  (write-u8 (remainder (quotient v 16777216) 256) p))
+  (write-u8 (bitwise-and v #xff) p)
+  (write-u8 (bitwise-and (arithmetic-shift v -8) #xff) p)
+  (write-u8 (bitwise-and (arithmetic-shift v -16) #xff) p)
+  (write-u8 (bitwise-and (arithmetic-shift v -24) #xff) p))
+
+(define (write-u64 v p)
+  (write-u8 (bitwise-and v #xff) p)
+  (write-u8 (bitwise-and (arithmetic-shift v -8) #xff) p)
+  (write-u8 (bitwise-and (arithmetic-shift v -16) #xff) p)
+  (write-u8 (bitwise-and (arithmetic-shift v -24) #xff) p)
+  (write-u8 (bitwise-and (arithmetic-shift v -32) #xff) p)
+  (write-u8 (bitwise-and (arithmetic-shift v -40) #xff) p)
+  (write-u8 (bitwise-and (arithmetic-shift v -48) #xff) p)
+  (write-u8 (bitwise-and (arithmetic-shift v -56) #xff) p))
 
 (define (write-u16 v p)
   (write-u8 (remainder v 256) p)
@@ -340,9 +349,9 @@
 		 (pos (if search search (let ((pos (length globals)))
 					  (push! globals c)
 					  pos))))
-	    (write-uint (+ (* pos 8) 4) p)))
+	    (write-u64 (+ (* pos 8) 4) p)))
 	 ((integer? c)
-	  (write-uint (* 8 c) p))
+	  (write-u64 (* 8 c) p))
 	 (else (display (format "Can't serialize: ~a\n" c)) (exit -1))))
       (func-bc-consts bc))
      (write-uint (length (func-bc-code bc)) p)
