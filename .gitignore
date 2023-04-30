@@ -1,0 +1,6 @@
+*~
+*.o
+*.d
+perf.data*
+out.bc
+boom
