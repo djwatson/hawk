@@ -1,6 +1,9 @@
+#include <string.h>
+
 #include "bytecode.h"
 #include "vm.h"
 #include "record.h"
+
 
 std::vector<bcfunc*> funcs;
 std::unordered_map<std::string, symbol*> symbol_table;
@@ -58,7 +61,8 @@ void run() {
     hotmap[i] = hotmap_cnt;
   }
 
-  void* l_op_table[] = {
+  void* l_op_table[32];
+  void* l_op_table_interpret[] = {
     NULL,
     &&L_INS_KSHORT,
     &&L_INS_ISGE,
@@ -83,6 +87,33 @@ void run() {
     &&L_INS_JISEQ,
     &&L_INS_JISLT,
   };
+  void* l_op_table_record[] = {
+    NULL,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+    &&L_INS_RECORD,
+  };
+  memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
 
   //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
 #define DIRECT
@@ -91,10 +122,9 @@ void run() {
 #ifdef DEBUG
      printf("Running PC %li code %s %i %i %i\n", pc - code, ins_names[INS_OP(i)], INS_A(i), INS_B(i), INS_C(i));
      printf("frame %li: %li %li %li %li\n", frame-stack, frame[0], frame[1], frame[2], frame[3]);
-#else
+#endif
     
     goto *l_op_table[INS_OP(i)];
-    #endif
       
     switch (INS_OP(i)) {
     case 1: {
@@ -236,11 +266,11 @@ void run() {
     }
     case 6: {
       L_INS_CALL:
-      hotmap[((long)pc)%hotmap_sz] -= hotmap_rec;
-      if (hotmap[((long)pc)%hotmap_sz] == 0) {
+      if (unlikely((hotmap[(((long)pc)>>2)&hotmap_mask] -= hotmap_rec) == 0)) {
+	hotmap[(((long)pc)>>2)&hotmap_mask] = hotmap_cnt;
+	memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
 	HOTMAP_SLOWPATH(pc, frame[-1]);
-	hotmap[((long)pc)%hotmap_sz] = 100;
-      }
+      } 
       auto v = frame[INS_A(i) + 1];
       if(unlikely((v & 0x7) != 5)) {
 	FAIL_SLOWPATH(v, 0);
@@ -262,11 +292,11 @@ void run() {
     }
     case 16: {
       L_INS_CALLT:
-      hotmap[((long)pc)%hotmap_sz] -= hotmap_tail_rec;
-      if (hotmap[((long)pc)%hotmap_sz] == 0) {
+      if (unlikely((hotmap[(((long)pc)>>2)&hotmap_mask] -= hotmap_tail_rec) == 0)) {
+	hotmap[(((long)pc)>>2)&hotmap_mask] = hotmap_cnt;
+	memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
 	HOTMAP_SLOWPATH(pc, frame[-1]);
-	hotmap[((long)pc)%hotmap_sz] = 100;
-      }
+      } 
       auto v = frame[INS_A(i)];
       if(unlikely((v & 0x7) != 5)) {
 	FAIL_SLOWPATH(v, 0);
@@ -373,6 +403,16 @@ void run() {
       frame[INS_B(i)] = frame[INS_A(i)];
       pc++;
       DIRECT;
+      break;
+    }
+
+
+    case 23: {
+      L_INS_RECORD:
+      if (record_instr(pc)) {
+	memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
+      }
+      goto *l_op_table_interpret[INS_OP(i)];
       break;
     }
 
