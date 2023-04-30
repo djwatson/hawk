@@ -1,5 +1,6 @@
 #include "bytecode.h"
 #include "vm.h"
+#include "record.h"
 
 std::vector<bcfunc*> funcs;
 std::unordered_map<std::string, symbol*> symbol_table;
@@ -27,7 +28,7 @@ void UNDEFINED_SYMBOL_SLOWPATH(symbol* s) {
 __attribute__((noinline))
 void HOTMAP_SLOWPATH(unsigned int* pc, unsigned long f) {
   bcfunc* func = (bcfunc*)f;
-  //printf("Hotmap hit pc %li\n", pc - &func->code[0]);
+  record_start(pc);
 }
 unsigned int stacksz = 1000;
 long*  stack = (long*)malloc(sizeof(long)*stacksz);
@@ -120,7 +121,6 @@ void run() {
     }
     case 21: {
       L_INS_JISEQ:
-      //printf("ISGE\n");
       long fb = frame[INS_B(i)];
       long fc = frame[INS_C(i)];
       if (unlikely(1&(fc | fb))) {
@@ -202,7 +202,6 @@ void run() {
     }
     case 4: {
       L_INS_RET1:
-      // TODO constants
       pc = (unsigned int*)frame[-2];
       frame[-2] = frame[INS_A(i)];
       frame -= (INS_A(*(pc-1)) + 2);
@@ -224,7 +223,6 @@ void run() {
     }
     case 20: {
       L_INS_ADDVN:
-      //printf("SUBVN\n");
       long fb = frame[INS_B(i)];
       if (unlikely(1&fb)) {
 	FAIL_SLOWPATH(fb, 0);
@@ -259,7 +257,6 @@ void run() {
 	frame_top = stack + stacksz;
       }
       frame += INS_A(i) + 2;
-      // printf("Frame is %x\n", frame);
       DIRECT;
       break;
     }
@@ -270,8 +267,6 @@ void run() {
 	HOTMAP_SLOWPATH(pc, frame[-1]);
 	hotmap[((long)pc)%hotmap_sz] = 100;
       }
-      // printf("CALL\n");
-      // printf("Frame is %x\n", frame);
       auto v = frame[INS_A(i)];
       if(unlikely((v & 0x7) != 5)) {
 	FAIL_SLOWPATH(v, 0);
@@ -290,14 +285,12 @@ void run() {
 	frame = stack + pos;
 	frame_top = stack + stacksz;
       }
-      // printf("Frame is %x\n", frame);
       DIRECT;
       break;
     }
       
     case 7: {
       L_INS_ADDVV:
-      //printf("ADDVV");
       auto rb = frame[INS_B(i)];
       auto rc = frame[INS_C(i)];
       if (unlikely(1&(rb|rc))) {
@@ -388,8 +381,6 @@ void run() {
       exit(-1);
     }
     }
-
-    //assert(pc < 10);
   }
 
   free(stack);

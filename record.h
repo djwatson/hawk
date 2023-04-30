@@ -1,3 +1,4 @@
 #pragma once
 
-void record(unsigned int* pc);
+void record_start(unsigned int* pc);
+void record_instr(unsigned int* pc);
