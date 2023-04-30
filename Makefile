@@ -2,7 +2,7 @@ all: boom
 
 SUFFIXES += .d
 
-NODEPS:= clean cloc format
+NODEPS:= clean cloc format tidy
 
 SOURCES:=readbc.cpp bytecode.cpp vm.cpp boom.cpp record.cpp
 OBJS:=$(patsubst %.cpp,%.o,$(SOURCES))
@@ -35,3 +35,6 @@ clean:
 
 format:
 	clang-format -i *.h *.cpp
+
+tidy:
+	clang-tidy -checks=clang-diagnostic-*,clang-analyzer-*,bugprone*,modernize*,performance*,readability-*,-modernize-avoid-c-arrays,-readability-identifier-length,-modernize-use-trailing-return-type $(SOURCES)
