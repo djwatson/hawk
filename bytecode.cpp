@@ -1,5 +1,5 @@
 #include "bytecode.h"
-
+// clang-format off
 const char* ins_names[] = {
   "RET",
   "KSHORT",
@@ -25,4 +25,4 @@ const char* ins_names[] = {
   "JISEQ",
   "JISLT",
 };
-
+// clang-format on

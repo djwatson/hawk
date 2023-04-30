@@ -1,8 +1,9 @@
-#include <stdlib.h>
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <vector>
 
+// clang-format off
 enum {
   RET=0,
   KSHORT,
@@ -16,6 +17,7 @@ enum {
   ALLOC,
   GGET,
 };
+// clang-format on
 
 /*
  (if (< n 2)
@@ -23,12 +25,13 @@ enum {
      (+ (recursive (- n 1))
         (recursive (- n 2))))
  */
-#define CODE(i,a,b,c) ((c << 24) | (b << 16) | (a << 8) | i)
-#define INS_OP(i) (i&0xff)
-#define INS_A(i) ((i>>8)&0xff)
-#define INS_B(i) ((i>>16)&0xff)
-#define INS_C(i) ((i>>24)&0xff)
+#define CODE(i, a, b, c) ((c << 24) | (b << 16) | (a << 8) | i)
+#define INS_OP(i) (i & 0xff)
+#define INS_A(i) ((i >> 8) & 0xff)
+#define INS_B(i) ((i >> 16) & 0xff)
+#define INS_C(i) ((i >> 24) & 0xff)
 
+// clang-format off
 unsigned int code[] = {
   CODE(KSHORT, 1, 2, 0),
     CODE(ISGE, 0, 1, 0),
@@ -47,10 +50,11 @@ unsigned int code[] = {
     CODE(CALL, 0, 0, 2),
     CODE(HALT, 0, 0, 0)
     };
+// clang-format on
 
-struct bcfunc{
-  std::vector<long*> consts;
-  unsigned int* code;
+struct bcfunc {
+  std::vector<long *> consts;
+  unsigned int *code;
 };
 
 std::vector<bcfunc> funcs;
@@ -65,21 +69,21 @@ std::vector<bcfunc> funcs;
   instr >>= 16;					\
   MUSTTAIL return op_table[op](ARGS);		\
 }
-  
+
 
 
 typedef void (*op_func)(PARAMS);
 
-//#define DEBUG(name) printf("%s %li %li %li %li\n", name, frame[0], frame[1], frame[2], frame[3]);
-#define DEBUG(name)
+//#define DEBUG(name) printf("%s %li %li %li %li\n", name, frame[0], frame[1],
+frame[2], frame[3]); #define DEBUG(name)
 
 static op_func op_table[10];
 void INS_KSHORT(PARAMS) {
   DEBUG("KSHORT");
   unsigned char rb = instr;
-  
+
   frame[ra] = rb;
-  
+
   pc++;
   NEXT_INSTR;
 }
@@ -87,32 +91,32 @@ void INS_KSHORT(PARAMS) {
 void INS_ISGE(PARAMS) {
   DEBUG("ISGE");
   unsigned char rb = instr;
-  
+
   if (frame[ra] >= frame[rb]) {
     pc+=1;
   } else {
     pc+=2;
   }
-  
+
   NEXT_INSTR;
 }
 
 void INS_JMP(PARAMS) {
   DEBUG("JMP");
   unsigned char rb = instr;
-  
+
   pc += rb;
-  
+
   NEXT_INSTR;
 }
 
 void INS_RET1(PARAMS) {
   DEBUG("RET1");
-  
+
   pc = (unsigned int*)frame[-2];
   frame[-2] = frame[ra];
   frame -= frame[-1];
-  
+
   NEXT_INSTR;
 }
 
@@ -120,9 +124,9 @@ void INS_SUBVN(PARAMS) {
   DEBUG("SUBVN");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
-  
+
   frame[ra] = frame[rb] - rc;
-  
+
   pc++;
   NEXT_INSTR;
 }
@@ -130,12 +134,12 @@ void INS_SUBVN(PARAMS) {
 void INS_CALL(PARAMS) {
   DEBUG("CALL");
   unsigned char rb = instr;
-  
+
   frame[rb] = (long)(pc + 1);
   frame[rb+1] = rb + 2;
   pc = code;
   frame += rb + 2;
-  
+
   NEXT_INSTR;
 }
 
@@ -143,9 +147,9 @@ void INS_ADDVV(PARAMS) {
   DEBUG("ADDVV");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
-  
+
   frame[ra] = frame[rb] + frame[rc];
-  
+
   pc++;
   NEXT_INSTR;
 }
@@ -164,13 +168,12 @@ void INS_UNKNOWN(PARAMS) {
 
 
 */
-#define likely(x)      __builtin_expect(!!(x), 1)
-#define unlikely(x)    __builtin_expect(!!(x), 0)
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
 
-__attribute__((noinline))
-long ADDVV_SLOWPATH(long a, long b) {
+__attribute__((noinline)) long ADDVV_SLOWPATH(long a, long b) {
   double c = (double)a + (double)b;
-  c+= 1.1;
+  c += 1.1;
   return c;
 }
 long sym;
@@ -190,13 +193,13 @@ int main() {
   op_table[7] = INS_ADDVV;
   op_table[8] = INS_HALT;
   */
-  long*  stack = (long*)malloc(sizeof(long)*10000);
+  long *stack = (long *)malloc(sizeof(long) * 10000);
   stack[0] = (unsigned long)&code[13]; // return pc
   stack[1] = (unsigned long)&funcs[0];
   stack[2] = 40; // VALUE
-  long* frame = &stack[2];
+  long *frame = &stack[2];
 
-  unsigned int* pc = &code[0];
+  unsigned int *pc = &code[0];
 
   //////////NEW:
   // if(0) {
@@ -209,32 +212,25 @@ int main() {
 
   //////////////// OLD:
 
-  void* l_op_table[] = {
-    NULL,
-    &&L_INS_KSHORT,
-    &&L_INS_ISGE,
-    &&L_INS_JMP,
-    &&L_INS_RET1,
-    &&L_INS_SUBVN,
-    &&L_INS_CALL,
-    &&L_INS_ADDVV,
-    &&L_INS_HALT,
-    NULL,
-    &&L_INS_GGET,
+  void *l_op_table[] = {
+      NULL,         &&L_INS_KSHORT, &&L_INS_ISGE, &&L_INS_JMP,
+      &&L_INS_RET1, &&L_INS_SUBVN,  &&L_INS_CALL, &&L_INS_ADDVV,
+      &&L_INS_HALT, NULL,           &&L_INS_GGET,
   };
 
-  //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
-  #define DIRECT
+//#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
+#define DIRECT
   while (true) {
     unsigned int i = *pc;
-    // printf("Running PC %li frame %li code %i  %i %i %i %x\n", pc - code, frame-stack, INS_OP(i), INS_A(i), INS_B(i), INS_C(i), i);
-    // printf("%li %li %li %li \n", frame[0], frame[1], frame[2], frame[3]);
-    
+    // printf("Running PC %li frame %li code %i  %i %i %i %x\n", pc - code,
+    // frame-stack, INS_OP(i), INS_A(i), INS_B(i), INS_C(i), i); printf("%li %li
+    // %li %li \n", frame[0], frame[1], frame[2], frame[3]);
+
     goto *l_op_table[INS_OP(i)];
-      
+
     switch (INS_OP(i)) {
     case 1: {
-      L_INS_KSHORT:
+    L_INS_KSHORT:
       //      printf("KSHORT\n");
       frame[INS_A(i)] = INS_B(i);
       pc++;
@@ -242,48 +238,48 @@ int main() {
       break;
     }
     case 2: {
-      L_INS_ISGE:
-      //printf("ISGE\n");
+    L_INS_ISGE:
+      // printf("ISGE\n");
       if (frame[INS_A(i)] >= frame[INS_B(i)]) {
-	pc+=1;
+        pc += 1;
       } else {
-	pc+=2;
+        pc += 2;
       }
       DIRECT;
       break;
     }
     case 3: {
-      L_INS_JMP:
-      //printf("JMP\n");
+    L_INS_JMP:
+      // printf("JMP\n");
       pc += INS_B(i);
       DIRECT;
       break;
     }
     case 4: {
-      L_INS_RET1:
-      //printf("RET\n");
-      pc = (unsigned int*)frame[-2];
+    L_INS_RET1:
+      // printf("RET\n");
+      pc = (unsigned int *)frame[-2];
       frame[-2] = frame[INS_A(i)];
-      frame -= (INS_B(*(pc-1)) + 2);
-      //printf("Frame is %x\n", frame);
+      frame -= (INS_B(*(pc - 1)) + 2);
+      // printf("Frame is %x\n", frame);
       DIRECT;
       break;
     }
     case 5: {
-      L_INS_SUBVN:
-      //printf("SUBVN\n");
+    L_INS_SUBVN:
+      // printf("SUBVN\n");
       frame[INS_A(i)] = frame[INS_B(i)] - INS_C(i);
       pc++;
       DIRECT;
       break;
     }
     case 6: {
-      L_INS_CALL:
+    L_INS_CALL:
       // printf("CALL\n");
       // printf("Frame is %x\n", frame);
-      unsigned int* old_pc = pc;
+      unsigned int *old_pc = pc;
 
-      bcfunc* f = (bcfunc*)frame[INS_B(i) + 1];
+      bcfunc *f = (bcfunc *)frame[INS_B(i) + 1];
       pc = f->code;
       frame[INS_B(i)] = (long)(old_pc + 1);
       frame += INS_B(i) + 2;
@@ -292,23 +288,23 @@ int main() {
       break;
     }
     case 7: {
-      L_INS_ADDVV:
-      //printf("ADDVV");
+    L_INS_ADDVV:
+      // printf("ADDVV");
       auto rb = frame[INS_B(i)];
       auto rc = frame[INS_C(i)];
-      if (unlikely((1UL<<63)&(rb|rc))) {
-	frame[INS_A(i)] = ADDVV_SLOWPATH(rb, rc);
+      if (unlikely((1UL << 63) & (rb | rc))) {
+        frame[INS_A(i)] = ADDVV_SLOWPATH(rb, rc);
       } else {
-	if (__builtin_add_overflow(rb, rc, &frame[INS_A(i)])) {
-	  frame[INS_A(i)] = ADDVV_SLOWPATH(rb, rc);
-	}
+        if (__builtin_add_overflow(rb, rc, &frame[INS_A(i)])) {
+          frame[INS_A(i)] = ADDVV_SLOWPATH(rb, rc);
+        }
       }
       pc++;
       DIRECT;
       break;
     }
     case 8: {
-      L_INS_HALT:
+    L_INS_HALT:
       printf("Result:%li\n", frame[INS_A(i)]);
       exit(0);
       break;
@@ -318,8 +314,8 @@ int main() {
       break;
     }
     case 10: {
-      L_INS_GGET:
-      bcfunc* fp = (bcfunc*)frame[-1];
+    L_INS_GGET:
+      bcfunc *fp = (bcfunc *)frame[-1];
       frame[INS_A(i)] = (long)*fp->consts[INS_B(i)];
       pc++;
       DIRECT;
@@ -331,8 +327,8 @@ int main() {
     }
     }
 
-    //assert(pc < 10);
+    // assert(pc < 10);
   }
-  
+
   return 0;
 }

@@ -7,17 +7,16 @@
 // recording
 // super-simple jit: sum, fib, ack, tak
 
-
 #include "readbc.h"
 #include "vm.h"
 
 int main() {
   readbc();
   run();
-  for(auto& func : funcs) {
+  for (auto &func : funcs) {
     delete func;
   }
-  for(auto&s:symbol_table) {
+  for (auto &s : symbol_table) {
     delete s.second;
   }
   return 0;
