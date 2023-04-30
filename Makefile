@@ -2,7 +2,7 @@ all: boom
 
 SUFFIXES += .d
 
-NODEPS:= clean cloc
+NODEPS:= clean cloc format
 
 SOURCES:=readbc.cpp bytecode.cpp vm.cpp boom.cpp record.cpp
 OBJS:=$(patsubst %.cpp,%.o,$(SOURCES))
@@ -32,3 +32,6 @@ cloc:
 
 clean:
 	rm -rf $(DEPFILES) $(OBJS) boom
+
+format:
+	clang-format -i *.h *.cpp
