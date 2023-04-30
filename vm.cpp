@@ -4,6 +4,8 @@
 #include "record.h"
 #include "vm.h"
 
+int joff = 0;
+
 std::vector<bcfunc *> funcs;
 std::unordered_map<std::string, symbol *> symbol_table;
 
@@ -404,6 +406,9 @@ void run() {
     case 24: {
     L_INS_RECORD_START:
       hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
+      if (joff) {
+        goto *l_op_table_interpret[INS_OP(i)];
+      }
       memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
       HOTMAP_SLOWPATH(pc, frame[-1]);
       // Don't record first inst.
