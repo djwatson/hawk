@@ -267,9 +267,7 @@ void run() {
     case 6: {
       L_INS_CALL:
       if (unlikely((hotmap[(((long)pc)>>2)&hotmap_mask] -= hotmap_rec) == 0)) {
-	hotmap[(((long)pc)>>2)&hotmap_mask] = hotmap_cnt;
-	memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
-	HOTMAP_SLOWPATH(pc, frame[-1]);
+	goto L_INS_RECORD_START;
       } 
       auto v = frame[INS_A(i) + 1];
       if(unlikely((v & 0x7) != 5)) {
@@ -293,9 +291,7 @@ void run() {
     case 16: {
       L_INS_CALLT:
       if (unlikely((hotmap[(((long)pc)>>2)&hotmap_mask] -= hotmap_tail_rec) == 0)) {
-	hotmap[(((long)pc)>>2)&hotmap_mask] = hotmap_cnt;
-	memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
-	HOTMAP_SLOWPATH(pc, frame[-1]);
+	goto L_INS_RECORD_START;
       } 
       auto v = frame[INS_A(i)];
       if(unlikely((v & 0x7) != 5)) {
@@ -407,14 +403,24 @@ void run() {
     }
 
 
+    case 24: {
+      L_INS_RECORD_START:
+	hotmap[(((long)pc)>>2)&hotmap_mask] = hotmap_cnt;
+	memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
+	HOTMAP_SLOWPATH(pc, frame[-1]);
+	// Don't record first inst.
+	goto *l_op_table_interpret[INS_OP(i)];
+    }
+
     case 23: {
       L_INS_RECORD:
-      if (record_instr(pc)) {
+      if (record_instr(pc, frame)) {
 	memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
       }
       goto *l_op_table_interpret[INS_OP(i)];
       break;
     }
+
 
     default: {
       printf("Unknown instruction %i %s\n", INS_OP(i), ins_names[INS_OP(i)]);
