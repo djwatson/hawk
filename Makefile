@@ -4,7 +4,7 @@ SUFFIXES += .d
 
 NODEPS:= clean cloc
 
-SOURCES:=readbc.cpp bytecode.cpp vm.cpp boom.cpp
+SOURCES:=readbc.cpp bytecode.cpp vm.cpp boom.cpp record.cpp
 OBJS:=$(patsubst %.cpp,%.o,$(SOURCES))
 HEADERS:=$(patsubst %.cpp,%.h,$(SOURCES))
 

@@ -37,6 +37,7 @@ void EXPAND_STACK_SLOWPATH() {
   stacksz *= 2;
   stack = (long*)realloc(stack, stacksz * sizeof(long));
 }
+
 void run() {
   unsigned int final_code[] = {
     CODE(CALL, 0, 1, 0),
@@ -51,22 +52,10 @@ void run() {
 
   unsigned int* pc = &code[0];
 
-  constexpr int hotmap_sz = 64;
   unsigned char hotmap[hotmap_sz];
   for(int i = 0; i < hotmap_sz; i++) {
-    hotmap[i] = 100;
+    hotmap[i] = hotmap_cnt;
   }
-
-  //////////NEW:
-  // if(0) {
-  // unsigned int instr = *pc;
-  // unsigned char op = instr & 0xff;
-  // unsigned char ra = (instr >> 8) & 0xff;
-  // instr >>= 16;
-  // op_table[op](ARGS);
-  // }
-
-  //////////////// OLD:
 
   void* l_op_table[] = {
     NULL,
@@ -95,13 +84,13 @@ void run() {
   };
 
   //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
-  #define DIRECT
+#define DIRECT
   while (true) {
     unsigned int i = *pc;
-    #ifdef DEBUG
+#ifdef DEBUG
      printf("Running PC %li code %s %i %i %i\n", pc - code, ins_names[INS_OP(i)], INS_A(i), INS_B(i), INS_C(i));
      printf("frame %li: %li %li %li %li\n", frame-stack, frame[0], frame[1], frame[2], frame[3]);
-     #else
+#else
     
     goto *l_op_table[INS_OP(i)];
     #endif
@@ -147,7 +136,6 @@ void run() {
     }
     case 22: {
       L_INS_JISLT:
-      //printf("ISGE\n");
       long fb = frame[INS_B(i)];
       long fc = frame[INS_C(i)];
       if (unlikely(1&(fc | fb))) {
@@ -250,9 +238,8 @@ void run() {
     }
     case 6: {
       L_INS_CALL:
-      // printf("CALL\n");
-      // printf("Frame is %x\n", frame);
-      if (hotmap[((long)pc)%hotmap_sz]-- == 0) {
+      hotmap[((long)pc)%hotmap_sz] -= hotmap_rec;
+      if (hotmap[((long)pc)%hotmap_sz] == 0) {
 	HOTMAP_SLOWPATH(pc, frame[-1]);
 	hotmap[((long)pc)%hotmap_sz] = 100;
       }
@@ -278,7 +265,8 @@ void run() {
     }
     case 16: {
       L_INS_CALLT:
-      if (hotmap[((long)pc)%hotmap_sz]-- == 0) {
+      hotmap[((long)pc)%hotmap_sz] -= hotmap_tail_rec;
+      if (hotmap[((long)pc)%hotmap_sz] == 0) {
 	HOTMAP_SLOWPATH(pc, frame[-1]);
 	hotmap[((long)pc)%hotmap_sz] = 100;
       }
