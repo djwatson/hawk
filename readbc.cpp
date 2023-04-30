@@ -1,21 +1,10 @@
-// Split to separate files
-// Makefile
-// error checking bytecode reader
-// remove indirection through vector, func directly points to array
-// remove consts:
-//    various tags
-
-// TODO:
-// recording
-// super-simple jit: sum, fib, ack, tak
-
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "bytecode.h"
 #include "vm.h"
 
-int main() {
+void readbc() {
  std::vector<std::string> symbols;
 
  FILE *fptr;
@@ -98,12 +87,4 @@ int main() {
       }
     }
   }
-  run();
-  for(auto& func : funcs) {
-    delete func;
-  }
-  for(auto&s:symbol_table) {
-    delete s.second;
-  }
-  return 0;
 }

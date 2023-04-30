@@ -2,9 +2,9 @@ all: boom
 
 SUFFIXES += .d
 
-NODEPS:= clean
+NODEPS:= clean cloc
 
-SOURCES:=readbc.cpp bytecode.cpp vm.cpp
+SOURCES:=readbc.cpp bytecode.cpp vm.cpp boom.cpp
 OBJS:=$(patsubst %.cpp,%.o,$(SOURCES))
 HEADERS:=$(patsubst %.cpp,%.h,$(SOURCES))
 

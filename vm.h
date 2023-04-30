@@ -1,3 +1,7 @@
+#pragma once
+
+#include "bytecode.h"
+
 void run();
 
 extern std::vector<bcfunc*> funcs;
