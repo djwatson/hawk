@@ -18,7 +18,7 @@ enum {
   ADDVV,
   HALT,
   ALLOC,
-  ISLT,
+  ISLT, //10
   ISF,
   SUBVV,
   GGET,
@@ -28,9 +28,10 @@ enum {
   KONST,
   MOV,
   ISEQ,
-  ADDVN,
+  ADDVN, //20
   JISEQ,
   JISLT,
+  JFUNC,
 };
 // clang-format on
 

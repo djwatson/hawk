@@ -4,6 +4,8 @@
 #include "bytecode.h"
 #include "vm.h"
 
+std::unordered_map<std::string, symbol *> symbol_table;
+
 void readbc() {
   std::vector<std::string> symbols;
 
@@ -81,5 +83,14 @@ void readbc() {
         printf("Link global %s %lx\n", n.c_str(), c);
       }
     }
+  }
+}
+
+void free_script() {
+  for (auto &func : funcs) {
+    delete func;
+  }
+  for (auto &s : symbol_table) {
+    delete s.second;
   }
 }

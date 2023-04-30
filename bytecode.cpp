@@ -24,5 +24,6 @@ const char* ins_names[] = {
   "ADDVN",
   "JISEQ",
   "JISLT",
+  "JFUNC",
 };
 // clang-format on

@@ -5,7 +5,6 @@
 void run();
 
 extern std::vector<bcfunc *> funcs;
-extern std::unordered_map<std::string, symbol *> symbol_table;
 
 static constexpr int hotmap_sz = 64;
 static constexpr int hotmap_cnt = 200;

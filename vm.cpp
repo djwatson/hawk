@@ -7,7 +7,6 @@
 int joff = 0;
 
 std::vector<bcfunc *> funcs;
-std::unordered_map<std::string, symbol *> symbol_table;
 
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
@@ -24,11 +23,6 @@ __attribute__((noinline)) long FAIL_SLOWPATH(long a, long b) {
 __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(symbol *s) {
   printf("FAIL undefined symbol: %s\n", s->name.c_str());
   exit(-1);
-}
-__attribute__((noinline)) void HOTMAP_SLOWPATH(unsigned int *pc,
-                                               unsigned long f) {
-  bcfunc *func = (bcfunc *)f;
-  record_start(pc);
 }
 unsigned int stacksz = 1000;
 long *stack = (long *)malloc(sizeof(long) * stacksz);
@@ -48,6 +42,7 @@ void run() {
   long *frame_top = stack + stacksz;
 
   unsigned int *pc = &code[0];
+  unsigned int trace = 0;
 
   unsigned char hotmap[hotmap_sz];
   for (int i = 0; i < hotmap_sz; i++) {
@@ -80,6 +75,7 @@ void run() {
     &&L_INS_ADDVN, //20
     &&L_INS_JISEQ,
     &&L_INS_JISLT,
+    &&L_INS_JFUNC,
   };
   void* l_op_table_record[] = {
     NULL,
@@ -92,6 +88,7 @@ void run() {
     &&L_INS_RECORD,
     &&L_INS_RECORD,
     &&L_INS_RECORD,
+    &&L_INS_RECORD, //10
     &&L_INS_RECORD,
     &&L_INS_RECORD,
     &&L_INS_RECORD,
@@ -101,7 +98,7 @@ void run() {
     &&L_INS_RECORD,
     &&L_INS_RECORD,
     &&L_INS_RECORD,
-    &&L_INS_RECORD,
+    &&L_INS_RECORD, //20
     &&L_INS_RECORD,
     &&L_INS_RECORD,
     &&L_INS_RECORD,
@@ -403,33 +400,42 @@ void run() {
       break;
     }
 
-    case 24: {
-    L_INS_RECORD_START:
-      hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
-      if (joff) {
-        goto *l_op_table_interpret[INS_OP(i)];
-      }
-      memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
-      HOTMAP_SLOWPATH(pc, frame[-1]);
-      // Don't record first inst.
-      goto *l_op_table_interpret[INS_OP(i)];
-    }
-
     case 23: {
-    L_INS_RECORD:
-      if (record_instr(pc, frame)) {
-        memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
-      }
-      goto *l_op_table_interpret[INS_OP(i)];
+      L_INS_JFUNC:
+      printf("JFUNC\n");
+      trace = INS_B(i);
+      pc = record_run(trace, frame);
+      DIRECT;
       break;
     }
+
 
     default: {
       printf("Unknown instruction %i %s\n", INS_OP(i), ins_names[INS_OP(i)]);
       exit(-1);
     }
     }
-  }
 
+    continue;
+    {
+    L_INS_RECORD_START:
+      hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
+      if (joff) {
+        goto *l_op_table_interpret[INS_OP(i)];
+      }
+      memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
+      record_start(pc, frame);
+      // Don't record first inst.
+      goto *l_op_table_interpret[INS_OP(i)];
+    }
+
+    {
+    L_INS_RECORD:
+      if (record_instr(pc, frame)) {
+        memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
+      }
+      goto *l_op_table_interpret[INS_OP(i)];
+    }
+  }
   free(stack);
 }

@@ -51,11 +51,6 @@ int main(int argc, char *argv[]) {
 
   readbc();
   run();
-  for (auto &func : funcs) {
-    delete func;
-  }
-  for (auto &s : symbol_table) {
-    delete s.second;
-  }
+  free_script();
   return 0;
 }
