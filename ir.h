@@ -1,6 +1,7 @@
 #pragma once
 
 
+// clang-format off
 enum class ir_ins_op : uint8_t {
   LT,
   GE,
@@ -15,6 +16,7 @@ enum class ir_ins_op : uint8_t {
   GGET,
   RET,
   CALL,
+  SLOAD,
 
   ADD,
   SUB,
@@ -22,10 +24,20 @@ enum class ir_ins_op : uint8_t {
   DIV,
 };
 
+extern const char *ir_names[];
+
+#define IR_CONST_BIAS 0x8000
+
+enum class ir_ins_type : uint8_t {
+  NORMAL,
+  GUARD,
+};
+// clang-format on
+
 struct ir_ins {
   uint16_t op1;
   uint16_t op2;
-  uint8_t type;
+  ir_ins_type type;
   ir_ins_op op;
   union {
     uint16_t prev;
