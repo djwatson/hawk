@@ -42,7 +42,6 @@ void run() {
   long *frame_top = stack + stacksz;
 
   unsigned int *pc = &code[0];
-  unsigned int trace = 0;
 
   unsigned char hotmap[hotmap_sz];
   for (int i = 0; i < hotmap_sz; i++) {
@@ -111,12 +110,12 @@ void run() {
 #define DIRECT
   while (true) {
     unsigned int i = *pc;
-#ifdef DEBUG
+    //#ifdef DEBUG
     printf("Running PC %li code %s %i %i %i\n", pc - code, ins_names[INS_OP(i)],
            INS_A(i), INS_B(i), INS_C(i));
     printf("frame %li: %li %li %li %li\n", frame - stack, frame[0], frame[1],
            frame[2], frame[3]);
-#endif
+    //#endif
 
     goto *l_op_table[INS_OP(i)];
 
@@ -403,8 +402,9 @@ void run() {
     case 23: {
       L_INS_JFUNC:
       printf("JFUNC\n");
-      trace = INS_B(i);
-      pc = record_run(trace, frame);
+      auto trace = INS_B(i);
+      record_run(trace, &pc, &frame, frame_top);
+      pc++;
       DIRECT;
       break;
     }
@@ -424,6 +424,7 @@ void run() {
         goto *l_op_table_interpret[INS_OP(i)];
       }
       memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
+      // TODO this needs to start recording at the called PC.
       record_start(pc, frame);
       // Don't record first inst.
       goto *l_op_table_interpret[INS_OP(i)];
