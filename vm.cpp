@@ -110,12 +110,12 @@ void run() {
 #define DIRECT
   while (true) {
     unsigned int i = *pc;
-    //#ifdef DEBUG
+    #ifdef DEBUG
     printf("Running PC %li code %s %i %i %i\n", pc - code, ins_names[INS_OP(i)],
            INS_A(i), INS_B(i), INS_C(i));
     printf("frame %li: %li %li %li %li\n", frame - stack, frame[0], frame[1],
            frame[2], frame[3]);
-    //#endif
+    #endif
 
     goto *l_op_table[INS_OP(i)];
 
@@ -424,15 +424,13 @@ void run() {
         goto *l_op_table_interpret[INS_OP(i)];
       }
       memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
-      // TODO this needs to start recording at the called PC.
-      record_start(pc, frame);
       // Don't record first inst.
       goto *l_op_table_interpret[INS_OP(i)];
     }
 
     {
     L_INS_RECORD:
-      if (record_instr(pc, frame)) {
+      if (record(pc, frame)) {
         memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
       }
       goto *l_op_table_interpret[INS_OP(i)];

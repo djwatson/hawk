@@ -1,4 +1,5 @@
 #include "bytecode.h"
+#include "record.h"
 
 unsigned int *pc_start;
 unsigned int instr_count;
@@ -9,9 +10,18 @@ std::vector<unsigned int> trace_buffer;
 std::vector<std::vector<unsigned int>> traces;
 long func;
 
+enum trace_state_e{
+  OFF,
+  START,
+  TRACING,
+};
+
+trace_state_e trace_state = OFF;
+
 void record_start(unsigned int *pc, long*frame) {
+  trace_state = START;
   func = frame[-1];
-  printf("Record start\n");
+  printf("Record start at %s\n", ins_names[INS_OP(*pc)]);
   pc_start = pc;
   instr_count = 0;
   depth = 0;
@@ -23,6 +33,35 @@ void record_stop(unsigned int *pc, long *frame) {
   traces.push_back(std::move(trace_buffer));
   trace_buffer.clear();
   *pc_start = CODE(JFUNC, 0, trace, 0);
+  trace_state = OFF;
+}
+
+void record_abort() {
+  trace_buffer.clear();
+  trace_state = OFF;
+}
+
+int record(unsigned int *pc, long *frame) {
+  switch(trace_state) {
+  case OFF: {
+    record_start(pc, frame);
+    auto res = record_instr(pc, frame);
+    if (trace_state == START) {
+      trace_state = TRACING;
+    }
+    return res;
+    break;
+  }
+  case TRACING: {
+    return record_instr(pc, frame);
+    break;
+  }
+  default: {
+    printf("BAD TRACE STATE\n");
+    exit(-1);
+    return 1;
+  }
+  }
 }
 
 int record_instr(unsigned int *pc, long *frame) {
@@ -33,6 +72,7 @@ int record_instr(unsigned int *pc, long *frame) {
          INS_B(i), INS_C(i));
   if (INS_OP(i) == RET || INS_OP(i) == RET1) {
     if (depth == 0) {
+      record_abort();
       printf("Record stop return\n");
       return 1;
     }
@@ -50,9 +90,11 @@ int record_instr(unsigned int *pc, long *frame) {
     }
     if (cnt >= 3) {
       if (pc == pc_start) {
-        printf("Record stop up-recursion\n");
+	record_abort();
+	printf("Record stop up-recursion\n");
         return 1;
       } else {
+	record_abort();
         printf("Record stop unroll limit reached\n");
         return 1;
       }
@@ -60,10 +102,11 @@ int record_instr(unsigned int *pc, long *frame) {
     depth++;
   }
   if (instr_count > 5000) {
+    record_abort();
     printf("Record stop due to length\n");
     return 1;
   }
-  if ((pc == pc_start) && (depth == 0)) {
+  if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING)) {
     record_stop(pc, frame);
     printf("Record stop loop\n");
     return 1;
@@ -74,6 +117,7 @@ int record_instr(unsigned int *pc, long *frame) {
   // }
   // TODO check chain for down-recursion
   if (depth >= 256) {
+    record_abort();
     printf("Record stop (stack too deep)\n");
     return 1;
   }
