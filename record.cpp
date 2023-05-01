@@ -136,7 +136,6 @@ int record(unsigned int *pc, long *frame) {
 }
 
 int record_stack_load(int slot, long *frame) {
-  printf("Stack load %i %i\n", slot, regs[slot]);
   if (regs[slot] == -1) {
     ir_ins ins;
     ins.op1 = slot;
@@ -146,13 +145,18 @@ int record_stack_load(int slot, long *frame) {
     ins.type = IR_INS_TYPE_GUARD | type;
   
     regs[slot] = trace->ops.size();
-    printf("Stack store %i %i\n", slot, regs[slot]);
     trace->ops.push_back(ins);
   }
   return regs[slot];
 }
 
 int record_instr(unsigned int *pc, long *frame) {
+  // TODO working on snap
+  // for(int i = 0; i < 256; i++) {
+  //   if (regs[i] != -1) {
+  //     printf("MOV %i %i\n", regs[i], i);
+  //   }
+  // }
   instr_count++;
   unsigned int i = *pc;
   if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING)) {
@@ -215,8 +219,6 @@ int record_instr(unsigned int *pc, long *frame) {
     ins.op2 = record_stack_load(INS_C(i), frame);
     ins.op = ir_ins_op::LT;
     ins.type = IR_INS_TYPE_GUARD;
-    auto reg = INS_A(i);
-    regs[reg] = trace->ops.size();
     trace->ops.push_back(ins);
     break;
   }
@@ -271,8 +273,6 @@ int record_instr(unsigned int *pc, long *frame) {
       ins.op = ir_ins_op::EQ;
       // TODO magic
       ins.type = IR_INS_TYPE_GUARD | 0x5;
-      auto reg = INS_A(i);
-      regs[reg] = trace->ops.size();
       trace->ops.push_back(ins);
     }
     // Move args down
