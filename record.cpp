@@ -132,7 +132,8 @@ int record_stack_load(int slot) {
     ir_ins ins;
     ins.op1 = slot;
     ins.op = ir_ins_op::SLOAD;
-    ins.type = ir_ins_type::NORMAL;
+    // Guard on type
+    ins.type = ir_ins_type::GUARD;
   
     regs[slot] = trace->ops.size();
     printf("Stack store %i %i\n", slot, regs[slot]);
@@ -195,12 +196,7 @@ int record_instr(unsigned int *pc, long *frame) {
     auto knum = trace->consts.size();
     trace->consts.push_back(k << 3);
     auto reg = INS_A(i);
-    ir_ins ins;
-    ins.op1 = k | IR_CONST_BIAS;
-    ins.op = ir_ins_op::KFIX;
-    ins.type = ir_ins_type::NORMAL;
-    regs[reg] = trace->ops.size();
-    trace->ops.push_back(ins);
+    regs[reg] = k | IR_CONST_BIAS;
     break;
   }
   case JISLT: {
