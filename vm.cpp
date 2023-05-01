@@ -110,12 +110,12 @@ void run() {
 #define DIRECT
   while (true) {
     unsigned int i = *pc;
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("Running PC %li code %s %i %i %i\n", pc - code, ins_names[INS_OP(i)],
            INS_A(i), INS_B(i), INS_C(i));
     printf("frame %li: %li %li %li %li\n", frame - stack, frame[0], frame[1],
            frame[2], frame[3]);
-    #endif
+#endif
 
     goto *l_op_table[INS_OP(i)];
 
@@ -400,7 +400,7 @@ void run() {
     }
 
     case 23: {
-      L_INS_JFUNC:
+    L_INS_JFUNC:
       printf("JFUNC\n");
       auto trace = INS_B(i);
       record_run(trace, &pc, &frame, frame_top);
@@ -408,7 +408,6 @@ void run() {
       DIRECT;
       break;
     }
-
 
     default: {
       printf("Unknown instruction %i %s\n", INS_OP(i), ins_names[INS_OP(i)]);

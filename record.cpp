@@ -1,5 +1,5 @@
-#include "bytecode.h"
 #include "record.h"
+#include "bytecode.h"
 
 unsigned int *pc_start;
 unsigned int instr_count;
@@ -10,7 +10,7 @@ std::vector<unsigned int> trace_buffer;
 std::vector<std::vector<unsigned int>> traces;
 long func;
 
-enum trace_state_e{
+enum trace_state_e {
   OFF,
   START,
   TRACING,
@@ -18,7 +18,7 @@ enum trace_state_e{
 
 trace_state_e trace_state = OFF;
 
-void record_start(unsigned int *pc, long*frame) {
+void record_start(unsigned int *pc, long *frame) {
   trace_state = START;
   func = frame[-1];
   printf("Record start at %s\n", ins_names[INS_OP(*pc)]);
@@ -42,7 +42,7 @@ void record_abort() {
 }
 
 int record(unsigned int *pc, long *frame) {
-  switch(trace_state) {
+  switch (trace_state) {
   case OFF: {
     record_start(pc, frame);
     auto res = record_instr(pc, frame);
@@ -67,9 +67,16 @@ int record(unsigned int *pc, long *frame) {
 int record_instr(unsigned int *pc, long *frame) {
   instr_count++;
   unsigned int i = *pc;
-  trace_buffer.push_back(i);
-  printf("%i Record code %s %i %i %i\n", depth, ins_names[INS_OP(i)], INS_A(i),
+  if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING)) {
+    record_stop(pc, frame);
+    printf("Record stop loop\n");
+    return 1;
+  }
+  if (INS_OP(i) != JMP) {
+    trace_buffer.push_back(i);
+    printf("%i Record code %s %i %i %i\n", depth, ins_names[INS_OP(i)], INS_A(i),
          INS_B(i), INS_C(i));
+  }
   if (INS_OP(i) == RET || INS_OP(i) == RET1) {
     if (depth == 0) {
       record_abort();
@@ -90,11 +97,11 @@ int record_instr(unsigned int *pc, long *frame) {
     }
     if (cnt >= 3) {
       if (pc == pc_start) {
-	record_abort();
-	printf("Record stop up-recursion\n");
+        record_abort();
+        printf("Record stop up-recursion\n");
         return 1;
       } else {
-	record_abort();
+        record_abort();
         printf("Record stop unroll limit reached\n");
         return 1;
       }
@@ -104,11 +111,6 @@ int record_instr(unsigned int *pc, long *frame) {
   if (instr_count > 5000) {
     record_abort();
     printf("Record stop due to length\n");
-    return 1;
-  }
-  if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING)) {
-    record_stop(pc, frame);
-    printf("Record stop loop\n");
     return 1;
   }
   // if (depth <= -3) {
@@ -123,7 +125,6 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   return 0;
 }
-
 
 //////////////////// runner
 
@@ -141,15 +142,16 @@ static void EXPAND_STACK_SLOWPATH() {
   printf("STACK ABORT\n");
   exit(-1);
 }
-static void UNDEFINED_SYMBOL_SLOWPATH(symbol* gp) {
+static void UNDEFINED_SYMBOL_SLOWPATH(symbol *gp) {
   printf("UNDEFINED ABORT\n");
   exit(-1);
 }
 extern std::vector<bcfunc *> funcs;
 // TODO also return frame
-void record_run(unsigned int tnum, unsigned int** o_pc, long** o_frame, long* frame_top) {
+void record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
+                long *frame_top) {
   std::vector<unsigned int> trace = traces[tnum];
-  long* frame = *o_frame;
+  long *frame = *o_frame;
 
   unsigned int *pc = &trace[0];
 
