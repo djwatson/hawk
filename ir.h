@@ -28,16 +28,13 @@ extern const char *ir_names[];
 
 #define IR_CONST_BIAS 0x8000
 
-enum class ir_ins_type : uint8_t {
-  NORMAL,
-  GUARD,
-};
+#define IR_INS_TYPE_GUARD 0x80
 // clang-format on
 
 struct ir_ins {
   uint16_t op1;
   uint16_t op2;
-  ir_ins_type type;
+  uint8_t type;
   ir_ins_op op;
   union {
     uint16_t prev;

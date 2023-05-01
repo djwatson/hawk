@@ -1,23 +1,23 @@
 // clang-format off
 const char* ir_names[] = {
-  "LT",
-  "GE",
-  "LE",
-  "GT",
+  "LT   ",
+  "GE   ",
+  "LE   ",
+  "GT   ",
 
-  "EQ",
-  "NE",
-  "NOP",
-  "KFIX",
+  "EQ   ",
+  "NE   ",
+  "NOP  ",
+  "KFIX ",
   "KFUNC",
-  "GGET",
-  "RET",
-  "CALL",
+  "GGET ",
+  "RET  ",
+  "CALL ",
   "SLOAD",
 
-  "ADD",
-  "SUB",
-  "MUL",
-  "DIV",
+  "ADD  ",
+  "SUB  ",
+  "MUL  ",
+  "DIV  ",
 };
 // clang-format on

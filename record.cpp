@@ -34,7 +34,7 @@ void print_const_or_val(int i, trace_s* trace) {
     if (type == 0) {
       printf("\e[1;35m%li\e[m", c >> 3);
     } else if (type == 5) {
-      printf("\e[1;35m<closure>\e[m");
+      printf("\e[1;31m<closure>\e[m");
     } else {
       printf("Unknown dump_trace type %i\n", type);
       exit(-1);
@@ -47,8 +47,17 @@ void print_const_or_val(int i, trace_s* trace) {
 void dump_trace(trace_s* trace) {
   for(int i = 0; i < trace->ops.size(); i++) {
     auto op = trace->ops[i];
-    printf("%04d %c\t%s\t",i,
-	   op.type == ir_ins_type::GUARD ? '>' : ' ',
+    printf("%04d %c\t",i,
+	   op.type & IR_INS_TYPE_GUARD ? '>' : ' ');
+    auto t = op.type & ~IR_INS_TYPE_GUARD;
+    if(t == 0) {
+      printf("\e[1;35mfix\e[m ");
+    } else if(t==5) {
+      printf("\e[1;31mclo\e[m ");
+    } else {
+      printf("\e[1;34mUNK\e[m ");
+    }
+    printf("%s ",
 	   ir_names[(int)op.op]);
     switch(op.op) {
     case ir_ins_op::KFIX: 
@@ -126,14 +135,15 @@ int record(unsigned int *pc, long *frame) {
   }
 }
 
-int record_stack_load(int slot) {
+int record_stack_load(int slot, long *frame) {
   printf("Stack load %i %i\n", slot, regs[slot]);
   if (regs[slot] == -1) {
     ir_ins ins;
     ins.op1 = slot;
     ins.op = ir_ins_op::SLOAD;
     // Guard on type
-    ins.type = ir_ins_type::GUARD;
+    auto type = frame[slot] & 0x7;
+    ins.type = IR_INS_TYPE_GUARD | type;
   
     regs[slot] = trace->ops.size();
     printf("Stack store %i %i\n", slot, regs[slot]);
@@ -201,10 +211,10 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case JISLT: {
     ir_ins ins;
-    ins.op1 = record_stack_load(INS_B(i));
-    ins.op2 = record_stack_load(INS_C(i));
+    ins.op1 = record_stack_load(INS_B(i), frame);
+    ins.op2 = record_stack_load(INS_C(i), frame);
     ins.op = ir_ins_op::LT;
-    ins.type = ir_ins_type::GUARD;
+    ins.type = IR_INS_TYPE_GUARD;
     auto reg = INS_A(i);
     regs[reg] = trace->ops.size();
     trace->ops.push_back(ins);
@@ -218,7 +228,7 @@ int record_instr(unsigned int *pc, long *frame) {
     ir_ins ins;
     ins.op1 = knum | IR_CONST_BIAS;
     ins.op = ir_ins_op::GGET;
-    ins.type = ir_ins_type::GUARD;
+    ins.type = IR_INS_TYPE_GUARD | (((symbol*)gp)->val&0x7);
     auto reg = INS_A(i);
     regs[reg] = trace->ops.size();
     trace->ops.push_back(ins);
@@ -228,10 +238,10 @@ int record_instr(unsigned int *pc, long *frame) {
     ir_ins ins;
     auto knum = trace->consts.size();
     trace->consts.push_back(INS_C(i) << 3);
-    ins.op1 = record_stack_load(INS_B(i));
+    ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = knum | IR_CONST_BIAS;
     ins.op = ir_ins_op::SUB;
-    ins.type = ir_ins_type::GUARD;
+    ins.type = IR_INS_TYPE_GUARD;
     auto reg = INS_A(i);
     regs[reg] = trace->ops.size();
     trace->ops.push_back(ins);
@@ -239,10 +249,11 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case ADDVV: {
     ir_ins ins;
-    ins.op1 = record_stack_load(INS_B(i));
-    ins.op2 = record_stack_load(INS_C(i));
+    ins.op1 = record_stack_load(INS_B(i), frame);
+    ins.op2 = record_stack_load(INS_C(i), frame);
     ins.op = ir_ins_op::ADD;
-    ins.type = ir_ins_type::GUARD;
+    // TODO: Assume no type change??
+    ins.type = IR_INS_TYPE_GUARD | trace->ops[ins.op1].type;
     auto reg = INS_A(i);
     regs[reg] = trace->ops.size();
     trace->ops.push_back(ins);
@@ -255,10 +266,11 @@ int record_instr(unsigned int *pc, long *frame) {
       auto knum = trace->consts.size();
       trace->consts.push_back(v);
       ir_ins ins;
-      ins.op1 = record_stack_load(INS_A(i));
+      ins.op1 = record_stack_load(INS_A(i), frame);
       ins.op2 = knum | IR_CONST_BIAS;
       ins.op = ir_ins_op::EQ;
-      ins.type = ir_ins_type::GUARD;
+      // TODO magic
+      ins.type = IR_INS_TYPE_GUARD | 0x5;
       auto reg = INS_A(i);
       regs[reg] = trace->ops.size();
       trace->ops.push_back(ins);
