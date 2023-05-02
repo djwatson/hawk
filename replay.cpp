@@ -27,7 +27,12 @@ snap_s* find_snap_for_pc(unsigned int pc, trace_s* trace) {
 void replay_snap(std::vector<long>&res, unsigned int **o_pc, long **o_frame, snap_s* snap, trace_s* trace) {
   for(auto&slot:snap->slots) {
     if (slot.val & IR_CONST_BIAS) {
-      (*o_frame)[slot.slot] = trace->consts[slot.val - IR_CONST_BIAS];
+      auto c = trace->consts[slot.val - IR_CONST_BIAS];
+      if (c&SNAP_FRAME) {
+	(*o_frame)[slot.slot] = c&~SNAP_FRAME;
+      } else {
+	(*o_frame)[slot.slot] = c;
+      }
     } else {
       (*o_frame)[slot.slot] = res[slot.val];
     }

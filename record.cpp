@@ -28,7 +28,9 @@ void print_const_or_val(int i, trace_s* trace) {
   if(i&IR_CONST_BIAS) {
     auto c = trace->consts[i - IR_CONST_BIAS];
     int type = c&0x7;
-    if (type == 0) {
+    if (c&SNAP_FRAME) {
+      printf("(pc %li)", c&~SNAP_FRAME);
+    } else if (type == 0) {
       printf("\e[1;35m%li\e[m", c >> 3);
     } else if (type == 5) {
       printf("\e[1;31m<closure>\e[m");
@@ -120,7 +122,7 @@ extern int joff;
 void record_stop(unsigned int *pc, long *frame) {
   auto func = (bcfunc*)(frame[-1]-5);
   int32_t pcloc= (long)(pc - &func->code[0]);
-  add_snap(regs, trace, pcloc);
+  add_snap(regs_list, trace, pcloc);
   *pc_start = CODE(JFUNC, 0, traces.size(), 0);
   dump_trace(trace);
   traces.push_back(trace);
@@ -191,10 +193,18 @@ int record_instr(unsigned int *pc, long *frame) {
       //record_abort();
       printf("Record stop return\n");
       return 1;
+    } else if (depth > 0) {
+      depth--;
+      regs[-2] = regs[INS_A(i)];
+      regs -= (INS_A(*(pc - 1)) + 2);
+      for(int i= regs-regs_list + 1; i<257; i++) {
+	regs_list[i] = -1;
+      }
+    } else {
+      depth--;
+      printf("TODO return below trace\n");
+      exit(-1);
     }
-    depth--;
-    printf("TODO othe return\n");
-    exit(-1);
     break;
   }
   case CALL: {
@@ -219,8 +229,24 @@ int record_instr(unsigned int *pc, long *frame) {
       }
     }
     depth++;
-    printf("TODO rec call\n");
-    exit(-1);
+    // Check call type
+    {
+      auto v = frame[INS_A(i)];
+      auto knum = trace->consts.size();
+      trace->consts.push_back(v);
+      ir_ins ins;
+      ins.op1 = record_stack_load(INS_A(i), frame);
+      ins.op2 = knum | IR_CONST_BIAS;
+      ins.op = ir_ins_op::EQ;
+      // TODO magic number
+      ins.type = IR_INS_TYPE_GUARD | 0x5;
+      trace->ops.push_back(ins);
+    }
+    // Push PC link as const
+    auto knum = trace->consts.size();
+    trace->consts.push_back(((long)(pc + 1)) | SNAP_FRAME);
+    regs[INS_A(i)] = knum | IR_CONST_BIAS;     // TODO set PC
+    regs += INS_A(i) + 2;
     break;
   }
   case KSHORT: {
@@ -232,7 +258,7 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case JISLT: {
-    add_snap(regs, trace, pcloc);
+    add_snap(regs_list, trace, pcloc);
     ir_ins ins;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);

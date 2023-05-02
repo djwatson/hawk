@@ -48,6 +48,8 @@ struct ir_ins {
   };
 };
 
+#define SNAP_FRAME 0x8000000000000000
+
 struct snap_entry_s {
   int16_t slot;
   uint16_t val;

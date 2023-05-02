@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "snap.h"
 
 void add_snap(int* regs, trace_s* trace, uint32_t pc) {
@@ -10,10 +12,10 @@ void add_snap(int* regs, trace_s* trace, uint32_t pc) {
   snap.ir = trace->ops.size();
   snap.pc = pc;
   // TODO fix regs size/boj to vec?
-  for(int i = -1; i < 256; i++) {
+  for(int i = 0; i < 257; i++) {
     if (regs[i] != -1) {
       snap_entry_s entry;
-      entry.slot = i;
+      entry.slot = i - 1; // offset by one for callt
       entry.val = regs[i];
       snap.slots.push_back(entry);
     }
