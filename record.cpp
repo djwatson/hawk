@@ -13,6 +13,7 @@ static long stack[256]; // TODO just walk the stack.
 long func;
 int regs_list[257];
 int* regs =&regs_list[1];
+snap_s* side_exit = NULL;
 
 enum trace_state_e {
   OFF,
@@ -89,6 +90,7 @@ void dump_trace(trace_s* trace) {
     case ir_ins_op::SUB:
     case ir_ins_op::ADD:
     case ir_ins_op::EQ:
+    case ir_ins_op::NE:
     case ir_ins_op::GE:
     case ir_ins_op::LT: {
       print_const_or_val(op.op1, trace);
@@ -102,6 +104,10 @@ void dump_trace(trace_s* trace) {
     }
     printf("\n");
   }
+}
+
+void record_side(snap_s* side) {
+  side_exit = side;
 }
 
 void record_start(unsigned int *pc, long *frame) {
@@ -124,17 +130,24 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   auto func = (bcfunc*)(frame[-1]-5);
   int32_t pcloc= (long)(pc - &func->code[0]);
   add_snap(regs_list, regs-regs_list - 1, trace, pcloc);
-  *pc_start = CODE(JFUNC, 0, traces.size(), 0);
+  if (side_exit) {
+    side_exit->link = traces.size();
+  } else {
+    *pc_start = CODE(JFUNC, 0, traces.size(), 0);
+  }
   dump_trace(trace);
   trace->link = link;
   traces.push_back(trace);
   trace_state = OFF;
+  side_exit = NULL;
   joff = 1;
 }
 
 void record_abort() {
   delete trace;
   trace_state = OFF;
+  side_exit = NULL;
+  
 }
 
 int record(unsigned int *pc, long *frame) {
@@ -226,22 +239,22 @@ int record_instr(unsigned int *pc, long *frame) {
     if (cnt >= 3) {
       if (pc == pc_start) {
         record_abort();
-        printf("Record stop up-recursion\n");
+        printf("Record abort up-recursion\n");
         return 1;
       } else {
         record_abort();
-        printf("Record stop unroll limit reached\n");
+        printf("Record abort unroll limit reached\n");
         return 1;
       }
     }
     depth++;
     // Check call type
     {
-      auto v = frame[INS_A(i)];
+      auto v = frame[INS_A(i)+1];
       auto knum = trace->consts.size();
       trace->consts.push_back(v);
       ir_ins ins;
-      ins.op1 = record_stack_load(INS_A(i), frame);
+      ins.op1 = record_stack_load(INS_A(i)+1, frame);
       ins.op2 = knum | IR_CONST_BIAS;
       ins.op = ir_ins_op::EQ;
       // TODO magic number
@@ -380,6 +393,11 @@ int record_instr(unsigned int *pc, long *frame) {
     // None.
     break;
   }
+  case JFUNC: {
+    record_stop(pc, frame, INS_B(i));
+    printf("Record stop JFUNC\n");
+    return 1;
+  }
   default: {
     printf("NYI: CANT RECORD BYTECODE %s\n", ins_names[INS_OP(i)]);
     exit(-1);
@@ -387,7 +405,7 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   if (instr_count > 5000) {
     record_abort();
-    printf("Record stop due to length\n");
+    printf("Record abort due to length\n");
     return 1;
   }
   // if (depth <= -3) {
@@ -397,7 +415,7 @@ int record_instr(unsigned int *pc, long *frame) {
   // TODO check chain for down-recursion
   if (depth >= 100) {
     record_abort();
-    printf("Record stop (stack too deep)\n");
+    printf("Record abort (stack too deep)\n");
     return 1;
   }
   return 0;

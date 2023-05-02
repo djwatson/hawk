@@ -42,15 +42,22 @@ void replay_snap(std::vector<long>&res, unsigned int **o_pc, long **o_frame, sna
   *o_pc = &func->code[snap->pc];
 }
 
+int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
+	       long *frame_top);
 int replay_abort(unsigned int ir_pc, trace_s* trace, std::vector<long>& res, unsigned int **o_pc, long **o_frame) {
-  printf("Replay failed guard, abort ir pc %i\n", ir_pc);
   auto snap = find_snap_for_pc(ir_pc, trace);
   replay_snap(res, o_pc, o_frame, snap, trace);
-    
+  if (snap->link != -1) {
+    // TODO tailcall?
+    return record_run(snap->link, o_pc, o_frame, NULL);
+  }
+  printf("Replay failed guard, abort ir pc %i\n", ir_pc);
+
   if (snap->exits < 10) {
     snap->exits++;
   } else {
     printf("Hot snap %i\n", ir_pc);
+    record_side(snap);
     return 1;
   }
   
@@ -100,6 +107,16 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
       auto b = get_val_or_const(res, ins.op2, trace->consts);
       //printf("GE %li %li\n", a>>3, b>>3);
       if (a < b) { 
+	return replay_abort(pc, trace, res, o_pc, o_frame);
+      }
+      pc++;
+      break;
+    }
+    case ir_ins_op::NE: {
+      auto a = get_val_or_const(res, ins.op1, trace->consts);
+      auto b = get_val_or_const(res, ins.op2, trace->consts);
+      //printf("EQ %li %li\n", a, b);
+      if (a == b) {
 	return replay_abort(pc, trace, res, o_pc, o_frame);
       }
       pc++;

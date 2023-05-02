@@ -4,4 +4,5 @@
 
 int record(unsigned int *pc, long *frame);
 int record_instr(unsigned int *pc, long *frame);
+void record_side(snap_s* side) ;
 trace_s* trace_cache_get(unsigned int tnum);
