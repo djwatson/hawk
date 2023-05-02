@@ -214,11 +214,11 @@ int record_instr(unsigned int *pc, long *frame) {
     } else if (depth > 0) {
       depth--;
       regs[-2] = regs[INS_A(i)];
-      auto old_pc = (unsigned int *)frame[-2];
-      regs -= (INS_A(*(old_pc - 1)) + 2);
-      for(int i= regs-regs_list + 1; i<257; i++) {
+      for(int i= regs-regs_list -1; i<257; i++) {
 	regs_list[i] = -1;
       }
+      auto old_pc = (unsigned int *)frame[-2];
+      regs -= (INS_A(*(old_pc - 1)) + 2);
     } else {
       depth--;
       printf("TODO return below trace\n");
