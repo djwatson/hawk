@@ -3,6 +3,7 @@
 #include "record.h"
 #include "bytecode.h"
 #include "ir.h"
+#include "snap.h"
 
 unsigned int *pc_start;
 unsigned int instr_count;
@@ -11,11 +12,6 @@ int depth = 0;
 static long stack[256]; // TODO just walk the stack.
 long func;
 int regs[256];
-
-struct trace_s {
-  std::vector<ir_ins> ops;
-  std::vector<long> consts;
-};
 
 enum trace_state_e {
   OFF,
@@ -45,7 +41,24 @@ void print_const_or_val(int i, trace_s* trace) {
 }
 
 void dump_trace(trace_s* trace) {
-  for(int i = 0; i < trace->ops.size(); i++) {
+  int cur_snap = 0;
+  for(int i = 0; i < trace->ops.size() +1 /* extra snap */; i++) {
+    // Print any snap
+    while ((cur_snap < trace->snaps.size()) &&
+	trace->snaps[cur_snap].ir == i) {
+      auto& snap = trace->snaps[cur_snap];
+      printf("SNAP[pc=%i", snap.pc);
+      for(auto& entry : snap.slots) {
+	printf(" %i=", entry.slot);
+	print_const_or_val(entry.val, trace);
+      }
+      printf("]\n");
+      cur_snap++;
+    }
+    if (i == trace->ops.size()) {
+      break;
+    }
+    
     auto op = trace->ops[i];
     printf("%04d %c\t",i,
 	   op.type & IR_INS_TYPE_GUARD ? '>' : ' ');
@@ -101,6 +114,9 @@ void record_start(unsigned int *pc, long *frame) {
 }
 
 void record_stop(unsigned int *pc, long *frame) {
+  auto func = (bcfunc*)frame[-1];
+  int32_t pcloc= (long)(pc - &func->code[0]);
+  add_snap(regs, trace, pcloc);
   *pc_start = CODE(JFUNC, 0, traces.size(), 0);
   dump_trace(trace);
   traces.push_back(trace);
@@ -151,12 +167,8 @@ int record_stack_load(int slot, long *frame) {
 }
 
 int record_instr(unsigned int *pc, long *frame) {
-  // TODO working on snap
-  // for(int i = 0; i < 256; i++) {
-  //   if (regs[i] != -1) {
-  //     printf("MOV %i %i\n", regs[i], i);
-  //   }
-  // }
+  auto func = (bcfunc*)frame[-1];
+  int32_t pcloc= (long)(pc - &func->code[0]);
   instr_count++;
   unsigned int i = *pc;
   if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING)) {
@@ -214,6 +226,7 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case JISLT: {
+    add_snap(regs, trace, pcloc);
     ir_ins ins;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
@@ -271,12 +284,13 @@ int record_instr(unsigned int *pc, long *frame) {
       ins.op1 = record_stack_load(INS_A(i), frame);
       ins.op2 = knum | IR_CONST_BIAS;
       ins.op = ir_ins_op::EQ;
-      // TODO magic
+      // TODO magic number
       ins.type = IR_INS_TYPE_GUARD | 0x5;
       trace->ops.push_back(ins);
     }
     // Move args down
-    memmove(&regs[0], &regs[INS_A(i)], sizeof(regs) - (sizeof(int)*INS_A(i)));
+    // TODO also chedck func
+    memmove(&regs[0], &regs[INS_A(i) + 1], sizeof(regs) - (sizeof(int)*(INS_A(i) + 1)));
     break;
   }
   case JMP: {

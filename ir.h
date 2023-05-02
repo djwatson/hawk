@@ -1,5 +1,8 @@
 #pragma once
 
+#include <stdint.h>
+
+#include <vector>
 
 // clang-format off
 enum class ir_ins_op : uint8_t {
@@ -44,3 +47,24 @@ struct ir_ins {
     };
   };
 };
+
+struct snap_entry_s {
+  uint8_t slot;
+  uint8_t type;
+  uint16_t val;
+};
+
+struct snap_s {
+  uint32_t pc;
+  uint16_t ir;
+  uint8_t exits;
+  std::vector<snap_entry_s> slots;
+};
+
+
+struct trace_s {
+  std::vector<ir_ins> ops;
+  std::vector<long> consts;
+  std::vector<snap_s> snaps;
+};
+
