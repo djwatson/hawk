@@ -42,20 +42,24 @@ void replay_snap(std::vector<long>&res, unsigned int **o_pc, long **o_frame, sna
   *o_pc = &func->code[snap->pc];
 }
 
-void replay_abort(unsigned int ir_pc, trace_s* trace, std::vector<long>& res, unsigned int **o_pc, long **o_frame) {
+int replay_abort(unsigned int ir_pc, trace_s* trace, std::vector<long>& res, unsigned int **o_pc, long **o_frame) {
   printf("Replay failed guard, abort ir pc %i\n", ir_pc);
   auto snap = find_snap_for_pc(ir_pc, trace);
   replay_snap(res, o_pc, o_frame, snap, trace);
+    
   if (snap->exits < 10) {
     snap->exits++;
   } else {
     printf("Hot snap %i\n", ir_pc);
+    return 1;
   }
+  
+  return 0;
 }
 
 extern long on_trace;
 
-void record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
+int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
                 long *frame_top) {
  again:
   auto trace = trace_cache_get(tnum);
@@ -152,4 +156,6 @@ void record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
     tnum = trace->link;
     goto again;
   }
+
+  return 0;
 }

@@ -412,7 +412,10 @@ void run() {
     L_INS_JFUNC:
       //printf("JFUNC\n");
       auto trace = INS_B(i);
-      record_run(trace, &pc, &frame, frame_top);
+      auto res = record_run(trace, &pc, &frame, frame_top);
+      if (unlikely(res)) {
+	memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
+      }
       DIRECT;
       break;
     }
