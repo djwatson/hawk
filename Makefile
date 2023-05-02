@@ -12,7 +12,7 @@ DEPFILES:=$(patsubst %.cpp,%.d,$(SOURCES))
 
 CXX=clang
 
-CXXFLAGS=-O0 -gdwarf-3
+CXXFLAGS=-O3 -gdwarf-3
 
 ifeq (0, $(words $(findstring $(MAKECMDGOALS), $(NODEPS))))
 	-include $(DEPFILES)

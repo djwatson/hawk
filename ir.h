@@ -58,6 +58,7 @@ struct snap_entry_s {
 struct snap_s {
   uint32_t pc;
   uint16_t ir;
+  uint16_t offset;
   uint8_t exits;
   std::vector<snap_entry_s> slots;
 };

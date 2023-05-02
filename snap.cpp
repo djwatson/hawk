@@ -2,7 +2,7 @@
 
 #include "snap.h"
 
-void add_snap(int* regs, trace_s* trace, uint32_t pc) {
+void add_snap(int* regs, int offset, trace_s* trace, uint32_t pc) {
   // No need for duplicate snaps.
   if (trace->snaps.size() &&
       trace->snaps[trace->snaps.size()-1].ir == trace->ops.size()) {
@@ -11,6 +11,7 @@ void add_snap(int* regs, trace_s* trace, uint32_t pc) {
   snap_s snap;
   snap.ir = trace->ops.size();
   snap.pc = pc;
+  snap.offset = offset;
   // TODO fix regs size/boj to vec?
   for(int i = 0; i < 257; i++) {
     if (regs[i] != -1) {

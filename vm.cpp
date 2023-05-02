@@ -404,7 +404,7 @@ void run() {
 
     case 23: {
     L_INS_JFUNC:
-      printf("JFUNC\n");
+      //printf("JFUNC\n");
       auto trace = INS_B(i);
       record_run(trace, &pc, &frame, frame_top);
       DIRECT;

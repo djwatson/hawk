@@ -37,12 +37,13 @@ void replay_snap(std::vector<long>&res, unsigned int **o_pc, long **o_frame, sna
       (*o_frame)[slot.slot] = res[slot.val];
     }
   }
+  *o_frame = *o_frame + snap->offset;
   bcfunc* func = (bcfunc*)((*o_frame)[-1]-5);
   *o_pc = &func->code[snap->pc];
 }
 
 void replay_abort(unsigned int ir_pc, trace_s* trace, std::vector<long>& res, unsigned int **o_pc, long **o_frame) {
-  printf("Replay failed guard, abort ir pc %i\n", ir_pc);
+  //printf("Replay failed guard, abort ir pc %i\n", ir_pc);
   auto snap = find_snap_for_pc(ir_pc, trace);
   replay_snap(res, o_pc, o_frame, snap, trace);
 }
