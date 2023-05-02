@@ -12,6 +12,7 @@ void add_snap(int* regs, int offset, trace_s* trace, uint32_t pc) {
   snap.ir = trace->ops.size();
   snap.pc = pc;
   snap.offset = offset;
+  snap.exits = 0;
   // TODO fix regs size/boj to vec?
   for(int i = 0; i < 257; i++) {
     if (regs[i] != -1) {
