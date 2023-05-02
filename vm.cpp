@@ -54,7 +54,7 @@ void run() {
   void *l_op_table[32];
   // clang-format off
   void* l_op_table_interpret[] = {
-    NULL,
+    &&L_INS_FUNC,
     &&L_INS_KSHORT,
     &&L_INS_ISGE,
     &&L_INS_JMP,
@@ -80,7 +80,7 @@ void run() {
     &&L_INS_JFUNC,
   };
   void* l_op_table_record[] = {
-    NULL,
+    &&L_INS_RECORD,
     &&L_INS_RECORD,
     &&L_INS_RECORD,
     &&L_INS_RECORD,
@@ -124,6 +124,12 @@ void run() {
     goto *l_op_table[INS_OP(i)];
 
     switch (INS_OP(i)) {
+    case FUNC: {
+      L_INS_FUNC:
+      pc++;
+      DIRECT;
+      break;
+    }
     case 1: {
     L_INS_KSHORT:
       frame[INS_A(i)] = INS_BC(i) << 3;

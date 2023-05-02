@@ -160,7 +160,8 @@
 	  (+ num 1))
 	0
 	(second f))
-  (compile-sexps (cddr f) f-bc env r 'ret))
+  (compile-sexps (cddr f) f-bc env r 'ret)
+  (push! (func-bc-code f-bc) (list 'FUNC r)))
 
 (define (exp-loc f env rd)
   (if (symbol? f)
@@ -279,7 +280,8 @@
   (define bc (make-func-bc "repl" '() '()))
   (push! program bc)
   (display (format "Compile: ~a \n" d))
-  (compile-sexps d bc '() 0 'ret))
+  (compile-sexps d bc '() 0 'ret)
+  (push! (func-bc-code bc) (list 'FUNC 0)))
 
 ;;;;;;;;;;;;;expander
 (define (read-file)
@@ -313,7 +315,7 @@
 ;;;;;;;;;;;;;; serialize bc
 
 (define enum '(
-	       (RET 0)
+	       (FUNC 0)
 	       (KSHORT 1)
 	       (ISGE 2)
 	       (JMP 3)

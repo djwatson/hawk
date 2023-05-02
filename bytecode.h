@@ -8,7 +8,7 @@
 
 // clang-format off
 enum {
-  RET=0,
+  FUNC=0,
   KSHORT,
   ISGE,
   JMP,

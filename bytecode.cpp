@@ -1,7 +1,7 @@
 #include "bytecode.h"
 // clang-format off
 const char* ins_names[] = {
-  "RET",
+  "FUNC",
   "KSHORT",
   "ISGE",
   "JMP",

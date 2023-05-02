@@ -187,8 +187,11 @@ int record_instr(unsigned int *pc, long *frame) {
     printf("%i Record code %s %i %i %i\n", depth, ins_names[INS_OP(i)], INS_A(i),
          INS_B(i), INS_C(i));
   switch (INS_OP(i)) {
-  case RET1:
-  case RET: {
+  case FUNC: {
+    // TODO: argcheck?
+    break;
+  }
+  case RET1: {
     if (depth == 0) {
       record_stop(pc, frame);
       //record_abort();
