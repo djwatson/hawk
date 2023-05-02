@@ -413,6 +413,7 @@ int record_instr(unsigned int *pc, long *frame) {
   //   return 1;
   // }
   // TODO check chain for down-recursion
+  // TODO this should check regs depth
   if (depth >= 100) {
     record_abort();
     printf("Record abort (stack too deep)\n");

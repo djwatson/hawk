@@ -1,6 +1,8 @@
 # TODO list
 
-* side-exit hot traces
+* do better recursion
+  * side-exits can trace through jfunc
+  * side-exits can down-recurse
 
 * reg alloc
 * fixup all opcodes of 'D' type
