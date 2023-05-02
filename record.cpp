@@ -87,6 +87,7 @@ void dump_trace(trace_s* trace) {
     case ir_ins_op::SUB:
     case ir_ins_op::ADD:
     case ir_ins_op::EQ:
+    case ir_ins_op::GE:
     case ir_ins_op::LT: {
       print_const_or_val(op.op1, trace);
       printf(" ");
@@ -104,7 +105,7 @@ void dump_trace(trace_s* trace) {
 void record_start(unsigned int *pc, long *frame) {
   trace = new trace_s;
   trace_state = START;
-  func = frame[-1];
+  func = frame[-1]-5;
   printf("Record start at %s\n", ins_names[INS_OP(*pc)]);
   pc_start = pc;
   instr_count = 0;
@@ -114,14 +115,17 @@ void record_start(unsigned int *pc, long *frame) {
   }
 }
 
+extern int joff;
+
 void record_stop(unsigned int *pc, long *frame) {
-  auto func = (bcfunc*)frame[-1];
+  auto func = (bcfunc*)(frame[-1]-5);
   int32_t pcloc= (long)(pc - &func->code[0]);
   add_snap(regs, trace, pcloc);
   *pc_start = CODE(JFUNC, 0, traces.size(), 0);
   dump_trace(trace);
   traces.push_back(trace);
   trace_state = OFF;
+  joff = 1;
 }
 
 void record_abort() {
@@ -168,7 +172,7 @@ int record_stack_load(int slot, long *frame) {
 }
 
 int record_instr(unsigned int *pc, long *frame) {
-  auto func = (bcfunc*)frame[-1];
+  auto func = (bcfunc*)(frame[-1]-5);
   int32_t pcloc= (long)(pc - &func->code[0]);
   instr_count++;
   unsigned int i = *pc;
@@ -183,7 +187,8 @@ int record_instr(unsigned int *pc, long *frame) {
   case RET1:
   case RET: {
     if (depth == 0) {
-      record_abort();
+      record_stop(pc, frame);
+      //record_abort();
       printf("Record stop return\n");
       return 1;
     }
@@ -221,9 +226,9 @@ int record_instr(unsigned int *pc, long *frame) {
   case KSHORT: {
     auto k = INS_BC(i) << 3;
     auto knum = trace->consts.size();
-    trace->consts.push_back(k << 3);
     auto reg = INS_A(i);
-    regs[reg] = k | IR_CONST_BIAS;
+    regs[reg] = trace->consts.size() | IR_CONST_BIAS;
+    trace->consts.push_back(k);
     break;
   }
   case JISLT: {
@@ -231,13 +236,21 @@ int record_instr(unsigned int *pc, long *frame) {
     ir_ins ins;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
-    ins.op = ir_ins_op::LT;
+    if (frame[INS_B(i)] < frame[INS_C(i)]) {
+      ins.op = ir_ins_op::LT;
+    } else {
+      ins.op = ir_ins_op::GE;
+    }
     ins.type = IR_INS_TYPE_GUARD;
     trace->ops.push_back(ins);
     break;
   }
+  case MOV: {
+    regs[INS_B(i)] = record_stack_load(INS_A(i), frame);
+    break;
+  }
   case GGET: {
-    bcfunc *func = (bcfunc *)frame[-1];
+    bcfunc *func = (bcfunc *)(frame[-1]-5);
     long gp = func->consts[INS_B(i)];
     auto knum = trace->consts.size();
     trace->consts.push_back(gp);
@@ -292,10 +305,10 @@ int record_instr(unsigned int *pc, long *frame) {
     // Move args down
     // TODO also chedck func
     memmove(&regs[-1], &regs[INS_A(i)], sizeof(int)*(INS_B(i)));
-    if (func == (bcfunc*)(frame[INS_A(i)]-5)) {
-      // No need to save same tailcalled.
-      regs[-1] = -1;
-    }
+    // if (func == (bcfunc*)(frame[INS_A(i)])) {
+    //   // No need to save same tailcalled.
+    //   regs[-1] = -1;
+    // }
     for(int j = INS_B(i)-1; j < 256; j++) {
       regs[j] = -1;
     }

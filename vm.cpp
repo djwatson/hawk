@@ -40,7 +40,7 @@ void run() {
   unsigned int *code = &funcs[0]->code[0];
 
   stack[0] = (unsigned long)&final_code[1]; // return pc
-  stack[1] = (unsigned long)funcs[0];       // func
+  stack[1] = ((unsigned long)funcs[0])+5;       // func
   long *frame = &stack[2];
   long *frame_top = stack + stacksz;
 
@@ -113,12 +113,12 @@ void run() {
 #define DIRECT
   while (true) {
     unsigned int i = *pc;
-    //#ifdef DEBUG
+#ifdef DEBUG
     printf("Running PC %li code %s %i %i %i\n", pc - code, ins_names[INS_OP(i)],
            INS_A(i), INS_B(i), INS_C(i));
     printf("frame %li: %li %li %li %li\n", frame - stack, frame[0], frame[1],
            frame[2], frame[3]);
-    //#endif
+#endif
     
     off_trace++;
     goto *l_op_table[INS_OP(i)];
@@ -274,7 +274,6 @@ void run() {
         FAIL_SLOWPATH(v, 0);
       }
       bcfunc *func = (bcfunc *)(v - 5);
-      frame[INS_A(i) + 1] = (long)func;
       auto old_pc = pc;
       pc = &func->code[0];
       frame[INS_A(i)] = (long)(old_pc + 1);
@@ -300,7 +299,7 @@ void run() {
       }
       bcfunc *func = (bcfunc *)(v - 5);
       pc = &func->code[0];
-      frame[-1] = (long)func;
+      frame[-1] = v; // TODO move to copy loop
       long start = INS_A(i) + 1;
       auto cnt = INS_B(i) - 1;
       for (auto i = 0; i < cnt; i++) {
@@ -359,7 +358,7 @@ void run() {
     }
     case 13: {
     L_INS_GGET:
-      bcfunc *func = (bcfunc *)frame[-1];
+      bcfunc *func = (bcfunc *)(frame[-1]-5);
       symbol *gp = (symbol *)func->consts[INS_B(i)];
       if (unlikely(gp->val == UNDEFINED)) {
         UNDEFINED_SYMBOL_SLOWPATH(gp);
@@ -371,7 +370,7 @@ void run() {
     }
     case 14: {
     L_INS_GSET:
-      bcfunc *func = (bcfunc *)frame[-1];
+      bcfunc *func = (bcfunc *)(frame[-1]-5);
       symbol *gp = (symbol *)func->consts[INS_A(i)];
       gp->val = frame[INS_B(i)];
       pc++;
@@ -389,7 +388,7 @@ void run() {
     }
     case 17: {
     L_INS_KONST:
-      bcfunc *func = (bcfunc *)frame[-1];
+      bcfunc *func = (bcfunc *)(frame[-1]-5);
       frame[INS_A(i)] = func->consts[INS_B(i)];
       pc++;
       DIRECT;

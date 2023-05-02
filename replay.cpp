@@ -32,12 +32,12 @@ void replay_snap(std::vector<long>&res, unsigned int **o_pc, long **o_frame, sna
       (*o_frame)[slot.slot] = res[slot.val];
     }
   }
-  bcfunc* func = (bcfunc*)(*o_frame)[-1];
+  bcfunc* func = (bcfunc*)((*o_frame)[-1]-5);
   *o_pc = &func->code[snap->pc];
 }
 
 void replay_abort(unsigned int ir_pc, trace_s* trace, std::vector<long>& res, unsigned int **o_pc, long **o_frame) {
-  printf("Replay failed guard, abort pc %i\n", ir_pc);
+  printf("Replay failed guard, abort ir pc %i\n", ir_pc);
   auto snap = find_snap_for_pc(ir_pc, trace);
   replay_snap(res, o_pc, o_frame, snap, trace);
 }
@@ -58,7 +58,11 @@ void record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   while(pc < trace->ops.size()) {
     on_trace++;
     auto& ins = trace->ops[pc];
-    //printf("Replay %s\n", ir_names[(int)ins.op]);
+    // printf("Replay %s\n", ir_names[(int)ins.op]);
+    // for(int i = 0; i < pc; i++) {
+    //   printf("%i: %lx ", i, res[i]);
+    // }
+    // printf("\n");
     switch(ins.op) {
     case ir_ins_op::SLOAD: {
       res[pc] = frame[ins.op1];
@@ -70,7 +74,17 @@ void record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
       auto a = get_val_or_const(res, ins.op1, trace->consts);
       auto b = get_val_or_const(res, ins.op2, trace->consts);
       //printf("LT %li %li\n", a>>3, b>>3);
-      if (a < b) { // TODO swap branches
+      if (a >= b) { 
+	return replay_abort(pc, trace, res, o_pc, o_frame);
+      }
+      pc++;
+      break;
+    }
+    case ir_ins_op::GE: {
+      auto a = get_val_or_const(res, ins.op1, trace->consts);
+      auto b = get_val_or_const(res, ins.op2, trace->consts);
+      //printf("GE %li %li\n", a>>3, b>>3);
+      if (a < b) { 
 	return replay_abort(pc, trace, res, o_pc, o_frame);
       }
       pc++;
@@ -88,7 +102,7 @@ void record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
     }
     case ir_ins_op::GGET: {
       symbol* a = (symbol*)get_val_or_const(res, ins.op1, trace->consts);
-      //printf("GGET %s\n", a->name.c_str());
+      //printf("GGET %s %lx\n", a->name.c_str(), a->val);
       res[pc] = a->val;
       // TODO guard type
       pc++;
@@ -124,7 +138,7 @@ void record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   auto& snap = trace->snaps[trace->snaps.size()-1];
   replay_snap(res, o_pc, o_frame, &snap, trace);
   // TODO looping trace
-  pc = 0;
-  goto again;
+  //pc = 0;
+  //goto again;
   //replay_abort(pc, trace);
 }
