@@ -11,7 +11,8 @@ int depth = 0;
 
 static long stack[256]; // TODO just walk the stack.
 long func;
-int regs[256];
+int regs_list[257];
+int* regs =&regs_list[1];
 
 enum trace_state_e {
   OFF,
@@ -108,8 +109,8 @@ void record_start(unsigned int *pc, long *frame) {
   pc_start = pc;
   instr_count = 0;
   depth = 0;
-  for(int i = 0; i < 256; i++) {
-    regs[i] = -1;
+  for(int i = 0; i < 257; i++) {
+    regs_list[i] = -1;
   }
 }
 
@@ -290,7 +291,15 @@ int record_instr(unsigned int *pc, long *frame) {
     }
     // Move args down
     // TODO also chedck func
-    memmove(&regs[0], &regs[INS_A(i) + 1], sizeof(regs) - (sizeof(int)*(INS_A(i) + 1)));
+    memmove(&regs[-1], &regs[INS_A(i)+1], sizeof(int)*(INS_B(i)-1));
+    if (func == (bcfunc*)(frame[INS_A(i)]-5)) {
+      // No need to save same tailcalled.
+      regs[-1] = -1;
+    }
+    for(int j = INS_B(i)-1; j < 256; j++) {
+      regs[j] = -1;
+    }
+
     break;
   }
   case JMP: {

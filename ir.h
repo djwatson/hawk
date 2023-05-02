@@ -49,8 +49,7 @@ struct ir_ins {
 };
 
 struct snap_entry_s {
-  uint8_t slot;
-  uint8_t type;
+  int16_t slot;
   uint16_t val;
 };
 
