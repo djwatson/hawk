@@ -329,5 +329,6 @@ int record_instr(unsigned int *pc, long *frame) {
   return 0;
 }
 
-void record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
-                long *frame_top) {}
+trace_s* trace_cache_get(unsigned int tnum) {
+  return traces[tnum];
+}

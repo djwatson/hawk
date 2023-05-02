@@ -4,7 +4,7 @@ SUFFIXES += .d
 
 NODEPS:= clean cloc format tidy
 
-SOURCES:=readbc.cpp bytecode.cpp vm.cpp boom.cpp record.cpp ir.cpp snap.cpp
+SOURCES:=readbc.cpp bytecode.cpp vm.cpp boom.cpp record.cpp ir.cpp snap.cpp replay.cpp
 OBJS:=$(patsubst %.cpp,%.o,$(SOURCES))
 HEADERS:=$(patsubst %.cpp,%.h,$(SOURCES))
 

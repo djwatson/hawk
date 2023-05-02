@@ -2,6 +2,7 @@
 
 #include "bytecode.h"
 #include "record.h"
+#include "replay.h"
 #include "vm.h"
 
 int joff = 0;
@@ -110,12 +111,12 @@ void run() {
 #define DIRECT
   while (true) {
     unsigned int i = *pc;
-#ifdef DEBUG
+    //#ifdef DEBUG
     printf("Running PC %li code %s %i %i %i\n", pc - code, ins_names[INS_OP(i)],
            INS_A(i), INS_B(i), INS_C(i));
     printf("frame %li: %li %li %li %li\n", frame - stack, frame[0], frame[1],
            frame[2], frame[3]);
-#endif
+    //#endif
 
     goto *l_op_table[INS_OP(i)];
 
@@ -404,7 +405,6 @@ void run() {
       printf("JFUNC\n");
       auto trace = INS_B(i);
       record_run(trace, &pc, &frame, frame_top);
-      pc++;
       DIRECT;
       break;
     }
