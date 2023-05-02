@@ -291,7 +291,7 @@ int record_instr(unsigned int *pc, long *frame) {
     }
     // Move args down
     // TODO also chedck func
-    memmove(&regs[-1], &regs[INS_A(i)+1], sizeof(int)*(INS_B(i)-1));
+    memmove(&regs[-1], &regs[INS_A(i)], sizeof(int)*(INS_B(i)));
     if (func == (bcfunc*)(frame[INS_A(i)]-5)) {
       // No need to save same tailcalled.
       regs[-1] = -1;
