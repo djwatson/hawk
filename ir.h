@@ -63,10 +63,15 @@ struct snap_s {
   std::vector<snap_entry_s> slots;
 };
 
+enum trace_type_e {
+  TRACE_RETURN,
+  TRACE_TAILREC,
+};
 
 struct trace_s {
   std::vector<ir_ins> ops;
   std::vector<long> consts;
   std::vector<snap_s> snaps;
+  int link;
 };
 

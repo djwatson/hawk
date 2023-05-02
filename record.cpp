@@ -120,12 +120,13 @@ void record_start(unsigned int *pc, long *frame) {
 
 extern int joff;
 
-void record_stop(unsigned int *pc, long *frame) {
+void record_stop(unsigned int *pc, long *frame, int link) {
   auto func = (bcfunc*)(frame[-1]-5);
   int32_t pcloc= (long)(pc - &func->code[0]);
   add_snap(regs_list, regs-regs_list - 1, trace, pcloc);
   *pc_start = CODE(JFUNC, 0, traces.size(), 0);
   dump_trace(trace);
+  trace->link = link;
   traces.push_back(trace);
   trace_state = OFF;
   joff = 1;
@@ -180,7 +181,7 @@ int record_instr(unsigned int *pc, long *frame) {
   instr_count++;
   unsigned int i = *pc;
   if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING)) {
-    record_stop(pc, frame);
+    record_stop(pc, frame, traces.size());
     printf("Record stop loop\n");
     return 1;
   }
@@ -193,7 +194,7 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case RET1: {
     if (depth == 0) {
-      record_stop(pc, frame);
+      record_stop(pc, frame, -1);
       //record_abort();
       printf("Record stop return\n");
       return 1;
@@ -278,6 +279,20 @@ int record_instr(unsigned int *pc, long *frame) {
     trace->ops.push_back(ins);
     break;
   }
+  case JISEQ: {
+    add_snap(regs_list, regs-regs_list - 1, trace, pcloc);
+    ir_ins ins;
+    ins.op1 = record_stack_load(INS_B(i), frame);
+    ins.op2 = record_stack_load(INS_C(i), frame);
+    if (frame[INS_B(i)] == frame[INS_C(i)]) {
+      ins.op = ir_ins_op::EQ;
+    } else {
+      ins.op = ir_ins_op::NE;
+    }
+    ins.type = IR_INS_TYPE_GUARD;
+    trace->ops.push_back(ins);
+    break;
+  }
   case MOV: {
     regs[INS_B(i)] = record_stack_load(INS_A(i), frame);
     break;
@@ -303,6 +318,19 @@ int record_instr(unsigned int *pc, long *frame) {
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = knum | IR_CONST_BIAS;
     ins.op = ir_ins_op::SUB;
+    ins.type = IR_INS_TYPE_GUARD;
+    auto reg = INS_A(i);
+    regs[reg] = trace->ops.size();
+    trace->ops.push_back(ins);
+    break;
+  }
+  case ADDVN: {
+    ir_ins ins;
+    auto knum = trace->consts.size();
+    trace->consts.push_back(INS_C(i) << 3);
+    ins.op1 = record_stack_load(INS_B(i), frame);
+    ins.op2 = knum | IR_CONST_BIAS;
+    ins.op = ir_ins_op::ADD;
     ins.type = IR_INS_TYPE_GUARD;
     auto reg = INS_A(i);
     regs[reg] = trace->ops.size();

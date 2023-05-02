@@ -1,6 +1,5 @@
 # TODO list
 
-* proper loop or abort type for traces, tailcalled
 * side-exit hot traces
 
 * reg alloc
