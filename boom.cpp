@@ -1,12 +1,3 @@
-// error checking bytecode reader
-// remove indirection through vector, func directly points to array
-// remove consts:
-//    various tags
-
-// TODO:
-// recording
-// super-simple jit: sum, fib, ack, tak
-
 #include <getopt.h>
 #include <unistd.h>
 

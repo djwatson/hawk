@@ -1,21 +1,3 @@
-;; CLEANUP
-;; * cleanup bytecode ops order
-;; * split bc to separate files
-;; * Double check 'VN' use D reg
-
-;; TODO
-;; * comments in output
-;; * name more lambdas, define, let
-;; *could add sume 'VN' variations of < >, EQ, etc
-
-
-;; * lets shouldn't be modified by alexpander, but get let loop working (let-internal?)
-;; * rest params
-;; * assignment conversion
-;; * closure conversion
-;; * fix letrec
-;; * tail call register alloc?
-
 ;;;;;;;;;;;;;;chicken stuff
 (import (r7rs))
 (import (srfi 1)) ;; lists
