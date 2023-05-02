@@ -33,6 +33,8 @@ __attribute__((noinline)) void EXPAND_STACK_SLOWPATH() {
   stack = (long *)realloc(stack, stacksz * sizeof(long));
 }
 
+extern long off_trace;
+
 void run() {
   unsigned int final_code[] = {CODE(CALL, 0, 1, 0), CODE(HALT, 0, 0, 0)};
   unsigned int *code = &funcs[0]->code[0];
@@ -117,7 +119,8 @@ void run() {
     printf("frame %li: %li %li %li %li\n", frame - stack, frame[0], frame[1],
            frame[2], frame[3]);
     //#endif
-
+    
+    off_trace++;
     goto *l_op_table[INS_OP(i)];
 
     switch (INS_OP(i)) {
