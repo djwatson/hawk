@@ -1,4 +1,5 @@
 #include <string.h>
+#include <assert.h>
 
 #include "record.h"
 #include "bytecode.h"
@@ -24,6 +25,15 @@ enum trace_state_e {
 trace_state_e trace_state = OFF;
 trace_s* trace = NULL;
 std::vector<trace_s*> traces;
+
+unsigned int *patchpc = NULL;
+
+void pendpatch() {
+  if (patchpc) {
+    *patchpc = (*patchpc&~0xff)|JFUNC;
+    patchpc = NULL;
+  }
+}
 
 void print_const_or_val(int i, trace_s* trace) {
   if(i&IR_CONST_BIAS) {
@@ -111,6 +121,8 @@ void record_side(snap_s* side) {
 }
 
 void record_start(unsigned int *pc, long *frame) {
+  assert(patchpc == NULL);
+  
   trace = new trace_s;
   trace_state = START;
   func = frame[-1]-5;
@@ -127,6 +139,8 @@ void record_start(unsigned int *pc, long *frame) {
 extern int joff;
 
 void record_stop(unsigned int *pc, long *frame, int link) {
+  pendpatch();
+  
   auto func = (bcfunc*)(frame[-1]-5);
   int32_t pcloc= (long)(pc - &func->code[0]);
   add_snap(regs_list, regs-regs_list - 1, trace, pcloc);
@@ -135,6 +149,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   } else {
     *pc_start = CODE(JFUNC, 0, traces.size(), 0);
   }
+  printf("Installing trace %li\n", traces.size());
   dump_trace(trace);
   trace->link = link;
   traces.push_back(trace);
@@ -162,7 +177,9 @@ int record(unsigned int *pc, long *frame) {
     break;
   }
   case TRACING: {
-    return record_instr(pc, frame);
+    pendpatch();
+    auto res = record_instr(pc, frame);
+    return res;
     break;
   }
   default: {
@@ -242,6 +259,11 @@ int record_instr(unsigned int *pc, long *frame) {
         printf("Record abort up-recursion\n");
         return 1;
       } else {
+	auto func = (bcfunc*)(frame[INS_A(i) + 1] - 5) /*tag*/;
+	if (INS_OP(func->code[0]) == JFUNC) {
+	  printf("Flushing trace\n");
+	  func->code[0] = (func->code[0]&~0xff) | FUNC;
+	}
         record_abort();
         printf("Record abort unroll limit reached\n");
         return 1;
@@ -394,9 +416,18 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case JFUNC: {
-    record_stop(pc, frame, INS_B(i));
-    printf("Record stop JFUNC\n");
-    return 1;
+    // Check if it is a returning trace
+    auto trace = trace_cache_get(INS_B(i));
+    if (0 && trace->link == -1) {
+      assert(patchpc == NULL);
+      patchpc = pc;
+      *pc = ((*pc)&~0xff)|FUNC;
+      break;
+    } else {
+      record_stop(pc, frame, INS_B(i));
+      printf("Record stop JFUNC\n");
+      return 1;
+    }
   }
   default: {
     printf("NYI: CANT RECORD BYTECODE %s\n", ins_names[INS_OP(i)]);

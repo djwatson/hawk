@@ -1,5 +1,8 @@
 # TODO list
 
+* snaps need special handling when recording side traces: update reg map, don't store
+* fix snap saves for branches, don't merge with 0, bump one past.
+
 * do better recursion
   * side-exits can trace through jfunc
   * side-exits can down-recurse

@@ -443,6 +443,7 @@ void run() {
       if (record(pc, frame)) {
         memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
       }
+      i = *pc; // recorder may have patched instruction.
       goto *l_op_table_interpret[INS_OP(i)];
     }
   }
