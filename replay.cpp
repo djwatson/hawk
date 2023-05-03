@@ -24,7 +24,8 @@ snap_s* find_snap_for_pc(unsigned int pc, trace_s* trace) {
   return res;
 }
 
-void replay_snap(std::vector<long>&res, unsigned int **o_pc, long **o_frame, snap_s* snap, trace_s* trace) {
+extern long *stack;
+void snap_restore(std::vector<long>&res, unsigned int **o_pc, long **o_frame, snap_s* snap, trace_s* trace) {
   for(auto&slot:snap->slots) {
     if (slot.val & IR_CONST_BIAS) {
       auto c = trace->consts[slot.val - IR_CONST_BIAS];
@@ -34,30 +35,39 @@ void replay_snap(std::vector<long>&res, unsigned int **o_pc, long **o_frame, sna
 	(*o_frame)[slot.slot] = c;
       }
     } else {
+      printf("Snap restore slot %i val %li ptr %lx\n", slot.slot, res[slot.val], &(*o_frame)[slot.slot]);
       (*o_frame)[slot.slot] = res[slot.val];
     }
   }
   *o_frame = *o_frame + snap->offset;
   bcfunc* func = (bcfunc*)((*o_frame)[-1]-5);
   *o_pc = &func->code[snap->pc];
+  printf("PC is now %i %s\n", snap->pc, ins_names[INS_OP(**o_pc)]);
+  printf("Stack is now %li func is %lx\n", *o_frame-stack, func);
 }
 
 int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
 	       long *frame_top);
 int replay_abort(unsigned int ir_pc, trace_s* trace, std::vector<long>& res, unsigned int **o_pc, long **o_frame) {
-  auto snap = find_snap_for_pc(ir_pc, trace);
-  replay_snap(res, o_pc, o_frame, snap, trace);
-  if (snap->link != -1) {
-    // TODO tailcall?
-    return record_run(snap->link, o_pc, o_frame, NULL);
-  }
   printf("Replay failed guard, abort ir pc %i\n", ir_pc);
+  auto snap = find_snap_for_pc(ir_pc, trace);
+  snap_restore(res, o_pc, o_frame, snap, trace);
+  if (snap->link != -1) {
+    // Don't adjust stack frame for links
+    // TODO: infact, in generated code snap_restore will be not done at all when jumping to side trace.
+    *o_frame = *o_frame - snap->offset; 
+  bcfunc* func = (bcfunc*)((*o_frame)[-1]-5);
+    printf("Stack is now %li func is %lx\n", *o_frame-stack, func);
+    printf("Snap link %i\n", snap->link);
+    return record_run(snap->link, o_pc, o_frame, NULL);
+
+  }
 
   if (snap->exits < 10) {
     snap->exits++;
   } else {
     printf("Hot snap %i\n", ir_pc);
-    record_side(snap);
+    record_side(trace, snap);
     return 1;
   }
   
@@ -80,11 +90,11 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   while(pc < trace->ops.size()) {
     on_trace++;
     auto& ins = trace->ops[pc];
-    // printf("Replay %s\n", ir_names[(int)ins.op]);
-    // for(int i = 0; i < pc; i++) {
-    //   printf("%i: %lx ", i, res[i]);
-    // }
-    // printf("\n");
+    printf("Replay %s %i %i\n", ir_names[(int)ins.op], ins.op1, ins.op2);
+    for(int i = 0; i < pc; i++) {
+      printf("%i: %lx ", i, res[i]);
+    }
+    printf("\n");
     switch(ins.op) {
     case ir_ins_op::SLOAD: {
       res[pc] = frame[ins.op1];
@@ -143,7 +153,7 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
     case ir_ins_op::SUB: {
       auto a = get_val_or_const(res, ins.op1, trace->consts);
       auto b = get_val_or_const(res, ins.op2, trace->consts);
-      //printf("SUB %li %li\n", a>>3, b>>3);
+      printf("SUB %li %li\n", a>>3, b>>3);
       if (__builtin_sub_overflow(a, b, &res[pc])) {
 	return replay_abort(pc, trace, res, o_pc, o_frame);
       }
@@ -166,10 +176,18 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
     }
     }
   }
-  //printf("At end of trace %i\n", pc);
+  printf("At end of trace\n");
+  bcfunc* func = (bcfunc*)((*o_frame)[-1]-5);
+    printf("Stack is now %li func is %lx\n", *o_frame-stack, func);
   auto& snap = trace->snaps[trace->snaps.size()-1];
-  replay_snap(res, o_pc, o_frame, &snap, trace);
+  snap_restore(res, o_pc, o_frame, &snap, trace);
+  printf("Frame %li %li %li %li\n",
+	 (*o_frame)[0],
+	 (*o_frame)[1],
+	 (*o_frame)[2],
+	 (*o_frame)[3]);
   if (trace->link != -1) {
+    printf("Snap link %i\n", trace->link);
     tnum = trace->link;
     goto again;
   }

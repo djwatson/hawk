@@ -15,6 +15,7 @@ long func;
 int regs_list[257];
 int* regs =&regs_list[1];
 snap_s* side_exit = NULL;
+trace_s* parent = NULL;
 
 enum trace_state_e {
   OFF,
@@ -116,13 +117,14 @@ void dump_trace(trace_s* trace) {
   }
 }
 
-void record_side(snap_s* side) {
+void record_side(trace_s* p, snap_s* side) {
+  parent = p;
   side_exit = side;
 }
 
 void record_start(unsigned int *pc, long *frame) {
   assert(patchpc == NULL);
-  
+
   trace = new trace_s;
   trace_state = START;
   func = frame[-1]-5;
@@ -133,6 +135,10 @@ void record_start(unsigned int *pc, long *frame) {
   regs = &regs_list[1];
   for(int i = 0; i < 257; i++) {
     regs_list[i] = -1;
+  }
+
+  if (side_exit) {
+    snap_replay(&regs, side_exit, parent, trace, frame);
   }
 }
 
