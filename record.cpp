@@ -254,6 +254,8 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case CALL: {
     stack[depth] = frame[INS_A(i) + 1];
+    auto func = (bcfunc*)(frame[INS_A(i)+1]-5);
+    auto target = &func->code[0];
     // Check for call unroll
     auto f = stack[depth];
     long cnt = 0;
@@ -263,9 +265,10 @@ int record_instr(unsigned int *pc, long *frame) {
       }
     }
     if (cnt >= 3) {
-      if (pc == pc_start) {
+      if (target == pc_start) {
         record_abort();
         printf("Record abort up-recursion\n");
+	exit(-1);
         return 1;
       } else {
 	auto func = (bcfunc*)(frame[INS_A(i) + 1] - 5) /*tag*/;
