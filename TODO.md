@@ -1,7 +1,10 @@
 # TODO list
 
+* figure out why fib re-jits?
+
 * BROKEN - fix traec num, store in D, max traces cache
 * BROKEN keeps jitting even on jfunc.  Should hotmap on func instead of call?
+* add better logging for trace numbers / side traec numbers
 * fix snap saves for branches, don't merge with 0, bump one past.
 
 * do better recursion
