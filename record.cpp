@@ -252,7 +252,7 @@ int record_instr(unsigned int *pc, long *frame) {
       auto old_pc = (unsigned int *)frame[-2];
       auto old_frame = frame - (INS_A(*(old_pc-1)) + 2);
       auto old_target = (bcfunc*)(old_frame[-1]-5);
-       if(INS_OP(*pc_start) == RET1) {
+      if(INS_OP(*pc_start) == RET1 || side_exit != NULL) {
 	int cnt = 0;
 	for(auto& p: downrec) {
 	  if (p == pc) {
