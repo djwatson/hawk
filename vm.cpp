@@ -90,7 +90,7 @@ void run() {
 #define DIRECT
   while (true) {
     unsigned int i = *pc;
-    #ifdef DEBUG
+    //#ifdef DEBUG
     {
       bcfunc *func;
       unsigned int*code;
@@ -105,7 +105,7 @@ void run() {
     printf("frame %li: %li %li %li %li\n", frame - stack, frame[0], frame[1],
            frame[2], frame[3]);
     }
-    #endif
+    //    #endif
     
     off_trace++;
     goto *l_op_table[INS_OP(i)];
@@ -398,7 +398,7 @@ void run() {
     case 23: {
     L_INS_JFUNC:
       auto trace = INS_B(i);
-      //printf("JFUNC run %i\n", trace);
+      printf("JFUNC run %i\n", trace);
       auto res = record_run(trace, &pc, &frame, frame_top);
       if (unlikely(res)) {
 	memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));

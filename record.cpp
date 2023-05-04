@@ -17,6 +17,8 @@ int* regs =&regs_list[1];
 snap_s* side_exit = NULL;
 trace_s* parent = NULL;
 
+std::vector<unsigned int*> downrec;
+
 enum trace_state_e {
   OFF=0,
   START,
@@ -98,6 +100,7 @@ void dump_trace(trace_s* trace) {
       printf("%s", s->name.c_str());
       break;
     }
+    case ir_ins_op::RET: 
     case ir_ins_op::SUB:
     case ir_ins_op::ADD:
     case ir_ins_op::EQ:
@@ -161,6 +164,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   traces.push_back(trace);
   trace_state = OFF;
   side_exit = NULL;
+  downrec.clear();
   //joff = 1;
 }
 
@@ -241,12 +245,54 @@ int record_instr(unsigned int *pc, long *frame) {
   case RET1: {
     if (depth == 0) {
       auto old_pc = (unsigned int *)frame[-2];
-      auto old_frame = frame - INS_A(*(old_pc-1)) + 2;
+      auto old_frame = frame - (INS_A(*(old_pc-1)) + 2);
       auto old_target = (bcfunc*)(old_frame[-1]-5);
       if (side_exit && old_target == func) {
 	printf("Potential down-recursion, restarting\n");
-	record_stop(pc, frame, -1);
-	return 1;
+	record_abort();
+	record_start(pc, frame);
+	record_instr(pc, frame);
+	trace_state = TRACING;
+	break;
+      } else if(INS_OP(*pc_start) == RET1) {
+	int cnt = 0;
+	for(auto& p: downrec) {
+	  if (p == pc) {
+	    cnt++;
+	  }
+	}
+	if (cnt) {
+	  printf("Record stop downrec\n");
+	  record_stop(pc, frame, traces.size());
+	  return 1;
+	}
+	downrec.push_back(pc);
+	
+	// Guard down func type
+	add_snap(regs_list, regs-regs_list - 1, trace, pcloc);
+
+	auto frame_off = INS_A(*(old_pc-1));
+	printf("Continue down recursion, frame offset %i\n", frame_off);
+	auto result = record_stack_load(INS_A(i), frame);
+	memmove(&regs[frame_off+2], &regs[0], sizeof(int)*(256 - (frame_off+2)));
+	regs[frame_off] = result;
+	for(int i = 0; i < frame_off; i++) {
+	  regs[i] = -1;
+	}
+	
+	auto knum = trace->consts.size();
+	trace->consts.push_back((long)old_pc|SNAP_FRAME);
+	auto knum2 = trace->consts.size();
+	trace->consts.push_back((frame_off+2) << 3);
+	ir_ins ins;
+	ins.op1 = knum|IR_CONST_BIAS;
+	// TODO this isn't a runtime const?  can gen directly from PC?
+	ins.op2 = knum2|IR_CONST_BIAS;
+	ins.op = ir_ins_op::RET;
+	ins.type = IR_INS_TYPE_GUARD|0x5;
+	trace->ops.push_back(ins);
+
+	// TODO retdepth
       } else {
 	record_stop(pc, frame, -1);
 	//record_abort();

@@ -49,12 +49,13 @@ void snap_restore(std::vector<long>&res, unsigned int **o_pc, long **o_frame, sn
 int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
 	       long *frame_top);
 int replay_abort(unsigned int ir_pc, trace_s* trace, std::vector<long>& res, unsigned int **o_pc, long **o_frame) {
-  //printf("Replay failed guard, abort ir pc %i\n", ir_pc);
+  printf("Replay failed guard, abort ir pc %i\n", ir_pc);
   auto snap = find_snap_for_pc(ir_pc, trace);
   snap_restore(res, o_pc, o_frame, snap, trace);
   if (snap->link != -1) {
     // Don't adjust stack frame for links
     // TODO: infact, in generated code snap_restore will be not done at all when jumping to side trace.
+    printf("Snaplink to %i\n", snap->link);
     *o_frame = *o_frame - snap->offset; 
     return record_run(snap->link, o_pc, o_frame, NULL);
 
@@ -80,6 +81,7 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
                 long *frame_top) {
  again:
   auto trace = trace_cache_get(tnum);
+  printf("Run trace %i\n", tnum);
 
   unsigned int pc = 0;
   std::vector<long> res;
@@ -90,11 +92,11 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   while(pc < trace->ops.size()) {
     on_trace++;
     auto& ins = trace->ops[pc];
-    // printf("Replay %s %i %i\n", ir_names[(int)ins.op], ins.op1, ins.op2);
-    // for(int i = 0; i < pc; i++) {
-    //   printf("%i: %lx ", i, res[i]);
-    // }
-    // printf("\n");
+    printf("Replay %s %i %i\n", ir_names[(int)ins.op], ins.op1, ins.op2);
+    for(int i = 0; i < pc; i++) {
+      printf("%i: %lx ", i, res[i]);
+    }
+    printf("\n");
     switch(ins.op) {
     case ir_ins_op::SLOAD: {
       res[pc] = frame[ins.op1];
@@ -167,6 +169,17 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
       if (__builtin_add_overflow(a, b, &res[pc])) {
 	return replay_abort(pc, trace, res, o_pc, o_frame);
       }
+      pc++;
+      break;
+    }
+    case ir_ins_op::RET: {
+      auto a = get_val_or_const(res, ins.op1, trace->consts)-SNAP_FRAME;
+      auto b = get_val_or_const(res, ins.op2, trace->consts);
+      if (a != frame[-2]) {
+	printf("RET guard %lx %lx\n", a, frame[-2]);
+	return replay_abort(pc, trace, res, o_pc, o_frame);
+      }
+      frame -= b >> 3;
       pc++;
       break;
     }
