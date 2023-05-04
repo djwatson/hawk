@@ -138,7 +138,7 @@ void record_start(unsigned int *pc, long *frame) {
   }
 
   if (side_exit) {
-    snap_replay(&regs, side_exit, parent, trace, frame);
+    snap_replay(&regs, side_exit, parent, trace, frame, &depth);
   }
 }
 
@@ -177,6 +177,10 @@ int record(unsigned int *pc, long *frame) {
   }
   switch (trace_state) {
   case OFF: {
+    // TODO fix?
+    if (INS_OP(*pc) == JFUNC) {
+      return 1;
+    }
     record_start(pc, frame);
     auto res = record_instr(pc, frame);
     if (trace_state == START) {

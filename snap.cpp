@@ -28,11 +28,15 @@ void add_snap(int* regs, int offset, trace_s* trace, uint32_t pc) {
 }
 
 // Replay a snap for a side-trace.
-void snap_replay(int** regs, snap_s* snap, trace_s* parent, trace_s* trace, long*frame) {
+void snap_replay(int** regs, snap_s* snap, trace_s* parent, trace_s* trace, long*frame, int *d) {
+  int depth = 0;
   frame -= snap->offset;
   for(auto&slot:snap->slots) {
     if (slot.val & IR_CONST_BIAS) {
       auto c = parent->consts[slot.val - IR_CONST_BIAS];
+      if (c&SNAP_FRAME) {
+	depth++;
+      }
 	// Push const in new trace
 	auto knum = trace->consts.size();
 	trace->consts.push_back(c);
@@ -52,4 +56,6 @@ void snap_replay(int** regs, snap_s* snap, trace_s* parent, trace_s* trace, long
     }
   }
   *regs = *regs + snap->offset;
+  printf("SNAP REPLY DEPTH %i\n", depth);
+  *d = depth;
 }

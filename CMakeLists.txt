@@ -13,6 +13,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(CMAKE_CXX_COMPILER "clang")
+set(CMAKE_EXE_LINKER_FLAGS "-no-pie")
 
 
 # -Wold-style-cast
