@@ -228,7 +228,10 @@ int record_instr(unsigned int *pc, long *frame) {
     printf("Record stop loop\n");
     return 1;
   }
-    printf("%i Record code %s %i %i %i\n", depth, ins_names[INS_OP(i)], INS_A(i),
+  for(int j = 0; j < depth; j++) {
+    printf(" . ");
+  }
+  printf("%s %i %i %i\n", ins_names[INS_OP(i)], INS_A(i),
          INS_B(i), INS_C(i));
   switch (INS_OP(i)) {
   case FUNC: {
@@ -237,10 +240,19 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case RET1: {
     if (depth == 0) {
-      record_stop(pc, frame, -1);
-      //record_abort();
-      printf("Record stop return\n");
-      return 1;
+      auto old_pc = (unsigned int *)frame[-2];
+      auto old_frame = frame - INS_A(*(old_pc-1)) + 2;
+      auto old_target = (bcfunc*)(old_frame[-1]-5);
+      if (side_exit && old_target == func) {
+	printf("Potential down-recursion, restarting\n");
+	record_stop(pc, frame, -1);
+	return 1;
+      } else {
+	record_stop(pc, frame, -1);
+	//record_abort();
+	printf("Record stop return\n");
+	return 1;
+      }
     } else if (depth > 0) {
       depth--;
       regs[-2] = regs[INS_A(i)];
