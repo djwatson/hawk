@@ -51,7 +51,7 @@ void run() {
     hotmap[i] = hotmap_cnt;
   }
 
-  void *l_op_table[24];
+  void *l_op_table[25];
   // clang-format off
   void* l_op_table_interpret[] = {
     &&L_INS_FUNC,
@@ -78,9 +78,10 @@ void run() {
     &&L_INS_JISEQ,
     &&L_INS_JISLT,
     &&L_INS_JFUNC,
+    &&L_INS_JFUNC,
   };
-  void* l_op_table_record[24];
-  for(int i = 0; i < 24; i++) {
+  void* l_op_table_record[25];
+  for(int i = 0; i < 25; i++) {
     l_op_table_record[i] = &&L_INS_RECORD;
   }
   // clang-format on
@@ -90,7 +91,7 @@ void run() {
 #define DIRECT
   while (true) {
     unsigned int i = *pc;
-    //#ifdef DEBUG
+    #ifdef DEBUG
     {
       bcfunc *func;
       unsigned int*code;
@@ -105,7 +106,7 @@ void run() {
     printf("frame %li: %li %li %li %li\n", frame - stack, frame[0], frame[1],
            frame[2], frame[3]);
     }
-    //    #endif
+        #endif
     
     off_trace++;
     goto *l_op_table[INS_OP(i)];

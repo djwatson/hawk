@@ -52,6 +52,7 @@ int replay_abort(unsigned int ir_pc, trace_s* trace, std::vector<long>& res, uns
   printf("Replay failed guard, abort ir pc %i\n", ir_pc);
   auto snap = find_snap_for_pc(ir_pc, trace);
   snap_restore(res, o_pc, o_frame, snap, trace);
+
   if (snap->link != -1) {
     // Don't adjust stack frame for links
     // TODO: infact, in generated code snap_restore will be not done at all when jumping to side trace.
@@ -59,6 +60,11 @@ int replay_abort(unsigned int ir_pc, trace_s* trace, std::vector<long>& res, uns
     *o_frame = *o_frame - snap->offset; 
     return record_run(snap->link, o_pc, o_frame, NULL);
 
+  }
+  if (INS_OP(**o_pc) == JLOOP) {
+    *o_pc = &trace->startpc;
+    printf("Exit to loop\n");
+    return 0;
   }
 
   if (snap->exits < 10) {
@@ -92,11 +98,11 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   while(pc < trace->ops.size()) {
     on_trace++;
     auto& ins = trace->ops[pc];
-    printf("Replay %s %i %i\n", ir_names[(int)ins.op], ins.op1, ins.op2);
-    for(int i = 0; i < pc; i++) {
-      printf("%i: %lx ", i, res[i]);
-    }
-    printf("\n");
+    // printf("Replay %s %i %i\n", ir_names[(int)ins.op], ins.op1, ins.op2);
+    // for(int i = 0; i < pc; i++) {
+    //   printf("%i: %lx ", i, res[i]);
+    // }
+    // printf("\n");
     switch(ins.op) {
     case ir_ins_op::SLOAD: {
       res[pc] = frame[ins.op1];
@@ -176,10 +182,11 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
       auto a = get_val_or_const(res, ins.op1, trace->consts)-SNAP_FRAME;
       auto b = get_val_or_const(res, ins.op2, trace->consts);
       if (a != frame[-2]) {
-	printf("RET guard %lx %lx\n", a, frame[-2]);
+	// printf("RET guard %lx %lx\n", a, frame[-2]);
 	return replay_abort(pc, trace, res, o_pc, o_frame);
       }
-      frame -= b >> 3;
+      frame -= (b >> 3);
+      *o_frame -= (b>>3);
       pc++;
       break;
     }
@@ -189,11 +196,11 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
     }
     }
   }
-  //printf("At end of trace\n");
+  // printf("At end of trace\n");
   auto& snap = trace->snaps[trace->snaps.size()-1];
   snap_restore(res, o_pc, o_frame, &snap, trace);
   if (trace->link != -1) {
-    //printf("Snap link %i\n", trace->link);
+    // printf("Snap link %i\n", trace->link);
     tnum = trace->link;
     goto again;
   }

@@ -32,6 +32,7 @@ enum {
   JISEQ,
   JISLT,
   JFUNC,
+  JLOOP,
 };
 // clang-format on
 

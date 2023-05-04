@@ -133,6 +133,7 @@ void record_start(unsigned int *pc, long *frame) {
   func = frame[-1]-5;
   printf("Record start at %s\n", ins_names[INS_OP(*pc)]);
   pc_start = pc;
+  trace->startpc = *pc;
   instr_count = 0;
   depth = 0;
   regs = &regs_list[1];
@@ -156,7 +157,11 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   if (side_exit) {
     side_exit->link = traces.size();
   } else {
-    *pc_start = CODE(JFUNC, 0, traces.size(), 0);
+    if (INS_OP(*pc_start) == FUNC) {
+      *pc_start = CODE(JFUNC, 0, traces.size(), 0);
+    } else {
+      *pc_start = CODE(JLOOP, 0, traces.size(), 0);
+    }
   }
   printf("Installing trace %li\n", traces.size());
   dump_trace(trace);
@@ -172,7 +177,7 @@ void record_abort() {
   delete trace;
   trace_state = OFF;
   side_exit = NULL;
-  
+  downrec.clear();
 }
 
 int record(unsigned int *pc, long *frame) {
@@ -502,6 +507,17 @@ int record_instr(unsigned int *pc, long *frame) {
     } else {
       record_stop(pc, frame, INS_B(i));
       printf("Record stop JFUNC\n");
+      return 1;
+    }
+  }
+  case JLOOP: {
+    if (side_exit == NULL) {
+      printf("Record stop root trace hit loop\n");
+      record_abort();
+      return 1;
+    } else {
+      printf("Record stop hit JLOOP\n");
+      record_stop(pc, frame, INS_B(i));
       return 1;
     }
   }
