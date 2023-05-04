@@ -46,11 +46,13 @@ void snap_restore(std::vector<long>&res, unsigned int **o_pc, long **o_frame, sn
   // printf("Stack is now %li func is %lx\n", *o_frame-stack, func);
 }
 
+extern unsigned int *patchpc;
+extern unsigned int patchold;
 int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
 	       long *frame_top);
 int replay_abort(unsigned int ir_pc, trace_s* trace, std::vector<long>& res, unsigned int **o_pc, long **o_frame) {
-  printf("Replay failed guard, abort ir pc %i\n", ir_pc);
   auto snap = find_snap_for_pc(ir_pc, trace);
+  printf("Replay failed guard, abort ir pc %i, hotness %i\n", ir_pc, snap->exits);
   snap_restore(res, o_pc, o_frame, snap, trace);
 
   if (snap->link != -1) {
@@ -61,11 +63,6 @@ int replay_abort(unsigned int ir_pc, trace_s* trace, std::vector<long>& res, uns
     return record_run(snap->link, o_pc, o_frame, NULL);
 
   }
-  if (INS_OP(**o_pc) == JLOOP) {
-    *o_pc = &trace->startpc;
-    printf("Exit to loop\n");
-    return 0;
-  }
 
   if (snap->exits < 10) {
     snap->exits++;
@@ -73,9 +70,20 @@ int replay_abort(unsigned int ir_pc, trace_s* trace, std::vector<long>& res, uns
     if (snap->exits < 14) {
       snap->exits++;
       printf("Hot snap %i\n", ir_pc);
+      if (INS_OP(**o_pc) == JLOOP) {
+	printf("HOT SNAP to JLOOP\n");
+	patchpc = *o_pc;
+	patchold = **o_pc;
+	**o_pc = trace->startpc;
+      }
       record_side(trace, snap);
       return 1;
     }
+  }
+  if (INS_OP(**o_pc) == JLOOP) {
+    *o_pc = &trace->startpc;
+    printf("Exit to loop\n");
+    return 0;
   }
   
   return 0;
@@ -200,10 +208,11 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   auto& snap = trace->snaps[trace->snaps.size()-1];
   snap_restore(res, o_pc, o_frame, &snap, trace);
   if (trace->link != -1) {
-    // printf("Snap link %i\n", trace->link);
+     printf("Snap link %i\n", trace->link);
     tnum = trace->link;
     goto again;
   }
+  printf("Fell off end of trace %i\n", tnum);
 
   return 0;
 }

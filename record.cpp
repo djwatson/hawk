@@ -30,10 +30,11 @@ trace_s* trace = NULL;
 std::vector<trace_s*> traces;
 
 unsigned int *patchpc = NULL;
+unsigned int patchold;
 
 void pendpatch() {
   if (patchpc) {
-    *patchpc = (*patchpc&~0xff)|JFUNC;
+    *patchpc = patchold;
     patchpc = NULL;
   }
 }
@@ -126,9 +127,7 @@ void record_side(trace_s* p, snap_s* side) {
 }
 
 void record_start(unsigned int *pc, long *frame) {
-  assert(patchpc == NULL);
-
-  trace = new trace_s;
+ trace = new trace_s;
   trace_state = START;
   func = frame[-1]-5;
   printf("Record start at %s\n", ins_names[INS_OP(*pc)]);
@@ -188,6 +187,7 @@ int record(unsigned int *pc, long *frame) {
   case OFF: {
     // TODO fix?
     if (INS_OP(*pc) == JFUNC) {
+      printf("CAN'T RECORD TO JFUNC\n");
       return 1;
     }
     record_start(pc, frame);
@@ -252,14 +252,7 @@ int record_instr(unsigned int *pc, long *frame) {
       auto old_pc = (unsigned int *)frame[-2];
       auto old_frame = frame - (INS_A(*(old_pc-1)) + 2);
       auto old_target = (bcfunc*)(old_frame[-1]-5);
-      if (side_exit && old_target == func) {
-	printf("Potential down-recursion, restarting\n");
-	record_abort();
-	record_start(pc, frame);
-	record_instr(pc, frame);
-	trace_state = TRACING;
-	break;
-      } else if(INS_OP(*pc_start) == RET1) {
+       if(INS_OP(*pc_start) == RET1) {
 	int cnt = 0;
 	for(auto& p: downrec) {
 	  if (p == pc) {
@@ -267,6 +260,14 @@ int record_instr(unsigned int *pc, long *frame) {
 	  }
 	}
 	if (cnt) {
+	  if (side_exit) {
+	    printf("Potential down-recursion, restarting\n");
+	    record_abort();
+	    record_start(pc, frame);
+	    record_instr(pc, frame);
+	    trace_state = TRACING;
+	    break;
+	  }
 	  printf("Record stop downrec\n");
 	  record_stop(pc, frame, traces.size());
 	  return 1;
@@ -502,6 +503,7 @@ int record_instr(unsigned int *pc, long *frame) {
     if (trace->link == -1) {
       assert(patchpc == NULL);
       patchpc = pc;
+      patchold = *pc;
       *pc = ((*pc)&~0xff)|FUNC;
       break;
     } else {
