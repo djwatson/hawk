@@ -34,6 +34,7 @@ unsigned int patchold;
 
 void pendpatch() {
   if (patchpc) {
+    printf("PENDPACTCH\n");
     *patchpc = patchold;
     patchpc = NULL;
   }

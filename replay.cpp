@@ -206,7 +206,7 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
 	  printf("HOT SNAP to JLOOP\n");
 	  patchpc = *o_pc;
 	  patchold = **o_pc;
-	  **o_pc = trace->startpc;
+	  **o_pc = RET1;
 	}
 	record_side(trace, snap);
 	return 1;
