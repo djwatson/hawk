@@ -173,6 +173,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
 }
 
 void record_abort() {
+  pendpatch();
   delete trace;
   trace_state = OFF;
   side_exit = NULL;
@@ -186,7 +187,7 @@ int record(unsigned int *pc, long *frame) {
   switch (trace_state) {
   case OFF: {
     // TODO fix?
-    if (INS_OP(*pc) == JFUNC) {
+    if (INS_OP(*pc) == JFUNC && side_exit == NULL) {
       printf("CAN'T RECORD TO JFUNC\n");
       return 1;
     }
@@ -232,7 +233,7 @@ int record_instr(unsigned int *pc, long *frame) {
   int32_t pcloc= (long)(pc - &func->code[0]);
   instr_count++;
   unsigned int i = *pc;
-  if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING)) {
+  if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) && INS_OP(trace->startpc)!= RET1) {
     record_stop(pc, frame, traces.size());
     printf("Record stop loop\n");
     return 1;
@@ -321,6 +322,7 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case CALL: {
+    // TODO this needs to check reg[]links instead
     stack[depth] = frame[INS_A(i) + 1];
     auto func = (bcfunc*)(frame[INS_A(i)+1]-5);
     auto target = &func->code[0];
@@ -340,6 +342,7 @@ int record_instr(unsigned int *pc, long *frame) {
       } else {
 	auto func = (bcfunc*)(frame[INS_A(i) + 1] - 5) /*tag*/;
 	if (INS_OP(func->code[0]) == JFUNC) {
+	  pendpatch();
 	  printf("Flushing trace\n");
 	  func->code[0] = (func->code[0]&~0xff) | FUNC;
 	}

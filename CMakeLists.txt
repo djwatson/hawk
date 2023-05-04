@@ -13,11 +13,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(CMAKE_CXX_COMPILER "clang")
-set(CMAKE_EXE_LINKER_FLAGS "-Wl,-no_pie")
+set(CMAKE_EXE_LINKER_FLAGS "-Wl,-no-pie")
 
 
 # -Wold-style-cast
-set(CMAKE_CXX_FLAGS "-O3 -fno-omit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 ")
+set(CMAKE_CXX_FLAGS "-O0 -fno-omit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 ")
 
 add_executable(boom
   readbc.cpp bytecode.cpp vm.cpp boom.cpp record.cpp ir.cpp snap.cpp replay.cpp
