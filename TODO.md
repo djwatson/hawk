@@ -1,6 +1,5 @@
 # TODO list
 
-* snaps need special handling when recording side traces: update reg map, don't store
 * fix snap saves for branches, don't merge with 0, bump one past.
 
 * do better recursion

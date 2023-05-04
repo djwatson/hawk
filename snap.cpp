@@ -37,9 +37,9 @@ void snap_replay(int** regs, snap_s* snap, trace_s* parent, trace_s* trace, long
 	auto knum = trace->consts.size();
 	trace->consts.push_back(c);
 	(*regs)[slot.slot] = knum | IR_CONST_BIAS;
-	printf("Snap replay const %i %i\n", slot.slot, c);
+	//printf("Snap replay const %i %i\n", slot.slot, c);
     } else {
-      printf("Snap replay sload %i %i %li ptr %lx op %i\n", slot.slot, slot.val, frame[slot.slot], &frame[slot.val], trace->ops.size());
+      //printf("Snap replay sload %i %i %li ptr %lx op %i\n", slot.slot, slot.val, frame[slot.slot], &frame[slot.val], trace->ops.size());
       // Emit load
       ir_ins ins;
       ins.op1 = slot.slot;
