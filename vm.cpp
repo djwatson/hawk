@@ -34,6 +34,7 @@ __attribute__((noinline)) void EXPAND_STACK_SLOWPATH() {
 }
 
 extern long off_trace;
+unsigned char hotmap[hotmap_sz];
 
 void run() {
   unsigned int final_code[] = {CODE(CALL, 0, 1, 0), CODE(HALT, 0, 0, 0)};
@@ -46,7 +47,6 @@ void run() {
 
   unsigned int *pc = &code[0];
 
-  unsigned char hotmap[hotmap_sz];
   for (int i = 0; i < hotmap_sz; i++) {
     hotmap[i] = hotmap_cnt;
   }
@@ -91,7 +91,7 @@ void run() {
 #define DIRECT
   while (true) {
     unsigned int i = *pc;
-#define DEBUG
+    //#define DEBUG
 #ifdef DEBUG
     {
       bcfunc *func;

@@ -5,12 +5,12 @@
 #include "bytecode.h"
 #include "ir.h"
 #include "snap.h"
+#include "vm.h"
 
 unsigned int *pc_start;
 unsigned int instr_count;
 int depth = 0;
 
-static long stack[256]; // TODO just walk the stack.
 long func;
 int regs_list[257];
 int* regs =&regs_list[1];
@@ -127,10 +127,14 @@ void record_side(trace_s* p, snap_s* side) {
 }
 
 void record_start(unsigned int *pc, long *frame) {
- trace = new trace_s;
+  trace = new trace_s;
+  trace->num = traces.size();
   trace_state = START;
   func = frame[-1]-5;
-  printf("Record start at %s\n", ins_names[INS_OP(*pc)]);
+  printf("Record start %i at %s\n", trace->num, ins_names[INS_OP(*pc)]);
+  if (parent) {
+    printf("Parent %i\n", parent->num);
+  }
   pc_start = pc;
   trace->startpc = *pc;
   instr_count = 0;
@@ -228,6 +232,7 @@ int record_stack_load(int slot, long *frame) {
   return regs[slot];
 }
 
+extern unsigned char hotmap[hotmap_sz];
 int record_instr(unsigned int *pc, long *frame) {
   auto func = (bcfunc*)(frame[-1]-5);
   int32_t pcloc= (long)(pc - &func->code[0]);
@@ -323,16 +328,17 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case CALL: {
     // TODO this needs to check reg[]links instead
-    stack[depth] = frame[INS_A(i) + 1];
     auto func = (bcfunc*)(frame[INS_A(i)+1]-5);
+    auto ftarget = frame[INS_A(i)+1];
     auto target = &func->code[0];
-    // Check for call unroll
-    auto f = stack[depth];
     long cnt = 0;
-    for (int j = depth; j >= 0; j--) {
-      if (stack[j] == f) {
-        cnt++;
+    auto f = frame;
+    for(int d = depth; d > 0; d--) {
+      auto p_pc = frame[-2];
+      if (frame[-1] == ftarget) {
+	cnt++;
       }
+      f = frame - (INS_A(*(pc-1)) + 2);
     }
     if (cnt >= 3) {
       if (target == pc_start) {
@@ -341,11 +347,14 @@ int record_instr(unsigned int *pc, long *frame) {
         return 1;
       } else {
 	auto func = (bcfunc*)(frame[INS_A(i) + 1] - 5) /*tag*/;
+	pendpatch();
 	if (INS_OP(func->code[0]) == JFUNC) {
-	  pendpatch();
 	  printf("Flushing trace\n");
 	  func->code[0] = (func->code[0]&~0xff) | FUNC;
+	  hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
 	}
+	// TODO this isn't in luajit? fails with side exit without?
+	hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
         record_abort();
         printf("Record abort unroll limit reached\n");
         return 1;

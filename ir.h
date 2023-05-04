@@ -75,5 +75,6 @@ struct trace_s {
   std::vector<snap_s> snaps;
   int link;
   unsigned int startpc;
+  int num;
 };
 

@@ -173,7 +173,7 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   auto& snap = trace->snaps[trace->snaps.size()-1];
   snap_restore(res, o_pc, o_frame, &snap, trace);
   if (trace->link != -1) {
-    printf("Snap link %i\n", trace->link);
+    //printf("Snap link %i\n", trace->link);
     tnum = trace->link;
     goto again;
   }
@@ -184,18 +184,18 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
  abort:
   {  
     auto snap = find_snap_for_pc(pc, trace);
-    printf("Replay failed guard, abort ir pc %i, hotness %i\n", pc, snap->exits);
     snap_restore(res, o_pc, o_frame, snap, trace);
 
     if (snap->link != -1) {
       // Don't adjust stack frame for links
       // TODO: infact, in generated code snap_restore will be not done at all when jumping to side trace.
-      printf("Snaplink to %i\n", snap->link);
+      //printf("Snaplink to %i\n", snap->link);
       *o_frame = *o_frame - snap->offset;
       tnum = snap->link;
       goto again;
     }
 
+    printf("Replay failed guard in trace %i, abort ir pc %i, hotness %i\n", trace->num, pc, snap->exits);
     if (snap->exits < 10) {
       snap->exits++;
     } else {
@@ -210,6 +210,9 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
 	}
 	record_side(trace, snap);
 	return 1;
+      } if (snap->exits == 14) {
+	printf("Side max\n");
+	snap->exits++;
       }
     }
     if (INS_OP(**o_pc) == JLOOP) {
