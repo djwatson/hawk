@@ -18,7 +18,7 @@ snap_s* side_exit = NULL;
 trace_s* parent = NULL;
 
 enum trace_state_e {
-  OFF,
+  OFF=0,
   START,
   TRACING,
 };
@@ -192,7 +192,7 @@ int record(unsigned int *pc, long *frame) {
     break;
   }
   default: {
-    printf("BAD TRACE STATE\n");
+    printf("BAD TRACE STATE %i\n", trace_state);
     exit(-1);
     return 1;
   }
@@ -266,9 +266,8 @@ int record_instr(unsigned int *pc, long *frame) {
     }
     if (cnt >= 3) {
       if (target == pc_start) {
-        record_abort();
-        printf("Record abort up-recursion\n");
-	exit(-1);
+        record_stop(pc, frame, traces.size());
+        printf("Record stop up-recursion\n");
         return 1;
       } else {
 	auto func = (bcfunc*)(frame[INS_A(i) + 1] - 5) /*tag*/;
@@ -418,6 +417,9 @@ int record_instr(unsigned int *pc, long *frame) {
     //   regs[-1] = -1;
     // }
     for(int j = INS_B(i)-1; j < 256; j++) {
+      if (&regs[j] >= regs_list+256) {
+	break;
+      }
       regs[j] = -1;
     }
 
