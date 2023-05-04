@@ -161,7 +161,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   traces.push_back(trace);
   trace_state = OFF;
   side_exit = NULL;
-  joff = 1;
+  //joff = 1;
 }
 
 void record_abort() {
@@ -172,6 +172,9 @@ void record_abort() {
 }
 
 int record(unsigned int *pc, long *frame) {
+  if (traces.size() > 255) {
+    return 1;
+  }
   switch (trace_state) {
   case OFF: {
     record_start(pc, frame);
@@ -424,7 +427,7 @@ int record_instr(unsigned int *pc, long *frame) {
   case JFUNC: {
     // Check if it is a returning trace
     auto trace = trace_cache_get(INS_B(i));
-    if (0 && trace->link == -1) {
+    if (trace->link == -1) {
       assert(patchpc == NULL);
       patchpc = pc;
       *pc = ((*pc)&~0xff)|FUNC;

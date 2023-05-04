@@ -63,9 +63,12 @@ int replay_abort(unsigned int ir_pc, trace_s* trace, std::vector<long>& res, uns
   if (snap->exits < 10) {
     snap->exits++;
   } else {
-    printf("Hot snap %i\n", ir_pc);
-    record_side(trace, snap);
-    return 1;
+    if (snap->exits < 14) {
+      snap->exits++;
+      printf("Hot snap %i\n", ir_pc);
+      record_side(trace, snap);
+      return 1;
+    }
   }
   
   return 0;
