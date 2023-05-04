@@ -51,7 +51,7 @@ void run() {
     hotmap[i] = hotmap_cnt;
   }
 
-  void *l_op_table[32];
+  void *l_op_table[24];
   // clang-format off
   void* l_op_table_interpret[] = {
     &&L_INS_FUNC,
@@ -79,33 +79,10 @@ void run() {
     &&L_INS_JISLT,
     &&L_INS_JFUNC,
   };
-  void* l_op_table_record[] = {
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD, //10
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD, //20
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-    &&L_INS_RECORD,
-  };
+  void* l_op_table_record[24];
+  for(int i = 0; i < 24; i++) {
+    l_op_table_record[i] = &&L_INS_RECORD;
+  }
   // clang-format on
   memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
 
