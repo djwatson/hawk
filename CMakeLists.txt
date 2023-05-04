@@ -33,3 +33,8 @@ add_custom_target(
   cloc
   COMMAND cloc --by-file bc.scm *.h *.cpp
 )
+
+add_custom_target(
+  format
+  COMMAND clang-format -i *.h *.cpp
+)
