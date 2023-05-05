@@ -1,5 +1,8 @@
 # TODO list
 
+* fib returns wrong result at 13>
+* stack size needs to stretch somewhere in snap replay 
+
 * BROKEN - JFUNC (and probably JLOOP) links need add all arguments to snap.
 * CALLT to JFUNC broken
 * CALL neesd to load args too

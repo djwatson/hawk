@@ -26,7 +26,7 @@ __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(symbol *s) {
   exit(-1);
 }
 unsigned int stacksz = 1000;
-long *stack = (long *)malloc(sizeof(long) * stacksz);
+long *stack = (long *)malloc(sizeof(long) * stacksz* 1000);
 __attribute__((noinline)) void EXPAND_STACK_SLOWPATH() {
   printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
   stacksz *= 2;
