@@ -1,19 +1,29 @@
 #include "record.h"
 // TODO for runtime symbol
 #include "bytecode.h"
+#include "asm_x64.h"
+#include "assert.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 
 // Simple replay to test recording before we write a jit.
-
+#define USE_REG
 #ifdef USE_REG
 long res_load(std::vector<long>&res, int pc, std::vector<ir_ins>& ops) {
+  assert(ops[pc].reg != REG_NONE);
   return res[ops[pc].reg];
+}
+void res_store(std::vector<long>&res, int pc, std::vector<ir_ins>& ops, long v) {
+  assert(ops[pc].reg != REG_NONE);
+  res[ops[pc].reg] = v;
 }
 #else
 long res_load(std::vector<long>&res, int pc, std::vector<ir_ins>& ops) {
   return res[pc];
+}
+void res_store(std::vector<long>&res, int pc, std::vector<ir_ins>& ops, long v) {
+  res[pc] = v;
 }
 #endif
 
@@ -59,7 +69,7 @@ void snap_restore(std::vector<long> &res, unsigned int **o_pc, long **o_frame,
       }
       // printf("Snap restore slot %i val %li ptr %lx\n", slot.slot,
       // res[slot.val], &(*o_frame)[slot.slot]);
-      (*o_frame)[slot.slot] = res[slot.val];
+      (*o_frame)[slot.slot] = res_load(res, slot.val, trace->ops);
     }
   }
   *o_frame = *o_frame + snap->offset;
@@ -99,9 +109,10 @@ again:
     // printf("\n");
     switch (ins.op) {
     case ir_ins_op::SLOAD: {
-      res[pc] = frame[ins.op1];
+      auto v = frame[ins.op1];
+      res_store(res, pc, trace->ops,v);
       if (ins.type&IR_INS_TYPE_GUARD) {
-	if ((res[pc] & 0x7) != (ins.type&~IR_INS_TYPE_GUARD)) {
+	if ((v & 0x7) != (ins.type&~IR_INS_TYPE_GUARD)) {
 	  printf("Type abort\n");
 	  goto abort;
 	}
@@ -152,9 +163,9 @@ again:
     case ir_ins_op::GGET: {
       symbol *a = (symbol *)get_val_or_const(res, ins.op1, trace->ops, trace->consts);
       // printf("GGET %s %lx\n", a->name.c_str(), a->val);
-      res[pc] = a->val;
+      res_store(res, pc, trace->ops, a->val);
       if (ins.type&IR_INS_TYPE_GUARD) {
-	if ((res[pc] & 0x7) != (ins.type&~IR_INS_TYPE_GUARD)) {
+	if ((a->val & 0x7) != (ins.type&~IR_INS_TYPE_GUARD)) {
 	  printf("Type abort\n");
 	  goto abort;
 	}
@@ -166,9 +177,11 @@ again:
       auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts);
       auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
       // printf("SUB %li %li\n", a>>3, b>>3);
-      if (__builtin_sub_overflow(a, b, &res[pc])) {
+      long v;
+      if (__builtin_sub_overflow(a, b, &v)) {
         goto abort;
       }
+      res_store(res, pc, trace->ops, v);
       pc++;
       break;
     }
@@ -176,9 +189,11 @@ again:
       auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts);
       auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
       // printf("ADD %li %li\n", a>>3, b>>3);
-      if (__builtin_add_overflow(a, b, &res[pc])) {
+      long v;
+      if (__builtin_add_overflow(a, b, &v)) {
         goto abort;
       }
+      res_store(res, pc, trace->ops, v);
       pc++;
       break;
     }
