@@ -1,13 +1,11 @@
 # TODO list
 
-* fib returns wrong result at 13>
-* stack size needs to stretch somewhere in snap replay 
+* All of 'RECORD' probably needs type tests when we access frame.
+* TODO stack size needs to stretch somewhere in snap replay 
 
 * BROKEN - JFUNC (and probably JLOOP) links need add all arguments to snap.
 * CALLT to JFUNC broken
 * CALL neesd to load args too
-
-* figure out why fib re-jits?
 
 * BROKEN - fix traec num, store in D, max traces cache
 * BROKEN keeps jitting even on jfunc.  Should hotmap on func instead of call?
@@ -45,3 +43,4 @@
 * fix letrec
 * tail call register alloc?
 
+* fib 39 re-jits tails, because downrec happens first.  Even luajit does this.  Unrolling probably helps.

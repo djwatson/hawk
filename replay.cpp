@@ -82,8 +82,12 @@ again:
     switch (ins.op) {
     case ir_ins_op::SLOAD: {
       res[pc] = frame[ins.op1];
-      // printf("Sloaded %i\n", frame[ins.op1] >> 3);
-      //  TODO guard on type
+      if (ins.type&IR_INS_TYPE_GUARD) {
+	if ((res[pc] & 0x7) != (ins.type&~IR_INS_TYPE_GUARD)) {
+	  printf("Type abort\n");
+	  goto abort;
+	}
+      }
       pc++;
       break;
     }
@@ -131,7 +135,12 @@ again:
       symbol *a = (symbol *)get_val_or_const(res, ins.op1, trace->consts);
       // printf("GGET %s %lx\n", a->name.c_str(), a->val);
       res[pc] = a->val;
-      // TODO guard type
+      if (ins.type&IR_INS_TYPE_GUARD) {
+	if ((res[pc] & 0x7) != (ins.type&~IR_INS_TYPE_GUARD)) {
+	  printf("Type abort\n");
+	  goto abort;
+	}
+      }
       pc++;
       break;
     }
