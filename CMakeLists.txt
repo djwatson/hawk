@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.14)
 
 project(bool VERSION 0.1)
 
@@ -13,8 +13,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(CMAKE_CXX_COMPILER "clang")
-set(CMAKE_EXE_LINKER_FLAGS "-Wl,-no-pie")
 
+include(CheckPIESupported)
+check_pie_supported()
 
 # -Wold-style-cast
 set(CMAKE_CXX_FLAGS " -O3 -fno-omit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 ")
@@ -23,6 +24,7 @@ add_executable(boom
   readbc.cpp bytecode.cpp vm.cpp boom.cpp record.cpp ir.cpp snap.cpp replay.cpp
   )
 
+set_property(TARGET boom PROPERTY POSITION_INDEPENDENT_CODE FALSE)
 target_include_directories(boom PUBLIC
   ".")
 
