@@ -148,6 +148,9 @@ void record_start(unsigned int *pc, long *frame) {
   if (side_exit) {
     snap_replay(&regs, side_exit, parent, trace, frame, &depth);
   }
+  auto func = (bcfunc*)(frame[-1]-5);
+  int32_t pcloc= (long)(pc - &func->code[0]);
+  add_snap(regs_list, regs-regs_list - 1, trace, INS_OP(*pc) == FUNC? 1 : pcloc);
 }
 
 extern int joff;
@@ -305,6 +308,7 @@ int record_instr(unsigned int *pc, long *frame) {
 	ins.type = IR_INS_TYPE_GUARD|0x5;
 	trace->ops.push_back(ins);
 
+	add_snap(regs_list, regs-regs_list - 1, trace, pcloc);
 	// TODO retdepth
       } else {
 	record_stop(pc, frame, -1);
