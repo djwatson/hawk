@@ -223,7 +223,7 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
       printf("Exit to loop\n");
       return 0;
     }
-    printf("Exit trace %i\n", tnum);
+    //printf("Exit trace %i\n", tnum);
   
     return 0;
   }

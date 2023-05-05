@@ -196,7 +196,7 @@ int record(unsigned int *pc, long *frame) {
   case OFF: {
     // TODO fix?
     if (INS_OP(*pc) == JFUNC && side_exit == NULL) {
-      printf("CAN'T RECORD TO JFUNC\n");
+      //printf("CAN'T RECORD TO JFUNC\n");
       return 1;
     }
     record_start(pc, frame);
