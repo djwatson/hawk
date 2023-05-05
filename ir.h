@@ -69,6 +69,7 @@ enum trace_type_e {
   TRACE_TAILREC,
 };
 
+typedef void (*Func)(long*);
 struct trace_s {
   std::vector<ir_ins> ops;
   std::vector<long> consts;
@@ -76,6 +77,7 @@ struct trace_s {
   int link;
   unsigned int startpc;
   int num;
+  Func fn = nullptr;
 };
 
 #define UNROLL_LIMIT 1

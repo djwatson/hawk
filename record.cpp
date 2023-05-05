@@ -176,6 +176,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
 
   assign_registers(trace);
   dump_trace(trace);
+  asm_jit(trace);
   
   trace_state = OFF;
   side_exit = NULL;

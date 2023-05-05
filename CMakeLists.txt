@@ -30,6 +30,8 @@ target_include_directories(boom PUBLIC
 
 target_link_libraries(boom PUBLIC
   "stdc++"
+  "asmjit"
+  "capstone"
   )
 
 add_custom_target(
