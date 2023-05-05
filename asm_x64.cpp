@@ -11,6 +11,23 @@
 
 using namespace asmjit;
 
+#include <sys/types.h>
+#include <unistd.h>
+/* Earlier perf_map tmp support - supplies names to jit regions */
+void perf_map(uint64_t fn, uint64_t len, std::string name) {
+  char buf[256];
+  sprintf(buf, "/tmp/perf-%i.map", getpid());
+  auto file = fopen(buf, "a");
+  static long cnt = 0;
+  cnt++;
+  if (name != "") {
+    fprintf(file, "%lx %lx jit function %s\n", uint64_t(fn), len, name.c_str());
+  } else {
+    fprintf(file, "%lx %lx jit anon function %i\n", uint64_t(fn), len, cnt);
+  }
+  fclose(file);
+}
+
 void disassemble(const uint8_t* code, int len)
 {
 	csh handle;
@@ -323,4 +340,5 @@ void asm_jit(trace_s* trace) {
   disassemble((uint8_t*)fn, len);
   printf("----------------------------------\n");
   trace->fn = fn;
+  perf_map(uint64_t(fn), len, std::string("Trace"));
 }
