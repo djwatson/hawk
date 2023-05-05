@@ -7,12 +7,24 @@
 
 // Simple replay to test recording before we write a jit.
 
-long get_val_or_const(std::vector<long> &res, uint16_t v,
+#ifdef USE_REG
+long res_load(std::vector<long>&res, int pc, std::vector<ir_ins>& ops) {
+  return res[ops[pc].reg];
+}
+#else
+long res_load(std::vector<long>&res, int pc, std::vector<ir_ins>& ops) {
+  return res[pc];
+}
+#endif
+
+long get_val_or_const(std::vector<long> &res,
+		      uint16_t v,
+		      std::vector<ir_ins>&ops,
                       std::vector<long> &consts) {
   if (v & IR_CONST_BIAS) {
     return consts[v - IR_CONST_BIAS];
   }
-  return res[v];
+  return res_load(res, v, ops);
 }
 
 snap_s *find_snap_for_pc(unsigned int pc, trace_s *trace) {
@@ -61,8 +73,6 @@ extern unsigned int *patchpc;
 extern unsigned int patchold;
 int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
                long *frame_top);
-int replay_abort(unsigned int ir_pc, trace_s *trace, std::vector<long> &res,
-                 unsigned int **o_pc, long **o_frame) {}
 
 extern long on_trace;
 
@@ -100,8 +110,8 @@ again:
       break;
     }
     case ir_ins_op::LT: {
-      auto a = get_val_or_const(res, ins.op1, trace->consts);
-      auto b = get_val_or_const(res, ins.op2, trace->consts);
+      auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts);
+      auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
       // printf("LT %li %li\n", a>>3, b>>3);
       if (a >= b) {
         goto abort;
@@ -110,8 +120,8 @@ again:
       break;
     }
     case ir_ins_op::GE: {
-      auto a = get_val_or_const(res, ins.op1, trace->consts);
-      auto b = get_val_or_const(res, ins.op2, trace->consts);
+      auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts);
+      auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
       // printf("GE %li %li\n", a>>3, b>>3);
       if (a < b) {
         goto abort;
@@ -120,8 +130,8 @@ again:
       break;
     }
     case ir_ins_op::NE: {
-      auto a = get_val_or_const(res, ins.op1, trace->consts);
-      auto b = get_val_or_const(res, ins.op2, trace->consts);
+      auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts);
+      auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
       // printf("EQ %li %li\n", a, b);
       if (a == b) {
         goto abort;
@@ -130,8 +140,8 @@ again:
       break;
     }
     case ir_ins_op::EQ: {
-      auto a = get_val_or_const(res, ins.op1, trace->consts);
-      auto b = get_val_or_const(res, ins.op2, trace->consts);
+      auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts);
+      auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
       // printf("EQ %li %li\n", a, b);
       if (a != b) {
         goto abort;
@@ -140,7 +150,7 @@ again:
       break;
     }
     case ir_ins_op::GGET: {
-      symbol *a = (symbol *)get_val_or_const(res, ins.op1, trace->consts);
+      symbol *a = (symbol *)get_val_or_const(res, ins.op1, trace->ops, trace->consts);
       // printf("GGET %s %lx\n", a->name.c_str(), a->val);
       res[pc] = a->val;
       if (ins.type&IR_INS_TYPE_GUARD) {
@@ -153,8 +163,8 @@ again:
       break;
     }
     case ir_ins_op::SUB: {
-      auto a = get_val_or_const(res, ins.op1, trace->consts);
-      auto b = get_val_or_const(res, ins.op2, trace->consts);
+      auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts);
+      auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
       // printf("SUB %li %li\n", a>>3, b>>3);
       if (__builtin_sub_overflow(a, b, &res[pc])) {
         goto abort;
@@ -163,8 +173,8 @@ again:
       break;
     }
     case ir_ins_op::ADD: {
-      auto a = get_val_or_const(res, ins.op1, trace->consts);
-      auto b = get_val_or_const(res, ins.op2, trace->consts);
+      auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts);
+      auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
       // printf("ADD %li %li\n", a>>3, b>>3);
       if (__builtin_add_overflow(a, b, &res[pc])) {
         goto abort;
@@ -173,8 +183,8 @@ again:
       break;
     }
     case ir_ins_op::RET: {
-      auto a = get_val_or_const(res, ins.op1, trace->consts) - SNAP_FRAME;
-      auto b = get_val_or_const(res, ins.op2, trace->consts);
+      auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts) - SNAP_FRAME;
+      auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
       if (a != frame[-2]) {
         // printf("RET guard %lx %lx\n", a, frame[-2]);
         goto abort;
