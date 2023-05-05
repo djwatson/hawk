@@ -50,11 +50,12 @@ void assign_registers(trace_s* trace) {
 
   int cursnap = trace->snaps.size()-1;
   for(int i = trace->ops.size()-1; i >= 0; i--) {
-    while(cursnap > 0 && trace->snaps[cursnap].ir >= i) {
+    while(cursnap >= 0 && trace->snaps[cursnap].ir >= i) {
       //printf("ALLOC FOR SNAP %i\n", cursnap);
       auto& snap = trace->snaps[cursnap];
       for(auto& s : snap.slots) {
 	if (!(s.val&IR_CONST_BIAS)) {
+	  //printf("ALLOC FOR SNAP val %i\n", s.val);
 	  assign_register(s.val, trace->ops[s.val], slot);
 	}
       }
