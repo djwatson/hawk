@@ -162,7 +162,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
     side_exit->link = traces.size();
   } else {
     if (INS_OP(*pc_start) == FUNC) {
-      *pc_start = CODE(JFUNC, 0, traces.size(), 0);
+      *pc_start = CODE(JFUNC, INS_A(*pc_start), traces.size(), 0);
     } else {
       *pc_start = CODE(JLOOP, 0, traces.size(), 0);
     }
@@ -186,7 +186,7 @@ void record_abort() {
 }
 
 int record(unsigned int *pc, long *frame) {
-  if (traces.size() > 255) {
+  if (traces.size() >= 2) {
     return 1;
   }
   switch (trace_state) {
@@ -247,7 +247,7 @@ int record_instr(unsigned int *pc, long *frame) {
   for(int j = 0; j < depth; j++) {
     printf(" . ");
   }
-  printf("%s %i %i %i\n", ins_names[INS_OP(i)], INS_A(i),
+  printf("%i %s %i %i %i\n", pc-&func->code[0], ins_names[INS_OP(i)], INS_A(i),
          INS_B(i), INS_C(i));
   switch (INS_OP(i)) {
   case FUNC: {
@@ -329,6 +329,11 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case CALL: {
     // TODO this needs to check reg[]links instead
+    for(int j = INS_A(i)+1; j < INS_A(i) + INS_B(i) +1; j++) {
+      printf("Record load %i\n", j);
+      regs[j] = record_stack_load(j, frame);
+    }
+    
     auto func = (bcfunc*)(frame[INS_A(i)+1]-5);
     auto ftarget = frame[INS_A(i)+1];
     auto target = &func->code[0];
@@ -492,6 +497,10 @@ int record_instr(unsigned int *pc, long *frame) {
     }
     // Move args down
     // TODO also chedck func
+    for(int j = INS_A(i); j < INS_A(i) + INS_B(i); j++) {
+      printf("Record load %i\n", j);
+      regs[j] = record_stack_load(j, frame);
+    }
     memmove(&regs[-1], &regs[INS_A(i)], sizeof(int)*(INS_B(i)));
     // if (func == (bcfunc*)(frame[INS_A(i)])) {
     //   // No need to save same tailcalled.
@@ -520,6 +529,10 @@ int record_instr(unsigned int *pc, long *frame) {
       *pc = ((*pc)&~0xff)|FUNC;
       break;
     } else {
+      for(int j = 0; j < INS_A(i); j++) {
+	printf("Record load %i\n", j);
+	regs[j] = record_stack_load(j, frame);
+      }
       record_stop(pc, frame, INS_B(i));
       printf("Record stop JFUNC\n");
       return 1;
@@ -532,6 +545,7 @@ int record_instr(unsigned int *pc, long *frame) {
       return 1;
     } else {
       printf("Record stop hit JLOOP\n");
+      regs[INS_A(i)] = record_stack_load(INS_A(i), frame);
       record_stop(pc, frame, INS_B(i));
       return 1;
     }

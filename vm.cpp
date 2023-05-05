@@ -400,10 +400,9 @@ void run() {
     case 23: {
     L_INS_JFUNC:
       auto trace = INS_B(i);
-      printf("JFUNC/JLOOP run %i\n", trace);
+      //printf("JFUNC/JLOOP run %i\n", trace);
       auto res = record_run(trace, &pc, &frame, frame_top);
       if (unlikely(res)) {
-	printf("RECORD ON\n");
 	memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
       }
       DIRECT;
@@ -423,7 +422,6 @@ void run() {
       if (joff) {
         goto *l_op_table_interpret[INS_OP(i)];
       }
-      printf("RECORD ON\n");
       memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
       // Don't record first inst.
       goto *l_op_table_interpret[INS_OP(i)];
@@ -432,7 +430,6 @@ void run() {
     {
     L_INS_RECORD:
       if (record(pc, frame)) {
-	printf("RECORD OFF\n");
         memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
       }
       i = *pc; // recorder may have patched instruction.

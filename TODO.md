@@ -1,5 +1,9 @@
 # TODO list
 
+* BROKEN - JFUNC (and probably JLOOP) links need add all arguments to snap.
+* CALLT to JFUNC broken
+* CALL neesd to load args too
+
 * figure out why fib re-jits?
 
 * BROKEN - fix traec num, store in D, max traces cache

@@ -59,7 +59,8 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
                 long *frame_top) {
  again:
   auto trace = trace_cache_get(tnum);
-  //printf("Run trace %i\n", tnum);
+  printf("Run trace %i\n", tnum);
+  printf("Frame %li %li\n", (*o_frame)[0] >> 3, (*o_frame)[1] >> 3);
 
   unsigned int pc = 0;
   std::vector<long> res;
@@ -70,14 +71,15 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   while(pc < trace->ops.size()) {
     on_trace++;
     auto& ins = trace->ops[pc];
-    // printf("Replay %s %i %i\n", ir_names[(int)ins.op], ins.op1, ins.op2);
-    // for(int i = 0; i < pc; i++) {
-    //   printf("%i: %lx ", i, res[i]);
-    // }
-    // printf("\n");
+    printf("Replay pc %i %s %i %i\n", pc, ir_names[(int)ins.op], ins.op1, ins.op2);
+    for(int i = 0; i < pc; i++) {
+      printf("%i: %lx ", i, res[i]);
+    }
+    printf("\n");
     switch(ins.op) {
     case ir_ins_op::SLOAD: {
       res[pc] = frame[ins.op1];
+      printf("Sloaded %i\n", frame[ins.op1] >> 3);
       // TODO guard on type
       pc++;
       break;
@@ -133,7 +135,7 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
     case ir_ins_op::SUB: {
       auto a = get_val_or_const(res, ins.op1, trace->consts);
       auto b = get_val_or_const(res, ins.op2, trace->consts);
-      //printf("SUB %li %li\n", a>>3, b>>3);
+      printf("SUB %li %li\n", a>>3, b>>3);
       if (__builtin_sub_overflow(a, b, &res[pc])) {
 	goto abort;
       }
@@ -143,7 +145,7 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
     case ir_ins_op::ADD: {
       auto a = get_val_or_const(res, ins.op1, trace->consts);
       auto b = get_val_or_const(res, ins.op2, trace->consts);
-      //printf("ADD %li %li\n", a>>3, b>>3);
+      printf("ADD %li %li\n", a>>3, b>>3);
       if (__builtin_add_overflow(a, b, &res[pc])) {
 	goto abort;
       }
@@ -168,12 +170,14 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
     }
     }
   }
-  // printf("At end of trace\n");
+   printf("At end of trace\n");
   {
   auto& snap = trace->snaps[trace->snaps.size()-1];
   snap_restore(res, o_pc, o_frame, &snap, trace);
+  printf("Frame %li %li\n", (*o_frame)[0] >> 3, (*o_frame)[1] >> 3);
   if (trace->link != -1) {
-    //printf("Snap link %i\n", trace->link);
+    printf("Snap link %i\n", trace->link);
+    // do NOT adjust frame jumping back to a root trace.
     tnum = trace->link;
     goto again;
   }
@@ -189,13 +193,13 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
     if (snap->link != -1) {
       // Don't adjust stack frame for links
       // TODO: infact, in generated code snap_restore will be not done at all when jumping to side trace.
-      //printf("Snaplink to %i\n", snap->link);
+      printf("Snaplink to %i\n", snap->link);
       *o_frame = *o_frame - snap->offset;
       tnum = snap->link;
       goto again;
     }
 
-    printf("Replay failed guard in trace %i, abort ir pc %i, hotness %i\n", trace->num, pc, snap->exits);
+    //printf("Replay failed guard in trace %i, abort ir pc %i, hotness %i\n", trace->num, pc, snap->exits);
     if (snap->exits < 10) {
       snap->exits++;
     } else {
