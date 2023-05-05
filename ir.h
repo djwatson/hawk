@@ -78,4 +78,4 @@ struct trace_s {
   int num;
 };
 
-#define UNROLL_LIMIT 2
+#define UNROLL_LIMIT 1
