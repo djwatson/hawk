@@ -26,6 +26,8 @@ snap_s *find_snap_for_pc(unsigned int pc, trace_s *trace) {
 }
 
 extern long *stack;
+extern unsigned int stacksz;
+extern __attribute__((noinline)) void EXPAND_STACK_SLOWPATH();
 void snap_restore(std::vector<long> &res, unsigned int **o_pc, long **o_frame,
                   snap_s *snap, trace_s *trace) {
   for (auto &slot : snap->slots) {
@@ -37,6 +39,12 @@ void snap_restore(std::vector<long> &res, unsigned int **o_pc, long **o_frame,
         (*o_frame)[slot.slot] = c;
       }
     } else {
+      if ((*o_frame) + slot.slot >= stack + stacksz) {
+	auto pos = (*o_frame) - stack;
+	EXPAND_STACK_SLOWPATH();
+	(*o_frame) = stack + pos;
+	// TODO update frame_top
+      }
       // printf("Snap restore slot %i val %li ptr %lx\n", slot.slot,
       // res[slot.val], &(*o_frame)[slot.slot]);
       (*o_frame)[slot.slot] = res[slot.val];

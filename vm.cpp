@@ -26,7 +26,7 @@ __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(symbol *s) {
   exit(-1);
 }
 unsigned int stacksz = 1000;
-long *stack = (long *)malloc(sizeof(long) * stacksz * 1000);
+long *stack = (long *)malloc(sizeof(long) * stacksz);
 __attribute__((noinline)) void EXPAND_STACK_SLOWPATH() {
   printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
   stacksz *= 2;
@@ -402,6 +402,7 @@ void run() {
       auto trace = INS_B(i);
       // printf("JFUNC/JLOOP run %i\n", trace);
       auto res = record_run(trace, &pc, &frame, frame_top);
+      frame_top = stack + stacksz;
       if (unlikely(res)) {
         memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
       }
