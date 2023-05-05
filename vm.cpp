@@ -33,6 +33,7 @@ __attribute__((noinline)) void EXPAND_STACK_SLOWPATH() {
   stack = (long *)realloc(stack, stacksz * sizeof(long));
 }
 
+extern long off_trace;
 unsigned char hotmap[hotmap_sz];
 
 void run() {
@@ -108,6 +109,7 @@ void run() {
     }
 #endif
 
+    off_trace++;
     goto *l_op_table[INS_OP(i)];
 
     switch (INS_OP(i)) {
@@ -292,10 +294,11 @@ void run() {
       }
       bcfunc *func = (bcfunc *)(v - 5);
       pc = &func->code[0];
-      long start = INS_A(i);
-      auto cnt = INS_B(i);
+      frame[-1] = v; // TODO move to copy loop
+      long start = INS_A(i) + 1;
+      auto cnt = INS_B(i) - 1;
       for (auto i = 0; i < cnt; i++) {
-        frame[i-1] = frame[start + i];
+        frame[i] = frame[start + i];
       }
       if (unlikely((frame + 256) > frame_top)) {
         auto pos = frame - stack;

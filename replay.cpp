@@ -64,6 +64,8 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
 int replay_abort(unsigned int ir_pc, trace_s *trace, std::vector<long> &res,
                  unsigned int **o_pc, long **o_frame) {}
 
+extern long on_trace;
+
 int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
                long *frame_top) {
 again:
@@ -78,6 +80,7 @@ again:
   long *frame = *o_frame;
 
   while (pc < trace->ops.size()) {
+    on_trace++;
     auto &ins = trace->ops[pc];
     // printf("Replay pc %i %s %i %i\n", pc, ir_names[(int)ins.op], ins.op1,
     // ins.op2); for(int i = 0; i < pc; i++) {

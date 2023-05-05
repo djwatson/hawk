@@ -5,6 +5,8 @@
 #include "vm.h"
 
 extern int joff;
+long on_trace = 0;
+long off_trace = 0;
 
 static struct option long_options[] = {
     {"joff", no_argument, nullptr, 'o'},
@@ -44,5 +46,7 @@ int main(int argc, char *argv[]) {
   run();
   free_script();
 
+  printf("Off trace percent: %.02f\n",
+         (float)off_trace / (float)(on_trace + off_trace) * 100.0);
   return 0;
 }
