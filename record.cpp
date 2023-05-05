@@ -174,7 +174,6 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   traces.push_back(trace);
 
-  dump_trace(trace);
   assign_registers(trace);
   dump_trace(trace);
   
@@ -342,7 +341,6 @@ int record_instr(unsigned int *pc, long *frame) {
   case CALL: {
     // TODO this needs to check reg[]links instead
     for (int j = INS_A(i) + 1; j < INS_A(i) + INS_B(i) + 1; j++) {
-      printf("Record load %i\n", j);
       regs[j] = record_stack_load(j, frame);
     }
 
@@ -518,7 +516,6 @@ int record_instr(unsigned int *pc, long *frame) {
     // Move args down
     // TODO also chedck func
     for (int j = INS_A(i); j < INS_A(i) + INS_B(i); j++) {
-      printf("Record load %i\n", j);
       regs[j] = record_stack_load(j, frame);
     }
     memmove(&regs[-1], &regs[INS_A(i)], sizeof(int) * (INS_B(i)));
@@ -550,7 +547,6 @@ int record_instr(unsigned int *pc, long *frame) {
       break;
     } else {
       for (int j = 0; j < INS_A(i); j++) {
-        printf("Record load %i\n", j);
         regs[j] = record_stack_load(j, frame);
       }
       record_stop(pc, frame, INS_B(i));

@@ -38,7 +38,7 @@ void assign_register(int i, ir_ins& op, int* slot) {
   if (op.reg == REG_NONE) {
     op.reg = get_free_reg(slot);
     slot[op.reg] = i;
-    printf("Assign to op %s reg %s\n", ir_names[(int)op.op], reg_names[op.reg]);
+    //printf("Assign to op %s reg %s\n", ir_names[(int)op.op], reg_names[op.reg]);
   }
 }
 
@@ -51,7 +51,7 @@ void assign_registers(trace_s* trace) {
   int cursnap = trace->snaps.size()-1;
   for(int i = trace->ops.size()-1; i >= 0; i--) {
     while(cursnap > 0 && trace->snaps[cursnap].ir >= i) {
-      printf("ALLOC FOR SNAP %i\n", cursnap);
+      //printf("ALLOC FOR SNAP %i\n", cursnap);
       auto& snap = trace->snaps[cursnap];
       for(auto& s : snap.slots) {
 	if (!(s.val&IR_CONST_BIAS)) {
@@ -60,7 +60,7 @@ void assign_registers(trace_s* trace) {
       }
       cursnap--;
     }
-    printf("Assign to %i\n", i);
+    //printf("Assign to %i\n", i);
     
     auto& op = trace->ops[i];
     switch(op.op) {
