@@ -46,6 +46,7 @@ int main(int argc, char *argv[]) {
   run();
   free_script();
 
-  printf("Off trace percent: %.02f\n", (float)off_trace / (float) (on_trace + off_trace) * 100.0);
+  printf("Off trace percent: %.02f\n",
+         (float)off_trace / (float)(on_trace + off_trace) * 100.0);
   return 0;
 }

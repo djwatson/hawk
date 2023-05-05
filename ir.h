@@ -77,4 +77,3 @@ struct trace_s {
   unsigned int startpc;
   int num;
 };
-
