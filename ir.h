@@ -77,3 +77,5 @@ struct trace_s {
   unsigned int startpc;
   int num;
 };
+
+#define UNROLL_LIMIT 2

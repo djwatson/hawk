@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "snap.h"
+#include "asm_x64.h"
 
 void add_snap(int *regs, int offset, trace_s *trace, uint32_t pc) {
   // No need for duplicate snaps.
@@ -48,6 +49,7 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
       // slot.val, frame[slot.slot], &frame[slot.val], trace->ops.size());
       //  Emit load
       ir_ins ins;
+      ins.reg = REG_NONE;
       ins.op1 = slot.slot;
       ins.op = ir_ins_op::SLOAD;
       // TODO PARENT type, maybe inherit?

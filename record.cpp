@@ -79,7 +79,7 @@ void dump_trace(trace_s *trace) {
     }
 
     auto op = trace->ops[i];
-    printf("%04d %c\t", i, op.type & IR_INS_TYPE_GUARD ? '>' : ' ');
+    printf("%04d %s %c\t", i, reg_names[op.reg], op.type & IR_INS_TYPE_GUARD ? '>' : ' ');
     auto t = op.type & ~IR_INS_TYPE_GUARD;
     if (t == 0) {
       printf("\e[1;35mfix\e[m ");
@@ -171,11 +171,12 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   }
   printf("Installing trace %li\n", traces.size());
 
-  dump_trace(trace);
   trace->link = link;
   traces.push_back(trace);
 
+  dump_trace(trace);
   assign_registers(trace);
+  dump_trace(trace);
   
   trace_state = OFF;
   side_exit = NULL;
@@ -227,6 +228,7 @@ int record(unsigned int *pc, long *frame) {
 int record_stack_load(int slot, long *frame) {
   if (regs[slot] == -1) {
     ir_ins ins;
+    ins.reg = REG_NONE;
     ins.op1 = slot;
     ins.op = ir_ins_op::SLOAD;
     // Guard on type
@@ -306,6 +308,7 @@ int record_instr(unsigned int *pc, long *frame) {
         auto knum2 = trace->consts.size();
         trace->consts.push_back((frame_off + 2) << 3);
         ir_ins ins;
+	ins.reg = REG_NONE;
         ins.op1 = knum | IR_CONST_BIAS;
         // TODO this isn't a runtime const?  can gen directly from PC?
         ins.op2 = knum2 | IR_CONST_BIAS;
@@ -355,7 +358,7 @@ int record_instr(unsigned int *pc, long *frame) {
       }
       f = frame - (INS_A(*(pc - 1)) + 2);
     }
-    if (cnt >= 3) {
+    if (cnt >= UNROLL_LIMIT) {
       if (target == pc_start) {
         record_stop(pc, frame, traces.size());
         printf("Record stop up-recursion\n");
@@ -382,6 +385,7 @@ int record_instr(unsigned int *pc, long *frame) {
       auto knum = trace->consts.size();
       trace->consts.push_back(v);
       ir_ins ins;
+      ins.reg = REG_NONE;
       ins.op1 = record_stack_load(INS_A(i) + 1, frame);
       ins.op2 = knum | IR_CONST_BIAS;
       ins.op = ir_ins_op::EQ;
@@ -409,6 +413,7 @@ int record_instr(unsigned int *pc, long *frame) {
   case JISLT: {
     add_snap(regs_list, regs - regs_list - 1, trace, pcloc);
     ir_ins ins;
+    ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
     if (frame[INS_B(i)] < frame[INS_C(i)]) {
@@ -423,6 +428,7 @@ int record_instr(unsigned int *pc, long *frame) {
   case JISEQ: {
     add_snap(regs_list, regs - regs_list - 1, trace, pcloc);
     ir_ins ins;
+    ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
     if (frame[INS_B(i)] == frame[INS_C(i)]) {
@@ -444,6 +450,7 @@ int record_instr(unsigned int *pc, long *frame) {
     auto knum = trace->consts.size();
     trace->consts.push_back(gp);
     ir_ins ins;
+    ins.reg = REG_NONE;
     ins.op1 = knum | IR_CONST_BIAS;
     ins.op = ir_ins_op::GGET;
     ins.type = IR_INS_TYPE_GUARD | (((symbol *)gp)->val & 0x7);
@@ -454,6 +461,7 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case SUBVN: {
     ir_ins ins;
+    ins.reg = REG_NONE;
     auto knum = trace->consts.size();
     trace->consts.push_back(INS_C(i) << 3);
     ins.op1 = record_stack_load(INS_B(i), frame);
@@ -467,6 +475,7 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case ADDVN: {
     ir_ins ins;
+    ins.reg = REG_NONE;
     auto knum = trace->consts.size();
     trace->consts.push_back(INS_C(i) << 3);
     ins.op1 = record_stack_load(INS_B(i), frame);
@@ -480,6 +489,7 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case ADDVV: {
     ir_ins ins;
+    ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
     ins.op = ir_ins_op::ADD;
@@ -497,6 +507,7 @@ int record_instr(unsigned int *pc, long *frame) {
       auto knum = trace->consts.size();
       trace->consts.push_back(v);
       ir_ins ins;
+    ins.reg = REG_NONE;
       ins.op1 = record_stack_load(INS_A(i), frame);
       ins.op2 = knum | IR_CONST_BIAS;
       ins.op = ir_ins_op::EQ;
