@@ -344,6 +344,20 @@ int record_instr(unsigned int *pc, long *frame) {
       regs[j] = record_stack_load(j, frame);
     }
 
+    // Check call type
+    {
+      auto v = frame[INS_A(i) + 1];
+      auto knum = trace->consts.size();
+      trace->consts.push_back(v);
+      ir_ins ins;
+      ins.reg = REG_NONE;
+      ins.op1 = record_stack_load(INS_A(i) + 1, frame);
+      ins.op2 = knum | IR_CONST_BIAS;
+      ins.op = ir_ins_op::EQ;
+      // TODO magic number
+      ins.type = IR_INS_TYPE_GUARD | 0x5;
+      trace->ops.push_back(ins);
+    }
     auto func = (bcfunc *)(frame[INS_A(i) + 1] - 5);
     auto ftarget = frame[INS_A(i) + 1];
     auto target = &func->code[0];
@@ -356,6 +370,17 @@ int record_instr(unsigned int *pc, long *frame) {
       }
       f = frame - (INS_A(*(pc - 1)) + 2);
     }
+
+    // Setup frame
+    depth++;
+    // Push PC link as const
+    auto knum = trace->consts.size();
+    trace->consts.push_back(((long)(pc + 1)) | SNAP_FRAME);
+    regs[INS_A(i)] = knum | IR_CONST_BIAS; // TODO set PC
+
+    // Increment regs
+    regs += INS_A(i) + 2;
+    
     if (cnt >= UNROLL_LIMIT) {
       if (target == pc_start) {
         record_stop(pc, frame, traces.size());
@@ -376,28 +401,6 @@ int record_instr(unsigned int *pc, long *frame) {
         return 1;
       }
     }
-    depth++;
-    // Check call type
-    {
-      auto v = frame[INS_A(i) + 1];
-      auto knum = trace->consts.size();
-      trace->consts.push_back(v);
-      ir_ins ins;
-      ins.reg = REG_NONE;
-      ins.op1 = record_stack_load(INS_A(i) + 1, frame);
-      ins.op2 = knum | IR_CONST_BIAS;
-      ins.op = ir_ins_op::EQ;
-      // TODO magic number
-      ins.type = IR_INS_TYPE_GUARD | 0x5;
-      trace->ops.push_back(ins);
-    }
-    // Push PC link as const
-    auto knum = trace->consts.size();
-    trace->consts.push_back(((long)(pc + 1)) | SNAP_FRAME);
-    regs[INS_A(i)] = knum | IR_CONST_BIAS; // TODO set PC
-
-    // Increment regs
-    regs += INS_A(i) + 2;
     break;
   }
   case KSHORT: {
