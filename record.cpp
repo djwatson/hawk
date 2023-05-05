@@ -6,6 +6,7 @@
 #include "record.h"
 #include "snap.h"
 #include "vm.h"
+#include "asm_x64.h"
 
 unsigned int *pc_start;
 unsigned int instr_count;
@@ -169,9 +170,13 @@ void record_stop(unsigned int *pc, long *frame, int link) {
     }
   }
   printf("Installing trace %li\n", traces.size());
+
   dump_trace(trace);
   trace->link = link;
   traces.push_back(trace);
+
+  assign_registers(trace);
+  
   trace_state = OFF;
   side_exit = NULL;
   downrec.clear();
