@@ -1,27 +1,40 @@
 # TODO list
 
-* All of 'RECORD' probably needs type tests when we access frame.
-* TODO stack size needs to stretch somewhere in snap replay 
+* JIT todo:
+  * gdb interface
+  * perf interface
+  * get snaps to properly back out
+  * get working for ack, tak, fib
+  
 
-* BROKEN - JFUNC (and probably JLOOP) links need add all arguments to snap.
-* CALLT to JFUNC broken
-* CALL neesd to load args too
+* All of 'RECORD' probably needs type tests when we access frame.
+
+* CALL neesd to load args too??
 
 * BROKEN - fix traec num, store in D, max traces cache
 * BROKEN keeps jitting even on jfunc.  Should hotmap on func instead of call?
-* add better logging for trace numbers / side traec numbers
 * fix snap saves for branches, don't merge with 0, bump one past.
 
-* do better recursion
-  * side-exits can trace through jfunc
-  * side-exits can down-recurse
+* need to purge snap to minimum entries.
 
-* reg alloc
+* do better recursion 
+  * maybe start traces on RET?
+  * maybe flush traces (recursively) if we find a new up or down recursive trace
+  * fib 39 re-jits tails, because downrec happens first.  Even luajit does this.  Unrolling probably helps.
+
+* reg alloc - needs spilling
 * fixup all opcodes of 'D' type
 * various check for const size overflow, reg or opcode overflow
 * fuzz bytecode reader
 * remove indirection for consts/bc
 * Add define tags/header for runtime types
+
+# OPTS
+
+* simple loop op
+* dce
+* global fetches
+
 
 # Bytecode generator
 
@@ -43,4 +56,3 @@
 * fix letrec
 * tail call register alloc?
 
-* fib 39 re-jits tails, because downrec happens first.  Even luajit does this.  Unrolling probably helps.
