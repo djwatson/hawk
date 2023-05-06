@@ -198,7 +198,7 @@ void record_abort() {
 }
 
 int record(unsigned int *pc, long *frame) {
-  if (traces.size() >= 255) {
+  if (traces.size() >= 3) {
     return 1;
   }
   switch (trace_state) {

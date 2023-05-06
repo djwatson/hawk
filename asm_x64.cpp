@@ -316,6 +316,23 @@ void asm_jit(trace_s* trace, snap_s* side_exit) {
 	  assert(false);
 	}
 	a.jl(snap_labels[cur_snap]);
+      } else {
+	assert(false);
+      }
+      break;
+    }
+    case ir_ins_op::LT: {
+      if (op.op2 & IR_CONST_BIAS) {
+	long v = trace->consts[op.op2 - IR_CONST_BIAS];
+	if (v < 32000) {
+	  assert(!(op.op1&IR_CONST_BIAS));
+	  a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], v);
+	} else {
+	  assert(false);
+	}
+	a.jge(snap_labels[cur_snap]);
+      } else {
+	assert(false);
       }
       break;
     }
@@ -443,15 +460,16 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   //printf("FN start\n");
   long exit = trace->fn(o_frame, o_pc);
   // TODO exit holds new trace, o_pc holds exit num
-  //printf("Exit %i %lx %lx\n", (*o_pc), exit, trace);
+  printf("Exit %i %lx %lx\n", (*o_pc), exit, trace);
   trace = (trace_s*)exit;
   exit = (long)(*o_pc);
+  printf("From trace %i\n", trace->num);
   bcfunc *func = (bcfunc *)((*o_frame)[-1] - 5);
   // TODO exit is probably wrong if side trace
   auto snap = &trace->snaps[exit];
   (*o_pc) = &func->code[snap->pc];
 
-  if (trace->link != -1 && exit != trace->snaps.size()-1) {
+  if (exit != trace->snaps.size()-1) {
     if(snap->exits < 10) {
       snap->exits++;
     } else {
