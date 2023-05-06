@@ -179,17 +179,19 @@ void emit_snap(x86::Assembler& a, int snap, trace_s* trace) {
     }
   }
   // Pump offset
+  // TODO check stack size
   a.add(x86::rdi, sn.offset*8);
   // Store frame
   a.mov(x86::r15, x86::ptr(x86::rsp, 8, 8));
   a.mov(x86::ptr(x86::r15, 0, 8), x86::rdi);
   // Adjust pc
   a.mov(x86::r15, x86::ptr(x86::rsp, 0, 8));
-  a.mov(x86::ptr(x86::r15, 0, 8), sn.pc);
+  // TODO
+  a.mov(x86::ptr(x86::r15, 0, 8), snap);
 }
 
 JitRuntime rt;
-void asm_jit(trace_s* trace) {
+void asm_jit(trace_s* trace, snap_s* side_exit) {
   // Runtime designed for JIT - it holds relocated functions and controls their lifetime.
 
   // Holds code and relocation information during code generation.
@@ -211,17 +213,21 @@ void asm_jit(trace_s* trace) {
   x86::Assembler a(&code);
   a.addValidationOptions(BaseAssembler::ValidationOptions::kValidationOptionAssembler |
 			 BaseAssembler::ValidationOptions::kValidationOptionIntermediate);
-  
-  a.push(x86::rbp);
-  a.mov(x86::rbp, x86::rsp);
-  a.push(x86::rbx);
-  a.push(x86::r12);
-  a.push(x86::r13);
-  a.push(x86::r14);
-  a.push(x86::r15);
-  a.push(x86::rdi);
-  a.push(x86::rsi);
-  a.mov(x86::rdi, x86::ptr(x86::rdi, 0, 0));
+
+  if(!side_exit) {
+    a.push(x86::rbp);
+    a.mov(x86::rbp, x86::rsp);
+    a.push(x86::rbx);
+    a.push(x86::r12);
+    a.push(x86::r13);
+    a.push(x86::r14);
+    a.push(x86::r15);
+    a.push(x86::rdi);
+    a.push(x86::rsi);
+    a.mov(x86::rdi, x86::ptr(x86::rdi, 0, 0));
+  } else {
+    a.sub(x86::rdi, side_exit->offset*8);
+  }
 
   Label sl = a.newLabel();
   Label exit_label = a.newLabel();
@@ -284,11 +290,19 @@ void asm_jit(trace_s* trace) {
     }
     case ir_ins_op::ADD: {
       assert(!(op.op1 & IR_CONST_BIAS));
-      assert(!(op.op2 & IR_CONST_BIAS));
       auto reg = ir_to_asmjit[op.reg];
       auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
       a.mov(reg, reg1);
-      a.add(reg, ir_to_asmjit[trace->ops[op.op2].reg]);
+      if (op.op2&IR_CONST_BIAS) {
+	long v = trace->consts[op.op2 - IR_CONST_BIAS];
+	if (v < 32000) {
+	  a.add(reg, v);
+	} else {
+	  assert(false);
+	}
+      } else {
+	a.add(reg, ir_to_asmjit[trace->ops[op.op2].reg]);
+      }
       a.jo(snap_labels[cur_snap]);
       break;
     }
@@ -323,7 +337,8 @@ void asm_jit(trace_s* trace) {
       if (op.op2 & IR_CONST_BIAS) {
 	long v = trace->consts[op.op2 - IR_CONST_BIAS];
 	if (v < 32000) {
-	  assert(false);
+	  assert(!(op.op1&IR_CONST_BIAS));
+	  a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], v);
 	} else {
 	  assert(!(op.op1&IR_CONST_BIAS));
 	  a.mov(x86::r15, v);
@@ -333,6 +348,15 @@ void asm_jit(trace_s* trace) {
       }
       break;
     }
+    case ir_ins_op::RET: {
+      auto retadd = trace->consts[op.op1 - IR_CONST_BIAS] - SNAP_FRAME;
+      auto b = trace->consts[op.op2 - IR_CONST_BIAS];
+      a.mov(x86::r15, retadd);
+      a.cmp(x86::r15, x86::ptr(x86::rdi, -2*8));
+      a.jne(snap_labels[cur_snap]);
+      a.sub(x86::rdi, b);
+      break;
+    }
     default:
       printf("Can't jit op: %s\n", ir_names[(int)op.op]);
       exit(-1);
@@ -340,12 +364,20 @@ void asm_jit(trace_s* trace) {
   }
   emit_snap(a, trace->snaps.size()-1, trace);
   if(trace->link != -1) {
-    a.jmp(sl);
+    if (side_exit) {
+      auto otrace = trace_cache_get(trace->link);
+      a.mov(x86::r15, uint64_t(otrace->fn) + 0x12);
+      a.jmp(x86::r15);
+    } else {
+      // TODO check for other link?
+      a.jmp(sl);
+    }
+  } else {
+    a.jmp(exit_label);
   }
   for(unsigned long i = 0; i < trace->snaps.size()-1; i++) {
     a.bind(snap_labels[i]);
     emit_snap(a, i, trace);
-    a.mov(x86::rax, i);
     // Funny embed here, so we can patch later.
     a.jmp(x86::ptr(snap_labels_patch[i]));
   }
@@ -363,6 +395,7 @@ void asm_jit(trace_s* trace) {
   a.pop(x86::r12);
   a.pop(x86::rbx);
   a.pop(x86::rbp);
+  a.mov(x86::rax, trace);
   
   a.ret();
   for(unsigned long i = 0; i < trace->snaps.size()-1; i++) {
@@ -409,14 +442,19 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
       
   //printf("FN start\n");
   long exit = trace->fn(o_frame, o_pc);
+  // TODO exit holds new trace, o_pc holds exit num
+  //printf("Exit %i %lx %lx\n", (*o_pc), exit, trace);
+  trace = (trace_s*)exit;
+  exit = (long)(*o_pc);
   bcfunc *func = (bcfunc *)((*o_frame)[-1] - 5);
-  //printf("Exit is %i\n", exit);
+  // TODO exit is probably wrong if side trace
   auto snap = &trace->snaps[exit];
   (*o_pc) = &func->code[snap->pc];
 
   if (trace->link != -1 && exit != trace->snaps.size()-1) {
     if(snap->exits < 10) {
       snap->exits++;
+    } else {
       if (snap->exits < 14) {
 	snap->exits++;
 	printf("Hot snap %i\n", exit);

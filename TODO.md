@@ -2,7 +2,8 @@
 
 * JIT todo:
   * get working for ack, tak, fib
-  
+  * fix frame offset adjust
+  * fix stack size adjust  
 
 * merge record_run and jit_run exit stub
 * All of 'RECORD' probably needs type tests when we access frame.
