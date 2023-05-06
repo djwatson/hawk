@@ -390,16 +390,46 @@ void asm_jit(trace_s* trace) {
   VALGRIND_DISCARD_TRANSLATIONS(fn, len);
 }
 
+extern unsigned int *patchpc;
+extern unsigned int patchold;
 int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
                long *frame_top) {
-      auto trace = trace_cache_get(tnum);
+  auto trace = trace_cache_get(tnum);
       
-      
-      //printf("FN start\n");
-      long exit = trace->fn(o_frame, o_pc);
-      bcfunc *func = (bcfunc *)((*o_frame)[-1] - 5);
-      //printf("Exit is %i\n", exit);
-      (*o_pc) = &func->code[trace->snaps[exit].pc];
-      //printf("FN return\n");
-      return 0;
+  //printf("FN start\n");
+  long exit = trace->fn(o_frame, o_pc);
+  bcfunc *func = (bcfunc *)((*o_frame)[-1] - 5);
+  //printf("Exit is %i\n", exit);
+  auto snap = &trace->snaps[exit];
+  (*o_pc) = &func->code[snap->pc];
+
+  if (trace->link != -1 && exit != trace->snaps.size()-1) {
+    if(snap->exits < 10) {
+      snap->exits++;
+      if (snap->exits < 14) {
+	snap->exits++;
+	printf("Hot snap %i\n", exit);
+	if (INS_OP(**o_pc) == JLOOP) {
+	  printf("HOT SNAP to JLOOP\n");
+	  patchpc = *o_pc;
+	  patchold = **o_pc;
+	  **o_pc = trace->startpc;
+	}
+	record_side(trace, snap);
+	return 1;
+      }
+      if (snap->exits == 14) {
+	printf("Side max\n");
+	snap->exits++;
+      }
+    }
+  }
+  if (INS_OP(**o_pc) == JLOOP) {
+    *o_pc = &trace->startpc;
+    printf("Exit to loop\n");
+    return 0;
+  }
+	  
+  //printf("FN return\n");
+  return 0;
 }
