@@ -227,8 +227,10 @@ void asm_jit(trace_s* trace) {
   Label exit_label = a.newLabel();
   a.bind(sl);
   Label snap_labels[trace->snaps.size()-1];
+  Label snap_labels_patch[trace->snaps.size()-1];
   for(unsigned long i = 0; i < trace->snaps.size()-1;  i++) {
     snap_labels[i] = a.newLabel();
+    snap_labels_patch[i] = a.newLabel();
   }
   long cur_snap = 0;
 
@@ -344,7 +346,8 @@ void asm_jit(trace_s* trace) {
     a.bind(snap_labels[i]);
     emit_snap(a, i, trace);
     a.mov(x86::rax, i);
-    a.jmp(exit_label);
+    // Funny embed here, so we can patch later.
+    a.jmp(x86::ptr(snap_labels_patch[i]));
   }
 
   a.bind(exit_label);
@@ -362,6 +365,10 @@ void asm_jit(trace_s* trace) {
   a.pop(x86::rbp);
   
   a.ret();
+  for(unsigned long i = 0; i < trace->snaps.size()-1; i++) {
+    a.bind(snap_labels_patch[i]);
+    a.embedLabel(exit_label, 8);
+  }
 
   auto len = a.offset();
 
