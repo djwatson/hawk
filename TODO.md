@@ -1,9 +1,6 @@
 # TODO list
 
 * JIT todo:
-  * gdb interface
-  * perf interface
-  * get snaps to properly back out
   * get working for ack, tak, fib
   
 

@@ -9,6 +9,7 @@
 
 #include <asmjit/asmjit.h>
 #include <capstone/capstone.h>
+#include <valgrind/valgrind.h>
 
 using namespace asmjit;
 
@@ -383,4 +384,5 @@ void asm_jit(trace_s* trace) {
   perf_map(uint64_t(fn), len, std::string("Trace"));
   jit_dump(len, uint64_t(fn), std::string("Trace"));
   jit_reader_add(len, uint64_t(fn), 0, 0, std::string("Trace"));
+  VALGRIND_DISCARD_TRANSLATIONS(fn, len);
 }
