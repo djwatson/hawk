@@ -408,7 +408,7 @@ void run() {
       //   memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
       // }
       printf("FN start\n");
-      trace->fn(frame);
+      trace->fn(&frame);
       printf("FN return\n");
       pc++;
       DIRECT;

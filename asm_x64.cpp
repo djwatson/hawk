@@ -190,6 +190,8 @@ void asm_jit(trace_s* trace) {
   a.push(x86::r13);
   a.push(x86::r14);
   a.push(x86::r15);
+  a.push(x86::rdi);
+  a.mov(x86::rdi, x86::ptr(x86::rdi, 0, 0));
 
   Label l = a.newLabel();
   Label sl = a.newLabel();
@@ -261,6 +263,20 @@ void asm_jit(trace_s* trace) {
       }
       break;
     }
+    case ir_ins_op::NE: {
+      if (op.op2 & IR_CONST_BIAS) {
+	long v = trace->consts[op.op2 - IR_CONST_BIAS];
+	if (v < 32000) {
+	  assert(!(op.op1&IR_CONST_BIAS));
+	  a.mov(x86::r15, v);
+	  a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], x86::r15);
+	} else {
+	  assert(false);
+	}
+	a.je(l);
+      }
+      break;
+    }
     case ir_ins_op::EQ: {
       if (op.op2 & IR_CONST_BIAS) {
 	long v = trace->consts[op.op2 - IR_CONST_BIAS];
@@ -286,15 +302,27 @@ void asm_jit(trace_s* trace) {
     for(auto&slot:sn.slots) {
       if (slot.val&IR_CONST_BIAS) {
 	auto c = trace->consts[slot.val - IR_CONST_BIAS];
-	assert((c&SNAP_FRAME) < 32000);
-	a.mov(x86::ptr(x86::rdi, slot.slot * 8, 8), c&~SNAP_FRAME);
+	//assert((c&SNAP_FRAME) < 32000);
+	printf("MOV %lx\n", c&~SNAP_FRAME);
+	a.mov(x86::r15, c&~SNAP_FRAME);
+	a.mov(x86::ptr(x86::rdi, slot.slot * 8, 8), x86::r15);
       } else {
 	a.mov(x86::ptr(x86::rdi, slot.slot * 8, 8), ir_to_asmjit[trace->ops[slot.val].reg]);
       }
     }
+    // Pump offset
+    a.add(x86::rdi, sn.offset*8);
+    // Store frame
+    a.mov(x86::r15, x86::ptr(x86::rsp, 0, 0));
+    a.mov(x86::ptr(x86::r15, 0, 0), x86::rdi);
+    
     a.jmp(sl);
   }
   a.bind(l);
+
+  // Pop saved frame
+  a.pop(x86::r15);
+  //restore callee-save
   a.pop(x86::r15);
   a.pop(x86::r14);
   a.pop(x86::r13);
@@ -327,4 +355,5 @@ void asm_jit(trace_s* trace) {
   trace->fn = fn;
   perf_map(uint64_t(fn), len, std::string("Trace"));
   jit_dump(len, uint64_t(fn), std::string("Trace"));
+  jit_reader_add(len, uint64_t(fn), 0, 0, std::string("Trace"));
 }

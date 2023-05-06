@@ -125,7 +125,13 @@ void record_side(trace_s *p, snap_s *side) {
   side_exit = side;
 }
 
+void record_abort();
 void record_start(unsigned int *pc, long *frame) {
+  // TODO side traces don't work yet
+  if (side_exit) {
+    record_abort();
+    return;
+  }
   trace = new trace_s;
   trace->num = traces.size();
   trace_state = START;

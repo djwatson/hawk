@@ -69,7 +69,7 @@ enum trace_type_e {
   TRACE_TAILREC,
 };
 
-typedef void (*Func)(long*);
+typedef void (*Func)(long**);
 struct trace_s {
   std::vector<ir_ins> ops;
   std::vector<long> consts;
