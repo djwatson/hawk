@@ -408,9 +408,10 @@ void run() {
       //   memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
       // }
       printf("FN start\n");
-      trace->fn(&frame);
+      trace->fn(&frame, &pc);
+      bcfunc *func = (bcfunc *)(frame[-1] - 5);
+      pc = &func->code[(long)pc];
       printf("FN return\n");
-      pc++;
       DIRECT;
       break;
     }

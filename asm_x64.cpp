@@ -161,6 +161,27 @@ public:
   }
 };
 
+void emit_snap(x86::Assembler& a, int snap, trace_s* trace) {
+  auto&sn = trace->snaps[snap];
+  // TODO frame size check
+  for(auto&slot:sn.slots) {
+    if (slot.val&IR_CONST_BIAS) {
+      auto c = trace->consts[slot.val - IR_CONST_BIAS];
+      //assert((c&SNAP_FRAME) < 32000);
+      printf("MOV %lx\n", c&~SNAP_FRAME);
+      a.mov(x86::r15, c&~SNAP_FRAME);
+      a.mov(x86::ptr(x86::rdi, slot.slot * 8, 8), x86::r15);
+    } else {
+      a.mov(x86::ptr(x86::rdi, slot.slot * 8, 8), ir_to_asmjit[trace->ops[slot.val].reg]);
+    }
+  }
+  // Pump offset
+  a.add(x86::rdi, sn.offset*8);
+  // Store frame
+  a.mov(x86::r15, x86::ptr(x86::rsp, 8, 8));
+  a.mov(x86::ptr(x86::r15, 0, 8), x86::rdi);
+}
+
 JitRuntime rt;
 void asm_jit(trace_s* trace) {
   // Runtime designed for JIT - it holds relocated functions and controls their lifetime.
@@ -182,7 +203,9 @@ void asm_jit(trace_s* trace) {
   // either 32-bit (x86) or 64-bit (x86_64) code. The following line also attaches the
   // assembler to CodeHolder, which calls 'code.attach(&a)' implicitly.
   x86::Assembler a(&code);
-
+  a.addValidationOptions(BaseAssembler::ValidationOptions::kValidationOptionAssembler |
+			 BaseAssembler::ValidationOptions::kValidationOptionIntermediate);
+  
   a.push(x86::rbp);
   a.mov(x86::rbp, x86::rsp);
   a.push(x86::rbx);
@@ -191,13 +214,24 @@ void asm_jit(trace_s* trace) {
   a.push(x86::r14);
   a.push(x86::r15);
   a.push(x86::rdi);
+  a.push(x86::rsi);
   a.mov(x86::rdi, x86::ptr(x86::rdi, 0, 0));
 
-  Label l = a.newLabel();
   Label sl = a.newLabel();
+  Label exit_label = a.newLabel();
   a.bind(sl);
+  Label snap_labels[trace->snaps.size()-1];
+  for(unsigned long i = 0; i < trace->snaps.size()-1;  i++) {
+    snap_labels[i] = a.newLabel();
+  }
+  long cur_snap = 0;
 
+  long op_cnt = 0;
   for(auto&op:trace->ops) {
+    while (trace->snaps[cur_snap+1].ir <= op_cnt) {
+      cur_snap++;
+    }
+    op_cnt++;
     switch(op.op) {
     case ir_ins_op::SLOAD: {
       // frame is RDI
@@ -207,7 +241,7 @@ void asm_jit(trace_s* trace) {
 	a.mov(x86::r15, reg);
 	a.and_(x86::r15, 0x7);
 	a.cmp(x86::r15, op.type&~IR_INS_TYPE_GUARD);
-	a.jne(l);
+	a.jne(snap_labels[cur_snap]);
       }
       break;
     }
@@ -220,7 +254,7 @@ void asm_jit(trace_s* trace) {
 	a.mov(x86::r15, reg);
 	a.and_(x86::r15, 0x7);
 	a.cmp(x86::r15, op.type&~IR_INS_TYPE_GUARD);
-	a.jne(l);
+	a.jne(snap_labels[cur_snap]);
       }
       break;
     }
@@ -233,7 +267,7 @@ void asm_jit(trace_s* trace) {
 	if (v < 32000) {
 	  assert(!(op.op1&IR_CONST_BIAS));
 	  a.sub(reg, v);
-	  a.jo(l);
+	  a.jo(snap_labels[cur_snap]);
 	} else {
 	  assert(false);
 	}
@@ -247,7 +281,7 @@ void asm_jit(trace_s* trace) {
       auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
       a.mov(reg, reg1);
       a.add(reg, ir_to_asmjit[trace->ops[op.op2].reg]);
-      a.jo(l);
+      a.jo(snap_labels[cur_snap]);
       break;
     }
     case ir_ins_op::GE: {
@@ -259,7 +293,7 @@ void asm_jit(trace_s* trace) {
 	} else {
 	  assert(false);
 	}
-	a.jl(l);
+	a.jl(snap_labels[cur_snap]);
       }
       break;
     }
@@ -273,7 +307,7 @@ void asm_jit(trace_s* trace) {
 	} else {
 	  assert(false);
 	}
-	a.je(l);
+	a.je(snap_labels[cur_snap]);
       }
       break;
     }
@@ -287,7 +321,7 @@ void asm_jit(trace_s* trace) {
 	  a.mov(x86::r15, v);
 	  a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], x86::r15);
 	}
-	a.jne(l);
+	a.jne(snap_labels[cur_snap]);
       }
       break;
     }
@@ -296,31 +330,26 @@ void asm_jit(trace_s* trace) {
       exit(-1);
     }
   }
+  emit_snap(a, trace->snaps.size()-1, trace);
   if(trace->link != -1) {
-    auto&sn = trace->snaps[trace->snaps.size()-1];
-    // TODO frame size check
-    for(auto&slot:sn.slots) {
-      if (slot.val&IR_CONST_BIAS) {
-	auto c = trace->consts[slot.val - IR_CONST_BIAS];
-	//assert((c&SNAP_FRAME) < 32000);
-	printf("MOV %lx\n", c&~SNAP_FRAME);
-	a.mov(x86::r15, c&~SNAP_FRAME);
-	a.mov(x86::ptr(x86::rdi, slot.slot * 8, 8), x86::r15);
-      } else {
-	a.mov(x86::ptr(x86::rdi, slot.slot * 8, 8), ir_to_asmjit[trace->ops[slot.val].reg]);
-      }
-    }
-    // Pump offset
-    a.add(x86::rdi, sn.offset*8);
-    // Store frame
-    a.mov(x86::r15, x86::ptr(x86::rsp, 0, 0));
-    a.mov(x86::ptr(x86::r15, 0, 0), x86::rdi);
-    
     a.jmp(sl);
   }
-  a.bind(l);
+  for(unsigned long i = 0; i < trace->snaps.size()-1; i++) {
+    a.bind(snap_labels[i]);
+    emit_snap(a, i, trace);
+    a.jmp(exit_label);
+  }
 
-  // Pop saved frame
+  a.bind(exit_label);
+
+  // Adjust pc
+  a.mov(x86::r15, x86::ptr(x86::rsp, 0, 8));
+  // TODO get real pc
+  a.mov(x86::ptr(x86::r15, 0, 8), 1);
+
+  // Pop saved &pc
+  a.pop(x86::r15);
+  // Pop saved &frame
   a.pop(x86::r15);
   //restore callee-save
   a.pop(x86::r15);
