@@ -6,6 +6,8 @@
 // TODO only for runtime symbol
 #include "bytecode.h"
 #include "jitdump.h"
+// only for tcache
+#include "record.h"
 
 #include <asmjit/asmjit.h>
 #include <capstone/capstone.h>
@@ -385,4 +387,17 @@ void asm_jit(trace_s* trace) {
   jit_dump(len, uint64_t(fn), std::string("Trace"));
   jit_reader_add(len, uint64_t(fn), 0, 0, std::string("Trace"));
   VALGRIND_DISCARD_TRANSLATIONS(fn, len);
+}
+
+int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
+               long *frame_top) {
+      auto trace = trace_cache_get(tnum);
+      
+      
+      //printf("FN start\n");
+      trace->fn(o_frame, o_pc);
+      bcfunc *func = (bcfunc *)((*o_frame)[-1] - 5);
+      (*o_pc) = &func->code[(long)(*o_pc)];
+      //printf("FN return\n");
+      return 0;
 }

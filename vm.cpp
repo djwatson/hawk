@@ -4,6 +4,7 @@
 #include "record.h"
 #include "replay.h"
 #include "vm.h"
+#include "asm_x64.h"
 
 int joff = 0;
 
@@ -398,18 +399,12 @@ void run() {
     case 23: {
     L_INS_JFUNC:
       auto tnum = INS_B(i);
-      auto trace = trace_cache_get(tnum);
-      // printf("JFUNC/JLOOP run %i\n", trace);
-      // auto res = record_run(trace, &pc, &frame, frame_top);
-      // frame_top = stack + stacksz;
-      // if (unlikely(res)) {
-      //   memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
-      // }
-      //printf("FN start %li %li\n", frame[0]>>3, frame[1]>>3);
-      trace->fn(&frame, &pc);
-      bcfunc *func = (bcfunc *)(frame[-1] - 5);
-      pc = &func->code[(long)pc];
-      //printf("FN return\n");
+      //printf("JFUNC/JLOOP run %i\n", tnum);
+      auto res = jit_run(tnum, &pc, &frame, frame_top);
+      frame_top = stack + stacksz;
+      if (unlikely(res)) {
+        memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
+      }
       DIRECT;
       break;
     }

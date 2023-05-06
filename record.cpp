@@ -127,11 +127,6 @@ void record_side(trace_s *p, snap_s *side) {
 
 void record_abort();
 void record_start(unsigned int *pc, long *frame) {
-  // TODO side traces don't work yet
-  if (side_exit) {
-    record_abort();
-    return;
-  }
   trace = new trace_s;
   trace->num = traces.size();
   trace_state = START;
@@ -161,6 +156,11 @@ void record_start(unsigned int *pc, long *frame) {
 extern int joff;
 
 void record_stop(unsigned int *pc, long *frame, int link) {
+  // TODO side traces don't work yet
+  if (side_exit) {
+    record_abort();
+    return;
+  }
   pendpatch();
 
   auto func = (bcfunc *)(frame[-1] - 5);
