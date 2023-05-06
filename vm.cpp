@@ -33,7 +33,6 @@ __attribute__((noinline)) void EXPAND_STACK_SLOWPATH() {
   stack = (long *)realloc(stack, stacksz * sizeof(long));
 }
 
-extern long off_trace;
 unsigned char hotmap[hotmap_sz];
 
 void run() {
@@ -109,7 +108,6 @@ void run() {
     }
 #endif
 
-    off_trace++;
     goto *l_op_table[INS_OP(i)];
 
     switch (INS_OP(i)) {
