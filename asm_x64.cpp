@@ -367,6 +367,7 @@ void asm_jit(trace_s* trace) {
   a.ret();
   for(unsigned long i = 0; i < trace->snaps.size()-1; i++) {
     a.bind(snap_labels_patch[i]);
+    trace->snaps[i].patchpoint = a.offset();
     a.embedLabel(exit_label, 8);
   }
 
@@ -387,6 +388,9 @@ void asm_jit(trace_s* trace) {
     return;
   }
 
+  for(unsigned long i = 0; i < trace->snaps.size()-1; i++) {
+    trace->snaps[i].patchpoint += uint64_t(fn);
+  }
   printf("--------------MCODE---------------\n");
   disassemble((uint8_t*)fn, len);
   printf("----------------------------------\n");

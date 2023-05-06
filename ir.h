@@ -62,6 +62,7 @@ struct snap_s {
   uint8_t exits;
   int link;
   std::vector<snap_entry_s> slots;
+  uint64_t patchpoint;
 };
 
 enum trace_type_e {
