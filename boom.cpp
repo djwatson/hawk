@@ -3,6 +3,7 @@
 
 #include "readbc.h"
 #include "vm.h"
+#include "jitdump.h"
 
 extern int joff;
 long on_trace = 0;
@@ -42,9 +43,12 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  
+  jit_dump_init();
   readbc();
   run();
   free_script();
+  jit_dump_close();
 
   printf("Off trace percent: %.02f\n",
          (float)off_trace / (float)(on_trace + off_trace) * 100.0);

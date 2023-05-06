@@ -5,28 +5,12 @@
 #include "asm_x64.h"
 // TODO only for runtime symbol
 #include "bytecode.h"
+#include "jitdump.h"
 
 #include <asmjit/asmjit.h>
 #include <capstone/capstone.h>
 
 using namespace asmjit;
-
-#include <sys/types.h>
-#include <unistd.h>
-/* Earlier perf_map tmp support - supplies names to jit regions */
-void perf_map(uint64_t fn, uint64_t len, std::string name) {
-  char buf[256];
-  sprintf(buf, "/tmp/perf-%i.map", getpid());
-  auto file = fopen(buf, "a");
-  static long cnt = 0;
-  cnt++;
-  if (name != "") {
-    fprintf(file, "%lx %lx jit function %s\n", uint64_t(fn), len, name.c_str());
-  } else {
-    fprintf(file, "%lx %lx jit anon function %i\n", uint64_t(fn), len, cnt);
-  }
-  fclose(file);
-}
 
 void disassemble(const uint8_t* code, int len)
 {
@@ -199,8 +183,9 @@ void asm_jit(trace_s* trace) {
   // assembler to CodeHolder, which calls 'code.attach(&a)' implicitly.
   x86::Assembler a(&code);
 
-  a.push(x86::rbx);
   a.push(x86::rbp);
+  a.mov(x86::rbp, x86::rsp);
+  a.push(x86::rbx);
   a.push(x86::r12);
   a.push(x86::r13);
   a.push(x86::r14);
@@ -217,9 +202,9 @@ void asm_jit(trace_s* trace) {
       auto reg = ir_to_asmjit[op.reg];
       a.mov(reg, x86::ptr(x86::rdi, op.op1 * 8, 8));
       if (op.type & IR_INS_TYPE_GUARD) {
-	a.mov(x86::rbp, reg);
-	a.and_(x86::rbp, 0x7);
-	a.cmp(x86::rbp, op.type&~IR_INS_TYPE_GUARD);
+	a.mov(x86::r15, reg);
+	a.and_(x86::r15, 0x7);
+	a.cmp(x86::r15, op.type&~IR_INS_TYPE_GUARD);
 	a.jne(l);
       }
       break;
@@ -230,9 +215,9 @@ void asm_jit(trace_s* trace) {
       a.mov(reg, &sym->val);
       a.mov(reg, x86::ptr(reg, 0, 8));
       if (op.type & IR_INS_TYPE_GUARD) {
-	a.mov(x86::rbp, reg);
-	a.and_(x86::rbp, 0x7);
-	a.cmp(x86::rbp, op.type&~IR_INS_TYPE_GUARD);
+	a.mov(x86::r15, reg);
+	a.and_(x86::r15, 0x7);
+	a.cmp(x86::r15, op.type&~IR_INS_TYPE_GUARD);
 	a.jne(l);
       }
       break;
@@ -283,8 +268,8 @@ void asm_jit(trace_s* trace) {
 	  assert(false);
 	} else {
 	  assert(!(op.op1&IR_CONST_BIAS));
-	  a.mov(x86::rbp, v);
-	  a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], x86::rbp);
+	  a.mov(x86::r15, v);
+	  a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], x86::r15);
 	}
 	a.jne(l);
       }
@@ -314,8 +299,8 @@ void asm_jit(trace_s* trace) {
   a.pop(x86::r14);
   a.pop(x86::r13);
   a.pop(x86::r12);
-  a.pop(x86::rbp);
   a.pop(x86::rbx);
+  a.pop(x86::rbp);
   
   a.ret();
 
@@ -341,4 +326,5 @@ void asm_jit(trace_s* trace) {
   printf("----------------------------------\n");
   trace->fn = fn;
   perf_map(uint64_t(fn), len, std::string("Trace"));
+  jit_dump(len, uint64_t(fn), std::string("Trace"));
 }

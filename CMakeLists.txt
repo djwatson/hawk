@@ -21,7 +21,7 @@ check_pie_supported()
 set(CMAKE_CXX_FLAGS " -O3 -fno-omit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fvisibility=hidden -flto")
 
 add_executable(boom
-  readbc.cpp bytecode.cpp vm.cpp boom.cpp record.cpp ir.cpp snap.cpp replay.cpp asm_x64.cpp
+  readbc.cpp bytecode.cpp vm.cpp boom.cpp record.cpp ir.cpp snap.cpp replay.cpp asm_x64.cpp jitdump.cpp
   )
 
 #set_property(TARGET boom PROPERTY POSITION_INDEPENDENT_CODE FALSE)
