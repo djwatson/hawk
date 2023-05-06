@@ -343,6 +343,7 @@ void asm_jit(trace_s* trace) {
   for(unsigned long i = 0; i < trace->snaps.size()-1; i++) {
     a.bind(snap_labels[i]);
     emit_snap(a, i, trace);
+    a.mov(x86::rax, i);
     a.jmp(exit_label);
   }
 
@@ -395,9 +396,10 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
       
       
       //printf("FN start\n");
-      trace->fn(o_frame, o_pc);
+      long exit = trace->fn(o_frame, o_pc);
       bcfunc *func = (bcfunc *)((*o_frame)[-1] - 5);
-      (*o_pc) = &func->code[(long)(*o_pc)];
+      //printf("Exit is %i\n", exit);
+      (*o_pc) = &func->code[trace->snaps[exit].pc];
       //printf("FN return\n");
       return 0;
 }
