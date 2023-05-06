@@ -1,0 +1,3 @@
+#!/bin/bash
+
+sudo ~/projects/linux/tools/perf/perf record -g -k1 ./boom
