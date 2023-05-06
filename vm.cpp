@@ -407,11 +407,11 @@ void run() {
       // if (unlikely(res)) {
       //   memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
       // }
-      printf("FN start\n");
+      //printf("FN start %li %li\n", frame[0]>>3, frame[1]>>3);
       trace->fn(&frame, &pc);
       bcfunc *func = (bcfunc *)(frame[-1] - 5);
       pc = &func->code[(long)pc];
-      printf("FN return\n");
+      //printf("FN return\n");
       DIRECT;
       break;
     }

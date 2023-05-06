@@ -180,6 +180,9 @@ void emit_snap(x86::Assembler& a, int snap, trace_s* trace) {
   // Store frame
   a.mov(x86::r15, x86::ptr(x86::rsp, 8, 8));
   a.mov(x86::ptr(x86::r15, 0, 8), x86::rdi);
+  // Adjust pc
+  a.mov(x86::r15, x86::ptr(x86::rsp, 0, 8));
+  a.mov(x86::ptr(x86::r15, 0, 8), sn.pc);
 }
 
 JitRuntime rt;
@@ -341,11 +344,6 @@ void asm_jit(trace_s* trace) {
   }
 
   a.bind(exit_label);
-
-  // Adjust pc
-  a.mov(x86::r15, x86::ptr(x86::rsp, 0, 8));
-  // TODO get real pc
-  a.mov(x86::ptr(x86::r15, 0, 8), 1);
 
   // Pop saved &pc
   a.pop(x86::r15);
