@@ -477,6 +477,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   bcfunc *func = (bcfunc *)((*o_frame)[-1] - 5);
   // TODO exit is probably wrong if side trace
   auto snap = &trace->snaps[exit];
+  //printf("exit %i from trace %i new pc %i func %lx\n", exit, trace->num, snap->pc, func);
   (*o_pc) = &func->code[snap->pc];
 
   if (exit != trace->snaps.size()-1) {
@@ -500,11 +501,11 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
 	snap->exits++;
       }
     }
-  }
   if (INS_OP(**o_pc) == JLOOP) {
     *o_pc = &trace->startpc;
     printf("Exit to loop\n");
     return 0;
+  }
   }
 	  
   //printf("FN return\n");

@@ -240,8 +240,8 @@ abort : {
     goto again;
   }
 
-  // printf("Replay failed guard in trace %i, abort ir pc %i, hotness %i\n",
-  // trace->num, pc, snap->exits);
+   printf("Replay failed guard in trace %i, abort ir pc %i, hotness %i\n",
+   trace->num, pc, snap->exits);
   if (snap->exits < 10) {
     snap->exits++;
   } else {

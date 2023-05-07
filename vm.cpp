@@ -1,4 +1,5 @@
 #include <string.h>
+#include <assert.h>
 
 #include "bytecode.h"
 #include "record.h"
@@ -109,6 +110,7 @@ void run() {
     }
 #endif
 
+    assert(INS_OP(i) < 25);
     goto *l_op_table[INS_OP(i)];
 
     switch (INS_OP(i)) {
@@ -399,9 +401,11 @@ void run() {
     case 23: {
     L_INS_JFUNC:
       auto tnum = INS_B(i);
-      //printf("JFUNC/JLOOP run %i\n", tnum);
+      // printf("JFUNC/JLOOP run %i\n", tnum);
+      // printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
       auto res = jit_run(tnum, &pc, &frame, frame_top);
       frame_top = stack + stacksz;
+      //printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
       if (unlikely(res)) {
         memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
       }
