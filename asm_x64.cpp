@@ -501,11 +501,14 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
 	snap->exits++;
       }
     }
-  if (INS_OP(**o_pc) == JLOOP) {
-    *o_pc = &trace->startpc;
-    printf("Exit to loop\n");
-    return 0;
-  }
+    // TODO this may or may not be working as intended:
+    // Should only replace if *this trace*'s start PC is o_pc,
+    // and it's originaly a RET, i.e. we predicted the RET wrong.
+    if (INS_OP(**o_pc) == JLOOP) {
+      *o_pc = &trace->startpc;
+      printf("Exit to loop\n");
+      return 0;
+    }
   }
 	  
   //printf("FN return\n");

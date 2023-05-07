@@ -1,13 +1,28 @@
 # TODO list
 
-* figure out why fib40 broken
 * figure out why non-looping ack fails with 1 trace
     * it's because we save the frame state for looping, 
 	* but don't advance to next func/pc in last framestate.
 * JIT todo:
-  * get working for ack, tak, fib
-  * fix frame offset adjust
   * fix stack size adjust  
+  
+* various JIT improvements
+  * don't save/restore snap to stack between parent and side trace, reuse regs
+  * maybe put first X args in regs automatically for parent trace too?
+  * maybe even type check them first?
+  * save less in snap
+  * closures can be exact in snap and constants
+  * don't need to save func ptr slot for callt or ret if it's the same
+  * use RAX for tmp instead of R15 - RAX has shorter ops for MOV, etc
+  * don't adjust RDI if it hasn't changed
+  * don't bother to save RDI until C code exit sequence
+  * Use shorter instruction sequences for small constants
+  * move side exit code to C instead of generated (but need both to gen for side or loop exits)
+  * mv push/pop sequence to separate stub func
+  * --joff is whacky, probably need to write asm.  sigh.
+     * looks like it got worse after adding asmjit/capstone.
+	 * because of memcpy's and record() and jit and shit aren't outlined like they should be.
+	 * Maybe because of global vars? dunno.
 
 * merge record_run and jit_run exit stub
 * All of 'RECORD' probably needs type tests when we access frame.

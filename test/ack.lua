@@ -8,4 +8,4 @@ function ack(m, n)
     end
 end
 
-print(ack(3, 10))
+print(ack(3, 13))
