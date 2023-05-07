@@ -1,5 +1,7 @@
 # TODO list
 
+* Figure out why JFUNC immediate records fail
+* Figure out why jloop records fail in replay/asm_x64
 * figure out why non-looping ack fails with 1 trace
     * it's because we save the frame state for looping, 
 	* but don't advance to next func/pc in last framestate.
