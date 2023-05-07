@@ -7,6 +7,7 @@
   * fix stack size adjust  
   
 * various JIT improvements
+  * fix branching jumps to jump one past.
   * don't save/restore snap to stack between parent and side trace, reuse regs
   * maybe put first X args in regs automatically for parent trace too?
   * maybe even type check them first?
@@ -23,6 +24,9 @@
      * looks like it got worse after adding asmjit/capstone.
 	 * because of memcpy's and record() and jit and shit aren't outlined like they should be.
 	 * Maybe because of global vars? dunno.
+  * we should be able to coalesce arg typechecks if they are the same.
+  * Maybe a speical SLOAD EQ for RET instead, since we don't need to typecheck
+  * Typechecks need a rethink - we can special case some stuff like eq?/eqv?, merge typechecks, etc.
 
 * merge record_run and jit_run exit stub
 * All of 'RECORD' probably needs type tests when we access frame.
@@ -55,6 +59,9 @@
 
 
 # Bytecode generator
+
+## PERF
+* we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
 
 ## CLEANUP
 * cleanup bytecode ops order
