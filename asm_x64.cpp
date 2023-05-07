@@ -224,7 +224,7 @@ void asm_jit(trace_s* trace, snap_s* side_exit) {
     a.push(x86::r15);
     a.push(x86::rdi);
     a.push(x86::rsi);
-    a.mov(x86::rdi, x86::ptr(x86::rdi, 0, 0));
+    a.mov(x86::rdi, x86::ptr(x86::rdi, 0, 8));
   } else {
     a.sub(x86::rdi, side_exit->offset*8);
   }
@@ -285,6 +285,8 @@ void asm_jit(trace_s* trace, snap_s* side_exit) {
 	} else {
 	  assert(false);
 	}
+      } else {
+	assert(false);
       }
       break;
     }
@@ -307,33 +309,37 @@ void asm_jit(trace_s* trace, snap_s* side_exit) {
       break;
     }
     case ir_ins_op::GE: {
+      assert(!(op.op1&IR_CONST_BIAS));
       if (op.op2 & IR_CONST_BIAS) {
 	long v = trace->consts[op.op2 - IR_CONST_BIAS];
 	if (v < 32000) {
-	  assert(!(op.op1&IR_CONST_BIAS));
 	  a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], v);
 	} else {
 	  assert(false);
 	}
-	a.jl(snap_labels[cur_snap]);
       } else {
-	assert(false);
+	auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
+	auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
+	a.cmp(reg1, reg2);
       }
+      a.jl(snap_labels[cur_snap]);
       break;
     }
     case ir_ins_op::LT: {
+      assert(!(op.op1&IR_CONST_BIAS));
       if (op.op2 & IR_CONST_BIAS) {
 	long v = trace->consts[op.op2 - IR_CONST_BIAS];
 	if (v < 32000) {
-	  assert(!(op.op1&IR_CONST_BIAS));
 	  a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], v);
 	} else {
 	  assert(false);
 	}
-	a.jge(snap_labels[cur_snap]);
       } else {
-	assert(false);
+	auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
+	auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
+	a.cmp(reg1, reg2);
       }
+      a.jge(snap_labels[cur_snap]);
       break;
     }
     case ir_ins_op::NE: {
@@ -346,22 +352,25 @@ void asm_jit(trace_s* trace, snap_s* side_exit) {
 	} else {
 	  assert(false);
 	}
-	a.je(snap_labels[cur_snap]);
+      } else {
+	assert(false);
       }
+      a.je(snap_labels[cur_snap]);
       break;
     }
     case ir_ins_op::EQ: {
+      assert(!(op.op1&IR_CONST_BIAS));
       if (op.op2 & IR_CONST_BIAS) {
 	long v = trace->consts[op.op2 - IR_CONST_BIAS];
 	if (v < 32000) {
-	  assert(!(op.op1&IR_CONST_BIAS));
 	  a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], v);
 	} else {
-	  assert(!(op.op1&IR_CONST_BIAS));
 	  a.mov(x86::r15, v);
 	  a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], x86::r15);
 	}
 	a.jne(snap_labels[cur_snap]);
+      } else {
+	assert(false);
       }
       break;
     }
@@ -369,7 +378,7 @@ void asm_jit(trace_s* trace, snap_s* side_exit) {
       auto retadd = trace->consts[op.op1 - IR_CONST_BIAS] - SNAP_FRAME;
       auto b = trace->consts[op.op2 - IR_CONST_BIAS];
       a.mov(x86::r15, retadd);
-      a.cmp(x86::r15, x86::ptr(x86::rdi, -2*8));
+      a.cmp(x86::r15, x86::ptr(x86::rdi, -2*8, 8));
       a.jne(snap_labels[cur_snap]);
       a.sub(x86::rdi, b);
       break;
@@ -381,14 +390,15 @@ void asm_jit(trace_s* trace, snap_s* side_exit) {
   }
   emit_snap(a, trace->snaps.size()-1, trace);
   if(trace->link != -1) {
-    if (side_exit) {
-      auto otrace = trace_cache_get(trace->link);
+    auto otrace = trace_cache_get(trace->link);
+    if (otrace != trace) {
       a.mov(x86::r15, uint64_t(otrace->fn) + 0x12);
       a.jmp(x86::r15);
     } else {
-      // TODO check for other link?
+      // TODO removing this breaks ack
       a.jmp(sl);
     }
+    a.jmp(exit_label);
   } else {
     a.jmp(exit_label);
   }
@@ -457,13 +467,13 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
                long *frame_top) {
   auto trace = trace_cache_get(tnum);
       
-  //printf("FN start\n");
+  //printf("FN start %i\n", tnum);
   long exit = trace->fn(o_frame, o_pc);
   // TODO exit holds new trace, o_pc holds exit num
-  printf("Exit %i %lx %lx\n", (*o_pc), exit, trace);
+  //printf("Exit %i %lx %lx\n", (*o_pc), exit, trace);
   trace = (trace_s*)exit;
   exit = (long)(*o_pc);
-  printf("From trace %i\n", trace->num);
+  //printf("From trace %i\n", trace->num);
   bcfunc *func = (bcfunc *)((*o_frame)[-1] - 5);
   // TODO exit is probably wrong if side trace
   auto snap = &trace->snaps[exit];
