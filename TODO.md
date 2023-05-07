@@ -1,6 +1,9 @@
 # TODO list
 
+* figure out why fib40 broken
 * figure out why non-looping ack fails with 1 trace
+    * it's because we save the frame state for looping, 
+	* but don't advance to next func/pc in last framestate.
 * JIT todo:
   * get working for ack, tak, fib
   * fix frame offset adjust
