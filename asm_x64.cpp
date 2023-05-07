@@ -491,7 +491,8 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
 	  printf("HOT SNAP to JLOOP\n");
 	  patchpc = *o_pc;
 	  patchold = **o_pc;
-	  **o_pc = trace->startpc;
+	  auto otrace = trace_cache_get(INS_B(**o_pc));
+	  **o_pc = otrace->startpc;
 	}
 	record_side(trace, snap);
 	return 1;
@@ -505,7 +506,8 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
     // Should only replace if *this trace*'s start PC is o_pc,
     // and it's originaly a RET, i.e. we predicted the RET wrong.
     if (INS_OP(**o_pc) == JLOOP) {
-      *o_pc = &trace->startpc;
+      auto otrace = trace_cache_get(INS_B(**o_pc));
+      *o_pc = &otrace->startpc;
       printf("Exit to loop\n");
       return 0;
     }

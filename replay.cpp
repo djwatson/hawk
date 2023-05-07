@@ -247,12 +247,13 @@ abort : {
   } else {
     if (snap->exits < 14) {
       snap->exits++;
-      printf("Hot snap %i\n", pc);
+      printf("Hot snap %i from trace %i\n", pc, trace->num);
       if (INS_OP(**o_pc) == JLOOP) {
         printf("HOT SNAP to JLOOP\n");
         patchpc = *o_pc;
         patchold = **o_pc;
-        **o_pc = trace->startpc;
+	auto otrace = trace_cache_get(INS_B(**o_pc));
+        **o_pc = otrace->startpc;
       }
       record_side(trace, snap);
       return 1;
@@ -263,7 +264,8 @@ abort : {
     }
   }
   if (INS_OP(**o_pc) == JLOOP) {
-    *o_pc = &trace->startpc;
+    auto otrace = trace_cache_get(INS_B(**o_pc));
+    *o_pc = &otrace->startpc;
     printf("Exit to loop\n");
     return 0;
   }
