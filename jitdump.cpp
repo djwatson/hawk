@@ -22,7 +22,6 @@ void perf_map(uint64_t fn, uint64_t len, std::string name) {
   char buf[256];
   sprintf(buf, "/tmp/perf-%i.map", getpid());
   auto file = fopen(buf, "a");
-  cnt++;
   if (name != "") {
     fprintf(file, "%lx %lx jit function %s\n", uint64_t(fn), len, name.c_str());
   } else {
@@ -37,7 +36,6 @@ int fd;
 /* Newer jit dump support.  Requires perf record -k 1, and then perf
    inject, before perf report, but gives full asm listing */
 void jit_dump(int len, uint64_t fn, std::string name) {
-  cnt++;
   struct {
     uint32_t id;
     uint32_t total_size;
@@ -149,4 +147,5 @@ void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, std::string name) {
   __jit_debug_descriptor.action_flag = JIT_REGISTER;
   __jit_debug_descriptor.version = 1;
   __jit_debug_register_code ();
+  cnt++;
 }

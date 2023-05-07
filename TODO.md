@@ -1,5 +1,6 @@
 # TODO list
 
+* figure out why non-looping ack fails with 1 trace
 * JIT todo:
   * get working for ack, tak, fib
   * fix frame offset adjust
