@@ -28,7 +28,9 @@ __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(symbol *s) {
   exit(-1);
 }
 unsigned int stacksz = 1000;
-long *stack = (long *)malloc(sizeof(long) * stacksz * 1000);
+static long *frame;
+static long *frame_top;
+long *stack = (long *)malloc(sizeof(long) * stacksz * 1000000);
 __attribute__((noinline)) void EXPAND_STACK_SLOWPATH() {
   printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
   stacksz *= 2;
@@ -37,14 +39,236 @@ __attribute__((noinline)) void EXPAND_STACK_SLOWPATH() {
 
 unsigned char hotmap[hotmap_sz];
 
+#define PARAMS unsigned char ra, unsigned instr,unsigned* pc, long* frame, void** op_table_arg
+#define ARGS ra, instr, pc, frame, op_table_arg
+#define MUSTTAIL __attribute__((musttail))
+//#define DEBUG(name) printf("%s %li %li %li %li\n", name, frame[0], frame[1], frame[2], frame[3]);
+#define DEBUG(name)
+
+typedef void (*op_func)(PARAMS);
+static op_func op_table[25];
+#define NEXT_INSTR { instr = *pc;		\
+  unsigned char op = instr & 0xff;		\
+  ra = (instr >> 8) & 0xff;			\
+  instr >>= 16;					\
+  op_func* op_table_arg_c = (op_func*)op_table_arg; \
+  MUSTTAIL return op_table_arg_c[op](ARGS);		\
+}
+
+
+extern "C" {
+void INS_FUNC(PARAMS) {
+  DEBUG("FUNC");
+  pc++;
+  NEXT_INSTR;
+}
+
+
+void INS_KSHORT(PARAMS) {
+  DEBUG("KSHORT");
+  unsigned char rb = instr;
+
+  frame[ra] = rb;
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_JMP(PARAMS) {
+  DEBUG("JMP");
+
+  pc+= ra;
+  NEXT_INSTR;
+}
+
+void INS_RET1(PARAMS) {
+  DEBUG("RET1");
+
+  pc = (unsigned int *)frame[-2];
+  frame[-2] = frame[ra];
+  frame -= (INS_A(*(pc - 1)) + 2);
+
+  NEXT_INSTR;
+}
+
+void INS_HALT(PARAMS) {
+  DEBUG("HALT");
+
+  printf("Result:%li\n", frame[ra] >> 3);
+  return;
+}
+
+void INS_ISGE(PARAMS) {
+  DEBUG("ISGE");
+  unsigned char rb = instr;
+
+  long fa = frame[ra];
+  long fb = frame[rb];
+  if (unlikely(1 & (fa | fb))) {
+    FAIL_SLOWPATH(fa, fb);
+  }
+  if (fa >= fb) {
+    pc+=1;
+  } else {
+    pc+=2;
+  }
+
+  NEXT_INSTR;
+}
+
+void INS_SUBVN(PARAMS) {
+  DEBUG("SUBVN");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  long fb = frame[rb];
+  if (unlikely(1 & fb)) {
+    FAIL_SLOWPATH(fb, 0);
+  }
+  if (unlikely(
+	       __builtin_sub_overflow(fb, (rc << 3), &frame[ra]))) {
+    FAIL_SLOWPATH(fb, 0);
+  }
+  pc++;
+
+  NEXT_INSTR;
+}
+
+void INS_ADDVV(PARAMS) {
+  DEBUG("ADDVV");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  if (unlikely(1 & (fb | fc))) {
+    frame[ra] = ADDVV_SLOWPATH(fb, fc);
+  } else {
+    if (unlikely(__builtin_add_overflow(fb, fc, &frame[ra]))) {
+      frame[ra] = ADDVV_SLOWPATH(fb, fc);
+    }
+  }
+  pc++;
+
+  NEXT_INSTR;
+}
+
+void INS_GGET(PARAMS) {
+  DEBUG("GGET");
+  unsigned char rb = instr;
+
+  bcfunc *func = (bcfunc *)(frame[-1] - 5);
+  symbol *gp = (symbol *)func->consts[rb];
+  if (unlikely(gp->val == UNDEFINED)) {
+    UNDEFINED_SYMBOL_SLOWPATH(gp);
+  }
+  frame[ra] = gp->val;
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_GSET(PARAMS) {
+  DEBUG("GSET");
+  unsigned char rb = instr;
+
+  bcfunc *func = (bcfunc *)(frame[-1] - 5);
+  symbol *gp = (symbol *)func->consts[ra];
+  gp->val = frame[rb];
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_KFUNC(PARAMS) {
+  DEBUG("KFUNC");
+  unsigned char rb = instr;
+
+  frame[ra] = ((long)funcs[rb]) + 5;
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_CALLT(PARAMS) {
+  DEBUG("CALLT");
+  unsigned char rb = instr;
+
+  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -=
+		hotmap_tail_rec) == 0)) {
+    //FAIL_SLOWPATH(0, 0);
+    hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
+    //goto L_INS_RECORD_START;
+  }
+  auto v = frame[ra];
+  if (unlikely((v & 0x7) != 5)) {
+    FAIL_SLOWPATH(v, 0);
+  }
+  bcfunc *func = (bcfunc *)(v - 5);
+  pc = &func->code[0];
+  frame[-1] = v; // TODO move to copy loop
+  long start = ra + 1;
+  auto cnt = rb - 1;
+  for (auto i = 0; i < cnt; i++) {
+    frame[i] = frame[start + i];
+  }
+  if (unlikely((frame + 256) > frame_top)) {
+    auto pos = frame - stack;
+    EXPAND_STACK_SLOWPATH();
+    frame = stack + pos;
+    frame_top = stack + stacksz;
+  }
+
+  NEXT_INSTR;
+}
+
+void INS_KONST(PARAMS) {
+  DEBUG("KONST");
+  unsigned char rb = instr;
+
+  bcfunc *func = (bcfunc *)(frame[-1] - 5);
+  frame[ra] = func->consts[rb];
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_JISLT(PARAMS) {
+  DEBUG("JISLT");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  long fb = frame[rb];
+  long fc = frame[rc];
+  if (unlikely(1 & (fb | fc))) {
+    FAIL_SLOWPATH(fb, fc);
+  }
+  if (fb < fc) {
+    pc+=2;
+  } else {
+    pc+=1;
+  }
+
+  NEXT_INSTR;
+}
+
+void INS_UNKNOWN(PARAMS) {
+  printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
+  exit(-1);
+}
+}
 void run() {
+
+  op_table[1] = INS_KSHORT;
+
+  
   unsigned int final_code[] = {CODE(CALL, 0, 1, 0), CODE(HALT, 0, 0, 0)};
   unsigned int *code = &funcs[0]->code[0];
 
   stack[0] = (unsigned long)&final_code[1]; // return pc
   stack[1] = ((unsigned long)funcs[0]) + 5; // func
-  long *frame = &stack[2];
-  long *frame_top = stack + stacksz;
+  frame = &stack[2];
+  frame_top = stack + stacksz;
 
   unsigned int *pc = &code[0];
 
@@ -88,27 +312,57 @@ void run() {
   // clang-format on
   memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
 
+  //////////NEW:
+  for(int i = 0; i < 25; i++) {
+    op_table[i] = INS_UNKNOWN;
+  }
+  op_table[0] = INS_FUNC;
+  op_table[1] = INS_KSHORT;
+  op_table[2] = INS_ISGE;
+  op_table[3] = INS_JMP;
+  op_table[4] = INS_RET1;
+  op_table[5] = INS_SUBVN;
+  op_table[7] = INS_ADDVV;
+  op_table[8] = INS_HALT;
+  op_table[13] = INS_GGET;
+  op_table[14] = INS_GSET;
+  op_table[15] = INS_KFUNC;
+  op_table[16] = INS_CALLT;
+  op_table[17] = INS_KONST;
+  op_table[22] = INS_JISLT;
+  if(1) {
+    unsigned int instr = *pc;
+    unsigned char op = instr & 0xff;
+    unsigned char ra = (instr >> 8) & 0xff;
+    instr >>= 16;
+    auto op_table_arg = (void**)op_table; 
+    op_table[op](ARGS);
+    free(stack);
+    return;
+  }
+  
+
   //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
 #define DIRECT
   while (true) {
     unsigned int i = *pc;
     //#define DEBUG
-#ifdef DEBUG
-    {
-      bcfunc *func;
-      unsigned int *code;
-      if (frame == stack) {
-        code = final_code;
-      } else {
-        func = (bcfunc *)(frame[-1] - 5);
-        code = &func->code[0];
-      }
-      printf("Running PC %li code %s %i %i %i\n", pc - code,
-             ins_names[INS_OP(i)], INS_A(i), INS_B(i), INS_C(i));
-      printf("frame %li: %li %li %li %li\n", frame - stack, frame[0], frame[1],
-             frame[2], frame[3]);
-    }
-#endif
+// #ifdef DEBUG
+//     {
+//       bcfunc *func;
+//       unsigned int *code;
+//       if (frame == stack) {
+//         code = final_code;
+//       } else {
+//         func = (bcfunc *)(frame[-1] - 5);
+//         code = &func->code[0];
+//       }
+//       printf("Running PC %li code %s %i %i %i\n", pc - code,
+//              ins_names[INS_OP(i)], INS_A(i), INS_B(i), INS_C(i));
+//       printf("frame %li: %li %li %li %li\n", frame - stack, frame[0], frame[1],
+//              frame[2], frame[3]);
+//     }
+// #endif
 
     assert(INS_OP(i) < 25);
     goto *l_op_table[INS_OP(i)];
@@ -400,15 +654,15 @@ void run() {
 
     case 23: {
     L_INS_JFUNC:
-      auto tnum = INS_B(i);
-      // printf("JFUNC/JLOOP run %i\n", tnum);
-      // printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
-      auto res = jit_run(tnum, &pc, &frame, frame_top);
-      frame_top = stack + stacksz;
-      //printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
-      if (unlikely(res)) {
-        memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
-      }
+      // auto tnum = INS_B(i);
+      // // printf("JFUNC/JLOOP run %i\n", tnum);
+      // // printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
+      // auto res = jit_run(tnum, &pc, &frame, frame_top);
+      // frame_top = stack + stacksz;
+      // //printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
+      // if (unlikely(res)) {
+      //   memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
+      // }
       DIRECT;
       break;
     }
@@ -426,17 +680,17 @@ void run() {
       if (joff) {
         goto *l_op_table_interpret[INS_OP(i)];
       }
-      memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
-      // Don't record first inst.
-      goto *l_op_table_interpret[INS_OP(i)];
+      // memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
+      // // Don't record first inst.
+      // goto *l_op_table_interpret[INS_OP(i)];
     }
 
     {
     L_INS_RECORD:
-      if (record(pc, frame)) {
-        memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
-      }
-      i = *pc; // recorder may have patched instruction.
+      // if (record(pc, frame)) {
+      //   memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
+      // }
+      // i = *pc; // recorder may have patched instruction.
       goto *l_op_table_interpret[INS_OP(i)];
     }
   }

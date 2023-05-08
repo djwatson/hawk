@@ -3,7 +3,6 @@
 (import (srfi 1)) ;; lists
 (import (srfi 17)) ;; generalized-set!
 (import (srfi 28)) ;; basic format
-(import (srfi 69)) ;; hash-table
 (import (srfi 99)) ;; define-record-type
 (import (srfi 151)) ;; bitwise-ops
 (define-syntax define-getter-with-setter
