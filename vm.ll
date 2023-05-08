@@ -103,7 +103,7 @@ declare noundef i32 @printf(i8* nocapture noundef readonly, ...) local_unnamed_a
 declare void @exit(i32 noundef) local_unnamed_addr #6
 
 ; Function Attrs: mustprogress noinline noreturn nounwind uwtable
-define dso_local void @_Z25UNDEFINED_SYMBOL_SLOWPATHP6symbol(%struct.symbol* nocapture noundef readonly %0) local_unnamed_addr #4 personality i32 (...)* @__gxx_personality_v0 !dbg !1453 {
+define dso_local cc 10 void @_Z25UNDEFINED_SYMBOL_SLOWPATHP6symbol(%struct.symbol* nocapture noundef readonly %0) local_unnamed_addr #4 personality i32 (...)* @__gxx_personality_v0 !dbg !1453 {
   call void @llvm.dbg.value(metadata %struct.symbol* %0, metadata !1457, metadata !DIExpression()), !dbg !1458
   call void @llvm.dbg.value(metadata %struct.symbol* %0, metadata !1459, metadata !DIExpression()), !dbg !1469
   call void @llvm.dbg.value(metadata %struct.symbol* %0, metadata !1471, metadata !DIExpression()), !dbg !1524
@@ -491,9 +491,7 @@ define dso_local cc 10 void @INS_GGET(i8 noundef zeroext %0, i32 noundef %1, i32
   br i1 %19, label %20, label %21, !dbg !1812, !prof !1678
 
 20:                                               ; preds = %5
-  tail call void @_Z25UNDEFINED_SYMBOL_SLOWPATHP6symbol(%struct.symbol* noundef nonnull %16), !dbg !1813
-  unreachable, !dbg !1815
-
+						  br label %21
 21:                                               ; preds = %5
   %22 = zext i8 %0 to i64, !dbg !1816
   %23 = getelementptr inbounds i64, i64* %3, i64 %22, !dbg !1816
