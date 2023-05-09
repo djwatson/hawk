@@ -120,6 +120,7 @@ void jit_dump_close() {
 struct jit_code_entry *last_entry{nullptr};
 struct jit_code_entry *first_entry{nullptr};
 
+void build_elf(uint64_t code, int code_sz);
 void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, std::string name) {
   auto jitcode = new struct jit_code_entry();
 
@@ -146,4 +147,130 @@ void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, std::string name) {
   __jit_debug_descriptor.version = 1;
   __jit_debug_register_code();
   cnt++;
+  build_elf(fn, len);
+}
+
+////////////// GDB elf entry ///////////////
+
+#include <elf.h>
+#include <vector>
+
+
+// Sections text, strtab, symtab, debug info, debug_abbrev, debug_line, debug_str (only nash), shstrtab, eh_frame (only lj)
+// symbols file, func
+
+long write_buf(std::vector<uint8_t>& buffer, void* obj, long len) {
+  auto old_end = buffer.size();
+  buffer.resize(buffer.size() + len);
+  memcpy(&buffer[old_end], obj, len);
+  return old_end;
+}
+
+long write_strz(std::vector<uint8_t>& buffer, const char* obj) {
+  auto len = strlen(obj) + 1; // null terminated
+  return write_buf(buffer, (void*)obj, len);
+}
+
+void build_elf(uint64_t code, int code_sz) {
+  long offset = 0;
+  std::vector<uint8_t> buffer;
+  Elf64_Ehdr hdr = {
+    .e_ident= {ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3, ELFCLASS64, ELFDATA2LSB, 1 /*version */, ELFOSABI_SYSV,
+      0 /* ABI VERSION */, 0, 0, 0, 0, 0, 0, 0},
+    .e_type = ET_REL,
+    .e_machine =EM_X86_64,
+    .e_version = EV_CURRENT,
+    .e_entry = 0,
+    .e_phoff = 0,
+    .e_shoff = sizeof(Elf64_Ehdr),
+    .e_flags = 0,
+    .e_ehsize = sizeof(Elf64_Ehdr),
+    .e_phentsize = 0,
+    .e_phnum = 0,
+    .e_shentsize = sizeof(Elf64_Shdr),
+    .e_shnum = 8,
+    .e_shstrndx = 1,
+  };
+  offset += sizeof(hdr);
+
+  Elf64_Shdr hdrs[8];
+  memset(&hdrs, 0, sizeof(hdrs));
+  Elf64_Sym syms[3];
+  memset(&syms, 0, sizeof(syms));
+  
+  auto shstrtab_hdr = &hdrs[1];
+  offset += sizeof(hdrs) + sizeof(syms);
+
+  write_strz(buffer, "");
+
+  shstrtab_hdr->sh_name = write_strz(buffer, ".shstrtab");
+  shstrtab_hdr->sh_type = SHT_STRTAB;
+  shstrtab_hdr->sh_addralign = 1;
+  shstrtab_hdr->sh_offset = offset;
+
+  auto text_hdr = &hdrs[2];
+  text_hdr->sh_name = write_strz(buffer, ".text");
+  text_hdr->sh_flags = SHF_ALLOC | SHF_EXECINSTR;
+  text_hdr->sh_addr = code;
+  text_hdr->sh_size = code_sz;
+  text_hdr->sh_offset = 0;
+  text_hdr->sh_type = SHT_NOBITS;
+  text_hdr->sh_addralign=16;
+  
+  auto str_hdr = &hdrs[3];
+  str_hdr->sh_name = write_strz(buffer, ".strtab");
+  str_hdr->sh_type = SHT_STRTAB;
+  str_hdr->sh_addralign=1;
+
+  auto sym_hdr = &hdrs[4];
+  sym_hdr->sh_name = write_strz(buffer, ".symtab");
+  sym_hdr->sh_type = SHT_SYMTAB;
+  sym_hdr->sh_addralign=sizeof(void*);
+  sym_hdr->sh_offset = offset - sizeof(syms);
+  sym_hdr->sh_size = sizeof(Elf64_Sym)*3;
+  sym_hdr->sh_link = 3; // link to strtab
+  sym_hdr->sh_entsize = sizeof(Elf64_Sym);
+  sym_hdr->sh_info = 2; // sym_func
+
+  auto debug_info_hdr = &hdrs[5];
+  debug_info_hdr->sh_name = write_strz(buffer, ".debug_info");
+  debug_info_hdr->sh_type = SHT_PROGBITS;
+  debug_info_hdr->sh_addralign=1;
+  
+  auto debug_abbrev_hdr = &hdrs[6];
+  debug_abbrev_hdr->sh_name = write_strz(buffer, ".debug_abbrev");
+  debug_abbrev_hdr->sh_type = SHT_PROGBITS;
+  debug_abbrev_hdr->sh_addralign=1;
+
+  auto debug_line_hdr = &hdrs[7];
+  debug_line_hdr->sh_name = write_strz(buffer, ".debug_line");
+  debug_line_hdr->sh_type = SHT_PROGBITS;
+  debug_line_hdr->sh_addralign=1;
+
+  shstrtab_hdr->sh_size = buffer.size() + offset - shstrtab_hdr->sh_offset;
+
+  str_hdr->sh_offset = offset + buffer.size();
+  auto st = buffer.size();
+  write_strz(buffer, "");
+  // Emit the symbols
+  auto filesym = &syms[1];
+  filesym->st_name = write_strz(buffer, "JIT") - st;
+  filesym->st_shndx = SHN_ABS;
+  filesym->st_info = STT_FILE;
+  auto funcsym = &syms[2];
+  funcsym->st_name = write_strz(buffer, "Func") - st;
+  funcsym->st_shndx = 2; // text
+  funcsym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_FUNC);
+  funcsym->st_value = 0;
+  funcsym->st_size = code_sz;
+  
+  str_hdr->sh_size = buffer.size() + offset - str_hdr->sh_offset;
+
+  fd = open("elfout", O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR);
+  write(fd, &hdr, sizeof(hdr));
+  write(fd, hdrs, sizeof(hdrs));
+  write(fd, syms, sizeof(syms));
+  write(fd, &buffer[0], buffer.size());
+  close(fd);
+
 }
