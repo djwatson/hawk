@@ -1,7 +1,5 @@
 # TODO list
 
-* get gdbjit worknig
-
 * Put consts directly in PC stream
 * Update VM/JIT to remove 'func' in frame
 * get stores/loads, assignment conversion, rest params, let/let loop fix, fix letrecs, closures, case-lambda all working
@@ -20,6 +18,7 @@
 	* but don't advance to next func/pc in last framestate.
 * JIT todo:
   * fix stack size adjust  
+  * and in replay is borken
   
 * various JIT improvements
   * fix branching jumps to jump one past.
