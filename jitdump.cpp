@@ -1,5 +1,5 @@
-#include <stdint.h>
 #include <fcntl.h>
+#include <stdint.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -7,11 +7,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <string.h>
-#include <stdio.h>
-#include <time.h>
 #include <elf.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 #include "jitdump.h"
 
@@ -30,8 +30,7 @@ void perf_map(uint64_t fn, uint64_t len, std::string name) {
   fclose(file);
 }
 
-
-void* mapaddr{nullptr};
+void *mapaddr{nullptr};
 int fd;
 /* Newer jit dump support.  Requires perf record -k 1, and then perf
    inject, before perf report, but gives full asm listing */
@@ -72,22 +71,21 @@ void jit_dump(int len, uint64_t fn, std::string name) {
   write(fd, (void *)fn, len);
 }
 
-  struct {
-    uint32_t magic;
-    uint32_t version;
-    uint32_t total_size;
-    uint32_t elf_mach;
-    uint32_t pad1;
-    uint32_t pid;
-    uint64_t timestamp;
-    uint64_t flags;
-  } header;
+struct {
+  uint32_t magic;
+  uint32_t version;
+  uint32_t total_size;
+  uint32_t elf_mach;
+  uint32_t pad1;
+  uint32_t pid;
+  uint64_t timestamp;
+  uint64_t flags;
+} header;
 
 void jit_dump_init() {
   char buf[256];
   sprintf(buf, "jit-%i.dump", getpid());
-  fd =
-      open(buf, O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR);
+  fd = open(buf, O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR);
   struct timespec ts;
   int result = clock_gettime(CLOCK_MONOTONIC, &ts);
   header.timestamp = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
@@ -119,8 +117,8 @@ void jit_dump_close() {
 
 #include "third-party/jit-protocol.h"
 
-struct jit_code_entry* last_entry{nullptr};
-struct jit_code_entry* first_entry{nullptr};
+struct jit_code_entry *last_entry{nullptr};
+struct jit_code_entry *first_entry{nullptr};
 
 void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, std::string name) {
   auto jitcode = new struct jit_code_entry();
@@ -146,6 +144,6 @@ void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, std::string name) {
   __jit_debug_descriptor.relevant_entry = jitcode;
   __jit_debug_descriptor.action_flag = JIT_REGISTER;
   __jit_debug_descriptor.version = 1;
-  __jit_debug_register_code ();
+  __jit_debug_register_code();
   cnt++;
 }

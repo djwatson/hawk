@@ -1,11 +1,11 @@
-#include <string.h>
 #include <assert.h>
+#include <string.h>
 
+#include "asm_x64.h"
 #include "bytecode.h"
 #include "record.h"
 #include "replay.h"
 #include "vm.h"
-#include "asm_x64.h"
 
 int joff = 0;
 
@@ -21,34 +21,39 @@ long *stack = (long *)malloc(sizeof(long) * stacksz * 1000000);
 unsigned char hotmap[hotmap_sz];
 
 /*
-This is a tail-calling interpreter that requires 'musttail' attribute, so currently
-limited to only clang.
+This is a tail-calling interpreter that requires 'musttail' attribute, so
+currently limited to only clang.
 
-This ensures most things stay in registers, and any slowpaths are just jumps and don't
-affect register allocation.
+This ensures most things stay in registers, and any slowpaths are just jumps and
+don't affect register allocation.
 
-This could be improved by using a no-callee-saved register convention, like llvm's cc10,
-but this isn't currently exposed to clang.  
+This could be improved by using a no-callee-saved register convention, like
+llvm's cc10, but this isn't currently exposed to clang.
 
-Currently this gives ~90% of the performance of a hand-coded assembly version, while being
-more portable and easier to change.
+Currently this gives ~90% of the performance of a hand-coded assembly version,
+while being more portable and easier to change.
  */
 
-#define PARAMS unsigned char ra, unsigned instr,unsigned* pc, long* frame, void** op_table_arg
+#define PARAMS                                                                 \
+  unsigned char ra, unsigned instr, unsigned *pc, long *frame,                 \
+      void **op_table_arg
 #define ARGS ra, instr, pc, frame, op_table_arg
 #define MUSTTAIL __attribute__((musttail))
-//#define DEBUG(name) printf("%s %li %li %li %li\n", name, frame[0], frame[1], frame[2], frame[3]);
+//#define DEBUG(name) printf("%s %li %li %li %li\n", name, frame[0], frame[1],
+//frame[2], frame[3]);
 #define DEBUG(name)
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[25];
 static op_func l_op_table_record[25];
 
-#define NEXT_INSTR { instr = *pc;			\
-    unsigned char op = instr & 0xff;			\
-    ra = (instr >> 8) & 0xff;				\
-    instr >>= 16;					\
-    op_func* op_table_arg_c = (op_func*)op_table_arg;	\
-    MUSTTAIL return op_table_arg_c[op](ARGS);		\
+#define NEXT_INSTR                                                             \
+  {                                                                            \
+    instr = *pc;                                                               \
+    unsigned char op = instr & 0xff;                                           \
+    ra = (instr >> 8) & 0xff;                                                  \
+    instr >>= 16;                                                              \
+    op_func *op_table_arg_c = (op_func *)op_table_arg;                         \
+    MUSTTAIL return op_table_arg_c[op](ARGS);                                  \
   }
 
 __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
@@ -57,23 +62,24 @@ __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
 }
 
 void RECORD_START(PARAMS) {
-    hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
-    if (joff) {
-      // Tail call with original op table.
-      MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
-    }
-    // Tail call with recording op table, but first instruction is not recorded.
-    MUSTTAIL return l_op_table[INS_OP(*pc)](ra, instr, pc, frame, (void**)l_op_table_record);
+  hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
+  if (joff) {
+    // Tail call with original op table.
+    MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
+  }
+  // Tail call with recording op table, but first instruction is not recorded.
+  MUSTTAIL return l_op_table[INS_OP(*pc)](ra, instr, pc, frame,
+                                          (void **)l_op_table_record);
 }
 
 void RECORD(PARAMS) {
-    if (record(pc, frame)) {
-      // Back to interpreting.
-      op_table_arg = (void**)l_op_table;
-    }
-    // Call interpret op table, but with record table.
-    // Interprets *this* instruction, then advances to next 
-    MUSTTAIL return l_op_table[INS_OP(*pc)](ra, instr, pc, frame, op_table_arg);
+  if (record(pc, frame)) {
+    // Back to interpreting.
+    op_table_arg = (void **)l_op_table;
+  }
+  // Call interpret op table, but with record table.
+  // Interprets *this* instruction, then advances to next
+  MUSTTAIL return l_op_table[INS_OP(*pc)](ra, instr, pc, frame, op_table_arg);
 }
 
 void INS_FUNC(PARAMS) {
@@ -81,7 +87,6 @@ void INS_FUNC(PARAMS) {
   pc++;
   NEXT_INSTR;
 }
-
 
 void INS_KSHORT(PARAMS) {
   DEBUG("KSHORT");
@@ -96,7 +101,7 @@ void INS_KSHORT(PARAMS) {
 void INS_JMP(PARAMS) {
   DEBUG("JMP");
 
-  pc+= ra;
+  pc += ra;
   NEXT_INSTR;
 }
 
@@ -127,9 +132,9 @@ void INS_ISGE(PARAMS) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fa >= fb) {
-    pc+=1;
+    pc += 1;
   } else {
-    pc+=2;
+    pc += 2;
   }
 
   NEXT_INSTR;
@@ -144,8 +149,7 @@ void INS_SUBVN(PARAMS) {
   if (unlikely(7 & fb)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  if (unlikely(
-	       __builtin_sub_overflow(fb, (rc << 3), &frame[ra]))) {
+  if (unlikely(__builtin_sub_overflow(fb, (rc << 3), &frame[ra]))) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   pc++;
@@ -162,8 +166,7 @@ void INS_ADDVN(PARAMS) {
   if (unlikely(7 & fb)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  if (unlikely(
-	       __builtin_add_overflow(fb, (rc << 3), &frame[ra]))) {
+  if (unlikely(__builtin_add_overflow(fb, (rc << 3), &frame[ra]))) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   pc++;
@@ -211,7 +214,7 @@ void INS_SUBVV(PARAMS) {
 
 void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
   unsigned char rb = instr;
-  
+
   bcfunc *func = (bcfunc *)(frame[-1] - 5);
   symbol *gp = (symbol *)func->consts[rb];
 
@@ -271,8 +274,8 @@ void INS_CALL(PARAMS) {
   DEBUG("CALL");
   unsigned char rb = instr;
 
-  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -=
-		hotmap_tail_rec) == 0)) {
+  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
+               0)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
   auto v = frame[ra + 1];
@@ -287,15 +290,15 @@ void INS_CALL(PARAMS) {
   if (unlikely((frame + 256) > frame_top)) {
     MUSTTAIL return EXPAND_STACK_SLOWPATH(ARGS);
   }
-  
+
   NEXT_INSTR;
 }
 void INS_CALLT(PARAMS) {
   DEBUG("CALLT");
   unsigned char rb = instr;
 
-  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -=
-		hotmap_tail_rec) == 0)) {
+  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
+               0)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
   auto v = frame[ra];
@@ -347,9 +350,9 @@ void INS_JISEQ(PARAMS) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fb == fc) {
-    pc+=2;
+    pc += 2;
   } else {
-    pc+=1;
+    pc += 1;
   }
 
   NEXT_INSTR;
@@ -366,9 +369,9 @@ void INS_JISLT(PARAMS) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fb < fc) {
-    pc+=2;
+    pc += 2;
   } else {
-    pc+=1;
+    pc += 1;
   }
 
   NEXT_INSTR;
@@ -431,10 +434,10 @@ void INS_JFUNC(PARAMS) {
   // printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
   auto res = jit_run(tnum, &pc, &frame, frame_top);
   frame_top = stack + stacksz;
-  //printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
+  // printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
   if (unlikely(res)) {
     // Turn on recording again
-    op_table_arg = (void**)l_op_table_record;
+    op_table_arg = (void **)l_op_table_record;
   }
   NEXT_INSTR;
 }
@@ -462,7 +465,7 @@ void run() {
   }
 
   // Setup instruction table.
-  for(int i = 0; i < 25; i++) {
+  for (int i = 0; i < 25; i++) {
     l_op_table[i] = INS_UNKNOWN;
   }
   l_op_table[0] = INS_FUNC;
@@ -489,7 +492,7 @@ void run() {
   l_op_table[22] = INS_JISLT;
   l_op_table[23] = INS_JFUNC;
   l_op_table[24] = INS_JFUNC; // JLOOP
-  for(int i = 0; i < 25; i++) {
+  for (int i = 0; i < 25; i++) {
     l_op_table_record[i] = RECORD;
   }
 
@@ -498,7 +501,7 @@ void run() {
   unsigned char op = instr & 0xff;
   unsigned char ra = (instr >> 8) & 0xff;
   instr >>= 16;
-  auto op_table_arg = (void**)l_op_table; 
+  auto op_table_arg = (void **)l_op_table;
   l_op_table[op](ARGS);
 
   // And after the call returns, we're done.  only HALT returns.

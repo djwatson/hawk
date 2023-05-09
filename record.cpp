@@ -1,12 +1,12 @@
 #include <assert.h>
 #include <string.h>
 
+#include "asm_x64.h"
 #include "bytecode.h"
 #include "ir.h"
 #include "record.h"
 #include "snap.h"
 #include "vm.h"
-#include "asm_x64.h"
 
 unsigned int *pc_start;
 unsigned int instr_count;
@@ -79,7 +79,8 @@ void dump_trace(trace_s *trace) {
     }
 
     auto op = trace->ops[i];
-    printf("%04d %s %c\t", i, reg_names[op.reg], op.type & IR_INS_TYPE_GUARD ? '>' : ' ');
+    printf("%04d %s %c\t", i, reg_names[op.reg],
+           op.type & IR_INS_TYPE_GUARD ? '>' : ' ');
     auto t = op.type & ~IR_INS_TYPE_GUARD;
     if (t == 0) {
       printf("\e[1;35mfix\e[m ");
@@ -178,11 +179,11 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   assign_registers(trace);
   dump_trace(trace);
   asm_jit(trace, side_exit);
-  if(side_exit) {
-    uint64_t* patchpoint =(uint64_t*)side_exit->patchpoint;
+  if (side_exit) {
+    uint64_t *patchpoint = (uint64_t *)side_exit->patchpoint;
     *patchpoint = uint64_t(trace->fn);
   }
-  
+
   trace_state = OFF;
   side_exit = NULL;
   downrec.clear();
@@ -313,7 +314,7 @@ int record_instr(unsigned int *pc, long *frame) {
         auto knum2 = trace->consts.size();
         trace->consts.push_back((frame_off + 2) << 3);
         ir_ins ins;
-	ins.reg = REG_NONE;
+        ins.reg = REG_NONE;
         ins.op1 = knum | IR_CONST_BIAS;
         // TODO this isn't a runtime const?  can gen directly from PC?
         ins.op2 = knum2 | IR_CONST_BIAS;
@@ -386,7 +387,7 @@ int record_instr(unsigned int *pc, long *frame) {
 
     // Increment regs
     regs += INS_A(i) + 2;
-    
+
     if (cnt >= UNROLL_LIMIT) {
       if (target == pc_start) {
         record_stop(pc, frame, traces.size());
@@ -514,7 +515,7 @@ int record_instr(unsigned int *pc, long *frame) {
       auto knum = trace->consts.size();
       trace->consts.push_back(v);
       ir_ins ins;
-    ins.reg = REG_NONE;
+      ins.reg = REG_NONE;
       ins.op1 = record_stack_load(INS_A(i), frame);
       ins.op2 = knum | IR_CONST_BIAS;
       ins.op = ir_ins_op::EQ;

@@ -1,8 +1,8 @@
 #include "record.h"
 // TODO for runtime symbol
-#include "bytecode.h"
 #include "asm_x64.h"
 #include "assert.h"
+#include "bytecode.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,27 +10,27 @@
 // Simple replay to test recording before we write a jit.
 #define USE_REG
 #ifdef USE_REG
-long res_load(std::vector<long>&res, int pc, std::vector<ir_ins>& ops) {
+long res_load(std::vector<long> &res, int pc, std::vector<ir_ins> &ops) {
   assert(ops[pc].reg != REG_NONE);
   return res[ops[pc].reg];
 }
-void res_store(std::vector<long>&res, int pc, std::vector<ir_ins>& ops, long v) {
+void res_store(std::vector<long> &res, int pc, std::vector<ir_ins> &ops,
+               long v) {
   assert(ops[pc].reg != REG_NONE);
   res[ops[pc].reg] = v;
 }
 #else
-long res_load(std::vector<long>&res, int pc, std::vector<ir_ins>& ops) {
+long res_load(std::vector<long> &res, int pc, std::vector<ir_ins> &ops) {
   return res[pc];
 }
-void res_store(std::vector<long>&res, int pc, std::vector<ir_ins>& ops, long v) {
+void res_store(std::vector<long> &res, int pc, std::vector<ir_ins> &ops,
+               long v) {
   res[pc] = v;
 }
 #endif
 
-long get_val_or_const(std::vector<long> &res,
-		      uint16_t v,
-		      std::vector<ir_ins>&ops,
-                      std::vector<long> &consts) {
+long get_val_or_const(std::vector<long> &res, uint16_t v,
+                      std::vector<ir_ins> &ops, std::vector<long> &consts) {
   if (v & IR_CONST_BIAS) {
     return consts[v - IR_CONST_BIAS];
   }
@@ -62,10 +62,10 @@ void snap_restore(std::vector<long> &res, unsigned int **o_pc, long **o_frame,
       }
     } else {
       if ((*o_frame) + slot.slot >= stack + stacksz) {
-	auto pos = (*o_frame) - stack;
-	EXPAND_STACK_SLOWPATH();
-	(*o_frame) = stack + pos;
-	// TODO update frame_top
+        auto pos = (*o_frame) - stack;
+        EXPAND_STACK_SLOWPATH();
+        (*o_frame) = stack + pos;
+        // TODO update frame_top
       }
       // printf("Snap restore slot %i val %li ptr %lx\n", slot.slot,
       // res[slot.val], &(*o_frame)[slot.slot]);
@@ -107,12 +107,12 @@ again:
     switch (ins.op) {
     case ir_ins_op::SLOAD: {
       auto v = frame[ins.op1];
-      res_store(res, pc, trace->ops,v);
-      if (ins.type&IR_INS_TYPE_GUARD) {
-	if ((v & 0x7) != (ins.type&~IR_INS_TYPE_GUARD)) {
-	  printf("Type abort\n");
-	  goto abort;
-	}
+      res_store(res, pc, trace->ops, v);
+      if (ins.type & IR_INS_TYPE_GUARD) {
+        if ((v & 0x7) != (ins.type & ~IR_INS_TYPE_GUARD)) {
+          printf("Type abort\n");
+          goto abort;
+        }
       }
       pc++;
       break;
@@ -158,14 +158,15 @@ again:
       break;
     }
     case ir_ins_op::GGET: {
-      symbol *a = (symbol *)get_val_or_const(res, ins.op1, trace->ops, trace->consts);
+      symbol *a =
+          (symbol *)get_val_or_const(res, ins.op1, trace->ops, trace->consts);
       // printf("GGET %s %lx\n", a->name.c_str(), a->val);
       res_store(res, pc, trace->ops, a->val);
-      if (ins.type&IR_INS_TYPE_GUARD) {
-	if ((a->val & 0x7) != (ins.type&~IR_INS_TYPE_GUARD)) {
-	  printf("Type abort\n");
-	  goto abort;
-	}
+      if (ins.type & IR_INS_TYPE_GUARD) {
+        if ((a->val & 0x7) != (ins.type & ~IR_INS_TYPE_GUARD)) {
+          printf("Type abort\n");
+          goto abort;
+        }
       }
       pc++;
       break;
@@ -195,7 +196,8 @@ again:
       break;
     }
     case ir_ins_op::RET: {
-      auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts) - SNAP_FRAME;
+      auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts) -
+               SNAP_FRAME;
       auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
       if (a != frame[-2]) {
         // printf("RET guard %lx %lx\n", a, frame[-2]);
@@ -240,8 +242,8 @@ abort : {
     goto again;
   }
 
-   printf("Replay failed guard in trace %i, abort ir pc %i, hotness %i\n",
-   trace->num, pc, snap->exits);
+  printf("Replay failed guard in trace %i, abort ir pc %i, hotness %i\n",
+         trace->num, pc, snap->exits);
   if (snap->exits < 10) {
     snap->exits++;
   } else {
@@ -252,7 +254,7 @@ abort : {
         printf("HOT SNAP to JLOOP\n");
         patchpc = *o_pc;
         patchold = **o_pc;
-	auto otrace = trace_cache_get(INS_B(**o_pc));
+        auto otrace = trace_cache_get(INS_B(**o_pc));
         **o_pc = otrace->startpc;
       }
       record_side(trace, snap);

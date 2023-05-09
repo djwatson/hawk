@@ -1,7 +1,7 @@
 #include <stdio.h>
 
-#include "snap.h"
 #include "asm_x64.h"
+#include "snap.h"
 
 void add_snap(int *regs, int offset, trace_s *trace, uint32_t pc) {
   // No need for duplicate snaps.

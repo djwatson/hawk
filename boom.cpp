@@ -1,9 +1,9 @@
 #include <getopt.h>
 #include <unistd.h>
 
+#include "jitdump.h"
 #include "readbc.h"
 #include "vm.h"
-#include "jitdump.h"
 
 extern int joff;
 
@@ -41,7 +41,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  
   jit_dump_init();
   readbc();
   run();
