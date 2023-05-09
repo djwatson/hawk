@@ -455,86 +455,51 @@ void run() {
   op_table[20] = INS_ADDVN;
   op_table[21] = INS_JISEQ;
   op_table[22] = INS_JISLT;
-  if(1) {
+
     unsigned int instr = *pc;
     unsigned char op = instr & 0xff;
     unsigned char ra = (instr >> 8) & 0xff;
     instr >>= 16;
     auto op_table_arg = (void**)op_table; 
     op_table[op](ARGS);
+    
     free(stack);
-    return;
-  }
-  
 
-  //#define DIRECT {i = *pc; goto *l_op_table[INS_OP(i)];}
-#define DIRECT
-  while (true) {
-    unsigned int i = *pc;
-    //#define DEBUG
-// #ifdef DEBUG
-//     {
-//       bcfunc *func;
-//       unsigned int *code;
-//       if (frame == stack) {
-//         code = final_code;
-//       } else {
-//         func = (bcfunc *)(frame[-1] - 5);
-//         code = &func->code[0];
-//       }
-//       printf("Running PC %li code %s %i %i %i\n", pc - code,
-//              ins_names[INS_OP(i)], INS_A(i), INS_B(i), INS_C(i));
-//       printf("frame %li: %li %li %li %li\n", frame - stack, frame[0], frame[1],
-//              frame[2], frame[3]);
-//     }
-// #endif
+    
+    // case 23: {
+    // L_INS_JFUNC:
+    //   // auto tnum = INS_B(i);
+    //   // // printf("JFUNC/JLOOP run %i\n", tnum);
+    //   // // printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
+    //   // auto res = jit_run(tnum, &pc, &frame, frame_top);
+    //   // frame_top = stack + stacksz;
+    //   // //printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
+    //   // if (unlikely(res)) {
+    //   //   memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
+    //   // }
+    //   DIRECT;
+    //   break;
+    // }
 
-    // assert(INS_OP(i) < 25);
-    // goto *l_op_table[INS_OP(i)];
 
-    switch (INS_OP(i)) {
-    case 23: {
-    L_INS_JFUNC:
-      // auto tnum = INS_B(i);
-      // // printf("JFUNC/JLOOP run %i\n", tnum);
-      // // printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
-      // auto res = jit_run(tnum, &pc, &frame, frame_top);
-      // frame_top = stack + stacksz;
-      // //printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
-      // if (unlikely(res)) {
-      //   memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
-      // }
-      DIRECT;
-      break;
-    }
+    // {
+    // L_INS_RECORD_START:
+    //   hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
+    //   if (joff) {
+    //     //goto *l_op_table_interpret[INS_OP(i)];
+    //   }
+    //   // memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
+    //   // // Don't record first inst.
+    //   // goto *l_op_table_interpret[INS_OP(i)];
+    // }
 
-    default: {
-      printf("Unknown instruction %i %s\n", INS_OP(i), ins_names[INS_OP(i)]);
-      exit(-1);
-    }
-    }
-
-    continue;
-    {
-    L_INS_RECORD_START:
-      hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
-      if (joff) {
-        //goto *l_op_table_interpret[INS_OP(i)];
-      }
-      // memcpy(l_op_table, l_op_table_record, sizeof(l_op_table));
-      // // Don't record first inst.
-      // goto *l_op_table_interpret[INS_OP(i)];
-    }
-
-    {
-    L_INS_RECORD:
-      // if (record(pc, frame)) {
-      //   memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
-      // }
-      // i = *pc; // recorder may have patched instruction.
-      //goto *l_op_table_interpret[INS_OP(i)];
-      1;
-    }
-  }
-  free(stack);
+    // {
+    // L_INS_RECORD:
+    //   // if (record(pc, frame)) {
+    //   //   memcpy(l_op_table, l_op_table_interpret, sizeof(l_op_table));
+    //   // }
+    //   // i = *pc; // recorder may have patched instruction.
+    //   //goto *l_op_table_interpret[INS_OP(i)];
+    //   1;
+    // }
 }
