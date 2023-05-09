@@ -1,6 +1,19 @@
 # TODO list
 
-* Figure out why JFUNC immediate records fail
+* get gdbjit worknig
+
+* Put consts directly in PC stream
+* Update VM/JIT to remove 'func' in frame
+* get stores/loads, assignment conversion, rest params, let/let loop fix, fix letrecs, closures, case-lambda all working
+* get rest of r5rs working
+
+* fixup all opcodes of 'D' type
+* various check for const size overflow, reg or opcode overflow
+* fuzz bytecode reader
+* remove indirection for consts/bc
+* Add define tags/header for runtime types
+
+* Figure out why JFUNC immediate records fail - we should start recording on JFUNC and not CALL
 * Figure out why jloop records fail in replay/asm_x64
 * figure out why non-looping ack fails with 1 trace
     * it's because we save the frame state for looping, 
@@ -29,6 +42,9 @@
   * we should be able to coalesce arg typechecks if they are the same.
   * Maybe a speical SLOAD EQ for RET instead, since we don't need to typecheck
   * Typechecks need a rethink - we can special case some stuff like eq?/eqv?, merge typechecks, etc.
+  
+  * exit stubs can be much smaller
+  * get exit trace from PC?????
 
 * merge record_run and jit_run exit stub
 * All of 'RECORD' probably needs type tests when we access frame.
@@ -47,11 +63,6 @@
   * fib 39 re-jits tails, because downrec happens first.  Even luajit does this.  Unrolling probably helps.
 
 * reg alloc - needs spilling
-* fixup all opcodes of 'D' type
-* various check for const size overflow, reg or opcode overflow
-* fuzz bytecode reader
-* remove indirection for consts/bc
-* Add define tags/header for runtime types
 
 # OPTS
 
