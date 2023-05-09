@@ -23,24 +23,10 @@ __attribute__((noinline)) long SUBVV_SLOWPATH(long a, long b) {
   c += 1.1;
   return c;
 }
-__attribute__((noinline)) long FAIL_SLOWPATH(long a, long b) {
-  printf("FAIL not an int\n");
-  exit(-1);
-  return a;
-}
-__attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(symbol *s) {
-  printf("FAIL undefined symbol: %s\n", s->name.c_str());
-  exit(-1);
-}
 unsigned int stacksz = 1000;
 static long *frame;
 static long *frame_top;
 long *stack = (long *)malloc(sizeof(long) * stacksz * 1000000);
-__attribute__((noinline)) void EXPAND_STACK_SLOWPATH() {
-  printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
-  stacksz *= 2;
-  stack = (long *)realloc(stack, stacksz * sizeof(long));
-}
 
 unsigned char hotmap[hotmap_sz];
 
@@ -61,6 +47,11 @@ static op_func l_op_table_record[25];
     op_func* op_table_arg_c = (op_func*)op_table_arg;	\
     MUSTTAIL return op_table_arg_c[op](ARGS);		\
   }
+
+__attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
+  printf("FAIL\n");
+  return;
+}
 
 void RECORD_START(PARAMS) {
     hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
@@ -130,7 +121,7 @@ void INS_ISGE(PARAMS) {
   long fa = frame[ra];
   long fb = frame[rb];
   if (unlikely(1 & (fa | fb))) {
-    FAIL_SLOWPATH(fa, fb);
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fa >= fb) {
     pc+=1;
@@ -148,11 +139,11 @@ void INS_SUBVN(PARAMS) {
 
   long fb = frame[rb];
   if (unlikely(1 & fb)) {
-    FAIL_SLOWPATH(fb, 0);
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (unlikely(
 	       __builtin_sub_overflow(fb, (rc << 3), &frame[ra]))) {
-    FAIL_SLOWPATH(fb, 0);
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   pc++;
 
@@ -166,11 +157,11 @@ void INS_ADDVN(PARAMS) {
 
   long fb = frame[rb];
   if (unlikely(1 & fb)) {
-    FAIL_SLOWPATH(fb, 0);
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (unlikely(
 	       __builtin_add_overflow(fb, (rc << 3), &frame[ra]))) {
-    FAIL_SLOWPATH(fb, 0);
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   pc++;
 
@@ -215,6 +206,16 @@ void INS_SUBVV(PARAMS) {
   NEXT_INSTR;
 }
 
+void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
+  unsigned char rb = instr;
+  
+  bcfunc *func = (bcfunc *)(frame[-1] - 5);
+  symbol *gp = (symbol *)func->consts[rb];
+
+  printf("FAIL undefined symbol: %s\n", gp->name.c_str());
+  return;
+}
+
 void INS_GGET(PARAMS) {
   DEBUG("GGET");
   unsigned char rb = instr;
@@ -222,7 +223,7 @@ void INS_GGET(PARAMS) {
   bcfunc *func = (bcfunc *)(frame[-1] - 5);
   symbol *gp = (symbol *)func->consts[rb];
   if (unlikely(gp->val == UNDEFINED)) {
-    UNDEFINED_SYMBOL_SLOWPATH(gp);
+    MUSTTAIL return UNDEFINED_SYMBOL_SLOWPATH(ARGS);
   }
   frame[ra] = gp->val;
 
@@ -252,6 +253,17 @@ void INS_KFUNC(PARAMS) {
   NEXT_INSTR;
 }
 
+__attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
+  printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
+  auto pos = frame - stack;
+  stacksz *= 2;
+  stack = (long *)realloc(stack, stacksz * sizeof(long));
+  frame = stack + pos;
+  frame_top = stack + stacksz;
+
+  NEXT_INSTR;
+}
+
 void INS_CALL(PARAMS) {
   DEBUG("CALL");
   unsigned char rb = instr;
@@ -262,19 +274,16 @@ void INS_CALL(PARAMS) {
   }
   auto v = frame[ra + 1];
   if (unlikely((v & 0x7) != 5)) {
-    FAIL_SLOWPATH(v, 0);
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   bcfunc *func = (bcfunc *)(v - 5);
   auto old_pc = pc;
   pc = &func->code[0];
   frame[ra] = long(old_pc + 1);
-  if (unlikely((frame + 256 + 2 + ra) > frame_top)) {
-    auto pos = frame - stack;
-    EXPAND_STACK_SLOWPATH();
-    frame = stack + pos;
-    frame_top = stack + stacksz;
-  }
   frame += ra + 2;
+  if (unlikely((frame + 256) > frame_top)) {
+    MUSTTAIL return EXPAND_STACK_SLOWPATH(ARGS);
+  }
   
   NEXT_INSTR;
 }
@@ -288,7 +297,7 @@ void INS_CALLT(PARAMS) {
   }
   auto v = frame[ra];
   if (unlikely((v & 0x7) != 5)) {
-    FAIL_SLOWPATH(v, 0);
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   bcfunc *func = (bcfunc *)(v - 5);
   pc = &func->code[0];
@@ -332,7 +341,7 @@ void INS_JISEQ(PARAMS) {
   long fb = frame[rb];
   long fc = frame[rc];
   if (unlikely(1 & (fb | fc))) {
-    FAIL_SLOWPATH(fb, fc);
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fb == fc) {
     pc+=2;
@@ -351,7 +360,7 @@ void INS_JISLT(PARAMS) {
   long fb = frame[rb];
   long fc = frame[rc];
   if (unlikely(1 & (fb | fc))) {
-    FAIL_SLOWPATH(fb, fc);
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fb < fc) {
     pc+=2;
@@ -370,7 +379,7 @@ void INS_ISLT(PARAMS) {
   long fb = frame[rb];
   long fc = frame[rc];
   if (unlikely(1 & (fb | fc))) {
-    FAIL_SLOWPATH(fb, fc);
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fb < fc) {
     frame[ra] = 1;
@@ -389,7 +398,7 @@ void INS_ISEQ(PARAMS) {
   long fb = frame[rb];
   long fc = frame[rc];
   if (unlikely(1 & (fb | fc))) {
-    FAIL_SLOWPATH(fb, fc);
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fb == fc) {
     frame[ra] = 1;
