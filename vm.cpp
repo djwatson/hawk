@@ -13,16 +13,6 @@ std::vector<bcfunc *> funcs;
 
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
-__attribute__((noinline)) long ADDVV_SLOWPATH(long a, long b) {
-  double c = (double)a + (double)b;
-  c += 1.1;
-  return c;
-}
-__attribute__((noinline)) long SUBVV_SLOWPATH(long a, long b) {
-  double c = (double)a + (double)b;
-  c += 1.1;
-  return c;
-}
 unsigned int stacksz = 1000;
 static long *frame;
 static long *frame_top;
@@ -30,6 +20,19 @@ long *stack = (long *)malloc(sizeof(long) * stacksz * 1000000);
 
 unsigned char hotmap[hotmap_sz];
 
+/*
+This is a tail-calling interpreter that requires 'musttail' attribute, so currently
+limited to only clang.
+
+This ensures most things stay in registers, and any slowpaths are just jumps and don't
+affect register allocation.
+
+This could be improved by using a no-callee-saved register convention, like llvm's cc10,
+but this isn't currently exposed to clang.  
+
+Currently this gives ~90% of the performance of a hand-coded assembly version, while being
+more portable and easier to change.
+ */
 
 #define PARAMS unsigned char ra, unsigned instr,unsigned* pc, long* frame, void** op_table_arg
 #define ARGS ra, instr, pc, frame, op_table_arg
@@ -120,7 +123,7 @@ void INS_ISGE(PARAMS) {
 
   long fa = frame[ra];
   long fb = frame[rb];
-  if (unlikely(1 & (fa | fb))) {
+  if (unlikely(7 & (fa | fb))) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fa >= fb) {
@@ -138,7 +141,7 @@ void INS_SUBVN(PARAMS) {
   unsigned char rc = (instr >> 8) & 0xff;
 
   long fb = frame[rb];
-  if (unlikely(1 & fb)) {
+  if (unlikely(7 & fb)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (unlikely(
@@ -156,7 +159,7 @@ void INS_ADDVN(PARAMS) {
   unsigned char rc = (instr >> 8) & 0xff;
 
   long fb = frame[rb];
-  if (unlikely(1 & fb)) {
+  if (unlikely(7 & fb)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (unlikely(
@@ -175,11 +178,11 @@ void INS_ADDVV(PARAMS) {
 
   auto fb = frame[rb];
   auto fc = frame[rc];
-  if (unlikely(1 & (fb | fc))) {
-    frame[ra] = ADDVV_SLOWPATH(fb, fc);
+  if (unlikely(7 & (fb | fc))) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   } else {
     if (unlikely(__builtin_add_overflow(fb, fc, &frame[ra]))) {
-      frame[ra] = ADDVV_SLOWPATH(fb, fc);
+      MUSTTAIL return FAIL_SLOWPATH(ARGS);
     }
   }
   pc++;
@@ -194,11 +197,11 @@ void INS_SUBVV(PARAMS) {
 
   auto fb = frame[rb];
   auto fc = frame[rc];
-  if (unlikely(1 & (fb | fc))) {
-    frame[ra] = SUBVV_SLOWPATH(fb, fc);
+  if (unlikely(7 & (fb | fc))) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   } else {
     if (unlikely(__builtin_sub_overflow(fb, fc, &frame[ra]))) {
-      frame[ra] = SUBVV_SLOWPATH(fb, fc);
+      MUSTTAIL return FAIL_SLOWPATH(ARGS);
     }
   }
   pc++;
@@ -340,7 +343,7 @@ void INS_JISEQ(PARAMS) {
 
   long fb = frame[rb];
   long fc = frame[rc];
-  if (unlikely(1 & (fb | fc))) {
+  if (unlikely(7 & (fb | fc))) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fb == fc) {
@@ -359,7 +362,7 @@ void INS_JISLT(PARAMS) {
 
   long fb = frame[rb];
   long fc = frame[rc];
-  if (unlikely(1 & (fb | fc))) {
+  if (unlikely(7 & (fb | fc))) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fb < fc) {
@@ -378,7 +381,7 @@ void INS_ISLT(PARAMS) {
 
   long fb = frame[rb];
   long fc = frame[rc];
-  if (unlikely(1 & (fb | fc))) {
+  if (unlikely(7 & (fb | fc))) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fb < fc) {
@@ -397,7 +400,7 @@ void INS_ISEQ(PARAMS) {
 
   long fb = frame[rb];
   long fc = frame[rc];
-  if (unlikely(1 & (fb | fc))) {
+  if (unlikely(7 & (fb | fc))) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fb == fc) {
