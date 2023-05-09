@@ -60,6 +60,8 @@ struct jit_descriptor __jit_debug_descriptor = { 1, 0, 0, 0 };
 
 void __attribute__((noinline)) __jit_debug_register_code()
 {
+/* GDB sets a breakpoint at this function. */
+  __asm__ __volatile__("");
 }
 
 #endif /* JIT_PROTOCOL_H */

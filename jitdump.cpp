@@ -120,16 +120,26 @@ void jit_dump_close() {
 struct jit_code_entry *last_entry{nullptr};
 struct jit_code_entry *first_entry{nullptr};
 
-void build_elf(uint64_t code, int code_sz);
+struct GDBElfImage {
+  Elf64_Ehdr hdr;
+  Elf64_Shdr hdrs[5];
+  Elf64_Sym syms[3];
+  uint8_t data[4096];
+};
+
+void build_elf(uint64_t code, int code_sz, GDBElfImage* image, int num);
 void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, std::string name) {
   auto jitcode = new struct jit_code_entry();
+  auto image = new GDBElfImage;
+  build_elf(fn, len, image, cnt);
+  
 
-  auto entry = new gdb_code_entry;
-  entry->fn = fn;
-  entry->len = len;
-  sprintf(entry->funcname, "Function_%s_%i_%i_%lx", name.c_str(), cnt, i, p);
-  jitcode->symfile_addr = entry;
-  jitcode->symfile_size = sizeof(gdb_code_entry);
+  //auto entry = new gdb_code_entry;
+  // entry->fn = fn;
+  // entry->len = len;
+  //sprintf(entry->funcname, "Function_%s_%i_%i_%lx", name.c_str(), cnt, i, p);
+  jitcode->symfile_addr = image;
+  jitcode->symfile_size = sizeof(GDBElfImage);
   jitcode->next_entry = nullptr;
   if (!first_entry) {
     first_entry = jitcode;
@@ -147,7 +157,6 @@ void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, std::string name) {
   __jit_debug_descriptor.version = 1;
   __jit_debug_register_code();
   cnt++;
-  build_elf(fn, len);
 }
 
 ////////////// GDB elf entry ///////////////
@@ -171,7 +180,8 @@ long write_strz(std::vector<uint8_t>& buffer, const char* obj) {
   return write_buf(buffer, (void*)obj, len);
 }
 
-void build_elf(uint64_t code, int code_sz) {
+// TODO construct in image directly.
+void build_elf(uint64_t code, int code_sz, GDBElfImage* image, int num) {
   long offset = 0;
   std::vector<uint8_t> buffer;
   Elf64_Ehdr hdr = {
@@ -188,12 +198,12 @@ void build_elf(uint64_t code, int code_sz) {
     .e_phentsize = 0,
     .e_phnum = 0,
     .e_shentsize = sizeof(Elf64_Shdr),
-    .e_shnum = 8,
+    .e_shnum = 5,
     .e_shstrndx = 1,
   };
   offset += sizeof(hdr);
 
-  Elf64_Shdr hdrs[8];
+  Elf64_Shdr hdrs[5];
   memset(&hdrs, 0, sizeof(hdrs));
   Elf64_Sym syms[3];
   memset(&syms, 0, sizeof(syms));
@@ -232,21 +242,6 @@ void build_elf(uint64_t code, int code_sz) {
   sym_hdr->sh_entsize = sizeof(Elf64_Sym);
   sym_hdr->sh_info = 2; // sym_func
 
-  auto debug_info_hdr = &hdrs[5];
-  debug_info_hdr->sh_name = write_strz(buffer, ".debug_info");
-  debug_info_hdr->sh_type = SHT_PROGBITS;
-  debug_info_hdr->sh_addralign=1;
-  
-  auto debug_abbrev_hdr = &hdrs[6];
-  debug_abbrev_hdr->sh_name = write_strz(buffer, ".debug_abbrev");
-  debug_abbrev_hdr->sh_type = SHT_PROGBITS;
-  debug_abbrev_hdr->sh_addralign=1;
-
-  auto debug_line_hdr = &hdrs[7];
-  debug_line_hdr->sh_name = write_strz(buffer, ".debug_line");
-  debug_line_hdr->sh_type = SHT_PROGBITS;
-  debug_line_hdr->sh_addralign=1;
-
   shstrtab_hdr->sh_size = buffer.size() + offset - shstrtab_hdr->sh_offset;
 
   str_hdr->sh_offset = offset + buffer.size();
@@ -258,7 +253,9 @@ void build_elf(uint64_t code, int code_sz) {
   filesym->st_shndx = SHN_ABS;
   filesym->st_info = STT_FILE;
   auto funcsym = &syms[2];
-  funcsym->st_name = write_strz(buffer, "Func") - st;
+  char tmp[244];
+  sprintf(tmp, "TRACE_%i", num);
+  funcsym->st_name = write_strz(buffer, tmp) - st;
   funcsym->st_shndx = 2; // text
   funcsym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_FUNC);
   funcsym->st_value = 0;
@@ -266,11 +263,11 @@ void build_elf(uint64_t code, int code_sz) {
   
   str_hdr->sh_size = buffer.size() + offset - str_hdr->sh_offset;
 
-  fd = open("elfout", O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR);
-  write(fd, &hdr, sizeof(hdr));
-  write(fd, hdrs, sizeof(hdrs));
-  write(fd, syms, sizeof(syms));
-  write(fd, &buffer[0], buffer.size());
-  close(fd);
-
+  memcpy(&image->hdr, &hdr, sizeof(hdr));
+  memcpy(image->hdrs, hdrs, sizeof(hdrs));
+  memcpy(image->syms, syms, sizeof(syms));
+  memcpy(image->data, &buffer[0], buffer.size());
+  // fd = open("elfout", O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR);
+  // write(fd, image, sizeof(GDBElfImage));
+  // close(fd);
 }

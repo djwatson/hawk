@@ -49,7 +49,9 @@ snap_s *find_snap_for_pc(unsigned int pc, trace_s *trace) {
 
 extern long *stack;
 extern unsigned int stacksz;
-extern __attribute__((noinline)) void EXPAND_STACK_SLOWPATH();
+__attribute__((noinline)) void EXPAND_STACK_SLOWPATH() {
+  //TODO
+}
 void snap_restore(std::vector<long> &res, unsigned int **o_pc, long **o_frame,
                   snap_s *snap, trace_s *trace) {
   for (auto &slot : snap->slots) {
