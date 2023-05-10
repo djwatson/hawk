@@ -308,7 +308,7 @@ void INS_CALLT(PARAMS) {
   }
   bcfunc *func = (bcfunc *)(v - 5);
   pc = &func->code[0];
-  printf("Next code is %lx\n", func->code[0]);
+
 
   long start = ra + 1;
   auto cnt = rb - 1;

@@ -107,7 +107,9 @@ void dump_trace(trace_s *trace) {
     case ir_ins_op::EQ:
     case ir_ins_op::NE:
     case ir_ins_op::GE:
-    case ir_ins_op::LT: {
+    case ir_ins_op::LT:
+    case ir_ins_op::CLT:
+      {
       print_const_or_val(op.op1, trace);
       printf(" ");
       print_const_or_val(op.op2, trace);
@@ -195,7 +197,7 @@ void record_abort() {
 }
 
 int record(unsigned int *pc, long *frame) {
-  if (traces.size() >= 4) {
+  if (traces.size() >= 200) {
     return 1;
   }
   switch (trace_state) {
@@ -419,18 +421,9 @@ int record_instr(unsigned int *pc, long *frame) {
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
-    if (frame[INS_B(i)] < frame[INS_C(i)]) {
-      ins.op = ir_ins_op::LT;
-      auto knum = trace->consts.size();
-      trace->consts.push_back(1<< 3);
-      regs[reg] = knum | IR_CONST_BIAS;
-    } else {
-      auto knum = trace->consts.size();
-      trace->consts.push_back(0);
-      ins.op = ir_ins_op::GE;
-      regs[reg] = knum | IR_CONST_BIAS;
-    }
-    ins.type = IR_INS_TYPE_GUARD;
+    ins.op = ir_ins_op::CLT;
+    ins.type = 0; // TODO bool
+    regs[reg] = trace->ops.size();
     trace->ops.push_back(ins);
     break;
   }
@@ -442,7 +435,7 @@ int record_instr(unsigned int *pc, long *frame) {
     auto knum = trace->consts.size();
     trace->consts.push_back(0);
     ins.op2 = knum | IR_CONST_BIAS;
-    if (frame[INS_B(i)] == 0) {
+    if (frame[INS_A(i)] == 0) {
       ins.op = ir_ins_op::EQ;
     } else {
       ins.op = ir_ins_op::NE;
