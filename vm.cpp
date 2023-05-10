@@ -39,9 +39,8 @@ while being more portable and easier to change.
       void **op_table_arg
 #define ARGS ra, instr, pc, frame, op_table_arg
 #define MUSTTAIL __attribute__((musttail))
-//#define DEBUG(name) printf("%s %li %li %li %li\n", name, frame[0], frame[1],
-//frame[2], frame[3]);
 #define DEBUG(name)
+//#define DEBUG(name) printf("%s %li %li %li %li\n", name, frame[0], frame[1], frame[2], frame[3]);
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[25];
 static op_func l_op_table_record[25];
@@ -108,9 +107,9 @@ void INS_JMP(PARAMS) {
 void INS_RET1(PARAMS) {
   DEBUG("RET1");
 
-  pc = (unsigned int *)frame[-2];
-  frame[-2] = frame[ra];
-  frame -= (INS_A(*(pc - 1)) + 2);
+  pc = (unsigned int *)frame[-1];
+  frame[-1] = frame[ra];
+  frame -= (INS_A(*(pc - 1)) + 1);
 
   NEXT_INSTR;
 }
@@ -275,7 +274,7 @@ void INS_CALL(PARAMS) {
                0)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
-  auto v = frame[ra + 1];
+  auto v = frame[ra];
   if (unlikely((v & 0x7) != 5)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
@@ -283,7 +282,7 @@ void INS_CALL(PARAMS) {
   auto old_pc = pc;
   pc = &func->code[0];
   frame[ra] = long(old_pc + 1);
-  frame += ra + 2;
+  frame += ra + 1;
   if (unlikely((frame + 256) > frame_top)) {
     MUSTTAIL return EXPAND_STACK_SLOWPATH(ARGS);
   }
@@ -304,7 +303,7 @@ void INS_CALLT(PARAMS) {
   }
   bcfunc *func = (bcfunc *)(v - 5);
   pc = &func->code[0];
-  frame[-1] = v; // TODO move to copy loop
+
   long start = ra + 1;
   auto cnt = rb - 1;
   for (auto i = 0; i < cnt; i++) {
@@ -451,8 +450,7 @@ void run() {
 
   // Initial stack setup has a return to bytecode stub above.
   stack[0] = (unsigned long)&final_code[1]; // return pc
-  stack[1] = ((unsigned long)funcs[0]) + 5; // func
-  frame = &stack[2];
+  frame = &stack[1];
   frame_top = stack + stacksz;
 
   unsigned int *pc = &code[0];

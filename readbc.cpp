@@ -5,7 +5,7 @@
 #include "vm.h"
 
 std::unordered_map<std::string, symbol *> symbol_table;
-std::vector<long> const_table;
+long* const_table;
 
 void readbc() {
   std::vector<std::string> symbols;
@@ -28,7 +28,7 @@ void readbc() {
   unsigned int const_count;
   fread(&const_count, 4, 1, fptr);
   printf("constsize %i \n", const_count);
-  const_table.resize(const_count);
+  const_table = (long*)malloc(const_count * sizeof(long));
   for (unsigned j = 0; j < const_count; j++) {
     if (fread(&const_table[j], 8, 1, fptr) != 1) {
       printf("Error: Could not read consts\n");
@@ -78,7 +78,8 @@ void readbc() {
 
   fclose(fptr);
   // Link the symbols
-  for (auto &c : const_table) {
+  for (int i = 0; i < const_count; i++) {
+    auto&c = const_table[i];
     if ((c & 0x7) == 4) {
       std::string n(symbols[(c - 4) / 8]);
       if (symbol_table.find(n) == symbol_table.end()) {
