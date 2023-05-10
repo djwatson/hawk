@@ -353,7 +353,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
     case ir_ins_op::CLT: {
       assert(!(op.op1 & IR_CONST_BIAS));
       auto reg = ir_to_asmjit[op.reg];
-      a.xor_(x86::r15, x86::r15);// TODO don't use tmp?
       // beware of colision with one of the other regs
       auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
       if (op.op2 & IR_CONST_BIAS) {
@@ -364,8 +363,11 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
 	auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
 	a.cmp(reg1, reg2);
       }
-      a.setl(x86::r15.r8Lo());
-      a.mov(reg, x86::r15);
+      // Zero the reg without touching flags.
+      // Note reg may be the same as reg1 or reg2,
+      // so we can't xor first.
+      a.lea(reg, x86::ptr_abs(0));
+      a.setl(reg.r8Lo());
       //      a.shl(reg, 3); // TODO
       break;
     }
