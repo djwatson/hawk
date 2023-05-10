@@ -13,6 +13,7 @@
 ;;;;;;;;;;;;; include
 
 (include "third-party/alexpander.scm")
+(include "memory_layout.scm")
 
 ;;;;;;;;;;;;;;;;; util
 (define-syntax inc!
@@ -357,6 +358,8 @@
 	 (write-u64 (+ (* pos 8) 4) p)))
       ((integer? c)
        (write-u64 (* 8 c) p))
+      ((boolean? c)
+       (write-u64 (if c true-rep false-rep) p))
       (else (display (format "Can't serialize: ~a\n" c)) (exit -1))))
    consts)  
   ;; number of bc

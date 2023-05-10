@@ -34,10 +34,13 @@ void readbc() {
       printf("Error: Could not read consts\n");
       exit(-1);
     }
-    if ((const_table[j] & 0xf) == 4) {
+    auto type = const_table[j] & 0x7;
+    if (type == 4) {
       printf("symbol: %li\n", (const_table[j] - 4) / 8);
-    } else {
-      printf("const: %li\n", const_table[j] >> 3);
+    } else if (type == 7) {
+      printf("immediate %lx\n", const_table[j]);
+    } else if (type == 0){
+      printf("fixnum: %li\n", const_table[j] >> 3);
     }
   }
 

@@ -36,7 +36,7 @@ target_link_libraries(boom PUBLIC
 
 add_custom_target(
   cloc
-  COMMAND cloc --by-file bc.scm *.h *.cpp
+  COMMAND cloc --by-file *.scm *.h *.cpp
 )
 
 add_custom_target(
