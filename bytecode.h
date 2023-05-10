@@ -37,6 +37,7 @@ enum {
 // clang-format on
 
 extern const char *ins_names[];
+extern std::vector<long> const_table;
 
 #define CODE(i, a, b, c) ((c << 24) | (b << 16) | (a << 8) | i)
 #define INS_OP(i) (i & 0xff)
@@ -47,10 +48,10 @@ extern const char *ins_names[];
 
 struct bcfunc {
   std::vector<unsigned int> code;
-  std::vector<unsigned long> consts;
 };
 
 struct symbol {
   std::string name;
   unsigned long val;
 };
+

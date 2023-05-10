@@ -31,12 +31,12 @@
 ;;;;;;;;;;;;;;;;;;; code
 
 (define program '())
+(define consts '())
 
 ;; TODO reg = free reg set
 (define-record-type func-bc #t #t
-		    (name) (code) (consts))
+		    (name) (code))
 (define-getter-with-setter func-bc-code func-bc-code-set!)
-(define-getter-with-setter func-bc-consts func-bc-consts-set!)
 
 (define (find-const l i c)
   (if (pair? l)
@@ -46,12 +46,14 @@
       #f))
 
 (define (get-or-push-const bc c)
-  (define consts (func-bc-consts bc))
   (define f (find-const consts (- (length consts) 1) c))
   (if f
       f
-      (let ((i (length (func-bc-consts bc))))
-	(push! (func-bc-consts bc) c)
+      (let ((i (length consts)))
+	(push! consts c)
+	(when (> i 65535)
+	  (display "Error: Const pool overflow")
+	  (exit -1))
 	i)))
 
 (define (branch-dest? cd)
@@ -126,7 +128,7 @@
       (compile-sexp (second f) bc env r1 `(if ,(length (func-bc-code bc)) ,(- (length (func-bc-code bc)) pos -1))))))
 
 (define (compile-lambda f bc rd cd)
-  (define f-bc (make-func-bc (format "lambda~a" (next-id)) '() '() ))
+  (define f-bc (make-func-bc (format "lambda~a" (next-id)) '() ))
   (define f-id (length program))
   (push! program f-bc)
   (compile-lambda-internal f f-bc '())
@@ -210,7 +212,7 @@
 (define (compile-letrec f bc env rd cd)
   (define ord rd)
   (define mapping (map (lambda (f)
-			 (define f-bc (make-func-bc (first f) '() '()))
+			 (define f-bc (make-func-bc (first f) '()))
 			 (define f-id (length program))
 			 (define r ord)
 			 (inc! ord)
@@ -258,7 +260,7 @@
 	(loop (cdr program) 'next))))
 
 (define (compile d)
-  (define bc (make-func-bc "repl" '() '()))
+  (define bc (make-func-bc "repl" '()))
   (push! program bc)
   (display (format "Compile: ~a \n" d))
   (compile-sexps d bc '() 0 'ret)
@@ -281,11 +283,6 @@
 ;;;;;;;;;;;;;print
 (define (display-bc bc)
   (display (format "~a:\n" (func-bc-name bc)))
-  (display "Consts:\n")
-  (fold (lambda (a b)
-	  (display (format "~a: ~a\n" b a))
-	  (+ b 1))
-	0 (func-bc-consts bc))
   (display "Code:\n")
   (fold (lambda (a b)
 	  (display (format "~a: ~a\n" b a))
@@ -352,25 +349,24 @@
   (write-u8 (char->integer #\M) p)
   ;; version
   (write-uint 0 p)
+  ;; number of consts in const pool
+  (write-uint (length consts) p)
+  (for-each
+   (lambda (c)
+     (cond
+      ((symbol? c)
+       (let ((pos (length globals)))
+	 (push! globals c)
+	 (write-u64 (+ (* pos 8) 4) p)))
+      ((integer? c)
+       (write-u64 (* 8 c) p))
+      (else (display (format "Can't serialize: ~a\n" c)) (exit -1))))
+   consts)  
   ;; number of bc
   (write-uint (length program) p)
   (for-each
    (lambda (bc)
-     (write-uint (length (func-bc-consts bc)) p)
-     (for-each
-      (lambda (c)
-	;; TODO intern
-	(cond
-	 ((symbol? c)
-	  (let* ((search (find-const globals (- (length globals) 1) c))
-		 (pos (if search search (let ((pos (length globals)))
-					  (push! globals c)
-					  pos))))
-	    (write-u64 (+ (* pos 8) 4) p)))
-	 ((integer? c)
-	  (write-u64 (* 8 c) p))
-	 (else (display (format "Can't serialize: ~a\n" c)) (exit -1))))
-      (func-bc-consts bc))
+
      (write-uint (length (func-bc-code bc)) p)
      (for-each
       (lambda (c)
@@ -401,12 +397,15 @@
 (compile (expander))
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors
-(set! program
-      (map (lambda (bc)
-	     (set! (func-bc-consts bc) (reverse (func-bc-consts bc)))
-	     bc)
-	   (reverse! program)))
+(set! consts (reverse! consts))
+(set! program (reverse! program))
 
+(display "Consts:\n")
+(fold (lambda (a b)
+	(display (format "~a: ~a\n" b a))
+	(+ b 1))
+      0 consts)
+(newline)
 (fold (lambda (a b)
 	(display (format "~a -- " b))
 	(display-bc a)

@@ -453,8 +453,7 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case GGET: {
-    bcfunc *func = (bcfunc *)(frame[-1] - 5);
-    long gp = func->consts[INS_B(i)];
+    long gp = const_table[INS_B(i)];
     auto knum = trace->consts.size();
     trace->consts.push_back(gp);
     ir_ins ins;

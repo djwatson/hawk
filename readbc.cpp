@@ -5,6 +5,7 @@
 #include "vm.h"
 
 std::unordered_map<std::string, symbol *> symbol_table;
+std::vector<long> const_table;
 
 void readbc() {
   std::vector<std::string> symbols;
@@ -15,12 +16,32 @@ void readbc() {
     printf("Could not open bc\n");
     exit(-1);
   }
+  // Read header
   unsigned int num;
   fread(&num, 4, 1, fptr);
   printf("%.4s\n", (char *)&num);
   unsigned int version;
   fread(&version, 4, 1, fptr);
   printf("%i\n", version);
+
+  // Read constant table
+  unsigned int const_count;
+  fread(&const_count, 4, 1, fptr);
+  printf("constsize %i \n", const_count);
+  const_table.resize(const_count);
+  for (unsigned j = 0; j < const_count; j++) {
+    if (fread(&const_table[j], 8, 1, fptr) != 1) {
+      printf("Error: Could not read consts\n");
+      exit(-1);
+    }
+    if ((const_table[j] & 0xf) == 4) {
+      printf("symbol: %li\n", (const_table[j] - 4) / 8);
+    } else {
+      printf("const: %li\n", const_table[j] >> 3);
+    }
+  }
+
+  // Read functions  
   unsigned int bccount;
   fread(&bccount, 4, 1, fptr);
   for (unsigned i = 0; i < bccount; i++) {
@@ -29,22 +50,7 @@ void readbc() {
       printf("Alloc fail\n");
       exit(-1);
     }
-    unsigned int const_count;
     unsigned int code_count;
-    fread(&const_count, 4, 1, fptr);
-    printf("%i: constsize %i \n", i, const_count);
-    f->consts.resize(const_count);
-    for (unsigned j = 0; j < const_count; j++) {
-      if (fread(&f->consts[j], 8, 1, fptr) != 1) {
-        printf("Error: Could not read consts\n");
-        exit(-1);
-      }
-      if ((f->consts[j] & 0xf) == 4) {
-        printf("symbol: %li\n", (f->consts[j] - 4) / 8);
-      } else {
-        printf("const: %li\n", f->consts[j] >> 3);
-      }
-    }
     fread(&code_count, 4, 1, fptr);
     f->code.resize(code_count);
     printf("%i: code %i\n", i, code_count);
@@ -72,16 +78,14 @@ void readbc() {
 
   fclose(fptr);
   // Link the symbols
-  for (auto &bc : funcs) {
-    for (auto &c : bc->consts) {
-      if ((c & 0x7) == 4) {
-        std::string n(symbols[(c - 4) / 8]);
-        if (symbol_table.find(n) == symbol_table.end()) {
-          symbol_table[n] = new symbol{n, UNDEFINED};
-        }
-        c = (unsigned long)symbol_table[n];
-        printf("Link global %s %lx\n", n.c_str(), c);
+  for (auto &c : const_table) {
+    if ((c & 0x7) == 4) {
+      std::string n(symbols[(c - 4) / 8]);
+      if (symbol_table.find(n) == symbol_table.end()) {
+	symbol_table[n] = new symbol{n, UNDEFINED};
       }
+      c = (unsigned long)symbol_table[n];
+      printf("Link global %s %lx\n", n.c_str(), c);
     }
   }
 }
