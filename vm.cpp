@@ -428,6 +428,7 @@ void INS_JFUNC(PARAMS) {
   auto tnum = instr;
   // printf("JFUNC/JLOOP run %i\n", tnum);
   // printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
+  //auto res = record_run(tnum, &pc, &frame, frame_top);
   auto res = jit_run(tnum, &pc, &frame, frame_top);
   frame_top = stack + stacksz;
   // printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);

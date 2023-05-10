@@ -66,7 +66,7 @@ void dump_trace(trace_s *trace) {
     // Print any snap
     while ((cur_snap < trace->snaps.size()) && trace->snaps[cur_snap].ir == i) {
       auto &snap = trace->snaps[cur_snap];
-      printf("SNAP[pc=%i off=%i", snap.pc, snap.offset);
+      printf("SNAP[pc=%lx off=%i", snap.pc, snap.offset);
       for (auto &entry : snap.slots) {
         printf(" %i=", entry.slot);
         print_const_or_val(entry.val, trace);
@@ -265,9 +265,8 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case RET1: {
     if (depth == 0) {
-      auto old_pc = (unsigned int *)frame[-2];
-      auto old_frame = frame - (INS_A(*(old_pc - 1)) + 2);
-      auto old_target = (bcfunc *)(old_frame[-1] - 5);
+      auto old_pc = (unsigned int *)frame[-1];
+      auto old_frame = frame - (INS_A(*(old_pc - 1)) + 1);
       if (INS_OP(*pc_start) == RET1 || side_exit != NULL) {
         int cnt = 0;
         for (auto &p : downrec) {
@@ -296,8 +295,8 @@ int record_instr(unsigned int *pc, long *frame) {
         auto frame_off = INS_A(*(old_pc - 1));
         printf("Continue down recursion, frame offset %i\n", frame_off);
         auto result = record_stack_load(INS_A(i), frame);
-        memmove(&regs[frame_off + 2], &regs[0],
-                sizeof(int) * (256 - (frame_off + 2)));
+        memmove(&regs[frame_off + 1], &regs[0],
+                sizeof(int) * (256 - (frame_off + 1)));
         regs[frame_off] = result;
         for (int i = 0; i < frame_off; i++) {
           regs[i] = -1;
@@ -306,7 +305,7 @@ int record_instr(unsigned int *pc, long *frame) {
         auto knum = trace->consts.size();
         trace->consts.push_back((long)old_pc | SNAP_FRAME);
         auto knum2 = trace->consts.size();
-        trace->consts.push_back((frame_off + 2) << 3);
+        trace->consts.push_back((frame_off + 1) << 3);
         ir_ins ins;
         ins.reg = REG_NONE;
         ins.op1 = knum | IR_CONST_BIAS;
@@ -326,12 +325,12 @@ int record_instr(unsigned int *pc, long *frame) {
       }
     } else if (depth > 0) {
       depth--;
-      regs[-2] = regs[INS_A(i)];
-      for (int i = regs - regs_list - 1; i < 257; i++) {
+      regs[-1] = regs[INS_A(i)];
+      for (int i = regs - regs_list; i < 257; i++) {
         regs_list[i] = -1;
       }
-      auto old_pc = (unsigned int *)frame[-2];
-      regs -= (INS_A(*(old_pc - 1)) + 2);
+      auto old_pc = (unsigned int *)frame[-1];
+      regs -= (INS_A(*(old_pc - 1)) + 1);
     } else {
       depth--;
       printf("TODO return below trace\n");
@@ -341,35 +340,33 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case CALL: {
     // TODO this needs to check reg[]links instead
-    for (int j = INS_A(i) + 1; j < INS_A(i) + INS_B(i) + 1; j++) {
+    for (int j = INS_A(i); j < INS_A(i) + INS_B(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
 
     // Check call type
     {
-      auto v = frame[INS_A(i) + 1];
+      auto v = frame[INS_A(i)];
       auto knum = trace->consts.size();
       trace->consts.push_back(v);
       ir_ins ins;
       ins.reg = REG_NONE;
-      ins.op1 = record_stack_load(INS_A(i) + 1, frame);
+      ins.op1 = record_stack_load(INS_A(i), frame);
       ins.op2 = knum | IR_CONST_BIAS;
       ins.op = ir_ins_op::EQ;
       // TODO magic number
       ins.type = IR_INS_TYPE_GUARD | 0x5;
       trace->ops.push_back(ins);
     }
-    auto func = (bcfunc *)(frame[INS_A(i) + 1] - 5);
-    auto ftarget = frame[INS_A(i) + 1];
-    auto target = &func->code[0];
     long cnt = 0;
     auto f = frame;
+    auto p_pc = (uint32_t*)frame[-1];
     for (int d = depth; d > 0; d--) {
-      auto p_pc = frame[-2];
-      if (frame[-1] == ftarget) {
+      if (p_pc == pc+1) {
         cnt++;
       }
-      f = frame - (INS_A(*(pc - 1)) + 2);
+      f = frame - (INS_A(*(p_pc-1)) + 1);
+      p_pc = (uint32_t*)frame[-1];
     }
 
     // Setup frame
@@ -380,15 +377,18 @@ int record_instr(unsigned int *pc, long *frame) {
     regs[INS_A(i)] = knum | IR_CONST_BIAS; // TODO set PC
 
     // Increment regs
-    regs += INS_A(i) + 2;
+    regs += INS_A(i) + 1;
 
     if (cnt >= UNROLL_LIMIT) {
+      auto v = frame[INS_A(i)];
+      auto func = (bcfunc*)(v-5);
+      auto target = &func->code[0];
       if (target == pc_start) {
         record_stop(pc, frame, traces.size());
         printf("Record stop up-recursion\n");
         return 1;
       } else {
-        auto func = (bcfunc *)(frame[INS_A(i) + 1] - 5) /*tag*/;
+	// TODO fix flush
         pendpatch();
         if (INS_OP(func->code[0]) == JFUNC) {
           printf("Flushing trace\n");

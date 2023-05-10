@@ -385,7 +385,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
       auto retadd = trace->consts[op.op1 - IR_CONST_BIAS] - SNAP_FRAME;
       auto b = trace->consts[op.op2 - IR_CONST_BIAS];
       a.mov(x86::r15, retadd);
-      a.cmp(x86::r15, x86::ptr(x86::rdi, -2 * 8, 8));
+      a.cmp(x86::r15, x86::ptr(x86::rdi, -1 * 8, 8));
       a.jne(snap_labels[cur_snap]);
       a.sub(x86::rdi, b);
       break;

@@ -91,7 +91,7 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
 again:
   auto trace = trace_cache_get(tnum);
   // printf("Run trace %i\n", tnum);
-  // printf("Frame %li %li\n", (*o_frame)[0] >> 3, (*o_frame)[1] >> 3);
+  // printf("Frame %li %li %li\n", (*o_frame)[0] >> 3, (*o_frame)[1] >> 3, (*o_frame)[1] >> 3);
 
   unsigned int pc = 0;
   std::vector<long> res;
@@ -201,7 +201,7 @@ again:
       auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts) -
                SNAP_FRAME;
       auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
-      if (a != frame[-2]) {
+      if (a != frame[-1]) {
         // printf("RET guard %lx %lx\n", a, frame[-2]);
         goto abort;
       }
@@ -244,8 +244,8 @@ abort : {
     goto again;
   }
 
-  printf("Replay failed guard in trace %i, abort ir pc %i, hotness %i\n",
-         trace->num, pc, snap->exits);
+  // printf("Replay failed guard in trace %i, abort ir pc %i, hotness %i\n",
+  //        trace->num, pc, snap->exits);
   if (snap->exits < 10) {
     snap->exits++;
   } else {
