@@ -412,6 +412,42 @@ int record_instr(unsigned int *pc, long *frame) {
     trace->consts.push_back(k);
     break;
   }
+  case ISLT: {
+    add_snap(regs_list, regs - regs_list - 1, trace, pc);
+    auto reg = INS_A(i);
+    ir_ins ins;
+    ins.reg = REG_NONE;
+    ins.op1 = record_stack_load(INS_B(i), frame);
+    ins.op2 = record_stack_load(INS_C(i), frame);
+    if (frame[INS_B(i)] < frame[INS_C(i)]) {
+      ins.op = ir_ins_op::LT;
+      auto knum = trace->consts.size();
+      trace->consts.push_back(1<< 3);
+      regs[reg] = knum | IR_CONST_BIAS;
+    } else {
+      auto knum = trace->consts.size();
+      trace->consts.push_back(0);
+      ins.op = ir_ins_op::GE;
+      regs[reg] = knum | IR_CONST_BIAS;
+    }
+    ins.type = IR_INS_TYPE_GUARD;
+    trace->ops.push_back(ins);
+    break;
+  }
+  case ISF: {
+    add_snap(regs_list, regs - regs_list - 1, trace, pc);
+    ir_ins ins;
+    ins.reg = REG_NONE;
+    ins.op1 = record_stack_load(INS_B(i), frame);
+    if (frame[INS_B(i)] == 0) {
+      ins.op = ir_ins_op::EQ;
+    } else {
+      ins.op = ir_ins_op::NE;
+    }
+    ins.type = IR_INS_TYPE_GUARD;
+    trace->ops.push_back(ins);
+    break;
+  }
   case JISLT: {
     add_snap(regs_list, regs - regs_list - 1, trace, pc);
     ir_ins ins;
@@ -494,6 +530,19 @@ int record_instr(unsigned int *pc, long *frame) {
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
     ins.op = ir_ins_op::ADD;
+    // TODO: Assume no type change??
+    ins.type = IR_INS_TYPE_GUARD | trace->ops[ins.op1].type;
+    auto reg = INS_A(i);
+    regs[reg] = trace->ops.size();
+    trace->ops.push_back(ins);
+    break;
+  }
+  case SUBVV: {
+    ir_ins ins;
+    ins.reg = REG_NONE;
+    ins.op1 = record_stack_load(INS_B(i), frame);
+    ins.op2 = record_stack_load(INS_C(i), frame);
+    ins.op = ir_ins_op::SUB;
     // TODO: Assume no type change??
     ins.type = IR_INS_TYPE_GUARD | trace->ops[ins.op1].type;
     auto reg = INS_A(i);
