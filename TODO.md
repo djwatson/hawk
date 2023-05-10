@@ -1,7 +1,5 @@
 # TODO list
 
-* fibops off by one
-
 * types
 * allocs? for flonum
 * test flonum version of fib

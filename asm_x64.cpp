@@ -353,20 +353,20 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
     case ir_ins_op::CLT: {
       assert(!(op.op1 & IR_CONST_BIAS));
       auto reg = ir_to_asmjit[op.reg];
-      a.xor_(reg, reg);
+      a.xor_(x86::r15, x86::r15);// TODO don't use tmp?
+      // beware of colision with one of the other regs
       auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
       if (op.op2 & IR_CONST_BIAS) {
 	long v = trace->consts[op.op2 - IR_CONST_BIAS];
 	assert(v < 32000);
 	a.cmp(reg1, v);
       } else {
-	auto reg2 = ir_to_asmjit[trace->ops[op.op1].reg];
-	a.cmp(reg1, reg);
+	auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
+	a.cmp(reg1, reg2);
       }
-      //a.setl(reg)
-      // TODO
-      a.setl(reg.r8Lo());
-      a.shl(reg, 3);
+      a.setl(x86::r15.r8Lo());
+      a.mov(reg, x86::r15);
+      //      a.shl(reg, 3); // TODO
       break;
     }
     case ir_ins_op::NE: {
