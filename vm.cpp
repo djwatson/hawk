@@ -388,6 +388,7 @@ void INS_ISLT(PARAMS) {
   } else {
     frame[ra] = 0;
   }
+  pc++;
 
   NEXT_INSTR;
 }
@@ -415,7 +416,7 @@ void INS_ISF(PARAMS) {
   DEBUG("ISF");
 
   long fa = frame[ra];
-  if (ra == 0) {
+  if (fa == 0) {
     pc += 1;
   } else {
     pc += 2;

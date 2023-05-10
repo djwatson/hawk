@@ -167,6 +167,7 @@
 	(push! (func-bc-code bc) (list 'GGET r c)))))
 
 (define (compile-call f bc env rd cd)
+  (finish bc cd rd)
   (push! (func-bc-code bc) (list (if (eq? cd 'ret) 'CALLT 'CALL) rd (length f)))
   (fold
    (lambda (f num)
