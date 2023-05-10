@@ -489,7 +489,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   auto snap = &trace->snaps[exit];
   // printf("exit %i from trace %i new pc %i func %lx\n", exit, trace->num,
   // snap->pc, func);
-  (*o_pc) = &func->code[snap->pc];
+  (*o_pc) = snap->pc;
 
   if (exit != trace->snaps.size() - 1) {
     if (snap->exits < 10) {

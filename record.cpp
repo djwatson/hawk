@@ -148,10 +148,8 @@ void record_start(unsigned int *pc, long *frame) {
   if (side_exit) {
     snap_replay(&regs, side_exit, parent, trace, frame, &depth);
   }
-  auto func = (bcfunc *)(frame[-1] - 5);
-  int32_t pcloc = (long)(pc - &func->code[0]);
   add_snap(regs_list, regs - regs_list - 1, trace,
-           INS_OP(*pc) == FUNC ? 1 : pcloc);
+           INS_OP(*pc) == FUNC ? pc+1 : pc);
 }
 
 extern int joff;
@@ -159,9 +157,7 @@ extern int joff;
 void record_stop(unsigned int *pc, long *frame, int link) {
   pendpatch();
 
-  auto func = (bcfunc *)(frame[-1] - 5);
-  int32_t pcloc = (long)(pc - &func->code[0]);
-  add_snap(regs_list, regs - regs_list - 1, trace, pcloc);
+  add_snap(regs_list, regs - regs_list - 1, trace, pc);
   if (side_exit) {
     side_exit->link = traces.size();
   } else {
@@ -249,8 +245,6 @@ int record_stack_load(int slot, long *frame) {
 
 extern unsigned char hotmap[hotmap_sz];
 int record_instr(unsigned int *pc, long *frame) {
-  auto func = (bcfunc *)(frame[-1] - 5);
-  int32_t pcloc = (long)(pc - &func->code[0]);
   instr_count++;
   unsigned int i = *pc;
   if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
@@ -262,7 +256,7 @@ int record_instr(unsigned int *pc, long *frame) {
   for (int j = 0; j < depth; j++) {
     printf(" . ");
   }
-  printf("%i %s %i %i %i\n", pc - &func->code[0], ins_names[INS_OP(i)],
+  printf("%lx %s %i %i %i\n", pc, ins_names[INS_OP(i)],
          INS_A(i), INS_B(i), INS_C(i));
   switch (INS_OP(i)) {
   case FUNC: {
@@ -297,7 +291,7 @@ int record_instr(unsigned int *pc, long *frame) {
         downrec.push_back(pc);
 
         // Guard down func type
-        add_snap(regs_list, regs - regs_list - 1, trace, pcloc);
+        add_snap(regs_list, regs - regs_list - 1, trace, pc);
 
         auto frame_off = INS_A(*(old_pc - 1));
         printf("Continue down recursion, frame offset %i\n", frame_off);
@@ -322,7 +316,7 @@ int record_instr(unsigned int *pc, long *frame) {
         ins.type = IR_INS_TYPE_GUARD | 0x5;
         trace->ops.push_back(ins);
 
-        add_snap(regs_list, regs - regs_list - 1, trace, pcloc);
+        add_snap(regs_list, regs - regs_list - 1, trace, pc);
         // TODO retdepth
       } else {
         record_stop(pc, frame, -1);
@@ -419,7 +413,7 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case JISLT: {
-    add_snap(regs_list, regs - regs_list - 1, trace, pcloc);
+    add_snap(regs_list, regs - regs_list - 1, trace, pc);
     ir_ins ins;
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
@@ -434,7 +428,7 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case JISEQ: {
-    add_snap(regs_list, regs - regs_list - 1, trace, pcloc);
+    add_snap(regs_list, regs - regs_list - 1, trace, pc);
     ir_ins ins;
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
@@ -527,11 +521,7 @@ int record_instr(unsigned int *pc, long *frame) {
     for (int j = INS_A(i); j < INS_A(i) + INS_B(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
-    memmove(&regs[-1], &regs[INS_A(i)], sizeof(int) * (INS_B(i)));
-    // if (func == (bcfunc*)(frame[INS_A(i)])) {
-    //   // No need to save same tailcalled.
-    //   regs[-1] = -1;
-    // }
+    memmove(&regs[0], &regs[INS_A(i)+1], sizeof(int) * (INS_B(i) - 1));
     for (int j = INS_B(i) - 1; j < 256; j++) {
       if (&regs[j] >= regs_list + 256) {
         break;

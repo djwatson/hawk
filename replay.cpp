@@ -76,7 +76,7 @@ void snap_restore(std::vector<long> &res, unsigned int **o_pc, long **o_frame,
   }
   *o_frame = *o_frame + snap->offset;
   bcfunc *func = (bcfunc *)((*o_frame)[-1] - 5);
-  *o_pc = &func->code[snap->pc];
+  *o_pc = snap->pc;
   // printf("PC is now %i %s\n", snap->pc, ins_names[INS_OP(**o_pc)]);
   // printf("Stack is now %li func is %lx\n", *o_frame-stack, func);
 }
