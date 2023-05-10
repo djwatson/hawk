@@ -195,7 +195,7 @@ void record_abort() {
 }
 
 int record(unsigned int *pc, long *frame) {
-  if (traces.size() >= 255) {
+  if (traces.size() >= 4) {
     return 1;
   }
   switch (trace_state) {
@@ -438,7 +438,10 @@ int record_instr(unsigned int *pc, long *frame) {
     add_snap(regs_list, regs - regs_list - 1, trace, pc);
     ir_ins ins;
     ins.reg = REG_NONE;
-    ins.op1 = record_stack_load(INS_B(i), frame);
+    ins.op1 = record_stack_load(INS_A(i), frame);
+    auto knum = trace->consts.size();
+    trace->consts.push_back(0);
+    ins.op2 = knum | IR_CONST_BIAS;
     if (frame[INS_B(i)] == 0) {
       ins.op = ir_ins_op::EQ;
     } else {

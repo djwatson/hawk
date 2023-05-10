@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 // Simple replay to test recording before we write a jit.
-#define USE_REG
+//#define USE_REG
 #ifdef USE_REG
 long res_load(std::vector<long> &res, int pc, std::vector<ir_ins> &ops) {
   assert(ops[pc].reg != REG_NONE);
@@ -90,8 +90,8 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
                long *frame_top) {
 again:
   auto trace = trace_cache_get(tnum);
-  // printf("Run trace %i\n", tnum);
-  // printf("Frame %li %li %li\n", (*o_frame)[0] >> 3, (*o_frame)[1] >> 3, (*o_frame)[1] >> 3);
+  printf("Run trace %i\n", tnum);
+  printf("Frame %li %li %li\n", (*o_frame)[0] >> 3, (*o_frame)[1] >> 3, (*o_frame)[1] >> 3);
 
   unsigned int pc = 0;
   std::vector<long> res;
@@ -101,11 +101,11 @@ again:
 
   while (pc < trace->ops.size()) {
     auto &ins = trace->ops[pc];
-    // printf("Replay pc %i %s %i %i\n", pc, ir_names[(int)ins.op], ins.op1,
-    // ins.op2); for(int i = 0; i < pc; i++) {
-    //   printf("%i: %lx ", i, res[i]);
-    // }
-    // printf("\n");
+    printf("Replay pc %i %s %i %i\n", pc, ir_names[(int)ins.op], ins.op1,
+    ins.op2); for(int i = 0; i < pc; i++) {
+      printf("%i: %lx ", i, res[i]);
+    }
+    printf("\n");
     switch (ins.op) {
     case ir_ins_op::SLOAD: {
       auto v = frame[ins.op1];
@@ -244,8 +244,8 @@ abort : {
     goto again;
   }
 
-  // printf("Replay failed guard in trace %i, abort ir pc %i, hotness %i\n",
-  //        trace->num, pc, snap->exits);
+  printf("Replay failed guard in trace %i, abort ir pc %i, hotness %i\n",
+         trace->num, pc, snap->exits);
   if (snap->exits < 10) {
     snap->exits++;
   } else {

@@ -283,18 +283,19 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
       auto reg = ir_to_asmjit[op.reg];
       auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
       a.mov(reg, reg1);
+      assert(!(op.op1 & IR_CONST_BIAS));
       if (op.op2 & IR_CONST_BIAS) {
         long v = trace->consts[op.op2 - IR_CONST_BIAS];
         if (v < 32000) {
-          assert(!(op.op1 & IR_CONST_BIAS));
           a.sub(reg, v);
-          a.jo(snap_labels[cur_snap]);
         } else {
           assert(false);
         }
       } else {
-        assert(false);
+	auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
+	a.sub(reg, reg2);
       }
+      a.jo(snap_labels[cur_snap]);
       break;
     }
     case ir_ins_op::ADD: {
@@ -351,6 +352,10 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
     }
     case ir_ins_op::NE: {
       if (op.op2 & IR_CONST_BIAS) {
+	// TODO move to an opt pass
+	if (op.op1 & IR_CONST_BIAS) {
+	  break;
+	}
         long v = trace->consts[op.op2 - IR_CONST_BIAS];
         if (v < 32000) {
           assert(!(op.op1 & IR_CONST_BIAS));

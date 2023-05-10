@@ -40,7 +40,7 @@ while being more portable and easier to change.
 #define ARGS ra, instr, pc, frame, op_table_arg
 #define MUSTTAIL __attribute__((musttail))
 #define DEBUG(name)
-//#define DEBUG(name) printf("%s %li %li %li %li\n", name, frame[0], frame[1], frame[2], frame[3]);
+//#define DEBUG(name) printf("%s ra %i rd %i %li %li %li %li\n", name, ra, instr, frame[0], frame[1], frame[2], frame[3]);
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[25];
 static op_func l_op_table_record[25];
@@ -76,6 +76,11 @@ void RECORD(PARAMS) {
     // Back to interpreting.
     op_table_arg = (void **)l_op_table;
   }
+  // record may have updated state.
+  instr = *pc;
+  unsigned char op = instr & 0xff;
+  ra = (instr >> 8) & 0xff;                                                  
+  instr >>= 16;					
   // Call interpret op table, but with record table.
   // Interprets *this* instruction, then advances to next
   MUSTTAIL return l_op_table[INS_OP(*pc)](ra, instr, pc, frame, op_table_arg);
@@ -303,6 +308,7 @@ void INS_CALLT(PARAMS) {
   }
   bcfunc *func = (bcfunc *)(v - 5);
   pc = &func->code[0];
+  printf("Next code is %lx\n", func->code[0]);
 
   long start = ra + 1;
   auto cnt = rb - 1;
@@ -426,6 +432,7 @@ void INS_ISF(PARAMS) {
 }
 
 void INS_JFUNC(PARAMS) {
+  DEBUG("JFUNC");
   auto tnum = instr;
   // printf("JFUNC/JLOOP run %i\n", tnum);
   // printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
