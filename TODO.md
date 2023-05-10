@@ -1,7 +1,6 @@
 # TODO list
 
 * fibops off by one
-* eh_frame handling broke perf record?
 
 * types
 * allocs? for flonum

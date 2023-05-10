@@ -358,7 +358,8 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage* image, int num) {
   ///////////
   ehframe_hdr->sh_size = offset - start_offset;
 
-  fd = open("elfout", O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR);
-  write(fd, image, sizeof(GDBElfImage));
-  close(fd);
+  // Note this breaks perf record inject for some reason?
+  // fd = open("elfout", O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR);
+  // write(fd, image, sizeof(GDBElfImage));
+  // close(fd);
 }
