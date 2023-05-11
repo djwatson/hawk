@@ -1,9 +1,6 @@
 # TODO list
 
-* rework symbol const
 * test direct threading?
-* types
-* allocs? for flonum
 * test flonum version of fib
 * get stores/loads, assignment conversion, rest params, let/let loop fix, fix letrecs, closures, case-lambda all working
 * get rest of r5rs working

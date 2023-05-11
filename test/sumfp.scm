@@ -1,5 +1,5 @@
 (define (loop n sum)
-  (if (< n 0)
+  (if (< n 0.0)
       sum
       (loop (- n 1.0) (+ n sum))))
 

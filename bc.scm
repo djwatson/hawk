@@ -41,7 +41,7 @@
 
 (define (find-const l i c)
   (if (pair? l)
-      (if (eq? (car l) c)
+      (if (equal? (car l) c)
 	  i
 	  (find-const (cdr l) (- i 1) c))
       #f))
@@ -86,7 +86,7 @@
 (define (compile-binary f bc env rd cd)
   (define vn '(- +))
   (if (and (memq (first f) vn)
-	   (number? (third f))
+	   (fixnum? (third f))
 	   (< (abs (third f)) 65535))
       (compile-binary-vn f bc env rd cd)
       (compile-binary-vv f bc env rd cd)))
