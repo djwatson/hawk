@@ -95,7 +95,7 @@ void INS_FUNC(PARAMS) {
 
 void INS_KSHORT(PARAMS) {
   DEBUG("KSHORT");
-  unsigned char rb = instr;
+  unsigned int rb = instr;
 
   frame[ra] = rb << 3;
 
@@ -125,7 +125,7 @@ void INS_HALT(PARAMS) {
 
   printf("Result:");
   print_obj(frame[ra]);
-  printf("\n:");
+  printf("\n");
   return;
 }
 

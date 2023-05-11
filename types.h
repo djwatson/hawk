@@ -17,7 +17,7 @@
 #define BOX_TAG 0x21
 #define CONT_TAG 0x29
 
-// Literals.  Bottom three bits must be LITERAL_TAG.
+// Immediates.  Bottom three bits must be LITERAL_TAG.
 // Uses bottom byte, and other 7 bytes used for storing literal.
 #define TRUE_REP 0x0107
 #define FALSE_REP 0x0007
@@ -26,8 +26,16 @@
 #define EOF_TAG 0x1f
 #define UNDEFINED_TAG 0x27
 
+#define IMMEDIATE_MASK 0xf
+
 struct flonum_s {
   double x;
+};
+
+struct string_s {
+  long type;
+  long len;
+  char str[];
 };
 
 void print_obj(long obj);

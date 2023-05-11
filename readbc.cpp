@@ -51,6 +51,26 @@ void readbc() {
       fread(&f->x, 8, 1, fptr);
       printf("Flonum: %f\n", f->x);
       const_table[j] = (long)f | FLONUM_TAG;
+    } else if (type == PTR_TAG) {
+      long ptrtype;
+      fread(&ptrtype, 8, 1, fptr);
+      if (ptrtype == STRING_TAG) {
+	long len;
+	fread(&len, 8, 1, fptr);
+	auto str = (string_s*)GC_malloc(16 + len + 1);
+	str->type = ptrtype;
+	str->len = len;
+	fread(&str->str, 1, len, fptr);
+	str->str[len] = '\0';
+	printf("String %s\n", str->str);
+	const_table[j] = (long)str|PTR_TAG;
+      } else {
+	printf("Unknown boxed type:%lx\\n", ptrtype);
+	exit(-1);
+      }
+    } else {
+      printf("Unknown deserialize tag %lx\n", const_table[j]);
+      exit(-1);
     }
   }
 
