@@ -1,6 +1,8 @@
 #include <assert.h>
 #include <string.h>
 
+#include <gc/gc.h>
+
 #include "asm_x64.h"
 #include "bytecode.h"
 #include "record.h"
@@ -17,7 +19,7 @@ std::vector<bcfunc *> funcs;
 unsigned int stacksz = 1000;
 static long *frame;
 static long *frame_top;
-long *stack = (long *)malloc(sizeof(long) * stacksz * 1000000);
+long *stack = (long *)GC_malloc(sizeof(long) * stacksz);
 
 unsigned char hotmap[hotmap_sz];
 
@@ -41,8 +43,7 @@ while being more portable and easier to change.
 #define ARGS ra, instr, pc, frame, op_table_arg
 #define MUSTTAIL __attribute__((musttail))
 #define DEBUG(name)
-//#define DEBUG(name) printf("%s ra %i rd %i %li %li %li %li\n", name, ra,
-//instr, frame[0], frame[1], frame[2], frame[3]);
+//#define DEBUG(name) printf("%s ra %i rd %i %li %li %li %li\n", name, ra, instr, frame[0], frame[1], frame[2], frame[3]);
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[25];
 static op_func l_op_table_record[25];
@@ -189,12 +190,18 @@ void INS_ADDVV(PARAMS) {
 
   auto fb = frame[rb];
   auto fc = frame[rc];
-  if (unlikely(7 & (fb | fc))) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  } else {
+  if (likely((7 & (fb | fc)) == 0)) {
     if (unlikely(__builtin_add_overflow(fb, fc, &frame[ra]))) {
       MUSTTAIL return FAIL_SLOWPATH(ARGS);
     }
+  } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
+    auto f1 = (flonum_s*)(fb-FLONUM_TAG);
+    auto f2 = (flonum_s*)(fc-FLONUM_TAG);
+    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+    r->x = f1->x + f2->x;
+    frame[ra] = (long)r|FLONUM_TAG;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   pc++;
 
@@ -208,12 +215,18 @@ void INS_SUBVV(PARAMS) {
 
   auto fb = frame[rb];
   auto fc = frame[rc];
-  if (unlikely(7 & (fb | fc))) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  } else {
+  if (likely((7 & (fb | fc)) == 0)) {
     if (unlikely(__builtin_sub_overflow(fb, fc, &frame[ra]))) {
       MUSTTAIL return FAIL_SLOWPATH(ARGS);
     }
+  } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
+    auto f1 = (flonum_s*)(fb-FLONUM_TAG);
+    auto f2 = (flonum_s*)(fc-FLONUM_TAG);
+    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+    r->x = f1->x - f2->x;
+    frame[ra] = (long)r|FLONUM_TAG;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   pc++;
 
@@ -351,13 +364,22 @@ void INS_JISEQ(PARAMS) {
 
   long fb = frame[rb];
   long fc = frame[rc];
-  if (unlikely(7 & (fb | fc))) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  if (fb == fc) {
-    pc += 2;
+  if (likely((7 & (fb | fc)) == 0)) {
+    if (fb == fc) {
+      pc += 2;
+    } else {
+      pc += 1;
+    }
+  } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
+    auto f1 = (flonum_s*)(fb-FLONUM_TAG);
+    auto f2 = (flonum_s*)(fc-FLONUM_TAG);
+    if (f1->x == f2->x) {
+      pc += 2;
+    } else {
+      pc += 1;
+    }
   } else {
-    pc += 1;
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
 
   NEXT_INSTR;
@@ -370,13 +392,22 @@ void INS_JISLT(PARAMS) {
 
   long fb = frame[rb];
   long fc = frame[rc];
-  if (unlikely(7 & (fb | fc))) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  if (fb < fc) {
-    pc += 2;
+  if (likely((7 & (fb | fc)) == 0)) {
+    if (fb < fc) {
+      pc += 2;
+    } else {
+      pc += 1;
+    }
+  } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
+    auto f1 = (flonum_s*)(fb-FLONUM_TAG);
+    auto f2 = (flonum_s*)(fc-FLONUM_TAG);
+    if (f1->x < f2->x) {
+      pc += 2;
+    } else {
+      pc += 1;
+    }
   } else {
-    pc += 1;
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
 
   NEXT_INSTR;
@@ -512,5 +543,4 @@ void run() {
   l_op_table[op](ARGS);
 
   // And after the call returns, we're done.  only HALT returns.
-  free(stack);
 }
