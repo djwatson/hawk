@@ -12,6 +12,64 @@
 std::unordered_map<std::string, symbol *> symbol_table;
 long* const_table;
 
+long read_const(FILE* fptr) {
+  long val;
+  if (fread(&val, 8, 1, fptr) != 1) {
+    printf("Error: Could not read consts\n");
+    exit(-1);
+  }
+  auto type = val & 0x7;
+  if (type == 4) {
+    printf("symbol: %li\n", (val - 4) / 8);
+  } else if (type == 7) {
+    printf("immediate %lx\n", val);
+  } else if (type == FIXNUM_TAG){
+    printf("fixnum: %li\n", val >> 3);
+  } else if (type == FLONUM_TAG) {
+    auto f = (flonum_s*)GC_malloc(sizeof(flonum_s));
+    assert(!((long)f&TAG_MASK));
+    fread(&f->x, 8, 1, fptr);
+    printf("Flonum: %f\n", f->x);
+    val = (long)f | FLONUM_TAG;
+  } else if (type == CONS_TAG) {
+    auto c = (cons_s*)GC_malloc(sizeof(cons_s));
+    c->a = read_const(fptr);
+    c->b = read_const(fptr);
+    val = (long)c | CONS_TAG;
+  } else if (type == PTR_TAG) {
+    long ptrtype;
+    fread(&ptrtype, 8, 1, fptr);
+    if (ptrtype == STRING_TAG) {
+      long len;
+      fread(&len, 8, 1, fptr);
+      auto str = (string_s*)GC_malloc(16 + len + 1);
+      str->type = ptrtype;
+      str->len = len;
+      fread(&str->str, 1, len, fptr);
+      str->str[len] = '\0';
+      printf("String %s\n", str->str);
+      val = (long)str|PTR_TAG;
+    } else if (ptrtype == VECTOR_TAG) {
+      long len;
+      fread(&len, 8, 1, fptr);
+      auto v = (vector_s*)GC_malloc(16 + len*sizeof(long));
+      v->type = ptrtype;
+      v->len = len;
+      for(long i = 0; i < len; i++) {
+	v->v[i] = read_const(fptr);
+      }
+      val = (long)v | PTR_TAG;
+    } else {
+      printf("Unknown boxed type:%lx\\n", ptrtype);
+      exit(-1);
+    }
+  } else {
+    printf("Unknown deserialize tag %lx\n", val);
+    exit(-1);
+  }
+  return val;
+}
+
 void readbc() {
   std::vector<std::string> symbols;
 
@@ -35,44 +93,7 @@ void readbc() {
   printf("constsize %i \n", const_count);
   const_table = (long*)GC_malloc(const_count * sizeof(long));
   for (unsigned j = 0; j < const_count; j++) {
-    if (fread(&const_table[j], 8, 1, fptr) != 1) {
-      printf("Error: Could not read consts\n");
-      exit(-1);
-    }
-    auto type = const_table[j] & 0x7;
-    if (type == 4) {
-      printf("symbol: %li\n", (const_table[j] - 4) / 8);
-    } else if (type == 7) {
-      printf("immediate %lx\n", const_table[j]);
-    } else if (type == FIXNUM_TAG){
-      printf("fixnum: %li\n", const_table[j] >> 3);
-    } else if (type == FLONUM_TAG) {
-      auto f = (flonum_s*)GC_malloc(sizeof(flonum_s));
-      assert(!((long)f&TAG_MASK));
-      fread(&f->x, 8, 1, fptr);
-      printf("Flonum: %f\n", f->x);
-      const_table[j] = (long)f | FLONUM_TAG;
-    } else if (type == PTR_TAG) {
-      long ptrtype;
-      fread(&ptrtype, 8, 1, fptr);
-      if (ptrtype == STRING_TAG) {
-	long len;
-	fread(&len, 8, 1, fptr);
-	auto str = (string_s*)GC_malloc(16 + len + 1);
-	str->type = ptrtype;
-	str->len = len;
-	fread(&str->str, 1, len, fptr);
-	str->str[len] = '\0';
-	printf("String %s\n", str->str);
-	const_table[j] = (long)str|PTR_TAG;
-      } else {
-	printf("Unknown boxed type:%lx\\n", ptrtype);
-	exit(-1);
-      }
-    } else {
-      printf("Unknown deserialize tag %lx\n", const_table[j]);
-      exit(-1);
-    }
+    const_table[j] = read_const(fptr);
   }
 
   // Read functions  

@@ -14,6 +14,16 @@ void print_obj(long obj) {
     if (ptrtype == STRING_TAG) {
       auto str = (string_s*)(obj-PTR_TAG);
       printf("%s\n", str->str);
+    } else if (ptrtype == VECTOR_TAG) {
+      auto v = (vector_s*)(obj-PTR_TAG);
+      printf("#(");
+      for(long i = 0; i < v->len; i++) {
+	if (i != 0) {
+	  printf(" ");
+	}
+	print_obj(v->v[i]);
+      }
+      printf(")");
     } else {
       printf("PTR:%lx", ptrtype);
     }
@@ -25,7 +35,19 @@ void print_obj(long obj) {
     break;
   }
   case CONS_TAG: {
-    printf("CONS");
+    auto c = (cons_s*)(obj-CONS_TAG);
+    printf("(");
+    while((c->b & TAG_MASK) == CONS_TAG) {
+      print_obj(c->a);
+      c = (cons_s*)(c->b - CONS_TAG);
+      printf(" ");
+    }
+    print_obj(c->a);
+    if (c->b != NIL_TAG) {
+      printf(" . ");
+      print_obj(c->b);
+    }
+    printf(")");
     break;
   }
   case SYMBOL_TAG: {

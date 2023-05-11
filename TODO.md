@@ -1,5 +1,6 @@
 # TODO list
 
+* rework symbol const
 * test direct threading?
 * types
 * allocs? for flonum

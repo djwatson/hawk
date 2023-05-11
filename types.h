@@ -44,4 +44,15 @@ struct symbol {
   unsigned long val;
 };
 
+struct vector_s {
+  long type;
+  long len;
+  long v[];
+};
+
+struct cons_s {
+  long a;
+  long b;
+};
+
 void print_obj(long obj);
