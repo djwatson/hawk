@@ -38,4 +38,10 @@ struct string_s {
   char str[];
 };
 
+
+struct symbol {
+  string_s* name;
+  unsigned long val;
+};
+
 void print_obj(long obj);

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 
 #include <gc/gc.h>
 
@@ -116,7 +117,16 @@ void readbc() {
     if ((c & 0x7) == 4) {
       std::string n(symbols[(c - 4) / 8]);
       if (symbol_table.find(n) == symbol_table.end()) {
-	symbol_table[n] = new symbol{n, UNDEFINED};
+	auto len = strlen(n.c_str());
+	auto str = (string_s*)GC_malloc(16 + 1 + len);
+	str->type = STRING_TAG;
+	str->len = len;
+	str->str[len] = '\0';
+	memcpy(str->str, &n[0], str->len);
+	auto sym = (symbol*)GC_malloc(sizeof(symbol));
+	sym->name = str;
+	sym->val = UNDEFINED_TAG;
+	symbol_table[n] = sym;
       }
       c = (unsigned long)symbol_table[n]|SYMBOL_TAG;
       printf("Link global %s %lx\n", n.c_str(), c);
@@ -128,7 +138,5 @@ void free_script() {
   for (auto &func : funcs) {
     delete func;
   }
-  for (auto &s : symbol_table) {
-    delete s.second;
-  }
+  // TODO symbol_table
 }

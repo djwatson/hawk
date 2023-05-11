@@ -4,8 +4,6 @@
 #include <unordered_map>
 #include <vector>
 
-#define UNDEFINED 27
-
 // clang-format off
 enum {
   FUNC=0,
@@ -49,9 +47,3 @@ extern long* const_table;
 struct bcfunc {
   std::vector<unsigned int> code;
 };
-
-struct symbol {
-  std::string name;
-  unsigned long val;
-};
-

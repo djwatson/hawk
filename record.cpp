@@ -99,7 +99,7 @@ void dump_trace(trace_s *trace) {
     }
     case ir_ins_op::GGET: {
       symbol *s = (symbol *)trace->consts[op.op1 - IR_CONST_BIAS];
-      printf("%s", s->name.c_str());
+      printf("%s", s->name->str);
       break;
     }
     case ir_ins_op::RET:

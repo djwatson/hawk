@@ -3,6 +3,7 @@
 #include "asm_x64.h"
 #include "assert.h"
 #include "bytecode.h"
+#include "types.h"
 
 #include <stdio.h>
 #include <stdlib.h>

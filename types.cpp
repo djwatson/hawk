@@ -29,7 +29,8 @@ void print_obj(long obj) {
     break;
   }
   case SYMBOL_TAG: {
-    printf("SYMBOL");
+    auto sym = (symbol*)(obj-SYMBOL_TAG);
+    printf("%s", sym->name->str);
     break;
   }
   case CLOSURE_TAG: {

@@ -5,6 +5,7 @@
 #include "asm_x64.h"
 // TODO only for runtime symbol
 #include "bytecode.h"
+#include "types.h"
 #include "jitdump.h"
 // only for tcache
 #include "record.h"

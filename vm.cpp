@@ -222,9 +222,9 @@ void INS_SUBVV(PARAMS) {
 void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
   unsigned char rb = instr;
 
-  symbol *gp = (symbol *)const_table[rb];
+  symbol *gp = (symbol *)(const_table[rb]-SYMBOL_TAG);
 
-  printf("FAIL undefined symbol: %s\n", gp->name.c_str());
+  printf("FAIL undefined symbol: %s\n", gp->name->str);
   return;
 }
 
@@ -233,7 +233,7 @@ void INS_GGET(PARAMS) {
   unsigned char rb = instr;
 
   symbol *gp = (symbol *)(const_table[rb]-SYMBOL_TAG);
-  if (unlikely(gp->val == UNDEFINED)) {
+  if (unlikely(gp->val == UNDEFINED_TAG)) {
     MUSTTAIL return UNDEFINED_SYMBOL_SLOWPATH(ARGS);
   }
   frame[ra] = gp->val;
