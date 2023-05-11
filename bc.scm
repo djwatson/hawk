@@ -345,13 +345,20 @@
 		   "memcpy(&ret, &x, 8);"
 		   "C_return(ret);"))
 
-  (define globals '())
+(define symbol-table '())
 (define (bc-write-const c p)
   (cond
    ((symbol? c)
-    (let ((pos (length globals)))
-      (push! globals c)
-      (write-u64 (+ (* pos 8) 4) p)))
+    (let ((pos (find-const symbol-table (- (length symbol-table) 1) c)))
+      (if pos
+	  (write-u64 (bitwise-ior symbol-tag (arithmetic-shift pos 3)) p)
+	  (let* ((pos (length symbol-table))
+		(str (symbol->string c))
+		(len (string-length str)))
+	    (push! symbol-table c)
+	    (write-u64 (bitwise-ior symbol-tag (arithmetic-shift pos 3)) p)
+	    (write-u64 len p)
+	    (display str p)))))
    ((flonum? c)
     (write-u64 flonum-tag p)
     (write-u64 (write-double c) p))
@@ -400,7 +407,6 @@
   (write-uint (length program) p)
   (for-each
    (lambda (bc)
-
      (write-uint (length (func-bc-code bc)) p)
      (for-each
       (lambda (c)
@@ -417,13 +423,6 @@
 	      (write-u8 (if (> (length c) 3) (fourth c) 0) p))))
       (func-bc-code bc)))
    program)
-  (write-uint (length globals) p)
-  (for-each
-   (lambda (c)
-     (define s (symbol->string c))
-     (write-uint (string-length s) p)
-     (display (symbol->string c) p))
-   (reverse! globals))
   (close-output-port p))
 
 ;;;;;;;;;;;;;;;;;; main

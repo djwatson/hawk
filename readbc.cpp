@@ -11,6 +11,7 @@
 
 std::unordered_map<std::string, symbol *> symbol_table;
 long* const_table;
+static std::vector<long> symbols; // TODO not a global
 
 long read_const(FILE* fptr) {
   long val;
@@ -21,6 +22,25 @@ long read_const(FILE* fptr) {
   auto type = val & 0x7;
   if (type == 4) {
     printf("symbol: %li\n", (val - 4) / 8);
+    unsigned long num = val >> 3;
+    if (num < symbols.size()) {
+      val = symbols[num];
+    } else {
+      // It's a new symbol
+      long len;
+      fread(&len, 8, 1, fptr);
+      auto str = (string_s*)GC_malloc(16 + 1 + len);
+      str->type = STRING_TAG;
+      str->len = len;
+      str->str[len] = '\0';
+      fread(str->str, 1, len, fptr);
+      auto sym = (symbol*)GC_malloc(sizeof(symbol));
+      sym->name =str;
+      sym->val = UNDEFINED_TAG;
+      symbol_table[std::string(str->str)] = sym;
+      val = (long)sym|SYMBOL_TAG;
+      symbols.push_back(val);
+    }
   } else if (type == 7) {
     printf("immediate %lx\n", val);
   } else if (type == FIXNUM_TAG){
@@ -71,7 +91,6 @@ long read_const(FILE* fptr) {
 }
 
 void readbc() {
-  std::vector<std::string> symbols;
 
   FILE *fptr;
   fptr = fopen("out.bc", "rb");
@@ -117,42 +136,8 @@ void readbc() {
     }
     funcs.push_back(f);
   }
-  unsigned int g_count;
-  fread(&g_count, 4, 1, fptr);
-  printf("GLobals: %i\n", g_count);
-  for (unsigned i = 0; i < g_count; i++) {
-    unsigned int len;
-    fread(&len, 4, 1, fptr);
-    std::string name;
-    name.resize(len + 1);
-    fread(&name[0], 1, len, fptr);
-    name[len] = '\0';
-    printf("Global: %s\n", name.c_str());
-    symbols.push_back(name);
-  }
 
   fclose(fptr);
-  // Link the symbols
-  for (unsigned i = 0; i < const_count; i++) {
-    auto&c = const_table[i];
-    if ((c & 0x7) == 4) {
-      std::string n(symbols[(c - 4) / 8]);
-      if (symbol_table.find(n) == symbol_table.end()) {
-	auto len = strlen(n.c_str());
-	auto str = (string_s*)GC_malloc(16 + 1 + len);
-	str->type = STRING_TAG;
-	str->len = len;
-	str->str[len] = '\0';
-	memcpy(str->str, &n[0], str->len);
-	auto sym = (symbol*)GC_malloc(sizeof(symbol));
-	sym->name = str;
-	sym->val = UNDEFINED_TAG;
-	symbol_table[n] = sym;
-      }
-      c = (unsigned long)symbol_table[n]|SYMBOL_TAG;
-      printf("Link global %s %lx\n", n.c_str(), c);
-    }
-  }
 }
 
 void free_script() {
