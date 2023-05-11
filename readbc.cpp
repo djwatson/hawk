@@ -1,8 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
+
+#include <gc/gc.h>
 
 #include "bytecode.h"
 #include "vm.h"
+#include "types.h"
 
 std::unordered_map<std::string, symbol *> symbol_table;
 long* const_table;
@@ -28,7 +32,7 @@ void readbc() {
   unsigned int const_count;
   fread(&const_count, 4, 1, fptr);
   printf("constsize %i \n", const_count);
-  const_table = (long*)malloc(const_count * sizeof(long));
+  const_table = (long*)GC_malloc(const_count * sizeof(long));
   for (unsigned j = 0; j < const_count; j++) {
     if (fread(&const_table[j], 8, 1, fptr) != 1) {
       printf("Error: Could not read consts\n");
@@ -39,8 +43,14 @@ void readbc() {
       printf("symbol: %li\n", (const_table[j] - 4) / 8);
     } else if (type == 7) {
       printf("immediate %lx\n", const_table[j]);
-    } else if (type == 0){
+    } else if (type == FIXNUM_TAG){
       printf("fixnum: %li\n", const_table[j] >> 3);
+    } else if (type == FLONUM_TAG) {
+      auto f = (flonum_s*)GC_malloc(sizeof(flonum_s));
+      assert(!((long)f&TAG_MASK));
+      fread(&f->x, 8, 1, fptr);
+      printf("Flonum: %f\n", f->x);
+      const_table[j] = (long)f | FLONUM_TAG;
     }
   }
 
@@ -81,7 +91,7 @@ void readbc() {
 
   fclose(fptr);
   // Link the symbols
-  for (int i = 0; i < const_count; i++) {
+  for (unsigned i = 0; i < const_count; i++) {
     auto&c = const_table[i];
     if ((c & 0x7) == 4) {
       std::string n(symbols[(c - 4) / 8]);

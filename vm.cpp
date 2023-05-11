@@ -6,6 +6,7 @@
 #include "record.h"
 #include "replay.h"
 #include "vm.h"
+#include "types.h"
 
 int joff = 0;
 
@@ -122,7 +123,9 @@ void INS_RET1(PARAMS) {
 void INS_HALT(PARAMS) {
   DEBUG("HALT");
 
-  printf("Result:%li\n", frame[ra] >> 3);
+  printf("Result:");
+  print_obj(frame[ra]);
+  printf("\n:");
   return;
 }
 

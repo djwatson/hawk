@@ -78,7 +78,7 @@
   ;; TODO save len
   (when cd
     (finish bc cd rd)
-    (if (and  (number? f) (< (abs f) 65535))
+    (if (and  (fixnum? f) (< (abs f) 65535))
 	(push! (func-bc-code bc) (list 'KSHORT rd f))
 	(let ((c (get-or-push-const bc f)))
 	  (push! (func-bc-code bc) (list 'KONST rd c))))))
@@ -337,6 +337,15 @@
   (write-u8 (remainder v 256) p)
   (write-u8 (remainder (quotient v 256) 256) p))
 
+(import (chicken foreign))
+
+(define write-double
+  (foreign-lambda* long ((double x))
+		   "long ret;"
+		   "memcpy(&ret, &x, 8);"
+		   "C_return(ret);"))
+
+
 (define (bc-write name program)
   (define p (open-output-file name))
   (define globals '())
@@ -356,7 +365,10 @@
        (let ((pos (length globals)))
 	 (push! globals c)
 	 (write-u64 (+ (* pos 8) 4) p)))
-      ((integer? c)
+      ((flonum? c)
+       (write-u64 flonum-tag p)
+       (write-u64 (write-double c) p))
+      ((and  (fixnum? c) (< c #x8000000000000000) (> c (- #x8000000000000000)))
        (write-u64 (* 8 c) p))
       ((boolean? c)
        (write-u64 (if c true-rep false-rep) p))
