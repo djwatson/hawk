@@ -1,19 +1,19 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <string.h>
 
 #include <gc/gc.h>
 
 #include "bytecode.h"
-#include "vm.h"
 #include "types.h"
+#include "vm.h"
 
 std::unordered_map<std::string, symbol *> symbol_table;
-long* const_table;
+long *const_table;
 static std::vector<long> symbols; // TODO not a global
 
-long read_const(FILE* fptr) {
+long read_const(FILE *fptr) {
   long val;
   if (fread(&val, 8, 1, fptr) != 1) {
     printf("Error: Could not read consts\n");
@@ -29,30 +29,30 @@ long read_const(FILE* fptr) {
       // It's a new symbol
       long len;
       fread(&len, 8, 1, fptr);
-      auto str = (string_s*)GC_malloc(16 + 1 + len);
+      auto str = (string_s *)GC_malloc(16 + 1 + len);
       str->type = STRING_TAG;
       str->len = len;
       str->str[len] = '\0';
       fread(str->str, 1, len, fptr);
-      auto sym = (symbol*)GC_malloc(sizeof(symbol));
-      sym->name =str;
+      auto sym = (symbol *)GC_malloc(sizeof(symbol));
+      sym->name = str;
       sym->val = UNDEFINED_TAG;
       symbol_table[std::string(str->str)] = sym;
-      val = (long)sym|SYMBOL_TAG;
+      val = (long)sym | SYMBOL_TAG;
       symbols.push_back(val);
     }
   } else if (type == 7) {
     printf("immediate %lx\n", val);
-  } else if (type == FIXNUM_TAG){
+  } else if (type == FIXNUM_TAG) {
     printf("fixnum: %li\n", val >> 3);
   } else if (type == FLONUM_TAG) {
-    auto f = (flonum_s*)GC_malloc(sizeof(flonum_s));
-    assert(!((long)f&TAG_MASK));
+    auto f = (flonum_s *)GC_malloc(sizeof(flonum_s));
+    assert(!((long)f & TAG_MASK));
     fread(&f->x, 8, 1, fptr);
     printf("Flonum: %f\n", f->x);
     val = (long)f | FLONUM_TAG;
   } else if (type == CONS_TAG) {
-    auto c = (cons_s*)GC_malloc(sizeof(cons_s));
+    auto c = (cons_s *)GC_malloc(sizeof(cons_s));
     c->a = read_const(fptr);
     c->b = read_const(fptr);
     val = (long)c | CONS_TAG;
@@ -62,21 +62,21 @@ long read_const(FILE* fptr) {
     if (ptrtype == STRING_TAG) {
       long len;
       fread(&len, 8, 1, fptr);
-      auto str = (string_s*)GC_malloc(16 + len + 1);
+      auto str = (string_s *)GC_malloc(16 + len + 1);
       str->type = ptrtype;
       str->len = len;
       fread(&str->str, 1, len, fptr);
       str->str[len] = '\0';
       printf("String %s\n", str->str);
-      val = (long)str|PTR_TAG;
+      val = (long)str | PTR_TAG;
     } else if (ptrtype == VECTOR_TAG) {
       long len;
       fread(&len, 8, 1, fptr);
-      auto v = (vector_s*)GC_malloc(16 + len*sizeof(long));
+      auto v = (vector_s *)GC_malloc(16 + len * sizeof(long));
       v->type = ptrtype;
       v->len = len;
-      for(long i = 0; i < len; i++) {
-	v->v[i] = read_const(fptr);
+      for (long i = 0; i < len; i++) {
+        v->v[i] = read_const(fptr);
       }
       val = (long)v | PTR_TAG;
     } else {
@@ -110,12 +110,12 @@ void readbc() {
   unsigned int const_count;
   fread(&const_count, 4, 1, fptr);
   printf("constsize %i \n", const_count);
-  const_table = (long*)GC_malloc(const_count * sizeof(long));
+  const_table = (long *)GC_malloc(const_count * sizeof(long));
   for (unsigned j = 0; j < const_count; j++) {
     const_table[j] = read_const(fptr);
   }
 
-  // Read functions  
+  // Read functions
   unsigned int bccount;
   fread(&bccount, 4, 1, fptr);
   for (unsigned i = 0; i < bccount; i++) {

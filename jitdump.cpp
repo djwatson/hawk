@@ -4,10 +4,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <assert.h>
+#include <stddef.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <stddef.h>
-#include <assert.h>
 
 #include <elf.h>
 #include <stdio.h>
@@ -129,17 +129,16 @@ struct GDBElfImage {
   uint8_t data[4096];
 };
 
-void build_elf(uint64_t code, int code_sz, GDBElfImage* image, int num);
+void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num);
 void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, std::string name) {
   auto jitcode = new struct jit_code_entry();
   auto image = new GDBElfImage;
   build_elf(fn, len, image, cnt);
-  
 
-  //auto entry = new gdb_code_entry;
-  // entry->fn = fn;
-  // entry->len = len;
-  //sprintf(entry->funcname, "Function_%s_%i_%i_%lx", name.c_str(), cnt, i, p);
+  // auto entry = new gdb_code_entry;
+  //  entry->fn = fn;
+  //  entry->len = len;
+  // sprintf(entry->funcname, "Function_%s_%i_%i_%lx", name.c_str(), cnt, i, p);
   jitcode->symfile_addr = image;
   jitcode->symfile_size = sizeof(GDBElfImage);
   jitcode->next_entry = nullptr;
@@ -166,11 +165,10 @@ void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, std::string name) {
 #include <elf.h>
 #include <vector>
 
+// Sections text, strtab, symtab, debug info, debug_abbrev, debug_line,
+// debug_str (only nash), shstrtab, eh_frame (only lj) symbols file, func
 
-// Sections text, strtab, symtab, debug info, debug_abbrev, debug_line, debug_str (only nash), shstrtab, eh_frame (only lj)
-// symbols file, func
-
-long write_buf(long& offset, uint8_t* data, void* obj, long len) {
+long write_buf(long &offset, uint8_t *data, void *obj, long len) {
   auto start_offset = offset;
   assert(offset + len < 4096);
   memcpy(&data[offset], obj, len);
@@ -178,24 +176,33 @@ long write_buf(long& offset, uint8_t* data, void* obj, long len) {
   return start_offset;
 }
 
-long write_strz(long& offset, uint8_t* data, const char* obj) {
+long write_strz(long &offset, uint8_t *data, const char *obj) {
   auto len = strlen(obj) + 1; // null terminated
-  return write_buf(offset, data, (void*)obj, len);
+  return write_buf(offset, data, (void *)obj, len);
 }
 
-#define DW_CIE_VERSION	1
+#define DW_CIE_VERSION 1
 enum {
   /* Yes, the order is strange, but correct. */
-  DW_REG_AX, DW_REG_DX, DW_REG_CX, DW_REG_BX,
-  DW_REG_SI, DW_REG_DI, DW_REG_BP, DW_REG_SP,
-  DW_REG_8, DW_REG_9, DW_REG_10, DW_REG_11,
-  DW_REG_12, DW_REG_13, DW_REG_14, DW_REG_15,
+  DW_REG_AX,
+  DW_REG_DX,
+  DW_REG_CX,
+  DW_REG_BX,
+  DW_REG_SI,
+  DW_REG_DI,
+  DW_REG_BP,
+  DW_REG_SP,
+  DW_REG_8,
+  DW_REG_9,
+  DW_REG_10,
+  DW_REG_11,
+  DW_REG_12,
+  DW_REG_13,
+  DW_REG_14,
+  DW_REG_15,
   DW_REG_RA,
 };
-enum {
-  DW_EH_PE_udata4 = 3,
-  DW_EH_PE_textrel = 0x20
-};
+enum { DW_EH_PE_udata4 = 3, DW_EH_PE_textrel = 0x20 };
 enum {
   DW_CFA_nop = 0x0,
   DW_CFA_offset_extended = 0x5,
@@ -207,43 +214,42 @@ enum {
   DW_CFA_offset = 0x80
 };
 
-void uleb128(long& offset, uint8_t* buffer, uint32_t v)
-{
+void uleb128(long &offset, uint8_t *buffer, uint32_t v) {
   for (; v >= 0x80; v >>= 7) {
     buffer[offset++] = (uint8_t)((v & 0x7f) | 0x80);
   }
   buffer[offset++] = (uint8_t)v;
 }
 
-void sleb128(long& offset, uint8_t* buffer, uint32_t v)
-{
-  for (; (uint32_t)(v+0x40) >= 0x80; v >>= 7) {
+void sleb128(long &offset, uint8_t *buffer, uint32_t v) {
+  for (; (uint32_t)(v + 0x40) >= 0x80; v >>= 7) {
     buffer[offset++] = (uint8_t)((v & 0x7f) | 0x80);
   }
-  buffer[offset++] = (uint8_t)(v&0x7f);
+  buffer[offset++] = (uint8_t)(v & 0x7f);
 }
 
-void build_elf(uint64_t code, int code_sz, GDBElfImage* image, int num) {
+void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num) {
   memset(image, 0, sizeof(GDBElfImage));
 
   long offset = 0;
-  
+
   image->hdr = {
-    .e_ident= {ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3, ELFCLASS64, ELFDATA2LSB, 1 /*version */, ELFOSABI_SYSV,
-      0 /* ABI VERSION */, 0, 0, 0, 0, 0, 0, 0},
-    .e_type = ET_REL,
-    .e_machine =EM_X86_64,
-    .e_version = EV_CURRENT,
-    .e_entry = 0,
-    .e_phoff = 0,
-    .e_shoff = sizeof(Elf64_Ehdr),
-    .e_flags = 0,
-    .e_ehsize = sizeof(Elf64_Ehdr),
-    .e_phentsize = 0,
-    .e_phnum = 0,
-    .e_shentsize = sizeof(Elf64_Shdr),
-    .e_shnum = 6,
-    .e_shstrndx = 1,
+      .e_ident = {ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3, ELFCLASS64, ELFDATA2LSB,
+                  1 /*version */, ELFOSABI_SYSV, 0 /* ABI VERSION */, 0, 0, 0,
+                  0, 0, 0, 0},
+      .e_type = ET_REL,
+      .e_machine = EM_X86_64,
+      .e_version = EV_CURRENT,
+      .e_entry = 0,
+      .e_phoff = 0,
+      .e_shoff = sizeof(Elf64_Ehdr),
+      .e_flags = 0,
+      .e_ehsize = sizeof(Elf64_Ehdr),
+      .e_phentsize = 0,
+      .e_phnum = 0,
+      .e_shentsize = sizeof(Elf64_Shdr),
+      .e_shnum = 6,
+      .e_shstrndx = 1,
   };
   offset += sizeof(image->hdr);
 
@@ -264,19 +270,19 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage* image, int num) {
   text_hdr->sh_size = code_sz;
   text_hdr->sh_offset = 0;
   text_hdr->sh_type = SHT_NOBITS;
-  text_hdr->sh_addralign=16;
-  
+  text_hdr->sh_addralign = 16;
+
   auto str_hdr = &image->hdrs[3];
   str_hdr->sh_name = write_strz(offset, image->data, ".strtab");
   str_hdr->sh_type = SHT_STRTAB;
-  str_hdr->sh_addralign=1;
+  str_hdr->sh_addralign = 1;
 
   auto sym_hdr = &image->hdrs[4];
   sym_hdr->sh_name = write_strz(offset, image->data, ".symtab");
   sym_hdr->sh_type = SHT_SYMTAB;
-  sym_hdr->sh_addralign=sizeof(void*);
+  sym_hdr->sh_addralign = sizeof(void *);
   sym_hdr->sh_offset = offsetof(GDBElfImage, syms);
-  sym_hdr->sh_size = sizeof(Elf64_Sym)*3;
+  sym_hdr->sh_size = sizeof(Elf64_Sym) * 3;
   sym_hdr->sh_link = 3; // link to strtab
   sym_hdr->sh_entsize = sizeof(Elf64_Sym);
   sym_hdr->sh_info = 2; // sym_func
@@ -284,7 +290,7 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage* image, int num) {
   auto ehframe_hdr = &image->hdrs[5];
   ehframe_hdr->sh_name = write_strz(offset, image->data, ".eh_frame");
   ehframe_hdr->sh_type = SHT_PROGBITS;
-  ehframe_hdr->sh_addralign=1;
+  ehframe_hdr->sh_addralign = 1;
   ehframe_hdr->sh_flags = SHF_ALLOC;
 
   shstrtab_hdr->sh_size = offset;
@@ -307,7 +313,7 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage* image, int num) {
   funcsym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_FUNC);
   funcsym->st_value = 0;
   funcsym->st_size = code_sz;
-  
+
   str_hdr->sh_size = offset - start_offset;
 
   // write ehframe
@@ -316,50 +322,48 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage* image, int num) {
   auto buffer = &image->data[0];
   ehframe_hdr->sh_offset = offsetof(GDBElfImage, data) + start_offset;
 //   //////////////////////
-#define DB(x)		(buffer[offset] = (x), offset++)
-#define DU16(x)		(*(uint16_t *)&buffer[offset] = (x), offset += 2)
-#define DU32(x)		(*(uint32_t *)&buffer[offset] = (x), offset += 4)
-#define DUV(x)		(uleb128(offset, buffer, (x)))
-#define DSV(x)		(sleb128(offset, buffer, (x)))
-#define DSTR(str)	(write_strz(offset, (uint8_t*)buffer, (str)))
- #define DALIGNNOP(s)	while ((uintptr_t)offset & ((s)-1)) buffer[offset++] = DW_CFA_nop
-#define DSECT(name, stmt) \
-   { uint32_t *szp_##name = (uint32_t *)&buffer[offset]; offset += 4; stmt \
-     *szp_##name = (uint32_t)((&buffer[offset]-(uint8_t *)szp_##name)-4); } 
+#define DB(x) (buffer[offset] = (x), offset++)
+#define DU16(x) (*(uint16_t *)&buffer[offset] = (x), offset += 2)
+#define DU32(x) (*(uint32_t *)&buffer[offset] = (x), offset += 4)
+#define DUV(x) (uleb128(offset, buffer, (x)))
+#define DSV(x) (sleb128(offset, buffer, (x)))
+#define DSTR(str) (write_strz(offset, (uint8_t *)buffer, (str)))
+#define DALIGNNOP(s)                                                           \
+  while ((uintptr_t)offset & ((s)-1))                                          \
+  buffer[offset++] = DW_CFA_nop
+#define DSECT(name, stmt)                                                      \
+  {                                                                            \
+    uint32_t *szp_##name = (uint32_t *)&buffer[offset];                        \
+    offset += 4;                                                               \
+    stmt *szp_##name =                                                         \
+        (uint32_t)((&buffer[offset] - (uint8_t *)szp_##name) - 4);             \
+  }
 
-//   /* Emit DWARF EH CIE. */
+  //   /* Emit DWARF EH CIE. */
   long cie_offset = offset;
-  DSECT(CIE,
-    DU32(0);			/* Offset to CIE itself. */
-    DB(DW_CIE_VERSION);
-    DSTR("zR");			/* Augmentation. */
-    DUV(1);			/* Code alignment factor. */
-    DSV(-(int32_t)sizeof(uintptr_t));  /* Data alignment factor. */
-    DB(DW_REG_RA);		/* Return address register. */
-    DB(1); DB(DW_EH_PE_textrel|DW_EH_PE_udata4);  /* Augmentation data. */
-    DB(DW_CFA_def_cfa); DUV(DW_REG_SP); DUV(sizeof(uintptr_t));
-    DB(DW_CFA_offset|DW_REG_RA); DUV(1);
-    DALIGNNOP(sizeof(uintptr_t));
-  )
+  DSECT(CIE, DU32(0);                     /* Offset to CIE itself. */
+        DB(DW_CIE_VERSION); DSTR("zR");   /* Augmentation. */
+        DUV(1);                           /* Code alignment factor. */
+        DSV(-(int32_t)sizeof(uintptr_t)); /* Data alignment factor. */
+        DB(DW_REG_RA);                    /* Return address register. */
+        DB(1); DB(DW_EH_PE_textrel | DW_EH_PE_udata4); /* Augmentation data. */
+        DB(DW_CFA_def_cfa); DUV(DW_REG_SP); DUV(sizeof(uintptr_t));
+        DB(DW_CFA_offset | DW_REG_RA); DUV(1); DALIGNNOP(sizeof(uintptr_t));)
 
-//   /* Emit DWARF EH FDE. */
-  DSECT(FDE,
-    DU32((uint32_t)(offset - cie_offset));	/* Offset to CIE. */
-    DU32(0);			/* Machine code offset relative to .text. */
-    DU32(code);		/* Machine code length. */
-    DB(0);			/* Augmentation data. */
-    /* Registers saved in CFRAME. */
+  //   /* Emit DWARF EH FDE. */
+  DSECT(FDE, DU32((uint32_t)(offset - cie_offset)); /* Offset to CIE. */
+        DU32(0);    /* Machine code offset relative to .text. */
+        DU32(code); /* Machine code length. */
+        DB(0);      /* Augmentation data. */
+        /* Registers saved in CFRAME. */
 
-    DB(DW_CFA_def_cfa_offset); DUV(16);
-    DB(DW_CFA_offset|DW_REG_BP); DUV(2);
-    DB(DW_CFA_def_cfa_register); DUV(DW_REG_BP);
-    DALIGNNOP(sizeof(uintptr_t));
-  )
+        DB(DW_CFA_def_cfa_offset); DUV(16); DB(DW_CFA_offset | DW_REG_BP);
+        DUV(2); DB(DW_CFA_def_cfa_register); DUV(DW_REG_BP);
+        DALIGNNOP(sizeof(uintptr_t));)
   ///////////
   ehframe_hdr->sh_size = offset - start_offset;
 
   // Note this breaks perf record inject for some reason?
-  // fd = open("elfout", O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR);
-  // write(fd, image, sizeof(GDBElfImage));
-  // close(fd);
+  // fd = open("elfout", O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR |
+  // S_IWUSR); write(fd, image, sizeof(GDBElfImage)); close(fd);
 }

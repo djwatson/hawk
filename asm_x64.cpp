@@ -5,8 +5,8 @@
 #include "asm_x64.h"
 // TODO only for runtime symbol
 #include "bytecode.h"
-#include "types.h"
 #include "jitdump.h"
+#include "types.h"
 // only for tcache
 #include "record.h"
 
@@ -293,8 +293,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
           assert(false);
         }
       } else {
-	auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
-	a.sub(reg, reg2);
+        auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
+        a.sub(reg, reg2);
       }
       a.jo(snap_labels[cur_snap]);
       break;
@@ -357,12 +357,12 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
       // beware of colision with one of the other regs
       auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
       if (op.op2 & IR_CONST_BIAS) {
-	long v = trace->consts[op.op2 - IR_CONST_BIAS];
-	assert(v < 32000);
-	a.cmp(reg1, v);
+        long v = trace->consts[op.op2 - IR_CONST_BIAS];
+        assert(v < 32000);
+        a.cmp(reg1, v);
       } else {
-	auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
-	a.cmp(reg1, reg2);
+        auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
+        a.cmp(reg1, reg2);
       }
       // Zero the reg without touching flags.
       // Note reg may be the same as reg1 or reg2,

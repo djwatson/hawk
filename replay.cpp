@@ -51,7 +51,7 @@ snap_s *find_snap_for_pc(unsigned int pc, trace_s *trace) {
 extern long *stack;
 extern unsigned int stacksz;
 __attribute__((noinline)) void EXPAND_STACK_SLOWPATH() {
-  //TODO
+  // TODO
 }
 void snap_restore(std::vector<long> &res, unsigned int **o_pc, long **o_frame,
                   snap_s *snap, trace_s *trace) {
@@ -92,7 +92,8 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
 again:
   auto trace = trace_cache_get(tnum);
   printf("Run trace %i\n", tnum);
-  printf("Frame %li %li %li\n", (*o_frame)[0] >> 3, (*o_frame)[1] >> 3, (*o_frame)[1] >> 3);
+  printf("Frame %li %li %li\n", (*o_frame)[0] >> 3, (*o_frame)[1] >> 3,
+         (*o_frame)[1] >> 3);
 
   unsigned int pc = 0;
   std::vector<long> res;
@@ -103,7 +104,8 @@ again:
   while (pc < trace->ops.size()) {
     auto &ins = trace->ops[pc];
     printf("Replay pc %i %s %i %i\n", pc, ir_names[(int)ins.op], ins.op1,
-    ins.op2); for(int i = 0; i < pc; i++) {
+           ins.op2);
+    for (int i = 0; i < pc; i++) {
       printf("%i: %lx ", i, res[i]);
     }
     printf("\n");

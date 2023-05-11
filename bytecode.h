@@ -35,7 +35,7 @@ enum {
 // clang-format on
 
 extern const char *ins_names[];
-extern long* const_table;
+extern long *const_table;
 
 #define CODE(i, a, b, c) ((c << 24) | (b << 16) | (a << 8) | i)
 #define INS_OP(i) (i & 0xff)

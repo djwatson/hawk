@@ -10,7 +10,8 @@
 #define TAG_MASK 0x7
 
 // Object tags, use PTR_TAG on ptr, and OBJ_TAG in object itself as first field.
-// Bottom three bits are '001' so it is also recognized as a PTR using the same tag.
+// Bottom three bits are '001' so it is also recognized as a PTR using the same
+// tag.
 #define STRING_TAG 0x9
 #define VECTOR_TAG 0x11
 #define PORT_TAG 0x19
@@ -38,9 +39,8 @@ struct string_s {
   char str[];
 };
 
-
 struct symbol {
-  string_s* name;
+  string_s *name;
   unsigned long val;
 };
 

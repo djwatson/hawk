@@ -6,8 +6,8 @@
 #include "ir.h"
 #include "record.h"
 #include "snap.h"
-#include "vm.h"
 #include "types.h"
+#include "vm.h"
 
 unsigned int *pc_start;
 unsigned int instr_count;
@@ -109,8 +109,7 @@ void dump_trace(trace_s *trace) {
     case ir_ins_op::NE:
     case ir_ins_op::GE:
     case ir_ins_op::LT:
-    case ir_ins_op::CLT:
-      {
+    case ir_ins_op::CLT: {
       print_const_or_val(op.op1, trace);
       printf(" ");
       print_const_or_val(op.op2, trace);
@@ -152,7 +151,7 @@ void record_start(unsigned int *pc, long *frame) {
     snap_replay(&regs, side_exit, parent, trace, frame, &depth);
   }
   add_snap(regs_list, regs - regs_list - 1, trace,
-           INS_OP(*pc) == FUNC ? pc+1 : pc);
+           INS_OP(*pc) == FUNC ? pc + 1 : pc);
 }
 
 extern int joff;
@@ -259,8 +258,8 @@ int record_instr(unsigned int *pc, long *frame) {
   for (int j = 0; j < depth; j++) {
     printf(" . ");
   }
-  printf("%lx %s %i %i %i\n", pc, ins_names[INS_OP(i)],
-         INS_A(i), INS_B(i), INS_C(i));
+  printf("%lx %s %i %i %i\n", pc, ins_names[INS_OP(i)], INS_A(i), INS_B(i),
+         INS_C(i));
   switch (INS_OP(i)) {
   case FUNC: {
     // TODO: argcheck?
@@ -363,13 +362,13 @@ int record_instr(unsigned int *pc, long *frame) {
     }
     long cnt = 0;
     auto f = frame;
-    auto p_pc = (uint32_t*)frame[-1];
+    auto p_pc = (uint32_t *)frame[-1];
     for (int d = depth; d > 0; d--) {
-      if (p_pc == pc+1) {
+      if (p_pc == pc + 1) {
         cnt++;
       }
-      f = frame - (INS_A(*(p_pc-1)) + 1);
-      p_pc = (uint32_t*)frame[-1];
+      f = frame - (INS_A(*(p_pc - 1)) + 1);
+      p_pc = (uint32_t *)frame[-1];
     }
 
     // Setup frame
@@ -384,14 +383,14 @@ int record_instr(unsigned int *pc, long *frame) {
 
     if (cnt >= UNROLL_LIMIT) {
       auto v = frame[INS_A(i)];
-      auto func = (bcfunc*)(v-5);
+      auto func = (bcfunc *)(v - 5);
       auto target = &func->code[0];
       if (target == pc_start) {
         record_stop(pc, frame, traces.size());
         printf("Record stop up-recursion\n");
         return 1;
       } else {
-	// TODO fix flush
+        // TODO fix flush
         pendpatch();
         if (INS_OP(func->code[0]) == JFUNC) {
           printf("Flushing trace\n");
@@ -480,7 +479,7 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case GGET: {
-    long gp = (const_table[INS_B(i)]-SYMBOL_TAG);
+    long gp = (const_table[INS_B(i)] - SYMBOL_TAG);
     auto knum = trace->consts.size();
     trace->consts.push_back(gp);
     ir_ins ins;
@@ -567,7 +566,7 @@ int record_instr(unsigned int *pc, long *frame) {
     for (int j = INS_A(i); j < INS_A(i) + INS_B(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
-    memmove(&regs[0], &regs[INS_A(i)+1], sizeof(int) * (INS_B(i) - 1));
+    memmove(&regs[0], &regs[INS_A(i) + 1], sizeof(int) * (INS_B(i) - 1));
     for (int j = INS_B(i) - 1; j < 256; j++) {
       if (&regs[j] >= regs_list + 256) {
         break;
