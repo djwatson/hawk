@@ -232,7 +232,7 @@ void INS_GGET(PARAMS) {
   DEBUG("GGET");
   unsigned char rb = instr;
 
-  symbol *gp = (symbol *)const_table[rb];
+  symbol *gp = (symbol *)(const_table[rb]-SYMBOL_TAG);
   if (unlikely(gp->val == UNDEFINED)) {
     MUSTTAIL return UNDEFINED_SYMBOL_SLOWPATH(ARGS);
   }
@@ -246,7 +246,7 @@ void INS_GSET(PARAMS) {
   DEBUG("GSET");
   unsigned char rb = instr;
 
-  symbol *gp = (symbol *)const_table[ra];
+  symbol *gp = (symbol *)(const_table[ra]-SYMBOL_TAG);
   gp->val = frame[rb];
 
   pc++;

@@ -118,7 +118,7 @@ void readbc() {
       if (symbol_table.find(n) == symbol_table.end()) {
 	symbol_table[n] = new symbol{n, UNDEFINED};
       }
-      c = (unsigned long)symbol_table[n];
+      c = (unsigned long)symbol_table[n]|SYMBOL_TAG;
       printf("Link global %s %lx\n", n.c_str(), c);
     }
   }

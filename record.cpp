@@ -7,6 +7,7 @@
 #include "record.h"
 #include "snap.h"
 #include "vm.h"
+#include "types.h"
 
 unsigned int *pc_start;
 unsigned int instr_count;
@@ -479,7 +480,7 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case GGET: {
-    long gp = const_table[INS_B(i)];
+    long gp = (const_table[INS_B(i)]-SYMBOL_TAG);
     auto knum = trace->consts.size();
     trace->consts.push_back(gp);
     ir_ins ins;
