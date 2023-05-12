@@ -11,6 +11,11 @@
       (if (atom? l) #t
 	  (improper? (cdr l)))))
 
+(define (to-proper l)
+  (if (null? l) '()
+      (if (atom? l) (list l) 
+	  (cons (car l) (to-proper (cdr l))))))
+
 ;;(define (atom? e) (not (pair? e)))
 
 (define gensym-var 0)
@@ -49,7 +54,6 @@
 	(else (fold union '() (imap find-assigned f))))))
 (define (assignment-conversion c)
   (define (convert-assigned f assigned boxes)
-    (display (format "~a BOXES ~a\n" f boxes))
     (if (atom? f)
 	(if (assoc f boxes)
 	    `($unbox ,(cdr (assoc f boxes)))
@@ -63,7 +67,7 @@
 			   (if (memq x assigned)
 			       (cons x (gensym x))
 			       #f))
-			 (second f)))
+			 (to-proper (second f))))
 		 (boxes (append new-boxes boxes)))
 	     (if (null? new-boxes)
 		 `(lambda ,(second f)
@@ -161,7 +165,7 @@
 	  ((letrec))
 	  ((lambda)
 	   (let* (
-		  (new-bindings (union (second f) bindings))
+		  (new-bindings (union (to-proper (second f)) bindings))
 		  (body (cc (cddr f) new-bindings))
 		  (free-vars (find-free body bindings))
 		  (free-bind (map cons free-vars (iota (length free-vars))))

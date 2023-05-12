@@ -149,16 +149,24 @@
   (finish bc cd rd)
   (push! (func-bc-code bc) (list 'KFUNC rd f-id)))
 
+(define (ilength l)
+  (if (null? l) 0
+      (if (atom? l) 1
+	  (+ 1 (ilength (cdr l))))))
+
 (define (compile-lambda-internal f f-bc env)
-  (define r (length (second f)))
+  (define r (ilength (second f)))
+  (define rest (improper? (second f)))
   (display (format "Lambda: ~a\n" f))
   (fold (lambda (n num)
 	  (push! env (cons n num))
 	  (+ num 1))
 	0
-	(second f))
+	(to-proper (second f)))
   (compile-sexps (cddr f) f-bc env r 'ret)
-  (push! (func-bc-code f-bc) (list 'FUNC r)))
+  (push! (func-bc-code f-bc)
+	 (if rest (list 'FUNC (- r 1) 1)
+	     (list 'FUNC r 0))))
 
 (define (exp-loc f env rd)
   (if (symbol? f)
@@ -291,7 +299,7 @@
   (push! program bc)
   (display (format "Compile: ~a \n" d))
   (compile-sexps d bc '() 0 'ret)
-  (push! (func-bc-code bc) (list 'FUNC 0)))
+  (push! (func-bc-code bc) (list 'FUNC 0 0)))
 
 ;;;;;;;;;;;;;expander
 (define (read-file)
