@@ -32,6 +32,8 @@ enum {
   JFUNC,
   JLOOP,
   GUARD,
+  MULVV,
+  INS_MAX
 };
 // clang-format on
 

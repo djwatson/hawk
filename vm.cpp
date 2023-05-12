@@ -45,8 +45,8 @@ while being more portable and easier to change.
 //#define DEBUG(name)
 #define DEBUG(name) printf("%s ra %i rd %i %li %li %li %li\n", name, ra, instr, frame[0], frame[1], frame[2], frame[3]);
 typedef void (*op_func)(PARAMS);
-static op_func l_op_table[25];
-static op_func l_op_table_record[25];
+static op_func l_op_table[INS_MAX];
+static op_func l_op_table_record[INS_MAX];
 
 #define NEXT_INSTR                                                             \
   {                                                                            \
@@ -199,6 +199,31 @@ void INS_ADDVV(PARAMS) {
     auto f2 = (flonum_s*)(fc-FLONUM_TAG);
     auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
     r->x = f1->x + f2->x;
+    frame[ra] = (long)r|FLONUM_TAG;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  pc++;
+
+  NEXT_INSTR;
+}
+
+void INS_MULVV(PARAMS) {
+  DEBUG("MULVV");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  if (likely((7 & (fb | fc)) == 0)) {
+    if (unlikely(__builtin_mul_overflow(fb, (fc >> 3), &frame[ra]))) {
+      MUSTTAIL return FAIL_SLOWPATH(ARGS);
+    }
+  } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
+    auto f1 = (flonum_s*)(fb-FLONUM_TAG);
+    auto f2 = (flonum_s*)(fc-FLONUM_TAG);
+    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+    r->x = f1->x * f2->x;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -524,7 +549,7 @@ void run() {
   }
 
   // Setup instruction table.
-  for (int i = 0; i < 25; i++) {
+  for (int i = 0; i < INS_MAX; i++) {
     l_op_table[i] = INS_UNKNOWN;
   }
   l_op_table[0] = INS_FUNC;
@@ -551,8 +576,9 @@ void run() {
   l_op_table[22] = INS_JISLT;
   l_op_table[23] = INS_JFUNC;
   l_op_table[24] = INS_JFUNC; // JLOOP
-  l_op_table[25] = INS_GUARD; // JLOOP
-  for (int i = 0; i < 25; i++) {
+  l_op_table[25] = INS_GUARD; 
+  l_op_table[26] = INS_MULVV; 
+  for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }
 

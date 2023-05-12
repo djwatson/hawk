@@ -84,7 +84,7 @@
 	  (push! (func-bc-code bc) (list 'KONST rd c))))))
 
 (define (compile-binary f bc env rd cd)
-  (define vn '(- + guard))
+  (define vn '($- $+ $guard))
   (if (and (memq (first f) vn)
 	   (fixnum? (third f))
 	   (< (abs (third f)) 65535))
@@ -94,10 +94,11 @@
 (define (compile-binary-vv f bc env rd cd)
   (define op (second (if (branch-dest? cd)
 			 (assq (first f)
-			       '((< JISLT) (= JISEQ)))
+			       '(($< JISLT) ($= JISEQ)))
 			 (assq (first f)
-			       '((+ ADDVV) (- SUBVV) (< ISLT)
-				 (= ISEQ))))))
+			       '(($+ ADDVV) ($- SUBVV) ($< ISLT)
+				 ($* MULVV)
+				 ($= ISEQ))))))
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
@@ -110,8 +111,8 @@
 
 (define (compile-binary-vn f bc env rd cd)
   (define op (second (assq (first f)
-			   '((+ ADDVN) (- SUBVN)
-			     (guard GUARD)))))
+			   '(($+ ADDVN) ($- SUBVN)
+			     ($guard GUARD)))))
   (define r1 (exp-loc (second f) env rd))
   (when cd
     (finish bc cd rd)
@@ -257,7 +258,7 @@
 	((if) (compile-if f bc env rd cd))
 	((set!) (compile-set! f bc env rd cd))
 	((quote) (compile-self-evaluating (second f) bc rd cd))
-	((+ - < = guard) (compile-binary f bc env rd cd))
+	(($+ $* $- $< $= $guard) (compile-binary f bc env rd cd))
 	(else
 	 (if (and (pair? (car f)) (eq? 'lambda (caar f)))
 	     (compile-direct-call f bc env rd cd)
@@ -329,7 +330,8 @@
 	       (JISLT 22)
 	       (JFUNC 23)
 	       (JLOOP 24)
-	       (GUARD 25)))
+	       (GUARD 25)
+	       (MULVV 26)))
 
 (define bc-ins '(KSHORT))
 

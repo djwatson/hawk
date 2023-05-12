@@ -27,5 +27,6 @@ const char* ins_names[] = {
   "JFUNC",
   "JLOOP",
   "GUARD",
+  "MULVV",
 };
 // clang-format on
