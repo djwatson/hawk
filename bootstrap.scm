@@ -20,7 +20,4 @@
 ;;     (lambda (x) ($+ x x))))
 ;; (add4 6)
 
-((lambda (x)
-    (set! x 11)
-    x) 100)
-
+(letrec ((y 10) (x (lambda (x) x))) (x y))

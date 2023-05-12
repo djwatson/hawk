@@ -451,7 +451,8 @@
 
 (compile (optimize-direct
 	  (assignment-conversion
-	    (expander))))
+	   (fix-letrec
+	    (expander)))))
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors
 (set! consts (reverse! consts))

@@ -40,14 +40,14 @@
   (imap sexp c))
 
 (define (union a b) (lset-union eq? a b))
+(define (find-assigned f)
+  (if (atom? f)
+      '()
+      (case (car f)
+	((set!) (list (second f)))
+	((quote) '())
+	(else (fold union '() (imap find-assigned f))))))
 (define (assignment-conversion c)
-  (define (find-assigned f)
-    (if (atom? f)
-	'()
-	(case (car f)
-	  ((set!) (list (second f)))
-	  ((quote) '())
-	  (else (fold union '() (imap find-assigned f))))))
   (define (convert-assigned f assigned boxes)
     (display (format "~a BOXES ~a\n" f boxes))
     (if (atom? f)
@@ -92,3 +92,47 @@
   (define assigned (find-assigned c))
   (display (format "Assigned: ~a\n" assigned))
   (convert-assigned c assigned '()))
+
+;; TODO also case-lambda?
+(define (fix-letrec-specific sexp)
+  (define assigned (find-assigned sexp))
+  (let*
+      ((vars (map car (cadr sexp)))
+       (bindings (map fix-letrec (map cadr (cadr sexp))))
+       (body (fix-letrec (cddr sexp)))
+       (fixed (filter-map (lambda (v b)
+			    (if
+			     (and (pair? b) (eq? 'lambda (car b))
+				  (not (memq v assigned)))
+			     (list v b) #f))
+		   vars bindings))
+       (set (filter (lambda (v) (not (member v (map car fixed)))) vars))
+       (setters (filter-map (lambda (v b)
+			      (if
+			       (not (member v (map car fixed)))
+			       `(set! ,v ,b)
+			       #f)) vars bindings)))
+    (cond
+     ((and (pair? set) (pair? fixed))
+      `((lambda ,set
+	  (letrec ,fixed
+	    ,@setters
+	    ,@body
+	    )) ,@(map (lambda (unused) #f) set)))
+      ((pair? set)
+       `((lambda ,set
+	   ,@setters
+	   ,@body) ,@(map (lambda (unused) #f) set)))
+      ((pair? fixed)
+       `(letrec ,fixed
+	  ,@body))
+      (else #f))))
+
+(define (fix-letrec sexp)
+  (if (pair? sexp)
+      (case (car sexp)
+	((quote) sexp)
+	((letrec) (fix-letrec-specific sexp))
+	(else
+	 (imap fix-letrec sexp)))
+      sexp))
