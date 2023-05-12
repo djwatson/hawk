@@ -1,4 +1,4 @@
-;; These have to match memory_layout.scm and types.h.
+;; ;;These have to match memory_layout.scm and types.h.
 ;; (define (number? x) (or (fixnum? x) (flonum? x)))
 ;; (define (flonum? x) ($guard x 2))
 ;; (define (fixnum? x) ($guard x 0))
@@ -18,10 +18,15 @@
 ;; (define (not a) (if a #f #t))
 ;; (define (> a b) (not (or ($= a b) ($< a b))))
 
-(define x 2)
+;; (define (assv obj1 alist1)
+;;   (let loop ((obj obj1) (alist alist1))
+;;   (if (null? alist) #f
+;;       (if (eqv? (caar alist) obj) 
+;; 	  (car alist)
+;; 	  (loop obj (cdr alist))))))
 
-(set! x 4)
-x
 
-
-
+;; (cond ((assv 'b '((a 1) (b 2))) => cadr)
+;; 		     (else #f))
+(let loop ()
+  0)
