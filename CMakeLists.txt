@@ -48,5 +48,5 @@ add_custom_target(
 add_custom_command(
   OUTPUT  bc
   COMMAND csc bc.scm
-  DEPENDS bc.scm
+  DEPENDS bc.scm passes.scm
 )

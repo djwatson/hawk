@@ -14,6 +14,7 @@
 
 (include "third-party/alexpander.scm")
 (include "memory_layout.scm")
+(include "passes.scm")
 
 ;;;;;;;;;;;;;;;;; util
 (define-syntax inc!
@@ -169,14 +170,6 @@
       (let* ((c (get-or-push-const bc f)))
 	(push! (func-bc-code bc) (list 'GGET r c)))))
 
-(define (compile-direct-call f bc env rd cd)
-  ;; Change ((lambda ..) ...) to
-  ;; (let (...) ...)
-  (define params (second (first f)))
-  (define args (cdr f))
-  (define body (cddr (first f)))
-  (compile-sexp `(let ,(map list params args) ,@body) bc env rd cd))
-
 (define (compile-call f bc env rd cd)
   (finish bc cd rd)
   (push! (func-bc-code bc) (list (if (eq? cd 'ret) 'CALLT 'CALL) rd (length f)))
@@ -260,10 +253,7 @@
 	((quote) (compile-self-evaluating (second f) bc rd cd))
 	(($+ $* $- $< $= $guard) (compile-binary f bc env rd cd))
 	(else
-	 (if (and (pair? (car f)) (eq? 'lambda (caar f)))
-	     (compile-direct-call f bc env rd cd)
-	     (compile-call f bc env rd cd))))))
-
+	 (compile-call f bc env rd cd)))))
 
 (define (compile-sexps program bc env rd cd)
   (let loop ((program (reverse program)) (cd cd))
@@ -445,7 +435,11 @@
 
 ;;;;;;;;;;;;;;;;;; main
 
-(compile (expander))
+(display (assignment-conversion
+	  (optimize-direct
+	   (expander))))
+(newline)
+(exit 0)
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors
 (set! consts (reverse! consts))

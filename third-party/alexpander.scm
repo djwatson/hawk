@@ -1100,7 +1100,9 @@
   (define (finish outputs store loc-n)
     (define (finish1 output)
       ;; You can leave out the unrename-locals call if you want to.
-      (symbolize (unrename-locals output)))
+      ;;(symbolize (unrename-locals output))
+      (symbolize output)
+      )
     (k (map finish1 outputs) store loc-n))
   (expand-top-level-sexps (wrap-vecs forms) store loc-n finish))
 
