@@ -99,7 +99,8 @@
 			 (assq (first f)
 			       '(($+ ADDVV) ($- SUBVV) ($< ISLT)
 				 ($* MULVV)
-				 ($= ISEQ))))))
+				 ($= ISEQ)
+				 ($set-box! SET-BOX!))))))
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
@@ -118,6 +119,15 @@
   (when cd
     (finish bc cd rd)
     (push! (func-bc-code bc) (list op rd r1 (third f)))
+    (compile-sexp (second f) bc env r1 'next)))
+
+(define (compile-unary f bc env rd cd)
+  (define op (second (assq (first f)
+			   '(($box BOX) ($unbox UNBOX)))))
+  (define r1 (exp-loc (second f) env rd))
+  (when cd
+    (finish bc cd rd)
+    (push! (func-bc-code bc) (list op rd r1))
     (compile-sexp (second f) bc env r1 'next)))
 
 (define (compile-if f bc env rd cd)
@@ -251,7 +261,8 @@
 	((if) (compile-if f bc env rd cd))
 	((set!) (compile-set! f bc env rd cd))
 	((quote) (compile-self-evaluating (second f) bc rd cd))
-	(($+ $* $- $< $= $guard) (compile-binary f bc env rd cd))
+	(($+ $* $- $< $= $guard $set-box!) (compile-binary f bc env rd cd))
+	(($box $unbox) (compile-unary f bc env rd cd))
 	(else
 	 (compile-call f bc env rd cd)))))
 
@@ -321,7 +332,10 @@
 	       (JFUNC 23)
 	       (JLOOP 24)
 	       (GUARD 25)
-	       (MULVV 26)))
+	       (MULVV 26)
+	       (BOX 27)
+	       (UNBOX 28)
+	       (SET-BOX! 29)))
 
 (define bc-ins '(KSHORT))
 
@@ -345,13 +359,13 @@
   (write-u8 (remainder v 256) p)
   (write-u8 (remainder (quotient v 256) 256) p))
 
-(import (chicken foreign))
+;; (import (chicken foreign))
 
-(define write-double
-  (foreign-lambda* long ((double x))
-		   "long ret;"
-		   "memcpy(&ret, &x, 8);"
-		   "C_return(ret);"))
+;; (define write-double
+;;   (foreign-lambda* long ((double x))
+;; 		   "long ret;"
+;; 		   "memcpy(&ret, &x, 8);"
+;; 		   "C_return(ret);"))
 
 (define symbol-table '())
 (define (bc-write-const c p)
@@ -435,11 +449,9 @@
 
 ;;;;;;;;;;;;;;;;;; main
 
-(display (assignment-conversion
-	  (optimize-direct
-	   (expander))))
-(newline)
-(exit 0)
+(compile (optimize-direct
+	  (assignment-conversion
+	    (expander))))
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors
 (set! consts (reverse! consts))

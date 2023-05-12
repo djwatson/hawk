@@ -527,6 +527,50 @@ void INS_GUARD(PARAMS) {
 
   NEXT_INSTR;
 }
+
+void INS_BOX(PARAMS) {
+  DEBUG("BOX");
+  unsigned char rb = instr;
+
+  long fb = frame[rb];
+
+  auto box = (cons_s*)GC_malloc(sizeof(cons_s));
+  box->a = fb;
+  box->b = NIL_TAG;
+  frame[ra] = (long)box|PTR_TAG;
+  pc++;
+
+  NEXT_INSTR;
+}
+
+void INS_UNBOX(PARAMS) {
+  DEBUG("UNBOX");
+  unsigned char rb = instr;
+
+  long fb = frame[rb];
+  auto box = (cons_s*)(fb - PTR_TAG);
+  frame[ra] = box->a;
+  pc++;
+
+  NEXT_INSTR;
+}
+
+void INS_SET_BOX(PARAMS) {
+  DEBUG("SET-BOX!");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  long fb = frame[rb];
+  long fc = frame[rc];
+
+  auto box = (cons_s*)(fb - PTR_TAG);
+  box->a = fc;
+  frame[ra] = UNDEFINED_TAG;
+  pc++;
+
+  NEXT_INSTR;
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -578,6 +622,9 @@ void run() {
   l_op_table[24] = INS_JFUNC; // JLOOP
   l_op_table[25] = INS_GUARD; 
   l_op_table[26] = INS_MULVV; 
+  l_op_table[BOX] = INS_BOX; 
+  l_op_table[UNBOX] = INS_UNBOX; 
+  l_op_table[SET_BOX] = INS_SET_BOX; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

@@ -33,6 +33,9 @@ enum {
   JLOOP,
   GUARD,
   MULVV,
+  BOX,
+  UNBOX,
+  SET_BOX,
   INS_MAX
 };
 // clang-format on

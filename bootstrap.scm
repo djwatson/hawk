@@ -15,9 +15,12 @@
 ;; (define (- a b) ($- a b))
 ;; (define (* a b) ($* a b))
 
-(define add4
-  (let ((x 4))
-    (lambda (x) ($+ x x))))
-(add4 6)
+;; (define add4
+;;   (let ((x 4))
+;;     (lambda (x) ($+ x x))))
+;; (add4 6)
 
+((lambda (x)
+    (set! x 11)
+    x) 100)
 

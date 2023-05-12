@@ -28,5 +28,8 @@ const char* ins_names[] = {
   "JLOOP",
   "GUARD",
   "MULVV",
+  "BOX",
+  "UNBOX",
+  "SET-BOX!",
 };
 // clang-format on
