@@ -503,6 +503,7 @@ void INS_ISEQ(PARAMS) {
   } else {
     frame[ra] = FALSE_REP;
   }
+  pc++;
 
   NEXT_INSTR;
 }

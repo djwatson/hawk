@@ -1,5 +1,6 @@
 # TODO list
 
+* TODO > , GSET check
 * get stores/loads, case-lambda all working
 * get rest of r5rs working
 

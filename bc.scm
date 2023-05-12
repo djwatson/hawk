@@ -280,7 +280,7 @@
 	((lambda) (compile-lambda f bc rd cd))
 	((begin) (compile-sexps (cdr f) bc env rd cd))
 	((if) (compile-if f bc env rd cd))
-	((set!) (compile-set! f bc env rd cd))
+	((set!) (compile-define f bc env rd cd)) ;; TODO check?
 	((quote) (compile-self-evaluating (second f) bc rd cd))
 	(($+ $* $- $< $= $guard $set-box! $closure-get) (compile-binary f bc env rd cd))
 	(($closure) (compile-closure f bc env rd cd))

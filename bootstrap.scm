@@ -1,4 +1,4 @@
-;; ;; These have to match memory_layout.scm and types.h.
+;; These have to match memory_layout.scm and types.h.
 ;; (define (number? x) (or (fixnum? x) (flonum? x)))
 ;; (define (flonum? x) ($guard x 2))
 ;; (define (fixnum? x) ($guard x 0))
@@ -15,15 +15,13 @@
 ;; (define (- a b) ($- a b))
 ;; (define (* a b) ($* a b))
 ;; (define (< a b) ($< a b))
+;; (define (not a) (if a #f #t))
+;; (define (> a b) (not (or ($= a b) ($< a b))))
 
-( (lambda (y . x) x) 1 10 10 10)
+(define x 2)
 
-
-
-
-
-					;(* 1 2)
-
+(set! x 4)
+x
 
 
 

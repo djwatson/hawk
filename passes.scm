@@ -48,13 +48,16 @@
   (imap sexp c))
 
 (define (union a b) (lset-union eq? a b))
-(define (find-assigned f)
+;; At this point, 'letrec' is fixed and only contains lambdas,
+;; and 'let' hasn't appeared yet, so we only have to add bindings for lambda.
+(define (find-assigned f bindings)
   (if (atom? f)
       '()
       (case (car f)
-	((set!) (list (second f)))
+	((set!) (if (memq (second f) bindings) (list (second f)) '()))
+	((lambda) (find-assigned (cddr f) (union bindings (second f))))
 	((quote) '())
-	(else (fold union '() (imap find-assigned f))))))
+	(else (fold union '() (imap (lambda (f) (find-assigned f bindings)) f))))))
 (define (assignment-conversion c)
   (define (convert-assigned f assigned boxes)
     (if (atom? f)
@@ -63,7 +66,10 @@
 	    f)
 	(case (car f)
 	  ((set!)
-	   `($set-box! ,(cdr (assq (second f) boxes)) ,@(cddr f)))
+	   (let ((value (convert-assigned (third f) assigned boxes)))
+	     (if (memq (second f) assigned)
+		       `($set-box! ,(cdr (assq (second f) boxes)) ,value)
+		       `(set! ,(second f) ,value))))
 	  ((lambda)
 	   (let* ((new-boxes (filter-map
 			 (lambda (x)
@@ -96,13 +102,13 @@
 		      ,@(imap (lambda (x) (convert-assigned x assigned boxes)) (cddr f)))))))
 	  ((quote) f)
 	  (else (imap (lambda (a) (convert-assigned a assigned boxes)) f)))))
-  (define assigned (find-assigned c))
+  (define assigned (find-assigned c '()))
   (display (format "Assigned: ~a\n" assigned))
   (convert-assigned c assigned '()))
 
 ;; TODO also case-lambda?
 (define (fix-letrec-specific sexp)
-  (define assigned (find-assigned sexp))
+  (define assigned (find-assigned sexp '()))
   (let*
       ((vars (map car (cadr sexp)))
        (bindings (map fix-letrec (map cadr (cadr sexp))))
