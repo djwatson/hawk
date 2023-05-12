@@ -39,11 +39,11 @@ while being more portable and easier to change.
 
 #define PARAMS                                                                 \
   unsigned char ra, unsigned instr, unsigned *pc, long *frame,                 \
-      void **op_table_arg
-#define ARGS ra, instr, pc, frame, op_table_arg
+    void **op_table_arg, long argcnt
+#define ARGS ra, instr, pc, frame, op_table_arg, argcnt
 #define MUSTTAIL __attribute__((musttail))
-#define DEBUG(name)
-//#define DEBUG(name) printf("%s ra %i rd %i %li %li %li %li\n", name, ra, instr, frame[0], frame[1], frame[2], frame[3]);
+//#define DEBUG(name)
+#define DEBUG(name) printf("%s ra %i rd %i %li %li %li %li\n", name, ra, instr, frame[0], frame[1], frame[2], frame[3]);
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
@@ -63,6 +63,11 @@ __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
   return;
 }
 
+__attribute__((noinline)) void FAIL_SLOWPATH_ARGCNT(PARAMS) {
+  printf("FAIL ARGCNT INVALID\n");
+  return;
+}
+
 void RECORD_START(PARAMS) {
   hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
   if (joff) {
@@ -71,7 +76,7 @@ void RECORD_START(PARAMS) {
   }
   // Tail call with recording op table, but first instruction is not recorded.
   MUSTTAIL return l_op_table[INS_OP(*pc)](ra, instr, pc, frame,
-                                          (void **)l_op_table_record);
+                                          (void **)l_op_table_record, argcnt);
 }
 
 void RECORD(PARAMS) {
@@ -86,11 +91,41 @@ void RECORD(PARAMS) {
   instr >>= 16;
   // Call interpret op table, but with record table.
   // Interprets *this* instruction, then advances to next
-  MUSTTAIL return l_op_table[INS_OP(*pc)](ra, instr, pc, frame, op_table_arg);
+  MUSTTAIL return l_op_table[INS_OP(*pc)](ra, instr, pc, frame, op_table_arg, argcnt);
+}
+
+long cons(long a, long b) {
+  auto c = (cons_s *)GC_malloc(sizeof(cons_s));
+  c->a = a;
+  c->b = b;
+  return (long)c | CONS_TAG;
+}
+
+long build_list(long start, long len) {
+  long lst = NIL_TAG;
+  //printf("Build list from %i len %i\n", start, len);
+  for(long pos = start+len-1; pos >= start; pos--) {
+    lst = cons(frame[pos], lst);
+  }
+  return lst;
 }
 
 void INS_FUNC(PARAMS) {
   DEBUG("FUNC");
+  unsigned int rb = instr;
+
+  // vararg
+  //printf("FUNC vararg %i args %i argcnt %i\n", rb, ra, argcnt);
+  if (rb) {
+    if (argcnt < ra) {
+      MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
+    }
+    frame[ra] = build_list(ra, argcnt -ra);
+  } else {
+    if (argcnt != ra) {
+      MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
+    }
+  }
   pc++;
   NEXT_INSTR;
 }
@@ -327,6 +362,7 @@ void INS_CALL(PARAMS) {
   pc = &func->code[0];
   frame[ra] = long(old_pc + 1);
   frame += ra + 1;
+  argcnt = rb - 1;
   if (unlikely((frame + 256) > frame_top)) {
     MUSTTAIL return EXPAND_STACK_SLOWPATH(ARGS);
   }
@@ -346,8 +382,8 @@ void INS_CALLT(PARAMS) {
   pc = &func->code[0];
 
   long start = ra + 1;
-  auto cnt = rb - 1;
-  for (auto i = 0; i < cnt; i++) {
+  argcnt = rb - 1;
+  for (auto i = 0; i < argcnt; i++) {
     frame[i] = frame[start + i];
   }
   // No need to stack size check for tailcalls since we reuse the frame.
@@ -676,6 +712,7 @@ void run() {
   unsigned int instr = *pc;
   unsigned char op = instr & 0xff;
   unsigned char ra = (instr >> 8) & 0xff;
+   long argcnt = 0;
   instr >>= 16;
   auto op_table_arg = (void **)l_op_table;
   l_op_table[op](ARGS);

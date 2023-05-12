@@ -27,12 +27,15 @@
 
 ;; Change ((lambda ..) ...) to
 ;; (let (...) ...)
+;; TODO: implement varargs?
 (define (optimize-direct c)
   (define (sexp-direct f)
     (define params (second (first f)))
     (define args (cdr f))
-    (define body (cddr (first f)))
-    (sexp `(let ,(map list params args) ,@body)))
+    (define body (map sexp (cddr (first f))))
+    (if (and (pair? params) (not (improper? params)))
+	`(let ,(map list params args) ,@body)
+	`((lambda ,params ,@body) ,@args)))
   (define (sexp f)
     (if (not (pair? f))
 	f

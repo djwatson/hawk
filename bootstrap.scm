@@ -16,11 +16,13 @@
 ;; (define (* a b) ($* a b))
 ;; (define (< a b) ($< a b))
 
-(lambda (x) (set! x 10) x)
+( (lambda (y . x) x) 1 10 10 10)
 
 
 
-;(* 1 2)
+
+
+					;(* 1 2)
 
 
 

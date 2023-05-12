@@ -1,8 +1,6 @@
 # TODO list
 
-* KFUNC doesn't need TAG< and in fact can't have tag, must look like fixnum
-
-* get stores/loads, rest params, closures, case-lambda all working
+* get stores/loads, case-lambda all working
 * get rest of r5rs working
 
 * test direct threading?
