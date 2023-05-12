@@ -84,7 +84,7 @@
 	  (push! (func-bc-code bc) (list 'KONST rd c))))))
 
 (define (compile-binary f bc env rd cd)
-  (define vn '(- +))
+  (define vn '(- + guard))
   (if (and (memq (first f) vn)
 	   (fixnum? (third f))
 	   (< (abs (third f)) 65535))
@@ -110,7 +110,8 @@
 
 (define (compile-binary-vn f bc env rd cd)
   (define op (second (assq (first f)
-			   '((+ ADDVN) (- SUBVN)))))
+			   '((+ ADDVN) (- SUBVN)
+			     (guard GUARD)))))
   (define r1 (exp-loc (second f) env rd))
   (when cd
     (finish bc cd rd)
@@ -166,6 +167,14 @@
 	(push! (func-bc-code bc) (list 'MOV loc r)))
       (let* ((c (get-or-push-const bc f)))
 	(push! (func-bc-code bc) (list 'GGET r c)))))
+
+(define (compile-direct-call f bc env rd cd)
+  ;; Change ((lambda ..) ...) to
+  ;; (let (...) ...)
+  (define params (second (first f)))
+  (define args (cdr f))
+  (define body (cddr (first f)))
+  (compile-sexp `(let ,(map list params args) ,@body) bc env rd cd))
 
 (define (compile-call f bc env rd cd)
   (finish bc cd rd)
@@ -234,6 +243,7 @@
        mapping))
 
 (define (compile-sexp f bc env rd cd)
+  ;;(display (format "SEXP: ~a\n" f))
   (if (not (pair? f))
       (if (symbol? f)
 	  (compile-lookup f bc env rd cd)
@@ -247,8 +257,11 @@
 	((if) (compile-if f bc env rd cd))
 	((set!) (compile-set! f bc env rd cd))
 	((quote) (compile-self-evaluating (second f) bc rd cd))
-	((+ - < =) (compile-binary f bc env rd cd))
-	(else (compile-call f bc env rd cd)))))
+	((+ - < = guard) (compile-binary f bc env rd cd))
+	(else
+	 (if (and (pair? (car f)) (eq? 'lambda (caar f)))
+	     (compile-direct-call f bc env rd cd)
+	     (compile-call f bc env rd cd))))))
 
 
 (define (compile-sexps program bc env rd cd)
@@ -313,7 +326,10 @@
 	       (ISEQ 19)
 	       (ADDVN 20)
 	       (JISEQ 21)
-	       (JISLT 22)))
+	       (JISLT 22)
+	       (JFUNC 23)
+	       (JLOOP 24)
+	       (GUARD 25)))
 
 (define bc-ins '(KSHORT))
 

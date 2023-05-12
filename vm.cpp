@@ -42,8 +42,8 @@ while being more portable and easier to change.
       void **op_table_arg
 #define ARGS ra, instr, pc, frame, op_table_arg
 #define MUSTTAIL __attribute__((musttail))
-#define DEBUG(name)
-//#define DEBUG(name) printf("%s ra %i rd %i %li %li %li %li\n", name, ra, instr, frame[0], frame[1], frame[2], frame[3]);
+//#define DEBUG(name)
+#define DEBUG(name) printf("%s ra %i rd %i %li %li %li %li\n", name, ra, instr, frame[0], frame[1], frame[2], frame[3]);
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[25];
 static op_func l_op_table_record[25];
@@ -424,9 +424,9 @@ void INS_ISLT(PARAMS) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fb < fc) {
-    frame[ra] = 1;
+    frame[ra] = TRUE_REP;
   } else {
-    frame[ra] = 0;
+    frame[ra] = FALSE_REP;
   }
   pc++;
 
@@ -444,9 +444,9 @@ void INS_ISEQ(PARAMS) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   if (fb == fc) {
-    frame[ra] = 1;
+    frame[ra] = TRUE_REP;
   } else {
-    frame[ra] = 0;
+    frame[ra] = FALSE_REP;
   }
 
   NEXT_INSTR;
@@ -456,7 +456,7 @@ void INS_ISF(PARAMS) {
   DEBUG("ISF");
 
   long fa = frame[ra];
-  if (fa == 0) {
+  if (fa == FALSE_REP) {
     pc += 1;
   } else {
     pc += 2;
@@ -481,6 +481,27 @@ void INS_JFUNC(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_GUARD(PARAMS) {
+  DEBUG("GUARD");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  long fb = frame[rb];
+
+  // typecheck fb vs. rc.
+  if ((rc < LITERAL_TAG) && ((fb&TAG_MASK) == rc)) {
+    frame[ra] = TRUE_REP;
+  } else if (((TAG_MASK&rc) == LITERAL_TAG) && (rc == (fb&IMMEDIATE_MASK))) {
+    frame[ra] = TRUE_REP;
+  } else if (((fb&TAG_MASK) == PTR_TAG) && (*(long*)(fb-PTR_TAG) == rc)) {
+    frame[ra] = TRUE_REP;
+  } else {
+    frame[ra] = FALSE_REP;
+  }
+  pc++;
+
+  NEXT_INSTR;
+}
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -530,6 +551,7 @@ void run() {
   l_op_table[22] = INS_JISLT;
   l_op_table[23] = INS_JFUNC;
   l_op_table[24] = INS_JFUNC; // JLOOP
+  l_op_table[25] = INS_GUARD; // JLOOP
   for (int i = 0; i < 25; i++) {
     l_op_table_record[i] = RECORD;
   }

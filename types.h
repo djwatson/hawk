@@ -27,7 +27,7 @@
 #define EOF_TAG 0x1f
 #define UNDEFINED_TAG 0x27
 
-#define IMMEDIATE_MASK 0xf
+#define IMMEDIATE_MASK 0xff
 
 struct flonum_s {
   double x;

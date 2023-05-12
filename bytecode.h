@@ -31,6 +31,7 @@ enum {
   JISLT,
   JFUNC,
   JLOOP,
+  GUARD,
 };
 // clang-format on
 

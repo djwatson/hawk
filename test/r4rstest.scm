@@ -1,3 +1,4 @@
+;(import (scheme r5rs))
 ;; Copyright (C) 1991, 1992, 1993, 1994, 1995 Free Software Foundation, Inc.
 ;;
 ;; This program is free software; you can redistribute it and/or modify it
@@ -625,8 +626,8 @@
 (test #f string->number "+")
 
 (SECTION 6 6)
-(test #t eqv? '#\  #\Space)
-(test #t eqv? #\space '#\Space)
+(test #t eqv? '#\  #\space)
+(test #t eqv? #\space '#\space)
 (test #t char? #\a)
 (test #t char? #\()
 (test #t char? #\ )
