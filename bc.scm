@@ -449,10 +449,11 @@
 
 ;;;;;;;;;;;;;;;;;; main
 
-(compile (optimize-direct
-	  (assignment-conversion
-	   (fix-letrec
-	    (expander)))))
+(compile (closure-conversion
+	  (optimize-direct
+	   (assignment-conversion
+	    (fix-letrec
+	     (expander))))))
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors
 (set! consts (reverse! consts))

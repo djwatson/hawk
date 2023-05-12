@@ -15,9 +15,9 @@
 ;; (define (- a b) ($- a b))
 ;; (define (* a b) ($* a b))
 
-;; (define add4
-;;   (let ((x 4))
-;;     (lambda (x) ($+ x x))))
-;; (add4 6)
+(let ((y 11))
+  (lambda (x) 
+    (lambda (x) 9)))
 
-(letrec ((y 10) (x (lambda (x) x))) (x y))
+
+
