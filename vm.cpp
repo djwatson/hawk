@@ -42,8 +42,8 @@ while being more portable and easier to change.
       void **op_table_arg
 #define ARGS ra, instr, pc, frame, op_table_arg
 #define MUSTTAIL __attribute__((musttail))
-//#define DEBUG(name)
-#define DEBUG(name) printf("%s ra %i rd %i %li %li %li %li\n", name, ra, instr, frame[0], frame[1], frame[2], frame[3]);
+#define DEBUG(name)
+//#define DEBUG(name) printf("%s ra %i rd %i %li %li %li %li\n", name, ra, instr, frame[0], frame[1], frame[2], frame[3]);
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
@@ -296,7 +296,7 @@ void INS_KFUNC(PARAMS) {
   DEBUG("KFUNC");
   unsigned char rb = instr;
 
-  frame[ra] = ((long)funcs[rb]) + 5;
+  frame[ra] = (long)funcs[rb];
 
   pc++;
   NEXT_INSTR;
@@ -322,10 +322,7 @@ void INS_CALL(PARAMS) {
     MUSTTAIL return RECORD_START(ARGS);
   }
   auto v = frame[ra];
-  if (unlikely((v & 0x7) != 5)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  bcfunc *func = (bcfunc *)(v - 5);
+  bcfunc *func = (bcfunc *)v;
   auto old_pc = pc;
   pc = &func->code[0];
   frame[ra] = long(old_pc + 1);
@@ -345,10 +342,7 @@ void INS_CALLT(PARAMS) {
     MUSTTAIL return RECORD_START(ARGS);
   }
   auto v = frame[ra];
-  if (unlikely((v & 0x7) != 5)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  bcfunc *func = (bcfunc *)(v - 5);
+  bcfunc *func = (bcfunc *)v;
   pc = &func->code[0];
 
   long start = ra + 1;
@@ -571,6 +565,52 @@ void INS_SET_BOX(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_CLOSURE(PARAMS) {
+  DEBUG("CLOSURE");
+  unsigned char rb = instr;
+
+  auto closure = (closure_s*)GC_malloc(sizeof(long)*(rb + 1));
+  closure->len = rb;
+  for(int i = 0; i < rb; i++) {
+    closure->v[i] = frame[ra + i];
+  }
+  frame[ra] = (long)closure|CLOSURE_TAG;
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_CLOSURE_PTR(PARAMS) {
+  DEBUG("CLOSURE-PTR");
+  unsigned char rb = instr & 0xff;
+
+  auto fb = frame[rb];
+  if (unlikely((fb & 0x7) != CLOSURE_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto closure = (closure_s*)(fb-CLOSURE_TAG);
+  frame[ra] = closure->v[0];
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_CLOSURE_GET(PARAMS) {
+  DEBUG("CLOSURE-GET");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fb = frame[rb];
+  if (unlikely((fb & 0x7) != CLOSURE_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto closure = (closure_s*)(fb-CLOSURE_TAG);
+  frame[ra] = closure->v[1 + rc];
+
+  pc++;
+  NEXT_INSTR;
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -625,6 +665,9 @@ void run() {
   l_op_table[BOX] = INS_BOX; 
   l_op_table[UNBOX] = INS_UNBOX; 
   l_op_table[SET_BOX] = INS_SET_BOX; 
+  l_op_table[CLOSURE] = INS_CLOSURE; 
+  l_op_table[CLOSURE_PTR] = INS_CLOSURE_PTR; 
+  l_op_table[CLOSURE_GET] = INS_CLOSURE_GET; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

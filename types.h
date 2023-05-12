@@ -55,4 +55,9 @@ struct cons_s {
   long b;
 };
 
+struct closure_s {
+  long len;
+  long v[];
+};
+
 void print_obj(long obj);

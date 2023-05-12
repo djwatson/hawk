@@ -85,7 +85,7 @@
 	  (push! (func-bc-code bc) (list 'KONST rd c))))))
 
 (define (compile-binary f bc env rd cd)
-  (define vn '($- $+ $guard))
+  (define vn '($- $+ $guard $closure-get))
   (if (and (memq (first f) vn)
 	   (fixnum? (third f))
 	   (< (abs (third f)) 65535))
@@ -114,7 +114,7 @@
 (define (compile-binary-vn f bc env rd cd)
   (define op (second (assq (first f)
 			   '(($+ ADDVN) ($- SUBVN)
-			     ($guard GUARD)))))
+			     ($guard GUARD) ($closure CLOSURE) ($closure-get CLOSURE-GET)))))
   (define r1 (exp-loc (second f) env rd))
   (when cd
     (finish bc cd rd)
@@ -180,15 +180,28 @@
       (let* ((c (get-or-push-const bc f)))
 	(push! (func-bc-code bc) (list 'GGET r c)))))
 
+;; Note we implicitly add the closure param here.
+;; TODO optimize better for known calls.
 (define (compile-call f bc env rd cd)
   (finish bc cd rd)
-  (push! (func-bc-code bc) (list (if (eq? cd 'ret) 'CALLT 'CALL) rd (length f)))
+  (push! (func-bc-code bc) (list (if (eq? cd 'ret) 'CALLT 'CALL) rd (+ 1 (length f))))
+  (push! (func-bc-code bc) (list 'CLOSURE-PTR rd (+ rd 1)))
   (fold
    (lambda (f num)
      (compile-sexp f bc env num 'next)
      (- num 1))
-   (+ (length f) -1 rd)
+   (+ (length f) rd)
    (reverse f)))
+
+(define (compile-closure f bc env rd cd)
+  (finish bc cd rd)
+  (push! (func-bc-code bc) (list 'CLOSURE rd (- (length f) 1)))
+  (fold
+   (lambda (f num)
+     (compile-sexp f bc env num 'next)
+     (- num 1))
+   (+ (length f) rd -2)
+   (reverse (cdr f))))
 
 (define (compile-define f bc env rd cd)
   (if (pair? (second f))
@@ -261,7 +274,8 @@
 	((if) (compile-if f bc env rd cd))
 	((set!) (compile-set! f bc env rd cd))
 	((quote) (compile-self-evaluating (second f) bc rd cd))
-	(($+ $* $- $< $= $guard $set-box!) (compile-binary f bc env rd cd))
+	(($+ $* $- $< $= $guard $set-box! $closure-get) (compile-binary f bc env rd cd))
+	(($closure) (compile-closure f bc env rd cd))
 	(($box $unbox) (compile-unary f bc env rd cd))
 	(else
 	 (compile-call f bc env rd cd)))))
@@ -335,7 +349,10 @@
 	       (MULVV 26)
 	       (BOX 27)
 	       (UNBOX 28)
-	       (SET-BOX! 29)))
+	       (SET-BOX! 29)
+	       (CLOSURE 30)
+	       (CLOSURE-GET 31)
+	       (CLOSURE-PTR 32)))
 
 (define bc-ins '(KSHORT))
 

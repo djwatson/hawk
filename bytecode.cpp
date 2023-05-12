@@ -31,5 +31,8 @@ const char* ins_names[] = {
   "BOX",
   "UNBOX",
   "SET-BOX!",
+  "CLOSURE",
+  "CLOSURE-GET",
+  "CLOSURE-PTR",
 };
 // clang-format on

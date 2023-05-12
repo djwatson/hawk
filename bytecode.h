@@ -36,6 +36,9 @@ enum {
   BOX,
   UNBOX,
   SET_BOX,
+  CLOSURE,
+  CLOSURE_GET,
+  CLOSURE_PTR,
   INS_MAX
 };
 // clang-format on

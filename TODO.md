@@ -1,9 +1,11 @@
 # TODO list
 
-* test direct threading?
-* test flonum version of fib
-* get stores/loads, assignment conversion, rest params, let/let loop fix, fix letrecs, closures, case-lambda all working
+* KFUNC doesn't need TAG< and in fact can't have tag, must look like fixnum
+
+* get stores/loads, rest params, closures, case-lambda all working
 * get rest of r5rs working
+
+* test direct threading?
 
 * cleanup enums
 * fixup all opcodes of 'D' type
