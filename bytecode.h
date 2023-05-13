@@ -41,6 +41,9 @@ enum {
   CLOSURE_PTR,
   CLOSURE_SET,
   EQ,
+  CONS,
+  CAR,
+  CDR,
   INS_MAX
 };
 // clang-format on

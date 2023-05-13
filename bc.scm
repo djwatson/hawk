@@ -101,7 +101,8 @@
 			       '(($+ ADDVV) ($- SUBVV) ($< ISLT)
 				 ($* MULVV)
 				 ($= ISEQ) ($eq EQ)
-				 ($set-box! SET-BOX!))))))
+				 ($set-box! SET-BOX!)
+				 ($cons CONS))))))
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
@@ -124,7 +125,8 @@
 
 (define (compile-unary f bc env rd cd)
   (define op (second (assq (first f)
-			   '(($box BOX) ($unbox UNBOX)))))
+			   '(($box BOX) ($unbox UNBOX)
+			     ($car CAR) ($cdr CDR)))))
   (define r1 (exp-loc (second f) env rd))
   (when cd
     (finish bc cd rd)
@@ -265,10 +267,10 @@
 	((if) (compile-if f bc env rd cd))
 	((set!) (compile-define f bc env rd cd)) ;; TODO check?
 	((quote) (compile-self-evaluating (second f) bc rd cd))
-	(($+ $* $- $< $= $guard $set-box! $closure-get $eq) (compile-binary f bc env rd cd))
+	(($+ $* $- $< $= $guard $set-box! $closure-get $eq $cons) (compile-binary f bc env rd cd))
 	(($closure) (compile-closure f bc env rd cd))
 	(($closure-set) (compile-closure-set f bc env rd cd))
-	(($box $unbox) (compile-unary f bc env rd cd))
+	(($box $unbox $car $cdr) (compile-unary f bc env rd cd))
 	(else
 	 (compile-call f bc env rd cd)))))
 
@@ -348,7 +350,10 @@
 	       (CLOSURE-GET 31)
 	       (CLOSURE-PTR 32)
 	       (CLOSURE-SET 33)
-	       (EQ 34)))
+	       (EQ 34)
+	       (CONS 35)
+	       (CAR 36)
+	       (CDR 37)))
 
 (define bc-ins '(KSHORT))
 

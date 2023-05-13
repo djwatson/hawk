@@ -16,9 +16,8 @@ std::vector<bcfunc *> funcs;
 
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
+long *frame_top;
 unsigned int stacksz = 1000;
-static long *frame;
-static long *frame_top;
 long *stack = (long *)GC_malloc(sizeof(long) * stacksz);
 
 unsigned char hotmap[hotmap_sz];
@@ -101,12 +100,15 @@ long cons(long a, long b) {
   return (long)c | CONS_TAG;
 }
 
-long build_list(long start, long len) {
+long build_list(long start, long len, long*frame) {
   long lst = NIL_TAG;
-  //printf("Build list from %i len %i\n", start, len);
+  printf("Build list from %i len %i\n", start, len);
   for(long pos = start+len-1; pos >= start; pos--) {
     lst = cons(frame[pos], lst);
   }
+  printf("build_list Result:");
+  print_obj(lst);
+  printf("\n");
   return lst;
 }
 
@@ -115,12 +117,12 @@ void INS_FUNC(PARAMS) {
   unsigned int rb = instr;
 
   // vararg
-  //printf("FUNC vararg %i args %i argcnt %i\n", rb, ra, argcnt);
+  printf("FUNC vararg %i args %i argcnt %i\n", rb, ra, argcnt);
   if (rb) {
     if (argcnt < ra) {
       MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
     }
-    frame[ra] = build_list(ra, argcnt -ra);
+    frame[ra] = build_list(ra, argcnt -ra, frame);
   } else {
     if (argcnt != ra) {
       MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
@@ -688,6 +690,49 @@ void INS_EQ(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_CONS(PARAMS) {
+  DEBUG("EQ");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  long fb = frame[rb];
+  long fc = frame[rc];
+  frame[ra] = cons(fb, fc);
+  pc++;
+
+  NEXT_INSTR;
+}
+
+void INS_CAR(PARAMS) {
+  DEBUG("CAR");
+  unsigned char rb = instr & 0xff;
+
+  auto fb = frame[rb];
+  if(unlikely((fb&TAG_MASK) != CONS_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto c = (cons_s*)(fb-CONS_TAG);
+  frame[ra] = c->a;
+  pc++;
+
+  NEXT_INSTR;
+}
+
+void INS_CDR(PARAMS) {
+  DEBUG("CDR");
+  unsigned char rb = instr & 0xff;
+
+  auto fb = frame[rb];
+  if(unlikely((fb&TAG_MASK) != CONS_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto c = (cons_s*)(fb-CONS_TAG);
+  frame[ra] = c->b;
+  pc++;
+
+  NEXT_INSTR;
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -698,6 +743,7 @@ void run() {
   unsigned int final_code[] = {CODE(CALL, 0, 1, 0), CODE(HALT, 0, 0, 0)};
   unsigned int *code = &funcs[0]->code[0];
 
+  long *frame;
   // Initial stack setup has a return to bytecode stub above.
   stack[0] = (unsigned long)&final_code[1]; // return pc
   frame = &stack[1];
@@ -747,6 +793,9 @@ void run() {
   l_op_table[CLOSURE_GET] = INS_CLOSURE_GET; 
   l_op_table[CLOSURE_SET] = INS_CLOSURE_SET; 
   l_op_table[EQ] = INS_EQ; 
+  l_op_table[CONS] = INS_CONS; 
+  l_op_table[CAR] = INS_CAR; 
+  l_op_table[CDR] = INS_CDR; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }
