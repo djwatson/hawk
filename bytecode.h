@@ -40,6 +40,7 @@ enum {
   CLOSURE_GET,
   CLOSURE_PTR,
   CLOSURE_SET,
+  EQ,
   INS_MAX
 };
 // clang-format on

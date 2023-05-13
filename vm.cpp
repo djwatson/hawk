@@ -495,13 +495,22 @@ void INS_ISEQ(PARAMS) {
 
   long fb = frame[rb];
   long fc = frame[rc];
-  if (unlikely(7 & (fb | fc))) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  if (fb == fc) {
-    frame[ra] = TRUE_REP;
+  if (likely((7 & (fb | fc)) == 0)) {
+    if (fb == fc) {
+      frame[ra] = TRUE_REP;
+    } else {
+      frame[ra] = FALSE_REP;
+    }
+  } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
+    auto f1 = (flonum_s*)(fb-FLONUM_TAG);
+    auto f2 = (flonum_s*)(fc-FLONUM_TAG);
+    if (f1->x == f2->x) {
+      frame[ra] = TRUE_REP;
+    } else {
+      frame[ra] = FALSE_REP;
+    }
   } else {
-    frame[ra] = FALSE_REP;
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   pc++;
 
@@ -662,6 +671,23 @@ void INS_CLOSURE_SET(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_EQ(PARAMS) {
+  DEBUG("EQ");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  long fb = frame[rb];
+  long fc = frame[rc];
+  if (fb == fc) {
+    frame[ra] = TRUE_REP;
+  } else {
+    frame[ra] = FALSE_REP;
+  }
+  pc++;
+
+  NEXT_INSTR;
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -720,6 +746,7 @@ void run() {
   l_op_table[CLOSURE_PTR] = INS_CLOSURE_PTR; 
   l_op_table[CLOSURE_GET] = INS_CLOSURE_GET; 
   l_op_table[CLOSURE_SET] = INS_CLOSURE_SET; 
+  l_op_table[EQ] = INS_EQ; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

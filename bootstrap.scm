@@ -18,15 +18,20 @@
 (define (not a) (if a #f #t))
 (define (> a b) (not (or ($= a b) ($< a b))))
 
-(define (eqv? a b) ($= a b))
+(define (eq? a b) ($eq a b))
+(define (eqv? a b)
+  (or ($eq a b)
+      (and (flonum? a) (flonum? b)
+       ($= a b))))
 
-(define (assv obj1 alist1)
-  (let loop ((obj obj1) (alist alist1))
-  (if (null? alist) #f
-      (if (eqv? (caar alist) obj) 
-	  (car alist)
-	  (loop obj (cdr alist))))))
+;; (define (assv obj1 alist1)
+;;   (let loop ((obj obj1) (alist alist1))
+;;   (if (null? alist) #f
+;;       (if (eqv? (caar alist) obj) 
+;; 	  (car alist)
+;; 	  (loop obj (cdr alist))))))
 
 
-(cond ((assv 'b '((a 1) (b 2))) => cadr)
-		     (else #f))
+;; (cond ((assv 'b '((a 1) (b 2))) => cadr)
+;; 		     (else #f))
+(eqv? 0.1 (+ .05 0.05))

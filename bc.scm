@@ -100,7 +100,7 @@
 			 (assq (first f)
 			       '(($+ ADDVV) ($- SUBVV) ($< ISLT)
 				 ($* MULVV)
-				 ($= ISEQ)
+				 ($= ISEQ) ($eq EQ)
 				 ($set-box! SET-BOX!))))))
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
@@ -265,7 +265,7 @@
 	((if) (compile-if f bc env rd cd))
 	((set!) (compile-define f bc env rd cd)) ;; TODO check?
 	((quote) (compile-self-evaluating (second f) bc rd cd))
-	(($+ $* $- $< $= $guard $set-box! $closure-get) (compile-binary f bc env rd cd))
+	(($+ $* $- $< $= $guard $set-box! $closure-get $eq) (compile-binary f bc env rd cd))
 	(($closure) (compile-closure f bc env rd cd))
 	(($closure-set) (compile-closure-set f bc env rd cd))
 	(($box $unbox) (compile-unary f bc env rd cd))
@@ -347,7 +347,8 @@
 	       (CLOSURE 30)
 	       (CLOSURE-GET 31)
 	       (CLOSURE-PTR 32)
-	       (CLOSURE-SET 33)))
+	       (CLOSURE-SET 33)
+	       (EQ 34)))
 
 (define bc-ins '(KSHORT))
 
@@ -371,13 +372,13 @@
   (write-u8 (remainder v 256) p)
   (write-u8 (remainder (quotient v 256) 256) p))
 
-;; (import (chicken foreign))
+(import (chicken foreign))
 
-;; (define write-double
-;;   (foreign-lambda* long ((double x))
-;; 		   "long ret;"
-;; 		   "memcpy(&ret, &x, 8);"
-;; 		   "C_return(ret);"))
+(define write-double
+  (foreign-lambda* long ((double x))
+		   "long ret;"
+		   "memcpy(&ret, &x, 8);"
+		   "C_return(ret);"))
 
 (define symbol-table '())
 (define (bc-write-const c p)
