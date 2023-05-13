@@ -34,5 +34,6 @@ const char* ins_names[] = {
   "CLOSURE",
   "CLOSURE-GET",
   "CLOSURE-PTR",
+  "CLOSURE-SET",
 };
 // clang-format on

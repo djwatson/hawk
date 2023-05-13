@@ -48,6 +48,7 @@
   (imap sexp c))
 
 (define (union a b) (lset-union eq? a b))
+(define (difference a b) (lset-difference eq? a b))
 ;; At this point, 'letrec' is fixed and only contains lambdas,
 ;; and 'let' hasn't appeared yet, so we only have to add bindings for lambda.
 (define (find-assigned f bindings)
@@ -151,6 +152,10 @@
       sexp))
 
 
+;; TODO: We currently always call through closures.
+;;       letrec in particular could analyze for direct calls.
+;; TODO: We could also then drop closure vars for recursive procedures
+;;       that otherwise don't need closures.
 (define (closure-conversion sexp)
   (define (find-free f bindings)
     (if (atom? f)
@@ -158,12 +163,16 @@
 	(case (car f)
 	  ((quote) '())
 	  (else (fold union '() (imap (lambda (f) (find-free f bindings)) f))))))
-  (define (substitute-free f bindings closure-var)
+  (define (substitute-free f bindings closure-var self)
     (if (atom? f)
-	(if (assq f bindings) `($closure-get ,closure-var ,(cdr (assq f bindings))) f)
+	(if (assq f bindings) `($closure-get ,closure-var ,(cdr (assq f bindings)))
+	    ;; Any self-references for letrec go to the closure-var
+	    (if (and self (eq? self f))
+		closure-var
+		f))
 	(case (car f)
 	  ((quote) f)
-	  (else (imap (lambda (f) (substitute-free f bindings closure-var)) f)))))
+	  (else (imap (lambda (f) (substitute-free f bindings closure-var self)) f)))))
   (define (cc f bindings)
     (if (atom? f)
 	f
@@ -171,7 +180,32 @@
 	  ((let)
 	   `(let ,(map (lambda (b) (list (car b) (cc (second b) bindings))) (second f))
 	      ,@(map (lambda (s) (cc s (union (map car (second f)) bindings))) (cddr f))))
-	  ((letrec))
+	  ((letrec)
+	   (let* ((var-names (map first (second f)))
+		  (new-bindings (union (map car (second f)) bindings))
+		  (closures (map (lambda (x) (gensym 'closure)) (second f)))
+		  (free-vars (map (lambda (f)
+				    (difference (find-free (second f) new-bindings) (list (first f))))
+				  (second f)))
+		  (free-bind (map (lambda (free) (map cons free (iota (length free)))) free-vars))
+		  (bodies (map (lambda (f bindings closure)
+				 (define func (second f))
+				 (define closed-body (map (lambda (f) (cc f new-bindings)) (cddr func)))
+				 (substitute-free `(lambda ,(second func) ,@closed-body) bindings closure (first f)))
+			       (second f) free-bind closures)))
+	     `(let ,(map (lambda (v body closure free)
+			   `(,v ($closure (lambda ,(cons closure (second body)) ,@(cddr body))
+					  ;; Set empty references to letrec's vars.
+					  ,@(map (lambda (x) (if (memq x var-names) 0 x)) free))))
+			 (map car (second f)) bodies closures free-vars)
+		;; Now bind any group references
+		,@(apply append (map (lambda (x bound)
+			   (filter-map (lambda (v)
+					 (if (memq (car v) var-names) `($closure-set ,x ,(car v) ,(cdr v))
+					     #f))
+				       bound))
+			 var-names free-bind))
+		,@(map (lambda (f) (cc f new-bindings)) (cddr f)))))
 	  ((lambda)
 	   (let* (
 		  (new-bindings (union (to-proper (second f)) bindings))
@@ -179,7 +213,7 @@
 		  (free-vars (find-free body bindings))
 		  (free-bind (map cons free-vars (iota (length free-vars))))
 		  (closure-var (gensym 'closure))
-		  (new-body (substitute-free body free-bind closure-var)))
+		  (new-body (substitute-free body free-bind closure-var #f)))
 	     (display (format "FOUND FREE: ~a\n" free-vars))
 	     `($closure (lambda ,(cons closure-var (second f)) ,@new-body) ,@free-vars)))
 	  (else (map (lambda (f) (cc f bindings)) f)))))

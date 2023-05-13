@@ -648,6 +648,20 @@ void INS_CLOSURE_GET(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_CLOSURE_SET(PARAMS) {
+  DEBUG("CLOSURE-SET");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fa = frame[ra];
+  // No need to typecheck, that would be bad bytecode.
+  auto closure = (closure_s*)(fa-CLOSURE_TAG);
+  closure->v[1 + rc] = frame[rb];
+
+  pc++;
+  NEXT_INSTR;
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -705,6 +719,7 @@ void run() {
   l_op_table[CLOSURE] = INS_CLOSURE; 
   l_op_table[CLOSURE_PTR] = INS_CLOSURE_PTR; 
   l_op_table[CLOSURE_GET] = INS_CLOSURE_GET; 
+  l_op_table[CLOSURE_SET] = INS_CLOSURE_SET; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

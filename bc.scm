@@ -5,6 +5,7 @@
 (import (srfi 28)) ;; basic format
 (import (srfi 99)) ;; define-record-type
 (import (srfi 151)) ;; bitwise-ops
+(import (chicken pretty-print))
 (define-syntax define-getter-with-setter
   (syntax-rules ()
     ((_ getter setter)
@@ -179,7 +180,7 @@
 
 (define (compile-lookup f bc env rd cd)
   (define loc (find-symbol f env))
-  ;;(display (format "Lookup ~a ~a\n" f env))
+  (display (format "Lookup ~a ~a\n" f env))
   (define r (if (eq? cd 'ret) (exp-loc f env rd) rd))
   (finish bc cd r)
   (if loc
@@ -211,6 +212,14 @@
    (+ (length f) rd -2)
    (reverse (cdr f))))
 
+(define (compile-closure-set f bc env rd cd)
+  (finish bc cd rd)
+  (define r1 (exp-loc (second f) env rd))
+  (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
+  (push! (func-bc-code bc) (list 'CLOSURE-SET r1 r2 (fourth f)))
+  (compile-sexp (third f) bc env r2 'next)
+  (compile-sexp (second f) bc env r1 'next))
+
 (define (compile-define f bc env rd cd)
   (if (pair? (second f))
       (compile-define
@@ -225,6 +234,7 @@
 
 (define (compile-let f bc env rd cd)
   (define ord rd)
+  (define orig-env env) ;; let values use original mapping
   (define mapping (map (lambda (f)
 			 (define o ord)
 			 (push! env (cons (first f) ord))
@@ -235,47 +245,20 @@
   (when (and cd (not (eq? cd 'ret)))
     (push! (func-bc-code bc) (list 'MOV ord rd)))
   (compile-sexps (cddr f) bc env ord cd)
-  (map (lambda (f r)
-	 (compile-sexp (second f) bc env r 'next))
-       (second f)
-       mapping))
-
-;; TODO needs closure conversion
-(define (compile-letrec f bc env rd cd)
-  (define ord rd)
-  (define mapping (map (lambda (f)
-			 (define f-bc (make-func-bc (first f) '()))
-			 (define f-id (length program))
-			 (define r ord)
-			 (inc! ord)
-			 (push! program f-bc)
-			 (list f-id f-bc r))
-		       (second f)))
-  (define new-env (map (lambda (a b)
-			 (push! env (cons a b))
-			 (cons a b))
-	      (map first (second f))
-	      (map third mapping)))
-  (when (and cd (not (eq? cd 'ret)))
-    (push! (func-bc-code bc) (list 'MOV ord rd)))
-  (compile-sexps (cddr f) bc env ord cd)
-  (map (lambda (f)
-	 (push! (func-bc-code bc) (list 'KFUNC (third f) (first f))))
-       mapping)
-  (map (lambda (f mapping)
-	 (compile-lambda-internal (second f) (second mapping) new-env))
-       (second f)
-       mapping))
+  ;; Do this in reverse, so that we don't smash register usage.
+  (for-each (lambda (f r)
+	 (compile-sexp (second f) bc orig-env r 'next))
+	    (reverse (second f))
+	    (reverse mapping)))
 
 (define (compile-sexp f bc env rd cd)
-  ;;(display (format "SEXP: ~a\n" f))
+  (display (format "SEXP: ~a env ~a\n" f env))
   (if (not (pair? f))
       (if (symbol? f)
 	  (compile-lookup f bc env rd cd)
 	  (compile-self-evaluating f bc rd cd))
       (case (car f)
 	((define) (compile-define f bc env rd cd))
-	((letrec) (compile-letrec f bc env rd cd))
 	((let) (compile-let f bc env rd cd))
 	((lambda) (compile-lambda f bc rd cd))
 	((begin) (compile-sexps (cdr f) bc env rd cd))
@@ -284,6 +267,7 @@
 	((quote) (compile-self-evaluating (second f) bc rd cd))
 	(($+ $* $- $< $= $guard $set-box! $closure-get) (compile-binary f bc env rd cd))
 	(($closure) (compile-closure f bc env rd cd))
+	(($closure-set) (compile-closure-set f bc env rd cd))
 	(($box $unbox) (compile-unary f bc env rd cd))
 	(else
 	 (compile-call f bc env rd cd)))))
@@ -297,7 +281,9 @@
 (define (compile d)
   (define bc (make-func-bc "repl" '()))
   (push! program bc)
-  (display (format "Compile: ~a \n" d))
+  (display "Compile:\n")
+  (pretty-print d)
+  (newline)
   (compile-sexps d bc '() 0 'ret)
   (push! (func-bc-code bc) (list 'FUNC 0 0)))
 
@@ -360,7 +346,8 @@
 	       (SET-BOX! 29)
 	       (CLOSURE 30)
 	       (CLOSURE-GET 31)
-	       (CLOSURE-PTR 32)))
+	       (CLOSURE-PTR 32)
+	       (CLOSURE-SET 33)))
 
 (define bc-ins '(KSHORT))
 

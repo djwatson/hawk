@@ -1,6 +1,6 @@
 # TODO list
 
-* closure conversion of letrecs
+* car, cdr, mem store/loads
 * TODO > , GSET check
 * get stores/loads, case-lambda all working
 * get rest of r5rs working
