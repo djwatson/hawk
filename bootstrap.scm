@@ -101,6 +101,24 @@
 
 
 
-`(a ,(+ 1 2) ,@(map abs '(4 -5 6)) b)
+
+(define (length e)
+  (let length-loop ((e e) (cnt 0))
+    (if (pair? e)
+	(length-loop (cdr e) (+ 1 cnt))
+	cnt)))
+(define (list->vector lst)
+  (define v (make-vector (length lst)))
+  (define (setloop place item v)
+    (if (not (pair? item))
+	v
+	(begin
+	  (vector-set! v place (car item))
+	  (setloop (+ 1 place) (cdr item) v))))
+  (setloop 0 lst v)
+  )
 
 
+(letrec ((foo 77)
+	 (retfoo (lambda () foo)))
+  (retfoo))
