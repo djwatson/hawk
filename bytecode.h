@@ -45,6 +45,8 @@ enum {
   CAR,
   CDR,
   MAKE_VECTOR,
+  VECTOR_SET,
+  VECTOR_REF,
   INS_MAX
 };
 // clang-format on

@@ -46,8 +46,11 @@
 
 (define (zero? a) ($= a 0))
 
-;; (do ((vec (make-vector 5))
-;; 			    (i 0 (+ i 1)))
-;; 			   ((= i 5) vec)
-;; 			 (vector-set! vec i i))
-($make-vector 5 #f)
+(define (make-vector len . val)
+  ($make-vector len (if (pair? val) (car val) #f)))
+(define (vector-set! v k obj)
+  ($vector-set! v k obj))
+(define (vector-ref v k)
+  ($vector-ref v k))
+
+

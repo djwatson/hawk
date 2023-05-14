@@ -40,5 +40,7 @@ const char* ins_names[] = {
   "CAR",
   "CDR",
   "MAKE-VECTOR",
+  "VECTOR-SET!",
+  "VECTOR-REF",
 };
 // clang-format on

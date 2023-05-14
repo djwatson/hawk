@@ -103,7 +103,8 @@
 				 ($= ISEQ) ($eq EQ)
 				 ($set-box! SET-BOX!)
 				 ($cons CONS)
-				 ($make-vector MAKE-VECTOR))))))
+				 ($make-vector MAKE-VECTOR)
+				 ($vector-ref VECTOR-REF))))))
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
@@ -224,11 +225,23 @@
    (+ (length f) rd -2)
    (reverse (cdr f))))
 
+;; Third arg must be immediate fixnum.
 (define (compile-closure-set f bc env rd cd)
   (finish bc cd rd)
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (push! (func-bc-code bc) (list 'CLOSURE-SET r1 r2 (fourth f)))
+  (compile-sexp (third f) bc env r2 'next)
+  (compile-sexp (second f) bc env r1 'next))
+
+;; First arg is register to use, k, then obj
+(define (compile-setter f bc env rd cd)
+  (finish bc cd rd)
+  (define r1 (exp-loc (second f) env rd))
+  (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
+  (define r3 (exp-loc (fourth f) env (max rd (+ r2 1))))
+  (push! (func-bc-code bc) (list 'VECTOR-SET r1 r2 r3))
+  (compile-sexp (fourth f) bc env r3 'next)
   (compile-sexp (third f) bc env r2 'next)
   (compile-sexp (second f) bc env r1 'next))
 
@@ -280,8 +293,10 @@
 	((quote) (compile-self-evaluating (second f) bc rd cd))
 
 	;; Builtins
-	(($+ $* $- $< $= $guard $set-box! $closure-get $eq $cons $make-vector)
+	(($+ $* $- $< $= $guard $set-box! $closure-get $eq $cons
+	     $make-vector $vector-ref)
 	 (compile-binary f bc env rd cd))
+	(($vector-set!) (compile-setter f bc env rd cd))
 	(($box $unbox $car $cdr) (compile-unary f bc env rd cd))
 	(($closure) (compile-closure f bc env rd cd))
 	(($closure-set) (compile-closure-set f bc env rd cd))
@@ -368,7 +383,9 @@
 	       (CONS 35)
 	       (CAR 36)
 	       (CDR 37)
-	       (MAKE-VECTOR 38)))
+	       (MAKE-VECTOR 38)
+	       (VECTOR-SET 39)
+	       (VECTOR-REF 40)))
 
 (define bc-ins '(KSHORT))
 

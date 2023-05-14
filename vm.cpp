@@ -757,6 +757,53 @@ void INS_MAKE_VECTOR(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_VECTOR_REF(PARAMS) {
+  DEBUG("VECTOR_REF");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  if (unlikely((fb & 0x7) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if (unlikely((fc&TAG_MASK) != FIXNUM_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto vec = (vector_s*)(fb-PTR_TAG);
+  if (unlikely(vec->type != VECTOR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  frame[ra] = vec->v[fc>>3];
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_VECTOR_SET(PARAMS) {
+  DEBUG("VECTOR-SET!");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fa = frame[ra];
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  if (unlikely((fa & 0x7) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if (unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto vec = (vector_s*)(fa-PTR_TAG);
+  if (unlikely(vec->type != VECTOR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  vec->v[fb >> 3] = fc;
+
+  pc++;
+  NEXT_INSTR;
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -821,6 +868,8 @@ void run() {
   l_op_table[CAR] = INS_CAR; 
   l_op_table[CDR] = INS_CDR; 
   l_op_table[MAKE_VECTOR] = INS_MAKE_VECTOR; 
+  l_op_table[VECTOR_REF] = INS_VECTOR_REF; 
+  l_op_table[VECTOR_SET] = INS_VECTOR_SET; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }
