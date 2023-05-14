@@ -56,7 +56,7 @@
       '()
       (case (car f)
 	((set!) (if (memq (second f) bindings) (list (second f)) '()))
-	((lambda) (find-assigned (cddr f) (union bindings (second f))))
+	((lambda) (find-assigned (cddr f) (union bindings (to-proper (second f)))))
 	((quote) '())
 	(else (fold union '() (imap (lambda (f) (find-assigned f bindings)) f))))))
 (define (assignment-conversion c)

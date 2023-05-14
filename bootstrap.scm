@@ -25,41 +25,50 @@
       (and (flonum? a) (flonum? b)
 	   ($= a b))))
 
-(define (caar a) ($car ($car a)))
 (define (car a) ($car a))
 (define (cdr a) ($cdr a))
-(define (cadr a) ($car ($cdr a)))
 (define (cons a b) ($cons a b))
 (define (list . x) x)
 
-(define (map . lst)
-  (let loop ((lsts (cons (cadr lst) (cddr lst))))
-    (let ((hds (let loop2 ((lsts lsts))
-		 (if (null? lsts)
-		     '()
-		     (let ((x (car lsts)))
-		       (and (not (null? x))
-			    (let ((r (loop2 (cdr lsts))))
-			      (and r (cons (car x) r)))))))))
-      (if hds
-	  (cons
-	   (apply (car lst) hds)
-	   (loop
-	    (let loop3 ((lsts lsts))
-	      (if (null? lsts)
-		  '()
-		  (cons (cdr (car lsts)) (loop3 (cdr lsts)))))))
-	  '())))  )
+(define (cddr e) (cdr (cdr e)))
+(define (caar e) (car (car e)))
+(define (cadr e) (car (cdr e)))
+(define (cdar e) (cdr (car e)))
 
-;; (define (append . lsts)
-;;   (if (null? lsts) '()
-;;       (let loop ((lsts lsts))
-;; 	(if (null? (cdr lsts))
-;; 	    (car lsts)
-;; 	    (let copy ((node (car lsts)))
-;; 	      (if (pair? node)
-;; 		  (cons (car node) (copy (cdr node)))
-;; 		  (loop (cdr lsts))))))))
+(define (caddr e) (car (cddr e))) 
+(define (cdddr e) (cdr (cddr e))) 
+(define (caaar e) (car (caar e)))
+(define (cdaar e) (cdr (caar e)))
+(define (caadr e) (car (cadr e)))
+(define (cdadr e) (cdr (cadr e)))
+(define (cadar e) (car (cdar e)))
+(define (cddar e) (cdr (cdar e)))
+
+(define (caaddr e) (car (caddr e))) 
+(define (cdaddr e) (cdr (caddr e))) 
+(define (cadddr e) (car (cdddr e))) 
+(define (cddddr e) (cdr (cdddr e))) 
+(define (caaaar e) (car (caaar e)))
+(define (cdaaar e) (cdr (caaar e)))
+(define (cadaar e) (car (cdaar e)))
+(define (cddaar e) (cdr (cdaar e)))
+(define (caaadr e) (car (caadr e)))
+(define (cdaadr e) (cdr (caadr e)))
+(define (cadadr e) (car (cdadr e)))
+(define (cddadr e) (cdr (cdadr e)))
+(define (caadar e) (car (cadar e)))
+(define (cdadar e) (cdr (cadar e)))
+(define (caddar e) (car (cddar e)))
+(define (cdddar e) (cdr (cddar e)))
+
+(define (map f lst)
+  (if (null? lst) '()
+      (cons (f (car lst)) (map f (cdr lst)))))
+
+(define (append a b)
+  (if (null? a)
+      b
+      (cons (car a) (append (cdr a) b))))
 
 (define (assv obj1 alist1)
   (let loop ((obj obj1) (alist alist1))
@@ -85,7 +94,13 @@
   ($vector-ref v k))
 (define (negative? a)
   ($< a 0))
+(define (abs a)
+  (if (negative? a)
+      (* a -1)
+      a))
 
 
 
 `(a ,(+ 1 2) ,@(map abs '(4 -5 6)) b)
+
+

@@ -134,7 +134,7 @@ void INS_FUNC(PARAMS) {
 
 void INS_KSHORT(PARAMS) {
   DEBUG("KSHORT");
-  unsigned int rb = instr;
+  char rb = instr&0xff;
 
   frame[ra] = rb << 3;
 
@@ -188,8 +188,8 @@ void INS_ISGE(PARAMS) {
 
 void INS_SUBVN(PARAMS) {
   DEBUG("SUBVN");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
+  char rb = instr & 0xff;
+  char rc = (instr >> 8) & 0xff;
 
   long fb = frame[rb];
   if (unlikely(7 & fb)) {
@@ -205,8 +205,8 @@ void INS_SUBVN(PARAMS) {
 
 void INS_ADDVN(PARAMS) {
   DEBUG("ADDVN");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
+  char rb = instr & 0xff;
+  char rc = (instr >> 8) & 0xff;
 
   long fb = frame[rb];
   if (unlikely(7 & fb)) {
@@ -222,8 +222,8 @@ void INS_ADDVN(PARAMS) {
 
 void INS_ADDVV(PARAMS) {
   DEBUG("ADDVV");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
+  char rb = instr & 0xff;
+  char rc = (instr >> 8) & 0xff;
 
   auto fb = frame[rb];
   auto fc = frame[rc];
@@ -247,8 +247,8 @@ void INS_ADDVV(PARAMS) {
 
 void INS_MULVV(PARAMS) {
   DEBUG("MULVV");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
+  char rb = instr & 0xff;
+  char rc = (instr >> 8) & 0xff;
 
   auto fb = frame[rb];
   auto fc = frame[rc];
