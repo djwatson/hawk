@@ -29,6 +29,37 @@
 (define (car a) ($car a))
 (define (cdr a) ($cdr a))
 (define (cadr a) ($car ($cdr a)))
+(define (cons a b) ($cons a b))
+(define (list . x) x)
+
+(define (map . lst)
+  (let loop ((lsts (cons (cadr lst) (cddr lst))))
+    (let ((hds (let loop2 ((lsts lsts))
+		 (if (null? lsts)
+		     '()
+		     (let ((x (car lsts)))
+		       (and (not (null? x))
+			    (let ((r (loop2 (cdr lsts))))
+			      (and r (cons (car x) r)))))))))
+      (if hds
+	  (cons
+	   (apply (car lst) hds)
+	   (loop
+	    (let loop3 ((lsts lsts))
+	      (if (null? lsts)
+		  '()
+		  (cons (cdr (car lsts)) (loop3 (cdr lsts)))))))
+	  '())))  )
+
+;; (define (append . lsts)
+;;   (if (null? lsts) '()
+;;       (let loop ((lsts lsts))
+;; 	(if (null? (cdr lsts))
+;; 	    (car lsts)
+;; 	    (let copy ((node (car lsts)))
+;; 	      (if (pair? node)
+;; 		  (cons (car node) (copy (cdr node)))
+;; 		  (loop (cdr lsts))))))))
 
 (define (assv obj1 alist1)
   (let loop ((obj obj1) (alist alist1))
@@ -52,5 +83,9 @@
   ($vector-set! v k obj))
 (define (vector-ref v k)
   ($vector-ref v k))
+(define (negative? a)
+  ($< a 0))
 
 
+
+`(a ,(+ 1 2) ,@(map abs '(4 -5 6)) b)
