@@ -61,7 +61,7 @@
 	(else (fold union '() (imap (lambda (f) (find-assigned f bindings)) f))))))
 (define (assignment-conversion c)
   (define (convert-assigned f assigned boxes)
-    (display (format "Convert assigned f ~a assigned ~a boxes ~a\n" f assigned boxes))
+    ;;(display (format "Convert assigned f ~a assigned ~a boxes ~a\n" f assigned boxes))
     (if (atom? f)
 	(if (assoc f boxes)
 	    `($unbox ,(cdr (assoc f boxes)))

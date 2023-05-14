@@ -45,5 +45,10 @@ const char* ins_names[] = {
   "VECTOR-LENGTH",
   "SET-CAR!",
   "SET-CDR!",
+  "DISPLAY",
+  "STRING-LENGTH",
+  "STRING-REF",
+  "STRING-SET!",
+  "MAKE-STRING",
 };
 // clang-format on

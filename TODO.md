@@ -1,10 +1,10 @@
 # TODO list
 
-* bug in if/if generation
-* mem store/loads
 * TODO > , GSET check
-* get stores/loads, case-lambda all working
+* case-lambda all working
 * get rest of r5rs working
+* GO through and check undefined return values in bc.scm
+* bounds check vector/string refs
 
 * test direct threading?
 

@@ -50,6 +50,11 @@ enum {
   VECTOR_LENGTH,
   SET_CAR,
   SET_CDR,
+  DISPLAY,
+  STRING_LENGTH,
+  STRING_REF,
+  STRING_SET,
+  MAKE_STRING,
   INS_MAX
 };
 // clang-format on

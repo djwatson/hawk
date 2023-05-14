@@ -13,7 +13,7 @@ void print_obj(long obj) {
     long ptrtype = *(long *)(obj - PTR_TAG);
     if (ptrtype == STRING_TAG) {
       auto str = (string_s *)(obj - PTR_TAG);
-      printf("%s\n", str->str);
+      printf("%s", str->str);
     } else if (ptrtype == VECTOR_TAG) {
       auto v = (vector_s *)(obj - PTR_TAG);
       printf("#(");

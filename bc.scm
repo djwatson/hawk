@@ -104,7 +104,9 @@
 				 ($set-box! SET-BOX!)
 				 ($cons CONS)
 				 ($make-vector MAKE-VECTOR)
-				 ($vector-ref VECTOR-REF))))))
+				 ($vector-ref VECTOR-REF)
+				 ($make-string MAKE-STRING)
+				 ($string-ref STRING-REF))))))
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
@@ -129,7 +131,9 @@
   (define op (second (assq (first f)
 			   '(($box BOX) ($unbox UNBOX)
 			     ($car CAR) ($cdr CDR)
-			     ($vector-length VECTOR-LENGTH)))))
+			     ($vector-length VECTOR-LENGTH)
+			     ($string-length STRING-LENGTH)
+			     ($display DISPLAY)))))
   (define r1 (exp-loc (second f) env rd))
   (when cd
     (finish bc cd rd)
@@ -241,7 +245,7 @@
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (define r3 (exp-loc (fourth f) env (max rd (+ r2 1))))
-  (push! (func-bc-code bc) (list 'VECTOR-SET r1 r2 r3))
+  (push! (func-bc-code bc) (list (if (eq? '$vector-set! (first f)) 'VECTOR-SET 'STRING-SET) r1 r2 r3))
   (compile-sexp (fourth f) bc env r3 'next)
   (compile-sexp (third f) bc env r2 'next)
   (compile-sexp (second f) bc env r1 'next))
@@ -303,11 +307,11 @@
 
 	;; Builtins
 	(($+ $* $- $< $= $guard $set-box! $closure-get $eq $cons
-	     $make-vector $vector-ref)
+	     $make-vector $vector-ref $make-string $string-ref)
 	 (compile-binary f bc env rd cd))
-	(($vector-set!) (compile-setter f bc env rd cd))
+	(($vector-set! $string-set!) (compile-setter f bc env rd cd))
 	(($set-car! $set-cdr!) (compile-setter2 f bc env rd cd))
-	(($box $unbox $car $cdr $vector-length) (compile-unary f bc env rd cd))
+	(($box $unbox $car $cdr $vector-length $display $string-length) (compile-unary f bc env rd cd))
 	(($closure) (compile-closure f bc env rd cd))
 	(($closure-set) (compile-closure-set f bc env rd cd))
 	(else
@@ -398,7 +402,12 @@
 	       (VECTOR-REF 40)
 	       (VECTOR-LENGTH 41)
 	       (SET-CAR 42)
-	       (SET-CDR 43)))
+	       (SET-CDR 43)
+	       (DISPLAY 44)
+	       (STRING-LENGTH 45)
+	       (STRING-REF 46)
+	       (STRING-SET 47)
+	       (MAKE-STRING 48)))
 
 (define bc-ins '(KSHORT))
 

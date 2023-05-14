@@ -41,8 +41,8 @@ while being more portable and easier to change.
     void **op_table_arg, long argcnt
 #define ARGS ra, instr, pc, frame, op_table_arg, argcnt
 #define MUSTTAIL __attribute__((musttail))
-//#define DEBUG(name)
-#define DEBUG(name) printf("%s ra %i rd %i %li %li %li %li\n", name, ra, instr, frame[0], frame[1], frame[2], frame[3]);
+#define DEBUG(name)
+//#define DEBUG(name) printf("%s ra %i rd %i %li %li %li %li\n", name, ra, instr, frame[0], frame[1], frame[2], frame[3]);
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
@@ -117,7 +117,7 @@ void INS_FUNC(PARAMS) {
   unsigned int rb = instr;
 
   // vararg
-  printf("FUNC vararg %i args %i argcnt %i\n", rb, ra, argcnt);
+  //printf("FUNC vararg %i args %i argcnt %i\n", rb, ra, argcnt);
   if (rb) {
     if (argcnt < ra) {
       MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
@@ -757,6 +757,34 @@ void INS_MAKE_VECTOR(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_MAKE_STRING(PARAMS) {
+  DEBUG("MAKE_STRING");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  long fb = frame[rb];
+  long fc = frame[rc];
+  if(unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if(unlikely((fc&IMMEDIATE_MASK) != CHAR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto len = fb>>3;
+  auto str = (string_s*)GC_malloc( (sizeof(long) * 2) + len + 1);
+  str->type = STRING_TAG;
+  str->len = len;
+  for(long i = 0; i < len; i++) {
+    str->str[i] = (fc >> 8)&0xff;
+  }
+  str->str[len] = '\0';
+  
+  frame[ra] = (long)str | PTR_TAG;
+  pc++;
+
+  NEXT_INSTR;
+}
+
 void INS_VECTOR_REF(PARAMS) {
   DEBUG("VECTOR_REF");
   unsigned char rb = instr & 0xff;
@@ -780,6 +808,29 @@ void INS_VECTOR_REF(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_STRING_REF(PARAMS) {
+  DEBUG("STRING_REF");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  if (unlikely((fb & 0x7) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if (unlikely((fc&TAG_MASK) != FIXNUM_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto str = (string_s*)(fb-PTR_TAG);
+  if (unlikely(str->type != STRING_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  frame[ra] = (str->str[fc>>3] << 8)|CHAR_TAG;
+
+  pc++;
+  NEXT_INSTR;
+}
+
 void INS_VECTOR_LENGTH(PARAMS) {
   DEBUG("VECTOR_LENGTH");
   unsigned char rb = instr & 0xff;
@@ -793,6 +844,24 @@ void INS_VECTOR_LENGTH(PARAMS) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   frame[ra] = vec->len << 3;
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_STRING_LENGTH(PARAMS) {
+  DEBUG("STRING_LENGTH");
+  unsigned char rb = instr & 0xff;
+
+  auto fb = frame[rb];
+  if (unlikely((fb & 0x7) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto str = (string_s*)(fb-PTR_TAG);
+  if (unlikely(str->type != STRING_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  frame[ra] = str->len << 3;
 
   pc++;
   NEXT_INSTR;
@@ -817,6 +886,33 @@ void INS_VECTOR_SET(PARAMS) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   vec->v[fb >> 3] = fc;
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_STRING_SET(PARAMS) {
+  DEBUG("STRING-SET!");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fa = frame[ra];
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  if (unlikely((fa & 0x7) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if (unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if (unlikely((fc&IMMEDIATE_MASK) != CHAR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto str = (string_s*)(fa-PTR_TAG);
+  if (unlikely(str->type != STRING_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  str->str[fb >> 3] = (fc >> 8)&0xff;
 
   pc++;
   NEXT_INSTR;
@@ -850,6 +946,16 @@ void INS_SET_CDR(PARAMS) {
   auto cons = (cons_s*)(fa-CONS_TAG);
   cons->b = fb;
 
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_DISPLAY(PARAMS) {
+  DEBUG("DISPLAY");
+  unsigned char rb = instr & 0xff;
+
+  print_obj(frame[rb]);
+  
   pc++;
   NEXT_INSTR;
 }
@@ -923,6 +1029,11 @@ void run() {
   l_op_table[VECTOR_LENGTH] = INS_VECTOR_LENGTH; 
   l_op_table[SET_CAR] = INS_SET_CAR; 
   l_op_table[SET_CDR] = INS_SET_CDR; 
+  l_op_table[DISPLAY] = INS_DISPLAY; 
+  l_op_table[STRING_LENGTH] = INS_STRING_LENGTH; 
+  l_op_table[STRING_REF] = INS_STRING_REF; 
+  l_op_table[STRING_SET] = INS_STRING_SET; 
+  l_op_table[MAKE_STRING] = INS_MAKE_STRING; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

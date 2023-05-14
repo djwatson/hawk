@@ -110,6 +110,8 @@
 	    lst)))
 (define (vector-length v)
   ($vector-length v))
+(define (string-length v)
+  ($string-length v))
 
 (define (negative? a)
   ($< a 0))
@@ -150,5 +152,82 @@
 			      (slow (cdr slow)))
 			  (and (not (eq? fast slow))
 			       (loop fast slow))))))))))
+
+
+(define (display arg)
+  (cond
+   ((null? arg) (display "()" ))
+   ((pair? arg)
+    (display "(" )
+    (let loop ((arg arg))
+      (if (not (pair? arg)) (begin (display ". " ) (display arg ))
+	  (begin (display (car arg) ) 
+		 (if (not (null? (cdr arg)))
+		     (begin
+		       (display " " )
+		       (loop (cdr arg)))))))
+    (display ")" ))
+   ((vector? arg)
+    (display "#" )
+    (display (vector->list arg) ))
+   (else ($display arg ))))
+
+(define (write arg)
+  (cond
+   ((null? arg) (display "()" ))
+   ((pair? arg)
+    (display "(" )
+    (let loop ((arg arg))
+      (if (not (pair? arg)) (begin (display ". " ) (write arg ))
+	  (begin (write (car arg) ) 
+		 (if (not (null? (cdr arg)))
+		     (begin
+		       (display " " )
+		       (loop (cdr arg)))))))
+    (display ")" ))
+   ((vector? arg)
+    (display "#" )
+    (write (vector->list arg) ))
+   ((char? arg)
+    (cond
+     ((char=? #\newline arg) (display "#\\newline" ))
+     ((char=? #\tab arg) (display "#\\tab" ))
+     ((char=? #\space arg) (display "#\\space" ))
+     ((char=? #\return arg) (display "#\\return" ))
+     (else (display "#\\" ) (display arg ))))
+   ((string? arg)
+    (display "\"" ) 
+    (for-each 
+     (lambda (chr) 
+       (cond
+	((char=? #\" chr) (display "\\\"" ))
+	((char=? #\\ chr) (display "\\\\" ))
+	(else (display chr ))))
+     (string->list arg))
+    (display "\"" ))
+   (else 
+    ($display arg))))
+
+(define (for-each proc lst )
+  (if (not (null? lst))
+      (begin
+	(proc (car lst))
+	(for-each proc (cdr lst)))))
+
+(define (make-string len . val)
+  ($make-string len (if (pair? val) (car val) #\space)))
+(define (string-set! s k obj)
+  ($string-set! s k obj))
+(define (string-ref s k)
+  ($string-ref s k))
+(define (string->list str)
+  (let ((n (string-length str)))
+    (let loop ((i (- n 1)) (lst '()))
+      (if (< i 0)
+	  lst
+	  (loop (- i 1) (cons (string-ref str i) lst))))))
+(define (char=? a b)
+  ($eq a b))
+
 
 
