@@ -15,6 +15,7 @@
 (define (- a b) ($- a b))
 (define (* a b) ($* a b))
 (define (< a b) ($< a b))
+(define (= a b) ($= a b))
 (define (not a) (if a #f #t))
 (define (> a b) (not (or ($= a b) ($< a b))))
 
@@ -36,6 +37,17 @@
 	  (car alist)
 	  (loop obj (cdr alist))))))
 
-(case (* 2 3)
-			 ((2 3 5 7) 'prime)
-			 ((1 4 6 8 9) 'composite))
+
+(define (memq obj list) 
+  (if (null? list) #f
+      (if (eq? obj (car list)) 
+	  list
+	  (memq obj (cdr list)))))
+
+(define (zero? a) ($= a 0))
+
+;; (do ((vec (make-vector 5))
+;; 			    (i 0 (+ i 1)))
+;; 			   ((= i 5) vec)
+;; 			 (vector-set! vec i i))
+($make-vector 5 #f)

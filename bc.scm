@@ -102,7 +102,8 @@
 				 ($* MULVV)
 				 ($= ISEQ) ($eq EQ)
 				 ($set-box! SET-BOX!)
-				 ($cons CONS))))))
+				 ($cons CONS)
+				 ($make-vector MAKE-VECTOR))))))
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
@@ -269,6 +270,7 @@
 	  (compile-lookup f bc env rd cd)
 	  (compile-self-evaluating f bc rd cd))
       (case (car f)
+	;; The standard scheme forms.
 	((define) (compile-define f bc env rd cd))
 	((let) (compile-let f bc env rd cd))
 	((lambda) (compile-lambda f bc rd cd))
@@ -276,10 +278,13 @@
 	((if) (compile-if f bc env rd cd))
 	((set!) (compile-define f bc env rd cd)) ;; TODO check?
 	((quote) (compile-self-evaluating (second f) bc rd cd))
-	(($+ $* $- $< $= $guard $set-box! $closure-get $eq $cons) (compile-binary f bc env rd cd))
+
+	;; Builtins
+	(($+ $* $- $< $= $guard $set-box! $closure-get $eq $cons $make-vector)
+	 (compile-binary f bc env rd cd))
+	(($box $unbox $car $cdr) (compile-unary f bc env rd cd))
 	(($closure) (compile-closure f bc env rd cd))
 	(($closure-set) (compile-closure-set f bc env rd cd))
-	(($box $unbox $car $cdr) (compile-unary f bc env rd cd))
 	(else
 	 (compile-call f bc env rd cd)))))
 
@@ -362,7 +367,8 @@
 	       (EQ 34)
 	       (CONS 35)
 	       (CAR 36)
-	       (CDR 37)))
+	       (CDR 37)
+	       (MAKE-VECTOR 38)))
 
 (define bc-ins '(KSHORT))
 

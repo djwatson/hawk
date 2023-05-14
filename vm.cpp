@@ -691,7 +691,7 @@ void INS_EQ(PARAMS) {
 }
 
 void INS_CONS(PARAMS) {
-  DEBUG("EQ");
+  DEBUG("CONS");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
 
@@ -728,6 +728,30 @@ void INS_CDR(PARAMS) {
   }
   auto c = (cons_s*)(fb-CONS_TAG);
   frame[ra] = c->b;
+  pc++;
+
+  NEXT_INSTR;
+}
+
+void INS_MAKE_VECTOR(PARAMS) {
+  DEBUG("MAKE_VECTOR");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  long fb = frame[rb];
+  long fc = frame[rc];
+  if(unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto len = fb>>3;
+  auto vec = (vector_s*)GC_malloc( sizeof(long) * (len + 2));
+  vec->type = VECTOR_TAG;
+  vec->len = len;
+  for(long i = 0; i < len; i++) {
+    vec->v[i] = fc;
+  }
+  
+  frame[ra] = (long)vec | PTR_TAG;
   pc++;
 
   NEXT_INSTR;
@@ -796,6 +820,7 @@ void run() {
   l_op_table[CONS] = INS_CONS; 
   l_op_table[CAR] = INS_CAR; 
   l_op_table[CDR] = INS_CDR; 
+  l_op_table[MAKE_VECTOR] = INS_MAKE_VECTOR; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

@@ -39,5 +39,6 @@ const char* ins_names[] = {
   "CONS",
   "CAR",
   "CDR",
+  "MAKE-VECTOR",
 };
 // clang-format on

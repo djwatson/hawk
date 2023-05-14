@@ -44,6 +44,7 @@ enum {
   CONS,
   CAR,
   CDR,
+  MAKE_VECTOR,
   INS_MAX
 };
 // clang-format on
