@@ -150,8 +150,5 @@
 			      (slow (cdr slow)))
 			  (and (not (eq? fast slow))
 			       (loop fast slow))))))))))
-(define x (list 'a 'b 'c))
-(define y x)
-(list? y)
-(set-cdr! x 4)
-(eqv? x y)
+
+

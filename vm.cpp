@@ -822,6 +822,38 @@ void INS_VECTOR_SET(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_SET_CAR(PARAMS) {
+  DEBUG("SET-CAR!");
+  unsigned char rb = instr & 0xff;
+
+  auto fa = frame[ra];
+  auto fb = frame[rb];
+  if (unlikely((fa & 0x7) != CONS_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto cons = (cons_s*)(fa-CONS_TAG);
+  cons->a = fb;
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_SET_CDR(PARAMS) {
+  DEBUG("SET-CDR!");
+  unsigned char rb = instr & 0xff;
+
+  auto fa = frame[ra];
+  auto fb = frame[rb];
+  if (unlikely((fa & 0x7) != CONS_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto cons = (cons_s*)(fa-CONS_TAG);
+  cons->b = fb;
+
+  pc++;
+  NEXT_INSTR;
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -889,6 +921,8 @@ void run() {
   l_op_table[VECTOR_REF] = INS_VECTOR_REF; 
   l_op_table[VECTOR_SET] = INS_VECTOR_SET; 
   l_op_table[VECTOR_LENGTH] = INS_VECTOR_LENGTH; 
+  l_op_table[SET_CAR] = INS_SET_CAR; 
+  l_op_table[SET_CDR] = INS_SET_CDR; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

@@ -48,6 +48,8 @@ enum {
   VECTOR_SET,
   VECTOR_REF,
   VECTOR_LENGTH,
+  SET_CAR,
+  SET_CDR,
   INS_MAX
 };
 // clang-format on

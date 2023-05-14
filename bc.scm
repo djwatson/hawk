@@ -246,6 +246,14 @@
   (compile-sexp (third f) bc env r2 'next)
   (compile-sexp (second f) bc env r1 'next))
 
+(define (compile-setter2 f bc env rd cd)
+  (finish bc cd rd)
+  (define r1 (exp-loc (second f) env rd))
+  (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
+  (push! (func-bc-code bc) (list (if (eq? '$set-car! (first f)) 'SET-CAR 'SET-CDR) r1 r2))
+  (compile-sexp (third f) bc env r2 'next)
+  (compile-sexp (second f) bc env r1 'next))
+
 (define (compile-define f bc env rd cd)
   (if (pair? (second f))
       (compile-define
@@ -298,6 +306,7 @@
 	     $make-vector $vector-ref)
 	 (compile-binary f bc env rd cd))
 	(($vector-set!) (compile-setter f bc env rd cd))
+	(($set-car! $set-cdr!) (compile-setter2 f bc env rd cd))
 	(($box $unbox $car $cdr $vector-length) (compile-unary f bc env rd cd))
 	(($closure) (compile-closure f bc env rd cd))
 	(($closure-set) (compile-closure-set f bc env rd cd))
@@ -387,7 +396,9 @@
 	       (MAKE-VECTOR 38)
 	       (VECTOR-SET 39)
 	       (VECTOR-REF 40)
-	       (VECTOR-LENGTH 41)))
+	       (VECTOR-LENGTH 41)
+	       (SET-CAR 42)
+	       (SET-CDR 43)))
 
 (define bc-ins '(KSHORT))
 
