@@ -134,7 +134,16 @@
     (compile-sexp (second f) bc env r1 'next)))
 
 (define (compile-if f bc env rd cd)
-  (define dest (if (eq? cd 'ret) 'ret (length (func-bc-code bc))))
+  ;;(display (format "Compile-if ~a RD:~a CD:~a\n" f rd cd))
+  (define dest (cond
+		((eq? cd 'ret) cd)
+		((branch-dest? cd)
+		 (push! (func-bc-code bc) (list 'JMP (third cd)))
+		 (push! (func-bc-code bc) (list 'ISF rd))
+		 (length (func-bc-code bc)))
+		((number? cd) cd)
+		((eq? cd 'next)
+		 (length (func-bc-code bc)))))
   (define r1 (exp-loc (second f) env rd))
   (when (= 3 (length f))
     (set! f (append f (list #f))))
@@ -254,7 +263,7 @@
 	    (reverse mapping)))
 
 (define (compile-sexp f bc env rd cd)
-  (display (format "SEXP: ~a env ~a\n" f env))
+  ;;(display (format "SEXP: ~a env ~a\n" f env))
   (if (not (pair? f))
       (if (symbol? f)
 	  (compile-lookup f bc env rd cd)
@@ -379,11 +388,11 @@
 
 (import (chicken foreign))
 
-(define write-double
-  (foreign-lambda* long ((double x))
-		   "long ret;"
-		   "memcpy(&ret, &x, 8);"
-		   "C_return(ret);"))
+;; (define write-double
+;;   (foreign-lambda* long ((double x))
+;; 		   "long ret;"
+;; 		   "memcpy(&ret, &x, 8);"
+;; 		   "C_return(ret);"))
 
 (define symbol-table '())
 (define (bc-write-const c p)

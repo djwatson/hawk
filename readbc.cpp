@@ -21,7 +21,6 @@ long read_const(FILE *fptr) {
   }
   auto type = val & 0x7;
   if (type == 4) {
-    printf("symbol: %li\n", (val - 4) / 8);
     unsigned long num = val >> 3;
     if (num < symbols.size()) {
       val = symbols[num];
@@ -42,14 +41,11 @@ long read_const(FILE *fptr) {
       symbols.push_back(val);
     }
   } else if (type == 7) {
-    printf("immediate %lx\n", val);
   } else if (type == FIXNUM_TAG) {
-    printf("fixnum: %li\n", val >> 3);
   } else if (type == FLONUM_TAG) {
     auto f = (flonum_s *)GC_malloc(sizeof(flonum_s));
     assert(!((long)f & TAG_MASK));
     fread(&f->x, 8, 1, fptr);
-    printf("Flonum: %f\n", f->x);
     val = (long)f | FLONUM_TAG;
   } else if (type == CONS_TAG) {
     auto c = (cons_s *)GC_malloc(sizeof(cons_s));
@@ -67,7 +63,6 @@ long read_const(FILE *fptr) {
       str->len = len;
       fread(&str->str, 1, len, fptr);
       str->str[len] = '\0';
-      printf("String %s\n", str->str);
       val = (long)str | PTR_TAG;
     } else if (ptrtype == VECTOR_TAG) {
       long len;
@@ -113,6 +108,9 @@ void readbc() {
   const_table = (long *)GC_malloc(const_count * sizeof(long));
   for (unsigned j = 0; j < const_count; j++) {
     const_table[j] = read_const(fptr);
+    printf("%i: ", j);
+    print_obj(const_table[j]);
+    printf("\n");
   }
 
   // Read functions

@@ -19,7 +19,7 @@
 ;;(define (atom? e) (not (pair? e)))
 
 (define gensym-var 0)
-(define (gensym . s)
+(define (compiler-gensym . s)
   (let ((sym (if (pair? s) (car s) 'gensym)))
     (set! gensym-var (+ 1 gensym-var))
     (string->symbol (string-append "var-" (symbol->string sym) "-" (number->string gensym-var)))))
@@ -75,7 +75,7 @@
 	   (let* ((new-boxes (filter-map
 			 (lambda (x)
 			   (if (memq x assigned)
-			       (cons x (gensym x))
+			       (cons x (compiler-gensym x))
 			       #f))
 			 (to-proper (second f))))
 		 (boxes (append new-boxes boxes)))
@@ -90,7 +90,7 @@
 	   (let* ((new-boxes (filter-map
 			 (lambda (x)
 			   (if (memq x assigned)
-			       (cons x (gensym x))
+			       (cons x (compiler-gensym x))
 			       #f))
 			 (map car (second f))))
 		 (boxes (append new-boxes boxes)))
@@ -104,7 +104,7 @@
 	  ((quote) f)
 	  (else (imap (lambda (a) (convert-assigned a assigned boxes)) f)))))
   (define assigned (find-assigned c '()))
-  (display (format "Assigned: ~a\n" assigned))
+  ;;(display (format "Assigned: ~a\n" assigned))
   (convert-assigned c assigned '()))
 
 ;; TODO also case-lambda?
@@ -183,7 +183,7 @@
 	  ((letrec)
 	   (let* ((var-names (map first (second f)))
 		  (new-bindings (union (map car (second f)) bindings))
-		  (closures (map (lambda (x) (gensym 'closure)) (second f)))
+		  (closures (map (lambda (x) (compiler-gensym 'closure)) (second f)))
 		  (free-vars (map (lambda (f)
 				    (difference (find-free (second f) new-bindings) (list (first f))))
 				  (second f)))
@@ -212,9 +212,9 @@
 		  (body (cc (cddr f) new-bindings))
 		  (free-vars (find-free body bindings))
 		  (free-bind (map cons free-vars (iota (length free-vars))))
-		  (closure-var (gensym 'closure))
+		  (closure-var (compiler-gensym 'closure))
 		  (new-body (substitute-free body free-bind closure-var #f)))
-	     (display (format "FOUND FREE: ~a\n" free-vars))
+	     ;;(display (format "FOUND FREE: ~a\n" free-vars))
 	     `($closure (lambda ,(cons closure-var (second f)) ,@new-body) ,@free-vars)))
 	  (else (map (lambda (f) (cc f bindings)) f)))))
   (map (lambda (f) (cc f '())) sexp))

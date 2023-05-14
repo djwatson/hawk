@@ -1,5 +1,6 @@
 # TODO list
 
+* bug in if/if generation
 * mem store/loads
 * TODO > , GSET check
 * get stores/loads, case-lambda all working
