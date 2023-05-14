@@ -42,5 +42,6 @@ const char* ins_names[] = {
   "MAKE-VECTOR",
   "VECTOR-SET!",
   "VECTOR-REF",
+  "VECTOR-LENGTH",
 };
 // clang-format on

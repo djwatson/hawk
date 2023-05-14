@@ -47,6 +47,7 @@ enum {
   MAKE_VECTOR,
   VECTOR_SET,
   VECTOR_REF,
+  VECTOR_LENGTH,
   INS_MAX
 };
 // clang-format on

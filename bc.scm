@@ -128,7 +128,8 @@
 (define (compile-unary f bc env rd cd)
   (define op (second (assq (first f)
 			   '(($box BOX) ($unbox UNBOX)
-			     ($car CAR) ($cdr CDR)))))
+			     ($car CAR) ($cdr CDR)
+			     ($vector-length VECTOR-LENGTH)))))
   (define r1 (exp-loc (second f) env rd))
   (when cd
     (finish bc cd rd)
@@ -297,7 +298,7 @@
 	     $make-vector $vector-ref)
 	 (compile-binary f bc env rd cd))
 	(($vector-set!) (compile-setter f bc env rd cd))
-	(($box $unbox $car $cdr) (compile-unary f bc env rd cd))
+	(($box $unbox $car $cdr $vector-length) (compile-unary f bc env rd cd))
 	(($closure) (compile-closure f bc env rd cd))
 	(($closure-set) (compile-closure-set f bc env rd cd))
 	(else
@@ -385,7 +386,8 @@
 	       (CDR 37)
 	       (MAKE-VECTOR 38)
 	       (VECTOR-SET 39)
-	       (VECTOR-REF 40)))
+	       (VECTOR-REF 40)
+	       (VECTOR-LENGTH 41)))
 
 (define bc-ins '(KSHORT))
 

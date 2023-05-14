@@ -24,6 +24,16 @@
   (or ($eq a b)
       (and (flonum? a) (flonum? b)
 	   ($= a b))))
+(define (equal? a b)
+  (if (eqv? a b) #t
+      (cond
+       ((pair? a)
+	(and (pair? b) (equal? (car a) (car b)) (equal? (cdr a) (cdr b))))
+       ((string? a)
+	(and (string? b) (string=? a b)))
+       ((vector? a) ; TODO make faster
+	(and (vector? b) (equal? (vector->list a) (vector->list b)))) 
+       (else #f))))
 
 (define (car a) ($car a))
 (define (cdr a) ($cdr a))
@@ -92,6 +102,15 @@
   ($vector-set! v k obj))
 (define (vector-ref v k)
   ($vector-ref v k))
+(define (vector->list v)
+    (let loop ((l (- (vector-length v) 1)) 
+	       (lst '()))
+      (if (not (< l 0))
+	    (loop (- l 1) (cons (vector-ref v l) lst))
+	    lst)))
+(define (vector-length v)
+  ($vector-length v))
+
 (define (negative? a)
   ($< a 0))
 (define (abs a)
@@ -119,6 +138,20 @@
   )
 
 
-(letrec ((foo 77)
-	 (retfoo (lambda () foo)))
-  (retfoo))
+
+(define (list? x)
+  (let loop ((fast x) (slow x))
+    (or (null? fast)
+	(and (pair? fast)
+	     (let ((fast (cdr fast)))
+	       (or (null? fast)
+		   (and (pair? fast)
+			(let ((fast (cdr fast))
+			      (slow (cdr slow)))
+			  (and (not (eq? fast slow))
+			       (loop fast slow))))))))))
+(define x (list 'a 'b 'c))
+(define y x)
+(list? y)
+(set-cdr! x 4)
+(eqv? x y)

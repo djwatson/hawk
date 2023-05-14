@@ -780,6 +780,24 @@ void INS_VECTOR_REF(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_VECTOR_LENGTH(PARAMS) {
+  DEBUG("VECTOR_LENGTH");
+  unsigned char rb = instr & 0xff;
+
+  auto fb = frame[rb];
+  if (unlikely((fb & 0x7) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto vec = (vector_s*)(fb-PTR_TAG);
+  if (unlikely(vec->type != VECTOR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  frame[ra] = vec->len << 3;
+
+  pc++;
+  NEXT_INSTR;
+}
+
 void INS_VECTOR_SET(PARAMS) {
   DEBUG("VECTOR-SET!");
   unsigned char rb = instr & 0xff;
@@ -870,6 +888,7 @@ void run() {
   l_op_table[MAKE_VECTOR] = INS_MAKE_VECTOR; 
   l_op_table[VECTOR_REF] = INS_VECTOR_REF; 
   l_op_table[VECTOR_SET] = INS_VECTOR_SET; 
+  l_op_table[VECTOR_LENGTH] = INS_VECTOR_LENGTH; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }
