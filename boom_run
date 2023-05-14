@@ -1,4 +1,4 @@
 #!/bin/bash
 
 ./bc < $1
-./boom
+./boom --joff

@@ -102,13 +102,13 @@ long cons(long a, long b) {
 
 long build_list(long start, long len, long*frame) {
   long lst = NIL_TAG;
-  printf("Build list from %i len %i\n", start, len);
+  // printf("Build list from %i len %i\n", start, len);
   for(long pos = start+len-1; pos >= start; pos--) {
     lst = cons(frame[pos], lst);
   }
-  printf("build_list Result:");
-  print_obj(lst);
-  printf("\n");
+  // printf("build_list Result:");
+  // print_obj(lst);
+  // printf("\n");
   return lst;
 }
 

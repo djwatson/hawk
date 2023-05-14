@@ -214,6 +214,12 @@
 	(proc (car lst))
 	(for-each proc (cdr lst)))))
 
+(define (for-each3 proc lst1 lst2)
+  (if (and  (not (null? lst1)) (not (null? lst2)))
+      (begin
+	(proc (car lst1) (car lst2))
+	(for-each3 proc (cdr lst1) (cdr lst2)))))
+
 (define (make-string len . val)
   ($make-string len (if (pair? val) (car val) #\space)))
 (define (string-set! s k obj)
@@ -229,5 +235,99 @@
 (define (char=? a b)
   ($eq a b))
 
+(define (newline)
+  (display #\newline))
+
+;;;;;;;;;;;;;;;;
+(define cur-section '())(define errs '())
+(define SECTION (lambda args
+		  (display "SECTION") (write args) (newline)
+		  (set! cur-section args) #t))
+(define record-error (lambda (e) (set! errs (cons (list cur-section e) errs))))
+
+(define test
+  (lambda (expect fun . args)
+    (write (cons fun args))
+    (display "  ==> ")
+    ((lambda (res)
+      (write res)
+      (newline)
+      (cond ((not (equal? expect res))
+	     (record-error (list res expect (cons fun args)))
+	     (display " BUT EXPECTED ")
+	     (write expect)
+	     (newline)
+	     #f)
+	    (else #t)))
+     (if (procedure? fun) (apply fun args) (car args)))))
+(define (report-errs)
+  (newline)
+  (if (null? errs) (display "Passed all tests")
+      (begin
+	(display "errors were:")
+	(newline)
+	(display "(SECTION (got expected (call)))")
+	(newline)
+	(for-each (lambda (l) (write l) (newline))
+		  errs)))
+  (newline))
+
+(SECTION 2 1);; test that all symbol characters are supported.
+'(+ - ... !.. $.+ %.- &.!  /:. :+. <-. =. >. ?. ~. _. ^.)
+
+(SECTION 3 4)
+(define disjoint-type-functions
+  (list boolean? char? null? number? pair? procedure? string? symbol? vector?))
+(define type-examples
+  (list
+   #t #f #\a '() 9739 '(test) record-error "test" "" 'test '#() '#(a b c) ))
+(define i 1)
+(for-each (lambda (x) (display (make-string i #\ ))
+		  (set! i (+ 3 i))
+		  (write x)
+		  (newline))
+	  disjoint-type-functions)
+(define type-matrix
+  (map (lambda (x)
+	 (let ((t (map (lambda (f) (f x)) disjoint-type-functions)))
+	   (write t)
+	   (write x)
+	   (newline)
+	   t))
+       type-examples))
+(set! i 0)
+(define j 0)
+(for-each3 (lambda (x y)
+	    (set! j (+ 1 j))
+	    (set! i 0)
+	    (for-each (lambda (f)
+			(set! i (+ 1 i))
+			(cond ((and (= i j))
+			       (cond ((not (f x)) (test #t f x))))
+			      ((f x) (test #f f x)))
+			(cond ((and (= i j))
+			       (cond ((not (f y)) (test #t f y))))
+			      ((f y) (test #f f y))))
+		      disjoint-type-functions))
+	  (list #t #\a '() 9739 '(test) record-error "test" 'car '#(a b c))
+	  (list #f #\newline '() -3252 '(t . t) car "" 'nil '#()))
 
 
+(SECTION 4 1 2)
+(test '(quote a) 'quote (quote 'a))
+(test '(quote a) 'quote ''a)
+(SECTION 4 1 3)
+(test 12 (if #f + *) 3 4)
+(SECTION 4 1 4)
+(test 8 (lambda (x) (+ x x)) 4)
+(define reverse-subtract
+  (lambda (x y) (- y x)))
+(test 3 reverse-subtract 7 10)
+(define add4
+  (let ((x 4))
+    (lambda (y) (+ x y))))
+(test 10 add4 6)
+(test '(3 4 5 6) (lambda x x) 3 4 5 6)
+(test '(5 6) (lambda (x y . z) z) 3 4 5 6)
+
+(report-errs)
