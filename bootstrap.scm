@@ -1476,12 +1476,12 @@
 ;; (if (and (string->number "0.0") (inexact? (string->number "0.0")))
 ;;     (test-inexact))
 
-;; (newline)
-;; (display "To fully test continuations, Scheme 4, and DELAY/FORCE do:")
-;; (newline)
-;; (display "(test-cont) (test-sc4) (test-delay)")
-;; (newline)
-;; "last item in file"
+(newline)
+(display "To fully test continuations, Scheme 4, and DELAY/FORCE do:")
+(newline)
+(display "(test-cont) (test-sc4) (test-delay)")
+(newline)
+"last item in file"
 
 
 
