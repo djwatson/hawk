@@ -332,7 +332,7 @@ void INS_GSET(PARAMS) {
 
 void INS_KFUNC(PARAMS) {
   DEBUG("KFUNC");
-  unsigned char rb = instr;
+  auto rb = instr;
 
   frame[ra] = (long)funcs[rb];
 

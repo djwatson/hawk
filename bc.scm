@@ -430,7 +430,7 @@
 	       (REM 54)
 	       (DIV 55)))
 
-(define bc-ins '(KSHORT GGET GSET KONST))
+(define bc-ins '(KSHORT GGET GSET KONST KFUNC))
 
 (define (write-uint v p)
   (write-u8 (bitwise-and v #xff) p)
