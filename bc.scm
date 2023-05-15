@@ -267,7 +267,7 @@
       (let* ((c (get-or-push-const bc (second f))))
 	;; TODO undef
 	(finish bc cd rd)
-	(push! (func-bc-code bc) (list 'GSET c rd))
+	(push! (func-bc-code bc) (list 'GSET rd c))
 	(compile-sexp (third f) bc env rd 'next)
 	)))
 
@@ -411,7 +411,7 @@
 	       (MAKE-STRING 48)
 	       (APPLY 49)))
 
-(define bc-ins '(KSHORT))
+(define bc-ins '(KSHORT GGET GSET KONST))
 
 (define (write-uint v p)
   (write-u8 (bitwise-and v #xff) p)

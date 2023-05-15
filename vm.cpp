@@ -134,9 +134,9 @@ void INS_FUNC(PARAMS) {
 
 void INS_KSHORT(PARAMS) {
   DEBUG("KSHORT");
-  char rb = instr&0xff;
+  auto rd = instr;
 
-  frame[ra] = rb << 3;
+  frame[ra] = rd << 3;
 
   pc++;
   NEXT_INSTR;
@@ -296,9 +296,9 @@ void INS_SUBVV(PARAMS) {
 }
 
 void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
-  unsigned char rb = instr;
+  auto rd = instr;
 
-  symbol *gp = (symbol *)(const_table[rb] - SYMBOL_TAG);
+  symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
 
   printf("FAIL undefined symbol: %s\n", gp->name->str);
   return;
@@ -306,9 +306,9 @@ void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
 
 void INS_GGET(PARAMS) {
   DEBUG("GGET");
-  unsigned char rb = instr;
+  auto rd = instr;
 
-  symbol *gp = (symbol *)(const_table[rb] - SYMBOL_TAG);
+  symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
   if (unlikely(gp->val == UNDEFINED_TAG)) {
     MUSTTAIL return UNDEFINED_SYMBOL_SLOWPATH(ARGS);
   }
@@ -320,10 +320,10 @@ void INS_GGET(PARAMS) {
 
 void INS_GSET(PARAMS) {
   DEBUG("GSET");
-  unsigned char rb = instr;
+  auto rd = instr;
 
-  symbol *gp = (symbol *)(const_table[ra] - SYMBOL_TAG);
-  gp->val = frame[rb];
+  symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
+  gp->val = frame[ra];
 
   pc++;
   NEXT_INSTR;
@@ -395,10 +395,10 @@ void INS_CALLT(PARAMS) {
 
 void INS_KONST(PARAMS) {
   DEBUG("KONST");
-  unsigned char rb = instr;
+  auto rd = instr;
 
   bcfunc *func = (bcfunc *)(frame[-1] - 5);
-  frame[ra] = const_table[rb];
+  frame[ra] = const_table[rd];
 
   pc++;
   NEXT_INSTR;

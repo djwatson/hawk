@@ -1,6 +1,6 @@
 # TODO list
 
-* apply
+* fix kfunc/gset/gget
 * TODO > , GSET check
 * case-lambda all working
 * get rest of r5rs working
