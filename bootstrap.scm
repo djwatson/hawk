@@ -77,10 +77,19 @@
   (if (null? lst) '()
       (cons (f (car lst)) (map f (cdr lst)))))
 
-(define (append a b)
-  (if (null? a)
-      b
-      (cons (car a) (append (cdr a) b))))
+;; (define (append a b)
+;;   (if (null? a)
+;;       b
+;;       (cons (car a) (append (cdr a) b))))
+(define (append . lsts)
+  (if (null? lsts) '()
+      (let loop ((lsts lsts))
+	(if (null? (cdr lsts))
+	    (car lsts)
+	    (let copy ((node (car lsts)))
+	      (if (pair? node)
+		  (cons (car node) (copy (cdr node)))
+		  (loop (cdr lsts))))))))
 
 (define (assv obj1 alist1)
   (let loop ((obj obj1) (alist alist1))
@@ -242,6 +251,29 @@
 
 (define (apply fun args)
   ($apply fun args))
+
+(define (strcmp f a b eq lt gt)
+  (let loop ((pos 0) (rema (string-length a)) (remb (string-length b)))
+    (cond
+     ((and (= rema 0 ) (= remb 0))  eq)
+     ((= rema 0)  lt)
+     ((= remb 0)  gt)
+     ((eq? (string-ref a pos) (string-ref b pos))
+      (loop (+ 1 pos) (- rema 1) (- remb 1)))
+     (else
+      (f (string-ref a pos) (string-ref b pos))))))
+
+(define (string<? a b) (strcmp char<? a b #f #t #f))
+(define (string>? a b) (strcmp char>? a b #f #f #f))
+(define (string<=? a b) (strcmp char<=? a b #t #t #f))
+(define (string>=? a b) (strcmp char>=? a b #t #f #f))
+(define (string-ci<? a b) (strcmp char-ci<? a b #f #t #f))
+(define (string-ci>? a b) (strcmp char-ci>? a b #f #f #f))
+(define (string-ci<=? a b) (strcmp char-ci<=? a b #t #t #f))
+(define (string-ci>=? a b) (strcmp char-ci>=? a b #t #f #f))
+(define (string-ci=? a b) (strcmp char-ci=? a b #t #f #f))
+(define (string=? a b) (strcmp char=? a b #t #f #f))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define cur-section '())(define errs '())
