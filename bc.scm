@@ -546,7 +546,8 @@
 	  (optimize-direct
 	   (assignment-conversion
 	    (fix-letrec
-	     (expander))))))
+	     (case-insensitive
+	      (expander)))))))
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors
 (set! consts (reverse! consts))

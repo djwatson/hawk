@@ -209,3 +209,10 @@
 	     `($closure (lambda ,(cons closure-var (second f)) ,@new-body) ,@free-vars)))
 	  (else (imap (lambda (f) (cc f bindings)) f)))))
   (map (lambda (f) (cc f '())) sexp))
+
+(define (case-insensitive s)
+  (if (pair? s)
+      (imap case-insensitive s)
+      (if (symbol? s)
+	  (string->symbol (list->string (map char-downcase (string->list (symbol->string s)))))
+	  s)))
