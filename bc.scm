@@ -177,7 +177,7 @@
 (define (compile-lambda-internal f f-bc env)
   (define r (ilength (second f)))
   (define rest (improper? (second f)))
-  (display (format "Lambda: ~a\n" f))
+  ;;(display (format "Lambda: ~a\n" f))
   (fold (lambda (n num)
 	  (push! env (cons n num))
 	  (+ num 1))
@@ -199,7 +199,7 @@
 
 (define (compile-lookup f bc env rd cd)
   (define loc (find-symbol f env))
-  (display (format "Lookup ~a ~a\n" f env))
+  ;;(display (format "Lookup ~a ~a\n" f env))
   (define r (if (eq? cd 'ret) (exp-loc f env rd) rd))
   (finish bc cd r)
   (if loc

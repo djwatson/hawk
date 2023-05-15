@@ -42,7 +42,7 @@ while being more portable and easier to change.
 #define ARGS ra, instr, pc, frame, op_table_arg, argcnt
 #define MUSTTAIL __attribute__((musttail))
 #define DEBUG(name)
-//#define DEBUG(name) printf("%s ra %i rd %i %li %li %li %li\n", name, ra, instr, frame[0], frame[1], frame[2], frame[3]);
+//#define DEBUG(name) printf("%s ra %i rd %i rb %i rc %i ", name, ra, instr, instr&0xff, (instr>>8)); print_obj(frame[0]);print_obj(frame[1]);print_obj(frame[2]);print_obj(frame[3]); printf("\n");
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
@@ -966,24 +966,25 @@ void INS_APPLY(PARAMS) {
   unsigned char rc = (instr >> 8) & 0xff;
 
   auto fun = frame[rb];
+  if (unlikely((fun&TAG_MASK) != CLOSURE_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  // TODO check type NIL
   auto args = frame[rc];
-  // TODO check type
   // TODO make tail call.
   long a = 0;
   for(;(args&TAG_MASK) == CONS_TAG;a++) {
     auto cons = (cons_s*)(args-CONS_TAG);
-    frame[a+2] = cons->a;
+    frame[a+1] = cons->a;
     args = cons->b;
   }
-  frame[1] = fun;
+  frame[0] = fun;
   auto clo = (closure_s*)(fun-CLOSURE_TAG);
-  frame[0] = clo->v[0];
-  
-  unsigned char op = CALLT;
-  ra = 0;
-  instr = a + 2;
-  op_func *op_table_arg_c = (op_func *)op_table_arg;                         
-  MUSTTAIL return op_table_arg_c[op](ARGS);                                  
+  auto func = (bcfunc*)clo->v[0];
+  pc = &func->code[0];
+  argcnt = a+1;
+
+  NEXT_INSTR;
 }
 
 void INS_UNKNOWN(PARAMS) {
