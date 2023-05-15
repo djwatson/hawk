@@ -168,16 +168,20 @@
 	      ,@(map (lambda (s) (cc s (union (map car (second f)) bindings))) (cddr f))))
 	  ((letrec)
 	   (let* ((var-names (map first (second f)))
-		  (new-bindings (union (map car (second f)) bindings))
+		  ;; Bindings including the letrec-names
+		  (letrec-bindings  (union var-names bindings))
+		  ;; Bindings including the lambda variables, for recursing and closing 
+		  ;; nested letrec/lambdas.
+		  (new-bindings  (fold union letrec-bindings (map cadadr (second f))))
 		  (closures (map (lambda (x) (compiler-gensym 'closure)) (second f)))
 		  (free-vars (map (lambda (f)
-				    (difference (find-free (second f) new-bindings) (list (first f))))
+				    (difference (find-free (second f) letrec-bindings) (list (first f))))
 				  (second f)))
 		  (free-bind (map (lambda (free) (map cons free (iota (length free)))) free-vars))
 		  (bodies (map (lambda (f bindings closure)
 				 (define func (second f))
 				 (define closed-body (map (lambda (f) (cc f new-bindings)) (cddr func)))
-				 (substitute-free `(lambda ,(second func) ,@closed-body) bindings closure (first f)))
+				 `(lambda ,(second func) ,@(substitute-free closed-body bindings closure (first f))))
 			       (second f) free-bind closures)))
 	     `(let ,(map (lambda (v body closure free)
 			   `(,v ($closure (lambda ,(cons closure (second body)) ,@(cddr body))
