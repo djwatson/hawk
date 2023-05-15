@@ -95,17 +95,17 @@
 
 ;; TODO also case-lambda?
 (define (fix-letrec-specific sexp)
-  (define assigned (find-assigned sexp '()))
+  (define assigned (find-assigned sexp (map car (second sexp))))
   (let*
       ((vars (map car (cadr sexp)))
        (bindings (map fix-letrec (map cadr (cadr sexp))))
        (body (fix-letrec (cddr sexp)))
-       (fixed (begin (filter-map (lambda (v b)
-			      (if
-			       (and (pair? b) (eq? 'lambda (car b))
-				    (not (memq v assigned)))
-			       (list v b) #f))
-			   vars bindings) '()))
+       (fixed (filter-map (lambda (v b)
+			    (if
+			     (and (pair? b) (eq? 'lambda (car b))
+				  (not (memq v assigned)))
+			     (list v b) #f))
+			  vars bindings) )
        (set (filter (lambda (v) (not (member v (map car fixed)))) vars))
        (tmp (map gensym set))
        (setters (map (lambda (s t) `(set! ,s ,t)) set tmp))
