@@ -344,7 +344,7 @@ __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
   auto pos = frame - stack;
   stacksz *= 2;
-  stack = (long *)realloc(stack, stacksz * sizeof(long));
+  stack = (long *)GC_realloc(stack, stacksz * sizeof(long));
   frame = stack + pos;
   frame_top = stack + stacksz;
 

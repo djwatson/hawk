@@ -1,5 +1,6 @@
 # TODO list
 
+* GC needs work for symbol table, consts, symbols, etc
 * INEXACT/str->num inexact/call/cc/ports/read/write
 * TODO > , GSET check
 * case-lambda all working
