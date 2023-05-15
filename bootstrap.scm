@@ -133,9 +133,24 @@
 (define (caddar e) (car (cddar e)))
 (define (cdddar e) (cdr (cddar e)))
 
-(define (map f lst)
-  (if (null? lst) '()
-      (cons (f (car lst)) (map f (cdr lst)))))
+(define (map . lst)
+  (let loop ((lsts (cons (cadr lst) (cddr lst))))
+    (let ((hds (let loop2 ((lsts lsts))
+		 (if (null? lsts)
+		     '()
+		     (let ((x (car lsts)))
+		       (and (not (null? x))
+			    (let ((r (loop2 (cdr lsts))))
+			      (and r (cons (car x) r)))))))))
+      (if hds
+	  (cons
+	   (apply (car lst) hds)
+	   (loop
+	    (let loop3 ((lsts lsts))
+	      (if (null? lsts)
+		  '()
+		  (cons (cdr (car lsts)) (loop3 (cdr lsts)))))))
+	  '())))  )
 
 (define (append . lsts)
   (if (null? lsts) '()
@@ -364,7 +379,12 @@
 (define (newline)
   (display #\newline))
 
-(define (apply fun args)
+(define (apply . lst)
+  (let* ((firstargs (reverse (cdr (reverse (cdr lst)))))
+	 (args (append firstargs (car (reverse (cdr lst))))))
+    (apply2 (car lst) args)))
+
+(define (apply2 fun args)
   ($apply fun args))
 
 (define (strcmp f a b eq lt gt)
@@ -1272,26 +1292,26 @@
 (test '#(hi hi) make-vector 2 'hi)
 (test '#() make-vector 0)
 (test '#() make-vector 0 'a)
-;; (SECTION 6 9)
-;; (test #t procedure? car)
-;; (test #f procedure? 'car)
-;; (test #t procedure? (lambda (x) (* x x)))
-;; (test #f procedure? '(lambda (x) (* x x)))
-;; (test #t call-with-current-continuation procedure?)
-;; (test 7 apply + (list 3 4))
-;; (test 7 apply (lambda (a b) (+ a b)) (list 3 4))
-;; (test 17 apply + 10 (list 3 4))
-;; (test '() apply list '())
-;; (define compose (lambda (f g) (lambda args (f (apply g args)))))
-;; (test 30 (compose sqt *) 12 75)
+(SECTION 6 9)
+(test #t procedure? car)
+(test #f procedure? 'car)
+(test #t procedure? (lambda (x) (* x x)))
+(test #f procedure? '(lambda (x) (* x x)))
+;;(test #t call-with-current-continuation procedure?)
+(test 7 apply + (list 3 4))
+(test 7 apply (lambda (a b) (+ a b)) (list 3 4))
+(test 17 apply + 10 (list 3 4))
+(test '() apply list '())
+(define compose (lambda (f g) (lambda args (f (apply g args)))))
+(test 30 (compose sqt *) 12 75)
 
-;; (test '(b e h) map cadr '((a b) (d e) (g h)))
-;; (test '(5 7 9) map + '(1 2 3) '(4 5 6))
-;; (test '#(0 1 4 9 16) 'for-each
-;; 	(let ((v (make-vector 5)))
-;; 		(for-each (lambda (i) (vector-set! v i (* i i)))
-;; 			'(0 1 2 3 4))
-;; 		v))
+(test '(b e h) map cadr '((a b) (d e) (g h)))
+(test '(5 7 9) map + '(1 2 3) '(4 5 6))
+(test '#(0 1 4 9 16) 'for-each
+	(let ((v (make-vector 5)))
+		(for-each (lambda (i) (vector-set! v i (* i i)))
+			'(0 1 2 3 4))
+		v))
 ;; (test -3 call-with-current-continuation
 ;; 		(lambda (exit)
 ;; 		 (for-each (lambda (x) (if (negative? x) (exit x)))
@@ -1307,7 +1327,7 @@
 ;; 	(r obj))))))
 ;; (test 4 list-length '(1 2 3 4))
 ;; (test #f list-length '(a b . c))
-;; (test '() map cadr '())
+(test '() map cadr '())
 
 ;; ;;; This tests full conformance of call-with-current-continuation.  It
 ;; ;;; is a separate test because some schemes do not support call/cc

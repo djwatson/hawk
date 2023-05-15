@@ -196,6 +196,7 @@
 				       bound))
 			 var-names free-bind))
 		,@(map (lambda (f) (cc f new-bindings)) (cddr f)))))
+	  ((quote) f)
 	  ((lambda)
 	   (let* (
 		  (new-bindings (union (to-proper (second f)) bindings))
