@@ -57,5 +57,7 @@ const char* ins_names[] = {
   "INTEGER->CHAR",
   "REM",
   "DIV",
+  "CALLCC",
+  "CALLCC-RESUME",
 };
 // clang-format on

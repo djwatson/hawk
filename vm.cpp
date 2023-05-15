@@ -972,7 +972,7 @@ void INS_APPLY(PARAMS) {
   }
   // TODO check type NIL
   auto args = frame[rc];
-  // TODO make tail call.
+
   long a = 0;
   for(;(args&TAG_MASK) == CONS_TAG;a++) {
     auto cons = (cons_s*)(args-CONS_TAG);
@@ -1113,6 +1113,49 @@ void INS_REM(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_CALLCC(PARAMS) {
+  DEBUG("CALLCC");
+  unsigned char rb = instr & 0xff;
+  
+  auto sz = frame-stack;
+  auto cont = (vector_s*)GC_malloc(sz*sizeof(long) + 16);
+  cont->type = CONT_TAG;
+  cont->len = sz;
+  memcpy(cont->v, stack, sz*sizeof(long));
+
+  frame[ra] = (long)cont | PTR_TAG;
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_CALLCC_RESUME(PARAMS) {
+  DEBUG("CALLCC");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto cont = (vector_s*)(fb-PTR_TAG);
+  if (unlikely(cont->type != CONT_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  memcpy(stack, cont->v, cont->len*sizeof(long));
+  frame = &stack[cont->len];
+  
+  frame[ra] = (long)cont | PTR_TAG;
+
+  // DO A RET
+  pc = (unsigned int *)frame[-1];
+  frame[-1] = fc;
+  frame -= (INS_A(*(pc - 1)) + 1);
+
+  NEXT_INSTR;
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -1194,6 +1237,8 @@ void run() {
   l_op_table[INTEGER_CHAR] = INS_INTEGER_CHAR; 
   l_op_table[REM] = INS_REM; 
   l_op_table[DIV] = INS_DIV; 
+  l_op_table[CALLCC] = INS_CALLCC; 
+  l_op_table[CALLCC_RESUME] = INS_CALLCC_RESUME; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

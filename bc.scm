@@ -109,7 +109,8 @@
 				 ($string-ref STRING-REF)
 				 ($apply APPLY)
 				 ($/ DIV)
-				 ($% REM))))))
+				 ($% REM)
+				 ($callcc-resume CALLCC-RESUME))))))
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
@@ -140,7 +141,8 @@
 			     ($symbol->string SYMBOL-STRING)
 			     ($string->symbol STRING-SYMBOL)
 			     ($char->integer CHAR-INTEGER)
-			     ($integer->char INTEGER-CHAR)))))
+			     ($integer->char INTEGER-CHAR)
+			     ($callcc CALLCC)))))
   (define r1 (exp-loc (second f) env rd))
   (when cd
     (finish bc cd rd)
@@ -319,12 +321,13 @@
 	;; Builtins
 	(($+ $* $- $< $= $guard $set-box! $closure-get $eq $cons
 	     $make-vector $vector-ref $make-string $string-ref $apply
-	     $/ $%)
+	     $/ $% $callcc-resume)
 	 (compile-binary f bc env rd cd))
 	(($vector-set! $string-set!) (compile-setter f bc env rd cd))
 	(($set-car! $set-cdr!) (compile-setter2 f bc env rd cd))
 	(($box $unbox $car $cdr $vector-length $display $string-length
-	       $symbol->string $string->symbol $char->integer $integer->char)
+	       $symbol->string $string->symbol $char->integer $integer->char
+	       $callcc)
 	 (compile-unary f bc env rd cd))
 	(($closure) (compile-closure f bc env rd cd))
 	(($closure-set) (compile-closure-set f bc env rd cd))
@@ -428,7 +431,9 @@
 	       (CHAR-INTEGER 52)
 	       (INTEGER-CHAR 53)
 	       (REM 54)
-	       (DIV 55)))
+	       (DIV 55)
+	       (CALLCC 56)
+	       (CALLCC-RESUME 57)))
 
 (define bc-ins '(KSHORT GGET GSET KONST KFUNC))
 
@@ -552,7 +557,8 @@
 	   (assignment-conversion
 	    (fix-letrec
 	     (case-insensitive
-	      (append bootstrap (expander))))))))
+	      (append bootstrap (expander))
+	      ))))))
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors
 (set! consts (reverse! consts))

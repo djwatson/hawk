@@ -569,6 +569,8 @@
 (define (pp arg) (display arg) (newline))
 (define println pp)
 
-(define open-input-file 1)
-(define (exact->inexact x) x)
-(define (call-with-current-continuation x) (x 0))
+(define (call-with-current-continuation l)
+  (let ((cc ($callcc 0)))
+    (l (lambda (res) ($callcc-resume cc res)))))
+
+

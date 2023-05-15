@@ -62,6 +62,8 @@ enum {
   INTEGER_CHAR,
   REM,
   DIV,
+  CALLCC,
+  CALLCC_RESUME,
   INS_MAX
 };
 // clang-format on
