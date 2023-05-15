@@ -134,7 +134,11 @@
 			     ($car CAR) ($cdr CDR)
 			     ($vector-length VECTOR-LENGTH)
 			     ($string-length STRING-LENGTH)
-			     ($display DISPLAY)))))
+			     ($display DISPLAY)
+			     ($symbol->string SYMBOL-STRING)
+			     ($string->symbol STRING-SYMBOL)
+			     ($char->integer CHAR-INTEGER)
+			     ($integer->char INTEGER-CHAR)))))
   (define r1 (exp-loc (second f) env rd))
   (when cd
     (finish bc cd rd)
@@ -281,9 +285,13 @@
 			 o)
 		       (second f)))
   ;; TODO without mov?
-  (when (and cd (not (eq? cd 'ret)))
-    (push! (func-bc-code bc) (list 'MOV ord rd)))
-  (compile-sexps (cddr f) bc env ord cd)
+  (if (and cd (not (eq? cd 'ret)))
+      (begin
+	(finish bc cd rd)
+	(push! (func-bc-code bc) (list 'MOV ord rd))
+	(compile-sexps (cddr f) bc env ord 'next))
+      (compile-sexps (cddr f) bc env ord cd)
+	)
   ;; Do this in reverse, so that we don't smash register usage.
   (for-each (lambda (f r)
 	 (compile-sexp (second f) bc orig-env r 'next))
@@ -312,7 +320,9 @@
 	 (compile-binary f bc env rd cd))
 	(($vector-set! $string-set!) (compile-setter f bc env rd cd))
 	(($set-car! $set-cdr!) (compile-setter2 f bc env rd cd))
-	(($box $unbox $car $cdr $vector-length $display $string-length) (compile-unary f bc env rd cd))
+	(($box $unbox $car $cdr $vector-length $display $string-length
+	       $symbol->string $string->symbol $char->integer $integer->char)
+	 (compile-unary f bc env rd cd))
 	(($closure) (compile-closure f bc env rd cd))
 	(($closure-set) (compile-closure-set f bc env rd cd))
 	(else
@@ -409,7 +419,11 @@
 	       (STRING-REF 46)
 	       (STRING-SET 47)
 	       (MAKE-STRING 48)
-	       (APPLY 49)))
+	       (APPLY 49)
+	       (SYMBOL-STRING 50)
+	       (STRING-SYMBOL 51)
+	       (CHAR-INTEGER 52)
+	       (INTEGER-CHAR 53)))
 
 (define bc-ins '(KSHORT GGET GSET KONST))
 

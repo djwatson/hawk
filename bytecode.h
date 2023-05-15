@@ -56,6 +56,10 @@ enum {
   STRING_SET,
   MAKE_STRING,
   APPLY,
+  SYMBOL_STRING,
+  STRING_SYMBOL,
+  CHAR_INTEGER,
+  INTEGER_CHAR,
   INS_MAX
 };
 // clang-format on

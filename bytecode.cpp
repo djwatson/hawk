@@ -51,5 +51,9 @@ const char* ins_names[] = {
   "STRING-SET!",
   "MAKE-STRING",
   "APPLY",
+  "SYMBOL->STRING",
+  "STRING->SYMBOL",
+  "CHAR->INTEGER",
+  "INTEGER->CHAR",
 };
 // clang-format on

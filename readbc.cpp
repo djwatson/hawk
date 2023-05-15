@@ -28,12 +28,14 @@ long read_const(FILE *fptr) {
       // It's a new symbol
       long len;
       fread(&len, 8, 1, fptr);
-      auto str = (string_s *)GC_malloc(16 + 1 + len);
+      // TODO GC symbol table
+      auto str = (string_s *)malloc(16 + 1 + len);
       str->type = STRING_TAG;
       str->len = len;
       str->str[len] = '\0';
       fread(str->str, 1, len, fptr);
-      auto sym = (symbol *)GC_malloc(sizeof(symbol));
+      // TODO GC symbol table
+      auto sym = (symbol *)malloc(sizeof(symbol));
       sym->name = str;
       sym->val = UNDEFINED_TAG;
       symbol_table[std::string(str->str)] = sym;

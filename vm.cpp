@@ -987,6 +987,85 @@ void INS_APPLY(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_SYMBOL_STRING(PARAMS) {
+  DEBUG("SYMBOL_STRING");
+  unsigned char rb = instr & 0xff;
+
+  auto fb = frame[rb];
+  if (unlikely((fb&TAG_MASK) != SYMBOL_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto sym = (symbol*)(fb - SYMBOL_TAG);
+  frame[ra] = (long)sym->name + PTR_TAG;
+
+  pc++;
+  NEXT_INSTR;
+}
+
+extern std::unordered_map<std::string, symbol *> symbol_table;
+void INS_STRING_SYMBOL(PARAMS) {
+  DEBUG("STRING->SYMBOL");
+  unsigned char rb = instr & 0xff;
+
+  auto fb = frame[rb];
+  if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto str = (string_s*)(fb-PTR_TAG);
+  if (unlikely(str->type != STRING_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto res = symbol_table.find(std::string(str->str));
+  if (res == symbol_table.end()) {
+    // Build a new symbol.
+    // TODO merge with code in readbc
+    auto str2 = (string_s *)malloc(16 + 1 + str->len);
+    str2->type = STRING_TAG;
+    str2->len = str->len;
+    str2->str[str->len] = '\0';
+    memcpy(str2->str, str->str, str->len);
+    auto sym = (symbol *)malloc(sizeof(symbol));
+    sym->name = str2;
+    sym->val = UNDEFINED_TAG;
+    symbol_table[std::string(str2->str)] = sym;
+    
+    frame[ra] = (long)sym + SYMBOL_TAG;
+  } else {
+    frame[ra] = (long)res->second + SYMBOL_TAG;
+  }
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_CHAR_INTEGER(PARAMS) {
+  DEBUG("CHAR->INTEGER");
+  unsigned char rb = instr & 0xff;
+
+  auto fb = frame[rb];
+  if (unlikely((fb&IMMEDIATE_MASK) != CHAR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  frame[ra] = fb >> 5;
+
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_INTEGER_CHAR(PARAMS) {
+  DEBUG("INTEGER->CHAR");
+  unsigned char rb = instr & 0xff;
+
+  auto fb = frame[rb];
+  if (unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  frame[ra] = (fb << 5) + CHAR_TAG;
+
+  pc++;
+  NEXT_INSTR;
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -1062,6 +1141,10 @@ void run() {
   l_op_table[STRING_SET] = INS_STRING_SET; 
   l_op_table[MAKE_STRING] = INS_MAKE_STRING; 
   l_op_table[APPLY] = INS_APPLY; 
+  l_op_table[SYMBOL_STRING] = INS_SYMBOL_STRING; 
+  l_op_table[STRING_SYMBOL] = INS_STRING_SYMBOL; 
+  l_op_table[CHAR_INTEGER] = INS_CHAR_INTEGER; 
+  l_op_table[INTEGER_CHAR] = INS_INTEGER_CHAR; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }
