@@ -60,6 +60,8 @@ enum {
   STRING_SYMBOL,
   CHAR_INTEGER,
   INTEGER_CHAR,
+  REM,
+  DIV,
   INS_MAX
 };
 // clang-format on

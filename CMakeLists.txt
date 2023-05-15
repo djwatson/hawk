@@ -18,7 +18,7 @@ include(CheckPIESupported)
 check_pie_supported()
 
 # -Wold-style-cast
-set(CMAKE_CXX_FLAGS "-O0  -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -flto -fvisibility=hidden")
+set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG  -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -flto -fvisibility=hidden")
 
 add_executable(boom
   readbc.cpp bytecode.cpp vm.cpp boom.cpp record.cpp ir.cpp snap.cpp replay.cpp asm_x64.cpp jitdump.cpp bc types.cpp
@@ -33,6 +33,7 @@ target_link_libraries(boom PUBLIC
   "asmjit"
   "capstone"
   "gc"
+  "m"
   )
 
 add_custom_target(

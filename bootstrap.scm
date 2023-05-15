@@ -37,6 +37,8 @@
 	  (comparer f (cdr args))
 	  #f)
       #t))
+(define (/ a b) ($/ a b))
+(define (remainder a b) ($% a b))
 (define (< . rest)
   (comparer (lambda (a b) ($< a b)) rest))
 (define (> . rest)

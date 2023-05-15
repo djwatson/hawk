@@ -55,5 +55,7 @@ const char* ins_names[] = {
   "STRING->SYMBOL",
   "CHAR->INTEGER",
   "INTEGER->CHAR",
+  "REM",
+  "DIV",
 };
 // clang-format on

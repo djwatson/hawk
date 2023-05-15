@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <string.h>
+#include <math.h>
 
 #include <gc/gc.h>
 
@@ -1066,6 +1067,52 @@ void INS_INTEGER_CHAR(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_DIV(PARAMS) {
+  DEBUG("DIV");
+  char rb = instr & 0xff;
+  char rc = (instr >> 8) & 0xff;
+
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  if (likely((7 & (fb | fc)) == 0)) {
+    frame[ra] = (fb/fc) << 3;
+  } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
+    auto f1 = (flonum_s*)(fb-FLONUM_TAG);
+    auto f2 = (flonum_s*)(fc-FLONUM_TAG);
+    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+    r->x = f1->x / f2->x;
+    frame[ra] = (long)r|FLONUM_TAG;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  pc++;
+
+  NEXT_INSTR;
+}
+
+void INS_REM(PARAMS) {
+  DEBUG("REM");
+  char rb = instr & 0xff;
+  char rc = (instr >> 8) & 0xff;
+
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  if (likely((7 & (fb | fc)) == 0)) {
+    frame[ra] = ((fb >>3 ) % (fc >> 3)) << 3;
+  } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
+    auto f1 = (flonum_s*)(fb-FLONUM_TAG);
+    auto f2 = (flonum_s*)(fc-FLONUM_TAG);
+    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+    r->x = remainder(f1->x, f2->x);
+    frame[ra] = (long)r|FLONUM_TAG;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  pc++;
+
+  NEXT_INSTR;
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -1145,6 +1192,8 @@ void run() {
   l_op_table[STRING_SYMBOL] = INS_STRING_SYMBOL; 
   l_op_table[CHAR_INTEGER] = INS_CHAR_INTEGER; 
   l_op_table[INTEGER_CHAR] = INS_INTEGER_CHAR; 
+  l_op_table[REM] = INS_REM; 
+  l_op_table[DIV] = INS_DIV; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }
