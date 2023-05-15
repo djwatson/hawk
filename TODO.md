@@ -1,6 +1,6 @@
 # TODO list
 
-* fix kfunc/gset/gget
+* INEXACT/str->num inexact/call/cc/ports/read/write
 * TODO > , GSET check
 * case-lambda all working
 * get rest of r5rs working
