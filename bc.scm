@@ -430,8 +430,8 @@
   (write-u8 (bitwise-and (arithmetic-shift v -56) #xff) p))
 
 (define (write-u16 v p)
-  (write-u8 (remainder v 256) p)
-  (write-u8 (remainder (quotient v 256) 256) p))
+  (write-u8 (bitwise-and v #xff) p)
+  (write-u8 (bitwise-and (arithmetic-shift v -8) #xff) p))
 
 (import (chicken foreign))
 

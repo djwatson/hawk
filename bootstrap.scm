@@ -77,10 +77,6 @@
   (if (null? lst) '()
       (cons (f (car lst)) (map f (cdr lst)))))
 
-;; (define (append a b)
-;;   (if (null? a)
-;;       b
-;;       (cons (car a) (append (cdr a) b))))
 (define (append . lsts)
   (if (null? lsts) '()
       (let loop ((lsts lsts))
@@ -91,12 +87,37 @@
 		  (cons (car node) (copy (cdr node)))
 		  (loop (cdr lsts))))))))
 
+(define (reverse lst)
+  (let loop ((lst lst) (rest '()))
+    (if (pair? lst)
+	(loop (cdr lst) (cons (car lst) rest))
+	rest)))
+
+(define (list-ref lst n)
+  (if (zero? n)
+      (car lst)
+      (list-ref (cdr lst) (- n 1))))
+
 (define (assv obj1 alist1)
   (let loop ((obj obj1) (alist alist1))
   (if (null? alist) #f
       (if (eqv? (caar alist) obj) 
 	  (car alist)
 	  (loop obj (cdr alist))))))
+(define (assq obj1 alist1)
+  (let loop ((obj obj1) (alist alist1))
+  (if (null? alist) #f
+      (begin
+	(if (eq? (caar alist) obj) 
+	    (car alist)
+	    (loop obj (cdr alist)))))))
+(define (assoc obj1 alist1)
+  (let loop ((obj obj1) (alist alist1))
+  (if (null? alist) #f
+      (begin
+	(if (equal? (caar alist) obj) 
+	    (car alist)
+	    (loop obj (cdr alist)))))))
 
 
 (define (memq obj list) 
@@ -104,6 +125,16 @@
       (if (eq? obj (car list)) 
 	  list
 	  (memq obj (cdr list)))))
+(define (memv obj list) 
+  (if (null? list) #f
+      (if (eqv? obj (car list)) 
+	  list
+	  (memv obj (cdr list)))))
+(define (member obj list) 
+  (if (null? list) #f
+      (if (equal? obj (car list)) 
+	  list
+	  (member obj (cdr list)))))
 
 (define (zero? a) ($= a 0))
 
@@ -618,14 +649,14 @@
 (test #f assq (list 'a) '(((a)) ((b)) ((c))))
 (test '((a)) assoc (list 'a) '(((a)) ((b)) ((c))))
 (test '(5 7) assv 5 '((2 3) (5 7) (11 13)))
-;; (SECTION 6 4)
-;; (test #t symbol? 'foo)
-;; (test #t symbol? (car '(a b)))
-;; (test #f symbol? "bar")
-;; (test #t symbol? 'nil)
-;; (test #f symbol? '())
-;; (test #f symbol? #f)
-;; ;;; But first, what case are symbols in?  Determine the standard case:
+(SECTION 6 4)
+(test #t symbol? 'foo)
+(test #t symbol? (car '(a b)))
+(test #f symbol? "bar")
+(test #t symbol? 'nil)
+(test #f symbol? '())
+(test #f symbol? #f)
+;;; But first, what case are symbols in?  Determine the standard case:
 ;; (define char-standard-case char-upcase)
 ;; (if (string=? (symbol->string 'A) "a")
 ;;     (set! char-standard-case char-downcase))

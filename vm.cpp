@@ -134,7 +134,7 @@ void INS_FUNC(PARAMS) {
 
 void INS_KSHORT(PARAMS) {
   DEBUG("KSHORT");
-  auto rd = instr;
+  auto rd = (int16_t)instr;
 
   frame[ra] = rd << 3;
 
