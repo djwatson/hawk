@@ -960,6 +960,32 @@ void INS_DISPLAY(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_APPLY(PARAMS) {
+  DEBUG("APPLY");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fun = frame[rb];
+  auto args = frame[rc];
+  // TODO check type
+  // TODO make tail call.
+  long a = 0;
+  for(;(args&TAG_MASK) == CONS_TAG;a++) {
+    auto cons = (cons_s*)(args-CONS_TAG);
+    frame[a+2] = cons->a;
+    args = cons->b;
+  }
+  frame[1] = fun;
+  auto clo = (closure_s*)(fun-CLOSURE_TAG);
+  frame[0] = clo->v[0];
+  
+  unsigned char op = CALLT;
+  ra = 0;
+  instr = a + 2;
+  op_func *op_table_arg_c = (op_func *)op_table_arg;                         
+  MUSTTAIL return op_table_arg_c[op](ARGS);                                  
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -1034,6 +1060,7 @@ void run() {
   l_op_table[STRING_REF] = INS_STRING_REF; 
   l_op_table[STRING_SET] = INS_STRING_SET; 
   l_op_table[MAKE_STRING] = INS_MAKE_STRING; 
+  l_op_table[APPLY] = INS_APPLY; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

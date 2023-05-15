@@ -238,6 +238,9 @@
 (define (newline)
   (display #\newline))
 
+(define (apply fun args)
+  ($apply fun args))
+
 ;;;;;;;;;;;;;;;;
 (define cur-section '())(define errs '())
 (define SECTION (lambda args

@@ -55,6 +55,7 @@ enum {
   STRING_REF,
   STRING_SET,
   MAKE_STRING,
+  APPLY,
   INS_MAX
 };
 // clang-format on

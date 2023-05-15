@@ -50,5 +50,6 @@ const char* ins_names[] = {
   "STRING-REF",
   "STRING-SET!",
   "MAKE-STRING",
+  "APPLY",
 };
 // clang-format on

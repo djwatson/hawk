@@ -106,7 +106,8 @@
 				 ($make-vector MAKE-VECTOR)
 				 ($vector-ref VECTOR-REF)
 				 ($make-string MAKE-STRING)
-				 ($string-ref STRING-REF))))))
+				 ($string-ref STRING-REF)
+				 ($apply APPLY))))))
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
@@ -307,7 +308,7 @@
 
 	;; Builtins
 	(($+ $* $- $< $= $guard $set-box! $closure-get $eq $cons
-	     $make-vector $vector-ref $make-string $string-ref)
+	     $make-vector $vector-ref $make-string $string-ref $apply)
 	 (compile-binary f bc env rd cd))
 	(($vector-set! $string-set!) (compile-setter f bc env rd cd))
 	(($set-car! $set-cdr!) (compile-setter2 f bc env rd cd))
@@ -407,7 +408,8 @@
 	       (STRING-LENGTH 45)
 	       (STRING-REF 46)
 	       (STRING-SET 47)
-	       (MAKE-STRING 48)))
+	       (MAKE-STRING 48)
+	       (APPLY 49)))
 
 (define bc-ins '(KSHORT))
 
