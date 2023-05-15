@@ -202,5 +202,5 @@
 		  (new-body (substitute-free body free-bind closure-var #f)))
 	     ;;(display (format "FOUND FREE: ~a\n" free-vars))
 	     `($closure (lambda ,(cons closure-var (second f)) ,@new-body) ,@free-vars)))
-	  (else (map (lambda (f) (cc f bindings)) f)))))
+	  (else (imap (lambda (f) (cc f bindings)) f)))))
   (map (lambda (f) (cc f '())) sexp))
