@@ -552,6 +552,9 @@
 
 (define bootstrap (with-input-from-file "bootstrap.scm" (lambda () (expander))))
 
+;(pretty-print (assignment-conversion (fix-letrec (expander))))
+
+
 
 (compile (closure-conversion
 	  (optimize-direct
@@ -559,7 +562,7 @@
 	    (fix-letrec
 	     (case-insensitive
 					(append bootstrap (expander))
-					;(expander)
+	      ;(expander)
 	      ))))))
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors
