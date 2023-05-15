@@ -107,22 +107,27 @@
 			     (list v b) #f))
 		   vars bindings))
        (set (filter (lambda (v) (not (member v (map car fixed)))) vars))
-       (setters (filter-map (lambda (v b)
-			      (if
-			       (not (member v (map car fixed)))
-			       `(set! ,v ,b)
-			       #f)) vars bindings)))
+       (tmp (map gensym set))
+       (setters (map (lambda (s t) `(set! ,s ,t)) set tmp))
+       (set-bindings (filter-map (lambda (v b)
+				   (if (not (member v (map car fixed)))
+				       ;; CONS here, because some default values could be #f.
+				       (cons b #t)
+				       #f)) vars bindings)))
     (cond
      ((and (pair? set) (pair? fixed))
       `((lambda ,set
 	  (letrec ,fixed
-	    ,@setters
-	    ,@body
+	    ((lambda ,tmp
+	      ,@setters
+	      ,@body) ,@(map car set-bindings))
 	    )) ,@(map (lambda (unused) #f) set)))
       ((pair? set)
        `((lambda ,set
-	   ,@setters
-	   ,@body) ,@(map (lambda (unused) #f) set)))
+	   ((lambda ,tmp
+	       ,@setters
+	       ,@body) ,@(map car set-bindings)))
+	 ,@(map (lambda (unused) #f) set)))
       ((pair? fixed)
        `(letrec ,fixed
 	  ,@body))
