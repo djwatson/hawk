@@ -172,7 +172,7 @@
 		  (letrec-bindings  (union var-names bindings))
 		  ;; Bindings including the lambda variables, for recursing and closing 
 		  ;; nested letrec/lambdas.
-		  (new-bindings  (fold union letrec-bindings (map cadadr (second f))))
+		  (new-bindings  (fold union letrec-bindings (map (lambda (x) (to-proper (cadadr x))) (second f))))
 		  (closures (map (lambda (x) (compiler-gensym 'closure)) (second f)))
 		  (free-vars (map (lambda (f)
 				    (difference (find-free (second f) letrec-bindings) (list (first f))))

@@ -566,3 +566,9 @@
 			    (and (>= r 0) (< r base)
 				 (loop (+ p 1) (+ (* n base) r))))))))))))
 
+(define (pp arg) (display arg) (newline))
+(define println pp)
+
+(define open-input-file 1)
+(define (exact->inexact x) x)
+(define (call-with-current-continuation x) (x 0))

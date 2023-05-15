@@ -501,7 +501,10 @@
     (write-u64 cons-tag p)
     (bc-write-const (car c) p)
     (bc-write-const (cdr c) p))
-   (else (display (format "Can't serialize: ~a\n" c)) (exit -1))))
+   (else (display (format "Can't serialize: ~a\n" c))
+	 (write-u64 0 p)
+	 ;(exit -1)
+	 )))
 
 (define (bc-write name program)
   (define p (open-output-file name))
