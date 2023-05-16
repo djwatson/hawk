@@ -1,4 +1,3 @@
-;(import (scheme r5rs))
 ;; Copyright (C) 1991, 1992, 1993, 1994, 1995 Free Software Foundation, Inc.
 ;;
 ;; This program is free software; you can redistribute it and/or modify it
@@ -253,10 +252,10 @@
 (define (foo) (define x 5) x)
 (test 5 foo)
 (test 34 'define x)
-(define foo2 (lambda () (define x 5) x))
-(test 5 foo2)
+(define foo (lambda () (define x 5) x))
+(test 5 foo)
 (test 34 'define x)
-(define (foo3 x) ((lambda () (define x 5) x)) x)
+(define (foo x) ((lambda () (define x 5) x)) x)
 (test 88 foo 88)
 (test 4 foo 4)
 (test 34 'define x)
@@ -1048,3 +1047,5 @@
 (display "(test-cont) (test-sc4) (test-delay)")
 (newline)
 "last item in file"
+(test-cont)
+(test-delay)
