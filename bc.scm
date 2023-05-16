@@ -2,9 +2,7 @@
 (import (r7rs))
 (import (srfi 1)) ;; lists
 (import (srfi 28)) ;; basic format
-(import (srfi 99)) ;; define-record-type
 (import (srfi 151)) ;; bitwise-ops
-(import (chicken pretty-print))
 
 ;;;;;;;;;;;;; include
 
@@ -35,8 +33,16 @@
 (define cur-name "")
 
 ;; TODO reg = free reg set
-(define-record-type func-bc #t #t
-		    (name) (code))
+;; (define-record-type func-bc #t #t
+;; 		    (name) (code))
+(define (make-func-bc name code)
+  (vector name code))
+(define (func-bc-code-set! bc code)
+  (vector-set! bc 1 code))
+(define (func-bc-code bc)
+  (vector-ref bc 1))
+(define (func-bc-name bc)
+  (vector-ref bc 0))
 
 (define (push-instr! bc c)
   (func-bc-code-set! bc (cons c (func-bc-code bc))))
@@ -367,7 +373,7 @@
   (define bc (make-func-bc "repl" '()))
   (push! program bc)
   (display "Compile:\n")
-  (pretty-print d)
+  ;;(pretty-print d)
   (newline)
   (compile-sexps d bc '() 0 'ret)
   (push-instr! bc (list 'FUNC 0 0)))
