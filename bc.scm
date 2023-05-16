@@ -183,12 +183,15 @@
       (compile-sexp (second f) bc env r1 `(if ,(length (func-bc-code bc)) ,(- (length (func-bc-code bc)) pos -1))))))
 
 (define (compile-lambda f bc rd cd)
-  (define f-bc (make-func-bc (format "~alambda~a" cur-name (next-id)) '() ))
+  (define f-bc (make-func-bc (format "~a" cur-name) '() ))
   (define f-id (length program))
+  (define old-name cur-name)
+  (set! cur-name (format "~a-lambda" cur-name))
   (push! program f-bc)
   (compile-lambda-internal f f-bc '())
   (finish bc cd rd)
-  (push! (func-bc-code bc) (list 'KFUNC rd f-id)))
+  (push! (func-bc-code bc) (list 'KFUNC rd f-id))
+  (set! old-name cur-name))
 
 (define (ilength l)
   (if (null? l) 0
