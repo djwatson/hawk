@@ -36,6 +36,9 @@
 (define program '())
 (define consts '())
 
+;; TODO pass around in a state struct
+(define cur-name "")
+
 ;; TODO reg = free reg set
 (define-record-type func-bc #t #t
 		    (name) (code))
@@ -62,6 +65,12 @@
 (define (branch-dest? cd)
   (and (pair? cd) (eq? 'if (first cd))))
 
+(define (build-jmp offset)
+  (when (or (<= offset 0) (> offset 65535))
+    (display (format "OFFSET too big: ~a\n" offset))
+    (exit -1))
+  (list 'JMP 0 offset))
+
 (define (finish bc cd r)
   (cond
    ((eq? cd 'ret)
@@ -69,9 +78,9 @@
    ((number? cd)
     (let ((jlen (- (length (func-bc-code bc)) cd -1)))
 	    (when (not (eq? jlen 1))
-	      (push! (func-bc-code bc) (list 'JMP jlen)))))
+	      (push! (func-bc-code bc) (build-jmp jlen)))))
    ((branch-dest? cd)
-      (push! (func-bc-code bc) (list 'JMP (third cd)))
+      (push! (func-bc-code bc) (build-jmp (third cd)))
       (push! (func-bc-code bc) (list 'ISF r)))
    ((eq? cd 'next))
    (else (display (format "UNKNOWN CONTROL DEST:~a" cd)) (exit -1))))
@@ -80,7 +89,7 @@
   ;; TODO save len
   (when cd
     (finish bc cd rd)
-    (if (and  (fixnum? f) (< (abs f) 65535))
+    (if (and  (fixnum? f) (< (abs f) 32768))
 	(push! (func-bc-code bc) (list 'KSHORT rd f))
 	(let ((c (get-or-push-const bc f)))
 	  (push! (func-bc-code bc) (list 'KONST rd c))))))
@@ -89,7 +98,7 @@
   (define vn '($- $+ $guard $closure-get))
   (if (and (memq (first f) vn)
 	   (fixnum? (third f))
-	   (< (abs (third f)) 65535))
+	   (< (abs (third f)) 32767))
       (compile-binary-vn f bc env rd cd)
       (compile-binary-vv f bc env rd cd)))
 
@@ -117,7 +126,7 @@
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
     (if (branch-dest? cd)
-	(push! (func-bc-code bc) (list 'JMP (third cd)))
+	(push! (func-bc-code bc) (build-jmp (third cd)))
 	(finish bc cd rd))
     (push! (func-bc-code bc) (list op rd r1 r2))
     (compile-sexp (third f) bc env r2 'next)
@@ -158,7 +167,7 @@
   (define dest (cond
 		((eq? cd 'ret) cd)
 		((branch-dest? cd)
-		 (push! (func-bc-code bc) (list 'JMP (third cd)))
+		 (push! (func-bc-code bc) (build-jmp (third cd)))
 		 (push! (func-bc-code bc) (list 'ISF rd))
 		 (length (func-bc-code bc)))
 		((number? cd) cd)
@@ -174,7 +183,7 @@
       (compile-sexp (second f) bc env r1 `(if ,(length (func-bc-code bc)) ,(- (length (func-bc-code bc)) pos -1))))))
 
 (define (compile-lambda f bc rd cd)
-  (define f-bc (make-func-bc (format "lambda~a" (next-id)) '() ))
+  (define f-bc (make-func-bc (format "~alambda~a" cur-name (next-id)) '() ))
   (define f-id (length program))
   (push! program f-bc)
   (compile-lambda-internal f f-bc '())
@@ -271,16 +280,23 @@
   (compile-sexp (third f) bc env r2 'next)
   (compile-sexp (second f) bc env r1 'next))
 
+(define (closure? f)
+  (and (pair? f) (eq? '$closure (car f))))
+
 (define (compile-define f bc env rd cd)
   (if (pair? (second f))
       (compile-define
        `(define ,(car (second f)) (lambda ,(cdr (second f)) ,@(cddr f)))
        bc env rd cd)
-      (let* ((c (get-or-push-const bc (second f))))
+      (let* ((c (get-or-push-const bc (second f)))
+	     (old-name cur-name))
+	(when (closure? (third f))
+	  (set! cur-name (symbol->string (second f))))
 	;; TODO undef
 	(finish bc cd rd)
 	(push! (func-bc-code bc) (list 'GSET rd c))
 	(compile-sexp (third f) bc env rd 'next)
+	(set! cur-name old-name)
 	)))
 
 (define (compile-let f bc env rd cd)
@@ -302,7 +318,10 @@
 	)
   ;; Do this in reverse, so that we don't smash register usage.
   (for-each (lambda (f r)
-	 (compile-sexp (second f) bc orig-env r 'next))
+	      (define old-name cur-name)
+	      (when (closure? (second f)) (set! cur-name (symbol->string (first f))))
+	      (compile-sexp (second f) bc orig-env r 'next)
+	      (set! cur-name old-name))
 	    (reverse (second f))
 	    (reverse mapping)))
 
@@ -443,7 +462,7 @@
 	       (READ 60)
 	       (PEEK 61)))
 
-(define bc-ins '(KSHORT GGET GSET KONST KFUNC))
+(define bc-ins '(KSHORT GGET GSET KONST KFUNC JMP))
 
 (define (write-uint v p)
   (write-u8 (bitwise-and v #xff) p)

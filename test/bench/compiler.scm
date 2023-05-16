@@ -11190,7 +11190,8 @@
 
 (define (pp-asm asm)
   (if (not (null? asm))
-     (begin (pp (car asm))
+      (begin (display (car asm))
+	     (newline)
             (pp-asm (cdr asm)))))
 
 (ce input-source-code 'm68000 'asm)

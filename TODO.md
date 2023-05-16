@@ -1,15 +1,15 @@
 # TODO list
 
-* early, sboyer, compiler have some sort of compile bug - has something to do with fix letrec
-  * compiler still fails
+  * fix letrec fixing, currently disabled
 
 * GC needs work for symbol table, consts, symbols, etc
-* INEXACT/str->num inexact/ports/read/write
+* INEXACT/str->num inexact
 * TODO > , GSET check
 * case-lambda all working
 * get rest of r5rs working
 * GO through and check undefined return values in bc.scm
 * bounds check vector/string refs
+* Go thorugh all of vm and check for safety!
 
 * test direct threading?
 

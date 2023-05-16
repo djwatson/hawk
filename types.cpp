@@ -85,4 +85,5 @@ void print_obj(long obj, FILE* file) {
     break;
   }
   }
+  fflush(stdout);
 }

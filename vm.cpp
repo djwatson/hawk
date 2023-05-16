@@ -73,7 +73,7 @@ __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
     for(long j = 0; j < funcs.size(); j++) {
       if (pc >= &funcs[j]->code[0] &&
 	  pc < &funcs[j]->code[funcs[j]->code.size()-1]) {
-	printf("FUNC %i: %s\n",j, funcs[j]->name.c_str());
+	printf("FUNC %i: %s PC %i\n",j, funcs[j]->name.c_str(), pc - &funcs[j]->code[0]);
 	break;
       }
     }
@@ -167,8 +167,9 @@ void INS_KSHORT(PARAMS) {
 
 void INS_JMP(PARAMS) {
   DEBUG("JMP");
+  auto rd = (uint16_t)instr;
 
-  pc += ra;
+  pc += rd;
   NEXT_INSTR;
 }
 
@@ -185,9 +186,9 @@ void INS_RET1(PARAMS) {
 void INS_HALT(PARAMS) {
   DEBUG("HALT");
 
-  printf("Result:");
-  print_obj(frame[ra]);
-  printf("\n");
+  // printf("Result:");
+  // print_obj(frame[ra]);
+  // printf("\n");
   return;
 }
 

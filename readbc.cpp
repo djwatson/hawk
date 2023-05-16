@@ -110,9 +110,9 @@ void readbc() {
   const_table = (long *)GC_malloc(const_count * sizeof(long));
   for (unsigned j = 0; j < const_count; j++) {
     const_table[j] = read_const(fptr);
-    printf("%i: ", j);
-    print_obj(const_table[j]);
-    printf("\n");
+    // printf("%i: ", j);
+    // print_obj(const_table[j]);
+    // printf("\n");
   }
 
   // Read functions
@@ -128,18 +128,18 @@ void readbc() {
     fread(&name_count, 4, 1, fptr);
     f->name.resize(name_count + 1);
     f->name[name_count] = '\0';
-    printf("Name size %i\n", name_count);
+    //printf("Name size %i\n", name_count);
     fread(&f->name[0], 1, name_count, fptr);
     
     unsigned int code_count;
     fread(&code_count, 4, 1, fptr);
     f->code.resize(code_count);
-    printf("%i: code %i\n", i, code_count);
+    //printf("%i: code %i\n", i, code_count);
     for (unsigned j = 0; j < code_count; j++) {
       fread(&f->code[j], 4, 1, fptr);
-      unsigned int code = f->code[j];
-      printf("%i code: %s %i %i %i BC: %i\n", j, ins_names[INS_OP(code)],
-             INS_A(code), INS_B(code), INS_C(code), INS_BC(code));
+      //unsigned int code = f->code[j];
+      // printf("%i code: %s %i %i %i BC: %i\n", j, ins_names[INS_OP(code)],
+      //        INS_A(code), INS_B(code), INS_C(code), INS_BC(code));
     }
     funcs.push_back(f);
   }
