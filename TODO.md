@@ -1,12 +1,12 @@
 # TODO list
 
-* it seems like direct-call-opt broken for read?
+* case-lambda!
+* or maybe try self-compile
 
 * GC needs work for symbol table, consts, symbols, etc
 * INEXACT/str->num inexact
 * TODO > , GSET check
 * case-lambda all working
-* get rest of r5rs working
 * GO through and check undefined return values in bc.scm
 * bounds check vector/string refs
 * Go thorugh all of vm and check for safety!
