@@ -1,6 +1,8 @@
 #include <assert.h>
 #include <string.h>
 #include <math.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include <gc/gc.h>
 
@@ -15,11 +17,15 @@ int joff = 0;
 
 std::vector<bcfunc *> funcs;
 
+void* GC_malloc(size_t sz) {
+  return malloc(sz);
+}
+
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 long *frame_top;
-unsigned int stacksz = 1000;
-long *stack = (long *)GC_malloc(sizeof(long) * stacksz);
+unsigned int stacksz = 1000 * 100000;
+long *stack = (long *)GC_malloc(sizeof(long) * stacksz );
 
 unsigned char hotmap[hotmap_sz];
 
@@ -43,7 +49,7 @@ while being more portable and easier to change.
 #define ARGS ra, instr, pc, frame, op_table_arg, argcnt
 #define MUSTTAIL __attribute__((musttail))
 #define DEBUG(name)
-//#define DEBUG(name) printf("%s ra %i rd %i rb %i rc %i ", name, ra, instr, instr&0xff, (instr>>8)); print_obj(frame[0]);print_obj(frame[1]);print_obj(frame[2]);print_obj(frame[3]); printf("\n");
+//#define DEBUG(name) printf("%s ra %i rd %i rb %i rc %i ", name, ra, instr, instr&0xff, (instr>>8)); printf("\n");
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
@@ -1156,6 +1162,133 @@ void INS_CALLCC_RESUME(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_OPEN(PARAMS) {
+  DEBUG("OPEN");
+  auto  rb = instr&0xff;
+  auto  rc = (instr>>8)&0xff;
+
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  if (unlikely((fc&IMMEDIATE_MASK) != BOOL_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+
+  auto port = (port_s*)GC_malloc(sizeof(port_s));
+  port->type = PORT_TAG;
+  port->input_port = fc;
+
+  if ((fb&TAG_MASK) == FIXNUM_TAG) {
+    port->fd = frame[rb] >>3; 
+  } else if ((fb&TAG_MASK) == PTR_TAG) {
+    auto str = (string_s*)(fb - PTR_TAG);
+    if (unlikely(str->type != STRING_TAG)) {
+      MUSTTAIL return FAIL_SLOWPATH(ARGS);
+    }
+    port->fd = open(str->str, fc == TRUE_REP? O_RDONLY : O_WRONLY);
+    if (port->fd == -1) {
+      printf("Could not open fd\n");
+      exit(-1);
+    }
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  port->file = fdopen(port->fd, fc == TRUE_REP ? "r" : "w");
+  if (port->file == nullptr) {
+    printf("FDopen fail\n");
+    exit(-1);
+  }
+  port->peek = FALSE_REP;
+  frame[ra] = (long)port + PTR_TAG;
+  pc++;
+
+  NEXT_INSTR;
+}
+
+void INS_CLOSE(PARAMS) {
+  DEBUG("CLOSE");
+  auto  rb = instr&0xff;
+
+  auto fb = frame[rb];
+  if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto port = (port_s*)(fb-PTR_TAG);
+  if (unlikely(port->type != PORT_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if (port->file) {
+    fclose(port->file);
+    port->file = nullptr;
+  }
+  if (port->fd != -1) {
+    close(port->fd);
+    port->fd = -1;
+  }
+
+  pc++;
+
+  NEXT_INSTR;
+}
+
+void INS_PEEK(PARAMS) {
+  DEBUG("PEEK");
+  auto  rb = instr&0xff;
+
+  auto fb = frame[rb];
+  if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto port = (port_s*)(fb-PTR_TAG);
+  if (unlikely(port->type != PORT_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if (port->peek != FALSE_REP) {
+  } else {
+    uint8_t b;
+    long res = fread(&b, 1, 1, port->file);
+    if (res == 0) {
+      port->peek = EOF_TAG;
+    } else {
+      port->peek = (((long)b) << 8) + CHAR_TAG;
+    }
+  }
+  frame[ra] = port->peek;
+
+  pc++;
+
+  NEXT_INSTR;
+}
+
+void INS_READ(PARAMS) {
+  DEBUG("READ");
+  auto  rb = instr&0xff;
+
+  auto fb = frame[rb];
+  if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto port = (port_s*)(fb-PTR_TAG);
+  if (unlikely(port->type != PORT_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if (port->peek != FALSE_REP) {
+    frame[ra] = port->peek;
+    port->peek = FALSE_REP;
+  } else {
+    uint8_t b;
+    long res = fread(&b, 1, 1, port->file);
+    if (res == 0) {
+      frame[ra] = EOF_TAG;
+    } else {
+      frame[ra] = (((long)b) << 8) + CHAR_TAG;
+    }
+  }
+
+  pc++;
+
+  NEXT_INSTR;
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -1239,6 +1372,10 @@ void run() {
   l_op_table[DIV] = INS_DIV; 
   l_op_table[CALLCC] = INS_CALLCC; 
   l_op_table[CALLCC_RESUME] = INS_CALLCC_RESUME; 
+  l_op_table[OPEN] = INS_OPEN; 
+  l_op_table[CLOSE] = INS_CLOSE; 
+  l_op_table[READ] = INS_READ; 
+  l_op_table[PEEK] = INS_PEEK; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

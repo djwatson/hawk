@@ -64,6 +64,10 @@ enum {
   DIV,
   CALLCC,
   CALLCC_RESUME,
+  OPEN,
+  CLOSE,
+  READ,
+  PEEK,
   INS_MAX
 };
 // clang-format on

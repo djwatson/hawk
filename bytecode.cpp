@@ -59,5 +59,9 @@ const char* ins_names[] = {
   "DIV",
   "CALLCC",
   "CALLCC-RESUME",
+  "OPEN",
+  "CLOSE",
+  "READ",
+  "PEEK",
 };
 // clang-format on

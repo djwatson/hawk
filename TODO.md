@@ -1,7 +1,10 @@
 # TODO list
 
+* early, sboyer, compiler have some sort of compile bug - has something to do with fix letrec
+  * compiler still fails
+
 * GC needs work for symbol table, consts, symbols, etc
-* INEXACT/str->num inexact/call/cc/ports/read/write
+* INEXACT/str->num inexact/ports/read/write
 * TODO > , GSET check
 * case-lambda all working
 * get rest of r5rs working

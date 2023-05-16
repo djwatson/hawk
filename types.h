@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #define FIXNUM_TAG 0x0
 #define PTR_TAG 0x1
 #define FLONUM_TAG 0x2
@@ -17,9 +19,11 @@
 #define PORT_TAG 0x19
 #define BOX_TAG 0x21
 #define CONT_TAG 0x29
+#define INPUT_PORT_TAG 0x0119
 
 // Immediates.  Bottom three bits must be LITERAL_TAG.
 // Uses bottom byte, and other 7 bytes used for storing literal.
+#define BOOL_TAG 0x07
 #define TRUE_REP 0x0107
 #define FALSE_REP 0x0007
 #define CHAR_TAG 0x0f
@@ -58,6 +62,14 @@ struct cons_s {
 struct closure_s {
   long len;
   long v[];
+};
+
+struct port_s {
+  long type;
+  long input_port;
+  long fd;
+  FILE* file;
+  long peek;
 };
 
 void print_obj(long obj);

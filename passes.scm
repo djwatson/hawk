@@ -100,12 +100,12 @@
       ((vars (map car (cadr sexp)))
        (bindings (map fix-letrec (map cadr (cadr sexp))))
        (body (fix-letrec (cddr sexp)))
-       (fixed (filter-map (lambda (v b)
-			    (if
-			     (and (pair? b) (eq? 'lambda (car b))
-				  (not (memq v assigned)))
-			     (list v b) #f))
-			  vars bindings) )
+       (fixed (begin (filter-map (lambda (v b)
+			      (if
+			       (and (pair? b) (eq? 'lambda (car b))
+				    (not (memq v assigned)))
+			       (list v b) #f))
+			    vars bindings) '()) )
        (set (filter (lambda (v) (not (member v (map car fixed)))) vars))
        (tmp (map gensym set))
        (setters (map (lambda (s t) `(set! ,s ,t)) set tmp))
