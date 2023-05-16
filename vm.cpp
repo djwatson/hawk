@@ -972,7 +972,7 @@ void INS_WRITE(PARAMS) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
 
-  print_obj(frame[rb]);
+  print_obj(frame[rb], port->file);
   
   pc++;
   NEXT_INSTR;

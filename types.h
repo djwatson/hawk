@@ -72,4 +72,4 @@ struct port_s {
   long peek;
 };
 
-void print_obj(long obj);
+void print_obj(long obj, FILE* file = nullptr);
