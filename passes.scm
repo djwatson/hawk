@@ -100,12 +100,12 @@
       ((vars (map car (cadr sexp)))
        (bindings (map fix-letrec (map cadr (cadr sexp))))
        (body (fix-letrec (cddr sexp)))
-       (fixed (begin (filter-map (lambda (v b)
-			      (if
-			       (and (pair? b) (eq? 'lambda (car b))
-				    (not (memq v assigned)))
-			       (list v b) #f))
-			    vars bindings) '()) )
+       (fixed (filter-map (lambda (v b)
+			    (if
+			     (and (pair? b) (eq? 'lambda (car b))
+				  (not (memq v assigned)))
+			     (list v b) #f))
+			  vars bindings)  )
        (set (filter (lambda (v) (not (member v (map car fixed)))) vars))
        (tmp (map gensym set))
        (setters (map (lambda (s t) `(set! ,s ,t)) set tmp))
@@ -221,3 +221,21 @@
       (if (symbol? s)
 	  (string->symbol (list->string (map char-downcase (string->list (symbol->string s)))))
 	  s)))
+
+;; Alexpander currently doesn't fully alpha-rename.
+(define (alpha-rename f)
+  (define (rename f bindings)
+    (if (atom? f)
+	(if (and (symbol? f) (assoc f bindings))
+	    (cdr (assoc f bindings))
+	    f)
+	(case (car f)
+	  ;; Being careful about rest arguments...
+	  ((lambda) (let* ((params (second f))
+			   (newbind (imap compiler-gensym params))
+			   (newenv (append (map cons (to-proper params) (to-proper newbind)) bindings)))
+		      `(lambda ,newbind
+			 ,@(map (lambda (f) (rename f newenv)) (cddr f)))))
+	  ((quote) f)
+	  (else (imap (lambda (f) (rename f bindings)) f)))))
+  (imap (lambda (f) (rename f '())) f))

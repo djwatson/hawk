@@ -589,10 +589,11 @@
 	  (optimize-direct
 	   (assignment-conversion
 	    (fix-letrec
-	     (case-insensitive
-	      (append bootstrap (expander))
-	      ;;(expander)
-	      ))))))
+	     (alpha-rename
+	      (case-insensitive
+					(append bootstrap (expander))
+					;(expander)
+	       )))))))
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors
 (set! consts (reverse! consts))

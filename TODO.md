@@ -1,6 +1,5 @@
 # TODO list
 
-* fix letrec fixing, currently disabled
 * it seems like direct-call-opt broken for read?
 
 * GC needs work for symbol table, consts, symbols, etc
