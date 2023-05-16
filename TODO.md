@@ -6,7 +6,6 @@
 * GC needs work for symbol table, consts, symbols, etc
 * INEXACT/str->num inexact
 * TODO > , GSET check
-* case-lambda all working
 * GO through and check undefined return values in bc.scm
 * bounds check vector/string refs
 * Go thorugh all of vm and check for safety!
@@ -93,12 +92,5 @@
 * comments in output
 * name more lambdas, define, let
 *could add sume 'VN' variations of < >, EQ, etc
-
-
-* lets shouldn't be modified by alexpander, but get let loop working (let-internal?)
-* rest params
-* assignment conversion
-* closure conversion
-* fix letrec
 * tail call register alloc?
 

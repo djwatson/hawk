@@ -1,15 +1,10 @@
 ;;;;;;;;;;;;;;chicken stuff
 (import (r7rs))
 (import (srfi 1)) ;; lists
-(import (srfi 17)) ;; generalized-set!
 (import (srfi 28)) ;; basic format
 (import (srfi 99)) ;; define-record-type
 (import (srfi 151)) ;; bitwise-ops
 (import (chicken pretty-print))
-(define-syntax define-getter-with-setter
-  (syntax-rules ()
-    ((_ getter setter)
-     (set! getter (getter-with-setter getter setter)))))
 
 ;;;;;;;;;;;;; include
 
@@ -42,7 +37,9 @@
 ;; TODO reg = free reg set
 (define-record-type func-bc #t #t
 		    (name) (code))
-(define-getter-with-setter func-bc-code func-bc-code-set!)
+
+(define (push-instr! bc c)
+  (func-bc-code-set! bc (cons c (func-bc-code bc))))
 
 (define (find-const l i c)
   (if (pair? l)
@@ -74,14 +71,14 @@
 (define (finish bc cd r)
   (cond
    ((eq? cd 'ret)
-    (push! (func-bc-code bc) (list 'RET1 r)))
+    (push-instr! bc (list 'RET1 r)))
    ((number? cd)
     (let ((jlen (- (length (func-bc-code bc)) cd -1)))
 	    (when (not (eq? jlen 1))
-	      (push! (func-bc-code bc) (build-jmp jlen)))))
+	      (push-instr! bc (build-jmp jlen)))))
    ((branch-dest? cd)
-      (push! (func-bc-code bc) (build-jmp (third cd)))
-      (push! (func-bc-code bc) (list 'ISF r)))
+      (push-instr! bc (build-jmp (third cd)))
+      (push-instr! bc (list 'ISF r)))
    ((eq? cd 'next))
    (else (display (format "UNKNOWN CONTROL DEST:~a" cd)) (exit -1))))
 
@@ -90,9 +87,9 @@
   (when cd
     (finish bc cd rd)
     (if (and  (fixnum? f) (< (abs f) 32768))
-	(push! (func-bc-code bc) (list 'KSHORT rd f))
+	(push-instr! bc (list 'KSHORT rd f))
 	(let ((c (get-or-push-const bc f)))
-	  (push! (func-bc-code bc) (list 'KONST rd c))))))
+	  (push-instr! bc (list 'KONST rd c))))))
 
 (define (compile-binary f bc env rd cd)
   (define vn '($- $+ $guard $closure-get))
@@ -126,9 +123,9 @@
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
     (if (branch-dest? cd)
-	(push! (func-bc-code bc) (build-jmp (third cd)))
+	(push-instr! bc (build-jmp (third cd)))
 	(finish bc cd rd))
-    (push! (func-bc-code bc) (list op rd r1 r2))
+    (push-instr! bc (list op rd r1 r2))
     (compile-sexp (third f) bc env r2 'next)
     (compile-sexp (second f) bc env r1 'next)))
 
@@ -139,7 +136,7 @@
   (define r1 (exp-loc (second f) env rd))
   (when cd
     (finish bc cd rd)
-    (push! (func-bc-code bc) (list op rd r1 (third f)))
+    (push-instr! bc (list op rd r1 (third f)))
     (compile-sexp (second f) bc env r1 'next)))
 
 (define (compile-unary f bc env rd cd)
@@ -159,7 +156,7 @@
   (define r1 (exp-loc (second f) env rd))
   (when cd
     (finish bc cd rd)
-    (push! (func-bc-code bc) (list op rd r1))
+    (push-instr! bc (list op rd r1))
     (compile-sexp (second f) bc env r1 'next)))
 
 (define (compile-if f bc env rd cd)
@@ -167,8 +164,8 @@
   (define dest (cond
 		((eq? cd 'ret) cd)
 		((branch-dest? cd)
-		 (push! (func-bc-code bc) (build-jmp (third cd)))
-		 (push! (func-bc-code bc) (list 'ISF rd))
+		 (push-instr! bc (build-jmp (third cd)))
+		 (push-instr! bc (list 'ISF rd))
 		 (length (func-bc-code bc)))
 		((number? cd) cd)
 		((eq? cd 'next)
@@ -190,7 +187,7 @@
   (push! program f-bc)
   (compile-lambda-internal f f-bc '())
   (finish bc cd rd)
-  (push! (func-bc-code bc) (list 'KFUNC rd f-id))
+  (push-instr! bc (list 'KFUNC rd f-id))
   (set! old-name cur-name))
 
 (define (ilength l)
@@ -208,7 +205,7 @@
 	0
 	(to-proper (second f)))
   (compile-sexps (cddr f) f-bc env r 'ret)
-  (push! (func-bc-code f-bc)
+  (push-instr! f-bc
 	 (if rest (list 'FUNC (- r 1) 1)
 	     (list 'FUNC r 0))))
 
@@ -228,16 +225,16 @@
   (finish bc cd r)
   (if loc
       (when (not (= loc r))
-	(push! (func-bc-code bc) (list 'MOV loc r)))
+	(push-instr! bc (list 'MOV loc r)))
       (let* ((c (get-or-push-const bc f)))
-	(push! (func-bc-code bc) (list 'GGET r c)))))
+	(push-instr! bc (list 'GGET r c)))))
 
 ;; Note we implicitly add the closure param here.
 ;; TODO optimize better for known calls.
 (define (compile-call f bc env rd cd)
   (finish bc cd rd)
-  (push! (func-bc-code bc) (list (if (eq? cd 'ret) 'CALLT 'CALL) rd (+ 1 (length f))))
-  (push! (func-bc-code bc) (list 'CLOSURE-PTR rd (+ rd 1)))
+  (push-instr! bc (list (if (eq? cd 'ret) 'CALLT 'CALL) rd (+ 1 (length f))))
+  (push-instr! bc (list 'CLOSURE-PTR rd (+ rd 1)))
   (fold
    (lambda (f num)
      (compile-sexp f bc env num 'next)
@@ -247,7 +244,7 @@
 
 (define (compile-closure f bc env rd cd)
   (finish bc cd rd)
-  (push! (func-bc-code bc) (list 'CLOSURE rd (- (length f) 1)))
+  (push-instr! bc (list 'CLOSURE rd (- (length f) 1)))
   (fold
    (lambda (f num)
      (compile-sexp f bc env num 'next)
@@ -258,30 +255,30 @@
 ;; Third arg must be immediate fixnum.
 (define (compile-closure-set f bc env rd cd)
   (finish bc cd rd)
-  (define r1 (exp-loc (second f) env rd))
-  (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
-  (push! (func-bc-code bc) (list 'CLOSURE-SET r1 r2 (fourth f)))
-  (compile-sexp (third f) bc env r2 'next)
-  (compile-sexp (second f) bc env r1 'next))
+  (let* ((r1 (exp-loc (second f) env rd))
+	(r2 (exp-loc (third f) env (max rd (+ r1 1)))))
+    (push-instr! bc (list 'CLOSURE-SET r1 r2 (fourth f)))
+    (compile-sexp (third f) bc env r2 'next)
+    (compile-sexp (second f) bc env r1 'next)))
 
 ;; First arg is register to use, k, then obj
 (define (compile-setter f bc env rd cd)
   (finish bc cd rd)
-  (define r1 (exp-loc (second f) env rd))
-  (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
-  (define r3 (exp-loc (fourth f) env (max rd (+ r2 1))))
-  (push! (func-bc-code bc) (list (if (eq? '$vector-set! (first f)) 'VECTOR-SET 'STRING-SET) r1 r2 r3))
-  (compile-sexp (fourth f) bc env r3 'next)
-  (compile-sexp (third f) bc env r2 'next)
-  (compile-sexp (second f) bc env r1 'next))
+  (let* ((r1 (exp-loc (second f) env rd))
+	(r2 (exp-loc (third f) env (max rd (+ r1 1))))
+	(r3 (exp-loc (fourth f) env (max rd (+ r2 1)))))
+    (push-instr! bc (list (if (eq? '$vector-set! (first f)) 'VECTOR-SET 'STRING-SET) r1 r2 r3))
+    (compile-sexp (fourth f) bc env r3 'next)
+    (compile-sexp (third f) bc env r2 'next)
+    (compile-sexp (second f) bc env r1 'next)))
 
 (define (compile-setter2 f bc env rd cd)
   (finish bc cd rd)
-  (define r1 (exp-loc (second f) env rd))
-  (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
-  (push! (func-bc-code bc) (list (if (eq? '$set-car! (first f)) 'SET-CAR 'SET-CDR) r1 r2))
-  (compile-sexp (third f) bc env r2 'next)
-  (compile-sexp (second f) bc env r1 'next))
+  (let* ((r1 (exp-loc (second f) env rd))
+	(r2 (exp-loc (third f) env (max rd (+ r1 1)))))
+    (push-instr! bc (list (if (eq? '$set-car! (first f)) 'SET-CAR 'SET-CDR) r1 r2))
+    (compile-sexp (third f) bc env r2 'next)
+    (compile-sexp (second f) bc env r1 'next)))
 
 (define (closure? f)
   (and (pair? f) (eq? '$closure (car f))))
@@ -297,7 +294,7 @@
 	  (set! cur-name (symbol->string (second f))))
 	;; TODO undef
 	(finish bc cd rd)
-	(push! (func-bc-code bc) (list 'GSET rd c))
+	(push-instr! bc (list 'GSET rd c))
 	(compile-sexp (third f) bc env rd 'next)
 	(set! cur-name old-name)
 	)))
@@ -315,7 +312,7 @@
   (if (and cd (not (eq? cd 'ret)))
       (begin
 	(finish bc cd rd)
-	(push! (func-bc-code bc) (list 'MOV ord rd))
+	(push-instr! bc (list 'MOV ord rd))
 	(compile-sexps (cddr f) bc env ord 'next))
       (compile-sexps (cddr f) bc env ord cd)
 	)
@@ -373,7 +370,7 @@
   (pretty-print d)
   (newline)
   (compile-sexps d bc '() 0 'ret)
-  (push! (func-bc-code bc) (list 'FUNC 0 0)))
+  (push-instr! bc (list 'FUNC 0 0)))
 
 ;;;;;;;;;;;;;expander
 (define (read-file)
