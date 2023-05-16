@@ -124,6 +124,13 @@ void readbc() {
       printf("Alloc fail\n");
       exit(-1);
     }
+    unsigned int name_count;
+    fread(&name_count, 4, 1, fptr);
+    f->name.resize(name_count + 1);
+    f->name[name_count] = '\0';
+    printf("Name size %i\n", name_count);
+    fread(&f->name[0], 1, name_count, fptr);
+    
     unsigned int code_count;
     fread(&code_count, 4, 1, fptr);
     f->code.resize(code_count);

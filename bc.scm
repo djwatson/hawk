@@ -538,6 +538,8 @@
   (write-uint (length program) p)
   (for-each
    (lambda (bc)
+     (write-uint (string-length (func-bc-name bc)) p)
+     (for-each (lambda (c) (write-u8 (char->integer c) p)) (string->list (func-bc-name bc)))
      (write-uint (length (func-bc-code bc)) p)
      (for-each
       (lambda (c)
@@ -570,7 +572,7 @@
 	    (fix-letrec
 	     (case-insensitive
 	      (append bootstrap (expander))
-	      ;(expander)
+	      ;;(expander)
 	      ))))))
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors

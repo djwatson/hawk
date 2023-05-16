@@ -84,4 +84,5 @@ extern long *const_table;
 
 struct bcfunc {
   std::vector<unsigned int> code;
+  std::string name;
 };

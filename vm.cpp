@@ -64,8 +64,24 @@ static op_func l_op_table_record[INS_MAX];
     MUSTTAIL return op_table_arg_c[op](ARGS);                                  \
   }
 
+
+
 __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
-  printf("FAIL\n");
+  int i = 0;
+  printf("FAIL PC: %p\n", pc);
+  while(&frame[-1] > stack) {
+    for(long j = 0; j < funcs.size(); j++) {
+      if (pc >= &funcs[j]->code[0] &&
+	  pc < &funcs[j]->code[funcs[j]->code.size()-1]) {
+	printf("FUNC %i: %s\n",j, funcs[j]->name.c_str());
+	break;
+      }
+    }
+    pc = (unsigned int *)frame[-1];
+    frame[-1] = frame[ra];
+    frame -= (INS_A(*(pc - 1)) + 1);
+    printf("%i PC: %p\n", i++, pc);
+  }
   return;
 }
 
