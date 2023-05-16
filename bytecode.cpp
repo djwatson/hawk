@@ -45,7 +45,7 @@ const char* ins_names[] = {
   "VECTOR-LENGTH",
   "SET-CAR!",
   "SET-CDR!",
-  "DISPLAY",
+  "WRITE",
   "STRING-LENGTH",
   "STRING-REF",
   "STRING-SET!",

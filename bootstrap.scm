@@ -295,59 +295,61 @@
 			       (loop fast slow))))))))))
 
 
-(define (display arg)
-  (cond
-   ((null? arg) (display "()" ))
-   ((pair? arg)
-    (display "(" )
-    (let loop ((arg arg))
-      (if (not (pair? arg)) (begin (display ". " ) (display arg ))
-	  (begin (display (car arg) ) 
-		 (if (not (null? (cdr arg)))
-		     (begin
-		       (display " " )
-		       (loop (cdr arg)))))))
-    (display ")" ))
-   ((vector? arg)
-    (display "#" )
-    (display (vector->list arg) ))
-   (else ($display arg ))))
+(define (display arg . p)
+  (let ((port (if (pair? p) (car p) (current-output-port))))
+      (cond
+       ((null? arg) (display "()" port))
+       ((pair? arg)
+	(display "(" port)
+	(let loop ((arg arg))
+	  (if (not (pair? arg)) (begin (display ". " port) (display arg port))
+	      (begin (display (car arg) port) 
+		     (if (not (null? (cdr arg)))
+			 (begin
+			   (display " " port)
+			   (loop (cdr arg)))))))
+	(display ")" port))
+       ((vector? arg)
+	(display "#" port)
+	(display (vector->list arg) port))
+       (else ($write arg port)))))
 
-(define (write arg)
-  (cond
-   ((null? arg) (display "()" ))
-   ((pair? arg)
-    (display "(" )
-    (let loop ((arg arg))
-      (if (not (pair? arg)) (begin (display ". " ) (write arg ))
-	  (begin (write (car arg) ) 
-		 (if (not (null? (cdr arg)))
-		     (begin
-		       (display " " )
-		       (loop (cdr arg)))))))
-    (display ")" ))
-   ((vector? arg)
-    (display "#" )
-    (write (vector->list arg) ))
-   ((char? arg)
-    (cond
-     ((char=? #\newline arg) (display "#\\newline" ))
-     ((char=? #\tab arg) (display "#\\tab" ))
-     ((char=? #\space arg) (display "#\\space" ))
-     ((char=? #\return arg) (display "#\\return" ))
-     (else (display "#\\" ) (display arg ))))
-   ((string? arg)
-    (display "\"" ) 
-    (for-each 
-     (lambda (chr) 
-       (cond
-	((char=? #\" chr) (display "\\\"" ))
-	((char=? #\\ chr) (display "\\\\" ))
-	(else (display chr ))))
-     (string->list arg))
-    (display "\"" ))
-   (else 
-    ($display arg))))
+(define (write arg . p)
+  (let ((port (if (pair? p) (car p) (current-output-port))))
+      (cond
+       ((null? arg) (display "()" ))
+       ((pair? arg)
+	(display "(" )
+	(let loop ((arg arg))
+	  (if (not (pair? arg)) (begin (display ". " ) (write arg port))
+	      (begin (write (car arg) port) 
+		     (if (not (null? (cdr arg)))
+			 (begin
+			   (display " " )
+			   (loop (cdr arg)))))))
+	(display ")" ))
+       ((vector? arg)
+	(display "#" )
+	(write (vector->list arg) port))
+       ((char? arg)
+	(cond
+	 ((char=? #\newline arg) (display "#\\newline" ))
+	 ((char=? #\tab arg) (display "#\\tab" ))
+	 ((char=? #\space arg) (display "#\\space" ))
+	 ((char=? #\return arg) (display "#\\return" ))
+	 (else (display "#\\" ) (display arg ))))
+       ((string? arg)
+	(display "\"" ) 
+	(for-each 
+	 (lambda (chr) 
+	   (cond
+	    ((char=? #\" chr) (display "\\\"" ))
+	    ((char=? #\\ chr) (display "\\\\" ))
+	    (else (display chr ))))
+	 (string->list arg))
+	(display "\"" ))
+       (else 
+	($write arg port)))))
 
 (define (for-each proc lst )
   (if (not (null? lst))
@@ -376,8 +378,9 @@
 (define (char=? a b)
   ($eq a b))
 
-(define (newline)
-  (display #\newline))
+(define (newline . p)
+  (let ((port (if (pair? p) (car p) (current-output-port))))
+    (display #\newline port)))
 
 (define (apply . lst)
   (let* ((firstargs (reverse (cdr (reverse (cdr lst)))))
@@ -614,7 +617,7 @@
 
 (define (write-char c . p)
   (let ((port (if (pair? p) (car p) (current-output-port))))
-    (display c p)))
+    (display c port)))
 
 (define (eof-object? c)
   ($guard c #b00011111))

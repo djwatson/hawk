@@ -111,7 +111,8 @@
 				 ($/ DIV)
 				 ($% REM)
 				 ($callcc-resume CALLCC-RESUME)
-				 ($open OPEN))))))
+				 ($open OPEN)
+				 ($write WRITE))))))
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
@@ -138,7 +139,6 @@
 			     ($car CAR) ($cdr CDR)
 			     ($vector-length VECTOR-LENGTH)
 			     ($string-length STRING-LENGTH)
-			     ($display DISPLAY)
 			     ($symbol->string SYMBOL-STRING)
 			     ($string->symbol STRING-SYMBOL)
 			     ($char->integer CHAR-INTEGER)
@@ -325,7 +325,7 @@
 	;; Builtins
 	(($+ $* $- $< $= $guard $set-box! $closure-get $eq $cons
 	     $make-vector $vector-ref $make-string $string-ref $apply
-	     $/ $% $callcc-resume $open)
+	     $/ $% $callcc-resume $open $write)
 	 (compile-binary f bc env rd cd))
 	(($vector-set! $string-set!) (compile-setter f bc env rd cd))
 	(($set-car! $set-cdr!) (compile-setter2 f bc env rd cd))
@@ -424,7 +424,7 @@
 	       (VECTOR-LENGTH 41)
 	       (SET-CAR 42)
 	       (SET-CDR 43)
-	       (DISPLAY 44)
+	       (WRITE 44)
 	       (STRING-LENGTH 45)
 	       (STRING-REF 46)
 	       (STRING-SET 47)

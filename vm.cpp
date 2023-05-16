@@ -957,9 +957,20 @@ void INS_SET_CDR(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_DISPLAY(PARAMS) {
-  DEBUG("DISPLAY");
+void INS_WRITE(PARAMS) {
+  DEBUG("WRITE");
   unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr>>8) & 0xff;
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+
+  if (unlikely((fc&TAG_MASK) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto port = (port_s*)(fc-PTR_TAG);
+  if (unlikely(port->type != PORT_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
 
   print_obj(frame[rb]);
   
@@ -1184,9 +1195,9 @@ void INS_OPEN(PARAMS) {
     if (unlikely(str->type != STRING_TAG)) {
       MUSTTAIL return FAIL_SLOWPATH(ARGS);
     }
-    port->fd = open(str->str, fc == TRUE_REP? O_RDONLY : O_WRONLY);
+    port->fd = open(str->str, fc == TRUE_REP? O_RDONLY : O_WRONLY | O_CREAT | O_TRUNC, 0777);
     if (port->fd == -1) {
-      printf("Could not open fd\n");
+      printf("Could not open fd for file %s\n", str->str);
       exit(-1);
     }
   } else {
@@ -1358,7 +1369,7 @@ void run() {
   l_op_table[VECTOR_LENGTH] = INS_VECTOR_LENGTH; 
   l_op_table[SET_CAR] = INS_SET_CAR; 
   l_op_table[SET_CDR] = INS_SET_CDR; 
-  l_op_table[DISPLAY] = INS_DISPLAY; 
+  l_op_table[WRITE] = INS_WRITE; 
   l_op_table[STRING_LENGTH] = INS_STRING_LENGTH; 
   l_op_table[STRING_REF] = INS_STRING_REF; 
   l_op_table[STRING_SET] = INS_STRING_SET; 
