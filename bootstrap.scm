@@ -66,6 +66,13 @@
       1
       (let lp ((x (car args)) (ls (cdr args)))
         (if (null? ls) x (lp (lcm2 x (car ls)) (cdr ls))))))
+
+(define (expt num exp)
+  (let loop ((n 1) (cnt exp))
+    (if (= cnt 0) n
+	(loop (* num n) (- cnt 1)))))
+
+
 (define (< . rest)
   (comparer (lambda (a b) ($< a b)) rest))
 (define (> . rest)
@@ -172,6 +179,10 @@
   (if (zero? n)
       (car lst)
       (list-ref (cdr lst) (- n 1))))
+(define (list-tail lst k)
+  (if (> k 0)
+      (list-tail (cdr lst) (- k 1))
+      lst))
 
 (define (assv obj1 alist1)
   (let loop ((obj obj1) (alist alist1))
@@ -604,6 +615,23 @@
 (define (current-output-port) current-output-port-internal)
 (define (current-error-port) current-error-port-internal)
 
+(define (with-input-from-file file thunk)
+  (let ((p (open-input-file file))
+	(old-port current-input-port-internal))
+    (set! current-input-port-internal p)
+    (let ((res (thunk)))
+      (set! current-input-port-internal old-port)
+      (close-input-port p)
+      res)))
+
+(define (with-output-to-file file thunk)
+  (let ((p (open-output-file file))
+	(old-port current-output-port-internal))
+    (set! current-output-port-internal p)
+    (let ((res (thunk)))
+      (set! current-output-port-internal old-port)
+      (close-output-port p)
+      res)))
 (define (input-port? port)
   ($guard port #x0019))
 (define (output-port? port)
@@ -745,7 +773,7 @@
 		       ((string-ci=? "return" t) #\return)
 		       ((eq? 0 len) (read-char port))
 		       ((and (char-ci=? #\x (string-ref t 0))
-			     (fx> len 1))
+			     (> len 1))
 			(integer->char
 			 (or (string->number (substring t 1 (string-length t)) 16)
 			     (read-error "invalid character name" t))))
@@ -841,3 +869,7 @@
 (define (exact->inexact x) x)
 (define print display)
 
+(define (atom? a) (not (pair? a)))
+(define (write-u8 c . p)
+  (define port (if (pair? p) (car p) (current-output-port)))
+  ($write-u8 c port))

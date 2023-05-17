@@ -1000,6 +1000,35 @@ void INS_WRITE(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_WRITE_U8(PARAMS) {
+  DEBUG("WRITE_U8");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr>>8) & 0xff;
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+
+  if (unlikely((fc&TAG_MASK) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto port = (port_s*)(fc-PTR_TAG);
+  if (unlikely(port->type != PORT_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if (unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  long byte = fb >> 3;
+  unsigned char b = byte;
+  if (unlikely(byte >= 256)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  
+  fwrite(&b, 1, 1, port->file);
+  
+  pc++;
+  NEXT_INSTR;
+}
+
 void INS_APPLY(PARAMS) {
   DEBUG("APPLY");
   unsigned char rb = instr & 0xff;
@@ -1392,6 +1421,7 @@ void run() {
   l_op_table[SET_CAR] = INS_SET_CAR; 
   l_op_table[SET_CDR] = INS_SET_CDR; 
   l_op_table[WRITE] = INS_WRITE; 
+  l_op_table[WRITE_U8] = INS_WRITE_U8; 
   l_op_table[STRING_LENGTH] = INS_STRING_LENGTH; 
   l_op_table[STRING_REF] = INS_STRING_REF; 
   l_op_table[STRING_SET] = INS_STRING_SET; 

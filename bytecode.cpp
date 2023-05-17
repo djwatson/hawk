@@ -63,5 +63,6 @@ const char* ins_names[] = {
   "CLOSE",
   "READ",
   "PEEK",
+  "WRITE-U8"
 };
 // clang-format on

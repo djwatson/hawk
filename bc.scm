@@ -5,6 +5,20 @@
 (include "passes.scm")
 
 ;;;;;;;;;;;;;;;;; util
+(define (mask-byte b)
+  (modulo b 256))
+
+(define (arithmetic-shift n count)
+  (if (negative? count)
+      (let ((k (expt 2 (- count))))
+        (if (negative? n)
+            (+ -1 (quotient (+ 1 n) k))
+            (quotient n k)))
+      (* (expt 2 count) n)))
+(define-syntax when
+  (syntax-rules ()
+    ((_ cond body ...)
+     (if cond (begin body ...)))))
 (define (map-in-order f list)
   (let recur ((lis list))
     (if (null? lis) lis
@@ -183,7 +197,8 @@
 				 ($% REM)
 				 ($callcc-resume CALLCC-RESUME)
 				 ($open OPEN)
-				 ($write WRITE))))))
+				 ($write WRITE)
+				 ($write-u8 WRITE-U8))))))
   (define r1 (exp-loc (second f) env rd))
   (define r2 (exp-loc (third f) env (max rd (+ r1 1))))
   (when cd
@@ -406,7 +421,7 @@
 	;; Builtins
 	(($+ $* $- $< $= $guard $set-box! $closure-get $eq $cons
 	     $make-vector $vector-ref $make-string $string-ref $apply
-	     $/ $% $callcc-resume $open $write)
+	     $/ $% $callcc-resume $open $write $write-u8)
 	 (compile-binary f bc env rd cd))
 	(($vector-set! $string-set!) (compile-setter f bc env rd cd))
 	(($set-car! $set-cdr!) (compile-setter2 f bc env rd cd))
@@ -522,29 +537,30 @@
 	       (OPEN 58)
 	       (CLOSE 59)
 	       (READ 60)
-	       (PEEK 61)))
+	       (PEEK 61)
+	       (WRITE-U8 62)))
 
 (define bc-ins '(KSHORT GGET GSET KONST KFUNC JMP))
 
 (define (write-uint v p)
-  (write-u8 (bitwise-and v #xff) p)
-  (write-u8 (bitwise-and (arithmetic-shift v -8) #xff) p)
-  (write-u8 (bitwise-and (arithmetic-shift v -16) #xff) p)
-  (write-u8 (bitwise-and (arithmetic-shift v -24) #xff) p))
+  (write-u8 (mask-byte v) p)
+  (write-u8 (mask-byte (arithmetic-shift v -8)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -16)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -24)) p))
 
 (define (write-u64 v p)
-  (write-u8 (bitwise-and v #xff) p)
-  (write-u8 (bitwise-and (arithmetic-shift v -8) #xff) p)
-  (write-u8 (bitwise-and (arithmetic-shift v -16) #xff) p)
-  (write-u8 (bitwise-and (arithmetic-shift v -24) #xff) p)
-  (write-u8 (bitwise-and (arithmetic-shift v -32) #xff) p)
-  (write-u8 (bitwise-and (arithmetic-shift v -40) #xff) p)
-  (write-u8 (bitwise-and (arithmetic-shift v -48) #xff) p)
-  (write-u8 (bitwise-and (arithmetic-shift v -56) #xff) p))
+  (write-u8 (mask-byte v) p)
+  (write-u8 (mask-byte (arithmetic-shift v -8)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -16)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -24)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -32)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -40)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -48)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -56)) p))
 
 (define (write-u16 v p)
-  (write-u8 (bitwise-and v #xff) p)
-  (write-u8 (bitwise-and (arithmetic-shift v -8) #xff) p))
+  (write-u8 (mask-byte v) p)
+  (write-u8 (mask-byte (arithmetic-shift v -8)) p))
 
 (define symbol-table '())
 (define (bc-write-const c p)
@@ -650,16 +666,18 @@
 	(append included (add-includes (cdr lst))))
       '()))
 
-(compile (closure-conversion
+(define opt (closure-conversion
 	  (optimize-direct
 	   (assignment-conversion
 	    (fix-letrec
 	     (alpha-rename
 	      (case-insensitive
 	       (add-includes
-					(append bootstrap (expander))
-					;(expander)
-		))))))))
+		(if use-bootstrap
+		    (append bootstrap (expander))
+		    (expander))))))))))
+(display "Compiling:") (display opt) (newline)
+(compile opt)
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors
 (set! consts (reverse! consts))
