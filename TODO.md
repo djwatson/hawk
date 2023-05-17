@@ -9,6 +9,7 @@
 * GO through and check undefined return values in bc.scm
 * bounds check vector/string refs
 * Go thorugh all of vm and check for safety!
+* letrec check
 
 * test direct threading?
 

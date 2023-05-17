@@ -281,15 +281,14 @@
 	(length-loop (cdr e) (+ 1 cnt))
 	cnt)))
 (define (list->vector lst)
-  (define v (make-vector (length lst)))
-  (define (setloop place item v)
-    (if (not (pair? item))
-	v
-	(begin
-	  (vector-set! v place (car item))
-	  (setloop (+ 1 place) (cdr item) v))))
-  (setloop 0 lst v)
-  )
+  (let ((v (make-vector (length lst))))
+    (define (setloop place item v)
+      (if (not (pair? item))
+	  v
+	  (begin
+	    (vector-set! v place (car item))
+	    (setloop (+ 1 place) (cdr item) v))))
+    (setloop 0 lst v)))
 
 
 
@@ -871,5 +870,5 @@
 
 (define (atom? a) (not (pair? a)))
 (define (write-u8 c . p)
-  (define port (if (pair? p) (car p) (current-output-port)))
-  ($write-u8 c port))
+  (let ((port (if (pair? p) (car p) (current-output-port))))
+    ($write-u8 c port)))
