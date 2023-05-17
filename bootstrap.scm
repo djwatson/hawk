@@ -605,7 +605,7 @@
 (define (current-error-port) current-error-port-internal)
 
 (define (input-port? port)
-  ($guard port #x0119))
+  ($guard port #x0019))
 (define (output-port? port)
   ($guard port #x0019))
 

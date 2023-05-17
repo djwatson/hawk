@@ -105,7 +105,7 @@
 			     (list v b) #f))
 			  vars bindings)  )
        (set (filter (lambda (v) (not (member v (map car fixed)))) vars))
-       (tmp (map gensym set))
+       (tmp (map compiler-gensym set))
        (setters (map (lambda (s t) `(set! ,s ,t)) set tmp))
        (set-bindings (filter-map (lambda (v b)
 				   (if (not (member v (map car fixed)))

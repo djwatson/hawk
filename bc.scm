@@ -1,8 +1,3 @@
-;;;;;;;;;;;;;;chicken stuff
-(import (r7rs))
-(import (srfi 28)) ;; basic format
-(import (srfi 151)) ;; bitwise-ops
-
 ;;;;;;;;;;;;; include
 
 (include "third-party/alexpander.scm")
@@ -224,7 +219,6 @@
     (compile-sexp (second f) bc env r1 'next)))
 
 (define (compile-if f bc env rd cd)
-  ;;(display (format "Compile-if ~a RD:~a CD:~a\n" f rd cd))
   (define dest (cond
 		((eq? cd 'ret) cd)
 		((branch-dest? cd)
@@ -262,7 +256,6 @@
 (define (compile-lambda-internal f f-bc env)
   (define r (ilength (second f)))
   (define rest (improper? (second f)))
-  ;;(display (format "Lambda: ~a\n" f))
   (fold (lambda (n num)
 	  (push! env (cons n num))
 	  (+ num 1))
@@ -284,7 +277,6 @@
 
 (define (compile-lookup f bc env rd cd)
   (define loc (find-symbol f env))
-  ;;(display (format "Lookup ~a ~a\n" f env))
   (define r (if (eq? cd 'ret) (exp-loc f env rd) rd))
   (finish bc cd r)
   (if loc
@@ -548,14 +540,6 @@
   (write-u8 (bitwise-and v #xff) p)
   (write-u8 (bitwise-and (arithmetic-shift v -8) #xff) p))
 
-(import (chicken foreign))
-
-;; (define write-double
-;;   (foreign-lambda* long ((double x))
-;; 		   "long ret;"
-;; 		   "memcpy(&ret, &x, 8);"
-;; 		   "C_return(ret);"))
-
 (define symbol-table '())
 (define (bc-write-const c p)
   (cond
@@ -569,7 +553,7 @@
 	    (push! symbol-table c)
 	    (write-u64 (bitwise-ior symbol-tag (arithmetic-shift pos 3)) p)
 	    (write-u64 len p)
-	    (display str p)))))
+	    (put-bytevector p (string->utf8 str))))))
    ((flonum? c)
     (write-u64 flonum-tag p)
     (write-u64 (write-double c) p))
