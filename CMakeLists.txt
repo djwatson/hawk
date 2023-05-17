@@ -8,6 +8,15 @@ enable_testing()
 
 option(JIT "Enable JIT" OFF)
 
+find_program(CHEZ chez)
+if (NOT CHEZ)
+  find_program(CHEZ chezscheme)
+  if (NOT CHEZ)
+    message(FATAL_ERROR "Can't find chez scheme for bootstrapping")
+  endif()
+endif()
+message("Using " ${CHEZ} " for bootstrapping")
+
 #set(CMAKE_CXX_CLANG_TIDY "clang-tidy;-fix;-checks=clang-diagnostic-*,clang-analyzer-*,bugprone*,modernize*,performance*,readability-*,-modernize-use-trailing-return-type,-modernize-avoid-c-arrays,-readability-magic-numbers")
 #set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE "iwyu")
 
@@ -50,7 +59,7 @@ add_custom_target(
 add_custom_command(
   OUTPUT  out.bc
   COMMAND
-  chez --script bc.chez.scm < bc.boom.scm
+  ${CHEZ} --script bc.chez.scm < bc.boom.scm
   xxd -i out.bc > vm_startup.h
   DEPENDS bc.scm passes.scm
 )
