@@ -237,3 +237,20 @@
 	  ((quote) f)
 	  (else (imap (lambda (f) (rename f bindings)) f)))))
   (imap (lambda (f) (rename f '())) f))
+
+(define (integrate-r5rs f)
+  (define (integrate f)
+    (if (atom? f) f
+	(case (car f)
+	  ((+ - * / < > =) (if (= 3 (length f))
+			       (cons (string->symbol (string-append "$" (symbol->string (car f)))) (imap integrate (cdr f)))
+			 f))
+	  ((car cdr set-car! set-cdr! cons vector-ref vector-length string-length string-ref ;string-set! vector-set! TODO
+		char->integer integer->char symbol->string string->symbol
+		)
+	   (cons (string->symbol (string-append "$" (symbol->string (car f)))) (imap integrate (cdr f))))
+	  ;; TODO these need a JISEQ?
+	  ((eq? char=?) (cons '$eq (imap integrate (cdr f))))
+	  ((quote) f)
+	  (else (imap integrate f)))))
+  (imap integrate f))

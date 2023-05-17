@@ -212,7 +212,7 @@
       (compile-binary-vv f bc env rd cd)))
 
 (define (compile-binary-vv f bc env rd cd)
-  (define op (second (if (branch-dest? cd)
+  (define op (second (if (and #f (branch-dest? cd))
 			 (assq (first f)
 			       '(($< JISLT) ($= JISEQ)))
 			 (assq (first f)
@@ -235,7 +235,7 @@
   (let* ((r1 (exp-loc (second f) env rd))
 	(r2 (exp-loc (third f) env (max rd (+ r1 1)))))
     (when cd
-      (if (branch-dest? cd)
+      (if (and #f (branch-dest? cd))
 	  (push-instr! bc (build-jmp (third cd)))
 	  (finish bc cd rd))
       (push-instr! bc (list op rd r1 r2))
@@ -705,12 +705,13 @@
 	   (assignment-conversion
 	    (fix-letrec
 	     (alpha-rename
-	      (case-insensitive
-	       (add-includes
-		(append bootstrap (expander))
-		#;(expander)
-		))))))))
-;;(display "Compiling:\n") (pretty-print opt) (newline)
+	      (integrate-r5rs
+	       (case-insensitive
+		(add-includes
+		 (append bootstrap (expander))
+		 #;(expander)
+		 )))))))))
+;(display "Compiling:\n") (pretty-print opt) (newline)
 (compile opt)
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors
