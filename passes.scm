@@ -47,8 +47,6 @@
 	       (imap sexp f))))))
   (imap sexp c))
 
-(define (union a b) (lset-union eq? a b))
-(define (difference a b) (lset-difference eq? a b))
 ;; At this point, 'letrec' is fixed and only contains lambdas,
 ;; and 'let' hasn't appeared yet, so we only have to add bindings for lambda.
 (define (find-assigned f bindings)

@@ -1,6 +1,5 @@
 ;;;;;;;;;;;;;;chicken stuff
 (import (r7rs))
-(import (srfi 1)) ;; lists
 (import (srfi 28)) ;; basic format
 (import (srfi 151)) ;; bitwise-ops
 
@@ -11,6 +10,65 @@
 (include "passes.scm")
 
 ;;;;;;;;;;;;;;;;; util
+(define (fold kons knil lis1 )
+  (let lp ((lis lis1) (ans knil))	; Fast path
+    (if (null? lis) ans
+	(lp (cdr lis) (kons (car lis) ans)))))
+(define (element? x lst)
+  (cond ((null? lst) #f)
+        ((equal? x (car lst)) #t)
+        (#t (element? x (cdr lst)))))
+(define (union a b)
+  (cond ((null? b) a)
+        ((element? (car b) a)
+         (union a (cdr b)))
+        (#t (union (cons (car b) a) (cdr b)))))
+(define (difference a b)
+  (cond ((null? a) '())
+        ((element? (car a) b)
+         (difference (cdr a) b))
+        (#t (cons (car a) (difference (cdr a) b)))))
+(define first car)
+(define (second f) (cadr f))
+(define (third f) (caddr f))
+(define (fourth f) (cadddr f))
+(define (reverse! lis)
+  (let lp ((lis lis) (ans '()))
+    (if (null? lis) ans
+        (let ((tail (cdr lis)))
+          (set-cdr! lis ans)
+          (lp tail lis)))))
+(define (iota count )
+  (if (< count 0) (error "Negative step count" iota count))
+  (let ((start 0) (step 1))
+    (let loop ((n 0) (r '()))
+      (if (= n count)
+	  (reverse r)
+	  (loop (+ 1 n)
+		(cons (+ start (* n step)) r))))))
+(define (filter-map f list1 . list2)
+  (if (not (pair? list2))
+      (let recur ((lis list1))
+	(if (null? lis) lis
+	    (let ((tail (recur (cdr lis))))
+	      (cond ((f (car lis)) => (lambda (x) (cons x tail)))
+		    (else tail)))))
+      (let recur ((lis1 list1) (lis2 (car list2)))
+	(if (or (null? lis2) (null? lis1)) '()
+	    (let ((tail (recur (cdr lis1) (cdr lis2))))
+	      (cond ((f (car lis1) (car lis2)) => (lambda (x) (cons x tail)))
+		    (else tail)))))))
+  
+(define (filter pred lis)			; Sleazing with EQ? makes this
+  (let recur ((lis lis))
+    (if (null? lis) lis			; Use NOT-PAIR? to handle dotted lists.
+	(let ((head (car lis))
+	      (tail (cdr lis)))
+	  (if (pred head)
+	      (let ((new-tail (recur tail)))	; Replicate the RECUR call so
+		(if (eq? tail new-tail) lis
+		    (cons head new-tail)))
+	      (recur tail))))))		
 (define-syntax inc!
   (syntax-rules ()
     ((_ var) (set! var (+ 1 var)))))
