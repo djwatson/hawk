@@ -1,9 +1,10 @@
 ;;;;;;;;;;;;;;chicken stuff
 (import (r7rs))
 (import (srfi 28)) ;; basic format
-(import (srfi 151)) ;; bitwise-ops
 
 (import (chicken foreign))
+
+(define use-bootstrap #t)
 
 ;; (define write-double
 ;;   (foreign-lambda* long ((double x))

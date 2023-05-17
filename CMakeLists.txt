@@ -20,7 +20,7 @@ include(CheckPIESupported)
 check_pie_supported()
 
 # -Wold-style-cast
-set(CMAKE_CXX_FLAGS "-O1 -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -flto -fvisibility=hidden")
+set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -flto -fvisibility=hidden")
 
 set(SOURCES readbc.cpp bytecode.cpp vm.cpp boom.cpp  ir.cpp types.cpp)
 set(LIBRARIES "stdc++" "m")
