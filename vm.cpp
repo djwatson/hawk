@@ -4,8 +4,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include <gc/gc.h>
-
 #include "asm_x64.h"
 #include "bytecode.h"
 #include "record.h"
@@ -13,12 +11,18 @@
 #include "types.h"
 #include "vm.h"
 
+void*GC_malloc(size_t);
+
 int joff = 0;
 
 std::vector<bcfunc *> funcs;
 
 void* GC_malloc(size_t sz) {
   return malloc(sz);
+}
+
+void* GC_realloc(void* ptr, size_t sz) {
+  return realloc(ptr, sz);
 }
 
 #define likely(x) __builtin_expect(!!(x), 1)
@@ -102,7 +106,7 @@ void RECORD_START(PARAMS) {
 }
 
 void RECORD(PARAMS) {
-  if (record(pc, frame)) {
+  if (1 /*record(pc, frame)*/) {
     // Back to interpreting.
     op_table_arg = (void **)l_op_table;
   }
@@ -562,7 +566,8 @@ void INS_JFUNC(PARAMS) {
   // printf("JFUNC/JLOOP run %i\n", tnum);
   // printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
   // auto res = record_run(tnum, &pc, &frame, frame_top);
-  auto res = jit_run(tnum, &pc, &frame, frame_top);
+  //auto res = jit_run(tnum, &pc, &frame, frame_top);
+  int res = 0;
   frame_top = stack + stacksz;
   // printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
   if (unlikely(res)) {

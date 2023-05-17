@@ -3,11 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <gc/gc.h>
-
 #include "bytecode.h"
 #include "types.h"
 #include "vm.h"
+
+void*GC_malloc(size_t);
 
 std::unordered_map<std::string, symbol *> symbol_table;
 long *const_table;

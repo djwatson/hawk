@@ -1,8 +1,6 @@
 #include <getopt.h>
 #include <unistd.h>
 
-#include <gc/gc.h>
-
 #include "jitdump.h"
 #include "readbc.h"
 #include "vm.h"
@@ -43,12 +41,12 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  GC_expand_hp(50000000);
-  jit_dump_init();
+  //GC_expand_hp(50000000);
+  //jit_dump_init();
   readbc();
   run();
   free_script();
-  jit_dump_close();
+  //jit_dump_close();
 
   return 0;
 }
