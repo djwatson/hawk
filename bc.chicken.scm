@@ -11,5 +11,4 @@
 ;; 		   "memcpy(&ret, &x, 8);"
 ;; 		   "C_return(ret);"))
 
-(define (put-bytevector p v) (display v p))
 (include "bc.scm")

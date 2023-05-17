@@ -5,6 +5,12 @@
 (include "passes.scm")
 
 ;;;;;;;;;;;;;;;;; util
+(define (map-in-order f list)
+  (let recur ((lis list))
+    (if (null? lis) lis
+	(let ((tail (cdr lis))
+	      (x (f (car lis))))
+	  (cons x (recur tail))))))
 (define (fold kons knil lis1 )
   (let lp ((lis lis1) (ans knil))	; Fast path
     (if (null? lis) ans
@@ -358,7 +364,7 @@
 (define (compile-let f bc env rd cd)
   (define ord rd)
   (define orig-env env) ;; let values use original mapping
-  (define mapping (map (lambda (f)
+  (define mapping (map-in-order (lambda (f)
 			 (define o ord)
 			 (push! env (cons (first f) ord))
 			 (inc! ord)
@@ -553,11 +559,11 @@
 	    (push! symbol-table c)
 	    (write-u64 (bitwise-ior symbol-tag (arithmetic-shift pos 3)) p)
 	    (write-u64 len p)
-	    (put-bytevector p (string->utf8 str))))))
+	    (for-each (lambda (c) (write-u8 (char->integer c) p)) (string->list str))))))
    ((flonum? c)
     (write-u64 flonum-tag p)
     (write-u64 (write-double c) p))
-   ((and  (fixnum? c) (< c #x8000000000000000) (> c (- #x8000000000000000)))
+   ((and  (fixnum? c))
     (write-u64 (* 8 c) p))
    ((char? c)
     (write-u64 (bitwise-ior char-tag (arithmetic-shift (char->integer c) 8)) p))
@@ -632,6 +638,17 @@
 ;(pretty-print (assignment-conversion (fix-letrec (expander))))
 
 
+(define (add-includes lst)
+  (define (includes sexp)
+    (if (and (pair? sexp) (eq? 'include (car sexp)))
+	(begin
+	  ;;(display "Found include:") (display sexp) (newline)
+	  (add-includes (with-input-from-file (second sexp) (lambda () (expander)))))
+	(list sexp)))
+  (if (pair? lst)
+      (let ((included (includes (car lst))))
+	(append included (add-includes (cdr lst))))
+      '()))
 
 (compile (closure-conversion
 	  (optimize-direct
@@ -639,9 +656,10 @@
 	    (fix-letrec
 	     (alpha-rename
 	      (case-insensitive
+	       (add-includes
 					(append bootstrap (expander))
 					;(expander)
-	       )))))))
+		))))))))
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors
 (set! consts (reverse! consts))
