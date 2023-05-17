@@ -87,10 +87,12 @@ long read_const(FILE *fptr) {
   return val;
 }
 
+#include "vm_startup.h"
 void readbc() {
 
   FILE *fptr;
-  fptr = fopen("out.bc", "rb");
+  //fptr = fopen("out.bc", "rb");
+  fptr = fmemopen(out_bc, out_bc_len, "rb");
   if (fptr == NULL) {
     printf("Could not open bc\n");
     exit(-1);
