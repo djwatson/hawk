@@ -159,6 +159,10 @@
 		  (cons (cdr (car lsts)) (loop3 (cdr lsts)))))))
 	  '())))  )
 
+(define (append2 a b)
+  (if (null? a)
+      b
+      (cons (car a) (append2 (cdr a) b))))
 (define (append . lsts)
   (if (null? lsts) '()
       (let loop ((lsts lsts))

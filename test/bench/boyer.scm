@@ -547,7 +547,7 @@
 
 ;-----
 
-(pp (test
+(display (test
          '((x f (plus (plus a b)
                       (plus c (zero))))
            (y f (times (times a b)

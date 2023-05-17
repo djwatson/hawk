@@ -207,7 +207,7 @@
   (define vn '($- $+ $guard $closure-get))
   (if (and (memq (first f) vn)
 	   (fixnum? (third f))
-	   (< (abs (third f)) 32767))
+	   (< (abs (third f)) 128))
       (compile-binary-vn f bc env rd cd)
       (compile-binary-vv f bc env rd cd)))
 

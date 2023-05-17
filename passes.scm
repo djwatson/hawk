@@ -244,7 +244,7 @@
 	(case (car f)
 	  ((+ - * / < > =) (if (= 3 (length f))
 			       (cons (string->symbol (string-append "$" (symbol->string (car f)))) (imap integrate (cdr f)))
-			 f))
+			       (imap integrate f)))
 	  ((car cdr set-car! set-cdr! cons vector-ref vector-length string-length string-ref ;string-set! vector-set! TODO
 		char->integer integer->char symbol->string string->symbol
 		)
@@ -252,5 +252,10 @@
 	  ;; TODO these need a JISEQ?
 	  ((eq? char=?) (cons '$eq (imap integrate (cdr f))))
 	  ((quote) f)
+	  ((null?) `($guard ,(integrate (second f)) 23))
+	  ((not) `(if ,(integrate (second f)) #f #t))
+	  ((append) (if (= 3 (length f))
+			`(append2 ,@(imap integrate (cdr f)))
+			(imap integrate f)))
 	  (else (imap integrate f)))))
   (imap integrate f))

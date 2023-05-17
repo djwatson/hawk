@@ -768,10 +768,10 @@
                                (and (implies z u)
                                     (implies u w))))
                      (implies x w))))
-    (pp (test-boyer alist term 0))
-    (pp (test-boyer alist term 1))
-    (pp (test-boyer alist term 2))
-    (pp (test-boyer alist term 3))))
+    (display (test-boyer alist term 0))
+    (display (test-boyer alist term 1))
+    (display (test-boyer alist term 2))
+    (display (test-boyer alist term 3))))
 
 (main)
 
