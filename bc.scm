@@ -8,6 +8,39 @@
 (define (mask-byte b)
   (modulo b 256))
 
+(define (dformat format-string . objects)
+  (define (format-error message)
+    (error message format-string))
+  (let loop ((format-list (string->list format-string))
+             (objects objects))
+    (cond ((null? format-list) #f) ;; done
+          ((char=? (car format-list) #\~)
+           (if (null? (cdr format-list))
+               (format-error "Incomplete escape sequence")
+               (case (cadr format-list)
+                 ((#\a)
+                  (if (null? objects)
+                      (format-error "No value for escape sequence")
+                      (begin
+                        (display (car objects))
+                        (loop (cddr format-list) (cdr objects)))))
+                 ((#\s)
+                  (if (null? objects)
+                      (format-error "No value for escape sequence")
+                      (begin
+                        (write (car objects))
+                        (loop (cddr format-list) (cdr objects)))))
+                 ((#\%)
+                  (newline)
+                  (loop (cddr format-list) objects))
+                 ((#\~)
+                  (write-char #\~)
+                  (loop (cddr format-list) objects))
+                 (else
+                  (format-error "Unrecognized escape sequence")))))
+          (else (write-char (car format-list))
+                (loop (cdr format-list) objects)))))
+
 (define (arithmetic-shift n count)
   (if (negative? count)
       (let ((k (expt 2 (- count))))
@@ -143,7 +176,7 @@
 
 (define (build-jmp offset)
   (when (or (<= offset 0) (> offset 65535))
-    (display (format "OFFSET too big: ~a\n" offset))
+    (dformat "OFFSET too big: ~a\n" offset)
     (exit -1))
   (list 'JMP 0 offset))
 
@@ -159,7 +192,7 @@
       (push-instr! bc (build-jmp (third cd)))
       (push-instr! bc (list 'ISF r)))
    ((eq? cd 'next))
-   (else (display (format "UNKNOWN CONTROL DEST:~a" cd)) (exit -1))))
+   (else (dformat "UNKNOWN CONTROL DEST:~a" cd) (exit -1))))
 
 (define (compile-self-evaluating f bc rd cd)
   ;; TODO save len
@@ -465,10 +498,10 @@
 
 ;;;;;;;;;;;;;print
 (define (display-bc bc)
-  (display (format "~a:\n" (func-bc-name bc)))
+  (dformat "~a:\n" (func-bc-name bc))
   (display "Code:\n")
   (fold (lambda (a b)
-	  (display (format "~a: ~a\n" b a))
+	  (dformat "~a: ~a\n" b a)
 	  (+ b 1))
 	0 (func-bc-code bc))
   (newline))
@@ -603,7 +636,7 @@
     (write-u64 cons-tag p)
     (bc-write-const (car c) p)
     (bc-write-const (cdr c) p))
-   (else (display (format "Can't serialize: ~a\n" c))
+   (else (dformat "Can't serialize: ~a\n" c)
 	 (write-u64 0 p)
 	 ;(exit -1)
 	 )))
@@ -635,7 +668,7 @@
       (lambda (c)
 	(define ins (assq (first c) enum))
 	(when (not ins)
-	  (display (format "ERROR could not find ins ~a\n" c))
+	  (dformat "ERROR could not find ins ~a\n" c)
 	  (exit -1))
 	(write-u8 (second ins) p)
 	(write-u8 (if (> (length c) 1) (second c) 0) p)
@@ -674,9 +707,9 @@
 	     (alpha-rename
 	      (case-insensitive
 	       (add-includes
-		(if use-bootstrap
-		    (append bootstrap (expander))
-		    (expander))))))))))
+		(append bootstrap (expander))
+		#;(expander)
+		))))))))
 ;;(display "Compiling:\n") (pretty-print opt) (newline)
 (compile opt)
 ;; Get everything in correct order
@@ -686,12 +719,12 @@
 
 (display "Consts:\n")
 (fold (lambda (a b)
-	(display (format "~a: ~a\n" b a))
+	(dformat "~a: ~a\n" b a)
 	(+ b 1))
       0 consts)
 (newline)
 (fold (lambda (a b)
-	(display (format "~a -- " b))
+	(dformat "~a -- " b)
 	(display-bc a)
 	(+ b 1))
       0

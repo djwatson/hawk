@@ -3,5 +3,4 @@
 
 (define (open-output-file f) (open-file-output-port f (file-options no-fail) ))
 (define arithmetic-shift (lambda (i c) (bitwise-arithmetic-shift i c)))
-(define use-bootstrap #t)
 (include "bc.scm")
