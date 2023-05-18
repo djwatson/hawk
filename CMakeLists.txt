@@ -1,13 +1,24 @@
 cmake_minimum_required(VERSION 3.14)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+# Clang is required, due to use of musttail.
+set(CMAKE_C_COMPILER "clang")
+set(CMAKE_CXX_COMPILER "clang")
+
 project(bool VERSION 0.1)
 
 enable_language(C)
 
 enable_testing()
 
+# the JIT is optional.
 option(JIT "Enable JIT" OFF)
 
+# Find a suitable scheme for bootstrapping.
+# Chez and chicken have been tested, it's likely most r5rs (+ write-u8) compatible
+# schemes will work with minor changes.
 find_program(CHEZ chez)
 if (NOT CHEZ)
   find_program(CHEZ chezscheme)
@@ -20,11 +31,7 @@ message("Using " ${CHEZ} " for bootstrapping")
 #set(CMAKE_CXX_CLANG_TIDY "clang-tidy;-fix;-checks=clang-diagnostic-*,clang-analyzer-*,bugprone*,modernize*,performance*,readability-*,-modernize-use-trailing-return-type,-modernize-avoid-c-arrays,-readability-magic-numbers")
 #set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE "iwyu")
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
-
-set(CMAKE_CXX_COMPILER "clang")
-
+# PIE turned off for testing, since we JIT hot function detection is based on address of the function.
 include(CheckPIESupported)
 check_pie_supported()
 
@@ -41,8 +48,7 @@ add_executable(boom ${SOURCES} )
 
 
 set_property(TARGET boom PROPERTY POSITION_INDEPENDENT_CODE FALSE)
-target_include_directories(boom PUBLIC
-  ".")
+target_include_directories(boom PUBLIC ".")
 
 target_link_libraries(boom PUBLIC ${LIBRARIES}  )
 
