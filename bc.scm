@@ -208,7 +208,7 @@
 	  (+ num 1))
 	0
 	(to-proper (second f)))
-  (compile-sexps (cddr f) f-bc env r 'ret)
+  (compile-sexp (third f) f-bc env r 'ret)
   (push-instr! f-bc
 	 (if rest (list 'FUNC (- r 1) 1)
 	     (list 'FUNC r 0))))
@@ -312,13 +312,16 @@
 				    o)
 				  (second f)))
     (when (not (= 3 (length f)))
-      (dformat "ERROR invalid length let: ~a\n" f))
+      (dformat "ERROR invalid length let:\n")
+      (pretty-print f)
+      (newline)
+      (exit -1))
     ;; TODO without mov?
     (if (and cd (not (eq? cd 'ret)))
 	(begin
 	  (finish bc cd rd)
 	  (push-instr! bc (list 'MOV ord rd))
-	  (compile-sexps (cddr f) bc env ord 'next))
+	  (compile-sexp (third f) bc env ord 'next))
 	(compile-sexps (cddr f) bc env ord cd)
 	)
     ;; Do this in reverse, so that we don't smash register usage.

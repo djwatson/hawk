@@ -196,13 +196,14 @@
 					  ,@(map (lambda (x) (if (memq x var-names) 0 x)) free))))
 			 (map car (second f)) bodies closures free-vars)
 		;; Now bind any group references
-		,@(apply append (map (lambda (x bound)
-			   (filter-map (lambda (v)
-					 (if (memq (car v) var-names) `($closure-set ,x ,(car v) ,(cdr v))
-					     #f))
-				       bound))
-			 var-names free-bind))
-		,@(map (lambda (f) (cc f new-bindings)) (cddr f)))))
+		(begin
+		  ,@(apply append (map (lambda (x bound)
+					 (filter-map (lambda (v)
+						       (if (memq (car v) var-names) `($closure-set ,x ,(car v) ,(cdr v))
+							   #f))
+						     bound))
+				       var-names free-bind))
+		  ,@(map (lambda (f) (cc f new-bindings)) (cddr f))))))
 	  ((quote) f)
 	  ((lambda)
 	   (let* (

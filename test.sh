@@ -1,3 +1,6 @@
+rm out.bc
+make
+cp boom boomc
 for file in $(ls test/bench/*.scm)
 do
     echo $file
