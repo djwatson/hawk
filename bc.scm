@@ -376,7 +376,7 @@
   (finish bc cd rd)
   (let* ((r1 (exp-loc (second f) env rd))
 	(r2 (exp-loc (third f) env (max rd (+ r1 1))))
-	(r3 (exp-loc (fourth f) env (max rd (+ r2 1)))))
+	(r3 (exp-loc (fourth f) env (max rd (+ r1 1) (+ r2 1)))))
     (push-instr! bc (list (if (eq? '$vector-set! (first f)) 'VECTOR-SET 'STRING-SET) r1 r2 r3))
     (compile-sexp (fourth f) bc env r3 'next)
     (compile-sexp (third f) bc env r2 'next)

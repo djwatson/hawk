@@ -1,6 +1,5 @@
 # TODO list
 
-* fix setters.
 * do better for destination driven code gen - 
    * get 'J' working again, 
    * get effect working for set-vector etc
@@ -9,6 +8,9 @@
    * let's don't have to move??? everything should be in effect context,
      except the last, which can use the first reg.
 * case-lambda!
+
+* get re-linking working, so we directly gen the next script and eval will work.
+* make a 'vm state' struct, so we can run multiple vm's?
 
 * GC needs work for symbol table, consts, symbols, etc
 * INEXACT/str->num inexact
