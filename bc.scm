@@ -249,7 +249,7 @@
   (define r1 (exp-loc (second f) env rd))
   (when cd
     (finish bc cd rd)
-    (push-instr! bc (list op rd r1 (third f)))
+    (push-instr! bc (list op rd r1 (modulo (third f) 256)))
     (compile-sexp (second f) bc env r1 'next)))
 
 (define (compile-unary f bc env rd cd)

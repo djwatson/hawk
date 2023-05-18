@@ -237,15 +237,24 @@
 	  ((quote) f)
 	  (else (imap (lambda (f) (rename f bindings)) f)))))
   (imap (lambda (f) (rename f '())) f))
-
+;; TODO all of these need error/arg cnt checking.
 (define (integrate-r5rs f)
   (define (integrate f)
     (if (atom? f) f
 	(case (car f)
+	  ;; TODO cleanup.  lol.
 	  ((+ - * / < > =) (if (= 3 (length f))
 			       (cons (string->symbol (string-append "$" (symbol->string (car f)))) (imap integrate (cdr f)))
-			       (imap integrate f)))
-	  ((car cdr set-car! set-cdr! cons vector-ref vector-length string-length string-ref ;string-set! vector-set! TODO
+			       (let* ((sym (string->symbol (string-append "$" (symbol->string (car f))))))
+				      (if (> (length f) 3)
+					  `(,sym (,sym
+						  ,(integrate (second f))
+						  ,(integrate (third f)))
+						 ,(if (> (length (cdddr f)) 1)
+						      (integrate (cons (car f) (cdddr f)))
+						      (integrate (cadddr f))))
+					  (imap integrate f)))))
+	  ((car cdr set-car! set-cdr! cons vector-ref vector-length string-length string-ref ;string-set! vector-set! 
 		char->integer integer->char symbol->string string->symbol
 		)
 	   (cons (string->symbol (string-append "$" (symbol->string (car f)))) (imap integrate (cdr f))))

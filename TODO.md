@@ -1,7 +1,7 @@
 # TODO list
 
+* get self-compile of compiler working.
 * case-lambda!
-* or maybe try self-compile
 
 * GC needs work for symbol table, consts, symbols, etc
 * INEXACT/str->num inexact
