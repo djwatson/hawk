@@ -3,6 +3,21 @@
 (include "third-party/alexpander.scm")
 (include "memory_layout.scm")
 (include "passes.scm")
+
+;;;;;;;;;; Currently a limitation in macro expander:
+;;;;;;;;;;; whole file is read before includes processed, so macros used in file can't be included
+(define-syntax inc!
+  (syntax-rules ()
+    ((_ var) (set! var (+ 1 var)))))
+
+(define-syntax push!
+  (syntax-rules ()
+    ((_ var val) (set! var (cons val var)))))
+(define-syntax when
+  (syntax-rules ()
+    ((_ cond body ...)
+     (if cond (begin body ...)))))
+
 (include "util.scm")
 
 ;;;;;;;;;;;;;;;;;;; code
@@ -592,7 +607,7 @@
 		 (append bootstrap (expander))
 		 #;(expander)
 		 )))))))))
-;(display "Compiling:\n") (pretty-print opt) (newline)
+(display "Compiling:\n") (pretty-print opt) (newline)
 (compile opt)
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors

@@ -41,10 +41,6 @@
             (+ -1 (quotient (+ 1 n) k))
             (quotient n k)))
       (* (expt 2 count) n)))
-(define-syntax when
-  (syntax-rules ()
-    ((_ cond body ...)
-     (if cond (begin body ...)))))
 (define (map-in-order f list)
   (let recur ((lis list))
     (if (null? lis) lis
@@ -110,13 +106,6 @@
 		(if (eq? tail new-tail) lis
 		    (cons head new-tail)))
 	      (recur tail))))))		
-(define-syntax inc!
-  (syntax-rules ()
-    ((_ var) (set! var (+ 1 var)))))
-
-(define-syntax push!
-  (syntax-rules ()
-    ((_ var val) (set! var (cons val var)))))
 
 (define next-id
   (let ((cur-node 0))
