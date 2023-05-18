@@ -117,14 +117,18 @@
       `((lambda ,set
 	  (letrec ,fixed
 	    ((lambda ,tmp
-	      ,@setters
-	      ,@body) ,@(map car set-bindings))
+	       (begin
+		 ,@setters
+		 ,@body))
+	     ,@(map car set-bindings))
 	    )) ,@(map (lambda (unused) #f) set)))
       ((pair? set)
        `((lambda ,set
 	   ((lambda ,tmp
-	       ,@setters
-	       ,@body) ,@(map car set-bindings)))
+	      (begin
+		,@setters
+		,@body))
+	    ,@(map car set-bindings)))
 	 ,@(map (lambda (unused) #f) set)))
       ((pair? fixed)
        `(letrec ,fixed

@@ -186,6 +186,8 @@
 (define (compile-lambda-internal f f-bc env)
   (define r (ilength (second f)))
   (define rest (improper? (second f)))
+  (when (not (= 3 (length f)))
+    (dformat "ERROR invalid length lambda: ~a\n" f))
   (fold (lambda (n num)
 	  (push! env (cons n num))
 	  (+ num 1))
@@ -294,6 +296,8 @@
 				    (inc! ord)
 				    o)
 				  (second f)))
+    (when (not (= 3 (length f)))
+      (dformat "ERROR invalid length let: ~a\n" f))
     ;; TODO without mov?
     (if (and cd (not (eq? cd 'ret)))
 	(begin
