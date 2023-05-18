@@ -67,7 +67,7 @@ add_custom_command(
   COMMAND
   ${CHEZ} --script bc.chez.scm < bc.boom.scm
   xxd -i out.bc > vm_startup.h
-  DEPENDS bc.scm passes.scm
+  DEPENDS bc.scm passes.scm bootstrap.scm
 )
 
 add_custom_command(

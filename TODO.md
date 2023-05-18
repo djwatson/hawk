@@ -1,6 +1,6 @@
 # TODO list
 
-* get self-compile of compiler working. peval. check them all.
+* get self-compile of peval. check them all.
 * case-lambda!
 
 * GC needs work for symbol table, consts, symbols, etc
