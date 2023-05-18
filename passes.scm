@@ -272,7 +272,7 @@
 			`(apply2 ,@(imap integrate (cdr f)))
 			(imap integrate f)))
 	  ((map) (if (= 3 (length f))
-			`(map2 ,@(imap integrate (cdr f)))
+			`($map2 ,@(imap integrate (cdr f)))
 			(imap integrate f)))
 	  ((for-each) (if (= 3 (length f))
 			  `(for-each2 ,@(imap integrate (cdr f)))

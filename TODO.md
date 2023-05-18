@@ -1,6 +1,13 @@
 # TODO list
 
-* get self-compile of peval. check them all.
+* fix setters.
+* do better for destination driven code gen - 
+   * get 'J' working again, 
+   * get effect working for set-vector etc
+   * return 'undefined' for value, but setters
+   * returning constant in test/effect context should direct jump to dest.
+   * let's don't have to move??? everything should be in effect context,
+     except the last, which can use the first reg.
 * case-lambda!
 
 * GC needs work for symbol table, consts, symbols, etc
@@ -86,7 +93,6 @@
 ## CLEANUP
 * cleanup bytecode ops order
 * split bc to separate files
-* Double check 'VN' use D reg
 
 ## TODO
 * comments in output
