@@ -69,6 +69,7 @@ enum {
   READ,
   PEEK,
   WRITE_U8,
+  JEQ,
   INS_MAX
 };
 // clang-format on

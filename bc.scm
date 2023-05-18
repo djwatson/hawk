@@ -211,10 +211,11 @@
       (compile-binary-vn f bc env rd cd)
       (compile-binary-vv f bc env rd cd)))
 
+(define quick-branch '($< $= $eq))
 (define (compile-binary-vv f bc env rd cd)
-  (define op (second (if (and #f (branch-dest? cd))
+  (define op (second (if (and (branch-dest? cd) (memq (first f) quick-branch))
 			 (assq (first f)
-			       '(($< JISLT) ($= JISEQ)))
+			       '(($< JISLT) ($= JISEQ) ($eq JEQ)))
 			 (assq (first f)
 			       '(($+ ADDVV) ($- SUBVV) ($< ISLT)
 				 ($* MULVV)
@@ -235,7 +236,7 @@
   (let* ((r1 (exp-loc (second f) env rd))
 	(r2 (exp-loc (third f) env (max rd (+ r1 1)))))
     (when cd
-      (if (and #f (branch-dest? cd))
+      (if (and (branch-dest? cd) (memq (first f) quick-branch))
 	  (push-instr! bc (build-jmp (third cd)))
 	  (finish bc cd rd))
       (push-instr! bc (list op rd r1 r2))
@@ -571,7 +572,8 @@
 	       (CLOSE 59)
 	       (READ 60)
 	       (PEEK 61)
-	       (WRITE-U8 62)))
+	       (WRITE-U8 62)
+	       (JEQ 63)))
 
 (define bc-ins '(KSHORT GGET GSET KONST KFUNC JMP))
 

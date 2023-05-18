@@ -470,6 +470,22 @@ void INS_JISEQ(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_JEQ(PARAMS) {
+  DEBUG("JEQ");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  long fb = frame[rb];
+  long fc = frame[rc];
+  if (fb == fc) {
+    pc += 2;
+  } else {
+    pc += 1;
+  }
+
+  NEXT_INSTR;
+}
+
 void INS_JISLT(PARAMS) {
   DEBUG("JISLT");
   unsigned char rb = instr & 0xff;
@@ -1439,6 +1455,7 @@ void run() {
   l_op_table[CLOSE] = INS_CLOSE; 
   l_op_table[READ] = INS_READ; 
   l_op_table[PEEK] = INS_PEEK; 
+  l_op_table[JEQ] = INS_JEQ; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

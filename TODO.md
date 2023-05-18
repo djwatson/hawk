@@ -1,7 +1,6 @@
 # TODO list
 
 * do better for destination driven code gen - 
-   * get 'J' working again, 
    * get effect working for set-vector etc
    * return 'undefined' for value, but setters
    * returning constant in test/effect context should direct jump to dest.
