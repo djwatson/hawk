@@ -86,7 +86,7 @@
 
 (define (compile-self-evaluating f bc rd cd)
   ;; TODO save len
-  (when cd
+  (when rd
     (finish bc cd rd)
     (if (and  (fixnum? f) (< (abs f) 32768))
 	(push-instr! bc (list 'KSHORT rd f))
@@ -125,7 +125,7 @@
 				 ($write-u8 WRITE-U8))))))
   (let* ((r1 (exp-loc (second f) env rd))
 	(r2 (exp-loc (third f) env (max rd (+ r1 1)))))
-    (when cd
+    (when (or cd (branch-dest? cd))
       (if (and (branch-dest? cd) (memq (first f) quick-branch))
 	  (push-instr! bc (build-jmp (third cd)))
 	  (finish bc cd rd))
@@ -138,7 +138,7 @@
 			   '(($+ ADDVN) ($- SUBVN)
 			     ($guard GUARD) ($closure CLOSURE) ($closure-get CLOSURE-GET)))))
   (define r1 (exp-loc (second f) env rd))
-  (when cd
+  (when rd
     (finish bc cd rd)
     (push-instr! bc (list op rd r1 (modulo (third f) 256)))
     (compile-sexp (second f) bc env r1 'next)))
@@ -158,7 +158,7 @@
 			     ($peek PEEK)
 			     ($close CLOSE)))))
   (define r1 (exp-loc (second f) env rd))
-  (when cd
+  (when rd
     (finish bc cd rd)
     (push-instr! bc (list op rd r1))
     (compile-sexp (second f) bc env r1 'next)))
@@ -176,7 +176,7 @@
   (define r1 (exp-loc (second f) env rd))
   (when (= 3 (length f))
     (set! f (append f (list #f))))
-  (when cd
+  (when (or rd (branch-dest? cd))
     (compile-sexp (fourth f) bc env rd dest)
     (let ((pos (length (func-bc-code bc))))
       (compile-sexp (third f) bc env rd dest)
@@ -366,10 +366,11 @@
 	 (compile-call f bc env rd cd)))))
 
 (define (compile-sexps program bc env rd cd)
-  (let loop ((program (reverse program)) (cd cd))
-    (compile-sexp (car program) bc env rd cd)
+  (let loop ((program (reverse program)) (rd rd) (cd cd))
+    (compile-sexp (car program) bc env rd cd) 
     (if (pair? (cdr program))
-	(loop (cdr program) 'next))))
+	(begin
+	  (loop (cdr program) rd 'next))))) ;; All other statements are in effect context
 
 (define (compile d)
   (define bc (make-func-bc "repl" '()))
@@ -582,7 +583,8 @@
 
 ;;;;;;;;;;;;;;;;;; main
 
-(define bootstrap (with-input-from-file "bootstrap.scm" (lambda () (expander))))
+(define bootstrap  (with-input-from-file "bootstrap.scm" (lambda () (expander)))
+  )
 
 ;(pretty-print (assignment-conversion (fix-letrec (expander))))
 
@@ -610,7 +612,7 @@
 		 (append bootstrap (expander))
 		 #;(expander)
 		 )))))))))
-(display "Compiling:\n") (pretty-print opt) (newline)
+;(display "Compiling:\n") (pretty-print opt) (newline)
 (compile opt)
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors
