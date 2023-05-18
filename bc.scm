@@ -83,7 +83,7 @@
 ;;      'any - any register may be used, for things like ADD that can use any temporary.
 ;;      number - specific destination register must be used, for things like LET, CALL, CLOSURE
 ;;
-;; nd - next available free register, which may or may not be equal to rd.
+;; nr - next available free register, which may or may not be equal to rd.
 ;;      All instructions are three-address, where one of the operands may equal the destination.
 ;;
 ;; cd - control destination.
@@ -107,7 +107,7 @@
    ((eq? cd 'next))
    (else (dformat "UNKNOWN CONTROL DEST:~a" cd) (exit -1))))
 
-(define (compile-self-evaluating f bc rd nd cd)
+(define (compile-self-evaluating f bc rd nr cd)
   ;; TODO save len
   (when rd
     (finish bc cd rd)
@@ -116,16 +116,16 @@
 	(let ((c (get-or-push-const bc f)))
 	  (push-instr! bc (list 'KONST rd c))))))
 
-(define (compile-binary f bc env rd nd cd)
+(define (compile-binary f bc env rd nr cd)
   (define vn '($- $+ $guard $closure-get))
   (if (and (memq (first f) vn)
 	   (fixnum? (third f))
 	   (< (abs (third f)) 128))
-      (compile-binary-vn f bc env rd nd cd)
-      (compile-binary-vv f bc env rd nd cd)))
+      (compile-binary-vn f bc env rd nr cd)
+      (compile-binary-vv f bc env rd nr cd)))
 
 (define quick-branch '($< $= $eq))
-(define (compile-binary-vv f bc env rd nd cd)
+(define (compile-binary-vv f bc env rd nr cd)
   (define op (second (if (and (branch-dest? cd) (memq (first f) quick-branch))
 			 (assq (first f)
 			       '(($< JISLT) ($= JISEQ) ($eq JEQ)))
@@ -146,27 +146,27 @@
 				 ($open OPEN)
 				 ($write WRITE)
 				 ($write-u8 WRITE-U8))))))
-  (let* ((r1 (exp-loc (second f) env nd))
-	 (r2 (exp-loc (third f) env (max nd (+ r1 1)))))
+  (let* ((r1 (exp-loc (second f) env nr))
+	 (r2 (exp-loc (third f) env (max nr (+ r1 1)))))
     (when (or rd (branch-dest? cd))
       (if (and (branch-dest? cd) (memq (first f) quick-branch))
 	  (push-instr! bc (build-jmp (third cd)))
 	  (finish bc cd rd))
       (push-instr! bc (list op rd r1 r2))
-      (compile-sexp (third f) bc env r2 (max r2 r1 nd) 'next)
-      (compile-sexp (second f) bc env r1 (max nd r1) 'next))))
+      (compile-sexp (third f) bc env r2 (max r2 r1 nr) 'next)
+      (compile-sexp (second f) bc env r1 (max nr r1) 'next))))
 
-(define (compile-binary-vn f bc env rd nd cd)
+(define (compile-binary-vn f bc env rd nr cd)
   (define op (second (assq (first f)
 			   '(($+ ADDVN) ($- SUBVN)
 			     ($guard GUARD) ($closure CLOSURE) ($closure-get CLOSURE-GET)))))
-  (define r1 (exp-loc (second f) env nd))
+  (define r1 (exp-loc (second f) env nr))
   (when rd
     (finish bc cd rd)
     (push-instr! bc (list op rd r1 (modulo (third f) 256)))
     (compile-sexp (second f) bc env r1 r1 'next)))
 
-(define (compile-unary f bc env rd nd cd)
+(define (compile-unary f bc env rd nr cd)
   (define op (second (assq (first f)
 			   '(($box BOX) ($unbox UNBOX)
 			     ($car CAR) ($cdr CDR)
@@ -180,13 +180,13 @@
 			     ($read READ)
 			     ($peek PEEK)
 			     ($close CLOSE)))))
-  (define r1 (exp-loc (second f) env nd))
+  (define r1 (exp-loc (second f) env nr))
   (when rd
     (finish bc cd rd)
     (push-instr! bc (list op rd r1))
     (compile-sexp (second f) bc env r1 r1 'next)))
 
-(define (compile-if f bc env rd nd cd)
+(define (compile-if f bc env rd nr cd)
   (define dest (cond
 		((eq? cd 'ret) cd)
 		((branch-dest? cd)
@@ -196,16 +196,16 @@
 		((number? cd) cd)
 		((eq? cd 'next)
 		 (length (func-bc-code bc)))))
-  (define r1 (exp-loc (second f) env nd))
+  (define r1 (exp-loc (second f) env nr))
   (when (= 3 (length f)) ;; TODO remove, direct jump?
     (set! f (append f (list #f))))
   (when (or rd (branch-dest? cd))
-    (compile-sexp (fourth f) bc env rd nd dest)
+    (compile-sexp (fourth f) bc env rd nr dest)
     (let ((pos (length (func-bc-code bc))))
-      (compile-sexp (third f) bc env rd nd dest)
-      (compile-sexp (second f) bc env r1 (max nd r1) `(if ,(length (func-bc-code bc)) ,(- (length (func-bc-code bc)) pos -1))))))
+      (compile-sexp (third f) bc env rd nr dest)
+      (compile-sexp (second f) bc env r1 (max nr r1) `(if ,(length (func-bc-code bc)) ,(- (length (func-bc-code bc)) pos -1))))))
 
-(define (compile-lambda f bc rd nd cd)
+(define (compile-lambda f bc rd nr cd)
   (define f-bc (make-func-bc cur-name '() ))
   (define f-id (length program))
   (define old-name cur-name)
@@ -245,7 +245,7 @@
   (define l (assq f env))
   (if l (cdr l) #f))
 
-(define (compile-lookup f bc env rd nd cd)
+(define (compile-lookup f bc env rd nr cd)
   (define loc (find-symbol f env))
   (define r (if (eq? cd 'ret) (exp-loc f env rd) rd))
   (finish bc cd r)
@@ -257,80 +257,80 @@
 
 ;; Note we implicitly add the closure param here.
 ;; TODO optimize better for known calls.
-(define (compile-call f bc env rd nd cd)
+(define (compile-call f bc env rd nr cd)
   (finish bc cd rd)
-  (when (not (= rd nd))
-    (push-instr! bc (list 'MOV nd rd)))
-  (push-instr! bc (list (if (eq? cd 'ret) 'CALLT 'CALL) nd (+ 1 (length f))))
-  (push-instr! bc (list 'CLOSURE-PTR nd (+ nd 1)))
+  (when (not (= rd nr))
+    (push-instr! bc (list 'MOV nr rd)))
+  (push-instr! bc (list (if (eq? cd 'ret) 'CALLT 'CALL) nr (+ 1 (length f))))
+  (push-instr! bc (list 'CLOSURE-PTR nr (+ nr 1)))
   (fold
    (lambda (f num)
      (compile-sexp f bc env num num 'next)
      (- num 1))
-   (+ (length f) nd)
+   (+ (length f) nr)
    (reverse f)))
 
-(define (compile-closure f bc env rd nd cd)
+(define (compile-closure f bc env rd nr cd)
   (finish bc cd rd)
-  (when (not (= rd nd))
-    (push-instr! bc (list 'MOV nd rd)))
-  (push-instr! bc (list 'CLOSURE nd (- (length f) 1)))
+  (when (not (= rd nr))
+    (push-instr! bc (list 'MOV nr rd)))
+  (push-instr! bc (list 'CLOSURE nr (- (length f) 1)))
   (fold
    (lambda (f num)
      (compile-sexp f bc env num num 'next)
      (- num 1))
-   (+ (length f) nd -2)
+   (+ (length f) nr -2)
    (reverse (cdr f))))
 
 ;; Third arg must be immediate fixnum.
-(define (compile-closure-set f bc env rd nd cd)
+(define (compile-closure-set f bc env rd nr cd)
   (finish bc cd rd)
-  (let* ((r1 (exp-loc (second f) env nd))
-	(r2 (exp-loc (third f) env (max nd (+ r1 1)))))
+  (let* ((r1 (exp-loc (second f) env nr))
+	(r2 (exp-loc (third f) env (max nr (+ r1 1)))))
     (push-instr! bc (list 'CLOSURE-SET r1 r2 (fourth f)))
-    (compile-sexp (third f) bc env r2 (max nd r2 r1) 'next)
-    (compile-sexp (second f) bc env r1 (max nd r1) 'next)))
+    (compile-sexp (third f) bc env r2 (max nr r2 r1) 'next)
+    (compile-sexp (second f) bc env r1 (max nr r1) 'next)))
 
 ;; First arg is register to use, k, then obj
-(define (compile-setter f bc env rd nd cd)
+(define (compile-setter f bc env rd nr cd)
   (finish bc cd rd)
-  (let* ((r1 (exp-loc (second f) env nd))
-	(r2 (exp-loc (third f) env (max nd (+ r1 1))))
-	(r3 (exp-loc (fourth f) env (max nd (+ r1 1) (+ r2 1)))))
+  (let* ((r1 (exp-loc (second f) env nr))
+	(r2 (exp-loc (third f) env (max nr (+ r1 1))))
+	(r3 (exp-loc (fourth f) env (max nr (+ r1 1) (+ r2 1)))))
     (push-instr! bc (list (if (eq? '$vector-set! (first f)) 'VECTOR-SET 'STRING-SET) r1 r2 r3))
-    (compile-sexp (fourth f) bc env r3 (max nd r2 r1 r3) 'next)
-    (compile-sexp (third f) bc env r2 (max nd r1 r2) 'next)
-    (compile-sexp (second f) bc env r1 (max nd r1) 'next)))
+    (compile-sexp (fourth f) bc env r3 (max nr r2 r1 r3) 'next)
+    (compile-sexp (third f) bc env r2 (max nr r1 r2) 'next)
+    (compile-sexp (second f) bc env r1 (max nr r1) 'next)))
 
-(define (compile-setter2 f bc env rd nd cd)
+(define (compile-setter2 f bc env rd nr cd)
   (finish bc cd rd)
-  (let* ((r1 (exp-loc (second f) env nd))
-	(r2 (exp-loc (third f) env (max nd (+ r1 1)))))
+  (let* ((r1 (exp-loc (second f) env nr))
+	(r2 (exp-loc (third f) env (max nr (+ r1 1)))))
     (push-instr! bc (list (if (eq? '$set-car! (first f)) 'SET-CAR 'SET-CDR) r1 r2))
-    (compile-sexp (third f) bc env r2 (max nd r1 r2) 'next)
-    (compile-sexp (second f) bc env r1 (max nd r1) 'next)))
+    (compile-sexp (third f) bc env r2 (max nr r1 r2) 'next)
+    (compile-sexp (second f) bc env r1 (max nr r1) 'next)))
 
 (define (closure? f)
   (and (pair? f) (eq? '$closure (car f))))
 
-(define (compile-define f bc env rd nd cd)
+(define (compile-define f bc env rd nr cd)
   (if (pair? (second f))
       (compile-define
        `(define ,(car (second f)) (lambda ,(cdr (second f)) ,@(cddr f)))
-       bc env rd nd cd)
+       bc env rd nr cd)
       (let* ((c (get-or-push-const bc (second f)))
 	     (old-name cur-name))
 	(when (closure? (third f))
-	  (set! cur-name (symbol->string (second f))))
+	  (set! cur-name (string-append (symbol->string (second f)) "-" cur-name)))
 	;; TODO undef
 	(finish bc cd rd)
-	(push-instr! bc (list 'GSET nd c))
-	(compile-sexp (third f) bc env rd nd 'next)
+	(push-instr! bc (list 'GSET nr c))
+	(compile-sexp (third f) bc env rd nr 'next)
 	(set! cur-name old-name)
 	)))
 
-(define (compile-let f bc env rd nd cd)
-  (let ((ord nd))
+(define (compile-let f bc env rd nr cd)
+  (let ((ord nr))
     (define orig-env env) ;; let values use original mapping
     (define mapping (map-in-order (lambda (f)
 				    (define o ord)
@@ -347,47 +347,48 @@
     ;; Do this in reverse, so that we don't smash register usage.
     (for-each (lambda (f r)
 		(define old-name cur-name)
-		(when (closure? (second f)) (set! cur-name (symbol->string (first f))))
+		(when (closure? (second f))
+		  (set! cur-name (string-append (symbol->string (first f)) "-" cur-name)))
 		(compile-sexp (second f) bc orig-env r r 'next)
 		(set! cur-name old-name))
 	      (reverse (second f))
 	      (reverse mapping))))
 
-(define (compile-sexp f bc env rd nd cd)
+(define (compile-sexp f bc env rd nr cd)
   ;;(display "SEXP:") (display f) (newline)
   (if (not (pair? f))
       (if (symbol? f)
-	  (compile-lookup f bc env rd nd cd)
-	  (compile-self-evaluating f bc rd nd cd))
+	  (compile-lookup f bc env rd nr cd)
+	  (compile-self-evaluating f bc rd nr cd))
       (case (car f)
 	;; The standard scheme forms.
-	((define) (compile-define f bc env rd nd cd))
-	((let) (compile-let f bc env rd nd cd))
-	((lambda) (compile-lambda f bc rd nd cd))
-	((begin) (compile-sexps (cdr f) bc env rd nd cd))
-	((if) (compile-if f bc env rd nd cd))
-	((set!) (compile-define f bc env rd nd cd)) ;; TODO check?
-	((quote) (compile-self-evaluating (second f) bc rd nd cd))
+	((define) (compile-define f bc env rd nr cd))
+	((let) (compile-let f bc env rd nr cd))
+	((lambda) (compile-lambda f bc rd nr cd))
+	((begin) (compile-sexps (cdr f) bc env rd nr cd))
+	((if) (compile-if f bc env rd nr cd))
+	((set!) (compile-define f bc env rd nr cd)) ;; TODO check?
+	((quote) (compile-self-evaluating (second f) bc rd nr cd))
 
 	;; Builtins
 	(($+ $* $- $< $= $guard $set-box! $closure-get $eq $cons
 	     $make-vector $vector-ref $make-string $string-ref $apply
 	     $/ $% $callcc-resume $open $write $write-u8)
-	 (compile-binary f bc env rd nd cd))
-	(($vector-set! $string-set!) (compile-setter f bc env rd nd cd))
-	(($set-car! $set-cdr!) (compile-setter2 f bc env rd nd cd))
+	 (compile-binary f bc env rd nr cd))
+	(($vector-set! $string-set!) (compile-setter f bc env rd nr cd))
+	(($set-car! $set-cdr!) (compile-setter2 f bc env rd nr cd))
 	(($box $unbox $car $cdr $vector-length $display $string-length
 	       $symbol->string $string->symbol $char->integer $integer->char
 	       $callcc $read $peek $close)
-	 (compile-unary f bc env rd nd cd))
-	(($closure) (compile-closure f bc env rd nd cd))
-	(($closure-set) (compile-closure-set f bc env rd nd cd))
+	 (compile-unary f bc env rd nr cd))
+	(($closure) (compile-closure f bc env rd nr cd))
+	(($closure-set) (compile-closure-set f bc env rd nr cd))
 	(else
-	 (compile-call f bc env rd nd cd)))))
+	 (compile-call f bc env rd nr cd)))))
 
-(define (compile-sexps program bc env rd nd cd)
+(define (compile-sexps program bc env rd nr cd)
   (let loop ((program (reverse program)) (rd rd) (cd cd))
-    (compile-sexp (car program) bc env rd nd cd) 
+    (compile-sexp (car program) bc env rd nr cd) 
     (if (pair? (cdr program))
 	(begin
 	  (loop (cdr program) rd 'next))))) ;; All other statements are in effect context
@@ -603,7 +604,7 @@
 
 ;;;;;;;;;;;;;;;;;; main
 
-(define bootstrap '();  (with-input-from-file "bootstrap.scm" (lambda () (expander)))
+(define bootstrap  (with-input-from-file "bootstrap.scm" (lambda () (expander)))
   )
 
 ;(pretty-print (assignment-conversion (fix-letrec (expander))))

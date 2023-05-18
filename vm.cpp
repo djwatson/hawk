@@ -190,9 +190,9 @@ void INS_RET1(PARAMS) {
 void INS_HALT(PARAMS) {
   DEBUG("HALT");
 
-  // printf("Result:");
-  // print_obj(frame[ra]);
-  // printf("\n");
+  printf("Result:");
+  print_obj(frame[ra]);
+  printf("\n");
   return;
 }
 
