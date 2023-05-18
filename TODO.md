@@ -8,6 +8,11 @@
    * let's don't have to move??? everything should be in effect context,
      except the last, which can use the first reg.
 * case-lambda!
+* funcv
+* closure calls
+* maybe llvm cc10
+* remove hotspot for non-jit
+* letrec the bootstrap
 
 * get re-linking working, so we directly gen the next script and eval will work.
 * make a 'vm state' struct, so we can run multiple vm's?
