@@ -214,7 +214,7 @@
   (compile-lambda-internal f f-bc '())
   (finish bc cd rd)
   (push-instr! bc (list 'KFUNC rd f-id))
-  (set! old-name cur-name))
+  (set! cur-name old-name))
 
 (define (ilength l)
   (if (null? l) 0
