@@ -321,11 +321,11 @@
       (let* ((c (get-or-push-const bc (second f)))
 	     (old-name cur-name))
 	(when (closure? (third f))
-	  (set! cur-name (string-append (symbol->string (second f)) "-" cur-name)))
+	  (set! cur-name (string-append cur-name "-" (symbol->string (second f)))))
 	;; TODO undef
 	(finish bc cd rd)
 	(push-instr! bc (list 'GSET nr c))
-	(compile-sexp (third f) bc env rd nr 'next)
+	(compile-sexp (third f) bc env nr nr 'next)
 	(set! cur-name old-name)
 	)))
 
@@ -348,7 +348,7 @@
     (for-each (lambda (f r)
 		(define old-name cur-name)
 		(when (closure? (second f))
-		  (set! cur-name (string-append (symbol->string (first f)) "-" cur-name)))
+		  (set! cur-name (string-append cur-name "-" (symbol->string (first f)))))
 		(compile-sexp (second f) bc orig-env r r 'next)
 		(set! cur-name old-name))
 	      (reverse (second f))
@@ -391,7 +391,7 @@
     (compile-sexp (car program) bc env rd nr cd) 
     (if (pair? (cdr program))
 	(begin
-	  (loop (cdr program) rd 'next))))) ;; All other statements are in effect context
+	  (loop (cdr program) nr 'next))))) ;; All other statements are in effect context
 
 (define (compile d)
   (define bc (make-func-bc "repl" '()))

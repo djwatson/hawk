@@ -17,6 +17,8 @@ void print_obj(long obj, FILE* file) {
     if (ptrtype == STRING_TAG) {
       auto str = (string_s *)(obj - PTR_TAG);
       fprintf(file, "%s", str->str);
+    } else if (ptrtype == PORT_TAG) {
+      fprintf(file, "#<port>");
     } else if (ptrtype == VECTOR_TAG) {
       auto v = (vector_s *)(obj - PTR_TAG);
       fprintf(file, "#(");
