@@ -140,6 +140,9 @@
 (define (caddar e) (car (cddar e)))
 (define (cdddar e) (cdr (cddar e)))
 
+(define (map2 f lst)
+	(if (null? lst) '()
+	    (cons (f (car lst)) (map2 f (cdr lst)))))
 (define (map . lst)
   (let loop ((lsts (cons (cadr lst) (cddr lst))))
     (let ((hds (let loop2 ((lsts lsts))
