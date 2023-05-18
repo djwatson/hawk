@@ -1,6 +1,6 @@
 # TODO list
 
-* get self-compile of compiler working.
+* get self-compile of compiler working. peval. check them all.
 * case-lambda!
 
 * GC needs work for symbol table, consts, symbols, etc
@@ -11,7 +11,6 @@
 * Go thorugh all of vm and check for safety!
 * letrec check
 
-* test direct threading?
 
 * cleanup enums
 * fixup all opcodes of 'D' type
