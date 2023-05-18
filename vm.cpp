@@ -652,7 +652,7 @@ void INS_SET_BOX(PARAMS) {
 
   auto box = (cons_s*)(fb - PTR_TAG);
   box->a = fc;
-  frame[ra] = UNDEFINED_TAG;
+  //frame[ra] = UNDEFINED_TAG;
   pc++;
 
   NEXT_INSTR;

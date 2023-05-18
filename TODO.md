@@ -1,11 +1,8 @@
 # TODO list
 
 * do better for destination driven code gen - 
-   * get effect working for set-vector etc
    * return 'undefined' for value, but setters
    * returning constant in test/effect context should direct jump to dest.
-   * let's don't have to move??? everything should be in effect context,
-     except the last, which can use the first reg.
 * case-lambda!
 * funcv
 * closure calls
@@ -78,7 +75,6 @@
 * need to purge snap to minimum entries.
 
 * do better recursion 
-  * maybe start traces on RET?
   * maybe flush traces (recursively) if we find a new up or down recursive trace
   * fib 39 re-jits tails, because downrec happens first.  Even luajit does this.  Unrolling probably helps.
 
@@ -95,14 +91,12 @@
 
 ## PERF
 * we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
+ This probably has no effect on the VM, but might benefit the jit.
 
 ## CLEANUP
 * cleanup bytecode ops order
-* split bc to separate files
 
 ## TODO
 * comments in output
-* name more lambdas, define, let
 *could add sume 'VN' variations of < >, EQ, etc
-* tail call register alloc?
 
