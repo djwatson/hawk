@@ -70,6 +70,29 @@
     (exit -1))
   (list 'JMP 0 offset))
 
+;;;;; Destination driven code generation ;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Note code is generated bottom-up, last sexp to first.
+
+
+;; f - the sexp we're generating code for
+;; bc - the function's already emitted bytecode.
+;; rd - the destination register.
+;;      #f - effect context, no register required.
+;;      'any - any register may be used, for things like ADD that can use any temporary.
+;;      number - specific destination register must be used, for things like LET, CALL, CLOSURE
+;;
+;; nd - next available free register, which may or may not be equal to rd.
+;;      All instructions are three-address, where one of the operands may equal the destination.
+;;
+;; cd - control destination.
+;;      'ret - the return destination.  Also used for detecting tail calls.
+;;      'next - next instruction.  Nothing special must be done.
+;;       number - jump to this instruction.  (we should check if we actually need a jump, or it is the next instruction)
+;;       (if number number) - branch destination. Jump to first num if true, second if false.
+;; 
+
 (define (finish bc cd r)
   (cond
    ((eq? cd 'ret)
@@ -580,7 +603,7 @@
 
 ;;;;;;;;;;;;;;;;;; main
 
-(define bootstrap  (with-input-from-file "bootstrap.scm" (lambda () (expander)))
+(define bootstrap '();  (with-input-from-file "bootstrap.scm" (lambda () (expander)))
   )
 
 ;(pretty-print (assignment-conversion (fix-letrec (expander))))
