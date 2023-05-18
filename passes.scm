@@ -290,5 +290,7 @@
 	  ((flonum? inexact?) `($guard ,(integrate (second f)) ,flonum-tag))
 	  ((number? fixnum? exact? integer? rational? complex?) `($guard ,(integrate (second f)) ,fixnum-tag)) ;; TODO flonums
 	  ((null?) `($guard ,(integrate (second f)) ,nil-tag))
+	  ((caar?) `($car ($car ,(integrate (second f)))))
+	  ((eqv?) `($eq ,(integrate (second f)) ,(integrate (third f)))) ;; TODO flonums
 	  (else (imap integrate f)))))
   (imap integrate f))
