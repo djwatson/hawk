@@ -64,11 +64,13 @@
 (define (branch-dest? cd)
   (and (pair? cd) (eq? 'if (first cd))))
 
-(define (build-jmp offset)
-  (when (or (<= offset 0) (> offset 65535))
-    (dformat "OFFSET too big: ~a\n" offset)
-    (exit -1))
-  (list 'JMP 0 offset))
+(define (build-jmp absolute bc)
+  (let ((offset (- (length (func-bc-code bc)) absolute -1)))
+    (when (or (<= offset 0) (> offset 65535))
+      (dformat "OFFSET too big: ~a\n" offset)
+      (exit -1))    
+    (when (not (eq? offset 1))
+      (push-instr! bc (list 'JMP 0 offset)))))
 
 ;;;;; Destination driven code generation ;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -98,16 +100,16 @@
 ;; 
 
 (define (finish bc cd r)
+  (dformat "FINISH ~a\n" cd)
   (cond
    ((eq? cd 'ret)
     (push-instr! bc (list 'RET1 r)))
    ((number? cd)
-    (let ((jlen (- (length (func-bc-code bc)) cd -1)))
-	    (when (not (eq? jlen 1))
-	      (push-instr! bc (build-jmp jlen)))))
+    (build-jmp cd bc))
    ((branch-dest? cd)
-      (push-instr! bc (build-jmp (third cd)))
-      (push-instr! bc (list 'ISF r)))
+    ;(push-instr! bc (build-jmp (second cd) bc))
+    (build-jmp (third cd) bc)
+    (push-instr! bc (list 'ISF r)))
    ((eq? cd 'next))
    (else (dformat "UNKNOWN CONTROL DEST:~a" cd) (exit -1))))
 
@@ -159,7 +161,7 @@
       (begin
 	(when (not rd) (set! rd nr)) ;; ONLY NEEDED for set-box!, apply, write, write-u8
 	(if (and (branch-dest? cd) (memq (first f) quick-branch))
-	    (push-instr! bc (build-jmp (third cd)))
+	    (build-jmp (third cd) bc)
 	    (finish bc cd rd))
 	(push-instr! bc (list op rd r1 r2))
 	(compile-sexp (third f) bc env r2 (max r2 r1 nr) 'next)
@@ -202,7 +204,7 @@
   (define dest (cond
 		((eq? cd 'ret) cd)
 		((branch-dest? cd)
-		 (push-instr! bc (build-jmp (third cd)))
+		 (build-jmp (third cd) bc)
 		 (push-instr! bc (list 'ISF rd))
 		 (length (func-bc-code bc)))
 		((number? cd) cd)
@@ -215,7 +217,7 @@
   (let ((pos (length (func-bc-code bc))))
     (compile-sexp (third f) bc env rd nr dest)
     ;; TODO if effect context can do rd nr
-    (compile-sexp (second f) bc env r1 (max nr r1) `(if ,(length (func-bc-code bc)) ,(- (length (func-bc-code bc)) pos -1)))))
+    (compile-sexp (second f) bc env r1 (max nr r1) `(if ,(length (func-bc-code bc)) ,pos))))
 
 (define (compile-lambda f bc rd nr cd)
   (define f-bc (make-func-bc cur-name '() ))
@@ -621,7 +623,7 @@
 
 ;;;;;;;;;;;;;;;;;; main
 
-(define bootstrap     (with-input-from-file "bootstrap.scm" (lambda () (expander)))
+(define bootstrap      (with-input-from-file "bootstrap.scm" (lambda () (expander)))
   )
 
 ;(pretty-print (assignment-conversion (fix-letrec (expander))))
