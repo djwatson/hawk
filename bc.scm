@@ -107,7 +107,7 @@
    ((number? cd)
     (build-jmp cd bc))
    ((branch-dest? cd)
-    ;(push-instr! bc (build-jmp (second cd) bc))
+    (build-jmp (second cd) bc)
     (build-jmp (third cd) bc)
     (push-instr! bc (list 'ISF r)))
    ((eq? cd 'next))
@@ -203,10 +203,7 @@
 (define (compile-if f bc env rd nr cd)
   (define dest (cond
 		((eq? cd 'ret) cd)
-		((branch-dest? cd)
-		 (build-jmp (third cd) bc)
-		 (push-instr! bc (list 'ISF rd))
-		 (length (func-bc-code bc)))
+		((branch-dest? cd) cd)
 		((number? cd) cd)
 		((eq? cd 'next)
 		 (length (func-bc-code bc)))))
@@ -623,7 +620,7 @@
 
 ;;;;;;;;;;;;;;;;;; main
 
-(define bootstrap      (with-input-from-file "bootstrap.scm" (lambda () (expander)))
+(define bootstrap   (with-input-from-file "bootstrap.scm" (lambda () (expander)))
   )
 
 ;(pretty-print (assignment-conversion (fix-letrec (expander))))
