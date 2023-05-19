@@ -48,7 +48,7 @@ long read_const(FILE *fptr) {
 	val = (long)sym | SYMBOL_TAG;
 	symbols.push_back(val);
       } else {
-	auto val = long(res->second) + SYMBOL_TAG;
+	val = long(res->second) + SYMBOL_TAG;
 	symbols.push_back(val);
 	return val;
       }
@@ -98,13 +98,10 @@ long read_const(FILE *fptr) {
   return val;
 }
 
-unsigned readbc(const char* filename) {
+unsigned readbc(FILE* fptr) {
   long const_offset = const_table_sz;
   symbols.clear();
 
-  FILE *fptr;
-  fptr = fopen(filename, "rb");
-  //fmemopen(out_bc, out_bc_len, "rb");
   if (fptr == NULL) {
     printf("Could not open bc\n");
     exit(-1);
@@ -114,7 +111,7 @@ unsigned readbc(const char* filename) {
   fread(&num, 4, 1, fptr);
   printf("%.4s\n", (char *)&num);
   if (num != 0x4d4f4f42) { // MAGIC
-    printf("Error: not a boom bitcode file: %s\n", filename);
+    printf("Error: not a boom bitcode\n");
     exit(-1);
   }
   unsigned int version;
@@ -175,9 +172,21 @@ unsigned readbc(const char* filename) {
   return start_func;
 }
 
+unsigned readbc_image(unsigned char* mem, unsigned int len) {
+  FILE* fptr = fmemopen(mem, len, "rb");
+  return readbc(fptr);
+}
+
+unsigned readbc_file(const char* filename) {
+  FILE *fptr;
+  fptr = fopen(filename, "rb");
+  return readbc(fptr);
+}
+
 void free_script() {
   for (auto &func : funcs) {
     delete func;
   }
   // TODO symbol_table
 }
+

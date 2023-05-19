@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
   printf("Optind %i argc %i\n", optind, argc);
   for(int i = optind; i < argc; i++) {
     printf("Running script %s\n", argv[i]);
-    auto start_func = readbc(argv[i]);
+    auto start_func = readbc_file(argv[i]);
     run(start_func);
   }
 
