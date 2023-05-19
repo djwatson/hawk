@@ -161,7 +161,9 @@
       (begin
 	(when (not rd) (set! rd nr)) ;; ONLY NEEDED for set-box!, apply, write, write-u8
 	(if (and (branch-dest? cd) (memq (first f) quick-branch))
-	    (build-jmp (third cd) bc)
+	    (begin
+	      (build-jmp (second cd) bc)
+	      (build-jmp (third cd) bc))
 	    (finish bc cd rd))
 	(push-instr! bc (list op rd r1 r2))
 	(compile-sexp (third f) bc env r2 (max r2 r1 nr) 'next)

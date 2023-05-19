@@ -1,5 +1,7 @@
 # TODO list
 
+* BRANCH dest 
+  * also do constant check on return - needed because of and/or
 * do better for destination driven code gen - 
    * return 'undefined' for value, but setters
    * returning constant in test/effect context should direct jump to dest.
