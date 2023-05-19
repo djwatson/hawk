@@ -100,7 +100,6 @@
 ;; 
 
 (define (finish bc cd r)
-  (dformat "FINISH ~a\n" cd)
   (cond
    ((eq? cd 'ret)
     (push-instr! bc (list 'RET1 r)))
@@ -632,7 +631,7 @@
 
 ;;;;;;;;;;;;;;;;;; main
 
-(define bootstrap    (with-input-from-file "bootstrap.scm" (lambda () (expander)))
+(define bootstrap     (with-input-from-file "bootstrap.scm" (lambda () (expander)))
   )
 
 ;(pretty-print (assignment-conversion (fix-letrec (expander))))
@@ -661,7 +660,7 @@
 		 (append bootstrap (expander))
 		 #;(expander)
 		 )))))))))
-;(display "Compiling:\n") (pretty-print opt) (newline)
+;;(display "Compiling:\n") (pretty-print opt) (newline)
 (compile opt)
 ;; Get everything in correct order
 ;; TODO do this as we are generating with extendable vectors

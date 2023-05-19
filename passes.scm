@@ -269,6 +269,12 @@
 	  ((zero) `($= ,@(imap integrate (cdr f))))
 	  ((eq? char=?) (cons '$eq (imap integrate (cdr f))))
 	  ((quote) f)
+	  ((if) (if (and (pair? (second f))
+			 (eq? (first (second f)) 'not))
+		    `(if ,(integrate (second (second f)))
+			 ,(if (= 4 (length f)) (integrate (fourth f)) #f)
+			 ,(integrate (third f)))
+		    (imap integrate f)))
 	  ((not) `(if ,(integrate (second f)) #f #t))
 	  ((append) (if (= 3 (length f))
 			`(append2 ,@(imap integrate (cdr f)))
@@ -295,6 +301,7 @@
 	  ((flonum? inexact?) `($guard ,(integrate (second f)) ,flonum-tag))
 	  ((number? fixnum? exact? integer? rational? complex?) `($guard ,(integrate (second f)) ,fixnum-tag)) ;; TODO flonums
 	  ((null?) `($guard ,(integrate (second f)) ,nil-tag))
+	  ;; TODO add the rest of c*r
 	  ((caar?) `($car ($car ,(integrate (second f)))))
 	  ((eqv?) `($eq ,(integrate (second f)) ,(integrate (third f)))) ;; TODO flonums
 	  (else (imap integrate f)))))

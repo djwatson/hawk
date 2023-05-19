@@ -1,11 +1,9 @@
 # TODO list
 
-* BRANCH dest 
-  * switch branches around when FINISH can branch to one or the other
-    using quick-branch or iseq
+* get re-linking working, so we directly gen the next script and eval will work.
+
 * do better for destination driven code gen - 
    * return 'undefined' for value, but setters
-   * returning constant in test/effect context should direct jump to dest.
 * case-lambda!
 * funcv
 * closure calls
@@ -13,16 +11,17 @@
 * remove hotspot for non-jit
 * letrec the bootstrap
 
-* get re-linking working, so we directly gen the next script and eval will work.
 * make a 'vm state' struct, so we can run multiple vm's?
 
 * GC needs work for symbol table, consts, symbols, etc
 * INEXACT/str->num inexact
-* TODO > , GSET check
+* TODO >, >= , GSET check
 * GO through and check undefined return values in bc.scm
 * bounds check vector/string refs
 * Go thorugh all of vm and check for safety!
 * letrec check
+* better known lambda calls
+* mabye an 'unknown lambda' call bytecode insteaed of closure-ptr
 
 
 * cleanup enums
@@ -32,12 +31,13 @@
 * remove indirection for consts/bc
 * Add define tags/header for runtime types
 
+# JIT TODO:
 * Figure out why JFUNC immediate records fail - we should start recording on JFUNC and not CALL
 * Figure out why jloop records fail in replay/asm_x64
 * figure out why non-looping ack fails with 1 trace
     * it's because we save the frame state for looping, 
 	* but don't advance to next func/pc in last framestate.
-* JIT todo:
+
   * fix stack size adjust  
   * and in replay is borken
   
