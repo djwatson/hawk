@@ -8,9 +8,11 @@
 #include "vm.h"
 
 void*GC_malloc(size_t);
+void*GC_realloc(void* ptr, size_t);
 
 std::unordered_map<std::string, symbol *> symbol_table;
 long *const_table;
+long const_table_sz = 0;
 static std::vector<long> symbols; // TODO not a global
 
 long read_const(FILE *fptr) {
@@ -25,7 +27,7 @@ long read_const(FILE *fptr) {
     if (num < symbols.size()) {
       val = symbols[num];
     } else {
-      // It's a new symbol
+      // It's a new symbol in this bc file
       long len;
       fread(&len, 8, 1, fptr);
       // TODO GC symbol table
@@ -34,13 +36,22 @@ long read_const(FILE *fptr) {
       str->len = len;
       str->str[len] = '\0';
       fread(str->str, 1, len, fptr);
-      // TODO GC symbol table
-      auto sym = (symbol *)GC_malloc(sizeof(symbol));
-      sym->name = str;
-      sym->val = UNDEFINED_TAG;
-      symbol_table[std::string(str->str)] = sym;
-      val = (long)sym | SYMBOL_TAG;
-      symbols.push_back(val);
+      
+      // Try to see if it already exists
+      auto res = symbol_table.find(std::string(str->str));
+      if (res == symbol_table.end()) {
+	// TODO GC symbol table
+	auto sym = (symbol *)GC_malloc(sizeof(symbol));
+	sym->name = str;
+	sym->val = UNDEFINED_TAG;
+	symbol_table[std::string(str->str)] = sym;
+	val = (long)sym | SYMBOL_TAG;
+	symbols.push_back(val);
+      } else {
+	auto val = long(res->second) + SYMBOL_TAG;
+	symbols.push_back(val);
+	return val;
+      }
     }
   } else if (type == 7) {
   } else if (type == FIXNUM_TAG) {
@@ -87,12 +98,13 @@ long read_const(FILE *fptr) {
   return val;
 }
 
-#include "vm_startup.h"
-void readbc() {
+unsigned readbc(const char* filename) {
+  long const_offset = const_table_sz;
+  symbols.clear();
 
   FILE *fptr;
-  //fptr = fopen("out.bc", "rb");
-  fptr = fmemopen(out_bc, out_bc_len, "rb");
+  fptr = fopen(filename, "rb");
+  //fmemopen(out_bc, out_bc_len, "rb");
   if (fptr == NULL) {
     printf("Could not open bc\n");
     exit(-1);
@@ -101,6 +113,10 @@ void readbc() {
   unsigned int num;
   fread(&num, 4, 1, fptr);
   printf("%.4s\n", (char *)&num);
+  if (num != 0x4d4f4f42) { // MAGIC
+    printf("Error: not a boom bitcode file: %s\n", filename);
+    exit(-1);
+  }
   unsigned int version;
   fread(&version, 4, 1, fptr);
   printf("%i\n", version);
@@ -109,9 +125,10 @@ void readbc() {
   unsigned int const_count;
   fread(&const_count, 4, 1, fptr);
   printf("constsize %i \n", const_count);
-  const_table = (long *)GC_malloc(const_count * sizeof(long));
+  const_table = (long *)GC_realloc(const_table, (const_count + const_offset) * sizeof(long));
+  const_table_sz += const_count;
   for (unsigned j = 0; j < const_count; j++) {
-    const_table[j] = read_const(fptr);
+    const_table[j + const_offset] = read_const(fptr);
     // printf("%i: ", j);
     // print_obj(const_table[j]);
     // printf("\n");
@@ -120,6 +137,7 @@ void readbc() {
   // Read functions
   unsigned int bccount;
   fread(&bccount, 4, 1, fptr);
+  unsigned start_func = funcs.size();
   for (unsigned i = 0; i < bccount; i++) {
     bcfunc *f = new bcfunc;
     if ((((long)f) & 0x7) != 0) {
@@ -139,6 +157,13 @@ void readbc() {
     //printf("%i: code %i\n", i, code_count);
     for (unsigned j = 0; j < code_count; j++) {
       fread(&f->code[j], 4, 1, fptr);
+      // Need to update anything pointing to global const_table
+      auto op = INS_OP(f->code[j]);
+      if (op == GGET || op == GSET || op == KONST) {
+	f->code[j] = CODE_D(op, INS_A(f->code[j]), INS_BC(f->code[j]) + const_offset);
+      } else if (op == KFUNC) {
+	f->code[j] = CODE_D(op, INS_A(f->code[j]), INS_BC(f->code[j]) + start_func);
+      }
       //unsigned int code = f->code[j];
       // printf("%i code: %s %i %i %i BC: %i\n", j, ins_names[INS_OP(code)],
       //        INS_A(code), INS_B(code), INS_C(code), INS_BC(code));
@@ -147,6 +172,7 @@ void readbc() {
   }
 
   fclose(fptr);
+  return start_func;
 }
 
 void free_script() {

@@ -1,7 +1,5 @@
 # TODO list
 
-* get re-linking working, so we directly gen the next script and eval will work.
-
 * do better for destination driven code gen - 
    * return 'undefined' for value, but setters
 * case-lambda!

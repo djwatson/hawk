@@ -1372,10 +1372,11 @@ void INS_UNKNOWN(PARAMS) {
   exit(-1);
 }
 
-void run() {
+void run(unsigned start_func) {
+  printf("Running func %i\n", start_func);
   // Bytecode stub to get us to HALT.
   unsigned int final_code[] = {CODE(CALL, 0, 1, 0), CODE(HALT, 0, 0, 0)};
-  unsigned int *code = &funcs[0]->code[0];
+  unsigned int *code = &funcs[start_func]->code[0];
 
   long *frame;
   // Initial stack setup has a return to bytecode stub above.

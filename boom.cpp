@@ -41,11 +41,18 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  printf("Optind %i argc %i\n", optind, argc);
+  for(int i = optind; i < argc; i++) {
+    printf("Running script %s\n", argv[i]);
+    auto start_func = readbc(argv[i]);
+    run(start_func);
+  }
+
   //GC_expand_hp(50000000);
   //jit_dump_init();
-  readbc();
-  run();
-  free_script();
+  // readbc();
+  // run();
+  // free_script();
   //jit_dump_close();
 
   return 0;

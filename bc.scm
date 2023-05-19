@@ -644,6 +644,7 @@
 
 (define (compile-file name)
   (set! consts '())
+  (set! symbol-table '())
   (set! program '())
   (set! cur-name "")
   (compile (closure-conversion

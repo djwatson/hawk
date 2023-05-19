@@ -1,4 +1,4 @@
 #pragma once
 
-void readbc();
+unsigned readbc(const char* filename);
 void free_script();
