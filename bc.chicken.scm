@@ -2,6 +2,7 @@
 (import (r7rs))
 
 (import (chicken foreign))
+(import (chicken process-context))
 
 ;; (define write-double
 ;;   (foreign-lambda* long ((double x))
@@ -10,3 +11,6 @@
 ;; 		   "C_return(ret);"))
 
 (include "bc.scm")
+(display (command-line-arguments))
+(for-each compile-file (command-line-arguments))
+

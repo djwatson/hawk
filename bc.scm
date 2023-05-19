@@ -630,13 +630,6 @@
   (close-output-port p))
 
 ;;;;;;;;;;;;;;;;;; main
-
-(define bootstrap     (with-input-from-file "bootstrap.scm" (lambda () (expander)))
-  )
-
-;(pretty-print (assignment-conversion (fix-letrec (expander))))
-
-
 (define (add-includes lst)
   (define (includes sexp)
     (if (and (pair? sexp) (eq? 'include (car sexp)))
@@ -649,36 +642,37 @@
 	(append included (add-includes (cdr lst))))
       '()))
 
-(define opt (closure-conversion
-	  (optimize-direct
-	   (assignment-conversion
-	    (fix-letrec
-	     (alpha-rename
-	      (integrate-r5rs
-	       (case-insensitive
-		(add-includes
-		 (append bootstrap (expander))
-		 #;(expander)
-		 )))))))))
-;;(display "Compiling:\n") (pretty-print opt) (newline)
-(compile opt)
-;; Get everything in correct order
-;; TODO do this as we are generating with extendable vectors
-(set! consts (reverse! consts))
-(set! program (reverse! program))
+(define (compile-file name)
+  (set! consts '())
+  (set! program '())
+  (set! cur-name "")
+  (compile (closure-conversion
+	       (optimize-direct
+		(assignment-conversion
+		 (fix-letrec
+		  (alpha-rename
+		   (integrate-r5rs
+		    (case-insensitive
+		     (add-includes
+		      (with-input-from-file name expander))))))))))
+  ;;(display "Compiling:\n") (pretty-print opt) (newline)
+  ;; Get everything in correct order
+  ;; TODO do this as we are generating with extendable vectors
+  (set! consts (reverse! consts))
+  (set! program (reverse! program))
 
-(display "Consts:\n")
-(fold (lambda (a b)
-	(dformat "~a: ~a\n" b a)
-	(+ b 1))
-      0 consts)
-(newline)
-(fold (lambda (a b)
-	(dformat "~a -- " b)
-	(display-bc a)
-	(+ b 1))
-      0
-      program)
+  (display "Consts:\n")
+  (fold (lambda (a b)
+	  (dformat "~a: ~a\n" b a)
+	  (+ b 1))
+	0 consts)
+  (newline)
+  (fold (lambda (a b)
+	  (dformat "~a -- " b)
+	  (display-bc a)
+	  (+ b 1))
+	0
+	program)
 
-(bc-write "out.bc" program)
+  (bc-write (string-append name ".bc") program))
 
