@@ -1,7 +1,8 @@
 # TODO list
 
 * BRANCH dest 
-  * also do constant check on return - needed because of and/or
+  * switch branches around when FINISH can branch to one or the other
+    using quick-branch or iseq
 * do better for destination driven code gen - 
    * return 'undefined' for value, but setters
    * returning constant in test/effect context should direct jump to dest.

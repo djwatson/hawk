@@ -116,12 +116,22 @@
 (define (compile-self-evaluating f bc rd nr cd)
   ;; TODO save len
   (if (not rd) (dformat "Dropping for effect context: ~a\n" f))
-  (finish bc cd rd)
-  (when rd
-    (if (and  (fixnum? f) (< (abs f) 32768))
-	(push-instr! bc (list 'KSHORT rd f))
-	(let ((c (get-or-push-const bc f)))
-	  (push-instr! bc (list 'KONST rd c))))))
+  ;; If a constant has a branch destination, the result is unused,
+  ;; and we can branch directly based on the constant value.
+  ;;
+  ;; This is important for 'and' and 'or' operators.
+  (if (branch-dest? cd)
+      (begin
+	(if f
+	    (build-jmp (second cd) bc)
+	    (build-jmp (third cd) bc)))
+      (begin
+	(finish bc cd rd)
+	(when rd
+	  (if (and  (fixnum? f) (< (abs f) 32768))
+	      (push-instr! bc (list 'KSHORT rd f))
+	      (let ((c (get-or-push-const bc f)))
+		(push-instr! bc (list 'KONST rd c))))))))
 
 (define quick-branch '($< $= $eq))
 (define has-effect '($set-box! $apply $write $write-u8))
@@ -622,7 +632,7 @@
 
 ;;;;;;;;;;;;;;;;;; main
 
-(define bootstrap   (with-input-from-file "bootstrap.scm" (lambda () (expander)))
+(define bootstrap    (with-input-from-file "bootstrap.scm" (lambda () (expander)))
   )
 
 ;(pretty-print (assignment-conversion (fix-letrec (expander))))
