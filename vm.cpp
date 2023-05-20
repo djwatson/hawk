@@ -22,8 +22,7 @@ std::vector<bcfunc *> funcs;
 #define unlikely(x) __builtin_expect(!!(x), 0)
 long *frame_top;
 unsigned int stacksz = 1000 * 100000;
-// TODO non-gc
-long *stack = (long *)GC_malloc(sizeof(long) * stacksz );
+long *stack = (long *)malloc(sizeof(long) * stacksz );
 
 unsigned char hotmap[hotmap_sz];
 
@@ -365,8 +364,7 @@ __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   auto pos = frame - stack;
   auto oldsz = stacksz;
   stacksz *= 2;
-  // TODO doesn't need GC, but needs memset
-  stack = (long *)GC_realloc(stack, stacksz * sizeof(long));
+  stack = (long *)realloc(stack, stacksz * sizeof(long));
   memset(&stack[oldsz], 0, sizeof(long)*(stacksz - oldsz));
   frame = stack + pos;
   frame_top = stack + stacksz;

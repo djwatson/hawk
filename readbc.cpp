@@ -9,7 +9,7 @@
 #include "symbol_table.h"
 #include "gc.h"
 
-long *const_table;
+long *const_table = nullptr;
 long const_table_sz = 0;
 static std::vector<long> symbols; // TODO not a global
 
@@ -125,8 +125,9 @@ bcfunc* readbc(FILE* fptr) {
   unsigned int const_count;
   fread(&const_count, 4, 1, fptr);
   //printf("constsize %i \n", const_count);
-  // TODO doesn't need GC, but needs memset
-  const_table = (long *)GC_realloc(const_table, (const_count + const_offset) * sizeof(long));
+  const_table = (long *)realloc(const_table, (const_count + const_offset) * sizeof(long));
+  // Memset new entries in case we get GC during file read.
+  memset(&const_table[const_table_sz], 0, sizeof(long)* const_count);
   const_table_sz += const_count;
   if (const_table_sz >= 65536) {
     printf("ERROR const table too big! %li\n", const_table_sz);
