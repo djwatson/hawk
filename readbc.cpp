@@ -21,7 +21,7 @@ long read_const(FILE *fptr) {
     exit(-1);
   }
   auto type = val & 0x7;
-  if (type == 4) {
+  if (type == SYMBOL_TAG) {
     unsigned long num = val >> 3;
     if (num < symbols.size()) {
       val = symbols[num];

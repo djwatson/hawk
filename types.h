@@ -2,13 +2,20 @@
 
 #include <stdio.h>
 
+// GC hack:
+
+// All types are 8-byte aligned, except the return PC, which is
+// 4-byte, and stored on the stack.  As long as it looks like an
+// immediate type, we're ok.  So make sure tags 0x0 and 0x4 are
+// immediate types.
+
 #define FIXNUM_TAG 0x0
 #define PTR_TAG 0x1
 #define FLONUM_TAG 0x2
 #define CONS_TAG 0x3
-#define SYMBOL_TAG 0x4
+#define UNUSED_TAG 0x4
 #define CLOSURE_TAG 0x5
-#define UNUSED_TAG 0x6
+#define SYMBOL_TAG 0x6
 #define LITERAL_TAG 0x7
 
 #define TAG_MASK 0x7

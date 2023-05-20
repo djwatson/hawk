@@ -8,9 +8,9 @@
 (define ptr-tag #b001)
 (define flonum-tag #b010)
 (define cons-tag #b011)
-(define symbol-tag #b100)
+(define unused-tag #b100)
 (define closure-tag #b101)
-(define unused-tag #b110)
+(define symbol-tag #b110)
 (define literal-tag #b111)
 ;; ptr-tagged objects
 ;; Bottom bits must be '001'

@@ -39,6 +39,7 @@ check_pie_supported()
 set(CMAKE_CXX_FLAGS "-O3 -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -flto -fvisibility=hidden")
 
 set(SOURCES readbc.cpp bytecode.cpp vm.cpp boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.cpp gc.cpp)
+set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
   set(SOURCES ${SOURCES} snap.cpp replay.cpp asm_x64.cpp jitdump.cpp record.cpp)
@@ -54,7 +55,7 @@ target_link_libraries(boom PUBLIC ${LIBRARIES}  )
 
 add_custom_target(
   cloc
-  COMMAND cloc --by-file-by-lang *.scm *.h *.cpp
+  COMMAND cloc --by-file-by-lang ${SCM_SOURCES} *.h ${SOURCES}
 )
 
 add_custom_target(
@@ -66,7 +67,7 @@ add_custom_command(
   OUTPUT  bootstrap.scm.bc
   COMMAND
   ${CHEZ} --script bc.chez.scm bootstrap.scm > /dev/null
-  DEPENDS bc.scm passes.scm bootstrap.scm
+  DEPENDS ${SCM_SOURCES}
 )
 
 add_custom_command(
