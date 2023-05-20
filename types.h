@@ -49,28 +49,31 @@ struct flonum_s {
 
 struct string_s {
   long type;
-  long len; // stored directly, NOT a fixnum.
+  long len;
   char str[];
 };
 
 struct symbol {
+  long type; // unused except by GC
   string_s *name;
   unsigned long val;
 };
 
 struct vector_s {
   long type;
-  long len; // stored directly, NOT a fixnum.
+  long len; 
   long v[];
 };
 
 struct cons_s {
+  long type; // unused except by GC
   long a;
   long b;
 };
 
 struct closure_s {
-  long len; // NOTE: stored as a fixnum, so that it doesn't conflict with forwarding pointer.
+  long type; // unused except by GC
+  long len; 
   long v[];
 };
 

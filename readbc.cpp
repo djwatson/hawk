@@ -62,6 +62,7 @@ long read_const(FILE *fptr) {
     val = (long)f | FLONUM_TAG;
   } else if (type == CONS_TAG) {
     auto c = (cons_s *)GC_malloc(sizeof(cons_s));
+    c->type = CONS_TAG;
     c->a = read_const(fptr);
     c->b = read_const(fptr);
     val = (long)c | CONS_TAG;

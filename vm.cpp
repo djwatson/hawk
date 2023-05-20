@@ -114,6 +114,7 @@ void RECORD(PARAMS) {
 
 long cons(long a, long b) {
   auto c = (cons_s *)GC_malloc(sizeof(cons_s));
+  c->type = CONS_TAG;
   c->a = a;
   c->b = b;
   return (long)c | CONS_TAG;
@@ -618,6 +619,7 @@ void INS_BOX(PARAMS) {
   long fb = frame[rb];
 
   auto box = (cons_s*)GC_malloc(sizeof(cons_s));
+  box->type = CONS_TAG;
   box->a = fb;
   box->b = NIL_TAG;
   frame[ra] = (long)box|PTR_TAG;
@@ -658,8 +660,9 @@ void INS_CLOSURE(PARAMS) {
   DEBUG("CLOSURE");
   unsigned char rb = instr;
 
-  auto closure = (closure_s*)GC_malloc(sizeof(long)*(rb + 1));
-  closure->len = rb << 3; // Tag as fixnum
+  auto closure = (closure_s*)GC_malloc(sizeof(long)*(rb + 2));
+  closure->type = CLOSURE_TAG;
+  closure->len = rb;
   for(int i = 0; i < rb; i++) {
     closure->v[i] = frame[ra + i];
   }
@@ -1103,6 +1106,7 @@ void INS_STRING_SYMBOL(PARAMS) {
     auto sym = (symbol *)GC_malloc(sizeof(symbol));
     auto str2 = from_c_str(str->str);
     auto str2p = (string_s*)(str2-PTR_TAG);
+    sym->type = SYMBOL_TAG;
     sym->name = str2p;
     sym->val = UNDEFINED_TAG;
     symbol_table_insert(sym);
