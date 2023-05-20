@@ -58,6 +58,7 @@ long read_const(FILE *fptr) {
     auto f = (flonum_s *)GC_malloc(sizeof(flonum_s));
     assert(!((long)f & TAG_MASK));
     fread(&f->x, 8, 1, fptr);
+    f->type = FLONUM_TAG;
     val = (long)f | FLONUM_TAG;
   } else if (type == CONS_TAG) {
     auto c = (cons_s *)GC_malloc(sizeof(cons_s));
@@ -133,12 +134,14 @@ bcfunc* readbc(FILE* fptr) {
     printf("ERROR const table too big! %li\n", const_table_sz);
     exit(-1);
   }
+  GC_enable(false);
   for (unsigned j = 0; j < const_count; j++) {
     const_table[j + const_offset] = read_const(fptr);
     // printf("%i: ", j);
     // print_obj(const_table[j]);
     // printf("\n");
   }
+  GC_enable(true);
 
   // Read functions
   unsigned int bccount;

@@ -256,6 +256,7 @@ void INS_ADDVV(PARAMS) {
     auto f2 = (flonum_s*)(fc-FLONUM_TAG);
     auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
     r->x = f1->x + f2->x;
+    r->type = FLONUM_TAG;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -281,6 +282,7 @@ void INS_MULVV(PARAMS) {
     auto f2 = (flonum_s*)(fc-FLONUM_TAG);
     auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
     r->x = f1->x * f2->x;
+    r->type = FLONUM_TAG;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -306,6 +308,7 @@ void INS_SUBVV(PARAMS) {
     auto f2 = (flonum_s*)(fc-FLONUM_TAG);
     auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
     r->x = f1->x - f2->x;
+    r->type = FLONUM_TAG;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -1155,6 +1158,7 @@ void INS_DIV(PARAMS) {
     auto f2 = (flonum_s*)(fc-FLONUM_TAG);
     auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
     r->x = f1->x / f2->x;
+    r->type = FLONUM_TAG;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -1178,6 +1182,7 @@ void INS_REM(PARAMS) {
     auto f2 = (flonum_s*)(fc-FLONUM_TAG);
     auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
     r->x = remainder(f1->x, f2->x);
+    r->type = FLONUM_TAG;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);

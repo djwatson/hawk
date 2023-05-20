@@ -1,6 +1,7 @@
 #include "gc.h"
 
 #include <stdlib.h>
+#include <assert.h>
 
 #include "types.h"
 #include "bytecode.h"
@@ -8,6 +9,15 @@
 
 extern long *stack;
 extern unsigned int stacksz;
+
+static bool gc_enable = true;
+
+static uint8_t* alloc_ptr = nullptr;
+static uint8_t* alloc_end = nullptr;
+
+void GC_enable(bool en) {
+  gc_enable = en;
+}
 
 // Static roots are the stack - stacksz,
 // the symbol table,
@@ -33,9 +43,26 @@ static void trace_roots() {
   }
 }
 
+static constexpr size_t alloc_sz = 4096*20;
 void* GC_malloc(size_t sz) {
-  trace_roots();
-  auto res = calloc(sz, 1);
+  sz = (sz+7)&(~TAG_MASK);
+  assert((sz&TAG_MASK) == 0);
+  //trace_roots();
+  auto res = alloc_ptr;
+  alloc_ptr += sz;
+  if (alloc_ptr < alloc_end) {
+    return res;
+  }
+
+  // Slowpath.
+  if (sz >= alloc_sz) {
+    printf("LArge alloc: %li\n", sz);
+    assert(false);
+  }
+  alloc_ptr = (uint8_t*)malloc(alloc_sz);
+  alloc_end = alloc_ptr + alloc_sz;
+  res = alloc_ptr;
+  alloc_ptr += sz;
   return res;
 }
 

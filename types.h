@@ -43,6 +43,7 @@
 #define IMMEDIATE_MASK 0xff
 
 struct flonum_s {
+  long type; // TODO: perhaps could save this space by making a NAN-tagged forwarding pointer?
   double x;
 };
 
