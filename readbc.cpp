@@ -13,6 +13,7 @@ long *const_table;
 long const_table_sz = 0;
 static std::vector<long> symbols; // TODO not a global
 
+// TODO GC safety
 long read_const(FILE *fptr) {
   long val;
   if (fread(&val, 8, 1, fptr) != 1) {
@@ -124,6 +125,7 @@ bcfunc* readbc(FILE* fptr) {
   unsigned int const_count;
   fread(&const_count, 4, 1, fptr);
   //printf("constsize %i \n", const_count);
+  // TODO doesn't need GC, but needs memset
   const_table = (long *)GC_realloc(const_table, (const_count + const_offset) * sizeof(long));
   const_table_sz += const_count;
   if (const_table_sz >= 65536) {

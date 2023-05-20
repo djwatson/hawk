@@ -1,9 +1,9 @@
 #include <stdint.h>
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "symbol_table.h"
-#include "gc.h"
 
 /* FNV-1a */
 uint64_t str_hash(const char* str) {
@@ -86,7 +86,8 @@ void symbol_table_insert(symbol* sym) {
 static void rehash() {
   auto old = sym_table;
   auto new_sz = old->cnt*4;
-  sym_table = (table*)GC_malloc(sizeof (table) + sizeof(symbol*) * new_sz);
+  // TODO realloc+memset
+  sym_table = (table*)calloc(sizeof (table) + sizeof(symbol*) * new_sz, 1);
   sym_table->sz = new_sz;
   sym_table->cnt = 0;
 
@@ -100,7 +101,7 @@ static void rehash() {
   }
 
   if (old != &empty_table) {
-    GC_free(old);
+    free(old);
   }
 }
 

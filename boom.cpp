@@ -27,6 +27,7 @@ unsigned int __attribute__((weak)) bootstrap_scm_bc_len = 0;
 
 // Call in to the compiled bytecode function (define (compile-file file) ...)
 void compile_file(const char* file) {
+  // TODO GC safety
   long args[2] = {0, from_c_str(file)};
   auto v = get_symbol_val("compile-file");
   auto clo = (closure_s*)(v-CLOSURE_TAG);
