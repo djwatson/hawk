@@ -2,7 +2,7 @@
 
 #include "bytecode.h"
 
-void run(unsigned start_func);
+void run(bcfunc* func, long argcnt, long * args);
 
 extern std::vector<bcfunc *> funcs;
 

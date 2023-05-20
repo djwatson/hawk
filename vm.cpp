@@ -1372,17 +1372,20 @@ void INS_UNKNOWN(PARAMS) {
   exit(-1);
 }
 
-void run(unsigned start_func) {
-  printf("Running func %i\n", start_func);
+void run(bcfunc* func, long argcnt, long * args) {
   // Bytecode stub to get us to HALT.
   unsigned int final_code[] = {CODE(CALL, 0, 1, 0), CODE(HALT, 0, 0, 0)};
-  unsigned int *code = &funcs[start_func]->code[0];
+  unsigned int *code = &func->code[0];
 
   long *frame;
   // Initial stack setup has a return to bytecode stub above.
   stack[0] = (unsigned long)&final_code[1]; // return pc
   frame = &stack[1];
   frame_top = stack + stacksz;
+
+  for(long i = 0; i < argcnt; i++) {
+    frame[i] = args[i];
+  }
 
   unsigned int *pc = &code[0];
 
@@ -1465,7 +1468,6 @@ void run(unsigned start_func) {
   unsigned int instr = *pc;
   unsigned char op = instr & 0xff;
   unsigned char ra = (instr >> 8) & 0xff;
-   long argcnt = 0;
   instr >>= 16;
   auto op_table_arg = (void **)l_op_table;
   l_op_table[op](ARGS);

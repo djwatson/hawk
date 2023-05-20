@@ -1,5 +1,12 @@
 #include "types.h"
 #include <stdio.h>
+#include <string.h>
+#include <string>
+#include <unordered_map>
+
+extern std::unordered_map<std::string, symbol *> symbol_table;
+void*GC_malloc(size_t);
+void*GC_realloc(void* ptr, size_t);
 
 // Mostly for debugging.  Actual scheme display/write is done from scheme.
 void print_obj(long obj, FILE* file) {
@@ -88,4 +95,22 @@ void print_obj(long obj, FILE* file) {
   }
   }
   fflush(stdout);
+}
+
+long from_c_str(const char* s) {
+  auto len = strlen(s);
+  auto str = (string_s *)GC_malloc(16 + len + 1);
+  str->type = STRING_TAG;
+  str->len = len;
+  memcpy(str->str, s, len);
+  str->str[len] = '\0';
+  return (long)str | PTR_TAG;
+}
+
+long get_symbol_val(const char* name) {
+  auto res = symbol_table.find(std::string(name));
+  if (res == symbol_table.end()) {
+    return UNDEFINED_TAG;
+  }
+  return res->second->val;
 }

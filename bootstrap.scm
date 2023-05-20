@@ -871,6 +871,8 @@
 
 
 (define (force x) (x))
+;;; Include the bytecode compiler
+(include "bc.scm")
 ;;;;;;;; Junk for testing benchmarks ;;;;;;;
 (define (pp arg) (display arg) (newline))
 (define println pp)

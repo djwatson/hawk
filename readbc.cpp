@@ -98,7 +98,7 @@ long read_const(FILE *fptr) {
   return val;
 }
 
-unsigned readbc(FILE* fptr) {
+bcfunc* readbc(FILE* fptr) {
   long const_offset = const_table_sz;
   symbols.clear();
 
@@ -134,9 +134,13 @@ unsigned readbc(FILE* fptr) {
   // Read functions
   unsigned int bccount;
   fread(&bccount, 4, 1, fptr);
-  unsigned start_func = funcs.size();
+  bcfunc* start_func = nullptr;
+  unsigned func_offset = funcs.size();
   for (unsigned i = 0; i < bccount; i++) {
     bcfunc *f = new bcfunc;
+    if(!start_func) {
+      start_func = f;
+    }
     if ((((long)f) & 0x7) != 0) {
       printf("Alloc fail\n");
       exit(-1);
@@ -159,7 +163,7 @@ unsigned readbc(FILE* fptr) {
       if (op == GGET || op == GSET || op == KONST) {
 	f->code[j] = CODE_D(op, INS_A(f->code[j]), INS_BC(f->code[j]) + const_offset);
       } else if (op == KFUNC) {
-	f->code[j] = CODE_D(op, INS_A(f->code[j]), INS_BC(f->code[j]) + start_func);
+	f->code[j] = CODE_D(op, INS_A(f->code[j]), INS_BC(f->code[j]) + func_offset);
       }
       //unsigned int code = f->code[j];
       // printf("%i code: %s %i %i %i BC: %i\n", j, ins_names[INS_OP(code)],
@@ -172,12 +176,12 @@ unsigned readbc(FILE* fptr) {
   return start_func;
 }
 
-unsigned readbc_image(unsigned char* mem, unsigned int len) {
+bcfunc* readbc_image(unsigned char* mem, unsigned int len) {
   FILE* fptr = fmemopen(mem, len, "rb");
   return readbc(fptr);
 }
 
-unsigned readbc_file(const char* filename) {
+bcfunc* readbc_file(const char* filename) {
   FILE *fptr;
   fptr = fopen(filename, "rb");
   return readbc(fptr);

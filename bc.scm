@@ -367,7 +367,7 @@
 				  (second f)))
     (when (not (= 3 (length f)))
       (dformat "ERROR invalid length let:\n")
-      (pretty-print f)
+      (display f)
       (newline)
       (exit -1))
     (compile-sexp (third f) bc env rd ord cd)
@@ -382,7 +382,7 @@
 	      (reverse mapping))))
 
 (define (compile-sexp f bc env rd nr cd)
-  ;;(display "SEXP:") (pretty-print f) (newline)
+  ;;(display "SEXP:") (display f) (newline)
   (if (not (pair? f))
       (if (symbol? f)
 	  (compile-lookup f bc env rd nr cd)

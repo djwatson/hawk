@@ -73,3 +73,5 @@ struct port_s {
 };
 
 void print_obj(long obj, FILE* file = nullptr);
+long from_c_str(const char* s);
+long get_symbol_val(const char* name);
