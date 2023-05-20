@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdio.h>
 
 #define FIXNUM_TAG 0x0

@@ -36,9 +36,9 @@ include(CheckPIESupported)
 check_pie_supported()
 
 # -Wold-style-cast
-set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -flto -fvisibility=hidden")
+set(CMAKE_CXX_FLAGS "-O3 -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -flto -fvisibility=hidden")
 
-set(SOURCES readbc.cpp bytecode.cpp vm.cpp boom.cpp  ir.cpp types.cpp bootstrap.cpp)
+set(SOURCES readbc.cpp bytecode.cpp vm.cpp boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.cpp)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
   set(SOURCES ${SOURCES} snap.cpp replay.cpp asm_x64.cpp jitdump.cpp record.cpp)

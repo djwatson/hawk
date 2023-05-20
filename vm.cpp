@@ -10,6 +10,7 @@
 #include "replay.h"
 #include "types.h"
 #include "vm.h"
+#include "symbol_table.h"
 
 void*GC_malloc(size_t);
 
@@ -18,10 +19,12 @@ int joff = 0;
 std::vector<bcfunc *> funcs;
 
 void* GC_malloc(size_t sz) {
-  return malloc(sz);
+  auto res = calloc(sz, 1);
+  return res;
 }
 
 void* GC_realloc(void* ptr, size_t sz) {
+  // TODO zero-mem
   return realloc(ptr, sz);
 }
 
@@ -370,8 +373,10 @@ void INS_KFUNC(PARAMS) {
 __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
   auto pos = frame - stack;
+  auto oldsz = stacksz;
   stacksz *= 2;
   stack = (long *)GC_realloc(stack, stacksz * sizeof(long));
+  memset(&stack[oldsz], 0, sizeof(long)*(stacksz - oldsz));
   frame = stack + pos;
   frame_top = stack + stacksz;
 
@@ -1087,7 +1092,6 @@ void INS_SYMBOL_STRING(PARAMS) {
   NEXT_INSTR;
 }
 
-extern std::unordered_map<std::string, symbol *> symbol_table;
 void INS_STRING_SYMBOL(PARAMS) {
   DEBUG("STRING->SYMBOL");
   unsigned char rb = instr & 0xff;
@@ -1100,23 +1104,21 @@ void INS_STRING_SYMBOL(PARAMS) {
   if (unlikely(str->type != STRING_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  auto res = symbol_table.find(std::string(str->str));
-  if (res == symbol_table.end()) {
+  auto res = symbol_table_find(str);
+  if (!res) {
     // Build a new symbol.
-    // TODO merge with code in readbc
-    auto str2 = (string_s *)malloc(16 + 1 + str->len);
-    str2->type = STRING_TAG;
-    str2->len = str->len;
-    str2->str[str->len] = '\0';
-    memcpy(str2->str, str->str, str->len);
-    auto sym = (symbol *)malloc(sizeof(symbol));
-    sym->name = str2;
+    // Must dup the string, since strings are not immutable.
+    
+    auto sym = (symbol *)GC_malloc(sizeof(symbol));
+    auto str2 = from_c_str(str->str);
+    auto str2p = (string_s*)(str2-PTR_TAG);
+    sym->name = str2p;
     sym->val = UNDEFINED_TAG;
-    symbol_table[std::string(str2->str)] = sym;
+    symbol_table_insert(str2p, sym);
     
     frame[ra] = (long)sym + SYMBOL_TAG;
   } else {
-    frame[ra] = (long)res->second + SYMBOL_TAG;
+    frame[ra] = (long)res + SYMBOL_TAG;
   }
 
   pc++;

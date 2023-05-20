@@ -4,7 +4,8 @@
 #include <string>
 #include <unordered_map>
 
-extern std::unordered_map<std::string, symbol *> symbol_table;
+#include "symbol_table.h"
+
 void*GC_malloc(size_t);
 void*GC_realloc(void* ptr, size_t);
 
@@ -108,9 +109,11 @@ long from_c_str(const char* s) {
 }
 
 long get_symbol_val(const char* name) {
-  auto res = symbol_table.find(std::string(name));
-  if (res == symbol_table.end()) {
+  auto str = from_c_str(name);
+  auto strp = (string_s*)(str-PTR_TAG);
+  auto res = symbol_table_find(strp);
+  if (!res) {
     return UNDEFINED_TAG;
   }
-  return res->second->val;
+  return res->val;
 }

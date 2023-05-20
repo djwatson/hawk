@@ -6,11 +6,11 @@
 #include "bytecode.h"
 #include "types.h"
 #include "vm.h"
+#include "symbol_table.h"
 
 void*GC_malloc(size_t);
 void*GC_realloc(void* ptr, size_t);
 
-std::unordered_map<std::string, symbol *> symbol_table;
 long *const_table;
 long const_table_sz = 0;
 static std::vector<long> symbols; // TODO not a global
@@ -38,17 +38,17 @@ long read_const(FILE *fptr) {
       fread(str->str, 1, len, fptr);
       
       // Try to see if it already exists
-      auto res = symbol_table.find(std::string(str->str));
-      if (res == symbol_table.end()) {
+      auto res = symbol_table_find(str);
+      if (!res) {
 	// TODO GC symbol table
 	auto sym = (symbol *)GC_malloc(sizeof(symbol));
 	sym->name = str;
 	sym->val = UNDEFINED_TAG;
-	symbol_table[std::string(str->str)] = sym;
+	symbol_table_insert(str, sym);
 	val = (long)sym | SYMBOL_TAG;
 	symbols.push_back(val);
       } else {
-	val = long(res->second) + SYMBOL_TAG;
+	val = long(res) + SYMBOL_TAG;
 	symbols.push_back(val);
 	return val;
       }

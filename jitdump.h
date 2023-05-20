@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string>
 
 void jit_dump_close();
