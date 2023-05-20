@@ -1,5 +1,8 @@
 # TODO list
 
+* GC
+* flonums
+* string->number, including flonums
 * do better for destination driven code gen - 
    * return 'undefined' for value, but setters
 * case-lambda!

@@ -44,7 +44,7 @@ long read_const(FILE *fptr) {
 	auto sym = (symbol *)GC_malloc(sizeof(symbol));
 	sym->name = str;
 	sym->val = UNDEFINED_TAG;
-	symbol_table_insert(str, sym);
+	symbol_table_insert(sym);
 	val = (long)sym | SYMBOL_TAG;
 	symbols.push_back(val);
       } else {

@@ -1114,7 +1114,7 @@ void INS_STRING_SYMBOL(PARAMS) {
     auto str2p = (string_s*)(str2-PTR_TAG);
     sym->name = str2p;
     sym->val = UNDEFINED_TAG;
-    symbol_table_insert(str2p, sym);
+    symbol_table_insert(sym);
     
     frame[ra] = (long)sym + SYMBOL_TAG;
   } else {
