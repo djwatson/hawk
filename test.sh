@@ -1,10 +1,7 @@
-rm out.bc
-make
-cp boom boomc
+make -j
 for file in $(ls test/bench/*.scm)
 do
     echo $file
-    ./boomc < $file > /dev/null
-    make 2>&1 > /dev/null
-    ./boom
+    time ./boom $file 
+    echo
 done

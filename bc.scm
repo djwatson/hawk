@@ -114,7 +114,7 @@
 
 (define (compile-self-evaluating f bc rd nr cd)
   ;; TODO save len
-  (if (not rd) (dformat "Dropping for effect context: ~a\n" f))
+  ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   ;; If a constant has a branch destination, the result is unused,
   ;; and we can branch directly based on the constant value.
   ;;
@@ -136,7 +136,7 @@
 (define has-effect '($set-box! $apply $write $write-u8))
 (define (compile-binary f bc env rd nr cd)
   (define vn '($- $+ $guard $closure-get))
-  (if (and (not (memq (first f) has-effect)) (not rd)) (dformat "Dropping for effect context: ~a\n" f))
+  ;(if (and (not (memq (first f) has-effect)) (not rd)) (dformat "Dropping for effect context: ~a\n" f))
   (if (and (memq (first f) vn)
 	   (fixnum? (third f))
 	   (< (abs (third f)) 128))
@@ -205,7 +205,7 @@
 			     ($peek PEEK)
 			     ($close CLOSE)))))
   (define r1 (exp-loc (second f) env nr))
-  (if (not rd) (dformat "Dropping for effect context: ~a\n" f))
+  ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   (finish bc cd rd)
   (when rd
     (push-instr! bc (list op rd r1))
@@ -231,7 +231,7 @@
   (define f-bc (make-func-bc cur-name '() ))
   (define f-id (length program))
   (define old-name cur-name)
-  (if (not rd) (dformat "Dropping for effect context: ~a\n" f))
+  ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   (set! cur-name (string-append cur-name  "-lambda"))
   (push! program f-bc)
   (compile-lambda-internal f f-bc '())
@@ -269,7 +269,7 @@
   (if l (cdr l) #f))
 
 (define (compile-lookup f bc env rd nr cd)
-  (if (not rd) (dformat "Dropping for effect context: ~a\n" f))
+  ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   (if rd
     (let ((loc (find-symbol f env))
 	  (r (if (eq? cd 'ret) (exp-loc f env rd) rd)))
@@ -297,7 +297,7 @@
    (reverse f)))
 
 (define (compile-closure f bc env rd nr cd)
-  (if (not rd) (dformat "Dropping for effect context: ~a\n" f))
+  ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   (finish bc cd rd)
   (when (not (= rd nr))
     (push-instr! bc (list 'MOV nr rd)))
@@ -662,18 +662,18 @@
   (set! consts (reverse! consts))
   (set! program (reverse! program))
 
-  (display "Consts:\n")
-  (fold (lambda (a b)
-	  (dformat "~a: ~a\n" b a)
-	  (+ b 1))
-	0 consts)
-  (newline)
-  (fold (lambda (a b)
-	  (dformat "~a -- " b)
-	  (display-bc a)
-	  (+ b 1))
-	0
-	program)
+  ;; (display "Consts:\n")
+  ;; (fold (lambda (a b)
+  ;; 	  (dformat "~a: ~a\n" b a)
+  ;; 	  (+ b 1))
+  ;; 	0 consts)
+  ;; (newline)
+  ;; (fold (lambda (a b)
+  ;; 	  (dformat "~a -- " b)
+  ;; 	  (display-bc a)
+  ;; 	  (+ b 1))
+  ;; 	0
+  ;; 	program)
 
   (bc-write (string-append name ".bc") program))
 

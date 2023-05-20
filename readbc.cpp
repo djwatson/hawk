@@ -109,21 +109,29 @@ bcfunc* readbc(FILE* fptr) {
   // Read header
   unsigned int num;
   fread(&num, 4, 1, fptr);
-  printf("%.4s\n", (char *)&num);
+  //printf("%.4s\n", (char *)&num);
   if (num != 0x4d4f4f42) { // MAGIC
     printf("Error: not a boom bitcode\n");
     exit(-1);
   }
   unsigned int version;
   fread(&version, 4, 1, fptr);
-  printf("%i\n", version);
+  if (version != 0) {
+    printf("Invalid bitcode version: %i\n", version);
+    exit(-1);
+  }
+  //printf("%i\n", version);
 
   // Read constant table
   unsigned int const_count;
   fread(&const_count, 4, 1, fptr);
-  printf("constsize %i \n", const_count);
+  //printf("constsize %i \n", const_count);
   const_table = (long *)GC_realloc(const_table, (const_count + const_offset) * sizeof(long));
   const_table_sz += const_count;
+  if (const_table_sz >= 65536) {
+    printf("ERROR const table too big! %li\n", const_table_sz);
+    exit(-1);
+  }
   for (unsigned j = 0; j < const_count; j++) {
     const_table[j + const_offset] = read_const(fptr);
     // printf("%i: ", j);

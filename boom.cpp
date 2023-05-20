@@ -63,7 +63,6 @@ int main(int argc, char *argv[]) {
     run(start_func, 0, nullptr);
   }
 	      
-  printf("Optind %i argc %i\n", optind, argc);
   for(int i = optind; i < argc; i++) {
     auto len = strlen(argv[i]);
     if (len >=4 && strcmp(".scm" ,argv[i] + len - 4) == 0) {
