@@ -10,7 +10,7 @@
 #include "gc.h"
 
 long *const_table = nullptr;
-long const_table_sz = 0;
+unsigned long const_table_sz = 0;
 static std::vector<long> symbols; // TODO not a global
 
 // TODO GC safety

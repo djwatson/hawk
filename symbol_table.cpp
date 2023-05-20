@@ -25,18 +25,9 @@ uint64_t str_hash(const char* str) {
 
 // TODO weak GC syms, and evict entries when they are collected.  Somehow.
 
-#define TOMBSTONE ((symbol*)0x01)
-
-struct table {
-  size_t cnt; // Number of objects currently in hash.
-  size_t sz; // Size of backing buffer.
-
-  symbol* entries[];
-};
-
 // Non-empty default table so we don't have to null check.
 static table empty_table{0,0};
-static table* sym_table = &empty_table;
+table* sym_table = &empty_table;
 
 symbol* symbol_table_find(string_s* str) {
   auto hash = str_hash(str->str);

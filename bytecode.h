@@ -76,6 +76,7 @@ enum {
 
 extern const char *ins_names[];
 extern long *const_table;
+extern unsigned long const_table_sz;
 
 #define CODE(i, a, b, c) (((c) << 24) | ((b) << 16) | ((a) << 8) | (i))
 #define CODE_D(i, a, d) (((d) << 16) | ((a) << 8) | (i))
