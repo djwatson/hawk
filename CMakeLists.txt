@@ -38,7 +38,7 @@ check_pie_supported()
 # -Wold-style-cast
 set(CMAKE_CXX_FLAGS "-O3 -DNDEBUG -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -flto -fvisibility=hidden")
 
-set(SOURCES readbc.cpp bytecode.cpp vm.cpp boom.cpp  ir.cpp types.cpp )
+set(SOURCES readbc.cpp bytecode.cpp vm.cpp boom.cpp  ir.cpp types.cpp bootstrap.cpp)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
   set(SOURCES ${SOURCES} snap.cpp replay.cpp asm_x64.cpp jitdump.cpp record.cpp)
@@ -63,16 +63,15 @@ add_custom_target(
 )
 
 add_custom_command(
-  OUTPUT  out.bc
+  OUTPUT  bootstrap.scm.bc
   COMMAND
-  ${CHEZ} --script bc.chez.scm < bc.boom.scm
-  xxd -i out.bc > vm_startup.h
+  ${CHEZ} --script bc.chez.scm bootstrap.scm > /dev/null
   DEPENDS bc.scm passes.scm bootstrap.scm
 )
 
 add_custom_command(
-  OUTPUT  vm_startup.h
+  OUTPUT  bootstrap.cpp
   COMMAND
-  xxd -i out.bc > vm_startup.h
-  DEPENDS out.bc
+  xxd -i bootstrap.scm.bc > bootstrap.cpp
+  DEPENDS bootstrap.scm.bc
 )

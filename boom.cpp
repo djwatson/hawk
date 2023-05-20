@@ -20,6 +20,9 @@ void print_help() {
   printf("  -h, --help\tPrint this help\n");
 }
 
+unsigned char __attribute__((weak)) bootstrap_scm_bc[0];
+unsigned int __attribute__((weak)) bootstrap_scm_bc_len = 0;
+
 int main(int argc, char *argv[]) {
 
   int verbose = 0;
@@ -41,6 +44,12 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  //GC_expand_hp(50000000);
+  //jit_dump_init();
+  if (bootstrap_scm_bc_len > 0) {
+    auto start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
+    run(start_func);
+  }
   printf("Optind %i argc %i\n", optind, argc);
   for(int i = optind; i < argc; i++) {
     printf("Running script %s\n", argv[i]);
@@ -48,11 +57,6 @@ int main(int argc, char *argv[]) {
     run(start_func);
   }
 
-  //GC_expand_hp(50000000);
-  //jit_dump_init();
-  // readbc();
-  // run();
-  // free_script();
   //jit_dump_close();
 
   return 0;
