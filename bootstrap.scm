@@ -601,7 +601,7 @@
 	      (set! p 1)))
 	   (and (> len p)
 		(let loop ((p p) (n 0))
-		  (if (> n 10000000000000000)
+		  (if (> n 500000000500000000)
 		      (begin
 			(display "INT string->number too big \n") ;; TODO better error checking
 			0)
@@ -871,6 +871,14 @@
 
 
 (define (force x) (x))
+
+(define (values . rest)
+  (if (= 1 (length rest))
+      (car rest)
+      rest))
+(define (call-with-values producer consumer)
+  (apply consumer (producer)))
+
 ;;; Include the bytecode compiler
 (include "bc.scm")
 ;;;;;;;; Junk for testing benchmarks ;;;;;;;
@@ -884,3 +892,5 @@
 (define (write-u8 c . p)
   (let ((port (if (pair? p) (car p) (current-output-port))))
     ($write-u8 c port)))
+(define (flush-output-port p) 0)
+(define (round x) x)

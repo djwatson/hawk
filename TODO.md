@@ -29,6 +29,8 @@
 * remove indirection for consts/bc
 * Add define tags/header for runtime types
 
+* Do a profiler for bytecode.
+
 # JIT TODO:
 * Figure out why JFUNC immediate records fail - we should start recording on JFUNC and not CALL
 * Figure out why jloop records fail in replay/asm_x64
