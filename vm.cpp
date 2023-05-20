@@ -77,10 +77,10 @@ __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
   int i = 0;
   printf("FAIL PC: %p\n", pc);
   while(&frame[-1] > stack) {
-    for(long j = 0; j < funcs.size(); j++) {
+    for(unsigned long j = 0; j < funcs.size(); j++) {
       if (pc >= &funcs[j]->code[0] &&
 	  pc < &funcs[j]->code[funcs[j]->code.size()-1]) {
-	printf("FUNC %i: %s PC %i\n",j, funcs[j]->name.c_str(), pc - &funcs[j]->code[0]);
+	printf("FUNC %li: %s PC %li\n",j, funcs[j]->name.c_str(), pc - &funcs[j]->code[0]);
 	break;
       }
     }
@@ -115,7 +115,6 @@ void RECORD(PARAMS) {
   }
   // record may have updated state.
   instr = *pc;
-  unsigned char op = instr & 0xff;
   ra = (instr >> 8) & 0xff;
   instr >>= 16;
   // Call interpret op table, but with record table.
@@ -219,7 +218,7 @@ void INS_ISGE(PARAMS) {
 
 void INS_SUBVN(PARAMS) {
   DEBUG("SUBVN");
-  char rb = instr & 0xff;
+  unsigned char rb = instr & 0xff;
   char rc = (instr >> 8) & 0xff;
 
   long fb = frame[rb];
@@ -236,7 +235,7 @@ void INS_SUBVN(PARAMS) {
 
 void INS_ADDVN(PARAMS) {
   DEBUG("ADDVN");
-  char rb = instr & 0xff;
+  unsigned char rb = instr & 0xff;
   char rc = (instr >> 8) & 0xff;
 
   long fb = frame[rb];
@@ -253,8 +252,8 @@ void INS_ADDVN(PARAMS) {
 
 void INS_ADDVV(PARAMS) {
   DEBUG("ADDVV");
-  char rb = instr & 0xff;
-  char rc = (instr >> 8) & 0xff;
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
 
   auto fb = frame[rb];
   auto fc = frame[rc];
@@ -278,8 +277,8 @@ void INS_ADDVV(PARAMS) {
 
 void INS_MULVV(PARAMS) {
   DEBUG("MULVV");
-  char rb = instr & 0xff;
-  char rc = (instr >> 8) & 0xff;
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
 
   auto fb = frame[rb];
   auto fc = frame[rc];
@@ -430,7 +429,6 @@ void INS_KONST(PARAMS) {
   DEBUG("KONST");
   auto rd = instr;
 
-  bcfunc *func = (bcfunc *)(frame[-1] - 5);
   frame[ra] = const_table[rd];
 
   pc++;
@@ -583,7 +581,7 @@ void INS_ISF(PARAMS) {
 
 void INS_JFUNC(PARAMS) {
   DEBUG("JFUNC");
-  auto tnum = instr;
+  //auto tnum = instr;
   // printf("JFUNC/JLOOP run %i\n", tnum);
   // printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
   // auto res = record_run(tnum, &pc, &frame, frame_top);
@@ -1015,7 +1013,7 @@ void INS_WRITE(PARAMS) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
 
-  print_obj(frame[rb], port->file);
+  print_obj(fb, port->file);
   
   pc++;
   NEXT_INSTR;
@@ -1155,8 +1153,8 @@ void INS_INTEGER_CHAR(PARAMS) {
 
 void INS_DIV(PARAMS) {
   DEBUG("DIV");
-  char rb = instr & 0xff;
-  char rc = (instr >> 8) & 0xff;
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
 
   auto fb = frame[rb];
   auto fc = frame[rc];
@@ -1178,8 +1176,8 @@ void INS_DIV(PARAMS) {
 
 void INS_REM(PARAMS) {
   DEBUG("REM");
-  char rb = instr & 0xff;
-  char rc = (instr >> 8) & 0xff;
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
 
   auto fb = frame[rb];
   auto fc = frame[rc];
@@ -1201,7 +1199,6 @@ void INS_REM(PARAMS) {
 
 void INS_CALLCC(PARAMS) {
   DEBUG("CALLCC");
-  unsigned char rb = instr & 0xff;
   
   auto sz = frame-stack;
   auto cont = (vector_s*)GC_malloc(sz*sizeof(long) + 16);
