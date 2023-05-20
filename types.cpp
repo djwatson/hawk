@@ -70,8 +70,8 @@ void print_obj(long obj, FILE* file) {
     fprintf(file, "<closure>");
     break;
   }
-  case UNUSED_TAG: {
-    fprintf(file, "<unused tag>");
+  case FORWARD_TAG: {
+    fprintf(file, "<forward tag>");
     break;
   }
   case LITERAL_TAG: {

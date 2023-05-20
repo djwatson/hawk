@@ -13,7 +13,7 @@
 #define PTR_TAG 0x1
 #define FLONUM_TAG 0x2
 #define CONS_TAG 0x3
-#define UNUSED_TAG 0x4
+#define FORWARD_TAG 0x4
 #define CLOSURE_TAG 0x5
 #define SYMBOL_TAG 0x6
 #define LITERAL_TAG 0x7
@@ -43,13 +43,13 @@
 #define IMMEDIATE_MASK 0xff
 
 struct flonum_s {
-  long type; // TODO: perhaps could save this space by making a NAN-tagged forwarding pointer?
+  long type; // TODO: perhaps could save this space by making a NAN-tagged forwarding pointer? otherwise unused.
   double x;
 };
 
 struct string_s {
   long type;
-  long len;
+  long len; // stored directly, NOT a fixnum.
   char str[];
 };
 
@@ -60,7 +60,7 @@ struct symbol {
 
 struct vector_s {
   long type;
-  long len;
+  long len; // stored directly, NOT a fixnum.
   long v[];
 };
 
@@ -70,12 +70,12 @@ struct cons_s {
 };
 
 struct closure_s {
-  long len;
+  long len; // NOTE: stored as a fixnum, so that it doesn't conflict with forwarding pointer.
   long v[];
 };
 
 struct port_s {
-  long type;
+  long type; // TODO could merge input_port and type somehow.
   long input_port;
   long fd;
   FILE* file;

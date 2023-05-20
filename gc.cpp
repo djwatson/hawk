@@ -19,6 +19,26 @@ void GC_enable(bool en) {
   gc_enable = en;
 }
 
+static bool is_forwarded(long obj) {
+  auto ptr = (long*)obj;
+  if (((*ptr)&TAG_MASK) == FORWARD_TAG) {
+    return true;
+  }
+  return false;
+}
+
+static void set_forward(long obj, long to) {
+  auto ptr = (long*)obj;
+  assert(((*ptr)&TAG_MASK) == 0);
+  *ptr = to + FORWARD_TAG;
+}
+
+static long get_forward(long obj) {
+  assert(is_forwarded(obj));
+  auto ptr = (long*)obj;
+  return (*ptr) - FORWARD_TAG;
+}
+
 // Static roots are the stack - stacksz,
 // the symbol table,
 // and the constant table.

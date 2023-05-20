@@ -659,7 +659,7 @@ void INS_CLOSURE(PARAMS) {
   unsigned char rb = instr;
 
   auto closure = (closure_s*)GC_malloc(sizeof(long)*(rb + 1));
-  closure->len = rb;
+  closure->len = rb << 3; // Tag as fixnum
   for(int i = 0; i < rb; i++) {
     closure->v[i] = frame[ra + i];
   }
