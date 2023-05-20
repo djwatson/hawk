@@ -21,7 +21,7 @@ std::vector<bcfunc *> funcs;
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 long *frame_top;
-unsigned int stacksz = 1000 * 100000;
+unsigned int stacksz = 1000;
 long *stack = (long *)malloc(sizeof(long) * stacksz );
 
 unsigned char hotmap[hotmap_sz];
