@@ -5,9 +5,7 @@
 #include <unordered_map>
 
 #include "symbol_table.h"
-
-void*GC_malloc(size_t);
-void*GC_realloc(void* ptr, size_t);
+#include "gc.h"
 
 // Mostly for debugging.  Actual scheme display/write is done from scheme.
 void print_obj(long obj, FILE* file) {

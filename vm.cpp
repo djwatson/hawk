@@ -11,22 +11,12 @@
 #include "types.h"
 #include "vm.h"
 #include "symbol_table.h"
+#include "gc.h"
 
-void*GC_malloc(size_t);
 
 int joff = 0;
 
 std::vector<bcfunc *> funcs;
-
-void* GC_malloc(size_t sz) {
-  auto res = calloc(sz, 1);
-  return res;
-}
-
-void* GC_realloc(void* ptr, size_t sz) {
-  // TODO zero-mem
-  return realloc(ptr, sz);
-}
 
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)

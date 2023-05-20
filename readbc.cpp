@@ -7,9 +7,7 @@
 #include "types.h"
 #include "vm.h"
 #include "symbol_table.h"
-
-void*GC_malloc(size_t);
-void*GC_realloc(void* ptr, size_t);
+#include "gc.h"
 
 long *const_table;
 long const_table_sz = 0;

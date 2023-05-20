@@ -3,11 +3,7 @@
 #include <string.h>
 
 #include "symbol_table.h"
-
-void*GC_malloc(size_t);
-void GC_free(void* ptr) {
-}
-
+#include "gc.h"
 
 /* FNV-1a */
 uint64_t str_hash(const char* str) {
@@ -103,6 +99,8 @@ static void rehash() {
     }
   }
 
-  GC_free(old);
+  if (old != &empty_table) {
+    GC_free(old);
+  }
 }
 
