@@ -235,7 +235,7 @@ void* GC_malloc(size_t sz) {
   auto alloc_start = alloc_ptr;
   assert(alloc_ptr);
   alloc_end = alloc_ptr + alloc_sz;
-  memset(alloc_start, 0xDD, alloc_sz);
+
   // printf("MMAP new region %p to %p\n", alloc_start, alloc_end);
   auto scan = alloc_ptr;
   trace_roots();

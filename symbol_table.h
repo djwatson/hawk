@@ -4,6 +4,7 @@
 
 symbol* symbol_table_find(string_s* str);
 void symbol_table_insert(symbol* sym);
+symbol* symbol_table_find_cstr(const char* str);
 
 // GC needs access.
 struct table {

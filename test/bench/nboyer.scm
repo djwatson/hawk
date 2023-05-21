@@ -753,12 +753,12 @@
     n))
 
 (setup-boyer)
-(pp (run 0))
-(pp (run 1))
-(pp (run 2))
-(pp (run 3))
-(pp (run 4))
-(pp (run 5))
+(display (run 0))
+(display (run 1))
+(display (run 2))
+(display (run 3))
+(display (run 4))
+(display (run 5))
 
 ;95024
 ;591777
