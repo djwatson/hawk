@@ -1,6 +1,6 @@
 # TODO list
 
-* GC - up sz based
+* GC - up sz based.  Fix string->symbol to copy str.
 * flonums
 * string->number, including flonums
      * ./boom bootstrap.scm fails
