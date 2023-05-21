@@ -112,20 +112,17 @@ void RECORD(PARAMS) {
   MUSTTAIL return l_op_table[INS_OP(*pc)](ra, instr, pc, frame, op_table_arg, argcnt);
 }
 
-long cons(long a, long b) {
-  auto c = (cons_s *)GC_malloc(sizeof(cons_s));
-  c->type = CONS_TAG;
-  c->a = a;
-  c->b = b;
-  return (long)c | CONS_TAG;
-}
-
 long build_list(long start, long len, long*frame) {
   long lst = NIL_TAG;
   // printf("Build list from %i len %i\n", start, len);
   for(long pos = start+len-1; pos >= start; pos--) {
-    // TODO fixme lst must be saved for GC
-    lst = cons(frame[pos], lst);
+    GC_push_root(&lst); // TODO just save in POS instead?
+    auto c = (cons_s *)GC_malloc(sizeof(cons_s));
+    GC_pop_root(&lst); // TODO just save in POS instead?
+    c->type = CONS_TAG;
+    c->a = frame[pos];
+    c->b = lst;
+    lst = (long)c + CONS_TAG;
   }
   // printf("build_list Result:");
   // print_obj(lst);
@@ -254,10 +251,10 @@ void INS_ADDVV(PARAMS) {
       MUSTTAIL return FAIL_SLOWPATH(ARGS);
     }
   } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
-    auto f1 = (flonum_s*)(fb-FLONUM_TAG);
-    auto f2 = (flonum_s*)(fc-FLONUM_TAG);
+    auto f1 = ((flonum_s*)(fb-FLONUM_TAG))->x;
+    auto f2 = ((flonum_s*)(fc-FLONUM_TAG))->x;
     auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
-    r->x = f1->x + f2->x;
+    r->x = f1 + f2;
     r->type = FLONUM_TAG;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
@@ -280,10 +277,10 @@ void INS_MULVV(PARAMS) {
       MUSTTAIL return FAIL_SLOWPATH(ARGS);
     }
   } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
-    auto f1 = (flonum_s*)(fb-FLONUM_TAG);
-    auto f2 = (flonum_s*)(fc-FLONUM_TAG);
+    auto f1 = ((flonum_s*)(fb-FLONUM_TAG))->x;
+    auto f2 = ((flonum_s*)(fc-FLONUM_TAG))->x;
     auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
-    r->x = f1->x * f2->x;
+    r->x = f1 * f2;
     r->type = FLONUM_TAG;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
@@ -306,10 +303,10 @@ void INS_SUBVV(PARAMS) {
       MUSTTAIL return FAIL_SLOWPATH(ARGS);
     }
   } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
-    auto f1 = (flonum_s*)(fb-FLONUM_TAG);
-    auto f2 = (flonum_s*)(fc-FLONUM_TAG);
+    auto f1 = ((flonum_s*)(fb-FLONUM_TAG))->x;
+    auto f2 = ((flonum_s*)(fc-FLONUM_TAG))->x;
     auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
-    r->x = f1->x - f2->x;
+    r->x = f1 - f2;
     r->type = FLONUM_TAG;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
@@ -617,11 +614,10 @@ void INS_BOX(PARAMS) {
   DEBUG("BOX");
   unsigned char rb = instr;
 
-  long fb = frame[rb];
-
   auto box = (cons_s*)GC_malloc(sizeof(cons_s));
+  
   box->type = CONS_TAG;
-  box->a = fb;
+  box->a = frame[rb];
   box->b = NIL_TAG;
   frame[ra] = (long)box|PTR_TAG;
   pc++;
@@ -788,12 +784,13 @@ void INS_MAKE_VECTOR(PARAMS) {
   unsigned char rc = (instr >> 8) & 0xff;
 
   long fb = frame[rb];
-  long fc = frame[rc];
   if(unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   auto len = fb>>3;
   auto vec = (vector_s*)GC_malloc( sizeof(long) * (len + 2));
+  // Load frame[rc] *after* GC
+  long fc = frame[rc];
   vec->type = VECTOR_TAG;
   vec->len = len;
   for(long i = 0; i < len; i++) {
@@ -812,15 +809,17 @@ void INS_MAKE_STRING(PARAMS) {
   unsigned char rc = (instr >> 8) & 0xff;
 
   long fb = frame[rb];
-  long fc = frame[rc];
   if(unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  if(unlikely((fc&IMMEDIATE_MASK) != CHAR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   auto len = fb>>3;
   auto str = (string_s*)GC_malloc( (sizeof(long) * 2) + len + 1);
+  
+  long fc = frame[rc]; // Load fc after GC
+  if(unlikely((fc&IMMEDIATE_MASK) != CHAR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  
   str->type = STRING_TAG;
   str->len = len;
   for(long i = 0; i < len; i++) {
@@ -1107,9 +1106,13 @@ void INS_STRING_SYMBOL(PARAMS) {
   if (!res) {
     // Build a new symbol.
     // Must dup the string, since strings are not immutable.
-    
+
     auto sym = (symbol *)GC_malloc(sizeof(symbol));
-    auto str2 = from_c_str(str->str);
+    // Re-load str after GC
+    str = (string_s*)(frame[rb]-PTR_TAG);
+
+    // DUP string.
+    auto str2 = str;//from_c_str(str->str); // TODO GC save sym/str
     auto str2p = (string_s*)(str2-PTR_TAG);
     sym->type = SYMBOL_TAG;
     sym->name = str2p;
@@ -1163,10 +1166,10 @@ void INS_DIV(PARAMS) {
   if (likely((7 & (fb | fc)) == 0)) {
     frame[ra] = (fb/fc) << 3;
   } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
-    auto f1 = (flonum_s*)(fb-FLONUM_TAG);
-    auto f2 = (flonum_s*)(fc-FLONUM_TAG);
+    auto f1 = ((flonum_s*)(fb-FLONUM_TAG))->x;
+    auto f2 = ((flonum_s*)(fc-FLONUM_TAG))->x;
     auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
-    r->x = f1->x / f2->x;
+    r->x = f1 / f2;
     r->type = FLONUM_TAG;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
@@ -1187,10 +1190,10 @@ void INS_REM(PARAMS) {
   if (likely((7 & (fb | fc)) == 0)) {
     frame[ra] = ((fb >>3 ) % (fc >> 3)) << 3;
   } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
-    auto f1 = (flonum_s*)(fb-FLONUM_TAG);
-    auto f2 = (flonum_s*)(fc-FLONUM_TAG);
+    auto f1 = ((flonum_s*)(fb-FLONUM_TAG))->x;
+    auto f2 = ((flonum_s*)(fc-FLONUM_TAG))->x;
     auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
-    r->x = remainder(f1->x, f2->x);
+    r->x = remainder(f1, f2);
     r->type = FLONUM_TAG;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
@@ -1248,13 +1251,15 @@ void INS_OPEN(PARAMS) {
   auto  rb = instr&0xff;
   auto  rc = (instr>>8)&0xff;
 
-  auto fb = frame[rb];
   auto fc = frame[rc];
   if (unlikely((fc&IMMEDIATE_MASK) != BOOL_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
 
   auto port = (port_s*)GC_malloc(sizeof(port_s));
+  // Load FB (potentially a ptr) after GC
+  auto fb = frame[rb];
+  
   port->type = PORT_TAG;
   port->input_port = fc;
 

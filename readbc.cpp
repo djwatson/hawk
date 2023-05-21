@@ -11,7 +11,7 @@
 
 long *const_table = nullptr;
 unsigned long const_table_sz = 0;
-static std::vector<long> symbols; // TODO not a global
+std::vector<long> symbols; // TODO not a global
 
 // TODO GC safety
 long read_const(FILE *fptr) {
@@ -35,12 +35,19 @@ long read_const(FILE *fptr) {
       str->len = len;
       str->str[len] = '\0';
       fread(str->str, 1, len, fptr);
+      printf("BCread sym %s\n", str->str);
       
       // Try to see if it already exists
       auto res = symbol_table_find(str);
       if (!res) {
+	long str_save = (long)str + PTR_TAG;
+	GC_push_root(&str_save);
 	// TODO GC symbol table
 	auto sym = (symbol *)GC_malloc(sizeof(symbol));
+	
+	GC_pop_root(&str_save);
+	str = (string_s*)(str_save - PTR_TAG);
+	
 	sym->type = SYMBOL_TAG;
 	sym->name = str;
 	sym->val = UNDEFINED_TAG;
@@ -62,10 +69,18 @@ long read_const(FILE *fptr) {
     f->type = FLONUM_TAG;
     val = (long)f | FLONUM_TAG;
   } else if (type == CONS_TAG) {
+    auto ca = read_const(fptr);
+    GC_push_root(&ca);
+    auto cb = read_const(fptr);
+    GC_push_root(&cb);
+
     auto c = (cons_s *)GC_malloc(sizeof(cons_s));
     c->type = CONS_TAG;
-    c->a = read_const(fptr);
-    c->b = read_const(fptr);
+    c->a = ca;
+    c->b = cb;
+    GC_pop_root(&cb);
+    GC_pop_root(&ca);
+    
     val = (long)c | CONS_TAG;
   } else if (type == PTR_TAG) {
     long ptrtype;
@@ -82,11 +97,19 @@ long read_const(FILE *fptr) {
     } else if (ptrtype == VECTOR_TAG) {
       long len;
       fread(&len, 8, 1, fptr);
+
+      long vals[len]; // VLA
+      for (long i = 0; i < len; i++) {
+        vals[i] = read_const(fptr);
+	GC_push_root(&vals[i]);
+      }
+      
       auto v = (vector_s *)GC_malloc(16 + len * sizeof(long));
       v->type = ptrtype;
       v->len = len;
-      for (long i = 0; i < len; i++) {
-        v->v[i] = read_const(fptr);
+      for(long i = len -1; i >= 0; i--) {
+	v->v[i] = vals[i];
+	GC_pop_root(&vals[i]);
       }
       val = (long)v | PTR_TAG;
     } else {
@@ -136,14 +159,12 @@ bcfunc* readbc(FILE* fptr) {
     printf("ERROR const table too big! %li\n", const_table_sz);
     exit(-1);
   }
-  GC_enable(false);
   for (unsigned j = 0; j < const_count; j++) {
     const_table[j + const_offset] = read_const(fptr);
     // printf("%i: ", j);
     // print_obj(const_table[j]);
     // printf("\n");
   }
-  GC_enable(true);
 
   // Read functions
   unsigned int bccount;
