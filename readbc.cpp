@@ -35,7 +35,6 @@ long read_const(FILE *fptr) {
       str->len = len;
       str->str[len] = '\0';
       fread(str->str, 1, len, fptr);
-      printf("BCread sym %s\n", str->str);
       
       // Try to see if it already exists
       auto res = symbol_table_find(str);

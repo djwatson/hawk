@@ -8,6 +8,7 @@
 #include "vm.h"
 #include "types.h"
 #include "gc.h"
+#include "symbol_table.h"
 
 extern int joff;
 
@@ -29,18 +30,16 @@ unsigned int __attribute__((weak)) bootstrap_scm_bc_len = 0;
 
 // Call in to the compiled bytecode function (define (compile-file file) ...)
 void compile_file(const char* file) {
-  // TODO GC safety
+  // Watch out for GC safety, from_c_str allocates.
   auto str = from_c_str(file);
-  GC_push_root(&str);
-  long args[2] = {0, from_c_str(file)};
-  auto v = get_symbol_val("compile-file");
-  if(v == UNDEFINED_TAG) {
+  auto sym = symbol_table_find_cstr("compile-file"); // DOes not allocate.
+  long args[2] = {0, str};
+  if(!sym || sym->val == UNDEFINED_TAG) {
     printf("Error: Attempting to compile a scm file, but can't find compile-file\n");
     exit(-1);
   }
-  auto clo = (closure_s*)(v-CLOSURE_TAG);
+  auto clo = (closure_s*)(sym->val-CLOSURE_TAG);
   auto func = (bcfunc*)clo->v[0];
-  GC_pop_root(&str);
   
   run(func, 2, args);
 }

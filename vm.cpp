@@ -1112,8 +1112,8 @@ void INS_STRING_SYMBOL(PARAMS) {
     str = (string_s*)(frame[rb]-PTR_TAG);
 
     // DUP string.
-    auto str2 = str;//from_c_str(str->str); // TODO GC save sym/str
-    auto str2p = (string_s*)(str2-PTR_TAG);
+    //auto str2 = str;//from_c_str(str->str); // TODO GC save sym/str
+    auto str2p = str;//(string_s*)(str2-PTR_TAG);
     sym->type = SYMBOL_TAG;
     sym->name = str2p;
     sym->val = UNDEFINED_TAG;
@@ -1387,6 +1387,7 @@ void run(bcfunc* func, long argcnt, long * args) {
 
   long *frame;
   // Initial stack setup has a return to bytecode stub above.
+
   stack[0] = (unsigned long)&final_code[1]; // return pc
   frame = &stack[1];
   frame_top = stack + stacksz;

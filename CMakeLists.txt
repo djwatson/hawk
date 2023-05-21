@@ -36,7 +36,7 @@ include(CheckPIESupported)
 check_pie_supported()
 
 # -Wold-style-cast
-set(CMAKE_CXX_FLAGS "-O0 -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden")
+set(CMAKE_CXX_FLAGS "-O3 -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden")
 set(SOURCES readbc.cpp bytecode.cpp vm.cpp boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.cpp gc.cpp)
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm)
 set(LIBRARIES "stdc++" "m")
