@@ -124,6 +124,7 @@ long build_list(long start, long len, long*frame) {
   long lst = NIL_TAG;
   // printf("Build list from %i len %i\n", start, len);
   for(long pos = start+len-1; pos >= start; pos--) {
+    // TODO fixme lst must be saved for GC
     lst = cons(frame[pos], lst);
   }
   // printf("build_list Result:");
@@ -739,9 +740,13 @@ void INS_CONS(PARAMS) {
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
 
-  long fb = frame[rb];
-  long fc = frame[rc];
-  frame[ra] = cons(fb, fc);
+  auto c = (cons_s *)GC_malloc(sizeof(cons_s));
+
+  c->type = CONS_TAG;
+  c->a = frame[rb];
+  c->b = frame[rc];
+
+  frame[ra] = (long)c|CONS_TAG;
   pc++;
 
   NEXT_INSTR;

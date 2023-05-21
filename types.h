@@ -56,7 +56,7 @@ struct string_s {
 struct symbol {
   long type; // unused except by GC
   string_s *name;
-  unsigned long val;
+  long val;
 };
 
 struct vector_s {

@@ -1,6 +1,6 @@
 # TODO list
 
-* GC
+* GC - for moving collector, make sure we save any useful GC'd objects in frame.  analyse all of vm.  sigh.
 * flonums
 * string->number, including flonums
 * do better for destination driven code gen - 

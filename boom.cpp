@@ -1,6 +1,7 @@
 #include <getopt.h>
 #include <unistd.h>
 #include <string.h>
+#include <assert.h>
 
 #include "jitdump.h"
 #include "readbc.h"
@@ -32,6 +33,7 @@ void compile_file(const char* file) {
   GC_enable(false);
   long args[2] = {0, from_c_str(file)};
   auto v = get_symbol_val("compile-file");
+  assert(v != UNDEFINED_TAG);
   auto clo = (closure_s*)(v-CLOSURE_TAG);
   auto func = (bcfunc*)clo->v[0];
   GC_enable(true);
@@ -64,6 +66,7 @@ int main(int argc, char *argv[]) {
   //jit_dump_init();
   if (bootstrap_scm_bc_len > 0) {
     auto start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
+    printf("Running boot image...\n");
     run(start_func, 0, nullptr);
   }
 	      
@@ -77,6 +80,10 @@ int main(int argc, char *argv[]) {
       compile_file(argv[i]);
       printf("Running script %s\n", tmp);
       auto start_func = readbc_file(tmp);
+      run(start_func, 0, nullptr);
+    } else if (len >= 3 && strcmp(".bc", argv[i] + len - 3) == 0) {
+      printf("Running script %s\n", argv[i]);
+      auto start_func = readbc_file(argv[i]);
       run(start_func, 0, nullptr);
     } else {
       printf("Unknown file type %s\n", argv[i]);

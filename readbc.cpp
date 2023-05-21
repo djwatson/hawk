@@ -41,6 +41,7 @@ long read_const(FILE *fptr) {
       if (!res) {
 	// TODO GC symbol table
 	auto sym = (symbol *)GC_malloc(sizeof(symbol));
+	sym->type = SYMBOL_TAG;
 	sym->name = str;
 	sym->val = UNDEFINED_TAG;
 	symbol_table_insert(sym);
