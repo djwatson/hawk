@@ -65,6 +65,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  GC_init();
   //GC_expand_hp(50000000);
   //jit_dump_init();
   if (bootstrap_scm_bc_len > 0) {

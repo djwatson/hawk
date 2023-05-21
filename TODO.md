@@ -1,8 +1,9 @@
 # TODO list
 
-* GC - for moving collector, make sure we save any useful GC'd objects in frame.  analyse all of vm.  sigh.
+* GC - up sz based
 * flonums
 * string->number, including flonums
+     * ./boom bootstrap.scm fails
 * do better for destination driven code gen - 
    * return 'undefined' for value, but setters
 * case-lambda!

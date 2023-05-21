@@ -206,11 +206,22 @@ static void trace_roots() {
   }
 }
 
+
 static constexpr size_t page_cnt = 6000; // Approx 25 mb.
 //static constexpr size_t page_cnt = 12000; // Approx 50 mb.
 //static constexpr size_t page_cnt = 120000; // Approx 500 mb.
 static constexpr size_t alloc_sz = 4096*page_cnt;
-uint8_t* prev_mmap = nullptr;
+uint8_t* to_space = nullptr;
+uint8_t* from_space = nullptr;
+
+void GC_init() {
+  from_space = (uint8_t*)mmap(NULL, alloc_sz*2, PROT_READ|PROT_WRITE,
+			     MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+  assert(from_space);
+  alloc_ptr = from_space;
+  to_space = alloc_ptr + alloc_sz;
+}
+
 void* GC_malloc(size_t sz) {
   sz = (sz+7)&(~TAG_MASK);
   assert((sz&TAG_MASK) == 0);
@@ -230,13 +241,13 @@ void* GC_malloc(size_t sz) {
   assert(gc_enable || alloc_end == nullptr);
   // flip
   //alloc_ptr = (uint8_t*)malloc(alloc_sz);
-  alloc_ptr = (uint8_t*)mmap(NULL, alloc_sz, PROT_READ|PROT_WRITE,
-			     MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-  auto alloc_start = alloc_ptr;
-  assert(alloc_ptr);
+  alloc_ptr = to_space;
+  to_space = from_space;
+  from_space = alloc_ptr;
+  
+  // auto alloc_start = alloc_ptr;
   alloc_end = alloc_ptr + alloc_sz;
 
-  // printf("MMAP new region %p to %p\n", alloc_start, alloc_end);
   auto scan = alloc_ptr;
   trace_roots();
   // printf("Cheney scan... %p %p\n", scan, alloc_ptr);
@@ -245,11 +256,9 @@ void* GC_malloc(size_t sz) {
     trace_heap_object((long*)scan);
     scan += align(scan_sz);
   }
-  printf("...Done collect, in use %li, %.2f%% of %liMB\n", alloc_ptr - alloc_start, ((double)(alloc_ptr - alloc_start)) / alloc_sz * 100.0, alloc_sz/1000/1000);
-  if (prev_mmap) {
-    munmap(prev_mmap, alloc_sz);
-  }
-  prev_mmap = alloc_start;
+  // printf("...Done collect, in use %li, %.2f%% of %liMB\n",
+  // 	 alloc_ptr - alloc_start,
+  // 	 ((double)(alloc_ptr - alloc_start)) / alloc_sz * 100.0, alloc_sz/1000/1000);
   
   res = alloc_ptr;
   alloc_ptr += sz;
