@@ -48,11 +48,15 @@ END_LIBRARY_FUNC
 LIBRARY_FUNC_CONS_OP(CAR,a);
 LIBRARY_FUNC_CONS_OP(CDR,b);
 
+#define TYPECHECK_FIXNUM(val) \
+  if(unlikely((val&TAG_MASK) != FIXNUM_TAG)) {	\
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);	\
+  }
+
 LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR)
   long fb = frame[rb];
-  if(unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_FIXNUM(fb);
+
   auto len = fb>>3;
   auto vec = (vector_s*)GC_malloc( sizeof(long) * (len + 2));
   // Load frame[rc] *after* GC
@@ -68,9 +72,7 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING)
   long fb = frame[rb];
-  if(unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_FIXNUM(fb);
   auto len = fb>>3;
   auto str = (string_s*)GC_malloc( (sizeof(long) * 2) + len + 1);
   
@@ -93,9 +95,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF)
   if (unlikely((fb & 0x7) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  if (unlikely((fc&TAG_MASK) != FIXNUM_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_FIXNUM(fc);
   auto vec = (vector_s*)(fb-PTR_TAG);
   if (unlikely(vec->type != VECTOR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -107,9 +107,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF)
   if (unlikely((fb & 0x7) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  if (unlikely((fc&TAG_MASK) != FIXNUM_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_FIXNUM(fc);
   auto str = (string_s*)(fb-PTR_TAG);
   if (unlikely(str->type != STRING_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -144,9 +142,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
   if (unlikely((fa & 0x7) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  if (unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_FIXNUM(fb);
   auto vec = (vector_s*)(fa-PTR_TAG);
   if (unlikely(vec->type != VECTOR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -159,9 +155,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET)
   if (unlikely((fa & 0x7) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  if (unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_FIXNUM(fb);
   if (unlikely((fc&IMMEDIATE_MASK) != CHAR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
@@ -205,9 +199,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(WRITE-U8, WRITE_U8)
   if (unlikely(port->type != PORT_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  if (unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_FIXNUM(fb);
   long byte = fb >> 3;
   unsigned char b = byte;
   if (unlikely(byte >= 256)) {
@@ -293,9 +285,7 @@ LIBRARY_FUNC_B_LOAD_NAME(CHAR->INTEGER, CHAR_INTEGER)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(INTEGER->CHAR, INTEGER_CHAR)
-  if (unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_FIXNUM(fb);
   frame[ra] = (fb << 5) + CHAR_TAG;
 END_LIBRARY_FUNC
 
@@ -437,59 +427,23 @@ LIBRARY_FUNC_B_LOAD(ROUND)
   }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(SIN)
-  if ((fb&TAG_MASK) == FLONUM_TAG) {
-    auto flo = (flonum_s*)(fb - FLONUM_TAG);
-    auto res = sin(flo->x);
-    
-    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
-    r->type = FLONUM_TAG;
-    r->x = res;
-    frame[ra] = (long)r + FLONUM_TAG;
-  } else {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+#define LIBRARY_FUNC_FLONUM_MATH(name, func)	\
+  LIBRARY_FUNC_B_LOAD(name)			\
+  if ((fb&TAG_MASK) == FLONUM_TAG) {		\
+  auto flo = (flonum_s*)(fb - FLONUM_TAG);	\
+  auto res = func(flo->x);			\
+							\
+  auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));	\
+  r->type = FLONUM_TAG;					\
+  r->x = res;						\
+  frame[ra] = (long)r + FLONUM_TAG;			\
+  } else {						\
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);		\
+  }							\
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(SQRT)
-  if ((fb&TAG_MASK) == FLONUM_TAG) {
-    auto flo = (flonum_s*)(fb - FLONUM_TAG);
-    auto res = sqrt(flo->x);
-    
-    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
-    r->type = FLONUM_TAG;
-    r->x = res;
-    frame[ra] = (long)r + FLONUM_TAG;
-  } else {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-END_LIBRARY_FUNC
+LIBRARY_FUNC_FLONUM_MATH(SIN, sin);
+LIBRARY_FUNC_FLONUM_MATH(SQRT, sqrt);
+LIBRARY_FUNC_FLONUM_MATH(ATAN, atan);
+LIBRARY_FUNC_FLONUM_MATH(COS, cos);
 
-// TODO clean up the math funcs
-LIBRARY_FUNC_B_LOAD(ATAN)
-  if ((fb&TAG_MASK) == FLONUM_TAG) {
-    auto flo = (flonum_s*)(fb - FLONUM_TAG);
-    auto res = atan(flo->x);
-    
-    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
-    r->type = FLONUM_TAG;
-    r->x = res;
-    frame[ra] = (long)r + FLONUM_TAG;
-  } else {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-END_LIBRARY_FUNC
-
-LIBRARY_FUNC_B_LOAD(COS)
-  if ((fb&TAG_MASK) == FLONUM_TAG) {
-    auto flo = (flonum_s*)(fb - FLONUM_TAG);
-    auto res = cos(flo->x);
-    
-    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
-    r->type = FLONUM_TAG;
-    r->x = res;
-    frame[ra] = (long)r + FLONUM_TAG;
-  } else {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-END_LIBRARY_FUNC
