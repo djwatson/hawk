@@ -763,6 +763,7 @@ ABI void INS_BOX(PARAMS) {
   box->a = frame[rb];
   box->b = NIL_TAG;
   frame[ra] = (long)box|PTR_TAG;
+  
   pc++;
 
   NEXT_INSTR;
@@ -857,124 +858,7 @@ ABI void INS_CLOSURE_SET(PARAMS) {
   NEXT_INSTR;
 }
 
-ABI void INS_EQ(PARAMS) {
-  DEBUG("EQ");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
-
-  long fb = frame[rb];
-  long fc = frame[rc];
-  if (fb == fc) {
-    frame[ra] = TRUE_REP;
-  } else {
-    frame[ra] = FALSE_REP;
-  }
-  pc++;
-
-  NEXT_INSTR;
-}
-
-ABI void INS_CONS(PARAMS) {
-  DEBUG("CONS");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
-
-  auto c = (cons_s *)GC_malloc(sizeof(cons_s));
-
-  c->type = CONS_TAG;
-  c->a = frame[rb];
-  c->b = frame[rc];
-
-  frame[ra] = (long)c|CONS_TAG;
-  pc++;
-
-  NEXT_INSTR;
-}
-
-ABI void INS_CAR(PARAMS) {
-  DEBUG("CAR");
-  unsigned char rb = instr & 0xff;
-
-  auto fb = frame[rb];
-  if(unlikely((fb&TAG_MASK) != CONS_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  auto c = (cons_s*)(fb-CONS_TAG);
-  frame[ra] = c->a;
-  pc++;
-
-  NEXT_INSTR;
-}
-
-ABI void INS_CDR(PARAMS) {
-  DEBUG("CDR");
-  unsigned char rb = instr & 0xff;
-
-  auto fb = frame[rb];
-  if(unlikely((fb&TAG_MASK) != CONS_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  auto c = (cons_s*)(fb-CONS_TAG);
-  frame[ra] = c->b;
-  pc++;
-
-  NEXT_INSTR;
-}
-
-ABI void INS_MAKE_VECTOR(PARAMS) {
-  DEBUG("MAKE_VECTOR");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
-
-  long fb = frame[rb];
-  if(unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  auto len = fb>>3;
-  auto vec = (vector_s*)GC_malloc( sizeof(long) * (len + 2));
-  // Load frame[rc] *after* GC
-  long fc = frame[rc];
-  vec->type = VECTOR_TAG;
-  vec->len = len;
-  for(long i = 0; i < len; i++) {
-    vec->v[i] = fc;
-  }
-  
-  frame[ra] = (long)vec | PTR_TAG;
-  pc++;
-
-  NEXT_INSTR;
-}
-
-ABI void INS_MAKE_STRING(PARAMS) {
-  DEBUG("MAKE_STRING");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
-
-  long fb = frame[rb];
-  if(unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  auto len = fb>>3;
-  auto str = (string_s*)GC_malloc( (sizeof(long) * 2) + len + 1);
-  
-  long fc = frame[rc]; // Load fc after GC
-  if(unlikely((fc&IMMEDIATE_MASK) != CHAR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  
-  str->type = STRING_TAG;
-  str->len = len;
-  for(long i = 0; i < len; i++) {
-    str->str[i] = (fc >> 8)&0xff;
-  }
-  str->str[len] = '\0';
-  
-  frame[ra] = (long)str | PTR_TAG;
-  pc++;
-
-  NEXT_INSTR;
-}
+#include "stdlib.cpp"
 
 ABI void INS_VECTOR_REF(PARAMS) {
   DEBUG("VECTOR_REF");

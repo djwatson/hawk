@@ -67,7 +67,7 @@ add_custom_command(
   perl -p -i -e 's/win64cc/cc10/g' vm.ll
   COMMAND
   clang -gdwarf-3 ${LLVM_FLAGS} -c vm.ll
-  DEPENDS vm.cpp opcodes.h
+  DEPENDS vm.cpp opcodes.h stdlib.cpp
   )
 
 add_custom_target(
