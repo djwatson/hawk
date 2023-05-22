@@ -13,10 +13,14 @@
 #define LIBRARY_FUNC_B_LOAD_NAME(str, name) LIBRARY_FUNC_B_LOAD(name)
 #define LIBRARY_FUNC_BC_LOAD_NAME(str, name) LIBRARY_FUNC_BC_LOAD(name)
 #define LIBRARY_FUNC_BC_NAME(str, name) LIBRARY_FUNC_BC(name)
-
-  
-
 #define END_LIBRARY_FUNC pc++;NEXT_INSTR; }
+
+#define TYPECHECK_TAG(val,tag)			\
+  if(unlikely((val&TAG_MASK) != tag)) {		\
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);	\
+  }
+#define TYPECHECK_FIXNUM(val) TYPECHECK_TAG(val, FIXNUM_TAG)
+
 
 LIBRARY_FUNC_BC_LOAD(EQ) 
   if (fb == fc) {
@@ -38,20 +42,13 @@ END_LIBRARY_FUNC
 
 #define LIBRARY_FUNC_CONS_OP(name, field)			\
   LIBRARY_FUNC_B_LOAD(name)			\
-  if(unlikely((fb&TAG_MASK) != CONS_TAG)) {	\
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);	\
-  }						\
+  TYPECHECK_TAG(fb, CONS_TAG);			\
   auto c = (cons_s*)(fb-CONS_TAG);		\
   frame[ra] = c->field;				\
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_CONS_OP(CAR,a);
 LIBRARY_FUNC_CONS_OP(CDR,b);
-
-#define TYPECHECK_FIXNUM(val) \
-  if(unlikely((val&TAG_MASK) != FIXNUM_TAG)) {	\
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);	\
-  }
 
 LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR)
   long fb = frame[rb];
@@ -92,10 +89,8 @@ LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF)
-  if (unlikely((fb & 0x7) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
   TYPECHECK_FIXNUM(fc);
+  TYPECHECK_TAG(fb, PTR_TAG);
   auto vec = (vector_s*)(fb-PTR_TAG);
   if (unlikely(vec->type != VECTOR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -104,10 +99,8 @@ LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF)
-  if (unlikely((fb & 0x7) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
   TYPECHECK_FIXNUM(fc);
+  TYPECHECK_TAG(fb, PTR_TAG);
   auto str = (string_s*)(fb-PTR_TAG);
   if (unlikely(str->type != STRING_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -116,9 +109,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(VECTOR-LENGTH, VECTOR_LENGTH)
-  if (unlikely((fb & 0x7) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_TAG(fb, PTR_TAG);
   auto vec = (vector_s*)(fb-PTR_TAG);
   if (unlikely(vec->type != VECTOR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -127,9 +118,7 @@ LIBRARY_FUNC_B_LOAD_NAME(VECTOR-LENGTH, VECTOR_LENGTH)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(STRING-LENGTH, STRING_LENGTH)
-  if (unlikely((fb & 0x7) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_TAG(fb, PTR_TAG);
   auto str = (string_s*)(fb-PTR_TAG);
   if (unlikely(str->type != STRING_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -139,10 +128,8 @@ END_LIBRARY_FUNC
   
 LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
   auto fa = frame[ra];
-  if (unlikely((fa & 0x7) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
   TYPECHECK_FIXNUM(fb);
+  TYPECHECK_TAG(fa, PTR_TAG);
   auto vec = (vector_s*)(fa-PTR_TAG);
   if (unlikely(vec->type != VECTOR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -430,13 +417,13 @@ END_LIBRARY_FUNC
 #define LIBRARY_FUNC_FLONUM_MATH(name, func)	\
   LIBRARY_FUNC_B_LOAD(name)			\
   if ((fb&TAG_MASK) == FLONUM_TAG) {		\
-  auto flo = (flonum_s*)(fb - FLONUM_TAG);	\
-  auto res = func(flo->x);			\
+    auto flo = (flonum_s*)(fb - FLONUM_TAG);	\
+    auto res = func(flo->x);				\
 							\
-  auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));	\
-  r->type = FLONUM_TAG;					\
-  r->x = res;						\
-  frame[ra] = (long)r + FLONUM_TAG;			\
+    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));	\
+    r->type = FLONUM_TAG;				\
+    r->x = res;						\
+    frame[ra] = (long)r + FLONUM_TAG;			\
   } else {						\
     MUSTTAIL return FAIL_SLOWPATH(ARGS);		\
   }							\
