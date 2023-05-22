@@ -132,6 +132,10 @@
 	      (let ((c (get-or-push-const bc f)))
 		(push-instr! bc (list 'KONST rd c))))))))
 
+;; Drop leading '$' and standard-case it.
+(define (symbol-to-bytecode x)
+  (string->symbol (list->string (map char-standard-case (cdr (string->list (symbol->string x)))))))
+
 (define quick-branch '($< $= $eq))
 (define has-effect '($set-box! $apply $write $write-u8))
 (define (compile-binary f bc env rd nr cd)
@@ -144,27 +148,17 @@
       (compile-binary-vv f bc env rd nr cd)))
 
 (define (compile-binary-vv f bc env rd nr cd)
-  (define op (second (if (and (branch-dest? cd) (memq (first f) quick-branch))
+  (define op (let ((op (if (and (branch-dest? cd) (memq (first f) quick-branch))
+			   ;; TODO clean these up in symbol-to-bytecode?
 			 (assq (first f)
 			       '(($< JISLT) ($= JISEQ) ($eq JEQ)))
 			 (assq (first f)
 			       '(($+ ADDVV) ($- SUBVV) ($< ISLT)
 				 ($* MULVV)
-				 ($= ISEQ) ($eq EQ)
-				 ($set-box! SET-BOX!)
-				 ($cons CONS)
-				 ($make-vector MAKE-VECTOR)
-				 ($vector-ref VECTOR-REF)
-				 ($make-string MAKE-STRING)
-				 ($string-ref STRING-REF)
-				 ($apply APPLY)
+				 ($= ISEQ)
 				 ($/ DIV)
-				 ($% REM)
-				 ($callcc-resume CALLCC-RESUME)
-				 ($open OPEN)
-				 ($write WRITE)
-				 ($write-u8 WRITE-U8)
-				 ($write-double WRITE-DOUBLE))))))
+				 ($% REM))))))
+	       (if op (second op) (symbol-to-bytecode (car f)))))
   (let* ((r1 (exp-loc (second f) env nr))
 	 (r2 (exp-loc (third f) env (max nr (+ r1 1)))))
     (if (or rd (branch-dest? cd) (memq (first f) has-effect))
@@ -182,9 +176,9 @@
 	    (finish bc cd rd)))))
 
 (define (compile-binary-vn f bc env rd nr cd)
-  (define op (second (assq (first f)
-			   '(($+ ADDVN) ($- SUBVN)
-			     ($guard GUARD) ($closure CLOSURE) ($closure-get CLOSURE-GET)))))
+  (define op (let ((op (assq (first f)
+			   '(($+ ADDVN) ($- SUBVN)))))
+	       (if op (second op) (symbol-to-bytecode (car f)))))
   (define r1 (exp-loc (second f) env nr))
   (finish bc cd rd)
   (when rd
@@ -192,7 +186,7 @@
     (compile-sexp (second f) bc env r1 r1 'next)))
 
 (define (compile-unary f bc env rd nr cd)
-  (define op (string->symbol (list->string (map char-standard-case (cdr (string->list (symbol->string (car f))))))))
+  (define op (symbol-to-bytecode (car f)))
   (define r1 (exp-loc (second f) env nr))
   ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   (finish bc cd rd)
@@ -390,10 +384,6 @@
 	((quote) (compile-self-evaluating (second f) bc rd nr cd))
 
 	;; Builtins
-	(($+ $* $- $< $= $guard $set-box! $closure-get $eq $cons
-	     $make-vector $vector-ref $make-string $string-ref $apply
-	     $/ $% $callcc-resume $open $write $write-u8 $write-double)
-	 (compile-binary f bc env rd nr cd))
 	(($vector-set! $string-set!) (compile-setter f bc env rd nr cd))
 	(($set-car! $set-cdr!) (compile-setter2 f bc env rd nr cd))
 	(($closure) (compile-closure f bc env rd nr cd))
@@ -402,6 +392,7 @@
 	 (if (bytecode? (car f))
 	     (case (length f)
 	       ((2) (compile-unary f bc env rd nr cd))
+	       ((3) (compile-binary f bc env rd nr cd))
 	       (else (error "Unknown bytecode op:" f)))
 	     (compile-call f bc env rd nr cd))))))
 
