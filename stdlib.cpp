@@ -10,9 +10,13 @@
   unsigned char rb = instr & 0xff;			    
 #define LIBRARY_FUNC_B_LOAD(name) LIBRARY_FUNC_B(name) \
   long fb = frame[rb];					    
+#define LIBRARY_FUNC_B_LOAD_NAME(str, name) LIBRARY_FUNC_B_LOAD(name)
+#define LIBRARY_FUNC_BC_LOAD_NAME(str, name) LIBRARY_FUNC_BC_LOAD(name)
+#define LIBRARY_FUNC_BC_NAME(str, name) LIBRARY_FUNC_BC(name)
+
   
 
-#define LIBRARY_FUNC_END pc++;NEXT_INSTR; }
+#define END_LIBRARY_FUNC pc++;NEXT_INSTR; }
 
 LIBRARY_FUNC_BC_LOAD(EQ) 
   if (fb == fc) {
@@ -20,7 +24,7 @@ LIBRARY_FUNC_BC_LOAD(EQ)
   } else {
     frame[ra] = FALSE_REP;
   }
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC(CONS)
   auto c = (cons_s *)GC_malloc(sizeof(cons_s));
@@ -30,21 +34,21 @@ LIBRARY_FUNC_BC(CONS)
   c->b = frame[rc];
 
   frame[ra] = (long)c|CONS_TAG;
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-#define CONS_OP(name, field)			\
+#define LIBRARY_FUNC_CONS_OP(name, field)			\
   LIBRARY_FUNC_B_LOAD(name)			\
   if(unlikely((fb&TAG_MASK) != CONS_TAG)) {	\
     MUSTTAIL return FAIL_SLOWPATH(ARGS);	\
   }						\
   auto c = (cons_s*)(fb-CONS_TAG);		\
   frame[ra] = c->field;				\
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-CONS_OP(CAR,a);
-CONS_OP(CDR,b);
+LIBRARY_FUNC_CONS_OP(CAR,a);
+LIBRARY_FUNC_CONS_OP(CDR,b);
 
-LIBRARY_FUNC_BC(MAKE_VECTOR)
+LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR)
   long fb = frame[rb];
   if(unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -60,9 +64,9 @@ LIBRARY_FUNC_BC(MAKE_VECTOR)
   }
   
   frame[ra] = (long)vec | PTR_TAG;
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC(MAKE_STRING)
+LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING)
   long fb = frame[rb];
   if(unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -83,9 +87,9 @@ LIBRARY_FUNC_BC(MAKE_STRING)
   str->str[len] = '\0';
   
   frame[ra] = (long)str | PTR_TAG;
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD(VECTOR_REF)
+LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF)
   if (unlikely((fb & 0x7) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
@@ -97,9 +101,9 @@ LIBRARY_FUNC_BC_LOAD(VECTOR_REF)
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   frame[ra] = vec->v[fc>>3];
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD(STRING_REF)
+LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF)
   if (unlikely((fb & 0x7) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
@@ -111,9 +115,9 @@ LIBRARY_FUNC_BC_LOAD(STRING_REF)
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   frame[ra] = (str->str[fc>>3] << 8)|CHAR_TAG;
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(VECTOR_LENGTH)
+LIBRARY_FUNC_B_LOAD_NAME(VECTOR-LENGTH, VECTOR_LENGTH)
   if (unlikely((fb & 0x7) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
@@ -122,9 +126,9 @@ LIBRARY_FUNC_B_LOAD(VECTOR_LENGTH)
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   frame[ra] = vec->len << 3;
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(STRING_LENGTH)
+LIBRARY_FUNC_B_LOAD_NAME(STRING-LENGTH, STRING_LENGTH)
   if (unlikely((fb & 0x7) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
@@ -133,9 +137,9 @@ LIBRARY_FUNC_B_LOAD(STRING_LENGTH)
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   frame[ra] = str->len << 3;
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
   
-LIBRARY_FUNC_BC_LOAD(VECTOR_SET)
+LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
   auto fa = frame[ra];
   if (unlikely((fa & 0x7) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -148,9 +152,9 @@ LIBRARY_FUNC_BC_LOAD(VECTOR_SET)
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   vec->v[fb >> 3] = fc;
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD(STRING_SET)
+LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET)
   auto fa = frame[ra];
   if (unlikely((fa & 0x7) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -166,20 +170,20 @@ LIBRARY_FUNC_BC_LOAD(STRING_SET)
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   str->str[fb >> 3] = (fc >> 8)&0xff;
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-#define CONS_SET_OP(name, field)		\
-  LIBRARY_FUNC_B_LOAD(SET_##name)		\
+#define LIBRARY_FUNC_CONS_SET_OP(str, name, field)	\
+  LIBRARY_FUNC_B_LOAD_NAME(str, name)			\
   auto fa = frame[ra];				\
   if (unlikely((fa & 0x7) != CONS_TAG)) {	\
     MUSTTAIL return FAIL_SLOWPATH(ARGS);	\
   }						\
   auto cons = (cons_s*)(fa-CONS_TAG);		\
   cons->field = fb;				\
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-CONS_SET_OP(CAR,a);
-CONS_SET_OP(CDR,b);
+LIBRARY_FUNC_CONS_SET_OP(SET-CAR!, SET_CAR,a);
+LIBRARY_FUNC_CONS_SET_OP(SET-CDR!, SET_CDR,b);
 
 LIBRARY_FUNC_BC_LOAD(WRITE)
   if (unlikely((fc&TAG_MASK) != PTR_TAG)) {
@@ -191,9 +195,9 @@ LIBRARY_FUNC_BC_LOAD(WRITE)
   }
 
   print_obj(fb, port->file);
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD(WRITE_U8)
+LIBRARY_FUNC_BC_LOAD_NAME(WRITE-U8, WRITE_U8)
   if (unlikely((fc&TAG_MASK) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
@@ -211,9 +215,9 @@ LIBRARY_FUNC_BC_LOAD(WRITE_U8)
   }
   
   fwrite(&b, 1, 1, port->file);
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD(WRITE_DOUBLE)
+LIBRARY_FUNC_BC_LOAD_NAME(WRITE-DOUBLE, WRITE_DOUBLE)
   if (unlikely((fc&TAG_MASK) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
@@ -227,17 +231,17 @@ LIBRARY_FUNC_BC_LOAD(WRITE_DOUBLE)
   auto flo = (flonum_s*)(fb - FLONUM_TAG);
   
   fwrite(&flo->x, sizeof(flo->x), 1, port->file);
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(SYMBOL_STRING)
+LIBRARY_FUNC_B_LOAD_NAME(SYMBOL->STRING, SYMBOL_STRING)
   if (unlikely((fb&TAG_MASK) != SYMBOL_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   auto sym = (symbol*)(fb - SYMBOL_TAG);
   frame[ra] = (long)sym->name + PTR_TAG;
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(STRING_SYMBOL)
+LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
   if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
@@ -279,21 +283,21 @@ LIBRARY_FUNC_B_LOAD(STRING_SYMBOL)
   } else {
     frame[ra] = (long)res + SYMBOL_TAG;
   }
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(CHAR_INTEGER)
+LIBRARY_FUNC_B_LOAD_NAME(CHAR->INTEGER, CHAR_INTEGER)
   if (unlikely((fb&IMMEDIATE_MASK) != CHAR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   frame[ra] = fb >> 5;
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(INTEGER_CHAR)
+LIBRARY_FUNC_B_LOAD_NAME(INTEGER->CHAR, INTEGER_CHAR)
   if (unlikely((fb&TAG_MASK) != FIXNUM_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   frame[ra] = (fb << 5) + CHAR_TAG;
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC(OPEN)
   auto fc = frame[rc];
@@ -330,7 +334,7 @@ LIBRARY_FUNC_BC(OPEN)
   }
   port->peek = FALSE_REP;
   frame[ra] = (long)port + PTR_TAG;
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(CLOSE)
   if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
@@ -348,7 +352,7 @@ LIBRARY_FUNC_B_LOAD(CLOSE)
     close(port->fd);
     port->fd = -1;
   }
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(PEEK)
   if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
@@ -369,7 +373,7 @@ LIBRARY_FUNC_B_LOAD(PEEK)
     }
   }
   frame[ra] = port->peek;
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(READ)
   if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
@@ -391,7 +395,7 @@ LIBRARY_FUNC_B_LOAD(READ)
       frame[ra] = (((long)b) << 8) + CHAR_TAG;
     }
   }
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
   
 LIBRARY_FUNC_B_LOAD(INEXACT)
   if ((fb&TAG_MASK) == FIXNUM_TAG) {
@@ -404,7 +408,7 @@ LIBRARY_FUNC_B_LOAD(INEXACT)
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(EXACT)
   if ((fb&TAG_MASK) == FIXNUM_TAG) {
@@ -415,7 +419,7 @@ LIBRARY_FUNC_B_LOAD(EXACT)
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(ROUND)
   if ((fb&TAG_MASK) == FIXNUM_TAG) {
@@ -431,4 +435,4 @@ LIBRARY_FUNC_B_LOAD(ROUND)
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-LIBRARY_FUNC_END
+END_LIBRARY_FUNC
