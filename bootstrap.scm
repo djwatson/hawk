@@ -70,10 +70,15 @@
       (let lp ((x (car args)) (ls (cdr args)))
         (if (null? ls) x (lp (lcm2 x (car ls)) (cdr ls))))))
 
+;; TODO probably needs to work on flonum too.
 (define (expt num exp)
-  (let loop ((n 1) (cnt exp))
-    (if (= cnt 0) n
-	(loop (* num n) (- cnt 1)))))
+  (if (> exp 0)
+      (let loop ((n 1) (cnt exp))
+	(if (= cnt 0) n
+	    (loop (* num n) (- cnt 1))))
+      (let loop ((n 1.0) (cnt exp))
+	(if (= cnt 0) n
+	    (loop (/ n num) (+ cnt 1))))))
 
 
 (define (< . rest)
