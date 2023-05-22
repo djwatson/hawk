@@ -712,6 +712,7 @@ void INS_ISF(PARAMS) {
   NEXT_INSTR;
 }
 
+#define INS_JLOOP INS_JFUNC
 void INS_JFUNC(PARAMS) {
   DEBUG("JFUNC");
   //auto tnum = instr;
@@ -1679,76 +1680,7 @@ void run(bcfunc* func, long argcnt, long * args) {
   }
 
   // Setup instruction table.
-  for (int i = 0; i < INS_MAX; i++) {
-    l_op_table[i] = INS_UNKNOWN;
-  }
-  l_op_table[0] = INS_FUNC;
-  l_op_table[1] = INS_KSHORT;
-  l_op_table[2] = INS_ISGE;
-  l_op_table[3] = INS_JMP;
-  l_op_table[4] = INS_RET1;
-  l_op_table[5] = INS_SUBVN;
-  l_op_table[6] = INS_CALL;
-  l_op_table[7] = INS_ADDVV;
-  l_op_table[8] = INS_HALT;
-  l_op_table[10] = INS_ISLT;
-  l_op_table[11] = INS_ISF;
-  l_op_table[12] = INS_SUBVV;
-  l_op_table[13] = INS_GGET;
-  l_op_table[14] = INS_GSET;
-  l_op_table[15] = INS_KFUNC;
-  l_op_table[16] = INS_CALLT;
-  l_op_table[17] = INS_KONST;
-  l_op_table[18] = INS_MOV;
-  l_op_table[19] = INS_ISEQ;
-  l_op_table[20] = INS_ADDVN;
-  l_op_table[21] = INS_JISEQ;
-  l_op_table[22] = INS_JISLT;
-  l_op_table[23] = INS_JFUNC;
-  l_op_table[24] = INS_JFUNC; // JLOOP
-  l_op_table[25] = INS_GUARD; 
-  l_op_table[26] = INS_MULVV; 
-  l_op_table[BOX] = INS_BOX; 
-  l_op_table[UNBOX] = INS_UNBOX; 
-  l_op_table[SET_BOX] = INS_SET_BOX; 
-  l_op_table[CLOSURE] = INS_CLOSURE; 
-  l_op_table[CLOSURE_PTR] = INS_CLOSURE_PTR; 
-  l_op_table[CLOSURE_GET] = INS_CLOSURE_GET; 
-  l_op_table[CLOSURE_SET] = INS_CLOSURE_SET; 
-  l_op_table[EQ] = INS_EQ; 
-  l_op_table[CONS] = INS_CONS; 
-  l_op_table[CAR] = INS_CAR; 
-  l_op_table[CDR] = INS_CDR; 
-  l_op_table[MAKE_VECTOR] = INS_MAKE_VECTOR; 
-  l_op_table[VECTOR_REF] = INS_VECTOR_REF; 
-  l_op_table[VECTOR_SET] = INS_VECTOR_SET; 
-  l_op_table[VECTOR_LENGTH] = INS_VECTOR_LENGTH; 
-  l_op_table[SET_CAR] = INS_SET_CAR; 
-  l_op_table[SET_CDR] = INS_SET_CDR; 
-  l_op_table[WRITE] = INS_WRITE; 
-  l_op_table[WRITE_U8] = INS_WRITE_U8; 
-  l_op_table[STRING_LENGTH] = INS_STRING_LENGTH; 
-  l_op_table[STRING_REF] = INS_STRING_REF; 
-  l_op_table[STRING_SET] = INS_STRING_SET; 
-  l_op_table[MAKE_STRING] = INS_MAKE_STRING; 
-  l_op_table[APPLY] = INS_APPLY; 
-  l_op_table[SYMBOL_STRING] = INS_SYMBOL_STRING; 
-  l_op_table[STRING_SYMBOL] = INS_STRING_SYMBOL; 
-  l_op_table[CHAR_INTEGER] = INS_CHAR_INTEGER; 
-  l_op_table[INTEGER_CHAR] = INS_INTEGER_CHAR; 
-  l_op_table[REM] = INS_REM; 
-  l_op_table[DIV] = INS_DIV; 
-  l_op_table[CALLCC] = INS_CALLCC; 
-  l_op_table[CALLCC_RESUME] = INS_CALLCC_RESUME; 
-  l_op_table[OPEN] = INS_OPEN; 
-  l_op_table[CLOSE] = INS_CLOSE; 
-  l_op_table[READ] = INS_READ; 
-  l_op_table[PEEK] = INS_PEEK; 
-  l_op_table[JEQ] = INS_JEQ; 
-  l_op_table[INEXACT] = INS_INEXACT; 
-  l_op_table[EXACT] = INS_EXACT; 
-  l_op_table[WRITE_DOUBLE] = INS_WRITE_DOUBLE; 
-  l_op_table[ROUND] = INS_ROUND; 
+  #include "opcodes-table.h"
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

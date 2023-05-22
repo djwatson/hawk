@@ -37,7 +37,7 @@ check_pie_supported()
 
 # -Wold-style-cast
 set(CMAKE_CXX_FLAGS "-O3 -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden")
-set(SOURCES readbc.cpp bytecode.cpp vm.cpp boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.cpp gc.cpp)
+set(SOURCES readbc.cpp bytecode.cpp vm.cpp boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.cpp gc.cpp opcodes.h)
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
@@ -68,7 +68,7 @@ add_custom_command(
   OUTPUT  bootstrap.scm.bc
   COMMAND
   ${CHEZ} --script bc.chez.scm bootstrap.scm > /dev/null
-  DEPENDS ${SCM_SOURCES} write_double
+  DEPENDS ${SCM_SOURCES} write_double opcodes.scm
 )
 
 add_custom_command(
@@ -76,4 +76,11 @@ add_custom_command(
   COMMAND
   xxd -i bootstrap.scm.bc > bootstrap.cpp
   DEPENDS bootstrap.scm.bc
+)
+
+add_custom_command(
+  OUTPUT opcodes.cpp opcodes.h opcodes-table.h opcodes.scm
+  COMMAND
+  ${CHEZ} --script opcode_gen.scm
+  DEPENDS util.scm opcode_gen.scm
 )
