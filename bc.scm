@@ -438,7 +438,7 @@
     (define next (read))
     (if (eof-object? next)
 	(let ((res (reverse sexps)))
-	  (dformat "Expanding: ~a\n" res)
+	  ;(dformat "Expanding: ~a\n" res)
 	  res)
       (read-file-rec (cons next sexps))))
 
@@ -660,12 +660,11 @@
 	    (assignment-conversion
 	     (fix-letrec
 	      (alpha-rename
-
-	       ;; integrate
-	       (case-insensitive
-		(add-includes
-		 (with-input-from-file name expander))))))))))
-    (display "Compiling:\n") (pretty-print src) (newline)
+	       (integrate-r5rs
+		(case-insensitive
+		 (add-includes
+		  (with-input-from-file name expander)))))))))))
+    ;(display "Compiling:\n") (pretty-print src) (newline)
     (compile src))
   ;; Get everything in correct order
   ;; TODO do this as we are generating with extendable vectors

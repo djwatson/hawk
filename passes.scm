@@ -27,7 +27,6 @@
 
 ;; Change ((lambda ..) ...) to
 ;; (let (...) ...)
-;; TODO: implement varargs?
 (define (optimize-direct c)
   (define (sexp-direct f)
     (define params (second (first f)))
@@ -299,10 +298,10 @@
 	  ((char?) `($guard ,(integrate (second f)) ,char-tag))
 	  ((symbol?) `($guard ,(integrate (second f)) ,symbol-tag))
 	  ((flonum? inexact?) `($guard ,(integrate (second f)) ,flonum-tag))
-	  ((number? fixnum? exact? integer? rational? complex?) `($guard ,(integrate (second f)) ,fixnum-tag)) ;; TODO flonums
+	  ((fixnum? exact?) `($guard ,(integrate (second f)) ,fixnum-tag)) 
 	  ((null?) `($guard ,(integrate (second f)) ,nil-tag))
 	  ;; TODO add the rest of c*r
 	  ((caar?) `($car ($car ,(integrate (second f)))))
-	  ((eqv?) `($eq ,(integrate (second f)) ,(integrate (third f)))) ;; TODO flonums
+	  ;((eqv?) `($eq ,(integrate (second f)) ,(integrate (third f)))) ;; TODO flonums
 	  (else (imap integrate f)))))
   (imap integrate f))
