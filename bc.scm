@@ -132,8 +132,7 @@
 	      (let ((c (get-or-push-const bc f)))
 		(push-instr! bc (list 'KONST rd c))))))))
 
-(define quick-branch '()		;'($< $= $eq)
-  )
+(define quick-branch '($< $= $eq))
 (define has-effect '($set-box! $apply $write $write-u8))
 (define (compile-binary f bc env rd nr cd)
   (define vn '($- $+ $guard $closure-get))

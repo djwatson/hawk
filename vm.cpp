@@ -549,6 +549,40 @@ void INS_JEQ(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_JISLT_SLOWPATH(PARAMS) {
+  DEBUG("JISLT_SLOWPATH");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  double x_b;
+  double x_c;
+  // Assume convert to flonum.
+  if ((fb&TAG_MASK) == FLONUM_TAG) {
+    x_b = ((flonum_s*)(fb-FLONUM_TAG))->x;
+  } else if ((fb&TAG_MASK) == FIXNUM_TAG) {
+    x_b = fb >> 3;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if ((fc&TAG_MASK) == FLONUM_TAG) {
+    x_c = ((flonum_s*)(fc-FLONUM_TAG))->x;
+  } else if ((fc&TAG_MASK) == FIXNUM_TAG) {
+    x_c = fc >> 3;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+
+  if (x_b < x_c) {
+    pc += 2;
+  } else {
+    pc += 1;
+  }
+  
+  NEXT_INSTR;
+}
+
 void INS_JISLT(PARAMS) {
   DEBUG("JISLT");
   unsigned char rb = instr & 0xff;
@@ -571,7 +605,7 @@ void INS_JISLT(PARAMS) {
       pc += 1;
     }
   } else {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+    MUSTTAIL return INS_JISLT_SLOWPATH(ARGS);
   }
 
   NEXT_INSTR;
