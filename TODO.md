@@ -1,21 +1,22 @@
 # TODO list
 
-* GC - up sz based.  Fix string->symbol to copy str.
+* GC - up sz based.  
 * flonums
 * string->number, including flonums
      * ./boom bootstrap.scm fails
 * do better for destination driven code gen - 
    * return 'undefined' for value, but setters
 * case-lambda!
-* funcv
-* closure calls
+* funcv new bytecode
+* closure calls as a new bytecode instr
 * maybe llvm cc10
-* remove hotspot for non-jit
+* remove hotspot for non-jit / new bytecode
 * letrec the bootstrap
+
+* generate bytecode instructions from a file
 
 * make a 'vm state' struct, so we can run multiple vm's?
 
-* GC needs work for symbol table, consts, symbols, etc
 * INEXACT/str->num inexact
 * TODO >, >= , GSET check
 * GO through and check undefined return values in bc.scm

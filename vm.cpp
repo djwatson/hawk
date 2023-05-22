@@ -1106,20 +1106,33 @@ void INS_STRING_SYMBOL(PARAMS) {
   if (!res) {
     // Build a new symbol.
     // Must dup the string, since strings are not immutable.
-
+    auto strlen = str->len;
     auto sym = (symbol *)GC_malloc(sizeof(symbol));
-    // Re-load str after GC
-    str = (string_s*)(frame[rb]-PTR_TAG);
-
-    // DUP string.
-    //auto str2 = str;//from_c_str(str->str); // TODO GC save sym/str
-    auto str2p = str;//(string_s*)(str2-PTR_TAG);
     sym->type = SYMBOL_TAG;
-    sym->name = str2p;
+
+    // Note re-load of str after allocation.
+    sym->name = (string_s*)(frame[rb]-PTR_TAG);
     sym->val = UNDEFINED_TAG;
-    symbol_table_insert(sym);
-    
+
+    // Save new symbol in frame[ra].
     frame[ra] = (long)sym + SYMBOL_TAG;
+    
+    // DUP the string, so that this one is immutable.
+    // Note that original is in sym->name temporarily
+    // since ra could be eq to rb.
+    auto str2 = (string_s*)GC_malloc(16 + strlen + 1);
+    // Re-load sym after GC
+    sym = (symbol*)(frame[ra]-SYMBOL_TAG);
+    
+    // Re-load str after GC
+    str = (string_s*)sym->name;
+    
+    str2->type = STRING_TAG;
+    str2->len = strlen;
+    memcpy(str2->str, str->str, strlen);
+    
+    sym->name = str2;
+    symbol_table_insert(sym);
   } else {
     frame[ra] = (long)res + SYMBOL_TAG;
   }
