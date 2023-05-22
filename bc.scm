@@ -163,7 +163,8 @@
 				 ($callcc-resume CALLCC-RESUME)
 				 ($open OPEN)
 				 ($write WRITE)
-				 ($write-u8 WRITE-U8))))))
+				 ($write-u8 WRITE-U8)
+				 ($write-double WRITE-DOUBLE))))))
   (let* ((r1 (exp-loc (second f) env nr))
 	 (r2 (exp-loc (third f) env (max nr (+ r1 1)))))
     (if (or rd (branch-dest? cd) (memq (first f) has-effect))
@@ -402,7 +403,7 @@
 	;; Builtins
 	(($+ $* $- $< $= $guard $set-box! $closure-get $eq $cons
 	     $make-vector $vector-ref $make-string $string-ref $apply
-	     $/ $% $callcc-resume $open $write $write-u8)
+	     $/ $% $callcc-resume $open $write $write-u8 $write-double)
 	 (compile-binary f bc env rd nr cd))
 	(($vector-set! $string-set!) (compile-setter f bc env rd nr cd))
 	(($set-car! $set-cdr!) (compile-setter2 f bc env rd nr cd))
@@ -525,7 +526,8 @@
 	       (WRITE-U8 62)
 	       (JEQ 63)
 	       (INEXACT 64)
-	       (EXACT 65)))
+	       (EXACT 65)
+	       (WRITE-DOUBLE 66)))
 
 (define bc-ins '(KSHORT GGET GSET KONST KFUNC JMP))
 
@@ -565,7 +567,7 @@
 	    (for-each (lambda (c) (write-u8 (char->integer c) p)) (string->list str))))))
    ((flonum? c)
     (write-u64 flonum-tag p)
-    (write-u64 (write-double c) p))
+    (write-double c p))
    ((and  (fixnum? c))
     (write-u64 (* 8 c) p))
    ((char? c)

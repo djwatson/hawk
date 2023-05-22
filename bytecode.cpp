@@ -67,5 +67,6 @@ const char* ins_names[] = {
   "JEQ",
   "INEXACT",
   "EXACT",
+  "WRITE-DOUBLE",
 };
 // clang-format on

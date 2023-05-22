@@ -5,9 +5,11 @@
 (define arithmetic-shift (lambda (i c) (bitwise-arithmetic-shift i c)))
 
 (load-shared-object "./libwrite_double.so")
-(define write-double
+(define memcpy-double
   (foreign-procedure "memcpy_double"
-		     (double) long)) 
+		     (double) long))
+(define (write-double d p)
+  (write-u64 (memcpy-double d) p))
 (include "bc.scm")
 (display (cdr (command-line)))
 (for-each compile-file (cdr (command-line)))

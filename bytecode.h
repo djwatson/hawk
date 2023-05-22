@@ -72,6 +72,7 @@ enum {
   JEQ,
   INEXACT,
   EXACT,
+  WRITE_DOUBLE,
   INS_MAX
 };
 // clang-format on

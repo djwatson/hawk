@@ -857,15 +857,18 @@
   ($inexact x))
 (define (exact x)
   ($exact x))
+(define exact->inexact inexact)
+(define inexact->exact exact)
 
 ;;; Include the bytecode compiler
 (include "bc.scm")
+(define (write-double d port)
+  ($write-double d port))
 ;;;;;;;; Junk for testing benchmarks ;;;;;;;
 (define (pp arg) (display arg) (newline))
 (define println pp)
 (define pretty-print display)
 
-(define (exact->inexact x) x)
 (define print display)
 
 (define (atom? a) (not (pair? a)))

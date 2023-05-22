@@ -1082,6 +1082,31 @@ void INS_WRITE_U8(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_WRITE_DOUBLE(PARAMS) {
+  DEBUG("WRITE_DOUBLE");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr>>8) & 0xff;
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+
+  if (unlikely((fc&TAG_MASK) != PTR_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto port = (port_s*)(fc-PTR_TAG);
+  if (unlikely(port->type != PORT_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if (unlikely((fb&TAG_MASK) != FLONUM_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto flo = (flonum_s*)(fb - FLONUM_TAG);
+  
+  fwrite(&flo->x, sizeof(flo->x), 1, port->file);
+  
+  pc++;
+  NEXT_INSTR;
+}
+
 void INS_APPLY(PARAMS) {
   DEBUG("APPLY");
   unsigned char rb = instr & 0xff;
@@ -1592,6 +1617,7 @@ void run(bcfunc* func, long argcnt, long * args) {
   l_op_table[JEQ] = INS_JEQ; 
   l_op_table[INEXACT] = INS_INEXACT; 
   l_op_table[EXACT] = INS_EXACT; 
+  l_op_table[WRITE_DOUBLE] = INS_WRITE_DOUBLE; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }
