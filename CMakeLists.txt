@@ -36,7 +36,7 @@ include(CheckPIESupported)
 check_pie_supported()
 
 # -Wold-style-cast
-set(CMAKE_CXX_FLAGS "-O3 -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden")
+set(CMAKE_CXX_FLAGS "-O3 -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden -I.")
 set(SOURCES readbc.cpp bytecode.cpp vm.o boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.cpp gc.cpp opcodes.h)
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm)
 set(LIBRARIES "stdc++" "m")
@@ -58,7 +58,9 @@ string(REPLACE " " ";" LLVM_FLAGS ${CMAKE_CXX_FLAGS})
 add_custom_command(
   OUTPUT vm.o
   COMMAND
-  clang -S -emit-llvm -c vm.cpp ${LLVM_FLAGS}
+  rsync ${CMAKE_SOURCE_DIR}/vm.cpp vm.cpp
+  COMMAND
+  clang -I. -I${CMAKE_SOURCE_DIR} -S -emit-llvm -c vm.cpp ${LLVM_FLAGS}
   COMMAND
   mv vm.s vm.ll
   COMMAND
@@ -84,6 +86,12 @@ add_library(write_double SHARED write_double.c)
 add_custom_command(
   OUTPUT  bootstrap.scm.bc bootstrap.cpp
   COMMAND
+  mkdir -p third-party
+  COMMAND
+  rsync ${CMAKE_SOURCE_DIR}/bc.chez.scm ${CMAKE_SOURCE_DIR}/bc.scm ${CMAKE_SOURCE_DIR}/memory_layout.scm ${CMAKE_SOURCE_DIR}/passes.scm ${CMAKE_SOURCE_DIR}/bootstrap.scm ${CMAKE_SOURCE_DIR}/str2num.scm .
+  COMMAND
+  rsync ${CMAKE_SOURCE_DIR}/third-party/alexpander.scm third-party/.
+  COMMAND
   ${CHEZ} --script bc.chez.scm bootstrap.scm > /dev/null
   COMMAND
   xxd -i bootstrap.scm.bc > bootstrap.cpp
@@ -93,6 +101,8 @@ add_custom_command(
 # Generate the opcodes
 add_custom_command(
   OUTPUT opcodes.cpp opcodes.h opcodes-table.h opcodes.scm
+  COMMAND
+  rsync ${CMAKE_SOURCE_DIR}/opcode_gen.scm ${CMAKE_SOURCE_DIR}/util.scm .
   COMMAND
   ${CHEZ} --script opcode_gen.scm
   DEPENDS util.scm opcode_gen.scm
