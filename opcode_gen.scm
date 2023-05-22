@@ -77,6 +77,7 @@
   (close-input-port p))
 
 (find-lib-funcs "stdlib.cpp")
+(dformat "There are ~a opcodes\n" (length opcodes))
 ;(pretty-print opcodes)
 
 (define (c-var-name str)
