@@ -64,20 +64,17 @@ add_custom_target(
 
 add_library(write_double SHARED write_double.c)
 
+# Generate the bootstrap image.
 add_custom_command(
-  OUTPUT  bootstrap.scm.bc
+  OUTPUT  bootstrap.scm.bc bootstrap.cpp
   COMMAND
   ${CHEZ} --script bc.chez.scm bootstrap.scm > /dev/null
-  DEPENDS ${SCM_SOURCES} write_double opcodes.scm
-)
-
-add_custom_command(
-  OUTPUT  bootstrap.cpp
   COMMAND
   xxd -i bootstrap.scm.bc > bootstrap.cpp
-  DEPENDS bootstrap.scm.bc
+  DEPENDS ${SCM_SOURCES} write_double opcodes.scm 
 )
 
+# Generate the opcodes
 add_custom_command(
   OUTPUT opcodes.cpp opcodes.h opcodes-table.h opcodes.scm
   COMMAND
