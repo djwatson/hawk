@@ -436,3 +436,60 @@ LIBRARY_FUNC_B_LOAD(ROUND)
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
 END_LIBRARY_FUNC
+
+LIBRARY_FUNC_B_LOAD(SIN)
+  if ((fb&TAG_MASK) == FLONUM_TAG) {
+    auto flo = (flonum_s*)(fb - FLONUM_TAG);
+    auto res = sin(flo->x);
+    
+    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+    r->type = FLONUM_TAG;
+    r->x = res;
+    frame[ra] = (long)r + FLONUM_TAG;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_B_LOAD(SQRT)
+  if ((fb&TAG_MASK) == FLONUM_TAG) {
+    auto flo = (flonum_s*)(fb - FLONUM_TAG);
+    auto res = sqrt(flo->x);
+    
+    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+    r->type = FLONUM_TAG;
+    r->x = res;
+    frame[ra] = (long)r + FLONUM_TAG;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+END_LIBRARY_FUNC
+
+// TODO clean up the math funcs
+LIBRARY_FUNC_B_LOAD(ATAN)
+  if ((fb&TAG_MASK) == FLONUM_TAG) {
+    auto flo = (flonum_s*)(fb - FLONUM_TAG);
+    auto res = atan(flo->x);
+    
+    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+    r->type = FLONUM_TAG;
+    r->x = res;
+    frame[ra] = (long)r + FLONUM_TAG;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_B_LOAD(COS)
+  if ((fb&TAG_MASK) == FLONUM_TAG) {
+    auto flo = (flonum_s*)(fb - FLONUM_TAG);
+    auto res = cos(flo->x);
+    
+    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+    r->type = FLONUM_TAG;
+    r->x = res;
+    frame[ra] = (long)r + FLONUM_TAG;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+END_LIBRARY_FUNC

@@ -1,9 +1,9 @@
-# TODO list
+n# TODO list
 
-* generate bytecode instructions from a file - cleanup the compiler/integrator.
+* lib-ify more funcs
+* add macros for typechecking and ptr grabbing.  Would probably clean up a lot.
 
-* make a library generator.
-* generate sin, atan, etc fix fft, nbody, nucleic
+* fix nbody
 * Do a profiler for bytecode.
    
 # Bytecode generator
