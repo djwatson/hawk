@@ -37,7 +37,7 @@ check_pie_supported()
 
 # -Wold-style-cast
 set(CMAKE_CXX_FLAGS "-O3 -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden")
-set(SOURCES readbc.cpp bytecode.cpp vm.cpp boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.cpp gc.cpp opcodes.h)
+set(SOURCES readbc.cpp bytecode.cpp vm.o boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.cpp gc.cpp opcodes.h)
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
@@ -52,9 +52,25 @@ target_include_directories(boom PUBLIC ".")
 
 target_link_libraries(boom PUBLIC ${LIBRARIES}  )
 
+# Use the CC10 calling convention, which isn't available via clang, but is in llvm.
+# munge win64cc to cc10.
+string(REPLACE " " ";" LLVM_FLAGS ${CMAKE_CXX_FLAGS})
+add_custom_command(
+  OUTPUT vm.o
+  COMMAND
+  clang -S -emit-llvm -c vm.cpp ${LLVM_FLAGS}
+  COMMAND
+  mv vm.s vm.ll
+  COMMAND
+  perl -p -i -e 's/win64cc/cc10/g' vm.ll
+  COMMAND
+  clang -gdwarf-3 ${LLVM_FLAGS} -c vm.ll
+  DEPENDS vm.cpp opcodes.h
+  )
+
 add_custom_target(
   cloc
-  COMMAND cloc --by-file-by-lang ${SCM_SOURCES} *.h ${SOURCES}
+  COMMAND cloc --by-file-by-lang ${SCM_SOURCES} *.h ${SOURCES} vm.cpp
 )
 
 add_custom_target(

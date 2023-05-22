@@ -44,10 +44,11 @@ while being more portable and easier to change.
   unsigned char ra, unsigned instr, unsigned *pc, long *frame,                 \
     void **op_table_arg, long argcnt
 #define ARGS ra, instr, pc, frame, op_table_arg, argcnt
-#define MUSTTAIL __attribute__((musttail))
+#define MUSTTAIL __attribute((musttail))
+#define ABI __attribute__((ms_abi))
 #define DEBUG(name)
 //#define DEBUG(name) printf("%s ra %i rd %i rb %i rc %i ", name, ra, instr, instr&0xff, (instr>>8)); printf("\n");
-typedef void (*op_func)(PARAMS);
+typedef ABI void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
 
@@ -63,7 +64,7 @@ static op_func l_op_table_record[INS_MAX];
 
 
 
-__attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
+ABI __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
   int i = 0;
   printf("FAIL PC: %p %s\n", pc, ins_names[INS_OP(*pc)]);
   while(&frame[-1] > stack) {
@@ -82,13 +83,13 @@ __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
   return;
 }
 
-__attribute__((noinline)) void FAIL_SLOWPATH_ARGCNT(PARAMS) {
+ABI __attribute__((noinline)) void FAIL_SLOWPATH_ARGCNT(PARAMS) {
   printf("FAIL ARGCNT INVALID\n");
   
   MUSTTAIL return FAIL_SLOWPATH(ARGS);
 }
 
-void RECORD_START(PARAMS) {
+ABI void RECORD_START(PARAMS) {
   hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
   if (joff) {
     // Tail call with original op table.
@@ -99,7 +100,7 @@ void RECORD_START(PARAMS) {
                                           (void **)l_op_table_record, argcnt);
 }
 
-void RECORD(PARAMS) {
+ABI void RECORD(PARAMS) {
   if (1 /*record(pc, frame)*/) {
     // Back to interpreting.
     op_table_arg = (void **)l_op_table;
@@ -131,7 +132,7 @@ long build_list(long start, long len, long*frame) {
   return lst;
 }
 
-void INS_FUNC(PARAMS) {
+ABI void INS_FUNC(PARAMS) {
   DEBUG("FUNC");
   unsigned int rb = instr;
 
@@ -151,7 +152,7 @@ void INS_FUNC(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_KSHORT(PARAMS) {
+ABI void INS_KSHORT(PARAMS) {
   DEBUG("KSHORT");
   auto rd = (int16_t)instr;
 
@@ -161,7 +162,7 @@ void INS_KSHORT(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_JMP(PARAMS) {
+ABI void INS_JMP(PARAMS) {
   DEBUG("JMP");
   auto rd = (uint16_t)instr;
 
@@ -169,7 +170,7 @@ void INS_JMP(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_RET1(PARAMS) {
+ABI void INS_RET1(PARAMS) {
   DEBUG("RET1");
 
   pc = (unsigned int *)frame[-1];
@@ -179,7 +180,7 @@ void INS_RET1(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_HALT(PARAMS) {
+ABI void INS_HALT(PARAMS) {
   DEBUG("HALT");
 
   // printf("Result:");
@@ -188,7 +189,7 @@ void INS_HALT(PARAMS) {
   return;
 }
 
-void INS_ISGE(PARAMS) {
+ABI void INS_ISGE(PARAMS) {
   DEBUG("ISGE");
   unsigned char rb = instr;
 
@@ -206,7 +207,7 @@ void INS_ISGE(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_SUBVN(PARAMS) {
+ABI void INS_SUBVN(PARAMS) {
   DEBUG("SUBVN");
   unsigned char rb = instr & 0xff;
   char rc = (instr >> 8) & 0xff;
@@ -223,7 +224,7 @@ void INS_SUBVN(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_ADDVN(PARAMS) {
+ABI void INS_ADDVN(PARAMS) {
   DEBUG("ADDVN");
   unsigned char rb = instr & 0xff;
   char rc = (instr >> 8) & 0xff;
@@ -240,7 +241,7 @@ void INS_ADDVN(PARAMS) {
   NEXT_INSTR;
 }
 
-__attribute__((noinline)) void INS_ADDVV_SLOWPATH(PARAMS) {
+ABI __attribute__((noinline)) void INS_ADDVV_SLOWPATH(PARAMS) {
   DEBUG("ADDVV_SLOWPATH");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -274,7 +275,7 @@ __attribute__((noinline)) void INS_ADDVV_SLOWPATH(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_ADDVV(PARAMS) {
+ABI void INS_ADDVV(PARAMS) {
   DEBUG("ADDVV");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -300,7 +301,7 @@ void INS_ADDVV(PARAMS) {
   NEXT_INSTR;
 }
 
-__attribute__((noinline)) void INS_MULVV_SLOWPATH(PARAMS) {
+ABI __attribute__((noinline)) void INS_MULVV_SLOWPATH(PARAMS) {
   DEBUG("MULVV_SLOWPATH");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -334,7 +335,7 @@ __attribute__((noinline)) void INS_MULVV_SLOWPATH(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_MULVV(PARAMS) {
+ABI void INS_MULVV(PARAMS) {
   DEBUG("MULVV");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -360,7 +361,7 @@ void INS_MULVV(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_SUBVV(PARAMS) {
+ABI void INS_SUBVV(PARAMS) {
   DEBUG("SUBVV");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -386,7 +387,7 @@ void INS_SUBVV(PARAMS) {
   NEXT_INSTR;
 }
 
-__attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
+ABI __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
   auto rd = instr;
 
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
@@ -395,7 +396,7 @@ __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
   return;
 }
 
-void INS_GGET(PARAMS) {
+ABI void INS_GGET(PARAMS) {
   DEBUG("GGET");
   auto rd = instr;
 
@@ -409,7 +410,7 @@ void INS_GGET(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_GSET(PARAMS) {
+ABI void INS_GSET(PARAMS) {
   DEBUG("GSET");
   auto rd = instr;
 
@@ -420,7 +421,7 @@ void INS_GSET(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_KFUNC(PARAMS) {
+ABI void INS_KFUNC(PARAMS) {
   DEBUG("KFUNC");
   auto rb = instr;
 
@@ -430,7 +431,7 @@ void INS_KFUNC(PARAMS) {
   NEXT_INSTR;
 }
 
-__attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
+ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
   auto pos = frame - stack;
   auto oldsz = stacksz;
@@ -443,7 +444,7 @@ __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_CALL(PARAMS) {
+ABI void INS_CALL(PARAMS) {
   DEBUG("CALL");
   unsigned char rb = instr;
 
@@ -464,7 +465,7 @@ void INS_CALL(PARAMS) {
 
   NEXT_INSTR;
 }
-void INS_CALLT(PARAMS) {
+ABI void INS_CALLT(PARAMS) {
   DEBUG("CALLT");
   unsigned char rb = instr;
 
@@ -486,7 +487,7 @@ void INS_CALLT(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_KONST(PARAMS) {
+ABI void INS_KONST(PARAMS) {
   DEBUG("KONST");
   auto rd = instr;
 
@@ -496,7 +497,7 @@ void INS_KONST(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_MOV(PARAMS) {
+ABI void INS_MOV(PARAMS) {
   DEBUG("MOV");
   unsigned char rb = instr;
 
@@ -506,7 +507,7 @@ void INS_MOV(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_JISEQ(PARAMS) {
+ABI void INS_JISEQ(PARAMS) {
   DEBUG("JISEQ");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -534,7 +535,7 @@ void INS_JISEQ(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_JEQ(PARAMS) {
+ABI void INS_JEQ(PARAMS) {
   DEBUG("JEQ");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -550,7 +551,7 @@ void INS_JEQ(PARAMS) {
   NEXT_INSTR;
 }
 
-__attribute__((noinline)) void INS_JISLT_SLOWPATH(PARAMS) {
+ABI __attribute__((noinline)) void INS_JISLT_SLOWPATH(PARAMS) {
   DEBUG("JISLT_SLOWPATH");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -584,7 +585,7 @@ __attribute__((noinline)) void INS_JISLT_SLOWPATH(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_JISLT(PARAMS) {
+ABI void INS_JISLT(PARAMS) {
   DEBUG("JISLT");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -612,7 +613,7 @@ void INS_JISLT(PARAMS) {
   NEXT_INSTR;
 }
 
-__attribute__((noinline)) void INS_ISLT_SLOWPATH(PARAMS) {
+ABI __attribute__((noinline)) void INS_ISLT_SLOWPATH(PARAMS) {
   DEBUG("ISLT_SLOWPATH");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -647,7 +648,7 @@ __attribute__((noinline)) void INS_ISLT_SLOWPATH(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_ISLT(PARAMS) {
+ABI void INS_ISLT(PARAMS) {
   DEBUG("ISLT");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -667,7 +668,7 @@ void INS_ISLT(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_ISEQ(PARAMS) {
+ABI void INS_ISEQ(PARAMS) {
   DEBUG("ISEQ");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -699,7 +700,7 @@ void INS_ISEQ(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_ISF(PARAMS) {
+ABI void INS_ISF(PARAMS) {
   DEBUG("ISF");
 
   long fa = frame[ra];
@@ -713,7 +714,7 @@ void INS_ISF(PARAMS) {
 }
 
 #define INS_JLOOP INS_JFUNC
-void INS_JFUNC(PARAMS) {
+ABI void INS_JFUNC(PARAMS) {
   DEBUG("JFUNC");
   //auto tnum = instr;
   // printf("JFUNC/JLOOP run %i\n", tnum);
@@ -730,7 +731,7 @@ void INS_JFUNC(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_GUARD(PARAMS) {
+ABI void INS_GUARD(PARAMS) {
   DEBUG("GUARD");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -752,7 +753,7 @@ void INS_GUARD(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_BOX(PARAMS) {
+ABI void INS_BOX(PARAMS) {
   DEBUG("BOX");
   unsigned char rb = instr;
 
@@ -767,7 +768,7 @@ void INS_BOX(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_UNBOX(PARAMS) {
+ABI void INS_UNBOX(PARAMS) {
   DEBUG("UNBOX");
   unsigned char rb = instr;
 
@@ -779,7 +780,7 @@ void INS_UNBOX(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_SET_BOX(PARAMS) {
+ABI void INS_SET_BOX(PARAMS) {
   DEBUG("SET-BOX!");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -795,7 +796,7 @@ void INS_SET_BOX(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_CLOSURE(PARAMS) {
+ABI void INS_CLOSURE(PARAMS) {
   DEBUG("CLOSURE");
   unsigned char rb = instr;
 
@@ -811,7 +812,7 @@ void INS_CLOSURE(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_CLOSURE_PTR(PARAMS) {
+ABI void INS_CLOSURE_PTR(PARAMS) {
   DEBUG("CLOSURE-PTR");
   unsigned char rb = instr & 0xff;
 
@@ -826,7 +827,7 @@ void INS_CLOSURE_PTR(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_CLOSURE_GET(PARAMS) {
+ABI void INS_CLOSURE_GET(PARAMS) {
   DEBUG("CLOSURE-GET");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -842,7 +843,7 @@ void INS_CLOSURE_GET(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_CLOSURE_SET(PARAMS) {
+ABI void INS_CLOSURE_SET(PARAMS) {
   DEBUG("CLOSURE-SET");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -856,7 +857,7 @@ void INS_CLOSURE_SET(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_EQ(PARAMS) {
+ABI void INS_EQ(PARAMS) {
   DEBUG("EQ");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -873,7 +874,7 @@ void INS_EQ(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_CONS(PARAMS) {
+ABI void INS_CONS(PARAMS) {
   DEBUG("CONS");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -890,7 +891,7 @@ void INS_CONS(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_CAR(PARAMS) {
+ABI void INS_CAR(PARAMS) {
   DEBUG("CAR");
   unsigned char rb = instr & 0xff;
 
@@ -905,7 +906,7 @@ void INS_CAR(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_CDR(PARAMS) {
+ABI void INS_CDR(PARAMS) {
   DEBUG("CDR");
   unsigned char rb = instr & 0xff;
 
@@ -920,7 +921,7 @@ void INS_CDR(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_MAKE_VECTOR(PARAMS) {
+ABI void INS_MAKE_VECTOR(PARAMS) {
   DEBUG("MAKE_VECTOR");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -945,7 +946,7 @@ void INS_MAKE_VECTOR(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_MAKE_STRING(PARAMS) {
+ABI void INS_MAKE_STRING(PARAMS) {
   DEBUG("MAKE_STRING");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -975,7 +976,7 @@ void INS_MAKE_STRING(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_VECTOR_REF(PARAMS) {
+ABI void INS_VECTOR_REF(PARAMS) {
   DEBUG("VECTOR_REF");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -998,7 +999,7 @@ void INS_VECTOR_REF(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_STRING_REF(PARAMS) {
+ABI void INS_STRING_REF(PARAMS) {
   DEBUG("STRING_REF");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -1021,7 +1022,7 @@ void INS_STRING_REF(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_VECTOR_LENGTH(PARAMS) {
+ABI void INS_VECTOR_LENGTH(PARAMS) {
   DEBUG("VECTOR_LENGTH");
   unsigned char rb = instr & 0xff;
 
@@ -1039,7 +1040,7 @@ void INS_VECTOR_LENGTH(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_STRING_LENGTH(PARAMS) {
+ABI void INS_STRING_LENGTH(PARAMS) {
   DEBUG("STRING_LENGTH");
   unsigned char rb = instr & 0xff;
 
@@ -1057,7 +1058,7 @@ void INS_STRING_LENGTH(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_VECTOR_SET(PARAMS) {
+ABI void INS_VECTOR_SET(PARAMS) {
   DEBUG("VECTOR-SET!");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -1081,7 +1082,7 @@ void INS_VECTOR_SET(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_STRING_SET(PARAMS) {
+ABI void INS_STRING_SET(PARAMS) {
   DEBUG("STRING-SET!");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -1108,7 +1109,7 @@ void INS_STRING_SET(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_SET_CAR(PARAMS) {
+ABI void INS_SET_CAR(PARAMS) {
   DEBUG("SET-CAR!");
   unsigned char rb = instr & 0xff;
 
@@ -1124,7 +1125,7 @@ void INS_SET_CAR(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_SET_CDR(PARAMS) {
+ABI void INS_SET_CDR(PARAMS) {
   DEBUG("SET-CDR!");
   unsigned char rb = instr & 0xff;
 
@@ -1140,7 +1141,7 @@ void INS_SET_CDR(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_WRITE(PARAMS) {
+ABI void INS_WRITE(PARAMS) {
   DEBUG("WRITE");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr>>8) & 0xff;
@@ -1161,7 +1162,7 @@ void INS_WRITE(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_WRITE_U8(PARAMS) {
+ABI void INS_WRITE_U8(PARAMS) {
   DEBUG("WRITE_U8");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr>>8) & 0xff;
@@ -1190,7 +1191,7 @@ void INS_WRITE_U8(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_WRITE_DOUBLE(PARAMS) {
+ABI void INS_WRITE_DOUBLE(PARAMS) {
   DEBUG("WRITE_DOUBLE");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr>>8) & 0xff;
@@ -1215,7 +1216,7 @@ void INS_WRITE_DOUBLE(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_APPLY(PARAMS) {
+ABI void INS_APPLY(PARAMS) {
   DEBUG("APPLY");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -1242,7 +1243,7 @@ void INS_APPLY(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_SYMBOL_STRING(PARAMS) {
+ABI void INS_SYMBOL_STRING(PARAMS) {
   DEBUG("SYMBOL_STRING");
   unsigned char rb = instr & 0xff;
 
@@ -1257,7 +1258,7 @@ void INS_SYMBOL_STRING(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_STRING_SYMBOL(PARAMS) {
+ABI void INS_STRING_SYMBOL(PARAMS) {
   DEBUG("STRING->SYMBOL");
   unsigned char rb = instr & 0xff;
 
@@ -1308,7 +1309,7 @@ void INS_STRING_SYMBOL(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_CHAR_INTEGER(PARAMS) {
+ABI void INS_CHAR_INTEGER(PARAMS) {
   DEBUG("CHAR->INTEGER");
   unsigned char rb = instr & 0xff;
 
@@ -1322,7 +1323,7 @@ void INS_CHAR_INTEGER(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_INTEGER_CHAR(PARAMS) {
+ABI void INS_INTEGER_CHAR(PARAMS) {
   DEBUG("INTEGER->CHAR");
   unsigned char rb = instr & 0xff;
 
@@ -1336,7 +1337,7 @@ void INS_INTEGER_CHAR(PARAMS) {
   NEXT_INSTR;
 }
 
-__attribute__((noinline)) void INS_DIV_SLOWPATH(PARAMS) {
+ABI __attribute__((noinline)) void INS_DIV_SLOWPATH(PARAMS) {
   DEBUG("DIV_SLOWPATH");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -1371,7 +1372,7 @@ __attribute__((noinline)) void INS_DIV_SLOWPATH(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_DIV(PARAMS) {
+ABI void INS_DIV(PARAMS) {
   DEBUG("DIV");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -1396,7 +1397,7 @@ void INS_DIV(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_REM(PARAMS) {
+ABI void INS_REM(PARAMS) {
   DEBUG("REM");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -1420,7 +1421,7 @@ void INS_REM(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_CALLCC(PARAMS) {
+ABI void INS_CALLCC(PARAMS) {
   DEBUG("CALLCC");
   
   auto sz = frame-stack;
@@ -1435,7 +1436,7 @@ void INS_CALLCC(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_CALLCC_RESUME(PARAMS) {
+ABI void INS_CALLCC_RESUME(PARAMS) {
   DEBUG("CALLCC");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -1462,7 +1463,7 @@ void INS_CALLCC_RESUME(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_OPEN(PARAMS) {
+ABI void INS_OPEN(PARAMS) {
   DEBUG("OPEN");
   auto  rb = instr&0xff;
   auto  rc = (instr>>8)&0xff;
@@ -1506,7 +1507,7 @@ void INS_OPEN(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_CLOSE(PARAMS) {
+ABI void INS_CLOSE(PARAMS) {
   DEBUG("CLOSE");
   auto  rb = instr&0xff;
 
@@ -1532,7 +1533,7 @@ void INS_CLOSE(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_PEEK(PARAMS) {
+ABI void INS_PEEK(PARAMS) {
   DEBUG("PEEK");
   auto  rb = instr&0xff;
 
@@ -1561,7 +1562,7 @@ void INS_PEEK(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_READ(PARAMS) {
+ABI void INS_READ(PARAMS) {
   DEBUG("READ");
   auto  rb = instr&0xff;
 
@@ -1591,7 +1592,7 @@ void INS_READ(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_INEXACT(PARAMS) {
+ABI void INS_INEXACT(PARAMS) {
   DEBUG("INEXACT");
   auto  rb = instr&0xff;
 
@@ -1611,7 +1612,7 @@ void INS_INEXACT(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_EXACT(PARAMS) {
+ABI void INS_EXACT(PARAMS) {
   DEBUG("EXACT");
   auto  rb = instr&0xff;
 
@@ -1629,7 +1630,7 @@ void INS_EXACT(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_ROUND(PARAMS) {
+ABI void INS_ROUND(PARAMS) {
   DEBUG("ROUND");
   auto  rb = instr&0xff;
 
@@ -1650,11 +1651,6 @@ void INS_ROUND(PARAMS) {
   
   pc++;
   NEXT_INSTR;
-}
-
-void INS_UNKNOWN(PARAMS) {
-  printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
-  exit(-1);
 }
 
 void run(bcfunc* func, long argcnt, long * args) {

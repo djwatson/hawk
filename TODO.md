@@ -1,10 +1,10 @@
 # TODO list
 
-* generate bytecode instructions from a file
-* generate sin, atan, etc fix fft, nbody, nucleic
-* try generating cc10 for llvm
-* Do a profiler for bytecode.
+* generate bytecode instructions from a file - cleanup the compiler/integrator.
 
+* make a library generator.
+* generate sin, atan, etc fix fft, nbody, nucleic
+* Do a profiler for bytecode.
    
 # Bytecode generator
 
