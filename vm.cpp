@@ -239,7 +239,7 @@ void INS_ADDVN(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_ADDVV_SLOWPATH(PARAMS) {
+__attribute__((noinline)) void INS_ADDVV_SLOWPATH(PARAMS) {
   DEBUG("ADDVV_SLOWPATH");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -299,7 +299,7 @@ void INS_ADDVV(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_MULVV_SLOWPATH(PARAMS) {
+__attribute__((noinline)) void INS_MULVV_SLOWPATH(PARAMS) {
   DEBUG("MULVV_SLOWPATH");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -385,7 +385,7 @@ void INS_SUBVV(PARAMS) {
   NEXT_INSTR;
 }
 
-void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
+__attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
   auto rd = instr;
 
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
@@ -549,7 +549,7 @@ void INS_JEQ(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_JISLT_SLOWPATH(PARAMS) {
+__attribute__((noinline)) void INS_JISLT_SLOWPATH(PARAMS) {
   DEBUG("JISLT_SLOWPATH");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -611,7 +611,7 @@ void INS_JISLT(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_ISLT_SLOWPATH(PARAMS) {
+__attribute__((noinline)) void INS_ISLT_SLOWPATH(PARAMS) {
   DEBUG("ISLT_SLOWPATH");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
@@ -1331,7 +1331,7 @@ void INS_INTEGER_CHAR(PARAMS) {
   NEXT_INSTR;
 }
 
-void INS_DIV_SLOWPATH(PARAMS) {
+__attribute__((noinline)) void INS_DIV_SLOWPATH(PARAMS) {
   DEBUG("DIV_SLOWPATH");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
