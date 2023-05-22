@@ -1,6 +1,10 @@
 (define (mask-byte b)
   (modulo b 256))
 
+(define char-standard-case char-upcase)
+(if (string=? (symbol->string 'A) "a")
+    (set! char-standard-case char-downcase))
+
 ;; srfi 23
 (define (error reason . args)
       (display "Error: ")

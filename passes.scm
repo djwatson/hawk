@@ -247,7 +247,7 @@
     (if (atom? f) f
 	(case (car f)
 	  ;; TODO cleanup.  lol.
-	  ((+ - * / < > =) (if (= 3 (length f))
+	  ((+ - * / < =) (if (= 3 (length f))
 			       (cons (string->symbol (string-append "$" (symbol->string (car f)))) (imap integrate (cdr f)))
 			       (let* ((sym (string->symbol (string-append "$" (symbol->string (car f))))))
 				      (if (> (length f) 3)
@@ -282,7 +282,7 @@
 			`(apply2 ,@(imap integrate (cdr f)))
 			(imap integrate f)))
 	  ((map) (if (= 3 (length f))
-			`($map2 ,@(imap integrate (cdr f)))
+			`(map2-internal ,@(imap integrate (cdr f)))
 			(imap integrate f)))
 	  ((for-each) (if (= 3 (length f))
 			  `(for-each2 ,@(imap integrate (cdr f)))

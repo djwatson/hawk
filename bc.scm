@@ -192,22 +192,7 @@
     (compile-sexp (second f) bc env r1 r1 'next)))
 
 (define (compile-unary f bc env rd nr cd)
-  (define op (second (assq (first f)
-			   '(($box BOX) ($unbox UNBOX)
-			     ($car CAR) ($cdr CDR)
-			     ($vector-length VECTOR-LENGTH)
-			     ($string-length STRING-LENGTH)
-			     ($symbol->string SYMBOL->STRING)
-			     ($string->symbol STRING->SYMBOL)
-			     ($char->integer CHAR->INTEGER)
-			     ($integer->char INTEGER->CHAR)
-			     ($callcc CALLCC)
-			     ($read READ)
-			     ($peek PEEK)
-			     ($close CLOSE)
-			     ($inexact INEXACT)
-			     ($exact EXACT)
-			     ($round ROUND)))))
+  (define op (string->symbol (list->string (map char-standard-case (cdr (string->list (symbol->string (car f))))))))
   (define r1 (exp-loc (second f) env nr))
   ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   (finish bc cd rd)
@@ -385,6 +370,9 @@
 	      (reverse (second f))
 	      (reverse mapping))))
 
+(define (bytecode? x)
+  (and (symbol? x) (eq? #\$ (string-ref (symbol->string x) 0))))
+
 (define (compile-sexp f bc env rd nr cd)
   ;;(display "SEXP:") (display f) (newline)
   (if (not (pair? f))
@@ -408,14 +396,14 @@
 	 (compile-binary f bc env rd nr cd))
 	(($vector-set! $string-set!) (compile-setter f bc env rd nr cd))
 	(($set-car! $set-cdr!) (compile-setter2 f bc env rd nr cd))
-	(($box $unbox $car $cdr $vector-length $display $string-length
-	       $symbol->string $string->symbol $char->integer $integer->char
-	       $callcc $read $peek $close $inexact $exact $round)
-	 (compile-unary f bc env rd nr cd))
 	(($closure) (compile-closure f bc env rd nr cd))
 	(($closure-set) (compile-closure-set f bc env rd nr cd))
 	(else
-	 (compile-call f bc env rd nr cd)))))
+	 (if (bytecode? (car f))
+	     (case (length f)
+	       ((2) (compile-unary f bc env rd nr cd))
+	       (else (error "Unknown bytecode op:" f)))
+	     (compile-call f bc env rd nr cd))))))
 
 (define (compile-sexps program bc env rd nr cd)
   (let loop ((program (reverse program)) (rd rd) (cd cd))
