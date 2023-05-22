@@ -583,34 +583,8 @@
 			    (p (- p 1)))
 			(string-set! buffer p (integer->char (+ (if (>= r 10) 87 48) r)))
 			(loop p q))))))))))
-(define (string->number str . base)
-  (if (pair? base)
-      (%string->number str (car base))
-      (%string->number str 10)))
-(define (%string->number str base)
-  (let* ((len (string-length str))
-	 (s 1)
-	 (p 0))
-    (cond ((eq? 0 len) #f)
-	  (else
-	   (case (string-ref str 0)
-	     ((#\-) 
-	      (set! s -1)
-	      (set! p 1))
-	     ((#\+)
-	      (set! p 1)))
-	   (and (> len p)
-		(let loop ((p p) (n 0))
-		  (if (> n 500000000500000000)
-		      (begin
-			(display "INT string->number too big \n") ;; TODO better error checking
-			0)
-		      (if (>= p len)
-			  (* s n)
-			  (let* ((c (char-downcase (string-ref str p)))
-				 (r (- (char->integer c) (if (char>=? c #\a) 87 48))))
-			    (and (>= r 0) (< r base)
-				 (loop (+ p 1) (+ (* n base) r))))))))))))
+
+(include "str2num.scm")
 
 (define (call-with-current-continuation l)
   (let ((cc ($callcc 0)))
@@ -879,11 +853,17 @@
 (define (call-with-values producer consumer)
   (apply consumer (producer)))
 
+(define (inexact x)
+  ($inexact x))
+(define (exact x)
+  ($exact x))
+
 ;;; Include the bytecode compiler
 (include "bc.scm")
 ;;;;;;;; Junk for testing benchmarks ;;;;;;;
 (define (pp arg) (display arg) (newline))
 (define println pp)
+(define pretty-print display)
 
 (define (exact->inexact x) x)
 (define print display)

@@ -203,7 +203,9 @@
 			     ($callcc CALLCC)
 			     ($read READ)
 			     ($peek PEEK)
-			     ($close CLOSE)))))
+			     ($close CLOSE)
+			     ($inexact INEXACT)
+			     ($exact EXACT)))))
   (define r1 (exp-loc (second f) env nr))
   ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   (finish bc cd rd)
@@ -406,7 +408,7 @@
 	(($set-car! $set-cdr!) (compile-setter2 f bc env rd nr cd))
 	(($box $unbox $car $cdr $vector-length $display $string-length
 	       $symbol->string $string->symbol $char->integer $integer->char
-	       $callcc $read $peek $close)
+	       $callcc $read $peek $close $inexact $exact)
 	 (compile-unary f bc env rd nr cd))
 	(($closure) (compile-closure f bc env rd nr cd))
 	(($closure-set) (compile-closure-set f bc env rd nr cd))
@@ -433,8 +435,10 @@
 (define (read-file)
   (define (read-file-rec sexps)
     (define next (read))
-    (if (eof-object? next) 
-      (reverse sexps)
+    (if (eof-object? next)
+	(let ((res (reverse sexps)))
+	  (dformat "Expanding: ~a\n" res)
+	  res)
       (read-file-rec (cons next sexps))))
 
   (read-file-rec '()))
@@ -519,7 +523,9 @@
 	       (READ 60)
 	       (PEEK 61)
 	       (WRITE-U8 62)
-	       (JEQ 63)))
+	       (JEQ 63)
+	       (INEXACT 64)
+	       (EXACT 65)))
 
 (define bc-ins '(KSHORT GGET GSET KONST KFUNC JMP))
 
@@ -647,16 +653,18 @@
   (set! symbol-table '())
   (set! program '())
   (set! cur-name "")
-  (compile (closure-conversion
-	       (optimize-direct
-		(assignment-conversion
-		 (fix-letrec
-		  (alpha-rename
-		   (integrate-r5rs
-		    (case-insensitive
-		     (add-includes
-		      (with-input-from-file name expander))))))))))
-  ;;(display "Compiling:\n") (pretty-print opt) (newline)
+  (let ((src (closure-conversion
+	   (optimize-direct
+	    (assignment-conversion
+	     (fix-letrec
+	      (alpha-rename
+
+	       ;; integrate
+	       (case-insensitive
+		(add-includes
+		 (with-input-from-file name expander))))))))))
+    (display "Compiling:\n") (pretty-print src) (newline)
+    (compile src))
   ;; Get everything in correct order
   ;; TODO do this as we are generating with extendable vectors
   (set! consts (reverse! consts))

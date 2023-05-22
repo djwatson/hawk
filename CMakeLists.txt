@@ -60,13 +60,15 @@ add_custom_target(
 add_custom_target(
   format
   COMMAND clang-format -i *.h *.cpp
-)
+  )
+
+add_library(write_double SHARED write_double.c)
 
 add_custom_command(
   OUTPUT  bootstrap.scm.bc
   COMMAND
   ${CHEZ} --script bc.chez.scm bootstrap.scm > /dev/null
-  DEPENDS ${SCM_SOURCES}
+  DEPENDS ${SCM_SOURCES} write_double
 )
 
 add_custom_command(

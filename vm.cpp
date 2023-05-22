@@ -239,6 +239,40 @@ void INS_ADDVN(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_ADDVV_SLOWPATH(PARAMS) {
+  DEBUG("ADDVV_SLOWPATH");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  double x_b;
+  double x_c;
+  // Assume convert to flonum.
+  if ((fb&TAG_MASK) == FLONUM_TAG) {
+    x_b = ((flonum_s*)(fb-FLONUM_TAG))->x;
+  } else if ((fb&TAG_MASK) == FIXNUM_TAG) {
+    x_b = fb >> 3;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if ((fc&TAG_MASK) == FLONUM_TAG) {
+    x_c = ((flonum_s*)(fc-FLONUM_TAG))->x;
+  } else if ((fc&TAG_MASK) == FIXNUM_TAG) {
+    x_c = fc >> 3;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+
+  auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+  r->x = x_b + x_c;
+  r->type = FLONUM_TAG;
+  frame[ra] = (long)r|FLONUM_TAG;
+  pc++;
+
+  NEXT_INSTR;
+}
+
 void INS_ADDVV(PARAMS) {
   DEBUG("ADDVV");
   unsigned char rb = instr & 0xff;
@@ -258,7 +292,7 @@ void INS_ADDVV(PARAMS) {
     r->type = FLONUM_TAG;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+    MUSTTAIL return INS_ADDVV_SLOWPATH(ARGS);
   }
   pc++;
 
@@ -1169,11 +1203,47 @@ void INS_INTEGER_CHAR(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_DIV_SLOWPATH(PARAMS) {
+  DEBUG("DIV_SLOWPATH");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  // TODO check for divide by zero
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  double x_b;
+  double x_c;
+  // Assume convert to flonum.
+  if ((fb&TAG_MASK) == FLONUM_TAG) {
+    x_b = ((flonum_s*)(fb-FLONUM_TAG))->x;
+  } else if ((fb&TAG_MASK) == FIXNUM_TAG) {
+    x_b = fb >> 3;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if ((fc&TAG_MASK) == FLONUM_TAG) {
+    x_c = ((flonum_s*)(fc-FLONUM_TAG))->x;
+  } else if ((fc&TAG_MASK) == FIXNUM_TAG) {
+    x_c = fc >> 3;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+
+  auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+  r->x = x_b / x_c;
+  r->type = FLONUM_TAG;
+  frame[ra] = (long)r|FLONUM_TAG;
+  pc++;
+
+  NEXT_INSTR;
+}
+
 void INS_DIV(PARAMS) {
   DEBUG("DIV");
   unsigned char rb = instr & 0xff;
   unsigned char rc = (instr >> 8) & 0xff;
 
+  // TODO check for divide by zero
   auto fb = frame[rb];
   auto fc = frame[rc];
   if (likely((7 & (fb | fc)) == 0)) {
@@ -1186,7 +1256,7 @@ void INS_DIV(PARAMS) {
     r->type = FLONUM_TAG;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+    MUSTTAIL return INS_DIV_SLOWPATH(ARGS);
   }
   pc++;
 
@@ -1388,6 +1458,44 @@ void INS_READ(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_INEXACT(PARAMS) {
+  DEBUG("INEXACT");
+  auto  rb = instr&0xff;
+
+  auto fb = frame[rb];
+  if ((fb&TAG_MASK) == FIXNUM_TAG) {
+    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+    r->type = FLONUM_TAG;
+    r->x = fb>>3;
+    frame[ra] = (long)r + FLONUM_TAG;
+  } else if ((fb&TAG_MASK) == FLONUM_TAG) {
+    frame[ra] = fb;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  
+  pc++;
+  NEXT_INSTR;
+}
+
+void INS_EXACT(PARAMS) {
+  DEBUG("EXACT");
+  auto  rb = instr&0xff;
+
+  auto fb = frame[rb];
+  if ((fb&TAG_MASK) == FIXNUM_TAG) {
+    frame[ra] = fb;
+  } else if ((fb&TAG_MASK) == FLONUM_TAG) {
+    auto flo = (flonum_s*)(fb - FLONUM_TAG);
+    frame[ra] = ((long)flo->x) << 3;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  
+  pc++;
+  NEXT_INSTR;
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -1482,6 +1590,8 @@ void run(bcfunc* func, long argcnt, long * args) {
   l_op_table[READ] = INS_READ; 
   l_op_table[PEEK] = INS_PEEK; 
   l_op_table[JEQ] = INS_JEQ; 
+  l_op_table[INEXACT] = INS_INEXACT; 
+  l_op_table[EXACT] = INS_EXACT; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

@@ -1,6 +1,17 @@
 (define (mask-byte b)
   (modulo b 256))
 
+;; srfi 23
+(define (error reason . args)
+      (display "Error: ")
+      (display reason)
+      (for-each (lambda (arg) 
+                  (display " ")
+		  (write arg))
+		args)
+      (newline)
+      (car -1))
+
 (define (dformat format-string . objects)
   (define (format-error message)
     (error message format-string))

@@ -220,6 +220,7 @@ uint8_t* from_space = nullptr;
 			     MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
   assert(from_space);
   alloc_ptr = from_space;
+  alloc_end = alloc_ptr + alloc_sz;
   to_space = alloc_ptr + alloc_sz;
 }
 

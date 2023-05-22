@@ -65,5 +65,7 @@ const char* ins_names[] = {
   "PEEK",
   "WRITE-U8",
   "JEQ",
+  "INEXACT",
+  "EXACT",
 };
 // clang-format on

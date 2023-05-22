@@ -70,6 +70,8 @@ enum {
   PEEK,
   WRITE_U8,
   JEQ,
+  INEXACT,
+  EXACT,
   INS_MAX
 };
 // clang-format on
