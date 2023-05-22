@@ -864,6 +864,8 @@
 (include "bc.scm")
 (define (write-double d port)
   ($write-double d port))
+(define (round num)
+  ($round num))
 ;;;;;;;; Junk for testing benchmarks ;;;;;;;
 (define (pp arg) (display arg) (newline))
 (define println pp)
@@ -876,4 +878,4 @@
   (let ((port (if (pair? p) (car p) (current-output-port))))
     ($write-u8 c port)))
 (define (flush-output-port p) 0)
-(define (round x) x)
+

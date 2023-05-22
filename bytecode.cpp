@@ -68,5 +68,6 @@ const char* ins_names[] = {
   "INEXACT",
   "EXACT",
   "WRITE-DOUBLE",
+  "ROUND",
 };
 // clang-format on

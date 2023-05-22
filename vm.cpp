@@ -65,7 +65,7 @@ static op_func l_op_table_record[INS_MAX];
 
 __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
   int i = 0;
-  printf("FAIL PC: %p\n", pc);
+  printf("FAIL PC: %p %s\n", pc, ins_names[INS_OP(*pc)]);
   while(&frame[-1] > stack) {
     for(unsigned long j = 0; j < funcs.size(); j++) {
       if (pc >= &funcs[j]->code[0] &&
@@ -299,6 +299,40 @@ void INS_ADDVV(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_MULVV_SLOWPATH(PARAMS) {
+  DEBUG("MULVV_SLOWPATH");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  double x_b;
+  double x_c;
+  // Assume convert to flonum.
+  if ((fb&TAG_MASK) == FLONUM_TAG) {
+    x_b = ((flonum_s*)(fb-FLONUM_TAG))->x;
+  } else if ((fb&TAG_MASK) == FIXNUM_TAG) {
+    x_b = fb >> 3;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if ((fc&TAG_MASK) == FLONUM_TAG) {
+    x_c = ((flonum_s*)(fc-FLONUM_TAG))->x;
+  } else if ((fc&TAG_MASK) == FIXNUM_TAG) {
+    x_c = fc >> 3;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+
+  auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+  r->x = x_b * x_c;
+  r->type = FLONUM_TAG;
+  frame[ra] = (long)r|FLONUM_TAG;
+  pc++;
+
+  NEXT_INSTR;
+}
+
 void INS_MULVV(PARAMS) {
   DEBUG("MULVV");
   unsigned char rb = instr & 0xff;
@@ -308,7 +342,7 @@ void INS_MULVV(PARAMS) {
   auto fc = frame[rc];
   if (likely((7 & (fb | fc)) == 0)) {
     if (unlikely(__builtin_mul_overflow(fb, (fc >> 3), &frame[ra]))) {
-      MUSTTAIL return FAIL_SLOWPATH(ARGS);
+      MUSTTAIL return INS_MULVV_SLOWPATH(ARGS);
     }
   } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
     auto f1 = ((flonum_s*)(fb-FLONUM_TAG))->x;
@@ -318,7 +352,7 @@ void INS_MULVV(PARAMS) {
     r->type = FLONUM_TAG;
     frame[ra] = (long)r|FLONUM_TAG;
   } else {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+    MUSTTAIL return INS_MULVV_SLOWPATH(ARGS);
   }
   pc++;
 
@@ -543,6 +577,41 @@ void INS_JISLT(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_ISLT_SLOWPATH(PARAMS) {
+  DEBUG("ISLT_SLOWPATH");
+  unsigned char rb = instr & 0xff;
+  unsigned char rc = (instr >> 8) & 0xff;
+
+  auto fb = frame[rb];
+  auto fc = frame[rc];
+  double x_b;
+  double x_c;
+  // Assume convert to flonum.
+  if ((fb&TAG_MASK) == FLONUM_TAG) {
+    x_b = ((flonum_s*)(fb-FLONUM_TAG))->x;
+  } else if ((fb&TAG_MASK) == FIXNUM_TAG) {
+    x_b = fb >> 3;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  if ((fc&TAG_MASK) == FLONUM_TAG) {
+    x_c = ((flonum_s*)(fc-FLONUM_TAG))->x;
+  } else if ((fc&TAG_MASK) == FIXNUM_TAG) {
+    x_c = fc >> 3;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+
+  if (x_b < x_c) {
+    frame[ra] = TRUE_REP;
+  } else {
+    frame[ra] = FALSE_REP;
+  }
+  pc++;
+  
+  NEXT_INSTR;
+}
+
 void INS_ISLT(PARAMS) {
   DEBUG("ISLT");
   unsigned char rb = instr & 0xff;
@@ -551,7 +620,7 @@ void INS_ISLT(PARAMS) {
   long fb = frame[rb];
   long fc = frame[rc];
   if (unlikely(7 & (fb | fc))) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+    MUSTTAIL return INS_ISLT_SLOWPATH(ARGS);
   }
   if (fb < fc) {
     frame[ra] = TRUE_REP;
@@ -1521,6 +1590,29 @@ void INS_EXACT(PARAMS) {
   NEXT_INSTR;
 }
 
+void INS_ROUND(PARAMS) {
+  DEBUG("ROUND");
+  auto  rb = instr&0xff;
+
+  auto fb = frame[rb];
+  if ((fb&TAG_MASK) == FIXNUM_TAG) {
+    frame[ra]  =fb;
+  } else if ((fb&TAG_MASK) == FLONUM_TAG) {
+    auto flo = (flonum_s*)(fb - FLONUM_TAG);
+    auto res = roundeven(flo->x);
+    
+    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
+    r->type = FLONUM_TAG;
+    r->x = res;
+    frame[ra] = (long)r + FLONUM_TAG;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  
+  pc++;
+  NEXT_INSTR;
+}
+
 void INS_UNKNOWN(PARAMS) {
   printf("UNIMPLEMENTED INSTRUCTION %s\n", ins_names[INS_OP(*pc)]);
   exit(-1);
@@ -1618,6 +1710,7 @@ void run(bcfunc* func, long argcnt, long * args) {
   l_op_table[INEXACT] = INS_INEXACT; 
   l_op_table[EXACT] = INS_EXACT; 
   l_op_table[WRITE_DOUBLE] = INS_WRITE_DOUBLE; 
+  l_op_table[ROUND] = INS_ROUND; 
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }

@@ -259,7 +259,7 @@
 						      (integrate (cadddr f))))
 					  (imap integrate f)))))
 	  ((car cdr set-car! set-cdr! cons vector-ref vector-length string-length string-ref string-set! vector-set! 
-		char->integer integer->char symbol->string string->symbol
+		char->integer integer->char symbol->string string->symbol round
 		)
 	   (cons (string->symbol (string-append "$" (symbol->string (car f)))) (imap integrate (cdr f))))
 	  ;; TODO these need a JISEQ?

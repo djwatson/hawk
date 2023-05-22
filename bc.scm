@@ -132,7 +132,8 @@
 	      (let ((c (get-or-push-const bc f)))
 		(push-instr! bc (list 'KONST rd c))))))))
 
-(define quick-branch '($< $= $eq))
+(define quick-branch '()		;'($< $= $eq)
+  )
 (define has-effect '($set-box! $apply $write $write-u8))
 (define (compile-binary f bc env rd nr cd)
   (define vn '($- $+ $guard $closure-get))
@@ -206,7 +207,8 @@
 			     ($peek PEEK)
 			     ($close CLOSE)
 			     ($inexact INEXACT)
-			     ($exact EXACT)))))
+			     ($exact EXACT)
+			     ($round ROUND)))))
   (define r1 (exp-loc (second f) env nr))
   ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   (finish bc cd rd)
@@ -409,7 +411,7 @@
 	(($set-car! $set-cdr!) (compile-setter2 f bc env rd nr cd))
 	(($box $unbox $car $cdr $vector-length $display $string-length
 	       $symbol->string $string->symbol $char->integer $integer->char
-	       $callcc $read $peek $close $inexact $exact)
+	       $callcc $read $peek $close $inexact $exact $round)
 	 (compile-unary f bc env rd nr cd))
 	(($closure) (compile-closure f bc env rd nr cd))
 	(($closure-set) (compile-closure-set f bc env rd nr cd))
@@ -527,7 +529,8 @@
 	       (JEQ 63)
 	       (INEXACT 64)
 	       (EXACT 65)
-	       (WRITE-DOUBLE 66)))
+	       (WRITE-DOUBLE 66)
+	       (ROUND 67)))
 
 (define bc-ins '(KSHORT GGET GSET KONST KFUNC JMP))
 

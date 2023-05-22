@@ -73,6 +73,7 @@ enum {
   INEXACT,
   EXACT,
   WRITE_DOUBLE,
+  ROUND,
   INS_MAX
 };
 // clang-format on
