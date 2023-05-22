@@ -1,40 +1,41 @@
 # TODO list
 
+* generate bytecode instructions from a file
+* generate sin, atan, etc
+* try generating cc10 for llvm
+* Do a profiler for bytecode.
+
 * GC - up sz based.  
-* flonums
-* string->number, including flonums
-     * ./boom bootstrap.scm fails
-* do better for destination driven code gen - 
-   * return 'undefined' for value, but setters
+* flonums - fftrad4 - write-u8, need big regs. fft - sin  nbody - sqrt nucleic - atan simplex - iseq
+   
+# Bytecode generator
+
+## bytecode improvements 
+
 * case-lambda!
 * funcv new bytecode
 * closure calls as a new bytecode instr
-* maybe llvm cc10
 * remove hotspot for non-jit / new bytecode
 * letrec the bootstrap
-
-* generate bytecode instructions from a file
-
-* make a 'vm state' struct, so we can run multiple vm's?
-
-* INEXACT/str->num inexact
 * TODO >, >= , GSET check
-* GO through and check undefined return values in bc.scm
+* 'big' register moves
+* we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
+ This probably has no effect on the VM, but might benefit the jit.
+* could add sume 'VN' variations of < >, EQ, etc
+
+## safety improvements
+* do better for destination driven code gen - 
+   * return 'undefined' for value, but setters
 * bounds check vector/string refs
 * Go thorugh all of vm and check for safety!
 * letrec check
-* better known lambda calls
-* mabye an 'unknown lambda' call bytecode insteaed of closure-ptr
-
-
-* cleanup enums
-* fixup all opcodes of 'D' type
 * various check for const size overflow, reg or opcode overflow
 * fuzz bytecode reader
-* remove indirection for consts/bc
-* Add define tags/header for runtime types
 
-* Do a profiler for bytecode.
+## VM cleanup
+* make a 'vm state' struct, so we can run multiple vm's?
+* remove indirection for consts/bc
+* comments in output
 
 # JIT TODO:
 * Figure out why JFUNC immediate records fail - we should start recording on JFUNC and not CALL
@@ -94,17 +95,4 @@
 * dce
 * global fetches
 
-
-# Bytecode generator
-
-## PERF
-* we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
- This probably has no effect on the VM, but might benefit the jit.
-
-## CLEANUP
-* cleanup bytecode ops order
-
-## TODO
-* comments in output
-*could add sume 'VN' variations of < >, EQ, etc
 
