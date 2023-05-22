@@ -84,7 +84,8 @@ __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
 
 __attribute__((noinline)) void FAIL_SLOWPATH_ARGCNT(PARAMS) {
   printf("FAIL ARGCNT INVALID\n");
-  return;
+  
+  MUSTTAIL return FAIL_SLOWPATH(ARGS);
 }
 
 void RECORD_START(PARAMS) {
@@ -687,6 +688,9 @@ void INS_ISEQ(PARAMS) {
     } else {
       frame[ra] = FALSE_REP;
     }
+  } else if (((TAG_MASK&fb) == FLONUM_TAG || (TAG_MASK&fb) == FIXNUM_TAG) &&
+	     ((TAG_MASK&fc) == FLONUM_TAG || (TAG_MASK&fc) == FIXNUM_TAG)) {
+    frame[ra] = FALSE_REP;
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }

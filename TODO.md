@@ -1,12 +1,10 @@
 # TODO list
 
 * generate bytecode instructions from a file
-* generate sin, atan, etc
+* generate sin, atan, etc fix fft, nbody, nucleic
 * try generating cc10 for llvm
 * Do a profiler for bytecode.
 
-* GC - up sz based.  
-* flonums - fftrad4 - write-u8, need big regs. fft - sin  nbody - sqrt nucleic - atan simplex - iseq
    
 # Bytecode generator
 
@@ -22,6 +20,7 @@
 * we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
  This probably has no effect on the VM, but might benefit the jit.
 * could add sume 'VN' variations of < >, EQ, etc
+* BIGREGS - fix fftrad4
 
 ## safety improvements
 * do better for destination driven code gen - 
@@ -33,6 +32,7 @@
 * fuzz bytecode reader
 
 ## VM cleanup
+* GC - up sz based expanding
 * make a 'vm state' struct, so we can run multiple vm's?
 * remove indirection for consts/bc
 * comments in output
