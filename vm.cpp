@@ -223,9 +223,7 @@ LIBRARY_FUNC(HALT)
   LIBRARY_FUNC_B(name)				\
    char rc = (instr >> 8) & 0xff;		\
    long fb = frame[rb];				\
-   if (unlikely(7 & fb)) {			\
-     MUSTTAIL return FAIL_SLOWPATH(ARGS);	\
-   }									\
+   TYPECHECK_TAG(fb, FIXNUM_TAG);		\
    if (unlikely(__builtin_##op##_overflow(fb, (rc << 3), &frame[ra]))) {	\
      MUSTTAIL return FAIL_SLOWPATH(ARGS);				\
    }									\
@@ -452,9 +450,7 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_NAME(CLOSURE-GET, CLOSURE_GET)
   auto fb = frame[rb];
-  if (unlikely((fb & 0x7) != CLOSURE_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_TAG(fb, CLOSURE_TAG);
   auto closure = (closure_s*)(fb-CLOSURE_TAG);
   frame[ra] = closure->v[1 + rc];
 END_LIBRARY_FUNC
@@ -467,15 +463,13 @@ LIBRARY_FUNC_BC_NAME(CLOSURE-SET, CLOSURE_SET)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(CLOSURE-PTR, CLOSURE_PTR)
-  if (unlikely((fb & 0x7) != CLOSURE_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_TAG(fb, CLOSURE_TAG);
   auto closure = (closure_s*)(fb-CLOSURE_TAG);
   frame[ra] = closure->v[0];
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD(APPLY)
-  if (unlikely((fb&TAG_MASK) != CLOSURE_TAG)) {
+  if (unlikely((fb & 0x7) != CLOSURE_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   // TODO check type NIL
@@ -670,7 +664,7 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET)
   auto fa = frame[ra];
-  if (unlikely((fa & 0x7) != PTR_TAG)) {
+  if (unlikely((fa&TAG_MASK) != PTR_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   TYPECHECK_FIXNUM(fb);
@@ -687,9 +681,7 @@ END_LIBRARY_FUNC
 #define LIBRARY_FUNC_CONS_SET_OP(str, name, field)	\
   LIBRARY_FUNC_B_LOAD_NAME(str, name)			\
   auto fa = frame[ra];				\
-  if (unlikely((fa & 0x7) != CONS_TAG)) {	\
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);	\
-  }						\
+  TYPECHECK_TAG(fa, CONS_TAG);			\
   auto cons = (cons_s*)(fa-CONS_TAG);		\
   cons->field = fb;				\
 END_LIBRARY_FUNC
@@ -698,9 +690,7 @@ LIBRARY_FUNC_CONS_SET_OP(SET-CAR!, SET_CAR,a);
 LIBRARY_FUNC_CONS_SET_OP(SET-CDR!, SET_CDR,b);
 
 LIBRARY_FUNC_BC_LOAD(WRITE)
-  if (unlikely((fc&TAG_MASK) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_TAG(fc, PTR_TAG);
   auto port = (port_s*)(fc-PTR_TAG);
   if (unlikely(port->type != PORT_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -710,9 +700,7 @@ LIBRARY_FUNC_BC_LOAD(WRITE)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(WRITE-U8, WRITE_U8)
-  if (unlikely((fc&TAG_MASK) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_TAG(fc, PTR_TAG);
   auto port = (port_s*)(fc-PTR_TAG);
   if (unlikely(port->type != PORT_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -728,33 +716,25 @@ LIBRARY_FUNC_BC_LOAD_NAME(WRITE-U8, WRITE_U8)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(WRITE-DOUBLE, WRITE_DOUBLE)
-  if (unlikely((fc&TAG_MASK) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_TAG(fc, PTR_TAG);
   auto port = (port_s*)(fc-PTR_TAG);
   if (unlikely(port->type != PORT_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  if (unlikely((fb&TAG_MASK) != FLONUM_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_TAG(fb, FLONUM_TAG);
   auto flo = (flonum_s*)(fb - FLONUM_TAG);
   
   fwrite(&flo->x, sizeof(flo->x), 1, port->file);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(SYMBOL->STRING, SYMBOL_STRING)
-  if (unlikely((fb&TAG_MASK) != SYMBOL_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_TAG(fb, SYMBOL_TAG);
   auto sym = (symbol*)(fb - SYMBOL_TAG);
   frame[ra] = (long)sym->name + PTR_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
-  if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_TAG(fb, PTR_TAG);
   auto str = (string_s*)(fb-PTR_TAG);
   if (unlikely(str->type != STRING_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -845,9 +825,7 @@ LIBRARY_FUNC_BC(OPEN)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(CLOSE)
-  if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_TAG(fb, PTR_TAG);
   auto port = (port_s*)(fb-PTR_TAG);
   if (unlikely(port->type != PORT_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -863,9 +841,7 @@ LIBRARY_FUNC_B_LOAD(CLOSE)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(PEEK)
-  if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_TAG(fb, PTR_TAG);
   auto port = (port_s*)(fb-PTR_TAG);
   if (unlikely(port->type != PORT_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -884,9 +860,7 @@ LIBRARY_FUNC_B_LOAD(PEEK)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(READ)
-  if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_TAG(fb, PTR_TAG);
   auto port = (port_s*)(fb-PTR_TAG);
   if (unlikely(port->type != PORT_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
