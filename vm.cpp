@@ -401,67 +401,6 @@ ABI void INS_GUARD(PARAMS) {
   NEXT_INSTR;
 }
 
-ABI void INS_CLOSURE(PARAMS) {
-  DEBUG("CLOSURE");
-  unsigned char rb = instr;
-
-  auto closure = (closure_s*)GC_malloc(sizeof(long)*(rb + 2));
-  closure->type = CLOSURE_TAG;
-  closure->len = rb;
-  for(int i = 0; i < rb; i++) {
-    closure->v[i] = frame[ra + i];
-  }
-  frame[ra] = (long)closure|CLOSURE_TAG;
-
-  pc++;
-  NEXT_INSTR;
-}
-
-ABI void INS_CLOSURE_PTR(PARAMS) {
-  DEBUG("CLOSURE-PTR");
-  unsigned char rb = instr & 0xff;
-
-  auto fb = frame[rb];
-  if (unlikely((fb & 0x7) != CLOSURE_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  auto closure = (closure_s*)(fb-CLOSURE_TAG);
-  frame[ra] = closure->v[0];
-
-  pc++;
-  NEXT_INSTR;
-}
-
-ABI void INS_CLOSURE_GET(PARAMS) {
-  DEBUG("CLOSURE-GET");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
-
-  auto fb = frame[rb];
-  if (unlikely((fb & 0x7) != CLOSURE_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  auto closure = (closure_s*)(fb-CLOSURE_TAG);
-  frame[ra] = closure->v[1 + rc];
-
-  pc++;
-  NEXT_INSTR;
-}
-
-ABI void INS_CLOSURE_SET(PARAMS) {
-  DEBUG("CLOSURE-SET");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
-
-  auto fa = frame[ra];
-  // No need to typecheck, that would be bad bytecode.
-  auto closure = (closure_s*)(fa-CLOSURE_TAG);
-  closure->v[1 + rc] = frame[rb];
-
-  pc++;
-  NEXT_INSTR;
-}
-
 #include "stdlib.cpp"
 
 

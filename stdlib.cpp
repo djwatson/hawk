@@ -179,6 +179,40 @@ LIBRARY_FUNC_BC_LOAD_NAME(SET-BOX!, SET_BOX)
   box->a = fc;
 END_LIBRARY_FUNC
 
+LIBRARY_FUNC_B(CLOSURE)
+  auto closure = (closure_s*)GC_malloc(sizeof(long)*(rb + 2));
+  closure->type = CLOSURE_TAG;
+  closure->len = rb;
+  for(int i = 0; i < rb; i++) {
+    closure->v[i] = frame[ra + i];
+  }
+  frame[ra] = (long)closure|CLOSURE_TAG;
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_BC_NAME(CLOSURE-GET, CLOSURE_GET)
+  auto fb = frame[rb];
+  if (unlikely((fb & 0x7) != CLOSURE_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto closure = (closure_s*)(fb-CLOSURE_TAG);
+  frame[ra] = closure->v[1 + rc];
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_BC_NAME(CLOSURE-SET, CLOSURE_SET)
+  auto fa = frame[ra];
+  // No need to typecheck, that would be bad bytecode.
+  auto closure = (closure_s*)(fa-CLOSURE_TAG);
+  closure->v[1 + rc] = frame[rb];
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_B_LOAD_NAME(CLOSURE-PTR, CLOSURE_PTR)
+  if (unlikely((fb & 0x7) != CLOSURE_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  auto closure = (closure_s*)(fb-CLOSURE_TAG);
+  frame[ra] = closure->v[0];
+END_LIBRARY_FUNC
+
 LIBRARY_FUNC_B(CALL)
   if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
                0)) {
