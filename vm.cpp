@@ -141,7 +141,6 @@ ABI __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
   return;
 }
 
-
 ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
   auto pos = frame - stack;
@@ -403,33 +402,6 @@ ABI void INS_GUARD(PARAMS) {
 
 #include "stdlib.cpp"
 
-
-ABI void INS_APPLY(PARAMS) {
-  DEBUG("APPLY");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
-
-  auto fun = frame[rb];
-  if (unlikely((fun&TAG_MASK) != CLOSURE_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  // TODO check type NIL
-  auto args = frame[rc];
-
-  long a = 0;
-  for(;(args&TAG_MASK) == CONS_TAG;a++) {
-    auto cons = (cons_s*)(args-CONS_TAG);
-    frame[a+1] = cons->a;
-    args = cons->b;
-  }
-  frame[0] = fun;
-  auto clo = (closure_s*)(fun-CLOSURE_TAG);
-  auto func = (bcfunc*)clo->v[0];
-  pc = &func->code[0];
-  argcnt = a+1;
-
-  NEXT_INSTR;
-}
 
 ABI __attribute__((noinline)) void INS_DIV_SLOWPATH(PARAMS) {
   DEBUG("DIV_SLOWPATH");

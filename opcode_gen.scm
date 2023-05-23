@@ -11,7 +11,6 @@
     (JFUNC)
     (JLOOP)
     (GUARD)
-    (APPLY)
     (REM)
     (DIV)
     (JEQ)))

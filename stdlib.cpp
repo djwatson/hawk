@@ -213,6 +213,27 @@ LIBRARY_FUNC_B_LOAD_NAME(CLOSURE-PTR, CLOSURE_PTR)
   frame[ra] = closure->v[0];
 END_LIBRARY_FUNC
 
+LIBRARY_FUNC_BC_LOAD(APPLY)
+  if (unlikely((fb&TAG_MASK) != CLOSURE_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  // TODO check type NIL
+
+  long a = 0;
+  for(;(fc&TAG_MASK) == CONS_TAG;a++) {
+    auto cons = (cons_s*)(fc-CONS_TAG);
+    frame[a+1] = cons->a;
+    fc = cons->b;
+  }
+  frame[0] = fb;
+  auto clo = (closure_s*)(fb-CLOSURE_TAG);
+  auto func = (bcfunc*)clo->v[0];
+  pc = &func->code[0];
+  argcnt = a+1;
+
+  NEXT_INSTR;
+}
+
 LIBRARY_FUNC_B(CALL)
   if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
                0)) {
