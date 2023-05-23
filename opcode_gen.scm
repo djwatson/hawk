@@ -3,8 +3,6 @@
 
 (define opcodes
   '(
-    (ISGE)
-    (SUBVN)
     (CALL)
     (ADDVV)
     (ISLT)
@@ -17,7 +15,6 @@
     (KONST)
     (MOV)
     (ISEQ)
-    (ADDVN)
     (JISEQ)
     (JISLT)
     (JFUNC)

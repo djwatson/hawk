@@ -62,6 +62,22 @@ LIBRARY_FUNC(HALT)
   return;
 }
 
+// Note signed-ness of rc.
+#define LIBRARY_FUNC_MATH_VN(name, op)		\
+  LIBRARY_FUNC_B(name)				\
+   char rc = (instr >> 8) & 0xff;		\ 
+   long fb = frame[rb];				\
+   if (unlikely(7 & fb)) {			\
+     MUSTTAIL return FAIL_SLOWPATH(ARGS);	\
+   }									\
+   if (unlikely(__builtin_##op##_overflow(fb, (rc << 3), &frame[ra]))) {	\
+     MUSTTAIL return FAIL_SLOWPATH(ARGS);				\
+   }									\
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_MATH_VN(SUBVN, sub);
+LIBRARY_FUNC_MATH_VN(ADDVN, add);
+
 LIBRARY_FUNC_BC_LOAD(EQ) 
   if (fb == fc) {
     frame[ra] = TRUE_REP;

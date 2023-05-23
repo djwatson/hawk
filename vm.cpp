@@ -132,58 +132,6 @@ long build_list(long start, long len, long*frame) {
   return lst;
 }
 
-ABI void INS_ISGE(PARAMS) {
-  DEBUG("ISGE");
-  unsigned char rb = instr;
-
-  long fa = frame[ra];
-  long fb = frame[rb];
-  if (unlikely(7 & (fa | fb))) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  if (fa >= fb) {
-    pc += 1;
-  } else {
-    pc += 2;
-  }
-
-  NEXT_INSTR;
-}
-
-ABI void INS_SUBVN(PARAMS) {
-  DEBUG("SUBVN");
-  unsigned char rb = instr & 0xff;
-  char rc = (instr >> 8) & 0xff;
-
-  long fb = frame[rb];
-  if (unlikely(7 & fb)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  if (unlikely(__builtin_sub_overflow(fb, (rc << 3), &frame[ra]))) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  pc++;
-
-  NEXT_INSTR;
-}
-
-ABI void INS_ADDVN(PARAMS) {
-  DEBUG("ADDVN");
-  unsigned char rb = instr & 0xff;
-  char rc = (instr >> 8) & 0xff;
-
-  long fb = frame[rb];
-  if (unlikely(7 & fb)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  if (unlikely(__builtin_add_overflow(fb, (rc << 3), &frame[ra]))) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  pc++;
-
-  NEXT_INSTR;
-}
-
 ABI __attribute__((noinline)) void INS_ADDVV_SLOWPATH(PARAMS) {
   DEBUG("ADDVV_SLOWPATH");
   unsigned char rb = instr & 0xff;
