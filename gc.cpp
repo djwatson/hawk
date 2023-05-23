@@ -245,10 +245,10 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
     trace_heap_object((long *)scan);
     scan += align(scan_sz);
   }
-  printf("...Done collect, in use %li, %.2f%% of %liMB\n",
-         alloc_ptr - from_space,
-         ((double)(alloc_ptr - from_space)) / alloc_sz * 100.0,
-         alloc_sz / 1000 / 1000);
+  // printf("...Done collect, in use %li, %.2f%% of %liMB\n",
+  //        alloc_ptr - from_space,
+  //        ((double)(alloc_ptr - from_space)) / alloc_sz * 100.0,
+  //        alloc_sz / 1000 / 1000);
 
   res = alloc_ptr;
   alloc_ptr += sz;

@@ -493,7 +493,7 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_NAME(CLOSURE-GET, CLOSURE_GET)
   auto fb = frame[rb];
-  TYPECHECK_TAG(fb, CLOSURE_TAG);
+//TYPECHECK_TAG(fb, CLOSURE_TAG);
   auto closure = (closure_s *)(fb - CLOSURE_TAG);
   frame[ra] = closure->v[1 + rc];
 END_LIBRARY_FUNC
@@ -506,7 +506,7 @@ LIBRARY_FUNC_BC_NAME(CLOSURE-SET, CLOSURE_SET)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(CLOSURE-PTR, CLOSURE_PTR)
-  TYPECHECK_TAG(fb, CLOSURE_TAG);
+//TYPECHECK_TAG(fb, CLOSURE_TAG);
   auto closure = (closure_s *)(fb - CLOSURE_TAG);
   frame[ra] = closure->v[0];
 END_LIBRARY_FUNC

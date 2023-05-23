@@ -1,6 +1,13 @@
 # TODO list
 
-* Save PC for profiler
+* benchmarks: 
+**simplex crashes.  
+**parsing incorrect result.
+** earley gc too small, mperm
+** missing file-exists? tail, ray, slatex, scheme
+** truncate quicksort
+** exact-integer-sqrt pi
+** floor chudnovsky 
 
 # Bytecode generator / VM
 
