@@ -301,7 +301,7 @@
 	  ((fixnum? exact?) `($guard ,(integrate (second f)) ,fixnum-tag)) 
 	  ((null?) `($guard ,(integrate (second f)) ,nil-tag))
 	  ;; TODO add the rest of c*r
-	  ((caar?) `($car ($car ,(integrate (second f)))))
+	  ((caar) `($car ($car ,(integrate (second f)))))
 	  ;((eqv?) `($eq ,(integrate (second f)) ,(integrate (third f)))) ;; TODO flonums
 	  (else (imap integrate f)))))
   (imap integrate f))

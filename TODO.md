@@ -1,7 +1,7 @@
 # TODO list
 
-* Do a profiler for bytecode.
-   
+* Save PC for profiler
+
 # Bytecode generator / VM
 
 ## bytecode perf improvements 

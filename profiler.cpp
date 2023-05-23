@@ -126,6 +126,35 @@ struct tree {
   std::unordered_map<long, tree> next;
 };
 
+#include <algorithm>
+
+static void profiler_display_tree_node(const tree* node, int indent) {
+  std::vector<std::pair<long,const tree*>> nodes;
+  for(const auto&leaf : node->next) {
+    if (leaf.second.cnt > cnt/100) {
+      nodes.push_back(std::make_pair(leaf.first, &leaf.second));
+    }
+  }
+
+  if (nodes.size() == 0) {
+    return;
+  }
+  
+  auto sorter = [] (std::pair<long,const tree*> const& s1, std::pair<long,const tree*> const& s2) {
+    return s1.second->cnt > s2.second->cnt;
+  };
+  std::sort(nodes.begin(), nodes.end(), sorter);
+  for(auto& item : nodes) {
+      auto func = find_func_for_frame((uint32_t*)item.first);
+      if (func) {
+	printf("%*c %.2f%% %s\n", indent, ' ', (double)item.second->cnt / cnt * 100.0, func->name.c_str());
+      } else {
+	printf("Can't find func for frame %li\n", item.first);
+      }
+      profiler_display_tree_node(item.second, indent+2);
+  }
+}
+
 void profiler_stop() {
   tree tree_root;
   timer_delete(timerid);
@@ -142,15 +171,6 @@ void profiler_stop() {
     s = s->next;
   }
 
-  for(const auto&[key, value] : tree_root.next) {
-    if (value.cnt > cnt/100) {
-      auto func = find_func_for_frame((uint32_t*)key);
-      if (func) {
-	printf("frame %s cnt %li op %s\n", func->name.c_str(), value.cnt, ins_names[INS_OP(*(uint32_t*)key)]);
-      } else {
-	printf("Can't find func for frame %li\n", key);
-      }
-    }
-  }
+  profiler_display_tree_node(&tree_root, 0);
 }
 
