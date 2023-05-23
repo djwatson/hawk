@@ -156,9 +156,8 @@ LIBRARY_FUNC_D(KONST)
   frame[ra] = const_table[rd];
 END_LIBRARY_FUNC
 
-// TODO 
-LIBRARY_FUNC_B(MOV)
-  frame[rb] = frame[ra];
+LIBRARY_FUNC_B_LOAD(MOV)
+  frame[ra] = fb;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B(CALL)

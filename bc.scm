@@ -259,7 +259,7 @@
       (finish bc cd r)
       (if loc
 	  (when (not (= loc r))
-	    (push-instr! bc (list 'MOV loc r)))
+	    (push-instr! bc (list 'MOV r loc)))
 	  (let* ((c (get-or-push-const bc f)))
 	    (push-instr! bc (list 'GGET r c)))))
     (finish bc cd rd)))
@@ -269,7 +269,7 @@
 (define (compile-call f bc env rd nr cd)
   (finish bc cd rd)
   (when (and rd (not (= rd nr)))
-    (push-instr! bc (list 'MOV nr rd)))
+    (push-instr! bc (list 'MOV rd nr)))
   (push-instr! bc (list (if (eq? cd 'ret) 'CALLT 'CALL) nr (+ 1 (length f))))
   (push-instr! bc (list 'CLOSURE-PTR nr (+ nr 1)))
   (fold
@@ -283,7 +283,7 @@
   ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   (finish bc cd rd)
   (when (not (= rd nr))
-    (push-instr! bc (list 'MOV nr rd)))
+    (push-instr! bc (list 'MOV rd nr)))
   (push-instr! bc (list 'CLOSURE nr (- (length f) 1)))
   (fold
    (lambda (f num)
