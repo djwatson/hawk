@@ -154,6 +154,22 @@ ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   NEXT_INSTR;
 }
 
+/* A whole pile of macros to make opcode generation easier.
+ * 
+ * The B/BC/D refer to opcode type.  'NAME' refers to scm vs C name.
+ * 
+ * Any line starting with "LIBRARY_FUNC" will auto-generate a
+ * opcode number via opcode_gen.scm.  So macros generating
+ * LIBRARY_FUNC are indented a space, to not generate numbers.
+ *
+ * Slow paths are split to their own tail-called functions,
+ * to help out the register allocator.
+ *
+ * TODO: VN funcs don't have proper slowpath fallbacks for overflow.
+ * TODO: most functions call FAIL_SLOWPATH without listing type
+ *       of failure.  This is confusing and hard to debug.
+ *       Maybe pass some info in argcnt param.
+ */
 #define LIBRARY_FUNC_BC(name) ABI void INS_##name(PARAMS) { \
   DEBUG(#name);						    \
   unsigned char rb = instr & 0xff;			    \
