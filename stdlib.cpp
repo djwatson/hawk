@@ -160,6 +160,25 @@ LIBRARY_FUNC_B_LOAD(MOV)
   frame[ra] = fb;
 END_LIBRARY_FUNC
 
+LIBRARY_FUNC_B(BOX)
+  auto box = (cons_s*)GC_malloc(sizeof(cons_s));
+  
+  box->type = CONS_TAG;
+  box->a = frame[rb];
+  box->b = NIL_TAG;
+  frame[ra] = (long)box|PTR_TAG;
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_B_LOAD(UNBOX)
+  auto box = (cons_s*)(fb - PTR_TAG);
+  frame[ra] = box->a;
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_BC_LOAD_NAME(SET-BOX!, SET_BOX)
+  auto box = (cons_s*)(fb - PTR_TAG);
+  box->a = fc;
+END_LIBRARY_FUNC
+
 LIBRARY_FUNC_B(CALL)
   if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
                0)) {

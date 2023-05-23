@@ -401,50 +401,6 @@ ABI void INS_GUARD(PARAMS) {
   NEXT_INSTR;
 }
 
-ABI void INS_BOX(PARAMS) {
-  DEBUG("BOX");
-  unsigned char rb = instr;
-
-  auto box = (cons_s*)GC_malloc(sizeof(cons_s));
-  
-  box->type = CONS_TAG;
-  box->a = frame[rb];
-  box->b = NIL_TAG;
-  frame[ra] = (long)box|PTR_TAG;
-  
-  pc++;
-
-  NEXT_INSTR;
-}
-
-ABI void INS_UNBOX(PARAMS) {
-  DEBUG("UNBOX");
-  unsigned char rb = instr;
-
-  long fb = frame[rb];
-  auto box = (cons_s*)(fb - PTR_TAG);
-  frame[ra] = box->a;
-  pc++;
-
-  NEXT_INSTR;
-}
-
-ABI void INS_SET_BOX(PARAMS) {
-  DEBUG("SET-BOX!");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
-
-  long fb = frame[rb];
-  long fc = frame[rc];
-
-  auto box = (cons_s*)(fb - PTR_TAG);
-  box->a = fc;
-  //frame[ra] = UNDEFINED_TAG;
-  pc++;
-
-  NEXT_INSTR;
-}
-
 ABI void INS_CLOSURE(PARAMS) {
   DEBUG("CLOSURE");
   unsigned char rb = instr;
