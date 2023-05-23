@@ -181,6 +181,10 @@ ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);	\
   }
 #define TYPECHECK_FIXNUM(val) TYPECHECK_TAG(val, FIXNUM_TAG)
+#define TYPECHECK_IMMEDIATE(val, tag)		\
+  if(unlikely((val&IMMEDIATE_MASK) != tag)) {		\
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);	\
+  }
 
 LIBRARY_FUNC_B(FUNC)
   // vararg
@@ -599,9 +603,7 @@ LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING)
   auto str = (string_s*)GC_malloc( (sizeof(long) * 2) + len + 1);
   
   long fc = frame[rc]; // Load fc after GC
-  if(unlikely((fc&IMMEDIATE_MASK) != CHAR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
   
   str->type = STRING_TAG;
   str->len = len;
@@ -668,9 +670,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET)
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   TYPECHECK_FIXNUM(fb);
-  if (unlikely((fc&IMMEDIATE_MASK) != CHAR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
   auto str = (string_s*)(fa-PTR_TAG);
   if (unlikely(str->type != STRING_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -776,9 +776,7 @@ LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(CHAR->INTEGER, CHAR_INTEGER)
-  if (unlikely((fb&IMMEDIATE_MASK) != CHAR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_IMMEDIATE(fb, CHAR_TAG);
   frame[ra] = fb >> 5;
 END_LIBRARY_FUNC
 
@@ -789,9 +787,7 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC(OPEN)
   auto fc = frame[rc];
-  if (unlikely((fc&IMMEDIATE_MASK) != BOOL_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  TYPECHECK_IMMEDIATE(fc, BOOL_TAG);
 
   auto port = (port_s*)GC_malloc(sizeof(port_s));
   // Load FB (potentially a ptr) after GC
