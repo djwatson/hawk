@@ -584,18 +584,18 @@
   (set! consts (reverse! consts))
   (set! program (reverse! program))
 
-  ;; (display "Consts:\n")
-  ;; (fold (lambda (a b)
-  ;; 	  (dformat "~a: ~a\n" b a)
-  ;; 	  (+ b 1))
-  ;; 	0 consts)
-  ;; (newline)
-  ;; (fold (lambda (a b)
-  ;; 	  (dformat "~a -- " b)
-  ;; 	  (display-bc a)
-  ;; 	  (+ b 1))
-  ;; 	0
-  ;; 	program)
+  (display "Consts:\n")
+  (fold (lambda (a b)
+	  (dformat "~a: ~a\n" b a)
+	  (+ b 1))
+	0 consts)
+  (newline)
+  (fold (lambda (a b)
+	  (dformat "~a -- " b)
+	  (display-bc a)
+	  (+ b 1))
+	0
+	program)
 
   (bc-write (string-append name ".bc") program))
 

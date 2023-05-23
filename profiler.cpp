@@ -46,6 +46,11 @@ static struct sample* samples = nullptr;
 static unsigned long profile_stack_sz = 0;
 static long *profile_stack = nullptr;
 static unsigned long profile_stack_max = 0;
+static uint32_t* pc;
+
+void profile_set_pc(uint32_t*p) {
+  pc = p;
+}
 
 void profile_add_frame(void* ptr) {
   if (profile_stack_sz >= profile_stack_max) {
@@ -82,8 +87,10 @@ handler(int sig, siginfo_t *si, void *uc)
   cnt++;
   auto s = (sample*)signal_safe_malloc(sizeof(sample));
   s->next = samples;
-  s->stack_sz = 10 < profile_stack_sz ? 10 : profile_stack_sz;
+  s->stack_sz = 9 < profile_stack_sz ? 9 : profile_stack_sz;
   memcpy(&s->stack[0], &profile_stack[profile_stack_sz - s->stack_sz], s->stack_sz* sizeof(long));
+  s->stack[s->stack_sz] = (long)pc;
+  s->stack_sz++;
   samples = s;
   if (timer_settime(timerid, 0, &its, nullptr) == -1) {
     exit(-2);
@@ -147,11 +154,14 @@ static void profiler_display_tree_node(const tree* node, int indent) {
   for(auto& item : nodes) {
       auto func = find_func_for_frame((uint32_t*)item.first);
       if (func) {
-	printf("%*c %.2f%% %s\n", indent, ' ', (double)item.second->cnt / cnt * 100.0, func->name.c_str());
+	printf("%*c %.2f%% %s %s %li\n", indent, ' ',
+	       (double)item.second->cnt / cnt * 100.0, func->name.c_str(),
+	       ins_names[INS_OP(*(uint32_t*)item.first)],
+	       (uint32_t*)item.first - &func->code[0]);
       } else {
-	printf("Can't find func for frame %li\n", item.first);
+	printf("%*cCan't find func for frame %li\n", indent, ' ', item.first);
       }
-      profiler_display_tree_node(item.second, indent+2);
+      profiler_display_tree_node(item.second, indent+5);
   }
 }
 

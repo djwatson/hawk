@@ -53,6 +53,7 @@ while being more portable and easier to change.
 typedef ABI void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
+static op_func l_op_table_profile[INS_MAX];
 
 #define NEXT_INSTR                                                             \
   {                                                                            \
@@ -67,7 +68,7 @@ static op_func l_op_table_record[INS_MAX];
 bcfunc* find_func_for_frame(uint32_t* pc) {
   for (unsigned long j = 0; j < funcs.size(); j++) {
     if (pc >= &funcs[j]->code[0] &&
-	pc < &funcs[j]->code[funcs[j]->code.size() - 1]) {
+	pc <= &funcs[j]->code[funcs[j]->code.size() - 1]) {
       return funcs[j];
     }
   }
@@ -99,9 +100,6 @@ ABI __attribute__((noinline)) void FAIL_SLOWPATH_ARGCNT(PARAMS) {
 
 ABI void RECORD_START(PARAMS) {
   hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
-  if (profile && INS_OP(*pc) == CALL) {
-    profile_pop_frame();
-  }
   if (joff) {
     // Tail call with original op table.
     MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
@@ -260,11 +258,6 @@ LIBRARY_FUNC(RET1)
   NEXT_INSTR;
 }
 
-ABI void INS_PROFILE_RET1(PARAMS) {
- profile_pop_frame();
- MUSTTAIL return INS_RET1(ARGS);
-}
-
 LIBRARY_FUNC(HALT)
   return;
 }
@@ -363,7 +356,7 @@ LIBRARY_FUNC_BC_LOAD(JEQ)
 }
 
 #define LIBRARY_FUNC_NUM_CMP(name, op, func)                                   \
-  LIBRARY_FUNC_BC_LOAD(name##_SLOWPATH)                                        \
+ LIBRARY_FUNC_BC_LOAD(name##_SLOWPATH)                                        \
   double x_b;                                                                  \
   double x_c;                                                                  \
   if ((fb & TAG_MASK) == FLONUM_TAG) {                                         \
@@ -385,7 +378,7 @@ LIBRARY_FUNC_BC_LOAD(JEQ)
                                                                                \
   NEXT_INSTR;                                                                  \
   }                                                                            \
-  LIBRARY_FUNC_BC_LOAD(name)                                                   \
+ LIBRARY_FUNC_BC_LOAD(name)                                                   \
   if (likely((7 & (fb | fc)) == 0)) {                                          \
     func(fb, fc, op);                                                          \
   } else if (likely(((7 & fb) == (7 & fc)) && ((7 & fc) == 2))) {              \
@@ -574,13 +567,6 @@ LIBRARY_FUNC_B(CALL)
     MUSTTAIL return EXPAND_STACK_SLOWPATH(ARGS);
   }
   NEXT_INSTR;
-}
-
-ABI void INS_PROFILE_CALL(PARAMS) {
-  auto v = frame[ra];
-  bcfunc *func = (bcfunc *)v;
- profile_add_frame(&func->code[0]);
- MUSTTAIL return INS_CALL(ARGS);
 }
 
 LIBRARY_FUNC_B(CALLT)
@@ -957,10 +943,29 @@ LIBRARY_FUNC_BC_LOAD_NAME(CALLCC-RESUME, CALLCC_RESUME)
   NEXT_INSTR;
 }
 
+///////////
+ABI void PROFILE(PARAMS) {
+ profile_set_pc(pc);
+ MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
+}
+
+ABI void INS_PROFILE_RET1(PARAMS) {
+ profile_pop_frame();
+ profile_set_pc(pc);
+ MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
+}
+
+ABI void INS_PROFILE_CALL(PARAMS) {
+ profile_add_frame(pc);
+ profile_set_pc(pc);
+ MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
+}
+
 ABI void INS_PROFILE_CALLCC_RESUME(PARAMS) {
   // TODO make callcc resume work
  profile_pop_all_frames();
- MUSTTAIL return INS_CALLCC_RESUME(ARGS);
+ profile_set_pc(pc);
+ MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
 }
 //////////////
 
@@ -992,9 +997,12 @@ void run(bcfunc *func, long argcnt, long *args) {
     l_op_table_record[i] = RECORD;
   }
   if (profile) {
-    l_op_table[RET1] = INS_PROFILE_RET1;
-    l_op_table[CALL] = INS_PROFILE_CALL;
-    l_op_table[CALLCC_RESUME] = INS_PROFILE_CALLCC_RESUME;
+    for (int i = 0; i < INS_MAX; i++) {
+      l_op_table_profile[i] = PROFILE;
+    }
+    l_op_table_profile[RET1] = INS_PROFILE_RET1;
+    l_op_table_profile[CALL] = INS_PROFILE_CALL;
+    l_op_table_profile[CALLCC_RESUME] = INS_PROFILE_CALLCC_RESUME;
   }
 
   // Initial tailcalling-interpreter variable setup.
@@ -1003,7 +1011,12 @@ void run(bcfunc *func, long argcnt, long *args) {
   unsigned char ra = (instr >> 8) & 0xff;
   instr >>= 16;
   auto op_table_arg = (void **)l_op_table;
-  l_op_table[op](ARGS);
+  if (profile) {
+    op_table_arg = (void**)l_op_table_profile;
+    l_op_table_profile[op](ARGS);
+  } else {
+    l_op_table[op](ARGS);
+  }
 
   // And after the call returns, we're done.  only HALT returns.
 }
