@@ -78,8 +78,13 @@ END_LIBRARY_FUNC
 LIBRARY_FUNC_MATH_VN(SUBVN, sub);
 LIBRARY_FUNC_MATH_VN(ADDVN, add);
 
+#define OVERFLOW_OP(op, name, shift)					\
+if (unlikely(__builtin_##op##_overflow(fb, fc >> shift, &frame[ra]))) { \
+  MUSTTAIL return INS_##name##_SLOWPATH(ARGS);				\
+}									
+
 // Shift is necessary for adjusting the tag for mul.
-#define LIBRARY_FUNC_MATH_VV(name, op, op2, shift)			\
+#define LIBRARY_FUNC_MATH_VV(name, op, op2, shift, overflow)		\
 ABI __attribute__((noinline)) void INS_##name##_SLOWPATH(PARAMS) {	\
   DEBUG(#name);								\
   unsigned char rb = instr & 0xff;					\
@@ -115,9 +120,7 @@ ABI __attribute__((noinline)) void INS_##name##_SLOWPATH(PARAMS) {	\
 									\
  LIBRARY_FUNC_BC_LOAD(name)						\
   if (likely((7 & (fb | fc)) == 0)) {					\
-    if (unlikely(__builtin_##op##_overflow(fb, fc >> shift, &frame[ra]))) { \
-      MUSTTAIL return INS_##name##_SLOWPATH(ARGS);			\
-    }									\
+    overflow;								\
   } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {		\
     auto f1 = ((flonum_s*)(fb-FLONUM_TAG))->x;				\
     auto f2 = ((flonum_s*)(fc-FLONUM_TAG))->x;				\
@@ -129,11 +132,14 @@ ABI __attribute__((noinline)) void INS_##name##_SLOWPATH(PARAMS) {	\
     MUSTTAIL return INS_##name##_SLOWPATH(ARGS);			\
   }									\
 END_LIBRARY_FUNC							
- 
 
-LIBRARY_FUNC_MATH_VV(ADDVV,add,+, 0);
-LIBRARY_FUNC_MATH_VV(SUBVV,sub,-, 0);
-LIBRARY_FUNC_MATH_VV(MULVV,mul,*, 3);
+#define LIBRARY_FUNC_MATH_OVERFLOW_VV(name, op, op2, shift)	\
+  LIBRARY_FUNC_MATH_VV(name, op, op2, shift, OVERFLOW_OP(op, name, shift));
+
+LIBRARY_FUNC_MATH_OVERFLOW_VV(ADDVV,add,+, 0);
+LIBRARY_FUNC_MATH_OVERFLOW_VV(SUBVV,sub,-, 0);
+LIBRARY_FUNC_MATH_OVERFLOW_VV(MULVV,mul,*, 3);
+LIBRARY_FUNC_MATH_VV(DIV, none, /, 0, frame[ra] = (fb/fc) << 3);
 
 LIBRARY_FUNC_D(GGET)
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
@@ -177,6 +183,21 @@ END_LIBRARY_FUNC
 LIBRARY_FUNC_BC_LOAD_NAME(SET-BOX!, SET_BOX)
   auto box = (cons_s*)(fb - PTR_TAG);
   box->a = fc;
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_BC(GUARD)
+  long fb = frame[rb];
+
+  // typecheck fb vs. rc.
+  if ((rc < LITERAL_TAG) && ((fb&TAG_MASK) == rc)) {
+    frame[ra] = TRUE_REP;
+  } else if (((TAG_MASK&rc) == LITERAL_TAG) && (rc == (fb&IMMEDIATE_MASK))) {
+    frame[ra] = TRUE_REP;
+  } else if (((fb&TAG_MASK) == PTR_TAG) && (*(long*)(fb-PTR_TAG) == rc)) {
+    frame[ra] = TRUE_REP;
+  } else {
+    frame[ra] = FALSE_REP;
+  }
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B(CLOSURE)

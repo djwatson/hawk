@@ -10,9 +10,7 @@
     (JISLT)
     (JFUNC)
     (JLOOP)
-    (GUARD)
     (REM)
-    (DIV)
     (JEQ)))
 
 (define (read-line . port)

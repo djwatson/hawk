@@ -378,90 +378,9 @@ ABI void INS_JFUNC(PARAMS) {
   NEXT_INSTR;
 }
 
-ABI void INS_GUARD(PARAMS) {
-  DEBUG("GUARD");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
-
-  long fb = frame[rb];
-
-  // typecheck fb vs. rc.
-  if ((rc < LITERAL_TAG) && ((fb&TAG_MASK) == rc)) {
-    frame[ra] = TRUE_REP;
-  } else if (((TAG_MASK&rc) == LITERAL_TAG) && (rc == (fb&IMMEDIATE_MASK))) {
-    frame[ra] = TRUE_REP;
-  } else if (((fb&TAG_MASK) == PTR_TAG) && (*(long*)(fb-PTR_TAG) == rc)) {
-    frame[ra] = TRUE_REP;
-  } else {
-    frame[ra] = FALSE_REP;
-  }
-  pc++;
-
-  NEXT_INSTR;
-}
-
 #include "stdlib.cpp"
 
 
-ABI __attribute__((noinline)) void INS_DIV_SLOWPATH(PARAMS) {
-  DEBUG("DIV_SLOWPATH");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
-
-  // TODO check for divide by zero
-  auto fb = frame[rb];
-  auto fc = frame[rc];
-  double x_b;
-  double x_c;
-  // Assume convert to flonum.
-  if ((fb&TAG_MASK) == FLONUM_TAG) {
-    x_b = ((flonum_s*)(fb-FLONUM_TAG))->x;
-  } else if ((fb&TAG_MASK) == FIXNUM_TAG) {
-    x_b = fb >> 3;
-  } else {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  if ((fc&TAG_MASK) == FLONUM_TAG) {
-    x_c = ((flonum_s*)(fc-FLONUM_TAG))->x;
-  } else if ((fc&TAG_MASK) == FIXNUM_TAG) {
-    x_c = fc >> 3;
-  } else {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-
-  auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
-  r->x = x_b / x_c;
-  r->type = FLONUM_TAG;
-  frame[ra] = (long)r|FLONUM_TAG;
-  pc++;
-
-  NEXT_INSTR;
-}
-
-ABI void INS_DIV(PARAMS) {
-  DEBUG("DIV");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
-
-  // TODO check for divide by zero
-  auto fb = frame[rb];
-  auto fc = frame[rc];
-  if (likely((7 & (fb | fc)) == 0)) {
-    frame[ra] = (fb/fc) << 3;
-  } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
-    auto f1 = ((flonum_s*)(fb-FLONUM_TAG))->x;
-    auto f2 = ((flonum_s*)(fc-FLONUM_TAG))->x;
-    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
-    r->x = f1 / f2;
-    r->type = FLONUM_TAG;
-    frame[ra] = (long)r|FLONUM_TAG;
-  } else {
-    MUSTTAIL return INS_DIV_SLOWPATH(ARGS);
-  }
-  pc++;
-
-  NEXT_INSTR;
-}
 
 ABI void INS_REM(PARAMS) {
   DEBUG("REM");

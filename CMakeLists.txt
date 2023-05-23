@@ -72,7 +72,7 @@ add_custom_command(
 
 add_custom_target(
   cloc
-  COMMAND cloc --by-file-by-lang ${SCM_SOURCES} *.h ${SOURCES} vm.cpp
+  COMMAND cloc --by-file-by-lang ${SCM_SOURCES} *.h ${SOURCES} vm.cpp stdlib.cpp
 )
 
 add_custom_target(
