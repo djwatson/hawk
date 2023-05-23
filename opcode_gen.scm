@@ -4,10 +4,8 @@
 (define opcodes
   '(
     (CALL)
-    (ADDVV)
     (ISLT)
     (ISF)
-    (SUBVV)
     (GGET)
     (GSET)
     (KFUNC)
@@ -20,7 +18,6 @@
     (JFUNC)
     (JLOOP)
     (GUARD)
-    (MULVV)
     (BOX)
     (UNBOX)
     (SET-BOX!)

@@ -65,7 +65,7 @@ LIBRARY_FUNC(HALT)
 // Note signed-ness of rc.
 #define LIBRARY_FUNC_MATH_VN(name, op)		\
   LIBRARY_FUNC_B(name)				\
-   char rc = (instr >> 8) & 0xff;		\ 
+   char rc = (instr >> 8) & 0xff;		\
    long fb = frame[rb];				\
    if (unlikely(7 & fb)) {			\
      MUSTTAIL return FAIL_SLOWPATH(ARGS);	\
@@ -77,6 +77,63 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_MATH_VN(SUBVN, sub);
 LIBRARY_FUNC_MATH_VN(ADDVN, add);
+
+// Shift is necessary for adjusting the tag for mul.
+#define LIBRARY_FUNC_MATH_VV(name, op, op2, shift)			\
+ABI __attribute__((noinline)) void INS_##name##_SLOWPATH(PARAMS) {	\
+  DEBUG(#name);								\
+  unsigned char rb = instr & 0xff;					\
+  unsigned char rc = (instr >> 8) & 0xff;				\
+									\
+  auto fb = frame[rb];							\
+  auto fc = frame[rc];							\
+  double x_b;								\
+  double x_c;								\
+  if ((fb&TAG_MASK) == FLONUM_TAG) {					\
+    x_b = ((flonum_s*)(fb-FLONUM_TAG))->x;				\
+  } else if ((fb&TAG_MASK) == FIXNUM_TAG) {				\
+    x_b = fb >> 3;							\
+  } else {								\
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);				\
+  }									\
+  if ((fc&TAG_MASK) == FLONUM_TAG) {					\
+    x_c = ((flonum_s*)(fc-FLONUM_TAG))->x;				\
+  } else if ((fc&TAG_MASK) == FIXNUM_TAG) {				\
+    x_c = fc >> 3;							\
+  } else {								\
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);				\
+  }									\
+									\
+  auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));			\
+  r->x = x_b op2 x_c;							\
+  r->type = FLONUM_TAG;							\
+  frame[ra] = (long)r|FLONUM_TAG;					\
+  pc++;									\
+									\
+  NEXT_INSTR;								\
+}									\
+									\
+ LIBRARY_FUNC_BC_LOAD(name)						\
+  if (likely((7 & (fb | fc)) == 0)) {					\
+    if (unlikely(__builtin_##op##_overflow(fb, fc >> shift, &frame[ra]))) { \
+      MUSTTAIL return INS_##name##_SLOWPATH(ARGS);			\
+    }									\
+  } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {		\
+    auto f1 = ((flonum_s*)(fb-FLONUM_TAG))->x;				\
+    auto f2 = ((flonum_s*)(fc-FLONUM_TAG))->x;				\
+    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));			\
+    r->x = f1 op2 f2;							\
+    r->type = FLONUM_TAG;						\
+    frame[ra] = (long)r|FLONUM_TAG;					\
+  } else {								\
+    MUSTTAIL return INS_##name##_SLOWPATH(ARGS);			\
+  }									\
+END_LIBRARY_FUNC							
+ 
+
+LIBRARY_FUNC_MATH_VV(ADDVV,add,+, 0);
+LIBRARY_FUNC_MATH_VV(SUBVV,sub,-, 0);
+LIBRARY_FUNC_MATH_VV(MULVV,mul,*, 3);
 
 LIBRARY_FUNC_BC_LOAD(EQ) 
   if (fb == fc) {
