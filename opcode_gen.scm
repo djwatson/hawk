@@ -6,11 +6,8 @@
     (ISLT)
     (ISF)
     (ISEQ)
-    (JISEQ)
-    (JISLT)
     (JFUNC)
-    (JLOOP)
-    (JEQ)))
+    (JLOOP)))
 
 (define (read-line . port)
   (define (eat p c)

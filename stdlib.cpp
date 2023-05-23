@@ -147,6 +147,69 @@ LIBRARY_FUNC_MATH_OVERFLOW_VV(MULVV,mul, MATH_MUL, 3);
 LIBRARY_FUNC_MATH_VV(DIV, MATH_DIV, frame[ra] = (fb/fc) << 3);
 LIBRARY_FUNC_MATH_VV(REM, remainder, frame[ra] = ((fb>>3)%(fc>>3)) << 3);
 
+LIBRARY_FUNC_BC_LOAD(JEQ)
+  if (fb == fc) {
+    pc += 2;
+  } else {
+    pc += 1;
+  }
+
+  NEXT_INSTR;
+}
+
+#define LIBRARY_FUNC_NUM_CMP(name, op)		\
+  LIBRARY_FUNC_BC_LOAD(name##_SLOWPATH)         \
+  double x_b;					\
+  double x_c;					\
+  if ((fb&TAG_MASK) == FLONUM_TAG) {		\
+    x_b = ((flonum_s*)(fb-FLONUM_TAG))->x;	\
+  } else if ((fb&TAG_MASK) == FIXNUM_TAG) {	\
+    x_b = fb >> 3;				\
+  } else {					\
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);		\
+  }						\
+  if ((fc&TAG_MASK) == FLONUM_TAG) {		\
+    x_c = ((flonum_s*)(fc-FLONUM_TAG))->x;	\
+  } else if ((fc&TAG_MASK) == FIXNUM_TAG) {	\
+    x_c = fc >> 3;				\
+  } else {					\
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);		\
+  }						\
+						\
+  if (x_b op x_c) {				\
+    pc += 2;					\
+  } else {					\
+    pc += 1;					\
+  }						\
+						\
+  NEXT_INSTR;					\
+}						\
+  LIBRARY_FUNC_BC_LOAD(name)			\
+  if (likely((7 & (fb | fc)) == 0)) {		\
+    if (fb op fc) {				\
+      pc += 2;					\
+    } else {					\
+      pc += 1;					\
+    }								\
+  } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {	\
+    auto f1 = (flonum_s*)(fb-FLONUM_TAG);			\
+    auto f2 = (flonum_s*)(fc-FLONUM_TAG);			\
+    if (f1->x op f2->x) {					\
+    pc += 2;							\
+    } else {							\
+      pc += 1;							\
+    }								\
+  } else {							\
+    MUSTTAIL return INS_JISLT_SLOWPATH(ARGS);			\
+  }								\
+								\
+  NEXT_INSTR;							\
+}
+
+LIBRARY_FUNC_NUM_CMP(JISLT, <);
+LIBRARY_FUNC_NUM_CMP(JISEQ, ==);
+
+
 LIBRARY_FUNC_D(GGET)
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
   if (unlikely(gp->val == UNDEFINED_TAG)) {
