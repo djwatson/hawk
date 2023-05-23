@@ -1,11 +1,7 @@
 (include "util.scm")
 (define (open-output-file-chez f) (open-output-file f 'replace ))
 
-(define opcodes
-  '(
-    (ISLT)
-    (ISEQ)
-))
+(define opcodes '())
 
 (define (read-line . port)
   (define (eat p c)
@@ -40,7 +36,7 @@
       (loop)))
   (close-input-port p))
 
-(find-lib-funcs "stdlib.cpp")
+(find-lib-funcs "vm.cpp")
 (dformat "There are ~a opcodes\n" (length opcodes))
 ;(pretty-print opcodes)
 

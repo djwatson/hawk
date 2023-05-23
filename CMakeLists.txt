@@ -67,12 +67,12 @@ add_custom_command(
   perl -p -i -e 's/win64cc/cc10/g' vm.ll
   COMMAND
   clang -gdwarf-3 ${LLVM_FLAGS} -c vm.ll
-  DEPENDS vm.cpp opcodes.h stdlib.cpp
+  DEPENDS vm.cpp opcodes.h 
   )
 
 add_custom_target(
   cloc
-  COMMAND cloc --by-file-by-lang ${SCM_SOURCES} *.h ${SOURCES} vm.cpp stdlib.cpp
+  COMMAND cloc --by-file-by-lang ${SCM_SOURCES} *.h ${SOURCES} vm.cpp 
 )
 
 add_custom_target(
@@ -105,5 +105,5 @@ add_custom_command(
   rsync ${CMAKE_SOURCE_DIR}/opcode_gen.scm ${CMAKE_SOURCE_DIR}/util.scm .
   COMMAND
   ${CHEZ} --script opcode_gen.scm
-  DEPENDS util.scm opcode_gen.scm stdlib.cpp
+  DEPENDS util.scm opcode_gen.scm 
 )
