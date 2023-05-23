@@ -185,6 +185,12 @@ ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   if(unlikely((val&IMMEDIATE_MASK) != tag)) {		\
     MUSTTAIL return FAIL_SLOWPATH(ARGS);	\
   }
+#define LOAD_TYPE_WITH_CHECK(name, type_s, val, tag)	\
+  TYPECHECK_TAG(val, PTR_TAG);				\
+  auto name = (type_s*)(val-PTR_TAG);			\
+  if (unlikely(name->type != tag)) {		\
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);		\
+  }
 
 LIBRARY_FUNC_B(FUNC)
   // vararg
@@ -617,64 +623,38 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF)
   TYPECHECK_FIXNUM(fc);
-  TYPECHECK_TAG(fb, PTR_TAG);
-  auto vec = (vector_s*)(fb-PTR_TAG);
-  if (unlikely(vec->type != VECTOR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  LOAD_TYPE_WITH_CHECK(vec, vector_s, fb, VECTOR_TAG);
   frame[ra] = vec->v[fc>>3];
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF)
   TYPECHECK_FIXNUM(fc);
-  TYPECHECK_TAG(fb, PTR_TAG);
-  auto str = (string_s*)(fb-PTR_TAG);
-  if (unlikely(str->type != STRING_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
   frame[ra] = (str->str[fc>>3] << 8)|CHAR_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(VECTOR-LENGTH, VECTOR_LENGTH)
-  TYPECHECK_TAG(fb, PTR_TAG);
-  auto vec = (vector_s*)(fb-PTR_TAG);
-  if (unlikely(vec->type != VECTOR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  LOAD_TYPE_WITH_CHECK(vec, vector_s, fb, VECTOR_TAG);
   frame[ra] = vec->len << 3;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(STRING-LENGTH, STRING_LENGTH)
-  TYPECHECK_TAG(fb, PTR_TAG);
-  auto str = (string_s*)(fb-PTR_TAG);
-  if (unlikely(str->type != STRING_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
   frame[ra] = str->len << 3;
 END_LIBRARY_FUNC
   
 LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
   auto fa = frame[ra];
   TYPECHECK_FIXNUM(fb);
-  TYPECHECK_TAG(fa, PTR_TAG);
-  auto vec = (vector_s*)(fa-PTR_TAG);
-  if (unlikely(vec->type != VECTOR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  LOAD_TYPE_WITH_CHECK(vec, vector_s, fa, VECTOR_TAG);
   vec->v[fb >> 3] = fc;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET)
   auto fa = frame[ra];
-  if (unlikely((fa&TAG_MASK) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
   TYPECHECK_FIXNUM(fb);
   TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
-  auto str = (string_s*)(fa-PTR_TAG);
-  if (unlikely(str->type != STRING_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  LOAD_TYPE_WITH_CHECK(str, string_s, fa, STRING_TAG);
   str->str[fb >> 3] = (fc >> 8)&0xff;
 END_LIBRARY_FUNC
 
@@ -690,21 +670,12 @@ LIBRARY_FUNC_CONS_SET_OP(SET-CAR!, SET_CAR,a);
 LIBRARY_FUNC_CONS_SET_OP(SET-CDR!, SET_CDR,b);
 
 LIBRARY_FUNC_BC_LOAD(WRITE)
-  TYPECHECK_TAG(fc, PTR_TAG);
-  auto port = (port_s*)(fc-PTR_TAG);
-  if (unlikely(port->type != PORT_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-
+  LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
   print_obj(fb, port->file);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(WRITE-U8, WRITE_U8)
-  TYPECHECK_TAG(fc, PTR_TAG);
-  auto port = (port_s*)(fc-PTR_TAG);
-  if (unlikely(port->type != PORT_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
   TYPECHECK_FIXNUM(fb);
   long byte = fb >> 3;
   unsigned char b = byte;
@@ -716,11 +687,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(WRITE-U8, WRITE_U8)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(WRITE-DOUBLE, WRITE_DOUBLE)
-  TYPECHECK_TAG(fc, PTR_TAG);
-  auto port = (port_s*)(fc-PTR_TAG);
-  if (unlikely(port->type != PORT_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
   TYPECHECK_TAG(fb, FLONUM_TAG);
   auto flo = (flonum_s*)(fb - FLONUM_TAG);
   
@@ -734,11 +701,7 @@ LIBRARY_FUNC_B_LOAD_NAME(SYMBOL->STRING, SYMBOL_STRING)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
-  TYPECHECK_TAG(fb, PTR_TAG);
-  auto str = (string_s*)(fb-PTR_TAG);
-  if (unlikely(str->type != STRING_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
   auto res = symbol_table_find(str);
   if (!res) {
     // Build a new symbol.
@@ -821,11 +784,7 @@ LIBRARY_FUNC_BC(OPEN)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(CLOSE)
-  TYPECHECK_TAG(fb, PTR_TAG);
-  auto port = (port_s*)(fb-PTR_TAG);
-  if (unlikely(port->type != PORT_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
   if (port->file) {
     fclose(port->file);
     port->file = nullptr;
@@ -837,11 +796,7 @@ LIBRARY_FUNC_B_LOAD(CLOSE)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(PEEK)
-  TYPECHECK_TAG(fb, PTR_TAG);
-  auto port = (port_s*)(fb-PTR_TAG);
-  if (unlikely(port->type != PORT_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
   if (port->peek != FALSE_REP) {
   } else {
     uint8_t b;
@@ -856,11 +811,7 @@ LIBRARY_FUNC_B_LOAD(PEEK)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(READ)
-  TYPECHECK_TAG(fb, PTR_TAG);
-  auto port = (port_s*)(fb-PTR_TAG);
-  if (unlikely(port->type != PORT_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
   if (port->peek != FALSE_REP) {
     frame[ra] = port->peek;
     port->peek = FALSE_REP;
@@ -946,11 +897,7 @@ LIBRARY_FUNC(CALLCC)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(CALLCC-RESUME, CALLCC_RESUME)
-  TYPECHECK_TAG(fb, PTR_TAG);
-  auto cont = (vector_s*)(fb-PTR_TAG);
-  if (unlikely(cont->type != CONT_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
+  LOAD_TYPE_WITH_CHECK(cont, vector_s, fb, CONT_TAG);
   memcpy(stack, cont->v, cont->len*sizeof(long));
   frame = &stack[cont->len];
   
