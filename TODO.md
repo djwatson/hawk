@@ -1,7 +1,5 @@
 # TODO list
 
-* add macros for typechecking and ptr grabbing.  Would probably clean up a lot.
-
 * Do a profiler for bytecode.
    
 # Bytecode generator / VM
