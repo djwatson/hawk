@@ -4,11 +4,11 @@
 #include <string>
 #include <unordered_map>
 
-#include "symbol_table.h"
 #include "gc.h"
+#include "symbol_table.h"
 
 // Mostly for debugging.  Actual scheme display/write is done from scheme.
-void print_obj(long obj, FILE* file) {
+void print_obj(long obj, FILE *file) {
   if (file == nullptr) {
     file = stdout;
   }
@@ -96,7 +96,7 @@ void print_obj(long obj, FILE* file) {
   fflush(stdout);
 }
 
-long from_c_str(const char* s) {
+long from_c_str(const char *s) {
   auto len = strlen(s);
   auto str = (string_s *)GC_malloc(16 + len + 1);
   str->type = STRING_TAG;
@@ -106,9 +106,9 @@ long from_c_str(const char* s) {
   return (long)str | PTR_TAG;
 }
 
-long get_symbol_val(const char* name) {
+long get_symbol_val(const char *name) {
   auto str = from_c_str(name);
-  auto strp = (string_s*)(str-PTR_TAG);
+  auto strp = (string_s *)(str - PTR_TAG);
   auto res = symbol_table_find(strp);
   if (!res) {
     return UNDEFINED_TAG;

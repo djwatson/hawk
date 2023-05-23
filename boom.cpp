@@ -1,14 +1,14 @@
-#include <getopt.h>
-#include <unistd.h>
-#include <string.h>
 #include <assert.h>
+#include <getopt.h>
+#include <string.h>
+#include <unistd.h>
 
+#include "gc.h"
 #include "jitdump.h"
 #include "readbc.h"
-#include "vm.h"
-#include "types.h"
-#include "gc.h"
 #include "symbol_table.h"
+#include "types.h"
+#include "vm.h"
 
 extern int joff;
 
@@ -29,18 +29,19 @@ unsigned char __attribute__((weak)) bootstrap_scm_bc[0];
 unsigned int __attribute__((weak)) bootstrap_scm_bc_len = 0;
 
 // Call in to the compiled bytecode function (define (compile-file file) ...)
-void compile_file(const char* file) {
+void compile_file(const char *file) {
   // Watch out for GC safety, from_c_str allocates.
   auto str = from_c_str(file);
   auto sym = symbol_table_find_cstr("compile-file"); // DOes not allocate.
   long args[2] = {0, str};
-  if(!sym || sym->val == UNDEFINED_TAG) {
-    printf("Error: Attempting to compile a scm file, but can't find compile-file\n");
+  if (!sym || sym->val == UNDEFINED_TAG) {
+    printf("Error: Attempting to compile a scm file, but can't find "
+           "compile-file\n");
     exit(-1);
   }
-  auto clo = (closure_s*)(sym->val-CLOSURE_TAG);
-  auto func = (bcfunc*)clo->v[0];
-  
+  auto clo = (closure_s *)(sym->val - CLOSURE_TAG);
+  auto func = (bcfunc *)clo->v[0];
+
   run(func, 2, args);
 }
 
@@ -66,18 +67,18 @@ int main(int argc, char *argv[]) {
   }
 
   GC_init();
-  //GC_expand_hp(50000000);
-  //jit_dump_init();
+  // GC_expand_hp(50000000);
+  // jit_dump_init();
   if (bootstrap_scm_bc_len > 0) {
     auto start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
     printf("Running boot image...\n");
     run(start_func, 0, nullptr);
   }
-	      
-  for(int i = optind; i < argc; i++) {
+
+  for (int i = optind; i < argc; i++) {
     auto len = strlen(argv[i]);
-    if (len >=4 && strcmp(".scm" ,argv[i] + len - 4) == 0) {
-      char tmp[len+1+3];
+    if (len >= 4 && strcmp(".scm", argv[i] + len - 4) == 0) {
+      char tmp[len + 1 + 3];
       strcpy(tmp, argv[i]);
       strcpy(tmp + len, ".bc");
       printf("Compiling script %s\n", argv[i]);
@@ -94,8 +95,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  //jit_dump_close();
+  // jit_dump_close();
 
   return 0;
 }
-

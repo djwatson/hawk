@@ -43,7 +43,8 @@
 #define IMMEDIATE_MASK 0xff
 
 struct flonum_s {
-  long type; // TODO: perhaps could save this space by making a NAN-tagged forwarding pointer? otherwise unused.
+  long type; // TODO: perhaps could save this space by making a NAN-tagged
+             // forwarding pointer? otherwise unused.
   double x;
 };
 
@@ -61,7 +62,7 @@ struct symbol {
 
 struct vector_s {
   long type;
-  long len; 
+  long len;
   long v[];
 };
 
@@ -73,7 +74,7 @@ struct cons_s {
 
 struct closure_s {
   long type; // unused except by GC
-  long len; 
+  long len;
   long v[];
 };
 
@@ -81,10 +82,10 @@ struct port_s {
   long type; // TODO could merge input_port and type somehow.
   long input_port;
   long fd;
-  FILE* file;
+  FILE *file;
   long peek;
 };
 
-void print_obj(long obj, FILE* file = nullptr);
-long from_c_str(const char* s);
-long get_symbol_val(const char* name);
+void print_obj(long obj, FILE *file = nullptr);
+long from_c_str(const char *s);
+long get_symbol_val(const char *name);
