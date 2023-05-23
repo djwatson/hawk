@@ -141,40 +141,6 @@ ABI __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
   return;
 }
 
-ABI void INS_GGET(PARAMS) {
-  DEBUG("GGET");
-  auto rd = instr;
-
-  symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
-  if (unlikely(gp->val == UNDEFINED_TAG)) {
-    MUSTTAIL return UNDEFINED_SYMBOL_SLOWPATH(ARGS);
-  }
-  frame[ra] = gp->val;
-
-  pc++;
-  NEXT_INSTR;
-}
-
-ABI void INS_GSET(PARAMS) {
-  DEBUG("GSET");
-  auto rd = instr;
-
-  symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
-  gp->val = frame[ra];
-
-  pc++;
-  NEXT_INSTR;
-}
-
-ABI void INS_KFUNC(PARAMS) {
-  DEBUG("KFUNC");
-  auto rb = instr;
-
-  frame[ra] = (long)funcs[rb];
-
-  pc++;
-  NEXT_INSTR;
-}
 
 ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
@@ -186,69 +152,6 @@ ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   frame = stack + pos;
   frame_top = stack + stacksz;
 
-  NEXT_INSTR;
-}
-
-ABI void INS_CALL(PARAMS) {
-  DEBUG("CALL");
-  unsigned char rb = instr;
-
-  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
-               0)) {
-    MUSTTAIL return RECORD_START(ARGS);
-  }
-  auto v = frame[ra];
-  bcfunc *func = (bcfunc *)v;
-  auto old_pc = pc;
-  pc = &func->code[0];
-  frame[ra] = long(old_pc + 1);
-  frame += ra + 1;
-  argcnt = rb - 1;
-  if (unlikely((frame + 256) > frame_top)) {
-    MUSTTAIL return EXPAND_STACK_SLOWPATH(ARGS);
-  }
-
-  NEXT_INSTR;
-}
-ABI void INS_CALLT(PARAMS) {
-  DEBUG("CALLT");
-  unsigned char rb = instr;
-
-  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
-               0)) {
-    MUSTTAIL return RECORD_START(ARGS);
-  }
-  auto v = frame[ra];
-  bcfunc *func = (bcfunc *)v;
-  pc = &func->code[0];
-
-  long start = ra + 1;
-  argcnt = rb - 1;
-  for (auto i = 0; i < argcnt; i++) {
-    frame[i] = frame[start + i];
-  }
-  // No need to stack size check for tailcalls since we reuse the frame.
-
-  NEXT_INSTR;
-}
-
-ABI void INS_KONST(PARAMS) {
-  DEBUG("KONST");
-  auto rd = instr;
-
-  frame[ra] = const_table[rd];
-
-  pc++;
-  NEXT_INSTR;
-}
-
-ABI void INS_MOV(PARAMS) {
-  DEBUG("MOV");
-  unsigned char rb = instr;
-
-  frame[rb] = frame[ra];
-
-  pc++;
   NEXT_INSTR;
 }
 

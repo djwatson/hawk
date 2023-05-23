@@ -3,15 +3,8 @@
 
 (define opcodes
   '(
-    (CALL)
     (ISLT)
     (ISF)
-    (GGET)
-    (GSET)
-    (KFUNC)
-    (CALLT)
-    (KONST)
-    (MOV)
     (ISEQ)
     (JISEQ)
     (JISLT)

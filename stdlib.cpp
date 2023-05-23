@@ -135,6 +135,70 @@ LIBRARY_FUNC_MATH_VV(ADDVV,add,+, 0);
 LIBRARY_FUNC_MATH_VV(SUBVV,sub,-, 0);
 LIBRARY_FUNC_MATH_VV(MULVV,mul,*, 3);
 
+LIBRARY_FUNC_D(GGET)
+  symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
+  if (unlikely(gp->val == UNDEFINED_TAG)) {
+    MUSTTAIL return UNDEFINED_SYMBOL_SLOWPATH(ARGS);
+  }
+  frame[ra] = gp->val;
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_D(GSET)
+  symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
+  gp->val = frame[ra];
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_D(KFUNC)
+  frame[ra] = (long)funcs[rd];
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_D(KONST)
+  frame[ra] = const_table[rd];
+END_LIBRARY_FUNC
+
+// TODO 
+LIBRARY_FUNC_B(MOV)
+  frame[rb] = frame[ra];
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_B(CALL)
+  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
+               0)) {
+    MUSTTAIL return RECORD_START(ARGS);
+  }
+  auto v = frame[ra];
+  bcfunc *func = (bcfunc *)v;
+  auto old_pc = pc;
+  pc = &func->code[0];
+  frame[ra] = long(old_pc + 1);
+  frame += ra + 1;
+  argcnt = rb - 1;
+  if (unlikely((frame + 256) > frame_top)) {
+    MUSTTAIL return EXPAND_STACK_SLOWPATH(ARGS);
+  }
+
+  NEXT_INSTR;
+}
+
+LIBRARY_FUNC_B(CALLT)
+  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
+               0)) {
+    MUSTTAIL return RECORD_START(ARGS);
+  }
+  auto v = frame[ra];
+  bcfunc *func = (bcfunc *)v;
+  pc = &func->code[0];
+
+  long start = ra + 1;
+  argcnt = rb - 1;
+  for (auto i = 0; i < argcnt; i++) {
+    frame[i] = frame[start + i];
+  }
+  // No need to stack size check for tailcalls since we reuse the frame.
+
+  NEXT_INSTR;
+}
+
 LIBRARY_FUNC_BC_LOAD(EQ) 
   if (fb == fc) {
     frame[ra] = TRUE_REP;
