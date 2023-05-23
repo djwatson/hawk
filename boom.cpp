@@ -9,10 +9,12 @@
 #include "symbol_table.h"
 #include "types.h"
 #include "vm.h"
+#include "profiler.h"
 
 extern int joff;
 
 static struct option long_options[] = {
+    {"profile", no_argument, nullptr, 'p'},
     {"joff", no_argument, nullptr, 'o'},
     {"help", no_argument, nullptr, 'h'},
     {nullptr, no_argument, nullptr, 0},
@@ -22,6 +24,7 @@ void print_help() {
   printf("Usage: boom [OPTION]\n");
   printf("Available options are:\n");
   printf("  --joff\tTurn off jit\n");
+  printf("  -p, --profile\tSampling profiler\n");
   printf("  -h, --help\tPrint this help\n");
 }
 
@@ -45,13 +48,17 @@ void compile_file(const char *file) {
   run(func, 2, args);
 }
 
+int profile = 0;
 int main(int argc, char *argv[]) {
 
   int verbose = 0;
 
   int c;
-  while ((c = getopt_long(argc, argv, "hj:", long_options, nullptr)) != -1) {
+  while ((c = getopt_long(argc, argv, "phj:", long_options, nullptr)) != -1) {
     switch (c) {
+    case 'p':
+      profile = 1;
+      break;
     case 's':
       break;
     case 'v':
@@ -69,6 +76,9 @@ int main(int argc, char *argv[]) {
   GC_init();
   // GC_expand_hp(50000000);
   // jit_dump_init();
+  if (profile) {
+    profiler_start();
+  }
   if (bootstrap_scm_bc_len > 0) {
     auto start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
     printf("Running boot image...\n");
@@ -96,6 +106,9 @@ int main(int argc, char *argv[]) {
   }
 
   // jit_dump_close();
+  if (profile) {
+    profiler_stop();
+  }
 
   return 0;
 }

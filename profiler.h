@@ -2,3 +2,7 @@
 
 void profiler_start();
 void profiler_stop();
+void profile_add_frame(void* ptr);
+void profile_pop_frame();
+void profile_pop_all_frames();
+

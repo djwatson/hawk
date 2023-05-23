@@ -12,8 +12,10 @@
 #include "symbol_table.h"
 #include "types.h"
 #include "vm.h"
+#include "profiler.h"
 
 int joff = 0;
+extern int profile;
 
 std::vector<bcfunc *> funcs;
 
@@ -62,17 +64,24 @@ static op_func l_op_table_record[INS_MAX];
     MUSTTAIL return op_table_arg_c[op](ARGS);                                  \
   }
 
+bcfunc* find_func_for_frame(uint32_t* pc) {
+  for (unsigned long j = 0; j < funcs.size(); j++) {
+    if (pc >= &funcs[j]->code[0] &&
+	pc < &funcs[j]->code[funcs[j]->code.size() - 1]) {
+      return funcs[j];
+    }
+  }
+  return nullptr;
+}
+
 ABI __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
   int i = 0;
   printf("FAIL PC: %p %s\n", pc, ins_names[INS_OP(*pc)]);
   while (&frame[-1] > stack) {
-    for (unsigned long j = 0; j < funcs.size(); j++) {
-      if (pc >= &funcs[j]->code[0] &&
-          pc < &funcs[j]->code[funcs[j]->code.size() - 1]) {
-        printf("FUNC %li: %s PC %li\n", j, funcs[j]->name.c_str(),
-               pc - &funcs[j]->code[0]);
-        break;
-      }
+    auto res = find_func_for_frame(pc);
+    if (res) {
+        printf("FUNC: %s PC %li\n", res->name.c_str(),
+               pc - &res->code[0]);
     }
     pc = (unsigned int *)frame[-1];
     frame[-1] = frame[ra];
@@ -90,6 +99,9 @@ ABI __attribute__((noinline)) void FAIL_SLOWPATH_ARGCNT(PARAMS) {
 
 ABI void RECORD_START(PARAMS) {
   hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
+  if (profile && INS_OP(*pc) == CALL) {
+    profile_pop_frame();
+  }
   if (joff) {
     // Tail call with original op table.
     MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
@@ -218,39 +230,43 @@ ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   }
 
 LIBRARY_FUNC_B(FUNC)
-// vararg
-// printf("FUNC vararg %i args %i argcnt %i\n", rb, ra, argcnt);
-if (rb) {
-  if (argcnt < ra) {
-    MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
+  // vararg
+  // printf("FUNC vararg %i args %i argcnt %i\n", rb, ra, argcnt);
+  if (rb) {
+    if (argcnt < ra) {
+      MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
+    }
+    frame[ra] = build_list(ra, argcnt - ra, frame);
+  } else {
+    if (argcnt != ra) {
+      MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
+    }
   }
-  frame[ra] = build_list(ra, argcnt - ra, frame);
-} else {
-  if (argcnt != ra) {
-    MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
-  }
-}
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_D(KSHORT)
-frame[ra] = rd << 3;
+  frame[ra] = rd << 3;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_D(JMP)
-pc += rd;
-NEXT_INSTR;
+  pc += rd;
+  NEXT_INSTR;
 }
 
 LIBRARY_FUNC(RET1)
-pc = (unsigned int *)frame[-1];
-frame[-1] = frame[ra];
-frame -= (INS_A(*(pc - 1)) + 1);
+  pc = (unsigned int *)frame[-1];
+  frame[-1] = frame[ra];
+  frame -= (INS_A(*(pc - 1)) + 1);
+  NEXT_INSTR;
+}
 
-NEXT_INSTR;
+ABI void INS_PROFILE_RET1(PARAMS) {
+ profile_pop_frame();
+ MUSTTAIL return INS_RET1(ARGS);
 }
 
 LIBRARY_FUNC(HALT)
-return;
+  return;
 }
 
 // Note signed-ness of rc.
@@ -337,13 +353,13 @@ LIBRARY_FUNC_MATH_VV(DIV, MATH_DIV, frame[ra] = (fb / fc) << 3);
 LIBRARY_FUNC_MATH_VV(REM, remainder, frame[ra] = ((fb >> 3) % (fc >> 3)) << 3);
 
 LIBRARY_FUNC_BC_LOAD(JEQ)
-if (fb == fc) {
-  pc += 2;
-} else {
-  pc += 1;
-}
-
-NEXT_INSTR;
+  if (fb == fc) {
+    pc += 2;
+  } else {
+    pc += 1;
+  }
+  
+  NEXT_INSTR;
 }
 
 #define LIBRARY_FUNC_NUM_CMP(name, op, func)                                   \
@@ -404,139 +420,139 @@ LIBRARY_FUNC_NUM_CMP(ISLT, <, SET_RES);
 LIBRARY_FUNC_NUM_CMP(ISEQ, ==, SET_RES);
 
 LIBRARY_FUNC_B_LOAD(ISF)
-if (fb == FALSE_REP) {
-  pc += 1;
-} else {
-  pc += 2;
-}
-
-NEXT_INSTR;
+  if (fb == FALSE_REP) {
+    pc += 1;
+  } else {
+    pc += 2;
+  }
+  
+  NEXT_INSTR;
 }
 
 LIBRARY_FUNC_D(GGET)
-symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
-if (unlikely(gp->val == UNDEFINED_TAG)) {
-  MUSTTAIL return UNDEFINED_SYMBOL_SLOWPATH(ARGS);
-}
-frame[ra] = gp->val;
+  symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
+  if (unlikely(gp->val == UNDEFINED_TAG)) {
+    MUSTTAIL return UNDEFINED_SYMBOL_SLOWPATH(ARGS);
+  }
+  frame[ra] = gp->val;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_D(GSET)
-symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
-gp->val = frame[ra];
+  symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
+  gp->val = frame[ra];
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_D(KFUNC)
-frame[ra] = (long)funcs[rd];
+  frame[ra] = (long)funcs[rd];
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_D(KONST)
-frame[ra] = const_table[rd];
+  frame[ra] = const_table[rd];
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(MOV)
-frame[ra] = fb;
+  frame[ra] = fb;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B(BOX)
-auto box = (cons_s *)GC_malloc(sizeof(cons_s));
-
-box->type = CONS_TAG;
-box->a = frame[rb];
-box->b = NIL_TAG;
-frame[ra] = (long)box | PTR_TAG;
+  auto box = (cons_s *)GC_malloc(sizeof(cons_s));
+  
+  box->type = CONS_TAG;
+  box->a = frame[rb];
+  box->b = NIL_TAG;
+  frame[ra] = (long)box | PTR_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(UNBOX)
-auto box = (cons_s *)(fb - PTR_TAG);
-frame[ra] = box->a;
+  auto box = (cons_s *)(fb - PTR_TAG);
+  frame[ra] = box->a;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(SET-BOX!, SET_BOX)
-auto box = (cons_s *)(fb - PTR_TAG);
-box->a = fc;
+  auto box = (cons_s *)(fb - PTR_TAG);
+  box->a = fc;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC(GUARD)
-long fb = frame[rb];
-
-// typecheck fb vs. rc.
-if ((rc < LITERAL_TAG) && ((fb & TAG_MASK) == rc)) {
-  frame[ra] = TRUE_REP;
-} else if (((TAG_MASK & rc) == LITERAL_TAG) && (rc == (fb & IMMEDIATE_MASK))) {
-  frame[ra] = TRUE_REP;
-} else if (((fb & TAG_MASK) == PTR_TAG) && (*(long *)(fb - PTR_TAG) == rc)) {
-  frame[ra] = TRUE_REP;
-} else {
-  frame[ra] = FALSE_REP;
-}
+  long fb = frame[rb];
+  
+  // typecheck fb vs. rc.
+  if ((rc < LITERAL_TAG) && ((fb & TAG_MASK) == rc)) {
+    frame[ra] = TRUE_REP;
+  } else if (((TAG_MASK & rc) == LITERAL_TAG) && (rc == (fb & IMMEDIATE_MASK))) {
+    frame[ra] = TRUE_REP;
+  } else if (((fb & TAG_MASK) == PTR_TAG) && (*(long *)(fb - PTR_TAG) == rc)) {
+    frame[ra] = TRUE_REP;
+  } else {
+    frame[ra] = FALSE_REP;
+  }
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B(CLOSURE)
-auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
-closure->type = CLOSURE_TAG;
-closure->len = rb;
-for (int i = 0; i < rb; i++) {
-  closure->v[i] = frame[ra + i];
-}
-frame[ra] = (long)closure | CLOSURE_TAG;
+  auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
+  closure->type = CLOSURE_TAG;
+  closure->len = rb;
+  for (int i = 0; i < rb; i++) {
+    closure->v[i] = frame[ra + i];
+  }
+  frame[ra] = (long)closure | CLOSURE_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_NAME(CLOSURE-GET, CLOSURE_GET)
-auto fb = frame[rb];
-TYPECHECK_TAG(fb, CLOSURE_TAG);
-auto closure = (closure_s *)(fb - CLOSURE_TAG);
-frame[ra] = closure->v[1 + rc];
+  auto fb = frame[rb];
+  TYPECHECK_TAG(fb, CLOSURE_TAG);
+  auto closure = (closure_s *)(fb - CLOSURE_TAG);
+  frame[ra] = closure->v[1 + rc];
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_NAME(CLOSURE-SET, CLOSURE_SET)
-auto fa = frame[ra];
-// No need to typecheck, that would be bad bytecode.
-auto closure = (closure_s *)(fa - CLOSURE_TAG);
-closure->v[1 + rc] = frame[rb];
+  auto fa = frame[ra];
+  // No need to typecheck, that would be bad bytecode.
+  auto closure = (closure_s *)(fa - CLOSURE_TAG);
+  closure->v[1 + rc] = frame[rb];
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(CLOSURE-PTR, CLOSURE_PTR)
-TYPECHECK_TAG(fb, CLOSURE_TAG);
-auto closure = (closure_s *)(fb - CLOSURE_TAG);
-frame[ra] = closure->v[0];
+  TYPECHECK_TAG(fb, CLOSURE_TAG);
+  auto closure = (closure_s *)(fb - CLOSURE_TAG);
+  frame[ra] = closure->v[0];
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD(APPLY)
-if (unlikely((fb & 0x7) != CLOSURE_TAG)) {
-  MUSTTAIL return FAIL_SLOWPATH(ARGS);
-}
-// TODO check type NIL
-
-long a = 0;
-for (; (fc & TAG_MASK) == CONS_TAG; a++) {
-  auto cons = (cons_s *)(fc - CONS_TAG);
-  frame[a + 1] = cons->a;
-  fc = cons->b;
-}
-frame[0] = fb;
-auto clo = (closure_s *)(fb - CLOSURE_TAG);
-auto func = (bcfunc *)clo->v[0];
-pc = &func->code[0];
-argcnt = a + 1;
-
-NEXT_INSTR;
+  if (unlikely((fb & 0x7) != CLOSURE_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  // TODO check type NIL
+  
+  long a = 0;
+  for (; (fc & TAG_MASK) == CONS_TAG; a++) {
+    auto cons = (cons_s *)(fc - CONS_TAG);
+    frame[a + 1] = cons->a;
+    fc = cons->b;
+  }
+  frame[0] = fb;
+  auto clo = (closure_s *)(fb - CLOSURE_TAG);
+  auto func = (bcfunc *)clo->v[0];
+  pc = &func->code[0];
+  argcnt = a + 1;
+  
+  NEXT_INSTR;
 }
 
 LIBRARY_FUNC(JFUNC)
-// auto tnum = instr;
-//  printf("JFUNC/JLOOP run %i\n", tnum);
-//  printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
-//  auto res = record_run(tnum, &pc, &frame, frame_top);
-// auto res = jit_run(tnum, &pc, &frame, frame_top);
-int res = 0;
-frame_top = stack + stacksz;
-// printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
-if (unlikely(res)) {
-  // Turn on recording again
-  op_table_arg = (void **)l_op_table_record;
-}
-NEXT_INSTR;
+  // auto tnum = instr;
+  //  printf("JFUNC/JLOOP run %i\n", tnum);
+  //  printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
+  //  auto res = record_run(tnum, &pc, &frame, frame_top);
+  // auto res = jit_run(tnum, &pc, &frame, frame_top);
+  int res = 0;
+  frame_top = stack + stacksz;
+  // printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
+  if (unlikely(res)) {
+    // Turn on recording again
+    op_table_arg = (void **)l_op_table_record;
+  }
+  NEXT_INSTR;
 }
 
 #define LIBRARY_FUNC_COPY(name, copied)
@@ -544,59 +560,64 @@ LIBRARY_FUNC_COPY(JLOOP, JFUNC);
 #define INS_JLOOP INS_JFUNC
 
 LIBRARY_FUNC_B(CALL)
-if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
-             0)) {
-  MUSTTAIL return RECORD_START(ARGS);
-}
-auto v = frame[ra];
-bcfunc *func = (bcfunc *)v;
-auto old_pc = pc;
-pc = &func->code[0];
-frame[ra] = long(old_pc + 1);
-frame += ra + 1;
-argcnt = rb - 1;
-if (unlikely((frame + 256) > frame_top)) {
-  MUSTTAIL return EXPAND_STACK_SLOWPATH(ARGS);
+  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) == 0)) {
+    MUSTTAIL return RECORD_START(ARGS);
+  }
+  auto v = frame[ra];
+  bcfunc *func = (bcfunc *)v;
+  auto old_pc = pc;
+  pc = &func->code[0];
+  frame[ra] = long(old_pc + 1);
+  frame += ra + 1;
+  argcnt = rb - 1;
+  if (unlikely((frame + 256) > frame_top)) {
+    MUSTTAIL return EXPAND_STACK_SLOWPATH(ARGS);
+  }
+  NEXT_INSTR;
 }
 
-NEXT_INSTR;
+ABI void INS_PROFILE_CALL(PARAMS) {
+  auto v = frame[ra];
+  bcfunc *func = (bcfunc *)v;
+ profile_add_frame(&func->code[0]);
+ MUSTTAIL return INS_CALL(ARGS);
 }
 
 LIBRARY_FUNC_B(CALLT)
-if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
-             0)) {
-  MUSTTAIL return RECORD_START(ARGS);
-}
-auto v = frame[ra];
-bcfunc *func = (bcfunc *)v;
-pc = &func->code[0];
-
-long start = ra + 1;
-argcnt = rb - 1;
-for (auto i = 0; i < argcnt; i++) {
-  frame[i] = frame[start + i];
-}
-// No need to stack size check for tailcalls since we reuse the frame.
-
-NEXT_INSTR;
+  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
+               0)) {
+    MUSTTAIL return RECORD_START(ARGS);
+  }
+  auto v = frame[ra];
+  bcfunc *func = (bcfunc *)v;
+  pc = &func->code[0];
+  
+  long start = ra + 1;
+  argcnt = rb - 1;
+  for (auto i = 0; i < argcnt; i++) {
+    frame[i] = frame[start + i];
+  }
+  // No need to stack size check for tailcalls since we reuse the frame.
+  
+  NEXT_INSTR;
 }
 
 LIBRARY_FUNC_BC_LOAD(EQ)
-if (fb == fc) {
-  frame[ra] = TRUE_REP;
-} else {
-  frame[ra] = FALSE_REP;
-}
+  if (fb == fc) {
+    frame[ra] = TRUE_REP;
+  } else {
+    frame[ra] = FALSE_REP;
+  }
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC(CONS)
-auto c = (cons_s *)GC_malloc(sizeof(cons_s));
-
-c->type = CONS_TAG;
-c->a = frame[rb];
-c->b = frame[rc];
-
-frame[ra] = (long)c | CONS_TAG;
+  auto c = (cons_s *)GC_malloc(sizeof(cons_s));
+  
+  c->type = CONS_TAG;
+  c->a = frame[rb];
+  c->b = frame[rc];
+  
+  frame[ra] = (long)c | CONS_TAG;
 END_LIBRARY_FUNC
 
 #define LIBRARY_FUNC_CONS_OP(name, field)                                      \
@@ -610,76 +631,76 @@ LIBRARY_FUNC_CONS_OP(CAR, a);
 LIBRARY_FUNC_CONS_OP(CDR, b);
 
 LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR)
-long fb = frame[rb];
-TYPECHECK_FIXNUM(fb);
-
-auto len = fb >> 3;
-auto vec = (vector_s *)GC_malloc(sizeof(long) * (len + 2));
-// Load frame[rc] *after* GC
-long fc = frame[rc];
-vec->type = VECTOR_TAG;
-vec->len = len;
-for (long i = 0; i < len; i++) {
-  vec->v[i] = fc;
-}
-
-frame[ra] = (long)vec | PTR_TAG;
+  long fb = frame[rb];
+  TYPECHECK_FIXNUM(fb);
+  
+  auto len = fb >> 3;
+  auto vec = (vector_s *)GC_malloc(sizeof(long) * (len + 2));
+  // Load frame[rc] *after* GC
+  long fc = frame[rc];
+  vec->type = VECTOR_TAG;
+  vec->len = len;
+  for (long i = 0; i < len; i++) {
+    vec->v[i] = fc;
+  }
+  
+  frame[ra] = (long)vec | PTR_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING)
-long fb = frame[rb];
-TYPECHECK_FIXNUM(fb);
-auto len = fb >> 3;
-auto str = (string_s *)GC_malloc((sizeof(long) * 2) + len + 1);
-
-long fc = frame[rc]; // Load fc after GC
-TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
-
-str->type = STRING_TAG;
-str->len = len;
-for (long i = 0; i < len; i++) {
-  str->str[i] = (fc >> 8) & 0xff;
-}
-str->str[len] = '\0';
-
-frame[ra] = (long)str | PTR_TAG;
+  long fb = frame[rb];
+  TYPECHECK_FIXNUM(fb);
+  auto len = fb >> 3;
+  auto str = (string_s *)GC_malloc((sizeof(long) * 2) + len + 1);
+  
+  long fc = frame[rc]; // Load fc after GC
+  TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
+  
+  str->type = STRING_TAG;
+  str->len = len;
+  for (long i = 0; i < len; i++) {
+    str->str[i] = (fc >> 8) & 0xff;
+  }
+  str->str[len] = '\0';
+  
+  frame[ra] = (long)str | PTR_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF)
-TYPECHECK_FIXNUM(fc);
-LOAD_TYPE_WITH_CHECK(vec, vector_s, fb, VECTOR_TAG);
-frame[ra] = vec->v[fc >> 3];
+  TYPECHECK_FIXNUM(fc);
+  LOAD_TYPE_WITH_CHECK(vec, vector_s, fb, VECTOR_TAG);
+  frame[ra] = vec->v[fc >> 3];
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF)
-TYPECHECK_FIXNUM(fc);
-LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
-frame[ra] = (str->str[fc >> 3] << 8) | CHAR_TAG;
+  TYPECHECK_FIXNUM(fc);
+  LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
+  frame[ra] = (str->str[fc >> 3] << 8) | CHAR_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(VECTOR-LENGTH, VECTOR_LENGTH)
-LOAD_TYPE_WITH_CHECK(vec, vector_s, fb, VECTOR_TAG);
-frame[ra] = vec->len << 3;
+  LOAD_TYPE_WITH_CHECK(vec, vector_s, fb, VECTOR_TAG);
+  frame[ra] = vec->len << 3;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(STRING-LENGTH, STRING_LENGTH)
-LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
-frame[ra] = str->len << 3;
+  LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
+  frame[ra] = str->len << 3;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
-auto fa = frame[ra];
-TYPECHECK_FIXNUM(fb);
-LOAD_TYPE_WITH_CHECK(vec, vector_s, fa, VECTOR_TAG);
-vec->v[fb >> 3] = fc;
+  auto fa = frame[ra];
+  TYPECHECK_FIXNUM(fb);
+  LOAD_TYPE_WITH_CHECK(vec, vector_s, fa, VECTOR_TAG);
+  vec->v[fb >> 3] = fc;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET)
-auto fa = frame[ra];
-TYPECHECK_FIXNUM(fb);
-TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
-LOAD_TYPE_WITH_CHECK(str, string_s, fa, STRING_TAG);
-str->str[fb >> 3] = (fc >> 8) & 0xff;
+  auto fa = frame[ra];
+  TYPECHECK_FIXNUM(fb);
+  TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
+  LOAD_TYPE_WITH_CHECK(str, string_s, fa, STRING_TAG);
+  str->str[fb >> 3] = (fc >> 8) & 0xff;
 END_LIBRARY_FUNC
 
 #define LIBRARY_FUNC_CONS_SET_OP(str, name, field)                             \
@@ -694,201 +715,201 @@ LIBRARY_FUNC_CONS_SET_OP(SET-CAR!, SET_CAR, a);
 LIBRARY_FUNC_CONS_SET_OP(SET-CDR!, SET_CDR, b);
 
 LIBRARY_FUNC_BC_LOAD(WRITE)
-LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
-print_obj(fb, port->file);
+  LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
+  print_obj(fb, port->file);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(WRITE-U8, WRITE_U8)
-LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
-TYPECHECK_FIXNUM(fb);
-long byte = fb >> 3;
-unsigned char b = byte;
-if (unlikely(byte >= 256)) {
-  MUSTTAIL return FAIL_SLOWPATH(ARGS);
-}
-
-fwrite(&b, 1, 1, port->file);
+  LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
+  TYPECHECK_FIXNUM(fb);
+  long byte = fb >> 3;
+  unsigned char b = byte;
+  if (unlikely(byte >= 256)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  
+  fwrite(&b, 1, 1, port->file);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(WRITE-DOUBLE, WRITE_DOUBLE)
-LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
-TYPECHECK_TAG(fb, FLONUM_TAG);
-auto flo = (flonum_s *)(fb - FLONUM_TAG);
-
-fwrite(&flo->x, sizeof(flo->x), 1, port->file);
+  LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
+  TYPECHECK_TAG(fb, FLONUM_TAG);
+  auto flo = (flonum_s *)(fb - FLONUM_TAG);
+  
+  fwrite(&flo->x, sizeof(flo->x), 1, port->file);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(SYMBOL->STRING, SYMBOL_STRING)
-TYPECHECK_TAG(fb, SYMBOL_TAG);
-auto sym = (symbol *)(fb - SYMBOL_TAG);
-frame[ra] = (long)sym->name + PTR_TAG;
+  TYPECHECK_TAG(fb, SYMBOL_TAG);
+  auto sym = (symbol *)(fb - SYMBOL_TAG);
+  frame[ra] = (long)sym->name + PTR_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
-LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
-auto res = symbol_table_find(str);
-if (!res) {
-  // Build a new symbol.
-  // Must dup the string, since strings are not immutable.
-  auto strlen = str->len;
-  auto sym = (symbol *)GC_malloc(sizeof(symbol));
-  sym->type = SYMBOL_TAG;
-
-  // Note re-load of str after allocation.
-  sym->name = (string_s *)(frame[rb] - PTR_TAG);
-  sym->val = UNDEFINED_TAG;
-
-  // Save new symbol in frame[ra].
-  frame[ra] = (long)sym + SYMBOL_TAG;
-
-  // DUP the string, so that this one is immutable.
-  // Note that original is in sym->name temporarily
-  // since ra could be eq to rb.
-  auto str2 = (string_s *)GC_malloc(16 + strlen + 1);
-  // Re-load sym after GC
-  sym = (symbol *)(frame[ra] - SYMBOL_TAG);
-
-  // Re-load str after GC
-  str = (string_s *)sym->name;
-
-  str2->type = STRING_TAG;
-  str2->len = strlen;
-  memcpy(str2->str, str->str, strlen);
-
-  sym->name = str2;
-  symbol_table_insert(sym);
-} else {
-  frame[ra] = (long)res + SYMBOL_TAG;
-}
+  LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
+  auto res = symbol_table_find(str);
+  if (!res) {
+    // Build a new symbol.
+    // Must dup the string, since strings are not immutable.
+    auto strlen = str->len;
+    auto sym = (symbol *)GC_malloc(sizeof(symbol));
+    sym->type = SYMBOL_TAG;
+  
+    // Note re-load of str after allocation.
+    sym->name = (string_s *)(frame[rb] - PTR_TAG);
+    sym->val = UNDEFINED_TAG;
+  
+    // Save new symbol in frame[ra].
+    frame[ra] = (long)sym + SYMBOL_TAG;
+  
+    // DUP the string, so that this one is immutable.
+    // Note that original is in sym->name temporarily
+    // since ra could be eq to rb.
+    auto str2 = (string_s *)GC_malloc(16 + strlen + 1);
+    // Re-load sym after GC
+    sym = (symbol *)(frame[ra] - SYMBOL_TAG);
+  
+    // Re-load str after GC
+    str = (string_s *)sym->name;
+  
+    str2->type = STRING_TAG;
+    str2->len = strlen;
+    memcpy(str2->str, str->str, strlen);
+  
+    sym->name = str2;
+    symbol_table_insert(sym);
+  } else {
+    frame[ra] = (long)res + SYMBOL_TAG;
+  }
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(CHAR->INTEGER, CHAR_INTEGER)
-TYPECHECK_IMMEDIATE(fb, CHAR_TAG);
-frame[ra] = fb >> 5;
+  TYPECHECK_IMMEDIATE(fb, CHAR_TAG);
+  frame[ra] = fb >> 5;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(INTEGER->CHAR, INTEGER_CHAR)
-TYPECHECK_FIXNUM(fb);
-frame[ra] = (fb << 5) + CHAR_TAG;
+  TYPECHECK_FIXNUM(fb);
+  frame[ra] = (fb << 5) + CHAR_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC(OPEN)
-auto fc = frame[rc];
-TYPECHECK_IMMEDIATE(fc, BOOL_TAG);
-
-auto port = (port_s *)GC_malloc(sizeof(port_s));
-// Load FB (potentially a ptr) after GC
-auto fb = frame[rb];
-
-port->type = PORT_TAG;
-port->input_port = fc;
-
-if ((fb & TAG_MASK) == FIXNUM_TAG) {
-  port->fd = frame[rb] >> 3;
-} else if ((fb & TAG_MASK) == PTR_TAG) {
-  auto str = (string_s *)(fb - PTR_TAG);
-  if (unlikely(str->type != STRING_TAG)) {
+  auto fc = frame[rc];
+  TYPECHECK_IMMEDIATE(fc, BOOL_TAG);
+  
+  auto port = (port_s *)GC_malloc(sizeof(port_s));
+  // Load FB (potentially a ptr) after GC
+  auto fb = frame[rb];
+  
+  port->type = PORT_TAG;
+  port->input_port = fc;
+  
+  if ((fb & TAG_MASK) == FIXNUM_TAG) {
+    port->fd = frame[rb] >> 3;
+  } else if ((fb & TAG_MASK) == PTR_TAG) {
+    auto str = (string_s *)(fb - PTR_TAG);
+    if (unlikely(str->type != STRING_TAG)) {
+      MUSTTAIL return FAIL_SLOWPATH(ARGS);
+    }
+    port->fd = open(
+        str->str, fc == TRUE_REP ? O_RDONLY : O_WRONLY | O_CREAT | O_TRUNC, 0777);
+    if (port->fd == -1) {
+      printf("Could not open fd for file %s\n", str->str);
+      exit(-1);
+    }
+  } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  port->fd = open(
-      str->str, fc == TRUE_REP ? O_RDONLY : O_WRONLY | O_CREAT | O_TRUNC, 0777);
-  if (port->fd == -1) {
-    printf("Could not open fd for file %s\n", str->str);
+  port->file = fdopen(port->fd, fc == TRUE_REP ? "r" : "w");
+  if (port->file == nullptr) {
+    printf("FDopen fail\n");
     exit(-1);
   }
-} else {
-  MUSTTAIL return FAIL_SLOWPATH(ARGS);
-}
-port->file = fdopen(port->fd, fc == TRUE_REP ? "r" : "w");
-if (port->file == nullptr) {
-  printf("FDopen fail\n");
-  exit(-1);
-}
-port->peek = FALSE_REP;
-frame[ra] = (long)port + PTR_TAG;
+  port->peek = FALSE_REP;
+  frame[ra] = (long)port + PTR_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(CLOSE)
-LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
-if (port->file) {
-  fclose(port->file);
-  port->file = nullptr;
-}
-if (port->fd != -1) {
-  close(port->fd);
-  port->fd = -1;
-}
+  LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
+  if (port->file) {
+    fclose(port->file);
+    port->file = nullptr;
+  }
+  if (port->fd != -1) {
+    close(port->fd);
+    port->fd = -1;
+  }
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(PEEK)
-LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
-if (port->peek != FALSE_REP) {
-} else {
-  uint8_t b;
-  long res = fread(&b, 1, 1, port->file);
-  if (res == 0) {
-    port->peek = EOF_TAG;
+  LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
+  if (port->peek != FALSE_REP) {
   } else {
-    port->peek = (((long)b) << 8) + CHAR_TAG;
+    uint8_t b;
+    long res = fread(&b, 1, 1, port->file);
+    if (res == 0) {
+      port->peek = EOF_TAG;
+    } else {
+      port->peek = (((long)b) << 8) + CHAR_TAG;
+    }
   }
-}
-frame[ra] = port->peek;
+  frame[ra] = port->peek;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(READ)
-LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
-if (port->peek != FALSE_REP) {
-  frame[ra] = port->peek;
-  port->peek = FALSE_REP;
-} else {
-  uint8_t b;
-  long res = fread(&b, 1, 1, port->file);
-  if (res == 0) {
-    frame[ra] = EOF_TAG;
+  LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
+  if (port->peek != FALSE_REP) {
+    frame[ra] = port->peek;
+    port->peek = FALSE_REP;
   } else {
-    frame[ra] = (((long)b) << 8) + CHAR_TAG;
+    uint8_t b;
+    long res = fread(&b, 1, 1, port->file);
+    if (res == 0) {
+      frame[ra] = EOF_TAG;
+    } else {
+      frame[ra] = (((long)b) << 8) + CHAR_TAG;
+    }
   }
-}
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(INEXACT)
-if ((fb & TAG_MASK) == FIXNUM_TAG) {
-  auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));
-  r->type = FLONUM_TAG;
-  r->x = fb >> 3;
-  frame[ra] = (long)r + FLONUM_TAG;
-} else if ((fb & TAG_MASK) == FLONUM_TAG) {
-  frame[ra] = fb;
-} else {
-  MUSTTAIL return FAIL_SLOWPATH(ARGS);
-}
+  if ((fb & TAG_MASK) == FIXNUM_TAG) {
+    auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));
+    r->type = FLONUM_TAG;
+    r->x = fb >> 3;
+    frame[ra] = (long)r + FLONUM_TAG;
+  } else if ((fb & TAG_MASK) == FLONUM_TAG) {
+    frame[ra] = fb;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(EXACT)
-if ((fb & TAG_MASK) == FIXNUM_TAG) {
-  frame[ra] = fb;
-} else if ((fb & TAG_MASK) == FLONUM_TAG) {
-  auto flo = (flonum_s *)(fb - FLONUM_TAG);
-  frame[ra] = ((long)flo->x) << 3;
-} else {
-  MUSTTAIL return FAIL_SLOWPATH(ARGS);
-}
+  if ((fb & TAG_MASK) == FIXNUM_TAG) {
+    frame[ra] = fb;
+  } else if ((fb & TAG_MASK) == FLONUM_TAG) {
+    auto flo = (flonum_s *)(fb - FLONUM_TAG);
+    frame[ra] = ((long)flo->x) << 3;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(ROUND)
-if ((fb & TAG_MASK) == FIXNUM_TAG) {
-  frame[ra] = fb;
-} else if ((fb & TAG_MASK) == FLONUM_TAG) {
-  auto flo = (flonum_s *)(fb - FLONUM_TAG);
-  auto res = roundeven(flo->x);
-
-  auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));
-  r->type = FLONUM_TAG;
-  r->x = res;
-  frame[ra] = (long)r + FLONUM_TAG;
-} else {
-  MUSTTAIL return FAIL_SLOWPATH(ARGS);
-}
+  if ((fb & TAG_MASK) == FIXNUM_TAG) {
+    frame[ra] = fb;
+  } else if ((fb & TAG_MASK) == FLONUM_TAG) {
+    auto flo = (flonum_s *)(fb - FLONUM_TAG);
+    auto res = roundeven(flo->x);
+  
+    auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));
+    r->type = FLONUM_TAG;
+    r->x = res;
+    frame[ra] = (long)r + FLONUM_TAG;
+  } else {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
 END_LIBRARY_FUNC
 
 #define LIBRARY_FUNC_FLONUM_MATH(name, func)                                   \
@@ -912,30 +933,35 @@ LIBRARY_FUNC_FLONUM_MATH(ATAN, atan);
 LIBRARY_FUNC_FLONUM_MATH(COS, cos);
 
 LIBRARY_FUNC(CALLCC)
-auto sz = frame - stack;
-auto cont = (vector_s *)GC_malloc(sz * sizeof(long) + 16);
-cont->type = CONT_TAG;
-cont->len = sz;
-memcpy(cont->v, stack, sz * sizeof(long));
-
-frame[ra] = (long)cont | PTR_TAG;
+  auto sz = frame - stack;
+  auto cont = (vector_s *)GC_malloc(sz * sizeof(long) + 16);
+  cont->type = CONT_TAG;
+  cont->len = sz;
+  memcpy(cont->v, stack, sz * sizeof(long));
+  
+  frame[ra] = (long)cont | PTR_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(CALLCC-RESUME, CALLCC_RESUME)
-LOAD_TYPE_WITH_CHECK(cont, vector_s, fb, CONT_TAG);
-memcpy(stack, cont->v, cont->len * sizeof(long));
-frame = &stack[cont->len];
+  LOAD_TYPE_WITH_CHECK(cont, vector_s, fb, CONT_TAG);
+  memcpy(stack, cont->v, cont->len * sizeof(long));
+  frame = &stack[cont->len];
+  
+  frame[ra] = (long)cont | PTR_TAG;
+  
+  // DO A RET
+  pc = (unsigned int *)frame[-1];
+  frame[-1] = fc;
+  frame -= (INS_A(*(pc - 1)) + 1);
 
-frame[ra] = (long)cont | PTR_TAG;
-
-// DO A RET
-pc = (unsigned int *)frame[-1];
-frame[-1] = fc;
-frame -= (INS_A(*(pc - 1)) + 1);
-
-NEXT_INSTR;
+  NEXT_INSTR;
 }
 
+ABI void INS_PROFILE_CALLCC_RESUME(PARAMS) {
+  // TODO make callcc resume work
+ profile_pop_all_frames();
+ MUSTTAIL return INS_CALLCC_RESUME(ARGS);
+}
 //////////////
 
 void run(bcfunc *func, long argcnt, long *args) {
@@ -964,6 +990,11 @@ void run(bcfunc *func, long argcnt, long *args) {
 #include "opcodes-table.h"
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
+  }
+  if (profile) {
+    l_op_table[RET1] = INS_PROFILE_RET1;
+    l_op_table[CALL] = INS_PROFILE_CALL;
+    l_op_table[CALLCC_RESUME] = INS_PROFILE_CALLCC_RESUME;
   }
 
   // Initial tailcalling-interpreter variable setup.

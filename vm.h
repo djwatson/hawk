@@ -3,6 +3,7 @@
 #include "bytecode.h"
 
 void run(bcfunc *func, long argcnt, long *args);
+bcfunc* find_func_for_frame(uint32_t* pc);
 
 extern std::vector<bcfunc *> funcs;
 
