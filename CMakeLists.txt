@@ -66,7 +66,7 @@ add_custom_command(
   COMMAND
   perl -p -i -e 's/win64cc/cc10/g' vm.ll
   COMMAND
-  clang -gdwarf-3 ${LLVM_FLAGS} -c vm.ll
+  clang -gdwarf-3 -O3 -gdwarf-3 -fomit-frame-pointer -flto -fno-strict-aliasing -c vm.ll
   DEPENDS vm.cpp opcodes.h 
   )
 
