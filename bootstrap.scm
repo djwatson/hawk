@@ -444,7 +444,7 @@
      ((and (= rema 0 ) (= remb 0))  eq)
      ((= rema 0)  lt)
      ((= remb 0)  gt)
-     ((eq? (string-ref a pos) (string-ref b pos))
+     ((f (string-ref a pos) (string-ref b pos))
       (loop (+ 1 pos) (- rema 1) (- remb 1)))
      (else
       (f (string-ref a pos) (string-ref b pos))))))

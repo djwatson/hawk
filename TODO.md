@@ -1,8 +1,6 @@
 # TODO list
 
 * benchmarks: 
-**simplex crashes.  
-**parsing incorrect result.
 ** earley gc too small, mperm
 ** missing file-exists? tail, ray, slatex, scheme
 ** truncate quicksort
