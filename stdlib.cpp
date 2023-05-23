@@ -1,4 +1,4 @@
-#define LIBRARY_FUNC_BC(name) ABI void INS_##name(PARAMS) {	\
+#define LIBRARY_FUNC_BC(name) ABI void INS_##name(PARAMS) { \
   DEBUG(#name);						    \
   unsigned char rb = instr & 0xff;			    \
   unsigned char rc = (instr >> 8) & 0xff;		    
@@ -41,7 +41,7 @@ LIBRARY_FUNC_BC(CONS)
 END_LIBRARY_FUNC
 
 #define LIBRARY_FUNC_CONS_OP(name, field)			\
-  LIBRARY_FUNC_B_LOAD(name)			\
+ LIBRARY_FUNC_B_LOAD(name)			\
   TYPECHECK_TAG(fb, CONS_TAG);			\
   auto c = (cons_s*)(fb-CONS_TAG);		\
   frame[ra] = c->field;				\

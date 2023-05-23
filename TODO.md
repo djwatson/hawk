@@ -1,14 +1,14 @@
-n# TODO list
+# TODO list
 
+* remove cc10, it doesn't seem to help.
 * lib-ify more funcs
 * add macros for typechecking and ptr grabbing.  Would probably clean up a lot.
 
-* fix nbody
 * Do a profiler for bytecode.
    
-# Bytecode generator
+# Bytecode generator / VM
 
-## bytecode improvements 
+## bytecode perf improvements 
 
 * case-lambda!
 * funcv new bytecode
