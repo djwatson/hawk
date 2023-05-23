@@ -241,37 +241,6 @@ ABI void INS_ISEQ(PARAMS) {
   NEXT_INSTR;
 }
 
-ABI void INS_ISF(PARAMS) {
-  DEBUG("ISF");
-
-  long fa = frame[ra];
-  if (fa == FALSE_REP) {
-    pc += 1;
-  } else {
-    pc += 2;
-  }
-
-  NEXT_INSTR;
-}
-
-#define INS_JLOOP INS_JFUNC
-ABI void INS_JFUNC(PARAMS) {
-  DEBUG("JFUNC");
-  //auto tnum = instr;
-  // printf("JFUNC/JLOOP run %i\n", tnum);
-  // printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
-  // auto res = record_run(tnum, &pc, &frame, frame_top);
-  //auto res = jit_run(tnum, &pc, &frame, frame_top);
-  int res = 0;
-  frame_top = stack + stacksz;
-  // printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
-  if (unlikely(res)) {
-    // Turn on recording again
-    op_table_arg = (void **)l_op_table_record;
-  }
-  NEXT_INSTR;
-}
-
 #include "stdlib.cpp"
 
 

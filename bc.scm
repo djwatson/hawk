@@ -108,7 +108,7 @@
    ((branch-dest? cd)
     (build-jmp (second cd) bc)
     (build-jmp (third cd) bc)
-    (push-instr! bc (list 'ISF r)))
+    (push-instr! bc (list 'ISF 0 r)))
    ((eq? cd 'next))
    (else (dformat "UNKNOWN CONTROL DEST:~a" cd) (exit -1))))
 

@@ -4,10 +4,8 @@
 (define opcodes
   '(
     (ISLT)
-    (ISF)
     (ISEQ)
-    (JFUNC)
-    (JLOOP)))
+))
 
 (define (read-line . port)
   (define (eat p c)

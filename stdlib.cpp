@@ -209,6 +209,16 @@ LIBRARY_FUNC_BC_LOAD(JEQ)
 LIBRARY_FUNC_NUM_CMP(JISLT, <);
 LIBRARY_FUNC_NUM_CMP(JISEQ, ==);
 
+LIBRARY_FUNC_B_LOAD(ISF)
+  if (fb == FALSE_REP) {
+    pc += 1;
+  } else {
+    pc += 2;
+  }
+
+  NEXT_INSTR;
+}
+
 
 LIBRARY_FUNC_D(GGET)
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
@@ -323,6 +333,26 @@ LIBRARY_FUNC_BC_LOAD(APPLY)
 
   NEXT_INSTR;
 }
+
+LIBRARY_FUNC(JFUNC)
+  //auto tnum = instr;
+  // printf("JFUNC/JLOOP run %i\n", tnum);
+  // printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
+  // auto res = record_run(tnum, &pc, &frame, frame_top);
+  //auto res = jit_run(tnum, &pc, &frame, frame_top);
+  int res = 0;
+  frame_top = stack + stacksz;
+  // printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
+  if (unlikely(res)) {
+    // Turn on recording again
+    op_table_arg = (void **)l_op_table_record;
+  }
+  NEXT_INSTR;
+}
+
+#define LIBRARY_FUNC_COPY(name, copied)
+LIBRARY_FUNC_COPY(JLOOP, JFUNC);
+#define INS_JLOOP INS_JFUNC
 
 LIBRARY_FUNC_B(CALL)
   if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
