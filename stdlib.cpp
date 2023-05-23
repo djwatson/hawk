@@ -84,7 +84,7 @@ if (unlikely(__builtin_##op##_overflow(fb, fc >> shift, &frame[ra]))) { \
 }									
 
 // Shift is necessary for adjusting the tag for mul.
-#define LIBRARY_FUNC_MATH_VV(name, op, op2, shift, overflow)		\
+#define LIBRARY_FUNC_MATH_VV(name, op2, overflow)		\
 ABI __attribute__((noinline)) void INS_##name##_SLOWPATH(PARAMS) {	\
   DEBUG(#name);								\
   unsigned char rb = instr & 0xff;					\
@@ -110,7 +110,7 @@ ABI __attribute__((noinline)) void INS_##name##_SLOWPATH(PARAMS) {	\
   }									\
 									\
   auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));			\
-  r->x = x_b op2 x_c;							\
+  r->x = op2(x_b, x_c);							\
   r->type = FLONUM_TAG;							\
   frame[ra] = (long)r|FLONUM_TAG;					\
   pc++;									\
@@ -122,10 +122,10 @@ ABI __attribute__((noinline)) void INS_##name##_SLOWPATH(PARAMS) {	\
   if (likely((7 & (fb | fc)) == 0)) {					\
     overflow;								\
   } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {		\
-    auto f1 = ((flonum_s*)(fb-FLONUM_TAG))->x;				\
-    auto f2 = ((flonum_s*)(fc-FLONUM_TAG))->x;				\
+    auto x_b = ((flonum_s*)(fb-FLONUM_TAG))->x;				\
+    auto x_c = ((flonum_s*)(fc-FLONUM_TAG))->x;				\
     auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));			\
-    r->x = f1 op2 f2;							\
+    r->x = op2(x_b, x_c);						\
     r->type = FLONUM_TAG;						\
     frame[ra] = (long)r|FLONUM_TAG;					\
   } else {								\
@@ -133,13 +133,19 @@ ABI __attribute__((noinline)) void INS_##name##_SLOWPATH(PARAMS) {	\
   }									\
 END_LIBRARY_FUNC							
 
-#define LIBRARY_FUNC_MATH_OVERFLOW_VV(name, op, op2, shift)	\
-  LIBRARY_FUNC_MATH_VV(name, op, op2, shift, OVERFLOW_OP(op, name, shift));
+#define LIBRARY_FUNC_MATH_OVERFLOW_VV(name, op, op2, shift)		\
+  LIBRARY_FUNC_MATH_VV(name, op2, OVERFLOW_OP(op, name, shift));
 
-LIBRARY_FUNC_MATH_OVERFLOW_VV(ADDVV,add,+, 0);
-LIBRARY_FUNC_MATH_OVERFLOW_VV(SUBVV,sub,-, 0);
-LIBRARY_FUNC_MATH_OVERFLOW_VV(MULVV,mul,*, 3);
-LIBRARY_FUNC_MATH_VV(DIV, none, /, 0, frame[ra] = (fb/fc) << 3);
+#define MATH_ADD(a, b) (a+b)
+#define MATH_SUB(a, b) (a-b)
+#define MATH_MUL(a, b) (a*b)
+#define MATH_DIV(a, b) (a/b)
+
+LIBRARY_FUNC_MATH_OVERFLOW_VV(ADDVV,add,MATH_ADD, 0);
+LIBRARY_FUNC_MATH_OVERFLOW_VV(SUBVV,sub, MATH_SUB, 0);
+LIBRARY_FUNC_MATH_OVERFLOW_VV(MULVV,mul, MATH_MUL, 3);
+LIBRARY_FUNC_MATH_VV(DIV, MATH_DIV, frame[ra] = (fb/fc) << 3);
+LIBRARY_FUNC_MATH_VV(REM, remainder, frame[ra] = ((fb>>3)%(fc>>3)) << 3);
 
 LIBRARY_FUNC_D(GGET)
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);

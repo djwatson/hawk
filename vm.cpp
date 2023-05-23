@@ -382,30 +382,6 @@ ABI void INS_JFUNC(PARAMS) {
 
 
 
-ABI void INS_REM(PARAMS) {
-  DEBUG("REM");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
-
-  auto fb = frame[rb];
-  auto fc = frame[rc];
-  if (likely((7 & (fb | fc)) == 0)) {
-    frame[ra] = ((fb >>3 ) % (fc >> 3)) << 3;
-  } else if (likely(((7&fb) == (7&fc)) && ((7&fc) == 2))) {
-    auto f1 = ((flonum_s*)(fb-FLONUM_TAG))->x;
-    auto f2 = ((flonum_s*)(fc-FLONUM_TAG))->x;
-    auto r = (flonum_s*)GC_malloc(sizeof(flonum_s));
-    r->x = remainder(f1, f2);
-    r->type = FLONUM_TAG;
-    frame[ra] = (long)r|FLONUM_TAG;
-  } else {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  pc++;
-
-  NEXT_INSTR;
-}
-
 void run(bcfunc* func, long argcnt, long * args) {
   // Bytecode stub to get us to HALT.
   unsigned int final_code[] = {CODE(CALL, 0, 1, 0), CODE(HALT, 0, 0, 0)};
