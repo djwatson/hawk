@@ -1,6 +1,5 @@
 # TODO list
 
-* remove cc10, it doesn't seem to help.
 * lib-ify more funcs
 * add macros for typechecking and ptr grabbing.  Would probably clean up a lot.
 

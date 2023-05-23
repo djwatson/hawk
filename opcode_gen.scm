@@ -3,15 +3,10 @@
 
 (define opcodes
   '(
-    (FUNC)
-    (KSHORT)
     (ISGE)
-    (JMP)
-    (RET1)
     (SUBVN)
     (CALL)
     (ADDVV)
-    (HALT)
     (ISLT)
     (ISF)
     (SUBVV)
@@ -39,8 +34,6 @@
     (APPLY)
     (REM)
     (DIV)
-    (CALLCC)
-    (CALLCC-RESUME)
     (JEQ)))
 
 (define (read-line . port)

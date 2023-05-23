@@ -8,6 +8,11 @@
 #define LIBRARY_FUNC_B(name) ABI void INS_##name(PARAMS) {	\
   DEBUG(#name);						    \
   unsigned char rb = instr & 0xff;			    
+#define LIBRARY_FUNC_D(name) ABI void INS_##name(PARAMS) {	\
+  DEBUG(#name);						    \
+  auto rd = (int16_t)instr;
+#define LIBRARY_FUNC(name) ABI void INS_##name(PARAMS) {	\
+  DEBUG(#name);						    
 #define LIBRARY_FUNC_B_LOAD(name) LIBRARY_FUNC_B(name) \
   long fb = frame[rb];					    
 #define LIBRARY_FUNC_B_LOAD_NAME(str, name) LIBRARY_FUNC_B_LOAD(name)
@@ -21,6 +26,41 @@
   }
 #define TYPECHECK_FIXNUM(val) TYPECHECK_TAG(val, FIXNUM_TAG)
 
+LIBRARY_FUNC_B(FUNC)
+  // vararg
+  //printf("FUNC vararg %i args %i argcnt %i\n", rb, ra, argcnt);
+  if (rb) {
+    if (argcnt < ra) {
+      MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
+    }
+    frame[ra] = build_list(ra, argcnt -ra, frame);
+  } else {
+    if (argcnt != ra) {
+      MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
+    }
+  }
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_D(KSHORT)
+  frame[ra] = rd << 3;
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_D(JMP)
+  pc += rd;
+  NEXT_INSTR;
+}
+
+LIBRARY_FUNC(RET1)
+  pc = (unsigned int *)frame[-1];
+  frame[-1] = frame[ra];
+  frame -= (INS_A(*(pc - 1)) + 1);
+
+  NEXT_INSTR;
+}
+
+LIBRARY_FUNC(HALT)
+  return;
+}
 
 LIBRARY_FUNC_BC_LOAD(EQ) 
   if (fb == fc) {
@@ -434,3 +474,31 @@ LIBRARY_FUNC_FLONUM_MATH(SQRT, sqrt);
 LIBRARY_FUNC_FLONUM_MATH(ATAN, atan);
 LIBRARY_FUNC_FLONUM_MATH(COS, cos);
 
+LIBRARY_FUNC(CALLCC)
+  auto sz = frame-stack;
+  auto cont = (vector_s*)GC_malloc(sz*sizeof(long) + 16);
+  cont->type = CONT_TAG;
+  cont->len = sz;
+  memcpy(cont->v, stack, sz*sizeof(long));
+
+  frame[ra] = (long)cont | PTR_TAG;
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_BC_LOAD_NAME(CALLCC-RESUME, CALLCC_RESUME)
+  TYPECHECK_TAG(fb, PTR_TAG);
+  auto cont = (vector_s*)(fb-PTR_TAG);
+  if (unlikely(cont->type != CONT_TAG)) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  memcpy(stack, cont->v, cont->len*sizeof(long));
+  frame = &stack[cont->len];
+  
+  frame[ra] = (long)cont | PTR_TAG;
+
+  // DO A RET
+  pc = (unsigned int *)frame[-1];
+  frame[-1] = fc;
+  frame -= (INS_A(*(pc - 1)) + 1);
+
+  NEXT_INSTR;
+}

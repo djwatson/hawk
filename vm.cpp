@@ -132,63 +132,6 @@ long build_list(long start, long len, long*frame) {
   return lst;
 }
 
-ABI void INS_FUNC(PARAMS) {
-  DEBUG("FUNC");
-  unsigned int rb = instr;
-
-  // vararg
-  //printf("FUNC vararg %i args %i argcnt %i\n", rb, ra, argcnt);
-  if (rb) {
-    if (argcnt < ra) {
-      MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
-    }
-    frame[ra] = build_list(ra, argcnt -ra, frame);
-  } else {
-    if (argcnt != ra) {
-      MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
-    }
-  }
-  pc++;
-  NEXT_INSTR;
-}
-
-ABI void INS_KSHORT(PARAMS) {
-  DEBUG("KSHORT");
-  auto rd = (int16_t)instr;
-
-  frame[ra] = rd << 3;
-
-  pc++;
-  NEXT_INSTR;
-}
-
-ABI void INS_JMP(PARAMS) {
-  DEBUG("JMP");
-  auto rd = (uint16_t)instr;
-
-  pc += rd;
-  NEXT_INSTR;
-}
-
-ABI void INS_RET1(PARAMS) {
-  DEBUG("RET1");
-
-  pc = (unsigned int *)frame[-1];
-  frame[-1] = frame[ra];
-  frame -= (INS_A(*(pc - 1)) + 1);
-
-  NEXT_INSTR;
-}
-
-ABI void INS_HALT(PARAMS) {
-  DEBUG("HALT");
-
-  // printf("Result:");
-  // print_obj(frame[ra]);
-  // printf("\n");
-  return;
-}
-
 ABI void INS_ISGE(PARAMS) {
   DEBUG("ISGE");
   unsigned char rb = instr;
@@ -968,48 +911,6 @@ ABI void INS_REM(PARAMS) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   pc++;
-
-  NEXT_INSTR;
-}
-
-ABI void INS_CALLCC(PARAMS) {
-  DEBUG("CALLCC");
-  
-  auto sz = frame-stack;
-  auto cont = (vector_s*)GC_malloc(sz*sizeof(long) + 16);
-  cont->type = CONT_TAG;
-  cont->len = sz;
-  memcpy(cont->v, stack, sz*sizeof(long));
-
-  frame[ra] = (long)cont | PTR_TAG;
-
-  pc++;
-  NEXT_INSTR;
-}
-
-ABI void INS_CALLCC_RESUME(PARAMS) {
-  DEBUG("CALLCC");
-  unsigned char rb = instr & 0xff;
-  unsigned char rc = (instr >> 8) & 0xff;
-
-  auto fb = frame[rb];
-  auto fc = frame[rc];
-  if (unlikely((fb&TAG_MASK) != PTR_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  auto cont = (vector_s*)(fb-PTR_TAG);
-  if (unlikely(cont->type != CONT_TAG)) {
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);
-  }
-  memcpy(stack, cont->v, cont->len*sizeof(long));
-  frame = &stack[cont->len];
-  
-  frame[ra] = (long)cont | PTR_TAG;
-
-  // DO A RET
-  pc = (unsigned int *)frame[-1];
-  frame[-1] = fc;
-  frame -= (INS_A(*(pc - 1)) + 1);
 
   NEXT_INSTR;
 }
