@@ -105,5 +105,5 @@ add_custom_command(
   rsync ${CMAKE_SOURCE_DIR}/opcode_gen.scm ${CMAKE_SOURCE_DIR}/util.scm .
   COMMAND
   ${CHEZ} --script opcode_gen.scm
-  DEPENDS util.scm opcode_gen.scm 
+  DEPENDS util.scm opcode_gen.scm vm.cpp
 )

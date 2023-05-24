@@ -389,6 +389,10 @@
        (else 
 	($write arg port)))))
 
+(define (write-string str . p)
+  (let ((port (if (pair? p) (car p) (current-output-port))))
+    ($write str port)))
+
 (define (for-each2 proc lst )
   (if (not (null? lst))
       (begin
@@ -881,6 +885,14 @@
   ($exact x))
 (define exact->inexact inexact)
 (define inexact->exact exact)
+
+(define (file-exists? file)
+  ($file-exists? file))
+(define (delete-file file)
+  ($delete-file file))
+(define (read-line . p)
+  (let ((port (if (pair? p) (car p) (current-input-port))))
+    ($read-line port)))
 
 ;;; Include the bytecode compiler
 (include "bc.scm")

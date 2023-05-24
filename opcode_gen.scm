@@ -44,7 +44,7 @@
   (list->string (filter-map (lambda (chr)
 			      (case chr
 				((#\-) #\_)
-				((#\! #\>) #f)
+				((#\! #\> #\?) #f)
 				(else chr)))
 		(string->list str))))
 

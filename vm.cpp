@@ -874,6 +874,37 @@ LIBRARY_FUNC_B_LOAD(READ)
   }
 END_LIBRARY_FUNC
 
+LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
+  LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
+  char buf[512];
+  auto pos = 0;
+  if (port->peek != FALSE_REP) {
+    buf[pos++] = port->peek;
+    port->peek = FALSE_REP;
+  }
+  bool eof = false;
+  for(; pos < 511; pos++) {
+    // TODO bigger than 511
+    long res = fread(&buf[pos], 1, 1, port->file);
+    if(buf[pos] == '\n') break;
+    if (res == 0) {
+      eof = true;
+      break;
+    }
+  }
+
+ if (eof) {
+  frame[ra] = EOF_TAG;
+ } else {
+   auto str = (string_s*)GC_malloc(pos + 16 + 1);
+   buf[pos] = '\0';
+   str->type = STRING_TAG;
+   str->len = pos;
+   memcpy(str->str, &buf[0], pos);
+   frame[ra] = (long)str + PTR_TAG;
+ }
+END_LIBRARY_FUNC
+
 LIBRARY_FUNC_B_LOAD(INEXACT)
   if ((fb & TAG_MASK) == FIXNUM_TAG) {
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));
@@ -959,6 +990,24 @@ LIBRARY_FUNC_BC_LOAD_NAME(CALLCC-RESUME, CALLCC_RESUME)
 
   NEXT_INSTR;
 }
+
+LIBRARY_FUNC_B_LOAD_NAME(FILE-EXISTS?, FILE_EXISTS)
+  LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG)
+  if (0 == access(str->str, F_OK)) {
+    frame[ra] = TRUE_REP;
+  } else {
+    frame[ra] = FALSE_REP;
+  }
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC_B_LOAD_NAME(DELETE-FILE, DELETE_FILE)
+  LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG)
+  if (0 == unlink(str->str)) {
+    frame[ra] = TRUE_REP;
+  } else {
+    frame[ra] = FALSE_REP;
+  }
+END_LIBRARY_FUNC
 
 ///////////
 ABI void PROFILE(PARAMS) {

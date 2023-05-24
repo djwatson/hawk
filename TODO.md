@@ -1,8 +1,7 @@
 # TODO list
 
 * benchmarks: 
-** missing file-exists? tail, ray, slatex, scheme
-** truncate quicksort
+** missing file-exists?   scheme
 ** exact-integer-sqrt pi
 ** floor chudnovsky 
 
