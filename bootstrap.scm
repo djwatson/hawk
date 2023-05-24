@@ -107,7 +107,8 @@
        ((string? a)
 	(and (string? b) (string=? a b)))
        ((vector? a) ; TODO make faster
-	(and (vector? b) (equal? (vector->list a) (vector->list b)))) 
+	(and (vector? b)
+	     (equal? (vector->list a) (vector->list b)))) 
        (else #f))))
 
 (define (car a) ($car a))
@@ -255,6 +256,12 @@
   ($vector-length v))
 (define (string-length v)
   ($string-length v))
+
+(define (vector-map fun vec)
+  (let ((res (make-vector (vector-length vec))))
+    (do ((i 0 (+ i 1)))
+        ((= i (vector-length res)) res)
+      (vector-set! res i (fun (vector-ref vec i))))))
 
 (define (negative? a)
   ($< a 0))
@@ -871,6 +878,7 @@
 
 ;;; Include the bytecode compiler
 (include "bc.scm")
+
 (define (write-double d port)
   ($write-double d port))
 (define (round num)
@@ -883,6 +891,8 @@
   ($atan num))
 (define (cos num)
   ($cos num))
+(define (truncate num)
+  ($truncate num))
 ;;;;;;;; Junk for testing benchmarks ;;;;;;;
 (define (pp arg) (display arg) (newline))
 (define println pp)
