@@ -1,7 +1,6 @@
 # TODO list
 
 * benchmarks: 
-** earley gc too small, mperm
 ** missing file-exists? tail, ray, slatex, scheme
 ** truncate quicksort
 ** exact-integer-sqrt pi
@@ -16,6 +15,7 @@
 * closure calls as a new bytecode instr
 * remove hotspot for non-jit / new bytecode
 * letrec the bootstrap
+* $vector, $eqv, $zero? or inline zero
 * TODO >, >= , GSET check
 * FLIP branches when emitting jmps if possible.
 * need IF NULL, IF NOT NULL checks.  SUper common.
@@ -25,15 +25,17 @@
  This probably has no effect on the VM, but might benefit the jit.
 * could add sume 'VN' variations of < >, EQ, etc
 * BIGREGS - fix fftrad4
+* faster call/cc - flush frames w/underflow handler.  Overflow handler can also just flush frames.
 
 ## safety improvements
 * do better for destination driven code gen - 
    * return 'undefined' for value, but only for setters if rd is set.
-* Go thorugh all of vm and check for safety!
 * letrec check
+* return accept args num 
+
+* Go thorugh all of vm and check for safety!
 * various check for const size overflow, reg or opcode overflow
 * fuzz bytecode reader
-* return accept args num 
 
 ## VM cleanup
 * GC - up sz based expanding
