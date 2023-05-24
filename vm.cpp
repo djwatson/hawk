@@ -615,6 +615,22 @@ LIBRARY_FUNC_BC_LOAD(EQ)
   }
 END_LIBRARY_FUNC
 
+LIBRARY_FUNC_BC_LOAD_NAME(EQV?, EQV)
+  if (fb == fc) {
+    frame[ra] = TRUE_REP;
+  } else if (((7 & fb) == (7 & fc)) && ((7 & fc) == 2)) {              
+    auto x_b = ((flonum_s *)(fb - FLONUM_TAG))->x;
+    auto x_c = ((flonum_s *)(fc - FLONUM_TAG))->x;
+    if (x_b == x_c) {
+      frame[ra] = TRUE_REP;
+    } else {
+      frame[ra] = FALSE_REP;
+    }
+  } else {
+    frame[ra] = FALSE_REP;
+  }
+END_LIBRARY_FUNC
+
 LIBRARY_FUNC_BC(CONS)
   auto c = (cons_s *)GC_malloc(sizeof(cons_s));
   

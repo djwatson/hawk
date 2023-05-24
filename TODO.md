@@ -17,7 +17,8 @@
 * ctak - improve CALLCC 
 * deriv - map2 is slow. ALso calls list a lot, split func funcv.  Only GC once for varargs if possible?
 * destruc - length is slow.  Consider adding as bytecode
-* diviter, divrec - guard check branch merge.  
+* diviter, divrec - guard check branch merge.
+* dynamic - callcc, assv, memv,(probably all fixed by branch rollup) peek - case-lambda
 
 * case-lambda!
 * funcv new bytecode
