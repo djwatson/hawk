@@ -10,6 +10,15 @@
 
 ## bytecode perf improvements 
 
+* browse - fold immeidate guard/NULL? 
+* cat - case-lambda, guard/jmp folding
+* conform - all in memq.  fold null?
+* cpstak - clopsure-ptr CALL opt, probably nothing else.
+* ctak - improve CALLCC 
+* deriv - map2 is slow. ALso calls list a lot, split func funcv.  Only GC once for varargs if possible?
+* destruc - length is slow.  Consider adding as bytecode
+* diviter, divrec - guard check branch merge.  
+
 * case-lambda!
 * funcv new bytecode
 * closure calls as a new bytecode instr
