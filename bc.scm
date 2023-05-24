@@ -279,12 +279,12 @@
    (+ (length f) nr)
    (reverse f)))
 
-(define (compile-closure f bc env rd nr cd)
+(define (compile-vararg f bc env rd nr cd)
   ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   (finish bc cd rd)
   (when (not (= rd nr))
     (push-instr! bc (list 'MOV rd nr)))
-  (push-instr! bc (list 'CLOSURE nr (- (length f) 1)))
+  (push-instr! bc (list (symbol-to-bytecode (car f)) nr (- (length f) 1)))
   (fold
    (lambda (f num)
      (compile-sexp f bc env num num 'next)
@@ -386,7 +386,7 @@
 	;; Builtins
 	(($vector-set! $string-set!) (compile-setter f bc env rd nr cd))
 	(($set-car! $set-cdr!) (compile-setter2 f bc env rd nr cd))
-	(($closure) (compile-closure f bc env rd nr cd))
+	(($closure $vector) (compile-vararg f bc env rd nr cd))
 	(($closure-set) (compile-closure-set f bc env rd nr cd))
 	(else
 	 (if (bytecode? (car f))

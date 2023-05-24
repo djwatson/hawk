@@ -484,6 +484,16 @@ LIBRARY_FUNC_BC(GUARD)
   }
 END_LIBRARY_FUNC
 
+LIBRARY_FUNC_B(VECTOR)
+  auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
+  closure->type = VECTOR_TAG;
+  closure->len = rb;
+  for (int i = 0; i < rb; i++) {
+    closure->v[i] = frame[ra + i];
+  }
+  frame[ra] = (long)closure | PTR_TAG;
+END_LIBRARY_FUNC
+
 LIBRARY_FUNC_B(CLOSURE)
   auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
   closure->type = CLOSURE_TAG;

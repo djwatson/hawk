@@ -15,7 +15,7 @@
 * closure calls as a new bytecode instr
 * remove hotspot for non-jit / new bytecode
 * letrec the bootstrap
-* $vector, $eqv, $zero? or inline zero
+* $eqv, $zero? or inline zero
 * TODO >, >= , GSET check
 * FLIP branches when emitting jmps if possible.
 * need IF NULL, IF NOT NULL checks.  SUper common.
