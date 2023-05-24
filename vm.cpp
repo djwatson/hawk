@@ -276,10 +276,13 @@ LIBRARY_FUNC(HALT)
 LIBRARY_FUNC_MATH_VN(SUBVN, sub);
 LIBRARY_FUNC_MATH_VN(ADDVN, add);
 
-#define OVERFLOW_OP(op, name, shift)                                           \
-  if (unlikely(__builtin_##op##_overflow(fb, fc >> shift, &frame[ra]))) {      \
+// Note overflow may smash dest, so don't use frame[ra] directly.
+#define OVERFLOW_OP(op, name, shift)					       \
+  long tmp;								       \
+  if (unlikely(__builtin_##op##_overflow(fb, fc >> shift, &tmp))) {	       \
     MUSTTAIL return INS_##name##_SLOWPATH(ARGS);                               \
-  }
+  }									       \
+  frame[ra] = tmp;
 
 // Shift is necessary for adjusting the tag for mul.
 #define LIBRARY_FUNC_MATH_VV(name, op2, overflow)                              \

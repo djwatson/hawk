@@ -1,9 +1,10 @@
 # TODO list
 
-* benchmarks: 
-** missing file-exists?   scheme
-** exact-integer-sqrt pi
-** floor chudnovsky 
+* chudnovsky /pi need bignum
+* mbrotZ needs complex
+* gcbench needs records
+* equal needs cycle=
+* bv2string needs bytevectors
 
 # Bytecode generator / VM
 
