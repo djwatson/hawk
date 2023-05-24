@@ -3,6 +3,7 @@
 #include <string.h>
 #include <string>
 #include <unordered_map>
+#include <charconv>
 
 #include "gc.h"
 #include "symbol_table.h"
@@ -42,7 +43,10 @@ void print_obj(long obj, FILE *file) {
   }
   case FLONUM_TAG: {
     auto f = (flonum_s *)(obj - FLONUM_TAG);
-    fprintf(file, "%f", f->x);
+    char buffer[24];
+    std::to_chars_result err = std::to_chars(buffer, buffer+sizeof(buffer), f->x);
+    *err.ptr = '\0';
+    fprintf(file, "%s", buffer);
     break;
   }
   case CONS_TAG: {
