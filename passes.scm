@@ -302,7 +302,7 @@
 	  ((char?) `($guard ,(integrate (second f)) ,char-tag))
 	  ((symbol?) `($guard ,(integrate (second f)) ,symbol-tag))
 	  ((flonum? inexact?) `($guard ,(integrate (second f)) ,flonum-tag))
-	  ((fixnum? exact?) `($guard ,(integrate (second f)) ,fixnum-tag)) 
+	  ((fixnum? exact? exact-integer?) `($guard ,(integrate (second f)) ,fixnum-tag)) 
 	  ((null?) `($guard ,(integrate (second f)) ,nil-tag))
 	  ;; TODO add the rest of c*r
 	  ((caar) `($car ($car ,(integrate (second f)))))

@@ -19,13 +19,29 @@
 * destruc - length is slow.  Consider adding as bytecode
 * diviter, divrec - guard check branch merge.
 * dynamic - callcc, assv, memv,(probably all fixed by branch rollup) peek - case-lambda
+* earley - good. 
+* fft - good
+* fibc - callcc&resume.  Zero.
+* fibfp - good.  Better GC.  Somehow tell math funcs they can reuse one arg?  Or probably just leave to JIT.
+* fib - good.
+* gcbench - good
+* graphs - only lambda-lifting would solve.
+* lattice - foey.  Better closure analysis. null? inline. Probably inlining generally.
+* matrix - branch folding but probably not much else.
+* mazefun - recognize (= i 0) as (zero? i)
+* maze - guard folding for fixnum
+* mbrot - ok
+* mperm - fold zero?
+* nboyer - branch folding NULL?.  all GC. 
+* nqueens - jmp inlining, fold null?
 
+* ret a const?
 * case-lambda!
 * funcv new bytecode
 * closure calls as a new bytecode instr
 * remove hotspot for non-jit / new bytecode
 * letrec the bootstrap
-* $eqv, $zero? or inline zero
+* $zero? or inline zero
 * FLIP branches when emitting jmps if possible.
 * need IF NULL, IF NOT NULL checks.  SUper common.
 * For branches we can immediately run the following jump if possible?  single branch instead of indirect.

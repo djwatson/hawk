@@ -17,6 +17,7 @@
 (define integer? fixnum?)
 (define exact? fixnum?)
 (define inexact? flonum?)
+(define exact-integer? fixnum?)
 
 (define (reducer f init args)
   (if (pair? args)
