@@ -106,9 +106,15 @@
 	(and (pair? b) (equal? (car a) (car b)) (equal? (cdr a) (cdr b))))
        ((string? a)
 	(and (string? b) (string=? a b)))
-       ((vector? a) ; TODO make faster
+       ((vector? a) 
 	(and (vector? b)
-	     (equal? (vector->list a) (vector->list b)))) 
+	     (= (vector-length a) (vector-length b))
+	     (let loop ((i 0))
+	       (if (< i (vector-length a))
+		   (if (equal? (vector-ref a i) (vector-ref b i))
+		       (loop (+ i 1))
+		       #f)
+		   #t)))) 
        (else #f))))
 
 (define (car a) ($car a))
