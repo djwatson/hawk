@@ -17,6 +17,9 @@
 * remove hotspot for non-jit / new bytecode
 * letrec the bootstrap
 * TODO >, >= , GSET check
+* FLIP branches when emitting jmps if possible.
+* need IF NULL, IF NOT NULL checks.  SUper common.
+* For branches we can immediately run the following jump if possible?  single branch instead of indirect.
 * 'big' register moves
 * we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
  This probably has no effect on the VM, but might benefit the jit.
@@ -25,12 +28,13 @@
 
 ## safety improvements
 * do better for destination driven code gen - 
-   * return 'undefined' for value, but setters
+   * return 'undefined' for value, but only for setters if rd is set.
 * bounds check vector/string refs
 * Go thorugh all of vm and check for safety!
 * letrec check
 * various check for const size overflow, reg or opcode overflow
 * fuzz bytecode reader
+* return accept args num 
 
 ## VM cleanup
 * GC - up sz based expanding
