@@ -29,7 +29,6 @@
 ## safety improvements
 * do better for destination driven code gen - 
    * return 'undefined' for value, but only for setters if rd is set.
-* bounds check vector/string refs
 * Go thorugh all of vm and check for safety!
 * letrec check
 * various check for const size overflow, reg or opcode overflow

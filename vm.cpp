@@ -655,13 +655,21 @@ END_LIBRARY_FUNC
 LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF)
   TYPECHECK_FIXNUM(fc);
   LOAD_TYPE_WITH_CHECK(vec, vector_s, fb, VECTOR_TAG);
-  frame[ra] = vec->v[fc >> 3];
+  long pos = fc >> 3;
+  if (vec->len - pos < 0) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  frame[ra] = vec->v[pos];
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF)
   TYPECHECK_FIXNUM(fc);
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
-  frame[ra] = (str->str[fc >> 3] << 8) | CHAR_TAG;
+  long pos = fc >> 3;
+  if (str->len - pos < 0) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  frame[ra] = (str->str[pos] << 8) | CHAR_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(VECTOR-LENGTH, VECTOR_LENGTH)
@@ -678,7 +686,11 @@ LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
   auto fa = frame[ra];
   TYPECHECK_FIXNUM(fb);
   LOAD_TYPE_WITH_CHECK(vec, vector_s, fa, VECTOR_TAG);
-  vec->v[fb >> 3] = fc;
+  long pos = fb >> 3;
+  if (vec->len - pos < 0) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  vec->v[pos] = fc;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET)
@@ -686,7 +698,11 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET)
   TYPECHECK_FIXNUM(fb);
   TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
   LOAD_TYPE_WITH_CHECK(str, string_s, fa, STRING_TAG);
-  str->str[fb >> 3] = (fc >> 8) & 0xff;
+  long pos = fb >> 3;
+  if (str->len - pos < 0) {
+    MUSTTAIL return FAIL_SLOWPATH(ARGS);
+  }
+  str->str[pos] = (fc >> 8) & 0xff;
 END_LIBRARY_FUNC
 
 #define LIBRARY_FUNC_CONS_SET_OP(str, name, field)                             \
