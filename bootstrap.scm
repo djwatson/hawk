@@ -45,7 +45,7 @@
       (/ 1 (car rest))
       (/ (car rest) (cadr rest))))
 (define (quotient x y)
-  (/ x y))
+  (exact (/ x y)))
 (define (modulo x y)
   (let ((z (remainder x y)))
     (if (negative? y)
@@ -896,6 +896,16 @@
 
 ;;; Include the bytecode compiler
 (include "bc.scm")
+
+(define (exact-integer-sqrt s)
+  (if (<= s 1)
+      s
+      (let* ((x0 (quotient s 2))
+	     (x1 (quotient (+ x0 (quotient s x0)) 2)))
+	(let loop ((x0 x0) (x1 x1))
+	  (if (< x1 x0)
+	      (loop x1 (quotient (+ x1 (quotient s x1)) 2))
+	      x0)))))
 
 (define (write-double d port) ($write-double d port))
 (define (round num) ($round num))

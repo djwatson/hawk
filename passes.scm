@@ -267,7 +267,7 @@
 		)
 	   (cons (string->symbol (string-append "$" (symbol->string (car f)))) (imap integrate (cdr f))))
 	  ;; TODO these need a JISEQ?
-	  ((quotient) `($/ ,@(imap integrate (cdr f))))
+	  ((quotient) `($exact ($/ ,@(imap integrate (cdr f)))))
 	  ((remainder) `($% ,@(imap integrate (cdr f))))
 	  ((zero) `($= ,@(imap integrate (cdr f))))
 	  ((eq? char=?) (cons '$eq (imap integrate (cdr f))))
