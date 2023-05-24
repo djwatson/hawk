@@ -16,7 +16,6 @@
 * remove hotspot for non-jit / new bytecode
 * letrec the bootstrap
 * $eqv, $zero? or inline zero
-* TODO >, >= , GSET check
 * FLIP branches when emitting jmps if possible.
 * need IF NULL, IF NOT NULL checks.  SUper common.
 * For branches we can immediately run the following jump if possible?  single branch instead of indirect.
@@ -28,6 +27,7 @@
 * faster call/cc - flush frames w/underflow handler.  Overflow handler can also just flush frames.
 
 ## safety improvements
+* TODO GSET check
 * do better for destination driven code gen - 
    * return 'undefined' for value, but only for setters if rd is set.
 * letrec check

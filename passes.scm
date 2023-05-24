@@ -247,7 +247,7 @@
     (if (atom? f) f
 	(case (car f)
 	  ;; TODO cleanup.  lol.
-	  ((+ - * / < =) (if (= 3 (length f))
+	  ((+ - * /) (if (= 3 (length f))
 			       (cons (string->symbol (string-append "$" (symbol->string (car f)))) (imap integrate (cdr f)))
 			       (let* ((sym (string->symbol (string-append "$" (symbol->string (car f))))))
 				      (if (> (length f) 3)
@@ -258,6 +258,10 @@
 						      (integrate (cons (car f) (cdddr f)))
 						      (integrate (cadddr f))))
 					  (imap integrate f)))))
+	  ;; TODO could make this n-ary
+	  ((< = > <= >=) (if (= 3 (length f))
+			     (cons (string->symbol (string-append "$" (symbol->string (car f)))) (imap integrate (cdr f)))
+			     (imap integrate f)))
 	  ((car cdr set-car! set-cdr! cons vector-ref vector-length string-length string-ref string-set! vector-set! 
 		char->integer integer->char symbol->string string->symbol round vector
 		)
