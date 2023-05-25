@@ -91,6 +91,56 @@ bignum* big_add_unsigned(bignum* a, bignum* b) {
   return res;
 }
 
+void big_simplify(bignum* a) {
+  while(a->used > 0 && a->l[a->used-1] == 0) {
+      a->used--;
+  }
+}
+
+bignum* big_sub_unsigned(bignum* a, bignum* b) {
+  // a *MUST* be bigger.
+  assert(a->used >= b->used);
+  //assert(bigint_cmp(a, b) == 1);
+  auto nlen = a->used;
+  int borrow = 0;
+  auto res = big_alloc(nlen);
+
+  // Copy a in to res.
+  memcpy(res->l, a->l, sizeof(uint64_t)*a->used);
+  res->used = nlen;
+
+  uint64_t* bp = b->l;
+  uint64_t* bp_end = b->l + b->used;
+  uint64_t* rp = res->l;
+
+  // Scan over b, adding it to res.
+  uint64_t i = 0;
+  uint64_t diff;
+  while(bp < bp_end) {
+    uint64_t cur = (*rp);
+    if (borrow) {
+      diff = cur - *bp - 1;
+      borrow = diff >= cur;
+    } else {
+      diff = cur - *bp;
+      borrow = diff > cur;
+    }
+    bp++;
+    (*rp++) = diff;
+  }
+  // Finish any borrow.
+  while (borrow) {
+    uint64_t cur = (*rp);
+    diff = cur - borrow;
+    borrow = diff >= cur;
+    (*rp++) = diff;
+  }
+
+  // simplify.
+  big_simplify(res);
+  return res;
+}
+
 #include <gmp.h>
 
 int main() {
@@ -114,24 +164,31 @@ int main() {
     auto in = inputs[i];
     auto b = big_alloc(1);
     big_set_from_fixnum(b, in);
+    mpz_set_ui(bm, in);
 
-    auto res = big_add_unsigned(a, b);
+    bignum*res;
+    if (a->used > 10) {
+      printf("sub\n");
+      res = big_sub_unsigned(a, b);
+      mpz_sub(am, am, bm);
+    } else {
+      res = big_add_unsigned(a, b);
+      mpz_add(am, am, bm);
+    }
     free(a);
     free(b);
     a = res;
 
-    mpz_set_ui(bm, in);
-    mpz_add(am, am, bm);
   }
   char buf1[1024];
   big_print_hex(buf1, 1024, a);
-  //  printf("%s\n", buf1);
+  // printf("%s\n", buf1);
 
   free(a);
 
   char buf2[1024];
   gmp_snprintf(buf2, 1024, "%Zx", am);
-  //  printf("%s\n", buf2);
+    // printf("%s\n", buf2);
   assert(strcmp(buf2, buf1) == 0);
 
   mpz_clears(am, bm, nullptr);
