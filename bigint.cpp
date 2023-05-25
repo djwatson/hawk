@@ -12,7 +12,7 @@ struct bignum {
   uint64_t l[];
 };
 
-bignum* big_alloc(size_t len) {
+static bignum* bignum_alloc(size_t len) {
   auto res = (bignum*)malloc(sizeof(bignum) + len*sizeof(long));
   res->type = 0;
   res->len = len;
@@ -20,13 +20,20 @@ bignum* big_alloc(size_t len) {
   return res;
 }
 
-void big_set_from_fixnum(bignum*a, uint64_t fix) {
+static bignum* bignum_copy(bignum* a, size_t len) {
+  auto res = bignum_alloc(len);
+  res->used = a->used;
+  memcpy(res->l, a->l, sizeof(uint64_t)*a->used);
+  return res;
+}
+
+void bignum_set_from_fixnum(bignum*a, uint64_t fix) {
   assert(a->len >= 1);
   a->used = 1;
   a->l[0] = fix;
 }
 
-void big_print_hex(char* buf, size_t buflen, bignum* a) {
+void bignum_print_hex(char* buf, size_t buflen, bignum* a) {
   size_t pos = 0;
   for(uint64_t i = a->used; i > 0; i--) {
     sprintf(&buf[pos], "%016lx",  a->l[i-1]);
@@ -42,7 +49,7 @@ void big_print_hex(char* buf, size_t buflen, bignum* a) {
   }
 }
 
-bignum* big_add_unsigned(bignum* a, bignum* b) {
+bignum* bignum_add_unsigned(bignum* a, bignum* b) {
   // Make a is bigger.
   if (a->used < b->used) {
     bignum* tmp = a;
@@ -51,10 +58,9 @@ bignum* big_add_unsigned(bignum* a, bignum* b) {
   }
   auto nlen = a->used + 1;
   int carry = 0;
-  auto res = big_alloc(nlen);
+  auto res = bignum_copy(a, nlen);
 
   // Copy a in to res.
-  memcpy(res->l, a->l, sizeof(uint64_t)*a->used);
   res->l[nlen-1] = 0;
   res->used = nlen;
 
@@ -90,23 +96,22 @@ bignum* big_add_unsigned(bignum* a, bignum* b) {
   return res;
 }
 
-void big_simplify(bignum* a) {
+void bignum_simplify(bignum* a) {
   while(a->used > 0 && a->l[a->used-1] == 0) {
       a->used--;
   }
+  if (a->used == 0) {
+    a->used = 1;
+  }
 }
 
-bignum* big_sub_unsigned(bignum* a, bignum* b) {
+bignum* bignum_sub_unsigned(bignum* a, bignum* b) {
   // a *MUST* be bigger.
   assert(a->used >= b->used);
   //assert(bigint_cmp(a, b) == 1);
   auto nlen = a->used;
   int borrow = 0;
-  auto res = big_alloc(nlen);
-
-  // Copy a in to res.
-  memcpy(res->l, a->l, sizeof(uint64_t)*a->used);
-  res->used = nlen;
+  auto res = bignum_copy(a, nlen);
 
   uint64_t* bp = b->l;
   uint64_t* bp_end = b->l + b->used;
@@ -135,11 +140,11 @@ bignum* big_sub_unsigned(bignum* a, bignum* b) {
   }
 
   // simplify.
-  big_simplify(res);
+  bignum_simplify(res);
   return res;
 }
 
-bignum* big_mul_unsigned(bignum* a, bignum* b) {
+bignum* bignum_mul_unsigned(bignum* a, bignum* b) {
   // Make a smaller.
   if (a->used > b->used) {
     bignum* tmp = a;
@@ -150,7 +155,7 @@ bignum* big_mul_unsigned(bignum* a, bignum* b) {
 
   
   auto nlen = a->used + b->used;
-  auto res = big_alloc(nlen);
+  auto res = bignum_alloc(nlen);
   memset(res->l, 0, sizeof(uint64_t)*nlen);
   res->used = nlen; // Fixed by simplify.
 
@@ -165,7 +170,123 @@ bignum* big_mul_unsigned(bignum* a, bignum* b) {
     res->l[i + a->used] = carry;
   }
 
-  big_simplify(res);
+  bignum_simplify(res);
+  return res;
+}
+
+static void bignum_destructive_shift_left_word(bignum* a, uint64_t words) {
+  assert(a->len - a->used > words);
+  int64_t i;
+  for(i = a->used - 1; i >= words; i--) {
+    a->l[i] = a->l[i - words];
+  }
+  a->used += words;
+  for(;  i >= 0; i--) {
+    a->l[i] = 0;
+  }
+}
+
+static void bignum_destructive_shift_left(bignum* a, uint64_t bits) {
+  auto words = bits / 64;
+  if (words) {
+    bignum_destructive_shift_left_word(a, words);
+    bits -= words * 64;
+  }
+  assert(a->len > a->used);
+  a->used++;
+  a->l[a->used-1] = 0;
+  if (bits) {
+    int i;
+    for(i = a->used - 1; i > 0; i--) {
+      a->l[i] = (a->l[i] << bits) | (a->l[i-1] >> (64 - bits));
+    }
+    a->l[0] <<= bits;
+  }
+  bignum_simplify(a);
+}
+
+static void bignum_destructive_shift_right_word(bignum* a, uint64_t words) {
+  int64_t i;
+  for(i = 0; i < a->used - words; i++) {
+    a->l[i]  = a->l[i + words];
+  }
+  for(; i < a->used; i++) {
+    a->l[i] = 0;
+  }
+  a->used -= words;
+}
+
+static void bignum_destructive_shift_right(bignum* a, uint64_t bits) {
+  auto words = bits/ 64;
+  if (words) {
+    bignum_destructive_shift_right_word(a, words);
+    bits -= words * 64;
+  }
+  if (bits) {
+    int i;
+    for(i = 0; i < a->used-1; i++) {
+      a->l[i] = (a->l[i] >> bits) | (a->l[i + 1] << (64 - bits));
+    }
+    a->l[i] >>= bits;
+  }
+  bignum_simplify(a);
+}
+
+int bignum_cmp(bignum* a, bignum* b) {
+  if (a->used > b->used) {
+    return 1;
+  } else if (b->used > a->used) {
+    return -1;
+  } else {
+    for(int64_t i = a->used-1; i >=0; i--) {
+      if (a->l[i] > b->l[i]) {
+	return 1;
+      } else if (b->l[i] > a->l[i]) {
+	return -1;
+      }
+    }
+  }
+  
+  return 0;
+}
+
+bool bignum_is_zero(bignum* a) {
+  return a->used == 1 && a->l[0] == 0;
+}
+
+static void bignum_destructive_or(bignum* res, bignum* o) {
+  auto v = res->used < o->used ? res->used : o->used;
+
+  for(uint64_t i = 0; i < v; i++) {
+    res->l[i] |= o->l[i];
+  }
+}
+
+bignum* bignum_div(bignum* a, bignum* b) {
+  bignum* c = bignum_alloc(a->used + 1);
+  bignum_set_from_fixnum(c, 1);
+
+  bignum* denom = bignum_copy(b, a->used + 1);
+  bignum* num = bignum_copy(a, a->used + 1);
+
+  while(bignum_cmp(denom, a) != 1) {
+    bignum_destructive_shift_left(denom, 1);
+    bignum_destructive_shift_left(c, 1);
+  }
+  bignum* res = bignum_alloc(a->used);
+  memset(res->l, 0, sizeof(uint64_t)*a->used);
+  res->used = a->used;
+
+  while(!bignum_is_zero(c)) {
+    if (bignum_cmp(num, denom) != -1) {
+      num = bignum_sub_unsigned(num, denom);
+      bignum_destructive_or(res, c);
+    }
+    bignum_destructive_shift_right(c, 1);
+    bignum_destructive_shift_right(denom, 1);
+  }
+
+  bignum_simplify(res);
   return res;
 }
 
@@ -178,41 +299,67 @@ int main() {
   size_t sz = fread(inputs, 1, 512 * sizeof(uint64_t), stdin);
   sz /= sizeof(uint64_t);
   
-  auto a = big_alloc(1);
-  big_set_from_fixnum(a, 1);
+  auto a = bignum_alloc(2);
+  auto d = bignum_alloc(1);
+  bignum_set_from_fixnum(a, 2);
+  bignum_set_from_fixnum(d, 1);
 
   mpz_t am;
   mpz_t bm;
+  mpz_t dm;
   
-  mpz_inits(am, bm, nullptr);
-  mpz_set_ui(am, 1);
+  mpz_inits(am, bm, dm, nullptr);
+  mpz_set_ui(am, 2);
+  mpz_set_ui(dm, 1);
   
   for(uint64_t i =0; i < sz; i++) {
     auto in = inputs[i];
-    auto b = big_alloc(1);
+    if (in < 2) {
+      continue;
+    }
+    auto b = bignum_alloc(1);
     
-    big_set_from_fixnum(b, in);
+    bignum_set_from_fixnum(b, in);
     mpz_set_ui(bm, in);
 
     bignum*res;
-    res = big_mul_unsigned(a, b);
+    res = bignum_mul_unsigned(a, b);
     mpz_mul(am, am, bm);
+    mpz_add(dm, dm, bm);
     free(a);
-    free(b);
     a = res;
 
+    res = bignum_add_unsigned(d, b);
+    free(b);
+    free(d);
+    d = res;
   }
+  {
+    char buf1[1024];
+    bignum_print_hex(buf1, 1024, a);
+    printf("A: %s\n", buf1);
+  }
+  {
+    char buf1[1024];
+    bignum_print_hex(buf1, 1024, d);
+    printf("D: %s\n", buf1);
+  }
+  assert(bignum_cmp(a, d) == 1);
+  a = bignum_div(a, d);
   char buf1[1024];
-  big_print_hex(buf1, 1024, a);
-   printf("%s\n", buf1);
+  bignum_print_hex(buf1, 1024, a);
+  printf("%s\n", buf1);
 
   free(a);
 
   char buf2[1024];
+  gmp_printf("A: %Zx\n", am);
+  gmp_printf("D: %Zx\n", dm);
+  mpz_tdiv_q(am, am, dm);
   gmp_snprintf(buf2, 1024, "%Zx", am);
-   printf("%s\n", buf2);
+  printf("%s\n", buf2);
   assert(strcmp(buf2, buf1) == 0);
 
-  mpz_clears(am, bm, nullptr);
+  mpz_clears(am, bm, dm, nullptr);
   return 0;
 }
