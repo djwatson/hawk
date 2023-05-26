@@ -95,10 +95,7 @@
 (define (not a) (if a #f #t))
 
 (define (eq? a b) ($eq a b))
-;; (define (eqv? a b)
-;;   (or ($eq a b)
-;;       (and (flonum? a) (flonum? b)
-;; 	   ($= a b))))
+(define (eqv? a b) ($eqv? a b))
 (define (equal? a b)
   (if (eqv? a b) #t
       (cond
