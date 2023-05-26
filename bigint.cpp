@@ -300,19 +300,6 @@ bignum* bignum_div(bignum* a, bignum* b) {
 
 
 
-int nlz(unsigned x) {
-   int n;
-
-   if (x == 0) return(32);
-   n = 0;
-   if (x <= 0x0000FFFF) {n = n +16; x = x <<16;}
-   if (x <= 0x00FFFFFF) {n = n + 8; x = x << 8;}
-   if (x <= 0x0FFFFFFF) {n = n + 4; x = x << 4;}
-   if (x <= 0x3FFFFFFF) {n = n + 2; x = x << 2;}
-   if (x <= 0x7FFFFFFF) {n = n + 1;}
-   return n;
-}
-
 /* q[0], r[0], u[0], and v[0] contain the LEAST significant words.
 (The sequence is in little-endian order).
 
@@ -364,7 +351,7 @@ int divmnu(unsigned q[], unsigned r[],
    bit is on, and shift u left the same amount. We may have to append a
    high-order digit on the dividend; we do that unconditionally. */
 
-   s = nlz(v[n-1]);             // 0 <= s <= 31.
+   s = __builtin_clz(v[n-1]);             // 0 <= s <= 31.
    vn = (unsigned *)alloca(4*n);
    for (i = n - 1; i > 0; i--)
       vn[i] = (v[i] << s) | ((unsigned long long)v[i-1] >> (32-s));
@@ -379,9 +366,9 @@ int divmnu(unsigned q[], unsigned r[],
    for (j = m - n; j >= 0; j--) {       // Main loop.
       // Compute estimate qhat of q[j].
       qhat = (un[j+n]*b + un[j+n-1])/vn[n-1];
-      rhat = (un[j+n]*b + un[j+n-1]) - qhat*vn[n-1];
+      rhat = (un[j+n]*b + un[j+n-1])%vn[n-1];
 again:
-      if (qhat >= b || qhat*vn[n-2] > b*rhat + un[j+n-2])
+      if (qhat >= b || (unsigned)qhat*(unsigned long long)vn[n-2] > b*rhat + un[j+n-2])
       { qhat = qhat - 1;
         rhat = rhat + vn[n-1];
         if (rhat < b) goto again;
@@ -390,7 +377,7 @@ again:
       // Multiply and subtract.
       k = 0;
       for (i = 0; i < n; i++) {
-         p = qhat*vn[i];
+	p = (unsigned)qhat*(unsigned long long)vn[i];
          t = un[i+j] - k - (p & 0xFFFFFFFFLL);
          un[i+j] = t;
          k = (p >> 32) - (t >> 32);
