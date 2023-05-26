@@ -17,13 +17,15 @@ static struct option long_options[] = {
     {"profile", no_argument, nullptr, 'p'},
     {"joff", no_argument, nullptr, 'o'},
     {"help", no_argument, nullptr, 'h'},
+    {"list", no_argument, nullptr, 'l'},
     {nullptr, no_argument, nullptr, 0},
 };
 
 void print_help() {
   printf("Usage: boom [OPTION]\n");
   printf("Available options are:\n");
-  printf("  --joff\tTurn off jit\n");
+  printf("      --joff\tTurn off jit\n");
+  printf("  -l, --list\tList bytecode and stop\n");
   printf("  -p, --profile\tSampling profiler\n");
   printf("  -h, --help\tPrint this help\n");
 }
@@ -31,12 +33,14 @@ void print_help() {
 unsigned char __attribute__((weak)) bootstrap_scm_bc[0];
 unsigned int __attribute__((weak)) bootstrap_scm_bc_len = 0;
 
+static bool list = false;
+
 // Call in to the compiled bytecode function (define (compile-file file) ...)
 void compile_file(const char *file) {
   // Watch out for GC safety, from_c_str allocates.
   auto str = from_c_str(file);
   auto sym = symbol_table_find_cstr("compile-file"); // DOes not allocate.
-  long args[2] = {0, str};
+  long args[3] = {0, str, TRUE_REP};
   if (!sym || sym->val == UNDEFINED_TAG) {
     printf("Error: Attempting to compile a scm file, but can't find "
            "compile-file\n");
@@ -45,7 +49,7 @@ void compile_file(const char *file) {
   auto clo = (closure_s *)(sym->val - CLOSURE_TAG);
   auto func = (bcfunc *)clo->v[0];
 
-  run(func, 2, args);
+  run(func, list ? 3 : 2, args);
 }
 
 int profile = 0;
@@ -54,7 +58,7 @@ int main(int argc, char *argv[]) {
   int verbose = 0;
 
   int c;
-  while ((c = getopt_long(argc, argv, "phj:", long_options, nullptr)) != -1) {
+  while ((c = getopt_long(argc, argv, "lphj:", long_options, nullptr)) != -1) {
     switch (c) {
     case 'p':
       profile = 1;
@@ -66,6 +70,9 @@ int main(int argc, char *argv[]) {
       break;
     case 'o':
       joff = 1;
+      break;
+    case 'l':
+      list = true;
       break;
     default:
       print_help();
@@ -93,6 +100,9 @@ int main(int argc, char *argv[]) {
       strcpy(tmp + len, ".bc");
       printf("Compiling script %s\n", argv[i]);
       compile_file(argv[i]);
+      if (list) {
+	exit(0);
+      }
       printf("Running script %s\n", tmp);
       auto start_func = readbc_file(tmp);
       run(start_func, 0, nullptr);

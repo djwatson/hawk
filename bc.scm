@@ -568,7 +568,7 @@
 	(append included (add-includes (cdr lst))))
       '()))
 
-(define (compile-file name)
+(define (compile-file name . rest)
   (set! consts '())
   (set! symbol-table '())
   (set! program '())
@@ -589,18 +589,19 @@
   (set! consts (reverse! consts))
   (set! program (reverse! program))
 
-  ;; (display "Consts:\n")
-  ;; (fold (lambda (a b)
-  ;; 	  (dformat "~a: ~a\n" b a)
-  ;; 	  (+ b 1))
-  ;; 	0 consts)
-  ;; (newline)
-  ;; (fold (lambda (a b)
-  ;; 	  (dformat "~a -- " b)
-  ;; 	  (display-bc a)
-  ;; 	  (+ b 1))
-  ;; 	0
-  ;; 	program)
+  (when (pair? rest)
+    (display "Consts:\n")
+    (fold (lambda (a b)
+	    (dformat "~a: ~a\n" b a)
+	    (+ b 1))
+	  0 consts)
+    (newline)
+    (fold (lambda (a b)
+	    (dformat "~a -- " b)
+	    (display-bc a)
+	    (+ b 1))
+	  0
+	  program))
 
   (bc-write (string-append name ".bc") program))
 
