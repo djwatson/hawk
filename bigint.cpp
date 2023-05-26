@@ -299,37 +299,6 @@ bignum* bignum_div(bignum* a, bignum* b) {
 #include <gmp.h>
 
 
-bignum* expt(bignum* num, uint64_t exp) {
-  auto res = bignum_copy(num, num->used);
-  for(uint64_t i = 0; i < exp - 1; i++) {
-    res = bignum_mul_unsigned(res, num);
-  }
-  return res;
-}
-
-bignum* exact_integer_sqrt(bignum * s) {
-  auto res = bignum_alloc(1);
-  bignum_set_from_fixnum(res, 1);
-  if (bignum_cmp(s, res) != 1) {
-    return s;
-  }
-  bignum_set_from_fixnum(res, 2);
-  auto x0 = bignum_div(s, res);
-  auto x1 = bignum_div( bignum_add_unsigned(x0, bignum_div(s, x0)), res);
-  while(bignum_cmp(x1, x0) == -1) {
-    x0 = x1;
-    x1 = bignum_div(bignum_add_unsigned(x0, (bignum_div(s, x0))), res);
-  }
-  return x0;
-}
-
-bignum* square(bignum* a) {
-  return bignum_mul_unsigned(a, a);
-}
-
-void gen_pi(uint64_t nb_digits) {
-  
-}
 
 int nlz(unsigned x) {
    int n;
@@ -452,6 +421,13 @@ again:
 }
 
 bignum* bignum_div2(bignum* num, bignum* denom) {
+  if(bignum_cmp(num, denom) != 1) {
+    auto c = bignum_alloc(1);
+    bignum_set_from_fixnum(c, 0);
+    return c;
+  }
+  assert(!bignum_is_zero(denom));
+  
   auto res = bignum_alloc(num->used);
   res->used = num->used;
   memset(res->l, 0, res->len*sizeof(uint64_t));
@@ -461,106 +437,52 @@ bignum* bignum_div2(bignum* num, bignum* denom) {
 		  (unsigned*)num->l, (unsigned*)denom->l,
 		  num->used*2, denom_used);
   assert(r == 0);
-  //bignum_simplify(res);
+  bignum_simplify(res);
   return res;
 }
 
-int main() {
-  uint64_t inputs[512];
-  memset(inputs, 0, sizeof(inputs));
+// int main() {
+//   uint64_t inputs[512];
+//   memset(inputs, 0, sizeof(inputs));
 
-  size_t sz = fread(inputs, 1, 512 * sizeof(uint64_t), stdin);
-  sz /= sizeof(uint64_t);
+//   size_t sz = fread(inputs, 1, 512 * sizeof(uint64_t), stdin);
+//   sz /= sizeof(uint64_t);
   
-  auto a = bignum_alloc(2);
-  auto d = bignum_alloc(1);
-  bignum_set_from_fixnum(a, 2);
-  bignum_set_from_fixnum(d, 1);
+//   auto a = bignum_alloc(2);
+//   auto d = bignum_alloc(1);
+//   bignum_set_from_fixnum(a, 2);
+//   bignum_set_from_fixnum(d, 1);
 
-  mpz_t am;
-  mpz_t bm;
-  mpz_t dm;
+//   mpz_t am;
+//   mpz_t bm;
+//   mpz_t dm;
   
-  mpz_inits(am, bm, dm, nullptr);
-  mpz_set_ui(am, 2);
-  mpz_set_ui(dm, 1);
+//   mpz_inits(am, bm, dm, nullptr);
+//   mpz_set_ui(am, 2);
+//   mpz_set_ui(dm, 1);
   
-  for(uint64_t i =0; i < sz; i++) {
-    auto in = inputs[i];
-    if (in < 2) {
-      continue;
-    }
-    auto b = bignum_alloc(1);
+//   for(uint64_t i =0; i < sz; i++) {
+//     auto in = inputs[i];
+//     if (in < 2) {
+//       continue;
+//     }
+//     auto b = bignum_alloc(1);
     
-    bignum_set_from_fixnum(b, in);
-    mpz_set_ui(bm, in);
+//     bignum_set_from_fixnum(b, in);
+//     mpz_set_ui(bm, in);
 
-    bignum*res;
-    res = bignum_mul_unsigned(a, b);
-    mpz_mul(am, am, bm);
-    mpz_add(dm, dm, bm);
-    free(a);
-    a = res;
+//     bignum*res;
+//     res = bignum_mul_unsigned(a, b);
+//     mpz_mul(am, am, bm);
+//     mpz_add(dm, dm, bm);
+//     free(a);
+//     a = res;
 
-    res = bignum_add_unsigned(d, b);
-    free(b);
-    free(d);
-    d = res;
-  }
-  {
-    char buf1[1024];
-    bignum_print_hex(buf1, 1024, a);
-    printf("A: %s\n", buf1);
-  }
-  {
-    char buf1[1024];
-    bignum_print_hex(buf1, 1024, d);
-    printf("D: %s\n", buf1);
-  }
-  assert(bignum_cmp(a, d) == 1);
-  auto olda = a;
-  a = bignum_div2(a, d);
-  free(olda);
-  char buf1[1024];
-  bignum_print_hex(buf1, 1024, a);
-  printf("%s\n", buf1);
-
-  free(d);
-  free(a);
-
-  char buf2[1024];
-  gmp_printf("A: %Zx\n", am);
-  gmp_printf("D: %Zx\n", dm);
-  mpz_tdiv_q(am, am, dm);
-  gmp_snprintf(buf2, 1024, "%Zx", am);
-  printf("%s\n", buf2);
-  assert(strcmp(buf2, buf1) == 0);
-
-  mpz_clears(am, bm, dm, nullptr);
-  return 0;
-}
-
-// int main(int argc, char* argv[]) {
-//   int nb_digits = atoi(argv[1]);
-//   auto one = bignum_alloc(1);
-//   bignum_set_from_fixnum(one, 10);
-//   one = expt(one, nb_digits);
-
-//   auto two = bignum_alloc(1);
-//   bignum_set_from_fixnum(two, 2);
-
-//   auto four = bignum_alloc(1);
-//   bignum_set_from_fixnum(four, 4);
-
-//   auto oneone = bignum_alloc(1);
-//   bignum_set_from_fixnum(oneone, 1);
-
-//   auto a = one;
-//   auto b = exact_integer_sqrt(bignum_div(square(one), two));
-//   auto t = bignum_div(one, four);
-//   auto x = oneone;
-//   bignum* res;
-//   while (true) {
+//     res = bignum_add_unsigned(d, b);
+//     free(b);
+//     free(d);
+//     d = res;
+//   }
 //   {
 //     char buf1[1024];
 //     bignum_print_hex(buf1, 1024, a);
@@ -568,44 +490,123 @@ int main() {
 //   }
 //   {
 //     char buf1[1024];
-//     bignum_print_hex(buf1, 1024, b);
-//     printf("B: %s\n", buf1);
+//     bignum_print_hex(buf1, 1024, d);
+//     printf("D: %s\n", buf1);
 //   }
-//   {
-//     char buf1[1024];
-//     bignum_print_hex(buf1, 1024, t);
-//     printf("T: %s\n", buf1);
-//   }
-//   {
-//     char buf1[1024];
-//     bignum_print_hex(buf1, 1024, x);
-//     printf("X: %s\n", buf1);
-//   }
-//     if (bignum_cmp(a, b) == 0) {
-//       res = bignum_div(square(bignum_add_unsigned(a, b)), bignum_mul_unsigned(four, t));
-//       break;
-//     }
-//     auto newa = bignum_div(bignum_add_unsigned(a, b), two);
-//     auto diff = bignum_cmp(newa, a) == 1 ? bignum_sub_unsigned(newa, a) : bignum_sub_unsigned(a, newa);
-//     auto newb = exact_integer_sqrt(bignum_mul_unsigned(a, b));
-//     auto newt = bignum_sub_unsigned(t,
-// 				    bignum_div(
-// 					       bignum_mul_unsigned(x,
-// 								   square(
-// 									  diff)),
-// 					       one));
-//     auto newx = bignum_mul_unsigned(two, x);
-//     a = newa;
-//     b = newb;
-//     t = newt;
-//     x = newx;
-//   }
-  
-//   {
-//     char buf1[1024];
-//     bignum_print_hex(buf1, 1024, res);
-//     printf("A: %s\n", buf1);
-//   }
+//   assert(bignum_cmp(a, d) == 1);
+//   auto olda = a;
+//   a = bignum_div2(a, d);
+//   free(olda);
+//   char buf1[1024];
+//   bignum_print_hex(buf1, 1024, a);
+//   printf("%s\n", buf1);
+
+//   free(d);
+//   free(a);
+
+//   char buf2[1024];
+//   gmp_printf("A: %Zx\n", am);
+//   gmp_printf("D: %Zx\n", dm);
+//   mpz_tdiv_q(am, am, dm);
+//   gmp_snprintf(buf2, 1024, "%Zx", am);
+//   printf("%s\n", buf2);
+//   assert(strcmp(buf2, buf1) == 0);
+
+//   mpz_clears(am, bm, dm, nullptr);
 //   return 0;
 // }
+
+bignum* expt(bignum* num, uint64_t exp) {
+  auto res = bignum_copy(num, num->used);
+  for(uint64_t i = 0; i < exp - 1; i++) {
+    res = bignum_mul_unsigned(res, num);
+  }
+  return res;
+}
+
+bignum* exact_integer_sqrt(bignum * s) {
+  auto res = bignum_alloc(1);
+  bignum_set_from_fixnum(res, 1);
+  if (bignum_cmp(s, res) != 1) {
+    return s;
+  }
+  bignum_set_from_fixnum(res, 2);
+  auto x0 = bignum_div2(s, res);
+  auto x1 = bignum_div2( bignum_add_unsigned(x0, bignum_div2(s, x0)), res);
+  while(bignum_cmp(x1, x0) == -1) {
+    x0 = x1;
+    x1 = bignum_div2(bignum_add_unsigned(x0, (bignum_div2(s, x0))), res);
+  }
+  return x0;
+}
+
+bignum* square(bignum* a) {
+  return bignum_mul_unsigned(a, a);
+}
+
+int main(int argc, char* argv[]) {
+  int nb_digits = atoi(argv[1]);
+  auto one = bignum_alloc(1);
+  bignum_set_from_fixnum(one, 10);
+  one = expt(one, nb_digits);
+
+  auto two = bignum_alloc(1);
+  bignum_set_from_fixnum(two, 2);
+
+  auto four = bignum_alloc(1);
+  bignum_set_from_fixnum(four, 4);
+
+  auto oneone = bignum_alloc(1);
+  bignum_set_from_fixnum(oneone, 1);
+
+  auto a = one;
+  auto b = exact_integer_sqrt(bignum_div2(square(one), two));
+  auto t = bignum_div2(one, four);
+  auto x = oneone;
+  bignum* res;
+  while (true) {
+  // {
+  //   char buf1[1024];
+  //   bignum_print_hex(buf1, 1024, a);
+  //   printf("A: %s\n", buf1);
+  // }
+  // {
+  //   char buf1[1024];
+  //   bignum_print_hex(buf1, 1024, b);
+  //   printf("B: %s\n", buf1);
+  // }
+  // {
+  //   char buf1[1024];
+  //   bignum_print_hex(buf1, 1024, t);
+  //   printf("T: %s\n", buf1);
+  // }
+  // {
+  //   char buf1[1024];
+  //   bignum_print_hex(buf1, 1024, x);
+  //   printf("X: %s\n", buf1);
+  // }
+    if (bignum_cmp(a, b) == 0) {
+      res = bignum_div2(square(bignum_add_unsigned(a, b)), bignum_mul_unsigned(four, t));
+      break;
+    }
+    auto newa = bignum_div2(bignum_add_unsigned(a, b), two);
+    auto diff = bignum_cmp(newa, a) == 1 ? bignum_sub_unsigned(newa, a) : bignum_sub_unsigned(a, newa);
+    auto newb = exact_integer_sqrt(bignum_mul_unsigned(a, b));
+    auto foo = bignum_mul_unsigned(x, square(diff));
+    auto the_div2 = bignum_div2(foo, one);
+    auto newt = bignum_sub_unsigned(t, the_div2);
+    auto newx = bignum_mul_unsigned(two, x);
+    a = newa;
+    b = newb;
+    t = newt;
+    x = newx;
+  }
+  
+  {
+    char buf1[10240];
+    bignum_print_hex(buf1, 10240, res);
+    printf("A: %s\n", buf1);
+  }
+  return 0;
+}
 
