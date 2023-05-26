@@ -11,6 +11,7 @@
 * in progress: jmps
 ** parse 'or' and 'and' directly
 ** do loop generation has shitty branching also
+** 'zero' guard
 
 ## bytecode perf improvements 
 
@@ -32,8 +33,8 @@
 * graphs - only lambda-lifting would solve.
 * lattice - foey.  Better closure analysis. null? inline. Probably inlining generally.
 * matrix - ok
-* mazefun - recognize (= i 0) as (zero? i)
-* maze - guard folding for fixnum
+* mazefun - ok
+* maze - ok
 * mbrot - ok
 * mperm - fold zero?
 * nboyer - branch folding NULL?.  all GC. 

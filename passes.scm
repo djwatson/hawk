@@ -269,7 +269,7 @@
 	  ;; TODO these need a JISEQ?
 	  ((quotient) `($exact ($/ ,@(imap integrate (cdr f)))))
 	  ((remainder) `($% ,@(imap integrate (cdr f))))
-	  ((zero) `($= ,@(imap integrate (cdr f))))
+	  ((zero?) `($= ,@(imap integrate (cdr f)) 0))
 	  ((eq? char=?) (cons '$eq (imap integrate (cdr f))))
 	  ((quote) f)
 	  ((if) (if (and (pair? (second f))
