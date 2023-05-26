@@ -13,6 +13,8 @@
 ** do loop generation has shitty branching also
 ** 'zero' guard
 
+* recognize 'do' and 'let' loops?
+
 ## bytecode perf improvements 
 
 * browse - parse and/or
@@ -37,7 +39,7 @@
 * maze - ok
 * mbrot - ok
 * mperm - fold zero?
-* nboyer - branch folding NULL?.  all GC. 
+* nboyer - ok
 * nqueens - callT mov's
 
 * single-arm if doesn't need to return #f?
