@@ -48,8 +48,7 @@ while being more portable and easier to change.
 #define MUSTTAIL __attribute((musttail))
 #define ABI __attribute__((ms_abi))
 #define DEBUG(name)
-//#define DEBUG(name) printf("%s ra %i rd %i rb %i rc %i ", name, ra, instr,
-//instr&0xff, (instr>>8)); printf("\n");
+//#define DEBUG(name) printf("%s ra %i rd %i rb %i rc %i ", name, ra, instr, instr&0xff, (instr>>8)); printf("\n");
 typedef ABI void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
@@ -492,6 +491,24 @@ LIBRARY_FUNC_BC(GUARD)
     frame[ra] = FALSE_REP;
   }
 END_LIBRARY_FUNC
+
+LIBRARY_FUNC_BC(JGUARD)
+  long fb = frame[rb];
+  
+  // typecheck fb vs. rc.
+  if ((rc < LITERAL_TAG) && ((fb & TAG_MASK) == rc)) {
+    pc += 2;
+  } else if (((TAG_MASK & rc) == LITERAL_TAG) && (rc == (fb & IMMEDIATE_MASK))) {
+    pc += 2;
+  } else if (((fb & TAG_MASK) == PTR_TAG) && (*(long *)(fb - PTR_TAG) == rc)) {
+    pc += 2;
+  } else {
+    assert(INS_OP(*(pc+1)) == JMP);
+    pc += INS_D(*(pc+1)) + 1;
+  }
+
+  NEXT_INSTR;
+}
 
 LIBRARY_FUNC_B(VECTOR)
   auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));

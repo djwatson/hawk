@@ -12,6 +12,6 @@
   (write-u64 (memcpy-double d) p))
 (include "bc.scm")
 (display (cdr (command-line)))
-(for-each compile-file (cdr (command-line)))
+(for-each (lambda (x) (compile-file x #t)) (cdr (command-line)))
 
 

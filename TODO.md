@@ -8,6 +8,9 @@
 
 # Bytecode generator / VM
 
+* in progress: jmps
+** quick-jumpify eq? and eqv?
+
 ## bytecode perf improvements 
 
 * browse - fold immeidate guard/NULL? 
@@ -42,7 +45,7 @@
 * remove hotspot for non-jit / new bytecode
 * letrec the bootstrap
 * $zero? or inline zero
-* FLIP branches when emitting jmps if possible.
+* FLIP branches when emitting jmps if possible. - DOESNT SEEM LIKE IT HAPPENS?
 * empty branches can return new destination?? probably uncommon.
 * need IF NULL, IF NOT NULL checks.  SUper common.
 * For branches we can immediately run the following jump if possible?  single branch instead of indirect.

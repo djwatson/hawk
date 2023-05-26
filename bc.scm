@@ -64,12 +64,15 @@
 (define (branch-dest? cd)
   (and (pair? cd) (eq? 'if (first cd))))
 
-(define (build-jmp absolute bc)
+;; can-omit: jumps immediately following a branch statement
+;; *cannot* be omitted, since they are rolled in to the previous
+;; op's handling in the vm.
+(define (build-jmp absolute bc can-omit)
   (let ((offset (- (length (func-bc-code bc)) absolute -1)))
     (when (or (<= offset 0) (> offset 65535))
       (dformat "OFFSET too big: ~a\n" offset)
       (exit -1))    
-    (when (not (eq? offset 1))
+    (when (or (not can-omit) (not (eq? offset 1)))
       (push-instr! bc (list 'JMP 0 offset)))))
 
 ;;;;; Destination driven code generation ;;;;;;
@@ -104,10 +107,10 @@
    ((eq? cd 'ret)
     (push-instr! bc (list 'RET1 r)))
    ((number? cd)
-    (build-jmp cd bc))
+    (build-jmp cd bc #t))
    ((branch-dest? cd)
-    (build-jmp (second cd) bc)
-    (build-jmp (third cd) bc)
+    (build-jmp (second cd) bc #t)
+    (build-jmp (third cd) bc #f)
     (push-instr! bc (list 'ISF 0 r)))
    ((eq? cd 'next))
    (else (dformat "UNKNOWN CONTROL DEST:~a" cd) (exit -1))))
@@ -122,8 +125,8 @@
   (if (branch-dest? cd)
       (begin
 	(if f
-	    (build-jmp (second cd) bc)
-	    (build-jmp (third cd) bc)))
+	    (build-jmp (second cd) bc #t)
+	    (build-jmp (third cd) bc #f)))
       (begin
 	(finish bc cd rd)
 	(when rd
@@ -136,7 +139,7 @@
 (define (symbol-to-bytecode x)
   (string->symbol (list->string (map char-standard-case (cdr (string->list (symbol->string x)))))))
 
-(define quick-branch '($< $= $eq $> $<= $>=))
+(define quick-branch '($< $= $eq $> $<= $>= $guard))
 (define has-effect '($set-box! $apply $write $write-u8))
 (define (compile-binary f bc env rd nr cd)
   (define vn '($- $+ $guard $closure-get))
@@ -171,8 +174,8 @@
 	(when (not rd) (set! rd nr)) ;; ONLY NEEDED for set-box!, apply, write, write-u8
 	(if (and (branch-dest? cd) (memq (first f) quick-branch))
 	    (begin
-	      (build-jmp (second cd) bc)
-	      (build-jmp (third cd) bc))
+	      (build-jmp (second cd) bc #t)
+	      (build-jmp (third cd) bc #f))
 	    (finish bc cd rd))
 	(push-instr! bc (list op rd r1 r2))
 	(compile-sexp (third f) bc env r2 (max r2 r1 nr) 'next)
@@ -181,11 +184,18 @@
 	    (finish bc cd rd)))))
 
 (define (compile-binary-vn f bc env rd nr cd)
-  (define op (let ((op (assq (first f)
-			   '(($+ ADDVN) ($- SUBVN)))))
+  (define op (let ((op (if (and (branch-dest? cd) (memq (first f) quick-branch))
+			   (assq (first f)
+				 '(($guard JGUARD)))
+			   (assq (first f)
+				 '(($+ ADDVN) ($- SUBVN))))))
 	       (if op (second op) (symbol-to-bytecode (car f)))))
   (define r1 (exp-loc (second f) env nr))
-  (finish bc cd rd)
+  (if (and (branch-dest? cd) (memq (first f) quick-branch))
+      (begin
+	(build-jmp (second cd) bc #t)
+	(build-jmp (third cd) bc #f))
+      (finish bc cd rd))
   (when rd
     (push-instr! bc (list op rd r1 (modulo (third f) 256)))
     (compile-sexp (second f) bc env r1 r1 'next)))
