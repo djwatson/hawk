@@ -16,7 +16,7 @@ extern unsigned long const_table_sz;
 #define INS_A(i) ((i >> 8) & 0xff)
 #define INS_B(i) ((i >> 16) & 0xff)
 #define INS_C(i) ((i >> 24) & 0xff)
-#define INS_BC(i) (i >> 16)
+#define INS_D(i) (i >> 16)
 
 struct bcfunc {
   std::vector<unsigned int> code;

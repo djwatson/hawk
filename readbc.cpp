@@ -197,10 +197,10 @@ bcfunc *readbc(FILE *fptr) {
       auto op = INS_OP(f->code[j]);
       if (op == GGET || op == GSET || op == KONST) {
         f->code[j] =
-            CODE_D(op, INS_A(f->code[j]), INS_BC(f->code[j]) + const_offset);
+            CODE_D(op, INS_A(f->code[j]), INS_D(f->code[j]) + const_offset);
       } else if (op == KFUNC) {
         f->code[j] =
-            CODE_D(op, INS_A(f->code[j]), INS_BC(f->code[j]) + func_offset);
+            CODE_D(op, INS_A(f->code[j]), INS_D(f->code[j]) + func_offset);
       }
       // unsigned int code = f->code[j];
       //  printf("%i code: %s %i %i %i BC: %i\n", j, ins_names[INS_OP(code)],

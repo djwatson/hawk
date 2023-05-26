@@ -349,10 +349,11 @@ LIBRARY_FUNC_MATH_VV(DIV, MATH_DIV, frame[ra] = (fb / fc) << 3);
 LIBRARY_FUNC_MATH_VV(REM, remainder, frame[ra] = ((fb >> 3) % (fc >> 3)) << 3);
 
 LIBRARY_FUNC_BC_LOAD(JEQ)
+  assert(INS_OP(*(pc+1)) == JMP);
   if (fb == fc) {
     pc += 2;
   } else {
-    pc += 1;
+    pc += INS_D(*(pc+1)) + 1;
   }
   
   NEXT_INSTR;
@@ -396,10 +397,11 @@ LIBRARY_FUNC_BC_LOAD(JEQ)
   }
 
 #define MOVE_PC(a, b, op)                                                      \
+  assert(INS_OP(*(pc+1)) == JMP);					       \
   if (a op b) {                                                                \
     pc += 2;                                                                   \
   } else {                                                                     \
-    pc += 1;                                                                   \
+    pc += INS_D(*(pc+1)) + 1;						       \
   }
 
 #define SET_RES(a, b, op)                                                      \
@@ -422,8 +424,9 @@ LIBRARY_FUNC_NUM_CMP(ISGTE, >=, SET_RES);
 LIBRARY_FUNC_NUM_CMP(ISEQ, ==, SET_RES);
 
 LIBRARY_FUNC_B_LOAD(ISF)
+  assert(INS_OP(*(pc+1)) == JMP);
   if (fb == FALSE_REP) {
-    pc += 1;
+    pc += INS_D(*(pc+1)) + 1;
   } else {
     pc += 2;
   }

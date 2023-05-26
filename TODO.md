@@ -43,6 +43,7 @@
 * letrec the bootstrap
 * $zero? or inline zero
 * FLIP branches when emitting jmps if possible.
+* empty branches can return new destination?? probably uncommon.
 * need IF NULL, IF NOT NULL checks.  SUper common.
 * For branches we can immediately run the following jump if possible?  single branch instead of indirect.
 * 'big' register moves
