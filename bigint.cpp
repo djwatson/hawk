@@ -407,6 +407,116 @@ again:
    return 0;
 }
 
+int divmnu128(uint64_t q[], uint64_t r[],
+     const uint64_t u[], const uint64_t v[],
+     int m, int n) {
+
+   uint64_t *un, *vn;                         // Normalized form of u, v.
+   __uint128_t qhat;                   // Estimated quotient digit.
+   __uint128_t rhat;                   // A remainder.
+   __uint128_t p;                      // Product of two digits.
+   __int128_t t, k;
+   int s, i, j;
+
+   if (m < n || n <= 0 || v[n-1] == 0)
+      return 1;                         // Return if invalid param.
+
+   if (n == 1) {                        // Take care of
+      k = 0;                            // the case of a
+      for (j = m - 1; j >= 0; j--) {    // single-digit
+	q[j] = ((__uint128_t(k)<<64) + u[j])/v[0];      // divisor here.
+         k = ((__uint128_t(k)<<64) + u[j])%v[0];
+      }
+      if (r != NULL) r[0] = k;
+      return 0;
+   }
+
+   /* Normalize by shifting v left just enough so that its high-order
+   bit is on, and shift u left the same amount. We may have to append a
+   high-order digit on the dividend; we do that unconditionally. */
+
+   s = __builtin_clzll(v[n-1]);             // 0 <= s <= 63.
+   // printf("clz %i %lx\n", s, v[n-1]);
+   vn = (uint64_t *)alloca(8*n);
+   for (i = n - 1; i > 0; i--) {
+     vn[i] = (v[i] << s) | (__uint128_t(v[i-1]) >> (64-s));
+   }
+   vn[0] = v[0] << s;
+   // printf("v %lx %lx\n", v[1], v[0]);
+   // printf("vn %lx %lx\n", vn[1], vn[0]);
+   
+
+   un = (uint64_t *)alloca(8*(m + 1));
+   un[m] = __uint128_t(u[m-1]) >> (64-s);
+   for (i = m - 1; i > 0; i--)
+     un[i] = (u[i] << s) | (__uint128_t(u[i-1]) >> (64-s));
+   un[0] = u[0] << s;
+   // printf("u %lx %lx %lx\n", u[2], u[1], u[0]);
+   // printf("un %lx %lx %lx\n", un[2], un[1], un[0]);
+
+   // printf("128 m %i n %i\n", m, n);
+   for (j = m - n; j >= 0; j--) {       // Main loop.
+      // Compute estimate qhat of q[j].
+     // printf("num %lx %lx\n", un[j+n], un[j+n-1]);
+     // printf("denom %lx \n", vn[n-1]);
+     qhat = ((__uint128_t(un[j+n])<<64) + un[j+n-1])/vn[n-1];
+     rhat = ((__uint128_t(un[j+n])<<64) + un[j+n-1])%vn[n-1];
+again:
+     // printf("128 j %i\n", j);
+     // printf("qhat %lx %lx\n", uint64_t(qhat>>64), uint64_t(qhat));
+     // printf("rhat %lx %lx\n", uint64_t(rhat>>64), uint64_t(rhat));
+     if (((qhat>>64) != 0) || uint64_t(qhat)*__uint128_t(vn[n-2]) > (rhat<<64) + un[j+n-2])
+      { qhat = qhat - 1;
+        rhat = rhat + vn[n-1];
+        if ((rhat>>64) == 0) goto again;
+      }
+
+      // Multiply and subtract.
+      k = 0;
+      for (i = 0; i < n; i++) {
+	// printf("I %i\n", i);
+	p = uint64_t(qhat)*__uint128_t(vn[i]);
+	// printf("P: %lx %lx\n", uint64_t(p >> 64), uint64_t(p));
+	t = __int128_t(un[i+j]) - k - __int128_t(p&0xFFFFFFFFFFFFFFFFLL);
+	// printf("sub: %lx %lx k %lx %lx\n", un[i+j], uint64_t(p), uint64_t(k>>64), uint64_t(k));
+	
+	// printf("T: %lx %lx\n", uint64_t(t >> 64), uint64_t(t));
+	un[i+j] = t;
+	k = (p >> 64) - (t >> 64);
+	// printf("K: %lx %lx\n", uint64_t(k >> 64), uint64_t(k));
+      }
+      t = un[j+n] - k;
+      // printf("T: %lx %lx\n", uint64_t(t >> 64), uint64_t(t));
+      // printf("UN: %lx \n", un[j+n]);
+      // printf("K: %lx %lx\n", uint64_t(k >> 64), uint64_t(k));
+      un[j+n] = t;
+
+      q[j] = qhat;              // Store quotient digit.
+      // printf("Quotient: %lx\n", q[j]);
+      // printf("T: %lx %lx\n", uint64_t(t >> 64), uint64_t(t));
+      if (t < 0) {              // If we subtracted too
+	// printf("TOo much\n");
+         q[j] = q[j] - 1;       // much, add back.
+	 // printf("new Quotient: %lx\n", q[j]);
+         k = 0;
+         for (i = 0; i < n; i++) {
+	   t = __uint128_t(un[i+j]) + vn[i] + k;
+            un[i+j] = t;
+            k = t >> 64;
+         }
+         un[j+n] = un[j+n] + k;
+      }
+   } // End j.
+   // If the caller wants the remainder, unnormalize
+   // it and pass it back.
+   if (r != NULL) {
+      for (i = 0; i < n-1; i++)
+	r[i] = (un[i] >> s) | (__uint128_t(un[i+1]) << (64-s));
+      r[n-1] = un[n-1] >> s;
+   }
+   return 0;
+}
+
 bignum* bignum_div2(bignum* num, bignum* denom) {
   if(bignum_cmp(num, denom) != 1) {
     auto c = bignum_alloc(1);
@@ -418,11 +528,32 @@ bignum* bignum_div2(bignum* num, bignum* denom) {
   auto res = bignum_alloc(num->used);
   res->used = num->used;
   memset(res->l, 0, res->len*sizeof(uint64_t));
+  auto num_used = num->used*2;
+  if (((unsigned*)num->l)[num_used-1] == 0) num_used--;
   auto denom_used = denom->used*2;
   if (((unsigned*)denom->l)[denom_used-1] == 0) denom_used--;
   auto r = divmnu((unsigned*)res->l, nullptr,
 		  (unsigned*)num->l, (unsigned*)denom->l,
-		  num->used*2, denom_used);
+		  num_used, denom_used);
+  assert(r == 0);
+  bignum_simplify(res);
+  return res;
+}
+
+bignum* bignum_div3(bignum* num, bignum* denom) {
+  if(bignum_cmp(num, denom) != 1) {
+    auto c = bignum_alloc(1);
+    bignum_set_from_fixnum(c, 0);
+    return c;
+  }
+  assert(!bignum_is_zero(denom));
+  
+  auto res = bignum_alloc(num->used);
+  res->used = num->used;
+  memset(res->l, 0, res->len*sizeof(uint64_t));
+  auto r = divmnu128(res->l, nullptr,
+		  num->l, denom->l,
+		  num->used, denom->used);
   assert(r == 0);
   bignum_simplify(res);
   return res;
@@ -482,7 +613,7 @@ bignum* bignum_div2(bignum* num, bignum* denom) {
 //   }
 //   assert(bignum_cmp(a, d) == 1);
 //   auto olda = a;
-//   a = bignum_div2(a, d);
+//   a = bignum_div3(a, d);
 //   free(olda);
 //   char buf1[1024];
 //   bignum_print_hex(buf1, 1024, a);
@@ -518,11 +649,36 @@ bignum* exact_integer_sqrt(bignum * s) {
     return s;
   }
   bignum_set_from_fixnum(res, 2);
-  auto x0 = bignum_div2(s, res);
-  auto x1 = bignum_div2( bignum_add_unsigned(x0, bignum_div2(s, x0)), res);
+  auto x0 = bignum_div3(s, res);
+  auto x1 = bignum_div3( bignum_add_unsigned(x0, bignum_div3(s, x0)), res);
   while(bignum_cmp(x1, x0) == -1) {
     x0 = x1;
-    x1 = bignum_div2(bignum_add_unsigned(x0, (bignum_div2(s, x0))), res);
+    // auto v1 = bignum_div2(s, x0);
+    // auto v2 = bignum_div3(s, x0);
+    // if (bignum_cmp(v1, v2) != 0) {
+    //   {
+    // 	char buf1[10240];
+    // 	bignum_print_hex(buf1, 10240, v1);
+    // 	printf("v2: %s\n", buf1);
+    //   }
+    //   {
+    // 	char buf1[10240];
+    // 	bignum_print_hex(buf1, 10240, v2);
+    // 	printf("v3: %s\n", buf1);
+    //   }
+    //   {
+    // 	char buf1[10240];
+    // 	bignum_print_hex(buf1, 10240, s);
+    // 	printf("s : %s\n", buf1);
+    //   }
+    //   {
+    // 	char buf1[10240];
+    // 	bignum_print_hex(buf1, 10240, x0);
+    // 	printf("x0: %s\n", buf1);
+    //   }
+    // }
+    // assert(bignum_cmp(v1, v2)==0);
+    x1 = bignum_div3(bignum_add_unsigned(x0, (bignum_div3(s, x0))), res);
   }
   return x0;
 }
@@ -531,6 +687,22 @@ bignum* square(bignum* a) {
   return bignum_mul_unsigned(a, a);
 }
 
+int main2(int argc, char* argv[]) {
+  auto one = bignum_alloc(2);
+  one->l[0] = 0x1122334455667788;
+  one->l[1] = 0x8;
+  one->used=2;
+  auto two = bignum_alloc(1);
+  two->l[0] = 0x8112233445566779;
+  two->used=1;
+  auto res = bignum_div3(one, two);
+  {
+    char buf1[1024];
+    bignum_print_hex(buf1, 1024, res);
+    printf("X: %s\n", buf1);
+  }
+  return 0;
+}
 int main(int argc, char* argv[]) {
   int nb_digits = atoi(argv[1]);
   auto one = bignum_alloc(1);
@@ -547,8 +719,8 @@ int main(int argc, char* argv[]) {
   bignum_set_from_fixnum(oneone, 1);
 
   auto a = one;
-  auto b = exact_integer_sqrt(bignum_div2(square(one), two));
-  auto t = bignum_div2(one, four);
+  auto b = exact_integer_sqrt(bignum_div3(square(one), two));
+  auto t = bignum_div3(one, four);
   auto x = oneone;
   bignum* res;
   while (true) {
@@ -573,14 +745,14 @@ int main(int argc, char* argv[]) {
   //   printf("X: %s\n", buf1);
   // }
     if (bignum_cmp(a, b) == 0) {
-      res = bignum_div2(square(bignum_add_unsigned(a, b)), bignum_mul_unsigned(four, t));
+      res = bignum_div3(square(bignum_add_unsigned(a, b)), bignum_mul_unsigned(four, t));
       break;
     }
-    auto newa = bignum_div2(bignum_add_unsigned(a, b), two);
+    auto newa = bignum_div3(bignum_add_unsigned(a, b), two);
     auto diff = bignum_cmp(newa, a) == 1 ? bignum_sub_unsigned(newa, a) : bignum_sub_unsigned(a, newa);
     auto newb = exact_integer_sqrt(bignum_mul_unsigned(a, b));
     auto foo = bignum_mul_unsigned(x, square(diff));
-    auto the_div2 = bignum_div2(foo, one);
+    auto the_div2 = bignum_div3(foo, one);
     auto newt = bignum_sub_unsigned(t, the_div2);
     auto newx = bignum_mul_unsigned(two, x);
     a = newa;
