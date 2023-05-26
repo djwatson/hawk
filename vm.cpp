@@ -651,6 +651,25 @@ LIBRARY_FUNC_BC_LOAD_NAME(EQV?, EQV)
   }
 END_LIBRARY_FUNC
 
+LIBRARY_FUNC_BC_LOAD_NAME(JEQV, JEQV)
+  assert(INS_OP(*(pc+1)) == JMP);
+  if (fb == fc) {
+    pc += 2;
+  } else if (((7 & fb) == (7 & fc)) && ((7 & fc) == 2)) {              
+    auto x_b = ((flonum_s *)(fb - FLONUM_TAG))->x;
+    auto x_c = ((flonum_s *)(fc - FLONUM_TAG))->x;
+    if (x_b == x_c) {
+      pc += 2;
+    } else {
+      pc += INS_D(*(pc+1)) + 1;
+    }
+  } else {
+    pc += INS_D(*(pc+1)) + 1;
+  }
+
+NEXT_INSTR;
+}
+
 LIBRARY_FUNC_BC(CONS)
   auto c = (cons_s *)GC_malloc(sizeof(cons_s));
   

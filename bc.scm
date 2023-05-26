@@ -139,7 +139,7 @@
 (define (symbol-to-bytecode x)
   (string->symbol (list->string (map char-standard-case (cdr (string->list (symbol->string x)))))))
 
-(define quick-branch '($< $= $eq $> $<= $>= $guard))
+(define quick-branch '($< $= $eq $> $<= $>= $guard $eqv?))
 (define has-effect '($set-box! $apply $write $write-u8))
 (define (compile-binary f bc env rd nr cd)
   (define vn '($- $+ $guard $closure-get))
@@ -158,7 +158,8 @@
 				 ($> JISGT)
 				 ($<= JISLTE)
 				 ($>= JISGTE)
-				 ($eq JEQ)))
+				 ($eq JEQ)
+				 ($eqv? JEQV)))
 			 (assq (first f)
 			       '(($+ ADDVV) ($- SUBVV) ($< ISLT) ($> ISGT)
 				 ($<= ISLTE) ($>= ISGTE)
@@ -592,7 +593,10 @@
 		(case-insensitive
 		 (add-includes
 		  (with-input-from-file name expander)))))))))))
-    ;(display "Compiling:\n") (pretty-print src) (newline)
+    (when (pair? rest)
+	  (display "Compiling:\n")
+	  (pretty-print src)
+	  (newline))
     (compile src))
   ;; Get everything in correct order
   ;; TODO do this as we are generating with extendable vectors

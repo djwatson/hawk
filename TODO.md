@@ -9,18 +9,19 @@
 # Bytecode generator / VM
 
 * in progress: jmps
-** quick-jumpify eq? and eqv?
+** parse 'or' and 'and' directly
+** do loop generation has shitty branching also
 
 ## bytecode perf improvements 
 
-* browse - fold immeidate guard/NULL? 
+* browse - parse and/or
 * cat - case-lambda, guard/jmp folding
-* conform - all in memq.  fold null?
+* conform - callt opt.  All in memq.
 * cpstak - clopsure-ptr CALL opt, probably nothing else.
 * ctak - improve CALLCC 
 * deriv - map2 is slow. ALso calls list a lot, split func funcv.  Only GC once for varargs if possible?
 * destruc - length is slow.  Consider adding as bytecode
-* diviter, divrec - guard check branch merge.
+* diviter, divrec - ok
 * dynamic - callcc, assv, memv,(probably all fixed by branch rollup) peek - case-lambda
 * earley - good. 
 * fft - good
@@ -30,25 +31,22 @@
 * gcbench - good
 * graphs - only lambda-lifting would solve.
 * lattice - foey.  Better closure analysis. null? inline. Probably inlining generally.
-* matrix - branch folding but probably not much else.
+* matrix - ok
 * mazefun - recognize (= i 0) as (zero? i)
 * maze - guard folding for fixnum
 * mbrot - ok
 * mperm - fold zero?
 * nboyer - branch folding NULL?.  all GC. 
-* nqueens - jmp inlining, fold null?
+* nqueens - callT mov's
 
-* ret a const?
+* single-arm if doesn't need to return #f?
 * case-lambda!
 * funcv new bytecode
 * closure calls as a new bytecode instr
 * remove hotspot for non-jit / new bytecode
 * letrec the bootstrap
 * $zero? or inline zero
-* FLIP branches when emitting jmps if possible. - DOESNT SEEM LIKE IT HAPPENS?
-* empty branches can return new destination?? probably uncommon.
-* need IF NULL, IF NOT NULL checks.  SUper common.
-* For branches we can immediately run the following jump if possible?  single branch instead of indirect.
+* empty branches can return new destination?? probably uncommon. HAPPENS FOR AND/OR
 * 'big' register moves
 * we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
  This probably has no effect on the VM, but might benefit the jit.
