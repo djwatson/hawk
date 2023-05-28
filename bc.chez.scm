@@ -12,6 +12,7 @@
   (write-u64 (memcpy-double d) p))
 (include "bc.scm")
 (display (cdr (command-line)))
+(case-sensitive #f)
 (for-each (lambda (x) (compile-file x #t)) (cdr (command-line)))
 
 
