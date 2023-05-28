@@ -116,24 +116,23 @@
    (else (dformat "UNKNOWN CONTROL DEST:~a" cd) (exit -1))))
 
 (define (compile-self-evaluating f bc rd nr cd)
-  ;; TODO save len
-  ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   ;; If a constant has a branch destination, the result is unused,
   ;; and we can branch directly based on the constant value.
   ;;
   ;; This is important for 'and' and 'or' operators.
+  ;;(dformat "Compile self eval ~a rd ~a cd ~a\n" f rd cd)
   (if (branch-dest? cd)
       (begin
 	(if f
 	    (build-jmp (second cd) bc #t)
-	    (build-jmp (third cd) bc #f)))
+	    (build-jmp (third cd) bc #t)))
       (begin
-	(finish bc cd rd)
-	(when rd
+	(finish bc cd rd)))
+  (when rd
 	  (if (and  (fixnum? f) (< (abs f) 32768))
 	      (push-instr! bc (list 'KSHORT rd f))
 	      (let ((c (get-or-push-const bc f)))
-		(push-instr! bc (list 'KONST rd c))))))))
+		(push-instr! bc (list 'KONST rd c))))))
 
 ;; Drop leading '$' and standard-case it.
 (define (symbol-to-bytecode x)
@@ -143,6 +142,7 @@
 (define has-effect '($set-box! $apply $write $write-u8))
 (define (compile-binary f bc env rd nr cd)
   (define vn '($- $+ $guard $closure-get))
+  ;;(dformat "compile-binary ~a rd ~a\n" f rd)
   ;(if (and (not (memq (first f) has-effect)) (not rd)) (dformat "Dropping for effect context: ~a\n" f))
   (if (and (memq (first f) vn)
 	   (fixnum? (third f))
@@ -151,7 +151,7 @@
       (compile-binary-vv f bc env rd nr cd)))
 
 (define (compile-binary-vv f bc env rd nr cd)
-  (define op (let ((op (if (and (branch-dest? cd) (memq (first f) quick-branch))
+  (define op (let ((op (if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
 			   ;; TODO clean these up in symbol-to-bytecode?
 			 (assq (first f)
 			       '(($< JISLT) ($= JISEQ)
@@ -168,47 +168,49 @@
 				 ($/ DIV)
 				 ($% REM))))))
 	       (if op (second op) (symbol-to-bytecode (car f)))))
+  ;;(dformat "compile binary vv ~a rd ~a\n" f rd)
   (let* ((r1 (exp-loc (second f) env nr))
 	 (r2 (exp-loc (third f) env (max nr (+ r1 1)))))
     (if (or rd (branch-dest? cd) (memq (first f) has-effect))
       (begin
-	(when (not rd) (set! rd nr)) ;; ONLY NEEDED for set-box!, apply, write, write-u8
-	(if (and (branch-dest? cd) (memq (first f) quick-branch))
+	(if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
 	    (begin
 	      (build-jmp (second cd) bc #t)
-	      (build-jmp (third cd) bc #f))
-	    (finish bc cd rd))
-	(push-instr! bc (list op rd r1 r2))
+	      (build-jmp (third cd) bc #f)
+	      (push-instr! bc (list op 0 r1 r2)))
+	    (begin
+	      (finish bc cd (if rd rd nr))
+	      (push-instr! bc (list op (if rd rd nr) r1 r2))))
 	(compile-sexp (third f) bc env r2 (max r2 r1 nr) 'next)
 	(compile-sexp (second f) bc env r1 (max nr r1) 'next))
       (begin
 	    (finish bc cd rd)))))
 
 (define (compile-binary-vn f bc env rd nr cd)
-  (define op (let ((op (if (and (branch-dest? cd) (memq (first f) quick-branch))
+  (define op (let ((op (if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
 			   (assq (first f)
 				 '(($guard JGUARD)))
 			   (assq (first f)
 				 '(($+ ADDVN) ($- SUBVN))))))
 	       (if op (second op) (symbol-to-bytecode (car f)))))
   (define r1 (exp-loc (second f) env nr))
-  (if (and (branch-dest? cd) (memq (first f) quick-branch))
+  (if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
       (begin
 	(build-jmp (second cd) bc #t)
-	(build-jmp (third cd) bc #f))
-      (finish bc cd rd))
-  (when rd
-    (push-instr! bc (list op rd r1 (modulo (third f) 256)))
-    (compile-sexp (second f) bc env r1 r1 'next)))
+	(build-jmp (third cd) bc #f)
+	(push-instr! bc (list op 0 r1 (modulo (third f) 256))))
+      (begin
+	(finish bc cd (if rd rd nr))
+	(push-instr! bc (list op (if rd rd nr) r1 (modulo (third f) 256)))))
+  (compile-sexp (second f) bc env r1 r1 'next))
 
 (define (compile-unary f bc env rd nr cd)
   (define op (symbol-to-bytecode (car f)))
   (define r1 (exp-loc (second f) env nr))
-  ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
-  (finish bc cd rd)
-  (when rd
-    (push-instr! bc (list op rd r1))
-    (compile-sexp (second f) bc env r1 r1 'next)))
+  ;;(if (not rd) (dformat "Dropping for effect context unary: ~a\n" f))
+  (finish bc cd (if rd rd nr))
+  (push-instr! bc (list op (if rd rd nr) r1))
+  (compile-sexp (second f) bc env r1 (max nr r1) 'next))
 
 (define (compile-if f bc env rd nr cd)
   (define dest (cond
@@ -217,14 +219,12 @@
 		((number? cd) cd)
 		((eq? cd 'next)
 		 (length (func-bc-code bc)))))
-  (define r1 (exp-loc (second f) env nr))
   (when (= 3 (length f)) ;; TODO remove, direct jump?
     (set! f (append f (list #f))))
   (compile-sexp (fourth f) bc env rd nr dest)
   (let ((pos (length (func-bc-code bc))))
     (compile-sexp (third f) bc env rd nr dest)
-    ;; TODO if effect context can do rd nr
-    (compile-sexp (second f) bc env r1 (max nr r1) `(if ,(length (func-bc-code bc)) ,pos))))
+    (compile-sexp (second f) bc env #f nr `(if ,(length (func-bc-code bc)) ,pos))))
 
 (define (compile-lambda f bc rd nr cd)
   (define f-bc (make-func-bc cur-name '() ))
@@ -268,7 +268,8 @@
   (if l (cdr l) #f))
 
 (define (compile-lookup f bc env rd nr cd)
-  ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
+  ;;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
+  ;;(dformat "Compile lookup ~a rd ~a\n" f rd)
   (if rd
     (let ((loc (find-symbol f env))
 	  (r (if (eq? cd 'ret) (exp-loc f env rd) rd)))
@@ -278,12 +279,20 @@
 	    (push-instr! bc (list 'MOV r loc)))
 	  (let* ((c (get-or-push-const bc f)))
 	    (push-instr! bc (list 'GGET r c)))))
-    (finish bc cd rd)))
+    (if (branch-dest? cd)
+	(let ((loc (find-symbol f env)))
+	  (if loc
+	      (finish bc cd loc)
+	      (begin
+		(finish bc cd nr)
+		(push-instr! bc (list 'GGET nr (get-or-push-const bc f))))))
+	(finish bc cd rd))))
 
 ;; Note we implicitly add the closure param here.
 ;; TODO optimize better for known calls.
 (define (compile-call f bc env rd nr cd)
-  (finish bc cd rd)
+  ;;(dformat "Compile-call ~a rd ~a\n" f rd)
+  (finish bc cd (if rd rd nr))
   (when (and rd (not (= rd nr)))
     (push-instr! bc (list 'MOV rd nr)))
   (push-instr! bc (list (if (eq? cd 'ret) 'CALLT 'CALL) nr (+ 1 (length f))))
@@ -296,7 +305,8 @@
    (reverse f)))
 
 (define (compile-vararg f bc env rd nr cd)
-  ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
+					;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
+  ;;(if (not rd) (error "ERror compile-vararg"))
   (finish bc cd rd)
   (when (not (= rd nr))
     (push-instr! bc (list 'MOV rd nr)))
@@ -310,6 +320,7 @@
 
 ;; Third arg must be immediate fixnum.
 (define (compile-closure-set f bc env rd nr cd)
+  ;(if (not rd) (error "ERror compile-closure-set"))
   (finish bc cd rd)
   (let* ((r1 (exp-loc (second f) env nr))
 	(r2 (exp-loc (third f) env (max nr (+ r1 1)))))
@@ -319,6 +330,7 @@
 
 ;; First arg is register to use, k, then obj
 (define (compile-setter f bc env rd nr cd)
+  ;(if (not rd) (error "ERror compile-setter"))
   (finish bc cd rd)
   (let* ((r1 (exp-loc (second f) env nr))
 	(r2 (exp-loc (third f) env (max nr (+ r1 1))))
@@ -329,6 +341,7 @@
     (compile-sexp (second f) bc env r1 (max nr r1) 'next)))
 
 (define (compile-setter2 f bc env rd nr cd)
+  ;(if (not rd) (error "ERror compile-setter2"))
   (finish bc cd rd)
   (let* ((r1 (exp-loc (second f) env nr))
 	(r2 (exp-loc (third f) env (max nr (+ r1 1)))))
@@ -349,6 +362,7 @@
 	(when (closure? (third f))
 	  (set! cur-name (string-append cur-name "-" (symbol->string (second f)))))
 	;; TODO undef
+	;(if (not rd) (error "ERror compile-define"))
 	(finish bc cd rd)
 	(push-instr! bc (list 'GSET nr c))
 	(compile-sexp (third f) bc env nr nr 'next)
@@ -380,11 +394,32 @@
 	      (reverse (second f))
 	      (reverse mapping))))
 
+(define (compile-or f bc env rd nr cd)
+  (define fin (length (func-bc-code bc)))
+  ;;(dformat "compile or ~a rd ~a\n" f rd)
+  (case (length f)
+    ((1) (compile-sexp #f bc env rd nr cd))
+    ((2) (compile-sexp (second f) bc env rd nr cd))
+    (else
+     (if (> (length f) 3)
+	 (compile-or `(or ,@(cddr f)) bc env rd nr cd)
+	 (compile-sexp (third f) bc env rd nr cd))
+     (let* ((false-dest (length (func-bc-code bc)))
+	    (r1 (if rd nr rd))
+	    (true-dest (cond 
+			((eq? cd 'ret) (push-instr! bc (list 'RET1 r1))
+			 (length (func-bc-code bc)))
+			((number? cd) cd)
+			((branch-dest? cd)  (second cd))
+			((eq? cd 'next)	 fin)))
+	    (nr2 (if rd (+ nr 1) nr)))
+       (compile-sexp (second f) bc env r1 nr2 `(if ,true-dest ,false-dest))))))
+
 (define (bytecode? x)
   (and (symbol? x) (eq? #\$ (string-ref (symbol->string x) 0))))
 
 (define (compile-sexp f bc env rd nr cd)
-  ;;(display "SEXP:") (display f) (newline)
+  ;;(dformat "SEXP: ~a rd ~a\n" f rd)
   (if (not (pair? f))
       (if (symbol? f)
 	  (compile-lookup f bc env rd nr cd)
@@ -398,6 +433,7 @@
 	((if) (compile-if f bc env rd nr cd))
 	((set!) (compile-define f bc env rd nr cd)) ;; TODO check?
 	((quote) (compile-self-evaluating (second f) bc rd nr cd))
+	((or) (compile-or f bc env rd nr cd))
 
 	;; Builtins
 	(($vector-set! $string-set!) (compile-setter f bc env rd nr cd))

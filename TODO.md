@@ -17,7 +17,7 @@
 
 ## bytecode perf improvements 
 
-* browse - parse and/or
+* browse - ok
 * cat - case-lambda, guard/jmp folding
 * conform - callt opt.  All in memq.
 * cpstak - clopsure-ptr CALL opt, probably nothing else.
@@ -38,7 +38,7 @@
 * mazefun - ok
 * maze - ok
 * mbrot - ok
-* mperm - fold zero?
+* mperm - ok
 * nboyer - ok
 * nqueens - callT mov's
 

@@ -1,3 +1,12 @@
+(define (error reason . args)
+      (display "Error: ")
+      (display reason)
+      (for-each (lambda (arg) 
+                  (display " ")
+		  (write arg))
+		args)
+      (newline)
+      (car -1))
 ;;These have to match memory_layout.scm and types.h.
 (define (number? x) (or (fixnum? x) (flonum? x)))
 (define (flonum? x) ($guard x 2))

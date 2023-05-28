@@ -1796,11 +1796,12 @@
 			       (if thunk (begin (set! result x)
 						(set! thunk #f)))))
 		   result)))))
-	  (define-syntax or
-	    (syntax-rules ()
-	      ((_) #f)
-	      ((_ test) (let () test))
-	      ((_ test . tests) (let ((x test)) (if x x (or . tests)))))))
+	  ;; (define-syntax or
+	  ;;   (syntax-rules ()
+	  ;;     ((_) #f)
+	  ;;     ((_ test) (let () test))
+	  ;;     ((_ test . tests) (let ((x test)) (if x x (or . tests))))))
+	  )
 	;; Quasiquote uses let-syntax scope so that it can recognize
 	;; nested uses of itself using a syntax-rules literal (that
 	;; is, the quasiquote binding that is visible in the
