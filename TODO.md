@@ -9,7 +9,7 @@
 # Bytecode generator / VM
 
 * in progress: jmps
-** parse 'or' and 'and' directly
+** add back branch inversions.
 ** do loop generation has shitty branching also
 ** 'zero' guard
 
@@ -42,13 +42,12 @@
 * nboyer - ok
 * nqueens - callT mov's
 
-* single-arm if doesn't need to return #f?
+* single-arm if doesn't need to return #f? all effect context.
 * case-lambda!
 * funcv new bytecode
 * closure calls as a new bytecode instr
 * remove hotspot for non-jit / new bytecode
 * letrec the bootstrap
-* $zero? or inline zero
 * empty branches can return new destination?? probably uncommon. HAPPENS FOR AND/OR
 * 'big' register moves
 * we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
