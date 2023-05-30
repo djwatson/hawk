@@ -591,8 +591,11 @@ LIBRARY_FUNC_B(CALL)
   if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) == 0)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
-  auto v = frame[ra];
-  bcfunc *func = (bcfunc *)v;
+  auto cl = frame[ra+1];
+  TYPECHECK_TAG(cl, CLOSURE_TAG);
+  auto closure = (closure_s *)(cl - CLOSURE_TAG);
+
+  bcfunc *func = (bcfunc *)closure->v[0];
   auto old_pc = pc;
   pc = &func->code[0];
   frame[ra] = long(old_pc + 1);
@@ -609,8 +612,11 @@ LIBRARY_FUNC_B(CALLT)
                0)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
-  auto v = frame[ra];
-  bcfunc *func = (bcfunc *)v;
+  auto cl = frame[ra+1];
+  TYPECHECK_TAG(cl, CLOSURE_TAG);
+  auto closure = (closure_s *)(cl - CLOSURE_TAG);
+
+  bcfunc *func = (bcfunc *)closure->v[0];
   pc = &func->code[0];
   
   long start = ra + 1;

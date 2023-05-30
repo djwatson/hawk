@@ -302,7 +302,6 @@
   (when (and rd (not (= rd nr)))
     (push-instr! bc (list 'MOV rd nr)))
   (push-instr! bc (list (if (eq? cd 'ret) 'CALLT 'CALL) nr (+ 1 (length f))))
-  (push-instr! bc (list 'CLOSURE-PTR nr (+ nr 1)))
   (fold
    (lambda (f num)
      (compile-sexp f bc env num num 'next)
