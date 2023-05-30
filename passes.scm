@@ -301,6 +301,7 @@
 	  ((port?) `($guard ,(integrate (second f)) ,port-tag))
 	  ((char?) `($guard ,(integrate (second f)) ,char-tag))
 	  ((symbol?) `($guard ,(integrate (second f)) ,symbol-tag))
+	  ((eof-object?) `($guard ,(integrate (second f)) ,eof-tag))
 	  ((flonum? inexact?) `($guard ,(integrate (second f)) ,flonum-tag))
 	  ((fixnum? exact? exact-integer?) `($guard ,(integrate (second f)) ,fixnum-tag)) 
 	  ((null?) `($guard ,(integrate (second f)) ,nil-tag))
