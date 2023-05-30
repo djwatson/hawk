@@ -41,11 +41,9 @@
 
 * single-arm if doesn't need to return #f? all effect context.
 * case-lambda!
-* funcv new bytecode
 * closure calls as a new bytecode instr
 * remove hotspot for non-jit / new bytecode
 * letrec the bootstrap
-* empty branches can return new destination?? probably uncommon. HAPPENS FOR AND/OR
 * 'big' register moves
 * we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
  This probably has no effect on the VM, but might benefit the jit.

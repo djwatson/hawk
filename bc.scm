@@ -261,7 +261,7 @@
 	(to-proper (second f)))
   (compile-sexp (third f) f-bc env r r 'ret)
   (push-instr! f-bc
-	 (if rest (list 'FUNC (- r 1) 1)
+	 (if rest (list 'FUNCV (- r 1) 1)
 	     (list 'FUNC r 0))))
 
 (define (exp-loc f env rd)
