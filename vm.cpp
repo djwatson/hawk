@@ -1070,30 +1070,27 @@ LIBRARY_FUNC_B_LOAD_NAME(DELETE-FILE, DELETE_FILE)
 END_LIBRARY_FUNC
 
 ///////////
-ABI void PROFILE(PARAMS) {
- profile_set_pc(pc);
- MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
-}
-
-ABI void INS_PROFILE_RET1(PARAMS) {
+ABI void INS_PROFILE_RET1_ADJ(PARAMS) {
  profile_pop_frame();
  profile_set_pc(pc);
- MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
+ MUSTTAIL return INS_RET1(ARGS);
 }
 
-ABI void INS_PROFILE_CALL(PARAMS) {
+ABI void INS_PROFILE_CALL_ADJ(PARAMS) {
  profile_add_frame(pc);
  profile_set_pc(pc);
- MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
+ MUSTTAIL return INS_CALL(ARGS);
 }
 
-ABI void INS_PROFILE_CALLCC_RESUME(PARAMS) {
+ABI void INS_PROFILE_CALLCC_RESUME_ADJ(PARAMS) {
   // TODO make callcc resume work
  profile_pop_all_frames();
  profile_set_pc(pc);
- MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
+ MUSTTAIL return INS_CALLCC_RESUME(ARGS);
 }
 //////////////
+
+#include "opcodes-table.h"
 
 void run(bcfunc *func, long argcnt, long *args) {
   // Bytecode stub to get us to HALT.
@@ -1117,18 +1114,15 @@ void run(bcfunc *func, long argcnt, long *args) {
     hotmap[i] = hotmap_cnt;
   }
 
+  opcode_table_init();
 // Setup instruction table.
-#include "opcodes-table.h"
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }
   if (profile) {
-    for (int i = 0; i < INS_MAX; i++) {
-      l_op_table_profile[i] = PROFILE;
-    }
-    l_op_table_profile[RET1] = INS_PROFILE_RET1;
-    l_op_table_profile[CALL] = INS_PROFILE_CALL;
-    l_op_table_profile[CALLCC_RESUME] = INS_PROFILE_CALLCC_RESUME;
+    l_op_table_profile[RET1] = INS_PROFILE_RET1_ADJ;
+    l_op_table_profile[CALL] = INS_PROFILE_CALL_ADJ;
+    l_op_table_profile[CALLCC_RESUME] = INS_PROFILE_CALLCC_RESUME_ADJ;
   }
 
   // Initial tailcalling-interpreter variable setup.
