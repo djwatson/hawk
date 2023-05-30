@@ -347,18 +347,23 @@ LIBRARY_FUNC_MATH_OVERFLOW_VV(MULVV, mul, MATH_MUL, 3);
 LIBRARY_FUNC_MATH_VV(DIV, MATH_DIV, frame[ra] = (fb / fc) << 3);
 LIBRARY_FUNC_MATH_VV(REM, remainder, frame[ra] = ((fb >> 3) % (fc >> 3)) << 3);
 
-LIBRARY_FUNC_BC_LOAD(JEQ)
-  assert(INS_OP(*(pc+1)) == JMP);
-  if (fb == fc) {
-    pc += 2;
-  } else {
-    pc += INS_D(*(pc+1)) + 1;
-  }
-  
-  NEXT_INSTR;
+#define LIBRARY_FUNC_EQ(name, iftrue, iffalse, finish) \
+  LIBRARY_FUNC_BC_LOAD(name)			\
+  if (fb == fc) {				\
+    iftrue;					\
+  } else {					\
+    iffalse;					\
+  }						\
+						\
+  pc += finish;					\
+  NEXT_INSTR;					\
 }
 
-#define LIBRARY_FUNC_NUM_CMP(name, op, func)                                   \
+LIBRARY_FUNC_EQ(EQ, frame[ra] = TRUE_REP, frame[ra] = FALSE_REP, 1);
+LIBRARY_FUNC_EQ(JEQ, pc += 2, pc += INS_D(*(pc+1)) + 1, 0);
+LIBRARY_FUNC_EQ(JNEQ, pc += INS_D(*(pc+1)) + 1, pc += 2, 0);
+
+#define LIBRARY_FUNC_NUM_CMP(name, op, func)				\
  LIBRARY_FUNC_BC_LOAD(name##_SLOWPATH)                                        \
   double x_b;                                                                  \
   double x_c;                                                                  \
@@ -413,6 +418,7 @@ LIBRARY_FUNC_BC_LOAD(JEQ)
 
 LIBRARY_FUNC_NUM_CMP(JISLT, <, MOVE_PC);
 LIBRARY_FUNC_NUM_CMP(JISEQ, ==, MOVE_PC);
+LIBRARY_FUNC_NUM_CMP(JISNEQ, !=, MOVE_PC);
 LIBRARY_FUNC_NUM_CMP(JISLTE, <=, MOVE_PC);
 LIBRARY_FUNC_NUM_CMP(JISGT, >, MOVE_PC);
 LIBRARY_FUNC_NUM_CMP(JISGTE, >=, MOVE_PC);
@@ -422,27 +428,19 @@ LIBRARY_FUNC_NUM_CMP(ISLTE, <=, SET_RES);
 LIBRARY_FUNC_NUM_CMP(ISGTE, >=, SET_RES);
 LIBRARY_FUNC_NUM_CMP(ISEQ, ==, SET_RES);
 
-LIBRARY_FUNC_B_LOAD(JISF)
-  assert(INS_OP(*(pc+1)) == JMP);
-  if (fb == FALSE_REP) {
-    pc += INS_D(*(pc+1)) + 1;
-  } else {
-    pc += 2;
-  }
-  
-  NEXT_INSTR;
+#define LIBRARY_FUNC_JISF(name, iftrue, iffalse)	\
+  LIBRARY_FUNC_B_LOAD(name)				\
+  assert(INS_OP(*(pc+1)) == JMP);			\
+  if (fb == FALSE_REP) {				\
+    pc += iftrue;					\
+  } else {						\
+    pc += iffalse;					\
+  }							\
+							\
+  NEXT_INSTR;						\
 }
-
-LIBRARY_FUNC_B_LOAD(JIST)
-  assert(INS_OP(*(pc+1)) == JMP);
-  if (fb == FALSE_REP) {
-    pc += 2;
-  } else {
-    pc += INS_D(*(pc+1)) + 1;
-  }
-  
-  NEXT_INSTR;
-}
+LIBRARY_FUNC_JISF(JISF, INS_D(*(pc+1)) + 1, 2);
+LIBRARY_FUNC_JISF(JIST, 2, INS_D(*(pc+1)) + 1);
 
 LIBRARY_FUNC_D(GGET)
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
@@ -488,38 +486,27 @@ LIBRARY_FUNC_BC_LOAD_NAME(SET-BOX!, SET_BOX)
   box->a = fc;
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC(GUARD)
-  long fb = frame[rb];
-  
-  // typecheck fb vs. rc.
-  if ((rc < LITERAL_TAG) && ((fb & TAG_MASK) == rc)) {
-    frame[ra] = TRUE_REP;
-  } else if (((TAG_MASK & rc) == LITERAL_TAG) && (rc == (fb & IMMEDIATE_MASK))) {
-    frame[ra] = TRUE_REP;
-  } else if (((fb & TAG_MASK) == PTR_TAG) && (*(long *)(fb - PTR_TAG) == rc)) {
-    frame[ra] = TRUE_REP;
-  } else {
-    frame[ra] = FALSE_REP;
-  }
-END_LIBRARY_FUNC
-
-LIBRARY_FUNC_BC(JGUARD)
-  long fb = frame[rb];
-  
-  // typecheck fb vs. rc.
-  if ((rc < LITERAL_TAG) && ((fb & TAG_MASK) == rc)) {
-    pc += 2;
-  } else if (((TAG_MASK & rc) == LITERAL_TAG) && (rc == (fb & IMMEDIATE_MASK))) {
-    pc += 2;
-  } else if (((fb & TAG_MASK) == PTR_TAG) && (*(long *)(fb - PTR_TAG) == rc)) {
-    pc += 2;
-  } else {
-    assert(INS_OP(*(pc+1)) == JMP);
-    pc += INS_D(*(pc+1)) + 1;
-  }
-
-  NEXT_INSTR;
+#define LIBRARY_FUNC_GUARD(name, iftrue, iffalse, finish)	\
+  LIBRARY_FUNC_BC(name)				\
+  long fb = frame[rb];					\
+							\
+  if ((rc < LITERAL_TAG) && ((fb & TAG_MASK) == rc)) {	\
+    iftrue;								\
+  } else if (((TAG_MASK & rc) == LITERAL_TAG) && (rc == (fb & IMMEDIATE_MASK))) { \
+    iftrue;								\
+  } else if (((fb & TAG_MASK) == PTR_TAG) && (*(long *)(fb - PTR_TAG) == rc)) {	\
+    iftrue;								\
+  } else {								\
+    iffalse;								\
+  }									\
+									\
+  pc += finish;								\
+  NEXT_INSTR;								\
 }
+
+LIBRARY_FUNC_GUARD(GUARD, frame[ra] = TRUE_REP, frame[ra] = FALSE_REP, 1);
+LIBRARY_FUNC_GUARD(JGUARD, pc += 2, pc += INS_D(*(pc+1)) + 1, 0);
+LIBRARY_FUNC_GUARD(JNGUARD, pc += INS_D(*(pc+1)) + 1, pc += 2, 0);
 
 LIBRARY_FUNC_B(VECTOR)
   auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
@@ -638,48 +625,29 @@ LIBRARY_FUNC_B(CALLT)
   NEXT_INSTR;
 }
 
-LIBRARY_FUNC_BC_LOAD(EQ)
-  if (fb == fc) {
-    frame[ra] = TRUE_REP;
-  } else {
-    frame[ra] = FALSE_REP;
-  }
-END_LIBRARY_FUNC
-
-LIBRARY_FUNC_BC_LOAD_NAME(EQV?, EQV)
-  if (fb == fc) {
-    frame[ra] = TRUE_REP;
-  } else if (((7 & fb) == (7 & fc)) && ((7 & fc) == 2)) {              
-    auto x_b = ((flonum_s *)(fb - FLONUM_TAG))->x;
-    auto x_c = ((flonum_s *)(fc - FLONUM_TAG))->x;
-    if (x_b == x_c) {
-      frame[ra] = TRUE_REP;
-    } else {
-      frame[ra] = FALSE_REP;
-    }
-  } else {
-    frame[ra] = FALSE_REP;
-  }
-END_LIBRARY_FUNC
-
-LIBRARY_FUNC_BC_LOAD_NAME(JEQV, JEQV)
-  assert(INS_OP(*(pc+1)) == JMP);
-  if (fb == fc) {
-    pc += 2;
-  } else if (((7 & fb) == (7 & fc)) && ((7 & fc) == 2)) {              
-    auto x_b = ((flonum_s *)(fb - FLONUM_TAG))->x;
-    auto x_c = ((flonum_s *)(fc - FLONUM_TAG))->x;
-    if (x_b == x_c) {
-      pc += 2;
-    } else {
-      pc += INS_D(*(pc+1)) + 1;
-    }
-  } else {
-    pc += INS_D(*(pc+1)) + 1;
-  }
-
-NEXT_INSTR;
+#define LIBRARY_FUNC_EQV(name, name2, iftrue, iffalse, finish)	\
+  LIBRARY_FUNC_BC_LOAD_NAME(name, name2)					\
+  if (fb == fc) {					\
+    iftrue;							 \
+  } else if (((7 & fb) == (7 & fc)) && ((7 & fc) == 2)) {        \
+  auto x_b = ((flonum_s *)(fb - FLONUM_TAG))->x;	\
+  auto x_c = ((flonum_s *)(fc - FLONUM_TAG))->x;	\
+  if (x_b == x_c) {					\
+    iftrue;						\
+   } else {						\
+    iffalse;						\
+   }							\
+  } else {						\
+    iffalse;						\
+  }							\
+							\
+  pc += finish;						\
+  NEXT_INSTR;						\
 }
+
+LIBRARY_FUNC_EQV(EQV?, EQV, frame[ra] = TRUE_REP, frame[ra] = FALSE_REP, 1);
+LIBRARY_FUNC_EQV(JEQV, JEQV, pc += 2, pc += INS_D(*(pc+1)) + 1, 0);
+LIBRARY_FUNC_EQV(JNEQV, JNEQV, pc += INS_D(*(pc+1)) + 1, pc += 2, 0);
 
 LIBRARY_FUNC_BC(CONS)
   auto c = (cons_s *)GC_malloc(sizeof(cons_s));

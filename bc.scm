@@ -148,7 +148,9 @@
       (compile-binary-vn f bc env rd nr cd)
       (compile-binary-vv f bc env rd nr cd)))
 
-(define cmp-invert '((JISGT JISLTE) (JISLTE JISGT) (JISGTE JISLT) (JISLT JISGTE) (JISF JIST) (JIST JISF)))
+(define cmp-invert '((JISGT JISLTE) (JISLTE JISGT) (JISGTE JISLT) (JISLT JISGTE) (JISF JIST)
+		     (JEQ JNEQ) (JEQV JNEQV)
+		     (JGUARD JNGUARD)))
 (define (emit-branch-try-invert op bc cd r1 r2)
   (if (and (assq op cmp-invert) (= (third cd) (length (func-bc-code bc))))
       (begin
@@ -202,10 +204,7 @@
 	       (if op (second op) (symbol-to-bytecode (car f)))))
   (define r1 (exp-loc (second f) env nr))
   (if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
-      (begin
-	(build-jmp (second cd) bc #t)
-	(build-jmp (third cd) bc #f)
-	(push-instr! bc (list op 0 r1 (modulo (third f) 256))))
+      (emit-branch-try-invert op bc cd r1 (third f))
       (begin
 	(finish bc cd (if rd rd nr))
 	(push-instr! bc (list op (if rd rd nr) r1 (modulo (third f) 256)))))

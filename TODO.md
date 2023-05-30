@@ -8,10 +8,7 @@
 
 # Bytecode generator / VM
 
-* in progress: jmps
-** add back branch inversions.
 ** do loop generation has shitty branching also
-** 'zero' guard
 
 * recognize 'do' and 'let' loops?
 
