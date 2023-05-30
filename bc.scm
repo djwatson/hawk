@@ -109,9 +109,7 @@
    ((number? cd)
     (build-jmp cd bc #t))
    ((branch-dest? cd)
-    (build-jmp (second cd) bc #t)
-    (build-jmp (third cd) bc #f)
-    (push-instr! bc (list 'ISF 0 r)))
+    (emit-branch-try-invert 'JISF bc cd r 0))
    ((eq? cd 'next))
    (else (dformat "UNKNOWN CONTROL DEST:~a" cd) (exit -1))))
 
@@ -150,6 +148,18 @@
       (compile-binary-vn f bc env rd nr cd)
       (compile-binary-vv f bc env rd nr cd)))
 
+(define cmp-invert '((JISGT JISLTE) (JISLTE JISGT) (JISGTE JISLT) (JISLT JISGTE) (JISF JIST) (JIST JISF)))
+(define (emit-branch-try-invert op bc cd r1 r2)
+  (if (and (assq op cmp-invert) (= (third cd) (length (func-bc-code bc))))
+      (begin
+	(build-jmp (third cd) bc #t)
+	(build-jmp (second cd) bc #f)
+	(push-instr! bc (list (second (assq op cmp-invert)) 0 r1 r2)))
+      (begin
+	(build-jmp (second cd) bc #t)
+	(build-jmp (third cd) bc #f)
+	(push-instr! bc (list op 0 r1 r2)))))
+
 (define (compile-binary-vv f bc env rd nr cd)
   (define op (let ((op (if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
 			   ;; TODO clean these up in symbol-to-bytecode?
@@ -174,10 +184,7 @@
     (if (or rd (branch-dest? cd) (memq (first f) has-effect))
       (begin
 	(if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
-	    (begin
-	      (build-jmp (second cd) bc #t)
-	      (build-jmp (third cd) bc #f)
-	      (push-instr! bc (list op 0 r1 r2)))
+	    (emit-branch-try-invert op bc cd r1 r2)
 	    (begin
 	      (finish bc cd (if rd rd nr))
 	      (push-instr! bc (list op (if rd rd nr) r1 r2))))

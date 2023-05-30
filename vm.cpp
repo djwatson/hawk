@@ -422,12 +422,23 @@ LIBRARY_FUNC_NUM_CMP(ISLTE, <=, SET_RES);
 LIBRARY_FUNC_NUM_CMP(ISGTE, >=, SET_RES);
 LIBRARY_FUNC_NUM_CMP(ISEQ, ==, SET_RES);
 
-LIBRARY_FUNC_B_LOAD(ISF)
+LIBRARY_FUNC_B_LOAD(JISF)
   assert(INS_OP(*(pc+1)) == JMP);
   if (fb == FALSE_REP) {
     pc += INS_D(*(pc+1)) + 1;
   } else {
     pc += 2;
+  }
+  
+  NEXT_INSTR;
+}
+
+LIBRARY_FUNC_B_LOAD(JIST)
+  assert(INS_OP(*(pc+1)) == JMP);
+  if (fb == FALSE_REP) {
+    pc += 2;
+  } else {
+    pc += INS_D(*(pc+1)) + 1;
   }
   
   NEXT_INSTR;
