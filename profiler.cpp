@@ -11,6 +11,18 @@
 // for find_func_for_frame
 #include "vm.h"
 
+#ifndef PROFILER
+
+
+void profiler_start() {}
+void profiler_stop() {}
+void profile_add_frame(void* ptr) {}
+void profile_pop_frame() {}
+void profile_pop_all_frames() {}
+void profile_set_pc(uint32_t* pc) {}
+
+#else
+
 static timer_t timerid;
 static struct itimerspec its;
 static long cnt = 0;
@@ -184,3 +196,4 @@ void profiler_stop() {
   profiler_display_tree_node(&tree_root, 0);
 }
 
+#endif

@@ -991,7 +991,9 @@ LIBRARY_FUNC_B_LOAD(ROUND)
     frame[ra] = fb;
   } else if ((fb & TAG_MASK) == FLONUM_TAG) {
     auto flo = (flonum_s *)(fb - FLONUM_TAG);
-    auto res = roundeven(flo->x);
+    //auto res = roundeven(flo->x);
+    auto res = flo->x - remainder(flo->x, 1.0);
+    //auto res = round(flo->x);
   
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));
     r->type = FLONUM_TAG;

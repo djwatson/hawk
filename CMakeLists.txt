@@ -16,6 +16,9 @@ enable_testing()
 # the JIT is optional.
 option(JIT "Enable JIT" OFF)
 
+# the profiler is optional
+option(JIT "Enable PROFILER" OFF)
+
 # Find a suitable scheme for bootstrapping.
 # Chez and chicken have been tested, it's likely most r5rs (+ write-u8) compatible
 # schemes will work with minor changes.
@@ -36,9 +39,9 @@ include(CheckPIESupported)
 check_pie_supported()
 
 # -Wold-style-cast
-set(CMAKE_CXX_FLAGS "-O3  -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden -I.")
+set(CMAKE_CXX_FLAGS "-std=c++17 -O3  -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden -I.")
 set(SOURCES readbc.cpp bytecode.cpp vm.o boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.cpp gc.cpp opcodes.h profiler.cpp)
-set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm)
+set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm )
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
   set(SOURCES ${SOURCES} snap.cpp replay.cpp asm_x64.cpp jitdump.cpp record.cpp)
