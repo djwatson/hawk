@@ -1,3 +1,9 @@
+;;; Some crap to get case-lambda by alexpander, and some other passes.
+(define-syntax case-lambda
+  (syntax-rules ()
+    ((_ (args body ...) ...)
+     ($case-lambda (lambda args body ...) ...))))
+
 (define (error reason . args)
       (display "Error: ")
       (display reason)

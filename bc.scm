@@ -249,20 +249,47 @@
       (if (atom? l) 1
 	  (+ 1 (ilength (cdr l))))))
 
+(define (compile-cases f bc env rd nr cd)
+  (if (not (eq? '$case (car f)))
+      (compile-sexp f bc env rd nr cd)
+      (let ((rest (improper? (second f))))
+	(compile-cases (fourth f) bc env rd nr cd)
+	(fold (lambda (n num)
+		(push! env (cons n num))
+		(+ num 1))
+	      1 ;; closure var
+	      (to-proper (second f)))
+	(let ((next-case (length (func-bc-code bc)))
+	      (r (+ 1 (ilength (second f)))))
+	  (compile-sexp (third f) bc env r r cd)
+	  (build-jmp next-case bc #f)
+	  (push-instr! bc
+		       (if rest (list 'CLFUNCV (- r 1) 1)
+			   (list 'CLFUNC r 0)))))))
+
 (define (compile-lambda-internal f f-bc env)
   (define r (ilength (second f)))
   (define rest (improper? (second f)))
+  (define cl (and (pair? (third f)) (eq? '$case (car (third f)))))
   (when (not (= 3 (length f)))
     (dformat "ERROR invalid length lambda: ~a\n" f))
-  (fold (lambda (n num)
-	  (push! env (cons n num))
-	  (+ num 1))
-	0
-	(to-proper (second f)))
-  (compile-sexp (third f) f-bc env r r 'ret)
-  (push-instr! f-bc
-	 (if rest (list 'FUNCV (- r 1) 1)
-	     (list 'FUNC r 0))))
+  ;;(dformat "Compile lambda ~a ~a\n" cl f)
+  ;; Check for case-lambda
+  (when (not cl)
+    (fold (lambda (n num)
+	    (push! env (cons n num))
+	    (+ num 1))
+	  0
+	  (to-proper (second f))))
+  (if cl
+      (begin
+	(push! env (cons (first (second f)) 0)) ; closure var for case-lambda
+	(compile-cases (third f) f-bc env 1 1 'ret))
+      (compile-sexp (third f) f-bc env r r 'ret))
+  (when (not cl)
+    (push-instr! f-bc
+		 (if rest (list 'FUNCV (- r 1) 1)
+		     (list 'FUNC r 0)))))
 
 (define (exp-loc f env rd)
   (if (symbol? f)
@@ -640,14 +667,15 @@
   (set! program '())
   (set! cur-name "")
   (let ((src (closure-conversion
-	   (optimize-direct
-	    (assignment-conversion
-	     (fix-letrec
-	      (alpha-rename
-	       (integrate-r5rs
-		(case-insensitive
-		 (add-includes
-		  (with-input-from-file name expander)))))))))))
+	      (lower-case-lambda
+	       (optimize-direct
+		(assignment-conversion
+		 (fix-letrec
+		  (alpha-rename
+		   (integrate-r5rs
+		    (case-insensitive
+		     (add-includes
+		      (with-input-from-file name expander))))))))))))
     (when (pair? rest)
 	  (display "Compiling:\n")
 	  (pretty-print src)

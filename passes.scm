@@ -312,3 +312,20 @@
 	  ;((eqv?) `($eq ,(integrate (second f)) ,(integrate (third f)))) ;; TODO flonums
 	  (else (imap integrate f)))))
   (imap integrate f))
+
+;; Must run after alpha-conversion
+;; Lower individual cases inline.  The code generator will emit CLFUNC/CLFUNCV instead of FUNC/FUNCV for each case,
+;; followed by a jump t
+(define (lower-case-lambda f)
+  (define (test-cases cases)
+    (if (pair? cases)
+	`($case ,(second (car cases)) (begin ,@(cddr (car cases))) ,(test-cases (cdr cases)))
+	`(error "Can't find case for case-lambda")))
+  (define (lower-cl f)
+    (if (atom? f)
+	f
+	(if (eq? '$case-lambda (car f))
+	    (let* ((lambdas (map lower-cl (cdr f))))
+	      `(lambda () ,(test-cases lambdas)))
+	    (imap lower-cl f))))
+  (imap lower-cl f))

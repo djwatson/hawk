@@ -239,6 +239,26 @@ LIBRARY_FUNC(FUNCV)
     frame[ra] = build_list(ra, argcnt - ra, frame);
 END_LIBRARY_FUNC
 
+LIBRARY_FUNC(CLFUNC)
+    if (argcnt != ra) {
+      pc += INS_D(*(pc+1)) + 1;
+    } else {
+      pc+=2;
+    }
+  NEXT_INSTR;
+}
+
+LIBRARY_FUNC(CLFUNCV)
+    if (argcnt < ra) {
+      pc += INS_D(*(pc+1)) + 1;
+    } else {
+      frame[ra] = build_list(ra, argcnt - ra, frame);
+      pc+=2;
+    }
+
+  NEXT_INSTR;
+}
+
 LIBRARY_FUNC_D(KSHORT)
   frame[ra] = rd << 3;
 END_LIBRARY_FUNC
