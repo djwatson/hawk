@@ -38,27 +38,41 @@
   (if (pair? args)
       (reducer f (f init (car args)) (cdr args))
       init))
-(define (+ . rest)
-  (reducer (lambda (a b) ($+ a b)) 0 rest))
-(define (- . rest)
-  (if (= (length rest) 1)
-      (* -1 (car rest))
-      (if ($< (length rest) 3)
-	  ($- (car rest) (cadr rest))
-	  (reducer (lambda (a b) ($- a b)) (car rest) (cdr rest))
-	  )))
-(define (* . rest)
-  (reducer (lambda (a b) ($* a b)) 1 rest))
+(define +
+  (case-lambda
+   (() 0)
+   ((a) a)
+   ((a b) ($+ a b))
+   (rest (reducer (lambda (a b) ($+ a b)) 0 rest))))
+(define -
+  (case-lambda
+   ((a) (* -1 a))
+   ((a b) ($- a b))
+   ((a . rest) (reducer (lambda (a b) ($- a b)) a rest))))
+
+(define *
+  (case-lambda
+   ((a) a)
+   ((a b) ($* a b))
+   ((a b c) ($* ($* a b) c))
+   (rest (reducer
+     (lambda (a b) ($* a b))
+     1
+     rest))))
 (define (comparer f args)
   (if (and (pair? args) (pair? (cdr args)))
       (if (f (car args) (cadr args))
 	  (comparer f (cdr args))
 	  #f)
       #t))
-(define (/ . rest)
-  (if (= 1 (length rest))
-      (/ 1 (car rest))
-      (/ (car rest) (cadr rest))))
+(define /
+  (case-lambda
+   ((a) ($/ 1 a))
+   ((a b) ($/ a b))
+   ((a . rest) (reducer
+	     (lambda (a b) ($/ a b))
+	     a
+	     rest))))
 (define (quotient x y)
   (exact (/ x y)))
 (define (modulo x y)
@@ -67,24 +81,25 @@
 	(if (positive? z) (+ z y) z)
 	(if (negative? z) (+ z y) z))))
 (define (remainder a b) ($% a b))
-(define (gcd2 a b)
-  (if (= b 0)
+
+(define gcd
+  (case-lambda
+   (() 0)
+   ((a) a)
+   ((a b)
+    (if (= b 0)
       (abs a)
       (gcd b (remainder a b))))
+   (args (let lp ((x (car args)) (ls (cdr args)))
+        (if (null? ls) x (lp (gcd x (car ls)) (cdr ls)))))))
 
-(define (gcd . args)
-  (if (null? args)
-      0
-      (let lp ((x (car args)) (ls (cdr args)))
-        (if (null? ls) x (lp (gcd2 x (car ls)) (cdr ls))))))
-(define (lcm2 a b)
-  (abs (quotient (* a b) (gcd a b))))
-
-(define (lcm . args)
-  (if (null? args)
-      1
-      (let lp ((x (car args)) (ls (cdr args)))
-        (if (null? ls) x (lp (lcm2 x (car ls)) (cdr ls))))))
+(define lcm
+  (case-lambda
+   (() 1)
+   ((a) a)
+   ((a b) (abs (quotient (* a b) (gcd a b))))
+   (args (let lp ((x (car args)) (ls (cdr args)))
+        (if (null? ls) x (lp (lcm x (car ls)) (cdr ls)))))))
 
 ;; TODO probably needs to work on flonum too.
 (define (expt num exp)
@@ -97,16 +112,31 @@
 	    (loop (/ n num) (+ cnt 1))))))
 
 
-(define (< . rest)
-  (comparer (lambda (a b) ($< a b)) rest))
-(define (> . rest)
-  (comparer (lambda (a b) ($> a b)) rest))
-(define (>= . rest)
-  (comparer (lambda (a b) ($>= a b)) rest))
-(define (<= . rest)
-  (comparer (lambda (a b) ($<= a b)) rest))
-(define (= . rest)
-  (comparer (lambda (a b) ($= a b)) rest))
+(define <
+  (case-lambda
+   ((a b) ($< a b))
+   (rest
+    (comparer (lambda (a b) ($< a b)) rest))))
+(define >
+  (case-lambda
+   ((a b) ($> a b))
+   (rest
+    (comparer (lambda (a b) ($> a b)) rest))))
+(define <=
+  (case-lambda
+   ((a b) ($<= a b))
+   (rest
+    (comparer (lambda (a b) ($<= a b)) rest))))
+(define >=
+  (case-lambda
+   ((a b) ($>= a b))
+   (rest
+    (comparer (lambda (a b) ($>= a b)) rest))))
+(define =
+  (case-lambda
+   ((a b) ($= a b))
+   (rest
+    (comparer (lambda (a b) ($= a b)) rest))))
 (define (not a) (if a #f #t))
 
 (define (eq? a b) ($eq a b))
@@ -167,11 +197,12 @@
 (define (caddar e) (car (cddar e)))
 (define (cdddar e) (cdr (cddar e)))
 
-(define (map2-internal f lst)
-	(if (null? lst) '()
-	    (cons (f (car lst)) (map2-internal f (cdr lst)))))
-(define (map . lst)
-  (let loop ((lsts (cons (cadr lst) (cddr lst))))
+(define map
+  (case-lambda
+   ((f lst)
+    (if (null? lst) '()
+	(cons (f (car lst)) (map f (cdr lst)))))
+   (lst (let loop ((lsts (cons (cadr lst) (cddr lst))))
     (let ((hds (let loop2 ((lsts lsts))
 		 (if (null? lsts)
 		     '()
@@ -187,21 +218,22 @@
 	      (if (null? lsts)
 		  '()
 		  (cons (cdr (car lsts)) (loop3 (cdr lsts)))))))
-	  '())))  )
+	  '()))))))
 
-(define (append2 a b)
-  (if (null? a)
-      b
-      (cons (car a) (append2 (cdr a) b))))
-(define (append . lsts)
-  (if (null? lsts) '()
+(define append
+  (case-lambda
+   ((a b)
+    (if (null? a)
+	b
+	(cons (car a) (append (cdr a) b))))
+   (lsts (if (null? lsts) '()
       (let loop ((lsts lsts))
 	(if (null? (cdr lsts))
 	    (car lsts)
 	    (let copy ((node (car lsts)))
 	      (if (pair? node)
 		  (cons (car node) (copy (cdr node)))
-		  (loop (cdr lsts))))))))
+		  (loop (cdr lsts))))))))))
 
 (define (reverse lst)
   (let loop ((lst lst) (rest '()))
@@ -258,8 +290,10 @@
 
 (define (zero? a) ($= a 0))
 
-(define (make-vector len . val)
-  ($make-vector len (if (pair? val) (car val) #f)))
+(define make-vector
+  (case-lambda
+   ((len) ($make-vector len #f))
+   ((len val) ($make-vector len val))))
 (define (vector-set! v k obj)
   ($vector-set! v k obj))
 (define (vector-ref v k)
@@ -294,26 +328,36 @@
       (* a -1)
       a))
 
-(define (max . args)
-  (let loop ((args args))
-    (if (eq? (length args) 1)
-	(car args)
-	(let* ((a (car args))
-	       (b (cadr args))
-	       (m (if (< a b) b a))
-	       (i (if (or (inexact? a) (inexact? b)) (inexact m) m)))
-	  (loop (cons i (cddr args)))))))
+(define max
+  (case-lambda
+   ((a b)
+    (let ((res (if (> a b) a b)))
+      (if (or (inexact? a) (inexact? b))
+	  (inexact res) res)))
+   (args (let loop ((args args))
+      (if (eq? (length args) 1)
+	  (car args)
+	  (let* ((a (car args))
+		 (b (cadr args))
+		 (m (if (< a b) b a))
+		 (i (if (or (inexact? a) (inexact? b)) (inexact m) m)))
+	    (loop (cons i (cddr args)))))))))
 
-(define (min . args)
-  (let loop ((args args))
-    (if (eq? (length args) 1)
-	(car args)
-	(let* ((a (car args))
-	       (b (cadr args))
-	       (m (if (> a b) b a))
-	       (i (if (or (inexact? a) (inexact? b)) (inexact m) m)))
-	  (loop (cons i (cddr args)))))))
-
+(define min
+  (case-lambda
+   ((a b)
+    (let ((res (if (< a b) a b)))
+      (if (or (inexact? a) (inexact? b))
+	  (inexact res) res)))
+   (args
+    (let loop ((args args))
+      (if (eq? (length args) 1)
+	  (car args)
+	  (let* ((a (car args))
+		 (b (cadr args))
+		 (m (if (> a b) b a))
+		 (i (if (or (inexact? a) (inexact? b)) (inexact m) m)))
+	    (loop (cons i (cddr args)))))))))
 
 (define (length e)
   (let length-loop ((e e) (cnt 0))
@@ -404,29 +448,22 @@
      (else 
       ($write arg port))))))
 
-(define (write-string str . p)
-  (let ((port (if (pair? p) (car p) (current-output-port))))
-    ($write str port)))
+(define write-string
+  (case-lambda
+   ((str) ($write str current-output-port-internal))
+   ((str port) ($write str port))))
 
-(define (for-each2 proc lst )
-  (if (not (null? lst))
+(define for-each
+  (case-lambda
+   ((proc lst) (if (not (null? lst))
       (begin
 	(proc (car lst))
 	(for-each proc (cdr lst)))))
-
-(define (for-each3 proc lst1 lst2)
-  (if (and  (not (null? lst1)) (not (null? lst2)))
+   ((proc lst1 lst2) (if (and  (not (null? lst1)) (not (null? lst2)))
       (begin
 	(proc (car lst1) (car lst2))
-	(for-each3 proc (cdr lst1) (cdr lst2)))))
-
-(define (for-each proc . lsts)
-  (case (length lsts)
-    ((0) '())
-    ((1) (for-each2 proc (car lsts)))
-    ((2) (for-each3 proc (car lsts) (cadr lsts)))
-    (else
-     (let loop ((lsts lsts))
+	(for-each proc (cdr lst1) (cdr lst2)))))
+   ((proc . lsts) (let loop ((lsts lsts))
        (let ((hds (let loop2 ((lsts lsts))
 		    (if (null? lsts)
 			'()
@@ -440,11 +477,12 @@
 		    (let loop3 ((lsts lsts))
 		      (if (null? lsts)
 			  '()
-			  (cons (cdr (car lsts)) (loop3 (cdr lsts))))))))))     
-     )))
+			  (cons (cdr (car lsts)) (loop3 (cdr lsts)))))))))))))
 
-(define (make-string len . val)
-  ($make-string len (if (pair? val) (car val) #\space)))
+(define make-string
+  (case-lambda
+   ((len) ($make-string len #\space))
+   ((len c) ($make-string len c))))
 (define (string-set! s k obj)
   ($string-set! s k obj))
 (define (string-ref s k)
@@ -458,17 +496,17 @@
 (define (char=? a b)
   ($eq a b))
 
-(define (newline . p)
-  (let ((port (if (pair? p) (car p) (current-output-port))))
-    (display #\newline port)))
+(define newline
+  (case-lambda
+   (() ($write #\newline current-output-port-internal))
+   ((port) ($write #\newline port))))
 
-(define (apply . lst)
-  (let* ((firstargs (reverse (cdr (reverse (cdr lst)))))
+(define apply
+  (case-lambda
+   ((fun args) ($apply fun args))
+   (lst (let* ((firstargs (reverse (cdr (reverse (cdr lst)))))
 	 (args (append firstargs (car (reverse (cdr lst))))))
-    (apply2 (car lst) args)))
-
-(define (apply2 fun args)
-  ($apply fun args))
+    ($apply (car lst) args)))))
 
 (define (strcmp eq? f a b eq lt gt)
   (let loop ((pos 0) (rema (string-length a)) (remb (string-length b)))
@@ -599,12 +637,10 @@
 
 (define (vector . rest) (list->vector rest))
 
-(define (number->string num . base)
-  (if (pair? base)
-      (number->string2 num (car base))
-      (number->string2 num 10)))
-(define (number->string2 num base)
-  (let* ((buflen 100)
+(define number->string
+  (case-lambda
+   ((num) (number->string num 10))
+   ((num base) (let* ((buflen 100)
 	 (buffer (make-string buflen)))
     (cond ((inexact? num) (error "number->string dtoa")		;($dtoa num)
 	   )
@@ -623,7 +659,7 @@
 			    (r (modulo n base))
 			    (p (- p 1)))
 			(string-set! buffer p (integer->char (+ (if (>= r 10) 87 48) r)))
-			(loop p q))))))))))
+			(loop p q))))))))))))
 
 (include "str2num.scm")
 
@@ -700,11 +736,13 @@
 (define (eof-object? c)
   ($guard c #b00011111))
 
-(define (read . p)
-  (define (read-error msg . args)
+(define read
+  (case-lambda
+   (() (read current-input-port-internal))
+   ((port)
+    (define (read-error msg . args)
     (display "READ ERROR:") (display msg) (newline))
-  (let ((port (if (pair? p) (car p) (current-input-port)))
-	(cs #f);(case-sensitive))
+  (let ((cs #f);(case-sensitive))
 	(eol (lambda (c) (read-error "unexpected delimiter" c))))
     (define (parse-token t)
       (or (string->number t)
@@ -885,15 +923,15 @@
 	      (list->string (reverse lst))
 	      (let ((c (read-char port)))
 		(loop (cons (if cs c (docase c)) lst)))))))
-    (read1)))
-
+    (read1)))))
 
 (define (force x) (x))
 
-(define (values . rest)
-  (if (= 1 (length rest))
-      (car rest)
-      rest))
+(define values
+  (case-lambda
+   ((a) a)
+   (rest rest)))
+
 (define (call-with-values producer consumer)
   (apply consumer (producer)))
 
@@ -908,9 +946,10 @@
   ($file-exists? file))
 (define (delete-file file)
   ($delete-file file))
-(define (read-line . p)
-  (let ((port (if (pair? p) (car p) (current-input-port))))
-    ($read-line port)))
+(define read-line
+  (case-lambda
+   (() ($read-line current-input-port-internal))
+   ((port) ($read-line port))))
 
 ;;; Include the bytecode compiler
 (include "bc.scm")
@@ -947,8 +986,9 @@
 (define print display)
 
 (define (atom? a) (not (pair? a)))
-(define (write-u8 c . p)
-  (let ((port (if (pair? p) (car p) (current-output-port))))
-    ($write-u8 c port)))
+(define write-u8
+  (case-lambda
+   ((c) ($write-u8 c current-output-port-internal))
+   ((c port) ($write-u8 c port))))
 (define (flush-output-port p) 0)
 
