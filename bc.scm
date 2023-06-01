@@ -443,9 +443,8 @@
 			 (length (func-bc-code bc)))
 			((number? cd) cd)
 			((branch-dest? cd)  (second cd))
-			((eq? cd 'next)	 fin)))
-	    (nr2 (if rd (+ nr 1) nr)))
-       (compile-sexp (second f) bc env r1 nr2 `(if ,true-dest ,false-dest))))))
+			((eq? cd 'next)	 fin))))
+       (compile-sexp (second f) bc env r1 nr `(if ,true-dest ,false-dest))))))
 
 (define (bytecode? x)
   (and (symbol? x) (eq? #\$ (string-ref (symbol->string x) 0))))

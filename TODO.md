@@ -8,7 +8,6 @@
 
 # Bytecode generator / VM
 
-* found in peval - it looks like (if (funcall)) is one off with an extra move
 * puzzle - has a jmp to jmp.  maybe all ands?
 
 ## bytecode perf improvements 
