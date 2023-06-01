@@ -22,20 +22,21 @@
 * 'big' register moves / just get fftrad4 working, with a constant-ify pass
 * we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
  This probably has no effect on the VM, but might benefit the jit.
+* funcv/clfuncv could alloc all at once
 
 * browse - ok
-* cat - case-lambda, guard/jmp folding
+* cat - ok
 * conform - callt opt.  All in memq.
 * cpstak - clopsure-ptr CALL opt, probably nothing else.
 * ctak - improve CALLCC 
-* deriv - map2 is slow. ALso calls list a lot, split func funcv.  Only GC once for varargs if possible?
+* deriv - map2 is slow. Only GC once for varargs if possible?
 * destruc - length is slow.  Consider adding as bytecode
 * diviter, divrec - ok
-* dynamic - callcc, assv, memv,(probably all fixed by branch rollup) peek - case-lambda
+* dynamic - callcc, assv, memv
 * earley - good. 
 * fft - good
-* fibc - callcc&resume.  Zero.
-* fibfp - good.  Better GC.  Somehow tell math funcs they can reuse one arg?  Or probably just leave to JIT.
+* fibc - callcc&resume.  
+* fibfp - ok
 * fib - good.
 * gcbench - good
 * graphs - only lambda-lifting would solve.
