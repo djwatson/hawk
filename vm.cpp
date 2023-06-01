@@ -46,10 +46,11 @@ while being more portable and easier to change.
       void **op_table_arg, long argcnt
 #define ARGS ra, instr, pc, frame, op_table_arg, argcnt
 #define MUSTTAIL __attribute((musttail))
-#define ABI __attribute__((ms_abi))
+#define ABI __attribute__((ms_abi)) __attribute__((noinline))
+#define ABIP __attribute__((ms_abi))
 #define DEBUG(name)
 //#define DEBUG(name) printf("%s ra %i rd %i rb %i rc %i ", name, ra, instr, instr&0xff, (instr>>8)); printf("\n");
-typedef ABI void (*op_func)(PARAMS);
+typedef ABIP void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
 static op_func l_op_table_profile[INS_MAX];

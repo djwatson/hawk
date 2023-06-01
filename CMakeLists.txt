@@ -39,9 +39,9 @@ include(CheckPIESupported)
 check_pie_supported()
 
 # -Wold-style-cast
-set(CMAKE_CXX_FLAGS "-std=c++17 -O3  -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden -I.")
+set(CMAKE_CXX_FLAGS "-std=c++17 -O2   -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden -I. -fno-rtti -fno-exceptions")
 set(SOURCES readbc.cpp bytecode.cpp vm.o boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.cpp gc.cpp opcodes.h profiler.cpp)
-set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm )
+set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
   set(SOURCES ${SOURCES} snap.cpp replay.cpp asm_x64.cpp jitdump.cpp record.cpp)
@@ -76,9 +76,11 @@ add_custom_command(
   DEPENDS vm.cpp opcodes.h 
   )
 
+set(CLOC_SOURCES ${SOURCES} vm.cpp)
+list(REMOVE_ITEM CLOC_SOURCES bootstrap.cpp)
 add_custom_target(
   cloc
-  COMMAND cloc --by-file-by-lang ${SCM_SOURCES} *.h ${SOURCES} vm.cpp 
+  COMMAND cloc --by-file-by-lang ${SCM_SOURCES} ${CLOC_SOURCES} 
 )
 
 add_custom_target(
@@ -101,7 +103,7 @@ add_custom_command(
   ${CHEZ} --script bc.chez.scm bootstrap.scm > /dev/null
   COMMAND
   xxd -i bootstrap.scm.bc > bootstrap.cpp
-  DEPENDS ${SCM_SOURCES} write_double opcodes.scm 
+  DEPENDS ${SCM_SOURCES} write_double opcodes.scm
 )
 
 # Generate the opcodes

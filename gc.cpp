@@ -24,8 +24,7 @@ void GC_push_root(long *root) { pushed_roots.push_back(root); }
 
 void GC_pop_root(long *root) {
   assert(pushed_roots.size() > 0);
-  auto b = pushed_roots.back();
-  assert(b == root);
+  assert(pushed_roots.back() == root);
   pushed_roots.pop_back();
 }
 
