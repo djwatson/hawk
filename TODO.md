@@ -8,6 +8,9 @@
 
 # Bytecode generator / VM
 
+* found in peval - it looks like (if (funcall)) is one off with an extra move
+* puzzle - has a jmp to jmp.  maybe all ands?
+
 ## bytecode perf improvements 
 
 
@@ -16,13 +19,14 @@
 
 * remove hotspot for non-jit / new bytecode
 * could do special branches for 'char=', '=', where we know it is a quick-branch, and know it fits in 16 bits
-* could do special opcodes for true, false
+* could do special opcodes for true, false.  basically return 'konst'
 
 * (letrec the bootstrap) / module-ify the bootstrap
 * 'big' register moves / just get fftrad4 working, with a constant-ify pass
 * we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
  This probably has no effect on the VM, but might benefit the jit.
 * funcv/clfuncv could alloc all at once
+* could do a return constant bytecode for empty list, true, false
 
 * browse - ok
 * cat - ok
@@ -48,6 +52,31 @@
 * mperm - ok
 * nboyer - ok
 * nqueens - callT mov's
+* ntakl - maybe CALLT, nothing barring integrating known locals.
+* nucleic - inliner
+* paraffins - ok
+* parsing - inliner, better closure analysis
+* peval - inliner
+* pi - needs bignums
+* pnpoly - loopifier
+* primes - CALLT, loopifier
+* puzzle - loopifier, jmp to jmp
+* quicksort - loopifier, inliner, jmp to jmp, all 'and's? .   Non-inlined 'less' is super hot, probably JIT only.
+* ray - inliner, loopifier
+* read1 - read is slowish, uses callcc, whitespace check is slow
+* sboyer - maybe inliner, probably nothing. ok
+* scheme - assq/memq loops
+* simplex - loopifier, inliner w/ assuming constant
+* slatex - ok
+* string - string-append and substring slow.  loopifier + case-lambda string-append
+* sum1 - read is slow
+* sumfp - alloc opt for flonums if dest is same as an input. loopifier
+* sum - ok, loopifier
+* tail - NO idea, figure out how chicken makes read-line fast
+* takl - same as ntakl
+* tak - ok
+* triangl - and jmp to jmp, loopifier
+* wc - loopifier, char= brancher.  ok.
 
 ## safety improvements
 * TODO GSET check

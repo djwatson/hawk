@@ -149,7 +149,7 @@
       (compile-binary-vv f bc env rd nr cd)))
 
 (define cmp-invert '((JISGT JISLTE) (JISLTE JISGT) (JISGTE JISLT) (JISLT JISGTE) (JISF JIST)
-		     (JEQ JNEQ) (JEQV JNEQV)
+		     (JEQ JNEQ) (JEQV JNEQV) (JISEQ JISNEQ)
 		     (JGUARD JNGUARD)))
 (define (emit-branch-try-invert op bc cd r1 r2)
   (if (and (assq op cmp-invert) (= (third cd) (length (func-bc-code bc))))
