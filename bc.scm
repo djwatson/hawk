@@ -68,6 +68,7 @@
 ;; *cannot* be omitted, since they are rolled in to the previous
 ;; op's handling in the vm.
 (define (build-jmp absolute bc can-omit)
+  ;;(dformat "BUild jmp to abs ~a can omit ~a len ~a\n" absolute can-omit (length (func-bc-code bc)))
   (let ((offset (- (length (func-bc-code bc)) absolute -1)))
     (when (or (<= offset 0) (> offset 65535))
       (dformat "OFFSET too big: ~a\n" offset)
@@ -152,6 +153,7 @@
 		     (JEQ JNEQ) (JEQV JNEQV) (JISEQ JISNEQ)
 		     (JGUARD JNGUARD)))
 (define (emit-branch-try-invert op bc cd r1 r2)
+  ;;(dformat "try invert op ~a cd ~a len ~a\n" op cd (length (func-bc-code bc)))
   (if (and (assq op cmp-invert) (= (third cd) (length (func-bc-code bc))))
       (begin
 	(build-jmp (third cd) bc #t)
@@ -227,10 +229,24 @@
 		 (length (func-bc-code bc)))))
   (when (= 3 (length f)) ;; TODO remove, direct jump?
     (set! f (append f (list #f))))
-  (compile-sexp (fourth f) bc env rd nr dest)
+  ;; branches with #t or #f in the 'then' or 'else' clauses without
+  ;; a register destination (so for effect only), will forward the
+  ;; branch destination.
+  (when (or rd (not (and (branch-dest? cd) (boolean? (fourth f)))))
+    (compile-sexp (fourth f) bc env rd nr dest))
   (let ((pos (length (func-bc-code bc))))
-    (compile-sexp (third f) bc env rd nr dest)
-    (compile-sexp (second f) bc env #f nr `(if ,(length (func-bc-code bc)) ,pos))))
+    (when (or rd (not (and (branch-dest? cd) (boolean? (third f)))))
+      (compile-sexp (third f) bc env rd nr dest))
+    ;; Forward branch destination for simple then/else clauses
+    (let ((true-dest
+	   (if (and (not rd) (branch-dest? cd) (boolean? (third f)))
+	       (if (third f) (second cd) (third cd))
+	       (length (func-bc-code bc))))
+	  (false-dest
+	   (if (and (not rd) (branch-dest? cd) (boolean? (fourth f)))
+	       (if (fourth f) (second cd) (third cd))
+	       pos)))
+      (compile-sexp (second f) bc env #f nr `(if ,true-dest ,false-dest)))))
 
 (define (compile-lambda f bc rd nr cd)
   (define f-bc (make-func-bc cur-name '() ))

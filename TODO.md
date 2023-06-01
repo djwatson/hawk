@@ -8,8 +8,6 @@
 
 # Bytecode generator / VM
 
-* puzzle - has a jmp to jmp.  maybe all ands?
-
 ## bytecode perf improvements 
 
 
@@ -59,8 +57,8 @@
 * pi - needs bignums
 * pnpoly - loopifier
 * primes - CALLT, loopifier
-* puzzle - loopifier, jmp to jmp
-* quicksort - loopifier, inliner, jmp to jmp, all 'and's? .   Non-inlined 'less' is super hot, probably JIT only.
+* puzzle - loopifier
+* quicksort - loopifier, inliner, Non-inlined 'less' is super hot, probably JIT only.
 * ray - inliner, loopifier
 * read1 - read is slowish, uses callcc, whitespace check is slow
 * sboyer - maybe inliner, probably nothing. ok
@@ -74,7 +72,7 @@
 * tail - NO idea, figure out how chicken makes read-line fast
 * takl - same as ntakl
 * tak - ok
-* triangl - and jmp to jmp, loopifier
+* triangl - loopifier
 * wc - loopifier, char= brancher.  ok.
 
 ## safety improvements
