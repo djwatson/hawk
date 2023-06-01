@@ -344,62 +344,65 @@
 			  (and (not (eq? fast slow))
 			       (loop fast slow))))))))))
 
+(define display
+  (case-lambda
+   ((arg) (display arg current-output-port-internal))
+   ((arg port)
+    (cond
+     ((null? arg) (display "()" port))
+     ((pair? arg)
+      (display "(" port)
+      (let loop ((arg arg))
+	(if (not (pair? arg)) (begin (display ". " port) (display arg port))
+	    (begin (display (car arg) port) 
+		   (if (not (null? (cdr arg)))
+		       (begin
+			 (display " " port)
+			 (loop (cdr arg)))))))
+      (display ")" port))
+     ((vector? arg)
+      (display "#" port)
+      (display (vector->list arg) port))
+     (else ($write arg port))))))
 
-(define (display arg . p)
-  (let ((port (if (pair? p) (car p) (current-output-port))))
+(define write
+  (case-lambda
+   ((arg) (write arg (current-output-port)))
+   ((arg port)
+    (cond
+     ((null? arg) (display "()" port))
+     ((pair? arg)
+      (display "(" port)
+      (let loop ((arg arg))
+	(if (not (pair? arg)) (begin (display ". " port) (write arg port))
+	    (begin (write (car arg) port) 
+		   (if (not (null? (cdr arg)))
+		       (begin
+			 (display " " port)
+			 (loop (cdr arg)))))))
+      (display ")" port))
+     ((vector? arg)
+      (display "#" port)
+      (write (vector->list arg) port))
+     ((char? arg)
       (cond
-       ((null? arg) (display "()" port))
-       ((pair? arg)
-	(display "(" port)
-	(let loop ((arg arg))
-	  (if (not (pair? arg)) (begin (display ". " port) (display arg port))
-	      (begin (display (car arg) port) 
-		     (if (not (null? (cdr arg)))
-			 (begin
-			   (display " " port)
-			   (loop (cdr arg)))))))
-	(display ")" port))
-       ((vector? arg)
-	(display "#" port)
-	(display (vector->list arg) port))
-       (else ($write arg port)))))
-
-(define (write arg . p)
-  (let ((port (if (pair? p) (car p) (current-output-port))))
-      (cond
-       ((null? arg) (display "()" port))
-       ((pair? arg)
-	(display "(" port)
-	(let loop ((arg arg))
-	  (if (not (pair? arg)) (begin (display ". " port) (write arg port))
-	      (begin (write (car arg) port) 
-		     (if (not (null? (cdr arg)))
-			 (begin
-			   (display " " port)
-			   (loop (cdr arg)))))))
-	(display ")" port))
-       ((vector? arg)
-	(display "#" port)
-	(write (vector->list arg) port))
-       ((char? arg)
-	(cond
-	 ((char=? #\newline arg) (display "#\\newline" port))
-	 ((char=? #\tab arg) (display "#\\tab" port))
-	 ((char=? #\space arg) (display "#\\space" port))
-	 ((char=? #\return arg) (display "#\\return" port))
-	 (else (display "#\\" port) (display arg port))))
-       ((string? arg)
-	(display "\"" port) 
-	(for-each 
-	 (lambda (chr) 
-	   (cond
-	    ((char=? #\" chr) (display "\\\"" port))
-	    ((char=? #\\ chr) (display "\\\\" port))
-	    (else (display chr port))))
-	 (string->list arg))
-	(display "\"" port))
-       (else 
-	($write arg port)))))
+       ((char=? #\newline arg) (display "#\\newline" port))
+       ((char=? #\tab arg) (display "#\\tab" port))
+       ((char=? #\space arg) (display "#\\space" port))
+       ((char=? #\return arg) (display "#\\return" port))
+       (else (display "#\\" port) (display arg port))))
+     ((string? arg)
+      (display "\"" port) 
+      (for-each 
+       (lambda (chr) 
+	 (cond
+	  ((char=? #\" chr) (display "\\\"" port))
+	  ((char=? #\\ chr) (display "\\\\" port))
+	  (else (display chr port))))
+       (string->list arg))
+      (display "\"" port))
+     (else 
+      ($write arg port))))))
 
 (define (write-string str . p)
   (let ((port (if (pair? p) (car p) (current-output-port))))
@@ -679,17 +682,20 @@
     (close-output-port p)
     res))
 
-(define (read-char . p)
-  (let* ((port (if (pair? p) (car p) (current-input-port))))
-    ($read port)))
+(define read-char
+  (case-lambda
+   (() ($read current-input-port-internal))
+   ((port) ($read port))))
 
-(define (peek-char . p)
-  (let* ((port (if (pair? p) (car p) (current-input-port))))
-    ($peek port)))
+(define peek-char
+  (case-lambda
+   (() ($peek current-input-port-internal))
+   ((p) ($peek p))))
 
-(define (write-char c . p)
-  (let ((port (if (pair? p) (car p) (current-output-port))))
-    (display c port)))
+(define write-char
+  (case-lambda
+   ((c) ($write c current-output-port-internal))
+   ((c port) ($write c port))))
 
 (define (eof-object? c)
   ($guard c #b00011111))

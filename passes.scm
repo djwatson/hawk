@@ -172,6 +172,10 @@
 	  ((let)
 	   `(let ,(map (lambda (b) (list (car b) (cc (second b) bindings))) (second f))
 	      ,@(map (lambda (s) (cc s (union (map car (second f)) bindings))) (cddr f))))
+	  ;; TODO merge this in to lambda handling?
+	  (($case)
+	   `($case ,(second f)
+	      ,@(map (lambda (s) (cc s (union (second f) bindings))) (cddr f))))
 	  ((letrec)
 	   (let* ((var-names (map first (second f)))
 		  ;; Bindings including the letrec-names
@@ -293,6 +297,12 @@
 			  (if (= 4 (length f))
 			      `(for-each3 ,@(imap integrate (cdr f)))
 			      (imap integrate f))))
+	  ((read-char) (if (= 2 (length f))
+			   `($read ,(integrate (second f)))
+			   `($read current-input-port-internal)))
+	  ((write-char) (if (= 3 (length f))
+			   `($write ,(integrate (second f)) ,(integrate (third f)))
+			   `($write ,(integrate (second f)) current-output-port-internal)))
 	  ((pair?) `($guard ,(integrate (second f)) ,cons-tag))
 	  ((boolean?) `($guard ,(integrate (second f)) ,literal-tag))
 	  ((procedure?) `($guard ,(integrate (second f)) ,closure-tag))

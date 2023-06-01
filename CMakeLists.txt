@@ -17,7 +17,7 @@ enable_testing()
 option(JIT "Enable JIT" OFF)
 
 # the profiler is optional
-option(JIT "Enable PROFILER" OFF)
+option(PROFILER "Enable PROFILER" OFF)
 
 # Find a suitable scheme for bootstrapping.
 # Chez and chicken have been tested, it's likely most r5rs (+ write-u8) compatible
@@ -47,6 +47,9 @@ if (JIT)
   set(SOURCES ${SOURCES} snap.cpp replay.cpp asm_x64.cpp jitdump.cpp record.cpp)
   set(LIBRARIES ${LIBRARIES} "asmjit" "capstone")
 endif(JIT)
+if (PROFILER)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPROFILER")
+endif(PROFILER)
 add_executable(boom ${SOURCES} )
 
 

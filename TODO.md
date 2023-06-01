@@ -8,11 +8,20 @@
 
 # Bytecode generator / VM
 
-** do loop generation has shitty branching also
+## bytecode perf improvements 
 
+
+* faster call/cc - flush frames w/underflow handler.  Overflow handler can also just flush frames.
 * recognize 'do' and 'let' loops?
 
-## bytecode perf improvements 
+* remove hotspot for non-jit / new bytecode
+* could do special branches for 'char=', '=', where we know it is a quick-branch, and know it fits in 16 bits
+* could do special opcodes for true, false
+
+* (letrec the bootstrap) / module-ify the bootstrap
+* 'big' register moves / just get fftrad4 working, with a constant-ify pass
+* we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
+ This probably has no effect on the VM, but might benefit the jit.
 
 * browse - ok
 * cat - case-lambda, guard/jmp folding
@@ -38,18 +47,6 @@
 * mperm - ok
 * nboyer - ok
 * nqueens - callT mov's
-
-* single-arm if doesn't need to return #f? all effect context.
-* case-lambda!
-* closure calls as a new bytecode instr
-* remove hotspot for non-jit / new bytecode
-* letrec the bootstrap
-* 'big' register moves
-* we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
- This probably has no effect on the VM, but might benefit the jit.
-* could add sume 'VN' variations of < >, EQ, etc
-* BIGREGS - fix fftrad4
-* faster call/cc - flush frames w/underflow handler.  Overflow handler can also just flush frames.
 
 ## safety improvements
 * TODO GSET check

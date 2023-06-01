@@ -4,7 +4,8 @@
 (define (open-output-file f) (open-file-output-port f (file-options no-fail) ))
 (define arithmetic-shift (lambda (i c) (bitwise-arithmetic-shift i c)))
 
-(load-shared-object "./libwrite_double.dylib")
+;(load-shared-object "./libwrite_double.dylib")
+(load-shared-object "./libwrite_double.so")
 (define memcpy-double
   (foreign-procedure "memcpy_double"
 		     (double) long))
