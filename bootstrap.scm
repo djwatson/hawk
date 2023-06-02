@@ -35,9 +35,10 @@
 (define exact-integer? fixnum?)
 
 (define (reducer f init args)
-  (if (pair? args)
-      (reducer f (f init (car args)) (cdr args))
-      init))
+  (let loop ((init init) (args args))
+    (if (pair? args)
+	(loop (f init (car args)) (cdr args))
+	init)))
 (define +
   (case-lambda
    (() 0)
@@ -60,11 +61,12 @@
      1
      rest))))
 (define (comparer f args)
-  (if (and (pair? args) (pair? (cdr args)))
-      (if (f (car args) (cadr args))
-	  (comparer f (cdr args))
-	  #f)
-      #t))
+  (let loop ((args args))
+    (if (and (pair? args) (pair? (cdr args)))
+	(if (f (car args) (cadr args))
+	    (loop (cdr args))
+	    #f)
+	#t)))
 (define /
   (case-lambda
    ((a) ($/ 1 a))
@@ -242,51 +244,55 @@
 	rest)))
 
 (define (list-ref lst n)
-  (if (zero? n)
-      (car lst)
-      (list-ref (cdr lst) (- n 1))))
+  (let loop ((lst lst) (n n))
+    (if (zero? n)
+	(car lst)
+	(loop (cdr lst) (- n 1)))))
 (define (list-tail lst k)
-  (if (> k 0)
-      (list-tail (cdr lst) (- k 1))
-      lst))
+  (let loop ((lst lst) (k k))
+    (if (> k 0)
+	(loop (cdr lst) (- k 1))
+	lst)))
 
 (define (assv obj1 alist1)
   (let loop ((obj obj1) (alist alist1))
-  (if (null? alist) #f
-      (if (eqv? (caar alist) obj) 
-	  (car alist)
-	  (loop obj (cdr alist))))))
+    (if (null? alist) #f
+	(if (eqv? (caar alist) obj) 
+	    (car alist)
+	    (loop obj (cdr alist))))))
 (define (assq obj1 alist1)
   (let loop ((obj obj1) (alist alist1))
-  (if (null? alist) #f
-      (begin
-	(if (eq? (caar alist) obj) 
-	    (car alist)
-	    (loop obj (cdr alist)))))))
+    (if (null? alist) #f
+	(begin
+	  (if (eq? (caar alist) obj) 
+	      (car alist)
+	      (loop obj (cdr alist)))))))
 (define (assoc obj1 alist1)
   (let loop ((obj obj1) (alist alist1))
-  (if (null? alist) #f
-      (begin
-	(if (equal? (caar alist) obj) 
-	    (car alist)
-	    (loop obj (cdr alist)))))))
+    (if (null? alist) #f
+	(begin
+	  (if (equal? (caar alist) obj) 
+	      (car alist)
+	      (loop obj (cdr alist)))))))
 
-
-(define (memq obj list) 
-  (if (null? list) #f
-      (if (eq? obj (car list)) 
-	  list
-	  (memq obj (cdr list)))))
-(define (memv obj list) 
-  (if (null? list) #f
-      (if (eqv? obj (car list)) 
-	  list
-	  (memv obj (cdr list)))))
-(define (member obj list) 
-  (if (null? list) #f
-      (if (equal? obj (car list)) 
-	  list
-	  (member obj (cdr list)))))
+(define (memq obj list)
+  (let loop ((list list))
+    (if (null? list) #f
+	(if (eq? obj (car list)) 
+	    list
+	    (loop (cdr list))))))
+(define (memv obj list)
+  (let loop ((list list))
+    (if (null? list) #f
+	(if (eqv? obj (car list)) 
+	    list
+	    (loop (cdr list))))))
+(define (member obj list)
+  (let loop ((list list))
+    (if (null? list) #f
+	(if (equal? obj (car list)) 
+	    list
+	    (loop (cdr list))))))
 
 (define (zero? a) ($= a 0))
 
