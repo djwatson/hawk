@@ -368,7 +368,7 @@
 (define (length e)
   (let length-loop ((e e) (cnt 0))
     (if (pair? e)
-	(length-loop (cdr e) (+ 1 cnt))
+	(length-loop (cdr e) (+ cnt 1))
 	cnt)))
 (define (list->vector lst)
   (let ((v (make-vector (length lst))))
@@ -377,7 +377,7 @@
 	  v
 	  (begin
 	    (vector-set! v place (car item))
-	    (setloop (+ 1 place) (cdr item) v))))
+	    (setloop (+ place 1) (cdr item) v))))
     (setloop 0 lst v)))
 
 
@@ -521,7 +521,7 @@
      ((= rema 0)  lt)
      ((= remb 0)  gt)
      ((eq? (string-ref a pos) (string-ref b pos))
-      (loop (+ 1 pos) (- rema 1) (- remb 1)))
+      (loop (+ pos 1) (- rema 1) (- remb 1)))
      (else
       (f (string-ref a pos) (string-ref b pos))))))
 
@@ -617,7 +617,7 @@
       (if (< i len)
 	  (begin
 	    (string-set! c i (car chars))
-	    (loop (+ 1 i) (cdr chars)))))
+	    (loop (+ i 1) (cdr chars)))))
     c))
 (define (substring str start end)
   (define c (make-string (- end start)))
@@ -625,7 +625,7 @@
     (if (< i end)
 	(begin
 	  (string-set! c j (string-ref str i))
-	  (loop (+ 1 i) (+ 1 j)))))
+	  (loop (+ i 1) (+ j 1)))))
   c)
 (define (string-append . strs)
   (let* ((totallen (apply + (map string-length strs)))
@@ -637,7 +637,7 @@
 	      (if (< pos (string-length (car strs)))
 		  (begin
 		    (string-set! newstr (+ place pos) (string-ref (car strs) pos))
-		    (loop (+ 1 pos)))))
+		    (loop (+ pos 1)))))
 	    (loop (cdr strs) (+ place (string-length (car strs)))))))
     newstr))
 

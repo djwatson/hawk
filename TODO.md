@@ -8,10 +8,13 @@
 
 # Bytecode generator / VM
 
+* unary negation pass integration
+* simplex has jmps to jmps? extra crap
+
 ## bytecode perf improvements 
 
 
-* recognize 'do' and 'let' loops?
+* could put memq/assq/length/map/append/string-append etc as intrinsics
 * faster call/cc - flush frames w/underflow handler.  Overflow handler can also just flush frames.
 
 * remove hotspot for non-jit / new bytecode
@@ -55,11 +58,11 @@
 * parsing - inliner, better closure analysis
 * peval - inliner
 * pi - needs bignums
-* pnpoly - loopifier
-* primes - CALLT, loopifier
-* puzzle - loopifier
-* quicksort - loopifier, inliner, Non-inlined 'less' is super hot, probably JIT only.
-* ray - inliner, loopifier
+* pnpoly - ok
+* primes - CALLT, ok
+* puzzle - ok
+* quicksort - better loop recognizer, inliner, Non-inlined 'less' is super hot, probably JIT only.
+* ray - inliner
 * read1 - read is slowish, uses callcc, whitespace check is slow
 * sboyer - maybe inliner, probably nothing. ok
 * scheme - assq/memq loops
@@ -67,13 +70,13 @@
 * slatex - ok
 * string - string-append and substring slow.  loopifier + case-lambda string-append
 * sum1 - read is slow
-* sumfp - alloc opt for flonums if dest is same as an input. loopifier
-* sum - ok, loopifier
+* sumfp - alloc opt for flonums if dest is same as an input
+* sum - ok
 * tail - NO idea, figure out how chicken makes read-line fast - it does its own buffering.
 * takl - same as ntakl
 * tak - ok
-* triangl - loopifier
-* wc - loopifier, char= brancher.  ok.
+* triangl - ok
+* wc - char= brancher.  ok.
 
 ## safety improvements
 * TODO GSET check

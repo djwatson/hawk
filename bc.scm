@@ -611,7 +611,7 @@
 
 (include "opcodes.scm")
 
-(define bc-ins '(KSHORT GGET GSET KONST KFUNC JMP))
+(define bc-ins '(KSHORT GGET GSET KONST KFUNC JMP LOOP))
 
 (define (write-uint v p)
   (write-u8 (mask-byte v) p)
