@@ -18,6 +18,15 @@
     ((_ cond body ...)
      (if cond (begin body ...)))))
 
+(define-syntax ->
+  (syntax-rules ()
+    ((_ arg (command args ...) rest ...)
+     (->
+      (command arg args ...) rest ...))
+    ((_ arg command rest ...)
+     (-> (command arg) rest ...))
+    ((_ arg) arg)))
+
 (include "util.scm")
 
 ;;;;;;;;;;;;;;;;;;; code
@@ -677,25 +686,30 @@
       '()))
 
 (define (compile-file name . rest)
-  (set! consts '())
+  (define (debugdisplay src)
+    (when (pair? rest)
+      (display "Compiling:\n")
+      (pretty-print src)
+      (newline))
+    src)
+  (set! consts '(
+		 ))
   (set! symbol-table '())
   (set! program '())
   (set! cur-name "")
-  (let ((src (closure-conversion
-	      (lower-case-lambda
-	       (optimize-direct
-		(assignment-conversion
-		 (fix-letrec
-		  (alpha-rename
-		   (integrate-r5rs
-		    (case-insensitive
-		     (add-includes
-		      (with-input-from-file name expander))))))))))))
-    (when (pair? rest)
-	  (display "Compiling:\n")
-	  (pretty-print src)
-	  (newline))
-    (compile src))
+  (-> (with-input-from-file name expander)
+      add-includes
+      case-insensitive
+      integrate-r5rs
+      alpha-rename
+      fix-letrec
+      assignment-conversion
+      optimize-direct
+      lower-case-lambda
+      closure-conversion
+      debugdisplay
+      compile)
+
   ;; Get everything in correct order
   ;; TODO do this as we are generating with extendable vectors
   (set! consts (reverse! consts))

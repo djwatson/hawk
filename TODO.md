@@ -11,8 +11,8 @@
 ## bytecode perf improvements 
 
 
-* faster call/cc - flush frames w/underflow handler.  Overflow handler can also just flush frames.
 * recognize 'do' and 'let' loops?
+* faster call/cc - flush frames w/underflow handler.  Overflow handler can also just flush frames.
 
 * remove hotspot for non-jit / new bytecode
 * could do special branches for 'char=', '=', where we know it is a quick-branch, and know it fits in 16 bits
@@ -28,7 +28,7 @@
 * browse - ok
 * cat - ok
 * conform - callt opt.  All in memq.
-* cpstak - clopsure-ptr CALL opt, probably nothing else.
+* cpstak - ??? closure alloc is slow.
 * ctak - improve CALLCC 
 * deriv - map2 is slow. Only GC once for varargs if possible?
 * destruc - length is slow.  Consider adding as bytecode
@@ -69,7 +69,7 @@
 * sum1 - read is slow
 * sumfp - alloc opt for flonums if dest is same as an input. loopifier
 * sum - ok, loopifier
-* tail - NO idea, figure out how chicken makes read-line fast
+* tail - NO idea, figure out how chicken makes read-line fast - it does its own buffering.
 * takl - same as ntakl
 * tak - ok
 * triangl - loopifier
@@ -116,10 +116,6 @@
   * Use shorter instruction sequences for small constants
   * move side exit code to C instead of generated (but need both to gen for side or loop exits)
   * mv push/pop sequence to separate stub func
-  * --joff is whacky, probably need to write asm.  sigh.
-     * looks like it got worse after adding asmjit/capstone.
-	 * because of memcpy's and record() and jit and shit aren't outlined like they should be.
-	 * Maybe because of global vars? dunno.
   * we should be able to coalesce arg typechecks if they are the same.
   * Maybe a speical SLOAD EQ for RET instead, since we don't need to typecheck
   * Typechecks need a rethink - we can special case some stuff like eq?/eqv?, merge typechecks, etc.
