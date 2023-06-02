@@ -227,6 +227,9 @@ ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }
 
+LIBRARY_FUNC(LOOP)
+END_LIBRARY_FUNC
+
 LIBRARY_FUNC(FUNC)
     if (argcnt != ra) {
       MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);

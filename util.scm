@@ -84,6 +84,7 @@
 (define (second f) (cadr f))
 (define (third f) (caddr f))
 (define (fourth f) (cadddr f))
+(define (fifth f) (cadddr (cdr f)))
 (define (reverse! lis)
   (let lp ((lis lis) (ans '()))
     (if (null? lis) ans

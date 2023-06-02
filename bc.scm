@@ -325,6 +325,10 @@
   (define l (assq f env))
   (if l (cdr l) #f))
 
+(define (loop-var? f env)
+  (define l (assq f env))
+  (and l (pair? (cdr l))))
+
 (define (compile-lookup f bc env rd nr cd)
   ;;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   ;;(dformat "Compile lookup ~a rd ~a\n" f rd)
@@ -350,16 +354,36 @@
 ;; TODO optimize better for known calls.
 (define (compile-call f bc env rd nr cd)
   ;;(dformat "Compile-call ~a rd ~a\n" f rd)
-  (finish bc cd (if rd rd nr))
-  (when (and rd (not (= rd nr)))
-    (push-instr! bc (list 'MOV rd nr)))
-  (push-instr! bc (list (if (eq? cd 'ret) 'CALLT 'CALL) nr (+ 1 (length f))))
-  (fold
-   (lambda (f num)
-     (compile-sexp f bc env num num 'next)
-     (- num 1))
-   (+ (length f) nr)
-   (reverse f)))
+  (if (loop-var? (car f) env)
+      (let* ((loop-info (cdr (assq (car f) env)))
+	     (offset (- nr (car loop-info)))
+	     (instr (list 'JMP 0 (+ 1 (length (func-bc-code bc))))))
+	;;(dformat "Compile loop call: ~a nr ~a\n" f nr)
+	(push-instr! bc instr)
+	(set-cdr! loop-info (cons instr (cdr loop-info)))
+	(fold
+	 (lambda (f num)
+	   (push-instr! bc (list 'MOV (- num offset) num))
+	   (- num 1))
+	 (+ (length f) nr -2)
+	 (reverse (cdr f)))
+	(fold
+	 (lambda (f num)
+	   (compile-sexp f bc env num num 'next)
+	   (- num 1))
+	 (+ (length f) nr -2)
+	 (reverse (cdr f))))
+      (begin
+	(finish bc cd (if rd rd nr))
+	(when (and rd (not (= rd nr)))
+	  (push-instr! bc (list 'MOV rd nr)))
+	(push-instr! bc (list (if (eq? cd 'ret) 'CALLT 'CALL) nr (+ 1 (length f))))
+	(fold
+	 (lambda (f num)
+	   (compile-sexp f bc env num num 'next)
+	   (- num 1))
+	 (+ (length f) nr)
+	 (reverse f)))))
 
 (define (compile-vararg f bc env rd nr cd)
 					;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
@@ -451,6 +475,28 @@
 	      (reverse (second f))
 	      (reverse mapping))))
 
+(define (compile-loop f bc env rd nr cd)
+  (let ((ord nr))
+    (define orig-env env) ;; let values use original mapping
+    (define mapping (map-in-order (lambda (f)
+				    (define o ord)
+				    (push! env (cons f ord))
+				    (inc! ord)
+				    o)
+				  (second f)))
+    (define end (length (func-bc-code bc)))
+    (define loop-info (cons nr '()))
+    (push! env (cons (fourth f) loop-info))
+    (compile-sexp (fifth f) bc env rd ord cd)
+    (push-instr! bc (list 'LOOP 0 (- (length (func-bc-code bc)) end -1)))
+    (for-each (lambda (instr) (set-car! (cddr instr) (- (caddr instr) (length (func-bc-code bc)) -1)))
+	      (cdr loop-info))
+    ;; Do this in reverse, so that we don't smash register usage.
+    (for-each (lambda (f r)
+		(compile-sexp f bc orig-env r r 'next))
+	      (reverse (third f))
+	      (reverse mapping))))
+
 (define (compile-or f bc env rd nr cd)
   (define fin (length (func-bc-code bc)))
   ;;(dformat "compile or ~a rd ~a\n" f rd)
@@ -490,6 +536,7 @@
 	((set!) (compile-define f bc env rd nr cd)) ;; TODO check?
 	((quote) (compile-self-evaluating (second f) bc rd nr cd))
 	((or) (compile-or f bc env rd nr cd))
+	(($loop) (compile-loop f bc env rd nr cd))
 
 	;; Builtins
 	(($vector-set! $string-set!) (compile-setter f bc env rd nr cd))
@@ -543,7 +590,7 @@
   (display "Code:\n")
   (fold (lambda (a b)
 	  (define (str-op op) (define ops (symbol->string op)) (string-append ops (make-string (- 15 (string-length ops)) #\space)))
-	  (dformat "~a: ~a\t~a~a" b (if (memq b jmp-dst) "==>" "") (str-op (first a)) (second a))
+	  (dformat "~a: ~a\t~a~a" b (if (or (eq? (first a) 'LOOP) (memq b jmp-dst)) "==>" "") (str-op (first a)) (second a))
 	  (if (> (length a) 2) (dformat "\t~a" (third a)))
 	  (if (> (length a) 3) (dformat "\t~a" (fourth a)))
 	  (let ((op (first a)))
@@ -698,14 +745,15 @@
   (set! program '())
   (set! cur-name "")
   (-> (with-input-from-file name expander)
-      add-includes
-      case-insensitive
-      integrate-r5rs
-      alpha-rename
+      add-includes ;;  Can remove with new expander
+      case-insensitive ;; Can remove with new expander
+      integrate-r5rs ;; optional
+      alpha-rename ;;  Can remove with new expander
       fix-letrec
       assignment-conversion
-      optimize-direct
-      lower-case-lambda
+      optimize-direct ;; optional
+      lower-case-lambda ;; Can remove with new expander? 
+      lower-loops ;; optional
       closure-conversion
       debugdisplay
       compile)
