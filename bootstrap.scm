@@ -632,13 +632,13 @@
 	 (newstr (make-string totallen)))
     (let loop ((strs strs) (place 0))
       (if (not (null? strs))
-	  (begin
-	    (let loop ((pos 0))
-	      (if (< pos (string-length (car strs)))
+	  (let ((end (+ place (string-length (car strs)))))
+	    (let loop ((from 0) (pos place))
+	      (if (< pos end)
 		  (begin
-		    (string-set! newstr (+ place pos) (string-ref (car strs) pos))
-		    (loop (+ pos 1)))))
-	    (loop (cdr strs) (+ place (string-length (car strs)))))))
+		    (string-set! newstr pos (string-ref (car strs) from))
+		    (loop (+ from 1) (+ pos 1)))))
+	    (loop (cdr strs) end))))
     newstr))
 
 (define (vector . rest) (list->vector rest))
