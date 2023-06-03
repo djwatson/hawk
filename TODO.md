@@ -28,56 +28,6 @@
 * funcv/clfuncv could alloc all at once
 * could do a return constant bytecode for empty list, true, false
 
-* browse - ok
-* cat - ok
-* conform - callt opt.  All in memq.
-* cpstak - ??? closure alloc is slow.
-* ctak - improve CALLCC 
-* deriv - map2 is slow. Only GC once for varargs if possible?
-* destruc - length is slow.  Consider adding as bytecode
-* diviter, divrec - ok
-* dynamic - callcc, assv, memv
-* earley - good. 
-* fft - good
-* fibc - callcc&resume.  
-* fibfp - ok
-* fib - good.
-* gcbench - good
-* graphs - only lambda-lifting would solve.
-* lattice - foey.  Better closure analysis. null? inline. Probably inlining generally.
-* matrix - ok
-* mazefun - ok
-* maze - ok
-* mbrot - ok
-* mperm - ok
-* nboyer - ok
-* nqueens - callT mov's
-* ntakl - maybe CALLT, nothing barring integrating known locals.
-* nucleic - inliner
-* paraffins - ok
-* parsing - inliner, better closure analysis
-* peval - inliner
-* pi - needs bignums
-* pnpoly - ok
-* primes - CALLT, ok
-* puzzle - ok
-* quicksort - better loop recognizer, inliner, Non-inlined 'less' is super hot, probably JIT only.
-* ray - inliner
-* read1 - read is slowish, uses callcc, whitespace check is slow
-* sboyer - maybe inliner, probably nothing. ok
-* scheme - assq/memq loops
-* simplex - loopifier, inliner w/ assuming constant
-* slatex - ok
-* string - string-append and substring slow.  loopifier + case-lambda string-append
-* sum1 - read is slow
-* sumfp - alloc opt for flonums if dest is same as an input
-* sum - ok
-* tail - NO idea, figure out how chicken makes read-line fast - it does its own buffering.
-* takl - same as ntakl
-* tak - ok
-* triangl - ok
-* wc - char= brancher.  ok.
-
 ## safety improvements
 * TODO GSET check
 * do better for destination driven code gen - 
