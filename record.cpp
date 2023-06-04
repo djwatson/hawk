@@ -133,8 +133,9 @@ void record_start(unsigned int *pc, long *frame) {
   trace = new trace_s;
   trace->num = traces.size();
   trace_state = START;
-  func = frame[-1] - 5;
-  printf("Record start %i at %s\n", trace->num, ins_names[INS_OP(*pc)]);
+  func = (long)find_func_for_frame(pc);
+  assert(func);
+  printf("Record start %i at %s func %s\n", trace->num, ins_names[INS_OP(*pc)], ((bcfunc*)func)->name.c_str());
   if (parent) {
     printf("Parent %i\n", parent->num);
   }
@@ -174,6 +175,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   traces.push_back(trace);
 
+  dump_trace(trace);
   assign_registers(trace);
   dump_trace(trace);
   asm_jit(trace, side_exit);
@@ -251,8 +253,8 @@ int record_instr(unsigned int *pc, long *frame) {
   unsigned int i = *pc;
   if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
       INS_OP(trace->startpc) != RET1) {
-    record_stop(pc, frame, traces.size());
     printf("Record stop loop\n");
+    record_stop(pc, frame, traces.size());
     return 1;
   }
   for (int j = 0; j < depth; j++) {
@@ -320,9 +322,9 @@ int record_instr(unsigned int *pc, long *frame) {
         add_snap(regs_list, regs - regs_list - 1, trace, pc);
         // TODO retdepth
       } else {
+        printf("Record stop return\n");
         record_stop(pc, frame, -1);
         // record_abort();
-        printf("Record stop return\n");
         return 1;
       }
     } else if (depth > 0) {
@@ -342,18 +344,18 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case CALL: {
     // TODO this needs to check reg[]links instead
-    for (int j = INS_A(i); j < INS_A(i) + INS_B(i); j++) {
+    for (int j = INS_A(i)+1; j < INS_A(i) + INS_B(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
 
     // Check call type
     {
-      auto v = frame[INS_A(i)];
+      auto v = frame[INS_A(i)+1];
       auto knum = trace->consts.size();
       trace->consts.push_back(v);
       ir_ins ins;
       ins.reg = REG_NONE;
-      ins.op1 = record_stack_load(INS_A(i), frame);
+      ins.op1 = record_stack_load(INS_A(i)+1, frame);
       ins.op2 = knum | IR_CONST_BIAS;
       ins.op = ir_ins_op::EQ;
       // TODO magic number
@@ -374,20 +376,23 @@ int record_instr(unsigned int *pc, long *frame) {
     // Setup frame
     depth++;
     // Push PC link as const
+    {
     auto knum = trace->consts.size();
     trace->consts.push_back(((long)(pc + 1)) | SNAP_FRAME);
     regs[INS_A(i)] = knum | IR_CONST_BIAS; // TODO set PC
+    }
 
     // Increment regs
     regs += INS_A(i) + 1;
 
     if (cnt >= UNROLL_LIMIT) {
-      auto v = frame[INS_A(i)];
-      auto func = (bcfunc *)(v - 5);
+      auto v = frame[INS_A(i)+1];
+      auto closure = (closure_s *)(v - CLOSURE_TAG);
+      auto func = (bcfunc *)closure->v[0];
       auto target = &func->code[0];
       if (target == pc_start) {
-        record_stop(pc, frame, traces.size());
         printf("Record stop up-recursion\n");
+        record_stop(pc, frame, traces.size());
         return 1;
       } else {
         // TODO fix flush
@@ -407,7 +412,7 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case KSHORT: {
-    auto k = INS_BC(i) << 3;
+    auto k = INS_D(i) << 3;
     auto knum = trace->consts.size();
     auto reg = INS_A(i);
     regs[reg] = trace->consts.size() | IR_CONST_BIAS;
@@ -427,7 +432,7 @@ int record_instr(unsigned int *pc, long *frame) {
     trace->ops.push_back(ins);
     break;
   }
-  case ISF: {
+  case JISF: {
     add_snap(regs_list, regs - regs_list - 1, trace, pc);
     ir_ins ins;
     ins.reg = REG_NONE;
@@ -475,11 +480,11 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case MOV: {
-    regs[INS_B(i)] = record_stack_load(INS_A(i), frame);
+    regs[INS_A(i)] = record_stack_load(INS_B(i), frame);
     break;
   }
   case GGET: {
-    long gp = (const_table[INS_B(i)] - SYMBOL_TAG);
+    long gp = (const_table[INS_D(i)] - SYMBOL_TAG);
     auto knum = trace->consts.size();
     trace->consts.push_back(gp);
     ir_ins ins;
@@ -549,12 +554,12 @@ int record_instr(unsigned int *pc, long *frame) {
   case CALLT: {
     // Check call type
     {
-      auto v = frame[INS_A(i)];
+      auto v = frame[INS_A(i)+1];
       auto knum = trace->consts.size();
       trace->consts.push_back(v);
       ir_ins ins;
       ins.reg = REG_NONE;
-      ins.op1 = record_stack_load(INS_A(i), frame);
+      ins.op1 = record_stack_load(INS_A(i)+1, frame);
       ins.op2 = knum | IR_CONST_BIAS;
       ins.op = ir_ins_op::EQ;
       // TODO magic number
@@ -563,7 +568,7 @@ int record_instr(unsigned int *pc, long *frame) {
     }
     // Move args down
     // TODO also chedck func
-    for (int j = INS_A(i); j < INS_A(i) + INS_B(i); j++) {
+    for (int j = INS_A(i)+1; j < INS_A(i) + INS_B(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
     memmove(&regs[0], &regs[INS_A(i) + 1], sizeof(int) * (INS_B(i) - 1));
@@ -593,8 +598,8 @@ int record_instr(unsigned int *pc, long *frame) {
       for (int j = 0; j < INS_A(i); j++) {
         regs[j] = record_stack_load(j, frame);
       }
-      record_stop(pc, frame, INS_B(i));
       printf("Record stop JFUNC\n");
+      record_stop(pc, frame, INS_B(i));
       return 1;
     }
   }

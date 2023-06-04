@@ -82,10 +82,12 @@ int main(int argc, char *argv[]) {
 
   GC_init();
   // GC_expand_hp(50000000);
-  // jit_dump_init();
+   jit_dump_init();
   if (profile) {
     profiler_start();
   }
+  auto ojoff = joff;
+  joff = 1;
   if (bootstrap_scm_bc_len > 0) {
     auto start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
     printf("Running boot image...\n");
@@ -104,10 +106,12 @@ int main(int argc, char *argv[]) {
 	exit(0);
       }
       printf("Running script %s\n", tmp);
+      joff = ojoff;
       auto start_func = readbc_file(tmp);
       run(start_func, 0, nullptr);
     } else if (len >= 3 && strcmp(".bc", argv[i] + len - 3) == 0) {
       printf("Running script %s\n", argv[i]);
+      joff = ojoff;
       auto start_func = readbc_file(argv[i]);
       run(start_func, 0, nullptr);
     } else {
@@ -115,7 +119,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // jit_dump_close();
+   jit_dump_close();
   if (profile) {
     profiler_stop();
   }

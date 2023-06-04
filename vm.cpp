@@ -22,7 +22,7 @@ std::vector<bcfunc *> funcs;
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 long *frame_top;
-unsigned int stacksz = 1000;
+unsigned int stacksz = 1000000;
 long *stack = (long *)malloc(sizeof(long) * stacksz);
 
 unsigned char hotmap[hotmap_sz];
@@ -110,7 +110,7 @@ ABI void RECORD_START(PARAMS) {
 }
 
 ABI void RECORD(PARAMS) {
-  if (1 /*record(pc, frame)*/) {
+  if (record(pc, frame)) {
     // Back to interpreting.
     op_table_arg = (void **)l_op_table;
   }
@@ -591,13 +591,13 @@ LIBRARY_FUNC_BC_LOAD(APPLY)
   NEXT_INSTR;
 }
 
-LIBRARY_FUNC(JFUNC)
+LIBRARY_FUNC_D(JFUNC)
   // auto tnum = instr;
   //  printf("JFUNC/JLOOP run %i\n", tnum);
-  //  printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
-  //  auto res = record_run(tnum, &pc, &frame, frame_top);
-  // auto res = jit_run(tnum, &pc, &frame, frame_top);
-  int res = 0;
+//  printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
+//auto res = record_run(rd, &pc, &frame, frame_top);
+auto res = jit_run(rd, &pc, &frame, frame_top);
+//int res = 0;
   frame_top = stack + stacksz;
   // printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
   if (unlikely(res)) {

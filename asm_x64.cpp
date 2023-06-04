@@ -9,6 +9,7 @@
 #include "types.h"
 // only for tcache
 #include "record.h"
+#include "vm.h"
 
 #include <asmjit/asmjit.h>
 #include <capstone/capstone.h>
@@ -500,19 +501,17 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
             long *frame_top) {
   auto trace = trace_cache_get(tnum);
 
-  // printf("FN start %i\n", tnum);
+  //printf("FN start %i\n", tnum);
   long exit = trace->fn(o_frame, o_pc);
   // TODO exit holds new trace, o_pc holds exit num
   // printf("Exit %i %lx %lx\n", (*o_pc), exit, trace);
   trace = (trace_s *)exit;
   exit = (long)(*o_pc);
   // printf("From trace %i\n", trace->num);
-  bcfunc *func = (bcfunc *)((*o_frame)[-1] - 5);
   // TODO exit is probably wrong if side trace
   auto snap = &trace->snaps[exit];
-  // printf("exit %i from trace %i new pc %i func %lx\n", exit, trace->num,
-  // snap->pc, func);
   (*o_pc) = snap->pc;
+  //printf("exit %i from trace %i new pc %i func %s\n", exit, trace->num, snap->pc, find_func_for_frame(snap->pc)->name.c_str());
 
   if (exit != trace->snaps.size() - 1) {
     if (snap->exits < 10) {
