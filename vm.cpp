@@ -104,8 +104,7 @@ ABI void RECORD_START(PARAMS) {
     // Tail call with original op table.
     MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
   }
-  // Tail call with recording op table, but first instruction is not recorded.
-  MUSTTAIL return l_op_table[INS_OP(*pc)](ra, instr, pc, frame,
+  MUSTTAIL return l_op_table_record[INS_OP(*pc)](ra, instr, pc, frame,
                                           (void **)l_op_table_record, argcnt);
 }
 
@@ -231,12 +230,18 @@ LIBRARY_FUNC(LOOP)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC(FUNC)
+  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
+    MUSTTAIL return RECORD_START(ARGS);
+  }
     if (argcnt != ra) {
       MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
     }
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC(FUNCV)
+  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
+    MUSTTAIL return RECORD_START(ARGS);
+  }
     if (argcnt < ra) {
       MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
     }
@@ -244,6 +249,9 @@ LIBRARY_FUNC(FUNCV)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC(CLFUNC)
+  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
+    MUSTTAIL return RECORD_START(ARGS);
+  }
     if (argcnt != ra) {
       pc += INS_D(*(pc+1)) + 1;
     } else {
@@ -253,6 +261,9 @@ LIBRARY_FUNC(CLFUNC)
 }
 
 LIBRARY_FUNC(CLFUNCV)
+  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
+    MUSTTAIL return RECORD_START(ARGS);
+  }
     if (argcnt < ra) {
       pc += INS_D(*(pc+1)) + 1;
     } else {
@@ -612,9 +623,6 @@ LIBRARY_FUNC_COPY(JLOOP, JFUNC);
 #define INS_JLOOP INS_JFUNC
 
 LIBRARY_FUNC_B(CALL)
-  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) == 0)) {
-    MUSTTAIL return RECORD_START(ARGS);
-  }
   auto cl = frame[ra+1];
   TYPECHECK_TAG(cl, CLOSURE_TAG);
   auto closure = (closure_s *)(cl - CLOSURE_TAG);
@@ -632,10 +640,6 @@ LIBRARY_FUNC_B(CALL)
 }
 
 LIBRARY_FUNC_B(CALLT)
-  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_tail_rec) ==
-               0)) {
-    MUSTTAIL return RECORD_START(ARGS);
-  }
   auto cl = frame[ra+1];
   TYPECHECK_TAG(cl, CLOSURE_TAG);
   auto closure = (closure_s *)(cl - CLOSURE_TAG);
