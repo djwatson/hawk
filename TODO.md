@@ -79,9 +79,6 @@
 * merge record_run and jit_run exit stub
 * All of 'RECORD' probably needs type tests when we access frame.
 
-* CALL neesd to load args too??
-
-* BROKEN - fix traec num, store in D, max traces cache
 * BROKEN keeps jitting even on jfunc.  Should hotmap on func instead of call?
 * fix snap saves for branches, don't merge with 0, bump one past.
 

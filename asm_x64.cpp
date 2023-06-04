@@ -224,8 +224,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
       BaseAssembler::ValidationOptions::kValidationOptionIntermediate);
 
   if (!side_exit) {
-    a.push(x86::rbp);
-    a.mov(x86::rbp, x86::rsp);
     a.push(x86::rbx);
     a.push(x86::r12);
     a.push(x86::r13);
@@ -423,7 +421,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
   if (trace->link != -1) {
     auto otrace = trace_cache_get(trace->link);
     if (otrace != trace) {
-      a.mov(x86::r15, uint64_t(otrace->fn) + 0x12);
+      a.mov(x86::r15, uint64_t(otrace->fn) + 0xe);
       a.jmp(x86::r15);
     } else {
       // TODO removing this breaks ack
@@ -452,7 +450,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
   a.pop(x86::r13);
   a.pop(x86::r12);
   a.pop(x86::rbx);
-  a.pop(x86::rbp);
   a.mov(x86::rax, trace);
 
   a.ret();
