@@ -119,8 +119,14 @@ void assign_registers(trace_s *trace) {
       cursnap--;
     }
     // printf("Assign to %i\n", i);
-
     auto &op = trace->ops[i];
+    
+    // free it.
+    if (op.reg != REG_NONE) {
+      assert(slot[op.reg] == i);
+      slot[op.reg] = -1;
+    }
+
     switch (op.op) {
     case ir_ins_op::SLOAD:
       break;
@@ -153,11 +159,6 @@ void assign_registers(trace_s *trace) {
       break;
     default:
       break;
-    }
-    // free it.
-    if (op.reg != REG_NONE) {
-      assert(slot[op.reg] == i);
-      slot[op.reg] = -1;
     }
   }
 }
