@@ -9,6 +9,8 @@
 #include "types.h"
 #include "vm.h"
 
+void opt_loop(trace_s * trace, int* regs);
+
 unsigned int *pc_start;
 unsigned int instr_count;
 int depth = 0;
@@ -68,8 +70,9 @@ void dump_trace(trace_s *ctrace) {
   for (size_t i = 0; i < ctrace->ops.size() + 1 /* extra snap */; i++) {
     // Print any snap
     while ((cur_snap < ctrace->snaps.size()) && ctrace->snaps[cur_snap].ir == i) {
+      
       auto &snap = ctrace->snaps[cur_snap];
-      printf("SNAP[pc=%lx off=%i", (long)snap.pc, snap.offset);
+      printf("SNAP[ir=%i pc=%lx off=%i", snap.ir, (long)snap.pc, snap.offset);
       for (auto &entry : snap.slots) {
         printf(" %i=", entry.slot);
         print_const_or_val(entry.val, ctrace);
@@ -105,6 +108,7 @@ void dump_trace(trace_s *ctrace) {
       break;
     }
     case ir_ins_op::RET:
+    case ir_ins_op::PHI:
     case ir_ins_op::SUB:
     case ir_ins_op::ADD:
     case ir_ins_op::EQ:
@@ -115,6 +119,10 @@ void dump_trace(trace_s *ctrace) {
       print_const_or_val(op.op1, ctrace);
       printf(" ");
       print_const_or_val(op.op2, ctrace);
+      break;
+    }
+    case ir_ins_op::LOOP: {
+      printf("----------------");
       break;
     }
     default:
@@ -160,6 +168,11 @@ void record_start(unsigned int *pc, long *frame) {
 extern int joff;
 
 void record_stop(unsigned int *pc, long *frame, int link) {
+  if(link == (int)traces.size()) {
+    // Attempt to loop-fiy it.
+    opt_loop(trace, regs);
+  }
+  
   pendpatch();
 
   add_snap(regs_list, regs - regs_list - 1, trace, pc);

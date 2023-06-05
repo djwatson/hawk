@@ -21,5 +21,8 @@ const char* ir_names[] = {
   "SUB  ",
   "MUL  ",
   "DIV  ",
+
+  "LOOP ",
+  "PHI  ",
 };
 // clang-format on

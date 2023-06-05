@@ -124,6 +124,7 @@ void assign_registers(trace_s *trace) {
     switch (op.op) {
     case ir_ins_op::SLOAD:
       break;
+      case ir_ins_op::PHI:
     case ir_ins_op::ADD:
     case ir_ins_op::SUB:
       if (op.reg != REG_NONE) {
