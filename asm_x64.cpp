@@ -512,7 +512,9 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   // TODO exit is probably wrong if side trace
   auto snap = &trace->snaps[exit];
   (*o_pc) = snap->pc;
-  //printf("exit %i from trace %i new pc %i func %s\n", exit, trace->num, snap->pc, find_func_for_frame(snap->pc)->name.c_str());
+  auto func = find_func_for_frame(snap->pc);
+  assert(func);
+  printf("exit %i from trace %i new pc %i func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
 
   if (exit != trace->snaps.size() - 1) {
     if (snap->exits < 10) {
@@ -540,8 +542,13 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
     // Should only replace if *this trace*'s start PC is o_pc,
     // and it's originaly a RET, i.e. we predicted the RET wrong.
     if (INS_OP(**o_pc) == JLOOP) {
-      auto otrace = trace_cache_get(INS_B(**o_pc));
-      *o_pc = &otrace->startpc;
+      // TODO make work for both RET1 and JLOOP
+	auto otrace = trace_cache_get(INS_B(**o_pc));
+      if (INS_OP(otrace->startpc) == LOOP) {
+	(*o_pc)++;
+      } else {
+	*o_pc = &otrace->startpc;
+      }
       printf("Exit to loop\n");
       return 0;
     }

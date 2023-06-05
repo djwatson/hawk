@@ -357,7 +357,7 @@
   (if (loop-var? (car f) env)
       (let* ((loop-info (cdr (assq (car f) env)))
 	     (offset (- nr (car loop-info)))
-	     (instr (list 'JMP 0 (+ 1 (length (func-bc-code bc))))))
+	     (instr (list 'JMP 0 (length (func-bc-code bc)))))
 	;;(dformat "Compile loop call: ~a nr ~a\n" f nr)
 	(push-instr! bc instr)
 	(set-cdr! loop-info (cons instr (cdr loop-info)))

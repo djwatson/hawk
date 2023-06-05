@@ -49,7 +49,7 @@ while being more portable and easier to change.
 #define ABI __attribute__((ms_abi)) __attribute__((noinline))
 #define ABIP __attribute__((ms_abi))
 #define DEBUG(name)
-//#define DEBUG(name) printf("%s ra %i rd %i rb %i rc %i ", name, ra, instr, instr&0xff, (instr>>8)); printf("\n");
+//#define DEBUG(name) printf("pc %i %s ra %i rd %i rb %i rc %i ", pc, name, ra, instr, instr&0xff, (instr>>8)); printf("\n");
 typedef ABIP void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
@@ -227,6 +227,9 @@ ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   }
 
 LIBRARY_FUNC(LOOP)
+      if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
+	MUSTTAIL return RECORD_START(ARGS);
+      }
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC(FUNC)

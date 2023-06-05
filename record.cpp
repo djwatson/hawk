@@ -166,7 +166,8 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   if (side_exit) {
     side_exit->link = traces.size();
   } else {
-    if (INS_OP(*pc_start) != RET1) {
+    auto op = INS_OP(*pc_start);
+    if (op != RET1 && op != LOOP) {
       *pc_start = CODE(JFUNC, INS_A(*pc_start), traces.size(), 0);
     } else {
       *pc_start = CODE(JLOOP, 0, traces.size(), 0);
@@ -264,6 +265,7 @@ int record_instr(unsigned int *pc, long *frame) {
   printf("%lx %s %i %i %i\n", pc, ins_names[INS_OP(i)], INS_A(i), INS_B(i),
          INS_C(i));
   switch (INS_OP(i)) {
+  case LOOP:
   case CLFUNC:
   case FUNC: {
     // TODO: argcheck?
@@ -483,6 +485,8 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case MOV: {
     regs[INS_A(i)] = record_stack_load(INS_B(i), frame);
+    // TODO loop moves can clear
+    //regs[INS_B(i)] = -1;
     break;
   }
   case GGET: {
@@ -619,7 +623,8 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   default: {
     printf("NYI: CANT RECORD BYTECODE %s\n", ins_names[INS_OP(i)]);
-    exit(-1);
+    record_abort();
+    //exit(-1);
   }
   }
   if (instr_count > 5000) {
