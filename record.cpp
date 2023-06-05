@@ -42,9 +42,9 @@ void pendpatch() {
   }
 }
 
-void print_const_or_val(int i, trace_s *trace) {
+void print_const_or_val(int i, trace_s *ctrace) {
   if (i & IR_CONST_BIAS) {
-    auto c = trace->consts[i - IR_CONST_BIAS];
+    auto c = ctrace->consts[i - IR_CONST_BIAS];
     int type = c & 0x7;
     if (c & SNAP_FRAME) {
       printf("(pc %li)", c & ~SNAP_FRAME);
@@ -63,26 +63,26 @@ void print_const_or_val(int i, trace_s *trace) {
   }
 }
 
-void dump_trace(trace_s *trace) {
-  int cur_snap = 0;
-  for (int i = 0; i < trace->ops.size() + 1 /* extra snap */; i++) {
+void dump_trace(trace_s *ctrace) {
+  unsigned long cur_snap = 0;
+  for (size_t i = 0; i < ctrace->ops.size() + 1 /* extra snap */; i++) {
     // Print any snap
-    while ((cur_snap < trace->snaps.size()) && trace->snaps[cur_snap].ir == i) {
-      auto &snap = trace->snaps[cur_snap];
-      printf("SNAP[pc=%lx off=%i", snap.pc, snap.offset);
+    while ((cur_snap < ctrace->snaps.size()) && ctrace->snaps[cur_snap].ir == i) {
+      auto &snap = ctrace->snaps[cur_snap];
+      printf("SNAP[pc=%lx off=%i", (long)snap.pc, snap.offset);
       for (auto &entry : snap.slots) {
         printf(" %i=", entry.slot);
-        print_const_or_val(entry.val, trace);
+        print_const_or_val(entry.val, ctrace);
       }
       printf("]\n");
       cur_snap++;
     }
-    if (i == trace->ops.size()) {
+    if (i == ctrace->ops.size()) {
       break;
     }
 
-    auto op = trace->ops[i];
-    printf("%04d %s %c\t", i, reg_names[op.reg],
+    auto op = ctrace->ops[i];
+    printf("%04zu %s %c\t", i, reg_names[op.reg],
            op.type & IR_INS_TYPE_GUARD ? '>' : ' ');
     auto t = op.type & ~IR_INS_TYPE_GUARD;
     if (t == 0) {
@@ -96,11 +96,11 @@ void dump_trace(trace_s *trace) {
     switch (op.op) {
     case ir_ins_op::KFIX:
     case ir_ins_op::SLOAD: {
-      print_const_or_val(op.op1, trace);
+      print_const_or_val(op.op1, ctrace);
       break;
     }
     case ir_ins_op::GGET: {
-      symbol *s = (symbol *)trace->consts[op.op1 - IR_CONST_BIAS];
+      symbol *s = (symbol *)ctrace->consts[op.op1 - IR_CONST_BIAS];
       printf("%s", s->name->str);
       break;
     }
@@ -112,9 +112,9 @@ void dump_trace(trace_s *trace) {
     case ir_ins_op::GE:
     case ir_ins_op::LT:
     case ir_ins_op::CLT: {
-      print_const_or_val(op.op1, trace);
+      print_const_or_val(op.op1, ctrace);
       printf(" ");
-      print_const_or_val(op.op2, trace);
+      print_const_or_val(op.op2, ctrace);
       break;
     }
     default:
@@ -267,7 +267,7 @@ int record_instr(unsigned int *pc, long *frame) {
   for (int j = 0; j < depth; j++) {
     printf(" . ");
   }
-  printf("%lx %s %i %i %i\n", pc, ins_names[INS_OP(i)], INS_A(i), INS_B(i),
+  printf("%lx %s %i %i %i\n", (long)pc, ins_names[INS_OP(i)], INS_A(i), INS_B(i),
          INS_C(i));
   switch (INS_OP(i)) {
   case LOOP:
@@ -279,7 +279,6 @@ int record_instr(unsigned int *pc, long *frame) {
   case RET1: {
     if (depth == 0) {
       auto old_pc = (unsigned int *)frame[-1];
-      auto old_frame = frame - (INS_A(*(old_pc - 1)) + 1);
       if (INS_OP(*pc_start) == RET1 || side_exit != NULL) {
         int cnt = 0;
         for (auto &p : downrec) {
@@ -311,8 +310,8 @@ int record_instr(unsigned int *pc, long *frame) {
         memmove(&regs[frame_off + 1], &regs[0],
                 sizeof(int) * (256 - (frame_off + 1)));
         regs[frame_off] = result;
-        for (int i = 0; i < frame_off; i++) {
-          regs[i] = -1;
+        for (unsigned j = 0; j < frame_off; j++) {
+          regs[j] = -1;
         }
 
         auto knum = trace->consts.size();
@@ -339,8 +338,8 @@ int record_instr(unsigned int *pc, long *frame) {
     } else if (depth > 0) {
       depth--;
       regs[-1] = regs[INS_A(i)];
-      for (int i = regs - regs_list; i < 257; i++) {
-        regs_list[i] = -1;
+      for (int j = regs - regs_list; j < 257; j++) {
+        regs_list[j] = -1;
       }
       auto old_pc = (unsigned int *)frame[-1];
       regs -= (INS_A(*(old_pc - 1)) + 1);
@@ -353,7 +352,7 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case CALL: {
     // TODO this needs to check reg[]links instead
-    for (int j = INS_A(i)+1; j < INS_A(i) + INS_B(i); j++) {
+    for (unsigned j = INS_A(i)+1; j < INS_A(i) + INS_B(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
 
@@ -372,13 +371,11 @@ int record_instr(unsigned int *pc, long *frame) {
       trace->ops.push_back(ins);
     }
     long cnt = 0;
-    auto f = frame;
     auto p_pc = (uint32_t *)frame[-1];
     for (int d = depth; d > 0; d--) {
       if (p_pc == pc + 1) {
         cnt++;
       }
-      f = frame - (INS_A(*(p_pc - 1)) + 1);
       p_pc = (uint32_t *)frame[-1];
     }
 
@@ -397,8 +394,8 @@ int record_instr(unsigned int *pc, long *frame) {
     if (cnt >= UNROLL_LIMIT) {
       auto v = frame[INS_A(i)+1];
       auto closure = (closure_s *)(v - CLOSURE_TAG);
-      auto func = (bcfunc *)closure->v[0];
-      auto target = &func->code[0];
+      auto cfunc = (bcfunc *)closure->v[0];
+      auto target = &cfunc->code[0];
       if (target == pc_start) {
         printf("Record stop up-recursion\n");
         record_stop(pc, frame, traces.size());
@@ -406,9 +403,9 @@ int record_instr(unsigned int *pc, long *frame) {
       } else {
         // TODO fix flush
         pendpatch();
-        if (INS_OP(func->code[0]) == JFUNC) {
+        if (INS_OP(cfunc->code[0]) == JFUNC) {
           printf("Flushing trace\n");
-          func->code[0] = traces[INS_D(func->code[0])]->startpc;
+          cfunc->code[0] = traces[INS_D(cfunc->code[0])]->startpc;
           hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
         }
         // TODO this isn't in luajit? fails with side exit without?
@@ -422,7 +419,6 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case KSHORT: {
     auto k = INS_D(i) << 3;
-    auto knum = trace->consts.size();
     auto reg = INS_A(i);
     regs[reg] = trace->consts.size() | IR_CONST_BIAS;
     trace->consts.push_back(k);
@@ -579,7 +575,7 @@ int record_instr(unsigned int *pc, long *frame) {
     }
     // Move args down
     // TODO also chedck func
-    for (int j = INS_A(i)+1; j < INS_A(i) + INS_B(i); j++) {
+    for (unsigned j = INS_A(i)+1; j < INS_A(i) + INS_B(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
     memmove(&regs[0], &regs[INS_A(i) + 1], sizeof(int) * (INS_B(i) - 1));
@@ -597,15 +593,15 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case JFUNC: {
     // Check if it is a returning trace
-    auto trace = trace_cache_get(INS_B(i));
-    if (trace->link == -1) {
+    auto ctrace = trace_cache_get(INS_B(i));
+    if (ctrace->link == -1) {
       assert(patchpc == NULL);
       patchpc = pc;
       patchold = *pc;
       *pc = traces[INS_D(*pc)]->startpc;
       break;
     } else {
-      for (int j = 0; j < INS_A(i); j++) {
+      for (unsigned j = 0; j < INS_A(i); j++) {
         regs[j] = record_stack_load(j, frame);
       }
       printf("Record stop JFUNC\n");

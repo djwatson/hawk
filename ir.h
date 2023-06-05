@@ -27,6 +27,9 @@ enum class ir_ins_op : uint8_t {
   SUB,
   MUL,
   DIV,
+
+  LOOP,
+  PHI,
 };
 
 extern const char *ir_names[];

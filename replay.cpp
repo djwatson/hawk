@@ -76,7 +76,6 @@ void snap_restore(std::vector<long> &res, unsigned int **o_pc, long **o_frame,
     }
   }
   *o_frame = *o_frame + snap->offset;
-  bcfunc *func = (bcfunc *)((*o_frame)[-1] - 5);
   *o_pc = snap->pc;
   // printf("PC is now %i %s\n", snap->pc, ins_names[INS_OP(**o_pc)]);
   // printf("Stack is now %li func is %lx\n", *o_frame-stack, func);
@@ -105,7 +104,7 @@ again:
     auto &ins = trace->ops[pc];
     printf("Replay pc %i %s %i %i\n", pc, ir_names[(int)ins.op], ins.op1,
            ins.op2);
-    for (int i = 0; i < pc; i++) {
+    for (unsigned i = 0; i < pc; i++) {
       printf("%i: %lx ", i, res[i]);
     }
     printf("\n");
@@ -201,7 +200,7 @@ again:
       break;
     }
     case ir_ins_op::RET: {
-      auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts) -
+      long a = get_val_or_const(res, ins.op1, trace->ops, trace->consts) -
                SNAP_FRAME;
       auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
       if (a != frame[-1]) {

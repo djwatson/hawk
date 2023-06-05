@@ -503,7 +503,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   auto trace = trace_cache_get(tnum);
 
   //printf("FN start %i\n", tnum);
-  long exit = trace->fn(o_frame, o_pc);
+  unsigned long exit = trace->fn(o_frame, o_pc);
   // TODO exit holds new trace, o_pc holds exit num
   // printf("Exit %i %lx %lx\n", (*o_pc), exit, trace);
   trace = (trace_s *)exit;
@@ -514,7 +514,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   (*o_pc) = snap->pc;
   auto func = find_func_for_frame(snap->pc);
   assert(func);
-  printf("exit %i from trace %i new pc %i func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
+  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
 
   if (exit != trace->snaps.size() - 1) {
     if (snap->exits < 10) {
@@ -522,7 +522,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
     } else {
       if (snap->exits < 14) {
         snap->exits++;
-        printf("Hot snap %i\n", exit);
+        printf("Hot snap %li\n", exit);
         if (INS_OP(**o_pc) == JLOOP) {
           printf("HOT SNAP to JLOOP\n");
           patchpc = *o_pc;

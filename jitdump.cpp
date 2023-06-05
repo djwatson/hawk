@@ -56,6 +56,10 @@ void jit_dump(int len, uint64_t fn, std::string name) {
   // clock
   struct timespec ts;
   int result = clock_gettime(CLOCK_MONOTONIC, &ts);
+  if (result) {
+    printf("Error: clock_gettime: %i\n", result);
+    exit(-1);
+  }
   record.timestamp = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 
   record.id = 0; // JIT_CODE_LOAD
@@ -90,6 +94,10 @@ void jit_dump_init() {
   fd = open(buf, O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR);
   struct timespec ts;
   int result = clock_gettime(CLOCK_MONOTONIC, &ts);
+  if (result) {
+    printf("Error: clock_gettime: %i\n", result);
+    exit(-1);
+  }
   header.timestamp = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 
   header.magic = 0x4A695444;
