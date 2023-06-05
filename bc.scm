@@ -488,7 +488,7 @@
     (define loop-info (cons nr '()))
     (push! env (cons (fourth f) loop-info))
     (compile-sexp (fifth f) bc env rd ord cd)
-    (push-instr! bc (list 'LOOP 0 (- (length (func-bc-code bc)) end -1)))
+    (push-instr! bc (list 'LOOP (+ (length (second f)) nr) (- (length (func-bc-code bc)) end -1)))
     (for-each (lambda (instr) (set-car! (cddr instr) (- (caddr instr) (length (func-bc-code bc)) -1)))
 	      (cdr loop-info))
     ;; Do this in reverse, so that we don't smash register usage.

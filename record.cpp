@@ -253,6 +253,11 @@ extern unsigned char hotmap[hotmap_sz];
 int record_instr(unsigned int *pc, long *frame) {
   instr_count++;
   unsigned int i = *pc;
+  if (INS_OP(i) == LOOP) {
+    for(int* pos = &regs[INS_A(i)]; pos < &regs_list[257]; pos++) {
+      *pos = -1;
+    }
+  }
   if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
       INS_OP(trace->startpc) != RET1) {
     printf("Record stop loop\n");
@@ -588,7 +593,6 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case JMP: {
-    // None.
     break;
   }
   case JFUNC: {
