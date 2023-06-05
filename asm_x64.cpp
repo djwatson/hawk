@@ -255,6 +255,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
   long cur_snap = 0;
 
   long op_cnt = 0;
+  printf("--------------------------------\n");
   for (auto &op : trace->ops) {
     while (trace->snaps[cur_snap + 1].ir <= op_cnt) {
       cur_snap++;
@@ -445,6 +446,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
   if (use_loop) {
     a.jmp(loop_label);
   }
+  printf("--------------------------------\n");
   emit_snap(a, trace->snaps.size() - 1, trace);
   if (trace->link != -1) {
     auto otrace = trace_cache_get(trace->link);
@@ -540,7 +542,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   (*o_pc) = snap->pc;
   auto func = find_func_for_frame(snap->pc);
   assert(func);
-  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
+  // printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
 
   if (exit != trace->snaps.size() - 1) {
     if (snap->exits < 10) {

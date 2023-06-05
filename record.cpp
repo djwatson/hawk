@@ -638,6 +638,7 @@ int record_instr(unsigned int *pc, long *frame) {
   default: {
     printf("NYI: CANT RECORD BYTECODE %s\n", ins_names[INS_OP(i)]);
     record_abort();
+    return 1;
     //exit(-1);
   }
   }
