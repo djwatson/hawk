@@ -230,43 +230,43 @@ LIBRARY_FUNC(LOOP)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC(FUNC)
-  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
-    MUSTTAIL return RECORD_START(ARGS);
-  }
     if (argcnt != ra) {
       MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
     }
-END_LIBRARY_FUNC
-
-LIBRARY_FUNC(FUNCV)
   if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
+END_LIBRARY_FUNC
+
+LIBRARY_FUNC(FUNCV)
     if (argcnt < ra) {
       MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
     }
+if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
+  MUSTTAIL return RECORD_START(ARGS);
+ }
     frame[ra] = build_list(ra, argcnt - ra, frame);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC(CLFUNC)
-  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
-    MUSTTAIL return RECORD_START(ARGS);
-  }
     if (argcnt != ra) {
       pc += INS_D(*(pc+1)) + 1;
     } else {
+      if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
+	MUSTTAIL return RECORD_START(ARGS);
+      }
       pc+=2;
     }
   NEXT_INSTR;
 }
 
 LIBRARY_FUNC(CLFUNCV)
-  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
-    MUSTTAIL return RECORD_START(ARGS);
-  }
     if (argcnt < ra) {
       pc += INS_D(*(pc+1)) + 1;
     } else {
+      if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
+	MUSTTAIL return RECORD_START(ARGS);
+      }
       frame[ra] = build_list(ra, argcnt - ra, frame);
       pc+=2;
     }

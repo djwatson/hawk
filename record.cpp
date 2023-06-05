@@ -52,6 +52,8 @@ void print_const_or_val(int i, trace_s *trace) {
       printf("\e[1;35m%li\e[m", c >> 3);
     } else if (type == 5) {
       printf("\e[1;31m<closure>\e[m");
+    } else if (c == FALSE_REP) {
+      printf("\e[1;35m#f\e[m");
     } else {
       printf("Unknown dump_trace type %i\n", type);
       exit(-1);
@@ -164,7 +166,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   if (side_exit) {
     side_exit->link = traces.size();
   } else {
-    if (INS_OP(*pc_start) == FUNC) {
+    if (INS_OP(*pc_start) != RET1) {
       *pc_start = CODE(JFUNC, INS_A(*pc_start), traces.size(), 0);
     } else {
       *pc_start = CODE(JLOOP, 0, traces.size(), 0);
@@ -262,6 +264,7 @@ int record_instr(unsigned int *pc, long *frame) {
   printf("%lx %s %i %i %i\n", pc, ins_names[INS_OP(i)], INS_A(i), INS_B(i),
          INS_C(i));
   switch (INS_OP(i)) {
+  case CLFUNC:
   case FUNC: {
     // TODO: argcheck?
     break;
@@ -398,7 +401,7 @@ int record_instr(unsigned int *pc, long *frame) {
         pendpatch();
         if (INS_OP(func->code[0]) == JFUNC) {
           printf("Flushing trace\n");
-          func->code[0] = (func->code[0] & ~0xff) | FUNC;
+          func->code[0] = traces[INS_D(func->code[0])]->startpc;
           hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
         }
         // TODO this isn't in luajit? fails with side exit without?
@@ -435,11 +438,11 @@ int record_instr(unsigned int *pc, long *frame) {
     add_snap(regs_list, regs - regs_list - 1, trace, pc);
     ir_ins ins;
     ins.reg = REG_NONE;
-    ins.op1 = record_stack_load(INS_A(i), frame);
+    ins.op1 = record_stack_load(INS_B(i), frame);
     auto knum = trace->consts.size();
-    trace->consts.push_back(0);
+    trace->consts.push_back(FALSE_REP);
     ins.op2 = knum | IR_CONST_BIAS;
-    if (frame[INS_A(i)] == 0) {
+    if (frame[INS_B(i)] == FALSE_REP) {
       ins.op = ir_ins_op::EQ;
     } else {
       ins.op = ir_ins_op::NE;
@@ -591,7 +594,7 @@ int record_instr(unsigned int *pc, long *frame) {
       assert(patchpc == NULL);
       patchpc = pc;
       patchold = *pc;
-      *pc = ((*pc) & ~0xff) | FUNC;
+      *pc = traces[INS_D(*pc)]->startpc;
       break;
     } else {
       for (int j = 0; j < INS_A(i); j++) {

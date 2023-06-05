@@ -366,8 +366,12 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
       // Zero the reg without touching flags.
       // Note reg may be the same as reg1 or reg2,
       // so we can't xor first.
-      a.lea(reg, x86::ptr_abs(0));
-      a.setl(reg.r8Lo());
+      //a.lea(reg, x86::ptr_abs(0));
+      //a.setl(reg.r8Lo());
+      
+      a.mov(reg, FALSE_REP);
+      a.mov(x86::r15, TRUE_REP);
+      a.cmovl(reg, x86::r15);
       //      a.shl(reg, 3); // TODO
       break;
     }
