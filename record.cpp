@@ -168,6 +168,7 @@ void record_start(unsigned int *pc, long *frame) {
 extern int joff;
 
 void record_stop(unsigned int *pc, long *frame, int link) {
+  add_snap(regs_list, regs - regs_list - 1, trace, pc);
   if(link == (int)traces.size()) {
     // Attempt to loop-fiy it.
     opt_loop(trace, regs);
@@ -175,7 +176,6 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   
   pendpatch();
 
-  add_snap(regs_list, regs - regs_list - 1, trace, pc);
   if (side_exit) {
     side_exit->link = traces.size();
   } else {
@@ -191,6 +191,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   traces.push_back(trace);
 
+  dump_trace(trace);
   assign_registers(trace);
   dump_trace(trace);
   asm_jit(trace, side_exit);

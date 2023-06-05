@@ -147,6 +147,9 @@ void assign_registers(trace_s *trace) {
           assign_register(op.op2, trace->ops[op.op2], slot);
         }
       }
+      if (op.op == ir_ins_op::PHI) {
+	assert(trace->ops[op.op1].reg == op.reg);
+      }
       break;
     case ir_ins_op::GGET:
     case ir_ins_op::KFIX:
@@ -237,7 +240,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
   } else {
     a.sub(x86::rdi, side_exit->offset * 8);
   }
-
+  
+  Label loop_label = a.newLabel();
+  bool use_loop = false;
   Label sl = a.newLabel();
   Label exit_label = a.newLabel();
   a.bind(sl);
@@ -418,10 +423,27 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
       a.sub(x86::rdi, b);
       break;
     }
+    case ir_ins_op::LOOP: {
+      printf("------------LOOP-------------\n");
+      a.bind(loop_label);
+      use_loop = true;
+      break;
+    }
+    case ir_ins_op::PHI: {
+      auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
+      auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
+      if(reg1 != reg2) {
+	a.mov(reg1, reg2);
+      }
+      break;
+    }
     default:
       printf("Can't jit op: %s\n", ir_names[(int)op.op]);
       exit(-1);
     }
+  }
+  if (use_loop) {
+    a.jmp(loop_label);
   }
   emit_snap(a, trace->snaps.size() - 1, trace);
   if (trace->link != -1) {
@@ -431,6 +453,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
       a.jmp(x86::r15);
     } else {
       // TODO removing this breaks ack
+      // because 'last framestate doesn't advance pc' per notes.
+      // FIXME
       a.jmp(sl);
     }
     a.jmp(exit_label);
