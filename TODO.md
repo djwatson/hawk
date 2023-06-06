@@ -70,18 +70,12 @@
   * closures can be exact in snap and constants
   * don't need to save func ptr slot for callt or ret if it's the same
   * use RAX for tmp instead of R15 - RAX has shorter ops for MOV, etc
-  * don't adjust RDI if it hasn't changed
-  * don't bother to save RDI until C code exit sequence
   * Use shorter instruction sequences for small constants
   * move side exit code to C instead of generated (but need both to gen for side or loop exits)
-  * mv push/pop sequence to separate stub func
   * we should be able to coalesce arg typechecks if they are the same.
   * Maybe a speical SLOAD EQ for RET instead, since we don't need to typecheck
   * Typechecks need a rethink - we can special case some stuff like eq?/eqv?, merge typechecks, etc.
   
-  * exit stubs can be much smaller
-  * get exit trace from PC?????
-
 * merge record_run and jit_run exit stub
 * All of 'RECORD' probably needs type tests when we access frame.
 
@@ -94,7 +88,9 @@
   * maybe flush traces (recursively) if we find a new up or down recursive trace
   * fib 39 re-jits tails, because downrec happens first.  Even luajit does this.  Unrolling probably helps.
 
-* reg alloc - needs spilling
+* reg alloc - needs spilling.  
+    Needs either backwards pass with inserts (for spills), or do it at the same time as backwards codegen
+	Also, at calls/intrinics we need to know which caller-save regs to spill
 
 # OPTS
 
