@@ -8,7 +8,7 @@
 
 # Bytecode generator / VM
 
-* unary negation pass integration
+* unary negation pass integration, i.e., integrate (- x)
 * simplex has jmps to jmps? extra crap
 
 ## bytecode perf improvements 
@@ -25,6 +25,7 @@
 * 'big' register moves / just get fftrad4 working, with a constant-ify pass
 * we could be smarter about calls call callt: Order arguments such that min # of things are saved.  I.e. especially GGETs can be last.
  This probably has no effect on the VM, but might benefit the jit.
+* can also optimize loop moves - i.e. last eval doesn't need to mov, some args don't need to mov.
 * funcv/clfuncv could alloc all at once
 * could do a return constant bytecode for empty list, true, false
 
@@ -46,8 +47,7 @@
 * comments in output
 
 # JIT TODO:
-* Figure out why JFUNC immediate records fail - we should start recording on JFUNC and not CALL
-* Figure out why jloop records fail in replay/asm_x64
+* Figure out why jloop records fail in replay/asm_x64???
 * figure out why non-looping ack fails with 1 trace
     * it's because we save the frame state for looping, 
 	* but don't advance to next func/pc in last framestate.
@@ -92,7 +92,6 @@
 
 # OPTS
 
-* simple loop op
 * dce
 * global fetches
 
