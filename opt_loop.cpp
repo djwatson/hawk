@@ -9,6 +9,7 @@
 
 void opt_loop(trace_s * trace, int* regs) {
   auto cut = trace->ops.size();
+  auto snap_cut = trace->snaps.size();
   uint16_t replace[cut*2+1];
 
   {
@@ -72,6 +73,7 @@ void opt_loop(trace_s * trace, int* regs) {
     case ir_ins_op::GE:
     case ir_ins_op::ADD:
     case ir_ins_op::EQ:
+    case ir_ins_op::NE:
     case ir_ins_op::SUB: {
       ir_ins copy = ins;
       if (copy.op1 < IR_CONST_BIAS) {
@@ -95,7 +97,9 @@ void opt_loop(trace_s * trace, int* regs) {
     }
     default:{
       printf("Can't loop ir type: %s\n", ir_names[(int)ins.op]);
-      exit(-1);
+      trace->ops.resize(cut);
+      trace->snaps.resize(snap_cut);
+      return;
     }
     }
   }

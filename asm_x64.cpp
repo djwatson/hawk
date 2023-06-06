@@ -514,9 +514,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
   for (unsigned long i = 0; i < trace->snaps.size() - 1; i++) {
     trace->snaps[i].patchpoint += uint64_t(fn);
   }
-  printf("--------------MCODE---------------\n");
-  disassemble((uint8_t *)fn, len);
-  printf("----------------------------------\n");
+  // printf("--------------MCODE---------------\n");
+  // disassemble((uint8_t *)fn, len);
+  // printf("----------------------------------\n");
   trace->fn = fn;
   perf_map(uint64_t(fn), len, std::string("Trace"));
   jit_dump(len, uint64_t(fn), std::string("Trace"));
@@ -577,7 +577,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
       } else {
 	*o_pc = &otrace->startpc;
       }
-      printf("Exit to loop\n");
+      //printf("Exit to loop\n");
       return 0;
     }
   }

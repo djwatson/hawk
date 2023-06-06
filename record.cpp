@@ -168,8 +168,9 @@ void record_start(unsigned int *pc, long *frame) {
 extern int joff;
 
 void record_stop(unsigned int *pc, long *frame, int link) {
-  add_snap(regs_list, regs - regs_list - 1, trace, pc);
-  if(link == (int)traces.size()) {
+  auto offset = regs - regs_list - 1;
+  add_snap(regs_list, offset, trace, pc);
+  if(link == (int)traces.size() && offset == 0) {
     // Attempt to loop-fiy it.
     opt_loop(trace, regs);
   }
