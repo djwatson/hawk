@@ -174,6 +174,39 @@ public:
   }
 };
 
+
+static unsigned long
+__attribute__((noinline))
+__attribute__((naked)) jit_entry_stub(long **o_frame, unsigned int **o_pc, Func fptr) {
+  asm inline(".intel_syntax\n"
+	     "push rbx\n"
+	     "push r12\n"
+	     "push r13\n"
+	     "push r14\n"
+	     "push r15\n"
+	     "push rdi\n"
+	     "push rsi\n"
+	     "mov rdi, [rdi]\n"
+	     "jmp rdx\n"
+	     : );
+}
+
+static unsigned long
+__attribute__((noinline))
+__attribute__((naked)) jit_exit_stub() {
+	     // pop &pc, pop &frame, pop callee-saved.
+  asm inline(".intel_syntax\n"
+	     "pop r15\n"
+	     "pop r15\n"
+	     "pop r15\n"
+	     "pop r14\n"
+	     "pop r13\n"
+	     "pop r12\n"
+	     "pop rbx\n"
+	     "ret\n"
+	     : );
+}
+
 void emit_snap(x86::Assembler &a, int snap, trace_s *trace) {
   auto &sn = trace->snaps[snap];
   // TODO frame size check
@@ -228,16 +261,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
       BaseAssembler::ValidationOptions::kValidationOptionAssembler |
       BaseAssembler::ValidationOptions::kValidationOptionIntermediate);
 
-  if (!side_exit) {
-    a.push(x86::rbx);
-    a.push(x86::r12);
-    a.push(x86::r13);
-    a.push(x86::r14);
-    a.push(x86::r15);
-    a.push(x86::rdi);
-    a.push(x86::rsi);
-    a.mov(x86::rdi, x86::ptr(x86::rdi, 0, 8));
-  } else {
+  if (side_exit) {
     a.sub(x86::rdi, side_exit->offset * 8);
   }
   
@@ -451,7 +475,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
   if (trace->link != -1) {
     auto otrace = trace_cache_get(trace->link);
     if (otrace != trace) {
-      a.mov(x86::r15, uint64_t(otrace->fn) + 0xe);
+      a.mov(x86::r15, uint64_t(otrace->fn));
       a.jmp(x86::r15);
     } else {
       // TODO removing this breaks ack
@@ -472,19 +496,11 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
 
   a.bind(exit_label);
 
-  // Pop saved &pc
-  a.pop(x86::r15);
-  // Pop saved &frame
-  a.pop(x86::r15);
-  // restore callee-save
-  a.pop(x86::r15);
-  a.pop(x86::r14);
-  a.pop(x86::r13);
-  a.pop(x86::r12);
-  a.pop(x86::rbx);
+  // Put return value in rax, jmp to exit stub.
   a.mov(x86::rax, trace);
+  a.mov(x86::r15, uint64_t(jit_exit_stub));
+  a.jmp(x86::r15);
 
-  a.ret();
   for (unsigned long i = 0; i < trace->snaps.size() - 1; i++) {
     a.bind(snap_labels_patch[i]);
     trace->snaps[i].patchpoint = a.offset();
@@ -523,7 +539,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
   jit_reader_add(len, uint64_t(fn), 0, 0, std::string("Trace"));
   VALGRIND_DISCARD_TRANSLATIONS(fn, len);
 }
-
 extern unsigned int *patchpc;
 extern unsigned int patchold;
 int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
@@ -531,7 +546,8 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   auto trace = trace_cache_get(tnum);
 
   //printf("FN start %i\n", tnum);
-  unsigned long exit = trace->fn(o_frame, o_pc);
+  //unsigned long exit = trace->fn(o_frame, o_pc);
+  auto exit = jit_entry_stub(o_frame, o_pc, trace->fn);
   // TODO exit holds new trace, o_pc holds exit num
   // printf("Exit %i %lx %lx\n", (*o_pc), exit, trace);
   trace = (trace_s *)exit;

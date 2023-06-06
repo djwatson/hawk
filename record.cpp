@@ -192,7 +192,6 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   traces.push_back(trace);
 
-  dump_trace(trace);
   assign_registers(trace);
   dump_trace(trace);
   asm_jit(trace, side_exit);

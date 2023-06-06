@@ -13,7 +13,6 @@
 
 ## bytecode perf improvements 
 
-
 * could put memq/assq/length/map/append/string-append etc as intrinsics
 * faster call/cc - flush frames w/underflow handler.  Overflow handler can also just flush frames.
 
@@ -52,8 +51,8 @@
     * it's because we save the frame state for looping, 
 	* but don't advance to next func/pc in last framestate.
 
-  * fix stack size adjust  
-  * and in replay is borken
+* fix stack size adjust  
+* and in replay is borken
   
 * various JIT improvements
   * fix branching jumps to jump one past.
