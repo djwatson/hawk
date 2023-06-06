@@ -239,13 +239,9 @@ void emit_snap(x86::Assembler &a, int snap, trace_s *trace) {
             ir_to_asmjit[trace->ops[slot.val].reg]);
     }
   }
-  // Pump offset
   // TODO check stack size
-  // Store frame
-  // Adjust pc
-  a.mov(x86::r15, x86::ptr(x86::rsp, 0, 8));
-  // TODO
-  a.mov(x86::ptr(x86::r15, 0, 8), snap);
+  // Save snap number for potential exit
+  a.mov(x86::r15, snap);
 }
 
 JitRuntime rt;
@@ -528,6 +524,10 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
 
   a.bind(exit_label);
 
+  // Save snap number, currently in r15.
+  a.mov(x86::rax, x86::r15);
+  a.mov(x86::r15, x86::ptr(x86::rsp, 0, 8));
+  a.mov(x86::ptr(x86::r15, 0, 8), x86::rax);
   // Put return value in rax, jmp to exit stub.
   a.mov(x86::rax, trace);
   a.mov(x86::r15, uint64_t(jit_exit_stub));

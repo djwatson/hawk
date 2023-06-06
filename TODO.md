@@ -1,3 +1,9 @@
+# working on
+
+* remove snap_emit for exits (but not loop)
+  restore them from C.
+* Work on branching snaps.  Should fix tak.
+
 # TODO list
 
 * chudnovsky /pi need bignum
@@ -46,6 +52,7 @@
 * comments in output
 
 # JIT TODO:
+
 * Figure out why jloop records fail in replay/asm_x64???
 * figure out why non-looping ack fails with 1 trace
     * it's because we save the frame state for looping, 
