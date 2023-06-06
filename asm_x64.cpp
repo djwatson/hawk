@@ -15,6 +15,10 @@
 #include <capstone/capstone.h>
 #include <valgrind/valgrind.h>
 
+#include <map>
+std::vector<std::pair<uint64_t, uint64_t>>
+serialize_parallel_copy(std::multimap<uint64_t, uint64_t> &moves,
+                        uint64_t tmp_reg);
 using namespace asmjit;
 
 void disassemble(const uint8_t *code, int len) {
@@ -207,6 +211,16 @@ __attribute__((naked)) jit_exit_stub() {
 	     : );
 }
 
+int find_reg_for_slot(int slot, snap_s* snap, trace_s* trace) {
+  for(auto& s:snap->slots) {
+    if (s.slot == slot) {
+      assert(s.val < IR_CONST_BIAS);
+      return trace->ops[s.val].reg;
+    }
+  }
+  assert(false);
+}
+
 void emit_snap(x86::Assembler &a, int snap, trace_s *trace) {
   auto &sn = trace->snaps[snap];
   // TODO frame size check
@@ -214,7 +228,7 @@ void emit_snap(x86::Assembler &a, int snap, trace_s *trace) {
     if (slot.val & IR_CONST_BIAS) {
       auto c = trace->consts[slot.val - IR_CONST_BIAS];
       // assert((c&SNAP_FRAME) < 32000);
-      printf("MOV %lx\n", c & ~SNAP_FRAME);
+      //printf("MOV %lx\n", c & ~SNAP_FRAME);
       a.mov(x86::r15, c & ~SNAP_FRAME);
       a.mov(x86::ptr(x86::rdi, slot.slot * 8, 8), x86::r15);
     } else {
@@ -235,7 +249,7 @@ void emit_snap(x86::Assembler &a, int snap, trace_s *trace) {
 }
 
 JitRuntime rt;
-void asm_jit(trace_s *trace, snap_s *side_exit) {
+void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
   // Runtime designed for JIT - it holds relocated functions and controls their
   // lifetime.
 
@@ -278,13 +292,32 @@ void asm_jit(trace_s *trace, snap_s *side_exit) {
   }
   long cur_snap = 0;
 
-  long op_cnt = 0;
   printf("--------------------------------\n");
-  for (auto &op : trace->ops) {
+  size_t op_cnt = 0;
+  // Parallel move all the 'sloads'
+  std::multimap<uint64_t, uint64_t> moves;
+  for (; op_cnt < trace->ops.size(); op_cnt++) {
+    auto&op = trace->ops[op_cnt];
+    // TODO parent type
+    if (op.op != ir_ins_op::SLOAD || op.type&IR_INS_TYPE_GUARD) {
+      break;
+    }
+    moves.insert(std::make_pair(find_reg_for_slot(op.op1, side_exit, parent), op.reg));
+  }
+  auto res = serialize_parallel_copy(moves, 12 /* r15 */);
+  printf("Parellel copy:\n");
+  for(auto&mov: moves) {
+    printf(" %li to %li\n", mov.first, mov.second);
+  }
+  printf("----------------\n");
+  for(auto&mov : res) {
+    a.mov(ir_to_asmjit[mov.second], ir_to_asmjit[mov.first]);
+  }
+  for (; op_cnt < trace->ops.size(); op_cnt++) {
+    auto&op = trace->ops[op_cnt];
     while (trace->snaps[cur_snap + 1].ir <= op_cnt) {
       cur_snap++;
     }
-    op_cnt++;
     switch (op.op) {
     case ir_ins_op::SLOAD: {
       // frame is RDI
