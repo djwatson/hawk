@@ -198,8 +198,11 @@ __attribute__((naked)) jit_entry_stub(long **o_frame, unsigned int **o_pc, Func 
 static unsigned long
 __attribute__((noinline))
 __attribute__((naked)) jit_exit_stub() {
-	     // pop &pc, pop &frame, pop callee-saved.
+  // Save frame ptr (rdi)
+  // pop &pc, pop &frame, pop callee-saved.
   asm inline(".intel_syntax\n"
+	     "mov r15, [rsp+8]\n"
+	     "mov [r15], rdi\n"
 	     "pop r15\n"
 	     "pop r15\n"
 	     "pop r15\n"
@@ -238,10 +241,7 @@ void emit_snap(x86::Assembler &a, int snap, trace_s *trace) {
   }
   // Pump offset
   // TODO check stack size
-  a.add(x86::rdi, sn.offset * 8);
   // Store frame
-  a.mov(x86::r15, x86::ptr(x86::rsp, 8, 8));
-  a.mov(x86::ptr(x86::r15, 0, 8), x86::rdi);
   // Adjust pc
   a.mov(x86::r15, x86::ptr(x86::rsp, 0, 8));
   // TODO
@@ -275,10 +275,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       BaseAssembler::ValidationOptions::kValidationOptionAssembler |
       BaseAssembler::ValidationOptions::kValidationOptionIntermediate);
 
-  if (side_exit) {
-    a.sub(x86::rdi, side_exit->offset * 8);
-  }
-  
   Label loop_label = a.newLabel();
   bool use_loop = false;
   Label sl = a.newLabel();
@@ -506,6 +502,10 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
   printf("--------------------------------\n");
   emit_snap(a, trace->snaps.size() - 1, trace);
   if (trace->link != -1) {
+    auto &last_snap = trace->snaps[trace->snaps.size()-1];
+    if (last_snap.offset) {
+      a.add(x86::rdi, last_snap.offset * 8);
+    }
     auto otrace = trace_cache_get(trace->link);
     if (otrace != trace) {
       a.mov(x86::r15, uint64_t(otrace->fn));
@@ -516,7 +516,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       // FIXME
       a.jmp(sl);
     }
-    a.jmp(exit_label);
   } else {
     a.jmp(exit_label);
   }
@@ -589,9 +588,12 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   // TODO exit is probably wrong if side trace
   auto snap = &trace->snaps[exit];
   (*o_pc) = snap->pc;
-  auto func = find_func_for_frame(snap->pc);
-  assert(func);
-  // printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
+  if (snap->offset) {
+     (*o_frame) += snap->offset;
+  }
+  // auto func = find_func_for_frame(snap->pc);
+  // assert(func);
+  //  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
 
   if (exit != trace->snaps.size() - 1) {
     if (snap->exits < 10) {
