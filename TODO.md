@@ -1,8 +1,6 @@
 # working on
 
-* get looper working with branch snaps in sum.scm - loop snaps *always* need phi slots?
 * put first couple args in regs (any sloads at top)
-* load return slot only once somehow.  SLOAD -1, or RLOAD, or something.
 
 # TODO list
 
@@ -72,6 +70,9 @@
   * we should be able to coalesce arg typechecks if they are the same.
   * Maybe a speical SLOAD EQ for RET instead, since we don't need to typecheck
   * Typechecks need a rethink - we can special case some stuff like eq?/eqv?, merge typechecks, etc.
+  * load return slot only once somehow.  SLOAD -1, or RLOAD, or something.
+      Only seems to matter for long strings of returns.  It should be in cache anyway, and we have to load
+	  it at least once.
   
 * merge record_run and jit_run exit stub
 * All of 'RECORD' probably needs type tests when we access frame.

@@ -11,6 +11,9 @@ void opt_loop(trace_s * trace, int* regs) {
   auto cut = trace->ops.size();
   auto snap_cut = trace->snaps.size();
   uint16_t replace[cut*2+1];
+  for(unsigned i = 0; i < cut*2+1; i++) {
+    replace[i] = i;
+  }
 
   {
     ir_ins ins;
@@ -22,6 +25,7 @@ void opt_loop(trace_s * trace, int* regs) {
   std::vector<size_t> phis;
   unsigned long cur_snap = 0;
   for(size_t i = 0; i < cut + 1; i++) {
+    // Emit phis last.
     if (i == cut) {
       for(size_t j = 0; j < phis.size(); j++) {
 	ir_ins ins;
@@ -35,9 +39,9 @@ void opt_loop(trace_s * trace, int* regs) {
 	trace->ops.push_back(ins);
       }
     }
+    // Emit snaps, including any final snaps.
     while((cur_snap < trace->snaps.size()) && (trace->snaps[cur_snap].ir == i)) {
       auto &snap = trace->snaps[cur_snap];
-      printf("SNAP %i\n", snap.ir);
 
       if (cur_snap != 0) {
 	snap_s nsnap;
@@ -46,14 +50,36 @@ void opt_loop(trace_s * trace, int* regs) {
 	nsnap.offset = snap.offset;
 	nsnap.exits = 0;
 	nsnap.link = -1;
-	for(auto&entry : snap.slots) {
+	// Emit loopsnap - all final loop snapshots are carried through loop
+	auto& loopsnap = trace->snaps[snap_cut-1];
+	for(auto&entry : loopsnap.slots) {
 	  if(entry.val < IR_CONST_BIAS) {
 	    nsnap.slots.push_back({entry.slot, replace[entry.val]});
 	  } else {
 	    nsnap.slots.push_back(entry);
 	  }
 	}
-      trace->snaps.push_back(nsnap);
+	// Emit in-loop snaps.  Merge with 
+	for(auto&entry : snap.slots) {
+	  snap_entry_s new_entry;
+	  if(entry.val < IR_CONST_BIAS) {
+	    new_entry = {entry.slot, replace[entry.val]};
+	  } else {
+	    new_entry = entry;
+	  }
+	  bool done = false;
+	  for(auto&nentry : nsnap.slots) {
+	    if (nentry.slot == new_entry.slot) {
+	      nentry.val = new_entry.val;
+	      done = true;
+	      break;
+	    }
+	  }
+	  if (!done) {
+	    nsnap.slots.push_back(new_entry);
+	  }
+	}
+	trace->snaps.push_back(nsnap);
       }
       
       cur_snap++;
