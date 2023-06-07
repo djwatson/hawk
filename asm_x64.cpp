@@ -311,9 +311,13 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       a.mov(reg, x86::ptr(x86::rdi, op.op1 * 8, 8));
       if (op.type & IR_INS_TYPE_GUARD) {
         a.mov(x86::r15, reg);
-        a.and_(x86::r15, 0x7);
-        a.cmp(x86::r15, op.type & ~IR_INS_TYPE_GUARD);
-        a.jne(snap_labels[cur_snap]);
+	if ((op.type &~IR_INS_TYPE_GUARD ) == 0) {
+	  a.test(x86::r15, 0x7);
+	} else {
+	  a.and_(x86::r15, 0x7);
+	  a.cmp(x86::r15, op.type & ~IR_INS_TYPE_GUARD);
+	}
+	a.jne(snap_labels[cur_snap]);
       }
       break;
     }
@@ -431,8 +435,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
         long v = trace->consts[op.op2 - IR_CONST_BIAS];
         if (v < 32000) {
           assert(!(op.op1 & IR_CONST_BIAS));
-          a.mov(x86::r15, v);
-          a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], x86::r15);
+          a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], uint32_t(v));
         } else {
           assert(false);
         }
