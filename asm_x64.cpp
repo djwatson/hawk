@@ -580,9 +580,9 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   auto snap = &trace->snaps[exit];
 
   restore_snap(snap, trace, &exit_state_save, o_frame, o_pc);
-  // auto func = find_func_for_frame(snap->pc);
-  // assert(func);
-  //  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
+  auto func = find_func_for_frame(snap->pc);
+  assert(func);
+   printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
 
   if (exit != trace->snaps.size() - 1) {
     if (snap->exits < 10) {

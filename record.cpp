@@ -319,12 +319,13 @@ int record_instr(unsigned int *pc, long *frame) {
         }
         downrec.push_back(pc);
 
+        auto result = record_stack_load(INS_A(i), frame);
         // Guard down func type
         add_snap(regs_list, regs - regs_list - 1, trace, pc);
 
         auto frame_off = INS_A(*(old_pc - 1));
         printf("Continue down recursion, frame offset %i\n", frame_off);
-        auto result = record_stack_load(INS_A(i), frame);
+
         memmove(&regs[frame_off + 1], &regs[0],
                 sizeof(int) * (256 - (frame_off + 1)));
         regs[frame_off] = result;
@@ -473,33 +474,37 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case JISLT: {
-    add_snap(regs_list, regs - regs_list - 1, trace, pc);
     ir_ins ins;
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
     if (frame[INS_B(i)] < frame[INS_C(i)]) {
       ins.op = ir_ins_op::LT;
+      add_snap(regs_list, regs - regs_list - 1, trace, pc + INS_D(*(pc+1)) + 1);
     } else {
       ins.op = ir_ins_op::GE;
+      add_snap(regs_list, regs - regs_list - 1, trace, pc + 2);
     }
     ins.type = IR_INS_TYPE_GUARD;
     trace->ops.push_back(ins);
+    add_snap(regs_list, regs - regs_list - 1, trace, pc);
     break;
   }
   case JISEQ: {
-    add_snap(regs_list, regs - regs_list - 1, trace, pc);
     ir_ins ins;
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
     if (frame[INS_B(i)] == frame[INS_C(i)]) {
       ins.op = ir_ins_op::EQ;
+      add_snap(regs_list, regs - regs_list - 1, trace, pc + INS_D(*(pc+1)) + 1);
     } else {
       ins.op = ir_ins_op::NE;
+      add_snap(regs_list, regs - regs_list - 1, trace, pc + 2);
     }
     ins.type = IR_INS_TYPE_GUARD;
     trace->ops.push_back(ins);
+    add_snap(regs_list, regs - regs_list - 1, trace, pc);
     break;
   }
   case MOV: {
