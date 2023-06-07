@@ -1,8 +1,8 @@
 # working on
 
-* remove snap_emit for exits (but not loop)
-  restore them from C.
-* Work on branching snaps.  Should fix tak.
+* get looper working with branch snaps in sum.scm - loop snaps *always* need phi slots?
+* put first couple args in regs (any sloads at top)
+* load return slot only once somehow.  SLOAD -1, or RLOAD, or something.
 
 # TODO list
 
@@ -62,8 +62,6 @@
 * and in replay is borken
   
 * various JIT improvements
-  * fix branching jumps to jump one past.
-  * don't save/restore snap to stack between parent and side trace, reuse regs
   * maybe put first X args in regs automatically for parent trace too?
   * maybe even type check them first?
   * save less in snap
@@ -71,7 +69,6 @@
   * don't need to save func ptr slot for callt or ret if it's the same
   * use RAX for tmp instead of R15 - RAX has shorter ops for MOV, etc
   * Use shorter instruction sequences for small constants
-  * move side exit code to C instead of generated (but need both to gen for side or loop exits)
   * we should be able to coalesce arg typechecks if they are the same.
   * Maybe a speical SLOAD EQ for RET instead, since we don't need to typecheck
   * Typechecks need a rethink - we can special case some stuff like eq?/eqv?, merge typechecks, etc.
