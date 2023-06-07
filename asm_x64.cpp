@@ -180,8 +180,33 @@ public:
 
 
 extern "C" unsigned long jit_entry_stub(long **o_frame, unsigned int **o_pc, Func fptr);
-
 extern "C" unsigned long jit_exit_stub();
+
+struct exit_state {
+  long regs[regcnt];
+  long trace;
+  long snap;
+};
+
+static exit_state exit_state_save;
+
+extern "C" void exit_stub_frame_restore(exit_state* state) {
+  memcpy(&exit_state_save, state, sizeof(exit_state));
+}
+
+void restore_snap(snap_s* snap, trace_s* trace, exit_state *state, long **o_frame, unsigned int **o_pc) {
+  for (auto&slot : snap->slots) {
+    if (slot.val & IR_CONST_BIAS) {
+      auto c = trace->consts[slot.val - IR_CONST_BIAS];
+      (*o_frame)[slot.slot] = c & ~SNAP_FRAME;
+    } else {
+      (*o_frame)[slot.slot] = state->regs[trace->ops[slot.val].reg];
+    }
+  }
+  
+  (*o_pc) = snap->pc;
+  (*o_frame) += snap->offset;
+}
 
 int find_reg_for_slot(int slot, snap_s* snap, trace_s* trace) {
   for(auto& s:snap->slots) {
@@ -486,7 +511,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
   }
   for (unsigned long i = 0; i < trace->snaps.size() - 1; i++) {
     a.bind(snap_labels[i]);
-    emit_snap(a, i, trace);
+    a.mov(x86::r15, i);
     // Funny embed here, so we can patch later.
     a.jmp(x86::ptr(snap_labels_patch[i]));
   }
@@ -494,11 +519,10 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
   a.bind(exit_label);
 
   // Save snap number, currently in r15.
-  a.mov(x86::rax, x86::r15);
-  a.mov(x86::r15, x86::ptr(x86::rsp, 0, 8));
-  a.mov(x86::ptr(x86::r15, 0, 8), x86::rax);
+  a.push(x86::r15);
   // Put return value in rax, jmp to exit stub.
-  a.mov(x86::rax, trace);
+  a.mov(x86::r15, trace);
+  a.push(x86::r15);
   a.mov(x86::r15, uint64_t(jit_exit_stub));
   a.jmp(x86::r15);
 
@@ -547,19 +571,12 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   auto trace = trace_cache_get(tnum);
 
   //printf("FN start %i\n", tnum);
-  //unsigned long exit = trace->fn(o_frame, o_pc);
   auto exit = jit_entry_stub(o_frame, o_pc, trace->fn);
-  // TODO exit holds new trace, o_pc holds exit num
-  // printf("Exit %i %lx %lx\n", (*o_pc), exit, trace);
-  trace = (trace_s *)exit;
-  exit = (long)(*o_pc);
-  // printf("From trace %i\n", trace->num);
-  // TODO exit is probably wrong if side trace
+  trace = (trace_s *)exit_state_save.trace;
+  exit = exit_state_save.snap;
   auto snap = &trace->snaps[exit];
-  (*o_pc) = snap->pc;
-  if (snap->offset) {
-     (*o_frame) += snap->offset;
-  }
+
+  restore_snap(snap, trace, &exit_state_save, o_frame, o_pc);
   // auto func = find_func_for_frame(snap->pc);
   // assert(func);
   //  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());

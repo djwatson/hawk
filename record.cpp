@@ -174,6 +174,10 @@ void record_stop(unsigned int *pc, long *frame, int link) {
     // Attempt to loop-fiy it.
     opt_loop(trace, regs);
   }
+  if (trace->ops.size() <=2 ) {
+    record_abort();
+    return;
+  }
   
   pendpatch();
 
