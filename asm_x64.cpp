@@ -179,40 +179,9 @@ public:
 };
 
 
-static unsigned long
-__attribute__((noinline))
-__attribute__((naked)) jit_entry_stub(long **o_frame, unsigned int **o_pc, Func fptr) {
-  asm inline(".intel_syntax\n"
-	     "push rbx\n"
-	     "push r12\n"
-	     "push r13\n"
-	     "push r14\n"
-	     "push r15\n"
-	     "push rdi\n"
-	     "push rsi\n"
-	     "mov rdi, [rdi]\n"
-	     "jmp rdx\n"
-	     : );
-}
+extern "C" unsigned long jit_entry_stub(long **o_frame, unsigned int **o_pc, Func fptr);
 
-static unsigned long
-__attribute__((noinline))
-__attribute__((naked)) jit_exit_stub() {
-  // Save frame ptr (rdi)
-  // pop &pc, pop &frame, pop callee-saved.
-  asm inline(".intel_syntax\n"
-	     "mov r15, [rsp+8]\n"
-	     "mov [r15], rdi\n"
-	     "pop r15\n"
-	     "pop r15\n"
-	     "pop r15\n"
-	     "pop r14\n"
-	     "pop r13\n"
-	     "pop r12\n"
-	     "pop rbx\n"
-	     "ret\n"
-	     : );
-}
+extern "C" unsigned long jit_exit_stub();
 
 int find_reg_for_slot(int slot, snap_s* snap, trace_s* trace) {
   for(auto& s:snap->slots) {
