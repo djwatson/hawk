@@ -222,11 +222,12 @@ uint16_t find_reg_for_slot(int slot, snap_s* snap, trace_s* trace) {
   assert(false);
 }
 
-void emit_snap(x86::Assembler &a, int snap, trace_s *trace) {
+void emit_snap(x86::Assembler &a, int snap, trace_s *trace, bool all) {
+  printf("EMITSNAP: all %i\n", all);
   auto &sn = trace->snaps[snap];
   // TODO frame size check
   for (auto &slot : sn.slots) {
-    if (slot.slot >= sn.offset) {
+    if (!all && (slot.slot >= sn.offset)) {
       break;
     }
     if (slot.val & IR_CONST_BIAS) {
@@ -514,13 +515,13 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
     a.jmp(loop_label);
   }
   printf("--------------------------------\n");
-  emit_snap(a, trace->snaps.size() - 1, trace);
   if (trace->link != -1) {
+    auto otrace = trace_cache_get(trace->link);
+    emit_snap(a, trace->snaps.size() - 1, trace, (INS_OP(otrace->startpc)!=FUNC));
     auto &last_snap = trace->snaps[trace->snaps.size()-1];
     if (last_snap.offset) {
       a.add(x86::rdi, last_snap.offset * 8);
     }
-    auto otrace = trace_cache_get(trace->link);
     // Parallel move if there are args
     {
       std::multimap<uint64_t, uint64_t> moves;
@@ -562,6 +563,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       a.jmp(sl);
     }
   } else {
+    emit_snap(a, trace->snaps.size() - 1, trace, true);
     a.jmp(exit_label);
   }
   for (unsigned long i = 0; i < trace->snaps.size() - 1; i++) {
@@ -639,9 +641,9 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   auto snap = &trace->snaps[exit];
 
   restore_snap(snap, trace, &exit_state_save, o_frame, o_pc);
-  auto func = find_func_for_frame(snap->pc);
-  assert(func);
-   printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
+  // auto func = find_func_for_frame(snap->pc);
+  // assert(func);
+  //  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
 
   if (exit != trace->snaps.size() - 1) {
     if (snap->exits < 10) {

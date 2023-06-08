@@ -175,7 +175,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
     // Attempt to loop-fiy it.
     opt_loop(trace, regs);
   }
-  if (trace->ops.size() <=2 ) {
+  if (trace->ops.size() <=3 ) {
     record_abort();
     return;
   }
@@ -295,7 +295,7 @@ int record_instr(unsigned int *pc, long *frame) {
   }
   case FUNC: {
     if (trace->ops.size() == 0) {
-      for(unsigned arg = 1; arg < INS_A(*pc); arg++) {
+      for(unsigned arg = 0; arg < INS_A(*pc); arg++) {
 	ir_ins ins;
 	ins.reg = REG_NONE;
 	ins.op1 = arg;
