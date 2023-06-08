@@ -7,6 +7,7 @@
 * make make notes where ARG vs SLOAD
 * better closure analysis for empty closure var
 * SLOADS need a parent bit in OP2 instead of checking for guard
+* ARGS on jit_entry need typecheck (and should already be checked on loop?)
 
 # TODO list
 
@@ -66,9 +67,8 @@
 * and in replay is borken
   
 * various JIT improvements
-  * maybe put first X args in regs automatically for parent trace too?
-  * maybe even type check them first?
-  * save less in snap
+  * 'loop' can know exact arguments in regs?  Or just not loopify at all?
+  * save less in snap - dead elimination, read-only
   * closures can be exact in snap and constants
   * don't need to save func ptr slot for callt or ret if it's the same
   * use RAX for tmp instead of R15 - RAX has shorter ops for MOV, etc
@@ -79,14 +79,13 @@
   * load return slot only once somehow.  SLOAD -1, or RLOAD, or something.
       Only seems to matter for long strings of returns.  It should be in cache anyway, and we have to load
 	  it at least once.
+  * GC needs a rethink for jit. GGET/GSET/KONST only I think? KFUNC?
+  * something something about GGET checks for func calls carried in snaps?
   
 * merge record_run and jit_run exit stub
 * All of 'RECORD' probably needs type tests when we access frame.
 
-* BROKEN keeps jitting even on jfunc.  Should hotmap on func instead of call?
-* fix snap saves for branches, don't merge with 0, bump one past.
-
-* need to purge snap to minimum entries.
+* need to purge snap to minimum entries. - kinda done, maybe a 'readonly' slot.  ONLY for sload, not ARG.
 
 * do better recursion 
   * maybe flush traces (recursively) if we find a new up or down recursive trace

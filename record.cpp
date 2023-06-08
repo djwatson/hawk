@@ -670,6 +670,7 @@ int record_instr(unsigned int *pc, long *frame) {
       return 1;
     } else {
       printf("Record stop hit JLOOP\n");
+      // NOTE: stack load is for ret1 jloop returns.  Necessary?
       regs[INS_A(i)] = record_stack_load(INS_A(i), frame);
       record_stop(pc, frame, INS_B(i));
       return 1;
