@@ -226,7 +226,9 @@ void emit_snap(x86::Assembler &a, int snap, trace_s *trace) {
   auto &sn = trace->snaps[snap];
   // TODO frame size check
   for (auto &slot : sn.slots) {
-    if (slot.slot >= sn.offset) break;
+    if (slot.slot >= sn.offset) {
+      break;
+    }
     if (slot.val & IR_CONST_BIAS) {
       auto c = trace->consts[slot.val - IR_CONST_BIAS];
       // assert((c&SNAP_FRAME) < 32000);
@@ -234,8 +236,17 @@ void emit_snap(x86::Assembler &a, int snap, trace_s *trace) {
       a.mov(x86::r15, c & ~SNAP_FRAME);
       a.mov(x86::ptr(x86::rdi, slot.slot * 8, 8), x86::r15);
     } else {
-      a.mov(x86::ptr(x86::rdi, slot.slot * 8, 8),
-            ir_to_asmjit[trace->ops[slot.val].reg]);
+      auto&op = trace->ops[slot.val];
+      // TODO RET check, can't emit past RETS
+      if ((op.op == ir_ins_op::SLOAD &&
+	   (op.type & IR_INS_TYPE_GUARD)) && 
+	  op.op1 == slot.slot && slot.slot < sn.offset) {
+	printf("DROPPING emit snap of slot %i\n", slot.slot);
+	// nothing
+      } else {
+	a.mov(x86::ptr(x86::rdi, slot.slot * 8, 8),
+	      ir_to_asmjit[op.reg]);
+      }
     }
   }
   // TODO check stack size
