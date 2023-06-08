@@ -1,6 +1,12 @@
 # working on
 
-* put first couple args in regs (any sloads at top)
+* emit_sload optimization: have to check for RET
+* opt_loop: deal with ARG
+* folding GGET: put in emit somewhere, check for GSET
+* Merge parent SLOADS if they are the same value.
+* make make notes where ARG vs SLOAD
+* better closure analysis for empty closure var
+* SLOADS need a parent bit in OP2 instead of checking for guard
 
 # TODO list
 

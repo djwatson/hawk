@@ -532,17 +532,30 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case GGET: {
+    // TODO GSET
     long gp = (const_table[INS_D(i)] - SYMBOL_TAG);
-    auto knum = trace->consts.size();
-    trace->consts.push_back(gp);
-    ir_ins ins;
-    ins.reg = REG_NONE;
-    ins.op1 = knum | IR_CONST_BIAS;
-    ins.op = ir_ins_op::GGET;
-    ins.type = IR_INS_TYPE_GUARD | (((symbol *)gp)->val & 0x7);
     auto reg = INS_A(i);
-    regs[reg] = trace->ops.size();
-    trace->ops.push_back(ins);
+    bool done = false;
+    for(int j = trace->ops.size() - 1; j >=0; j--) {
+      auto&op = trace->ops[j];
+      if (op.op == ir_ins_op::GGET &&
+	  trace->consts[op.op1-IR_CONST_BIAS] == gp) {
+	done = true;
+	regs[reg] = j;
+	break;
+      }
+    }
+    if (!done) {
+      auto knum = trace->consts.size();
+      trace->consts.push_back(gp);
+      ir_ins ins;
+      ins.reg = REG_NONE;
+      ins.op1 = knum | IR_CONST_BIAS;
+      ins.op = ir_ins_op::GGET;
+      ins.type = IR_INS_TYPE_GUARD | (((symbol *)gp)->val & 0x7);
+      regs[reg] = trace->ops.size();
+      trace->ops.push_back(ins);
+    }
     break;
   }
   case SUBVN: {
