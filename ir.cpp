@@ -16,6 +16,7 @@ const char* ir_names[] = {
   "RET  ",
   "CALL ",
   "SLOAD",
+  "ARG  ",
 
   "ADD  ",
   "SUB  ",

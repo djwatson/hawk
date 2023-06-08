@@ -98,6 +98,7 @@ void dump_trace(trace_s *ctrace) {
     printf("%s ", ir_names[(int)op.op]);
     switch (op.op) {
     case ir_ins_op::KFIX:
+    case ir_ins_op::ARG:
     case ir_ins_op::SLOAD: {
       print_const_or_val(op.op1, ctrace);
       break;
@@ -289,8 +290,25 @@ int record_instr(unsigned int *pc, long *frame) {
          INS_C(i));
   switch (INS_OP(i)) {
   case LOOP:
-  case CLFUNC:
+  case CLFUNC: {
+    break;
+  }
   case FUNC: {
+    if (trace->ops.size() == 0) {
+      for(unsigned arg = 1; arg < INS_A(*pc); arg++) {
+	ir_ins ins;
+	ins.reg = REG_NONE;
+	ins.op1 = arg;
+	ins.op = ir_ins_op::ARG;
+	// Guard on type
+	auto type = frame[arg] & 0x7;
+	ins.type = type;
+
+	regs[arg] = trace->ops.size();
+	trace->ops.push_back(ins);
+
+      }
+    }
     // TODO: argcheck?
     break;
   }

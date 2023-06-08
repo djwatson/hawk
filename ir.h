@@ -22,6 +22,7 @@ enum class ir_ins_op : uint8_t {
   RET,
   CALL,
   SLOAD,
+  ARG,
 
   ADD,
   SUB,

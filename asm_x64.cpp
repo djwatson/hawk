@@ -132,6 +132,7 @@ void assign_registers(trace_s *trace) {
     }
 
     switch (op.op) {
+    case ir_ins_op::ARG:
     case ir_ins_op::SLOAD:
       break;
       case ir_ins_op::PHI:
@@ -175,18 +176,19 @@ public:
   void handleError(Error err, const char *message,
                    BaseEmitter *origin) override {
     printf("AsmJit error: %s\n", message);
+    assert(false);
   }
 };
 
-
-extern "C" unsigned long jit_entry_stub(long **o_frame, unsigned int **o_pc, Func fptr);
-extern "C" unsigned long jit_exit_stub();
 
 struct exit_state {
   long regs[regcnt];
   long trace;
   long snap;
 };
+
+extern "C" unsigned long jit_entry_stub(long **o_frame, unsigned int **o_pc, Func fptr, long *regs);
+extern "C" unsigned long jit_exit_stub();
 
 static exit_state exit_state_save;
 
@@ -208,10 +210,12 @@ void restore_snap(snap_s* snap, trace_s* trace, exit_state *state, long **o_fram
   (*o_frame) += snap->offset;
 }
 
-int find_reg_for_slot(int slot, snap_s* snap, trace_s* trace) {
+uint16_t find_reg_for_slot(int slot, snap_s* snap, trace_s* trace) {
   for(auto& s:snap->slots) {
     if (s.slot == slot) {
-      assert(s.val < IR_CONST_BIAS);
+      if (s.val >= IR_CONST_BIAS) {
+	return s.val;
+      }
       return trace->ops[s.val].reg;
     }
   }
@@ -222,6 +226,7 @@ void emit_snap(x86::Assembler &a, int snap, trace_s *trace) {
   auto &sn = trace->snaps[snap];
   // TODO frame size check
   for (auto &slot : sn.slots) {
+    if (slot.slot >= sn.offset) break;
     if (slot.val & IR_CONST_BIAS) {
       auto c = trace->consts[slot.val - IR_CONST_BIAS];
       // assert((c&SNAP_FRAME) < 32000);
@@ -281,23 +286,25 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
   printf("--------------------------------\n");
   size_t op_cnt = 0;
   // Parallel move all the 'sloads'
-  std::multimap<uint64_t, uint64_t> moves;
-  for (; op_cnt < trace->ops.size(); op_cnt++) {
-    auto&op = trace->ops[op_cnt];
-    // TODO parent type
-    if (op.op != ir_ins_op::SLOAD || op.type&IR_INS_TYPE_GUARD) {
-      break;
+  {
+    std::multimap<uint64_t, uint64_t> moves;
+    for (; op_cnt < trace->ops.size(); op_cnt++) {
+      auto&op = trace->ops[op_cnt];
+      // TODO parent type
+      if (op.op != ir_ins_op::SLOAD || op.type&IR_INS_TYPE_GUARD) {
+	break;
+      }
+      moves.insert(std::make_pair(find_reg_for_slot(op.op1, side_exit, parent), op.reg));
     }
-    moves.insert(std::make_pair(find_reg_for_slot(op.op1, side_exit, parent), op.reg));
-  }
-  auto res = serialize_parallel_copy(moves, 12 /* r15 */);
-  printf("Parellel copy:\n");
-  for(auto&mov: moves) {
-    printf(" %li to %li\n", mov.first, mov.second);
-  }
-  printf("----------------\n");
-  for(auto&mov : res) {
-    a.mov(ir_to_asmjit[mov.second], ir_to_asmjit[mov.first]);
+    auto res = serialize_parallel_copy(moves, 12 /* r15 */);
+    printf("Parellel copy:\n");
+    for(auto&mov: moves) {
+      printf(" %li to %li\n", mov.first, mov.second);
+    }
+    printf("----------------\n");
+    for(auto&mov : res) {
+      a.mov(ir_to_asmjit[mov.second], ir_to_asmjit[mov.first]);
+    }
   }
   for (; op_cnt < trace->ops.size(); op_cnt++) {
     auto&op = trace->ops[op_cnt];
@@ -305,6 +312,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       cur_snap++;
     }
     switch (op.op) {
+    case ir_ins_op::ARG: {
+      break;
+    }
     case ir_ins_op::SLOAD: {
       // frame is RDI
       auto reg = ir_to_asmjit[op.reg];
@@ -500,6 +510,37 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       a.add(x86::rdi, last_snap.offset * 8);
     }
     auto otrace = trace_cache_get(trace->link);
+    // Parallel move if there are args
+    {
+      std::multimap<uint64_t, uint64_t> moves;
+      std::vector<std::pair<int, uint16_t>> consts;
+      for (size_t op_cnt2 = 0; op_cnt2 < otrace->ops.size(); op_cnt2++) {
+	auto&op = otrace->ops[op_cnt2];
+	// TODO parent type
+	if (op.op != ir_ins_op::ARG) {
+	  break;
+	}
+	auto oldreg = find_reg_for_slot(op.op1 + last_snap.offset, &last_snap, trace);
+	if (oldreg >= IR_CONST_BIAS) {
+	  consts.push_back(std::make_pair(op.reg, oldreg));
+	} else {
+	  moves.insert(std::make_pair(oldreg, op.reg));
+	}
+      }
+      auto res = serialize_parallel_copy(moves, 12 /* r15 */);
+      printf("Parellel copy:\n");
+      for(auto&mov: moves) {
+	printf(" %li to %li\n", mov.first, mov.second);
+      }
+      printf("----------------\n");
+      for(auto&mov : res) {
+	a.mov(ir_to_asmjit[mov.second], ir_to_asmjit[mov.first]);
+      }
+      for(auto&c : consts) {
+	auto con = trace->consts[c.second - IR_CONST_BIAS];
+	a.mov(ir_to_asmjit[c.first], con & ~SNAP_FRAME);
+      }
+    }
     if (otrace != trace) {
       a.mov(x86::r15, uint64_t(otrace->fn));
       a.jmp(x86::r15);
@@ -573,8 +614,15 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
             long *frame_top) {
   auto trace = trace_cache_get(tnum);
 
+  for(auto&op : trace->ops) {
+    if (op.op != ir_ins_op::ARG) {
+      break;
+    }
+    exit_state_save.regs[op.reg] = (*o_frame)[op.op1];
+  }
+
   //printf("FN start %i\n", tnum);
-  auto exit = jit_entry_stub(o_frame, o_pc, trace->fn);
+  auto exit = jit_entry_stub(o_frame, o_pc, trace->fn, exit_state_save.regs);
   trace = (trace_s *)exit_state_save.trace;
   exit = exit_state_save.snap;
   auto snap = &trace->snaps[exit];
