@@ -195,6 +195,7 @@ void record_start(unsigned int *pc, long *frame) {
 }
 
 extern int joff;
+extern unsigned TRACE_MAX;
 
 void record_stop(unsigned int *pc, long *frame, int link) {
   auto offset = regs - regs_list - 1;
@@ -203,7 +204,9 @@ void record_stop(unsigned int *pc, long *frame, int link) {
     // Attempt to loop-fiy it.
     // opt_loop(trace, regs);
   }
+
   if (trace->ops.size() <= 3) {
+    printf("Record abort: trace too small\n");
     record_abort();
     return;
   }
@@ -247,7 +250,7 @@ void record_abort() {
 }
 
 int record(unsigned int *pc, long *frame, long argcnt) {
-  if (traces.size() >= 200) {
+  if (traces.size() >= TRACE_MAX) {
     return 1;
   }
   switch (trace_state) {
@@ -364,7 +367,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         }
         if (cnt != 0) {
           if (side_exit != nullptr) {
-            printf("Potential down-recursion, restarting\n");
+            printf("Record abort: Potential down-recursion, restarting\n");
             record_abort();
             record_start(pc, frame);
             record_instr(pc, frame, 0);
@@ -404,7 +407,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         ins.type = IR_INS_TYPE_GUARD | 0x5;
         trace->ops.push_back(ins);
 
-        add_snap(regs_list, regs - regs_list - 1, trace, pc);
+        add_snap(regs_list, regs - regs_list - 1, trace, (uint32_t*)frame[-1]);
         // TODO retdepth
       } else {
         printf("Record stop return\n");
@@ -486,8 +489,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       }
       // TODO this isn't in luajit? fails with side exit without?
       hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
+      printf("Record abort: unroll limit reached\n");
       record_abort();
-      printf("Record abort unroll limit reached\n");
       return 1;
     }
     break;
@@ -802,7 +805,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case JLOOP: {
     if (side_exit == nullptr) {
-      printf("Record stop root trace hit loop\n");
+      printf("Record abort: root trace hit loop\n");
       record_abort();
       return 1;
     }
@@ -813,15 +816,15 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     return 1;
   }
   default: {
-    printf("NYI: CANT RECORD BYTECODE %s\n", ins_names[INS_OP(i)]);
+    printf("Record abort: NYI: CANT RECORD BYTECODE %s\n", ins_names[INS_OP(i)]);
     record_abort();
     return 1;
     // exit(-1);
   }
   }
   if (instr_count > 5000) {
+    printf("Record abort: due to length\n");
     record_abort();
-    printf("Record abort due to length\n");
     return 1;
   }
   // if (depth <= -3) {
@@ -831,8 +834,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   // TODO check chain for down-recursion
   // TODO this should check regs depth
   if (depth >= 100) {
+    printf("Record abort: (stack too deep)\n");
     record_abort();
-    printf("Record abort (stack too deep)\n");
     return 1;
   }
   return 0;

@@ -14,24 +14,29 @@ struct bcfunc;
 extern int joff;
 
 static struct option long_options[] = {
-    {"profile", no_argument, nullptr, 'p'}, {"joff", no_argument, nullptr, 'o'},
-    {"help", no_argument, nullptr, 'h'},    {"list", no_argument, nullptr, 'l'},
+    {"profile", no_argument, nullptr, 'p'},
+    {"joff", no_argument, nullptr, 'o'},
+    {"help", no_argument, nullptr, 'h'},
+    {"list", no_argument, nullptr, 'l'},
+    {"max-trace", required_argument, nullptr, 'm'},
     {nullptr, no_argument, nullptr, 0},
 };
 
 void print_help() {
   printf("Usage: boom [OPTION]\n");
   printf("Available options are:\n");
-  printf("      --joff\tTurn off jit\n");
-  printf("  -l, --list\tList bytecode and stop\n");
-  printf("  -p, --profile\tSampling profiler\n");
-  printf("  -h, --help\tPrint this help\n");
+  printf("      --joff     \tTurn off jit\n");
+  printf("  -l, --list     \tList bytecode and stop\n");
+  printf("  -p, --profile  \tSampling profiler\n");
+  printf("  -m, --max-trace\tStop JITting after # trace\n");
+  printf("  -h, --help     \tPrint this help\n");
 }
 
 unsigned char __attribute__((weak)) bootstrap_scm_bc[0];
 unsigned int __attribute__((weak)) bootstrap_scm_bc_len = 0;
 
 static bool list = false;
+unsigned TRACE_MAX = 255;
 
 // Call in to the compiled bytecode function (define (compile-file file) ...)
 void compile_file(const char *file) {
@@ -71,6 +76,10 @@ int main(int argc, char *argv[]) {
       break;
     case 'l':
       list = true;
+      break;
+    case 'm':
+      TRACE_MAX = atoi(optarg);
+      printf("MAX TRACE is %i\n", TRACE_MAX);
       break;
     default:
       print_help();
