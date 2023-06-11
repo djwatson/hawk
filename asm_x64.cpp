@@ -225,6 +225,13 @@ uint16_t find_reg_for_slot(int slot, snap_s* snap, trace_s* trace) {
 void emit_snap(x86::Assembler &a, int snap, trace_s *trace, bool all) {
   printf("EMITSNAP: all %i\n", all);
   auto &sn = trace->snaps[snap];
+  int last_ret = -1;
+  for(int i = sn.ir; i >= 0; i--) {
+    if (trace->ops[i].op == ir_ins_op::RET) {
+      last_ret = i;
+      break;
+    }
+  }
   // TODO frame size check
   for (auto &slot : sn.slots) {
     if (!all && (slot.slot >= sn.offset)) {
@@ -239,7 +246,8 @@ void emit_snap(x86::Assembler &a, int snap, trace_s *trace, bool all) {
     } else {
       auto&op = trace->ops[slot.val];
       // TODO RET check, can't emit past RETS
-      if ((op.op == ir_ins_op::SLOAD &&
+      if (slot.val > last_ret &&
+	  (op.op == ir_ins_op::SLOAD &&
 	   (op.type & IR_INS_TYPE_GUARD)) && 
 	  op.op1 == slot.slot && slot.slot < sn.offset) {
 	printf("DROPPING emit snap of slot %i\n", slot.slot);
