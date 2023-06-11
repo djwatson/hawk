@@ -20,6 +20,9 @@ option(JIT "Enable JIT" OFF)
 # the profiler is optional
 option(PROFILER "Enable PROFILER" OFF)
 
+# enable the replay IR test framework
+option(REPLAY "Enable REPLAY test framework" OFF)
+
 # Find a suitable scheme for bootstrapping.
 # Chez and chicken have been tested, it's likely most r5rs (+ write-u8) compatible
 # schemes will work with minor changes.
@@ -51,6 +54,10 @@ endif(JIT)
 if (PROFILER)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPROFILER")
 endif(PROFILER)
+if (REPLAY)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DREPLAY")
+  set(SOURCES ${SOURCES} replay.cpp)
+endif(REPLAY)
 add_executable(boom ${SOURCES} )
 
 

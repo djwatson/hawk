@@ -88,27 +88,29 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
 
 int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
                long *frame_top) {
+  int loop_pc = -1;
 again:
   auto trace = trace_cache_get(tnum);
-  printf("Run trace %i\n", tnum);
-  printf("Frame %li %li %li\n", (*o_frame)[0] >> 3, (*o_frame)[1] >> 3,
-         (*o_frame)[1] >> 3);
+  // printf("Run trace %i\n", tnum);
+  // printf("Frame %li %li %li\n", (*o_frame)[0] >> 3, (*o_frame)[1] >> 3,
+  //        (*o_frame)[1] >> 3);
 
   unsigned int pc = 0;
   std::vector<long> res;
   res.resize(trace->ops.size());
-
+looped:
   long *frame = *o_frame;
 
   while (pc < trace->ops.size()) {
     auto &ins = trace->ops[pc];
-    printf("Replay pc %i %s %i %i\n", pc, ir_names[(int)ins.op], ins.op1,
-           ins.op2);
-    for (unsigned i = 0; i < pc; i++) {
-      printf("%i: %lx ", i, res[i]);
-    }
-    printf("\n");
+    // printf("Replay pc %i %s %i %i\n", pc, ir_names[(int)ins.op], ins.op1,
+    //        ins.op2);
+    // for (unsigned i = 0; i < pc; i++) {
+    //   printf("%i: %lx ", i, res[i]);
+    // }
+    // printf("\n");
     switch (ins.op) {
+    case ir_ins_op::ARG:
     case ir_ins_op::SLOAD: {
       auto v = frame[ins.op1];
       res_store(res, pc, trace->ops, v);
@@ -212,6 +214,17 @@ again:
       pc++;
       break;
     }
+    case ir_ins_op::LOOP: {
+      pc++;
+      loop_pc = pc;
+      break;
+    }
+    case ir_ins_op::PHI: {
+      auto v = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
+      res_store(res, pc, trace->ops, v);
+      pc++;
+      break;
+    }
     default: {
       printf("Unknown replay op: %s\n", ir_names[(int)ins.op]);
       exit(-1);
@@ -225,6 +238,15 @@ again:
     if (trace->link != -1) {
       // printf("Snap link %i\n", trace->link);
       //  do NOT adjust frame jumping back to a root trace.
+      if (loop_pc != -1) {
+	pc = loop_pc;
+	for(int i = trace->ops.size()-1; i >= 0; i--) {
+	  auto &op = trace->ops[i];
+	  if (op.op != ir_ins_op::PHI) break;
+	  res[op.op1] = res[i];
+	}
+	goto looped;
+      }
       tnum = trace->link;
       goto again;
     }

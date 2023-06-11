@@ -8,7 +8,9 @@
 #include "bytecode.h"
 #include "gc.h"
 #include "record.h"
+#ifdef REPLAY
 #include "replay.h"
+#endif
 #include "symbol_table.h"
 #include "types.h"
 #include "vm.h"
@@ -609,9 +611,12 @@ LIBRARY_FUNC_D(JFUNC)
   // auto tnum = instr;
   //  printf("JFUNC/JLOOP run %i\n", tnum);
 //  printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
-//auto res = record_run(rd, &pc, &frame, frame_top);
+#ifdef REPLAY
+auto res = record_run(rd, &pc, &frame, frame_top);
+#else
 auto res = jit_run(rd, &pc, &frame, frame_top);
-//int res = 0;
+#endif
+
   frame_top = stack + stacksz;
   // printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
   if (unlikely(res)) {
