@@ -89,6 +89,7 @@ void opt_loop(trace_s * trace, int* regs) {
     }
     auto& ins = trace->ops[i];
     switch (ins.op) {
+    case ir_ins_op::ARG:
     case ir_ins_op::SLOAD: {
       assert(regs[ins.op1] >= 0);
       replace[i] = regs[ins.op1];

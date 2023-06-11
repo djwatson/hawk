@@ -1,6 +1,5 @@
 # working on
 
-* opt_loop: deal with ARG
 * folding GGET: put in emit somewhere, check for GSET
 * Merge parent SLOADS if they are the same value.
 * make make notes where ARG vs SLOAD
