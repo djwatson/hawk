@@ -48,7 +48,7 @@ set(SOURCES readbc.cpp bytecode.cpp vm.o boom.cpp  ir.cpp types.cpp bootstrap.cp
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
-  set(SOURCES ${SOURCES} snap.cpp replay.cpp asm_x64.cpp asm_x64_stubs.S jitdump.cpp record.cpp)
+  set(SOURCES ${SOURCES} snap.cpp replay.cpp asm_x64.cpp asm_x64_stubs.S jitdump.cpp record.cpp emit_x64.c)
   set(LIBRARIES ${LIBRARIES} "asmjit" "capstone")
 endif(JIT)
 if (PROFILER)
