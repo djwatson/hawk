@@ -173,7 +173,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   add_snap(regs_list, offset, trace, pc);
   if(link == (int)traces.size() && offset == 0) {
     // Attempt to loop-fiy it.
-    opt_loop(trace, regs);
+    //opt_loop(trace, regs);
   }
   if (trace->ops.size() <=3 ) {
     record_abort();
@@ -298,21 +298,21 @@ int record_instr(unsigned int *pc, long *frame) {
     break;
   }
   case FUNC: {
-    if (trace->ops.size() == 0) {
-      for(unsigned arg = 0; arg < INS_A(*pc); arg++) {
-	ir_ins ins;
-	ins.reg = REG_NONE;
-	ins.op1 = arg;
-	ins.op = ir_ins_op::ARG;
-	// Guard on type
-	auto type = frame[arg] & 0x7;
-	ins.type = type;
+    // if (trace->ops.size() == 0) {
+    //   for(unsigned arg = 0; arg < INS_A(*pc); arg++) {
+    // 	ir_ins ins;
+    // 	ins.reg = REG_NONE;
+    // 	ins.op1 = arg;
+    // 	ins.op = ir_ins_op::ARG;
+    // 	// Guard on type
+    // 	auto type = frame[arg] & 0x7;
+    // 	ins.type = type;
 
-	regs[arg] = trace->ops.size();
-	trace->ops.push_back(ins);
+    // 	regs[arg] = trace->ops.size();
+    // 	trace->ops.push_back(ins);
 
-      }
-    }
+    //   }
+    //}
     // TODO: argcheck?
     break;
   }
@@ -439,7 +439,7 @@ int record_instr(unsigned int *pc, long *frame) {
       auto target = &cfunc->code[0];
       if (target == pc_start) {
         printf("Record stop up-recursion\n");
-        record_stop(pc, frame, traces.size());
+        record_stop(target, frame, traces.size());
         return 1;
       } else {
         // TODO fix flush

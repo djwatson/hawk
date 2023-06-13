@@ -234,9 +234,9 @@ void emit_snap(x86::Assembler &a, int snap, trace_s *trace, bool all) {
   }
   // TODO frame size check
   for (auto &slot : sn.slots) {
-    if (!all && (slot.slot >= sn.offset)) {
-      break;
-    }
+    // if (!all && (slot.slot >= sn.offset)) {
+    //   break;
+    // }
     if (slot.val & IR_CONST_BIAS) {
       auto c = trace->consts[slot.val - IR_CONST_BIAS];
       // assert((c&SNAP_FRAME) < 32000);
@@ -259,8 +259,6 @@ void emit_snap(x86::Assembler &a, int snap, trace_s *trace, bool all) {
     }
   }
   // TODO check stack size
-  // Save snap number for potential exit
-  a.mov(x86::r15, snap);
 }
 
 JitRuntime rt;
@@ -523,7 +521,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
     a.jmp(loop_label);
   }
   printf("--------------------------------\n");
-  if (trace->link != -1) {
+  if (false && trace->link != -1) {
     auto otrace = trace_cache_get(trace->link);
     emit_snap(a, trace->snaps.size() - 1, trace, (INS_OP(otrace->startpc)!=FUNC));
     auto &last_snap = trace->snaps[trace->snaps.size()-1];
@@ -571,7 +569,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       a.jmp(sl);
     }
   } else {
-    emit_snap(a, trace->snaps.size() - 1, trace, true);
+    a.mov(x86::r15, trace->snaps.size() - 1);
     a.jmp(exit_label);
   }
   for (unsigned long i = 0; i < trace->snaps.size() - 1; i++) {

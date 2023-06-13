@@ -4,8 +4,9 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 
-static uint8_t *mtop;
-static uint8_t *p;
+static uint8_t *mtop = NULL;
+static uint8_t *mend = NULL;
+static uint8_t *p = NULL;
 
 static const size_t page_cnt = 1000;
 static const size_t msize = page_cnt * 4096;
@@ -218,14 +219,20 @@ void emit_check() {
 }
 
 void emit_init() {
+  if (mtop) {
+    return;
+  }
+  
   mtop = (uint8_t *)mmap(NULL, msize, PROT_READ | PROT_WRITE | PROT_EXEC,
                          MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   assert(mtop);
   p = mtop + msize;
+  mend = p;
 }
 
 void emit_cleanup() { munmap(mtop, msize); }
 
+/*
 int main() {
   emit_init();
   auto end = emit_offset();
@@ -235,7 +242,7 @@ int main() {
   //emit_mov64(RAX, 101);
 
   //emit_imm32(101);
-  //*(--p) = 0xb8 | RAX;
+  // *(--p) = 0xb8 | RAX;
 
   long foo = 101;
   emit_imm64((int64_t)&foo);
@@ -253,3 +260,4 @@ int main() {
   
   return 0;
 }
+*/
