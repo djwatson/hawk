@@ -40,9 +40,15 @@ void emit_imm32(int32_t imm) {
 }
 
 void emit_mov64(uint8_t r, int64_t imm) {
-  emit_imm64(imm);
-  *(--p) = 0xb8 | (0x7 & r);
-  emit_rex(1, 0, 0, r >> 3);
+  if ((int64_t)((int32_t)imm) != imm) {
+    emit_imm64(imm);
+    *(--p) = 0xb8 | (0x7 & r);
+    emit_rex(1, 0, 0, r >> 3);
+  } else {
+    emit_imm32(imm);
+    *(--p) = 0xb8 | (0x7 & r);
+    emit_rex(0, 0, 0, r >> 3);
+  }
 }
 
 void emit_call_indirect(uint8_t r) {
@@ -60,10 +66,13 @@ void emit_call32(int32_t offset) {
 void emit_ret() { *(--p) = 0xc3; }
 
 void emit_cmp_reg_imm32(uint8_t r, int32_t imm) {
-  emit_imm32(imm);
-  emit_modrm(0x3, 0x7, 0x7 & r);
-  *(--p) = 0x81;
-  emit_rex(1, 0, 0, r >> 3);
+  if ((int32_t)((int8_t)imm) != imm) {
+    emit_imm32(imm);
+    emit_reg_reg(0x81, 7, r);
+  } else {
+    *(--p) = imm;
+    emit_reg_reg(0x83, 7, r);
+  }
 }
 
 void emit_cmp_reg_reg(uint8_t src, uint8_t dst) {
@@ -75,9 +84,14 @@ void emit_cmp_reg_reg(uint8_t src, uint8_t dst) {
 
 // TODO: could test for short offset
 void emit_jcc32(enum jcc_cond cond, int32_t offset) {
-  emit_imm32(offset);
-  *(--p) = cond;
-  *(--p) = 0x0f;
+  if ((int32_t)((int8_t)offset) == offset) {
+    *(--p) = (int8_t)offset;
+    *(--p) = cond - 0x10;
+  } else {
+    emit_imm32(offset);
+    *(--p) = cond;
+    *(--p) = 0x0f;
+  }
 }
 
 void emit_jmp32(int32_t offset) {
@@ -94,7 +108,9 @@ void emit_jmp_indirect(int32_t offset) {
 void emit_jmp_abs(enum registers r) {
   emit_modrm(0x3, 4, 0x7 & r);
   *(--p) = 0xff;
-  emit_rex(0, 0, 0, r >> 3);
+  if (r>>3) {
+    emit_rex(0, 0, 0, r >> 3);
+  }
 }
 
 void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst) {
@@ -105,9 +121,15 @@ void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst) {
 
 void emit_mem_reg_sib(uint8_t opcode, int32_t offset, uint8_t scale,
                       uint8_t index, uint8_t base, uint8_t reg) {
-  emit_imm32(offset);
-  emit_sib(scale, index, base);
-  emit_modrm(0x2, 0x7 & reg, 0x4);
+  if ((int32_t)((int8_t)offset) == offset) {
+    *(--p) = (int8_t)offset;
+    emit_sib(scale, index, base);
+    emit_modrm(0x1, 0x7 & reg, 0x4);
+  } else {
+    emit_imm32(offset);
+    emit_sib(scale, index, base);
+    emit_modrm(0x2, 0x7 & reg, 0x4);
+  }
   *(--p) = opcode;
   emit_rex(1, reg >> 3, index >> 3, base >> 3);
 }
@@ -116,8 +138,13 @@ void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
   if ((0x7 & r1) == RSP) {
     emit_mem_reg_sib(opcode, offset, 0, r1, r1, r2);
   } else {
-    emit_imm32(offset);
-    emit_modrm(0x2, 0x7 & r2, 0x7 & r1);
+    if ((int32_t)((int8_t)offset) == offset) {
+      *(--p) = (int8_t)offset;
+      emit_modrm(0x1, 0x7 & r2, 0x7 & r1);
+    } else {
+      emit_imm32(offset);
+      emit_modrm(0x2, 0x7 & r2, 0x7 & r1);
+    }
     *(--p) = opcode;
     emit_rex(1, r2 >> 3, 0, r1 >> 3);
   }
@@ -133,21 +160,31 @@ void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm) {
 
 // TODO: could test for smaller immediates.
 void emit_add_imm32(uint8_t src, int32_t imm) {
-  emit_imm32(imm);
-  emit_reg_reg(0x81, 0, src);
+  if ((int32_t)((int8_t)imm) != imm) {
+    emit_imm32(imm);
+    emit_reg_reg(0x81, 0, src);
+  } else {
+    *(--p) = imm;
+    emit_reg_reg(0x83, 0, src);
+  }	 
 }
 
 void emit_sub_imm32(uint8_t src, int32_t imm) {
-  emit_imm32(imm);
-  emit_reg_reg(0x81, 5, src);
+  if ((int32_t)((int8_t)imm) != imm) {
+    emit_imm32(imm);
+    emit_reg_reg(0x81, 5, src);
+  } else {
+    *(--p) = imm;
+    emit_reg_reg(0x83, 5, src);
+  }
 }
 
 // TODO: these could be short form.
 void emit_push(uint8_t r) {
-  //emit_modrm(0x3, 6, 0x7 & r);
-  //*(--p) = 0xff;
   *(--p) = 0x50 + (0x7&r);
-  emit_rex(0, 0, 0, r >> 3);
+  if (r >> 3) {
+    emit_rex(0, 0, 0, r >> 3);
+  }
 }
 
 void emit_pop(uint8_t r) {

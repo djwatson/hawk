@@ -49,7 +49,7 @@ set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
   set(SOURCES ${SOURCES} snap.cpp replay.cpp asm_x64.cpp asm_x64_stubs.S jitdump.cpp record.cpp emit_x64.c)
-  set(LIBRARIES ${LIBRARIES} "asmjit" "capstone")
+  set(LIBRARIES ${LIBRARIES} "capstone")
 endif(JIT)
 if (PROFILER)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPROFILER")
