@@ -436,7 +436,26 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       } else {
         auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
         auto reg2 = ir_to_jit[trace->ops[op.op2].reg];
-	emit_reg_reg(OP_CMP, reg2, reg1);
+	emit_reg_reg(OP_CMP, reg1, reg2);
+      }
+      break;
+    }
+    case ir_ins_op::LT: {
+      assert(!(op.op1 & IR_CONST_BIAS));
+      emit_jcc32(JGE, snap_labels[cur_snap] - emit_offset());
+      if (op.op2 & IR_CONST_BIAS) {
+        long v = trace->consts[op.op2 - IR_CONST_BIAS];
+        if ((v & 0xffffffff) == 0) {
+	  emit_cmp_reg_imm32(ir_to_jit[trace->ops[op.op1].reg], v);
+	  //emit_op_imm32(OP_CMP_IMM, 7, ir_to_jit[trace->ops[op.op1].reg], v);
+        } else {
+	  emit_reg_reg(OP_CMP, ir_to_jit[trace->ops[op.op1].reg], R15);
+	  emit_mov64(R15, v);
+        }
+      } else {
+        auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
+        auto reg2 = ir_to_jit[trace->ops[op.op2].reg];
+	emit_reg_reg(OP_CMP, reg1, reg2);
       }
       break;
     }
