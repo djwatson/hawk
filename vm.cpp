@@ -609,7 +609,7 @@ LIBRARY_FUNC_BC_LOAD(APPLY)
 
 LIBRARY_FUNC_D(JFUNC)
   // auto tnum = instr;
-  //  printf("JFUNC/JLOOP run %i\n", tnum);
+  //  printf("JFUNC/JLOOP run %i\n", rd);
 //  printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
 #ifdef REPLAY
 auto res = record_run(rd, &pc, &frame, frame_top);

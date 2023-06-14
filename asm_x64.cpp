@@ -430,7 +430,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
 	  emit_cmp_reg_imm32(ir_to_jit[trace->ops[op.op1].reg], v);
 	  //emit_op_imm32(OP_CMP_IMM, 7, ir_to_jit[trace->ops[op.op1].reg], v);
         } else {
-          assert(false);
+	  emit_reg_reg(OP_CMP, ir_to_jit[trace->ops[op.op1].reg], R15);
+	  emit_mov64(R15, v);
         }
       } else {
         auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
@@ -497,7 +498,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
     }
     default: {
       printf("Can't jit op: %s\n", ir_names[(int)op.op]);
-      break;
       exit(-1);
     }
     }
