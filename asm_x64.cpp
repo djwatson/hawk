@@ -12,7 +12,6 @@
 #include "record.h"
 #include "vm.h"
 
-//#include <asmjit/asmjit.h>
 #include "emit_x64.h"
 #include <capstone/capstone.h>
 #include <valgrind/valgrind.h>
@@ -21,7 +20,6 @@
 std::vector<std::pair<uint64_t, uint64_t>>
 serialize_parallel_copy(std::multimap<uint64_t, uint64_t> &moves,
                         uint64_t tmp_reg);
-//using namespace asmjit;
 
 void disassemble(const uint8_t *code, int len) {
   csh handle;
@@ -66,24 +64,6 @@ const char *reg_names[] = {
   "   ",
 };
 
-// x86::Gp ir_to_asmjit[] = {
-//   x86::rax,
-//   x86::rbx,
-//   x86::rcx,
-//   x86::rdx,
-//   x86::rsi,
-//   x86::r8,
-//   x86::r9,
-//   x86::r10,
-//   x86::r11,
-//   x86::r12,
-//   x86::r13,
-//   x86::r14,
-//   x86::r15,
-//   x86::rdi,
-//   x86::rbp,
-//   x86::rsp,
-// };
 uint8_t ir_to_jit[] = {
   RAX,
   RBX,
@@ -330,6 +310,37 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       emit_add_imm32(RDI, last_snap.offset * 8);
     }
     
+//     // Parallel move if there are args
+//     {
+//       std::multimap<uint64_t, uint64_t> moves;
+//       std::vector<std::pair<int, uint16_t>> consts;
+//       for (size_t op_cnt2 = 0; op_cnt2 < otrace->ops.size(); op_cnt2++) {
+// 	auto&op = otrace->ops[op_cnt2];
+// 	// TODO parent type
+// 	if (op.op != ir_ins_op::ARG) {
+// 	  break;
+// 	}
+// 	auto oldreg = find_reg_for_slot(op.op1 + last_snap.offset, &last_snap, trace);
+// 	if (oldreg >= IR_CONST_BIAS) {
+// 	  consts.push_back(std::make_pair(op.reg, oldreg));
+// 	} else {
+// 	  moves.insert(std::make_pair(oldreg, op.reg));
+// 	}
+//       }
+//       auto res = serialize_parallel_copy(moves, 12 /* r15 */);
+//       printf("Parellel copy:\n");
+//       for(auto&mov: moves) {
+// 	printf(" %li to %li\n", mov.first, mov.second);
+//       }
+//       printf("----------------\n");
+//       for(auto&mov : res) {
+// 	a.mov(ir_to_asmjit[mov.second], ir_to_asmjit[mov.first]);
+//       }
+//       for(auto&c : consts) {
+// 	auto con = trace->consts[c.second - IR_CONST_BIAS];
+// 	a.mov(ir_to_asmjit[c.first], con & ~SNAP_FRAME);
+//       }
+//     }
     emit_snap(trace->snaps.size() - 1, trace, (INS_OP(otrace->startpc)!=FUNC));
   } else {
     // No link, jump back to interpreter loop.
@@ -383,6 +394,31 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       emit_mov64(reg, (int64_t)&sym->val);
       break;
     }
+//     case ir_ins_op::CLT: {
+//       assert(!(op.op1 & IR_CONST_BIAS));
+//       auto reg = ir_to_asmjit[op.reg];
+//       // beware of colision with one of the other regs
+//       auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
+//       if (op.op2 & IR_CONST_BIAS) {
+//         long v = trace->consts[op.op2 - IR_CONST_BIAS];
+//         assert(v < 32000);
+//         a.cmp(reg1, v);
+//       } else {
+//         auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
+//         a.cmp(reg1, reg2);
+//       }
+//       // Zero the reg without touching flags.
+//       // Note reg may be the same as reg1 or reg2,
+//       // so we can't xor first.
+//       //a.lea(reg, x86::ptr_abs(0));
+//       //a.setl(reg.r8Lo());
+      
+//       a.mov(reg, FALSE_REP);
+//       a.mov(x86::r15, TRUE_REP);
+//       a.cmovl(reg, x86::r15);
+//       //      a.shl(reg, 3); // TODO
+//       break;
+//     }
     case ir_ins_op::EQ: {
       assert(!(op.op1 & IR_CONST_BIAS));
       emit_jcc32(JNE, snap_labels[cur_snap] - emit_offset());
@@ -501,6 +537,20 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       }
       break;
     }
+//     case ir_ins_op::LOOP: {
+//       printf("------------LOOP-------------\n");
+//       a.bind(loop_label);
+//       use_loop = true;
+//       break;
+//     }
+//     case ir_ins_op::PHI: {
+//       auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
+//       auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
+//       if(reg1 != reg2) {
+// 	a.mov(reg1, reg2);
+//       }
+//       break;
+//     }
     case ir_ins_op::RET: {
       auto retadd = trace->consts[op.op1 - IR_CONST_BIAS] - SNAP_FRAME;
       auto b = trace->consts[op.op2 - IR_CONST_BIAS];
@@ -568,372 +618,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
   VALGRIND_DISCARD_TRANSLATIONS(fn, len);
 }
 
-// JitRuntime rt;
-// void asm_jit2(trace_s *trace, snap_s *side_exit, trace_s* parent) {
-//   // Runtime designed for JIT - it holds relocated functions and controls their
-//   // lifetime.
-
-//   // Holds code and relocation information during code generation.
-//   CodeHolder code;
-
-//   FileLogger logger(stdout);
-
-//   // Code holder must be initialized before it can be used. The simples way to
-//   // initialize it is to use 'Environment' from JIT runtime, which matches the
-//   // target architecture, operating system, ABI, and other important properties.
-//   code.init(rt.environment());
-//   code.setLogger(&logger);
-//   MyErrorHandler myErrorHandler;
-//   code.setErrorHandler(&myErrorHandler);
-
-//   // Emitters can emit code to CodeHolder - let's create 'x86::Assembler', which
-//   // can emit either 32-bit (x86) or 64-bit (x86_64) code. The following line
-//   // also attaches the assembler to CodeHolder, which calls 'code.attach(&a)'
-//   // implicitly.
-//   x86::Assembler a(&code);
-//   a.addValidationOptions(
-//       BaseAssembler::ValidationOptions::kValidationOptionAssembler |
-//       BaseAssembler::ValidationOptions::kValidationOptionIntermediate);
-
-//   Label loop_label = a.newLabel();
-//   bool use_loop = false;
-//   Label sl = a.newLabel();
-//   Label exit_label = a.newLabel();
-//   a.bind(sl);
-//   Label snap_labels[trace->snaps.size() - 1];
-//   Label snap_labels_patch[trace->snaps.size() - 1];
-//   for (unsigned long i = 0; i < trace->snaps.size() - 1; i++) {
-//     snap_labels[i] = a.newLabel();
-//     snap_labels_patch[i] = a.newLabel();
-//   }
-//   long cur_snap = 0;
-
-//   printf("--------------------------------\n");
-//   size_t op_cnt = 0;
-//   // Parallel move all the 'sloads'
-//   {
-//     std::multimap<uint64_t, uint64_t> moves;
-//     for (; op_cnt < trace->ops.size(); op_cnt++) {
-//       auto&op = trace->ops[op_cnt];
-//       // TODO parent type
-//       if (op.op != ir_ins_op::SLOAD || op.type&IR_INS_TYPE_GUARD) {
-// 	break;
-//       }
-//       moves.insert(std::make_pair(find_reg_for_slot(op.op1, side_exit, parent), op.reg));
-//     }
-//     auto res = serialize_parallel_copy(moves, 12 /* r15 */);
-//     printf("Parellel copy:\n");
-//     for(auto&mov: moves) {
-//       printf(" %li to %li\n", mov.first, mov.second);
-//     }
-//     printf("----------------\n");
-//     for(auto&mov : res) {
-//       a.mov(ir_to_asmjit[mov.second], ir_to_asmjit[mov.first]);
-//     }
-//   }
-//   for (; op_cnt < trace->ops.size(); op_cnt++) {
-//     auto&op = trace->ops[op_cnt];
-//     while (trace->snaps[cur_snap + 1].ir <= op_cnt) {
-//       cur_snap++;
-//     }
-//     switch (op.op) {
-//     case ir_ins_op::ARG: {
-//       break;
-//     }
-//     case ir_ins_op::SLOAD: {
-//       // frame is RDI
-//       auto reg = ir_to_asmjit[op.reg];
-//       a.mov(reg, x86::ptr(x86::rdi, op.op1 * 8, 8));
-//       if (op.type & IR_INS_TYPE_GUARD) {
-//         a.mov(x86::r15, reg);
-// 	if ((op.type &~IR_INS_TYPE_GUARD ) == 0) {
-// 	  a.test(x86::r15, 0x7);
-// 	} else {
-// 	  a.and_(x86::r15, 0x7);
-// 	  a.cmp(x86::r15, op.type & ~IR_INS_TYPE_GUARD);
-// 	}
-// 	a.jne(snap_labels[cur_snap]);
-//       }
-//       break;
-//     }
-//     case ir_ins_op::GGET: {
-//       symbol *sym = (symbol *)trace->consts[op.op1 - IR_CONST_BIAS];
-//       auto reg = ir_to_asmjit[op.reg];
-//       a.mov(reg, &sym->val);
-//       a.mov(reg, x86::ptr(reg, 0, 8));
-//       if (op.type & IR_INS_TYPE_GUARD) {
-//         a.mov(x86::r15, reg);
-//         a.and_(x86::r15, 0x7);
-//         a.cmp(x86::r15, op.type & ~IR_INS_TYPE_GUARD);
-//         a.jne(snap_labels[cur_snap]);
-//       }
-//       break;
-//     }
-//     case ir_ins_op::SUB: {
-//       auto reg = ir_to_asmjit[op.reg];
-//       auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
-//       a.mov(reg, reg1);
-//       assert(!(op.op1 & IR_CONST_BIAS));
-//       if (op.op2 & IR_CONST_BIAS) {
-//         long v = trace->consts[op.op2 - IR_CONST_BIAS];
-//         if (v < 32000) {
-//           a.sub(reg, v);
-//         } else {
-//           assert(false);
-//         }
-//       } else {
-//         auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
-//         a.sub(reg, reg2);
-//       }
-//       a.jo(snap_labels[cur_snap]);
-//       break;
-//     }
-//     case ir_ins_op::ADD: {
-//       assert(!(op.op1 & IR_CONST_BIAS));
-//       auto reg = ir_to_asmjit[op.reg];
-//       auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
-//       a.mov(reg, reg1);
-//       if (op.op2 & IR_CONST_BIAS) {
-//         long v = trace->consts[op.op2 - IR_CONST_BIAS];
-//         if (v < 32000) {
-//           a.add(reg, v);
-//         } else {
-//           assert(false);
-//         }
-//       } else {
-//         a.add(reg, ir_to_asmjit[trace->ops[op.op2].reg]);
-//       }
-//       a.jo(snap_labels[cur_snap]);
-//       break;
-//     }
-//     case ir_ins_op::GE: {
-//       assert(!(op.op1 & IR_CONST_BIAS));
-//       if (op.op2 & IR_CONST_BIAS) {
-//         long v = trace->consts[op.op2 - IR_CONST_BIAS];
-//         if (v < 32000) {
-//           a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], v);
-//         } else {
-//           assert(false);
-//         }
-//       } else {
-//         auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
-//         auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
-//         a.cmp(reg1, reg2);
-//       }
-//       a.jl(snap_labels[cur_snap]);
-//       break;
-//     }
-//     case ir_ins_op::LT: {
-//       assert(!(op.op1 & IR_CONST_BIAS));
-//       if (op.op2 & IR_CONST_BIAS) {
-//         long v = trace->consts[op.op2 - IR_CONST_BIAS];
-//         if (v < 32000) {
-//           a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], v);
-//         } else {
-//           assert(false);
-//         }
-//       } else {
-//         auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
-//         auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
-//         a.cmp(reg1, reg2);
-//       }
-//       a.jge(snap_labels[cur_snap]);
-//       break;
-//     }
-//     case ir_ins_op::CLT: {
-//       assert(!(op.op1 & IR_CONST_BIAS));
-//       auto reg = ir_to_asmjit[op.reg];
-//       // beware of colision with one of the other regs
-//       auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
-//       if (op.op2 & IR_CONST_BIAS) {
-//         long v = trace->consts[op.op2 - IR_CONST_BIAS];
-//         assert(v < 32000);
-//         a.cmp(reg1, v);
-//       } else {
-//         auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
-//         a.cmp(reg1, reg2);
-//       }
-//       // Zero the reg without touching flags.
-//       // Note reg may be the same as reg1 or reg2,
-//       // so we can't xor first.
-//       //a.lea(reg, x86::ptr_abs(0));
-//       //a.setl(reg.r8Lo());
-      
-//       a.mov(reg, FALSE_REP);
-//       a.mov(x86::r15, TRUE_REP);
-//       a.cmovl(reg, x86::r15);
-//       //      a.shl(reg, 3); // TODO
-//       break;
-//     }
-//     case ir_ins_op::NE: {
-//       if (op.op2 & IR_CONST_BIAS) {
-//         long v = trace->consts[op.op2 - IR_CONST_BIAS];
-//         if (v < 32000) {
-//           assert(!(op.op1 & IR_CONST_BIAS));
-//           a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], uint32_t(v));
-//         } else {
-//           assert(false);
-//         }
-//       } else {
-//         assert(false);
-//       }
-//       a.je(snap_labels[cur_snap]);
-//       break;
-//     }
-//     case ir_ins_op::EQ: {
-//       assert(!(op.op1 & IR_CONST_BIAS));
-//       if (op.op2 & IR_CONST_BIAS) {
-//         long v = trace->consts[op.op2 - IR_CONST_BIAS];
-//         if (v < 32000) {
-//           a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], v);
-//         } else {
-//           a.mov(x86::r15, v);
-//           a.cmp(ir_to_asmjit[trace->ops[op.op1].reg], x86::r15);
-//         }
-//         a.jne(snap_labels[cur_snap]);
-//       } else {
-//         assert(false);
-//       }
-//       break;
-//     }
-//     case ir_ins_op::RET: {
-//       auto retadd = trace->consts[op.op1 - IR_CONST_BIAS] - SNAP_FRAME;
-//       auto b = trace->consts[op.op2 - IR_CONST_BIAS];
-//       a.mov(x86::r15, retadd);
-//       a.cmp(x86::r15, x86::ptr(x86::rdi, -1 * 8, 8));
-//       a.jne(snap_labels[cur_snap]);
-//       a.sub(x86::rdi, b);
-//       break;
-//     }
-//     case ir_ins_op::LOOP: {
-//       printf("------------LOOP-------------\n");
-//       a.bind(loop_label);
-//       use_loop = true;
-//       break;
-//     }
-//     case ir_ins_op::PHI: {
-//       auto reg1 = ir_to_asmjit[trace->ops[op.op1].reg];
-//       auto reg2 = ir_to_asmjit[trace->ops[op.op2].reg];
-//       if(reg1 != reg2) {
-// 	a.mov(reg1, reg2);
-//       }
-//       break;
-//     }
-//     default:
-//       printf("Can't jit op: %s\n", ir_names[(int)op.op]);
-//       exit(-1);
-//     }
-//   }
-//   if (use_loop) {
-//     a.jmp(loop_label);
-//   }
-//   printf("--------------------------------\n");
-//   if (false && trace->link != -1) {
-//     auto otrace = trace_cache_get(trace->link);
-//     emit_snap(a, trace->snaps.size() - 1, trace, (INS_OP(otrace->startpc)!=FUNC));
-//     auto &last_snap = trace->snaps[trace->snaps.size()-1];
-//     if (last_snap.offset) {
-//       a.add(x86::rdi, last_snap.offset * 8);
-//     }
-//     // Parallel move if there are args
-//     {
-//       std::multimap<uint64_t, uint64_t> moves;
-//       std::vector<std::pair<int, uint16_t>> consts;
-//       for (size_t op_cnt2 = 0; op_cnt2 < otrace->ops.size(); op_cnt2++) {
-// 	auto&op = otrace->ops[op_cnt2];
-// 	// TODO parent type
-// 	if (op.op != ir_ins_op::ARG) {
-// 	  break;
-// 	}
-// 	auto oldreg = find_reg_for_slot(op.op1 + last_snap.offset, &last_snap, trace);
-// 	if (oldreg >= IR_CONST_BIAS) {
-// 	  consts.push_back(std::make_pair(op.reg, oldreg));
-// 	} else {
-// 	  moves.insert(std::make_pair(oldreg, op.reg));
-// 	}
-//       }
-//       auto res = serialize_parallel_copy(moves, 12 /* r15 */);
-//       printf("Parellel copy:\n");
-//       for(auto&mov: moves) {
-// 	printf(" %li to %li\n", mov.first, mov.second);
-//       }
-//       printf("----------------\n");
-//       for(auto&mov : res) {
-// 	a.mov(ir_to_asmjit[mov.second], ir_to_asmjit[mov.first]);
-//       }
-//       for(auto&c : consts) {
-// 	auto con = trace->consts[c.second - IR_CONST_BIAS];
-// 	a.mov(ir_to_asmjit[c.first], con & ~SNAP_FRAME);
-//       }
-//     }
-//     if (otrace != trace) {
-//       a.mov(x86::r15, uint64_t(otrace->fn));
-//       a.jmp(x86::r15);
-//     } else {
-//       // TODO removing this breaks ack
-//       // because 'last framestate doesn't advance pc' per notes.
-//       // FIXME
-//       a.jmp(sl);
-//     }
-//   } else {
-//     a.mov(x86::r15, trace->snaps.size() - 1);
-//     a.jmp(exit_label);
-//   }
-//   for (unsigned long i = 0; i < trace->snaps.size() - 1; i++) {
-//     a.bind(snap_labels[i]);
-//     a.mov(x86::r15, i);
-//     // Funny embed here, so we can patch later.
-//     a.jmp(x86::ptr(snap_labels_patch[i]));
-//   }
-
-//   a.bind(exit_label);
-
-//   // Save snap number, currently in r15.
-//   a.push(x86::r15);
-//   // Put return value in rax, jmp to exit stub.
-//   a.mov(x86::r15, trace);
-//   a.push(x86::r15);
-//   a.mov(x86::r15, uint64_t(jit_exit_stub));
-//   a.jmp(x86::r15);
-
-//   for (unsigned long i = 0; i < trace->snaps.size() - 1; i++) {
-//     a.bind(snap_labels_patch[i]);
-//     trace->snaps[i].patchpoint = a.offset();
-//     a.embedLabel(exit_label, 8);
-//   }
-
-//   auto len = a.offset();
-
-//   // 'x86::Assembler' is no longer needed from here and can be destroyed or
-//   // explicitly detached via 'code.detach(&a)' - which detaches an attached
-//   // emitter from code holder.
-
-//   // Now add the generated code to JitRuntime via JitRuntime::add(). This
-//   // function would copy the code from CodeHolder into memory with executable
-//   // permission and relocate it.
-//   Func fn;
-//   Error err = rt.add(&fn, &code);
-
-//   // It's always a good idea to handle errors, especially those returned from
-//   // the Runtime.
-//   if (err) {
-//     printf("AsmJit failed: %s\n", DebugUtils::errorAsString(err));
-//     exit(-1);
-//     return;
-//   }
-
-//   for (unsigned long i = 0; i < trace->snaps.size() - 1; i++) {
-//     trace->snaps[i].patchpoint += uint64_t(fn);
-//   }
-//   // printf("--------------MCODE---------------\n");
-//   // disassemble((uint8_t *)fn, len);
-//   // printf("----------------------------------\n");
-//   trace->fn = fn;
-//   perf_map(uint64_t(fn), len, std::string("Trace"));
-//   jit_dump(len, uint64_t(fn), std::string("Trace"));
-//   jit_reader_add(len, uint64_t(fn), 0, 0, std::string("Trace"));
-//   VALGRIND_DISCARD_TRANSLATIONS(fn, len);
-// }
 extern unsigned int *patchpc;
 extern unsigned int patchold;
 int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
