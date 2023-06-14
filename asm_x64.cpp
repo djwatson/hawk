@@ -370,9 +370,12 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
     emit_mov64(R15, trace->snaps.size()-1);
   }
 
-  long cur_snap = 0;
+  long cur_snap = trace->snaps.size()-1;
   long op_cnt = trace->ops.size()-1;
   for(; op_cnt >= 0; op_cnt--) {
+    while(trace->snaps[cur_snap].ir > op_cnt) {
+      cur_snap--;
+    }
     auto&op = trace->ops[op_cnt];
     emit_check();
     switch(op.op) {
@@ -390,6 +393,43 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
 	emit_reg_reg(OP_MOV, reg, R15);
       }
       emit_mem_reg(OP_MOV_MR, op.op1 * 8, RDI, reg);
+      break;
+    } 
+    case ir_ins_op::GGET: {
+      symbol *sym = (symbol *)trace->consts[op.op1 - IR_CONST_BIAS];
+      auto reg = ir_to_jit[op.reg];
+      // TODO merge with SLOAD guard
+      if (op.type & IR_INS_TYPE_GUARD) {
+	emit_jcc32(JNE, snap_labels[cur_snap] - emit_offset());
+	if ((op.type &~IR_INS_TYPE_GUARD ) == 0) {
+	  emit_op_imm32(OP_TEST_IMM, 0, R15, 0x7);
+	} else {
+	  emit_cmp_reg_imm32(R15, op.type & ~IR_INS_TYPE_GUARD);
+	  emit_op_imm32(OP_AND_IMM, 4, R15, 0x7);
+	}
+	emit_reg_reg(OP_MOV, reg, R15);
+      }
+      emit_mem_reg(OP_MOV_MR, 0, reg, reg);
+      emit_mov64(reg, (int64_t)&sym->val);
+      break;
+    }
+    case ir_ins_op::EQ: {
+      assert(!(op.op1 & IR_CONST_BIAS));
+      emit_jcc32(JNE, snap_labels[cur_snap] - emit_offset());
+      if (op.op2 & IR_CONST_BIAS) {
+        long v = trace->consts[op.op2 - IR_CONST_BIAS];
+        if ((v & 0xffffffff) == 0) {
+	  emit_cmp_reg_imm32(ir_to_jit[trace->ops[op.op1].reg], v);
+	  //emit_op_imm32(OP_CMP_IMM, 7, ir_to_jit[trace->ops[op.op1].reg], v);
+        } else {
+	  emit_reg_reg(OP_CMP, R15, ir_to_jit[trace->ops[op.op1].reg]);
+	  emit_mov64(R15, v);
+        }
+      } else {
+        auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
+        auto reg2 = ir_to_jit[trace->ops[op.op2].reg];
+	emit_reg_reg(OP_CMP, reg2, reg1);
+      }
       break;
     }
     case ir_ins_op::GE: {

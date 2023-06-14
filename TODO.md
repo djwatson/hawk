@@ -1,5 +1,11 @@
 # working on
 
+* New emitter: fix & 0xffffff to be a real check
+  * maybe fold somehow into emitter
+* cleanup add, sub, cmp, fold together
+* remove register table
+* merge reg alloc in to emit loop
+
 * folding GGET: put in emit somewhere, check for GSET
 * Merge parent SLOADS if they are the same value.
 * make make notes where ARG vs SLOAD
