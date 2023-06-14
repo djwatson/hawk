@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 
+#include "emit_x64.h"
+
 static uint8_t *mtop = NULL;
 static uint8_t *mend = NULL;
 static uint8_t *p = NULL;
@@ -12,25 +14,6 @@ static const size_t page_cnt = 1000;
 static const size_t msize = page_cnt * 4096;
 
 #define auto __auto_type
-
-enum registers {
-  RAX = 0,
-  RCX = 1,
-  RDX = 2,
-  RBX = 3,
-  RSP = 4,
-  RDP = 5,
-  RSI = 6,
-  RDI = 7,
-  R8 = 8,
-  R9 = 9,
-  R10 = 10,
-  R11 = 11,
-  R12 = 12,
-  R13 = 13,
-  R14 = 14,
-  R15 = 15,
-};
 
 /////////////////// instruction encoding
 
@@ -89,38 +72,6 @@ void emit_cmp_reg_reg(uint8_t src, uint8_t dst) {
   emit_rex(1, src >> 3, 0, dst >> 3);
 }
 
-enum jcc_cond {
-  JA = 0x87,
-  JAE = 0x83,
-  JB = 0x82,
-  JBE = 0x84,
-  JC = 0x82,
-  JE = 0x84,
-  JZ = 0x84,
-  JG = 0x8f,
-  JGE = 0x8d,
-  JL = 0x8c,
-  JLE = 0x8e,
-  JNA = 0x86,
-  JNAE = 0x82,
-  JNB = 0x83,
-  JBC = 0x83,
-  JNC = 0x83,
-  JNE = 0x85,
-  JNG = 0x8e,
-  JNGE = 0x8c,
-  JNL = 0x8b,
-  JNLE = 0x8f,
-  JNO = 0x81,
-  JNP = 0x8b,
-  JNS = 0x89,
-  JNZ = 0x85,
-  JO = 0x80,
-  JP = 0x8a,
-  JPE = 0x8a,
-  JPO = 0x8b,
-  JS = 0x88,
-};
 
 // TODO: could test for short offset
 void emit_jcc32(enum jcc_cond cond, int32_t offset) {
@@ -132,6 +83,18 @@ void emit_jcc32(enum jcc_cond cond, int32_t offset) {
 void emit_jmp32(int32_t offset) {
   emit_imm32(offset);
   *(--p) = 0xe9;
+}
+
+void emit_jmp_indirect(int32_t offset) {
+  emit_imm32(offset);
+  emit_modrm(0x0, 4, RBP);
+  *(--p) = 0xff;
+}
+
+void emit_jmp_abs(enum registers r) {
+  emit_modrm(0x3, 4, 0x7 & r);
+  *(--p) = 0xff;
+  emit_rex(0, 0, 0, r >> 3);
 }
 
 void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst) {
@@ -162,17 +125,11 @@ void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
 
 /////////////////// opcodes
 
-enum OPCODES {
-  OP_ADD = 0x01,
-  OP_XCHG = 0x87,
-  OP_MOV = 0x89,
-  OP_MOV_MR = 0x8b,
-  OP_MOV_RM = 0x89,
-  OP_NOP = 0x90,
-  OP_XOR = 0x90,
-  OP_TEST = 0x85,
-  OP_LEA = 0x8d,
-};
+
+void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm) {
+  emit_imm32(imm);
+  emit_reg_reg(opcode, r1, r2);
+}
 
 // TODO: could test for smaller immediates.
 void emit_add_imm32(uint8_t src, int32_t imm) {
@@ -187,9 +144,10 @@ void emit_sub_imm32(uint8_t src, int32_t imm) {
 
 // TODO: these could be short form.
 void emit_push(uint8_t r) {
-  emit_modrm(0x3, 6, 0x7 & r);
-  *(--p) = 0xff;
-  emit_rex(1, 0, 0, r >> 3);
+  //emit_modrm(0x3, 6, 0x7 & r);
+  //*(--p) = 0xff;
+  *(--p) = 0x50 + (0x7&r);
+  emit_rex(0, 0, 0, r >> 3);
 }
 
 void emit_pop(uint8_t r) {
@@ -207,8 +165,18 @@ void emit_cmovl(uint8_t dst, uint8_t src) {
 
 /////////////////// memory
 
-void* emit_offset() {
-  return (void*)p;
+uint64_t emit_offset() {
+  return (uint64_t)p;
+}
+
+void emit_bind(uint64_t label, uint64_t jmp) {
+  assert(jmp);
+  assert(label);
+  int32_t offset = (int64_t)label - (int64_t)jmp;
+  *(int32_t*)(jmp-4) = offset;
+}
+void emit_advance(int64_t offset) {
+  p -= offset;
 }
 
 void emit_check() {

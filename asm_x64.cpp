@@ -12,6 +12,7 @@
 #include "vm.h"
 
 #include <asmjit/asmjit.h>
+#include "emit_x64.h"
 #include <capstone/capstone.h>
 #include <valgrind/valgrind.h>
 
@@ -81,6 +82,24 @@ x86::Gp ir_to_asmjit[] = {
   x86::rdi,
   x86::rbp,
   x86::rsp,
+};
+uint8_t ir_to_jit[] = {
+  RAX,
+  RBX,
+  RCX,
+  RDX,
+  RSI,
+  R8,
+  R9,
+  R10,
+  R11,
+  R12,
+  R13,
+  R14,
+  R15,
+  RDI,
+  RBP,
+  RSP,
 };
 // clang-format on
 
@@ -261,8 +280,237 @@ void emit_snap(x86::Assembler &a, int snap, trace_s *trace, bool all) {
   // TODO check stack size
 }
 
-JitRuntime rt;
+void emit_snap2(int snap, trace_s *trace, bool all) {
+  printf("EMITSNAP: all %i\n", all);
+  auto &sn = trace->snaps[snap];
+  int last_ret = -1;
+  for(int i = sn.ir; i >= 0; i--) {
+    if (trace->ops[i].op == ir_ins_op::RET) {
+      last_ret = i;
+      break;
+    }
+  }
+  // TODO frame size check
+  for (auto &slot : sn.slots) {
+    // if (!all && (slot.slot >= sn.offset)) {
+    //   break;
+    // }
+    if (slot.val & IR_CONST_BIAS) {
+      auto c = trace->consts[slot.val - IR_CONST_BIAS];
+      // assert((c&SNAP_FRAME) < 32000);
+      //printf("MOV %lx\n", c & ~SNAP_FRAME);
+      emit_mem_reg(OP_MOV_RM, slot.slot * 8, RDI, R15);
+      emit_mov64(R15, c & ~SNAP_FRAME);
+    } else {
+      auto&op = trace->ops[slot.val];
+      // TODO RET check, can't emit past RETS
+      if (slot.val > last_ret &&
+	  (op.op == ir_ins_op::SLOAD &&
+	   (op.type & IR_INS_TYPE_GUARD)) && 
+	  op.op1 == slot.slot && slot.slot < sn.offset) {
+	printf("DROPPING emit snap of slot %i\n", slot.slot);
+	// nothing
+      } else {
+	emit_mem_reg(OP_MOV_RM, slot.slot * 8, RDI, ir_to_jit[op.reg]);
+      }
+    }
+  }
+  // TODO check stack size
+}
+
 void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
+  emit_init();
+
+  uint64_t snap_labels[trace->snaps.size()-1];
+
+  auto end = emit_offset();
+
+  emit_jmp_abs(R15);
+  emit_mov64(R15, int64_t(jit_exit_stub));
+  emit_push(R15);
+  emit_mov64(R15, (int64_t)trace);
+  emit_push(R15);
+  
+  auto exit_label = emit_offset();
+
+
+  for (long i = trace->snaps.size() - 1; i >= 0; i--) {
+    // Funny embed here, so we can patch later.
+    //emit_jmp_rel(exit_label - emit_offset());
+    trace->snaps[i].patchpoint = emit_offset();
+    emit_jmp32(exit_label-emit_offset());
+    emit_mov64(R15, i);
+    snap_labels[i] = emit_offset();
+  }
+
+  uint64_t loop_offset_label = 0;
+
+  if (trace->link != -1) {
+    auto otrace = trace_cache_get(trace->link);
+    
+    if (otrace != trace) {
+      emit_jmp_abs(R15);
+      emit_mov64(R15, uint64_t(otrace->fn));
+    } else {
+      // Patched at top.
+      loop_offset_label = emit_offset();
+      emit_jmp32(0);
+    }
+    
+    // // Parallel move if there are args
+    // {
+    //   std::multimap<uint64_t, uint64_t> moves;
+    //   std::vector<std::pair<int, uint16_t>> consts;
+    //   for (size_t op_cnt2 = 0; op_cnt2 < otrace->ops.size(); op_cnt2++) {
+    // 	auto&op = otrace->ops[op_cnt2];
+    // 	// TODO parent type
+    // 	if (op.op != ir_ins_op::ARG) {
+    // 	  break;
+    // 	}
+    // 	auto oldreg = find_reg_for_slot(op.op1 + last_snap.offset, &last_snap, trace);
+    // 	if (oldreg >= IR_CONST_BIAS) {
+    // 	  consts.push_back(std::make_pair(op.reg, oldreg));
+    // 	} else {
+    // 	  moves.insert(std::make_pair(oldreg, op.reg));
+    // 	}
+    //   }
+    //   auto res = serialize_parallel_copy(moves, 12 /* r15 */);
+    //   printf("Parellel copy:\n");
+    //   for(auto&mov: moves) {
+    // 	printf(" %li to %li\n", mov.first, mov.second);
+    //   }
+    //   printf("----------------\n");
+    //   for(auto&mov : res) {
+    // 	a.mov(ir_to_asmjit[mov.second], ir_to_asmjit[mov.first]);
+    //   }
+    //   for(auto&c : consts) {
+    // 	auto con = trace->consts[c.second - IR_CONST_BIAS];
+    // 	a.mov(ir_to_asmjit[c.first], con & ~SNAP_FRAME);
+    //   }
+    // }
+
+    auto &last_snap = trace->snaps[trace->snaps.size()-1];
+    if (last_snap.offset) {
+      emit_add_imm32(RDI, last_snap.offset * 8);
+    }
+    
+    emit_snap2(trace->snaps.size() - 1, trace, (INS_OP(otrace->startpc)!=FUNC));
+  } else {
+    // No link, jump back to interpreter loop.
+    emit_jmp32(exit_label - emit_offset());
+    emit_mov64(R15, trace->snaps.size()-1);
+  }
+
+  long cur_snap = 0;
+  long op_cnt = trace->ops.size()-1;
+  for(; op_cnt >= 0; op_cnt--) {
+    auto&op = trace->ops[op_cnt];
+    switch(op.op) {
+    case ir_ins_op::SLOAD: {
+      // frame pointer in RDI
+      auto reg = ir_to_jit[op.reg];
+      if (op.type & IR_INS_TYPE_GUARD) {
+	emit_jcc32(JNE, snap_labels[cur_snap] - emit_offset());
+	if ((op.type &~IR_INS_TYPE_GUARD ) == 0) {
+	  emit_op_imm32(OP_TEST_IMM, 0, R15, 0x7);
+	} else {
+	  emit_op_imm32(OP_CMP_IMM, 7, R15, op.type & ~IR_INS_TYPE_GUARD);
+	  emit_op_imm32(OP_AND_IMM, 4, R15, 0x7);
+	}
+	emit_reg_reg(OP_MOV, reg, R15);
+      }
+      emit_mem_reg(OP_MOV_MR, op.op1 * 8, RDI, reg);
+      break;
+    }
+    case ir_ins_op::GE: {
+      assert(!(op.op1 & IR_CONST_BIAS));
+      emit_jcc32(JL, snap_labels[cur_snap] - emit_offset());
+      if (op.op2 & IR_CONST_BIAS) {
+        long v = trace->consts[op.op2 - IR_CONST_BIAS];
+        if ((v & 0xffffffff) == 0) {
+	  emit_op_imm32(OP_CMP_IMM, 7, ir_to_jit[trace->ops[op.op1].reg], v);
+        } else {
+          assert(false);
+        }
+      } else {
+        auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
+        auto reg2 = ir_to_jit[trace->ops[op.op2].reg];
+	emit_reg_reg(OP_CMP, reg2, reg1);
+      }
+      break;
+    }
+    case ir_ins_op::ADD: {
+      emit_jcc32(JO, snap_labels[cur_snap] - emit_offset());
+      
+      assert(!(op.op1 & IR_CONST_BIAS));
+      auto reg = ir_to_jit[op.reg];
+      auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
+      if (op.op2 & IR_CONST_BIAS) {
+        long v = trace->consts[op.op2 - IR_CONST_BIAS];
+        if ((v & ~0xffffffff) == 0) {
+          emit_add_imm32(reg, v);
+        } else {
+          assert(false);
+        }
+      } else {
+	emit_reg_reg(OP_ADD, ir_to_jit[trace->ops[op.op2].reg], reg);
+      }
+      if (reg != reg1) {
+	emit_reg_reg(OP_MOV, reg1, reg);
+      }
+      break;
+    }
+    case ir_ins_op::SUB: {
+      emit_jcc32(JO, snap_labels[cur_snap] - emit_offset());
+      
+      assert(!(op.op1 & IR_CONST_BIAS));
+      auto reg = ir_to_jit[op.reg];
+      auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
+      if (op.op2 & IR_CONST_BIAS) {
+        long v = trace->consts[op.op2 - IR_CONST_BIAS];
+        if ((v & ~0xffffffff) == 0) {
+          emit_sub_imm32(reg, v);
+        } else {
+          assert(false);
+        }
+      } else {
+	emit_reg_reg(OP_SUB, ir_to_jit[trace->ops[op.op2].reg], reg);
+      }
+      if (reg != reg1) {
+	emit_reg_reg(OP_MOV, reg1, reg);
+      }
+      break;
+    }
+    default: {
+      printf("Can't jit op: %s\n", ir_names[(int)op.op]);
+      break;
+      exit(-1);
+    }
+    }
+  }
+  
+  // TODO parallel move sloads
+
+  auto start = emit_offset();
+  if (loop_offset_label) {
+    emit_bind(start, loop_offset_label);
+  }
+  Func fn = (Func)start;
+  for (unsigned long i = 0; i < trace->snaps.size() - 1; i++) {
+    trace->snaps[i].patchpoint += uint64_t(start);
+  }
+
+  trace->fn = fn;
+  auto len = end-start;
+  disassemble((const uint8_t*)fn, len);
+  perf_map(uint64_t(fn), len, std::string("Trace"));
+  jit_dump(len, uint64_t(fn), std::string("Trace"));
+  jit_reader_add(len, uint64_t(fn), 0, 0, std::string("Trace"));
+  VALGRIND_DISCARD_TRANSLATIONS(fn, len);
+}
+
+JitRuntime rt;
+void asm_jit2(trace_s *trace, snap_s *side_exit, trace_s* parent) {
   // Runtime designed for JIT - it holds relocated functions and controls their
   // lifetime.
 
