@@ -1,4 +1,4 @@
 #!/bin/bash
 
 sudo ~/projects/linux/tools/perf/perf inject --jit --input perf.data --output perf.jit.data
-sudo ~/projects/linux/tools/perf/perf report --no-children --input perf.jit.data
+sudo ~/projects/linux/tools/perf/perf report --no-children --input perf.jit.data -Mintel
