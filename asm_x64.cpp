@@ -323,38 +323,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       loop_offset_label = emit_offset();
       emit_jmp32(0);
     }
-    
-    // // Parallel move if there are args
-    // {
-    //   std::multimap<uint64_t, uint64_t> moves;
-    //   std::vector<std::pair<int, uint16_t>> consts;
-    //   for (size_t op_cnt2 = 0; op_cnt2 < otrace->ops.size(); op_cnt2++) {
-    // 	auto&op = otrace->ops[op_cnt2];
-    // 	// TODO parent type
-    // 	if (op.op != ir_ins_op::ARG) {
-    // 	  break;
-    // 	}
-    // 	auto oldreg = find_reg_for_slot(op.op1 + last_snap.offset, &last_snap, trace);
-    // 	if (oldreg >= IR_CONST_BIAS) {
-    // 	  consts.push_back(std::make_pair(op.reg, oldreg));
-    // 	} else {
-    // 	  moves.insert(std::make_pair(oldreg, op.reg));
-    // 	}
-    //   }
-    //   auto res = serialize_parallel_copy(moves, 12 /* r15 */);
-    //   printf("Parellel copy:\n");
-    //   for(auto&mov: moves) {
-    // 	printf(" %li to %li\n", mov.first, mov.second);
-    //   }
-    //   printf("----------------\n");
-    //   for(auto&mov : res) {
-    // 	a.mov(ir_to_asmjit[mov.second], ir_to_asmjit[mov.first]);
-    //   }
-    //   for(auto&c : consts) {
-    // 	auto con = trace->consts[c.second - IR_CONST_BIAS];
-    // 	a.mov(ir_to_asmjit[c.first], con & ~SNAP_FRAME);
-    //   }
-    // }
 
     emit_check();
     auto &last_snap = trace->snaps[trace->snaps.size()-1];
@@ -391,6 +359,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
 	  emit_op_imm32(OP_AND_IMM, 4, R15, 0x7);
 	}
 	emit_reg_reg(OP_MOV, reg, R15);
+      } else {
+	goto done;
       }
       emit_mem_reg(OP_MOV_MR, op.op1 * 8, RDI, reg);
       break;
@@ -416,6 +386,25 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
     case ir_ins_op::EQ: {
       assert(!(op.op1 & IR_CONST_BIAS));
       emit_jcc32(JNE, snap_labels[cur_snap] - emit_offset());
+      if (op.op2 & IR_CONST_BIAS) {
+        long v = trace->consts[op.op2 - IR_CONST_BIAS];
+        if ((v & 0xffffffff) == 0) {
+	  emit_cmp_reg_imm32(ir_to_jit[trace->ops[op.op1].reg], v);
+	  //emit_op_imm32(OP_CMP_IMM, 7, ir_to_jit[trace->ops[op.op1].reg], v);
+        } else {
+	  emit_reg_reg(OP_CMP, R15, ir_to_jit[trace->ops[op.op1].reg]);
+	  emit_mov64(R15, v);
+        }
+      } else {
+        auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
+        auto reg2 = ir_to_jit[trace->ops[op.op2].reg];
+	emit_reg_reg(OP_CMP, reg2, reg1);
+      }
+      break;
+    }
+    case ir_ins_op::NE: {
+      assert(!(op.op1 & IR_CONST_BIAS));
+      emit_jcc32(JE, snap_labels[cur_snap] - emit_offset());
       if (op.op2 & IR_CONST_BIAS) {
         long v = trace->consts[op.op2 - IR_CONST_BIAS];
         if ((v & 0xffffffff) == 0) {
@@ -492,6 +481,20 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       }
       break;
     }
+    case ir_ins_op::RET: {
+      auto retadd = trace->consts[op.op1 - IR_CONST_BIAS] - SNAP_FRAME;
+      auto b = trace->consts[op.op2 - IR_CONST_BIAS];
+
+      emit_sub_imm32(RDI, b);
+      emit_jcc32(JNE, snap_labels[cur_snap] - emit_offset());
+
+      emit_mem_reg(OP_CMP, -8, RDI, R15);
+
+      emit_mov64(R15, retadd);
+      
+      
+      break;
+    }
     default: {
       printf("Can't jit op: %s\n", ir_names[(int)op.op]);
       break;
@@ -499,21 +502,47 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
     }
     }
   }
-  
-  // TODO parallel move sloads
+
+ done:
+  // TODO parent loads should have separate TAG
+  // Parallel move if there are args
+  {
+    std::multimap<uint64_t, uint64_t> moves;
+    std::vector<std::pair<int, uint16_t>> consts;
+    for (; op_cnt >= 0; op_cnt--) {
+      auto&op = trace->ops[op_cnt];
+      moves.insert(std::make_pair(find_reg_for_slot(op.op1, side_exit, parent), op.reg));
+    }
+    auto res = serialize_parallel_copy(moves, 12 /* r15 */);
+    printf("Parellel copy:\n");
+    for(auto&mov: moves) {
+      printf(" %li to %li\n", mov.first, mov.second);
+    }
+    printf("----------------\n");
+    for(auto&c : consts) {
+      auto con = trace->consts[c.second - IR_CONST_BIAS];
+      emit_mov64(ir_to_jit[c.first], con & ~SNAP_FRAME);
+    }
+    for(auto r = res.rbegin(); r != res.rend(); r++) {
+      // TODO reverse
+      emit_reg_reg(OP_MOV, ir_to_jit[r->first], ir_to_jit[r->second]);
+    }
+  }
 
   auto start = emit_offset();
   if (loop_offset_label) {
     emit_bind(start, loop_offset_label);
   }
   Func fn = (Func)start;
-  for (unsigned long i = 0; i < trace->snaps.size() - 1; i++) {
-    trace->snaps[i].patchpoint += uint64_t(start);
-  }
 
   trace->fn = fn;
   auto len = end-start;
   disassemble((const uint8_t*)fn, len);
+
+  if (side_exit) {
+    emit_bind(start, side_exit->patchpoint);
+  }
+  
   perf_map(uint64_t(fn), len, std::string("Trace"));
   jit_dump(len, uint64_t(fn), std::string("Trace"));
   jit_reader_add(len, uint64_t(fn), 0, 0, std::string("Trace"));

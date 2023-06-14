@@ -203,10 +203,6 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   dump_trace(trace);
   #ifndef REPLAY
   asm_jit(trace, side_exit, parent);
-  if (side_exit) {
-    uint64_t *patchpoint = (uint64_t *)side_exit->patchpoint;
-    *patchpoint = uint64_t(trace->fn);
-  }
   #endif
 
   trace_state = OFF;
