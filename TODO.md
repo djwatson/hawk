@@ -1,6 +1,5 @@
 # working on
 
-* verify all gt, lt, etc have correct reg order
 * New emitter: fix & 0xffffff to be a real check
   * maybe fold somehow into emitter
 * cleanup add, sub, cmp, fold together

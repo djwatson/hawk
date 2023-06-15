@@ -4,4 +4,4 @@
 	sum
 	(loop (- n 1) (+ n sum)))))
 
-(loop 1000000000 0)
+(display (loop 1000000000 0))
