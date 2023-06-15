@@ -869,7 +869,7 @@ LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
   
     str2->type = STRING_TAG;
     str2->len = strlen;
-    memcpy(str2->str, str->str, strlen);
+    memcpy(str2->str, str->str, strlen+1);
   
     sym->name = str2;
     symbol_table_insert(sym);
