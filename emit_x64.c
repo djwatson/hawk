@@ -158,28 +158,16 @@ void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm) {
   emit_reg_reg(opcode, r1, r2);
 }
 
-// TODO: could test for smaller immediates.
-void emit_add_imm32(uint8_t src, int32_t imm) {
+void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm) {
   if ((int32_t)((int8_t)imm) != imm) {
     emit_imm32(imm);
-    emit_reg_reg(0x81, 0, src);
+    emit_reg_reg(0x81, op, src);
   } else {
     *(--p) = imm;
-    emit_reg_reg(0x83, 0, src);
+    emit_reg_reg(0x83, op, src);
   }	 
 }
 
-void emit_sub_imm32(uint8_t src, int32_t imm) {
-  if ((int32_t)((int8_t)imm) != imm) {
-    emit_imm32(imm);
-    emit_reg_reg(0x81, 5, src);
-  } else {
-    *(--p) = imm;
-    emit_reg_reg(0x83, 5, src);
-  }
-}
-
-// TODO: these could be short form.
 void emit_push(uint8_t r) {
   *(--p) = 0x50 + (0x7&r);
   if (r >> 3) {

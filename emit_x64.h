@@ -22,6 +22,12 @@ enum registers {
   R15 = 15,
 };
 
+enum ARITH_CODES {
+  OP_ARITH_ADD = 0,
+  OP_ARITH_SUB = 5,
+  OP_ARITH_CMP = 7,
+};
+
 enum OPCODES {
   OP_ADD = 0x01,
   OP_SUB = 0x29,
@@ -89,11 +95,10 @@ void emit_ret();
 void emit_mem_reg_sib(uint8_t opcode, int32_t offset, uint8_t scale,
                       uint8_t index, uint8_t base, uint8_t reg);
   void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst);
-  void emit_add_imm32(uint8_t src, int32_t imm);
-  void emit_sub_imm32(uint8_t src, int32_t imm) ;
   void emit_jcc32(enum jcc_cond cond, int32_t offset);
   void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm);
   void emit_cmp_reg_imm32(uint8_t r, int32_t imm) ;
+  void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm) ;
 #ifdef __cplusplus
 }
 #endif
