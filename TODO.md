@@ -1,7 +1,5 @@
 # working on
 
-* cleanup add, sub, cmp, fold together
-* remove register table
 * merge reg alloc in to emit loop
 
 * folding GGET: put in emit somewhere, check for GSET

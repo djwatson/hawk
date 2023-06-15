@@ -46,10 +46,13 @@ void disassemble(const uint8_t *code, int len) {
 // clang-format off
 const char *reg_names[] = {
   "rax",
-  "rbx",
   "rcx",
   "rdx",
+  "rbx",
+  "rsp",
+  "rbp",
   "rsi",
+  "rdi",
   "r8 ", 
   "r9 ", 
   "r10", 
@@ -58,29 +61,7 @@ const char *reg_names[] = {
   "r13", 
   "r14", 
   "r15",
-  "rdi",
-  "rbp",
-  "rsp",
   "   ",
-};
-
-uint8_t ir_to_jit[] = {
-  RAX,
-  RBX,
-  RCX,
-  RDX,
-  RSI,
-  R8,
-  R9,
-  R10,
-  R11,
-  R12,
-  R13,
-  R14,
-  R15,
-  RDI,
-  RBP,
-  RSP,
 };
 // clang-format on
 
@@ -108,6 +89,10 @@ void assign_registers(trace_s *trace) {
   for (int i = 0; i < regcnt; i++) {
     slot[i] = -1;
   }
+  // Unallocatable.
+  slot[R15] = 0; // tmp.
+  slot[RSP] = 0; // stack ptr.
+  slot[RDI] = 0; // scheme frame ptr.
 
   int cursnap = trace->snaps.size() - 1;
   for (int i = trace->ops.size() - 1; i >= 0; i--) {
@@ -254,7 +239,7 @@ void emit_snap(int snap, trace_s *trace, bool all) {
 	printf("DROPPING emit snap of slot %i\n", slot.slot);
 	// nothing
       } else {
-	emit_mem_reg(OP_MOV_RM, slot.slot * 8, RDI, ir_to_jit[op.reg]);
+	emit_mem_reg(OP_MOV_RM, slot.slot * 8, RDI, op.reg);
       }
     }
   }
@@ -265,8 +250,8 @@ void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins&op, tr
   emit_jcc32(JO, offset);
       
   assert(!(op.op1 & IR_CONST_BIAS));
-  auto reg = ir_to_jit[op.reg];
-  auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
+  auto reg = op.reg;
+  auto reg1 = trace->ops[op.op1].reg;
   if (op.op2 & IR_CONST_BIAS) {
     long v = trace->consts[op.op2 - IR_CONST_BIAS];
     if ((long)((int32_t)v) == v) {
@@ -275,7 +260,8 @@ void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins&op, tr
       assert(false);
     }
   } else {
-    emit_reg_reg(op_code, ir_to_jit[trace->ops[op.op2].reg], reg);
+    // TODO this is backwards from OP_CMP
+    emit_reg_reg(op_code, trace->ops[op.op2].reg, reg);
   }
   if (reg != reg1) {
     emit_reg_reg(OP_MOV, reg1, reg);
@@ -288,14 +274,14 @@ void emit_cmp(enum jcc_cond cmp, ir_ins& op, trace_s *trace, int32_t offset) {
   if (op.op2 & IR_CONST_BIAS) {
     long v = trace->consts[op.op2 - IR_CONST_BIAS];
     if ((long)((int32_t)v) == v) {
-      emit_arith_imm(OP_ARITH_CMP, ir_to_jit[trace->ops[op.op1].reg], v);
+      emit_arith_imm(OP_ARITH_CMP, trace->ops[op.op1].reg, v);
     } else {
-      emit_reg_reg(OP_CMP, ir_to_jit[trace->ops[op.op1].reg], R15);
+      emit_reg_reg(OP_CMP, trace->ops[op.op1].reg, R15);
       emit_mov64(R15, v);
     }
   } else {
-    auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
-    auto reg2 = ir_to_jit[trace->ops[op.op2].reg];
+    auto reg1 = trace->ops[op.op1].reg;
+    auto reg2 = trace->ops[op.op2].reg;
     emit_reg_reg(OP_CMP, reg1, reg2);
   }
 }
@@ -412,7 +398,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
     switch(op.op) {
     case ir_ins_op::SLOAD: {
       // frame pointer in RDI
-      auto reg = ir_to_jit[op.reg];
+      auto reg = op.reg;
       emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
       if (!(op.type & IR_INS_TYPE_GUARD)) {
 	goto done;
@@ -422,7 +408,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
     } 
     case ir_ins_op::GGET: {
       symbol *sym = (symbol *)trace->consts[op.op1 - IR_CONST_BIAS];
-      auto reg = ir_to_jit[op.reg];
+      auto reg = op.reg;
       emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
       emit_mem_reg(OP_MOV_MR, 0, reg, reg);
       emit_mov64(reg, (int64_t)&sym->val);
@@ -530,11 +516,10 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
     printf("----------------\n");
     for(auto&c : consts) {
       auto con = trace->consts[c.second - IR_CONST_BIAS];
-      emit_mov64(ir_to_jit[c.first], con & ~SNAP_FRAME);
+      emit_mov64(c.first, con & ~SNAP_FRAME);
     }
     for(auto r = res.rbegin(); r != res.rend(); r++) {
-      // TODO reverse
-      emit_reg_reg(OP_MOV, ir_to_jit[r->first], ir_to_jit[r->second]);
+      emit_reg_reg(OP_MOV, r->first, r->second);
     }
   }
 

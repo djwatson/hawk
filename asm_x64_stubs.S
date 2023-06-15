@@ -18,17 +18,21 @@ jit_entry_stub:
 
 // Put new reg state based on rcx param.
 	mov rax, [r15]
-	mov rbx, [r15 + 8]
-	mov rcx, [r15 + 16]
-	mov rdx, [r15 + 24]
-	mov rsi, [r15 + 32]
-	mov r8, [r15 + 40]
-	mov r9, [r15 + 48]
-	mov r10, [r15 + 56]
-	mov r11, [r15 + 64]
-	mov r12, [r15 + 72]
-	mov r13, [r15 + 80]
-	mov r14, [r15 + 88]
+	mov rcx, [r15 + 8]
+	mov rdx, [r15 + 16]
+	mov rbx, [r15 + 24]
+	// RSP 32
+	// RBP 40
+	mov rsi, [r15 + 48]
+	// RDI 56
+	mov r8, [r15 + 64]
+	mov r9, [r15 + 72]
+	mov r10, [r15 + 88]
+	mov r11, [r15 + 96]
+	mov r12, [r15 + 104]
+	mov r13, [r15 + 112]
+	mov r14, [r15 + 120]
+	mov r15, [r15 + 128]
 	
 	pop r15
 	jmp r15
@@ -38,7 +42,8 @@ jit_exit_stub:
 	mov r15, [rsp+24]
 	mov [r15], rdi
 
-//  Push reg state
+	//  Push reg state
+	push r15
 	push r14
 	push r13
 	push r12
@@ -46,17 +51,20 @@ jit_exit_stub:
 	push r10
 	push r9
 	push r8
+	push rdi
 	push rsi
+	push rbp
+	push rsp
+	push rbx
 	push rdx
 	push rcx
-	push rbx
 	push rax
 
 	lea rdi, [rsp]
 	call exit_stub_frame_restore
 
 //  pop reg state
-	add rsp, 128
+	add rsp, 160
 // pop callee-saved
 	pop r15
 	pop r14
