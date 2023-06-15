@@ -91,8 +91,88 @@ struct exit_state {
   long snap;
 };
 
-extern "C" unsigned long jit_entry_stub(long *o_frame, Func fptr, exit_state *regs);
-extern "C" void jit_exit_stub();
+static void
+__attribute__((noinline))
+__attribute__((naked))
+jit_entry_stub(long *o_frame, Func fptr, exit_state *regs) {
+  asm inline(".intel_syntax noprefix\n"
+//  Save callee-saved regs.
+    "push rbx\n"
+    "push r12\n"
+    "push r13\n"
+    "push r14\n"
+    "push r15\n"
+
+	// RDI: scheme frame ptr.
+    "push rdx\n" // state regs
+    "push rsi\n" // ptr to call.
+
+    "mov r15, rdx\n" // state regs.
+
+// Put new reg state based on rcx param.
+    "mov rax, [r15]\n"
+    "mov rcx, [r15 + 8]\n"
+    "mov rdx, [r15 + 16]\n"
+    "mov rbx, [r15 + 24]\n"
+	// RSP 32, c stack ptr.
+    "mov rbp, [r15 + 40]\n"
+    "mov rsi, [r15 + 48]\n"
+	// RDI 56, scheme frame ptr.
+    "mov r8, [r15 + 64]\n"
+    "mov r9, [r15 + 72]\n"
+    "mov r10, [r15 + 88]\n"
+    "mov r11, [r15 + 96]\n"
+    "mov r12, [r15 + 104]\n"
+    "mov r13, [r15 + 112]\n"
+    "mov r14, [r15 + 120]\n"
+    "mov r15, [r15 + 128]\n"
+	
+    "pop r15\n"
+    "jmp r15\n"
+    :);
+  // No need for clobbers, since hopefully the compiler will treat jit_entry_stub
+  // as the normal sys-v calling convention.
+}
+
+static void
+__attribute__((noinline))
+__attribute__((naked))
+jit_exit_stub() {
+  asm inline(".intel_syntax noprefix\n"
+     //  Push reg state
+    "mov r15, [rsp+16]\n"
+    "mov [r15 + 116], r15\n"
+    "mov [r15 + 112], r14\n"
+    "mov [r15 + 104], r13\n"
+    "mov [r15 + 96], r12\n"
+    "mov [r15 + 88], r11\n"
+    "mov [r15 + 80], r10\n"
+    "mov [r15 + 72], r9\n"
+    "mov [r15 + 64], r8\n"
+    "mov [r15 + 56], rdi\n"
+    "mov [r15 + 48], rsi\n"
+    "mov [r15 + 40], rbp\n"
+    "mov [r15 + 32], rsp\n"
+    "mov [r15 + 24], rbx\n"
+    "mov [r15 + 16], rdx\n"
+    "mov [r15 + 8], rcx\n"
+    "mov [r15], rax\n"
+    "pop rax\n" // trace
+    "mov [r15 + 128], rax\n"
+    "pop rax\n" // exit num
+    "mov [r15 + 136], rax\n"
+
+//  pop reg state
+    "add rsp, 8\n"
+// pop callee-saved
+    "pop r15\n"
+    "pop r14\n"
+    "pop r13\n"
+    "pop r12\n"
+    "pop rbx\n"
+    "ret\n"
+    :);
+}
 
 void restore_snap(snap_s* snap, trace_s* trace, exit_state *state, long **o_frame, unsigned int **o_pc) {
   (*o_frame) = (long*)state->regs[RDI];
@@ -514,9 +594,9 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   }
 
   //printf("FN start %i\n", tnum);
-  auto exit = jit_entry_stub(*o_frame, trace->fn, &state);
+  jit_entry_stub(*o_frame, trace->fn, &state);
   trace = state.trace;
-  exit = state.snap;
+  long unsigned exit = state.snap;
   auto snap = &trace->snaps[exit];
 
   restore_snap(snap, trace, &state, o_frame, o_pc);
