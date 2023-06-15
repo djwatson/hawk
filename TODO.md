@@ -1,7 +1,5 @@
 # working on
 
-* New emitter: fix & 0xffffff to be a real check
-  * maybe fold somehow into emitter
 * cleanup add, sub, cmp, fold together
 * remove register table
 * merge reg alloc in to emit loop

@@ -261,6 +261,24 @@ void emit_snap(int snap, trace_s *trace, bool all) {
   // TODO check stack size
 }
 
+void emit_cmp(enum jcc_cond cmp, ir_ins& op, trace_s *trace, int32_t offset) {
+  emit_jcc32(cmp, offset);
+  assert(!(op.op1 & IR_CONST_BIAS));
+  if (op.op2 & IR_CONST_BIAS) {
+    long v = trace->consts[op.op2 - IR_CONST_BIAS];
+    if ((long)((int32_t)v) == v) {
+      emit_cmp_reg_imm32(ir_to_jit[trace->ops[op.op1].reg], v);
+    } else {
+      emit_reg_reg(OP_CMP, ir_to_jit[trace->ops[op.op1].reg], R15);
+      emit_mov64(R15, v);
+    }
+  } else {
+    auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
+    auto reg2 = ir_to_jit[trace->ops[op.op2].reg];
+    emit_reg_reg(OP_CMP, reg1, reg2);
+  }
+}
+
 void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
   if (type & IR_INS_TYPE_GUARD) {
     emit_jcc32(JNE, offset);
@@ -415,79 +433,19 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
 //       break;
 //     }
     case ir_ins_op::EQ: {
-      assert(!(op.op1 & IR_CONST_BIAS));
-      emit_jcc32(JNE, snap_labels[cur_snap] - emit_offset());
-      if (op.op2 & IR_CONST_BIAS) {
-        long v = trace->consts[op.op2 - IR_CONST_BIAS];
-        if ((long)((int32_t)v) == v) {
-	  emit_cmp_reg_imm32(ir_to_jit[trace->ops[op.op1].reg], v);
-	  //emit_op_imm32(OP_CMP_IMM, 7, ir_to_jit[trace->ops[op.op1].reg], v);
-        } else {
-	  emit_reg_reg(OP_CMP, R15, ir_to_jit[trace->ops[op.op1].reg]);
-	  emit_mov64(R15, v);
-        }
-      } else {
-        auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
-        auto reg2 = ir_to_jit[trace->ops[op.op2].reg];
-	emit_reg_reg(OP_CMP, reg2, reg1);
-      }
+      emit_cmp(JNE, op, trace, snap_labels[cur_snap] - emit_offset());
       break;
     }
     case ir_ins_op::NE: {
-      assert(!(op.op1 & IR_CONST_BIAS));
-      emit_jcc32(JE, snap_labels[cur_snap] - emit_offset());
-      if (op.op2 & IR_CONST_BIAS) {
-        long v = trace->consts[op.op2 - IR_CONST_BIAS];
-        if ((long)((int32_t)v) == v) {
-	  emit_cmp_reg_imm32(ir_to_jit[trace->ops[op.op1].reg], v);
-	  //emit_op_imm32(OP_CMP_IMM, 7, ir_to_jit[trace->ops[op.op1].reg], v);
-        } else {
-	  emit_reg_reg(OP_CMP, R15, ir_to_jit[trace->ops[op.op1].reg]);
-	  emit_mov64(R15, v);
-        }
-      } else {
-        auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
-        auto reg2 = ir_to_jit[trace->ops[op.op2].reg];
-	emit_reg_reg(OP_CMP, reg2, reg1);
-      }
+      emit_cmp(JE, op, trace, snap_labels[cur_snap] - emit_offset());
       break;
     }
     case ir_ins_op::GE: {
-      assert(!(op.op1 & IR_CONST_BIAS));
-      emit_jcc32(JL, snap_labels[cur_snap] - emit_offset());
-      if (op.op2 & IR_CONST_BIAS) {
-        long v = trace->consts[op.op2 - IR_CONST_BIAS];
-        if ((long)((int32_t)v) == v) {
-	  emit_cmp_reg_imm32(ir_to_jit[trace->ops[op.op1].reg], v);
-	  //emit_op_imm32(OP_CMP_IMM, 7, ir_to_jit[trace->ops[op.op1].reg], v);
-        } else {
-	  emit_reg_reg(OP_CMP, ir_to_jit[trace->ops[op.op1].reg], R15);
-	  emit_mov64(R15, v);
-        }
-      } else {
-        auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
-        auto reg2 = ir_to_jit[trace->ops[op.op2].reg];
-	emit_reg_reg(OP_CMP, reg1, reg2);
-      }
+      emit_cmp(JL, op, trace, snap_labels[cur_snap] - emit_offset());
       break;
     }
     case ir_ins_op::LT: {
-      assert(!(op.op1 & IR_CONST_BIAS));
-      emit_jcc32(JGE, snap_labels[cur_snap] - emit_offset());
-      if (op.op2 & IR_CONST_BIAS) {
-        long v = trace->consts[op.op2 - IR_CONST_BIAS];
-        if ((long)((int32_t)v) == v) {
-	  emit_cmp_reg_imm32(ir_to_jit[trace->ops[op.op1].reg], v);
-	  //emit_op_imm32(OP_CMP_IMM, 7, ir_to_jit[trace->ops[op.op1].reg], v);
-        } else {
-	  emit_reg_reg(OP_CMP, ir_to_jit[trace->ops[op.op1].reg], R15);
-	  emit_mov64(R15, v);
-        }
-      } else {
-        auto reg1 = ir_to_jit[trace->ops[op.op1].reg];
-        auto reg2 = ir_to_jit[trace->ops[op.op2].reg];
-	emit_reg_reg(OP_CMP, reg1, reg2);
-      }
+      emit_cmp(JGE, op, trace, snap_labels[cur_snap] - emit_offset());
       break;
     }
     case ir_ins_op::ADD: {
