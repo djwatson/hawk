@@ -9,12 +9,12 @@ jit_entry_stub:
 	push r13
 	push r14
 	push r15
-	push rdi
-	push rsi
-	mov rdi, [rdi]
-	push rdx
-//  rcx
-	mov r15, rcx
+
+	// RDI: scheme frame ptr.
+	push rdx // state regs
+	push rsi // ptr to call.
+
+	mov r15, rdx // state regs.
 
 // Put new reg state based on rcx param.
 	mov rax, [r15]
@@ -38,33 +38,31 @@ jit_entry_stub:
 	jmp r15
 
 jit_exit_stub:
-//  Push trace
-	mov r15, [rsp+24]
-	mov [r15], rdi
-
 	//  Push reg state
-	push r15
-	push r14
-	push r13
-	push r12
-	push r11
-	push r10
-	push r9
-	push r8
-	push rdi
-	push rsi
-	push rbp
-	push rsp
-	push rbx
-	push rdx
-	push rcx
-	push rax
-
-	lea rdi, [rsp]
-	call exit_stub_frame_restore
+	mov r15, [rsp+16]
+	mov [r15 + 116], r15
+	mov [r15 + 112], r14
+	mov [r15 + 104], r13
+	mov [r15 + 96], r12
+	mov [r15 + 88], r11
+	mov [r15 + 80], r10
+	mov [r15 + 72], r9
+	mov [r15 + 64], r8
+	mov [r15 + 56], rdi
+	mov [r15 + 48], rsi
+	mov [r15 + 40], rbp
+	mov [r15 + 32], rsp
+	mov [r15 + 24], rbx
+	mov [r15 + 16], rdx
+	mov [r15 + 8], rcx
+	mov [r15], rax
+	pop rax // trace
+	mov [r15 + 128], rax
+	pop rax // exit num
+	mov [r15 + 136], rax
 
 //  pop reg state
-	add rsp, 160
+	add rsp, 8
 // pop callee-saved
 	pop r15
 	pop r14

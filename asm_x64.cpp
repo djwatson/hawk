@@ -87,20 +87,15 @@ void maybe_assign_register(int v, trace_s* trace, int *slot) {
 
 struct exit_state {
   long regs[regcnt];
-  long trace;
+  trace_s* trace;
   long snap;
 };
 
-extern "C" unsigned long jit_entry_stub(long **o_frame, unsigned int **o_pc, Func fptr, long *regs);
-extern "C" unsigned long jit_exit_stub();
-
-static exit_state exit_state_save;
-
-extern "C" void exit_stub_frame_restore(exit_state* state) {
-  memcpy(&exit_state_save, state, sizeof(exit_state));
-}
+extern "C" unsigned long jit_entry_stub(long *o_frame, Func fptr, exit_state *regs);
+extern "C" void jit_exit_stub();
 
 void restore_snap(snap_s* snap, trace_s* trace, exit_state *state, long **o_frame, unsigned int **o_pc) {
+  (*o_frame) = (long*)state->regs[RDI];
   for (auto&slot : snap->slots) {
     if (slot.val & IR_CONST_BIAS) {
       auto c = trace->consts[slot.val - IR_CONST_BIAS];
@@ -508,22 +503,23 @@ extern unsigned int *patchpc;
 extern unsigned int patchold;
 int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
             long *frame_top) {
+  exit_state state;
   auto trace = trace_cache_get(tnum);
 
   for(auto&op : trace->ops) {
     if (op.op != ir_ins_op::ARG) {
       break;
     }
-    exit_state_save.regs[op.reg] = (*o_frame)[op.op1];
+    state.regs[op.reg] = (*o_frame)[op.op1];
   }
 
   //printf("FN start %i\n", tnum);
-  auto exit = jit_entry_stub(o_frame, o_pc, trace->fn, exit_state_save.regs);
-  trace = (trace_s *)exit_state_save.trace;
-  exit = exit_state_save.snap;
+  auto exit = jit_entry_stub(*o_frame, trace->fn, &state);
+  trace = state.trace;
+  exit = state.snap;
   auto snap = &trace->snaps[exit];
 
-  restore_snap(snap, trace, &exit_state_save, o_frame, o_pc);
+  restore_snap(snap, trace, &state, o_frame, o_pc);
   // auto func = find_func_for_frame(snap->pc);
   // assert(func);
   //  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
