@@ -41,7 +41,7 @@ enum OPCODES {
   OP_TEST_IMM = 0xf7,
   OP_AND_IMM = 0x81,
   OP_CMP_IMM = 0x81,
-  OP_CMP = 0x3b,
+  OP_CMP = 0x39,
   OP_LEA = 0x8d,
 };
 

@@ -240,44 +240,44 @@ void emit_snap(int snap, trace_s *trace, bool all) {
   // TODO check stack size
 }
 
-void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins&op, trace_s *trace, int32_t offset) {
+
+void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code, uint8_t reg, uint32_t op2, trace_s *trace, int32_t offset, int*slot) {
+  if (op2 & IR_CONST_BIAS) {
+    long v = trace->consts[op2 - IR_CONST_BIAS];
+    if ((long)((int32_t)v) == v) {
+      emit_arith_imm(arith_code, reg, v);
+    } else {
+      emit_reg_reg(op_code, reg, R15);
+      emit_mov64(R15, v);
+    }
+  } else {
+    auto reg2 = trace->ops[op2].reg;
+    emit_reg_reg(op_code, reg2, reg);
+  }
+}
+
+void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins&op, trace_s *trace, int32_t offset, int*slot) {
+  maybe_assign_register(op.op1, trace, slot);
+  maybe_assign_register(op.op2, trace, slot);
+      
   emit_jcc32(JO, offset);
       
   assert(!(op.op1 & IR_CONST_BIAS));
   auto reg = op.reg;
   auto reg1 = trace->ops[op.op1].reg;
-  if (op.op2 & IR_CONST_BIAS) {
-    long v = trace->consts[op.op2 - IR_CONST_BIAS];
-    if ((long)((int32_t)v) == v) {
-      emit_arith_imm(arith_code, reg, v);
-    } else {
-      assert(false);
-    }
-  } else {
-    // TODO this is backwards from OP_CMP
-    emit_reg_reg(op_code, trace->ops[op.op2].reg, reg);
-  }
+  emit_arith_op(arith_code, op_code, reg, op.op2, trace, offset, slot);
   if (reg != reg1) {
     emit_reg_reg(OP_MOV, reg1, reg);
   }
 }
 
-void emit_cmp(enum jcc_cond cmp, ir_ins& op, trace_s *trace, int32_t offset) {
+void emit_cmp(enum jcc_cond cmp, ir_ins& op, trace_s *trace, int32_t offset, int*slot) {
+  maybe_assign_register(op.op1, trace, slot);
+  maybe_assign_register(op.op2, trace, slot);
+      
   emit_jcc32(cmp, offset);
   assert(!(op.op1 & IR_CONST_BIAS));
-  if (op.op2 & IR_CONST_BIAS) {
-    long v = trace->consts[op.op2 - IR_CONST_BIAS];
-    if ((long)((int32_t)v) == v) {
-      emit_arith_imm(OP_ARITH_CMP, trace->ops[op.op1].reg, v);
-    } else {
-      emit_reg_reg(OP_CMP, trace->ops[op.op1].reg, R15);
-      emit_mov64(R15, v);
-    }
-  } else {
-    auto reg1 = trace->ops[op.op1].reg;
-    auto reg2 = trace->ops[op.op2].reg;
-    emit_reg_reg(OP_CMP, reg1, reg2);
-  }
+  emit_arith_op(OP_ARITH_CMP, OP_CMP, trace->ops[op.op1].reg, op.op2, trace, offset, slot);
 }
 
 void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
@@ -464,39 +464,27 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
 //       break;
 //     }
     case ir_ins_op::EQ: {
-      maybe_assign_register(op.op1, trace, slot);
-      maybe_assign_register(op.op2, trace, slot);
-      emit_cmp(JNE, op, trace, snap_labels[cur_snap] - emit_offset());
+      emit_cmp(JNE, op, trace, snap_labels[cur_snap] - emit_offset(), slot);
       break;
     }
     case ir_ins_op::NE: {
-      maybe_assign_register(op.op1, trace, slot);
-      maybe_assign_register(op.op2, trace, slot);
-      emit_cmp(JE, op, trace, snap_labels[cur_snap] - emit_offset());
+      emit_cmp(JE, op, trace, snap_labels[cur_snap] - emit_offset(), slot);
       break;
     }
     case ir_ins_op::GE: {
-      maybe_assign_register(op.op1, trace, slot);
-      maybe_assign_register(op.op2, trace, slot);
-      emit_cmp(JL, op, trace, snap_labels[cur_snap] - emit_offset());
+      emit_cmp(JL, op, trace, snap_labels[cur_snap] - emit_offset(), slot);
       break;
     }
     case ir_ins_op::LT: {
-      maybe_assign_register(op.op1, trace, slot);
-      maybe_assign_register(op.op2, trace, slot);
-      emit_cmp(JGE, op, trace, snap_labels[cur_snap] - emit_offset());
+      emit_cmp(JGE, op, trace, snap_labels[cur_snap] - emit_offset(), slot);
       break;
     }
     case ir_ins_op::ADD: {
-      maybe_assign_register(op.op1, trace, slot);
-      maybe_assign_register(op.op2, trace, slot);
-      emit_arith(OP_ARITH_ADD, OP_ADD, op, trace, snap_labels[cur_snap] - emit_offset());
+      emit_arith(OP_ARITH_ADD, OP_ADD, op, trace, snap_labels[cur_snap] - emit_offset(), slot);
       break;
     }
     case ir_ins_op::SUB: {
-      maybe_assign_register(op.op1, trace, slot);
-      maybe_assign_register(op.op2, trace, slot);
-      emit_arith(OP_ARITH_SUB, OP_SUB, op, trace, snap_labels[cur_snap] - emit_offset());
+      emit_arith(OP_ARITH_SUB, OP_SUB, op, trace, snap_labels[cur_snap] - emit_offset(), slot);
       break;
     }
 //     case ir_ins_op::LOOP: {
