@@ -216,7 +216,7 @@ void record_abort() {
   downrec.clear();
 }
 
-int record(unsigned int *pc, long *frame) {
+int record(unsigned int *pc, long *frame, long argcnt) {
   if (traces.size() >= 200) {
     return 1;
   }
@@ -228,7 +228,7 @@ int record(unsigned int *pc, long *frame) {
       return 1;
     }
     record_start(pc, frame);
-    auto res = record_instr(pc, frame);
+    auto res = record_instr(pc, frame, argcnt);
     if (trace_state == START) {
       trace_state = TRACING;
     }
@@ -237,7 +237,7 @@ int record(unsigned int *pc, long *frame) {
   }
   case TRACING: {
     pendpatch();
-    auto res = record_instr(pc, frame);
+    auto res = record_instr(pc, frame, argcnt);
     return res;
     break;
   }
@@ -266,12 +266,17 @@ int record_stack_load(int slot, long *frame) {
 }
 
 extern unsigned char hotmap[hotmap_sz];
-int record_instr(unsigned int *pc, long *frame) {
-  instr_count++;
+int record_instr(unsigned int *pc, long *frame, long argcnt) {
   unsigned int i = *pc;
+  
   if (INS_OP(i) == LOOP) {
     for(int* pos = &regs[INS_A(i)]; pos < &regs_list[257]; pos++) {
       *pos = -1;
+    }
+  } else if (INS_OP(i) == CLFUNC) {
+    // If it doesn't match, just continue;
+    if (argcnt != INS_A(i)) {
+      return 0;
     }
   }
   if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
@@ -280,6 +285,8 @@ int record_instr(unsigned int *pc, long *frame) {
     record_stop(pc, frame, traces.size());
     return 1;
   }
+  
+  instr_count++;
   for (int j = 0; j < depth; j++) {
     printf(" . ");
   }
@@ -324,7 +331,7 @@ int record_instr(unsigned int *pc, long *frame) {
             printf("Potential down-recursion, restarting\n");
             record_abort();
             record_start(pc, frame);
-            record_instr(pc, frame);
+            record_instr(pc, frame, 0);
             trace_state = TRACING;
             break;
           }

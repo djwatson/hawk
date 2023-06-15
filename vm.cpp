@@ -111,7 +111,7 @@ ABI void RECORD_START(PARAMS) {
 }
 
 ABI void RECORD(PARAMS) {
-  if (record(pc, frame)) {
+  if (record(pc, frame, argcnt)) {
     // Back to interpreting.
     op_table_arg = (void **)l_op_table;
   }
