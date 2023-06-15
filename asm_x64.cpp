@@ -75,96 +75,15 @@ int get_free_reg(int *slot) {
   exit(-1);
 }
 
-void assign_register(int i, ir_ins &op, int *slot) {
-  if (op.reg == REG_NONE) {
-    op.reg = get_free_reg(slot);
-    slot[op.reg] = i;
-    // printf("Assign to op %s reg %s\n", ir_names[(int)op.op],
-    // reg_names[op.reg]);
-  }
-}
-
-void assign_registers(trace_s *trace) {
-  int slot[regcnt];
-  for (int i = 0; i < regcnt; i++) {
-    slot[i] = -1;
-  }
-  // Unallocatable.
-  slot[R15] = 0; // tmp.
-  slot[RSP] = 0; // stack ptr.
-  slot[RDI] = 0; // scheme frame ptr.
-
-  int cursnap = trace->snaps.size() - 1;
-  for (int i = trace->ops.size() - 1; i >= 0; i--) {
-    while (cursnap >= 0 && trace->snaps[cursnap].ir >= i) {
-      // printf("ALLOC FOR SNAP %i\n", cursnap);
-      auto &snap = trace->snaps[cursnap];
-      for (auto &s : snap.slots) {
-        if (!(s.val & IR_CONST_BIAS)) {
-          // printf("ALLOC FOR SNAP val %i\n", s.val);
-          assign_register(s.val, trace->ops[s.val], slot);
-        }
-      }
-      cursnap--;
-    }
-    // printf("Assign to %i\n", i);
-    auto &op = trace->ops[i];
-    
-    // free it.
-    if (op.reg != REG_NONE) {
-      assert(slot[op.reg] == i);
-      slot[op.reg] = -1;
-    }
-
-    switch (op.op) {
-    case ir_ins_op::ARG:
-    case ir_ins_op::SLOAD:
-      break;
-      case ir_ins_op::PHI:
-    case ir_ins_op::ADD:
-    case ir_ins_op::SUB:
-      if (op.reg != REG_NONE) {
-      case ir_ins_op::LT:
-      case ir_ins_op::GE:
-      case ir_ins_op::LE:
-      case ir_ins_op::GT:
-      case ir_ins_op::EQ:
-      case ir_ins_op::NE:
-        if (!(op.op1 & IR_CONST_BIAS)) {
-          assign_register(op.op1, trace->ops[op.op1], slot);
-        }
-        if (!(op.op2 & IR_CONST_BIAS)) {
-          assign_register(op.op2, trace->ops[op.op2], slot);
-        }
-      }
-      if (op.op == ir_ins_op::PHI) {
-	assert(trace->ops[op.op1].reg == op.reg);
-      }
-      break;
-    case ir_ins_op::GGET:
-    case ir_ins_op::KFIX:
-    case ir_ins_op::KFUNC:
-      if (op.reg != REG_NONE) {
-        if (!(op.op1 & IR_CONST_BIAS)) {
-          assign_register(op.op1, trace->ops[op.op1], slot);
-        }
-      }
-      break;
-    default:
-      break;
+void maybe_assign_register(int v, trace_s* trace, int *slot) {
+  if (!(v & IR_CONST_BIAS)) {
+    ir_ins & op = trace->ops[v];
+    if (op.reg == REG_NONE) {
+      op.reg = get_free_reg(slot);
+      slot[op.reg] = v;
     }
   }
 }
-
-// class MyErrorHandler : public ErrorHandler {
-// public:
-//   void handleError(Error err, const char *message,
-//                    BaseEmitter *origin) override {
-//     printf("AsmJit error: %s\n", message);
-//     assert(false);
-//   }
-// };
-
 
 struct exit_state {
   long regs[regcnt];
@@ -302,6 +221,16 @@ void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
 void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
   emit_init();
 
+  // Reg allocation
+  int slot[regcnt];
+  for (int i = 0; i < regcnt; i++) {
+    slot[i] = -1;
+  }
+  // Unallocatable.
+  slot[R15] = 0; // tmp.
+  slot[RSP] = 0; // stack ptr.
+  slot[RDI] = 0; // scheme frame ptr.
+
   uint64_t snap_labels[trace->snaps.size()-1];
 
   auto end = emit_offset();
@@ -379,6 +308,12 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
 // 	a.mov(ir_to_asmjit[c.first], con & ~SNAP_FRAME);
 //       }
 //     }
+    auto &snap = trace->snaps[trace->snaps.size() - 1];
+    for (auto &s : snap.slots) {
+      if (!(s.val & IR_CONST_BIAS)) {
+	maybe_assign_register(s.val, trace, slot);
+      }
+    }
     emit_snap(trace->snaps.size() - 1, trace, (INS_OP(otrace->startpc)!=FUNC));
   } else {
     // No link, jump back to interpreter loop.
@@ -387,13 +322,27 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
     emit_mov64(R15, trace->snaps.size()-1);
   }
 
+  // Main generation loop
   long cur_snap = trace->snaps.size()-1;
   long op_cnt = trace->ops.size()-1;
   for(; op_cnt >= 0; op_cnt--) {
-    while(trace->snaps[cur_snap].ir > op_cnt) {
+    while(cur_snap >= 0 && trace->snaps[cur_snap].ir > op_cnt) {
+      auto &snap = trace->snaps[cur_snap];
+      for (auto &s : snap.slots) {
+        if (!(s.val & IR_CONST_BIAS)) {
+	  maybe_assign_register(s.val, trace, slot);
+        }
+      }
       cur_snap--;
     }
     auto&op = trace->ops[op_cnt];
+
+    // free current register.
+    if (op.reg != REG_NONE) {
+      assert(slot[op.reg] == op_cnt);
+      slot[op.reg] = -1;
+    }
+    
     emit_check();
     switch(op.op) {
     case ir_ins_op::SLOAD: {
@@ -440,26 +389,38 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
 //       break;
 //     }
     case ir_ins_op::EQ: {
+      maybe_assign_register(op.op1, trace, slot);
+      maybe_assign_register(op.op2, trace, slot);
       emit_cmp(JNE, op, trace, snap_labels[cur_snap] - emit_offset());
       break;
     }
     case ir_ins_op::NE: {
+      maybe_assign_register(op.op1, trace, slot);
+      maybe_assign_register(op.op2, trace, slot);
       emit_cmp(JE, op, trace, snap_labels[cur_snap] - emit_offset());
       break;
     }
     case ir_ins_op::GE: {
+      maybe_assign_register(op.op1, trace, slot);
+      maybe_assign_register(op.op2, trace, slot);
       emit_cmp(JL, op, trace, snap_labels[cur_snap] - emit_offset());
       break;
     }
     case ir_ins_op::LT: {
+      maybe_assign_register(op.op1, trace, slot);
+      maybe_assign_register(op.op2, trace, slot);
       emit_cmp(JGE, op, trace, snap_labels[cur_snap] - emit_offset());
       break;
     }
     case ir_ins_op::ADD: {
+      maybe_assign_register(op.op1, trace, slot);
+      maybe_assign_register(op.op2, trace, slot);
       emit_arith(OP_ARITH_ADD, OP_ADD, op, trace, snap_labels[cur_snap] - emit_offset());
       break;
     }
     case ir_ins_op::SUB: {
+      maybe_assign_register(op.op1, trace, slot);
+      maybe_assign_register(op.op2, trace, slot);
       emit_arith(OP_ARITH_SUB, OP_SUB, op, trace, snap_labels[cur_snap] - emit_offset());
       break;
     }

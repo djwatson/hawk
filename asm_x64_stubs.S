@@ -21,10 +21,10 @@ jit_entry_stub:
 	mov rcx, [r15 + 8]
 	mov rdx, [r15 + 16]
 	mov rbx, [r15 + 24]
-	// RSP 32
-	// RBP 40
+	// RSP 32, c stack ptr.
+	mov rbp, [r15 + 40]
 	mov rsi, [r15 + 48]
-	// RDI 56
+	// RDI 56, scheme frame ptr.
 	mov r8, [r15 + 64]
 	mov r9, [r15 + 72]
 	mov r10, [r15 + 88]

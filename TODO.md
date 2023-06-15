@@ -1,6 +1,6 @@
 # working on
 
-* merge reg alloc in to emit loop
+* merge reg alloc in to emit loop - CLEANUP
 
 * folding GGET: put in emit somewhere, check for GSET
 * Merge parent SLOADS if they are the same value.

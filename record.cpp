@@ -198,12 +198,9 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   traces.push_back(trace);
 
   #ifndef REPLAY
-   assign_registers(trace);
-  #endif
-  dump_trace(trace);
-  #ifndef REPLAY
   asm_jit(trace, side_exit, parent);
   #endif
+  dump_trace(trace);
 
   trace_state = OFF;
   side_exit = NULL;
