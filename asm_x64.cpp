@@ -85,6 +85,15 @@ void maybe_assign_register(int v, trace_s* trace, int *slot) {
   }
 }
 
+void assign_snap_registers(unsigned snap_num, int* slot, trace_s* trace) {
+  auto &snap = trace->snaps[snap_num];
+  for (auto &s : snap.slots) {
+    if (!(s.val & IR_CONST_BIAS)) {
+      maybe_assign_register(s.val, trace, slot);
+    }
+  }
+}
+
 struct exit_state {
   long regs[regcnt];
   trace_s* trace;
@@ -383,12 +392,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
 // 	a.mov(ir_to_asmjit[c.first], con & ~SNAP_FRAME);
 //       }
 //     }
-    auto &snap = trace->snaps[trace->snaps.size() - 1];
-    for (auto &s : snap.slots) {
-      if (!(s.val & IR_CONST_BIAS)) {
-	maybe_assign_register(s.val, trace, slot);
-      }
-    }
+    assign_snap_registers(trace->snaps.size() - 1, slot, trace);
     emit_snap(trace->snaps.size() - 1, trace, (INS_OP(otrace->startpc)!=FUNC));
   } else {
     // No link, jump back to interpreter loop.
@@ -402,12 +406,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
   long op_cnt = trace->ops.size()-1;
   for(; op_cnt >= 0; op_cnt--) {
     while(cur_snap >= 0 && trace->snaps[cur_snap].ir > op_cnt) {
-      auto &snap = trace->snaps[cur_snap];
-      for (auto &s : snap.slots) {
-        if (!(s.val & IR_CONST_BIAS)) {
-	  maybe_assign_register(s.val, trace, slot);
-        }
-      }
+      assign_snap_registers(cur_snap, slot, trace);
       cur_snap--;
     }
     auto&op = trace->ops[op_cnt];

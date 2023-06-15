@@ -1,7 +1,5 @@
 # working on
 
-* merge reg alloc in to emit loop - CLEANUP
-
 * folding GGET: put in emit somewhere, check for GSET
 * Merge parent SLOADS if they are the same value.
 * make make notes where ARG vs SLOAD
@@ -58,11 +56,6 @@
 
 # JIT TODO:
 
-* Figure out why jloop records fail in replay/asm_x64???
-* figure out why non-looping ack fails with 1 trace
-    * it's because we save the frame state for looping, 
-	* but don't advance to next func/pc in last framestate.
-
 * fix stack size adjust  
 * and in replay is borken
   
@@ -70,9 +63,7 @@
   * 'loop' can know exact arguments in regs?  Or just not loopify at all?
   * save less in snap - dead elimination, read-only
   * closures can be exact in snap and constants
-  * don't need to save func ptr slot for callt or ret if it's the same
   * use RAX for tmp instead of R15 - RAX has shorter ops for MOV, etc
-  * Use shorter instruction sequences for small constants
   * we should be able to coalesce arg typechecks if they are the same.
   * Maybe a speical SLOAD EQ for RET instead, since we don't need to typecheck
   * Typechecks need a rethink - we can special case some stuff like eq?/eqv?, merge typechecks, etc.
@@ -92,7 +83,6 @@
   * fib 39 re-jits tails, because downrec happens first.  Even luajit does this.  Unrolling probably helps.
 
 * reg alloc - needs spilling.  
-    Needs either backwards pass with inserts (for spills), or do it at the same time as backwards codegen
 	Also, at calls/intrinics we need to know which caller-save regs to spill
 
 # OPTS
