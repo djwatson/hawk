@@ -9,6 +9,7 @@
 #include "bytecode.h"
 #include "symbol_table.h"
 #include "types.h"
+#include "ir.h"
 
 extern long *stack;
 extern unsigned int stacksz;
@@ -161,7 +162,36 @@ void trace_heap_object(long *obj) {
 // the symbol table,
 // and the constant table.
 // and symbols?????? shit
+extern trace_s *trace;
+extern std::vector<trace_s *> traces;
 extern std::vector<long> symbols;
+
+static void visit_trace(trace_s* t) {
+  for(auto&c : t->consts) {
+    visit(&c);
+  }
+  for(auto& reloc : t->relocs) {
+    auto old = reloc.obj;
+    visit(&reloc.obj);
+    if (reloc.obj != old) {
+      switch(reloc.type) {
+      case RELOC_ABS: {
+	*(int64_t*)(reloc.offset - 8) = reloc.obj;
+	break;
+      }
+      case RELOC_SYM_ABS: {
+	auto sym = (symbol*)(reloc.obj - SYMBOL_TAG);
+	*(int64_t*)(reloc.offset - 8) = (int64_t)&(sym->val);
+	break;
+      }
+      default: {
+	printf("Unknown reloc: %i\n", reloc.type);
+	assert(false);
+      }
+      }
+    }
+  }
+}
 //
 // Currently functions aren't GC'd.
 static void trace_roots() {
@@ -196,6 +226,15 @@ static void trace_roots() {
       visit(tmp);
       *tmp -= SYMBOL_TAG;
     }
+  }
+
+  // Scan traces
+  for(auto t : traces) {
+    visit_trace(t);
+  }
+  // Scan currently in-progress trace
+  if (trace) {
+    visit_trace(trace);
   }
 }
 

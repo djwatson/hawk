@@ -207,12 +207,14 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace_state = OFF;
   side_exit = NULL;
   downrec.clear();
+  trace = NULL;
   // joff = 1;
 }
 
 void record_abort() {
   pendpatch();
   delete trace;
+  trace = NULL;
   trace_state = OFF;
   side_exit = NULL;
   downrec.clear();

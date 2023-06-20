@@ -476,7 +476,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       auto reg = op.reg;
       emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
       emit_mem_reg(OP_MOV_MR, 0, reg, reg);
-      trace->relocs.push_back({emit_offset(), (long)sym, RELOC_SYM_ABS});
+      trace->relocs.push_back({emit_offset(), trace->consts[op.op1 - IR_CONST_BIAS], RELOC_SYM_ABS});
       emit_mov64(reg, (int64_t)&sym->val);
       break;
     }
