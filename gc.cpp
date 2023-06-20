@@ -238,11 +238,11 @@ static void trace_roots() {
   }
 }
 
- static constexpr size_t page_cnt = 6000; // Approx 25 mb.
+// static constexpr size_t page_cnt = 6000; // Approx 25 mb.
 // static constexpr size_t page_cnt = 12000; // Approx 50 mb.
 // static constexpr size_t page_cnt = 30000; // Approx 125 mb.
 //static constexpr size_t page_cnt = 120000; // Approx 500 mb.
-//static constexpr size_t page_cnt = 500000; // Approx 2GB
+static constexpr size_t page_cnt = 500000; // Approx 2GB
 static constexpr size_t alloc_sz = 4096 * page_cnt;
 uint8_t *to_space = nullptr;
 uint8_t *from_space = nullptr;

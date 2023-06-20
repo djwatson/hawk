@@ -34,7 +34,11 @@ enum class ir_ins_op : uint8_t {
 
   CAR,
   CDR,
+    
   ALLOC,
+  REF,
+  STORE,
+    LOAD,
 };
 
 extern const char *ir_names[];

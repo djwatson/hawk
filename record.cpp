@@ -89,11 +89,19 @@ void dump_trace(trace_s *ctrace) {
            op.type & IR_INS_TYPE_GUARD ? '>' : ' ');
     auto t = op.type & ~IR_INS_TYPE_GUARD;
     if (t == 0) {
-      printf("\e[1;35mfix\e[m ");
+      printf("\e[1;35mfix \e[m ");
     } else if (t == 5) {
-      printf("\e[1;31mclo\e[m ");
+      printf("\e[1;31mclo \e[m ");
+    } else if (t == 3) {
+      printf("\e[1;34mcons\e[m ");
+    } else if (t == 2) {
+      printf("\e[1;34mflo \e[m ");
+    } else if (t == 6) {
+      printf("\e[1;34msym \e[m ");
+    } else if (t == 7) {
+      printf("\e[1;34mlit \e[m ");
     } else {
-      printf("\e[1;34mUNK\e[m ");
+      printf("\e[1;34mUNK \e[m ");
     }
     printf("%s ", ir_names[(int)op.op]);
     switch (op.op) {
@@ -110,6 +118,10 @@ void dump_trace(trace_s *ctrace) {
       printf("%s", s->name->str);
       break;
     }
+    case ir_ins_op::ALLOC: {
+      printf("%i type %i", op.op1, op.op2);
+      break;
+    }
     case ir_ins_op::RET:
     case ir_ins_op::PHI:
     case ir_ins_op::SUB:
@@ -118,10 +130,16 @@ void dump_trace(trace_s *ctrace) {
     case ir_ins_op::NE:
     case ir_ins_op::GE:
     case ir_ins_op::LT:
+    case ir_ins_op::STORE:
     case ir_ins_op::CLT: {
       print_const_or_val(op.op1, ctrace);
       printf(" ");
       print_const_or_val(op.op2, ctrace);
+      break;
+    }
+    case ir_ins_op::REF: {
+      print_const_or_val(op.op1, ctrace);
+      printf(" offset %i", op.op2);
       break;
     }
     case ir_ins_op::LOOP: {
@@ -199,6 +217,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   traces.push_back(trace);
 
+  dump_trace(trace);
   #ifndef REPLAY
   asm_jit(trace, side_exit, parent);
   #endif
@@ -561,10 +580,57 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     break;
   }
-  // case CONS: {
-    
-  //   break;
-  // }
+  case CONS: {
+    {
+      ir_ins ins;
+      ins.type = CONS_TAG;
+      ins.reg = REG_NONE;
+      ins.op1 = sizeof(cons_s);
+      ins.op2 = CONS_TAG;
+      ins.op = ir_ins_op::ALLOC;
+      regs[INS_A(i)] = trace->ops.size();
+      trace->ops.push_back(ins);
+    }
+    auto cell = trace->ops.size()-1;
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = cell;
+      ins.op2 = 0;
+      ins.op = ir_ins_op::REF;
+      trace->ops.push_back(ins);
+    }
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = trace->ops.size()-1;
+      ins.op2 = record_stack_load(INS_B(i), frame);
+      ins.op = ir_ins_op::STORE;
+      trace->ops.push_back(ins);
+    }
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = cell;
+      ins.op2 = 8;
+      ins.op = ir_ins_op::REF;
+      trace->ops.push_back(ins);
+    }
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = trace->ops.size()-1;
+      ins.op2 = record_stack_load(INS_C(i), frame);
+      ins.op = ir_ins_op::STORE;
+      trace->ops.push_back(ins);
+    }
+
+    break;
+  }
   case MOV: {
     regs[INS_A(i)] = record_stack_load(INS_B(i), frame);
     // TODO loop moves can clear

@@ -29,5 +29,8 @@ const char* ir_names[] = {
   "CAR  ",
   "CDR  ",
   "ALLOC",
+  "REF  ",
+  "STORE",
+  "LOAD ",
 };
 // clang-format on

@@ -1,5 +1,8 @@
 # working on
 
+* Working on CONS ptrs/GC in trace
+* snapshots need to be GC'd for constants
+
 * CAR/CDR/JGUARD: typecheck improvement
 * stack expand:cleanup
 
