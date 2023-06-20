@@ -64,6 +64,7 @@
 (close-output-port opcode-cpp)
 
 (define opcode-h (open-output-file-chez "opcodes.h"))
+(display "#pragma once\n\n" opcode-h)
 (display "extern const char* ins_names[];\n" opcode-h)
 (display "enum {\n" opcode-h)
 (for-each (lambda (op)

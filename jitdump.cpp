@@ -1,21 +1,16 @@
-#include <fcntl.h>
-#include <stdint.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-
-#include <assert.h>
-#include <stddef.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-#include <elf.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-
 #include "jitdump.h"
+#include <assert.h>                    // for assert
+#include <elf.h>                       // for (anonymous), Elf64_Shdr, Elf64...
+#include <fcntl.h>                     // for open, O_CLOEXEC, O_CREAT, O_RDWR
+#include <stddef.h>                    // for offsetof
+#include <stdint.h>                    // for uint32_t, uint8_t, uint64_t
+#include <stdio.h>                     // for sprintf, printf, fprintf, fclose
+#include <stdlib.h>                    // for exit
+#include <string.h>                    // for strlen, memcpy, memset
+#include <sys/mman.h>                  // for mmap, munmap, MAP_PRIVATE, PRO...
+#include <sys/stat.h>                  // for S_IRUSR, S_IWUSR
+#include <time.h>                      // for clock_gettime, timespec, CLOCK...
+#include <unistd.h>                    // for getpid, write, close, fsync
 
 int cnt = 0;
 
@@ -169,9 +164,6 @@ void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, std::string name) {
 }
 
 ////////////// GDB elf entry ///////////////
-
-#include <elf.h>
-#include <vector>
 
 // Sections text, strtab, symtab, debug info, debug_abbrev, debug_line,
 // debug_str (only nash), shstrtab, eh_frame (only lj) symbols file, func

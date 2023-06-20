@@ -1,13 +1,15 @@
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "bytecode.h"
-#include "gc.h"
-#include "symbol_table.h"
-#include "types.h"
-#include "vm.h"
+#include <assert.h>        // for assert
+#include <stdio.h>         // for fread, printf, FILE, fclose, fmemopen, fopen
+#include <stdlib.h>        // for exit, realloc
+#include <string.h>        // for memset
+#include <string>          // for string
+#include <vector>          // for vector
+#include "bytecode.h"      // for bcfunc, CODE_D, INS_A, INS_D, INS_OP
+#include "gc.h"            // for GC_malloc, GC_pop_root, GC_push_root
+#include "opcodes.h"       // for GGET, GSET, KFUNC, KONST
+#include "symbol_table.h"  // for symbol_table_find, symbol_table_insert
+#include "types.h"         // for string_s, PTR_TAG, SYMBOL_TAG, cons_s, symbol
+#include "vm.h"            // for funcs
 
 long *const_table = nullptr;
 unsigned long const_table_sz = 0;

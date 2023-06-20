@@ -36,6 +36,7 @@ message("Using " ${CHEZ} " for bootstrapping")
 
 #set(CMAKE_CXX_CLANG_TIDY "clang-tidy;-fix;-checks=clang-diagnostic-*,clang-analyzer-*,bugprone*,modernize*,performance*,readability-*,-modernize-use-trailing-return-type,-modernize-avoid-c-arrays,-readability-magic-numbers")
 #set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE "iwyu")
+#set(CMAKE_C_INCLUDE_WHAT_YOU_USE "iwyu")
 
 # PIE turned off for testing, since we JIT hot function detection is based on address of the function.
 include(CheckPIESupported)

@@ -1,22 +1,26 @@
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "asm_x64.h"
+#include <assert.h>             // for assert
+#include <capstone/capstone.h>  // for cs_insn, cs_close, cs_disasm, cs_free
+#include <inttypes.h>           // for PRIx64
+#include <stdio.h>              // for printf, size_t
+#include <stdlib.h>             // for exit
+#include <valgrind/valgrind.h>  // for VALGRIND_DISCARD_TRANSLATIONS
+#include <cstdint>              // for uint64_t, uint16_t, uint8_t, int32_t
+#include <map>                  // for multimap, allocator, operator!=, _Rb_...
+#include <memory>               // for allocator_traits<>::value_type
+#include <string>               // for string
+#include <utility>              // for pair, make_pair
+#include <vector>               // for vector
 // TODO only for runtime symbol
-#include "bytecode.h"
-#include "jitdump.h"
-#include "types.h"
+#include "bytecode.h"           // for INS_OP, INS_B
+#include "emit_x64.h"           // for emit_offset, emit_mov64, emit_mem_reg
+#include "ir.h"                 // for ir_ins, trace_s, ir_ins::(anonymous u...
+#include "jitdump.h"            // for jit_dump, jit_reader_add, perf_map
+#include "opcodes.h"            // for JLOOP, FUNC, LOOP
 // only for tcache
-#include "record.h"
-#include "vm.h"
+#include "record.h"             // for trace_cache_get, record_side
+#include "types.h"              // for CONS_TAG, TAG_MASK, IMMEDIATE_MASK
 
-#include "emit_x64.h"
-#include <capstone/capstone.h>
-#include <valgrind/valgrind.h>
-
-#include <map>
 std::vector<std::pair<uint64_t, uint64_t>>
 serialize_parallel_copy(std::multimap<uint64_t, uint64_t> &moves,
                         uint64_t tmp_reg);

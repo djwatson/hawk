@@ -4,7 +4,6 @@
 #include <stack>
 #include <vector>
 #include <utility>
-#include <cstdio>
 
 /* serialize parallel copy implementation, based on
  * https://github.com/pfalcon/parcopy

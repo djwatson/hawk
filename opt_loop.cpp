@@ -1,10 +1,10 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <assert.h>
-
-#include "ir.h"
-#include "asm_x64.h"
-
+#include <assert.h>   // for assert
+#include <stdint.h>   // for uint16_t
+#include <stdio.h>    // for size_t, printf
+#include <memory>     // for allocator_traits<>::value_type
+#include <vector>     // for vector
+#include "asm_x64.h"  // for REG_NONE
+#include "ir.h"       // for ir_ins, snap_s, snap_entry_s, trace_s, ir_ins_op
 
 
 void opt_loop(trace_s * trace, int* regs) {

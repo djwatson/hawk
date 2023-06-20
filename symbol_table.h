@@ -1,6 +1,8 @@
 #pragma once
 
-#include "types.h"
+#include <stddef.h>
+struct string_s;
+struct symbol;
 
 symbol *symbol_table_find(string_s *str);
 void symbol_table_insert(symbol *sym);

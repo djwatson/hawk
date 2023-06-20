@@ -1,9 +1,9 @@
-#include <assert.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "symbol_table.h"
+#include <assert.h>  // for assert
+#include <stdint.h>  // for uint64_t
+#include <stdlib.h>  // for calloc, free, size_t
+#include <string.h>  // for strcmp
+#include "types.h"   // for string_s, symbol
 
 /* FNV-1a */
 uint64_t str_hash(const char *str) {

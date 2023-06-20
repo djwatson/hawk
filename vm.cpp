@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "opcodes.h"
 #include "asm_x64.h"
 #include "bytecode.h"
 #include "gc.h"

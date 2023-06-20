@@ -1,7 +1,10 @@
-#include <stdio.h>
-
-#include "asm_x64.h"
-#include "snap.h"
+#include <stdint.h>   // for uint32_t
+#include <stdio.h>    // for printf
+#include <memory>     // for allocator_traits<>::value_type
+#include <utility>    // for move
+#include <vector>     // for vector
+#include "asm_x64.h"  // for REG_NONE
+#include "ir.h"       // for snap_s, snap_entry_s, ir_ins, trace_s, IR_CONST...
 
 void add_snap(int *regs, int offset, trace_s *trace, uint32_t *pc) {
   // No need for duplicate snaps.

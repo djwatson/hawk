@@ -1,6 +1,7 @@
 #pragma once
 
-#include <string>
+#include <stdint.h>  // for uint64_t
+#include <string>    // for string
 
 void jit_dump_close();
 void jit_dump_init();

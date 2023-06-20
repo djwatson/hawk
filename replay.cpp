@@ -1,12 +1,13 @@
-#include "record.h"
-// TODO for runtime symbol
-#include "asm_x64.h"
-#include "assert.h"
-#include "bytecode.h"
-#include "types.h"
-
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdint.h>    // for uint16_t
+#include <stdio.h>     // for printf, NULL
+#include <stdlib.h>    // for exit
+#include <vector>      // for vector
+// For runtime symbol
+#include "bytecode.h"  // for INS_B, INS_OP
+#include "ir.h"        // for trace_s, ir_ins, snap_s, ir_ins_op, snap_entry_s
+#include "opcodes.h"   // for JLOOP
+#include "record.h"    // for trace_cache_get, record_side
+#include "types.h"     // for symbol
 
 // Simple replay to test recording before we write a jit.
 //#define USE_REG

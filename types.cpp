@@ -1,9 +1,6 @@
 #include "types.h"
 #include <stdio.h>
 #include <string.h>
-#include <string>
-#include <unordered_map>
-#include <charconv>
 
 #include "gc.h"
 #include "symbol_table.h"

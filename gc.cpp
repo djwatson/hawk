@@ -1,15 +1,15 @@
 #include "gc.h"
-
-#include <assert.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <vector>
-
-#include "bytecode.h"
-#include "symbol_table.h"
-#include "types.h"
-#include "ir.h"
+#include <assert.h>        // for assert
+#include <stdint.h>        // for uint8_t, int64_t
+#include <stdio.h>         // for printf
+#include <stdlib.h>        // for free, realloc
+#include <string.h>        // for memcpy
+#include <sys/mman.h>      // for mprotect, mmap, PROT_NONE, PROT_READ, PROT...
+#include <vector>          // for vector
+#include "bytecode.h"      // for const_table, const_table_sz
+#include "ir.h"            // for reloc, trace_s, RELOC_ABS, RELOC_SYM_ABS
+#include "symbol_table.h"  // for sym_table, table, TOMBSTONE
+#include "types.h"         // for TAG_MASK, FORWARD_TAG, SYMBOL_TAG, symbol
 
 extern long *stack;
 extern unsigned int stacksz;

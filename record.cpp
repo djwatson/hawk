@@ -1,13 +1,19 @@
-#include <assert.h>
-#include <string.h>
-
-#include "asm_x64.h"
-#include "bytecode.h"
-#include "ir.h"
 #include "record.h"
-#include "snap.h"
-#include "types.h"
-#include "vm.h"
+#include <assert.h>    // for assert
+#include <stdint.h>    // for uint32_t
+#include <stdio.h>     // for printf
+#include <stdlib.h>    // for exit
+#include <string.h>    // for NULL, memmove, size_t
+#include <memory>      // for allocator_traits<>::value_type
+#include <string>      // for string
+#include <vector>      // for vector
+#include "asm_x64.h"   // for REG_NONE, asm_jit, reg_names
+#include "bytecode.h"  // for INS_A, INS_B, INS_OP, INS_C, INS_D, bcfunc
+#include "ir.h"        // for ir_ins, trace_s, ir_ins_op, ir_ins::(anonymous...
+#include "snap.h"      // for add_snap, snap_replay
+#include "types.h"     // for CONS_TAG, FALSE_REP, SYMBOL_TAG, symbol, CLOSU...
+#include "vm.h"        // for find_func_for_frame, hotmap_mask, hotmap_sz
+#include "opcodes.h"
 
 void opt_loop(trace_s * trace, int* regs);
 

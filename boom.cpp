@@ -1,15 +1,15 @@
-#include <assert.h>
-#include <getopt.h>
-#include <string.h>
-#include <unistd.h>
-
-#include "gc.h"
-#include "jitdump.h"
-#include "readbc.h"
-#include "symbol_table.h"
-#include "types.h"
-#include "vm.h"
-#include "profiler.h"
+#include <getopt.h>            // for no_argument, getopt_long, option
+#include <stdio.h>             // for printf
+#include <stdlib.h>            // for exit
+#include <string.h>            // for strcmp, strcpy, strlen
+#include "gc.h"                // for GC_init
+#include "jitdump.h"           // for jit_dump_close, jit_dump_init
+#include "profiler.h"          // for profiler_start, profiler_stop
+#include "readbc.h"            // for readbc_file, readbc_image
+#include "symbol_table.h"      // for symbol_table_find_cstr
+#include "types.h"             // for from_c_str, symbol, CLOSURE_TAG, TRUE_REP
+#include "vm.h"                // for run
+struct bcfunc;
 
 extern int joff;
 

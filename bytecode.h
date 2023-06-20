@@ -1,10 +1,7 @@
 #pragma once
 
 #include <string>
-#include <unordered_map>
 #include <vector>
-
-#include "opcodes.h"
 
 extern const char *ins_names[];
 extern long *const_table;
