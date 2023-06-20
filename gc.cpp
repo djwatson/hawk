@@ -16,8 +16,8 @@ extern unsigned int stacksz;
 
 static bool gc_enable = true;
 
-static uint8_t *alloc_ptr = nullptr;
-static uint8_t *alloc_end = nullptr;
+uint8_t *alloc_ptr = nullptr;
+uint8_t *alloc_end = nullptr;
 
 std::vector<long *> pushed_roots;
 

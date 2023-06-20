@@ -23,7 +23,9 @@ serialize_parallel_copy(std::multimap<uint64_t, uint64_t> &moves,
 
 //TODO
 long* expand_stack_slowpath(long* frame);
- extern long* frame_top;
+extern long* frame_top;
+extern uint8_t *alloc_ptr;
+extern uint8_t *alloc_end;
 
 void disassemble(const uint8_t *code, int len) {
   csh handle;
@@ -460,7 +462,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       maybe_assign_register(op.op1, trace, slot);
       auto reg = op.reg;
       auto reg1 = trace->ops[op.op1].reg;
-      emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg, reg1);
+      emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg1, reg);
       break;
     }
     case ir_ins_op::CDR: {
@@ -468,7 +470,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       // TODO typecheck?
       auto reg = op.reg;
       auto reg1 = trace->ops[op.op1].reg;
-      emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg, reg1);
+      emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg1, reg);
       break;
     }
     case ir_ins_op::GGET: {
@@ -478,6 +480,37 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       emit_mem_reg(OP_MOV_MR, 0, reg, reg);
       trace->relocs.push_back({emit_offset(), trace->consts[op.op1 - IR_CONST_BIAS], RELOC_SYM_ABS});
       emit_mov64(reg, (int64_t)&sym->val);
+      break;
+    }
+    case ir_ins_op::STORE: {
+      maybe_assign_register(op.op1, trace, slot);
+      maybe_assign_register(op.op2, trace, slot);
+      emit_mem_reg(OP_MOV_RM, 0, trace->ops[op.op1].reg, trace->ops[op.op2].reg);
+      break;
+    }
+    case ir_ins_op::REF: {
+      // TODO: fuse.
+      maybe_assign_register(op.op1, trace, slot);
+      emit_mem_reg(OP_LEA, op.op2, trace->ops[op.op1].reg, op.reg);
+      break;
+    }
+    case ir_ins_op::ALLOC: {
+      emit_arith_imm(OP_ARITH_ADD, op.reg, CONS_TAG);
+      emit_mem_reg(OP_MOV_RM, 0, op.reg, R15);
+      emit_mov64(R15, CONS_TAG);
+      emit_arith_imm(OP_ARITH_SUB, op.reg, op.op1);
+      emit_mem_reg(OP_MOV_RM, 0, R15, op.reg);
+      emit_mov64(R15, uint64_t(&alloc_ptr));
+      // TODO call GC directly?
+      emit_jcc32(JGE, snap_labels[cur_snap] - emit_offset());
+      emit_reg_reg(OP_CMP, R15, op.reg);
+      emit_arith_imm(OP_ARITH_ADD, op.reg, op.op1);
+      emit_mem_reg(OP_MOV_MR, 0, op.reg, op.reg);
+      emit_mem_reg(OP_MOV_MR, 0, R15, R15);
+      emit_mov64(op.reg, uint64_t(&alloc_ptr));
+      emit_mov64(R15, uint64_t(&alloc_end));
+
+      
       break;
     }
 //     case ir_ins_op::CLT: {

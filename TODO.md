@@ -1,9 +1,9 @@
 # working on
 
-* Working on CONS ptrs/GC in trace
 * snapshots need to be GC'd for constants
+* append tracing broken
 
-* CAR/CDR/JGUARD: typecheck improvement
+* CAR/CDR/JGUARD: typecheck improvement !!!
 * stack expand:cleanup
 
 * folding GGET: put in emit somewhere, check for GSET

@@ -217,7 +217,6 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   traces.push_back(trace);
 
-  dump_trace(trace);
   #ifndef REPLAY
   asm_jit(trace, side_exit, parent);
   #endif
@@ -581,6 +580,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case CONS: {
+    add_snap(regs_list, regs - regs_list - 1, trace, pc);
+    trace->snaps[trace->snaps.size()-1].exits = 100;
     {
       ir_ins ins;
       ins.type = CONS_TAG;
@@ -597,7 +598,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.type = 0;
       ins.reg = REG_NONE;
       ins.op1 = cell;
-      ins.op2 = 0;
+      ins.op2 = 8-CONS_TAG;
       ins.op = ir_ins_op::REF;
       trace->ops.push_back(ins);
     }
@@ -615,7 +616,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.type = 0;
       ins.reg = REG_NONE;
       ins.op1 = cell;
-      ins.op2 = 8;
+      ins.op2 = 8 + 8 - CONS_TAG;
       ins.op = ir_ins_op::REF;
       trace->ops.push_back(ins);
     }
@@ -628,6 +629,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op = ir_ins_op::STORE;
       trace->ops.push_back(ins);
     }
+    add_snap(regs_list, regs - regs_list - 1, trace, pc+1);
 
     break;
   }

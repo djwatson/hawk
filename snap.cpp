@@ -6,7 +6,8 @@
 void add_snap(int *regs, int offset, trace_s *trace, uint32_t *pc) {
   // No need for duplicate snaps.
   if (trace->snaps.size() &&
-      trace->snaps[trace->snaps.size() - 1].ir == trace->ops.size()) {
+      trace->snaps[trace->snaps.size() - 1].ir == trace->ops.size() &&
+      trace->snaps[trace->snaps.size() - 1].pc == pc) {
     return;
   }
   snap_s snap;
