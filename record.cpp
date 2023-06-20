@@ -550,13 +550,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     long tag  = INS_C(i);
 
     if (tag == PTR_TAG) {
-      // TODO should be checked by sload
+      // TODO should be checked by sload??
       assert(false);
     } else if (tag < LITERAL_TAG) {
       // Nothing to do, SLOAD already checked.
     } else {
-      // literal TODO should be checked by sload
-      assert(false);
+      // Nothing to do, SLOAD already checked.
     }
     break;
   }

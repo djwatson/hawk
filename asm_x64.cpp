@@ -297,12 +297,19 @@ void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
   if (type & IR_INS_TYPE_GUARD) {
     emit_jcc32(JNE, offset);
     if ((type &~IR_INS_TYPE_GUARD ) == 0) {
-      emit_op_imm32(OP_TEST_IMM, 0, R15, 0x7);
+      emit_op_imm32(OP_TEST_IMM, 0, reg, 0x7);
+    } else if ((type & TAG_MASK) == PTR_TAG) {
+      assert(false);
+    } else if ((type & TAG_MASK) == LITERAL_TAG) {
+      auto lit_bits = type & IMMEDIATE_MASK;
+      emit_cmp_reg_imm32(R15, lit_bits);
+      emit_op_imm32(OP_AND_IMM, 4, R15, 0xff);
+      emit_reg_reg(OP_MOV, reg, R15);
     } else {
       emit_cmp_reg_imm32(R15, type & ~IR_INS_TYPE_GUARD);
       emit_op_imm32(OP_AND_IMM, 4, R15, 0x7);
+      emit_reg_reg(OP_MOV, reg, R15);
     }
-    emit_reg_reg(OP_MOV, reg, R15);
   }
 }
 
