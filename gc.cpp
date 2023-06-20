@@ -1,15 +1,15 @@
 #include "gc.h"
-#include <assert.h>        // for assert
-#include <stdint.h>        // for uint8_t, int64_t
-#include <stdio.h>         // for printf
-#include <stdlib.h>        // for free, realloc
-#include <string.h>        // for memcpy
-#include <sys/mman.h>      // for mprotect, mmap, PROT_NONE, PROT_READ, PROT...
-#include <vector>          // for vector
-#include "bytecode.h"      // for const_table, const_table_sz
-#include "ir.h"            // for reloc, trace_s, RELOC_ABS, RELOC_SYM_ABS
-#include "symbol_table.h"  // for sym_table, table, TOMBSTONE
-#include "types.h"         // for TAG_MASK, FORWARD_TAG, SYMBOL_TAG, symbol
+#include "bytecode.h"     // for const_table, const_table_sz
+#include "ir.h"           // for reloc, trace_s, RELOC_ABS, RELOC_SYM_ABS
+#include "symbol_table.h" // for sym_table, table, TOMBSTONE
+#include "types.h"        // for TAG_MASK, FORWARD_TAG, SYMBOL_TAG, symbol
+#include <assert.h>       // for assert
+#include <stdint.h>       // for uint8_t, int64_t
+#include <stdio.h>        // for printf
+#include <stdlib.h>       // for free, realloc
+#include <string.h>       // for memcpy
+#include <sys/mman.h>     // for mprotect, mmap, PROT_NONE, PROT_READ, PROT...
+#include <vector>         // for vector
 
 extern long *stack;
 extern unsigned int stacksz;
@@ -166,27 +166,27 @@ extern trace_s *trace;
 extern std::vector<trace_s *> traces;
 extern std::vector<long> symbols;
 
-static void visit_trace(trace_s* t) {
-  for(auto&c : t->consts) {
+static void visit_trace(trace_s *t) {
+  for (auto &c : t->consts) {
     visit(&c);
   }
-  for(auto& reloc : t->relocs) {
+  for (auto &reloc : t->relocs) {
     auto old = reloc.obj;
     visit(&reloc.obj);
     if (reloc.obj != old) {
-      switch(reloc.type) {
+      switch (reloc.type) {
       case RELOC_ABS: {
-	*(int64_t*)(reloc.offset - 8) = reloc.obj;
-	break;
+        *(int64_t *)(reloc.offset - 8) = reloc.obj;
+        break;
       }
       case RELOC_SYM_ABS: {
-	auto sym = (symbol*)(reloc.obj - SYMBOL_TAG);
-	*(int64_t*)(reloc.offset - 8) = (int64_t)&(sym->val);
-	break;
+        auto sym = (symbol *)(reloc.obj - SYMBOL_TAG);
+        *(int64_t *)(reloc.offset - 8) = (int64_t) & (sym->val);
+        break;
       }
       default: {
-	printf("Unknown reloc: %i\n", reloc.type);
-	assert(false);
+        printf("Unknown reloc: %i\n", reloc.type);
+        assert(false);
       }
       }
     }
@@ -229,7 +229,7 @@ static void trace_roots() {
   }
 
   // Scan traces
-  for(auto t : traces) {
+  for (auto t : traces) {
     visit_trace(t);
   }
   // Scan currently in-progress trace
@@ -241,7 +241,7 @@ static void trace_roots() {
 // static constexpr size_t page_cnt = 6000; // Approx 25 mb.
 // static constexpr size_t page_cnt = 12000; // Approx 50 mb.
 // static constexpr size_t page_cnt = 30000; // Approx 125 mb.
-//static constexpr size_t page_cnt = 120000; // Approx 500 mb.
+// static constexpr size_t page_cnt = 120000; // Approx 500 mb.
 static constexpr size_t page_cnt = 500000; // Approx 2GB
 static constexpr size_t alloc_sz = 4096 * page_cnt;
 uint8_t *to_space = nullptr;
@@ -297,7 +297,7 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
     assert(false);
   }
   mprotect(to_space, alloc_sz, PROT_NONE);
-  
+
   return res;
 }
 

@@ -1,21 +1,21 @@
 #include "record.h"
-#include <assert.h>    // for assert
-#include <stdint.h>    // for uint32_t
-#include <stdio.h>     // for printf
-#include <stdlib.h>    // for exit
-#include <string.h>    // for NULL, memmove, size_t
-#include <memory>      // for allocator_traits<>::value_type
-#include <string>      // for string
-#include <vector>      // for vector
-#include "asm_x64.h"   // for REG_NONE, asm_jit, reg_names
-#include "bytecode.h"  // for INS_A, INS_B, INS_OP, INS_C, INS_D, bcfunc
-#include "ir.h"        // for ir_ins, trace_s, ir_ins_op, ir_ins::(anonymous...
-#include "snap.h"      // for add_snap, snap_replay
-#include "types.h"     // for CONS_TAG, FALSE_REP, SYMBOL_TAG, symbol, CLOSU...
-#include "vm.h"        // for find_func_for_frame, hotmap_mask, hotmap_sz
+#include "asm_x64.h"  // for REG_NONE, asm_jit, reg_names
+#include "bytecode.h" // for INS_A, INS_B, INS_OP, INS_C, INS_D, bcfunc
+#include "ir.h"       // for ir_ins, trace_s, ir_ins_op, ir_ins::(anonymous...
 #include "opcodes.h"
+#include "snap.h"   // for add_snap, snap_replay
+#include "types.h"  // for CONS_TAG, FALSE_REP, SYMBOL_TAG, symbol, CLOSU...
+#include "vm.h"     // for find_func_for_frame, hotmap_mask, hotmap_sz
+#include <assert.h> // for assert
+#include <memory>   // for allocator_traits<>::value_type
+#include <stdint.h> // for uint32_t
+#include <stdio.h>  // for printf
+#include <stdlib.h> // for exit
+#include <string.h> // for NULL, memmove, size_t
+#include <string>   // for string
+#include <vector>   // for vector
 
-void opt_loop(trace_s * trace, int* regs);
+void opt_loop(trace_s *trace, int *regs);
 
 unsigned int *pc_start;
 unsigned int instr_count;
@@ -75,8 +75,9 @@ void dump_trace(trace_s *ctrace) {
   unsigned long cur_snap = 0;
   for (size_t i = 0; i < ctrace->ops.size() + 1 /* extra snap */; i++) {
     // Print any snap
-    while ((cur_snap < ctrace->snaps.size()) && ctrace->snaps[cur_snap].ir == i) {
-      
+    while ((cur_snap < ctrace->snaps.size()) &&
+           ctrace->snaps[cur_snap].ir == i) {
+
       auto &snap = ctrace->snaps[cur_snap];
       printf("SNAP[ir=%i pc=%lx off=%i", snap.ir, (long)snap.pc, snap.offset);
       for (auto &entry : snap.slots) {
@@ -120,7 +121,8 @@ void dump_trace(trace_s *ctrace) {
       break;
     }
     case ir_ins_op::GGET: {
-      symbol *s = (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
+      symbol *s =
+          (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       printf("%s", s->name->str);
       break;
     }
@@ -172,7 +174,8 @@ void record_start(unsigned int *pc, long *frame) {
   trace_state = START;
   func = (long)find_func_for_frame(pc);
   assert(func);
-  printf("Record start %i at %s func %s\n", trace->num, ins_names[INS_OP(*pc)], ((bcfunc*)func)->name.c_str());
+  printf("Record start %i at %s func %s\n", trace->num, ins_names[INS_OP(*pc)],
+         ((bcfunc *)func)->name.c_str());
   if (parent) {
     printf("Parent %i\n", parent->num);
   }
@@ -197,15 +200,15 @@ extern int joff;
 void record_stop(unsigned int *pc, long *frame, int link) {
   auto offset = regs - regs_list - 1;
   add_snap(regs_list, offset, trace, pc);
-  if(link == (int)traces.size() && offset == 0) {
+  if (link == (int)traces.size() && offset == 0) {
     // Attempt to loop-fiy it.
-    //opt_loop(trace, regs);
+    // opt_loop(trace, regs);
   }
-  if (trace->ops.size() <=3 ) {
+  if (trace->ops.size() <= 3) {
     record_abort();
     return;
   }
-  
+
   pendpatch();
 
   if (side_exit) {
@@ -223,9 +226,9 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   traces.push_back(trace);
 
-  #ifndef REPLAY
+#ifndef REPLAY
   asm_jit(trace, side_exit, parent);
-  #endif
+#endif
   dump_trace(trace);
 
   trace_state = OFF;
@@ -296,9 +299,9 @@ int record_stack_load(int slot, long *frame) {
 extern unsigned char hotmap[hotmap_sz];
 int record_instr(unsigned int *pc, long *frame, long argcnt) {
   unsigned int i = *pc;
-  
+
   if (INS_OP(i) == LOOP) {
-    for(int* pos = &regs[INS_A(i)]; pos < &regs_list[257]; pos++) {
+    for (int *pos = &regs[INS_A(i)]; pos < &regs_list[257]; pos++) {
       *pos = -1;
     }
   } else if (INS_OP(i) == CLFUNC) {
@@ -313,13 +316,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     record_stop(pc, frame, traces.size());
     return 1;
   }
-  
+
   instr_count++;
   for (int j = 0; j < depth; j++) {
     printf(" . ");
   }
-  printf("%lx %s %i %i %i\n", (long)pc, ins_names[INS_OP(i)], INS_A(i), INS_B(i),
-         INS_C(i));
+  printf("%lx %s %i %i %i\n", (long)pc, ins_names[INS_OP(i)], INS_A(i),
+         INS_B(i), INS_C(i));
   switch (INS_OP(i)) {
   case LOOP:
   case CLFUNC: {
@@ -421,18 +424,18 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case CALL: {
     // TODO this needs to check reg[]links instead
-    for (unsigned j = INS_A(i)+1; j < INS_A(i) + INS_B(i); j++) {
+    for (unsigned j = INS_A(i) + 1; j < INS_A(i) + INS_B(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
 
     // Check call type
     {
-      auto v = frame[INS_A(i)+1];
+      auto v = frame[INS_A(i) + 1];
       auto knum = trace->consts.size();
       trace->consts.push_back(v);
       ir_ins ins;
       ins.reg = REG_NONE;
-      ins.op1 = record_stack_load(INS_A(i)+1, frame);
+      ins.op1 = record_stack_load(INS_A(i) + 1, frame);
       ins.op2 = knum | IR_CONST_BIAS;
       ins.op = ir_ins_op::EQ;
       // TODO magic number
@@ -452,16 +455,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     depth++;
     // Push PC link as const
     {
-    auto knum = trace->consts.size();
-    trace->consts.push_back(((long)(pc + 1)) | SNAP_FRAME);
-    regs[INS_A(i)] = knum | IR_CONST_BIAS; // TODO set PC
+      auto knum = trace->consts.size();
+      trace->consts.push_back(((long)(pc + 1)) | SNAP_FRAME);
+      regs[INS_A(i)] = knum | IR_CONST_BIAS; // TODO set PC
     }
 
     // Increment regs
     regs += INS_A(i) + 1;
 
     if (cnt >= UNROLL_LIMIT) {
-      auto v = frame[INS_A(i)+1];
+      auto v = frame[INS_A(i) + 1];
       auto closure = (closure_s *)(v - CLOSURE_TAG);
       auto cfunc = (bcfunc *)closure->v[0];
       auto target = &cfunc->code[0];
@@ -530,7 +533,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op2 = record_stack_load(INS_C(i), frame);
     if (frame[INS_B(i)] < frame[INS_C(i)]) {
       ins.op = ir_ins_op::LT;
-      add_snap(regs_list, regs - regs_list - 1, trace, pc + INS_D(*(pc+1)) + 1);
+      add_snap(regs_list, regs - regs_list - 1, trace,
+               pc + INS_D(*(pc + 1)) + 1);
     } else {
       ins.op = ir_ins_op::GE;
       add_snap(regs_list, regs - regs_list - 1, trace, pc + 2);
@@ -547,7 +551,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op2 = record_stack_load(INS_C(i), frame);
     if (frame[INS_B(i)] == frame[INS_C(i)]) {
       ins.op = ir_ins_op::EQ;
-      add_snap(regs_list, regs - regs_list - 1, trace, pc + INS_D(*(pc+1)) + 1);
+      add_snap(regs_list, regs - regs_list - 1, trace,
+               pc + INS_D(*(pc + 1)) + 1);
     } else {
       ins.op = ir_ins_op::NE;
       add_snap(regs_list, regs - regs_list - 1, trace, pc + 2);
@@ -572,7 +577,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case JGUARD: {
-    long tag  = INS_C(i);
+    long tag = INS_C(i);
 
     if (tag == PTR_TAG) {
       // TODO should be checked by sload??
@@ -586,7 +591,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case CONS: {
     add_snap(regs_list, regs - regs_list - 1, trace, pc);
-    trace->snaps[trace->snaps.size()-1].exits = 100;
+    trace->snaps[trace->snaps.size() - 1].exits = 100;
     {
       ir_ins ins;
       ins.type = CONS_TAG;
@@ -597,13 +602,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       regs[INS_A(i)] = trace->ops.size();
       trace->ops.push_back(ins);
     }
-    auto cell = trace->ops.size()-1;
+    auto cell = trace->ops.size() - 1;
     {
       ir_ins ins;
       ins.type = 0;
       ins.reg = REG_NONE;
       ins.op1 = cell;
-      ins.op2 = 8-CONS_TAG;
+      ins.op2 = 8 - CONS_TAG;
       ins.op = ir_ins_op::REF;
       trace->ops.push_back(ins);
     }
@@ -611,7 +616,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ir_ins ins;
       ins.type = 0;
       ins.reg = REG_NONE;
-      ins.op1 = trace->ops.size()-1;
+      ins.op1 = trace->ops.size() - 1;
       ins.op2 = record_stack_load(INS_B(i), frame);
       ins.op = ir_ins_op::STORE;
       trace->ops.push_back(ins);
@@ -629,19 +634,19 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ir_ins ins;
       ins.type = 0;
       ins.reg = REG_NONE;
-      ins.op1 = trace->ops.size()-1;
+      ins.op1 = trace->ops.size() - 1;
       ins.op2 = record_stack_load(INS_C(i), frame);
       ins.op = ir_ins_op::STORE;
       trace->ops.push_back(ins);
     }
-    add_snap(regs_list, regs - regs_list - 1, trace, pc+1);
+    add_snap(regs_list, regs - regs_list - 1, trace, pc + 1);
 
     break;
   }
   case MOV: {
     regs[INS_A(i)] = record_stack_load(INS_B(i), frame);
     // TODO loop moves can clear
-    //regs[INS_B(i)] = -1;
+    // regs[INS_B(i)] = -1;
     break;
   }
   case GGET: {
@@ -649,13 +654,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     long gp = const_table[INS_D(i)];
     auto reg = INS_A(i);
     bool done = false;
-    for(int j = trace->ops.size() - 1; j >=0; j--) {
-      auto&op = trace->ops[j];
+    for (int j = trace->ops.size() - 1; j >= 0; j--) {
+      auto &op = trace->ops[j];
       if (op.op == ir_ins_op::GGET &&
-	  trace->consts[op.op1-IR_CONST_BIAS] == gp) {
-	done = true;
-	regs[reg] = j;
-	break;
+          trace->consts[op.op1 - IR_CONST_BIAS] == gp) {
+        done = true;
+        regs[reg] = j;
+        break;
       }
     }
     if (!done) {
@@ -728,12 +733,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case CALLT: {
     // Check call type
     {
-      auto v = frame[INS_A(i)+1];
+      auto v = frame[INS_A(i) + 1];
       auto knum = trace->consts.size();
       trace->consts.push_back(v);
       ir_ins ins;
       ins.reg = REG_NONE;
-      ins.op1 = record_stack_load(INS_A(i)+1, frame);
+      ins.op1 = record_stack_load(INS_A(i) + 1, frame);
       ins.op2 = knum | IR_CONST_BIAS;
       ins.op = ir_ins_op::EQ;
       // TODO magic number
@@ -742,7 +747,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     // Move args down
     // TODO also chedck func
-    for (unsigned j = INS_A(i)+1; j < INS_A(i) + INS_B(i); j++) {
+    for (unsigned j = INS_A(i) + 1; j < INS_A(i) + INS_B(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
     memmove(&regs[0], &regs[INS_A(i) + 1], sizeof(int) * (INS_B(i) - 1));
@@ -793,7 +798,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     printf("NYI: CANT RECORD BYTECODE %s\n", ins_names[INS_OP(i)]);
     record_abort();
     return 1;
-    //exit(-1);
+    // exit(-1);
   }
   }
   if (instr_count > 5000) {

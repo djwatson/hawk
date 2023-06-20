@@ -80,28 +80,28 @@ enum jcc_cond {
   JS = 0x88,
 };
 
-  void emit_init();
+void emit_init();
 void emit_cleanup();
 uint64_t emit_offset();
 void emit_advance(int64_t offset);
 void emit_bind(uint64_t label, uint64_t jmp);
-  void emit_check();
+void emit_check();
 
 void emit_ret();
-  void emit_jmp32(int32_t offset);
-  void emit_jmp_abs(enum registers r);
-  void emit_jmp_indirect(int32_t offset);
-  void emit_call_indirect(uint8_t r);
-  void emit_mov64(uint8_t r, int64_t imm);
-  void emit_push(uint8_t r);
-  void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2);
+void emit_jmp32(int32_t offset);
+void emit_jmp_abs(enum registers r);
+void emit_jmp_indirect(int32_t offset);
+void emit_call_indirect(uint8_t r);
+void emit_mov64(uint8_t r, int64_t imm);
+void emit_push(uint8_t r);
+void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2);
 void emit_mem_reg_sib(uint8_t opcode, int32_t offset, uint8_t scale,
                       uint8_t index, uint8_t base, uint8_t reg);
-  void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst);
-  void emit_jcc32(enum jcc_cond cond, int32_t offset);
-  void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm);
-  void emit_cmp_reg_imm32(uint8_t r, int32_t imm) ;
-  void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm) ;
+void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst);
+void emit_jcc32(enum jcc_cond cond, int32_t offset);
+void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm);
+void emit_cmp_reg_imm32(uint8_t r, int32_t imm);
+void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm);
 #ifdef __cplusplus
 }
 #endif

@@ -1,13 +1,13 @@
-#include <stdint.h>    // for uint16_t
-#include <stdio.h>     // for printf, NULL
-#include <stdlib.h>    // for exit
-#include <vector>      // for vector
+#include <stdint.h> // for uint16_t
+#include <stdio.h>  // for printf, NULL
+#include <stdlib.h> // for exit
+#include <vector>   // for vector
 // For runtime symbol
-#include "bytecode.h"  // for INS_B, INS_OP
-#include "ir.h"        // for trace_s, ir_ins, snap_s, ir_ins_op, snap_entry_s
-#include "opcodes.h"   // for JLOOP
-#include "record.h"    // for trace_cache_get, record_side
-#include "types.h"     // for symbol
+#include "bytecode.h" // for INS_B, INS_OP
+#include "ir.h"       // for trace_s, ir_ins, snap_s, ir_ins_op, snap_entry_s
+#include "opcodes.h"  // for JLOOP
+#include "record.h"   // for trace_cache_get, record_side
+#include "types.h"    // for symbol
 
 // Simple replay to test recording before we write a jit.
 //#define USE_REG
@@ -240,13 +240,14 @@ looped:
       // printf("Snap link %i\n", trace->link);
       //  do NOT adjust frame jumping back to a root trace.
       if (loop_pc != -1) {
-	pc = loop_pc;
-	for(int i = trace->ops.size()-1; i >= 0; i--) {
-	  auto &op = trace->ops[i];
-	  if (op.op != ir_ins_op::PHI) break;
-	  res[op.op1] = res[i];
-	}
-	goto looped;
+        pc = loop_pc;
+        for (int i = trace->ops.size() - 1; i >= 0; i--) {
+          auto &op = trace->ops[i];
+          if (op.op != ir_ins_op::PHI)
+            break;
+          res[op.op1] = res[i];
+        }
+        goto looped;
       }
       tnum = trace->link;
       goto again;

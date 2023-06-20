@@ -40,14 +40,14 @@ void print_obj(long obj, FILE *file) {
   }
   case FLONUM_TAG: {
     auto f = (flonum_s *)(obj - FLONUM_TAG);
-      char buffer[40];
-      sprintf(buffer, "%g", f->x);
-      if (strpbrk(buffer, ".eE") == NULL) {
-	size_t len = strlen(buffer);
-	buffer[len] = '.';
-	buffer[len+1] = '0';
-	buffer[len+2] = '\0';
-      }
+    char buffer[40];
+    sprintf(buffer, "%g", f->x);
+    if (strpbrk(buffer, ".eE") == NULL) {
+      size_t len = strlen(buffer);
+      buffer[len] = '.';
+      buffer[len + 1] = '0';
+      buffer[len + 2] = '\0';
+    }
     fprintf(file, "%s", buffer);
     break;
   }

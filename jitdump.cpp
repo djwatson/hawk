@@ -1,16 +1,16 @@
 #include "jitdump.h"
-#include <assert.h>                    // for assert
-#include <elf.h>                       // for (anonymous), Elf64_Shdr, Elf64...
-#include <fcntl.h>                     // for open, O_CLOEXEC, O_CREAT, O_RDWR
-#include <stddef.h>                    // for offsetof
-#include <stdint.h>                    // for uint32_t, uint8_t, uint64_t
-#include <stdio.h>                     // for sprintf, printf, fprintf, fclose
-#include <stdlib.h>                    // for exit
-#include <string.h>                    // for strlen, memcpy, memset
-#include <sys/mman.h>                  // for mmap, munmap, MAP_PRIVATE, PRO...
-#include <sys/stat.h>                  // for S_IRUSR, S_IWUSR
-#include <time.h>                      // for clock_gettime, timespec, CLOCK...
-#include <unistd.h>                    // for getpid, write, close, fsync
+#include <assert.h>   // for assert
+#include <elf.h>      // for (anonymous), Elf64_Shdr, Elf64...
+#include <fcntl.h>    // for open, O_CLOEXEC, O_CREAT, O_RDWR
+#include <stddef.h>   // for offsetof
+#include <stdint.h>   // for uint32_t, uint8_t, uint64_t
+#include <stdio.h>    // for sprintf, printf, fprintf, fclose
+#include <stdlib.h>   // for exit
+#include <string.h>   // for strlen, memcpy, memset
+#include <sys/mman.h> // for mmap, munmap, MAP_PRIVATE, PRO...
+#include <sys/stat.h> // for S_IRUSR, S_IWUSR
+#include <time.h>     // for clock_gettime, timespec, CLOCK...
+#include <unistd.h>   // for getpid, write, close, fsync
 
 int cnt = 0;
 

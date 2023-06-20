@@ -1,23 +1,21 @@
-#include <getopt.h>            // for no_argument, getopt_long, option
-#include <stdio.h>             // for printf
-#include <stdlib.h>            // for exit
-#include <string.h>            // for strcmp, strcpy, strlen
-#include "gc.h"                // for GC_init
-#include "jitdump.h"           // for jit_dump_close, jit_dump_init
-#include "profiler.h"          // for profiler_start, profiler_stop
-#include "readbc.h"            // for readbc_file, readbc_image
-#include "symbol_table.h"      // for symbol_table_find_cstr
-#include "types.h"             // for from_c_str, symbol, CLOSURE_TAG, TRUE_REP
-#include "vm.h"                // for run
+#include "gc.h"           // for GC_init
+#include "jitdump.h"      // for jit_dump_close, jit_dump_init
+#include "profiler.h"     // for profiler_start, profiler_stop
+#include "readbc.h"       // for readbc_file, readbc_image
+#include "symbol_table.h" // for symbol_table_find_cstr
+#include "types.h"        // for from_c_str, symbol, CLOSURE_TAG, TRUE_REP
+#include "vm.h"           // for run
+#include <getopt.h>       // for no_argument, getopt_long, option
+#include <stdio.h>        // for printf
+#include <stdlib.h>       // for exit
+#include <string.h>       // for strcmp, strcpy, strlen
 struct bcfunc;
 
 extern int joff;
 
 static struct option long_options[] = {
-    {"profile", no_argument, nullptr, 'p'},
-    {"joff", no_argument, nullptr, 'o'},
-    {"help", no_argument, nullptr, 'h'},
-    {"list", no_argument, nullptr, 'l'},
+    {"profile", no_argument, nullptr, 'p'}, {"joff", no_argument, nullptr, 'o'},
+    {"help", no_argument, nullptr, 'h'},    {"list", no_argument, nullptr, 'l'},
     {nullptr, no_argument, nullptr, 0},
 };
 
@@ -82,7 +80,7 @@ int main(int argc, char *argv[]) {
 
   GC_init();
   // GC_expand_hp(50000000);
-   jit_dump_init();
+  jit_dump_init();
   if (profile) {
     profiler_start();
   }
@@ -103,7 +101,7 @@ int main(int argc, char *argv[]) {
       printf("Compiling script %s\n", argv[i]);
       compile_file(argv[i]);
       if (list) {
-	exit(0);
+        exit(0);
       }
       printf("Running script %s\n", tmp);
       joff = ojoff;
@@ -119,7 +117,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-   jit_dump_close();
+  jit_dump_close();
   if (profile) {
     profiler_stop();
   }

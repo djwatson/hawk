@@ -88,7 +88,7 @@ enum trace_type_e {
 enum reloc_type {
   RELOC_ABS,
   RELOC_SYM_ABS,
-} ;
+};
 
 struct reloc {
   uint64_t offset;

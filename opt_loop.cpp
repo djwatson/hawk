@@ -1,17 +1,16 @@
-#include <assert.h>   // for assert
-#include <stdint.h>   // for uint16_t
-#include <stdio.h>    // for size_t, printf
-#include <memory>     // for allocator_traits<>::value_type
-#include <vector>     // for vector
-#include "asm_x64.h"  // for REG_NONE
-#include "ir.h"       // for ir_ins, snap_s, snap_entry_s, trace_s, ir_ins_op
+#include "asm_x64.h" // for REG_NONE
+#include "ir.h"      // for ir_ins, snap_s, snap_entry_s, trace_s, ir_ins_op
+#include <assert.h>  // for assert
+#include <memory>    // for allocator_traits<>::value_type
+#include <stdint.h>  // for uint16_t
+#include <stdio.h>   // for size_t, printf
+#include <vector>    // for vector
 
-
-void opt_loop(trace_s * trace, int* regs) {
+void opt_loop(trace_s *trace, int *regs) {
   auto cut = trace->ops.size();
   auto snap_cut = trace->snaps.size();
-  uint16_t replace[cut*2+1];
-  for(unsigned i = 0; i < cut*2+1; i++) {
+  uint16_t replace[cut * 2 + 1];
+  for (unsigned i = 0; i < cut * 2 + 1; i++) {
     replace[i] = i;
   }
 
@@ -24,70 +23,71 @@ void opt_loop(trace_s * trace, int* regs) {
 
   std::vector<size_t> phis;
   unsigned long cur_snap = 0;
-  for(size_t i = 0; i < cut + 1; i++) {
+  for (size_t i = 0; i < cut + 1; i++) {
     // Emit phis last.
     if (i == cut) {
-      for(size_t j = 0; j < phis.size(); j++) {
-	ir_ins ins;
-	ins.reg = REG_NONE;
-	ins.op = ir_ins_op::PHI;
-	ins.op1 = replace[phis[j]];
-	ins.op2 = replace[regs[trace->ops[phis[j]].op1]];
-	regs[trace->ops[phis[j]].op1] = trace->ops.size();
-	replace[ins.op2] = trace->ops.size();
-	replace[ins.op1] = trace->ops.size();
-	trace->ops.push_back(ins);
+      for (size_t j = 0; j < phis.size(); j++) {
+        ir_ins ins;
+        ins.reg = REG_NONE;
+        ins.op = ir_ins_op::PHI;
+        ins.op1 = replace[phis[j]];
+        ins.op2 = replace[regs[trace->ops[phis[j]].op1]];
+        regs[trace->ops[phis[j]].op1] = trace->ops.size();
+        replace[ins.op2] = trace->ops.size();
+        replace[ins.op1] = trace->ops.size();
+        trace->ops.push_back(ins);
       }
     }
     // Emit snaps, including any final snaps.
-    while((cur_snap < trace->snaps.size()) && (trace->snaps[cur_snap].ir == i)) {
+    while ((cur_snap < trace->snaps.size()) &&
+           (trace->snaps[cur_snap].ir == i)) {
       auto &snap = trace->snaps[cur_snap];
 
       if (cur_snap != 0) {
-	snap_s nsnap;
-	nsnap.ir = trace->ops.size();
-	nsnap.pc = snap.pc;
-	nsnap.offset = snap.offset;
-	nsnap.exits = 0;
-	nsnap.link = -1;
-	// Emit loopsnap - all final loop snapshots are carried through loop
-	auto& loopsnap = trace->snaps[snap_cut-1];
-	for(auto&entry : loopsnap.slots) {
-	  if(entry.val < IR_CONST_BIAS) {
-	    nsnap.slots.push_back({entry.slot, replace[entry.val]});
-	  } else {
-	    nsnap.slots.push_back(entry);
-	  }
-	}
-	// Emit in-loop snaps.  Merge with 
-	for(auto&entry : snap.slots) {
-	  snap_entry_s new_entry;
-	  if(entry.val < IR_CONST_BIAS) {
-	    new_entry = {entry.slot, replace[entry.val]};
-	  } else {
-	    new_entry = entry;
-	  }
-	  bool done = false;
-	  for(auto&nentry : nsnap.slots) {
-	    if (nentry.slot == new_entry.slot) {
-	      nentry.val = new_entry.val;
-	      done = true;
-	      break;
-	    }
-	  }
-	  if (!done) {
-	    nsnap.slots.push_back(new_entry);
-	  }
-	}
-	trace->snaps.push_back(nsnap);
+        snap_s nsnap;
+        nsnap.ir = trace->ops.size();
+        nsnap.pc = snap.pc;
+        nsnap.offset = snap.offset;
+        nsnap.exits = 0;
+        nsnap.link = -1;
+        // Emit loopsnap - all final loop snapshots are carried through loop
+        auto &loopsnap = trace->snaps[snap_cut - 1];
+        for (auto &entry : loopsnap.slots) {
+          if (entry.val < IR_CONST_BIAS) {
+            nsnap.slots.push_back({entry.slot, replace[entry.val]});
+          } else {
+            nsnap.slots.push_back(entry);
+          }
+        }
+        // Emit in-loop snaps.  Merge with
+        for (auto &entry : snap.slots) {
+          snap_entry_s new_entry;
+          if (entry.val < IR_CONST_BIAS) {
+            new_entry = {entry.slot, replace[entry.val]};
+          } else {
+            new_entry = entry;
+          }
+          bool done = false;
+          for (auto &nentry : nsnap.slots) {
+            if (nentry.slot == new_entry.slot) {
+              nentry.val = new_entry.val;
+              done = true;
+              break;
+            }
+          }
+          if (!done) {
+            nsnap.slots.push_back(new_entry);
+          }
+        }
+        trace->snaps.push_back(nsnap);
       }
-      
+
       cur_snap++;
     }
     if (i == cut) {
       break;
     }
-    auto& ins = trace->ops[i];
+    auto &ins = trace->ops[i];
     switch (ins.op) {
     case ir_ins_op::ARG:
     case ir_ins_op::SLOAD: {
@@ -104,10 +104,10 @@ void opt_loop(trace_s * trace, int* regs) {
     case ir_ins_op::SUB: {
       ir_ins copy = ins;
       if (copy.op1 < IR_CONST_BIAS) {
-	copy.op1 = replace[copy.op1];
+        copy.op1 = replace[copy.op1];
       }
       if (copy.op2 < IR_CONST_BIAS) {
-	copy.op2 = replace[copy.op2];
+        copy.op2 = replace[copy.op2];
       }
       replace[i] = trace->ops.size();
       trace->ops.push_back(copy);
@@ -116,13 +116,13 @@ void opt_loop(trace_s * trace, int* regs) {
     case ir_ins_op::GGET: {
       ir_ins copy = ins;
       if (copy.op1 < IR_CONST_BIAS) {
-	copy.op1 = replace[copy.op1];
+        copy.op1 = replace[copy.op1];
       }
       replace[i] = trace->ops.size();
       trace->ops.push_back(copy);
       break;
     }
-    default:{
+    default: {
       printf("Can't loop ir type: %s\n", ir_names[(int)ins.op]);
       trace->ops.resize(cut);
       trace->snaps.resize(snap_cut);

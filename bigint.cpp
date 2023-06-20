@@ -1,9 +1,9 @@
+#include <assert.h>
+#include <gc/gc.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
-#include <gc/gc.h>
 
 struct bignum {
   long type;
@@ -13,47 +13,49 @@ struct bignum {
   uint64_t l[];
 };
 
-static bignum* bignum_alloc(size_t len) {
-  auto res = (bignum*)malloc(sizeof(bignum) + len*sizeof(long));
+static bignum *bignum_alloc(size_t len) {
+  auto res = (bignum *)malloc(sizeof(bignum) + len * sizeof(long));
   res->type = 0;
   res->len = len;
   res->used = 0;
   return res;
 }
 
-static bignum* bignum_copy(bignum* a, size_t len) {
+static bignum *bignum_copy(bignum *a, size_t len) {
   auto res = bignum_alloc(len);
   res->used = a->used;
-  memcpy(res->l, a->l, sizeof(uint64_t)*a->used);
+  memcpy(res->l, a->l, sizeof(uint64_t) * a->used);
   return res;
 }
 
-void bignum_set_from_fixnum(bignum*a, uint64_t fix) {
+void bignum_set_from_fixnum(bignum *a, uint64_t fix) {
   assert(a->len >= 1);
   a->used = 1;
   a->l[0] = fix;
 }
 
-void bignum_print_hex(char* buf, size_t buflen, bignum* a) {
+void bignum_print_hex(char *buf, size_t buflen, bignum *a) {
   size_t pos = 0;
-  for(uint64_t i = a->used; i > 0; i--) {
-    sprintf(&buf[pos], "%016lx",  a->l[i-1]);
+  for (uint64_t i = a->used; i > 0; i--) {
+    sprintf(&buf[pos], "%016lx", a->l[i - 1]);
     pos += 16;
   }
   buf[pos] = '\0';
   auto npos = 0;
-  while(buf[npos] == '0' && npos < pos) npos++;
-  if (npos) memmove(buf, &buf[npos], buflen - npos);
+  while (buf[npos] == '0' && npos < pos)
+    npos++;
+  if (npos)
+    memmove(buf, &buf[npos], buflen - npos);
   if (buf[0] == '\0') {
     buf[0] = '0';
     buf[1] = '\0';
   }
 }
 
-bignum* bignum_add_unsigned(bignum* a, bignum* b) {
+bignum *bignum_add_unsigned(bignum *a, bignum *b) {
   // Make a is bigger.
   if (a->used < b->used) {
-    bignum* tmp = a;
+    bignum *tmp = a;
     a = b;
     b = tmp;
   }
@@ -62,16 +64,16 @@ bignum* bignum_add_unsigned(bignum* a, bignum* b) {
   auto res = bignum_copy(a, nlen);
 
   // Copy a in to res.
-  res->l[nlen-1] = 0;
+  res->l[nlen - 1] = 0;
   res->used = nlen;
 
-  uint64_t* bp = b->l;
-  uint64_t* bp_end = b->l + b->used;
-  uint64_t* rp = res->l;
+  uint64_t *bp = b->l;
+  uint64_t *bp_end = b->l + b->used;
+  uint64_t *rp = res->l;
 
   // Scan over b, adding it to res.
   uint64_t sum;
-  while(bp < bp_end) {
+  while (bp < bp_end) {
     uint64_t cur = (*rp);
     if (carry) {
       sum = cur + *bp + 1;
@@ -89,7 +91,7 @@ bignum* bignum_add_unsigned(bignum* a, bignum* b) {
     carry = (sum == 0);
     (*rp++) = sum;
   }
-  if (res->l[nlen-1] == 0) {
+  if (res->l[nlen - 1] == 0) {
     res->used--;
   }
 
@@ -97,34 +99,34 @@ bignum* bignum_add_unsigned(bignum* a, bignum* b) {
   return res;
 }
 
-void bignum_simplify(bignum* a) {
-  while(a->used > 0 && a->l[a->used-1] == 0) {
-      a->used--;
+void bignum_simplify(bignum *a) {
+  while (a->used > 0 && a->l[a->used - 1] == 0) {
+    a->used--;
   }
   if (a->used == 0) {
     a->used = 1;
   }
 }
 
-int bignum_cmp(bignum* a, bignum* b) {
+int bignum_cmp(bignum *a, bignum *b) {
   if (a->used > b->used) {
     return 1;
   } else if (b->used > a->used) {
     return -1;
   } else {
-    for(int64_t i = a->used-1; i >=0; i--) {
+    for (int64_t i = a->used - 1; i >= 0; i--) {
       if (a->l[i] > b->l[i]) {
-	return 1;
+        return 1;
       } else if (b->l[i] > a->l[i]) {
-	return -1;
+        return -1;
       }
     }
   }
-  
+
   return 0;
 }
 
-bignum* bignum_sub_unsigned(bignum* a, bignum* b) {
+bignum *bignum_sub_unsigned(bignum *a, bignum *b) {
   // a *MUST* be bigger.
   assert(a->used >= b->used);
   assert(bignum_cmp(b, a) != 1);
@@ -132,13 +134,13 @@ bignum* bignum_sub_unsigned(bignum* a, bignum* b) {
   int borrow = 0;
   auto res = bignum_copy(a, nlen);
 
-  uint64_t* bp = b->l;
-  uint64_t* bp_end = b->l + b->used;
-  uint64_t* rp = res->l;
+  uint64_t *bp = b->l;
+  uint64_t *bp_end = b->l + b->used;
+  uint64_t *rp = res->l;
 
   // Scan over b, adding it to res.
   uint64_t diff;
-  while(bp < bp_end) {
+  while (bp < bp_end) {
     uint64_t cur = (*rp);
     if (borrow) {
       diff = cur - *bp - 1;
@@ -163,28 +165,27 @@ bignum* bignum_sub_unsigned(bignum* a, bignum* b) {
   return res;
 }
 
-bignum* bignum_mul_unsigned(bignum* a, bignum* b) {
+bignum *bignum_mul_unsigned(bignum *a, bignum *b) {
   // Make a smaller.
   if (a->used > b->used) {
-    bignum* tmp = a;
+    bignum *tmp = a;
     a = b;
     b = tmp;
   }
   assert(a->used <= b->used);
 
-  
   auto nlen = a->used + b->used;
   auto res = bignum_alloc(nlen);
-  memset(res->l, 0, sizeof(uint64_t)*nlen);
+  memset(res->l, 0, sizeof(uint64_t) * nlen);
   res->used = nlen; // Fixed by simplify.
 
-  for(uint64_t i = 0; i < b->used; i++) {
+  for (uint64_t i = 0; i < b->used; i++) {
     uint64_t carry = 0;
     __uint128_t yval = b->l[i];
-    for(uint64_t j = 0; j < a->used; j++) {
+    for (uint64_t j = 0; j < a->used; j++) {
       __uint128_t prod = __uint128_t(a->l[j]) * yval + res->l[i + j] + carry;
       res->l[i + j] = prod;
-      carry = prod>>64;
+      carry = prod >> 64;
     }
     res->l[i + a->used] = carry;
   }
@@ -193,19 +194,19 @@ bignum* bignum_mul_unsigned(bignum* a, bignum* b) {
   return res;
 }
 
-static void bignum_destructive_shift_left_word(bignum* a, uint64_t words) {
+static void bignum_destructive_shift_left_word(bignum *a, uint64_t words) {
   assert(a->len - a->used > words);
   int64_t i;
-  for(i = a->used - 1; i >= words; i--) {
+  for (i = a->used - 1; i >= words; i--) {
     a->l[i] = a->l[i - words];
   }
   a->used += words;
-  for(;  i >= 0; i--) {
+  for (; i >= 0; i--) {
     a->l[i] = 0;
   }
 }
 
-static void bignum_destructive_shift_left(bignum* a, uint64_t bits) {
+static void bignum_destructive_shift_left(bignum *a, uint64_t bits) {
   auto words = bits / 64;
   if (words) {
     bignum_destructive_shift_left_word(a, words);
@@ -213,37 +214,37 @@ static void bignum_destructive_shift_left(bignum* a, uint64_t bits) {
   }
   assert(a->len > a->used);
   a->used++;
-  a->l[a->used-1] = 0;
+  a->l[a->used - 1] = 0;
   if (bits) {
     int i;
-    for(i = a->used - 1; i > 0; i--) {
-      a->l[i] = (a->l[i] << bits) | (a->l[i-1] >> (64 - bits));
+    for (i = a->used - 1; i > 0; i--) {
+      a->l[i] = (a->l[i] << bits) | (a->l[i - 1] >> (64 - bits));
     }
     a->l[0] <<= bits;
   }
   bignum_simplify(a);
 }
 
-static void bignum_destructive_shift_right_word(bignum* a, uint64_t words) {
+static void bignum_destructive_shift_right_word(bignum *a, uint64_t words) {
   int64_t i;
-  for(i = 0; i < a->used - words; i++) {
-    a->l[i]  = a->l[i + words];
+  for (i = 0; i < a->used - words; i++) {
+    a->l[i] = a->l[i + words];
   }
-  for(; i < a->used; i++) {
+  for (; i < a->used; i++) {
     a->l[i] = 0;
   }
   a->used -= words;
 }
 
-static void bignum_destructive_shift_right(bignum* a, uint64_t bits) {
-  auto words = bits/ 64;
+static void bignum_destructive_shift_right(bignum *a, uint64_t bits) {
+  auto words = bits / 64;
   if (words) {
     bignum_destructive_shift_right_word(a, words);
     bits -= words * 64;
   }
   if (bits) {
     int i;
-    for(i = 0; i < a->used-1; i++) {
+    for (i = 0; i < a->used - 1; i++) {
       a->l[i] = (a->l[i] >> bits) | (a->l[i + 1] << (64 - bits));
     }
     a->l[i] >>= bits;
@@ -251,39 +252,37 @@ static void bignum_destructive_shift_right(bignum* a, uint64_t bits) {
   bignum_simplify(a);
 }
 
-bool bignum_is_zero(bignum* a) {
-  return a->used == 1 && a->l[0] == 0;
-}
+bool bignum_is_zero(bignum *a) { return a->used == 1 && a->l[0] == 0; }
 
-static void bignum_destructive_or(bignum* res, bignum* o) {
+static void bignum_destructive_or(bignum *res, bignum *o) {
   auto v = res->used < o->used ? res->used : o->used;
 
-  for(uint64_t i = 0; i < v; i++) {
+  for (uint64_t i = 0; i < v; i++) {
     res->l[i] |= o->l[i];
   }
 }
 
-bignum* bignum_div(bignum* a, bignum* b) {
-  bignum* c = bignum_alloc(a->used + 1);
+bignum *bignum_div(bignum *a, bignum *b) {
+  bignum *c = bignum_alloc(a->used + 1);
   bignum_set_from_fixnum(c, 1);
-  if(bignum_cmp(a, b) != 1) {
+  if (bignum_cmp(a, b) != 1) {
     bignum_set_from_fixnum(c, 0);
     return c;
   }
   assert(!bignum_is_zero(b));
 
-  bignum* denom = bignum_copy(b, a->used + 1);
-  bignum* num = bignum_copy(a, a->used + 1);
+  bignum *denom = bignum_copy(b, a->used + 1);
+  bignum *num = bignum_copy(a, a->used + 1);
 
-  while(bignum_cmp(denom, a) != 1) {
+  while (bignum_cmp(denom, a) != 1) {
     bignum_destructive_shift_left(denom, 1);
     bignum_destructive_shift_left(c, 1);
   }
-  bignum* res = bignum_alloc(a->used);
-  memset(res->l, 0, sizeof(uint64_t)*a->used);
+  bignum *res = bignum_alloc(a->used);
+  memset(res->l, 0, sizeof(uint64_t) * a->used);
   res->used = a->used;
 
-  while(!bignum_is_zero(c)) {
+  while (!bignum_is_zero(c)) {
     if (bignum_cmp(num, denom) != -1) {
       num = bignum_sub_unsigned(num, denom);
       bignum_destructive_or(res, c);
@@ -297,8 +296,6 @@ bignum* bignum_div(bignum* a, bignum* b) {
 }
 
 #include <gmp.h>
-
-
 
 /* q[0], r[0], u[0], and v[0] contain the LEAST significant words.
 (The sequence is in little-endian order).
@@ -322,238 +319,241 @@ parameters (e.g., division by 0).
 that the dividend be at least as long as the divisor.  (In his terms,
 m >= 0 (unstated).  Therefore m+n >= n.) */
 
-int divmnu(unsigned q[], unsigned r[],
-     const unsigned u[], const unsigned v[],
-     int m, int n) {
+int divmnu(unsigned q[], unsigned r[], const unsigned u[], const unsigned v[],
+           int m, int n) {
 
-   const unsigned long long b = 4294967296LL; // Number base (2**32).
-   unsigned *un, *vn;                         // Normalized form of u, v.
-   unsigned long long qhat;                   // Estimated quotient digit.
-   unsigned long long rhat;                   // A remainder.
-   unsigned long long p;                      // Product of two digits.
-   long long t, k;
-   int s, i, j;
+  const unsigned long long b = 4294967296LL; // Number base (2**32).
+  unsigned *un, *vn;                         // Normalized form of u, v.
+  unsigned long long qhat;                   // Estimated quotient digit.
+  unsigned long long rhat;                   // A remainder.
+  unsigned long long p;                      // Product of two digits.
+  long long t, k;
+  int s, i, j;
 
-   if (m < n || n <= 0 || v[n-1] == 0)
-      return 1;                         // Return if invalid param.
+  if (m < n || n <= 0 || v[n - 1] == 0)
+    return 1; // Return if invalid param.
 
-   if (n == 1) {                        // Take care of
-      k = 0;                            // the case of a
-      for (j = m - 1; j >= 0; j--) {    // single-digit
-         q[j] = (k*b + u[j])/v[0];      // divisor here.
-         k = (k*b + u[j]) - q[j]*v[0];
-      }
-      if (r != NULL) r[0] = k;
-      return 0;
-   }
+  if (n == 1) {                     // Take care of
+    k = 0;                          // the case of a
+    for (j = m - 1; j >= 0; j--) {  // single-digit
+      q[j] = (k * b + u[j]) / v[0]; // divisor here.
+      k = (k * b + u[j]) - q[j] * v[0];
+    }
+    if (r != NULL)
+      r[0] = k;
+    return 0;
+  }
 
-   /* Normalize by shifting v left just enough so that its high-order
-   bit is on, and shift u left the same amount. We may have to append a
-   high-order digit on the dividend; we do that unconditionally. */
+  /* Normalize by shifting v left just enough so that its high-order
+  bit is on, and shift u left the same amount. We may have to append a
+  high-order digit on the dividend; we do that unconditionally. */
 
-   s = __builtin_clz(v[n-1]);             // 0 <= s <= 31.
-   vn = (unsigned *)alloca(4*n);
-   for (i = n - 1; i > 0; i--)
-      vn[i] = (v[i] << s) | ((unsigned long long)v[i-1] >> (32-s));
-   vn[0] = v[0] << s;
+  s = __builtin_clz(v[n - 1]); // 0 <= s <= 31.
+  vn = (unsigned *)alloca(4 * n);
+  for (i = n - 1; i > 0; i--)
+    vn[i] = (v[i] << s) | ((unsigned long long)v[i - 1] >> (32 - s));
+  vn[0] = v[0] << s;
 
-   un = (unsigned *)alloca(4*(m + 1));
-   un[m] = (unsigned long long)u[m-1] >> (32-s);
-   for (i = m - 1; i > 0; i--)
-      un[i] = (u[i] << s) | ((unsigned long long)u[i-1] >> (32-s));
-   un[0] = u[0] << s;
+  un = (unsigned *)alloca(4 * (m + 1));
+  un[m] = (unsigned long long)u[m - 1] >> (32 - s);
+  for (i = m - 1; i > 0; i--)
+    un[i] = (u[i] << s) | ((unsigned long long)u[i - 1] >> (32 - s));
+  un[0] = u[0] << s;
 
-   for (j = m - n; j >= 0; j--) {       // Main loop.
-      // Compute estimate qhat of q[j].
-      qhat = (un[j+n]*b + un[j+n-1])/vn[n-1];
-      rhat = (un[j+n]*b + un[j+n-1])%vn[n-1];
-again:
-      if (qhat >= b || (unsigned)qhat*(unsigned long long)vn[n-2] > b*rhat + un[j+n-2])
-      { qhat = qhat - 1;
-        rhat = rhat + vn[n-1];
-        if (rhat < b) goto again;
-      }
+  for (j = m - n; j >= 0; j--) { // Main loop.
+    // Compute estimate qhat of q[j].
+    qhat = (un[j + n] * b + un[j + n - 1]) / vn[n - 1];
+    rhat = (un[j + n] * b + un[j + n - 1]) % vn[n - 1];
+  again:
+    if (qhat >= b || (unsigned)qhat * (unsigned long long)vn[n - 2] >
+                         b * rhat + un[j + n - 2]) {
+      qhat = qhat - 1;
+      rhat = rhat + vn[n - 1];
+      if (rhat < b)
+        goto again;
+    }
 
-      // Multiply and subtract.
+    // Multiply and subtract.
+    k = 0;
+    for (i = 0; i < n; i++) {
+      p = (unsigned)qhat * (unsigned long long)vn[i];
+      t = un[i + j] - k - (p & 0xFFFFFFFFLL);
+      un[i + j] = t;
+      k = (p >> 32) - (t >> 32);
+    }
+    t = un[j + n] - k;
+    un[j + n] = t;
+
+    q[j] = qhat;       // Store quotient digit.
+    if (t < 0) {       // If we subtracted too
+      q[j] = q[j] - 1; // much, add back.
       k = 0;
       for (i = 0; i < n; i++) {
-	p = (unsigned)qhat*(unsigned long long)vn[i];
-         t = un[i+j] - k - (p & 0xFFFFFFFFLL);
-         un[i+j] = t;
-         k = (p >> 32) - (t >> 32);
+        t = (unsigned long long)un[i + j] + vn[i] + k;
+        un[i + j] = t;
+        k = t >> 32;
       }
-      t = un[j+n] - k;
-      un[j+n] = t;
-
-      q[j] = qhat;              // Store quotient digit.
-      if (t < 0) {              // If we subtracted too
-         q[j] = q[j] - 1;       // much, add back.
-         k = 0;
-         for (i = 0; i < n; i++) {
-            t = (unsigned long long)un[i+j] + vn[i] + k;
-            un[i+j] = t;
-            k = t >> 32;
-         }
-         un[j+n] = un[j+n] + k;
-      }
-   } // End j.
-   // If the caller wants the remainder, unnormalize
-   // it and pass it back.
-   if (r != NULL) {
-      for (i = 0; i < n-1; i++)
-         r[i] = (un[i] >> s) | ((unsigned long long)un[i+1] << (32-s));
-      r[n-1] = un[n-1] >> s;
-   }
-   return 0;
+      un[j + n] = un[j + n] + k;
+    }
+  } // End j.
+  // If the caller wants the remainder, unnormalize
+  // it and pass it back.
+  if (r != NULL) {
+    for (i = 0; i < n - 1; i++)
+      r[i] = (un[i] >> s) | ((unsigned long long)un[i + 1] << (32 - s));
+    r[n - 1] = un[n - 1] >> s;
+  }
+  return 0;
 }
 
-int divmnu128(uint64_t q[], uint64_t r[],
-     const uint64_t u[], const uint64_t v[],
-     int m, int n) {
+int divmnu128(uint64_t q[], uint64_t r[], const uint64_t u[],
+              const uint64_t v[], int m, int n) {
 
-   uint64_t *un, *vn;                         // Normalized form of u, v.
-   __uint128_t qhat;                   // Estimated quotient digit.
-   __uint128_t rhat;                   // A remainder.
-   __uint128_t p;                      // Product of two digits.
-   __int128_t t, k;
-   int s, i, j;
+  uint64_t *un, *vn; // Normalized form of u, v.
+  __uint128_t qhat;  // Estimated quotient digit.
+  __uint128_t rhat;  // A remainder.
+  __uint128_t p;     // Product of two digits.
+  __int128_t t, k;
+  int s, i, j;
 
-   if (m < n || n <= 0 || v[n-1] == 0)
-      return 1;                         // Return if invalid param.
+  if (m < n || n <= 0 || v[n - 1] == 0)
+    return 1; // Return if invalid param.
 
-   if (n == 1) {                        // Take care of
-      k = 0;                            // the case of a
-      for (j = m - 1; j >= 0; j--) {    // single-digit
-	q[j] = ((__uint128_t(k)<<64) + u[j])/v[0];      // divisor here.
-         k = ((__uint128_t(k)<<64) + u[j])%v[0];
-      }
-      if (r != NULL) r[0] = k;
-      return 0;
-   }
+  if (n == 1) {                                      // Take care of
+    k = 0;                                           // the case of a
+    for (j = m - 1; j >= 0; j--) {                   // single-digit
+      q[j] = ((__uint128_t(k) << 64) + u[j]) / v[0]; // divisor here.
+      k = ((__uint128_t(k) << 64) + u[j]) % v[0];
+    }
+    if (r != NULL)
+      r[0] = k;
+    return 0;
+  }
 
-   /* Normalize by shifting v left just enough so that its high-order
-   bit is on, and shift u left the same amount. We may have to append a
-   high-order digit on the dividend; we do that unconditionally. */
+  /* Normalize by shifting v left just enough so that its high-order
+  bit is on, and shift u left the same amount. We may have to append a
+  high-order digit on the dividend; we do that unconditionally. */
 
-   s = __builtin_clzll(v[n-1]);             // 0 <= s <= 63.
-   // printf("clz %i %lx\n", s, v[n-1]);
-   vn = (uint64_t *)alloca(8*n);
-   for (i = n - 1; i > 0; i--) {
-     vn[i] = (v[i] << s) | (__uint128_t(v[i-1]) >> (64-s));
-   }
-   vn[0] = v[0] << s;
-   // printf("v %lx %lx\n", v[1], v[0]);
-   // printf("vn %lx %lx\n", vn[1], vn[0]);
-   
+  s = __builtin_clzll(v[n - 1]); // 0 <= s <= 63.
+  // printf("clz %i %lx\n", s, v[n-1]);
+  vn = (uint64_t *)alloca(8 * n);
+  for (i = n - 1; i > 0; i--) {
+    vn[i] = (v[i] << s) | (__uint128_t(v[i - 1]) >> (64 - s));
+  }
+  vn[0] = v[0] << s;
+  // printf("v %lx %lx\n", v[1], v[0]);
+  // printf("vn %lx %lx\n", vn[1], vn[0]);
 
-   un = (uint64_t *)alloca(8*(m + 1));
-   un[m] = __uint128_t(u[m-1]) >> (64-s);
-   for (i = m - 1; i > 0; i--)
-     un[i] = (u[i] << s) | (__uint128_t(u[i-1]) >> (64-s));
-   un[0] = u[0] << s;
-   // printf("u %lx %lx %lx\n", u[2], u[1], u[0]);
-   // printf("un %lx %lx %lx\n", un[2], un[1], un[0]);
+  un = (uint64_t *)alloca(8 * (m + 1));
+  un[m] = __uint128_t(u[m - 1]) >> (64 - s);
+  for (i = m - 1; i > 0; i--)
+    un[i] = (u[i] << s) | (__uint128_t(u[i - 1]) >> (64 - s));
+  un[0] = u[0] << s;
+  // printf("u %lx %lx %lx\n", u[2], u[1], u[0]);
+  // printf("un %lx %lx %lx\n", un[2], un[1], un[0]);
 
-   // printf("128 m %i n %i\n", m, n);
-   for (j = m - n; j >= 0; j--) {       // Main loop.
-      // Compute estimate qhat of q[j].
-     // printf("num %lx %lx\n", un[j+n], un[j+n-1]);
-     // printf("denom %lx \n", vn[n-1]);
-     qhat = ((__uint128_t(un[j+n])<<64) + un[j+n-1])/vn[n-1];
-     rhat = ((__uint128_t(un[j+n])<<64) + un[j+n-1])%vn[n-1];
-again:
-     // printf("128 j %i\n", j);
-     // printf("qhat %lx %lx\n", uint64_t(qhat>>64), uint64_t(qhat));
-     // printf("rhat %lx %lx\n", uint64_t(rhat>>64), uint64_t(rhat));
-     if (((qhat>>64) != 0) || uint64_t(qhat)*__uint128_t(vn[n-2]) > (rhat<<64) + un[j+n-2])
-      { qhat = qhat - 1;
-        rhat = rhat + vn[n-1];
-        if ((rhat>>64) == 0) goto again;
-      }
+  // printf("128 m %i n %i\n", m, n);
+  for (j = m - n; j >= 0; j--) { // Main loop.
+                                 // Compute estimate qhat of q[j].
+    // printf("num %lx %lx\n", un[j+n], un[j+n-1]);
+    // printf("denom %lx \n", vn[n-1]);
+    qhat = ((__uint128_t(un[j + n]) << 64) + un[j + n - 1]) / vn[n - 1];
+    rhat = ((__uint128_t(un[j + n]) << 64) + un[j + n - 1]) % vn[n - 1];
+  again:
+    // printf("128 j %i\n", j);
+    // printf("qhat %lx %lx\n", uint64_t(qhat>>64), uint64_t(qhat));
+    // printf("rhat %lx %lx\n", uint64_t(rhat>>64), uint64_t(rhat));
+    if (((qhat >> 64) != 0) || uint64_t(qhat) * __uint128_t(vn[n - 2]) >
+                                   (rhat << 64) + un[j + n - 2]) {
+      qhat = qhat - 1;
+      rhat = rhat + vn[n - 1];
+      if ((rhat >> 64) == 0)
+        goto again;
+    }
 
-      // Multiply and subtract.
-      k = 0;
-      for (i = 0; i < n; i++) {
-	// printf("I %i\n", i);
-	p = uint64_t(qhat)*__uint128_t(vn[i]);
-	// printf("P: %lx %lx\n", uint64_t(p >> 64), uint64_t(p));
-	t = __int128_t(un[i+j]) - k - __int128_t(p&0xFFFFFFFFFFFFFFFFLL);
-	// printf("sub: %lx %lx k %lx %lx\n", un[i+j], uint64_t(p), uint64_t(k>>64), uint64_t(k));
-	
-	// printf("T: %lx %lx\n", uint64_t(t >> 64), uint64_t(t));
-	un[i+j] = t;
-	k = (p >> 64) - (t >> 64);
-	// printf("K: %lx %lx\n", uint64_t(k >> 64), uint64_t(k));
-      }
-      t = un[j+n] - k;
+    // Multiply and subtract.
+    k = 0;
+    for (i = 0; i < n; i++) {
+      // printf("I %i\n", i);
+      p = uint64_t(qhat) * __uint128_t(vn[i]);
+      // printf("P: %lx %lx\n", uint64_t(p >> 64), uint64_t(p));
+      t = __int128_t(un[i + j]) - k - __int128_t(p & 0xFFFFFFFFFFFFFFFFLL);
+      // printf("sub: %lx %lx k %lx %lx\n", un[i+j], uint64_t(p),
+      // uint64_t(k>>64), uint64_t(k));
+
       // printf("T: %lx %lx\n", uint64_t(t >> 64), uint64_t(t));
-      // printf("UN: %lx \n", un[j+n]);
+      un[i + j] = t;
+      k = (p >> 64) - (t >> 64);
       // printf("K: %lx %lx\n", uint64_t(k >> 64), uint64_t(k));
-      un[j+n] = t;
+    }
+    t = un[j + n] - k;
+    // printf("T: %lx %lx\n", uint64_t(t >> 64), uint64_t(t));
+    // printf("UN: %lx \n", un[j+n]);
+    // printf("K: %lx %lx\n", uint64_t(k >> 64), uint64_t(k));
+    un[j + n] = t;
 
-      q[j] = qhat;              // Store quotient digit.
-      // printf("Quotient: %lx\n", q[j]);
-      // printf("T: %lx %lx\n", uint64_t(t >> 64), uint64_t(t));
-      if (t < 0) {              // If we subtracted too
-	// printf("TOo much\n");
-         q[j] = q[j] - 1;       // much, add back.
-	 // printf("new Quotient: %lx\n", q[j]);
-         k = 0;
-         for (i = 0; i < n; i++) {
-	   t = __uint128_t(un[i+j]) + vn[i] + k;
-            un[i+j] = t;
-            k = t >> 64;
-         }
-         un[j+n] = un[j+n] + k;
+    q[j] = qhat; // Store quotient digit.
+    // printf("Quotient: %lx\n", q[j]);
+    // printf("T: %lx %lx\n", uint64_t(t >> 64), uint64_t(t));
+    if (t < 0) {       // If we subtracted too
+                       // printf("TOo much\n");
+      q[j] = q[j] - 1; // much, add back.
+                       // printf("new Quotient: %lx\n", q[j]);
+      k = 0;
+      for (i = 0; i < n; i++) {
+        t = __uint128_t(un[i + j]) + vn[i] + k;
+        un[i + j] = t;
+        k = t >> 64;
       }
-   } // End j.
-   // If the caller wants the remainder, unnormalize
-   // it and pass it back.
-   if (r != NULL) {
-      for (i = 0; i < n-1; i++)
-	r[i] = (un[i] >> s) | (__uint128_t(un[i+1]) << (64-s));
-      r[n-1] = un[n-1] >> s;
-   }
-   return 0;
+      un[j + n] = un[j + n] + k;
+    }
+  } // End j.
+  // If the caller wants the remainder, unnormalize
+  // it and pass it back.
+  if (r != NULL) {
+    for (i = 0; i < n - 1; i++)
+      r[i] = (un[i] >> s) | (__uint128_t(un[i + 1]) << (64 - s));
+    r[n - 1] = un[n - 1] >> s;
+  }
+  return 0;
 }
 
-bignum* bignum_div2(bignum* num, bignum* denom) {
-  if(bignum_cmp(num, denom) != 1) {
+bignum *bignum_div2(bignum *num, bignum *denom) {
+  if (bignum_cmp(num, denom) != 1) {
     auto c = bignum_alloc(1);
     bignum_set_from_fixnum(c, 0);
     return c;
   }
   assert(!bignum_is_zero(denom));
-  
+
   auto res = bignum_alloc(num->used);
   res->used = num->used;
-  memset(res->l, 0, res->len*sizeof(uint64_t));
-  auto num_used = num->used*2;
-  if (((unsigned*)num->l)[num_used-1] == 0) num_used--;
-  auto denom_used = denom->used*2;
-  if (((unsigned*)denom->l)[denom_used-1] == 0) denom_used--;
-  auto r = divmnu((unsigned*)res->l, nullptr,
-		  (unsigned*)num->l, (unsigned*)denom->l,
-		  num_used, denom_used);
+  memset(res->l, 0, res->len * sizeof(uint64_t));
+  auto num_used = num->used * 2;
+  if (((unsigned *)num->l)[num_used - 1] == 0)
+    num_used--;
+  auto denom_used = denom->used * 2;
+  if (((unsigned *)denom->l)[denom_used - 1] == 0)
+    denom_used--;
+  auto r = divmnu((unsigned *)res->l, nullptr, (unsigned *)num->l,
+                  (unsigned *)denom->l, num_used, denom_used);
   assert(r == 0);
   bignum_simplify(res);
   return res;
 }
 
-bignum* bignum_div3(bignum* num, bignum* denom) {
-  if(bignum_cmp(num, denom) != 1) {
+bignum *bignum_div3(bignum *num, bignum *denom) {
+  if (bignum_cmp(num, denom) != 1) {
     auto c = bignum_alloc(1);
     bignum_set_from_fixnum(c, 0);
     return c;
   }
   assert(!bignum_is_zero(denom));
-  
+
   auto res = bignum_alloc(num->used);
   res->used = num->used;
-  memset(res->l, 0, res->len*sizeof(uint64_t));
-  auto r = divmnu128(res->l, nullptr,
-		  num->l, denom->l,
-		  num->used, denom->used);
+  memset(res->l, 0, res->len * sizeof(uint64_t));
+  auto r = divmnu128(res->l, nullptr, num->l, denom->l, num->used, denom->used);
   assert(r == 0);
   bignum_simplify(res);
   return res;
@@ -565,7 +565,7 @@ bignum* bignum_div3(bignum* num, bignum* denom) {
 
 //   size_t sz = fread(inputs, 1, 512 * sizeof(uint64_t), stdin);
 //   sz /= sizeof(uint64_t);
-  
+
 //   auto a = bignum_alloc(2);
 //   auto d = bignum_alloc(1);
 //   bignum_set_from_fixnum(a, 2);
@@ -574,18 +574,18 @@ bignum* bignum_div3(bignum* num, bignum* denom) {
 //   mpz_t am;
 //   mpz_t bm;
 //   mpz_t dm;
-  
+
 //   mpz_inits(am, bm, dm, nullptr);
 //   mpz_set_ui(am, 2);
 //   mpz_set_ui(dm, 1);
-  
+
 //   for(uint64_t i =0; i < sz; i++) {
 //     auto in = inputs[i];
 //     if (in < 2) {
 //       continue;
 //     }
 //     auto b = bignum_alloc(1);
-    
+
 //     bignum_set_from_fixnum(b, in);
 //     mpz_set_ui(bm, in);
 
@@ -634,15 +634,15 @@ bignum* bignum_div3(bignum* num, bignum* denom) {
 //   return 0;
 // }
 
-bignum* expt(bignum* num, uint64_t exp) {
+bignum *expt(bignum *num, uint64_t exp) {
   auto res = bignum_copy(num, num->used);
-  for(uint64_t i = 0; i < exp - 1; i++) {
+  for (uint64_t i = 0; i < exp - 1; i++) {
     res = bignum_mul_unsigned(res, num);
   }
   return res;
 }
 
-bignum* exact_integer_sqrt(bignum * s) {
+bignum *exact_integer_sqrt(bignum *s) {
   auto res = bignum_alloc(1);
   bignum_set_from_fixnum(res, 1);
   if (bignum_cmp(s, res) != 1) {
@@ -650,8 +650,8 @@ bignum* exact_integer_sqrt(bignum * s) {
   }
   bignum_set_from_fixnum(res, 2);
   auto x0 = bignum_div3(s, res);
-  auto x1 = bignum_div3( bignum_add_unsigned(x0, bignum_div3(s, x0)), res);
-  while(bignum_cmp(x1, x0) == -1) {
+  auto x1 = bignum_div3(bignum_add_unsigned(x0, bignum_div3(s, x0)), res);
+  while (bignum_cmp(x1, x0) == -1) {
     x0 = x1;
     // auto v1 = bignum_div2(s, x0);
     // auto v2 = bignum_div3(s, x0);
@@ -683,18 +683,16 @@ bignum* exact_integer_sqrt(bignum * s) {
   return x0;
 }
 
-bignum* square(bignum* a) {
-  return bignum_mul_unsigned(a, a);
-}
+bignum *square(bignum *a) { return bignum_mul_unsigned(a, a); }
 
-int main2(int argc, char* argv[]) {
+int main2(int argc, char *argv[]) {
   auto one = bignum_alloc(2);
   one->l[0] = 0x1122334455667788;
   one->l[1] = 0x8;
-  one->used=2;
+  one->used = 2;
   auto two = bignum_alloc(1);
   two->l[0] = 0x8112233445566779;
-  two->used=1;
+  two->used = 1;
   auto res = bignum_div3(one, two);
   {
     char buf1[1024];
@@ -703,7 +701,7 @@ int main2(int argc, char* argv[]) {
   }
   return 0;
 }
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   int nb_digits = atoi(argv[1]);
   auto one = bignum_alloc(1);
   bignum_set_from_fixnum(one, 10);
@@ -722,34 +720,36 @@ int main(int argc, char* argv[]) {
   auto b = exact_integer_sqrt(bignum_div3(square(one), two));
   auto t = bignum_div3(one, four);
   auto x = oneone;
-  bignum* res;
+  bignum *res;
   while (true) {
-  // {
-  //   char buf1[1024];
-  //   bignum_print_hex(buf1, 1024, a);
-  //   printf("A: %s\n", buf1);
-  // }
-  // {
-  //   char buf1[1024];
-  //   bignum_print_hex(buf1, 1024, b);
-  //   printf("B: %s\n", buf1);
-  // }
-  // {
-  //   char buf1[1024];
-  //   bignum_print_hex(buf1, 1024, t);
-  //   printf("T: %s\n", buf1);
-  // }
-  // {
-  //   char buf1[1024];
-  //   bignum_print_hex(buf1, 1024, x);
-  //   printf("X: %s\n", buf1);
-  // }
+    // {
+    //   char buf1[1024];
+    //   bignum_print_hex(buf1, 1024, a);
+    //   printf("A: %s\n", buf1);
+    // }
+    // {
+    //   char buf1[1024];
+    //   bignum_print_hex(buf1, 1024, b);
+    //   printf("B: %s\n", buf1);
+    // }
+    // {
+    //   char buf1[1024];
+    //   bignum_print_hex(buf1, 1024, t);
+    //   printf("T: %s\n", buf1);
+    // }
+    // {
+    //   char buf1[1024];
+    //   bignum_print_hex(buf1, 1024, x);
+    //   printf("X: %s\n", buf1);
+    // }
     if (bignum_cmp(a, b) == 0) {
-      res = bignum_div3(square(bignum_add_unsigned(a, b)), bignum_mul_unsigned(four, t));
+      res = bignum_div3(square(bignum_add_unsigned(a, b)),
+                        bignum_mul_unsigned(four, t));
       break;
     }
     auto newa = bignum_div3(bignum_add_unsigned(a, b), two);
-    auto diff = bignum_cmp(newa, a) == 1 ? bignum_sub_unsigned(newa, a) : bignum_sub_unsigned(a, newa);
+    auto diff = bignum_cmp(newa, a) == 1 ? bignum_sub_unsigned(newa, a)
+                                         : bignum_sub_unsigned(a, newa);
     auto newb = exact_integer_sqrt(bignum_mul_unsigned(a, b));
     auto foo = bignum_mul_unsigned(x, square(diff));
     auto the_div2 = bignum_div3(foo, one);
@@ -760,7 +760,7 @@ int main(int argc, char* argv[]) {
     t = newt;
     x = newx;
   }
-  
+
   {
     char buf1[10240];
     bignum_print_hex(buf1, 10240, res);
@@ -768,4 +768,3 @@ int main(int argc, char* argv[]) {
   }
   return 0;
 }
-

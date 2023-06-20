@@ -4,18 +4,18 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "opcodes.h"
 #include "asm_x64.h"
 #include "bytecode.h"
 #include "gc.h"
+#include "opcodes.h"
 #include "record.h"
 #ifdef REPLAY
 #include "replay.h"
 #endif
+#include "profiler.h"
 #include "symbol_table.h"
 #include "types.h"
 #include "vm.h"
-#include "profiler.h"
 
 int joff = 0;
 extern int profile;
@@ -68,10 +68,10 @@ static op_func l_op_table_profile[INS_MAX];
     MUSTTAIL return op_table_arg_c[op](ARGS);                                  \
   }
 
-bcfunc* find_func_for_frame(uint32_t* pc) {
+bcfunc *find_func_for_frame(uint32_t *pc) {
   for (unsigned long j = 0; j < funcs.size(); j++) {
     if (pc >= &funcs[j]->code[0] &&
-	pc <= &funcs[j]->code[funcs[j]->code.size() - 1]) {
+        pc <= &funcs[j]->code[funcs[j]->code.size() - 1]) {
       return funcs[j];
     }
   }
@@ -84,8 +84,7 @@ ABI __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
   while (&frame[-1] > stack) {
     auto res = find_func_for_frame(pc);
     if (res) {
-        printf("FUNC: %s PC %li\n", res->name.c_str(),
-               pc - &res->code[0]);
+      printf("FUNC: %s PC %li\n", res->name.c_str(), pc - &res->code[0]);
     }
     pc = (unsigned int *)frame[-1];
     frame[-1] = frame[ra];
@@ -107,8 +106,8 @@ ABI void RECORD_START(PARAMS) {
     // Tail call with original op table.
     MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
   }
-  MUSTTAIL return l_op_table_record[INS_OP(*pc)](ra, instr, pc, frame,
-                                          (void **)l_op_table_record, argcnt);
+  MUSTTAIL return l_op_table_record[INS_OP(*pc)](
+      ra, instr, pc, frame, (void **)l_op_table_record, argcnt);
 }
 
 ABI void RECORD(PARAMS) {
@@ -166,7 +165,7 @@ ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   NEXT_INSTR;
 }
 
-long* expand_stack_slowpath(long *frame) {
+long *expand_stack_slowpath(long *frame) {
   printf("Expand stack from %i to %i in jit\n", stacksz, stacksz * 2);
   auto pos = frame - stack;
   auto oldsz = stacksz;
@@ -453,11 +452,11 @@ LIBRARY_FUNC_EQ(JNEQ, pc += INS_D(*(pc+1)) + 1, pc += 2, 0);
   }
 
 #define MOVE_PC(a, b, op)                                                      \
-  assert(INS_OP(*(pc+1)) == JMP);					       \
+  assert(INS_OP(*(pc + 1)) == JMP);                                            \
   if (a op b) {                                                                \
     pc += 2;                                                                   \
   } else {                                                                     \
-    pc += INS_D(*(pc+1)) + 1;						       \
+    pc += INS_D(*(pc + 1)) + 1;                                                \
   }
 
 #define SET_RES(a, b, op)                                                      \
@@ -1171,7 +1170,7 @@ void run(bcfunc *func, long argcnt, long *args) {
   }
 
   opcode_table_init();
-// Setup instruction table.
+  // Setup instruction table.
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }
@@ -1188,7 +1187,7 @@ void run(bcfunc *func, long argcnt, long *args) {
   instr >>= 16;
   auto op_table_arg = (void **)l_op_table;
   if (profile) {
-    op_table_arg = (void**)l_op_table_profile;
+    op_table_arg = (void **)l_op_table_profile;
     l_op_table_profile[op](ARGS);
   } else {
     l_op_table[op](ARGS);

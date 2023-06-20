@@ -2,8 +2,8 @@
 #include <cstdint>
 #include <map>
 #include <stack>
-#include <vector>
 #include <utility>
+#include <vector>
 
 /* serialize parallel copy implementation, based on
  * https://github.com/pfalcon/parcopy
@@ -14,7 +14,7 @@ serialize_parallel_copy(std::multimap<uint64_t, uint64_t> &moves,
                         uint64_t tmp_reg) {
   std::vector<std::pair<uint64_t, uint64_t>> res;
 
-  for(auto&move : moves) {
+  for (auto &move : moves) {
     assert(move.first != tmp_reg);
     assert(move.second != tmp_reg);
   }
