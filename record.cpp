@@ -106,7 +106,7 @@ void dump_trace(trace_s *ctrace) {
       break;
     }
     case ir_ins_op::GGET: {
-      symbol *s = (symbol *)ctrace->consts[op.op1 - IR_CONST_BIAS];
+      symbol *s = (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       printf("%s", s->name->str);
       break;
     }
@@ -571,7 +571,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case GGET: {
     // TODO GSET
-    long gp = (const_table[INS_D(i)] - SYMBOL_TAG);
+    long gp = const_table[INS_D(i)];
     auto reg = INS_A(i);
     bool done = false;
     for(int j = trace->ops.size() - 1; j >=0; j--) {
@@ -590,7 +590,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.reg = REG_NONE;
       ins.op1 = knum | IR_CONST_BIAS;
       ins.op = ir_ins_op::GGET;
-      ins.type = IR_INS_TYPE_GUARD | (((symbol *)gp)->val & 0x7);
+      ins.type = IR_INS_TYPE_GUARD | (((symbol *)(gp - SYMBOL_TAG))->val & 0x7);
       regs[reg] = trace->ops.size();
       trace->ops.push_back(ins);
     }
