@@ -89,6 +89,7 @@ void emit_ret();
   void emit_jmp32(int32_t offset);
   void emit_jmp_abs(enum registers r);
   void emit_jmp_indirect(int32_t offset);
+  void emit_call_indirect(uint8_t r);
   void emit_mov64(uint8_t r, int64_t imm);
   void emit_push(uint8_t r);
   void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2);

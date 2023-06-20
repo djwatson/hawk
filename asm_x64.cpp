@@ -21,6 +21,10 @@ std::vector<std::pair<uint64_t, uint64_t>>
 serialize_parallel_copy(std::multimap<uint64_t, uint64_t> &moves,
                         uint64_t tmp_reg);
 
+//TODO
+long* expand_stack_slowpath(long* frame);
+ extern long* frame_top;
+
 void disassemble(const uint8_t *code, int len) {
   csh handle;
   cs_insn *insn;
@@ -359,6 +363,20 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
     auto &last_snap = trace->snaps[trace->snaps.size()-1];
     if (last_snap.offset) {
       emit_arith_imm(OP_ARITH_ADD, RDI, last_snap.offset * 8);
+      auto ok = emit_offset();
+      // Emit a stack overflow check
+      if (last_snap.offset > 0) {
+	emit_reg_reg(OP_MOV, RAX, RDI);
+	emit_arith_imm(OP_ARITH_ADD, RSP, 8);
+	emit_call_indirect(R15);
+	emit_arith_imm(OP_ARITH_SUB, RSP, 8);
+	emit_mov64(R15, int64_t(&expand_stack_slowpath));
+	emit_jcc32(JL, ok - emit_offset());
+	emit_reg_reg(OP_CMP, R15, RDI);
+	// TODO merge if in top?
+	emit_mem_reg(OP_MOV_MR, 0, R15, R15);
+	emit_mov64(R15, int64_t(&frame_top));
+      }
     }
     
 //     // Parallel move if there are args

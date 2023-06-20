@@ -160,11 +160,24 @@ ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   stack = (long *)realloc(stack, stacksz * sizeof(long));
   memset(&stack[oldsz], 0, sizeof(long) * (stacksz - oldsz));
   frame = stack + pos;
-  frame_top = stack + stacksz;
+  frame_top = stack + stacksz - 256;
 
   NEXT_INSTR;
 }
 
+long* expand_stack_slowpath(long *frame) {
+  printf("Expand stack from %i to %i in jit\n", stacksz, stacksz * 2);
+  auto pos = frame - stack;
+  auto oldsz = stacksz;
+  stacksz *= 2;
+  stack = (long *)realloc(stack, stacksz * sizeof(long));
+  memset(&stack[oldsz], 0, sizeof(long) * (stacksz - oldsz));
+  frame = stack + pos;
+  frame_top = stack + stacksz - 256;
+  printf("Frame %p top %p\n", frame, frame_top);
+
+  return frame;
+}
 /* A whole pile of macros to make opcode generation easier.
  *
  * The B/BC/D refer to opcode type.  'NAME' refers to scm vs C name.
@@ -617,7 +630,7 @@ auto res = record_run(rd, &pc, &frame, frame_top);
 auto res = jit_run(rd, &pc, &frame, frame_top);
 #endif
 
-  frame_top = stack + stacksz;
+  frame_top = stack + stacksz - 256;
   // printf("frame after %i %li %li \n", frame-stack, frame[0], frame[1]);
   if (unlikely(res)) {
     // Turn on recording again
@@ -1144,7 +1157,7 @@ void run(bcfunc *func, long argcnt, long *args) {
 
   stack[0] = (unsigned long)&final_code[1]; // return pc
   frame = &stack[1];
-  frame_top = stack + stacksz;
+  frame_top = stack + stacksz - 256;
 
   for (long i = 0; i < argcnt; i++) {
     frame[i] = args[i];
