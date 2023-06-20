@@ -235,6 +235,7 @@ void emit_snap(int snap, trace_s *trace, bool all) {
       // assert((c&SNAP_FRAME) < 32000);
       //printf("MOV %lx\n", c & ~SNAP_FRAME);
       emit_mem_reg(OP_MOV_RM, slot.slot * 8, RDI, R15);
+      trace->relocs.push_back({emit_offset(), c, RELOC_ABS});
       emit_mov64(R15, c & ~SNAP_FRAME);
     } else {
       auto&op = trace->ops[slot.val];
@@ -257,6 +258,7 @@ void emit_snap(int snap, trace_s *trace, bool all) {
 void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code, uint8_t reg, uint32_t op2, trace_s *trace, int32_t offset, int*slot) {
   if (op2 & IR_CONST_BIAS) {
     long v = trace->consts[op2 - IR_CONST_BIAS];
+    // TODO: check V is of correct type, but we typecheck return pointers also, which can move.
     if ((long)((int32_t)v) == v) {
       emit_arith_imm(arith_code, reg, v);
     } else {
@@ -474,6 +476,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       auto reg = op.reg;
       emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
       emit_mem_reg(OP_MOV_MR, 0, reg, reg);
+      trace->relocs.push_back({emit_offset(), (long)sym, RELOC_SYM_ABS});
       emit_mov64(reg, (int64_t)&sym->val);
       break;
     }
@@ -541,6 +544,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
 //       break;
 //     }
     case ir_ins_op::RET: {
+      // TODO reloc if functions can move.
       auto retadd = trace->consts[op.op1 - IR_CONST_BIAS] - SNAP_FRAME;
       auto b = trace->consts[op.op2 - IR_CONST_BIAS];
 
@@ -563,7 +567,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
 
  done:
   // TODO parent loads should have separate TAG
-  // Parallel move if there are args
   {
     std::multimap<uint64_t, uint64_t> moves;
     std::vector<std::pair<int, uint16_t>> consts;
@@ -579,6 +582,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
     printf("----------------\n");
     for(auto&c : consts) {
       auto con = trace->consts[c.second - IR_CONST_BIAS];
+      trace->relocs.push_back({emit_offset(), (long)(con & ~SNAP_FRAME), RELOC_ABS});
       emit_mov64(c.first, con & ~SNAP_FRAME);
     }
     for(auto r = res.rbegin(); r != res.rend(); r++) {

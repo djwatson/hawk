@@ -58,6 +58,7 @@ struct ir_ins {
   };
 };
 
+// TODO this probably isn't correct, could smash large pointers.
 #define SNAP_FRAME 0x8000000000000000
 
 struct snap_entry_s {
@@ -80,10 +81,22 @@ enum trace_type_e {
   TRACE_TAILREC,
 };
 
+enum reloc_type {
+  RELOC_ABS,
+  RELOC_SYM_ABS,
+} ;
+
+struct reloc {
+  uint64_t offset;
+  long obj;
+  reloc_type type;
+};
+
 typedef long (*Func)(long **, unsigned int **);
 struct trace_s {
   std::vector<ir_ins> ops;
   std::vector<long> consts;
+  std::vector<reloc> relocs;
   std::vector<snap_s> snaps;
   int link;
   unsigned int startpc;

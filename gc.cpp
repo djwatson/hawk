@@ -77,7 +77,6 @@ size_t heap_object_size(long *obj) {
     return sizeof(port_s);
   default:
     printf("Unknown heap object: %li\n", type);
-    exit(-1);
     assert(false);
   }
 }
@@ -154,7 +153,7 @@ void trace_heap_object(long *obj) {
     break;
   default:
     printf("Unknown heap object: %li\n", type);
-    exit(-1);
+    assert(false);
   }
 }
 
@@ -200,11 +199,11 @@ static void trace_roots() {
   }
 }
 
-// static constexpr size_t page_cnt = 6000; // Approx 25 mb.
+ static constexpr size_t page_cnt = 6000; // Approx 25 mb.
 // static constexpr size_t page_cnt = 12000; // Approx 50 mb.
 // static constexpr size_t page_cnt = 30000; // Approx 125 mb.
 //static constexpr size_t page_cnt = 120000; // Approx 500 mb.
-static constexpr size_t page_cnt = 500000; // Approx 2GB
+//static constexpr size_t page_cnt = 500000; // Approx 2GB
 static constexpr size_t alloc_sz = 4096 * page_cnt;
 uint8_t *to_space = nullptr;
 uint8_t *from_space = nullptr;
@@ -216,6 +215,7 @@ void GC_init() {
   alloc_ptr = from_space;
   alloc_end = alloc_ptr + alloc_sz;
   to_space = alloc_ptr + alloc_sz;
+  mprotect(to_space, alloc_sz, PROT_NONE);
 }
 
 __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
@@ -229,6 +229,7 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   // printf("Collecting...\n");
 
   assert(gc_enable || alloc_end == nullptr);
+  mprotect(to_space, alloc_sz, PROT_READ | PROT_WRITE);
   // flip
   // alloc_ptr = (uint8_t*)malloc(alloc_sz);
   alloc_ptr = to_space;
@@ -256,6 +257,8 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
     printf("Heap exhausted, embiggen?\n");
     assert(false);
   }
+  mprotect(to_space, alloc_sz, PROT_NONE);
+  
   return res;
 }
 
