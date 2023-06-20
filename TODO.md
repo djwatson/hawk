@@ -1,5 +1,8 @@
 # working on
 
+* CAR/CDR/JGUARD: typecheck improvement
+* stack expand:cleanup
+
 * folding GGET: put in emit somewhere, check for GSET
 * Merge parent SLOADS if they are the same value.
 * make make notes where ARG vs SLOAD
@@ -56,7 +59,6 @@
 
 # JIT TODO:
 
-* fix stack size adjust  
 * and in replay is borken
   
 * various JIT improvements

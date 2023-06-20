@@ -97,6 +97,8 @@ void dump_trace(trace_s *ctrace) {
     }
     printf("%s ", ir_names[(int)op.op]);
     switch (op.op) {
+    case ir_ins_op::CAR:
+    case ir_ins_op::CDR:
     case ir_ins_op::KFIX:
     case ir_ins_op::ARG:
     case ir_ins_op::SLOAD: {
@@ -529,6 +531,39 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     add_snap(regs_list, regs - regs_list - 1, trace, pc);
     break;
   }
+  case CDR:
+  case CAR: {
+    ir_ins ins;
+    ins.reg = REG_NONE;
+    ins.op1 = record_stack_load(INS_B(i), frame);
+    if (INS_OP(i) == CAR) {
+      ins.op = ir_ins_op::CAR;
+    } else {
+      ins.op = ir_ins_op::CDR;
+    }
+    regs[INS_A(i)] = trace->ops.size();
+    trace->ops.push_back(ins);
+    break;
+  }
+  case JGUARD: {
+    long val = frame[INS_B(i)];
+    long tag  = INS_C(i);
+
+    if (tag == PTR_TAG) {
+      // TODO should be checked by sload
+      assert(false);
+    } else if (tag < LITERAL_TAG) {
+      // Nothing to do, SLOAD already checked.
+    } else {
+      // literal TODO should be checked by sload
+      assert(false);
+    }
+    break;
+  }
+  // case CONS: {
+    
+  //   break;
+  // }
   case MOV: {
     regs[INS_A(i)] = record_stack_load(INS_B(i), frame);
     // TODO loop moves can clear

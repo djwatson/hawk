@@ -31,6 +31,10 @@ enum class ir_ins_op : uint8_t {
 
   LOOP,
   PHI,
+
+  CAR,
+  CDR,
+  ALLOC,
 };
 
 extern const char *ir_names[];

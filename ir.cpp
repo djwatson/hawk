@@ -25,5 +25,9 @@ const char* ir_names[] = {
 
   "LOOP ",
   "PHI  ",
+
+  "CAR  ",
+  "CDR  ",
+  "ALLOC",
 };
 // clang-format on

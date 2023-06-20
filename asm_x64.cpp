@@ -446,7 +446,22 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
       }
       emit_mem_reg(OP_MOV_MR, op.op1 * 8, RDI, reg);
       break;
-    } 
+    }
+    case ir_ins_op::CAR: {
+      maybe_assign_register(op.op1, trace, slot);
+      auto reg = op.reg;
+      auto reg1 = trace->ops[op.op1].reg;
+      emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg, reg1);
+      break;
+    }
+    case ir_ins_op::CDR: {
+      maybe_assign_register(op.op1, trace, slot);
+      // TODO typecheck?
+      auto reg = op.reg;
+      auto reg1 = trace->ops[op.op1].reg;
+      emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg, reg1);
+      break;
+    }
     case ir_ins_op::GGET: {
       symbol *sym = (symbol *)trace->consts[op.op1 - IR_CONST_BIAS];
       auto reg = op.reg;
