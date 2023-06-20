@@ -15,7 +15,7 @@
 int cnt = 0;
 
 /* Earlier perf_map tmp support - supplies names to jit regions */
-void perf_map(uint64_t fn, uint64_t len, std::string name) {
+void perf_map(uint64_t fn, uint64_t len, const std::string &name) {
   char buf[256];
   sprintf(buf, "/tmp/perf-%i.map", getpid());
   auto file = fopen(buf, "a");
@@ -31,7 +31,7 @@ void *mapaddr{nullptr};
 int fd;
 /* Newer jit dump support.  Requires perf record -k 1, and then perf
    inject, before perf report, but gives full asm listing */
-void jit_dump(int len, uint64_t fn, std::string name) {
+void jit_dump(int len, uint64_t fn, const std::string &name) {
   struct {
     uint32_t id;
     uint32_t total_size;
@@ -133,7 +133,7 @@ struct GDBElfImage {
 };
 
 void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num);
-void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, std::string name) {
+void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const std::string &name) {
   auto jitcode = new struct jit_code_entry();
   auto image = new GDBElfImage;
   build_elf(fn, len, image, cnt);

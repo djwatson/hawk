@@ -103,3 +103,10 @@ static void rehash() {
     free(old);
   }
 }
+
+void symbol_table_clear() {
+  if (sym_table != &empty_table) {
+    free(sym_table);
+    sym_table = &empty_table;
+  }
+}

@@ -1,15 +1,20 @@
-#include "bytecode.h"     // for bcfunc, CODE_D, INS_A, INS_D, INS_OP
-#include "gc.h"           // for GC_malloc, GC_pop_root, GC_push_root
-#include "opcodes.h"      // for GGET, GSET, KFUNC, KONST
-#include "symbol_table.h" // for symbol_table_find, symbol_table_insert
-#include "types.h"        // for string_s, PTR_TAG, SYMBOL_TAG, cons_s, symbol
-#include "vm.h"           // for funcs
+// Copyright 2023 Dave Watson
+
+#include "./readbc.h"
+
 #include <cassert>        // for assert
 #include <cstdio>         // for fread, printf, FILE, fclose, fmemopen, fopen
 #include <cstdlib>        // for exit, realloc
 #include <cstring>        // for memset
 #include <string>         // for string
 #include <vector>         // for vector
+
+#include "./bytecode.h"      // for bcfunc, CODE_D, INS_A, INS_D, INS_OP
+#include "./gc.h"            // for GC_malloc, GC_pop_root, GC_push_root
+#include "./opcodes.h"       // for GGET, GSET, KFUNC, KONST
+#include "./symbol_table.h"  // for symbol_table_find, symbol_table_insert
+#include "./types.h"         // for string_s, PTR_TAG, SYMBOL_TAG, cons_s, symbol
+#include "./vm.h"            // for funcs
 
 long *const_table = nullptr;
 unsigned long const_table_sz = 0;
@@ -226,8 +231,12 @@ bcfunc *readbc_file(const char *filename) {
 }
 
 void free_script() {
-  for (auto &func : funcs) {
+  for (auto func : funcs) {
     delete func;
   }
+  funcs.clear();
   // TODO symbol_table
+  free(const_table);
+  const_table = NULL;
+  symbol_table_clear();
 }

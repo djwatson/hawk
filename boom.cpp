@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
       printf("Compiling script %s\n", argv[i]);
       compile_file(argv[i]);
       if (list) {
-        exit(0);
+	break;
       }
       printf("Running script %s\n", tmp);
       joff = ojoff;
@@ -121,6 +121,9 @@ int main(int argc, char *argv[]) {
   if (profile != 0) {
     profiler_stop();
   }
+
+  free_script();
+  free_vm();
 
   return 0;
 }

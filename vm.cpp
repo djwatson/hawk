@@ -30,6 +30,11 @@ long *stack = (long *)malloc(sizeof(long) * stacksz);
 
 unsigned char hotmap[hotmap_sz];
 
+void free_vm() {
+  free(stack);
+}
+
+
 /*
 This is a tail-calling interpreter that requires 'musttail' attribute, so
 currently limited to only clang.
