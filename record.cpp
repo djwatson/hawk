@@ -3,17 +3,17 @@
 #include "bytecode.h" // for INS_A, INS_B, INS_OP, INS_C, INS_D, bcfunc
 #include "ir.h"       // for ir_ins, trace_s, ir_ins_op, ir_ins::(anonymous...
 #include "opcodes.h"
-#include "snap.h"   // for add_snap, snap_replay
-#include "types.h"  // for CONS_TAG, FALSE_REP, SYMBOL_TAG, symbol, CLOSU...
-#include "vm.h"     // for find_func_for_frame, hotmap_mask, hotmap_sz
+#include "snap.h"  // for add_snap, snap_replay
+#include "types.h" // for CONS_TAG, FALSE_REP, SYMBOL_TAG, symbol, CLOSU...
+#include "vm.h"    // for find_func_for_frame, hotmap_mask, hotmap_sz
 #include <cassert> // for assert
-#include <memory>   // for allocator_traits<>::value_type
 #include <cstdint> // for uint32_t
 #include <cstdio>  // for printf
 #include <cstdlib> // for exit
 #include <cstring> // for NULL, memmove, size_t
-#include <string>   // for string
-#include <vector>   // for vector
+#include <memory>  // for allocator_traits<>::value_type
+#include <string>  // for string
+#include <vector>  // for vector
 
 void opt_loop(trace_s *trace, int *regs);
 
@@ -121,8 +121,7 @@ void dump_trace(trace_s *ctrace) {
       break;
     }
     case ir_ins_op::GGET: {
-      auto *s =
-          (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
+      auto *s = (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       printf("%s", s->name->str);
       break;
     }
@@ -184,7 +183,7 @@ void record_start(unsigned int *pc, long *frame) {
   instr_count = 0;
   depth = 0;
   regs = &regs_list[1];
-  for (int & i : regs_list) {
+  for (int &i : regs_list) {
     i = -1;
   }
 
@@ -472,19 +471,18 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         printf("Record stop up-recursion\n");
         record_stop(target, frame, traces.size());
         return 1;
-      }         // TODO fix flush
-        pendpatch();
-        if (INS_OP(cfunc->code[0]) == JFUNC) {
-          printf("Flushing trace\n");
-          cfunc->code[0] = traces[INS_D(cfunc->code[0])]->startpc;
-          hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
-        }
-        // TODO this isn't in luajit? fails with side exit without?
+      } // TODO fix flush
+      pendpatch();
+      if (INS_OP(cfunc->code[0]) == JFUNC) {
+        printf("Flushing trace\n");
+        cfunc->code[0] = traces[INS_D(cfunc->code[0])]->startpc;
         hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
-        record_abort();
-        printf("Record abort unroll limit reached\n");
-        return 1;
-     
+      }
+      // TODO this isn't in luajit? fails with side exit without?
+      hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
+      record_abort();
+      printf("Record abort unroll limit reached\n");
+      return 1;
     }
     break;
   }
@@ -771,25 +769,25 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       patchold = *pc;
       *pc = traces[INS_D(*pc)]->startpc;
       break;
-    }       for (unsigned j = 0; j < INS_A(i); j++) {
-        regs[j] = record_stack_load(j, frame);
-      }
-      printf("Record stop JFUNC\n");
-      record_stop(pc, frame, INS_B(i));
-      return 1;
-   
+    }
+    for (unsigned j = 0; j < INS_A(i); j++) {
+      regs[j] = record_stack_load(j, frame);
+    }
+    printf("Record stop JFUNC\n");
+    record_stop(pc, frame, INS_B(i));
+    return 1;
   }
   case JLOOP: {
     if (side_exit == nullptr) {
       printf("Record stop root trace hit loop\n");
       record_abort();
       return 1;
-    }       printf("Record stop hit JLOOP\n");
-      // NOTE: stack load is for ret1 jloop returns.  Necessary?
-      regs[INS_A(i)] = record_stack_load(INS_A(i), frame);
-      record_stop(pc, frame, INS_B(i));
-      return 1;
-   
+    }
+    printf("Record stop hit JLOOP\n");
+    // NOTE: stack load is for ret1 jloop returns.  Necessary?
+    regs[INS_A(i)] = record_stack_load(INS_A(i), frame);
+    record_stop(pc, frame, INS_B(i));
+    return 1;
   }
   default: {
     printf("NYI: CANT RECORD BYTECODE %s\n", ins_names[INS_OP(i)]);

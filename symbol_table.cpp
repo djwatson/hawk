@@ -1,5 +1,5 @@
 #include "symbol_table.h"
-#include "types.h"  // for string_s, symbol
+#include "types.h" // for string_s, symbol
 #include <cassert> // for assert
 #include <cstdint> // for uint64_t
 #include <cstdlib> // for calloc, free, size_t
@@ -41,7 +41,8 @@ symbol *symbol_table_find_cstr(const char *str) {
     auto &cur = sym_table->entries[(i + hash) & mask];
     if (cur == nullptr) {
       return nullptr;
-    } if (cur == TOMBSTONE) {
+    }
+    if (cur == TOMBSTONE) {
       continue;
     } else if (strcmp(cur->name->str, str) == 0) {
       return cur;
@@ -71,9 +72,8 @@ void symbol_table_insert(symbol *sym) {
       // Insert here.
       cur = sym;
       return;
-    }       // Mismatched comparison, continue.
-      continue;
-   
+    } // Mismatched comparison, continue.
+    continue;
   }
 
   // Definitely should find a spot.

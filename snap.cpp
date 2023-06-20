@@ -1,8 +1,8 @@
 #include "asm_x64.h" // for REG_NONE
 #include "ir.h"      // for snap_s, snap_entry_s, ir_ins, trace_s, IR_CONST...
+#include <cstdint>   // for uint32_t
+#include <cstdio>    // for printf
 #include <memory>    // for allocator_traits<>::value_type
-#include <cstdint>  // for uint32_t
-#include <cstdio>   // for printf
 #include <utility>   // for move
 #include <vector>    // for vector
 

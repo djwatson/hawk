@@ -3,11 +3,11 @@
 #include "ir.h"           // for reloc, trace_s, RELOC_ABS, RELOC_SYM_ABS
 #include "symbol_table.h" // for sym_table, table, TOMBSTONE
 #include "types.h"        // for TAG_MASK, FORWARD_TAG, SYMBOL_TAG, symbol
-#include <cassert>       // for assert
-#include <cstdint>       // for uint8_t, int64_t
-#include <cstdio>        // for printf
-#include <cstdlib>       // for free, realloc
-#include <cstring>       // for memcpy
+#include <cassert>        // for assert
+#include <cstdint>        // for uint8_t, int64_t
+#include <cstdio>         // for printf
+#include <cstdlib>        // for free, realloc
+#include <cstring>        // for memcpy
 #include <sys/mman.h>     // for mprotect, mmap, PROT_NONE, PROT_READ, PROT...
 #include <vector>         // for vector
 
@@ -193,12 +193,12 @@ static void visit_trace(trace_s *t) {
 // Currently functions aren't GC'd.
 static void trace_roots() {
   // printf("Scan symbols from readbc...%li\n", symbols.size());
-  for (long & symbol : symbols) {
+  for (long &symbol : symbols) {
     visit(&symbol);
   }
 
   // printf("Scan GC pushed roots...%li\n", pushed_roots.size()) ;
-  for (auto & pushed_root : pushed_roots) {
+  for (auto &pushed_root : pushed_roots) {
     visit(pushed_root);
   }
 

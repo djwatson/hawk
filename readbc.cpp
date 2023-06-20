@@ -4,10 +4,10 @@
 #include "symbol_table.h" // for symbol_table_find, symbol_table_insert
 #include "types.h"        // for string_s, PTR_TAG, SYMBOL_TAG, cons_s, symbol
 #include "vm.h"           // for funcs
-#include <cassert>       // for assert
-#include <cstdio>        // for fread, printf, FILE, fclose, fmemopen, fopen
-#include <cstdlib>       // for exit, realloc
-#include <cstring>       // for memset
+#include <cassert>        // for assert
+#include <cstdio>         // for fread, printf, FILE, fclose, fmemopen, fopen
+#include <cstdlib>        // for exit, realloc
+#include <cstring>        // for memset
 #include <string>         // for string
 #include <vector>         // for vector
 

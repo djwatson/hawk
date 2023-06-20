@@ -1,7 +1,7 @@
 #include <cstdint> // for uint16_t
 #include <cstdio>  // for printf, NULL
 #include <cstdlib> // for exit
-#include <vector>   // for vector
+#include <vector>  // for vector
 // For runtime symbol
 #include "bytecode.h" // for INS_B, INS_OP
 #include "ir.h"       // for trace_s, ir_ins, snap_s, ir_ins_op, snap_entry_s
@@ -245,7 +245,7 @@ looped:
           auto &op = trace->ops[i];
           if (op.op != ir_ins_op::PHI) {
             break;
-}
+          }
           res[op.op1] = res[i];
         }
         goto looped;

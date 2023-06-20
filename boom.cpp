@@ -5,10 +5,10 @@
 #include "symbol_table.h" // for symbol_table_find_cstr
 #include "types.h"        // for from_c_str, symbol, CLOSURE_TAG, TRUE_REP
 #include "vm.h"           // for run
+#include <cstdio>         // for printf
+#include <cstdlib>        // for exit
+#include <cstring>        // for strcmp, strcpy, strlen
 #include <getopt.h>       // for no_argument, getopt_long, option
-#include <cstdio>        // for printf
-#include <cstdlib>       // for exit
-#include <cstring>       // for strcmp, strcpy, strlen
 struct bcfunc;
 
 extern int joff;

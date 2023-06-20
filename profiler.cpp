@@ -1,15 +1,15 @@
 #include "bytecode.h"    // for bcfunc, INS_OP, ins_names
 #include "vm.h"          // for find_func_for_frame
 #include <algorithm>     // for sort
-#include <cassert>      // for assert
-#include <csignal>      // for sigaction, sigevent, SIGRTMIN
-#include <cstdint>      // for uint32_t
-#include <cstdio>       // for printf
-#include <cstdlib>      // for exit, free, malloc
-#include <cstring>      // for memcpy
+#include <cassert>       // for assert
+#include <csignal>       // for sigaction, sigevent, SIGRTMIN
+#include <cstdint>       // for uint32_t
+#include <cstdio>        // for printf
+#include <cstdlib>       // for exit, free, malloc
+#include <cstring>       // for memcpy
+#include <ctime>         // for timer_settime, timespec
 #include <string>        // for string
 #include <sys/mman.h>    // for mmap, MAP_ANONYMOUS, MAP_P...
-#include <ctime>        // for timer_settime, timespec
 #include <unordered_map> // for unordered_map, _Node_const...
 #include <utility>       // for pair, make_pair
 #include <vector>        // for vector
@@ -144,7 +144,6 @@ struct tree {
   long cnt{0};
   std::unordered_map<long, tree> next;
 };
-
 
 static void profiler_display_tree_node(const tree *node, int indent) {
   std::vector<std::pair<long, const tree *>> nodes;

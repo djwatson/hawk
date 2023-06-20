@@ -1,12 +1,12 @@
 #include "asm_x64.h"
-#include <cassert>            // for assert
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
+#include <cassert>             // for assert
+#include <cinttypes>           // for PRIx64
 #include <cstdint>             // for uint64_t, uint16_t, uint8_t, int32_t
-#include <cinttypes>          // for PRIx64
+#include <cstdio>              // for printf, size_t
+#include <cstdlib>             // for exit
 #include <map>                 // for multimap, allocator, operator!=, _Rb_...
 #include <memory>              // for allocator_traits<>::value_type
-#include <cstdio>             // for printf, size_t
-#include <cstdlib>            // for exit
 #include <string>              // for string
 #include <utility>             // for pair, make_pair
 #include <valgrind/valgrind.h> // for VALGRIND_DISCARD_TRANSLATIONS
@@ -38,7 +38,7 @@ void disassemble(const uint8_t *code, int len) {
 
   if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK) {
     return;
-}
+  }
   count = cs_disasm(handle, code, len, (uint64_t)code, 0, &insn);
   if (count > 0) {
     size_t j;
@@ -50,7 +50,7 @@ void disassemble(const uint8_t *code, int len) {
     cs_free(insn, count);
   } else {
     printf("ERROR: Failed to disassemble given code!\n");
-}
+  }
 
   cs_close(&handle);
 }
@@ -328,7 +328,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
   // Reg allocation
   int slot[regcnt];
-  for (int & i : slot) {
+  for (int &i : slot) {
     i = -1;
   }
   // Unallocatable.
