@@ -1,12 +1,12 @@
 #include "asm_x64.h"
-#include <assert.h>            // for assert
+#include <cassert>            // for assert
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
 #include <cstdint>             // for uint64_t, uint16_t, uint8_t, int32_t
-#include <inttypes.h>          // for PRIx64
+#include <cinttypes>          // for PRIx64
 #include <map>                 // for multimap, allocator, operator!=, _Rb_...
 #include <memory>              // for allocator_traits<>::value_type
-#include <stdio.h>             // for printf, size_t
-#include <stdlib.h>            // for exit
+#include <cstdio>             // for printf, size_t
+#include <cstdlib>            // for exit
 #include <string>              // for string
 #include <utility>             // for pair, make_pair
 #include <valgrind/valgrind.h> // for VALGRIND_DISCARD_TRANSLATIONS
@@ -36,8 +36,9 @@ void disassemble(const uint8_t *code, int len) {
   cs_insn *insn;
   size_t count;
 
-  if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK)
+  if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK) {
     return;
+}
   count = cs_disasm(handle, code, len, (uint64_t)code, 0, &insn);
   if (count > 0) {
     size_t j;
@@ -47,8 +48,9 @@ void disassemble(const uint8_t *code, int len) {
     }
 
     cs_free(insn, count);
-  } else
+  } else {
     printf("ERROR: Failed to disassemble given code!\n");
+}
 
   cs_close(&handle);
 }
@@ -75,7 +77,7 @@ const char *reg_names[] = {
 };
 // clang-format on
 
-int get_free_reg(int *slot) {
+int get_free_reg(const int *slot) {
   for (int i = 0; i < regcnt; i++) {
     if (slot[i] == -1) {
       return i;
@@ -86,7 +88,7 @@ int get_free_reg(int *slot) {
 }
 
 void maybe_assign_register(int v, trace_s *trace, int *slot) {
-  if (!(v & IR_CONST_BIAS)) {
+  if ((v & IR_CONST_BIAS) == 0) {
     ir_ins &op = trace->ops[v];
     if (op.reg == REG_NONE) {
       op.reg = get_free_reg(slot);
@@ -98,7 +100,7 @@ void maybe_assign_register(int v, trace_s *trace, int *slot) {
 void assign_snap_registers(unsigned snap_num, int *slot, trace_s *trace) {
   auto &snap = trace->snaps[snap_num];
   for (auto &s : snap.slots) {
-    if (!(s.val & IR_CONST_BIAS)) {
+    if ((s.val & IR_CONST_BIAS) == 0) {
       maybe_assign_register(s.val, trace, slot);
     }
   }
@@ -192,7 +194,7 @@ void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
                   long **o_frame, unsigned int **o_pc) {
   (*o_frame) = (long *)state->regs[RDI];
   for (auto &slot : snap->slots) {
-    if (slot.val & IR_CONST_BIAS) {
+    if ((slot.val & IR_CONST_BIAS) != 0) {
       auto c = trace->consts[slot.val - IR_CONST_BIAS];
       (*o_frame)[slot.slot] = c & ~SNAP_FRAME;
     } else {
@@ -217,7 +219,7 @@ uint16_t find_reg_for_slot(int slot, snap_s *snap, trace_s *trace) {
 }
 
 void emit_snap(int snap, trace_s *trace, bool all) {
-  printf("EMITSNAP: all %i\n", all);
+  printf("EMITSNAP: all %i\n", static_cast<int>(all));
   auto &sn = trace->snaps[snap];
   int last_ret = -1;
   for (int i = sn.ir; i >= 0; i--) {
@@ -232,7 +234,7 @@ void emit_snap(int snap, trace_s *trace, bool all) {
     // if (!all && (slot.slot >= sn.offset)) {
     //   break;
     // }
-    if (slot.val & IR_CONST_BIAS) {
+    if ((slot.val & IR_CONST_BIAS) != 0) {
       auto c = trace->consts[slot.val - IR_CONST_BIAS];
       // assert((c&SNAP_FRAME) < 32000);
       // printf("MOV %lx\n", c & ~SNAP_FRAME);
@@ -243,7 +245,7 @@ void emit_snap(int snap, trace_s *trace, bool all) {
       auto &op = trace->ops[slot.val];
       // TODO RET check, can't emit past RETS
       if (slot.val > last_ret &&
-          (op.op == ir_ins_op::SLOAD && (op.type & IR_INS_TYPE_GUARD)) &&
+          (op.op == ir_ins_op::SLOAD && ((op.type & IR_INS_TYPE_GUARD) != 0)) &&
           op.op1 == slot.slot && slot.slot < sn.offset) {
         printf("DROPPING emit snap of slot %i\n", slot.slot);
         // nothing
@@ -258,7 +260,7 @@ void emit_snap(int snap, trace_s *trace, bool all) {
 void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
                    uint8_t reg, uint32_t op2, trace_s *trace, int32_t offset,
                    int *slot) {
-  if (op2 & IR_CONST_BIAS) {
+  if ((op2 & IR_CONST_BIAS) != 0U) {
     long v = trace->consts[op2 - IR_CONST_BIAS];
     // TODO: check V is of correct type, but we typecheck return pointers also,
     // which can move.
@@ -302,7 +304,7 @@ void emit_cmp(enum jcc_cond cmp, ir_ins &op, trace_s *trace, int32_t offset,
 }
 
 void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
-  if (type & IR_INS_TYPE_GUARD) {
+  if ((type & IR_INS_TYPE_GUARD) != 0) {
     emit_jcc32(JNE, offset);
     if ((type & ~IR_INS_TYPE_GUARD) == 0) {
       emit_op_imm32(OP_TEST_IMM, 0, reg, 0x7);
@@ -326,8 +328,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
   // Reg allocation
   int slot[regcnt];
-  for (int i = 0; i < regcnt; i++) {
-    slot[i] = -1;
+  for (int & i : slot) {
+    i = -1;
   }
   // Unallocatable.
   slot[R15] = 0; // tmp.
@@ -361,7 +363,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   uint64_t loop_offset_label = 0;
 
   if (trace->link != -1) {
-    auto otrace = trace_cache_get(trace->link);
+    auto *otrace = trace_cache_get(trace->link);
     emit_check();
 
     if (otrace != trace) {
@@ -375,7 +377,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
     emit_check();
     auto &last_snap = trace->snaps[trace->snaps.size() - 1];
-    if (last_snap.offset) {
+    if (last_snap.offset != 0U) {
       emit_arith_imm(OP_ARITH_ADD, RDI, last_snap.offset * 8);
       auto ok = emit_offset();
       // Emit a stack overflow check
@@ -456,7 +458,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       // frame pointer in RDI
       auto reg = op.reg;
       emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
-      if (!(op.type & IR_INS_TYPE_GUARD)) {
+      if ((op.type & IR_INS_TYPE_GUARD) == 0) {
         goto done;
       }
       emit_mem_reg(OP_MOV_MR, op.op1 * 8, RDI, reg);
@@ -478,7 +480,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case ir_ins_op::GGET: {
-      symbol *sym =
+      auto *sym =
           (symbol *)(trace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       auto reg = op.reg;
       emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
@@ -634,7 +636,7 @@ done:
   }
 
   auto start = emit_offset();
-  if (loop_offset_label) {
+  if (loop_offset_label != 0U) {
     emit_bind(start, loop_offset_label);
   }
   Func fn = (Func)start;
@@ -643,7 +645,7 @@ done:
   auto len = end - start;
   disassemble((const uint8_t *)fn, len);
 
-  if (side_exit) {
+  if (side_exit != nullptr) {
     emit_bind(start, side_exit->patchpoint);
   }
 
@@ -657,7 +659,7 @@ extern unsigned int *patchpc;
 extern unsigned int patchold;
 int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
   exit_state state;
-  auto trace = trace_cache_get(tnum);
+  auto *trace = trace_cache_get(tnum);
 
   for (auto &op : trace->ops) {
     if (op.op != ir_ins_op::ARG) {
@@ -670,7 +672,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
   jit_entry_stub(*o_frame, trace->fn, &state);
   trace = state.trace;
   long unsigned exit = state.snap;
-  auto snap = &trace->snaps[exit];
+  auto *snap = &trace->snaps[exit];
 
   restore_snap(snap, trace, &state, o_frame, o_pc);
   // auto func = find_func_for_frame(snap->pc);
@@ -689,7 +691,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
           printf("HOT SNAP to JLOOP\n");
           patchpc = *o_pc;
           patchold = **o_pc;
-          auto otrace = trace_cache_get(INS_B(**o_pc));
+          auto *otrace = trace_cache_get(INS_B(**o_pc));
           **o_pc = otrace->startpc;
         }
         record_side(trace, snap);
@@ -705,7 +707,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
     // and it's originaly a RET, i.e. we predicted the RET wrong.
     if (INS_OP(**o_pc) == JLOOP) {
       // TODO make work for both RET1 and JLOOP
-      auto otrace = trace_cache_get(INS_B(**o_pc));
+      auto *otrace = trace_cache_get(INS_B(**o_pc));
       if (INS_OP(otrace->startpc) == LOOP) {
         (*o_pc)++;
       } else {

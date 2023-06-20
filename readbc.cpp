@@ -4,10 +4,10 @@
 #include "symbol_table.h" // for symbol_table_find, symbol_table_insert
 #include "types.h"        // for string_s, PTR_TAG, SYMBOL_TAG, cons_s, symbol
 #include "vm.h"           // for funcs
-#include <assert.h>       // for assert
-#include <stdio.h>        // for fread, printf, FILE, fclose, fmemopen, fopen
-#include <stdlib.h>       // for exit, realloc
-#include <string.h>       // for memset
+#include <cassert>       // for assert
+#include <cstdio>        // for fread, printf, FILE, fclose, fmemopen, fopen
+#include <cstdlib>       // for exit, realloc
+#include <cstring>       // for memset
 #include <string>         // for string
 #include <vector>         // for vector
 
@@ -22,7 +22,7 @@ long read_const(FILE *fptr) {
     printf("Error: Could not read consts\n");
     exit(-1);
   }
-  auto type = val & 0x7;
+  auto type = val & TAG_MASK;
   if (type == SYMBOL_TAG) {
     unsigned long num = val >> 3;
     if (num < symbols.size()) {
@@ -32,19 +32,19 @@ long read_const(FILE *fptr) {
       long len;
       fread(&len, 8, 1, fptr);
       // TODO GC symbol table
-      auto str = (string_s *)GC_malloc(16 + 1 + len);
+      auto *str = (string_s *)GC_malloc(16 + 1 + len);
       str->type = STRING_TAG;
       str->len = len;
       str->str[len] = '\0';
       fread(str->str, 1, len, fptr);
 
       // Try to see if it already exists
-      auto res = symbol_table_find(str);
-      if (!res) {
+      auto *res = symbol_table_find(str);
+      if (res == nullptr) {
         long str_save = (long)str + PTR_TAG;
         GC_push_root(&str_save);
         // TODO GC symbol table
-        auto sym = (symbol *)GC_malloc(sizeof(symbol));
+        auto *sym = (symbol *)GC_malloc(sizeof(symbol));
 
         GC_pop_root(&str_save);
         str = (string_s *)(str_save - PTR_TAG);
@@ -61,10 +61,9 @@ long read_const(FILE *fptr) {
         return val;
       }
     }
-  } else if (type == 7) {
-  } else if (type == FIXNUM_TAG) {
+  } else if (type == LITERAL_TAG || type == FIXNUM_TAG) {
   } else if (type == FLONUM_TAG) {
-    auto f = (flonum_s *)GC_malloc(sizeof(flonum_s));
+    auto *f = (flonum_s *)GC_malloc(sizeof(flonum_s));
     assert(!((long)f & TAG_MASK));
     fread(&f->x, 8, 1, fptr);
     f->type = FLONUM_TAG;
@@ -75,7 +74,7 @@ long read_const(FILE *fptr) {
     auto cb = read_const(fptr);
     GC_push_root(&cb);
 
-    auto c = (cons_s *)GC_malloc(sizeof(cons_s));
+    auto *c = (cons_s *)GC_malloc(sizeof(cons_s));
     c->type = CONS_TAG;
     c->a = ca;
     c->b = cb;
@@ -89,7 +88,7 @@ long read_const(FILE *fptr) {
     if (ptrtype == STRING_TAG) {
       long len;
       fread(&len, 8, 1, fptr);
-      auto str = (string_s *)GC_malloc(16 + len + 1);
+      auto *str = (string_s *)GC_malloc(16 + len + 1);
       str->type = ptrtype;
       str->len = len;
       fread(&str->str, 1, len, fptr);
@@ -105,7 +104,7 @@ long read_const(FILE *fptr) {
         GC_push_root(&vals[i]);
       }
 
-      auto v = (vector_s *)GC_malloc(16 + len * sizeof(long));
+      auto *v = (vector_s *)GC_malloc(16 + len * sizeof(long));
       v->type = ptrtype;
       v->len = len;
       for (long i = len - 1; i >= 0; i--) {
@@ -128,7 +127,7 @@ bcfunc *readbc(FILE *fptr) {
   long const_offset = const_table_sz;
   symbols.clear();
 
-  if (fptr == NULL) {
+  if (fptr == nullptr) {
     printf("Could not open bc\n");
     exit(-1);
   }
@@ -174,8 +173,8 @@ bcfunc *readbc(FILE *fptr) {
   bcfunc *start_func = nullptr;
   unsigned func_offset = funcs.size();
   for (unsigned i = 0; i < bccount; i++) {
-    bcfunc *f = new bcfunc;
-    if (!start_func) {
+    auto *f = new bcfunc;
+    if (start_func == nullptr) {
       start_func = f;
     }
     if ((((long)f) & 0x7) != 0) {
@@ -187,7 +186,7 @@ bcfunc *readbc(FILE *fptr) {
     f->name.resize(name_count + 1);
     f->name[name_count] = '\0';
     // printf("Name size %i\n", name_count);
-    fread(&f->name[0], 1, name_count, fptr);
+    fread((f->name).data(), 1, name_count, fptr);
 
     unsigned int code_count;
     fread(&code_count, 4, 1, fptr);

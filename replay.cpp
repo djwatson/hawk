@@ -1,6 +1,6 @@
-#include <stdint.h> // for uint16_t
-#include <stdio.h>  // for printf, NULL
-#include <stdlib.h> // for exit
+#include <cstdint> // for uint16_t
+#include <cstdio>  // for printf, NULL
+#include <cstdlib> // for exit
 #include <vector>   // for vector
 // For runtime symbol
 #include "bytecode.h" // for INS_B, INS_OP
@@ -33,14 +33,14 @@ void res_store(std::vector<long> &res, int pc, std::vector<ir_ins> &ops,
 
 long get_val_or_const(std::vector<long> &res, uint16_t v,
                       std::vector<ir_ins> &ops, std::vector<long> &consts) {
-  if (v & IR_CONST_BIAS) {
+  if ((v & IR_CONST_BIAS) != 0) {
     return consts[v - IR_CONST_BIAS];
   }
   return res_load(res, v, ops);
 }
 
 snap_s *find_snap_for_pc(unsigned int pc, trace_s *trace) {
-  snap_s *res = NULL;
+  snap_s *res = nullptr;
   for (auto &s : trace->snaps) {
     if (s.ir <= pc) {
       res = &s;
@@ -57,9 +57,9 @@ __attribute__((noinline)) void EXPAND_STACK_SLOWPATH() {
 void snap_restore(std::vector<long> &res, unsigned int **o_pc, long **o_frame,
                   snap_s *snap, trace_s *trace) {
   for (auto &slot : snap->slots) {
-    if (slot.val & IR_CONST_BIAS) {
+    if ((slot.val & IR_CONST_BIAS) != 0) {
       auto c = trace->consts[slot.val - IR_CONST_BIAS];
-      if (c & SNAP_FRAME) {
+      if ((c & SNAP_FRAME) != 0u) {
         (*o_frame)[slot.slot] = c & ~SNAP_FRAME;
       } else {
         (*o_frame)[slot.slot] = c;
@@ -91,7 +91,7 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
                long *frame_top) {
   int loop_pc = -1;
 again:
-  auto trace = trace_cache_get(tnum);
+  auto *trace = trace_cache_get(tnum);
   // printf("Run trace %i\n", tnum);
   // printf("Frame %li %li %li\n", (*o_frame)[0] >> 3, (*o_frame)[1] >> 3,
   //        (*o_frame)[1] >> 3);
@@ -115,7 +115,7 @@ looped:
     case ir_ins_op::SLOAD: {
       auto v = frame[ins.op1];
       res_store(res, pc, trace->ops, v);
-      if (ins.type & IR_INS_TYPE_GUARD) {
+      if ((ins.type & IR_INS_TYPE_GUARD) != 0) {
         if ((v & 0x7) != (ins.type & ~IR_INS_TYPE_GUARD)) {
           printf("Type abort\n");
           goto abort;
@@ -165,11 +165,11 @@ looped:
       break;
     }
     case ir_ins_op::GGET: {
-      symbol *a =
+      auto *a =
           (symbol *)get_val_or_const(res, ins.op1, trace->ops, trace->consts);
       // printf("GGET %s %lx\n", a->name.c_str(), a->val);
       res_store(res, pc, trace->ops, a->val);
-      if (ins.type & IR_INS_TYPE_GUARD) {
+      if ((ins.type & IR_INS_TYPE_GUARD) != 0) {
         if ((a->val & 0x7) != (ins.type & ~IR_INS_TYPE_GUARD)) {
           printf("Type abort\n");
           goto abort;
@@ -243,8 +243,9 @@ looped:
         pc = loop_pc;
         for (int i = trace->ops.size() - 1; i >= 0; i--) {
           auto &op = trace->ops[i];
-          if (op.op != ir_ins_op::PHI)
+          if (op.op != ir_ins_op::PHI) {
             break;
+}
           res[op.op1] = res[i];
         }
         goto looped;
@@ -257,7 +258,7 @@ looped:
     return 0;
   }
 abort : {
-  auto snap = find_snap_for_pc(pc, trace);
+  auto *snap = find_snap_for_pc(pc, trace);
   snap_restore(res, o_pc, o_frame, snap, trace);
 
   if (snap->link != -1) {
@@ -282,7 +283,7 @@ abort : {
         printf("HOT SNAP to JLOOP\n");
         patchpc = *o_pc;
         patchold = **o_pc;
-        auto otrace = trace_cache_get(INS_B(**o_pc));
+        auto *otrace = trace_cache_get(INS_B(**o_pc));
         **o_pc = otrace->startpc;
       }
       record_side(trace, snap);
@@ -294,7 +295,7 @@ abort : {
     }
   }
   if (INS_OP(**o_pc) == JLOOP) {
-    auto otrace = trace_cache_get(INS_B(**o_pc));
+    auto *otrace = trace_cache_get(INS_B(**o_pc));
     *o_pc = &otrace->startpc;
     printf("Exit to loop\n");
     return 0;

@@ -1,16 +1,16 @@
 #include "symbol_table.h"
 #include "types.h"  // for string_s, symbol
-#include <assert.h> // for assert
-#include <stdint.h> // for uint64_t
-#include <stdlib.h> // for calloc, free, size_t
-#include <string.h> // for strcmp
+#include <cassert> // for assert
+#include <cstdint> // for uint64_t
+#include <cstdlib> // for calloc, free, size_t
+#include <cstring> // for strcmp
 
 /* FNV-1a */
 uint64_t str_hash(const char *str) {
-  auto p = str;
+  const auto *p = str;
   uint64_t hash = 0xcbf29ce484222325;
 
-  while (*p++) {
+  while (*p++ != 0) {
     hash ^= *p;
     hash *= 0x100000001b3;
   }
@@ -41,7 +41,7 @@ symbol *symbol_table_find_cstr(const char *str) {
     auto &cur = sym_table->entries[(i + hash) & mask];
     if (cur == nullptr) {
       return nullptr;
-    } else if (cur == TOMBSTONE) {
+    } if (cur == TOMBSTONE) {
       continue;
     } else if (strcmp(cur->name->str, str) == 0) {
       return cur;
@@ -71,10 +71,9 @@ void symbol_table_insert(symbol *sym) {
       // Insert here.
       cur = sym;
       return;
-    } else {
-      // Mismatched comparison, continue.
+    }       // Mismatched comparison, continue.
       continue;
-    }
+   
   }
 
   // Definitely should find a spot.
@@ -82,7 +81,7 @@ void symbol_table_insert(symbol *sym) {
 }
 
 static void rehash() {
-  auto old = sym_table;
+  auto *old = sym_table;
   auto new_sz = old->sz * 2;
   if (new_sz == 0) {
     new_sz = 2;

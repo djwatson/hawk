@@ -1,7 +1,7 @@
 #include <string.h>
 
-long memcpy_double(double x) {
+long memcpy_double(double arg) {
   long res;
-  memcpy(&res, &x, sizeof(res));
+  memcpy(&res, &arg, sizeof(res));
   return res;
 }

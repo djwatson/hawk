@@ -1,21 +1,20 @@
 #include "bytecode.h"    // for bcfunc, INS_OP, ins_names
 #include "vm.h"          // for find_func_for_frame
 #include <algorithm>     // for sort
-#include <assert.h>      // for assert
-#include <signal.h>      // for sigaction, sigevent, SIGRTMIN
-#include <stdint.h>      // for uint32_t
-#include <stdio.h>       // for printf
-#include <stdlib.h>      // for exit, free, malloc
-#include <string.h>      // for memcpy
+#include <cassert>      // for assert
+#include <csignal>      // for sigaction, sigevent, SIGRTMIN
+#include <cstdint>      // for uint32_t
+#include <cstdio>       // for printf
+#include <cstdlib>      // for exit, free, malloc
+#include <cstring>      // for memcpy
 #include <string>        // for string
 #include <sys/mman.h>    // for mmap, MAP_ANONYMOUS, MAP_P...
-#include <time.h>        // for timer_settime, timespec
+#include <ctime>        // for timer_settime, timespec
 #include <unordered_map> // for unordered_map, _Node_const...
 #include <utility>       // for pair, make_pair
 #include <vector>        // for vector
 
 // for find_func_for_frame
-#include "vm.h"
 
 #ifndef PROFILER
 
@@ -75,9 +74,9 @@ void profile_add_frame(void *ptr) {
     } else {
       profile_stack_max *= 2;
     }
-    auto n = (long *)malloc(sizeof(long) * profile_stack_max);
+    auto *n = (long *)malloc(sizeof(long) * profile_stack_max);
     memcpy(n, profile_stack, profile_stack_sz * sizeof(long));
-    auto old = profile_stack;
+    auto *old = profile_stack;
     profile_stack = n; // release
     free(old);
     printf("Expanded profile stack to %li\n", profile_stack_max);
@@ -97,7 +96,7 @@ void profile_pop_all_frames() { profile_stack_sz = 0; }
 
 static void handler(int sig, siginfo_t *si, void *uc) {
   cnt++;
-  auto s = (sample *)signal_safe_malloc(sizeof(sample));
+  auto *s = (sample *)signal_safe_malloc(sizeof(sample));
   s->next = samples;
   s->stack_sz = 9 < profile_stack_sz ? 9 : profile_stack_sz;
   memcpy(&s->stack[0], &profile_stack[profile_stack_sz - s->stack_sz],
@@ -146,17 +145,16 @@ struct tree {
   std::unordered_map<long, tree> next;
 };
 
-#include <algorithm>
 
 static void profiler_display_tree_node(const tree *node, int indent) {
   std::vector<std::pair<long, const tree *>> nodes;
   for (const auto &leaf : node->next) {
     if (leaf.second.cnt > cnt / 100) {
-      nodes.push_back(std::make_pair(leaf.first, &leaf.second));
+      nodes.emplace_back(leaf.first, &leaf.second);
     }
   }
 
-  if (nodes.size() == 0) {
+  if (nodes.empty()) {
     return;
   }
 
@@ -166,12 +164,12 @@ static void profiler_display_tree_node(const tree *node, int indent) {
   };
   std::sort(nodes.begin(), nodes.end(), sorter);
   for (auto &item : nodes) {
-    auto func = find_func_for_frame((uint32_t *)item.first);
-    if (func) {
+    auto *func = find_func_for_frame((uint32_t *)item.first);
+    if (func != nullptr) {
       printf("%*c %.2f%% %s %s %li\n", indent, ' ',
              (double)item.second->cnt / cnt * 100.0, func->name.c_str(),
              ins_names[INS_OP(*(uint32_t *)item.first)],
-             (uint32_t *)item.first - &func->code[0]);
+             (uint32_t *)item.first - (func->code).data());
     } else {
       printf("%*cCan't find func for frame %li\n", indent, ' ', item.first);
     }
@@ -184,8 +182,8 @@ void profiler_stop() {
   timer_delete(timerid);
 
   printf("Timer called %li times\n", cnt);
-  auto s = samples;
-  while (s) {
+  auto *s = samples;
+  while (s != nullptr) {
     tree *cur_tree = &tree_root;
     for (int i = s->stack_sz - 1; i >= 0; i--) {
       auto frame = s->stack[i];

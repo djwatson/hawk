@@ -1,9 +1,9 @@
 #include "asm_x64.h" // for REG_NONE
 #include "ir.h"      // for ir_ins, snap_s, snap_entry_s, trace_s, ir_ins_op
-#include <assert.h>  // for assert
+#include <cassert>  // for assert
 #include <memory>    // for allocator_traits<>::value_type
-#include <stdint.h>  // for uint16_t
-#include <stdio.h>   // for size_t, printf
+#include <cstdint>  // for uint16_t
+#include <cstdio>   // for size_t, printf
 #include <vector>    // for vector
 
 void opt_loop(trace_s *trace, int *regs) {
@@ -26,13 +26,13 @@ void opt_loop(trace_s *trace, int *regs) {
   for (size_t i = 0; i < cut + 1; i++) {
     // Emit phis last.
     if (i == cut) {
-      for (size_t j = 0; j < phis.size(); j++) {
+      for (unsigned long phi : phis) {
         ir_ins ins;
         ins.reg = REG_NONE;
         ins.op = ir_ins_op::PHI;
-        ins.op1 = replace[phis[j]];
-        ins.op2 = replace[regs[trace->ops[phis[j]].op1]];
-        regs[trace->ops[phis[j]].op1] = trace->ops.size();
+        ins.op1 = replace[phi];
+        ins.op2 = replace[regs[trace->ops[phi].op1]];
+        regs[trace->ops[phi].op1] = trace->ops.size();
         replace[ins.op2] = trace->ops.size();
         replace[ins.op1] = trace->ops.size();
         trace->ops.push_back(ins);

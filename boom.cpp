@@ -6,9 +6,9 @@
 #include "types.h"        // for from_c_str, symbol, CLOSURE_TAG, TRUE_REP
 #include "vm.h"           // for run
 #include <getopt.h>       // for no_argument, getopt_long, option
-#include <stdio.h>        // for printf
-#include <stdlib.h>       // for exit
-#include <string.h>       // for strcmp, strcpy, strlen
+#include <cstdio>        // for printf
+#include <cstdlib>       // for exit
+#include <cstring>       // for strcmp, strcpy, strlen
 struct bcfunc;
 
 extern int joff;
@@ -37,15 +37,15 @@ static bool list = false;
 void compile_file(const char *file) {
   // Watch out for GC safety, from_c_str allocates.
   auto str = from_c_str(file);
-  auto sym = symbol_table_find_cstr("compile-file"); // DOes not allocate.
+  auto *sym = symbol_table_find_cstr("compile-file"); // DOes not allocate.
   long args[3] = {0, str, TRUE_REP};
-  if (!sym || sym->val == UNDEFINED_TAG) {
+  if ((sym == nullptr) || sym->val == UNDEFINED_TAG) {
     printf("Error: Attempting to compile a scm file, but can't find "
            "compile-file\n");
     exit(-1);
   }
-  auto clo = (closure_s *)(sym->val - CLOSURE_TAG);
-  auto func = (bcfunc *)clo->v[0];
+  auto *clo = (closure_s *)(sym->val - CLOSURE_TAG);
+  auto *func = (bcfunc *)clo->v[0];
 
   run(func, list ? 3 : 2, args);
 }
@@ -81,13 +81,13 @@ int main(int argc, char *argv[]) {
   GC_init();
   // GC_expand_hp(50000000);
   jit_dump_init();
-  if (profile) {
+  if (profile != 0) {
     profiler_start();
   }
   auto ojoff = joff;
   joff = 1;
   if (bootstrap_scm_bc_len > 0) {
-    auto start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
+    auto *start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
     printf("Running boot image...\n");
     run(start_func, 0, nullptr);
   }
@@ -105,12 +105,12 @@ int main(int argc, char *argv[]) {
       }
       printf("Running script %s\n", tmp);
       joff = ojoff;
-      auto start_func = readbc_file(tmp);
+      auto *start_func = readbc_file(tmp);
       run(start_func, 0, nullptr);
     } else if (len >= 3 && strcmp(".bc", argv[i] + len - 3) == 0) {
       printf("Running script %s\n", argv[i]);
       joff = ojoff;
-      auto start_func = readbc_file(argv[i]);
+      auto *start_func = readbc_file(argv[i]);
       run(start_func, 0, nullptr);
     } else {
       printf("Unknown file type %s\n", argv[i]);
@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
   }
 
   jit_dump_close();
-  if (profile) {
+  if (profile != 0) {
     profiler_stop();
   }
 

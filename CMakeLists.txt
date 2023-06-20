@@ -10,6 +10,7 @@ set(CMAKE_CXX_COMPILER "clang")
 project(bool VERSION 0.1)
 
 enable_language(C)
+set(CMAKE_C_STANDARD 17)
 
 enable_testing()
 
@@ -35,6 +36,9 @@ endif()
 message("Using " ${CHEZ} " for bootstrapping")
 
 #set(CMAKE_CXX_CLANG_TIDY "clang-tidy;-fix;-checks=clang-diagnostic-*,clang-analyzer-*,bugprone*,modernize*,performance*,readability-*,-modernize-use-trailing-return-type,-modernize-avoid-c-arrays,-readability-magic-numbers")
+#set(CMAKE_C_CLANG_TIDY "clang-tidy;-fix;-checks=clang-diagnostic-*,clang-analyzer-*,bugprone*,modernize*,performance*,readability-*,-modernize-use-trailing-return-type,-modernize-avoid-c-arrays,-readability-magic-numbers")
+
+
 #set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE "iwyu")
 #set(CMAKE_C_INCLUDE_WHAT_YOU_USE "iwyu")
 
@@ -43,7 +47,9 @@ include(CheckPIESupported)
 check_pie_supported()
 
 # -Wold-style-cast
-set(CMAKE_CXX_FLAGS "-std=c++17 -O2  -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden -I. -fno-rtti -fno-exceptions")
+set(CMAKE_CXX_FLAGS "-std=c++17 -O2  -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden -I. -fno-rtti -fno-exceptions -Wstrict-aliasing")
+set(CMAKE_C_FLAGS "-std=c17 -O2  -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto  -I. -fno-rtti -fno-exceptions")
+
 set(SOURCES readbc.cpp bytecode.cpp vm.o boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.cpp gc.cpp opcodes.h profiler.cpp opt_loop.cpp parallel_copy.cpp )
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "stdc++" "m")

@@ -3,11 +3,11 @@
 #include "ir.h"           // for reloc, trace_s, RELOC_ABS, RELOC_SYM_ABS
 #include "symbol_table.h" // for sym_table, table, TOMBSTONE
 #include "types.h"        // for TAG_MASK, FORWARD_TAG, SYMBOL_TAG, symbol
-#include <assert.h>       // for assert
-#include <stdint.h>       // for uint8_t, int64_t
-#include <stdio.h>        // for printf
-#include <stdlib.h>       // for free, realloc
-#include <string.h>       // for memcpy
+#include <cassert>       // for assert
+#include <cstdint>       // for uint8_t, int64_t
+#include <cstdio>        // for printf
+#include <cstdlib>       // for free, realloc
+#include <cstring>       // for memcpy
 #include <sys/mman.h>     // for mprotect, mmap, PROT_NONE, PROT_READ, PROT...
 #include <vector>         // for vector
 
@@ -23,8 +23,8 @@ std::vector<long *> pushed_roots;
 
 void GC_push_root(long *root) { pushed_roots.push_back(root); }
 
-void GC_pop_root(long *root) {
-  assert(pushed_roots.size() > 0);
+void GC_pop_root(const long *root) {
+  assert(!pushed_roots.empty());
   assert(pushed_roots.back() == root);
   pushed_roots.pop_back();
 }
@@ -32,11 +32,8 @@ void GC_pop_root(long *root) {
 void GC_enable(bool en) { gc_enable = en; }
 
 static bool is_forwarded(long obj) {
-  auto ptr = (long *)obj;
-  if (((*ptr) & TAG_MASK) == FORWARD_TAG) {
-    return true;
-  }
-  return false;
+  auto *ptr = (long *)obj;
+  return ((*ptr) & TAG_MASK) == FORWARD_TAG;
 }
 
 static void set_forward(long *ptr, void *to) {
@@ -46,7 +43,7 @@ static void set_forward(long *ptr, void *to) {
 
 static long get_forward(long obj) {
   assert(is_forwarded(obj));
-  auto ptr = (long *)obj;
+  auto *ptr = (long *)obj;
   // printf("Obj %p forwarded to %lx\n", ptr, (*ptr) - FORWARD_TAG);
   return (*ptr) - FORWARD_TAG;
 }
@@ -58,20 +55,20 @@ size_t heap_object_size(long *obj) {
   case FLONUM_TAG:
     return sizeof(flonum_s);
   case STRING_TAG: {
-    auto str = (vector_s *)obj;
+    auto *str = (vector_s *)obj;
     return str->len * sizeof(char) + 16 + 1 /* null tag */;
   }
   case SYMBOL_TAG:
     return sizeof(symbol);
   case CONT_TAG:
   case VECTOR_TAG: {
-    auto vec = (vector_s *)obj;
+    auto *vec = (vector_s *)obj;
     return vec->len * sizeof(long) + 16;
   }
   case CONS_TAG:
     return sizeof(cons_s);
   case CLOSURE_TAG: {
-    auto clo = (closure_s *)obj;
+    auto *clo = (closure_s *)obj;
     return clo->len * sizeof(long) + 16;
   }
   case PORT_TAG:
@@ -87,7 +84,7 @@ size_t align(size_t sz) { return (sz + 7) & (~TAG_MASK); }
 void *copy(long *obj) {
   // printf("COPY obj %p, type %li\n", obj, *obj);
   size_t sz = heap_object_size(obj);
-  auto res = alloc_ptr;
+  auto *res = alloc_ptr;
   // printf("Memcpy %li bytes to %p\n", sz, res);
   memcpy(res, obj, sz);
   set_forward(obj, res);
@@ -120,7 +117,7 @@ void trace_heap_object(long *obj) {
   case STRING_TAG:
     break;
   case SYMBOL_TAG: {
-    auto sym = (symbol *)obj;
+    auto *sym = (symbol *)obj;
     // temporarily add back the tag
     obj[1] = (long)sym->name + PTR_TAG;
     visit(&obj[1]);
@@ -130,20 +127,20 @@ void trace_heap_object(long *obj) {
   }
   case CONT_TAG:
   case VECTOR_TAG: {
-    auto vec = (vector_s *)obj;
+    auto *vec = (vector_s *)obj;
     for (long i = 0; i < vec->len; i++) {
       visit(&vec->v[i]);
     }
     break;
   }
   case CONS_TAG: {
-    auto cons = (cons_s *)obj;
+    auto *cons = (cons_s *)obj;
     visit(&cons->a);
     visit(&cons->b);
     break;
   }
   case CLOSURE_TAG: {
-    auto clo = (closure_s *)obj;
+    auto *clo = (closure_s *)obj;
     // Note start from 1: first field is bcfunc* pointer.
     for (long i = 1; i < clo->len; i++) {
       visit(&clo->v[i]);
@@ -180,7 +177,7 @@ static void visit_trace(trace_s *t) {
         break;
       }
       case RELOC_SYM_ABS: {
-        auto sym = (symbol *)(reloc.obj - SYMBOL_TAG);
+        auto *sym = (symbol *)(reloc.obj - SYMBOL_TAG);
         *(int64_t *)(reloc.offset - 8) = (int64_t) & (sym->val);
         break;
       }
@@ -196,13 +193,13 @@ static void visit_trace(trace_s *t) {
 // Currently functions aren't GC'd.
 static void trace_roots() {
   // printf("Scan symbols from readbc...%li\n", symbols.size());
-  for (size_t i = 0; i < symbols.size(); i++) {
-    visit(&symbols[i]);
+  for (long & symbol : symbols) {
+    visit(&symbol);
   }
 
   // printf("Scan GC pushed roots...%li\n", pushed_roots.size()) ;
-  for (size_t i = 0; i < pushed_roots.size(); i++) {
-    visit(pushed_roots[i]);
+  for (auto & pushed_root : pushed_roots) {
+    visit(pushed_root);
   }
 
   // printf("Scan stack...%u\n", stacksz);
@@ -221,7 +218,7 @@ static void trace_roots() {
   for (size_t i = 0; i < sym_table->sz; i++) {
     auto &cur = sym_table->entries[i];
     if (cur != nullptr && cur != TOMBSTONE) {
-      auto tmp = (long *)&sym_table->entries[i];
+      auto *tmp = (long *)&sym_table->entries[i];
       *tmp += SYMBOL_TAG;
       visit(tmp);
       *tmp -= SYMBOL_TAG;
@@ -229,11 +226,11 @@ static void trace_roots() {
   }
 
   // Scan traces
-  for (auto t : traces) {
+  for (auto *t : traces) {
     visit_trace(t);
   }
   // Scan currently in-progress trace
-  if (trace) {
+  if (trace != nullptr) {
     visit_trace(trace);
   }
 }
@@ -248,7 +245,7 @@ uint8_t *to_space = nullptr;
 uint8_t *from_space = nullptr;
 
 void GC_init() {
-  from_space = (uint8_t *)mmap(NULL, alloc_sz * 2, PROT_READ | PROT_WRITE,
+  from_space = (uint8_t *)mmap(nullptr, alloc_sz * 2, PROT_READ | PROT_WRITE,
                                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   assert(from_space);
   alloc_ptr = from_space;
@@ -277,7 +274,7 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
 
   alloc_end = alloc_ptr + alloc_sz;
 
-  auto scan = alloc_ptr;
+  auto *scan = alloc_ptr;
   trace_roots();
   // printf("Cheney scan... %p %p\n", scan, alloc_ptr);
   while (scan < alloc_ptr) {
@@ -304,7 +301,7 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
 __attribute__((always_inline)) void *GC_malloc(size_t sz) {
   sz = (sz + 7) & (~TAG_MASK);
   assert((sz & TAG_MASK) == 0);
-  auto res = alloc_ptr;
+  auto *res = alloc_ptr;
   alloc_ptr += sz;
   if (alloc_ptr < alloc_end) {
     return res;

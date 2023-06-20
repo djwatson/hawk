@@ -1,14 +1,14 @@
 #include "asm_x64.h" // for REG_NONE
 #include "ir.h"      // for snap_s, snap_entry_s, ir_ins, trace_s, IR_CONST...
 #include <memory>    // for allocator_traits<>::value_type
-#include <stdint.h>  // for uint32_t
-#include <stdio.h>   // for printf
+#include <cstdint>  // for uint32_t
+#include <cstdio>   // for printf
 #include <utility>   // for move
 #include <vector>    // for vector
 
-void add_snap(int *regs, int offset, trace_s *trace, uint32_t *pc) {
+void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc) {
   // No need for duplicate snaps.
-  if (trace->snaps.size() &&
+  if ((!trace->snaps.empty() != 0u) &&
       trace->snaps[trace->snaps.size() - 1].ir == trace->ops.size() &&
       trace->snaps[trace->snaps.size() - 1].pc == pc) {
     return;
@@ -34,13 +34,13 @@ void add_snap(int *regs, int offset, trace_s *trace, uint32_t *pc) {
 
 // Replay a snap for a side-trace.
 void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
-                 long *frame, int *d) {
+                 const long *frame, int *d) {
   int depth = 0;
   frame -= snap->offset;
   for (auto &slot : snap->slots) {
-    if (slot.val & IR_CONST_BIAS) {
+    if ((slot.val & IR_CONST_BIAS) != 0) {
       auto c = parent->consts[slot.val - IR_CONST_BIAS];
-      if (c & SNAP_FRAME) {
+      if ((c & SNAP_FRAME) != 0u) {
         depth++;
       }
       // Push const in new trace

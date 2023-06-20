@@ -1,6 +1,6 @@
 #include "types.h"
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 
 #include "gc.h"
 #include "symbol_table.h"
@@ -19,12 +19,12 @@ void print_obj(long obj, FILE *file) {
   case PTR_TAG: {
     long ptrtype = *(long *)(obj - PTR_TAG);
     if (ptrtype == STRING_TAG) {
-      auto str = (string_s *)(obj - PTR_TAG);
+      auto *str = (string_s *)(obj - PTR_TAG);
       fprintf(file, "%s", str->str);
     } else if (ptrtype == PORT_TAG) {
       fprintf(file, "#<port>");
     } else if (ptrtype == VECTOR_TAG) {
-      auto v = (vector_s *)(obj - PTR_TAG);
+      auto *v = (vector_s *)(obj - PTR_TAG);
       fprintf(file, "#(");
       for (long i = 0; i < v->len; i++) {
         if (i != 0) {
@@ -39,10 +39,10 @@ void print_obj(long obj, FILE *file) {
     break;
   }
   case FLONUM_TAG: {
-    auto f = (flonum_s *)(obj - FLONUM_TAG);
+    auto *f = (flonum_s *)(obj - FLONUM_TAG);
     char buffer[40];
     sprintf(buffer, "%g", f->x);
-    if (strpbrk(buffer, ".eE") == NULL) {
+    if (strpbrk(buffer, ".eE") == nullptr) {
       size_t len = strlen(buffer);
       buffer[len] = '.';
       buffer[len + 1] = '0';
@@ -52,7 +52,7 @@ void print_obj(long obj, FILE *file) {
     break;
   }
   case CONS_TAG: {
-    auto c = (cons_s *)(obj - CONS_TAG);
+    auto *c = (cons_s *)(obj - CONS_TAG);
     fprintf(file, "(");
     while ((c->b & TAG_MASK) == CONS_TAG) {
       print_obj(c->a, file);
@@ -68,7 +68,7 @@ void print_obj(long obj, FILE *file) {
     break;
   }
   case SYMBOL_TAG: {
-    auto sym = (symbol *)(obj - SYMBOL_TAG);
+    auto *sym = (symbol *)(obj - SYMBOL_TAG);
     fprintf(file, "%s", sym->name->str);
     break;
   }
@@ -104,7 +104,7 @@ void print_obj(long obj, FILE *file) {
 
 long from_c_str(const char *s) {
   auto len = strlen(s);
-  auto str = (string_s *)GC_malloc(16 + len + 1);
+  auto *str = (string_s *)GC_malloc(16 + len + 1);
   str->type = STRING_TAG;
   str->len = len;
   memcpy(str->str, s, len);
@@ -114,9 +114,9 @@ long from_c_str(const char *s) {
 
 long get_symbol_val(const char *name) {
   auto str = from_c_str(name);
-  auto strp = (string_s *)(str - PTR_TAG);
-  auto res = symbol_table_find(strp);
-  if (!res) {
+  auto *strp = (string_s *)(str - PTR_TAG);
+  auto *res = symbol_table_find(strp);
+  if (res == nullptr) {
     return UNDEFINED_TAG;
   }
   return res->val;

@@ -6,12 +6,12 @@
 #include "snap.h"   // for add_snap, snap_replay
 #include "types.h"  // for CONS_TAG, FALSE_REP, SYMBOL_TAG, symbol, CLOSU...
 #include "vm.h"     // for find_func_for_frame, hotmap_mask, hotmap_sz
-#include <assert.h> // for assert
+#include <cassert> // for assert
 #include <memory>   // for allocator_traits<>::value_type
-#include <stdint.h> // for uint32_t
-#include <stdio.h>  // for printf
-#include <stdlib.h> // for exit
-#include <string.h> // for NULL, memmove, size_t
+#include <cstdint> // for uint32_t
+#include <cstdio>  // for printf
+#include <cstdlib> // for exit
+#include <cstring> // for NULL, memmove, size_t
 #include <string>   // for string
 #include <vector>   // for vector
 
@@ -24,8 +24,8 @@ int depth = 0;
 long func;
 int regs_list[257];
 int *regs = &regs_list[1];
-snap_s *side_exit = NULL;
-trace_s *parent = NULL;
+snap_s *side_exit = nullptr;
+trace_s *parent = nullptr;
 
 std::vector<unsigned int *> downrec;
 
@@ -36,25 +36,25 @@ enum trace_state_e {
 };
 
 trace_state_e trace_state = OFF;
-trace_s *trace = NULL;
+trace_s *trace = nullptr;
 std::vector<trace_s *> traces;
 
-unsigned int *patchpc = NULL;
+unsigned int *patchpc = nullptr;
 unsigned int patchold;
 
 void pendpatch() {
-  if (patchpc) {
+  if (patchpc != nullptr) {
     printf("PENDPACTCH\n");
     *patchpc = patchold;
-    patchpc = NULL;
+    patchpc = nullptr;
   }
 }
 
 void print_const_or_val(int i, trace_s *ctrace) {
-  if (i & IR_CONST_BIAS) {
+  if ((i & IR_CONST_BIAS) != 0) {
     auto c = ctrace->consts[i - IR_CONST_BIAS];
     int type = c & 0x7;
-    if (c & SNAP_FRAME) {
+    if ((c & SNAP_FRAME) != 0u) {
       printf("(pc %li)", c & ~SNAP_FRAME);
     } else if (type == 0) {
       printf("\e[1;35m%li\e[m", c >> 3);
@@ -93,7 +93,7 @@ void dump_trace(trace_s *ctrace) {
 
     auto op = ctrace->ops[i];
     printf("%04zu %s %c\t", i, reg_names[op.reg],
-           op.type & IR_INS_TYPE_GUARD ? '>' : ' ');
+           (op.type & IR_INS_TYPE_GUARD) != 0 ? '>' : ' ');
     auto t = op.type & ~IR_INS_TYPE_GUARD;
     if (t == 0) {
       printf("\e[1;35mfix \e[m ");
@@ -121,7 +121,7 @@ void dump_trace(trace_s *ctrace) {
       break;
     }
     case ir_ins_op::GGET: {
-      symbol *s =
+      auto *s =
           (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       printf("%s", s->name->str);
       break;
@@ -176,7 +176,7 @@ void record_start(unsigned int *pc, long *frame) {
   assert(func);
   printf("Record start %i at %s func %s\n", trace->num, ins_names[INS_OP(*pc)],
          ((bcfunc *)func)->name.c_str());
-  if (parent) {
+  if (parent != nullptr) {
     printf("Parent %i\n", parent->num);
   }
   pc_start = pc;
@@ -184,11 +184,11 @@ void record_start(unsigned int *pc, long *frame) {
   instr_count = 0;
   depth = 0;
   regs = &regs_list[1];
-  for (int i = 0; i < 257; i++) {
-    regs_list[i] = -1;
+  for (int & i : regs_list) {
+    i = -1;
   }
 
-  if (side_exit) {
+  if (side_exit != nullptr) {
     snap_replay(&regs, side_exit, parent, trace, frame, &depth);
   }
   add_snap(regs_list, regs - regs_list - 1, trace,
@@ -211,7 +211,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
 
   pendpatch();
 
-  if (side_exit) {
+  if (side_exit != nullptr) {
     side_exit->link = traces.size();
   } else {
     auto op = INS_OP(*pc_start);
@@ -232,18 +232,18 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   dump_trace(trace);
 
   trace_state = OFF;
-  side_exit = NULL;
+  side_exit = nullptr;
   downrec.clear();
-  trace = NULL;
+  trace = nullptr;
   // joff = 1;
 }
 
 void record_abort() {
   pendpatch();
   delete trace;
-  trace = NULL;
+  trace = nullptr;
   trace_state = OFF;
-  side_exit = NULL;
+  side_exit = nullptr;
   downrec.clear();
 }
 
@@ -254,7 +254,7 @@ int record(unsigned int *pc, long *frame, long argcnt) {
   switch (trace_state) {
   case OFF: {
     // TODO fix?
-    if (INS_OP(*pc) == JFUNC && side_exit == NULL) {
+    if (INS_OP(*pc) == JFUNC && side_exit == nullptr) {
       // printf("CAN'T RECORD TO JFUNC\n");
       return 1;
     }
@@ -280,7 +280,7 @@ int record(unsigned int *pc, long *frame, long argcnt) {
   }
 }
 
-int record_stack_load(int slot, long *frame) {
+int record_stack_load(int slot, const long *frame) {
   if (regs[slot] == -1) {
     ir_ins ins;
     ins.reg = REG_NONE;
@@ -349,16 +349,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case RET1: {
     if (depth == 0) {
-      auto old_pc = (unsigned int *)frame[-1];
-      if (INS_OP(*pc_start) == RET1 || side_exit != NULL) {
+      auto *old_pc = (unsigned int *)frame[-1];
+      if (INS_OP(*pc_start) == RET1 || side_exit != nullptr) {
         int cnt = 0;
         for (auto &p : downrec) {
           if (p == pc) {
             cnt++;
           }
         }
-        if (cnt) {
-          if (side_exit) {
+        if (cnt != 0) {
+          if (side_exit != nullptr) {
             printf("Potential down-recursion, restarting\n");
             record_abort();
             record_start(pc, frame);
@@ -413,7 +413,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       for (int j = regs - regs_list; j < 257; j++) {
         regs_list[j] = -1;
       }
-      auto old_pc = (unsigned int *)frame[-1];
+      auto *old_pc = (unsigned int *)frame[-1];
       regs -= (INS_A(*(old_pc - 1)) + 1);
     } else {
       depth--;
@@ -443,7 +443,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       trace->ops.push_back(ins);
     }
     long cnt = 0;
-    auto p_pc = (uint32_t *)frame[-1];
+    auto *p_pc = (uint32_t *)frame[-1];
     for (int d = depth; d > 0; d--) {
       if (p_pc == pc + 1) {
         cnt++;
@@ -465,15 +465,14 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
     if (cnt >= UNROLL_LIMIT) {
       auto v = frame[INS_A(i) + 1];
-      auto closure = (closure_s *)(v - CLOSURE_TAG);
-      auto cfunc = (bcfunc *)closure->v[0];
-      auto target = &cfunc->code[0];
+      auto *closure = (closure_s *)(v - CLOSURE_TAG);
+      auto *cfunc = (bcfunc *)closure->v[0];
+      auto *target = (cfunc->code).data();
       if (target == pc_start) {
         printf("Record stop up-recursion\n");
         record_stop(target, frame, traces.size());
         return 1;
-      } else {
-        // TODO fix flush
+      }         // TODO fix flush
         pendpatch();
         if (INS_OP(cfunc->code[0]) == JFUNC) {
           printf("Flushing trace\n");
@@ -485,7 +484,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         record_abort();
         printf("Record abort unroll limit reached\n");
         return 1;
-      }
+     
     }
     break;
   }
@@ -765,34 +764,32 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case JFUNC: {
     // Check if it is a returning trace
-    auto ctrace = trace_cache_get(INS_B(i));
+    auto *ctrace = trace_cache_get(INS_B(i));
     if (ctrace->link == -1) {
-      assert(patchpc == NULL);
+      assert(patchpc == nullptr);
       patchpc = pc;
       patchold = *pc;
       *pc = traces[INS_D(*pc)]->startpc;
       break;
-    } else {
-      for (unsigned j = 0; j < INS_A(i); j++) {
+    }       for (unsigned j = 0; j < INS_A(i); j++) {
         regs[j] = record_stack_load(j, frame);
       }
       printf("Record stop JFUNC\n");
       record_stop(pc, frame, INS_B(i));
       return 1;
-    }
+   
   }
   case JLOOP: {
-    if (side_exit == NULL) {
+    if (side_exit == nullptr) {
       printf("Record stop root trace hit loop\n");
       record_abort();
       return 1;
-    } else {
-      printf("Record stop hit JLOOP\n");
+    }       printf("Record stop hit JLOOP\n");
       // NOTE: stack load is for ret1 jloop returns.  Necessary?
       regs[INS_A(i)] = record_stack_load(INS_A(i), frame);
       record_stop(pc, frame, INS_B(i));
       return 1;
-    }
+   
   }
   default: {
     printf("NYI: CANT RECORD BYTECODE %s\n", ins_names[INS_OP(i)]);
