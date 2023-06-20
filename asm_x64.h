@@ -9,5 +9,4 @@ static constexpr int regcnt = 16;
 #define REG_NONE 16
 extern const char *reg_names[];
 
-int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
-            long *frame_top);
+int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame);

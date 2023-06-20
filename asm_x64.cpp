@@ -645,8 +645,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s* parent) {
 
 extern unsigned int *patchpc;
 extern unsigned int patchold;
-int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
-            long *frame_top) {
+int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
   exit_state state;
   auto trace = trace_cache_get(tnum);
 

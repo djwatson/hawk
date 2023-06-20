@@ -566,7 +566,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case JGUARD: {
-    long val = frame[INS_B(i)];
     long tag  = INS_C(i);
 
     if (tag == PTR_TAG) {

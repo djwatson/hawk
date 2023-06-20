@@ -627,7 +627,7 @@ LIBRARY_FUNC_D(JFUNC)
 #ifdef REPLAY
 auto res = record_run(rd, &pc, &frame, frame_top);
 #else
-auto res = jit_run(rd, &pc, &frame, frame_top);
+auto res = jit_run(rd, &pc, &frame);
 #endif
 
   frame_top = stack + stacksz - 256;
