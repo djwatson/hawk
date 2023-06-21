@@ -1,11 +1,13 @@
 # working on
 
-* snapshots need to be GC'd for constants
+* snapshot regs need to last one beyond
+* CAR/CDR/JGUARD: typecheck improvement !!!
+
 * append tracing broken
 
-* CAR/CDR/JGUARD: typecheck improvement !!!
 * stack expand:cleanup
 
+* cleanup snap guards for jisf, etc
 * folding GGET: put in emit somewhere, check for GSET
 * Merge parent SLOADS if they are the same value.
 * make make notes where ARG vs SLOAD

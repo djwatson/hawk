@@ -507,6 +507,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case JISF: {
+    // TODO snaps
     add_snap(regs_list, regs - regs_list - 1, trace, pc);
     ir_ins ins;
     ins.reg = REG_NONE;
@@ -528,17 +529,19 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
+    uint32_t* next_pc;
     if (frame[INS_B(i)] < frame[INS_C(i)]) {
       ins.op = ir_ins_op::LT;
-      add_snap(regs_list, regs - regs_list - 1, trace,
-               pc + INS_D(*(pc + 1)) + 1);
+      add_snap(regs_list, regs - regs_list - 1, trace, pc + INS_D(*(pc + 1)) + 1);
+      next_pc = pc + 2;
     } else {
       ins.op = ir_ins_op::GE;
       add_snap(regs_list, regs - regs_list - 1, trace, pc + 2);
+      next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
     ins.type = IR_INS_TYPE_GUARD;
     trace->ops.push_back(ins);
-    add_snap(regs_list, regs - regs_list - 1, trace, pc);
+    add_snap(regs_list, regs - regs_list - 1, trace, next_pc);
     break;
   }
   case JISEQ: {
@@ -546,17 +549,19 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
+    uint32_t* next_pc;
     if (frame[INS_B(i)] == frame[INS_C(i)]) {
       ins.op = ir_ins_op::EQ;
-      add_snap(regs_list, regs - regs_list - 1, trace,
-               pc + INS_D(*(pc + 1)) + 1);
+      add_snap(regs_list, regs - regs_list - 1, trace, pc + INS_D(*(pc + 1)) + 1);
+      next_pc = pc + 2;
     } else {
       ins.op = ir_ins_op::NE;
       add_snap(regs_list, regs - regs_list - 1, trace, pc + 2);
+      next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
     ins.type = IR_INS_TYPE_GUARD;
     trace->ops.push_back(ins);
-    add_snap(regs_list, regs - regs_list - 1, trace, pc);
+    add_snap(regs_list, regs - regs_list - 1, trace, next_pc);
     break;
   }
   case CDR:
@@ -565,10 +570,14 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
     if (INS_OP(i) == CAR) {
+      // TODO typecheck
+      ins.type = ((cons_s*)(frame[INS_B(i)] - CONS_TAG))->a & TAG_MASK;
       ins.op = ir_ins_op::CAR;
     } else {
+      ins.type = ((cons_s*)(frame[INS_B(i)] - CONS_TAG))->b & TAG_MASK;
       ins.op = ir_ins_op::CDR;
     }
+    ins.type |= IR_INS_TYPE_GUARD;
     regs[INS_A(i)] = trace->ops.size();
     trace->ops.push_back(ins);
     break;

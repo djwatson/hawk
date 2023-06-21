@@ -21,6 +21,8 @@
 #include "record.h" // for trace_cache_get, record_side
 #include "types.h"  // for CONS_TAG, TAG_MASK, IMMEDIATE_MASK
 
+#include "vm.h" // for find_func_for_frame
+
 std::vector<std::pair<uint64_t, uint64_t>>
 serialize_parallel_copy(std::multimap<uint64_t, uint64_t> &moves,
                         uint64_t tmp_reg);
@@ -457,10 +459,10 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case ir_ins_op::SLOAD: {
       // frame pointer in RDI
       auto reg = op.reg;
-      emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
       if ((op.type & IR_INS_TYPE_GUARD) == 0) {
         goto done;
       }
+      emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
       emit_mem_reg(OP_MOV_MR, op.op1 * 8, RDI, reg);
       break;
     }
@@ -468,14 +470,15 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       maybe_assign_register(op.op1, trace, slot);
       auto reg = op.reg;
       auto reg1 = trace->ops[op.op1].reg;
+      emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
       emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg1, reg);
       break;
     }
     case ir_ins_op::CDR: {
       maybe_assign_register(op.op1, trace, slot);
-      // TODO typecheck?
       auto reg = op.reg;
       auto reg1 = trace->ops[op.op1].reg;
+      emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
       emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg1, reg);
       break;
     }
@@ -675,10 +678,9 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
   auto *snap = &trace->snaps[exit];
 
   restore_snap(snap, trace, &state, o_frame, o_pc);
-  // auto func = find_func_for_frame(snap->pc);
-  // assert(func);
-  //  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num,
-  //  snap->pc - &func->code[0], func->name.c_str());
+  auto func = find_func_for_frame(snap->pc);
+  assert(func);
+   printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
 
   if (exit != trace->snaps.size() - 1) {
     if (snap->exits < 10) {
