@@ -441,9 +441,12 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   // Main generation loop
   long cur_snap = trace->snaps.size() - 1;
   long op_cnt = trace->ops.size() - 1;
+  assign_snap_registers(cur_snap, slot, trace);
   for (; op_cnt >= 0; op_cnt--) {
     while (cur_snap >= 0 && trace->snaps[cur_snap].ir > op_cnt) {
-      assign_snap_registers(cur_snap, slot, trace);
+      if (cur_snap > 0) {
+	assign_snap_registers(cur_snap - 1, slot, trace);
+      }
       cur_snap--;
     }
     auto &op = trace->ops[op_cnt];

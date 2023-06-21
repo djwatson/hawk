@@ -1,6 +1,5 @@
 # working on
 
-* snapshot regs need to last one beyond
 * CAR/CDR/JGUARD: typecheck improvement !!!
 
 * append tracing broken
