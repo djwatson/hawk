@@ -314,7 +314,6 @@ void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
       assert(false);
     } else if ((type & TAG_MASK) == LITERAL_TAG) {
       auto lit_bits = (type & IMMEDIATE_MASK) & ~ IR_INS_TYPE_GUARD;
-      printf("-----------------LITBITS: %x %x\n", lit_bits, type);
       emit_cmp_reg_imm32(R15, lit_bits);
       emit_op_imm32(OP_AND_IMM, 4, R15, 0xff);
       emit_reg_reg(OP_MOV, reg, R15);

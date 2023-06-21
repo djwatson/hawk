@@ -601,6 +601,14 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     break;
   }
+  case KONST: {
+    auto k = const_table[INS_D(i)];
+    auto reg =  INS_A(i);
+    auto knum = trace->consts.size();
+    trace->consts.push_back(k);
+    regs[reg] = IR_CONST_BIAS + knum;
+    break;
+  }
   case CONS: {
     add_snap(regs_list, regs - regs_list - 1, trace, pc);
     trace->snaps[trace->snaps.size() - 1].exits = 100;
