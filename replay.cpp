@@ -2,6 +2,7 @@
 #include <cstdio>  // for printf, NULL
 #include <cstdlib> // for exit
 #include <vector>  // for vector
+#include <assert.h>
 // For runtime symbol
 #include "bytecode.h" // for INS_B, INS_OP
 #include "ir.h"       // for trace_s, ir_ins, snap_s, ir_ins_op, snap_entry_s
@@ -87,6 +88,25 @@ extern unsigned int patchold;
 int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
                long *frame_top);
 
+bool typecheck(long v, uint8_t ins_type) {
+  auto type = ins_type & ~IR_INS_TYPE_GUARD;
+  if (type == PTR_TAG) {
+    assert(false);
+  }
+  if ((type&TAG_MASK) == LITERAL_TAG) {
+    if ((v & IMMEDIATE_MASK) != type) {
+      printf("Type abort immediate: %li vs %i\n", v&IMMEDIATE_MASK, type);
+      return false;
+    }
+  } else {
+    if ((v & TAG_MASK) != type) {
+      printf("Type abort %li vs %i\n", v & TAG_MASK, type);
+      return false;
+    }
+  }
+  return true;
+}
+
 int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
                long *frame_top) {
   int loop_pc = -1;
@@ -116,10 +136,9 @@ looped:
       auto v = frame[ins.op1];
       res_store(res, pc, trace->ops, v);
       if ((ins.type & IR_INS_TYPE_GUARD) != 0) {
-        if ((v & 0x7) != (ins.type & ~IR_INS_TYPE_GUARD)) {
-          printf("Type abort\n");
-          goto abort;
-        }
+	if (!typecheck(v, ins.type)) {
+	  goto abort;
+	}
       }
       pc++;
       break;
@@ -166,14 +185,13 @@ looped:
     }
     case ir_ins_op::GGET: {
       auto *a =
-          (symbol *)get_val_or_const(res, ins.op1, trace->ops, trace->consts);
+	(symbol *)(get_val_or_const(res, ins.op1, trace->ops, trace->consts) - SYMBOL_TAG);
       // printf("GGET %s %lx\n", a->name.c_str(), a->val);
       res_store(res, pc, trace->ops, a->val);
       if ((ins.type & IR_INS_TYPE_GUARD) != 0) {
-        if ((a->val & 0x7) != (ins.type & ~IR_INS_TYPE_GUARD)) {
-          printf("Type abort\n");
-          goto abort;
-        }
+	if (!typecheck(a->val, ins.type)) {
+	  goto abort;
+	}
       }
       pc++;
       break;
@@ -202,6 +220,41 @@ looped:
       pc++;
       break;
     }
+    case ir_ins_op::CAR: {
+      auto v = get_val_or_const(res, ins.op1, trace->ops, trace->consts);
+      auto c = (cons_s*)(v - CONS_TAG);
+      if (!typecheck(c->a, ins.type)) {
+	goto abort;
+      }
+      res_store(res, pc, trace->ops, c->a);
+      pc++;
+      break;
+    }
+    case ir_ins_op::CDR: {
+      auto v = get_val_or_const(res, ins.op1, trace->ops, trace->consts);
+      auto c = (cons_s*)(v - CONS_TAG);
+      if (!typecheck(c->b, ins.type)) {
+	goto abort;
+      }
+      res_store(res, pc, trace->ops, c->b);
+      pc++;
+      break;
+    }
+    // case ir_ins_op::CONS: {
+    //   auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts);
+    //   auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
+
+    //   // TODO size check
+    //   long c = (long)alloc_ptr;
+    //   alloc_ptr += 24;
+    //   auto cp = (cons_s*)(c);
+    //   cp->type = CONS_TAG;
+    //   cp->a = a;
+    //   cp->b = b;
+    //   res_store(res, pc, trace->ops, c + CONS_TAG);
+    //   pc++;
+    //   break;
+    // }
     case ir_ins_op::RET: {
       long a = get_val_or_const(res, ins.op1, trace->ops, trace->consts) -
                SNAP_FRAME;
