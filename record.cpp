@@ -287,6 +287,12 @@ int record_stack_load(int slot, const long *frame) {
     ins.op = ir_ins_op::SLOAD;
     // Guard on type
     auto type = frame[slot] & 0x7;
+    if (type == LITERAL_TAG) {
+      type = frame[slot] & IMMEDIATE_MASK;
+    }
+    if (type == PTR_TAG) {
+      assert(false);
+    }
     ins.type = IR_INS_TYPE_GUARD | type;
 
     regs[slot] = trace->ops.size();
