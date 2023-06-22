@@ -734,7 +734,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op2 = record_stack_load(INS_C(i), frame);
     ins.op = ir_ins_op::ADD;
     // TODO: Assume no type change??
-    ins.type = IR_INS_TYPE_GUARD | trace->ops[ins.op1].type;
+    uint8_t type = 0;
+    if (ins.op1 >= IR_CONST_BIAS) {
+      type = trace->consts[ins.op1 - IR_CONST_BIAS] & TAG_MASK;
+    } else {
+      type = trace->ops[ins.op1].type;
+    }
+    ins.type = IR_INS_TYPE_GUARD | type;
     auto reg = INS_A(i);
     regs[reg] = trace->ops.size();
     trace->ops.push_back(ins);
@@ -747,7 +753,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op2 = record_stack_load(INS_C(i), frame);
     ins.op = ir_ins_op::SUB;
     // TODO: Assume no type change??
-    ins.type = IR_INS_TYPE_GUARD | trace->ops[ins.op1].type;
+    uint8_t type = 0;
+    if (ins.op1 >= IR_CONST_BIAS) {
+      type = trace->consts[ins.op1 - IR_CONST_BIAS] & TAG_MASK;
+    } else {
+      type = trace->ops[ins.op1].type;
+    }
+    ins.type = IR_INS_TYPE_GUARD | type;
     auto reg = INS_A(i);
     regs[reg] = trace->ops.size();
     trace->ops.push_back(ins);
