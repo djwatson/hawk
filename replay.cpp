@@ -9,6 +9,7 @@
 #include "opcodes.h"  // for JLOOP
 #include "record.h"   // for trace_cache_get, record_side
 #include "types.h"    // for symbol
+#include "gc.h"
 
 // Simple replay to test recording before we write a jit.
 //#define USE_REG
@@ -50,11 +51,10 @@ snap_s *find_snap_for_pc(unsigned int pc, trace_s *trace) {
   return res;
 }
 
+extern long *frame_top;
 extern long *stack;
 extern unsigned int stacksz;
-__attribute__((noinline)) void EXPAND_STACK_SLOWPATH() {
-  // TODO
-}
+long *expand_stack_slowpath(long *frame);
 void snap_restore(std::vector<long> &res, unsigned int **o_pc, long **o_frame,
                   snap_s *snap, trace_s *trace) {
   for (auto &slot : snap->slots) {
@@ -66,18 +66,18 @@ void snap_restore(std::vector<long> &res, unsigned int **o_pc, long **o_frame,
         (*o_frame)[slot.slot] = c;
       }
     } else {
-      if ((*o_frame) + slot.slot >= stack + stacksz) {
-        auto pos = (*o_frame) - stack;
-        EXPAND_STACK_SLOWPATH();
-        (*o_frame) = stack + pos;
-        // TODO update frame_top
-      }
-      // printf("Snap restore slot %i val %li ptr %lx\n", slot.slot,
-      // res[slot.val], &(*o_frame)[slot.slot]);
+      //printf("Snap restore slot %i val %lx ptr %lx\n", slot.slot,  res[slot.val], &(*o_frame)[slot.slot]);
       (*o_frame)[slot.slot] = res_load(res, slot.val, trace->ops);
     }
   }
+  if ((*o_frame + snap->offset) >= frame_top) {
+    printf("Expand\n");
+    auto pos = (*o_frame) - stack;
+    expand_stack_slowpath(*o_frame);
+    (*o_frame) = stack + pos;
+  } 
   *o_frame = *o_frame + snap->offset;
+  //printf("Tot remaining %li %li %li\n", frame_top - *o_frame, *o_frame + snap->offset, frame_top );
   *o_pc = snap->pc;
   // printf("PC is now %i %s\n", snap->pc, ins_names[INS_OP(**o_pc)]);
   // printf("Stack is now %li func is %lx\n", *o_frame-stack, func);
@@ -95,12 +95,12 @@ bool typecheck(long v, uint8_t ins_type) {
   }
   if ((type&TAG_MASK) == LITERAL_TAG) {
     if ((v & IMMEDIATE_MASK) != type) {
-      printf("Type abort immediate: %li vs %i\n", v&IMMEDIATE_MASK, type);
+      //printf("Type abort immediate: %li vs %i\n", v&IMMEDIATE_MASK, type);
       return false;
     }
   } else {
     if ((v & TAG_MASK) != type) {
-      printf("Type abort %li vs %i\n", v & TAG_MASK, type);
+      //printf("Type abort %li vs %i\n", v & TAG_MASK, type);
       return false;
     }
   }
@@ -112,9 +112,8 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   int loop_pc = -1;
 again:
   auto *trace = trace_cache_get(tnum);
-  // printf("Run trace %i\n", tnum);
-  // printf("Frame %li %li %li\n", (*o_frame)[0] >> 3, (*o_frame)[1] >> 3,
-  //        (*o_frame)[1] >> 3);
+  // printf("Run trace %i o_frame: %p\n", tnum, *o_frame);
+  // printf("Frame %lx %lx %lx\n", (*o_frame)[0] , (*o_frame)[1] , (*o_frame)[2] );
 
   unsigned int pc = 0;
   std::vector<long> res;
@@ -240,6 +239,26 @@ looped:
       pc++;
       break;
     }
+    case ir_ins_op::ALLOC: {
+      long* v = (long*)GC_malloc(ins.op1);
+      *v = ins.op2;
+      res_store(res, pc, trace->ops, ((long)v) + ins.op2);
+      pc++;
+      break;
+    }
+    case ir_ins_op::REF: {
+      char* ref = (char*)get_val_or_const(res, ins.op1, trace->ops, trace->consts);
+      ref += ins.op2;
+      res_store(res, pc, trace->ops, (long)ref);
+      pc++;
+      break;
+    }
+    case ir_ins_op::STORE: {
+      long* ref = (long*)get_val_or_const(res, ins.op1, trace->ops, trace->consts);
+      *ref = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
+      pc++;
+      break;
+    }
     // case ir_ins_op::CONS: {
     //   auto a = get_val_or_const(res, ins.op1, trace->ops, trace->consts);
     //   auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
@@ -260,7 +279,7 @@ looped:
                SNAP_FRAME;
       auto b = get_val_or_const(res, ins.op2, trace->ops, trace->consts);
       if (a != frame[-1]) {
-        // printf("RET guard %lx %lx\n", a, frame[-2]);
+        //printf("RET guard %lx %lx\n", a, frame[-2]);
         goto abort;
       }
       frame -= (b >> 3);
@@ -290,7 +309,7 @@ looped:
     auto &snap = trace->snaps[trace->snaps.size() - 1];
     snap_restore(res, o_pc, o_frame, &snap, trace);
     if (trace->link != -1) {
-      // printf("Snap link %i\n", trace->link);
+      //printf("Snap link finish: %i\n", trace->link);
       //  do NOT adjust frame jumping back to a root trace.
       if (loop_pc != -1) {
         pc = loop_pc;
@@ -301,6 +320,7 @@ looped:
           }
           res[op.op1] = res[i];
         }
+	//printf("Loop trace %i\n", trace->link);
         goto looped;
       }
       tnum = trace->link;
@@ -318,7 +338,7 @@ abort : {
     // Don't adjust stack frame for links
     // TODO: infact, in generated code snap_restore will be not done at all when
     // jumping to side trace.
-    // printf("Snaplink to %i\n", snap->link);
+    //printf("Snaplink to %i\n", snap->link);
     *o_frame = *o_frame - snap->offset;
     tnum = snap->link;
     goto again;
@@ -348,8 +368,12 @@ abort : {
     }
   }
   if (INS_OP(**o_pc) == JLOOP) {
-    auto *otrace = trace_cache_get(INS_B(**o_pc));
-    *o_pc = &otrace->startpc;
+      auto *otrace = trace_cache_get(INS_B(**o_pc));
+      if (INS_OP(otrace->startpc) == LOOP) {
+        (*o_pc)++;
+      } else {
+        *o_pc = &otrace->startpc;
+      }
     printf("Exit to loop\n");
     return 0;
   }

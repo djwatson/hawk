@@ -294,7 +294,7 @@ int record_stack_load(int slot, const long *frame) {
       type = frame[slot] & IMMEDIATE_MASK;
     }
     if (type == PTR_TAG) {
-      assert(false);
+      //assert(false);
     }
     ins.type = IR_INS_TYPE_GUARD | type;
 
@@ -615,6 +615,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case CONS: {
     add_snap(regs_list, regs - regs_list - 1, trace, pc);
     trace->snaps[trace->snaps.size() - 1].exits = 100;
+    auto a = record_stack_load(INS_B(i), frame);
+    auto b = record_stack_load(INS_C(i), frame);
     {
       ir_ins ins;
       ins.type = CONS_TAG;
@@ -640,7 +642,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.type = 0;
       ins.reg = REG_NONE;
       ins.op1 = trace->ops.size() - 1;
-      ins.op2 = record_stack_load(INS_B(i), frame);
+      ins.op2 = a;
       ins.op = ir_ins_op::STORE;
       trace->ops.push_back(ins);
     }
@@ -658,7 +660,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.type = 0;
       ins.reg = REG_NONE;
       ins.op1 = trace->ops.size() - 1;
-      ins.op2 = record_stack_load(INS_C(i), frame);
+      ins.op2 = b;
       ins.op = ir_ins_op::STORE;
       trace->ops.push_back(ins);
     }
