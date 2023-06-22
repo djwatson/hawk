@@ -287,15 +287,35 @@ void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins &op,
 
   emit_jcc32(JO, offset);
 
+  auto reg2 = REG_NONE;
+  if (!(op.op2 & IR_CONST_BIAS)) {
+    reg2 = trace->ops[op.op2].reg;
+  }
+
+  auto reg1 = REG_NONE;
+  if (!(op.op1 & IR_CONST_BIAS)) {
+    reg1 = trace->ops[op.op1].reg;
+  }
   auto reg = op.reg;
-  emit_arith_op(arith_code, op_code, reg, op.op2, trace, offset, slot);
+  if (reg != reg1 && reg2 == reg) {
+    emit_reg_reg(op_code, R15, reg);
+  } else {
+    emit_arith_op(arith_code, op_code, reg, op.op2, trace, offset, slot);
+  }
   if (op.op1 & IR_CONST_BIAS) {
     auto c = trace->consts[op.op1 - IR_CONST_BIAS];
     emit_mov64(reg, c);
   } else {
     auto reg1 = trace->ops[op.op1].reg;
     if (reg != reg1) {
-      emit_reg_reg(OP_MOV, reg1, reg);
+      // TODO clownshow.  If we have a commutative OP (mul, add), we could just run it backwards.
+      // ALternatively, ensure the reg allocator never does this?
+      if (reg2 == reg) {
+	emit_reg_reg(OP_MOV, reg1, reg);
+	emit_reg_reg(OP_MOV, reg2, R15);
+      } else {
+	emit_reg_reg(OP_MOV, reg1, reg);
+      }
     }
   }
 }
