@@ -1,11 +1,10 @@
 # working on
 
-* JLOOP pendpatch to LOOP -> should not record again? Or first frame should be +1?
-* get test.scm to work everywhere
-* store w/const
+* nqueens 14 fails
 
 * stack expand:cleanup
 
+* closure-get, and in fact all calls, must be same closure.
 * cleanup snap guards for jisf, etc
 * folding GGET: put in emit somewhere, check for GSET
 * Merge parent SLOADS if they are the same value.

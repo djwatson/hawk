@@ -815,6 +815,15 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
     break;
   }
+  case CLOSURE_GET: {
+    auto fb = frame[INS_B(i)];
+    auto closure = (closure_s*)(fb-CLOSURE_TAG);
+     
+    auto knum = trace->consts.size();
+    trace->consts.push_back(closure->v[1 + INS_C(i)]);
+    regs[INS_A(i)] = knum | IR_CONST_BIAS;
+    break;
+  }    
   case JMP: {
     break;
   }
