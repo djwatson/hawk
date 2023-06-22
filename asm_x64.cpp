@@ -119,6 +119,7 @@ jit_entry_stub(long *o_frame, Func fptr, exit_state *regs) {
   asm inline(".intel_syntax noprefix\n"
              //  Save callee-saved regs.
              "push rbx\n"
+             "push rbp\n"
              "push r12\n"
              "push r13\n"
              "push r14\n"
@@ -187,6 +188,7 @@ static void __attribute__((noinline)) __attribute__((naked)) jit_exit_stub() {
              "pop r14\n"
              "pop r13\n"
              "pop r12\n"
+             "pop rbp\n"
              "pop rbx\n"
              "ret\n"
              :);
@@ -224,7 +226,7 @@ void emit_snap(int snap, trace_s *trace, bool all) {
   printf("EMITSNAP: all %i\n", static_cast<int>(all));
   auto &sn = trace->snaps[snap];
   int last_ret = -1;
-  for (int i = sn.ir; i >= 0; i--) {
+  for (int i = (int)sn.ir-1; i >= 0; i--) {
     if (trace->ops[i].op == ir_ins_op::RET) {
       last_ret = i;
       break;
@@ -514,7 +516,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       assert(trace->ops[op.op1].op == ir_ins_op::REF);
       if (op.op2 & IR_CONST_BIAS) {
 	emit_mem_reg(OP_MOV_RM, 0, trace->ops[op.op1].reg, R15);
-	auto c = trace->consts[op.op1 - IR_CONST_BIAS];
+	auto c = trace->consts[op.op2 - IR_CONST_BIAS];
 	emit_mov64(R15, c);
       } else {
 	emit_mem_reg(OP_MOV_RM, 0, trace->ops[op.op1].reg,
@@ -692,7 +694,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
     state.regs[op.reg] = (*o_frame)[op.op1];
   }
 
-  // printf("FN start %i\n", tnum);
+   // printf("FN start %i\n", tnum);
   jit_entry_stub(*o_frame, trace->fn, &state);
   trace = state.trace;
   long unsigned exit = state.snap;
