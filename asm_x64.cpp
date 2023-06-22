@@ -285,12 +285,16 @@ void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins &op,
 
   emit_jcc32(JO, offset);
 
-  assert(!(op.op1 & IR_CONST_BIAS));
   auto reg = op.reg;
-  auto reg1 = trace->ops[op.op1].reg;
   emit_arith_op(arith_code, op_code, reg, op.op2, trace, offset, slot);
-  if (reg != reg1) {
-    emit_reg_reg(OP_MOV, reg1, reg);
+  if (op.op1 & IR_CONST_BIAS) {
+    auto c = trace->consts[op.op1 - IR_CONST_BIAS];
+    emit_mov64(reg, c);
+  } else {
+    auto reg1 = trace->ops[op.op1].reg;
+    if (reg != reg1) {
+      emit_reg_reg(OP_MOV, reg1, reg);
+    }
   }
 }
 
@@ -300,9 +304,15 @@ void emit_cmp(enum jcc_cond cmp, ir_ins &op, trace_s *trace, int32_t offset,
   maybe_assign_register(op.op2, trace, slot);
 
   emit_jcc32(cmp, offset);
-  assert(!(op.op1 & IR_CONST_BIAS));
-  emit_arith_op(OP_ARITH_CMP, OP_CMP, trace->ops[op.op1].reg, op.op2, trace,
-                offset, slot);
+  uint8_t reg = R15;
+  if (!(op.op1 & IR_CONST_BIAS)) {
+    reg = trace->ops[op.op1].reg;
+  }
+  emit_arith_op(OP_ARITH_CMP, OP_CMP, reg, op.op2, trace, offset, slot);
+  if (op.op1 & IR_CONST_BIAS) {
+    auto c = trace->consts[op.op1 - IR_CONST_BIAS];
+    emit_mov64(R15, c);
+  }  
 }
 
 void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
@@ -681,9 +691,9 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
   auto *snap = &trace->snaps[exit];
 
   restore_snap(snap, trace, &state, o_frame, o_pc);
-  auto func = find_func_for_frame(snap->pc);
-  assert(func);
-   printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
+  // auto func = find_func_for_frame(snap->pc);
+  // assert(func);
+  //  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
 
   if (exit != trace->snaps.size() - 1) {
     if (snap->exits < 10) {

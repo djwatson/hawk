@@ -62,6 +62,10 @@ void print_const_or_val(int i, trace_s *ctrace) {
       printf("\e[1;31m<closure>\e[m");
     } else if (c == FALSE_REP) {
       printf("\e[1;35m#f\e[m");
+    } else if (c == TRUE_REP) {
+      printf("\e[1;35m#t\e[m");
+    } else if (c == NIL_TAG) {
+      printf("\e[1;35mnil\e[m");
     } else {
       printf("Unknown dump_trace type %i\n", type);
       exit(-1);
@@ -205,11 +209,11 @@ void record_stop(unsigned int *pc, long *frame, int link) {
     // opt_loop(trace, regs);
   }
 
-  if (trace->ops.size() <= 3) {
-    printf("Record abort: trace too small\n");
-    record_abort();
-    return;
-  }
+  // if (trace->ops.size() <= 3) {
+  //   printf("Record abort: trace too small\n");
+  //   record_abort();
+  //   return;
+  // }
 
   pendpatch();
 
@@ -319,7 +323,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
   }
   if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
-      INS_OP(trace->startpc) != RET1) {
+      INS_OP(trace->startpc) != RET1 && parent == nullptr) {
     printf("Record stop loop\n");
     record_stop(pc, frame, traces.size());
     return 1;
@@ -592,6 +596,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case JGUARD: {
+    record_stack_load(INS_B(i), frame);
     long tag = INS_C(i);
 
     if (tag == PTR_TAG) {

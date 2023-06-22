@@ -1,9 +1,6 @@
 # working on
 
-* Get replay working, seems to fail now for nqueens/test
-* CAR/CDR/JGUARD: typecheck improvement !!!
-
-* append tracing broken
+* asm-jit: record stop loop on side traces?????
 
 * stack expand:cleanup
 
