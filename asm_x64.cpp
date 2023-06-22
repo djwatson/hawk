@@ -510,9 +510,16 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case ir_ins_op::STORE: {
       maybe_assign_register(op.op1, trace, slot);
       maybe_assign_register(op.op2, trace, slot);
-      // TODO reg 2 could be a const.
-      emit_mem_reg(OP_MOV_RM, 0, trace->ops[op.op1].reg,
-                   trace->ops[op.op2].reg);
+      assert(!(op.op1 & IR_CONST_BIAS));
+      assert(trace->ops[op.op1].op == ir_ins_op::REF);
+      if (op.op2 & IR_CONST_BIAS) {
+	emit_mem_reg(OP_MOV_RM, 0, trace->ops[op.op1].reg, R15);
+	auto c = trace->consts[op.op1 - IR_CONST_BIAS];
+	emit_mov64(R15, c);
+      } else {
+	emit_mem_reg(OP_MOV_RM, 0, trace->ops[op.op1].reg,
+		     trace->ops[op.op2].reg);
+      }
       break;
     }
     case ir_ins_op::REF: {
