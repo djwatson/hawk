@@ -1,6 +1,7 @@
 # working on
 
-* asm-jit: record stop loop on side traces?????
+* get test.scm to work everywhere
+* store w/const
 
 * stack expand:cleanup
 

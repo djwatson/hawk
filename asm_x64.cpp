@@ -348,7 +348,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   slot[RSP] = 0; // stack ptr.
   slot[RDI] = 0; // scheme frame ptr.
 
-  uint64_t snap_labels[trace->snaps.size() - 1];
+  uint64_t snap_labels[trace->snaps.size()];
 
   auto end = emit_offset();
 
@@ -510,6 +510,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case ir_ins_op::STORE: {
       maybe_assign_register(op.op1, trace, slot);
       maybe_assign_register(op.op2, trace, slot);
+      // TODO reg 2 could be a const.
       emit_mem_reg(OP_MOV_RM, 0, trace->ops[op.op1].reg,
                    trace->ops[op.op2].reg);
       break;
