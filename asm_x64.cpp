@@ -397,15 +397,13 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       // Emit a stack overflow check
       if (last_snap.offset > 0) {
         emit_reg_reg(OP_MOV, RAX, RDI);
-        emit_arith_imm(OP_ARITH_ADD, RSP, 8);
         emit_call_indirect(R15);
-        emit_arith_imm(OP_ARITH_SUB, RSP, 8);
         emit_mov64(R15, int64_t(&expand_stack_slowpath));
-        emit_jcc32(JL, ok - emit_offset());
+        emit_jcc32(JBE, ok - emit_offset());
         emit_reg_reg(OP_CMP, R15, RDI);
         // TODO merge if in top?
         emit_mem_reg(OP_MOV_MR, 0, R15, R15);
-        emit_mov64(R15, int64_t(&frame_top));
+        emit_mov64(R15, uint64_t(&frame_top));
       }
     }
 

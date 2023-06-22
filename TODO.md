@@ -1,5 +1,6 @@
 # working on
 
+* JLOOP pendpatch to LOOP -> should not record again? Or first frame should be +1?
 * get test.scm to work everywhere
 * store w/const
 
