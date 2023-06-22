@@ -95,12 +95,12 @@ bool typecheck(long v, uint8_t ins_type) {
   }
   if ((type&TAG_MASK) == LITERAL_TAG) {
     if ((v & IMMEDIATE_MASK) != type) {
-      //printf("Type abort immediate: %li vs %i\n", v&IMMEDIATE_MASK, type);
+      //printf("Type abort immediate: %lx vs %x\n", v&IMMEDIATE_MASK, type);
       return false;
     }
   } else {
     if ((v & TAG_MASK) != type) {
-      //printf("Type abort %li vs %i\n", v & TAG_MASK, type);
+      //printf("Type abort %lx vs %x\n", v & TAG_MASK, type);
       return false;
     }
   }
@@ -112,13 +112,13 @@ int record_run(unsigned int tnum, unsigned int **o_pc, long **o_frame,
   int loop_pc = -1;
 again:
   auto *trace = trace_cache_get(tnum);
-  // printf("Run trace %i o_frame: %p\n", tnum, *o_frame);
-  // printf("Frame %lx %lx %lx\n", (*o_frame)[0] , (*o_frame)[1] , (*o_frame)[2] );
 
   unsigned int pc = 0;
   std::vector<long> res;
   res.resize(trace->ops.size());
 looped:
+  //printf("Run trace %i o_frame: %p\n", tnum, *o_frame);
+  //printf("Frame %lx %lx %lx\n", (*o_frame)[0] , (*o_frame)[1] , (*o_frame)[2] );
   long *frame = *o_frame;
 
   while (pc < trace->ops.size()) {

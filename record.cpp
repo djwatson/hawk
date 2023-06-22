@@ -66,6 +66,8 @@ void print_const_or_val(int i, trace_s *ctrace) {
       printf("\e[1;35m#t\e[m");
     } else if (c == NIL_TAG) {
       printf("\e[1;35mnil\e[m");
+    } else if (type == 3) {
+      printf("\e[1;35mcons\e[m");
     } else {
       printf("Unknown dump_trace type %i\n", type);
       exit(-1);
@@ -98,7 +100,7 @@ void dump_trace(trace_s *ctrace) {
     auto op = ctrace->ops[i];
     printf("%04zu %s %c\t", i, reg_names[op.reg],
            (op.type & IR_INS_TYPE_GUARD) != 0 ? '>' : ' ');
-    auto t = op.type & ~IR_INS_TYPE_GUARD;
+    auto t = op.type & TAG_MASK;
     if (t == 0) {
       printf("\e[1;35mfix \e[m ");
     } else if (t == 5) {
@@ -414,9 +416,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         add_snap(regs_list, regs - regs_list - 1, trace, (uint32_t*)frame[-1]);
         // TODO retdepth
       } else {
-        printf("Record stop return\n");
-        record_stop(pc, frame, -1);
-        // record_abort();
+	if (INS_OP(trace->startpc) == LOOP && parent == nullptr) {
+	  printf("Record abort: Loop root trace exited loop\n");
+	  record_abort();
+	} else {
+	  printf("Record stop return\n");
+	  record_stop(pc, frame, -1);
+	}
         return 1;
       }
     } else if (depth > 0) {
@@ -584,10 +590,17 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op1 = record_stack_load(INS_B(i), frame);
     if (INS_OP(i) == CAR) {
       // TODO typecheck
+      // TODO cleanup
       ins.type = ((cons_s*)(frame[INS_B(i)] - CONS_TAG))->a & TAG_MASK;
+      if (ins.type == LITERAL_TAG) {
+	ins.type = ((cons_s*)(frame[INS_B(i)] - CONS_TAG))->a & IMMEDIATE_MASK;
+      }
       ins.op = ir_ins_op::CAR;
     } else {
       ins.type = ((cons_s*)(frame[INS_B(i)] - CONS_TAG))->b & TAG_MASK;
+      if (ins.type == LITERAL_TAG) {
+	ins.type = ((cons_s*)(frame[INS_B(i)] - CONS_TAG))->b & IMMEDIATE_MASK;
+      }
       ins.op = ir_ins_op::CDR;
     }
     ins.type |= IR_INS_TYPE_GUARD;
