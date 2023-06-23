@@ -51,6 +51,8 @@ snap_s *find_snap_for_pc(unsigned int pc, trace_s *trace) {
   return res;
 }
 
+extern uint8_t *alloc_ptr;
+extern uint8_t *alloc_end;
 extern long *frame_top;
 extern long *stack;
 extern unsigned int stacksz;
@@ -240,7 +242,11 @@ looped:
       break;
     }
     case ir_ins_op::ALLOC: {
-      long* v = (long*)GC_malloc(ins.op1);
+      if ((alloc_ptr+ins.op1) >= alloc_end) {
+	goto abort;
+      }
+      long* v = (long*)alloc_ptr;
+      alloc_ptr += ins.op1;
       *v = ins.op2;
       res_store(res, pc, trace->ops, ((long)v) + ins.op2);
       pc++;
@@ -344,8 +350,8 @@ abort : {
     goto again;
   }
 
-  printf("Replay failed guard in trace %i, abort ir pc %i, hotness %i\n",
-         trace->num, pc, snap->exits);
+  // printf("Replay failed guard in trace %i, abort ir pc %i, hotness %i\n",
+  //        trace->num, pc, snap->exits);
   if (snap->exits < 10) {
     snap->exits++;
   } else {

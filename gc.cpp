@@ -164,8 +164,13 @@ extern std::vector<trace_s *> traces;
 extern std::vector<long> symbols;
 
 static void visit_trace(trace_s *t) {
-  for (auto &c : t->consts) {
-    visit(&c);
+  for(size_t i = 0; i < t->consts.size(); i++) {
+    if (!(SNAP_FRAME & t->consts[i])) {
+      // printf("Visit const ");
+      // print_obj(t->consts[i]);
+      // printf("\n");
+      visit(&t->consts[i]);
+    }
   }
   for (auto &reloc : t->relocs) {
     auto old = reloc.obj;
@@ -226,25 +231,31 @@ static void trace_roots() {
   }
 
   // Scan traces
+  int cnt = 0;
   for (auto *t : traces) {
+    //printf("Visit trace %i\n", cnt++);
     visit_trace(t);
   }
   // Scan currently in-progress trace
   if (trace != nullptr) {
+    //printf("Visit in progress trace\n");
     visit_trace(trace);
   }
 }
 
+
 // static constexpr size_t page_cnt = 6000; // Approx 25 mb.
-// static constexpr size_t page_cnt = 12000; // Approx 50 mb.
+// static constexpr size_t page_cnt = '12000; // Approx 50 mb.
 // static constexpr size_t page_cnt = 30000; // Approx 125 mb.
 // static constexpr size_t page_cnt = 120000; // Approx 500 mb.
-static constexpr size_t page_cnt = 500000; // Approx 2GB
-static constexpr size_t alloc_sz = 4096 * page_cnt;
+//size_t page_cnt = 500000; // Approx 2GB
+extern size_t page_cnt;
+size_t alloc_sz;
 uint8_t *to_space = nullptr;
 uint8_t *from_space = nullptr;
 
 void GC_init() {
+  alloc_sz = 4096 * page_cnt;
   from_space = (uint8_t *)mmap(nullptr, alloc_sz * 2, PROT_READ | PROT_WRITE,
                                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   assert(from_space);

@@ -21,6 +21,7 @@ static struct option long_options[] = {
     {"help", no_argument, nullptr, 'h'},
     {"list", no_argument, nullptr, 'l'},
     {"max-trace", required_argument, nullptr, 'm'},
+    {"heap-sz", required_argument, nullptr, 's'},
     {nullptr, no_argument, nullptr, 0},
 };
 
@@ -31,6 +32,7 @@ void print_help() {
   printf("  -l, --list     \tList bytecode and stop\n");
   printf("  -p, --profile  \tSampling profiler\n");
   printf("  -m, --max-trace\tStop JITting after # trace\n");
+  printf("  -h, --heap-sz  \tHeap size (in pages)\n");
   printf("  -h, --help     \tPrint this help\n");
 }
 
@@ -58,17 +60,16 @@ void compile_file(const char *file) {
 }
 
 int profile = 0;
+size_t page_cnt = 12000;
 int main(int argc, char *argv[]) {
 
   int verbose = 0;
 
   int c;
-  while ((c = getopt_long(argc, argv, "lphj:", long_options, nullptr)) != -1) {
+  while ((c = getopt_long(argc, argv, "slphj:", long_options, nullptr)) != -1) {
     switch (c) {
     case 'p':
       profile = 1;
-      break;
-    case 's':
       break;
     case 'v':
       verbose++;
@@ -78,6 +79,10 @@ int main(int argc, char *argv[]) {
       break;
     case 'l':
       list = true;
+      break;
+    case 's':
+      page_cnt = atoi(optarg);
+      printf("Heap size %li MB\n", (page_cnt*4096) / 1024 / 1024);
       break;
     case 'm':
       TRACE_MAX = atoi(optarg);

@@ -502,6 +502,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case ir_ins_op::CAR: {
       maybe_assign_register(op.op1, trace, slot);
       auto reg = op.reg;
+      if (reg == REG_NONE) {
+	reg = R15; // Unused, but potentially used by JGUARD.
+      }
       emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
       if (ir_is_const(op.op1)) {
 	emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg, reg);
@@ -515,6 +518,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case ir_ins_op::CDR: {
       maybe_assign_register(op.op1, trace, slot);
       auto reg = op.reg;
+      if (reg == REG_NONE) {
+	reg = R15; // Unused, but potentially used by JGUARD.
+      }
       emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
       if (ir_is_const(op.op1)) {
 	emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg, reg);

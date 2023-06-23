@@ -1,6 +1,7 @@
 # working on
 
-* nqueens 14 fails
+* Check for all consts in asm_x64 are reloc'd
+* GC is causing additional traces?? ugh
 
 * stack expand:cleanup
 
