@@ -44,7 +44,7 @@ unsigned int patchold;
 
 void pendpatch() {
   if (patchpc != nullptr) {
-    printf("PENDPACTCH\n");
+    //printf("PENDPACTCH\n");
     *patchpc = patchold;
     patchpc = nullptr;
   }
@@ -221,12 +221,15 @@ void record_stop(unsigned int *pc, long *frame, int link) {
 
   if (side_exit != nullptr) {
     side_exit->link = traces.size();
+    printf("Hooking to parent trace\n");
   } else {
     auto op = INS_OP(*pc_start);
     if (op != RET1 && op != LOOP) {
       *pc_start = CODE(JFUNC, INS_A(*pc_start), traces.size(), 0);
+      printf("Installing JFUNC\n");
     } else {
       *pc_start = CODE(JLOOP, 0, traces.size(), 0);
+      printf("Installing JLOOP\n");
     }
   }
   printf("Installing trace %li\n", traces.size());
@@ -253,6 +256,7 @@ void record_abort() {
   trace_state = OFF;
   side_exit = nullptr;
   downrec.clear();
+  parent = nullptr;
 }
 
 int record(unsigned int *pc, long *frame, long argcnt) {
@@ -884,3 +888,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 }
 
 trace_s *trace_cache_get(unsigned int tnum) { return traces[tnum]; }
+
+void free_trace() {
+  printf("Traces: %li\n", traces.size());
+}

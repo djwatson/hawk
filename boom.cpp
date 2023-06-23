@@ -9,6 +9,8 @@
 #include <cstdlib>        // for exit
 #include <cstring>        // for strcmp, strcpy, strlen
 #include <getopt.h>       // for no_argument, getopt_long, option
+
+#include "record.h"
 struct bcfunc;
 
 extern int joff;
@@ -130,7 +132,8 @@ int main(int argc, char *argv[]) {
   if (profile != 0) {
     profiler_stop();
   }
-
+  
+  free_trace();
   free_script();
   free_vm();
 

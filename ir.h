@@ -109,3 +109,5 @@ struct trace_s {
 };
 
 #define UNROLL_LIMIT 1
+
+#define ir_is_const(op) (op&IR_CONST_BIAS)

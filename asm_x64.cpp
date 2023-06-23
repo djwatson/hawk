@@ -502,17 +502,27 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case ir_ins_op::CAR: {
       maybe_assign_register(op.op1, trace, slot);
       auto reg = op.reg;
-      auto reg1 = trace->ops[op.op1].reg;
       emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
-      emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg1, reg);
+      if (ir_is_const(op.op1)) {
+	emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg, reg);
+	emit_mov64(reg, trace->consts[op.op1-IR_CONST_BIAS]);
+      } else {
+	auto reg1 = trace->ops[op.op1].reg;
+	emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg1, reg);
+      }
       break;
     }
     case ir_ins_op::CDR: {
       maybe_assign_register(op.op1, trace, slot);
       auto reg = op.reg;
-      auto reg1 = trace->ops[op.op1].reg;
       emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
-      emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg1, reg);
+      if (ir_is_const(op.op1)) {
+	emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg, reg);
+	emit_mov64(reg, trace->consts[op.op1-IR_CONST_BIAS]);
+      } else {
+	auto reg1 = trace->ops[op.op1].reg;
+	emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg1, reg);
+      }
       break;
     }
     case ir_ins_op::GGET: {
