@@ -2,6 +2,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern const char *ins_names[];
 extern long *const_table;
 extern unsigned long const_table_sz;
@@ -14,8 +18,12 @@ extern unsigned long const_table_sz;
 #define INS_C(i) ((i >> 24) & 0xff)
 #define INS_D(i) (i >> 16)
 
-struct bcfunc {
+typedef struct bcfunc {
   char* name;
   uint32_t codelen;
   unsigned int code[];
-};
+} bcfunc;
+
+#ifdef __cplusplus
+}
+#endif
