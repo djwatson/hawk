@@ -48,17 +48,17 @@ struct flonum_s {
   double x;
 };
 
-struct string_s {
+typedef struct string_s {
   long type;
   long len;
   char str[];
-};
+} string_s;
 
-struct symbol {
+typedef struct symbol {
   long type; // unused except by GC
   string_s *name;
   long val;
-};
+} symbol;
 
 struct vector_s {
   long type;
@@ -86,6 +86,6 @@ struct port_s {
   long peek;
 };
 
-void print_obj(long obj, FILE *file = nullptr);
+void print_obj(long obj, FILE *file);
 long from_c_str(const char *s);
 long get_symbol_val(const char *name);

@@ -231,7 +231,6 @@ static void trace_roots() {
   }
 
   // Scan traces
-  int cnt = 0;
   for (auto *t : traces) {
     //printf("Visit trace %i\n", cnt++);
     visit_trace(t);

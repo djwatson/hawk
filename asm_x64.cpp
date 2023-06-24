@@ -306,7 +306,7 @@ void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins &op,
     auto c = trace->consts[op.op1 - IR_CONST_BIAS];
     emit_mov64(reg, c);
   } else {
-    auto reg1 = trace->ops[op.op1].reg;
+    reg1 = trace->ops[op.op1].reg;
     if (reg != reg1) {
       // TODO clownshow.  If we have a commutative OP (mul, add), we could just run it backwards.
       // ALternatively, ensure the reg allocator never does this?

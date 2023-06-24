@@ -50,7 +50,7 @@ check_pie_supported()
 set(CMAKE_CXX_FLAGS "-std=c++17 -O3  -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden -I. -fno-rtti -fno-exceptions -Wstrict-aliasing")
 set(CMAKE_C_FLAGS "-std=c17 -O3  -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto  -I. -fno-rtti -fno-exceptions")
 
-set(SOURCES readbc.cpp bytecode.cpp vm.o boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.cpp gc.cpp opcodes.h profiler.cpp opt_loop.cpp parallel_copy.cpp )
+set(SOURCES readbc.cpp bytecode.cpp vm.o boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.c gc.cpp opcodes.h profiler.cpp opt_loop.cpp parallel_copy.cpp )
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 

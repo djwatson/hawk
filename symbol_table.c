@@ -1,9 +1,12 @@
 #include "symbol_table.h"
 #include "types.h" // for string_s, symbol
-#include <cassert> // for assert
-#include <cstdint> // for uint64_t
-#include <cstdlib> // for calloc, free, size_t
-#include <cstring> // for strcmp
+#include <assert.h> // for assert
+#include <stdint.h> // for uint64_t
+#include <stdlib.h> // for calloc, free, size_t
+#include <string.h> // for strcmp
+#include <stdbool.h>
+
+#define auto __auto_type
 
 /* FNV-1a */
 uint64_t str_hash(const char *str) {
@@ -26,7 +29,7 @@ uint64_t str_hash(const char *str) {
 // TODO weak GC syms, and evict entries when they are collected.  Somehow.
 
 // Non-empty default table so we don't have to null check.
-static table empty_table{0, 0};
+static table empty_table = {0, 0};
 table *sym_table = &empty_table;
 
 symbol *symbol_table_find(string_s *str) {
@@ -38,21 +41,21 @@ symbol *symbol_table_find_cstr(const char *str) {
 
   auto mask = sym_table->sz - 1;
   for (size_t i = 0; i < sym_table->sz; i++) {
-    auto &cur = sym_table->entries[(i + hash) & mask];
-    if (cur == nullptr) {
-      return nullptr;
+    auto cur = &sym_table->entries[(i + hash) & mask];
+    if (*cur == NULL) {
+      return NULL;
     }
-    if (cur == TOMBSTONE) {
+    if (*cur == TOMBSTONE) {
       continue;
-    } else if (strcmp(cur->name->str, str) == 0) {
-      return cur;
+    } else if (strcmp((*cur)->name->str, str) == 0) {
+      return *cur;
     } else {
       // Mismatched comparison, continue.
       continue;
     }
   }
 
-  return nullptr;
+  return NULL;
 }
 
 static void rehash();
@@ -66,11 +69,11 @@ void symbol_table_insert(symbol *sym) {
   auto mask = sym_table->sz - 1;
 
   for (size_t i = 0; i < sym_table->sz; i++) {
-    auto &cur = sym_table->entries[(i + hash) & mask];
-    if (cur == nullptr || cur == TOMBSTONE ||
-        strcmp(cur->name->str, sym->name->str) == 0) {
+    auto cur = &sym_table->entries[(i + hash) & mask];
+    if (*cur == NULL || *cur == TOMBSTONE ||
+        strcmp((*cur)->name->str, sym->name->str) == 0) {
       // Insert here.
-      cur = sym;
+      *cur = sym;
       return;
     } // Mismatched comparison, continue.
     continue;
@@ -93,9 +96,9 @@ static void rehash() {
 
   // Rehash items.
   for (size_t i = 0; i < old->sz; i++) {
-    auto &cur = old->entries[i];
-    if (cur != nullptr && cur != TOMBSTONE) {
-      symbol_table_insert(cur);
+    auto cur = &old->entries[i];
+    if (*cur != NULL && *cur != TOMBSTONE) {
+      symbol_table_insert(*cur);
     }
   }
 
