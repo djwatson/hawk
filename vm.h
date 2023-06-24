@@ -2,6 +2,8 @@
 
 #include "bytecode.h"
 
+#include <vector>
+
 void run(bcfunc *func, long argcnt, long *args);
 bcfunc *find_func_for_frame(uint32_t *pc);
 void free_vm();

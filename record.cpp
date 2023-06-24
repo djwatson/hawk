@@ -183,7 +183,7 @@ void record_start(unsigned int *pc, long *frame) {
   func = (long)find_func_for_frame(pc);
   assert(func);
   printf("Record start %i at %s func %s\n", trace->num, ins_names[INS_OP(*pc)],
-         ((bcfunc *)func)->name.c_str());
+         ((bcfunc *)func)->name);
   if (parent != nullptr) {
     printf("Parent %i\n", parent->num);
   }
@@ -494,7 +494,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       auto v = frame[INS_A(i) + 1];
       auto *closure = (closure_s *)(v - CLOSURE_TAG);
       auto *cfunc = (bcfunc *)closure->v[0];
-      auto *target = (cfunc->code).data();
+      auto *target = cfunc->code;
       if (target == pc_start) {
         printf("Record stop up-recursion\n");
         record_stop(target, frame, traces.size());

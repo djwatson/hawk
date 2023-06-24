@@ -178,7 +178,18 @@ bcfunc *readbc(FILE *fptr) {
   bcfunc *start_func = nullptr;
   unsigned func_offset = funcs.size();
   for (unsigned i = 0; i < bccount; i++) {
-    auto *f = new bcfunc;
+    unsigned int name_count;
+    fread(&name_count, 4, 1, fptr);
+    //printf("Name size %i\n", name_count);
+    char *name = (char*)malloc(name_count+1);
+    assert(name);
+    name[name_count] = '\0';
+    fread(name, 1, name_count, fptr);
+
+    unsigned int code_count;
+    fread(&code_count, 4, 1, fptr);
+
+    auto *f = (bcfunc*)malloc(sizeof(bcfunc) + sizeof(unsigned int)*code_count);
     if (start_func == nullptr) {
       start_func = f;
     }
@@ -186,16 +197,9 @@ bcfunc *readbc(FILE *fptr) {
       printf("Alloc fail\n");
       exit(-1);
     }
-    unsigned int name_count;
-    fread(&name_count, 4, 1, fptr);
-    f->name.resize(name_count + 1);
-    f->name[name_count] = '\0';
-    // printf("Name size %i\n", name_count);
-    fread((f->name).data(), 1, name_count, fptr);
-
-    unsigned int code_count;
-    fread(&code_count, 4, 1, fptr);
-    f->code.resize(code_count);
+    f->name = name;
+    f->codelen = code_count;
+    
     // printf("%i: code %i\n", i, code_count);
     for (unsigned j = 0; j < code_count; j++) {
       fread(&f->code[j], 4, 1, fptr);
@@ -232,7 +236,9 @@ bcfunc *readbc_file(const char *filename) {
 
 void free_script() {
   for (auto func : funcs) {
-    delete func;
+    free(func->name);
+    func->name = NULL;
+    free(func);
   }
   funcs.clear();
   // TODO symbol_table

@@ -1,7 +1,6 @@
 #pragma once
 
-#include <string>
-#include <vector>
+#include <stdint.h>
 
 extern const char *ins_names[];
 extern long *const_table;
@@ -16,6 +15,7 @@ extern unsigned long const_table_sz;
 #define INS_D(i) (i >> 16)
 
 struct bcfunc {
-  std::vector<unsigned int> code;
-  std::string name;
+  char* name;
+  uint32_t codelen;
+  unsigned int code[];
 };

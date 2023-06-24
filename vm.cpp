@@ -76,7 +76,7 @@ static op_func l_op_table_profile[INS_MAX];
 bcfunc *find_func_for_frame(uint32_t *pc) {
   for (unsigned long j = 0; j < funcs.size(); j++) {
     if (pc >= &funcs[j]->code[0] &&
-        pc <= &funcs[j]->code[funcs[j]->code.size() - 1]) {
+        pc <= &funcs[j]->code[funcs[j]->codelen-1]) {
       return funcs[j];
     }
   }
@@ -89,7 +89,7 @@ ABI __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
   while (&frame[-1] > stack) {
     auto res = find_func_for_frame(pc);
     if (res) {
-      printf("FUNC: %s PC %li\n", res->name.c_str(), pc - &res->code[0]);
+      printf("FUNC: %s PC %li\n", res->name, pc - &res->code[0]);
     }
     pc = (unsigned int *)frame[-1];
     frame[-1] = frame[ra];
