@@ -1,8 +1,20 @@
 # working on
 
+* LOAD use for car/cdr, AND vec.
+* fuse
+* check sload type for VEC
+* add typecheck in LOAD
+* ABC
+* cleanup record for JISTE/JISLT, etc
+
+* UNBOX can delay typecheck
+
 * Check for all consts in asm_x64 are reloc'd
 * GC is causing additional traces?? ugh
 
+* typecheck/no typecheck - we can drop typecheck if it is unused
+  * BUT jguard counts as a use!!!
+  * similar to ARG - we don't have to typecheck ARG if unused
 * stack expand:cleanup
 
 * closure-get, and in fact all calls, must be same closure.

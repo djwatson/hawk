@@ -30,7 +30,10 @@ const char* ir_names[] = {
   "CDR  ",
   "ALLOC",
   "REF  ",
+  "VREF ",
   "STORE",
   "LOAD ",
+
+  "ABC  ",
 };
 // clang-format on

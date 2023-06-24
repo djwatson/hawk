@@ -144,6 +144,9 @@ void dump_trace(trace_s *ctrace) {
     case ir_ins_op::GE:
     case ir_ins_op::LT:
     case ir_ins_op::STORE:
+    case ir_ins_op::LOAD:
+    case ir_ins_op::ABC:
+    case ir_ins_op::VREF:
     case ir_ins_op::CLT: {
       print_const_or_val(op.op1, ctrace);
       printf(" ");
@@ -304,6 +307,8 @@ int record_stack_load(int slot, const long *frame) {
       type = frame[slot] & IMMEDIATE_MASK;
     }
     if (type == PTR_TAG) {
+      printf("WARNING typecheck ptr\n");
+      //TODO
       //assert(false);
     }
     ins.type = IR_INS_TYPE_GUARD | type;
@@ -567,6 +572,26 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     add_snap(regs_list, regs - regs_list - 1, trace, next_pc);
     break;
   }
+  case JISGTE: {
+    ir_ins ins;
+    ins.reg = REG_NONE;
+    ins.op1 = record_stack_load(INS_B(i), frame);
+    ins.op2 = record_stack_load(INS_C(i), frame);
+    uint32_t* next_pc;
+    if (frame[INS_B(i)] >= frame[INS_C(i)]) {
+      ins.op = ir_ins_op::LT;
+      add_snap(regs_list, regs - regs_list - 1, trace, pc + INS_D(*(pc + 1)) + 1);
+      next_pc = pc + 2;
+    } else {
+      ins.op = ir_ins_op::GE;
+      add_snap(regs_list, regs - regs_list - 1, trace, pc + 2);
+      next_pc = pc + INS_D(*(pc + 1)) + 1;
+    }
+    ins.type = IR_INS_TYPE_GUARD;
+    trace->ops.push_back(ins);
+    add_snap(regs_list, regs - regs_list - 1, trace, next_pc);
+    break;
+  }
   case JISEQ: {
     ir_ins ins;
     ins.reg = REG_NONE;
@@ -587,12 +612,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     add_snap(regs_list, regs - regs_list - 1, trace, next_pc);
     break;
   }
+  case UNBOX: // DO don't need typecheck
   case CDR:
   case CAR: {
     ir_ins ins;
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
-    if (INS_OP(i) == CAR) {
+    if (INS_OP(i) == CAR || INS_OP(i) == UNBOX) {
       // TODO typecheck
       // TODO cleanup
       ins.type = ((cons_s*)(frame[INS_B(i)] - CONS_TAG))->a & TAG_MASK;
@@ -632,6 +658,80 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto knum = trace->consts.size();
     trace->consts.push_back(k);
     regs[reg] = IR_CONST_BIAS + knum;
+    break;
+  }
+  case VECTOR_SET: {
+    auto vec = record_stack_load(INS_A(i), frame);
+    auto idx = record_stack_load(INS_B(i), frame);
+    auto obj = record_stack_load(INS_C(i), frame);
+
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op = ir_ins_op::ABC;
+      ins.op1 = vec;
+      ins.op2 = idx;
+      trace->ops.push_back(ins);
+    }
+
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = vec;
+      ins.op2 = idx;
+      ins.op = ir_ins_op::VREF;
+      trace->ops.push_back(ins);
+    }
+    
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = trace->ops.size() - 1;
+      ins.op2 = obj;
+      ins.op = ir_ins_op::STORE;
+      trace->ops.push_back(ins);
+    }
+
+    break;
+  }
+  case VECTOR_REF: {
+    auto vec = record_stack_load(INS_B(i), frame);
+    auto idx = record_stack_load(INS_C(i), frame);
+
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op = ir_ins_op::ABC;
+      ins.op1 = vec;
+      ins.op2 = idx;
+      trace->ops.push_back(ins);
+    }
+
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = vec;
+      ins.op2 = idx;
+      ins.op = ir_ins_op::VREF;
+      trace->ops.push_back(ins);
+    }
+    
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = trace->ops.size() - 1;
+      ins.op2 = idx;
+      ins.op = ir_ins_op::LOAD;
+      regs[INS_A(i)] = trace->ops.size();
+      trace->ops.push_back(ins);
+    }
+
     break;
   }
   case CONS: {

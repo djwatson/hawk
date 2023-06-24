@@ -343,7 +343,11 @@ void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
     if ((type & ~IR_INS_TYPE_GUARD) == 0) {
       emit_op_imm32(OP_TEST_IMM, 0, reg, 0x7);
     } else if ((type & TAG_MASK) == PTR_TAG) {
-      assert(false);
+      //assert(false);
+      printf("TODO typecheck ptr\n");
+      emit_cmp_reg_imm32(R15, 1);
+      emit_op_imm32(OP_AND_IMM, 4, R15, 0x7);
+      emit_reg_reg(OP_MOV, reg, R15);
     } else if ((type & TAG_MASK) == LITERAL_TAG) {
       auto lit_bits = (type & IMMEDIATE_MASK) & ~ IR_INS_TYPE_GUARD;
       emit_cmp_reg_imm32(R15, lit_bits);
@@ -547,7 +551,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       maybe_assign_register(op.op1, trace, slot);
       maybe_assign_register(op.op2, trace, slot);
       assert(!(op.op1 & IR_CONST_BIAS));
-      assert(trace->ops[op.op1].op == ir_ins_op::REF);
+      assert(trace->ops[op.op1].op == ir_ins_op::REF ||
+	     trace->ops[op.op1].op == ir_ins_op::VREF);
       if (op.op2 & IR_CONST_BIAS) {
 	emit_mem_reg(OP_MOV_RM, 0, trace->ops[op.op1].reg, R15);
 	auto c = trace->consts[op.op2 - IR_CONST_BIAS];
@@ -556,6 +561,35 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 	emit_mem_reg(OP_MOV_RM, 0, trace->ops[op.op1].reg,
 		     trace->ops[op.op2].reg);
       }
+      break;
+    }
+    case ir_ins_op::LOAD: {
+      maybe_assign_register(op.op1, trace, slot);
+      maybe_assign_register(op.op2, trace, slot);
+      assert(op.reg != REG_NONE);
+      assert(!ir_is_const(op.op1));
+      assert(!ir_is_const(op.op2));
+      assert(trace->ops[op.op1].op == ir_ins_op::REF ||
+	     trace->ops[op.op1].op == ir_ins_op::VREF);
+      if (op.op2 & IR_CONST_BIAS) {
+	emit_mem_reg(OP_MOV_RM, 0, trace->ops[op.op1].reg, R15);
+	auto c = trace->consts[op.op2 - IR_CONST_BIAS];
+	emit_mov64(R15, c);
+      } else {
+	emit_mem_reg(OP_MOV_MR, 0, 
+		     trace->ops[op.op1].reg, op.reg);
+      }
+      break;
+    }
+    case ir_ins_op::ABC: {
+      printf("TODO: ABC emit\n");
+      break; 
+    }
+    case ir_ins_op::VREF: {
+      // TODO: fuse.
+      maybe_assign_register(op.op1, trace, slot);
+      maybe_assign_register(op.op2, trace, slot);
+      emit_mem_reg_sib(OP_LEA, 8 - PTR_TAG, 0, trace->ops[op.op2].reg, trace->ops[op.op1].reg, op.reg);
       break;
     }
     case ir_ins_op::REF: {

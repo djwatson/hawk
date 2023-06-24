@@ -37,8 +37,11 @@ enum class ir_ins_op : uint8_t {
     
   ALLOC,
   REF,
+  VREF,
   STORE,
-    LOAD,
+  LOAD,
+
+  ABC,
 };
 
 extern const char *ir_names[];
