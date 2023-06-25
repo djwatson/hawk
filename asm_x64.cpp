@@ -23,9 +23,7 @@
 
 #include "vm.h" // for find_func_for_frame
 
-std::vector<std::pair<uint64_t, uint64_t>>
-serialize_parallel_copy(std::multimap<uint64_t, uint64_t> &moves,
-                        uint64_t tmp_reg);
+#include "parallel_copy.h"
 
 // TODO
 long *expand_stack_slowpath(long *frame);
@@ -705,27 +703,23 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 done:
   // TODO parent loads should have separate TAG
   {
-    std::multimap<uint64_t, uint64_t> moves;
+    map moves;
+    map res;
+    moves.mp_sz = 0;
     std::vector<std::pair<int, uint16_t>> consts;
     for (; op_cnt >= 0; op_cnt--) {
       auto &op = trace->ops[op_cnt];
-      moves.insert(
-          std::make_pair(find_reg_for_slot(op.op1, side_exit, parent), op.reg));
+      map_insert(&moves, find_reg_for_slot(op.op1, side_exit, parent), op.reg);
     }
-    auto res = serialize_parallel_copy(moves, 12 /* r15 */);
-    printf("Parellel copy:\n");
-    for (auto &mov : moves) {
-      printf(" %li to %li\n", mov.first, mov.second);
-    }
-    printf("----------------\n");
+    serialize_parallel_copy(&moves, &res, R15);
     for (auto &c : consts) {
       auto con = trace->consts[c.second - IR_CONST_BIAS];
       trace->relocs.push_back(
           {emit_offset(), (long)(con & ~SNAP_FRAME), RELOC_ABS});
       emit_mov64(c.first, con & ~SNAP_FRAME);
     }
-    for (auto r = res.rbegin(); r != res.rend(); r++) {
-      emit_reg_reg(OP_MOV, r->first, r->second);
+    for(int64_t i = res.mp_sz - 1; i >= 0; i--) {
+      emit_reg_reg(OP_MOV, res.mp[i].from,res.mp[i].to);
     }
   }
 
