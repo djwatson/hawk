@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.14)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+include(CheckIPOSupported)
+check_ipo_supported(RESULT supported OUTPUT error)
+
 # Clang is required, due to use of musttail.
 set(CMAKE_C_COMPILER "clang")
 set(CMAKE_CXX_COMPILER "clang")
@@ -46,10 +49,6 @@ message("Using " ${CHEZ} " for bootstrapping")
 include(CheckPIESupported)
 check_pie_supported()
 
-# -Wold-style-cast
-set(CMAKE_CXX_FLAGS "-std=c++17 -O0  -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto -fvisibility=hidden -I. -fno-rtti -fno-exceptions -Wstrict-aliasing")
-set(CMAKE_C_FLAGS "-std=c17 -O0  -fomit-frame-pointer -gdwarf-3 -Wall -Wextra -Wno-unused-parameter  -Wnull-dereference   -Wdouble-promotion -Wshadow -Wformat=2 -fno-strict-aliasing -flto  -I. -fno-rtti -fno-exceptions")
-
 set(SOURCES readbc.cpp bytecode.c vm.o boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.c gc.cpp opcodes.h profiler.cpp opt_loop.cpp parallel_copy.cpp )
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "stdc++" "m")
@@ -66,6 +65,9 @@ if (REPLAY)
 endif(REPLAY)
 add_executable(boom ${SOURCES} )
 
+target_compile_options(boom PRIVATE -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow
+  -Wno-unused-parameter -Wnull-dereference  -I.)
+set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 set_property(TARGET boom PROPERTY POSITION_INDEPENDENT_CODE FALSE)
 target_include_directories(boom PUBLIC ".")
@@ -74,21 +76,24 @@ target_link_libraries(boom PUBLIC ${LIBRARIES}  )
 
 # Use the CC10 calling convention, which isn't available via clang, but is in llvm.
 # munge win64cc to cc10.
-string(REPLACE " " ";" LLVM_FLAGS ${CMAKE_CXX_FLAGS})
-add_custom_command(
+# Otherwise we could include vm.cpp directly.
+add_library(vm OBJECT EXCLUDE_FROM_ALL vm.cpp opcodes.h)
+target_compile_options(vm PRIVATE -emit-llvm -S)
+target_compile_options(vm PRIVATE -fomit-frame-pointer) # required for cc10
+  add_custom_command(
   OUTPUT vm.o
   COMMAND
-  rsync ${CMAKE_SOURCE_DIR}/vm.cpp vm.cpp
-  COMMAND
-  clang -I. -I${CMAKE_SOURCE_DIR} -S -emit-llvm -c vm.cpp ${LLVM_FLAGS}
-  COMMAND
-  mv vm.s vm.ll
+  cp $<TARGET_OBJECTS:vm> vm.ll
   COMMAND
   perl -p -i -e 's/win64cc/cc10/g' vm.ll
   COMMAND
-  clang -gdwarf-3 -O3 -gdwarf-3 -fomit-frame-pointer -flto -fno-strict-aliasing -c vm.ll
-  DEPENDS vm.cpp opcodes.h 
+  clang -c vm.ll -flto=thin
+  DEPENDS vm
   )
+
+#target_compile_options(boom PRIVATE -fsanitize=address,undefined)
+#target_link_options(boom PRIVATE -fsanitize=address,undefined)
+#target_compile_options(vm PRIVATE -fsanitize=address,undefined)
 
 set(CLOC_SOURCES ${SOURCES} vm.cpp)
 list(REMOVE_ITEM CLOC_SOURCES bootstrap.cpp)
@@ -102,7 +107,7 @@ add_custom_target(
   COMMAND clang-format -i *.h *.cpp
   )
 
-add_library(write_double SHARED write_double.c)
+add_library(write_double SHARED EXCLUDE_FROM_ALL write_double.c)
 
 # Generate the bootstrap image.
 add_custom_command(
