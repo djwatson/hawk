@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include "jitdump.h"
 #include <assert.h>   // for assert
 #include <elf.h>      // for (anonymous), Elf64_Shdr, Elf64...
@@ -18,16 +20,16 @@ int cnt = 0;
 void perf_map(uint64_t fn, uint64_t len, const char* name) {
   char buf[256];
   sprintf(buf, "/tmp/perf-%i.map", getpid());
-  auto file = fopen(buf, "a");
+  __auto_type file = fopen(buf, "a");
   if (strlen(name) != 0) {
-    fprintf(file, "%lx %lx jit function %s\n", uint64_t(fn), len, name);
+    fprintf(file, "%lx %lx jit function %s\n", (uint64_t)fn, len, name);
   } else {
-    fprintf(file, "%lx %lx jit anon function %i\n", uint64_t(fn), len, cnt);
+    fprintf(file, "%lx %lx jit anon function %i\n", (uint64_t)fn, len, cnt);
   }
   fclose(file);
 }
 
-void *mapaddr{nullptr};
+void *mapaddr = NULL;
 int fd;
 /* Newer jit dump support.  Requires perf record -k 1, and then perf
    inject, before perf report, but gives full asm listing */
@@ -106,7 +108,7 @@ void jit_dump_init() {
   fsync(fd);
 
   mapaddr =
-      mmap(nullptr, sizeof(header), PROT_READ | PROT_EXEC, MAP_PRIVATE, fd, 0);
+      mmap(NULL, sizeof(header), PROT_READ | PROT_EXEC, MAP_PRIVATE, fd, 0);
   if (!mapaddr) {
     printf("Failed to map file\n");
     exit(-1);
@@ -122,33 +124,33 @@ void jit_dump_close() {
 
 #include "third-party/jit-protocol.h"
 
-struct jit_code_entry *last_entry{nullptr};
-struct jit_code_entry *first_entry{nullptr};
+struct jit_code_entry *last_entry = NULL;
+struct jit_code_entry *first_entry = NULL;
 
-struct GDBElfImage {
+typedef struct GDBElfImage {
   Elf64_Ehdr hdr;
   Elf64_Shdr hdrs[6];
   Elf64_Sym syms[3];
   uint8_t data[4096];
-};
+} GDBElfImage;
 
 void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num);
 void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const char* name) {
-  auto jitcode = new struct jit_code_entry();
-  auto image = new GDBElfImage;
+  struct jit_code_entry* jitcode = malloc(sizeof(struct jit_code_entry));
+  GDBElfImage* image = malloc(sizeof(GDBElfImage));
   build_elf(fn, len, image, cnt);
 
-  // auto entry = new gdb_code_entry;
+  // __auto_type entry = new gdb_code_entry;
   //  entry->fn = fn;
   //  entry->len = len;
   // sprintf(entry->funcname, "Function_%s_%i_%i_%lx", name.c_str(), cnt, i, p);
   jitcode->symfile_addr = image;
   jitcode->symfile_size = sizeof(GDBElfImage);
-  jitcode->next_entry = nullptr;
+  jitcode->next_entry = NULL;
   if (!first_entry) {
     first_entry = jitcode;
     last_entry = jitcode;
-    jitcode->prev_entry = nullptr;
+    jitcode->prev_entry = NULL;
   } else {
     jitcode->prev_entry = last_entry;
     last_entry->next_entry = jitcode;
@@ -168,16 +170,16 @@ void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const char* name) {
 // Sections text, strtab, symtab, debug info, debug_abbrev, debug_line,
 // debug_str (only nash), shstrtab, eh_frame (only lj) symbols file, func
 
-long write_buf(long &offset, uint8_t *data, void *obj, long len) {
-  auto start_offset = offset;
-  assert(offset + len < 4096);
-  memcpy(&data[offset], obj, len);
-  offset += len;
+long write_buf(long* offset, uint8_t *data, void *obj, long len) {
+  __auto_type start_offset = *offset;
+  assert(*offset + len < 4096);
+  memcpy(&data[*offset], obj, len);
+  *offset += len;
   return start_offset;
 }
 
-long write_strz(long &offset, uint8_t *data, const char *obj) {
-  auto len = strlen(obj) + 1; // null terminated
+long write_strz(long *offset, uint8_t *data, const char *obj) {
+  __auto_type len = strlen(obj) + 1; // null terminated
   return write_buf(offset, data, (void *)obj, len);
 }
 
@@ -214,18 +216,18 @@ enum {
   DW_CFA_offset = 0x80
 };
 
-void uleb128(long &offset, uint8_t *buffer, uint32_t v) {
+void uleb128(long *offset, uint8_t *buffer, uint32_t v) {
   for (; v >= 0x80; v >>= 7) {
-    buffer[offset++] = (uint8_t)((v & 0x7f) | 0x80);
+    buffer[(*offset)++] = (uint8_t)((v & 0x7f) | 0x80);
   }
-  buffer[offset++] = (uint8_t)v;
+  buffer[(*offset)++] = (uint8_t)v;
 }
 
-void sleb128(long &offset, uint8_t *buffer, uint32_t v) {
+void sleb128(long *offset, uint8_t *buffer, uint32_t v) {
   for (; (uint32_t)(v + 0x40) >= 0x80; v >>= 7) {
-    buffer[offset++] = (uint8_t)((v & 0x7f) | 0x80);
+    buffer[(*offset)++] = (uint8_t)((v & 0x7f) | 0x80);
   }
-  buffer[offset++] = (uint8_t)(v & 0x7f);
+  buffer[(*offset)++] = (uint8_t)(v & 0x7f);
 }
 
 void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num) {
@@ -233,7 +235,7 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num) {
 
   long offset = 0;
 
-  image->hdr = {
+  Elf64_Ehdr hdr = {
       .e_ident = {ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3, ELFCLASS64, ELFDATA2LSB,
                   1 /*version */, ELFOSABI_SYSV, 0 /* ABI VERSION */, 0, 0, 0,
                   0, 0, 0, 0},
@@ -251,20 +253,21 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num) {
       .e_shnum = 6,
       .e_shstrndx = 1,
   };
+  image->hdr = hdr;
   offset += sizeof(image->hdr);
 
-  auto shstrtab_hdr = &image->hdrs[1];
+  __auto_type shstrtab_hdr = &image->hdrs[1];
   offset += sizeof(image->hdrs) + sizeof(image->syms);
 
-  write_strz(offset, image->data, "");
+  write_strz(&offset, image->data, "");
 
-  shstrtab_hdr->sh_name = write_strz(offset, image->data, ".shstrtab");
+  shstrtab_hdr->sh_name = write_strz(&offset, image->data, ".shstrtab");
   shstrtab_hdr->sh_type = SHT_STRTAB;
   shstrtab_hdr->sh_addralign = 1;
   shstrtab_hdr->sh_offset = offsetof(GDBElfImage, data);
 
-  auto text_hdr = &image->hdrs[2];
-  text_hdr->sh_name = write_strz(offset, image->data, ".text");
+  __auto_type text_hdr = &image->hdrs[2];
+  text_hdr->sh_name = write_strz(&offset, image->data, ".text");
   text_hdr->sh_flags = SHF_ALLOC | SHF_EXECINSTR;
   text_hdr->sh_addr = code;
   text_hdr->sh_size = code_sz;
@@ -272,13 +275,13 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num) {
   text_hdr->sh_type = SHT_NOBITS;
   text_hdr->sh_addralign = 16;
 
-  auto str_hdr = &image->hdrs[3];
-  str_hdr->sh_name = write_strz(offset, image->data, ".strtab");
+  __auto_type str_hdr = &image->hdrs[3];
+  str_hdr->sh_name = write_strz(&offset, image->data, ".strtab");
   str_hdr->sh_type = SHT_STRTAB;
   str_hdr->sh_addralign = 1;
 
-  auto sym_hdr = &image->hdrs[4];
-  sym_hdr->sh_name = write_strz(offset, image->data, ".symtab");
+  __auto_type sym_hdr = &image->hdrs[4];
+  sym_hdr->sh_name = write_strz(&offset, image->data, ".symtab");
   sym_hdr->sh_type = SHT_SYMTAB;
   sym_hdr->sh_addralign = sizeof(void *);
   sym_hdr->sh_offset = offsetof(GDBElfImage, syms);
@@ -287,8 +290,8 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num) {
   sym_hdr->sh_entsize = sizeof(Elf64_Sym);
   sym_hdr->sh_info = 2; // sym_func
 
-  auto ehframe_hdr = &image->hdrs[5];
-  ehframe_hdr->sh_name = write_strz(offset, image->data, ".eh_frame");
+  __auto_type ehframe_hdr = &image->hdrs[5];
+  ehframe_hdr->sh_name = write_strz(&offset, image->data, ".eh_frame");
   ehframe_hdr->sh_type = SHT_PROGBITS;
   ehframe_hdr->sh_addralign = 1;
   ehframe_hdr->sh_flags = SHF_ALLOC;
@@ -296,19 +299,19 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num) {
   shstrtab_hdr->sh_size = offset;
 
   // Write symbols
-  auto start_offset = offset;
+  __auto_type start_offset = offset;
   str_hdr->sh_offset = offsetof(GDBElfImage, data) + start_offset;
-  auto st = offset;
-  write_strz(offset, image->data, "");
+  __auto_type st = offset;
+  write_strz(&offset, image->data, "");
   // Emit the symbols
-  auto filesym = &image->syms[1];
-  filesym->st_name = write_strz(offset, image->data, "JIT") - st;
+  __auto_type filesym = &image->syms[1];
+  filesym->st_name = write_strz(&offset, image->data, "JIT") - st;
   filesym->st_shndx = SHN_ABS;
   filesym->st_info = STT_FILE;
-  auto funcsym = &image->syms[2];
+  __auto_type funcsym = &image->syms[2];
   char tmp[244];
   sprintf(tmp, "TRACE_%i", num);
-  funcsym->st_name = write_strz(offset, image->data, tmp) - st;
+  funcsym->st_name = write_strz(&offset, image->data, tmp) - st;
   funcsym->st_shndx = 2; // text
   funcsym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_FUNC);
   funcsym->st_value = 0;
@@ -319,15 +322,15 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num) {
   // write ehframe
   start_offset = offset;
   // TODO align 8
-  auto buffer = &image->data[0];
+  __auto_type buffer = &image->data[0];
   ehframe_hdr->sh_offset = offsetof(GDBElfImage, data) + start_offset;
 //   //////////////////////
 #define DB(x) (buffer[offset] = (x), offset++)
 #define DU16(x) (*(uint16_t *)&buffer[offset] = (x), offset += 2)
 #define DU32(x) (*(uint32_t *)&buffer[offset] = (x), offset += 4)
-#define DUV(x) (uleb128(offset, buffer, (x)))
-#define DSV(x) (sleb128(offset, buffer, (x)))
-#define DSTR(str) (write_strz(offset, (uint8_t *)buffer, (str)))
+#define DUV(x) (uleb128(&offset, buffer, (x)))
+#define DSV(x) (sleb128(&offset, buffer, (x)))
+#define DSTR(str) (write_strz(&offset, (uint8_t *)buffer, (str)))
 #define DALIGNNOP(s)                                                           \
   while ((uintptr_t)offset & ((s)-1))                                          \
   buffer[offset++] = DW_CFA_nop
