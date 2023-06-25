@@ -737,9 +737,9 @@ done:
     emit_bind(start, side_exit->patchpoint);
   }
 
-  perf_map(uint64_t(fn), len, std::string("Trace"));
-  jit_dump(len, uint64_t(fn), std::string("Trace"));
-  jit_reader_add(len, uint64_t(fn), 0, 0, std::string("Trace"));
+  perf_map(uint64_t(fn), len, "Trace");
+  jit_dump(len, uint64_t(fn), "Trace");
+  jit_reader_add(len, uint64_t(fn), 0, 0, "Trace");
   VALGRIND_DISCARD_TRANSLATIONS(fn, len);
 }
 

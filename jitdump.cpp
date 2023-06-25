@@ -15,12 +15,12 @@
 int cnt = 0;
 
 /* Earlier perf_map tmp support - supplies names to jit regions */
-void perf_map(uint64_t fn, uint64_t len, const std::string &name) {
+void perf_map(uint64_t fn, uint64_t len, const char* name) {
   char buf[256];
   sprintf(buf, "/tmp/perf-%i.map", getpid());
   auto file = fopen(buf, "a");
-  if (name != "") {
-    fprintf(file, "%lx %lx jit function %s\n", uint64_t(fn), len, name.c_str());
+  if (strlen(name) != 0) {
+    fprintf(file, "%lx %lx jit function %s\n", uint64_t(fn), len, name);
   } else {
     fprintf(file, "%lx %lx jit anon function %i\n", uint64_t(fn), len, cnt);
   }
@@ -31,7 +31,7 @@ void *mapaddr{nullptr};
 int fd;
 /* Newer jit dump support.  Requires perf record -k 1, and then perf
    inject, before perf report, but gives full asm listing */
-void jit_dump(int len, uint64_t fn, const std::string &name) {
+void jit_dump(int len, uint64_t fn, const char* name) {
   struct {
     uint32_t id;
     uint32_t total_size;
@@ -46,7 +46,7 @@ void jit_dump(int len, uint64_t fn, const std::string &name) {
     uint64_t code_index;
   } record;
   char funcname[256];
-  sprintf(funcname, "Function_%s_%i", name.c_str(), cnt);
+  sprintf(funcname, "Function_%s_%i", name, cnt);
 
   // clock
   struct timespec ts;
@@ -133,7 +133,7 @@ struct GDBElfImage {
 };
 
 void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num);
-void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const std::string &name) {
+void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const char* name) {
   auto jitcode = new struct jit_code_entry();
   auto image = new GDBElfImage;
   build_elf(fn, len, image, cnt);
