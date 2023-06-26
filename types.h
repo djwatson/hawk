@@ -42,11 +42,11 @@
 
 #define IMMEDIATE_MASK 0xff
 
-struct flonum_s {
+typedef struct flonum_s {
   long type; // TODO: perhaps could save this space by making a NAN-tagged
              // forwarding pointer? otherwise unused.
   double x;
-};
+} flonum_s;
 
 typedef struct string_s {
   long type;
@@ -60,32 +60,39 @@ typedef struct symbol {
   long val;
 } symbol;
 
-struct vector_s {
+typedef struct vector_s {
   long type;
   long len;
   long v[];
-};
+} vector_s;
 
-struct cons_s {
+typedef struct cons_s {
   long type; // unused except by GC
   long a;
   long b;
-};
+} cons_s;
 
-struct closure_s {
+typedef struct closure_s {
   long type; // unused except by GC
   long len;
   long v[];
-};
+} closure_s;
 
-struct port_s {
+typedef struct port_s {
   long type; // TODO could merge input_port and type somehow.
   long input_port;
   long fd;
   FILE *file;
   long peek;
-};
+} port_s;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void print_obj(long obj, FILE *file);
 long from_c_str(const char *s);
 long get_symbol_val(const char *name);
+#ifdef __cplusplus
+}
+#endif

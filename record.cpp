@@ -170,7 +170,7 @@ void dump_trace(trace_s *ctrace) {
   }
 }
 
-void record_side(trace_s *p, snap_s *side) {
+extern "C" void record_side(trace_s *p, snap_s *side) {
   parent = p;
   side_exit = side;
 }
@@ -262,7 +262,7 @@ void record_abort() {
   parent = nullptr;
 }
 
-int record(unsigned int *pc, long *frame, long argcnt) {
+extern "C" int record(unsigned int *pc, long *frame, long argcnt) {
   if (traces.size() >= TRACE_MAX) {
     return 1;
   }
@@ -320,7 +320,7 @@ int record_stack_load(int slot, const long *frame) {
 }
 
 extern unsigned char hotmap[hotmap_sz];
-int record_instr(unsigned int *pc, long *frame, long argcnt) {
+extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   unsigned int i = *pc;
 
   if (INS_OP(i) == LOOP) {
@@ -987,8 +987,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   return 0;
 }
 
-trace_s *trace_cache_get(unsigned int tnum) { return traces[tnum]; }
+extern "C" trace_s *trace_cache_get(unsigned int tnum) { return traces[tnum]; }
 
-void free_trace() {
+extern "C" void free_trace() {
   printf("Traces: %li\n", traces.size());
 }

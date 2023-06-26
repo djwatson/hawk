@@ -100,7 +100,7 @@ struct reloc {
 };
 
 typedef long (*Func)(long **, unsigned int **);
-struct trace_s {
+typedef struct trace_s {
   std::vector<ir_ins> ops;
   std::vector<long> consts;
   std::vector<reloc> relocs;
@@ -109,7 +109,7 @@ struct trace_s {
   unsigned int startpc;
   int num;
   Func fn = nullptr;
-};
+} trace_s;
 
 #define UNROLL_LIMIT 1
 

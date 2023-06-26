@@ -76,10 +76,11 @@ target_link_libraries(boom PUBLIC ${LIBRARIES}  )
 
 # Use the CC10 calling convention, which isn't available via clang, but is in llvm.
 # munge win64cc to cc10.
-# Otherwise we could include vm.cpp directly.
-add_library(vm OBJECT EXCLUDE_FROM_ALL vm.cpp opcodes.h)
-target_compile_options(vm PRIVATE -emit-llvm -S)
+# Otherwise we could include vm.c directly.
+add_library(vm OBJECT EXCLUDE_FROM_ALL vm.c opcodes.h)
+target_compile_options(vm PRIVATE -emit-llvm -S )
 get_target_property(BOOM_FLAGS boom COMPILE_OPTIONS)
+target_compile_options(vm PRIVATE ${BOOM_FLAGS} )
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPER)
 set(VM_FLAGS  ${CMAKE_C_FLAGS_${CMAKE_BUILD_TYPE_UPPER}})
 string(REPLACE " " ";" VM_FLAGS ${VM_FLAGS})
@@ -92,14 +93,15 @@ target_compile_options(vm PRIVATE -fomit-frame-pointer) # required for cc10
   perl -p -i -e 's/win64cc/cc10/g' vm.ll
   COMMAND
   clang ${BOOM_FLAGS} ${VM_FLAGS}  -c vm.ll -flto=thin
-  DEPENDS vm
+  DEPENDS vm.c vm
   )
+
 
 #target_compile_options(boom PRIVATE -fsanitize=address,undefined)
 #target_link_options(boom PRIVATE -fsanitize=address,undefined)
 #target_compile_options(vm PRIVATE -fsanitize=address,undefined)
 
-set(CLOC_SOURCES ${SOURCES} vm.cpp)
+set(CLOC_SOURCES ${SOURCES} vm.c)
 list(REMOVE_ITEM CLOC_SOURCES bootstrap.cpp)
 add_custom_target(
   cloc
@@ -136,5 +138,5 @@ add_custom_command(
   rsync ${CMAKE_SOURCE_DIR}/opcode_gen.scm ${CMAKE_SOURCE_DIR}/util.scm .
   COMMAND
   ${CHEZ} --script opcode_gen.scm
-  DEPENDS util.scm opcode_gen.scm vm.cpp
+  DEPENDS util.scm opcode_gen.scm vm.c
 )

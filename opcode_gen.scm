@@ -36,7 +36,7 @@
       (loop)))
   (close-input-port p))
 
-(find-lib-funcs "vm.cpp")
+(find-lib-funcs "vm.c")
 (dformat "There are ~a opcodes\n" (length opcodes))
 ;(pretty-print opcodes)
 

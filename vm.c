@@ -23,13 +23,21 @@ extern int profile;
 vec_gen(bcfunc*, bcfunc);
 vec_INIT(funcs);
 
+#define auto __auto_type
+
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 long *frame_top;
 unsigned int stacksz = 1000000;
-long *stack = (long *)malloc(sizeof(long) * stacksz);
+long *stack = NULL;
 
 unsigned char hotmap[hotmap_sz];
+
+static void vm_init() {
+  if (stack == NULL) {
+    stack = (long *)malloc(sizeof(long) * stacksz);
+  }
+}
 
 void free_vm() {
   free(stack);
@@ -57,8 +65,8 @@ while being more portable and easier to change.
 #define MUSTTAIL __attribute((musttail))
 #define ABI __attribute__((ms_abi)) __attribute__((noinline))
 #define ABIP __attribute__((ms_abi))
-#define DEBUG(name)
-//#define DEBUG(name) printf("pc %i %s ra %i rd %i rb %i rc %i ", pc, name, ra, instr, instr&0xff, (instr>>8)); printf("\n");
+#define DEBUG_VM(name)
+//#define DEBUG_VM(name) printf("pc %p %s ra %i rd %i rb %i rc %i\n", pc, name, ra, instr, instr&0xff, (instr>>8)); fflush(stdout);
 typedef ABIP void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
@@ -82,7 +90,7 @@ bcfunc *find_func_for_frame(uint32_t *pc) {
       return fun;
     }
   }
-  return nullptr;
+  return NULL;
 }
 
 ABI __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
@@ -203,7 +211,7 @@ long *expand_stack_slowpath(long *frame) {
  */
 #define LIBRARY_FUNC_BC(name)                                                  \
   ABI void INS_##name(PARAMS) {                                                \
-    DEBUG(#name);                                                              \
+    DEBUG_VM(#name);                                                              \
     unsigned char rb = instr & 0xff;                                           \
     unsigned char rc = (instr >> 8) & 0xff;
 #define LIBRARY_FUNC_BC_LOAD(name)                                             \
@@ -212,15 +220,15 @@ long *expand_stack_slowpath(long *frame) {
   long fc = frame[rc];
 #define LIBRARY_FUNC_B(name)                                                   \
   ABI void INS_##name(PARAMS) {                                                \
-    DEBUG(#name);                                                              \
+    DEBUG_VM(#name);                                                              \
     unsigned char rb = instr & 0xff;
 #define LIBRARY_FUNC_D(name)                                                   \
   ABI void INS_##name(PARAMS) {                                                \
-    DEBUG(#name);                                                              \
+    DEBUG_VM(#name);                                                              \
     auto rd = (int16_t)instr;
 #define LIBRARY_FUNC(name)                                                     \
   ABI void INS_##name(PARAMS) {                                                \
-    DEBUG(#name);
+    DEBUG_VM(#name);
 #define LIBRARY_FUNC_B_LOAD(name)                                              \
   LIBRARY_FUNC_B(name)                                                         \
   long fb = frame[rb];
@@ -344,7 +352,7 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
 // Shift is necessary for adjusting the tag for mul.
 #define LIBRARY_FUNC_MATH_VV(name, op2, overflow)                              \
   ABI __attribute__((noinline)) void INS_##name##_SLOWPATH(PARAMS) {           \
-    DEBUG(#name);                                                              \
+    DEBUG_VM(#name);                                                              \
     unsigned char rb = instr & 0xff;                                           \
     unsigned char rc = (instr >> 8) & 0xff;                                    \
                                                                                \
@@ -505,6 +513,7 @@ LIBRARY_FUNC_D(GGET)
   if (unlikely(gp->val == UNDEFINED_TAG)) {
     MUSTTAIL return UNDEFINED_SYMBOL_SLOWPATH(ARGS);
   }
+
   frame[ra] = gp->val;
 END_LIBRARY_FUNC
 
@@ -658,7 +667,7 @@ LIBRARY_FUNC_B(CALL)
   bcfunc *func = (bcfunc *)closure->v[0];
   auto old_pc = pc;
   pc = &func->code[0];
-  frame[ra] = long(old_pc + 1);
+  frame[ra] = (long)(old_pc + 1);
   frame += ra + 1;
   argcnt = rb - 1;
   if (unlikely((frame + 256) > frame_top)) {
@@ -936,7 +945,7 @@ LIBRARY_FUNC_BC(OPEN)
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   port->file = fdopen(port->fd, fc == TRUE_REP ? "r" : "w");
-  if (port->file == nullptr) {
+  if (port->file == NULL) {
     printf("FDopen fail\n");
     exit(-1);
   }
@@ -948,7 +957,7 @@ LIBRARY_FUNC_B_LOAD(CLOSE)
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
   if (port->file) {
     fclose(port->file);
-    port->file = nullptr;
+    port->file = NULL;
   }
   if (port->fd != -1) {
     close(port->fd);
@@ -1155,6 +1164,8 @@ ABI void INS_PROFILE_CALLCC_RESUME_ADJ(PARAMS) {
 #include "opcodes-table.h"
 
 void run(bcfunc *func, long argcnt, long *args) {
+  vm_init();
+
   // Bytecode stub to get us to HALT.
   unsigned int final_code[] = {CODE(CALL, 0, 1, 0), CODE(HALT, 0, 0, 0)};
   unsigned int *code = &func->code[0];

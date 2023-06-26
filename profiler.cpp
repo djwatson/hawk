@@ -18,12 +18,12 @@
 
 #ifndef PROFILER
 
-void profiler_start() {}
-void profiler_stop() {}
-void profile_add_frame(void *ptr) {}
-void profile_pop_frame() {}
-void profile_pop_all_frames() {}
-void profile_set_pc(uint32_t *pc) {}
+extern "C" void profiler_start() {}
+extern "C" void profiler_stop() {}
+extern "C" void profile_add_frame(void *ptr) {}
+extern "C" void profile_pop_frame() {}
+extern "C" void profile_pop_all_frames() {}
+extern "C" void profile_set_pc(uint32_t *pc) {}
 
 #else
 
@@ -65,9 +65,9 @@ static long *profile_stack = nullptr;
 static unsigned long profile_stack_max = 0;
 static uint32_t *pc;
 
-void profile_set_pc(uint32_t *p) { pc = p; }
+extern "C" void profile_set_pc(uint32_t *p) { pc = p; }
 
-void profile_add_frame(void *ptr) {
+extern "C" void profile_add_frame(void *ptr) {
   if (profile_stack_sz >= profile_stack_max) {
     if (profile_stack_max == 0) {
       profile_stack_max = 1000;
@@ -85,14 +85,14 @@ void profile_add_frame(void *ptr) {
   profile_stack_sz++; // release
 }
 
-void profile_pop_frame() {
+extern "C" void profile_pop_frame() {
   // TODO make callcc resume work
   if (profile_stack_sz > 0) {
     profile_stack_sz--;
   }
 }
 
-void profile_pop_all_frames() { profile_stack_sz = 0; }
+extern "C" void profile_pop_all_frames() { profile_stack_sz = 0; }
 
 static void handler(int sig, siginfo_t *si, void *uc) {
   cnt++;
@@ -109,7 +109,7 @@ static void handler(int sig, siginfo_t *si, void *uc) {
   }
 }
 
-void profiler_start() {
+extern "C" void profiler_start() {
   struct sigevent sev;
 
   struct sigaction sa;
@@ -176,7 +176,7 @@ static void profiler_display_tree_node(const tree *node, int indent) {
   }
 }
 
-void profiler_stop() {
+extern "C" void profiler_stop() {
   tree tree_root;
   timer_delete(timerid);
 

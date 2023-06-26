@@ -25,7 +25,7 @@
 #include "parallel_copy.h"
 
 // TODO
-long *expand_stack_slowpath(long *frame);
+extern "C" long *expand_stack_slowpath(long *frame);
 extern long *frame_top;
 extern uint8_t *alloc_ptr;
 extern uint8_t *alloc_end;
@@ -217,6 +217,7 @@ uint16_t find_reg_for_slot(int slot, snap_s *snap, trace_s *trace) {
     }
   }
   assert(false);
+  exit(-1);
 }
 
 void emit_snap(int snap, trace_s *trace, bool all) {
@@ -358,7 +359,7 @@ void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
   }
 }
 
-void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
+extern "C" void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   emit_init();
 
   // Reg allocation
@@ -737,7 +738,7 @@ done:
 
 extern unsigned int *patchpc;
 extern unsigned int patchold;
-int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
+extern "C" int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
   exit_state state;
   auto *trace = trace_cache_get(tnum);
 

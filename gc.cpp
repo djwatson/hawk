@@ -21,15 +21,15 @@ uint8_t *alloc_end = nullptr;
 
 std::vector<long *> pushed_roots;
 
-void GC_push_root(long *root) { pushed_roots.push_back(root); }
+extern "C" void GC_push_root(long *root) { pushed_roots.push_back(root); }
 
-void GC_pop_root(const long *root) {
+extern "C" void GC_pop_root(const long *root) {
   assert(!pushed_roots.empty());
   assert(pushed_roots.back() == root);
   pushed_roots.pop_back();
 }
 
-void GC_enable(bool en) { gc_enable = en; }
+extern "C" void GC_enable(bool en) { gc_enable = en; }
 
 static bool is_forwarded(long obj) {
   auto *ptr = (long *)obj;
@@ -253,7 +253,7 @@ size_t alloc_sz;
 uint8_t *to_space = nullptr;
 uint8_t *from_space = nullptr;
 
-void GC_init() {
+extern "C" void GC_init() {
   alloc_sz = 4096 * page_cnt;
   from_space = (uint8_t *)mmap(nullptr, alloc_sz * 2, PROT_READ | PROT_WRITE,
                                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -308,7 +308,7 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   return res;
 }
 
-__attribute__((always_inline)) void *GC_malloc(size_t sz) {
+extern "C" __attribute__((always_inline)) void *GC_malloc(size_t sz) {
   sz = (sz + 7) & (~TAG_MASK);
   assert((sz & TAG_MASK) == 0);
   auto *res = alloc_ptr;
@@ -319,9 +319,9 @@ __attribute__((always_inline)) void *GC_malloc(size_t sz) {
   return GC_malloc_slow(sz);
 }
 
-void *GC_realloc(void *ptr, size_t sz) {
+extern "C" void *GC_realloc(void *ptr, size_t sz) {
   // TODO zero-mem
   return realloc(ptr, sz);
 }
 
-void GC_free(void *ptr) { free(ptr); }
+extern "C" void GC_free(void *ptr) { free(ptr); }
