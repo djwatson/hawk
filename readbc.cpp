@@ -176,7 +176,7 @@ bcfunc *readbc(FILE *fptr) {
   unsigned int bccount;
   fread(&bccount, 4, 1, fptr);
   bcfunc *start_func = nullptr;
-  unsigned func_offset = funcs.size();
+  unsigned func_offset = funcs.sz;
   for (unsigned i = 0; i < bccount; i++) {
     unsigned int name_count;
     fread(&name_count, 4, 1, fptr);
@@ -216,7 +216,7 @@ bcfunc *readbc(FILE *fptr) {
       //  printf("%i code: %s %i %i %i BC: %i\n", j, ins_names[INS_OP(code)],
       //         INS_A(code), INS_B(code), INS_C(code), INS_BC(code));
     }
-    funcs.push_back(f);
+    vec_push_bcfunc(&funcs, f);
   }
 
   fclose(fptr);
@@ -235,12 +235,13 @@ bcfunc *readbc_file(const char *filename) {
 }
 
 void free_script() {
-  for (auto func : funcs) {
+  for (uint64_t i = 0; i < funcs.sz; i++) {
+    auto func = vec_at_bcfunc(&funcs, i);
     free(func->name);
     func->name = NULL;
     free(func);
   }
-  funcs.clear();
+  vec_clear(&funcs);
   // TODO symbol_table
   free(const_table);
   const_table = NULL;

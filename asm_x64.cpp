@@ -10,7 +10,6 @@
 #include <string>              // for string
 #include <utility>             // for pair, make_pair
 #include <valgrind/valgrind.h> // for VALGRIND_DISCARD_TRANSLATIONS
-#include <vector>              // for vector
 // TODO only for runtime symbol
 #include "bytecode.h" // for INS_OP, INS_B
 #include "emit_x64.h" // for emit_offset, emit_mov64, emit_mem_reg
@@ -706,18 +705,11 @@ done:
     map moves;
     map res;
     moves.mp_sz = 0;
-    std::vector<std::pair<int, uint16_t>> consts;
     for (; op_cnt >= 0; op_cnt--) {
       auto &op = trace->ops[op_cnt];
       map_insert(&moves, find_reg_for_slot(op.op1, side_exit, parent), op.reg);
     }
     serialize_parallel_copy(&moves, &res, R15);
-    for (auto &c : consts) {
-      auto con = trace->consts[c.second - IR_CONST_BIAS];
-      trace->relocs.push_back(
-          {emit_offset(), (long)(con & ~SNAP_FRAME), RELOC_ABS});
-      emit_mov64(c.first, con & ~SNAP_FRAME);
-    }
     for(int64_t i = res.mp_sz - 1; i >= 0; i--) {
       emit_reg_reg(OP_MOV, res.mp[i].from,res.mp[i].to);
     }

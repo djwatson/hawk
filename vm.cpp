@@ -20,7 +20,8 @@
 int joff = 0;
 extern int profile;
 
-std::vector<bcfunc *> funcs;
+vec_gen(bcfunc*, bcfunc);
+vec_INIT(funcs);
 
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
@@ -74,10 +75,11 @@ static op_func l_op_table_profile[INS_MAX];
   }
 
 bcfunc *find_func_for_frame(uint32_t *pc) {
-  for (unsigned long j = 0; j < funcs.size(); j++) {
-    if (pc >= &funcs[j]->code[0] &&
-        pc <= &funcs[j]->code[funcs[j]->codelen-1]) {
-      return funcs[j];
+  for (unsigned long j = 0; j < funcs.sz; j++) {
+    auto fun = vec_at_bcfunc(&funcs, j);
+    if (pc >= &fun->code[0] &&
+        pc <= &fun->code[fun->codelen-1]) {
+      return fun;
     }
   }
   return nullptr;
@@ -512,7 +514,7 @@ LIBRARY_FUNC_D(GSET)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_D(KFUNC)
-  frame[ra] = (long)funcs[rd];
+  frame[ra] = (long)vec_at_bcfunc(&funcs, rd);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_D(KONST)

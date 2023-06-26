@@ -49,7 +49,7 @@ message("Using " ${CHEZ} " for bootstrapping")
 include(CheckPIESupported)
 check_pie_supported()
 
-set(SOURCES readbc.cpp bytecode.c vm.o boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.c gc.cpp opcodes.h profiler.cpp opt_loop.cpp parallel_copy.c )
+set(SOURCES readbc.cpp bytecode.c vm.o boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.c gc.cpp opcodes.h profiler.cpp opt_loop.cpp parallel_copy.c vector.c)
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
@@ -66,7 +66,7 @@ endif(REPLAY)
 add_executable(boom ${SOURCES} )
 
 target_compile_options(boom PRIVATE -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow
-  -Wno-unused-parameter -Wnull-dereference  -I.)
+  -Wno-unused-parameter -Wnull-dereference )
 set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 set_property(TARGET boom PROPERTY POSITION_INDEPENDENT_CODE FALSE)
@@ -79,6 +79,10 @@ target_link_libraries(boom PUBLIC ${LIBRARIES}  )
 # Otherwise we could include vm.cpp directly.
 add_library(vm OBJECT EXCLUDE_FROM_ALL vm.cpp opcodes.h)
 target_compile_options(vm PRIVATE -emit-llvm -S)
+get_target_property(BOOM_FLAGS boom COMPILE_OPTIONS)
+string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPER)
+set(VM_FLAGS  ${CMAKE_C_FLAGS_${CMAKE_BUILD_TYPE_UPPER}})
+string(REPLACE " " ";" VM_FLAGS ${VM_FLAGS})
 target_compile_options(vm PRIVATE -fomit-frame-pointer) # required for cc10
   add_custom_command(
   OUTPUT vm.o
@@ -87,7 +91,7 @@ target_compile_options(vm PRIVATE -fomit-frame-pointer) # required for cc10
   COMMAND
   perl -p -i -e 's/win64cc/cc10/g' vm.ll
   COMMAND
-  clang -c vm.ll -flto=thin
+  clang ${BOOM_FLAGS} ${VM_FLAGS}  -c vm.ll -flto=thin
   DEPENDS vm
   )
 
