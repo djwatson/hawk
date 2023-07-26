@@ -49,7 +49,7 @@ message("Using " ${CHEZ} " for bootstrapping")
 include(CheckPIESupported)
 check_pie_supported()
 
-set(SOURCES readbc.cpp bytecode.c vm.o boom.cpp  ir.cpp types.cpp bootstrap.cpp symbol_table.c gc.c opcodes.h profiler.cpp opt_loop.cpp parallel_copy.c)
+set(SOURCES readbc.cpp bytecode.c vm.o boom.cpp  ir.cpp types.c bootstrap.cpp symbol_table.c gc.c opcodes.h profiler.cpp opt_loop.cpp parallel_copy.c)
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 

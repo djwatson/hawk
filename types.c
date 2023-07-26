@@ -1,12 +1,15 @@
 #include "types.h"
-#include <cstdio>
-#include <cstring>
+#include <stdio.h>
+#include <string.h>
 
 #include "gc.h"
 #include "symbol_table.h"
 
+#define auto __auto_type
+#define nullptr NULL
+
 // Mostly for debugging.  Actual scheme display/write is done from scheme.
-extern "C" void print_obj(long obj, FILE *file) {
+void print_obj(long obj, FILE *file) {
   if (file == nullptr) {
     file = stdout;
   }
@@ -102,7 +105,7 @@ extern "C" void print_obj(long obj, FILE *file) {
   fflush(stdout);
 }
 
-extern "C" long from_c_str(const char *s) {
+long from_c_str(const char *s) {
   auto len = strlen(s);
   auto *str = (string_s *)GC_malloc(16 + len + 1);
   str->type = STRING_TAG;
@@ -112,7 +115,7 @@ extern "C" long from_c_str(const char *s) {
   return (long)str | PTR_TAG;
 }
 
-extern "C" long get_symbol_val(const char *name) {
+long get_symbol_val(const char *name) {
   auto str = from_c_str(name);
   auto *strp = (string_s *)(str - PTR_TAG);
   auto *res = symbol_table_find(strp);
