@@ -20,14 +20,14 @@ static bool gc_enable = true;
 uint8_t *alloc_ptr = nullptr;
 uint8_t *alloc_end = nullptr;
 
-std::vector<long *> pushed_roots;
+long ** pushed_roots;
 
-extern "C" void GC_push_root(long *root) { pushed_roots.push_back(root); }
+extern "C" void GC_push_root(long *root) { arrput(pushed_roots, root); }
 
 extern "C" void GC_pop_root(const long *root) {
-  assert(!pushed_roots.empty());
-  assert(pushed_roots.back() == root);
-  pushed_roots.pop_back();
+  assert(arrlen(pushed_roots) != 0);
+  auto b = arrpop(pushed_roots);
+  assert(b == root);
 }
 
 extern "C" void GC_enable(bool en) { gc_enable = en; }
@@ -205,8 +205,8 @@ static void trace_roots() {
   }
 
   // printf("Scan GC pushed roots...%li\n", pushed_roots.size()) ;
-  for (auto &pushed_root : pushed_roots) {
-    visit(pushed_root);
+  for(uint64_t i = 0; i < arrlen(pushed_roots); i++) {
+    visit(pushed_roots[i]);
   }
 
   // printf("Scan stack...%u\n", stacksz);
