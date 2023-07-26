@@ -17,12 +17,13 @@
 #include "types.h"
 #include "vm.h"
 
+#define STB_DS_IMPLEMENTATION
+#include "third-party/stb_ds.h"
+
 int joff = 0;
 extern int profile;
 
-vec_gen(bcfunc*, bcfunc);
-vec_INIT(funcs);
-
+bcfunc** funcs = NULL;
 #define auto __auto_type
 
 #define likely(x) __builtin_expect(!!(x), 1)
@@ -83,8 +84,8 @@ static op_func l_op_table_profile[INS_MAX];
   }
 
 bcfunc *find_func_for_frame(uint32_t *pc) {
-  for (unsigned long j = 0; j < funcs.sz; j++) {
-    auto fun = vec_at_bcfunc(&funcs, j);
+  for (unsigned long j = 0; j < arrlen(funcs); j++) {
+    auto fun = funcs[j];
     if (pc >= &fun->code[0] &&
         pc <= &fun->code[fun->codelen-1]) {
       return fun;
@@ -523,7 +524,7 @@ LIBRARY_FUNC_D(GSET)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_D(KFUNC)
-  frame[ra] = (long)vec_at_bcfunc(&funcs, rd);
+  frame[ra] = (long)funcs[rd];
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_D(KONST)

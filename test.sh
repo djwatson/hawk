@@ -2,6 +2,6 @@
 for file in $(ls test/bench/*.scm)
 do
     echo $file
-    ./boom $file 
+    ./boom $file --joff
     echo
 done

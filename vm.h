@@ -1,7 +1,7 @@
 #pragma once
 
 #include "bytecode.h"
-#include "vector.h"
+#include "third-party/stb_ds.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,8 +11,7 @@ void run(bcfunc *func, long argcnt, long *args);
 bcfunc *find_func_for_frame(uint32_t *pc);
 void free_vm();
 
-vec_proto(bcfunc*, bcfunc);
-extern vec funcs;
+extern bcfunc** funcs;
 
 #define hotmap_sz 64
 #define hotmap_cnt 200
