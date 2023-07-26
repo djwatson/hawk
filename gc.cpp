@@ -162,7 +162,7 @@ void trace_heap_object(long *obj) {
 // and the constant table.
 // and symbols?????? shit
 extern trace_s *trace;
-extern std::vector<trace_s *> traces;
+extern trace_s ** traces;
 extern long* symbols;
 
 static void visit_trace(trace_s *t) {
@@ -234,7 +234,8 @@ static void trace_roots() {
   }
 
   // Scan traces
-  for (auto *t : traces) {
+  for(uint64_t i = 0; i < arrlen(traces); i++) {
+    auto *t = traces[i];
     //printf("Visit trace %i\n", cnt++);
     visit_trace(t);
   }

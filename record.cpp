@@ -28,7 +28,7 @@ int *regs = &regs_list[1];
 snap_s *side_exit = nullptr;
 trace_s *parent = nullptr;
 
-std::vector<unsigned int *> downrec;
+unsigned int ** downrec = NULL;
 
 enum trace_state_e {
   OFF = 0,
@@ -38,7 +38,7 @@ enum trace_state_e {
 
 trace_state_e trace_state = OFF;
 trace_s *trace = nullptr;
-std::vector<trace_s *> traces;
+trace_s ** traces = nullptr;
 
 unsigned int *patchpc = nullptr;
 unsigned int patchold;
@@ -180,7 +180,7 @@ extern "C" void record_side(trace_s *p, snap_s *side) {
 void record_abort();
 void record_start(unsigned int *pc, long *frame) {
   trace = new trace_s;
-  trace->num = traces.size();
+  trace->num = arrlen(traces);
   trace_state = START;
   trace->ops = NULL;
   trace->relocs = NULL;
@@ -215,7 +215,7 @@ extern unsigned TRACE_MAX;
 void record_stop(unsigned int *pc, long *frame, int link) {
   auto offset = regs - regs_list - 1;
   add_snap(regs_list, offset, trace, pc);
-  if (link == (int)traces.size() && offset == 0) {
+  if (link == (int)arrlen(traces) && offset == 0) {
     // Attempt to loop-fiy it.
     // opt_loop(trace, regs);
   }
@@ -229,22 +229,22 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   pendpatch();
 
   if (side_exit != nullptr) {
-    side_exit->link = traces.size();
+    side_exit->link = arrlen(traces);
     printf("Hooking to parent trace\n");
   } else {
     auto op = INS_OP(*pc_start);
     if (op != RET1 && op != LOOP) {
-      *pc_start = CODE(JFUNC, INS_A(*pc_start), traces.size(), 0);
+      *pc_start = CODE(JFUNC, INS_A(*pc_start), arrlen(traces), 0);
       printf("Installing JFUNC\n");
     } else {
-      *pc_start = CODE(JLOOP, 0, traces.size(), 0);
+      *pc_start = CODE(JLOOP, 0, arrlen(traces), 0);
       printf("Installing JLOOP\n");
     }
   }
-  printf("Installing trace %li\n", traces.size());
+  printf("Installing trace %li\n", arrlen(traces));
 
   trace->link = link;
-  traces.push_back(trace);
+  arrput(traces, trace);
 
 #ifndef REPLAY
   asm_jit(trace, side_exit, parent);
@@ -253,7 +253,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
 
   trace_state = OFF;
   side_exit = nullptr;
-  downrec.clear();
+  arrfree(downrec);
   trace = nullptr;
   // joff = 1;
 }
@@ -264,12 +264,12 @@ void record_abort() {
   trace = nullptr;
   trace_state = OFF;
   side_exit = nullptr;
-  downrec.clear();
+  arrfree(downrec);
   parent = nullptr;
 }
 
 extern "C" int record(unsigned int *pc, long *frame, long argcnt) {
-  if (traces.size() >= TRACE_MAX) {
+  if (arrlen(traces) >= TRACE_MAX) {
     return 1;
   }
   switch (trace_state) {
@@ -342,7 +342,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
       INS_OP(trace->startpc) != RET1 && parent == nullptr) {
     printf("Record stop loop\n");
-    record_stop(pc, frame, traces.size());
+    record_stop(pc, frame, arrlen(traces));
     return 1;
   }
 
@@ -381,8 +381,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       auto *old_pc = (unsigned int *)frame[-1];
       if (INS_OP(*pc_start) == RET1 || side_exit != nullptr) {
         int cnt = 0;
-        for (auto &p : downrec) {
-          if (p == pc) {
+	for(uint64_t p = 0; p < arrlen(downrec); p++) {
+          if (downrec[p] == pc) {
             cnt++;
           }
         }
@@ -396,10 +396,10 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
             break;
           }
           printf("Record stop downrec\n");
-          record_stop(pc, frame, traces.size());
+          record_stop(pc, frame, arrlen(traces));
           return 1;
         }
-        downrec.push_back(pc);
+	arrput(downrec, pc);
 
         auto result = record_stack_load(INS_A(i), frame);
         // Guard down func type
@@ -503,7 +503,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       auto *target = cfunc->code;
       if (target == pc_start) {
         printf("Record stop up-recursion\n");
-        record_stop(target, frame, traces.size());
+        record_stop(target, frame, arrlen(traces));
         return 1;
       } // TODO fix flush
       pendpatch();
@@ -996,5 +996,5 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
 extern "C" trace_s *trace_cache_get(unsigned int tnum) { return traces[tnum]; }
 
 extern "C" void free_trace() {
-  printf("Traces: %li\n", traces.size());
+  printf("Traces: %li\n", arrlen(traces));
 }
