@@ -16,7 +16,7 @@
 #include <vector>  // for vector
 #include "third-party/stb_ds.h"
 
-void opt_loop(trace_s *trace, int *regs);
+extern "C" void opt_loop(trace_s *trace, int *regs);
 
 unsigned int *pc_start;
 unsigned int instr_count;
