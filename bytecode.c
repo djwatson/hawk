@@ -1,2 +1,2 @@
 #include "bytecode.h"
-#include "opcodes.cpp"
+#include "opcodes.c"

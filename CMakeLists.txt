@@ -133,7 +133,7 @@ add_custom_command(
 
 # Generate the opcodes
 add_custom_command(
-  OUTPUT opcodes.cpp opcodes.h opcodes-table.h opcodes.scm
+  OUTPUT opcodes.c opcodes.h opcodes-table.h opcodes.scm
   COMMAND
   rsync ${CMAKE_SOURCE_DIR}/opcode_gen.scm ${CMAKE_SOURCE_DIR}/util.scm .
   COMMAND
