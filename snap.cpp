@@ -27,7 +27,7 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc) {
       snap_entry_s entry;
       entry.slot = i - 1; // offset by one for callt
       entry.val = regs[i];
-      snap.slots.push_back(entry);
+      arrput(snap.slots, entry);
     }
   }
   arrput(trace->snaps, snap);
@@ -38,7 +38,8 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
                  const long *frame, int *d) {
   int depth = 0;
   frame -= snap->offset;
-  for (auto &slot : snap->slots) {
+  for(uint64_t i = 0; i < arrlen(snap->slots); i++) {
+    auto&slot = snap->slots[i];
     if ((slot.val & IR_CONST_BIAS) != 0) {
       auto c = parent->consts[slot.val - IR_CONST_BIAS];
       if ((c & SNAP_FRAME) != 0u) {

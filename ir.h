@@ -79,7 +79,7 @@ struct snap_s {
   uint16_t offset;
   uint8_t exits;
   int link;
-  std::vector<snap_entry_s> slots;
+  snap_entry_s* slots;
   uint64_t patchpoint;
 };
 

@@ -87,7 +87,8 @@ void dump_trace(trace_s *ctrace) {
 
       auto &snap = ctrace->snaps[cur_snap];
       printf("SNAP[ir=%i pc=%lx off=%i", snap.ir, (long)snap.pc, snap.offset);
-      for (auto &entry : snap.slots) {
+      for(uint64_t j = 0; j < arrlen(snap.slots); j++) {
+	auto&entry = snap.slots[j];
         printf(" %i=", entry.slot);
         print_const_or_val(entry.val, ctrace);
       }

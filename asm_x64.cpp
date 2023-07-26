@@ -99,7 +99,8 @@ void maybe_assign_register(int v, trace_s *trace, int *slot) {
 
 void assign_snap_registers(unsigned snap_num, int *slot, trace_s *trace) {
   auto &snap = trace->snaps[snap_num];
-  for (auto &s : snap.slots) {
+  for(uint64_t i = 0; i < arrlen(snap.slots); i++) {
+    auto&s = snap.slots[i];
     if ((s.val & IR_CONST_BIAS) == 0) {
       maybe_assign_register(s.val, trace, slot);
     }
@@ -195,7 +196,8 @@ static void __attribute__((noinline)) __attribute__((naked)) jit_exit_stub() {
 void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
                   long **o_frame, unsigned int **o_pc) {
   (*o_frame) = (long *)state->regs[RDI];
-  for (auto &slot : snap->slots) {
+  for(uint64_t i = 0; i < arrlen(snap->slots); i++) {
+    auto&slot = snap->slots[i];
     if ((slot.val & IR_CONST_BIAS) != 0) {
       auto c = trace->consts[slot.val - IR_CONST_BIAS];
       (*o_frame)[slot.slot] = c & ~SNAP_FRAME;
@@ -209,7 +211,8 @@ void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
 }
 
 uint16_t find_reg_for_slot(int slot, snap_s *snap, trace_s *trace) {
-  for (auto &s : snap->slots) {
+  for(uint64_t i = 0; i < arrlen(snap->slots); i++) {
+    auto&s = snap->slots[i];
     if (s.slot == slot) {
       if (s.val >= IR_CONST_BIAS) {
         return s.val;
@@ -232,7 +235,8 @@ void emit_snap(int snap, trace_s *trace, bool all) {
     }
   }
   // TODO frame size check
-  for (auto &slot : sn.slots) {
+  for(uint64_t i = 0; i < arrlen(sn.slots); i++) {
+    auto&slot = sn.slots[i];
     emit_check();
     // if (!all && (slot.slot >= sn.offset)) {
     //   break;

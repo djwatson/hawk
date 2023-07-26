@@ -53,15 +53,17 @@ void opt_loop(trace_s *trace, int *regs) {
         nsnap.link = -1;
         // Emit loopsnap - all final loop snapshots are carried through loop
         auto &loopsnap = trace->snaps[snap_cut - 1];
-        for (auto &entry : loopsnap.slots) {
+	for(uint64_t j = 0; j < arrlen(loopsnap.slots); j++) {
+	  auto &entry = loopsnap.slots[j];
           if (entry.val < IR_CONST_BIAS) {
-            nsnap.slots.push_back({entry.slot, replace[entry.val]});
+            arrput(nsnap.slots, snap_entry_s({entry.slot, replace[entry.val]}));
           } else {
-            nsnap.slots.push_back(entry);
+	    arrput(nsnap.slots, (entry));
           }
         }
         // Emit in-loop snaps.  Merge with
-        for (auto &entry : snap.slots) {
+	for(uint64_t j = 0; j < arrlen(snap.slots); j++) {
+	  auto &entry = snap.slots[j];
           snap_entry_s new_entry;
           if (entry.val < IR_CONST_BIAS) {
             new_entry = {entry.slot, replace[entry.val]};
@@ -69,7 +71,8 @@ void opt_loop(trace_s *trace, int *regs) {
             new_entry = entry;
           }
           bool done = false;
-          for (auto &nentry : nsnap.slots) {
+	  for(uint64_t k = 0; j < arrlen(nsnap.slots); k++) {
+	    auto &nentry = nsnap.slots[k];
             if (nentry.slot == new_entry.slot) {
               nentry.val = new_entry.val;
               done = true;
@@ -77,7 +80,7 @@ void opt_loop(trace_s *trace, int *regs) {
             }
           }
           if (!done) {
-            nsnap.slots.push_back(new_entry);
+            arrput(nsnap.slots, (new_entry));
           }
         }
         arrput(trace->snaps, nsnap);
