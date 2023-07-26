@@ -80,7 +80,7 @@ void print_const_or_val(int i, trace_s *ctrace) {
 
 void dump_trace(trace_s *ctrace) {
   unsigned long cur_snap = 0;
-  for (size_t i = 0; i < ctrace->ops.size() + 1 /* extra snap */; i++) {
+  for (size_t i = 0; i < arrlen(ctrace->ops) + 1 /* extra snap */; i++) {
     // Print any snap
     while ((cur_snap < arrlen(ctrace->snaps)) &&
            ctrace->snaps[cur_snap].ir == i) {
@@ -95,7 +95,7 @@ void dump_trace(trace_s *ctrace) {
       printf("]\n");
       cur_snap++;
     }
-    if (i == ctrace->ops.size()) {
+    if (i == arrlen(ctrace->ops)) {
       break;
     }
 
@@ -182,6 +182,10 @@ void record_start(unsigned int *pc, long *frame) {
   trace = new trace_s;
   trace->num = traces.size();
   trace_state = START;
+  trace->ops = NULL;
+  trace->relocs = NULL;
+  trace->snaps = NULL;
+  trace->consts = NULL;
   func = (long)find_func_for_frame(pc);
   assert(func);
   printf("Record start %i at %s func %s\n", trace->num, ins_names[INS_OP(*pc)],
@@ -216,7 +220,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
     // opt_loop(trace, regs);
   }
 
-  // if (trace->ops.size() <= 3) {
+  // if (arrlen(trace->ops) <= 3) {
   //   printf("Record abort: trace too small\n");
   //   record_abort();
   //   return;
@@ -315,8 +319,8 @@ int record_stack_load(int slot, const long *frame) {
     }
     ins.type = IR_INS_TYPE_GUARD | type;
 
-    regs[slot] = trace->ops.size();
-    trace->ops.push_back(ins);
+    regs[slot] = arrlen(trace->ops);
+    arrput(trace->ops, ins);
   }
   return regs[slot];
 }
@@ -354,7 +358,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case FUNC: {
-    // if (trace->ops.size() == 0) {
+    // if (arrlen(trace->ops) == 0) {
     //   for(unsigned arg = 0; arg < INS_A(*pc); arg++) {
     // 	ir_ins ins;
     // 	ins.reg = REG_NONE;
@@ -364,8 +368,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // 	auto type = frame[arg] & 0x7;
     // 	ins.type = type;
 
-    // 	regs[arg] = trace->ops.size();
-    // 	trace->ops.push_back(ins);
+    // 	regs[arg] = arrlen(trace->ops);
+    // 	arrput(trace->ops, ins);
 
     //   }
     //}
@@ -422,7 +426,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
         ins.op2 = knum2 | IR_CONST_BIAS;
         ins.op = ir_ins_op::RET;
         ins.type = IR_INS_TYPE_GUARD | 0x5;
-        trace->ops.push_back(ins);
+        arrput(trace->ops, ins);
 
         add_snap(regs_list, regs - regs_list - 1, trace, (uint32_t*)frame[-1]);
         // TODO retdepth
@@ -469,7 +473,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op = ir_ins_op::EQ;
       // TODO magic number
       ins.type = IR_INS_TYPE_GUARD | 0x5;
-      trace->ops.push_back(ins);
+      arrput(trace->ops, ins);
     }
     long cnt = 0;
     auto *p_pc = (uint32_t *)frame[-1];
@@ -532,8 +536,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op2 = record_stack_load(INS_C(i), frame);
     ins.op = ir_ins_op::CLT;
     ins.type = 0; // TODO bool
-    regs[reg] = trace->ops.size();
-    trace->ops.push_back(ins);
+    regs[reg] = arrlen(trace->ops);
+    arrput(trace->ops, ins);
     break;
   }
   case JISF: {
@@ -551,7 +555,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op = ir_ins_op::NE;
     }
     ins.type = IR_INS_TYPE_GUARD;
-    trace->ops.push_back(ins);
+    arrput(trace->ops, ins);
     break;
   }
   case JISLT: {
@@ -570,7 +574,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
     ins.type = IR_INS_TYPE_GUARD;
-    trace->ops.push_back(ins);
+    arrput(trace->ops, ins);
     add_snap(regs_list, regs - regs_list - 1, trace, next_pc);
     break;
   }
@@ -590,7 +594,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
     ins.type = IR_INS_TYPE_GUARD;
-    trace->ops.push_back(ins);
+    arrput(trace->ops, ins);
     add_snap(regs_list, regs - regs_list - 1, trace, next_pc);
     break;
   }
@@ -610,7 +614,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
     ins.type = IR_INS_TYPE_GUARD;
-    trace->ops.push_back(ins);
+    arrput(trace->ops, ins);
     add_snap(regs_list, regs - regs_list - 1, trace, next_pc);
     break;
   }
@@ -636,8 +640,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op = ir_ins_op::CDR;
     }
     ins.type |= IR_INS_TYPE_GUARD;
-    regs[INS_A(i)] = trace->ops.size();
-    trace->ops.push_back(ins);
+    regs[INS_A(i)] = arrlen(trace->ops);
+    arrput(trace->ops, ins);
     break;
   }
   case JGUARD: {
@@ -674,7 +678,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op = ir_ins_op::ABC;
       ins.op1 = vec;
       ins.op2 = idx;
-      trace->ops.push_back(ins);
+      arrput(trace->ops, ins);
     }
 
     {
@@ -684,17 +688,17 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op1 = vec;
       ins.op2 = idx;
       ins.op = ir_ins_op::VREF;
-      trace->ops.push_back(ins);
+      arrput(trace->ops, ins);
     }
     
     {
       ir_ins ins;
       ins.type = 0;
       ins.reg = REG_NONE;
-      ins.op1 = trace->ops.size() - 1;
+      ins.op1 = arrlen(trace->ops) - 1;
       ins.op2 = obj;
       ins.op = ir_ins_op::STORE;
-      trace->ops.push_back(ins);
+      arrput(trace->ops, ins);
     }
 
     break;
@@ -710,7 +714,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op = ir_ins_op::ABC;
       ins.op1 = vec;
       ins.op2 = idx;
-      trace->ops.push_back(ins);
+      arrput(trace->ops, ins);
     }
 
     {
@@ -720,18 +724,18 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op1 = vec;
       ins.op2 = idx;
       ins.op = ir_ins_op::VREF;
-      trace->ops.push_back(ins);
+      arrput(trace->ops, ins);
     }
     
     {
       ir_ins ins;
       ins.type = 0;
       ins.reg = REG_NONE;
-      ins.op1 = trace->ops.size() - 1;
+      ins.op1 = arrlen(trace->ops) - 1;
       ins.op2 = idx;
       ins.op = ir_ins_op::LOAD;
-      regs[INS_A(i)] = trace->ops.size();
-      trace->ops.push_back(ins);
+      regs[INS_A(i)] = arrlen(trace->ops);
+      arrput(trace->ops, ins);
     }
 
     break;
@@ -748,10 +752,10 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op1 = sizeof(cons_s);
       ins.op2 = CONS_TAG;
       ins.op = ir_ins_op::ALLOC;
-      regs[INS_A(i)] = trace->ops.size();
-      trace->ops.push_back(ins);
+      regs[INS_A(i)] = arrlen(trace->ops);
+      arrput(trace->ops, ins);
     }
-    auto cell = trace->ops.size() - 1;
+    auto cell = arrlen(trace->ops) - 1;
     {
       ir_ins ins;
       ins.type = 0;
@@ -759,16 +763,16 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op1 = cell;
       ins.op2 = 8 - CONS_TAG;
       ins.op = ir_ins_op::REF;
-      trace->ops.push_back(ins);
+      arrput(trace->ops, ins);
     }
     {
       ir_ins ins;
       ins.type = 0;
       ins.reg = REG_NONE;
-      ins.op1 = trace->ops.size() - 1;
+      ins.op1 = arrlen(trace->ops) - 1;
       ins.op2 = a;
       ins.op = ir_ins_op::STORE;
-      trace->ops.push_back(ins);
+      arrput(trace->ops, ins);
     }
     {
       ir_ins ins;
@@ -777,16 +781,16 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op1 = cell;
       ins.op2 = 8 + 8 - CONS_TAG;
       ins.op = ir_ins_op::REF;
-      trace->ops.push_back(ins);
+      arrput(trace->ops, ins);
     }
     {
       ir_ins ins;
       ins.type = 0;
       ins.reg = REG_NONE;
-      ins.op1 = trace->ops.size() - 1;
+      ins.op1 = arrlen(trace->ops) - 1;
       ins.op2 = b;
       ins.op = ir_ins_op::STORE;
-      trace->ops.push_back(ins);
+      arrput(trace->ops, ins);
     }
     add_snap(regs_list, regs - regs_list - 1, trace, pc + 1);
 
@@ -803,7 +807,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     long gp = const_table[INS_D(i)];
     auto reg = INS_A(i);
     bool done = false;
-    for (int j = trace->ops.size() - 1; j >= 0; j--) {
+    for (int j = arrlen(trace->ops) - 1; j >= 0; j--) {
       auto &op = trace->ops[j];
       if (op.op == ir_ins_op::GGET &&
           trace->consts[op.op1 - IR_CONST_BIAS] == gp) {
@@ -820,8 +824,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op1 = knum | IR_CONST_BIAS;
       ins.op = ir_ins_op::GGET;
       ins.type = IR_INS_TYPE_GUARD | (((symbol *)(gp - SYMBOL_TAG))->val & 0x7);
-      regs[reg] = trace->ops.size();
-      trace->ops.push_back(ins);
+      regs[reg] = arrlen(trace->ops);
+      arrput(trace->ops, ins);
     }
     break;
   }
@@ -835,8 +839,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op = ir_ins_op::SUB;
     ins.type = IR_INS_TYPE_GUARD;
     auto reg = INS_A(i);
-    regs[reg] = trace->ops.size();
-    trace->ops.push_back(ins);
+    regs[reg] = arrlen(trace->ops);
+    arrput(trace->ops, ins);
     break;
   }
   case ADDVN: {
@@ -849,8 +853,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op = ir_ins_op::ADD;
     ins.type = IR_INS_TYPE_GUARD;
     auto reg = INS_A(i);
-    regs[reg] = trace->ops.size();
-    trace->ops.push_back(ins);
+    regs[reg] = arrlen(trace->ops);
+    arrput(trace->ops, ins);
     break;
   }
   case ADDVV: {
@@ -868,8 +872,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     ins.type = IR_INS_TYPE_GUARD | type;
     auto reg = INS_A(i);
-    regs[reg] = trace->ops.size();
-    trace->ops.push_back(ins);
+    regs[reg] = arrlen(trace->ops);
+    arrput(trace->ops, ins);
     break;
   }
   case SUBVV: {
@@ -887,8 +891,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     ins.type = IR_INS_TYPE_GUARD | type;
     auto reg = INS_A(i);
-    regs[reg] = trace->ops.size();
-    trace->ops.push_back(ins);
+    regs[reg] = arrlen(trace->ops);
+    arrput(trace->ops, ins);
     break;
   }
   case CALLT: {
@@ -904,7 +908,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op = ir_ins_op::EQ;
       // TODO magic number
       ins.type = IR_INS_TYPE_GUARD | 0x5;
-      trace->ops.push_back(ins);
+      arrput(trace->ops, ins);
     }
     // Move args down
     // TODO also chedck func

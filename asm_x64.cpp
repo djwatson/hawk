@@ -438,7 +438,7 @@ extern "C" void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     //     {
     //       std::multimap<uint64_t, uint64_t> moves;
     //       std::vector<std::pair<int, uint16_t>> consts;
-    //       for (size_t op_cnt2 = 0; op_cnt2 < otrace->ops.size(); op_cnt2++) {
+    //       for (size_t op_cnt2 = 0; op_cnt2 < arrlen(otrace->ops); op_cnt2++) {
     // 	auto&op = otrace->ops[op_cnt2];
     // 	// TODO parent type
     // 	if (op.op != ir_ins_op::ARG) {
@@ -477,7 +477,7 @@ extern "C" void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
   // Main generation loop
   long cur_snap = arrlen(trace->snaps) - 1;
-  long op_cnt = trace->ops.size() - 1;
+  long op_cnt = arrlen(trace->ops) - 1;
   assign_snap_registers(cur_snap, slot, trace);
   for (; op_cnt >= 0; op_cnt--) {
     while (cur_snap >= 0 && trace->snaps[cur_snap].ir > op_cnt) {
@@ -747,7 +747,8 @@ extern "C" int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
   exit_state state;
   auto *trace = trace_cache_get(tnum);
 
-  for (auto &op : trace->ops) {
+  for (uint64_t i = 0; i < arrlen(trace->ops); i++) {
+    auto&op = trace->ops[i];
     if (op.op != ir_ins_op::ARG) {
       break;
     }

@@ -10,16 +10,17 @@
 void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc) {
   // No need for duplicate snaps.
   if ((arrlen(trace->snaps) != 0) &&
-      trace->snaps[arrlen(trace->snaps) - 1].ir == trace->ops.size() &&
+      trace->snaps[arrlen(trace->snaps) - 1].ir == arrlen(trace->ops) &&
       trace->snaps[arrlen(trace->snaps) - 1].pc == pc) {
     return;
   }
   snap_s snap;
-  snap.ir = trace->ops.size();
+  snap.ir = arrlen(trace->ops);
   snap.pc = pc;
   snap.offset = offset;
   snap.exits = 0;
   snap.link = -1;
+  snap.slots = NULL;
   // TODO fix regs size/boj to vec?
   for (int i = 0; i < 257; i++) {
     if (regs[i] != -1) {
@@ -52,7 +53,7 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
       // printf("Snap replay const %i %i\n", slot.slot, c);
     } else {
       // printf("Snap replay sload %i %i %li ptr %lx op %i\n", slot.slot,
-      // slot.val, frame[slot.slot], &frame[slot.val], trace->ops.size());
+      // slot.val, frame[slot.slot], &frame[slot.val], arrlen(trace->ops));
       //  Emit load
       ir_ins ins;
       ins.reg = REG_NONE;
@@ -61,8 +62,8 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
       // TODO PARENT type, maybe inherit?
       auto type = frame[slot.slot] & 0x7;
       ins.type = type;
-      (*regs)[slot.slot] = trace->ops.size();
-      trace->ops.push_back(ins);
+      (*regs)[slot.slot] = arrlen(trace->ops);
+      arrput(trace->ops, ins);
     }
   }
   *regs = *regs + snap->offset;

@@ -8,7 +8,7 @@
 #include "third-party/stb_ds.h"
 
 void opt_loop(trace_s *trace, int *regs) {
-  auto cut = trace->ops.size();
+  auto cut = arrlen(trace->ops);
   auto snap_cut = arrlen(trace->snaps);
   uint16_t replace[cut * 2 + 1];
   for (unsigned i = 0; i < cut * 2 + 1; i++) {
@@ -19,7 +19,7 @@ void opt_loop(trace_s *trace, int *regs) {
     ir_ins ins;
     ins.reg = REG_NONE;
     ins.op = ir_ins_op::LOOP;
-    trace->ops.push_back(ins);
+    arrput(trace->ops, ins);
   }
 
   std::vector<size_t> phis;
@@ -33,10 +33,10 @@ void opt_loop(trace_s *trace, int *regs) {
         ins.op = ir_ins_op::PHI;
         ins.op1 = replace[phi];
         ins.op2 = replace[regs[trace->ops[phi].op1]];
-        regs[trace->ops[phi].op1] = trace->ops.size();
-        replace[ins.op2] = trace->ops.size();
-        replace[ins.op1] = trace->ops.size();
-        trace->ops.push_back(ins);
+        regs[trace->ops[phi].op1] = arrlen(trace->ops);
+        replace[ins.op2] = arrlen(trace->ops);
+        replace[ins.op1] = arrlen(trace->ops);
+        arrput(trace->ops, ins);
       }
     }
     // Emit snaps, including any final snaps.
@@ -46,7 +46,7 @@ void opt_loop(trace_s *trace, int *regs) {
 
       if (cur_snap != 0) {
         snap_s nsnap;
-        nsnap.ir = trace->ops.size();
+        nsnap.ir = arrlen(trace->ops);
         nsnap.pc = snap.pc;
         nsnap.offset = snap.offset;
         nsnap.exits = 0;
@@ -97,7 +97,7 @@ void opt_loop(trace_s *trace, int *regs) {
     case ir_ins_op::SLOAD: {
       assert(regs[ins.op1] >= 0);
       replace[i] = regs[ins.op1];
-      printf("Potential phi: %zu %zu\n", i, trace->ops.size());
+      printf("Potential phi: %zu %zu\n", i, arrlen(trace->ops));
       phis.push_back(i);
       break;
     }
@@ -113,8 +113,8 @@ void opt_loop(trace_s *trace, int *regs) {
       if (copy.op2 < IR_CONST_BIAS) {
         copy.op2 = replace[copy.op2];
       }
-      replace[i] = trace->ops.size();
-      trace->ops.push_back(copy);
+      replace[i] = arrlen(trace->ops);
+      arrput(trace->ops, copy);
       break;
     }
     case ir_ins_op::GGET: {
@@ -122,13 +122,13 @@ void opt_loop(trace_s *trace, int *regs) {
       if (copy.op1 < IR_CONST_BIAS) {
         copy.op1 = replace[copy.op1];
       }
-      replace[i] = trace->ops.size();
-      trace->ops.push_back(copy);
+      replace[i] = arrlen(trace->ops);
+      arrput(trace->ops, copy);
       break;
     }
     default: {
       printf("Can't loop ir type: %s\n", ir_names[(int)ins.op]);
-      trace->ops.resize(cut);
+      arrsetlen(trace->ops, cut);
       arrsetlen(trace->snaps, snap_cut);
       return;
     }

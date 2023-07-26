@@ -101,7 +101,7 @@ struct reloc {
 
 typedef long (*Func)(long **, unsigned int **);
 typedef struct trace_s {
-  std::vector<ir_ins> ops;
+  ir_ins* ops;
   long* consts;
   reloc* relocs;
   snap_s* snaps;
