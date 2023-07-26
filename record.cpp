@@ -410,10 +410,10 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
           regs[j] = -1;
         }
 
-        auto knum = trace->consts.size();
-        trace->consts.push_back((long)old_pc | SNAP_FRAME);
-        auto knum2 = trace->consts.size();
-        trace->consts.push_back((frame_off + 1) << 3);
+        auto knum = arrlen(trace->consts);
+        arrput(trace->consts, (long)old_pc | SNAP_FRAME);
+        auto knum2 = arrlen(trace->consts);
+        arrput(trace->consts, (frame_off + 1) << 3);
         ir_ins ins;
         ins.reg = REG_NONE;
         ins.op1 = knum | IR_CONST_BIAS;
@@ -459,8 +459,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // Check call type
     {
       auto v = frame[INS_A(i) + 1];
-      auto knum = trace->consts.size();
-      trace->consts.push_back(v);
+      auto knum = arrlen(trace->consts);
+      arrput(trace->consts, v);
       ir_ins ins;
       ins.reg = REG_NONE;
       ins.op1 = record_stack_load(INS_A(i) + 1, frame);
@@ -483,8 +483,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     depth++;
     // Push PC link as const
     {
-      auto knum = trace->consts.size();
-      trace->consts.push_back(((long)(pc + 1)) | SNAP_FRAME);
+      auto knum = arrlen(trace->consts);
+      arrput(trace->consts, ((long)(pc + 1)) | SNAP_FRAME);
       regs[INS_A(i)] = knum | IR_CONST_BIAS; // TODO set PC
     }
 
@@ -518,8 +518,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case KSHORT: {
     auto k = INS_D(i) << 3;
     auto reg = INS_A(i);
-    regs[reg] = trace->consts.size() | IR_CONST_BIAS;
-    trace->consts.push_back(k);
+    regs[reg] = arrlen(trace->consts) | IR_CONST_BIAS;
+    arrput(trace->consts, k);
     break;
   }
   case ISLT: {
@@ -541,8 +541,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ir_ins ins;
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
-    auto knum = trace->consts.size();
-    trace->consts.push_back(FALSE_REP);
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, FALSE_REP);
     ins.op2 = knum | IR_CONST_BIAS;
     if (frame[INS_B(i)] == FALSE_REP) {
       ins.op = ir_ins_op::EQ;
@@ -656,8 +656,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case KONST: {
     auto k = const_table[INS_D(i)];
     auto reg =  INS_A(i);
-    auto knum = trace->consts.size();
-    trace->consts.push_back(k);
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, k);
     regs[reg] = IR_CONST_BIAS + knum;
     break;
   }
@@ -812,8 +812,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       }
     }
     if (!done) {
-      auto knum = trace->consts.size();
-      trace->consts.push_back(gp);
+      auto knum = arrlen(trace->consts);
+      arrput(trace->consts, gp);
       ir_ins ins;
       ins.reg = REG_NONE;
       ins.op1 = knum | IR_CONST_BIAS;
@@ -827,8 +827,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case SUBVN: {
     ir_ins ins;
     ins.reg = REG_NONE;
-    auto knum = trace->consts.size();
-    trace->consts.push_back(INS_C(i) << 3);
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, INS_C(i) << 3);
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = knum | IR_CONST_BIAS;
     ins.op = ir_ins_op::SUB;
@@ -841,8 +841,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case ADDVN: {
     ir_ins ins;
     ins.reg = REG_NONE;
-    auto knum = trace->consts.size();
-    trace->consts.push_back(INS_C(i) << 3);
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, INS_C(i) << 3);
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = knum | IR_CONST_BIAS;
     ins.op = ir_ins_op::ADD;
@@ -894,8 +894,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // Check call type
     {
       auto v = frame[INS_A(i) + 1];
-      auto knum = trace->consts.size();
-      trace->consts.push_back(v);
+      auto knum = arrlen(trace->consts);
+      arrput(trace->consts, v);
       ir_ins ins;
       ins.reg = REG_NONE;
       ins.op1 = record_stack_load(INS_A(i) + 1, frame);
@@ -924,8 +924,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto fb = frame[INS_B(i)];
     auto closure = (closure_s*)(fb-CLOSURE_TAG);
      
-    auto knum = trace->consts.size();
-    trace->consts.push_back(closure->v[1 + INS_C(i)]);
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, closure->v[1 + INS_C(i)]);
     regs[INS_A(i)] = knum | IR_CONST_BIAS;
     break;
   }    

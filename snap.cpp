@@ -45,8 +45,8 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
         depth++;
       }
       // Push const in new trace
-      auto knum = trace->consts.size();
-      trace->consts.push_back(c);
+      auto knum = arrlen(trace->consts);
+      arrput(trace->consts, c);
       (*regs)[slot.slot] = knum | IR_CONST_BIAS;
       // printf("Snap replay const %i %i\n", slot.slot, c);
     } else {
