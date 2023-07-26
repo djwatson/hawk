@@ -1,11 +1,9 @@
 #include "asm_x64.h" // for REG_NONE
 #include "ir.h"      // for snap_s, snap_entry_s, ir_ins, trace_s, IR_CONST...
-#include <cstdint>   // for uint32_t
-#include <cstdio>    // for printf
-#include <memory>    // for allocator_traits<>::value_type
-#include <utility>   // for move
-#include <vector>    // for vector
+#include <stdint.h>   // for uint32_t
+#include <stdio.h>    // for printf
 #include "third-party/stb_ds.h"
+#define auto __auto_type
 
 void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc) {
   // No need for duplicate snaps.
@@ -40,29 +38,29 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
   int depth = 0;
   frame -= snap->offset;
   for(uint64_t i = 0; i < arrlen(snap->slots); i++) {
-    auto&slot = snap->slots[i];
-    if ((slot.val & IR_CONST_BIAS) != 0) {
-      auto c = parent->consts[slot.val - IR_CONST_BIAS];
+    auto slot = &snap->slots[i];
+    if ((slot->val & IR_CONST_BIAS) != 0) {
+      auto c = parent->consts[slot->val - IR_CONST_BIAS];
       if ((c & SNAP_FRAME) != 0u) {
         depth++;
       }
       // Push const in new trace
       auto knum = arrlen(trace->consts);
       arrput(trace->consts, c);
-      (*regs)[slot.slot] = knum | IR_CONST_BIAS;
-      // printf("Snap replay const %i %i\n", slot.slot, c);
+      (*regs)[slot->slot] = knum | IR_CONST_BIAS;
+      // printf("Snap replay const %i %i\n", slot->slot, c);
     } else {
-      // printf("Snap replay sload %i %i %li ptr %lx op %i\n", slot.slot,
-      // slot.val, frame[slot.slot], &frame[slot.val], arrlen(trace->ops));
+      // printf("Snap replay sload %i %i %li ptr %lx op %i\n", slot->slot,
+      // slot->val, frame[slot->slot], &frame[slot->val], arrlen(trace->ops));
       //  Emit load
       ir_ins ins;
       ins.reg = REG_NONE;
-      ins.op1 = slot.slot;
+      ins.op1 = slot->slot;
       ins.op = IR_SLOAD;
       // TODO PARENT type, maybe inherit?
-      auto type = frame[slot.slot] & 0x7;
+      auto type = frame[slot->slot] & 0x7;
       ins.type = type;
-      (*regs)[slot.slot] = arrlen(trace->ops);
+      (*regs)[slot->slot] = arrlen(trace->ops);
       arrput(trace->ops, ins);
     }
   }
