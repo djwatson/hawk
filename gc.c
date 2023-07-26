@@ -3,34 +3,35 @@
 #include "ir.h"           // for reloc, trace_s, RELOC_ABS, RELOC_SYM_ABS
 #include "symbol_table.h" // for sym_table, table, TOMBSTONE
 #include "types.h"        // for TAG_MASK, FORWARD_TAG, SYMBOL_TAG, symbol
-#include <cassert>        // for assert
-#include <cstdint>        // for uint8_t, int64_t
-#include <cstdio>         // for printf
-#include <cstdlib>        // for free, realloc
-#include <cstring>        // for memcpy
+#include <assert.h>        // for assert
+#include <stdint.h>        // for uint8_t, int64_t
+#include <stdio.h>         // for printf
+#include <stdlib.h>        // for free, realloc
+#include <string.h>        // for memcpy
 #include <sys/mman.h>     // for mprotect, mmap, PROT_NONE, PROT_READ, PROT...
-#include <vector>         // for vector
 #include <third-party/stb_ds.h>
+
+#define auto __auto_type
 
 extern long *stack;
 extern unsigned int stacksz;
 
 static bool gc_enable = true;
 
-uint8_t *alloc_ptr = nullptr;
-uint8_t *alloc_end = nullptr;
+uint8_t *alloc_ptr = NULL;
+uint8_t *alloc_end = NULL;
 
 long ** pushed_roots;
 
-extern "C" void GC_push_root(long *root) { arrput(pushed_roots, root); }
+void GC_push_root(long *root) { arrput(pushed_roots, root); }
 
-extern "C" void GC_pop_root(const long *root) {
+void GC_pop_root(const long *root) {
   assert(arrlen(pushed_roots) != 0);
   auto b = arrpop(pushed_roots);
   assert(b == root);
 }
 
-extern "C" void GC_enable(bool en) { gc_enable = en; }
+void GC_enable(bool en) { gc_enable = en; }
 
 static bool is_forwarded(long obj) {
   auto *ptr = (long *)obj;
@@ -175,22 +176,22 @@ static void visit_trace(trace_s *t) {
     }
   }
   for(uint64_t i = 0; i < arrlen(t->relocs); i++) {
-    auto &reloc = t->relocs[i];
-    auto old = reloc.obj;
-    visit(&reloc.obj);
-    if (reloc.obj != old) {
-      switch (reloc.type) {
+    auto reloc = &t->relocs[i];
+    auto old = reloc->obj;
+    visit(&reloc->obj);
+    if (reloc->obj != old) {
+      switch (reloc->type) {
       case RELOC_ABS: {
-        *(int64_t *)(reloc.offset - 8) = reloc.obj;
+        *(int64_t *)(reloc->offset - 8) = reloc->obj;
         break;
       }
       case RELOC_SYM_ABS: {
-        auto *sym = (symbol *)(reloc.obj - SYMBOL_TAG);
-        *(int64_t *)(reloc.offset - 8) = (int64_t) & (sym->val);
+        auto *sym = (symbol *)(reloc->obj - SYMBOL_TAG);
+        *(int64_t *)(reloc->offset - 8) = (int64_t) & (sym->val);
         break;
       }
       default: {
-        printf("Unknown reloc: %i\n", reloc.type);
+        printf("Unknown reloc: %i\n", reloc->type);
         assert(false);
       }
       }
@@ -224,8 +225,8 @@ static void trace_roots() {
   }
   // printf("Scan symbol table...\n");
   for (size_t i = 0; i < sym_table->sz; i++) {
-    auto &cur = sym_table->entries[i];
-    if (cur != nullptr && cur != TOMBSTONE) {
+    auto cur = &sym_table->entries[i];
+    if (*cur != NULL && *cur != TOMBSTONE) {
       auto *tmp = (long *)&sym_table->entries[i];
       *tmp += SYMBOL_TAG;
       visit(tmp);
@@ -240,7 +241,7 @@ static void trace_roots() {
     visit_trace(t);
   }
   // Scan currently in-progress trace
-  if (trace != nullptr) {
+  if (trace != NULL) {
     //printf("Visit in progress trace\n");
     visit_trace(trace);
   }
@@ -254,12 +255,12 @@ static void trace_roots() {
 //size_t page_cnt = 500000; // Approx 2GB
 extern size_t page_cnt;
 size_t alloc_sz;
-uint8_t *to_space = nullptr;
-uint8_t *from_space = nullptr;
+uint8_t *to_space = NULL;
+uint8_t *from_space = NULL;
 
-extern "C" void GC_init() {
+void GC_init() {
   alloc_sz = 4096 * page_cnt;
-  from_space = (uint8_t *)mmap(nullptr, alloc_sz * 2, PROT_READ | PROT_WRITE,
+  from_space = (uint8_t *)mmap(NULL, alloc_sz * 2, PROT_READ | PROT_WRITE,
                                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   assert(from_space);
   alloc_ptr = from_space;
@@ -278,7 +279,7 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   }
   // printf("Collecting...\n");
 
-  assert(gc_enable || alloc_end == nullptr);
+  assert(gc_enable || alloc_end == NULL);
   mprotect(to_space, alloc_sz, PROT_READ | PROT_WRITE);
   // flip
   // alloc_ptr = (uint8_t*)malloc(alloc_sz);
@@ -312,7 +313,7 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   return res;
 }
 
-extern "C" __attribute__((always_inline)) void *GC_malloc(size_t sz) {
+__attribute__((always_inline)) void *GC_malloc(size_t sz) {
   sz = (sz + 7) & (~TAG_MASK);
   assert((sz & TAG_MASK) == 0);
   auto *res = alloc_ptr;
@@ -323,9 +324,9 @@ extern "C" __attribute__((always_inline)) void *GC_malloc(size_t sz) {
   return GC_malloc_slow(sz);
 }
 
-extern "C" void *GC_realloc(void *ptr, size_t sz) {
+void *GC_realloc(void *ptr, size_t sz) {
   // TODO zero-mem
   return realloc(ptr, sz);
 }
 
-extern "C" void GC_free(void *ptr) { free(ptr); }
+void GC_free(void *ptr) { free(ptr); }

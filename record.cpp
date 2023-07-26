@@ -120,47 +120,47 @@ void dump_trace(trace_s *ctrace) {
     }
     printf("%s ", ir_names[(int)op.op]);
     switch (op.op) {
-    case ir_ins_op::CAR:
-    case ir_ins_op::CDR:
-    case ir_ins_op::KFIX:
-    case ir_ins_op::ARG:
-    case ir_ins_op::SLOAD: {
+    case IR_CAR:
+    case IR_CDR:
+    case IR_KFIX:
+    case IR_ARG:
+    case IR_SLOAD: {
       print_const_or_val(op.op1, ctrace);
       break;
     }
-    case ir_ins_op::GGET: {
+    case IR_GGET: {
       auto *s = (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       printf("%s", s->name->str);
       break;
     }
-    case ir_ins_op::ALLOC: {
+    case IR_ALLOC: {
       printf("%i type %i", op.op1, op.op2);
       break;
     }
-    case ir_ins_op::RET:
-    case ir_ins_op::PHI:
-    case ir_ins_op::SUB:
-    case ir_ins_op::ADD:
-    case ir_ins_op::EQ:
-    case ir_ins_op::NE:
-    case ir_ins_op::GE:
-    case ir_ins_op::LT:
-    case ir_ins_op::STORE:
-    case ir_ins_op::LOAD:
-    case ir_ins_op::ABC:
-    case ir_ins_op::VREF:
-    case ir_ins_op::CLT: {
+    case IR_RET:
+    case IR_PHI:
+    case IR_SUB:
+    case IR_ADD:
+    case IR_EQ:
+    case IR_NE:
+    case IR_GE:
+    case IR_LT:
+    case IR_STORE:
+    case IR_LOAD:
+    case IR_ABC:
+    case IR_VREF:
+    case IR_CLT: {
       print_const_or_val(op.op1, ctrace);
       printf(" ");
       print_const_or_val(op.op2, ctrace);
       break;
     }
-    case ir_ins_op::REF: {
+    case IR_REF: {
       print_const_or_val(op.op1, ctrace);
       printf(" offset %i", op.op2);
       break;
     }
-    case ir_ins_op::LOOP: {
+    case IR_LOOP: {
       printf("----------------");
       break;
     }
@@ -186,6 +186,7 @@ void record_start(unsigned int *pc, long *frame) {
   trace->relocs = NULL;
   trace->snaps = NULL;
   trace->consts = NULL;
+  trace->fn = NULL;
   func = (long)find_func_for_frame(pc);
   assert(func);
   printf("Record start %i at %s func %s\n", trace->num, ins_names[INS_OP(*pc)],
@@ -306,7 +307,7 @@ int record_stack_load(int slot, const long *frame) {
     ir_ins ins;
     ins.reg = REG_NONE;
     ins.op1 = slot;
-    ins.op = ir_ins_op::SLOAD;
+    ins.op = IR_SLOAD;
     // Guard on type
     auto type = frame[slot] & 0x7;
     if (type == LITERAL_TAG) {
@@ -364,7 +365,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // 	ir_ins ins;
     // 	ins.reg = REG_NONE;
     // 	ins.op1 = arg;
-    // 	ins.op = ir_ins_op::ARG;
+    // 	ins.op = IR_ARG;
     // 	// Guard on type
     // 	auto type = frame[arg] & 0x7;
     // 	ins.type = type;
@@ -425,7 +426,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
         ins.op1 = knum | IR_CONST_BIAS;
         // TODO this isn't a runtime const?  can gen directly from PC?
         ins.op2 = knum2 | IR_CONST_BIAS;
-        ins.op = ir_ins_op::RET;
+        ins.op = IR_RET;
         ins.type = IR_INS_TYPE_GUARD | 0x5;
         arrput(trace->ops, ins);
 
@@ -471,7 +472,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.reg = REG_NONE;
       ins.op1 = record_stack_load(INS_A(i) + 1, frame);
       ins.op2 = knum | IR_CONST_BIAS;
-      ins.op = ir_ins_op::EQ;
+      ins.op = IR_EQ;
       // TODO magic number
       ins.type = IR_INS_TYPE_GUARD | 0x5;
       arrput(trace->ops, ins);
@@ -535,7 +536,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
-    ins.op = ir_ins_op::CLT;
+    ins.op = IR_CLT;
     ins.type = 0; // TODO bool
     regs[reg] = arrlen(trace->ops);
     arrput(trace->ops, ins);
@@ -551,9 +552,9 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     arrput(trace->consts, FALSE_REP);
     ins.op2 = knum | IR_CONST_BIAS;
     if (frame[INS_B(i)] == FALSE_REP) {
-      ins.op = ir_ins_op::EQ;
+      ins.op = IR_EQ;
     } else {
-      ins.op = ir_ins_op::NE;
+      ins.op = IR_NE;
     }
     ins.type = IR_INS_TYPE_GUARD;
     arrput(trace->ops, ins);
@@ -566,11 +567,11 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op2 = record_stack_load(INS_C(i), frame);
     uint32_t* next_pc;
     if (frame[INS_B(i)] < frame[INS_C(i)]) {
-      ins.op = ir_ins_op::LT;
+      ins.op = IR_LT;
       add_snap(regs_list, regs - regs_list - 1, trace, pc + INS_D(*(pc + 1)) + 1);
       next_pc = pc + 2;
     } else {
-      ins.op = ir_ins_op::GE;
+      ins.op = IR_GE;
       add_snap(regs_list, regs - regs_list - 1, trace, pc + 2);
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
@@ -586,11 +587,11 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op2 = record_stack_load(INS_C(i), frame);
     uint32_t* next_pc;
     if (frame[INS_B(i)] >= frame[INS_C(i)]) {
-      ins.op = ir_ins_op::LT;
+      ins.op = IR_LT;
       add_snap(regs_list, regs - regs_list - 1, trace, pc + INS_D(*(pc + 1)) + 1);
       next_pc = pc + 2;
     } else {
-      ins.op = ir_ins_op::GE;
+      ins.op = IR_GE;
       add_snap(regs_list, regs - regs_list - 1, trace, pc + 2);
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
@@ -606,11 +607,11 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op2 = record_stack_load(INS_C(i), frame);
     uint32_t* next_pc;
     if (frame[INS_B(i)] == frame[INS_C(i)]) {
-      ins.op = ir_ins_op::EQ;
+      ins.op = IR_EQ;
       add_snap(regs_list, regs - regs_list - 1, trace, pc + INS_D(*(pc + 1)) + 1);
       next_pc = pc + 2;
     } else {
-      ins.op = ir_ins_op::NE;
+      ins.op = IR_NE;
       add_snap(regs_list, regs - regs_list - 1, trace, pc + 2);
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
@@ -632,13 +633,13 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       if (ins.type == LITERAL_TAG) {
 	ins.type = ((cons_s*)(frame[INS_B(i)] - CONS_TAG))->a & IMMEDIATE_MASK;
       }
-      ins.op = ir_ins_op::CAR;
+      ins.op = IR_CAR;
     } else {
       ins.type = ((cons_s*)(frame[INS_B(i)] - CONS_TAG))->b & TAG_MASK;
       if (ins.type == LITERAL_TAG) {
 	ins.type = ((cons_s*)(frame[INS_B(i)] - CONS_TAG))->b & IMMEDIATE_MASK;
       }
-      ins.op = ir_ins_op::CDR;
+      ins.op = IR_CDR;
     }
     ins.type |= IR_INS_TYPE_GUARD;
     regs[INS_A(i)] = arrlen(trace->ops);
@@ -676,7 +677,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   //     ir_ins ins;
   //     ins.type = 0;
   //     ins.reg = REG_NONE;
-  //     ins.op = ir_ins_op::ABC;
+  //     ins.op = IR_ABC;
   //     ins.op1 = vec;
   //     ins.op2 = idx;
   //     arrput(trace->ops, ins);
@@ -688,7 +689,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   //     ins.reg = REG_NONE;
   //     ins.op1 = vec;
   //     ins.op2 = idx;
-  //     ins.op = ir_ins_op::VREF;
+  //     ins.op = IR_VREF;
   //     arrput(trace->ops, ins);
   //   }
     
@@ -698,7 +699,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   //     ins.reg = REG_NONE;
   //     ins.op1 = arrlen(trace->ops) - 1;
   //     ins.op2 = obj;
-  //     ins.op = ir_ins_op::STORE;
+  //     ins.op = IR_STORE;
   //     arrput(trace->ops, ins);
   //   }
 
@@ -712,7 +713,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   //     ir_ins ins;
   //     ins.type = 0;
   //     ins.reg = REG_NONE;
-  //     ins.op = ir_ins_op::ABC;
+  //     ins.op = IR_ABC;
   //     ins.op1 = vec;
   //     ins.op2 = idx;
   //     arrput(trace->ops, ins);
@@ -724,7 +725,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   //     ins.reg = REG_NONE;
   //     ins.op1 = vec;
   //     ins.op2 = idx;
-  //     ins.op = ir_ins_op::VREF;
+  //     ins.op = IR_VREF;
   //     arrput(trace->ops, ins);
   //   }
     
@@ -734,7 +735,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   //     ins.reg = REG_NONE;
   //     ins.op1 = arrlen(trace->ops) - 1;
   //     ins.op2 = idx;
-  //     ins.op = ir_ins_op::LOAD;
+  //     ins.op = IR_LOAD;
   //     regs[INS_A(i)] = arrlen(trace->ops);
   //     arrput(trace->ops, ins);
   //   }
@@ -752,7 +753,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.reg = REG_NONE;
       ins.op1 = sizeof(cons_s);
       ins.op2 = CONS_TAG;
-      ins.op = ir_ins_op::ALLOC;
+      ins.op = IR_ALLOC;
       regs[INS_A(i)] = arrlen(trace->ops);
       arrput(trace->ops, ins);
     }
@@ -763,7 +764,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.reg = REG_NONE;
       ins.op1 = cell;
       ins.op2 = 8 - CONS_TAG;
-      ins.op = ir_ins_op::REF;
+      ins.op = IR_REF;
       arrput(trace->ops, ins);
     }
     {
@@ -772,7 +773,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.reg = REG_NONE;
       ins.op1 = arrlen(trace->ops) - 1;
       ins.op2 = a;
-      ins.op = ir_ins_op::STORE;
+      ins.op = IR_STORE;
       arrput(trace->ops, ins);
     }
     {
@@ -781,7 +782,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.reg = REG_NONE;
       ins.op1 = cell;
       ins.op2 = 8 + 8 - CONS_TAG;
-      ins.op = ir_ins_op::REF;
+      ins.op = IR_REF;
       arrput(trace->ops, ins);
     }
     {
@@ -790,7 +791,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.reg = REG_NONE;
       ins.op1 = arrlen(trace->ops) - 1;
       ins.op2 = b;
-      ins.op = ir_ins_op::STORE;
+      ins.op = IR_STORE;
       arrput(trace->ops, ins);
     }
     add_snap(regs_list, regs - regs_list - 1, trace, pc + 1);
@@ -810,7 +811,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     bool done = false;
     for (int j = arrlen(trace->ops) - 1; j >= 0; j--) {
       auto &op = trace->ops[j];
-      if (op.op == ir_ins_op::GGET &&
+      if (op.op == IR_GGET &&
           trace->consts[op.op1 - IR_CONST_BIAS] == gp) {
         done = true;
         regs[reg] = j;
@@ -823,7 +824,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ir_ins ins;
       ins.reg = REG_NONE;
       ins.op1 = knum | IR_CONST_BIAS;
-      ins.op = ir_ins_op::GGET;
+      ins.op = IR_GGET;
       ins.type = IR_INS_TYPE_GUARD | (((symbol *)(gp - SYMBOL_TAG))->val & 0x7);
       regs[reg] = arrlen(trace->ops);
       arrput(trace->ops, ins);
@@ -837,7 +838,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     arrput(trace->consts, INS_C(i) << 3);
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = knum | IR_CONST_BIAS;
-    ins.op = ir_ins_op::SUB;
+    ins.op = IR_SUB;
     ins.type = IR_INS_TYPE_GUARD;
     auto reg = INS_A(i);
     regs[reg] = arrlen(trace->ops);
@@ -851,7 +852,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     arrput(trace->consts, INS_C(i) << 3);
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = knum | IR_CONST_BIAS;
-    ins.op = ir_ins_op::ADD;
+    ins.op = IR_ADD;
     ins.type = IR_INS_TYPE_GUARD;
     auto reg = INS_A(i);
     regs[reg] = arrlen(trace->ops);
@@ -863,7 +864,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
-    ins.op = ir_ins_op::ADD;
+    ins.op = IR_ADD;
     // TODO: Assume no type change??
     uint8_t type = 0;
     if (ins.op1 >= IR_CONST_BIAS) {
@@ -882,7 +883,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = record_stack_load(INS_C(i), frame);
-    ins.op = ir_ins_op::SUB;
+    ins.op = IR_SUB;
     // TODO: Assume no type change??
     uint8_t type = 0;
     if (ins.op1 >= IR_CONST_BIAS) {
@@ -906,7 +907,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.reg = REG_NONE;
       ins.op1 = record_stack_load(INS_A(i) + 1, frame);
       ins.op2 = knum | IR_CONST_BIAS;
-      ins.op = ir_ins_op::EQ;
+      ins.op = IR_EQ;
       // TODO magic number
       ins.type = IR_INS_TYPE_GUARD | 0x5;
       arrput(trace->ops, ins);

@@ -1,7 +1,6 @@
 #pragma once
 
-struct snap_s;
-struct trace_s;
+#include "ir.h"
 
 #ifdef __cplusplus
 extern "C" {

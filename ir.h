@@ -2,47 +2,45 @@
 
 #include <stdint.h>
 
-#include <vector>
-
 // clang-format off
-enum class ir_ins_op : uint8_t {
-  LT,
-  GE,
-  LE,
-  GT,
+typedef enum {
+  IR_LT,
+  IR_GE,
+  IR_LE,
+  IR_GT,
 
-  CLT,
+  IR_CLT,
 
-  EQ,
-  NE,
-  NOP,
-  KFIX,
-  KFUNC,
-  GGET,
-  RET,
-  CALL,
-  SLOAD,
-  ARG,
+  IR_EQ,
+  IR_NE,
+  IR_NOP,
+  IR_KFIX,
+  IR_KFUNC,
+  IR_GGET,
+  IR_RET,
+  IR_CALL,
+  IR_SLOAD,
+  IR_ARG,
 
-  ADD,
-  SUB,
-  MUL,
-  DIV,
+  IR_ADD,
+  IR_SUB,
+  IR_MUL,
+  IR_DIV,
 
-  LOOP,
-  PHI,
+  IR_LOOP,
+  IR_PHI,
 
-  CAR,
-  CDR,
+  IR_CAR,
+  IR_CDR,
     
-  ALLOC,
-  REF,
-  VREF,
-  STORE,
-  LOAD,
+  IR_ALLOC,
+  IR_REF,
+  IR_VREF,
+  IR_STORE,
+  IR_LOAD,
 
-  ABC,
-};
+  IR_ABC,
+} ir_ins_op;
 
 extern const char *ir_names[];
 
@@ -51,7 +49,7 @@ extern const char *ir_names[];
 #define IR_INS_TYPE_GUARD 0x80
 // clang-format on
 
-struct ir_ins {
+typedef struct {
   uint16_t op1;
   uint16_t op2;
   uint8_t type;
@@ -63,17 +61,17 @@ struct ir_ins {
       uint8_t slot;
     };
   };
-};
+} ir_ins;
 
 // TODO this probably isn't correct, could smash large pointers.
 #define SNAP_FRAME 0x8000000000000000
 
-struct snap_entry_s {
+typedef struct snap_entry {
   int16_t slot;
   uint16_t val;
-};
+} snap_entry_s;
 
-struct snap_s {
+typedef struct {
   uint32_t *pc;
   uint16_t ir;
   uint16_t offset;
@@ -81,26 +79,26 @@ struct snap_s {
   int link;
   snap_entry_s* slots;
   uint64_t patchpoint;
-};
+} snap_s;
 
-enum trace_type_e {
+typedef enum {
   TRACE_RETURN,
   TRACE_TAILREC,
-};
+}trace_type_e ;
 
-enum reloc_type {
+typedef enum {
   RELOC_ABS,
   RELOC_SYM_ABS,
-};
+}reloc_type ;
 
-struct reloc {
+typedef struct {
   uint64_t offset;
   long obj;
   reloc_type type;
-};
+} reloc;
 
 typedef long (*Func)(long **, unsigned int **);
-typedef struct trace_s {
+typedef struct {
   ir_ins* ops;
   long* consts;
   reloc* relocs;
@@ -108,7 +106,7 @@ typedef struct trace_s {
   int link;
   unsigned int startpc;
   int num;
-  Func fn = nullptr;
+  Func fn;
 } trace_s;
 
 #define UNROLL_LIMIT 1

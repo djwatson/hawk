@@ -58,7 +58,7 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
       ir_ins ins;
       ins.reg = REG_NONE;
       ins.op1 = slot.slot;
-      ins.op = ir_ins_op::SLOAD;
+      ins.op = IR_SLOAD;
       // TODO PARENT type, maybe inherit?
       auto type = frame[slot.slot] & 0x7;
       ins.type = type;

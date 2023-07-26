@@ -18,7 +18,7 @@ void opt_loop(trace_s *trace, int *regs) {
   {
     ir_ins ins;
     ins.reg = REG_NONE;
-    ins.op = ir_ins_op::LOOP;
+    ins.op = IR_LOOP;
     arrput(trace->ops, ins);
   }
 
@@ -30,7 +30,7 @@ void opt_loop(trace_s *trace, int *regs) {
       for (unsigned long phi : phis) {
         ir_ins ins;
         ins.reg = REG_NONE;
-        ins.op = ir_ins_op::PHI;
+        ins.op = IR_PHI;
         ins.op1 = replace[phi];
         ins.op2 = replace[regs[trace->ops[phi].op1]];
         regs[trace->ops[phi].op1] = arrlen(trace->ops);
@@ -93,19 +93,19 @@ void opt_loop(trace_s *trace, int *regs) {
     }
     auto &ins = trace->ops[i];
     switch (ins.op) {
-    case ir_ins_op::ARG:
-    case ir_ins_op::SLOAD: {
+    case IR_ARG:
+    case IR_SLOAD: {
       assert(regs[ins.op1] >= 0);
       replace[i] = regs[ins.op1];
       printf("Potential phi: %zu %zu\n", i, arrlen(trace->ops));
       phis.push_back(i);
       break;
     }
-    case ir_ins_op::GE:
-    case ir_ins_op::ADD:
-    case ir_ins_op::EQ:
-    case ir_ins_op::NE:
-    case ir_ins_op::SUB: {
+    case IR_GE:
+    case IR_ADD:
+    case IR_EQ:
+    case IR_NE:
+    case IR_SUB: {
       ir_ins copy = ins;
       if (copy.op1 < IR_CONST_BIAS) {
         copy.op1 = replace[copy.op1];
@@ -117,7 +117,7 @@ void opt_loop(trace_s *trace, int *regs) {
       arrput(trace->ops, copy);
       break;
     }
-    case ir_ins_op::GGET: {
+    case IR_GGET: {
       ir_ins copy = ins;
       if (copy.op1 < IR_CONST_BIAS) {
         copy.op1 = replace[copy.op1];
