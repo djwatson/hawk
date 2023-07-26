@@ -23,6 +23,7 @@
 #include "vm.h" // for find_func_for_frame
 
 #include "parallel_copy.h"
+#include "third-party/stb_ds.h"
 
 // TODO
 extern "C" long *expand_stack_slowpath(long *frame);
@@ -372,7 +373,7 @@ extern "C" void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   slot[RSP] = 0; // stack ptr.
   slot[RDI] = 0; // scheme frame ptr.
 
-  uint64_t snap_labels[trace->snaps.size()];
+  uint64_t snap_labels[arrlen(trace->snaps)];
 
   auto end = emit_offset();
 
@@ -386,7 +387,7 @@ extern "C" void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
   auto exit_label = emit_offset();
 
-  for (long i = trace->snaps.size() - 1; i >= 0; i--) {
+  for (long i = arrlen(trace->snaps) - 1; i >= 0; i--) {
     emit_check();
     // Funny embed here, so we can patch later.
     // emit_jmp_rel(exit_label - emit_offset());
@@ -412,7 +413,7 @@ extern "C" void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     }
 
     emit_check();
-    auto &last_snap = trace->snaps[trace->snaps.size() - 1];
+    auto &last_snap = trace->snaps[arrlen(trace->snaps) - 1];
     if (last_snap.offset != 0U) {
       emit_arith_imm(OP_ARITH_ADD, RDI, last_snap.offset * 8);
       auto ok = emit_offset();
@@ -460,18 +461,18 @@ extern "C" void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     // 	a.mov(ir_to_asmjit[c.first], con & ~SNAP_FRAME);
     //       }
     //     }
-    assign_snap_registers(trace->snaps.size() - 1, slot, trace);
-    emit_snap(trace->snaps.size() - 1, trace,
+    assign_snap_registers(arrlen(trace->snaps) - 1, slot, trace);
+    emit_snap(arrlen(trace->snaps) - 1, trace,
               (INS_OP(otrace->startpc) != FUNC));
   } else {
     // No link, jump back to interpreter loop.
     emit_check();
     emit_jmp32(exit_label - emit_offset());
-    emit_mov64(R15, trace->snaps.size() - 1);
+    emit_mov64(R15, arrlen(trace->snaps) - 1);
   }
 
   // Main generation loop
-  long cur_snap = trace->snaps.size() - 1;
+  long cur_snap = arrlen(trace->snaps) - 1;
   long op_cnt = trace->ops.size() - 1;
   assign_snap_registers(cur_snap, slot, trace);
   for (; op_cnt >= 0; op_cnt--) {
@@ -760,7 +761,7 @@ extern "C" int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
   // assert(func);
   //  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
 
-  if (exit != trace->snaps.size() - 1) {
+  if (exit != arrlen(trace->snaps) - 1) {
     if (snap->exits < 10) {
       snap->exits++;
     } else {

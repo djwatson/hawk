@@ -14,6 +14,7 @@
 #include <memory>  // for allocator_traits<>::value_type
 #include <string>  // for string
 #include <vector>  // for vector
+#include "third-party/stb_ds.h"
 
 void opt_loop(trace_s *trace, int *regs);
 
@@ -81,7 +82,7 @@ void dump_trace(trace_s *ctrace) {
   unsigned long cur_snap = 0;
   for (size_t i = 0; i < ctrace->ops.size() + 1 /* extra snap */; i++) {
     // Print any snap
-    while ((cur_snap < ctrace->snaps.size()) &&
+    while ((cur_snap < arrlen(ctrace->snaps)) &&
            ctrace->snaps[cur_snap].ir == i) {
 
       auto &snap = ctrace->snaps[cur_snap];
@@ -736,7 +737,7 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case CONS: {
     add_snap(regs_list, regs - regs_list - 1, trace, pc);
-    trace->snaps[trace->snaps.size() - 1].exits = 100;
+    trace->snaps[arrlen(trace->snaps) - 1].exits = 100;
     auto a = record_stack_load(INS_B(i), frame);
     auto b = record_stack_load(INS_C(i), frame);
     {

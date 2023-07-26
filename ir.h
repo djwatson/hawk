@@ -104,7 +104,7 @@ typedef struct trace_s {
   std::vector<ir_ins> ops;
   std::vector<long> consts;
   std::vector<reloc> relocs;
-  std::vector<snap_s> snaps;
+  snap_s* snaps;
   int link;
   unsigned int startpc;
   int num;

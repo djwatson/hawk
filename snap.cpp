@@ -5,12 +5,13 @@
 #include <memory>    // for allocator_traits<>::value_type
 #include <utility>   // for move
 #include <vector>    // for vector
+#include "third-party/stb_ds.h"
 
 void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc) {
   // No need for duplicate snaps.
-  if ((!trace->snaps.empty() != 0u) &&
-      trace->snaps[trace->snaps.size() - 1].ir == trace->ops.size() &&
-      trace->snaps[trace->snaps.size() - 1].pc == pc) {
+  if ((arrlen(trace->snaps) != 0) &&
+      trace->snaps[arrlen(trace->snaps) - 1].ir == trace->ops.size() &&
+      trace->snaps[arrlen(trace->snaps) - 1].pc == pc) {
     return;
   }
   snap_s snap;
@@ -29,7 +30,7 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc) {
       snap.slots.push_back(entry);
     }
   }
-  trace->snaps.push_back(std::move(snap));
+  arrput(trace->snaps, snap);
 }
 
 // Replay a snap for a side-trace.

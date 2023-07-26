@@ -5,10 +5,11 @@
 #include <cstdio>    // for size_t, printf
 #include <memory>    // for allocator_traits<>::value_type
 #include <vector>    // for vector
+#include "third-party/stb_ds.h"
 
 void opt_loop(trace_s *trace, int *regs) {
   auto cut = trace->ops.size();
-  auto snap_cut = trace->snaps.size();
+  auto snap_cut = arrlen(trace->snaps);
   uint16_t replace[cut * 2 + 1];
   for (unsigned i = 0; i < cut * 2 + 1; i++) {
     replace[i] = i;
@@ -39,7 +40,7 @@ void opt_loop(trace_s *trace, int *regs) {
       }
     }
     // Emit snaps, including any final snaps.
-    while ((cur_snap < trace->snaps.size()) &&
+    while ((cur_snap < arrlen(trace->snaps)) &&
            (trace->snaps[cur_snap].ir == i)) {
       auto &snap = trace->snaps[cur_snap];
 
@@ -79,7 +80,7 @@ void opt_loop(trace_s *trace, int *regs) {
             nsnap.slots.push_back(new_entry);
           }
         }
-        trace->snaps.push_back(nsnap);
+        arrput(trace->snaps, nsnap);
       }
 
       cur_snap++;
@@ -125,7 +126,7 @@ void opt_loop(trace_s *trace, int *regs) {
     default: {
       printf("Can't loop ir type: %s\n", ir_names[(int)ins.op]);
       trace->ops.resize(cut);
-      trace->snaps.resize(snap_cut);
+      arrsetlen(trace->snaps, snap_cut);
       return;
     }
     }
