@@ -22,12 +22,13 @@ void opt_loop(trace_s *trace, int *regs) {
     arrput(trace->ops, ins);
   }
 
-  std::vector<size_t> phis;
+  size_t* phis = NULL;
   unsigned long cur_snap = 0;
   for (size_t i = 0; i < cut + 1; i++) {
     // Emit phis last.
     if (i == cut) {
-      for (unsigned long phi : phis) {
+      for (uint64_t j = 0; j < arrlen(phis); j++) {
+	unsigned long phi = phis[j];
         ir_ins ins;
         ins.reg = REG_NONE;
         ins.op = IR_PHI;
@@ -98,7 +99,7 @@ void opt_loop(trace_s *trace, int *regs) {
       assert(regs[ins.op1] >= 0);
       replace[i] = regs[ins.op1];
       printf("Potential phi: %zu %zu\n", i, arrlen(trace->ops));
-      phis.push_back(i);
+      arrput(phis, i);
       break;
     }
     case IR_GE:
