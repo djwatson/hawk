@@ -354,7 +354,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
          INS_B(i), INS_C(i));
   switch (INS_OP(i)) {
   case LOOP:
-  case CLFUNC: {
+    //case CLFUNC:
+    {
     break;
   }
   case FUNC: {
@@ -666,80 +667,80 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[reg] = IR_CONST_BIAS + knum;
     break;
   }
-  case VECTOR_SET: {
-    auto vec = record_stack_load(INS_A(i), frame);
-    auto idx = record_stack_load(INS_B(i), frame);
-    auto obj = record_stack_load(INS_C(i), frame);
+  // case VECTOR_SET: {
+  //   auto vec = record_stack_load(INS_A(i), frame);
+  //   auto idx = record_stack_load(INS_B(i), frame);
+  //   auto obj = record_stack_load(INS_C(i), frame);
 
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op = ir_ins_op::ABC;
-      ins.op1 = vec;
-      ins.op2 = idx;
-      arrput(trace->ops, ins);
-    }
+  //   {
+  //     ir_ins ins;
+  //     ins.type = 0;
+  //     ins.reg = REG_NONE;
+  //     ins.op = ir_ins_op::ABC;
+  //     ins.op1 = vec;
+  //     ins.op2 = idx;
+  //     arrput(trace->ops, ins);
+  //   }
 
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = vec;
-      ins.op2 = idx;
-      ins.op = ir_ins_op::VREF;
-      arrput(trace->ops, ins);
-    }
+  //   {
+  //     ir_ins ins;
+  //     ins.type = 0;
+  //     ins.reg = REG_NONE;
+  //     ins.op1 = vec;
+  //     ins.op2 = idx;
+  //     ins.op = ir_ins_op::VREF;
+  //     arrput(trace->ops, ins);
+  //   }
     
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = arrlen(trace->ops) - 1;
-      ins.op2 = obj;
-      ins.op = ir_ins_op::STORE;
-      arrput(trace->ops, ins);
-    }
+  //   {
+  //     ir_ins ins;
+  //     ins.type = 0;
+  //     ins.reg = REG_NONE;
+  //     ins.op1 = arrlen(trace->ops) - 1;
+  //     ins.op2 = obj;
+  //     ins.op = ir_ins_op::STORE;
+  //     arrput(trace->ops, ins);
+  //   }
 
-    break;
-  }
-  case VECTOR_REF: {
-    auto vec = record_stack_load(INS_B(i), frame);
-    auto idx = record_stack_load(INS_C(i), frame);
+  //   break;
+  // }
+  // case VECTOR_REF: {
+  //   auto vec = record_stack_load(INS_B(i), frame);
+  //   auto idx = record_stack_load(INS_C(i), frame);
 
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op = ir_ins_op::ABC;
-      ins.op1 = vec;
-      ins.op2 = idx;
-      arrput(trace->ops, ins);
-    }
+  //   {
+  //     ir_ins ins;
+  //     ins.type = 0;
+  //     ins.reg = REG_NONE;
+  //     ins.op = ir_ins_op::ABC;
+  //     ins.op1 = vec;
+  //     ins.op2 = idx;
+  //     arrput(trace->ops, ins);
+  //   }
 
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = vec;
-      ins.op2 = idx;
-      ins.op = ir_ins_op::VREF;
-      arrput(trace->ops, ins);
-    }
+  //   {
+  //     ir_ins ins;
+  //     ins.type = 0;
+  //     ins.reg = REG_NONE;
+  //     ins.op1 = vec;
+  //     ins.op2 = idx;
+  //     ins.op = ir_ins_op::VREF;
+  //     arrput(trace->ops, ins);
+  //   }
     
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = arrlen(trace->ops) - 1;
-      ins.op2 = idx;
-      ins.op = ir_ins_op::LOAD;
-      regs[INS_A(i)] = arrlen(trace->ops);
-      arrput(trace->ops, ins);
-    }
+  //   {
+  //     ir_ins ins;
+  //     ins.type = 0;
+  //     ins.reg = REG_NONE;
+  //     ins.op1 = arrlen(trace->ops) - 1;
+  //     ins.op2 = idx;
+  //     ins.op = ir_ins_op::LOAD;
+  //     regs[INS_A(i)] = arrlen(trace->ops);
+  //     arrput(trace->ops, ins);
+  //   }
 
-    break;
-  }
+  //   break;
+  // }
   case CONS: {
     add_snap(regs_list, regs - regs_list - 1, trace, pc);
     trace->snaps[arrlen(trace->snaps) - 1].exits = 100;
