@@ -174,7 +174,8 @@ static void visit_trace(trace_s *t) {
       visit(&t->consts[i]);
     }
   }
-  for (auto &reloc : t->relocs) {
+  for(uint64_t i = 0; i < arrlen(t->relocs); i++) {
+    auto &reloc = t->relocs[i];
     auto old = reloc.obj;
     visit(&reloc.obj);
     if (reloc.obj != old) {

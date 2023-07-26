@@ -242,7 +242,7 @@ void emit_snap(int snap, trace_s *trace, bool all) {
       // assert((c&SNAP_FRAME) < 32000);
       // printf("MOV %lx\n", c & ~SNAP_FRAME);
       emit_mem_reg(OP_MOV_RM, slot.slot * 8, RDI, R15);
-      trace->relocs.push_back({emit_offset(), c, RELOC_ABS});
+      arrput(trace->relocs, reloc({emit_offset(), c, RELOC_ABS}));
       emit_mov64(R15, c & ~SNAP_FRAME);
     } else {
       auto &op = trace->ops[slot.val];
@@ -540,9 +540,9 @@ extern "C" void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       auto reg = op.reg;
       emit_op_typecheck(reg, op.type, snap_labels[cur_snap] - emit_offset());
       emit_mem_reg(OP_MOV_MR, 0, reg, reg);
-      trace->relocs.push_back({emit_offset(),
+      arrput(trace->relocs, reloc({emit_offset(),
                                trace->consts[op.op1 - IR_CONST_BIAS],
-                               RELOC_SYM_ABS});
+                               RELOC_SYM_ABS}));
       emit_mov64(reg, (int64_t)&sym->val);
       break;
     }

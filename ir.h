@@ -103,7 +103,7 @@ typedef long (*Func)(long **, unsigned int **);
 typedef struct trace_s {
   std::vector<ir_ins> ops;
   std::vector<long> consts;
-  std::vector<reloc> relocs;
+  reloc* relocs;
   snap_s* snaps;
   int link;
   unsigned int startpc;
