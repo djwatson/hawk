@@ -2,12 +2,10 @@
 
 #include "./readbc.h"
 
-#include <cassert>        // for assert
-#include <cstdio>         // for fread, printf, FILE, fclose, fmemopen, fopen
-#include <cstdlib>        // for exit, realloc
-#include <cstring>        // for memset
-#include <string>         // for string
-#include <vector>         // for vector
+#include <assert.h>        // for assert
+#include <stdio.h>         // for fread, printf, FILE, fclose, fmemopen, fopen
+#include <stdlib.h>        // for exit, realloc
+#include <string.h>        // for memset
 
 #include "bytecode.h"      // for bcfunc, CODE_D, INS_A, INS_D, INS_OP
 #include "gc.h"            // for GC_malloc, GC_pop_root, GC_push_root
@@ -16,6 +14,9 @@
 #include "types.h"         // for string_s, PTR_TAG, SYMBOL_TAG, cons_s, symbol
 #include "vm.h"            // for funcs
 #include "third-party/stb_ds.h"
+
+#define auto __auto_type
+#define nullptr NULL
 
 long *const_table = nullptr;
 unsigned long const_table_sz = 0;
@@ -62,7 +63,7 @@ long read_const(FILE *fptr) {
         val = (long)sym | SYMBOL_TAG;
 	arrput(symbols, val);
       } else {
-        val = long(res) + SYMBOL_TAG;
+        val = (long)res + SYMBOL_TAG;
 	arrput(symbols, val);
         return val;
       }
