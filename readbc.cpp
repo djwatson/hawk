@@ -19,7 +19,7 @@
 
 long *const_table = nullptr;
 unsigned long const_table_sz = 0;
-std::vector<long> symbols; // TODO not a global
+long* symbols = NULL; // TODO not a global, or use a string instead
 
 // TODO GC safety
 long read_const(FILE *fptr) {
@@ -31,7 +31,7 @@ long read_const(FILE *fptr) {
   auto type = val & TAG_MASK;
   if (type == SYMBOL_TAG) {
     unsigned long num = val >> 3;
-    if (num < symbols.size()) {
+    if (num < arrlen(symbols)) {
       val = symbols[num];
     } else {
       // It's a new symbol in this bc file
@@ -60,10 +60,10 @@ long read_const(FILE *fptr) {
         sym->val = UNDEFINED_TAG;
         symbol_table_insert(sym);
         val = (long)sym | SYMBOL_TAG;
-        symbols.push_back(val);
+	arrput(symbols, val);
       } else {
         val = long(res) + SYMBOL_TAG;
-        symbols.push_back(val);
+	arrput(symbols, val);
         return val;
       }
     }
@@ -131,7 +131,7 @@ long read_const(FILE *fptr) {
 
 bcfunc *readbc(FILE *fptr) {
   long const_offset = const_table_sz;
-  symbols.clear();
+  arrfree(symbols);
 
   if (fptr == nullptr) {
     printf("Could not open bc\n");

@@ -10,6 +10,7 @@
 #include <cstring>        // for memcpy
 #include <sys/mman.h>     // for mprotect, mmap, PROT_NONE, PROT_READ, PROT...
 #include <vector>         // for vector
+#include <third-party/stb_ds.h>
 
 extern long *stack;
 extern unsigned int stacksz;
@@ -76,6 +77,7 @@ size_t heap_object_size(long *obj) {
   default:
     printf("Unknown heap object: %li\n", type);
     assert(false);
+    return -1;
   }
 }
 
@@ -161,7 +163,7 @@ void trace_heap_object(long *obj) {
 // and symbols?????? shit
 extern trace_s *trace;
 extern std::vector<trace_s *> traces;
-extern std::vector<long> symbols;
+extern long* symbols;
 
 static void visit_trace(trace_s *t) {
   for(size_t i = 0; i < t->consts.size(); i++) {
@@ -198,8 +200,8 @@ static void visit_trace(trace_s *t) {
 // Currently functions aren't GC'd.
 static void trace_roots() {
   // printf("Scan symbols from readbc...%li\n", symbols.size());
-  for (long &symbol : symbols) {
-    visit(&symbol);
+  for(uint64_t i = 0; i < arrlen(symbols); i++) {
+    visit(&symbols[i]);
   }
 
   // printf("Scan GC pushed roots...%li\n", pushed_roots.size()) ;
