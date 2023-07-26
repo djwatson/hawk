@@ -49,7 +49,7 @@ message("Using " ${CHEZ} " for bootstrapping")
 include(CheckPIESupported)
 check_pie_supported()
 
-set(SOURCES readbc.c bytecode.c vm.o boom.cpp  ir.c types.c bootstrap.cpp symbol_table.c gc.c opcodes.h profiler.cpp opt_loop.c parallel_copy.c)
+set(SOURCES readbc.c bytecode.c vm.o boom.cpp  ir.c types.c bootstrap.c symbol_table.c gc.c opcodes.h profiler.cpp opt_loop.c parallel_copy.c)
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
@@ -102,7 +102,7 @@ target_compile_options(vm PRIVATE -fomit-frame-pointer) # required for cc10
 #target_compile_options(vm PRIVATE -fsanitize=address,undefined)
 
 set(CLOC_SOURCES ${SOURCES} vm.c)
-list(REMOVE_ITEM CLOC_SOURCES bootstrap.cpp)
+list(REMOVE_ITEM CLOC_SOURCES bootstrap.c)
 add_custom_target(
   cloc
   COMMAND cloc --by-file-by-lang ${SCM_SOURCES} ${CLOC_SOURCES} 
@@ -117,7 +117,7 @@ add_library(write_double SHARED EXCLUDE_FROM_ALL write_double.c)
 
 # Generate the bootstrap image.
 add_custom_command(
-  OUTPUT  bootstrap.scm.bc bootstrap.cpp
+  OUTPUT  bootstrap.scm.bc bootstrap.c
   COMMAND
   mkdir -p third-party
   COMMAND
@@ -127,7 +127,7 @@ add_custom_command(
   COMMAND
   ${CHEZ} --script bc.chez.scm bootstrap.scm > /dev/null
   COMMAND
-  xxd -i bootstrap.scm.bc > bootstrap.cpp
+  xxd -i bootstrap.scm.bc > bootstrap.c
   DEPENDS ${SCM_SOURCES} write_double opcodes.scm
 )
 
