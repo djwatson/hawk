@@ -1,10 +1,10 @@
 #include "asm_x64.h" // for REG_NONE
 #include "ir.h"      // for ir_ins, snap_s, snap_entry_s, trace_s, ir_ins_op
-#include <assert.h>   // for assert
-#include <stdint.h>   // for uint16_t
-#include <stdio.h>    // for size_t, printf
-#include <stdbool.h>
 #include "third-party/stb_ds.h"
+#include <assert.h> // for assert
+#include <stdbool.h>
+#include <stdint.h> // for uint16_t
+#include <stdio.h>  // for size_t, printf
 
 #define auto __auto_type
 #define nullptr NULL
@@ -24,13 +24,13 @@ void opt_loop(trace_s *trace, int *regs) {
     arrput(trace->ops, ins);
   }
 
-  size_t* phis = NULL;
+  size_t *phis = NULL;
   unsigned long cur_snap = 0;
   for (size_t i = 0; i < cut + 1; i++) {
     // Emit phis last.
     if (i == cut) {
       for (uint64_t j = 0; j < arrlen(phis); j++) {
-	unsigned long phi = phis[j];
+        unsigned long phi = phis[j];
         ir_ins ins;
         ins.reg = REG_NONE;
         ins.op = IR_PHI;
@@ -56,18 +56,19 @@ void opt_loop(trace_s *trace, int *regs) {
         nsnap.link = -1;
         // Emit loopsnap - all final loop snapshots are carried through loop
         auto loopsnap = &trace->snaps[snap_cut - 1];
-	for(uint64_t j = 0; j < arrlen(loopsnap->slots); j++) {
-	  auto entry = &loopsnap->slots[j];
+        for (uint64_t j = 0; j < arrlen(loopsnap->slots); j++) {
+          auto entry = &loopsnap->slots[j];
           if (entry->val < IR_CONST_BIAS) {
-	    snap_entry_s new_entry = (snap_entry_s){entry->slot, replace[entry->val]};
+            snap_entry_s new_entry =
+                (snap_entry_s){entry->slot, replace[entry->val]};
             arrput(nsnap.slots, new_entry);
           } else {
-	    arrput(nsnap.slots, *entry);
+            arrput(nsnap.slots, *entry);
           }
         }
         // Emit in-loop snaps.  Merge with
-	for(uint64_t j = 0; j < arrlen(snap->slots); j++) {
-	  auto entry = &snap->slots[j];
+        for (uint64_t j = 0; j < arrlen(snap->slots); j++) {
+          auto entry = &snap->slots[j];
           snap_entry_s new_entry;
           if (entry->val < IR_CONST_BIAS) {
             new_entry = (snap_entry_s){entry->slot, replace[entry->val]};
@@ -75,8 +76,8 @@ void opt_loop(trace_s *trace, int *regs) {
             new_entry = *entry;
           }
           bool done = false;
-	  for(uint64_t k = 0; j < arrlen(nsnap.slots); k++) {
-	    auto nentry = &nsnap.slots[k];
+          for (uint64_t k = 0; j < arrlen(nsnap.slots); k++) {
+            auto nentry = &nsnap.slots[k];
             if (nentry->slot == new_entry.slot) {
               nentry->val = new_entry.val;
               done = true;

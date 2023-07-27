@@ -20,4 +20,3 @@ typedef struct table {
 #define TOMBSTONE ((symbol *)0x01)
 
 extern table *sym_table;
-

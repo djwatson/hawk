@@ -3,11 +3,11 @@
 #include "ir.h"           // for reloc, trace_s, RELOC_ABS, RELOC_SYM_ABS
 #include "symbol_table.h" // for sym_table, table, TOMBSTONE
 #include "types.h"        // for TAG_MASK, FORWARD_TAG, SYMBOL_TAG, symbol
-#include <assert.h>        // for assert
-#include <stdint.h>        // for uint8_t, int64_t
-#include <stdio.h>         // for printf
-#include <stdlib.h>        // for free, realloc
-#include <string.h>        // for memcpy
+#include <assert.h>       // for assert
+#include <stdint.h>       // for uint8_t, int64_t
+#include <stdio.h>        // for printf
+#include <stdlib.h>       // for free, realloc
+#include <string.h>       // for memcpy
 #include <sys/mman.h>     // for mprotect, mmap, PROT_NONE, PROT_READ, PROT...
 #include <third-party/stb_ds.h>
 
@@ -21,7 +21,7 @@ static bool gc_enable = true;
 uint8_t *alloc_ptr = NULL;
 uint8_t *alloc_end = NULL;
 
-long ** pushed_roots;
+long **pushed_roots;
 
 void GC_push_root(long *root) { arrput(pushed_roots, root); }
 
@@ -163,11 +163,11 @@ void trace_heap_object(long *obj) {
 // and the constant table.
 // and symbols?????? shit
 extern trace_s *trace;
-extern trace_s ** traces;
-extern long* symbols;
+extern trace_s **traces;
+extern long *symbols;
 
 static void visit_trace(trace_s *t) {
-  for(size_t i = 0; i < arrlen(t->consts); i++) {
+  for (size_t i = 0; i < arrlen(t->consts); i++) {
     if (!(SNAP_FRAME & t->consts[i])) {
       // printf("Visit const ");
       // print_obj(t->consts[i]);
@@ -175,7 +175,7 @@ static void visit_trace(trace_s *t) {
       visit(&t->consts[i]);
     }
   }
-  for(uint64_t i = 0; i < arrlen(t->relocs); i++) {
+  for (uint64_t i = 0; i < arrlen(t->relocs); i++) {
     auto reloc = &t->relocs[i];
     auto old = reloc->obj;
     visit(&reloc->obj);
@@ -202,12 +202,12 @@ static void visit_trace(trace_s *t) {
 // Currently functions aren't GC'd.
 static void trace_roots() {
   // printf("Scan symbols from readbc...%li\n", symbols.size());
-  for(uint64_t i = 0; i < arrlen(symbols); i++) {
+  for (uint64_t i = 0; i < arrlen(symbols); i++) {
     visit(&symbols[i]);
   }
 
   // printf("Scan GC pushed roots...%li\n", pushed_roots.size()) ;
-  for(uint64_t i = 0; i < arrlen(pushed_roots); i++) {
+  for (uint64_t i = 0; i < arrlen(pushed_roots); i++) {
     visit(pushed_roots[i]);
   }
 
@@ -234,27 +234,26 @@ static void trace_roots() {
     }
   }
 
-  // Scan traces
-  #ifdef JIT
-  for(uint64_t i = 0; i < arrlen(traces); i++) {
+// Scan traces
+#ifdef JIT
+  for (uint64_t i = 0; i < arrlen(traces); i++) {
     auto *t = traces[i];
-    //printf("Visit trace %i\n", cnt++);
+    // printf("Visit trace %i\n", cnt++);
     visit_trace(t);
   }
   // Scan currently in-progress trace
   if (trace != NULL) {
-    //printf("Visit in progress trace\n");
+    // printf("Visit in progress trace\n");
     visit_trace(trace);
   }
-  #endif
+#endif
 }
-
 
 // static constexpr size_t page_cnt = 6000; // Approx 25 mb.
 // static constexpr size_t page_cnt = '12000; // Approx 50 mb.
 // static constexpr size_t page_cnt = 30000; // Approx 125 mb.
 // static constexpr size_t page_cnt = 120000; // Approx 500 mb.
-//size_t page_cnt = 500000; // Approx 2GB
+// size_t page_cnt = 500000; // Approx 2GB
 extern size_t page_cnt;
 size_t alloc_sz;
 uint8_t *to_space = NULL;

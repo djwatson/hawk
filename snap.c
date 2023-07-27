@@ -1,8 +1,8 @@
 #include "asm_x64.h" // for REG_NONE
 #include "ir.h"      // for snap_s, snap_entry_s, ir_ins, trace_s, IR_CONST...
-#include <stdint.h>   // for uint32_t
-#include <stdio.h>    // for printf
 #include "third-party/stb_ds.h"
+#include <stdint.h> // for uint32_t
+#include <stdio.h>  // for printf
 #define auto __auto_type
 
 void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc) {
@@ -37,7 +37,7 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
                  const long *frame, int *d) {
   int depth = 0;
   frame -= snap->offset;
-  for(uint64_t i = 0; i < arrlen(snap->slots); i++) {
+  for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto slot = &snap->slots[i];
     if ((slot->val & IR_CONST_BIAS) != 0) {
       auto c = parent->consts[slot->val - IR_CONST_BIAS];

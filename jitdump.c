@@ -17,7 +17,7 @@
 int cnt = 0;
 
 /* Earlier perf_map tmp support - supplies names to jit regions */
-void perf_map(uint64_t fn, uint64_t len, const char* name) {
+void perf_map(uint64_t fn, uint64_t len, const char *name) {
   char buf[256];
   sprintf(buf, "/tmp/perf-%i.map", getpid());
   __auto_type file = fopen(buf, "a");
@@ -33,7 +33,7 @@ void *mapaddr = NULL;
 int fd;
 /* Newer jit dump support.  Requires perf record -k 1, and then perf
    inject, before perf report, but gives full asm listing */
-void jit_dump(int len, uint64_t fn, const char* name) {
+void jit_dump(int len, uint64_t fn, const char *name) {
   struct {
     uint32_t id;
     uint32_t total_size;
@@ -135,9 +135,9 @@ typedef struct GDBElfImage {
 } GDBElfImage;
 
 void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num);
-void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const char* name) {
-  struct jit_code_entry* jitcode = malloc(sizeof(struct jit_code_entry));
-  GDBElfImage* image = malloc(sizeof(GDBElfImage));
+void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const char *name) {
+  struct jit_code_entry *jitcode = malloc(sizeof(struct jit_code_entry));
+  GDBElfImage *image = malloc(sizeof(GDBElfImage));
   build_elf(fn, len, image, cnt);
 
   // __auto_type entry = new gdb_code_entry;
@@ -170,7 +170,7 @@ void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const char* name) {
 // Sections text, strtab, symtab, debug info, debug_abbrev, debug_line,
 // debug_str (only nash), shstrtab, eh_frame (only lj) symbols file, func
 
-long write_buf(long* offset, uint8_t *data, void *obj, long len) {
+long write_buf(long *offset, uint8_t *data, void *obj, long len) {
   __auto_type start_offset = *offset;
   assert(*offset + len < 4096);
   memcpy(&data[*offset], obj, len);

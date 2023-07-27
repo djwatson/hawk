@@ -15,8 +15,7 @@ extern unsigned long const_table_sz;
 #define INS_D(i) (i >> 16)
 
 typedef struct bcfunc {
-  char* name;
+  char *name;
   uint32_t codelen;
   unsigned int code[];
 } bcfunc;
-

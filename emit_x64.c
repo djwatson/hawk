@@ -83,7 +83,6 @@ void emit_cmp_reg_reg(uint8_t src, uint8_t dst) {
   emit_rex(1, src >> 3, 0, dst >> 3);
 }
 
-
 // TODO: could test for short offset
 void emit_jcc32(enum jcc_cond cond, int32_t offset) {
   if ((int32_t)((int8_t)offset) == offset) {
@@ -110,7 +109,7 @@ void emit_jmp_indirect(int32_t offset) {
 void emit_jmp_abs(enum registers r) {
   emit_modrm(0x3, 4, 0x7 & r);
   *(--p) = 0xff;
-  if (r>>3) {
+  if (r >> 3) {
     emit_rex(0, 0, 0, r >> 3);
   }
 }
@@ -154,7 +153,6 @@ void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
 
 /////////////////// opcodes
 
-
 void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm) {
   emit_imm32(imm);
   emit_reg_reg(opcode, r1, r2);
@@ -167,11 +165,11 @@ void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm) {
   } else {
     *(--p) = imm;
     emit_reg_reg(0x83, op, src);
-  }	 
+  }
 }
 
 void emit_push(uint8_t r) {
-  *(--p) = 0x50 + (0x7&r);
+  *(--p) = 0x50 + (0x7 & r);
   if (r >> 3) {
     emit_rex(0, 0, 0, r >> 3);
   }
@@ -192,19 +190,15 @@ void emit_cmovl(uint8_t dst, uint8_t src) {
 
 /////////////////// memory
 
-uint64_t emit_offset() {
-  return (uint64_t)p;
-}
+uint64_t emit_offset() { return (uint64_t)p; }
 
 void emit_bind(uint64_t label, uint64_t jmp) {
   assert(jmp);
   assert(label);
   int32_t offset = (int64_t)label - (int64_t)jmp;
-  *(int32_t*)(jmp-4) = offset;
+  *(int32_t *)(jmp - 4) = offset;
 }
-void emit_advance(int64_t offset) {
-  p -= offset;
-}
+void emit_advance(int64_t offset) { p -= offset; }
 
 void emit_check() {
   if (p - mtop <= 64) {
@@ -217,7 +211,7 @@ void emit_init() {
   if (mtop) {
     return;
   }
-  
+
   mtop = (uint8_t *)mmap(NULL, msize, PROT_READ | PROT_WRITE | PROT_EXEC,
                          MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   assert(mtop);
@@ -250,9 +244,9 @@ int main() {
 
   long result = res();
   printf("Res: %li\n", result);
-  
+
   emit_cleanup();
-  
+
   return 0;
 }
 */

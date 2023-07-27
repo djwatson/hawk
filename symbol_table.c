@@ -1,5 +1,5 @@
 #include "symbol_table.h"
-#include "types.h" // for string_s, symbol
+#include "types.h"  // for string_s, symbol
 #include <assert.h> // for assert
 #include <stdint.h> // for uint64_t
 #include <stdlib.h> // for calloc, free, size_t

@@ -15,5 +15,5 @@ typedef struct map {
   uint64_t mp_sz;
 } map;
 
-void map_insert(map* m, uint64_t key, uint64_t value);
-void serialize_parallel_copy(map* moves, map* moves_out, uint64_t tmp_reg);
+void map_insert(map *m, uint64_t key, uint64_t value);
+void serialize_parallel_copy(map *moves, map *moves_out, uint64_t tmp_reg);

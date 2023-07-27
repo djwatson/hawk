@@ -1,10 +1,10 @@
 #include "asm_x64.h"
+#include <assert.h>            // for assert
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
-#include <assert.h>             // for assert
 #include <inttypes.h>
 #include <stdbool.h>
-#include <stdio.h>              // for printf, size_t
-#include <stdlib.h>             // for exit
+#include <stdio.h>             // for printf, size_t
+#include <stdlib.h>            // for exit
 #include <valgrind/valgrind.h> // for VALGRIND_DISCARD_TRANSLATIONS
 // TODO only for runtime symbol
 #include "bytecode.h" // for INS_OP, INS_B
@@ -96,7 +96,7 @@ void maybe_assign_register(int v, trace_s *trace, int *slot) {
 
 void assign_snap_registers(unsigned snap_num, int *slot, trace_s *trace) {
   auto snap = &trace->snaps[snap_num];
-  for(uint64_t i = 0; i < arrlen(snap->slots); i++) {
+  for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto s = &snap->slots[i];
     if ((s->val & IR_CONST_BIAS) == 0) {
       maybe_assign_register(s->val, trace, slot);
@@ -193,7 +193,7 @@ static void __attribute__((noinline)) __attribute__((naked)) jit_exit_stub() {
 void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
                   long **o_frame, unsigned int **o_pc) {
   (*o_frame) = (long *)state->regs[RDI];
-  for(uint64_t i = 0; i < arrlen(snap->slots); i++) {
+  for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto slot = &snap->slots[i];
     if ((slot->val & IR_CONST_BIAS) != 0) {
       auto c = trace->consts[slot->val - IR_CONST_BIAS];
@@ -208,7 +208,7 @@ void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
 }
 
 uint16_t find_reg_for_slot(int slot, snap_s *snap, trace_s *trace) {
-  for(uint64_t i = 0; i < arrlen(snap->slots); i++) {
+  for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto s = &snap->slots[i];
     if (s->slot == slot) {
       if (s->val >= IR_CONST_BIAS) {
@@ -225,14 +225,14 @@ void emit_snap(int snap, trace_s *trace, bool all) {
   printf("EMITSNAP: all %i\n", (int)all);
   auto sn = &trace->snaps[snap];
   int last_ret = -1;
-  for (int i = (int)sn->ir-1; i >= 0; i--) {
+  for (int i = (int)sn->ir - 1; i >= 0; i--) {
     if (trace->ops[i].op == IR_RET) {
       last_ret = i;
       break;
     }
   }
   // TODO frame size check
-  for(uint64_t i = 0; i < arrlen(sn->slots); i++) {
+  for (uint64_t i = 0; i < arrlen(sn->slots); i++) {
     auto slot = &sn->slots[i];
     emit_check();
     // if (!all && (slot->slot >= sn->offset)) {
@@ -309,13 +309,14 @@ void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins *op,
   } else {
     reg1 = trace->ops[op->op1].reg;
     if (reg != reg1) {
-      // TODO clownshow.  If we have a commutative OP (mul, add), we could just run it backwards.
-      // ALternatively, ensure the reg allocator never does this?
+      // TODO clownshow.  If we have a commutative OP (mul, add), we could just
+      // run it backwards. ALternatively, ensure the reg allocator never does
+      // this?
       if (reg2 == reg) {
-	emit_reg_reg(OP_MOV, reg1, reg);
-	emit_reg_reg(OP_MOV, reg2, R15);
+        emit_reg_reg(OP_MOV, reg1, reg);
+        emit_reg_reg(OP_MOV, reg2, R15);
       } else {
-	emit_reg_reg(OP_MOV, reg1, reg);
+        emit_reg_reg(OP_MOV, reg1, reg);
       }
     }
   }
@@ -335,7 +336,7 @@ void emit_cmp(enum jcc_cond cmp, ir_ins *op, trace_s *trace, int32_t offset,
   if (op->op1 & IR_CONST_BIAS) {
     auto c = trace->consts[op->op1 - IR_CONST_BIAS];
     emit_mov64(R15, c);
-  }  
+  }
 }
 
 void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
@@ -344,13 +345,13 @@ void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
     if ((type & ~IR_INS_TYPE_GUARD) == 0) {
       emit_op_imm32(OP_TEST_IMM, 0, reg, 0x7);
     } else if ((type & TAG_MASK) == PTR_TAG) {
-      //assert(false);
+      // assert(false);
       printf("TODO typecheck ptr\n");
       emit_cmp_reg_imm32(R15, 1);
       emit_op_imm32(OP_AND_IMM, 4, R15, 0x7);
       emit_reg_reg(OP_MOV, reg, R15);
     } else if ((type & TAG_MASK) == LITERAL_TAG) {
-      auto lit_bits = (type & IMMEDIATE_MASK) & ~ IR_INS_TYPE_GUARD;
+      auto lit_bits = (type & IMMEDIATE_MASK) & ~IR_INS_TYPE_GUARD;
       emit_cmp_reg_imm32(R15, lit_bits);
       emit_op_imm32(OP_AND_IMM, 4, R15, 0xff);
       emit_reg_reg(OP_MOV, reg, R15);
@@ -436,7 +437,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     //     {
     //       std::multimap<uint64_t, uint64_t> moves;
     //       std::vector<std::pair<int, uint16_t>> consts;
-    //       for (size_t op_cnt2 = 0; op_cnt2 < arrlen(otrace->ops); op_cnt2++) {
+    //       for (size_t op_cnt2 = 0; op_cnt2 < arrlen(otrace->ops); op_cnt2++)
+    //       {
     // 	auto&op = otrace->ops[op_cnt2];
     // 	// TODO parent type
     // 	if (op.op != IR_ARG) {
@@ -480,7 +482,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   for (; op_cnt >= 0; op_cnt--) {
     while (cur_snap >= 0 && trace->snaps[cur_snap].ir > op_cnt) {
       if (cur_snap > 0) {
-	assign_snap_registers(cur_snap - 1, slot, trace);
+        assign_snap_registers(cur_snap - 1, slot, trace);
       }
       cur_snap--;
     }
@@ -508,15 +510,15 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       maybe_assign_register(op->op1, trace, slot);
       auto reg = op->reg;
       if (reg == REG_NONE) {
-	reg = R15; // Unused, but potentially used by JGUARD.
+        reg = R15; // Unused, but potentially used by JGUARD.
       }
       emit_op_typecheck(reg, op->type, snap_labels[cur_snap] - emit_offset());
       if (ir_is_const(op->op1)) {
-	emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg, reg);
-	emit_mov64(reg, trace->consts[op->op1-IR_CONST_BIAS]);
+        emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg, reg);
+        emit_mov64(reg, trace->consts[op->op1 - IR_CONST_BIAS]);
       } else {
-	auto reg1 = trace->ops[op->op1].reg;
-	emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg1, reg);
+        auto reg1 = trace->ops[op->op1].reg;
+        emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg1, reg);
       }
       break;
     }
@@ -524,15 +526,15 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       maybe_assign_register(op->op1, trace, slot);
       auto reg = op->reg;
       if (reg == REG_NONE) {
-	reg = R15; // Unused, but potentially used by JGUARD.
+        reg = R15; // Unused, but potentially used by JGUARD.
       }
       emit_op_typecheck(reg, op->type, snap_labels[cur_snap] - emit_offset());
       if (ir_is_const(op->op1)) {
-	emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg, reg);
-	emit_mov64(reg, trace->consts[op->op1-IR_CONST_BIAS]);
+        emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg, reg);
+        emit_mov64(reg, trace->consts[op->op1 - IR_CONST_BIAS]);
       } else {
-	auto reg1 = trace->ops[op->op1].reg;
-	emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg1, reg);
+        auto reg1 = trace->ops[op->op1].reg;
+        emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg1, reg);
       }
       break;
     }
@@ -542,9 +544,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       auto reg = op->reg;
       emit_op_typecheck(reg, op->type, snap_labels[cur_snap] - emit_offset());
       emit_mem_reg(OP_MOV_MR, 0, reg, reg);
-      auto re = (reloc){emit_offset(),
-                               trace->consts[op->op1 - IR_CONST_BIAS],
-                               RELOC_SYM_ABS};
+      auto re = (reloc){emit_offset(), trace->consts[op->op1 - IR_CONST_BIAS],
+                        RELOC_SYM_ABS};
       arrput(trace->relocs, re);
       emit_mov64(reg, (int64_t)&sym->val);
       break;
@@ -554,14 +555,14 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       maybe_assign_register(op->op2, trace, slot);
       assert(!(op->op1 & IR_CONST_BIAS));
       assert(trace->ops[op->op1].op == IR_REF ||
-	     trace->ops[op->op1].op == IR_VREF);
+             trace->ops[op->op1].op == IR_VREF);
       if (op->op2 & IR_CONST_BIAS) {
-	emit_mem_reg(OP_MOV_RM, 0, trace->ops[op->op1].reg, R15);
-	auto c = trace->consts[op->op2 - IR_CONST_BIAS];
-	emit_mov64(R15, c);
+        emit_mem_reg(OP_MOV_RM, 0, trace->ops[op->op1].reg, R15);
+        auto c = trace->consts[op->op2 - IR_CONST_BIAS];
+        emit_mov64(R15, c);
       } else {
-	emit_mem_reg(OP_MOV_RM, 0, trace->ops[op->op1].reg,
-		     trace->ops[op->op2].reg);
+        emit_mem_reg(OP_MOV_RM, 0, trace->ops[op->op1].reg,
+                     trace->ops[op->op2].reg);
       }
       break;
     }
@@ -572,26 +573,26 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       assert(!ir_is_const(op->op1));
       assert(!ir_is_const(op->op2));
       assert(trace->ops[op->op1].op == IR_REF ||
-	     trace->ops[op->op1].op == IR_VREF);
+             trace->ops[op->op1].op == IR_VREF);
       if (op->op2 & IR_CONST_BIAS) {
-	emit_mem_reg(OP_MOV_RM, 0, trace->ops[op->op1].reg, R15);
-	auto c = trace->consts[op->op2 - IR_CONST_BIAS];
-	emit_mov64(R15, c);
+        emit_mem_reg(OP_MOV_RM, 0, trace->ops[op->op1].reg, R15);
+        auto c = trace->consts[op->op2 - IR_CONST_BIAS];
+        emit_mov64(R15, c);
       } else {
-	emit_mem_reg(OP_MOV_MR, 0, 
-		     trace->ops[op->op1].reg, op->reg);
+        emit_mem_reg(OP_MOV_MR, 0, trace->ops[op->op1].reg, op->reg);
       }
       break;
     }
     case IR_ABC: {
       printf("TODO: ABC emit\n");
-      break; 
+      break;
     }
     case IR_VREF: {
       // TODO: fuse.
       maybe_assign_register(op->op1, trace, slot);
       maybe_assign_register(op->op2, trace, slot);
-      emit_mem_reg_sib(OP_LEA, 8 - PTR_TAG, 0, trace->ops[op->op2].reg, trace->ops[op->op1].reg, op->reg);
+      emit_mem_reg_sib(OP_LEA, 8 - PTR_TAG, 0, trace->ops[op->op2].reg,
+                       trace->ops[op->op1].reg, op->reg);
       break;
     }
     case IR_REF: {
@@ -712,11 +713,12 @@ done:
     moves.mp_sz = 0;
     for (; op_cnt >= 0; op_cnt--) {
       auto op = &trace->ops[op_cnt];
-      map_insert(&moves, find_reg_for_slot(op->op1, side_exit, parent), op->reg);
+      map_insert(&moves, find_reg_for_slot(op->op1, side_exit, parent),
+                 op->reg);
     }
     serialize_parallel_copy(&moves, &res, R15);
-    for(int64_t i = res.mp_sz - 1; i >= 0; i--) {
-      emit_reg_reg(OP_MOV, res.mp[i].from,res.mp[i].to);
+    for (int64_t i = res.mp_sz - 1; i >= 0; i--) {
+      emit_reg_reg(OP_MOV, res.mp[i].from, res.mp[i].to);
     }
   }
 
@@ -754,7 +756,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
     state.regs[op->reg] = (*o_frame)[op->op1];
   }
 
-   // printf("FN start %i\n", tnum);
+  // printf("FN start %i\n", tnum);
   jit_entry_stub(*o_frame, trace->fn, &state);
   trace = state.trace;
   long unsigned exit = state.snap;
@@ -763,7 +765,8 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
   restore_snap(snap, trace, &state, o_frame, o_pc);
   // auto func = find_func_for_frame(snap->pc);
   // assert(func);
-  //  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, snap->pc - &func->code[0], func->name.c_str());
+  //  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num,
+  //  snap->pc - &func->code[0], func->name.c_str());
 
   if (exit != arrlen(trace->snaps) - 1) {
     if (snap->exits < 10) {

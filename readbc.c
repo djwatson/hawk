@@ -2,26 +2,26 @@
 
 #include "readbc.h"
 
-#include <assert.h>        // for assert
-#include <stdint.h>        // for uint64_t
-#include <stdio.h>         // for fread, printf, FILE, fclose, fmemopen, fopen
-#include <stdlib.h>        // for exit, realloc
-#include <string.h>        // for memset
+#include <assert.h> // for assert
+#include <stdint.h> // for uint64_t
+#include <stdio.h>  // for fread, printf, FILE, fclose, fmemopen, fopen
+#include <stdlib.h> // for exit, realloc
+#include <string.h> // for memset
 
-#include "bytecode.h"      // for bcfunc, CODE_D, INS_A, INS_D, INS_OP
-#include "gc.h"            // for GC_malloc, GC_pop_root, GC_push_root
-#include "opcodes.h"       // for GGET, GSET, KFUNC, KONST
-#include "symbol_table.h"  // for symbol_table_find, symbol_table_insert
-#include "types.h"         // for string_s, PTR_TAG, SYMBOL_TAG, cons_s, symbol
-#include "vm.h"            // for funcs
+#include "bytecode.h"     // for bcfunc, CODE_D, INS_A, INS_D, INS_OP
+#include "gc.h"           // for GC_malloc, GC_pop_root, GC_push_root
+#include "opcodes.h"      // for GGET, GSET, KFUNC, KONST
+#include "symbol_table.h" // for symbol_table_find, symbol_table_insert
 #include "third-party/stb_ds.h"
+#include "types.h" // for string_s, PTR_TAG, SYMBOL_TAG, cons_s, symbol
+#include "vm.h"    // for funcs
 
 #define auto __auto_type
 #define nullptr NULL
 
 long *const_table = nullptr;
 unsigned long const_table_sz = 0;
-long* symbols = NULL; // TODO not a global, or use a string instead
+long *symbols = NULL; // TODO not a global, or use a string instead
 
 // TODO GC safety
 long read_const(FILE *fptr) {
@@ -62,10 +62,10 @@ long read_const(FILE *fptr) {
         sym->val = UNDEFINED_TAG;
         symbol_table_insert(sym);
         val = (long)sym | SYMBOL_TAG;
-	arrput(symbols, val);
+        arrput(symbols, val);
       } else {
         val = (long)res + SYMBOL_TAG;
-	arrput(symbols, val);
+        arrput(symbols, val);
         return val;
       }
     }
@@ -183,8 +183,8 @@ bcfunc *readbc(FILE *fptr) {
   for (unsigned i = 0; i < bccount; i++) {
     unsigned int name_count;
     fread(&name_count, 4, 1, fptr);
-    //printf("Name size %i\n", name_count);
-    char *name = (char*)malloc(name_count+1);
+    // printf("Name size %i\n", name_count);
+    char *name = (char *)malloc(name_count + 1);
     assert(name);
     name[name_count] = '\0';
     fread(name, 1, name_count, fptr);
@@ -192,7 +192,8 @@ bcfunc *readbc(FILE *fptr) {
     unsigned int code_count;
     fread(&code_count, 4, 1, fptr);
 
-    auto *f = (bcfunc*)malloc(sizeof(bcfunc) + sizeof(unsigned int)*code_count);
+    auto *f =
+        (bcfunc *)malloc(sizeof(bcfunc) + sizeof(unsigned int) * code_count);
     if (start_func == nullptr) {
       start_func = f;
     }
@@ -202,7 +203,7 @@ bcfunc *readbc(FILE *fptr) {
     }
     f->name = name;
     f->codelen = code_count;
-    
+
     // printf("%i: code %i\n", i, code_count);
     for (unsigned j = 0; j < code_count; j++) {
       fread(&f->code[j], 4, 1, fptr);

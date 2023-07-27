@@ -14,11 +14,9 @@
  * Allows fan out, does not allow fan in / dst smashing.
  */
 
-static void map_init(map* m) {
-  m->mp_sz = 0;
-}
+static void map_init(map *m) { m->mp_sz = 0; }
 
-static par_copy* map_find(map* m, uint64_t needle) {
+static par_copy *map_find(map *m, uint64_t needle) {
   for (uint64_t i = 0; i < m->mp_sz; i++) {
     if (m->mp[i].from == needle) {
       return &m->mp[i];
@@ -28,11 +26,11 @@ static par_copy* map_find(map* m, uint64_t needle) {
   return NULL;
 }
 
-static void map_erase(map* m, uint64_t needle) {
+static void map_erase(map *m, uint64_t needle) {
   for (uint64_t i = 0; i < m->mp_sz; i++) {
     if (m->mp[i].from == needle) {
       for (uint64_t j = i + 1; j < m->mp_sz; j++) {
-        m->mp[j-1] = m->mp[j];
+        m->mp[j - 1] = m->mp[j];
       }
       m->mp_sz--;
       break;
@@ -40,7 +38,7 @@ static void map_erase(map* m, uint64_t needle) {
   }
 }
 
-void map_insert(map* m, uint64_t key, uint64_t value) {
+void map_insert(map *m, uint64_t key, uint64_t value) {
   if (m->mp_sz == MAX_MAP_SIZE) {
     printf("Hit max map size in parcopy\n");
     exit(-1);
@@ -50,7 +48,7 @@ void map_insert(map* m, uint64_t key, uint64_t value) {
   m->mp_sz++;
 }
 
-static void map_set(map* m, uint64_t key, uint64_t value) {
+static void map_set(map *m, uint64_t key, uint64_t value) {
   __auto_type v = map_find(m, key);
   if (v) {
     v->to = value;
@@ -59,7 +57,7 @@ static void map_set(map* m, uint64_t key, uint64_t value) {
   }
 }
 
-void serialize_parallel_copy(map* moves, map* moves_out, uint64_t tmp_reg) {
+void serialize_parallel_copy(map *moves, map *moves_out, uint64_t tmp_reg) {
   map_init(moves_out);
 
   for (uint64_t i = 0; i < moves->mp_sz; i++) {
@@ -87,7 +85,7 @@ void serialize_parallel_copy(map* moves, map* moves_out, uint64_t tmp_reg) {
 
   while (rmoves.mp_sz != 0) {
     while (ready_pos != 0) {
-      uint64_t r = ready[ready_pos-1];
+      uint64_t r = ready[ready_pos - 1];
       ready_pos--;
       if (map_find(&rmoves, r) == NULL) {
         continue;

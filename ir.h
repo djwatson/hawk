@@ -77,19 +77,19 @@ typedef struct {
   uint16_t offset;
   uint8_t exits;
   int link;
-  snap_entry_s* slots;
+  snap_entry_s *slots;
   uint64_t patchpoint;
 } snap_s;
 
 typedef enum {
   TRACE_RETURN,
   TRACE_TAILREC,
-}trace_type_e ;
+} trace_type_e;
 
 typedef enum {
   RELOC_ABS,
   RELOC_SYM_ABS,
-}reloc_type ;
+} reloc_type;
 
 typedef struct {
   uint64_t offset;
@@ -99,10 +99,10 @@ typedef struct {
 
 typedef long (*Func)(long **, unsigned int **);
 typedef struct {
-  ir_ins* ops;
-  long* consts;
-  reloc* relocs;
-  snap_s* snaps;
+  ir_ins *ops;
+  long *consts;
+  reloc *relocs;
+  snap_s *snaps;
   int link;
   unsigned int startpc;
   int num;
@@ -111,4 +111,4 @@ typedef struct {
 
 #define UNROLL_LIMIT 1
 
-#define ir_is_const(op) (op&IR_CONST_BIAS)
+#define ir_is_const(op) (op & IR_CONST_BIAS)

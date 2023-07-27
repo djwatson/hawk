@@ -1,21 +1,21 @@
-#include <stdio.h>         // for printf
-#include <stdlib.h>        // for exit
-#include <stdbool.h>           // for bool, false, true
-#include <string.h>        // for strcmp, strcpy, strlen
-#include <getopt.h>       // for no_argument, getopt_long, option
+#include <getopt.h>  // for no_argument, getopt_long, option
+#include <stdbool.h> // for bool, false, true
+#include <stdio.h>   // for printf
+#include <stdlib.h>  // for exit
+#include <string.h>  // for strcmp, strcpy, strlen
 
-#include "gc.h"           // for GC_init
+#include "gc.h" // for GC_init
 #ifdef JIT
-#include "jitdump.h"      // for jit_dump_close, jit_dump_init
+#include "jitdump.h" // for jit_dump_close, jit_dump_init
 #endif
 #ifdef PROFILER
-#include "profiler.h"     // for profiler_start, profiler_stop
+#include "profiler.h" // for profiler_start, profiler_stop
 #endif
+#include "bytecode.h"
 #include "readbc.h"       // for readbc_file, readbc_image
 #include "symbol_table.h" // for symbol_table_find_cstr
 #include "types.h"        // for from_c_str, symbol, CLOSURE_TAG, TRUE_REP
 #include "vm.h"           // for run
-#include "bytecode.h"
 
 #include "record.h"
 
@@ -37,15 +37,15 @@ static struct option long_options[] = {
 void print_help() {
   printf("Usage: boom [OPTION]\n");
   printf("Available options are:\n");
-  #ifdef JIT
+#ifdef JIT
   printf("      --joff     \tTurn off jit\n");
   printf("  -m, --max-trace\tStop JITting after # trace\n");
-  #endif
+#endif
   printf("  -l, --list     \tList bytecode and stop\n");
 #ifdef PROFILER
   printf("  -p, --profile  \tSampling profiler\n");
 #endif
-  
+
   printf("  -h, --heap-sz  \tHeap size (in pages)\n");
   printf("  -h, --help     \tPrint this help\n");
 }
@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
       break;
     case 's':
       page_cnt = atoi(optarg);
-      printf("Heap size %li MB\n", (page_cnt*4096) / 1024 / 1024);
+      printf("Heap size %li MB\n", (page_cnt * 4096) / 1024 / 1024);
       break;
     case 'm':
       TRACE_MAX = atoi(optarg);
@@ -109,15 +109,15 @@ int main(int argc, char *argv[]) {
   }
 
   GC_init();
-  // GC_expand_hp(50000000);
-  #ifdef JIT
+// GC_expand_hp(50000000);
+#ifdef JIT
   jit_dump_init();
-  #endif
-  #ifdef PROFILER
+#endif
+#ifdef PROFILER
   if (profile != 0) {
     profiler_start();
   }
-  #endif
+#endif
   auto ojoff = joff;
   joff = 1;
   if (bootstrap_scm_bc_len > 0) {
@@ -135,7 +135,7 @@ int main(int argc, char *argv[]) {
       printf("Compiling script %s\n", argv[i]);
       compile_file(argv[i]);
       if (list) {
-	break;
+        break;
       }
       printf("Running script %s\n", tmp);
       joff = ojoff;
@@ -151,16 +151,16 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  #ifdef PROFILER
+#ifdef PROFILER
   if (profile != 0) {
     profiler_stop();
   }
-  #endif
+#endif
 
-  #ifdef JIT
+#ifdef JIT
   jit_dump_close();
   free_trace();
-  #endif
+#endif
   free_script();
   free_vm();
 

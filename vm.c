@@ -1,14 +1,13 @@
 #include "vm.h"
 
-#include <assert.h>              // for assert
-#include <fcntl.h>               // for open, O_CREAT, O_RDONLY, O_TRUNC
-#include <math.h>                // for remainder, acos, asin, atan, ceil, cos
-#include <stdbool.h>             // for bool, false, true
-#include <stdio.h>               // for printf, fread, fwrite, fclose, fdopen
-#include <stdlib.h>              // for exit, realloc, free, malloc
-#include <string.h>              // for memcpy, NULL, memset
-#include <unistd.h>              // for access, close, unlink, F_OK
-
+#include <assert.h>  // for assert
+#include <fcntl.h>   // for open, O_CREAT, O_RDONLY, O_TRUNC
+#include <math.h>    // for remainder, acos, asin, atan, ceil, cos
+#include <stdbool.h> // for bool, false, true
+#include <stdio.h>   // for printf, fread, fwrite, fclose, fdopen
+#include <stdlib.h>  // for exit, realloc, free, malloc
+#include <string.h>  // for memcpy, NULL, memset
+#include <unistd.h>  // for access, close, unlink, F_OK
 
 #include "asm_x64.h"
 #include "bytecode.h"
@@ -30,7 +29,7 @@
 int joff = 0;
 extern int profile;
 
-bcfunc** funcs = NULL;
+bcfunc **funcs = NULL;
 #define auto __auto_type
 
 #define likely(x) __builtin_expect(!!(x), 1)
@@ -47,10 +46,7 @@ static void vm_init() {
   }
 }
 
-void free_vm() {
-  free(stack);
-}
-
+void free_vm() { free(stack); }
 
 /*
 This is a tail-calling interpreter that requires 'musttail' attribute, so
@@ -93,8 +89,7 @@ static op_func l_op_table_profile[INS_MAX];
 bcfunc *find_func_for_frame(uint32_t *pc) {
   for (unsigned long j = 0; j < arrlen(funcs); j++) {
     auto fun = funcs[j];
-    if (pc >= &fun->code[0] &&
-        pc <= &fun->code[fun->codelen-1]) {
+    if (pc >= &fun->code[0] && pc <= &fun->code[fun->codelen - 1]) {
       return fun;
     }
   }
@@ -134,14 +129,14 @@ ABI void RECORD_START(PARAMS) {
 }
 
 ABI void RECORD(PARAMS) {
-  #ifdef JIT
+#ifdef JIT
   if (record(pc, frame, argcnt)) {
     // Back to interpreting.
     op_table_arg = (void **)l_op_table;
   }
-  #else
-    op_table_arg = (void **)l_op_table;
-    #endif
+#else
+  op_table_arg = (void **)l_op_table;
+#endif
   // record may have updated state.
   instr = *pc;
   ra = (instr >> 8) & 0xff;
@@ -223,7 +218,7 @@ long *expand_stack_slowpath(long *frame) {
  */
 #define LIBRARY_FUNC_BC(name)                                                  \
   ABI void INS_##name(PARAMS) {                                                \
-    DEBUG_VM(#name);                                                              \
+    DEBUG_VM(#name);                                                           \
     unsigned char rb = instr & 0xff;                                           \
     unsigned char rc = (instr >> 8) & 0xff;
 #define LIBRARY_FUNC_BC_LOAD(name)                                             \
@@ -232,11 +227,11 @@ long *expand_stack_slowpath(long *frame) {
   long fc = frame[rc];
 #define LIBRARY_FUNC_B(name)                                                   \
   ABI void INS_##name(PARAMS) {                                                \
-    DEBUG_VM(#name);                                                              \
+    DEBUG_VM(#name);                                                           \
     unsigned char rb = instr & 0xff;
 #define LIBRARY_FUNC_D(name)                                                   \
   ABI void INS_##name(PARAMS) {                                                \
-    DEBUG_VM(#name);                                                              \
+    DEBUG_VM(#name);                                                           \
     auto rd = (int16_t)instr;
 #define LIBRARY_FUNC(name)                                                     \
   ABI void INS_##name(PARAMS) {                                                \
@@ -354,17 +349,17 @@ LIBRARY_FUNC_MATH_VN(SUBVN, sub);
 LIBRARY_FUNC_MATH_VN(ADDVN, add);
 
 // Note overflow may smash dest, so don't use frame[ra] directly.
-#define OVERFLOW_OP(op, name, shift)					       \
-  long tmp;								       \
-  if (unlikely(__builtin_##op##_overflow(fb, fc >> shift, &tmp))) {	       \
+#define OVERFLOW_OP(op, name, shift)                                           \
+  long tmp;                                                                    \
+  if (unlikely(__builtin_##op##_overflow(fb, fc >> shift, &tmp))) {            \
     MUSTTAIL return INS_##name##_SLOWPATH(ARGS);                               \
-  }									       \
+  }                                                                            \
   frame[ra] = tmp;
 
 // Shift is necessary for adjusting the tag for mul.
 #define LIBRARY_FUNC_MATH_VV(name, op2, overflow)                              \
   ABI __attribute__((noinline)) void INS_##name##_SLOWPATH(PARAMS) {           \
-    DEBUG_VM(#name);                                                              \
+    DEBUG_VM(#name);                                                           \
     unsigned char rb = instr & 0xff;                                           \
     unsigned char rc = (instr >> 8) & 0xff;                                    \
                                                                                \
@@ -1209,13 +1204,13 @@ void run(bcfunc *func, long argcnt, long *args) {
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }
-  #ifdef PROFILER
+#ifdef PROFILER
   if (profile) {
     l_op_table_profile[RET1] = INS_PROFILE_RET1_ADJ;
     l_op_table_profile[CALL] = INS_PROFILE_CALL_ADJ;
     l_op_table_profile[CALLCC_RESUME] = INS_PROFILE_CALLCC_RESUME_ADJ;
   }
-  #endif
+#endif
 
   // Initial tailcalling-interpreter variable setup.
   unsigned int instr = *pc;
