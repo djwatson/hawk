@@ -53,7 +53,7 @@ set(SOURCES readbc.c bytecode.c vm.o boom.c  ir.c types.c bootstrap.c symbol_tab
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
-  set(SOURCES ${SOURCES} snap.c asm_x64.cpp jitdump.c record.cpp emit_x64.c)
+  set(SOURCES ${SOURCES} snap.c asm_x64.c jitdump.c record.cpp emit_x64.c)
   set(LIBRARIES ${LIBRARIES} "capstone")
 endif(JIT)
 if (PROFILER)
