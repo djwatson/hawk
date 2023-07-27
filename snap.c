@@ -41,7 +41,7 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
     auto slot = &snap->slots[i];
     if ((slot->val & IR_CONST_BIAS) != 0) {
       auto c = parent->consts[slot->val - IR_CONST_BIAS];
-      if ((c & SNAP_FRAME) != 0u) {
+      if ((c & SNAP_FRAME) != 0U) {
         depth++;
       }
       // Push const in new trace

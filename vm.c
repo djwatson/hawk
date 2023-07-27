@@ -86,7 +86,7 @@ static op_func l_op_table_profile[INS_MAX];
     MUSTTAIL return op_table_arg_c[op](ARGS);                                  \
   }
 
-bcfunc *find_func_for_frame(uint32_t *pc) {
+bcfunc *find_func_for_frame(const uint32_t *pc) {
   for (unsigned long j = 0; j < arrlen(funcs); j++) {
     auto fun = funcs[j];
     if (pc >= &fun->code[0] && pc <= &fun->code[fun->codelen - 1]) {
@@ -109,8 +109,7 @@ ABI __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
     frame -= (INS_A(*(pc - 1)) + 1);
     printf("%i PC: %p\n", i++, pc);
   }
-  return;
-}
+  }
 
 ABI __attribute__((noinline)) void FAIL_SLOWPATH_ARGCNT(PARAMS) {
   printf("FAIL ARGCNT INVALID\n");
@@ -147,7 +146,7 @@ ABI void RECORD(PARAMS) {
                                           argcnt);
 }
 
-long build_list(long start, long len, long *frame) {
+long build_list(long start, long len, const long *frame) {
   long lst = NIL_TAG;
   // printf("Build list from %i len %i\n", start, len);
   for (long pos = start + len - 1; pos >= start; pos--) {
@@ -171,7 +170,6 @@ ABI __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
 
   printf("FAIL undefined symbol: %s\n", gp->name->str);
-  return;
 }
 
 ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
@@ -248,18 +246,18 @@ long *expand_stack_slowpath(long *frame) {
   }
 
 #define TYPECHECK_TAG(val, tag)                                                \
-  if (unlikely((val & TAG_MASK) != tag)) {                                     \
+  if (unlikely(((val) & TAG_MASK) != (tag))) {                                     \
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }
 #define TYPECHECK_FIXNUM(val) TYPECHECK_TAG(val, FIXNUM_TAG)
 #define TYPECHECK_IMMEDIATE(val, tag)                                          \
-  if (unlikely((val & IMMEDIATE_MASK) != tag)) {                               \
+  if (unlikely(((val) & IMMEDIATE_MASK) != (tag))) {                               \
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }
 #define LOAD_TYPE_WITH_CHECK(name, type_s, val, tag)                           \
   TYPECHECK_TAG(val, PTR_TAG);                                                 \
-  auto name = (type_s *)(val - PTR_TAG);                                       \
-  if (unlikely(name->type != tag)) {                                           \
+  auto (name) = (type_s *)((val) - PTR_TAG);                                       \
+  if (unlikely((name)->type != (tag))) {                                           \
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }
 
@@ -331,8 +329,7 @@ LIBRARY_FUNC(RET1)
 }
 
 LIBRARY_FUNC(HALT)
-  return;
-}
+  }
 
 // Note signed-ness of rc.
 #define LIBRARY_FUNC_MATH_VN(name, op)                                         \
@@ -351,7 +348,7 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
 // Note overflow may smash dest, so don't use frame[ra] directly.
 #define OVERFLOW_OP(op, name, shift)                                           \
   long tmp;                                                                    \
-  if (unlikely(__builtin_##op##_overflow(fb, fc >> shift, &tmp))) {            \
+  if (unlikely(__builtin_##op##_overflow(fb, fc >> (shift), &tmp))) {            \
     MUSTTAIL return INS_##name##_SLOWPATH(ARGS);                               \
   }                                                                            \
   frame[ra] = tmp;
@@ -409,10 +406,10 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
 #define LIBRARY_FUNC_MATH_OVERFLOW_VV(name, op, op2, shift)                    \
   LIBRARY_FUNC_MATH_VV(name, op2, OVERFLOW_OP(op, name, shift));
 
-#define MATH_ADD(a, b) (a + b)
-#define MATH_SUB(a, b) (a - b)
-#define MATH_MUL(a, b) (a * b)
-#define MATH_DIV(a, b) (a / b)
+#define MATH_ADD(a, b) ((a) + (b))
+#define MATH_SUB(a, b) ((a) - (b))
+#define MATH_MUL(a, b) ((a) * (b))
+#define MATH_DIV(a, b) ((a) / (b))
 
 LIBRARY_FUNC_MATH_OVERFLOW_VV(ADDVV, add, MATH_ADD, 0);
 LIBRARY_FUNC_MATH_OVERFLOW_VV(SUBVV, sub, MATH_SUB, 0);
@@ -428,7 +425,7 @@ LIBRARY_FUNC_MATH_VV(REM, remainder, frame[ra] = ((fb >> 3) % (fc >> 3)) << 3);
     iffalse;					\
   }						\
 						\
-  pc += finish;					\
+  pc += (finish);					\
   NEXT_INSTR;					\
 }
 
@@ -505,9 +502,9 @@ LIBRARY_FUNC_NUM_CMP(ISEQ, ==, SET_RES);
   LIBRARY_FUNC_B_LOAD(name)				\
   assert(INS_OP(*(pc+1)) == JMP);			\
   if (fb == FALSE_REP) {				\
-    pc += iftrue;					\
+    pc += (iftrue);					\
   } else {						\
-    pc += iffalse;					\
+    pc += (iffalse);					\
   }							\
 							\
   NEXT_INSTR;						\
@@ -574,7 +571,7 @@ END_LIBRARY_FUNC
     iffalse;								\
   }									\
 									\
-  pc += finish;								\
+  pc += (finish);								\
   NEXT_INSTR;								\
 }
 
@@ -720,7 +717,7 @@ LIBRARY_FUNC_B(CALLT)
     iffalse;						\
   }							\
 							\
-  pc += finish;						\
+  pc += (finish);						\
   NEXT_INSTR;						\
 }
 
@@ -1018,7 +1015,8 @@ LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
   for(; pos < 511; pos++) {
     // TODO bigger than 511
     long res = fread(&buf[pos], 1, 1, port->file);
-    if(buf[pos] == '\n') break;
+    if(buf[pos] == '\n') { break;
+}
     if (res == 0) {
       eof = true;
       break;
@@ -1175,7 +1173,7 @@ ABI void INS_PROFILE_CALLCC_RESUME_ADJ(PARAMS) {
 
 #include "opcodes-table.h"
 
-void run(bcfunc *func, long argcnt, long *args) {
+void run(bcfunc *func, long argcnt, const long *args) {
   vm_init();
 
   // Bytecode stub to get us to HALT.

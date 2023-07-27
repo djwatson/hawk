@@ -46,12 +46,10 @@ symbol *symbol_table_find_cstr(const char *str) {
     }
     if (*cur == TOMBSTONE) {
       continue;
-    } else if (strcmp((*cur)->name->str, str) == 0) {
+    } if (strcmp((*cur)->name->str, str) == 0) {
       return *cur;
-    } else {
-      // Mismatched comparison, continue.
-      continue;
-    }
+    }       // Mismatched comparison, continue.
+        
   }
 
   return NULL;
@@ -75,8 +73,7 @@ void symbol_table_insert(symbol *sym) {
       *cur = sym;
       return;
     } // Mismatched comparison, continue.
-    continue;
-  }
+     }
 
   // Definitely should find a spot.
   assert(false);

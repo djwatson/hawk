@@ -3,8 +3,8 @@
 #include "bytecode.h"
 #include <stdint.h>
 
-void run(bcfunc *func, long argcnt, long *args);
-bcfunc *find_func_for_frame(uint32_t *pc);
+void run(bcfunc *func, long argcnt, const long *args);
+bcfunc *find_func_for_frame(const uint32_t *pc);
 void free_vm();
 
 extern bcfunc **funcs;
