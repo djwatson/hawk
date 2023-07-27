@@ -2,9 +2,6 @@
 
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 enum registers {
   RAX = 0,
   RCX = 1,
@@ -102,6 +99,3 @@ void emit_jcc32(enum jcc_cond cond, int32_t offset);
 void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm);
 void emit_cmp_reg_imm32(uint8_t r, int32_t imm);
 void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm);
-#ifdef __cplusplus
-}
-#endif

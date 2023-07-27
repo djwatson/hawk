@@ -86,13 +86,6 @@ typedef struct port_s {
   long peek;
 } port_s;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void print_obj(long obj, FILE *file);
 long from_c_str(const char *s);
 long get_symbol_val(const char *name);
-#ifdef __cplusplus
-}
-#endif

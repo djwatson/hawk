@@ -1,9 +1,5 @@
 #pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stddef.h>
 typedef struct string_s string_s;
 typedef struct symbol symbol;
@@ -25,6 +21,3 @@ typedef struct table {
 
 extern table *sym_table;
 
-#ifdef __cplusplus
-}
-#endif
