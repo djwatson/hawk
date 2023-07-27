@@ -109,8 +109,6 @@ add_custom_target(
   COMMAND clang-format -i *.h *.c
   )
 
-add_library(write_double SHARED EXCLUDE_FROM_ALL write_double.c)
-
 # Generate the bootstrap image.
 add_custom_command(
   OUTPUT  bootstrap.scm.bc bootstrap.c
@@ -124,7 +122,7 @@ add_custom_command(
   ${CHEZ} --script bc.chez.scm bootstrap.scm > /dev/null
   COMMAND
   xxd -i bootstrap.scm.bc > bootstrap.c
-  DEPENDS ${SCM_SOURCES} write_double opcodes.scm
+  DEPENDS ${SCM_SOURCES} opcodes.scm
 )
 
 # Generate the opcodes
