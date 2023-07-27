@@ -1,8 +1,9 @@
 // Copyright 2023 Dave Watson
 
-#include "./readbc.h"
+#include "readbc.h"
 
 #include <assert.h>        // for assert
+#include <stdint.h>        // for uint64_t
 #include <stdio.h>         // for fread, printf, FILE, fclose, fmemopen, fopen
 #include <stdlib.h>        // for exit, realloc
 #include <string.h>        // for memset

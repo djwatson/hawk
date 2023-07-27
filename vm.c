@@ -1,8 +1,14 @@
-#include <assert.h>
-#include <fcntl.h>
-#include <math.h>
-#include <string.h>
-#include <unistd.h>
+#include "vm.h"
+
+#include <assert.h>              // for assert
+#include <fcntl.h>               // for open, O_CREAT, O_RDONLY, O_TRUNC
+#include <math.h>                // for remainder, acos, asin, atan, ceil, cos
+#include <stdbool.h>             // for bool, false, true
+#include <stdio.h>               // for printf, fread, fwrite, fclose, fdopen
+#include <stdlib.h>              // for exit, realloc, free, malloc
+#include <string.h>              // for memcpy, NULL, memset
+#include <unistd.h>              // for access, close, unlink, F_OK
+
 
 #include "asm_x64.h"
 #include "bytecode.h"
@@ -17,7 +23,6 @@
 #endif
 #include "symbol_table.h"
 #include "types.h"
-#include "vm.h"
 
 #define STB_DS_IMPLEMENTATION
 #include "third-party/stb_ds.h"

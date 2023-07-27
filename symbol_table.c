@@ -4,7 +4,6 @@
 #include <stdint.h> // for uint64_t
 #include <stdlib.h> // for calloc, free, size_t
 #include <string.h> // for strcmp
-#include <stdbool.h>
 
 #define auto __auto_type
 

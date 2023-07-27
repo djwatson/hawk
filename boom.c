@@ -1,3 +1,9 @@
+#include <stdio.h>         // for printf
+#include <stdlib.h>        // for exit
+#include <stdbool.h>           // for bool, false, true
+#include <string.h>        // for strcmp, strcpy, strlen
+#include <getopt.h>       // for no_argument, getopt_long, option
+
 #include "gc.h"           // for GC_init
 #ifdef JIT
 #include "jitdump.h"      // for jit_dump_close, jit_dump_init
@@ -9,17 +15,12 @@
 #include "symbol_table.h" // for symbol_table_find_cstr
 #include "types.h"        // for from_c_str, symbol, CLOSURE_TAG, TRUE_REP
 #include "vm.h"           // for run
-#include <stdio.h>         // for printf
-#include <stdlib.h>        // for exit
-#include <string.h>        // for strcmp, strcpy, strlen
-#include <getopt.h>       // for no_argument, getopt_long, option
+#include "bytecode.h"
 
 #include "record.h"
 
 #define auto __auto_type
 #define nullptr NULL
-
-struct bcfunc;
 
 extern int joff;
 

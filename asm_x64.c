@@ -1,7 +1,8 @@
 #include "asm_x64.h"
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
 #include <assert.h>             // for assert
-#include <stdint.h>             // for uint64_t, uint16_t, uint8_t, int32_t
+#include <inttypes.h>
+#include <stdbool.h>
 #include <stdio.h>              // for printf, size_t
 #include <stdlib.h>             // for exit
 #include <valgrind/valgrind.h> // for VALGRIND_DISCARD_TRANSLATIONS
@@ -14,8 +15,6 @@
 // only for tcache
 #include "record.h" // for trace_cache_get, record_side
 #include "types.h"  // for CONS_TAG, TAG_MASK, IMMEDIATE_MASK
-
-#include "vm.h" // for find_func_for_frame
 
 #include "parallel_copy.h"
 #include "third-party/stb_ds.h"
