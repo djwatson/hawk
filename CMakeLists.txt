@@ -53,7 +53,7 @@ set(SOURCES readbc.c bytecode.c vm.o boom.c  ir.c types.c bootstrap.c symbol_tab
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
-  set(SOURCES ${SOURCES} snap.c asm_x64.c jitdump.c record.cpp emit_x64.c)
+  set(SOURCES ${SOURCES} snap.c asm_x64.c jitdump.c record.c emit_x64.c)
   set(LIBRARIES ${LIBRARIES} "capstone")
 endif(JIT)
 if (PROFILER)
@@ -65,7 +65,7 @@ if (REPLAY)
 endif(REPLAY)
 add_executable(boom ${SOURCES} )
 
-target_compile_options(boom PRIVATE -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow
+target_compile_options(boom PRIVATE -gdwarf-3 -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow
   -Wno-unused-parameter -Wnull-dereference )
 set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 

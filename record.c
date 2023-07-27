@@ -6,17 +6,18 @@
 #include "snap.h"  // for add_snap, snap_replay
 #include "types.h" // for CONS_TAG, FALSE_REP, SYMBOL_TAG, symbol, CLOSU...
 #include "vm.h"    // for find_func_for_frame, hotmap_mask, hotmap_sz
-#include <cassert> // for assert
-#include <cstdint> // for uint32_t
-#include <cstdio>  // for printf
-#include <cstdlib> // for exit
-#include <cstring> // for NULL, memmove, size_t
-#include <memory>  // for allocator_traits<>::value_type
-#include <string>  // for string
-#include <vector>  // for vector
+#include <assert.h> // for assert
+#include <stdint.h> // for uint32_t
+#include <stdio.h>  // for printf
+#include <stdlib.h> // for exit
+#include <string.h> // for NULL, memmove, size_t
+#include <stdbool.h>
 #include "third-party/stb_ds.h"
 
-extern "C" void opt_loop(trace_s *trace, int *regs);
+#define auto __auto_type
+#define nullptr NULL
+
+void opt_loop(trace_s *trace, int *regs);
 
 unsigned int *pc_start;
 unsigned int instr_count;
@@ -26,15 +27,15 @@ long func;
 int regs_list[257];
 int *regs = &regs_list[1];
 snap_s *side_exit = nullptr;
-trace_s *parent = nullptr;
+static trace_s *parent = nullptr;
 
 unsigned int ** downrec = NULL;
 
-enum trace_state_e {
+typedef enum trace_state_e {
   OFF = 0,
   START,
   TRACING,
-};
+} trace_state_e;
 
 trace_state_e trace_state = OFF;
 trace_s *trace = nullptr;
@@ -85,12 +86,12 @@ void dump_trace(trace_s *ctrace) {
     while ((cur_snap < arrlen(ctrace->snaps)) &&
            ctrace->snaps[cur_snap].ir == i) {
 
-      auto &snap = ctrace->snaps[cur_snap];
-      printf("SNAP[ir=%i pc=%lx off=%i", snap.ir, (long)snap.pc, snap.offset);
-      for(uint64_t j = 0; j < arrlen(snap.slots); j++) {
-	auto&entry = snap.slots[j];
-        printf(" %i=", entry.slot);
-        print_const_or_val(entry.val, ctrace);
+      auto snap = &ctrace->snaps[cur_snap];
+      printf("SNAP[ir=%i pc=%lx off=%i", snap->ir, (long)snap->pc, snap->offset);
+      for(uint64_t j = 0; j < arrlen(snap->slots); j++) {
+	auto entry = &snap->slots[j];
+        printf(" %i=", entry->slot);
+        print_const_or_val(entry->val, ctrace);
       }
       printf("]\n");
       cur_snap++;
@@ -172,21 +173,23 @@ void dump_trace(trace_s *ctrace) {
   }
 }
 
-extern "C" void record_side(trace_s *p, snap_s *side) {
+void record_side(trace_s *p, snap_s *side) {
   parent = p;
   side_exit = side;
 }
 
 void record_abort();
 void record_start(unsigned int *pc, long *frame) {
-  trace = new trace_s;
-  trace->num = arrlen(traces);
-  trace_state = START;
+  trace = malloc(sizeof(trace_s));
   trace->ops = NULL;
+  trace->consts = NULL;
   trace->relocs = NULL;
   trace->snaps = NULL;
-  trace->consts = NULL;
+  trace->link = -1;
+  trace->startpc = *pc;
+  trace->num = arrlen(traces);
   trace->fn = NULL;
+  trace_state = START;
   func = (long)find_func_for_frame(pc);
   assert(func);
   printf("Record start %i at %s func %s\n", trace->num, ins_names[INS_OP(*pc)],
@@ -195,12 +198,11 @@ void record_start(unsigned int *pc, long *frame) {
     printf("Parent %i\n", parent->num);
   }
   pc_start = pc;
-  trace->startpc = *pc;
   instr_count = 0;
   depth = 0;
   regs = &regs_list[1];
-  for (int &i : regs_list) {
-    i = -1;
+  for (int i =0; i < sizeof(regs_list)/sizeof(regs_list[0]); i++) {
+    regs_list[i] = -1;
   }
 
   if (side_exit != nullptr) {
@@ -261,7 +263,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
 
 void record_abort() {
   pendpatch();
-  delete trace;
+  free(trace);
   trace = nullptr;
   trace_state = OFF;
   side_exit = nullptr;
@@ -269,7 +271,7 @@ void record_abort() {
   parent = nullptr;
 }
 
-extern "C" int record(unsigned int *pc, long *frame, long argcnt) {
+int record(unsigned int *pc, long *frame, long argcnt) {
   if (arrlen(traces) >= TRACE_MAX) {
     return 1;
   }
@@ -327,7 +329,7 @@ int record_stack_load(int slot, const long *frame) {
 }
 
 extern unsigned char hotmap[hotmap_sz];
-extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
+int record_instr(unsigned int *pc, long *frame, long argcnt) {
   unsigned int i = *pc;
 
   if (INS_OP(i) == LOOP) {
@@ -810,9 +812,9 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto reg = INS_A(i);
     bool done = false;
     for (int j = arrlen(trace->ops) - 1; j >= 0; j--) {
-      auto &op = trace->ops[j];
-      if (op.op == IR_GGET &&
-          trace->consts[op.op1 - IR_CONST_BIAS] == gp) {
+      auto op = &trace->ops[j];
+      if (op->op == IR_GGET &&
+          trace->consts[op->op1 - IR_CONST_BIAS] == gp) {
         done = true;
         regs[reg] = j;
         break;
@@ -995,8 +997,8 @@ extern "C" int record_instr(unsigned int *pc, long *frame, long argcnt) {
   return 0;
 }
 
-extern "C" trace_s *trace_cache_get(unsigned int tnum) { return traces[tnum]; }
+trace_s *trace_cache_get(unsigned int tnum) { return traces[tnum]; }
 
-extern "C" void free_trace() {
+void free_trace() {
   printf("Traces: %li\n", arrlen(traces));
 }
