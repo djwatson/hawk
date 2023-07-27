@@ -1,14 +1,10 @@
 cmake_minimum_required(VERSION 3.14)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
-
 include(CheckIPOSupported)
 check_ipo_supported(RESULT supported OUTPUT error)
 
 # Clang is required, due to use of musttail.
 set(CMAKE_C_COMPILER "clang")
-set(CMAKE_CXX_COMPILER "clang")
 
 project(bool VERSION 0.1)
 
@@ -38,18 +34,16 @@ if (NOT CHEZ)
 endif()
 message("Using " ${CHEZ} " for bootstrapping")
 
-#set(CMAKE_CXX_CLANG_TIDY "clang-tidy;-fix;-checks=clang-diagnostic-*,clang-analyzer-*,bugprone*,modernize*,performance*,readability-*,-modernize-use-trailing-return-type,-modernize-avoid-c-arrays,-readability-magic-numbers")
 #set(CMAKE_C_CLANG_TIDY "clang-tidy;-fix;-checks=clang-diagnostic-*,clang-analyzer-*,bugprone*,modernize*,performance*,readability-*,-modernize-use-trailing-return-type,-modernize-avoid-c-arrays,-readability-magic-numbers")
 
 
-#set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE "iwyu")
 #set(CMAKE_C_INCLUDE_WHAT_YOU_USE "iwyu")
 
 # PIE turned off for testing, since we JIT hot function detection is based on address of the function.
 include(CheckPIESupported)
 check_pie_supported()
 
-set(SOURCES readbc.c bytecode.c vm.o boom.c  ir.c types.c bootstrap.c symbol_table.c gc.c opcodes.h profiler.cpp opt_loop.c parallel_copy.c)
+set(SOURCES readbc.c bytecode.c vm.o boom.c  ir.c types.c bootstrap.c symbol_table.c gc.c opcodes.h opt_loop.c parallel_copy.c)
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
@@ -57,10 +51,11 @@ if (JIT)
   set(LIBRARIES ${LIBRARIES} "capstone")
 endif(JIT)
 if (PROFILER)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPROFILER")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPROFILER")
+  set(SOURCES ${SOURCES} profiler.cpp)
 endif(PROFILER)
 if (REPLAY)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DREPLAY")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DREPLAY")
   set(SOURCES ${SOURCES} replay.cpp)
 endif(REPLAY)
 add_executable(boom ${SOURCES} )
@@ -110,7 +105,7 @@ add_custom_target(
 
 add_custom_target(
   format
-  COMMAND clang-format -i *.h *.cpp
+  COMMAND clang-format -i *.h *.c
   )
 
 add_library(write_double SHARED EXCLUDE_FROM_ALL write_double.c)

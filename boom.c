@@ -1,6 +1,8 @@
 #include "gc.h"           // for GC_init
 #include "jitdump.h"      // for jit_dump_close, jit_dump_init
+#ifdef PROFILER
 #include "profiler.h"     // for profiler_start, profiler_stop
+#endif
 #include "readbc.h"       // for readbc_file, readbc_image
 #include "symbol_table.h" // for symbol_table_find_cstr
 #include "types.h"        // for from_c_str, symbol, CLOSURE_TAG, TRUE_REP
@@ -34,7 +36,9 @@ void print_help() {
   printf("Available options are:\n");
   printf("      --joff     \tTurn off jit\n");
   printf("  -l, --list     \tList bytecode and stop\n");
+#ifdef PROFILER
   printf("  -p, --profile  \tSampling profiler\n");
+#endif  
   printf("  -m, --max-trace\tStop JITting after # trace\n");
   printf("  -h, --heap-sz  \tHeap size (in pages)\n");
   printf("  -h, --help     \tPrint this help\n");
@@ -101,9 +105,11 @@ int main(int argc, char *argv[]) {
   GC_init();
   // GC_expand_hp(50000000);
   jit_dump_init();
+  #ifdef PROFILER
   if (profile != 0) {
     profiler_start();
   }
+  #endif
   auto ojoff = joff;
   joff = 1;
   if (bootstrap_scm_bc_len > 0) {
@@ -138,9 +144,11 @@ int main(int argc, char *argv[]) {
   }
 
   jit_dump_close();
+  #ifdef PROFILER
   if (profile != 0) {
     profiler_stop();
   }
+  #endif
   
   free_trace();
   free_script();

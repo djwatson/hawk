@@ -12,7 +12,9 @@
 #ifdef REPLAY
 #include "replay.h"
 #endif
+#ifdef PROFILER
 #include "profiler.h"
+#endif
 #include "symbol_table.h"
 #include "types.h"
 #include "vm.h"
@@ -1142,6 +1144,7 @@ LIBRARY_FUNC_B_LOAD_NAME(DELETE-FILE, DELETE_FILE)
 END_LIBRARY_FUNC
 
 ///////////
+#ifdef PROFILER
 ABI void INS_PROFILE_RET1_ADJ(PARAMS) {
  profile_pop_frame();
  profile_set_pc(pc);
@@ -1160,6 +1163,7 @@ ABI void INS_PROFILE_CALLCC_RESUME_ADJ(PARAMS) {
  profile_set_pc(pc);
  MUSTTAIL return INS_CALLCC_RESUME(ARGS);
 }
+#endif
 //////////////
 
 #include "opcodes-table.h"
@@ -1193,11 +1197,13 @@ void run(bcfunc *func, long argcnt, long *args) {
   for (int i = 0; i < INS_MAX; i++) {
     l_op_table_record[i] = RECORD;
   }
+  #ifdef PROFILER
   if (profile) {
     l_op_table_profile[RET1] = INS_PROFILE_RET1_ADJ;
     l_op_table_profile[CALL] = INS_PROFILE_CALL_ADJ;
     l_op_table_profile[CALLCC_RESUME] = INS_PROFILE_CALLCC_RESUME_ADJ;
   }
+  #endif
 
   // Initial tailcalling-interpreter variable setup.
   unsigned int instr = *pc;

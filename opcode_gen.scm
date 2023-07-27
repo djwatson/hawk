@@ -76,6 +76,7 @@
 
 (define ABI "__attribute__((ms_abi))")
 (define op-table-h (open-output-file-chez "opcodes-table.h"))
+(display "#ifdef PROFILE\n" op-table-h)
 (for-each (lambda (op)
 	    (display (format "~a void INS_PROFILE_~a(unsigned char ra, unsigned instr, unsigned *pc, long *frame, void **op_table_arg, long argcnt) {\n" ABI (caddr op)) op-table-h)
 	    (display "profile_set_pc(pc);\n" op-table-h)
@@ -83,10 +84,13 @@
 	    (display "}\n" op-table-h)
 	    )
 	  opcodes)
+(display "#endif\n" op-table-h)
 (display (format "static void opcode_table_init() {") op-table-h)
 (for-each (lambda (op)
 	    (display (format "  l_op_table[~a] = INS_~a;\n" (caddr op) (caddr op)) op-table-h)
+	    (display "#ifdef PROFILE\n" op-table-h)
 	    (display (format "  l_op_table_profile[~a] = INS_PROFILE_~a;\n" (caddr op) (caddr op)) op-table-h)
+	    (display "#endif\n" op-table-h)
 	    ) opcodes)
 (display (format "}") op-table-h)
 
