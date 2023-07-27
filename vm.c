@@ -129,10 +129,14 @@ ABI void RECORD_START(PARAMS) {
 }
 
 ABI void RECORD(PARAMS) {
+  #ifdef JIT
   if (record(pc, frame, argcnt)) {
     // Back to interpreting.
     op_table_arg = (void **)l_op_table;
   }
+  #else
+    op_table_arg = (void **)l_op_table;
+    #endif
   // record may have updated state.
   instr = *pc;
   ra = (instr >> 8) & 0xff;
@@ -639,14 +643,17 @@ LIBRARY_FUNC_BC_LOAD(APPLY)
   NEXT_INSTR;
 }
 
+
 LIBRARY_FUNC_D(JFUNC)
   // auto tnum = instr;
   //  printf("JFUNC/JLOOP run %i\n", rd);
 //  printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
 #ifdef REPLAY
 auto res = record_run(rd, &pc, &frame, frame_top);
-#else
+#elif defined(JIT)
 auto res = jit_run(rd, &pc, &frame);
+#else
+auto res = 0;
 #endif
 
   frame_top = stack + stacksz - 256;

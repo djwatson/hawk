@@ -235,6 +235,7 @@ static void trace_roots() {
   }
 
   // Scan traces
+  #ifdef JIT
   for(uint64_t i = 0; i < arrlen(traces); i++) {
     auto *t = traces[i];
     //printf("Visit trace %i\n", cnt++);
@@ -245,6 +246,7 @@ static void trace_roots() {
     //printf("Visit in progress trace\n");
     visit_trace(trace);
   }
+  #endif
 }
 
 

@@ -47,6 +47,7 @@ set(SOURCES readbc.c bytecode.c vm.o boom.c  ir.c types.c bootstrap.c symbol_tab
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DJIT")
   set(SOURCES ${SOURCES} snap.c asm_x64.c jitdump.c record.c emit_x64.c)
   set(LIBRARIES ${LIBRARIES} "capstone")
 endif(JIT)

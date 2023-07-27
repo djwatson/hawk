@@ -1,5 +1,7 @@
 #include "gc.h"           // for GC_init
+#ifdef JIT
 #include "jitdump.h"      // for jit_dump_close, jit_dump_init
+#endif
 #ifdef PROFILER
 #include "profiler.h"     // for profiler_start, profiler_stop
 #endif
@@ -34,12 +36,15 @@ static struct option long_options[] = {
 void print_help() {
   printf("Usage: boom [OPTION]\n");
   printf("Available options are:\n");
+  #ifdef JIT
   printf("      --joff     \tTurn off jit\n");
+  printf("  -m, --max-trace\tStop JITting after # trace\n");
+  #endif
   printf("  -l, --list     \tList bytecode and stop\n");
 #ifdef PROFILER
   printf("  -p, --profile  \tSampling profiler\n");
-#endif  
-  printf("  -m, --max-trace\tStop JITting after # trace\n");
+#endif
+  
   printf("  -h, --heap-sz  \tHeap size (in pages)\n");
   printf("  -h, --help     \tPrint this help\n");
 }
@@ -104,7 +109,9 @@ int main(int argc, char *argv[]) {
 
   GC_init();
   // GC_expand_hp(50000000);
+  #ifdef JIT
   jit_dump_init();
+  #endif
   #ifdef PROFILER
   if (profile != 0) {
     profiler_start();
@@ -143,14 +150,16 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  jit_dump_close();
   #ifdef PROFILER
   if (profile != 0) {
     profiler_stop();
   }
   #endif
-  
+
+  #ifdef JIT
+  jit_dump_close();
   free_trace();
+  #endif
   free_script();
   free_vm();
 
