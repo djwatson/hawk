@@ -20,11 +20,11 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc) {
   snap.link = -1;
   snap.slots = NULL;
   // TODO fix regs size/boj to vec?
-  for (int i = 0; i < 257; i++) {
+  for (int16_t i = 0; i < 257; i++) {
     if (regs[i] != -1) {
       // printf("Record snap entry %i val %i\n", i-1, regs[i]);
       snap_entry_s entry;
-      entry.slot = i - 1; // offset by one for callt
+      entry.slot = (int16_t)(i - 1); // offset by one for callt
       entry.val = regs[i];
       arrput(snap.slots, entry);
     }
@@ -45,7 +45,7 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
         depth++;
       }
       // Push const in new trace
-      auto knum = arrlen(trace->consts);
+      int knum = arrlen(trace->consts);
       arrput(trace->consts, c);
       (*regs)[slot->slot] = knum | IR_CONST_BIAS;
       // printf("Snap replay const %i %i\n", slot->slot, c);

@@ -11,5 +11,5 @@ void GC_free(void *ptr);
 void GC_init();
 
 // *MUST* be in strict stack order.
-void GC_push_root(long *ptr);
-void GC_pop_root(const long *ptr);
+void GC_push_root(long *root);
+void GC_pop_root(const long *root);

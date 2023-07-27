@@ -50,7 +50,7 @@ typedef struct flonum_s {
 
 typedef struct string_s {
   long type;
-  long len;
+  unsigned long len;
   char str[];
 } string_s;
 
@@ -62,7 +62,7 @@ typedef struct symbol {
 
 typedef struct vector_s {
   long type;
-  long len;
+  unsigned long len;
   long v[];
 } vector_s;
 
@@ -74,7 +74,7 @@ typedef struct cons_s {
 
 typedef struct closure_s {
   long type; // unused except by GC
-  long len;
+  unsigned long len;
   long v[];
 } closure_s;
 

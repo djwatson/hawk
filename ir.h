@@ -64,7 +64,7 @@ typedef struct {
 } ir_ins;
 
 // TODO this probably isn't correct, could smash large pointers.
-#define SNAP_FRAME 0x8000000000000000
+#define SNAP_FRAME 0x8000000000000000L
 
 typedef struct snap_entry {
   int16_t slot;

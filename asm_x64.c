@@ -197,7 +197,7 @@ void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
     auto slot = &snap->slots[i];
     if ((slot->val & IR_CONST_BIAS) != 0) {
       auto c = trace->consts[slot->val - IR_CONST_BIAS];
-      (*o_frame)[slot->slot] = c & ~SNAP_FRAME;
+      (*o_frame)[slot->slot] = (long)(c & ~SNAP_FRAME);
     } else {
       (*o_frame)[slot->slot] = state->regs[trace->ops[slot->val].reg];
     }
@@ -245,7 +245,7 @@ void emit_snap(int snap, trace_s *trace, bool all) {
       emit_mem_reg(OP_MOV_RM, slot->slot * 8, RDI, R15);
       auto re = (reloc){emit_offset(), c, RELOC_ABS};
       arrput(trace->relocs, re);
-      emit_mov64(R15, c & ~SNAP_FRAME);
+      emit_mov64(R15, (int64_t)(c & ~SNAP_FRAME));
     } else {
       auto op = &trace->ops[slot->val];
       // TODO RET check, can't emit past RETS
@@ -270,7 +270,7 @@ void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
     // TODO: check V is of correct type, but we typecheck return pointers also,
     // which can move.
     if ((long)((int32_t)v) == v) {
-      emit_arith_imm(arith_code, reg, v);
+      emit_arith_imm(arith_code, reg, (int32_t)v);
     } else {
       emit_reg_reg(op_code, reg, R15);
       emit_mov64(R15, v);
@@ -395,7 +395,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     // Funny embed here, so we can patch later.
     // emit_jmp_rel(exit_label - emit_offset());
     trace->snaps[i].patchpoint = emit_offset();
-    emit_jmp32(exit_label - emit_offset());
+    // TODO check int32_t
+    emit_jmp32((int32_t)(exit_label - emit_offset()));
     emit_mov64(R15, i);
     snap_labels[i] = emit_offset();
   }
@@ -408,7 +409,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
     if (otrace != trace) {
       emit_jmp_abs(R15);
-      emit_mov64(R15, (uint64_t)otrace->fn);
+      emit_mov64(R15, (int64_t)otrace->fn);
     } else {
       // Patched at top.
       loop_offset_label = emit_offset();
@@ -425,11 +426,12 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         emit_reg_reg(OP_MOV, RAX, RDI);
         emit_call_indirect(R15);
         emit_mov64(R15, (int64_t)&expand_stack_slowpath);
-        emit_jcc32(JBE, ok - emit_offset());
+	// TODO check offset
+        emit_jcc32(JBE, (int32_t)(ok - emit_offset()));
         emit_reg_reg(OP_CMP, R15, RDI);
         // TODO merge if in top?
-        emit_mem_reg(OP_MOV_MR, 0, R15, R15);
-        emit_mov64(R15, (uint64_t)&frame_top);
+        emit_mem_reg(OP_MOV_MR, 0L, R15, R15);
+        emit_mov64(R15, (int64_t)&frame_top);
       }
     }
 
@@ -471,7 +473,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   } else {
     // No link, jump back to interpreter loop.
     emit_check();
-    emit_jmp32(exit_label - emit_offset());
+    // TODO check offset
+    emit_jmp32((int32_t)(exit_label - emit_offset()));
     emit_mov64(R15, arrlen(trace->snaps) - 1);
   }
 
@@ -502,7 +505,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if ((op->type & IR_INS_TYPE_GUARD) == 0) {
         goto done;
       }
-      emit_op_typecheck(reg, op->type, snap_labels[cur_snap] - emit_offset());
+      emit_op_typecheck(reg, op->type, (int32_t)(snap_labels[cur_snap] - emit_offset()));
       emit_mem_reg(OP_MOV_MR, op->op1 * 8, RDI, reg);
       break;
     }
@@ -512,7 +515,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (reg == REG_NONE) {
         reg = R15; // Unused, but potentially used by JGUARD.
       }
-      emit_op_typecheck(reg, op->type, snap_labels[cur_snap] - emit_offset());
+      emit_op_typecheck(reg, op->type, (int32_t)(snap_labels[cur_snap] - emit_offset()));
       if (ir_is_const(op->op1)) {
         emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg, reg);
         emit_mov64(reg, trace->consts[op->op1 - IR_CONST_BIAS]);
@@ -528,7 +531,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (reg == REG_NONE) {
         reg = R15; // Unused, but potentially used by JGUARD.
       }
-      emit_op_typecheck(reg, op->type, snap_labels[cur_snap] - emit_offset());
+      emit_op_typecheck(reg, op->type, (int32_t)(snap_labels[cur_snap] - emit_offset()));
       if (ir_is_const(op->op1)) {
         emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg, reg);
         emit_mov64(reg, trace->consts[op->op1 - IR_CONST_BIAS]);
@@ -542,7 +545,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       auto *sym =
           (symbol *)(trace->consts[op->op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       auto reg = op->reg;
-      emit_op_typecheck(reg, op->type, snap_labels[cur_snap] - emit_offset());
+      emit_op_typecheck(reg, op->type, (int32_t)(snap_labels[cur_snap] - emit_offset()));
       emit_mem_reg(OP_MOV_MR, 0, reg, reg);
       auto re = (reloc){emit_offset(), trace->consts[op->op1 - IR_CONST_BIAS],
                         RELOC_SYM_ABS};
@@ -607,15 +610,15 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_mov64(R15, CONS_TAG);
       emit_arith_imm(OP_ARITH_SUB, op->reg, op->op1);
       emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
-      emit_mov64(R15, (uint64_t)&alloc_ptr);
+      emit_mov64(R15, (int64_t)&alloc_ptr);
       // TODO call GC directly?
-      emit_jcc32(JGE, snap_labels[cur_snap] - emit_offset());
+      emit_jcc32(JGE, (int32_t)(snap_labels[cur_snap] - emit_offset()));
       emit_reg_reg(OP_CMP, R15, op->reg);
       emit_arith_imm(OP_ARITH_ADD, op->reg, op->op1);
       emit_mem_reg(OP_MOV_MR, 0, op->reg, op->reg);
       emit_mem_reg(OP_MOV_MR, 0, R15, R15);
-      emit_mov64(op->reg, (uint64_t)&alloc_ptr);
-      emit_mov64(R15, (uint64_t)&alloc_end);
+      emit_mov64(op->reg, (int64_t)&alloc_ptr);
+      emit_mov64(R15, (int64_t)&alloc_end);
 
       break;
     }
@@ -645,29 +648,29 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       //       break;
       //     }
     case IR_EQ: {
-      emit_cmp(JNE, op, trace, snap_labels[cur_snap] - emit_offset(), slot);
+      emit_cmp(JNE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot);
       break;
     }
     case IR_NE: {
-      emit_cmp(JE, op, trace, snap_labels[cur_snap] - emit_offset(), slot);
+      emit_cmp(JE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot);
       break;
     }
     case IR_GE: {
-      emit_cmp(JL, op, trace, snap_labels[cur_snap] - emit_offset(), slot);
+      emit_cmp(JL, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot);
       break;
     }
     case IR_LT: {
-      emit_cmp(JGE, op, trace, snap_labels[cur_snap] - emit_offset(), slot);
+      emit_cmp(JGE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot);
       break;
     }
     case IR_ADD: {
       emit_arith(OP_ARITH_ADD, OP_ADD, op, trace,
-                 snap_labels[cur_snap] - emit_offset(), slot);
+                 (int32_t)(snap_labels[cur_snap] - emit_offset()), slot);
       break;
     }
     case IR_SUB: {
       emit_arith(OP_ARITH_SUB, OP_SUB, op, trace,
-                 snap_labels[cur_snap] - emit_offset(), slot);
+                 (int32_t)(snap_labels[cur_snap] - emit_offset()), slot);
       break;
     }
       //     case IR_LOOP: {
@@ -686,11 +689,11 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       //     }
     case IR_RET: {
       // TODO reloc if functions can move.
-      auto retadd = trace->consts[op->op1 - IR_CONST_BIAS] - SNAP_FRAME;
-      auto b = trace->consts[op->op2 - IR_CONST_BIAS];
+      auto retadd = (int64_t)(trace->consts[op->op1 - IR_CONST_BIAS] - SNAP_FRAME);
+      auto b = (int32_t)trace->consts[op->op2 - IR_CONST_BIAS];
 
       emit_arith_imm(OP_ARITH_SUB, RDI, b);
-      emit_jcc32(JNE, snap_labels[cur_snap] - emit_offset());
+      emit_jcc32(JNE, (int32_t)(snap_labels[cur_snap] - emit_offset()));
 
       emit_mem_reg(OP_CMP, -8, RDI, R15);
 
@@ -717,7 +720,7 @@ done:
                  op->reg);
     }
     serialize_parallel_copy(&moves, &res, R15);
-    for (int64_t i = res.mp_sz - 1; i >= 0; i--) {
+    for (int64_t i = (int64_t)res.mp_sz - 1; i >= 0; i--) {
       emit_reg_reg(OP_MOV, res.mp[i].from, res.mp[i].to);
     }
   }
@@ -729,7 +732,7 @@ done:
   Func fn = (Func)start;
 
   trace->fn = fn;
-  auto len = end - start;
+  auto len = (int)(end - start);
   disassemble((const uint8_t *)fn, len);
 
   if (side_exit != nullptr) {

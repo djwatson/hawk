@@ -561,11 +561,9 @@ END_LIBRARY_FUNC
   LIBRARY_FUNC_BC(name)				\
   long fb = frame[rb];					\
 							\
-  if ((rc < LITERAL_TAG) && ((fb & TAG_MASK) == rc)) {	\
-    iftrue;								\
-  } else if (((TAG_MASK & rc) == LITERAL_TAG) && (rc == (fb & IMMEDIATE_MASK))) { \
-    iftrue;								\
-  } else if (((fb & TAG_MASK) == PTR_TAG) && (*(long *)(fb - PTR_TAG) == rc)) {	\
+  if (((rc < LITERAL_TAG) && ((fb & TAG_MASK) == rc)) ||		\
+      (((TAG_MASK & rc) == LITERAL_TAG) && (rc == (fb & IMMEDIATE_MASK))) || \
+      (((fb & TAG_MASK) == PTR_TAG) && (*(long *)(fb - PTR_TAG) == rc))) { \
     iftrue;								\
   } else {								\
     iffalse;								\
@@ -774,7 +772,7 @@ LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING)
   str->type = STRING_TAG;
   str->len = len;
   for (long i = 0; i < len; i++) {
-    str->str[i] = (fc >> 8) & 0xff;
+    str->str[i] = (char)((fc >> 8) & 0xff);
   }
   str->str[len] = '\0';
   
@@ -803,12 +801,12 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(VECTOR-LENGTH, VECTOR_LENGTH)
   LOAD_TYPE_WITH_CHECK(vec, vector_s, fb, VECTOR_TAG);
-  frame[ra] = vec->len << 3;
+  frame[ra] = (long)(vec->len << 3);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(STRING-LENGTH, STRING_LENGTH)
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
-  frame[ra] = str->len << 3;
+  frame[ra] = (long)(str->len << 3);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
@@ -831,7 +829,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET)
   if (str->len - pos < 0) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  str->str[pos] = (fc >> 8) & 0xff;
+  str->str[pos] = (char)((fc >> 8) & 0xff);
 END_LIBRARY_FUNC
 
 #define LIBRARY_FUNC_CONS_SET_OP(str, name, field)                             \
@@ -951,7 +949,7 @@ LIBRARY_FUNC_BC(OPEN)
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  port->file = fdopen(port->fd, fc == TRUE_REP ? "r" : "w");
+  port->file = fdopen((int)port->fd, fc == TRUE_REP ? "r" : "w");
   if (port->file == NULL) {
     printf("FDopen fail\n");
     exit(-1);
@@ -967,7 +965,7 @@ LIBRARY_FUNC_B_LOAD(CLOSE)
     port->file = NULL;
   }
   if (port->fd != -1) {
-    close(port->fd);
+    close((int)port->fd);
     port->fd = -1;
   }
 END_LIBRARY_FUNC
@@ -977,7 +975,7 @@ LIBRARY_FUNC_B_LOAD(PEEK)
   if (port->peek != FALSE_REP) {
   } else {
     uint8_t b;
-    long res = fread(&b, 1, 1, port->file);
+    size_t res = fread(&b, 1, 1, port->file);
     if (res == 0) {
       port->peek = EOF_TAG;
     } else {
@@ -994,7 +992,7 @@ LIBRARY_FUNC_B_LOAD(READ)
     port->peek = FALSE_REP;
   } else {
     uint8_t b;
-    long res = fread(&b, 1, 1, port->file);
+    size_t res = fread(&b, 1, 1, port->file);
     if (res == 0) {
       frame[ra] = EOF_TAG;
     } else {
@@ -1008,15 +1006,16 @@ LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
   char buf[512];
   auto pos = 0;
   if (port->peek != FALSE_REP) {
-    buf[pos++] = port->peek;
+    buf[pos++] = (char)port->peek;
     port->peek = FALSE_REP;
   }
   bool eof = false;
   for(; pos < 511; pos++) {
     // TODO bigger than 511
-    long res = fread(&buf[pos], 1, 1, port->file);
-    if(buf[pos] == '\n') { break;
-}
+    size_t res = fread(&buf[pos], 1, 1, port->file);
+    if(buf[pos] == '\n') {
+      break;
+    }
     if (res == 0) {
       eof = true;
       break;
@@ -1039,7 +1038,7 @@ LIBRARY_FUNC_B_LOAD(INEXACT)
   if ((fb & TAG_MASK) == FIXNUM_TAG) {
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));
     r->type = FLONUM_TAG;
-    r->x = fb >> 3;
+    r->x = (double)(fb >> 3);
     frame[ra] = (long)r + FLONUM_TAG;
   } else if ((fb & TAG_MASK) == FLONUM_TAG) {
     frame[ra] = fb;
@@ -1183,7 +1182,7 @@ void run(bcfunc *func, long argcnt, const long *args) {
   long *frame;
   // Initial stack setup has a return to bytecode stub above.
 
-  stack[0] = (unsigned long)&final_code[1]; // return pc
+  stack[0] = (long)&final_code[1]; // return pc
   frame = &stack[1];
   frame_top = stack + stacksz - 256;
 

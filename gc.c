@@ -116,7 +116,6 @@ void trace_heap_object(long *obj) {
   assert((type & TAG_MASK) != FORWARD_TAG);
   switch (type) {
   case FLONUM_TAG:
-    break;
   case STRING_TAG:
     break;
   case SYMBOL_TAG: {
@@ -300,7 +299,7 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   }
   printf("...Done collect, in use %li, %.2f%% of %liMB\n",
          alloc_ptr - from_space,
-         ((double)(alloc_ptr - from_space)) / alloc_sz * 100.0,
+         ((double)(alloc_ptr - from_space)) / (double)alloc_sz * 100.0,
          alloc_sz / 1000 / 1000);
 
   res = alloc_ptr;

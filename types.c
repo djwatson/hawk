@@ -106,7 +106,7 @@ void print_obj(long obj, FILE *file) {
 }
 
 long from_c_str(const char *s) {
-  auto len = strlen(s);
+  unsigned long len = strlen(s);
   auto *str = (string_s *)GC_malloc(16 + len + 1);
   str->type = STRING_TAG;
   str->len = len;

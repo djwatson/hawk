@@ -180,7 +180,7 @@ long write_buf(long *offset, uint8_t *data, void *obj, long len) {
 
 long write_strz(long *offset, uint8_t *data, const char *obj) {
   __auto_type len = strlen(obj) + 1; // null terminated
-  return write_buf(offset, data, (void *)obj, len);
+  return write_buf(offset, data, (void *)obj, (long)len);
 }
 
 #define DW_CIE_VERSION 1

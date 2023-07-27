@@ -47,7 +47,7 @@ void emit_mov64(uint8_t r, int64_t imm) {
     *(--p) = 0xb8 | (0x7 & r);
     emit_rex(1, 0, 0, r >> 3);
   } else {
-    emit_imm32(imm);
+    emit_imm32((int32_t)imm);
     *(--p) = 0xb8 | (0x7 & r);
     emit_rex(0, 0, 0, r >> 3);
   }
@@ -195,7 +195,7 @@ uint64_t emit_offset() { return (uint64_t)p; }
 void emit_bind(uint64_t label, uint64_t jmp) {
   assert(jmp);
   assert(label);
-  int32_t offset = (int64_t)label - (int64_t)jmp;
+  auto offset = (int32_t)((int64_t)label - (int64_t)jmp);
   *(int32_t *)(jmp - 4) = offset;
 }
 void emit_advance(int64_t offset) { p -= offset; }

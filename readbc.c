@@ -132,7 +132,7 @@ long read_const(FILE *fptr) {
 }
 
 bcfunc *readbc(FILE *fptr) {
-  long const_offset = const_table_sz;
+  unsigned long const_offset = const_table_sz;
   arrfree(symbols);
 
   if (fptr == nullptr) {
