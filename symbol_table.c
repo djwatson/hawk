@@ -1,9 +1,12 @@
+// Copyright 2023 Dave Watson
+
 #include "symbol_table.h"
-#include "types.h"  // for string_s, symbol
 #include <assert.h> // for assert
 #include <stdint.h> // for uint64_t
 #include <stdlib.h> // for calloc, free, size_t
 #include <string.h> // for strcmp
+
+#include "types.h"  // for string_s, symbol
 
 #define auto __auto_type
 
@@ -46,7 +49,8 @@ symbol *symbol_table_find_cstr(const char *str) {
     }
     if (*cur == TOMBSTONE) {
       continue;
-    } if (strcmp((*cur)->name->str, str) == 0) {
+    }
+    if (strcmp((*cur)->name->str, str) == 0) {
       return *cur;
     }       // Mismatched comparison, continue.
         
@@ -73,7 +77,7 @@ void symbol_table_insert(symbol *sym) {
       *cur = sym;
       return;
     } // Mismatched comparison, continue.
-     }
+  }
 
   // Definitely should find a spot.
   assert(false);
