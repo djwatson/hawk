@@ -318,6 +318,11 @@ void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
       emit_arith_imm(arith_code, reg, (int32_t)v);
     } else {
       emit_reg_reg(op_code, reg, R15);
+      if (v & 0x7) {
+	// This is only necessary for cmp of a closure for call/callt
+	auto re = (reloc){emit_offset(), v, RELOC_ABS};
+	arrput(trace->relocs, re);
+      }
       emit_mov64(R15, v);
     }
   } else {
@@ -661,9 +666,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_ALLOC: {
-      emit_arith_imm(OP_ARITH_ADD, op->reg, CONS_TAG);
+      emit_arith_imm(OP_ARITH_ADD, op->reg, op->op2);
       emit_mem_reg(OP_MOV_RM, 0, op->reg, R15);
-      emit_mov64(R15, CONS_TAG);
+      emit_mov64(R15, op->op2);
       emit_arith_imm(OP_ARITH_SUB, op->reg, op->op1);
       emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
       emit_mov64(R15, (int64_t)&alloc_ptr);

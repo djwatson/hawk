@@ -590,7 +590,7 @@ END_LIBRARY_FUNC
 LIBRARY_FUNC_B(CLOSURE)
   auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
   closure->type = CLOSURE_TAG;
-  closure->len = rb;
+  closure->len = rb << 3;
   for (int i = 0; i < rb; i++) {
     closure->v[i] = frame[ra + i];
   }

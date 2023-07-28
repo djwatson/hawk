@@ -71,7 +71,7 @@ size_t heap_object_size(long *obj) {
     return sizeof(cons_s);
   case CLOSURE_TAG: {
     auto *clo = (closure_s *)obj;
-    return clo->len * sizeof(long) + 16;
+    return (clo->len>>3) * sizeof(long) + 16;
   }
   case PORT_TAG:
     return sizeof(port_s);
@@ -144,7 +144,7 @@ void trace_heap_object(long *obj) {
   case CLOSURE_TAG: {
     auto *clo = (closure_s *)obj;
     // Note start from 1: first field is bcfunc* pointer.
-    for (long i = 1; i < clo->len; i++) {
+    for (long i = 1; i < (clo->len>>3); i++) {
       visit(&clo->v[i]);
     }
     break;

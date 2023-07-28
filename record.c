@@ -765,6 +765,66 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
   //   break;
   // }
+  case CLOSURE: {
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc);
+    //  TODO this forces a side exit without recording.
+    //   Put GC inline in generated code?  Would have to flush
+    //   all registers to stack.
+    trace->snaps[arrlen(trace->snaps) - 1].exits = 100;
+    {
+      ir_ins ins;
+      ins.type = CLOSURE_TAG;
+      ins.reg = REG_NONE;
+      ins.op1 = sizeof(long)* (INS_B(i) + 2);
+      ins.op2 = CLOSURE_TAG;
+      ins.op = IR_ALLOC;
+      arrput(trace->ops, ins);
+    }
+    auto cell = arrlen(trace->ops) - 1;
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = cell;
+      ins.op2 = 8 - CLOSURE_TAG;
+      ins.op = IR_REF;
+      arrput(trace->ops, ins);
+    }
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, (long)INS_B(i) << 3);
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = arrlen(trace->ops) - 1;
+      ins.op2 = knum | IR_CONST_BIAS;
+      ins.op = IR_STORE;
+      arrput(trace->ops, ins);
+    }
+    for(unsigned j = 0; j < INS_B(i); j++) {
+      auto a = record_stack_load(INS_A(i) + j, frame);
+      {
+	ir_ins ins;
+	ins.type = 0;
+	ins.reg = REG_NONE;
+	ins.op1 = cell;
+	ins.op2 = 16 + 8*j - CLOSURE_TAG;
+	ins.op = IR_REF;
+	arrput(trace->ops, ins);
+      }
+      {
+	ir_ins ins;
+	ins.type = 0;
+	ins.reg = REG_NONE;
+	ins.op1 = arrlen(trace->ops) - 1;
+	ins.op2 = a;
+	ins.op = IR_STORE;
+	arrput(trace->ops, ins);
+      }
+    }
+    regs[INS_A(i)] = cell;
+    break;
+  }
   case CONS: {
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc);
     //  TODO this forces a side exit without recording.
@@ -1005,13 +1065,35 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case CLOSURE_GET: {
-    // TODO: closure may not be const
-    auto fb = frame[INS_B(i)];
-    auto closure = (closure_s *)(fb - CLOSURE_TAG);
+    auto clo = record_stack_load(INS_B(i), frame);
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = clo;
+      ins.op2 = 16 + (8*(1 + INS_C(i))) - CLOSURE_TAG;
+      ins.op = IR_REF;
+      arrput(trace->ops, ins);
+    }
+    // TODO typecheck
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = arrlen(trace->ops) - 1;
+      ins.op2 = 0;
+      ins.op = IR_LOAD;
+      regs[INS_A(i)] = arrlen(trace->ops);
+      arrput(trace->ops, ins);
+    }
+    
+    /* // TODO: closure may not be const */
+    /* auto fb = frame[INS_B(i)]; */
+    /* auto closure = (closure_s *)(fb - CLOSURE_TAG); */
 
-    auto knum = (int)arrlen(trace->consts);
-    arrput(trace->consts, closure->v[1 + INS_C(i)]);
-    regs[INS_A(i)] = knum | IR_CONST_BIAS;
+    /* auto knum = (int)arrlen(trace->consts); */
+    /* arrput(trace->consts, closure->v[1 + INS_C(i)]); */
+    /* regs[INS_A(i)] = knum | IR_CONST_BIAS; */
     break;
   }
   case JMP: {
