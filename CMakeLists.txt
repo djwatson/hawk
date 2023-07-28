@@ -174,3 +174,9 @@ add_test(NAME bench/sum COMMAND ./boom test/bench/sum.scm )
 set_tests_properties(bench/sum PROPERTIES PASS_REGULAR_EXPRESSION "5000050000")
 add_test(NAME bench/sumloop COMMAND ./boom test/bench/sumloop.scm )
 set_tests_properties(bench/sumloop PROPERTIES PASS_REGULAR_EXPRESSION "1000000000")
+
+add_test(NAME bench/diviter COMMAND ./boom --heap-sz=1000000 test/bench/diviter.scm )
+set_tests_properties(bench/diviter PROPERTIES PASS_REGULAR_EXPRESSION "50000000")
+
+add_test(NAME bench/divrec COMMAND ./boom --heap-sz=100000 test/bench/divrec.scm )
+set_tests_properties(bench/divrec PROPERTIES PASS_REGULAR_EXPRESSION "5000000")

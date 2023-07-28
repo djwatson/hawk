@@ -13,15 +13,15 @@
   (cond ((null? l) '())
         (else (cons (car l) (recursive-div2 (cddr l))))))
   
-(display (length (recursive-div2 (create-n 0))))
-(display (length (recursive-div2 (create-n 2))))
-(display (length (recursive-div2 (create-n 20))))
-(display (length (recursive-div2 (create-n 40))))
-(display (length (recursive-div2 (create-n 100))))
+;; (display (length (recursive-div2 (create-n 0))))
+;; (display (length (recursive-div2 (create-n 2))))
+;; (display (length (recursive-div2 (create-n 20))))
+;; (display (length (recursive-div2 (create-n 40))))
+;; (display (length (recursive-div2 (create-n 100))))
 
-(display (recursive-div2 (create-n 0)))
-(display (recursive-div2 (create-n 10)))
-(recursive-div2 (create-n 10000000))
+;; (display (recursive-div2 (create-n 0)))
+;; (display (recursive-div2 (create-n 10)))
+(display (length (recursive-div2 (create-n 10000000))))
 
 ;0
 ;1

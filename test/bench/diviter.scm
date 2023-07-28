@@ -15,15 +15,15 @@
        (a '() (cons (car l) a)))
       ((null? l) a)))
  
-(pp (length (iterative-div2 (create-n 0))))
-(pp (length (iterative-div2 (create-n 2))))
-(pp (length (iterative-div2 (create-n 20))))
-(pp (length (iterative-div2 (create-n 40))))
-(pp (length (iterative-div2 (create-n 100))))
+;; (pp (length (iterative-div2 (create-n 0))))
+;; (pp (length (iterative-div2 (create-n 2))))
+;; (pp (length (iterative-div2 (create-n 20))))
+;; (pp (length (iterative-div2 (create-n 40))))
+;; (pp (length (iterative-div2 (create-n 100))))
 
-(pp (iterative-div2 (create-n 0)))
-(pp (iterative-div2 (create-n 10)))
-(iterative-div2 (create-n 100000000))
+;; (pp (iterative-div2 (create-n 0)))
+;; (pp (iterative-div2 (create-n 10)))
+(display (length (iterative-div2 (create-n 100000000))))
 
 ;0
 ;1
