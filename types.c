@@ -23,19 +23,19 @@ void print_obj(long obj, FILE *file) {
     long ptrtype = *(long *)(obj - PTR_TAG);
     if (ptrtype == STRING_TAG) {
       auto *str = (string_s *)(obj - PTR_TAG);
-      fprintf(file, "%s", str->str);
+      fputs(str->str, file);
     } else if (ptrtype == PORT_TAG) {
-      fprintf(file, "#<port>");
+      fputs("#<port>", file);
     } else if (ptrtype == VECTOR_TAG) {
       auto *v = (vector_s *)(obj - PTR_TAG);
-      fprintf(file, "#(");
+      fputs("#(", file);
       for (long i = 0; i < v->len; i++) {
         if (i != 0) {
-          fprintf(file, " ");
+	  fputc(' ', file);
         }
         print_obj(v->v[i], file);
       }
-      fprintf(file, ")");
+      fputc(')', file);
     } else {
       fprintf(file, "PTR:%lx", ptrtype);
     }
@@ -51,58 +51,57 @@ void print_obj(long obj, FILE *file) {
       buffer[len + 1] = '0';
       buffer[len + 2] = '\0';
     }
-    fprintf(file, "%s", buffer);
+    fputs(buffer, file);
     break;
   }
   case CONS_TAG: {
     auto *c = (cons_s *)(obj - CONS_TAG);
-    fprintf(file, "(");
+    fputc(')', file);
     while ((c->b & TAG_MASK) == CONS_TAG) {
       print_obj(c->a, file);
       c = (cons_s *)(c->b - CONS_TAG);
-      fprintf(file, " ");
+      fputc(' ', file);
     }
     print_obj(c->a, file);
     if (c->b != NIL_TAG) {
-      fprintf(file, " . ");
+      fputs(" . ", file);
       print_obj(c->b, file);
     }
-    fprintf(file, ")");
+    fputc(')', file);
     break;
   }
   case SYMBOL_TAG: {
     auto *sym = (symbol *)(obj - SYMBOL_TAG);
-    fprintf(file, "%s", sym->name->str);
+    fputs(sym->name->str, file);
     break;
   }
   case CLOSURE_TAG: {
-    fprintf(file, "<closure>");
+    fputs("<closure>", file);
     break;
   }
   case FORWARD_TAG: {
-    fprintf(file, "<forward tag>");
+    fputs("<forward tag>", file);
     break;
   }
   case LITERAL_TAG: {
     if (obj == TRUE_REP) {
-      fprintf(file, "#t");
+      fputs("#t", file);
     } else if (obj == FALSE_REP) {
-      fprintf(file, "#f");
+      fputs("#f", file);
     } else if (obj == NIL_TAG) {
-      fprintf(file, "()");
+      fputs("()", file);
     } else if (obj == EOF_TAG) {
-      fprintf(file, "<eof>");
+      fputs("<eof>", file);
     } else if (obj == UNDEFINED_TAG) {
-      fprintf(file, "<undefined>");
+      fputs("<undefined>", file);
     } else if ((obj & IMMEDIATE_MASK) == CHAR_TAG) {
-      fprintf(file, "%c", (char)(obj >> 8));
+      fputc((char)(obj >> 8), file);
     } else {
       fprintf(file, "Unknown immediate: %lx\n", obj);
     }
     break;
   }
   }
-  fflush(stdout);
 }
 
 long from_c_str(const char *s) {
