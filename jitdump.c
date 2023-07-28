@@ -87,6 +87,7 @@ struct {
 
 void jit_dump_init() {
   char buf[256];
+
   sprintf(buf, "jit-%i.dump", getpid());
   fd = open(buf, O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR);
   struct timespec ts;
@@ -116,8 +117,10 @@ void jit_dump_init() {
 }
 
 void jit_dump_close() {
-  munmap(mapaddr, sizeof(header));
-  close(fd);
+  if (mapaddr) {
+    munmap(mapaddr, sizeof(header));
+    close(fd);
+  }
 }
 
 /// GDB jit-reader interface

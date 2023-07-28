@@ -32,6 +32,8 @@ extern long *frame_top;
 extern uint8_t *alloc_ptr;
 extern uint8_t *alloc_end;
 
+bool jit_dump_flag = false;
+
 void disassemble(const uint8_t *code, int len) {
 #ifdef CAPSTONE
   csh handle;
@@ -747,7 +749,9 @@ done:
 
 #ifdef JITDUMP
   perf_map((uint64_t)fn, len, "Trace");
-  jit_dump(len, (uint64_t)fn, "Trace");
+  if (jit_dump_flag) {
+    jit_dump(len, (uint64_t)fn, "Trace");
+  }
   jit_reader_add(len, (uint64_t)fn, 0, 0, "Trace");
 #endif
   VALGRIND_DISCARD_TRANSLATIONS(fn, len);

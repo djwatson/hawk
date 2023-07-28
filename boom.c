@@ -23,10 +23,12 @@
 #define nullptr NULL
 
 extern int joff;
+extern bool jit_dump_flag;
 
 static struct option long_options[] = {
     {"profile", no_argument, nullptr, 'p'},
     {"joff", no_argument, nullptr, 'o'},
+    {"dump", no_argument, nullptr, 'd'},
     {"help", no_argument, nullptr, 'h'},
     {"list", no_argument, nullptr, 'l'},
     {"max-trace", required_argument, nullptr, 'm'},
@@ -41,6 +43,9 @@ void print_help() {
   printf("      --joff     \tTurn off jit\n");
   printf("  -m, --max-trace\tStop JITting after # trace\n");
 #endif
+#ifdef JITDUMP
+  printf("      --dump     \tDump linux perf jit info\n");
+#endif  
   printf("  -l, --list     \tList bytecode and stop\n");
 #ifdef PROFILER
   printf("  -p, --profile  \tSampling profiler\n");
@@ -80,7 +85,7 @@ int main(int argc, char *argv[]) {
   int verbose = 0;
 
   int c;
-  while ((c = getopt_long(argc, argv, "slphj:", long_options, nullptr)) != -1) {
+  while ((c = getopt_long(argc, argv, "slphjd:", long_options, nullptr)) != -1) {
     switch (c) {
     case 'p':
       profile = 1;
@@ -98,6 +103,9 @@ int main(int argc, char *argv[]) {
       page_cnt = atoi(optarg);
       printf("Heap size %li MB\n", (page_cnt * 4096) / 1024 / 1024);
       break;
+    case 'd':
+      jit_dump_flag = true;
+      break;
     case 'm':
       TRACE_MAX = atoi(optarg);
       printf("MAX TRACE is %i\n", TRACE_MAX);
@@ -111,7 +119,9 @@ int main(int argc, char *argv[]) {
   GC_init();
 // GC_expand_hp(50000000);
 #ifdef JITDUMP
-  jit_dump_init();
+  if (jit_dump_flag) {
+    jit_dump_init();
+  }
 #endif
 #ifdef PROFILER
   if (profile != 0) {
@@ -158,7 +168,9 @@ int main(int argc, char *argv[]) {
 #endif
 
 #ifdef JITDUMP
-  jit_dump_close();
+  if (jit_dump_flag) {
+    jit_dump_close();
+  }
   free_trace();
 #endif
   free_script();
