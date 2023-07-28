@@ -683,6 +683,14 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[reg] = IR_CONST_BIAS + knum;
     break;
   }
+  case KFUNC: {
+    auto k = (long)funcs[INS_D(i)];
+    auto reg = INS_A(i);
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, k);
+    regs[reg] = IR_CONST_BIAS + knum;
+    break;
+  }
   // case VECTOR_SET: {
   //   auto vec = record_stack_load(INS_A(i), frame);
   //   auto idx = record_stack_load(INS_B(i), frame);
@@ -759,7 +767,10 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   // }
   case CONS: {
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc);
-    trace->snaps[arrlen(trace->snaps) - 1].exits = 100;
+    //  TODO this forces a side exit without recording.
+    //   Put GC inline in generated code?  Would have to flush
+    //   all registers to stack.
+    trace->snaps[arrlen(trace->snaps) - 1].exits = 100; 
     auto a = record_stack_load(INS_B(i), frame);
     auto b = record_stack_load(INS_C(i), frame);
     {
@@ -994,6 +1005,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case CLOSURE_GET: {
+    // TODO: closure may not be const
     auto fb = frame[INS_B(i)];
     auto closure = (closure_s *)(fb - CLOSURE_TAG);
 
