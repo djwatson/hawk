@@ -998,31 +998,21 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
-  char buf[512];
+  size_t sz = 0;
+  char *bufptr = NULL;
   auto pos = 0;
-  bool eof = false;
-  for(; pos < 511; pos++) {
-    // TODO bigger than 511
-    size_t res = fread(&buf[pos], 1, 1, port->file);
-    if(buf[pos] == '\n') {
-      break;
-    }
-    if (res == 0) {
-      eof = true;
-      break;
-    }
-  }
-
- if (eof) {
-  frame[ra] = EOF_TAG;
- } else {
-   auto str = (string_s*)GC_malloc(pos + 16 + 1);
-   buf[pos] = '\0';
+  ssize_t res = getline(&bufptr, &sz, port->file);
+  if (res == -1) {
+    frame[ra] = EOF_TAG;
+  } else {
+   auto str = (string_s*)GC_malloc(res + 16);
    str->type = STRING_TAG;
-   str->len = pos;
-   memcpy(str->str, &buf[0], pos);
+   str->len = res;
+   memcpy(str->str, bufptr, res);
+   str->str[res - 1] = '\0';
    frame[ra] = (long)str + PTR_TAG;
  }
+ free(bufptr);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(INEXACT)
