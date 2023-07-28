@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.14)
 include(CheckIPOSupported)
 check_ipo_supported(RESULT supported OUTPUT error)
 
+
 # Clang is required, due to use of musttail.
 set(CMAKE_C_COMPILER "clang")
 
@@ -10,6 +11,10 @@ project(bool VERSION 0.1)
 
 enable_language(C)
 set(CMAKE_C_STANDARD 17)
+
+include(CheckIncludeFiles)
+CHECK_INCLUDE_FILES("elf.h" HAVE_ELF)
+CHECK_INCLUDE_FILES("capstone/capstone.h" HAVE_CAPSTONE)
 
 enable_testing()
 
@@ -48,8 +53,15 @@ set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DJIT")
-  set(SOURCES ${SOURCES} snap.c asm_x64.c jitdump.c record.c emit_x64.c)
-  set(LIBRARIES ${LIBRARIES} "capstone")
+  set(SOURCES ${SOURCES} snap.c asm_x64.c record.c emit_x64.c)
+  if (HAVE_CAPSTONE)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DCAPSTONE")
+    set(LIBRARIES ${LIBRARIES} "capstone")
+  endif()
+  if (HAVE_ELF)
+    set(SOURCES ${SOURCES} jitdump.c)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DJITDUMP")
+  endif()
 endif(JIT)
 if (PROFILER)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPROFILER")

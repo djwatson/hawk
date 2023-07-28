@@ -1,6 +1,8 @@
 #include "asm_x64.h"
 #include <assert.h>            // for assert
+#ifdef CAPSTONE
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
+#endif
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>             // for printf, size_t
@@ -10,7 +12,9 @@
 #include "bytecode.h" // for INS_OP, INS_B
 #include "emit_x64.h" // for emit_offset, emit_mov64, emit_mem_reg
 #include "ir.h"       // for ir_ins, trace_s, ir_ins::(anonymous u...
+#ifdef JITDUMP
 #include "jitdump.h"  // for jit_dump, jit_reader_add, perf_map
+#endif
 #include "opcodes.h"  // for JLOOP, FUNC, LOOP
 // only for tcache
 #include "record.h" // for trace_cache_get, record_side
@@ -29,6 +33,7 @@ extern uint8_t *alloc_ptr;
 extern uint8_t *alloc_end;
 
 void disassemble(const uint8_t *code, int len) {
+#ifdef CAPSTONE
   csh handle;
   cs_insn *insn;
   size_t count;
@@ -50,6 +55,7 @@ void disassemble(const uint8_t *code, int len) {
   }
 
   cs_close(&handle);
+#endif
 }
 
 // clang-format off
@@ -739,9 +745,11 @@ done:
     emit_bind(start, side_exit->patchpoint);
   }
 
+#ifdef JITDUMP
   perf_map((uint64_t)fn, len, "Trace");
   jit_dump(len, (uint64_t)fn, "Trace");
   jit_reader_add(len, (uint64_t)fn, 0, 0, "Trace");
+#endif
   VALGRIND_DISCARD_TRANSLATIONS(fn, len);
 }
 

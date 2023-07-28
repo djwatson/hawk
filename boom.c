@@ -5,7 +5,7 @@
 #include <string.h>  // for strcmp, strcpy, strlen
 
 #include "gc.h" // for GC_init
-#ifdef JIT
+#ifdef JITDUMP
 #include "jitdump.h" // for jit_dump_close, jit_dump_init
 #endif
 #ifdef PROFILER
@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
 
   GC_init();
 // GC_expand_hp(50000000);
-#ifdef JIT
+#ifdef JITDUMP
   jit_dump_init();
 #endif
 #ifdef PROFILER
@@ -157,7 +157,7 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
-#ifdef JIT
+#ifdef JITDUMP
   jit_dump_close();
   free_trace();
 #endif
