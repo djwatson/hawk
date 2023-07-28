@@ -985,20 +985,25 @@ LIBRARY_FUNC_B_LOAD(PEEK)
   frame[ra] = port->peek;
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(READ)
-  LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
+__attribute__((always_inline)) long vm_read_char(port_s* port) {
+  port = (port_s*)((long)port & ~TAG_MASK);
   if (port->peek != FALSE_REP) {
-    frame[ra] = port->peek;
+    auto res = port->peek;
     port->peek = FALSE_REP;
+    return res;
   } else {
-    uint8_t b;
-    size_t res = fread(&b, 1, 1, port->file);
-    if (res == 0) {
-      frame[ra] = EOF_TAG;
+    int res = fgetc(port->file);
+    if (res == EOF) {
+      return EOF_TAG;
     } else {
-      frame[ra] = (((long)b) << 8) + CHAR_TAG;
+      return (((long)res) << 8) + CHAR_TAG;
     }
   }
+}
+
+LIBRARY_FUNC_B_LOAD(READ)
+  LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
+  frame[ra] = vm_read_char(port);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)

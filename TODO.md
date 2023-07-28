@@ -1,5 +1,10 @@
 # working on
 
+* CALLXS betterness
+  * typecheck
+  * use fgetc/fungetc/fputc
+  * can reg hint anthing that covers a call
+
 * LOAD use for car/cdr, AND vec.
 * fuse
 * check sload type for VEC
@@ -40,6 +45,8 @@
 * simplex has jmps to jmps? extra crap
 
 ## bytecode perf improvements 
+
+* tail calls still do a mov/return for let().  see cat.scm
 
 * could put memq/assq/length/map/append/string-append etc as intrinsics
 * faster call/cc - flush frames w/underflow handler.  Overflow handler can also just flush frames.

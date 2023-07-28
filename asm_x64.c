@@ -80,23 +80,58 @@ const char *reg_names[] = {
   "r15",
   "   ",
 };
+bool reg_callee[] = {
+  false, // rax
+  false,  // rcx
+  false, // rdx
+  true, // rbx
+  true,  // rsp
+  true,  // rbp
+  false, // rsi
+  false, // rdi
+  false, // r8
+  false, // r9
+  false, // r10
+  false, // r11
+  true,  // r12
+  true,  // r13
+  true,  // r14
+  true,  // r15
+};
 // clang-format on
 
-int get_free_reg(const int *slot) {
+int get_free_reg(const int *slot, bool callee) {
   for (int i = 0; i < regcnt; i++) {
     if (slot[i] == -1) {
-      return i;
+      if (!callee || reg_callee[i]) {
+	return i;
+      }
     }
   }
   printf("ERROR no free reg\n");
   exit(-1);
 }
 
+// Re-assign non-callee saved regs to callee saved.
+// TODO: spill if necessary.
+void preserve_for_call(trace_s* trace, int *slot) {
+  for (int i = 0; i < regcnt; i++) {
+    if (i != RDI && slot[i] != -1 && !reg_callee[i]) {
+      auto nreg = get_free_reg(slot, true);
+      emit_reg_reg(OP_MOV, nreg, i);
+
+      trace->ops[slot[i]].reg = nreg;
+      slot[nreg] = slot[i];
+      slot[i] = -1;
+    }
+  }
+}
+
 void maybe_assign_register(int v, trace_s *trace, int *slot) {
   if ((v & IR_CONST_BIAS) == 0) {
     auto op = &trace->ops[v];
     if (op->reg == REG_NONE) {
-      op->reg = get_free_reg(slot);
+      op->reg = get_free_reg(slot, false);
       slot[op->reg] = v;
     }
   }
@@ -639,6 +674,32 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_mov64(op->reg, (int64_t)&alloc_ptr);
       emit_mov64(R15, (int64_t)&alloc_end);
 
+      break;
+    }
+    case IR_CALLXS: {
+      if (op->reg == REG_NONE) {
+	op->reg = RAX; // if unused, assign to call result reg.
+      }
+      // TODO assign to arg1 directly
+      maybe_assign_register(op->op1, trace, slot);
+
+      preserve_for_call(trace, slot);
+      
+      // TODO typecheck
+      // Restore scheme frame ptr
+      auto c = trace->consts[op->op2 - IR_CONST_BIAS];
+      emit_op_typecheck(op->reg, IR_INS_TYPE_GUARD|CHAR_TAG, (int32_t)(snap_labels[cur_snap] - emit_offset()));
+
+      emit_reg_reg(OP_MOV, RAX, op->reg);
+      emit_reg_reg(OP_MOV, R15, RDI);
+      // TODO probably in low mem, no need for mov64
+      emit_call_indirect(RAX);
+      emit_mov64(RAX, c);
+      // args
+      emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, RDI);
+      
+      // Save scheme frame ptr
+      emit_reg_reg(OP_MOV, RDI, R15);
       break;
     }
       //     case IR_CLT: {

@@ -1,7 +1,9 @@
 #pragma once
 
-#include "bytecode.h"
 #include <stdint.h>
+
+#include "bytecode.h"
+#include "types.h"
 
 void run(bcfunc *func, long argcnt, const long *args);
 bcfunc *find_func_for_frame(const uint32_t *pc);
@@ -14,3 +16,5 @@ extern bcfunc **funcs;
 #define hotmap_rec 1
 #define hotmap_tail_rec 1
 #define hotmap_mask (hotmap_sz - 1)
+
+__attribute__((always_inline)) long vm_read_char(port_s* port);

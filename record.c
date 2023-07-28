@@ -157,6 +157,7 @@ void dump_trace(trace_s *ctrace) {
     case IR_LOAD:
     case IR_ABC:
     case IR_VREF:
+    case IR_CALLXS:
     case IR_CLT: {
       print_const_or_val(op.op1, ctrace);
       printf(" ");
@@ -812,6 +813,21 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[INS_A(i)] = record_stack_load(INS_B(i), frame);
     // TODO loop moves can clear
     // regs[INS_B(i)] = -1;
+    break;
+  }
+  case READ: {
+    {
+      long gp = const_table[INS_D(i)];
+      auto knum = arrlen(trace->consts);
+      arrput(trace->consts, (long)vm_read_char);
+      ir_ins ins;
+      ins.reg = REG_NONE;
+      ins.op = IR_CALLXS;
+      ins.op1 = record_stack_load(INS_B(i), frame);
+      ins.op2 = knum | IR_CONST_BIAS;
+      regs[INS_A(i)] = arrlen(trace->ops);
+      arrput(trace->ops, ins);
+    }
     break;
   }
   case GGET: {

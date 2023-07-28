@@ -41,6 +41,9 @@ typedef enum {
   IR_LOAD,
 
   IR_ABC,
+
+  IR_CALLXS,
+  IR_CARG,
 } ir_ins_op;
 
 extern const char *ir_names[];
