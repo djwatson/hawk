@@ -843,6 +843,12 @@ END_LIBRARY_FUNC
 LIBRARY_FUNC_CONS_SET_OP(SET-CAR!, SET_CAR, a);
 LIBRARY_FUNC_CONS_SET_OP(SET-CDR!, SET_CDR, b);
 
+// Called from jit. TODO could inline in jit.
+void vm_write(long obj, long port_obj) {
+  auto port = (port_s*)(port_obj - PTR_TAG);
+  print_obj(obj, port->file);
+}
+
 LIBRARY_FUNC_BC_LOAD(WRITE)
   LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
   print_obj(fb, port->file);

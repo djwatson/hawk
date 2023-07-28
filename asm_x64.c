@@ -678,15 +678,24 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
       break;
     }
+    case IR_CARG: {
+      break;
+    }
     case IR_CALLXS: {
       if (op->reg == REG_NONE) {
 	op->reg = RAX; // if unused, assign to call result reg.
       }
-      // TODO assign to arg1 directly
-      maybe_assign_register(op->op1, trace, slot);
-
       preserve_for_call(trace, slot);
       
+      // TODO assign to arg1 directly
+      if (trace->ops[op->op1].op == IR_CARG) {
+	auto cop = &trace->ops[op->op1];
+	maybe_assign_register(cop->op1, trace, slot);
+	maybe_assign_register(cop->op2, trace, slot);
+      } else {
+	maybe_assign_register(op->op1, trace, slot);
+      }
+
       // TODO typecheck
       // Restore scheme frame ptr
       auto c = trace->consts[op->op2 - IR_CONST_BIAS];
@@ -698,7 +707,13 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_call_indirect(RAX);
       emit_mov64(RAX, c);
       // args
-      emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, RDI);
+      if (trace->ops[op->op1].op == IR_CARG) {
+	auto cop = &trace->ops[op->op1];
+	emit_reg_reg(OP_MOV, trace->ops[cop->op1].reg, RDI);
+	emit_reg_reg(OP_MOV, trace->ops[cop->op2].reg, RSI);
+      } else {
+	emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, RDI);
+      }
       
       // Save scheme frame ptr
       emit_reg_reg(OP_MOV, RDI, R15);

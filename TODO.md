@@ -1,8 +1,6 @@
 # working on
 
 * CALLXS betterness
-  * typecheck type
-  * use fgetc/fungetc/fputc
   * can reg hint anthing that covers a call
 
 * LOAD use for car/cdr, AND vec.

@@ -184,3 +184,6 @@ set_tests_properties(bench/diviter PROPERTIES PASS_REGULAR_EXPRESSION "50000000"
 
 add_test(NAME bench/divrec COMMAND ./boom --heap-sz=100000 test/bench/divrec.scm )
 set_tests_properties(bench/divrec PROPERTIES PASS_REGULAR_EXPRESSION "5000000")
+
+add_test(NAME bench/cat COMMAND ./boom  test/bench/cat.scm )
+set_tests_properties(bench/cat PROPERTIES PASS_REGULAR_EXPRESSION "END")

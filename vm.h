@@ -18,3 +18,4 @@ extern bcfunc **funcs;
 #define hotmap_mask (hotmap_sz - 1)
 
 __attribute__((always_inline)) long vm_read_char(port_s* port);
+void vm_write(long obj, long port);
