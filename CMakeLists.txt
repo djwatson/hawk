@@ -153,3 +153,13 @@ add_test(NAME r5rs_tests COMMAND ./boom --joff test/r5rs-tests.scm )
 set_tests_properties(r5rs_tests PROPERTIES PASS_REGULAR_EXPRESSION "175 out of 176 passed")
 add_test(NAME r4rs_test COMMAND ./boom --joff test/r4rstest.scm )
 set_tests_properties(r4rs_test PROPERTIES PASS_REGULAR_EXPRESSION "Passed all tests")
+
+add_test(NAME fib COMMAND ./boom test/fib.scm )
+set_tests_properties(fib PROPERTIES PASS_REGULAR_EXPRESSION "102334155")
+add_test(NAME ack COMMAND ./boom test/ack.scm )
+set_tests_properties(ack PROPERTIES PASS_REGULAR_EXPRESSION "32765")
+add_test(NAME tak COMMAND ./boom test/tak.scm )
+set_tests_properties(tak PROPERTIES PASS_REGULAR_EXPRESSION "12")
+add_test(NAME sum COMMAND ./boom test/sum.scm )
+set_tests_properties(sum PROPERTIES PASS_REGULAR_EXPRESSION "500000000500000000")
+
