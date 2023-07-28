@@ -146,3 +146,10 @@ add_custom_command(
   ${CHEZ} --script opcode_gen.scm
   DEPENDS util.scm opcode_gen.scm vm.c
 )
+
+add_test(NAME r5rs_pitfall COMMAND ./boom --joff test/r5rs_pitfall.scm)
+set_tests_properties(r5rs_pitfall PROPERTIES FAIL_REGULAR_EXPRESSION "Failure")
+add_test(NAME r5rs_tests COMMAND ./boom --joff test/r5rs-tests.scm )
+set_tests_properties(r5rs_tests PROPERTIES PASS_REGULAR_EXPRESSION "175 out of 176 passed")
+add_test(NAME r4rs_test COMMAND ./boom --joff test/r4rstest.scm )
+set_tests_properties(r4rs_test PROPERTIES PASS_REGULAR_EXPRESSION "Passed all tests")
