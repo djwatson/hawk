@@ -137,7 +137,7 @@ void emit_mem_reg_sib(uint8_t opcode, int32_t offset, uint8_t scale,
 
 void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
   if ((0x7 & r1) == RSP) {
-    emit_mem_reg_sib(opcode, offset, 0, r1, r1, r2);
+    emit_mem_reg_sib(opcode, offset, 0, RSP, r1, r2);
   } else {
     if ((int32_t)((int8_t)offset) == offset) {
       *(--p) = (int8_t)offset;
