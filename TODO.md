@@ -1,7 +1,7 @@
 # working on
 
 * CALLXS betterness
-  * typecheck
+  * typecheck type
   * use fgetc/fungetc/fputc
   * can reg hint anthing that covers a call
 

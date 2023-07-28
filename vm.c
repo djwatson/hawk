@@ -954,7 +954,6 @@ LIBRARY_FUNC_BC(OPEN)
     printf("FDopen fail\n");
     exit(-1);
   }
-  port->peek = FALSE_REP;
   frame[ra] = (long)port + PTR_TAG;
 END_LIBRARY_FUNC
 
@@ -972,32 +971,23 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(PEEK)
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
-  if (port->peek != FALSE_REP) {
+  int res = fgetc(port->file);
+  if (res == EOF) {
+    frame[ra] = EOF_TAG;
   } else {
-    uint8_t b;
-    size_t res = fread(&b, 1, 1, port->file);
-    if (res == 0) {
-      port->peek = EOF_TAG;
-    } else {
-      port->peek = (((long)b) << 8) + CHAR_TAG;
-    }
+    ungetc(res, port->file);
+    frame[ra] = (((long)res) << 8) + CHAR_TAG;
   }
-  frame[ra] = port->peek;
 END_LIBRARY_FUNC
 
 __attribute__((always_inline)) long vm_read_char(port_s* port) {
+  // TODO jit still as the ptr tag.
   port = (port_s*)((long)port & ~TAG_MASK);
-  if (port->peek != FALSE_REP) {
-    auto res = port->peek;
-    port->peek = FALSE_REP;
-    return res;
+  int res = fgetc(port->file);
+  if (res == EOF) {
+    return EOF_TAG;
   } else {
-    int res = fgetc(port->file);
-    if (res == EOF) {
-      return EOF_TAG;
-    } else {
-      return (((long)res) << 8) + CHAR_TAG;
-    }
+    return (((long)res) << 8) + CHAR_TAG;
   }
 }
 
@@ -1010,10 +1000,6 @@ LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
   char buf[512];
   auto pos = 0;
-  if (port->peek != FALSE_REP) {
-    buf[pos++] = (char)port->peek;
-    port->peek = FALSE_REP;
-  }
   bool eof = false;
   for(; pos < 511; pos++) {
     // TODO bigger than 511
