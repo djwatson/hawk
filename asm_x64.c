@@ -7,7 +7,9 @@
 #include <stdbool.h>
 #include <stdio.h>             // for printf, size_t
 #include <stdlib.h>            // for exit
+#ifdef VALGRIND
 #include <valgrind/valgrind.h> // for VALGRIND_DISCARD_TRANSLATIONS
+#endif
 // TODO only for runtime symbol
 #include "bytecode.h" // for INS_OP, INS_B
 #include "emit_x64.h" // for emit_offset, emit_mov64, emit_mem_reg
@@ -826,7 +828,9 @@ done:
   }
   jit_reader_add(len, (uint64_t)fn, 0, 0, "Trace");
 #endif
+#ifdef VALGRIND
   VALGRIND_DISCARD_TRANSLATIONS(fn, len);
+#endif
 }
 
 extern unsigned int *patchpc;

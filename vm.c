@@ -856,8 +856,8 @@ LIBRARY_FUNC_BC_LOAD_NAME(WRITE-U8, WRITE_U8)
   if (unlikely(byte >= 256)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  
-  fwrite(&b, 1, 1, port->file);
+
+  fputc(b, port->file);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(WRITE-DOUBLE, WRITE_DOUBLE)
