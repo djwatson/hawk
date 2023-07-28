@@ -690,7 +690,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       // TODO typecheck
       // Restore scheme frame ptr
       auto c = trace->consts[op->op2 - IR_CONST_BIAS];
-      emit_op_typecheck(op->reg, IR_INS_TYPE_GUARD|CHAR_TAG, (int32_t)(snap_labels[cur_snap] - emit_offset()));
+      emit_op_typecheck(op->reg, op->type, (int32_t)(snap_labels[cur_snap] - emit_offset()));
 
       emit_reg_reg(OP_MOV, RAX, op->reg);
       emit_reg_reg(OP_MOV, R15, RDI);

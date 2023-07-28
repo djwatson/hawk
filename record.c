@@ -825,6 +825,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op = IR_CALLXS;
       ins.op1 = record_stack_load(INS_B(i), frame);
       ins.op2 = knum | IR_CONST_BIAS;
+      ins.type = CHAR_TAG | IR_INS_TYPE_GUARD;
       regs[INS_A(i)] = arrlen(trace->ops);
       arrput(trace->ops, ins);
     }
