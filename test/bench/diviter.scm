@@ -1,6 +1,7 @@
 ;;; DIVITER -- Benchmark which divides by 2 using lists of n ()'s.
 
 ;;; LC NOTE : Can't compute more because of heap/stack overflow
+(define pp display)
  
 (define (create-n n)
   (do ((n n (- n 1))
@@ -22,6 +23,7 @@
 
 (pp (iterative-div2 (create-n 0)))
 (pp (iterative-div2 (create-n 10)))
+(iterative-div2 (create-n 100000000))
 
 ;0
 ;1

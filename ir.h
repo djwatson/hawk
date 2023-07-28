@@ -17,6 +17,7 @@ typedef enum {
   IR_KFIX,
   IR_KFUNC,
   IR_GGET,
+  IR_GSET,
   IR_RET,
   IR_CALL,
   IR_SLOAD,

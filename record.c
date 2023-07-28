@@ -135,6 +135,12 @@ void dump_trace(trace_s *ctrace) {
       printf("%s", s->name->str);
       break;
     }
+    case IR_GSET: {
+      auto *s = (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
+      printf("%s ", s->name->str);
+      print_const_or_val(op.op2, ctrace);
+      break;
+    }
     case IR_ALLOC: {
       printf("%i type %i", op.op1, op.op2);
       break;
@@ -591,12 +597,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op2 = record_stack_load(INS_C(i), frame);
     uint32_t *next_pc;
     if (frame[INS_B(i)] >= frame[INS_C(i)]) {
-      ins.op = IR_LT;
+      ins.op = IR_GE;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace,
                pc + INS_D(*(pc + 1)) + 1);
       next_pc = pc + 2;
     } else {
-      ins.op = IR_GE;
+      ins.op = IR_LT;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2);
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
@@ -809,18 +815,19 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case GGET: {
-    // TODO GSET
+    // TODO check it is set?
     long gp = const_table[INS_D(i)];
     auto reg = INS_A(i);
     bool done = false;
-    for (int j = arrlen(trace->ops) - 1; j >= 0; j--) {
-      auto op = &trace->ops[j];
-      if (op->op == IR_GGET && trace->consts[op->op1 - IR_CONST_BIAS] == gp) {
-        done = true;
-        regs[reg] = j;
-        break;
-      }
-    }
+    // TODO
+    /* for (int j = arrlen(trace->ops) - 1; j >= 0; j--) { */
+    /*   auto op = &trace->ops[j]; */
+    /*   if (op->op == IR_GGET && trace->consts[op->op1 - IR_CONST_BIAS] == gp) { */
+    /*     done = true; */
+    /*     regs[reg] = j; */
+    /*     break; */
+    /*   } */
+    /* } */
     if (!done) {
       auto knum = arrlen(trace->consts);
       arrput(trace->consts, gp);
@@ -832,6 +839,19 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       regs[reg] = arrlen(trace->ops);
       arrput(trace->ops, ins);
     }
+    break;
+  }
+  case GSET: {
+    long gp = const_table[INS_D(i)];
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, gp);
+    ir_ins ins;
+    ins.reg = REG_NONE;
+    ins.op1 = knum | IR_CONST_BIAS;
+    ins.op = IR_GSET;
+    ins.op2 = record_stack_load(INS_A(i), frame);
+    ins.type = (((symbol *)(gp - SYMBOL_TAG))->val & 0x7);
+    arrput(trace->ops, ins);
     break;
   }
   case SUBVN: {

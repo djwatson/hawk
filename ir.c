@@ -13,6 +13,7 @@ const char* ir_names[] = {
   "KFIX ",
   "KFUNC",
   "GGET ",
+  "GSET ",
   "RET  ",
   "CALL ",
   "SLOAD",

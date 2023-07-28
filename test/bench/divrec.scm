@@ -21,6 +21,7 @@
 
 (display (recursive-div2 (create-n 0)))
 (display (recursive-div2 (create-n 10)))
+(recursive-div2 (create-n 10000000))
 
 ;0
 ;1

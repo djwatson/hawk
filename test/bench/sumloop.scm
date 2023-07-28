@@ -1,6 +1,7 @@
 ;;; SUMLOOP -- One of the Kernighan and Van Wyk benchmarks.
 
 ;;; LC NOTE : Can't compute more because of heap/stack overflow
+(define pp display)
 
 (define sum 0)
 
@@ -20,11 +21,12 @@
       ((>= i n) sum)
     (set! sum (+ sum 1))))
 
-(pp (do-loop 0))
-(pp (do-loop 1))
-(pp (do-loop 10))
-(pp (do-loop 50))
-(pp (do-loop 100))
+;; (pp (do-loop 0))
+;; (pp (do-loop 1))
+;; (pp (do-loop 10))
+;; (pp (do-loop 50))
+;; (pp (do-loop 100))
+(display (do-loop 1000000000))
 
 ;0
 ;1

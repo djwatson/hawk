@@ -561,6 +561,17 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_mov64(reg, (int64_t)&sym->val);
       break;
     }
+    case IR_GSET: {
+      maybe_assign_register(op->op2, trace, slot);
+      auto *sym =
+          (symbol *)(trace->consts[op->op1 - IR_CONST_BIAS] - SYMBOL_TAG);
+      emit_mem_reg(OP_MOV_RM, 0, R15, trace->ops[op->op2].reg);
+      auto re = (reloc){emit_offset(), trace->consts[op->op1 - IR_CONST_BIAS],
+                        RELOC_SYM_ABS};
+      arrput(trace->relocs, re);
+      emit_mov64(R15, (int64_t)&sym->val);
+      break;
+    }
     case IR_STORE: {
       maybe_assign_register(op->op1, trace, slot);
       maybe_assign_register(op->op2, trace, slot);
