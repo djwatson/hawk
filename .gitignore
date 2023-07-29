@@ -16,3 +16,4 @@ bootstrap.cpp
 libwrite_double.so
 opcodes*
 vm.ll
+bootstrap.c
