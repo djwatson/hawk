@@ -135,6 +135,7 @@ void maybe_assign_register(int v, trace_s *trace, int *slot) {
     if (op->reg == REG_NONE) {
       op->reg = get_free_reg(slot, false);
       slot[op->reg] = v;
+      printf("assign op %i to reg %s\n", v, reg_names[op->reg]);
     }
   }
 }
@@ -548,6 +549,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     }
 
     emit_check();
+    printf("Emit op %li %s\n", op_cnt, ir_names[op->op]);
     switch (op->op) {
     case IR_SLOAD: {
       // frame pointer in RDI
