@@ -17,5 +17,6 @@ extern unsigned long const_table_sz;
 typedef struct bcfunc {
   char *name;
   uint32_t codelen;
+  uint8_t poly_cnt;
   unsigned int code[];
 } bcfunc;

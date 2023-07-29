@@ -472,25 +472,59 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case CALL: {
-    // TODO this needs to check reg[]links instead
     for (int j = INS_A(i) + 1; j < INS_A(i) + INS_B(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
-
-    // Check call type
-    {
-      auto v = frame[INS_A(i) + 1];
-      auto knum = arrlen(trace->consts);
-      arrput(trace->consts, v);
-      ir_ins ins;
-      ins.reg = REG_NONE;
-      ins.op1 = record_stack_load(INS_A(i) + 1, frame);
-      ins.op2 = knum | IR_CONST_BIAS;
-      ins.op = IR_EQ;
-      // TODO magic number
-      ins.type = IR_INS_TYPE_GUARD | 0x5;
-      arrput(trace->ops, ins);
+{
+      auto clo = record_stack_load(INS_A(i) + 1, frame);
+      {
+	ir_ins ins;
+	ins.type = 0;
+	ins.reg = REG_NONE;
+	ins.op1 = clo;
+	ins.op2 = 16 - CLOSURE_TAG;
+	ins.op = IR_REF;
+	arrput(trace->ops, ins);
+      }
+      {
+	ir_ins ins;
+	ins.type = 0;
+	ins.reg = REG_NONE;
+	ins.op1 = arrlen(trace->ops) - 1;
+	ins.op2 = 0;
+	ins.op = IR_LOAD;
+	regs[INS_A(i)] = arrlen(trace->ops);
+	arrput(trace->ops, ins);
+      }
+      auto fun = arrlen(trace->ops) - 1;
+      {
+	auto cl = frame[INS_A(i) + 1];
+	auto closure = (closure_s *)(cl - CLOSURE_TAG);
+	auto knum = arrlen(trace->consts);
+	arrput(trace->consts, closure->v[0]);
+	ir_ins ins;
+	ins.reg = REG_NONE;
+	ins.op1 = fun;
+	ins.op2 = knum | IR_CONST_BIAS;
+	ins.op = IR_EQ;
+	ins.type = IR_INS_TYPE_GUARD;
+	arrput(trace->ops, ins);
+      }
     }
+    /* // Check call type */
+    /* { */
+    /*   auto v = frame[INS_A(i) + 1]; */
+    /*   auto knum = arrlen(trace->consts); */
+    /*   arrput(trace->consts, v); */
+    /*   ir_ins ins; */
+    /*   ins.reg = REG_NONE; */
+    /*   ins.op1 = record_stack_load(INS_A(i) + 1, frame); */
+    /*   ins.op2 = knum | IR_CONST_BIAS; */
+    /*   ins.op = IR_EQ; */
+    /*   // TODO magic number */
+    /*   ins.type = IR_INS_TYPE_GUARD | 0x5; */
+    /*   arrput(trace->ops, ins); */
+    /* } */
     long cnt = 0;
     auto *p_pc = (uint32_t *)frame[-1];
     for (int d = depth; d > 0; d--) {

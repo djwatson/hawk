@@ -1,5 +1,10 @@
 # working on
 
+* 'closure' opcode should all be in the bcfunc prototype, and done behind a single opcode.
+  * this would allow single load/store in the jit without massive register usage.
+  * Nah, do a closure-set! instead, like luajit does?
+    * would have to interpret the bcfunc anyway
+* polymorphic
 * CALLXS betterness
   * can reg hint anthing that covers a call
 

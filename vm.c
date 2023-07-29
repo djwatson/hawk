@@ -594,6 +594,14 @@ LIBRARY_FUNC_B(CLOSURE)
   for (int i = 0; i < rb; i++) {
     closure->v[i] = frame[ra + i];
   }
+  // Record polymorphic
+  auto fun = (bcfunc*)frame[ra];
+  if(fun->poly_cnt < 50) {
+    fun->poly_cnt++;
+    if (fun->poly_cnt == 50) {
+      printf("Polymorphic func: %s\n", fun->name);
+    }
+  }
   frame[ra] = (long)closure | CLOSURE_TAG;
 END_LIBRARY_FUNC
 

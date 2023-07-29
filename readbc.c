@@ -203,6 +203,7 @@ bcfunc *readbc(FILE *fptr) {
     }
     f->name = name;
     f->codelen = code_count;
+    f->poly_cnt = 0;
 
     // printf("%i: code %i\n", i, code_count);
     for (unsigned j = 0; j < code_count; j++) {
