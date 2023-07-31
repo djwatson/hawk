@@ -182,6 +182,7 @@
 		   ,@(map (lambda (s) (cc s (if (pair? (to-proper (second f)))
 						(union (to-proper (second f)) bindings) bindings))) (cddr f))))
 	  ((letrec)
+	   (error "Found letrec" f)
 	   (let* ((var-names (map first (second f)))
 		  ;; Bindings including the letrec-names
 		  (letrec-bindings  (union var-names bindings))
@@ -220,9 +221,15 @@
 		  (free-vars (find-free body bindings))
 		  (free-bind (map cons free-vars (iota (length free-vars))))
 		  (closure-var (compiler-gensym 'closure))
-		  (new-body (substitute-free body free-bind closure-var #f)))
-	     ;;(display (format "FOUND FREE: ~a\n" free-vars))
-	     `($closure (lambda ,(cons closure-var (second f)) ,@new-body) ,@free-vars)))
+		  (cr (compiler-gensym 'cr))
+		  (new-body (substitute-free body free-bind closure-var #f))
+		  (cnt 0))
+	     ;;(dformat "FOUND FREE: ~a\n" free-vars)
+	     ;;(dformat "Closure vars ~a\n" (+ 1 (length free-vars)))
+	     `(let ((,cr ($closure (lambda ,(cons closure-var (second f)) ,@new-body) ,(+ 1 (length free-vars)))))
+		(begin
+		  ,@(map-in-order (lambda (var) (define res `($closure-set ,cr ,var ,cnt)) (inc! cnt) res) free-vars )
+		  ,cr))))
 	  (else (imap (lambda (f) (cc f bindings)) f)))))
   (map (lambda (f) (cc f '())) sexp))
 

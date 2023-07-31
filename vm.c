@@ -588,19 +588,21 @@ LIBRARY_FUNC_B(VECTOR)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B(CLOSURE)
-  auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
+  auto cnt = frame[ra+1] >> 3; // TODO
+  auto closure = (closure_s *)GC_malloc(sizeof(long) * (cnt + 2));
   closure->type = CLOSURE_TAG;
-  closure->len = rb << 3;
-  for (int i = 0; i < rb; i++) {
-    closure->v[i] = frame[ra + i];
+  closure->len = cnt << 3;
+  for (int i = 0; i < cnt; i++) {
+    closure->v[i] = 0;//frame[ra + i];
   }
+closure->v[0] = frame[ra];
   // Record polymorphic
   auto fun = (bcfunc*)frame[ra];
   if(fun->poly_cnt < 50) {
     fun->poly_cnt++;
-    if (fun->poly_cnt == 50) {
-      printf("Polymorphic func: %s\n", fun->name);
-    }
+    /* if (fun->poly_cnt == 50) { */
+    /*   printf("Polymorphic func: %s\n", fun->name); */
+    /* } */
   }
   frame[ra] = (long)closure | CLOSURE_TAG;
 END_LIBRARY_FUNC

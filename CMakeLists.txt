@@ -77,7 +77,7 @@ if (REPLAY)
 endif(REPLAY)
 add_executable(boom ${SOURCES} )
 
-target_compile_options(boom PRIVATE -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow
+target_compile_options(boom PRIVATE -gdwarf-3 -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow
   -Wno-unused-parameter -Wnull-dereference )
 set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 

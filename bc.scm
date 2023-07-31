@@ -1,9 +1,3 @@
-;;;;;;;;;;;;; include
-
-(include "third-party/alexpander.scm")
-(include "memory_layout.scm")
-(include "passes.scm")
-
 ;;;;;;;;;; Currently a limitation in macro expander:
 ;;;;;;;;;;; whole file is read before includes processed, so macros used in file can't be included
 (define-syntax inc!
@@ -28,6 +22,12 @@
     ((_ arg) arg)))
 
 (include "util.scm")
+
+;;;;;;;;;;;;; include
+
+(include "third-party/alexpander.scm")
+(include "memory_layout.scm")
+(include "passes.scm")
 
 ;;;;;;;;;;;;;;;;;;; code
 
@@ -581,7 +581,33 @@
 
 (define store (null-mstore))
 (define (expander )
-  (expand-top-level-forms! (read-file) store))
+(define startup
+    '(begin
+       (define-syntax letrec
+	 (syntax-rules ()
+	   ((letrec ((var init) ...) expr)
+	    (let ((var #f) ...)
+	      (let ((var (let ((tmp init)) (lambda () (set! var tmp))))
+		    ...
+		    (thunk (lambda () expr)))
+		(begin (var) ... (thunk)))))))
+       (define-syntax delay
+	 (syntax-rules ()
+	   ((delay expr)
+	    (let ((result #f) (thunk (lambda () expr)))
+	      (lambda ()
+		(if thunk (let ((x (thunk)))
+			    (if thunk (begin (set! result x)
+					     (set! thunk #f)))))
+		result)))))
+       (define (force x) (x))
+       ;; (define-syntax begin
+       ;; 	 (syntax-rules ()
+       ;; 	   ((begin x) x)
+       ;; 	   ((begin x . y)
+       ;; 	    ((lambda (ignore) (begin . y)) x))))
+       ))
+(expand-program (cons startup (expand-program (expand-top-level-forms! (read-file) store)))))
 
 ;;;;;;;;;;;;;print
 (define (display-bc bc)
