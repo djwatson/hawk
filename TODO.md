@@ -1,5 +1,8 @@
 # working on
 
+* fixup letrec code with set-closure! and remove shitty letrec expansion in alexpander
+* closure-get / load needs typecheck
+* implement closure-set! record
 * 'closure' opcode should all be in the bcfunc prototype, and done behind a single opcode.
   * this would allow single load/store in the jit without massive register usage.
   * Nah, do a closure-set! instead, like luajit does?

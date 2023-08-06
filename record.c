@@ -1150,7 +1150,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op = IR_REF;
       arrput(trace->ops, ins);
     }
-    // TODO typecheck
+    // Note: Closure doesn't necessarily need typecheck since closures are CONST.
+    // However, there are some situations where invalid code may hit bad types?
+    // I.e. polymorphic functions could do a different STORE type?
     {
       ir_ins ins;
       ins.type = 0;

@@ -544,16 +544,16 @@ LIBRARY_FUNC_B(BOX)
   box->type = CONS_TAG;
   box->a = frame[rb];
   box->b = NIL_TAG;
-  frame[ra] = (long)box | PTR_TAG;
+  frame[ra] = (long)box | CONS_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(UNBOX)
-  auto box = (cons_s *)(fb - PTR_TAG);
+  auto box = (cons_s *)(fb - CONS_TAG);
   frame[ra] = box->a;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(SET-BOX!, SET_BOX)
-  auto box = (cons_s *)(fb - PTR_TAG);
+  auto box = (cons_s *)(fb - CONS_TAG);
   box->a = fc;
 END_LIBRARY_FUNC
 
