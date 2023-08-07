@@ -1246,7 +1246,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // exit(-1);
   }
   }
-  if (instr_count > 5000) {
+  if (instr_count > 60) {
     printf("Record abort: due to length\n");
     record_abort();
     return 1;
