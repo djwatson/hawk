@@ -22,6 +22,7 @@
 
   (tak x y z (lambda (a) a)))
 
+(display "RESULT: ")
 (display (cpstak 32 16 8))
 
 ;6
