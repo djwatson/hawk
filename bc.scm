@@ -581,33 +581,7 @@
 
 (define store (null-mstore))
 (define (expander )
-(define startup
-    '(begin
-       (define-syntax letrec
-	 (syntax-rules ()
-	   ((letrec ((var init) ...) expr)
-	    (let ((var #f) ...)
-	      (let ((var (let ((tmp init)) (lambda () (set! var tmp))))
-		    ...
-		    (thunk (lambda () expr)))
-		(begin (var) ... (thunk)))))))
-       (define-syntax delay
-	 (syntax-rules ()
-	   ((delay expr)
-	    (let ((result #f) (thunk (lambda () expr)))
-	      (lambda ()
-		(if thunk (let ((x (thunk)))
-			    (if thunk (begin (set! result x)
-					     (set! thunk #f)))))
-		result)))))
-       (define (force x) (x))
-       ;; (define-syntax begin
-       ;; 	 (syntax-rules ()
-       ;; 	   ((begin x) x)
-       ;; 	   ((begin x . y)
-       ;; 	    ((lambda (ignore) (begin . y)) x))))
-       ))
-(expand-program (cons startup (expand-program (expand-top-level-forms! (read-file) store)))))
+  (expand-top-level-forms! (read-file) store))
 
 ;;;;;;;;;;;;;print
 (define (display-bc bc)

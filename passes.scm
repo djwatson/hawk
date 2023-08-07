@@ -182,7 +182,6 @@
 		   ,@(map (lambda (s) (cc s (if (pair? (to-proper (second f)))
 						(union (to-proper (second f)) bindings) bindings))) (cddr f))))
 	  ((letrec)
-	   (error "Found letrec" f)
 	   (let* ((var-names (map first (second f)))
 		  ;; Bindings including the letrec-names
 		  (letrec-bindings  (union var-names bindings))
@@ -202,14 +201,13 @@
 	     `(let ,(map (lambda (v body closure free)
 			   `(,v ($closure (lambda ,(cons closure (second body)) ,@(cddr body))
 					  ;; Set empty references to letrec's vars.
-					  ,@(map (lambda (x) (if (memq x var-names) 0 x)) free))))
+					  ,(length free))))
 			 (map car (second f)) bodies closures free-vars)
 		;; Now bind any group references
 		(begin
 		  ,@(apply append (map (lambda (x bound)
-					 (filter-map (lambda (v)
-						       (if (memq (car v) var-names) `($closure-set ,x ,(car v) ,(cdr v))
-							   #f))
+					 (map (lambda (v)
+						       `($closure-set ,x ,(car v) ,(cdr v)))
 						     bound))
 				       var-names free-bind))
 		  ,@(map (lambda (f) (cc f new-bindings)) (cddr f))))))

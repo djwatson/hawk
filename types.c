@@ -56,7 +56,7 @@ void print_obj(long obj, FILE *file) {
   }
   case CONS_TAG: {
     auto *c = (cons_s *)(obj - CONS_TAG);
-    fputc(')', file);
+    fputc('(', file);
     while ((c->b & TAG_MASK) == CONS_TAG) {
       print_obj(c->a, file);
       c = (cons_s *)(c->b - CONS_TAG);
