@@ -135,7 +135,6 @@ void maybe_assign_register(int v, trace_s *trace, int *slot) {
     if (op->reg == REG_NONE) {
       op->reg = get_free_reg(slot, false);
       slot[op->reg] = v;
-      printf("assign op %i to reg %s\n", v, reg_names[op->reg]);
     }
   }
 }
@@ -549,7 +548,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     }
 
     emit_check();
-    printf("Emit op %li %s\n", op_cnt, ir_names[op->op]);
     switch (op->op) {
     case IR_SLOAD: {
       // frame pointer in RDI
@@ -876,10 +874,10 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
   auto *snap = &trace->snaps[exit];
 
   restore_snap(snap, trace, &state, o_frame, o_pc);
-  // bcfunc* func = find_func_for_frame(snap->pc);
-  // assert(func);
-  //  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num,
-  //  snap->pc - &func->code[0], func->name.c_str());
+  /* bcfunc* func = find_func_for_frame(snap->pc); */
+  /* assert(func); */
+  /*  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, */
+  /*  snap->pc - &func->code[0], func->name); */
 
   if (exit != arrlen(trace->snaps) - 1) {
     if (snap->exits < 10) {

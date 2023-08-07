@@ -266,7 +266,9 @@ void GC_init() {
   alloc_ptr = from_space;
   alloc_end = alloc_ptr + alloc_sz;
   to_space = alloc_ptr + alloc_sz;
+  #ifndef NDEBUG
   mprotect(to_space, alloc_sz, PROT_NONE);
+  #endif
 }
 
 __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
@@ -280,7 +282,9 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   // printf("Collecting...\n");
 
   assert(gc_enable || alloc_end == NULL);
+  #ifndef NDEBUG
   mprotect(to_space, alloc_sz, PROT_READ | PROT_WRITE);
+  #endif
   // flip
   // alloc_ptr = (uint8_t*)malloc(alloc_sz);
   alloc_ptr = to_space;
@@ -308,7 +312,9 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
     printf("Heap exhausted, embiggen?\n");
     assert(false);
   }
+  #ifndef NDEBUG
   mprotect(to_space, alloc_sz, PROT_NONE);
+  #endif
 
   return res;
 }

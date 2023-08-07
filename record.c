@@ -129,6 +129,7 @@ void dump_trace(trace_s *ctrace) {
     case IR_CDR:
     case IR_KFIX:
     case IR_ARG:
+    case IR_LOAD:
     case IR_SLOAD: {
       print_const_or_val(op.op1, ctrace);
       break;
@@ -157,7 +158,6 @@ void dump_trace(trace_s *ctrace) {
     case IR_GE:
     case IR_LT:
     case IR_STORE:
-    case IR_LOAD:
     case IR_ABC:
     case IR_VREF:
     case IR_CALLXS:
@@ -806,11 +806,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     //   Put GC inline in generated code?  Would have to flush
     //   all registers to stack.
     //    trace->snaps[arrlen(trace->snaps) - 1].exits = 100;
+    // TODO fixed closz
+    long closz = (frame[INS_A(i)+1] >> 3)+1;
     {
       ir_ins ins;
       ins.type = CLOSURE_TAG;
       ins.reg = REG_NONE;
-      ins.op1 = sizeof(long)* (INS_B(i) + 2);
+      ins.op1 = sizeof(long)* (closz + 2);
       ins.op2 = CLOSURE_TAG;
       ins.op = IR_ALLOC;
       arrput(trace->ops, ins);
@@ -826,7 +828,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       arrput(trace->ops, ins);
     }
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (long)INS_B(i) << 3);
+    arrput(trace->consts, (long)closz << 3);
     {
       ir_ins ins;
       ins.type = 0;
@@ -836,14 +838,21 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op = IR_STORE;
       arrput(trace->ops, ins);
     }
-    for(unsigned j = 0; j < INS_B(i); j++) {
-      auto a = record_stack_load(INS_A(i) + j, frame);
+      auto a = record_stack_load(INS_A(i), frame);
+      // TODO
+      // The first value *must* be the function ptr.
+      // THe rest of the values are just *something*
+      // so that if we abort, there is a valid GC object.
+      // Could also be 0-initialized.
+      // TODO figure out a way to ensure we always snapshpt
+      // after fully setting? I.e. don't abort ever?
+      for(long j = 0; j < closz; j++) {
       {
 	ir_ins ins;
 	ins.type = 0;
 	ins.reg = REG_NONE;
 	ins.op1 = cell;
-	ins.op2 = 16 + 8*j - CLOSURE_TAG;
+	ins.op2 = 16 +8*j - CLOSURE_TAG;
 	ins.op = IR_REF;
 	arrput(trace->ops, ins);
       }
@@ -856,11 +865,11 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	ins.op = IR_STORE;
 	arrput(trace->ops, ins);
       }
-    }
+      }
     regs[INS_A(i)] = cell;
-    for(unsigned j = 1; j < INS_B(i); j++) {
-      regs[INS_A(i) + j] = -1;
-    }
+    /* for(unsigned j = 1; j < INS_B(i); j++) { */
+    /*   regs[INS_A(i) + j] = -1; */
+    /* } */
     //add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1);
     break;
   }
@@ -1171,6 +1180,29 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     /* auto knum = (int)arrlen(trace->consts); */
     /* arrput(trace->consts, closure->v[1 + INS_C(i)]); */
     /* regs[INS_A(i)] = knum | IR_CONST_BIAS; */
+    break;
+  }
+  case CLOSURE_SET: {
+    auto clo = record_stack_load(INS_A(i), frame);
+    auto val = record_stack_load(INS_B(i), frame);
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = clo;
+      ins.op2 = 16 + (8*(1 + INS_C(i))) - CLOSURE_TAG;
+      ins.op = IR_REF;
+      arrput(trace->ops, ins);
+    }
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = arrlen(trace->ops) - 1;
+      ins.op2 = val;
+      ins.op = IR_STORE;
+      arrput(trace->ops, ins);
+    }
     break;
   }
   case JMP: {
