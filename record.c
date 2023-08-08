@@ -800,6 +800,71 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
   //   break;
   // }
+  case STRING_REF: {
+    auto str = record_stack_load(INS_B(i), frame);
+    auto idx = record_stack_load(INS_C(i), frame);
+
+  //   {
+  //     ir_ins ins;
+  //     ins.type = 0;
+  //     ins.reg = REG_NONE;
+  //     ins.op = IR_ABC;
+  //     ins.op1 = vec;
+  //     ins.op2 = idx;
+  //     arrput(trace->ops, ins);
+  //   }
+
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = str;
+      ins.op2 = idx;
+      ins.op = IR_SREF;
+      arrput(trace->ops, ins);
+    }
+
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = arrlen(trace->ops) - 1;
+      ins.op2 = idx;
+      ins.op = IR_STRLD;
+      regs[INS_A(i)] = arrlen(trace->ops);
+      arrput(trace->ops, ins);
+    }
+
+    break;
+  }
+  case STRING_SET: {
+    auto str = record_stack_load(INS_B(i), frame);
+    auto idx = record_stack_load(INS_C(i), frame);
+
+    // TODO
+    /* { */
+    /*   ir_ins ins; */
+    /*   ins.type = 0; */
+    /*   ins.reg = REG_NONE; */
+    /*   ins.op = IR_ABC; */
+    /*   ins.op1 = vec; */
+    /*   ins.op2 = idx; */
+    /*   arrput(trace->ops, ins); */
+    /* } */
+
+    {
+      ir_ins ins;
+      ins.type = CHAR_TAG;
+      ins.reg = REG_NONE;
+      ins.op1 = str;
+      ins.op2 = idx;
+      ins.op = IR_STRLD;
+      regs[INS_A(i)] = arrlen(trace->ops);
+      arrput(trace->ops, ins);
+    }
+
+    break;
+  }
   case CLOSURE: {
     //add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc);
     //  TODO this forces a side exit without recording.

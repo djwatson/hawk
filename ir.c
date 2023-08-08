@@ -34,6 +34,7 @@ const char* ir_names[] = {
   "VREF  ",
   "STORE ",
   "LOAD  ",
+  "STRLD ",
 
   "ABC   ",
   "CALLXS",

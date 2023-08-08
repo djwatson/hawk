@@ -39,6 +39,7 @@ typedef enum {
   IR_VREF,
   IR_STORE,
   IR_LOAD,
+  IR_STRLD,
 
   IR_ABC,
 

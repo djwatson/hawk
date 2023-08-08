@@ -51,7 +51,7 @@ void print_help() {
   printf("  -p, --profile  \tSampling profiler\n");
 #endif
 
-  printf("  -h, --heap-sz  \tHeap size (in pages)\n");
+  printf("  -s, --heap-sz  \tHeap size (in pages)\n");
   printf("  -h, --help     \tPrint this help\n");
 }
 
