@@ -34,9 +34,6 @@
 (define program '())
 (define consts '())
 
-;; TODO pass around in a state struct
-(define cur-name "")
-
 ;; TODO reg = free reg set
 ;; (define-record-type func-bc #t #t
 ;; 		    (name) (code))
@@ -258,16 +255,13 @@
       (compile-sexp (second f) bc env #f nr `(if ,true-dest ,false-dest)))))
 
 (define (compile-lambda f bc rd nr cd)
-  (define f-bc (make-func-bc cur-name '() ))
+  (define f-bc (make-func-bc (second f) '() ))
   (define f-id (length program))
-  (define old-name cur-name)
   ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
-  (set! cur-name (string-append cur-name  "-lambda"))
   (push! program f-bc)
-  (compile-lambda-internal f f-bc '())
+  (compile-lambda-internal (cons 'lambda (cddr f)) f-bc '())
   (finish bc cd rd)
-  (push-instr! bc (list 'KFUNC rd f-id))
-  (set! cur-name old-name))
+  (push-instr! bc (list 'KFUNC rd f-id)))
 
 (define (ilength l)
   (if (null? l) 0
@@ -438,17 +432,12 @@
       (compile-define
        `(define ,(car (second f)) (lambda ,(cdr (second f)) ,@(cddr f)))
        bc env rd nr cd)
-      (let* ((c (get-or-push-const bc (second f)))
-	     (old-name cur-name))
-	(when (closure? (third f))
-	  (set! cur-name (string-append cur-name "-" (symbol->string (second f)))))
+      (let* ((c (get-or-push-const bc (second f))))
 	;; TODO undef
 	;(if (not rd) (error "ERror compile-define"))
 	(finish bc cd rd)
 	(push-instr! bc (list 'GSET nr c))
-	(compile-sexp (third f) bc env nr nr 'next)
-	(set! cur-name old-name)
-	)))
+	(compile-sexp (third f) bc env nr nr 'next))))
 
 (define (compile-let f bc env rd nr cd)
   (let ((ord nr))
@@ -467,11 +456,7 @@
     (compile-sexp (third f) bc env rd ord cd)
     ;; Do this in reverse, so that we don't smash register usage.
     (for-each (lambda (f r)
-		(define old-name cur-name)
-		(when (closure? (second f))
-		  (set! cur-name (string-append cur-name "-" (symbol->string (first f)))))
-		(compile-sexp (second f) bc orig-env r r 'next)
-		(set! cur-name old-name))
+		(compile-sexp (second f) bc orig-env r r 'next))
 	      (reverse (second f))
 	      (reverse mapping))))
 
@@ -530,7 +515,7 @@
 	;; The standard scheme forms.
 	((define) (compile-define f bc env rd nr cd))
 	((let) (compile-let f bc env rd nr cd))
-	((lambda) (compile-lambda f bc rd nr cd))
+	((named-lambda) (compile-lambda f bc rd nr cd))
 	((begin) (compile-sexps (cdr f) bc env rd nr cd))
 	((if) (compile-if f bc env rd nr cd))
 	((set!) (compile-define f bc env rd nr cd)) ;; TODO check?
@@ -735,6 +720,7 @@
 (define (compile-file name . rest)
   (define (debugdisplay src)
     (when (pair? rest)
+      (newline)
       (display "Compiling:\n")
       (pretty-print src)
       (newline))
@@ -743,7 +729,6 @@
 		 ))
   (set! symbol-table '())
   (set! program '())
-  (set! cur-name "")
   (-> (with-input-from-file name expander)
       add-includes ;;  Can remove with new expander
       case-insensitive ;; Can remove with new expander
@@ -754,6 +739,7 @@
       optimize-direct ;; optional
       lower-case-lambda ;; Can remove with new expander? 
       lower-loops ;; optional
+      name-lambdas
       closure-conversion
       debugdisplay
       compile)
