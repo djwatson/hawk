@@ -36,8 +36,10 @@ typedef enum {
     
   IR_ALLOC,
   IR_REF,
+  IR_STRREF,
   IR_VREF,
   IR_STORE,
+  IR_STRST,
   IR_LOAD,
   IR_STRLD,
 

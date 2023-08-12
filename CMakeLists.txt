@@ -20,7 +20,7 @@ CHECK_INCLUDE_FILES("valgrind/valgrind.h" HAVE_VALGRIND)
 enable_testing()
 
 # the JIT is optional.
-option(JIT "Enable JIT" OFF)
+option(JIT "Enable JIT" ON)
 
 # the profiler is optional
 option(PROFILER "Enable PROFILER" OFF)

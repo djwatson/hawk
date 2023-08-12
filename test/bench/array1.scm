@@ -23,6 +23,6 @@
         (loop (- repeat 1) (my-try n))
         result)))
 
-(println (go 5))
+(display (go 500000))
 
 ;5

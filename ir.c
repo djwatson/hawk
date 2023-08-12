@@ -31,8 +31,10 @@ const char* ir_names[] = {
   "CDR   ",
   "ALLOC ",
   "REF   ",
+  "STRREF",
   "VREF  ",
   "STORE ",
+  "STRST ",
   "LOAD  ",
   "STRLD ",
 

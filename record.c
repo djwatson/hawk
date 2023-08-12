@@ -70,6 +70,8 @@ void print_const_or_val(int i, trace_s *ctrace) {
       printf("\e[1;35mnil\e[m");
     } else if (type == 3) {
       printf("\e[1;35mcons\e[m");
+    } else if ((c & IMMEDIATE_MASK) == CHAR_TAG) {
+      printf("'%c'", c >> 8);
     } else {
       printf("Unknown dump_trace type %i\n", type);
       exit(-1);
@@ -129,7 +131,6 @@ void dump_trace(trace_s *ctrace) {
     case IR_CDR:
     case IR_KFIX:
     case IR_ARG:
-    case IR_LOAD:
     case IR_SLOAD: {
       print_const_or_val(op.op1, ctrace);
       break;
@@ -158,10 +159,14 @@ void dump_trace(trace_s *ctrace) {
     case IR_GE:
     case IR_LT:
     case IR_STORE:
+    case IR_LOAD:
     case IR_ABC:
     case IR_VREF:
     case IR_CALLXS:
     case IR_CARG:
+    case IR_STRST:
+    case IR_STRLD:
+    case IR_STRREF: 
     case IR_CLT: {
       print_const_or_val(op.op1, ctrace);
       printf(" ");
@@ -804,51 +809,14 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto str = record_stack_load(INS_B(i), frame);
     auto idx = record_stack_load(INS_C(i), frame);
 
-  //   {
-  //     ir_ins ins;
-  //     ins.type = 0;
-  //     ins.reg = REG_NONE;
-  //     ins.op = IR_ABC;
-  //     ins.op1 = vec;
-  //     ins.op2 = idx;
-  //     arrput(trace->ops, ins);
-  //   }
-
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = str;
-      ins.op2 = idx;
-      ins.op = IR_SREF;
-      arrput(trace->ops, ins);
-    }
-
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = arrlen(trace->ops) - 1;
-      ins.op2 = idx;
-      ins.op = IR_STRLD;
-      regs[INS_A(i)] = arrlen(trace->ops);
-      arrput(trace->ops, ins);
-    }
-
-    break;
-  }
-  case STRING_SET: {
-    auto str = record_stack_load(INS_B(i), frame);
-    auto idx = record_stack_load(INS_C(i), frame);
-
     // TODO
     /* { */
     /*   ir_ins ins; */
     /*   ins.type = 0; */
     /*   ins.reg = REG_NONE; */
-    /*   ins.op = IR_ABC; */
-    /*   ins.op1 = vec; */
+    /*   ins.op1 = str; */
     /*   ins.op2 = idx; */
+    /*   ins.op = IR_ABC; */
     /*   arrput(trace->ops, ins); */
     /* } */
 
@@ -859,6 +827,45 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op1 = str;
       ins.op2 = idx;
       ins.op = IR_STRLD;
+      regs[INS_A(i)] = arrlen(trace->ops);
+      arrput(trace->ops, ins);
+    }
+
+    break;
+  }
+  case STRING_SET: {
+    auto str = record_stack_load(INS_A(i), frame);
+    auto idx = record_stack_load(INS_B(i), frame);
+    auto val = record_stack_load(INS_C(i), frame);
+
+    // TODO
+    /* { */
+    /*   ir_ins ins; */
+    /*   ins.type = 0; */
+    /*   ins.reg = REG_NONE; */
+    /*   ins.op1 = str; */
+    /*   ins.op2 = idx; */
+    /*   ins.op = IR_ABC; */
+    /*   arrput(trace->ops, ins); */
+    /* } */
+
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = str;
+      ins.op2 = idx;
+      ins.op = IR_STRREF;
+      arrput(trace->ops, ins);
+    }
+
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = arrlen(trace->ops) - 1;
+      ins.op2 = val;
+      ins.op = IR_STRST;
       regs[INS_A(i)] = arrlen(trace->ops);
       arrput(trace->ops, ins);
     }

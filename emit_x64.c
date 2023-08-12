@@ -31,6 +31,10 @@ void emit_sib(uint8_t scale, uint8_t index, uint8_t base) {
   *(--p) = (scale << 6) | ((0x7 & index) << 3) | ((0x7 & base));
 }
 
+void emit_imm8(uint8_t imm) {
+  *(--p) = imm;
+}
+
 void emit_imm64(int64_t imm) {
   p -= sizeof(int64_t);
   *(int64_t *)p = imm;

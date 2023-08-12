@@ -22,10 +22,7 @@
     (set! s "abcdef")
     (trial n)))
 
-(println (my-try 0))
-(println (my-try 1))
-(println (my-try 5))
-(println (my-try 10))
+(display (my-try 1000000))
 
 ;6
 ;6
