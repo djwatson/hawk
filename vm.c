@@ -825,7 +825,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
   TYPECHECK_FIXNUM(fb);
   LOAD_TYPE_WITH_CHECK(vec, vector_s, fa, VECTOR_TAG);
   long pos = fb >> 3;
-  if (vec->len - pos < 0) {
+  if ((long)vec->len - pos <= 0) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   vec->v[pos] = fc;
@@ -837,7 +837,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET)
   TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
   LOAD_TYPE_WITH_CHECK(str, string_s, fa, STRING_TAG);
   long pos = fb >> 3;
-  if (str->len - pos < 0) {
+  if ((long)str->len - pos <= 0) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   str->str[pos] = (char)((fc >> 8) & 0xff);
