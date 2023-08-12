@@ -49,7 +49,7 @@ message("Using " ${CHEZ} " for bootstrapping")
 include(CheckPIESupported)
 check_pie_supported()
 
-set(SOURCES readbc.c bytecode.c vm.o boom.c  ir.c types.c bootstrap.c symbol_table.c gc.c opcodes.h opt_loop.c parallel_copy.c)
+set(SOURCES readbc.c bytecode.c vm.o  ir.c types.c symbol_table.c gc.c opcodes.h opt_loop.c parallel_copy.c)
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "stdc++" "m")
 if (JIT) 
@@ -75,23 +75,22 @@ if (REPLAY)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DREPLAY")
   set(SOURCES ${SOURCES} replay.cpp)
 endif(REPLAY)
-add_executable(boom ${SOURCES} )
+add_library(boom_vm ${SOURCES} )
 
-target_compile_options(boom PRIVATE -gdwarf-3 -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow
-  -Wno-unused-parameter -Wnull-dereference )
-set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+target_compile_options(boom_vm PRIVATE -gdwarf-3 -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference )
+set_property(TARGET boom_vm PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
-set_property(TARGET boom PROPERTY POSITION_INDEPENDENT_CODE FALSE)
-target_include_directories(boom PUBLIC ".")
+target_include_directories(boom_vm PUBLIC ".")
 
-target_link_libraries(boom PUBLIC ${LIBRARIES}  )
+target_link_libraries(boom_vm PUBLIC ${LIBRARIES}  )
 
 # Use the CC10 calling convention, which isn't available via clang, but is in llvm.
 # munge win64cc to cc10.
 # Otherwise we could include vm.c directly.
 add_library(vm OBJECT EXCLUDE_FROM_ALL vm.c opcodes.h)
 target_compile_options(vm PRIVATE -emit-llvm -S )
-get_target_property(BOOM_FLAGS boom COMPILE_OPTIONS)
+set_property(TARGET vm PROPERTY POSITION_INDEPENDENT_CODE TRUE)
+get_target_property(BOOM_FLAGS boom_vm COMPILE_OPTIONS)
 target_compile_options(vm PRIVATE ${BOOM_FLAGS} )
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPER)
 set(VM_FLAGS  ${CMAKE_C_FLAGS_${CMAKE_BUILD_TYPE_UPPER}})
@@ -151,6 +150,13 @@ add_custom_command(
   DEPENDS util.scm opcode_gen.scm vm.c
 )
 
+# Actual executable
+add_executable(boom  bootstrap.c boom.c)
+target_link_libraries(boom PUBLIC boom_vm)
+set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+
+
+# Tests
 add_test(NAME r5rs_pitfall COMMAND ./boom --joff test/r5rs_pitfall.scm)
 set_tests_properties(r5rs_pitfall PROPERTIES FAIL_REGULAR_EXPRESSION "Failure")
 add_test(NAME r5rs_tests COMMAND ./boom --joff test/r5rs-tests.scm )

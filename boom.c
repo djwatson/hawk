@@ -55,8 +55,8 @@ void print_help() {
   printf("  -h, --help     \tPrint this help\n");
 }
 
-unsigned char __attribute__((weak)) bootstrap_scm_bc[0];
-unsigned int __attribute__((weak)) bootstrap_scm_bc_len = 0;
+extern unsigned char bootstrap_scm_bc[];
+extern unsigned int bootstrap_scm_bc_len;
 
 static bool list = false;
 unsigned TRACE_MAX = 255;
