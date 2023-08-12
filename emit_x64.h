@@ -35,6 +35,8 @@ enum OPCODES {
   OP_MOV_MR = 0x8b,
   OP_MOV_RM = 0x89,
   OP_MOV8 = 0x88,
+  OP_MOV8_MR = 0x8a,
+  OP_MOVZX8 = /* 0x0f */ 0xB6,
   OP_NOP = 0x90,
   OP_XOR = 0x90,
   OP_TEST = 0x85,

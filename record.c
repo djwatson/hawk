@@ -866,7 +866,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op1 = arrlen(trace->ops) - 1;
       ins.op2 = val;
       ins.op = IR_STRST;
-      regs[INS_A(i)] = arrlen(trace->ops);
       arrput(trace->ops, ins);
     }
 

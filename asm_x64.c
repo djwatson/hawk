@@ -646,6 +646,20 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       }
       break;
     }
+    case IR_STRLD: {
+      maybe_assign_register(op->op1, trace, slot);
+      maybe_assign_register(op->op2, trace, slot);
+      assert(!ir_is_const(op->op1)); // str
+      assert(!ir_is_const(op->op2)); // idx
+
+      emit_mem_reg(OP_MOV8_MR, 0, op->reg, trace->ops[op->op1].reg);
+      emit_mem_reg_sib(OP_LEA, 16 - PTR_TAG, 0, R15, trace->ops[op->op1].reg, op->reg);
+      emit_imm8(3);
+      emit_reg_reg(OP_SAR_CONST, 7, R15);
+      emit_reg_reg(OP_MOV_MR, R15, trace->ops[op->op2].reg);
+      emit_mov64(op->reg, 0); // TODO movzx
+      break;
+    }
     case IR_LOAD: {
       maybe_assign_register(op->op1, trace, slot);
       maybe_assign_register(op->op2, trace, slot);
