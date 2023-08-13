@@ -197,6 +197,8 @@ add_test(NAME bench/cpstak COMMAND ./boom  test/bench/cpstak.scm )
 set_tests_properties(bench/cpstak PROPERTIES PASS_REGULAR_EXPRESSION "RESULT: 9")
 add_test(NAME bench/string COMMAND ./boom  test/bench/string.scm )
 set_tests_properties(bench/string PROPERTIES PASS_REGULAR_EXPRESSION "1048566")
+add_test(NAME bench/array1 COMMAND ./boom  test/bench/array1.scm )
+set_tests_properties(bench/array1 PROPERTIES PASS_REGULAR_EXPRESSION "500000")
 
 
 #install
