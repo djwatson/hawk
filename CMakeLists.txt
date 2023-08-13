@@ -51,7 +51,7 @@ check_pie_supported()
 
 set(SOURCES readbc.c bytecode.c vm.o  ir.c types.c symbol_table.c gc.c opcodes.h opt_loop.c parallel_copy.c)
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
-set(LIBRARIES "stdc++" "m")
+set(LIBRARIES "m")
 if (JIT) 
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DJIT")
   set(SOURCES ${SOURCES} snap.c asm_x64.c record.c emit_x64.c)
