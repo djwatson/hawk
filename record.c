@@ -71,7 +71,7 @@ void print_const_or_val(int i, trace_s *ctrace) {
     } else if (type == 3) {
       printf("\e[1;35mcons\e[m");
     } else if ((c & IMMEDIATE_MASK) == CHAR_TAG) {
-      printf("'%c'", c >> 8);
+      printf("'%c'", (char)(c >> 8));
     } else {
       printf("Unknown dump_trace type %i\n", type);
       exit(-1);
