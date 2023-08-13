@@ -199,6 +199,8 @@ add_test(NAME bench/string COMMAND ./boom  test/bench/string.scm )
 set_tests_properties(bench/string PROPERTIES PASS_REGULAR_EXPRESSION "1048566")
 add_test(NAME bench/array1 COMMAND ./boom  test/bench/array1.scm )
 set_tests_properties(bench/array1 PROPERTIES PASS_REGULAR_EXPRESSION "500000")
+add_test(NAME bench/pyramid COMMAND ./boom  test/bench/pyramid.scm )
+set_tests_properties(bench/pyramid PROPERTIES PASS_REGULAR_EXPRESSION "△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△")
 
 
 #install
