@@ -731,43 +731,43 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[reg] = IR_CONST_BIAS + knum;
     break;
   }
-  // case VECTOR_SET: {
-  //   auto vec = record_stack_load(INS_A(i), frame);
-  //   auto idx = record_stack_load(INS_B(i), frame);
-  //   auto obj = record_stack_load(INS_C(i), frame);
+  case VECTOR_SET: {
+    auto vec = record_stack_load(INS_A(i), frame);
+    auto idx = record_stack_load(INS_B(i), frame);
+    auto obj = record_stack_load(INS_C(i), frame);
 
-  //   {
-  //     ir_ins ins;
-  //     ins.type = 0;
-  //     ins.reg = REG_NONE;
-  //     ins.op = IR_ABC;
-  //     ins.op1 = vec;
-  //     ins.op2 = idx;
-  //     arrput(trace->ops, ins);
-  //   }
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op = IR_ABC;
+      ins.op1 = vec;
+      ins.op2 = idx;
+      arrput(trace->ops, ins);
+    }
 
-  //   {
-  //     ir_ins ins;
-  //     ins.type = 0;
-  //     ins.reg = REG_NONE;
-  //     ins.op1 = vec;
-  //     ins.op2 = idx;
-  //     ins.op = IR_VREF;
-  //     arrput(trace->ops, ins);
-  //   }
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = vec;
+      ins.op2 = idx;
+      ins.op = IR_VREF;
+      arrput(trace->ops, ins);
+    }
 
-  //   {
-  //     ir_ins ins;
-  //     ins.type = 0;
-  //     ins.reg = REG_NONE;
-  //     ins.op1 = arrlen(trace->ops) - 1;
-  //     ins.op2 = obj;
-  //     ins.op = IR_STORE;
-  //     arrput(trace->ops, ins);
-  //   }
+    {
+      ir_ins ins;
+      ins.type = 0;
+      ins.reg = REG_NONE;
+      ins.op1 = arrlen(trace->ops) - 1;
+      ins.op2 = obj;
+      ins.op = IR_STORE;
+      arrput(trace->ops, ins);
+    }
 
-  //   break;
-  // }
+    break;
+  }
   // case VECTOR_REF: {
   //   auto vec = record_stack_load(INS_B(i), frame);
   //   auto idx = record_stack_load(INS_C(i), frame);
