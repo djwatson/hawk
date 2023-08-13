@@ -27,6 +27,6 @@
 
   (my-try (_1-to n) '() '()))
 
-(println (nqueens 8))
+(display (nqueens 13))
 
 ;92

@@ -201,6 +201,8 @@ add_test(NAME bench/array1 COMMAND ./boom  test/bench/array1.scm )
 set_tests_properties(bench/array1 PROPERTIES PASS_REGULAR_EXPRESSION "500000")
 add_test(NAME bench/pyramid COMMAND ./boom  test/bench/pyramid.scm )
 set_tests_properties(bench/pyramid PROPERTIES PASS_REGULAR_EXPRESSION "△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△△")
+add_test(NAME bench/nqueens COMMAND ./boom  test/bench/nqueens.scm )
+set_tests_properties(bench/nqueens PROPERTIES PASS_REGULAR_EXPRESSION "73712")
 
 
 #install
