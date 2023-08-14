@@ -56,7 +56,7 @@
   (let* ((count 50)
          (input1 "inputs/bib")
          (input2 "outputs/cat.output")
-         (output ignored)
+         (output 'ignored)
          (s3 (number->string count))
          (s2 input2)
          (s1 input1)
