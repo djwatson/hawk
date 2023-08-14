@@ -320,6 +320,8 @@ add_test(NAME bench2/string COMMAND ./boom  test/bench2/string.scm)
 set_tests_properties(bench2/string PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/sum1 COMMAND ./boom  test/bench2/sum1.scm)
 set_tests_properties(bench2/sum1 PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/cat COMMAND ./boom  test/bench2/cat.scm)
+set_tests_properties(bench2/cat PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 #install
 install(TARGETS boom_vm boom)
