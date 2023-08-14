@@ -282,6 +282,8 @@ add_test(NAME bench2/ntakl COMMAND ./boom  test/bench2/ntakl.scm)
 set_tests_properties(bench2/ntakl PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/cpstak COMMAND ./boom  test/bench2/cpstak.scm)
 set_tests_properties(bench2/cpstak PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/ctak COMMAND ./boom  test/bench2/ctak.scm)
+set_tests_properties(bench2/ctak PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 #install
 install(TARGETS boom_vm boom)
