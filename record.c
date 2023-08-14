@@ -398,7 +398,8 @@ extern unsigned char hotmap[hotmap_sz];
 int record_instr(unsigned int *pc, long *frame, long argcnt) {
   unsigned int i = *pc;
 
-  if (INS_OP(i) == LOOP) {
+  if (INS_OP(i) == LOOP ||
+      INS_OP(i) == ILOOP ) {
     for (int *pos = &regs[INS_A(i)]; pos < &regs_list[257]; pos++) {
       *pos = -1;
     }
@@ -422,10 +423,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   printf("%lx %s %i %i %i\n", (long)pc, ins_names[INS_OP(i)], INS_A(i),
          INS_B(i), INS_C(i));
   switch (INS_OP(i)) {
+  case ILOOP: 
   case LOOP: {
     // case CLFUNC:
     break;
   }
+  case IFUNC:
   case FUNC: {
     // TODO this is for register-based arguments
     // if (arrlen(trace->ops) == 0) {
