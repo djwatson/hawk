@@ -344,6 +344,8 @@ add_test(NAME bench2/earley COMMAND ./boom  test/bench2/earley.scm)
 set_tests_properties(bench2/earley PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/graphs COMMAND ./boom  test/bench2/graphs.scm)
 set_tests_properties(bench2/graphs PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/lattice COMMAND ./boom  test/bench2/lattice.scm)
+set_tests_properties(bench2/lattice PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 # gc
 add_test(NAME bench2/nboyer COMMAND ./boom  test/bench2/nboyer.scm)
