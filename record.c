@@ -121,6 +121,8 @@ void print_const_or_val(int i, trace_s *ctrace) {
       printf("\e[1;35m%f\e[m", ((flonum_s*)c - FLONUM_TAG)->x);
     } else if ((c & IMMEDIATE_MASK) == CHAR_TAG) {
       printf("'%c'", (char)(c >> 8));
+    } else if (type == 6) {
+      printf("\e[1;35m%s\e[m", ((symbol*)(c - SYMBOL_TAG))->name->str);
     } else {
       printf("Unknown dump_trace type %i\n", type);
       exit(-1);
