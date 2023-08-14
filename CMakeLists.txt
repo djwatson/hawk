@@ -49,7 +49,7 @@ message("Using " ${CHEZ} " for bootstrapping")
 include(CheckPIESupported)
 check_pie_supported()
 
-set(SOURCES readbc.c bytecode.c vm.o  ir.c types.c symbol_table.c gc.c opcodes.h opt_loop.c parallel_copy.c)
+set(SOURCES readbc.c bytecode.c vm.o bootstrap.c ir.c types.c symbol_table.c gc.c opcodes.h opt_loop.c parallel_copy.c)
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "m")
 if (JIT) 
@@ -151,7 +151,7 @@ add_custom_command(
 )
 
 # Actual executable
-add_executable(boom  bootstrap.c boom.c)
+add_executable(boom  boom.c)
 target_link_libraries(boom PUBLIC boom_vm)
 set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
