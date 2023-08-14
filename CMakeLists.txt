@@ -346,6 +346,10 @@ add_test(NAME bench2/mperm COMMAND ./boom  test/bench2/mperm.scm --heap-sz=10000
 set_tests_properties(bench2/mperm PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 # synth
+# add_test(NAME bench2/bv2string COMMAND ./boom  test/bench2/bv2string.scm --heap-sz=1000000)
+# set_tests_properties(bench2/bv2string PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+# add_test(NAME bench2/equal COMMAND ./boom  test/bench2/equal.scm --heap-sz=1000000)
+# set_tests_properties(bench2/equal PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 #install
 install(TARGETS boom_vm boom)
