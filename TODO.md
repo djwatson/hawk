@@ -3,7 +3,7 @@
 * 'closure' opcode should all be in the bcfunc prototype, and done behind a single opcode.
   * Do something to get rid of zero-initializing??
   * cleanup the second arg, can be inline instead of separate number
-* polymorphic
+* polymorphic / non polymorphic
 * CALLXS betterness
   * can reg hint anthing that covers a call
 

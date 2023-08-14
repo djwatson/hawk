@@ -96,6 +96,7 @@ void emit_call_indirect(uint8_t r);
 void emit_mov64(uint8_t r, int64_t imm);
 void emit_push(uint8_t r);
 void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2);
+void emit_mem_reg2(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2);
 void emit_mem_reg_sib(uint8_t opcode, int32_t offset, uint8_t scale,
                       uint8_t index, uint8_t base, uint8_t reg);
 void emit_imm8(uint8_t imm);

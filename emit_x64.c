@@ -139,6 +139,22 @@ void emit_mem_reg_sib(uint8_t opcode, int32_t offset, uint8_t scale,
   emit_rex(1, reg >> 3, index >> 3, base >> 3);
 }
 
+void emit_mem_reg_sib2(uint8_t opcode, int32_t offset, uint8_t scale,
+                      uint8_t index, uint8_t base, uint8_t reg) {
+  if ((int32_t)((int8_t)offset) == offset) {
+    *(--p) = (int8_t)offset;
+    emit_sib(scale, index, base);
+    emit_modrm(0x1, 0x7 & reg, 0x4);
+  } else {
+    emit_imm32(offset);
+    emit_sib(scale, index, base);
+    emit_modrm(0x2, 0x7 & reg, 0x4);
+  }
+  *(--p) = opcode;
+  *(--p) = 0xf;
+  emit_rex(1, reg >> 3, index >> 3, base >> 3);
+}
+
 void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
   if ((0x7 & r1) == RSP) {
     emit_mem_reg_sib(opcode, offset, 0, RSP, r1, r2);
@@ -151,6 +167,24 @@ void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
       emit_modrm(0x2, 0x7 & r2, 0x7 & r1);
     }
     *(--p) = opcode;
+    emit_rex(1, r2 >> 3, 0, r1 >> 3);
+  }
+}
+
+// TODO merge the '2' byte versions
+void emit_mem_reg2(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
+  if ((0x7 & r1) == RSP) {
+    emit_mem_reg_sib2(opcode, offset, 0, RSP, r1, r2);
+  } else {
+    if ((int32_t)((int8_t)offset) == offset) {
+      *(--p) = (int8_t)offset;
+      emit_modrm(0x1, 0x7 & r2, 0x7 & r1);
+    } else {
+      emit_imm32(offset);
+      emit_modrm(0x2, 0x7 & r2, 0x7 & r1);
+    }
+    *(--p) = opcode;
+    *(--p) = 0xF;
     emit_rex(1, r2 >> 3, 0, r1 >> 3);
   }
 }
