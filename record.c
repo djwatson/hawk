@@ -17,6 +17,17 @@
 #define auto __auto_type
 #define nullptr NULL
 
+typedef struct {
+  uint32_t *pc;
+  uint32_t cnt;
+} blacklist_entry;
+
+#define BLACKLIST_MAX 64
+#define BLACKLIST_SZ 64
+
+blacklist_entry blacklist[BLACKLIST_SZ];
+uint32_t blacklist_slot = 0;
+
 void opt_loop(trace_s *trace, int *regs);
 
 unsigned int *pc_start;
@@ -43,6 +54,32 @@ trace_s **traces = nullptr;
 
 unsigned int *patchpc = nullptr;
 unsigned int patchold;
+
+void penalty_pc(uint32_t* pc) {
+  uint32_t i = 0;
+  for(; i < blacklist_slot; i++) {
+    if (blacklist[i].pc == pc) {
+      if (blacklist[i].cnt >= BLACKLIST_MAX) {
+	printf("Blacklist pc %p\n", pc);
+	// TODO move up
+      } else {
+	blacklist[i].cnt++;
+	// TODO move up
+      }
+      return;
+    }
+  }
+
+  // Didn't find it, add it to the list.
+  if (i < BLACKLIST_SZ) {
+    blacklist[i].pc = pc;
+    blacklist[i].cnt = 1;
+    blacklist_slot++;
+  } else {
+    blacklist[BLACKLIST_SZ - 1].pc = pc;
+    blacklist[BLACKLIST_SZ - 1].cnt = 1;;
+  }
+}
 
 void pendpatch() {
   if (patchpc != nullptr) {
