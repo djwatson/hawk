@@ -342,6 +342,8 @@ add_test(NAME bench2/sboyer COMMAND ./boom  test/bench2/sboyer.scm)
 set_tests_properties(bench2/sboyer PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/gcbench COMMAND ./boom  test/bench2/gcbench.scm)
 set_tests_properties(bench2/gcbench PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/mperm COMMAND ./boom  test/bench2/mperm.scm --heap-sz=1000000)
+set_tests_properties(bench2/mperm PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 # synth
 
