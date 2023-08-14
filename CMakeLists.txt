@@ -298,6 +298,8 @@ add_test(NAME bench2/sumfp COMMAND ./boom  test/bench2/sumfp.scm)
 set_tests_properties(bench2/sumfp PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/fft COMMAND ./boom  test/bench2/fft.scm)
 set_tests_properties(bench2/fft PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/mbrot COMMAND ./boom  test/bench2/mbrot.scm)
+set_tests_properties(bench2/mbrot PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 #install
 install(TARGETS boom_vm boom)
