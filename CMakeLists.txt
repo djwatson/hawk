@@ -276,6 +276,8 @@ add_test(NAME bench2/triangl COMMAND ./boom  test/bench2/triangl.scm)
 set_tests_properties(bench2/triangl PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/tak COMMAND ./boom  test/bench2/tak.scm)
 set_tests_properties(bench2/tak PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/takl COMMAND ./boom  test/bench2/takl.scm)
+set_tests_properties(bench2/takl PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 #install
 install(TARGETS boom_vm boom)
