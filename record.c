@@ -63,8 +63,12 @@ void penalty_pc(uint32_t* pc) {
 	printf("Blacklist pc %p\n", pc);
 	if (INS_OP(*pc) == FUNC) {
 	  *pc = ((*pc) & ~0xff) + IFUNC;
+	} else if (INS_OP(*pc) == FUNCV) {
+	  *pc = ((*pc) & ~0xff) + IFUNCV;
 	} else if (INS_OP(*pc) == CLFUNC) {
 	  *pc = ((*pc) & ~0xff) + ICLFUNC;
+	} else if (INS_OP(*pc) == CLFUNCV) {
+	  *pc = ((*pc) & ~0xff) + ICLFUNCV;
 	} else if (INS_OP(*pc) == LOOP) {
 	  *pc = ((*pc) & ~0xff) + ILOOP;
 	} else {

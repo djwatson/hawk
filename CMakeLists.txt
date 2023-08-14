@@ -262,6 +262,8 @@ set_tests_properties(bench/compiler PROPERTIES PASS_REGULAR_EXPRESSION "movl a0,
 #Gabriel
 add_test(NAME bench2/browse COMMAND ./boom  test/bench2/browse.scm)
 set_tests_properties(bench2/browse PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/deriv COMMAND ./boom  test/bench2/deriv.scm)
+set_tests_properties(bench2/deriv PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 #install
 install(TARGETS boom_vm boom)

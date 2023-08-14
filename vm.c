@@ -284,6 +284,13 @@ LIBRARY_FUNC(FUNC)
   }
 END_LIBRARY_FUNC
 
+LIBRARY_FUNC(IFUNCV)
+    if (argcnt < ra) {
+      MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
+    }
+    frame[ra] = build_list(ra, argcnt - ra, frame);
+END_LIBRARY_FUNC
+
 LIBRARY_FUNC(FUNCV)
     if (argcnt < ra) {
       MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
@@ -313,6 +320,17 @@ LIBRARY_FUNC(CLFUNC)
       }
       pc+=2;
     }
+  NEXT_INSTR;
+}
+
+LIBRARY_FUNC(ICLFUNCV)
+    if (argcnt < ra) {
+      pc += INS_D(*(pc+1)) + 1;
+    } else {
+      frame[ra] = build_list(ra, argcnt - ra, frame);
+      pc+=2;
+    }
+
   NEXT_INSTR;
 }
 
