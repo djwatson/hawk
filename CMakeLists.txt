@@ -259,6 +259,9 @@ set_tests_properties(bench/nucleic PROPERTIES PASS_REGULAR_EXPRESSION "#t#t")
 add_test(NAME bench/compiler COMMAND ./boom  test/bench/compiler.scm)
 set_tests_properties(bench/compiler PROPERTIES PASS_REGULAR_EXPRESSION "movl a0,sp@-")
 
+#Gabriel
+add_test(NAME bench2/browse COMMAND ./boom  test/bench2/browse.scm)
+set_tests_properties(bench2/browse PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 #install
 install(TARGETS boom_vm boom)
