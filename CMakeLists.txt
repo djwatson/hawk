@@ -157,11 +157,11 @@ set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 
 # Tests
-add_test(NAME r5rs_pitfall COMMAND ./boom --joff test/r5rs_pitfall.scm)
+add_test(NAME r5rs_pitfall COMMAND ./boom test/r5rs_pitfall.scm)
 set_tests_properties(r5rs_pitfall PROPERTIES FAIL_REGULAR_EXPRESSION "Failure")
-add_test(NAME r5rs_tests COMMAND ./boom --joff test/r5rs-tests.scm )
+add_test(NAME r5rs_tests COMMAND ./boom  test/r5rs-tests.scm )
 set_tests_properties(r5rs_tests PROPERTIES PASS_REGULAR_EXPRESSION "175 out of 176 passed")
-add_test(NAME r4rs_test COMMAND ./boom --joff test/r4rstest.scm )
+add_test(NAME r4rs_test COMMAND ./boom test/r4rstest.scm )
 set_tests_properties(r4rs_test PROPERTIES PASS_REGULAR_EXPRESSION "Passed all tests")
 
 add_test(NAME fib COMMAND ./boom test/fib.scm )

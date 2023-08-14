@@ -1,7 +1,5 @@
 # working on
 
-* get function names working again in new pass
-* closure-get / load needs typecheck
 * 'closure' opcode should all be in the bcfunc prototype, and done behind a single opcode.
   * Do something to get rid of zero-initializing??
   * cleanup the second arg, can be inline instead of separate number
