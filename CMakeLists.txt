@@ -338,6 +338,8 @@ add_test(NAME bench2/compiler COMMAND ./boom  test/bench2/compiler.scm)
 set_tests_properties(bench2/compiler PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/conform COMMAND ./boom  test/bench2/conform.scm)
 set_tests_properties(bench2/conform PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/dynamic COMMAND ./boom  test/bench2/dynamic.scm)
+set_tests_properties(bench2/dynamic PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 # gc
 add_test(NAME bench2/nboyer COMMAND ./boom  test/bench2/nboyer.scm)
