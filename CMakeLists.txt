@@ -366,6 +366,8 @@ add_test(NAME bench2/quicksort COMMAND ./boom  test/bench2/quicksort.scm)
 set_tests_properties(bench2/quicksort PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/scheme COMMAND ./boom  test/bench2/scheme.scm)
 set_tests_properties(bench2/scheme PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/slatex COMMAND ./boom  test/bench2/slatex.scm)
+set_tests_properties(bench2/slatex PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 # gc
 add_test(NAME bench2/nboyer COMMAND ./boom  test/bench2/nboyer.scm)
