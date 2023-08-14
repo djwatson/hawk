@@ -288,6 +288,8 @@ set_tests_properties(bench2/ctak PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 # num benchmarks
 add_test(NAME bench2/fib COMMAND ./boom  test/bench2/fib.scm)
 set_tests_properties(bench2/fib PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/fibc COMMAND ./boom  test/bench2/fibc.scm)
+set_tests_properties(bench2/fibc PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 #install
 install(TARGETS boom_vm boom)
