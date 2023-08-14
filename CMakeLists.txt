@@ -324,6 +324,8 @@ add_test(NAME bench2/cat COMMAND ./boom  test/bench2/cat.scm)
 set_tests_properties(bench2/cat PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/tail COMMAND ./boom  test/bench2/tail.scm)
 set_tests_properties(bench2/tail PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/wc COMMAND ./boom  test/bench2/wc.scm)
+set_tests_properties(bench2/wc PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 #install
 install(TARGETS boom_vm boom)
