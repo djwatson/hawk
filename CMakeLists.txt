@@ -356,6 +356,8 @@ add_test(NAME bench2/nqueens COMMAND ./boom  test/bench2/nqueens.scm)
 set_tests_properties(bench2/nqueens PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/paraffins COMMAND ./boom  test/bench2/paraffins.scm)
 set_tests_properties(bench2/paraffins PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/parsing COMMAND ./boom  test/bench2/parsing.scm)
+set_tests_properties(bench2/parsing PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 # gc
 add_test(NAME bench2/nboyer COMMAND ./boom  test/bench2/nboyer.scm)
