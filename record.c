@@ -117,6 +117,8 @@ void print_const_or_val(int i, trace_s *ctrace) {
       printf("\e[1;35mnil\e[m");
     } else if (type == 3) {
       printf("\e[1;35mcons\e[m");
+    } else if (type == 2) {
+      printf("\e[1;35m%f\e[m", ((flonum_s*)c - FLONUM_TAG)->x);
     } else if ((c & IMMEDIATE_MASK) == CHAR_TAG) {
       printf("'%c'", (char)(c >> 8));
     } else {
@@ -681,6 +683,17 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2);
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
+    uint8_t type;
+    if (ins.op1 >= IR_CONST_BIAS) {
+      type = trace->consts[ins.op1 - IR_CONST_BIAS] & TAG_MASK;
+    } else {
+      type = trace->ops[ins.op1].type & ~IR_INS_TYPE_GUARD;
+    }
+    if (type != 0) {
+      printf("Record abort: Only int supported in trace: %i\n", type);
+      record_abort();
+      return 1;
+    }
     ins.type = IR_INS_TYPE_GUARD;
     arrput(trace->ops, ins);
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc);
@@ -1152,13 +1165,25 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = knum | IR_CONST_BIAS;
     ins.op = IR_SUB;
-    ins.type = IR_INS_TYPE_GUARD;
+    uint8_t type = 0;
+    if (ins.op1 >= IR_CONST_BIAS) {
+      type = trace->consts[ins.op1 - IR_CONST_BIAS] & TAG_MASK;
+    } else {
+      type = trace->ops[ins.op1].type & ~IR_INS_TYPE_GUARD;
+    }
+    if (type != 0) {
+      printf("Record abort: Only int supported in trace: %i\n", type);
+      record_abort();
+      return 1;
+    }
+    ins.type = IR_INS_TYPE_GUARD | type;
     auto reg = INS_A(i);
     regs[reg] = arrlen(trace->ops);
     arrput(trace->ops, ins);
     break;
   }
   case ADDVN: {
+    // TODO check type
     ir_ins ins;
     ins.reg = REG_NONE;
     auto knum = arrlen(trace->consts);
@@ -1166,7 +1191,18 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ins.op1 = record_stack_load(INS_B(i), frame);
     ins.op2 = knum | IR_CONST_BIAS;
     ins.op = IR_ADD;
-    ins.type = IR_INS_TYPE_GUARD;
+    uint8_t type = 0;
+    if (ins.op1 >= IR_CONST_BIAS) {
+      type = trace->consts[ins.op1 - IR_CONST_BIAS] & TAG_MASK;
+    } else {
+      type = trace->ops[ins.op1].type & ~IR_INS_TYPE_GUARD;
+    }
+    if (type != 0) {
+      printf("Record abort: Only int supported in trace: %i\n", type);
+      record_abort();
+      return 1;
+    }
+    ins.type = IR_INS_TYPE_GUARD | type;
     auto reg = INS_A(i);
     regs[reg] = arrlen(trace->ops);
     arrput(trace->ops, ins);
@@ -1183,7 +1219,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (ins.op1 >= IR_CONST_BIAS) {
       type = trace->consts[ins.op1 - IR_CONST_BIAS] & TAG_MASK;
     } else {
-      type = trace->ops[ins.op1].type;
+      type = trace->ops[ins.op1].type & ~IR_INS_TYPE_GUARD;
+    }
+    if (type != 0) {
+      printf("Record abort: Only int supported in trace: %i\n", type);
+      record_abort();
+      return 1;
     }
     ins.type = IR_INS_TYPE_GUARD | type;
     auto reg = INS_A(i);
@@ -1202,7 +1243,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (ins.op1 >= IR_CONST_BIAS) {
       type = trace->consts[ins.op1 - IR_CONST_BIAS] & TAG_MASK;
     } else {
-      type = trace->ops[ins.op1].type;
+      type = trace->ops[ins.op1].type & ~IR_INS_TYPE_GUARD;
+    }
+    if (type != 0) {
+      printf("Record abort: Only int supported in trace: %i\n", type);
+      record_abort();
+      return 1;
     }
     ins.type = IR_INS_TYPE_GUARD | type;
     auto reg = INS_A(i);
