@@ -302,6 +302,8 @@ add_test(NAME bench2/mbrot COMMAND ./boom  test/bench2/mbrot.scm)
 set_tests_properties(bench2/mbrot PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 #add_test(NAME bench2/mbrotZ COMMAND ./boom  test/bench2/mbrotZ.scm)
 #set_tests_properties(bench2/mbrotZ PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/nucleic COMMAND ./boom  test/bench2/nucleic.scm)
+set_tests_properties(bench2/nucleic PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 #install
 install(TARGETS boom_vm boom)
