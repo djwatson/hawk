@@ -669,14 +669,13 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       maybe_assign_register(op->op2, trace, slot);
       assert(op->reg != REG_NONE);
       assert(!ir_is_const(op->op1));
-      assert(!ir_is_const(op->op2));
+      //sassert(!ir_is_const(op->op2));
       assert(trace->ops[op->op1].op == IR_REF ||
              trace->ops[op->op1].op == IR_VREF);
       emit_op_typecheck(op->reg, op->type, (int32_t)(snap_labels[cur_snap] - emit_offset()));
       if (op->op2 & IR_CONST_BIAS) {
-        emit_mem_reg(OP_MOV_RM, 0, trace->ops[op->op1].reg, R15);
-        auto c = trace->consts[op->op2 - IR_CONST_BIAS];
-        emit_mov64(R15, c);
+        auto c = trace->consts[op->op2 - IR_CONST_BIAS] >> 3;
+        emit_mem_reg(OP_MOV_RM, c, trace->ops[op->op1].reg, op->reg);
       } else {
         emit_mem_reg(OP_MOV_MR, 0, trace->ops[op->op1].reg, op->reg);
       }

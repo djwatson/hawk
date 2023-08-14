@@ -261,16 +261,24 @@ long *expand_stack_slowpath(long *frame) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }
 
+LIBRARY_FUNC(ILOOP)
+END_LIBRARY_FUNC
 LIBRARY_FUNC(LOOP)
       if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
 	MUSTTAIL return RECORD_START(ARGS);
       }
 END_LIBRARY_FUNC
 
+LIBRARY_FUNC(IFUNC) 
+  if (argcnt != ra) {
+    MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
+  }
+END_LIBRARY_FUNC
+
 LIBRARY_FUNC(FUNC)
-    if (argcnt != ra) {
-      MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
-    }
+  if (argcnt != ra) {
+    MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
+  }
   if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
@@ -285,6 +293,16 @@ if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
  }
     frame[ra] = build_list(ra, argcnt - ra, frame);
 END_LIBRARY_FUNC
+
+
+LIBRARY_FUNC(ICLFUNC)
+    if (argcnt != ra) {
+      pc += INS_D(*(pc+1)) + 1;
+    } else {
+      pc+=2;
+    }
+  NEXT_INSTR;
+}
 
 LIBRARY_FUNC(CLFUNC)
     if (argcnt != ra) {

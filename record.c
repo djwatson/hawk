@@ -61,6 +61,16 @@ void penalty_pc(uint32_t* pc) {
     if (blacklist[i].pc == pc) {
       if (blacklist[i].cnt >= BLACKLIST_MAX) {
 	printf("Blacklist pc %p\n", pc);
+	if (INS_OP(*pc) == FUNC) {
+	  *pc = ((*pc) & ~0xff) + IFUNC;
+	} else if (INS_OP(*pc) == CLFUNC) {
+	  *pc = ((*pc) & ~0xff) + ICLFUNC;
+	} else if (INS_OP(*pc) == LOOP) {
+	  *pc = ((*pc) & ~0xff) + ILOOP;
+	} else {
+	  printf("Could not blacklist %s\n", ins_names[INS_OP(*pc)]);
+	  exit(-1);
+	}
 	// TODO move up
       } else {
 	blacklist[i].cnt++;
@@ -317,6 +327,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
 }
 
 void record_abort() {
+  penalty_pc(pc_start);
   pendpatch();
   free(trace);
   trace = nullptr;
@@ -620,19 +631,19 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     arrput(trace->consts, k);
     break;
   }
-  case ISLT: {
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc);
-    auto reg = INS_A(i);
-    ir_ins ins;
-    ins.reg = REG_NONE;
-    ins.op1 = record_stack_load(INS_B(i), frame);
-    ins.op2 = record_stack_load(INS_C(i), frame);
-    ins.op = IR_CLT;
-    ins.type = 0; // TODO bool
-    regs[reg] = arrlen(trace->ops);
-    arrput(trace->ops, ins);
-    break;
-  }
+  /* case ISLT: { */
+  /*   add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc); */
+  /*   auto reg = INS_A(i); */
+  /*   ir_ins ins; */
+  /*   ins.reg = REG_NONE; */
+  /*   ins.op1 = record_stack_load(INS_B(i), frame); */
+  /*   ins.op2 = record_stack_load(INS_C(i), frame); */
+  /*   ins.op = IR_CLT; */
+  /*   ins.type = 0; // TODO bool */
+  /*   regs[reg] = arrlen(trace->ops); */
+  /*   arrput(trace->ops, ins); */
+  /*   break; */
+  /* } */
   case JISF: {
     // TODO snaps
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc);
