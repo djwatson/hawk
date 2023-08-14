@@ -310,6 +310,8 @@ add_test(NAME bench2/pnpoly COMMAND ./boom  test/bench2/pnpoly.scm)
 set_tests_properties(bench2/pnpoly PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/ray COMMAND ./boom  test/bench2/ray.scm)
 set_tests_properties(bench2/ray PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/simplex COMMAND ./boom  test/bench2/simplex.scm)
+set_tests_properties(bench2/simplex PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 #install
 install(TARGETS boom_vm boom)
