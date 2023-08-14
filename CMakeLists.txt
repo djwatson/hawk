@@ -312,6 +312,8 @@ add_test(NAME bench2/ray COMMAND ./boom  test/bench2/ray.scm)
 set_tests_properties(bench2/ray PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/simplex COMMAND ./boom  test/bench2/simplex.scm)
 set_tests_properties(bench2/simplex PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+
+# kwv
 add_test(NAME bench2/ack COMMAND ./boom  test/bench2/ack.scm)
 set_tests_properties(bench2/ack PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/array1 COMMAND ./boom  test/bench2/array1.scm)
@@ -326,6 +328,18 @@ add_test(NAME bench2/tail COMMAND ./boom  test/bench2/tail.scm)
 set_tests_properties(bench2/tail PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/wc COMMAND ./boom  test/bench2/wc.scm)
 set_tests_properties(bench2/wc PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+
+# io
+add_test(NAME bench2/read1 COMMAND ./boom  test/bench2/read1.scm)
+set_tests_properties(bench2/read1 PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+
+# other
+
+# gc
+add_test(NAME bench2/nboyer COMMAND ./boom  test/bench2/nboyer.scm)
+set_tests_properties(bench2/nboyer PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+
+# synth
 
 #install
 install(TARGETS boom_vm boom)
