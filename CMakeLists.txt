@@ -350,6 +350,8 @@ add_test(NAME bench2/matrix COMMAND ./boom  test/bench2/matrix.scm)
 set_tests_properties(bench2/matrix PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/maze COMMAND ./boom  test/bench2/maze.scm)
 set_tests_properties(bench2/maze PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/mazefun COMMAND ./boom  test/bench2/mazefun.scm)
+set_tests_properties(bench2/mazefun PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 # gc
 add_test(NAME bench2/nboyer COMMAND ./boom  test/bench2/nboyer.scm)
