@@ -186,6 +186,7 @@ void dump_trace(trace_s *ctrace) {
     case IR_CDR:
     case IR_KFIX:
     case IR_ARG:
+    case IR_LOAD:
     case IR_SLOAD: {
       print_const_or_val(op.op1, ctrace);
       break;
@@ -214,7 +215,6 @@ void dump_trace(trace_s *ctrace) {
     case IR_GE:
     case IR_LT:
     case IR_STORE:
-    case IR_LOAD:
     case IR_ABC:
     case IR_VREF:
     case IR_CALLXS:
@@ -873,7 +873,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.type = IR_INS_TYPE_GUARD | type;
       ins.reg = REG_NONE;
       ins.op1 = arrlen(trace->ops) - 1;
-      ins.op2 = idx;
+      ins.op2 = 0;
       ins.op = IR_LOAD;
       regs[INS_A(i)] = arrlen(trace->ops);
       arrput(trace->ops, ins);
