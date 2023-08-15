@@ -609,10 +609,17 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       maybe_assign_register(op->op2, trace, slot);
       auto *sym =
           (symbol *)(trace->consts[op->op1 - IR_CONST_BIAS] - SYMBOL_TAG);
-      emit_mem_reg(OP_MOV_RM, 0, R15, trace->ops[op->op2].reg);
-      auto re = (reloc){emit_offset(), trace->consts[op->op1 - IR_CONST_BIAS],
-                        RELOC_SYM_ABS};
-      arrput(trace->relocs, re);
+      if (ir_is_const(op->op2)) {
+        auto c = trace->consts[op->op2 - IR_CONST_BIAS];
+	auto r = get_free_reg(slot, false);
+	emit_mem_reg(OP_MOV_RM, 0, R15, r);
+	emit_mov64(r, c);
+      } else {
+	emit_mem_reg(OP_MOV_RM, 0, R15, trace->ops[op->op2].reg);
+	auto re = (reloc){emit_offset(), trace->consts[op->op1 - IR_CONST_BIAS],
+	  RELOC_SYM_ABS};
+	arrput(trace->relocs, re);
+      }
       emit_mov64(R15, (int64_t)&sym->val);
       break;
     }
