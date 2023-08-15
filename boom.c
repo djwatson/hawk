@@ -59,7 +59,7 @@ extern unsigned char bootstrap_scm_bc[];
 extern unsigned int bootstrap_scm_bc_len;
 
 static bool list = false;
-unsigned TRACE_MAX = 255;
+unsigned TRACE_MAX = 130;
 
 // Call in to the compiled bytecode function (define (compile-file file) ...)
 void compile_file(const char *file) {

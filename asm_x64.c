@@ -552,6 +552,11 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     emit_check();
     switch (op->op) {
     case IR_SLOAD: {
+      // Used for typecheck only
+      if (op->reg == REG_NONE) {
+	op->reg = R15;
+      printf("EMIT LOAD ONLY\n");
+      }
       // frame pointer in RDI
       auto reg = op->reg;
       if ((op->type & IR_INS_TYPE_GUARD) == 0) {
@@ -673,6 +678,11 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_LOAD: {
+      // Used for typecheck only
+      if (op->reg == REG_NONE) {
+	op->reg = R15;
+      printf("EMIT LOAD ONLY\n");
+      }
       maybe_assign_register(op->op1, trace, slot);
       maybe_assign_register(op->op2, trace, slot);
       assert(op->reg != REG_NONE);
