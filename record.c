@@ -1342,9 +1342,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // Note: Closure doesn't necessarily need typecheck since closures are CONST.
     // However, there are some situations where invalid code may hit bad types?
     // I.e. polymorphic functions could do a different STORE type?
+    //
+    // Actually, this is invalid: closures could close '() or a list, and still
+    // be what code is expecting.
     {
+      uint64_t pos = INS_C(i) + 1;
+      closure_s* clo_d = (closure_s*)(frame[INS_B(i)] - CLOSURE_TAG);
+      uint8_t type = clo_d->v[pos] & TAG_MASK;
+
       ir_ins ins;
-      ins.type = 0;
+      ins.type = IR_INS_TYPE_GUARD | type;
       ins.reg = REG_NONE;
       ins.op1 = arrlen(trace->ops) - 1;
       ins.op2 = 0;
