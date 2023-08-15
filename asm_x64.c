@@ -22,6 +22,8 @@
 #include "record.h" // for trace_cache_get, record_side
 #include "types.h"  // for CONS_TAG, TAG_MASK, IMMEDIATE_MASK
 
+#include "vm.h"
+
 #include "parallel_copy.h"
 #include "third-party/stb_ds.h"
 

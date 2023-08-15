@@ -636,7 +636,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case KSHORT: {
-    auto k = INS_D(i) << 3;
+    int64_t k = ((int16_t)INS_D(i)) << 3;
     auto reg = INS_A(i);
     regs[reg] = arrlen(trace->consts) | IR_CONST_BIAS;
     arrput(trace->consts, k);
