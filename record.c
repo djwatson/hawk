@@ -283,7 +283,7 @@ void record_start(unsigned int *pc, long *frame) {
     snap_replay(&regs, side_exit, parent, trace, frame, &depth);
   }
   add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-           INS_OP(*pc) == FUNC ? pc + 1 : pc);
+           INS_OP(*pc) == FUNC ? pc + 1 : pc, depth);
 }
 
 extern int joff;
@@ -291,7 +291,7 @@ extern unsigned TRACE_MAX;
 
 void record_stop(unsigned int *pc, long *frame, int link) {
   auto offset = regs - regs_list - 1;
-  add_snap(regs_list, (int)offset, trace, pc);
+  add_snap(regs_list, (int)offset, trace, pc, depth);
   if (link == (int)arrlen(traces) && offset == 0) {
     // Attempt to loop-fiy it.
     // opt_loop(trace, regs);
@@ -488,7 +488,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
         auto result = record_stack_load(INS_A(i), frame);
         // Guard down func type
-        add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc);
+        add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
 
         auto frame_off = INS_A(*(old_pc - 1));
         printf("Continue down recursion, frame offset %i\n", frame_off);
@@ -513,7 +513,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         ins.type = IR_INS_TYPE_GUARD | 0x5;
         arrput(trace->ops, ins);
 
-        add_snap(regs_list, (int)(regs - regs_list - 1), trace, (uint32_t *)frame[-1]);
+        add_snap(regs_list, (int)(regs - regs_list - 1), trace, (uint32_t *)frame[-1], depth);
         // TODO retdepth
       } else {
         if (INS_OP(trace->startpc) == LOOP && parent == nullptr) {
@@ -532,7 +532,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         regs_list[j] = -1;
       }
       auto *old_pc = (unsigned int *)frame[-1];
+      assert(regs >= regs_list);
       regs -= (INS_A(*(old_pc - 1)) + 1);
+      assert(regs >= regs_list);
     } else {
       depth--;
       printf("TODO return below trace\n");
@@ -613,7 +615,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
 
     // Increment regs
+    assert(regs >= regs_list);
     regs += INS_A(i) + 1;
+    assert(regs >= regs_list);
 
     if (cnt >= UNROLL_LIMIT) {
       auto v = frame[INS_A(i) + 1];
@@ -661,7 +665,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   /* } */
   case JISF: {
     // TODO snaps
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
     ir_ins ins;
     ins.reg = REG_NONE;
     ins.op1 = record_stack_load(INS_B(i), frame);
@@ -686,11 +690,11 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (frame[INS_B(i)] < frame[INS_C(i)]) {
       ins.op = IR_LT;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-               pc + INS_D(*(pc + 1)) + 1);
+               pc + INS_D(*(pc + 1)) + 1, depth);
       next_pc = pc + 2;
     } else {
       ins.op = IR_GE;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2);
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
     uint8_t type;
@@ -706,7 +710,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     ins.type = IR_INS_TYPE_GUARD;
     arrput(trace->ops, ins);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
     break;
   }
   case JISGTE: {
@@ -718,16 +722,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (frame[INS_B(i)] >= frame[INS_C(i)]) {
       ins.op = IR_GE;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-               pc + INS_D(*(pc + 1)) + 1);
+               pc + INS_D(*(pc + 1)) + 1, depth);
       next_pc = pc + 2;
     } else {
       ins.op = IR_LT;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2);
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
     ins.type = IR_INS_TYPE_GUARD;
     arrput(trace->ops, ins);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
     break;
   }
   case JISEQ: {
@@ -739,16 +743,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (frame[INS_B(i)] == frame[INS_C(i)]) {
       ins.op = IR_EQ;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-               pc + INS_D(*(pc + 1)) + 1);
+               pc + INS_D(*(pc + 1)) + 1, depth);
       next_pc = pc + 2;
     } else {
       ins.op = IR_NE;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2);
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
     ins.type = IR_INS_TYPE_GUARD;
     arrput(trace->ops, ins);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
     break;
   }
   case UNBOX: // DO don't need typecheck
@@ -1025,7 +1029,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case CONS: {
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
     //  TODO this forces a side exit without recording.
     //   Put GC inline in generated code?  Would have to flush
     //   all registers to stack.
@@ -1079,7 +1083,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ins.op = IR_STORE;
       arrput(trace->ops, ins);
     }
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
 
     break;
   }
@@ -1437,7 +1441,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // exit(-1);
   }
   }
-  if (instr_count > 60) {
+  if (instr_count > 50) {
     printf("Record abort: due to length\n");
     record_abort();
     return 1;
@@ -1448,7 +1452,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   // }
   // TODO check chain for down-recursion
   // TODO this should check regs depth
-  if (depth >= 100) {
+  if (depth >= 10) {
     printf("Record abort: (stack too deep)\n");
     record_abort();
     return 1;

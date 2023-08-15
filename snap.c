@@ -5,7 +5,7 @@
 #include <stdio.h>  // for printf
 #define auto __auto_type
 
-void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc) {
+void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc, uint32_t depth) {
   // No need for duplicate snaps.
   if ((arrlen(trace->snaps) != 0) &&
       trace->snaps[arrlen(trace->snaps) - 1].ir == arrlen(trace->ops) &&
@@ -19,6 +19,7 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc) {
   snap.exits = 0;
   snap.link = -1;
   snap.slots = NULL;
+  snap.depth = depth;
   // TODO fix regs size/boj to vec?
   for (int16_t i = 0; i < 257; i++) {
     if (regs[i] != -1) {
@@ -35,15 +36,11 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc) {
 // Replay a snap for a side-trace.
 void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
                  const long *frame, int *d) {
-  int depth = 0;
   frame -= snap->offset;
   for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto slot = &snap->slots[i];
     if ((slot->val & IR_CONST_BIAS) != 0) {
       auto c = parent->consts[slot->val - IR_CONST_BIAS];
-      if ((c & SNAP_FRAME) != 0U) {
-        depth++;
-      }
       // Push const in new trace
       int knum = arrlen(trace->consts);
       arrput(trace->consts, c);
@@ -65,6 +62,6 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
     }
   }
   *regs = *regs + snap->offset;
-  printf("SNAP REPLY DEPTH %i\n", depth);
-  *d = depth;
+  printf("SNAP REPLY DEPTH %i\n", snap->depth);
+  *d = snap->depth;
 }

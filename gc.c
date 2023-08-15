@@ -21,7 +21,7 @@ static bool gc_enable = true;
 uint8_t *alloc_ptr = NULL;
 uint8_t *alloc_end = NULL;
 
-long **pushed_roots;
+long **pushed_roots = NULL;
 
 void GC_push_root(long *root) { arrput(pushed_roots, root); }
 

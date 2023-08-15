@@ -67,8 +67,8 @@ while being more portable and easier to change.
       void **op_table_arg, long argcnt
 #define ARGS ra, instr, pc, frame, op_table_arg, argcnt
 #define MUSTTAIL __attribute((musttail))
-#define ABI __attribute__((ms_abi)) __attribute__((noinline))
-#define ABIP __attribute__((ms_abi))
+#define ABI //__attribute__((ms_abi)) __attribute__((noinline))
+#define ABIP //__attribute__((ms_abi))
 #define DEBUG_VM(name)
 //#define DEBUG_VM(name) printf("pc %p %s ra %i rd %i rb %i rc %i\n", pc, name, ra, instr, instr&0xff, (instr>>8)); fflush(stdout);
 typedef ABIP void (*op_func)(PARAMS);

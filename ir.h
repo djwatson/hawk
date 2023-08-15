@@ -86,6 +86,7 @@ typedef struct {
   int link;
   snap_entry_s *slots;
   uint64_t patchpoint;
+  uint64_t depth;
 } snap_s;
 
 typedef enum {
