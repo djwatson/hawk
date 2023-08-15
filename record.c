@@ -337,7 +337,9 @@ void record_stop(unsigned int *pc, long *frame, int link) {
 }
 
 void record_abort() {
-  penalty_pc(pc_start);
+  if (!parent) {
+    penalty_pc(pc_start);
+  }
   pendpatch();
   free(trace);
   trace = nullptr;
