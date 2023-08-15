@@ -127,6 +127,8 @@ void print_const_or_val(int i, trace_s *ctrace) {
       printf("'%c'", (char)(c >> 8));
     } else if (type == 6) {
       printf("\e[1;35m%s\e[m", ((symbol*)(c - SYMBOL_TAG))->name->str);
+    } else if (type == 1) {
+      printf("ptr");
     } else {
       printf("Unknown dump_trace type %i\n", type);
       exit(-1);
