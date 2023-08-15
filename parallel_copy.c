@@ -90,9 +90,10 @@ void serialize_parallel_copy(map *moves, map *moves_out, uint64_t tmp_reg) {
       if (map_find(&rmoves, r) == NULL) {
         continue;
       }
-      __auto_type rmove = map_find(&loc, map_find(&rmoves, r)->to)->to;
+      __auto_type work = map_find(&rmoves, r);
+      __auto_type rmove = map_find(&loc, work->to)->to;
       map_insert(moves_out, rmove, r);
-      map_set(&loc, rmove, r);
+      map_set(&loc, work->to, r);
 
       map_erase(&rmoves, r);
 
@@ -239,6 +240,21 @@ int main() {
   map_insert(&expected, 3, tmp);
   map_insert(&expected, 1, 3);
   map_insert(&expected, tmp, 1);
+
+  run_test();
+
+  // Multiple from
+  tmp = 15;
+  map_insert(&moves, 8, 11);
+  map_insert(&moves, 5, 9);
+  map_insert(&moves, 2, 8);
+  map_insert(&moves, 5, 2);
+  map_insert(&moves, 2, 1);
+  map_insert(&expected, 2, 1);
+  map_insert(&expected, 5, 2);
+  map_insert(&expected, 2, 9);
+  map_insert(&expected, 8, 11);
+  map_insert(&expected, 1, 8);
 
   run_test();
 
