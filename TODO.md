@@ -1,3 +1,12 @@
+# Getting all jit to work bench2
+
+* slatex- abort - non-const string op
+
+* sum - 5000500 num too big??
+* earley- fail - no reg
+* matrix- fail - no reg
+* mazefun - fail - no reg
+
 # working on
 
 * 'closure' opcode should all be in the bcfunc prototype, and done behind a single opcode.
