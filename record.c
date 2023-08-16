@@ -844,6 +844,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       arrput(trace->ops, ins);
     }
 
+    // Record state because of IR_STORE
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
+
     break;
   }
   case VECTOR_REF: {
