@@ -654,6 +654,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (op->op2 & IR_CONST_BIAS) {
         emit_mem_reg(OP_MOV_RM, 0, trace->ops[op->op1].reg, R15);
         auto c = trace->consts[op->op2 - IR_CONST_BIAS];
+	auto re = (reloc){emit_offset(), c, RELOC_ABS};
+	arrput(trace->relocs, re);
         emit_mov64(R15, c);
       } else {
         emit_mem_reg(OP_MOV_RM, 0, trace->ops[op->op1].reg,
