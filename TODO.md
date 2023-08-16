@@ -1,8 +1,6 @@
 # Getting all jit to work bench2
 
-* slatex- abort - non-const string op
-
-* sum - 5000500 num too big??
+* sum - 5000500 num too big?? requires bignums or special shit for boom
 * paraffins - no reg
 * earley- fail - no reg
 * matrix- fail - no reg

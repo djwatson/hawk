@@ -62,6 +62,5 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
     }
   }
   *regs = *regs + snap->offset;
-  printf("SNAP REPLY DEPTH %i\n", snap->depth);
   *d = snap->depth;
 }
