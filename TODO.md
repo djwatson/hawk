@@ -1,5 +1,12 @@
 # Getting all jit to work bench2
 
+* parsing ??? looks like GC relocs for arith via EQ.  Check everythign for relocs.
+* slatex - CALLXS movs, and later snaps are invalid.
+* dynamic - same, also no free reg
+
+* sboyer
+* nboyer
+* compiler
 * sum - 5000500 num too big?? requires bignums or special shit for boom
 * paraffins - no reg
 * earley- fail - no reg

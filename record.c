@@ -734,6 +734,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
     break;
   }
+  case JEQ: 
   case JISEQ: {
     ir_ins ins;
     ins.reg = REG_NONE;

@@ -9,7 +9,7 @@
 #include <stdlib.h>       // for free, realloc
 #include <string.h>       // for memcpy
 #include <sys/mman.h>     // for mprotect, mmap, PROT_NONE, PROT_READ, PROT...
-#include <third-party/stb_ds.h>
+#include "third-party/stb_ds.h"
 
 #define auto __auto_type
 
