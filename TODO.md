@@ -1,6 +1,5 @@
 # Getting all jit to work bench2
 
-* slatex - strld
 * GC relocs for parsing
 * start work on reg spill for CALLXS read1, slatex, dynamic
 
