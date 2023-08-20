@@ -323,7 +323,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   arrput(traces, trace);
 
-  dump_trace(trace);
+  //dump_trace(trace);
 #ifndef REPLAY
   asm_jit(trace, side_exit, parent);
 #endif
@@ -480,8 +480,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
             trace_state = TRACING;
             break;
           }
-          printf("Record stop downrec\n");
-          record_stop(pc, frame, arrlen(traces));
+	  if (pc == pc_start) {
+	    printf("Record stop downrec\n");
+	    record_stop(pc, frame, arrlen(traces));
+	  } else {
+	    printf("Record abort downrec\n");
+	    record_abort();
+	  }
           return 1;
         }
         arrput(downrec, pc);
