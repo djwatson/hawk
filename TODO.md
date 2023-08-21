@@ -10,10 +10,7 @@
 
 *****
 
-* read1??? - looks like CALLXS
-* slatex - CALLXS movs, and later snaps are invalid.
 * dynamic - same, also no free reg
-
 * sboyer
 * nboyer
 * compiler

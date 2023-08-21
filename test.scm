@@ -1,2 +1,1 @@
-(define v 10)
-(display v)
+($write (boolean? '()) ($open 1 #f))

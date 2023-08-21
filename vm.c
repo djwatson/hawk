@@ -593,20 +593,20 @@ LIBRARY_FUNC_BC_LOAD_NAME(SET-BOX!, SET_BOX)
   box->a = fc;
 END_LIBRARY_FUNC
 
-#define LIBRARY_FUNC_GUARD(name, iftrue, iffalse, finish)	\
-  LIBRARY_FUNC_BC(name)				\
-  long fb = frame[rb];					\
-							\
-  if (((rc < LITERAL_TAG) && ((fb & TAG_MASK) == rc)) ||		\
-      (((TAG_MASK & rc) == LITERAL_TAG) && (rc == (fb & IMMEDIATE_MASK))) || \
-      (((fb & TAG_MASK) == PTR_TAG) && (*(long *)(fb - PTR_TAG) == rc))) { \
-    iftrue;								\
-  } else {								\
-    iffalse;								\
-  }									\
-									\
-  pc += (finish);								\
-  NEXT_INSTR;								\
+#define LIBRARY_FUNC_GUARD(name, iftrue, iffalse, finish)	             \
+  LIBRARY_FUNC_BC(name)				                             \
+  long fb = frame[rb];					                     \
+  								             \
+  if ((((TAG_MASK & rc) == LITERAL_TAG) && (rc == (fb & IMMEDIATE_MASK))) || \
+      (((fb & TAG_MASK) == PTR_TAG) && (*(long *)(fb - PTR_TAG) == rc)) || \
+      (((TAG_MASK & rc) != LITERAL_TAG) && ((fb & TAG_MASK) == rc))) {	\
+    iftrue;								     \
+  } else {								     \
+    iffalse;								     \
+  }									     \
+									     \
+  pc += (finish);							     \
+  NEXT_INSTR;								     \
 }
 
 LIBRARY_FUNC_GUARD(GUARD, frame[ra] = TRUE_REP, frame[ra] = FALSE_REP, 1);

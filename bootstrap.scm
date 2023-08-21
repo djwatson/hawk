@@ -18,15 +18,15 @@
 (define (number? x) (or (fixnum? x) (flonum? x)))
 (define (flonum? x) ($guard x 2))
 (define (fixnum? x) ($guard x 0))
-(define (null? x) ($guard x 23))
-(define (boolean? x) ($guard x 7))
-(define (char? x) ($guard x #b00001111))
+(define (null? x) ($guard x #x14))
+(define (boolean? x) ($guard x #x04))
+(define (char? x) ($guard x #x0c))
 (define (pair? x) ($guard x 3))
 (define (procedure? x) ($guard x 5))
 (define (symbol? x) ($guard x 6))
-(define (vector? x) ($guard x 17))
+(define (vector? x) ($guard x #x11))
 (define (string? x) ($guard x 9))
-(define (port? x) ($guard x #b011001))
+(define (port? x) ($guard x #x19))
 (define complex? number?)
 (define real? number?)
 (define rational? number?)
@@ -741,7 +741,7 @@
    ((c port) ($write c port))))
 
 (define (eof-object? c)
-  ($guard c #b00011111))
+  ($guard c #x1c))
 
 (define read
   (case-lambda

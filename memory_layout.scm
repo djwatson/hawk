@@ -8,10 +8,10 @@
 (define ptr-tag #b001)
 (define flonum-tag #b010)
 (define cons-tag #b011)
-(define unused-tag #b100)
+(define literal-tag #b100)
 (define closure-tag #b101)
 (define symbol-tag #b110)
-(define literal-tag #b111)
+(define forward-tag #b111)
 ;; ptr-tagged objects
 ;; Bottom bits must be '001'
 ;; First 8 bytes are always the tag.
@@ -21,9 +21,9 @@
 (define box-tag #b100001)
 (define cont-tag #b101001)
 ;; literals, using literal-tag (so bottom 3 bits must be 0b111)
-(define true-rep #x00000107)
-(define false-rep #x00000007)
-(define char-tag #b00001111)
-(define nil-tag #b00010111)
-(define eof-tag #b00011111)
-(define undefined-tag #b00100111)
+(define true-rep #x00000104)
+(define false-rep #x00000004)
+(define char-tag #b00001100)
+(define nil-tag #b00010100)
+(define eof-tag #b00011100)
+(define undefined-tag #b00100100)

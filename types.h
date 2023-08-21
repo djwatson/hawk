@@ -13,10 +13,10 @@
 #define PTR_TAG 0x1
 #define FLONUM_TAG 0x2
 #define CONS_TAG 0x3
-#define FORWARD_TAG 0x4
+#define LITERAL_TAG 0x4
 #define CLOSURE_TAG 0x5
 #define SYMBOL_TAG 0x6
-#define LITERAL_TAG 0x7
+#define FORWARD_TAG 0x7
 
 #define TAG_MASK 0x7
 
@@ -32,13 +32,13 @@
 
 // Immediates.  Bottom three bits must be LITERAL_TAG.
 // Uses bottom byte, and other 7 bytes used for storing literal.
-#define BOOL_TAG 0x07
-#define TRUE_REP 0x0107
-#define FALSE_REP 0x0007
-#define CHAR_TAG 0x0f
-#define NIL_TAG 0x17
-#define EOF_TAG 0x1f
-#define UNDEFINED_TAG 0x27
+#define BOOL_TAG 0x04
+#define TRUE_REP 0x0104
+#define FALSE_REP 0x0004
+#define CHAR_TAG 0x0c
+#define NIL_TAG 0x14
+#define EOF_TAG 0x1c
+#define UNDEFINED_TAG 0x24
 
 #define IMMEDIATE_MASK 0xff
 
