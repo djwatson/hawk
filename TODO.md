@@ -1,7 +1,10 @@
 # Getting all jit to work bench2
 
-* start work on reg spill for CALLXS read1, slatex, dynamic
-* all the rest by spill slot.
+* Fix SNAP_FRAME
+* fix gc FORWARD_PTR - frame needs to look like a ptr.
+
+
+* Reg spill working, not just CALLXS
 
 * somethiing broken in compiler.scm.bc
 
