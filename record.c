@@ -161,8 +161,14 @@ void dump_trace(trace_s *ctrace) {
     }
 
     auto op = ctrace->ops[i];
-    printf("%04zu %s %c\t", i, reg_names[op.reg],
-           (op.type & IR_INS_TYPE_GUARD) != 0 ? '>' : ' ');
+    printf("%04zu %s ", i, reg_names[op.reg]);
+           
+    if (op.slot != SLOT_NONE) {
+      printf("\e[1;31m[%i]\e[m ", op.slot);
+    } else {
+      printf("    ");
+    }
+    printf("%c\t", (op.type & IR_INS_TYPE_GUARD) != 0 ? '>' : ' ');
     auto t = op.type & TAG_MASK;
     if (t == 0) {
       printf("\e[1;35mfix \e[m ");
@@ -174,6 +180,8 @@ void dump_trace(trace_s *ctrace) {
       printf("\e[1;34mflo \e[m ");
     } else if (t == 6) {
       printf("\e[1;34msym \e[m ");
+    } else if ((op.type & ~IR_INS_TYPE_GUARD) == UNDEFINED_TAG) {
+      printf("     ");
     } else if (t == 7) {
       printf("\e[1;34mlit \e[m ");
     } else if (t == 1) {
@@ -513,6 +521,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
           record_abort();
         } else {
           printf("Record stop return\n");
+	  //record_stack_load(INS_A(i), frame);
           record_stop(pc, frame, -1);
         }
         return 1;
@@ -876,6 +885,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 			     record_stack_load(INS_B(i), frame),
 			     knum | IR_CONST_BIAS,
 			     CHAR_TAG | IR_INS_TYPE_GUARD);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
     break;
   }
   case WRITE: {
@@ -883,6 +893,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)vm_write);
     push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
     break;
   }
   case GGET: {

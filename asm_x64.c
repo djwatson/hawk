@@ -120,14 +120,22 @@ int get_free_reg(const int *slot, bool callee) {
 
 // Re-assign non-callee saved regs to callee saved.
 // TODO: spill if necessary.
-void preserve_for_call(trace_s* trace, int *slot) {
+void preserve_for_call(trace_s* trace, int *slot, uint32_t* next_spill) {
   for (int i = 0; i < regcnt; i++) {
     if (i != RDI && slot[i] != -1 && !reg_callee[i]) {
-      auto nreg = get_free_reg(slot, true);
-      emit_reg_reg(OP_MOV, nreg, i);
-
-      trace->ops[slot[i]].reg = nreg;
-      slot[nreg] = slot[i];
+      auto op = slot[i];
+      auto spill = trace->ops[op].slot;
+      if (trace->ops[op].slot == SLOT_NONE) {
+	// Reload from new spill slot
+	// We don't need to store here, original instruction will store.
+	spill = (*next_spill)++;
+      }
+      trace->ops[op].slot = spill;
+      printf("Assigning spill slot %i to op %i, mov to reg %s\n", spill, op, reg_names[trace->ops[op].reg]);
+      
+      emit_mem_reg(OP_MOV_MR, 0, R15, trace->ops[op].reg);
+      emit_mov64(R15, (int64_t)&spill_slot[trace->ops[op].slot]);
+      trace->ops[op].reg = REG_NONE;
       slot[i] = -1;
     }
   }
@@ -139,6 +147,12 @@ void maybe_assign_register(int v, trace_s *trace, int *slot) {
     if (op->reg == REG_NONE) {
       op->reg = get_free_reg(slot, false);
       slot[op->reg] = v;
+
+      // TODO this needs to go after the isntruction???????
+      // Reload from spill slot.
+      if (op->slot != SLOT_NONE) {
+	printf("Assigning register %s to op %i spilled slot %i\n", reg_names[op->reg], v, op->slot);
+      }
     }
   }
 }
@@ -248,7 +262,13 @@ void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
       auto c = trace->consts[slot->val - IR_CONST_BIAS];
       (*o_frame)[slot->slot] = (long)(c & ~SNAP_FRAME);
     } else {
-      (*o_frame)[slot->slot] = state->regs[trace->ops[slot->val].reg];
+      if (trace->ops[slot->val].slot != SLOT_NONE) {
+	// Was spilled, restore from spill slot.
+	(*o_frame)[slot->slot] = spill_slot[trace->ops[slot->val].slot];	
+      } else {
+	// Restore from register.
+	(*o_frame)[slot->slot] = state->regs[trace->ops[slot->val].reg];
+      }
     }
   }
 
@@ -256,14 +276,11 @@ void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
   (*o_frame) += snap->offset;
 }
 
-uint16_t find_reg_for_slot(int slot, snap_s *snap, trace_s *trace) {
+uint16_t find_val_for_slot(int slot, snap_s *snap, trace_s *trace) {
   for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto s = &snap->slots[i];
     if (s->slot == slot) {
-      if (s->val >= IR_CONST_BIAS) {
-        return s->val;
-      }
-      return trace->ops[s->val].reg;
+      return s->val;
     }
   }
   assert(false);
@@ -304,7 +321,7 @@ void emit_snap(int snap, trace_s *trace, bool all) {
         printf("DROPPING emit snap of slot %i\n", slot->slot);
         // nothing
       } else {
-        emit_mem_reg(OP_MOV_RM, slot->slot * 8, RDI, op->reg);
+	emit_mem_reg(OP_MOV_RM, slot->slot * 8, RDI, op->reg);
       }
     }
   }
@@ -422,7 +439,7 @@ void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
 void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   emit_init();
 
-  uint32_t next_spill = 0;
+  uint32_t next_spill = 1;
 
   // Reg allocation
   int slot[regcnt];
@@ -549,6 +566,13 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     }
     auto op = &trace->ops[op_cnt];
 
+    // Check for spill
+    if (op->slot != SLOT_NONE) {
+      printf("Spilling op %li to slot %i from reg %s\n", op_cnt, op->slot, reg_names[op->reg]);
+      emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
+      emit_mov64(R15, (int64_t)&spill_slot[op->slot]);
+    }
+    
     // free current register.
     if (op->reg != REG_NONE) {
       assert(slot[op->reg] == op_cnt);
@@ -784,7 +808,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (op->reg == REG_NONE) {
 	op->reg = RAX; // if unused, assign to call result reg.
       }
-      preserve_for_call(trace, slot);
+      preserve_for_call(trace, slot, &next_spill);
       
       // TODO assign to arg1 directly
       if (trace->ops[op->op1].op == IR_CARG) {
@@ -915,8 +939,20 @@ done:
     moves.mp_sz = 0;
     for (; op_cnt >= 0; op_cnt--) {
       auto op = &trace->ops[op_cnt];
-      map_insert(&moves, find_reg_for_slot(op->op1, side_exit, parent),
-                 op->reg);
+      auto val = find_val_for_slot(op->op1, side_exit, parent);
+      if (val >= IR_CONST_BIAS) {
+	emit_mov64(op->reg, parent->consts[val - IR_CONST_BIAS]);
+      } else {
+	auto old_op = &parent->ops[val];
+	if(old_op->slot != SLOT_NONE) {
+	  // Restore from spill, since we could have jumped from anywhere in the snapshot.
+	  emit_mem_reg(OP_MOV_MR, 0, R15, op->reg);
+	  emit_mov64(R15, (int64_t)&spill_slot[old_op->slot]);
+	} else {
+	  // Parallel move direct to register.
+	  map_insert(&moves, old_op->reg, op->reg);
+	}
+      }
     }
     serialize_parallel_copy(&moves, &res, R15);
     for (int64_t i = (int64_t)res.mp_sz - 1; i >= 0; i--) {
@@ -970,11 +1006,13 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
   long unsigned exit = state.snap;
   auto *snap = &trace->snaps[exit];
 
-  restore_snap(snap, trace, &state, o_frame, o_pc);
   /* bcfunc* func = find_func_for_frame(snap->pc); */
   /* assert(func); */
   /*  printf("exit %li from trace %i new pc %li func %s\n", exit, trace->num, */
   /*  snap->pc - &func->code[0], func->name); */
+  /*  fflush(stdout); */
+
+   restore_snap(snap, trace, &state, o_frame, o_pc);
 
   if (exit != arrlen(trace->snaps) - 1) {
     if (snap->exits < 10) {
