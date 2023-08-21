@@ -47,6 +47,8 @@ typedef enum {
 
   IR_CALLXS,
   IR_CARG,
+
+  IR_NONE,
 } ir_ins_op;
 
 extern const char *ir_names[];
@@ -120,3 +122,5 @@ typedef struct {
 #define UNROLL_LIMIT 1
 
 #define ir_is_const(op) (op & IR_CONST_BIAS)
+
+uint32_t push_ir(trace_s*trace, ir_ins_op op, uint32_t op1, uint32_t op2, uint8_t type);

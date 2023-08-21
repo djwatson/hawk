@@ -3,11 +3,11 @@
 * start work on reg spill for CALLXS read1, slatex, dynamic
 * all the rest by spill slot.
 
+* somethiing broken in compiler.scm.bc
 
 *****
 
 * read1??? - looks like CALLXS
-* parsing ??? looks like GC relocs for arith via EQ.  Check everythign for relocs.
 * slatex - CALLXS movs, and later snaps are invalid.
 * dynamic - same, also no free reg
 

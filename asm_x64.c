@@ -38,6 +38,8 @@ extern uint8_t *alloc_end;
 
 bool jit_dump_flag = false;
 
+int64_t spill_slot[256];
+
 void disassemble(const uint8_t *code, int len) {
 #ifdef CAPSTONE
   csh handle;
@@ -419,6 +421,8 @@ void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
 
 void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   emit_init();
+
+  uint32_t next_spill = 0;
 
   // Reg allocation
   int slot[regcnt];

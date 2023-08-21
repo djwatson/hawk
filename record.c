@@ -384,10 +384,6 @@ int record(unsigned int *pc, long *frame, long argcnt) {
 
 int record_stack_load(int slot, const long *frame) {
   if (regs[slot] == -1) {
-    ir_ins ins;
-    ins.reg = REG_NONE;
-    ins.op1 = slot;
-    ins.op = IR_SLOAD;
     // Guard on type
     auto type = frame[slot] & 0x7;
     if (type == LITERAL_TAG) {
@@ -398,10 +394,8 @@ int record_stack_load(int slot, const long *frame) {
       // TODO
       // assert(false);
     }
-    ins.type = IR_INS_TYPE_GUARD | type;
 
-    regs[slot] = arrlen(trace->ops);
-    arrput(trace->ops, ins);
+    regs[slot] = push_ir(trace, IR_SLOAD, slot, IR_NONE, IR_INS_TYPE_GUARD | type);
   }
   return regs[slot];
 }
@@ -509,14 +503,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         arrput(trace->consts, (long)old_pc | SNAP_FRAME);
         auto knum2 = arrlen(trace->consts);
         arrput(trace->consts, (frame_off + 1) << 3);
-        ir_ins ins;
-        ins.reg = REG_NONE;
-        ins.op1 = knum | IR_CONST_BIAS;
-        // TODO this isn't a runtime const?  can gen directly from PC?
-        ins.op2 = knum2 | IR_CONST_BIAS;
-        ins.op = IR_RET;
-        ins.type = IR_INS_TYPE_GUARD | 0x5;
-        arrput(trace->ops, ins);
+	push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS, IR_INS_TYPE_GUARD | 0x5);
 
         add_snap(regs_list, (int)(regs - regs_list - 1), trace, (uint32_t *)frame[-1], depth);
         // TODO retdepth
@@ -551,41 +538,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     for (int j = INS_A(i) + 1; j < INS_A(i) + INS_B(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
-{
+    {
       auto clo = record_stack_load(INS_A(i) + 1, frame);
-      {
-	ir_ins ins;
-	ins.type = 0;
-	ins.reg = REG_NONE;
-	ins.op1 = clo;
-	ins.op2 = 16 - CLOSURE_TAG;
-	ins.op = IR_REF;
-	arrput(trace->ops, ins);
-      }
-      {
-	ir_ins ins;
-	ins.type = 0;
-	ins.reg = REG_NONE;
-	ins.op1 = arrlen(trace->ops) - 1;
-	ins.op2 = 0;
-	ins.op = IR_LOAD;
-	regs[INS_A(i)] = arrlen(trace->ops);
-	arrput(trace->ops, ins);
-      }
-      auto fun = arrlen(trace->ops) - 1;
-      {
-	auto cl = frame[INS_A(i) + 1];
-	auto closure = (closure_s *)(cl - CLOSURE_TAG);
-	auto knum = arrlen(trace->consts);
-	arrput(trace->consts, closure->v[0]);
-	ir_ins ins;
-	ins.reg = REG_NONE;
-	ins.op1 = fun;
-	ins.op2 = knum | IR_CONST_BIAS;
-	ins.op = IR_EQ;
-	ins.type = IR_INS_TYPE_GUARD;
-	arrput(trace->ops, ins);
-      }
+      auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, 0);
+      auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
+      regs[INS_A(i)] = fun;
+      auto cl = frame[INS_A(i) + 1];
+      auto closure = (closure_s *)(cl - CLOSURE_TAG);
+      auto knum = arrlen(trace->consts);
+      arrput(trace->consts, closure->v[0]);
+      push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
     }
     /* // Check call type */
     /* { */
@@ -671,120 +633,108 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case JISF: {
     // TODO snaps
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
-    ir_ins ins;
-    ins.reg = REG_NONE;
-    ins.op1 = record_stack_load(INS_B(i), frame);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, FALSE_REP);
-    ins.op2 = knum | IR_CONST_BIAS;
+    ir_ins_op op;
     if (frame[INS_B(i)] == FALSE_REP) {
-      ins.op = IR_EQ;
+      op = IR_EQ;
     } else {
-      ins.op = IR_NE;
+      op = IR_NE;
     }
-    ins.type = IR_INS_TYPE_GUARD;
-    arrput(trace->ops, ins);
+    push_ir(trace, op, record_stack_load(INS_B(i), frame), knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
     break;
   }
   case JISLT: {
-    ir_ins ins;
-    ins.reg = REG_NONE;
-    ins.op1 = record_stack_load(INS_B(i), frame);
-    ins.op2 = record_stack_load(INS_C(i), frame);
     uint32_t *next_pc;
+    ir_ins_op op;
     if (frame[INS_B(i)] < frame[INS_C(i)]) {
-      ins.op = IR_LT;
+      op = IR_LT;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace,
                pc + INS_D(*(pc + 1)) + 1, depth);
       next_pc = pc + 2;
     } else {
-      ins.op = IR_GE;
+      op = IR_GE;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
     uint8_t type;
-    if (ins.op1 >= IR_CONST_BIAS) {
-      type = trace->consts[ins.op1 - IR_CONST_BIAS] & TAG_MASK;
+    uint32_t op1  = record_stack_load(INS_B(i), frame);
+    uint32_t op2  = record_stack_load(INS_C(i), frame);
+    if (op1 >= IR_CONST_BIAS) {
+      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
     } else {
-      type = trace->ops[ins.op1].type & ~IR_INS_TYPE_GUARD;
+      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
     }
     if (type != 0) {
       printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
       return 1;
     }
-    ins.type = IR_INS_TYPE_GUARD;
-    arrput(trace->ops, ins);
+    push_ir(trace, op, op1, op2, type);
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
     break;
   }
   case JISGTE: {
-    ir_ins ins;
-    ins.reg = REG_NONE;
-    ins.op1 = record_stack_load(INS_B(i), frame);
-    ins.op2 = record_stack_load(INS_C(i), frame);
+    uint32_t op1 = record_stack_load(INS_B(i), frame);
+    uint32_t op2 = record_stack_load(INS_C(i), frame);
+    ir_ins_op op;
     uint32_t *next_pc;
     if (frame[INS_B(i)] >= frame[INS_C(i)]) {
-      ins.op = IR_GE;
+      op = IR_GE;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace,
                pc + INS_D(*(pc + 1)) + 1, depth);
       next_pc = pc + 2;
     } else {
-      ins.op = IR_LT;
+      op = IR_LT;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
-    ins.type = IR_INS_TYPE_GUARD;
-    arrput(trace->ops, ins);
+    push_ir(trace, op, op1, op2, IR_INS_TYPE_GUARD);
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
     break;
   }
   case JEQ: 
   case JISEQ: {
-    ir_ins ins;
-    ins.reg = REG_NONE;
-    ins.op1 = record_stack_load(INS_B(i), frame);
-    ins.op2 = record_stack_load(INS_C(i), frame);
+    uint32_t op1 = record_stack_load(INS_B(i), frame);
+    uint32_t op2 = record_stack_load(INS_C(i), frame);
     uint32_t *next_pc;
+    ir_ins_op op;
     if (frame[INS_B(i)] == frame[INS_C(i)]) {
-      ins.op = IR_EQ;
+      op = IR_EQ;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace,
                pc + INS_D(*(pc + 1)) + 1, depth);
       next_pc = pc + 2;
     } else {
-      ins.op = IR_NE;
+      op = IR_NE;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
-    ins.type = IR_INS_TYPE_GUARD;
-    arrput(trace->ops, ins);
+    push_ir(trace, op, op1, op2, IR_INS_TYPE_GUARD);
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
     break;
   }
   case UNBOX: // DO don't need typecheck
   case CDR:
   case CAR: {
-    ir_ins ins;
-    ins.reg = REG_NONE;
-    ins.op1 = record_stack_load(INS_B(i), frame);
+    uint32_t op1 = record_stack_load(INS_B(i), frame);
+    ir_ins_op op;
+    uint8_t type;
     if (INS_OP(i) == CAR || INS_OP(i) == UNBOX) {
       // TODO typecheck
       // TODO cleanup
-      ins.type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->a & TAG_MASK;
-      if (ins.type == LITERAL_TAG) {
-        ins.type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->a & IMMEDIATE_MASK;
+      type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->a & TAG_MASK;
+      if (type == LITERAL_TAG) {
+        type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->a & IMMEDIATE_MASK;
       }
-      ins.op = IR_CAR;
+      op = IR_CAR;
     } else {
-      ins.type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->b & TAG_MASK;
-      if (ins.type == LITERAL_TAG) {
-        ins.type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->b & IMMEDIATE_MASK;
+      type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->b & TAG_MASK;
+      if (type == LITERAL_TAG) {
+        type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->b & IMMEDIATE_MASK;
       }
-      ins.op = IR_CDR;
+      op = IR_CDR;
     }
-    ins.type |= IR_INS_TYPE_GUARD;
-    regs[INS_A(i)] = arrlen(trace->ops);
-    arrput(trace->ops, ins);
+    regs[INS_A(i)] = push_ir(trace, op, op1, IR_NONE, type | IR_INS_TYPE_GUARD);
     break;
   }
   case JGUARD: {
@@ -820,35 +770,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto idx = record_stack_load(INS_B(i), frame);
     auto obj = record_stack_load(INS_C(i), frame);
 
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op = IR_ABC;
-      ins.op1 = vec;
-      ins.op2 = idx;
-      arrput(trace->ops, ins);
-    }
-
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = vec;
-      ins.op2 = idx;
-      ins.op = IR_VREF;
-      arrput(trace->ops, ins);
-    }
-
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = arrlen(trace->ops) - 1;
-      ins.op2 = obj;
-      ins.op = IR_STORE;
-      arrput(trace->ops, ins);
-    }
+    push_ir(trace, IR_ABC, vec, idx, 0);
+    auto vref = push_ir(trace, IR_VREF, vec, idx, 0);
+    push_ir(trace, IR_STORE, vref, obj, 0);
 
     // Record state because of IR_STORE
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
@@ -859,42 +783,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto vec = record_stack_load(INS_B(i), frame);
     auto idx = record_stack_load(INS_C(i), frame);
 
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op = IR_ABC;
-      ins.op1 = vec;
-      ins.op2 = idx;
-      arrput(trace->ops, ins);
-    }
+    push_ir(trace, IR_ABC, vec, idx, 0);
+    auto vref = push_ir(trace, IR_VREF, vec, idx, 0);
 
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = vec;
-      ins.op2 = idx;
-      ins.op = IR_VREF;
-      arrput(trace->ops, ins);
-    }
-
-
-    {
-      // TODO typecheck
-      uint64_t pos = frame[INS_C(i)] >> 3;
-      vector_s* vec_d = (vector_s*)(frame[INS_B(i)] - PTR_TAG);
-      uint8_t type = vec_d->v[pos] & TAG_MASK;
-
-      ir_ins ins;
-      ins.type = IR_INS_TYPE_GUARD | type;
-      ins.reg = REG_NONE;
-      ins.op1 = arrlen(trace->ops) - 1;
-      ins.op2 = 0;
-      ins.op = IR_LOAD;
-      regs[INS_A(i)] = arrlen(trace->ops);
-      arrput(trace->ops, ins);
-    }
+    uint64_t pos = frame[INS_C(i)] >> 3;
+    vector_s* vec_d = (vector_s*)(frame[INS_B(i)] - PTR_TAG);
+    uint8_t type = vec_d->v[pos] & TAG_MASK;
+    regs[INS_A(i)] = push_ir(trace, IR_LOAD, vref, 0, IR_INS_TYPE_GUARD | type);
 
     break;
   }
@@ -902,27 +797,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto str = record_stack_load(INS_B(i), frame);
     auto idx = record_stack_load(INS_C(i), frame);
 
-    // TODO
-    /* { */
-    /*   ir_ins ins; */
-    /*   ins.type = 0; */
-    /*   ins.reg = REG_NONE; */
-    /*   ins.op1 = str; */
-    /*   ins.op2 = idx; */
-    /*   ins.op = IR_ABC; */
-    /*   arrput(trace->ops, ins); */
-    /* } */
-
-    {
-      ir_ins ins;
-      ins.type = CHAR_TAG;
-      ins.reg = REG_NONE;
-      ins.op1 = str;
-      ins.op2 = idx;
-      ins.op = IR_STRLD;
-      regs[INS_A(i)] = arrlen(trace->ops);
-      arrput(trace->ops, ins);
-    }
+    push_ir(trace, IR_ABC, str, idx, 0);
+    regs[INS_A(i)] = push_ir(trace, IR_STRLD, str, idx, CHAR_TAG);
 
     break;
   }
@@ -931,36 +807,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto idx = record_stack_load(INS_B(i), frame);
     auto val = record_stack_load(INS_C(i), frame);
 
-    // TODO
-    /* { */
-    /*   ir_ins ins; */
-    /*   ins.type = 0; */
-    /*   ins.reg = REG_NONE; */
-    /*   ins.op1 = str; */
-    /*   ins.op2 = idx; */
-    /*   ins.op = IR_ABC; */
-    /*   arrput(trace->ops, ins); */
-    /* } */
-
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = str;
-      ins.op2 = idx;
-      ins.op = IR_STRREF;
-      arrput(trace->ops, ins);
-    }
-
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = arrlen(trace->ops) - 1;
-      ins.op2 = val;
-      ins.op = IR_STRST;
-      arrput(trace->ops, ins);
-    }
+    push_ir(trace, IR_ABC, str, idx, 0);
+    auto ref = push_ir(trace, IR_STRREF, str, idx, 0);
+    push_ir(trace, IR_STRST, ref, val, 0);
 
     break;
   }
@@ -972,64 +821,23 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     //    trace->snaps[arrlen(trace->snaps) - 1].exits = 100;
     // TODO fixed closz
     long closz = (frame[INS_A(i)+1] >> 3)+1;
-    {
-      ir_ins ins;
-      ins.type = CLOSURE_TAG;
-      ins.reg = REG_NONE;
-      ins.op1 = sizeof(long)* (closz + 2);
-      ins.op2 = CLOSURE_TAG;
-      ins.op = IR_ALLOC;
-      arrput(trace->ops, ins);
-    }
-    auto cell = arrlen(trace->ops) - 1;
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = cell;
-      ins.op2 = 8 - CLOSURE_TAG;
-      ins.op = IR_REF;
-      arrput(trace->ops, ins);
-    }
+    auto cell = push_ir(trace, IR_ALLOC, sizeof(long)* (closz + 2), CLOSURE_TAG, CLOSURE_TAG);
+    auto ref = push_ir(trace, IR_REF, cell, 8 - CLOSURE_TAG, 0);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)closz << 3);
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = arrlen(trace->ops) - 1;
-      ins.op2 = knum | IR_CONST_BIAS;
-      ins.op = IR_STORE;
-      arrput(trace->ops, ins);
+    push_ir(trace, IR_STORE, ref, knum | IR_CONST_BIAS, 0);
+    auto a = record_stack_load(INS_A(i), frame);
+    // TODO
+    // The first value *must* be the function ptr.
+    // THe rest of the values are just *something*
+    // so that if we abort, there is a valid GC object.
+    // Could also be 0-initialized.
+    // TODO figure out a way to ensure we always snapshpt
+    // after fully setting? I.e. don't abort ever?
+    for(long j = 0; j < closz; j++) {
+      ref = push_ir(trace, IR_REF, cell, 16 +8*j - CLOSURE_TAG, 0);
+      push_ir(trace, IR_STORE, ref, a, 0);
     }
-      auto a = record_stack_load(INS_A(i), frame);
-      // TODO
-      // The first value *must* be the function ptr.
-      // THe rest of the values are just *something*
-      // so that if we abort, there is a valid GC object.
-      // Could also be 0-initialized.
-      // TODO figure out a way to ensure we always snapshpt
-      // after fully setting? I.e. don't abort ever?
-      for(long j = 0; j < closz; j++) {
-      {
-	ir_ins ins;
-	ins.type = 0;
-	ins.reg = REG_NONE;
-	ins.op1 = cell;
-	ins.op2 = 16 +8*j - CLOSURE_TAG;
-	ins.op = IR_REF;
-	arrput(trace->ops, ins);
-      }
-      {
-	ir_ins ins;
-	ins.type = 0;
-	ins.reg = REG_NONE;
-	ins.op1 = arrlen(trace->ops) - 1;
-	ins.op2 = a;
-	ins.op = IR_STORE;
-	arrput(trace->ops, ins);
-      }
-      }
     regs[INS_A(i)] = cell;
     /* for(unsigned j = 1; j < INS_B(i); j++) { */
     /*   regs[INS_A(i) + j] = -1; */
@@ -1045,53 +853,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     trace->snaps[arrlen(trace->snaps) - 1].exits = 100; 
     auto a = record_stack_load(INS_B(i), frame);
     auto b = record_stack_load(INS_C(i), frame);
-    {
-      ir_ins ins;
-      ins.type = CONS_TAG;
-      ins.reg = REG_NONE;
-      ins.op1 = sizeof(cons_s);
-      ins.op2 = CONS_TAG;
-      ins.op = IR_ALLOC;
-      regs[INS_A(i)] = arrlen(trace->ops);
-      arrput(trace->ops, ins);
-    }
-    auto cell = arrlen(trace->ops) - 1;
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = cell;
-      ins.op2 = 8 - CONS_TAG;
-      ins.op = IR_REF;
-      arrput(trace->ops, ins);
-    }
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = arrlen(trace->ops) - 1;
-      ins.op2 = a;
-      ins.op = IR_STORE;
-      arrput(trace->ops, ins);
-    }
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = cell;
-      ins.op2 = 8 + 8 - CONS_TAG;
-      ins.op = IR_REF;
-      arrput(trace->ops, ins);
-    }
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = arrlen(trace->ops) - 1;
-      ins.op2 = b;
-      ins.op = IR_STORE;
-      arrput(trace->ops, ins);
-    }
+    auto cell = push_ir(trace, IR_ALLOC, sizeof(cons_s), CONS_TAG, CONS_TAG);
+    regs[INS_A(i)] = cell;
+    auto ref = push_ir(trace, IR_REF, cell, 8 - CONS_TAG, UNDEFINED_TAG);
+    push_ir(trace, IR_STORE, ref, a, UNDEFINED_TAG);
+    ref = push_ir(trace, IR_REF, cell, 8 + 8 - CONS_TAG, UNDEFINED_TAG);
+    push_ir(trace, IR_STORE, ref, b, UNDEFINED_TAG);
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
 
     break;
@@ -1103,219 +870,124 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case READ: {
-    {
-      auto knum = arrlen(trace->consts);
-      arrput(trace->consts, (long)vm_read_char);
-      ir_ins ins;
-      ins.reg = REG_NONE;
-      ins.op = IR_CALLXS;
-      ins.op1 = record_stack_load(INS_B(i), frame);
-      ins.op2 = knum | IR_CONST_BIAS;
-      ins.type = CHAR_TAG | IR_INS_TYPE_GUARD;
-      regs[INS_A(i)] = arrlen(trace->ops);
-      arrput(trace->ops, ins);
-    }
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, (long)vm_read_char);
+    regs[INS_A(i)] = push_ir(trace, IR_CALLXS,
+			     record_stack_load(INS_B(i), frame),
+			     knum | IR_CONST_BIAS,
+			     CHAR_TAG | IR_INS_TYPE_GUARD);
     break;
   }
   case WRITE: {
-    {
-      ir_ins ins;
-      ins.reg = REG_NONE;
-      ins.op = IR_CARG;
-      ins.op1 = record_stack_load(INS_B(i), frame);
-      ins.op2 = record_stack_load(INS_C(i), frame);
-      ins.type = UNDEFINED_TAG;
-      arrput(trace->ops, ins);
-    }
-    {
-      auto knum = arrlen(trace->consts);
-      arrput(trace->consts, (long)vm_write);
-      ir_ins ins;
-      ins.reg = REG_NONE;
-      ins.op = IR_CALLXS;
-      ins.op1 = arrlen(trace->ops) - 1;
-      ins.op2 = knum | IR_CONST_BIAS;
-      ins.type = UNDEFINED_TAG;
-      arrput(trace->ops, ins);
-    }
+    auto arg = push_ir(trace, IR_CARG, record_stack_load(INS_B(i), frame), record_stack_load(INS_C(i), frame), UNDEFINED_TAG);
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, (long)vm_write);
+    push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
     break;
   }
   case GGET: {
     // TODO check it is set?
     long gp = const_table[INS_D(i)];
-    auto reg = INS_A(i);
-    bool done = false;
-    // TODO
-    /* for (int j = arrlen(trace->ops) - 1; j >= 0; j--) { */
-    /*   auto op = &trace->ops[j]; */
-    /*   if (op->op == IR_GGET && trace->consts[op->op1 - IR_CONST_BIAS] == gp) { */
-    /*     done = true; */
-    /*     regs[reg] = j; */
-    /*     break; */
-    /*   } */
-    /* } */
-    if (!done) {
-      auto knum = arrlen(trace->consts);
-      arrput(trace->consts, gp);
-      ir_ins ins;
-      ins.reg = REG_NONE;
-      ins.op1 = knum | IR_CONST_BIAS;
-      ins.op = IR_GGET;
-      ins.type = IR_INS_TYPE_GUARD | (((symbol *)(gp - SYMBOL_TAG))->val & 0x7);
-      regs[reg] = arrlen(trace->ops);
-      arrput(trace->ops, ins);
-    }
+
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, gp);
+    uint8_t type = IR_INS_TYPE_GUARD | (((symbol *)(gp - SYMBOL_TAG))->val & 0x7);
+    regs[INS_A(i)] = push_ir(trace, IR_GGET, knum | IR_CONST_BIAS, IR_NONE, type);
     break;
   }
   case GSET: {
     long gp = const_table[INS_D(i)];
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, gp);
-    ir_ins ins;
-    ins.reg = REG_NONE;
-    ins.op1 = knum | IR_CONST_BIAS;
-    ins.op = IR_GSET;
-    ins.op2 = record_stack_load(INS_A(i), frame);
-    ins.type = (((symbol *)(gp - SYMBOL_TAG))->val & 0x7);
-    arrput(trace->ops, ins);
+    uint8_t type = (((symbol *)(gp - SYMBOL_TAG))->val & 0x7);
+    push_ir(trace, IR_GSET, knum | IR_CONST_BIAS, record_stack_load(INS_A(i), frame), type);
     break;
   }
   case SUBVN: {
-    ir_ins ins;
-    ins.reg = REG_NONE;
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, INS_C(i) << 3);
-    ins.op1 = record_stack_load(INS_B(i), frame);
-    ins.op2 = knum | IR_CONST_BIAS;
-    ins.op = IR_SUB;
+    auto op1 = record_stack_load(INS_B(i), frame);
     uint8_t type = 0;
-    if (ins.op1 >= IR_CONST_BIAS) {
-      type = trace->consts[ins.op1 - IR_CONST_BIAS] & TAG_MASK;
+    if (op1 >= IR_CONST_BIAS) {
+      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
     } else {
-      type = trace->ops[ins.op1].type & ~IR_INS_TYPE_GUARD;
+      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
     }
     if (type != 0) {
       printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
       return 1;
     }
-    ins.type = IR_INS_TYPE_GUARD | type;
-    auto reg = INS_A(i);
-    regs[reg] = arrlen(trace->ops);
-    arrput(trace->ops, ins);
+    regs[INS_A(i)] = push_ir(trace, IR_SUB, op1, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD | type);
     break;
   }
   case ADDVN: {
     // TODO check type
-    ir_ins ins;
-    ins.reg = REG_NONE;
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, INS_C(i) << 3);
-    ins.op1 = record_stack_load(INS_B(i), frame);
-    ins.op2 = knum | IR_CONST_BIAS;
-    ins.op = IR_ADD;
+    auto op1 = record_stack_load(INS_B(i), frame);
     uint8_t type = 0;
-    if (ins.op1 >= IR_CONST_BIAS) {
-      type = trace->consts[ins.op1 - IR_CONST_BIAS] & TAG_MASK;
+    if (op1 >= IR_CONST_BIAS) {
+      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
     } else {
-      type = trace->ops[ins.op1].type & ~IR_INS_TYPE_GUARD;
+      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
     }
     if (type != 0) {
       printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
       return 1;
     }
-    ins.type = IR_INS_TYPE_GUARD | type;
-    auto reg = INS_A(i);
-    regs[reg] = arrlen(trace->ops);
-    arrput(trace->ops, ins);
+    regs[INS_A(i)] = push_ir(trace, IR_ADD, op1, knum | IR_CONST_BIAS, type | IR_INS_TYPE_GUARD);
     break;
   }
   case ADDVV: {
-    ir_ins ins;
-    ins.reg = REG_NONE;
-    ins.op1 = record_stack_load(INS_B(i), frame);
-    ins.op2 = record_stack_load(INS_C(i), frame);
-    ins.op = IR_ADD;
+    auto op1 = record_stack_load(INS_B(i), frame);
+    auto op2 = record_stack_load(INS_C(i), frame);
     // TODO: Assume no type change??
     uint8_t type = 0;
-    if (ins.op1 >= IR_CONST_BIAS) {
-      type = trace->consts[ins.op1 - IR_CONST_BIAS] & TAG_MASK;
+    if (op1 >= IR_CONST_BIAS) {
+      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
     } else {
-      type = trace->ops[ins.op1].type & ~IR_INS_TYPE_GUARD;
+      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
     }
     if (type != 0) {
       printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
       return 1;
     }
-    ins.type = IR_INS_TYPE_GUARD | type;
-    auto reg = INS_A(i);
-    regs[reg] = arrlen(trace->ops);
-    arrput(trace->ops, ins);
+    regs[INS_A(i)] = push_ir(trace, IR_ADD, op1, op2, IR_INS_TYPE_GUARD | type);
     break;
   }
   case SUBVV: {
-    ir_ins ins;
-    ins.reg = REG_NONE;
-    ins.op1 = record_stack_load(INS_B(i), frame);
-    ins.op2 = record_stack_load(INS_C(i), frame);
-    ins.op = IR_SUB;
+    auto op1 = record_stack_load(INS_B(i), frame);
+    auto op2 = record_stack_load(INS_C(i), frame);
     // TODO: Assume no type change??
     uint8_t type = 0;
-    if (ins.op1 >= IR_CONST_BIAS) {
-      type = trace->consts[ins.op1 - IR_CONST_BIAS] & TAG_MASK;
+    if (op1 >= IR_CONST_BIAS) {
+      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
     } else {
-      type = trace->ops[ins.op1].type & ~IR_INS_TYPE_GUARD;
+      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
     }
     if (type != 0) {
       printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
       return 1;
     }
-    ins.type = IR_INS_TYPE_GUARD | type;
-    auto reg = INS_A(i);
-    regs[reg] = arrlen(trace->ops);
-    arrput(trace->ops, ins);
+    regs[INS_A(i)] = push_ir(trace, IR_SUB, op1, op2, IR_INS_TYPE_GUARD | type);
     break;
   }
   case CALLT: {
     // Check call type
     {
       auto clo = record_stack_load(INS_A(i) + 1, frame);
-      {
-	ir_ins ins;
-	ins.type = 0;
-	ins.reg = REG_NONE;
-	ins.op1 = clo;
-	ins.op2 = 16 - CLOSURE_TAG;
-	ins.op = IR_REF;
-	arrput(trace->ops, ins);
-      }
-      {
-	ir_ins ins;
-	ins.type = 0;
-	ins.reg = REG_NONE;
-	ins.op1 = arrlen(trace->ops) - 1;
-	ins.op2 = 0;
-	ins.op = IR_LOAD;
-	regs[INS_A(i)] = arrlen(trace->ops);
-	arrput(trace->ops, ins);
-      }
-      auto fun = arrlen(trace->ops) - 1;
-      {
-	auto cl = frame[INS_A(i) + 1];
-	auto closure = (closure_s *)(cl - CLOSURE_TAG);
-	auto knum = arrlen(trace->consts);
-	arrput(trace->consts, closure->v[0]);
-	ir_ins ins;
-	ins.reg = REG_NONE;
-	ins.op1 = fun;
-	ins.op2 = knum | IR_CONST_BIAS;
-	ins.op = IR_EQ;
-	ins.type = IR_INS_TYPE_GUARD;
-	arrput(trace->ops, ins);
-      }
+      auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
+      auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
+      regs[INS_A(i)] = fun;
+      auto cl = frame[INS_A(i) + 1];
+      auto closure = (closure_s *)(cl - CLOSURE_TAG);
+      auto knum = arrlen(trace->consts);
+      arrput(trace->consts, closure->v[0]);
+      push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
     }
     /* { */
     /*   auto v = frame[INS_A(i) + 1]; */
@@ -1347,35 +1019,19 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case CLOSURE_GET: {
     auto clo = record_stack_load(INS_B(i), frame);
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = clo;
-      ins.op2 = 16 + (8*(1 + INS_C(i))) - CLOSURE_TAG;
-      ins.op = IR_REF;
-      arrput(trace->ops, ins);
-    }
+    auto ref = push_ir(trace, IR_REF, clo, 16 + (8*(1 + INS_C(i))) - CLOSURE_TAG, UNDEFINED_TAG);
+    
     // Note: Closure doesn't necessarily need typecheck since closures are CONST.
     // However, there are some situations where invalid code may hit bad types?
     // I.e. polymorphic functions could do a different STORE type?
     //
     // Actually, this is invalid: closures could close '() or a list, and still
     // be what code is expecting.
-    {
-      uint64_t pos = INS_C(i) + 1;
-      closure_s* clo_d = (closure_s*)(frame[INS_B(i)] - CLOSURE_TAG);
-      uint8_t type = clo_d->v[pos] & TAG_MASK;
+    uint64_t pos = INS_C(i) + 1;
+    closure_s* clo_d = (closure_s*)(frame[INS_B(i)] - CLOSURE_TAG);
+    uint8_t type = clo_d->v[pos] & TAG_MASK;
 
-      ir_ins ins;
-      ins.type = IR_INS_TYPE_GUARD | type;
-      ins.reg = REG_NONE;
-      ins.op1 = arrlen(trace->ops) - 1;
-      ins.op2 = 0;
-      ins.op = IR_LOAD;
-      regs[INS_A(i)] = arrlen(trace->ops);
-      arrput(trace->ops, ins);
-    }
+    regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, 0, IR_INS_TYPE_GUARD | type);
     
     /* // TODO: closure may not be const */
     /* auto fb = frame[INS_B(i)]; */
@@ -1389,24 +1045,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case CLOSURE_SET: {
     auto clo = record_stack_load(INS_A(i), frame);
     auto val = record_stack_load(INS_B(i), frame);
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = clo;
-      ins.op2 = 16 + (8*(1 + INS_C(i))) - CLOSURE_TAG;
-      ins.op = IR_REF;
-      arrput(trace->ops, ins);
-    }
-    {
-      ir_ins ins;
-      ins.type = 0;
-      ins.reg = REG_NONE;
-      ins.op1 = arrlen(trace->ops) - 1;
-      ins.op2 = val;
-      ins.op = IR_STORE;
-      arrput(trace->ops, ins);
-    }
+    auto ref = push_ir(trace, IR_REF, clo, 16 + (8*(1 + INS_C(i))) - CLOSURE_TAG, UNDEFINED_TAG);
+    push_ir(trace, IR_STORE, ref, val, UNDEFINED_TAG);
     break;
   }
   case JMP: {
