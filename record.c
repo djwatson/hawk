@@ -107,9 +107,7 @@ void print_const_or_val(int i, trace_s *ctrace) {
   if ((i & IR_CONST_BIAS) != 0) {
     auto c = ctrace->consts[i - IR_CONST_BIAS];
     int type = (int)(c & 0x7);
-    if ((c & SNAP_FRAME) != 0U) {
-      printf("(pc %li)", c & ~SNAP_FRAME);
-    } else if (type == 0) {
+    if (type == 0) {
       printf("\e[1;35m%li\e[m", c >> 3);
     } else if (type == 5) {
       printf("\e[1;31m<closure>\e[m");
@@ -130,8 +128,8 @@ void print_const_or_val(int i, trace_s *ctrace) {
     } else if (type == 1) {
       printf("ptr");
     } else {
-      printf("Unknown dump_trace type %i\n", type);
-      exit(-1);
+      // Possible frame ptr.
+      printf("frame");
     }
   } else {
     printf("%04d", i);
@@ -508,7 +506,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         }
 
         auto knum = arrlen(trace->consts);
-        arrput(trace->consts, (long)old_pc | SNAP_FRAME);
+        arrput(trace->consts, (long)old_pc);
         auto knum2 = arrlen(trace->consts);
         arrput(trace->consts, (frame_off + 1) << 3);
 	push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS, IR_INS_TYPE_GUARD | 0x5);
@@ -586,7 +584,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // Push PC link as const
     {
       auto knum = (int)arrlen(trace->consts);
-      arrput(trace->consts, ((long)(pc + 1)) | SNAP_FRAME);
+      arrput(trace->consts, ((long)(pc + 1)));
       regs[INS_A(i)] = knum | IR_CONST_BIAS; // TODO set PC
     }
 

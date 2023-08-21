@@ -260,7 +260,7 @@ void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
     auto slot = &snap->slots[i];
     if ((slot->val & IR_CONST_BIAS) != 0) {
       auto c = trace->consts[slot->val - IR_CONST_BIAS];
-      (*o_frame)[slot->slot] = (long)(c & ~SNAP_FRAME);
+      (*o_frame)[slot->slot] = (long)(c);
     } else {
       if (trace->ops[slot->val].slot != SLOT_NONE) {
 	// Was spilled, restore from spill slot.
@@ -306,12 +306,10 @@ void emit_snap(int snap, trace_s *trace, bool all) {
     // }
     if ((slot->val & IR_CONST_BIAS) != 0) {
       auto c = trace->consts[slot->val - IR_CONST_BIAS];
-      // assert((c&SNAP_FRAME) < 32000);
-      // printf("MOV %lx\n", c & ~SNAP_FRAME);
       emit_mem_reg(OP_MOV_RM, slot->slot * 8, RDI, R15);
       auto re = (reloc){emit_offset(), c, RELOC_ABS};
       arrput(trace->relocs, re);
-      emit_mov64(R15, (int64_t)(c & ~SNAP_FRAME));
+      emit_mov64(R15, (int64_t)(c));
     } else {
       auto op = &trace->ops[slot->val];
       // TODO RET check, can't emit past RETS
@@ -911,7 +909,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case IR_RET: {
       // TODO reloc if functions can move.
       // FIXNUM
-      auto retadd = (int64_t)(trace->consts[op->op1 - IR_CONST_BIAS] - SNAP_FRAME);
+      auto retadd = (int64_t)(trace->consts[op->op1 - IR_CONST_BIAS]);
       // Constant return address ptr.
       auto b = (int32_t)trace->consts[op->op2 - IR_CONST_BIAS];
 

@@ -1,9 +1,5 @@
 # Getting all jit to work bench2
 
-* Fix SNAP_FRAME
-* fix gc FORWARD_PTR - frame needs to look like a ptr.
-
-
 * Reg spill working, not just CALLXS
 
 * somethiing broken in compiler.scm.bc

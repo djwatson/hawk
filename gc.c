@@ -167,7 +167,7 @@ extern long *symbols;
 
 static void visit_trace(trace_s *t) {
   for (size_t i = 0; i < arrlen(t->consts); i++) {
-    if (!(SNAP_FRAME & t->consts[i])) {
+    if (t->consts[i]) {
       // printf("Visit const ");
       // print_obj(t->consts[i]);
       // printf("\n");
