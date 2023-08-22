@@ -1,5 +1,11 @@
 # Getting all jit to work bench2
 
+* Max trace up to 16bits:
+  * read1
+  * conform
+  * compiler
+  * slatex
+
 * Reg spill working, not just CALLXS
 
 * somethiing broken in compiler.scm.bc
