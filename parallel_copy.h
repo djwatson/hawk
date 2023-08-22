@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define MAX_MAP_SIZE 32
+#define MAX_MAP_SIZE (256 + 32)
 
 typedef struct par_copy {
   uint64_t from;

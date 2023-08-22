@@ -350,8 +350,10 @@ void emit_snap(int snap, trace_s *trace, bool all) {
         // nothing
       } else if (op->slot != SLOT_NONE) {
 	// Reload from spill.
-	emit_mem_reg(OP_MOV_RM, slot->slot * 8, RDI, op->reg);
-	emit_mem_reg(OP_MOV_MR, 0, R15, op->reg);
+	// TODO could use the real reg, if we did this in the same order as allocation
+	// (i.e. reverse order??).
+	emit_mem_reg(OP_MOV_RM, slot->slot * 8, RDI, R15);
+	emit_mem_reg(OP_MOV_MR, 0, R15, R15);
 	emit_mov64(R15, (int64_t)&spill_slot[op->slot]);
       } else {
 	emit_mem_reg(OP_MOV_RM, slot->slot * 8, RDI, op->reg);
@@ -981,19 +983,48 @@ done:
 	emit_mov64(op->reg, parent->consts[val - IR_CONST_BIAS]);
       } else {
 	auto old_op = &parent->ops[val];
-	if(old_op->slot != SLOT_NONE) {
-	  // Restore from spill, since we could have jumped from anywhere in the snapshot.
-	  emit_mem_reg(OP_MOV_MR, 0, R15, op->reg);
-	  emit_mov64(R15, (int64_t)&spill_slot[old_op->slot]);
-	} else {
 	  // Parallel move direct to register.
-	  map_insert(&moves, old_op->reg, op->reg);
+	uint32_t from = old_op->reg;
+	if (old_op->slot != SLOT_NONE) {
+	  from = old_op->slot + REG_NONE;
+	}
+	uint32_t to = op->reg;
+	// TODO if also slot, move to slot.
+	if (op->reg == REG_NONE) {
+	  to = op->slot + REG_NONE;
+	}
+	map_insert(&moves, from, to);
+	printf("Insert parallel copy %i to %i\n",
+	       from, to);
+	if (op->slot != SLOT_NONE && op->reg != REG_NONE) {
+	  emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
+	  emit_mov64(R15, (int64_t)&spill_slot[op->slot]);
 	}
       }
     }
     serialize_parallel_copy(&moves, &res, R15);
     for (int64_t i = (int64_t)res.mp_sz - 1; i >= 0; i--) {
-      emit_reg_reg(OP_MOV, res.mp[i].from, res.mp[i].to);
+      if (res.mp[i].from >= REG_NONE && res.mp[i].to >= REG_NONE) {
+	// Move from spill to spill.
+	// Need a second tmp.
+	emit_pop(RAX);
+	emit_mem_reg(OP_MOV_RM, 0, R15, RAX);
+	emit_mov64(R15, (int64_t)&spill_slot[res.mp[i].to - REG_NONE]);
+	emit_mem_reg(OP_MOV_MR, 0, R15, RAX);
+	emit_mov64(R15, (int64_t)&spill_slot[res.mp[i].from - REG_NONE]);
+	emit_push(RAX);
+	printf("WARNING slow spill to spill move\n");
+      } else if (res.mp[i].from >= REG_NONE) {
+	// Move from spill to reg.
+	emit_mem_reg(OP_MOV_MR, 0, R15, res.mp[i].to);
+	emit_mov64(R15, (int64_t)&spill_slot[res.mp[i].from - REG_NONE]);
+      } else if (res.mp[i].to >= REG_NONE) {
+	// Move from reg to spill.
+	emit_mem_reg(OP_MOV_RM, 0, R15, res.mp[i].from);
+	emit_mov64(R15, (int64_t)&spill_slot[res.mp[i].to - REG_NONE]);
+      } else {
+	emit_reg_reg(OP_MOV, res.mp[i].from, res.mp[i].to);
+      }
     }
   }
 

@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define REG_MAX 32
+#define REG_MAX (256 + 32)
 
 /* serialize parallel copy implementation, based on
  * https://github.com/pfalcon/parcopy

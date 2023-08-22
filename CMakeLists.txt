@@ -77,10 +77,6 @@ target_include_directories(boom_vm PUBLIC ".")
 
 target_link_libraries(boom_vm PUBLIC ${LIBRARIES}  )
 
-#target_compile_options(boom PRIVATE -fsanitize=address,undefined)
-#target_link_options(boom PRIVATE -fsanitize=address,undefined)
-#target_compile_options(vm PRIVATE -fsanitize=address,undefined)
-
 set(CLOC_SOURCES ${SOURCES} boom.c)
 list(REMOVE_ITEM CLOC_SOURCES bootstrap.c)
 add_custom_target(
@@ -124,6 +120,10 @@ add_executable(boom  boom.c)
 target_link_libraries(boom PUBLIC boom_vm)
 target_compile_options(boom PRIVATE -gdwarf-3 -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference )
 set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+
+# target_compile_options(boom PRIVATE -fsanitize=address,undefined)
+# target_link_options(boom PRIVATE -fsanitize=address,undefined)
+# target_compile_options(boom_vm PRIVATE -fsanitize=address,undefined)
 
 
 # Tests

@@ -11,8 +11,6 @@
 *****
 
 * sum - 5000500 num too big?? requires bignums or special shit for boom
-* earley- fail - no reg
-* matrix- fail - no reg
 
 # working on
 

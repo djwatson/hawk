@@ -342,7 +342,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   arrput(traces, trace);
 
-  //dump_trace(trace);
+  dump_trace(trace);
   asm_jit(trace, side_exit, parent);
   dump_trace(trace);
 
