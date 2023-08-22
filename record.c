@@ -71,6 +71,8 @@ void penalty_pc(uint32_t* pc) {
 	  *pc = ((*pc) & ~0xff) + ICLFUNCV;
 	} else if (INS_OP(*pc) == LOOP) {
 	  *pc = ((*pc) & ~0xff) + ILOOP;
+	} else if (INS_OP(*pc) == RET1) {
+	  *pc = ((*pc) & ~0xff) + IRET1;
 	} else {
 	  printf("Could not blacklist %s\n", ins_names[INS_OP(*pc)]);
 	  exit(-1);
@@ -429,8 +431,7 @@ extern unsigned char hotmap[hotmap_sz];
 int record_instr(unsigned int *pc, long *frame, long argcnt) {
   unsigned int i = *pc;
 
-  if (INS_OP(i) == LOOP ||
-      INS_OP(i) == ILOOP ) {
+  if (INS_OP(i) == LOOP) {
     for (int *pos = &regs[INS_A(i)]; pos < &regs_list[257]; pos++) {
       *pos = -1;
     }
@@ -454,12 +455,10 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   printf("%lx %s %i %i %i\n", (long)pc, ins_names[INS_OP(i)], INS_A(i),
          INS_B(i), INS_C(i));
   switch (INS_OP(i)) {
-  case ILOOP: 
   case LOOP: {
     // case CLFUNC:
     break;
   }
-  case IFUNC:
   case FUNC: {
     // TODO this is for register-based arguments
     // if (arrlen(trace->ops) == 0) {

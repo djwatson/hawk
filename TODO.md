@@ -2,7 +2,6 @@
 
 * Max trace up to 16bits:
   * compiler
-  * mazefun
 
 *****
 

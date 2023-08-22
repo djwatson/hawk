@@ -352,6 +352,13 @@ LIBRARY_FUNC_D(JMP)
   NEXT_INSTR;
 }
 
+LIBRARY_FUNC(IRET1)
+  pc = (unsigned int *)frame[-1];
+  frame[-1] = frame[ra];
+  frame -= (INS_A(*(pc - 1)) + 1);
+  NEXT_INSTR;
+}
+
 LIBRARY_FUNC(RET1)
   pc = (unsigned int *)frame[-1];
   frame[-1] = frame[ra];
