@@ -122,7 +122,7 @@ void print_const_or_val(int i, trace_s *ctrace) {
     int type = (int)(c & 0x7);
     if (type == 0) {
       printf("\e[1;35m%li\e[m", c >> 3);
-    } else if (type == 5) {
+    } else if (type == CLOSURE_TAG) {
       printf("\e[1;31m<closure>\e[m");
     } else if (c == FALSE_REP) {
       printf("\e[1;35m#f\e[m");
@@ -130,19 +130,24 @@ void print_const_or_val(int i, trace_s *ctrace) {
       printf("\e[1;35m#t\e[m");
     } else if (c == NIL_TAG) {
       printf("\e[1;35mnil\e[m");
-    } else if (type == 3) {
+    } else if (type == CONS_TAG) {
       printf("\e[1;35mcons\e[m");
-    } else if (type == 2) {
+    } else if (type == FLONUM_TAG) {
       printf("\e[1;35m%f\e[m", ((flonum_s*)c - FLONUM_TAG)->x);
     } else if ((c & IMMEDIATE_MASK) == CHAR_TAG) {
       printf("'%c'", (char)(c >> 8));
-    } else if (type == 6) {
+    } else if ((c & IMMEDIATE_MASK) == EOF_TAG) {
+      printf("eof");
+    } else if ((c & IMMEDIATE_MASK) == NIL_TAG) {
+      printf("nil");
+    } else if (type == SYMBOL_TAG) {
       printf("\e[1;35m%s\e[m", ((symbol*)(c - SYMBOL_TAG))->name->str);
-    } else if (type == 1) {
+    } else if (type == PTR_TAG) {
       printf("ptr");
-    } else {
-      // Possible frame ptr.
+    } else if (type == LITERAL_TAG) {
       printf("frame");
+    } else {
+      assert(false);
     }
   } else {
     printf("%04d", i);
@@ -181,25 +186,26 @@ void dump_trace(trace_s *ctrace) {
     }
     printf("%c\t", (op.type & IR_INS_TYPE_GUARD) != 0 ? '>' : ' ');
     auto t = op.type & TAG_MASK;
-    if (t == 0) {
+    if (t == FIXNUM_TAG) {
       printf("\e[1;35mfix \e[m ");
-    } else if (t == 5) {
+    } else if (t == CLOSURE_TAG) {
       printf("\e[1;31mclo \e[m ");
-    } else if (t == 3) {
+    } else if (t == CONS_TAG) {
       printf("\e[1;34mcons\e[m ");
-    } else if (t == 2) {
+    } else if (t == FLONUM_TAG) {
       printf("\e[1;34mflo \e[m ");
-    } else if (t == 6) {
+    } else if (t == SYMBOL_TAG) {
       printf("\e[1;34msym \e[m ");
     } else if ((op.type & ~IR_INS_TYPE_GUARD) == UNDEFINED_TAG) {
       printf("     ");
-    } else if (t == 7) {
+    } else if (t == LITERAL_TAG) {
       printf("\e[1;34mlit \e[m ");
-    } else if (t == 1) {
+    } else if (t == PTR_TAG) {
       // TODO
       printf("\e[1;34mptr \e[m ");
     } else {
-      printf("\e[1;34mUNK \e[m ");
+      //printf("\e[1;34mUNK \e[m ");
+      assert(false);
     }
     printf("%s ", ir_names[(int)op.op]);
     switch (op.op) {
