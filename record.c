@@ -722,12 +722,21 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
     break;
   }
+  case JEQV:
   case JEQ: 
   case JISEQ: {
     uint32_t op1 = record_stack_load(INS_B(i), frame);
     uint32_t op2 = record_stack_load(INS_C(i), frame);
     uint32_t *next_pc;
     ir_ins_op op;
+    if (INS_OP(i) == JEQV) {
+      if ((frame[INS_B(i)] & TAG_MASK) == FLONUM_TAG ||
+	  (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
+	printf("Record abort: flonum not supported in jeqv\n");
+	record_abort();
+	return 1;
+      }
+    }
     if (frame[INS_B(i)] == frame[INS_C(i)]) {
       op = IR_EQ;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace,
