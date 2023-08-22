@@ -67,11 +67,9 @@ while being more portable and easier to change.
       void **op_table_arg, long argcnt
 #define ARGS ra, instr, pc, frame, op_table_arg, argcnt
 #define MUSTTAIL __attribute((musttail))
-#define ABI //__attribute__((ms_abi)) __attribute__((noinline))
-#define ABIP //__attribute__((ms_abi))
 #define DEBUG_VM(name)
 //#define DEBUG_VM(name) printf("pc %p %s ra %i rd %i rb %i rc %i\n", pc, name, ra, instr, instr&0xff, (instr>>8)); fflush(stdout);
-typedef ABIP void (*op_func)(PARAMS);
+typedef void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
 static op_func l_op_table_profile[INS_MAX];
@@ -96,7 +94,7 @@ bcfunc *find_func_for_frame(const uint32_t *pc) {
   return NULL;
 }
 
-ABI __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
+__attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
   int i = 0;
   printf("FAIL PC: %p %s\n", pc, ins_names[INS_OP(*pc)]);
   while (&frame[-1] > stack) {
@@ -111,13 +109,13 @@ ABI __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
   }
   }
 
-ABI __attribute__((noinline)) void FAIL_SLOWPATH_ARGCNT(PARAMS) {
+__attribute__((noinline)) void FAIL_SLOWPATH_ARGCNT(PARAMS) {
   printf("FAIL ARGCNT INVALID\n");
 
   MUSTTAIL return FAIL_SLOWPATH(ARGS);
 }
 
-ABI void RECORD_START(PARAMS) {
+void RECORD_START(PARAMS) {
   hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
   if (joff) {
     // Tail call with original op table.
@@ -127,7 +125,7 @@ ABI void RECORD_START(PARAMS) {
       ra, instr, pc, frame, (void **)l_op_table_record, argcnt);
 }
 
-ABI void RECORD(PARAMS) {
+void RECORD(PARAMS) {
 #ifdef JIT
   if (record(pc, frame, argcnt)) {
     // Back to interpreting.
@@ -164,7 +162,7 @@ long build_list(long start, long len, const long *frame) {
   return lst;
 }
 
-ABI __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
+__attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
   auto rd = instr;
 
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
@@ -172,7 +170,7 @@ ABI __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
   printf("FAIL undefined symbol: %s\n", gp->name->str);
 }
 
-ABI __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
+__attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
   printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
   auto pos = frame - stack;
   auto oldsz = stacksz;
@@ -215,7 +213,7 @@ long *expand_stack_slowpath(long *frame) {
  *       Maybe pass some info in argcnt param.
  */
 #define LIBRARY_FUNC_BC(name)                                                  \
-  ABI void INS_##name(PARAMS) {                                                \
+  void INS_##name(PARAMS) {                                                    \
     DEBUG_VM(#name);                                                           \
     unsigned char rb = instr & 0xff;                                           \
     unsigned char rc = (instr >> 8) & 0xff;
@@ -224,15 +222,15 @@ long *expand_stack_slowpath(long *frame) {
   long fb = frame[rb];                                                         \
   long fc = frame[rc];
 #define LIBRARY_FUNC_B(name)                                                   \
-  ABI void INS_##name(PARAMS) {                                                \
+  void INS_##name(PARAMS) {                                                    \
     DEBUG_VM(#name);                                                           \
     unsigned char rb = instr & 0xff;
 #define LIBRARY_FUNC_D(name)                                                   \
-  ABI void INS_##name(PARAMS) {                                                \
+  void INS_##name(PARAMS) {                                                    \
     DEBUG_VM(#name);                                                           \
     auto rd = (int16_t)instr;
 #define LIBRARY_FUNC(name)                                                     \
-  ABI void INS_##name(PARAMS) {                                                \
+  void INS_##name(PARAMS) {                                                    \
     DEBUG_VM(#name);
 #define LIBRARY_FUNC_B_LOAD(name)                                              \
   LIBRARY_FUNC_B(name)                                                         \
@@ -246,18 +244,18 @@ long *expand_stack_slowpath(long *frame) {
   }
 
 #define TYPECHECK_TAG(val, tag)                                                \
-  if (unlikely(((val) & TAG_MASK) != (tag))) {                                     \
+  if (unlikely(((val) & TAG_MASK) != (tag))) {                                 \
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }
 #define TYPECHECK_FIXNUM(val) TYPECHECK_TAG(val, FIXNUM_TAG)
 #define TYPECHECK_IMMEDIATE(val, tag)                                          \
-  if (unlikely(((val) & IMMEDIATE_MASK) != (tag))) {                               \
+  if (unlikely(((val) & IMMEDIATE_MASK) != (tag))) {                           \
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }
 #define LOAD_TYPE_WITH_CHECK(name, type_s, val, tag)                           \
   TYPECHECK_TAG(val, PTR_TAG);                                                 \
-  auto (name) = (type_s *)((val) - PTR_TAG);                                       \
-  if (unlikely((name)->type != (tag))) {                                           \
+  auto (name) = (type_s *)((val) - PTR_TAG);                                   \
+  if (unlikely((name)->type != (tag))) {                                       \
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }
 
@@ -384,14 +382,14 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
 // Note overflow may smash dest, so don't use frame[ra] directly.
 #define OVERFLOW_OP(op, name, shift)                                           \
   long tmp;                                                                    \
-  if (unlikely(__builtin_##op##_overflow(fb, fc >> (shift), &tmp))) {            \
+  if (unlikely(__builtin_##op##_overflow(fb, fc >> (shift), &tmp))) {          \
     MUSTTAIL return INS_##name##_SLOWPATH(ARGS);                               \
   }                                                                            \
   frame[ra] = tmp;
 
 // Shift is necessary for adjusting the tag for mul.
 #define LIBRARY_FUNC_MATH_VV(name, op2, overflow)                              \
-  ABI __attribute__((noinline)) void INS_##name##_SLOWPATH(PARAMS) {           \
+  __attribute__((noinline)) void INS_##name##_SLOWPATH(PARAMS) {               \
     DEBUG_VM(#name);                                                           \
     unsigned char rb = instr & 0xff;                                           \
     unsigned char rc = (instr >> 8) & 0xff;                                    \
@@ -461,7 +459,7 @@ LIBRARY_FUNC_MATH_VV(REM, remainder, frame[ra] = ((fb >> 3) % (fc >> 3)) << 3);
     iffalse;					\
   }						\
 						\
-  pc += (finish);					\
+  pc += (finish);				\
   NEXT_INSTR;					\
 }
 
@@ -469,7 +467,7 @@ LIBRARY_FUNC_EQ(EQ, frame[ra] = TRUE_REP, frame[ra] = FALSE_REP, 1);
 LIBRARY_FUNC_EQ(JEQ, pc += 2, pc += INS_D(*(pc+1)) + 1, 0);
 LIBRARY_FUNC_EQ(JNEQ, pc += INS_D(*(pc+1)) + 1, pc += 2, 0);
 
-#define LIBRARY_FUNC_NUM_CMP(name, op, func)				\
+#define LIBRARY_FUNC_NUM_CMP(name, op, func)				      \
  LIBRARY_FUNC_BC_LOAD(name##_SLOWPATH)                                        \
   double x_b;                                                                  \
   double x_c;                                                                  \
@@ -1183,19 +1181,19 @@ END_LIBRARY_FUNC
 
 ///////////
 #ifdef PROFILER
-ABI void INS_PROFILE_RET1_ADJ(PARAMS) {
+void INS_PROFILE_RET1_ADJ(PARAMS) {
  profile_pop_frame();
  profile_set_pc(pc);
  MUSTTAIL return INS_RET1(ARGS);
 }
 
-ABI void INS_PROFILE_CALL_ADJ(PARAMS) {
+void INS_PROFILE_CALL_ADJ(PARAMS) {
  profile_add_frame(pc);
  profile_set_pc(pc);
  MUSTTAIL return INS_CALL(ARGS);
 }
 
-ABI void INS_PROFILE_CALLCC_RESUME_ADJ(PARAMS) {
+void INS_PROFILE_CALLCC_RESUME_ADJ(PARAMS) {
   // TODO make callcc resume work
  profile_pop_all_frames();
  profile_set_pc(pc);

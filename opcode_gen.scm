@@ -74,11 +74,10 @@
 (display "};\n" opcode-h)
 (close-output-port opcode-h)
 
-(define ABI "__attribute__((ms_abi))")
 (define op-table-h (open-output-file-chez "opcodes-table.h"))
 (display "#ifdef PROFILE\n" op-table-h)
 (for-each (lambda (op)
-	    (display (format "~a void INS_PROFILE_~a(unsigned char ra, unsigned instr, unsigned *pc, long *frame, void **op_table_arg, long argcnt) {\n" ABI (caddr op)) op-table-h)
+	    (display (format "void INS_PROFILE_~a(unsigned char ra, unsigned instr, unsigned *pc, long *frame, void **op_table_arg, long argcnt) {\n" (caddr op)) op-table-h)
 	    (display "profile_set_pc(pc);\n" op-table-h)
 	    (display (format "MUSTTAIL return INS_~a(ra, instr, pc, frame, op_table_arg, argcnt);\n" (caddr op)) op-table-h)
 	    (display "}\n" op-table-h)

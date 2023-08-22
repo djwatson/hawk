@@ -49,7 +49,7 @@ message("Using " ${CHEZ} " for bootstrapping")
 include(CheckPIESupported)
 check_pie_supported()
 
-set(SOURCES readbc.c bytecode.c vm.o bootstrap.c ir.c types.c symbol_table.c gc.c opcodes.h opt_loop.c parallel_copy.c)
+set(SOURCES readbc.c bytecode.c vm.c bootstrap.c ir.c types.c symbol_table.c gc.c opcodes.h opt_loop.c parallel_copy.c)
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
 set(LIBRARIES "m")
 if (JIT) 
@@ -84,35 +84,11 @@ target_include_directories(boom_vm PUBLIC ".")
 
 target_link_libraries(boom_vm PUBLIC ${LIBRARIES}  )
 
-# Use the CC10 calling convention, which isn't available via clang, but is in llvm.
-# munge win64cc to cc10.
-# Otherwise we could include vm.c directly.
-add_library(vm OBJECT EXCLUDE_FROM_ALL vm.c opcodes.h)
-target_compile_options(vm PRIVATE -emit-llvm -S )
-set_property(TARGET vm PROPERTY POSITION_INDEPENDENT_CODE TRUE)
-get_target_property(BOOM_FLAGS boom_vm COMPILE_OPTIONS)
-target_compile_options(vm PRIVATE ${BOOM_FLAGS} )
-string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPER)
-set(VM_FLAGS  ${CMAKE_C_FLAGS_${CMAKE_BUILD_TYPE_UPPER}})
-string(REPLACE " " ";" VM_FLAGS ${VM_FLAGS})
-target_compile_options(vm PRIVATE -fomit-frame-pointer) # required for cc10
-  add_custom_command(
-  OUTPUT vm.o
-  COMMAND
-  cp $<TARGET_OBJECTS:vm> vm.ll
-  COMMAND
-  perl -p -i -e 's/win64cc/cc10/g' vm.ll
-  COMMAND
-  clang ${BOOM_FLAGS} ${VM_FLAGS}  -c vm.ll -flto=thin
-  DEPENDS vm.c vm
-  )
-
-
 #target_compile_options(boom PRIVATE -fsanitize=address,undefined)
 #target_link_options(boom PRIVATE -fsanitize=address,undefined)
 #target_compile_options(vm PRIVATE -fsanitize=address,undefined)
 
-set(CLOC_SOURCES ${SOURCES} vm.c)
+set(CLOC_SOURCES ${SOURCES} boom.c)
 list(REMOVE_ITEM CLOC_SOURCES bootstrap.c)
 add_custom_target(
   cloc
