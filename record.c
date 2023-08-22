@@ -623,9 +623,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       } // TODO fix flush
       pendpatch();
       if (INS_OP(cfunc->code[0]) == JFUNC) {
-        printf("Flushing trace\n");
-        cfunc->code[0] = traces[INS_D(cfunc->code[0])]->startpc;
-        hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
+	// Check if it is already up-recursion (i.e. a side trace failed here)
+	auto sl_trace = trace_cache_get(INS_D(cfunc->code[0]));
+	if (sl_trace->link != INS_D(cfunc->code[0])) {
+	  printf("Flushing trace\n");
+	  cfunc->code[0] = traces[INS_D(cfunc->code[0])]->startpc;
+	  hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
+	}
       }
       // TODO this isn't in luajit? fails with side exit without?
       hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
