@@ -3,11 +3,9 @@
 * Max trace up to 16bits:
   * read1
   * compiler
-  * conform
   * mazefun
-  * dynamic  
-  * slatex
-
+  * conform
+  * dynamic
 
 *****
 

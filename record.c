@@ -336,10 +336,10 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   } else {
     auto op = INS_OP(*pc_start);
     if (op != RET1 && op != LOOP) {
-      *pc_start = CODE(JFUNC, INS_A(*pc_start), arrlen(traces), 0);
+      *pc_start = CODE_D(JFUNC, INS_A(*pc_start), arrlen(traces));
       printf("Installing JFUNC\n");
     } else {
-      *pc_start = CODE(JLOOP, 0, arrlen(traces), 0);
+      *pc_start = CODE_D(JLOOP, 0, arrlen(traces));
       printf("Installing JLOOP\n");
     }
   }
@@ -1080,7 +1080,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case JFUNC: {
     // Check if it is a returning trace
-    auto *ctrace = trace_cache_get(INS_B(i));
+    auto *ctrace = trace_cache_get(INS_D(i));
     if (ctrace->link == -1) {
       assert(patchpc == nullptr);
       patchpc = pc;
@@ -1092,7 +1092,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       regs[j] = record_stack_load(j, frame);
     }
     printf("Record stop JFUNC\n");
-    record_stop(pc, frame, INS_B(i));
+    record_stop(pc, frame, INS_D(i));
     return 1;
   }
   case JLOOP: {
@@ -1105,7 +1105,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // NOTE: stack load is for ret1 jloop returns.  Necessary?
     // TODO JLOOp also used for loop, only need to record for RET
     regs[INS_A(i)] = record_stack_load(INS_A(i), frame);
-    record_stop(pc, frame, INS_B(i));
+    record_stop(pc, frame, INS_D(i));
     return 1;
   }
   default: {
