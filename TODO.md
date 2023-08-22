@@ -1,10 +1,5 @@
 # Getting all jit to work bench2
 
-* Max trace up to 16bits:
-  * compiler
-
-*****
-
 * sum - 5000500 num too big?? requires bignums or special shit for boom
 
 # working on

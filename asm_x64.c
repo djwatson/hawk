@@ -1093,7 +1093,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
           printf("HOT SNAP to JLOOP\n");
           patchpc = *o_pc;
           patchold = **o_pc;
-          auto *otrace = trace_cache_get(INS_B(**o_pc));
+          auto *otrace = trace_cache_get(INS_D(**o_pc));
           **o_pc = otrace->startpc;
         }
         record_side(trace, snap);
@@ -1109,7 +1109,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
     // and it's originaly a RET, i.e. we predicted the RET wrong.
     if (INS_OP(**o_pc) == JLOOP) {
       // TODO make work for both RET1 and JLOOP
-      auto *otrace = trace_cache_get(INS_B(**o_pc));
+      auto *otrace = trace_cache_get(INS_D(**o_pc));
       if (INS_OP(otrace->startpc) == LOOP) {
         (*o_pc)++;
       } else {
