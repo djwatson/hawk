@@ -1,3 +1,4 @@
+#pragma once
 /* stb_ds.h - v0.67 - public domain data structures - Sean Barrett 2019
 
    This is a single-header-file library that provides easy-to-use
@@ -1893,3 +1894,4 @@ ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ------------------------------------------------------------------------------
 */
+

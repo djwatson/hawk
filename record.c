@@ -22,7 +22,7 @@ typedef struct {
   uint32_t cnt;
 } blacklist_entry;
 
-#define BLACKLIST_MAX 64
+#define BLACKLIST_MAX 32
 #define BLACKLIST_SZ 64
 
 blacklist_entry blacklist[BLACKLIST_SZ];
@@ -75,10 +75,23 @@ void penalty_pc(uint32_t* pc) {
 	  printf("Could not blacklist %s\n", ins_names[INS_OP(*pc)]);
 	  exit(-1);
 	}
-	// TODO move up
+	int64_t next = i+1;
+	while(next < blacklist_slot) {
+	  blacklist_entry tmp = blacklist[next];
+	  blacklist[next-1] = blacklist[next];
+	  blacklist[next] = tmp;
+	  next++;
+	}
+	blacklist_slot--;
       } else {
 	blacklist[i].cnt++;
-	// TODO move up
+	int64_t prev = (int64_t)i-1;
+	while(prev >= 0 && blacklist[prev].cnt <= blacklist[prev+1].cnt) {
+	  blacklist_entry tmp = blacklist[prev];
+	  blacklist[prev] = blacklist[prev+1];
+	  blacklist[prev+1] = tmp;
+	  prev--;
+	}
       }
       return;
     }
@@ -91,7 +104,7 @@ void penalty_pc(uint32_t* pc) {
     blacklist_slot++;
   } else {
     blacklist[BLACKLIST_SZ - 1].pc = pc;
-    blacklist[BLACKLIST_SZ - 1].cnt = 1;;
+    blacklist[BLACKLIST_SZ - 1].cnt = 1;
   }
 }
 
