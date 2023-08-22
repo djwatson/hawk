@@ -14,9 +14,6 @@
 #include "gc.h"
 #include "opcodes.h"
 #include "record.h"
-#ifdef REPLAY
-#include "replay.h"
-#endif
 #ifdef PROFILER
 #include "profiler.h"
 #endif
@@ -688,9 +685,7 @@ LIBRARY_FUNC_D(JFUNC)
   // auto tnum = instr;
   //  printf("JFUNC/JLOOP run %i\n", rd);
 //  printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
-#ifdef REPLAY
-auto res = record_run(rd, &pc, &frame, frame_top);
-#elif defined(JIT)
+#if defined(JIT)
 auto res = jit_run(rd, &pc, &frame);
 #else
 auto res = 0;

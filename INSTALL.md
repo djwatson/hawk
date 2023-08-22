@@ -8,7 +8,6 @@
 * -DCMAKE_BUILD_TYPE=RELEASE (or RelWithDebugInfo or Debug)
 * -DJIT=on                        JIT.  Currently only works on x86_64 posix (macos/linux)
 * -DPROFILER=off                  A sampling profiler, currently only supported on linux.
-* -DREPLAY=off                    A debug utility, that won't jit, but replay the traced IR directly.
 * -DCMAKE_UNITY_BUILD=false       Build a 'unity' build, which should be similar to LTO.
 * -DBUILD_SHARED_LIBS=false       Probably want to build twice with shared and not shared for a real install.
 * -DCMAKE_INSTALL_PREFIX=
