@@ -310,7 +310,7 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   alloc_ptr += sz;
   if (alloc_ptr >= alloc_end) {
     printf("Heap exhausted, embiggen?\n");
-    assert(false);
+    exit(-1);
   }
   #ifndef NDEBUG
   mprotect(to_space, alloc_sz, PROT_NONE);

@@ -1,8 +1,5 @@
 # Getting all jit to work bench2
 
-* sum - 5000500 num too big?? requires bignums or special shit for boom
-* sboyer - unknown heap object?
-
 # working on
 
 * 'closure' opcode should all be in the bcfunc prototype, and done behind a single opcode.
