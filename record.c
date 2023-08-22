@@ -22,8 +22,8 @@ typedef struct {
   uint32_t cnt;
 } blacklist_entry;
 
-#define BLACKLIST_MAX 32
-#define BLACKLIST_SZ 64
+#define BLACKLIST_MAX 10
+#define BLACKLIST_SZ 100
 
 blacklist_entry blacklist[BLACKLIST_SZ];
 uint32_t blacklist_slot = 0;
@@ -85,6 +85,7 @@ void penalty_pc(uint32_t* pc) {
 	blacklist_slot--;
       } else {
 	blacklist[i].cnt++;
+	printf("Blacklist cnt now %i slot %i\n", blacklist[i].cnt, i);
 	int64_t prev = (int64_t)i-1;
 	while(prev >= 0 && blacklist[prev].cnt <= blacklist[prev+1].cnt) {
 	  blacklist_entry tmp = blacklist[prev];
@@ -103,6 +104,7 @@ void penalty_pc(uint32_t* pc) {
     blacklist[i].cnt = 1;
     blacklist_slot++;
   } else {
+    printf("BLACKLIST EVICT\n");
     blacklist[BLACKLIST_SZ - 1].pc = pc;
     blacklist[BLACKLIST_SZ - 1].cnt = 1;
   }
@@ -813,6 +815,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     uint64_t pos = frame[INS_C(i)] >> 3;
     vector_s* vec_d = (vector_s*)(frame[INS_B(i)] - PTR_TAG);
     uint8_t type = vec_d->v[pos] & TAG_MASK;
+    if (type == LITERAL_TAG) {
+      type = vec_d->v[pos] & IMMEDIATE_MASK;
+    }
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, vref, 0, IR_INS_TYPE_GUARD | type);
 
     break;
@@ -1056,6 +1061,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     uint64_t pos = INS_C(i) + 1;
     closure_s* clo_d = (closure_s*)(frame[INS_B(i)] - CLOSURE_TAG);
     uint8_t type = clo_d->v[pos] & TAG_MASK;
+    if (type == LITERAL_TAG) {
+      type = clo_d->v[pos] & IMMEDIATE_MASK;
+    }
 
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, 0, IR_INS_TYPE_GUARD | type);
     

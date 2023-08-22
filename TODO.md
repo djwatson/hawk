@@ -1,11 +1,8 @@
 # Getting all jit to work bench2
 
 * Max trace up to 16bits:
-  * read1
   * compiler
   * mazefun
-  * conform
-  * dynamic
 
 *****
 
