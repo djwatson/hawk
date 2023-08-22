@@ -114,7 +114,7 @@ long read_const(FILE *fptr) {
 
       auto *v = (vector_s *)GC_malloc(16 + len * sizeof(long));
       v->type = ptrtype;
-      v->len = len;
+      v->len = len << 3;
       for (long i = len - 1; i >= 0; i--) {
         v->v[i] = vals[i];
         GC_pop_root(&vals[i]);

@@ -1065,6 +1065,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
     break;
   }
+  case VECTOR_LENGTH: {
+    auto vec = record_stack_load(INS_B(i), frame);
+    auto ref = push_ir(trace, IR_REF, vec, 8 - PTR_TAG, UNDEFINED_TAG);
+    regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, 0, FIXNUM_TAG);
+    break;
+  }
   case CLOSURE_GET: {
     auto clo = record_stack_load(INS_B(i), frame);
     auto ref = push_ir(trace, IR_REF, clo, 16 + (8*(1 + INS_C(i))) - CLOSURE_TAG, UNDEFINED_TAG);
@@ -1134,8 +1140,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     return 1;
   }
   default: {
-    printf("Record abort: NYI: CANT RECORD BYTECODE %s\n",
-           ins_names[INS_OP(i)]);
+    bcfunc* fc = find_func_for_frame(pc);
+    printf("Record abort: NYI: CANT RECORD BYTECODE %s in %s\n",
+           ins_names[INS_OP(i)], fc->name);
     record_abort();
     return 1;
     // exit(-1);

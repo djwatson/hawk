@@ -29,7 +29,7 @@ void print_obj(long obj, FILE *file) {
     } else if (ptrtype == VECTOR_TAG) {
       auto *v = (vector_s *)(obj - PTR_TAG);
       fputs("#(", file);
-      for (long i = 0; i < v->len; i++) {
+      for (long i = 0; i < (v->len >> 3); i++) {
         if (i != 0) {
 	  fputc(' ', file);
         }

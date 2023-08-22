@@ -618,7 +618,7 @@ LIBRARY_FUNC_GUARD(JNGUARD, pc += INS_D(*(pc+1)) + 1, pc += 2, 0);
 LIBRARY_FUNC_B(VECTOR)
   auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
   closure->type = VECTOR_TAG;
-  closure->len = rb;
+  closure->len = rb << 3;
   for (int i = 0; i < rb; i++) {
     closure->v[i] = frame[ra + i];
   }
@@ -799,7 +799,7 @@ LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR)
   // Load frame[rc] *after* GC
   long fc = frame[rc];
   vec->type = VECTOR_TAG;
-  vec->len = len;
+  vec->len = fb;
   for (long i = 0; i < len; i++) {
     vec->v[i] = fc;
   }
@@ -830,7 +830,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF)
   TYPECHECK_FIXNUM(fc);
   LOAD_TYPE_WITH_CHECK(vec, vector_s, fb, VECTOR_TAG);
   long pos = fc >> 3;
-  if (vec->len - pos < 0) {
+  if ((long)(vec->len >> 3) - pos < 0) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   frame[ra] = vec->v[pos];
@@ -848,7 +848,7 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(VECTOR-LENGTH, VECTOR_LENGTH)
   LOAD_TYPE_WITH_CHECK(vec, vector_s, fb, VECTOR_TAG);
-  frame[ra] = (long)(vec->len << 3);
+  frame[ra] = (long)(vec->len);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(STRING-LENGTH, STRING_LENGTH)
@@ -861,7 +861,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
   TYPECHECK_FIXNUM(fb);
   LOAD_TYPE_WITH_CHECK(vec, vector_s, fa, VECTOR_TAG);
   long pos = fb >> 3;
-  if ((long)vec->len - pos <= 0) {
+  if ((long)(vec->len >> 3) - pos <= 0) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   vec->v[pos] = fc;
