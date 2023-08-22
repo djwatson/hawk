@@ -611,6 +611,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
       emit_mov64(R15, (int64_t)&spill_slot[op->slot]);
     }
+    /* if (op->reg == REG_NONE) { */
+    /*   printf("WARNING: emitting op with no reg: %i\n", op_cnt); */
+    /* } */
     
     // free current register.
     if (op->reg != REG_NONE) {
@@ -674,6 +677,10 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_GGET: {
+      // Used for typecheck only
+      if (op->reg == REG_NONE) {
+	op->reg = R15;
+      }
       auto *sym =
           (symbol *)(trace->consts[op->op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       auto reg = op->reg;
@@ -766,7 +773,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       // Used for typecheck only
       if (op->reg == REG_NONE) {
 	op->reg = R15;
-      printf("EMIT LOAD ONLY\n");
+	printf("EMIT LOAD ONLY\n");
       }
       maybe_assign_register(op->op1, trace, slot, &next_spill);
       maybe_assign_register(op->op2, trace, slot, &next_spill);
@@ -844,6 +851,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_CALLXS: {
+      // Used for typecheck only
       if (op->reg == REG_NONE) {
 	op->reg = RAX; // if unused, assign to call result reg.
       }

@@ -43,7 +43,7 @@
 (define (main)
   (let* ((count 1)
          (input1 1000000000)
-         (output 500000000500000000)
+         (output (string->number "500000000500000000"))
          (s2 (number->string count))
          (s1 (number->string input1))
          (name "sum"))
