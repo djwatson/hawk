@@ -30,6 +30,8 @@
 #define auto __auto_type
 #define nullptr NULL
 
+#include "lru.c"
+
 // TODO
 long *expand_stack_slowpath(long *frame);
 extern long *frame_top;
@@ -39,6 +41,7 @@ extern uint8_t *alloc_end;
 bool jit_dump_flag = false;
 
 int64_t spill_slot[256];
+lru reg_lru;
 
 void disassemble(const uint8_t *code, int len) {
 #ifdef CAPSTONE
@@ -106,7 +109,7 @@ bool reg_callee[] = {
 };
 // clang-format on
 
-int get_free_reg(const int *slot, bool callee) {
+int get_free_reg(trace_s* trace, uint32_t* next_spill, int *slot, bool callee) {
   for (int i = 0; i < regcnt; i++) {
     if (slot[i] == -1) {
       if (!callee || reg_callee[i]) {
@@ -114,8 +117,32 @@ int get_free_reg(const int *slot, bool callee) {
       }
     }
   }
-  printf("ERROR no free reg\n");
-  exit(-1);
+
+  // Poke the unusable slots.
+  lru_poke(&reg_lru, R15);
+  lru_poke(&reg_lru, RSP);
+  lru_poke(&reg_lru, RDI);
+  
+  // Spill.
+  auto oldest = lru_oldest(&reg_lru);
+  printf("Spilling reg %s\n", reg_names[oldest]);
+  auto op = slot[oldest];
+  assert(trace->ops[op].reg != REG_NONE);
+
+  auto spill = trace->ops[op].slot;
+  if (trace->ops[op].slot == SLOT_NONE) {
+    spill = (*next_spill)++;
+    assert(spill <= 255);
+  }
+
+  trace->ops[op].slot = spill;
+  emit_mem_reg(OP_MOV_MR, 0, R15, trace->ops[op].reg);
+  emit_mov64(R15, (int64_t)&spill_slot[trace->ops[op].slot]);
+  trace->ops[op].reg = REG_NONE;
+  slot[oldest] = -1;
+
+  
+  return oldest;
 }
 
 // Re-assign non-callee saved regs to callee saved.
@@ -129,6 +156,7 @@ void preserve_for_call(trace_s* trace, int *slot, uint32_t* next_spill) {
 	// Reload from new spill slot
 	// We don't need to store here, original instruction will store.
 	spill = (*next_spill)++;
+	assert(spill <= 255);
       }
       trace->ops[op].slot = spill;
       printf("Assigning spill slot %i to op %i, mov to reg %s\n", spill, op, reg_names[trace->ops[op].reg]);
@@ -141,11 +169,11 @@ void preserve_for_call(trace_s* trace, int *slot, uint32_t* next_spill) {
   }
 }
 
-void maybe_assign_register(int v, trace_s *trace, int *slot) {
+void maybe_assign_register(int v, trace_s *trace, int *slot, uint32_t*next_spill) {
   if ((v & IR_CONST_BIAS) == 0) {
     auto op = &trace->ops[v];
     if (op->reg == REG_NONE) {
-      op->reg = get_free_reg(slot, false);
+      op->reg = get_free_reg(trace, next_spill, slot, false);
       slot[op->reg] = v;
 
       // TODO this needs to go after the isntruction???????
@@ -153,16 +181,18 @@ void maybe_assign_register(int v, trace_s *trace, int *slot) {
       if (op->slot != SLOT_NONE) {
 	printf("Assigning register %s to op %i spilled slot %i\n", reg_names[op->reg], v, op->slot);
       }
-    }
+	printf("Assigning register %s to op %i\n", reg_names[op->reg], v);
+    } 
+    lru_poke(&reg_lru, op->reg);
   }
 }
 
-void assign_snap_registers(unsigned snap_num, int *slot, trace_s *trace) {
+void assign_snap_registers(unsigned snap_num, int *slot, trace_s *trace, uint32_t* next_spill) {
   auto snap = &trace->snaps[snap_num];
   for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto s = &snap->slots[i];
     if ((s->val & IR_CONST_BIAS) == 0) {
-      maybe_assign_register(s->val, trace, slot);
+      maybe_assign_register(s->val, trace, slot, next_spill);
     }
   }
 }
@@ -318,6 +348,11 @@ void emit_snap(int snap, trace_s *trace, bool all) {
           op->op1 == slot->slot && slot->slot < sn->offset) {
         printf("DROPPING emit snap of slot %i\n", slot->slot);
         // nothing
+      } else if (op->slot != SLOT_NONE) {
+	// Reload from spill.
+	emit_mem_reg(OP_MOV_RM, slot->slot * 8, RDI, op->reg);
+	emit_mem_reg(OP_MOV_MR, 0, R15, op->reg);
+	emit_mov64(R15, (int64_t)&spill_slot[op->slot]);
       } else {
 	emit_mem_reg(OP_MOV_RM, slot->slot * 8, RDI, op->reg);
       }
@@ -349,9 +384,9 @@ void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
 }
 
 void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins *op,
-                trace_s *trace, int32_t offset, int *slot) {
-  maybe_assign_register(op->op1, trace, slot);
-  maybe_assign_register(op->op2, trace, slot);
+                trace_s *trace, int32_t offset, int *slot, uint32_t* next_spill) {
+  maybe_assign_register(op->op1, trace, slot, next_spill);
+  maybe_assign_register(op->op2, trace, slot, next_spill);
 
   emit_jcc32(JO, offset);
 
@@ -392,9 +427,9 @@ void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins *op,
 }
 
 void emit_cmp(enum jcc_cond cmp, ir_ins *op, trace_s *trace, int32_t offset,
-              int *slot) {
-  maybe_assign_register(op->op1, trace, slot);
-  maybe_assign_register(op->op2, trace, slot);
+              int *slot, uint32_t*next_spill) {
+  maybe_assign_register(op->op1, trace, slot, next_spill);
+  maybe_assign_register(op->op2, trace, slot, next_spill);
 
   emit_jcc32(cmp, offset);
   uint8_t reg = R15;
@@ -436,6 +471,7 @@ void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
 
 void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   emit_init();
+  lru_init(&reg_lru);
 
   uint32_t next_spill = 1;
 
@@ -540,7 +576,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     // 	a.mov(ir_to_asmjit[c.first], con & ~SNAP_FRAME);
     //       }
     //     }
-    assign_snap_registers(arrlen(trace->snaps) - 1, slot, trace);
+    assign_snap_registers(arrlen(trace->snaps) - 1, slot, trace, &next_spill);
     emit_snap(arrlen(trace->snaps) - 1, trace,
               (INS_OP(otrace->startpc) != FUNC));
   } else {
@@ -554,11 +590,11 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   // Main generation loop
   long cur_snap = arrlen(trace->snaps) - 1;
   long op_cnt = arrlen(trace->ops) - 1;
-  assign_snap_registers(cur_snap, slot, trace);
+  assign_snap_registers(cur_snap, slot, trace, &next_spill);
   for (; op_cnt >= 0; op_cnt--) {
     while (cur_snap >= 0 && trace->snaps[cur_snap].ir > op_cnt) {
       if (cur_snap > 0) {
-        assign_snap_registers(cur_snap - 1, slot, trace);
+        assign_snap_registers(cur_snap - 1, slot, trace, &next_spill);
       }
       cur_snap--;
     }
@@ -566,6 +602,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
     // Check for spill
     if (op->slot != SLOT_NONE) {
+      if (op->reg == REG_NONE) {
+	maybe_assign_register(op_cnt, trace, slot, &next_spill);
+      }
       printf("Spilling op %li to slot %i from reg %s\n", op_cnt, op->slot, reg_names[op->reg]);
       emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
       emit_mov64(R15, (int64_t)&spill_slot[op->slot]);
@@ -595,7 +634,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_CAR: {
-      maybe_assign_register(op->op1, trace, slot);
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
       auto reg = op->reg;
       if (reg == REG_NONE) {
         reg = R15; // Unused, but potentially used by JGUARD.
@@ -614,7 +653,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_CDR: {
-      maybe_assign_register(op->op1, trace, slot);
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
       auto reg = op->reg;
       if (reg == REG_NONE) {
         reg = R15; // Unused, but potentially used by JGUARD.
@@ -645,12 +684,12 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_GSET: {
-      maybe_assign_register(op->op2, trace, slot);
+      maybe_assign_register(op->op2, trace, slot, &next_spill);
       auto *sym =
           (symbol *)(trace->consts[op->op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       if (ir_is_const(op->op2)) {
         auto c = trace->consts[op->op2 - IR_CONST_BIAS];
-	auto r = get_free_reg(slot, false);
+	auto r = get_free_reg(trace, &next_spill, slot, false);
 	emit_mem_reg(OP_MOV_RM, 0, R15, r);
 	auto re = (reloc){emit_offset(), c, RELOC_ABS};
 	arrput(trace->relocs, re);
@@ -665,8 +704,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_STRST: {
-      maybe_assign_register(op->op1, trace, slot);
-      maybe_assign_register(op->op2, trace, slot);
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
+      maybe_assign_register(op->op2, trace, slot, &next_spill);
       assert(!(op->op1 & IR_CONST_BIAS));
       assert(trace->ops[op->op1].op == IR_STRREF);
       if (op->op2 & IR_CONST_BIAS) {
@@ -683,8 +722,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_STORE: {
-      maybe_assign_register(op->op1, trace, slot);
-      maybe_assign_register(op->op2, trace, slot);
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
+      maybe_assign_register(op->op2, trace, slot, &next_spill);
       assert(!(op->op1 & IR_CONST_BIAS));
       assert(trace->ops[op->op1].op == IR_REF ||
              trace->ops[op->op1].op == IR_VREF);
@@ -701,8 +740,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_STRLD: {
-      maybe_assign_register(op->op1, trace, slot);
-      maybe_assign_register(op->op2, trace, slot);
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
+      maybe_assign_register(op->op2, trace, slot, &next_spill);
       assert(!ir_is_const(op->op1)); // str
 
       emit_arith_imm(OP_ARITH_ADD, op->reg, CHAR_TAG);
@@ -727,8 +766,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 	op->reg = R15;
       printf("EMIT LOAD ONLY\n");
       }
-      maybe_assign_register(op->op1, trace, slot);
-      maybe_assign_register(op->op2, trace, slot);
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
+      maybe_assign_register(op->op2, trace, slot, &next_spill);
       assert(op->reg != REG_NONE);
       assert(!ir_is_const(op->op1));
       //sassert(!ir_is_const(op->op2));
@@ -744,8 +783,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     }
     case IR_VREF: {
       // TODO: fuse.
-      maybe_assign_register(op->op1, trace, slot);
-      maybe_assign_register(op->op2, trace, slot);
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
+      maybe_assign_register(op->op2, trace, slot, &next_spill);
       assert(op->reg != REG_NONE);
       assert(!ir_is_const(op->op1));
       if(ir_is_const(op->op2)) {
@@ -760,14 +799,14 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     }
     case IR_REF: {
       // TODO: fuse.
-      maybe_assign_register(op->op1, trace, slot);
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
       emit_mem_reg(OP_LEA, op->op2, trace->ops[op->op1].reg, op->reg);
       break;
     }
     case IR_STRREF: {
       // TODO: fuse.
-      maybe_assign_register(op->op1, trace, slot);
-      maybe_assign_register(op->op2, trace, slot);
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
+      maybe_assign_register(op->op2, trace, slot, &next_spill);
       assert(!ir_is_const(op->op1));
       if (!ir_is_const(op->op2)) {
 	emit_mem_reg_sib(OP_LEA, 16 - PTR_TAG, 0, R15, trace->ops[op->op1].reg, op->reg);
@@ -811,10 +850,10 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       // TODO assign to arg1 directly
       if (trace->ops[op->op1].op == IR_CARG) {
 	auto cop = &trace->ops[op->op1];
-	maybe_assign_register(cop->op1, trace, slot);
-	maybe_assign_register(cop->op2, trace, slot);
+	maybe_assign_register(cop->op1, trace, slot, &next_spill);
+	maybe_assign_register(cop->op2, trace, slot, &next_spill);
       } else {
-	maybe_assign_register(op->op1, trace, slot);
+	maybe_assign_register(op->op1, trace, slot, &next_spill);
       }
 
       // TODO typecheck
@@ -867,29 +906,29 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       //       break;
       //     }
     case IR_EQ: {
-      emit_cmp(JNE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot);
+      emit_cmp(JNE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
       break;
     }
     case IR_NE: {
-      emit_cmp(JE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot);
+      emit_cmp(JE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
       break;
     }
     case IR_GE: {
-      emit_cmp(JL, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot);
+      emit_cmp(JL, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
       break;
     }
     case IR_LT: {
-      emit_cmp(JGE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot);
+      emit_cmp(JGE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
       break;
     }
     case IR_ADD: {
       emit_arith(OP_ARITH_ADD, OP_ADD, op, trace,
-                 (int32_t)(snap_labels[cur_snap] - emit_offset()), slot);
+                 (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
       break;
     }
     case IR_SUB: {
       emit_arith(OP_ARITH_SUB, OP_SUB, op, trace,
-                 (int32_t)(snap_labels[cur_snap] - emit_offset()), slot);
+                 (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
       break;
     }
       //     case IR_LOOP: {

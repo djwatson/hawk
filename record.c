@@ -343,9 +343,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   arrput(traces, trace);
 
   //dump_trace(trace);
-#ifndef REPLAY
   asm_jit(trace, side_exit, parent);
-#endif
   dump_trace(trace);
 
   trace_state = OFF;

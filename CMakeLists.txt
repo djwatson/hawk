@@ -122,6 +122,7 @@ add_custom_command(
 # Actual executable
 add_executable(boom  boom.c)
 target_link_libraries(boom PUBLIC boom_vm)
+target_compile_options(boom PRIVATE -gdwarf-3 -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference )
 set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 

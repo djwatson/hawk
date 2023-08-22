@@ -5,23 +5,14 @@
   * conform
   * compiler
   * slatex
-
-* Reg spill working, not just CALLXS
-
-* somethiing broken in compiler.scm.bc
+  * mazefun
+  * dynamic
 
 *****
 
-* dynamic - same, also no free reg
-* sboyer
-* nboyer
-* compiler
 * sum - 5000500 num too big?? requires bignums or special shit for boom
-* paraffins - no reg
 * earley- fail - no reg
 * matrix- fail - no reg
-* mazefun - fail - no reg
-* scheme
 
 # working on
 
