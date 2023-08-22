@@ -1,6 +1,7 @@
 # Getting all jit to work bench2
 
 * sum - 5000500 num too big?? requires bignums or special shit for boom
+* sboyer - unknown heap object?
 
 # working on
 
