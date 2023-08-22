@@ -23,7 +23,7 @@ typedef struct {
 } blacklist_entry;
 
 #define BLACKLIST_MAX 10
-#define BLACKLIST_SZ 256
+#define BLACKLIST_SZ 512
 
 blacklist_entry blacklist[BLACKLIST_SZ];
 uint32_t blacklist_slot = 0;
@@ -921,8 +921,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, gp);
-    uint8_t type = IR_INS_TYPE_GUARD | (((symbol *)(gp - SYMBOL_TAG))->val & 0x7);
-    regs[INS_A(i)] = push_ir(trace, IR_GGET, knum | IR_CONST_BIAS, IR_NONE, type);
+    symbol *sym = (symbol*)(gp - SYMBOL_TAG);
+    uint8_t type = sym->val & TAG_MASK;
+    if (type == LITERAL_TAG) {
+      type = sym->val & IMMEDIATE_MASK;
+    }
+    regs[INS_A(i)] = push_ir(trace, IR_GGET, knum | IR_CONST_BIAS, IR_NONE, type | IR_INS_TYPE_GUARD);
     break;
   }
   case GSET: {
