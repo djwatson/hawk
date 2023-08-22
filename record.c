@@ -766,6 +766,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[INS_A(i)] = push_ir(trace, op, op1, IR_NONE, type | IR_INS_TYPE_GUARD);
     break;
   }
+  case JNGUARD: 
   case JGUARD: {
     record_stack_load(INS_B(i), frame);
     long tag = INS_C(i);
