@@ -817,7 +817,7 @@ LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING)
   TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
   
   str->type = STRING_TAG;
-  str->len = len;
+  str->len = fb;
   for (long i = 0; i < len; i++) {
     str->str[i] = (char)((fc >> 8) & 0xff);
   }
@@ -840,7 +840,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF)
   TYPECHECK_FIXNUM(fc);
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
   long pos = fc >> 3;
-  if (str->len - pos < 0) {
+  if ((long)(str->len >> 3) - pos < 0) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   frame[ra] = (str->str[pos] << 8) | CHAR_TAG;
@@ -853,7 +853,7 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(STRING-LENGTH, STRING_LENGTH)
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
-  frame[ra] = (long)(str->len << 3);
+  frame[ra] = (long)(str->len);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
@@ -873,7 +873,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET)
   TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
   LOAD_TYPE_WITH_CHECK(str, string_s, fa, STRING_TAG);
   long pos = fb >> 3;
-  if ((long)str->len - pos <= 0) {
+  if ((long)(str->len >> 3) - pos <= 0) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   str->str[pos] = (char)((fc >> 8) & 0xff);
@@ -933,7 +933,7 @@ LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
   if (!res) {
     // Build a new symbol.
     // Must dup the string, since strings are not immutable.
-    auto strlen = str->len;
+    auto strlen = str->len >> 3;
     auto sym = (symbol *)GC_malloc(sizeof(symbol));
     sym->type = SYMBOL_TAG;
   
@@ -955,7 +955,7 @@ LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
     str = (string_s *)sym->name;
   
     str2->type = STRING_TAG;
-    str2->len = strlen;
+    str2->len = strlen << 3;
     memcpy(str2->str, str->str, strlen+1);
   
     sym->name = str2;
@@ -1060,7 +1060,7 @@ LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
   } else {
    auto str = (string_s*)GC_malloc(res + 16);
    str->type = STRING_TAG;
-   str->len = res;
+   str->len = res << 3;
    memcpy(str->str, bufptr, res);
    str->str[res - 1] = '\0';
    frame[ra] = (long)str + PTR_TAG;

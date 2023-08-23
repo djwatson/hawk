@@ -108,7 +108,7 @@ long from_c_str(const char *s) {
   unsigned long len = strlen(s);
   auto *str = (string_s *)GC_malloc(16 + len + 1);
   str->type = STRING_TAG;
-  str->len = len;
+  str->len = len << 3;
   memcpy(str->str, s, len);
   str->str[len] = '\0';
   return (long)str | PTR_TAG;

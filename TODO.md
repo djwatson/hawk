@@ -1,5 +1,8 @@
 # Getting all jit to work bench2
 
+* need to get ptr type load working - equal? fails because vector? fails to always true if it's aptr type.
+  * r4rs fails
+
 # working on
 
 * 'closure' opcode should all be in the bcfunc prototype, and done behind a single opcode.

@@ -4,4 +4,5 @@
 ;;     ((= i 300) 0)
 ;;   (set! g (+ g (vector-length v))))
 ;; (display g)
-($write ($vector-length '#(1 2 3)) ($open 1 #f))
+($write ($string-length ($symbol->string 'foo)) ($open 1 #f))
+

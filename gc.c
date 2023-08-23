@@ -58,7 +58,7 @@ size_t heap_object_size(long *obj) {
     return sizeof(flonum_s);
   case STRING_TAG: {
     auto *str = (vector_s *)obj;
-    return str->len * sizeof(char) + 16 + 1 /* null tag */;
+    return (str->len >> 3) * sizeof(char) + 16 + 1 /* null tag */;
   }
   case SYMBOL_TAG:
     return sizeof(symbol);

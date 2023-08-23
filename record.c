@@ -1065,6 +1065,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
     break;
   }
+  case STRING_LENGTH:
   case VECTOR_LENGTH: {
     auto vec = record_stack_load(INS_B(i), frame);
     auto ref = push_ir(trace, IR_REF, vec, 8 - PTR_TAG, UNDEFINED_TAG);

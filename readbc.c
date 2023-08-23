@@ -42,7 +42,7 @@ long read_const(FILE *fptr) {
       // TODO GC symbol table
       auto *str = (string_s *)GC_malloc(16 + 1 + len);
       str->type = STRING_TAG;
-      str->len = len;
+      str->len = len << 3;
       str->str[len] = '\0';
       fread(str->str, 1, len, fptr);
 
@@ -98,7 +98,7 @@ long read_const(FILE *fptr) {
       fread(&len, 8, 1, fptr);
       auto *str = (string_s *)GC_malloc(16 + len + 1);
       str->type = ptrtype;
-      str->len = len;
+      str->len = len << 3;
       fread(&str->str, 1, len, fptr);
       str->str[len] = '\0';
       val = (long)str | PTR_TAG;
