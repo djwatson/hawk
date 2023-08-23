@@ -189,7 +189,7 @@ void dump_trace(trace_s *ctrace) {
       printf("    ");
     }
     printf("%c\t", (op.type & IR_INS_TYPE_GUARD) != 0 ? '>' : ' ');
-    auto t = op.type & TAG_MASK;
+    auto t = op.type & ~IR_INS_TYPE_GUARD;
     if (t == FIXNUM_TAG) {
       printf("\e[1;35mfix \e[m ");
     } else if (t == CLOSURE_TAG) {
@@ -202,12 +202,34 @@ void dump_trace(trace_s *ctrace) {
       printf("\e[1;34msym \e[m ");
     } else if ((op.type & ~IR_INS_TYPE_GUARD) == UNDEFINED_TAG) {
       printf("     ");
+    } else if (t == BOOL_TAG) {
+      printf("\e[1;34mbool\e[m ");
+    } else if (t == NIL_TAG) {
+      printf("\e[1;34mnil \e[m ");
+    } else if (t == EOF_TAG) {
+      printf("\e[1;34meof \e[m ");
     } else if (t == LITERAL_TAG) {
       printf("\e[1;34mlit \e[m ");
+      assert(false);
+    } else if (t == STRING_TAG) {
+      printf("\e[1;34mstr \e[m ");
+    } else if (t == VECTOR_TAG) {
+      printf("\e[1;34mvec \e[m ");
+    } else if (t == PORT_TAG) {
+      printf("\e[1;34mport\e[m ");
+    } else if (t == BOX_TAG) {
+      printf("\e[1;34mbox \e[m ");
+    } else if (t == CONT_TAG) {
+      printf("\e[1;34mcont\e[m ");
     } else if (t == PTR_TAG) {
-      // TODO
       printf("\e[1;34mptr \e[m ");
+
+    } else if (t == CHAR_TAG) {
+      printf("\e[1;34mchar\e[m ");
+    } else if (t == UNDEFINED_TAG) {
     } else {
+      printf("UNKNOWN TAG %i\n", t);
+      fflush(stdout);
       //printf("\e[1;34mUNK \e[m ");
       assert(false);
     }
@@ -352,7 +374,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   arrput(traces, trace);
 
-  //dump_trace(trace);
+  dump_trace(trace);
   asm_jit(trace, side_exit, parent);
   dump_trace(trace);
 
@@ -409,19 +431,35 @@ int record(unsigned int *pc, long *frame, long argcnt) {
   }
 }
 
+// Convert a runtime object type to an IR type.
+// Use tag bits.  If it's a literal, use IMMEDIATE_MASK.
+// If it's a PTR_TAG, follow ptr and use tag bits there.
+//
+// Currently depends on tag being less than 7 bits total.
+// TODO top bit is IR_INS_TYPE_GUARD, this should be part
+//      of the load instruction instead.
+// TODO: for records we may need a different strategy.
+uint8_t get_object_ir_type(int64_t obj) {
+  uint8_t t;
+  if ((obj & TAG_MASK) == PTR_TAG) {
+    int64_t* objp = (int64_t*)(obj - PTR_TAG);
+    t = (*objp) & IMMEDIATE_MASK;
+  } else if ((obj & TAG_MASK) == LITERAL_TAG) {
+    t = obj & IMMEDIATE_MASK;
+  } else {
+    t = obj & TAG_MASK;
+  }
+  if (t == PTR_TAG) {
+    assert(false);
+  }
+  return t;
+}
+
 int record_stack_load(int slot, const long *frame) {
   if (regs[slot] == -1) {
     // Guard on type
-    auto type = frame[slot] & 0x7;
-    if (type == LITERAL_TAG) {
-      type = frame[slot] & IMMEDIATE_MASK;
-    }
-    if (type == PTR_TAG) {
-      printf("WARNING typecheck ptr\n");
-      // TODO
-      // assert(false);
-    }
-
+    auto type = get_object_ir_type(frame[slot]);
+    
     regs[slot] = push_ir(trace, IR_SLOAD, slot, IR_NONE, IR_INS_TYPE_GUARD | type);
   }
   return regs[slot];
@@ -571,7 +609,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     {
       auto clo = record_stack_load(INS_A(i) + 1, frame);
-      auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, 0);
+      auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
       auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
       regs[INS_A(i)] = fun;
       auto cl = frame[INS_A(i) + 1];
@@ -871,18 +909,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (INS_OP(i) == CAR || INS_OP(i) == UNBOX) {
       // TODO typecheck
       // TODO cleanup
-      type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->a & TAG_MASK;
-      if (type == LITERAL_TAG) {
-        type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->a & IMMEDIATE_MASK;
-      }
+      type = get_object_ir_type(((cons_s *)(frame[INS_B(i)] - CONS_TAG))->a);
     } else {
-      type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->b & TAG_MASK;
-      if (type == LITERAL_TAG) {
-        type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->b & IMMEDIATE_MASK;
-      }
+      type = get_object_ir_type(((cons_s *)(frame[INS_B(i)] - CONS_TAG))->b);
       offset = sizeof(long);
     }
-    auto ref = push_ir(trace, IR_REF, op1, 8 - CONS_TAG + offset, type | IR_INS_TYPE_GUARD);
+    auto ref = push_ir(trace, IR_REF, op1, 8 - CONS_TAG + offset, UNDEFINED_TAG);
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, IR_NONE, type | IR_INS_TYPE_GUARD);
     break;
   }
@@ -958,10 +990,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
     uint64_t pos = frame[INS_C(i)] >> 3;
     vector_s* vec_d = (vector_s*)(frame[INS_B(i)] - PTR_TAG);
-    uint8_t type = vec_d->v[pos] & TAG_MASK;
-    if (type == LITERAL_TAG) {
-      type = vec_d->v[pos] & IMMEDIATE_MASK;
-    }
+    uint8_t type = get_object_ir_type(vec_d->v[pos]);
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, vref, 0, IR_INS_TYPE_GUARD | type);
 
     break;
@@ -995,7 +1024,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // TODO fixed closz
     long closz = (frame[INS_A(i)+1] >> 3)+1;
     auto cell = push_ir(trace, IR_ALLOC, sizeof(long)* (closz + 2), CLOSURE_TAG, CLOSURE_TAG);
-    auto ref = push_ir(trace, IR_REF, cell, 8 - CLOSURE_TAG, 0);
+    auto ref = push_ir(trace, IR_REF, cell, 8 - CLOSURE_TAG, UNDEFINED_TAG);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)closz << 3);
     push_ir(trace, IR_STORE, ref, knum | IR_CONST_BIAS, 0);
@@ -1008,7 +1037,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // TODO figure out a way to ensure we always snapshpt
     // after fully setting? I.e. don't abort ever?
     for(long j = 0; j < closz; j++) {
-      ref = push_ir(trace, IR_REF, cell, 16 +8*j - CLOSURE_TAG, 0);
+      ref = push_ir(trace, IR_REF, cell, 16 +8*j - CLOSURE_TAG, UNDEFINED_TAG);
       push_ir(trace, IR_STORE, ref, a, 0);
     }
     regs[INS_A(i)] = cell;
@@ -1058,7 +1087,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     //   all registers to stack.
     trace->snaps[arrlen(trace->snaps) - 1].exits = 100;
     
-    auto cell = push_ir(trace, IR_ALLOC, sizeof(vector_s) + 8*len, VECTOR_TAG, PTR_TAG);
+    auto cell = push_ir(trace, IR_ALLOC, sizeof(vector_s) + 8*len, PTR_TAG, VECTOR_TAG);
     regs[reg] = cell;
     auto ref = push_ir(trace, IR_REF, cell, 8 - PTR_TAG, UNDEFINED_TAG);
     auto knum = arrlen(trace->consts);
@@ -1104,10 +1133,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, gp);
     symbol *sym = (symbol*)(gp - SYMBOL_TAG);
-    uint8_t type = sym->val & TAG_MASK;
-    if (type == LITERAL_TAG) {
-      type = sym->val & IMMEDIATE_MASK;
-    }
+    uint8_t type = get_object_ir_type(sym->val);
     regs[INS_A(i)] = push_ir(trace, IR_GGET, knum | IR_CONST_BIAS, IR_NONE, type | IR_INS_TYPE_GUARD);
     break;
   }
@@ -1115,8 +1141,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     long gp = const_table[INS_D(i)];
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, gp);
-    uint8_t type = (((symbol *)(gp - SYMBOL_TAG))->val & 0x7);
-    push_ir(trace, IR_GSET, knum | IR_CONST_BIAS, record_stack_load(INS_A(i), frame), type);
+    push_ir(trace, IR_GSET, knum | IR_CONST_BIAS, record_stack_load(INS_A(i), frame), UNDEFINED_TAG);
     break;
   }
   case SUBVN: {
@@ -1252,10 +1277,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // be what code is expecting.
     uint64_t pos = INS_C(i) + 1;
     closure_s* clo_d = (closure_s*)(frame[INS_B(i)] - CLOSURE_TAG);
-    uint8_t type = clo_d->v[pos] & TAG_MASK;
-    if (type == LITERAL_TAG) {
-      type = clo_d->v[pos] & IMMEDIATE_MASK;
-    }
+    uint8_t type = get_object_ir_type(clo_d->v[pos]);
 
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, 0, IR_INS_TYPE_GUARD | type);
     

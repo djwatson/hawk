@@ -146,7 +146,6 @@ int get_free_reg(trace_s* trace, uint32_t* next_spill, int *slot, bool callee) {
 }
 
 // Re-assign non-callee saved regs to callee saved.
-// TODO: spill if necessary.
 void preserve_for_call(trace_s* trace, int *slot, uint32_t* next_spill) {
   for (int i = 0; i < regcnt; i++) {
     if (i != RDI && slot[i] != -1 && !reg_callee[i]) {
@@ -176,7 +175,6 @@ void maybe_assign_register(int v, trace_s *trace, int *slot, uint32_t*next_spill
       op->reg = get_free_reg(trace, next_spill, slot, false);
       slot[op->reg] = v;
 
-      // TODO this needs to go after the isntruction???????
       // Reload from spill slot.
       if (op->slot != SLOT_NONE) {
 	printf("Assigning register %s to op %i spilled slot %i\n", reg_names[op->reg], v, op->slot);
@@ -327,7 +325,6 @@ void emit_snap(int snap, trace_s *trace, bool all) {
       break;
     }
   }
-  // TODO frame size check
   for (uint64_t i = 0; i < arrlen(sn->slots); i++) {
     auto slot = &sn->slots[i];
     emit_check();
@@ -360,7 +357,6 @@ void emit_snap(int snap, trace_s *trace, bool all) {
       }
     }
   }
-  // TODO check stack size
 }
 
 void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
@@ -456,12 +452,17 @@ void emit_cmp(enum jcc_cond cmp, ir_ins *op, trace_s *trace, int32_t offset,
 
 void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
   if ((type & IR_INS_TYPE_GUARD) != 0) {
+    auto p = emit_offset();
     emit_jcc32(JNE, offset);
     if ((type & ~IR_INS_TYPE_GUARD) == 0) {
       emit_op_imm32(OP_TEST_IMM, 0, reg, 0x7);
     } else if ((type & TAG_MASK) == PTR_TAG) {
-      // assert(false);
-      printf("TODO typecheck ptr\n");
+      emit_cmp_reg_imm32(R15, type & ~IR_INS_TYPE_GUARD);
+      emit_mem_reg(OP_MOV_MR, -PTR_TAG, R15, R15);
+      emit_reg_reg(OP_MOV, reg, R15);
+      // TODO clean offsets up a bit.
+      auto diff = emit_offset() - p;
+      emit_jcc32(JNE, offset - diff);
       emit_cmp_reg_imm32(R15, 1);
       emit_op_imm32(OP_AND_IMM, 4, R15, 0x7);
       emit_reg_reg(OP_MOV, reg, R15);
@@ -633,8 +634,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case IR_SLOAD: {
       // Used for typecheck only
       if (op->reg == REG_NONE) {
-	op->reg = R15;
-      printf("EMIT LOAD ONLY\n");
+	op->reg = get_free_reg(trace, &next_spill, slot, false);
+	printf("EMIT LOAD ONLY\n");
       }
       // frame pointer in RDI
       auto reg = op->reg;
@@ -648,7 +649,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case IR_GGET: {
       // Used for typecheck only
       if (op->reg == REG_NONE) {
-	op->reg = R15;
+	op->reg = get_free_reg(trace, &next_spill, slot, false);
       }
       auto *sym =
           (symbol *)(trace->consts[op->op1 - IR_CONST_BIAS] - SYMBOL_TAG);
@@ -741,7 +742,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case IR_LOAD: {
       // Used for typecheck only
       if (op->reg == REG_NONE) {
-	op->reg = R15;
+	op->reg = get_free_reg(trace, &next_spill, slot, false);
 	printf("EMIT LOAD ONLY\n");
       }
       maybe_assign_register(op->op1, trace, slot, &next_spill);
@@ -807,9 +808,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_ALLOC: {
-      emit_arith_imm(OP_ARITH_ADD, op->reg, op->type & TAG_MASK);
+      emit_arith_imm(OP_ARITH_ADD, op->reg, op->op2 & TAG_MASK);
       emit_mem_reg(OP_MOV_RM, 0, op->reg, R15);
-      emit_mov64(R15, op->op2);
+      emit_mov64(R15, op->type & ~IR_INS_TYPE_GUARD);
       emit_arith_imm(OP_ARITH_SUB, op->reg, op->op1);
       emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
       emit_mov64(R15, (int64_t)&alloc_ptr);
@@ -857,9 +858,18 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       // args
       if (trace->ops[op->op1].op == IR_CARG) {
 	auto cop = &trace->ops[op->op1];
-	emit_reg_reg(OP_MOV, trace->ops[cop->op1].reg, RDI);
+	assert(!ir_is_const(cop->op2));
+	if (ir_is_const(cop->op1)) {
+	  auto c2 = trace->consts[cop->op1 - IR_CONST_BIAS];
+	  auto re = (reloc){emit_offset(), c2, RELOC_ABS};
+	  arrput(trace->relocs, re);
+	  emit_mov64(RDI, (int64_t)(c2));
+	} else {
+	  emit_reg_reg(OP_MOV, trace->ops[cop->op1].reg, RDI);
+	}
 	emit_reg_reg(OP_MOV, trace->ops[cop->op2].reg, RSI);
       } else {
+	assert(!ir_is_const(op->op1));
 	emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, RDI);
       }
       

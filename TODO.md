@@ -1,4 +1,7 @@
+* figure out why compiler2 broken gives internal compiler error
+
 # Getting all jit to work bench2
+
 
 * fails with full compiler jit 
   * r7rs test
