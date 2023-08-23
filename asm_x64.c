@@ -434,16 +434,23 @@ void emit_cmp(enum jcc_cond cmp, ir_ins *op, trace_s *trace, int32_t offset,
   maybe_assign_register(op->op2, trace, slot, next_spill);
 
   emit_jcc32(cmp, offset);
-  uint8_t reg = R15;
-  if (!(op->op1 & IR_CONST_BIAS)) {
+  uint8_t reg;
+  if (!ir_is_const(op->op1)) {
     reg = trace->ops[op->op1].reg;
+  } else {
+    // Find a tmp reg.
+    if (ir_is_const(op->op2)) {
+      reg = get_free_reg(trace, next_spill, slot, false);
+    } else {
+      reg = R15;
+    }
   }
   emit_arith_op(OP_ARITH_CMP, OP_CMP, reg, op->op2, trace, offset, slot);
-  if (op->op1 & IR_CONST_BIAS) {
+  if (ir_is_const(op->op1)) {
     auto c = trace->consts[op->op1 - IR_CONST_BIAS];
     auto re = (reloc){emit_offset(), c, RELOC_ABS};
     arrput(trace->relocs, re);
-    emit_mov64(R15, c);
+    emit_mov64(reg, c);
   }
 }
 
