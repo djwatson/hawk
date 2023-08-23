@@ -314,7 +314,7 @@ void record_start(unsigned int *pc, long *frame) {
     snap_replay(&regs, side_exit, parent, trace, frame, &depth);
   }
   add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-           INS_OP(*pc) == FUNC ? pc + 1 : pc, depth);
+           (INS_OP(*pc) == FUNC || INS_OP(*pc) == LOOP) ? pc + 1 : pc, depth);
 }
 
 extern int joff;
@@ -354,7 +354,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   arrput(traces, trace);
 
-  dump_trace(trace);
+  //dump_trace(trace);
   asm_jit(trace, side_exit, parent);
   dump_trace(trace);
 
