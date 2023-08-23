@@ -68,8 +68,6 @@
   *pnpoly
   * gcbench
   * puzzle
-* JISNEQ
-  * triangl
 * set-cdr! set-car!
   * destruc
   * parsing

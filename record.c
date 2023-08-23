@@ -789,6 +789,33 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
     break;
   }
+  case JISNEQ: {
+    uint32_t op1 = record_stack_load(INS_B(i), frame);
+    uint32_t op2 = record_stack_load(INS_C(i), frame);
+    uint32_t *next_pc;
+    ir_ins_op op;
+    if (INS_OP(i) == JNEQV) {
+      if ((frame[INS_B(i)] & TAG_MASK) == FLONUM_TAG ||
+	  (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
+	printf("Record abort: flonum not supported in jneqv\n");
+	record_abort();
+	return 1;
+      }
+    }
+    if (frame[INS_B(i)] != frame[INS_C(i)]) {
+      op = IR_NE;
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace,
+               pc + INS_D(*(pc + 1)) + 1, depth);
+      next_pc = pc + 2;
+    } else {
+      op = IR_EQ;
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
+      next_pc = pc + INS_D(*(pc + 1)) + 1;
+    }
+    push_ir(trace, op, op1, op2, IR_INS_TYPE_GUARD);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
+    break;
+  }
   case UNBOX: // DO don't need typecheck
   case CDR:
   case CAR: {
