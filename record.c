@@ -213,8 +213,6 @@ void dump_trace(trace_s *ctrace) {
     }
     printf("%s ", ir_names[(int)op.op]);
     switch (op.op) {
-    case IR_CAR:
-    case IR_CDR:
     case IR_KFIX:
     case IR_ARG:
     case IR_LOAD:
@@ -859,7 +857,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case CDR:
   case CAR: {
     uint32_t op1 = record_stack_load(INS_B(i), frame);
-    ir_ins_op op;
+    uint32_t offset = 0;
     uint8_t type;
     if (INS_OP(i) == CAR || INS_OP(i) == UNBOX) {
       // TODO typecheck
@@ -868,15 +866,15 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       if (type == LITERAL_TAG) {
         type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->a & IMMEDIATE_MASK;
       }
-      op = IR_CAR;
     } else {
       type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->b & TAG_MASK;
       if (type == LITERAL_TAG) {
         type = ((cons_s *)(frame[INS_B(i)] - CONS_TAG))->b & IMMEDIATE_MASK;
       }
-      op = IR_CDR;
+      offset = sizeof(long);
     }
-    regs[INS_A(i)] = push_ir(trace, op, op1, IR_NONE, type | IR_INS_TYPE_GUARD);
+    auto ref = push_ir(trace, IR_REF, op1, 8 - CONS_TAG + offset, type | IR_INS_TYPE_GUARD);
+    regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, IR_NONE, type | IR_INS_TYPE_GUARD);
     break;
   }
   case GUARD: {

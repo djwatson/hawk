@@ -645,44 +645,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_mem_reg(OP_MOV_MR, op->op1 * 8, RDI, reg);
       break;
     }
-    case IR_CAR: {
-      maybe_assign_register(op->op1, trace, slot, &next_spill);
-      auto reg = op->reg;
-      if (reg == REG_NONE) {
-        reg = R15; // Unused, but potentially used by JGUARD.
-      }
-      emit_op_typecheck(reg, op->type, (int32_t)(snap_labels[cur_snap] - emit_offset()));
-      if (ir_is_const(op->op1)) {
-        emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg, reg);
-	auto c = trace->consts[op->op1 - IR_CONST_BIAS];
-	auto re = (reloc){emit_offset(), c, RELOC_ABS};
-	arrput(trace->relocs, re);
-        emit_mov64(reg, c);
-      } else {
-        auto reg1 = trace->ops[op->op1].reg;
-        emit_mem_reg(OP_MOV_MR, 8 - CONS_TAG, reg1, reg);
-      }
-      break;
-    }
-    case IR_CDR: {
-      maybe_assign_register(op->op1, trace, slot, &next_spill);
-      auto reg = op->reg;
-      if (reg == REG_NONE) {
-        reg = R15; // Unused, but potentially used by JGUARD.
-      }
-      emit_op_typecheck(reg, op->type, (int32_t)(snap_labels[cur_snap] - emit_offset()));
-      if (ir_is_const(op->op1)) {
-        emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg, reg);
-	auto c = trace->consts[op->op1 - IR_CONST_BIAS];
-	auto re = (reloc){emit_offset(), c, RELOC_ABS};
-	arrput(trace->relocs, re);
-        emit_mov64(reg, c);
-      } else {
-        auto reg1 = trace->ops[op->op1].reg;
-        emit_mem_reg(OP_MOV_MR, 16 - CONS_TAG, reg1, reg);
-      }
-      break;
-    }
     case IR_GGET: {
       // Used for typecheck only
       if (op->reg == REG_NONE) {
@@ -816,7 +778,15 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case IR_REF: {
       // TODO: fuse.
       maybe_assign_register(op->op1, trace, slot, &next_spill);
-      emit_mem_reg(OP_LEA, op->op2, trace->ops[op->op1].reg, op->reg);
+      if (ir_is_const(op->op1)) {
+	emit_mem_reg(OP_LEA, op->op2, R15, op->reg);
+	auto c = trace->consts[op->op1 - IR_CONST_BIAS];
+	auto re = (reloc){emit_offset(), c, RELOC_ABS};
+	arrput(trace->relocs, re);
+	emit_mov64(R15, c);	
+      } else {
+	emit_mem_reg(OP_LEA, op->op2, trace->ops[op->op1].reg, op->reg);
+      }
       break;
     }
     case IR_STRREF: {
