@@ -64,10 +64,6 @@
   * browse
   * nboyer
   * parsing
-* JISLTE
-  *pnpoly
-  * gcbench
-  * puzzle
 * set-cdr! set-car!
   * destruc
   * parsing
