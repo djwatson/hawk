@@ -1018,6 +1018,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     //add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1);
     break;
   }
+  case BOX:
   case CONS: {
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
     //  TODO this forces a side exit without recording.
@@ -1025,7 +1026,15 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     //   all registers to stack.
     trace->snaps[arrlen(trace->snaps) - 1].exits = 100; 
     auto a = record_stack_load(INS_B(i), frame);
-    auto b = record_stack_load(INS_C(i), frame);
+    int b;
+    if (INS_OP(i) == CONS) {
+      b = record_stack_load(INS_C(i), frame);
+    } else {
+      // BOX
+      auto knum = arrlen(trace->consts);
+      arrput(trace->consts, NIL_TAG);
+      b = knum | IR_CONST_BIAS;
+    }
     auto cell = push_ir(trace, IR_ALLOC, sizeof(cons_s), CONS_TAG, CONS_TAG);
     regs[INS_A(i)] = cell;
     auto ref = push_ir(trace, IR_REF, cell, 8 - CONS_TAG, UNDEFINED_TAG);

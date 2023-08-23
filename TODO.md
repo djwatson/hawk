@@ -15,6 +15,25 @@
 
 # Recorder
 
+* JNEQV
+  * parsing
+* char->integer
+  * read1
+  * sum1
+  * dynamic
+  * compiler
+  * parsing
+* set-cdr! set-car!
+  * destruc
+  * parsing
+  * browse
+* ISLT
+  * browse
+* EQ
+  * conform
+  * slatex
+  * nboyer
+* mulvv
 * div/rem
   * string
   * primes
@@ -22,8 +41,6 @@
   * fft
   * mazefun
   * maze
-* funcv
-  * deriv for list
 * clfunc / clfuncv
   * array1
   * tail
@@ -31,38 +48,19 @@
   * deriv
   * peval
   * slatex
+* funcv
+  * deriv for list
+* callcc / callcc-resume
+  * fibc
+  * ctak
+  * puzzle
+* inexact
+  * mbrot
 * flonums
   * sumfp
   * fibfp
   * mbrot
   * quicksort
-* JNEQV
-* char->integer
-  * read1
-  * sum1
-  * dynamic
-  * compiler
-* callcc / callcc-resume
-  * fibc
-  * ctak
-* inexact
-  * mbrot
-* box
-  * array1
-  * pnpoly
-* set-box!
-  * puzzle
-  * browse
-  * nboyer
-  * parsing
-* set-cdr! set-car!
-  * destruc
-  * parsing
-* ISLT
-  * browse
-* EQ
-  * conform
-  * slatex
 OK
 * sum
 * fib
@@ -83,6 +81,8 @@ OK
 CRASH
 * scheme with big heap
 * matrix
+
+* nboyer needs longer traces and larger blacklist
 
 # working on
 
