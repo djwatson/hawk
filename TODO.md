@@ -3,7 +3,95 @@
 * need to get ptr type load working - equal? fails because vector? fails to always true if it's aptr type.
   * r4rs fails
 
+# Recorder
+
+* div/rem
+  * string
+  * primes
+  * destruc
+  * fft
+  * mazefun
+  * maze
+* funcv
+  * deriv for list
+* clfunc / clfuncv
+  * array1
+  * tail
+  * nqueens
+  * deriv
+  * peval
+  * slatex
+* vector
+  * deriv
+  * pnpoly
+  * destruc
+  * gcbench
+  * paraffins
+  * maze
+  * nboyer
+  * sboyer
+* flonums
+  * sumfp
+  * fibfp
+  * mbrot
+  * quicksort
+* JNEQV
+* char->integer
+  * read1
+  * sum1
+  * dynamic
+  * compiler
+* callcc / callcc-resume
+  * fibc
+  * ctak
+* inexact
+  * mbrot
+* box
+  * array1
+  * pnpoly
+* set-box!
+  * set-box!
+  * browse
+  * nboyer
+  * parsing
+* JISLTE
+  *pnpoly
+  * gcbench
+  * puzzle
+* JISNEQ
+  * triangl
+* set-cdr! set-car!
+  * destruc
+  * parsing
+* ISLT
+  * browse
+* EQ
+  * conform
+  * slatex
+OK
+* sum
+* fib
+* ack
+* tak
+* ntakl
+* takl
+* cpstak
+* divrec
+* diviter
+* wc
+* cat
+
+????
+* graphs
+* earley
+
+CRASH
+* scheme with big heap
+* matrix
+
 # working on
+
+* extend max trace size and fix bugs
 
 * 'closure' opcode should all be in the bcfunc prototype, and done behind a single opcode.
   * Do something to get rid of zero-initializing??
