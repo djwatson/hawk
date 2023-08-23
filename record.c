@@ -458,6 +458,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
          INS_B(i), INS_C(i));
   switch (INS_OP(i)) {
   case LOOP: {
+    // TODO check the way luajit does it
+    if (arrlen(trace->ops) != 0) {
+      printf("Record abort: Trace hit untraced loop\n");
+      record_abort();
+      return 1;
+    }
     // case CLFUNC:
     break;
   }
