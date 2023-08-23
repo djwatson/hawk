@@ -87,7 +87,7 @@ void penalty_pc(uint32_t* pc) {
 	blacklist_slot--;
       } else {
 	blacklist[i].cnt++;
-	printf("Blacklist cnt now %i slot %i sz %i\n", blacklist[i].cnt, i, blacklist_slot);
+	//printf("Blacklist cnt now %i slot %i sz %i\n", blacklist[i].cnt, i, blacklist_slot);
 	int64_t prev = (int64_t)i-1;
 	while(prev >= 0 && blacklist[prev].cnt <= blacklist[prev+1].cnt) {
 	  blacklist_entry tmp = blacklist[prev];
@@ -674,6 +674,20 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     arrput(trace->consts, FALSE_REP);
     ir_ins_op op;
     if (frame[INS_B(i)] == FALSE_REP) {
+      op = IR_EQ;
+    } else {
+      op = IR_NE;
+    }
+    push_ir(trace, op, record_stack_load(INS_B(i), frame), knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
+    break;
+  }
+  case JIST: {
+    // TODO snaps
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, TRUE_REP);
+    ir_ins_op op;
+    if (frame[INS_B(i)] == TRUE_REP) {
       op = IR_EQ;
     } else {
       op = IR_NE;

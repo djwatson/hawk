@@ -51,7 +51,7 @@
   * array1
   * pnpoly
 * set-box!
-  * set-box!
+  * puzzle
   * browse
   * nboyer
   * parsing
