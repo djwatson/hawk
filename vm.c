@@ -1142,7 +1142,7 @@ LIBRARY_FUNC(CALLCC)
   auto sz = frame - stack;
   auto cont = (vector_s *)GC_malloc(sz * sizeof(long) + 16);
   cont->type = CONT_TAG;
-  cont->len = sz;
+  cont->len = sz << 3;
   memcpy(cont->v, stack, sz * sizeof(long));
   
   frame[ra] = (long)cont | PTR_TAG;
@@ -1150,8 +1150,8 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(CALLCC-RESUME, CALLCC_RESUME)
   LOAD_TYPE_WITH_CHECK(cont, vector_s, fb, CONT_TAG);
-  memcpy(stack, cont->v, cont->len * sizeof(long));
-  frame = &stack[cont->len];
+  memcpy(stack, cont->v, (cont->len >> 3) * sizeof(long));
+  frame = &stack[cont->len >> 3];
   
   frame[ra] = (long)cont | PTR_TAG;
   

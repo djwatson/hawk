@@ -62,10 +62,7 @@ size_t heap_object_size(long *obj) {
   }
   case SYMBOL_TAG:
     return sizeof(symbol);
-  case CONT_TAG: {
-    auto *vec = (vector_s *)obj;
-    return (vec->len) * sizeof(long) + 16;
-  }
+  case CONT_TAG: 
   case VECTOR_TAG: {
     auto *vec = (vector_s *)obj;
     return (vec->len>>3) * sizeof(long) + 16;
@@ -130,13 +127,7 @@ void trace_heap_object(long *obj) {
     visit(&sym->val);
     break;
   }
-  case CONT_TAG: {
-    auto *vec = (vector_s *)obj;
-    for (long i = 0; i < (vec->len); i++) {
-      visit(&vec->v[i]);
-    }
-    break;
-  }
+  case CONT_TAG:
   case VECTOR_TAG: {
     auto *vec = (vector_s *)obj;
     for (long i = 0; i < (vec->len>>3); i++) {
