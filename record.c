@@ -245,6 +245,8 @@ void dump_trace(trace_s *ctrace) {
     case IR_NE:
     case IR_GE:
     case IR_LT:
+    case IR_GT:
+    case IR_LE:
     case IR_STORE:
     case IR_ABC:
     case IR_VREF:
@@ -683,6 +685,36 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       next_pc = pc + 2;
     } else {
       op = IR_GE;
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
+      next_pc = pc + INS_D(*(pc + 1)) + 1;
+    }
+    uint8_t type;
+    uint32_t op1  = record_stack_load(INS_B(i), frame);
+    uint32_t op2  = record_stack_load(INS_C(i), frame);
+    if (op1 >= IR_CONST_BIAS) {
+      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
+    } else {
+      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
+    }
+    if (type != 0) {
+      printf("Record abort: Only int supported in trace: %i\n", type);
+      record_abort();
+      return 1;
+    }
+    push_ir(trace, op, op1, op2, type);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
+    break;
+  }
+  case JISGT: {
+    uint32_t *next_pc;
+    ir_ins_op op;
+    if (frame[INS_B(i)] > frame[INS_C(i)]) {
+      op = IR_GT;
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace,
+               pc + INS_D(*(pc + 1)) + 1, depth);
+      next_pc = pc + 2;
+    } else {
+      op = IR_LE;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }

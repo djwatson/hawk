@@ -931,6 +931,14 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_cmp(JGE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
       break;
     }
+    case IR_GT: {
+      emit_cmp(JLE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
+      break;
+    }
+    case IR_LE: {
+      emit_cmp(JG, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
+      break;
+    }
     case IR_ADD: {
       emit_arith(OP_ARITH_ADD, OP_ADD, op, trace,
                  (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
