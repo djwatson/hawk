@@ -1015,6 +1015,34 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
     break;
   }
+  case VECTOR: {
+    auto len = INS_B(i);
+    auto reg = INS_A(i);
+    int *loaded = NULL;
+    for(uint32_t cnt = 0; cnt < len; cnt++) {
+      arrput(loaded, record_stack_load(reg + cnt, frame));
+    }
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
+    //  TODO this forces a side exit without recording.
+    //   Put GC inline in generated code?  Would have to flush
+    //   all registers to stack.
+    trace->snaps[arrlen(trace->snaps) - 1].exits = 100;
+    
+    auto cell = push_ir(trace, IR_ALLOC, sizeof(vector_s) + 8*len, VECTOR_TAG, PTR_TAG);
+    regs[reg] = cell;
+    auto ref = push_ir(trace, IR_REF, cell, 8 - PTR_TAG, UNDEFINED_TAG);
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, (long)(len << 3));
+    push_ir(trace, IR_STORE, ref, knum | IR_CONST_BIAS, UNDEFINED_TAG);
+    for(uint32_t cnt = 0; cnt < len; cnt++) {
+      ref = push_ir(trace, IR_REF, cell, 16 + cnt*8 - PTR_TAG, UNDEFINED_TAG);
+      push_ir(trace, IR_STORE, ref, loaded[cnt], UNDEFINED_TAG);
+    }
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
+    arrfree(loaded);
+
+    break;
+  }
   case MOV: {
     regs[INS_A(i)] = record_stack_load(INS_B(i), frame);
     // TODO loop moves can clear

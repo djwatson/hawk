@@ -31,15 +31,6 @@
   * deriv
   * peval
   * slatex
-* vector
-  * deriv
-  * pnpoly
-  * destruc
-  * gcbench
-  * paraffins
-  * maze
-  * nboyer
-  * sboyer
 * flonums
   * sumfp
   * fibfp

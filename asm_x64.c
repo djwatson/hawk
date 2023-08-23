@@ -837,7 +837,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_ALLOC: {
-      emit_arith_imm(OP_ARITH_ADD, op->reg, op->op2);
+      emit_arith_imm(OP_ARITH_ADD, op->reg, op->type & TAG_MASK);
       emit_mem_reg(OP_MOV_RM, 0, op->reg, R15);
       emit_mov64(R15, op->op2);
       emit_arith_imm(OP_ARITH_SUB, op->reg, op->op1);
