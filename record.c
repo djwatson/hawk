@@ -853,6 +853,15 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
     break;
   }
+  case SET_BOX: {
+    auto box = record_stack_load(INS_B(i), frame);
+    auto obj = record_stack_load(INS_C(i), frame);
+    auto ref = push_ir(trace, IR_REF, box, 8 - CONS_TAG, 0);
+    push_ir(trace, IR_STORE, ref, obj, UNDEFINED_TAG);
+    // Modified state, need a snap.
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
+    break;
+  }
   case UNBOX: // DO don't need typecheck
   case CDR:
   case CAR: {
