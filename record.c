@@ -22,7 +22,7 @@ typedef struct {
   uint32_t cnt;
 } blacklist_entry;
 
-#define BLACKLIST_MAX 10
+#define BLACKLIST_MAX 64
 #define BLACKLIST_SZ 512
 
 blacklist_entry blacklist[BLACKLIST_SZ];
@@ -1335,7 +1335,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // exit(-1);
   }
   }
-  if (instr_count > 50) {
+  if (instr_count > 500) {
     printf("Record abort: due to length\n");
     record_abort();
     return 1;

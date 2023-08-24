@@ -429,6 +429,7 @@ void emit_cmp(enum jcc_cond cmp, ir_ins *op, trace_s *trace, uint64_t offset,
   maybe_assign_register(op->op1, trace, slot, next_spill);
   maybe_assign_register(op->op2, trace, slot, next_spill);
 
+  // TODO pass snap label instead, calculate offset
   emit_jcc32(cmp, offset);
   uint8_t reg;
   if (!ir_is_const(op->op1)) {

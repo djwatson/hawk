@@ -1,5 +1,6 @@
 # Getting all jit to work bench2
 
+* FIX snap label
 
 * fails with full compiler jit 
   * bench/ack
