@@ -88,13 +88,14 @@ void emit_cmp_reg_reg(uint8_t src, uint8_t dst) {
   emit_rex(1, src >> 3, 0, dst >> 3);
 }
 
-// TODO: could test for short offset
-void emit_jcc32(enum jcc_cond cond, int32_t offset) {
-  if ((int32_t)((int8_t)offset) == offset) {
-    *(--p) = (int8_t)offset;
+void emit_jcc32(enum jcc_cond cond, uint64_t offset) {
+  int64_t off = (int64_t)offset - (int64_t)emit_offset();
+  // TODO check fits in int32_t.
+  if ((int32_t)((int8_t)off) == off) {
+    *(--p) = (int8_t)off;
     *(--p) = cond - 0x10;
   } else {
-    emit_imm32(offset);
+    emit_imm32(off);
     *(--p) = cond;
     *(--p) = 0x0f;
   }

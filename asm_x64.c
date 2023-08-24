@@ -361,8 +361,7 @@ void emit_snap(int snap, trace_s *trace, bool all) {
 }
 
 void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
-                   uint8_t reg, uint32_t op2, trace_s *trace, int32_t offset,
-                   int *slot) {
+                   uint8_t reg, uint32_t op2, trace_s *trace, int *slot) {
   if ((op2 & IR_CONST_BIAS) != 0U) {
     long v = trace->consts[op2 - IR_CONST_BIAS];
     // TODO: check V is of correct type, but we typecheck return pointers also,
@@ -383,7 +382,7 @@ void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
 }
 
 void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins *op,
-                trace_s *trace, int32_t offset, int *slot, uint32_t* next_spill) {
+                trace_s *trace, uint64_t offset, int *slot, uint32_t* next_spill) {
   maybe_assign_register(op->op1, trace, slot, next_spill);
   maybe_assign_register(op->op2, trace, slot, next_spill);
 
@@ -402,7 +401,7 @@ void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins *op,
   if (reg != reg1 && reg2 == reg) {
     emit_reg_reg(op_code, R15, reg);
   } else {
-    emit_arith_op(arith_code, op_code, reg, op->op2, trace, offset, slot);
+    emit_arith_op(arith_code, op_code, reg, op->op2, trace, slot);
   }
   if (op->op1 & IR_CONST_BIAS) {
     auto c = trace->consts[op->op1 - IR_CONST_BIAS];
@@ -425,7 +424,7 @@ void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins *op,
   }
 }
 
-void emit_cmp(enum jcc_cond cmp, ir_ins *op, trace_s *trace, int32_t offset,
+void emit_cmp(enum jcc_cond cmp, ir_ins *op, trace_s *trace, uint64_t offset,
               int *slot, uint32_t*next_spill) {
   maybe_assign_register(op->op1, trace, slot, next_spill);
   maybe_assign_register(op->op2, trace, slot, next_spill);
@@ -442,7 +441,7 @@ void emit_cmp(enum jcc_cond cmp, ir_ins *op, trace_s *trace, int32_t offset,
       reg = R15;
     }
   }
-  emit_arith_op(OP_ARITH_CMP, OP_CMP, reg, op->op2, trace, offset, slot);
+  emit_arith_op(OP_ARITH_CMP, OP_CMP, reg, op->op2, trace, slot);
   if (ir_is_const(op->op1)) {
     auto c = trace->consts[op->op1 - IR_CONST_BIAS];
     auto re = (reloc){emit_offset(), c, RELOC_ABS};
@@ -451,9 +450,8 @@ void emit_cmp(enum jcc_cond cmp, ir_ins *op, trace_s *trace, int32_t offset,
   }
 }
 
-void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
+void emit_op_typecheck(uint8_t reg, uint8_t type, uint64_t offset) {
   if ((type & IR_INS_TYPE_GUARD) != 0) {
-    auto p = emit_offset();
     emit_jcc32(JNE, offset);
     if ((type & ~IR_INS_TYPE_GUARD) == 0) {
       emit_op_imm32(OP_TEST_IMM, 0, reg, 0x7);
@@ -462,8 +460,7 @@ void emit_op_typecheck(uint8_t reg, uint8_t type, int32_t offset) {
       emit_mem_reg(OP_MOV_MR, -PTR_TAG, R15, R15);
       emit_reg_reg(OP_MOV, reg, R15);
       // TODO clean offsets up a bit.
-      auto diff = emit_offset() - p;
-      emit_jcc32(JNE, offset - diff);
+      emit_jcc32(JNE, offset);
       emit_cmp_reg_imm32(R15, 1);
       emit_op_imm32(OP_AND_IMM, 4, R15, 0x7);
       emit_reg_reg(OP_MOV, reg, R15);
@@ -547,7 +544,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         emit_call_indirect(R15);
         emit_mov64(R15, (int64_t)&expand_stack_slowpath);
 	// TODO check offset
-        emit_jcc32(JBE, (int32_t)(ok - emit_offset()));
+        emit_jcc32(JBE, ok);
         emit_reg_reg(OP_CMP, R15, RDI);
         // TODO merge if in top?
         emit_mem_reg(OP_MOV_MR, 0L, R15, R15);
@@ -643,7 +640,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if ((op->type & IR_INS_TYPE_GUARD) == 0) {
         goto done;
       }
-      emit_op_typecheck(reg, op->type, (int32_t)(snap_labels[cur_snap] - emit_offset()));
+      emit_op_typecheck(reg, op->type, snap_labels[cur_snap]);
       emit_mem_reg(OP_MOV_MR, op->op1 * 8, RDI, reg);
       break;
     }
@@ -655,7 +652,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       auto *sym =
           (symbol *)(trace->consts[op->op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       auto reg = op->reg;
-      emit_op_typecheck(reg, op->type, (int32_t)(snap_labels[cur_snap] - emit_offset()));
+      emit_op_typecheck(reg, op->type, snap_labels[cur_snap]);
       emit_mem_reg(OP_MOV_MR, 0, reg, reg);
       auto re = (reloc){emit_offset(), trace->consts[op->op1 - IR_CONST_BIAS],
                         RELOC_SYM_ABS};
@@ -752,7 +749,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       //sassert(!ir_is_const(op->op2));
       assert(trace->ops[op->op1].op == IR_REF ||
              trace->ops[op->op1].op == IR_VREF);
-      emit_op_typecheck(op->reg, op->type, (int32_t)(snap_labels[cur_snap] - emit_offset()));
+      emit_op_typecheck(op->reg, op->type, snap_labels[cur_snap]);
       emit_mem_reg(OP_MOV_MR, 0, trace->ops[op->op1].reg, op->reg);
       break;
     }
@@ -815,7 +812,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
       emit_mov64(R15, (int64_t)&alloc_ptr);
       // TODO call GC directly?
-      emit_jcc32(JGE, (int32_t)(snap_labels[cur_snap] - emit_offset()));
+      emit_jcc32(JGE, snap_labels[cur_snap]);
       emit_reg_reg(OP_CMP, R15, op->reg);
       emit_arith_imm(OP_ARITH_ADD, op->reg, op->op1);
       emit_mem_reg(OP_MOV_MR, 0, op->reg, op->reg);
@@ -848,7 +845,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       // Restore scheme frame ptr
       // C here is function ptr, const, nonGC
       auto c = trace->consts[op->op2 - IR_CONST_BIAS];
-      emit_op_typecheck(op->reg, op->type, (int32_t)(snap_labels[cur_snap] - emit_offset()));
+      emit_op_typecheck(op->reg, op->type, snap_labels[cur_snap]);
 
       emit_reg_reg(OP_MOV, RAX, op->reg);
       emit_reg_reg(OP_MOV, R15, RDI);
@@ -903,37 +900,37 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       //       break;
       //     }
     case IR_EQ: {
-      emit_cmp(JNE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
+      emit_cmp(JNE, op, trace, snap_labels[cur_snap], slot, &next_spill);
       break;
     }
     case IR_NE: {
-      emit_cmp(JE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
+      emit_cmp(JE, op, trace, snap_labels[cur_snap], slot, &next_spill);
       break;
     }
     case IR_GE: {
-      emit_cmp(JL, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
+      emit_cmp(JL, op, trace, snap_labels[cur_snap], slot, &next_spill);
       break;
     }
     case IR_LT: {
-      emit_cmp(JGE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
+      emit_cmp(JGE, op, trace, snap_labels[cur_snap], slot, &next_spill);
       break;
     }
     case IR_GT: {
-      emit_cmp(JLE, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
+      emit_cmp(JLE, op, trace, snap_labels[cur_snap], slot, &next_spill);
       break;
     }
     case IR_LE: {
-      emit_cmp(JG, op, trace, (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
+      emit_cmp(JG, op, trace, snap_labels[cur_snap], slot, &next_spill);
       break;
     }
     case IR_ADD: {
       emit_arith(OP_ARITH_ADD, OP_ADD, op, trace,
-                 (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
+                 snap_labels[cur_snap], slot, &next_spill);
       break;
     }
     case IR_SUB: {
       emit_arith(OP_ARITH_SUB, OP_SUB, op, trace,
-                 (int32_t)(snap_labels[cur_snap] - emit_offset()), slot, &next_spill);
+                 snap_labels[cur_snap], slot, &next_spill);
       break;
     }
       //     case IR_LOOP: {
@@ -958,7 +955,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       auto b = (int32_t)trace->consts[op->op2 - IR_CONST_BIAS];
 
       emit_arith_imm(OP_ARITH_SUB, RDI, b);
-      emit_jcc32(JNE, (int32_t)(snap_labels[cur_snap] - emit_offset()));
+      emit_jcc32(JNE, snap_labels[cur_snap]);
 
       emit_mem_reg(OP_CMP, -8, RDI, R15);
 

@@ -102,7 +102,7 @@ void emit_mem_reg_sib(uint8_t opcode, int32_t offset, uint8_t scale,
                       uint8_t index, uint8_t base, uint8_t reg);
 void emit_imm8(uint8_t imm);
 void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst);
-void emit_jcc32(enum jcc_cond cond, int32_t offset);
+void emit_jcc32(enum jcc_cond cond, uint64_t offset);
 void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm);
 void emit_cmp_reg_imm32(uint8_t r, int32_t imm);
 void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm);
