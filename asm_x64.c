@@ -109,6 +109,28 @@ bool reg_callee[] = {
 };
 // clang-format on
 
+// Get a specific reg, spilling if necessary.
+void get_reg(uint8_t reg, trace_s* trace, uint32_t* next_spill, int *slot) {
+  if (slot[reg] != -1) {
+    printf("Spilling reg %s\n", reg_names[reg]);
+    auto op = slot[reg];
+    assert(trace->ops[op].reg != REG_NONE);
+
+    auto spill = trace->ops[op].slot;
+    if (trace->ops[op].slot == SLOT_NONE) {
+      spill = (*next_spill)++;
+      assert(spill <= 255);
+    }
+
+    trace->ops[op].slot = spill;
+    emit_mem_reg(OP_MOV_MR, 0, R15, trace->ops[op].reg);
+    emit_mov64(R15, (int64_t)&spill_slot[trace->ops[op].slot]);
+    trace->ops[op].reg = REG_NONE;
+    slot[reg] = -1;
+  }
+}
+
+// Get any free reg, spilling oldest if necessary.
 int get_free_reg(trace_s* trace, uint32_t* next_spill, int *slot, bool callee) {
   for (int i = 0; i < regcnt; i++) {
     if (slot[i] == -1) {
@@ -126,23 +148,8 @@ int get_free_reg(trace_s* trace, uint32_t* next_spill, int *slot, bool callee) {
   // Spill.
   auto oldest = lru_oldest(&reg_lru);
   assert(oldest < REG_NONE);
-  printf("Spilling reg %s\n", reg_names[oldest]);
-  auto op = slot[oldest];
-  assert(trace->ops[op].reg != REG_NONE);
-
-  auto spill = trace->ops[op].slot;
-  if (trace->ops[op].slot == SLOT_NONE) {
-    spill = (*next_spill)++;
-    assert(spill <= 255);
-  }
-
-  trace->ops[op].slot = spill;
-  emit_mem_reg(OP_MOV_MR, 0, R15, trace->ops[op].reg);
-  emit_mov64(R15, (int64_t)&spill_slot[trace->ops[op].slot]);
-  trace->ops[op].reg = REG_NONE;
-  slot[oldest] = -1;
-
   
+  get_reg(oldest, trace, next_spill, slot);
   return oldest;
 }
 
@@ -927,6 +934,60 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case IR_ADD: {
       emit_arith(OP_ARITH_ADD, OP_ADD, op, trace,
                  snap_labels[cur_snap], slot, &next_spill);
+      break;
+    }
+    case IR_DIV: {
+      // DIV is a pain on x86_64.
+      // get op1 to RAX.  acquire RDX also.  op2 can be anywhere.
+      // sar both operands.
+      // cqo to sign-extend RAX to RDX.
+      // idiv op2reg
+      // shl rax.  Result in rax.
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
+      maybe_assign_register(op->op2, trace, slot, &next_spill);
+      assert(!ir_is_const(op->op1));
+      assert(trace->ops[op->op1].reg != RDX);
+
+      uint8_t reg2 = R15;
+      if (!ir_is_const(op->op2)) {
+	assert(trace->ops[op->op2].reg != RAX);
+	assert(trace->ops[op->op2].reg != RDX);
+	reg2 = trace->ops[op->op2].reg;
+      }
+
+      if (op->reg != RDX) {
+	get_reg(RDX, trace, &next_spill, slot);
+      }
+      
+      if (op->reg != RAX) {
+	get_reg(RAX, trace, &next_spill, slot);
+	emit_reg_reg(OP_MOV, RAX, op->reg);
+      }
+
+      emit_imm8(3);
+      emit_reg_reg(OP_SHL_CONST, 4, RAX);
+      // idiv
+      emit_reg_reg(OP_IDIV, 7, reg2);
+      // cqo
+      emit_imm8(OP_CQO);
+      emit_rex(1, 0, 0, 0);
+      
+      emit_imm8(3);
+      emit_reg_reg(OP_SAR_CONST, 7, RAX);
+      if (ir_is_const(op->op2)) {
+	auto c = trace->consts[op->op2 - IR_CONST_BIAS];
+	// C must be fixnum
+	emit_mov64(R15, c >> 3);
+      } else {
+	emit_imm8(3);
+	emit_reg_reg(OP_SAR_CONST, 7, reg2);
+      }
+
+
+      if (trace->ops[op->op1].reg != RAX) {
+	emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, RAX);
+      }
+      
       break;
     }
     case IR_SUB: {

@@ -46,6 +46,9 @@ enum OPCODES {
   OP_CMP = 0x39,
   OP_LEA = 0x8d,
   OP_SAR_CONST = 0xC1,
+  OP_SHL_CONST = 0xC1,
+  OP_CQO = 0x99,
+  OP_IDIV = 0xF7,
 };
 
 enum jcc_cond {
@@ -100,6 +103,7 @@ void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2);
 void emit_mem_reg2(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2);
 void emit_mem_reg_sib(uint8_t opcode, int32_t offset, uint8_t scale,
                       uint8_t index, uint8_t base, uint8_t reg);
+void emit_rex(uint8_t w, uint8_t r, uint8_t x, uint8_t b);
 void emit_imm8(uint8_t imm);
 void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst);
 void emit_jcc32(enum jcc_cond cond, uint64_t offset);

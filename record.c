@@ -261,6 +261,7 @@ void dump_trace(trace_s *ctrace) {
     case IR_PHI:
     case IR_SUB:
     case IR_ADD:
+    case IR_DIV:
     case IR_EQ:
     case IR_NE:
     case IR_GE:
@@ -1225,6 +1226,34 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       return 1;
     }
     regs[INS_A(i)] = push_ir(trace, IR_SUB, op1, op2, IR_INS_TYPE_GUARD | type);
+    break;
+  }
+  case DIV: {
+    auto op1 = record_stack_load(INS_B(i), frame);
+    auto op2 = record_stack_load(INS_C(i), frame);
+    // TODO: Assume no type change??
+    uint8_t type = 0;
+    if (op1 >= IR_CONST_BIAS) {
+      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
+    } else {
+      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
+    }
+    if (type != 0) {
+      printf("Record abort: Only int supported in trace: %i\n", type);
+      record_abort();
+      return 1;
+    }
+    regs[INS_A(i)] = push_ir(trace, IR_DIV, op1, op2, IR_INS_TYPE_GUARD | type);
+    break;
+  }
+  case EXACT: {
+    regs[INS_A(i)] = record_stack_load(INS_B(i), frame);
+    auto type = get_object_ir_type(frame[INS_B(i)]);
+    if (type != 0) {
+      printf("Record abort: exact only supports fixnum\n");
+      record_abort();
+      return 1;
+    }
     break;
   }
   case CALLT: {
