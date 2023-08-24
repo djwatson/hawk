@@ -33,6 +33,7 @@
 
 
 ;;; Needed for R7RS.
+(define exact-integer? exact?)
 
 (define (bitwise-not n)
   (- (- n) 1))
@@ -4794,7 +4795,7 @@
   (let* ((dest (file-root source))
          (module-name (file-name dest))
          (info-port (if (memq 'verbose opts) (current-output-port) #f))
-         (result (compile-program
+         (result (compile-program2
                   (list **include-sym source)
                   (if target-name target-name (default-target))
                   opts
@@ -4808,7 +4809,7 @@
   (let* ((dest "program")
          (module-name "program")
          (info-port (if (memq 'verbose opts) (current-output-port) #f))
-         (result (compile-program
+         (result (compile-program2
                   source
                   (if target-name target-name (default-target))
                   opts
@@ -4819,7 +4820,7 @@
         (close-output-port info-port))
     result))
 (define wrap-program (lambda (program) program))
-(define (compile-program program target-name opts module-name dest info-port)
+(define (compile-program2 program target-name opts module-name dest info-port)
   (define (compiler-body)
     (if (not (valid-module-name? module-name))
         (compiler-error

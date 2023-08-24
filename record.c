@@ -1142,6 +1142,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, gp);
     push_ir(trace, IR_GSET, knum | IR_CONST_BIAS, record_stack_load(INS_A(i), frame), UNDEFINED_TAG);
+    // We've changed global state, add a snap.
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
     break;
   }
   case SUBVN: {
