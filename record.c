@@ -923,16 +923,10 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     int64_t v = frame[INS_B(i)];
     auto type = INS_C(i);
     int64_t c = FALSE_REP;
-    if ((type & TAG_MASK) == LITERAL_TAG) {
-      if (type == (v & IMMEDIATE_MASK)) {
-	c = TRUE_REP;
-      }
-    } else {
-      if (type == (v & TAG_MASK)) {
-	c = TRUE_REP;
-      }
+    auto obj_type = get_object_ir_type(v);
+    if (obj_type == type) {
+      c = TRUE_REP;
     }
-    // TODO ptr
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, c);
     regs[INS_A(i)] = IR_CONST_BIAS + knum;

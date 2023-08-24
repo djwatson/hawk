@@ -125,6 +125,7 @@ int get_free_reg(trace_s* trace, uint32_t* next_spill, int *slot, bool callee) {
   
   // Spill.
   auto oldest = lru_oldest(&reg_lru);
+  assert(oldest < REG_NONE);
   printf("Spilling reg %s\n", reg_names[oldest]);
   auto op = slot[oldest];
   assert(trace->ops[op].reg != REG_NONE);

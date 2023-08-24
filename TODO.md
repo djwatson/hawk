@@ -1,20 +1,10 @@
-* figure out why compiler2 broken gives internal compiler error
-
 # Getting all jit to work bench2
 
 
 * fails with full compiler jit 
-  * r7rs test
   * bench/ack
   * bench/deriv
   * bench/triangl
-  * bench2 fibc
-  * bench2 pnpoly
-  * bench2 simplesx
-  * bench2 primes
-
-* need to get ptr type load working - equal? fails because vector? fails to always true if it's aptr type.
-  * r4rs fails
 
 # Recorder
 
