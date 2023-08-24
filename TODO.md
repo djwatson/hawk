@@ -17,10 +17,6 @@
   * dynamic
   * compiler
   * parsing
-* set-cdr! set-car!
-  * destruc
-  * parsing
-  * browse
 * ISLT
   * browse
 * EQ

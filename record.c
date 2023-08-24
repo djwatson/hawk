@@ -891,6 +891,20 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
     break;
   }
+  case SET_CDR:
+  case SET_CAR: {
+    auto box = record_stack_load(INS_A(i), frame);
+    auto obj = record_stack_load(INS_B(i), frame);
+    uint32_t offset = 0;
+    if (INS_OP(i) == SET_CDR) {
+      offset = 8;
+    }
+    auto ref = push_ir(trace, IR_REF, box, 8 + offset - CONS_TAG, 0);
+    push_ir(trace, IR_STORE, ref, obj, UNDEFINED_TAG);
+    // Modified state, need a snap.
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
+    break;
+  }
   case SET_BOX: {
     auto box = record_stack_load(INS_B(i), frame);
     auto obj = record_stack_load(INS_C(i), frame);
