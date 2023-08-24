@@ -747,7 +747,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 	printf("EMIT LOAD ONLY\n");
       }
       maybe_assign_register(op->op1, trace, slot, &next_spill);
-      maybe_assign_register(op->op2, trace, slot, &next_spill);
       assert(op->reg != REG_NONE);
       assert(!ir_is_const(op->op1));
       //sassert(!ir_is_const(op->op2));
