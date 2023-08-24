@@ -1,12 +1,5 @@
 # Getting all jit to work bench2
 
-* FIX snap label
-
-* fails with full compiler jit 
-  * bench/ack
-  * bench/deriv
-  * bench/triangl
-
 # Recorder
 
 * JNEQV
@@ -24,13 +17,6 @@
   * slatex
   * nboyer
 * mulvv
-* div/rem
-  * string
-  * primes
-  * destruc
-  * fft
-  * mazefun
-  * maze
 * clfunc / clfuncv
   * array1
   * tail
@@ -38,6 +24,7 @@
   * deriv
   * peval
   * slatex
+  
 * funcv
   * deriv for list
 * callcc / callcc-resume

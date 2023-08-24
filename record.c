@@ -262,6 +262,7 @@ void dump_trace(trace_s *ctrace) {
     case IR_SUB:
     case IR_ADD:
     case IR_DIV:
+    case IR_REM:
     case IR_EQ:
     case IR_NE:
     case IR_GE:
@@ -1228,6 +1229,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[INS_A(i)] = push_ir(trace, IR_SUB, op1, op2, IR_INS_TYPE_GUARD | type);
     break;
   }
+  case REM:
   case DIV: {
     auto op1 = record_stack_load(INS_B(i), frame);
     auto op2 = record_stack_load(INS_C(i), frame);
@@ -1243,7 +1245,11 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       record_abort();
       return 1;
     }
-    regs[INS_A(i)] = push_ir(trace, IR_DIV, op1, op2, IR_INS_TYPE_GUARD | type);
+    uint8_t op = IR_DIV;
+    if (INS_OP(i) == REM) {
+      op = IR_REM;
+    }
+    regs[INS_A(i)] = push_ir(trace, op, op1, op2, type);
     break;
   }
   case EXACT: {

@@ -27,6 +27,7 @@ typedef enum {
   IR_SUB,
   IR_MUL,
   IR_DIV,
+  IR_REM,
 
   IR_LOOP,
   IR_PHI,

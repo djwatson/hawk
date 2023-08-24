@@ -28,6 +28,7 @@ const char* ir_names[] = {
   "SUB   ",
   "MUL   ",
   "DIV   ",
+  "REM   ",
 
   "LOOP  ",
   "PHI   ",

@@ -127,6 +127,7 @@ void get_reg(uint8_t reg, trace_s* trace, uint32_t* next_spill, int *slot) {
     emit_mov64(R15, (int64_t)&spill_slot[trace->ops[op].slot]);
     trace->ops[op].reg = REG_NONE;
     slot[reg] = -1;
+    lru_poke(&reg_lru, reg);
   }
 }
 
@@ -936,6 +937,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
                  snap_labels[cur_snap], slot, &next_spill);
       break;
     }
+    case IR_REM:
     case IR_DIV: {
       // DIV is a pain on x86_64.
       // get op1 to RAX.  acquire RDX also.  op2 can be anywhere.
@@ -943,29 +945,41 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       // cqo to sign-extend RAX to RDX.
       // idiv op2reg
       // shl rax.  Result in rax.
-      maybe_assign_register(op->op1, trace, slot, &next_spill);
-      maybe_assign_register(op->op2, trace, slot, &next_spill);
-      assert(!ir_is_const(op->op1));
-      assert(trace->ops[op->op1].reg != RDX);
-
-      uint8_t reg2 = R15;
-      if (!ir_is_const(op->op2)) {
-	assert(trace->ops[op->op2].reg != RAX);
-	assert(trace->ops[op->op2].reg != RDX);
-	reg2 = trace->ops[op->op2].reg;
-      }
-
       if (op->reg != RDX) {
 	get_reg(RDX, trace, &next_spill, slot);
+	slot[RDX] = op_cnt;
       }
       
       if (op->reg != RAX) {
 	get_reg(RAX, trace, &next_spill, slot);
-	emit_reg_reg(OP_MOV, RAX, op->reg);
+	slot[RAX] = op_cnt;
+      }
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
+      maybe_assign_register(op->op2, trace, slot, &next_spill);
+
+      if (op->reg != RAX) {
+	slot[RAX] = -1;
+      }
+      if (op->reg != RDX) {
+	slot[RDX] = -1;
       }
 
-      emit_imm8(3);
-      emit_reg_reg(OP_SHL_CONST, 4, RAX);
+      uint8_t reg2 = R15;
+
+      if (op->op == IR_DIV && op->reg != RAX) {
+	emit_reg_reg(OP_MOV, RAX, op->reg);
+      }
+      if (op->op == IR_REM && op->reg != RDX) {
+	emit_reg_reg(OP_MOV, RDX, op->reg);
+      }
+      
+      if (op->op == IR_DIV) {
+	emit_imm8(3);
+	emit_reg_reg(OP_SHL_CONST, 4, RAX);
+      } else {
+	emit_imm8(3);
+	emit_reg_reg(OP_SHL_CONST, 4, RDX);
+      }
       // idiv
       emit_reg_reg(OP_IDIV, 7, reg2);
       // cqo
@@ -981,11 +995,18 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       } else {
 	emit_imm8(3);
 	emit_reg_reg(OP_SAR_CONST, 7, reg2);
+	emit_reg_reg(OP_MOV, trace->ops[op->op2].reg, R15);
       }
 
 
-      if (trace->ops[op->op1].reg != RAX) {
-	emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, RAX);
+      if (ir_is_const(op->op1)) {
+	auto c = trace->consts[op->op1 - IR_CONST_BIAS];
+	// C must be fixnum
+	emit_mov64(RAX, c >> 3);
+      } else {
+	if (trace->ops[op->op1].reg != RAX) {
+	  emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, RAX);
+	}
       }
       
       break;
