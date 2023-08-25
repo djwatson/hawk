@@ -2,8 +2,6 @@
 
 # Recorder
 
-* JNEQV
-  * parsing
 * char->integer
   * read1
   * sum1
