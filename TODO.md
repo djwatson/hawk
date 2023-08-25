@@ -10,10 +10,6 @@
   * parsing
 * ISLT
   * browse
-* EQ
-  * conform
-  * slatex
-  * nboyer
 * mulvv
 * clfunc / clfuncv
   * array1
