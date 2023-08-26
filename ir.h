@@ -9,8 +9,6 @@ typedef enum {
   IR_LE,
   IR_GT,
 
-  IR_CLT,
-
   IR_EQ,
   IR_NE,
   IR_NOP,

@@ -8,8 +8,6 @@
   * dynamic
   * compiler
   * parsing
-* ISLT
-  * browse
 * mulvv
 * clfunc / clfuncv
   * array1

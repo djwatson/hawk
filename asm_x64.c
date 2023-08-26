@@ -771,14 +771,36 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       maybe_assign_register(op->op1, trace, slot, &next_spill);
       maybe_assign_register(op->op2, trace, slot, &next_spill);
       assert(op->reg != REG_NONE);
-      assert(!ir_is_const(op->op1));
-      if(ir_is_const(op->op2)) {
-	// Must be fixnum
-        auto c = trace->consts[op->op2 - IR_CONST_BIAS];
-	emit_mem_reg(OP_LEA, 16 - PTR_TAG + c, trace->ops[op->op1].reg, op->reg);
+      if (ir_is_const(op->op1)) {
+	if(ir_is_const(op->op2)) {
+	  // Must be fixnum
+
+	  // TODO could be a special reloc type and one mov.
+	  auto c2 = trace->consts[op->op2 - IR_CONST_BIAS];
+	  emit_mem_reg(OP_LEA, 16 - PTR_TAG + c2, R15, op->reg);
+	  
+	  auto c1 = trace->consts[op->op1 - IR_CONST_BIAS];
+	  auto re = (reloc){emit_offset(), c1, RELOC_ABS};
+	  arrput(trace->relocs, re);
+	  emit_mov64(R15, c1);
+	} else {
+	  emit_mem_reg_sib(OP_LEA, 16 - PTR_TAG, 0, trace->ops[op->op2].reg,
+			   R15, op->reg);
+	  
+	  auto c1 = trace->consts[op->op1 - IR_CONST_BIAS];
+	  auto re = (reloc){emit_offset(), c1, RELOC_ABS};
+	  arrput(trace->relocs, re);
+	  emit_mov64(R15, c1);
+	}
       } else {
-	emit_mem_reg_sib(OP_LEA, 16 - PTR_TAG, 0, trace->ops[op->op2].reg,
-			 trace->ops[op->op1].reg, op->reg);
+	if(ir_is_const(op->op2)) {
+	  // Must be fixnum
+	  auto c = trace->consts[op->op2 - IR_CONST_BIAS];
+	  emit_mem_reg(OP_LEA, 16 - PTR_TAG + c, trace->ops[op->op1].reg, op->reg);
+	} else {
+	  emit_mem_reg_sib(OP_LEA, 16 - PTR_TAG, 0, trace->ops[op->op2].reg,
+			   trace->ops[op->op1].reg, op->reg);
+	}
       }
       break;
     }
@@ -883,31 +905,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_reg_reg(OP_MOV, RDI, R15);
       break;
     }
-      //     case IR_CLT: {
-      //       assert(!(op->op1 & IR_CONST_BIAS));
-      //       auto reg = ir_to_asmjit[op->reg];
-      //       // beware of colision with one of the other regs
-      //       auto reg1 = ir_to_asmjit[trace->ops[op->op1].reg];
-      //       if (op->op2 & IR_CONST_BIAS) {
-      //         long v = trace->consts[op->op2 - IR_CONST_BIAS];
-      //         assert(v < 32000);
-      //         a.cmp(reg1, v);
-      //       } else {
-      //         auto reg2 = ir_to_asmjit[trace->ops[op->op2].reg];
-      //         a.cmp(reg1, reg2);
-      //       }
-      //       // Zero the reg without touching flags.
-      //       // Note reg may be the same as reg1 or reg2,
-      //       // so we can't xor first.
-      //       //a.lea(reg, x86::ptr_abs(0));
-      //       //a.setl(reg.r8Lo());
-
-      //       a.mov(reg, FALSE_REP);
-      //       a.mov(x86::r15, TRUE_REP);
-      //       a.cmovl(reg, x86::r15);
-      //       //      a.shl(reg, 3); // TODO
-      //       break;
-      //     }
     case IR_EQ: {
       emit_cmp(JNE, op, trace, snap_labels[cur_snap], slot, &next_spill);
       break;

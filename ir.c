@@ -10,8 +10,6 @@ const char* ir_names[] = {
   "LE    ",
   "GT    ",
 
-  "CLT   ",
-
   "EQ    ",
   "NE    ",
   "NOP   ",
