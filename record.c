@@ -942,6 +942,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, IR_NONE, type | IR_INS_TYPE_GUARD);
     break;
   }
+  case ISEQ:
   case EQ: {
     uint32_t op1 = record_stack_load(INS_B(i), frame);
     uint32_t op2 = record_stack_load(INS_C(i), frame);

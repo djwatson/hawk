@@ -1,8 +1,11 @@
 # Getting all jit to work bench2
 
+* looping shit in destruc
+* gcbench
+
 # Recorder
 
-* mulvv
+
 * clfunc / clfuncv
   * array1
   * tail
@@ -11,8 +14,33 @@
   * peval
   * slatex
   
+* make-vector
+  *array1
+* apply 
+  * primes
+* mulvv
+  * maze
+
+* make-vector
+  * graphs
+* make-string
+  * browse
+  * conform
+  
+* string->symbol
+  * browse
+
+* integer->char
+  *browse
+* symbol->string
+  *browse
+  
 * funcv
   * deriv for list
+  * values
+  * mzefun
+  * peval
+  * conform - vector, string-append
 * callcc / callcc-resume
   * fibc
   * ctak
