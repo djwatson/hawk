@@ -2,12 +2,6 @@
 
 # Recorder
 
-* char->integer
-  * read1
-  * sum1
-  * dynamic
-  * compiler
-  * parsing
 * mulvv
 * clfunc / clfuncv
   * array1

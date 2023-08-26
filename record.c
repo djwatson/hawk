@@ -282,6 +282,7 @@ void dump_trace(trace_s *ctrace) {
       print_const_or_val(op.op2, ctrace);
       break;
     }
+    case IR_SHR:
     case IR_REF: {
       print_const_or_val(op.op1, ctrace);
       printf(" offset %i", op.op2);
@@ -689,6 +690,11 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto reg = INS_A(i);
     regs[reg] = arrlen(trace->consts) | IR_CONST_BIAS;
     arrput(trace->consts, k);
+    break;
+  }
+  case CHAR_INTEGER: {
+    auto  op1  = record_stack_load(INS_B(i), frame);
+    regs[INS_A(i)] = push_ir(trace, IR_SHR, op1, 5, CHAR_TAG);
     break;
   }
   case JISF: {
