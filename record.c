@@ -335,8 +335,16 @@ void record_start(unsigned int *pc, long *frame) {
   if (side_exit != nullptr) {
     snap_replay(&regs, side_exit, parent, trace, frame, &depth);
   }
+  auto next_pc = pc;
+  if (INS_OP(*pc) == FUNC ||
+	    INS_OP(*pc) == LOOP       ) {
+    next_pc = pc+1;
+  }
+  if (INS_OP(*pc) == CLFUNC) {
+    next_pc = pc + 2;
+  }
   add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-           (INS_OP(*pc) == FUNC || INS_OP(*pc) == LOOP) ? pc + 1 : pc, depth);
+            next_pc, depth);
 }
 
 extern int joff;
@@ -475,17 +483,15 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     for (int *pos = &regs[INS_A(i)]; pos < &regs_list[257]; pos++) {
       *pos = -1;
     }
-  } else if (INS_OP(i) == CLFUNC) {
-    // If it doesn't match, just continue;
-    if (argcnt != INS_A(i)) {
-      return 0;
-    }
-  }
+  } 
   if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
       INS_OP(trace->startpc) != RET1 && parent == nullptr) {
-    printf("Record stop loop\n");
-    record_stop(pc, frame, arrlen(traces));
-    return 1;
+    if (INS_OP(*pc) == CLFUNC && argcnt != INS_A(*pc)) {
+    } else {
+      printf("Record stop loop\n");
+      record_stop(pc, frame, arrlen(traces));
+      return 1;
+    }
   }
 
   instr_count++;
@@ -502,9 +508,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       record_abort();
       return 1;
     }
-    // case CLFUNC:
     break;
   }
+  case CLFUNC:
   case FUNC: {
     // TODO this is for register-based arguments
     // if (arrlen(trace->ops) == 0) {
@@ -1388,8 +1394,14 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case JFUNC: {
+
     // Check if it is a returning trace
     auto *ctrace = trace_cache_get(INS_D(i));
+    if (INS_OP(ctrace->startpc) == CLFUNC) {
+      if (argcnt != INS_A(ctrace->startpc)) {
+	break;
+      }
+    }
     if (ctrace->link == -1) {
       assert(patchpc == nullptr);
       patchpc = pc;

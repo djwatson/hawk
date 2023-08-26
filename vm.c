@@ -693,6 +693,13 @@ LIBRARY_FUNC_D(JFUNC)
   //  printf("JFUNC/JLOOP run %i\n", rd);
 //  printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
 #if defined(JIT)
+auto trace = trace_cache_get(rd);
+if (INS_OP(trace->startpc) == CLFUNC) {
+  if (argcnt != INS_A(trace->startpc)) {
+    pc += INS_D(*(pc + 1)) + 1;
+    goto out;
+  }
+ }
 auto res = jit_run(rd, &pc, &frame);
 #else
 auto res = 0;
@@ -704,6 +711,7 @@ auto res = 0;
     // Turn on recording again
     op_table_arg = (void **)l_op_table_record;
   }
+out:
   NEXT_INSTR;
 }
 
