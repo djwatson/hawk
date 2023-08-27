@@ -1100,24 +1100,39 @@ done:
     }
     serialize_parallel_copy(&moves, &res, R15);
     for (int64_t i = (int64_t)res.mp_sz - 1; i >= 0; i--) {
+      //printf("Doing copy from %i to %i\n", res.mp[i].from, res.mp[i].to);
       if (res.mp[i].from >= REG_NONE && res.mp[i].to >= REG_NONE) {
 	// Move from spill to spill.
 	// Need a second tmp.
 	emit_pop(RAX);
+	emit_pop(R15);
 	emit_mem_reg(OP_MOV_RM, 0, R15, RAX);
 	emit_mov64(R15, (int64_t)&spill_slot[res.mp[i].to - REG_NONE]);
 	emit_mem_reg(OP_MOV_MR, 0, R15, RAX);
 	emit_mov64(R15, (int64_t)&spill_slot[res.mp[i].from - REG_NONE]);
+	emit_push(R15);
 	emit_push(RAX);
 	printf("WARNING slow spill to spill move\n");
       } else if (res.mp[i].from >= REG_NONE) {
 	// Move from spill to reg.
+	if (res.mp[i].to != R15) {
+	  emit_pop(R15);
+	}
 	emit_mem_reg(OP_MOV_MR, 0, R15, res.mp[i].to);
 	emit_mov64(R15, (int64_t)&spill_slot[res.mp[i].from - REG_NONE]);
+	if (res.mp[i].to != R15) {
+	  emit_push(R15);
+	}
       } else if (res.mp[i].to >= REG_NONE) {
 	// Move from reg to spill.
-	emit_mem_reg(OP_MOV_RM, 0, R15, res.mp[i].from);
-	emit_mov64(R15, (int64_t)&spill_slot[res.mp[i].to - REG_NONE]);
+	uint8_t tmp = R15;
+	if (res.mp[i].from == tmp) {
+	  tmp = RAX;
+	}
+	emit_pop(tmp);
+	emit_mem_reg(OP_MOV_RM, 0, tmp, res.mp[i].from);
+	emit_mov64(tmp, (int64_t)&spill_slot[res.mp[i].to - REG_NONE]);
+	emit_push(tmp);
       } else {
 	emit_reg_reg(OP_MOV, res.mp[i].from, res.mp[i].to);
       }
