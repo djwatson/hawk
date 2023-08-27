@@ -670,7 +670,22 @@
 	       (loop (cdr strs) end))))
        newstr))))
 
-(define (vector . rest) (list->vector rest))
+(define vector
+  (case-lambda
+    (() (make-vector 0))
+    ((a) (let ((v (make-vector 1)))
+	   (vector-set! v 0 a)
+	   v))
+    ((a b) (let ((v (make-vector 2)))
+	   (vector-set! v 0 a)
+	   (vector-set! v 1 b)
+	   v))
+    ((a b c) (let ((v (make-vector 3)))
+	   (vector-set! v 0 a)
+	   (vector-set! v 1 b)
+	   (vector-set! v 2 c)
+	   v))
+    (rest (list->vector rest))))
 
 (define number->string
   (case-lambda
