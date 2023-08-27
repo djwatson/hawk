@@ -1,2 +1,5 @@
-(display (string-append "a" "foo"))
+(let loop ((i 300))
+  (if (= i 0)
+      i
+      (loop (+ i -1))))
 

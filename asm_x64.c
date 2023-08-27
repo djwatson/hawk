@@ -112,7 +112,7 @@ bool reg_callee[] = {
 // Get a specific reg, spilling if necessary.
 void get_reg(uint8_t reg, trace_s* trace, uint32_t* next_spill, int *slot) {
   if (slot[reg] != -1) {
-    printf("Spilling reg %s\n", reg_names[reg]);
+    //printf("Spilling reg %s\n", reg_names[reg]);
     auto op = slot[reg];
     assert(trace->ops[op].reg != REG_NONE);
 
@@ -167,7 +167,7 @@ void preserve_for_call(trace_s* trace, int *slot, uint32_t* next_spill) {
 	assert(spill <= 255);
       }
       trace->ops[op].slot = spill;
-      printf("Assigning spill slot %i to op %i, mov to reg %s\n", spill, op, reg_names[trace->ops[op].reg]);
+      //printf("Assigning spill slot %i to op %i, mov to reg %s\n", spill, op, reg_names[trace->ops[op].reg]);
       
       emit_mem_reg(OP_MOV_MR, 0, R15, trace->ops[op].reg);
       emit_mov64(R15, (int64_t)&spill_slot[trace->ops[op].slot]);
@@ -185,10 +185,10 @@ void maybe_assign_register(int v, trace_s *trace, int *slot, uint32_t*next_spill
       slot[op->reg] = v;
 
       // Reload from spill slot.
-      if (op->slot != SLOT_NONE) {
-	printf("Assigning register %s to op %i spilled slot %i\n", reg_names[op->reg], v, op->slot);
-      }
-	printf("Assigning register %s to op %i\n", reg_names[op->reg], v);
+      /* if (op->slot != SLOT_NONE) { */
+      /* 	printf("Assigning register %s to op %i spilled slot %i\n", reg_names[op->reg], v, op->slot); */
+      /* } */
+      /* printf("Assigning register %s to op %i\n", reg_names[op->reg], v); */
     } 
     lru_poke(&reg_lru, op->reg);
   }
@@ -325,7 +325,7 @@ uint16_t find_val_for_slot(int slot, snap_s *snap, trace_s *trace) {
 }
 
 void emit_snap(int snap, trace_s *trace, bool all) {
-  printf("EMITSNAP: all %i\n", (int)all);
+  //printf("EMITSNAP: all %i\n", (int)all);
   auto sn = &trace->snaps[snap];
   int last_ret = -1;
   for (int i = (int)sn->ir - 1; i >= 0; i--) {
@@ -352,7 +352,7 @@ void emit_snap(int snap, trace_s *trace, bool all) {
       if (slot->val > last_ret &&
           (op->op == IR_SLOAD && ((op->type & IR_INS_TYPE_GUARD) != 0)) &&
           op->op1 == slot->slot && slot->slot < sn->offset) {
-        printf("DROPPING emit snap of slot %i\n", slot->slot);
+        //printf("DROPPING emit snap of slot %i\n", slot->slot);
         // nothing
       } else if (op->slot != SLOT_NONE) {
 	// Reload from spill.
@@ -625,7 +625,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (op->reg == REG_NONE) {
 	maybe_assign_register(op_cnt, trace, slot, &next_spill);
       }
-      printf("Spilling op %li to slot %i from reg %s\n", op_cnt, op->slot, reg_names[op->reg]);
+      //printf("Spilling op %li to slot %i from reg %s\n", op_cnt, op->slot, reg_names[op->reg]);
       emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
       emit_mov64(R15, (int64_t)&spill_slot[op->slot]);
     }
@@ -645,7 +645,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       // Used for typecheck only
       if (op->reg == REG_NONE) {
 	op->reg = get_free_reg(trace, &next_spill, slot, false);
-	printf("EMIT LOAD ONLY\n");
+	//printf("EMIT LOAD ONLY\n");
       }
       // frame pointer in RDI
       auto reg = op->reg;
@@ -753,7 +753,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       // Used for typecheck only
       if (op->reg == REG_NONE) {
 	op->reg = get_free_reg(trace, &next_spill, slot, false);
-	printf("EMIT LOAD ONLY\n");
+	//printf("EMIT LOAD ONLY\n");
       }
       maybe_assign_register(op->op1, trace, slot, &next_spill);
       assert(op->reg != REG_NONE);

@@ -122,7 +122,7 @@ void pendpatch() {
 
 void print_const_or_val(int i, trace_s *ctrace) {
   if ((i & IR_CONST_BIAS) != 0) {
-    auto c = ctrace->consts[i - IR_CONST_BIAS];
+    long c = ctrace->consts[i - IR_CONST_BIAS];
     int type = (int)(c & 0x7);
     if (type == 0) {
       printf("\e[1;35m%li\e[m", c >> 3);
@@ -228,10 +228,10 @@ void dump_trace(trace_s *ctrace) {
       printf("\e[1;34mchar\e[m ");
     } else if (t == UNDEFINED_TAG) {
     } else {
-      printf("UNKNOWN TAG %i\n", t);
-      fflush(stdout);
-      //printf("\e[1;34mUNK \e[m ");
-      assert(false);
+      /* printf("UNKNOWN TAG %i\n", t); */
+      /* fflush(stdout); */
+      printf("\e[1;34mUNK \e[m ");
+      /* assert(false); */
     }
     printf("%s ", ir_names[(int)op.op]);
     switch (op.op) {
@@ -1208,7 +1208,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case SUBVN: {
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, INS_C(i) << 3);
+    arrput(trace->consts, ((int64_t)((int8_t)INS_C(i))) << 3);
     auto op1 = record_stack_load(INS_B(i), frame);
     uint8_t type = 0;
     if (op1 >= IR_CONST_BIAS) {
@@ -1227,7 +1227,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case ADDVN: {
     // TODO check type
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, INS_C(i) << 3);
+    arrput(trace->consts, ((int64_t)((int8_t)INS_C(i))) << 3);
     auto op1 = record_stack_load(INS_B(i), frame);
     uint8_t type = 0;
     if (op1 >= IR_CONST_BIAS) {
@@ -1430,7 +1430,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   default: {
     bcfunc* fc = find_func_for_frame(pc);
     printf("Record abort: NYI: CANT RECORD BYTECODE %s in %s\n",
-           ins_names[INS_OP(i)], fc->name);
+	   ins_names[INS_OP(i)], fc ? fc->name : "???");
     record_abort();
     return 1;
     // exit(-1);
