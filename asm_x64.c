@@ -1194,11 +1194,14 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
    restore_snap(snap, trace, &state, o_frame, o_pc);
 
   if (exit != arrlen(trace->snaps) - 1) {
-    if (snap->exits < 10) {
+    if (snap->exits < 254) {
       snap->exits++;
+    }
+    if (snap->exits < 10) {
+
     } else {
-      if (snap->exits < 14) {
-        snap->exits++;
+
+      if (snap->exits % 10 == 0 && snap->exits < 250) {
         printf("Hot snap %li\n", exit);
         if (INS_OP(**o_pc) == JLOOP) {
           printf("HOT SNAP to JLOOP\n");
@@ -1212,7 +1215,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
       }
       if (snap->exits == 14) {
         printf("Side max\n");
-        snap->exits++;
+
       }
     }
     // TODO this may or may not be working as intended:
