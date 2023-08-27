@@ -392,6 +392,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   side_exit = nullptr;
   arrfree(downrec);
   trace = nullptr;
+  parent = nullptr;
   // joff = 1;
 }
 

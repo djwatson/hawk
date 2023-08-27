@@ -1,3 +1,6 @@
+* clfunc
+ * bench2 - compiler, matrix, simplex
+
 # Getting all jit to work bench2
 
 * looping shit in destruc
