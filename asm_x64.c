@@ -416,6 +416,9 @@ void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins *op,
     auto re = (reloc){emit_offset(), c, RELOC_ABS};
     arrput(trace->relocs, re);
     emit_mov64(reg, c);
+    if (reg == reg2) {
+      emit_reg_reg(OP_MOV, reg2, R15);
+    }
   } else {
     reg1 = trace->ops[op->op1].reg;
     if (reg != reg1) {
