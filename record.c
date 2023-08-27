@@ -1285,12 +1285,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto op2 = record_stack_load(INS_C(i), frame);
     // TODO: Assume no type change??
     uint8_t type = 0;
-    if (op1 >= IR_CONST_BIAS) {
-      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
-    } else {
-      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
-    }
-    if (type != 0) {
+    if (get_object_ir_type(frame[INS_B(i)]) != 0 ||
+	get_object_ir_type(frame[INS_C(i)]) != 0) {
       printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
       return 1;

@@ -1,5 +1,7 @@
 * clfunc
- * bench2 - compiler, matrix, simplex
+ * bench2 - compiler, matrix
+ 
+ matrix - reg to reg copy that uses temp is fucked
 
 # Getting all jit to work bench2
 
