@@ -22,12 +22,12 @@
 * mperm-???
 * gcbench - loop
 * puzzle - loops, call/cc
-* paraffins - ???? loops
-* mazefun - list, mulvv random gen, loops, ????
+* paraffins - ???? loops 
+* mazefun - list, mulvv random gen, loops, ???? UNROLL IMIT
 * simplex - mulvv, loops, flaots
-* lattice - apply, loops, ????
+* lattice - apply, loops, ????, NEEDS better closure analysis
 * browse - loops, integer->char, string->symbol, make-string, 
-* graphs - loops????
+* graphs - loops???? --- closure sinking
 * conform - loops???????? vector funcv, string-append, make-string
 * maze - loops???????????? mulvv
 * earley - ??????????????, make-vector
@@ -97,14 +97,11 @@ OK
 * diviter
 * wc
 * cat
+* mperm
 
 ????
 * graphs
 * earley
-
-CRASH
-* scheme with big heap
-* matrix
 
 * nboyer needs longer traces and larger blacklist
 

@@ -980,6 +980,8 @@
 (define values
   (case-lambda
    ((a) a)
+   ((a b) (cons a (cons b '())))
+   ((a b c) (cons a (cons b (cons c '()))))
    (rest rest)))
 
 (define (call-with-values producer consumer)
