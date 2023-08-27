@@ -1080,7 +1080,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     //  TODO this forces a side exit without recording.
     //   Put GC inline in generated code?  Would have to flush
     //   all registers to stack.
-    trace->snaps[arrlen(trace->snaps) - 1].exits = 100;
+    trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
     // TODO fixed closz
     long closz = (frame[INS_A(i)+1] >> 3)+1;
     auto cell = push_ir(trace, IR_ALLOC, sizeof(long)* (closz + 2), CLOSURE_TAG, CLOSURE_TAG);
@@ -1113,7 +1113,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     //  TODO this forces a side exit without recording.
     //   Put GC inline in generated code?  Would have to flush
     //   all registers to stack.
-    trace->snaps[arrlen(trace->snaps) - 1].exits = 100; 
+    trace->snaps[arrlen(trace->snaps) - 1].exits = 255; 
     auto a = record_stack_load(INS_B(i), frame);
     int b;
     if (INS_OP(i) == CONS) {
@@ -1145,7 +1145,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     //  TODO this forces a side exit without recording.
     //   Put GC inline in generated code?  Would have to flush
     //   all registers to stack.
-    trace->snaps[arrlen(trace->snaps) - 1].exits = 100;
+    trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
     
     auto cell = push_ir(trace, IR_ALLOC, sizeof(vector_s) + 8*len, PTR_TAG, VECTOR_TAG);
     regs[reg] = cell;
