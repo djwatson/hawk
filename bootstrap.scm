@@ -167,7 +167,12 @@
 (define (set-car! c a) ($set-car! c a))
 (define (set-cdr! c a) ($set-cdr! c a))
 (define (cons a b) ($cons a b))
-(define (list . x) x)
+(define list
+  (case-lambda
+    ((a) (cons a '()))
+    ((a b) (cons a (cons b '())))
+    ((a b c) (cons a (cons b (cons c '()))))
+    (rest rest)))
 
 (define (cddr e) (cdr (cdr e)))
 (define (caar e) (car (car e)))
@@ -202,9 +207,10 @@
 
 (define map
   (case-lambda
-   ((f lst)
-    (if (null? lst) '()
-	(cons (f (car lst)) (map f (cdr lst)))))
+    ((f lst)
+     (let loop ((f f) (lst lst))
+       (if (null? lst) '()
+	   (cons (f (car lst)) (loop f (cdr lst))))))
    (lst (let loop ((lsts (cons (cadr lst) (cddr lst))))
     (let ((hds (let loop2 ((lsts lsts))
 		 (if (null? lsts)
@@ -225,10 +231,11 @@
 
 (define append
   (case-lambda
-   ((a b)
-    (if (null? a)
-	b
-	(cons (car a) (append (cdr a) b))))
+    ((a b)
+     (let loop ((a a) (b b))
+       (if (null? a)
+	   b
+	   (cons (car a) (loop (cdr a) b)))))
    (lsts (if (null? lsts) '()
       (let loop ((lsts lsts))
 	(if (null? (cdr lsts))
@@ -462,14 +469,18 @@
 
 (define for-each
   (case-lambda
-   ((proc lst) (if (not (null? lst))
-      (begin
-	(proc (car lst))
-	(for-each proc (cdr lst)))))
-   ((proc lst1 lst2) (if (and  (not (null? lst1)) (not (null? lst2)))
-      (begin
-	(proc (car lst1) (car lst2))
-	(for-each proc (cdr lst1) (cdr lst2)))))
+    ((proc lst)
+     (let loop ((proc proc) (lst lst))
+       (if (not (null? lst))
+	   (begin
+	     (proc (car lst))
+	     (loop proc (cdr lst))))))
+    ((proc lst1 lst2)
+     (let loop ((proc proc) (lst1 lst1) (lst2 lst2))
+       (if (and  (not (null? lst1)) (not (null? lst2)))
+	   (begin
+	     (proc (car lst1) (car lst2))
+	     (loop proc (cdr lst1) (cdr lst2))))))
    ((proc . lsts) (let loop ((lsts lsts))
        (let ((hds (let loop2 ((lsts lsts))
 		    (if (null? lsts)
@@ -628,19 +639,36 @@
 	    (string-set! c j (string-ref str i))
 	    (loop (+ i 1) (+ j 1)))))
     c))
-(define (string-append . strs)
-  (let* ((totallen (apply + (map string-length strs)))
-	 (newstr (make-string totallen)))
-    (let loop ((strs strs) (place 0))
-      (if (not (null? strs))
-	  (let ((end (+ place (string-length (car strs)))))
-	    (let loop ((from 0) (pos place))
-	      (if (< pos end)
-		  (begin
-		    (string-set! newstr pos (string-ref (car strs) from))
-		    (loop (+ from 1) (+ pos 1)))))
-	    (loop (cdr strs) end))))
-    newstr))
+(define string-append
+  (case-lambda
+    ((a b)
+     (let* ((totallen (+ (string-length a) (string-length b)))
+	    (newstr (make-string totallen)))
+       (let ((end (string-length a)))
+	 (let loop ((from 0) (pos 0))
+	   (if (< pos end)
+	       (begin
+		 (string-set! newstr pos (string-ref a from))
+		 (loop (+ from 1) (+ pos 1)))))
+	 (let loop ((from 0) (pos end))
+	   (if (< pos totallen)
+	       (begin
+		 (string-set! newstr pos (string-ref b from))
+		 (loop (+ from 1) (+ pos 1))))))
+       newstr))
+    (strs
+     (let* ((totallen (apply + (map string-length strs)))
+	    (newstr (make-string totallen)))
+       (let loop ((strs strs) (place 0))
+	 (if (not (null? strs))
+	     (let ((end (+ place (string-length (car strs)))))
+	       (let loop ((from 0) (pos place))
+		 (if (< pos end)
+		     (begin
+		       (string-set! newstr pos (string-ref (car strs) from))
+		       (loop (+ from 1) (+ pos 1)))))
+	       (loop (cdr strs) end))))
+       newstr))))
 
 (define (vector . rest) (list->vector rest))
 
