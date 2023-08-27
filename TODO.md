@@ -5,6 +5,39 @@
 
 # Recorder
 
+* sum1 - integer->char, islte, peek, inexact
+* read1 - char cmp, peek, callcc, make-string, integer->char, 
+* diviter - loops
+* wc - list funcv
+* string - funcv, make-string loops
+* fibc/ctak - callcc
+* tail - read-line
+* nqueens - ????
+* cpstak??
+* takl?
+* primes - loops. apply, values clfuncv
+* deriv - list, values
+* triangl-?
+* destruc - loops 
+* mperm-???
+* gcbench - loop
+* puzzle - loops, call/cc
+* paraffins - ???? loops
+* mazefun - list, mulvv random gen, loops, ????
+* simplex - mulvv, loops, flaots
+* lattice - apply, loops, ????
+* browse - loops, integer->char, string->symbol, make-string, 
+* graphs - loops????
+* conform - loops???????? vector funcv, string-append, make-string
+* maze - loops???????????? mulvv
+* earley - ??????????????, make-vector
+* peval - ????????? list, apply, make-string
+* boyer, nboyer - ???????????????????????
+* matrix - mulvv, make-vector, apply, 
+* dynamic - islte, char cmp, peek, callcc
+* slatex - peek, make-string, char cmp
+* compiler- char-cmp, string->symbol, make-string, integer->char, isgt, apply, 
+
 
 * clfunc / clfuncv
   * array1
