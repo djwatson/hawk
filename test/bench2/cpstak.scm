@@ -35,9 +35,7 @@
 
 
 
-(define (cpstak x y z)
-
-  (define (tak x y z k)
+(define (tak x y z k)
     (if (not (< y x))
         (k z)
         (tak (- x 1)
@@ -53,6 +51,9 @@
                            y
                            (lambda (v3)
                              (tak v1 v2 v3 k)))))))))
+(define (cpstak x y z)
+
+  
 
   (tak x y z (lambda (a) a)))
 

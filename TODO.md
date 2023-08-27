@@ -1,7 +1,9 @@
 # Getting all jit to work bench2
 
-* looping shit in destruc
-* gcbench
+* fix simplex
+* fix whatever is causing diviter to rejit
+* 'untraced loops' in destruct, deriv - set hotcnt immediately.
+* mulvv
 
 # Recorder
 
@@ -13,12 +15,12 @@
 * fibc/ctak - callcc
 * tail - read-line
 * nqueens - ????
-* cpstak??
-* takl?
+* cpstak?? - hold things in registers
+* takl? - register shit, sccp
 * primes - loops. apply, values clfuncv
 * deriv - list, values
 * triangl-?
-* destruc - loops 
+* destruc - list len in register, no loads
 * mperm-???
 * gcbench - loop
 * puzzle - loops, call/cc
