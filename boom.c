@@ -172,8 +172,8 @@ int main(int argc, char *argv[]) {
   if (jit_dump_flag) {
     jit_dump_close();
   }
-  free_trace();
 #endif
+  free_trace();
   free_script();
   free_vm();
 

@@ -41,6 +41,7 @@ int regs_list[257];
 int *regs = &regs_list[1];
 snap_s *side_exit = nullptr;
 static trace_s *parent = nullptr;
+static uint8_t unroll = 0;
 
 unsigned int **downrec = NULL;
 
@@ -322,6 +323,7 @@ void record_start(unsigned int *pc, long *frame) {
   trace->num = arrlen(traces);
   trace->fn = NULL;
   trace_state = START;
+  unroll = 0;
   func = (long)find_func_for_frame(pc);
   assert(func);
   if (verbose) {
@@ -513,16 +515,24 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	   INS_B(i), INS_C(i));
   }
   switch (INS_OP(i)) {
+  case ILOOP:
   case LOOP: {
     // TODO check the way luajit does it
-    if (arrlen(trace->ops) != 0) {
-      if (verbose) printf("Record abort: Trace hit untraced loop\n");
+    if (arrlen(trace->ops) != 0 && !parent || (unroll++ > UNROLL_LIMIT)) {
+      if (!parent) {
+	if (verbose) printf("Record abort: Root trace hit untraced loop\n");
+      } else {
+	if (verbose) printf("Record abort: Unroll limit reached in loop for side trace\n");
+	hotmap[(((long)pc) >> 2) & hotmap_mask] = 200;
+      }
       record_abort();
       return 1;
     }
     break;
   }
+  case ICLFUNC:
   case CLFUNC:
+  case IFUNC:
   case FUNC: {
     // TODO this is for register-based arguments
     // if (arrlen(trace->ops) == 0) {
@@ -543,6 +553,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // TODO: argcheck?
     break;
   }
+  case IRET1:
   case RET1: {
     if (depth == 0) {
       auto *old_pc = (unsigned int *)frame[-1];
