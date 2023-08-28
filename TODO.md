@@ -1,6 +1,10 @@
+* BROKEN:
+
+* compiler
+* nqueens
+
 # Getting all jit to work bench2
 
-* 'untraced loops' in destruct, deriv - set hotcnt immediately.
 * too many traces - conform compiler mazefun maze matrix peval scheme dynamic lattice nucleic read1 slatex
 * islte
 * make-vector
