@@ -751,21 +751,31 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case IR_STRLD: {
       maybe_assign_register(op->op1, trace, slot, &next_spill);
       maybe_assign_register(op->op2, trace, slot, &next_spill);
-      assert(!ir_is_const(op->op1)); // str
+
+      uint8_t reg1 = op->reg;
+      if (!ir_is_const(op->op1)) {
+	reg1 = trace->ops[op->op1].reg;
+      }
 
       emit_arith_imm(OP_ARITH_ADD, op->reg, CHAR_TAG);
       emit_imm8(8);
       emit_reg_reg(OP_SAR_CONST, 4, op->reg);
       emit_mem_reg2(OP_MOVZX8, 0, op->reg, op->reg);
       if(!ir_is_const(op->op2)) {
-	emit_mem_reg_sib(OP_LEA, 16 - PTR_TAG, 0, R15, trace->ops[op->op1].reg, op->reg);
+	emit_mem_reg_sib(OP_LEA, 16 - PTR_TAG, 0, R15, reg1, op->reg);
 	emit_imm8(3);
 	emit_reg_reg(OP_SAR_CONST, 7, R15);
 	emit_reg_reg(OP_MOV_MR, R15, trace->ops[op->op2].reg);
       } else {
 	// Must be a fixnum.
         auto c = trace->consts[op->op2 - IR_CONST_BIAS];
-	emit_mem_reg(OP_LEA, 16 - PTR_TAG - (c>>3), trace->ops[op->op1].reg, op->reg);
+	emit_mem_reg(OP_LEA, 16 - PTR_TAG - (c>>3), reg1, op->reg);
+      }
+      if (ir_is_const(op->op1)) {
+	auto c = trace->consts[op->op1 - IR_CONST_BIAS];
+	auto re = (reloc){emit_offset(), c, RELOC_ABS};
+	arrput(trace->relocs, re);
+	emit_mov64(reg1, (int64_t)(c));
       }
       break;
     }

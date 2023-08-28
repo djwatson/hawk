@@ -2,7 +2,6 @@
 
 * 'untraced loops' in destruct, deriv - set hotcnt immediately.
 * too many traces - conform compiler mazefun maze matrix peval scheme dynamic lattice nucleic read1 slatex
-* mulvv
 
 # Recorder
 
@@ -24,17 +23,17 @@
 * gcbench - loop
 * puzzle - loops, call/cc
 * paraffins - ???? loops 
-* mazefun - list, mulvv random gen, loops, ???? UNROLL IMIT
-* simplex - mulvv, loops, flaots
+* mazefun - list, random gen, loops, ???? UNROLL IMIT
+* simplex - loops, flaots
 * lattice - apply, loops, ????, NEEDS better closure analysis
 * browse - loops, integer->char, string->symbol, make-string, 
 * graphs - loops???? --- closure sinking
 * conform - loops???????? vector funcv, string-append, make-string
-* maze - loops???????????? mulvv
+* maze - loops???????????? 
 * earley - ??????????????, make-vector
 * peval - ????????? list, apply, make-string
 * boyer, nboyer - ???????????????????????
-* matrix - mulvv, make-vector, apply, 
+* matrix - make-vector, apply, 
 * dynamic - islte, char cmp, peek, callcc
 * slatex - peek, make-string, char cmp
 * compiler- char-cmp, string->symbol, make-string, integer->char, isgt, apply, 
@@ -52,8 +51,6 @@
   *array1
 * apply 
   * primes
-* mulvv
-  * maze
 
 * make-vector
   * graphs
