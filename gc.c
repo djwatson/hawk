@@ -13,6 +13,8 @@
 
 #define auto __auto_type
 
+extern bool verbose;
+
 extern long *stack;
 extern unsigned int stacksz;
 
@@ -301,10 +303,12 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
     trace_heap_object((long *)scan);
     scan += align(scan_sz);
   }
+  if (verbose) {
   printf("...Done collect, in use %li, %.2f%% of %liMB\n",
          alloc_ptr - from_space,
          ((double)(alloc_ptr - from_space)) / (double)alloc_sz * 100.0,
          alloc_sz / 1000 / 1000);
+  }
 
   res = alloc_ptr;
   alloc_ptr += sz;

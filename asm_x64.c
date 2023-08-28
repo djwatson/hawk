@@ -32,6 +32,8 @@
 
 #include "lru.c"
 
+extern bool verbose;
+
 // TODO
 long *expand_stack_slowpath(long *frame);
 extern long *frame_top;
@@ -766,7 +768,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_ABC: {
-      printf("TODO: ABC emit\n");
+      if (verbose) printf("TODO: ABC emit\n");
       break;
     }
     case IR_VREF: {
@@ -1090,7 +1092,7 @@ done:
 	  to = op->slot + REG_NONE;
 	}
 	map_insert(&moves, from, to);
-	printf("Insert parallel copy %i to %i\n",
+	if (verbose) printf("Insert parallel copy %i to %i\n",
 	       from, to);
 	if (op->slot != SLOT_NONE && op->reg != REG_NONE) {
 	  emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
@@ -1112,7 +1114,7 @@ done:
 	emit_mov64(R15, (int64_t)&spill_slot[res.mp[i].from - REG_NONE]);
 	emit_push(R15);
 	emit_push(RAX);
-	printf("WARNING slow spill to spill move\n");
+	if (verbose) printf("WARNING slow spill to spill move\n");
       } else if (res.mp[i].from >= REG_NONE) {
 	// Move from spill to reg.
 	if (res.mp[i].to != R15) {
@@ -1147,7 +1149,9 @@ done:
 
   trace->fn = fn;
   auto len = (int)(end - start);
-  disassemble((const uint8_t *)fn, len);
+  if (verbose) {
+    disassemble((const uint8_t *)fn, len);
+  }
 
   if (side_exit != nullptr) {
     emit_bind(start, side_exit->patchpoint);
@@ -1196,15 +1200,18 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
   if (exit != arrlen(trace->snaps) - 1) {
     if (snap->exits < 254) {
       snap->exits++;
-    }
+      if (snap->exits == 255) {
+	if (verbose) printf("Side max\n");
+      }
+    } 
     if (snap->exits < 10) {
 
     } else {
 
       if (snap->exits % 10 == 0 && snap->exits < 250) {
-        printf("Hot snap %li\n", exit);
+        //printf("Hot snap %li\n", exit);
         if (INS_OP(**o_pc) == JLOOP) {
-          printf("HOT SNAP to JLOOP\n");
+          //printf("HOT SNAP to JLOOP\n");
           patchpc = *o_pc;
           patchold = **o_pc;
           auto *otrace = trace_cache_get(INS_D(**o_pc));
@@ -1212,10 +1219,6 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
         }
         record_side(trace, snap);
         return 1;
-      }
-      if (snap->exits == 14) {
-        printf("Side max\n");
-
       }
     }
     // TODO this may or may not be working as intended:

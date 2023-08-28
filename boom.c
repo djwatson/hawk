@@ -26,6 +26,7 @@ extern int joff;
 extern bool jit_dump_flag;
 
 static struct option long_options[] = {
+    {"verbose", no_argument, nullptr, 'v'},
     {"profile", no_argument, nullptr, 'p'},
     {"joff", no_argument, nullptr, 'o'},
     {"dump", no_argument, nullptr, 'd'},
@@ -52,6 +53,7 @@ void print_help() {
 #endif
 
   printf("  -s, --heap-sz  \tHeap size (in pages)\n");
+  printf("  -v, --verbose  \tTurn on verbose jit mode\n");
   printf("  -h, --help     \tPrint this help\n");
 }
 
@@ -78,20 +80,19 @@ void compile_file(const char *file) {
   run(func, list ? 3 : 2, args);
 }
 
+bool verbose = false;
 int profile = 0;
 size_t page_cnt = 12000;
 int main(int argc, char *argv[]) {
 
-  int verbose = 0;
-
   int c;
-  while ((c = getopt_long(argc, argv, "slphjd:", long_options, nullptr)) != -1) {
+  while ((c = getopt_long(argc, argv, "vslphjd:", long_options, nullptr)) != -1) {
     switch (c) {
     case 'p':
       profile = 1;
       break;
     case 'v':
-      verbose++;
+      verbose = true;
       break;
     case 'o':
       joff = 1;

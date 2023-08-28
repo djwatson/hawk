@@ -1,8 +1,7 @@
 # Getting all jit to work bench2
 
-* fix simplex
-* fix whatever is causing diviter to rejit
 * 'untraced loops' in destruct, deriv - set hotcnt immediately.
+* too many traces - conform compiler mazefun maze matrix peval scheme dynamic lattice nucleic read1 slatex
 * mulvv
 
 # Recorder
