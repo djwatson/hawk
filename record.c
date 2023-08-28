@@ -525,8 +525,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	if (verbose) printf("Record abort: Root trace hit untraced loop\n");
       } else {
 	if (verbose) printf("Record abort: Unroll limit reached in loop for side trace\n");
-	hotmap[(((long)pc) >> 2) & hotmap_mask] = 200;
       }
+      hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
       record_abort();
       return 1;
     }
