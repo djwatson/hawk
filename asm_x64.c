@@ -1221,10 +1221,10 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
    restore_snap(snap, trace, &state, o_frame, o_pc);
 
   if (exit != arrlen(trace->snaps) - 1) {
-    if (snap->exits < 254) {
+    if (snap->exits < 255) {
       snap->exits++;
       if (snap->exits == 255) {
-	if (verbose) printf("Side max\n");
+	if (verbose) printf("Blacklist: Side max in trace %i exit %lu\n", trace->num, exit);
       }
     } 
     if (snap->exits < 10) {
