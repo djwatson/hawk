@@ -699,6 +699,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         return 1;
       } // TODO fix flush
       pendpatch();
+      bool abort = false;
       if (INS_OP(cfunc->code[0]) == JFUNC) {
 	// Check if it is already up-recursion (i.e. a side trace failed here)
 	auto sl_trace = trace_cache_get(INS_D(cfunc->code[0]));
@@ -706,13 +707,18 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	  if (verbose) printf("Flushing trace\n");
 	  cfunc->code[0] = traces[INS_D(cfunc->code[0])]->startpc;
 	  hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
+	  abort = true;
 	}
+      } else {
+	abort = true;
       }
-      // TODO this isn't in luajit? fails with side exit without?
-      hotmap[(((long)cfunc->code[0]) >> 2) & hotmap_mask] = 1;
-      if (verbose) printf("Record abort: unroll limit reached\n");
-      record_abort();
-      return 1;
+      if (abort) {
+	// TODO this isn't in luajit? fails with side exit without?
+	hotmap[(((long)cfunc->code[0]) >> 2) & hotmap_mask] = 1;
+	if (verbose) printf("Record abort: unroll limit reached\n");
+	record_abort();
+	return 1;
+      }
     }
     break;
   }
