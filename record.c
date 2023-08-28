@@ -1193,12 +1193,18 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case READ: {
+    port_s* port = (port_s*)(frame[INS_B(i)] - PTR_TAG);
+    uint8_t type = CHAR_TAG;
+    // TODO peek instead.
+    if (port->eof == TRUE_REP) {
+      type = EOF_TAG;
+    }
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)vm_read_char);
     regs[INS_A(i)] = push_ir(trace, IR_CALLXS,
 			     record_stack_load(INS_B(i), frame),
 			     knum | IR_CONST_BIAS,
-			     CHAR_TAG | IR_INS_TYPE_GUARD);
+			     type | IR_INS_TYPE_GUARD);
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
     break;
   }

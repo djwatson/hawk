@@ -994,6 +994,7 @@ LIBRARY_FUNC_BC(OPEN)
   
   port->type = PORT_TAG;
   port->input_port = fc;
+  port->eof = FALSE_REP;
   
   if ((fb & TAG_MASK) == FIXNUM_TAG) {
     port->fd = frame[rb] >> 3;
@@ -1035,6 +1036,7 @@ LIBRARY_FUNC_B_LOAD(PEEK)
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
   int res = fgetc(port->file);
   if (res == EOF) {
+    port->eof = TRUE_REP;
     frame[ra] = EOF_TAG;
   } else {
     ungetc(res, port->file);
@@ -1047,6 +1049,7 @@ __attribute__((always_inline)) long vm_read_char(port_s* port) {
   port = (port_s*)((long)port & ~TAG_MASK);
   int res = fgetc(port->file);
   if (res == EOF) {
+    port->eof = TRUE_REP;
     return EOF_TAG;
   } else {
     return (((long)res) << 8) + CHAR_TAG;
@@ -1065,6 +1068,7 @@ LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
   auto pos = 0;
   ssize_t res = getline(&bufptr, &sz, port->file);
   if (res == -1) {
+    port->eof = TRUE_REP;
     frame[ra] = EOF_TAG;
   } else {
    auto str = (string_s*)GC_malloc(res + 16);

@@ -83,6 +83,7 @@ typedef struct port_s {
   long input_port;
   long fd;
   FILE *file;
+  long eof;
 } port_s;
 
 void print_obj(long obj, FILE *file);
