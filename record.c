@@ -492,7 +492,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   unsigned int i = *pc;
 
   if (INS_OP(i) == LOOP) {
-    for (int *pos = &regs[INS_A(i)]; pos < &regs_list[257]; pos++) {
+    for (int *pos = &regs[INS_A(i) + INS_B(i)]; pos < &regs_list[257]; pos++) {
       *pos = -1;
     }
   } 
