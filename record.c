@@ -709,7 +709,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	}
       }
       // TODO this isn't in luajit? fails with side exit without?
-      hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
+      hotmap[(((long)cfunc->code[0]) >> 2) & hotmap_mask] = 1;
       if (verbose) printf("Record abort: unroll limit reached\n");
       record_abort();
       return 1;
@@ -1442,7 +1442,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     return 1;
   }
   case JLOOP: {
-    if (side_exit == nullptr) {
+    auto *ctrace = trace_cache_get(INS_D(i));
+    if (side_exit == nullptr && INS_OP(ctrace->startpc) != RET1) {
       if (verbose) printf("Record abort: root trace hit loop\n");
       record_abort();
       return 1;
