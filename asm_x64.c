@@ -952,6 +952,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       }
       break;
     }
+    case IR_MUL:
     case IR_REM:
     case IR_DIV: {
       // DIV is a pain on x86_64.
@@ -981,7 +982,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
       uint8_t reg2 = R15;
 
-      if (op->op == IR_DIV && op->reg != RAX) {
+      if ((op->op == IR_DIV || op->op == IR_MUL) && op->reg != RAX) {
 	emit_reg_reg(OP_MOV, RAX, op->reg);
       }
       if (op->op == IR_REM && op->reg != RDX) {
@@ -995,14 +996,25 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 	emit_imm8(3);
 	emit_reg_reg(OP_SHL_CONST, 4, RDX);
       }
-      // idiv
-      emit_reg_reg(OP_IDIV, 7, reg2);
+      if (op->op == IR_MUL) {
+	emit_jcc32(JO, snap_labels[cur_snap]);
+      }
+      if (op->op == IR_MUL) {
+	emit_reg_reg(OP_IDIV, 5, reg2);
+      } else {
+	// idiv
+	emit_reg_reg(OP_IDIV, 7, reg2);
+      }
       // cqo
       emit_imm8(OP_CQO);
       emit_rex(1, 0, 0, 0);
-      
-      emit_imm8(3);
-      emit_reg_reg(OP_SAR_CONST, 7, RAX);
+
+      // No need to shift input or output for MUL,
+      // have to check for overflow unshifted.
+      if (op->op != IR_MUL) {
+	emit_imm8(3);
+	emit_reg_reg(OP_SAR_CONST, 7, RAX);
+      }
       if (ir_is_const(op->op2)) {
 	auto c = trace->consts[op->op2 - IR_CONST_BIAS];
 	// C must be fixnum
