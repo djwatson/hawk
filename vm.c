@@ -259,9 +259,10 @@ long *expand_stack_slowpath(long *frame) {
 LIBRARY_FUNC(ILOOP)
 END_LIBRARY_FUNC
 LIBRARY_FUNC(LOOP)
-      if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
+      if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask]) <= hotmap_loop)) {
 	MUSTTAIL return RECORD_START(ARGS);
       }
+      hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_loop;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC(IFUNC) 
