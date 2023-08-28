@@ -521,10 +521,18 @@
 
 (define apply
   (case-lambda
-   ((fun args) ($apply fun args))
+   ((fun args)
+    (case (length args)
+      ((0) (fun))
+      ((1) (fun (car args)))
+      ((2) (fun (car args) (cadr args)))
+      ((3) (fun (car args) (cadr args) (caddr args)))
+      ((4) (fun (car args) (cadr args) (caddr args) (cadddr args)))
+      (else 
+       ($apply fun args))))
    (lst (let* ((firstargs (reverse (cdr (reverse (cdr lst)))))
 	 (args (append firstargs (car (reverse (cdr lst))))))
-    ($apply (car lst) args)))))
+    (apply (car lst) args)))))
 
 (define (strcmp eq? f a b eq lt gt)
   (let loop ((pos 0) (rema (string-length a)) (remb (string-length b)))

@@ -2,6 +2,15 @@
 
 * 'untraced loops' in destruct, deriv - set hotcnt immediately.
 * too many traces - conform compiler mazefun maze matrix peval scheme dynamic lattice nucleic read1 slatex
+* islte
+* make-vector
+* make-string
+* integer->char
+* symbol->string
+* funcv/clfuncv
+* peek
+* call/cc
+* char cmp
 
 # Recorder
 

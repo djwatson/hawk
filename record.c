@@ -515,10 +515,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	   INS_B(i), INS_C(i));
   }
   switch (INS_OP(i)) {
-  case ILOOP:
+  case ILOOP: {
+    break;
+  }
   case LOOP: {
     // TODO check the way luajit does it
-    if (arrlen(trace->ops) != 0 && !parent || (unroll++ > UNROLL_LIMIT)) {
+    if (arrlen(trace->ops) != 0 && !parent || (unroll++ >= 3)) {
       if (!parent) {
 	if (verbose) printf("Record abort: Root trace hit untraced loop\n");
       } else {
