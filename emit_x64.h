@@ -25,6 +25,7 @@ enum ARITH_CODES {
   OP_ARITH_ADD = 0,
   OP_ARITH_SUB = 5,
   OP_ARITH_CMP = 7,
+  OP_ARITH_NONE = 255,
 };
 
 enum OPCODES {
@@ -49,6 +50,7 @@ enum OPCODES {
   OP_SHL_CONST = 0xC1,
   OP_CQO = 0x99,
   OP_IDIV = 0xF7,
+  OP_IMUL = 0xAF,
 };
 
 enum jcc_cond {
@@ -106,6 +108,7 @@ void emit_mem_reg_sib(uint8_t opcode, int32_t offset, uint8_t scale,
 void emit_rex(uint8_t w, uint8_t r, uint8_t x, uint8_t b);
 void emit_imm8(uint8_t imm);
 void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst);
+void emit_reg_reg2(uint8_t opcode, uint8_t src, uint8_t dst);
 void emit_jcc32(enum jcc_cond cond, uint64_t offset);
 void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm);
 void emit_cmp_reg_imm32(uint8_t r, int32_t imm);

@@ -376,10 +376,16 @@ void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
     long v = trace->consts[op2 - IR_CONST_BIAS];
     // TODO: check V is of correct type, but we typecheck return pointers also,
     // which can move.
-    if ((long)((int32_t)v) == v) {
+    if ((long)((int32_t)v) == v && arith_code != OP_ARITH_NONE) {
       emit_arith_imm(arith_code, reg, (int32_t)v);
     } else {
-      emit_reg_reg(op_code, reg, R15);
+      if (op_code == OP_IMUL) {
+	emit_reg_reg2(op_code, reg, R15);
+	emit_imm8(3);
+	emit_reg_reg(OP_SAR_CONST, 7, reg);
+      } else {
+	emit_reg_reg(op_code, reg, R15);
+      }
       // This is only necessary for cmp of a closure for call/callt
       auto re = (reloc){emit_offset(), v, RELOC_ABS};
       arrput(trace->relocs, re);
@@ -387,7 +393,13 @@ void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
     }
   } else {
     auto reg2 = trace->ops[op2].reg;
-    emit_reg_reg(op_code, reg2, reg);
+    if (op_code == OP_IMUL) {
+      emit_reg_reg2(op_code, reg, reg2);
+      emit_imm8(3);
+      emit_reg_reg(OP_SAR_CONST, 7, reg);
+    } else {
+      emit_reg_reg(op_code, reg2, reg);
+    }
   }
 }
 
@@ -409,7 +421,13 @@ void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins *op,
   }
   auto reg = op->reg;
   if (reg != reg1 && reg2 == reg) {
-    emit_reg_reg(op_code, R15, reg);
+    if (op_code == OP_IMUL) {
+      emit_reg_reg2(op_code, reg, R15);
+      emit_imm8(3);
+      emit_reg_reg(OP_SAR_CONST, 7, reg);
+    } else {
+      emit_reg_reg(op_code, R15, reg);
+    }
   } else {
     emit_arith_op(arith_code, op_code, reg, op->op2, trace, slot);
   }
@@ -939,6 +957,11 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
                  snap_labels[cur_snap], slot, &next_spill);
       break;
     }
+    case IR_MUL: {
+      emit_arith(OP_ARITH_NONE, OP_IMUL, op, trace,
+                 snap_labels[cur_snap], slot, &next_spill);
+      break;
+    }
     case IR_SHR: {
       maybe_assign_register(op->op1, trace, slot, &next_spill);
       emit_imm8(op->op2);
@@ -952,7 +975,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       }
       break;
     }
-    case IR_MUL:
     case IR_REM:
     case IR_DIV: {
       // DIV is a pain on x86_64.
@@ -982,7 +1004,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
       uint8_t reg2 = R15;
 
-      if ((op->op == IR_DIV || op->op == IR_MUL) && op->reg != RAX) {
+      if (op->op == IR_DIV && op->reg != RAX) {
 	emit_reg_reg(OP_MOV, RAX, op->reg);
       }
       if (op->op == IR_REM && op->reg != RDX) {
@@ -996,25 +1018,12 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 	emit_imm8(3);
 	emit_reg_reg(OP_SHL_CONST, 4, RDX);
       }
-      if (op->op == IR_MUL) {
-	emit_jcc32(JO, snap_labels[cur_snap]);
-      }
-      if (op->op == IR_MUL) {
-	emit_reg_reg(OP_IDIV, 5, reg2);
-      } else {
-	// idiv
-	emit_reg_reg(OP_IDIV, 7, reg2);
-      }
+      // idiv
+      emit_reg_reg(OP_IDIV, 7, reg2);
       // cqo
       emit_imm8(OP_CQO);
       emit_rex(1, 0, 0, 0);
 
-      // No need to shift input or output for MUL,
-      // have to check for overflow unshifted.
-      if (op->op != IR_MUL) {
-	emit_imm8(3);
-	emit_reg_reg(OP_SAR_CONST, 7, RAX);
-      }
       if (ir_is_const(op->op2)) {
 	auto c = trace->consts[op->op2 - IR_CONST_BIAS];
 	// C must be fixnum
@@ -1031,6 +1040,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 	// C must be fixnum
 	emit_mov64(RAX, c >> 3);
       } else {
+	emit_imm8(3);
+	emit_reg_reg(OP_SAR_CONST, 7, RAX);
 	if (trace->ops[op->op1].reg != RAX) {
 	  emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, RAX);
 	}

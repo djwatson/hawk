@@ -126,6 +126,13 @@ void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst) {
   emit_rex(1, src >> 3, 0, dst >> 3);
 }
 
+void emit_reg_reg2(uint8_t opcode, uint8_t src, uint8_t dst) {
+  emit_modrm(0x3, 0x7 & src, 0x7 & dst);
+  *(--p) = opcode;
+  *(--p) = 0x0f;
+  emit_rex(1, src >> 3, 0, dst >> 3);
+}
+
 void emit_mem_reg_sib(uint8_t opcode, int32_t offset, uint8_t scale,
                       uint8_t index, uint8_t base, uint8_t reg) {
   if ((int32_t)((int8_t)offset) == offset) {
