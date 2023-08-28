@@ -1106,7 +1106,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case CLOSURE: {
-    //add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
     //  TODO this forces a side exit without recording.
     //   Put GC inline in generated code?  Would have to flush
     //   all registers to stack.
@@ -1134,16 +1134,11 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     /* for(unsigned j = 1; j < INS_B(i); j++) { */
     /*   regs[INS_A(i) + j] = -1; */
     /* } */
-    //add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
     break;
   }
   case BOX:
   case CONS: {
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
-    //  TODO this forces a side exit without recording.
-    //   Put GC inline in generated code?  Would have to flush
-    //   all registers to stack.
-    trace->snaps[arrlen(trace->snaps) - 1].exits = 255; 
     auto a = record_stack_load(INS_B(i), frame);
     int b;
     if (INS_OP(i) == CONS) {
@@ -1154,6 +1149,11 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       arrput(trace->consts, NIL_TAG);
       b = knum | IR_CONST_BIAS;
     }
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
+    //  TODO this forces a side exit without recording.
+    //   Put GC inline in generated code?  Would have to flush
+    //   all registers to stack.
+    trace->snaps[arrlen(trace->snaps) - 1].exits = 255; 
     auto cell = push_ir(trace, IR_ALLOC, sizeof(cons_s), CONS_TAG, CONS_TAG);
     regs[INS_A(i)] = cell;
     auto ref = push_ir(trace, IR_REF, cell, 8 - CONS_TAG, UNDEFINED_TAG);
