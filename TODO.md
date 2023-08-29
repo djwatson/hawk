@@ -14,7 +14,6 @@
 
 * UNDEFINED_TAG
 * cleanup the IR_GUARD_TYPE to separate field?
-* delete extraneous snaps
 * fusion
 * enregister arguments / loop args
 * lazier typechecking

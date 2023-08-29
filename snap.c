@@ -31,6 +31,9 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
       arrput(snap.slots, entry);
     }
   }
+  if (arrlen(trace->snaps) > 0 && trace->snaps[arrlen(trace->snaps)-1].ir == snap.ir) {
+    arrpop(trace->snaps);
+  }
   arrput(trace->snaps, snap);
 }
 
