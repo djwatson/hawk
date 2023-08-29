@@ -1030,6 +1030,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case ISEQ:
+  case EQV:
   case EQ: {
     uint32_t op1 = record_stack_load(INS_B(i), frame);
     uint32_t op2 = record_stack_load(INS_C(i), frame);
@@ -1040,6 +1041,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (v1 == v2) {
       c = TRUE_REP;
       op = IR_EQ;
+    }
+    if (get_object_ir_type(v1) == FLONUM_TAG ||
+	get_object_ir_type(v2) == FLONUM_TAG) {
+      if (verbose)
+        printf("Record abort: flonum not supported in eqv\n");
+      record_abort();
+      return 1;
     }
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, c);
