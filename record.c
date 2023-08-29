@@ -1018,6 +1018,30 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[INS_A(i)] = IR_CONST_BIAS + knum;
     break;
   }
+  case ISLTE: {
+    uint32_t op1 = record_stack_load(INS_B(i), frame);
+    uint32_t op2 = record_stack_load(INS_C(i), frame);
+    int64_t v1 = frame[INS_B(i)];
+    int64_t v2 = frame[INS_C(i)];
+    if (get_object_ir_type(v1) == FLONUM_TAG ||
+        get_object_ir_type(v2) == FLONUM_TAG) {
+      if (verbose)
+        printf("Record abort: flonum not supported in islt\n");
+      record_abort();
+      return 1;
+    }
+    int64_t c = FALSE_REP;
+    uint8_t op = IR_GT;
+    if (v1 <= v2) {
+      c = TRUE_REP;
+      op = IR_LE;
+    }
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, c);
+    push_ir(trace, op, op1, op2, UNDEFINED_TAG);
+    regs[INS_A(i)] = IR_CONST_BIAS + knum;
+    break;
+  }
   case ISLT: {
     uint32_t op1 = record_stack_load(INS_B(i), frame);
     uint32_t op2 = record_stack_load(INS_C(i), frame);
