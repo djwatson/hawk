@@ -1,7 +1,10 @@
 # Getting all jit to work bench2
 
 * too many traces - conform compiler mazefun maze matrix peval scheme dynamic lattice nucleic read1 slatex
-* islte
+* see NYI.txt
+
+* islte - scheme
+* isgt, isgte
 * make-vector
 * make-string
 * integer->char
@@ -11,109 +14,31 @@
 * call/cc
 * char cmp
 
-# Recorder
+# TODO
 
-* sum1 - integer->char, islte, peek, inexact
-* read1 - char cmp, peek, callcc, make-string, integer->char, 
-* diviter - loops
-* wc - list funcv
-* string - funcv, make-string loops
-* fibc/ctak - callcc
-* tail - read-line
-* nqueens - ????
-* cpstak?? - hold things in registers
-* takl? - register shit, sccp
-* primes - loops. apply, values clfuncv
-* deriv - list, values
-* triangl-?
-* destruc - list len in register, no loads
-* mperm-???
-* gcbench - loop
-* puzzle - loops, call/cc
-* paraffins - ???? loops 
-* mazefun - list, random gen, loops, ???? UNROLL IMIT
-* simplex - loops, flaots
-* lattice - apply, loops, ????, NEEDS better closure analysis
-* browse - loops, integer->char, string->symbol, make-string, 
-* graphs - loops???? --- closure sinking
-* conform - loops???????? vector funcv, string-append, make-string
-* maze - loops???????????? 
-* earley - ??????????????, make-vector
-* peval - ????????? list, apply, make-string
-* boyer, nboyer - ???????????????????????
-* matrix - make-vector, apply, 
-* dynamic - islte, char cmp, peek, callcc
-* slatex - peek, make-string, char cmp
-* compiler- char-cmp, string->symbol, make-string, integer->char, isgt, apply, 
-
-
-* clfunc / clfuncv
-  * array1
-  * tail
-  * nqueens
-  * deriv
-  * peval
-  * slatex
-  
-* make-vector
-  *array1
-* apply 
-  * primes
-
-* make-vector
-  * graphs
-* make-string
-  * browse
-  * conform
-  
-* string->symbol
-  * browse
-
-* integer->char
-  *browse
-* symbol->string
-  *browse
-  
-* funcv
-  * deriv for list
-  * values
-  * mzefun
-  * peval
-  * conform - vector, string-append
-* callcc / callcc-resume
-  * fibc
-  * ctak
-  * puzzle
-* inexact
-  * mbrot
-* flonums
-  * sumfp
-  * fibfp
-  * mbrot
-  * quicksort
-OK
-* sum
-* fib
-* ack
-* tak
-* ntakl
-* takl
-* cpstak
-* divrec
-* diviter
-* wc
-* cat
-* mperm
-
-????
-* graphs
-* earley
-
-* nboyer needs longer traces and larger blacklist
+* UNDEFINED_TAG
+* cleanup the IR_GUARD_TYPE to separate field?
+* delete extraneous snaps
+* fusion
+* enregister arguments / loop args
+* lazier typechecking
+* const pool
+* sccp pass
+* singleton functions /closures
+* better closure allocation in frontend
+* allocation sinking for cons/closure/vector
+* optimistic global calls - needs frontend change, 
+  and backend optimization / clearing of traces.
+* ABC implement
+* cleanup register allocation - two-arg can be optimized
+* RET implementation could actually RET?
+* TRACE loop recording - 
+  * need unroll check for CALLT.  
+  * CALLT should also detect loops, and flush original trace
+  * downrec could flush original trace if not uprec?
+* reg hints across calls? and returns?
 
 # working on
-
-* extend max trace size and fix bugs
 
 * 'closure' opcode should all be in the bcfunc prototype, and done behind a single opcode.
   * Do something to get rid of zero-initializing??
@@ -121,18 +46,6 @@ OK
 * polymorphic / non polymorphic
 * CALLXS betterness
   * can reg hint anthing that covers a call
-
-* LOAD use for car/cdr, AND vec.
-* fuse
-* check sload type for VEC
-* add typecheck in LOAD
-* ABC
-* cleanup record for JISTE/JISLT, etc
-
-* UNBOX can delay typecheck
-
-* Check for all consts in asm_x64 are reloc'd
-* GC is causing additional traces?? ugh
 
 * typecheck/no typecheck - we can drop typecheck if it is unused
   * BUT jguard counts as a use!!!
@@ -199,23 +112,18 @@ OK
 
 # JIT TODO:
 
-* and in replay is borken
-  
 * various JIT improvements
   * 'loop' can know exact arguments in regs?  Or just not loopify at all?
   * save less in snap - dead elimination, read-only
   * closures can be exact in snap and constants
-  * use RAX for tmp instead of R15 - RAX has shorter ops for MOV, etc
   * we should be able to coalesce arg typechecks if they are the same.
   * Maybe a speical SLOAD EQ for RET instead, since we don't need to typecheck
   * Typechecks need a rethink - we can special case some stuff like eq?/eqv?, merge typechecks, etc.
   * load return slot only once somehow.  SLOAD -1, or RLOAD, or something.
       Only seems to matter for long strings of returns.  It should be in cache anyway, and we have to load
 	  it at least once.
-  * GC needs a rethink for jit. GGET/GSET/KONST only I think? KFUNC?
   * something something about GGET checks for func calls carried in snaps?
-  
-* merge record_run and jit_run exit stub
+
 * All of 'RECORD' probably needs type tests when we access frame.
 
 * need to purge snap to minimum entries. - kinda done, maybe a 'readonly' slot.  ONLY for sload, not ARG.
@@ -224,12 +132,7 @@ OK
   * maybe flush traces (recursively) if we find a new up or down recursive trace
   * fib 39 re-jits tails, because downrec happens first.  Even luajit does this.  Unrolling probably helps.
 
-* reg alloc - needs spilling.  
-	Also, at calls/intrinics we need to know which caller-save regs to spill
-
 # OPTS
 
 * dce
 * global fetches
-
-

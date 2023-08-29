@@ -236,6 +236,8 @@
        (if (null? a)
 	   b
 	   (cons (car a) (loop (cdr a) b)))))
+    ((a b c) (append a (append b c)))
+    ((a b c d) (append a (append b (append c d))))
    (lsts (if (null? lsts) '()
       (let loop ((lsts lsts))
 	(if (null? (cdr lsts))
