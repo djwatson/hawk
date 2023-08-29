@@ -405,6 +405,9 @@ void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
 
 void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins *op,
                 trace_s *trace, uint64_t offset, int *slot, uint32_t* next_spill) {
+  if (op->reg == REG_NONE) {
+    return;
+  }
   maybe_assign_register(op->op1, trace, slot, next_spill);
   maybe_assign_register(op->op2, trace, slot, next_spill);
 
