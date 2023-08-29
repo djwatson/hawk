@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
   }
 #endif
   auto ojoff = joff;
-  //joff = 1;
+  joff = 1;
   if (bootstrap_scm_bc_len > 0) {
     auto *start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
     printf("Running boot image...\n");
