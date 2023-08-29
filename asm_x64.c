@@ -121,7 +121,10 @@ void get_reg(uint8_t reg, trace_s* trace, uint32_t* next_spill, int *slot) {
     auto spill = trace->ops[op].slot;
     if (trace->ops[op].slot == SLOT_NONE) {
       spill = (*next_spill)++;
-      assert(spill <= 255);
+      if(*next_spill >= 255) {
+	printf("Too many spill slots\n");
+	exit(-1);
+      }
     }
 
     trace->ops[op].slot = spill;
@@ -166,7 +169,10 @@ void preserve_for_call(trace_s* trace, int *slot, uint32_t* next_spill) {
 	// Reload from new spill slot
 	// We don't need to store here, original instruction will store.
 	spill = (*next_spill)++;
-	assert(spill <= 255);
+	if(*next_spill >= 255) {
+	  printf("Too many spill slots\n");
+	  exit(-1);
+	}
       }
       trace->ops[op].slot = spill;
       //printf("Assigning spill slot %i to op %i, mov to reg %s\n", spill, op, reg_names[trace->ops[op].reg]);
