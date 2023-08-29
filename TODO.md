@@ -1,10 +1,3 @@
-* BROKEN:
-
-* compiler
-* graphs
-
-* changeup get-const to use a loop
-
 # Getting all jit to work bench2
 
 * too many traces - conform compiler mazefun maze matrix peval scheme dynamic lattice nucleic read1 slatex

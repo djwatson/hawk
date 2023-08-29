@@ -50,11 +50,12 @@
   (func-bc-code-set! bc (cons c (func-bc-code bc))))
 
 (define (find-const l i c)
-  (if (pair? l)
-      (if (equal? (car l) c)
-	  i
-	  (find-const (cdr l) (- i 1) c))
-      #f))
+  (let loop ((l l) (i i) (c c))
+    (if (pair? l)
+	(if (equal? (car l) c)
+	    i
+	    (loop (cdr l) (- i 1) c))
+	#f)))
 
 (define (get-or-push-const bc c)
   (define f (find-const consts (- (length consts) 1) c))
