@@ -1,7 +1,9 @@
 * BROKEN:
 
 * compiler
-* nqueens
+* graphs
+
+* changeup get-const to use a loop
 
 # Getting all jit to work bench2
 

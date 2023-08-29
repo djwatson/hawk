@@ -12,7 +12,7 @@ static uint8_t *mtop = NULL;
 static uint8_t *mend = NULL;
 static uint8_t *p = NULL;
 
-static const size_t page_cnt = 1000;
+static const size_t page_cnt = 4000;
 static const size_t msize = page_cnt * 4096;
 
 #define auto __auto_type
