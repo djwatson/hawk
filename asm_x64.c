@@ -1037,17 +1037,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_imm8(OP_CQO);
       emit_rex(1, 0, 0, 0);
 
-      if (ir_is_const(op->op2)) {
-	auto c = trace->consts[op->op2 - IR_CONST_BIAS];
-	// C must be fixnum
-	emit_mov64(R15, c >> 3);
-      } else {
-	emit_imm8(3);
-	emit_reg_reg(OP_SAR_CONST, 7, reg2);
-	emit_reg_reg(OP_MOV, trace->ops[op->op2].reg, R15);
-      }
-
-
       if (ir_is_const(op->op1)) {
 	auto c = trace->consts[op->op1 - IR_CONST_BIAS];
 	// C must be fixnum
@@ -1060,6 +1049,17 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 	}
       }
       
+      if (ir_is_const(op->op2)) {
+	auto c = trace->consts[op->op2 - IR_CONST_BIAS];
+	// C must be fixnum
+	emit_mov64(R15, c >> 3);
+      } else {
+	emit_imm8(3);
+	emit_reg_reg(OP_SAR_CONST, 7, reg2);
+	emit_reg_reg(OP_MOV, trace->ops[op->op2].reg, R15);
+      }
+
+
       break;
     }
     case IR_SUB: {
