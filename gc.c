@@ -52,7 +52,7 @@ static long get_forward(long obj) {
   return (*ptr) - FORWARD_TAG;
 }
 
-size_t heap_object_size(long *obj) {
+size_t __attribute__((always_inline)) heap_object_size(long *obj) {
   auto type = *obj;
   assert((type * TAG_MASK) != FORWARD_TAG);
   switch (type) {
