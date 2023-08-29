@@ -3,7 +3,6 @@
 * too many traces - conform compiler mazefun maze matrix peval scheme dynamic lattice nucleic read1 slatex
 * see NYI.txt
 
-* islte - scheme
 * isgt, isgte
 * make-vector
 * make-string
