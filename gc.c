@@ -123,9 +123,7 @@ void trace_heap_object(long *obj) {
   case SYMBOL_TAG: {
     auto *sym = (symbol *)obj;
     // temporarily add back the tag
-    obj[1] = (long)sym->name + PTR_TAG;
-    visit(&obj[1]);
-    obj[1] = (long)sym->name - PTR_TAG;
+    visit(&sym->name);
     visit(&sym->val);
     break;
   }

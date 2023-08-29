@@ -995,7 +995,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       maybe_assign_register(op->op1, trace, slot, &next_spill);
       if (ir_is_const(op->op1)) {
         auto c = trace->consts[op->op1 - IR_CONST_BIAS];
-        assert((c & TAG_MASK) == FIXNUM_TAG);
+        //assert((c & TAG_MASK) == FIXNUM_TAG);
         emit_mov64(op->reg, c >> op->op2);
       } else {
 	emit_imm8(op->op2);

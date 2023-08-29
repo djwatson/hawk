@@ -51,7 +51,8 @@ symbol *symbol_table_find_cstr(const char *str) {
     if (*cur == TOMBSTONE) {
       continue;
     }
-    if (strcmp((*cur)->name->str, str) == 0) {
+    string_s *sym_name = (string_s*)((*cur)->name - PTR_TAG);
+    if (strcmp(sym_name->str, str) == 0) {
       return *cur;
     } // Mismatched comparison, continue.
   }
@@ -66,13 +67,14 @@ void symbol_table_insert(symbol *sym) {
   }
   sym_table->cnt++;
 
-  auto hash = str_hash(sym->name->str);
+  string_s *sym_name = (string_s*)(sym->name - PTR_TAG);
+  auto hash = str_hash(sym_name->str);
   auto mask = sym_table->sz - 1;
 
   for (size_t i = 0; i < sym_table->sz; i++) {
     auto cur = &sym_table->entries[(i + hash) & mask];
     if (*cur == NULL || *cur == TOMBSTONE ||
-        strcmp((*cur)->name->str, sym->name->str) == 0) {
+        strcmp(((string_s*)((*cur)->name - PTR_TAG))->str, sym_name->str) == 0) {
       // Insert here.
       *cur = sym;
       return;

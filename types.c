@@ -72,7 +72,8 @@ void print_obj(long obj, FILE *file) {
   }
   case SYMBOL_TAG: {
     auto *sym = (symbol *)(obj - SYMBOL_TAG);
-    fputs(sym->name->str, file);
+    string_s* sym_name = (string_s*)(sym->name - PTR_TAG);
+    fputs(sym_name->str, file);
     break;
   }
   case CLOSURE_TAG: {

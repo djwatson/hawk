@@ -151,7 +151,8 @@ void print_const_or_val(int i, trace_s *ctrace) {
     } else if ((c & IMMEDIATE_MASK) == NIL_TAG) {
       printf("nil");
     } else if (type == SYMBOL_TAG) {
-      printf("\e[1;35m%s\e[m", ((symbol *)(c - SYMBOL_TAG))->name->str);
+      string_s* sym_name = (string_s*)(((symbol *)(c-SYMBOL_TAG))->name - PTR_TAG);
+      printf("\e[1;35m%s\e[m", sym_name->str);
     } else if (type == PTR_TAG) {
       printf("ptr");
     } else if (type == LITERAL_TAG) {
@@ -251,12 +252,14 @@ void dump_trace(trace_s *ctrace) {
     }
     case IR_GGET: {
       auto *s = (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
-      printf("%s", s->name->str);
+      string_s* sym_name = (string_s*)(s->name - PTR_TAG);
+      printf("%s", sym_name->str);
       break;
     }
     case IR_GSET: {
       auto *s = (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
-      printf("%s ", s->name->str);
+      string_s* sym_name = (string_s*)(s->name - PTR_TAG);
+      printf("%s ", sym_name->str);
       print_const_or_val(op.op2, ctrace);
       break;
     }
@@ -747,6 +750,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     arrput(trace->consts, k);
     break;
   }
+  case SYMBOL_STRING: {
+    auto op1 = record_stack_load(INS_B(i), frame);
+    auto ref = push_ir(trace, IR_REF, op1, 8 - SYMBOL_TAG, UNDEFINED_TAG);
+    regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, 0, STRING_TAG);
+    break;
+  }
   case CHAR_INTEGER: {
     auto op1 = record_stack_load(INS_B(i), frame);
     regs[INS_A(i)] = push_ir(trace, IR_SHR, op1, 5, FIXNUM_TAG);
@@ -754,7 +763,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case INTEGER_CHAR: {
     auto op1 = record_stack_load(INS_B(i), frame);
-    if (get_object_ir_type(frame[INS_B(i)] != FIXNUM_TAG)) {
+    if (get_object_ir_type(frame[INS_B(i)]) != FIXNUM_TAG) {
       printf("Record abort: integer->char with non-char");
       record_abort();
       return 1;

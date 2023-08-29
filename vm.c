@@ -164,7 +164,8 @@ __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
 
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
 
-  printf("FAIL undefined symbol: %s\n", gp->name->str);
+  string_s* sym_name = (string_s*)(gp->name - PTR_TAG);
+  printf("FAIL undefined symbol: %s\n", sym_name->str);
 }
 
 __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
@@ -933,7 +934,7 @@ END_LIBRARY_FUNC
 LIBRARY_FUNC_B_LOAD_NAME(SYMBOL->STRING, SYMBOL_STRING)
   TYPECHECK_TAG(fb, SYMBOL_TAG);
   auto sym = (symbol *)(fb - SYMBOL_TAG);
-  frame[ra] = (long)sym->name + PTR_TAG;
+  frame[ra] = sym->name;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
@@ -947,7 +948,7 @@ LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
     sym->type = SYMBOL_TAG;
   
     // Note re-load of str after allocation.
-    sym->name = (string_s *)(frame[rb] - PTR_TAG);
+    sym->name = frame[rb];
     sym->val = UNDEFINED_TAG;
   
     // Save new symbol in frame[ra].
@@ -961,13 +962,13 @@ LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
     sym = (symbol *)(frame[ra] - SYMBOL_TAG);
   
     // Re-load str after GC
-    str = (string_s *)sym->name;
+    str = (string_s *)(sym->name - PTR_TAG);
   
     str2->type = STRING_TAG;
     str2->len = strlen << 3;
     memcpy(str2->str, str->str, strlen+1);
   
-    sym->name = str2;
+    sym->name = (long)str2 + PTR_TAG;
     symbol_table_insert(sym);
   } else {
     frame[ra] = (long)res + SYMBOL_TAG;

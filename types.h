@@ -56,7 +56,7 @@ typedef struct string_s {
 
 typedef struct symbol {
   long type; // unused except by GC
-  string_s *name;
+  long name; // string_s PTR_TAG'd value
   long val;
 } symbol;
 
