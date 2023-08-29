@@ -772,33 +772,42 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case JISF: {
-    // TODO snaps
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, FALSE_REP);
+    uint32_t *next_pc;
     ir_ins_op op;
+    auto op1 = record_stack_load(INS_B(i), frame);
     if (frame[INS_B(i)] == FALSE_REP) {
       op = IR_EQ;
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
+      next_pc = pc + INS_D(*(pc + 1)) + 1;
     } else {
       op = IR_NE;
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace,
+               pc + INS_D(*(pc + 1)) + 1, depth);
+      next_pc = pc + 2;
     }
-    push_ir(trace, op, record_stack_load(INS_B(i), frame), knum | IR_CONST_BIAS,
-            IR_INS_TYPE_GUARD);
+    push_ir(trace, op, op1, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
     break;
   }
   case JIST: {
-    // TODO snaps
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, TRUE_REP);
+    arrput(trace->consts, FALSE_REP);
     ir_ins_op op;
-    if (frame[INS_B(i)] == TRUE_REP) {
+    uint32_t *next_pc;
+    auto op1 = record_stack_load(INS_B(i), frame);
+    if (frame[INS_B(i)] == FALSE_REP) {
       op = IR_EQ;
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + INS_D(*(pc + 1)) + 1, depth);
+      next_pc = pc + 2;
     } else {
       op = IR_NE;
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
+      next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
-    push_ir(trace, op, record_stack_load(INS_B(i), frame), knum | IR_CONST_BIAS,
-            IR_INS_TYPE_GUARD);
+    push_ir(trace, op, op1, knum | IR_CONST_BIAS,  IR_INS_TYPE_GUARD);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
     break;
   }
   case JISLT: {
@@ -1148,16 +1157,23 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[INS_A(i)] = IR_CONST_BIAS + knum;
     break;
   }
-  case JNGUARD:
+  case JNGUARD: {
+    record_stack_load(INS_B(i), frame);
+    uint8_t type = get_object_ir_type(frame[INS_B(i)]);
+    if (type != INS_C(i)) {
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
+    } else {
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1 + INS_D(*(pc+1)), depth);
+    }
+    break;
+  }
   case JGUARD: {
     record_stack_load(INS_B(i), frame);
-    long tag = INS_C(i);
-
-    if (tag == PTR_TAG) {
-      // TODO should be checked by sload??
-      assert(false);
+    uint8_t type = get_object_ir_type(frame[INS_B(i)]);
+    if (type == INS_C(i)) {
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
     } else {
-      // Nothing to do, SLOAD already checked.
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1 + INS_D(*(pc+1)), depth);
     }
     break;
   }
