@@ -46,7 +46,7 @@ void print_help() {
 #endif
 #ifdef JITDUMP
   printf("      --dump     \tDump linux perf jit info\n");
-#endif  
+#endif
   printf("  -l, --list     \tList bytecode and stop\n");
 #ifdef PROFILER
   printf("  -p, --profile  \tSampling profiler\n");
@@ -86,7 +86,8 @@ size_t page_cnt = 12000;
 int main(int argc, char *argv[]) {
 
   int c;
-  while ((c = getopt_long(argc, argv, "vslphjd:", long_options, nullptr)) != -1) {
+  while ((c = getopt_long(argc, argv, "vslphjd:", long_options, nullptr)) !=
+         -1) {
     switch (c) {
     case 'p':
       profile = 1;

@@ -31,9 +31,7 @@ void emit_sib(uint8_t scale, uint8_t index, uint8_t base) {
   *(--p) = (scale << 6) | ((0x7 & index) << 3) | ((0x7 & base));
 }
 
-void emit_imm8(uint8_t imm) {
-  *(--p) = imm;
-}
+void emit_imm8(uint8_t imm) { *(--p) = imm; }
 
 void emit_imm64(int64_t imm) {
   p -= sizeof(int64_t);
@@ -48,9 +46,9 @@ void emit_imm32(int32_t imm) {
 void emit_mov64(uint8_t r, int64_t imm) {
   // TODO shortening seems to be broken. Watch out for negative numbers.
   /* if ((uint64_t)((uint32_t)imm) != imm) { */
-    emit_imm64(imm);
-    *(--p) = 0xb8 | (0x7 & r);
-    emit_rex(1, 0, 0, r >> 3);
+  emit_imm64(imm);
+  *(--p) = 0xb8 | (0x7 & r);
+  emit_rex(1, 0, 0, r >> 3);
   /* } else { */
   /*   emit_imm32((int32_t)imm); */
   /*   *(--p) = 0xb8 | (0x7 & r); */
@@ -74,8 +72,8 @@ void emit_ret() { *(--p) = 0xc3; }
 
 void emit_cmp_reg_imm32(uint8_t r, int32_t imm) {
   /* if ((uint32_t)((uint8_t)imm) != imm) { */
-    emit_imm32(imm);
-    emit_reg_reg(0x81, 7, r);
+  emit_imm32(imm);
+  emit_reg_reg(0x81, 7, r);
   /* } else { */
   /*   *(--p) = imm; */
   /*   emit_reg_reg(0x83, 7, r); */
@@ -149,7 +147,7 @@ void emit_mem_reg_sib(uint8_t opcode, int32_t offset, uint8_t scale,
 }
 
 void emit_mem_reg_sib2(uint8_t opcode, int32_t offset, uint8_t scale,
-                      uint8_t index, uint8_t base, uint8_t reg) {
+                       uint8_t index, uint8_t base, uint8_t reg) {
   if ((int32_t)((int8_t)offset) == offset) {
     *(--p) = (int8_t)offset;
     emit_sib(scale, index, base);
@@ -207,8 +205,8 @@ void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm) {
 
 void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm) {
   /* if ((uint32_t)((uint8_t)imm) != imm) { */
-    emit_imm32(imm);
-    emit_reg_reg(0x81, op, src);
+  emit_imm32(imm);
+  emit_reg_reg(0x81, op, src);
   /* } else { */
   /*   *(--p) = imm; */
   /*   emit_reg_reg(0x83, op, src); */

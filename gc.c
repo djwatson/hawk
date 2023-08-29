@@ -2,14 +2,14 @@
 #include "bytecode.h"     // for const_table, const_table_sz
 #include "ir.h"           // for reloc, trace_s, RELOC_ABS, RELOC_SYM_ABS
 #include "symbol_table.h" // for sym_table, table, TOMBSTONE
-#include "types.h"        // for TAG_MASK, FORWARD_TAG, SYMBOL_TAG, symbol
-#include <assert.h>       // for assert
-#include <stdint.h>       // for uint8_t, int64_t
-#include <stdio.h>        // for printf
-#include <stdlib.h>       // for free, realloc
-#include <string.h>       // for memcpy
-#include <sys/mman.h>     // for mprotect, mmap, PROT_NONE, PROT_READ, PROT...
 #include "third-party/stb_ds.h"
+#include "types.h"    // for TAG_MASK, FORWARD_TAG, SYMBOL_TAG, symbol
+#include <assert.h>   // for assert
+#include <stdint.h>   // for uint8_t, int64_t
+#include <stdio.h>    // for printf
+#include <stdlib.h>   // for free, realloc
+#include <string.h>   // for memcpy
+#include <sys/mman.h> // for mprotect, mmap, PROT_NONE, PROT_READ, PROT...
 
 #define auto __auto_type
 
@@ -64,16 +64,16 @@ size_t heap_object_size(long *obj) {
   }
   case SYMBOL_TAG:
     return sizeof(symbol);
-  case CONT_TAG: 
+  case CONT_TAG:
   case VECTOR_TAG: {
     auto *vec = (vector_s *)obj;
-    return (vec->len>>3) * sizeof(long) + 16;
+    return (vec->len >> 3) * sizeof(long) + 16;
   }
   case CONS_TAG:
     return sizeof(cons_s);
   case CLOSURE_TAG: {
     auto *clo = (closure_s *)obj;
-    return (clo->len>>3) * sizeof(long) + 16;
+    return (clo->len >> 3) * sizeof(long) + 16;
   }
   case PORT_TAG:
     return sizeof(port_s);
@@ -132,7 +132,7 @@ void trace_heap_object(long *obj) {
   case CONT_TAG:
   case VECTOR_TAG: {
     auto *vec = (vector_s *)obj;
-    for (long i = 0; i < (vec->len>>3); i++) {
+    for (long i = 0; i < (vec->len >> 3); i++) {
       visit(&vec->v[i]);
     }
     break;
@@ -146,7 +146,7 @@ void trace_heap_object(long *obj) {
   case CLOSURE_TAG: {
     auto *clo = (closure_s *)obj;
     // Note start from 1: first field is bcfunc* pointer.
-    for (long i = 1; i < (clo->len>>3); i++) {
+    for (long i = 1; i < (clo->len >> 3); i++) {
       visit(&clo->v[i]);
     }
     break;
@@ -268,9 +268,9 @@ void GC_init() {
   alloc_ptr = from_space;
   alloc_end = alloc_ptr + alloc_sz;
   to_space = alloc_ptr + alloc_sz;
-  #ifndef NDEBUG
+#ifndef NDEBUG
   mprotect(to_space, alloc_sz, PROT_NONE);
-  #endif
+#endif
 }
 
 __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
@@ -284,9 +284,9 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   // printf("Collecting...\n");
 
   assert(gc_enable || alloc_end == NULL);
-  #ifndef NDEBUG
+#ifndef NDEBUG
   mprotect(to_space, alloc_sz, PROT_READ | PROT_WRITE);
-  #endif
+#endif
   // flip
   // alloc_ptr = (uint8_t*)malloc(alloc_sz);
   alloc_ptr = to_space;
@@ -304,10 +304,10 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
     scan += align(scan_sz);
   }
   if (verbose) {
-  printf("...Done collect, in use %li, %.2f%% of %liMB\n",
-         alloc_ptr - from_space,
-         ((double)(alloc_ptr - from_space)) / (double)alloc_sz * 100.0,
-         alloc_sz / 1000 / 1000);
+    printf("...Done collect, in use %li, %.2f%% of %liMB\n",
+           alloc_ptr - from_space,
+           ((double)(alloc_ptr - from_space)) / (double)alloc_sz * 100.0,
+           alloc_sz / 1000 / 1000);
   }
 
   res = alloc_ptr;
@@ -316,9 +316,9 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
     printf("Heap exhausted, embiggen?\n");
     exit(-1);
   }
-  #ifndef NDEBUG
+#ifndef NDEBUG
   mprotect(to_space, alloc_sz, PROT_NONE);
-  #endif
+#endif
 
   return res;
 }

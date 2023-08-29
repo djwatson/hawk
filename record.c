@@ -58,48 +58,49 @@ trace_s **traces = nullptr;
 unsigned int *patchpc = nullptr;
 unsigned int patchold;
 
-void penalty_pc(uint32_t* pc) {
+void penalty_pc(uint32_t *pc) {
   uint32_t i = 0;
-  for(; i < blacklist_slot; i++) {
+  for (; i < blacklist_slot; i++) {
     if (blacklist[i].pc == pc) {
       if (blacklist[i].cnt >= BLACKLIST_MAX) {
-	if (verbose) {
-	  printf("Blacklist pc %p\n", pc);
-	}
-	if (INS_OP(*pc) == FUNC) {
-	  *pc = ((*pc) & ~0xff) + IFUNC;
-	} else if (INS_OP(*pc) == FUNCV) {
-	  *pc = ((*pc) & ~0xff) + IFUNCV;
-	} else if (INS_OP(*pc) == CLFUNC) {
-	  *pc = ((*pc) & ~0xff) + ICLFUNC;
-	} else if (INS_OP(*pc) == CLFUNCV) {
-	  *pc = ((*pc) & ~0xff) + ICLFUNCV;
-	} else if (INS_OP(*pc) == LOOP) {
-	  *pc = ((*pc) & ~0xff) + ILOOP;
-	} else if (INS_OP(*pc) == RET1) {
-	  *pc = ((*pc) & ~0xff) + IRET1;
-	} else {
-	  printf("Could not blacklist %s\n", ins_names[INS_OP(*pc)]);
-	  exit(-1);
-	}
-	int64_t next = i+1;
-	while(next < blacklist_slot) {
-	  blacklist_entry tmp = blacklist[next];
-	  blacklist[next-1] = blacklist[next];
-	  blacklist[next] = tmp;
-	  next++;
-	}
-	blacklist_slot--;
+        if (verbose) {
+          printf("Blacklist pc %p\n", pc);
+        }
+        if (INS_OP(*pc) == FUNC) {
+          *pc = ((*pc) & ~0xff) + IFUNC;
+        } else if (INS_OP(*pc) == FUNCV) {
+          *pc = ((*pc) & ~0xff) + IFUNCV;
+        } else if (INS_OP(*pc) == CLFUNC) {
+          *pc = ((*pc) & ~0xff) + ICLFUNC;
+        } else if (INS_OP(*pc) == CLFUNCV) {
+          *pc = ((*pc) & ~0xff) + ICLFUNCV;
+        } else if (INS_OP(*pc) == LOOP) {
+          *pc = ((*pc) & ~0xff) + ILOOP;
+        } else if (INS_OP(*pc) == RET1) {
+          *pc = ((*pc) & ~0xff) + IRET1;
+        } else {
+          printf("Could not blacklist %s\n", ins_names[INS_OP(*pc)]);
+          exit(-1);
+        }
+        int64_t next = i + 1;
+        while (next < blacklist_slot) {
+          blacklist_entry tmp = blacklist[next];
+          blacklist[next - 1] = blacklist[next];
+          blacklist[next] = tmp;
+          next++;
+        }
+        blacklist_slot--;
       } else {
-	blacklist[i].cnt++;
-	//printf("Blacklist cnt now %i slot %i sz %i\n", blacklist[i].cnt, i, blacklist_slot);
-	int64_t prev = (int64_t)i-1;
-	while(prev >= 0 && blacklist[prev].cnt <= blacklist[prev+1].cnt) {
-	  blacklist_entry tmp = blacklist[prev];
-	  blacklist[prev] = blacklist[prev+1];
-	  blacklist[prev+1] = tmp;
-	  prev--;
-	}
+        blacklist[i].cnt++;
+        // printf("Blacklist cnt now %i slot %i sz %i\n", blacklist[i].cnt, i,
+        // blacklist_slot);
+        int64_t prev = (int64_t)i - 1;
+        while (prev >= 0 && blacklist[prev].cnt <= blacklist[prev + 1].cnt) {
+          blacklist_entry tmp = blacklist[prev];
+          blacklist[prev] = blacklist[prev + 1];
+          blacklist[prev + 1] = tmp;
+          prev--;
+        }
       }
       return;
     }
@@ -142,7 +143,7 @@ void print_const_or_val(int i, trace_s *ctrace) {
     } else if (type == CONS_TAG) {
       printf("\e[1;35mcons\e[m");
     } else if (type == FLONUM_TAG) {
-      printf("\e[1;35m%f\e[m", ((flonum_s*)c - FLONUM_TAG)->x);
+      printf("\e[1;35m%f\e[m", ((flonum_s *)c - FLONUM_TAG)->x);
     } else if ((c & IMMEDIATE_MASK) == CHAR_TAG) {
       printf("'%c'", (char)(c >> 8));
     } else if ((c & IMMEDIATE_MASK) == EOF_TAG) {
@@ -150,7 +151,7 @@ void print_const_or_val(int i, trace_s *ctrace) {
     } else if ((c & IMMEDIATE_MASK) == NIL_TAG) {
       printf("nil");
     } else if (type == SYMBOL_TAG) {
-      printf("\e[1;35m%s\e[m", ((symbol*)(c - SYMBOL_TAG))->name->str);
+      printf("\e[1;35m%s\e[m", ((symbol *)(c - SYMBOL_TAG))->name->str);
     } else if (type == PTR_TAG) {
       printf("ptr");
     } else if (type == LITERAL_TAG) {
@@ -187,7 +188,7 @@ void dump_trace(trace_s *ctrace) {
 
     auto op = ctrace->ops[i];
     printf("%04zu %s ", i, reg_names[op.reg]);
-           
+
     if (op.slot != SLOT_NONE) {
       printf("\e[1;31m[%i]\e[m ", op.slot);
     } else {
@@ -327,8 +328,8 @@ void record_start(unsigned int *pc, long *frame) {
   func = (long)find_func_for_frame(pc);
   assert(func);
   if (verbose) {
-    printf("Record start %i at %s func %s\n", trace->num, ins_names[INS_OP(*pc)],
-	   ((bcfunc *)func)->name);
+    printf("Record start %i at %s func %s\n", trace->num,
+           ins_names[INS_OP(*pc)], ((bcfunc *)func)->name);
     if (parent != nullptr) {
       printf("Parent %i\n", parent->num);
     }
@@ -345,15 +346,13 @@ void record_start(unsigned int *pc, long *frame) {
     snap_replay(&regs, side_exit, parent, trace, frame, &depth);
   }
   auto next_pc = pc;
-  if (INS_OP(*pc) == FUNC ||
-	    INS_OP(*pc) == LOOP       ) {
-    next_pc = pc+1;
+  if (INS_OP(*pc) == FUNC || INS_OP(*pc) == LOOP) {
+    next_pc = pc + 1;
   }
   if (INS_OP(*pc) == CLFUNC) {
     next_pc = pc + 2;
   }
-  add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-            next_pc, depth);
+  add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
 }
 
 extern int joff;
@@ -377,18 +376,22 @@ void record_stop(unsigned int *pc, long *frame, int link) {
 
   if (side_exit != nullptr) {
     side_exit->link = arrlen(traces);
-    if (verbose) printf("Hooking to parent trace\n");
+    if (verbose)
+      printf("Hooking to parent trace\n");
   } else {
     auto op = INS_OP(*pc_start);
     if (op != RET1 && op != LOOP) {
       *pc_start = CODE_D(JFUNC, INS_A(*pc_start), arrlen(traces));
-      if (verbose) printf("Installing JFUNC\n");
+      if (verbose)
+        printf("Installing JFUNC\n");
     } else {
       *pc_start = CODE_D(JLOOP, 0, arrlen(traces));
-      if (verbose) printf("Installing JLOOP\n");
+      if (verbose)
+        printf("Installing JLOOP\n");
     }
   }
-  if (verbose)   printf("Installing trace %li\n", arrlen(traces));
+  if (verbose)
+    printf("Installing trace %li\n", arrlen(traces));
 
   trace->link = link;
   arrput(traces, trace);
@@ -464,7 +467,7 @@ int record(unsigned int *pc, long *frame, long argcnt) {
 uint8_t get_object_ir_type(int64_t obj) {
   uint8_t t;
   if ((obj & TAG_MASK) == PTR_TAG) {
-    int64_t* objp = (int64_t*)(obj - PTR_TAG);
+    int64_t *objp = (int64_t *)(obj - PTR_TAG);
     t = (*objp) & IMMEDIATE_MASK;
   } else if ((obj & TAG_MASK) == LITERAL_TAG) {
     t = obj & IMMEDIATE_MASK;
@@ -481,8 +484,9 @@ int record_stack_load(int slot, const long *frame) {
   if (regs[slot] == -1) {
     // Guard on type
     auto type = get_object_ir_type(frame[slot]);
-    
-    regs[slot] = push_ir(trace, IR_SLOAD, slot, IR_NONE, IR_INS_TYPE_GUARD | type);
+
+    regs[slot] =
+        push_ir(trace, IR_SLOAD, slot, IR_NONE, IR_INS_TYPE_GUARD | type);
   }
   return regs[slot];
 }
@@ -495,12 +499,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     for (int *pos = &regs[INS_A(i) + INS_B(i)]; pos < &regs_list[257]; pos++) {
       *pos = -1;
     }
-  } 
+  }
   if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
       INS_OP(trace->startpc) != RET1 && parent == nullptr) {
     if (INS_OP(*pc) == CLFUNC && argcnt != INS_A(*pc)) {
     } else {
-      if (verbose) printf("Record stop loop\n");
+      if (verbose)
+        printf("Record stop loop\n");
       record_stop(pc, frame, arrlen(traces));
       return 1;
     }
@@ -512,7 +517,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       printf(" . ");
     }
     printf("%lx %s %i %i %i\n", (long)pc, ins_names[INS_OP(i)], INS_A(i),
-	   INS_B(i), INS_C(i));
+           INS_B(i), INS_C(i));
   }
   switch (INS_OP(i)) {
   case ILOOP: {
@@ -522,9 +527,11 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // TODO check the way luajit does it
     if (arrlen(trace->ops) != 0 && !parent || (unroll++ >= 3)) {
       if (!parent) {
-	if (verbose) printf("Record abort: Root trace hit untraced loop\n");
+        if (verbose)
+          printf("Record abort: Root trace hit untraced loop\n");
       } else {
-	if (verbose) printf("Record abort: Unroll limit reached in loop for side trace\n");
+        if (verbose)
+          printf("Record abort: Unroll limit reached in loop for side trace\n");
       }
       hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
       record_abort();
@@ -568,20 +575,23 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         }
         if (cnt != 0) {
           if (side_exit != nullptr && INS_OP(i) != IRET1) {
-            if (verbose) printf("Record abort: Potential down-recursion, restarting\n");
+            if (verbose)
+              printf("Record abort: Potential down-recursion, restarting\n");
             record_abort();
             record_start(pc, frame);
             record_instr(pc, frame, 0);
             trace_state = TRACING;
             break;
           }
-	  if (pc == pc_start && !side_exit) {
-	    if (verbose) printf("Record stop downrec\n");
-	    record_stop(pc, frame, arrlen(traces));
-	  } else {
-	    if (verbose) printf("Record abort downrec\n");
-	    record_abort();
-	  }
+          if (pc == pc_start && !side_exit) {
+            if (verbose)
+              printf("Record stop downrec\n");
+            record_stop(pc, frame, arrlen(traces));
+          } else {
+            if (verbose)
+              printf("Record abort downrec\n");
+            record_abort();
+          }
           return 1;
         }
         arrput(downrec, pc);
@@ -591,7 +601,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
 
         auto frame_off = INS_A(*(old_pc - 1));
-        //printf("Continue down recursion, frame offset %i\n", frame_off);
+        // printf("Continue down recursion, frame offset %i\n", frame_off);
 
         memmove(&regs[frame_off + 1], &regs[0],
                 sizeof(int) * (256 - (frame_off + 1)));
@@ -604,17 +614,21 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         arrput(trace->consts, (long)old_pc);
         auto knum2 = arrlen(trace->consts);
         arrput(trace->consts, (frame_off + 1) << 3);
-	push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS, IR_INS_TYPE_GUARD | 0x5);
+        push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS,
+                IR_INS_TYPE_GUARD | 0x5);
 
-        add_snap(regs_list, (int)(regs - regs_list - 1), trace, (uint32_t *)frame[-1], depth);
+        add_snap(regs_list, (int)(regs - regs_list - 1), trace,
+                 (uint32_t *)frame[-1], depth);
         // TODO retdepth
       } else {
         if (INS_OP(trace->startpc) == LOOP && parent == nullptr) {
-          if (verbose) printf("Record abort: Loop root trace exited loop\n");
+          if (verbose)
+            printf("Record abort: Loop root trace exited loop\n");
           record_abort();
         } else {
-          if (verbose) printf("Record stop return\n");
-	  //record_stack_load(INS_A(i), frame);
+          if (verbose)
+            printf("Record stop return\n");
+          // record_stack_load(INS_A(i), frame);
           record_stop(pc, frame, -1);
         }
         return 1;
@@ -694,30 +708,33 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       auto *cfunc = (bcfunc *)closure->v[0];
       auto *target = cfunc->code;
       if (target == pc_start) {
-        if (verbose) printf("Record stop up-recursion\n");
+        if (verbose)
+          printf("Record stop up-recursion\n");
         record_stop(target, frame, arrlen(traces));
         return 1;
       } // TODO fix flush
       pendpatch();
       bool abort = false;
       if (INS_OP(cfunc->code[0]) == JFUNC) {
-	// Check if it is already up-recursion (i.e. a side trace failed here)
-	auto sl_trace = trace_cache_get(INS_D(cfunc->code[0]));
-	if (sl_trace->link != INS_D(cfunc->code[0])) {
-	  if (verbose) printf("Flushing trace\n");
-	  cfunc->code[0] = traces[INS_D(cfunc->code[0])]->startpc;
-	  hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
-	  abort = true;
-	}
+        // Check if it is already up-recursion (i.e. a side trace failed here)
+        auto sl_trace = trace_cache_get(INS_D(cfunc->code[0]));
+        if (sl_trace->link != INS_D(cfunc->code[0])) {
+          if (verbose)
+            printf("Flushing trace\n");
+          cfunc->code[0] = traces[INS_D(cfunc->code[0])]->startpc;
+          hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
+          abort = true;
+        }
       } else {
-	abort = true;
+        abort = true;
       }
       if (abort) {
-	// TODO this isn't in luajit? fails with side exit without?
-	hotmap[(((long)cfunc->code[0]) >> 2) & hotmap_mask] = 1;
-	if (verbose) printf("Record abort: unroll limit reached\n");
-	record_abort();
-	return 1;
+        // TODO this isn't in luajit? fails with side exit without?
+        hotmap[(((long)cfunc->code[0]) >> 2) & hotmap_mask] = 1;
+        if (verbose)
+          printf("Record abort: unroll limit reached\n");
+        record_abort();
+        return 1;
       }
     }
     break;
@@ -730,7 +747,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case CHAR_INTEGER: {
-    auto  op1  = record_stack_load(INS_B(i), frame);
+    auto op1 = record_stack_load(INS_B(i), frame);
     regs[INS_A(i)] = push_ir(trace, IR_SHR, op1, 5, CHAR_TAG);
     break;
   }
@@ -745,7 +762,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     } else {
       op = IR_NE;
     }
-    push_ir(trace, op, record_stack_load(INS_B(i), frame), knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
+    push_ir(trace, op, record_stack_load(INS_B(i), frame), knum | IR_CONST_BIAS,
+            IR_INS_TYPE_GUARD);
     break;
   }
   case JIST: {
@@ -759,7 +777,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     } else {
       op = IR_NE;
     }
-    push_ir(trace, op, record_stack_load(INS_B(i), frame), knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
+    push_ir(trace, op, record_stack_load(INS_B(i), frame), knum | IR_CONST_BIAS,
+            IR_INS_TYPE_GUARD);
     break;
   }
   case JISLT: {
@@ -776,15 +795,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
     uint8_t type;
-    uint32_t op1  = record_stack_load(INS_B(i), frame);
-    uint32_t op2  = record_stack_load(INS_C(i), frame);
+    uint32_t op1 = record_stack_load(INS_B(i), frame);
+    uint32_t op2 = record_stack_load(INS_C(i), frame);
     if (op1 >= IR_CONST_BIAS) {
       type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
     } else {
       type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
     }
     if (type != 0) {
-      if (verbose) printf("Record abort: Only int supported in trace: %i\n", type);
+      if (verbose)
+        printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
       return 1;
     }
@@ -806,15 +826,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
     uint8_t type;
-    uint32_t op1  = record_stack_load(INS_B(i), frame);
-    uint32_t op2  = record_stack_load(INS_C(i), frame);
+    uint32_t op1 = record_stack_load(INS_B(i), frame);
+    uint32_t op2 = record_stack_load(INS_C(i), frame);
     if (op1 >= IR_CONST_BIAS) {
       type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
     } else {
       type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
     }
     if (type != 0) {
-      if (verbose) printf("Record abort: Only int supported in trace: %i\n", type);
+      if (verbose)
+        printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
       return 1;
     }
@@ -847,8 +868,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ir_ins_op op;
     uint32_t *next_pc;
     if ((frame[INS_B(i)] & TAG_MASK) == FLONUM_TAG ||
-	(frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
-      if (verbose) printf("Record abort: flonum not supported in jeqv\n");
+        (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
+      if (verbose)
+        printf("Record abort: flonum not supported in jeqv\n");
       record_abort();
       return 1;
     }
@@ -867,7 +889,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case JEQV:
-  case JEQ: 
+  case JEQ:
   case JISEQ: {
     uint32_t op1 = record_stack_load(INS_B(i), frame);
     uint32_t op2 = record_stack_load(INS_C(i), frame);
@@ -875,10 +897,11 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ir_ins_op op;
     if (INS_OP(i) == JEQV) {
       if ((frame[INS_B(i)] & TAG_MASK) == FLONUM_TAG ||
-	  (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
-	if (verbose) printf("Record abort: flonum not supported in jeqv\n");
-	record_abort();
-	return 1;
+          (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
+        if (verbose)
+          printf("Record abort: flonum not supported in jeqv\n");
+        record_abort();
+        return 1;
       }
     }
     if (frame[INS_B(i)] == frame[INS_C(i)]) {
@@ -904,18 +927,20 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     ir_ins_op op;
     if (INS_OP(i) == JNEQV) {
       if ((frame[INS_B(i)] & TAG_MASK) == FLONUM_TAG ||
-	  (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
-	if (verbose) printf("Record abort: flonum not supported in jneqv\n");
-	record_abort();
-	return 1;
+          (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
+        if (verbose)
+          printf("Record abort: flonum not supported in jneqv\n");
+        record_abort();
+        return 1;
       }
     }
     if (INS_OP(i) == JNEQV) {
       if ((frame[INS_B(i)] & TAG_MASK) == FLONUM_TAG ||
-	  (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
-	if (verbose) printf("Record abort: flonum not supported in jneqv\n");
-	record_abort();
-	return 1;
+          (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
+        if (verbose)
+          printf("Record abort: flonum not supported in jneqv\n");
+        record_abort();
+        return 1;
       }
     }
     if (frame[INS_B(i)] != frame[INS_C(i)]) {
@@ -969,8 +994,10 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       type = get_object_ir_type(((cons_s *)(frame[INS_B(i)] - CONS_TAG))->b);
       offset = sizeof(long);
     }
-    auto ref = push_ir(trace, IR_REF, op1, 8 - CONS_TAG + offset, UNDEFINED_TAG);
-    regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, IR_NONE, type | IR_INS_TYPE_GUARD);
+    auto ref =
+        push_ir(trace, IR_REF, op1, 8 - CONS_TAG + offset, UNDEFINED_TAG);
+    regs[INS_A(i)] =
+        push_ir(trace, IR_LOAD, ref, IR_NONE, type | IR_INS_TYPE_GUARD);
     break;
   }
   case ISEQ:
@@ -984,7 +1011,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (v1 == v2) {
       c = TRUE_REP;
       op = IR_EQ;
-    } 
+    }
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, c);
     push_ir(trace, op, op1, op2, UNDEFINED_TAG);
@@ -997,17 +1024,18 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     int64_t v1 = frame[INS_B(i)];
     int64_t v2 = frame[INS_C(i)];
     if (get_object_ir_type(v1) == FLONUM_TAG ||
-	get_object_ir_type(v2) == FLONUM_TAG) {
-	if (verbose) printf("Record abort: flonum not supported in islt\n");
-	record_abort();
-	return 1;
+        get_object_ir_type(v2) == FLONUM_TAG) {
+      if (verbose)
+        printf("Record abort: flonum not supported in islt\n");
+      record_abort();
+      return 1;
     }
     int64_t c = FALSE_REP;
     uint8_t op = IR_GE;
     if (v1 < v2) {
       c = TRUE_REP;
       op = IR_LT;
-    } 
+    }
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, c);
     push_ir(trace, op, op1, op2, UNDEFINED_TAG);
@@ -1028,7 +1056,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[INS_A(i)] = IR_CONST_BIAS + knum;
     break;
   }
-  case JNGUARD: 
+  case JNGUARD:
   case JGUARD: {
     record_stack_load(INS_B(i), frame);
     long tag = INS_C(i);
@@ -1079,7 +1107,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto vref = push_ir(trace, IR_VREF, vec, idx, 0);
 
     uint64_t pos = frame[INS_C(i)] >> 3;
-    vector_s* vec_d = (vector_s*)(frame[INS_B(i)] - PTR_TAG);
+    vector_s *vec_d = (vector_s *)(frame[INS_B(i)] - PTR_TAG);
     uint8_t type = get_object_ir_type(vec_d->v[pos]);
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, vref, 0, IR_INS_TYPE_GUARD | type);
 
@@ -1112,8 +1140,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     //   all registers to stack.
     trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
     // TODO fixed closz
-    long closz = (frame[INS_A(i)+1] >> 3)+1;
-    auto cell = push_ir(trace, IR_ALLOC, sizeof(long)* (closz + 2), CLOSURE_TAG, CLOSURE_TAG);
+    long closz = (frame[INS_A(i) + 1] >> 3) + 1;
+    auto cell = push_ir(trace, IR_ALLOC, sizeof(long) * (closz + 2),
+                        CLOSURE_TAG, CLOSURE_TAG);
     auto ref = push_ir(trace, IR_REF, cell, 8 - CLOSURE_TAG, UNDEFINED_TAG);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)closz << 3);
@@ -1126,8 +1155,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // Could also be 0-initialized.
     // TODO figure out a way to ensure we always snapshpt
     // after fully setting? I.e. don't abort ever?
-    for(long j = 0; j < closz; j++) {
-      ref = push_ir(trace, IR_REF, cell, 16 +8*j - CLOSURE_TAG, UNDEFINED_TAG);
+    for (long j = 0; j < closz; j++) {
+      ref =
+          push_ir(trace, IR_REF, cell, 16 + 8 * j - CLOSURE_TAG, UNDEFINED_TAG);
       push_ir(trace, IR_STORE, ref, a, 0);
     }
     regs[INS_A(i)] = cell;
@@ -1153,7 +1183,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     //  TODO this forces a side exit without recording.
     //   Put GC inline in generated code?  Would have to flush
     //   all registers to stack.
-    trace->snaps[arrlen(trace->snaps) - 1].exits = 255; 
+    trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
     auto cell = push_ir(trace, IR_ALLOC, sizeof(cons_s), CONS_TAG, CONS_TAG);
     regs[INS_A(i)] = cell;
     auto ref = push_ir(trace, IR_REF, cell, 8 - CONS_TAG, UNDEFINED_TAG);
@@ -1168,7 +1198,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto len = INS_B(i);
     auto reg = INS_A(i);
     int *loaded = NULL;
-    for(uint32_t cnt = 0; cnt < len; cnt++) {
+    for (uint32_t cnt = 0; cnt < len; cnt++) {
       arrput(loaded, record_stack_load(reg + cnt, frame));
     }
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
@@ -1176,15 +1206,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     //   Put GC inline in generated code?  Would have to flush
     //   all registers to stack.
     trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
-    
-    auto cell = push_ir(trace, IR_ALLOC, sizeof(vector_s) + 8*len, PTR_TAG, VECTOR_TAG);
+
+    auto cell = push_ir(trace, IR_ALLOC, sizeof(vector_s) + 8 * len, PTR_TAG,
+                        VECTOR_TAG);
     regs[reg] = cell;
     auto ref = push_ir(trace, IR_REF, cell, 8 - PTR_TAG, UNDEFINED_TAG);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)(len << 3));
     push_ir(trace, IR_STORE, ref, knum | IR_CONST_BIAS, UNDEFINED_TAG);
-    for(uint32_t cnt = 0; cnt < len; cnt++) {
-      ref = push_ir(trace, IR_REF, cell, 16 + cnt*8 - PTR_TAG, UNDEFINED_TAG);
+    for (uint32_t cnt = 0; cnt < len; cnt++) {
+      ref = push_ir(trace, IR_REF, cell, 16 + cnt * 8 - PTR_TAG, UNDEFINED_TAG);
       push_ir(trace, IR_STORE, ref, loaded[cnt], UNDEFINED_TAG);
     }
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
@@ -1199,7 +1230,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case READ: {
-    port_s* port = (port_s*)(frame[INS_B(i)] - PTR_TAG);
+    port_s *port = (port_s *)(frame[INS_B(i)] - PTR_TAG);
     uint8_t type = CHAR_TAG;
     // TODO peek instead.
     if (port->eof == TRUE_REP) {
@@ -1207,15 +1238,15 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)vm_read_char);
-    regs[INS_A(i)] = push_ir(trace, IR_CALLXS,
-			     record_stack_load(INS_B(i), frame),
-			     knum | IR_CONST_BIAS,
-			     type | IR_INS_TYPE_GUARD);
+    regs[INS_A(i)] =
+        push_ir(trace, IR_CALLXS, record_stack_load(INS_B(i), frame),
+                knum | IR_CONST_BIAS, type | IR_INS_TYPE_GUARD);
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
     break;
   }
   case WRITE: {
-    auto arg = push_ir(trace, IR_CARG, record_stack_load(INS_B(i), frame), record_stack_load(INS_C(i), frame), UNDEFINED_TAG);
+    auto arg = push_ir(trace, IR_CARG, record_stack_load(INS_B(i), frame),
+                       record_stack_load(INS_C(i), frame), UNDEFINED_TAG);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)vm_write);
     push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
@@ -1228,16 +1259,18 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, gp);
-    symbol *sym = (symbol*)(gp - SYMBOL_TAG);
+    symbol *sym = (symbol *)(gp - SYMBOL_TAG);
     uint8_t type = get_object_ir_type(sym->val);
-    regs[INS_A(i)] = push_ir(trace, IR_GGET, knum | IR_CONST_BIAS, IR_NONE, type | IR_INS_TYPE_GUARD);
+    regs[INS_A(i)] = push_ir(trace, IR_GGET, knum | IR_CONST_BIAS, IR_NONE,
+                             type | IR_INS_TYPE_GUARD);
     break;
   }
   case GSET: {
     long gp = const_table[INS_D(i)];
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, gp);
-    push_ir(trace, IR_GSET, knum | IR_CONST_BIAS, record_stack_load(INS_A(i), frame), UNDEFINED_TAG);
+    push_ir(trace, IR_GSET, knum | IR_CONST_BIAS,
+            record_stack_load(INS_A(i), frame), UNDEFINED_TAG);
     // We've changed global state, add a snap.
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
     break;
@@ -1253,11 +1286,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
     }
     if (type != 0) {
-      if (verbose) printf("Record abort: Only int supported in trace: %i\n", type);
+      if (verbose)
+        printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
       return 1;
     }
-    regs[INS_A(i)] = push_ir(trace, IR_SUB, op1, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD | type);
+    regs[INS_A(i)] = push_ir(trace, IR_SUB, op1, knum | IR_CONST_BIAS,
+                             IR_INS_TYPE_GUARD | type);
     break;
   }
   case ADDVN: {
@@ -1272,11 +1307,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
     }
     if (type != 0) {
-      if (verbose) printf("Record abort: Only int supported in trace: %i\n", type);
+      if (verbose)
+        printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
       return 1;
     }
-    regs[INS_A(i)] = push_ir(trace, IR_ADD, op1, knum | IR_CONST_BIAS, type | IR_INS_TYPE_GUARD);
+    regs[INS_A(i)] = push_ir(trace, IR_ADD, op1, knum | IR_CONST_BIAS,
+                             type | IR_INS_TYPE_GUARD);
     break;
   }
   case ADDVV: {
@@ -1290,7 +1327,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
     }
     if (type != 0) {
-      if (verbose) printf("Record abort: Only int supported in trace: %i\n", type);
+      if (verbose)
+        printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
       return 1;
     }
@@ -1308,7 +1346,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
     }
     if (type != 0) {
-      if (verbose) printf("Record abort: Only int supported in trace: %i\n", type);
+      if (verbose)
+        printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
       return 1;
     }
@@ -1323,8 +1362,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // TODO: Assume no type change??
     uint8_t type = 0;
     if (get_object_ir_type(frame[INS_B(i)]) != 0 ||
-	get_object_ir_type(frame[INS_C(i)]) != 0) {
-      if (verbose) printf("Record abort: Only int supported in trace: %i\n", type);
+        get_object_ir_type(frame[INS_C(i)]) != 0) {
+      if (verbose)
+        printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
       return 1;
     }
@@ -1341,7 +1381,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[INS_A(i)] = record_stack_load(INS_B(i), frame);
     auto type = get_object_ir_type(frame[INS_B(i)]);
     if (type != 0) {
-      if (verbose) printf("Record abort: exact only supports fixnum\n");
+      if (verbose)
+        printf("Record abort: exact only supports fixnum\n");
       record_abort();
       return 1;
     }
@@ -1397,20 +1438,21 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case CLOSURE_GET: {
     auto clo = record_stack_load(INS_B(i), frame);
-    auto ref = push_ir(trace, IR_REF, clo, 16 + (8*(1 + INS_C(i))) - CLOSURE_TAG, UNDEFINED_TAG);
-    
-    // Note: Closure doesn't necessarily need typecheck since closures are CONST.
-    // However, there are some situations where invalid code may hit bad types?
-    // I.e. polymorphic functions could do a different STORE type?
+    auto ref = push_ir(trace, IR_REF, clo,
+                       16 + (8 * (1 + INS_C(i))) - CLOSURE_TAG, UNDEFINED_TAG);
+
+    // Note: Closure doesn't necessarily need typecheck since closures are
+    // CONST. However, there are some situations where invalid code may hit bad
+    // types? I.e. polymorphic functions could do a different STORE type?
     //
     // Actually, this is invalid: closures could close '() or a list, and still
     // be what code is expecting.
     uint64_t pos = INS_C(i) + 1;
-    closure_s* clo_d = (closure_s*)(frame[INS_B(i)] - CLOSURE_TAG);
+    closure_s *clo_d = (closure_s *)(frame[INS_B(i)] - CLOSURE_TAG);
     uint8_t type = get_object_ir_type(clo_d->v[pos]);
 
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, 0, IR_INS_TYPE_GUARD | type);
-    
+
     /* // TODO: closure may not be const */
     /* auto fb = frame[INS_B(i)]; */
     /* auto closure = (closure_s *)(fb - CLOSURE_TAG); */
@@ -1423,7 +1465,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case CLOSURE_SET: {
     auto clo = record_stack_load(INS_A(i), frame);
     auto val = record_stack_load(INS_B(i), frame);
-    auto ref = push_ir(trace, IR_REF, clo, 16 + (8*(1 + INS_C(i))) - CLOSURE_TAG, UNDEFINED_TAG);
+    auto ref = push_ir(trace, IR_REF, clo,
+                       16 + (8 * (1 + INS_C(i))) - CLOSURE_TAG, UNDEFINED_TAG);
     push_ir(trace, IR_STORE, ref, val, UNDEFINED_TAG);
     break;
   }
@@ -1436,7 +1479,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto *ctrace = trace_cache_get(INS_D(i));
     if (INS_OP(ctrace->startpc) == CLFUNC) {
       if (argcnt != INS_A(ctrace->startpc)) {
-	break;
+        break;
       }
     }
     if (ctrace->link == -1) {
@@ -1449,18 +1492,21 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     for (int j = 0; j < INS_A(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
-    if (verbose) printf("Record stop JFUNC\n");
+    if (verbose)
+      printf("Record stop JFUNC\n");
     record_stop(pc, frame, INS_D(i));
     return 1;
   }
   case JLOOP: {
     auto *ctrace = trace_cache_get(INS_D(i));
     if (side_exit == nullptr && INS_OP(ctrace->startpc) != RET1) {
-      if (verbose) printf("Record abort: root trace hit loop\n");
+      if (verbose)
+        printf("Record abort: root trace hit loop\n");
       record_abort();
       return 1;
     }
-    if (verbose) printf("Record stop hit JLOOP\n");
+    if (verbose)
+      printf("Record stop hit JLOOP\n");
     // NOTE: stack load is for ret1 jloop returns.  Necessary?
     // TODO JLOOp also used for loop, only need to record for RET
     regs[INS_A(i)] = record_stack_load(INS_A(i), frame);
@@ -1468,16 +1514,18 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     return 1;
   }
   default: {
-    bcfunc* fc = find_func_for_frame(pc);
-    if (verbose) printf("Record abort: NYI: CANT RECORD BYTECODE %s in %s\n",
-	   ins_names[INS_OP(i)], fc ? fc->name : "???");
+    bcfunc *fc = find_func_for_frame(pc);
+    if (verbose)
+      printf("Record abort: NYI: CANT RECORD BYTECODE %s in %s\n",
+             ins_names[INS_OP(i)], fc ? fc->name : "???");
     record_abort();
     return 1;
     // exit(-1);
   }
   }
   if (instr_count > 1000) {
-    if (verbose) printf("Record abort: due to length\n");
+    if (verbose)
+      printf("Record abort: due to length\n");
     record_abort();
     return 1;
   }
@@ -1488,7 +1536,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   // TODO check chain for down-recursion
   // TODO this should check regs depth
   if (depth >= 20) {
-    if (verbose) printf("Record abort: (stack too deep)\n");
+    if (verbose)
+      printf("Record abort: (stack too deep)\n");
     record_abort();
     return 1;
   }

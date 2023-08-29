@@ -5,7 +5,8 @@
 #include <stdio.h>  // for printf
 #define auto __auto_type
 
-void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc, uint32_t depth) {
+void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
+              uint32_t depth) {
   // No need for duplicate snaps.
   if ((arrlen(trace->snaps) != 0) &&
       trace->snaps[arrlen(trace->snaps) - 1].ir == arrlen(trace->ops) &&

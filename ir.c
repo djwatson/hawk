@@ -1,7 +1,7 @@
-#include <stdint.h>
 #include "ir.h"
-#include "third-party/stb_ds.h"
 #include "asm_x64.h"
+#include "third-party/stb_ds.h"
+#include <stdint.h>
 
 // clang-format off
 const char* ir_names[] = {
@@ -52,10 +52,16 @@ const char* ir_names[] = {
 };
 // clang-format on
 
-uint32_t push_ir(trace_s*trace, ir_ins_op op, uint32_t op1, uint32_t op2, uint8_t type) {
-  ir_ins ir = {.op1 = op1, .op2 = op2, .type = type, .op = op, .reg = REG_NONE, .slot = SLOT_NONE};
+uint32_t push_ir(trace_s *trace, ir_ins_op op, uint32_t op1, uint32_t op2,
+                 uint8_t type) {
+  ir_ins ir = {.op1 = op1,
+               .op2 = op2,
+               .type = type,
+               .op = op,
+               .reg = REG_NONE,
+               .slot = SLOT_NONE};
   uint32_t res = arrlen(trace->ops);
   arrput(trace->ops, ir);
-  
+
   return res;
 }

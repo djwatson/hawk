@@ -31,7 +31,7 @@ void print_obj(long obj, FILE *file) {
       fputs("#(", file);
       for (long i = 0; i < (v->len >> 3); i++) {
         if (i != 0) {
-	  fputc(' ', file);
+          fputc(' ', file);
         }
         print_obj(v->v[i], file);
       }

@@ -121,4 +121,5 @@ typedef struct {
 
 #define ir_is_const(op) (op & IR_CONST_BIAS)
 
-uint32_t push_ir(trace_s*trace, ir_ins_op op, uint32_t op1, uint32_t op2, uint8_t type);
+uint32_t push_ir(trace_s *trace, ir_ins_op op, uint32_t op1, uint32_t op2,
+                 uint8_t type);
