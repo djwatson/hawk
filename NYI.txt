@@ -2,25 +2,21 @@ test/bench2/ack.scm
       1 Traces: 3
 
 test/bench2/array1.scm
+      1 rd abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
       1 Traces: 2
-     67 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
+     66 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
 
 test/bench2/browse.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-      1 Traces: 64
+      1 Traces: 98
      24 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in generate-symbol
-     64 Record abort: NYI: CANT RECORD BYTECODE INTEGER->CHAR in number->string
-     67 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-    130 Record abort: NYI: CANT RECORD BYTECODE ISLTE in char<=?
-    133 Record abort: NYI: CANT RECORD BYTECODE SYMBOL->STRING in symbol->string
-    295 Record abort: NYI: CANT RECORD BYTECODE SYMBOL->STRING in my-match
-    324 Record abort: NYI: CANT RECORD BYTECODE INTEGER->CHAR in char-downcase
+     92 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
 
 test/bench2/bv2string.scm
       1 Traces: 0
 
 test/bench2/cat.scm
-      1 Traces: 4
+      1 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
+      1 Traces: 3
       5 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-output-port
 
 test/bench2/chudnovsky.scm
@@ -28,68 +24,52 @@ test/bench2/chudnovsky.scm
 
 test/bench2/compiler.scm
       1 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in apply
-      1 Traces: 2930
-      7 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in string->canonical-symbol
-     13 Record abort: NYI: CANT RECORD BYTECODE ISGTE in mymatch
-     16 Record abort: NYI: CANT RECORD BYTECODE ISGT in combination-expr?
-     20 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in set-difference
+      1 Traces: 2443
+      9 Record abort: NYI: CANT RECORD BYTECODE FUNCV in ce
      24 Record abort: NYI: CANT RECORD BYTECODE APPLY in apply
-     24 Record abort: NYI: CANT RECORD BYTECODE INTEGER->CHAR in char-downcase
-     33 Record abort: NYI: CANT RECORD BYTECODE FUNCV in ce
-     36 Record abort: NYI: CANT RECORD BYTECODE SYMBOL->STRING in compile-parsed-program
-     45 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in set-union
-     48 Record abort: NYI: CANT RECORD BYTECODE ISLTE in char<=?
-     54 Record abort: NYI: CANT RECORD BYTECODE SYMBOL->STRING in set-prc-names!
-     56 Record abort: NYI: CANT RECORD BYTECODE ISLTE in needed?
-     57 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
-     64 Record abort: NYI: CANT RECORD BYTECODE INTEGER->CHAR in number->string
+     24 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in set-difference
+     24 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in string->canonical-symbol
+     55 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
      65 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in max
-     68 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in min
-     78 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in +
-    101 Record abort: NYI: CANT RECORD BYTECODE SYMBOL->STRING in _expr->source_44
-    102 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
-    113 Record abort: NYI: CANT RECORD BYTECODE EQV? in _eqv-gvm-opnd?_61
-    130 Record abort: NYI: CANT RECORD BYTECODE ISLTE in pattern-member?
-    130 Record abort: NYI: CANT RECORD BYTECODE SYMBOL->STRING in asm-set-glob
-    145 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in append
-    166 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
-    169 Record abort: NYI: CANT RECORD BYTECODE SYMBOL->STRING in opnd-str
-    187 Record abort: NYI: CANT RECORD BYTECODE FUNCV in set-union
-    228 Record abort: NYI: CANT RECORD BYTECODE FUNCV in emit-asm*
-    228 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in emit-asm*
+     67 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in min
+     73 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in +
+    115 Record abort: NYI: CANT RECORD BYTECODE EQV? in _eqv-gvm-opnd?_61
+    178 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
+    191 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in string-append
+    260 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
+    275 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in emit-asm*
     285 Record abort: NYI: CANT RECORD BYTECODE FUNCV in set-difference
-    474 Record abort: NYI: CANT RECORD BYTECODE FUNCV in emit-asm
-    484 Record abort: NYI: CANT RECORD BYTECODE FUNCV in set-intersection
-    585 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in set-intersection
-    843 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-   1059 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in emit-asm
-   1698 Record abort: NYI: CANT RECORD BYTECODE EQV? in identical-opnd68?
-   1938 Record abort: NYI: CANT RECORD BYTECODE ISGTE in pcr?
-   2629 Record abort: NYI: CANT RECORD BYTECODE SYMBOL->STRING in full-name?
+    322 Record abort: NYI: CANT RECORD BYTECODE FUNCV in emit-asm*
+    535 Record abort: NYI: CANT RECORD BYTECODE FUNCV in set-union
+    680 Record abort: NYI: CANT RECORD BYTECODE FUNCV in emit-asm
+    833 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in set-intersection
+    909 Record abort: NYI: CANT RECORD BYTECODE FUNCV in set-intersection
+   1081 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in set-union
+   1171 Record abort: NYI: CANT RECORD BYTECODE EQV? in identical-opnd68?
+   1491 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
+   2030 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in emit-asm
 
 test/bench2/conform.scm
-      1 Traces: 380
-     10 Record abort: NYI: CANT RECORD BYTECODE FUNCV in make-graph
-     23 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in make-node
-     26 Record abort: NYI: CANT RECORD BYTECODE APPLY in apply
+      1 Traces: 313
+     12 Record abort: NYI: CANT RECORD BYTECODE FUNCV in make-graph
+     29 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in make-node
      65 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in +
      65 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in vector
      89 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-     92 Record abort: NYI: CANT RECORD BYTECODE FUNCV in make-node
-    121 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
-    735 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
+     97 Record abort: NYI: CANT RECORD BYTECODE FUNCV in make-node
+    116 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
+    748 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
 
 test/bench2/cpstak.scm
       1 Traces: 4
 
 test/bench2/ctak.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuationRunning ctak:32:16:8:1
       1 Traces: 0
-    194 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
-    260 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
+    192 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
+    263 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
 
 test/bench2/deriv.scm
-      1 Traces: 19
+      1 Traces: 22
 
 test/bench2/destruc.scm
       1 Traces: 27
@@ -98,81 +78,76 @@ test/bench2/diviter.scm
       1 Traces: 6
 
 test/bench2/divrec.scm
-      1 Traces: 8
+      1 Traces: 7
 
 test/bench2/dynamic.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-      1 Traces: 1050
-     15 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in append
-     29 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
-     52 Record abort: NYI: CANT RECORD BYTECODE INTEGER->CHAR in char-downcase
+      1 Traces: 1084
+     14 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in append
+     28 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
      89 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-    125 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in map
-    130 Record abort: NYI: CANT RECORD BYTECODE ISLTE in char<=?
-    210 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
-    259 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
-    417 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in map
-    636 Record abort: NYI: CANT RECORD BYTECODE PEEK in peek-char
+    137 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in map
+    143 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
+    189 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
+    304 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in _parse-token_46
+    390 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in map
+    787 Record abort: NYI: CANT RECORD BYTECODE PEEK in peek-char
 
 test/bench2/earley.scm
-      1 Traces: 88
-     19 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
+      1 Traces: 79
+     20 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
 
 test/bench2/fft.scm
-      1 Traces: 7
+      1 Traces: 8
       4 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
-     11 Record abort: NYI: CANT RECORD BYTECODE SIN in sin
+     10 Record abort: NYI: CANT RECORD BYTECODE SIN in sin
      49 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
 
 test/bench2/fibc.scm
       1 Traces: 2
-    156 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
-    193 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
+    154 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
+    195 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
 
 test/bench2/fibfp.scm
       1 Traces: 0
 
 test/bench2/fib.scm
-      1 Traces: 19
+      1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+      1 Traces: 26
+      2 Record abort: NYI: CANT RECORD BYTECODE PEEK in peek-char
 
 test/bench2/gcbench.scm
       1 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
-      1 Record abort: NYI: CANT RECORD BYTECODE INTEGER->CHAR in number->string
-      1 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
       1 Traces: 22
+      2 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
 
 test/bench2/graphs.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-      1 Traces: 380
-    424 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
+      1 Traces: 230
+    423 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
 
 test/bench2/lattice.scm
-      1 Traces: 165
-      9 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in append
 
 test/bench2/matrix.scm
       1 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-      1 Traces: 327
-     42 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in map
-    272 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in map
-    541 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
+      1 Traces: 307
+    346 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in map
+    539 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in map
+    605 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
 
 test/bench2/mazefun.scm
       1 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-      1 Traces: 153
-    162 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in append
+      1 Traces: 177
 
 test/bench2/maze.scm
       1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-      1 Traces: 216
-     74 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
-    125 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
-    362 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
+      1 Traces: 292
+     75 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
+    126 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
+    364 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
 
 test/bench2/mbrot.scm
-      1 Traces: 4
+      1 Traces: 6
     159 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
-    330 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+    319 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
 
 test/bench2/mbrotZ.scm
 
@@ -181,53 +156,50 @@ test/bench2/mperm.scm
 
 test/bench2/nboyer.scm
       1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-      1 Traces: 134
+      1 Traces: 136
 
 test/bench2/nqueens.scm
       1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-      1 Traces: 41
+      1 Traces: 47
 
 test/bench2/ntakl.scm
       1 Traces: 9
 
 test/bench2/nucleic.scm
-      1 Traces: 144
+      1 Traces: 142
      65 Record abort: NYI: CANT RECORD BYTECODE ATAN in atan
      65 Record abort: NYI: CANT RECORD BYTECODE COS in cos
      65 Record abort: NYI: CANT RECORD BYTECODE SIN in sin
      65 Record abort: NYI: CANT RECORD BYTECODE SQRT in sqrt
     143 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in list
-    246 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in list
+    243 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in list
 
 test/bench2/paraffins.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
-      1 Traces: 87
+      1 Traces: 84
 
 test/bench2/parsing.scm
-      1 Traces: 231
-    130 Record abort: NYI: CANT RECORD BYTECODE ISLTE in char<=?
-    263 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-    372 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in _makesym_130
-    376 Record abort: NYI: CANT RECORD BYTECODE INTEGER->CHAR in char-downcase
+      1 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING iRunning parsing:2500
+      1 Traces: 563
+    262 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
+    374 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in _makesym_130
 
 test/bench2/peval.scm
-      1 Traces: 904
+      1 Traces: 1117
      25 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in new-variable
      35 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in list
-     53 Record abort: NYI: CANT RECORD BYTECODE INTEGER->CHAR in number->string
      89 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
-    138 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in +
-    205 Record abort: NYI: CANT RECORD BYTECODE SYMBOL->STRING in new-variable
-    297 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
+    127 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in +
+    518 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
 
 test/bench2/pi.scm
       1 Traces: 0
 
 test/bench2/pnpoly.scm
       1 Traces: 12
-     91 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
+     90 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
 
 test/bench2/primes.scm
+      1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
       1 Traces: 22
 
 test/bench2/puzzle.scm
@@ -242,97 +214,87 @@ test/bench2/quicksort.scm
     213 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
 
 test/bench2/ray.scm
-      1 Traces: 15
+      1 Traces: 14
       4 Record abort: NYI: CANT RECORD BYTECODE FILE-EXISTS? in file-exists?
      65 Record abort: NYI: CANT RECORD BYTECODE SQRT in sqrt
-    297 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+    293 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
 
 test/bench2/read1.scm
-      1 Traces: 60
+      1 Traces: 69
      37 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
-     45 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
-     54 Record abort: NYI: CANT RECORD BYTECODE INTEGER->CHAR in char-downcase
+     38 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
      89 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-    127 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
-    130 Record abort: NYI: CANT RECORD BYTECODE ISLTE in char<=?
-    316 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
-    450 Record abort: NYI: CANT RECORD BYTECODE PEEK in peek-char
+    114 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
+    227 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in _parse-token_46
+    245 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
+    686 Record abort: NYI: CANT RECORD BYTECODE PEEK in peek-char
 
 test/bench2/sboyer.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE ROUND in _rounded_46
       1 Traces: 131
 
 test/bench2/scheme.scm
       1 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
       1 Record abort: NYI: CANT RECORD BYTECODE ROUND in _rounded_46
-      1 Traces: 203
-    753 Record abort: NYI: CANT RECORD BYTECODE ISLTE in _loop_44
+      1 Traces: 175
 
 test/bench2/simplex.scm
-      1 Traces: 20
-     89 Record abort: NYI: CANT RECORD BYTECODE ISGT in positive?
+      1 Traces: 23
     219 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
 
 test/bench2/slatex.scm
       1 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in slatex.new-primary-aux-file
-      1 Traces: 351
+      1 Traces: 380
       2 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in string-append
-      6 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.new-secondary-aux-file
-      6 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in slatex.new-aux-file
-     23 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in string
-     34 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.find-some-file
+      4 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.new-secondary-aux-file
      38 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in list
-     63 Record abort: NYI: CANT RECORD BYTECODE INTEGER->CHAR in number->string
+     40 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.find-some-file
+     55 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in string
      65 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.force-output
-     66 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.new-primary-aux-file
-     75 Record abort: NYI: CANT RECORD BYTECODE INTEGER->CHAR in char-downcase
+     68 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.new-primary-aux-file
      89 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in +
+     89 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
      91 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in apply
-     95 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
-    101 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
-    130 Record abort: NYI: CANT RECORD BYTECODE ISLTE in char<=?
+     96 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
     144 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.new-aux-file
-    156 Record abort: NYI: CANT RECORD BYTECODE DELETE-FILE in delete-file
+    150 Record abort: NYI: CANT RECORD BYTECODE DELETE-FILE in delete-file
     157 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
     170 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in list
     197 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-output-file
-    212 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-output-port
-    217 Record abort: NYI: CANT RECORD BYTECODE FILE-EXISTS? in file-exists?
-    222 Record abort: NYI: CANT RECORD BYTECODE FUNCV in string
-    477 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-   1015 Record abort: NYI: CANT RECORD BYTECODE PEEK in peek-char
+    214 Record abort: NYI: CANT RECORD BYTECODE FILE-EXISTS? in file-exists?
+    229 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-output-port
+    268 Record abort: NYI: CANT RECORD BYTECODE FUNCV in string
+    497 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
+   1170 Record abort: NYI: CANT RECORD BYTECODE PEEK in peek-char
 
 test/bench2/string.scm
-      1 Traces: 15
-     13 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in string-append
+      1 Traces: 17
+      5 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in string-append
      24 Record abort: NYI: CANT RECORD BYTECODE APPLY in apply
      65 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in +
-    208 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
+    231 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
     267 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
 
 test/bench2/sum1.scm
-      1 Traces: 16
+      1 Traces: 26
       2 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
      89 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-    130 Record abort: NYI: CANT RECORD BYTECODE ISLTE in char<=?
-    145 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-    192 Record abort: NYI: CANT RECORD BYTECODE PEEK in peek-char
-    702 Record abort: NYI: CANT RECORD BYTECODE INTEGER->CHAR in char-downcase
+    273 Record abort: NYI: CANT RECORD BYTECODE PEEK in peek-char
+    302 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
 
 test/bench2/sumfp.scm
-      1 Traces: 2
+      1 Traces: 3
 
 test/bench2/sum.scm
       1 Traces: 1
 
 test/bench2/tail.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
-      1 Traces: 4
+      1 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
+      1 Traces: 2
       5 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-output-port
     131 Record abort: NYI: CANT RECORD BYTECODE READ-LINE in read-line
 
 test/bench2/takl.scm
-      1 Traces: 10
+      1 Traces: 9
 
 test/bench2/tak.scm
       1 Traces: 10
@@ -341,7 +303,7 @@ test/bench2/triangl.scm
       1 Traces: 15
 
 test/bench2/wc.scm
-      1 Traces: 5
+      1 Traces: 6
+      3 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
       5 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
-      6 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
 
