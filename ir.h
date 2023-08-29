@@ -49,6 +49,8 @@ typedef enum {
   IR_CALLXS,
   IR_CARG,
 
+  IR_CHGTYPE,
+
   IR_NONE,
 } ir_ins_op;
 

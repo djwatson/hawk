@@ -993,13 +993,28 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     }
     case IR_SHR: {
       maybe_assign_register(op->op1, trace, slot, &next_spill);
-      emit_imm8(op->op2);
-      emit_reg_reg(OP_SAR_CONST, 7, op->reg);
       if (ir_is_const(op->op1)) {
         auto c = trace->consts[op->op1 - IR_CONST_BIAS];
         assert((c & TAG_MASK) == FIXNUM_TAG);
         emit_mov64(op->reg, c >> op->op2);
       } else {
+	emit_imm8(op->op2);
+	emit_reg_reg(OP_SAR_CONST, 7, op->reg);
+        emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, op->reg);
+      }
+      break;
+    }
+    case IR_CHGTYPE: {
+      assert(op->reg != REG_NONE);
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
+      if (ir_is_const(op->op1)) {
+        auto c = trace->consts[op->op1 - IR_CONST_BIAS];
+        assert((c & TAG_MASK) == FIXNUM_TAG);
+        emit_mov64(op->reg, (c << 5) + CHAR_TAG);
+      } else {
+	emit_arith_imm(OP_ARITH_ADD, op->reg, CHAR_TAG);
+	emit_imm8(5);
+	emit_reg_reg(OP_SHL_CONST, 4, op->reg);
         emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, op->reg);
       }
       break;

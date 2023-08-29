@@ -244,6 +244,7 @@ void dump_trace(trace_s *ctrace) {
     case IR_KFIX:
     case IR_ARG:
     case IR_LOAD:
+    case IR_CHGTYPE:
     case IR_SLOAD: {
       print_const_or_val(op.op1, ctrace);
       break;
@@ -748,7 +749,17 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case CHAR_INTEGER: {
     auto op1 = record_stack_load(INS_B(i), frame);
-    regs[INS_A(i)] = push_ir(trace, IR_SHR, op1, 5, CHAR_TAG);
+    regs[INS_A(i)] = push_ir(trace, IR_SHR, op1, 5, FIXNUM_TAG);
+    break;
+  }
+  case INTEGER_CHAR: {
+    auto op1 = record_stack_load(INS_B(i), frame);
+    if (get_object_ir_type(frame[INS_B(i)] != FIXNUM_TAG)) {
+      printf("Record abort: integer->char with non-char");
+      record_abort();
+      return 1;
+    }
+    regs[INS_A(i)] = push_ir(trace, IR_CHGTYPE, op1, FIXNUM_TAG, CHAR_TAG);
     break;
   }
   case JISF: {

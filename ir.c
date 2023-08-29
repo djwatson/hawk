@@ -48,6 +48,8 @@ const char* ir_names[] = {
   "CALLXS",
   "CARG  ",
 
+  "CHGTYP",
+
   "NONE  ",
 };
 // clang-format on
