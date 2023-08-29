@@ -1224,12 +1224,13 @@ done:
     emit_bind(start, side_exit->patchpoint);
   }
 
+  char* dumpname = parent ? "Side Trace" : "Trace";
 #ifdef JITDUMP
-  perf_map((uint64_t)fn, len, "Trace");
+  perf_map((uint64_t)fn, len, dumpname);
   if (jit_dump_flag) {
-    jit_dump(len, (uint64_t)fn, "Trace");
+    jit_dump(len, (uint64_t)fn, dumpname);
   }
-  jit_reader_add(len, (uint64_t)fn, 0, 0, "Trace");
+  jit_reader_add(len, (uint64_t)fn, 0, 0, dumpname);
 #endif
 #ifdef VALGRIND
   VALGRIND_DISCARD_TRANSLATIONS(fn, len);

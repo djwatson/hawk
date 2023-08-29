@@ -5,7 +5,6 @@
 
 * make-vector
 * make-string
-* symbol->string
 * funcv/clfuncv
 * peek
 * call/cc
@@ -14,6 +13,7 @@
 # TODO
 
 * UNDEFINED_TAG
+* check for all snapshots for branches in record - i.e. JGUARD
 * cleanup the IR_GUARD_TYPE to separate field?
 * delete extraneous snaps
 * fusion
