@@ -567,7 +567,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
           }
         }
         if (cnt != 0) {
-          if (side_exit != nullptr) {
+          if (side_exit != nullptr && INS_OP(i) != IRET1) {
             if (verbose) printf("Record abort: Potential down-recursion, restarting\n");
             record_abort();
             record_start(pc, frame);
@@ -575,7 +575,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
             trace_state = TRACING;
             break;
           }
-	  if (pc == pc_start) {
+	  if (pc == pc_start && !side_exit) {
 	    if (verbose) printf("Record stop downrec\n");
 	    record_stop(pc, frame, arrlen(traces));
 	  } else {
