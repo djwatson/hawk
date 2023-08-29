@@ -1,32 +1,32 @@
-| benchmark |   boom |    chez |       diff | win   | reason                                                  |
-|-----------+--------+---------+------------+-------+---------------------------------------------------------|
-| ack       |  2.246 |   2.300 | -2.4042743 | *WIN* |                                                         |
-| tak       |  1.835 |   1.432 |  21.961853 |       | reg                                                     |
-| fib       |  3.191 |   2.815 |  11.783140 |       | reg                                                     |
-| sum       |   .642 |    .823 | -28.193146 | *WIN* |                                                         |
-| diviter   |  2.859 |   1.041 |  63.588667 |       | reg, types, frontend cycles, const pool                 |
-| divrec    |  3.494 |   1.630 |  53.348598 |       | same                                                    |
-| nqueens   |  6.627 |   3.221 |  51.395805 |       | reg, front end, types, const pool                       |
-| mperm     |  3.249 |   6.955 | -114.06587 | *WIN* |                                                         |
-| ntakl     |  6.071 |   2.548 |  58.029979 |       | FRONTEND                                                |
-| takl      |  4.189 |   2.607 |  37.765577 |       | same as diviter                                         |
-| wc        |  1.430 |    .902 |  36.923077 |       | getc, print_obj, fputc, plt, call constant pool         |
-| cat       |  2.142 |   1.278 |  40.336134 |       | same as wc                                              |
-| cpstak    |  5.994 |   2.011 |  66.449783 |       | in reg                                                  |
-| primes    |  1.400 |   .6999 |  50.007143 |       | in reg                                                  |
-| deriv     |  4.309 |    .761 |  82.339290 |       | loops??                                                 |
-| triangl   |  1.147 |   1.184 | -3.2258065 | *WIN* |                                                         |
-| destruc   |  3.103 |   1.336 |  56.944892 |       | reg   , typechecks, loop s??                            |
-| gcbench   |    .77 |    .556 |  27.792208 |       | reg, typecheck, const pool                              |
-| puzzle    |  2.015 |   1.642 |  18.511166 |       | reg, callcc                                             |
-| paraffins |  3.218 |   4.270 | -32.691112 | *WIN* |                                                         |
-| mazefun   |  3.909 |   1.731 |  55.717575 |       | reg, unroll limit??                                     |
-| lattice   |  7.178 |   2.830 |  60.573976 |       | typecheck, reg, better closure analysis                 |
-| browse    |   4.71 |    1.12 |  76.220807 |       | falling out of jit make-string, integer->char, etc      |
-| graphs    |   5.59 |    1.71 |  69.409660 |       | reg, typecheck   , closure analysis , closure sinking   |
-| conform   |   6.91 |    2.77 |  59.913169 |       | loops failing out of trace                              |
-| sboyer    |  1.938 |    .731 |  62.280702 |       | reg, closure analysis rewrite, types, clousre get merge |
-| array1    |  1.688 |   4.191 | -148.28199 | *WIN* |                                                         |
-| TOTAL     | 91.854 | 55.0949 |  40.019052 |       |                                                         |
-|-----------+--------+---------+------------+-------+---------------------------------------------------------|
+| benchmark |   boom |    chez |        diff | win   | reason                                                  |
+|-----------+--------+---------+-------------+-------+---------------------------------------------------------|
+| ack       |  2.246 |   2.300 |  -2.4042743 | *WIN* |                                                         |
+| tak       |  1.835 |   1.432 |   21.961853 |       | reg                                                     |
+| fib       |  3.191 |   2.815 |   11.783140 |       | reg                                                     |
+| sum       |   .642 |    .823 |  -28.193146 | *WIN* |                                                         |
+| diviter   |   1.59 |   1.041 |   34.528302 |       | reg, types, frontend cycles, const pool                 |
+| divrec    |  2.277 |   1.630 |   28.414581 |       | same                                                    |
+| nqueens   |  4.830 |   3.221 |   33.312629 |       | reg, front end, types, const pool                       |
+| mperm     |  2.937 |   6.955 |  -136.80626 | *WIN* |                                                         |
+| ntakl     |   7.40 |   2.548 |   65.567568 |       | FRONTEND                                                |
+| takl      |  4.189 |   2.607 |   37.765577 |       | same as diviter                                         |
+| wc        |  1.430 |    .902 |   36.923077 |       | getc, print_obj, fputc, plt, call constant pool         |
+| cat       |  2.142 |   1.278 |   40.336134 |       | same as wc                                              |
+| cpstak    |  4.718 |   2.011 |   57.376007 |       | in reg                                                  |
+| primes    |     .7 |   .6999 | 0.014285714 |       | in reg                                                  |
+| deriv     |   1.93 |    .761 |   60.569948 |       | loops??                                                 |
+| triangl   |  1.147 |   1.184 |  -3.2258065 | *WIN* |                                                         |
+| destruc   |   2.67 |   1.336 |   49.962547 |       | reg   , typechecks, loop s??                            |
+| gcbench   |    .77 |    .556 |   27.792208 |       | reg, typecheck, const pool                              |
+| puzzle    |  2.015 |   1.642 |   18.511166 |       | reg, callcc                                             |
+| paraffins |  1.559 |   4.270 |  -173.89352 | *WIN* |                                                         |
+| mazefun   |  3.341 |   1.731 |   48.189165 |       | reg, unroll limit??                                     |
+| lattice   |   13.8 |   2.830 |   79.492754 |       | typecheck, reg, better closure analysis                 |
+| browse    |    4.2 |    1.12 |   73.333333 |       | falling out of jit make-string, integer->char, etc      |
+| graphs    |   3.58 |    1.71 |   52.234637 |       | reg, typecheck   , closure analysis , closure sinking   |
+| conform   |    4.2 |    2.77 |   34.047619 |       | loops failing out of trace                              |
+| sboyer    |  1.938 |    .731 |   62.280702 |       | reg, closure analysis rewrite, types, clousre get merge |
+| array1    |  1.688 |   4.191 |  -148.28199 | *WIN* |                                                         |
+| TOTAL     | 82.965 | 55.0949 |   40.019052 |       |                                                         |
+|-----------+--------+---------+-------------+-------+---------------------------------------------------------|
 #+TBLFM: $4=($2-$3) * 100.0 /$2::$5='(if (not (= $2 0)) (if (>= $3 $2) '*WIN* "") "BAD");N::@>$2=vsum(@2..@-1)::@>$3=vsum(@2..@-1)
