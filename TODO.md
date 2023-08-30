@@ -3,9 +3,9 @@
 * too many traces - conform compiler mazefun maze matrix peval scheme dynamic lattice nucleic read1 slatex
 * see NYI.txt
 
-* char cmp
 * make-vector
 * make-string
+
 * funcv/clfuncv
 * call/cc
 * apply
@@ -131,3 +131,7 @@
 
 * dce
 * global fetches
+* mem - L2L + S2L, DSE, AA
+* sink
+* loop
+* constant folding / sccp
