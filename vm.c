@@ -1033,16 +1033,22 @@ LIBRARY_FUNC_B_LOAD(CLOSE)
   }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(PEEK)
-  LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
+__attribute__((always_inline)) long vm_peek_char(port_s* port) {
+  // TODO jit still as the ptr tag.
+  port = (port_s*)((long)port & ~TAG_MASK);
   int res = fgetc(port->file);
   if (res == EOF) {
     port->eof = TRUE_REP;
-    frame[ra] = EOF_TAG;
+    return EOF_TAG;
   } else {
     ungetc(res, port->file);
-    frame[ra] = (((long)res) << 8) + CHAR_TAG;
+    return (((long)res) << 8) + CHAR_TAG;
   }
+}
+
+LIBRARY_FUNC_B_LOAD(PEEK)
+  LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
+  frame[ra] = vm_peek_char(port);
 END_LIBRARY_FUNC
 
 __attribute__((always_inline)) long vm_read_char(port_s* port) {

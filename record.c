@@ -1360,6 +1360,21 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
     break;
   }
+  case PEEK: {
+    port_s *port = (port_s *)(frame[INS_B(i)] - PTR_TAG);
+    uint8_t type = CHAR_TAG;
+    // TODO peek instead.
+    if (port->eof == TRUE_REP) {
+      type = EOF_TAG;
+    }
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, (long)vm_peek_char);
+    regs[INS_A(i)] =
+        push_ir(trace, IR_CALLXS, record_stack_load(INS_B(i), frame),
+                knum | IR_CONST_BIAS, type | IR_INS_TYPE_GUARD);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
+    break;
+  }
   case WRITE: {
     auto arg = push_ir(trace, IR_CARG, record_stack_load(INS_B(i), frame),
                        record_stack_load(INS_C(i), frame), UNDEFINED_TAG);
