@@ -1,8 +1,6 @@
-(define (foo n) (let loop ((i n) (j 2))
-		  (if (= i 0)
-		      j
-		      (loop (+ i -1) (if (> j 6553500) 1 (* j 3))))))
-
-(display (foo 400))
-(display (foo 1))
-
+(define b '())
+(let ((v 10))
+  (do ((i 0 (+ 1 i)))
+      ((= i 3000000))
+    (set! b (make-vector (if (> i 300) 0 0) #\a))))
+(display b)

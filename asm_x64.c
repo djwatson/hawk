@@ -888,20 +888,41 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_ALLOC: {
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
+      uint8_t reg_sz = REG_NONE;
+      bool tmp = false;
+      if(!ir_is_const(op->op1)) {
+	reg_sz = get_free_reg(trace, &next_spill, slot, false);
+      }
       emit_arith_imm(OP_ARITH_ADD, op->reg, op->op2 & TAG_MASK);
       emit_mem_reg(OP_MOV_RM, 0, op->reg, R15);
       emit_mov64(R15, op->type & ~IR_INS_TYPE_GUARD);
-      emit_arith_imm(OP_ARITH_SUB, op->reg, op->op1);
+      if (ir_is_const(op->op1)) {
+	auto c = trace->consts[op->op1 - IR_CONST_BIAS] >> 3;
+	emit_arith_imm(OP_ARITH_SUB, op->reg, c);
+      } else {
+	emit_reg_reg(OP_SUB, reg_sz, op->reg);
+      }
       emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
       emit_mov64(R15, (int64_t)&alloc_ptr);
       // TODO call GC directly?
       emit_jcc32(JGE, snap_labels[cur_snap]);
       emit_reg_reg(OP_CMP, R15, op->reg);
-      emit_arith_imm(OP_ARITH_ADD, op->reg, op->op1);
+      if (ir_is_const(op->op1)) {
+	auto c = trace->consts[op->op1 - IR_CONST_BIAS] >> 3;
+	emit_arith_imm(OP_ARITH_ADD, op->reg, c);
+      } else {
+	emit_reg_reg(OP_ADD, reg_sz, op->reg);
+      }
       emit_mem_reg(OP_MOV_MR, 0, op->reg, op->reg);
       emit_mem_reg(OP_MOV_MR, 0, R15, R15);
       emit_mov64(op->reg, (int64_t)&alloc_ptr);
       emit_mov64(R15, (int64_t)&alloc_end);
+      if (tmp) {
+	emit_imm8(3);
+	emit_reg_reg(OP_SAR_CONST, 7, reg_sz);
+	emit_reg_reg(OP_MOV, reg_sz, trace->ops[op->op1].reg);
+      }
 
       break;
     }
