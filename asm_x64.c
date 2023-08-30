@@ -1155,9 +1155,13 @@ done:
         uint32_t to = op->reg;
         // TODO if also slot, move to slot.
         if (op->reg == REG_NONE) {
-          to = op->slot + REG_NONE;
+	  if (op->slot != SLOT_NONE) {
+	    to = op->slot + REG_NONE;
+	  }
         }
-        map_insert(&moves, from, to);
+	if (to != REG_NONE) {
+	  map_insert(&moves, from, to);
+	}
         if (verbose)
           printf("Insert parallel copy %i to %i\n", from, to);
         if (op->slot != SLOT_NONE && op->reg != REG_NONE) {
