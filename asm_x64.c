@@ -894,7 +894,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       bool tmp = false;
       if(!ir_is_const(op->op1)) {
 	reg_sz = get_free_reg(trace, &next_spill, slot, false);
-	printf("reg sz is %s\n", reg_names[reg_sz]);
 	tmp = true;
       }
 	slot[op->reg] = -1;
@@ -1025,6 +1024,19 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       } else {
 	emit_imm8(op->op2);
 	emit_reg_reg(OP_SAR_CONST, 7, op->reg);
+        emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, op->reg);
+      }
+      break;
+    }
+    case IR_AND: {
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
+      assert(ir_is_const(op->op2));
+      if (ir_is_const(op->op1)) {
+        auto c = trace->consts[op->op1 - IR_CONST_BIAS];
+        //assert((c & TAG_MASK) == FIXNUM_TAG);
+        emit_mov64(op->reg, c >> op->op2);
+      } else {
+	emit_op_imm32(OP_AND_IMM, 4, op->reg, trace->consts[op->op2 - IR_CONST_BIAS]);
         emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, op->reg);
       }
       break;

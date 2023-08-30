@@ -46,6 +46,7 @@ enum OPCODES {
   OP_CMP_IMM = 0x81,
   OP_CMP = 0x39,
   OP_LEA = 0x8d,
+  OP_AND = 0x83,
   OP_SAR_CONST = 0xC1,
   OP_SHL_CONST = 0xC1,
   OP_CQO = 0x99,

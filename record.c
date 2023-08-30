@@ -288,6 +288,7 @@ void dump_trace(trace_s *ctrace) {
     case IR_CARG:
     case IR_STRST:
     case IR_STRLD:
+    case IR_AND:
     case IR_STRREF: {
       print_const_or_val(op.op1, ctrace);
       printf(" ");
@@ -1330,10 +1331,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto sz = record_stack_load(INS_B(i), frame);
     auto ch = record_stack_load(INS_C(i), frame);
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, ((sizeof(long)*2) + 1) << 3);
+    arrput(trace->consts, ((sizeof(long)*2) + 1 + 7 /* ptr align */) << 3);
     auto alloc_sz = push_ir(trace, IR_ADD, sz, knum | IR_CONST_BIAS, FIXNUM_TAG);
+    knum = arrlen(trace->consts);
+    arrput(trace->consts, (unsigned long)(~TAG_MASK) << 3);
+    auto alloc_sz_aligned = push_ir(trace, IR_AND, alloc_sz, knum | IR_CONST_BIAS, FIXNUM_TAG);
     // TODO snaps??
-    auto cell = push_ir(trace, IR_ALLOC, alloc_sz, PTR_TAG, STRING_TAG);
+    auto cell = push_ir(trace, IR_ALLOC, alloc_sz_aligned, PTR_TAG, STRING_TAG);
     // TODO set to ch
     auto ref = push_ir(trace, IR_REF, cell, 8 - PTR_TAG, UNDEFINED_TAG);
     push_ir(trace, IR_STORE, ref, sz, UNDEFINED_TAG);
