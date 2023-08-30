@@ -20,4 +20,5 @@ extern bcfunc **funcs;
 
 __attribute__((always_inline)) long vm_read_char(port_s *port);
 __attribute__((always_inline)) long vm_peek_char(port_s *port);
+long vm_string_symbol(string_s* str);
 void vm_write(long obj, long port);

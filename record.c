@@ -750,6 +750,17 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     arrput(trace->consts, k);
     break;
   }
+  case STRING_SYMBOL: {
+    auto op1 = record_stack_load(INS_B(i), frame);
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, (long)vm_string_symbol);
+    auto sym = push_ir(trace, IR_CALLXS, op1, knum | IR_CONST_BIAS, SYMBOL_TAG);
+    regs[INS_A(i)] = sym;
+    knum = arrlen(trace->consts);
+    arrput(trace->consts, FALSE_REP);
+    push_ir(trace, IR_NE, sym, knum | IR_CONST_BIAS, UNDEFINED_TAG | IR_INS_TYPE_GUARD);
+    break;
+  }
   case SYMBOL_STRING: {
     auto op1 = record_stack_load(INS_B(i), frame);
     auto ref = push_ir(trace, IR_REF, op1, 8 - SYMBOL_TAG, UNDEFINED_TAG);

@@ -321,6 +321,16 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   return res;
 }
 
+__attribute__((always_inline)) void *GC_malloc_no_collect(size_t sz) {
+  sz = (sz + 7) & (~TAG_MASK);
+  assert((sz & TAG_MASK) == 0);
+  auto *res = alloc_ptr;
+  alloc_ptr += sz;
+  if (alloc_ptr < alloc_end) {
+    return res;
+  }
+  return NULL;
+}
 __attribute__((always_inline)) void *GC_malloc(size_t sz) {
   sz = (sz + 7) & (~TAG_MASK);
   assert((sz & TAG_MASK) == 0);

@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+void *GC_malloc_no_collect(size_t sz);
 void *GC_malloc(size_t sz);
 void *GC_realloc(void *ptr, size_t sz);
 void GC_enable(bool en);
