@@ -1,6 +1,6 @@
 (define b '())
 (let ((v 10))
   (do ((i 0 (+ 1 i)))
-      ((= i 3000000))
-    (set! b (make-vector (if (> i 300) 0 0) #\a))))
+      ((= i 2100000))
+    (set! b ($make-string 10 #\a))))
 (display b)

@@ -752,6 +752,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case STRING_SYMBOL: {
+    // TODO snapshots
     auto op1 = record_stack_load(INS_B(i), frame);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)vm_string_symbol);
@@ -1323,6 +1324,20 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     push_ir(trace, IR_STORE, ref, b, UNDEFINED_TAG);
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
 
+    break;
+  }
+  case MAKE_STRING: {
+    auto sz = record_stack_load(INS_B(i), frame);
+    auto ch = record_stack_load(INS_C(i), frame);
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, ((sizeof(long)*2) + 1) << 3);
+    auto alloc_sz = push_ir(trace, IR_ADD, sz, knum | IR_CONST_BIAS, FIXNUM_TAG);
+    // TODO snaps??
+    auto cell = push_ir(trace, IR_ALLOC, alloc_sz, PTR_TAG, STRING_TAG);
+    // TODO set to ch
+    auto ref = push_ir(trace, IR_REF, cell, 8 - PTR_TAG, UNDEFINED_TAG);
+    push_ir(trace, IR_STORE, ref, sz, UNDEFINED_TAG);
+    regs[INS_A(i)] = cell;
     break;
   }
   /* case MAKE_VECTOR: { */

@@ -888,12 +888,16 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_ALLOC: {
+      slot[op->reg] = op_cnt; // TODO must be different than op->reg and op->op1 reg
       maybe_assign_register(op->op1, trace, slot, &next_spill);
       uint8_t reg_sz = REG_NONE;
       bool tmp = false;
       if(!ir_is_const(op->op1)) {
 	reg_sz = get_free_reg(trace, &next_spill, slot, false);
+	printf("reg sz is %s\n", reg_names[reg_sz]);
+	tmp = true;
       }
+	slot[op->reg] = -1;
       emit_arith_imm(OP_ARITH_ADD, op->reg, op->op2 & TAG_MASK);
       emit_mem_reg(OP_MOV_RM, 0, op->reg, R15);
       emit_mov64(R15, op->type & ~IR_INS_TYPE_GUARD);
@@ -921,7 +925,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (tmp) {
 	emit_imm8(3);
 	emit_reg_reg(OP_SAR_CONST, 7, reg_sz);
-	emit_reg_reg(OP_MOV, reg_sz, trace->ops[op->op1].reg);
+	emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, reg_sz);
       }
 
       break;
