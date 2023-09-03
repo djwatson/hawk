@@ -5,9 +5,9 @@
 
 * make-vector
 * make-string
-
-* funcv/clfuncv
 * call/cc
+
+* funcv/clfuncv - list, string-append, append
 * apply
 
 # TODO
@@ -18,20 +18,20 @@
 * enregister arguments / loop args
 * lazier typechecking
 * const pool
-* sccp pass
+* sccp pass / fold
 * singleton functions /closures
-* better closure allocation in frontend
+* better closure allocation in frontend - full closure optimization
 * allocation sinking for cons/closure/vector
 * optimistic global calls - needs frontend change, 
   and backend optimization / clearing of traces.
 * ABC implement
 * cleanup register allocation - two-arg can be optimized
-* RET implementation could actually RET?
 * TRACE loop recording - 
   * need unroll check for CALLT.  
   * CALLT should also detect loops, and flush original trace
   * downrec could flush original trace if not uprec?
 * reg hints across calls? and returns?
+* RET implementation could actually RET? faster somehow?
 
 # working on
 
@@ -48,7 +48,6 @@
 * stack expand:cleanup
 
 * closure-get, and in fact all calls, must be same closure.
-* cleanup snap guards for jisf, etc
 * folding GGET: put in emit somewhere, check for GSET
 * Merge parent SLOADS if they are the same value.
 * make make notes where ARG vs SLOAD

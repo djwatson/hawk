@@ -1338,10 +1338,19 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto alloc_sz_aligned = push_ir(trace, IR_AND, alloc_sz, knum | IR_CONST_BIAS, FIXNUM_TAG);
     // TODO snaps??
     auto cell = push_ir(trace, IR_ALLOC, alloc_sz_aligned, PTR_TAG, STRING_TAG);
-    // TODO set to ch
+
     auto ref = push_ir(trace, IR_REF, cell, 8 - PTR_TAG, UNDEFINED_TAG);
     push_ir(trace, IR_STORE, ref, sz, UNDEFINED_TAG);
     regs[INS_A(i)] = cell;
+
+    // Set the string values to ch
+    // Basically using memset, because that's what gcc/clang would do.
+    // TODO could optimize away if sz = 0 or ch isn't passed (i.e. (make-string 100))
+    auto arg = push_ir(trace, IR_CARG, cell, ch, UNDEFINED_TAG);
+    knum = arrlen(trace->consts);
+    arrput(trace->consts, (long)vm_make_string);
+    push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
+
     break;
   }
   /* case MAKE_VECTOR: { */

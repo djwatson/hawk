@@ -962,7 +962,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       // args
       if (trace->ops[op->op1].op == IR_CARG) {
         auto cop = &trace->ops[op->op1];
-        assert(!ir_is_const(cop->op2));
         if (ir_is_const(cop->op1)) {
           auto c2 = trace->consts[cop->op1 - IR_CONST_BIAS];
           auto re = (reloc){emit_offset(), c2, RELOC_ABS};
@@ -971,7 +970,14 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         } else {
           emit_reg_reg(OP_MOV, trace->ops[cop->op1].reg, RDI);
         }
-        emit_reg_reg(OP_MOV, trace->ops[cop->op2].reg, RSI);
+        if (ir_is_const(cop->op2)) {
+          auto c2 = trace->consts[cop->op2 - IR_CONST_BIAS];
+          auto re = (reloc){emit_offset(), c2, RELOC_ABS};
+          arrput(trace->relocs, re);
+          emit_mov64(RSI, (int64_t)(c2));
+        } else {
+          emit_reg_reg(OP_MOV, trace->ops[cop->op2].reg, RSI);
+        }
       } else {
         assert(!ir_is_const(op->op1));
         emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, RDI);

@@ -817,6 +817,15 @@ LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR)
   frame[ra] = (long)vec | PTR_TAG;
 END_LIBRARY_FUNC
 
+void vm_make_string(long str, long ch) {
+  string_s*s = (string_s*)(str & ~TAG_MASK);
+  char c = ch >> 8;
+
+  long len = s->len >> 3;
+  memset(&s->str[0], c, len);
+  s->str[len] = '\0';
+}
+
 // TODO could be BC_LOAD_NAME?
 LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING)
   long fb = frame[rb];
