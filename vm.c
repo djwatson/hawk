@@ -800,6 +800,17 @@ END_LIBRARY_FUNC
 LIBRARY_FUNC_CONS_OP(CAR, a);
 LIBRARY_FUNC_CONS_OP(CDR, b);
 
+void vm_make_vector(long vec, long val) {
+  vector_s*v = (vector_s*)(vec & ~TAG_MASK);
+
+  long len = v->len >> 3;
+  long *p = &v->v[0];
+  long *end = &v->v[len];
+  for(; p < end; p++) {
+    *p = val;
+  }
+}
+
 LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR)
   long fb = frame[rb];
   TYPECHECK_FIXNUM(fb);

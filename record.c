@@ -1353,31 +1353,29 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
     break;
   }
-  /* case MAKE_VECTOR: { */
-  /*   auto len_obj = record_stack_load(INS_B(i), frame); */
-  /*   auto obj = record_stack_load(INS_C(i), frame); */
-    
-  /*   add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth); */
-  /*   //  TODO this forces a side exit without recording. */
-  /*   //   Put GC inline in generated code?  Would have to flush */
-  /*   //   all registers to stack. */
-  /*   trace->snaps[arrlen(trace->snaps) - 1].exits = 255; */
-  /*   auto knum = arrlen(trace->consts); */
-  /*   arrput(trace->consts, 2 << 3); */
-  /*   auto sz_added = push_ir(trace, IR_ADD, len_obj, knum | IR_CONST_BIAS, FIXNUM_TAG); */
-  /*   auto cell = push_ir(trace, IR_ALLOC, sz_added, PTR_TAG, VECTOR_TAG); */
-    
-  /*   auto ref = push_ir(trace, IR_REF, cell, 8 - PTR_TAG, UNDEFINED_TAG); */
-  /*   push_ir(trace, IR_STORE, ref, len_obj, UNDEFINED_TAG); */
-  /*   /\* for(uint32_t cnt = 0; cnt < len; cnt++) { *\/ */
-  /*   /\*   ref = push_ir(trace, IR_REF, cell, 16 + cnt*8 - PTR_TAG, UNDEFINED_TAG); *\/ */
-  /*   /\*   push_ir(trace, IR_STORE, ref, obj, UNDEFINED_TAG); *\/ */
-  /*   /\* } *\/ */
-  /*   add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth); */
-  /*   regs[INS_A(i)] = cell; */
-    
-  /*   break; */
-  /* } */
+  case MAKE_VECTOR: {
+    auto sz = record_stack_load(INS_B(i), frame);
+    auto ch = record_stack_load(INS_C(i), frame);
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, (2) << 3);
+    auto alloc_sz = push_ir(trace, IR_ADD, sz, knum | IR_CONST_BIAS, FIXNUM_TAG);
+    knum = arrlen(trace->consts);
+    arrput(trace->consts, (unsigned long)(8) << 3);
+    auto alloc_sz_aligned = push_ir(trace, IR_MUL, alloc_sz, knum | IR_CONST_BIAS, FIXNUM_TAG);
+    // TODO snaps??
+    auto cell = push_ir(trace, IR_ALLOC, alloc_sz_aligned, PTR_TAG, VECTOR_TAG);
+
+    auto ref = push_ir(trace, IR_REF, cell, 8 - PTR_TAG, UNDEFINED_TAG);
+    push_ir(trace, IR_STORE, ref, sz, UNDEFINED_TAG);
+    regs[INS_A(i)] = cell;
+
+    auto arg = push_ir(trace, IR_CARG, cell, ch, UNDEFINED_TAG);
+    knum = arrlen(trace->consts);
+    arrput(trace->consts, (long)vm_make_vector);
+    push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
+
+    break;
+  }
   case VECTOR: {
     auto len = INS_B(i);
     auto reg = INS_A(i);

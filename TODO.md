@@ -3,8 +3,6 @@
 * too many traces - conform compiler mazefun maze matrix peval scheme dynamic lattice nucleic read1 slatex
 * see NYI.txt
 
-* make-vector
-* make-string
 * call/cc
 
 * funcv/clfuncv - list, string-append, append
