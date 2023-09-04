@@ -1215,6 +1215,19 @@ LIBRARY_FUNC_FLONUM_MATH(TAN, tan);
 LIBRARY_FUNC_FLONUM_MATH(ASIN, asin);
 LIBRARY_FUNC_FLONUM_MATH(ACOS, acos);
 
+long vm_callcc(long* frame) {
+  auto sz = frame - stack;
+  auto cont = (vector_s *)GC_malloc_no_collect(sz * sizeof(long) + 16);
+  if (!cont) {
+    return FALSE_REP;
+  }
+  cont->type = CONT_TAG;
+  cont->len = sz << 3;
+  memcpy(cont->v, stack, sz * sizeof(long));
+
+  return (long)cont | PTR_TAG;
+}
+
 LIBRARY_FUNC(CALLCC)
   auto sz = frame - stack;
   auto cont = (vector_s *)GC_malloc(sz * sizeof(long) + 16);

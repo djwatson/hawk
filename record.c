@@ -568,6 +568,20 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // TODO: argcheck?
     break;
   }
+  case CALLCC_RESUME:
+    if (!parent) {
+      if (verbose)
+	printf("Record stop return\n");
+      // record_stack_load(INS_A(i), frame);
+      record_stop(pc, frame, -1);
+      return 1;
+    } else {
+      if (verbose)
+	printf("Record abort: Non-root callcc_resume\n");
+      record_abort();
+      return 1;
+    }
+    break;
   case IRET1:
   case RET1: {
     if (depth == 0) {
