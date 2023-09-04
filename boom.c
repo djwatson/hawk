@@ -34,6 +34,7 @@ static struct option long_options[] = {
     {"list", no_argument, nullptr, 'l'},
     {"max-trace", required_argument, nullptr, 'm'},
     {"heap-sz", required_argument, nullptr, 's'},
+    {"exe", no_argument, nullptr, 'e'},
     {nullptr, no_argument, nullptr, 0},
 };
 
@@ -51,6 +52,7 @@ void print_help() {
 #ifdef PROFILER
   printf("  -p, --profile  \tSampling profiler\n");
 #endif
+  printf("      --exe      \tGenerate an executable from the scheme file\n");
 
   printf("  -s, --heap-sz  \tHeap size (in pages)\n");
   printf("  -v, --verbose  \tTurn on verbose jit mode\n");
@@ -61,7 +63,7 @@ extern unsigned char bootstrap_scm_bc[];
 extern unsigned int bootstrap_scm_bc_len;
 
 static bool list = false;
-unsigned TRACE_MAX = 65535;
+extern unsigned TRACE_MAX;
 
 // Call in to the compiled bytecode function (define (compile-file file) ...)
 void compile_file(const char *file) {
@@ -80,15 +82,46 @@ void compile_file(const char *file) {
   run(func, list ? 3 : 2, args);
 }
 
-bool verbose = false;
+void generate_exe(char* filename, const char* bc_name) {
+  char tmp[512];
+
+  strcpy(tmp, filename);
+  strcpy(tmp + strlen(filename), ".c");
+  auto f = fopen(tmp, "w");
+  auto fin = fopen(bc_name, "r");
+  fputs("unsigned char exe_scm_bc[] = {\n", f);
+  int res = fgetc(fin);
+  long cnt = 0;
+  while(res != EOF) {
+    fprintf(f, "%i, ", res);
+    res = fgetc(fin);
+    cnt++;
+  }
+  fprintf(f, "};\nunsigned int exe_scm_bc_len = %li;\n", cnt);
+  fclose(fin);
+  fclose(f);
+
+  filename[strlen(filename)-4] = '\0';
+
+  char tmp2[512];
+  snprintf(tmp2, 511, "clang -o %s $LDFLAGS -L. -lboom_vm -lboom_exe %s -lcapstone", filename, tmp);
+  printf("Running: %s\n", tmp2);
+  system(tmp2);
+}
+
+extern bool verbose;
 int profile = 0;
-size_t page_cnt = 12000;
+extern size_t page_cnt;
 int main(int argc, char *argv[]) {
 
   int c;
+  bool exe = false;
   while ((c = getopt_long(argc, argv, "vslphjd:", long_options, nullptr)) !=
          -1) {
     switch (c) {
+    case 'e':
+      exe = true;
+      break;
     case 'p':
       profile = 1;
       break;
@@ -134,7 +167,7 @@ int main(int argc, char *argv[]) {
   joff = 1;
   if (bootstrap_scm_bc_len > 0) {
     auto *start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
-    printf("Running boot image...\n");
+    //printf("Running boot image...\n");
     run(start_func, 0, nullptr);
   }
 
@@ -146,7 +179,10 @@ int main(int argc, char *argv[]) {
       strcpy(tmp + len, ".bc");
       printf("Compiling script %s\n", argv[i]);
       compile_file(argv[i]);
-      if (list) {
+      if (exe) {
+	generate_exe(argv[i], tmp);
+      }
+      if (list || exe) {
         break;
       }
       printf("Running script %s\n", tmp);

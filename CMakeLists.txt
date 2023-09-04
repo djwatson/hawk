@@ -69,13 +69,17 @@ if (PROFILER)
   set(SOURCES ${SOURCES} profiler.cpp)
 endif(PROFILER)
 add_library(boom_vm ${SOURCES} )
+add_library(boom_exe exe.c)
 
 target_compile_options(boom_vm PRIVATE -gdwarf-3 -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference )
+target_compile_options(boom_exe PRIVATE -gdwarf-3 -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference )
 set_property(TARGET boom_vm PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+set_property(TARGET boom_exe PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 target_include_directories(boom_vm PUBLIC ".")
 
 target_link_libraries(boom_vm PUBLIC ${LIBRARIES}  )
+target_link_libraries(boom_exe PUBLIC boom_vm  )
 
 set(CLOC_SOURCES ${SOURCES} boom.c)
 list(REMOVE_ITEM CLOC_SOURCES bootstrap.c)
@@ -358,4 +362,4 @@ set_tests_properties(bench2/mperm PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 # set_tests_properties(bench2/equal PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 #install
-install(TARGETS boom_vm boom)
+install(TARGETS boom_vm boom boom_exe)

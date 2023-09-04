@@ -23,6 +23,9 @@
 #define STB_DS_IMPLEMENTATION
 #include "third-party/stb_ds.h"
 
+bool verbose = false;
+size_t page_cnt = 12000;
+unsigned TRACE_MAX = 65536;
 int joff = 0;
 extern int profile;
 
@@ -1339,12 +1342,16 @@ void run(bcfunc *func, long argcnt, const long *args) {
   unsigned char ra = (instr >> 8) & 0xff;
   instr >>= 16;
   auto op_table_arg = (void **)l_op_table;
+#ifdef PROFILER
   if (profile) {
     op_table_arg = (void **)l_op_table_profile;
     l_op_table_profile[op](ARGS);
   } else {
     l_op_table[op](ARGS);
   }
+#else
+    l_op_table[op](ARGS);
+#endif
 
   // And after the call returns, we're done.  only HALT returns.
 }
