@@ -1330,6 +1330,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case MAKE_STRING: {
     auto sz = record_stack_load(INS_B(i), frame);
     auto ch = record_stack_load(INS_C(i), frame);
+
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
+    //  TODO this forces a side exit without recording.
+    //   Put GC inline in generated code?  Would have to flush
+    //   all registers to stack.
+    trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
+    
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, ((sizeof(long)*2) + 1 + 7 /* ptr align */) << 3);
     auto alloc_sz = push_ir(trace, IR_ADD, sz, knum | IR_CONST_BIAS, FIXNUM_TAG);
@@ -1350,12 +1357,20 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     knum = arrlen(trace->consts);
     arrput(trace->consts, (long)vm_make_string);
     push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc+1, depth);
 
     break;
   }
   case MAKE_VECTOR: {
     auto sz = record_stack_load(INS_B(i), frame);
     auto ch = record_stack_load(INS_C(i), frame);
+
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
+    //  TODO this forces a side exit without recording.
+    //   Put GC inline in generated code?  Would have to flush
+    //   all registers to stack.
+    trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
+    
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (2) << 3);
     auto alloc_sz = push_ir(trace, IR_ADD, sz, knum | IR_CONST_BIAS, FIXNUM_TAG);
@@ -1373,6 +1388,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     knum = arrlen(trace->consts);
     arrput(trace->consts, (long)vm_make_vector);
     push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc+1, depth);
 
     break;
   }
