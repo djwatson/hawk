@@ -27,6 +27,7 @@
   * need unroll check for CALLT.  
   * CALLT should also detect loops, and flush original trace
   * downrec could flush original trace if not uprec?
+  * test with fib39
 * reg hints across calls? and returns?
 * RET implementation could actually RET? faster somehow?
 
@@ -44,11 +45,10 @@
   * similar to ARG - we don't have to typecheck ARG if unused
 * stack expand:cleanup
 
-* closure-get, and in fact all calls, must be same closure.
+* records
 * folding GGET: put in emit somewhere, check for GSET
 * Merge parent SLOADS if they are the same value.
 * make make notes where ARG vs SLOAD
-* better closure analysis for empty closure var
 * SLOADS need a parent bit in OP2 instead of checking for guard
 * ARGS on jit_entry need typecheck (and should already be checked on loop?)
 
@@ -76,6 +76,8 @@
 * remove hotspot for non-jit / new bytecode
 * could do special branches for 'char=', '=', where we know it is a quick-branch, and know it fits in 16 bits
 * could do special opcodes for true, false.  basically return 'konst'
+
+* 'sbuf' buffers for string ops?  substring / string append etc can be sped up substantially.
 
 * (letrec the bootstrap) / module-ify the bootstrap
 * 'big' register moves / just get fftrad4 working, with a constant-ify pass
@@ -107,7 +109,6 @@
 * various JIT improvements
   * 'loop' can know exact arguments in regs?  Or just not loopify at all?
   * save less in snap - dead elimination, read-only
-  * closures can be exact in snap and constants
   * we should be able to coalesce arg typechecks if they are the same.
   * Maybe a speical SLOAD EQ for RET instead, since we don't need to typecheck
   * Typechecks need a rethink - we can special case some stuff like eq?/eqv?, merge typechecks, etc.
@@ -119,10 +120,7 @@
 * All of 'RECORD' probably needs type tests when we access frame.
 
 * need to purge snap to minimum entries. - kinda done, maybe a 'readonly' slot.  ONLY for sload, not ARG.
-
-* do better recursion 
-  * maybe flush traces (recursively) if we find a new up or down recursive trace
-  * fib 39 re-jits tails, because downrec happens first.  Even luajit does this.  Unrolling probably helps.
+  * only matters for emit_snap
 
 # OPTS
 

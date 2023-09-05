@@ -1,0 +1,89 @@
+.TH BOOM 1 "September 2023" Linux "Boom Manual"
+
+
+.SH NAME
+
+boom - scheme (r5rs) jit
+
+.SH SYNOPSIS
+
+\fBboom\fR [\fIoptions\fR] \fIscript.[scm|bc]\fR ...
+
+.SH "WEB SITE"
+
+https://github.com/djwatson/boom
+
+
+.SH DESCRIPTION
+
+\fBboom\fR is a vm (virtual machine) and jit compiler (just-in-time) for the scheme
+language, report version r5rs.  It can run scripts directly, or pre-compile them
+to an executable.
+
+
+.SH OPTIONS
+.TP
+.BI "--joff"
+  Turn off the jit compiler, only use the bytecode VM.
+.TP
+.BI "-m, --max-trace=\fINUMBER\fR"
+  Only trace up to \fINUMBER\fR traces, and then only interpret.
+.TP
+.BI "--dump"
+  Turn on debugging dumps for gdb and linux perf tool.
+.TP
+.BI "-l, --list"
+  Compile the script and dump the resulting code in human-readable
+  format to stdout, and then quit.
+.TP
+.BI "-p, --profile"
+  Turn on the bytecode profiler.  After the script finishes,
+  statistics gathered are printed to stdout.
+.TP
+.BI "--exe"
+  Compile the script in to an exe by linking it with libboom_exe.
+  Note that this is no faster than running a `.bc` file directly
+  with boom, and is only a convenience.  Script is only compiled
+  and not run.
+.TP
+.BI "-s, --heap-sz=\fINUMBER\fR"
+  Set the maximum heap size, in pages (4096 bytes).  Default is 12000 pages.
+.TP
+.BI "-v, --verbose"
+  Turn on verbosity.  Prints tracing info, generated trace IR, and
+  machine code.  Also displays GC collection info.
+.TP
+.BI "-h, --help"
+  Print help message and exit.
+
+.PP
+After all options are processed, the given script is run.
+Currently boom does not support an interactive mode.
+
+.SH EXAMPLES
+.TP
+$ boom hello.scm
+
+Prints 'hello world', assuming hello.scm contains
+.br
+  (display "hello world")
+.PP
+$ boom --exe hello.scm
+.br
+$ hello
+
+ Compiles the hello.scm script to an executable
+  
+.SH COPYRIGHT
+
+\fBboom\fR is Copyright \(co 2023 Dave Watson.
+.br
+\fBboom\fR is open source software, released under the MIT license.
+
+.SH AUTHOR
+
+Dave Watson <dade.watson@gmail.com>
+
+
+
+
