@@ -24,3 +24,4 @@ long vm_string_symbol(string_s* str);
 void vm_write(long obj, long port);
 void vm_make_string(long str, long ch);
 void vm_make_vector(long vec, long v);
+long vm_callcc(long* frame);

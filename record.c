@@ -242,6 +242,8 @@ void dump_trace(trace_s *ctrace) {
     }
     printf("%s ", ir_names[(int)op.op]);
     switch (op.op) {
+    case IR_FLUSH:
+      break;
     case IR_KFIX:
     case IR_ARG:
     case IR_LOAD:
@@ -568,8 +570,24 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // TODO: argcheck?
     break;
   }
+  case CALLCC: {
+    // TODO: this snap and flush only need things below the current frame.
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
+    trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
+    auto op1 = push_ir(trace, IR_FLUSH, 0, 0, UNDEFINED_TAG);
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, (long)vm_callcc);
+    auto cont = push_ir(trace, IR_CALLXS, op1, knum | IR_CONST_BIAS, SYMBOL_TAG);
+    // TODO check GC result
+    regs[INS_A(i)] = cont;
+    knum = arrlen(trace->consts);
+    arrput(trace->consts, FALSE_REP);
+    push_ir(trace, IR_NE, cont, knum | IR_CONST_BIAS, UNDEFINED_TAG | IR_INS_TYPE_GUARD);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc+1, depth);
+    break;
+  }
   case CALLCC_RESUME:
-    if (!parent) {
+    if (!parent && INS_OP(trace->startpc) == FUNC) {
       if (verbose)
 	printf("Record stop return\n");
       // record_stack_load(INS_A(i), frame);

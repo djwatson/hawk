@@ -49,6 +49,7 @@ typedef enum {
 
   IR_CALLXS,
   IR_CARG,
+  IR_FLUSH,
 
   IR_CHGTYPE,
 
