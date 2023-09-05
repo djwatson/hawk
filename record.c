@@ -577,7 +577,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto op1 = push_ir(trace, IR_FLUSH, 0, 0, UNDEFINED_TAG);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)vm_callcc);
-    auto cont = push_ir(trace, IR_CALLXS, op1, knum | IR_CONST_BIAS, SYMBOL_TAG);
+    auto cont = push_ir(trace, IR_CALLXS, op1, knum | IR_CONST_BIAS, CONT_TAG);
     // TODO check GC result
     regs[INS_A(i)] = cont;
     knum = arrlen(trace->consts);

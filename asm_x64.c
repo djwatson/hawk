@@ -190,10 +190,6 @@ void maybe_assign_register(int v, trace_s *trace, int *slot,
                            uint32_t *next_spill) {
   if ((v & IR_CONST_BIAS) == 0) {
     auto op = &trace->ops[v];
-    if (op->op == IR_FLUSH) {
-      op->reg = RDI;
-      return;
-    }
     if (op->reg == REG_NONE) {
       op->reg = get_free_reg(trace, next_spill, slot, false);
       slot[op->reg] = v;
@@ -1153,7 +1149,10 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_FLUSH: {
+      assert(op->reg != REG_NONE);
       emit_snap(cur_snap, trace, true);
+      emit_arith_imm(OP_ARITH_ADD, op->reg, (trace->snaps[cur_snap].offset) << 3);
+      emit_reg_reg(OP_MOV, RDI, op->reg);
       break;
     }
       //     case IR_LOOP: {

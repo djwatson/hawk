@@ -22,7 +22,6 @@
 * allocation sinking for cons/closure/vector
 * optimistic global calls - needs frontend change, 
   and backend optimization / clearing of traces.
-* ABC implement
 * cleanup register allocation - two-arg can be optimized
 * TRACE loop recording - 
   * need unroll check for CALLT.  
