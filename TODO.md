@@ -99,7 +99,6 @@
 * fuzz bytecode reader
 
 ## VM cleanup
-* GC - up sz based expanding
 * make a 'vm state' struct, so we can run multiple vm's?
 * remove indirection for consts/bc
 * comments in output
@@ -121,6 +120,8 @@
 
 * need to purge snap to minimum entries. - kinda done, maybe a 'readonly' slot.  ONLY for sload, not ARG.
   * only matters for emit_snap
+
+* a better GC, immix or bartlett
 
 # OPTS
 

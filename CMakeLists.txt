@@ -82,7 +82,7 @@ target_link_libraries(boom_vm PUBLIC ${LIBRARIES}  )
 target_link_libraries(boom_exe PUBLIC boom_vm  )
 
 set(CLOC_SOURCES ${SOURCES} boom.c)
-list(REMOVE_ITEM CLOC_SOURCES bootstrap.c)
+list(REMOVE_ITEM CLOC_SOURCES bootstrap.c third-party/stb_ds.c opcodes.c opcodes.h)
 add_custom_target(
   cloc
   COMMAND cloc --by-file-by-lang ${SCM_SOURCES} ${CLOC_SOURCES} 
@@ -350,6 +350,7 @@ add_test(NAME bench2/nboyer COMMAND ./boom  test/bench2/nboyer.scm --heap-sz=100
 set_tests_properties(bench2/nboyer PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/sboyer COMMAND ./boom  test/bench2/sboyer.scm --heap-sz=100000)
 set_tests_properties(bench2/sboyer PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+
 add_test(NAME bench2/gcbench COMMAND ./boom  test/bench2/gcbench.scm --heap-sz=100000)
 set_tests_properties(bench2/gcbench PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/mperm COMMAND ./boom  test/bench2/mperm.scm --heap-sz=1000000)

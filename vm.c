@@ -23,7 +23,7 @@
 #include "third-party/stb_ds.h"
 
 bool verbose = false;
-size_t page_cnt = 12000;
+size_t page_cnt = 1220;
 unsigned TRACE_MAX = 65536;
 int joff = 0;
 extern int profile;

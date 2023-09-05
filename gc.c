@@ -257,6 +257,7 @@ extern size_t page_cnt;
 size_t alloc_sz;
 uint8_t *to_space = NULL;
 uint8_t *from_space = NULL;
+static bool embiggen = false;
 
 void GC_init() {
   alloc_sz = 4096 * page_cnt;
@@ -287,9 +288,23 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
 #endif
   // flip
   // alloc_ptr = (uint8_t*)malloc(alloc_sz);
-  alloc_ptr = to_space;
-  to_space = from_space;
-  from_space = alloc_ptr;
+  void* to_unmap = NULL;
+  if (embiggen) {
+    to_unmap = from_space < to_space ? from_space : to_space;
+    alloc_sz *= 2;
+    if (verbose) {
+      printf("Doubling space to %liMB\n", alloc_sz/1000000);
+    }
+    from_space = (uint8_t *)mmap(NULL, alloc_sz * 2, PROT_READ | PROT_WRITE,
+				 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    assert(from_space);
+    alloc_ptr = from_space;
+    to_space = alloc_ptr + alloc_sz;
+  } else {
+    alloc_ptr = to_space;
+    to_space = from_space;
+    from_space = alloc_ptr;
+  }
 
   alloc_end = alloc_ptr + alloc_sz;
 
@@ -307,12 +322,24 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
            ((double)(alloc_ptr - from_space)) / (double)alloc_sz * 100.0,
            alloc_sz / 1000 / 1000);
   }
+  if (!to_unmap && (alloc_ptr - from_space) >= (alloc_sz / 2)) {
+    // Next round, mmap a new space.
+    embiggen = true;
+  }
+
+  if (to_unmap) {
+    embiggen = false;
+    auto r = munmap(to_unmap, alloc_sz / 2);
+    if (r) {
+      printf("Unmap error\n");
+    }
+  }
 
   res = alloc_ptr;
   alloc_ptr += sz;
   if (alloc_ptr >= alloc_end) {
-    printf("Heap exhausted, embiggen?\n");
-    exit(-1);
+    embiggen = true;
+    return GC_malloc_slow(sz);
   }
 #ifndef NDEBUG
   mprotect(to_space, alloc_sz, PROT_NONE);
