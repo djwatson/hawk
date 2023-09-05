@@ -1252,7 +1252,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto idx = record_stack_load(INS_B(i), frame);
     auto obj = record_stack_load(INS_C(i), frame);
 
-    push_ir(trace, IR_ABC, vec, idx, 0);
+    push_ir(trace, IR_ABC, vec, idx, IR_INS_TYPE_GUARD);
     auto vref = push_ir(trace, IR_VREF, vec, idx, 0);
     push_ir(trace, IR_STORE, vref, obj, 0);
 
@@ -1265,7 +1265,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto vec = record_stack_load(INS_B(i), frame);
     auto idx = record_stack_load(INS_C(i), frame);
 
-    push_ir(trace, IR_ABC, vec, idx, 0);
+    push_ir(trace, IR_ABC, vec, idx, IR_INS_TYPE_GUARD);
     auto vref = push_ir(trace, IR_VREF, vec, idx, 0);
 
     uint64_t pos = frame[INS_C(i)] >> 3;
@@ -1279,7 +1279,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto str = record_stack_load(INS_B(i), frame);
     auto idx = record_stack_load(INS_C(i), frame);
 
-    push_ir(trace, IR_ABC, str, idx, 0);
+    push_ir(trace, IR_ABC, str, idx, IR_INS_TYPE_GUARD);
     regs[INS_A(i)] = push_ir(trace, IR_STRLD, str, idx, CHAR_TAG);
 
     break;
@@ -1289,7 +1289,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto idx = record_stack_load(INS_B(i), frame);
     auto val = record_stack_load(INS_C(i), frame);
 
-    push_ir(trace, IR_ABC, str, idx, 0);
+    push_ir(trace, IR_ABC, str, idx, IR_INS_TYPE_GUARD);
     auto ref = push_ir(trace, IR_STRREF, str, idx, 0);
     push_ir(trace, IR_STRST, ref, val, 0);
 

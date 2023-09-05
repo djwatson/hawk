@@ -815,8 +815,16 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_ABC: {
-      if (verbose)
-        printf("TODO: ABC emit\n");
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
+      maybe_assign_register(op->op2, trace, slot, &next_spill);
+      emit_jcc32(JL, snap_labels[cur_snap]);
+      emit_arith_op(OP_ARITH_CMP, OP_CMP, R15, op->op2, trace, slot);
+      if(!ir_is_const(op->op1)) {
+	emit_mem_reg(OP_MOV_MR, 8-PTR_TAG, trace->ops[op->op1].reg, R15);
+      } else {
+	vector_s*v = (vector_s*)(trace->consts[op->op1 - IR_CONST_BIAS] - PTR_TAG);
+	emit_mov64(R15, v->len);
+      }
       break;
     }
     case IR_VREF: {
