@@ -411,23 +411,7 @@
 (define display
   (case-lambda
    ((arg) (display arg current-output-port-internal))
-   ((arg port)
-    (cond
-     ((null? arg) (display "()" port))
-     ((pair? arg)
-      (display "(" port)
-      (let loop ((arg arg))
-	(if (not (pair? arg)) (begin (display ". " port) (display arg port))
-	    (begin (display (car arg) port) 
-		   (if (not (null? (cdr arg)))
-		       (begin
-			 (display " " port)
-			 (loop (cdr arg)))))))
-      (display ")" port))
-     ((vector? arg)
-      (display "#" port)
-      (display (vector->list arg) port))
-     (else ($write arg port))))))
+   ((arg port) ($write arg port))))
 
 (define write
   (case-lambda
