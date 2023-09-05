@@ -20,7 +20,6 @@
 #include "symbol_table.h"
 #include "types.h"
 
-#define STB_DS_IMPLEMENTATION
 #include "third-party/stb_ds.h"
 
 bool verbose = false;
