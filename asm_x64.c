@@ -23,14 +23,14 @@
 #include "types.h"  // for CONS_TAG, TAG_MASK, IMMEDIATE_MASK
 
 #include "vm.h"
+#include "lru.h"
 
 #include "parallel_copy.h"
 #include "third-party/stb_ds.h"
 
+
 #define auto __auto_type
 #define nullptr NULL
-
-#include "lru.c"
 
 extern bool verbose;
 

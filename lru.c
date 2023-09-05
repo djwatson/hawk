@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-#define LRU_SIZE 16
+#include "lru.h"
 
 /// Dead-simple LRU cache, implemented as a doubly-linked list with a static
 /// backing array.
@@ -11,16 +11,6 @@
 ///      -------      -------      -------      --------    |
 ///         ^                       oldest       newest     |
 ///         |-----------------------------------------------|
-
-typedef struct {
-  uint8_t next;
-  uint8_t prev;
-} lrunode;
-
-typedef struct {
-  lrunode data[LRU_SIZE];
-  uint8_t head;
-} lru;
 
 void lru_init(lru *l) {
   l->head = 0;
