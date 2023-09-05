@@ -3,7 +3,7 @@
 * too many traces - conform compiler mazefun maze matrix peval scheme dynamic lattice nucleic read1 slatex
 * see NYI.txt
 
-* call/cc
+* call/cc resume - for side traces
 
 * funcv/clfuncv - list, string-append, append
 * apply
@@ -67,6 +67,7 @@
 
 ## bytecode perf improvements 
 
+* Find max top of stack for add_snap and all ops.
 * tail calls still do a mov/return for let().  see cat.scm
 
 * could put memq/assq/length/map/append/string-append etc as intrinsics

@@ -44,16 +44,17 @@ void emit_imm32(int32_t imm) {
 }
 
 void emit_mov64(uint8_t r, int64_t imm) {
-  // TODO shortening seems to be broken. Watch out for negative numbers.
-  /* if ((uint64_t)((uint32_t)imm) != imm) { */
-  emit_imm64(imm);
-  *(--p) = 0xb8 | (0x7 & r);
-  emit_rex(1, 0, 0, r >> 3);
-  /* } else { */
-  /*   emit_imm32((int32_t)imm); */
-  /*   *(--p) = 0xb8 | (0x7 & r); */
-  /*   emit_rex(0, 0, 0, r >> 3); */
-  /* } */
+  // Note that 'imm' isn't necessarily a number here,
+  // so we can't narrow negative numbers.
+  if (imm & 0xffffffff00000000) {
+    emit_imm64(imm);
+    *(--p) = 0xb8 | (0x7 & r);
+    emit_rex(1, 0, 0, r >> 3);
+  } else {
+    emit_imm32((int32_t)imm);
+    *(--p) = 0xb8 | (0x7 & r);
+    emit_rex(0, 0, 0, r >> 3);
+  }
 }
 
 void emit_call_indirect(uint8_t r) {
@@ -62,7 +63,6 @@ void emit_call_indirect(uint8_t r) {
   emit_rex(1, 0, 0, r >> 3);
 }
 
-// TODO offset
 void emit_call32(int32_t offset) {
   emit_imm32(offset);
   *(--p) = 0xe8;
@@ -71,13 +71,13 @@ void emit_call32(int32_t offset) {
 void emit_ret() { *(--p) = 0xc3; }
 
 void emit_cmp_reg_imm32(uint8_t r, int32_t imm) {
-  /* if ((uint32_t)((uint8_t)imm) != imm) { */
+  if ((int32_t)((int8_t)imm) != imm) {
   emit_imm32(imm);
   emit_reg_reg(0x81, 7, r);
-  /* } else { */
-  /*   *(--p) = imm; */
-  /*   emit_reg_reg(0x83, 7, r); */
-  /* } */
+  } else {
+    *(--p) = imm;
+    emit_reg_reg(0x83, 7, r);
+  }
 }
 
 void emit_cmp_reg_reg(uint8_t src, uint8_t dst) {
@@ -204,13 +204,13 @@ void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm) {
 }
 
 void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm) {
-  /* if ((uint32_t)((uint8_t)imm) != imm) { */
+  if ((int32_t)((int8_t)imm) != imm) {
   emit_imm32(imm);
   emit_reg_reg(0x81, op, src);
-  /* } else { */
-  /*   *(--p) = imm; */
-  /*   emit_reg_reg(0x83, op, src); */
-  /* } */
+  } else {
+    *(--p) = imm;
+    emit_reg_reg(0x83, op, src);
+  }
 }
 
 void emit_push(uint8_t r) {
