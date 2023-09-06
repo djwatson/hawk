@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 void profiler_start();
 void profiler_stop();
 void profile_add_frame(void *ptr);
