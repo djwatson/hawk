@@ -14,7 +14,7 @@
 #include <time.h>     // for clock_gettime, timespec, CLOCK...
 #include <unistd.h>   // for getpid, write, close, fsync
 
-int cnt = 0;
+static int jit_cnt = 0;
 
 /* Earlier perf_map tmp support - supplies names to jit regions */
 void perf_map(uint64_t fn, uint64_t len, const char *name) {
@@ -22,9 +22,9 @@ void perf_map(uint64_t fn, uint64_t len, const char *name) {
   sprintf(buf, "/tmp/perf-%i.map", getpid());
   __auto_type file = fopen(buf, "a");
   if (strlen(name) != 0) {
-    fprintf(file, "%lx %lx jit function %s\n", (uint64_t)fn, len, name);
+    fprintf(file, "%lx %lx jit function %s %i\n", (uint64_t)fn, len, name, jit_cnt);
   } else {
-    fprintf(file, "%lx %lx jit anon function %i\n", (uint64_t)fn, len, cnt);
+    fprintf(file, "%lx %lx jit anon function %i\n", (uint64_t)fn, len, jit_cnt);
   }
   fclose(file);
 }
@@ -48,7 +48,7 @@ void jit_dump(int len, uint64_t fn, const char *name) {
     uint64_t code_index;
   } record;
   char funcname[256];
-  sprintf(funcname, "Function_%s_%i", name, cnt);
+  sprintf(funcname, "Function_%s_%i", name, jit_cnt);
 
   // clock
   struct timespec ts;
@@ -67,7 +67,7 @@ void jit_dump(int len, uint64_t fn, const char *name) {
   record.vma = (uint64_t)fn;
   record.code_addr = (uint64_t)fn;
   record.code_size = len;
-  record.code_index = cnt;
+  record.code_index = jit_cnt;
 
   write(fd, &record, sizeof(record));
   write(fd, funcname, strlen(funcname) + 1);
@@ -141,12 +141,12 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num);
 void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const char *name) {
   struct jit_code_entry *jitcode = malloc(sizeof(struct jit_code_entry));
   GDBElfImage *image = malloc(sizeof(GDBElfImage));
-  build_elf(fn, len, image, cnt);
+  build_elf(fn, len, image, jit_cnt);
 
   // __auto_type entry = new gdb_code_entry;
   //  entry->fn = fn;
   //  entry->len = len;
-  // sprintf(entry->funcname, "Function_%s_%i_%i_%lx", name.c_str(), cnt, i, p);
+  // sprintf(entry->funcname, "Function_%s_%i_%i_%lx", name.c_str(), jit_cnt, i, p);
   jitcode->symfile_addr = image;
   jitcode->symfile_size = sizeof(GDBElfImage);
   jitcode->next_entry = NULL;
@@ -165,7 +165,7 @@ void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const char *name) {
   __jit_debug_descriptor.action_flag = JIT_REGISTER;
   __jit_debug_descriptor.version = 1;
   __jit_debug_register_code();
-  cnt++;
+  jit_cnt++;
 }
 
 ////////////// GDB elf entry ///////////////
