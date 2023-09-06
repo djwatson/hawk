@@ -1793,4 +1793,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
 trace_s *trace_cache_get(unsigned int tnum) { return traces[tnum]; }
 
-void free_trace() { printf("Traces: %li\n", arrlen(traces)); }
+void free_trace() {
+  if (verbose) {
+    printf("Traces: %li\n", arrlen(traces));
+  }
+}

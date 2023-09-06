@@ -26,7 +26,7 @@ bool verbose = false;
 size_t page_cnt = 1220;
 unsigned TRACE_MAX = 65536;
 int joff = 0;
-extern int profile;
+int profile = 0;
 
 bcfunc **funcs = NULL;
 #define auto __auto_type
@@ -171,7 +171,9 @@ __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
 }
 
 __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
-  printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
+  if (verbose) {
+    printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
+  }
   auto pos = frame - stack;
   auto oldsz = stacksz;
   stacksz *= 2;
@@ -184,7 +186,9 @@ __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
 }
 
 long *expand_stack_slowpath(long *frame) {
-  printf("Expand stack from %i to %i in jit\n", stacksz, stacksz * 2);
+  if (verbose) {
+    printf("Expand stack from %i to %i in jit\n", stacksz, stacksz * 2);
+  }
   auto pos = frame - stack;
   auto oldsz = stacksz;
   stacksz *= 2;

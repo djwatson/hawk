@@ -114,7 +114,7 @@ void generate_exe(char* filename, const char* bc_name) {
 }
 
 extern bool verbose;
-int profile = 0;
+extern int profile;
 extern size_t page_cnt;
 int main(int argc, char *argv[]) {
 

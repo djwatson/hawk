@@ -364,3 +364,10 @@ set_tests_properties(bench2/mperm PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
 #install
 install(TARGETS boom_vm boom boom_exe)
+INSTALL(FILES doc/boom.1 DESTINATION ${CMAKE_INSTALL_PREFIX}/man/man1)
+
+set(CPACK_PACKAGE_NAME boom)
+set(CPACK_PACKAGE_CONTACT "Dave Watson <dade.watson@gmail.com>")
+set(CPACK_GENERATOR DEB)
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "clang, libcapstone-dev")
+include(CPack)
