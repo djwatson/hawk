@@ -116,7 +116,9 @@ __attribute__((noinline)) void FAIL_SLOWPATH_ARGCNT(PARAMS) {
 
 void RECORD_START(PARAMS) {
   hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
-  if (joff) {
+  // Extra check: we may have attempted to start recording *during*
+  // a recording.
+  if (joff || (op_table_arg == (void**)l_op_table_record)) {
     // Tail call with original op table.
     MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
   }
@@ -1255,7 +1257,7 @@ END_LIBRARY_FUNC
 long vm_cc_resume(long c) {
   closure_s* cont = (closure_s*)(c & ~TAG_MASK);
   memcpy(stack, cont->v, (cont->len >> 3) * sizeof(long));
-  return &stack[cont->len >> 3];
+  return (long)&stack[cont->len >> 3];
 }
 
 LIBRARY_FUNC_BC_LOAD_NAME(CALLCC-RESUME, CALLCC_RESUME)
