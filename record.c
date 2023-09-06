@@ -287,6 +287,7 @@ void dump_trace(trace_s *ctrace) {
     case IR_ABC:
     case IR_VREF:
     case IR_CALLXS:
+    case IR_CCRES:
     case IR_CARG:
     case IR_STRST:
     case IR_STRLD:
@@ -404,7 +405,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   arrput(traces, trace);
 
-  //  dump_trace(trace);
+  //    dump_trace(trace);
   asm_jit(trace, side_exit, parent);
   if (verbose) {
     dump_trace(trace);
@@ -586,20 +587,44 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc+1, depth);
     break;
   }
-  case CALLCC_RESUME:
-    if (!parent && INS_OP(trace->startpc) == FUNC) {
-      if (verbose)
-	printf("Record stop return\n");
-      // record_stack_load(INS_A(i), frame);
-      record_stop(pc, frame, -1);
-      return 1;
-    } else {
-      if (verbose)
-	printf("Record abort: Non-root callcc_resume\n");
-      record_abort();
-      return 1;
+  case CALLCC_RESUME: {
+    auto c = record_stack_load(INS_B(i), frame);
+    auto result = record_stack_load(INS_C(i), frame);
+	
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, (long)vm_cc_resume);
+    push_ir(trace, IR_CCRES, c, knum | IR_CONST_BIAS, UNDEFINED_TAG);
+
+    // TODO: If the callcc exists in the same trace,
+    //       we could optimize here and just pop depth/regs
+    //       to the right place also.  I.e. callcc is just
+    //       being used as a non-local return, and it's still
+    //       on the stack.
+      
+    // Guard we are going to the right place, almost the same as RET.
+    closure_s* cont = (closure_s*)(frame[INS_B(i)] - PTR_TAG);
+    auto *old_pc = (unsigned int *)cont->v[(cont->len >> 3) - 1];
+    auto frame_off = INS_A(*(old_pc - 1));
+    
+    // TODO maybe also check for downrec?  Same as RET
+    depth = 0;
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
+    regs = &regs_list[1];
+    for (int j = 0; j < sizeof(regs_list) / sizeof(regs_list[0]); j++) {
+      regs_list[j] = -1;
     }
+    regs[frame_off] = result;
+    knum = arrlen(trace->consts);
+    arrput(trace->consts, (long)old_pc);
+    auto knum2 = arrlen(trace->consts);
+    arrput(trace->consts, (frame_off + 1) << 3);
+    push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS,
+	    IR_INS_TYPE_GUARD | 0x5);
+
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace,
+	     (uint32_t *)old_pc, depth);
     break;
+  }
   case IRET1:
   case RET1: {
     if (depth == 0) {
@@ -641,6 +666,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         auto frame_off = INS_A(*(old_pc - 1));
         // printf("Continue down recursion, frame offset %i\n", frame_off);
 
+	// TODO can we remove this?
         memmove(&regs[frame_off + 1], &regs[0],
                 sizeof(int) * (256 - (frame_off + 1)));
         regs[frame_off] = result;

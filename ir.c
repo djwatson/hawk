@@ -49,6 +49,7 @@ const char* ir_names[] = {
   "CALLXS",
   "CARG  ",
   "FLUSH ",
+  "CCRES ",
 
   "CHGTYP",
 

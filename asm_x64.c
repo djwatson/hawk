@@ -940,6 +940,11 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case IR_CARG: {
       break;
     }
+    case IR_CCRES: {
+      assert(op->reg == REG_NONE);
+      op->reg = RDI;
+      // Fallthrough
+    }
     case IR_CALLXS: {
       // Used for typecheck only
       if (op->reg == REG_NONE) {
@@ -948,7 +953,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       preserve_for_call(trace, slot, &next_spill);
 
       // TODO assign to arg1 directly
-      if (trace->ops[op->op1].op == IR_CARG) {
+      if (ir_is_const(op->op1)) {
+      } else if (trace->ops[op->op1].op == IR_CARG) {
         auto cop = &trace->ops[op->op1];
         maybe_assign_register(cop->op1, trace, slot, &next_spill);
         maybe_assign_register(cop->op2, trace, slot, &next_spill);
@@ -968,7 +974,12 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_call_indirect(RAX);
       emit_mov64(RAX, c);
       // args
-      if (trace->ops[op->op1].op == IR_CARG) {
+      if (ir_is_const(op->op1)) {
+        auto c2 = trace->consts[op->op1 - IR_CONST_BIAS];
+        auto re = (reloc){emit_offset(), c2, RELOC_ABS};
+        arrput(trace->relocs, re);
+        emit_mov64(RDI, c2);
+      } else if (trace->ops[op->op1].op == IR_CARG) {
         auto cop = &trace->ops[op->op1];
         if (ir_is_const(cop->op1)) {
           auto c2 = trace->consts[cop->op1 - IR_CONST_BIAS];
