@@ -1252,12 +1252,16 @@ LIBRARY_FUNC(CALLCC)
   frame[ra] = (long)cont | PTR_TAG;
 END_LIBRARY_FUNC
 
+long vm_cc_resume(long c) {
+  closure_s* cont = (closure_s*)(c & ~TAG_MASK);
+  memcpy(stack, cont->v, (cont->len >> 3) * sizeof(long));
+  return &stack[cont->len >> 3];
+}
+
 LIBRARY_FUNC_BC_LOAD_NAME(CALLCC-RESUME, CALLCC_RESUME)
   LOAD_TYPE_WITH_CHECK(cont, vector_s, fb, CONT_TAG);
   memcpy(stack, cont->v, (cont->len >> 3) * sizeof(long));
   frame = &stack[cont->len >> 3];
-  
-  frame[ra] = (long)cont | PTR_TAG;
   
   // DO A RET
   pc = (unsigned int *)frame[-1];
