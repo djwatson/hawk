@@ -48,6 +48,7 @@ check_pie_supported()
 
 set(SOURCES readbc.c opcodes.c vm.c bootstrap.c ir.c types.c symbol_table.c gc.c opcodes.h opt_loop.c parallel_copy.c lru.c third-party/stb_ds.c)
 set(SCM_SOURCES bc.scm passes.scm bootstrap.scm memory_layout.scm bc.chez.scm bc.chicken.scm util.scm str2num.scm)
+set(COMPILE_FLAGS -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference)
 set(LIBRARIES "m")
 if (JIT) 
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DJIT")
@@ -71,8 +72,8 @@ endif(PROFILER)
 add_library(boom_vm ${SOURCES} )
 add_library(boom_exe exe.c)
 
-target_compile_options(boom_vm PRIVATE -gdwarf-3 -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference )
-target_compile_options(boom_exe PRIVATE -gdwarf-3 -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference )
+target_compile_options(boom_vm PRIVATE  ${COMPILE_FLAGS} )
+target_compile_options(boom_exe PRIVATE ${COMPILE_FLAGS} )
 set_property(TARGET boom_vm PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 set_property(TARGET boom_exe PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
@@ -122,7 +123,7 @@ add_custom_command(
 # Actual executable
 add_executable(boom  boom.c)
 target_link_libraries(boom PUBLIC boom_vm)
-target_compile_options(boom PRIVATE -gdwarf-3 -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference )
+target_compile_options(boom PRIVATE  ${COMPILE_FLAGS} )
 set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # target_compile_options(boom PRIVATE -fsanitize=address,undefined)

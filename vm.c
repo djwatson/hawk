@@ -196,7 +196,6 @@ long *expand_stack_slowpath(long *frame) {
   memset(&stack[oldsz], 0, sizeof(long) * (stacksz - oldsz));
   frame = stack + pos;
   frame_top = stack + stacksz - 256;
-  printf("Frame %p top %p\n", frame, frame_top);
 
   return frame;
 }
