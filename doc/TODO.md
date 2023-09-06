@@ -3,7 +3,7 @@
 * too many traces - conform compiler mazefun maze matrix peval scheme dynamic lattice nucleic read1 slatex
 * see NYI.txt
 
-* TOo much VM time - fib (fail to catch uprec), compiler (??), ctak (ccresume), earley (GC?), fibc(cc-resume),  scheme(unroll?, slatex (funcv/clfuncv), 
+* TOo much VM time - fib (fail to catch uprec), compiler (funcv), earley (GC?), scheme(unroll?, slatex (funcv/clfuncv), 
 
 * call/cc resume - for side traces
 
