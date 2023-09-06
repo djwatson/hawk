@@ -1312,7 +1312,7 @@ done:
 
 extern unsigned int *patchpc;
 extern unsigned int patchold;
-int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
+int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame, long* argcnt) {
   exit_state state;
   auto *trace = trace_cache_get(tnum);
 
@@ -1329,6 +1329,7 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame) {
   trace = state.trace;
   long unsigned exit = state.snap;
   auto *snap = &trace->snaps[exit];
+  *argcnt = snap->argcnt;
 
   /* bcfunc* func = find_func_for_frame(snap->pc); */
   /* assert(func); */

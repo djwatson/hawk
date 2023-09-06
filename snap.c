@@ -21,6 +21,7 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
   snap.link = -1;
   snap.slots = NULL;
   snap.depth = depth;
+  snap.argcnt = 1;
   // TODO fix regs size/boj to vec?
   for (int16_t i = 0; i < 257; i++) {
     if (regs[i] != -1) {

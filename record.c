@@ -569,6 +569,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       arrput(locs, record_stack_load(j, frame));
     }
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
+    trace->snaps[arrlen(trace->snaps) - 1].argcnt = argcnt;
     //  TODO this forces a side exit without recording.
     //   Put GC inline in generated code?  Would have to flush
     //   all registers to stack.

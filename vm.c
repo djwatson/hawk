@@ -715,7 +715,7 @@ if (INS_OP(trace->startpc) == CLFUNC) {
 #ifdef PROFILER
 in_jit = true;
 #endif
-auto res = jit_run(rd, &pc, &frame);
+auto res = jit_run(rd, &pc, &frame, &argcnt);
 #ifdef PROFILER
 in_jit = false;
 #endif

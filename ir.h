@@ -92,6 +92,7 @@ typedef struct {
   snap_entry_s *slots;
   uint64_t patchpoint;
   uint64_t depth;
+  long argcnt;
 } snap_s;
 
 typedef enum {
