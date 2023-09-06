@@ -23,13 +23,17 @@
 #define nullptr NULL
 
 extern int joff;
+#ifdef JITDUMP
 extern bool jit_dump_flag;
+#endif
 
 static struct option long_options[] = {
     {"verbose", no_argument, nullptr, 'v'},
     {"profile", no_argument, nullptr, 'p'},
     {"joff", no_argument, nullptr, 'o'},
+#ifdef JITDUMP
     {"dump", no_argument, nullptr, 'd'},
+#endif
     {"help", no_argument, nullptr, 'h'},
     {"list", no_argument, nullptr, 'l'},
     {"max-trace", required_argument, nullptr, 'm'},
@@ -138,9 +142,11 @@ int main(int argc, char *argv[]) {
       page_cnt = atoi(optarg);
       printf("Heap size %li MB\n", (page_cnt * 4096) / 1024 / 1024);
       break;
+#ifdef JITDUMP
     case 'd':
       jit_dump_flag = true;
       break;
+#endif      
     case 'm':
       TRACE_MAX = atoi(optarg);
       printf("MAX TRACE is %i\n", TRACE_MAX);
@@ -210,7 +216,9 @@ int main(int argc, char *argv[]) {
     jit_dump_close();
   }
 #endif
+#ifdef JIT
   free_trace();
+#endif
   free_script();
   free_vm();
 
