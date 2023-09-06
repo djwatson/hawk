@@ -272,13 +272,18 @@ void GC_init() {
 #endif
 }
 
+#ifdef PROFILER
+bool in_gc = false;
+#endif
 __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   void *res;
+#ifdef PROFILER
+  in_gc = true;
+#endif
 
   // Slowpath.
   if (sz >= alloc_sz) {
-    printf("LArge alloc: %li\n", sz);
-    assert(false);
+    embiggen = true;
   }
   // printf("Collecting...\n");
 
@@ -343,6 +348,10 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   }
 #ifndef NDEBUG
   mprotect(to_space, alloc_sz, PROT_NONE);
+#endif
+
+#ifdef PROFILER
+  in_gc = false;
 #endif
 
   return res;

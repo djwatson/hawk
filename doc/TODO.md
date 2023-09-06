@@ -3,6 +3,8 @@
 * too many traces - conform compiler mazefun maze matrix peval scheme dynamic lattice nucleic read1 slatex
 * see NYI.txt
 
+* TOo much VM time - fib, compiler, ctak, earley, fibc, parsing, scheme, slatex, tail, 
+
 * call/cc resume - for side traces
 
 * funcv/clfuncv - list, string-append, append
