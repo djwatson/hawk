@@ -548,6 +548,52 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     break;
   }
+  case FUNCV: {
+    // TODO: We could do build_list before at start of trace
+    if (arrlen(trace->ops) == 0) {
+      printf("Record abort: Can't start at FUNCV\n");
+      record_abort();
+      return 1;
+    }
+    // Otherwise we're on-trace, and the last IR was a call.
+    auto ra = INS_A(i);
+    auto cnt = argcnt - ra;
+    // Build a list from ra of cnt length.
+    
+    // Load everything first, so that we don't get a guard failure
+    // before alloc.
+    // TODO: when typechecks are lazy, this can be done inline, since it's just
+    // stored in a list and doesn't need a typecheck.
+    uint16_t* locs = NULL;
+    for(uint32_t j = ra + cnt - 1; j >= ra; j--) {
+      arrput(locs, record_stack_load(j, frame));
+    }
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
+    //  TODO this forces a side exit without recording.
+    //   Put GC inline in generated code?  Would have to flush
+    //   all registers to stack.
+    trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
+
+    // Build the list.
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, NIL_TAG);
+    uint16_t prev = knum | IR_CONST_BIAS;
+    for(uint32_t j = 0; j < cnt; j++) {
+      knum = arrlen(trace->consts);
+      arrput(trace->consts, sizeof(cons_s) << 3);
+      auto cell = push_ir(trace, IR_ALLOC, knum | IR_CONST_BIAS, CONS_TAG,
+                        CONS_TAG);
+      auto ref = push_ir(trace, IR_REF, cell, 8 - CONS_TAG, UNDEFINED_TAG);
+      push_ir(trace, IR_STORE, ref, locs[j], UNDEFINED_TAG);
+      ref = push_ir(trace, IR_REF, cell, 8 + 8 - CONS_TAG, UNDEFINED_TAG);
+      push_ir(trace, IR_STORE, ref, prev, UNDEFINED_TAG);
+      prev = cell;
+    }
+    regs[INS_A(i)] = prev;
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
+    arrfree(locs);
+    break;
+  }
   case ICLFUNC:
   case CLFUNC:
   case IFUNC:
