@@ -1,439 +1,432 @@
 test/bench2/ack.scm
-      1 Record abort: Loop root trace exited loop
-      1 Traces: 3
+      1 Record abort: Root trace hit untraced loop
+      1 Record abort: unroll limit reached
+      1 Traces: 5
 
 test/bench2/array1.scm
-      1 Traces: 3
-     85 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
+      1 Traces: 4
 
 test/bench2/browse.scm
-      1 Record abort: Loop root trace exited loop
-      1 Traces: 121
-      4 Record abort: unroll limit reached
-     12 Record abort: Root trace hit untraced loop
-     24 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in generate-symbol
-     59 Record abort: Potential down-recursion, restarting
-     81 Record abort: root trace hit loop
-    135 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
+      1 Record abort: unroll limit reached
+      1 Traces: 127
+      3 Record abort: Loop root trace exited loop
+      4 Record abort: Root trace hit untraced loop
+      4 Record abort: Unroll limit reached in loop for side trace
+     71 Record abort: Potential down-recursion, restarting
+     71 Record abort: root trace hit loop
 
 test/bench2/bv2string.scm
-      1 Traces: 1
+      1 Traces: 0
 
 test/bench2/cat.scm
       1 Traces: 4
       2 Record abort: root trace hit loop
-      4 Record abort: NYI: CANT RECORD BYTECODE FILE-EXISTS? in file-exists?
       5 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-output-port
+      7 Record abort: NYI: CANT RECORD BYTECODE FILE-EXISTS? in file-exists?
 
 test/bench2/chudnovsky.scm
-      1 Record abort: Loop root trace exited loop
-      1 Traces: 2
-      4 Record abort: Only int supported in trace: 0
+      1 Traces: 0
 
 test/bench2/compiler.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in apply
-      1 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in max
-      1 Record abort: NYI: CANT RECORD BYTECODE FUNCV in ce
-      1 Traces: 2162
-      5 Record abort: Unroll limit reached in loop for side trace
-      8 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in min
-      9 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
+      1 Traces: 2421
+      9 Record abort downrec
+      9 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in set-difference
      24 Record abort: NYI: CANT RECORD BYTECODE APPLY in apply
-     24 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in string->canonical-symbol
-     31 Record abort: Potential down-recursion, restarting
-     41 Record abort: Root trace hit untraced loop
-     42 Record abort: due to length
-     50 Record abort: Loop root trace exited loop
-     53 Record abort: NYI: CANT RECORD BYTECODE FUNCV in emit-asm*
-     60 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in +
-     68 Record abort: NYI: CANT RECORD BYTECODE FUNCV in set-difference
-    154 Record abort: NYI: CANT RECORD BYTECODE FUNCV in set-union
-    156 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
-    217 Record abort: NYI: CANT RECORD BYTECODE FUNCV in set-intersection
-    221 Record abort: unroll limit reached
-    643 Record abort: root trace hit loop
-    746 Record abort: NYI: CANT RECORD BYTECODE FUNCV in emit-asm
-    789 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
+     25 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in apply
+     41 Record abort: NYI: CANT RECORD BYTECODE FUNCV in ce
+     57 Record abort: Unroll limit reached in loop for side trace
+     65 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in max
+     70 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in min
+     92 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in +
+    187 Record abort: Potential down-recursion, restarting
+    203 Record abort: NYI: CANT RECORD BYTECODE FUNCV in set-difference
+    228 Record abort: NYI: CANT RECORD BYTECODE FUNCV in emit-asm*
+    238 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in emit-asm*
+    238 Record abort: Root trace hit untraced loop
+    256 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in string-append
+    260 Record abort: due to length
+    278 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
+    292 Record abort: Loop root trace exited loop
+    327 Record abort: unroll limit reached
+    546 Record abort: NYI: CANT RECORD BYTECODE FUNCV in set-union
+    758 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in set-intersection
+    918 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in set-union
+    990 Record abort: NYI: CANT RECORD BYTECODE FUNCV in set-intersection
+   1179 Record abort: NYI: CANT RECORD BYTECODE FUNCV in emit-asm
+   2302 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in emit-asm
+   3682 Record abort: root trace hit loop
 
 test/bench2/conform.scm
-      1 Traces: 303
-      9 Record abort: NYI: CANT RECORD BYTECODE FUNCV in make-graph
-     23 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in make-node
+      1 Traces: 335
+      9 Record abort: Unroll limit reached in loop for side trace
+     11 Record abort: Root trace hit untraced loop
      24 Record abort: NYI: CANT RECORD BYTECODE APPLY in apply
-     34 Record abort: Root trace hit untraced loop
-     40 Record abort: Loop root trace exited loop
-     58 Record abort: unroll limit reached
+     39 Record abort: Potential down-recursion, restarting
+     42 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in make-node
+     48 Record abort: NYI: CANT RECORD BYTECODE FUNCV in make-graph
+     49 Record abort: unroll limit reached
      65 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in +
      65 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in vector
-     66 Record abort: Potential down-recursion, restarting
-     89 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-     90 Record abort: NYI: CANT RECORD BYTECODE FUNCV in make-node
-    117 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
-    460 Record abort: root trace hit loop
-    696 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
+     73 Record abort: Loop root trace exited loop
+    106 Record abort: NYI: CANT RECORD BYTECODE FUNCV in make-node
+    120 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
+    289 Record abort: root trace hit loop
 
 test/bench2/cpstak.scm
-      1 Traces: 5
+      1 Traces: 4
 
 test/bench2/ctak.scm
-      1 Traces: 1
-    196 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
-    259 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
+      1 Traces: 7
+    109 Record abort: Non-root callcc_resume
 
 test/bench2/deriv.scm
       1 Record abort: Potential down-recursion, restarting
-      1 Record abort: root trace hit loop
-      1 Traces: 22
-      6 Record abort: unroll limit reached
+      1 Record abort: Root trace hit untraced loop
+      1 Traces: 15
+      2 Record abort: Unroll limit reached in loop for side trace
+      3 Record abort: Loop root trace exited loop
 
 test/bench2/destruc.scm
       1 Record abort: Unroll limit reached in loop for side trace
       1 Traces: 27
-      2 Record abort: Root trace hit untraced loop
-      5 Record abort: root trace hit loop
 
 test/bench2/diviter.scm
-      1 Traces: 7
+      1 Traces: 6
 
 test/bench2/divrec.scm
       1 Record abort: Potential down-recursion, restarting
-      1 Traces: 8
+      1 Traces: 7
 
 test/bench2/dynamic.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-      1 Record abort: Root trace hit untraced loop
-      1 Traces: 1245
-     11 Record abort: Potential down-recursion, restarting
-     13 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in append
-     28 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
-     89 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-    166 Record abort: unroll limit reached
-    169 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
-    311 Record abort: root trace hit loop
-    312 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in _parse-token_46
-   2561 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
+      1 Traces: 1315
+      3 Record abort: Unroll limit reached in loop for side trace
+      4 Record abort: Loop root trace exited loop
+      4 Record abort: Root trace hit untraced loop
+     12 Record abort: Potential down-recursion, restarting
+     27 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
+     35 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in append
+     85 Record abort: root trace hit loop
+    207 Record abort: unroll limit reached
 
 test/bench2/earley.scm
-      1 Traces: 181
-      3 Record abort: Root trace hit untraced loop
-      4 Record abort: Loop root trace exited loop
+      1 Record abort: Loop root trace exited loop
+      1 Record abort: Root trace hit untraced loop
+      1 Traces: 82
       4 Record abort: Unroll limit reached in loop for side trace
-     21 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
-     46 Record abort downrec
-     66 Record abort: Potential down-recursion, restarting
-     75 Record abort: root trace hit loop
-    365 Record abort: unroll limit reached
+     30 Record abort: Potential down-recursion, restarting
+     30 Record abort: root trace hit loop
+     46 Record abort: unroll limit reached
 
 test/bench2/fft.scm
-      1 Record abort: root trace hit loop
-      1 Traces: 6
-      4 Record abort: Loop root trace exited loop
-      6 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
-     10 Record abort: NYI: CANT RECORD BYTECODE SIN in sin
-     90 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+      1 Record abort: NYI: CANT RECORD BYTECODE Running fft:65536:100
+      1 Traces: 10
+      2 Record abort: Loop root trace exited loop
+      2 Record abort: root trace hit loop
+     15 Record abort: NYI: CANT RECORD BYTECODE SIN in sin
+     36 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
     137 Record abort: Only int supported in trace: 0
 
 test/bench2/fibc.scm
-      1 Traces: 4
-    160 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
-    190 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
+      1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+      1 Traces: 15
+      7 Record abort: unroll limit reached
+    142 Record abort: Non-root callcc_resume
 
 test/bench2/fibfp.scm
-      1 Traces: 1
+      1 Traces: 0
      65 Record abort: Only int supported in trace: 2
 
 test/bench2/fib.scm
-      1 Record abort: Loop root trace exited loop
       1 Record abort: Potential down-recursion, restarting
-      1 Traces: 12
+      1 Record abort: unroll limit reached
+      1 Traces: 11
 
 test/bench2/gcbench.scm
-      1 Record abort: Loop root trace exited loop
-      1 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
+      1 Record abort: Root trace hit untraced loop
       1 Traces: 24
-      2 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-     10 Record abort: Potential down-recursion, restarting
-     10 Record abort: unroll limit reached
+      3 Record abort: Potential down-recursion, restarting
+      5 Record abort: unroll limit reached
 
 test/bench2/graphs.scm
-      1 Traces: 247
+      1 Traces: 414
       2 Record abort downrec
-      8 Record abort: Loop root trace exited loop
-     13 Record abort: Potential down-recursion, restarting
-     18 Record abort: unroll limit reached
-    162 Record abort: root trace hit loop
-    440 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
+      2 Record abort: Loop root trace exited loop
+      2 Record abort: Root trace hit untraced loop
+      3 Record abort: Unroll limit reached in loop for side trace
+     27 Record abort: Potential down-recursion, restarting
+     48 Record abort: unroll limit reached
+    100 Record abort: root trace hit loop
 
 test/bench2/lattice.scm
-      1 Record abort downrec
-      1 Record abort: Loop root trace exited loop
-      1 Traces: 200
-      3 Record abort: Potential down-recursion, restarting
-      5 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in append
-     17 Record abort: unroll limit reached
+      1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+      1 Record abort: Root trace hit untraced loop
+      1 Record abort: Unroll limit reached in loop for side trace
+      1 Traces: 158
+      4 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in append
+     28 Record abort: Potential down-recursion, restarting
+     96 Record abort: root trace hit loop
+   1158 Record abort: unroll limit reached
 
 test/bench2/matrix.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-      1 Traces: 305
-      3 Record abort: Root trace hit untraced loop
-     13 Record abort: Loop root trace exited loop
-     29 Record abort: Potential down-recursion, restarting
-     34 Record abort: unroll limit reached
-    274 Record abort: root trace hit loop
-    474 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
+      1 Record abort: Loop root trace exited loop
+      1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+      1 Record abort: Root trace hit untraced loop
+      1 Traces: 355
+      3 Record abort: Unroll limit reached in loop for side trace
+      9 Record abort: unroll limit reached
+     22 Record abort: Potential down-recursion, restarting
+     24 Record abort: root trace hit loop
 
 test/bench2/mazefun.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-      1 Traces: 190
-      3 Record abort: Root trace hit untraced loop
-     12 Record abort: root trace hit loop
-     20 Record abort: Potential down-recursion, restarting
-     27 Record abort: unroll limit reached
+      1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+      1 Record abort: Root trace hit untraced loop
+      1 Traces: 183
+      9 Record abort: unroll limit reached
+     14 Record abort: root trace hit loop
+     19 Record abort: Potential down-recursion, restarting
 
 test/bench2/maze.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-      1 Record abort: Unroll limit reached in loop for side trace
-      1 Traces: 200
-      2 Record abort: Loop root trace exited loop
-      5 Record abort: Potential down-recursion, restarting
-      6 Record abort: unroll limit reached
-      9 Record abort: due to length
-     16 Record abort: Root trace hit untraced loop
-     73 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
-    122 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
-    364 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
-    378 Record abort: root trace hit loop
+      1 Traces: 328
+      3 Record abort: Potential down-recursion, restarting
+      6 Record abort: Loop root trace exited loop
+      8 Record abort: Root trace hit untraced loop
+     13 Record abort: Unroll limit reached in loop for side trace
+     24 Record abort: Non-root callcc_resume
+     27 Record abort: root trace hit loop
+    534 Record abort: unroll limit reached
 
 test/bench2/mbrot.scm
-      1 Record abort: Loop root trace exited loop
-      1 Traces: 5
+      1 Record abort: Root trace hit untraced loop
+      1 Traces: 7
+      4 Record abort: Unroll limit reached in loop for side trace
+      5 Record abort: Loop root trace exited loop
      64 Record abort: Only int supported in trace: 0
-     72 Record abort: root trace hit loop
-    159 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
-    344 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+    251 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
 
 test/bench2/mbrotZ.scm
 
 test/bench2/mperm.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-      1 Traces: 29
-      2 Record abort: Loop root trace exited loop
+      1 Traces: 22
+      2 Record abort: root trace hit loop
+      2 Record abort: Unroll limit reached in loop for side trace
 
 test/bench2/nboyer.scm
-      1 Traces: 140
-     10 Record abort: root trace hit loop
-     12 Record abort: Potential down-recursion, restarting
-     13 Record abort: due to length
-    111 Record abort: unroll limit reached
+      1 Traces: 127
+      6 Record abort: Potential down-recursion, restarting
+      6 Record abort: root trace hit loop
+     95 Record abort: unroll limit reached
 
 test/bench2/nqueens.scm
       1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
       1 Traces: 48
       2 Record abort: Potential down-recursion, restarting
-     53 Record abort: unroll limit reached
+     42 Record abort: unroll limit reached
 
 test/bench2/ntakl.scm
-      1 Traces: 10
+      1 Traces: 9
 
 test/bench2/nucleic.scm
-      1 Traces: 139
+      1 Record abort: root trace hit loop
+      1 Record abort: Root trace hit untraced loop
+      1 Traces: 151
       2 Record abort: Potential down-recursion, restarting
-      2 Record abort: root trace hit loop
-      6 Record abort: Loop root trace exited loop
+      2 Record abort: unroll limit reached
+      4 Record abort: Loop root trace exited loop
      65 Record abort: NYI: CANT RECORD BYTECODE ATAN in atan
      65 Record abort: NYI: CANT RECORD BYTECODE COS in cos
      65 Record abort: NYI: CANT RECORD BYTECODE SIN in sin
      65 Record abort: NYI: CANT RECORD BYTECODE SQRT in sqrt
-    143 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in list
-    245 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in list
-    520 Record abort: Only int supported in trace: 2
-    677 Record abort: Only int supported in trace: 0
+    142 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in list
+    244 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in list
+    515 Record abort: Only int supported in trace: 2
+    683 Record abort: Only int supported in trace: 0
 
 test/bench2/paraffins.scm
-      1 Record abort: Loop root trace exited loop
       1 Record abort: Root trace hit untraced loop
       1 Record abort: Unroll limit reached in loop for side trace
-      1 Traces: 89
+      1 Traces: 88
       2 Record abort: Potential down-recursion, restarting
-      9 Record abort: root trace hit loop
-     26 Record abort: unroll limit reached
+      2 Record abort: root trace hit loop
+      9 Record abort: unroll limit reached
 
 test/bench2/parsing.scm
-      1 Record abort: NYI: CANT RRunning parsing:2500
       1 Record abort: Root trace hit untraced loop
-      1 Traces: 251
-      3 Record abort: unroll limit reached
-      6 Record abort: Potential down-recursion, restarting
-     50 Record abort: due to length
-     64 Record abort: Loop root trace exited loop
-    201 Record abort: root trace hit loop
-    279 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-    372 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in _makesym_130
+      1 Record abort: Unroll limit reached in loop for side trace
+      1 Traces: 292
+      2 Record abort: root trace hit loop
+      7 Record abort: Potential down-recursion, restarting
+     28 Record abort: unroll limit reached
 
 test/bench2/peval.scm
-      1 Traces: 853
-     19 Record abort: Potential down-recursion, restarting
-     24 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in new-variable
-     32 Record abort: Loop root trace exited loop
-     37 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in list
-     89 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
+      1 Traces: 918
+      2 Record abort: Root trace hit untraced loop
+      3 Record abort: Unroll limit reached in loop for side trace
+      8 Record abort: Loop root trace exited loop
+     32 Record abort: Potential down-recursion, restarting
+     34 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in list
+     93 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
     107 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in +
-    318 Record abort: unroll limit reached
-    385 Record abort: root trace hit loop
-    503 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
+    208 Record abort: unroll limit reached
+    240 Record abort: root trace hit loop
 
 test/bench2/pi.scm
-      1 Record abort: Loop root trace exited loop
-      1 Traces: 2
-      3 Record abort: Only int supported in trace: 0
+      1 Traces: 0
 
 test/bench2/pnpoly.scm
+      1 Record abort: Root trace hit untraced loop
       1 Traces: 13
-      3 Record abort: Loop root trace exited loop
-     90 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
-    151 Record abort: flonum not supported in jeqv
+    153 Record abort: flonum not supported in jeqv
     390 Record abort: root trace hit loop
 
 test/bench2/primes.scm
-      1 Record abort: due to length
-      1 Record abort: root trace hit loop
-      1 Traces: 23
+      1 Record abort: Root trace hit untraced loop
+      1 Traces: 19
       3 Record abort: Potential down-recursion, restarting
+      5 Record abort: Loop root trace exited loop
+      5 Record abort: Unroll limit reached in loop for side trace
 
 test/bench2/puzzle.scm
-      1 Traces: 46
-     11 Record abort: Root trace hit untraced loop
-     89 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
-    151 Record abort: root trace hit loop
-    178 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
+      1 Record abort: Loop root trace exited loop
+      1 Traces: 55
+      6 Record abort: Root trace hit untraced loop
+     24 Record abort: Non-root callcc_resume
+     32 Record abort: root trace hit loop
 
 test/bench2/quicksort.scm
-      1 Traces: 4
+      1 Traces: 5
+     49 Record abort: root trace hit loop
      50 Record abort: Only int supported in trace: 0
      65 Record abort: flonum not supported in jeqv
      65 Record abort: NYI: CANT RECORD BYTECODE TRUNCATE in truncate
-    102 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
-    212 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-    384 Record abort: flonum not supported in islt
+    163 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+    394 Record abort: flonum not supported in islt
 
 test/bench2/ray.scm
+      1 Record abort: Loop root trace exited loop
+      1 Record abort: NYI: CANT RECORD BYTECODE FILE-EXISTS? in file-exists?
       1 Traces: 16
-      3 Record abort: Loop root trace exited loop
-      3 Record abort: root trace hit loop
-      4 Record abort: NYI: CANT RECORD BYTECODE FILE-EXISTS? in file-exists?
-     23 Record abort: Root trace hit untraced loop
+      8 Record abort: Root trace hit untraced loop
      65 Record abort: flonum not supported in islt
      65 Record abort: NYI: CANT RECORD BYTECODE SQRT in sqrt
-    354 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+    277 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
     455 Record abort: Only int supported in trace: 2
-    648 Record abort: Only int supported in trace: 0
+    647 Record abort: Only int supported in trace: 0
 
 test/bench2/read1.scm
-      1 Record abort: Loop root trace exited loop
-      1 Traces: 141
-     24 Record abort: due to length
-     35 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
-     37 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
-     89 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-    114 Record abort: NYI: CANT RECORD BYTECODE CALLCC-RESUME in call-with-current-continuation-lambda
-    203 Record abort: NYI: CANT RECORD BYTECODE STRING->SYMBOL in _parse-token_46
-    208 Record abort: NYI: CANT RECORD BYTECODE CALLCC in call-with-current-continuation
-    271 Record abort: root trace hit loop
+      1 Record abort: Potential down-recursion, restarting
+      1 Traces: 112
+      5 Record abort: Unroll limit reached in loop for side trace
+     13 Record abort: Root trace hit untraced loop
+     60 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
+     61 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
+     64 Record abort: Loop root trace exited loop
+    155 Record abort: root trace hit loop
 
 test/bench2/sboyer.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE ROUND in _rounded_46
-      1 Traces: 124
-     12 Record abort: Potential down-recursion, restarting
-     75 Record abort: unroll limit reached
+      1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+      1 Record abort: Root trace hit untraced loop
+      1 Traces: 153
+      6 Record abort: due to length
+     57 Record abort: Potential down-recursion, restarting
     200 Record abort: root trace hit loop
+    255 Record abort: unroll limit reached
 
 test/bench2/scheme.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE ROUND in _rounded_46
-      1 Traces: 172
-      3 Record abort: Loop root trace exited loop
-     14 Record abort: Potential down-recursion, restarting
-     18 Record abort: root trace hit loop
-    202 Record abort: unroll limit reached
+      1 Record abort: Loop root trace exited loop
+      1 Record abort: Root trace hit untraced loop
+      1 Traces: 161
+      3 Record abort: Unroll limit reached in loop for side trace
+     30 Record abort: Potential down-recursion, restarting
+     95 Record abort: root trace hit loop
+    157 Record abort: unroll limit reached
 
 test/bench2/simplex.scm
-      1 Traces: 27
-     29 Record abort: Loop root trace exited loop
-     60 Record abort: Root trace hit untraced loop
-    171 Record abort: flonum not supported in islt
-    219 Record abort: NYI: CANT RECORD BYTECODE MAKE-VECTOR in make-vector
-    403 Record abort: root trace hit loop
-    436 Record abort: Only int supported in trace: 2
-    565 Record abort: Only int supported in trace: 0
+      1 Traces: 24
+      2 Record abort: Unroll limit reached in loop for side trace
+     13 Record abort: Loop root trace exited loop
+     96 Record abort: Root trace hit untraced loop
+    175 Record abort: flonum not supported in islt
+    402 Record abort: root trace hit loop
+    457 Record abort: Only int supported in trace: 2
+    534 Record abort: Only int supported in trace: 0
 
 test/bench2/slatex.scm
-      1 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in apply
-      1 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
-      1 Record abort: NYI: CANT RECORD BYTECODE FILE-EXISTS? in file-exists?
-      1 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-output-file
-      1 Traces: 174
-      2 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-output-port
-      2 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.new-aux-file
-      2 Record abort: unroll limit reached
-      3 Record abort: Potential down-recursion, restarting
-      5 Record abort: Unroll limit reached in loop for side trace
-      7 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in list
-      9 Record abort: Root trace hit untraced loop
-     31 Record abort: Loop root trace exited loop
-     40 Record abort: root trace hit loop
-     70 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-    117 Record abort: NYI: CANT RECORD BYTECODE FUNCV in string
+      1 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in string-append
+      1 Traces: 420
+      2 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in slatex.new-primary-aux-file
+      3 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.new-secondary-aux-file
+      9 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in slatex.new-aux-file
+      9 Record abort: Potential down-recursion, restarting
+     14 Record abort: unroll limit reached
+     17 Record abort: Unroll limit reached in loop for side trace
+     39 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.find-some-file
+     45 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in list
+     65 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.force-output
+     71 Record abort: NYI: CANT RECORD BYTECODE IFUNCV in string
+     89 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
+     91 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.new-primary-aux-file
+     97 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in apply
+    107 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in +
+    143 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
+    156 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
+    157 Record abort: NYI: CANT RECORD BYTECODE DELETE-FILE in delete-file
+    157 Record abort: NYI: CANT RECORD BYTECODE FUNCV in slatex.new-aux-file
+    160 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in list
+    165 Record abort: Loop root trace exited loop
+    169 Record abort: Root trace hit untraced loop
+    198 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-output-file
+    224 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-output-port
+    227 Record abort: NYI: CANT RECORD BYTECODE FILE-EXISTS? in file-exists?
+    311 Record abort: NYI: CANT RECORD BYTECODE FUNCV in string
+    998 Record abort: root trace hit loop
 
 test/bench2/string.scm
       1 Record abort: Potential down-recursion, restarting
-      1 Traces: 17
-      3 Record abort: Root trace hit untraced loop
-     18 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in string-append
-     23 Record abort: NYI: CANT RECORD BYTECODE APPLY in apply
-     40 Record abort: Loop root trace exited loop
+      1 Traces: 23
+      4 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in string-append
+      5 Record abort: Loop root trace exited loop
+      5 Record abort: Root trace hit untraced loop
+     24 Record abort: NYI: CANT RECORD BYTECODE APPLY in apply
      65 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in +
-    106 Record abort: root trace hit loop
-    236 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
-    267 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
+     67 Record abort: root trace hit loop
+    222 Record abort: NYI: CANT RECORD BYTECODE CLFUNCV in string-append
 
 test/bench2/sum1.scm
       1 Record abort: Root trace hit untraced loop
-      1 Traces: 30
-      2 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
-      4 Record abort: root trace hit loop
+      1 Record abort: Unroll limit reached in loop for side trace
+      1 Traces: 26
+      2 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
+      9 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
      65 Record abort: Only int supported in trace: 0
-     89 Record abort: NYI: CANT RECORD BYTECODE MAKE-STRING in make-string
-    269 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+    270 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+    326 Record abort: root trace hit loop
 
 test/bench2/sumfp.scm
-      1 Traces: 3
-     32 Record abort: root trace hit loop
+      9 Record abort: root trace hit loop
      91 Record abort: Only int supported in trace: 2
 
 test/bench2/sum.scm
-      1 Traces: 2
+      1 Traces: 1
 
 test/bench2/tail.scm
-      1 Traces: 5
+      1 Traces: 4
       2 Record abort: root trace hit loop
-      4 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
-      5 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-output-port
+      6 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-output-port
+      7 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
     130 Record abort: NYI: CANT RECORD BYTECODE READ-LINE in read-line
 
 test/bench2/takl.scm
-      1 Traces: 10
-      2 Record abort: Root trace hit untraced loop
+      1 Traces: 9
 
 test/bench2/tak.scm
-      1 Record abort: Potential down-recursion, restarting
       1 Record abort: unroll limit reached
-      1 Traces: 11
+      1 Traces: 7
 
 test/bench2/triangl.scm
-      1 Traces: 16
+      1 Traces: 15
 
 test/bench2/wc.scm
-      1 Traces: 7
-      2 Record abort: root trace hit loop
-      4 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
+      1 Record abort: Loop root trace exited loop
+      1 Traces: 4
       5 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
 
