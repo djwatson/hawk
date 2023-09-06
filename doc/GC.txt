@@ -1,123 +1,103 @@
 test/bench2/ack.scm
-On-trace: 99.68%
+On-trace: 99.70%
 In-gc: 0.00%
-VM: 0.32%
-Traces: 5
+VM: 0.30%
 
 test/bench2/array1.scm
-On-trace: 84.02%
-In-gc: 9.38%
-VM: 6.60%
-Traces: 4
+On-trace: 90.25%
+In-gc: 2.81%
+VM: 6.94%
 
 test/bench2/browse.scm
-On-trace: 79.79%
-In-gc: 16.51%
-VM: 3.70%
-Traces: 102
+On-trace: 89.13%
+In-gc: 7.27%
+VM: 3.59%
 
 test/bench2/bv2string.scm
 On-trace: 0.00%
 In-gc: 0.00%
 VM: 100.00%
-Traces: 0
 
 test/bench2/cat.scm
-On-trace: 99.07%
+On-trace: 99.10%
 In-gc: 0.00%
-VM: 0.93%
-Traces: 4
+VM: 0.90%
 
 test/bench2/chudnovsky.scm
 FAIL ARGCNT INVALID
 On-trace: 0.00%
 In-gc: 0.00%
 VM: 100.00%
-Traces: 0
 
 test/bench2/compiler.scm
-On-trace: 48.82%
-In-gc: 10.21%
-VM: 40.98%
-Traces: 3455
+On-trace: 50.03%
+In-gc: 10.28%
+VM: 39.68%
 
 test/bench2/conform.scm
-On-trace: 89.25%
-In-gc: 8.45%
-VM: 2.30%
-Traces: 410
+On-trace: 92.66%
+In-gc: 5.09%
+VM: 2.25%
 
 test/bench2/cpstak.scm
-On-trace: 62.50%
-In-gc: 37.36%
-VM: 0.14%
-Traces: 4
+On-trace: 88.03%
+In-gc: 11.75%
+VM: 0.22%
 
 test/bench2/ctak.scm
-On-trace: 24.39%
-In-gc: 57.74%
-VM: 17.86%
-Traces: 17
+On-trace: 70.57%
+In-gc: 29.19%
+VM: 0.24%
 
 test/bench2/deriv.scm
-On-trace: 66.34%
-In-gc: 33.29%
-VM: 0.37%
-Traces: 19
+On-trace: 89.27%
+In-gc: 10.22%
+VM: 0.50%
 
 test/bench2/destruc.scm
-On-trace: 87.52%
-In-gc: 11.97%
-VM: 0.51%
-Traces: 27
+On-trace: 96.41%
+In-gc: 3.07%
+VM: 0.52%
 
 test/bench2/diviter.scm
-On-trace: 66.46%
-In-gc: 33.18%
-VM: 0.36%
-Traces: 6
+On-trace: 89.04%
+In-gc: 10.49%
+VM: 0.47%
 
 test/bench2/divrec.scm
-On-trace: 74.79%
-In-gc: 24.95%
-VM: 0.25%
-Traces: 7
+On-trace: 92.89%
+In-gc: 6.81%
+VM: 0.30%
 
 test/bench2/dynamic.scm
-On-trace: 75.99%
-In-gc: 21.16%
-VM: 2.85%
-Traces: 1149
+On-trace: 77.48%
+In-gc: 19.72%
+VM: 2.80%
 
 test/bench2/earley.scm
-On-trace: 33.51%
-In-gc: 52.56%
-VM: 13.93%
-Traces: 228
+On-trace: 32.93%
+In-gc: 52.97%
+VM: 14.09%
 
 test/bench2/fft.scm
-On-trace: 0.95%
-In-gc: 32.15%
-VM: 66.90%
-Traces: 7
+On-trace: 1.11%
+In-gc: 23.54%
+VM: 75.35%
 
 test/bench2/fibc.scm
-On-trace: 38.68%
-In-gc: 29.49%
-VM: 31.83%
-Traces: 23
+On-trace: 74.81%
+In-gc: 24.71%
+VM: 0.48%
 
 test/bench2/fibfp.scm
 On-trace: 0.00%
-In-gc: 10.20%
-VM: 89.80%
-Traces: 0
+In-gc: 2.29%
+VM: 97.71%
 
 test/bench2/fib.scm
-On-trace: 79.34%
+On-trace: 78.58%
 In-gc: 0.00%
-VM: 20.66%
-Traces: 22
+VM: 21.42%
 
 test/bench2/gcbench.scm
 Running gcbench:20:1
@@ -142,215 +122,180 @@ Elapsed time: 0.0 seconds (0) for gcbench:20:1
 +!CSVLINE!+boom-0.1,gcbench:20:1,0.0
 Compiling script test/bench2/gcbench.scm
 Running script test/bench2/gcbench.scm.bc
-On-trace: 56.99%
-In-gc: 41.09%
-VM: 1.92%
-Traces: 28
+On-trace: 58.67%
+In-gc: 39.26%
+VM: 2.07%
 
 test/bench2/graphs.scm
-On-trace: 56.88%
-In-gc: 42.40%
-VM: 0.73%
-Traces: 402
+On-trace: 57.35%
+In-gc: 42.03%
+VM: 0.62%
 
 test/bench2/lattice.scm
-On-trace: 66.65%
-In-gc: 33.11%
-VM: 0.24%
-Traces: 212
+On-trace: 68.89%
+In-gc: 6.14%
+VM: 24.97%
 
 test/bench2/matrix.scm
-On-trace: 70.48%
-In-gc: 28.02%
-VM: 1.50%
-Traces: 382
+On-trace: 84.20%
+In-gc: 14.24%
+VM: 1.56%
 
 test/bench2/mazefun.scm
-On-trace: 90.52%
-In-gc: 8.94%
-VM: 0.54%
-Traces: 350
+On-trace: 95.37%
+In-gc: 4.07%
+VM: 0.56%
 
 test/bench2/maze.scm
-On-trace: 86.98%
-In-gc: 8.21%
-VM: 4.81%
-Traces: 299
+On-trace: 91.01%
+In-gc: 4.45%
+VM: 4.54%
 
 test/bench2/mbrot.scm
-On-trace: 1.15%
-In-gc: 18.91%
-VM: 79.93%
-Traces: 9
+On-trace: 1.19%
+In-gc: 4.87%
+VM: 93.94%
 
 test/bench2/mbrotZ.scm
 
 test/bench2/mperm.scm
-On-trace: 38.14%
-In-gc: 61.61%
+On-trace: 37.05%
+In-gc: 62.70%
 VM: 0.25%
-Traces: 29
 
 test/bench2/nboyer.scm
-On-trace: 54.63%
-In-gc: 42.96%
-VM: 2.40%
-Traces: 110
+On-trace: 53.65%
+In-gc: 44.56%
+VM: 1.79%
 
 test/bench2/nqueens.scm
-On-trace: 90.94%
-In-gc: 8.90%
+On-trace: 97.61%
+In-gc: 2.23%
 VM: 0.16%
-Traces: 38
 
 test/bench2/ntakl.scm
-On-trace: 99.74%
+On-trace: 99.77%
 In-gc: 0.00%
-VM: 0.26%
-Traces: 9
+VM: 0.23%
 
 test/bench2/nucleic.scm
-On-trace: 46.02%
-In-gc: 12.08%
-VM: 41.90%
-Traces: 148
+On-trace: 49.17%
+In-gc: 8.46%
+VM: 42.36%
 
 test/bench2/paraffins.scm
-On-trace: 39.89%
-In-gc: 59.42%
-VM: 0.69%
-Traces: 85
+On-trace: 39.36%
+In-gc: 59.94%
+VM: 0.70%
 
 test/bench2/parsing.scm
-On-trace: 88.81%
-In-gc: 2.52%
-VM: 8.67%
-Traces: 650
+On-trace: 92.96%
+In-gc: 1.48%
+VM: 5.55%
 
 test/bench2/peval.scm
-On-trace: 79.17%
-In-gc: 18.08%
-VM: 2.75%
-Traces: 835
+On-trace: 86.99%
+In-gc: 9.94%
+VM: 3.08%
 
 test/bench2/pi.scm
 FAIL ARGCNT INVALID
 On-trace: 0.00%
 In-gc: 0.00%
 VM: 100.00%
-Traces: 0
 
 test/bench2/pnpoly.scm
-On-trace: 4.37%
-In-gc: 3.70%
-VM: 91.94%
-Traces: 12
+On-trace: 4.69%
+In-gc: 0.90%
+VM: 94.41%
 
 test/bench2/primes.scm
-On-trace: 68.36%
-In-gc: 30.51%
-VM: 1.13%
-Traces: 19
+On-trace: 85.35%
+In-gc: 13.45%
+VM: 1.20%
 
 test/bench2/puzzle.scm
-On-trace: 94.15%
-In-gc: 5.07%
-VM: 0.78%
-Traces: 55
+On-trace: 97.70%
+In-gc: 1.54%
+VM: 0.76%
 
 test/bench2/quicksort.scm
-On-trace: 32.18%
-In-gc: 1.41%
-VM: 66.40%
-Traces: 6
+On-trace: 33.10%
+In-gc: 0.61%
+VM: 66.29%
 
 test/bench2/ray.scm
-On-trace: 37.48%
-In-gc: 5.89%
-VM: 56.63%
-Traces: 15
+On-trace: 39.21%
+In-gc: 1.93%
+VM: 58.86%
 
 test/bench2/read1.scm
-On-trace: 92.73%
-In-gc: 6.61%
+On-trace: 97.03%
+In-gc: 2.31%
 VM: 0.66%
-Traces: 113
 
 test/bench2/sboyer.scm
-On-trace: 82.20%
-In-gc: 15.06%
-VM: 2.74%
-Traces: 143
+On-trace: 81.65%
+In-gc: 14.87%
+VM: 3.48%
 
 test/bench2/scheme.scm
-On-trace: 69.93%
-In-gc: 7.16%
-VM: 22.91%
-Traces: 242
+On-trace: 70.50%
+In-gc: 4.38%
+VM: 25.12%
 
 test/bench2/simplex.scm
-On-trace: 50.77%
-In-gc: 2.43%
-VM: 46.80%
-Traces: 23
+On-trace: 51.02%
+In-gc: 0.78%
+VM: 48.20%
 
 test/bench2/slatex.scm
-On-trace: 38.62%
-In-gc: 3.22%
-VM: 58.16%
-Traces: 448
+On-trace: 39.01%
+In-gc: 2.24%
+VM: 58.75%
 
 test/bench2/string.scm
-On-trace: 95.22%
-In-gc: 4.51%
-VM: 0.26%
-Traces: 20
+On-trace: 98.24%
+In-gc: 1.51%
+VM: 0.25%
 
 test/bench2/sum1.scm
-On-trace: 47.10%
-In-gc: 5.76%
-VM: 47.15%
-Traces: 26
+On-trace: 50.99%
+In-gc: 1.42%
+VM: 47.60%
 
 test/bench2/sumfp.scm
 On-trace: 0.00%
-In-gc: 12.74%
-VM: 87.26%
-Traces: 4
+In-gc: 3.42%
+VM: 96.58%
 
 test/bench2/sum.scm
-On-trace: 98.95%
+On-trace: 98.73%
 In-gc: 0.00%
-VM: 1.05%
-Traces: 1
+VM: 1.27%
 
 test/bench2/tail.scm
-On-trace: 38.46%
-In-gc: 11.84%
-VM: 49.71%
-Traces: 4
+On-trace: 42.10%
+In-gc: 8.68%
+VM: 49.22%
 
 test/bench2/takl.scm
-On-trace: 99.78%
+On-trace: 99.76%
 In-gc: 0.00%
-VM: 0.22%
-Traces: 9
+VM: 0.24%
 
 test/bench2/tak.scm
-On-trace: 99.64%
+On-trace: 99.65%
 In-gc: 0.00%
-VM: 0.36%
-Traces: 8
+VM: 0.35%
 
 test/bench2/triangl.scm
-On-trace: 98.98%
-In-gc: 0.17%
-VM: 0.85%
-Traces: 15
+On-trace: 99.17%
+In-gc: 0.00%
+VM: 0.83%
 
 test/bench2/wc.scm
-On-trace: 99.48%
+On-trace: 99.50%
 In-gc: 0.00%
-VM: 0.52%
-Traces: 4
+VM: 0.50%
 
