@@ -691,6 +691,9 @@ LIBRARY_FUNC_BC_LOAD(APPLY)
   NEXT_INSTR;
 }
 
+#ifdef PROFILER
+bool in_jit = false;
+#endif
 
 LIBRARY_FUNC_D(JFUNC)
   // auto tnum = instr;
@@ -704,7 +707,13 @@ if (INS_OP(trace->startpc) == CLFUNC) {
     goto out;
   }
  }
+#ifdef PROFILER
+in_jit = true;
+#endif
 auto res = jit_run(rd, &pc, &frame);
+#ifdef PROFILER
+in_jit = false;
+#endif
 #else
 auto res = 0;
 #endif
