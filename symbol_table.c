@@ -8,6 +8,7 @@
 #include <string.h> // for strcmp
 
 #include "types.h" // for string_s, symbol
+#include "defs.h"
 
 #define auto __auto_type
 
@@ -39,7 +40,7 @@ symbol *symbol_table_find(string_s *str) {
   return symbol_table_find_cstr(str->str);
 }
 
-symbol *symbol_table_find_cstr(const char *str) {
+EXPORT symbol *symbol_table_find_cstr(const char *str) {
   auto hash = str_hash(str);
 
   auto mask = sym_table->sz - 1;

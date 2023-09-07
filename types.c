@@ -4,6 +4,7 @@
 
 #include "gc.h"
 #include "symbol_table.h"
+#include "defs.h"
 
 #define auto __auto_type
 #define nullptr NULL
@@ -105,7 +106,7 @@ void print_obj(long obj, FILE *file) {
   }
 }
 
-long from_c_str(const char *s) {
+EXPORT long from_c_str(const char *s) {
   unsigned long len = strlen(s);
   auto *str = (string_s *)GC_malloc(16 + len + 1);
   str->type = STRING_TAG;

@@ -15,6 +15,7 @@
 #include "third-party/stb_ds.h"
 #include "types.h" // for string_s, PTR_TAG, SYMBOL_TAG, cons_s, symbol
 #include "vm.h"    // for funcs
+#include "defs.h"
 
 #define auto __auto_type
 #define nullptr NULL
@@ -228,18 +229,18 @@ bcfunc *readbc(FILE *fptr) {
   return start_func;
 }
 
-bcfunc *readbc_image(unsigned char *mem, unsigned int len) {
+EXPORT bcfunc *readbc_image(unsigned char *mem, unsigned int len) {
   FILE *fptr = fmemopen(mem, len, "rb");
   return readbc(fptr);
 }
 
-bcfunc *readbc_file(const char *filename) {
+EXPORT bcfunc *readbc_file(const char *filename) {
   FILE *fptr;
   fptr = fopen(filename, "rb");
   return readbc(fptr);
 }
 
-void free_script() {
+EXPORT void free_script() {
   for (uint64_t i = 0; i < arrlen(funcs); i++) {
     auto func = funcs[i];
     free(func->name);
@@ -251,4 +252,15 @@ void free_script() {
   free(const_table);
   const_table = NULL;
   symbol_table_clear();
+}
+
+extern unsigned char bootstrap_scm_bc[];
+extern unsigned int bootstrap_scm_bc_len;
+
+EXPORT void load_bootstrap() {
+  if (bootstrap_scm_bc_len > 0) {
+    auto *start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
+    //printf("Running boot image...\n");
+    run(start_func, 0, nullptr);
+  }
 }

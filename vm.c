@@ -9,6 +9,7 @@
 #include <string.h>  // for memcpy, NULL, memset
 #include <unistd.h>  // for access, close, unlink, F_OK
 
+#include "defs.h"
 #include "asm_x64.h"
 #include "bytecode.h"
 #include "gc.h"
@@ -22,11 +23,11 @@
 
 #include "third-party/stb_ds.h"
 
-bool verbose = false;
-size_t page_cnt = 1220;
-unsigned TRACE_MAX = 65536;
-int joff = 0;
-int profile = 0;
+EXPORT bool verbose = false;
+EXPORT size_t page_cnt = 1220;
+EXPORT unsigned TRACE_MAX = 65536;
+EXPORT int joff = 0;
+EXPORT int profile = 0;
 
 bcfunc **funcs = NULL;
 #define auto __auto_type
@@ -45,7 +46,7 @@ static void vm_init() {
   }
 }
 
-void free_vm() { free(stack); }
+EXPORT void free_vm() { free(stack); }
 
 /*
 This is a tail-calling interpreter that requires 'musttail' attribute, so
@@ -1316,7 +1317,7 @@ void INS_PROFILE_CALLCC_RESUME_ADJ(PARAMS) {
 
 #include "opcodes-table.h"
 
-void run(bcfunc *func, long argcnt, const long *args) {
+EXPORT void run(bcfunc *func, long argcnt, const long *args) {
   vm_init();
 
   // Bytecode stub to get us to HALT.
@@ -1372,3 +1373,4 @@ void run(bcfunc *func, long argcnt, const long *args) {
 
   // And after the call returns, we're done.  only HALT returns.
 }
+

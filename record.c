@@ -7,6 +7,7 @@
 #include "third-party/stb_ds.h"
 #include "types.h"  // for CONS_TAG, FALSE_REP, SYMBOL_TAG, symbol, CLOSU...
 #include "vm.h"     // for find_func_for_frame, hotmap_mask, hotmap_sz
+#include "defs.h"
 #include <assert.h> // for assert
 #include <stdbool.h>
 #include <stdint.h> // for uint32_t
@@ -1866,7 +1867,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
 trace_s *trace_cache_get(unsigned int tnum) { return traces[tnum]; }
 
-void free_trace() {
+EXPORT void free_trace() {
   if (verbose) {
     printf("Traces: %li\n", arrlen(traces));
   }
