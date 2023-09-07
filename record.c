@@ -543,7 +543,7 @@ void record_funcv(uint32_t i, uint32_t *pc, long* frame, long argcnt) {
 }
 
 void check_emit_funcv(uint32_t startpc, uint32_t* pc, long* frame, long argcnt) {
-  if (INS_OP(startpc) == FUNCV) {
+  if (INS_OP(startpc) == FUNCV || INS_OP(startpc) == CLFUNCV) {
     auto ra = INS_A(startpc);
     //printf("NEEDS FUNCV-ifying %i %li\n", ra, argcnt-ra);
     record_funcv(startpc, pc, frame, argcnt);
@@ -562,6 +562,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
       INS_OP(trace->startpc) != RET1 && parent == nullptr) {
     if (INS_OP(*pc) == CLFUNC && argcnt != INS_A(*pc)) {
+    } else if (INS_OP(*pc) == CLFUNCV && argcnt < INS_A(*pc)) {
     } else {
       if (verbose)
         printf("Record stop loop\n");
@@ -599,6 +600,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     break;
   }
+  case CLFUNCV:
   case FUNCV: {
     // TODO: We could do build_list before at start of trace
     if (arrlen(trace->ops) == 0) {
@@ -608,7 +610,11 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       break;
     }
     record_funcv(i, pc, frame, argcnt);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
+    if (INS_OP(i) == CLFUNCV) {
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
+    } else {
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
+    }
     break;
   }
   case ICLFUNC:
@@ -1816,6 +1822,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto *ctrace = trace_cache_get(INS_D(i));
     if (INS_OP(ctrace->startpc) == CLFUNC) {
       if (argcnt != INS_A(ctrace->startpc)) {
+	// The check will fail, and we will fall through to a later
+	// CLFUNC.
+        break;
+      }
+    }
+    if (INS_OP(ctrace->startpc) == CLFUNCV) {
+      if (argcnt < INS_A(ctrace->startpc)) {
 	// The check will fail, and we will fall through to a later
 	// CLFUNC.
         break;
