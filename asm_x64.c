@@ -337,6 +337,40 @@ uint16_t find_val_for_slot(int slot, snap_s *snap, trace_s *trace) {
   exit(-1);
 }
 
+void assign_call_registers(uint16_t op, trace_s* trace, int*slot, uint32_t *next_spill) {
+  // TODO: could put directly in correct reg?
+  // What happens if we need to MOV them around?
+  if (!ir_is_const(op)) {
+    auto cop = &trace->ops[op];
+    if(cop->op == IR_CARG) {
+      maybe_assign_register(cop->op1, trace, slot, next_spill);
+      assign_call_registers(cop->op2, trace, slot, next_spill);
+    } else {
+      maybe_assign_register(op, trace, slot, next_spill);
+    }
+  }
+}
+
+void emit_call_arguments(uint16_t op, trace_s* trace, int arg) {
+  static const uint8_t call_regs[] = {RDI, RSI, RDX, RCX, R8, R9};
+  assert(arg < 6);
+  uint8_t reg = call_regs[arg];
+  if (ir_is_const(op)) {
+    auto c2 = trace->consts[op - IR_CONST_BIAS];
+    auto re = (reloc){emit_offset(), c2, RELOC_ABS};
+    arrput(trace->relocs, re);
+    emit_mov64(reg, c2);
+  } else {
+    auto cop = &trace->ops[op];
+    if(cop->op == IR_CARG) {
+      emit_call_arguments(cop->op1, trace, arg);
+      emit_call_arguments(cop->op2, trace, arg + 1);
+    } else {
+      emit_reg_reg(OP_MOV, trace->ops[op].reg, reg);
+    }
+  }
+}
+
 void emit_snap(int snap, trace_s *trace, bool all) {
   // printf("EMITSNAP: all %i\n", (int)all);
   auto sn = &trace->snaps[snap];
@@ -954,14 +988,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       preserve_for_call(trace, slot, &next_spill);
 
       // TODO assign to arg1 directly
-      if (ir_is_const(op->op1)) {
-      } else if (trace->ops[op->op1].op == IR_CARG) {
-        auto cop = &trace->ops[op->op1];
-        maybe_assign_register(cop->op1, trace, slot, &next_spill);
-        maybe_assign_register(cop->op2, trace, slot, &next_spill);
-      } else {
-        maybe_assign_register(op->op1, trace, slot, &next_spill);
-      }
+      assign_call_registers(op->op1, trace, slot, &next_spill);
 
       // TODO typecheck
       // Restore scheme frame ptr
@@ -975,33 +1002,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_call_indirect(RAX);
       emit_mov64(RAX, c);
       // args
-      if (ir_is_const(op->op1)) {
-        auto c2 = trace->consts[op->op1 - IR_CONST_BIAS];
-        auto re = (reloc){emit_offset(), c2, RELOC_ABS};
-        arrput(trace->relocs, re);
-        emit_mov64(RDI, c2);
-      } else if (trace->ops[op->op1].op == IR_CARG) {
-        auto cop = &trace->ops[op->op1];
-        if (ir_is_const(cop->op1)) {
-          auto c2 = trace->consts[cop->op1 - IR_CONST_BIAS];
-          auto re = (reloc){emit_offset(), c2, RELOC_ABS};
-          arrput(trace->relocs, re);
-          emit_mov64(RDI, (int64_t)(c2));
-        } else {
-          emit_reg_reg(OP_MOV, trace->ops[cop->op1].reg, RDI);
-        }
-        if (ir_is_const(cop->op2)) {
-          auto c2 = trace->consts[cop->op2 - IR_CONST_BIAS];
-          auto re = (reloc){emit_offset(), c2, RELOC_ABS};
-          arrput(trace->relocs, re);
-          emit_mov64(RSI, (int64_t)(c2));
-        } else {
-          emit_reg_reg(OP_MOV, trace->ops[cop->op2].reg, RSI);
-        }
-      } else {
-        assert(!ir_is_const(op->op1));
-        emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, RDI);
-      }
+      emit_call_arguments(op->op1, trace, 0);
 
       // Save scheme frame ptr
       emit_reg_reg(OP_MOV, RDI, R15);
