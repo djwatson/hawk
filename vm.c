@@ -158,9 +158,7 @@ long build_list(long start, long len, const long *frame) {
     c->b = lst;
     lst = (long)c + CONS_TAG;
   }
-  // printf("build_list Result:");
-  // print_obj(lst);
-  // printf("\n");
+  
   return lst;
 }
 

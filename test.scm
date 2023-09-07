@@ -1,9 +1,8 @@
-(define (str . rest) rest)
 
-(define (foo x)
+(define (foo x . rest)
   (if (= x 0) 0
       (begin
-	($write (str x) current-output-port-internal)
-	(foo (- x 1)))))
+	($write rest current-output-port-internal)
+	(foo (- x 1) (car rest)))))
 
-(foo 1000)
+(foo 1000 'a)

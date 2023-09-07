@@ -167,8 +167,8 @@ int main(int argc, char *argv[]) {
   }
 #endif
   auto ojoff = joff;
-  load_bootstrap();
   joff = 1;
+  load_bootstrap();
 
   for (int i = optind; i < argc; i++) {
     auto len = strlen(argv[i]);
