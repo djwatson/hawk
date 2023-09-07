@@ -501,6 +501,55 @@ int record_stack_load(int slot, const long *frame) {
   return regs[slot];
 }
 
+// Note: Does not add snap after!  Add if not at end of trace.
+void record_funcv(uint32_t i, uint32_t *pc, long* frame, long argcnt) {
+  // Otherwise we're on-trace, and the last IR was a call.
+  auto ra = INS_A(i);
+  auto cnt = argcnt - ra;
+  // Build a list from ra of cnt length.
+    
+  // Load everything first, so that we don't get a guard failure
+  // before alloc.
+  // TODO: when typechecks are lazy, this can be done inline, since it's just
+  // stored in a list and doesn't need a typecheck.
+  uint16_t* locs = NULL;
+  for(uint32_t j = ra + cnt - 1; j >= ra; j--) {
+    arrput(locs, record_stack_load(j, frame));
+  }
+  add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
+  trace->snaps[arrlen(trace->snaps) - 1].argcnt = argcnt;
+  //  TODO this forces a side exit without recording.
+  //   Put GC inline in generated code?  Would have to flush
+  //   all registers to stack.
+  trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
+
+  // Build the list.
+  auto knum = arrlen(trace->consts);
+  arrput(trace->consts, NIL_TAG);
+  uint16_t prev = knum | IR_CONST_BIAS;
+  for(uint32_t j = 0; j < cnt; j++) {
+    knum = arrlen(trace->consts);
+    arrput(trace->consts, sizeof(cons_s) << 3);
+    auto cell = push_ir(trace, IR_ALLOC, knum | IR_CONST_BIAS, CONS_TAG,
+                        CONS_TAG);
+    auto ref = push_ir(trace, IR_REF, cell, 8 - CONS_TAG, UNDEFINED_TAG);
+    push_ir(trace, IR_STORE, ref, locs[j], UNDEFINED_TAG);
+    ref = push_ir(trace, IR_REF, cell, 8 + 8 - CONS_TAG, UNDEFINED_TAG);
+    push_ir(trace, IR_STORE, ref, prev, UNDEFINED_TAG);
+    prev = cell;
+  }
+  regs[INS_A(i)] = prev;
+  arrfree(locs);
+}
+
+void check_emit_funcv(uint32_t startpc, uint32_t* pc, long* frame, long argcnt) {
+  if (INS_OP(startpc) == FUNCV) {
+    auto ra = INS_A(startpc);
+    //printf("NEEDS FUNCV-ifying %i %li\n", ra, argcnt-ra);
+    record_funcv(startpc, pc, frame, argcnt);
+  }
+}
+
 extern unsigned char hotmap[hotmap_sz];
 int record_instr(unsigned int *pc, long *frame, long argcnt) {
   unsigned int i = *pc;
@@ -516,6 +565,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     } else {
       if (verbose)
         printf("Record stop loop\n");
+      check_emit_funcv(trace->startpc, pc, frame, argcnt);
       record_stop(pc, frame, arrlen(traces));
       return 1;
     }
@@ -552,48 +602,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case FUNCV: {
     // TODO: We could do build_list before at start of trace
     if (arrlen(trace->ops) == 0) {
-      printf("Record abort: Can't start at FUNCV\n");
-      record_abort();
-      return 1;
+      /* printf("Record abort: Can't start at FUNCV\n"); */
+      /* record_abort(); */
+      /* return 1; */
+      break;
     }
-    // Otherwise we're on-trace, and the last IR was a call.
-    auto ra = INS_A(i);
-    auto cnt = argcnt - ra;
-    // Build a list from ra of cnt length.
-    
-    // Load everything first, so that we don't get a guard failure
-    // before alloc.
-    // TODO: when typechecks are lazy, this can be done inline, since it's just
-    // stored in a list and doesn't need a typecheck.
-    uint16_t* locs = NULL;
-    for(uint32_t j = ra + cnt - 1; j >= ra; j--) {
-      arrput(locs, record_stack_load(j, frame));
-    }
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
-    trace->snaps[arrlen(trace->snaps) - 1].argcnt = argcnt;
-    //  TODO this forces a side exit without recording.
-    //   Put GC inline in generated code?  Would have to flush
-    //   all registers to stack.
-    trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
-
-    // Build the list.
-    auto knum = arrlen(trace->consts);
-    arrput(trace->consts, NIL_TAG);
-    uint16_t prev = knum | IR_CONST_BIAS;
-    for(uint32_t j = 0; j < cnt; j++) {
-      knum = arrlen(trace->consts);
-      arrput(trace->consts, sizeof(cons_s) << 3);
-      auto cell = push_ir(trace, IR_ALLOC, knum | IR_CONST_BIAS, CONS_TAG,
-                        CONS_TAG);
-      auto ref = push_ir(trace, IR_REF, cell, 8 - CONS_TAG, UNDEFINED_TAG);
-      push_ir(trace, IR_STORE, ref, locs[j], UNDEFINED_TAG);
-      ref = push_ir(trace, IR_REF, cell, 8 + 8 - CONS_TAG, UNDEFINED_TAG);
-      push_ir(trace, IR_STORE, ref, prev, UNDEFINED_TAG);
-      prev = cell;
-    }
-    regs[INS_A(i)] = prev;
+    record_funcv(i, pc, frame, argcnt);
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
-    arrfree(locs);
     break;
   }
   case ICLFUNC:
@@ -822,6 +837,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       if (target == pc_start) {
         if (verbose)
           printf("Record stop up-recursion\n");
+	check_emit_funcv(trace->startpc, pc, frame, argcnt);
         record_stop(target, frame, arrlen(traces));
         return 1;
       } // TODO fix flush
@@ -1800,21 +1816,29 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto *ctrace = trace_cache_get(INS_D(i));
     if (INS_OP(ctrace->startpc) == CLFUNC) {
       if (argcnt != INS_A(ctrace->startpc)) {
+	// The check will fail, and we will fall through to a later
+	// CLFUNC.
         break;
       }
     }
+    // If it is a returning non-looping trace, trace through it.
     if (ctrace->link == -1) {
       assert(patchpc == nullptr);
       patchpc = pc;
       patchold = *pc;
       *pc = traces[INS_D(*pc)]->startpc;
+
+      // Check if it is a FUNCV and emit a list build if necessary.
+      check_emit_funcv(*pc, pc, frame, argcnt);
       break;
     }
+    // Otherwise, we're going to link to the JFUNC.
     for (int j = 0; j < INS_A(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
     if (verbose)
       printf("Record stop JFUNC\n");
+    check_emit_funcv(traces[INS_D(i)]->startpc, pc, frame, argcnt);
     record_stop(pc, frame, INS_D(i));
     return 1;
   }
