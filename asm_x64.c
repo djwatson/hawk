@@ -612,6 +612,100 @@ void emit_op_typecheck(uint8_t reg, uint8_t type, uint64_t offset) {
   }
 }
 
+void asm_add_to_pcopy(map* moves, ir_ins* op, uint16_t val, trace_s* trace) {
+  // If it is a constant, just emit it.
+  if (val >= IR_CONST_BIAS) {
+    emit_mov64(op->reg, trace->consts[val - IR_CONST_BIAS]);
+  } else {
+    auto old_op = &trace->ops[val];
+
+    uint32_t from = old_op->reg;
+    // If it was in a slot, then use the slot.
+    if (old_op->slot != SLOT_NONE) {
+      from = old_op->slot + REG_NONE;
+    }
+    uint32_t to = op->reg;
+    // if it is to a slot and no reg, move to the slot.
+    if (op->reg == REG_NONE) {
+      if (op->slot != SLOT_NONE) {
+	to = op->slot + REG_NONE;
+      }
+    }
+    // Add it to the map.
+    if (to != REG_NONE) {
+      map_insert(moves, from, to);
+    }
+    if (verbose)
+      printf("Insert parallel copy %i to %i\n", from, to);
+    // If it has a slot *and* a reg, it was only moved to the reg,
+    // so emit a mov to the slot also.
+    if (op->slot != SLOT_NONE && op->reg != REG_NONE) {
+      emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
+      emit_mov64(R15, (int64_t)&spill_slot[op->slot]);
+    }
+  }
+}
+
+// Given the result map from pcopy, emit the actual series of moves.
+// Could be slot->slot, slot->reg, reg->slot.  Also we can't use R15,
+// since that was a tmp var given to pcopy to break cycles.
+void asm_emit_pcopy(map* res) {
+  for (int64_t i = (int64_t)res->mp_sz - 1; i >= 0; i--) {
+    // printf("Doing copy from %i to %i\n", res->mp[i].from, res->mp[i].to);
+    if (res->mp[i].from >= REG_NONE && res->mp[i].to >= REG_NONE) {
+      // Move from spill to spill.
+      // Need two tmp.
+      emit_pop(RAX);
+      emit_pop(R15);
+      emit_mem_reg(OP_MOV_RM, 0, R15, RAX);
+      emit_mov64(R15, (int64_t)&spill_slot[res->mp[i].to - REG_NONE]);
+      emit_mem_reg(OP_MOV_MR, 0, R15, RAX);
+      emit_mov64(R15, (int64_t)&spill_slot[res->mp[i].from - REG_NONE]);
+      emit_push(R15);
+      emit_push(RAX);
+      if (verbose)
+	printf("WARNING slow spill to spill move\n");
+    } else if (res->mp[i].from >= REG_NONE) {
+      // Move from spill to reg.  Need a tmp.
+      if (res->mp[i].to != R15) {
+	emit_pop(R15);
+      }
+      emit_mem_reg(OP_MOV_MR, 0, R15, res->mp[i].to);
+      emit_mov64(R15, (int64_t)&spill_slot[res->mp[i].from - REG_NONE]);
+      if (res->mp[i].to != R15) {
+	emit_push(R15);
+      }
+    } else if (res->mp[i].to >= REG_NONE) {
+      // Move from reg to spill.  Need a tmp.
+      uint8_t tmp = R15;
+      if (res->mp[i].from == tmp) {
+	tmp = RAX;
+      }
+      emit_pop(tmp);
+      emit_mem_reg(OP_MOV_RM, 0, tmp, res->mp[i].from);
+      emit_mov64(tmp, (int64_t)&spill_slot[res->mp[i].to - REG_NONE]);
+      emit_push(tmp);
+    } else {
+      emit_reg_reg(OP_MOV, res->mp[i].from, res->mp[i].to);
+    }
+  }
+}
+
+void asm_jit_args(trace_s *trace) {
+  auto last_snap = &trace->snaps[arrlen(trace->snaps)-1];
+  // Parallel move if there are args
+
+  map moves;
+  map res;
+  for (size_t op_cnt2 = 0; op_cnt2 < arrlen(trace->ops); op_cnt2++) {
+    auto op = &trace->ops[op_cnt2];
+    if (op->op != IR_ARG) {
+      break;
+    }
+    auto val = find_val_for_slot(op->op1, last_snap, trace);
+  }
+}
+
 void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   emit_init();
   lru_init(&reg_lru);
@@ -687,38 +781,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       }
     }
 
-    //     // Parallel move if there are args
-    //     {
-    //       std::multimap<uint64_t, uint64_t> moves;
-    //       std::vector<std::pair<int, uint16_t>> consts;
-    //       for (size_t op_cnt2 = 0; op_cnt2 < arrlen(otrace->ops); op_cnt2++)
-    //       {
-    // 	auto&op = otrace->ops[op_cnt2];
-    // 	// TODO parent type
-    // 	if (op.op != IR_ARG) {
-    // 	  break;
-    // 	}
-    // 	auto oldreg = find_reg_for_slot(op.op1 + last_snap->offset, &last_snap,
-    // trace); 	if (oldreg >= IR_CONST_BIAS) {
-    // 	  consts.push_back(std::make_pair(op.reg, oldreg));
-    // 	} else {
-    // 	  moves.insert(std::make_pair(oldreg, op.reg));
-    // 	}
-    //       }
-    //       auto res = serialize_parallel_copy(moves, 12 /* r15 */);
-    //       printf("Parellel copy:\n");
-    //       for(auto&mov: moves) {
-    // 	printf(" %li to %li\n", mov.first, mov.second);
-    //       }
-    //       printf("----------------\n");
-    //       for(auto&mov : res) {
-    // 	a.mov(ir_to_asmjit[mov.second], ir_to_asmjit[mov.first]);
-    //       }
-    //       for(auto&c : consts) {
-    // 	auto con = trace->consts[c.second - IR_CONST_BIAS];
-    // 	a.mov(ir_to_asmjit[c.first], con & ~SNAP_FRAME);
-    //       }
-    //     }
     assign_snap_registers(arrlen(trace->snaps) - 1, slot, trace, &next_spill);
     emit_snap(arrlen(trace->snaps) - 1, trace,
               (INS_OP(otrace->startpc) != FUNC));
@@ -1266,82 +1328,26 @@ done:
     for (; op_cnt >= 0; op_cnt--) {
       auto op = &trace->ops[op_cnt];
       auto val = find_val_for_slot(op->op1, side_exit, parent);
-      if (val >= IR_CONST_BIAS) {
-        emit_mov64(op->reg, parent->consts[val - IR_CONST_BIAS]);
-      } else {
-        auto old_op = &parent->ops[val];
-        // Parallel move direct to register.
-        uint32_t from = old_op->reg;
-        if (old_op->slot != SLOT_NONE) {
-          from = old_op->slot + REG_NONE;
-        }
-        uint32_t to = op->reg;
-        // TODO if also slot, move to slot.
-        if (op->reg == REG_NONE) {
-	  if (op->slot != SLOT_NONE) {
-	    to = op->slot + REG_NONE;
-	  }
-        }
-	if (to != REG_NONE) {
-	  map_insert(&moves, from, to);
-	}
-        if (verbose)
-          printf("Insert parallel copy %i to %i\n", from, to);
-        if (op->slot != SLOT_NONE && op->reg != REG_NONE) {
-          emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
-          emit_mov64(R15, (int64_t)&spill_slot[op->slot]);
-        }
-      }
+      asm_add_to_pcopy(&moves, op, val, parent);
     }
     serialize_parallel_copy(&moves, &res, R15);
-    for (int64_t i = (int64_t)res.mp_sz - 1; i >= 0; i--) {
-      // printf("Doing copy from %i to %i\n", res.mp[i].from, res.mp[i].to);
-      if (res.mp[i].from >= REG_NONE && res.mp[i].to >= REG_NONE) {
-        // Move from spill to spill.
-        // Need a second tmp.
-        emit_pop(RAX);
-        emit_pop(R15);
-        emit_mem_reg(OP_MOV_RM, 0, R15, RAX);
-        emit_mov64(R15, (int64_t)&spill_slot[res.mp[i].to - REG_NONE]);
-        emit_mem_reg(OP_MOV_MR, 0, R15, RAX);
-        emit_mov64(R15, (int64_t)&spill_slot[res.mp[i].from - REG_NONE]);
-        emit_push(R15);
-        emit_push(RAX);
-        if (verbose)
-          printf("WARNING slow spill to spill move\n");
-      } else if (res.mp[i].from >= REG_NONE) {
-        // Move from spill to reg.
-        if (res.mp[i].to != R15) {
-          emit_pop(R15);
-        }
-        emit_mem_reg(OP_MOV_MR, 0, R15, res.mp[i].to);
-        emit_mov64(R15, (int64_t)&spill_slot[res.mp[i].from - REG_NONE]);
-        if (res.mp[i].to != R15) {
-          emit_push(R15);
-        }
-      } else if (res.mp[i].to >= REG_NONE) {
-        // Move from reg to spill.
-        uint8_t tmp = R15;
-        if (res.mp[i].from == tmp) {
-          tmp = RAX;
-        }
-        emit_pop(tmp);
-        emit_mem_reg(OP_MOV_RM, 0, tmp, res.mp[i].from);
-        emit_mov64(tmp, (int64_t)&spill_slot[res.mp[i].to - REG_NONE]);
-        emit_push(tmp);
-      } else {
-        emit_reg_reg(OP_MOV, res.mp[i].from, res.mp[i].to);
-      }
-    }
+    asm_emit_pcopy(&res);
   }
 
-  auto start = emit_offset();
+  trace->fn = (Func)emit_offset();
+  
   if (loop_offset_label != 0U) {
-    emit_bind(start, loop_offset_label);
+    emit_bind(emit_offset(), loop_offset_label);
   }
+
+  if (trace->link == trace->num) {
+    // It's a self loop.
+    asm_jit_args(trace);
+  }
+  
+  auto start = emit_offset();
   Func fn = (Func)start;
 
-  trace->fn = fn;
   auto len = (int)(end - start);
   if (verbose) {
     disassemble((const uint8_t *)fn, len);

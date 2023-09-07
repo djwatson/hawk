@@ -630,23 +630,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case CLFUNC:
   case IFUNC:
   case FUNC: {
-    // TODO this is for register-based arguments
-    // if (arrlen(trace->ops) == 0) {
-    //   for(unsigned arg = 0; arg < INS_A(*pc); arg++) {
-    // 	ir_ins ins;
-    // 	ins.reg = REG_NONE;
-    // 	ins.op1 = arg;
-    // 	ins.op = IR_ARG;
-    // 	// Guard on type
-    // 	auto type = frame[arg] & 0x7;
-    // 	ins.type = type;
-
-    // 	regs[arg] = arrlen(trace->ops);
-    // 	arrput(trace->ops, ins);
-
-    //   }
-    //}
-    // TODO: argcheck?
     break;
   }
   case CALLCC: {
