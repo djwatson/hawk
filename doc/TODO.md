@@ -1,14 +1,13 @@
 # Getting all jit to work bench2
 
-* too many traces - conform compiler mazefun maze matrix peval scheme dynamic lattice nucleic read1 slatex
-* see NYI.txt
-
-* TOo much VM time - fib (fail to catch uprec), compiler (funcv), earley (uneoll), scheme(unroll?, slatex (funcv/clfuncv), lattice?(unroll)
+* TOo much VM time - fib (fail to catch uprec), earley (uneoll), scheme(unroll?, slatex (missing funcs) lattice?(unroll)
 
 * funcv/clfuncv - list, string-append, append
 * apply
 
 # TODO
+
+* NYI:apply, close, file-exists?, open, delete-file, read-line
 
 * UNDEFINED_TAG
 * cleanup the IR_GUARD_TYPE to separate field?

@@ -1,17 +1,17 @@
 test/bench2/ack.scm
-On-trace: 99.69%
+On-trace: 99.71%
 In-gc: 0.00%
-VM: 0.31%
+VM: 0.29%
 
 test/bench2/array1.scm
-On-trace: 90.36%
-In-gc: 2.51%
-VM: 7.13%
+On-trace: 91.03%
+In-gc: 2.23%
+VM: 6.74%
 
 test/bench2/browse.scm
-On-trace: 89.12%
-In-gc: 6.88%
-VM: 4.00%
+On-trace: 89.45%
+In-gc: 7.03%
+VM: 3.52%
 
 test/bench2/bv2string.scm
 On-trace: 0.00%
@@ -19,9 +19,9 @@ In-gc: 0.00%
 VM: 100.00%
 
 test/bench2/cat.scm
-On-trace: 99.13%
+On-trace: 98.74%
 In-gc: 0.00%
-VM: 0.87%
+VM: 1.26%
 
 test/bench2/chudnovsky.scm
 FAIL ARGCNT INVALID
@@ -30,74 +30,71 @@ In-gc: 0.00%
 VM: 100.00%
 
 test/bench2/compiler.scm
-On-trace: 54.94%
-In-gc: 11.87%
-VM: 33.19%
+On-trace: 55.15%
+In-gc: 11.99%
+VM: 32.86%
 
 test/bench2/conform.scm
-On-trace: 92.96%
-In-gc: 4.91%
-VM: 2.12%
+On-trace: 94.00%
+In-gc: 4.78%
+VM: 1.22%
 
 test/bench2/cpstak.scm
-On-trace: 87.46%
-In-gc: 12.32%
-VM: 0.22%
+On-trace: 88.39%
+In-gc: 11.42%
+VM: 0.19%
 
 test/bench2/ctak.scm
-On-trace: 70.09%
-In-gc: 29.66%
-VM: 0.25%
+On-trace: 70.24%
+In-gc: 29.53%
+VM: 0.23%
 
 test/bench2/deriv.scm
-On-trace: 89.82%
-In-gc: 9.75%
-VM: 0.43%
-
-test/bench2/destruc.scm
-On-trace: 95.86%
-In-gc: 3.51%
-VM: 0.63%
-
-test/bench2/diviter.scm
-On-trace: 89.19%
-In-gc: 10.33%
+On-trace: 90.62%
+In-gc: 8.90%
 VM: 0.48%
 
+test/bench2/destruc.scm
+
+test/bench2/diviter.scm
+On-trace: 89.27%
+In-gc: 10.30%
+VM: 0.43%
+
 test/bench2/divrec.scm
-On-trace: 93.16%
-In-gc: 6.53%
+On-trace: 93.02%
+In-gc: 6.66%
 VM: 0.32%
 
 test/bench2/dynamic.scm
-On-trace: 78.32%
-In-gc: 18.46%
-VM: 3.22%
+On-trace: 78.10%
+In-gc: 19.07%
+VM: 2.84%
 
 test/bench2/earley.scm
-On-trace: 33.88%
-In-gc: 52.02%
-VM: 14.10%
+On-trace: 33.59%
+In-gc: 51.33%
+VM: 15.08%
 
 test/bench2/fft.scm
-On-trace: 1.30%
-In-gc: 24.71%
-VM: 73.99%
+On-trace: 1.15%
+In-gc: 23.36%
+VM: 75.48%
 
 test/bench2/fibc.scm
-On-trace: 74.80%
-In-gc: 24.71%
+On-trace: 76.93%
+In-gc: 22.59%
 VM: 0.48%
 
 test/bench2/fibfp.scm
 On-trace: 0.00%
-In-gc: 2.47%
-VM: 97.53%
+In-gc: 2.48%
+VM: 97.52%
 
 test/bench2/fib.scm
-On-trace: 78.86%
+On-trace: 78.56%
 In-gc: 0.00%
-VM: 21.14%
+VM: 21.44%
 
 test/bench2/gcbench.scm
 Running gcbench:20:1
@@ -122,81 +119,81 @@ Elapsed time: 0.0 seconds (0) for gcbench:20:1
 +!CSVLINE!+boom-0.1,gcbench:20:1,0.0
 Compiling script test/bench2/gcbench.scm
 Running script test/bench2/gcbench.scm.bc
-On-trace: 56.43%
-In-gc: 41.68%
-VM: 1.90%
+On-trace: 57.41%
+In-gc: 40.75%
+VM: 1.84%
 
 test/bench2/graphs.scm
-On-trace: 58.70%
-In-gc: 40.70%
-VM: 0.60%
+On-trace: 58.33%
+In-gc: 41.06%
+VM: 0.61%
 
 test/bench2/lattice.scm
-On-trace: 69.25%
-In-gc: 5.92%
-VM: 24.83%
+On-trace: 68.49%
+In-gc: 5.95%
+VM: 25.56%
 
 test/bench2/matrix.scm
-On-trace: 84.51%
-In-gc: 13.79%
-VM: 1.70%
+On-trace: 85.47%
+In-gc: 12.91%
+VM: 1.62%
 
 test/bench2/mazefun.scm
-On-trace: 95.44%
-In-gc: 3.96%
-VM: 0.60%
+On-trace: 95.48%
+In-gc: 3.93%
+VM: 0.59%
 
 test/bench2/maze.scm
-On-trace: 90.80%
-In-gc: 4.44%
-VM: 4.75%
+On-trace: 91.44%
+In-gc: 3.86%
+VM: 4.70%
 
 test/bench2/mbrot.scm
-On-trace: 1.26%
-In-gc: 5.48%
-VM: 93.27%
+On-trace: 1.41%
+In-gc: 5.24%
+VM: 93.36%
 
 test/bench2/mbrotZ.scm
 
 test/bench2/mperm.scm
-On-trace: 38.01%
-In-gc: 61.76%
-VM: 0.24%
+On-trace: 38.17%
+In-gc: 61.58%
+VM: 0.26%
 
 test/bench2/nboyer.scm
-On-trace: 54.51%
-In-gc: 43.81%
-VM: 1.68%
+On-trace: 54.59%
+In-gc: 43.69%
+VM: 1.73%
 
 test/bench2/nqueens.scm
-On-trace: 97.43%
-In-gc: 2.39%
+On-trace: 97.55%
+In-gc: 2.28%
 VM: 0.18%
 
 test/bench2/ntakl.scm
-On-trace: 99.76%
+On-trace: 99.77%
 In-gc: 0.00%
-VM: 0.24%
+VM: 0.23%
 
 test/bench2/nucleic.scm
-On-trace: 48.56%
-In-gc: 8.58%
-VM: 42.86%
+On-trace: 47.54%
+In-gc: 7.68%
+VM: 44.77%
 
 test/bench2/paraffins.scm
-On-trace: 39.99%
-In-gc: 59.35%
+On-trace: 40.53%
+In-gc: 58.81%
 VM: 0.66%
 
 test/bench2/parsing.scm
-On-trace: 92.91%
-In-gc: 1.41%
-VM: 5.69%
+On-trace: 92.79%
+In-gc: 1.42%
+VM: 5.79%
 
 test/bench2/peval.scm
-On-trace: 87.17%
-In-gc: 9.85%
-VM: 2.98%
+On-trace: 87.83%
+In-gc: 10.21%
+VM: 1.96%
 
 test/bench2/pi.scm
 FAIL ARGCNT INVALID
@@ -205,69 +202,69 @@ In-gc: 0.00%
 VM: 100.00%
 
 test/bench2/pnpoly.scm
-On-trace: 4.96%
-In-gc: 0.92%
-VM: 94.12%
+On-trace: 4.54%
+In-gc: 0.89%
+VM: 94.57%
 
 test/bench2/primes.scm
-On-trace: 85.42%
-In-gc: 13.36%
-VM: 1.23%
+On-trace: 85.89%
+In-gc: 12.88%
+VM: 1.24%
 
 test/bench2/puzzle.scm
-On-trace: 97.76%
-In-gc: 1.50%
-VM: 0.74%
+On-trace: 97.80%
+In-gc: 1.44%
+VM: 0.77%
 
 test/bench2/quicksort.scm
-On-trace: 32.84%
-In-gc: 0.60%
-VM: 66.56%
+On-trace: 32.67%
+In-gc: 0.55%
+VM: 66.78%
 
 test/bench2/ray.scm
-On-trace: 39.83%
-In-gc: 1.86%
-VM: 58.31%
+On-trace: 39.67%
+In-gc: 1.61%
+VM: 58.73%
 
 test/bench2/read1.scm
-On-trace: 97.09%
-In-gc: 2.26%
-VM: 0.64%
+On-trace: 97.26%
+In-gc: 2.24%
+VM: 0.50%
 
 test/bench2/sboyer.scm
-On-trace: 81.92%
-In-gc: 14.68%
-VM: 3.40%
+On-trace: 82.01%
+In-gc: 14.25%
+VM: 3.73%
 
 test/bench2/scheme.scm
-On-trace: 72.65%
-In-gc: 4.39%
-VM: 22.96%
+On-trace: 72.31%
+In-gc: 4.17%
+VM: 23.52%
 
 test/bench2/simplex.scm
-On-trace: 51.57%
-In-gc: 0.73%
-VM: 47.70%
+On-trace: 50.99%
+In-gc: 0.76%
+VM: 48.25%
 
 test/bench2/slatex.scm
-On-trace: 39.01%
-In-gc: 2.28%
-VM: 58.71%
+On-trace: 38.82%
+In-gc: 2.22%
+VM: 58.95%
 
 test/bench2/string.scm
-On-trace: 98.36%
-In-gc: 1.39%
-VM: 0.26%
+On-trace: 98.37%
+In-gc: 1.40%
+VM: 0.23%
 
 test/bench2/sum1.scm
-On-trace: 50.74%
-In-gc: 1.34%
-VM: 47.93%
+On-trace: 52.41%
+In-gc: 1.41%
+VM: 46.18%
 
 test/bench2/sumfp.scm
 On-trace: 0.00%
-In-gc: 2.92%
-VM: 97.08%
+In-gc: 3.16%
+VM: 96.84%
 
 test/bench2/sum.scm
 On-trace: 98.97%
@@ -275,9 +272,9 @@ In-gc: 0.00%
 VM: 1.03%
 
 test/bench2/tail.scm
-On-trace: 41.20%
-In-gc: 6.88%
-VM: 51.92%
+On-trace: 41.86%
+In-gc: 9.04%
+VM: 49.10%
 
 test/bench2/takl.scm
 On-trace: 99.79%
@@ -285,17 +282,17 @@ In-gc: 0.00%
 VM: 0.21%
 
 test/bench2/tak.scm
-On-trace: 99.62%
+On-trace: 99.63%
 In-gc: 0.00%
-VM: 0.38%
+VM: 0.37%
 
 test/bench2/triangl.scm
-On-trace: 99.10%
-In-gc: 0.04%
-VM: 0.86%
+On-trace: 99.16%
+In-gc: 0.02%
+VM: 0.81%
 
 test/bench2/wc.scm
-On-trace: 99.45%
+On-trace: 99.43%
 In-gc: 0.00%
-VM: 0.55%
+VM: 0.57%
 
