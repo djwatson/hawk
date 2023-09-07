@@ -711,6 +711,9 @@ if (INS_OP(trace->startpc) == CLFUNC) {
     goto out;
   }
  }
+if (INS_OP(trace->startpc) == FUNCV) {
+    frame[ra] = build_list(ra, argcnt - ra, frame);
+}
 #ifdef PROFILER
 in_jit = true;
 #endif
