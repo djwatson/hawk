@@ -63,9 +63,6 @@ void print_help() {
   printf("  -h, --help     \tPrint this help\n");
 }
 
-extern unsigned char bootstrap_scm_bc[];
-extern unsigned int bootstrap_scm_bc_len;
-
 static bool list = false;
 extern unsigned TRACE_MAX;
 
@@ -170,12 +167,8 @@ int main(int argc, char *argv[]) {
   }
 #endif
   auto ojoff = joff;
+  load_bootstrap();
   joff = 1;
-  if (bootstrap_scm_bc_len > 0) {
-    auto *start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
-    //printf("Running boot image...\n");
-    run(start_func, 0, nullptr);
-  }
 
   for (int i = optind; i < argc; i++) {
     auto len = strlen(argv[i]);

@@ -3,6 +3,7 @@
 #include "ir.h"           // for reloc, trace_s, RELOC_ABS, RELOC_SYM_ABS
 #include "symbol_table.h" // for sym_table, table, TOMBSTONE
 #include "third-party/stb_ds.h"
+#include "defs.h"
 #include "types.h"    // for TAG_MASK, FORWARD_TAG, SYMBOL_TAG, symbol
 #include <assert.h>   // for assert
 #include <stdint.h>   // for uint8_t, int64_t
@@ -259,7 +260,7 @@ uint8_t *to_space = NULL;
 uint8_t *from_space = NULL;
 static bool embiggen = false;
 
-void GC_init() {
+EXPORT void GC_init() {
   alloc_sz = 4096 * page_cnt;
   from_space = (uint8_t *)mmap(NULL, alloc_sz * 2, PROT_READ | PROT_WRITE,
                                MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);

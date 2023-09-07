@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "jitdump.h"
+#include "defs.h"
 #include <assert.h>   // for assert
 #include <elf.h>      // for (anonymous), Elf64_Shdr, Elf64...
 #include <fcntl.h>    // for open, O_CLOEXEC, O_CREAT, O_RDWR
@@ -85,7 +86,7 @@ struct {
   uint64_t flags;
 } header;
 
-void jit_dump_init() {
+EXPORT void jit_dump_init() {
   char buf[256];
 
   sprintf(buf, "jit-%i.dump", getpid());
@@ -116,7 +117,7 @@ void jit_dump_init() {
   }
 }
 
-void jit_dump_close() {
+EXPORT void jit_dump_close() {
   if (mapaddr) {
     munmap(mapaddr, sizeof(header));
     close(fd);

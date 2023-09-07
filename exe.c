@@ -20,8 +20,6 @@
 
 extern bool jit_dump_flag;
 
-extern unsigned char bootstrap_scm_bc[];
-extern unsigned int bootstrap_scm_bc_len;
 __attribute__((weak)) unsigned char exe_scm_bc[0];
 __attribute__((weak)) unsigned int exe_scm_bc_len;
 
@@ -37,11 +35,7 @@ int main(int argc, char *argv[]) {
 
   GC_init();
   joff = 1;
-  if (bootstrap_scm_bc_len > 0) {
-    auto *start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
-    //printf("Running boot image...\n");
-    run(start_func, 0, nullptr);
-  }
+  load_bootstrap();
   
   {
     joff = 0;

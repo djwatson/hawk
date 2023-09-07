@@ -21,6 +21,7 @@
 // only for tcache
 #include "record.h" // for trace_cache_get, record_side
 #include "types.h"  // for CONS_TAG, TAG_MASK, IMMEDIATE_MASK
+#include "defs.h"
 
 #include "vm.h"
 #include "lru.h"
@@ -40,7 +41,7 @@ extern long *frame_top;
 extern uint8_t *alloc_ptr;
 extern uint8_t *alloc_end;
 
-bool jit_dump_flag = false;
+EXPORT bool jit_dump_flag = false;
 
 int64_t spill_slot[256];
 lru reg_lru;

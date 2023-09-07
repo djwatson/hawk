@@ -1,5 +1,6 @@
 #include "bytecode.h"    // for bcfunc, INS_OP, ins_names
 #include "vm.h"          // for find_func_for_frame
+#include "defs.h"
 
 #include <assert.h>       // for assert
 #include <signal.h>       // for sigaction, sigevent, SIGRTMIN
@@ -102,7 +103,7 @@ static void handler(int sig, siginfo_t *si, void *uc) {
   }
 }
 
-void profiler_start() {
+EXPORT void profiler_start() {
   struct sigevent sev;
 
   struct sigaction sa;
@@ -169,7 +170,7 @@ void profiler_start() {
 /*   } */
 /* } */
 
-void profiler_stop() {
+EXPORT void profiler_stop() {
 /*   tree tree_root; */
   timer_delete(timerid);
   uint64_t tot = 0;
