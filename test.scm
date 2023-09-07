@@ -13,9 +13,5 @@
 
 (display (foo 1000 2))
 (newline)
-(define (bar x)
-  (if (= x 0) 0
-      (begin
-	(foo 1 1 2 3)
-	(bar (- x 1)))))
+(define (bar x) x)
 (display (bar 1000))
