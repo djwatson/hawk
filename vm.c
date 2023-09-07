@@ -711,7 +711,16 @@ if (INS_OP(trace->startpc) == CLFUNC) {
     goto out;
   }
  }
+if (INS_OP(trace->startpc) == CLFUNCV) {
+  if (argcnt < INS_A(trace->startpc)) {
+    pc += INS_D(*(pc + 1)) + 1;
+    goto out;
+  }
+ }
 if (INS_OP(trace->startpc) == FUNCV) {
+    frame[ra] = build_list(ra, argcnt - ra, frame);
+}
+if (INS_OP(trace->startpc) == CLFUNCV) {
     frame[ra] = build_list(ra, argcnt - ra, frame);
 }
 #ifdef PROFILER
