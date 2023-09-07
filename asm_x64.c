@@ -206,6 +206,21 @@ void maybe_assign_register(int v, trace_s *trace, int *slot,
   }
 }
 
+void maybe_assign_register_hint(int v, trace_s *trace, int *slot,
+				uint32_t *next_spill, uint8_t hint) {
+  if (!ir_is_const(v)) {
+    auto op = &trace->ops[v];
+    if (op->reg == REG_NONE) {
+      if (slot[hint] == -1) {
+	op->reg = hint;
+	slot[hint] = v;
+	lru_poke(&reg_lru, op->reg);
+      } else {
+	maybe_assign_register(v, trace, slot, next_spill);
+      }
+    }
+  }
+}
 void assign_snap_registers(unsigned snap_num, int *slot, trace_s *trace,
                            uint32_t *next_spill) {
   auto snap = &trace->snaps[snap_num];
@@ -337,22 +352,24 @@ uint16_t find_val_for_slot(int slot, snap_s *snap, trace_s *trace) {
   exit(-1);
 }
 
-void assign_call_registers(uint16_t op, trace_s* trace, int*slot, uint32_t *next_spill) {
+static const uint8_t call_regs[] = {RDI, RSI, RDX, RCX, R8, R9};
+
+void assign_call_registers(uint16_t op, trace_s* trace, int*slot, uint32_t *next_spill, int arg) {
   // TODO: could put directly in correct reg?
   // What happens if we need to MOV them around?
   if (!ir_is_const(op)) {
     auto cop = &trace->ops[op];
     if(cop->op == IR_CARG) {
-      maybe_assign_register(cop->op1, trace, slot, next_spill);
-      assign_call_registers(cop->op2, trace, slot, next_spill);
+      maybe_assign_register_hint(cop->op1, trace, slot, next_spill, call_regs[arg]);
+      assign_call_registers(cop->op2, trace, slot, next_spill, arg+1);
     } else {
-      maybe_assign_register(op, trace, slot, next_spill);
+      maybe_assign_register_hint(op, trace, slot, next_spill, call_regs[arg]);
     }
   }
 }
 
 void emit_call_arguments(uint16_t op, trace_s* trace, int arg) {
-  static const uint8_t call_regs[] = {RDI, RSI, RDX, RCX, R8, R9};
+  // R15 is in use for RDI, but RAX is free.
   assert(arg < 6);
   uint8_t reg = call_regs[arg];
   if (ir_is_const(op)) {
@@ -366,7 +383,18 @@ void emit_call_arguments(uint16_t op, trace_s* trace, int arg) {
       emit_call_arguments(cop->op1, trace, arg);
       emit_call_arguments(cop->op2, trace, arg + 1);
     } else {
-      emit_reg_reg(OP_MOV, trace->ops[op].reg, reg);
+      //assert(trace->ops[op].slot == REG_NONE);
+      if (trace->ops[op].reg == REG_NONE) {
+	// TODO this branch can never happen???  Either it's in a
+	// callee-saved reg, or we just assigned it to the correct
+	// register directly using a hint.  No parallel move
+	// necessary.
+	assert(trace->ops[op].slot != SLOT_NONE);
+	emit_mem_reg(OP_MOV_MR, 0, RAX, reg);
+	emit_mov64(RAX, (int64_t)&spill_slot[trace->ops[op].slot - REG_NONE]);
+      } else {
+	emit_reg_reg(OP_MOV, trace->ops[op].reg, reg);
+      }
     }
   }
 }
@@ -987,10 +1015,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       }
       preserve_for_call(trace, slot, &next_spill);
 
-      // TODO assign to arg1 directly
-      assign_call_registers(op->op1, trace, slot, &next_spill);
+      assign_call_registers(op->op1, trace, slot, &next_spill, 0);
 
-      // TODO typecheck
       // Restore scheme frame ptr
       // C here is function ptr, const, nonGC
       auto c = trace->consts[op->op2 - IR_CONST_BIAS];
