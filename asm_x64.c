@@ -197,8 +197,8 @@ void maybe_assign_register(int v, trace_s *trace, int *slot,
 
       // Reload from spill slot.
       /* if (op->slot != SLOT_NONE) { */
-      /* 	printf("Assigning register %s to op %i spilled slot %i\n",
-       * reg_names[op->reg], v, op->slot); */
+      /* 	printf("Assigning register %s to op %i spilled slot %i\n", */
+      /* 	       reg_names[op->reg], v, op->slot); */
       /* } */
       /* printf("Assigning register %s to op %i\n", reg_names[op->reg], v); */
     }
@@ -266,12 +266,12 @@ jit_entry_stub(long *o_frame, Func fptr, exit_state *regs) {
              // RDI 56, scheme frame ptr.
              "mov r8, [r15 + 64]\n"
              "mov r9, [r15 + 72]\n"
-             "mov r10, [r15 + 88]\n"
-             "mov r11, [r15 + 96]\n"
-             "mov r12, [r15 + 104]\n"
-             "mov r13, [r15 + 112]\n"
-             "mov r14, [r15 + 120]\n"
-             "mov r15, [r15 + 128]\n"
+             "mov r10, [r15 + 80]\n"
+             "mov r11, [r15 + 88]\n"
+             "mov r12, [r15 + 96]\n"
+             "mov r13, [r15 + 102]\n"
+             "mov r14, [r15 + 112]\n"
+             "mov r15, [r15 + 120]\n"
 
              "pop r15\n"
              "jmp r15\n"

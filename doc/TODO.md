@@ -1,8 +1,18 @@
 # Getting all jit to work bench2
 
+ 42 - bench/graphs (SIGTRAP)
+	 51 - bench2/deriv (Subprocess killed)
+	 54 - bench2/divrec (Subprocess killed)
+	 61 - bench2/ctak (Subprocess killed)
+	 79 - bench2/wc (SIGTRAP)
+	 85 - bench2/graphs (Subprocess killed)
+	 86 - bench2/lattice (Failed)
+	 88 - bench2/maze (SIGTRAP)
+	 91 - bench2/paraffins (SIGTRAP)
+	 92 - bench2/parsing (SIGTRAP)
+
 * TOo much VM time - fib (fail to catch uprec), earley (uneoll), scheme(unroll?, slatex (missing funcs) lattice?(unroll)
 
-* funcv/clfuncv - list, string-append, append
 * apply
 
 # TODO
