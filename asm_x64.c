@@ -223,11 +223,37 @@ void maybe_assign_register_hint(int v, trace_s *trace, int *slot,
 }
 void assign_snap_registers(unsigned snap_num, int *slot, trace_s *trace,
                            uint32_t *next_spill) {
+  // Get a free register, if any.  If already assigned a slot, do nothing.
+  // If no free registers, assign a slot.
   auto snap = &trace->snaps[snap_num];
   for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto s = &snap->slots[i];
     if ((s->val & IR_CONST_BIAS) == 0) {
-      maybe_assign_register(s->val, trace, slot, next_spill);
+      auto op = &trace->ops[s->val];
+      if (op->reg == REG_NONE && op->slot == SLOT_NONE) {
+	// Try and find a free reg, or assign the next spill slot.
+	bool done = false;
+	for (int j = 0; j < regcnt; j++) {
+	  if (slot[j] == -1) {
+	    op->reg = j;
+	    slot[op->reg] = s->val;
+	    done = true;
+	    lru_poke(&reg_lru, op->reg);
+	    /* printf("Assigning snap register %s to op %i\n", reg_names[op->reg], s->val); */
+	    break;
+	  }
+	}
+	if (!done) {
+	  // Couldn't find a free reg, assign a slot.
+	  op->slot = (*next_spill)++;
+	  /* printf("Assigning snap slot %i to op %i\n", op->slot, s->val); */
+	  if (*next_spill >= 255) {
+	    printf("Too many spill slots\n");
+	    exit(-1);
+	  }
+	}
+      }
+      //maybe_assign_register(s->val, trace, slot, next_spill);
     }
   }
 }
