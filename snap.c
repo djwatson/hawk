@@ -1,3 +1,4 @@
+#include "snap.h"
 #include "asm_x64.h" // for REG_NONE
 #include "ir.h"      // for snap_s, snap_entry_s, ir_ins, trace_s, IR_CONST...
 #include "third-party/stb_ds.h"
@@ -33,7 +34,8 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
     }
   }
   if (arrlen(trace->snaps) > 0 && trace->snaps[arrlen(trace->snaps)-1].ir == snap.ir) {
-    arrpop(trace->snaps);
+    snap_s sn = arrpop(trace->snaps);
+    free_snap(&sn);
   }
   arrput(trace->snaps, snap);
 }
@@ -69,4 +71,8 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
   }
   *regs = *regs + snap->offset;
   *d = snap->depth;
+}
+
+void free_snap(snap_s* snap) {
+  arrfree(snap->slots);
 }
