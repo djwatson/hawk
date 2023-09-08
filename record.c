@@ -424,6 +424,15 @@ void record_abort() {
   if (!parent) {
     penalty_pc(pc_start);
   }
+  // TODO separate func
+  for(uint64_t i = 0; i < arrlen(trace->snaps); i++) {
+    free_snap(&trace->snaps[i]);
+  }
+  arrfree(trace->consts);
+  arrfree(trace->relocs);
+  arrfree(trace->ops);
+  arrfree(trace->snaps);
+  
   pendpatch();
   free(trace);
   trace = nullptr;
@@ -1907,5 +1916,15 @@ trace_s *trace_cache_get(unsigned int tnum) { return traces[tnum]; }
 EXPORT void free_trace() {
   if (verbose) {
     printf("Traces: %li\n", arrlen(traces));
+  }
+  for(uint64_t i = 0; i < arrlen(traces); i++) {
+    for(uint64_t j = 0; j < arrlen(traces[i]->snaps); j++) {
+      free_snap(&traces[i]->snaps[j]);
+    }
+    arrfree(traces[i]->relocs);
+    arrfree(traces[i]->ops);
+    arrfree(traces[i]->consts);
+    arrfree(traces[i]->snaps);
+    free(traces[i]);
   }
 }
