@@ -26,3 +26,4 @@ void vm_make_string(long str, long ch);
 void vm_make_vector(long vec, long v);
 long vm_callcc(long* frame);
 long vm_cc_resume(long c);
+void expand_stack(long **o_frame);
