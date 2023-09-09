@@ -17,3 +17,6 @@ libwrite_double.so
 opcodes*
 vm.ll
 bootstrap.c
+test/tmp3
+test/bench/foo
+test/outputs/*
