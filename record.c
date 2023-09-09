@@ -1927,4 +1927,5 @@ EXPORT void free_trace() {
     arrfree(traces[i]->snaps);
     free(traces[i]);
   }
+  arrfree(traces);
 }

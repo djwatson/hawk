@@ -260,6 +260,10 @@ uint8_t *to_space = NULL;
 uint8_t *from_space = NULL;
 static bool embiggen = false;
 
+static void GC_deinit() {
+  arrfree(pushed_roots);
+}
+
 EXPORT void GC_init() {
   alloc_sz = 4096 * page_cnt;
   from_space = (uint8_t *)mmap(NULL, alloc_sz * 2, PROT_READ | PROT_WRITE,
@@ -271,6 +275,7 @@ EXPORT void GC_init() {
 #ifndef NDEBUG
   mprotect(to_space, alloc_sz, PROT_NONE);
 #endif
+  atexit(&GC_deinit);
 }
 
 #ifdef PROFILER

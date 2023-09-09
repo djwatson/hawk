@@ -248,6 +248,7 @@ EXPORT void free_script() {
     free(func);
   }
   arrfree(funcs);
+  arrfree(symbols);
   // TODO symbol_table
   free(const_table);
   const_table = NULL;

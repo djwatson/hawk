@@ -221,9 +221,12 @@ void emit_push(uint8_t r) {
 }
 
 void emit_pop(uint8_t r) {
-  emit_modrm(0x3, 0, 0x7 & r);
-  *(--p) = 0x8f;
-  emit_rex(1, 0, 0, r >> 3);
+  //emit_modrm(0x3, 0, 0x7 & r);
+  //*(--p) = 0x8f;
+  *(--p) = 0x58 | (0x7 & r);
+  if (r >> 3) {
+    emit_rex(0, 0, 0, r >> 3);
+  }
 }
 
 void emit_cmovl(uint8_t dst, uint8_t src) {
@@ -252,6 +255,8 @@ void emit_check() {
   }
 }
 
+void emit_cleanup() { munmap(mtop, msize); }
+
 void emit_init() {
   if (mtop) {
     return;
@@ -259,12 +264,12 @@ void emit_init() {
 
   mtop = (uint8_t *)mmap(NULL, msize, PROT_READ | PROT_WRITE | PROT_EXEC,
                          MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  atexit(&emit_cleanup);
   assert(mtop);
   p = mtop + msize;
   mend = p;
 }
 
-void emit_cleanup() { munmap(mtop, msize); }
 
 /*
 int main() {
