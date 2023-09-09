@@ -43,6 +43,7 @@ unsigned char hotmap[hotmap_sz];
 static void vm_init() {
   if (stack == NULL) {
     stack = (long *)malloc(sizeof(long) * stacksz);
+    memset(stack, 0, sizeof(long)*stacksz);
   }
 }
 
