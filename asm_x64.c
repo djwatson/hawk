@@ -669,6 +669,9 @@ void asm_add_to_pcopy(map* moves, ir_ins* op, uint16_t val, trace_s* trace) {
 // Given the result map from pcopy, emit the actual series of moves.
 // Could be slot->slot, slot->reg, reg->slot.  Also we can't use R15,
 // since that was a tmp var given to pcopy to break cycles.
+//
+// TODO: move slots to a RIP relative location, and we can do this without
+//       a tmp for slot->reg and reg->slot, and a single tmp for slot->slot
 void asm_emit_pcopy(map* res) {
   for (int64_t i = (int64_t)res->mp_sz - 1; i >= 0; i--) {
     // printf("Doing copy from %i to %i\n", res->mp[i].from, res->mp[i].to);
@@ -711,19 +714,27 @@ void asm_emit_pcopy(map* res) {
   }
 }
 
-void asm_jit_args(trace_s *trace) {
+void asm_jit_args(trace_s *trace, trace_s* dest_trace) {
+  //printf("ASM JIT ARGS END %p\n", emit_offset());
   auto last_snap = &trace->snaps[arrlen(trace->snaps)-1];
   // Parallel move if there are args
 
   map moves;
   map res;
-  for (size_t op_cnt2 = 0; op_cnt2 < arrlen(trace->ops); op_cnt2++) {
-    auto op = &trace->ops[op_cnt2];
+  moves.mp_sz = 0;
+  long cnt = 0;
+  for (size_t op_cnt2 = 0; op_cnt2 < arrlen(dest_trace->ops); op_cnt2++) {
+    auto op = &dest_trace->ops[op_cnt2];
     if (op->op != IR_ARG) {
       break;
     }
-    auto val = find_val_for_slot(op->op1, last_snap, trace);
+    /* printf("Trace needs to fill %li (slot %i) reg %s\n", op_cnt2, op->op1, reg_names[op->reg]); */
+    auto val = find_val_for_slot(op->op1 + last_snap->offset, last_snap, trace);
+    asm_add_to_pcopy(&moves, op, val, trace);
   }
+  serialize_parallel_copy(&moves, &res, R15);
+  asm_emit_pcopy(&res);
+  //printf("ASM JIT ARGS START %p CNT %i\n", emit_offset());
 }
 
 void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
@@ -799,8 +810,13 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     }
 
     assign_snap_registers(arrlen(trace->snaps) - 1, slot, trace, &next_spill);
+    if (trace->link != trace->num) {
+      /* printf("Linking trace %li to trace %li\n", trace->num, trace->link); */
+      asm_jit_args(trace, otrace);
+    }
+  
     emit_snap(arrlen(trace->snaps) - 1, trace,
-              (INS_OP(otrace->startpc) != FUNC));
+              (INS_OP(otrace->startpc) != FUNC && INS_OP(otrace->startpc) != LOOP));
   } else {
     // No link, jump back to interpreter loop.
     emit_check();
@@ -837,13 +853,30 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     /* } */
 
     // free current register.
-    if (op->reg != REG_NONE && op->reg != RDI) {
+    if (op->reg != REG_NONE && op->reg != RDI && op->op != IR_ARG) {
       assert(slot[op->reg] == op_cnt);
       slot[op->reg] = -1;
     }
 
     emit_check();
     switch (op->op) {
+    case IR_ARG: {
+      // Used for typecheck only
+      if (op->reg == REG_NONE) {
+        op->reg = get_free_reg(trace, &next_spill, slot, false);
+        // printf("EMIT LOAD ONLY\n");
+      }
+      // JIT will load ARG on start.
+      emit_op_typecheck(op->reg, op->type, snap_labels[cur_snap]);
+      if (op->slot != SLOT_NONE) {
+	auto offset = emit_offset();
+	emit_imm8(0xcc);
+	emit_jcc32(JE, offset);
+	emit_mem_reg(OP_CMP, 0, R15, op->reg);
+	emit_mov64(R15, (int64_t)&spill_slot[op->slot]);
+      }
+      break;
+    }
     case IR_SLOAD: {
       // Used for typecheck only
       if (op->reg == REG_NONE) {
@@ -1353,15 +1386,15 @@ done:
 
   trace->fn = (Func)emit_offset();
   
+  if (trace->link == trace->num) {
+    // It's a self loop.
+    asm_jit_args(trace, trace);
+  }
+  
   if (loop_offset_label != 0U) {
     emit_bind(emit_offset(), loop_offset_label);
   }
 
-  if (trace->link == trace->num) {
-    // It's a self loop.
-    asm_jit_args(trace);
-  }
-  
   auto start = emit_offset();
   Func fn = (Func)start;
 
@@ -1371,7 +1404,8 @@ done:
   }
 
   if (side_exit != nullptr) {
-    emit_bind(start, side_exit->patchpoint);
+    assert(fn == trace->fn);
+    emit_bind((uint64_t)trace->fn, side_exit->patchpoint);
   }
 
   char* dumpname = parent ? "Side Trace" : "Trace";
@@ -1398,10 +1432,18 @@ int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame, long* argcnt
     if (op->op != IR_ARG) {
       break;
     }
-    state.regs[op->reg] = (*o_frame)[op->op1];
+    if (op->reg != REG_NONE) {
+      /* printf("Set reg %s to %li\n", reg_names[op->reg], (*o_frame)[op->op1]); */
+      state.regs[op->reg] = (*o_frame)[op->op1];
+    }
+    // TODO this also spills above for IR_ARG, unnecessarily
+    if (op->slot != SLOT_NONE) {
+      /* printf("Set slot %i to %li\n", op->slot, (*o_frame)[op->op1]); */
+      spill_slot[op->slot] = (*o_frame)[op->op1];
+    }
   }
 
-  // printf("FN start %i\n", tnum);
+   /* printf("FN start %i\n", tnum); */
   jit_entry_stub(*o_frame, trace->fn, &state);
   trace = state.trace;
   long unsigned exit = state.snap;
