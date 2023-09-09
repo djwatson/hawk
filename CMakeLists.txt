@@ -4,6 +4,34 @@ include(CheckIPOSupported)
 check_ipo_supported(RESULT supported OUTPUT error)
 
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "RelWithDebInfo")
+endif()
+
+set(CMAKE_C_FLAGS_ASAN
+        "-fsanitize=address -fno-optimize-sibling-calls -fsanitize-address-use-after-scope -fno-omit-frame-pointer -g -O1"
+        CACHE STRING "Build with AddressSanitizer"
+        FORCE)
+set(CMAKE_C_FLAGS_LSAN
+        "-fsanitize=leak -fno-omit-frame-pointer -g -O1"
+        CACHE STRING "Build with LeakSanitizer"
+        FORCE)
+ 
+    set(CMAKE_CXX_FLAGS_TSAN
+        "-fsanitize=thread -g -O1"
+        CACHE STRING "Build with ThreadSanitizer"
+        FORCE)
+ 
+    set(CMAKE_C_FLAGS_MSAN
+        "-fsanitize=memory -fno-optimize-sibling-calls -fsanitize-memory-track-origins=2 -fno-omit-frame-pointer -g -O2"
+        CACHE STRING "Build with MemorySanitizer"
+        FORCE)
+ 
+    set(CMAKE_C_FLAGS_UBSAN
+        "-fsanitize=undefined"
+        CACHE STRING "Build with UndefinedBehaviourSanitizer"
+        FORCE)      
+      
 # Clang is required, due to use of musttail.
 set(CMAKE_C_COMPILER "clang")
 
@@ -128,11 +156,6 @@ add_executable(boom  boom.c)
 target_link_libraries(boom PUBLIC boom_vm)
 target_compile_options(boom PRIVATE  ${COMPILE_FLAGS} )
 set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-
-# target_compile_options(boom PRIVATE -fsanitize=address,undefined)
-# target_link_options(boom PRIVATE -fsanitize=address,undefined)
-# target_compile_options(boom_vm PRIVATE -fsanitize=address,undefined)
-
 
 # Tests
 add_test(NAME r5rs_pitfall COMMAND ./boom test/r5rs_pitfall.scm)
