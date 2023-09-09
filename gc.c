@@ -182,12 +182,14 @@ static void visit_trace(trace_s *t) {
     if (reloc->obj != old) {
       switch (reloc->type) {
       case RELOC_ABS: {
-        *(int64_t *)(reloc->offset - 8) = reloc->obj;
+	int64_t v = reloc->obj;
+	memcpy((int64_t*)(reloc->offset - 8), &v, sizeof(int64_t));
         break;
       }
       case RELOC_SYM_ABS: {
         auto *sym = (symbol *)(reloc->obj - SYMBOL_TAG);
-        *(int64_t *)(reloc->offset - 8) = (int64_t) & (sym->val);
+	int64_t v = (int64_t)&sym->val;
+	memcpy((int64_t*)(reloc->offset - 8), &v, sizeof(int64_t));
         break;
       }
       default: {

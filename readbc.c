@@ -107,7 +107,8 @@ long read_const(FILE *fptr) {
       long len;
       fread(&len, 8, 1, fptr);
 
-      long vals[len]; // VLA
+      long* vals = malloc(sizeof(long) * len);
+      assert(vals);
       for (long i = 0; i < len; i++) {
         vals[i] = read_const(fptr);
         GC_push_root(&vals[i]);
@@ -120,6 +121,7 @@ long read_const(FILE *fptr) {
         v->v[i] = vals[i];
         GC_pop_root(&vals[i]);
       }
+      free(vals);
       val = (long)v | PTR_TAG;
     } else {
       printf("Unknown boxed type:%lx\\n", ptrtype);

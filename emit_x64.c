@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <string.h>
 
 #include "emit_x64.h"
 
@@ -35,12 +36,12 @@ void emit_imm8(uint8_t imm) { *(--p) = imm; }
 
 void emit_imm64(int64_t imm) {
   p -= sizeof(int64_t);
-  *(int64_t *)p = imm;
+  memcpy(p, &imm, sizeof(imm));
 }
 
 void emit_imm32(int32_t imm) {
   p -= sizeof(int32_t);
-  *(int32_t *)p = imm;
+  memcpy(p, &imm, sizeof(imm));
 }
 
 void emit_mov64(uint8_t r, int64_t imm) {
@@ -244,8 +245,9 @@ void emit_bind(uint64_t label, uint64_t jmp) {
   assert(jmp);
   assert(label);
   auto offset = (int32_t)((int64_t)label - (int64_t)jmp);
-  *(int32_t *)(jmp - 4) = offset;
+  memcpy((int32_t*)(jmp - 4), &offset, sizeof(int32_t));
 }
+
 void emit_advance(int64_t offset) { p -= offset; }
 
 void emit_check() {
