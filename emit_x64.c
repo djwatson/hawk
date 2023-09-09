@@ -47,20 +47,23 @@ void emit_imm32(int32_t imm) {
 void emit_mov64(uint8_t r, int64_t imm) {
   // Note that 'imm' isn't necessarily a number here,
   // so we can't narrow negative numbers.
-  /* if (imm & 0xffffffff00000000) { */
+#ifndef VALGRIND
+  if (imm & 0xffffffff00000000) {
+#endif
     emit_imm64(imm);
     *(--p) = 0xb8 | (0x7 & r);
     emit_rex(1, 0, 0, r >> 3);
-
-  // Unfortunately valgrind doesn't like this:
-  // We do *NOT* want to sign-extend here!
-  /* } else { */
-  /*   emit_imm32((int32_t)imm); */
-  /*   *(--p) = 0xb8 | (0x7 & r); */
-  /*   if (r >> 3) { */
-  /*     emit_rex(0, 0, 0, r >> 3); */
-  /*   } */
-  /* } */
+#ifndef VALGRIND
+  } else {
+    // Unfortunately valgrind doesn't like this:
+    // We do *NOT* want to sign-extend here!
+    emit_imm32((int32_t)imm);
+    *(--p) = 0xb8 | (0x7 & r);
+    if (r >> 3) {
+      emit_rex(0, 0, 0, r >> 3);
+    }
+  }
+#endif
 }
 
 void emit_call_indirect(uint8_t r) {

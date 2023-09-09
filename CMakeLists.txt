@@ -15,9 +15,11 @@ set(CMAKE_C_STANDARD 17)
 include(CheckIncludeFiles)
 CHECK_INCLUDE_FILES("elf.h" HAVE_ELF)
 CHECK_INCLUDE_FILES("capstone/capstone.h" HAVE_CAPSTONE)
-CHECK_INCLUDE_FILES("valgrind/valgrind.h" HAVE_VALGRIND)
 
 enable_testing()
+
+# VALGRIND is optional.
+option(VALGRIND "Enable VALGRIND" OFF)
 
 # the JIT is optional.
 option(JIT "Enable JIT" ON)
@@ -57,8 +59,9 @@ if (JIT)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DCAPSTONE")
     set(LIBRARIES ${LIBRARIES} "capstone")
   endif()
-  if (HAVE_VALGRIND)
+  if (VALGRIND)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DVALGRIND")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -gdwarf-3")
   endif()
   if (HAVE_ELF)
     set(SOURCES ${SOURCES} jitdump.c)
@@ -114,7 +117,7 @@ add_custom_command(
 add_custom_command(
   OUTPUT opcodes.c opcodes.h opcodes-table.h opcodes.scm
   COMMAND
-  rsync ${CMAKE_SOURCE_DIR}/opcode_gen.scm ${CMAKE_SOURCE_DIR}/util.scm .
+  rsync ${CMAKE_SOURCE_DIR}/opcode_gen.scm ${CMAKE_SOURCE_DIR}/util.scm ${CMAKE_SOURCE_DIR}/vm.c .
   COMMAND
   ${CHEZ} --script opcode_gen.scm
   DEPENDS util.scm opcode_gen.scm vm.c
