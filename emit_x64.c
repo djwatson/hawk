@@ -47,15 +47,20 @@ void emit_imm32(int32_t imm) {
 void emit_mov64(uint8_t r, int64_t imm) {
   // Note that 'imm' isn't necessarily a number here,
   // so we can't narrow negative numbers.
-  if (imm & 0xffffffff00000000) {
+  /* if (imm & 0xffffffff00000000) { */
     emit_imm64(imm);
     *(--p) = 0xb8 | (0x7 & r);
     emit_rex(1, 0, 0, r >> 3);
-  } else {
-    emit_imm32((int32_t)imm);
-    *(--p) = 0xb8 | (0x7 & r);
-    emit_rex(0, 0, 0, r >> 3);
-  }
+
+  // Unfortunately valgrind doesn't like this:
+  // We do *NOT* want to sign-extend here!
+  /* } else { */
+  /*   emit_imm32((int32_t)imm); */
+  /*   *(--p) = 0xb8 | (0x7 & r); */
+  /*   if (r >> 3) { */
+  /*     emit_rex(0, 0, 0, r >> 3); */
+  /*   } */
+  /* } */
 }
 
 void emit_call_indirect(uint8_t r) {
@@ -167,7 +172,9 @@ void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
   if ((0x7 & r1) == RSP) {
     emit_mem_reg_sib(opcode, offset, 0, RSP, r1, r2);
   } else {
-    if ((int32_t)((int8_t)offset) == offset) {
+    if (offset == 0 && (0x7 & r1) != RBP) {
+      emit_modrm(0x0, 0x7 & r2, 0x7 & r1);
+    } else if ((int32_t)((int8_t)offset) == offset) {
       *(--p) = (int8_t)offset;
       emit_modrm(0x1, 0x7 & r2, 0x7 & r1);
     } else {
