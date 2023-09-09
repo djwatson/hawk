@@ -172,35 +172,25 @@ __attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
   printf("FAIL undefined symbol: %s\n", sym_name->str);
 }
 
-__attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
+void expand_stack(long **o_frame) {
   if (verbose) {
     printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
   }
-  auto pos = frame - stack;
+  auto pos = *o_frame - stack;
   auto oldsz = stacksz;
   stacksz *= 2;
   stack = (long *)realloc(stack, stacksz * sizeof(long));
   memset(&stack[oldsz], 0, sizeof(long) * (stacksz - oldsz));
-  frame = stack + pos;
+  *o_frame = stack + pos;
   frame_top = stack + stacksz - 256;
+}
+
+__attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
+  expand_stack(&frame);
 
   NEXT_INSTR;
 }
 
-long *expand_stack_slowpath(long *frame) {
-  if (verbose) {
-    printf("Expand stack from %i to %i in jit\n", stacksz, stacksz * 2);
-  }
-  auto pos = frame - stack;
-  auto oldsz = stacksz;
-  stacksz *= 2;
-  stack = (long *)realloc(stack, stacksz * sizeof(long));
-  memset(&stack[oldsz], 0, sizeof(long) * (stacksz - oldsz));
-  frame = stack + pos;
-  frame_top = stack + stacksz - 256;
-
-  return frame;
-}
 /* A whole pile of macros to make opcode generation easier.
  *
  * The B/BC/D refer to opcode type.  'NAME' refers to scm vs C name.

@@ -35,8 +35,6 @@
 
 extern bool verbose;
 
-// TODO
-long *expand_stack_slowpath(long *frame);
 extern long *frame_top;
 extern uint8_t *alloc_ptr;
 extern uint8_t *alloc_end;
@@ -347,6 +345,9 @@ static void __attribute__((noinline)) __attribute__((naked)) jit_exit_stub() {
 void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
                   long **o_frame, unsigned int **o_pc) {
   (*o_frame) = (long *)state->regs[RDI];
+  if ((*o_frame) >= frame_top) {
+    expand_stack(o_frame);
+  }
   for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto slot = &snap->slots[i];
     if ((slot->val & IR_CONST_BIAS) != 0) {
@@ -785,14 +786,11 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     auto last_snap = &trace->snaps[arrlen(trace->snaps) - 1];
     if (last_snap->offset != 0U) {
       emit_arith_imm(OP_ARITH_ADD, RDI, last_snap->offset * 8);
-      auto ok = emit_offset();
-      // Emit a stack overflow check
+      // Emit a stack overflow check, abort if overflow.
+      // Note that there is a 'redzone', so we only have to check
+      // if RDI exceeds the max stack.
       if (last_snap->offset > 0) {
-        emit_reg_reg(OP_MOV, RAX, RDI);
-        emit_call_indirect(R15);
-        emit_mov64(R15, (int64_t)&expand_stack_slowpath);
-        // TODO check offset
-        emit_jcc32(JBE, ok);
+	emit_jcc32(JG, snap_labels[arrlen(trace->snaps)-1]);
         emit_reg_reg(OP_CMP, R15, RDI);
         // TODO merge if in top?
         emit_mem_reg(OP_MOV_MR, 0L, R15, R15);
