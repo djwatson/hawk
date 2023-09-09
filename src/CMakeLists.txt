@@ -1,6 +1,6 @@
 
   set(SOURCES readbc.c opcodes.c vm.c bootstrap.c ir.c types.c symbol_table.c gc.c opcodes.h opt_loop.c parallel_copy.c lru.c  third-party/stb_ds.c)
-set(SCM_SOURCES ../bc.scm ../passes.scm ../bootstrap.scm ../memory_layout.scm ../bc.chez.scm ../bc.chicken.scm ../util.scm ../str2num.scm)
+set(SCM_SOURCES ../lib/bc.scm ../lib/passes.scm ../lib/bootstrap.scm ../lib/memory_layout.scm ../lib/bc.chez.scm ../lib/bc.chicken.scm ../lib/util.scm ../lib/str2num.scm)
 set(COMPILE_FLAGS -I${CMAKE_BINARY_DIR}/src -fvisibility=hidden -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference)
 set(LIBRARIES "m")
 if (JIT) 
@@ -54,7 +54,7 @@ add_custom_command(
   COMMAND
   mkdir -p third-party
   COMMAND
-  rsync ${CMAKE_SOURCE_DIR}/bc.chez.scm ${CMAKE_SOURCE_DIR}/bc.scm ${CMAKE_SOURCE_DIR}/memory_layout.scm ${CMAKE_SOURCE_DIR}/passes.scm ${CMAKE_SOURCE_DIR}/bootstrap.scm ${CMAKE_SOURCE_DIR}/str2num.scm .
+  rsync ${CMAKE_SOURCE_DIR}/lib/bc.chez.scm ${CMAKE_SOURCE_DIR}/lib/bc.scm ${CMAKE_SOURCE_DIR}/lib/memory_layout.scm ${CMAKE_SOURCE_DIR}/lib/passes.scm ${CMAKE_SOURCE_DIR}/lib/bootstrap.scm ${CMAKE_SOURCE_DIR}/lib/str2num.scm .
   COMMAND
   rsync ${CMAKE_SOURCE_DIR}/third-party/alexpander.scm third-party/.
   COMMAND
@@ -68,10 +68,10 @@ add_custom_command(
 add_custom_command(
   OUTPUT opcodes.c opcodes.h opcodes-table.h opcodes.scm
   COMMAND
-  rsync ${CMAKE_SOURCE_DIR}/opcode_gen.scm ${CMAKE_SOURCE_DIR}/util.scm ${CMAKE_SOURCE_DIR}/src/vm.c .
+  rsync ${CMAKE_SOURCE_DIR}/lib/opcode_gen.scm ${CMAKE_SOURCE_DIR}/lib/util.scm ${CMAKE_SOURCE_DIR}/src/vm.c .
   COMMAND
-  ${CHEZ} --script opcode_gen.scm
-  DEPENDS ../util.scm ../opcode_gen.scm vm.c
+  ${CHEZ} --script ${CMAKE_SOURCE_DIR}/lib/opcode_gen.scm
+  DEPENDS ${CMAKE_SOURCE_DIR}/lib/util.scm ${CMAKE_SOURCE_DIR}/lib/opcode_gen.scm vm.c
 )
 
 # Actual executable
