@@ -892,7 +892,10 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case KSHORT: {
-    int64_t k = ((int16_t)INS_D(i)) << 3;
+    // Lots of casting to avoid left-shifting a signed number.
+    // Frontend has already verified the signed number fits in
+    // int16_t, so shift is okay.
+    int64_t k = (uint64_t)((int64_t)(int16_t)INS_D(i)) << 3;
     auto reg = INS_A(i);
     regs[reg] = arrlen(trace->consts) | IR_CONST_BIAS;
     arrput(trace->consts, k);

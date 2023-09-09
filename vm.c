@@ -343,7 +343,12 @@ LIBRARY_FUNC(CLFUNCV)
 }
 
 LIBRARY_FUNC_D(KSHORT)
-  frame[ra] = rd << 3;
+  // RD could be negative, do shift anyway.
+  // Should be already checked in frontend.
+  //
+  // Extends sign to 64 bits, then ignores sign for shift,
+  // then casts back to signed.
+  frame[ra] = (int64_t)((uint64_t)(int64_t)rd << 3);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_D(JMP)
@@ -374,10 +379,10 @@ LIBRARY_FUNC(HALT)
   char rc = (instr >> 8) & 0xff;                                               \
   long fb = frame[rb];                                                         \
   TYPECHECK_TAG(fb, FIXNUM_TAG);                                               \
-  if (unlikely(__builtin_##op##_overflow(fb, (rc << 3), &frame[ra]))) {        \
+  if (unlikely(__builtin_##op##_overflow(fb, (long)((unsigned long)((long)rc) << 3), &frame[ra]))) { \
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }                                                                            \
-  END_LIBRARY_FUNC
+END_LIBRARY_FUNC
 
 LIBRARY_FUNC_MATH_VN(SUBVN, sub);
 LIBRARY_FUNC_MATH_VN(ADDVN, add);
@@ -451,8 +456,8 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
 LIBRARY_FUNC_MATH_OVERFLOW_VV(ADDVV, add, MATH_ADD, 0);
 LIBRARY_FUNC_MATH_OVERFLOW_VV(SUBVV, sub, MATH_SUB, 0);
 LIBRARY_FUNC_MATH_OVERFLOW_VV(MULVV, mul, MATH_MUL, 3);
-LIBRARY_FUNC_MATH_VV(DIV, MATH_DIV, frame[ra] = (fb / fc) << 3);
-LIBRARY_FUNC_MATH_VV(REM, remainder, frame[ra] = ((fb >> 3) % (fc >> 3)) << 3);
+LIBRARY_FUNC_MATH_VV(DIV, MATH_DIV, frame[ra] = ((uint64_t)(fb / fc) << 3));
+LIBRARY_FUNC_MATH_VV(REM, remainder, frame[ra] = ((uint64_t)((fb >> 3) % (fc >> 3))) << 3);
 
 #define LIBRARY_FUNC_EQ(name, iftrue, iffalse, finish) \
   LIBRARY_FUNC_BC_LOAD(name)			\
@@ -892,7 +897,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF)
   if ((long)(str->len >> 3) - pos < 0) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  frame[ra] = (str->str[pos] << 8) | CHAR_TAG;
+  frame[ra] = ((uint64_t)str->str[pos] << 8) | CHAR_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(VECTOR-LENGTH, VECTOR_LENGTH)
@@ -1181,6 +1186,8 @@ LIBRARY_FUNC_B_LOAD(EXACT)
     frame[ra] = fb;
   } else if ((fb & TAG_MASK) == FLONUM_TAG) {
     auto flo = (flonum_s *)(fb - FLONUM_TAG);
+    // TODO: check for bignum overflow.
+    // TODO: left shift of negative number.
     frame[ra] = ((long)flo->x) << 3;
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
