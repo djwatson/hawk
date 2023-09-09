@@ -12,8 +12,8 @@
           (catport port)))))
 
 (define (go)
-  (set! inport (open-input-file "./test/bench/bib"))
-  (set! outport (open-output-file "./test/bench/foo"))
+  (set! inport (open-input-file "./bench/bib"))
+  (set! outport (open-output-file "./bench/foo"))
   (catport inport)
   (close-input-port inport))
 
