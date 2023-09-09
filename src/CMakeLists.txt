@@ -1,6 +1,7 @@
-set(SOURCES readbc.c opcodes.c vm.c bootstrap.c ir.c types.c symbol_table.c gc.c opcodes.h opt_loop.c parallel_copy.c lru.c third-party/stb_ds.c)
+
+  set(SOURCES readbc.c opcodes.c vm.c bootstrap.c ir.c types.c symbol_table.c gc.c opcodes.h opt_loop.c parallel_copy.c lru.c  third-party/stb_ds.c)
 set(SCM_SOURCES ../bc.scm ../passes.scm ../bootstrap.scm ../memory_layout.scm ../bc.chez.scm ../bc.chicken.scm ../util.scm ../str2num.scm)
-set(COMPILE_FLAGS -fvisibility=hidden -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference)
+set(COMPILE_FLAGS -I${CMAKE_BINARY_DIR}/src -fvisibility=hidden -fomit-frame-pointer -fno-rtti -fno-exceptions -Wstrict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference)
 set(LIBRARIES "m")
 if (JIT) 
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DJIT")
