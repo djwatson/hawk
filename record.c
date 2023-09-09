@@ -155,7 +155,16 @@ void print_const_or_val(int i, trace_s *ctrace) {
       string_s* sym_name = (string_s*)(((symbol *)(c-SYMBOL_TAG))->name - PTR_TAG);
       printf("\e[1;35m%s\e[m", sym_name->str);
     } else if (type == PTR_TAG) {
-      printf("ptr");
+      auto type2 = ((long*)(c - PTR_TAG))[0] & 0xff;
+      if (type2 == VECTOR_TAG) {
+	printf("vector");
+      } else  if (type2 == STRING_TAG) {
+	printf("str");
+      } else  if (type2 == PORT_TAG) {
+	printf("port");
+      } else {
+	printf("ptr");
+      }
     } else if (type == LITERAL_TAG) {
       printf("frame");
     } else {
@@ -594,8 +603,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case LOOP: {
+    if (arrlen(trace->ops) == 0) {
+      /* for(unsigned arg = INS_A(*pc); arg < INS_A(*pc) + INS_B(*pc); arg++) { */
+      /* 	regs[arg] = push_ir(trace, IR_ARG, arg, 0, get_object_ir_type(frame[arg]) | IR_INS_TYPE_GUARD); */
+      /* } */
+    } else if (arrlen(trace->ops) != 0 && !parent || (unroll++ >= 3)) {
     // TODO check the way luajit does it
-    if (arrlen(trace->ops) != 0 && !parent || (unroll++ >= 3)) {
       if (!parent) {
         if (verbose)
           printf("Record abort: Root trace hit untraced loop\n");
@@ -630,6 +643,15 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case CLFUNC:
   case IFUNC:
   case FUNC: {
+    if (arrlen(trace->ops) == 0) {
+      for(unsigned arg = 0; arg < INS_A(*pc); arg++) {
+	if (arg >= 6) {
+	  // TODO clean this up in the register allocator.
+	  break;
+	}
+	regs[arg] = push_ir(trace, IR_ARG, arg, 0, get_object_ir_type(frame[arg]) | IR_INS_TYPE_GUARD);
+      }
+    }
     break;
   }
   case CALLCC: {
