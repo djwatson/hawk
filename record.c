@@ -604,9 +604,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case LOOP: {
     if (arrlen(trace->ops) == 0) {
-      /* for(unsigned arg = INS_A(*pc); arg < INS_A(*pc) + INS_B(*pc); arg++) { */
-      /* 	regs[arg] = push_ir(trace, IR_ARG, arg, 0, get_object_ir_type(frame[arg]) | IR_INS_TYPE_GUARD); */
-      /* } */
+      for(unsigned arg = INS_A(*pc); arg < INS_A(*pc) + INS_B(*pc); arg++) {
+	if (arg - INS_A(*pc) >= 6) {
+	  // TODO clean this up in the register allocator.
+	  break;
+	}
+	regs[arg] = push_ir(trace, IR_ARG, arg, 0, get_object_ir_type(frame[arg]) | IR_INS_TYPE_GUARD);
+      }
     } else if (arrlen(trace->ops) != 0 && !parent || (unroll++ >= 3)) {
     // TODO check the way luajit does it
       if (!parent) {
@@ -1879,6 +1883,17 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     if (verbose)
       printf("Record stop hit JLOOP\n");
+    auto startpc = traces[INS_D(i)]->startpc;
+    if (INS_OP(startpc) == LOOP) {
+      // Since some args are in registers for the loop, make sure they're loaded here.
+      for(unsigned arg = INS_A(startpc); arg < INS_A(startpc) + INS_B(startpc); arg++) {
+	if (arg - INS_A(startpc) >= 6) {
+	  // TODO clean this up in the register allocator.
+	  break;
+	}
+	regs[arg] = record_stack_load(arg, frame);
+      }
+    }
     // NOTE: stack load is for ret1 jloop returns.  Necessary?
     // TODO JLOOp also used for loop, only need to record for RET
     regs[INS_A(i)] = record_stack_load(INS_A(i), frame);
