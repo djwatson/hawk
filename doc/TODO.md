@@ -1,10 +1,6 @@
 # Getting all jit to work bench2
 
-* lattice broken under valgrind
-* Cleanup the new diffs
-* Check loop args working, limit to 6
 * emit_snap - don't emit ones that are ARGS.
-  * also check for SLOADs don't need to emit?
 * remove the typecheck - pull it back to caller
 * multiple traces???
 

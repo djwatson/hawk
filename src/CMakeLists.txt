@@ -40,6 +40,7 @@ set(CLOC_SOURCES ${SOURCES} boom.c)
 list(REMOVE_ITEM CLOC_SOURCES bootstrap.c third-party/stb_ds.c opcodes.c opcodes.h)
 add_custom_target(
   cloc
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src
   COMMAND cloc --by-file-by-lang ${SCM_SOURCES} ${CLOC_SOURCES} 
 )
 
