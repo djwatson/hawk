@@ -293,7 +293,7 @@ jit_entry_stub(long *o_frame, Func fptr, exit_state *regs) {
              "mov r10, [r15 + 80]\n"
              "mov r11, [r15 + 88]\n"
              "mov r12, [r15 + 96]\n"
-             "mov r13, [r15 + 102]\n"
+             "mov r13, [r15 + 104]\n"
              "mov r14, [r15 + 112]\n"
              "mov r15, [r15 + 120]\n"
 
@@ -628,7 +628,7 @@ void asm_add_to_pcopy(map* moves, ir_ins* op, uint16_t val, trace_s* trace) {
       emit_mov64(op->reg, c2);
     } else if (op->slot != SLOT_NONE) {
       emit_pop(RAX);
-      emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
+      emit_mem_reg(OP_MOV_RM, 0, R15, RAX);
       emit_mov64(R15, (int64_t)&spill_slot[op->slot]);
       auto c2 = trace->consts[val - IR_CONST_BIAS];
       auto re = (reloc){emit_offset(), c2, RELOC_ABS};
@@ -728,6 +728,7 @@ void asm_jit_args(trace_s *trace, trace_s* dest_trace) {
     if (op->op != IR_ARG) {
       break;
     }
+    // TODO: consts should be treaated separately?
     /* printf("Trace needs to fill %li (slot %i) reg %s\n", op_cnt2, op->op1, reg_names[op->reg]); */
     auto val = find_val_for_slot(op->op1 + last_snap->offset, last_snap, trace);
     asm_add_to_pcopy(&moves, op, val, trace);
@@ -811,7 +812,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
     assign_snap_registers(arrlen(trace->snaps) - 1, slot, trace, &next_spill);
     if (trace->link != trace->num) {
-      /* printf("Linking trace %li to trace %li\n", trace->num, trace->link); */
+      if (verbose) {
+      printf("Linking trace %i to trace %i\n", trace->num, trace->link);
+      }
       asm_jit_args(trace, otrace);
     }
   
