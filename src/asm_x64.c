@@ -871,13 +871,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       }
       // JIT will load ARG on start.
       emit_op_typecheck(op->reg, op->type, snap_labels[cur_snap]);
-      if (op->slot != SLOT_NONE) {
-	auto offset = emit_offset();
-	emit_imm8(0xcc);
-	emit_jcc32(JE, offset);
-	emit_mem_reg(OP_CMP, 0, R15, op->reg);
-	emit_mov64(R15, (int64_t)&spill_slot[op->slot]);
-      }
       break;
     }
     case IR_SLOAD: {
