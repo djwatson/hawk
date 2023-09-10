@@ -350,7 +350,7 @@ void record_start(unsigned int *pc, long *frame) {
     printf("Record start %i at %s func %s\n", trace->num,
            ins_names[INS_OP(*pc)], ((bcfunc *)func)->name);
     if (parent != nullptr) {
-      printf("Parent %i\n", parent->num);
+      printf("Parent %i exit ir %i\n", parent->num, side_exit->ir);
     }
   }
   pc_start = pc;
@@ -365,10 +365,10 @@ void record_start(unsigned int *pc, long *frame) {
     snap_replay(&regs, side_exit, parent, trace, frame, &depth);
   }
   auto next_pc = pc;
-  if (INS_OP(*pc) == FUNC || INS_OP(*pc) == LOOP) {
+  if (INS_OP(*pc) == FUNC || INS_OP(*pc) == LOOP || INS_OP(*pc) == FUNCV) {
     next_pc = pc + 1;
   }
-  if (INS_OP(*pc) == CLFUNC) {
+  if (INS_OP(*pc) == CLFUNC || INS_OP(*pc) == CLFUNCV) {
     next_pc = pc + 2;
   }
   add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
