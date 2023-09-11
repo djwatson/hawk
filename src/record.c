@@ -1625,6 +1625,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[INS_A(i)] = push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
     break;
   }
+  case LENGTH: {
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, (long)vm_length);
+    regs[INS_A(i)] = push_ir(trace, IR_CALLXS, record_stack_load(INS_B(i), frame), knum | IR_CONST_BIAS, UNDEFINED_TAG);
+    break;
+  }
   case GGET: {
     // TODO check it is set?
     long gp = const_table[INS_D(i)];

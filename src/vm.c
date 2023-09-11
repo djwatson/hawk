@@ -475,6 +475,22 @@ LIBRARY_FUNC_EQ(EQ, frame[ra] = TRUE_REP, frame[ra] = FALSE_REP, 1);
 LIBRARY_FUNC_EQ(JEQ, pc += 2, pc += INS_D(*(pc+1)) + 1, 0);
 LIBRARY_FUNC_EQ(JNEQ, pc += INS_D(*(pc+1)) + 1, pc += 2, 0);
 
+long vm_length(long fb) {
+  uint64_t cnt = 0;
+ while(true) {
+   if ((fb & TAG_MASK) != CONS_TAG) {
+     break;
+   }
+   cnt++;
+   fb = ((cons_s*)(fb - CONS_TAG))->b;
+ }
+ return cnt << 3;
+}
+
+LIBRARY_FUNC_B_LOAD(LENGTH)
+  frame[ra] = vm_length(fb);
+END_LIBRARY_FUNC
+
 LIBRARY_FUNC_BC_LOAD_NAME(EQUAL?, EQUAL)
   frame[ra] = equalp(fb, fc);
 END_LIBRARY_FUNC

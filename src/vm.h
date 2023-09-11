@@ -27,3 +27,4 @@ void vm_make_vector(long vec, long v);
 long vm_callcc(long* frame);
 long vm_cc_resume(long c);
 void expand_stack(long **o_frame);
+long vm_length(long fb);
