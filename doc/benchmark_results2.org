@@ -6,17 +6,17 @@
 | sum       |   .642 |    .823 |  -28.193146 | *WIN* |                                                             | x          |
 | diviter   |   1.59 |   1.041 |   34.528302 |       | reg, types, frontend cycles, const pool                     | x          |
 | divrec    |  2.277 |   1.630 |   28.414581 |       | same                                                        | x          |
-| nqueens   |  4.830 |   3.221 |   33.312629 |       | reg, front end, types, const pool                           | x          |
+| nqueens   |  4.390 |   3.221 |   33.312629 |       | reg, front end, types, const pool                           | x          |
 | mperm     |  2.937 |   6.955 |  -136.80626 | *WIN* |                                                             |            |
 | ntakl     |  3.495 |   2.548 |   27.095851 |       | FRONTEND                                                    | x          |
 | takl      |   3.56 |   2.607 |   26.769663 |       | same as diviter                                             | x          |
 | wc        |  1.430 |    .902 |   36.923077 |       | getc, print_obj, fputc, plt, call constant pool             | x          |
 | cat       |  2.142 |   1.278 |   40.336134 |       | same as wc                                                  | x          |
-| cpstak    |  4.718 |   2.011 |   57.376007 |       | in reg                                                      |            |
+| cpstak    |   3.69 |   2.011 |   57.376007 |       | in reg                                                      |            |
 | primes    |     .7 |   .6999 | 0.014285714 |       | in reg                                                      | x          |
 | deriv     |   1.93 |    .761 |   60.569948 |       | loops??                                                     |            |
 | triangl   |  1.147 |   1.184 |  -3.2258065 | *WIN* |                                                             | x          |
-| destruc   |   2.67 |   1.336 |   49.962547 |       | reg   , typechecks, loop s??                                | x          |
+| destruc   |   1.33 |   1.336 |   49.962547 |       | reg   , typechecks, loop s??                                | x          |
 | gcbench   |    .77 |    .556 |   27.792208 |       | reg, typecheck, const pool                                  |            |
 | puzzle    |  2.015 |   1.642 |   18.511166 |       | reg, callcc                                                 | x          |
 | paraffins |  1.559 |   4.270 |  -173.89352 | *WIN* |                                                             | x          |

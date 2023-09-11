@@ -364,11 +364,7 @@
 		 (i (if (or (inexact? a) (inexact? b)) (inexact m) m)))
 	    (loop (cons i (cddr args)))))))))
 
-(define (length e)
-  (let length-loop ((e e) (cnt 0))
-    (if (pair? e)
-	(length-loop (cdr e) (+ cnt 1))
-	cnt)))
+(define (length e) ($length e))
 (define (list->vector lst)
   (let ((v (make-vector (length lst))))
     (define (setloop place item v)
