@@ -227,6 +227,6 @@ set_tests_properties(bench2/mperm PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 # synth
 # add_test(NAME bench2/bv2string WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test COMMAND ${CMAKE_BINARY_DIR}/src/boom  bench2/bv2string.scm)
 # set_tests_properties(bench2/bv2string PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
-# add_test(NAME bench2/equal WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test COMMAND ${CMAKE_BINARY_DIR}/src/boom  bench2/equal.scm)
-# set_tests_properties(bench2/equal PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
+add_test(NAME bench2/equal WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test COMMAND ${CMAKE_BINARY_DIR}/src/boom  bench2/equal.scm)
+set_tests_properties(bench2/equal PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 

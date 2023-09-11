@@ -1,15 +1,140 @@
 #include "types.h"
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
+#include <assert.h>
 
 #include "gc.h"
 #include "symbol_table.h"
 #include "defs.h"
 
+#include "unionfind.h"
+
 #define auto __auto_type
 #define nullptr NULL
 
-// Mostly for debugging.  Actual scheme display/write is done from scheme.
+// Straight from the paper https://legacy.cs.indiana.edu/~dyb/pubs/equal.pdf
+// Efficient Nondestructive Equality Checking for Trees and Graphs
+// TODO: Note that unlike SCM, this may cause a stack overflow when
+//       we recurse for car and vectors. maybe use an explicit stack here.
+static const long kb = -20;
+static const long k0 = 200;
+typedef struct {
+  bool v;
+  long k;
+} ep_result;
+static ep_result ep(uf* ht, bool unused, long a, long b, long k);
+static ep_result equalp_interleave(uf* ht, bool fast, long a, long b, long k) {
+  // eq?
+  if (a == b) {
+    return (ep_result){true, k};
+  }
+  // Check cons, vector, string for equalp?
+  // cons and vector check unionfind table for cycles.
+  if ((a & TAG_MASK) == CONS_TAG) {
+    if ((b & TAG_MASK) == CONS_TAG) {
+      cons_s* cell_a = (cons_s*)(a - CONS_TAG);
+      cons_s* cell_b = (cons_s*)(b - CONS_TAG);
+      if (!fast && unionfind(ht, a, b)) {
+	return (ep_result){true, 0};
+      }
+      // Decrement k once
+      auto res = ep(ht, fast, cell_a->a, cell_b->a, k - 1);
+      if (true != res.v) {
+	return res;
+      }
+      // And pass k through.
+      k = res.k;
+      __attribute__((musttail)) return ep(ht, fast, cell_a->b, cell_b->b, k);
+    }
+    return (ep_result){false, k};
+  }
+  if ((a & TAG_MASK) == PTR_TAG) {
+    if ((b & TAG_MASK) != PTR_TAG) {
+      return (ep_result){false, k};
+    }
+    long ta = *(long*)(a -  PTR_TAG);
+    long tb = *(long*)(b -  PTR_TAG);
+    if (ta != tb) {
+      return (ep_result){false, k};
+    }
+    if (ta == VECTOR_TAG) {
+      vector_s* va = (vector_s*)(a - PTR_TAG);
+      vector_s* vb = (vector_s*)(b - PTR_TAG);
+      if (va->len != vb->len) {
+	return (ep_result){false, k};
+      }
+      if (!fast && unionfind(ht, a, b)) {
+	return (ep_result){true, 0};
+      }
+      // Decrement K once for the vector, but return same K value
+      uint64_t lim = va->len >> 3;
+      for (uint64_t i = 0; i < lim; i++) {
+	auto res = ep(ht, fast, va->v[i], vb->v[i], k-1);
+	if (true != res.v) {
+	  return res;
+	}
+      }
+      return (ep_result){true, k};
+    }
+    if (ta == STRING_TAG) {
+      string_s* sa = (string_s*)(a - PTR_TAG);
+      string_s* sb = (string_s*)(b - PTR_TAG);
+      if (sa->len != sb->len) {
+	return (ep_result){false, k};
+      }
+      if (strcmp(sa->str, sb->str) == 0) {
+	return (ep_result){true, k};
+      }
+      return (ep_result){false, k};
+    }
+  }
+  //eqp?
+  if ((a & TAG_MASK) == FLONUM_TAG) {
+    if ((b & TAG_MASK) != FLONUM_TAG) {
+      ep_result res = {false, k};
+      return res;
+    }
+    flonum_s* sa = (flonum_s*)(a - FLONUM_TAG);
+    flonum_s* sb = (flonum_s*)(b - FLONUM_TAG);
+    if (sa->x == sb->x) {
+      ep_result res = {true, k};
+      return res;
+    } else {
+      ep_result res = {false, k};
+      return res;
+    }
+  }
+  return (ep_result){false, k};
+}
+
+static ep_result ep(uf* ht, bool unused, long a, long b, long k) {
+  if (k <= 0) {
+    if (k == kb) {
+      k = k0*2;
+      __attribute__((musttail)) return equalp_interleave(ht, true, a, b, k);
+    } else {
+      __attribute__((musttail)) return equalp_interleave(ht, false, a, b, k);
+    }
+  } else {
+    __attribute__((musttail)) return equalp_interleave(ht, true, a, b, k);
+  }
+}
+
+long equalp(long a, long b) {
+  uf ht;
+  uf_init(&ht);
+  long k = k0;
+
+  ep_result res = ep(&ht, true, a, b, k);
+  
+  uf_free(&ht);
+  if (res.v) {
+    return TRUE_REP;
+  }
+  return FALSE_REP;
+}
+
 void print_obj(long obj, FILE *file) {
   if (file == nullptr) {
     file = stdout;

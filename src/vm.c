@@ -475,6 +475,10 @@ LIBRARY_FUNC_EQ(EQ, frame[ra] = TRUE_REP, frame[ra] = FALSE_REP, 1);
 LIBRARY_FUNC_EQ(JEQ, pc += 2, pc += INS_D(*(pc+1)) + 1, 0);
 LIBRARY_FUNC_EQ(JNEQ, pc += INS_D(*(pc+1)) + 1, pc += 2, 0);
 
+LIBRARY_FUNC_BC_LOAD_NAME(EQUAL?, EQUAL)
+  frame[ra] = equalp(fb, fc);
+END_LIBRARY_FUNC
+
 #define LIBRARY_FUNC_NUM_CMP(name, op, func)				      \
  LIBRARY_FUNC_BC_LOAD(name##_SLOWPATH)                                        \
   double x_b;                                                                  \
