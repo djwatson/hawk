@@ -145,22 +145,7 @@
 (define (eq? a b) ($eq a b))
 (define (eqv? a b) ($eqv? a b))
 (define (equal? a b)
-  (if (eqv? a b) #t
-      (cond
-       ((pair? a)
-	(and (pair? b) (equal? (car a) (car b)) (equal? (cdr a) (cdr b))))
-       ((string? a)
-	(and (string? b) (string=? a b)))
-       ((vector? a) 
-	(and (vector? b)
-	     (= (vector-length a) (vector-length b))
-	     (let loop ((i 0))
-	       (if (< i (vector-length a))
-		   (if (equal? (vector-ref a i) (vector-ref b i))
-		       (loop (+ i 1))
-		       #f)
-		   #t)))) 
-       (else #f))))
+  ($equal? a b))
 
 (define (car a) ($car a))
 (define (cdr a) ($cdr a))
