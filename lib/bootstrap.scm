@@ -773,13 +773,14 @@
     (define (read2 port)
       (define (read-to-delimited)
 	(let loop ((res '()) (c (peek-char port)))
-	  (cond
-	   ((eof-object? c) (if (not (null? res)) (list->string (reverse res)) c))
-	   ((memv c '(#\( #\) #\" #\| #\newline #\return #\space #\tab #\;))
-	    (list->string (reverse res)))
-	   (else
-	    (let ((res (cons (read-char port) res)))
-	      (loop res (peek-char port)))))))
+	  (if (eof-object? c)
+	      (if (not (null? res)) (list->string (reverse res)) c)
+	      (case c
+	       ((#\( #\) #\" #\| #\newline #\return #\space #\tab #\;)
+		(list->string (reverse res)))
+	       (else
+		(let ((res (cons (read-char port) res)))
+		  (loop res (peek-char port))))))))
       (define (skip-whitespace)
 	(let loop ()
 	  (let ((c (peek-char port)))
@@ -834,7 +835,9 @@
 	  )
 	)
       (define (lower-case string)
-	(list->string (map char-downcase (string->list string))))
+	(do ((i 0 (+ i 1)))
+	    ((= i (string-length string)) string)
+	  (string-set! string i (char-downcase (string-ref string i)))))
       (define (read-list)
 	(define line-start line)
 	(let loop ((res '()))
