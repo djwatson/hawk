@@ -49,6 +49,7 @@
 (define (push-instr! bc c)
   (func-bc-code-set! bc (cons c (func-bc-code bc))))
 
+(define const-length 0)
 (define (find-const l i c)
   (let loop ((l l) (i i) (c c))
     (if (pair? l)
@@ -58,11 +59,12 @@
 	#f)))
 
 (define (get-or-push-const bc c)
-  (define f (find-const consts (- (length consts) 1) c))
+  (define f (find-const consts (- const-length 1) c))
   (if f
       f
-      (let ((i (length consts)))
+      (let ((i const-length))
 	(push! consts c)
+	(set! const-length (+ 1 const-length))
 	(when (> i 65535)
 	  (display "Error: Const pool overflow")
 	  (exit -1))
@@ -728,6 +730,7 @@
     src)
   (set! consts '(
 		 ))
+  (set! const-length 0)
   (set! symbol-table '())
   (set! program '())
   (-> (with-input-from-file name expander)

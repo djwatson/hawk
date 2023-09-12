@@ -8,12 +8,6 @@
 
 void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
               uint32_t depth) {
-  // No need for duplicate snaps.
-  if ((arrlen(trace->snaps) != 0) &&
-      trace->snaps[arrlen(trace->snaps) - 1].ir == arrlen(trace->ops) &&
-      trace->snaps[arrlen(trace->snaps) - 1].pc == pc) {
-    return;
-  }
   snap_s snap;
   snap.ir = arrlen(trace->ops);
   snap.pc = pc;
@@ -33,6 +27,7 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
       arrput(snap.slots, entry);
     }
   }
+  // No need for duplicate snaps.
   if (arrlen(trace->snaps) > 0 && trace->snaps[arrlen(trace->snaps)-1].ir == snap.ir) {
     snap_s sn = arrpop(trace->snaps);
     free_snap(&sn);
