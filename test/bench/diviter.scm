@@ -23,7 +23,7 @@
 
 ;; (pp (iterative-div2 (create-n 0)))
 ;; (pp (iterative-div2 (create-n 10)))
-(display (length (iterative-div2 (create-n 100000000))))
+(display (length (iterative-div2 (create-n 1000000))))
 
 ;0
 ;1
