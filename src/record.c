@@ -459,7 +459,8 @@ int record(unsigned int *pc, long *frame, long argcnt) {
   case OFF: {
     // TODO fix?
     if (INS_OP(*pc) == JFUNC && side_exit == nullptr) {
-      // printf("CAN'T RECORD TO JFUNC\n");
+       printf("CAN'T RECORD TO JFUNC\n");
+      exit(-1);
       return 1;
     }
     record_start(pc, frame);
@@ -568,6 +569,29 @@ void check_emit_funcv(uint32_t startpc, uint32_t* pc, long* frame, long argcnt) 
   }
 }
 
+bool check_argument_match(long*frame, trace_s* ptrace) {
+  for(uint64_t i =0; i < arrlen(ptrace->ops); i++) {
+    auto op = &ptrace->ops[i];
+    if (op->op != IR_ARG) {
+      break;
+    }
+    assert(regs[op->op1] != -1);
+    uint8_t typ;
+    if (regs[op->op1] & IR_CONST_BIAS) {
+      typ = get_object_ir_type(trace->consts[regs[op->op1] - IR_CONST_BIAS]);
+    } else {
+      typ = trace->ops[regs[op->op1]].type;
+    }
+    if ((typ &~IR_INS_TYPE_GUARD) != (op->type&~IR_INS_TYPE_GUARD)) {
+      /* printf("check argument match fail trace %i arg %li\n", ptrace->num, i); */
+      /* printf("%x vs %x\n", typ&~IR_INS_TYPE_GUARD, (op->type&~IR_INS_TYPE_GUARD)); */
+      //exit(-1);
+      return false;
+    }
+  }
+  return true;
+}
+
 extern unsigned char hotmap[hotmap_sz];
 int record_instr(unsigned int *pc, long *frame, long argcnt) {
   unsigned int i = *pc;
@@ -582,11 +606,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (INS_OP(*pc) == CLFUNC && argcnt != INS_A(*pc)) {
     } else if (INS_OP(*pc) == CLFUNCV && argcnt < INS_A(*pc)) {
     } else {
-      if (verbose)
+      if (check_argument_match(frame, trace)) {
+	if (verbose)
         printf("Record stop loop\n");
-      check_emit_funcv(trace->startpc, pc, frame, argcnt);
-      record_stop(pc, frame, arrlen(traces));
-      return 1;
+	check_emit_funcv(trace->startpc, pc, frame, argcnt);
+	record_stop(pc, frame, arrlen(traces));
+	return 1;
+      }
     }
   }
 
@@ -603,6 +629,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case LOOP: {
+    loopcheck:
     if (arrlen(trace->ops) == 0) {
       for(unsigned arg = INS_A(*pc); arg < INS_A(*pc) + INS_B(*pc); arg++) {
 	if (arg - INS_A(*pc) >= 6) {
@@ -858,7 +885,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       auto *closure = (closure_s *)(v - CLOSURE_TAG);
       auto *cfunc = (bcfunc *)closure->v[0];
       auto *target = cfunc->code;
-      if (target == pc_start) {
+      if (target == pc_start && check_argument_match(frame, trace)) {
         if (verbose)
           printf("Record stop up-recursion\n");
 	check_emit_funcv(trace->startpc, pc, frame, argcnt);
@@ -1869,6 +1896,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         break;
       }
     }
+    // Check if our argument types match.  If not, we trace through.
     // If it is a returning non-looping trace, trace through it.
     if (ctrace->link == -1) {
       assert(patchpc == nullptr);
@@ -1884,6 +1912,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     for (int j = 0; j < INS_A(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
+    bool arg_match = check_argument_match(frame, traces[INS_D(*pc)]);
+    if (!arg_match) {
+      patchpc = pc;
+      patchold = *pc;
+      *pc = traces[INS_D(*pc)]->startpc;
+      // Check if it is a FUNCV and emit a list build if necessary.
+      check_emit_funcv(*pc, pc, frame, argcnt);
+      break;
+    }
+    
     if (verbose)
       printf("Record stop JFUNC\n");
     check_emit_funcv(traces[INS_D(i)]->startpc, pc, frame, argcnt);
@@ -1910,10 +1948,17 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	}
 	regs[arg] = record_stack_load(arg, frame);
       }
+      if (!check_argument_match(frame, traces[INS_D(i)])) {
+	patchpc = pc;
+	patchold = *pc;
+	*pc = traces[INS_D(*pc)]->startpc;
+	goto loopcheck;
+      }
     }
     // NOTE: stack load is for ret1 jloop returns.  Necessary?
     // TODO JLOOp also used for loop, only need to record for RET
     regs[INS_A(i)] = record_stack_load(INS_A(i), frame);
+
     record_stop(pc, frame, INS_D(i));
     return 1;
   }
