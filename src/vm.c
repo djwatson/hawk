@@ -859,6 +859,9 @@ LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR)
   TYPECHECK_FIXNUM(fb);
   
   auto len = fb >> 3;
+  if (len < 0) {
+    MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
+  }
   auto vec = (vector_s *)GC_malloc(sizeof(long) * (len + 2));
   // Load frame[rc] *after* GC
   long fc = frame[rc];
@@ -885,6 +888,9 @@ LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING)
   long fb = frame[rb];
   TYPECHECK_FIXNUM(fb);
   auto len = fb >> 3;
+  if (len < 0) {
+    MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
+  }
   auto str = (string_s *)GC_malloc((sizeof(long) * 2) + len + 1);
   
   long fc = frame[rc]; // Load fc after GC
