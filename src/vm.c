@@ -8,6 +8,7 @@
 #include <stdlib.h>  // for exit, realloc, free, malloc
 #include <string.h>  // for memcpy, NULL, memset
 #include <unistd.h>  // for access, close, unlink, F_OK
+#include <nmmintrin.h>
 
 #include "defs.h"
 #include "asm_x64.h"
@@ -31,6 +32,13 @@ EXPORT int profile = 0;
 
 bcfunc **funcs = NULL;
 #define auto __auto_type
+void __afl_trace(const uint32_t x);
+static void afl_trace(uint32_t* pc) {
+  #ifdef AFL
+  int64_t start = _mm_crc32_u64(0, (uint64_t)pc) & ((1LL << 16) - 1);
+  __afl_trace(start);
+  #endif
+}
 
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
@@ -267,6 +275,7 @@ LIBRARY_FUNC(IFUNC)
   if (argcnt != ra) {
     MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
   }
+  afl_trace(pc);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC(FUNC)
@@ -276,6 +285,8 @@ LIBRARY_FUNC(FUNC)
   if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
+
+  afl_trace(pc);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC(IFUNCV)
@@ -283,6 +294,7 @@ LIBRARY_FUNC(IFUNCV)
       MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
     }
     frame[ra] = build_list(ra, argcnt - ra, frame);
+  afl_trace(pc);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC(FUNCV)
@@ -293,6 +305,7 @@ if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
   MUSTTAIL return RECORD_START(ARGS);
  }
     frame[ra] = build_list(ra, argcnt - ra, frame);
+  afl_trace(pc);
 END_LIBRARY_FUNC
 
 
@@ -302,6 +315,7 @@ LIBRARY_FUNC(ICLFUNC)
     } else {
       pc+=2;
     }
+  afl_trace(pc);
   NEXT_INSTR;
 }
 
@@ -314,6 +328,7 @@ LIBRARY_FUNC(CLFUNC)
       }
       pc+=2;
     }
+  afl_trace(pc);
   NEXT_INSTR;
 }
 
@@ -325,6 +340,7 @@ LIBRARY_FUNC(ICLFUNCV)
       pc+=2;
     }
 
+  afl_trace(pc);
   NEXT_INSTR;
 }
 
@@ -339,6 +355,7 @@ LIBRARY_FUNC(CLFUNCV)
       pc+=2;
     }
 
+  afl_trace(pc);
   NEXT_INSTR;
 }
 
@@ -468,6 +485,7 @@ LIBRARY_FUNC_MATH_VV(REM, remainder, frame[ra] = ((uint64_t)((fb >> 3) % (fc >> 
   }						\
 						\
   pc += (finish);				\
+  afl_trace(pc);				\
   NEXT_INSTR;					\
 }
 
@@ -538,7 +556,8 @@ END_LIBRARY_FUNC
     pc += 2;                                                                   \
   } else {                                                                     \
     pc += INS_D(*(pc + 1)) + 1;                                                \
-  }
+  }									\
+  afl_trace(pc);
 
 #define SET_RES(a, b, op)                                                      \
   if (a op b) {                                                                \
@@ -632,6 +651,7 @@ END_LIBRARY_FUNC
   }									     \
 									     \
   pc += (finish);							     \
+  afl_trace(pc);							\
   NEXT_INSTR;								     \
 }
 
@@ -742,7 +762,9 @@ if (INS_OP(trace->startpc) == CLFUNCV) {
 #ifdef PROFILER
 in_jit = true;
 #endif
+afl_trace(pc);
 auto res = jit_run(rd, &pc, &frame, &argcnt);
+afl_trace(pc);
 #ifdef PROFILER
 in_jit = false;
 #endif
@@ -816,6 +838,7 @@ LIBRARY_FUNC_B(CALLT)
   }							\
 							\
   pc += (finish);						\
+  afl_trace(pc);						\
   NEXT_INSTR;						\
 }
 

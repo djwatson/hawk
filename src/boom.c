@@ -169,6 +169,9 @@ int main(int argc, char *argv[]) {
   auto ojoff = joff;
   joff = 1;
   load_bootstrap();
+  #ifdef AFL
+  __AFL_INIT();
+  #endif
 
   for (int i = optind; i < argc; i++) {
     auto len = strlen(argv[i]);
