@@ -220,7 +220,8 @@
 (make-state exp2 ch (str len off x1 sum sign exponent)
 	    (if x1 #f (inexact (* sum (expt 10 (sign exponent)))))
 	    (cond
-	     ((digit 10 ch) (exp2 str len (+ 1 off) x1 sum sign  (+ (digit 10 ch) (* 10 exponent))))
+	     ((digit 10 ch) (if (> exponent 100) +inf.0
+				(exp2 str len (+ 1 off) x1 sum sign  (+ (digit 10 ch) (* 10 exponent)))))
 	     (else (complex0 str len off x1 10 #f sign (inexact (* sum (expt 10 (sign exponent))))))))
 
 (make-state complex0 ch (str len off x1 r ex sign num)
