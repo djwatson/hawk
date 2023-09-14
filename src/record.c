@@ -1205,12 +1205,23 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     uint32_t op1 = record_stack_load(INS_B(i), frame);
     uint32_t offset = 0;
     uint8_t type;
+    long obj;
+    if (op1 & IR_CONST_BIAS) {
+      obj = trace->consts[op1 - IR_CONST_BIAS];
+    } else {
+      obj = frame[INS_B(i)];
+    }
+    if ( (obj&TAG_MASK) != CONS_TAG) {
+      printf("Record abort: car/cdr/unbox of non-cons cell\n");
+      record_abort();
+      return 1;
+    }
     if (INS_OP(i) == CAR || INS_OP(i) == UNBOX) {
       // TODO typecheck
       // TODO cleanup
-      type = get_object_ir_type(((cons_s *)(frame[INS_B(i)] - CONS_TAG))->a);
+      type = get_object_ir_type(((cons_s *)(obj - CONS_TAG))->a);
     } else {
-      type = get_object_ir_type(((cons_s *)(frame[INS_B(i)] - CONS_TAG))->b);
+      type = get_object_ir_type(((cons_s *)(obj - CONS_TAG))->b);
       offset = sizeof(long);
     }
     auto ref =
