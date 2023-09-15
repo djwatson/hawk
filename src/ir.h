@@ -112,7 +112,8 @@ typedef struct {
 } reloc;
 
 typedef long (*Func)(long **, unsigned int **);
-typedef struct {
+typedef struct trace_s_s{
+  struct trace_s_s* next;
   ir_ins *ops;
   long *consts;
   reloc *relocs;

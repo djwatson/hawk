@@ -870,7 +870,11 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         // printf("EMIT LOAD ONLY\n");
       }
       // JIT will load ARG on start.
-      emit_op_typecheck(op->reg, op->type, snap_labels[cur_snap]);
+      auto ok_label = emit_offset();
+      emit_imm8(0xcc);
+      auto fail_label = emit_offset();
+      emit_jmp32(ok_label - emit_offset());
+      emit_op_typecheck(op->reg, op->type, fail_label);
       break;
     }
     case IR_SLOAD: {
@@ -1419,9 +1423,8 @@ done:
 
 extern unsigned int *patchpc;
 extern unsigned int patchold;
-int jit_run(unsigned int tnum, unsigned int **o_pc, long **o_frame, long* argcnt) {
+int jit_run(trace_s* trace, unsigned int **o_pc, long **o_frame, long* argcnt) {
   exit_state state;
-  auto *trace = trace_cache_get(tnum);
 
   for (uint64_t i = 0; i < arrlen(trace->ops); i++) {
     auto op = &trace->ops[i];
