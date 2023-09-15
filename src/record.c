@@ -77,9 +77,24 @@ void penalty_pc(uint32_t *pc) {
           *pc = ((*pc) & ~0xff) + ICLFUNCV;
         } else if (INS_OP(*pc) == LOOP) {
           *pc = ((*pc) & ~0xff) + ILOOP;
+	} else if (INS_OP(*pc) == JLOOP) {
+	  trace_cache_get(INS_D(*pc))->startpc = ILOOP;
+	} else if (INS_OP(*pc) == JFUNC) {
+	  auto ctrace = trace_cache_get(INS_D(*pc));
+	  auto op = ctrace->startpc & 0xff;
+	  auto oldpc = ctrace->startpc & ~0xff;
+	  if (op == FUNC) {
+	    ctrace->startpc = oldpc+ IFUNC;
+	  } else if (op == CLFUNC) {
+	    ctrace->startpc = oldpc+ ICLFUNC;
+	  } else if (op == FUNCV) {
+	    ctrace->startpc = oldpc+ IFUNCV;
+	  } else if (op == CLFUNCV) {
+	    ctrace->startpc = oldpc+ ICLFUNCV;
+	  }
         } else if (INS_OP(*pc) == RET1) {
           *pc = ((*pc) & ~0xff) + IRET1;
-        } else {
+         } else {
           printf("Could not blacklist %s\n", ins_names[INS_OP(*pc)]);
           exit(-1);
         }
@@ -334,6 +349,7 @@ void record_side(trace_s *p, snap_s *side) {
 void record_abort();
 void record_start(unsigned int *pc, long *frame) {
   trace = malloc(sizeof(trace_s));
+  trace->next = NULL;
   trace->ops = NULL;
   trace->consts = NULL;
   trace->relocs = NULL;
@@ -399,7 +415,11 @@ void record_stop(unsigned int *pc, long *frame, int link) {
       printf("Hooking to parent trace\n");
   } else {
     auto op = INS_OP(*pc_start);
-    if (op != RET1 && op != LOOP) {
+    if (op == JFUNC || op == JLOOP) {
+      auto prev = trace_cache_get(INS_D(*pc_start));
+      trace->next = prev->next;
+      prev->next = trace;
+    } else if (op != RET1 && op != LOOP) {
       *pc_start = CODE_D(JFUNC, INS_A(*pc_start), arrlen(traces));
       if (verbose)
         printf("Installing JFUNC\n");
@@ -458,10 +478,14 @@ int record(unsigned int *pc, long *frame, long argcnt) {
   switch (trace_state) {
   case OFF: {
     // TODO fix?
-    if (INS_OP(*pc) == JFUNC && side_exit == nullptr) {
-       printf("CAN'T RECORD TO JFUNC\n");
-      exit(-1);
-      return 1;
+    if ((INS_OP(*pc) == JFUNC || INS_OP(*pc) == JLOOP) && side_exit == nullptr) {
+      patchpc = pc;
+      patchold = *pc;
+      *pc = traces[INS_D(*pc)]->startpc;
+      /* printf("CAN'T RECORD TO JFUNC\n"); */
+      /* exit(-1); */
+      /* return 1; */
+      // Recording different trace
     }
     record_start(pc, frame);
     auto res = record_instr(pc, frame, argcnt);
@@ -601,10 +625,14 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       *pos = -1;
     }
   }
+  auto orig_pc = *pc;
+  if (INS_OP(orig_pc) == JFUNC) {
+    orig_pc = trace_cache_get(INS_D(orig_pc))->startpc;
+  }
   if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
       INS_OP(trace->startpc) != RET1 && parent == nullptr) {
-    if (INS_OP(*pc) == CLFUNC && argcnt != INS_A(*pc)) {
-    } else if (INS_OP(*pc) == CLFUNCV && argcnt < INS_A(*pc)) {
+    if (INS_OP(orig_pc) == CLFUNC && argcnt != INS_A(*pc)) {
+    } else if (INS_OP(orig_pc) == CLFUNCV && argcnt < INS_A(*pc)) {
     } else {
       if (check_argument_match(frame, trace)) {
 	if (verbose)
@@ -1947,10 +1975,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       record_abort();
       return 1;
     }
-    if (verbose)
-      printf("Record stop hit JLOOP\n");
     auto startpc = traces[INS_D(i)]->startpc;
-    if (INS_OP(startpc) == LOOP) {
+    if (INS_OP(startpc) == LOOP || INS_OP(startpc) == ILOOP) {
       // Since some args are in registers for the loop, make sure they're loaded here.
       for(unsigned arg = INS_A(startpc); arg < INS_A(startpc) + INS_B(startpc); arg++) {
 	if (arg - INS_A(startpc) >= 6) {
@@ -1969,6 +1995,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // NOTE: stack load is for ret1 jloop returns.  Necessary?
     // TODO JLOOp also used for loop, only need to record for RET
     regs[INS_A(i)] = record_stack_load(INS_A(i), frame);
+    if (verbose)
+      printf("Record stop hit JLOOP\n");
 
     record_stop(pc, frame, INS_D(i));
     return 1;
@@ -2007,7 +2035,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 trace_s *trace_cache_get(unsigned int tnum) { return traces[tnum]; }
 
 EXPORT void free_trace() {
-  if (verbose) {
+  if (arrlen(traces)) {
     printf("Traces: %li\n", arrlen(traces));
   }
   for(uint64_t i = 0; i < arrlen(traces); i++) {

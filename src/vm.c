@@ -753,6 +753,38 @@ if (INS_OP(trace->startpc) == CLFUNCV) {
     goto out;
   }
  }
+// Check for argument type match
+bool match;
+while(trace) {
+  match=true;
+  for(uint64_t i = 0; i < arrlen(trace->ops); i++) {
+    auto op = &trace->ops[i];
+    if (op->op != IR_ARG) {
+      break;
+    }
+    uint8_t typ = get_object_ir_type(frame[op->op1]);
+    if ((typ &~IR_INS_TYPE_GUARD) != (op->type&~IR_INS_TYPE_GUARD)) {
+      /* printf("check argument match fail trace %i arg %li\n", trace->num, i); */
+      /* printf("%x vs %x\n", typ&~IR_INS_TYPE_GUARD, (op->type&~IR_INS_TYPE_GUARD)); */
+      //      exit(-1);
+      match = false;
+      break;
+    }
+
+  }
+  if (match) break;
+  trace = trace->next;
+ }
+if(!match) {
+  instr = trace_cache_get(rd)->startpc;
+  unsigned char op = instr & 0xff;
+  ra = (instr >> 8) & 0xff;
+  instr >>= 16;
+  op_func *op_table_arg_c = (op_func *)op_table_arg;
+  MUSTTAIL return op_table_arg_c[op](ARGS);
+ }
+assert(trace);
+// Build vararg list if required
 if (INS_OP(trace->startpc) == FUNCV) {
     frame[ra] = build_list(ra, argcnt - ra, frame);
 }
@@ -763,7 +795,7 @@ if (INS_OP(trace->startpc) == CLFUNCV) {
 in_jit = true;
 #endif
 afl_trace(pc);
-auto res = jit_run(rd, &pc, &frame, &argcnt);
+auto res = jit_run(trace, &pc, &frame, &argcnt);
 afl_trace(pc);
 #ifdef PROFILER
 in_jit = false;
