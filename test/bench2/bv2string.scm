@@ -1,3 +1,8 @@
+(define make-bytevector make-string)
+(define (bytevector-u8-set! bv i val)
+  (string-set! bv i (integer->char val)))
+(define (utf8->string v) v)
+(define (string->utf8 v) v)
 (define (this-scheme-implementation-name)
   (string-append "boom-" "0.1"))
 (define (inexact a) (exact->inexact a))

@@ -2,7 +2,7 @@
 |-----------+--------+---------+-------------+-------+-------------------------------------------------------------+------------|
 | ack       |   2.12 |   2.300 |  -8.4905660 | *WIN* |                                                             | x          |
 | tak       |   1.64 |   1.432 |   12.682927 |       | reg                                                         | x          |
-| fib       |  3.191 |   2.815 |   11.783140 |       | reg  fail to catch uprec before downrec                     |            |
+| fib       |   2.88 |   2.815 |   11.783140 |       | reg  fail to catch uprec before downrec                     |            |
 | sum       |   .432 |    .823 |  -90.509259 | *WIN* |                                                             | x          |
 | diviter   |   1.59 |   1.041 |   34.528302 |       | reg, types, frontend cycles, const pool                     | x          |
 | divrec    |  2.277 |   1.630 |   28.414581 |       | same                                                        | x          |
@@ -21,7 +21,7 @@
 | puzzle    |  1.797 |   1.642 |   8.6254869 |       | reg, callcc                                                 | x          |
 | paraffins |    2.5 |   4.270 |       -70.8 | *WIN* |                                                             | x          |
 | mazefun   |  1.930 |   1.731 |   10.310881 |       | reg, unroll limit??                                         | x          |
-| lattice   |   4.9  |   2.830 |   56.327160 |       | loopage, typecheck, reg, better closure analysis            | x          |
+| lattice   |    4.9 |   2.830 |   56.327160 |       | loopage, typecheck, reg, better closure analysis            | x          |
 | browse    |  1.431 |    1.12 |   21.733054 |       | falling out of jit make-string, integer->char, etc          |            |
 | graphs    |    4.6 |    1.71 |   62.826087 |       | reg, typecheck   , closure analysis , closure sinking       | nested     |
 | conform   |   3.29 |    2.77 |   15.805471 |       | loops failing out of trace                                  |            |
