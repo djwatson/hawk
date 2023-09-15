@@ -426,7 +426,7 @@ void emit_call_arguments(uint16_t op, trace_s* trace, int arg) {
   }
 }
 
-void emit_snap(int snap, trace_s *trace, bool all) {
+void emit_snap(int snap, trace_s *trace, bool all, uint16_t* ignore) {
   // printf("EMITSNAP: all %i\n", (int)all);
   auto sn = &trace->snaps[snap];
   int last_ret = -1;
@@ -442,6 +442,15 @@ void emit_snap(int snap, trace_s *trace, bool all) {
     // if (!all && (slot->slot >= sn->offset)) {
     //   break;
     // }
+    bool done = false;
+    for(int j =0; j < arrlen(ignore); j++) {
+      if (slot->slot == ignore[j] + sn->offset) {
+	done = true;
+      }
+    }
+    if (done) {
+      continue;
+    }
     if ((slot->val & IR_CONST_BIAS) != 0) {
       auto c = trace->consts[slot->val - IR_CONST_BIAS];
       emit_mem_reg(OP_MOV_RM, slot->slot * 8, RDI, R15);
@@ -818,8 +827,17 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       asm_jit_args(trace, otrace);
     }
   
+    uint16_t* ignored = NULL;
+    for(uint64_t j = 0; j < arrlen(otrace->ops); j++) {
+      auto op = &otrace->ops[j];
+      if (op->op != IR_ARG) {
+	break;
+      }
+      arrput(ignored, op->op1);
+    }
     emit_snap(arrlen(trace->snaps) - 1, trace,
-              (INS_OP(otrace->startpc) != FUNC && INS_OP(otrace->startpc) != LOOP));
+	      (INS_OP(otrace->startpc) != FUNC && INS_OP(otrace->startpc) != LOOP),
+	      ignored);
   } else {
     // No link, jump back to interpreter loop.
     emit_check();
@@ -870,11 +888,11 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         // printf("EMIT LOAD ONLY\n");
       }
       // JIT will load ARG on start.
-      auto ok_label = emit_offset();
-      emit_imm8(0xcc);
-      auto fail_label = emit_offset();
-      emit_jmp32(ok_label - emit_offset());
-      emit_op_typecheck(op->reg, op->type, fail_label);
+      /* auto ok_label = emit_offset(); */
+      /* emit_imm8(0xcc); */
+      /* auto fail_label = emit_offset(); */
+      /* emit_jmp32(ok_label - emit_offset()); */
+      /* emit_op_typecheck(op->reg, op->type, fail_label); */
       break;
     }
     case IR_SLOAD: {
@@ -1327,7 +1345,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     }
     case IR_FLUSH: {
       assert(op->reg != REG_NONE);
-      emit_snap(cur_snap, trace, true);
+      emit_snap(cur_snap, trace, true, NULL);
       emit_arith_imm(OP_ARITH_ADD, op->reg, (trace->snaps[cur_snap].offset) << 3);
       emit_reg_reg(OP_MOV, RDI, op->reg);
       break;
