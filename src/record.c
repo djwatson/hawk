@@ -387,6 +387,29 @@ void record_start(unsigned int *pc, long *frame) {
   if (INS_OP(*pc) == CLFUNC || INS_OP(*pc) == CLFUNCV) {
     next_pc = pc + 2;
   }
+  if (!parent) {
+    if (INS_OP(*pc) == FUNC ||
+	INS_OP(*pc) == IFUNC ||
+	INS_OP(*pc) == CLFUNC ||
+	INS_OP(*pc) == ICLFUNC) {
+      for(unsigned arg = 0; arg < INS_A(*pc); arg++) {
+	if (arg >= 6) {
+	  // TODO clean this up in the register allocator.
+	  break;
+	}
+	regs[arg] = push_ir(trace, IR_ARG, arg, 0, get_object_ir_type(frame[arg]) | IR_INS_TYPE_GUARD);
+      }
+    }
+    if (INS_OP(*pc) == LOOP) {
+      for(unsigned arg = INS_A(*pc); arg < INS_A(*pc) + INS_B(*pc); arg++) {
+	if (arg - INS_A(*pc) >= 6) {
+	  // TODO clean this up in the register allocator.
+	  break;
+	}
+	regs[arg] = push_ir(trace, IR_ARG, arg, 0, get_object_ir_type(frame[arg]) | IR_INS_TYPE_GUARD);
+      }
+    }
+  }
   add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth);
 }
 
@@ -658,15 +681,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case LOOP: {
     loopcheck:
-    if (arrlen(trace->ops) == 0) {
-      for(unsigned arg = INS_A(*pc); arg < INS_A(*pc) + INS_B(*pc); arg++) {
-	if (arg - INS_A(*pc) >= 6) {
-	  // TODO clean this up in the register allocator.
-	  break;
-	}
-	regs[arg] = push_ir(trace, IR_ARG, arg, 0, get_object_ir_type(frame[arg]) | IR_INS_TYPE_GUARD);
-      }
-    } else if (arrlen(trace->ops) != 0 && !parent || (unroll++ >= 3)) {
+    if (trace_state != START && !parent || (unroll++ >= 3)) {
     // TODO check the way luajit does it
       if (!parent) {
         if (verbose)
@@ -684,7 +699,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case CLFUNCV:
   case FUNCV: {
     // TODO: We could do build_list before at start of trace
-    if (arrlen(trace->ops) == 0) {
+    if (trace_state == START) {
       /* printf("Record abort: Can't start at FUNCV\n"); */
       /* record_abort(); */
       /* return 1; */
@@ -702,15 +717,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case CLFUNC:
   case IFUNC:
   case FUNC: {
-    if (arrlen(trace->ops) == 0) {
-      for(unsigned arg = 0; arg < INS_A(*pc); arg++) {
-	if (arg >= 6) {
-	  // TODO clean this up in the register allocator.
-	  break;
-	}
-	regs[arg] = push_ir(trace, IR_ARG, arg, 0, get_object_ir_type(frame[arg]) | IR_INS_TYPE_GUARD);
-      }
-    }
     break;
   }
   case CALLCC: {

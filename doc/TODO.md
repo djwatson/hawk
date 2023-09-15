@@ -1,10 +1,9 @@
 # Getting all jit to work bench2
 
-* emit_snap - don't emit ones that are ARGS.
-* remove the typecheck - pull it back to caller
 * multiple traces???
+  * fix multiple trace check for jfunc, up/downrec, jloop to find correct alternate trace
 
-* TOo much VM time - fib (fail to catch uprec), earley (uneoll), scheme(unroll?, slatex (missing funcs) lattice?(unroll)
+* TOo much VM time - fib (fail to catch uprec), earley (uneoll), scheme(unroll?), slatex (missing funcs) lattice?(unroll)
 
 * apply
 
@@ -12,24 +11,24 @@
 
 * NYI:apply, close, file-exists?, open, delete-file, read-line
 
-* UNDEFINED_TAG
-* cleanup the IR_GUARD_TYPE to separate field?
-* fusion
-* enregister arguments / loop args
-* lazier typechecking
-* const pool
+* optimistic global calls - needs frontend change, MAYBE just all optimistic globals
+  and backend optimization / clearing of traces.
 * sccp pass / fold
 * singleton functions /closures
-* better closure allocation in frontend - full closure optimization
-* allocation sinking for cons/closure/vector
-* optimistic global calls - needs frontend change, 
-  and backend optimization / clearing of traces.
-* cleanup register allocation - two-arg can be optimized
+* lazier typechecking
 * TRACE loop recording - 
   * need unroll check for CALLT.  
   * CALLT should also detect loops, and flush original trace
   * downrec could flush original trace if not uprec?
   * test with fib39
+* UNDEFINED_TAG
+* fusion
+* const pool
+* cleanup register allocation - two-arg can be optimized
+
+* enregister return arg??
+* better closure allocation in frontend - full closure optimization
+* allocation sinking for cons/closure/vector
 * reg hints across calls? and returns?
 * RET implementation could actually RET? faster somehow?
 
