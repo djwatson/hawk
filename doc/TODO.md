@@ -1,5 +1,7 @@
 # Getting all jit to work bench2
 
+* heissen bug in bench2/compiler.scm.bc
+
 * multiple traces???
   * fix multiple trace check for jfunc, up/downrec, jloop to find correct alternate trace
 
@@ -58,7 +60,6 @@
 * chudnovsky /pi need bignum
 * mbrotZ needs complex
 * gcbench needs records
-* bv2string needs bytevectors
 
 # Bytecode generator / VM
 
