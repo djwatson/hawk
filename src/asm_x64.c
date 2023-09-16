@@ -503,9 +503,21 @@ void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
   } else {
     auto reg2 = trace->ops[op2].reg;
     if (op_code == OP_IMUL) {
-      emit_reg_reg2(op_code, reg, reg2);
-      emit_imm8(3);
-      emit_reg_reg(OP_SAR_CONST, 7, reg);
+      if (reg == reg2) {
+	// Needs cleanup.  Ugh.  We have to modify one of op1 or op2 to shift.
+	// We have to shift before, to check for overflow correctly.
+	assert(reg != R15);
+	assert(reg2 != R15);
+	emit_reg_reg2(op_code, reg, R15);
+	emit_imm8(3);
+	emit_reg_reg(OP_SAR_CONST, 7, R15);
+	emit_reg_reg(OP_MOV, reg2, R15);
+      } else {
+	emit_reg_reg2(op_code, reg, reg2);
+	emit_imm8(3);
+	assert(reg != reg2);
+	emit_reg_reg(OP_SAR_CONST, 7, reg);
+      }
     } else {
       emit_reg_reg(op_code, reg2, reg);
     }
@@ -537,6 +549,7 @@ void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code, ir_ins *op,
     if (op_code == OP_IMUL) {
       emit_reg_reg2(op_code, reg, R15);
       emit_imm8(3);
+      assert(reg != reg1);
       emit_reg_reg(OP_SAR_CONST, 7, reg);
     } else {
       emit_reg_reg(op_code, R15, reg);
