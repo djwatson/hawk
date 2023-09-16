@@ -616,27 +616,35 @@ void check_emit_funcv(uint32_t startpc, uint32_t* pc, long* frame, long argcnt) 
   }
 }
 
-bool check_argument_match(long*frame, trace_s* ptrace) {
-  for(uint64_t i =0; i < arrlen(ptrace->ops); i++) {
-    auto op = &ptrace->ops[i];
-    if (op->op != IR_ARG) {
-      break;
+trace_s* check_argument_match(long*frame, trace_s* ptrace) {
+  while(ptrace) {
+    bool found = true;
+    for(uint64_t i =0; i < arrlen(ptrace->ops); i++) {
+      auto op = &ptrace->ops[i];
+      if (op->op != IR_ARG) {
+	break;
+      }
+      assert(regs[op->op1] != -1);
+      uint8_t typ;
+      if (regs[op->op1] & IR_CONST_BIAS) {
+	typ = get_object_ir_type(trace->consts[regs[op->op1] - IR_CONST_BIAS]);
+      } else {
+	typ = trace->ops[regs[op->op1]].type;
+      }
+      if ((typ &~IR_INS_TYPE_GUARD) != (op->type&~IR_INS_TYPE_GUARD)) {
+	/* printf("check argument match fail trace %i arg %li\n", ptrace->num, i); */
+	/* printf("%x vs %x\n", typ&~IR_INS_TYPE_GUARD, (op->type&~IR_INS_TYPE_GUARD)); */
+	//exit(-1);
+	found = false;
+	break;
+      }
     }
-    assert(regs[op->op1] != -1);
-    uint8_t typ;
-    if (regs[op->op1] & IR_CONST_BIAS) {
-      typ = get_object_ir_type(trace->consts[regs[op->op1] - IR_CONST_BIAS]);
-    } else {
-      typ = trace->ops[regs[op->op1]].type;
+    if (found) {
+      return ptrace;
     }
-    if ((typ &~IR_INS_TYPE_GUARD) != (op->type&~IR_INS_TYPE_GUARD)) {
-      /* printf("check argument match fail trace %i arg %li\n", ptrace->num, i); */
-      /* printf("%x vs %x\n", typ&~IR_INS_TYPE_GUARD, (op->type&~IR_INS_TYPE_GUARD)); */
-      //exit(-1);
-      return false;
-    }
+    ptrace = ptrace->next;
   }
-  return true;
+  return NULL;
 }
 
 extern unsigned char hotmap[hotmap_sz];
@@ -657,11 +665,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (INS_OP(orig_pc) == CLFUNC && argcnt != INS_A(*pc)) {
     } else if (INS_OP(orig_pc) == CLFUNCV && argcnt < INS_A(*pc)) {
     } else {
-      if (check_argument_match(frame, trace)) {
+      auto link_trace = check_argument_match(frame, trace);
+      if (link_trace) {
 	if (verbose)
-        printf("Record stop loop\n");
+	  printf("Record stop loop\n");
 	check_emit_funcv(trace->startpc, pc, frame, argcnt);
-	record_stop(pc, frame, arrlen(traces));
+	record_stop(pc, frame, trace->num);
 	return 1;
       }
     }
@@ -919,12 +928,15 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       auto *closure = (closure_s *)(v - CLOSURE_TAG);
       auto *cfunc = (bcfunc *)closure->v[0];
       auto *target = cfunc->code;
-      if (target == pc_start && check_argument_match(frame, trace)) {
-        if (verbose)
-          printf("Record stop up-recursion\n");
-	check_emit_funcv(trace->startpc, pc, frame, argcnt);
-        record_stop(target, frame, arrlen(traces));
-        return 1;
+      if (target == pc_start) {
+	auto link_trace = check_argument_match(frame, trace);
+	if (link_trace) {
+	  if (verbose)
+	    printf("Record stop up-recursion\n");
+	  check_emit_funcv(trace->startpc, pc, frame, argcnt);
+	  record_stop(target, frame, link_trace->num);
+	  return 1;
+	}
       } // TODO fix flush
       pendpatch();
       bool abort = false;
@@ -1957,8 +1969,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     for (int j = 0; j < INS_A(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
-    bool arg_match = check_argument_match(frame, traces[INS_D(*pc)]);
-    if (!arg_match) {
+    auto link_trace = check_argument_match(frame, traces[INS_D(*pc)]);
+    if (!link_trace) {
       patchpc = pc;
       patchold = *pc;
       *pc = traces[INS_D(*pc)]->startpc;
@@ -1970,7 +1982,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (verbose)
       printf("Record stop JFUNC\n");
     check_emit_funcv(traces[INS_D(i)]->startpc, pc, frame, argcnt);
-    record_stop(pc, frame, INS_D(i));
+    record_stop(pc, frame, link_trace->num);
     return 1;
   }
   case JLOOP: {
@@ -1982,6 +1994,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       return 1;
     }
     auto startpc = traces[INS_D(i)]->startpc;
+    trace_s* link_trace = traces[INS_D(i)];
     if (INS_OP(startpc) == LOOP || INS_OP(startpc) == ILOOP) {
       // Since some args are in registers for the loop, make sure they're loaded here.
       for(unsigned arg = INS_A(startpc); arg < INS_A(startpc) + INS_B(startpc); arg++) {
@@ -1991,7 +2004,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	}
 	regs[arg] = record_stack_load(arg, frame);
       }
-      if (!check_argument_match(frame, traces[INS_D(i)])) {
+      link_trace = check_argument_match(frame, traces[INS_D(i)]);
+      if (!link_trace) {
 	patchpc = pc;
 	patchold = *pc;
 	*pc = traces[INS_D(*pc)]->startpc;
@@ -2004,7 +2018,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (verbose)
       printf("Record stop hit JLOOP\n");
 
-    record_stop(pc, frame, INS_D(i));
+    record_stop(pc, frame, link_trace->num);
     return 1;
   }
   default: {
