@@ -472,7 +472,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	if (verbose)
 	  printf("Record stop loop\n");
 	check_emit_funcv(trace->startpc, pc, frame, argcnt);
-	record_stop(pc, frame, trace->num);
+	record_stop(pc, frame, link_trace->num);
 	return 1;
       }
     }
@@ -491,7 +491,19 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case LOOP: {
-    loopcheck:
+    for (int *pos = &regs[INS_A(i) + INS_B(i)]; pos < &regs_list[257]; pos++) {
+      *pos = -1;
+    }
+    if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
+	INS_OP(trace->startpc) != RET1 && parent == nullptr) {
+      auto link_trace = check_argument_match(frame, trace);
+      if (link_trace) {
+	if (verbose)
+	  printf("Record stop loop\n");
+	record_stop(pc, frame, link_trace->num);
+	return 1;
+      }
+    }
     if (trace_state != START && !parent || (unroll++ >= 3)) {
     // TODO check the way luajit does it
       if (!parent) {
@@ -509,7 +521,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case CLFUNCV:
   case FUNCV: {
-    check_funcv:
     // TODO: We could do build_list before at start of trace
     if (trace_state == START) {
       /* printf("Record abort: Can't start at FUNCV\n"); */
@@ -529,7 +540,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case CLFUNC:
   case IFUNC:
   case FUNC: {
-    check_func:
     break;
   }
   case CALLCC: {
@@ -1764,10 +1774,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       patchpc = pc;
       patchold = *pc;
       *pc = traces[INS_D(*pc)]->startpc;
-
-      // Check if it is a FUNCV and emit a list build if necessary.
-      check_emit_funcv(*pc, pc, frame, argcnt);
-      break;
+      return record_instr(pc, frame, argcnt);
     }
     // Otherwise, we're going to link to the JFUNC.
     for (int j = 0; j < INS_A(i); j++) {
@@ -1779,11 +1786,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       patchold = *pc;
       *pc = traces[INS_D(*pc)]->startpc;
       // Check if it is a FUNCV and emit a list build if necessary.
-      if (INS_OP(*pc) == CLFUNCV || INS_OP(*pc) == FUNCV) {
-	goto check_funcv;
-      } else {
-	goto check_func;
-      }
+      return record_instr(pc, frame, argcnt);
     }
     
     if (verbose)
@@ -1816,8 +1819,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	patchpc = pc;
 	patchold = *pc;
 	*pc = traces[INS_D(*pc)]->startpc;
-	// TODO ret?
-	goto loopcheck;
+	return record_instr(pc, frame, argcnt);
       }
     }
     // NOTE: stack load is for ret1 jloop returns.  Necessary?
