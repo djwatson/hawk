@@ -125,6 +125,7 @@ typedef struct trace_s_s{
 } trace_s;
 
 #define UNROLL_LIMIT 1
+#define UNROLL_ABORT_LIMIT 3
 
 #define ir_is_const(op) (op & IR_CONST_BIAS)
 
