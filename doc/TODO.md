@@ -38,6 +38,7 @@
 * better closure allocation in frontend - full closure optimization
 * allocation sinking for cons/closure/vector
 * reg hints across calls? and returns?
+  * CALLXS betterness
 * RET implementation could actually RET? faster somehow?
 
 # working on
@@ -45,17 +46,8 @@
 * 'closure' opcode should all be in the bcfunc prototype, and done behind a single opcode.
   * Do something to get rid of zero-initializing??
   * cleanup the second arg, can be inline instead of separate number
-* polymorphic / non polymorphic
-* CALLXS betterness
-  * can reg hint anthing that covers a call
-
-* typecheck/no typecheck - we can drop typecheck if it is unused
-  * BUT jguard counts as a use!!!
-  * similar to ARG - we don't have to typecheck ARG if unused
-* stack expand:cleanup
 
 * records
-* folding GGET: put in emit somewhere, check for GSET
 * Merge parent SLOADS if they are the same value.
 * SLOADS need a parent bit in OP2 instead of checking for guard
 
@@ -109,11 +101,9 @@
 # JIT TODO:
 
 * various JIT improvements
-  * 'loop' can know exact arguments in regs?  Or just not loopify at all?
   * save less in snap - dead elimination, read-only
   * we should be able to coalesce arg typechecks if they are the same.
   * Maybe a speical SLOAD EQ for RET instead, since we don't need to typecheck
-  * Typechecks need a rethink - we can special case some stuff like eq?/eqv?, merge typechecks, etc.
   * load return slot only once somehow.  SLOAD -1, or RLOAD, or something.
       Only seems to matter for long strings of returns.  It should be in cache anyway, and we have to load
 	  it at least once.
