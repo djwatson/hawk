@@ -453,31 +453,6 @@ extern unsigned char hotmap[hotmap_sz];
 int record_instr(unsigned int *pc, long *frame, long argcnt) {
   unsigned int i = *pc;
 
-  if (INS_OP(i) == LOOP) {
-    for (int *pos = &regs[INS_A(i) + INS_B(i)]; pos < &regs_list[257]; pos++) {
-      *pos = -1;
-    }
-  }
-  auto orig_pc = *pc;
-  if (INS_OP(orig_pc) == JFUNC) {
-    orig_pc = trace_cache_get(INS_D(orig_pc))->startpc;
-  }
-  if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
-      INS_OP(trace->startpc) != RET1 && parent == nullptr) {
-    if (INS_OP(orig_pc) == CLFUNC && argcnt != INS_A(*pc)) {
-    } else if (INS_OP(orig_pc) == CLFUNCV && argcnt < INS_A(*pc)) {
-    } else {
-      auto link_trace = check_argument_match(frame, trace);
-      if (link_trace) {
-	if (verbose)
-	  printf("Record stop loop\n");
-	check_emit_funcv(trace->startpc, pc, frame, argcnt);
-	record_stop(pc, frame, link_trace->num);
-	return 1;
-      }
-    }
-  }
-
   instr_count++;
   if (verbose) {
     for (int j = 0; j < depth; j++) {
@@ -522,24 +497,34 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case CLFUNCV:
   case FUNCV: {
     // TODO: We could do build_list before at start of trace
-    if (trace_state == START) {
-      /* printf("Record abort: Can't start at FUNCV\n"); */
-      /* record_abort(); */
-      /* return 1; */
-      break;
+    if (trace_state != START) {
+      record_funcv(i, pc, frame, argcnt);
+      if (INS_OP(i) == CLFUNCV) {
+	add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
+      } else {
+	add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
+      }
     }
-    record_funcv(i, pc, frame, argcnt);
-    if (INS_OP(i) == CLFUNCV) {
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth);
-    } else {
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
-    }
-    break;
+    // Fallthrough
   }
   case ICLFUNC:
   case CLFUNC:
   case IFUNC:
   case FUNC: {
+    if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
+	INS_OP(trace->startpc) != RET1 && parent == nullptr && INS_OP(trace->startpc) != LOOP) {
+      if (INS_OP(i) == CLFUNC && argcnt != INS_A(*pc)) {
+      } else if (INS_OP(i) == CLFUNCV && argcnt < INS_A(*pc)) {
+      } else {
+	auto link_trace = check_argument_match(frame, trace);
+	if (link_trace) {
+	  if (verbose)
+	    printf("Record stop loop\n");
+	  record_stop(pc, frame, link_trace->num);
+	  return 1;
+	}
+      }
+    }
     break;
   }
   case CALLCC: {
@@ -1799,7 +1784,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto *ctrace = trace_cache_get(INS_D(i));
     if (side_exit == nullptr && INS_OP(ctrace->startpc) != RET1) {
       if (verbose)
-        printf("Record abort: root trace hit loop\n");
+        printf("Record abort: root trace hit jloop\n");
       record_abort();
       return 1;
     }
