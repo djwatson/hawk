@@ -22,6 +22,7 @@
 #include "record.h" // for trace_cache_get, record_side
 #include "types.h"  // for CONS_TAG, TAG_MASK, IMMEDIATE_MASK
 #include "defs.h"
+#include <string.h>
 
 #include "vm.h"
 #include "lru.h"
@@ -1456,6 +1457,8 @@ extern unsigned int *patchpc;
 extern unsigned int patchold;
 int jit_run(trace_s* trace, unsigned int **o_pc, long **o_frame, long* argcnt) {
   exit_state state;
+  // Only necessary for msan:
+  memset(&state, 0, sizeof(state));
 
   for (uint64_t i = 0; i < arrlen(trace->ops); i++) {
     auto op = &trace->ops[i];
