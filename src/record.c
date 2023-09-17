@@ -1569,13 +1569,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
                        record_stack_load(INS_C(i), frame), UNDEFINED_TAG);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)equalp);
-    regs[INS_A(i)] = push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
+    regs[INS_A(i)] = push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, BOOL_TAG);
     break;
   }
   case LENGTH: {
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)vm_length);
-    regs[INS_A(i)] = push_ir(trace, IR_CALLXS, record_stack_load(INS_B(i), frame), knum | IR_CONST_BIAS, UNDEFINED_TAG);
+    regs[INS_A(i)] = push_ir(trace, IR_CALLXS, record_stack_load(INS_B(i), frame), knum | IR_CONST_BIAS, FIXNUM_TAG);
     break;
   }
   case GGET: {
