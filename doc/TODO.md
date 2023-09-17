@@ -11,11 +11,15 @@
 
 * NYI:apply, close, file-exists?, open, delete-file, read-line
 
-* optimistic global calls - needs frontend change, MAYBE just all optimistic globals
+* optimistic global calls - needs frontend change, 
   and backend optimization / clearing of traces.
+  * MAYBE just all optimistic globals
 * sccp pass / fold
+  * folding GGET: put in emit somewhere, check for GSET
 * singleton functions /closures
+  * polymorphic / non polymorphic
 * lazier typechecking
+  * jguard counts as a use!
 * TRACE loop recording - 
   * need unroll check for CALLT.  
   * CALLT should also detect loops, and flush original trace
@@ -25,6 +29,10 @@
 * fusion
 * const pool
 * cleanup register allocation - two-arg can be optimized
+
+* Better GC.
+  * a better GC, immix or bartlett
+  * needs top-of-frame tracking.
 
 * enregister return arg??
 * better closure allocation in frontend - full closure optimization
@@ -49,9 +57,7 @@
 * records
 * folding GGET: put in emit somewhere, check for GSET
 * Merge parent SLOADS if they are the same value.
-* make make notes where ARG vs SLOAD
 * SLOADS need a parent bit in OP2 instead of checking for guard
-* ARGS on jit_entry need typecheck (and should already be checked on loop?)
 
 # TODO list
 
@@ -93,9 +99,7 @@
 * letrec check
 * return accept args num 
 
-* Go thorugh all of vm and check for safety!
 * various check for const size overflow, reg or opcode overflow
-* fuzz bytecode reader
 
 ## VM cleanup
 * make a 'vm state' struct, so we can run multiple vm's?
@@ -120,7 +124,6 @@
 * need to purge snap to minimum entries. - kinda done, maybe a 'readonly' slot.  ONLY for sload, not ARG.
   * only matters for emit_snap
 
-* a better GC, immix or bartlett
 
 # OPTS
 

@@ -25,7 +25,6 @@ __attribute__((weak)) unsigned int exe_scm_bc_len;
 
 extern int joff;
 
-static bool list = false;
 extern unsigned TRACE_MAX;
 
 extern bool verbose;
