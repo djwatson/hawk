@@ -1,8 +1,5 @@
 # Getting all jit to work bench2
 
-* only int supported in trace: matrix, compiler, mperm, paraffins, peval, dynamic
-
-
 # TODO
 
 * NYI:apply, close, file-exists?, open, delete-file, read-line
