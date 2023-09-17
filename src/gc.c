@@ -1,3 +1,5 @@
+#define _DEFAULT_SOURCE
+
 #include "gc.h"
 #include "bytecode.h"     // for const_table, const_table_sz
 #include "ir.h"           // for reloc, trace_s, RELOC_ABS, RELOC_SYM_ABS
@@ -30,8 +32,12 @@ void GC_push_root(long *root) { arrput(pushed_roots, root); }
 
 void GC_pop_root(const long *root) {
   assert(arrlen(pushed_roots) != 0);
+#ifdef NDEBUG
+  arrpop(pushed_roots);
+#else
   auto b = arrpop(pushed_roots);
   assert(b == root);
+#endif
 }
 
 void GC_enable(bool en) { gc_enable = en; }

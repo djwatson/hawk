@@ -673,7 +673,7 @@ LIBRARY_FUNC_B(VECTOR)
   frame[ra] = (long)closure | PTR_TAG;
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B(CLOSURE)
+LIBRARY_FUNC(CLOSURE)
   auto cnt = (frame[ra+1] >> 3)+1; // TODO make this inline
   // free vars + type + len + function ptr
   auto closure = (closure_s *)GC_malloc(sizeof(long) * (cnt + 2));
@@ -1237,7 +1237,6 @@ LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
   size_t sz = 0;
   char *bufptr = NULL;
-  auto pos = 0;
   ssize_t res = getline(&bufptr, &sz, port->file);
   if (res == -1) {
     port->eof = TRUE_REP;

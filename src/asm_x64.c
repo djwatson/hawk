@@ -744,7 +744,6 @@ void asm_jit_args(trace_s *trace, trace_s* dest_trace) {
   map moves;
   map res;
   moves.mp_sz = 0;
-  long cnt = 0;
   for (size_t op_cnt2 = 0; op_cnt2 < arrlen(dest_trace->ops); op_cnt2++) {
     auto op = &dest_trace->ops[op_cnt2];
     if (op->op != IR_ARG) {

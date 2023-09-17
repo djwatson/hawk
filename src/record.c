@@ -412,8 +412,6 @@ void record_funcv(uint32_t i, uint32_t *pc, long* frame, long argcnt) {
 
 void check_emit_funcv(uint32_t startpc, uint32_t* pc, long* frame, long argcnt) {
   if (INS_OP(startpc) == FUNCV || INS_OP(startpc) == CLFUNCV) {
-    auto ra = INS_A(startpc);
-    //printf("NEEDS FUNCV-ifying %i %li\n", ra, argcnt-ra);
     record_funcv(startpc, pc, frame, argcnt);
   }
 }
@@ -479,7 +477,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	return 1;
       }
     }
-    if (trace_state != START && !parent || (unroll++ >= 3)) {
+    if ((trace_state != START) && (!parent || (unroll++ >= 3))) {
     // TODO check the way luajit does it
       if (!parent) {
         if (verbose)
@@ -1239,7 +1237,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case GUARD: {
-    uint32_t op1 = record_stack_load(INS_B(i), frame);
+    record_stack_load(INS_B(i), frame);
     int64_t v = frame[INS_B(i)];
     auto type = INS_C(i);
     int64_t c = FALSE_REP;
