@@ -818,7 +818,16 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
     emit_check();
     auto last_snap = &trace->snaps[arrlen(trace->snaps) - 1];
-    if (last_snap->offset != 0U) {
+
+    assign_snap_registers(arrlen(trace->snaps) - 1, slot, trace, &next_spill);
+    if (trace->link != trace->num) {
+      if (verbose) {
+      printf("Linking trace %i to trace %i\n", trace->num, trace->link);
+      }
+      asm_jit_args(trace, otrace);
+    }
+  
+    if (last_snap->offset) {
       emit_arith_imm(OP_ARITH_ADD, RDI, last_snap->offset * 8);
       // Emit a stack overflow check, abort if overflow.
       // Note that there is a 'redzone', so we only have to check
@@ -832,14 +841,6 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       }
     }
 
-    assign_snap_registers(arrlen(trace->snaps) - 1, slot, trace, &next_spill);
-    if (trace->link != trace->num) {
-      if (verbose) {
-      printf("Linking trace %i to trace %i\n", trace->num, trace->link);
-      }
-      asm_jit_args(trace, otrace);
-    }
-  
     uint16_t* ignored = NULL;
     for(uint64_t j = 0; j < arrlen(otrace->ops); j++) {
       auto op = &otrace->ops[j];
