@@ -763,6 +763,47 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     break;
   }
+  case CALLT: {
+    // Check call type
+    {
+      auto clo = record_stack_load(INS_A(i) + 1, frame);
+      auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
+      auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
+      regs[INS_A(i)] = fun;
+      auto cl = frame[INS_A(i) + 1];
+      auto closure = (closure_s *)(cl - CLOSURE_TAG);
+      auto knum = arrlen(trace->consts);
+      arrput(trace->consts, closure->v[0]);
+      push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
+    }
+    /* { */
+    /*   auto v = frame[INS_A(i) + 1]; */
+    /*   auto knum = arrlen(trace->consts); */
+    /*   arrput(trace->consts, v); */
+    /*   ir_ins ins; */
+    /*   ins.reg = REG_NONE; */
+    /*   ins.op1 = record_stack_load(INS_A(i) + 1, frame); */
+    /*   ins.op2 = knum | IR_CONST_BIAS; */
+    /*   ins.op = IR_EQ; */
+    /*   // TODO magic number */
+    /*   ins.type = IR_INS_TYPE_GUARD | 0x5; */
+    /*   arrput(trace->ops, ins); */
+    /* } */
+    // Move args down
+    // TODO also chedck func
+    for (int j = INS_A(i) + 1; j < INS_A(i) + INS_B(i); j++) {
+      regs[j] = record_stack_load(j, frame);
+    }
+    memmove(&regs[0], &regs[INS_A(i) + 1], sizeof(int) * (INS_B(i) - 1));
+    for (int j = INS_B(i) - 1; j < 256; j++) {
+      if (&regs[j] >= regs_list + 256) {
+        break;
+      }
+      regs[j] = -1;
+    }
+
+    break;
+  }
   case KSHORT: {
     // Lots of casting to avoid left-shifting a signed number.
     // Frontend has already verified the signed number fits in
@@ -1647,47 +1688,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       record_abort();
       return 1;
     }
-    break;
-  }
-  case CALLT: {
-    // Check call type
-    {
-      auto clo = record_stack_load(INS_A(i) + 1, frame);
-      auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
-      auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
-      regs[INS_A(i)] = fun;
-      auto cl = frame[INS_A(i) + 1];
-      auto closure = (closure_s *)(cl - CLOSURE_TAG);
-      auto knum = arrlen(trace->consts);
-      arrput(trace->consts, closure->v[0]);
-      push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
-    }
-    /* { */
-    /*   auto v = frame[INS_A(i) + 1]; */
-    /*   auto knum = arrlen(trace->consts); */
-    /*   arrput(trace->consts, v); */
-    /*   ir_ins ins; */
-    /*   ins.reg = REG_NONE; */
-    /*   ins.op1 = record_stack_load(INS_A(i) + 1, frame); */
-    /*   ins.op2 = knum | IR_CONST_BIAS; */
-    /*   ins.op = IR_EQ; */
-    /*   // TODO magic number */
-    /*   ins.type = IR_INS_TYPE_GUARD | 0x5; */
-    /*   arrput(trace->ops, ins); */
-    /* } */
-    // Move args down
-    // TODO also chedck func
-    for (int j = INS_A(i) + 1; j < INS_A(i) + INS_B(i); j++) {
-      regs[j] = record_stack_load(j, frame);
-    }
-    memmove(&regs[0], &regs[INS_A(i) + 1], sizeof(int) * (INS_B(i) - 1));
-    for (int j = INS_B(i) - 1; j < 256; j++) {
-      if (&regs[j] >= regs_list + 256) {
-        break;
-      }
-      regs[j] = -1;
-    }
-
     break;
   }
   case STRING_LENGTH:
