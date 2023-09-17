@@ -61,6 +61,15 @@ trace_s **traces = nullptr;
 unsigned int *patchpc = nullptr;
 unsigned int patchold;
 
+uint32_t find_penalty_pc(uint32_t *pc) {
+  for (uint32_t i = 0; i < blacklist_slot; i++) {
+    if (blacklist[i].pc == pc) {
+      return blacklist[i].cnt;
+    }
+  }
+  return 0;
+}
+
 void penalty_pc(uint32_t *pc) {
   uint32_t i = 0;
   for (; i < blacklist_slot; i++) {
@@ -562,7 +571,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	    if (verbose)
 	      printf("Flushing trace\n");
 	    pendpatch();
-	    printf("REPLACING PC %p %x with %x\n", pc, *pc, traces[INS_D(*pc)]->startpc);
+	    //printf("REPLACING PC %p %x with %x\n", pc, *pc, traces[INS_D(*pc)]->startpc);
 	    // Prevent flipping back and forth via blacklist.
 	    penalty_pc(pc);
 	    *pc = traces[INS_D(*pc)]->startpc;
@@ -694,9 +703,17 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         // TODO retdepth
       } else {
         if (INS_OP(trace->startpc) == LOOP && parent == nullptr) {
-          if (verbose)
-            printf("Record abort: Loop root trace exited loop\n");
-          record_abort();
+	  auto penalty = find_penalty_pc(pc_start);
+	  if (penalty < BLACKLIST_MAX / 2) {
+	    if (verbose)
+	      printf("Record abort: Loop root trace exited loop\n");
+	    record_abort();
+	  } else {
+	    if (verbose) {
+	      printf("Record stop return\n");
+	    }
+	    record_stop(pc, frame, -1);
+	  }
         } else {
           if (verbose)
             printf("Record stop return\n");
@@ -1789,10 +1806,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case JLOOP: {
     auto *ctrace = trace_cache_get(INS_D(i));
     if (side_exit == nullptr && INS_OP(ctrace->startpc) != RET1) {
-      if (verbose)
-        printf("Record abort: root trace hit jloop\n");
-      record_abort();
-      return 1;
+      auto penalty = find_penalty_pc(pc_start);
+      if (penalty < BLACKLIST_MAX/2) {
+	if (verbose)
+	  printf("Record abort: root trace hit jloop\n");
+	record_abort();
+	return 1;
+      } 
     }
     auto startpc = traces[INS_D(i)]->startpc;
     trace_s* link_trace = traces[INS_D(i)];

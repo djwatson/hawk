@@ -1,11 +1,7 @@
 # Getting all jit to work bench2
 
-* multiple traces???
-  * fix multiple trace check for jfunc, up/downrec, jloop to find correct alternate trace
+* only int supported in trace: matrix, compiler, mperm, paraffins, peval, dynamic
 
-* TOo much VM time - fib (fail to catch uprec), earley (uneoll), scheme(unroll?), slatex (missing funcs) lattice?(unroll)
-
-* apply
 
 # TODO
 
@@ -21,10 +17,8 @@
 * lazier typechecking
   * jguard counts as a use!
 * TRACE loop recording - 
-  * need unroll check for CALLT.  
-  * CALLT should also detect loops, and flush original trace
-  * downrec could flush original trace if not uprec?
-  * test with fib39
+  * CALLT should also detect loops, and flush original trace??
+  * downrec could flush original trace if not uprec??
 * UNDEFINED_TAG
 * fusion
 * const pool
