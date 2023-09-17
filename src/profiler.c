@@ -1,5 +1,3 @@
-#include "bytecode.h"    // for bcfunc, INS_OP, ins_names
-#include "vm.h"          // for find_func_for_frame
 #include "defs.h"
 
 #include <assert.h>       // for assert

@@ -3,14 +3,9 @@
 
 #include <stdbool.h> // for bool, false, true
 #include <stdio.h>   // for printf
-#include <stdlib.h>  // for exit
-#include <string.h>  // for strcmp, strcpy, strlen
 
 #include "gc.h" // for GC_init
-#include "bytecode.h"
 #include "readbc.h"       // for readbc_file, readbc_image
-#include "symbol_table.h" // for symbol_table_find_cstr
-#include "types.h"        // for from_c_str, symbol, CLOSURE_TAG, TRUE_REP
 #include "vm.h"           // for run
 
 #include "record.h"

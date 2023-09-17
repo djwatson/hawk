@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #include "ir.h"
 
 void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,

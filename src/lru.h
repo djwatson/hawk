@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #define LRU_SIZE 16
 
 typedef struct {

@@ -1,5 +1,3 @@
-#include <stdint.h>
-
 #include "lru.h"
 
 /// Dead-simple LRU cache, implemented as a doubly-linked list with a static

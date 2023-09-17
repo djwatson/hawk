@@ -1,12 +1,13 @@
-#include <nmmintrin.h>
+#include <smmintrin.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <string.h>
+#include <stdlib.h>
 
 #include "unionfind.h"
 
 #include "third-party/stb_ds.h"
-#include "types.h"
 
 #define unlikely(x) __builtin_expect(!!(x), 0)
 

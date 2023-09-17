@@ -393,7 +393,7 @@ CREDITS
 #define INCLUDE_STB_DS_H
 
 #include <stddef.h>
-#include <string.h>
+struct stbds_string_arena;
 
 #ifndef STBDS_NO_SHORT_NAMES
 #define arrlen      stbds_arrlen

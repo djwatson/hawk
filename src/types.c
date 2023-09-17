@@ -1,8 +1,8 @@
 #include "types.h"
 #include <stdio.h>
 #include <string.h>
-#include <limits.h>
-#include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 #include "gc.h"
 #include "symbol_table.h"
