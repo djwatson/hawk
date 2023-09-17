@@ -164,6 +164,10 @@ bcfunc *readbc(FILE *fptr) {
   // printf("constsize %i \n", const_count);
   const_table =
       (long *)realloc(const_table, (const_count + const_offset) * sizeof(long));
+  if (!const_table) {
+    printf("Error: Could not realloc const_table\n");
+    exit(-1);
+  }
   // Memset new entries in case we get GC during file read.
   memset(&const_table[const_table_sz], 0, sizeof(long) * const_count);
   const_table_sz += const_count;

@@ -188,6 +188,10 @@ void expand_stack(long **o_frame) {
   auto oldsz = stacksz;
   stacksz *= 2;
   stack = (long *)realloc(stack, stacksz * sizeof(long));
+  if (!stack) {
+    printf("Error: Could not realloc stack\n");
+    exit(-1);
+  }
   memset(&stack[oldsz], 0, sizeof(long) * (stacksz - oldsz));
   *o_frame = stack + pos;
   frame_top = stack + stacksz - 256;
@@ -754,7 +758,7 @@ if (INS_OP(trace->startpc) == CLFUNCV) {
   }
  }
 // Check for argument type match
-bool match;
+bool match = false;
 while(trace) {
   match=true;
   for(uint64_t i = 0; i < arrlen(trace->ops); i++) {
