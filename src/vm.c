@@ -8,7 +8,9 @@
 #include <stdlib.h>  // for exit, realloc, free, malloc
 #include <string.h>  // for memcpy, NULL, memset
 #include <unistd.h>  // for access, close, unlink, F_OK
+#ifdef AFL
 #include <nmmintrin.h>
+#endif
 
 #include "defs.h"
 #include "asm_x64.h"
@@ -21,6 +23,7 @@
 #endif
 #include "symbol_table.h"
 #include "types.h"
+#include "ir.h"
 
 #include "third-party/stb_ds.h"
 

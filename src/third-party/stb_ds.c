@@ -5,7 +5,7 @@
 //   IMPLEMENTATION
 //
 
-#include <assert.h>
+
 #include <string.h>
 
 #ifndef STBDS_ASSERT

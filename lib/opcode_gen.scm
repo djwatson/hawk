@@ -55,7 +55,6 @@
 
 
 (define opcode-cpp (open-output-file-chez "opcodes.c"))
-(display "#include \"bytecode.h\"\n" opcode-cpp)
 (display "const char* ins_names[] = {\n" opcode-cpp)
 (for-each (lambda (op)
 	    (display (format "  \"~a\",\n" (symbol->string (car op))) opcode-cpp)

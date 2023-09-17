@@ -6,6 +6,9 @@
 
 #include <stdbool.h>
 #include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define auto __auto_type
 #define nullptr NULL

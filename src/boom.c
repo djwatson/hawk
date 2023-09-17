@@ -11,7 +11,6 @@
 #ifdef PROFILER
 #include "profiler.h" // for profiler_start, profiler_stop
 #endif
-#include "bytecode.h"
 #include "readbc.h"       // for readbc_file, readbc_image
 #include "symbol_table.h" // for symbol_table_find_cstr
 #include "types.h"        // for from_c_str, symbol, CLOSURE_TAG, TRUE_REP

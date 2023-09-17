@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdint.h>
 #include "ir.h"
 
 int record(unsigned int *pc, long *frame, long argcnt);
