@@ -850,6 +850,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     emit_snap(arrlen(trace->snaps) - 1, trace,
 	      (INS_OP(otrace->startpc) != FUNC && INS_OP(otrace->startpc) != LOOP),
 	      ignored);
+    arrfree(ignored);
   } else {
     // No link, jump back to interpreter loop.
     emit_check();
