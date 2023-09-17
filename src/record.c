@@ -44,6 +44,7 @@ int *regs = &regs_list[1];
 snap_s *side_exit = nullptr;
 static trace_s *parent = nullptr;
 static uint8_t unroll = 0;
+static uint8_t tailcalled = 0;
 
 unsigned int **downrec = NULL;
 
@@ -162,6 +163,7 @@ void record_start(unsigned int *pc, long *frame) {
   trace->fn = NULL;
   trace_state = START;
   unroll = 0;
+  tailcalled = 0;
   func = (long)find_func_for_frame(pc);
   assert(func);
   if (verbose) {
@@ -494,7 +496,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case CLFUNCV:
   case FUNCV: {
-    // TODO: We could do build_list before at start of trace
+    // If this isn't the trace start, we need to package any varargs.
     if (trace_state != START) {
       record_funcv(i, pc, frame, argcnt);
       if (INS_OP(i) == CLFUNCV) {
@@ -504,11 +506,75 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       }
     }
     // Fallthrough
+    if (argcnt < INS_A(*pc)) {
+	break;
+      }
   }
   case ICLFUNC:
-  case CLFUNC:
+  case CLFUNC: {
+    if (((INS_OP(i) == ICLFUNC) ||
+	 (INS_OP(i) == CLFUNC)) && (argcnt != INS_A(*pc))) {
+	break;
+      }
+    // fallthrough
+  }
   case IFUNC:
   case FUNC: {
+    // Check for unroll.
+    long cnt = 0;
+    auto *p_pc = (uint32_t *)frame[-1];
+    auto ret_pc = p_pc;
+    auto pframe = frame;
+    for (int d = depth - 1; d > 0; d--) {
+      pframe -= (INS_A(*(p_pc - 1)) + 1);
+      p_pc = (uint32_t *)pframe[-1];
+      if (p_pc == ret_pc) {
+        cnt++;
+      }
+    }
+
+    if ((cnt) >= UNROLL_LIMIT) {
+      auto v = frame[0];
+      auto *closure = (closure_s *)(v - CLOSURE_TAG);
+      auto *cfunc = (bcfunc *)closure->v[0];
+      auto *target = cfunc->code;
+      if (pc == pc_start) {
+	auto link_trace = check_argument_match(frame, trace);
+	if (link_trace) {
+	  if (verbose)
+	    printf("Record stop up-recursion\n");
+	  record_stop(target, frame, link_trace->num);
+	  return 1;
+	}
+      } // TODO fix flush
+      bool abort = false;
+      if ((patchpc != nullptr) && (patchpc == pc) && INS_OP(patchold) == JFUNC) {
+        // Check if it is already up-recursion (i.e. a side trace failed here)
+        auto sl_trace = trace_cache_get(INS_D(patchold));
+        if (sl_trace->link != INS_D(patchold)) {
+          if (verbose)
+            printf("Flushing trace\n");
+	  pendpatch();
+	  printf("REPLACING PC %p %x with %x\n", pc, *pc, traces[INS_D(*pc)]->startpc);
+	  penalty_pc(pc);
+          *pc = traces[INS_D(*pc)]->startpc;
+          hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
+          abort = true;
+        }
+      } else {
+        abort = true;
+      }
+      if (abort) {
+        // TODO this isn't in luajit? fails with side exit without?
+        hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
+        if (verbose)
+          printf("Record abort: unroll limit reached\n");
+        record_abort();
+        return 1;
+      }
+    }
+
+    // Now check for looping trace, no up-recursion
     if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
 	INS_OP(trace->startpc) != RET1 && parent == nullptr && INS_OP(trace->startpc) != LOOP) {
       if (INS_OP(i) == CLFUNC && argcnt != INS_A(*pc)) {
@@ -697,14 +763,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     /*   ins.type = IR_INS_TYPE_GUARD | 0x5; */
     /*   arrput(trace->ops, ins); */
     /* } */
-    long cnt = 0;
-    auto *p_pc = (uint32_t *)frame[-1];
-    for (int d = depth; d > 0; d--) {
-      if (p_pc == pc + 1) {
-        cnt++;
-      }
-      p_pc = (uint32_t *)frame[-1];
-    }
 
     // Setup frame
     depth++;
@@ -720,48 +778,10 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs += INS_A(i) + 1;
     assert(regs >= regs_list);
 
-    if (cnt >= UNROLL_LIMIT) {
-      auto v = frame[INS_A(i) + 1];
-      auto *closure = (closure_s *)(v - CLOSURE_TAG);
-      auto *cfunc = (bcfunc *)closure->v[0];
-      auto *target = cfunc->code;
-      if (target == pc_start) {
-	auto link_trace = check_argument_match(frame, trace);
-	if (link_trace) {
-	  if (verbose)
-	    printf("Record stop up-recursion\n");
-	  check_emit_funcv(trace->startpc, pc, frame, argcnt);
-	  record_stop(target, frame, link_trace->num);
-	  return 1;
-	}
-      } // TODO fix flush
-      pendpatch();
-      bool abort = false;
-      if (INS_OP(cfunc->code[0]) == JFUNC) {
-        // Check if it is already up-recursion (i.e. a side trace failed here)
-        auto sl_trace = trace_cache_get(INS_D(cfunc->code[0]));
-        if (sl_trace->link != INS_D(cfunc->code[0])) {
-          if (verbose)
-            printf("Flushing trace\n");
-          cfunc->code[0] = traces[INS_D(cfunc->code[0])]->startpc;
-          hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
-          abort = true;
-        }
-      } else {
-        abort = true;
-      }
-      if (abort) {
-        // TODO this isn't in luajit? fails with side exit without?
-        hotmap[(((long)cfunc->code[0]) >> 2) & hotmap_mask] = 1;
-        if (verbose)
-          printf("Record abort: unroll limit reached\n");
-        record_abort();
-        return 1;
-      }
-    }
     break;
   }
   case CALLT: {
+    tailcalled++;
     // Check call type
     {
       auto clo = record_stack_load(INS_A(i) + 1, frame);
@@ -1845,7 +1865,10 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   return 0;
 }
 
-trace_s *trace_cache_get(unsigned int tnum) { return traces[tnum]; }
+trace_s *trace_cache_get(uint16_t tnum) {
+  assert(tnum < arrlen(traces));
+  return traces[tnum];
+}
 
 EXPORT void free_trace() {
   if (arrlen(traces)) {
