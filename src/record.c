@@ -509,6 +509,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case CLFUNCV:
   case FUNCV: {
+    check_funcv:
     // TODO: We could do build_list before at start of trace
     if (trace_state == START) {
       /* printf("Record abort: Can't start at FUNCV\n"); */
@@ -528,6 +529,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case CLFUNC:
   case IFUNC:
   case FUNC: {
+    check_func:
     break;
   }
   case CALLCC: {
@@ -1777,8 +1779,11 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       patchold = *pc;
       *pc = traces[INS_D(*pc)]->startpc;
       // Check if it is a FUNCV and emit a list build if necessary.
-      check_emit_funcv(*pc, pc, frame, argcnt);
-      break;
+      if (INS_OP(*pc) == CLFUNCV || INS_OP(*pc) == FUNCV) {
+	goto check_funcv;
+      } else {
+	goto check_func;
+      }
     }
     
     if (verbose)
@@ -1811,6 +1816,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	patchpc = pc;
 	patchold = *pc;
 	*pc = traces[INS_D(*pc)]->startpc;
+	// TODO ret?
 	goto loopcheck;
       }
     }
