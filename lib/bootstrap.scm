@@ -257,11 +257,8 @@
   ($assq obj1 alist1)
 )
 (define (assv obj1 alist1)
-  (let loop ((obj obj1) (alist alist1))
-    (if (null? alist) #f
-	(if (eqv? (caar alist) obj) 
-	    (car alist)
-	    (loop obj (cdr alist))))))
+  ($assv obj1 alist1)
+)
 (define (assoc obj1 alist1)
   (let loop ((obj obj1) (alist alist1))
     (if (null? alist) #f

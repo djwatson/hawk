@@ -30,3 +30,5 @@ void expand_stack(long **o_frame);
 long vm_length(long fb);
 long vm_memq(long fb, long fc);
 long vm_assq(long fb, long fc);
+long vm_assv(long fb, long fc);
+
