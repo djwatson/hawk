@@ -1416,7 +1416,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     //   all registers to stack.
     trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
     // TODO fixed closz
-    long closz = (frame[INS_A(i) + 1] >> 3) + 1;
+    long closz = INS_B(i);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (sizeof(long) * (closz + 2)) << 3);
     auto cell = push_ir(trace, IR_ALLOC, knum | IR_CONST_BIAS, CLOSURE_TAG, CLOSURE_TAG);
@@ -1424,23 +1424,21 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     knum = arrlen(trace->consts);
     arrput(trace->consts, (long)closz << 3);
     push_ir(trace, IR_STORE, ref, knum | IR_CONST_BIAS, 0);
-    auto a = record_stack_load(INS_A(i), frame);
-    // TODO
-    // The first value *must* be the function ptr.
-    // THe rest of the values are just *something*
-    // so that if we abort, there is a valid GC object.
-    // Could also be 0-initialized.
-    // TODO figure out a way to ensure we always snapshpt
-    // after fully setting? I.e. don't abort ever?
+    auto cnt = INS_B(i);
+    for(uint32_t j = 0; j < cnt; j++) {
+      record_stack_load(INS_A(i) + j, frame);
+    }
     for (long j = 0; j < closz; j++) {
+      // Already loaded above
+      auto a = record_stack_load(INS_A(i) + j, frame);
       ref =
           push_ir(trace, IR_REF, cell, 16 + 8 * j - CLOSURE_TAG, UNDEFINED_TAG);
       push_ir(trace, IR_STORE, ref, a, 0);
     }
     regs[INS_A(i)] = cell;
-    /* for(unsigned j = 1; j < INS_B(i); j++) { */
-    /*   regs[INS_A(i) + j] = -1; */
-    /* } */
+    for(unsigned j = 1; j < INS_B(i); j++) {
+      regs[INS_A(i) + j] = -1;
+    }
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth);
     break;
   }

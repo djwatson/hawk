@@ -201,13 +201,15 @@
 	     `(let ,(map (lambda (v body closure free)
 			   `(,v ($closure (named-lambda ,(second body) ,(cons closure (third body)) ,@(cdddr body))
 					  ;; Set empty references to letrec's vars.
-					  ,(length free))))
+					  ,@(map (lambda (x) (if (memq x var-names) 0 x)) free))))
 			 (map car (second f)) bodies closures free-vars)
 		;; Now bind any group references
 		(begin
 		  ,@(apply append (map (lambda (x bound)
-					 (map (lambda (v)
-						       `($closure-set ,x ,(car v) ,(cdr v)))
+					 (filter-map (lambda (v)
+						       (if (memq (car v) var-names)
+							   `($closure-set ,x ,(car v) ,(cdr v))
+							   #f))
 						     bound))
 				       var-names free-bind))
 		  ,@(map (lambda (f) (cc f new-bindings)) (cddr f))))))
@@ -219,16 +221,10 @@
 		  (free-vars (find-free body bindings))
 		  (free-bind (map cons free-vars (iota (length free-vars))))
 		  (closure-var (compiler-gensym 'closure))
-		  (cr (compiler-gensym 'cr))
-		  (new-body (substitute-free body free-bind closure-var #f))
-		  (cnt 0))
+		  (new-body (substitute-free body free-bind closure-var #f)))
 	     ;;(dformat "FOUND FREE: ~a\n" free-vars)
 	     ;;(dformat "Closure vars ~a\n" (+ 1 (length free-vars)))
-	     `(let ((,cr ($closure (named-lambda ,(second f) ,(cons closure-var (third f)) ,@new-body)
-				   ,(+ 1 (length free-vars)))))
-		(begin
-		  ,@(map-in-order (lambda (var) (define res `($closure-set ,cr ,var ,cnt)) (inc! cnt) res) free-vars )
-		  ,cr))))
+	     `($closure (named-lambda ,(second f) ,(cons closure-var (third f)) ,@new-body) ,@free-vars)))
 	  (else (imap (lambda (f) (cc f bindings)) f)))))
   (map (lambda (f) (cc f '())) sexp))
 
