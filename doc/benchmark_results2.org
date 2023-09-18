@@ -12,7 +12,7 @@
 | takl      |    2.2 |   2.607 |      -18.5 | *WIN* | same                                            | x          |
 | wc        |  1.430 |    .902 |  36.923077 |       | getc, print_obj, fputc, plt, call constant pool | x          |
 | cat       |  2.142 |   1.278 |  40.336134 |       | same as wc                                      | x          |
-| cpstak    |    3.3 |   2.011 |  39.060606 |       | GC, closure zeroing                             |            |
+| cpstak    |    2.5 |   2.011 |      19.56 |       | GC                                              |            |
 | primes    |   .673 |   .6999 | -3.9970282 | *WIN* |                                                 | x          |
 | deriv     |  1.369 |    .761 |  44.411980 |       | merge GC, lea fusion, typechecks, snapshot min  |            |
 | triangl   |   .656 |   1.184 | -80.487805 | *WIN* |                                                 | x          |
@@ -21,10 +21,10 @@
 | puzzle    |    1.7 |   1.642 |  3.4117647 |       |                                                 | x          |
 | paraffins |    2.4 |   4.270 | -77.916667 | *WIN* |                                                 | x          |
 | maze      |   .485 |    .845 | -74.226804 | *WIN* |                                                 | x          |
-| mazefun   |  1.766 |   1.731 |  1.9818800 |       |                                                 | x          |
-| lattice   |    7.3 |   2.830 |  61.232877 |       | closure sinking, sccp                           | x          |
+| mazefun   |   1.69 |   1.731 | -2.4260355 | *WIN* |                                                 | x          |
+| lattice   |    5.4 |   2.830 |  47.592593 |       | closure sinking, sccp                           | x          |
 | browse    |   1.14 |    1.12 |  1.7543860 |       |                                                 |            |
-| graphs    |    4.6 |    1.71 |  62.826087 |       | LOOP, closure analysis , closure sinking        | nested     |
+| graphs    |    2.7 |    1.71 |  36.666667 |       | LOOP, closure analysis , closure sinking        | nested     |
 | conform   |    2.5 |    2.77 |      -10.8 | *WIN* |                                                 |            |
 | sboyer    |  1.376 |    .731 |     46.875 |       | GC                                              |            |
 | nboyer    |  1.354 |   1.483 | -9.5273264 | *WIN* | GC                                              |            |
@@ -39,9 +39,9 @@
 | peval     |    1.8 |   1.403 |  22.055556 |       | GC, sccp                                        |            |
 | slatex    |  1.824 |   1.958 | -7.3464912 | *WIN* |                                                 |            |
 | equal     |   .236 |    .398 | -68.644068 | *WIN* |                                                 |            |
-| compiler  |    2.2 |   2.004 |  28.428571 |       | GC, loop catching            |            |
+| compiler  |    2.2 |   2.004 |  8.9090909 |       | GC, loop catching                               |            |
 | matrix    |  1.782 |    .899 |  49.551066 |       | loop catching?? opt_loop                        |            |
 | dynamic   |   2.76 |     1.4 |  49.275362 |       | GC, read                                        |            |
-| TOTAL     | 87.917 | 74.9029 |  14.802712 |       |                                                 |            |
+| TOTAL     | 82.641 | 74.9029 |  9.3635121 |       |                                                 |            |
 |-----------+--------+---------+------------+-------+-------------------------------------------------+------------|
 #+TBLFM: $4=($2-$3) * 100.0 /$2::$5='(if (not (= $2 0)) (if (>= $3 $2) '*WIN* "") "BAD");N::@>$2=vsum(@2..@-1)::@>$3=vsum(@2..@-1)

@@ -20,7 +20,6 @@
 
 # TODO
 
-* closures: undo closure-set! vs. $closure, no need to zero
 * Better GC.
   * needs top-of-frame tracking.
     * clear snap from top
