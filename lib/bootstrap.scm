@@ -482,8 +482,6 @@
       (if (< i 0)
 	  lst
 	  (loop (- i 1) (cons (string-ref str i) lst))))))
-(define (char=? a b)
-  ($eq a b))
 
 (define newline
   (case-lambda

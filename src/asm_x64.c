@@ -900,6 +900,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       // Used for typecheck only
       if (op->reg == REG_NONE) {
         op->reg = get_free_reg(trace, &next_spill, slot, false);
+	slot[op->reg] = op_cnt;
         // printf("EMIT LOAD ONLY\n");
       }
       // JIT will load ARG on start.

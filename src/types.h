@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdio.h>
+#include <stdint.h>
 
 // GC hack:
 
@@ -54,10 +55,15 @@ typedef struct string_s {
   char str[];
 } string_s;
 
+struct tv {
+  uint16_t key;
+};
 typedef struct symbol {
   long type; // unused except by GC
   long name; // string_s PTR_TAG'd value
   long val;
+  long opt;
+  struct tv* lst;
 } symbol;
 
 typedef struct vector_s {

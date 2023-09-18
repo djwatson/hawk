@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+typedef struct symbol symbol;
 
 // clang-format off
 typedef enum {
@@ -119,11 +120,14 @@ typedef struct trace_s_s{
   reloc *relocs;
   snap_s *snaps;
   int link;
-  uint32_t *start;
   unsigned int startpc;
   int num;
   Func fn;
+  // For flushing
+  uint32_t *start;
   struct trace_s_s* parent;
+  // For opt
+  uint16_t*syms;
 } trace_s;
 
 #define UNROLL_LIMIT 1

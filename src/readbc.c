@@ -61,6 +61,8 @@ long read_const(FILE *fptr) {
         sym->type = SYMBOL_TAG;
         sym->name = (long)str + PTR_TAG;
         sym->val = UNDEFINED_TAG;
+	sym->opt = 0;
+	sym->lst = NULL;
         symbol_table_insert(sym);
         val = (long)sym | SYMBOL_TAG;
         arrput(symbols, val);
