@@ -1646,6 +1646,15 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[INS_A(i)] = push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, typ | IR_INS_TYPE_GUARD);
     break;
   }
+  case ASSV: {
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, (long)vm_assv);
+    auto res = vm_assq(frame[INS_B(i)], frame[INS_C(i)]);
+    auto typ = get_object_ir_type(res);
+    auto arg = push_ir(trace, IR_CARG, record_stack_load(INS_B(i), frame), record_stack_load(INS_C(i), frame), UNDEFINED_TAG);
+    regs[INS_A(i)] = push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, typ | IR_INS_TYPE_GUARD);
+    break;
+  }
   case GGET: {
     // TODO check it is set?
     long gp = const_table[INS_D(i)];

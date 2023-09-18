@@ -5,12 +5,12 @@
   * closure analysis: nqueens
   * input/output buffering: wc, cat
   * call/cc: ctak, fibc
-  * ??: graphs, scheme, parsing, peval, compiler, matrix, dynamic
+  * ??: graphs, parsing, peval, compiler, matrix, dynamic
   * string ops: string, read1
   * cpstak: GC, closure zeroing, various asm improvements, GC jumping out of trace
   * deriv: GC checks, leas, typechecks for store, also clearing of snapshots
   * lattice: asm ops, closure sinking, GC
-  * scheme: typechecks??
+  * dynamic: GC, read is super slow, read by char
 
 # TODO
 

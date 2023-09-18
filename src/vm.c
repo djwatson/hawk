@@ -515,6 +515,31 @@ LIBRARY_FUNC_BC_LOAD(MEMQ)
   frame[ra] = vm_memq(fb, fc);
 END_LIBRARY_FUNC
 
+long vm_assv(long fb, long fc) {
+  while((fc&TAG_MASK) == CONS_TAG) {
+    cons_s* cell = (cons_s*)(fc - CONS_TAG);
+    if ((cell->a & TAG_MASK) != CONS_TAG) {
+      // TODO error
+    }
+    cons_s* cella = (cons_s*)(cell->a - CONS_TAG);
+    if (fb == cella->a) {
+      return cell->a;
+    } else if (((fb & TAG_MASK) == FLONUM_TAG) &&
+	       ((cella->a & TAG_MASK) == FLONUM_TAG)) {
+      if (((flonum_s*)(fb - FLONUM_TAG))->x == ((flonum_s*)(cella->a - FLONUM_TAG))->x) {
+	return cell->a;
+      }
+    }
+    
+    fc = cell->b;
+  }
+  return FALSE_REP;
+}
+
+LIBRARY_FUNC_BC_LOAD(ASSV)
+  frame[ra] = vm_assv(fb, fc);
+END_LIBRARY_FUNC
+
 long vm_assq(long fb, long fc) {
   while((fc&TAG_MASK) == CONS_TAG) {
     cons_s* cell = (cons_s*)(fc - CONS_TAG);
