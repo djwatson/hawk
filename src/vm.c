@@ -500,18 +500,6 @@ LIBRARY_FUNC_EQ(EQ, frame[ra] = TRUE_REP, frame[ra] = FALSE_REP, 1);
 LIBRARY_FUNC_EQ(JEQ, pc += 2, pc += INS_D(*(pc+1)) + 1, 0);
 LIBRARY_FUNC_EQ(JNEQ, pc += INS_D(*(pc+1)) + 1, pc += 2, 0);
 
-long vm_length(long fb) {
-  uint64_t cnt = 0;
- while(true) {
-   if ((fb & TAG_MASK) != CONS_TAG) {
-     break;
-   }
-   cnt++;
-   fb = ((cons_s*)(fb - CONS_TAG))->b;
- }
- return cnt << 3;
-}
-
 long vm_memq(long fb, long fc) {
   while((fc&TAG_MASK) == CONS_TAG) {
     cons_s* cell = (cons_s*)(fc - CONS_TAG);
@@ -526,6 +514,37 @@ long vm_memq(long fb, long fc) {
 LIBRARY_FUNC_BC_LOAD(MEMQ)
   frame[ra] = vm_memq(fb, fc);
 END_LIBRARY_FUNC
+
+long vm_assq(long fb, long fc) {
+  while((fc&TAG_MASK) == CONS_TAG) {
+    cons_s* cell = (cons_s*)(fc - CONS_TAG);
+    if ((cell->a & TAG_MASK) != CONS_TAG) {
+      // TODO error
+    }
+    cons_s* cella = (cons_s*)(cell->a - CONS_TAG);
+    if (fb == cella->a) {
+      return cell->a;
+    }
+    fc = cell->b;
+  }
+  return FALSE_REP;
+}
+
+LIBRARY_FUNC_BC_LOAD(ASSQ)
+  frame[ra] = vm_assq(fb, fc);
+END_LIBRARY_FUNC
+
+long vm_length(long fb) {
+  uint64_t cnt = 0;
+ while(true) {
+   if ((fb & TAG_MASK) != CONS_TAG) {
+     break;
+   }
+   cnt++;
+   fb = ((cons_s*)(fb - CONS_TAG))->b;
+ }
+ return cnt << 3;
+}
 
 LIBRARY_FUNC_B_LOAD(LENGTH)
   frame[ra] = vm_length(fb);
