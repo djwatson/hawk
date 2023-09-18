@@ -789,6 +789,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     {
       auto clo = record_stack_load(INS_A(i) + 1, frame);
       if (!(clo & IR_CONST_BIAS)) {
+	add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
 	auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
 	auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
 	regs[INS_A(i)] = fun;
@@ -836,6 +837,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     {
       auto clo = record_stack_load(INS_A(i) + 1, frame);
       if (!(clo & IR_CONST_BIAS)) {
+	add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
 	auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
 	auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
 	regs[INS_A(i)] = fun;
@@ -1189,6 +1191,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case ISEQ:
   case EQV:
   case EQ: {
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth);
     uint32_t op1 = record_stack_load(INS_B(i), frame);
     uint32_t op2 = record_stack_load(INS_C(i), frame);
     int64_t v1 = frame[INS_B(i)];
