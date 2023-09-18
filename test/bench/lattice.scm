@@ -212,6 +212,6 @@
     (count-maps l3 l2)
     (count-maps l4 l4)))
 
-(println (run))
+(display (run))
 
 ;120549
