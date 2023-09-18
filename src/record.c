@@ -153,25 +153,38 @@ void pendpatch() {
   }
 }
 
-static void trace_flush(trace_s* ctrace) {
-  *ctrace->start = ctrace->startpc;
-  if (ctrace->parent) {
-    auto p = ctrace->parent;
-    ctrace->parent = NULL;
-    trace_flush(p);
-  }
-  if (ctrace->next) {
-    auto v = ctrace->next;
-    ctrace->next = NULL;
-    trace_flush(v);
-  }
-  for(int32_t i =0; i < arrlen(traces); i++) {
-    if (traces[i]->link == ctrace->num &&
-	traces[i] != ctrace) {
-      traces[i]->link = -1;
-      trace_flush(traces[i]);
+void trace_flush(trace_s* ctrace) {
+  trace_s** q = NULL;
+  arrput(q, ctrace);
+  while(arrlen(q)) {
+    ctrace = arrpop(q);
+    *ctrace->start = ctrace->startpc;
+    for(uint32_t i =0; i < arrlen(ctrace->syms); i++) {
+      auto csym = ctrace->syms[i];
+      symbol* sym = (symbol*)(ctrace->consts[csym] - SYMBOL_TAG);
+      //printf("Flushing from sym %s trace %i\n", ((string_s*)(sym->name-PTR_TAG))->str, ctrace->num);
+      hmdel(sym->lst, ctrace->num);
+    }
+    arrfree(ctrace->syms);
+    if (ctrace->parent) {
+      auto p = ctrace->parent;
+      ctrace->parent = NULL;
+      arrput(q, p);
+    }
+    if (ctrace->next) {
+      auto v = ctrace->next;
+      ctrace->next = NULL;
+      arrput(q, v);
+    }
+    for(int32_t i =0; i < arrlen(traces); i++) {
+      if (traces[i]->link == ctrace->num &&
+	  traces[i] != ctrace) {
+	traces[i]->link = -1;
+	arrput(q, traces[i]);
+      }
     }
   }
+  arrfree(q);
   // TODO: also free trace.
 }
 
@@ -183,6 +196,7 @@ void record_side(trace_s *p, snap_s *side) {
 void record_abort();
 void record_start(unsigned int *pc, long *frame) {
   trace = malloc(sizeof(trace_s));
+  trace->syms = NULL;
   trace->next = NULL;
   trace->ops = NULL;
   trace->consts = NULL;
@@ -313,6 +327,13 @@ void record_abort() {
   if (!parent) {
     penalty_pc(pc_start);
   }
+  for(uint32_t i =0; i < arrlen(trace->syms); i++) {
+    uint16_t csym = trace->syms[i];
+    symbol* sym = (symbol*)(trace->consts[csym] - SYMBOL_TAG);
+    //printf("aborting from sym %s trace %i\n", ((string_s*)(sym->name-PTR_TAG))->str, trace->num);
+    hmdel(sym->lst, trace->num);
+  }
+  arrfree(trace->syms);
   // TODO separate func
   for(uint64_t i = 0; i < arrlen(trace->snaps); i++) {
     free_snap(&trace->snaps[i]);
@@ -767,14 +788,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     {
       auto clo = record_stack_load(INS_A(i) + 1, frame);
-      auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
-      auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
-      regs[INS_A(i)] = fun;
-      auto cl = frame[INS_A(i) + 1];
-      auto closure = (closure_s *)(cl - CLOSURE_TAG);
-      auto knum = arrlen(trace->consts);
-      arrput(trace->consts, closure->v[0]);
-      push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
+      if (!(clo & IR_CONST_BIAS)) {
+	auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
+	auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
+	regs[INS_A(i)] = fun;
+	auto cl = frame[INS_A(i) + 1];
+	auto closure = (closure_s *)(cl - CLOSURE_TAG);
+	auto knum = arrlen(trace->consts);
+	arrput(trace->consts, closure->v[0]);
+	push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
+      }
     }
     /* // Check call type */
     /* { */
@@ -812,14 +835,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // Check call type
     {
       auto clo = record_stack_load(INS_A(i) + 1, frame);
-      auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
-      auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
-      regs[INS_A(i)] = fun;
-      auto cl = frame[INS_A(i) + 1];
-      auto closure = (closure_s *)(cl - CLOSURE_TAG);
-      auto knum = arrlen(trace->consts);
-      arrput(trace->consts, closure->v[0]);
-      push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
+      if (!(clo & IR_CONST_BIAS)) {
+	auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
+	auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
+	regs[INS_A(i)] = fun;
+	auto cl = frame[INS_A(i) + 1];
+	auto closure = (closure_s *)(cl - CLOSURE_TAG);
+	auto knum = arrlen(trace->consts);
+	arrput(trace->consts, closure->v[0]);
+	push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
+      }
     }
     /* { */
     /*   auto v = frame[INS_A(i) + 1]; */
@@ -1603,17 +1628,38 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case GGET: {
     // TODO check it is set?
     long gp = const_table[INS_D(i)];
+    symbol* g = (symbol*)(gp - SYMBOL_TAG);
+    if (g->opt != -1) {
+      //printf("Optimize trace %i with sym %s\n",trace->num, ( (string_s*)(g->name-PTR_TAG))->str);
+      g->opt = 1;
+      hmputs(g->lst, (struct tv){.key = trace->num});
+      auto knum = arrlen(trace->consts);
+      arrput(trace->consts, gp);
+      arrput(trace->syms, knum);
+      knum = arrlen(trace->consts);
+      arrput(trace->consts, g->val);
+      regs[INS_A(i)] = knum | IR_CONST_BIAS;
+    } else {
 
-    auto knum = arrlen(trace->consts);
-    arrput(trace->consts, gp);
-    symbol *sym = (symbol *)(gp - SYMBOL_TAG);
-    uint8_t type = get_object_ir_type(sym->val);
-    regs[INS_A(i)] = push_ir(trace, IR_GGET, knum | IR_CONST_BIAS, IR_NONE,
-                             type | IR_INS_TYPE_GUARD);
+      auto knum = arrlen(trace->consts);
+      arrput(trace->consts, gp);
+      symbol *sym = (symbol *)(gp - SYMBOL_TAG);
+      uint8_t type = get_object_ir_type(sym->val);
+      regs[INS_A(i)] = push_ir(trace, IR_GGET, knum | IR_CONST_BIAS, IR_NONE,
+			       type | IR_INS_TYPE_GUARD);
+    }
     break;
   }
   case GSET: {
     long gp = const_table[INS_D(i)];
+    symbol* g = (symbol*)(gp - SYMBOL_TAG);
+    if (g->val == UNDEFINED_TAG || (g->opt != 0 && g->opt != -1)) {
+      if (verbose) {
+	printf("Record abort: Setting a currently-const global %s %li\n", ((string_s*)(g->name-PTR_TAG))->str, g->opt);
+      }
+      record_abort();
+      return 1;
+    }
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, gp);
     push_ir(trace, IR_GSET, knum | IR_CONST_BIAS,

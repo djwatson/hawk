@@ -1,12 +1,17 @@
 # Getting all jit to work bench2
 
+* loosing at: 
+  * GC: diviter, divrec, gcbench, conform, sboyer, nboyer, earley
+  * closure analysis: nqueens
+  * input/output buffering: wc, cat
+  * call/cc: ctak, fibc
+  * ??: cpstak, deriv, lattice, graphs, scheme, parsing, peval, compiler, matrix, dynamic
+  * string ops: string, read1
+
 # TODO
 
 * NYI:apply, close, file-exists?, open, delete-file, read-line
 
-* optimistic global calls - needs frontend change, 
-  and backend optimization / clearing of traces.
-  * MAYBE just all optimistic globals
 * sccp pass / fold
   * folding GGET: put in emit somewhere, check for GSET
 * singleton functions /closures

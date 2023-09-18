@@ -611,6 +611,17 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_D(GSET)
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
+  if (gp->opt !=0 && gp->opt != -1) {
+    if (gp->val != UNDEFINED_TAG) {
+      //printf("Gupgrade %s\n", ((string_s*)(gp->name-PTR_TAG))->str);
+      for(uint32_t i = 0; i < hmlen(gp->lst); i++) {
+	//printf("Get trace %i\n", gp->lst[i].key);
+	trace_flush(trace_cache_get(gp->lst[i].key));
+      }
+      hmfree(gp->lst);
+      gp->opt = -1;
+    }
+   }
   gp->val = frame[ra];
 END_LIBRARY_FUNC
 
@@ -1085,6 +1096,8 @@ long vm_string_symbol(string_s* str) {
     sym->type = SYMBOL_TAG;
     sym->name = (long)str + PTR_TAG;
     sym->val = UNDEFINED_TAG;
+    sym->opt = 0;
+    sym->lst = NULL;
   
     // DUP the string, so that this one is immutable.
     auto str2 = (string_s *)GC_malloc_no_collect(16 + strlen + 1);
@@ -1118,6 +1131,8 @@ LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
     // Note re-load of str after allocation.
     sym->name = frame[rb];
     sym->val = UNDEFINED_TAG;
+    sym->opt = 0;
+    sym->lst = NULL;
   
     // Save new symbol in frame[ra].
     frame[ra] = (long)sym + SYMBOL_TAG;
