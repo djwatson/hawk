@@ -119,9 +119,11 @@ typedef struct trace_s_s{
   reloc *relocs;
   snap_s *snaps;
   int link;
+  uint32_t *start;
   unsigned int startpc;
   int num;
   Func fn;
+  struct trace_s_s* parent;
 } trace_s;
 
 #define UNROLL_LIMIT 1
