@@ -7,6 +7,7 @@
 #include "gc.h"
 #include "symbol_table.h"
 #include "defs.h"
+#include "bytecode.h"
 
 #include "unionfind.h"
 
@@ -203,7 +204,9 @@ void print_obj(long obj, FILE *file) {
     break;
   }
   case CLOSURE_TAG: {
-    fputs("<closure>", file);
+    closure_s*clo = (closure_s*)(obj - CLOSURE_TAG);
+    bcfunc* func = (bcfunc*)clo->v[0];
+    fprintf(file, "#<procedure %s>", func->name);
     break;
   }
   case FORWARD_TAG: {
