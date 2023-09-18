@@ -153,6 +153,28 @@ void pendpatch() {
   }
 }
 
+static void trace_flush(trace_s* ctrace) {
+  *ctrace->start = ctrace->startpc;
+  if (ctrace->parent) {
+    auto p = ctrace->parent;
+    ctrace->parent = NULL;
+    trace_flush(p);
+  }
+  if (ctrace->next) {
+    auto v = ctrace->next;
+    ctrace->next = NULL;
+    trace_flush(v);
+  }
+  for(int32_t i =0; i < arrlen(traces); i++) {
+    if (traces[i]->link == ctrace->num &&
+	traces[i] != ctrace) {
+      traces[i]->link = -1;
+      trace_flush(traces[i]);
+    }
+  }
+  // TODO: also free trace.
+}
+
 void record_side(trace_s *p, snap_s *side) {
   parent = p;
   side_exit = side;
@@ -168,8 +190,10 @@ void record_start(unsigned int *pc, long *frame) {
   trace->snaps = NULL;
   trace->link = -1;
   trace->startpc = *pc;
+  trace->start = pc;
   trace->num = arrlen(traces);
   trace->fn = NULL;
+  trace->parent = parent;
   trace_state = START;
   unroll = 0;
   tailcalled = 0;
@@ -568,13 +592,11 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	if ((patchpc == pc) && INS_OP(patchold) == JFUNC) {
 	  auto sl_trace = trace_cache_get(INS_D(patchold));
 	  if (sl_trace->link != INS_D(patchold)) {
-	    if (verbose)
-	      printf("Flushing trace\n");
-	    pendpatch();
-	    //printf("REPLACING PC %p %x with %x\n", pc, *pc, traces[INS_D(*pc)]->startpc);
-	    // Prevent flipping back and forth via blacklist.
-	    penalty_pc(pc);
-	    *pc = traces[INS_D(*pc)]->startpc;
+
+	    printf("Flushing trace %i because it links to %i\n", sl_trace->num, sl_trace->link);
+	      pendpatch();
+	      penalty_pc(pc);
+	      trace_flush(traces[INS_D(*pc)]);
 	    hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
 	  }
 	}
