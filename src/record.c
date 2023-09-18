@@ -1659,7 +1659,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // TODO check it is set?
     long gp = const_table[INS_D(i)];
     symbol* g = (symbol*)(gp - SYMBOL_TAG);
-    if (g->opt != -1) {
+    if (g->opt != -1
+	&& ((g->val & TAG_MASK) == CLOSURE_TAG)
+	) {
       //printf("Optimize trace %i with sym %s\n",trace->num, ( (string_s*)(g->name-PTR_TAG))->str);
       g->opt = 1;
       hmputs(g->lst, (struct tv){.key = trace->num});

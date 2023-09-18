@@ -1,16 +1,22 @@
 # Getting all jit to work bench2
 
 * loosing at: 
-  * GC: diviter, divrec, gcbench, conform, sboyer, nboyer, earley
+  * GC: diviter, divrec, gcbench, conform, sboyer, nboyer, earley, graphs, dynamic, peval, matrix, compiler, cpstak, deriv
   * closure analysis: nqueens
-  * input/output buffering: wc, cat
+  * input/output buffering: wc, cat, dynamic
   * call/cc: ctak, fibc
-  * ??: graphs, parsing, peval, compiler, matrix, dynamic
+  * ??: compiler
   * string ops: string, read1
   * cpstak: GC, closure zeroing, various asm improvements, GC jumping out of trace
   * deriv: GC checks, leas, typechecks for store, also clearing of snapshots
   * lattice: asm ops, closure sinking, GC
   * dynamic: GC, read is super slow, read by char
+  * parsing: unbox, closure-get need sccp
+  * graphs: LOOP_opt, sccp, GC
+  * ?? peval - sccp
+  * ?? matrix - loop_opt, but also tracing??
+  * ?? compiler - falling out of trace.  looping issue
+  * puzzle - optimistic globals?
 
 # TODO
 
