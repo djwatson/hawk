@@ -28,3 +28,4 @@ long vm_callcc(long* frame);
 long vm_cc_resume(long c);
 void expand_stack(long **o_frame);
 long vm_length(long fb);
+long vm_memq(long fb, long fc);

@@ -512,6 +512,21 @@ long vm_length(long fb) {
  return cnt << 3;
 }
 
+long vm_memq(long fb, long fc) {
+  while((fc&TAG_MASK) == CONS_TAG) {
+    cons_s* cell = (cons_s*)(fc - CONS_TAG);
+    if (fb == cell->a) {
+      return fc;
+    }
+    fc = cell->b;
+  }
+  return FALSE_REP;
+}
+
+LIBRARY_FUNC_BC_LOAD(MEMQ)
+  frame[ra] = vm_memq(fb, fc);
+END_LIBRARY_FUNC
+
 LIBRARY_FUNC_B_LOAD(LENGTH)
   frame[ra] = vm_length(fb);
 END_LIBRARY_FUNC

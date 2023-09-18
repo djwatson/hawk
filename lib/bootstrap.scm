@@ -275,11 +275,8 @@
 	      (loop obj (cdr alist)))))))
 
 (define (memq obj list)
-  (let loop ((list list))
-    (if (null? list) #f
-	(if (eq? obj (car list)) 
-	    list
-	    (loop (cdr list))))))
+  ($memq obj list)
+)
 (define (memv obj list)
   (let loop ((list list))
     (if (null? list) #f
