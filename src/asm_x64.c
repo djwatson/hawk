@@ -463,7 +463,7 @@ void emit_snap(int snap, trace_s *trace, bool all, uint16_t* ignore) {
       // TODO RET check, can't emit past RETS
       if (slot->val > last_ret &&
           (op->op == IR_SLOAD && ((op->type & IR_INS_TYPE_GUARD) != 0)) &&
-          op->op1 == slot->slot && slot->slot < sn->offset) {
+          op->op1 == slot->slot) {
         // printf("DROPPING emit snap of slot %i\n", slot->slot);
         //  nothing
       } else if (op->slot != SLOT_NONE) {
