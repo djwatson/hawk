@@ -4,11 +4,11 @@
   * GC: diviter, divrec, gcbench, conform, sboyer, nboyer, earley, graphs, dynamic, peval, matrix, compiler, cpstak, deriv
   * closure analysis: nqueens
   * input/output buffering: wc, cat, dynamic
+  * read: dynamic read1 sum1
   * call/cc: ctak, fibc
-  * ??: compiler
-  * string ops: string, read1
+  * string ops: string, slatex, compiler, parsing
   * cpstak: GC, closure zeroing, various asm improvements, GC jumping out of trace
-  * deriv: GC checks, leas, typechecks for store, also clearing of snapshots
+  * deriv: GC checks could be merged, leas, typechecks for store, also clearing of snapshots
   * lattice: asm ops, closure sinking, GC
   * dynamic: GC, read is super slow, read by char
   * parsing: unbox, closure-get need sccp
@@ -20,28 +20,38 @@
 
 # TODO
 
-* NYI:apply, close, file-exists?, open, delete-file, read-line
-
+* closures: undo closure-set! vs. $closure, no need to zero
+* Better GC.
+  * needs top-of-frame tracking.
+    * clear snap from top
+  * needs generational check for vector-set! set-cdr! set-car! set-box! gset
+  * a better GC, immix or bartlett
+  * GC doesn't need to jump out of trace for most things?
+  * merge GC checks?
 * sccp pass / fold
   * folding GGET: put in emit somewhere, check for GSET
+
+* better closure allocation in frontend - full closure optimization
 * singleton functions /closures
   * polymorphic / non polymorphic
 * lazier typechecking
   * jguard counts as a use!
 * TRACE loop recording - 
   * CALLT should also detect loops, and flush original trace??
-  * downrec could flush original trace if not uprec??
+  * compiler/matrix are tracing failures
+  
 * UNDEFINED_TAG
 * fusion
 * const pool
 * cleanup register allocation - two-arg can be optimized
 
-* Better GC.
-  * a better GC, immix or bartlett
-  * needs top-of-frame tracking.
+* input/output buffering
+  * (read) in c?  Or buffer the string?
+* LOOP_opt
+* gvn / dce
 
+* NYI:apply, close, file-exists?, open, delete-file, read-line
 * enregister return arg??
-* better closure allocation in frontend - full closure optimization
 * allocation sinking for cons/closure/vector
 * reg hints across calls? and returns?
   * CALLXS betterness
@@ -123,6 +133,7 @@
 
 # OPTS
 
+* gvn
 * dce
 * global fetches
 * mem - L2L + S2L, DSE, AA

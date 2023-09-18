@@ -1460,7 +1460,9 @@ extern unsigned int patchold;
 int jit_run(trace_s* trace, unsigned int **o_pc, long **o_frame, long* argcnt) {
   exit_state state;
   // Only necessary for msan:
+#ifndef NDEBUG
   memset(&state, 0, sizeof(state));
+#endif
 
   for (uint64_t i = 0; i < arrlen(trace->ops); i++) {
     auto op = &trace->ops[i];
