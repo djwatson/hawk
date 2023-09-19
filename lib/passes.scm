@@ -7,9 +7,10 @@
 	  (cons (f (car l)) (imap f (cdr l))))))
 
 (define (improper? l)
-  (if (null? l) #f
-      (if (atom? l) #t
-	  (improper? (cdr l)))))
+  (let improper_loop ((l l))
+    (if (null? l) #f
+	(if (atom? l) #t
+	    (improper_loop (cdr l))))))
 
 (define (to-proper l)
   (if (null? l) '()
