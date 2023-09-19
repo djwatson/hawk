@@ -675,7 +675,7 @@ LIBRARY_FUNC_D(GSET)
       //printf("Gupgrade %s\n", ((string_s*)(gp->name-PTR_TAG))->str);
       for(uint32_t i = 0; i < hmlen(gp->lst); i++) {
 	//printf("Get trace %i\n", gp->lst[i].key);
-	trace_flush(trace_cache_get(gp->lst[i].key));
+	trace_flush(trace_cache_get(gp->lst[i].key), true);
       }
       hmfree(gp->lst);
       gp->opt = -1;
