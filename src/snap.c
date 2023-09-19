@@ -7,7 +7,7 @@
 #define auto __auto_type
 
 void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
-              uint32_t depth) {
+              uint32_t depth, int32_t stack_top) {
   snap_s snap;
   snap.ir = arrlen(trace->ops);
   snap.pc = pc;
@@ -19,7 +19,8 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
   snap.argcnt = 1;
   snap.patchpoint = 0;
   // TODO fix regs size/boj to vec?
-  for (int16_t i = 0; i < 257; i++) {
+  auto top = stack_top == -1 ? 257 : offset + stack_top + 1 /* offset */ + 1 /* inclusive of top */;
+  for (int16_t i = 0; i < top; i++) {
     if (regs[i] != -1) {
       // printf("Record snap entry %i val %i\n", i-1, regs[i]);
       snap_entry_s entry;
@@ -37,7 +38,7 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
 }
 
 // Replay a snap for a side-trace.
-void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
+uint32_t snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
                  const long *frame, int *d) {
   frame -= snap->offset;
   for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
@@ -67,6 +68,10 @@ void snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
   }
   *regs = *regs + snap->offset;
   *d = snap->depth;
+  if (!arrlen(snap->slots)) {
+    return 0;
+  }
+  return snap->slots[arrlen(snap->slots)-1].slot;
 }
 
 void free_snap(snap_s* snap) {
