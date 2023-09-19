@@ -153,7 +153,7 @@ void pendpatch() {
   }
 }
 
-void trace_flush(trace_s* ctrace) {
+void trace_flush(trace_s* ctrace, bool all) {
   trace_s** q = NULL;
   arrput(q, ctrace);
   while(arrlen(q)) {
@@ -176,11 +176,13 @@ void trace_flush(trace_s* ctrace) {
       ctrace->next = NULL;
       arrput(q, v);
     }
-    for(int32_t i =0; i < arrlen(traces); i++) {
-      if (traces[i]->link == ctrace->num &&
-	  traces[i] != ctrace) {
-	traces[i]->link = -1;
-	arrput(q, traces[i]);
+    if (all) {
+      for(int32_t i =0; i < arrlen(traces); i++) {
+	if (traces[i]->link == ctrace->num &&
+	    traces[i] != ctrace) {
+	  traces[i]->link = -1;
+	  arrput(q, traces[i]);
+	}
       }
     }
   }
@@ -614,10 +616,10 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	  auto sl_trace = trace_cache_get(INS_D(patchold));
 	  if (sl_trace->link != INS_D(patchold)) {
 
-	    printf("Flushing trace %i because it links to %i\n", sl_trace->num, sl_trace->link);
-	      pendpatch();
-	      penalty_pc(pc);
-	      trace_flush(traces[INS_D(*pc)]);
+	    //printf("Flushing trace %i because it links to %i\n", sl_trace->num, sl_trace->link);
+	    pendpatch();
+	    penalty_pc(pc);
+	    trace_flush(traces[INS_D(*pc)], false);
 	    hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
 	  }
 	}
