@@ -128,7 +128,9 @@
 
 * need to purge snap to minimum entries. - kinda done, maybe a 'readonly' slot.  ONLY for sload, not ARG.
   * only matters for emit_snap
-
+* trace exits could patch all exit jumps directly instead of the exit branch.
+  * also the exit branch still does a mov to R15
+* Merge stubs like in luajit?
 
 # OPTS
 
