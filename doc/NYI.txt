@@ -1,36 +1,34 @@
 bench2/ack.scm
       1 In-gc: 0.00%
       1 Traces: 3
-      1 VM: 0.34%
+      1 VM: 0.35%
 
 bench2/array1.scm
-      1 In-gc: 0.26%
+      1 In-gc: 0.24%
       1 Traces: 4
-      1 VM: 1.72%
+      1 VM: 1.61%
 
 bench2/browse.scm
       1 In-gc: 0.00%
       1 Record abort: unroll limit reached
-      1 Traces: 99
-      1 VM: 3.24%
-      4 Record abort: Loop root trace exited loop
-     11 Record abort: Root trace hit untraced loop
-     31 Record abort: Unroll limit reached in loop for side trace
-     46 Record abort: Potential down-recursion, restarting
-     58 Record abort: due to length
-     79 Record abort: root trace hit jloop
+      1 Traces: 105
+      1 VM: 3.41%
+      3 Record abort: Loop root trace exited loop
+     13 Record abort: Root trace hit untraced loop
+     33 Record abort: Unroll limit reached in loop for side trace
+     42 Record abort: Potential down-recursion, restarting
+     45 Record abort: due to length
+     76 Record abort: root trace hit jloop
 
 bench2/bv2string.scm
       1 In-gc: 0.00%
       1 Traces: 7
-      1 VM: 2.36%
+      1 VM: 2.13%
 
 bench2/cat.scm
       1 In-gc: 0.00%
-      1 Record abort: NYI: CANT RECORD BYTECODE FILE-EXISTS? in file-exists?
-      1 Record abort: NYI: CANT RECORD BYTECODE ROUND in _rounded_46
-      1 Traces: 2
-      1 VM: 0.92%
+      1 Traces: 4
+      1 VM: 0.86%
       5 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-output-port
 
 bench2/chudnovsky.scm
@@ -40,51 +38,55 @@ bench2/chudnovsky.scm
 bench2/compiler.scm
       1 In-gc: 0.00%
       1 Record abort downrec
-      1 Traces: 3008
-      1 VM: 39.22%
-     14 Record abort: due to length
-     49 Record abort: Potential down-recursion, restarting
-     52 Record abort: Root trace hit untraced loop
-    236 Record abort: NYI: CANT RECORD BYTECODE APPLY in apply
-    250 Record abort: Loop root trace exited loop
-    266 Record abort: unroll limit reached
-    470 Record abort: Unroll limit reached in loop for side trace
-    924 Record abort: root trace hit jloop
+      1 Record abort: Setting a currently-const global **c-declaration-sym 0
+      1 Record abort: Setting a currently-const global separate-sym 0
+      1 Record abort: Setting a currently-const global throw-to-exception-handler 1
+      1 Record abort: Setting a currently-const global **unassigned?-sym 0
+      1 Record abort: Setting a currently-const global unsigned-int-sym 0
+      1 Traces: 5816
+      1 VM: 49.74%
+     80 Record abort: due to length
+    108 Record abort: Potential down-recursion, restarting
+    147 Record abort: Root trace hit untraced loop
+    223 Record abort: NYI: CANT RECORD BYTECODE APPLY in apply
+    247 Record abort: Unroll limit reached in loop for side trace
+    300 Record abort: Loop root trace exited loop
+    328 Record abort: unroll limit reached
+   1128 Record abort: root trace hit jloop
 
 bench2/conform.scm
       1 In-gc: 0.00%
-      1 Traces: 424
-      1 VM: 5.36%
-      2 Record abort: due to length
-     19 Record abort: unroll limit reached
-     51 Record abort: Root trace hit untraced loop
-     62 Record abort: Potential down-recursion, restarting
-     80 Record abort: Loop root trace exited loop
-     85 Record abort: Unroll limit reached in loop for side trace
-    124 Record abort: NYI: CANT RECORD BYTECODE APPLY in apply
-    381 Record abort: root trace hit jloop
+      1 Traces: 436
+      1 VM: 5.43%
+     21 Record abort: Unroll limit reached in loop for side trace
+     27 Record abort: unroll limit reached
+     35 Record abort: Loop root trace exited loop
+     39 Record abort: Root trace hit untraced loop
+     48 Record abort: Potential down-recursion, restarting
+    112 Record abort: NYI: CANT RECORD BYTECODE APPLY in apply
+    248 Record abort: root trace hit jloop
 
 bench2/cpstak.scm
-      1 In-gc: 0.03Running cpstak:40:20:11:1
+      1 In-gc: 0.01%
       1 Traces: 4
-      1 VM: 0.20%
+      1 VM: 0.17%
 
 bench2/ctak.scm
-      1 In-gc: 0.04%
-      1 Traces: 13
-      1 VM: 0.13%
+      1 In-gc: 0.05%
+      1 Traces: 4
+      1 VM: 0.10%
 
 bench2/deriv.scm
       1 In-gc: 0.01%
       1 Record abort: Potential down-recursion, restarting
       1 Traces: 12
-      1 VM: 0.37%
+      1 VM: 0.30%
 
 bench2/destruc.scm
-      1 In-gc: 0.01%
+      1 In-gc: 0.02%
       1 Record abort: Loop root trace exited loop
       1 Traces: 18
-      1 VM: 0.73%
+      1 VM: 0.63%
       4 Record abort: Root trace hit untraced loop
       6 Record abort: Unroll limit reached in loop for side trace
       7 Record abort: root trace hit jloop
@@ -92,67 +94,72 @@ bench2/destruc.scm
 bench2/diviter.scm
       1 In-gc: 0.01%
       1 Traces: 3
-      1 VM: 0.28%
+      1 VM: 0.26%
 
 bench2/divrec.scm
-      1 In-gc: 0.02%
+      1 In-gc: 0.01%
       1 Record abort: Potential down-recursion, restarting
       1 Traces: 5
-      1 VM: 0.24%
+      1 VM: 0.21%
 
 bench2/dynamic.scm
       1 In-gc: 0.00%
-      1 Traces: 1312
-      1 VM: 10.48%
-      4 Record abort: Root trace hit untraced loop
-      6 Record abort: Unroll limit reached in loop for side trace
-      9 Record abort: Potential down-recursion, restarting
-     15 Record abort: Loop root trace exited loop
+      1 Traces: 1289
+      1 VM: 7.14%
+     10 Record abort: unroll limit reached
+     11 Record abort: Root trace hit untraced loop
+     11 Record abort: Unroll limit reached in loop for side trace
+     12 Record abort: Potential down-recursion, restarting
+     17 Record abort: root trace hit jloop
+     19 Record abort: Loop root trace exited loop
      28 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
-     30 Record abort: unroll limit reached
-    320 Record abort: root trace hit jloop
 
 bench2/earley.scm
-      1 In-gc: 24.55%
-      1 Traces: 130
-      1 VM: 5.40%
-      5 Record abort: Loop root trace exited loop
-      6 Record abort: Root trace hit untraced loop
-     18 Record abort: Unroll limit reached in loop for side trace
-     25 Record abort: root trace hit jloop
+      1 In-gc: 24.89%
+      1 Record abort: due to length
+      1 Record abort: unroll limit reached
+      1 Traces: 192
+      1 VM: 8.41%
+      4 Record abort: Potential down-recursion, restarting
+     17 Record abort: Root trace hit untraced loop
+     26 Record abort: Loop root trace exited loop
+     28 Record abort: Unroll limit reached in loop for side trace
+     33 Record abort: root trace hit jloop
 
 bench2/equal.scm
       1 In-gc: 0.00%
-      1 Traces: 23
-      1 VM: 10.78%
+      1 Traces: 29
+      1 VM: 9.23%
       2 Record abort: Potential down-recursion, restarting
+      7 Record abort: unroll limit reached
 
 bench2/fft.scm
-      1 In-gc: 0.03%
-      1 Record abort: root trace hit jloop
-      1 Traces: 6
-      1 VM: 98.97%
-     17 Record abort: NYI: CANT RECORD BYTECODE SIN in sin
-     38 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-    138 Record abort: Only int supported in trace: 0
+      1 In-gc: 0.04%
+      1 Record abort: Loop root trace exited loop
+      1 Traces: 4
+      1 VM: 99.00%
+      2 Record abort: root trace hit jloop
+     15 Record abort: NYI: CANT RECORD BYTECODE SIN in sin
+     39 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+    139 Record abort: Only int supported in trace: 0
 
 bench2/fibc.scm
       1 In-gc: 0.02%
       1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-      1 Traces: 9
-      1 VM: 0.24%
+      1 Traces: 12
+      1 VM: 0.20%
 
 bench2/fibfp.scm
       1 In-gc: 0.01%
       1 VM: 99.99%
-     65 Record abort: Only int supported in trace: 2 1
+     65 Record abort: Only int supported in trace: 2
 
 bench2/fib.scm
       1 In-gc: 0.00%
       1 Record abort: Potential down-recursion, restarting
-      1 Traces: 18
-      1 VM: 0.33%
-      3 Record abort: unroll limit reached
+      1 Record abort: unroll limit reached
+      1 Traces: 12
+      1 VM: 0.37%
 
 bench2/gcbench.scm
       1 Compiling script bench2/gcbench.scm
@@ -161,159 +168,153 @@ bench2/gcbench.scm
       1 In-gc: 0.00%
       1 Record abort: Potential down-recursion, restarting
       1 Record abort: Root trace hit untraced loop
-      1 Record abort: unroll limit reached
-      1 Record abort: Unroll limit reached in loop for side trace
-      1 Record start 0 at FUNC func gcbench-lambda
-      1 Record start 17 at FUNC func gcbench-lambda
       1 Running gcbench:20:1
       1 Running script bench2/gcbench.scm.bc
-      1 Traces: 25
-      1 VM: 1.87%
+      1 Traces: 20
+      1 VM: 1.69%
 
 bench2/graphs.scm
-      1 In-gc: 1.78%
-      1 Record abort downrec
-      1 Traces: 553
-      1 VM: 4.96%
-      4 Record abort: due to length
+      1 In-gc: 2.26%
+      1 Record abort: unroll limit reached
+      1 Traces: 612
+      1 VM: 5.93%
+      2 Record abort downrec
       8 Record abort: Unroll limit reached in loop for side trace
-      9 Record abort: Potential down-recursion, restarting
-     10 Record abort: Root trace hit untraced loop
-     11 Record abort: Loop root trace exited loop
-     23 Record abort: root trace hit jloop
+     12 Record abort: Loop root trace exited loop
+     13 Record abort: Root trace hit untraced loop
+     18 Record abort: Potential down-recursion, restarting
+     70 Record abort: root trace hit jloop
 
 bench2/lattice.scm
       1 In-gc: 0.03%
-      1 Record abort: due to length
-      1 Record abort: Unroll limit reached in loop for side trace
-      1 Traces: 206
-      1 VM: 0.60%
-      3 Record abort: root trace hit jloop
-      5 Record abort: Potential down-recursion, restarting
-     11 Record abort: unroll limit reached
+      1 Record abort: unroll limit reached
+      1 Traces: 315
+      1 VM: 0.88%
+      6 Record abort downrec
+      7 Record abort: due to length
+     16 Record abort: Potential down-recursion, restarting
 
 bench2/matrix.scm
-      1 0025 rsi     >	[1;31mclo [m GGET   extended-gcd
-      1 0110 rcx     >	[1;31mclo [m GGET   extended-gcd
       1 In-gc: 0.03%
-      1 Record start 0 at LOOP func extended-gcd-lambda-lambda
-      1 Record start 1 at CLOSURE-GET func extended-gcd-lambda-lambda
-      1 Record start 518 at FUNC func extended-gcd-lambda-lambda
-      1 Traces: 602
-      1 VM: 8.16%
-     23 Record abort: Potential down-recursion, restarting
-     51 Record abort: Root trace hit untraced loop
-     69 Record abort: Unroll limit reached in loop for side trace
-     81 Record abort: Loop root trace exited loop
-    220 Record abort: unroll limit reached
-    253 Record abort: root trace hit jloop
+      1 Record start 2 at LOOP func extended-gcd-lambda-lambda
+      1 Record start 3 at CLOSURE-GET func extended-gcd-lambda-lambda
+      1 Record start 481 at FUNC func extended-gcd
+      1 Record start 658 at CALLT func extended-gcd
+      1 Traces: 730
+      1 VM: 8.34%
+     27 Record abort: Potential down-recursion, restarting
+     54 Record abort: Root trace hit untraced loop
+     80 Record abort: Loop root trace exited loop
+     97 Record abort: Unroll limit reached in loop for side trace
+    218 Record abort: unroll limit reached
+    296 Record abort: root trace hit jloop
 
 bench2/mazefun.scm
       1 In-gc: 0.01%
-      1 Traces: 178
-      1 VM: 1.04%
-      6 Record abort: Loop root trace exited loop
-     10 Record abort: Root trace hit untraced loop
-     13 Record abort: Potential down-recursion, restarting
-     29 Record abort: unroll limit reached
+      1 Traces: 175
+      1 VM: 0.96%
+     19 Record abort: Loop root trace exited loop
+     25 Record abort: Potential down-recursion, restarting
+     30 Record abort: unroll limit reached
+     31 Record abort: Root trace hit untraced loop
 
 bench2/maze.scm
       1 In-gc: 0.00%
-      1 Traces: 216
-      1 VM: 7.20%
-      2 Record abort: Potential down-recursion, restarting
-      6 Record abort: Loop root trace exited loop
-     10 Record abort: Root trace hit untraced loop
-     23 Record abort: Unroll limit reached in loop for side trace
-     24 Record abort: root trace hit jloop
+      1 Traces: 218
+      1 VM: 8.18%
+      2 Record abort: Loop root trace exited loop
+      2 Record abort: root trace hit jloop
+      4 Record abort: Unroll limit reached in loop for side trace
+      5 Record abort: Potential down-recursion, restarting
+      5 Record abort: Root trace hit untraced loop
+      9 Record abort: due to length
 
 bench2/mbrot.scm
-      1 In-gc: 0.01%
+      1 In-gc: 0.00%
       1 Traces: 4
-      1 VM: 98.43%
-      2 Record abort: Loop root trace exited loop
-     63 Record abort: Only int supported in trace: 0
+      1 VM: 98.65%
+     65 Record abort: Only int supported in trace: 0
     251 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
 
 bench2/mbrotZ.scm
 
 bench2/mperm.scm
-      1 In-gc: 9.85%
-      1 Record abort: Root trace hit untraced loop
-      1 Traces: 21
-      1 VM: 0.52%
+      1 In-gc: 10.66%
+      1 Record abort: Loop root trace exited loop
+      1 Traces: 31
+      1 VM: 0.53%
       2 Record abort: root trace hit jloop
+      2 Record abort: unroll limit reached
       2 Record abort: Unroll limit reached in loop for side trace
 
 bench2/nboyer.scm
       1 In-gc: 0.00%
-      1 Record abort downrec
-      1 Record abort: Loop root trace exited loop
       1 Traces: 107
-      1 VM: 4.22%
-     25 Record abort: due to length
-     27 Record abort: root trace hit jloop
-     34 Record abort: Potential down-recursion, restarting
+      1 VM: 3.29%
+      4 Record abort: Potential down-recursion, restarting
+      7 Record abort: due to length
 
 bench2/nqueens.scm
-      1 In-gc: 0.00%
+      1 In-gc: 0.01%
       1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-      1 Traces: 225
-      1 VM: 1.80%
+      1 Traces: 36
+      1 VM: 0.44%
       2 Record abort: Potential down-recursion, restarting
-     72 Record abort: unroll limit reached
+      2 Record abort: unroll limit reached
 
 bench2/ntakl.scm
       1 In-gc: 0.00%
       1 Traces: 8
-      1 VM: 0.32%
+      1 VM: 0.36%
 
 bench2/nucleic.scm
       1 In-gc: 0.01%
+      1 Record abort: Loop root trace exited loop
       1 Record abort: Root trace hit untraced loop
+      1 Record abort: unroll limit reached
       1 Traces: 104
-      1 VM: 54.41%
+      1 VM: 56.45%
       2 Record abort: Potential down-recursion, restarting
-      2 Record abort: unroll limit reached
      31 Record abort: root trace hit jloop
      65 Record abort: NYI: CANT RECORD BYTECODE ATAN in atan
      65 Record abort: NYI: CANT RECORD BYTECODE COS in cos
      65 Record abort: NYI: CANT RECORD BYTECODE SIN in sin
      65 Record abort: NYI: CANT RECORD BYTECODE SQRT in sqrt
-    488 Record abort: Only int supported in trace: 2
-    636 Record abort: Only int supported in trace: 0
+    487 Record abort: Only int supported in trace: 2
+    632 Record abort: Only int supported in trace: 0
 
 bench2/paraffins.scm
-      1 In-gc: 11.85%
+      1 In-gc: 12.26%
       1 Record abort: Loop root trace exited loop
       1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
       1 Record abort: Unroll limit reached in loop for side trace
-      1 Traces: 70
-      1 VM: 8.11%
+      1 Traces: 67
+      1 VM: 13.62%
       2 Record abort: Potential down-recursion, restarting
-      4 Record abort: unroll limit reached
+      2 Record abort: unroll limit reached
 
 bench2/parsing.scm
       1 In-gc: 0.00%
-      1 Record abort: Loop root trace exited loop
-      1 Record abort: unroll limit reached
-      1 Traces: 535
-      1 VM: 23.93%
+      1 Record abort: Unroll limit reached in loop for side trace
+      1 Traces: 254
+      1 VM: 6.65%
+      2 Record abort: Loop root trace exited loop
+      2 Record abort: Root trace hit untraced loop
       3 Record abort: Potential down-recursion, restarting
-      4 Record abort: Unroll limit reached in loop for side trace
-     10 Record abort: root trace hit jloop
-   1174 Record abort: due to length
+      6 Record abort: root trace hit jloop
+     27 Record abort: due to length
 
 bench2/peval.scm
-      1 In-gc: 0.02%
-      1 Traces: 919
-      1 VM: 5.36%
+      1 In-gc: 0.03%
+      1 Traces: 1002
+      1 VM: 10.53%
+      2 Record abort: Loop root trace exited loop
+      3 Record abort: Root trace hit untraced loop
       3 Record abort: Unroll limit reached in loop for side trace
-      4 Record abort: unroll limit reached
-     10 Record abort: Loop root trace exited loop
-     10 Record abort: Root trace hit untraced loop
-     16 Record abort: Potential down-recursion, restarting
-     73 Record abort: root trace hit jloop
+      9 Record abort: unroll limit reached
+     10 Record abort: Potential down-recursion, restarting
+     20 Record abort: root trace hit jloop
+     24 Record abort: due to length
 
 bench2/pi.scm
       1 In-gc: 0.00%
@@ -321,175 +322,168 @@ bench2/pi.scm
 
 bench2/pnpoly.scm
       1 In-gc: 0.00%
-      1 Traces: 10
-      1 VM: 91.80%
+      1 Record abort: Root trace hit untraced loop
+      1 Traces: 14
+      1 VM: 92.60%
     127 Record abort: root trace hit jloop
-    154 Record abort: flonum not supported in jeqv
+    153 Record abort: flonum not supported in jeqv
 
 bench2/primes.scm
       1 In-gc: 0.00%
       1 Traces: 16
-      1 VM: 0.86%
+      1 VM: 0.73%
       3 Record abort: Potential down-recursion, restarting
 
 bench2/puzzle.scm
       1 In-gc: 0.00%
       1 Record abort: Loop root trace exited loop
       1 Traces: 52
-      1 VM: 0.89%
+      1 VM: 0.79%
       3 Record abort: root trace hit jloop
-      3 Record abort: Root trace hit untraced loop
+      5 Record abort: Root trace hit untraced loop
 
 bench2/quicksort.scm
       1 In-gc: 0.00%
+      1 Record abort: flonum not suppRunning quicksort:10000:2500
       1 Traces: 5
-      1 VM: 78.29%
+      1 VM: 75.70%
+     48 Record abort: root trace hit jloop
      50 Record abort: Only int supported in trace: 0
-     50 Record abort: root trace hit jloop
-     65 Record abort: flonum not supported in jeqv
+     64 Record abort: flonum not supported in jeqv
      65 Record abort: NYI: CANT RECORD BYTECODE TRUNCATE in truncate
-    212 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-    407 Record abort: flonum not supported in islt
+    213 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+    393 Record abort: flonum not supported in islt
 
 bench2/ray.scm
       1 In-gc: 0.00%
-      1 Traces: 15
-      1 VM: 66.34%
-      7 Record abort: Root trace hit untraced loop
-     63 Record abort: root trace hit jloop
+      1 Traces: 14
+      1 VM: 64.56%
+      9 Record abort: Root trace hit untraced loop
      65 Record abort: flonum not supported in islt
      65 Record abort: NYI: CANT RECORD BYTECODE SQRT in sqrt
-     65 Record abort: Only int supported in trace: 2 1
-    267 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
-    390 Record abort: Only int supported in trace: 2
-    586 Record abort: Only int supported in trace: 0
+    266 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+    455 Record abort: Only int supported in trace: 2
+    646 Record abort: Only int supported in trace: 0
 
 bench2/read1.scm
       1 In-gc: 0.00%
-      1 Record abort: Unroll limit reached in loop for side trace
       1 Traces: 91
-      1 VM: 1.23%
-     51 Record abort: Loop root trace exited loop
+      1 VM: 1.08%
+      5 Record abort: Unroll limit reached in loop for side trace
+     54 Record abort: Loop root trace exited loop
      60 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
-     76 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
-     79 Record abort: root trace hit jloop
+     73 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
+     80 Record abort: root trace hit jloop
 
 bench2/sboyer.scm
       1 In-gc: 0.00%
-      1 Record abort downrec
-      1 Traces: 125
-      1 VM: 5.35%
-      2 Record abort: Loop root trace exited loop
-      2 Record abort: unroll limit reached
-     34 Record abort: Potential down-recursion, restarting
-     35 Record abort: root trace hit jloop
+      1 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+      1 Traces: 139
+      1 VM: 4.53%
+      3 Record abort: unroll limit reached
+      8 Record abort: Potential down-recursion, restarting
+     10 Record abort: due to length
 
 bench2/scheme.scm
       1 In-gc: 0.00%
-      1 Traces: 155
-      1 VM: 5.28%
+      1 Record abort: unroll limit reached
+      1 Traces: 122
+      1 VM: 4.01%
       2 Record abort: Root trace hit untraced loop
-      5 Record abort: due to length
-     16 Record abort: Unroll limit reached in loop for side trace
-     34 Record abort: Loop root trace exited loop
-     39 Record abort: Potential down-recursion, restarting
-    282 Record abort: root trace hit jloop
+      2 Record abort: Unroll limit reached in loop for side trace
+      3 Record abort: due to length
+      3 Record abort: Loop root trace exited loop
+      4 Record abort: root trace hit jloop
+      5 Record abort: Potential down-recursion, restarting
 
 bench2/simplex.scm
       1 In-gc: 0.00%
+      1 Record abort: ORunning simplex:1000000
       1 Record abort: Unroll limit reached in loop for side trace
-      1 Traces: 31
-      1 VM: 50.88%
-     11 Record abort: Loop root trace exited loop
-     51 Record abort: Root trace hit untraced loop
-    139 Record abort: root trace hit jloop
-    206 Record abort: flonum not supported in islt
-    271 Record abort: Only int supported in trace: 2
-    554 Record abort: Only int supported in trace: 0
+      1 Traces: 29
+      1 VM: 56.48%
+      6 Record abort: Loop root trace exited loop
+     71 Record abort: Root trace hit untraced loop
+    116 Record abort: root trace hit jloop
+    204 Record abort: flonum not supported in islt
+    464 Record abort: Only int supported in trace: 2
+    491 Record abort: Only int supported in trace: 0
 
 bench2/slatex.scm
       1 In-gc: 0.00%
-      1 Traces: 427
-      1 VM: 58.86%
-     31 Record abort: Potential down-recursion, restarting
-     44 Record abort: Root trace hit untraced loop
-     89 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
-    135 Record abort: Unroll limit reached in loop for side trace
-    150 Record abort: Loop root trace exited loop
-    157 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
-    158 Record abort: NYI: CANT RECORD BYTECODE DELETE-FILE in delete-file
+      1 Traces: 415
+      1 VM: 61.11%
+      5 Record abort: Potential down-recursion, restarting
+     80 Record abort: Root trace hit untraced loop
+     92 Record abort: Unroll limit reached in loop for side trace
+    113 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
+    123 Record abort: Loop root trace exited loop
+    130 Record abort: NYI: CANT RECORD BYTECODE DELETE-FILE in delete-file
+    181 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
     197 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-output-file
-    229 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-output-port
-    307 Record abort: NYI: CANT RECORD BYTECODE FILE-EXISTS? in file-exists?
-    490 Record abort: root trace hit jloop
+    312 Record abort: NYI: CANT RECORD BYTECODE FILE-EXISTS? in file-exists?
+    354 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-output-port
+    396 Record abort: root trace hit jloop
 
 bench2/string.scm
       1 In-gc: 0.00%
-      1 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in string-appeRunning string:500000:100
+      1 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in string-append
       1 Record abort: Potential down-recursion, restarting
-      1 Traces: 107
-      1 VM: 0.46%
-      2 Record abort: NYI: CANT RECORD BYTECODE ICLFUNCV in string-append
-      3 Record abort: Loop root trace exited loop
-      8 Record abort: Root trace hit untraced loop
-     78 Record abort: root trace hit jloop
+      1 Traces: 109
+      1 VM: 0.43%
+      2 Record abort: Loop root trace exited loop
+     64 Record abort: root trace hit jloop
      89 Record abort: NYI: CANT RECORD BYTECODE APPLY in apply
-    284 Record abort: unroll limit reached
+     93 Record abort: Root trace hit untraced loop
+    334 Record abort: unroll limit reached
 
 bench2/sum1.scm
       1 In-gc: 0.00%
-      1 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
-      1 Record abort: Unroll limit reached in loop for side trace
-      1 Traces: 20
-      1 VM: 37.96%
-      3 Record abort: Root trace hit untraced loop
-     10 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
-     32 Record abort: Loop root trace exited loop
+      1 Traces: 19
+      1 VM: 39.67%
+      9 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
      65 Record abort: Only int supported in trace: 0
-    152 Record abort: root trace hit jloop
-    350 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
+    160 Record abort: root trace hit jloop
+    270 Record abort: NYI: CANT RECORD BYTECODE INEXACT in inexact
 
 bench2/sumfp.scm
       1 In-gc: 0.00%
       1 Traces: 3
       1 VM: 100.00%
-      2 Record abort: Only int supported in trace: 2 96
-      4 Record abort: Only int supported in trace: 2 104
-     65 Record abort: Only int supported in trace: 2 0
+     74 Record abort: Only int supported in trace: 2
 
 bench2/sum.scm
       1 In-gc: 0.00%
       1 Traces: 1
-      1 VM: 1.53%
+      1 VM: 1.27%
 
 bench2/tail.scm
       1 In-gc: 0.00%
-      1 Record abort: NYI: CANT RECORD BYTECODE FILE-EXISTS? in file-exists?
-      1 Traces: 1
-      1 VM: 60.95%
+      1 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-input-file
+      1 Record abort: NYI: CANT RECORD BYTECODE OPEN in open-output-file
+      1 Traces: 2
+      1 VM: 60.58%
       5 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-output-port
-    132 Record abort: NYI: CANT RECORD BYTECODE READ-LINE in read-line
+    130 Record abort: NYI: CANT RECORD BYTECODE READ-LINE in read-line
 
 bench2/takl.scm
       1 In-gc: 0.00%
       1 Traces: 8
-      1 VM: 0.31%
+      1 VM: 0.33%
 
 bench2/tak.scm
       1 In-gc: 0.00%
-      1 Record abort: Potential down-recursion, restarting
-      1 Record abort: unroll limit reached
-      1 Traces: 19
-      1 VM: 0.93%
+      1 Traces: 5
+      1 VM: 0.47%
 
 bench2/triangl.scm
       1 In-gc: 0.00%
       1 Traces: 10
-      1 VM: 1.01%
+      1 VM: 0.96%
 
 bench2/wc.scm
       1 In-gc: 0.00%
       1 Traces: 4
-      1 VM: 0.48%
+      1 VM: 0.39%
       5 Record abort: NYI: CANT RECORD BYTECODE CLOSE in close-input-port
 
