@@ -13,7 +13,6 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
   snap.pc = pc;
   snap.offset = offset;
   snap.exits = 0;
-  snap.link = -1;
   snap.slots = NULL;
   snap.depth = depth;
   snap.argcnt = 1;

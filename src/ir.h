@@ -89,7 +89,6 @@ typedef struct {
   uint16_t ir;
   uint16_t offset;
   uint8_t exits;
-  int link;
   snap_entry_s *slots;
   uint64_t patchpoint;
   uint64_t depth;
