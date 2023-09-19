@@ -312,7 +312,6 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   pendpatch();
 
   if (side_exit != nullptr) {
-    side_exit->link = arrlen(traces);
     if (verbose)
       printf("Hooking to parent trace\n");
   } else {
