@@ -695,7 +695,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     
     // TODO maybe also check for downrec?  Same as RET
     depth = 0;
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, -1);
+    //add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, -1);
     regs = &regs_list[1];
     for (int j = 0; j < sizeof(regs_list) / sizeof(regs_list[0]); j++) {
       regs_list[j] = -1;
@@ -708,8 +708,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS,
 	    IR_INS_TYPE_GUARD | 0x5);
 
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-	     (uint32_t *)old_pc, depth, -1);
+    /* add_snap(regs_list, (int)(regs - regs_list - 1), trace, */
+    /* 	     (uint32_t *)old_pc, depth, -1); */
     break;
   }
   case IRET1:
@@ -748,7 +748,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
         auto result = record_stack_load(INS_A(i), frame);
         // Guard down func type
-        add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, INS_A(i));
+        /* add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, INS_A(i)); */
 
         auto frame_off = INS_A(*(old_pc - 1));
         // printf("Continue down recursion, frame offset %i\n", frame_off);
@@ -816,7 +816,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     {
       auto clo = record_stack_load(INS_A(i) + 1, frame);
       if (!(clo & IR_CONST_BIAS)) {
-	add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, INS_A(i) + INS_B(i));
+	/* add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, INS_A(i) + INS_B(i)); */
 	auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
 	auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
 	regs[INS_A(i)] = fun;
@@ -864,7 +864,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     {
       auto clo = record_stack_load(INS_A(i) + 1, frame);
       if (!(clo & IR_CONST_BIAS)) {
-	add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, INS_A(i) + INS_B(i));
+	/* add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, INS_A(i) + INS_B(i)); */
 	auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
 	auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
 	regs[INS_A(i)] = fun;
