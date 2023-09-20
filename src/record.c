@@ -530,6 +530,81 @@ trace_s* check_argument_match(long*frame, trace_s* ptrace) {
   return NULL;
 }
 
+bool record_jcomp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t b, uint8_t c, long* frame, uint32_t*pc, bool typecheck) {
+    uint32_t *next_pc;
+    ir_ins_op op;
+    bool result = false;
+    switch(bc) {
+      // TODO these got swapped in the BC emitter on accident.
+    case JISF: {
+      result = frame[b] != FALSE_REP;
+      break;
+    }
+    case JIST: {
+      result = frame[b] == FALSE_REP;
+      break;
+    }
+    case JISLT: {
+      result = frame[b] < frame[c];
+      break;
+    }
+    case JISGT: {
+      result = frame[b] > frame[c];
+      break;
+    }
+    case JISGTE: {
+      result = frame[b] >= frame[c];
+      break;
+    }
+    case JISLTE: {
+      result = frame[b] <= frame[c];
+      break;
+    }
+    case JEQ: {
+      result = frame[b] == frame[c];
+      break;
+    }
+    case JNEQ: {
+      result = frame[b] != frame[c];
+      break;
+    }
+    }
+    uint8_t type;
+    uint32_t op1 = record_stack_load(b, frame);
+    uint32_t op2 = record_stack_load(c, frame);
+    if (op1 >= IR_CONST_BIAS) {
+      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
+    } else {
+      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
+    }
+    if (typecheck && type != 0) {
+      if (verbose)
+	printf("Record abort: Only int supported in trace: %i\n", type);
+      record_abort();
+      return true;
+    }
+    if (result) {
+      op = true_op;
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace,
+               pc + INS_D(*(pc + 1)) + 1, depth, -1);
+      next_pc = pc + 2;
+    } else {
+      op = false_op;
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, -1);
+      next_pc = pc + INS_D(*(pc + 1)) + 1;
+    }
+    push_ir(trace, op, op1, op2, type);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth, -1);
+    return false;
+}
+
+void record_jcomp1(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t b, uint8_t c, long* frame, uint32_t*pc) {
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, FALSE_REP);
+    record_jcomp2(bc, true_op, false_op, b, c, frame, pc, false);
+    trace->ops[arrlen(trace->ops)-1].op2 = knum | IR_CONST_BIAS;
+}
+
 extern unsigned char hotmap[hotmap_sz];
 int record_instr(unsigned int *pc, long *frame, long argcnt) {
   unsigned int i = *pc;
@@ -947,158 +1022,40 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case JISF: {
-    auto knum = arrlen(trace->consts);
-    arrput(trace->consts, FALSE_REP);
-    uint32_t *next_pc;
-    ir_ins_op op;
-    auto op1 = record_stack_load(INS_B(i), frame);
-    if (frame[INS_B(i)] == FALSE_REP) {
-      op = IR_EQ;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, -1);
-      next_pc = pc + INS_D(*(pc + 1)) + 1;
-    } else {
-      op = IR_NE;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-               pc + INS_D(*(pc + 1)) + 1, depth, -1);
-      next_pc = pc + 2;
-    }
-    push_ir(trace, op, op1, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth, -1);
+    record_jcomp1(JISF, IR_NE, IR_EQ, INS_B(i), INS_B(i), frame, pc);
     break;
   }
   case JIST: {
-    auto knum = arrlen(trace->consts);
-    arrput(trace->consts, FALSE_REP);
-    ir_ins_op op;
-    uint32_t *next_pc;
-    auto op1 = record_stack_load(INS_B(i), frame);
-    if (frame[INS_B(i)] == FALSE_REP) {
-      op = IR_EQ;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + INS_D(*(pc + 1)) + 1, depth, -1);
-      next_pc = pc + 2;
-    } else {
-      op = IR_NE;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, -1);
-      next_pc = pc + INS_D(*(pc + 1)) + 1;
-    }
-    push_ir(trace, op, op1, knum | IR_CONST_BIAS,  IR_INS_TYPE_GUARD);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth, -1);
+    record_jcomp1(JIST, IR_EQ, IR_NE, INS_B(i), INS_B(i), frame, pc);
     break;
   }
   case JISLT: {
-    uint32_t *next_pc;
-    ir_ins_op op;
-    if (frame[INS_B(i)] < frame[INS_C(i)]) {
-      op = IR_LT;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-               pc + INS_D(*(pc + 1)) + 1, depth, -1);
-      next_pc = pc + 2;
-    } else {
-      op = IR_GE;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, -1);
-      next_pc = pc + INS_D(*(pc + 1)) + 1;
-    }
-    uint8_t type;
-    uint32_t op1 = record_stack_load(INS_B(i), frame);
-    uint32_t op2 = record_stack_load(INS_C(i), frame);
-    if (op1 >= IR_CONST_BIAS) {
-      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
-    } else {
-      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
-    }
-    if (type != 0) {
-      if (verbose)
-        printf("Record abort: Only int supported in trace: %i\n", type);
-      record_abort();
+    if(record_jcomp2(JISLT, IR_LT, IR_GE, INS_B(i), INS_C(i), frame, pc, true)) {
       return 1;
     }
-    push_ir(trace, op, op1, op2, type);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth, -1);
     break;
   }
   case JISGT: {
-    uint32_t *next_pc;
-    ir_ins_op op;
-    if (frame[INS_B(i)] > frame[INS_C(i)]) {
-      op = IR_GT;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-               pc + INS_D(*(pc + 1)) + 1, depth, -1);
-      next_pc = pc + 2;
-    } else {
-      op = IR_LE;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, -1);
-      next_pc = pc + INS_D(*(pc + 1)) + 1;
-    }
-    uint8_t type;
-    uint32_t op1 = record_stack_load(INS_B(i), frame);
-    uint32_t op2 = record_stack_load(INS_C(i), frame);
-    if (op1 >= IR_CONST_BIAS) {
-      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
-    } else {
-      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
-    }
-    if (type != 0) {
-      if (verbose)
-        printf("Record abort: Only int supported in trace: %i\n", type);
-      record_abort();
+    if(record_jcomp2(JISGT, IR_GT, IR_LE, INS_B(i), INS_C(i), frame, pc, true)) {
       return 1;
     }
-    push_ir(trace, op, op1, op2, type);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth, -1);
     break;
   }
   case JISGTE: {
-    uint32_t op1 = record_stack_load(INS_B(i), frame);
-    uint32_t op2 = record_stack_load(INS_C(i), frame);
-    ir_ins_op op;
-    uint32_t *next_pc;
-    if (frame[INS_B(i)] >= frame[INS_C(i)]) {
-      op = IR_GE;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-               pc + INS_D(*(pc + 1)) + 1, depth, -1);
-      next_pc = pc + 2;
-    } else {
-      op = IR_LT;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, -1);
-      next_pc = pc + INS_D(*(pc + 1)) + 1;
+    if(record_jcomp2(JISGTE, IR_GE, IR_LT, INS_B(i), INS_C(i), frame, pc, true)) {
+      return 1;
     }
-    push_ir(trace, op, op1, op2, IR_INS_TYPE_GUARD);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth, -1);
     break;
   }
   case JISLTE: {
-    uint32_t op1 = record_stack_load(INS_B(i), frame);
-    uint32_t op2 = record_stack_load(INS_C(i), frame);
-    ir_ins_op op;
-    uint32_t *next_pc;
-    if ((frame[INS_B(i)] & TAG_MASK) == FLONUM_TAG ||
-        (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
-      if (verbose)
-        printf("Record abort: flonum not supported in jeqv\n");
-      record_abort();
+    if(record_jcomp2(JISLTE, IR_LE, IR_GT, INS_B(i), INS_C(i), frame, pc, true)) {
       return 1;
     }
-    if (frame[INS_B(i)] <= frame[INS_C(i)]) {
-      op = IR_LE;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-               pc + INS_D(*(pc + 1)) + 1, depth, -1);
-      next_pc = pc + 2;
-    } else {
-      op = IR_GT;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, -1);
-      next_pc = pc + INS_D(*(pc + 1)) + 1;
-    }
-    push_ir(trace, op, op1, op2, IR_INS_TYPE_GUARD);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth, -1);
     break;
   }
   case JEQV:
   case JEQ:
   case JISEQ: {
-    uint32_t op1 = record_stack_load(INS_B(i), frame);
-    uint32_t op2 = record_stack_load(INS_C(i), frame);
-    uint32_t *next_pc;
-    ir_ins_op op;
     if (INS_OP(i) == JEQV) {
       if ((frame[INS_B(i)] & TAG_MASK) == FLONUM_TAG ||
           (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
@@ -1108,27 +1065,14 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         return 1;
       }
     }
-    if (frame[INS_B(i)] == frame[INS_C(i)]) {
-      op = IR_EQ;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-               pc + INS_D(*(pc + 1)) + 1, depth, -1);
-      next_pc = pc + 2;
-    } else {
-      op = IR_NE;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, -1);
-      next_pc = pc + INS_D(*(pc + 1)) + 1;
+    if(record_jcomp2(JEQ, IR_EQ, IR_NE, INS_B(i), INS_C(i), frame, pc, false)) {
+      return 1;
     }
-    push_ir(trace, op, op1, op2, IR_INS_TYPE_GUARD);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth, -1);
     break;
   }
   case JNEQ:
   case JNEQV:
   case JISNEQ: {
-    uint32_t op1 = record_stack_load(INS_B(i), frame);
-    uint32_t op2 = record_stack_load(INS_C(i), frame);
-    uint32_t *next_pc;
-    ir_ins_op op;
     if (INS_OP(i) == JNEQV) {
       if ((frame[INS_B(i)] & TAG_MASK) == FLONUM_TAG ||
           (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
@@ -1138,27 +1082,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         return 1;
       }
     }
-    if (INS_OP(i) == JNEQV) {
-      if ((frame[INS_B(i)] & TAG_MASK) == FLONUM_TAG ||
-          (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
-        if (verbose)
-          printf("Record abort: flonum not supported in jneqv\n");
-        record_abort();
-        return 1;
-      }
+    if(record_jcomp2(JNEQ, IR_NE, IR_EQ, INS_B(i), INS_C(i), frame, pc, false)) {
+      return 1;
     }
-    if (frame[INS_B(i)] != frame[INS_C(i)]) {
-      op = IR_NE;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-               pc + INS_D(*(pc + 1)) + 1, depth, -1);
-      next_pc = pc + 2;
-    } else {
-      op = IR_EQ;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, -1);
-      next_pc = pc + INS_D(*(pc + 1)) + 1;
-    }
-    push_ir(trace, op, op1, op2, IR_INS_TYPE_GUARD);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth, -1);
     break;
   }
   case SET_CDR:
