@@ -583,18 +583,19 @@ bool record_jcomp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t b, uin
       record_abort();
       return true;
     }
+    uint32_t stack_top = INS_A(*pc);
     if (result) {
       op = true_op;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-               pc + INS_D(*(pc + 1)) + 1, depth, -1);
+               pc + INS_D(*(pc + 1)) + 1, depth, stack_top);
       next_pc = pc + 2;
     } else {
       op = false_op;
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, -1);
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, stack_top);
       next_pc = pc + INS_D(*(pc + 1)) + 1;
     }
     push_ir(trace, op, op1, op2, type);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth, -1);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth, stack_top);
     return false;
 }
 
