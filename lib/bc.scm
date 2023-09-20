@@ -112,14 +112,14 @@
 ;;       (if number number) - branch destination. Jump to first num if true, second if false.
 ;; 
 
-(define (finish bc cd r)
+(define (finish bc cd nr r)
   (cond
    ((eq? cd 'ret)
     (push-instr! bc (list 'RET1 r)))
    ((number? cd)
     (build-jmp cd bc #t))
    ((branch-dest? cd)
-    (emit-branch-try-invert 'JISF bc cd r 0))
+    (emit-branch-try-invert 'JISF bc cd nr r 0))
    ((eq? cd 'next))
    (else (dformat "UNKNOWN CONTROL DEST:~a" cd) (exit -1))))
 
@@ -135,7 +135,7 @@
 	    (build-jmp (second cd) bc #t)
 	    (build-jmp (third cd) bc #t)))
       (begin
-	(finish bc cd rd)))
+	(finish bc cd rd rd)))
   (when rd
 	  (if (and  (fixnum? f) (< (abs f) 32768))
 	      (push-instr! bc (list 'KSHORT rd f))
@@ -161,17 +161,17 @@
 (define cmp-invert '((JISGT JISLTE) (JISLTE JISGT) (JISGTE JISLT) (JISLT JISGTE) (JISF JIST)
 		     (JEQ JNEQ) (JEQV JNEQV) (JISEQ JISNEQ)
 		     (JGUARD JNGUARD)))
-(define (emit-branch-try-invert op bc cd r1 r2)
+(define (emit-branch-try-invert op bc cd nr r1 r2)
   ;;(dformat "try invert op ~a cd ~a len ~a\n" op cd (length (func-bc-code bc)))
   (if (and (assq op cmp-invert) (= (third cd) (length (func-bc-code bc))))
       (begin
 	(build-jmp (third cd) bc #t)
 	(build-jmp (second cd) bc #f)
-	(push-instr! bc (list (second (assq op cmp-invert)) 0 r1 r2)))
+	(push-instr! bc (list (second (assq op cmp-invert)) nr r1 r2)))
       (begin
 	(build-jmp (second cd) bc #t)
 	(build-jmp (third cd) bc #f)
-	(push-instr! bc (list op 0 r1 r2)))))
+	(push-instr! bc (list op nr r1 r2)))))
 
 (define (compile-binary-vv f bc env rd nr cd)
   (define op (let ((op (if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
@@ -197,14 +197,14 @@
     (if (or rd (branch-dest? cd) (memq (first f) has-effect))
       (begin
 	(if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
-	    (emit-branch-try-invert op bc cd r1 r2)
+	    (emit-branch-try-invert op bc cd nr r1 r2)
 	    (begin
-	      (finish bc cd (if rd rd nr))
+	      (finish bc cd (if rd rd nr) (if rd rd nr))
 	      (push-instr! bc (list op (if rd rd nr) r1 r2))))
 	(compile-sexp (third f) bc env r2 (max r2 r1 nr) 'next)
 	(compile-sexp (second f) bc env r1 (max nr r1) 'next))
       (begin
-	    (finish bc cd rd)))))
+	    (finish bc cd rd rd)))))
 
 (define (compile-binary-vn f bc env rd nr cd)
   (define op (let ((op (if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
@@ -215,9 +215,9 @@
 	       (if op (second op) (symbol-to-bytecode (car f)))))
   (define r1 (exp-loc (second f) env nr))
   (if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
-      (emit-branch-try-invert op bc cd r1 (third f))
+      (emit-branch-try-invert op bc cd nr r1 (third f))
       (begin
-	(finish bc cd (if rd rd nr))
+	(finish bc cd (if rd rd nr) (if rd rd nr))
 	(push-instr! bc (list op (if rd rd nr) r1 (modulo (third f) 256)))))
   (compile-sexp (second f) bc env r1 r1 'next))
 
@@ -225,7 +225,7 @@
   (define op (symbol-to-bytecode (car f)))
   (define r1 (exp-loc (second f) env nr))
   ;;(if (not rd) (dformat "Dropping for effect context unary: ~a\n" f))
-  (finish bc cd (if rd rd nr))
+  (finish bc cd (if rd rd nr) (if rd rd nr))
   (push-instr! bc (list op (if rd rd nr) r1))
   (compile-sexp (second f) bc env r1 (max nr r1) 'next))
 
@@ -263,7 +263,7 @@
   ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   (push! program f-bc)
   (compile-lambda-internal (cons 'lambda (cddr f)) f-bc '())
-  (finish bc cd rd)
+  (finish bc cd rd rd)
   (push-instr! bc (list 'KFUNC rd f-id)))
 
 (define (ilength l)
@@ -332,7 +332,7 @@
   (if rd
     (let ((loc (find-symbol f env))
 	  (r (if (eq? cd 'ret) (exp-loc f env rd) rd)))
-      (finish bc cd r)
+      (finish bc cd rd r)
       (if loc
 	  (when (not (= loc r))
 	    (push-instr! bc (list 'MOV r loc)))
@@ -341,11 +341,11 @@
     (if (branch-dest? cd)
 	(let ((loc (find-symbol f env)))
 	  (if loc
-	      (finish bc cd loc)
+	      (finish bc cd nr loc)
 	      (begin
-		(finish bc cd nr)
+		(finish bc cd nr nr)
 		(push-instr! bc (list 'GGET nr (get-or-push-const bc f))))))
-	(finish bc cd rd))))
+	(finish bc cd rd rd))))
 
 ;; Note we implicitly add the closure param here.
 ;; TODO optimize better for known calls.
@@ -371,7 +371,7 @@
 	 (+ (length f) nr -2)
 	 (reverse (cdr f))))
       (begin
-	(finish bc cd (if rd rd nr))
+	(finish bc cd (if rd rd nr) (if rd rd nr))
 	(when (and rd (not (= rd nr)))
 	  (push-instr! bc (list 'MOV rd nr)))
 	(push-instr! bc (list (if (eq? cd 'ret) 'CALLT 'CALL) nr (+ 1 (length f))))
@@ -385,7 +385,7 @@
 (define (compile-vararg f bc env rd nr cd)
 					;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   ;;(if (not rd) (error "ERror compile-vararg"))
-  (finish bc cd rd)
+  (finish bc cd rd rd)
   (when (not (= rd nr))
     (push-instr! bc (list 'MOV rd nr)))
   (push-instr! bc (list (symbol-to-bytecode (car f)) nr (- (length f) 1)))
@@ -399,7 +399,7 @@
 ;; Third arg must be immediate fixnum.
 (define (compile-closure-set f bc env rd nr cd)
   ;(if (not rd) (error "ERror compile-closure-set"))
-  (finish bc cd rd)
+  (finish bc cd rd rd)
   (let* ((r1 (exp-loc (second f) env nr))
 	(r2 (exp-loc (third f) env (max nr (+ r1 1)))))
     (push-instr! bc (list 'CLOSURE-SET r1 r2 (fourth f)))
@@ -409,7 +409,7 @@
 ;; First arg is register to use, k, then obj
 (define (compile-setter f bc env rd nr cd)
   ;(if (not rd) (error "ERror compile-setter"))
-  (finish bc cd rd)
+  (finish bc cd rd rd)
   (let* ((r1 (exp-loc (second f) env nr))
 	(r2 (exp-loc (third f) env (max nr (+ r1 1))))
 	(r3 (exp-loc (fourth f) env (max nr (+ r1 1) (+ r2 1)))))
@@ -420,7 +420,7 @@
 
 (define (compile-setter2 f bc env rd nr cd)
   ;(if (not rd) (error "ERror compile-setter2"))
-  (finish bc cd rd)
+  (finish bc cd rd rd)
   (let* ((r1 (exp-loc (second f) env nr))
 	(r2 (exp-loc (third f) env (max nr (+ r1 1)))))
     (push-instr! bc (list (if (eq? '$set-car! (first f)) 'SET-CAR! 'SET-CDR!) r1 r2))
@@ -438,7 +438,7 @@
       (let* ((c (get-or-push-const bc (second f))))
 	;; TODO undef
 	;(if (not rd) (error "ERror compile-define"))
-	(finish bc cd rd)
+	(finish bc cd rd rd)
 	(push-instr! bc (list 'GSET nr c))
 	(compile-sexp (third f) bc env nr nr 'next))))
 
