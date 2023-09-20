@@ -61,6 +61,7 @@ snap_s *side_exit = nullptr;
 static trace_s *parent = nullptr;
 static uint8_t unroll = 0;
 static uint8_t tailcalled = 0;
+static uint32_t stack_top;
 
 unsigned int **downrec = NULL;
 
@@ -246,7 +247,7 @@ void record_start(unsigned int *pc, long *frame, long argcnt) {
     regs_list[i] = -1;
   }
 
-  uint32_t stack_top = INS_A(*pc);
+  stack_top = INS_A(*pc);
   if (INS_OP(*pc) == LOOP ||
       INS_OP(*pc) == ILOOP) {
     stack_top = INS_A(*pc) + INS_B(*pc);
@@ -467,7 +468,8 @@ void record_funcv(uint32_t i, uint32_t *pc, long* frame, long argcnt) {
   for(uint32_t j = ra + cnt - 1; j >= ra; j--) {
     arrput(locs, record_stack_load(j, frame));
   }
-  add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, argcnt);
+  stack_top = argcnt;
+  add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, stack_top);
   trace->snaps[arrlen(trace->snaps) - 1].argcnt = argcnt;
   //  TODO this forces a side exit without recording.
   //   Put GC inline in generated code?  Would have to flush
@@ -583,7 +585,7 @@ bool record_jcomp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t b, uin
       record_abort();
       return true;
     }
-    uint32_t stack_top = INS_A(*pc);
+    stack_top = INS_A(*pc);
     if (result) {
       op = true_op;
       add_snap(regs_list, (int)(regs - regs_list - 1), trace,
@@ -657,13 +659,14 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (argcnt < INS_A(*pc)) {
 	break;
       }
+    stack_top = argcnt;
     // If this isn't the trace start, we need to package any varargs.
     if (trace_state != START) {
       record_funcv(i, pc, frame, argcnt);
       if (INS_OP(i) == CLFUNCV) {
-	add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, argcnt);
+	add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, stack_top);
       } else {
-	add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth, argcnt);
+	add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth, stack_top);
       }
     }
   }
@@ -736,7 +739,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case CALLCC: {
     // TODO: this snap and flush only need things below the current frame.
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, INS_A(i));
+    stack_top = INS_A(i);
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, stack_top);
     trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
     auto op1 = push_ir(trace, IR_FLUSH, 0, 0, UNDEFINED_TAG);
     auto knum = arrlen(trace->consts);
@@ -747,7 +751,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     knum = arrlen(trace->consts);
     arrput(trace->consts, FALSE_REP);
     push_ir(trace, IR_NE, cont, knum | IR_CONST_BIAS, UNDEFINED_TAG | IR_INS_TYPE_GUARD);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc+1, depth, INS_A(i));
+    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc+1, depth, stack_top);
     break;
   }
   case CALLCC_RESUME: {
@@ -844,6 +848,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS,
                 IR_INS_TYPE_GUARD | 0x5);
 
+	stack_top = frame_off;
         add_snap(regs_list, (int)(regs - regs_list - 1), trace,
                  (uint32_t *)frame[-1], depth, frame_off);
         // TODO retdepth
@@ -1281,7 +1286,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case JNGUARD: {
     record_stack_load(INS_B(i), frame);
     uint8_t type = get_object_ir_type(frame[INS_B(i)]);
-    uint32_t stack_top = INS_A(i);
+    stack_top = INS_A(i);
     if (type != INS_C(i)) {
       add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, stack_top);
     } else {
@@ -1292,7 +1297,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case JGUARD: {
     record_stack_load(INS_B(i), frame);
     uint8_t type = get_object_ir_type(frame[INS_B(i)]);
-    uint32_t stack_top = INS_A(i);
+    stack_top = INS_A(i);
     if (type == INS_C(i)) {
       add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, stack_top);
     } else {
