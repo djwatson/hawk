@@ -1144,7 +1144,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case ISEQ:
   case EQV:
   case EQ: {
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, -1);
     uint32_t op1 = record_stack_load(INS_B(i), frame);
     uint32_t op2 = record_stack_load(INS_C(i), frame);
     int64_t v1 = frame[INS_B(i)];
