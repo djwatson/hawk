@@ -1281,20 +1281,22 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case JNGUARD: {
     record_stack_load(INS_B(i), frame);
     uint8_t type = get_object_ir_type(frame[INS_B(i)]);
+    uint32_t stack_top = INS_A(i);
     if (type != INS_C(i)) {
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, -1);
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, stack_top);
     } else {
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1 + INS_D(*(pc+1)), depth, -1);
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1 + INS_D(*(pc+1)), depth, stack_top);
     }
     break;
   }
   case JGUARD: {
     record_stack_load(INS_B(i), frame);
     uint8_t type = get_object_ir_type(frame[INS_B(i)]);
+    uint32_t stack_top = INS_A(i);
     if (type == INS_C(i)) {
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, -1);
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, stack_top);
     } else {
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1 + INS_D(*(pc+1)), depth, -1);
+      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1 + INS_D(*(pc+1)), depth, stack_top);
     }
     break;
   }
