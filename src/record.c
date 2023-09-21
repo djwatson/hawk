@@ -531,45 +531,67 @@ trace_s* check_argument_match(long*frame, trace_s* ptrace) {
   return NULL;
 }
 
-bool record_jcomp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t b, uint8_t c, long* frame, uint32_t*pc, bool typecheck) {
+static bool do_compare(uint8_t op, long v1, long v2) {
+  switch(op) {
+    // TODO these got swapped in the BC emitter on accident.
+  case JISF:
+    return v1 != FALSE_REP;
+  case JIST:
+    return v1 == FALSE_REP;
+  case ISLT:
+  case JISLT: 
+    return v1 < v2;
+  case ISLTE:
+  case JISLTE: 
+    return v1 <= v2;
+  case ISGTE:
+  case JISGTE:
+    return v1 >= v2;
+  case ISGT:
+  case JISGT:
+    return v1 > v2;
+  case JEQ:
+  case EQ:
+    return v1 == v2;
+  case JNEQ:
+    return v1 != v2;
+  default:
+    abort();
+  }
+}
+
+static bool record_comp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t a, uint8_t b, uint8_t c, long* frame, uint32_t*pc, bool typecheck) {
+    uint32_t op1 = record_stack_load(b, frame);
+    uint32_t op2 = record_stack_load(c, frame);
+    int64_t v1 = frame[b];
+    int64_t v2 = frame[c];
+    if (get_object_ir_type(v1) == FLONUM_TAG ||
+        get_object_ir_type(v2) == FLONUM_TAG) {
+      if (verbose)
+        printf("Record abort: flonum not supported in islt\n");
+      record_abort();
+      return true;
+    }
+    int64_t constant = FALSE_REP;
+    uint8_t op = false_op;
+    bool result = do_compare(bc, frame[b], frame[c]);
+    
+    if (result) {
+      constant = TRUE_REP;
+      op = true_op;
+    }
+    auto knum = arrlen(trace->consts);
+    arrput(trace->consts, constant);
+    push_ir(trace, op, op1, op2, BOOL_TAG);
+    regs[a] = IR_CONST_BIAS + knum;
+    stack_top = a;
+    return false;
+}
+
+static bool record_jcomp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t b, uint8_t c, long* frame, uint32_t*pc, bool typecheck) {
     uint32_t *next_pc;
     ir_ins_op op;
-    bool result = false;
-    switch(bc) {
-      // TODO these got swapped in the BC emitter on accident.
-    case JISF: {
-      result = frame[b] != FALSE_REP;
-      break;
-    }
-    case JIST: {
-      result = frame[b] == FALSE_REP;
-      break;
-    }
-    case JISLT: {
-      result = frame[b] < frame[c];
-      break;
-    }
-    case JISGT: {
-      result = frame[b] > frame[c];
-      break;
-    }
-    case JISGTE: {
-      result = frame[b] >= frame[c];
-      break;
-    }
-    case JISLTE: {
-      result = frame[b] <= frame[c];
-      break;
-    }
-    case JEQ: {
-      result = frame[b] == frame[c];
-      break;
-    }
-    case JNEQ: {
-      result = frame[b] != frame[c];
-      break;
-    }
-    }
+    bool result = do_compare(bc, frame[b], frame[c]);
     uint8_t type;
     uint32_t op1 = record_stack_load(b, frame);
     uint32_t op2 = record_stack_load(c, frame);
@@ -600,7 +622,7 @@ bool record_jcomp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t b, uin
     return false;
 }
 
-void record_jcomp1(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t b, uint8_t c, long* frame, uint32_t*pc) {
+static void record_jcomp1(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t b, uint8_t c, long* frame, uint32_t*pc) {
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, FALSE_REP);
     record_jcomp2(bc, true_op, false_op, b, c, frame, pc, false);
@@ -1146,128 +1168,33 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case ISEQ:
   case EQV:
   case EQ: {
-    uint32_t op1 = record_stack_load(INS_B(i), frame);
-    uint32_t op2 = record_stack_load(INS_C(i), frame);
-    int64_t v1 = frame[INS_B(i)];
-    int64_t v2 = frame[INS_C(i)];
-    int64_t c = FALSE_REP;
-    uint8_t op = IR_NE;
-    if (v1 == v2) {
-      c = TRUE_REP;
-      op = IR_EQ;
-    }
-    if (get_object_ir_type(v1) == FLONUM_TAG ||
-	get_object_ir_type(v2) == FLONUM_TAG) {
-      if (verbose)
-        printf("Record abort: flonum not supported in eqv\n");
-      record_abort();
+    if (record_comp2(EQ, IR_EQ, IR_NE, INS_A(i), INS_B(i), INS_C(i), frame, pc, false)) {
       return 1;
     }
-    auto knum = arrlen(trace->consts);
-    arrput(trace->consts, c);
-    push_ir(trace, op, op1, op2, UNDEFINED_TAG);
-    regs[INS_A(i)] = IR_CONST_BIAS + knum;
-    stack_top = INS_A(i);
     break;
   }
   case ISLTE: {
-    uint32_t op1 = record_stack_load(INS_B(i), frame);
-    uint32_t op2 = record_stack_load(INS_C(i), frame);
-    int64_t v1 = frame[INS_B(i)];
-    int64_t v2 = frame[INS_C(i)];
-    if (get_object_ir_type(v1) == FLONUM_TAG ||
-        get_object_ir_type(v2) == FLONUM_TAG) {
-      if (verbose)
-        printf("Record abort: flonum not supported in islt\n");
-      record_abort();
+    if (record_comp2(ISLTE, IR_LE, IR_GT, INS_A(i), INS_B(i), INS_C(i), frame, pc, false)) {
       return 1;
     }
-    int64_t c = FALSE_REP;
-    uint8_t op = IR_GT;
-    if (v1 <= v2) {
-      c = TRUE_REP;
-      op = IR_LE;
-    }
-    auto knum = arrlen(trace->consts);
-    arrput(trace->consts, c);
-    push_ir(trace, op, op1, op2, UNDEFINED_TAG);
-    regs[INS_A(i)] = IR_CONST_BIAS + knum;
-    stack_top = INS_A(i);
     break;
   }
   case ISLT: {
-    uint32_t op1 = record_stack_load(INS_B(i), frame);
-    uint32_t op2 = record_stack_load(INS_C(i), frame);
-    int64_t v1 = frame[INS_B(i)];
-    int64_t v2 = frame[INS_C(i)];
-    if (get_object_ir_type(v1) == FLONUM_TAG ||
-        get_object_ir_type(v2) == FLONUM_TAG) {
-      if (verbose)
-        printf("Record abort: flonum not supported in islt\n");
-      record_abort();
+    if (record_comp2(ISLT, IR_LT, IR_GE, INS_A(i), INS_B(i), INS_C(i), frame, pc, false)) {
       return 1;
     }
-    int64_t c = FALSE_REP;
-    uint8_t op = IR_GE;
-    if (v1 < v2) {
-      c = TRUE_REP;
-      op = IR_LT;
-    }
-    auto knum = arrlen(trace->consts);
-    arrput(trace->consts, c);
-    push_ir(trace, op, op1, op2, UNDEFINED_TAG);
-    regs[INS_A(i)] = IR_CONST_BIAS + knum;
-    stack_top = INS_A(i);
     break;
   }
   case ISGT: {
-    uint32_t op1 = record_stack_load(INS_B(i), frame);
-    uint32_t op2 = record_stack_load(INS_C(i), frame);
-    int64_t v1 = frame[INS_B(i)];
-    int64_t v2 = frame[INS_C(i)];
-    if (get_object_ir_type(v1) == FLONUM_TAG ||
-        get_object_ir_type(v2) == FLONUM_TAG) {
-      if (verbose)
-        printf("Record abort: flonum not supported in islt\n");
-      record_abort();
+    if (record_comp2(ISGT, IR_GT, IR_LE, INS_A(i), INS_B(i), INS_C(i), frame, pc, false)) {
       return 1;
     }
-    int64_t c = FALSE_REP;
-    uint8_t op = IR_LE;
-    if (v1 > v2) {
-      c = TRUE_REP;
-      op = IR_GT;
-    }
-    auto knum = arrlen(trace->consts);
-    arrput(trace->consts, c);
-    push_ir(trace, op, op1, op2, UNDEFINED_TAG);
-    regs[INS_A(i)] = IR_CONST_BIAS + knum;
-    stack_top = INS_A(i);
     break;
   }
   case ISGTE: {
-    uint32_t op1 = record_stack_load(INS_B(i), frame);
-    uint32_t op2 = record_stack_load(INS_C(i), frame);
-    int64_t v1 = frame[INS_B(i)];
-    int64_t v2 = frame[INS_C(i)];
-    if (get_object_ir_type(v1) == FLONUM_TAG ||
-        get_object_ir_type(v2) == FLONUM_TAG) {
-      if (verbose)
-        printf("Record abort: flonum not supported in islt\n");
-      record_abort();
+    if (record_comp2(ISGTE, IR_GE, IR_LT, INS_A(i), INS_B(i), INS_C(i), frame, pc, false)) {
       return 1;
     }
-    int64_t c = FALSE_REP;
-    uint8_t op = IR_LT;
-    if (v1 >= v2) {
-      c = TRUE_REP;
-      op = IR_GE;
-    }
-    auto knum = arrlen(trace->consts);
-    arrput(trace->consts, c);
-    push_ir(trace, op, op1, op2, UNDEFINED_TAG);
-    regs[INS_A(i)] = IR_CONST_BIAS + knum;
-    stack_top = INS_A(i);
     break;
   }
   case GUARD: {
@@ -1285,22 +1212,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     stack_top = INS_A(i);
     break;
   }
-  case JNGUARD: {
-    record_stack_load(INS_B(i), frame);
-    uint8_t type = get_object_ir_type(frame[INS_B(i)]);
-    stack_top = INS_A(i);
-    if (type != INS_C(i)) {
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, stack_top);
-    } else {
-      add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1 + INS_D(*(pc+1)), depth, stack_top);
-    }
-    break;
-  }
+  case JNGUARD: 
   case JGUARD: {
     record_stack_load(INS_B(i), frame);
     uint8_t type = get_object_ir_type(frame[INS_B(i)]);
     stack_top = INS_A(i);
-    if (type == INS_C(i)) {
+    bool result = (type == INS_C(i));
+    if (INS_OP(i) == JNGUARD) {
+      result = !result;
+    }
+    if (result) {
       add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 2, depth, stack_top);
     } else {
       add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1 + INS_D(*(pc+1)), depth, stack_top);
