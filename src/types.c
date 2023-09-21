@@ -243,13 +243,3 @@ EXPORT long from_c_str(const char *s) {
   str->str[len] = '\0';
   return (long)str | PTR_TAG;
 }
-
-long get_symbol_val(const char *name) {
-  auto str = from_c_str(name);
-  auto *strp = (string_s *)(str - PTR_TAG);
-  auto *res = symbol_table_find(strp);
-  if (res == nullptr) {
-    return UNDEFINED_TAG;
-  }
-  return res->val;
-}
