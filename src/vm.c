@@ -732,7 +732,7 @@ END_LIBRARY_FUNC
   long fb = frame[rb];					                     \
   								             \
   if ((((TAG_MASK & rc) == LITERAL_TAG) && (rc == (fb & IMMEDIATE_MASK))) || \
-      (((fb & TAG_MASK) == PTR_TAG) && (*(long *)(fb - PTR_TAG) == rc)) || \
+      (((fb & TAG_MASK) == PTR_TAG) && (*(uint32_t *)(fb - PTR_TAG) == rc)) || \
       (((TAG_MASK & rc) != LITERAL_TAG) && ((fb & TAG_MASK) == rc))) {	\
     iftrue;								     \
   } else {								     \

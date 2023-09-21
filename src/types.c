@@ -54,8 +54,8 @@ static ep_result equalp_interleave(uf* ht, bool fast, long a, long b, long k) {
     if ((b & TAG_MASK) != PTR_TAG) {
       return (ep_result){false, k};
     }
-    long ta = *(long*)(a -  PTR_TAG);
-    long tb = *(long*)(b -  PTR_TAG);
+    long ta = *(uint32_t*)(a -  PTR_TAG);
+    long tb = *(uint32_t*)(b -  PTR_TAG);
     if (ta != tb) {
       return (ep_result){false, k};
     }
@@ -147,7 +147,7 @@ void print_obj(long obj, FILE *file) {
     break;
   }
   case PTR_TAG: {
-    long ptrtype = *(long *)(obj - PTR_TAG);
+    long ptrtype = *(uint32_t *)(obj - PTR_TAG);
     if (ptrtype == STRING_TAG) {
       auto *str = (string_s *)(obj - PTR_TAG);
       fputs(str->str, file);
