@@ -243,9 +243,7 @@ void record_start(unsigned int *pc, long *frame, long argcnt) {
   instr_count = 0;
   depth = 0;
   regs = &regs_list[1];
-  for (int i = 0; i < sizeof(regs_list) / sizeof(regs_list[0]); i++) {
-    regs_list[i] = -1;
-  }
+  memset(regs_list, 0xff, sizeof(regs_list)); // memset to -1.
 
   stack_top = INS_A(*pc);
   if (INS_OP(*pc) == LOOP ||
@@ -628,9 +626,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case LOOP: {
     stack_top = INS_A(i) + INS_B(i);
-    for (int *pos = &regs[INS_A(i) + INS_B(i)]; pos < &regs_list[257]; pos++) {
-      *pos = -1;
-    }
     if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
 	INS_OP(trace->startpc) != RET1 && parent == nullptr) {
       auto link_trace = check_argument_match(frame, trace);
@@ -780,10 +775,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // TODO maybe also check for downrec?  Same as RET
     depth = 0;
     //add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, -1);
+    // We must clear all of regs, because CC_resume smashes all of the stack.
+    memset(regs_list, 0xff, sizeof(regs_list));
     regs = &regs_list[1];
-    for (int j = 0; j < sizeof(regs_list) / sizeof(regs_list[0]); j++) {
-      regs_list[j] = -1;
-    }
     regs[frame_off] = result;
     knum = arrlen(trace->consts);
     arrput(trace->consts, (long)old_pc);
@@ -837,13 +831,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         auto frame_off = INS_A(*(old_pc - 1));
         // printf("Continue down recursion, frame offset %i\n", frame_off);
 
-	// TODO can we remove this?
-        memmove(&regs[frame_off + 1], &regs[0],
-                sizeof(int) * (256 - (frame_off + 1)));
         regs[frame_off] = result;
-        for (unsigned j = 0; j < frame_off; j++) {
-          regs[j] = -1;
-        }
+	// Clear space for the new (unknown) frame stack variables.
+	memset(regs, 0xff, frame_off * sizeof(regs[0]));
 
         auto knum = arrlen(trace->consts);
         arrput(trace->consts, (long)old_pc);
@@ -855,7 +845,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	stack_top = frame_off;
         add_snap(regs_list, (int)(regs - regs_list - 1), trace,
                  (uint32_t *)frame[-1], depth, frame_off);
-        // TODO retdepth
       } else {
         if (INS_OP(trace->startpc) == LOOP && parent == nullptr) {
 	  auto penalty = find_penalty_pc(pc_start);
@@ -880,9 +869,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     } else if (depth > 0) {
       depth--;
       regs[-1] = regs[INS_A(i)];
-      for (int j = (int)(regs - regs_list); j < 257; j++) {
-        regs_list[j] = -1;
-      }
       auto *old_pc = (unsigned int *)frame[-1];
       stack_top = INS_A(*(old_pc - 1));
       assert(regs >= regs_list);
@@ -982,12 +968,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       regs[j] = record_stack_load(j, frame);
     }
     memmove(&regs[0], &regs[INS_A(i) + 1], sizeof(int) * (INS_B(i) - 1));
-    for (int j = INS_B(i) - 1; j < 256; j++) {
-      if (&regs[j] >= regs_list + 256) {
-        break;
-      }
-      regs[j] = -1;
-    }
     stack_top = INS_B(i);
 
     break;
@@ -1423,9 +1403,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       push_ir(trace, IR_STORE, ref, a, 0);
     }
     regs[INS_A(i)] = cell;
-    for(unsigned j = 1; j < INS_B(i); j++) {
-      regs[INS_A(i) + j] = -1;
-    }
     stack_top = INS_A(i);
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth, stack_top);
     break;
@@ -1561,8 +1538,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case MOV: {
     regs[INS_A(i)] = record_stack_load(INS_B(i), frame);
-    // TODO loop moves can clear
-    // regs[INS_B(i)] = -1;
     // No stack top tracking
     break;
   }
