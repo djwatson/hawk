@@ -101,3 +101,8 @@ typedef struct port_s {
 void print_obj(long obj, FILE *file);
 long from_c_str(const char *s);
 long equalp(long a, long b);
+
+// GC interface:
+size_t heap_object_size(long *obj);
+typedef void (*trace_callback)(long *field, void* ctx);
+void trace_heap_object(long *obj, trace_callback visit, void* ctx);
