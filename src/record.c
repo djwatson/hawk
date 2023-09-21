@@ -560,7 +560,7 @@ static bool do_compare(uint8_t op, long v1, long v2) {
   }
 }
 
-static bool record_comp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t a, uint8_t b, uint8_t c, long* frame, uint32_t*pc, bool typecheck) {
+static int record_comp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t a, uint8_t b, uint8_t c, long* frame, uint32_t*pc, bool typecheck) {
     uint32_t op1 = record_stack_load(b, frame);
     uint32_t op2 = record_stack_load(c, frame);
     int64_t v1 = frame[b];
@@ -570,7 +570,7 @@ static bool record_comp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t 
       if (verbose)
         printf("Record abort: flonum not supported in islt\n");
       record_abort();
-      return true;
+      return 1;
     }
     int64_t constant = FALSE_REP;
     uint8_t op = false_op;
@@ -585,10 +585,10 @@ static bool record_comp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t 
     push_ir(trace, op, op1, op2, BOOL_TAG);
     regs[a] = IR_CONST_BIAS + knum;
     stack_top = a;
-    return false;
+    return 0;
 }
 
-static bool record_jcomp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t b, uint8_t c, long* frame, uint32_t*pc, bool typecheck) {
+static int record_jcomp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t b, uint8_t c, long* frame, uint32_t*pc, bool typecheck) {
     uint32_t *next_pc;
     ir_ins_op op;
     bool result = do_compare(bc, frame[b], frame[c]);
@@ -604,7 +604,7 @@ static bool record_jcomp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t
       if (verbose)
 	printf("Record abort: Only int supported in trace: %i\n", type);
       record_abort();
-      return true;
+      return 1;
     }
     stack_top = INS_A(*pc);
     if (result) {
@@ -619,7 +619,7 @@ static bool record_jcomp2(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t
     }
     push_ir(trace, op, op1, op2, type);
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, next_pc, depth, stack_top);
-    return false;
+    return 0;
 }
 
 static void record_jcomp1(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t b, uint8_t c, long* frame, uint32_t*pc) {
@@ -632,6 +632,20 @@ static void record_jcomp1(uint8_t bc, uint8_t true_op, uint8_t false_op, uint8_t
 extern unsigned char hotmap[hotmap_sz];
 int record_instr(unsigned int *pc, long *frame, long argcnt) {
   unsigned int i = *pc;
+
+  if (instr_count > 4000) {
+    if (verbose)
+      printf("Record abort: due to length\n");
+    record_abort();
+    return 1;
+  }
+  // TODO this should check regs depth
+  if (depth >= 20) {
+    if (verbose)
+      printf("Record abort: (stack too deep)\n");
+    record_abort();
+    return 1;
+  }
 
   instr_count++;
   if (verbose) {
@@ -1051,28 +1065,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case JISLT: {
-    if(record_jcomp2(JISLT, IR_LT, IR_GE, INS_B(i), INS_C(i), frame, pc, true)) {
-      return 1;
-    }
-    break;
+    return record_jcomp2(JISLT, IR_LT, IR_GE, INS_B(i), INS_C(i), frame, pc, true);
   }
   case JISGT: {
-    if(record_jcomp2(JISGT, IR_GT, IR_LE, INS_B(i), INS_C(i), frame, pc, true)) {
-      return 1;
-    }
-    break;
+    return record_jcomp2(JISGT, IR_GT, IR_LE, INS_B(i), INS_C(i), frame, pc, true);
   }
   case JISGTE: {
-    if(record_jcomp2(JISGTE, IR_GE, IR_LT, INS_B(i), INS_C(i), frame, pc, true)) {
-      return 1;
-    }
-    break;
+    return record_jcomp2(JISGTE, IR_GE, IR_LT, INS_B(i), INS_C(i), frame, pc, true);
   }
   case JISLTE: {
-    if(record_jcomp2(JISLTE, IR_LE, IR_GT, INS_B(i), INS_C(i), frame, pc, true)) {
-      return 1;
-    }
-    break;
+    return record_jcomp2(JISLTE, IR_LE, IR_GT, INS_B(i), INS_C(i), frame, pc, true);
   }
   case JEQV:
   case JEQ:
@@ -1086,10 +1088,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         return 1;
       }
     }
-    if(record_jcomp2(JEQ, IR_EQ, IR_NE, INS_B(i), INS_C(i), frame, pc, false)) {
-      return 1;
-    }
-    break;
+    return record_jcomp2(JEQ, IR_EQ, IR_NE, INS_B(i), INS_C(i), frame, pc, false);
   }
   case JNEQ:
   case JNEQV:
@@ -1103,10 +1102,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         return 1;
       }
     }
-    if(record_jcomp2(JNEQ, IR_NE, IR_EQ, INS_B(i), INS_C(i), frame, pc, false)) {
-      return 1;
-    }
-    break;
+    return record_jcomp2(JNEQ, IR_NE, IR_EQ, INS_B(i), INS_C(i), frame, pc, false);
   }
   case SET_CDR:
   case SET_CAR: {
@@ -1168,34 +1164,19 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case ISEQ:
   case EQV:
   case EQ: {
-    if (record_comp2(EQ, IR_EQ, IR_NE, INS_A(i), INS_B(i), INS_C(i), frame, pc, false)) {
-      return 1;
-    }
-    break;
+    return record_comp2(EQ, IR_EQ, IR_NE, INS_A(i), INS_B(i), INS_C(i), frame, pc, false);
   }
   case ISLTE: {
-    if (record_comp2(ISLTE, IR_LE, IR_GT, INS_A(i), INS_B(i), INS_C(i), frame, pc, false)) {
-      return 1;
-    }
-    break;
+    return record_comp2(ISLTE, IR_LE, IR_GT, INS_A(i), INS_B(i), INS_C(i), frame, pc, false);
   }
   case ISLT: {
-    if (record_comp2(ISLT, IR_LT, IR_GE, INS_A(i), INS_B(i), INS_C(i), frame, pc, false)) {
-      return 1;
-    }
-    break;
+    return record_comp2(ISLT, IR_LT, IR_GE, INS_A(i), INS_B(i), INS_C(i), frame, pc, false);
   }
   case ISGT: {
-    if (record_comp2(ISGT, IR_GT, IR_LE, INS_A(i), INS_B(i), INS_C(i), frame, pc, false)) {
-      return 1;
-    }
-    break;
+    return record_comp2(ISGT, IR_GT, IR_LE, INS_A(i), INS_B(i), INS_C(i), frame, pc, false);
   }
   case ISGTE: {
-    if (record_comp2(ISGTE, IR_GE, IR_LT, INS_A(i), INS_B(i), INS_C(i), frame, pc, false)) {
-      return 1;
-    }
-    break;
+    return record_comp2(ISGTE, IR_GE, IR_LT, INS_A(i), INS_B(i), INS_C(i), frame, pc, false);
   }
   case GUARD: {
     record_stack_load(INS_B(i), frame);
@@ -1861,24 +1842,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     return 1;
     // exit(-1);
   }
-  }
-  if (instr_count > 4000) {
-    if (verbose)
-      printf("Record abort: due to length\n");
-    record_abort();
-    return 1;
-  }
-  // if (depth <= -3) {
-  //   printf("Record stop [possible down-recursion]\n");
-  //   return 1;
-  // }
-  // TODO check chain for down-recursion
-  // TODO this should check regs depth
-  if (depth >= 20) {
-    if (verbose)
-      printf("Record abort: (stack too deep)\n");
-    record_abort();
-    return 1;
   }
   return 0;
 }
