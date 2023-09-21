@@ -47,6 +47,7 @@ static void afl_trace(uint32_t* pc) {
 #define unlikely(x) __builtin_expect(!!(x), 0)
 long *frame_top;
 unsigned int stacksz = 100;
+long * stack_top;
 long *stack = NULL;
 
 unsigned char hotmap[hotmap_sz];
@@ -54,6 +55,7 @@ unsigned char hotmap[hotmap_sz];
 static void vm_init() {
   if (stack == NULL) {
     stack = (long *)malloc(sizeof(long) * stacksz);
+    stack_top = stack;
     memset(stack, 0, sizeof(long)*stacksz);
   }
 }
@@ -190,14 +192,17 @@ void expand_stack(long **o_frame) {
   auto pos = *o_frame - stack;
   auto oldsz = stacksz;
   stacksz *= 2;
+  auto stack_top_offset = stack_top - stack;
   stack = (long *)realloc(stack, stacksz * sizeof(long));
   if (!stack) {
     printf("Error: Could not realloc stack\n");
     exit(-1);
   }
+  
   memset(&stack[oldsz], 0, sizeof(long) * (stacksz - oldsz));
   *o_frame = stack + pos;
   frame_top = stack + stacksz - 256;
+  stack_top = stack + stack_top_offset;
 }
 
 __attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
@@ -300,6 +305,7 @@ LIBRARY_FUNC(IFUNCV)
     if (argcnt < ra) {
       MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
     }
+    stack_top = &frame[ra + argcnt];
     frame[ra] = build_list(ra, argcnt - ra, frame);
   afl_trace(pc);
 END_LIBRARY_FUNC
@@ -311,6 +317,7 @@ LIBRARY_FUNC(FUNCV)
 if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
   MUSTTAIL return RECORD_START(ARGS);
  }
+    stack_top = &frame[ra + argcnt];
     frame[ra] = build_list(ra, argcnt - ra, frame);
   afl_trace(pc);
 END_LIBRARY_FUNC
@@ -343,6 +350,7 @@ LIBRARY_FUNC(ICLFUNCV)
     if (argcnt < ra) {
       pc += INS_D(*(pc+1)) + 1;
     } else {
+      stack_top = &frame[ra + argcnt];
       frame[ra] = build_list(ra, argcnt - ra, frame);
       pc+=2;
     }
@@ -358,6 +366,7 @@ LIBRARY_FUNC(CLFUNCV)
       if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
 	MUSTTAIL return RECORD_START(ARGS);
       }
+      stack_top = &frame[ra + argcnt];
       frame[ra] = build_list(ra, argcnt - ra, frame);
       pc+=2;
     }
@@ -445,6 +454,7 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
       MUSTTAIL return FAIL_SLOWPATH(ARGS);                                     \
     }                                                                          \
                                                                                \
+    stack_top = &frame[ra];						\
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));                          \
     r->x = op2(x_b, x_c);                                                      \
     r->type = FLONUM_TAG;                                                      \
@@ -460,6 +470,7 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
   } else if (likely(((7 & fb) == (7 & fc)) && ((7 & fc) == 2))) {              \
     auto x_b = ((flonum_s *)(fb - FLONUM_TAG))->x;                             \
     auto x_c = ((flonum_s *)(fc - FLONUM_TAG))->x;                             \
+    stack_top = &frame[ra];						\
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));                          \
     r->x = op2(x_b, x_c);                                                      \
     r->type = FLONUM_TAG;                                                      \
@@ -697,6 +708,7 @@ LIBRARY_FUNC_B_LOAD(MOV)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B(BOX)
+  stack_top = &frame[rb > ra ? rb : ra];
   auto box = (cons_s *)GC_malloc(sizeof(cons_s));
   
   box->type = CONS_TAG;
@@ -737,6 +749,7 @@ LIBRARY_FUNC_GUARD(JGUARD, pc += 2, pc += INS_D(*(pc+1)) + 1, 0);
 LIBRARY_FUNC_GUARD(JNGUARD, pc += INS_D(*(pc+1)) + 1, pc += 2, 0);
 
 LIBRARY_FUNC_B(VECTOR)
+  stack_top = &frame[ra + rb];
   auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
   closure->type = VECTOR_TAG;
   closure->len = rb << 3;
@@ -748,6 +761,7 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B(CLOSURE)
   // free vars + type + len + function ptr
+  stack_top = &frame[ra + rb];
   auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
   closure->type = CLOSURE_TAG;
   closure->len = rb << 3;
@@ -861,9 +875,11 @@ if(!match) {
 assert(trace);
 // Build vararg list if required
 if (INS_OP(trace->startpc) == FUNCV) {
+    stack_top = &frame[ra + argcnt];
     frame[ra] = build_list(ra, argcnt - ra, frame);
 }
 if (INS_OP(trace->startpc) == CLFUNCV) {
+    stack_top = &frame[ra + argcnt];
     frame[ra] = build_list(ra, argcnt - ra, frame);
 }
 #ifdef PROFILER
@@ -953,7 +969,20 @@ LIBRARY_FUNC_EQV(EQV?, EQV, frame[ra] = TRUE_REP, frame[ra] = FALSE_REP, 1);
 LIBRARY_FUNC_EQV(JEQV, JEQV, pc += 2, pc += INS_D(*(pc+1)) + 1, 0);
 LIBRARY_FUNC_EQV(JNEQV, JNEQV, pc += INS_D(*(pc+1)) + 1, pc += 2, 0);
 
+static uint32_t max3(uint32_t a, uint32_t b, uint32_t c) {
+  if (a > b) {
+    if (a > c) {
+      return a;
+    }
+    return c;
+  }
+  if (b > c) {
+    return b;
+  }
+  return c;
+}
 LIBRARY_FUNC_BC(CONS)
+  stack_top = &frame[max3(ra, rb, rc)];
   auto c = (cons_s *)GC_malloc(sizeof(cons_s));
   
   c->type = CONS_TAG;
@@ -992,6 +1021,7 @@ LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR)
   if (len < 0) {
     MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
   }
+  stack_top = &frame[max3(ra, rb, rc)];
   auto vec = (vector_s *)GC_malloc(sizeof(long) * (len + 2));
   // Load frame[rc] *after* GC
   long fc = frame[rc];
@@ -1021,6 +1051,7 @@ LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING)
   if (len < 0) {
     MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
   }
+  stack_top = &frame[max3(ra, rb, rc)];
   auto str = (string_s *)GC_malloc((sizeof(long) * 2) + len + 1);
   
   long fc = frame[rc]; // Load fc after GC
@@ -1182,6 +1213,7 @@ LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
     // Build a new symbol.
     // Must dup the string, since strings are not immutable.
     auto strlen = str->len >> 3;
+    stack_top = &frame[ra > rb ? ra : rb];
     auto sym = (symbol *)GC_malloc(sizeof(symbol));
     sym->type = SYMBOL_TAG;
   
@@ -1228,7 +1260,8 @@ END_LIBRARY_FUNC
 LIBRARY_FUNC_BC(OPEN)
   auto fc = frame[rc];
   TYPECHECK_IMMEDIATE(fc, BOOL_TAG);
-  
+
+  stack_top = &frame[ra > rb ? ra : rb];
   auto port = (port_s *)GC_malloc(sizeof(port_s));
   // Load FB (potentially a ptr) after GC
   auto fb = frame[rb];
@@ -1317,6 +1350,7 @@ LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
     port->eof = TRUE_REP;
     frame[ra] = EOF_TAG;
   } else {
+    stack_top = &frame[ra];
    auto str = (string_s*)GC_malloc(res + 16);
    str->type = STRING_TAG;
    str->len = res << 3;
@@ -1329,6 +1363,7 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(INEXACT)
   if ((fb & TAG_MASK) == FIXNUM_TAG) {
+    stack_top = &frame[ra];
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));
     r->type = FLONUM_TAG;
     r->x = (double)(fb >> 3);
@@ -1362,6 +1397,7 @@ LIBRARY_FUNC_B_LOAD(ROUND)
     auto res = flo->x - remainder(flo->x, 1.0);
     //auto res = round(flo->x);
   
+    stack_top = &frame[ra];
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));
     r->type = FLONUM_TAG;
     r->x = res;
@@ -1377,6 +1413,7 @@ END_LIBRARY_FUNC
     auto flo = (flonum_s *)(fb - FLONUM_TAG);                                  \
     auto res = func(flo->x);                                                   \
                                                                                \
+    stack_top = &frame[ra];						\
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));                          \
     r->type = FLONUM_TAG;                                                      \
     r->x = res;                                                                \
@@ -1414,6 +1451,8 @@ long vm_callcc(long* frame) {
 
 LIBRARY_FUNC(CALLCC)
   auto sz = frame - stack;
+						
+  stack_top = &frame[ra];
   auto cont = (vector_s *)GC_malloc(sz * sizeof(long) + 16);
   cont->type = CONT_TAG;
   cont->len = sz << 3;
