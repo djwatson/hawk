@@ -45,24 +45,24 @@ void GC_enable(bool en) { gc_enable = en; }
 
 static bool is_forwarded(long obj) {
   auto *ptr = (long *)obj;
-  return ((*ptr) & TAG_MASK) == FORWARD_TAG;
+  return ((ptr[0]) & TAG_MASK) == FORWARD_TAG;
 }
 
 static void set_forward(long *ptr, void *to) {
-  assert(((*ptr) & TAG_MASK) != FORWARD_TAG);
-  *ptr = (long)to + FORWARD_TAG;
+  assert(((ptr[0]) & TAG_MASK) != FORWARD_TAG);
+  ptr[0] = (long)to + FORWARD_TAG;
 }
 
 static long get_forward(long obj) {
   assert(is_forwarded(obj));
   auto *ptr = (long *)obj;
   // printf("Obj %p forwarded to %lx\n", ptr, (*ptr) - FORWARD_TAG);
-  return (*ptr) - FORWARD_TAG;
+  return (ptr[0]) - FORWARD_TAG;
 }
 
 size_t __attribute__((always_inline)) heap_object_size(long *obj) {
-  auto type = *obj;
-  assert((type * TAG_MASK) != FORWARD_TAG);
+  auto type = *(uint32_t*)obj;
+  assert((type & TAG_MASK) != FORWARD_TAG);
   switch (type) {
   case FLONUM_TAG:
     return sizeof(flonum_s);
@@ -122,7 +122,7 @@ void visit(long *field) {
 
 void trace_heap_object(long *obj) {
   // printf("Trace heap obj %p\n", obj);
-  auto type = *obj;
+  auto type = *(uint32_t*)obj;
   assert((type & TAG_MASK) != FORWARD_TAG);
   switch (type) {
   case FLONUM_TAG:

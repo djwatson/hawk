@@ -1,3 +1,4 @@
+* gc: ctak, fft, earley, gcbench, paraffins, nboyer, sboyer, mperm 
 # Getting all jit to work bench2
 
 * loosing at: 

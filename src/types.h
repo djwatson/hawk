@@ -44,13 +44,14 @@
 #define IMMEDIATE_MASK 0xff
 
 typedef struct flonum_s {
-  long type; // TODO: perhaps could save this space by making a NAN-tagged
-             // forwarding pointer? otherwise unused.
+  uint32_t type;
+  uint32_t rc;
   double x;
 } flonum_s;
 
 typedef struct string_s {
-  long type;
+  uint32_t type;
+  uint32_t rc;
   unsigned long len;
   char str[];
 } string_s;
@@ -59,7 +60,8 @@ struct tv {
   uint16_t key;
 };
 typedef struct symbol {
-  long type; // unused except by GC
+  uint32_t type;
+  uint32_t rc;
   long name; // string_s PTR_TAG'd value
   long val;
   long opt;
@@ -67,25 +69,29 @@ typedef struct symbol {
 } symbol;
 
 typedef struct vector_s {
-  long type;
+  uint32_t type;
+  uint32_t rc;
   unsigned long len;
   long v[];
 } vector_s;
 
 typedef struct cons_s {
-  long type; // unused except by GC
+  uint32_t type;
+  uint32_t rc;
   long a;
   long b;
 } cons_s;
 
 typedef struct closure_s {
-  long type; // unused except by GC
+  uint32_t type;
+  uint32_t rc;
   unsigned long len;
   long v[];
 } closure_s;
 
 typedef struct port_s {
-  long type; // TODO could merge input_port and type somehow.
+  uint32_t type;
+  uint32_t rc;
   long input_port;
   long fd;
   FILE *file;
