@@ -71,38 +71,6 @@ static long get_forward(long obj) {
   return (ptr[0]) - FORWARD_TAG;
 }
 
-size_t heap_object_size(long *obj) {
-  auto type = *(uint32_t*)obj;
-  assert((type & TAG_MASK) != FORWARD_TAG);
-  switch (type) {
-  case FLONUM_TAG:
-    return sizeof(flonum_s);
-  case STRING_TAG: {
-    auto *str = (vector_s *)obj;
-    return (str->len >> 3) * sizeof(char) + 16 + 1 /* null tag */;
-  }
-  case SYMBOL_TAG:
-    return sizeof(symbol);
-  case CONT_TAG:
-  case VECTOR_TAG: {
-    auto *vec = (vector_s *)obj;
-    return (vec->len >> 3) * sizeof(long) + 16;
-  }
-  case CONS_TAG:
-    return sizeof(cons_s);
-  case CLOSURE_TAG: {
-    auto *clo = (closure_s *)obj;
-    return (clo->len >> 3) * sizeof(long) + 16;
-  }
-  case PORT_TAG:
-    return sizeof(port_s);
-  default:
-    printf("Unknown heap object: %i\n", type);
-    assert(false);
-    return -1;
-  }
-}
-
 size_t align(size_t sz) { return (sz + 7) & (~TAG_MASK); }
 
 void *copy(long *obj) {
@@ -130,50 +98,8 @@ void visit(long *field) {
     *field = to + tag;
   }
 }
-
-void trace_heap_object(long *obj) {
-  // printf("Trace heap obj %p\n", obj);
-  auto type = *(uint32_t*)obj;
-  assert((type & TAG_MASK) != FORWARD_TAG);
-  switch (type) {
-  case FLONUM_TAG:
-  case STRING_TAG:
-    break;
-  case SYMBOL_TAG: {
-    auto *sym = (symbol *)obj;
-    // temporarily add back the tag
-    visit(&sym->name);
-    visit(&sym->val);
-    break;
-  }
-  case CONT_TAG:
-  case VECTOR_TAG: {
-    auto *vec = (vector_s *)obj;
-    for (long i = 0; i < (vec->len >> 3); i++) {
-      visit(&vec->v[i]);
-    }
-    break;
-  }
-  case CONS_TAG: {
-    auto *cons = (cons_s *)obj;
-    visit(&cons->a);
-    visit(&cons->b);
-    break;
-  }
-  case CLOSURE_TAG: {
-    auto *clo = (closure_s *)obj;
-    // Note start from 1: first field is bcfunc* pointer.
-    for (long i = 1; i < (clo->len >> 3); i++) {
-      visit(&clo->v[i]);
-    }
-    break;
-  }
-  case PORT_TAG:
-    break;
-  default:
-    printf("Unknown heap object: %i\n", type);
-    assert(false);
-  }
+void visit_callback(long *field, void* unused) {
+  visit(field);
 }
 
 // Static roots are the stack - stacksz,
@@ -356,7 +282,7 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   // printf("Cheney scan... %p %p\n", scan, alloc_ptr);
   while (scan < alloc_ptr) {
     auto scan_sz = heap_object_size((long *)scan);
-    trace_heap_object((long *)scan);
+    trace_heap_object((long *)scan, visit_callback, NULL);
     scan += align(scan_sz);
   }
   if (verbose) {
@@ -425,16 +351,23 @@ void *GC_realloc(void *ptr, size_t sz) {
 
 void GC_free(void *ptr) { free(ptr); }
 
-static void maybe_log(uint64_t addr, long v, uint64_t* offset) {
+typedef struct {
+  uint64_t addr;
+  uint64_t offset;
+} log_ctx;
+
+void maybe_log(long* v_p, void* c) {
+  long v = *v_p;
+  log_ctx* ctx = (log_ctx*)c;
   long type = v & TAG_MASK;
   long ptr = v & ~TAG_MASK;
   if (type == CONS_TAG || type == SYMBOL_TAG || type == PTR_TAG ||
       type == CLOSURE_TAG) {
-    if (addr != v) {
-      arrput(log_buf, ((log_item){*offset, ptr}));
+    if (ctx->addr != v) {
+      arrput(log_buf, ((log_item){ctx->offset, ptr}));
     }
   }
-  (*offset) += 8;
+  ctx->offset += 8;
 }
 
 static __attribute__((noinline)) void GC_log_obj_slow(void*obj) {
@@ -442,52 +375,14 @@ static __attribute__((noinline)) void GC_log_obj_slow(void*obj) {
   rc_ptr[1] |= LOGGED_MARK;
   uint64_t addr = (uint64_t)obj;
   arrput(log_buf, ((log_item){0xffffffffffffffff, addr}));
-  uint64_t offset = 0;
-  uint32_t type = *(uint32_t*)addr;
-  switch(type) {
-  case FLONUM_TAG:
-  case STRING_TAG:
-    break;
-  case SYMBOL_TAG: {
-    auto *sym = (symbol *)obj;
-    // temporarily add back the tag
-    maybe_log(addr, sym->name, &offset);
-    maybe_log(addr, sym->val, &offset);
-    break;
-  }
-  case CONT_TAG:
-  case VECTOR_TAG: {
-    auto *vec = (vector_s *)obj;
-    for (long i = 0; i < (vec->len >> 3); i++) {
-      maybe_log(addr, vec->v[i], &offset);
-    }
-    break;
-  }
-  case CONS_TAG: {
-    auto *cons = (cons_s *)obj;
-    maybe_log(addr, cons->a, &offset);
-    maybe_log(addr, cons->b, &offset);
-    break;
-  }
-  case CLOSURE_TAG: {
-    auto *clo = (closure_s *)obj;
-    // Note start from 1: first field is bcfunc* pointer.
-    for (long i = 1; i < (clo->len >> 3); i++) {
-      maybe_log(addr, clo->v[i], &offset);
-    }
-    break;
-  }
-  case PORT_TAG:
-    break;
-  default:
-    printf("Unknown heap object: %i\n", type);
-    assert(false);
-  }
+  
+  log_ctx ctx = {addr, 0};
+  trace_heap_object(obj, maybe_log, &ctx);
 }
 
 void __attribute__((always_inline)) GC_log_obj(void*ptr) {
   uint32_t rc = ((uint32_t*)ptr)[1];
-  if (unlikely((rc != 1) && (!(rc & LOGGED_MARK)))) {
+  if (unlikely((rc != 0) && (!(rc & LOGGED_MARK)))) {
     __attribute((musttail)) return GC_log_obj_slow(ptr);
   }
 }

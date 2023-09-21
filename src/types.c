@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "gc.h"
 #include "symbol_table.h"
@@ -244,3 +245,80 @@ EXPORT long from_c_str(const char *s) {
   str->str[len] = '\0';
   return (long)str | PTR_TAG;
 }
+
+// GC interface:
+
+size_t heap_object_size(long *obj) {
+  auto type = *(uint32_t*)obj;
+  switch (type) {
+  case FLONUM_TAG:
+    return sizeof(flonum_s);
+  case STRING_TAG: {
+    auto *str = (vector_s *)obj;
+    return (str->len >> 3) * sizeof(char) + 16 + 1 /* null tag */;
+  }
+  case SYMBOL_TAG:
+    return sizeof(symbol);
+  case CONT_TAG:
+  case VECTOR_TAG: {
+    auto *vec = (vector_s *)obj;
+    return (vec->len >> 3) * sizeof(long) + 16;
+  }
+  case CONS_TAG:
+    return sizeof(cons_s);
+  case CLOSURE_TAG: {
+    auto *clo = (closure_s *)obj;
+    return (clo->len >> 3) * sizeof(long) + 16;
+  }
+  case PORT_TAG:
+    return sizeof(port_s);
+  default:
+    printf("Unknown heap object: %i\n", type);
+    abort();
+  }
+}
+
+void trace_heap_object(long *obj, trace_callback visit, void* ctx) {
+  // printf("Trace heap obj %p\n", obj);
+  auto type = *(uint32_t*)obj;
+  switch (type) {
+  case FLONUM_TAG:
+  case STRING_TAG:
+    break;
+  case SYMBOL_TAG: {
+    auto *sym = (symbol *)obj;
+    // temporarily add back the tag
+    visit(&sym->name, ctx);
+    visit(&sym->val, ctx);
+    break;
+  }
+  case CONT_TAG:
+  case VECTOR_TAG: {
+    auto *vec = (vector_s *)obj;
+    for (long i = 0; i < (vec->len >> 3); i++) {
+      visit(&vec->v[i], ctx);
+    }
+    break;
+  }
+  case CONS_TAG: {
+    auto *cons = (cons_s *)obj;
+    visit(&cons->a, ctx);
+    visit(&cons->b, ctx);
+    break;
+  }
+  case CLOSURE_TAG: {
+    auto *clo = (closure_s *)obj;
+    // Note start from 1: first field is bcfunc* pointer.
+    for (long i = 1; i < (clo->len >> 3); i++) {
+      visit(&clo->v[i], ctx);
+    }
+    break;
+  }
+  case PORT_TAG:
+    break;
+  default:
+    printf("Unknown heap object: %i\n", type);
+    abort();
+  }
+}
+
