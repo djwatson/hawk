@@ -45,6 +45,7 @@ long read_const(FILE *fptr) {
       str->type = STRING_TAG;
       str->len = len << 3;
       str->str[len] = '\0';
+      str->rc = 0;
       fread(str->str, 1, len, fptr);
 
       // Try to see if it already exists
@@ -63,6 +64,7 @@ long read_const(FILE *fptr) {
         sym->val = UNDEFINED_TAG;
 	sym->opt = 0;
 	sym->lst = NULL;
+	sym->rc = 0;
         symbol_table_insert(sym);
         val = (long)sym | SYMBOL_TAG;
         arrput(symbols, val);
@@ -78,6 +80,7 @@ long read_const(FILE *fptr) {
     assert(!((long)f & TAG_MASK));
     fread(&f->x, 8, 1, fptr);
     f->type = FLONUM_TAG;
+    f->rc = 0;
     val = (long)f | FLONUM_TAG;
   } else if (type == CONS_TAG) {
     auto ca = read_const(fptr);
@@ -88,6 +91,7 @@ long read_const(FILE *fptr) {
     auto *c = (cons_s *)GC_malloc(sizeof(cons_s));
     c->type = CONS_TAG;
     c->a = ca;
+    c->rc = 0;
     c->b = cb;
     GC_pop_root(&cb);
     GC_pop_root(&ca);
@@ -102,6 +106,7 @@ long read_const(FILE *fptr) {
       auto *str = (string_s *)GC_malloc(16 + len + 1);
       str->type = ptrtype;
       str->len = len << 3;
+      str->rc = 0;
       fread(&str->str, 1, len, fptr);
       str->str[len] = '\0';
       val = (long)str | PTR_TAG;
@@ -119,6 +124,7 @@ long read_const(FILE *fptr) {
       auto *v = (vector_s *)GC_malloc(16 + len * sizeof(long));
       v->type = ptrtype;
       v->len = len << 3;
+      v->rc = 0;
       for (long i = len - 1; i >= 0; i--) {
         v->v[i] = vals[i];
         GC_pop_root(&vals[i]);
