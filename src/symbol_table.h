@@ -14,9 +14,9 @@ typedef struct table {
   size_t cnt; // Number of objects currently in hash.
   size_t sz;  // Size of backing buffer.
 
-  symbol *entries[];
+  long entries[];
 } table;
 
-#define TOMBSTONE ((symbol *)0x01)
+#define TOMBSTONE 1
 
 extern table *sym_table;

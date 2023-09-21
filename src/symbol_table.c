@@ -46,15 +46,16 @@ EXPORT symbol *symbol_table_find_cstr(const char *str) {
   auto mask = sym_table->sz - 1;
   for (size_t i = 0; i < sym_table->sz; i++) {
     auto cur = &sym_table->entries[(i + hash) & mask];
-    if (*cur == NULL) {
+    if (*cur == 0) {
       return NULL;
     }
     if (*cur == TOMBSTONE) {
       continue;
     }
-    string_s *sym_name = (string_s*)((*cur)->name - PTR_TAG);
+    symbol* curs = (symbol*)(*cur & ~TAG_MASK);
+    string_s *sym_name = (string_s*)(curs->name - PTR_TAG);
     if (strcmp(sym_name->str, str) == 0) {
-      return *cur;
+      return curs;
     } // Mismatched comparison, continue.
   }
 
@@ -74,10 +75,10 @@ void symbol_table_insert(symbol *sym) {
 
   for (size_t i = 0; i < sym_table->sz; i++) {
     auto cur = &sym_table->entries[(i + hash) & mask];
-    if (*cur == NULL || *cur == TOMBSTONE ||
-        strcmp(((string_s*)((*cur)->name - PTR_TAG))->str, sym_name->str) == 0) {
+    if (*cur == 0 || *cur == TOMBSTONE ||
+        strcmp(((string_s*)(((symbol*)(*cur &~TAG_MASK))->name - PTR_TAG))->str, sym_name->str) == 0) {
       // Insert here.
-      *cur = sym;
+      *cur = (long)sym + SYMBOL_TAG;
       return;
     } // Mismatched comparison, continue.
   }
@@ -100,8 +101,8 @@ static void rehash() {
   // Rehash items.
   for (size_t i = 0; i < old->sz; i++) {
     auto cur = &old->entries[i];
-    if (*cur != NULL && *cur != TOMBSTONE) {
-      symbol_table_insert(*cur);
+    if (*cur != 0 && *cur != TOMBSTONE) {
+      symbol_table_insert((symbol*)(*cur - SYMBOL_TAG));
     }
   }
 

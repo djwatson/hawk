@@ -186,9 +186,9 @@ static void trace_roots() {
     auto cur = &sym_table->entries[i];
     if (*cur != NULL && *cur != TOMBSTONE) {
       auto *tmp = (long *)&sym_table->entries[i];
-      *tmp += SYMBOL_TAG;
+      //      *tmp += SYMBOL_TAG;
       visit(tmp);
-      *tmp -= SYMBOL_TAG;
+      //      *tmp -= SYMBOL_TAG;
     }
   }
 
