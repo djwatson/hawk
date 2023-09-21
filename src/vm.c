@@ -168,6 +168,7 @@ long build_list(long start, long len, const long *frame) {
     auto c = (cons_s *)GC_malloc(sizeof(cons_s));
     GC_pop_root(&lst); // TODO just save in POS instead?
     c->type = CONS_TAG;
+    c->rc = 0;
     c->a = frame[pos];
     c->b = lst;
     lst = (long)c + CONS_TAG;
@@ -458,6 +459,7 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));                          \
     r->x = op2(x_b, x_c);                                                      \
     r->type = FLONUM_TAG;                                                      \
+    r->rc = 0;								\
     frame[ra] = (long)r | FLONUM_TAG;                                          \
     pc++;                                                                      \
                                                                                \
@@ -474,6 +476,7 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));                          \
     r->x = op2(x_b, x_c);                                                      \
     r->type = FLONUM_TAG;                                                      \
+    r->rc = 0;								\
     frame[ra] = (long)r | FLONUM_TAG;                                          \
   } else {                                                                     \
     MUSTTAIL return INS_##name##_SLOWPATH(ARGS);                               \
@@ -692,6 +695,7 @@ LIBRARY_FUNC_D(GSET)
       gp->opt = -1;
     }
    }
+  GC_log_obj(gp);
   gp->val = frame[ra];
 END_LIBRARY_FUNC
 
@@ -712,6 +716,7 @@ LIBRARY_FUNC_B(BOX)
   auto box = (cons_s *)GC_malloc(sizeof(cons_s));
   
   box->type = CONS_TAG;
+  box->rc = 0;
   box->a = frame[rb];
   box->b = NIL_TAG;
   frame[ra] = (long)box | CONS_TAG;
@@ -724,6 +729,7 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(SET-BOX!, SET_BOX)
   auto box = (cons_s *)(fb - CONS_TAG);
+  GC_log_obj(box);
   box->a = fc;
 END_LIBRARY_FUNC
 
@@ -752,6 +758,7 @@ LIBRARY_FUNC_B(VECTOR)
   stack_top = &frame[ra + rb];
   auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
   closure->type = VECTOR_TAG;
+  closure->rc = 0;
   closure->len = rb << 3;
   for (int i = 0; i < rb; i++) {
     closure->v[i] = frame[ra + i];
@@ -764,6 +771,7 @@ LIBRARY_FUNC_B(CLOSURE)
   stack_top = &frame[ra + rb];
   auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
   closure->type = CLOSURE_TAG;
+  closure->rc = 0;
   closure->len = rb << 3;
   for (int i = 0; i < rb; i++) {
     closure->v[i] = frame[ra + i];
@@ -986,6 +994,7 @@ LIBRARY_FUNC_BC(CONS)
   auto c = (cons_s *)GC_malloc(sizeof(cons_s));
   
   c->type = CONS_TAG;
+  c->rc = 0;
   c->a = frame[rb];
   c->b = frame[rc];
   
@@ -1026,6 +1035,7 @@ LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR)
   // Load frame[rc] *after* GC
   long fc = frame[rc];
   vec->type = VECTOR_TAG;
+  vec->rc = 0;
   vec->len = fb;
   for (long i = 0; i < len; i++) {
     vec->v[i] = fc;
@@ -1058,6 +1068,7 @@ LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING)
   TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
   
   str->type = STRING_TAG;
+  str->rc = 0;
   str->len = fb;
   for (long i = 0; i < len; i++) {
     str->str[i] = (char)((fc >> 8) & 0xff);
@@ -1105,6 +1116,8 @@ LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
   if ((long)(vec->len >> 3) - pos <= 0) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
+  GC_log_obj(vec);
+
   vec->v[pos] = fc;
 END_LIBRARY_FUNC
 
@@ -1125,6 +1138,7 @@ END_LIBRARY_FUNC
   auto fa = frame[ra];                                                         \
   TYPECHECK_TAG(fa, CONS_TAG);                                                 \
   auto cons = (cons_s *)(fa - CONS_TAG);                                       \
+  GC_log_obj(cons);							\
   cons->field = fb;                                                            \
   END_LIBRARY_FUNC
 
@@ -1182,6 +1196,7 @@ long vm_string_symbol(string_s* str) {
       return FALSE_REP;
     }
     sym->type = SYMBOL_TAG;
+    sym->rc = 0;
     sym->name = (long)str + PTR_TAG;
     sym->val = UNDEFINED_TAG;
     sym->opt = 0;
@@ -1194,6 +1209,7 @@ long vm_string_symbol(string_s* str) {
     }
   
     str2->type = STRING_TAG;
+    str2->rc = 0;
     str2->len = strlen << 3;
     memcpy(str2->str, str->str, strlen+1);
   
@@ -1216,6 +1232,7 @@ LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
     stack_top = &frame[ra > rb ? ra : rb];
     auto sym = (symbol *)GC_malloc(sizeof(symbol));
     sym->type = SYMBOL_TAG;
+    sym->rc = 0;
   
     // Note re-load of str after allocation.
     sym->name = frame[rb];
@@ -1237,6 +1254,7 @@ LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
     str = (string_s *)(sym->name - PTR_TAG);
   
     str2->type = STRING_TAG;
+    str2->rc = 0;
     str2->len = strlen << 3;
     memcpy(str2->str, str->str, strlen+1);
   
@@ -1267,6 +1285,7 @@ LIBRARY_FUNC_BC(OPEN)
   auto fb = frame[rb];
   
   port->type = PORT_TAG;
+  port->rc = 0;
   port->input_port = fc;
   port->eof = FALSE_REP;
   
@@ -1353,6 +1372,7 @@ LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
     stack_top = &frame[ra];
    auto str = (string_s*)GC_malloc(res + 16);
    str->type = STRING_TAG;
+   str->rc = 0;
    str->len = res << 3;
    memcpy(str->str, bufptr, res);
    str->str[res - 1] = '\0';
@@ -1365,6 +1385,7 @@ LIBRARY_FUNC_B_LOAD(INEXACT)
   if ((fb & TAG_MASK) == FIXNUM_TAG) {
     stack_top = &frame[ra];
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));
+    r->rc = 0;
     r->type = FLONUM_TAG;
     r->x = (double)(fb >> 3);
     frame[ra] = (long)r + FLONUM_TAG;
@@ -1399,6 +1420,7 @@ LIBRARY_FUNC_B_LOAD(ROUND)
   
     stack_top = &frame[ra];
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));
+    r->rc = 0;
     r->type = FLONUM_TAG;
     r->x = res;
     frame[ra] = (long)r + FLONUM_TAG;
@@ -1415,6 +1437,7 @@ END_LIBRARY_FUNC
                                                                                \
     stack_top = &frame[ra];						\
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));                          \
+    r->rc = 0;								\
     r->type = FLONUM_TAG;                                                      \
     r->x = res;                                                                \
     frame[ra] = (long)r + FLONUM_TAG;                                          \
@@ -1443,6 +1466,7 @@ long vm_callcc(long* frame) {
     return FALSE_REP;
   }
   cont->type = CONT_TAG;
+  cont->rc = 0;
   cont->len = sz << 3;
   memcpy(cont->v, stack, sz * sizeof(long));
 
@@ -1455,6 +1479,7 @@ LIBRARY_FUNC(CALLCC)
   stack_top = &frame[ra];
   auto cont = (vector_s *)GC_malloc(sz * sizeof(long) + 16);
   cont->type = CONT_TAG;
+  cont->rc = 0;
   cont->len = sz << 3;
   memcpy(cont->v, stack, sz * sizeof(long));
   

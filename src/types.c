@@ -239,6 +239,7 @@ EXPORT long from_c_str(const char *s) {
   auto *str = (string_s *)GC_malloc(16 + len + 1);
   str->type = STRING_TAG;
   str->len = len << 3;
+  str->rc = 0;
   memcpy(str->str, s, len);
   str->str[len] = '\0';
   return (long)str | PTR_TAG;

@@ -15,6 +15,7 @@
 #include <sys/mman.h> // for mprotect, mmap, PROT_NONE, PROT_READ, PROT...
 
 #define auto __auto_type
+#define unlikely(x) __builtin_expect(!!(x), 0)
 
 extern bool verbose;
 
@@ -28,6 +29,16 @@ uint8_t *alloc_ptr = NULL;
 uint8_t *alloc_end = NULL;
 
 long **pushed_roots = NULL;
+
+static const uint32_t LOGGED_MARK = (1UL << 31);
+
+typedef struct {
+  uint64_t offset;
+  uint64_t addr;
+} log_item;
+
+static log_item* log_buf = NULL;
+
 
 void GC_push_root(long *root) { arrput(pushed_roots, root); }
 
@@ -60,7 +71,7 @@ static long get_forward(long obj) {
   return (ptr[0]) - FORWARD_TAG;
 }
 
-size_t __attribute__((always_inline)) heap_object_size(long *obj) {
+size_t heap_object_size(long *obj) {
   auto type = *(uint32_t*)obj;
   assert((type & TAG_MASK) != FORWARD_TAG);
   switch (type) {
@@ -86,7 +97,7 @@ size_t __attribute__((always_inline)) heap_object_size(long *obj) {
   case PORT_TAG:
     return sizeof(port_s);
   default:
-    printf("Unknown heap object: %li\n", type);
+    printf("Unknown heap object: %i\n", type);
     assert(false);
     return -1;
   }
@@ -160,7 +171,7 @@ void trace_heap_object(long *obj) {
   case PORT_TAG:
     break;
   default:
-    printf("Unknown heap object: %li\n", type);
+    printf("Unknown heap object: %i\n", type);
     assert(false);
   }
 }
@@ -353,7 +364,9 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
            alloc_ptr - from_space,
            ((double)(alloc_ptr - from_space)) / (double)alloc_sz * 100.0,
            alloc_sz / 1000 / 1000);
+    printf("Log buf size: %li\n", arrlen(log_buf));
   }
+  arrsetlen(log_buf, 0);
   if (!to_unmap && (alloc_ptr - from_space) >= (alloc_sz / 2)) {
     // Next round, mmap a new space.
     embiggen = true;
@@ -411,3 +424,70 @@ void *GC_realloc(void *ptr, size_t sz) {
 }
 
 void GC_free(void *ptr) { free(ptr); }
+
+static void maybe_log(uint64_t addr, long v, uint64_t* offset) {
+  long type = v & TAG_MASK;
+  long ptr = v & ~TAG_MASK;
+  if (type == CONS_TAG || type == SYMBOL_TAG || type == PTR_TAG ||
+      type == CLOSURE_TAG) {
+    if (addr != v) {
+      arrput(log_buf, ((log_item){*offset, ptr}));
+    }
+  }
+  (*offset) += 8;
+}
+
+static __attribute__((noinline)) void GC_log_obj_slow(void*obj) {
+  uint32_t* rc_ptr = (uint32_t*)obj;
+  rc_ptr[1] |= LOGGED_MARK;
+  uint64_t addr = (uint64_t)obj;
+  arrput(log_buf, ((log_item){0xffffffffffffffff, addr}));
+  uint64_t offset = 0;
+  uint32_t type = *(uint32_t*)addr;
+  switch(type) {
+  case FLONUM_TAG:
+  case STRING_TAG:
+    break;
+  case SYMBOL_TAG: {
+    auto *sym = (symbol *)obj;
+    // temporarily add back the tag
+    maybe_log(addr, sym->name, &offset);
+    maybe_log(addr, sym->val, &offset);
+    break;
+  }
+  case CONT_TAG:
+  case VECTOR_TAG: {
+    auto *vec = (vector_s *)obj;
+    for (long i = 0; i < (vec->len >> 3); i++) {
+      maybe_log(addr, vec->v[i], &offset);
+    }
+    break;
+  }
+  case CONS_TAG: {
+    auto *cons = (cons_s *)obj;
+    maybe_log(addr, cons->a, &offset);
+    maybe_log(addr, cons->b, &offset);
+    break;
+  }
+  case CLOSURE_TAG: {
+    auto *clo = (closure_s *)obj;
+    // Note start from 1: first field is bcfunc* pointer.
+    for (long i = 1; i < (clo->len >> 3); i++) {
+      maybe_log(addr, clo->v[i], &offset);
+    }
+    break;
+  }
+  case PORT_TAG:
+    break;
+  default:
+    printf("Unknown heap object: %i\n", type);
+    assert(false);
+  }
+}
+
+void __attribute__((always_inline)) GC_log_obj(void*ptr) {
+  uint32_t rc = ((uint32_t*)ptr)[1];
+  if (unlikely((rc != 1) && (!(rc & LOGGED_MARK)))) {
+    __attribute((musttail)) return GC_log_obj_slow(ptr);
+  }
+}
