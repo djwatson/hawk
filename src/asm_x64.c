@@ -411,18 +411,7 @@ void emit_call_arguments(uint16_t op, trace_s* trace, int arg) {
       emit_call_arguments(cop->op1, trace, arg);
       emit_call_arguments(cop->op2, trace, arg + 1);
     } else {
-      //assert(trace->ops[op].slot == REG_NONE);
-      if (trace->ops[op].reg == REG_NONE) {
-	// TODO this branch can never happen???  Either it's in a
-	// callee-saved reg, or we just assigned it to the correct
-	// register directly using a hint.  No parallel move
-	// necessary.
-	assert(trace->ops[op].slot != SLOT_NONE);
-	emit_mem_reg(OP_MOV_MR, 0, RAX, reg);
-	emit_mov64(RAX, (int64_t)&spill_slot[trace->ops[op].slot - REG_NONE]);
-      } else {
-	emit_reg_reg(OP_MOV, trace->ops[op].reg, reg);
-      }
+      emit_reg_reg(OP_MOV, trace->ops[op].reg, reg);
     }
   }
 }
