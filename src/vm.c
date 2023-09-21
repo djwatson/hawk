@@ -684,6 +684,7 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_D(GSET)
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
+#ifdef JIT
   if (gp->opt !=0 && gp->opt != -1) {
     if (gp->val != UNDEFINED_TAG) {
       //printf("Gupgrade %s\n", ((string_s*)(gp->name-PTR_TAG))->str);
@@ -695,6 +696,7 @@ LIBRARY_FUNC_D(GSET)
       gp->opt = -1;
     }
    }
+#endif
   GC_log_obj(gp);
   gp->val = frame[ra];
 END_LIBRARY_FUNC
