@@ -19,7 +19,8 @@
 extern bool verbose;
 
 extern long *stack;
-extern unsigned int stacksz;
+extern long* stack_top;
+extern long* frame_top;
 
 static bool gc_enable = true;
 
@@ -220,11 +221,23 @@ static void trace_roots() {
   }
 
   // printf("Scan stack...%u\n", stacksz);
-  for (size_t i = 0; i < stacksz; i++) {
-    if (stack[i] != 0) {
-      visit(&stack[i]);
+  for (long* sp = stack; sp <= stack_top; sp++) {
+    if (*sp != 0) {
+      visit(sp);
     }
   }
+
+  /* This is required because the stack isn't fully acurate: 
+   * CALL leaves a hole for the return address, and top-of-stack tracking
+   * may be off by one, and not all instructions have top of stack tracking.
+   *
+   * The issue is if we only GC to the top of the stack, and junk left on the stack
+   * may end up in a hole or used accidentally in top of stack off-by-one.
+   * Just zero it out instead of implementing perfect tracking, or GC frame emission
+   * in the compiler or something more complicated.
+   * If the remaining stack is huge here, we may want to shrink it anyway?
+   */
+  memset(stack_top+1, 0, ((char*)frame_top - (char*)(stack_top+1)));
   // printf("Scan constant table... %li\n", const_table_sz);
   for (size_t i = 0; i < const_table_sz; i++) {
     if (const_table[i] != 0) {
