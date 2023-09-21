@@ -112,6 +112,8 @@
 * make a 'vm state' struct, so we can run multiple vm's?
 * remove indirection for consts/bc
 * comments in output
+* more precise top-of-stack tracking: Looks like it is off-by-one right now for some things
+  like jmp and j* jumps
 
 # JIT TODO:
 
