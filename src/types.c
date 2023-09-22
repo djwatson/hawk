@@ -248,7 +248,7 @@ EXPORT long from_c_str(const char *s) {
 
 // GC interface:
 
-size_t heap_object_size(long *obj) {
+__attribute((always_inline)) size_t heap_object_size(long *obj) {
   auto type = *(uint32_t*)obj;
   switch (type) {
   case FLONUM_TAG:
@@ -278,7 +278,7 @@ size_t heap_object_size(long *obj) {
   }
 }
 
-void trace_heap_object(long *obj, trace_callback visit, void* ctx) {
+__attribute((always_inline)) void trace_heap_object(long *obj, trace_callback visit, void* ctx) {
   // printf("Trace heap obj %p\n", obj);
   auto type = *(uint32_t*)obj;
   switch (type) {
@@ -288,8 +288,8 @@ void trace_heap_object(long *obj, trace_callback visit, void* ctx) {
   case SYMBOL_TAG: {
     auto *sym = (symbol *)obj;
     // temporarily add back the tag
-    visit(&sym->name, ctx);
-    visit(&sym->val, ctx);
+      visit(&sym->name, ctx);
+      visit(&sym->val, ctx);
     break;
   }
   case CONT_TAG:
@@ -302,8 +302,8 @@ void trace_heap_object(long *obj, trace_callback visit, void* ctx) {
   }
   case CONS_TAG: {
     auto *cons = (cons_s *)obj;
-    visit(&cons->a, ctx);
-    visit(&cons->b, ctx);
+      visit(&cons->a, ctx);
+      visit(&cons->b, ctx);
     break;
   }
   case CLOSURE_TAG: {
