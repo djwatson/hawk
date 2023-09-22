@@ -7,6 +7,7 @@ void __attribute__((always_inline)) *GC_malloc_no_collect(size_t sz);
 void __attribute__((always_inline)) *GC_malloc(size_t sz);
 void *GC_realloc(void *ptr, size_t sz);
 void GC_enable(bool en);
+void GC_collect();
 void __attribute__((always_inline)) GC_log_obj(void* obj);
 
 void GC_free(void *ptr);

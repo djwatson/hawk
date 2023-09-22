@@ -1604,6 +1604,8 @@ EXPORT void run(bcfunc *func, long argcnt, const long *args) {
     l_op_table[op](ARGS);
 #endif
 
+  stack_top = stack;
+
   // And after the call returns, we're done.  only HALT returns.
 }
 
