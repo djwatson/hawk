@@ -800,6 +800,7 @@ LIBRARY_FUNC_BC_NAME(CLOSURE-SET, CLOSURE_SET)
   auto fa = frame[ra];
   // No need to typecheck, that would be bad bytecode.
   auto closure = (closure_s *)(fa - CLOSURE_TAG);
+  GC_log_obj(closure);
   closure->v[1 + rc] = frame[rb];
 END_LIBRARY_FUNC
 
