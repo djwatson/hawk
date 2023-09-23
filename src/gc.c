@@ -25,6 +25,7 @@ extern long* frame_top;
 
 static bool gc_enable = true;
 static long gc_alloc = 0;
+static long gc_dalloc = 0;
 
 uint8_t *alloc_start = NULL;
 uint8_t *alloc_ptr = NULL;
@@ -39,12 +40,47 @@ typedef struct {
   uint64_t addr;
 } log_item;
 
+typedef struct {
+  uint64_t cnt;
+  uint64_t data[];
+} gc_block;
+gc_block* cur_block = NULL;
+
+static gc_block** gc_blocks = NULL;
+static gc_block** free_gc_blocks = NULL;
+
 static log_item* log_buf = NULL;
 static long* cur_increments = NULL;
 static long* next_decrements = NULL;
 static long* cur_decrements = NULL;
 
 static void scan_log_buf();
+
+#define ALLOC_SZ_LOG 22
+#define ALLOC_SZ (1UL << ALLOC_SZ_LOG)
+#define ALLOC_SZ_MASK (ALLOC_SZ-1)
+
+static gc_block* alloc_gc_block() {
+  gc_alloc += ALLOC_SZ;
+  if (arrlen(free_gc_blocks)) {
+    return arrpop(free_gc_blocks);
+  }
+  void* res;
+  if(posix_memalign(&res, ALLOC_SZ, ALLOC_SZ)) {
+    printf("posix_memalign error\n");
+    exit(-1);
+  }
+  gc_block* mem = (gc_block*)res;
+  arrput(gc_blocks, mem);
+  mem->cnt = 0;
+  return mem;
+}
+
+static void put_gc_block(gc_block * mem) {
+  gc_alloc -= ALLOC_SZ;
+  assert(mem->cnt == 0);
+  arrput(free_gc_blocks, mem);
+}
 
 bool is_ptr_type(long obj) {
   auto type = obj & TAG_MASK;
@@ -88,13 +124,10 @@ static long get_forward(long obj) {
 
 size_t align(size_t sz) { return (sz + 7) & (~TAG_MASK); }
 
-static long alloced = 0;
 void *copy(long *obj) {
   // printf("COPY obj %p, type %li\n", obj, *obj);
   size_t sz = heap_object_size(obj);
   auto *res = malloc(sz);
-  alloced += sz;
-  gc_alloc += sz;
   // printf("Memcpy %li bytes to %p\n", sz, res);
   memcpy(res, obj, sz);
   set_forward(obj, res);
@@ -151,14 +184,16 @@ static void visit_trace(trace_s *t) {
       // printf("Visit const ");
       // print_obj(t->consts[i]);
       // printf("\n");
-      visit(&t->consts[i]);
+      //visit(&t->consts[i]);
+      arrput(cur_increments, t->consts[i]);
       arrput(next_decrements, t->consts[i]);
     }
   }
   for (uint64_t i = 0; i < arrlen(t->relocs); i++) {
     auto reloc = &t->relocs[i];
     auto old = reloc->obj;
-    visit(&reloc->obj);
+    //visit(&reloc->obj);
+    arrput(cur_increments, reloc->obj);
     arrput(next_decrements, reloc->obj);
     if (reloc->obj != old) {
       switch (reloc->type) {
@@ -186,23 +221,26 @@ static void visit_trace(trace_s *t) {
 static void trace_roots() {
   //printf("Scan symbols from readbc...%li\n", arrlen(symbols));
   for (uint64_t i = 0; i < arrlen(symbols); i++) {
-    visit(&symbols[i]);
+    //visit(&symbols[i]);
     //printf("Add readbc %p\n", symbols[i]);
+    arrput(cur_increments, symbols[i]);
     arrput(next_decrements, symbols[i]);
   }
 
   //printf("Scan GC pushed roots...%li\n", arrlen(pushed_roots));
   for (uint64_t i = 0; i < arrlen(pushed_roots); i++) {
-    visit(pushed_roots[i]);
+    //visit(pushed_roots[i]);
     //printf("Add GC root %p\n", *pushed_roots[i]);
+    arrput(cur_increments, *pushed_roots[i]);
     arrput(next_decrements, *pushed_roots[i]);
   }
 
   //printf("Scan stack...%u\n", stack_top - stack);
   for (long* sp = stack; sp <= stack_top; sp++) {
     if (*sp != 0) {
-      visit(sp);
+      //visit(sp);
       //printf("Add stack root %p\n", *sp);
+      arrput(cur_increments, *sp);
       arrput(next_decrements, *sp);
     }
   }
@@ -221,8 +259,9 @@ static void trace_roots() {
   //printf("Scan constant table... %li\n", const_table_sz);
   for (size_t i = 0; i < const_table_sz; i++) {
     if (const_table[i] != 0) {
-      visit(&const_table[i]);
+      //visit(&const_table[i]);
       //printf("Add const table %p\n", const_table[i]);
+      arrput(cur_increments, const_table[i]);
       arrput(next_decrements, const_table[i]);
     }
   }
@@ -231,8 +270,9 @@ static void trace_roots() {
     auto cur = &sym_table->entries[i];
     if (*cur != 0 && *cur != TOMBSTONE) {
       auto *tmp = (long *)&sym_table->entries[i];
-      visit(tmp);
+      //visit(tmp);
       //printf("Add symbol table %p\n", *tmp);
+      arrput(cur_increments, *tmp);
       arrput(next_decrements, *tmp);
     }
   }
@@ -262,12 +302,16 @@ static void GC_deinit() {
 
 EXPORT void GC_init() {
   alloc_sz = 4096 * page_cnt;
-  alloc_start = (uint8_t *)mmap(NULL, alloc_sz, PROT_READ | PROT_WRITE,
-                               MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  assert(alloc_start);
+  /* alloc_start = (uint8_t *)mmap(NULL, alloc_sz, PROT_READ | PROT_WRITE, */
+  /*                              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0); */
+  /* assert(alloc_start); */
+  /* alloc_ptr = alloc_start; */
+  /* alloc_end = alloc_ptr + alloc_sz; */
+  /* atexit(&GC_deinit); */
+  cur_block = alloc_gc_block();
+  alloc_start = (uint8_t*)&cur_block->data[0];
   alloc_ptr = alloc_start;
-  alloc_end = alloc_ptr + alloc_sz;
-  atexit(&GC_deinit);
+  alloc_end = alloc_start + ALLOC_SZ;
 }
 
 
@@ -283,13 +327,16 @@ static int64_t trace2(long** lst, bool incr) {
     if (!is_ptr_type(item)) {
       continue;
     }
-    assert(ptr < (long)alloc_start || ptr >= (long)alloc_end);
-    if (((uint32_t*)ptr)[1] == 0) {
-      printf("Found invalid RC count:  %lx \n", ptr);
-      exit(-1);
-    }
-    assert(((uint32_t*)ptr)[1] != 0);
     if (incr) {
+      if (((uint32_t*)ptr)[1] == 0) {
+	// Increment line in block
+	gc_block* block = (gc_block*)(item & ~ALLOC_SZ_MASK);
+	if ((long)block != ptr) {
+	  block->cnt++;
+	  gc_dalloc += heap_object_size((long*)ptr);
+	}
+	trace_heap_object((void*)ptr, trace2_cb, lst);
+      }
       ((uint32_t*)ptr)[1] ++;
       //printf("INC %p to %i\n", ptr, ((uint32_t*)ptr)[1]);
     } else {
@@ -297,10 +344,17 @@ static int64_t trace2(long** lst, bool incr) {
       if(--((uint32_t*)ptr)[1] == 0) {
 	// Recursive decrement
 	auto sz =heap_object_size((long*)ptr);
-	gc_alloc -= sz;
-	gc_freed += sz;
 	trace_heap_object((void*)ptr, trace2_cb, lst);
-	free((void*)ptr);
+	//free((void*)ptr);
+	gc_block* block = (gc_block*)(item & ~ALLOC_SZ_MASK);
+	if ((long)block == ptr) {
+	  free(block);
+	}else {
+	  gc_dalloc -= sz;
+	  if (--block->cnt == 0) {
+	    put_gc_block(block);
+	  }
+	}
       }
     }
   }
@@ -311,7 +365,6 @@ static int64_t trace2(long** lst, bool incr) {
 bool in_gc = false;
 #endif
 void GC_collect() {
-  alloced = 0;
 #ifdef PROFILER
   in_gc = true;
 #endif
@@ -349,24 +402,28 @@ void GC_collect() {
   if (verbose) {
     printf("Log buf size: %li\n", arrlen(log_buf));
   }
-  /* alloced += alloc_sz; */
-  /* freed += alloc_sz; */
-  printf("Heap sz: %li alloced: %li freed: %li ratio: %.02f\n", gc_alloc, alloced, freed, ((double)freed / (double)alloced) * 100.0);
+  printf("Heap sz: %li alloced: %li ratio: %.02f\n", gc_alloc, gc_dalloc, ((double)gc_dalloc / (double)gc_alloc) * 100.0);
   arrsetlen(log_buf, 0);
 
-  if ((alloced-freed) > (long)(alloc_sz/2)) {
-    printf("SHOULD INCREASE HEAP---------------------\n");
+  if (cur_block->cnt != 0) {
+    cur_block = alloc_gc_block();
   }
-
+  alloc_start = (uint8_t*)&cur_block->data[0];
+  alloc_ptr = alloc_start;
+  alloc_end = alloc_start + ALLOC_SZ;
 #ifdef PROFILER
   in_gc = false;
 #endif
 }
 
 __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
-  if (align(sz) >= alloc_sz) {
-    printf("Alloc too big: %li\n", sz);
-    abort();
+  if (align(sz) >= (alloc_sz - sizeof(gc_block))) {
+    void* res;
+    if(posix_memalign(&res, ALLOC_SZ, align(sz))) {
+      printf("Large alloc failure: %li\n", sz);
+      abort();
+    }
+    return res;
   }
   GC_collect();
   alloc_ptr = alloc_start;
@@ -411,9 +468,9 @@ static void scan_log_buf() {
       auto type = v & TAG_MASK;
       if (type == PTR_TAG || type == FLONUM_TAG || type == CONS_TAG ||
 	  type == CLOSURE_TAG || type == SYMBOL_TAG) {
-	visit(field);
+	//visit(field);
 	//printf("Add log increments: %p\n", *field);
-	//arrput(cur_increments, *field);
+	arrput(cur_increments, *field);
       }
       v = cur.addr;
       type = v & TAG_MASK;

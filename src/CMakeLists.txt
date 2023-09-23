@@ -33,7 +33,7 @@ set_property(TARGET boom_exe PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 target_include_directories(boom_vm PUBLIC ".")
 
-target_link_libraries(boom_vm PUBLIC ${LIBRARIES} jemalloc )
+target_link_libraries(boom_vm PUBLIC ${LIBRARIES}  )
 target_link_libraries(boom_exe PUBLIC boom_vm  )
 
 set(CLOC_SOURCES ${SOURCES} boom.c)
@@ -79,6 +79,7 @@ add_custom_command(
 add_executable(boom  boom.c)
 target_link_libraries(boom PUBLIC boom_vm)
 target_compile_options(boom PRIVATE  ${COMPILE_FLAGS} )
+target_link_options(boom PRIVATE  -static )
 set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 
