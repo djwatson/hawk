@@ -295,22 +295,22 @@ __attribute((always_inline)) void trace_heap_object(long *obj, trace_callback vi
   case CONT_TAG:
   case VECTOR_TAG: {
     auto *vec = (vector_s *)obj;
-    for (long i = 0; i < (vec->len >> 3); i++) {
-      visit(&vec->v[i], ctx);
+    for (long i = (vec->len >> 3); i> 0; i--) {
+      visit(&vec->v[i]-1, ctx);
     }
     break;
   }
   case CONS_TAG: {
     auto *cons = (cons_s *)obj;
-      visit(&cons->a, ctx);
       visit(&cons->b, ctx);
+      visit(&cons->a, ctx);
     break;
   }
   case CLOSURE_TAG: {
     auto *clo = (closure_s *)obj;
     // Note start from 1: first field is bcfunc* pointer.
-    for (long i = 1; i < (clo->len >> 3); i++) {
-      visit(&clo->v[i], ctx);
+    for (long i = clo->len >> 3; i > 1; i--) {
+      visit(&clo->v[i]-1, ctx);
     }
     break;
   }

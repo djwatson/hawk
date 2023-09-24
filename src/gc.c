@@ -50,7 +50,7 @@ static gc_block** gc_blocks = NULL;
 static gc_block** free_gc_blocks = NULL;
 
 static log_item* log_buf = NULL;
-static long* cur_increments = NULL;
+static long** cur_increments = NULL;
 static long* next_decrements = NULL;
 static long* cur_decrements = NULL;
 
@@ -73,12 +73,10 @@ static gc_block* alloc_gc_block() {
   gc_block* mem = (gc_block*)res;
   arrput(gc_blocks, mem);
   mem->cnt = 0;
-  //printf("Alloc gc block %p\n", mem);
   return mem;
 }
 
 static void put_gc_block(gc_block * mem) {
-  //printf("Put gc block %p\n", mem);
   gc_alloc -= ALLOC_SZ;
   assert(mem->cnt == 0);
   arrput(free_gc_blocks, mem);
@@ -89,6 +87,19 @@ bool is_ptr_type(long obj) {
   if (type == PTR_TAG || type == FLONUM_TAG || type == CONS_TAG ||
       type == CLOSURE_TAG || type == SYMBOL_TAG) {
     return true;
+  }
+  return false;
+}
+
+bool is_gc_ptr(long obj) {
+  if (!is_ptr_type(obj)) {
+    return true;
+  }
+  for(uint64_t i = 0; i < arrlen(gc_blocks);i++) {
+    auto block = gc_blocks[i];
+    if (obj >= (long)block && obj <= (long)block + ALLOC_SZ) {
+      return true;
+    }
   }
   return false;
 }
@@ -159,23 +170,26 @@ void *copy(long *obj) {
   return res;
 }
 
-static long** visit_lst = NULL;
-static void visit(long *field);
+static bool copying_mode = false;
 static void visit_cb(long *field, void* ctx) {
-  arrput(visit_lst, field);
+  long ***lst = (long***)ctx;
+  if (is_ptr_type(*field)) {
+    arrput(*lst, field);
+  }
 }
-static void visit(long *field) {
-  arrput(visit_lst, field);
-  while(arrlen(visit_lst)) {
-    field = arrpop(visit_lst);
+static void visit(long ***lst) {
+  while(arrlen(*lst)) {
+    long* field = arrpop(*lst);
     auto from = *field;
     auto tag = from & TAG_MASK;
-    //printf("TAG %li\n", tag);
-    if (tag == PTR_TAG || tag == FLONUM_TAG || tag == CONS_TAG ||
-	tag == CLOSURE_TAG || tag == SYMBOL_TAG) {
-      auto p = from & (~TAG_MASK);
-      //printf("Visiting ptr field %lx\n", p);
+    if (!is_ptr_type(from)) {
+      continue;
+    }
+    auto p = from & (~TAG_MASK);
+    if (copying_mode) {
       auto to = is_forwarded(p) ? get_forward(p) : p;
+      //printf("TAG %li\n", tag);
+      //printf("Visiting ptr field %lx\n", p);
       if (((uint32_t*)to)[1] == 0) {
 	//assert(to >= (long)alloc_start && to < (long)alloc_end);
 	// If RC is 0.
@@ -183,7 +197,7 @@ static void visit(long *field) {
 	((uint32_t*)to)[1]++;
 	//printf("INC %p to %i (0)\n", to, ((uint32_t*)to)[1]);
 	// Need to recursively visit all fields
-	trace_heap_object((void*)to, visit_cb, NULL);
+	trace_heap_object((void*)to, visit_cb, lst);
       } else {
 	((uint32_t*)to)[1]++;
 	//printf("INC %p to %i\n", to, ((uint32_t*)to)[1]);
@@ -191,6 +205,19 @@ static void visit(long *field) {
       }
       //     printf("Visiting ptr field %lx moved to %lx \n", p, to);
       *field = to + tag;
+    } else {
+      auto to = is_forwarded(p) ? get_forward(p) : p;
+      assert(p == to);
+      if (((uint32_t*)p)[1] == 0) {
+	// Increment line in block
+	gc_block* block = (gc_block*)(p & ~ALLOC_SZ_MASK);
+	if ((long)block != p) {
+	  block->cnt++;
+	  gc_dalloc += heap_object_size((long*)p);
+	}
+	trace_heap_object((void*)p, visit_cb, lst);
+      }
+      ((uint32_t*)p)[1] ++;
     }
   }
 }
@@ -209,16 +236,18 @@ static void visit_trace(trace_s *t) {
       // printf("Visit const ");
       // print_obj(t->consts[i]);
       // printf("\n");
-      visit(&t->consts[i]);
-      //arrput(cur_increments, t->consts[i]);
-      arrput(next_decrements, t->consts[i]);
+      //visit(&t->consts[i]);
+      if (is_ptr_type(t->consts[i])) {
+	arrput(cur_increments, &t->consts[i]);
+	arrput(next_decrements, t->consts[i]);
+      }
     }
   }
   for (uint64_t i = 0; i < arrlen(t->relocs); i++) {
     auto reloc = &t->relocs[i];
     auto old = reloc->obj;
-    visit(&reloc->obj);
-    //arrput(cur_increments, reloc->obj);
+    //visit(&reloc->obj);
+    arrput(cur_increments, &reloc->obj);
     arrput(next_decrements, reloc->obj);
     if (reloc->obj != old) {
       switch (reloc->type) {
@@ -246,27 +275,29 @@ static void visit_trace(trace_s *t) {
 static void trace_roots() {
   //printf("Scan symbols from readbc...%li\n", arrlen(symbols));
   for (uint64_t i = 0; i < arrlen(symbols); i++) {
-    visit(&symbols[i]);
+    //visit(&symbols[i]);
     //printf("Add readbc %p\n", symbols[i]);
-    //arrput(cur_increments, symbols[i]);
+    arrput(cur_increments, &symbols[i]);
     arrput(next_decrements, symbols[i]);
   }
 
   //printf("Scan GC pushed roots...%li\n", arrlen(pushed_roots));
   for (uint64_t i = 0; i < arrlen(pushed_roots); i++) {
-    visit(pushed_roots[i]);
+    //visit(pushed_roots[i]);
     //printf("Add GC root %p\n", *pushed_roots[i]);
-    //arrput(cur_increments, *pushed_roots[i]);
+    arrput(cur_increments, pushed_roots[i]);
     arrput(next_decrements, *pushed_roots[i]);
   }
 
   //printf("Scan stack...%u\n", stack_top - stack);
   for (long* sp = stack; sp <= stack_top; sp++) {
     if (*sp != 0) {
-      visit(sp);
+      //visit(sp);
       //printf("Add stack root %p\n", *sp);
-      //arrput(cur_increments, *sp);
-      arrput(next_decrements, *sp);
+      if (is_ptr_type(*sp)) {
+	arrput(cur_increments, sp);
+	arrput(next_decrements, *sp);
+      }
     }
   }
 
@@ -284,9 +315,9 @@ static void trace_roots() {
   //printf("Scan constant table... %li\n", const_table_sz);
   for (size_t i = 0; i < const_table_sz; i++) {
     if (const_table[i] != 0) {
-      visit(&const_table[i]);
+      //visit(&const_table[i]);
       //printf("Add const table %p\n", const_table[i]);
-      //arrput(cur_increments, const_table[i]);
+      arrput(cur_increments, &const_table[i]);
       arrput(next_decrements, const_table[i]);
     }
   }
@@ -295,9 +326,9 @@ static void trace_roots() {
     auto cur = &sym_table->entries[i];
     if (*cur != 0 && *cur != TOMBSTONE) {
       auto *tmp = (long *)&sym_table->entries[i];
-      visit(tmp);
+      //visit(tmp);
       //printf("Add symbol table %p\n", *tmp);
-      //arrput(cur_increments, *tmp);
+      arrput(cur_increments, tmp);
       arrput(next_decrements, *tmp);
     }
   }
@@ -342,7 +373,7 @@ EXPORT void GC_init() {
 
 static void trace2_cb(long* obj, void* ctx) {
   long **lst = (long**)ctx;
-  arrput(*lst, *obj);
+    arrput(*lst, *obj);
 }
 static int64_t trace2(long** lst, bool incr) {
   int64_t gc_freed = 0;
@@ -416,8 +447,17 @@ void GC_collect() {
   scan_log_buf();
   // Run increments
   //printf("Run increments...\n");
-  trace2(&cur_increments, true);
+  visit(&cur_increments);
   arrsetlen(cur_increments, 0);
+  for(uint64_t i =0; i < arrlen(next_decrements); i++) {
+    // TODO cleanup
+    auto from = next_decrements[i];
+    if (!is_ptr_type(from)) continue;
+    auto p = from & (~TAG_MASK);
+    auto tag = from & TAG_MASK;
+    auto to = is_forwarded(p) ? get_forward(p) : p;
+    next_decrements[i] = to + tag;
+  }
   // Run *last* iteration's decrements.
   //printf("Run %li decrements...\n", arrlen(cur_decrements));
   trace2(&cur_decrements, false);
@@ -427,12 +467,20 @@ void GC_collect() {
   if (verbose) {
     printf("Log buf size: %li\n", arrlen(log_buf));
   }
-  printf("Heap sz: %li alloced: %li ratio: %.02f\n", gc_alloc, gc_dalloc, ((double)gc_dalloc / (double)gc_alloc) * 100.0);
+  double ratio = ((double)gc_dalloc / (double)gc_alloc) * 100.0;
+  printf("Heap sz: %li alloced: %li ratio: %.02f copy mode: %i\n", gc_alloc, gc_dalloc, ratio, copying_mode);
   arrsetlen(log_buf, 0);
+
+  if (ratio > 95.0) {
+    copying_mode = false;
+  } else {
+    copying_mode = true;
+  }
 
   if (cur_block->cnt != 0) {
     cur_block = alloc_gc_block();
   }
+
   alloc_start = (uint8_t*)&cur_block->data[0];
   alloc_ptr = alloc_start;
   alloc_end = alloc_start + ALLOC_SZ - sizeof(gc_block);
@@ -445,13 +493,11 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   if (align(sz) >= (alloc_sz - sizeof(gc_block))) {
     void* res;
     if(posix_memalign(&res, ALLOC_SZ, align(sz))) {
-      printf("Large alloc failure: %li\n", sz);
       abort();
     }
     return res;
   }
   GC_collect();
-  alloc_ptr = alloc_start;
   return GC_malloc(sz);
 }
 
@@ -493,9 +539,8 @@ static void scan_log_buf() {
       auto type = v & TAG_MASK;
       if (type == PTR_TAG || type == FLONUM_TAG || type == CONS_TAG ||
 	  type == CLOSURE_TAG || type == SYMBOL_TAG) {
-	visit(field);
 	//printf("Add log increments: %p\n", *field);
-	//arrput(cur_increments, *field);
+	arrput(cur_increments, field);
       }
       v = cur.addr;
       type = v & TAG_MASK;
