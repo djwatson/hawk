@@ -1,4 +1,8 @@
 * gc: ctak, fft, earley, gcbench, paraffins, nboyer, sboyer, mperm 
+* CLeanp GC code
+* get stats closer, including cur_block copy_cur_block
+* get log to work in JITted code
+* Make sure relocs work for jit?
 # Getting all jit to work bench2
 
 * loosing at: 

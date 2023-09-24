@@ -26,6 +26,7 @@ extern long* frame_top;
 static bool gc_enable = true;
 static long gc_alloc = 0;
 static long gc_dalloc = 0;
+static long gc_large = 0;
 
 uint8_t *alloc_start = NULL;
 uint8_t *alloc_ptr = NULL;
@@ -40,11 +41,32 @@ typedef struct {
   uint64_t addr;
 } log_item;
 
+#define ALLOC_SZ_LOG 22
+#define ALLOC_SZ (1UL << ALLOC_SZ_LOG)
+#define ALLOC_SZ_MASK (ALLOC_SZ-1)
+
+size_t align(size_t sz) { return (sz + 7) & (~TAG_MASK); }
 typedef struct {
   uint64_t cnt;
-  uint64_t data[];
+  uint8_t marks[((ALLOC_SZ / 64)+8)&~8];
+  uint8_t data[];
 } gc_block;
 gc_block* cur_block = NULL;
+
+static void block_bts(gc_block* block, uint64_t loc) {
+  uint64_t bit = (loc - (uint64_t)block->data)/8;
+  auto word = bit/8;
+  auto b = bit % 8;
+  assert(word < (((ALLOC_SZ / 64)+8)&~8));
+  block->marks[word]|= 1UL << b;
+}
+static bool block_bt(gc_block* block, uint64_t loc) {
+  uint64_t bit = (loc - (uint64_t)block->data)/8;
+  auto word = bit/8;
+  auto b = bit % 8;
+  assert(word < (((ALLOC_SZ / 64)+8)&~8));
+  return block->marks[word]& (1UL << b);
+}
 
 static gc_block** gc_blocks = NULL;
 static gc_block** free_gc_blocks = NULL;
@@ -55,10 +77,6 @@ static long* next_decrements = NULL;
 static long* cur_decrements = NULL;
 
 static void scan_log_buf();
-
-#define ALLOC_SZ_LOG 22
-#define ALLOC_SZ (1UL << ALLOC_SZ_LOG)
-#define ALLOC_SZ_MASK (ALLOC_SZ-1)
 
 static gc_block* alloc_gc_block() {
   gc_alloc += ALLOC_SZ;
@@ -135,7 +153,6 @@ static long get_forward(long obj) {
   return (ptr[0]) - FORWARD_TAG;
 }
 
-size_t align(size_t sz) { return (sz + 7) & (~TAG_MASK); }
 
 static gc_block* cur_copy_block = NULL;
 static uint8_t* copy_alloc_ptr = NULL;
@@ -170,11 +187,81 @@ void *copy(long *obj) {
   return res;
 }
 
-static bool copying_mode = false;
 static void visit_cb(long *field, void* ctx) {
   long ***lst = (long***)ctx;
   if (is_ptr_type(*field)) {
     arrput(*lst, field);
+  }
+}
+static bool copying_mode = true;
+static bool fully_trace = true;
+static void full_trace(long ***lst) {
+  for(uint64_t i = 0; i < arrlen(gc_blocks); i++) {
+    auto block = gc_blocks[i];
+    block->cnt =0;
+    if (cur_copy_block == block) {
+      block->cnt++;
+    }
+    memset(block->marks, 0, sizeof(block->marks));
+  }
+  gc_dalloc = 0;
+  while(arrlen(*lst)) {
+    long* field = arrpop(*lst);
+    auto from = *field;
+    auto tag = from & TAG_MASK;
+    if (!is_ptr_type(from)) {
+      continue;
+    }
+    auto p = from & (~TAG_MASK);
+    if (true || copying_mode) {
+      auto to = is_forwarded(p) ? get_forward(p) : p;
+      //printf("TAG %li\n", tag);
+      //printf("Visiting ptr field %lx\n", p);
+      gc_block* block = (gc_block*)(to & ~ALLOC_SZ_MASK);
+      if (to == (long)block) {
+	gc_dalloc += heap_object_size((long*)to);
+	continue;
+      }
+      if (!block_bt(block, to)) {
+	//assert(to >= (long)alloc_start && to < (long)alloc_end);
+	// If RC is 0.
+	to = (long)copy((long*)p);
+	block = (gc_block*)(to & ~ALLOC_SZ_MASK);
+	block_bts(block, to );
+	((uint32_t*)to)[1] = 1;
+	//printf("INC %p to %i (0)\n", to, ((uint32_t*)to)[1]);
+	// Need to recursively visit all fields
+	trace_heap_object((void*)to, visit_cb, lst);
+      } else {
+	((uint32_t*)to)[1]++;
+	//printf("INC %p to %i\n", to, ((uint32_t*)to)[1]);
+	//assert(to < (long)alloc_start || to >= (long)alloc_end);
+      }
+      //     printf("Visiting ptr field %lx moved to %lx \n", p, to);
+      *field = to + tag;
+    } else {
+      if (((uint32_t*)p)[1] == 0) {
+	// Increment line in block
+	gc_block* block = (gc_block*)(p & ~ALLOC_SZ_MASK);
+	if ((long)block != p) {
+	  block->cnt++;
+	  gc_dalloc += heap_object_size((long*)p);
+	}
+	trace_heap_object((void*)p, visit_cb, lst);
+      }
+      ((uint32_t*)p)[1] ++;
+    }
+  }
+  gc_alloc = 0;
+  arrsetlen(free_gc_blocks, 0);
+  for(uint64_t i = 0; i < arrlen(gc_blocks); i++) {
+    auto block = gc_blocks[i];
+    if (block->cnt == 0 && block != cur_block) {
+      put_gc_block(block);
+    }
+    if (block != cur_block) {
+      gc_alloc += ALLOC_SZ;
+    }
   }
 }
 static void visit(long ***lst) {
@@ -206,8 +293,6 @@ static void visit(long ***lst) {
       //     printf("Visiting ptr field %lx moved to %lx \n", p, to);
       *field = to + tag;
     } else {
-      auto to = is_forwarded(p) ? get_forward(p) : p;
-      assert(p == to);
       if (((uint32_t*)p)[1] == 0) {
 	// Increment line in block
 	gc_block* block = (gc_block*)(p & ~ALLOC_SZ_MASK);
@@ -351,9 +436,21 @@ static void trace_roots() {
 extern size_t page_cnt;
 size_t alloc_sz;
 
+static struct  {
+  uint64_t traces;
+  uint64_t copy_traces;
+  uint64_t full_traces;
+} gc_stats = {0,0,0};
 static void GC_deinit() {
-  arrfree(pushed_roots);
-  munmap(alloc_start, alloc_sz);
+  /* arrfree(pushed_roots); */
+  /* munmap(alloc_start, alloc_sz); */
+  printf("Traces %li Full traces %li (%.02f) Copy traces %li (%.02f)\n",
+	 gc_stats.traces,
+	 gc_stats.full_traces,
+	 ((double)gc_stats.full_traces / (double)gc_stats.traces)*100.0,
+	 gc_stats.copy_traces,
+	 ((double)gc_stats.copy_traces / (double)gc_stats.traces)*100.0
+	 );
 }
 
 EXPORT void GC_init() {
@@ -363,7 +460,7 @@ EXPORT void GC_init() {
   /* assert(alloc_start); */
   /* alloc_ptr = alloc_start; */
   /* alloc_end = alloc_ptr + alloc_sz; */
-  /* atexit(&GC_deinit); */
+  atexit(&GC_deinit);
   cur_block = alloc_gc_block();
   alloc_start = (uint8_t*)&cur_block->data[0];
   alloc_ptr = alloc_start;
@@ -447,7 +544,16 @@ void GC_collect() {
   scan_log_buf();
   // Run increments
   //printf("Run increments...\n");
-  visit(&cur_increments);
+  if (copying_mode) {
+    gc_stats.copy_traces++;
+  }
+  gc_stats.traces++;
+  if (fully_trace) {
+    full_trace(&cur_increments);
+    gc_stats.full_traces++;
+  } else {
+    visit(&cur_increments);
+  }
   arrsetlen(cur_increments, 0);
   for(uint64_t i =0; i < arrlen(next_decrements); i++) {
     // TODO cleanup
@@ -460,7 +566,9 @@ void GC_collect() {
   }
   // Run *last* iteration's decrements.
   //printf("Run %li decrements...\n", arrlen(cur_decrements));
-  trace2(&cur_decrements, false);
+  if (!fully_trace) {
+    trace2(&cur_decrements, false);
+  }
   arrsetlen(cur_decrements, 0);
   //printf("Done\n");
   
@@ -468,13 +576,20 @@ void GC_collect() {
     printf("Log buf size: %li\n", arrlen(log_buf));
   }
   double ratio = ((double)gc_dalloc / (double)gc_alloc) * 100.0;
-  printf("Heap sz: %li alloced: %li ratio: %.02f copy mode: %i\n", gc_alloc, gc_dalloc, ratio, copying_mode);
+  printf("Heap sz: %li alloced: %li ratio: %.02f copy mode: %i full: %i\n", gc_alloc, gc_dalloc, ratio, copying_mode, fully_trace);
   arrsetlen(log_buf, 0);
 
-  if (ratio > 95.0) {
-    copying_mode = false;
-  } else {
+  auto can_auto_adjust = (arrlen(gc_blocks) - arrlen(free_gc_blocks)) > 10  ;
+  if (can_auto_adjust && ratio < 85.0) {
     copying_mode = true;
+  } else {
+    copying_mode = false;
+  }
+
+  if (can_auto_adjust && ratio < 50.0) {
+    fully_trace = true;
+  } else {
+    fully_trace = false;
   }
 
   if (cur_block->cnt != 0) {
@@ -495,6 +610,7 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
     if(posix_memalign(&res, ALLOC_SZ, align(sz))) {
       abort();
     }
+    gc_large += align(sz);
     return res;
   }
   GC_collect();
