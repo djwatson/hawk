@@ -165,7 +165,7 @@ int main(int argc, char *argv[]) {
     profiler_start();
   }
 #endif
-  auto ojoff = 1;
+  auto ojoff = joff;
   joff = 1;
   load_bootstrap();
   #ifdef AFL
