@@ -588,7 +588,7 @@ void GC_collect() {
     printf("Log buf size: %li\n", arrlen(log_buf));
   }
   double ratio = ((double)gc_dalloc / (double)gc_alloc) * 100.0;
-  printf("Heap sz: %li alloced: %li ratio: %.02f copy mode: %i full: %i\n", gc_alloc, gc_dalloc, ratio, copying_mode, fully_trace);
+  //printf("Heap sz: %li alloced: %li ratio: %.02f copy mode: %i full: %i\n", gc_alloc, gc_dalloc, ratio, copying_mode, fully_trace);
   arrsetlen(log_buf, 0);
 
   auto can_auto_adjust = (arrlen(gc_blocks) - arrlen(free_gc_blocks)) > 10  ;
@@ -703,6 +703,14 @@ static __attribute__((noinline)) void GC_log_obj_slow(void*obj) {
 }
 
 void __attribute__((always_inline)) GC_log_obj(void*ptr) {
+  uint32_t rc = ((uint32_t*)ptr)[1];
+  if (unlikely((rc != 0) && (!(rc & LOGGED_MARK)))) {
+    __attribute((musttail)) return GC_log_obj_slow(ptr);
+  }
+}
+
+void GC_log_obj_jit(void*ptr) {
+  ptr = (void*)((long)ptr & ~TAG_MASK);
   uint32_t rc = ((uint32_t*)ptr)[1];
   if (unlikely((rc != 0) && (!(rc & LOGGED_MARK)))) {
     __attribute((musttail)) return GC_log_obj_slow(ptr);
