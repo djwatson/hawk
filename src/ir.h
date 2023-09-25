@@ -103,6 +103,7 @@ typedef enum {
 
 typedef enum {
   RELOC_ABS,
+  RELOC_ABS_NO_TAG,
   RELOC_SYM_ABS,
 } reloc_type;
 
