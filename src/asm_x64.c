@@ -26,6 +26,7 @@
 
 #include "vm.h"
 #include "lru.h"
+#include "gc.h"
 
 #include "parallel_copy.h"
 #include "third-party/stb_ds.h"
@@ -605,7 +606,10 @@ void emit_op_typecheck(uint8_t reg, uint8_t type, uint64_t offset) {
       emit_op_imm32(OP_TEST_IMM, 0, reg, 0x7);
     } else if ((type & TAG_MASK) == PTR_TAG) {
       emit_cmp_reg_imm32(R15, type & ~IR_INS_TYPE_GUARD);
+      // remove rex.W
+      uint8_t* off = (uint8_t*)emit_offset();
       emit_mem_reg(OP_MOV_MR, -PTR_TAG, R15, R15);
+      *off &= ~(1 << 3);
       emit_reg_reg(OP_MOV, reg, R15);
       // TODO clean offsets up a bit.
       emit_jcc32(JNE, offset);
@@ -749,9 +753,52 @@ void asm_jit_args(trace_s *trace, trace_s* dest_trace) {
   //printf("ASM JIT ARGS START %p CNT %i\n", emit_offset());
 }
 
+static uint64_t log_offset;
+static void emit_init_funcs() {
+  static bool done = false;
+  if (!done) {
+    done = true;
+    auto start = emit_offset();
+    emit_ret();
+    for(uint8_t i = 0; i < regcnt; i++) {
+      if (!reg_callee[i]) {
+	emit_pop(i);
+      }
+    }
+    emit_call_indirect(R15);
+    emit_mov64(R15, (int64_t)&GC_log_obj_jit);
+    emit_reg_reg(OP_MOV, R15, RDI);
+    for(int16_t i = regcnt; i > 0; i--) {
+      if (!reg_callee[i-1]) {
+	emit_push(i-1);
+      }
+    }
+    log_offset = emit_offset();
+    auto len = start - log_offset;
+    if (verbose) {
+      disassemble((const uint8_t *)log_offset, len);
+    }
+    uint64_t fn = log_offset;
+
+    char* dumpname = "jit_gc_log";
+#ifdef JITDUMP
+    perf_map((uint64_t)fn, len, dumpname);
+    if (jit_dump_flag) {
+      jit_dump(len, (uint64_t)fn, dumpname);
+    }
+    jit_reader_add(len, (uint64_t)fn, 0, 0, dumpname);
+#endif
+#ifdef VALGRIND
+    VALGRIND_DISCARD_TRANSLATIONS(fn, len);
+#endif
+  }
+}
+
+
 void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   emit_init();
   lru_init(&reg_lru);
+  emit_init_funcs();
 
   uint32_t next_spill = 1;
 
@@ -1159,6 +1206,21 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 	emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, reg_sz);
       }
 
+      break;
+    }
+    case IR_GCLOG: {
+      uint8_t reg = R15;
+      //emit_cmp_mem32_imm32(4, R15, 0x0);
+      emit_call32(log_offset - emit_offset());
+      if (ir_is_const(op->op1)) {
+        auto c = trace->consts[op->op1 - IR_CONST_BIAS];
+        auto re = (reloc){emit_offset(), c, RELOC_ABS};
+        arrput(trace->relocs, re);
+        emit_mov64(R15, c);
+      } else {
+	reg = trace->ops[op->op1].reg;
+	emit_reg_reg(OP_MOV, reg, R15);
+      }
       break;
     }
     case IR_CARG: {

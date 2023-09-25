@@ -144,6 +144,7 @@ void dump_trace(trace_s *ctrace) {
     case IR_ARG:
     case IR_LOAD:
     case IR_CHGTYPE:
+    case IR_GCLOG:
     case IR_SLOAD: {
       print_const_or_val(op.op1, ctrace);
       break;

@@ -79,6 +79,27 @@ void emit_call32(int32_t offset) {
 
 void emit_ret() { *(--p) = 0xc3; }
 
+// TODO clean this up.  THe main issue is REX needs W=0.  Also check R1 does full
+// checks for rsp/rbp
+void emit_cmp_mem32_imm32(uint32_t offset, uint8_t r1, int32_t imm) {
+  emit_imm32(imm);
+  assert(r1 != RSP);
+  assert(r1 != RBP);
+  uint8_t r2 = 0x7;
+
+  if (offset == 0 && (0x7 & r1) != RBP) {
+    emit_modrm(0x0, 0x7 & r2, 0x7 & r1);
+  } else if ((int32_t)((int8_t)offset) == offset) {
+    *(--p) = (int8_t)offset;
+    emit_modrm(0x1, 0x7 & r2, 0x7 & r1);
+  } else {
+    emit_imm32(offset);
+    emit_modrm(0x2, 0x7 & r2, 0x7 & r1);
+  }
+
+  *(--p) = 0x81;
+  emit_rex(0, 0, 0, r1 >> 3);
+}
 void emit_cmp_reg_imm32(uint8_t r, int32_t imm) {
   if ((int32_t)((int8_t)imm) != imm) {
   emit_imm32(imm);
