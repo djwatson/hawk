@@ -79,7 +79,7 @@ add_custom_command(
 add_executable(boom  boom.c)
 target_link_libraries(boom PUBLIC boom_vm)
 target_compile_options(boom PRIVATE  ${COMPILE_FLAGS} )
-target_link_options(boom PRIVATE  -static )
+target_link_options(boom PRIVATE )
 set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 
