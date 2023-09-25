@@ -1,18 +1,15 @@
-* gc: ctak, fft, earley, gcbench, paraffins, nboyer, sboyer, mperm 
 * CLeanp GC code
 * get stats closer, including cur_block copy_cur_block
-* get log to work in JITted code
-* Make sure relocs work for jit?
+* double check large allocs - large alloc collect in array1
 # Getting all jit to work bench2
 
 * loosing at: 
-  * GC: diviter, divrec, gcbench, conform, sboyer, nboyer, earley, graphs, dynamic, peval, matrix, compiler, cpstak, deriv
   * closure analysis: nqueens
   * input/output buffering: wc, cat, dynamic
   * read: dynamic read1 sum1
   * call/cc: ctak, fibc
   * string ops: string, slatex, compiler, parsing
-  * cpstak: GC, closure zeroing, various asm improvements, GC jumping out of trace
+  * cpstak: various asm improvements, typecheck
   * deriv: GC checks could be merged, leas, typechecks for store, also clearing of snapshots
   * lattice: asm ops, closure sinking, GC
   * dynamic: GC, read is super slow, read by char
@@ -25,21 +22,13 @@
 
 # TODO
 
-* Better GC.
-  * needs top-of-frame tracking.
-    * clear snap from top
-  * needs generational check for vector-set! set-cdr! set-car! set-box! gset
-  * a better GC, immix or bartlett
-  * GC doesn't need to jump out of trace for most things?
-  * merge GC checks?
+* lazier typechecking
+  * jguard counts as a use!
 * sccp pass / fold
-  * folding GGET: put in emit somewhere, check for GSET
 
 * better closure allocation in frontend - full closure optimization
 * singleton functions /closures
   * polymorphic / non polymorphic
-* lazier typechecking
-  * jguard counts as a use!
 * TRACE loop recording - 
   * CALLT should also detect loops, and flush original trace??
   * compiler/matrix are tracing failures
@@ -60,6 +49,12 @@
 * reg hints across calls? and returns?
   * CALLXS betterness
 * RET implementation could actually RET? faster somehow?
+
+* Better GC.
+  * cleanup lines/blocks
+  * cleanup top-of-frame tracking.
+  * GC doesn't need to jump out of trace for most things?
+  * merge GC checks?
 
 # working on
 

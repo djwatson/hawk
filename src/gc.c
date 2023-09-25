@@ -546,21 +546,21 @@ __attribute__((noinline)) void GC_collect() {
   arrsetlen(cur_decrements, 0);
   //printf("Done\n");
   
+  sweep_free_blocks();
   double ratio = ((double)gc_dalloc / (double)gc_alloc) * 100.0;
   if (verbose) {
     printf("Heap sz: %li alloced: %li ratio: %.02f full: %i\n", gc_alloc, gc_dalloc, ratio, fully_trace);
   }
   arrsetlen(log_buf, 0);
 
-  auto can_auto_adjust = (arrlen(gc_blocks) - arrlen(free_gc_blocks)) > 10  ;
+  auto can_auto_adjust = (arrlen(gc_blocks) - arrlen(free_gc_blocks)) > 10;
 
-  if (can_auto_adjust && ratio < 30.0) {
+  if (can_auto_adjust && ratio < 90.0) {
     fully_trace = true;
   } else {
     fully_trace = false;
   }
 
-    sweep_free_blocks();
 
     cur_block = alloc_gc_block();
 
