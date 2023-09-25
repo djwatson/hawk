@@ -346,6 +346,12 @@ static void visit_trace(trace_s *t, void(*add_root)(long*root)) {
 	memcpy((int64_t*)(reloc->offset - 8), &v, sizeof(int64_t));
         break;
       }
+      case RELOC_ABS_NO_TAG: {
+	int64_t v = reloc->obj;
+	v &= ~TAG_MASK;
+	memcpy((int64_t*)(reloc->offset - 8), &v, sizeof(int64_t));
+        break;
+      }
       case RELOC_SYM_ABS: {
         auto *sym = (symbol *)(reloc->obj - SYMBOL_TAG);
 	int64_t v = (int64_t)&sym->val;
@@ -693,7 +699,7 @@ static void maybe_log(long* v_p, void* c) {
   arrput(log_buf, ((log_item){(uint64_t)v_p - addr, v}));
 }
 
-static __attribute__((noinline)) void GC_log_obj_slow(void*obj) {
+__attribute__((noinline)) void GC_log_obj_slow(void*obj) {
   uint32_t* rc_ptr = (uint32_t*)obj;
   rc_ptr[1] |= LOGGED_MARK;
   uint64_t addr = (uint64_t)obj;
@@ -709,10 +715,3 @@ void __attribute__((always_inline)) GC_log_obj(void*ptr) {
   }
 }
 
-void GC_log_obj_jit(void*ptr) {
-  ptr = (void*)((long)ptr & ~TAG_MASK);
-  uint32_t rc = ((uint32_t*)ptr)[1];
-  if (unlikely((rc != 0) && (!(rc & LOGGED_MARK)))) {
-    __attribute((musttail)) return GC_log_obj_slow(ptr);
-  }
-}
