@@ -41,7 +41,7 @@ typedef struct {
   uint64_t addr;
 } log_item;
 
-#define ALLOC_SZ_LOG 22
+#define ALLOC_SZ_LOG 26
 #define ALLOC_SZ (1UL << ALLOC_SZ_LOG)
 #define ALLOC_SZ_MASK (ALLOC_SZ-1)
 
@@ -193,8 +193,7 @@ static void visit_cb(long *field, void* ctx) {
     arrput(*lst, field);
   }
 }
-static bool copying_mode = true;
-static bool fully_trace = true;
+static bool fully_trace = false;
 static void clear_block_marks() {
   for(uint64_t i = 0; i < arrlen(gc_blocks); i++) {
     auto block = gc_blocks[i];
@@ -215,7 +214,6 @@ static void full_trace(long *field) {
       goto next;
     }
     auto p = from & (~TAG_MASK);
-    if (true || copying_mode) {
       auto to = is_forwarded(p) ? get_forward(p) : p;
       //printf("TAG %li\n", tag);
       //printf("Visiting ptr field %lx\n", p);
@@ -241,18 +239,6 @@ static void full_trace(long *field) {
       }
       //     printf("Visiting ptr field %lx moved to %lx \n", p, to);
       *field = to + tag;
-    } else {
-      if (((uint32_t*)p)[1] == 0) {
-	// Increment line in block
-	gc_block* block = (gc_block*)(p & ~ALLOC_SZ_MASK);
-	if ((long)block != p) {
-	  block->cnt++;
-	  gc_dalloc += heap_object_size((long*)p);
-	}
-	trace_heap_object((void*)p, visit_cb, lst);
-      }
-      ((uint32_t*)p)[1] ++;
-    }
   next:
     if (arrlen(cur_increments) == 0) {
       break;
@@ -282,7 +268,6 @@ static void visit(long *field) {
       goto next;
     }
     auto p = from & (~TAG_MASK);
-    if (copying_mode) {
       auto to = is_forwarded(p) ? get_forward(p) : p;
       //printf("TAG %li\n", tag);
       //printf("Visiting ptr field %lx\n", p);
@@ -301,18 +286,6 @@ static void visit(long *field) {
       }
       //     printf("Visiting ptr field %lx moved to %lx \n", p, to);
       *field = to + tag;
-    } else {
-      if (((uint32_t*)p)[1] == 0) {
-	// Increment line in block
-	gc_block* block = (gc_block*)(p & ~ALLOC_SZ_MASK);
-	if ((long)block != p) {
-	  block->cnt++;
-	  gc_dalloc += heap_object_size((long*)p);
-	}
-	trace_heap_object((void*)p, visit_cb, lst);
-      }
-      ((uint32_t*)p)[1] ++;
-    }
   next:
     if (arrlen(cur_increments) == 0) {
       break;
@@ -508,7 +481,7 @@ static int64_t trace2(long** lst, bool incr) {
   return gc_freed;
 }
 
-static void add_root(long* root) {
+__attribute__((always_inline))static void add_root(long* root) {
   long obj = *root;
   if (is_ptr_type(obj)) {
     full_trace(root);
@@ -517,14 +490,14 @@ static void add_root(long* root) {
   }
 }
 
-static void add_increment(long* root) {
+__attribute__((always_inline))static void add_increment(long* root) {
   long obj = *root;
   if (is_ptr_type(obj)) {
     full_trace(root);
   }
 }
 
-static void add_root2(long* root) {
+__attribute__((always_inline))static void add_root2(long* root) {
   long obj = *root;
   if (is_ptr_type(obj)) {
     visit(root);
@@ -532,7 +505,7 @@ static void add_root2(long* root) {
   }
 }
 
-static void add_increment2(long* root) {
+__attribute__((always_inline))static void add_increment2(long* root) {
   long obj = *root;
   if (is_ptr_type(obj)) {
     visit(root);
@@ -567,9 +540,6 @@ void GC_collect() {
   //  printf("Scan log buf...\n");
   // Run increments
   //printf("Run increments...\n");
-  if (copying_mode) {
-    gc_stats.copy_traces++;
-  }
   gc_stats.traces++;
   if (fully_trace) {
     clear_block_marks();
@@ -598,11 +568,6 @@ void GC_collect() {
   arrsetlen(log_buf, 0);
 
   auto can_auto_adjust = (arrlen(gc_blocks) - arrlen(free_gc_blocks)) > 10  ;
-  if (can_auto_adjust && ratio < 85.0) {
-    copying_mode = true;
-  } else {
-    copying_mode = false;
-  }
 
   if (can_auto_adjust && ratio < 50.0) {
     fully_trace = true;

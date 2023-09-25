@@ -201,7 +201,7 @@ int main(int argc, char *argv[]) {
   }
 
   printf("VM DONE\n");
-    GC_collect();
+  //GC_collect();
 #ifdef PROFILER
   if (profile != 0) {
     profiler_stop();
