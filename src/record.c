@@ -1112,6 +1112,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (INS_OP(i) == SET_CDR) {
       offset = 8;
     }
+    push_ir(trace, IR_GCLOG, box, IR_NONE, UNDEFINED_TAG);
     auto ref = push_ir(trace, IR_REF, box, 8 + offset - CONS_TAG, 0);
     push_ir(trace, IR_STORE, ref, obj, UNDEFINED_TAG);
     // Modified state, need a snap.
@@ -1122,6 +1123,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case SET_BOX: {
     auto box = record_stack_load(INS_B(i), frame);
     auto obj = record_stack_load(INS_C(i), frame);
+    push_ir(trace, IR_GCLOG, box, IR_NONE, UNDEFINED_TAG);
     auto ref = push_ir(trace, IR_REF, box, 8 - CONS_TAG, 0);
     push_ir(trace, IR_STORE, ref, obj, UNDEFINED_TAG);
     // Modified state, need a snap.
@@ -1232,6 +1234,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto idx = record_stack_load(INS_B(i), frame);
     auto obj = record_stack_load(INS_C(i), frame);
 
+    push_ir(trace, IR_GCLOG, vec, IR_NONE, UNDEFINED_TAG);
     push_ir(trace, IR_ABC, vec, idx, IR_INS_TYPE_GUARD);
     auto vref = push_ir(trace, IR_VREF, vec, idx, 0);
     push_ir(trace, IR_STORE, vref, obj, 0);
@@ -1571,6 +1574,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, gp);
+    push_ir(trace, IR_GCLOG, knum | IR_CONST_BIAS, IR_NONE, UNDEFINED_TAG);
     push_ir(trace, IR_GSET, knum | IR_CONST_BIAS,
             record_stack_load(INS_A(i), frame), UNDEFINED_TAG);
     // We've changed global state, add a snap.
@@ -1735,6 +1739,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case CLOSURE_SET: {
     auto clo = record_stack_load(INS_A(i), frame);
     auto val = record_stack_load(INS_B(i), frame);
+    push_ir(trace, IR_GCLOG, clo, IR_NONE, UNDEFINED_TAG);
     auto ref = push_ir(trace, IR_REF, clo,
                        16 + (8 * (1 + INS_C(i))) - CLOSURE_TAG, UNDEFINED_TAG);
     push_ir(trace, IR_STORE, ref, val, UNDEFINED_TAG);
