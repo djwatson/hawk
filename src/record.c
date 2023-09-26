@@ -106,7 +106,8 @@ void penalty_pc(uint32_t *pc) {
         } else if (INS_OP(*pc) == LOOP) {
           *pc = ((*pc) & ~0xff) + ILOOP;
 	} else if (INS_OP(*pc) == JLOOP) {
-	  trace_cache_get(INS_D(*pc))->startpc = ILOOP;
+	  auto startpc = trace_cache_get(INS_D(*pc))->startpc;
+	  trace_cache_get(INS_D(*pc))->startpc = (startpc & ~0xff) + ILOOP;
 	} else if (INS_OP(*pc) == JFUNC) {
 	  auto ctrace = trace_cache_get(INS_D(*pc));
 	  auto op = ctrace->startpc & 0xff;
