@@ -1353,7 +1353,7 @@ __attribute__((always_inline)) long vm_peek_char(port_s* port) {
 
 LIBRARY_FUNC_B_LOAD(PEEK)
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
-  frame[ra] = vm_peek_char(fb);
+  frame[ra] = vm_peek_char((port_s*)fb);
 END_LIBRARY_FUNC
 
 __attribute__((always_inline)) long vm_read_char(port_s* port) {
@@ -1378,7 +1378,7 @@ __attribute__((always_inline)) long vm_read_char(port_s* port) {
 
 LIBRARY_FUNC_B_LOAD(READ)
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
-  frame[ra] = vm_read_char(fb);
+  frame[ra] = vm_read_char((port_s*)fb);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)

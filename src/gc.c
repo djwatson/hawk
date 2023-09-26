@@ -485,7 +485,7 @@ static int64_t trace2(long** lst, bool incr) {
 	  free(block);
 	  // unlink
 	  for(uint32_t i = 0; i < arrlen(large_allocs); i++) {
-	    if (large_allocs[i] == ptr) {
+	    if ((long)large_allocs[i] == ptr) {
 	      large_allocs[i] = NULL;
 	      break;
 	    }

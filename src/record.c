@@ -257,7 +257,7 @@ void record_start(unsigned int *pc, long *frame, long argcnt) {
     stack_top = argcnt;
   }
   if (side_exit != nullptr) {
-    stack_top = snap_replay(&regs, side_exit, parent, trace, frame, &depth);
+    stack_top = snap_replay(&regs, side_exit, parent, trace, &depth);
   }
   auto next_pc = pc;
   if (INS_OP(*pc) == FUNC || INS_OP(*pc) == LOOP || INS_OP(*pc) == FUNCV) {
