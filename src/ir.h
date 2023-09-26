@@ -59,6 +59,11 @@ typedef enum {
   IR_NONE,
 } ir_ins_op;
 
+typedef enum {
+  SLOAD_PARENT = 1 <<0, // Loaded from parent.
+  SLOAD_TYPED = 1 << 1, // Already typechecked (at parent).
+} ir_sload_tag;
+
 extern const char *ir_names[];
 
 #define IR_CONST_BIAS 0x8000

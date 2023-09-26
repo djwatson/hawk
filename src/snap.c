@@ -37,9 +37,7 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
 }
 
 // Replay a snap for a side-trace.
-uint32_t snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
-                 const long *frame, int *d) {
-  frame -= snap->offset;
+uint32_t snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace, int *d) {
   for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto slot = &snap->slots[i];
     if ((slot->val & IR_CONST_BIAS) != 0) {
@@ -57,6 +55,7 @@ uint32_t snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
       ins.reg = REG_NONE;
       ins.op1 = slot->slot;
       ins.op = IR_SLOAD;
+      ins.op2 = SLOAD_PARENT;
       ins.slot = SLOT_NONE;
       // TODO PARENT type, maybe inherit?
       auto type = parent->ops[slot->val].type & ~IR_INS_TYPE_GUARD;
