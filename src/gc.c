@@ -14,6 +14,27 @@
 #include <string.h>   // for memcpy
 #include <sys/mman.h> // for mprotect, mmap, PROT_NONE, PROT_READ, PROT...
 
+/*
+An RC-immix style GC.  Like many other immix variants though, we munge blocks& lines a bit.
+
+boom's VM: exact, we always know on the stack what is a pointer and what isn't.  However, 
+           we may point to stale data, so we need to clear any 'unused' stack portions each GC.
+
+Notes:
+  I tried not-copying at all for nursury, and it seemed to be *worse* due to locality issues, even if
+  GC stops were shorter.
+
+  Full GC's almost never happen assuming small enough blocks (~256k), fragmentation never really exceeds 20%.
+  Additionally, there are almost no cycles generated, except for very small heaps (<50mb).
+
+  However, having small blocks, while not collecting until X bytes
+  later, is *very* important.  Currently root scanning is expensive
+  for large numbers of traces, and also the less we scan, the less we
+  have to copy and RC.
+
+  Currently, 256kB 'blocks' and 64MB collect frequency seems to be best.
+ */
+
 #define auto __auto_type
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
@@ -32,6 +53,8 @@ uint8_t *alloc_start = NULL;
 uint8_t *alloc_ptr = NULL;
 uint8_t *alloc_end = NULL;
 
+void** large_allocs = NULL;
+
 long **pushed_roots = NULL;
 
 static const uint32_t LOGGED_MARK = (1UL << 31);
@@ -41,6 +64,7 @@ typedef struct {
   uint64_t addr;
 } log_item;
 
+#define COLLECT_CNT_LOG 26
 #define ALLOC_SZ_LOG 18
 #define ALLOC_SZ (1UL << ALLOC_SZ_LOG)
 #define ALLOC_SZ_MASK (ALLOC_SZ-1)
@@ -162,7 +186,6 @@ void *copy(long *obj) {
   size_t sz = align(heap_object_size(obj));
   gc_block* block = (gc_block*)((long)obj & ~ALLOC_SZ_MASK);
   if ((long)block == (long)obj) {
-    //printf("No copy\n");
     return obj;
   }
   if (copy_alloc_ptr + sz >= copy_alloc_end) {
@@ -460,10 +483,17 @@ static int64_t trace2(long** lst, bool incr) {
 	// Recursive decrement
 	auto sz =heap_object_size((long*)ptr);
 	trace_heap_object((void*)ptr, trace2_cb, lst);
-	//free((void*)ptr);
 	gc_block* block = (gc_block*)(item & ~ALLOC_SZ_MASK);
 	if ((long)block == ptr) {
+	  //printf("Free %p\n", ptr);
 	  free(block);
+	  // unlink
+	  for(uint32_t i = 0; i < arrlen(large_allocs); i++) {
+	    if (large_allocs[i] == ptr) {
+	      large_allocs[i] = NULL;
+	      break;
+	    }
+	  }
 	}else {
 	  gc_dalloc -= sz;
 	  if (--block->cnt == 0) {
@@ -545,7 +575,13 @@ __attribute__((noinline)) void GC_collect() {
   }
   arrsetlen(cur_decrements, 0);
   //printf("Done\n");
-  
+
+  for(uint32_t i =0; i < arrlen(large_allocs); i++) {
+    if (large_allocs[i] && ((uint32_t*)large_allocs[i])[1] == 0) {
+      free(large_allocs[i]);
+    }
+  }
+  arrsetlen(large_allocs, 0);
   sweep_free_blocks();
   double ratio = ((double)gc_dalloc / (double)gc_alloc) * 100.0;
   if (verbose) {
@@ -575,15 +611,22 @@ __attribute__((noinline)) void GC_collect() {
 
 __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   if (align(sz) >= (alloc_sz - sizeof(gc_block))) {
+    if (gc_large > (1 << COLLECT_CNT_LOG)) {
+      GC_collect();
+      //printf("Collect\n");
+      gc_large = 0;
+    }
     void* res;
     if(posix_memalign(&res, ALLOC_SZ, align(sz))) {
       abort();
     }
+    arrput(large_allocs, res);
+    //printf("Alloc %p\n", res);
     gc_large += align(sz);
     return res;
   }
   static long cnt = 0;
-  if (++cnt * ALLOC_SZ < (1UL << 26)) {
+  if (++cnt * ALLOC_SZ < (1UL << COLLECT_CNT_LOG)) {
     cur_block = alloc_gc_block();
     alloc_start = (uint8_t*)&cur_block->data[0];
     alloc_ptr = alloc_start;
