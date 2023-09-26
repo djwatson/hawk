@@ -96,6 +96,9 @@ typedef struct port_s {
   long fd;
   FILE *file;
   long eof;
+  long buf_pos;
+  long buf_sz;
+  char* in_buffer;
 } port_s;
 
 void print_obj(long obj, FILE *file);
