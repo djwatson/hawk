@@ -610,7 +610,7 @@ __attribute__((noinline)) void GC_collect() {
 }
 
 __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
-  if (align(sz) >= (alloc_sz - sizeof(gc_block))) {
+  if (align(sz) >= (ALLOC_SZ - sizeof(gc_block))) {
     if (gc_large > (1 << COLLECT_CNT_LOG)) {
       GC_collect();
       //printf("Collect\n");
