@@ -33,6 +33,8 @@ EXPORT unsigned TRACE_MAX = 65535;
 EXPORT int joff = 0;
 EXPORT int profile = 0;
 
+#define IN_BUFFER_SZ 4096
+
 bcfunc **funcs = NULL;
 #define auto __auto_type
 void __afl_trace(const uint32_t x);
@@ -1291,6 +1293,9 @@ LIBRARY_FUNC_BC(OPEN)
   port->rc = 0;
   port->input_port = fc;
   port->eof = FALSE_REP;
+  port->buf_sz = 0;
+  port->buf_pos = 0;
+  port->in_buffer = malloc(IN_BUFFER_SZ);
   
   if ((fb & TAG_MASK) == FIXNUM_TAG) {
     port->fd = frame[rb] >> 3;
@@ -1330,37 +1335,50 @@ END_LIBRARY_FUNC
 
 __attribute__((always_inline)) long vm_peek_char(port_s* port) {
   // TODO jit still as the ptr tag.
-  port = (port_s*)((long)port & ~TAG_MASK);
-  int res = fgetc(port->file);
-  if (res == EOF) {
+  port = (port_s*)((long)port - PTR_TAG);
+  if (likely(port->buf_pos < port->buf_sz)) {
+    int res = port->in_buffer[port->buf_pos];
+    return (((long)res) << 8) + CHAR_TAG;
+  }
+  port->buf_pos = 0;
+  port->buf_sz = fread(port->in_buffer, 1, IN_BUFFER_SZ, port->file);
+  if (port->buf_sz == 0) {
     port->eof = TRUE_REP;
     return EOF_TAG;
   } else {
-    ungetc(res, port->file);
+    int res = port->in_buffer[0];
     return (((long)res) << 8) + CHAR_TAG;
   }
 }
 
 LIBRARY_FUNC_B_LOAD(PEEK)
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
-  frame[ra] = vm_peek_char(port);
+  frame[ra] = vm_peek_char(fb);
 END_LIBRARY_FUNC
 
 __attribute__((always_inline)) long vm_read_char(port_s* port) {
   // TODO jit still as the ptr tag.
-  port = (port_s*)((long)port & ~TAG_MASK);
-  int res = fgetc(port->file);
-  if (res == EOF) {
+  port = (port_s*)((long)port - PTR_TAG);
+  if (likely(port->buf_pos < port->buf_sz)) {
+    int res = port->in_buffer[port->buf_pos];
+    port->buf_pos++;
+    return (((long)res) << 8) + CHAR_TAG;
+  }
+  port->buf_pos = 0;
+  port->buf_sz = fread(port->in_buffer, 1, IN_BUFFER_SZ, port->file);
+  if (port->buf_sz == 0) {
     port->eof = TRUE_REP;
     return EOF_TAG;
   } else {
+    port->buf_pos++;
+    int res = port->in_buffer[0];
     return (((long)res) << 8) + CHAR_TAG;
   }
 }
 
 LIBRARY_FUNC_B_LOAD(READ)
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
-  frame[ra] = vm_read_char(port);
+  frame[ra] = vm_read_char(fb);
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
