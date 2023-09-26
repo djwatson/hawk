@@ -377,6 +377,7 @@ uint16_t find_val_for_slot(int slot, snap_s *snap, trace_s *trace) {
       return s->val;
     }
   }
+  printf("Could not find val for slot\n");
   assert(false);
   exit(-1);
 }

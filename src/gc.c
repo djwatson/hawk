@@ -421,9 +421,6 @@ static void trace_roots(void(*add_root)(long*root)) {
 #endif
 }
 
-extern size_t page_cnt;
-size_t alloc_sz;
-
 static struct  {
   uint64_t traces;
   uint64_t full_traces;
@@ -439,7 +436,6 @@ static void GC_deinit() {
 }
 
 EXPORT void GC_init() {
-  alloc_sz = 4096 * page_cnt;
   /* alloc_start = (uint8_t *)mmap(NULL, alloc_sz, PROT_READ | PROT_WRITE, */
   /*                              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0); */
   /* assert(alloc_start); */
