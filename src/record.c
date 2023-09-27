@@ -157,7 +157,9 @@ void penalty_pc(uint32_t *pc) {
     blacklist[i].cnt = 1;
     blacklist_slot++;
   } else {
-    printf("BLACKLIST EVICT\n");
+    if (verbose) {
+      printf("BLACKLIST EVICT\n");
+    }
     blacklist[BLACKLIST_SZ - 1].pc = pc;
     blacklist[BLACKLIST_SZ - 1].cnt = 1;
   }
@@ -899,7 +901,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
           if (verbose)
             printf("Record stop return\n");
           // record_stack_load(INS_A(i), frame);
-          record_stop(pc, frame, -1);
+          //record_stop(pc, frame, -1);
+	  record_abort();
         }
         return 1;
       }

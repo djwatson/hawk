@@ -10,18 +10,18 @@
 * fusion - lea followed by reg use is causing a stall.
 * GC inlined in reg
 * make sure stack top is correct
-* fix the 'case' bug
 * fix letrec closures
 
 * loosing at: 
-  * closure analysis: nqueens
+  * closure analysis: nqueens / allocation fastpath
   * input/output buffering: wc, cat, dynamic
   * read: dynamic read1 sum1
   * call/cc: ctak, fibc
   * string ops: string, slatex, compiler, parsing
   * cpstak: various asm improvements, typecheck
   * deriv: GC checks could be merged, leas, typechecks for store, also clearing of snapshots
-  * lattice: some bug in 'case' expansion, internal defines need fixing. guh.
+  * lattice: mostly catching the inner nested loop (lex-fixed) as a loop, and not allocating a closure for it.
+    Need to inline called-once functions??
   * dynamic: GC, read is super slow, read by char
   * parsing: unbox, closure-get need sccp
   * graphs: LOOP_opt, sccp, GC
