@@ -4,7 +4,6 @@
 * some loop bug in Earley
 * GC needs a constant area for allocation - so that 'alloc_end' can be a constant!!!
    and then maybe put alloc_ptr in a register???
-   
 
 # Getting all jit to work bench2
 * fusion - lea followed by reg use is causing a stall.
