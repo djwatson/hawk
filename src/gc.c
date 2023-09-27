@@ -64,7 +64,7 @@ typedef struct {
   uint64_t addr;
 } log_item;
 
-#define COLLECT_CNT_LOG 26
+#define COLLECT_CNT_LOG 25
 #define ALLOC_SZ_LOG 18
 #define ALLOC_SZ (1UL << ALLOC_SZ_LOG)
 #define ALLOC_SZ_MASK (ALLOC_SZ-1)

@@ -1,7 +1,11 @@
 * CLeanp GC code
 * get stats closer, including cur_block copy_cur_block
 * double check large allocs - large alloc collect in array1
+* some loop bug in Earley
 # Getting all jit to work bench2
+* fusion - lea followed by reg use is causing a stall.
+* GC inlined in reg
+* make sure stack top is correct
 
 * loosing at: 
   * closure analysis: nqueens
