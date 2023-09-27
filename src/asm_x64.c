@@ -1072,14 +1072,26 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         op->reg = get_free_reg(trace, &next_spill, slot, false);
         // printf("EMIT LOAD ONLY\n");
       }
-      maybe_assign_register(op->op1, trace, slot, &next_spill);
+
+      if (!ir_is_const(op->op1) && trace->ops[op->op1].op == IR_REF && !ir_is_const(trace->ops[op->op1].op1)) {
+      } else {
+	maybe_assign_register(op->op1, trace, slot, &next_spill);
+      }
+
       assert(op->reg != REG_NONE);
       assert(!ir_is_const(op->op1));
       // sassert(!ir_is_const(op->op2));
       assert(trace->ops[op->op1].op == IR_REF ||
              trace->ops[op->op1].op == IR_VREF);
       emit_op_typecheck(op->reg, op->type, snap_labels[cur_snap]);
-      emit_mem_reg(OP_MOV_MR, 0, trace->ops[op->op1].reg, op->reg);
+      if (!ir_is_const(op->op1) && trace->ops[op->op1].op == IR_REF && !ir_is_const(trace->ops[op->op1].op1)) {
+	// fuse
+	auto op1 = &trace->ops[op->op1];
+	maybe_assign_register(op1->op1, trace, slot, &next_spill);
+	emit_mem_reg(OP_MOV_MR, op1->op2, trace->ops[op1->op1].reg, op->reg);
+      } else {
+	emit_mem_reg(OP_MOV_MR, 0, trace->ops[op->op1].reg, op->reg);
+      }
       break;
     }
     case IR_ABC: {
@@ -1136,15 +1148,17 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     }
     case IR_REF: {
       // TODO: fuse.
-      maybe_assign_register(op->op1, trace, slot, &next_spill);
-      if (ir_is_const(op->op1)) {
-        emit_mem_reg(OP_LEA, op->op2, R15, op->reg);
-        auto c = trace->consts[op->op1 - IR_CONST_BIAS];
-        auto re = (reloc){emit_offset(), c, RELOC_ABS};
-        arrput(trace->relocs, re);
-        emit_mov64(R15, c);
-      } else {
-        emit_mem_reg(OP_LEA, op->op2, trace->ops[op->op1].reg, op->reg);
+      if (op->reg != REG_NONE) {
+	maybe_assign_register(op->op1, trace, slot, &next_spill);
+	if (ir_is_const(op->op1)) {
+	  emit_mem_reg(OP_LEA, op->op2, R15, op->reg);
+	  auto c = trace->consts[op->op1 - IR_CONST_BIAS];
+	  auto re = (reloc){emit_offset(), c, RELOC_ABS};
+	  arrput(trace->relocs, re);
+	  emit_mov64(R15, c);
+	} else {
+	  emit_mem_reg(OP_LEA, op->op2, trace->ops[op->op1].reg, op->reg);
+	}
       }
       break;
     }

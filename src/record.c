@@ -662,7 +662,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case LOOP: {
-    stack_top = INS_A(i) + INS_B(i);
+    stack_top = INS_A(i) + INS_B(i) - 1;
     if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
 	INS_OP(trace->startpc) != RET1 && parent == nullptr) {
       auto link_trace = check_argument_match(frame, trace);
