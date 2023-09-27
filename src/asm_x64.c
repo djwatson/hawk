@@ -151,6 +151,7 @@ int get_free_reg(trace_s *trace, uint32_t *next_spill, int *slot, bool callee) {
   lru_poke(&reg_lru, R15);
   lru_poke(&reg_lru, RSP);
   lru_poke(&reg_lru, RDI);
+  lru_poke(&reg_lru, RBX);
 
   // Spill.
   auto oldest = lru_oldest(&reg_lru);
@@ -195,12 +196,6 @@ void maybe_assign_register(int v, trace_s *trace, int *slot,
       op->reg = get_free_reg(trace, next_spill, slot, false);
       slot[op->reg] = v;
 
-      // Reload from spill slot.
-      /* if (op->slot != SLOT_NONE) { */
-      /* 	printf("Assigning register %s to op %i spilled slot %i\n", */
-      /* 	       reg_names[op->reg], v, op->slot); */
-      /* } */
-      /* printf("Assigning register %s to op %i\n", reg_names[op->reg], v); */
     }
     lru_poke(&reg_lru, op->reg);
   }
@@ -347,6 +342,7 @@ static void __attribute__((noinline)) __attribute__((naked)) jit_exit_stub() {
 void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
                   long **o_frame, unsigned int **o_pc) {
   (*o_frame) = (long *)state->regs[RDI];
+  alloc_ptr = (uint8_t*)state->regs[RBX];
   if ((*o_frame) >= frame_top) {
     expand_stack(o_frame);
   }
@@ -812,6 +808,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   slot[R15] = 0; // tmp.
   slot[RSP] = 0; // stack ptr.
   slot[RDI] = 0; // scheme frame ptr.
+  slot[RBX] = 0; // allocation ptr.
 
   uint64_t snap_labels[arrlen(trace->snaps)];
 
@@ -1194,27 +1191,18 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_arith_imm(OP_ARITH_ADD, op->reg, op->op2 & TAG_MASK);
       emit_mem_reg(OP_MOV_RM, 0, op->reg, R15);
       emit_mov64(R15, op->type & ~IR_INS_TYPE_GUARD);
-      if (ir_is_const(op->op1)) {
-	auto c = trace->consts[op->op1 - IR_CONST_BIAS] >> 3;
-	emit_arith_imm(OP_ARITH_SUB, op->reg, c);
-      } else {
-	emit_reg_reg(OP_SUB, reg_sz, op->reg);
-      }
-      emit_mem_reg(OP_MOV_RM, 0, R15, op->reg);
-      emit_mov64(R15, (int64_t)&alloc_ptr);
       // TODO call GC directly?
-      emit_jcc32(JGE, snap_labels[cur_snap]);
-      emit_reg_reg(OP_CMP, R15, op->reg);
+      emit_jcc32(JAE, snap_labels[cur_snap]);
+      emit_reg_reg(OP_CMP, R15, RBX);
       if (ir_is_const(op->op1)) {
 	auto c = trace->consts[op->op1 - IR_CONST_BIAS] >> 3;
-	emit_arith_imm(OP_ARITH_ADD, op->reg, c);
+	emit_arith_imm(OP_ARITH_ADD, RBX, c);
       } else {
-	emit_reg_reg(OP_ADD, reg_sz, op->reg);
+	emit_reg_reg(OP_ADD, reg_sz, RBX);
       }
-      emit_mem_reg(OP_MOV_MR, 0, op->reg, op->reg);
-      emit_mem_reg(OP_MOV_MR, 0, R15, R15);
-      emit_mov64(op->reg, (int64_t)&alloc_ptr);
-      emit_mov64(R15, (int64_t)&alloc_end);
+      //emit_mem_reg(OP_MOV_MR, 0, R15, R15);
+      emit_reg_reg(OP_MOV, RBX, op->reg);
+      emit_mov64(R15, (int64_t)alloc_end);
       if (tmp) {
 	emit_imm8(3);
 	emit_reg_reg(OP_SAR_CONST, 7, reg_sz);
@@ -1553,7 +1541,8 @@ int jit_run(trace_s* trace, unsigned int **o_pc, long **o_frame, long* argcnt) {
     }
   }
 
-   /* printf("FN start %i\n", tnum); */
+  /* printf("FN start %i %p %p\n", trace->num, alloc_ptr, alloc_end); */
+  state.regs[RBX] = (long)alloc_ptr;
   jit_entry_stub(*o_frame, trace->fn, &state);
   trace = state.trace;
   long unsigned exit = state.snap;

@@ -13,24 +13,24 @@
 | wc        |   1.24 |    .902 |   27.258065 |       | getc, print_obj, fputc, plt, call constant pool | x          |
 | cat       |   1.87 |   1.278 |   31.657754 |       | same as wc                                      | x          |
 | cpstak    |   2.37 |     2.0 |   15.611814 |       | typecheck                                       |            |
-| primes    |   .59  |   .6999 |  -3.9970282 | *WIN* |                                                 | x          |
-| deriv     |    1.3 |    .947 |   36.866667 |       | merge GC, lea fusion, typechecks, snapshot min  |            |
+| primes    |    .59 |   .6999 |  -18.627119 | *WIN* |                                                 | x          |
+| deriv     |    1.3 |    .947 |   27.153846 |       | merge GC, lea fusion, typechecks, snapshot min  |            |
 | triangl   |     .8 |   1.184 |        -48. | *WIN* |                                                 | x          |
 | destruc   |    1.2 |   1.336 |  -11.333333 | *WIN* |                                                 | x          |
 | gcbench   |   .625 |    .556 |       11.04 |       | letrec define opt                               |            |
 | puzzle    |    1.7 |   1.642 |   3.4117647 |       | loop opt                                        | x          |
-| paraffins |   4.48 |   4.270 |  -7.2864322 | *WIN* |                                                 | x          |
+| paraffins |   4.48 |   4.270 |      4.6875 |       |                                                 | x          |
 | maze      |   .485 |    .845 |  -74.226804 | *WIN* |                                                 | x          |
-| mazefun   |   1.86 |   1.731 |  -1.8235294 | *WIN* |                                                 | x          |
-| lattice   |    3.0 |   2.830 |   39.787234 |       | closure sinking, sccp                           | x          |
+| mazefun   |   1.86 |   1.731 |   6.9354839 |       |                                                 | x          |
+| lattice   |    3.0 |   2.830 |   5.6666667 |       | closure sinking, sccp                           | x          |
 | browse    |    .89 |    1.12 |  -25.842697 | *WIN* |                                                 |            |
-| graphs    |    2.3 |     1.3 |   40.909091 |       | LOOP, closure analysis , closure sinking        | nested     |
-| conform   |   2.00 |    2.88 |  -27.433628 | *WIN* |                                                 |            |
-| sboyer    |   1.00 |    .731 |   36.434783 |       | ?? typecheck                                    |            |
-| nboyer    |    1.8 |   1.483 |   29.380952 |       | ??                                              |            |
+| graphs    |    2.3 |     1.3 |   43.478261 |       | LOOP, closure analysis , closure sinking        | nested     |
+| conform   |   2.00 |    2.88 |        -44. | *WIN* |                                                 |            |
+| sboyer    |   1.00 |    .731 |        26.9 |       | ?? typecheck                                    |            |
+| nboyer    |    1.8 |   1.483 |   17.611111 |       | ??                                              |            |
 | array1    |    3.4 |    4.00 |  -17.647059 | *WIN* |                                                 | x          |
-| earley    |   2.49 |     3.1 |  -14.814815 | *WIN* |                                                 | x          |
-| scheme    |   1.76 |    2.51 |  -62.354463 | *WIN* |                                                 | x          |
+| earley    |   2.49 |     3.1 |  -24.497992 | *WIN* |                                                 | x          |
+| scheme    |   1.76 |    2.51 |  -42.613636 | *WIN* |                                                 | x          |
 | ctak      |   3.67 |      .4 |   89.100817 |       | cc representation                               | x          |
 | fibc      |    1.6 |    .648 |        59.5 |       | cc representation                               | x          |
 | string    |    5.4 |   2.068 |   61.703704 |       | string ops                                      |            |
@@ -39,9 +39,9 @@
 | peval     |    1.8 |   1.784 |  0.88888889 |       | loop catching. sccp                             |            |
 | slatex    |  1.824 |   1.958 |  -7.3464912 | *WIN* |                                                 |            |
 | equal     |   .236 |    .398 |  -68.644068 | *WIN* |                                                 |            |
-| compiler  |    2.7 |   2.004 |       19.84 |       | loop catching                                   |            |
+| compiler  |    2.7 |   2.004 |   25.777778 |       | loop catching                                   |            |
 | matrix    |    1.6 |    .899 |     43.8125 |       | loop catching?? opt_loop                        |            |
 | dynamic   |    1.8 |     1.4 |   22.222222 |       | read                                            |            |
-| TOTAL     | 82.307 | 77.6909 |   5.6083930 |       |                                                 |            |
+| TOTAL     | 80.578 | 77.6909 |   3.5829879 |       |                                                 |            |
 |-----------+--------+---------+-------------+-------+-------------------------------------------------+------------|
 #+TBLFM: $4=($2-$3) * 100.0 /$2::$5='(if (not (= $2 0)) (if (>= $3 $2) '*WIN* "") "BAD");N::@>$2=vsum(@2..@-1)::@>$3=vsum(@2..@-1)
