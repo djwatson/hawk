@@ -53,6 +53,8 @@ typedef enum {
   IR_CARG,
   IR_FLUSH,
   IR_CCRES,
+  IR_SAVEAP,
+  IR_RESAP,
 
   IR_CHGTYPE,
 

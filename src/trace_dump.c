@@ -139,6 +139,8 @@ void dump_trace(trace_s *ctrace) {
     printf("%s ", ir_names[(int)op.op]);
     switch (op.op) {
     case IR_FLUSH:
+    case IR_SAVEAP:
+    case IR_RESAP:
       break;
     case IR_KFIX:
     case IR_ARG:
