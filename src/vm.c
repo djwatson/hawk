@@ -843,13 +843,15 @@ LIBRARY_FUNC_D(JFUNC)
 //  printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
 #if defined(JIT)
 auto trace = trace_cache_get(rd);
-if (INS_OP(trace->startpc) == CLFUNC) {
+if (INS_OP(trace->startpc) == CLFUNC ||
+    INS_OP(trace->startpc) == ICLFUNC) {
   if (argcnt != INS_A(trace->startpc)) {
     pc += INS_D(*(pc + 1)) + 1;
     goto out;
   }
  }
-if (INS_OP(trace->startpc) == CLFUNCV) {
+if (INS_OP(trace->startpc) == CLFUNCV ||
+    INS_OP(trace->startpc) == ICLFUNCV) {
   if (argcnt < INS_A(trace->startpc)) {
     pc += INS_D(*(pc + 1)) + 1;
     goto out;
