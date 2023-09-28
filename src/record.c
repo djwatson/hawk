@@ -775,23 +775,23 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
     break;
   }
-  case CALLCC: {
-    // TODO: this snap and flush only need things below the current frame.
-    stack_top = INS_A(i);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, stack_top);
-    trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
-    auto op1 = push_ir(trace, IR_FLUSH, 0, 0, UNDEFINED_TAG);
-    auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (long)vm_callcc);
-    auto cont = push_ir(trace, IR_CALLXS, op1, knum | IR_CONST_BIAS, CONT_TAG);
-    // TODO check GC result
-    regs[INS_A(i)] = cont;
-    knum = arrlen(trace->consts);
-    arrput(trace->consts, FALSE_REP);
-    push_ir(trace, IR_NE, cont, knum | IR_CONST_BIAS, UNDEFINED_TAG | IR_INS_TYPE_GUARD);
-    add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc+1, depth, stack_top);
-    break;
-  }
+  /* case CALLCC: { */
+  /*   // TODO: this snap and flush only need things below the current frame. */
+  /*   stack_top = INS_A(i); */
+  /*   add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth, stack_top); */
+  /*   trace->snaps[arrlen(trace->snaps) - 1].exits = 255; */
+  /*   auto op1 = push_ir(trace, IR_FLUSH, 0, 0, UNDEFINED_TAG); */
+  /*   auto knum = arrlen(trace->consts); */
+  /*   arrput(trace->consts, (long)vm_callcc); */
+  /*   auto cont = push_ir(trace, IR_CALLXS, op1, knum | IR_CONST_BIAS, CONT_TAG); */
+  /*   // TODO check GC result */
+  /*   regs[INS_A(i)] = cont; */
+  /*   knum = arrlen(trace->consts); */
+  /*   arrput(trace->consts, FALSE_REP); */
+  /*   push_ir(trace, IR_NE, cont, knum | IR_CONST_BIAS, UNDEFINED_TAG | IR_INS_TYPE_GUARD); */
+  /*   add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc+1, depth, stack_top); */
+  /*   break; */
+  /* } */
   case CALLCC_RESUME: {
     auto c = record_stack_load(INS_B(i), frame);
     auto result = record_stack_load(INS_C(i), frame);
@@ -1023,19 +1023,19 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     stack_top = INS_A(i);
     break;
   }
-  case STRING_SYMBOL: {
-    // TODO snapshots
-    auto op1 = record_stack_load(INS_B(i), frame);
-    auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (long)vm_string_symbol);
-    auto sym = push_ir(trace, IR_CALLXS, op1, knum | IR_CONST_BIAS, SYMBOL_TAG);
-    regs[INS_A(i)] = sym;
-    knum = arrlen(trace->consts);
-    arrput(trace->consts, FALSE_REP);
-    push_ir(trace, IR_NE, sym, knum | IR_CONST_BIAS, UNDEFINED_TAG | IR_INS_TYPE_GUARD);
-    stack_top = INS_A(i);
-    break;
-  }
+  /* case STRING_SYMBOL: { */
+  /*   // TODO snapshots */
+  /*   auto op1 = record_stack_load(INS_B(i), frame); */
+  /*   auto knum = arrlen(trace->consts); */
+  /*   arrput(trace->consts, (long)vm_string_symbol); */
+  /*   auto sym = push_ir(trace, IR_CALLXS, op1, knum | IR_CONST_BIAS, SYMBOL_TAG); */
+  /*   regs[INS_A(i)] = sym; */
+  /*   knum = arrlen(trace->consts); */
+  /*   arrput(trace->consts, FALSE_REP); */
+  /*   push_ir(trace, IR_NE, sym, knum | IR_CONST_BIAS, UNDEFINED_TAG | IR_INS_TYPE_GUARD); */
+  /*   stack_top = INS_A(i); */
+  /*   break; */
+  /* } */
   case SYMBOL_STRING: {
     auto op1 = record_stack_load(INS_B(i), frame);
     auto ref = push_ir(trace, IR_REF, op1, 8 - SYMBOL_TAG, UNDEFINED_TAG);
