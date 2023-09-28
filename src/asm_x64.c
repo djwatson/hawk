@@ -1200,9 +1200,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       } else {
 	emit_reg_reg(OP_ADD, reg_sz, RBX);
       }
-      //emit_mem_reg(OP_MOV_MR, 0, R15, R15);
       emit_reg_reg(OP_MOV, RBX, op->reg);
-      emit_mov64(R15, (int64_t)alloc_end);
+      emit_mem_reg(OP_MOV_MR, 0, R15, R15);
+      emit_mov64(R15, (int64_t)&alloc_end);
       if (tmp) {
 	emit_imm8(3);
 	emit_reg_reg(OP_SAR_CONST, 7, reg_sz);
