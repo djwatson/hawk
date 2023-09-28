@@ -1,11 +1,17 @@
-* CLeanp GC code
+* Cleanup GC code
 * get stats closer, including cur_block copy_cur_block
 * double check large allocs - large alloc collect in array1
 * some loop bug in Earley
+* GC needs a constant area for allocation - so that 'alloc_end' can be a constant!!!
+   and then maybe put alloc_ptr in a register???
+   
+
 # Getting all jit to work bench2
 * fusion - lea followed by reg use is causing a stall.
 * GC inlined in reg
 * make sure stack top is correct
+* fix the 'case' bug
+* fix letrec closures
 
 * loosing at: 
   * closure analysis: nqueens
@@ -15,7 +21,7 @@
   * string ops: string, slatex, compiler, parsing
   * cpstak: various asm improvements, typecheck
   * deriv: GC checks could be merged, leas, typechecks for store, also clearing of snapshots
-  * lattice: asm ops, closure sinking, GC
+  * lattice: some bug in 'case' expansion, internal defines need fixing. guh.
   * dynamic: GC, read is super slow, read by char
   * parsing: unbox, closure-get need sccp
   * graphs: LOOP_opt, sccp, GC
