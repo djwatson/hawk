@@ -34,7 +34,7 @@
     (define args (cdr f))
     (define body (map sexp (cddr (first f))))
     (if (and (pair? params) (not (improper? params)))
-	`(let ,(map list params args) ,@body)
+	`(let ,(map list params (map sexp args)) ,@(map sexp body))
 	`((lambda ,params ,@body) ,@args)))
   (define (sexp f)
     (if (not (pair? f))
