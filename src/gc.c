@@ -53,7 +53,11 @@ uint8_t *alloc_start = NULL;
 uint8_t *alloc_ptr = NULL;
 uint8_t *alloc_end = NULL;
 
-void** large_allocs = NULL;
+typedef struct {
+  void* key;
+} lalloc;
+
+lalloc* large_allocs = NULL;
 
 long **pushed_roots = NULL;
 
@@ -64,7 +68,7 @@ typedef struct {
   uint64_t addr;
 } log_item;
 
-#define COLLECT_CNT_LOG 25
+#define COLLECT_SIZE 1024*1024*32
 #define ALLOC_SZ_LOG 18
 #define ALLOC_SZ (1UL << ALLOC_SZ_LOG)
 #define ALLOC_SZ_MASK (ALLOC_SZ-1)
@@ -75,7 +79,6 @@ typedef struct {
   uint8_t marks[((ALLOC_SZ / 64)+8)&~8];
   uint8_t data[];
 } gc_block;
-gc_block* cur_block = NULL;
 
 static void block_bts(gc_block* block, uint64_t loc) {
   uint64_t bit = (loc - (uint64_t)block->data)/8;
@@ -119,6 +122,7 @@ static gc_block* alloc_gc_block() {
 }
 
 static void put_gc_block(gc_block * mem) {
+  assert(mem != alloc_start);
   gc_alloc -= ALLOC_SZ;
   assert(mem->cnt == 0);
   arrput(free_gc_blocks, mem);
@@ -181,12 +185,24 @@ static long get_forward(long obj) {
 static gc_block* cur_copy_block = NULL;
 static uint8_t* copy_alloc_ptr = NULL;
 static uint8_t* copy_alloc_end = NULL;
+static bool in_nursury(void* to) {
+  return (to >= (long)alloc_start) && (to < (long)alloc_end);
+}
 void *copy(long *obj) {
   //printf("COPY obj %p, type %li\n", obj, *obj);
   size_t sz = align(heap_object_size(obj));
   gc_block* block = (gc_block*)((long)obj & ~ALLOC_SZ_MASK);
-  if ((long)block == (long)obj) {
-    return obj;
+  assert(in_nursury(obj));
+  if (sz > ALLOC_SZ - sizeof(gc_block)) {
+    // Move to large alloc.
+    void* res;
+    if(posix_memalign(&res, ALLOC_SZ, sz)) {
+      abort();
+    }
+    memcpy(res, obj, sz);
+    gc_large += sz;
+    set_forward(obj, res);
+    return res;
   }
   if (copy_alloc_ptr + sz >= copy_alloc_end) {
     assert(cur_copy_block == NULL || cur_copy_block->cnt != 0);
@@ -269,6 +285,15 @@ static void full_trace(long *field) {
     field = arrpop(cur_increments);
   }
 }
+
+static void sweep_large_allocs() {
+  for(uint32_t i =0; i < hmlen(large_allocs); i++) {
+    if (((uint32_t*)large_allocs[i].key)[1] == 0) {
+      free(large_allocs[i].key);
+    }
+  }
+  hmfree(large_allocs);
+}
 __attribute__((noinline)) static void sweep_free_blocks() {
   gc_alloc = 0;
   arrsetlen(free_gc_blocks, 0);
@@ -289,24 +314,24 @@ static void visit(long *field) {
       goto next;
     }
     auto p = from & (~TAG_MASK);
-      auto to = is_forwarded(p) ? get_forward(p) : p;
+    auto to = is_forwarded(p) ? get_forward(p) : p;
       //printf("TAG %li\n", tag);
       //printf("Visiting ptr field %lx\n", p);
-      if (((uint32_t*)to)[1] == 0) {
-	//assert(to >= (long)alloc_start && to < (long)alloc_end);
-	// If RC is 0.
-	to = (long)copy((long*)p);
-	((uint32_t*)to)[1]++;
-	//printf("INC %p to %i (0)\n", to, ((uint32_t*)to)[1]);
-	// Need to recursively visit all fields
-	trace_heap_object((void*)to, visit_cb, lst);
-      } else {
-	((uint32_t*)to)[1]++;
-	//printf("INC %p to %i\n", to, ((uint32_t*)to)[1]);
-	//assert(to < (long)alloc_start || to >= (long)alloc_end);
-      }
-      //     printf("Visiting ptr field %lx moved to %lx \n", p, to);
-      *field = to + tag;
+    if (in_nursury(to)) {
+      assert(((uint32_t*)to)[1] == 0);
+      // If RC is 0.
+      to = (long)copy((long*)p);
+      ((uint32_t*)to)[1]++;
+      //printf("INC %p to %i (0)\n", to, ((uint32_t*)to)[1]);
+      // Need to recursively visit all fields
+      trace_heap_object((void*)to, visit_cb, lst);
+    } else {
+      ((uint32_t*)to)[1]++;
+      //printf("INC %p to %i\n", to, ((uint32_t*)to)[1]);
+      assert(to < (long)alloc_start || to >= (long)alloc_end);
+    }
+    //     printf("Visiting ptr field %lx moved to %lx \n", p, to);
+    *field = to + tag;
   next:
     if (arrlen(cur_increments) == 0) {
       break;
@@ -442,10 +467,9 @@ EXPORT void GC_init() {
   /* alloc_ptr = alloc_start; */
   /* alloc_end = alloc_ptr + alloc_sz; */
   atexit(&GC_deinit);
-  cur_block = alloc_gc_block();
-  alloc_start = (uint8_t*)&cur_block->data[0];
+  alloc_start = malloc(COLLECT_SIZE);
   alloc_ptr = alloc_start;
-  alloc_end = alloc_start + ALLOC_SZ - sizeof(gc_block);
+  alloc_end = alloc_start + COLLECT_SIZE;
 }
 
 
@@ -461,6 +485,7 @@ static int64_t trace2(long** lst, bool incr) {
     if (!is_ptr_type(item)) {
       continue;
     }
+    assert(ptr < alloc_start || ptr >= alloc_end);
     if (incr) {
       if (((uint32_t*)ptr)[1] == 0) {
 	// Increment line in block
@@ -482,14 +507,9 @@ static int64_t trace2(long** lst, bool incr) {
 	gc_block* block = (gc_block*)(item & ~ALLOC_SZ_MASK);
 	if ((long)block == ptr) {
 	  //printf("Free %p\n", ptr);
+	  hmdel(large_allocs, block);
 	  free(block);
 	  // unlink
-	  for(uint32_t i = 0; i < arrlen(large_allocs); i++) {
-	    if ((long)large_allocs[i] == ptr) {
-	      large_allocs[i] = NULL;
-	      break;
-	    }
-	  }
 	}else {
 	  gc_dalloc -= sz;
 	  if (--block->cnt == 0) {
@@ -502,18 +522,18 @@ static int64_t trace2(long** lst, bool incr) {
   return gc_freed;
 }
 
-static __attribute__((always_inline))void add_root(long* root) {
+static void add_root(long* root) {
     full_trace(root);
     // Must reload root in case it was forwarded.
     arrput(next_decrements, *root);
 }
 
-static __attribute__((always_inline))void add_root2(long* root) {
+static void add_root2(long* root) {
     visit(root);
     arrput(next_decrements, *root);
 }
 
-__attribute__((always_inline))void add_increment2(long* root) {
+void add_increment2(long* root) {
   long obj = *root;
   if (is_ptr_type(obj)) {
     visit(root);
@@ -524,7 +544,6 @@ __attribute__((always_inline))void add_increment2(long* root) {
 bool in_gc = false;
 #endif
 __attribute__((noinline)) void GC_collect() {
-  cur_block = NULL;
 #ifdef PROFILER
   in_gc = true;
 #endif
@@ -549,7 +568,6 @@ __attribute__((noinline)) void GC_collect() {
   //  printf("Scan log buf...\n");
   // Run increments
   //printf("Run increments...\n");
-  cur_block = NULL;
   gc_stats.traces++;
   if (fully_trace) {
     clear_block_marks();
@@ -572,12 +590,7 @@ __attribute__((noinline)) void GC_collect() {
   arrsetlen(cur_decrements, 0);
   //printf("Done\n");
 
-  for(uint32_t i =0; i < arrlen(large_allocs); i++) {
-    if (large_allocs[i] && ((uint32_t*)large_allocs[i])[1] == 0) {
-      free(large_allocs[i]);
-    }
-  }
-  arrsetlen(large_allocs, 0);
+  sweep_large_allocs();
   sweep_free_blocks();
   double ratio = ((double)gc_dalloc / (double)gc_alloc) * 100.0;
   if (verbose) {
@@ -588,18 +601,13 @@ __attribute__((noinline)) void GC_collect() {
   auto can_auto_adjust = (arrlen(gc_blocks) - arrlen(free_gc_blocks)) > 10;
 
   if (can_auto_adjust && ratio < 90.0) {
-    fully_trace = true;
+    //fully_trace = true;
   } else {
     fully_trace = false;
   }
 
 
-    cur_block = alloc_gc_block();
-
-
-  alloc_start = (uint8_t*)&cur_block->data[0];
   alloc_ptr = alloc_start;
-  alloc_end = alloc_start + ALLOC_SZ - sizeof(gc_block);
 #ifdef PROFILER
   in_gc = false;
 #endif
@@ -607,7 +615,7 @@ __attribute__((noinline)) void GC_collect() {
 
 __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   if (align(sz) >= (ALLOC_SZ - sizeof(gc_block))) {
-    if (gc_large > (1 << COLLECT_CNT_LOG)) {
+    if (gc_large > COLLECT_SIZE) {
       GC_collect();
       //printf("Collect\n");
       gc_large = 0;
@@ -616,21 +624,14 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
     if(posix_memalign(&res, ALLOC_SZ, align(sz))) {
       abort();
     }
-    arrput(large_allocs, res);
+    hmputs(large_allocs, (lalloc){res});
     //printf("Alloc %p\n", res);
     gc_large += align(sz);
     return res;
   }
-  static long cnt = 0;
-  if (++cnt * ALLOC_SZ < (1UL << COLLECT_CNT_LOG)) {
-    cur_block = alloc_gc_block();
-    alloc_start = (uint8_t*)&cur_block->data[0];
-    alloc_ptr = alloc_start;
-    alloc_end = alloc_start + ALLOC_SZ - sizeof(gc_block);
-  }  else {
-    cnt = 0;
-    GC_collect();
-  }
+
+  GC_collect();
+
   return GC_malloc(sz);
 }
 
@@ -645,6 +646,7 @@ __attribute__((always_inline)) void *GC_malloc_no_collect(size_t sz) {
   return NULL;
 }
 __attribute__((always_inline)) void *GC_malloc(size_t sz) {
+  assert(alloc_ptr >= alloc_start);
   sz = (sz + 7) & (~TAG_MASK);
   assert((sz & TAG_MASK) == 0);
   auto *res = alloc_ptr;
@@ -712,5 +714,6 @@ void __attribute__((always_inline)) GC_log_obj(void*ptr) {
   if (unlikely((rc != 0) && (!(rc & LOGGED_MARK)))) {
     __attribute((musttail)) return GC_log_obj_slow(ptr);
   }
+  assert(((uint32_t*)ptr)[1] != LOGGED_MARK);
 }
 

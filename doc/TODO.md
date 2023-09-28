@@ -1,18 +1,13 @@
-* Cleanup GC code
-* get stats closer, including cur_block copy_cur_block
-* double check large allocs - large alloc collect in array1
-* some loop bug in Earley
-* GC needs a constant area for allocation - so that 'alloc_end' can be a constant!!!
-   and then maybe put alloc_ptr in a register???
+ back to lazy typechecks
 
 # Getting all jit to work bench2
-* fusion - lea followed by reg use is causing a stall.
-* GC inlined in reg
+* fusion - cleanup
+  *vec, all
 * make sure stack top is correct
 * fix letrec closures
 
 * loosing at: 
-  * closure analysis: nqueens / allocation fastpath
+  * closure analysis: nqueens.  alloc ptr
   * input/output buffering: wc, cat, dynamic
   * read: dynamic read1 sum1
   * call/cc: ctak, fibc
@@ -31,39 +26,45 @@
 
 # TODO
 
-* lazier typechecking
+* lazier typechecking 
   * jguard counts as a use!
-* sccp pass / fold
+  * Free except VECTOR and maybe STRING type? ^
+  * Necessary for dce of unused refs ^
+* sccp pass / fold - 
+  * Only matters for memory refs if we can CSE or DCE away^
 
-* better closure allocation in frontend - full closure optimization
-* singleton functions /closures
-  * polymorphic / non polymorphic
+* better closure allocation in frontend - full closure optimization ^ 
+* singleton functions /closures ^
+  * polymorphic / non polymorphic ^
 * TRACE loop recording - 
   * CALLT should also detect loops, and flush original trace??
   * compiler/matrix are tracing failures
   
 * UNDEFINED_TAG
-* fusion
+* fusion ^
 * const pool
 * cleanup register allocation - two-arg can be optimized
 
 * input/output buffering
   * (read) in c?  Or buffer the string?
-* LOOP_opt
-* gvn / dce
+  * inline ^
+* LOOP_opt 
+  * globals / loads only once ^
+* gvn / dce 
+  * unused loads ^ 
 
 * NYI:apply, close, file-exists?, open, delete-file, read-line
 * enregister return arg??
-* allocation sinking for cons/closure/vector
-* reg hints across calls? and returns?
+* allocation sinking for cons/closure/vector ^^
+* reg hints across calls? and returns? ^^
   * CALLXS betterness
 * RET implementation could actually RET? faster somehow?
 
 * Better GC.
-  * cleanup lines/blocks
-  * cleanup top-of-frame tracking.
+  * cleanup top-of-frame tracking. ^^^
   * GC doesn't need to jump out of trace for most things?
   * merge GC checks?
+  * full trace again
 
 # working on
 
