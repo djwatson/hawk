@@ -1763,14 +1763,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // Check if it is a returning trace
     auto *ctrace = trace_cache_get(INS_D(i));
     stack_top = INS_A(ctrace->startpc);
-    if (INS_OP(ctrace->startpc) == CLFUNC) {
+    if (INS_OP(ctrace->startpc) == CLFUNC ||
+	INS_OP(ctrace->startpc) == ICLFUNC) {
       if (argcnt != INS_A(ctrace->startpc)) {
 	// The check will fail, and we will fall through to a later
 	// CLFUNC.
         break;
       }
     }
-    if (INS_OP(ctrace->startpc) == CLFUNCV) {
+    if (INS_OP(ctrace->startpc) == CLFUNCV ||
+	INS_OP(ctrace->startpc) == ICLFUNCV) {
       if (argcnt < INS_A(ctrace->startpc)) {
 	// The check will fail, and we will fall through to a later
 	// CLFUNC.
