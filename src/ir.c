@@ -51,6 +51,8 @@ const char* ir_names[] = {
   "CARG  ",
   "FLUSH ",
   "CCRES ",
+  "SAVEAP",
+  "RESAP ",
 
   "CHGTYP",
 

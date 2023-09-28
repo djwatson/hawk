@@ -1178,6 +1178,16 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       }
       break;
     }
+    case IR_SAVEAP: {
+      emit_mem_reg(OP_MOV_RM, 0, R15, RBX);
+      emit_mov64(R15, (int64_t)&alloc_ptr);
+      break;
+    }
+    case IR_RESAP: {
+      emit_mem_reg(OP_MOV_MR, 0, R15, RBX);
+      emit_mov64(R15, (int64_t)&alloc_ptr);
+      break;
+    }
     case IR_ALLOC: {
       slot[op->reg] = op_cnt; // TODO must be different than op->reg and op->op1 reg
       maybe_assign_register(op->op1, trace, slot, &next_spill);
