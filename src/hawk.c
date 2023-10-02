@@ -36,7 +36,6 @@ static struct option long_options[] = {
     {"help", no_argument, nullptr, 'h'},
     {"list", no_argument, nullptr, 'l'},
     {"max-trace", required_argument, nullptr, 'm'},
-    {"heap-sz", required_argument, nullptr, 's'},
     {"exe", no_argument, nullptr, 'e'},
     {nullptr, no_argument, nullptr, 0},
 };
@@ -116,7 +115,7 @@ int main(int argc, char *argv[]) {
 
   int c;
   bool exe = false;
-  while ((c = getopt_long(argc, argv, "vslphjd:", long_options, nullptr)) !=
+  while ((c = getopt_long(argc, argv, "vlphjd:", long_options, nullptr)) !=
          -1) {
     switch (c) {
     case 'e':
@@ -133,10 +132,6 @@ int main(int argc, char *argv[]) {
       break;
     case 'l':
       list = true;
-      break;
-    case 's':
-      page_cnt = atoi(optarg);
-      printf("Heap size %li MB\n", (page_cnt * 4096) / 1024 / 1024);
       break;
 #ifdef JITDUMP
     case 'd':

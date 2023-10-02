@@ -49,9 +49,6 @@ to an executable.
   with hawk, and is only a convenience.  Script is only compiled
   and not run.
 
-`-s, --heap-sz`
-  Set the maximum heap size, in pages (4096 bytes).  Default is 12000 pages.
-
 `-v, --verbose`
   Turn on verbosity.  Prints tracing info, generated trace IR, and
   machine code.  Also displays GC collection info.

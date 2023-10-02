@@ -28,7 +28,6 @@
 #include "third-party/stb_ds.h"
 
 EXPORT bool verbose = false;
-EXPORT size_t page_cnt = 1220;
 EXPORT unsigned TRACE_MAX = 65535;
 EXPORT int joff = 0;
 EXPORT int profile = 0;
