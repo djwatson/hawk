@@ -1,5 +1,5 @@
-// This is a stub library to generate exe's for compiled boom programs.
-// It is not used in the 'boom' executable itself.
+// This is a stub library to generate exe's for compiled hawk programs.
+// It is not used in the 'hawk' executable itself.
 
 #include <stdbool.h> // for bool, false, true
 #include <stdio.h>   // for printf

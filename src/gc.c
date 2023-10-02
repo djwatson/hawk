@@ -17,7 +17,7 @@
 /*
 An RC-immix style GC.  Like many other immix variants though, we munge blocks& lines a bit.
 
-boom's VM: exact, we always know on the stack what is a pointer and what isn't.  However, 
+hawk's VM: exact, we always know on the stack what is a pointer and what isn't.  However, 
            we may point to stale data, so we need to clear any 'unused' stack portions each GC.
 
 Notes:

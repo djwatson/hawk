@@ -155,7 +155,7 @@ bcfunc *readbc(FILE *fptr) {
   fread(&num, 4, 1, fptr);
   // printf("%.4s\n", (char *)&num);
   if (num != 0x4d4f4f42) { // MAGIC
-    printf("Error: not a boom bitcode\n");
+    printf("Error: not a hawk bitcode\n");
     exit(-1);
   }
   unsigned int version;

@@ -81,10 +81,10 @@ add_subdirectory(src)
 add_subdirectory(test)
 
 #install
-install(TARGETS boom_vm boom boom_exe)
-INSTALL(FILES doc/boom.1 DESTINATION ${CMAKE_INSTALL_PREFIX}/man/man1)
+install(TARGETS hawk_vm hawk hawk_exe)
+INSTALL(FILES doc/hawk.1 DESTINATION ${CMAKE_INSTALL_PREFIX}/man/man1)
 
-set(CPACK_PACKAGE_NAME boom)
+set(CPACK_PACKAGE_NAME hawk)
 set(CPACK_PACKAGE_CONTACT "Dave Watson <dade.watson@gmail.com>")
 set(CPACK_GENERATOR DEB)
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "clang, libcapstone-dev")

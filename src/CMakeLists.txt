@@ -23,20 +23,20 @@ if (PROFILER)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPROFILER")
   set(SOURCES ${SOURCES} profiler.c)
 endif(PROFILER)
-add_library(boom_vm ${SOURCES} )
-add_library(boom_exe exe.c)
+add_library(hawk_vm ${SOURCES} )
+add_library(hawk_exe exe.c)
 
-target_compile_options(boom_vm PRIVATE  ${COMPILE_FLAGS} )
-target_compile_options(boom_exe PRIVATE ${COMPILE_FLAGS} )
-set_property(TARGET boom_vm PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-set_property(TARGET boom_exe PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+target_compile_options(hawk_vm PRIVATE  ${COMPILE_FLAGS} )
+target_compile_options(hawk_exe PRIVATE ${COMPILE_FLAGS} )
+set_property(TARGET hawk_vm PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+set_property(TARGET hawk_exe PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
-target_include_directories(boom_vm PUBLIC ".")
+target_include_directories(hawk_vm PUBLIC ".")
 
-target_link_libraries(boom_vm PUBLIC ${LIBRARIES}  )
-target_link_libraries(boom_exe PUBLIC boom_vm  )
+target_link_libraries(hawk_vm PUBLIC ${LIBRARIES}  )
+target_link_libraries(hawk_exe PUBLIC hawk_vm  )
 
-set(CLOC_SOURCES ${SOURCES} boom.c)
+set(CLOC_SOURCES ${SOURCES} hawk.c)
 list(REMOVE_ITEM CLOC_SOURCES bootstrap.c third-party/stb_ds.c opcodes.c opcodes.h)
 add_custom_target(
   cloc
@@ -76,10 +76,10 @@ add_custom_command(
 )
 
 # Actual executable
-add_executable(boom  boom.c)
-target_link_libraries(boom PUBLIC boom_vm)
-target_compile_options(boom PRIVATE  ${COMPILE_FLAGS} )
-target_link_options(boom PRIVATE )
-set_property(TARGET boom PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+add_executable(hawk  hawk.c)
+target_link_libraries(hawk PUBLIC hawk_vm)
+target_compile_options(hawk PRIVATE  ${COMPILE_FLAGS} )
+target_link_options(hawk PRIVATE )
+set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 
