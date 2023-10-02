@@ -452,11 +452,13 @@ static struct  {
 static void GC_deinit() {
   /* arrfree(pushed_roots); */
   /* munmap(alloc_start, alloc_sz); */
-  printf("Traces %li Full traces %li (%.02f)\n",
+  if (verbose) {
+  printf("GC's %li Full traces %li (%.02f)\n",
 	 gc_stats.traces,
 	 gc_stats.full_traces,
 	 ((double)gc_stats.full_traces / (double)gc_stats.traces)*100.0
 	 );
+  }
 }
 
 EXPORT void GC_init() {
