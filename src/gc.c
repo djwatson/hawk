@@ -186,12 +186,11 @@ static gc_block* cur_copy_block = NULL;
 static uint8_t* copy_alloc_ptr = NULL;
 static uint8_t* copy_alloc_end = NULL;
 static bool in_nursury(void* to) {
-  return (to >= (long)alloc_start) && (to < (long)alloc_end);
+  return (to >= (void*)alloc_start) && (to < (void*)alloc_end);
 }
 void *copy(long *obj) {
   //printf("COPY obj %p, type %li\n", obj, *obj);
   size_t sz = align(heap_object_size(obj));
-  gc_block* block = (gc_block*)((long)obj & ~ALLOC_SZ_MASK);
   assert(in_nursury(obj));
   if (sz > ALLOC_SZ - sizeof(gc_block)) {
     // Move to large alloc.
@@ -317,7 +316,7 @@ static void visit(long *field) {
     auto to = is_forwarded(p) ? get_forward(p) : p;
       //printf("TAG %li\n", tag);
       //printf("Visiting ptr field %lx\n", p);
-    if (in_nursury(to)) {
+    if (in_nursury((void*)to)) {
       assert(((uint32_t*)to)[1] == 0);
       // If RC is 0.
       to = (long)copy((long*)p);
