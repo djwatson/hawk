@@ -1,6 +1,6 @@
 [![test](https://github.com/djwatson/hawk/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/djwatson/hawk/actions/workflows/test.yml)
 
-Hawk is a Just-In-Time (JIT) compiler for the Scheme programming language.
+`Hawk` is a Just-In-Time (JIT) compiler for the Scheme programming language.
 
 Hawk is Copyright (C) 2023 Dave Watson.
 Hawk is free software, released under the MIT license.
@@ -8,21 +8,26 @@ See full Copyright Notice in the LICENSE file.
 
 See the doc/ folder for additional documentation.
 
-## SYNOPSIS
-
-`hawk` [options] *file.[scm|bc]* ...
 
 ## WEB SITE
 
 https://djwatson.github.io/hawk
 
+## BUILDING
 
-## DESCRIPTION
+Hawk has no dependencies other than a recent (> 13) clang.  It has an
+optional dependency on libcapstone, and elf headers for debugging.
+Currently chezscheme or chicken is used for bootstrapping, but is not
+used after install.
 
-`hawk` is a vm (virtual machine) and jit compiler (just-in-time) for the scheme
-language, report version r5rs.  It can run scripts directly, or pre-compile them
-to an executable.
-
+```
+sudo apt install chezscheme
+git clone https://github.com/djwatson/hawk.git
+cd hawk
+cmake .
+make -j
+sudo make install
+```
 
 ## OPTIONS
 
@@ -41,7 +46,8 @@ to an executable.
 
 `-p, --profile`
   Turn on the bytecode profiler.  After the script finishes,
-  statistics gathered are printed to stdout.
+  statistics gathered are printed to stdout.  Requires building with
+  -DJIT=on
 
 `--exe`
   Compile the script in to an exe by linking it with libhawk_exe.
@@ -57,39 +63,39 @@ to an executable.
   Print help message and exit.
 
 ## EXAMPLES
-
-  ./hawk hello.scm
-
+```
+hawk hello.scm
+```
 Prints 'hello world', assuming hello.scm contains
-
-  (display "hello world")
-
+```
+(display "hello world")
+```
 Compile the hello.scm script to an executable:
-
-  ./hawk --exe hello.scm
-  ./hello
-
+```
+hawk --exe hello.scm
+./hello
+```
 
 # Standards
 
 Currently hawk is closest to the r4rs standard, with the following
 restrictions:
 
-- [ ] Symbols starting with '$' are reserved
-- [ ] Bignums / complex / ratios are unimplemented, only fixnum
+*  Symbols starting with '$' are reserved
+*  Bignums / complex / ratios are unimplemented, only fixnum
       overflowing to flownum are supported.
-- [ ] syntax-rules cannot be defined in one file, and used in another.
-- [ ] Modules are not implemented, including the builtin library:
+*  syntax-rules cannot be defined in one file, and used in another.
+*  Modules are not implemented, including the builtin library:
       While you can redefine most builtin procedures (assuming
       integration is turned off), many library functions still call
       these procedures through the global table.  E.g. if you redefine
       'car', 'caar' will call the new procedure twice.
-- [ ] The lexer is r7rs compliant.
-- [ ] No unicode, all strings are ascii-only.
-- [ ] Bytevectors are just defined to be strings.
+*  The lexer is r7rs compliant.
+*  No unicode, all strings are ascii-only.
+*  Bytevectors are just defined to be strings.
 
-And jit restrictinos:
+And jit restrictions:
 
-- [ ] x86_64 / sysv only.  Known to work on linux & osx intel.
-- [ ] flonums are unimplemented in the jit.
-- [ ] Most file operations fallback to VM.
+*  x86_64 / sysv only.  Known to work on linux & osx intel.
+*  flonums are unimplemented in the jit.
+*  Most file operations fallback to VM.
