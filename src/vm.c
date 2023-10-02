@@ -88,7 +88,9 @@ while being more portable and easier to change.
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
+#ifdef PROFILER
 static op_func l_op_table_profile[INS_MAX];
+#endif
 
 #define NEXT_INSTR                                                             \
   {                                                                            \
