@@ -163,7 +163,7 @@ bench2/fib.scm
 
 bench2/gcbench.scm
       1 Compiling script bench2/gcbench.scm
-      1 +!CSVLINE!+boom-0.1,gcbench:20:1,0.0
+      1 +!CSVLINE!+hawk-0.1,gcbench:20:1,0.0
       1 Elapsed time: 0.0 seconds (0) for gcbench:20:1
       1 In-gc: 0.00%
       1 Record abort: Potential down-recursion, restarting

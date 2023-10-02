@@ -116,7 +116,7 @@ GCBench: Bottom up construction
 GCBench: Top down construction
 GCBench: Bottom up construction
 Elapsed time: 0.0 seconds (0) for gcbench:20:1
-+!CSVLINE!+boom-0.1,gcbench:20:1,0.0
++!CSVLINE!+hawk-0.1,gcbench:20:1,0.0
 Compiling script test/bench2/gcbench.scm
 Running script test/bench2/gcbench.scm.bc
 On-trace: 57.41%

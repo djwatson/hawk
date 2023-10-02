@@ -1,4 +1,4 @@
-Tips for Hacking on Boom
+Tips for Hacking on Hawk
 ========================
 
 How the build works
@@ -15,7 +15,7 @@ the C code currently.
 # Bootstrap
 
 `Bootstrap` is the name of the SCM code that makes up the majority of
-the standard library.  Currently chez, chicken, or boom itself may be
+the standard library.  Currently chez, chicken, or hawk itself may be
 used to compile the bootstrap.scm, bc.scm, alexpander.scm, and various
 support .scm files to bytecode.  The bytecode is then converted to a C
 array using xxd -i.  Currently everything compiled must be in a single
@@ -24,17 +24,17 @@ I.e. there is no seperate module compilation support (yet...).
 
 # VM
 
-The rest of the VM and JIT can then be built in to libboom_vm.  It can
+The rest of the VM and JIT can then be built in to libhawk_vm.  It can
 be either a static or dynamic library based on CMAKE config options.
 The main entry point is run(...).  There are also various config
 options possible.
 
 # Main
 
-There are two executables generated: boom, and libboom_exe.  The
+There are two executables generated: hawk, and libhawk_exe.  The
 latter is used for the --exe option, so end user scripts can be made
 in to executable files easily.  It's also quite possible to use
-libboom_vm directly, but it's under-documented.  It's even possible to
+libhawk_vm directly, but it's under-documented.  It's even possible to
 drop the standard library completely, for an extremely small runtime.
 
 Debugging
@@ -60,8 +60,8 @@ Profiling
 
 Linux PERF tool is available with the --dump option.   Make sure you
 have an up-to-date perf tool (as of this writing the version in Ubuntu
-stable is too old) for perf-inject support.  See the boom_record and
-boom_report scripts for examples of usage.
+stable is too old) for perf-inject support.  See the hawk_record and
+hawk_report scripts for examples of usage.
 
 There is an experimental profiler for the bytecode available with
 --profile.  It fires a signal on a timer, and grabs the stack.  At the
@@ -112,7 +112,7 @@ Traces begin by putting appropriate variables from the scheme stack to
 register slots, and vice versa on return, and potentially adjusting
 the scheme stack to account for inlined calls.   Note this is
 different than LuaJIT - LJ traces assume all data starts in the stack,
-while boom will proactively move data to registers to start:  This is
+while hawk will proactively move data to registers to start:  This is
 important for looping traces (either tail-recursive or a LOOP), where
 variables will stay in registers, instead of being flushed to the
 stack.  This is *very* important for scheme, where recursion & tail

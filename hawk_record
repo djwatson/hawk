@@ -1,0 +1,3 @@
+#!/bin/bash
+
+sudo /home/davejwatson/projects/linux/tools/perf/perf record -e cycles -g -k1 /home/davejwatson/myprojects/hawk/src/hawk --dump $@

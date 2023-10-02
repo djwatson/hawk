@@ -42,7 +42,7 @@ static struct option long_options[] = {
 };
 
 void print_help() {
-  printf("Usage: boom [OPTION]\n");
+  printf("Usage: hawk [OPTION]\n");
   printf("Available options are:\n");
 #ifdef JIT
   printf("      --joff     \tTurn off jit\n");
@@ -104,7 +104,7 @@ void generate_exe(char* filename, const char* bc_name) {
   filename[strlen(filename)-4] = '\0';
 
   char tmp2[512];
-  snprintf(tmp2, 511, "clang -flto -o %s $LDFLAGS -L. -lboom_exe -lboom_vm %s -lcapstone -lm", filename, tmp);
+  snprintf(tmp2, 511, "clang -flto -o %s $LDFLAGS -L. -lhawk_exe -lhawk_vm %s -lcapstone -lm", filename, tmp);
   printf("Running: %s\n", tmp2);
   system(tmp2);
 }

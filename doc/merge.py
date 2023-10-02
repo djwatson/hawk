@@ -18,7 +18,7 @@ def read_results(filename):
 read_results("chez.txt")
 read_results("loko.txt")
 read_results("gambit.txt")
-read_results("boom.txt")
+read_results("hawk.txt")
 def test_num(t):
     try:
         return float(t)

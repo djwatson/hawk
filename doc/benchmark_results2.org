@@ -1,4 +1,4 @@
-| benchmark |   boom |    chez |        diff | win   | reason                                          | loop trace |
+| benchmark |   hawk |    chez |        diff | win   | reason                                          | loop trace |
 |-----------+--------+---------+-------------+-------+-------------------------------------------------+------------|
 | ack       |   1.79 |     1.9 |  -6.1452514 | *WIN* |                                                 | x          |
 | tak       |    1.4 |    1.56 |  -11.428571 | *WIN* |                                                 | x          |

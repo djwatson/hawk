@@ -4,7 +4,7 @@ Makefile
 *.d
 perf.data*
 out.bc
-boom
+hawk
 CMakeCache.txt
 CMakeFiles
 CTestTestfile.cmake

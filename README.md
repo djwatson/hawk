@@ -1,25 +1,25 @@
-# README for boom
+# README for hawk
 
-Boom is a Just-In-Time (JIT) compiler for the Scheme programming language.
+Hawk is a Just-In-Time (JIT) compiler for the Scheme programming language.
 
-Boom is Copyright (C) 2023 Dave Watson.
-Boom is free software, released under the MIT license.
+Hawk is Copyright (C) 2023 Dave Watson.
+Hawk is free software, released under the MIT license.
 See full Copyright Notice in the LICENSE file.
 
 See the doc/ folder for additional documentation.
 
 ## SYNOPSIS
 
-`boom` [options] *file.[scm|bc]* ...
+`hawk` [options] *file.[scm|bc]* ...
 
 ## WEB SITE
 
-https://github.com/djwatson/boom
+https://djwatson.github.io/hawk
 
 
 ## DESCRIPTION
 
-`boom` is a vm (virtual machine) and jit compiler (just-in-time) for the scheme
+`hawk` is a vm (virtual machine) and jit compiler (just-in-time) for the scheme
 language, report version r5rs.  It can run scripts directly, or pre-compile them
 to an executable.
 
@@ -44,9 +44,9 @@ to an executable.
   statistics gathered are printed to stdout.
 
 `--exe`
-  Compile the script in to an exe by linking it with libboom_exe.
+  Compile the script in to an exe by linking it with libhawk_exe.
   Note that this is no faster than running a `.bc` file directly
-  with boom, and is only a convenience.  Script is only compiled
+  with hawk, and is only a convenience.  Script is only compiled
   and not run.
 
 `-s, --heap-sz`
@@ -61,7 +61,7 @@ to an executable.
 
 ## EXAMPLES
 
-  ./boom hello.scm
+  ./hawk hello.scm
 
 Prints 'hello world', assuming hello.scm contains
 
@@ -69,13 +69,13 @@ Prints 'hello world', assuming hello.scm contains
 
 Compile the hello.scm script to an executable:
 
-  ./boom --exe hello.scm
+  ./hawk --exe hello.scm
   ./hello
 
 
 # Standards
 
-Currently boom is closest to the r4rs standard, with the following
+Currently hawk is closest to the r4rs standard, with the following
 restrictions:
 
 - [ ] Symbols starting with '$' are reserved

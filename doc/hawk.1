@@ -1,22 +1,22 @@
-.TH BOOM 1 "September 2023" Linux "Boom Manual"
+.TH HAWK 1 "September 2023" Linux "Hawk Manual"
 
 
 .SH NAME
 
-boom - scheme (r5rs) jit
+hawk - scheme (r5rs) jit
 
 .SH SYNOPSIS
 
-\fBboom\fR [\fIoptions\fR] \fIscript.[scm|bc]\fR ...
+\fBhawk\fR [\fIoptions\fR] \fIscript.[scm|bc]\fR ...
 
 .SH "WEB SITE"
 
-https://github.com/djwatson/boom
+https://djwatson.github.io/hawk
 
 
 .SH DESCRIPTION
 
-\fBboom\fR is a vm (virtual machine) and jit compiler (just-in-time) for the scheme
+\fBhawk\fR is a vm (virtual machine) and jit compiler (just-in-time) for the scheme
 language, report version r5rs.  It can run scripts directly, or pre-compile them
 to an executable.
 
@@ -41,9 +41,9 @@ to an executable.
   statistics gathered are printed to stdout.
 .TP
 .BI "--exe"
-  Compile the script in to an exe by linking it with libboom_exe.
+  Compile the script in to an exe by linking it with libhawk_exe.
   Note that this is no faster than running a `.bc` file directly
-  with boom, and is only a convenience.  Script is only compiled
+  with hawk, and is only a convenience.  Script is only compiled
   and not run.
 .TP
 .BI "-s, --heap-sz=\fINUMBER\fR"
@@ -58,17 +58,17 @@ to an executable.
 
 .PP
 After all options are processed, the given script is run.
-Currently boom does not support an interactive mode.
+Currently hawk does not support an interactive mode.
 
 .SH EXAMPLES
 .TP
-$ boom hello.scm
+$ hawk hello.scm
 
 Prints 'hello world', assuming hello.scm contains
 .br
   (display "hello world")
 .PP
-$ boom --exe hello.scm
+$ hawk --exe hello.scm
 .br
 $ hello
 
@@ -76,9 +76,9 @@ $ hello
   
 .SH COPYRIGHT
 
-\fBboom\fR is Copyright \(co 2023 Dave Watson.
+\fBhawk\fR is Copyright \(co 2023 Dave Watson.
 .br
-\fBboom\fR is open source software, released under the MIT license.
+\fBhawk\fR is open source software, released under the MIT license.
 
 .SH AUTHOR
 
