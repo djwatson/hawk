@@ -23,7 +23,8 @@ void perf_map(uint64_t fn, uint64_t len, const char *name) {
   sprintf(buf, "/tmp/perf-%i.map", getpid());
   __auto_type file = fopen(buf, "a");
   if (strlen(name) != 0) {
-    fprintf(file, "%lx %lx jit function %s %i\n", (uint64_t)fn, len, name, jit_cnt);
+    fprintf(file, "%lx %lx jit function %s %i\n", (uint64_t)fn, len, name,
+            jit_cnt);
   } else {
     fprintf(file, "%lx %lx jit anon function %i\n", (uint64_t)fn, len, jit_cnt);
   }
@@ -147,7 +148,8 @@ void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const char *name) {
   // __auto_type entry = new gdb_code_entry;
   //  entry->fn = fn;
   //  entry->len = len;
-  // sprintf(entry->funcname, "Function_%s_%i_%i_%lx", name.c_str(), jit_cnt, i, p);
+  // sprintf(entry->funcname, "Function_%s_%i_%i_%lx", name.c_str(), jit_cnt, i,
+  // p);
   jitcode->symfile_addr = image;
   jitcode->symfile_size = sizeof(GDBElfImage);
   jitcode->next_entry = NULL;

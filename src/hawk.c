@@ -81,7 +81,7 @@ void compile_file(const char *file) {
   run(func, list ? 3 : 2, args);
 }
 
-void generate_exe(char* filename, const char* bc_name) {
+void generate_exe(char *filename, const char *bc_name) {
   char tmp[512];
 
   strcpy(tmp, filename);
@@ -91,7 +91,7 @@ void generate_exe(char* filename, const char* bc_name) {
   fputs("unsigned char exe_scm_bc[] = {\n", f);
   int res = fgetc(fin);
   long cnt = 0;
-  while(res != EOF) {
+  while (res != EOF) {
     fprintf(f, "%i, ", res);
     res = fgetc(fin);
     cnt++;
@@ -100,10 +100,13 @@ void generate_exe(char* filename, const char* bc_name) {
   fclose(fin);
   fclose(f);
 
-  filename[strlen(filename)-4] = '\0';
+  filename[strlen(filename) - 4] = '\0';
 
   char tmp2[512];
-  snprintf(tmp2, 511, "clang -flto -o %s $LDFLAGS -L. -lhawk_exe -lhawk_vm %s -lcapstone -lm", filename, tmp);
+  snprintf(
+      tmp2, 511,
+      "clang -flto -o %s $LDFLAGS -L. -lhawk_exe -lhawk_vm %s -lcapstone -lm",
+      filename, tmp);
   printf("Running: %s\n", tmp2);
   system(tmp2);
 }
@@ -137,7 +140,7 @@ int main(int argc, char *argv[]) {
     case 'd':
       jit_dump_flag = true;
       break;
-#endif      
+#endif
     case 'm':
       TRACE_MAX = atoi(optarg);
       printf("MAX TRACE is %i\n", TRACE_MAX);
@@ -163,9 +166,9 @@ int main(int argc, char *argv[]) {
   auto ojoff = joff;
   joff = 1;
   load_bootstrap();
-  #ifdef AFL
+#ifdef AFL
   __AFL_INIT();
-  #endif
+#endif
 
   for (int i = optind; i < argc; i++) {
     auto len = strlen(argv[i]);
@@ -176,7 +179,7 @@ int main(int argc, char *argv[]) {
       printf("Compiling script %s\n", argv[i]);
       compile_file(argv[i]);
       if (exe) {
-	generate_exe(argv[i], tmp);
+        generate_exe(argv[i], tmp);
       }
       if (list || exe) {
         break;

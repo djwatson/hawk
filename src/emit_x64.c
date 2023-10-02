@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/mman.h>
 #include <string.h>
+#include <sys/mman.h>
 
 #include "emit_x64.h"
 
@@ -79,8 +79,8 @@ void emit_call32(int32_t offset) {
 
 void emit_ret() { *(--p) = 0xc3; }
 
-// TODO clean this up.  THe main issue is REX needs W=0.  Also check R1 does full
-// checks for rsp/rbp
+// TODO clean this up.  THe main issue is REX needs W=0.  Also check R1 does
+// full checks for rsp/rbp
 void emit_cmp_mem32_imm32(uint32_t offset, uint8_t r1, int32_t imm) {
   emit_imm32(imm);
   assert(r1 != RSP);
@@ -102,8 +102,8 @@ void emit_cmp_mem32_imm32(uint32_t offset, uint8_t r1, int32_t imm) {
 }
 void emit_cmp_reg_imm32(uint8_t r, int32_t imm) {
   if ((int32_t)((int8_t)imm) != imm) {
-  emit_imm32(imm);
-  emit_reg_reg(0x81, 7, r);
+    emit_imm32(imm);
+    emit_reg_reg(0x81, 7, r);
   } else {
     *(--p) = imm;
     emit_reg_reg(0x83, 7, r);
@@ -237,8 +237,8 @@ void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm) {
 
 void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm) {
   if ((int32_t)((int8_t)imm) != imm) {
-  emit_imm32(imm);
-  emit_reg_reg(0x81, op, src);
+    emit_imm32(imm);
+    emit_reg_reg(0x81, op, src);
   } else {
     *(--p) = imm;
     emit_reg_reg(0x83, op, src);
@@ -253,7 +253,7 @@ void emit_push(uint8_t r) {
 }
 
 void emit_pop(uint8_t r) {
-  //emit_modrm(0x3, 0, 0x7 & r);
+  // emit_modrm(0x3, 0, 0x7 & r);
   //*(--p) = 0x8f;
   *(--p) = 0x58 | (0x7 & r);
   if (r >> 3) {
@@ -276,7 +276,7 @@ void emit_bind(uint64_t label, uint64_t jmp) {
   assert(jmp);
   assert(label);
   auto offset = (int32_t)((int64_t)label - (int64_t)jmp);
-  memcpy((int32_t*)(jmp - 4), &offset, sizeof(int32_t));
+  memcpy((int32_t *)(jmp - 4), &offset, sizeof(int32_t));
 }
 
 void emit_advance(int64_t offset) { p -= offset; }
@@ -302,7 +302,6 @@ void emit_init() {
   p = mtop + msize;
   mend = p;
 }
-
 
 /*
 int main() {

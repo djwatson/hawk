@@ -1,11 +1,11 @@
 #include "trace_dump.h"
+#include "asm_x64.h" // for REG_NONE, asm_jit, reg_names
 #include "ir.h"
-#include "types.h"
-#include "asm_x64.h"  // for REG_NONE, asm_jit, reg_names
 #include "third-party/stb_ds.h"
+#include "types.h"
 
-#include <stdbool.h>
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,18 +38,19 @@ void print_const_or_val(int i, trace_s *ctrace) {
     } else if ((c & IMMEDIATE_MASK) == NIL_TAG) {
       printf("nil");
     } else if (type == SYMBOL_TAG) {
-      string_s* sym_name = (string_s*)(((symbol *)(c-SYMBOL_TAG))->name - PTR_TAG);
+      string_s *sym_name =
+          (string_s *)(((symbol *)(c - SYMBOL_TAG))->name - PTR_TAG);
       printf("\e[1;35m%s\e[m", sym_name->str);
     } else if (type == PTR_TAG) {
-      auto type2 = ((long*)(c - PTR_TAG))[0] & 0xff;
+      auto type2 = ((long *)(c - PTR_TAG))[0] & 0xff;
       if (type2 == VECTOR_TAG) {
-	printf("vector");
-      } else  if (type2 == STRING_TAG) {
-	printf("str");
-      } else  if (type2 == PORT_TAG) {
-	printf("port");
+        printf("vector");
+      } else if (type2 == STRING_TAG) {
+        printf("str");
+      } else if (type2 == PORT_TAG) {
+        printf("port");
       } else {
-	printf("ptr");
+        printf("ptr");
       }
     } else if (type == LITERAL_TAG) {
       printf("frame");
@@ -153,13 +154,13 @@ void dump_trace(trace_s *ctrace) {
     }
     case IR_GGET: {
       auto *s = (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
-      string_s* sym_name = (string_s*)(s->name - PTR_TAG);
+      string_s *sym_name = (string_s *)(s->name - PTR_TAG);
       printf("%s", sym_name->str);
       break;
     }
     case IR_GSET: {
       auto *s = (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
-      string_s* sym_name = (string_s*)(s->name - PTR_TAG);
+      string_s *sym_name = (string_s *)(s->name - PTR_TAG);
       printf("%s ", sym_name->str);
       print_const_or_val(op.op2, ctrace);
       break;
@@ -214,4 +215,3 @@ void dump_trace(trace_s *ctrace) {
     printf("\n");
   }
 }
-

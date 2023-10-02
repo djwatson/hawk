@@ -10,4 +10,4 @@ void asm_jit(trace_s *trace, snap_s *side, trace_s *parent);
 #define SLOT_NONE 0
 extern const char *reg_names[];
 
-int jit_run(trace_s* trace, unsigned int **o_pc, long **o_frame, long* argcnt);
+int jit_run(trace_s *trace, unsigned int **o_pc, long **o_frame, long *argcnt);

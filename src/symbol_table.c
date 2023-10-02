@@ -7,8 +7,8 @@
 #include <stdlib.h> // for calloc, free, size_t
 #include <string.h> // for strcmp
 
-#include "types.h" // for string_s, symbol
 #include "defs.h"
+#include "types.h" // for string_s, symbol
 
 #define auto __auto_type
 
@@ -52,8 +52,8 @@ EXPORT symbol *symbol_table_find_cstr(const char *str) {
     if (*cur == TOMBSTONE) {
       continue;
     }
-    symbol* curs = (symbol*)(*cur & ~TAG_MASK);
-    string_s *sym_name = (string_s*)(curs->name - PTR_TAG);
+    symbol *curs = (symbol *)(*cur & ~TAG_MASK);
+    string_s *sym_name = (string_s *)(curs->name - PTR_TAG);
     if (strcmp(sym_name->str, str) == 0) {
       return curs;
     } // Mismatched comparison, continue.
@@ -69,14 +69,16 @@ void symbol_table_insert(symbol *sym) {
   }
   sym_table->cnt++;
 
-  string_s *sym_name = (string_s*)(sym->name - PTR_TAG);
+  string_s *sym_name = (string_s *)(sym->name - PTR_TAG);
   auto hash = str_hash(sym_name->str);
   auto mask = sym_table->sz - 1;
 
   for (size_t i = 0; i < sym_table->sz; i++) {
     auto cur = &sym_table->entries[(i + hash) & mask];
     if (*cur == 0 || *cur == TOMBSTONE ||
-        strcmp(((string_s*)(((symbol*)(*cur &~TAG_MASK))->name - PTR_TAG))->str, sym_name->str) == 0) {
+        strcmp(
+            ((string_s *)(((symbol *)(*cur & ~TAG_MASK))->name - PTR_TAG))->str,
+            sym_name->str) == 0) {
       // Insert here.
       *cur = (long)sym + SYMBOL_TAG;
       return;
@@ -102,7 +104,7 @@ static void rehash() {
   for (size_t i = 0; i < old->sz; i++) {
     auto cur = &old->entries[i];
     if (*cur != 0 && *cur != TOMBSTONE) {
-      symbol_table_insert((symbol*)(*cur - SYMBOL_TAG));
+      symbol_table_insert((symbol *)(*cur - SYMBOL_TAG));
     }
   }
 

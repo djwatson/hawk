@@ -14,7 +14,6 @@ typedef struct {
   uint8_t head;
 } lru;
 
-
 void lru_init(lru *l);
 void lru_remove(lru *l, uint8_t node);
 void lru_insert_before(lru *l, uint8_t node, uint8_t next);

@@ -4,9 +4,9 @@
 #include <stdbool.h> // for bool, false, true
 #include <stdio.h>   // for printf
 
-#include "gc.h" // for GC_init
-#include "readbc.h"       // for readbc_file, readbc_image
-#include "vm.h"           // for run
+#include "gc.h"     // for GC_init
+#include "readbc.h" // for readbc_file, readbc_image
+#include "vm.h"     // for run
 
 #include "record.h"
 
@@ -26,11 +26,10 @@ extern bool verbose;
 extern size_t page_cnt;
 int main(int argc, char *argv[]) {
 
-
   GC_init();
   joff = 1;
   load_bootstrap();
-  
+
   {
     joff = 0;
     auto *start_func = readbc_image(exe_scm_bc, exe_scm_bc_len);

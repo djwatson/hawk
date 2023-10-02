@@ -1,14 +1,14 @@
 #include "defs.h"
 
-#include <assert.h>       // for assert
-#include <signal.h>       // for sigaction, sigevent, SIGRTMIN
-#include <stdint.h>       // for uint32_t
-#include <stdio.h>        // for printf
-#include <stdlib.h>       // for exit, free, malloc
-#include <string.h>       // for memcpy
-#include <time.h>         // for timer_settime, timespec
-#include <sys/mman.h>    // for mmap, MAP_ANONYMOUS, MAP_P...
+#include <assert.h> // for assert
+#include <signal.h> // for sigaction, sigevent, SIGRTMIN
 #include <stdbool.h>
+#include <stdint.h>   // for uint32_t
+#include <stdio.h>    // for printf
+#include <stdlib.h>   // for exit, free, malloc
+#include <string.h>   // for memcpy
+#include <sys/mman.h> // for mmap, MAP_ANONYMOUS, MAP_P...
+#include <time.h>     // for timer_settime, timespec
 
 #define auto __auto_type
 #define nullptr NULL
@@ -120,7 +120,7 @@ EXPORT void profiler_start() {
     printf("Could not create profile timer\n");
     exit(-1);
   }
-  //printf("Timer id is %li\n", (long)timerid);
+  // printf("Timer id is %li\n", (long)timerid);
 
   its.it_value.tv_sec = 0;
   its.it_value.tv_nsec = 250000;
@@ -162,14 +162,15 @@ EXPORT void profiler_start() {
 /*              ins_names[INS_OP(*(uint32_t *)item.first)], */
 /*              (uint32_t *)item.first - (func->code).data()); */
 /*     } else { */
-/*       printf("%*cCan't find func for frame %li\n", indent, ' ', item.first); */
+/*       printf("%*cCan't find func for frame %li\n", indent, ' ', item.first);
+ */
 /*     } */
 /*     profiler_display_tree_node(item.second, indent + 5); */
 /*   } */
 /* } */
 
 EXPORT void profiler_stop() {
-/*   tree tree_root; */
+  /*   tree tree_root; */
   timer_delete(timerid);
   uint64_t tot = 0;
   uint64_t on_trace = 0;
@@ -178,12 +179,12 @@ EXPORT void profiler_stop() {
   printf("Timer called %li times\n", cnt);
   auto *s = samples;
   while (s != nullptr) {
-/*     tree *cur_tree = &tree_root; */
-/*     for (int i = s->stack_sz - 1; i >= 0; i--) { */
-/*       auto frame = s->stack[i]; */
-/*       cur_tree = &cur_tree->next[frame]; */
-/*       cur_tree->cnt++; */
-/*     } */
+    /*     tree *cur_tree = &tree_root; */
+    /*     for (int i = s->stack_sz - 1; i >= 0; i--) { */
+    /*       auto frame = s->stack[i]; */
+    /*       cur_tree = &cur_tree->next[frame]; */
+    /*       cur_tree->cnt++; */
+    /*     } */
     tot++;
     if (s->in_jit) {
       on_trace++;
@@ -196,8 +197,8 @@ EXPORT void profiler_stop() {
 
   printf("On-trace: %.02f%%\n", (double)on_trace / (double)tot * 100.0);
   printf("In-gc: %.02f%%\n", (double)on_gc / (double)tot * 100.0);
-  printf("VM: %.02f%%\n", 100.0-((double)(on_gc + on_trace) / (double)tot * 100.0));
+  printf("VM: %.02f%%\n",
+         100.0 - ((double)(on_gc + on_trace) / (double)tot * 100.0));
 
-/*   profiler_display_tree_node(&tree_root, 0); */
+  /*   profiler_display_tree_node(&tree_root, 0); */
 }
-

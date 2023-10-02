@@ -29,7 +29,8 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
     }
   }
   // No need for duplicate snaps.
-  if (arrlen(trace->snaps) > 0 && trace->snaps[arrlen(trace->snaps)-1].ir == snap.ir) {
+  if (arrlen(trace->snaps) > 0 &&
+      trace->snaps[arrlen(trace->snaps) - 1].ir == snap.ir) {
     snap_s sn = arrpop(trace->snaps);
     free_snap(&sn);
   }
@@ -37,7 +38,8 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
 }
 
 // Replay a snap for a side-trace.
-uint32_t snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace, int *d) {
+uint32_t snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
+                     int *d) {
   for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto slot = &snap->slots[i];
     if ((slot->val & IR_CONST_BIAS) != 0) {
@@ -69,9 +71,7 @@ uint32_t snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace, 
   if (!arrlen(snap->slots)) {
     return 0;
   }
-  return snap->slots[arrlen(snap->slots)-1].slot;
+  return snap->slots[arrlen(snap->slots) - 1].slot;
 }
 
-void free_snap(snap_s* snap) {
-  arrfree(snap->slots);
-}
+void free_snap(snap_s *snap) { arrfree(snap->slots); }

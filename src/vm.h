@@ -20,15 +20,14 @@ extern bcfunc **funcs;
 
 __attribute__((always_inline)) long vm_read_char(port_s *port);
 __attribute__((always_inline)) long vm_peek_char(port_s *port);
-long vm_string_symbol(string_s* str);
+long vm_string_symbol(string_s *str);
 void vm_write(long obj, long port);
 void vm_make_string(long str, long ch);
 void vm_make_vector(long vec, long v);
-long vm_callcc(long* frame);
+long vm_callcc(long *frame);
 long vm_cc_resume(long c);
 void expand_stack(long **o_frame);
 long vm_length(long fb);
 long vm_memq(long fb, long fc);
 long vm_assq(long fb, long fc);
 long vm_assv(long fb, long fc);
-

@@ -121,8 +121,8 @@ typedef struct {
 } reloc;
 
 typedef long (*Func)(long **, unsigned int **);
-typedef struct trace_s_s{
-  struct trace_s_s* next;
+typedef struct trace_s_s {
+  struct trace_s_s *next;
   ir_ins *ops;
   long *consts;
   reloc *relocs;
@@ -133,9 +133,9 @@ typedef struct trace_s_s{
   Func fn;
   // For flushing
   uint32_t *start;
-  struct trace_s_s* parent;
+  struct trace_s_s *parent;
   // For opt
-  uint16_t*syms;
+  uint16_t *syms;
 } trace_s;
 
 #define UNROLL_LIMIT 1

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
 // GC hack:
 
@@ -65,7 +65,7 @@ typedef struct symbol {
   long name; // string_s PTR_TAG'd value
   long val;
   long opt;
-  struct tv* lst;
+  struct tv *lst;
 } symbol;
 
 typedef struct vector_s {
@@ -98,7 +98,7 @@ typedef struct port_s {
   long eof;
   long buf_pos;
   long buf_sz;
-  char* in_buffer;
+  char *in_buffer;
 } port_s;
 
 void print_obj(long obj, FILE *file);
@@ -107,5 +107,6 @@ long equalp(long a, long b);
 
 // GC interface:
 __attribute((always_inline)) size_t heap_object_size(long *obj);
-typedef void (*trace_callback)(long *field, void* ctx);
-__attribute((always_inline)) void trace_heap_object(long *obj, trace_callback visit, void* ctx);
+typedef void (*trace_callback)(long *field, void *ctx);
+__attribute((always_inline)) void
+trace_heap_object(long *obj, trace_callback visit, void *ctx);

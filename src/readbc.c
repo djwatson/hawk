@@ -8,14 +8,14 @@
 #include <stdlib.h> // for exit, realloc
 #include <string.h> // for memset
 
-#include "bytecode.h"     // for bcfunc, CODE_D, INS_A, INS_D, INS_OP
+#include "bytecode.h" // for bcfunc, CODE_D, INS_A, INS_D, INS_OP
+#include "defs.h"
 #include "gc.h"           // for GC_malloc, GC_pop_root, GC_push_root
 #include "opcodes.h"      // for GGET, GSET, KFUNC, KONST
 #include "symbol_table.h" // for symbol_table_find, symbol_table_insert
 #include "third-party/stb_ds.h"
 #include "types.h" // for string_s, PTR_TAG, SYMBOL_TAG, cons_s, symbol
 #include "vm.h"    // for funcs
-#include "defs.h"
 
 #define auto __auto_type
 #define nullptr NULL
@@ -62,9 +62,9 @@ long read_const(FILE *fptr) {
         sym->type = SYMBOL_TAG;
         sym->name = (long)str + PTR_TAG;
         sym->val = UNDEFINED_TAG;
-	sym->opt = 0;
-	sym->lst = NULL;
-	sym->rc = 0;
+        sym->opt = 0;
+        sym->lst = NULL;
+        sym->rc = 0;
         symbol_table_insert(sym);
         val = (long)sym | SYMBOL_TAG;
         arrput(symbols, val);
@@ -114,7 +114,7 @@ long read_const(FILE *fptr) {
       long len;
       fread(&len, 8, 1, fptr);
 
-      long* vals = malloc(sizeof(long) * len);
+      long *vals = malloc(sizeof(long) * len);
       assert(vals);
       for (long i = 0; i < len; i++) {
         vals[i] = read_const(fptr);
@@ -275,7 +275,7 @@ extern unsigned int bootstrap_scm_bc_len;
 EXPORT void load_bootstrap() {
   if (bootstrap_scm_bc_len > 0) {
     auto *start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
-    //printf("Running boot image...\n");
+    // printf("Running boot image...\n");
     run(start_func, 0, nullptr);
   }
 }
