@@ -1,0 +1,20 @@
+name: test
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: checkout
+      uses: actions/checkout@v3
+    - name: setup
+      run: |
+        sudo apt-get install chezscheme
+    - name: configure
+      run: cmake .
+    - name: build
+      run: make -j
+    - name: test
+      timeout-minutes: 3
+      run: ctest -j 2 -E bench2
+    
