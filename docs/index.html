@@ -53,9 +53,11 @@
 	<p>HAWK can be found on <a href="https://github.com/djwatson/hawk">github</a>.   It is licensed under the <a href="https://opensource.org/license/mit/">MIT License</a>. </p>
       </div>
       <h2>Building</h2>
-      <div class="header">Hawk has no dependencies other than a recent (> 13) clang.  It has an optional dependency on libcapstone, and elf headers for debugging.</div>
+      <div class="header">Hawk has no dependencies other than a recent (> 13) clang.  It has an optional dependency on libcapstone, and elf headers for debugging.  Currently chezscheme or chicken is used for bootstrapping, but is not used after install.</div>
       <p></p>
-<pre class="code"><code>$ git clone https://github.com/djwatson/hawk.git
+<pre class="code"><code>$ sudo apt install chezscheme	  
+$ git clone https://github.com/djwatson/hawk.git
+$ cd hawk
 $ cmake .
 $ make -j
 $ sudo make install</code></pre>
