@@ -1,0 +1,4 @@
+test/** linguist-vendored
+third-party/** linguist-vendored
+src/third-party/** linguist-vendored
+attic/** linguist-vendored
