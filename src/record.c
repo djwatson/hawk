@@ -1871,7 +1871,7 @@ trace_s *trace_cache_get(uint16_t tnum) {
 }
 
 EXPORT void free_trace() {
-  if (arrlen(traces)) {
+  if (verbose && arrlen(traces)) {
     printf("Traces: %li\n", arrlen(traces));
   }
   for(uint64_t i = 0; i < arrlen(traces); i++) {
