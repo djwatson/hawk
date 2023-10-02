@@ -668,8 +668,8 @@ void asm_add_to_pcopy(map* moves, ir_ins* op, uint16_t val, trace_s* trace) {
     if (to != REG_NONE) {
       map_insert(moves, from, to);
     }
-    if (verbose)
-      printf("Insert parallel copy %i to %i\n", from, to);
+    /* if (verbose) */
+    /*   printf("Insert parallel copy %i to %i\n", from, to); */
     // If it has a slot *and* a reg, it was only moved to the reg,
     // so emit a mov to the slot also.
     if (op->slot != SLOT_NONE && op->reg != REG_NONE) {
@@ -755,7 +755,7 @@ static void emit_init_funcs() {
   static bool done = false;
   if (!done) {
     done = true;
-    auto start = emit_offset();
+    //auto start = emit_offset();
     emit_ret();
     for(uint8_t i = 0; i < regcnt; i++) {
       if (!reg_callee[i]) {
@@ -771,12 +771,13 @@ static void emit_init_funcs() {
       }
     }
     log_offset = emit_offset();
+    /*    
     auto len = start - log_offset;
     if (verbose) {
       disassemble((const uint8_t *)log_offset, len);
     }
-    uint64_t fn = log_offset;
 
+    uint64_t fn = log_offset;
     char* dumpname = "jit_gc_log";
 #ifdef JITDUMP
     perf_map((uint64_t)fn, len, dumpname);
@@ -788,6 +789,7 @@ static void emit_init_funcs() {
 #ifdef VALGRIND
     VALGRIND_DISCARD_TRANSLATIONS(fn, len);
 #endif
+    */
   }
 }
 
