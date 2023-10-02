@@ -1,4 +1,4 @@
-# README for hawk
+[![test](https://github.com/djwatson/hawk/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/djwatson/hawk/actions/workflows/test.yml)
 
 Hawk is a Just-In-Time (JIT) compiler for the Scheme programming language.
 
