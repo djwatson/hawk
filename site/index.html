@@ -1,0 +1,221 @@
+<html>
+  <head>
+    <title>Hawk</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/base16/atelier-sulphurpool-light.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/scheme.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/bash.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="icon" href="favicon.png" type="image/x-icon" />
+    <style type="text/css">
+      #content {
+	  text-align: center;
+	  width: 90%;
+      }
+      #tagline {
+	  text-align: center;
+	  font-size: .9em;
+      }
+      .header {
+	  font-size: 1.1em;
+	  width:60%;
+	  margin:auto;
+      }
+      .bench {
+	  display: inline-block;
+	  width: 500px;
+      }
+      .code {
+	  width: 400px;
+	  margin: auto;
+	  text-align: left;
+      }
+      a:visited {
+	  color:#ffaaff;
+      }
+      a:link {
+	  color:#00aaff;
+      }
+      h2 {
+	  font-weight:700;
+	  color:#9999ff;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="content">
+      <img src="noun-hawk.png" width="150px"></img>
+      <div id="tagline">A scheme that makes code <i>fly</i>.</div>
+      <h2>HAWK</h2>
+      <div class="header">
+	<p><b>HAWK</b> is a VM and JIT compiler for the <a href="https://www.scheme.org/schemers/">Scheme</a> programming language.  It currently targets the <a href="https://people.csail.mit.edu/jaffer/r4rs.pdf">R4RS</a> scheme standard.  It is currently known to run on x86_64 linux and OSX.  It requires a recent version of clang that supports [[mustttail]] attribute.  It is likely that the VM will work on most 64-bit platforms.</p>
+	<p>HAWK can be found on <a href="https://github.com/djwatson/hawk">github</a>.   It is licensed under the <a href="https://opensource.org/license/mit/">MIT License</a>. </p>
+      </div>
+      <h2>Building</h2>
+      <div class="header">Hawk has no dependencies other than a recent (> 13) clang.  It has an optional dependency on libcapstone, and elf headers for debugging.</div>
+      <p></p>
+<pre class="code"><code>$ git clone https://github.com/djwatson/hawk.git
+$ cmake .
+$ make -j
+$ sudo make install</code></pre>
+      <h2>Quickstart</h2>
+      fib.scm:
+<pre class="code"><code class="language-scheme">(define (fib n)
+  (if (< n 2)
+	 n
+	 (+
+	   (fib (- n 1))
+	   (fib (- n 2)))))
+
+(display (fib 40))</code></pre>
+
+		 And run it:
+		 
+<pre class="code"><code>$ hawk fib.scm</code></pre>
+		 
+		 Or build a binary:
+		 
+<pre class="code"><code>$ hawk --exe fib.scm
+$ ./fib</code></pre>
+      <h2>Benchmarks</h2>
+      <div class="header">
+	<p> A few benchmarks taken from ecravens <a href="https://ecraven.github.io/r7rs-benchmarks/">r7rs-benchmark suite</a>.  Tests were run on an AMD Ryxen 9 5900X.        </p><p>Versions are: Loko 0.12.1, Hawk 0.3.9, Chez 9.5.4, Gambit 4.4.3.
+	</p>
+      </div>
+      <div id="charts">
+      </div>
+      <div class="bench">
+	<canvas id="ack"></canvas>
+      </div>
+    </div>
+
+    <script>
+      function makechart(name, data) {
+	  const loc = document.getElementById("charts");
+	  div = document.createElement("div");
+	  div.className = "bench";
+	  ctx = document.createElement("canvas");
+	  ctx.id = name;
+	  div.appendChild(ctx);
+	  loc.appendChild(div);
+
+	  arrayOfObj = arrayLabel.map(function(d, i) {
+	      return {
+		  label: d,
+		  data: data[i] || 0
+	      };
+	  });
+
+	  sortedArrayOfObj = arrayOfObj.sort(function(a, b) {
+	      return b.data<a.data;
+	  });
+	  
+	  newArrayLabel = [];
+	  newArrayData = [];
+	  sortedArrayOfObj.forEach(function(d){
+	      if (d.data != 0.0) {
+		  newArrayLabel.push(d.label);
+		  newArrayData.push(d.data);
+	      }
+	  });
+	  newArrayColor = [];
+	  first = newArrayData[0];
+	  sortedArrayOfObj.forEach(function(d){
+	      foo = 255 * ((d.data / (first + .000001)) - 1);
+	      newArrayColor.push(`rgba(${foo}, 99, 200, 0.6)`);
+	  });
+
+	  new Chart(ctx, {
+	      type: 'bar',
+	      data: {
+		  labels: newArrayLabel,
+		  datasets: [{
+		      label: 'runtime (seconds)',
+		      data: newArrayData,
+		      backgroundColor: newArrayColor,
+		      borderWidth: 1
+		  }]
+	      },
+	      options: {
+		  plugins: {
+		      title: {
+			  display: true,
+			  text: name,
+		      },
+		      legend: {
+			  display: false,
+		      },
+		  },
+		  responsive: true,
+		  indexAxis: 'y',
+		  scales: {
+		      y: {
+			  beginAtZero: true
+		      }
+		  }
+	      }
+	  });
+      }
+      arrayLabel = ['Chez', 'Loko', 'Gambit', 'Hawk'];
+      makechart('destruc', [1.2800000000002, 1.1779999732971191, 1.529525, 0.99]);
+      //makechart('pnpoly', [3.2399999999997817, 3.7260000705718994, 2.29479, 6.8]);
+      makechart('conform', [1.3599999999996726, 1.2949999570846558, 2.161752, 1.96]);
+      //makechart('fibfp', [2.199999999999818, 2.046999931335449, 0.89905, 3.784]);
+      makechart('puzzle', [1.6299999999996544, 1.5299999713897705, 2.193014, 1.68]);
+      //makechart('fft', [0.0, 0.9300000071525574, 0.869155, 2.21]);
+      makechart('dynamic', [1.3899999999998727, 2.3949999809265137, 3.172476, 1.77]);
+      makechart('ctak', [0.41000000000030923, 16.945999145507812, 1.854662, 2.98]);
+      makechart('sum1', [0.7400000000002365, 2.99, 0.762798, 1.79]);
+      makechart('parsing', [2.0299999999997453, 1.8980000019073486, 1.837709, 2.39]);
+      //makechart('nucleic', [1.6100000000001273, 0.0, 1.365529, 4.33]);
+      makechart('bv2string', [0.650000000000091, 0.9869999885559082, 1.089267, 0.45]);
+      makechart('nqueens', [3.519999999999982, 4.40500020980835, 4.38331, 3.4]);
+      //makechart('chudnovsky', [0.13000000000010914, 18.4689998626709, 0.268382, 0.0]);
+      //makechart('mbrot', [4.6899999999996, 4.1479997634887695, 2.052373, 9.19]);
+      makechart('primes', [0.650000000000091, 0.75, 0.577724, 0.55]);
+      makechart('cat', [1.3100000000004002, 2.421999931335449, 10.767127, 1.85]);
+      makechart('tak', [1.1199999999998909, 1.1089999675750732, 1.620081, 1.29]);
+      //makechart('sumfp', [3.7399999999997817, 0.0, 1.549888, 3.748]);
+      makechart('triangl', [1.199999999999818, 0.9570000171661377, 1.264036, 0.96]);
+      makechart('matrix', [1.32, 1.2879999876022339, 1.603249, 1.4]);
+      makechart('lattice', [2.6600000000003092, 2.4709999561309814, 4.184831, 3.1]);
+      makechart('browse', [0.9500000000002728, 1.1690000295639038, 1.476638, 0.73]);
+      makechart('sum', [1.6199999999998909, 1.6970000267028809, 1.363083, 0.86]);
+      makechart('nboyer', [1.3900000000003274, 1.2589999437332153, 2.450626, 1.56]);
+      //makechart('quicksort', [0.0, 2.2100000381469727, 3.023306, 12.73]);
+      makechart('tail', [0.0, 3.299999952316284, 2.195105, 0.24]);
+      makechart('gcbench', [0.5399999999999636, 0.5889999866485596, 1.04997, 0.65]);
+      makechart('fib', [2.980000000000018, 2.680999994277954, 2.147171, 2.45]);
+      //makechart('mbrotZ', [3.869999999999891, 13.081999778747559, 7.885695, 0.0]);
+      makechart('cpstak', [2.130000000000109, 3.247999906539917, 2.585882, 2.31]);
+      makechart('maze', [.437, 1.062000036239624, 0.448774, 0.42]);
+      //makechart('pi', [0.2600000000002183, 0.0, 0.503891, .322]);
+      makechart('takl', [2.7899999999999636, 1.5609999895095825, 1.751044, 1.81]);
+      makechart('fibc', [0.30999999999994543, 9.291000366210938, 1.176995, 1.5]);
+      //makechart('ray', [1.7999999999997272, 1.7899999618530273, 1.064618, 5.27]);
+      makechart('deriv', [0.8800000000001091, 1.7610000371932983, 0.939768, 0.59]);
+      makechart('ntakl', [2.6599999999998545, 1.5379999876022339, 1.935883, 1.96]);
+      makechart('read1', [0.5199999999999818, 1.9600000381469727, 1.245462, 0.95]);
+      makechart('slatex', [1.849999999999909, 1.840999960899353, 3.885483, 1.85]);
+      //makechart('simplex', [1.6700000000000728, 1.3509999513626099, 1.532647, 9.44]);
+      makechart('string', [2.9100000000003092, 2.611999988555908, 1.703866, 5.04]);
+      makechart('compiler', [2.2, 1.059000015258789, 0.0, 2.39]);
+      makechart('sboyer', [0.7400000000002365, 0.6370000243186951, 1.000899, 1.1]);
+      makechart('scheme', [1.9800000000000182, 1.878999948501587, 4.262164, 1.52]);
+      makechart('earley', [2.9200000000000728, 0.0, 3.036918, 2.13]);
+      makechart('peval', [1.400000000000091, 1.8600000143051147, 1.82575, 1.62]);
+      makechart('ack', [1.9100000000003092, 2.5290000438690186, 2.534312, 1.68]);
+      makechart('paraffins', [3.363, 1.2400000095367432, 2.397688, 3.37]);
+      makechart('diviter', [0.9800000000000182, 1.1749999523162842, 1.108788, 1.02]);
+      makechart('equal', [0.3900000000003274, 1.5759999752044678, 0.234992, 0.2]);
+      makechart('divrec', [1.5399999999999636, 1.9700000286102295, 1.559836, 1.53]);
+      makechart('graphs', [1.3099999999999454, 1.7000000476837158, 5.411687, 1.95]);
+      makechart('mperm', [6.8400000000001455, 4.39300012588501, 4.34869, 5.1]);
+      makechart('mazefun', [1.5799999999999272, 1.6059999465942383, 2.093023, 1.76]);
+      makechart('array1', [4.5900000000001455, 1.4989999532699585, 2.981551, 1.96]);
+      makechart('wc', [0.9400000000000546, 1.5779999494552612, 5.82148, 1.22]);
+    </script>
+    <script>hljs.highlightAll();</script>
+  </body>
+</html>
