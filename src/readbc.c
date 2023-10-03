@@ -27,9 +27,8 @@ long *symbols = NULL; // TODO not a global, or use a string instead
 // TODO GC safety
 long read_const(FILE *fptr) {
   long val;
-  if (fread(&val, 8, 1, fptr) != 1) {
-    printf("Error: Could not read consts\n");
-    exit(-1);
+  if (fread(&val, 1, 8, fptr) != 8) {
+    goto error;
   }
   auto type = val & TAG_MASK;
   if (type == SYMBOL_TAG) {
@@ -39,14 +38,18 @@ long read_const(FILE *fptr) {
     } else {
       // It's a new symbol in this bc file
       long len;
-      fread(&len, 8, 1, fptr);
+      if (8 != fread(&len, 1, 8, fptr)) {
+	goto error;
+      }
       // TODO GC symbol table
       auto str = (string_s *)GC_malloc(16 + 1 + len);
       str->type = STRING_TAG;
       str->len = len << 3;
       str->str[len] = '\0';
       str->rc = 0;
-      fread(str->str, 1, len, fptr);
+      if (fread(str->str, 1, len, fptr) != len) {
+	goto error;
+      }
 
       // Try to see if it already exists
       auto res = symbol_table_find(str);
@@ -78,7 +81,9 @@ long read_const(FILE *fptr) {
   } else if (type == FLONUM_TAG) {
     auto f = (flonum_s *)GC_malloc(sizeof(flonum_s));
     assert(!((long)f & TAG_MASK));
-    fread(&f->x, 8, 1, fptr);
+    if (fread(&f->x, 1, 8, fptr) != 8) {
+      goto error;
+    }
     f->type = FLONUM_TAG;
     f->rc = 0;
     val = (long)f | FLONUM_TAG;
@@ -99,20 +104,28 @@ long read_const(FILE *fptr) {
     val = (long)c | CONS_TAG;
   } else if (type == PTR_TAG) {
     long ptrtype;
-    fread(&ptrtype, 8, 1, fptr);
+    if (fread(&ptrtype, 1, 8, fptr) != 8) {
+      goto error;
+    }
     if (ptrtype == STRING_TAG) {
       long len;
-      fread(&len, 8, 1, fptr);
+      if (fread(&len, 1, 8, fptr) != 8) {
+	goto error;
+      }
       auto str = (string_s *)GC_malloc(16 + len + 1);
       str->type = ptrtype;
       str->len = len << 3;
       str->rc = 0;
-      fread(&str->str, 1, len, fptr);
+      if (fread(&str->str, 1, len, fptr) != len) {
+	goto error;
+      }
       str->str[len] = '\0';
       val = (long)str | PTR_TAG;
     } else if (ptrtype == VECTOR_TAG) {
       long len;
-      fread(&len, 8, 1, fptr);
+      if (fread(&len, 1, 8, fptr) != 8) {
+	goto error;
+      }
 
       long *vals = malloc(sizeof(long) * len);
       assert(vals);
@@ -140,6 +153,9 @@ long read_const(FILE *fptr) {
     exit(-1);
   }
   return val;
+ error:
+  printf("Error: Could not read consts\n");
+  exit(-1);
 }
 
 bcfunc *readbc(FILE *fptr) {
@@ -152,14 +168,18 @@ bcfunc *readbc(FILE *fptr) {
   }
   // Read header
   unsigned int num;
-  fread(&num, 4, 1, fptr);
+  if (fread(&num, 1, 4, fptr) != 4) {
+    goto error;
+  }
   // printf("%.4s\n", (char *)&num);
   if (num != 0x4d4f4f42) { // MAGIC
     printf("Error: not a hawk bitcode\n");
     exit(-1);
   }
   unsigned int version;
-  fread(&version, 4, 1, fptr);
+  if (fread(&version, 1, 4, fptr) != 4) {
+    goto error;
+  }
   if (version != 0) {
     printf("Invalid bitcode version: %i\n", version);
     exit(-1);
@@ -168,7 +188,9 @@ bcfunc *readbc(FILE *fptr) {
 
   // Read constant table
   unsigned int const_count;
-  fread(&const_count, 4, 1, fptr);
+  if (fread(&const_count, 1, 4, fptr) != 4) {
+    goto error;
+  }
   // printf("constsize %i \n", const_count);
   const_table =
       (long *)realloc(const_table, (const_count + const_offset) * sizeof(long));
@@ -192,20 +214,28 @@ bcfunc *readbc(FILE *fptr) {
 
   // Read functions
   unsigned int bccount;
-  fread(&bccount, 4, 1, fptr);
+  if (fread(&bccount, 1, 4, fptr) != 4) {
+    goto error;
+  }
   bcfunc *start_func = nullptr;
   unsigned func_offset = arrlen(funcs);
   for (unsigned i = 0; i < bccount; i++) {
     unsigned int name_count;
-    fread(&name_count, 4, 1, fptr);
+    if (fread(&name_count, 1, 4, fptr) != 4) {
+      goto error;
+    }
     // printf("Name size %i\n", name_count);
     char *name = (char *)malloc(name_count + 1);
     assert(name);
     name[name_count] = '\0';
-    fread(name, 1, name_count, fptr);
+    if (fread(name, 1, name_count, fptr) != name_count) {
+      goto error;
+    }
 
     unsigned int code_count;
-    fread(&code_count, 4, 1, fptr);
+    if (fread(&code_count, 1, 4, fptr) != 4) {
+      goto error;
+    }
 
     auto f =
         (bcfunc *)malloc(sizeof(bcfunc) + sizeof(unsigned int) * code_count);
@@ -222,7 +252,9 @@ bcfunc *readbc(FILE *fptr) {
 
     // printf("%i: code %i\n", i, code_count);
     for (unsigned j = 0; j < code_count; j++) {
-      fread(&f->code[j], 4, 1, fptr);
+      if(fread(&f->code[j], 1, 4, fptr) != 4) {
+	goto error;
+      }
       // Need to update anything pointing to global const_table
       auto op = INS_OP(f->code[j]);
       if (op == GGET || op == GSET || op == KONST) {
@@ -241,6 +273,9 @@ bcfunc *readbc(FILE *fptr) {
 
   fclose(fptr);
   return start_func;
+ error:
+  printf("Could not parse bc file\n");
+  exit(-1);
 }
 
 EXPORT bcfunc *readbc_image(unsigned char *mem, unsigned int len) {
