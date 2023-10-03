@@ -32,13 +32,20 @@ set(CMAKE_C_FLAGS_LSAN
         CACHE STRING "Build with UndefinedBehaviourSanitizer"
         FORCE)      
       
-# Clang is required, due to use of musttail.
-set(CMAKE_C_COMPILER "clang")
 
 project(bool VERSION 0.1)
 
 enable_language(C)
 set(CMAKE_C_STANDARD 17)
+
+# Clang is required, due to use of musttail.
+if(NOT CMAKE_C_COMPILER)
+  set(CMAKE_C_COMPILER "clang")
+endif()
+get_filename_component(COMP_BASENAME ${CMAKE_C_COMPILER} NAME)
+if (NOT ${COMP_BASENAME} STREQUAL "clang")
+  message("WARNING: [[musttail]] attribute only supported on clang.  VM might cause stack overflows!")
+endif()  
 
 include(CheckIncludeFiles)
 CHECK_INCLUDE_FILES("elf.h" HAVE_ELF)

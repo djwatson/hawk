@@ -68,15 +68,15 @@ extern unsigned TRACE_MAX;
 void compile_file(const char *file) {
   // Watch out for GC safety, from_c_str allocates.
   auto str = from_c_str(file);
-  auto *sym = symbol_table_find_cstr("compile-file"); // DOes not allocate.
+  auto sym = symbol_table_find_cstr("compile-file"); // DOes not allocate.
   long args[3] = {0, str, TRUE_REP};
   if ((sym == nullptr) || sym->val == UNDEFINED_TAG) {
     printf("Error: Attempting to compile a scm file, but can't find "
            "compile-file\n");
     exit(-1);
   }
-  auto *clo = (closure_s *)(sym->val - CLOSURE_TAG);
-  auto *func = (bcfunc *)clo->v[0];
+  auto clo = (closure_s *)(sym->val - CLOSURE_TAG);
+  auto func = (bcfunc *)clo->v[0];
 
   run(func, list ? 3 : 2, args);
 }
@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
     profiler_start();
   }
 #endif
-  auto ojoff = joff;
+  auto ojoff = 1;
   joff = 1;
   load_bootstrap();
 #ifdef AFL
@@ -186,12 +186,12 @@ int main(int argc, char *argv[]) {
       }
       printf("Running script %s\n", tmp);
       joff = ojoff;
-      auto *start_func = readbc_file(tmp);
+      auto start_func = readbc_file(tmp);
       run(start_func, 0, nullptr);
     } else if (len >= 3 && strcmp(".bc", argv[i] + len - 3) == 0) {
       printf("Running script %s\n", argv[i]);
       joff = ojoff;
-      auto *start_func = readbc_file(argv[i]);
+      auto start_func = readbc_file(argv[i]);
       run(start_func, 0, nullptr);
     } else {
       printf("Unknown file type %s\n", argv[i]);

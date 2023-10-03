@@ -736,7 +736,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     stack_top = INS_A(i);
     // Check for unroll.
     long cnt = 0;
-    auto *p_pc = (uint32_t *)frame[-1];
+    auto p_pc = (uint32_t *)frame[-1];
     auto ret_pc = p_pc;
     auto pframe = frame;
     for (int d = depth - 1; d > 0; d--) {
@@ -830,7 +830,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
     // Guard we are going to the right place, almost the same as RET.
     closure_s *cont = (closure_s *)(frame[INS_B(i)] - PTR_TAG);
-    auto *old_pc = (unsigned int *)cont->v[(cont->len >> 3) - 1];
+    auto old_pc = (unsigned int *)cont->v[(cont->len >> 3) - 1];
     auto frame_off = INS_A(*(old_pc - 1));
 
     // TODO maybe also check for downrec?  Same as RET
@@ -854,7 +854,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case IRET1:
   case RET1: {
     if (depth == 0) {
-      auto *old_pc = (unsigned int *)frame[-1];
+      auto old_pc = (unsigned int *)frame[-1];
       if (INS_OP(*pc_start) == RET1 || side_exit != nullptr) {
         int cnt = 0;
         for (uint64_t p = 0; p < arrlen(downrec); p++) {
@@ -932,7 +932,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     } else if (depth > 0) {
       depth--;
       regs[-1] = regs[INS_A(i)];
-      auto *old_pc = (unsigned int *)frame[-1];
+      auto old_pc = (unsigned int *)frame[-1];
       stack_top = INS_A(*(old_pc - 1));
       assert(regs >= regs_list);
       regs -= (INS_A(*(old_pc - 1)) + 1);
@@ -1831,7 +1831,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   case JFUNC: {
 
     // Check if it is a returning trace
-    auto *ctrace = trace_cache_get(INS_D(i));
+    auto ctrace = trace_cache_get(INS_D(i));
     stack_top = INS_A(ctrace->startpc);
     if (INS_OP(ctrace->startpc) == CLFUNC ||
         INS_OP(ctrace->startpc) == ICLFUNC) {
@@ -1879,7 +1879,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     return 1;
   }
   case JLOOP: {
-    auto *ctrace = trace_cache_get(INS_D(i));
+    auto ctrace = trace_cache_get(INS_D(i));
     stack_top = INS_A(ctrace->startpc) + INS_B(ctrace->startpc);
     if (side_exit == nullptr && INS_OP(ctrace->startpc) != RET1) {
       auto penalty = find_penalty_pc(pc_start);

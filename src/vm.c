@@ -24,6 +24,7 @@
 #include "ir.h"
 #include "symbol_table.h"
 #include "types.h"
+#include "attributes.h"
 
 #include "third-party/stb_ds.h"
 
@@ -44,8 +45,6 @@ static void afl_trace(uint32_t *pc) {
 #endif
 }
 
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
 long *frame_top;
 unsigned int stacksz = 100;
 long *stack_top;
@@ -81,7 +80,6 @@ while being more portable and easier to change.
   unsigned char ra, unsigned instr, unsigned *pc, long *frame,                 \
       void **op_table_arg, long argcnt
 #define ARGS ra, instr, pc, frame, op_table_arg, argcnt
-#define MUSTTAIL __attribute((musttail))
 #define DEBUG_VM(name)
 //#define DEBUG_VM(name) printf("pc %p %s ra %i rd %i rb %i rc %i\n", pc, name, ra, instr, instr&0xff, (instr>>8)); fflush(stdout);
 typedef void (*op_func)(PARAMS);
@@ -111,7 +109,7 @@ bcfunc *find_func_for_frame(const uint32_t *pc) {
   return NULL;
 }
 
-__attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
+NOINLINE void FAIL_SLOWPATH(PARAMS) {
   int i = 0;
   printf("FAIL PC: %p %s\n", pc, ins_names[INS_OP(*pc)]);
   while (&frame[-1] > stack) {
@@ -126,7 +124,7 @@ __attribute__((noinline)) void FAIL_SLOWPATH(PARAMS) {
   }
 }
 
-__attribute__((noinline)) void FAIL_SLOWPATH_ARGCNT(PARAMS) {
+NOINLINE void FAIL_SLOWPATH_ARGCNT(PARAMS) {
   printf("FAIL ARGCNT INVALID\n");
 
   MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -180,7 +178,7 @@ long build_list(long start, long len, const long *frame) {
   return lst;
 }
 
-__attribute__((noinline)) void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
+NOINLINE void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
   auto rd = instr;
 
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
@@ -209,7 +207,7 @@ void expand_stack(long **o_frame) {
   stack_top = stack + stack_top_offset;
 }
 
-__attribute__((noinline)) void EXPAND_STACK_SLOWPATH(PARAMS) {
+NOINLINE void EXPAND_STACK_SLOWPATH(PARAMS) {
   expand_stack(&frame);
 
   NEXT_INSTR;
@@ -434,7 +432,7 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
 
 // Shift is necessary for adjusting the tag for mul.
 #define LIBRARY_FUNC_MATH_VV(name, op2, overflow)                              \
-  __attribute__((noinline)) void INS_##name##_SLOWPATH(PARAMS) {               \
+    NOINLINE void INS_##name##_SLOWPATH(PARAMS) {                              \
     DEBUG_VM(#name);                                                           \
     unsigned char rb = instr & 0xff;                                           \
     unsigned char rc = (instr >> 8) & 0xff;                                    \
@@ -1337,7 +1335,7 @@ LIBRARY_FUNC_B_LOAD(CLOSE)
   }
 END_LIBRARY_FUNC
 
-__attribute__((always_inline)) long vm_peek_char(port_s* port) {
+INLINE long vm_peek_char(port_s* port) {
   // TODO jit still as the ptr tag.
   port = (port_s*)((long)port - PTR_TAG);
   if (likely(port->buf_pos < port->buf_sz)) {
@@ -1360,7 +1358,7 @@ LIBRARY_FUNC_B_LOAD(PEEK)
   frame[ra] = vm_peek_char((port_s*)fb);
 END_LIBRARY_FUNC
 
-__attribute__((always_inline)) long vm_read_char(port_s* port) {
+INLINE long vm_read_char(port_s* port) {
   // TODO jit still as the ptr tag.
   port = (port_s*)((long)port - PTR_TAG);
   if (likely(port->buf_pos < port->buf_sz)) {
@@ -1385,25 +1383,32 @@ LIBRARY_FUNC_B_LOAD(READ)
   frame[ra] = vm_read_char((port_s*)fb);
 END_LIBRARY_FUNC
 
+
 LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
-  size_t sz = 0;
-  char *bufptr = NULL;
-  ssize_t res = getline(&bufptr, &sz, port->file);
-  if (res == -1) {
-    port->eof = TRUE_REP;
-    frame[ra] = EOF_TAG;
-  } else {
-    stack_top = &frame[ra];
-   auto str = (string_s*)GC_malloc(res + 16);
-   str->type = STRING_TAG;
-   str->rc = 0;
-   str->len = res << 3;
-   memcpy(str->str, bufptr, res);
-   str->str[res - 1] = '\0';
-   frame[ra] = (long)str + PTR_TAG;
- }
- free(bufptr);
+  // The extra block scope here is so that gcc's optimizer
+  // will know it can release bufptr stack storage, otherwise
+  // it can't know getline doesn't store it somewhere.
+  // This prevents GCC -O2 from making this a tailcall.
+  {
+    size_t sz = 0;
+    char *bufptr = NULL;
+    ssize_t res = getline(&bufptr, &sz, port->file);
+    if (res == -1) {
+      port->eof = TRUE_REP;
+      frame[ra] = EOF_TAG;
+    } else {
+      stack_top = &frame[ra];
+     auto str = (string_s*)GC_malloc(res + 16);
+     str->type = STRING_TAG;
+     str->rc = 0;
+     str->len = res << 3;
+     memcpy(str->str, bufptr, res);
+     str->str[res - 1] = '\0';
+     frame[ra] = (long)str + PTR_TAG;
+   }
+   free(bufptr);
+  }
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD(INEXACT)

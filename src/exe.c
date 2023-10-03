@@ -7,6 +7,7 @@
 #include "gc.h"     // for GC_init
 #include "readbc.h" // for readbc_file, readbc_image
 #include "vm.h"     // for run
+#include "defs.h"     
 
 #include "record.h"
 
@@ -15,8 +16,8 @@
 
 extern bool jit_dump_flag;
 
-__attribute__((weak)) unsigned char exe_scm_bc[0];
-__attribute__((weak)) unsigned int exe_scm_bc_len;
+WEAK unsigned char exe_scm_bc[0];
+WEAK unsigned int exe_scm_bc_len;
 
 extern int joff;
 
@@ -32,7 +33,7 @@ int main(int argc, char *argv[]) {
 
   {
     joff = 0;
-    auto *start_func = readbc_image(exe_scm_bc, exe_scm_bc_len);
+    auto start_func = readbc_image(exe_scm_bc, exe_scm_bc_len);
     run(start_func, 0, nullptr);
   }
 

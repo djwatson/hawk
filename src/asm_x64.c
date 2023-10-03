@@ -841,7 +841,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   uint64_t loop_offset_label = 0;
 
   if (trace->link != -1) {
-    auto *otrace = trace_cache_get(trace->link);
+    auto otrace = trace_cache_get(trace->link);
     emit_check();
 
     if (otrace != trace) {
@@ -969,7 +969,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (op->reg == REG_NONE) {
         op->reg = get_free_reg(trace, &next_spill, slot, false);
       }
-      auto *sym =
+      auto sym =
           (symbol *)(trace->consts[op->op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       auto reg = op->reg;
       emit_op_typecheck(reg, op->type, snap_labels[cur_snap]);
@@ -982,7 +982,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     }
     case IR_GSET: {
       maybe_assign_register(op->op2, trace, slot, &next_spill);
-      auto *sym =
+      auto sym =
           (symbol *)(trace->consts[op->op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       if (ir_is_const(op->op2)) {
         auto c = trace->consts[op->op2 - IR_CONST_BIAS];
@@ -1566,7 +1566,7 @@ int jit_run(trace_s *trace, unsigned int **o_pc, long **o_frame, long *argcnt) {
   jit_entry_stub(*o_frame, trace->fn, &state);
   trace = state.trace;
   long unsigned exit = state.snap;
-  auto *snap = &trace->snaps[exit];
+  auto snap = &trace->snaps[exit];
   *argcnt = snap->argcnt;
 
   /* bcfunc* func = find_func_for_frame(snap->pc); */
@@ -1596,7 +1596,7 @@ int jit_run(trace_s *trace, unsigned int **o_pc, long **o_frame, long *argcnt) {
           // printf("HOT SNAP to JLOOP\n");
           patchpc = *o_pc;
           patchold = **o_pc;
-          auto *otrace = trace_cache_get(INS_D(**o_pc));
+          auto otrace = trace_cache_get(INS_D(**o_pc));
           **o_pc = otrace->startpc;
         }
         record_side(trace, snap);
@@ -1608,7 +1608,7 @@ int jit_run(trace_s *trace, unsigned int **o_pc, long **o_frame, long *argcnt) {
     // and it's originaly a RET, i.e. we predicted the RET wrong.
     if (INS_OP(**o_pc) == JLOOP) {
       // TODO make work for both RET1 and JLOOP
-      auto *otrace = trace_cache_get(INS_D(**o_pc));
+      auto otrace = trace_cache_get(INS_D(**o_pc));
       if (INS_OP(otrace->startpc) == LOOP) {
         (*o_pc)++;
       } else {

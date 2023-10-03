@@ -14,7 +14,7 @@
 
 /* FNV-1a */
 uint64_t str_hash(const char *str) {
-  const auto *p = str;
+  const char *p = str;
   uint64_t hash = 0xcbf29ce484222325;
 
   while (*p++ != 0) {
@@ -90,7 +90,7 @@ void symbol_table_insert(symbol *sym) {
 }
 
 static void rehash() {
-  auto *old = sym_table;
+  auto old = sym_table;
   auto new_sz = old->sz * 2;
   if (new_sz == 0) {
     new_sz = 2;

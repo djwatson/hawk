@@ -38,9 +38,6 @@ generated, except for very small heaps (<50mb).
   Currently, 256kB 'blocks' and 64MB collect frequency seems to be best.
  */
 
-#define auto __auto_type
-#define unlikely(x) __builtin_expect(!!(x), 0)
-
 extern bool verbose;
 
 extern long *stack;
@@ -168,7 +165,7 @@ void GC_pop_root(const long *root) {
 void GC_enable(bool en) { gc_enable = en; }
 
 static bool is_forwarded(long obj) {
-  auto *ptr = (long *)obj;
+  auto ptr = (long *)obj;
   return ((ptr[0]) & TAG_MASK) == FORWARD_TAG;
 }
 
@@ -179,7 +176,7 @@ static void set_forward(long *ptr, void *to) {
 
 static long get_forward(long obj) {
   assert(is_forwarded(obj));
-  auto *ptr = (long *)obj;
+  auto ptr = (long *)obj;
   // printf("Obj %p forwarded to %lx\n", ptr, (*ptr) - FORWARD_TAG);
   return (ptr[0]) - FORWARD_TAG;
 }
@@ -217,7 +214,7 @@ void *copy(long *obj) {
     assert(copy_alloc_ptr + sz < copy_alloc_end);
     cur_copy_block->cnt++;
   }
-  auto *res = copy_alloc_ptr;
+  auto res = copy_alloc_ptr;
   gc_dalloc += sz;
   copy_alloc_ptr += sz;
   cur_copy_block->cnt++;
@@ -295,7 +292,7 @@ static void sweep_large_allocs() {
   }
   hmfree(large_allocs);
 }
-__attribute__((noinline)) static void sweep_free_blocks() {
+NOINLINE static void sweep_free_blocks() {
   gc_alloc = 0;
   arrsetlen(free_gc_blocks, 0);
   for (uint64_t i = 0; i < arrlen(gc_blocks); i++) {
@@ -373,7 +370,7 @@ static void visit_trace(trace_s *t, void (*add_root)(long *root)) {
         break;
       }
       case RELOC_SYM_ABS: {
-        auto *sym = (symbol *)(reloc->obj - SYMBOL_TAG);
+        auto sym = (symbol *)(reloc->obj - SYMBOL_TAG);
         int64_t v = (int64_t)&sym->val;
         memcpy((int64_t *)(reloc->offset - 8), &v, sizeof(int64_t));
         break;
@@ -427,7 +424,7 @@ static void trace_roots(void (*add_root)(long *root)) {
   for (size_t i = 0; i < sym_table->sz; i++) {
     auto cur = &sym_table->entries[i];
     if (*cur != 0 && *cur != TOMBSTONE) {
-      auto *tmp = (long *)&sym_table->entries[i];
+      auto tmp = (long *)&sym_table->entries[i];
       add_root(tmp);
     }
   }
@@ -435,7 +432,7 @@ static void trace_roots(void (*add_root)(long *root)) {
 // Scan traces
 #ifdef JIT
   for (uint64_t i = 0; i < arrlen(traces); i++) {
-    auto *t = traces[i];
+    auto t = traces[i];
     // printf("Visit trace %i\n", cnt++);
     visit_trace(t, add_root);
   }
@@ -543,7 +540,7 @@ void add_increment2(long *root) {
 #ifdef PROFILER
 bool in_gc = false;
 #endif
-__attribute__((noinline)) void GC_collect() {
+NOINLINE void GC_collect() {
 #ifdef PROFILER
   in_gc = true;
 #endif
@@ -613,7 +610,7 @@ __attribute__((noinline)) void GC_collect() {
 #endif
 }
 
-__attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
+NOINLINE void *GC_malloc_slow(size_t sz) {
   if (align(sz) >= (ALLOC_SZ - sizeof(gc_block))) {
     if (gc_large > COLLECT_SIZE) {
       GC_collect();
@@ -635,21 +632,21 @@ __attribute__((noinline)) void *GC_malloc_slow(size_t sz) {
   return GC_malloc(sz);
 }
 
-__attribute__((always_inline)) void *GC_malloc_no_collect(size_t sz) {
+INLINE void *GC_malloc_no_collect(size_t sz) {
   sz = (sz + 7) & (~TAG_MASK);
   assert((sz & TAG_MASK) == 0);
-  auto *res = alloc_ptr;
+  auto res = alloc_ptr;
   alloc_ptr += sz;
   if (alloc_ptr < alloc_end) {
     return res;
   }
   return NULL;
 }
-__attribute__((always_inline)) void *GC_malloc(size_t sz) {
+INLINE void *GC_malloc(size_t sz) {
   assert(alloc_ptr >= alloc_start);
   sz = (sz + 7) & (~TAG_MASK);
   assert((sz & TAG_MASK) == 0);
-  auto *res = alloc_ptr;
+  auto res = alloc_ptr;
   alloc_ptr += sz;
   if (alloc_ptr < alloc_end) {
     return res;
@@ -700,7 +697,7 @@ static void maybe_log(long *v_p, void *c) {
   arrput(log_buf, ((log_item){(uint64_t)v_p - addr, v}));
 }
 
-__attribute__((noinline)) void GC_log_obj_slow(void *obj) {
+NOINLINE void GC_log_obj_slow(void *obj) {
   uint32_t *rc_ptr = (uint32_t *)obj;
   rc_ptr[1] |= LOGGED_MARK;
   uint64_t addr = (uint64_t)obj;
@@ -709,10 +706,10 @@ __attribute__((noinline)) void GC_log_obj_slow(void *obj) {
   trace_heap_object(obj, maybe_log, (void *)addr);
 }
 
-void __attribute__((always_inline)) GC_log_obj(void *ptr) {
+INLINE void GC_log_obj(void *ptr) {
   uint32_t rc = ((uint32_t *)ptr)[1];
   if (unlikely((rc != 0) && (!(rc & LOGGED_MARK)))) {
-    __attribute((musttail)) return GC_log_obj_slow(ptr);
+    MUSTTAIL return GC_log_obj_slow(ptr);
   }
   assert(((uint32_t *)ptr)[1] != LOGGED_MARK);
 }

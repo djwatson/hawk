@@ -153,13 +153,13 @@ void dump_trace(trace_s *ctrace) {
       break;
     }
     case IR_GGET: {
-      auto *s = (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
+      auto s = (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       string_s *sym_name = (string_s *)(s->name - PTR_TAG);
       printf("%s", sym_name->str);
       break;
     }
     case IR_GSET: {
-      auto *s = (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
+      auto s = (symbol *)(ctrace->consts[op.op1 - IR_CONST_BIAS] - SYMBOL_TAG);
       string_s *sym_name = (string_s *)(s->name - PTR_TAG);
       printf("%s ", sym_name->str);
       print_const_or_val(op.op2, ctrace);

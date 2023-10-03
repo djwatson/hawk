@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include "defs.h"
 
 // GC hack:
 
@@ -106,7 +107,6 @@ long from_c_str(const char *s);
 long equalp(long a, long b);
 
 // GC interface:
-__attribute((always_inline)) size_t heap_object_size(long *obj);
+INLINE size_t heap_object_size(long *obj);
 typedef void (*trace_callback)(long *field, void *ctx);
-__attribute((always_inline)) void
-trace_heap_object(long *obj, trace_callback visit, void *ctx);
+INLINE void trace_heap_object(long *obj, trace_callback visit, void *ctx);

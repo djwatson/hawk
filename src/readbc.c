@@ -41,7 +41,7 @@ long read_const(FILE *fptr) {
       long len;
       fread(&len, 8, 1, fptr);
       // TODO GC symbol table
-      auto *str = (string_s *)GC_malloc(16 + 1 + len);
+      auto str = (string_s *)GC_malloc(16 + 1 + len);
       str->type = STRING_TAG;
       str->len = len << 3;
       str->str[len] = '\0';
@@ -49,12 +49,12 @@ long read_const(FILE *fptr) {
       fread(str->str, 1, len, fptr);
 
       // Try to see if it already exists
-      auto *res = symbol_table_find(str);
+      auto res = symbol_table_find(str);
       if (res == nullptr) {
         long str_save = (long)str + PTR_TAG;
         GC_push_root(&str_save);
         // TODO GC symbol table
-        auto *sym = (symbol *)GC_malloc(sizeof(symbol));
+        auto sym = (symbol *)GC_malloc(sizeof(symbol));
 
         GC_pop_root(&str_save);
         str = (string_s *)(str_save - PTR_TAG);
@@ -76,7 +76,7 @@ long read_const(FILE *fptr) {
     }
   } else if (type == LITERAL_TAG || type == FIXNUM_TAG) {
   } else if (type == FLONUM_TAG) {
-    auto *f = (flonum_s *)GC_malloc(sizeof(flonum_s));
+    auto f = (flonum_s *)GC_malloc(sizeof(flonum_s));
     assert(!((long)f & TAG_MASK));
     fread(&f->x, 8, 1, fptr);
     f->type = FLONUM_TAG;
@@ -88,7 +88,7 @@ long read_const(FILE *fptr) {
     auto cb = read_const(fptr);
     GC_push_root(&cb);
 
-    auto *c = (cons_s *)GC_malloc(sizeof(cons_s));
+    auto c = (cons_s *)GC_malloc(sizeof(cons_s));
     c->type = CONS_TAG;
     c->a = ca;
     c->rc = 0;
@@ -103,7 +103,7 @@ long read_const(FILE *fptr) {
     if (ptrtype == STRING_TAG) {
       long len;
       fread(&len, 8, 1, fptr);
-      auto *str = (string_s *)GC_malloc(16 + len + 1);
+      auto str = (string_s *)GC_malloc(16 + len + 1);
       str->type = ptrtype;
       str->len = len << 3;
       str->rc = 0;
@@ -121,7 +121,7 @@ long read_const(FILE *fptr) {
         GC_push_root(&vals[i]);
       }
 
-      auto *v = (vector_s *)GC_malloc(16 + len * sizeof(long));
+      auto v = (vector_s *)GC_malloc(16 + len * sizeof(long));
       v->type = ptrtype;
       v->len = len << 3;
       v->rc = 0;
@@ -207,7 +207,7 @@ bcfunc *readbc(FILE *fptr) {
     unsigned int code_count;
     fread(&code_count, 4, 1, fptr);
 
-    auto *f =
+    auto f =
         (bcfunc *)malloc(sizeof(bcfunc) + sizeof(unsigned int) * code_count);
     if (start_func == nullptr) {
       start_func = f;
@@ -274,7 +274,7 @@ extern unsigned int bootstrap_scm_bc_len;
 
 EXPORT void load_bootstrap() {
   if (bootstrap_scm_bc_len > 0) {
-    auto *start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
+    auto start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
     // printf("Running boot image...\n");
     run(start_func, 0, nullptr);
   }
