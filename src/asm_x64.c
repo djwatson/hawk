@@ -1386,16 +1386,16 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case IR_RET: {
       // TODO reloc if functions can move.
       // FIXNUM
-      auto retadd = (int64_t)(trace->consts[op->op1 - IR_CONST_BIAS]);
       // Constant return address ptr.
       auto b = (int32_t)trace->consts[op->op2 - IR_CONST_BIAS];
 
       emit_arith_imm(OP_ARITH_SUB, RDI, b);
-      emit_jcc32(JNE, snap_labels[cur_snap]);
-
-      emit_mem_reg(OP_CMP, -8, RDI, R15);
-
-      emit_mov64(R15, retadd);
+      if (op->type & IR_INS_TYPE_GUARD) {
+	auto retadd = (int64_t)(trace->consts[op->op1 - IR_CONST_BIAS]);
+	emit_jcc32(JNE, snap_labels[cur_snap]);
+	emit_mem_reg(OP_CMP, -8, RDI, R15);
+	emit_mov64(R15, retadd);
+      }
 
       break;
     }

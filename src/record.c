@@ -348,7 +348,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   arrput(traces, trace);
 
-  //    dump_trace(trace);
+  //dump_trace(trace);
   asm_jit(trace, side_exit, parent);
   if (verbose) {
     dump_trace(trace);
@@ -831,6 +831,22 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto c = record_stack_load(INS_B(i), frame);
     auto result = record_stack_load(INS_C(i), frame);
 
+    // Check that we're going to the same return point,
+    // almost like RET1.
+    {
+      auto cont = (vector_s*)(frame[INS_B(i)] - PTR_TAG);
+      auto resume_pc = cont->v[(cont->len >> 3) - 1];
+      auto len_ref = push_ir(trace, IR_REF, c, 8 - PTR_TAG, UNDEFINED_TAG);
+      auto len = push_ir(trace, IR_LOAD, len_ref, 0, FIXNUM_TAG);
+      auto knum = arrlen(trace->consts);
+      arrput(trace->consts, 1 << 3);
+      auto idx = push_ir(trace, IR_SUB, len, knum | IR_CONST_BIAS, FIXNUM_TAG);
+      auto vref = push_ir(trace, IR_VREF, c, idx, 0);
+      auto dest = push_ir(trace, IR_LOAD, vref, 0, UNDEFINED_TAG);
+      knum = arrlen(trace->consts);
+      arrput(trace->consts, resume_pc);
+      push_ir(trace, IR_EQ, dest, knum | IR_CONST_BIAS, UNDEFINED_TAG);
+    }
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)vm_cc_resume);
     push_ir(trace, IR_CCRES, c, knum | IR_CONST_BIAS, UNDEFINED_TAG);
@@ -841,10 +857,10 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     //       being used as a non-local return, and it's still
     //       on the stack.
 
-    // Guard we are going to the right place, almost the same as RET.
     closure_s *cont = (closure_s *)(frame[INS_B(i)] - PTR_TAG);
     auto old_pc = (unsigned int *)cont->v[(cont->len >> 3) - 1];
     auto frame_off = INS_A(*(old_pc - 1));
+    stack_top = frame_off + 1;
 
     // TODO maybe also check for downrec?  Same as RET
     depth = 0;
@@ -857,8 +873,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     arrput(trace->consts, (long)old_pc);
     auto knum2 = arrlen(trace->consts);
     arrput(trace->consts, (frame_off + 1) << 3);
-    push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS,
-            IR_INS_TYPE_GUARD | 0x5);
+    // We have to guard the return point *before* the CCRES call, so we don't
+    // need to do it here also.
+    push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS, CLOSURE_TAG);
 
     /* add_snap(regs_list, (int)(regs - regs_list - 1), trace, */
     /* 	     (uint32_t *)old_pc, depth, -1); */
@@ -1015,6 +1032,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       auto clo = (closure_s*)(frame[INS_A(i) + 1] - CLOSURE_TAG);
       auto call_pc = &((bcfunc*)clo->v[0])->code[0];
       auto v = hmget(tailcalled, call_pc);
+      printf("CALLT for %p now %i\n", call_pc, v + 1);
       hmput(tailcalled, call_pc, v + 1);
     }
     // Check call type
