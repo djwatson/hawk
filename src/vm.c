@@ -24,7 +24,6 @@
 #include "ir.h"
 #include "symbol_table.h"
 #include "types.h"
-#include "attributes.h"
 
 #include "third-party/stb_ds.h"
 
