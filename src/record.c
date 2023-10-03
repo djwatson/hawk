@@ -1032,7 +1032,6 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       auto clo = (closure_s*)(frame[INS_A(i) + 1] - CLOSURE_TAG);
       auto call_pc = &((bcfunc*)clo->v[0])->code[0];
       auto v = hmget(tailcalled, call_pc);
-      printf("CALLT for %p now %i\n", call_pc, v + 1);
       hmput(tailcalled, call_pc, v + 1);
     }
     // Check call type

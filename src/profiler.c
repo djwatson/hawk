@@ -10,9 +10,6 @@
 #include <sys/mman.h> // for mmap, MAP_ANONYMOUS, MAP_P...
 #include <time.h>     // for timer_settime, timespec
 
-#define auto __auto_type
-#define nullptr NULL
-
 static timer_t timerid;
 static struct itimerspec its;
 static long cnt = 0;
@@ -62,9 +59,9 @@ void profile_add_frame(void *ptr) {
     } else {
       profile_stack_max *= 2;
     }
-    auto *n = (long *)malloc(sizeof(long) * profile_stack_max);
+    auto n = (long *)malloc(sizeof(long) * profile_stack_max);
     memcpy(n, profile_stack, profile_stack_sz * sizeof(long));
-    auto *old = profile_stack;
+    auto old = profile_stack;
     profile_stack = n; // release
     free(old);
     printf("Expanded profile stack to %li\n", profile_stack_max);
@@ -86,7 +83,7 @@ extern bool in_jit;
 extern bool in_gc;
 static void handler(int sig, siginfo_t *si, void *uc) {
   cnt++;
-  auto *s = (sample *)signal_safe_malloc(sizeof(sample));
+  auto s = (sample *)signal_safe_malloc(sizeof(sample));
   s->next = samples;
   s->stack_sz = 9 < profile_stack_sz ? 9 : profile_stack_sz;
   memcpy(&s->stack[0], &profile_stack[profile_stack_sz - s->stack_sz],
@@ -155,7 +152,7 @@ EXPORT void profiler_start() {
 /*   }; */
 /*   std::sort(nodes.begin(), nodes.end(), sorter); */
 /*   for (auto &item : nodes) { */
-/*     auto *func = find_func_for_frame((uint32_t *)item.first); */
+/*     auto func = find_func_for_frame((uint32_t *)item.first); */
 /*     if (func != nullptr) { */
 /*       printf("%*c %.2f%% %s %s %li\n", indent, ' ', */
 /*              (double)item.second->cnt / cnt * 100.0, func->name.c_str(), */
@@ -177,7 +174,7 @@ EXPORT void profiler_stop() {
   uint64_t on_gc = 0;
 
   printf("Timer called %li times\n", cnt);
-  auto *s = samples;
+  auto s = samples;
   while (s != nullptr) {
     /*     tree *cur_tree = &tree_root; */
     /*     for (int i = s->stack_sz - 1; i >= 0; i--) { */
