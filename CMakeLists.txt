@@ -1,5 +1,14 @@
 cmake_minimum_required(VERSION 3.14)
 
+if(NOT CMAKE_C_COMPILER)
+  if (NOT DEFINED ENV{CC})
+    find_program(CLANG_CC clang)
+    if (CLANG_CC) 
+      set(CMAKE_C_COMPILER "clang")
+    endif()
+  endif()
+endif()
+
 include(CheckIPOSupported)
 check_ipo_supported(RESULT supported OUTPUT error)
 
@@ -35,18 +44,15 @@ set(CMAKE_C_FLAGS_LSAN
 
 project(bool VERSION 0.1)
 
+
 enable_language(C)
 set(CMAKE_C_STANDARD 17)
 
 enable_language(ASM)
 
 # Clang is required, due to use of musttail.
-if(NOT CMAKE_C_COMPILER)
-  set(CMAKE_C_COMPILER "clang")
-endif()
-get_filename_component(COMP_BASENAME ${CMAKE_C_COMPILER} NAME)
-if (NOT ${COMP_BASENAME} STREQUAL "clang")
-  message("WARNING: [[musttail]] attribute only supported on clang.  VM might cause stack overflows!")
+if (NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")
+  message("WARNING: [[musttail]] attribute only supported on clang.  VM might cause stack overflows! ${CMAKE_C_COMPILER_ID}")
 endif()  
 
 include(CheckIncludeFiles)
