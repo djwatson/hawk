@@ -15,8 +15,11 @@ https://djwatson.github.io/hawk
 
 ## BUILDING
 
-Hawk has no dependencies other than a recent (> 13) clang.  It has an
-optional dependency on libcapstone, and elf headers for debugging.
+Hawk has no dependencies other than a recent (> 13) clang.  GCC
+(tested 11.4.0) is known to correctly compile all tail calls in
+Release mode, but not in Debug mode.
+
+It has an optional dependency on libcapstone, and elf headers for debugging.
 Currently chezscheme or chicken is used for bootstrapping, but is not
 used after install.
 
