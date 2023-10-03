@@ -161,7 +161,7 @@ void RECORD(PARAMS) {
                                           argcnt);
 }
 
-long build_list(long start, long len, const long *frame) {
+static long build_list(long start, long len, const long *frame) {
   long lst = NIL_TAG;
   // printf("Build list from %i len %i\n", start, len);
   for (long pos = start + len - 1; pos >= start; pos--) {
@@ -840,74 +840,85 @@ bool in_jit = false;
 LIBRARY_FUNC_D(JFUNC)
   // auto tnum = instr;
   //  printf("JFUNC/JLOOP run %i\n", rd);
-//  printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
+  //  printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
 #if defined(JIT)
-auto trace = trace_cache_get(rd);
-if (INS_OP(trace->startpc) == CLFUNC ||
-    INS_OP(trace->startpc) == ICLFUNC) {
-  if (argcnt != INS_A(trace->startpc)) {
-    pc += INS_D(*(pc + 1)) + 1;
-    goto out;
-  }
- }
-if (INS_OP(trace->startpc) == CLFUNCV ||
-    INS_OP(trace->startpc) == ICLFUNCV) {
-  if (argcnt < INS_A(trace->startpc)) {
-    pc += INS_D(*(pc + 1)) + 1;
-    goto out;
-  }
- }
-// Check for argument type match
-bool match = false;
-while(trace) {
-  match=true;
-  for(uint64_t i = 0; i < arrlen(trace->ops); i++) {
-    auto op = &trace->ops[i];
-    if (op->op != IR_ARG) {
-      break;
+  auto trace = trace_cache_get(rd);
+  if (INS_OP(trace->startpc) == CLFUNC ||
+      INS_OP(trace->startpc) == ICLFUNC) {
+    if (argcnt != INS_A(trace->startpc)) {
+      pc += INS_D(*(pc + 1)) + 1;
+      goto out;
     }
-    uint8_t typ = get_object_ir_type(frame[op->op1]);
-    if ((typ &~IR_INS_TYPE_GUARD) != (op->type&~IR_INS_TYPE_GUARD)) {
-      /* printf("check argument match fail trace %i arg %li\n", trace->num, i); */
-      /* printf("%x vs %x\n", typ&~IR_INS_TYPE_GUARD, (op->type&~IR_INS_TYPE_GUARD)); */
-      //      exit(-1);
-      match = false;
-      break;
+  }
+  if (INS_OP(trace->startpc) == CLFUNCV ||
+      INS_OP(trace->startpc) == ICLFUNCV) {
+    if (argcnt < INS_A(trace->startpc)) {
+      pc += INS_D(*(pc + 1)) + 1;
+      goto out;
     }
+  }
+  // Check for argument type match
+  bool match = false;
+  while(trace) {
+    match=true;
+    for(uint64_t i = 0; i < arrlen(trace->ops); i++) {
+      auto op = &trace->ops[i];
+      if (op->op != IR_ARG) {
+	break;
+      }
+      uint8_t typ = get_object_ir_type(frame[op->op1]);
+      if ((typ &~IR_INS_TYPE_GUARD) != (op->type&~IR_INS_TYPE_GUARD)) {
+	/* printf("check argument match fail trace %i arg %li\n", trace->num, i); */
+	/* printf("%x vs %x\n", typ&~IR_INS_TYPE_GUARD, (op->type&~IR_INS_TYPE_GUARD)); */
+	//      exit(-1);
+	match = false;
+	break;
+      }
 
+    }
+    if (match) break;
+    trace = trace->next;
   }
-  if (match) break;
-  trace = trace->next;
- }
-if(!match) {
-  instr = trace_cache_get(rd)->startpc;
-  unsigned char op = instr & 0xff;
-  ra = (instr >> 8) & 0xff;
-  instr >>= 16;
-  op_func *op_table_arg_c = (op_func *)op_table_arg;
-  MUSTTAIL return op_table_arg_c[op](ARGS);
- }
-assert(trace);
-// Build vararg list if required
-if (INS_OP(trace->startpc) == FUNCV) {
+  if(!match) {
+    instr = trace_cache_get(rd)->startpc;
+    unsigned char op = instr & 0xff;
+    ra = (instr >> 8) & 0xff;
+    instr >>= 16;
+    op_func *op_table_arg_c = (op_func *)op_table_arg;
+    MUSTTAIL return op_table_arg_c[op](ARGS);
+  }
+  assert(trace);
+  // Build vararg list if required
+  if (INS_OP(trace->startpc) == FUNCV) {
     stack_top = &frame[ra + argcnt];
     frame[ra] = build_list(ra, argcnt - ra, frame);
-}
-if (INS_OP(trace->startpc) == CLFUNCV) {
+  }
+  if (INS_OP(trace->startpc) == CLFUNCV) {
     stack_top = &frame[ra + argcnt];
     frame[ra] = build_list(ra, argcnt - ra, frame);
-}
+  }
 #ifdef PROFILER
-in_jit = true;
+  in_jit = true;
 #endif
-afl_trace(pc);
-auto res = jit_run(trace, &pc, &frame, &argcnt);
-afl_trace(pc);
+  int res;
+  afl_trace(pc);
+  {
+    // Convince GCC that jit_run won't save the address of any of its
+    // arguments, so GCC will correctly make NEXT_INSTR a tailcall.
+    auto pc2 = pc;
+    auto frame2 = frame;
+    auto argcnt2 = argcnt;
+    res = jit_run(trace, &pc2, &frame2, &argcnt2);
+    pc = pc2;
+    frame = frame2;
+    argcnt = argcnt2;
+  }
+  afl_trace(pc);
 #ifdef PROFILER
-in_jit = false;
+  in_jit = false;
 #endif
 #else
-auto res = 0;
+  auto res = 0;
 #endif
 
   frame_top = stack + stacksz - 256;
@@ -916,7 +927,7 @@ auto res = 0;
     // Turn on recording again
     op_table_arg = (void **)l_op_table_record;
   }
-out:
+ out:
   NEXT_INSTR;
 }
 
