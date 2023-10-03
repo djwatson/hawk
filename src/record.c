@@ -761,7 +761,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // A pile of heuristics, to try and catch traces that are loops, but don't use
     // the loop construct.
     if (pc == pc_start && parent == NULL) {
-      if ((hmget(tailcalled, pc)) > UNROLL_LIMIT && depth == 0) {
+      if ((hmget(tailcalled, pc)) >= UNROLL_LIMIT && depth == 0) {
 	auto link_trace = check_argument_match(frame, trace);
 	if (link_trace) {
 	  if (verbose)

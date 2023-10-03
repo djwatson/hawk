@@ -1,27 +1,19 @@
- back to lazy typechecks
-
 # Getting all jit to work bench2
 * fusion - cleanup
   *vec, all
 * fix letrec closures
 
 * loosing at: 
-  * closure analysis: nqueens.  alloc ptr
   * input/output buffering: wc, cat, dynamic
   * read: dynamic read1 sum1
   * call/cc: ctak, fibc
-  * string ops: string, slatex, compiler, parsing
-  * cpstak: various asm improvements, typecheck
-  * deriv: GC checks could be merged, leas, typechecks for store, also clearing of snapshots
+  * string ops: string
   * lattice: mostly catching the inner nested loop (lex-fixed) as a loop, and not allocating a closure for it.
     Need to inline called-once functions??
-  * dynamic: GC, read is super slow, read by char
-  * parsing: unbox, closure-get need sccp
+  * dynamic: read is super slow, read by char
   * graphs: LOOP_opt, sccp, GC
   * ?? peval - sccp
-  * ?? matrix - loop_opt, but also tracing??
-  * ?? compiler - falling out of trace.  looping issue
-  * puzzle - optimistic globals?
+  * puzzle - optimistic globals / loop_opt
 
 # TODO
 
