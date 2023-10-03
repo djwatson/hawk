@@ -676,45 +676,15 @@ void asm_jit_args(trace_s *trace, trace_s *dest_trace) {
 }
 
 static uint64_t log_offset;
+extern void jit_gc_log(void);
 static void emit_init_funcs() {
   static bool done = false;
   if (!done) {
+    emit_check();
     done = true;
-    // auto start = emit_offset();
-    emit_ret();
-    for (uint8_t i = 0; i < regcnt; i++) {
-      if (!reg_callee[i]) {
-        emit_pop(i);
-      }
-    }
-    emit_call_indirect(R15);
-    emit_mov64(R15, (int64_t)&GC_log_obj_slow);
-    emit_reg_reg(OP_MOV, R15, RDI);
-    for (int16_t i = regcnt; i > 0; i--) {
-      if (!reg_callee[i - 1]) {
-        emit_push(i - 1);
-      }
-    }
-    log_offset = emit_offset();
-    /*
-    auto len = start - log_offset;
-    if (verbose) {
-      disassemble((const uint8_t *)log_offset, len);
-    }
-
-    uint64_t fn = log_offset;
-    char* dumpname = "jit_gc_log";
-#ifdef JITDUMP
-    perf_map((uint64_t)fn, len, dumpname);
-    if (jit_dump_flag) {
-      jit_dump(len, (uint64_t)fn, dumpname);
-    }
-    jit_reader_add(len, (uint64_t)fn, 0, 0, dumpname);
-#endif
-#ifdef VALGRIND
-    VALGRIND_DISCARD_TRANSLATIONS(fn, len);
-#endif
-    */
+    emit_advance(8);
+    log_offset = (uint64_t)emit_offset();
+    ((uint64_t*)emit_offset())[0] = (uint64_t)&jit_gc_log;
   }
 }
 
@@ -1154,7 +1124,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case IR_GCLOG: {
       uint8_t reg = R15;
       auto ok = emit_offset();
-      emit_call32(log_offset - emit_offset());
+      emit_call_indirect_mem(log_offset - emit_offset());
       emit_jcc32(JLE, ok);
       emit_imm32(0x0);
       // remove rex.W

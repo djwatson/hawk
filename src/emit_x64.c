@@ -72,6 +72,13 @@ void emit_call_indirect(uint8_t r) {
   emit_rex(1, 0, 0, r >> 3);
 }
 
+void emit_call_indirect_mem(int32_t offset) {
+  emit_imm32(offset);
+  emit_modrm(0x00, 2, RBP);
+  *(--p) = 0xff;
+  emit_rex(1, 0, 0, 0);
+}
+
 void emit_call32(int32_t offset) {
   emit_imm32(offset);
   *(--p) = 0xe8;

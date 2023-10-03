@@ -69,4 +69,31 @@ jit_exit_stub:
 	pop rbx
 	ret
 
+# R15 contains the object pointer.
+# Save all caller-saved registers, then jmp.
+	.globl GC_log_obj_slow
+	.globl jit_gc_log	
+jit_gc_log:
+	push r11
+	push r10
+	push r9
+	push r8
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rax
 
+	mov rdi, r15
+	call GC_log_obj_slow
+
+	pop rax
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+	pop r8
+	pop r9
+	pop r10
+	pop r11
+	ret
