@@ -752,25 +752,27 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       }
     }
 
+    // A pile of heuristics, to try and catch traces that are loops, but don't use
+    // the loop construct.
     if (pc == pc_start && parent == NULL) {
-      if ((cnt + tailcalled) >= UNROLL_LIMIT) {
-        if (depth == 0) {
-          auto link_trace = check_argument_match(frame, trace);
-          if (link_trace) {
-            if (verbose)
-              printf("Record stop loop\n");
-            record_stop(pc, frame, link_trace->num);
-            return 1;
-          }
-        } else {
-          auto link_trace = check_argument_match(frame, trace);
-          if (link_trace) {
-            if (verbose)
-              printf("Record stop up-recursion\n");
-            record_stop(pc, frame, link_trace->num);
-            return 1;
-          }
-        }
+      if ((cnt + tailcalled) >= UNROLL_LIMIT && depth == 0) {
+	auto link_trace = check_argument_match(frame, trace);
+	if (link_trace) {
+	  if (verbose)
+	    printf("Record stop loop\n");
+	  record_stop(pc, frame, link_trace->num);
+	  return 1;
+	}
+      } else if (cnt >= UNROLL_LIMIT && depth != 0) {
+	// Don't test on 'tailcalled' here, since up-recursion
+	// can't be a tailcall.
+	auto link_trace = check_argument_match(frame, trace);
+	if (link_trace) {
+	  if (verbose)
+	    printf("Record stop up-recursion\n");
+	  record_stop(pc, frame, link_trace->num);
+	  return 1;
+	}
       }
     } else {
       if (cnt > UNROLL_ABORT_LIMIT) {
@@ -927,7 +929,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
           }
         } else {
           if (verbose)
-            printf("Record stop return\n");
+            printf("Record abort: return\n");
           // record_stack_load(INS_A(i), frame);
           // record_stop(pc, frame, -1);
           record_abort();
