@@ -188,7 +188,7 @@ void trace_flush(trace_s *ctrace, bool all) {
       symbol *sym = (symbol *)(ctrace->consts[csym] - SYMBOL_TAG);
       // printf("Flushing from sym %s trace %i\n",
       // ((string_s*)(sym->name-PTR_TAG))->str, ctrace->num);
-      hmdel(sym->lst, ctrace->num);
+      (void)hmdel(sym->lst, ctrace->num);
     }
     arrfree(ctrace->syms);
     if (ctrace->parent) {
@@ -363,7 +363,7 @@ void record_abort() {
     symbol *sym = (symbol *)(trace->consts[csym] - SYMBOL_TAG);
     // printf("aborting from sym %s trace %i\n",
     // ((string_s*)(sym->name-PTR_TAG))->str, trace->num);
-    hmdel(sym->lst, trace->num);
+    (void)hmdel(sym->lst, trace->num);
   }
   arrfree(trace->syms);
   // TODO separate func
@@ -722,6 +722,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
                  stack_top);
       }
     }
+    __attribute__ ((fallthrough));
   }
   case ICLFUNC:
   case CLFUNC: {
@@ -729,7 +730,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         (argcnt != INS_A(*pc))) {
       break;
     }
-    // fallthrough
+    __attribute__ ((fallthrough));
   }
   case IFUNC:
   case FUNC: {

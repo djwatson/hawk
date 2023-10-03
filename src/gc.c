@@ -155,7 +155,7 @@ void GC_push_root(long *root) { arrput(pushed_roots, root); }
 void GC_pop_root(const long *root) {
   assert(arrlen(pushed_roots) != 0);
 #ifdef NDEBUG
-  arrpop(pushed_roots);
+  (void)arrpop(pushed_roots);
 #else
   auto b = arrpop(pushed_roots);
   assert(b == root);
@@ -353,30 +353,30 @@ static void visit_trace(trace_s *t, void (*add_root)(long *root)) {
     }
   }
   for (uint64_t i = 0; i < arrlen(t->relocs); i++) {
-    auto reloc = &t->relocs[i];
-    auto old = reloc->obj;
-    add_root(&reloc->obj);
-    if (reloc->obj != old) {
-      switch (reloc->type) {
+    auto cur_reloc = &t->relocs[i];
+    auto old = cur_reloc->obj;
+    add_root(&cur_reloc->obj);
+    if (cur_reloc->obj != old) {
+      switch (cur_reloc->type) {
       case RELOC_ABS: {
-        int64_t v = reloc->obj;
-        memcpy((int64_t *)(reloc->offset - 8), &v, sizeof(int64_t));
+        int64_t v = cur_reloc->obj;
+        memcpy((int64_t *)(cur_reloc->offset - 8), &v, sizeof(int64_t));
         break;
       }
       case RELOC_ABS_NO_TAG: {
-        int64_t v = reloc->obj;
+        int64_t v = cur_reloc->obj;
         v &= ~TAG_MASK;
-        memcpy((int64_t *)(reloc->offset - 8), &v, sizeof(int64_t));
+        memcpy((int64_t *)(cur_reloc->offset - 8), &v, sizeof(int64_t));
         break;
       }
       case RELOC_SYM_ABS: {
-        auto sym = (symbol *)(reloc->obj - SYMBOL_TAG);
+        auto sym = (symbol *)(cur_reloc->obj - SYMBOL_TAG);
         int64_t v = (int64_t)&sym->val;
-        memcpy((int64_t *)(reloc->offset - 8), &v, sizeof(int64_t));
+        memcpy((int64_t *)(cur_reloc->offset - 8), &v, sizeof(int64_t));
         break;
       }
       default: {
-        printf("Unknown reloc: %i\n", reloc->type);
+        printf("Unknown reloc: %i\n", cur_reloc->type);
         assert(false);
       }
       }
@@ -504,7 +504,7 @@ static int64_t trace2(long **lst, bool incr) {
         gc_block *block = (gc_block *)(item & ~ALLOC_SZ_MASK);
         if ((long)block == ptr) {
           // printf("Free %p\n", ptr);
-          hmdel(large_allocs, block);
+          (void)hmdel(large_allocs, block);
           free(block);
           // unlink
         } else {

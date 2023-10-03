@@ -1179,7 +1179,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case IR_CCRES: {
       assert(op->reg == REG_NONE);
       op->reg = RDI;
-      // Fallthrough
+      __attribute__ ((fallthrough));
     }
     case IR_CALLXS: {
       // Used for typecheck only

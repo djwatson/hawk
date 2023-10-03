@@ -71,9 +71,20 @@ void jit_dump(int len, uint64_t fn, const char *name) {
   record.code_size = len;
   record.code_index = jit_cnt;
 
-  write(fd, &record, sizeof(record));
-  write(fd, funcname, strlen(funcname) + 1);
-  write(fd, (void *)fn, len);
+  if (write(fd, &record, sizeof(record)) != sizeof(record)) {
+    goto error;
+  }
+  if (write(fd, funcname, strlen(funcname) + 1) != strlen(funcname) + 1) {
+    goto error;
+  }
+  if (write(fd, (void *)fn, len) != len) {
+    goto error;
+  }
+  
+  return;
+ error:
+  printf("Jitdump: Could not write\n");
+  exit(-1);
 }
 
 struct {
@@ -107,7 +118,10 @@ EXPORT void jit_dump_init() {
   header.pad1 = 0;
   header.pid = getpid();
   header.flags = 0;
-  write(fd, &header, sizeof(header));
+  if (write(fd, &header, sizeof(header)) != sizeof(header)) {
+    printf("Could not init jit dump\n");
+    exit(-1);
+  }
   fsync(fd);
 
   mapaddr =

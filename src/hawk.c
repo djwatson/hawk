@@ -108,7 +108,10 @@ void generate_exe(char *filename, const char *bc_name) {
       "clang -flto -o %s $LDFLAGS -L. -lhawk_exe -lhawk_vm %s -lcapstone -lm",
       filename, tmp);
   printf("Running: %s\n", tmp2);
-  system(tmp2);
+  if (system(tmp2)) {
+    printf("Compile file error\n");
+    exit(-1);
+  }
 }
 
 extern bool verbose;
