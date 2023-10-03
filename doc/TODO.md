@@ -1,7 +1,4 @@
 # Getting all jit to work bench2
-* fusion - cleanup
-  *vec, all
-* fix letrec closures
 
 * loosing at: 
   * input/output buffering: wc, cat, dynamic
@@ -16,6 +13,12 @@
   * puzzle - optimistic globals / loop_opt
 
 # TODO
+* fusion - cleanup
+  *vec, all
+* fix letrec closures
+* string ops
+* fix buffering
+* optimistic monomorphic closures?
 
 * lazier typechecking 
   * jguard counts as a use!
@@ -24,21 +27,13 @@
 * sccp pass / fold - 
   * Only matters for memory refs if we can CSE or DCE away^
 
-* better closure allocation in frontend - full closure optimization ^ 
-* singleton functions /closures ^
-  * polymorphic / non polymorphic ^
 * TRACE loop recording - 
   * CALLT should also detect loops, and flush original trace??
-  * compiler/matrix are tracing failures
   
 * UNDEFINED_TAG
-* fusion ^
 * const pool
 * cleanup register allocation - two-arg can be optimized
 
-* input/output buffering
-  * (read) in c?  Or buffer the string?
-  * inline ^
 * LOOP_opt 
   * globals / loads only once ^
 * gvn / dce 
@@ -57,10 +52,6 @@
   * full trace again
 
 # working on
-
-* 'closure' opcode should all be in the bcfunc prototype, and done behind a single opcode.
-  * Do something to get rid of zero-initializing??
-  * cleanup the second arg, can be inline instead of separate number
 
 * records
 * Merge parent SLOADS if they are the same value.
@@ -81,14 +72,12 @@
 
 * tail calls still do a mov/return for let().  see cat.scm
 
-* could put memq/assq/length/map/append/string-append etc as intrinsics
+* could put append/string-append/substring etc as intrinsics
 * faster call/cc - flush frames w/underflow handler.  Overflow handler can also just flush frames.
 
 * remove hotspot for non-jit / new bytecode
 * could do special branches for 'char=', '=', where we know it is a quick-branch, and know it fits in 16 bits
 * could do special opcodes for true, false.  basically return 'konst'
-
-* 'sbuf' buffers for string ops?  substring / string append etc can be sped up substantially.
 
 * (letrec the bootstrap) / module-ify the bootstrap
 * 'big' register moves / just get fftrad4 working, with a constant-ify pass
@@ -115,18 +104,14 @@
 # JIT TODO:
 
 * various JIT improvements
-  * save less in snap - dead elimination, read-only
   * we should be able to coalesce arg typechecks if they are the same.
   * Maybe a speical SLOAD EQ for RET instead, since we don't need to typecheck
   * load return slot only once somehow.  SLOAD -1, or RLOAD, or something.
       Only seems to matter for long strings of returns.  It should be in cache anyway, and we have to load
 	  it at least once.
-  * something something about GGET checks for func calls carried in snaps?
 
 * All of 'RECORD' probably needs type tests when we access frame.
 
-* need to purge snap to minimum entries. - kinda done, maybe a 'readonly' slot.  ONLY for sload, not ARG.
-  * only matters for emit_snap
 * trace exits could patch all exit jumps directly instead of the exit branch.
   * also the exit branch still does a mov to R15
 * Merge stubs like in luajit?
