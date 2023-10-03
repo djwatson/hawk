@@ -397,7 +397,7 @@ static void trace_roots(void (*add_root)(long *root)) {
   }
 
   // printf("Scan stack...%u\n", stack_top - stack);
-  for (long *sp = stack; sp <= stack_top; sp++) {
+  for (long *sp = stack; sp < stack_top; sp++) {
     if (*sp != 0) {
       add_root(sp);
     }

@@ -3,7 +3,6 @@
 # Getting all jit to work bench2
 * fusion - cleanup
   *vec, all
-* make sure stack top is correct
 * fix letrec closures
 
 * loosing at: 
@@ -61,7 +60,6 @@
 * RET implementation could actually RET? faster somehow?
 
 * Better GC.
-  * cleanup top-of-frame tracking. ^^^
   * GC doesn't need to jump out of trace for most things?
   * merge GC checks?
   * full trace again
@@ -89,7 +87,6 @@
 
 ## bytecode perf improvements 
 
-* Find max top of stack for add_snap and all ops.
 * tail calls still do a mov/return for let().  see cat.scm
 
 * could put memq/assq/length/map/append/string-append etc as intrinsics
@@ -122,8 +119,6 @@
 * make a 'vm state' struct, so we can run multiple vm's?
 * remove indirection for consts/bc
 * comments in output
-* more precise top-of-stack tracking: Looks like it is off-by-one right now for some things
-  like jmp and j* jumps
 
 # JIT TODO:
 

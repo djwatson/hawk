@@ -135,7 +135,7 @@
 	    (build-jmp (second cd) bc #t)
 	    (build-jmp (third cd) bc #t)))
       (begin
-	(finish bc cd rd rd)))
+	(finish bc cd (if rd (+ 1 rd) nr) rd)))
   (when rd
 	  (if (and  (fixnum? f) (< (abs f) 32768))
 	      (push-instr! bc (list 'KSHORT rd f))
@@ -199,12 +199,11 @@
 	(if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
 	    (emit-branch-try-invert op bc cd nr r1 r2)
 	    (begin
-	      (finish bc cd (if rd rd nr) (if rd rd nr))
+	      (finish bc cd (if rd (+ 1 rd) nr) (if rd rd nr))
 	      (push-instr! bc (list op (if rd rd nr) r1 r2))))
 	(compile-sexp (third f) bc env r2 (max r2 r1 nr) 'next)
 	(compile-sexp (second f) bc env r1 (max nr r1) 'next))
-      (begin
-	    (finish bc cd rd rd)))))
+      (finish bc cd (if rd (+ 1 rd) nr) rd))))
 
 (define (compile-binary-vn f bc env rd nr cd)
   (define op (let ((op (if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
@@ -217,7 +216,7 @@
   (if (and (not rd) (branch-dest? cd) (memq (first f) quick-branch))
       (emit-branch-try-invert op bc cd nr r1 (third f))
       (begin
-	(finish bc cd (if rd rd nr) (if rd rd nr))
+	(finish bc cd (if rd (+ 1 rd) nr) (if rd rd nr))
 	(push-instr! bc (list op (if rd rd nr) r1 (modulo (third f) 256)))))
   (compile-sexp (second f) bc env r1 r1 'next))
 
@@ -225,7 +224,7 @@
   (define op (symbol-to-bytecode (car f)))
   (define r1 (exp-loc (second f) env nr))
   ;;(if (not rd) (dformat "Dropping for effect context unary: ~a\n" f))
-  (finish bc cd (if rd rd nr) (if rd rd nr))
+  (finish bc cd (if rd (+ 1 rd) nr) (if rd rd nr))
   (push-instr! bc (list op (if rd rd nr) r1))
   (compile-sexp (second f) bc env r1 (max nr r1) 'next))
 
@@ -263,7 +262,7 @@
   ;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   (push! program f-bc)
   (compile-lambda-internal (cons 'lambda (cddr f)) f-bc '())
-  (finish bc cd rd rd)
+  (finish bc cd (if rd (+ 1 rd) nr) rd)
   (push-instr! bc (list 'KFUNC rd f-id)))
 
 (define (ilength l)
@@ -332,7 +331,7 @@
   (if rd
     (let ((loc (find-symbol f env))
 	  (r (if (eq? cd 'ret) (exp-loc f env rd) rd)))
-      (finish bc cd rd r)
+      (finish bc cd (+ 1 rd) r)
       (if loc
 	  (when (not (= loc r))
 	    (push-instr! bc (list 'MOV r loc)))
@@ -345,7 +344,7 @@
 	      (begin
 		(finish bc cd nr nr)
 		(push-instr! bc (list 'GGET nr (get-or-push-const bc f))))))
-	(finish bc cd rd rd))))
+	(finish bc cd nr rd))))
 
 ;; Note we implicitly add the closure param here.
 ;; TODO optimize better for known calls.
@@ -371,7 +370,7 @@
 	 (+ (length f) nr -2)
 	 (reverse (cdr f))))
       (begin
-	(finish bc cd (if rd rd nr) (if rd rd nr))
+	(finish bc cd (if rd (+ 1 rd) nr) (if rd rd nr))
 	(when (and rd (not (= rd nr)))
 	  (push-instr! bc (list 'MOV rd nr)))
 	(push-instr! bc (list (if (eq? cd 'ret) 'CALLT 'CALL) nr (+ 1 (length f))))
@@ -385,7 +384,7 @@
 (define (compile-vararg f bc env rd nr cd)
 					;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   ;;(if (not rd) (error "ERror compile-vararg"))
-  (finish bc cd rd rd)
+  (finish bc cd (if rd (+ 1 rd) nr) rd)
   (when (not (= rd nr))
     (push-instr! bc (list 'MOV rd nr)))
   (push-instr! bc (list (symbol-to-bytecode (car f)) nr (- (length f) 1)))
@@ -399,7 +398,7 @@
 ;; Third arg must be immediate fixnum.
 (define (compile-closure-set f bc env rd nr cd)
   ;(if (not rd) (error "ERror compile-closure-set"))
-  (finish bc cd rd rd)
+  (finish bc cd (if rd (+ 1 rd) nr) rd)
   (let* ((r1 (exp-loc (second f) env nr))
 	(r2 (exp-loc (third f) env (max nr (+ r1 1)))))
     (push-instr! bc (list 'CLOSURE-SET r1 r2 (fourth f)))
@@ -409,7 +408,7 @@
 ;; First arg is register to use, k, then obj
 (define (compile-setter f bc env rd nr cd)
   ;(if (not rd) (error "ERror compile-setter"))
-  (finish bc cd rd rd)
+  (finish bc cd (if rd (+ 1 rd) nr) rd)
   (let* ((r1 (exp-loc (second f) env nr))
 	(r2 (exp-loc (third f) env (max nr (+ r1 1))))
 	(r3 (exp-loc (fourth f) env (max nr (+ r1 1) (+ r2 1)))))
@@ -420,7 +419,7 @@
 
 (define (compile-setter2 f bc env rd nr cd)
   ;(if (not rd) (error "ERror compile-setter2"))
-  (finish bc cd rd rd)
+  (finish bc cd (if rd (+ 1 rd) nr) rd)
   (let* ((r1 (exp-loc (second f) env nr))
 	(r2 (exp-loc (third f) env (max nr (+ r1 1)))))
     (push-instr! bc (list (if (eq? '$set-car! (first f)) 'SET-CAR! 'SET-CDR!) r1 r2))
@@ -438,7 +437,7 @@
       (let* ((c (get-or-push-const bc (second f))))
 	;; TODO undef
 	;(if (not rd) (error "ERror compile-define"))
-	(finish bc cd rd rd)
+	(finish bc cd (if rd (+ 1 rd) nr) rd)
 	(push-instr! bc (list 'GSET nr c))
 	(compile-sexp (third f) bc env nr nr 'next))))
 

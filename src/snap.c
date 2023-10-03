@@ -18,7 +18,7 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
   snap.argcnt = 1;
   snap.patchpoint = 0;
   // TODO fix regs size/boj to vec?
-  auto top = offset + stack_top + 1 /* offset */ + 1 /* inclusive of top */;
+  auto top = offset + stack_top + 1 /* offset */;
   for (int16_t i = 0; i < top; i++) {
     if (regs[i] != -1) {
       // printf("Record snap entry %i val %i\n", i-1, regs[i]);
@@ -71,7 +71,7 @@ uint32_t snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
   if (!arrlen(snap->slots)) {
     return 0;
   }
-  return snap->slots[arrlen(snap->slots) - 1].slot;
+  return snap->slots[arrlen(snap->slots) - 1].slot + 1 /* top is one above */;
 }
 
 void free_snap(snap_s *snap) { arrfree(snap->slots); }

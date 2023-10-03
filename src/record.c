@@ -258,7 +258,10 @@ void record_start(unsigned int *pc, long *frame, long argcnt) {
   } else if (INS_OP(*pc) == FUNCV || INS_OP(*pc) == IFUNCV ||
              INS_OP(*pc) == ICLFUNCV || INS_OP(*pc) == CLFUNCV) {
     stack_top = argcnt;
+  } else if (INS_OP(*pc) == RET1) {
+    stack_top = INS_A(*pc) + 1;
   }
+
   if (side_exit != nullptr) {
     stack_top = snap_replay(&regs, side_exit, parent, trace, &depth);
   }
@@ -497,6 +500,7 @@ void record_funcv(uint32_t i, uint32_t *pc, long *frame, long argcnt) {
     prev = cell;
   }
   regs[INS_A(i)] = prev;
+  stack_top = INS_A(i) + 1;
   arrfree(locs);
 }
 
@@ -678,7 +682,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case LOOP: {
-    stack_top = INS_A(i) + INS_B(i) - 1;
+    stack_top = INS_A(i) + INS_B(i);
     if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
         INS_OP(trace->startpc) != RET1 && parent == nullptr) {
       auto link_trace = check_argument_match(frame, trace);
@@ -795,7 +799,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
   }
   case CALLCC: {
     // TODO: this snap and flush only need things below the current frame.
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth,
              stack_top);
     trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
@@ -905,9 +909,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS,
                 IR_INS_TYPE_GUARD | 0x5);
 
-        stack_top = frame_off;
+        stack_top = frame_off + 1;
         add_snap(regs_list, (int)(regs - regs_list - 1), trace,
-                 (uint32_t *)frame[-1], depth, frame_off);
+                 (uint32_t *)frame[-1], depth, stack_top);
       } else {
         if (INS_OP(trace->startpc) == LOOP && parent == nullptr) {
           auto penalty = find_penalty_pc(pc_start);
@@ -934,7 +938,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       depth--;
       regs[-1] = regs[INS_A(i)];
       auto old_pc = (unsigned int *)frame[-1];
-      stack_top = INS_A(*(old_pc - 1));
+      stack_top = INS_A(*(old_pc - 1)) + 1;
       assert(regs >= regs_list);
       regs -= (INS_A(*(old_pc - 1)) + 1);
       assert(regs >= regs_list);
@@ -1046,7 +1050,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto reg = INS_A(i);
     regs[reg] = arrlen(trace->consts) | IR_CONST_BIAS;
     arrput(trace->consts, k);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case STRING_SYMBOL: {
@@ -1062,20 +1066,20 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     arrput(trace->consts, FALSE_REP);
     push_ir(trace, IR_NE, sym, knum | IR_CONST_BIAS,
             UNDEFINED_TAG | IR_INS_TYPE_GUARD);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case SYMBOL_STRING: {
     auto op1 = record_stack_load(INS_B(i), frame);
     auto ref = push_ir(trace, IR_REF, op1, 8 - SYMBOL_TAG, UNDEFINED_TAG);
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, 0, STRING_TAG);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case CHAR_INTEGER: {
     auto op1 = record_stack_load(INS_B(i), frame);
     regs[INS_A(i)] = push_ir(trace, IR_SHR, op1, 5, FIXNUM_TAG);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case INTEGER_CHAR: {
@@ -1086,7 +1090,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       return 1;
     }
     regs[INS_A(i)] = push_ir(trace, IR_CHGTYPE, op1, FIXNUM_TAG, CHAR_TAG);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case JISF: {
@@ -1201,7 +1205,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         push_ir(trace, IR_REF, op1, 8 - CONS_TAG + offset, UNDEFINED_TAG);
     regs[INS_A(i)] =
         push_ir(trace, IR_LOAD, ref, IR_NONE, type | IR_INS_TYPE_GUARD);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case ISEQ:
@@ -1238,7 +1242,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, c);
     regs[INS_A(i)] = IR_CONST_BIAS + knum;
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case JNGUARD:
@@ -1265,7 +1269,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, k);
     regs[reg] = IR_CONST_BIAS + knum;
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case KFUNC: {
@@ -1274,7 +1278,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, k);
     regs[reg] = IR_CONST_BIAS + knum;
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case VECTOR_SET: {
@@ -1304,7 +1308,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     vector_s *vec_d = (vector_s *)(frame[INS_B(i)] - PTR_TAG);
     uint8_t type = get_object_ir_type(vec_d->v[pos]);
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, vref, 0, IR_INS_TYPE_GUARD | type);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
 
     break;
   }
@@ -1314,7 +1318,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
     push_ir(trace, IR_ABC, str, idx, IR_INS_TYPE_GUARD);
     regs[INS_A(i)] = push_ir(trace, IR_STRLD, str, idx, CHAR_TAG);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
 
     break;
   }
@@ -1326,7 +1330,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     push_ir(trace, IR_ABC, str, idx, IR_INS_TYPE_GUARD);
     auto ref = push_ir(trace, IR_STRREF, str, idx, 0);
     push_ir(trace, IR_STRST, ref, val, 0);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
 
     break;
   }
@@ -1359,7 +1363,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       push_ir(trace, IR_STORE, ref, a, 0);
     }
     regs[INS_A(i)] = cell;
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth,
              stack_top);
     break;
@@ -1377,7 +1381,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       b = knum | IR_CONST_BIAS;
     }
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth,
-             max_slot3(i));
+             max_slot3(i) + 1);
     //  TODO this forces a side exit without recording.
     //   Put GC inline in generated code?  Would have to flush
     //   all registers to stack.
@@ -1391,7 +1395,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     push_ir(trace, IR_STORE, ref, a, UNDEFINED_TAG);
     ref = push_ir(trace, IR_REF, cell, 8 + 8 - CONS_TAG, UNDEFINED_TAG);
     push_ir(trace, IR_STORE, ref, b, UNDEFINED_TAG);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth,
              stack_top);
 
@@ -1402,7 +1406,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto ch = record_stack_load(INS_C(i), frame);
 
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth,
-             max_slot3(i));
+             max_slot3(i) + 1);
     //  TODO this forces a side exit without recording.
     //   Put GC inline in generated code?  Would have to flush
     //   all registers to stack.
@@ -1431,7 +1435,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     knum = arrlen(trace->consts);
     arrput(trace->consts, (long)vm_make_string);
     push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth,
              stack_top);
 
@@ -1442,7 +1446,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto ch = record_stack_load(INS_C(i), frame);
 
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth,
-             max_slot3(i));
+             max_slot3(i) + 1);
     //  TODO this forces a side exit without recording.
     //   Put GC inline in generated code?  Would have to flush
     //   all registers to stack.
@@ -1467,7 +1471,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     knum = arrlen(trace->consts);
     arrput(trace->consts, (long)vm_make_vector);
     push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth,
              stack_top);
 
@@ -1500,7 +1504,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       ref = push_ir(trace, IR_REF, cell, 16 + cnt * 8 - PTR_TAG, UNDEFINED_TAG);
       push_ir(trace, IR_STORE, ref, loaded[cnt], UNDEFINED_TAG);
     }
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth,
              stack_top);
     arrfree(loaded);
@@ -1524,7 +1528,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[INS_A(i)] =
         push_ir(trace, IR_CALLXS, record_stack_load(INS_B(i), frame),
                 knum | IR_CONST_BIAS, type | IR_INS_TYPE_GUARD);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth,
              stack_top);
     break;
@@ -1541,7 +1545,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[INS_A(i)] =
         push_ir(trace, IR_CALLXS, record_stack_load(INS_B(i), frame),
                 knum | IR_CONST_BIAS, type | IR_INS_TYPE_GUARD);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth,
              stack_top);
     break;
@@ -1552,7 +1556,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (long)vm_write);
     push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth,
              stack_top);
     break;
@@ -1564,7 +1568,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     arrput(trace->consts, (long)equalp);
     regs[INS_A(i)] =
         push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, BOOL_TAG);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case LENGTH: {
@@ -1573,7 +1577,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     regs[INS_A(i)] =
         push_ir(trace, IR_CALLXS, record_stack_load(INS_B(i), frame),
                 knum | IR_CONST_BIAS, FIXNUM_TAG);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case MEMQ: {
@@ -1585,7 +1589,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
                        record_stack_load(INS_C(i), frame), UNDEFINED_TAG);
     regs[INS_A(i)] = push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS,
                              typ | IR_INS_TYPE_GUARD);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case ASSQ: {
@@ -1597,7 +1601,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
                        record_stack_load(INS_C(i), frame), UNDEFINED_TAG);
     regs[INS_A(i)] = push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS,
                              typ | IR_INS_TYPE_GUARD);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case ASSV: {
@@ -1609,7 +1613,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
                        record_stack_load(INS_C(i), frame), UNDEFINED_TAG);
     regs[INS_A(i)] = push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS,
                              typ | IR_INS_TYPE_GUARD);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case GGET: {
@@ -1636,7 +1640,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       regs[INS_A(i)] = push_ir(trace, IR_GGET, knum | IR_CONST_BIAS, IR_NONE,
                                type | IR_INS_TYPE_GUARD);
     }
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case GSET: {
@@ -1656,7 +1660,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     push_ir(trace, IR_GSET, knum | IR_CONST_BIAS,
             record_stack_load(INS_A(i), frame), UNDEFINED_TAG);
     // We've changed global state, add a snap.
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc + 1, depth,
              stack_top);
     break;
@@ -1679,7 +1683,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     regs[INS_A(i)] = push_ir(trace, IR_SUB, op1, knum | IR_CONST_BIAS,
                              IR_INS_TYPE_GUARD | type);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case ADDVN: {
@@ -1701,7 +1705,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     regs[INS_A(i)] = push_ir(trace, IR_ADD, op1, knum | IR_CONST_BIAS,
                              type | IR_INS_TYPE_GUARD);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case ADDVV: {
@@ -1721,7 +1725,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       return 1;
     }
     regs[INS_A(i)] = push_ir(trace, IR_ADD, op1, op2, IR_INS_TYPE_GUARD | type);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case SUBVV: {
@@ -1741,7 +1745,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       return 1;
     }
     regs[INS_A(i)] = push_ir(trace, IR_SUB, op1, op2, IR_INS_TYPE_GUARD | type);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case MULVV:
@@ -1765,7 +1769,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       op = IR_MUL;
     }
     regs[INS_A(i)] = push_ir(trace, op, op1, op2, type);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case EXACT: {
@@ -1777,7 +1781,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       record_abort();
       return 1;
     }
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case STRING_LENGTH:
@@ -1785,7 +1789,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto vec = record_stack_load(INS_B(i), frame);
     auto ref = push_ir(trace, IR_REF, vec, 8 - PTR_TAG, UNDEFINED_TAG);
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, 0, FIXNUM_TAG);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
     break;
   }
   case CLOSURE_GET: {
@@ -1804,7 +1808,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     uint8_t type = get_object_ir_type(clo_d->v[pos]);
 
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, 0, IR_INS_TYPE_GUARD | type);
-    stack_top = INS_A(i);
+    stack_top = INS_A(i) + 1;
 
     /* // TODO: closure may not be const */
     /* auto fb = frame[INS_B(i)]; */
@@ -1873,8 +1877,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
 
     if (verbose)
-      printf("Record stop JFUNC\n");
-    check_emit_funcv(traces[INS_D(i)]->startpc, pc, frame, argcnt);
+      printf("Record stop JFUNC %s\n", ins_names[INS_OP(link_trace->startpc)]);
+    check_emit_funcv(link_trace->startpc, pc, frame, argcnt);
     record_stop(pc, frame, link_trace->num);
     // No stack top tracking
     return 1;
@@ -1892,6 +1896,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       }
     }
     auto startpc = traces[INS_D(i)]->startpc;
+    if (INS_OP(startpc) == RET1) {
+      stack_top = INS_A(startpc) + 1;
+    }
     trace_s *link_trace = traces[INS_D(i)];
     if (INS_OP(startpc) == LOOP || INS_OP(startpc) == ILOOP) {
       // Since some args are in registers for the loop, make sure they're loaded
