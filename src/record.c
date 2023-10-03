@@ -60,7 +60,11 @@ int *regs = &regs_list[1];
 snap_s *side_exit = nullptr;
 static trace_s *parent = nullptr;
 static uint8_t unroll = 0;
-static uint8_t tailcalled = 0;
+typedef struct {
+  uint32_t* key;
+  uint32_t value;
+} tailcall_counter;
+static tailcall_counter* tailcalled = nullptr;
 static uint32_t stack_top;
 
 unsigned int **downrec = NULL;
@@ -221,6 +225,7 @@ void record_side(trace_s *p, snap_s *side) {
 
 void record_abort();
 void record_start(unsigned int *pc, long *frame, long argcnt) {
+  hmdefault(tailcalled, 0);
   trace = malloc(sizeof(trace_s));
   trace->syms = NULL;
   trace->next = NULL;
@@ -236,7 +241,6 @@ void record_start(unsigned int *pc, long *frame, long argcnt) {
   trace->parent = parent;
   trace_state = START;
   unroll = 0;
-  tailcalled = 0;
   if (verbose) {
     func = (long)find_func_for_frame(pc);
     assert(func);
@@ -317,6 +321,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   // }
 
   pendpatch();
+  hmfree(tailcalled);
 
   if (side_exit != nullptr) {
     if (verbose)
@@ -377,6 +382,7 @@ void record_abort() {
   arrfree(trace->relocs);
   arrfree(trace->ops);
   arrfree(trace->snaps);
+  hmfree(tailcalled);
 
   pendpatch();
   free(trace);
@@ -755,7 +761,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // A pile of heuristics, to try and catch traces that are loops, but don't use
     // the loop construct.
     if (pc == pc_start && parent == NULL) {
-      if ((cnt + tailcalled) >= UNROLL_LIMIT && depth == 0) {
+      if ((hmget(tailcalled, pc)) > UNROLL_LIMIT && depth == 0) {
 	auto link_trace = check_argument_match(frame, trace);
 	if (link_trace) {
 	  if (verbose)
@@ -763,7 +769,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 	  record_stop(pc, frame, link_trace->num);
 	  return 1;
 	}
-      } else if (cnt >= UNROLL_LIMIT && depth != 0) {
+      } else if (cnt > UNROLL_LIMIT && depth != 0) {
 	// Don't test on 'tailcalled' here, since up-recursion
 	// can't be a tailcall.
 	auto link_trace = check_argument_match(frame, trace);
@@ -1004,7 +1010,13 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     break;
   }
   case CALLT: {
-    tailcalled++;
+    // Record the tailcall for checking for loop endings.
+    {
+      auto clo = (closure_s*)(frame[INS_A(i) + 1] - CLOSURE_TAG);
+      auto call_pc = &((bcfunc*)clo->v[0])->code[0];
+      auto v = hmget(tailcalled, call_pc);
+      hmput(tailcalled, call_pc, v + 1);
+    }
     // Check call type
     {
       auto clo = record_stack_load(INS_A(i) + 1, frame);
