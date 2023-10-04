@@ -258,8 +258,8 @@ typedef struct exit_state {
   long snap;
 } exit_state;
 
-void jit_entry_stub(long *o_frame, Func fptr, exit_state *regs);
-void jit_exit_stub();
+void jit_entry_stub(long *o_frame, Func fptr, exit_state *regs) asm("jit_entry_stub");
+void jit_exit_stub() asm("jit_exit_stub");
 
 void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
                   long **o_frame, unsigned int **o_pc) {
@@ -676,7 +676,7 @@ void asm_jit_args(trace_s *trace, trace_s *dest_trace) {
 }
 
 static uint64_t log_offset;
-extern void jit_gc_log(void);
+extern void jit_gc_log(void) asm("jit_gc_log");
 static void emit_init_funcs() {
   static bool done = false;
   if (!done) {
@@ -1415,8 +1415,8 @@ done:
     emit_bind((uint64_t)trace->fn, side_exit->patchpoint);
   }
 
-  char *dumpname = parent ? "Side Trace" : "Trace";
 #ifdef JITDUMP
+  char *dumpname = parent ? "Side Trace" : "Trace";
   perf_map((uint64_t)fn, len, dumpname);
   if (jit_dump_flag) {
     jit_dump(len, (uint64_t)fn, dumpname);

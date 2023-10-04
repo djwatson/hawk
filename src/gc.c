@@ -452,7 +452,7 @@ static void GC_deinit() {
   /* arrfree(pushed_roots); */
   /* munmap(alloc_start, alloc_sz); */
   if (verbose) {
-    printf("GC's %li Full traces %li (%.02f)\n", gc_stats.traces,
+    printf("GC's %llu Full traces %llu (%.02f)\n", gc_stats.traces,
            gc_stats.full_traces,
            ((double)gc_stats.full_traces / (double)gc_stats.traces) * 100.0);
   }
@@ -697,6 +697,7 @@ static void maybe_log(long *v_p, void *c) {
   arrput(log_buf, ((log_item){(uint64_t)v_p - addr, v}));
 }
 
+extern void GC_log_obj_slow(void*obj) asm("GC_log_obj_slow") ;
 NOINLINE void GC_log_obj_slow(void *obj) {
   uint32_t *rc_ptr = (uint32_t *)obj;
   rc_ptr[1] |= LOGGED_MARK;
