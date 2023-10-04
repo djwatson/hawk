@@ -751,6 +751,7 @@
       scletrec
       scletrec2
       debugdisplay
+      final-free
 ;      closure-conversion
 ;      debugdisplay
 ;      compile
