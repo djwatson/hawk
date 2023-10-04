@@ -743,9 +743,15 @@
       lower-case-lambda ;; Can remove with new expander? 
       lower-loops ;; optional
       name-lambdas
-      closure-conversion
-      debugdisplay
-      compile)
+      letrec-ify-prepass
+      find-free
+      update-direct-calls
+;      debugdisplay
+;      closure-conversion
+;      debugdisplay
+;      compile
+      )
+  (exit)
 
   ;; Get everything in correct order
   ;; TODO do this as we are generating with extendable vectors
