@@ -163,14 +163,58 @@
 	  (else (imap pass f)))))
   (imap pass sexp))
 
+(define (tarjan-scc graph)
+  (define stack '())
+  (define index 0)
+  (define indices '())
+  (define lowlinks '())
+  (define on-stack '())
+  (define result '())
+
+  (define (update-lowlink v link)
+    (let ((cur (assq v lowlinks)))
+      (if cur (set-cdr! cur link)
+	  (set! lowlinks (cons (cons v link) lowlinks)))))
+
+  (define (strongconnect v)
+    (set! indices (cons (cons v index) indices))
+    (set! lowlinks (cons (cons v index) lowlinks))
+    (set! index (+ index 1))
+    (set! on-stack (cons v on-stack))
+  
+    (for-each (lambda (w)
+                (let ((w-index (assq w indices)))
+                  (if (not w-index)
+		      (begin
+			(strongconnect w)
+			(update-lowlink v (min (cdr (assq v lowlinks)) (cdr (assq w lowlinks)))))
+		      (when (memq w on-stack)
+			(update-lowlink v (min (cdr (assq v lowlinks)) (cdr (assq w indices))))))))
+	      (assq v graph))
+
+    (when (= (cdr (assq v lowlinks)) (cdr (assq v indices)))
+      (let loop ((scc '()))
+	(let ((w (car on-stack)))
+          (set! on-stack (cdr on-stack))
+          (if (eq? v w)
+              (set! result (cons (cons v scc) result))
+              (loop (cons w scc)))))))
+
+  (for-each (lambda (v)
+              (unless (assq v indices)
+                (strongconnect v)))
+            (map car graph))
+  
+  result)
+
+(define scc-table '())
+(define free-table '())
 ;; Find free variables in named-lambdas
 (define (find-free sexp)
   ;; Takes in a set of current bindings, returns a list of free
   ;; variables at each sexp.  Does *not* modify the graph, stores
   ;; free-vars in a side table.
-  (define free-table '())
   ;; For letrec groups, is a alist of (lambda (list of lambdas it uses, not including itself))
-  (define scc-table '())
   (define (find-free f bindings)
     (if (atom? f)
 	(if (memq f bindings) (list f) '())
@@ -240,6 +284,23 @@
   (let ((result (imap (lambda (f) (update f '())) sexp)))
     (dformat "Escaping procedures: ~a\n" escapes-table)
     result))
+
+(define (scletrec sexp)
+  (define (update f)
+    (if (atom? f)
+	f
+	(case (car f)
+	  ((letrec)
+	   (let* ((bindings (map car (second f)))
+		  (new-bindings (map (lambda (f) `(,(car f) ,(update (second f)))) (second f)))
+		  (new-body (imap update (cddr f)))
+		  (tarjan (tarjan-scc (filter (lambda (x) (memq (car x) bindings)) scc-table))))
+	     (let loop ((sccp (reverse tarjan)) (body new-body))
+	       (if (null? sccp)
+		   (car body)
+		   (loop (cdr sccp) `((letrec ,(map (lambda (f) (assq f new-bindings)) (car sccp)) ,@body)))))))
+	  (else (imap update f)))))
+  (imap update sexp))
 
 ;; TODO: We currently always call through closures.
 ;;       letrec in particular could analyze for direct calls.

@@ -743,10 +743,13 @@
       lower-case-lambda ;; Can remove with new expander? 
       lower-loops ;; optional
       name-lambdas
+
+      ;; Closure conversion passes
       letrec-ify-prepass
       find-free
       update-direct-calls
-;      debugdisplay
+      scletrec
+      debugdisplay
 ;      closure-conversion
 ;      debugdisplay
 ;      compile
