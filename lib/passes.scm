@@ -250,6 +250,11 @@
 			   (newenv (append (map cons (to-proper params) (to-proper newbind)) bindings)))
 		      `(lambda ,newbind
 			 ,@(map (lambda (f) (rename f newenv)) (cddr f)))))
+	  ((letrec) (let* ((params (map car (second f)))
+			   (newbind (imap compiler-gensym params))
+			   (newenv (append (map cons (to-proper params) (to-proper newbind)) bindings)))
+		      `(letrec ,(map (lambda (param f) `(,param ,(rename (second f) newenv))) newbind (second f))
+			 ,@(map (lambda (f) (rename f newenv)) (cddr f)))))
 	  ((quote) f)
 	  (else (imap (lambda (f) (rename f bindings)) f)))))
   (imap (lambda (f) (rename f '())) f))
