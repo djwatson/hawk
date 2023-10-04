@@ -261,8 +261,8 @@
 
 ;; Also calculates any escaping procedures, which is the inverse of
 ;; well-known procedures.
+(define escapes-table '())
 (define (update-direct-calls sexp)
-  (define escapes-table '())
   (define (update f bindings)
     (if (atom? f)
 	(begin
@@ -299,6 +299,27 @@
 	       (if (null? sccp)
 		   (car body)
 		   (loop (cdr sccp) `((letrec ,(map (lambda (f) (assq f new-bindings)) (car sccp)) ,@body)))))))
+	  (else (imap update f)))))
+  (imap update sexp))
+
+(define (scletrec2 sexp)
+  (define (update f)
+    (if (atom? f)
+	f
+	(case (car f)
+	  ((letrec)
+	   (let* ((bindings (map car (second f)))
+		  (new-bindings (map (lambda (f) `(,(car f) ,(update (second f)))) (second f)))
+		  (new-body (imap update (cddr f)))
+		  (well-known (filter (lambda (b) (not (memq b escapes-table))) bindings))
+		  (not-well-known (difference bindings well-known)))
+	     (define (binding-set s)
+	       (filter (lambda (b) (if (memq (car b) s) b #f)) new-bindings))
+	     (if (null? not-well-known)
+		 `(scletrec (,(second f)) ,@(cddr f))
+		 `(scletrec (,(append (binding-set well-known)
+				   (binding-set (list (car not-well-known))))
+			   ,@(map binding-set (map list (cdr not-well-known)))) ,@new-body))))
 	  (else (imap update f)))))
   (imap update sexp))
 

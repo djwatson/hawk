@@ -749,6 +749,7 @@
       find-free
       update-direct-calls
       scletrec
+      scletrec2
       debugdisplay
 ;      closure-conversion
 ;      debugdisplay
