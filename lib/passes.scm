@@ -169,6 +169,8 @@
   ;; variables at each sexp.  Does *not* modify the graph, stores
   ;; free-vars in a side table.
   (define free-table '())
+  ;; For letrec groups, is a alist of (lambda (list of lambdas it uses, not including itself))
+  (define scc-table '())
   (define (find-free f bindings)
     (if (atom? f)
 	(if (memq f bindings) (list f) '())
@@ -187,10 +189,13 @@
 	       (let* ((new-bindings (to-proper (third f)))
 		      (all-bindings (append new-bindings bindings))
 		      (body-free (fold union '() (imap (lambda (f) (find-free f all-bindings)) (cdddr f))))
-		      (free (difference (difference body-free new-bindings) letrec-bindings)))
+		      (all-free (difference body-free new-bindings))
+		      (scc (difference (intersection letrec-bindings all-free) (list name)))
+		      (free (difference all-free letrec-bindings)))
 		 (when (assq name free-table)
 		   (error "Already found free for " name))
 		 (set! free-table (cons (cons name free) free-table))
+		 (set! scc-table (cons (cons name scc) scc-table))
 		 free))
 	     (let* ((new-bindings (map car (second f)))
 		    (all-bindings (append new-bindings bindings))
@@ -209,6 +214,9 @@
   sexp)
 
 ;; Replace all calls to known lambdas with (label-call label ...)
+
+;; Also calculates any escaping procedures, which is the inverse of
+;; well-known procedures.
 (define (update-direct-calls sexp)
   (define escapes-table '())
   (define (update f bindings)
