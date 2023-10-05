@@ -304,13 +304,13 @@ EXPORT void free_script() {
   symbol_table_clear();
 }
 
-/* extern unsigned char bootstrap_scm_bc[]; */
-/* extern unsigned int bootstrap_scm_bc_len; */
+extern unsigned char bootstrap_scm_bc[];
+extern unsigned int bootstrap_scm_bc_len;
 
 EXPORT void load_bootstrap() {
-  /* if (bootstrap_scm_bc_len > 0) { */
-  /*   auto start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len); */
-  /*   // printf("Running boot image...\n"); */
-  /*   run(start_func, 0, nullptr); */
-  /* } */
+  if (bootstrap_scm_bc_len > 0) {
+    auto start_func = readbc_image(bootstrap_scm_bc, bootstrap_scm_bc_len);
+    // printf("Running boot image...\n");
+    run(start_func, 0, nullptr);
+  }
 }

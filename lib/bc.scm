@@ -383,21 +383,20 @@
 
 (define labels '())
 (define (compile-label-call f bc env rd nr cd)
-  (define args (cdddr f))
+  ;; Only emit closure if needed
+  ;; Check for null closure
+  (define args (if (third f) (cddr f) (cdddr f)))
   (finish bc cd (if rd (+ 1 rd) nr) (if rd rd nr))
   (when (and rd (not (= rd nr)))
     (push-instr! bc (list 'MOV rd nr)))
-  (push-instr! bc (list (if (eq? cd 'ret) 'LCALLT 'LCALL) nr (+ 2 (length args))))
+  (push-instr! bc (list (if (eq? cd 'ret) 'LCALLT 'LCALL) nr (+ 1 (length args))))
   (dformat "Label call: ~a\n" f)
   (push-instr! bc (list 'KFUNC nr (cdr (assq (second f) labels))))
-  ;; Only emit closure if needed
-  (when (third f)
-    (compile-sexp (third f) bc env (+ nr 1) (+ nr 1) 'next))
   (fold
    (lambda (f num)
      (compile-sexp f bc env num num 'next)
      (- num 1))
-   (+ (length args) nr 1)
+   (+ (length args) nr)
    (reverse args)))
 
 (define (compile-label f bc env rd nr cd)

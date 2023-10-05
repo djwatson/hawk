@@ -79,8 +79,8 @@ while being more portable and easier to change.
   unsigned char ra, unsigned instr, unsigned *pc, long *frame,                 \
       void **op_table_arg, long argcnt
 #define ARGS ra, instr, pc, frame, op_table_arg, argcnt
-//#define DEBUG_VM(name)
-#define DEBUG_VM(name) printf("pc %p %s ra %i rd %i rb %i rc %i\n", pc, name, ra, instr, instr&0xff, (instr>>8)); fflush(stdout);
+#define DEBUG_VM(name)
+//#define DEBUG_VM(name) printf("pc %p %s ra %i rd %i rb %i rc %i\n", pc, name, ra, instr, instr&0xff, (instr>>8)); fflush(stdout);
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
