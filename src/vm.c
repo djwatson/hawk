@@ -79,8 +79,8 @@ while being more portable and easier to change.
   unsigned char ra, unsigned instr, unsigned *pc, long *frame,                 \
       void **op_table_arg, long argcnt
 #define ARGS ra, instr, pc, frame, op_table_arg, argcnt
-#define DEBUG_VM(name)
-//#define DEBUG_VM(name) printf("pc %p %s ra %i rd %i rb %i rc %i\n", pc, name, ra, instr, instr&0xff, (instr>>8)); fflush(stdout);
+//#define DEBUG_VM(name)
+#define DEBUG_VM(name) printf("pc %p %s ra %i rd %i rb %i rc %i\n", pc, name, ra, instr, instr&0xff, (instr>>8)); fflush(stdout);
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
@@ -951,6 +951,20 @@ LIBRARY_FUNC_B(CALL)
   NEXT_INSTR;
 }
 
+LIBRARY_FUNC_B(LCALL)
+  auto func = (bcfunc*)frame[ra];
+
+  auto old_pc = pc;
+  pc = &func->code[0];
+  frame[ra] = (long)(old_pc + 1);
+  frame += ra + 1;
+  argcnt = rb - 1;
+  if (unlikely((frame + 256) > frame_top)) {
+    MUSTTAIL return EXPAND_STACK_SLOWPATH(ARGS);
+  }
+  NEXT_INSTR;
+}
+
 LIBRARY_FUNC_B(CALLT)
   auto cl = frame[ra+1];
   TYPECHECK_TAG(cl, CLOSURE_TAG);
@@ -969,7 +983,21 @@ LIBRARY_FUNC_B(CALLT)
   NEXT_INSTR;
 }
 
-#define LIBRARY_FUNC_EQV(name, name2, iftrue, iffalse, finish)	\
+LIBRARY_FUNC_B(LCALLT)
+  auto func = (bcfunc*)frame[ra];
+  pc = &func->code[0];
+  
+  long start = ra + 1;
+  argcnt = rb - 1;
+  for (auto i = 0; i < argcnt; i++) {
+    frame[i] = frame[start + i];
+  }
+  // No need to stack size check for tailcalls since we reuse the frame.
+  
+  NEXT_INSTR;
+}
+
+#define LIBRARY_FUNC_EQV(name, name2, iftrue, iffalse, finish)		\
   LIBRARY_FUNC_BC_LOAD_NAME(name, name2)					\
   if (fb == fc) {					\
     iftrue;							 \

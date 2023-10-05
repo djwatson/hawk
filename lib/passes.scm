@@ -411,7 +411,7 @@
 	       (define (update-group g clo)
 		 (define representative (caar g))
 		 (define free (cdr (assq (caar g) final-free-table)))
-		 (define free-bind (map (lambda (f n) (cons f `(closure-get ,clo ,n))) free (iota (length free))))
+		 (define free-bind (map (lambda (f n) (cons f `($closure-get ,clo ,n))) free (iota (length free))))
 		 ;; Clo-bind must be done for all groups
 		 (define new-replace (append free-bind clo-bind replace))
 		 (define foo (dformat "update grou ~a bindings: ~a\n" (map car g) free-bind))
@@ -427,7 +427,7 @@
 		 (define all-names (apply append (map (lambda (g) (map car g)) (second f))))
 		 (dformat "Gen closure \n")
 		 ;; The unknown binding that needs a pointer is always first.
-		 `(,clo ($closure ,(caar g)
+		 `(,clo ($closure ($label ,(caar g))
 				  ,@(map (lambda (f) (if (memq f all-names) #f f)) free))))
 	       (define (generate-closure-set g clo)
 		 (define foo (dformat "Gen closure set\n"))
@@ -445,14 +445,15 @@
 	       (define body-clo-bind (apply append (map (lambda (g clo) (map (lambda (f) (cons (car f) clo)) g)) (second f) closures)))
 	       (dformat "Well known groups:~a ~a ~a ~a\n" (second f) group-well-known free-cnt closures)
 	       ;; The function labels
+	       ;; TODO $labels
 	       `($labels ,(apply append (map update-group (second f) closures))
 			 ;; The closures
-			 (let ,(map generate-closure (second f) closures)
-			   ;; Any letrec groups that need closure-set!
-			   (begin
-			     ,@(filter-map id (apply append (map generate-closure-set (second f) closures)))
-			     ;; The body
-			     ,@(imap (lambda (f) (update f (append body-clo-bind replace))) (cddr f))))))))
+		  (let ,(filter-map (lambda (f) (if (car f) f #f)) (map generate-closure (second f) closures))
+		    ;; Any letrec groups that need closure-set!
+		    (begin
+		      ,@(filter-map id (apply append (map generate-closure-set (second f) closures)))
+		      ;; The body
+		      ,@(imap (lambda (f) (update f (append body-clo-bind replace))) (cddr f))))))))
 	  (else (imap (lambda (f) (update f replace)) f)))))
   (imap (lambda (f) (update f '())) sexp))
 
