@@ -742,25 +742,23 @@
       optimize-direct ;; optional
       lower-case-lambda ;; Can remove with new expander? 
       lower-loops ;; optional
-      debugdisplay
       name-lambdas
-      debugdisplay
 
       ;; Closure conversion passes
       letrec-ify-prepass
-      debugdisplay
       find-free
       update-direct-calls
       scletrec
-      debugdisplay
       scletrec2
-      debugdisplay
       final-free
+      debugdisplay
+      closure-conversion-scc
+      debugdisplay
 ;      closure-conversion
 ;      debugdisplay
-;      compile
+      compile
       )
-  (exit)
+
 
   ;; Get everything in correct order
   ;; TODO do this as we are generating with extendable vectors
