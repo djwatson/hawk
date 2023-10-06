@@ -287,9 +287,7 @@
 	   (if (memq (car f) bindings)
 	       `($label-call ,(car f) ,@(imap (lambda (f) (update f bindings)) (cdr f)))
 	       (imap (lambda (f) (update f bindings)) f))))))
-  (let ((result (imap (lambda (f) (update f '())) sexp)))
-    (dformat "Escaping procedures: ~a\n" escapes-table)
-    result))
+  (imap (lambda (f) (update f '())) sexp))
 
 ;; Split letrec to letrec groups based on scc tarjan algorithm.
 (define (scletrec sexp)
@@ -325,15 +323,15 @@
 		  (not-well-known (difference bindings well-known)))
 	     (define (binding-set s)
 	       (filter (lambda (b) (if (memq (car b) s) b #f)) new-bindings))
-	     (dformat "well known: ~a not: ~a\n" well-known not-well-known)
+	     ;;(dformat "well known: ~a not: ~a\n" well-known not-well-known)
 	     (if (null? not-well-known)
 		 `($scletrec (,new-bindings) ,@new-body)
 		 `($scletrec (,(append (binding-set (list (car not-well-known)))
 				       (binding-set well-known))
 			      ,@(map binding-set (map list (cdr not-well-known)))) ,@new-body))))
 	  (else (imap update f)))))
-  (for-each (lambda (f)
-	      (dformat "free in ~a: ~s\n " (car f) (cdr f))) free-table)
+  ;; (for-each (lambda (f)
+  ;; 	      (dformat "free in ~a: ~s\n " (car f) (cdr f))) free-table)
   (imap update sexp))
 
 ;; Calculate final free: We need to add additional free variables if
@@ -350,7 +348,7 @@
 	   (let ((again #f))
 	     (define (analyze-group1 g)
 	       (define (try-reduce f)
-		 (dformat "try treduce f ~a final-free-table ~a ~a\n" f final-free-table (assq f final-free-table))
+		 ;;(dformat "try treduce f ~a final-free-table ~a ~a\n" f final-free-table (assq f final-free-table))
 		 (if (and (assq f final-free-table)
 			  (not (memq f escapes-table))
 			  (= 0 (length (cdr (assq f final-free-table)))))
@@ -358,12 +356,12 @@
 		     f))
 	       (let* ((free (fold union '() (map (lambda (f) (cdr (assq (car f) free-table))) g)))
 		      (reduced-free (filter-map try-reduce free)))
-		 (dformat "Analyze group ~a\n" (map car g))
+		 ;;(dformat "Analyze group ~a\n" (map car g))
 		 (for-each (lambda (f) (set! final-free-table (cons (cons (car f) reduced-free) final-free-table))) g)))
 	     (define (analyze-group2 g)
 	       (define (add-if-needs-closure link g)
 		 (define free (cdr (assq link final-free-table)))
-		 (dformat "add if needs closure: link ~a free ~a\n" link free)
+		 ;;(dformat "add if needs closure: link ~a free ~a\n" link free)
 		 (when (not (null? free))
 		   (for-each (lambda (f)
 			       (let* ((cur-free (assq f final-free-table))
@@ -375,7 +373,7 @@
 			     g)))
 	       (define (add-links f g)
 		 (define links (cdr (assq f scc-table)))
-		 (dformat "Adding links for ~a:~a\n" f links)
+		 ;;(dformat "Adding links for ~a:~a\n" f links)
 		 (for-each (lambda (link) (add-if-needs-closure link g)) (difference links g)))
 	       (for-each (lambda (f) (add-links (car f) (map car g))) g))
 	     (define (descend g)
@@ -389,14 +387,14 @@
 	     (for-each update (cddr f))))
 	  (else (imap update f)))))
   (imap update sexp)
-  (for-each (lambda (f) (dformat "free in ~a:~a\n" (car f) (cdr f))) final-free-table)
+  ;;(for-each (lambda (f) (dformat "free in ~a:~a\n" (car f) (cdr f))) final-free-table)
   sexp)
 
 ;; Final free vars are decided.  Decide on closure representation, and
 ;; update the code.
 (define (closure-conversion-scc sexp)
   (define (update f replace)
-    (dformat "update ~a\n" f)
+    ;;(dformat "update ~a\n" f)
     (if (atom? f)
 	(let ((repl (assq f replace)))
 	  (if repl (cdr repl) f))
@@ -427,7 +425,8 @@
 		       (free-bind (map (lambda (f n) (cons f `($closure-get ,clo ,n))) free (iota (length free))))
 		       ;; Clo-bind must be done for all groups
 		       (new-replace (append free-bind clo-bind replace))
-		       (foo (dformat "update grou ~a bindings: ~a\n" (map car g) free-bind)))
+		       ;;(foo (dformat "update grou ~a bindings: ~a\n" (map car g) free-bind))
+		       )
 		   (define (update-lambda f)
 		     (define lam (second f))
 		     (if clo
@@ -443,7 +442,7 @@
 						    (if r
 							(cdr r)
 							f)) free)))
-		   (dformat "Gen closure \n")
+		   ;;(dformat "Gen closure \n")
 		   ;; The unknown binding that needs a pointer is always first.
 		   `(,clo ($closure ($label ,(caar g))
 				    ,@(map (lambda (f) (if (memq f all-names) #f f)) free-replaced)))))
@@ -468,7 +467,7 @@
 		       '())))
 	       (define (id a) a)
 	       (define body-clo-bind (apply append (map (lambda (g clo) (map (lambda (f) (cons (car f) clo)) g)) (second f) closures)))
-	       (dformat "Well known groups:~a ~a ~a ~a\n" (second f) group-well-known free-cnt closures)
+	       ;;(dformat "Well known groups:~a ~a ~a ~a\n" (second f) group-well-known free-cnt closures)
 	       ;; The function labels
 	       ;; TODO $labels
 	       `($labels ,(apply append (map update-group (second f) closures))

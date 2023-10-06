@@ -391,8 +391,8 @@
   (when (and rd (not (= rd nr)))
     (push-instr! bc (list 'MOV rd nr)))
   (push-instr! bc (list (if (eq? cd 'ret) 'LCALLT 'LCALL) nr (+ 1 (length args))))
-  (dformat "labels: ~a\n" labels)
-  (dformat "Label call: ~a  args ~a nr ~a\n" f (length args) nr)
+  ;;(dformat "labels: ~a\n" labels)
+  ;;(dformat "Label call: ~a  args ~a nr ~a\n" f (length args) nr)
   (push-instr! bc (list 'KFUNC nr (cdr (assq (second f) labels))))
   (fold
    (lambda (f num)
@@ -403,7 +403,7 @@
 
 (define (compile-label f bc env rd nr cd)
   (finish bc cd nr rd)
-  (dformat "Compile label ~a\n" f)
+  ;;(dformat "Compile label ~a\n" f)
   (push-instr! bc (list 'KFUNC rd (cdr (assq (second f) labels)))))
 
 (define (compile-labels f bc env rd nr cd)
@@ -415,12 +415,12 @@
 			       (let* ((lam (second f))
 				      (f-bc (make-func-bc (second lam) '())))
 				 (push! labels (cons (first f) cnt))
-				 (dformat "cnt label ~a ~a\n" (first f) cnt)
+				 ;;(dformat "cnt label ~a ~a\n" (first f) cnt)
 				 (push! program f-bc)
 				 (set! cnt (+ 1 cnt))
 				 f-bc))
 			     (second f))))
-    (dformat "Compile labels ~a\n" (map car (second f)))
+    ;;(dformat "Compile labels ~a\n" (map car (second f)))
     (for-each compile-lambda (second f) f-bc)
     (compile-sexp (third f) bc env rd nr cd)))
 
@@ -779,7 +779,6 @@
   (set! symbol-table '())
   (set! program '())
   (-> (with-input-from-file name expander)
-      debugdisplay
       add-includes ;;  Can remove with new expander
       case-insensitive ;; Can remove with new expander
       integrate-r5rs ;; optional
@@ -793,7 +792,6 @@
       ;; Closure conversion passes
       letrec-ify-prepass
 
-      debugdisplay
       find-free
 
       update-direct-calls
