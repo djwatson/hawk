@@ -1,3 +1,8 @@
+(define-syntax unless
+  (syntax-rules ()
+    ((_ cond body ...)
+     (if (not cond) (begin body ...)))))
+
 ;; Map including improper
 (define (imap f l)
   (if (null? l) 
