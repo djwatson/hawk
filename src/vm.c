@@ -124,7 +124,7 @@ NOINLINE void FAIL_SLOWPATH(PARAMS) {
 }
 
 NOINLINE void FAIL_SLOWPATH_ARGCNT(PARAMS) {
-  printf("FAIL ARGCNT INVALID\n");
+  printf("FAIL ARGCNT INVALID calling %s given %li args takes %i\n", find_func_for_frame(pc)->name, argcnt, ra);
 
   MUSTTAIL return FAIL_SLOWPATH(ARGS);
 }

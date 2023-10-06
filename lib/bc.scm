@@ -771,6 +771,7 @@
   (set! symbol-table '())
   (set! program '())
   (-> (with-input-from-file name expander)
+      debugdisplay
       add-includes ;;  Can remove with new expander
       case-insensitive ;; Can remove with new expander
       integrate-r5rs ;; optional
@@ -781,15 +782,20 @@
       lower-case-lambda ;; Can remove with new expander? 
       lower-loops ;; optional
       name-lambdas
-
       ;; Closure conversion passes
       letrec-ify-prepass
-      find-free
-      update-direct-calls
-      scletrec
-      scletrec2
-      final-free
+
       debugdisplay
+      find-free
+
+      update-direct-calls
+
+      scletrec
+
+      scletrec2
+
+      final-free
+
       closure-conversion-scc
       debugdisplay
 ;      closure-conversion
