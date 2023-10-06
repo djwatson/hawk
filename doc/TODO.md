@@ -12,12 +12,14 @@
   * ?? peval - sccp
   * puzzle - optimistic globals / loop_opt
   
-  * conform, nboyer, sboyer, graphs, 
+  * conform - needs sccp, nboyer, sboyer, graphs - needs opt_loop
+  * swan wins: mazefun, lattice, nboyer - HUGE gc, peval, compiler - also huge, dynamic - also huge
+     * does NOT win at conform, graphs, crashes matrix
 
 # TODO
 * fix letrec closures
   [x] new closure algo
-  [ ] constant pointer-only closures
+  [x] constant pointer-only closures
   [ ] optimistic monomorphic
 * fusion - cleanup
   *vec, all

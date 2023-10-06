@@ -444,8 +444,9 @@
 							f)) free)))
 		   ;;(dformat "Gen closure \n")
 		   ;; The unknown binding that needs a pointer is always first.
-		   `(,clo ($closure ($label ,(caar g))
-				    ,@(map (lambda (f) (if (memq f all-names) #f f)) free-replaced)))))
+		   `(,clo (,(if (= (length free-replaced) 0) '$const-closure '$closure)
+			   ($label ,(caar g))
+			   ,@(map (lambda (f) (if (memq f all-names) #f f)) free-replaced)))))
 	       (define (generate-closure-set g clo)
 		 (define (find-closure f)
 		   (let loop ((groups groups) (closures closures))

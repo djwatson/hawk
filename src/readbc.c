@@ -148,6 +148,17 @@ long read_const(FILE *fptr) {
       printf("Unknown boxed type:%lx\\n", ptrtype);
       exit(-1);
     }
+  } else if (type == CLOSURE_TAG) {
+    long bcfunc_num;
+    if (fread(&bcfunc_num, 1, 8, fptr) != 8) {
+      goto error;
+    }
+    auto clo = (closure_s*)GC_malloc(sizeof(closure_s) + 8);
+    clo->type = CLOSURE_TAG;
+    clo->rc = 0;
+    clo->len = 1 << 3;
+    clo->v[0] = bcfunc_num << 3; // Updated below.
+    val = (long)clo | CLOSURE_TAG;
   } else {
     printf("Unknown deserialize tag %lx\n", val);
     exit(-1);
@@ -207,9 +218,9 @@ bcfunc *readbc(FILE *fptr) {
   }
   for (unsigned j = 0; j < const_count; j++) {
     const_table[j + const_offset] = read_const(fptr);
-    // printf("%i: ", j);
-    // print_obj(const_table[j]);
-    // printf("\n");
+    //printf("%i: %i", j, const_table[j]&TAG_MASK);
+    //print_obj(const_table[j], stdout);
+    //printf("\n");
   }
 
   // Read functions
@@ -269,6 +280,14 @@ bcfunc *readbc(FILE *fptr) {
       //         INS_A(code), INS_B(code), INS_C(code), INS_BC(code));
     }
     arrput(funcs, f);
+  }
+  // Update any new constant closures.
+  for(uint64_t i = const_offset; i < const_table_sz; i++) {
+    auto v = const_table[i];
+    if ((v & TAG_MASK) == CLOSURE_TAG) {
+      auto clo = (closure_s*)(v - CLOSURE_TAG);
+      clo->v[0] = (long)funcs[func_offset + (clo->v[0] >> 3)];
+    }
   }
 
   fclose(fptr);
