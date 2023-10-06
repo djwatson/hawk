@@ -210,10 +210,6 @@ void print_obj(long obj, FILE *file) {
     fprintf(file, "#<procedure %s>", func->name);
     break;
   }
-  case FORWARD_TAG: {
-    fputs("<forward tag>", file);
-    break;
-  }
   case LITERAL_TAG: {
     if (obj == TRUE_REP) {
       fputs("#t", file);

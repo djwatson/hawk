@@ -18,7 +18,6 @@
 #define LITERAL_TAG 0x4
 #define CLOSURE_TAG 0x5
 #define SYMBOL_TAG 0x6
-#define FORWARD_TAG 0x7
 
 #define TAG_MASK 0x7
 

@@ -164,22 +164,26 @@ void GC_pop_root(const long *root) {
 
 void GC_enable(bool en) { gc_enable = en; }
 
+static const uint64_t FORWARD = 0xffffffffffffffff;
+
 static bool is_forwarded(long obj) {
   auto ptr = (long *)obj;
-  return ((ptr[0]) & TAG_MASK) == FORWARD_TAG;
+  return *ptr == FORWARD;
 }
 
 static void set_forward(long *ptr, void *to) {
-  assert(((ptr[0]) & TAG_MASK) != FORWARD_TAG);
-  ptr[0] = (long)to + FORWARD_TAG;
+  assert(ptr[0] != FORWARD_TAG);
+  ptr[0] = FORWARD;
+  ptr[1] = (long)to;
 }
 
 static long get_forward(long obj) {
   assert(is_forwarded(obj));
   auto ptr = (long *)obj;
-  // printf("Obj %p forwarded to %lx\n", ptr, (*ptr) - FORWARD_TAG);
-  return (ptr[0]) - FORWARD_TAG;
+  return ptr[1];
 }
+
+
 
 static gc_block *cur_copy_block = NULL;
 static uint8_t *copy_alloc_ptr = NULL;
@@ -445,14 +449,14 @@ static void trace_roots(void (*add_root)(long *root)) {
 }
 
 static struct {
-  uint64_t traces;
-  uint64_t full_traces;
+  int traces;
+  int full_traces;
 } gc_stats = {0, 0};
 static void GC_deinit() {
   /* arrfree(pushed_roots); */
   /* munmap(alloc_start, alloc_sz); */
   if (verbose) {
-    printf("GC's %llu Full traces %llu (%.02f)\n", gc_stats.traces,
+    printf("GC's %i Full traces %i (%.02f)\n", gc_stats.traces,
            gc_stats.full_traces,
            ((double)gc_stats.full_traces / (double)gc_stats.traces) * 100.0);
   }
