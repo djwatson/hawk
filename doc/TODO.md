@@ -11,11 +11,16 @@
   * graphs: LOOP_opt, sccp, GC
   * ?? peval - sccp
   * puzzle - optimistic globals / loop_opt
+  
+  * conform, nboyer, sboyer, graphs, 
 
 # TODO
+* fix letrec closures
+  [x] new closure algo
+  [ ] constant pointer-only closures
+  [ ] optimistic monomorphic
 * fusion - cleanup
   *vec, all
-* fix letrec closures
 * string ops
 * fix buffering
 * optimistic monomorphic closures?

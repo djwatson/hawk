@@ -776,6 +776,7 @@ LIBRARY_FUNC_B(CLOSURE)
   closure->type = CLOSURE_TAG;
   closure->rc = 0;
   closure->len = rb << 3;
+
   for (int i = 0; i < rb; i++) {
     closure->v[i] = frame[ra + i];
   }
