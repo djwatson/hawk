@@ -138,8 +138,8 @@ typedef struct trace_s_s {
   uint16_t *syms;
 } trace_s;
 
-#define UNROLL_LIMIT 1
-#define UNROLL_ABORT_LIMIT 3
+#define UNROLL_LIMIT 2
+#define UNROLL_ABORT_LIMIT 10
 
 #define ir_is_const(op) (op & IR_CONST_BIAS)
 

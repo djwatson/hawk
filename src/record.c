@@ -974,11 +974,12 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     }
     break;
   }
+  case LCALL:
   case CALL: {
     for (int j = INS_A(i) + 1; j < INS_A(i) + INS_B(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
-    {
+    if (INS_OP(i) == CALL) {
       auto clo = record_stack_load(INS_A(i) + 1, frame);
       if (!(clo & IR_CONST_BIAS)) {
         /* add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth,
@@ -992,6 +993,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         arrput(trace->consts, closure->v[0]);
         push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
       }
+    } else {
+      // It's a label call, we must always go to this label.
     }
     /* // Check call type */
     /* { */
@@ -1026,28 +1029,40 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
 
     break;
   }
+  case LCALLT:
   case CALLT: {
-    // Record the tailcall for checking for loop endings.
-    {
-      auto clo = (closure_s*)(frame[INS_A(i) + 1] - CLOSURE_TAG);
-      auto call_pc = &((bcfunc*)clo->v[0])->code[0];
-      auto v = hmget(tailcalled, call_pc);
-      hmput(tailcalled, call_pc, v + 1);
-    }
-    // Check call type
-    {
-      auto clo = record_stack_load(INS_A(i) + 1, frame);
-      if (!(clo & IR_CONST_BIAS)) {
-        /* add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth,
-         * INS_A(i) + INS_B(i)); */
-        auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
-        auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
-        regs[INS_A(i)] = fun;
-        auto cl = frame[INS_A(i) + 1];
-        auto closure = (closure_s *)(cl - CLOSURE_TAG);
-        auto knum = arrlen(trace->consts);
-        arrput(trace->consts, closure->v[0]);
-        push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
+    if (INS_OP(i) == CALLT) {
+      // Record the tailcall for checking for loop endings.
+      {
+	auto clo = (closure_s*)(frame[INS_A(i) + 1] - CLOSURE_TAG);
+	auto call_pc = &((bcfunc*)clo->v[0])->code[0];
+	auto v = hmget(tailcalled, call_pc);
+	hmput(tailcalled, call_pc, v + 1);
+      }
+      // Check call type
+      {
+	auto clo = record_stack_load(INS_A(i) + 1, frame);
+	if (!(clo & IR_CONST_BIAS)) {
+	  /* add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth,
+	   * INS_A(i) + INS_B(i)); */
+	  auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
+	  auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
+	  regs[INS_A(i)] = fun;
+	  auto cl = frame[INS_A(i) + 1];
+	  auto closure = (closure_s *)(cl - CLOSURE_TAG);
+	  auto knum = arrlen(trace->consts);
+	  arrput(trace->consts, closure->v[0]);
+	  push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
+	}
+      }
+    } else {
+      // Label call
+      // Record the tailcall for checking for loop endings.
+      {
+	auto lfunc = (bcfunc*)frame[INS_A(i)];
+	auto call_pc = &lfunc->code[0];
+	auto v = hmget(tailcalled, call_pc);
+	hmput(tailcalled, call_pc, v + 1);
       }
     }
     /* { */
