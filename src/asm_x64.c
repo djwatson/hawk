@@ -688,6 +688,45 @@ static void emit_init_funcs() {
   }
 }
 
+void emit_vref(uint8_t reg, uint8_t opcode, trace_s* trace, ir_ins* op, int *slot, uint32_t *next_spill) {
+  // TODO: fuse.
+  maybe_assign_register(op->op1, trace, slot, next_spill);
+  maybe_assign_register(op->op2, trace, slot, next_spill);
+  assert(reg != REG_NONE);
+  if (ir_is_const(op->op1)) {
+    if (ir_is_const(op->op2)) {
+      // Must be fixnum
+
+      // TODO could be a special reloc type and one mov.
+      auto c2 = trace->consts[op->op2 - IR_CONST_BIAS];
+      emit_mem_reg(opcode, 16 - PTR_TAG + c2, R15, reg);
+
+      auto c1 = trace->consts[op->op1 - IR_CONST_BIAS];
+      auto re = (reloc){emit_offset(), c1, RELOC_ABS};
+      arrput(trace->relocs, re);
+      emit_mov64(R15, c1);
+    } else {
+      emit_mem_reg_sib(opcode, 16 - PTR_TAG, 0, trace->ops[op->op2].reg,
+		       R15, reg);
+
+      auto c1 = trace->consts[op->op1 - IR_CONST_BIAS];
+      auto re = (reloc){emit_offset(), c1, RELOC_ABS};
+      arrput(trace->relocs, re);
+      emit_mov64(R15, c1);
+    }
+  } else {
+    if (ir_is_const(op->op2)) {
+      // Must be fixnum
+      auto c = trace->consts[op->op2 - IR_CONST_BIAS];
+      emit_mem_reg(opcode, 16 - PTR_TAG + c, trace->ops[op->op1].reg,
+		   reg);
+    } else {
+      emit_mem_reg_sib(opcode, 16 - PTR_TAG, 0, trace->ops[op->op2].reg,
+		       trace->ops[op->op1].reg, reg);
+    }
+  }
+}
+
 void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   emit_init();
   lru_init(&reg_lru);
@@ -966,6 +1005,12 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         op->reg = get_free_reg(trace, &next_spill, slot, false);
         // printf("EMIT LOAD ONLY\n");
       }
+      if (!ir_is_const(op->op1) && trace->ops[op->op1].op == IR_VREF) {
+	auto op1 = &trace->ops[op->op1];
+	emit_op_typecheck(op->reg, op->type, snap_labels[cur_snap]);
+	emit_vref(op->reg, OP_MOV_MR, trace, op1, slot, &next_spill);
+	break;
+      }
 
       if (!ir_is_const(op->op1) && trace->ops[op->op1].op == IR_REF &&
           !ir_is_const(trace->ops[op->op1].op1)) {
@@ -1005,41 +1050,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_VREF: {
-      // TODO: fuse.
-      maybe_assign_register(op->op1, trace, slot, &next_spill);
-      maybe_assign_register(op->op2, trace, slot, &next_spill);
-      assert(op->reg != REG_NONE);
-      if (ir_is_const(op->op1)) {
-        if (ir_is_const(op->op2)) {
-          // Must be fixnum
-
-          // TODO could be a special reloc type and one mov.
-          auto c2 = trace->consts[op->op2 - IR_CONST_BIAS];
-          emit_mem_reg(OP_LEA, 16 - PTR_TAG + c2, R15, op->reg);
-
-          auto c1 = trace->consts[op->op1 - IR_CONST_BIAS];
-          auto re = (reloc){emit_offset(), c1, RELOC_ABS};
-          arrput(trace->relocs, re);
-          emit_mov64(R15, c1);
-        } else {
-          emit_mem_reg_sib(OP_LEA, 16 - PTR_TAG, 0, trace->ops[op->op2].reg,
-                           R15, op->reg);
-
-          auto c1 = trace->consts[op->op1 - IR_CONST_BIAS];
-          auto re = (reloc){emit_offset(), c1, RELOC_ABS};
-          arrput(trace->relocs, re);
-          emit_mov64(R15, c1);
-        }
-      } else {
-        if (ir_is_const(op->op2)) {
-          // Must be fixnum
-          auto c = trace->consts[op->op2 - IR_CONST_BIAS];
-          emit_mem_reg(OP_LEA, 16 - PTR_TAG + c, trace->ops[op->op1].reg,
-                       op->reg);
-        } else {
-          emit_mem_reg_sib(OP_LEA, 16 - PTR_TAG, 0, trace->ops[op->op2].reg,
-                           trace->ops[op->op1].reg, op->reg);
-        }
+      if (op->reg != REG_NONE) {
+	emit_vref(op->reg, OP_LEA, trace, op, slot, &next_spill);
       }
       break;
     }
