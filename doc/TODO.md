@@ -22,17 +22,15 @@
   [x] constant pointer-only closures
   [ ] optimistic monomorphic
 * fusion - cleanup
-  *vec, all
 * string ops
 * fix buffering
-* optimistic monomorphic closures?
 
+* sccp pass / fold - 
+  * Only matters for memory refs if we can CSE or DCE away^
 * lazier typechecking 
   * jguard counts as a use!
   * Free except VECTOR and maybe STRING type? ^
   * Necessary for dce of unused refs ^
-* sccp pass / fold - 
-  * Only matters for memory refs if we can CSE or DCE away^
 
 * TRACE loop recording - 
   * CALLT should also detect loops, and flush original trace??

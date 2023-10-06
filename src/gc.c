@@ -131,6 +131,7 @@ static void put_gc_block(gc_block *mem) {
 bool is_ptr_type(long obj) {
   auto type = obj & TAG_MASK;
   if (type == PTR_TAG || type == FLONUM_TAG || type == CONS_TAG ||
+      type == VECTOR_TAG ||
       type == CLOSURE_TAG || type == SYMBOL_TAG) {
     return true;
   }
@@ -674,6 +675,7 @@ static void scan_log_buf(void (*add_increment)(long *)) {
       auto v = *field;
       auto type = v & TAG_MASK;
       if (type == PTR_TAG || type == FLONUM_TAG || type == CONS_TAG ||
+	  type == VECTOR_TAG ||
           type == CLOSURE_TAG || type == SYMBOL_TAG) {
         // printf("Add log increments: %p\n", *field);
         add_increment(field);
@@ -681,6 +683,7 @@ static void scan_log_buf(void (*add_increment)(long *)) {
       v = cur.addr;
       type = v & TAG_MASK;
       if (type == PTR_TAG || type == FLONUM_TAG || type == CONS_TAG ||
+	  type == VECTOR_TAG ||
           type == CLOSURE_TAG || type == SYMBOL_TAG) {
         // printf("Add log decrements: %p\n", v);
         arrput(cur_decrements, v);

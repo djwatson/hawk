@@ -1332,8 +1332,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto idx = record_stack_load(INS_B(i), frame);
     auto obj = record_stack_load(INS_C(i), frame);
 
-    push_ir(trace, IR_GCLOG, vec, IR_NONE, VECTOR_TAG);
-    push_ir(trace, IR_ABC, vec, idx, IR_INS_TYPE_GUARD);
+    push_ir(trace, IR_GCLOG, vec, IR_NONE, UNDEFINED_TAG);
+    push_ir(trace, IR_ABC, vec, idx, IR_INS_TYPE_GUARD | VECTOR_TAG);
     auto vref = push_ir(trace, IR_VREF, vec, idx, 0);
     push_ir(trace, IR_STORE, vref, obj, 0);
 
@@ -1347,11 +1347,11 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto vec = record_stack_load(INS_B(i), frame);
     auto idx = record_stack_load(INS_C(i), frame);
 
-    push_ir(trace, IR_ABC, vec, idx, IR_INS_TYPE_GUARD);
+    push_ir(trace, IR_ABC, vec, idx, IR_INS_TYPE_GUARD | VECTOR_TAG);
     auto vref = push_ir(trace, IR_VREF, vec, idx, 0);
 
     uint64_t pos = frame[INS_C(i)] >> 3;
-    vector_s *vec_d = (vector_s *)(frame[INS_B(i)] - PTR_TAG);
+    vector_s *vec_d = (vector_s *)(frame[INS_B(i)] - VECTOR_TAG);
     uint8_t type = get_object_ir_type(vec_d->v[pos]);
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, vref, 0, IR_INS_TYPE_GUARD | type);
     stack_top = INS_A(i) + 1;
@@ -1362,7 +1362,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto str = record_stack_load(INS_B(i), frame);
     auto idx = record_stack_load(INS_C(i), frame);
 
-    push_ir(trace, IR_ABC, str, idx, IR_INS_TYPE_GUARD);
+    push_ir(trace, IR_ABC, str, idx, IR_INS_TYPE_GUARD | STRING_TAG);
     regs[INS_A(i)] = push_ir(trace, IR_STRLD, str, idx, CHAR_TAG);
     stack_top = INS_A(i) + 1;
 
@@ -1373,7 +1373,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto idx = record_stack_load(INS_B(i), frame);
     auto val = record_stack_load(INS_C(i), frame);
 
-    push_ir(trace, IR_ABC, str, idx, IR_INS_TYPE_GUARD);
+    push_ir(trace, IR_ABC, str, idx, IR_INS_TYPE_GUARD | STRING_TAG);
     auto ref = push_ir(trace, IR_STRREF, str, idx, 0);
     push_ir(trace, IR_STRST, ref, val, 0);
     stack_top = INS_A(i) + 1;
@@ -1507,9 +1507,9 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto alloc_sz_aligned =
         push_ir(trace, IR_MUL, alloc_sz, knum | IR_CONST_BIAS, FIXNUM_TAG);
     // TODO snaps??
-    auto cell = push_ir(trace, IR_ALLOC, alloc_sz_aligned, PTR_TAG, VECTOR_TAG);
+    auto cell = push_ir(trace, IR_ALLOC, alloc_sz_aligned, VECTOR_TAG, VECTOR_TAG);
 
-    auto ref = push_ir(trace, IR_REF, cell, 8 - PTR_TAG, UNDEFINED_TAG);
+    auto ref = push_ir(trace, IR_REF, cell, 8 - VECTOR_TAG, UNDEFINED_TAG);
     push_ir(trace, IR_STORE, ref, sz, UNDEFINED_TAG);
     regs[INS_A(i)] = cell;
 
@@ -1540,14 +1540,14 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (sizeof(vector_s) + 8 * len) << 3);
     auto cell =
-        push_ir(trace, IR_ALLOC, knum | IR_CONST_BIAS, PTR_TAG, VECTOR_TAG);
+        push_ir(trace, IR_ALLOC, knum | IR_CONST_BIAS, VECTOR_TAG, VECTOR_TAG);
     regs[reg] = cell;
-    auto ref = push_ir(trace, IR_REF, cell, 8 - PTR_TAG, UNDEFINED_TAG);
+    auto ref = push_ir(trace, IR_REF, cell, 8 - VECTOR_TAG, UNDEFINED_TAG);
     knum = arrlen(trace->consts);
     arrput(trace->consts, (long)(len << 3));
     push_ir(trace, IR_STORE, ref, knum | IR_CONST_BIAS, UNDEFINED_TAG);
     for (uint32_t cnt = 0; cnt < len; cnt++) {
-      ref = push_ir(trace, IR_REF, cell, 16 + cnt * 8 - PTR_TAG, UNDEFINED_TAG);
+      ref = push_ir(trace, IR_REF, cell, 16 + cnt * 8 - VECTOR_TAG, UNDEFINED_TAG);
       push_ir(trace, IR_STORE, ref, loaded[cnt], UNDEFINED_TAG);
     }
     stack_top = INS_A(i) + 1;
@@ -1830,10 +1830,16 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     stack_top = INS_A(i) + 1;
     break;
   }
-  case STRING_LENGTH:
-  case VECTOR_LENGTH: {
+  case STRING_LENGTH: {
     auto vec = record_stack_load(INS_B(i), frame);
     auto ref = push_ir(trace, IR_REF, vec, 8 - PTR_TAG, UNDEFINED_TAG);
+    regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, 0, FIXNUM_TAG);
+    stack_top = INS_A(i) + 1;
+    break;
+  }
+  case VECTOR_LENGTH: {
+    auto vec = record_stack_load(INS_B(i), frame);
+    auto ref = push_ir(trace, IR_REF, vec, 8 - VECTOR_TAG, UNDEFINED_TAG);
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, ref, 0, FIXNUM_TAG);
     stack_top = INS_A(i) + 1;
     break;

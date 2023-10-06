@@ -24,7 +24,7 @@
 (define (pair? x) ($guard x 3))
 (define (procedure? x) ($guard x 5))
 (define (symbol? x) ($guard x 6))
-(define (vector? x) ($guard x #x11))
+(define (vector? x) ($guard x 7))
 (define (string? x) ($guard x 9))
 (define (port? x) ($guard x #x19))
 (define complex? number?)

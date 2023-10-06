@@ -17,15 +17,15 @@
 | deriv     |    .53 |    .908 |  -71.320755 | *WIN* | merge GC, lea fusion, typechecks, snapshot min  |            |
 | triangl   |     .8 |   1.184 |        -48. | *WIN* |                                                 | x          |
 | destruc   |   1.08 |    1.28 |  -18.518519 | *WIN* |                                                 | x          |
-| gcbench   |    .59 |    .556 |   5.7627119 |       | letrec define opt                               |            |
-| puzzle    |    1.7 |    1.55 |   8.8235294 |       | loop opt                                        | x          |
+| gcbench   |    .59 |    .556 |   5.7627119 |       | bigger nursury                                  |            |
+| puzzle    |   1.32 |    1.55 |  -17.424242 | *WIN* | loop opt                                        | x          |
 | paraffins |   3.24 |   4.270 |  -31.790123 | *WIN* |                                                 | x          |
 | maze      |   .437 |    .845 |  -93.363844 | *WIN* |                                                 | x          |
 | mazefun   |   1.79 |   1.731 |   3.2960894 |       |                                                 | x          |
 | lattice   |    2.7 |     2.7 |          0. | *WIN* | closure sinking, sccp                           | x          |
 | browse    |    .92 |    .987 |  -7.2826087 | *WIN* |                                                 |            |
-| graphs    |    1.9 |     1.3 |   31.578947 |       | LOOP, closure analysis , closure sinking        | nested     |
-| conform   |   1.97 |   1.422 |   27.817259 |       |                                                 |            |
+| graphs    |   1.75 |     1.3 |   25.714286 |       | LOOP, closure analysis , closure sinking        | nested     |
+| conform   |   1.89 |   1.422 |   24.761905 |       |                                                 |            |
 | sboyer    |    .87 |    .731 |   15.977011 |       | ?? typecheck                                    |            |
 | nboyer    |   1.42 |   1.483 |  -4.4366197 | *WIN* | ??                                              |            |
 | array1    |    2.0 |     4.5 |       -125. | *WIN* |                                                 | x          |
@@ -35,13 +35,13 @@
 | fibc      |   1.54 |    .328 |   78.701299 |       | cc representation                               | x          |
 | string    |    5.5 |     2.5 |   54.545455 |       | string ops                                      |            |
 | read1     |   1.00 |   0.574 |        42.6 |       | read                                            |            |
-| parsing   |   2.22 |     2.1 |   5.4054054 |       | sccp                                            |            |
+| parsing   |   2.1  |     2.1 |   5.4054054 |       | sccp                                            |            |
 | peval     |   1.55 |    1.46 |   5.8064516 |       | loop catching. sccp                             |            |
 | slatex    |   1.91 |   1.958 |  -2.5130890 | *WIN* |                                                 |            |
 | equal     |   .200 |    .398 |        -99. | *WIN* |                                                 |            |
 | compiler  |   2.19 |   2.004 |   8.4931507 |       | loop catching                                   |            |
 | matrix    |    1.2 |    .899 |   25.083333 |       | loop catching?? opt_loop                        |            |
 | dynamic   |   1.88 |   1.447 |   23.031915 |       | read                                            |            |
-| TOTAL     | 73.074 | 76.9779 |  -5.3423926 | *WIN* |                                                 |            |
+| TOTAL     | 72.464 | 76.9779 |  -6.2291621 | *WIN* |                                                 |            |
 |-----------+--------+---------+-------------+-------+-------------------------------------------------+------------|
 #+TBLFM: $4=($2-$3) * 100.0 /$2::$5='(if (not (= $2 0)) (if (>= $3 $2) '*WIN* "") "BAD");N::@>$2=vsum(@2..@-1)::@>$3=vsum(@2..@-1)

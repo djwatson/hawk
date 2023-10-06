@@ -37,15 +37,15 @@ void print_const_or_val(int i, trace_s *ctrace) {
       printf("eof");
     } else if ((c & IMMEDIATE_MASK) == NIL_TAG) {
       printf("nil");
+    } else if (type == VECTOR_TAG) {
+      printf("vector");
     } else if (type == SYMBOL_TAG) {
       string_s *sym_name =
           (string_s *)(((symbol *)(c - SYMBOL_TAG))->name - PTR_TAG);
       printf("\e[1;35m%s\e[m", sym_name->str);
     } else if (type == PTR_TAG) {
       auto type2 = ((long *)(c - PTR_TAG))[0] & 0xff;
-      if (type2 == VECTOR_TAG) {
-        printf("vector");
-      } else if (type2 == STRING_TAG) {
+      if (type2 == STRING_TAG) {
         printf("str");
       } else if (type2 == PORT_TAG) {
         printf("port");

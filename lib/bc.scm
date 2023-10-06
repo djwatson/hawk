@@ -703,7 +703,6 @@
     (write-u64 (string-length c) p)
     (for-each (lambda (c) (write-u8 (char->integer c) p)) (string->list c)))
    ((vector? c)
-    (write-u64 ptr-tag p)
     (write-u64 vector-tag p)
     (write-u64 (vector-length c) p)
     (do ((i 0 (+ i 1)))

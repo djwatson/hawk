@@ -11,12 +11,11 @@
 (define literal-tag #b100)
 (define closure-tag #b101)
 (define symbol-tag #b110)
-(define forward-tag #b111)
+(define vector-tag #b111)
 ;; ptr-tagged objects
 ;; Bottom bits must be '001'
 ;; First 8 bytes are always the tag.
 (define string-tag #b001001)
-(define vector-tag #b010001)
 (define port-tag #b011001)
 (define box-tag #b100001)
 (define cont-tag #b101001)

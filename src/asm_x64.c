@@ -690,6 +690,13 @@ static void emit_init_funcs() {
 
 void emit_vref(uint8_t reg, uint8_t opcode, trace_s* trace, ir_ins* op, int *slot, uint32_t *next_spill) {
   // TODO: fuse.
+  uint8_t type;
+  if (ir_is_const(op->op1)) {
+    type = get_object_ir_type(trace->consts[op->op1 - IR_CONST_BIAS]);
+  } else {
+    type = trace->ops[op->op1].type;
+  }
+  type &= TAG_MASK;
   maybe_assign_register(op->op1, trace, slot, next_spill);
   maybe_assign_register(op->op2, trace, slot, next_spill);
   assert(reg != REG_NONE);
@@ -699,14 +706,14 @@ void emit_vref(uint8_t reg, uint8_t opcode, trace_s* trace, ir_ins* op, int *slo
 
       // TODO could be a special reloc type and one mov.
       auto c2 = trace->consts[op->op2 - IR_CONST_BIAS];
-      emit_mem_reg(opcode, 16 - PTR_TAG + c2, R15, reg);
+      emit_mem_reg(opcode, 16 - type + c2, R15, reg);
 
       auto c1 = trace->consts[op->op1 - IR_CONST_BIAS];
       auto re = (reloc){emit_offset(), c1, RELOC_ABS};
       arrput(trace->relocs, re);
       emit_mov64(R15, c1);
     } else {
-      emit_mem_reg_sib(opcode, 16 - PTR_TAG, 0, trace->ops[op->op2].reg,
+      emit_mem_reg_sib(opcode, 16 - type, 0, trace->ops[op->op2].reg,
 		       R15, reg);
 
       auto c1 = trace->consts[op->op1 - IR_CONST_BIAS];
@@ -718,10 +725,10 @@ void emit_vref(uint8_t reg, uint8_t opcode, trace_s* trace, ir_ins* op, int *slo
     if (ir_is_const(op->op2)) {
       // Must be fixnum
       auto c = trace->consts[op->op2 - IR_CONST_BIAS];
-      emit_mem_reg(opcode, 16 - PTR_TAG + c, trace->ops[op->op1].reg,
+      emit_mem_reg(opcode, 16 - type + c, trace->ops[op->op1].reg,
 		   reg);
     } else {
-      emit_mem_reg_sib(opcode, 16 - PTR_TAG, 0, trace->ops[op->op2].reg,
+      emit_mem_reg_sib(opcode, 16 - type, 0, trace->ops[op->op2].reg,
 		       trace->ops[op->op1].reg, reg);
     }
   }
@@ -1036,15 +1043,16 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_ABC: {
+      auto type = op->type & TAG_MASK;
       maybe_assign_register(op->op1, trace, slot, &next_spill);
       maybe_assign_register(op->op2, trace, slot, &next_spill);
       emit_jcc32(JL, snap_labels[cur_snap]);
       emit_arith_op(OP_ARITH_CMP, OP_CMP, R15, op->op2, trace, slot);
       if (!ir_is_const(op->op1)) {
-        emit_mem_reg(OP_MOV_MR, 8 - PTR_TAG, trace->ops[op->op1].reg, R15);
+        emit_mem_reg(OP_MOV_MR, 8 - type, trace->ops[op->op1].reg, R15);
       } else {
         vector_s *v =
-            (vector_s *)(trace->consts[op->op1 - IR_CONST_BIAS] - PTR_TAG);
+            (vector_s *)(trace->consts[op->op1 - IR_CONST_BIAS] - type);
         emit_mov64(R15, v->len);
       }
       break;

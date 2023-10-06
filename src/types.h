@@ -18,6 +18,7 @@
 #define LITERAL_TAG 0x4
 #define CLOSURE_TAG 0x5
 #define SYMBOL_TAG 0x6
+#define VECTOR_TAG 0x7
 
 #define TAG_MASK 0x7
 
@@ -25,7 +26,6 @@
 // Bottom three bits are '001' so it is also recognized as a PTR using the same
 // tag.
 #define STRING_TAG 0x9
-#define VECTOR_TAG 0x11
 #define PORT_TAG 0x19
 #define BOX_TAG 0x21
 #define CONT_TAG 0x29

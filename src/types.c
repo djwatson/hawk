@@ -60,25 +60,6 @@ static ep_result equalp_interleave(uf *ht, bool fast, long a, long b, long k) {
     if (ta != tb) {
       return (ep_result){false, k};
     }
-    if (ta == VECTOR_TAG) {
-      vector_s *va = (vector_s *)(a - PTR_TAG);
-      vector_s *vb = (vector_s *)(b - PTR_TAG);
-      if (va->len != vb->len) {
-        return (ep_result){false, k};
-      }
-      if (!fast && unionfind(ht, a, b)) {
-        return (ep_result){true, 0};
-      }
-      // Decrement K once for the vector, but return same K value
-      uint64_t lim = va->len >> 3;
-      for (uint64_t i = 0; i < lim; i++) {
-        auto res = ep(ht, fast, va->v[i], vb->v[i], k - 1);
-        if (true != res.v) {
-          return res;
-        }
-      }
-      return (ep_result){true, k};
-    }
     if (ta == STRING_TAG) {
       string_s *sa = (string_s *)(a - PTR_TAG);
       string_s *sb = (string_s *)(b - PTR_TAG);
@@ -89,6 +70,27 @@ static ep_result equalp_interleave(uf *ht, bool fast, long a, long b, long k) {
         return (ep_result){true, k};
       }
       return (ep_result){false, k};
+    }
+  }
+  if ((a&TAG_MASK) == VECTOR_TAG) {
+    if ((b&TAG_MASK) == VECTOR_TAG) {
+      vector_s *va = (vector_s *)(a - VECTOR_TAG);
+      vector_s *vb = (vector_s *)(b - VECTOR_TAG);
+      if (va->len != vb->len) {
+	return (ep_result){false, k};
+      }
+      if (!fast && unionfind(ht, a, b)) {
+	return (ep_result){true, 0};
+      }
+      // Decrement K once for the vector, but return same K value
+      uint64_t lim = va->len >> 3;
+      for (uint64_t i = 0; i < lim; i++) {
+	auto res = ep(ht, fast, va->v[i], vb->v[i], k - 1);
+	if (true != res.v) {
+	  return res;
+	}
+      }
+      return (ep_result){true, k};
     }
   }
   // eqp?
@@ -154,19 +156,21 @@ void print_obj(long obj, FILE *file) {
       fputs(str->str, file);
     } else if (ptrtype == PORT_TAG) {
       fputs("#<port>", file);
-    } else if (ptrtype == VECTOR_TAG) {
-      auto v = (vector_s *)(obj - PTR_TAG);
-      fputs("#(", file);
-      for (long i = 0; i < (v->len >> 3); i++) {
-        if (i != 0) {
-          fputc(' ', file);
-        }
-        print_obj(v->v[i], file);
-      }
-      fputc(')', file);
     } else {
       fprintf(file, "PTR:%lx", ptrtype);
     }
+    break;
+  }
+  case VECTOR_TAG: {
+    auto v = (vector_s *)(obj - VECTOR_TAG);
+    fputs("#(", file);
+    for (long i = 0; i < (v->len >> 3); i++) {
+      if (i != 0) {
+	fputc(' ', file);
+      }
+      print_obj(v->v[i], file);
+    }
+    fputc(')', file);
     break;
   }
   case FLONUM_TAG: {

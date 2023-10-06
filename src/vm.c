@@ -766,7 +766,7 @@ LIBRARY_FUNC_B(VECTOR)
   for (int i = 0; i < rb; i++) {
     closure->v[i] = frame[ra + i];
   }
-  frame[ra] = (long)closure | PTR_TAG;
+  frame[ra] = (long)closure | VECTOR_TAG;
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B(CLOSURE)
@@ -1087,7 +1087,7 @@ LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR)
     vec->v[i] = fc;
   }
   
-  frame[ra] = (long)vec | PTR_TAG;
+  frame[ra] = (long)vec | VECTOR_TAG;
 END_LIBRARY_FUNC
 
 void vm_make_string(long str, long ch) {
@@ -1126,7 +1126,8 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF)
   TYPECHECK_FIXNUM(fc);
-  LOAD_TYPE_WITH_CHECK(vec, vector_s, fb, VECTOR_TAG);
+  TYPECHECK_TAG(fb, VECTOR_TAG);
+  auto vec = (vector_s*)(fb - VECTOR_TAG);
   long pos = fc >> 3;
   if ((long)(vec->len >> 3) - pos < 0) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -1145,7 +1146,8 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF)
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME(VECTOR-LENGTH, VECTOR_LENGTH)
-  LOAD_TYPE_WITH_CHECK(vec, vector_s, fb, VECTOR_TAG);
+  TYPECHECK_TAG(fb, VECTOR_TAG); 
+  auto vec = (vector_s*)(fb - VECTOR_TAG);
   frame[ra] = (long)(vec->len);
 END_LIBRARY_FUNC
 
@@ -1157,7 +1159,8 @@ END_LIBRARY_FUNC
 LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
   auto fa = frame[ra];
   TYPECHECK_FIXNUM(fb);
-  LOAD_TYPE_WITH_CHECK(vec, vector_s, fa, VECTOR_TAG);
+  TYPECHECK_TAG(fa, VECTOR_TAG);
+  auto vec = (vector_s*)(fa - VECTOR_TAG);
   long pos = fb >> 3;
   if ((long)(vec->len >> 3) - pos <= 0) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);

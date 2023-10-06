@@ -121,33 +121,33 @@ long read_const(FILE *fptr) {
       }
       str->str[len] = '\0';
       val = (long)str | PTR_TAG;
-    } else if (ptrtype == VECTOR_TAG) {
-      long len;
-      if (fread(&len, 1, 8, fptr) != 8) {
-	goto error;
-      }
-
-      long *vals = malloc(sizeof(long) * len);
-      assert(vals);
-      for (long i = 0; i < len; i++) {
-        vals[i] = read_const(fptr);
-        GC_push_root(&vals[i]);
-      }
-
-      auto v = (vector_s *)GC_malloc(16 + len * sizeof(long));
-      v->type = ptrtype;
-      v->len = len << 3;
-      v->rc = 0;
-      for (long i = len - 1; i >= 0; i--) {
-        v->v[i] = vals[i];
-        GC_pop_root(&vals[i]);
-      }
-      free(vals);
-      val = (long)v | PTR_TAG;
     } else {
       printf("Unknown boxed type:%lx\\n", ptrtype);
       exit(-1);
     }
+  } else if (type == VECTOR_TAG) {
+    long len;
+    if (fread(&len, 1, 8, fptr) != 8) {
+      goto error;
+    }
+
+    long *vals = malloc(sizeof(long) * len);
+    assert(vals);
+    for (long i = 0; i < len; i++) {
+      vals[i] = read_const(fptr);
+      GC_push_root(&vals[i]);
+    }
+
+    auto v = (vector_s *)GC_malloc(16 + len * sizeof(long));
+    v->type = VECTOR_TAG;
+    v->len = len << 3;
+    v->rc = 0;
+    for (long i = len - 1; i >= 0; i--) {
+      v->v[i] = vals[i];
+      GC_pop_root(&vals[i]);
+    }
+    free(vals);
+    val = (long)v | VECTOR_TAG;
   } else if (type == CLOSURE_TAG) {
     long bcfunc_num;
     if (fread(&bcfunc_num, 1, 8, fptr) != 8) {
