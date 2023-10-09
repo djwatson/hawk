@@ -6,7 +6,7 @@ repos:
       - id: clang-format
       - id: clang-tidy
       - id: oclint
-        args: [-rc=SHORT_VARIABLE_NAME=1 -rc=CYCLOMATIC_COMPLEXITY=15]
+        args: ["-rc=SHORT_VARIABLE_NAME=1","-rc=CYCLOMATIC_COMPLEXITY=15"]
 #      - id: uncrustify
       - id: cppcheck
       - id: cpplint

@@ -30,7 +30,7 @@ uint64_t str_hash(const char *str) {
 // Bottom bits may be tombstone.
 // Open coded.
 
-// TODO weak GC syms, and evict entries when they are collected.  Somehow.
+// TODO(djwatson) weak GC syms, and evict entries when they are collected.
 
 // Non-empty default table so we don't have to null check.
 static table empty_table = {0, 0};
@@ -52,8 +52,8 @@ EXPORT symbol *symbol_table_find_cstr(const char *str) {
     if (*cur == TOMBSTONE) {
       continue;
     }
-    symbol *curs = (symbol *)(*cur & ~TAG_MASK);
-    string_s *sym_name = (string_s *)(curs->name - PTR_TAG);
+    symbol *curs = to_symbol(*cur);
+    string_s *sym_name = get_sym_name(curs);
     if (strcmp(sym_name->str, str) == 0) {
       return curs;
     } // Mismatched comparison, continue.
@@ -69,18 +69,16 @@ void symbol_table_insert(symbol *sym) {
   }
   sym_table->cnt++;
 
-  string_s *sym_name = (string_s *)(sym->name - PTR_TAG);
+  string_s *sym_name = get_sym_name(sym);
   auto hash = str_hash(sym_name->str);
   auto mask = sym_table->sz - 1;
 
   for (size_t i = 0; i < sym_table->sz; i++) {
     auto cur = &sym_table->entries[(i + hash) & mask];
     if (*cur == 0 || *cur == TOMBSTONE ||
-        strcmp(
-            ((string_s *)(((symbol *)(*cur & ~TAG_MASK))->name - PTR_TAG))->str,
-            sym_name->str) == 0) {
+        strcmp(get_sym_name(to_symbol(*cur))->str, sym_name->str) == 0) {
       // Insert here.
-      *cur = (long)sym + SYMBOL_TAG;
+      *cur = tag_sym(sym);
       return;
     } // Mismatched comparison, continue.
   }
@@ -95,8 +93,8 @@ static void rehash() {
   if (new_sz == 0) {
     new_sz = 2;
   }
-  // TODO realloc+memset
-  sym_table = (table *)calloc(sizeof(table) + sizeof(symbol *) * new_sz, 1);
+  // TODO(djwatson) realloc+memset?
+  sym_table = calloc(sizeof(table) + sizeof(symbol *) * new_sz, 1);
   sym_table->sz = new_sz;
   sym_table->cnt = 0;
 
@@ -104,7 +102,7 @@ static void rehash() {
   for (size_t i = 0; i < old->sz; i++) {
     auto cur = &old->entries[i];
     if (*cur != 0 && *cur != TOMBSTONE) {
-      symbol_table_insert((symbol *)(*cur - SYMBOL_TAG));
+      symbol_table_insert(to_symbol(*cur));
     }
   }
 
