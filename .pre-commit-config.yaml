@@ -4,7 +4,6 @@ repos:
     rev: master
     hooks:
       - id: clang-format
-        args: [--style=Google]
       - id: clang-tidy
       - id: oclint
         args: [-rc=SHORT_VARIABLE_NAME=1]

@@ -1,6 +1,9 @@
+// Copyright 2023 Dave Watson
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
+
 typedef struct symbol symbol;
 
 // clang-format off
@@ -36,7 +39,7 @@ typedef enum {
 
   IR_CAR,
   IR_CDR,
-    
+
   IR_ALLOC,
   IR_GCLOG,
   IR_REF,
@@ -62,8 +65,8 @@ typedef enum {
 } ir_ins_op;
 
 typedef enum {
-  SLOAD_PARENT = 1 <<0, // Loaded from parent.
-  SLOAD_TYPED = 1 << 1, // Already typechecked (at parent).
+  SLOAD_PARENT = 1 <<0,  // Loaded from parent.
+  SLOAD_TYPED = 1 << 1,  // Already typechecked (at parent).
 } ir_sload_tag;
 
 extern const char *ir_names[];
@@ -114,17 +117,19 @@ typedef enum {
   RELOC_SYM_ABS,
 } reloc_type;
 
+typedef int64_t gc_obj;
+
 typedef struct {
   uint64_t offset;
-  long obj;
+  gc_obj obj;
   reloc_type type;
 } reloc;
 
-typedef long (*Func)(long **, unsigned int **);
+typedef gc_obj (*Func)(gc_obj **, unsigned int **);
 typedef struct trace_s_s {
   struct trace_s_s *next;
   ir_ins *ops;
-  long *consts;
+  gc_obj *consts;
   reloc *relocs;
   snap_s *snaps;
   int link;
@@ -141,7 +146,7 @@ typedef struct trace_s_s {
 #define UNROLL_LIMIT 1
 #define UNROLL_ABORT_LIMIT 5
 
-#define ir_is_const(op) (op & IR_CONST_BIAS)
+static inline bool ir_is_const(const int16_t op) { return op & IR_CONST_BIAS; }
 
 uint32_t push_ir(trace_s *trace, ir_ins_op op, uint32_t op1, uint32_t op2,
                  uint8_t type);

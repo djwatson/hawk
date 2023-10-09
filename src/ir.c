@@ -1,7 +1,11 @@
+// Copyright 2023 Dave Watson
+
 #include "ir.h"
+
+#include <stdint.h>
+
 #include "asm_x64.h"
 #include "third-party/stb_ds.h"
-#include <stdint.h>
 
 // clang-format off
 const char* ir_names[] = {
