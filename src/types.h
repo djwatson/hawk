@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include "defs.h"
 
+typedef struct bcfunc bcfunc;
+
 // GC hack:
 
 // All types are 8-byte aligned, except the return PC, which is
@@ -111,6 +113,8 @@ typedef void (*trace_callback)(long *field, void *ctx);
 INLINE void trace_heap_object(long *obj, trace_callback visit, void *ctx);
 
 typedef int64_t gc_obj;
-static inline symbol *to_symbol(gc_obj obj) { return (symbol*)(obj & ~TAG_MASK);}
+static inline symbol *to_symbol(gc_obj obj) { return (symbol*)(obj - SYMBOL_TAG);}
+static inline closure_s *to_closure(gc_obj obj) { return (closure_s*)(obj - CLOSURE_TAG);}
+static inline bcfunc *closure_code_ptr(closure_s *clo) { return (bcfunc*)clo->v[0];}
 static inline string_s *get_sym_name(symbol* s) { return (string_s*)(s->name - PTR_TAG);}
 static inline gc_obj tag_sym(symbol* s) { return (gc_obj)((long)s + SYMBOL_TAG); }

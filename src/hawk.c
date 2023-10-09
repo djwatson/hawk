@@ -1,3 +1,5 @@
+// Copyright 2023 Dave Watson
+
 #include <getopt.h>  // for no_argument, getopt_long, option
 #include <stdbool.h> // for bool, false, true
 #include <stdio.h>   // for printf
@@ -11,15 +13,13 @@
 #ifdef PROFILER
 #include "profiler.h" // for profiler_start, profiler_stop
 #endif
+#include "defs.h"
 #include "readbc.h"       // for readbc_file, readbc_image
 #include "symbol_table.h" // for symbol_table_find_cstr
 #include "types.h"        // for from_c_str, symbol, CLOSURE_TAG, TRUE_REP
 #include "vm.h"           // for run
 
-#include "record.h"
-
-#define auto __auto_type
-#define nullptr NULL
+void free_trace();
 
 extern int joff;
 #ifdef JITDUMP
@@ -69,14 +69,13 @@ void compile_file(const char *file) {
   // Watch out for GC safety, from_c_str allocates.
   auto str = from_c_str(file);
   auto sym = symbol_table_find_cstr("compile-file"); // DOes not allocate.
-  long args[3] = {0, str, TRUE_REP};
+  gc_obj args[3] = {0, str, TRUE_REP};
   if ((sym == nullptr) || sym->val == UNDEFINED_TAG) {
     printf("Error: Attempting to compile a scm file, but can't find "
            "compile-file\n");
     exit(-1);
   }
-  auto clo = (closure_s *)(sym->val - CLOSURE_TAG);
-  auto func = (bcfunc *)clo->v[0];
+  auto func = closure_code_ptr(to_closure(sym->val));
 
   run(func, list ? 3 : 2, args);
 }
@@ -84,19 +83,18 @@ void compile_file(const char *file) {
 void generate_exe(char *filename, const char *bc_name) {
   char tmp[512];
 
-  strcpy(tmp, filename);
-  strcpy(tmp + strlen(filename), ".c");
+  snprintf(tmp, sizeof(tmp), "%s.c", filename);
   auto f = fopen(tmp, "w");
   auto fin = fopen(bc_name, "r");
   fputs("unsigned char exe_scm_bc[] = {\n", f);
   int res = fgetc(fin);
-  long cnt = 0;
+  uint64_t cnt = 0;
   while (res != EOF) {
     fprintf(f, "%i, ", res);
     res = fgetc(fin);
     cnt++;
   }
-  fprintf(f, "};\nunsigned int exe_scm_bc_len = %li;\n", cnt);
+  fprintf(f, "};\nunsigned int exe_scm_bc_len = %lu;\n", cnt);
   fclose(fin);
   fclose(f);
 
@@ -117,10 +115,51 @@ void generate_exe(char *filename, const char *bc_name) {
 extern bool verbose;
 extern int profile;
 extern size_t page_cnt;
-int main(int argc, char *argv[]) {
+static bool exe = false;
 
+static void init() {
+  GC_init();
+#ifdef JITDUMP
+  if (jit_dump_flag) {
+    jit_dump_init();
+  }
+#endif
+#ifdef PROFILER
+  if (profile != 0) {
+    profiler_start();
+  }
+#endif
+  // TODO(djwatson) this should work without joff?
+  auto old_joff = joff;
+  joff = 1;
+  load_bootstrap();
+  joff = old_joff;
+#ifdef AFL
+  __AFL_INIT();
+#endif
+}
+
+static void deinit() {
+#ifdef PROFILER
+  if (profile != 0) {
+    profiler_stop();
+  }
+#endif
+
+#ifdef JITDUMP
+  if (jit_dump_flag) {
+    jit_dump_close();
+  }
+#endif
+#ifdef JIT
+  free_trace();
+#endif
+  free_script();
+  free_vm();
+}
+
+static void parse_args(int argc, char *argv[]) {
   int c;
-  bool exe = false;
   while ((c = getopt_long(argc, argv, "vlphjd:", long_options, nullptr)) !=
          -1) {
     switch (c) {
@@ -146,41 +185,34 @@ int main(int argc, char *argv[]) {
 #endif
     case 'm':
       TRACE_MAX = atoi(optarg);
-      printf("MAX TRACE is %i\n", TRACE_MAX);
+      printf("MAX TRACE is %u\n", TRACE_MAX);
       break;
     default:
       print_help();
       exit(-1);
+      break;
     }
   }
+}
 
-  GC_init();
-// GC_expand_hp(50000000);
-#ifdef JITDUMP
-  if (jit_dump_flag) {
-    jit_dump_init();
-  }
-#endif
-#ifdef PROFILER
-  if (profile != 0) {
-    profiler_start();
-  }
-#endif
-  auto ojoff = joff;
-  joff = 1;
-  load_bootstrap();
-#ifdef AFL
-  __AFL_INIT();
-#endif
+int main(int argc, char *argv[]) {
+  parse_args(argc, argv);
+
+  init();
 
   for (int i = optind; i < argc; i++) {
     auto len = strlen(argv[i]);
     if (len >= 4 && strcmp(".scm", argv[i] + len - 4) == 0) {
-      char tmp[len + 1 + 3];
-      strcpy(tmp, argv[i]);
-      strcpy(tmp + len, ".bc");
+      uint64_t tmplen = len + 1 + 3;
+      char *tmp = malloc(tmplen);
+      snprintf(tmp, tmplen, "%s.bc", argv[i]);
       printf("Compiling script %s\n", argv[i]);
-      compile_file(argv[i]);
+      {
+        auto old_joff = joff;
+        joff = 1;
+        compile_file(argv[i]);
+        joff = old_joff;
+      }
       if (exe) {
         generate_exe(argv[i], tmp);
       }
@@ -188,12 +220,11 @@ int main(int argc, char *argv[]) {
         break;
       }
       printf("Running script %s\n", tmp);
-      joff = ojoff;
       auto start_func = readbc_file(tmp);
       run(start_func, 0, nullptr);
+      free(tmp);
     } else if (len >= 3 && strcmp(".bc", argv[i] + len - 3) == 0) {
       printf("Running script %s\n", argv[i]);
-      joff = ojoff;
       auto start_func = readbc_file(argv[i]);
       run(start_func, 0, nullptr);
     } else {
@@ -201,22 +232,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-#ifdef PROFILER
-  if (profile != 0) {
-    profiler_stop();
-  }
-#endif
-
-#ifdef JITDUMP
-  if (jit_dump_flag) {
-    jit_dump_close();
-  }
-#endif
-#ifdef JIT
-  free_trace();
-#endif
-  free_script();
-  free_vm();
+  deinit();
 
   return 0;
 }
