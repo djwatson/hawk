@@ -1,3 +1,5 @@
+// Copyright 2023 Dave Watson
+
 #include "lru.h"
 
 /// Dead-simple LRU cache, implemented as a doubly-linked list with a static
@@ -54,7 +56,6 @@ uint8_t lru_oldest(lru *l) {
 #if 0
 #include <stdio.h>
 int main() {
-
   lru l;
   lru_init(&l);
   printf("Oldest %i\n", lru_oldest(&l));

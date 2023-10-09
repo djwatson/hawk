@@ -7,7 +7,7 @@ repos:
         args: [--style=Google]
       - id: clang-tidy
       - id: oclint
-        args: []
+        args: [-rc=SHORT_VARIABLE_NAME=1]
       - id: uncrustify
       - id: cppcheck
       - id: cpplint
