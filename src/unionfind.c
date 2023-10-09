@@ -1,3 +1,7 @@
+// Copyright 2023 Dave Watson
+
+#include "unionfind.h"
+
 #include <assert.h>
 #include <smmintrin.h>
 #include <stdbool.h>
@@ -5,18 +9,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "unionfind.h"
+#include "defs.h"
 
 #include "third-party/stb_ds.h"
-
-#define unlikely(x) __builtin_expect(!!(x), 0)
 
 // Custom hashtable.  I tried to use stb_ds, but it was too slow:
 // insertion/hashing isn't as fast as crc32+linear probe.
 static uf_item *map_find(uf *ht, int64_t key) {
   int64_t start = _mm_crc32_u64(0, key);
 
-  long sz_mask = ht->map_sz - 1;
+  int64_t sz_mask = ht->map_sz - 1;
   for (uint64_t i = 0; i < ht->map_sz; i++) {
     uint64_t slot = (i + start) & sz_mask;
     if (ht->map[slot].key == key) {
@@ -53,7 +55,7 @@ static void map_insert(uf *ht, int64_t key, uint64_t value) {
   }
 
   int64_t start = _mm_crc32_u64(0, key);
-  long sz_mask = ht->map_sz - 1;
+  int64_t sz_mask = ht->map_sz - 1;
   for (uint64_t i = 0; i < ht->map_sz; i++) {
     uint64_t slot = (i + start) & sz_mask;
     if (ht->map[slot].key == 0) {
@@ -77,7 +79,8 @@ void uf_free(uf *ht) {
   free(ht->map);
 }
 
-static uint64_t find(box *b, uint64_t idx) {
+static uint64_t find(box *b, uint64_t i) {
+  auto idx = i;
   while (idx != b[idx].parent) {
     b[idx].parent = b[b[idx].parent].parent;
     idx = b[idx].parent;
@@ -94,22 +97,8 @@ bool unionfind(uf *ht, int64_t x, int64_t y) {
   uf_item *bx = map_find(ht, x);
   uf_item *by = map_find(ht, y);
 
-  if (!bx) {
-    if (!by) {
-      uint64_t bi = arrlen(ht->table);
-      box b = {bi, 1};
-      arrput(ht->table, b);
-      map_insert(ht, y, bi);
-      map_insert(ht, x, bi);
-    } else {
-      uint64_t ry = find(ht->table, by->value);
-      map_insert(ht, x, ry);
-    }
-  } else {
-    if (!by) {
-      uint64_t rx = find(ht->table, bx->value);
-      map_insert(ht, y, rx);
-    } else {
+  if (bx) {
+    if (by) {
       uint64_t rx = find(ht->table, bx->value);
       uint64_t ry = find(ht->table, by->value);
       if (rx == ry) {
@@ -124,6 +113,20 @@ bool unionfind(uf *ht, int64_t x, int64_t y) {
         vx->parent = ry;
         vy->sz++;
       }
+    } else {
+      uint64_t rx = find(ht->table, bx->value);
+      map_insert(ht, y, rx);
+    }
+  } else {
+    if (by) {
+      uint64_t ry = find(ht->table, by->value);
+      map_insert(ht, x, ry);
+    } else {
+      uint64_t bi = arrlen(ht->table);
+      box b = {bi, 1};
+      arrput(ht->table, b);
+      map_insert(ht, y, bi);
+      map_insert(ht, x, bi);
     }
   }
   return false;
