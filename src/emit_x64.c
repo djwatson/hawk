@@ -1,6 +1,9 @@
+// Copyright 2023 Dave Watson
+
 #define _DEFAULT_SOURCE
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +20,8 @@ static const size_t page_cnt = 4000;
 static const size_t msize = page_cnt * 4096;
 
 #define auto __auto_type
+
+static uint8_t low3bits(uint8_t r) { return 0x7 & r; }
 
 /////////////////// instruction encoding
 
@@ -44,11 +49,13 @@ void emit_imm32(int32_t imm) {
   memcpy(p, &imm, sizeof(imm));
 }
 
+static bool fits_in_32(int64_t imm) { return imm & 0xffffffff00000000; }
+
 void emit_mov64(uint8_t r, int64_t imm) {
   // Note that 'imm' isn't necessarily a number here,
   // so we can't narrow negative numbers.
 #ifndef VALGRIND
-  if (imm & 0xffffffff00000000) {
+  if (fits_in_32(imm)) {
 #endif
     emit_imm64(imm);
     *(--p) = 0xb8 | (0x7 & r);
@@ -86,34 +93,34 @@ void emit_call32(int32_t offset) {
 
 void emit_ret() { *(--p) = 0xc3; }
 
-// TODO clean this up.  THe main issue is REX needs W=0.  Also check R1 does
-// full checks for rsp/rbp
+// TODO(djwatson) clean this up.  THe main issue is REX needs W=0.
+// Also check R1 does full checks for rsp/rbp
 void emit_cmp_mem32_imm32(uint32_t offset, uint8_t r1, int32_t imm) {
   emit_imm32(imm);
   assert(r1 != RSP);
   assert(r1 != RBP);
   uint8_t r2 = 0x7;
 
-  if (offset == 0 && (0x7 & r1) != RBP) {
-    emit_modrm(0x0, 0x7 & r2, 0x7 & r1);
+  if (offset == 0 && low3bits(r1) != RBP) {
+    emit_modrm(0x0, r2, 0x7 & r1);
   } else if ((int32_t)((int8_t)offset) == offset) {
     *(--p) = (int8_t)offset;
-    emit_modrm(0x1, 0x7 & r2, 0x7 & r1);
+    emit_modrm(0x1, r2, 0x7 & r1);
   } else {
     emit_imm32(offset);
-    emit_modrm(0x2, 0x7 & r2, 0x7 & r1);
+    emit_modrm(0x2, r2, 0x7 & r1);
   }
 
   *(--p) = 0x81;
   emit_rex(0, 0, 0, r1 >> 3);
 }
 void emit_cmp_reg_imm32(uint8_t r, int32_t imm) {
-  if ((int32_t)((int8_t)imm) != imm) {
-    emit_imm32(imm);
-    emit_reg_reg(0x81, 7, r);
-  } else {
+  if ((int32_t)((int8_t)imm) == imm) {
     *(--p) = imm;
     emit_reg_reg(0x83, 7, r);
+  } else {
+    emit_imm32(imm);
+    emit_reg_reg(0x81, 7, r);
   }
 }
 
@@ -125,7 +132,6 @@ void emit_cmp_reg_reg(uint8_t src, uint8_t dst) {
 
 void emit_jcc32(enum jcc_cond cond, uint64_t offset) {
   int64_t off = (int64_t)offset - (int64_t)emit_offset();
-  // TODO check fits in int32_t.
   if ((int32_t)((int8_t)off) == off) {
     *(--p) = (int8_t)off;
     *(--p) = cond - 0x10;
@@ -200,10 +206,10 @@ void emit_mem_reg_sib2(uint8_t opcode, int32_t offset, uint8_t scale,
 }
 
 void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
-  if ((0x7 & r1) == RSP) {
+  if (low3bits(r1) == RSP) {
     emit_mem_reg_sib(opcode, offset, 0, RSP, r1, r2);
   } else {
-    if (offset == 0 && (0x7 & r1) != RBP) {
+    if (offset == 0 && low3bits(r1) != RBP) {
       emit_modrm(0x0, 0x7 & r2, 0x7 & r1);
     } else if ((int32_t)((int8_t)offset) == offset) {
       *(--p) = (int8_t)offset;
@@ -217,9 +223,9 @@ void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
   }
 }
 
-// TODO merge the '2' byte versions
+// TODO(djwatson) merge the '2' byte versions
 void emit_mem_reg2(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
-  if ((0x7 & r1) == RSP) {
+  if (low3bits(r1) == RSP) {
     emit_mem_reg_sib2(opcode, offset, 0, RSP, r1, r2);
   } else {
     if ((int32_t)((int8_t)offset) == offset) {
@@ -243,12 +249,12 @@ void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm) {
 }
 
 void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm) {
-  if ((int32_t)((int8_t)imm) != imm) {
-    emit_imm32(imm);
-    emit_reg_reg(0x81, op, src);
-  } else {
+  if ((int32_t)((int8_t)imm) == imm) {
     *(--p) = imm;
     emit_reg_reg(0x83, op, src);
+  } else {
+    emit_imm32(imm);
+    emit_reg_reg(0x81, op, src);
   }
 }
 
@@ -302,8 +308,8 @@ void emit_init() {
     return;
   }
 
-  mtop = (uint8_t *)mmap(NULL, msize, PROT_READ | PROT_WRITE | PROT_EXEC,
-                         MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  mtop = mmap(NULL, msize, PROT_READ | PROT_WRITE | PROT_EXEC,
+              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   atexit(&emit_cleanup);
   assert(mtop);
   p = mtop + msize;
