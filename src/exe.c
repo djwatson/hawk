@@ -1,15 +1,16 @@
+// Copyright 2023 Dave Watson
+
 // This is a stub library to generate exe's for compiled hawk programs.
 // It is not used in the 'hawk' executable itself.
 
-#include <stdbool.h> // for bool, false, true
-#include <stdio.h>   // for printf
+#include <stdbool.h>  // for bool, false, true
+#include <stdio.h>    // for printf
 
-#include "gc.h"     // for GC_init
-#include "readbc.h" // for readbc_file, readbc_image
-#include "vm.h"     // for run
-#include "defs.h"     
-
+#include "defs.h"
+#include "gc.h"      // for GC_init
+#include "readbc.h"  // for readbc_file, readbc_image
 #include "record.h"
+#include "vm.h"  // for run
 
 #define auto __auto_type
 #define nullptr NULL
@@ -25,8 +26,7 @@ extern unsigned TRACE_MAX;
 
 extern bool verbose;
 extern size_t page_cnt;
-int main(int argc, char *argv[]) {
-
+int main() {
   GC_init();
   joff = 1;
   load_bootstrap();
