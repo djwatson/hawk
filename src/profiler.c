@@ -1,7 +1,11 @@
-#include "defs.h"
+// Copyright 2023 Dave Watson
 
-#include <assert.h> // for assert
-#include <signal.h> // for sigaction, sigevent, SIGRTMIN
+#include "profiler.h"
+
+#include <assert.h>                       // for assert
+#include <bits/types/__sigval_t.h>        // for __sigval_t
+#include <bits/types/struct_itimerspec.h> // for itimerspec
+#include <signal.h>                       // for sigaction, sigevent, SIGRTMIN
 #include <stdbool.h>
 #include <stdint.h>   // for uint32_t
 #include <stdio.h>    // for printf
@@ -10,12 +14,14 @@
 #include <sys/mman.h> // for mmap, MAP_ANONYMOUS, MAP_P...
 #include <time.h>     // for timer_settime, timespec
 
+#include "defs.h"
+
 static timer_t timerid;
 static struct itimerspec its;
-static long cnt = 0;
+static uint64_t cnt = 0;
 
-static unsigned long heap_ptr = 0;
-static unsigned long heap_end = 0;
+static uint64_t heap_ptr = 0;
+static uint64_t heap_end = 0;
 
 static size_t alloc_sz = 4096 * 16;
 
@@ -26,8 +32,8 @@ void *signal_safe_malloc(size_t sz) {
     return (void *)res;
   }
   assert(sz < alloc_sz);
-  heap_ptr = (unsigned long)mmap(nullptr, alloc_sz, PROT_READ | PROT_WRITE,
-                                 MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  heap_ptr = (uint64_t)mmap(nullptr, alloc_sz, PROT_READ | PROT_WRITE,
+                            MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
   assert(heap_ptr);
   heap_end = heap_ptr + alloc_sz;
   auto res = heap_ptr;
@@ -36,8 +42,8 @@ void *signal_safe_malloc(size_t sz) {
 }
 
 typedef struct sample_s {
-  long stack_sz;
-  long stack[10];
+  int64_t stack_sz;
+  uint32_t *stack[10];
   struct sample_s *next;
   bool in_jit;
   bool in_gc;
@@ -45,33 +51,33 @@ typedef struct sample_s {
 
 static sample *samples = nullptr;
 
-static unsigned long profile_stack_sz = 0;
-static long *profile_stack = nullptr;
-static unsigned long profile_stack_max = 0;
+static uint64_t profile_stack_sz = 0;
+static uint32_t **profile_stack = nullptr;
+static uint64_t profile_stack_max = 0;
 static uint32_t *pc;
 
 void profile_set_pc(uint32_t *p) { pc = p; }
 
-void profile_add_frame(void *ptr) {
+void profile_add_frame(uint32_t *ptr) {
   if (profile_stack_sz >= profile_stack_max) {
     if (profile_stack_max == 0) {
       profile_stack_max = 1000;
     } else {
       profile_stack_max *= 2;
     }
-    auto n = (long *)malloc(sizeof(long) * profile_stack_max);
-    memcpy(n, profile_stack, profile_stack_sz * sizeof(long));
+    uint32_t **n = malloc(sizeof(int32_t *) * profile_stack_max);
+    memcpy(n, profile_stack, profile_stack_sz * sizeof(int32_t *));
     auto old = profile_stack;
     profile_stack = n; // release
     free(old);
-    printf("Expanded profile stack to %li\n", profile_stack_max);
+    printf("Expanded profile stack to %lu\n", profile_stack_max);
   }
-  profile_stack[profile_stack_sz] = (long)ptr;
+  profile_stack[profile_stack_sz] = ptr;
   profile_stack_sz++; // release
 }
 
 void profile_pop_frame() {
-  // TODO make callcc resume work
+  // TODO(djwatson) make callcc resume work
   if (profile_stack_sz > 0) {
     profile_stack_sz--;
   }
@@ -83,12 +89,12 @@ extern bool in_jit;
 extern bool in_gc;
 static void handler(int sig, siginfo_t *si, void *uc) {
   cnt++;
-  auto s = (sample *)signal_safe_malloc(sizeof(sample));
+  sample *s = signal_safe_malloc(sizeof(sample));
   s->next = samples;
   s->stack_sz = 9 < profile_stack_sz ? 9 : profile_stack_sz;
   memcpy(&s->stack[0], &profile_stack[profile_stack_sz - s->stack_sz],
-         s->stack_sz * sizeof(long));
-  s->stack[s->stack_sz] = (long)pc;
+         s->stack_sz * sizeof(int32_t *));
+  s->stack[s->stack_sz] = pc;
   s->stack_sz++;
   s->in_jit = in_jit;
   s->in_gc = in_gc;
@@ -173,7 +179,7 @@ EXPORT void profiler_stop() {
   uint64_t on_trace = 0;
   uint64_t on_gc = 0;
 
-  printf("Timer called %li times\n", cnt);
+  printf("Timer called %lu times\n", cnt);
   auto s = samples;
   while (s != nullptr) {
     /*     tree *cur_tree = &tree_root; */

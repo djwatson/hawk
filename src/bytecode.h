@@ -18,5 +18,5 @@ typedef struct bcfunc {
   char *name;
   uint32_t codelen;
   uint8_t poly_cnt;
-  unsigned int code[];
+  uint32_t code[];
 } bcfunc;
