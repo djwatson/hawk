@@ -1,3 +1,5 @@
+// Copyright 2023 Dave Watson
+
 #pragma once
 
 #include <stdint.h>

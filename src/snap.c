@@ -1,10 +1,14 @@
+// Copyright 2023 Dave Watson
+
 #include "snap.h"
-#include "asm_x64.h" // for REG_NONE
-#include "ir.h"      // for snap_s, snap_entry_s, ir_ins, trace_s, IR_CONST...
-#include "third-party/stb_ds.h"
+
 #include <stdint.h> // for uint32_t
 #include <stdio.h>  // for printf
-#define auto __auto_type
+
+#include "asm_x64.h" // for REG_NONE
+#include "defs.h"
+#include "ir.h" // for snap_s, snap_entry_s, ir_ins, trace_s, IR_CONST...
+#include "third-party/stb_ds.h"
 
 void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
               uint32_t depth, int32_t stack_top) {
@@ -17,11 +21,9 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
   snap.depth = depth;
   snap.argcnt = 1;
   snap.patchpoint = 0;
-  // TODO fix regs size/boj to vec?
   auto top = offset + stack_top + 1 /* offset */;
   for (int16_t i = 0; i < top; i++) {
     if (regs[i] != -1) {
-      // printf("Record snap entry %i val %i\n", i-1, regs[i]);
       snap_entry_s entry;
       entry.slot = (int16_t)(i - 1); // offset by one for callt
       entry.val = regs[i];
@@ -42,7 +44,7 @@ uint32_t snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
                      int *d) {
   for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto slot = &snap->slots[i];
-    if ((slot->val & IR_CONST_BIAS) != 0) {
+    if (ir_is_const(slot->val)) {
       auto c = parent->consts[slot->val - IR_CONST_BIAS];
       // Push const in new trace
       int knum = arrlen(trace->consts);
@@ -59,7 +61,7 @@ uint32_t snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
       ins.op = IR_SLOAD;
       ins.op2 = SLOAD_PARENT;
       ins.slot = SLOT_NONE;
-      // TODO PARENT type, maybe inherit?
+      // TODO(djwatson) PARENT type, maybe inherit?
       auto type = parent->ops[slot->val].type & ~IR_INS_TYPE_GUARD;
       ins.type = type;
       (*regs)[slot->slot] = arrlen(trace->ops);

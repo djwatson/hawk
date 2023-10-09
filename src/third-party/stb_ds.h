@@ -543,7 +543,7 @@ extern void * stbds_shmode_func(size_t elemsize, int mode);
 #define stbds_arrlenu(a)       ((a) ?             stbds_header(a)->length : 0)
 #define stbds_arrput(a,v)      (stbds_arrmaybegrow(a,1), (a)[stbds_header(a)->length++] = (v))
 #define stbds_arrpush          stbds_arrput  // synonym
-#define stbds_arrpop(a)        (stbds_header(a)->length--, (a)[stbds_header(a)->length])
+#define stbds_arrpop(a)        (stbds_header(a)->length--, (a)[stbds_header(a)->length]) 
 #define stbds_arraddn(a,n)     ((void)(stbds_arraddnindex(a, n)))    // deprecated, use one of the following instead:
 #define stbds_arraddnptr(a,n)  (stbds_arrmaybegrow(a,n), (n) ? (stbds_header(a)->length += (n), &(a)[stbds_header(a)->length-(n)]) : (a))
 #define stbds_arraddnindex(a,n)(stbds_arrmaybegrow(a,n), (n) ? (stbds_header(a)->length += (n), stbds_header(a)->length-(n)) : stbds_arrlen(a))

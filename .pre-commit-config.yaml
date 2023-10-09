@@ -6,9 +6,9 @@ repos:
       - id: clang-format
       - id: clang-tidy
       - id: oclint
-        args: [-rc=SHORT_VARIABLE_NAME=1]
-      - id: uncrustify
+        args: [-rc=SHORT_VARIABLE_NAME=1 -rc=CYCLOMATIC_COMPLEXITY=15]
+#      - id: uncrustify
       - id: cppcheck
       - id: cpplint
-        args: [--filter=-build/include_subdir]
+        args: ["--filter=-build/include_subdir,-whitespace/comments"]
       - id: include-what-you-use
