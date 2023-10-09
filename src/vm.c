@@ -254,6 +254,9 @@ NOINLINE void EXPAND_STACK_SLOWPATH(PARAMS) {
 #define LIBRARY_FUNC_B_LOAD_NAME(str, name) LIBRARY_FUNC_B_LOAD(name)
 #define LIBRARY_FUNC_BC_LOAD_NAME(str, name) LIBRARY_FUNC_BC_LOAD(name)
 #define LIBRARY_FUNC_BC_NAME(str, name) LIBRARY_FUNC_BC(name)
+#define NEXT_FUNC \
+  NEXT_INSTR;								\
+  }
 #define END_LIBRARY_FUNC                                                       \
   pc++;                                                                        \
   NEXT_INSTR;                                                                  \
@@ -275,23 +278,25 @@ NOINLINE void EXPAND_STACK_SLOWPATH(PARAMS) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }
 
-LIBRARY_FUNC(ILOOP)
+LIBRARY_FUNC(ILOOP) {}
 END_LIBRARY_FUNC
-LIBRARY_FUNC(LOOP)
-      if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask]) <= hotmap_loop)) {
-	MUSTTAIL return RECORD_START(ARGS);
-      }
-      hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_loop;
+LIBRARY_FUNC(LOOP) {
+  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask]) <= hotmap_loop)) {
+    MUSTTAIL return RECORD_START(ARGS);
+  }
+  hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_loop;
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC(IFUNC) 
+LIBRARY_FUNC(IFUNC) {
   if (argcnt != ra) {
     MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
   }
   afl_trace(pc);
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC(FUNC)
+LIBRARY_FUNC(FUNC) {
   if (argcnt != ra) {
     MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
   }
@@ -300,18 +305,20 @@ LIBRARY_FUNC(FUNC)
   }
 
   afl_trace(pc);
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC(IFUNCV)
+LIBRARY_FUNC(IFUNCV) {
     if (argcnt < ra) {
       MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
     }
     stack_top = &frame[ra + argcnt];
     frame[ra] = build_list(ra, argcnt - ra, frame);
   afl_trace(pc);
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC(FUNCV)
+LIBRARY_FUNC(FUNCV) {
     if (argcnt < ra) {
       MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
     }
@@ -321,18 +328,20 @@ if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
     stack_top = &frame[ra + argcnt];
     frame[ra] = build_list(ra, argcnt - ra, frame);
   afl_trace(pc);
+}
 END_LIBRARY_FUNC
 
 
-LIBRARY_FUNC(ICLFUNC)
+LIBRARY_FUNC(ICLFUNC) {
     if (argcnt != ra) {
       pc += INS_D(*(pc+1)) + 1;
     } else {
       pc+=2;
     }
   afl_trace(pc);
-  NEXT_INSTR;
 }
+NEXT_FUNC
+
 
 LIBRARY_FUNC(CLFUNC)
     if (argcnt != ra) {
