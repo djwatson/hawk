@@ -173,7 +173,7 @@ static bool is_forwarded(long obj) {
 }
 
 static void set_forward(long *ptr, void *to) {
-  assert(ptr[0] != FORWARD_TAG);
+  assert(ptr[0] != FORWARD);
   ptr[0] = FORWARD;
   ptr[1] = (long)to;
 }
