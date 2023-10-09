@@ -47,6 +47,8 @@ support.  Valgrind can also be used, since sanitizers won't cover the
 JITed code, but valgrind will.  Note that gdb's jit support is O(n) in
 the number of jit traces - consider using --max-trace to limit it.
 
+ASAN,LSAN,TSAN,MSAN,UBSAN can be turned on by specifying -DCMAKE_BUILD_TYPE=ASAN, etc.
+
 The traces fire based on the address of a malloc'd codeblock - so
 consider disabling PIE, or even hardcoding constants to get consistent
 traces.
@@ -54,6 +56,22 @@ traces.
 GC debugging is always painful - however there are a couple mmap
 statements that should be useful in detecting uses that missed being
 traced.
+
+Linting
+-------
+
+CLANG_TIDY, IWYU, CPPCHECK, CPPLINT have 'set' statements in the main
+CMakeFiles.txt that can be enabled.  There are also comments
+explaining how to use oclint. 
+
+S7 scheme has a great scheme linter, usable something like:
+
+```
+./s7
+(load "s7/lint.scm")
+(lint "bc.scm")
+```
+
 
 Profiling
 ---------

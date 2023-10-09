@@ -42,6 +42,15 @@ set(CMAKE_C_FLAGS_LSAN
         FORCE)      
       
 
+#set(CMAKE_C_CLANG_TIDY "clang-tidy;-checks=clang-diagnostic-*,clang-analyzer-*,bugprone*,modernize*,performance*,readability-*,-modernize-use-trailing-return-type,-modernize-avoid-c-arrays,-readability-magic-numbers,-readability-identifier-length,-clang-analyzer-security*,-performance-no-int-to-ptr,-bugprone-easily-swappable-parameters,-readability-function-cognitive-complexity,-bugprone-sizeof-expression,-clang-analyzer-core.uninitialized.*,-clang-analyzer-core.UndefinedBinaryOperatorResult")
+
+#set(CMAKE_C_INCLUDE_WHAT_YOU_USE "iwyu")
+#set(CMAKE_C_CPPCHECK "cppcheck" "--enable=warning,style,performance,portability,information" "--std=c11")
+#set(CMAKE_C_CPPLINT "cpplint")
+# OClint settings:
+# cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON .
+# ~/projects/oclint/oclint-22.02/bin/oclint -p .  -rc SHORT_VARIABLE_NAME=1 src/*.c
+
 project(bool VERSION 0.1)
 
 
@@ -82,10 +91,6 @@ if (NOT CHEZ)
 endif()
 message("Using " ${CHEZ} " for bootstrapping")
 
-#set(CMAKE_C_CLANG_TIDY "clang-tidy;-checks=clang-diagnostic-*,clang-analyzer-*,bugprone*,modernize*,performance*,readability-*,-modernize-use-trailing-return-type,-modernize-avoid-c-arrays,-readability-magic-numbers,-readability-identifier-length,-clang-analyzer-security*,-performance-no-int-to-ptr,-bugprone-easily-swappable-parameters,-readability-function-cognitive-complexity,-bugprone-sizeof-expression,-clang-analyzer-core.uninitialized.*,-clang-analyzer-core.UndefinedBinaryOperatorResult")
-
-
-#set(CMAKE_C_INCLUDE_WHAT_YOU_USE "iwyu")
 
 # PIE turned off for testing, since we JIT hot function detection is based on address of the function.
 include(CheckPIESupported)
