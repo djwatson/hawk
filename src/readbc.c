@@ -20,80 +20,82 @@
 #define auto __auto_type
 #define nullptr NULL
 
-long *const_table = nullptr;
-unsigned long const_table_sz = 0;
-long *symbols = NULL; // TODO not a global, or use a string instead
+gc_obj *const_table = nullptr;
+uint64_t const_table_sz = 0;
+// TODO(djwatson) not a global, or use a string instead
+gc_obj *symbols = NULL;
 
-// TODO GC safety
-long read_const(FILE *fptr) {
-  long val;
+static void read_error() {
+  printf("Error: Could not read consts\n");
+  exit(-1);
+}
+
+gc_obj read_const(FILE *fptr) {
+  gc_obj val;
   if (fread(&val, 1, 8, fptr) != 8) {
-    goto error;
+    read_error();
   }
   auto type = val & TAG_MASK;
   if (type == SYMBOL_TAG) {
-    unsigned long num = val >> 3;
+    uint64_t num = val >> 3;
     if (num < arrlen(symbols)) {
-      val = symbols[num];
-    } else {
-      // It's a new symbol in this bc file
-      long len;
-      if (8 != fread(&len, 1, 8, fptr)) {
-	goto error;
-      }
-      // TODO GC symbol table
-      auto str = (string_s *)GC_malloc(16 + 1 + len);
-      str->type = STRING_TAG;
-      str->len = len << 3;
-      str->str[len] = '\0';
-      str->rc = 0;
-      if (fread(str->str, 1, len, fptr) != len) {
-	goto error;
-      }
-
-      // Try to see if it already exists
-      auto res = symbol_table_find(str);
-      if (res == nullptr) {
-        long str_save = (long)str + PTR_TAG;
-        GC_push_root(&str_save);
-        // TODO GC symbol table
-        auto sym = (symbol *)GC_malloc(sizeof(symbol));
-
-        GC_pop_root(&str_save);
-        str = (string_s *)(str_save - PTR_TAG);
-
-        sym->type = SYMBOL_TAG;
-        sym->name = (long)str + PTR_TAG;
-        sym->val = UNDEFINED_TAG;
-        sym->opt = 0;
-        sym->lst = NULL;
-        sym->rc = 0;
-        symbol_table_insert(sym);
-        val = (long)sym | SYMBOL_TAG;
-        arrput(symbols, val);
-      } else {
-        val = (long)res + SYMBOL_TAG;
-        arrput(symbols, val);
-        return val;
-      }
+      return symbols[num];
+    }  
+    // It's a new symbol in this bc file
+    uint64_t len;
+    if (8 != fread(&len, 1, 8, fptr)) {
+      read_error();
     }
-  } else if (type == LITERAL_TAG || type == FIXNUM_TAG) {
+    string_s *str = GC_malloc(16 + 1 + len);
+    str->type = STRING_TAG;
+    str->len = len << 3;
+    str->str[len] = '\0';
+    str->rc = 0;
+    if (fread(str->str, 1, len, fptr) != len) {
+      read_error();
+    }
+
+    // Try to see if it already exists
+    auto res = symbol_table_find(str);
+    if (res == nullptr) {
+      gc_obj str_save = tag_string(str);
+      GC_push_root(&str_save);
+      symbol *sym = GC_malloc(sizeof(symbol));
+
+      GC_pop_root(&str_save);
+      str = to_string(str_save);
+
+      sym->type = SYMBOL_TAG;
+      sym->name = tag_string(str);
+      sym->val = UNDEFINED_TAG;
+      sym->opt = 0;
+      sym->lst = NULL;
+      sym->rc = 0;
+      symbol_table_insert(sym);
+      val = tag_symbol(sym);
+      arrput(symbols, val);
+      return val;
+    }
+    
+    val = tag_symbol(res);
+    arrput(symbols, val);
+    return val;
+
   } else if (type == FLONUM_TAG) {
-    auto f = (flonum_s *)GC_malloc(sizeof(flonum_s));
-    assert(!((long)f & TAG_MASK));
+    flonum_s *f = GC_malloc(sizeof(flonum_s));
     if (fread(&f->x, 1, 8, fptr) != 8) {
-      goto error;
+      read_error();
     }
     f->type = FLONUM_TAG;
     f->rc = 0;
-    val = (long)f | FLONUM_TAG;
+    return tag_flonum(f);
   } else if (type == CONS_TAG) {
     auto ca = read_const(fptr);
     GC_push_root(&ca);
     auto cb = read_const(fptr);
     GC_push_root(&cb);
 
-    auto c = (cons_s *)GC_malloc(sizeof(cons_s));
+    cons_s *c = GC_malloc(sizeof(cons_s));
     c->type = CONS_TAG;
     c->a = ca;
     c->rc = 0;
@@ -101,76 +103,75 @@ long read_const(FILE *fptr) {
     GC_pop_root(&cb);
     GC_pop_root(&ca);
 
-    val = (long)c | CONS_TAG;
+    return tag_cons(c);
   } else if (type == PTR_TAG) {
-    long ptrtype;
+    uint64_t ptrtype;
     if (fread(&ptrtype, 1, 8, fptr) != 8) {
-      goto error;
+      read_error();
     }
     if (ptrtype == STRING_TAG) {
-      long len;
+      uint64_t len;
       if (fread(&len, 1, 8, fptr) != 8) {
-	goto error;
+        read_error();
       }
-      auto str = (string_s *)GC_malloc(16 + len + 1);
+      string_s *str = GC_malloc(16 + len + 1);
       str->type = ptrtype;
       str->len = len << 3;
       str->rc = 0;
       if (fread(&str->str, 1, len, fptr) != len) {
-	goto error;
+        read_error();
       }
       str->str[len] = '\0';
-      val = (long)str | PTR_TAG;
-    } else {
-      printf("Unknown boxed type:%lx\\n", ptrtype);
-      exit(-1);
+      return tag_string(str);
     }
+    read_error();
   } else if (type == VECTOR_TAG) {
-    long len;
+    uint64_t len;
     if (fread(&len, 1, 8, fptr) != 8) {
-      goto error;
+      read_error();
     }
 
-    long *vals = malloc(sizeof(long) * len);
+    gc_obj *vals = malloc(sizeof(gc_obj) * len);
     assert(vals);
-    for (long i = 0; i < len; i++) {
+    for (uint64_t i = 0; i < len; i++) {
       vals[i] = read_const(fptr);
       GC_push_root(&vals[i]);
     }
 
-    auto v = (vector_s *)GC_malloc(16 + len * sizeof(long));
+    vector_s *v = GC_malloc(16 + len * sizeof(gc_obj));
     v->type = VECTOR_TAG;
     v->len = len << 3;
     v->rc = 0;
-    for (long i = len - 1; i >= 0; i--) {
+    for (int64_t i = len - 1; i >= 0; i--) {
       v->v[i] = vals[i];
       GC_pop_root(&vals[i]);
     }
     free(vals);
-    val = (long)v | VECTOR_TAG;
+    return tag_vector(v);
   } else if (type == CLOSURE_TAG) {
-    long bcfunc_num;
+    uint64_t bcfunc_num;
     if (fread(&bcfunc_num, 1, 8, fptr) != 8) {
-      goto error;
+      read_error();
     }
-    auto clo = (closure_s*)GC_malloc(sizeof(closure_s) + 8);
+    closure_s *clo = GC_malloc(sizeof(closure_s) + 8);
     clo->type = CLOSURE_TAG;
     clo->rc = 0;
     clo->len = 1 << 3;
     clo->v[0] = bcfunc_num << 3; // Updated below.
-    val = (long)clo | CLOSURE_TAG;
-  } else {
-    printf("Unknown deserialize tag %lx\n", val);
-    exit(-1);
+    return tag_closure(clo);
   }
+
+  // Fallthrough for literals and fixnum.
   return val;
- error:
-  printf("Error: Could not read consts\n");
+}
+
+static void parse_error() {
+  printf("Could not parse bc file\n");
   exit(-1);
 }
 
 bcfunc *readbc(FILE *fptr) {
-  unsigned long const_offset = const_table_sz;
+  auto const_offset = const_table_sz;
   arrfree(symbols);
 
   if (fptr == nullptr) {
@@ -178,93 +179,88 @@ bcfunc *readbc(FILE *fptr) {
     exit(-1);
   }
   // Read header
-  unsigned int num;
+  uint32_t num;
   if (fread(&num, 1, 4, fptr) != 4) {
-    goto error;
+    parse_error();
   }
   // printf("%.4s\n", (char *)&num);
   if (num != 0x4d4f4f42) { // MAGIC
     printf("Error: not a hawk bitcode\n");
     exit(-1);
   }
-  unsigned int version;
+  uint32_t version;
   if (fread(&version, 1, 4, fptr) != 4) {
-    goto error;
+    parse_error();
   }
   if (version != 0) {
-    printf("Invalid bitcode version: %i\n", version);
+    printf("Invalid bitcode version: %u\n", version);
     exit(-1);
   }
   // printf("%i\n", version);
 
   // Read constant table
-  unsigned int const_count;
+  uint32_t const_count;
   if (fread(&const_count, 1, 4, fptr) != 4) {
-    goto error;
+    parse_error();
   }
   // printf("constsize %i \n", const_count);
   const_table =
-      (long *)realloc(const_table, (const_count + const_offset) * sizeof(long));
+      realloc(const_table, (const_count + const_offset) * sizeof(gc_obj));
   if (!const_table) {
     printf("Error: Could not realloc const_table\n");
     exit(-1);
   }
   // Memset new entries in case we get GC during file read.
-  memset(&const_table[const_table_sz], 0, sizeof(long) * const_count);
+  memset(&const_table[const_table_sz], 0, sizeof(gc_obj) * const_count);
   const_table_sz += const_count;
   if (const_table_sz >= 65536) {
-    printf("ERROR const table too big! %li\n", const_table_sz);
+    printf("ERROR const table too big! %lu\n", const_table_sz);
     exit(-1);
   }
-  for (unsigned j = 0; j < const_count; j++) {
+  for (uint32_t j = 0; j < const_count; j++) {
     const_table[j + const_offset] = read_const(fptr);
-    //printf("%i: %i", j, const_table[j]&TAG_MASK);
-    //print_obj(const_table[j], stdout);
-    //printf("\n");
+    // printf("%i: %i", j, const_table[j]&TAG_MASK);
+    // print_obj(const_table[j], stdout);
+    // printf("\n");
   }
 
   // Read functions
-  unsigned int bccount;
+  uint32_t bccount;
   if (fread(&bccount, 1, 4, fptr) != 4) {
-    goto error;
+    parse_error();
   }
   bcfunc *start_func = nullptr;
-  unsigned func_offset = arrlen(funcs);
-  for (unsigned i = 0; i < bccount; i++) {
-    unsigned int name_count;
+  uint64_t func_offset = arrlen(funcs);
+  for (uint32_t i = 0; i < bccount; i++) {
+    uint32_t name_count;
     if (fread(&name_count, 1, 4, fptr) != 4) {
-      goto error;
+      parse_error();
     }
     // printf("Name size %i\n", name_count);
-    char *name = (char *)malloc(name_count + 1);
+    char *name = malloc(name_count + 1);
     assert(name);
     name[name_count] = '\0';
     if (fread(name, 1, name_count, fptr) != name_count) {
-      goto error;
+      parse_error();
     }
 
-    unsigned int code_count;
+    uint32_t code_count;
     if (fread(&code_count, 1, 4, fptr) != 4) {
-      goto error;
+      parse_error();
     }
 
-    auto f =
-        (bcfunc *)malloc(sizeof(bcfunc) + sizeof(unsigned int) * code_count);
+    bcfunc *f = malloc(sizeof(bcfunc) + sizeof(uint32_t) * code_count);
     if (start_func == nullptr) {
       start_func = f;
-    }
-    if ((((long)f) & 0x7) != 0) {
-      printf("Alloc fail\n");
-      exit(-1);
     }
     f->name = name;
     f->codelen = code_count;
     f->poly_cnt = 0;
 
     // printf("%i: code %i\n", i, code_count);
-    for (unsigned j = 0; j < code_count; j++) {
-      if(fread(&f->code[j], 1, 4, fptr) != 4) {
-	goto error;
+    for (uint32_t j = 0; j < code_count; j++) {
+      if (fread(&f->code[j], 1, 4, fptr) != 4) {
+        parse_error();
       }
       // Need to update anything pointing to global const_table
       auto op = INS_OP(f->code[j]);
@@ -282,19 +278,16 @@ bcfunc *readbc(FILE *fptr) {
     arrput(funcs, f);
   }
   // Update any new constant closures.
-  for(uint64_t i = const_offset; i < const_table_sz; i++) {
+  for (uint64_t i = const_offset; i < const_table_sz; i++) {
     auto v = const_table[i];
-    if ((v & TAG_MASK) == CLOSURE_TAG) {
-      auto clo = (closure_s*)(v - CLOSURE_TAG);
+    if (is_closure(v)) {
+      auto clo = to_closure(v);
       clo->v[0] = (long)funcs[func_offset + (clo->v[0] >> 3)];
     }
   }
 
   fclose(fptr);
   return start_func;
- error:
-  printf("Could not parse bc file\n");
-  exit(-1);
 }
 
 EXPORT bcfunc *readbc_image(unsigned char *mem, unsigned int len) {
@@ -317,7 +310,6 @@ EXPORT void free_script() {
   }
   arrfree(funcs);
   arrfree(symbols);
-  // TODO symbol_table
   free(const_table);
   const_table = NULL;
   symbol_table_clear();
