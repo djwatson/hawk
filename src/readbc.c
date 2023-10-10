@@ -30,6 +30,45 @@ static void read_error() {
   exit(-1);
 }
 
+static gc_obj read_symbol(FILE *fptr, uint64_t num) {
+  if (num < arrlen(symbols)) {
+    return symbols[num];
+  }  
+  // It's a new symbol in this bc file
+  uint64_t len;
+  if (8 != fread(&len, 1, 8, fptr)) {
+    read_error();
+  }
+  string_s *str = GC_malloc(16 + 1 + len);
+  *str = (string_s){STRING_TAG, 0, len << 3};
+  if (fread(str->str, 1, len, fptr) != len) {
+    read_error();
+  }
+  str->str[len] = '\0';
+
+  // TODO(djwatson) this could be merged with string->symbol
+  // Don't need to malloc string first
+  // Try to see if it already exists
+  auto res = symbol_table_find(str);
+  if (res == nullptr) {
+    gc_obj str_save = tag_string(str);
+    GC_push_root(&str_save);
+    symbol *sym = GC_malloc(sizeof(symbol));
+
+    GC_pop_root(&str_save);
+    *sym = (symbol){SYMBOL_TAG, 0, str_save, UNDEFINED_TAG, 0, NULL};
+
+    symbol_table_insert(sym);
+    gc_obj val = tag_symbol(sym);
+    arrput(symbols, val);
+    return val;
+  }
+    
+  gc_obj val = tag_symbol(res);
+  arrput(symbols, val);
+  return val;
+}
+
 gc_obj read_const(FILE *fptr) {
   gc_obj val;
   if (fread(&val, 1, 8, fptr) != 8) {
@@ -37,50 +76,7 @@ gc_obj read_const(FILE *fptr) {
   }
   auto type = val & TAG_MASK;
   if (type == SYMBOL_TAG) {
-    uint64_t num = val >> 3;
-    if (num < arrlen(symbols)) {
-      return symbols[num];
-    }  
-    // It's a new symbol in this bc file
-    uint64_t len;
-    if (8 != fread(&len, 1, 8, fptr)) {
-      read_error();
-    }
-    string_s *str = GC_malloc(16 + 1 + len);
-    str->type = STRING_TAG;
-    str->len = len << 3;
-    str->str[len] = '\0';
-    str->rc = 0;
-    if (fread(str->str, 1, len, fptr) != len) {
-      read_error();
-    }
-
-    // Try to see if it already exists
-    auto res = symbol_table_find(str);
-    if (res == nullptr) {
-      gc_obj str_save = tag_string(str);
-      GC_push_root(&str_save);
-      symbol *sym = GC_malloc(sizeof(symbol));
-
-      GC_pop_root(&str_save);
-      str = to_string(str_save);
-
-      sym->type = SYMBOL_TAG;
-      sym->name = tag_string(str);
-      sym->val = UNDEFINED_TAG;
-      sym->opt = 0;
-      sym->lst = NULL;
-      sym->rc = 0;
-      symbol_table_insert(sym);
-      val = tag_symbol(sym);
-      arrput(symbols, val);
-      return val;
-    }
-    
-    val = tag_symbol(res);
-    arrput(symbols, val);
-    return val;
-
+    return read_symbol(fptr, val >> 3);
   } else if (type == FLONUM_TAG) {
     flonum_s *f = GC_malloc(sizeof(flonum_s));
     if (fread(&f->x, 1, 8, fptr) != 8) {
