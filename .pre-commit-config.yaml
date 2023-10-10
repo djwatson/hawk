@@ -5,6 +5,7 @@ repos:
     hooks:
       - id: clang-format
       - id: clang-tidy
+        args: ["-checks=clang-diagnostic-*,clang-analyzer-*,bugprone*,modernize*,performance*,readability-*,-modernize-use-trailing-return-type,-modernize-avoid-c-arrays,-readability-magic-numbers,-readability-identifier-length,-clang-analyzer-security*,-performance-no-int-to-ptr,-bugprone-easily-swappable-parameters,-readability-function-cognitive-complexity,-bugprone-sizeof-expression,-clang-analyzer-core.uninitialized.*,-clang-analyzer-core.UndefinedBinaryOperatorResult"]
       - id: oclint
         args: ["-rc=SHORT_VARIABLE_NAME=1","-rc=CYCLOMATIC_COMPLEXITY=15"]
 #      - id: uncrustify

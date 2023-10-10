@@ -186,7 +186,98 @@ static void parse_error() {
   exit(-1);
 }
 
-bcfunc *readbc(FILE *fptr) {
+static bcfunc *parse_func(FILE *fptr, uint64_t const_offset,
+                          uint64_t func_offset) {
+  uint32_t name_count;
+  if (fread(&name_count, 1, 4, fptr) != 4) {
+    parse_error();
+  }
+  // printf("Name size %i\n", name_count);
+  char *name = malloc(name_count + 1);
+  assert(name);
+  name[name_count] = '\0';
+  if (fread(name, 1, name_count, fptr) != name_count) {
+    parse_error();
+  }
+
+  uint32_t code_count;
+  if (fread(&code_count, 1, 4, fptr) != 4) {
+    parse_error();
+  }
+
+  bcfunc *f = malloc(sizeof(bcfunc) + sizeof(uint32_t) * code_count);
+  f->name = name;
+  f->codelen = code_count;
+  f->poly_cnt = 0;
+
+  // printf("%i: code %i\n", i, code_count);
+  for (uint32_t j = 0; j < code_count; j++) {
+    if (fread(&f->code[j], 1, 4, fptr) != 4) {
+      parse_error();
+    }
+    // Need to update anything pointing to global const_table
+    auto op = INS_OP(f->code[j]);
+    if (op == GGET || op == GSET || op == KONST) {
+      f->code[j] =
+          CODE_D(op, INS_A(f->code[j]), INS_D(f->code[j]) + const_offset);
+    } else if (op == KFUNC) {
+      f->code[j] =
+          CODE_D(op, INS_A(f->code[j]), INS_D(f->code[j]) + func_offset);
+    }
+    // unsigned int code = f->code[j];
+    //  printf("%i code: %s %i %i %i BC: %i\n", j, ins_names[INS_OP(code)],
+    //         INS_A(code), INS_B(code), INS_C(code), INS_BC(code));
+  }
+  arrput(funcs, f);
+
+  return f;
+}
+
+static bcfunc *parse_funcs(FILE *fptr, uint64_t const_offset) {
+  // Read functions
+  uint32_t bccount;
+  if (fread(&bccount, 1, 4, fptr) != 4) {
+    parse_error();
+  }
+  bcfunc *start_func = nullptr;
+  uint64_t func_offset = arrlen(funcs);
+  start_func = parse_func(fptr, const_offset, func_offset);
+  for (uint32_t i = 1; i < bccount; i++) {
+    parse_func(fptr, const_offset, func_offset);
+  }
+
+  return start_func;
+}
+
+static void read_const_table(FILE *fptr, uint64_t const_offset) {
+  // Read constant table
+  uint32_t const_count;
+  if (fread(&const_count, 1, 4, fptr) != 4) {
+    parse_error();
+  }
+  // printf("constsize %i \n", const_count);
+  const_table =
+      realloc(const_table, (const_count + const_offset) * sizeof(gc_obj));
+  if (!const_table) {
+    printf("Error: Could not realloc const_table\n");
+    exit(-1);
+  }
+  // Memset new entries in case we get GC during file read.
+  memset(&const_table[const_table_sz], 0, sizeof(gc_obj) * const_count);
+  const_table_sz += const_count;
+  if (const_table_sz >= 65536) {
+    printf("ERROR const table too big! %lu\n", const_table_sz);
+    exit(-1);
+  }
+  for (uint32_t j = 0; j < const_count; j++) {
+    const_table[j + const_offset] = read_const(fptr);
+    // printf("%i: %i", j, const_table[j]&TAG_MASK);
+    // print_obj(const_table[j], stdout);
+    // printf("\n");
+  }
+}
+
+static bcfunc *readbc(FILE *fptr) {
   auto const_offset = const_table_sz;
   arrfree(symbols);
 
@@ -214,85 +305,11 @@ bcfunc *readbc(FILE *fptr) {
   }
   // printf("%i\n", version);
 
-  // Read constant table
-  uint32_t const_count;
-  if (fread(&const_count, 1, 4, fptr) != 4) {
-    parse_error();
-  }
-  // printf("constsize %i \n", const_count);
-  const_table =
-      realloc(const_table, (const_count + const_offset) * sizeof(gc_obj));
-  if (!const_table) {
-    printf("Error: Could not realloc const_table\n");
-    exit(-1);
-  }
-  // Memset new entries in case we get GC during file read.
-  memset(&const_table[const_table_sz], 0, sizeof(gc_obj) * const_count);
-  const_table_sz += const_count;
-  if (const_table_sz >= 65536) {
-    printf("ERROR const table too big! %lu\n", const_table_sz);
-    exit(-1);
-  }
-  for (uint32_t j = 0; j < const_count; j++) {
-    const_table[j + const_offset] = read_const(fptr);
-    // printf("%i: %i", j, const_table[j]&TAG_MASK);
-    // print_obj(const_table[j], stdout);
-    // printf("\n");
-  }
+  read_const_table(fptr, const_offset);
 
-  // Read functions
-  uint32_t bccount;
-  if (fread(&bccount, 1, 4, fptr) != 4) {
-    parse_error();
-  }
-  bcfunc *start_func = nullptr;
   uint64_t func_offset = arrlen(funcs);
-  for (uint32_t i = 0; i < bccount; i++) {
-    uint32_t name_count;
-    if (fread(&name_count, 1, 4, fptr) != 4) {
-      parse_error();
-    }
-    // printf("Name size %i\n", name_count);
-    char *name = malloc(name_count + 1);
-    assert(name);
-    name[name_count] = '\0';
-    if (fread(name, 1, name_count, fptr) != name_count) {
-      parse_error();
-    }
+  auto start_func = parse_funcs(fptr, const_offset);
 
-    uint32_t code_count;
-    if (fread(&code_count, 1, 4, fptr) != 4) {
-      parse_error();
-    }
-
-    bcfunc *f = malloc(sizeof(bcfunc) + sizeof(uint32_t) * code_count);
-    if (start_func == nullptr) {
-      start_func = f;
-    }
-    f->name = name;
-    f->codelen = code_count;
-    f->poly_cnt = 0;
-
-    // printf("%i: code %i\n", i, code_count);
-    for (uint32_t j = 0; j < code_count; j++) {
-      if (fread(&f->code[j], 1, 4, fptr) != 4) {
-        parse_error();
-      }
-      // Need to update anything pointing to global const_table
-      auto op = INS_OP(f->code[j]);
-      if (op == GGET || op == GSET || op == KONST) {
-        f->code[j] =
-            CODE_D(op, INS_A(f->code[j]), INS_D(f->code[j]) + const_offset);
-      } else if (op == KFUNC) {
-        f->code[j] =
-            CODE_D(op, INS_A(f->code[j]), INS_D(f->code[j]) + func_offset);
-      }
-      // unsigned int code = f->code[j];
-      //  printf("%i code: %s %i %i %i BC: %i\n", j, ins_names[INS_OP(code)],
-      //         INS_A(code), INS_B(code), INS_C(code), INS_BC(code));
-    }
-    arrput(funcs, f);
-  }
   // Update any new constant closures.
   for (uint64_t i = const_offset; i < const_table_sz; i++) {
     auto v = const_table[i];
