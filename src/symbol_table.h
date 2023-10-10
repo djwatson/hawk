@@ -2,13 +2,20 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#include "types.h"
+
 typedef struct string_s string_s;
 typedef struct symbol symbol;
 
 symbol *symbol_table_find(string_s *str);
-void symbol_table_insert(symbol *sym);
+// Inserts a string_s, making a copy of it for the new symbol.
+// Returns the tagged symbol object, or 0 if can_alloc = false and we
+// need a GC.
+gc_obj symbol_table_insert(string_s *str, bool can_alloc);
 symbol *symbol_table_find_cstr(const char *str);
 void symbol_table_clear();
 

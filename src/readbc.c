@@ -29,41 +29,35 @@ static void read_error() {
   exit(-1);
 }
 
+#define str_buf_len 512
 static gc_obj read_symbol(FILE *fptr, uint64_t num) {
   if (num < arrlen(symbols)) {
     return symbols[num];
   }
+  static char str_buf[str_buf_len + 1 + sizeof(string_s)]
+      __attribute__((aligned(8)));
+  string_s *str = (string_s *)str_buf;
+
   // It's a new symbol in this bc file
   uint64_t len;
-  if (8 != fread(&len, 1, 8, fptr)) {
+  if (8 != fread(&len, 1, 8, fptr) || len > str_buf_len) {
     read_error();
   }
-  string_s *str = GC_malloc(16 + 1 + len);
+
   *str = (string_s){STRING_TAG, 0, len << 3};
   if (fread(str->str, 1, len, fptr) != len) {
     read_error();
   }
   str->str[len] = '\0';
 
-  // TODO(djwatson) this could be merged with string->symbol
-  // Don't need to malloc string first
-  // Try to see if it already exists
-  auto res = symbol_table_find(str);
+  auto res = symbol_table_find_cstr(str->str);
+  gc_obj val;
   if (res == nullptr) {
-    gc_obj str_save = tag_string(str);
-    GC_push_root(&str_save);
-    symbol *sym = GC_malloc(sizeof(symbol));
-
-    GC_pop_root(&str_save);
-    *sym = (symbol){SYMBOL_TAG, 0, str_save, UNDEFINED_TAG, 0, NULL};
-
-    symbol_table_insert(sym);
-    gc_obj val = tag_symbol(sym);
-    arrput(symbols, val);
-    return val;
+    val = symbol_table_insert(str, true);
+  } else {
+    val = tag_symbol(res);
   }
 
-  gc_obj val = tag_symbol(res);
   arrput(symbols, val);
   return val;
 }

@@ -8,6 +8,7 @@
 #include <string.h> // for strcmp
 
 #include "defs.h"
+#include "gc.h"
 #include "types.h" // for string_s, symbol
 
 #define auto __auto_type
@@ -63,7 +64,7 @@ EXPORT symbol *symbol_table_find_cstr(const char *str) {
 }
 
 static void rehash();
-void symbol_table_insert(symbol *sym) {
+static void symbol_table_insert_sym(symbol *sym) {
   if ((sym_table->cnt + 1) > (sym_table->sz / 2)) {
     rehash();
   }
@@ -102,7 +103,7 @@ static void rehash() {
   for (size_t i = 0; i < old->sz; i++) {
     auto cur = &old->entries[i];
     if (*cur != 0 && *cur != TOMBSTONE) {
-      symbol_table_insert(to_symbol(*cur));
+      symbol_table_insert_sym(to_symbol(*cur));
     }
   }
 
@@ -116,4 +117,51 @@ void symbol_table_clear() {
     free(sym_table);
     sym_table = &empty_table;
   }
+}
+
+gc_obj symbol_table_insert(string_s *str, bool can_alloc) {
+  assert(symbol_table_find(str) == NULL);
+  // Build a new symbol.
+  // Must dup the string, since strings are not immutable.
+  auto strlen = str->len >> 3;
+  symbol *sym = NULL;
+  if (can_alloc) {
+    sym = GC_malloc(sizeof(symbol));
+  } else {
+    sym = GC_malloc_no_collect(sizeof(symbol));
+    if (!sym) {
+      return 0;
+    }
+  }
+
+  // Note re-load of str after allocation.
+  *sym = (symbol){SYMBOL_TAG, 0, tag_string(str), UNDEFINED_TAG, 0, NULL};
+
+  // Save new symbol in frame[ra].
+  gc_obj result = tag_symbol(sym);
+  // DUP the string, so that this one is immutable.
+  // Note that original is in sym->name temporarily
+  // since ra could be eq to rb.
+
+  string_s *str2 = NULL;
+  if (can_alloc) {
+    GC_push_root(&result);
+    str2 = GC_malloc(16 + strlen + 1);
+    GC_pop_root(&result);
+  } else {
+    str2 = GC_malloc_no_collect(16 + strlen + 1);
+    if (!str2) {
+      return 0;
+    }
+  }
+  // Re-load sym after GC
+  sym = to_symbol(result);
+
+  *str2 = (string_s){STRING_TAG, 0, strlen << 3};
+  // Re-load str after GC
+  memcpy(str2->str, to_string(sym->name)->str, strlen + 1);
+  sym->name = tag_string(str2);
+  symbol_table_insert_sym(sym);
+
+  return result;
 }

@@ -188,7 +188,7 @@ NOINLINE void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
 
 void expand_stack(long **o_frame) {
   if (verbose) {
-    printf("Expand stack from %i to %i\n", stacksz, stacksz * 2);
+    printf("Expand stack from %u to %u\n", stacksz, stacksz * 2);
   }
   auto pos = *o_frame - stack;
   auto oldsz = stacksz;
@@ -1243,83 +1243,25 @@ END_LIBRARY_FUNC
 long vm_string_symbol(string_s* str) {
   // TODO jit still as the ptr tag.
   str = (string_s*)((long)str & ~TAG_MASK);
-
+  
   auto res = symbol_table_find(str);
-  if (!res) {
-    // Build a new symbol.
-    // Must dup the string, since strings are not immutable.
-    auto strlen = str->len >> 3;
-    auto sym = (symbol *)GC_malloc_no_collect(sizeof(symbol));
-    if (!sym) {
-      return FALSE_REP;
-    }
-    sym->type = SYMBOL_TAG;
-    sym->rc = 0;
-    sym->name = (long)str + PTR_TAG;
-    sym->val = UNDEFINED_TAG;
-    sym->opt = 0;
-    sym->lst = NULL;
-
-    // DUP the string, so that this one is immutable.
-    auto str2 = (string_s *)GC_malloc_no_collect(16 + strlen + 1);
-    if (!str2) {
-      return FALSE_REP;
-    }
-
-    str2->type = STRING_TAG;
-    str2->rc = 0;
-    str2->len = strlen << 3;
-    memcpy(str2->str, str->str, strlen + 1);
-
-    sym->name = (long)str2 + PTR_TAG;
-    symbol_table_insert(sym);
-
-    return (long)sym + SYMBOL_TAG;
-  } else {
-    return (long)res + SYMBOL_TAG;
+  if (res) {
+    return tag_symbol(res);
   }
+  auto inserted = symbol_table_insert(str, false);
+  if (!inserted) {
+    return FALSE_REP;
+  }
+  return inserted;
 }
 
 LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
   auto res = symbol_table_find(str);
   if (!res) {
-    // Build a new symbol.
-    // Must dup the string, since strings are not immutable.
-    auto strlen = str->len >> 3;
-    stack_top = &frame[(ra > rb ? ra : rb) + 1];
-    auto sym = (symbol *)GC_malloc(sizeof(symbol));
-    sym->type = SYMBOL_TAG;
-    sym->rc = 0;
-  
-    // Note re-load of str after allocation.
-    sym->name = frame[rb];
-    sym->val = UNDEFINED_TAG;
-    sym->opt = 0;
-    sym->lst = NULL;
-  
-    // Save new symbol in frame[ra].
-    frame[ra] = (long)sym + SYMBOL_TAG;
-  
-    // DUP the string, so that this one is immutable.
-    // Note that original is in sym->name temporarily
-    // since ra could be eq to rb.
-    auto str2 = (string_s *)GC_malloc(16 + strlen + 1);
-    // Re-load sym after GC
-    sym = (symbol *)(frame[ra] - SYMBOL_TAG);
-  
-    // Re-load str after GC
-    str = (string_s *)(sym->name - PTR_TAG);
-  
-    str2->type = STRING_TAG;
-    str2->rc = 0;
-    str2->len = strlen << 3;
-    memcpy(str2->str, str->str, strlen+1);
-  
-    sym->name = (long)str2 + PTR_TAG;
-    symbol_table_insert(sym);
+    frame[ra] = symbol_table_insert(str, true);
   } else {
-    frame[ra] = (long)res + SYMBOL_TAG;
+    frame[ra] = tag_symbol(res);
   }
 END_LIBRARY_FUNC
 
