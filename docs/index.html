@@ -89,6 +89,7 @@ $ ./fib</code></pre>
     </div>
 
     <script>
+      sums = [0,0,0,0];
       function makechart(name, data) {
 	  const loc = document.getElementById("charts");
 	  div = document.createElement("div");
@@ -99,6 +100,7 @@ $ ./fib</code></pre>
 	  loc.appendChild(div);
 
 	  arrayOfObj = arrayLabel.map(function(d, i) {
+	      sums[i] = sums[i] + data[i];
 	      return {
 		  label: d,
 		  data: data[i] || 0
@@ -213,6 +215,7 @@ $ ./fib</code></pre>
       makechart('mazefun', [1.5799999999999272, 1.6059999465942383, 2.093023, 1.76]);
       makechart('array1', [4.5900000000001455, 1.4989999532699585, 2.981551, 2.00]);
       makechart('wc', [0.9400000000000546, 1.5779999494552612, 5.82148, 1.15]);
+      makechart('Totals', sums);
     </script>
     <script>hljs.highlightAll();</script>
   </body>
