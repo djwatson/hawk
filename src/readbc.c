@@ -17,13 +17,12 @@
 #include "types.h" // for string_s, PTR_TAG, SYMBOL_TAG, cons_s, symbol
 #include "vm.h"    // for funcs
 
-#define auto __auto_type
-#define nullptr NULL
-
 gc_obj *const_table = nullptr;
 uint64_t const_table_sz = 0;
 // TODO(djwatson) not a global, or use a string instead
 gc_obj *symbols = NULL;
+
+static gc_obj read_const(FILE *fptr);
 
 static void read_error() {
   printf("Error: Could not read consts\n");
@@ -33,7 +32,7 @@ static void read_error() {
 static gc_obj read_symbol(FILE *fptr, uint64_t num) {
   if (num < arrlen(symbols)) {
     return symbols[num];
-  }  
+  }
   // It's a new symbol in this bc file
   uint64_t len;
   if (8 != fread(&len, 1, 8, fptr)) {
@@ -63,13 +62,102 @@ static gc_obj read_symbol(FILE *fptr, uint64_t num) {
     arrput(symbols, val);
     return val;
   }
-    
+
   gc_obj val = tag_symbol(res);
   arrput(symbols, val);
   return val;
 }
 
-gc_obj read_const(FILE *fptr) {
+static gc_obj read_flonum(FILE *fptr) {
+  flonum_s *f = GC_malloc(sizeof(flonum_s));
+  if (fread(&f->x, 1, 8, fptr) != 8) {
+    read_error();
+  }
+  f->type = FLONUM_TAG;
+  f->rc = 0;
+  return tag_flonum(f);
+}
+
+static gc_obj read_cons(FILE *fptr) {
+  auto ca = read_const(fptr);
+  GC_push_root(&ca);
+  auto cb = read_const(fptr);
+  GC_push_root(&cb);
+
+  cons_s *c = GC_malloc(sizeof(cons_s));
+  c->type = CONS_TAG;
+  c->a = ca;
+  c->rc = 0;
+  c->b = cb;
+  GC_pop_root(&cb);
+  GC_pop_root(&ca);
+
+  return tag_cons(c);
+}
+
+static gc_obj read_ptr(FILE *fptr) {
+  uint64_t ptrtype;
+  if (fread(&ptrtype, 1, 8, fptr) != 8) {
+    read_error();
+  }
+  if (ptrtype == STRING_TAG) {
+    uint64_t len;
+    if (fread(&len, 1, 8, fptr) != 8) {
+      read_error();
+    }
+    string_s *str = GC_malloc(16 + len + 1);
+    str->type = ptrtype;
+    str->len = len << 3;
+    str->rc = 0;
+    if (fread(&str->str, 1, len, fptr) != len) {
+      read_error();
+    }
+    str->str[len] = '\0';
+    return tag_string(str);
+  }
+  read_error();
+  __builtin_unreachable();
+}
+
+static gc_obj read_vector(FILE *fptr) {
+  uint64_t len;
+  if (fread(&len, 1, 8, fptr) != 8) {
+    read_error();
+  }
+
+  gc_obj *vals = malloc(sizeof(gc_obj) * len);
+  assert(vals);
+  for (uint64_t i = 0; i < len; i++) {
+    vals[i] = read_const(fptr);
+    GC_push_root(&vals[i]);
+  }
+
+  vector_s *v = GC_malloc(16 + len * sizeof(gc_obj));
+  v->type = VECTOR_TAG;
+  v->len = len << 3;
+  v->rc = 0;
+  for (int64_t i = len - 1; i >= 0; i--) {
+    v->v[i] = vals[i];
+    GC_pop_root(&vals[i]);
+  }
+  free(vals);
+  return tag_vector(v);
+}
+
+static gc_obj read_closure(FILE *fptr) {
+  uint64_t bcfunc_num;
+  if (fread(&bcfunc_num, 1, 8, fptr) != 8) {
+    read_error();
+  }
+  closure_s *clo = GC_malloc(sizeof(closure_s) + 8);
+  clo->type = CLOSURE_TAG;
+  clo->rc = 0;
+  clo->len = 1 << 3;
+  clo->v[0] = bcfunc_num << 3; // Updated below.
+  return tag_closure(clo);
+}
+
+static gc_obj read_const(FILE *fptr) {
   gc_obj val;
   if (fread(&val, 1, 8, fptr) != 8) {
     read_error();
@@ -78,83 +166,15 @@ gc_obj read_const(FILE *fptr) {
   if (type == SYMBOL_TAG) {
     return read_symbol(fptr, val >> 3);
   } else if (type == FLONUM_TAG) {
-    flonum_s *f = GC_malloc(sizeof(flonum_s));
-    if (fread(&f->x, 1, 8, fptr) != 8) {
-      read_error();
-    }
-    f->type = FLONUM_TAG;
-    f->rc = 0;
-    return tag_flonum(f);
+    return read_flonum(fptr);
   } else if (type == CONS_TAG) {
-    auto ca = read_const(fptr);
-    GC_push_root(&ca);
-    auto cb = read_const(fptr);
-    GC_push_root(&cb);
-
-    cons_s *c = GC_malloc(sizeof(cons_s));
-    c->type = CONS_TAG;
-    c->a = ca;
-    c->rc = 0;
-    c->b = cb;
-    GC_pop_root(&cb);
-    GC_pop_root(&ca);
-
-    return tag_cons(c);
+    return read_cons(fptr);
   } else if (type == PTR_TAG) {
-    uint64_t ptrtype;
-    if (fread(&ptrtype, 1, 8, fptr) != 8) {
-      read_error();
-    }
-    if (ptrtype == STRING_TAG) {
-      uint64_t len;
-      if (fread(&len, 1, 8, fptr) != 8) {
-        read_error();
-      }
-      string_s *str = GC_malloc(16 + len + 1);
-      str->type = ptrtype;
-      str->len = len << 3;
-      str->rc = 0;
-      if (fread(&str->str, 1, len, fptr) != len) {
-        read_error();
-      }
-      str->str[len] = '\0';
-      return tag_string(str);
-    }
-    read_error();
+    return read_ptr(fptr);
   } else if (type == VECTOR_TAG) {
-    uint64_t len;
-    if (fread(&len, 1, 8, fptr) != 8) {
-      read_error();
-    }
-
-    gc_obj *vals = malloc(sizeof(gc_obj) * len);
-    assert(vals);
-    for (uint64_t i = 0; i < len; i++) {
-      vals[i] = read_const(fptr);
-      GC_push_root(&vals[i]);
-    }
-
-    vector_s *v = GC_malloc(16 + len * sizeof(gc_obj));
-    v->type = VECTOR_TAG;
-    v->len = len << 3;
-    v->rc = 0;
-    for (int64_t i = len - 1; i >= 0; i--) {
-      v->v[i] = vals[i];
-      GC_pop_root(&vals[i]);
-    }
-    free(vals);
-    return tag_vector(v);
+    return read_vector(fptr);
   } else if (type == CLOSURE_TAG) {
-    uint64_t bcfunc_num;
-    if (fread(&bcfunc_num, 1, 8, fptr) != 8) {
-      read_error();
-    }
-    closure_s *clo = GC_malloc(sizeof(closure_s) + 8);
-    clo->type = CLOSURE_TAG;
-    clo->rc = 0;
-    clo->len = 1 << 3;
-    clo->v[0] = bcfunc_num << 3; // Updated below.
-    return tag_closure(clo);
+    return read_closure(fptr);
   }
 
   // Fallthrough for literals and fixnum.
