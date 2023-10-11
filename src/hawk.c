@@ -101,9 +101,9 @@ void generate_exe(char *filename, const char *bc_name) {
 
   filename[strlen(filename) - 4] = '\0';
 
-  char tmp2[512];
+  char tmp2[701];
   snprintf(
-      tmp2, 511,
+      tmp2, 700,
       "clang -flto -o %s $LDFLAGS -L. -lhawk_exe -lhawk_vm %s -lcapstone -lm",
       filename, tmp);
   printf("Running: %s\n", tmp2);

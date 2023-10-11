@@ -18,8 +18,8 @@ extern bcfunc **funcs;
 #define hotmap_tail_rec 1
 #define hotmap_mask (hotmap_sz - 1)
 
-INLINE long vm_read_char(port_s *port);
-INLINE long vm_peek_char(port_s *port);
+long vm_read_char(port_s *port);
+long vm_peek_char(port_s *port);
 long vm_string_symbol(string_s *str);
 void vm_write(long obj, long port);
 void vm_make_string(long str, long ch);

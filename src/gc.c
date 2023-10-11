@@ -61,8 +61,6 @@ lalloc *large_allocs = NULL;
 
 long **pushed_roots = NULL;
 
-static const uint32_t LOGGED_MARK = (1UL << 31);
-
 typedef struct {
   uint64_t offset;
   uint64_t addr;
@@ -635,27 +633,9 @@ NOINLINE void *GC_malloc_slow(size_t sz) {
   return GC_malloc(sz);
 }
 
-INLINE void *GC_malloc_no_collect(size_t sz) {
-  sz = (sz + 7) & (~TAG_MASK);
-  assert((sz & TAG_MASK) == 0);
-  auto res = alloc_ptr;
-  alloc_ptr += sz;
-  if (alloc_ptr < alloc_end) {
-    return res;
-  }
-  return NULL;
-}
-INLINE void *GC_malloc(size_t sz) {
-  assert(alloc_ptr >= alloc_start);
-  sz = (sz + 7) & (~TAG_MASK);
-  assert((sz & TAG_MASK) == 0);
-  auto res = alloc_ptr;
-  alloc_ptr += sz;
-  if (alloc_ptr < alloc_end) {
-    return res;
-  }
-  return GC_malloc_slow(sz);
-}
+void *GC_malloc_no_collect(size_t sz);
+
+void *GC_malloc(size_t sz);
 
 static void scan_log_buf(void (*add_increment)(long *)) {
   for (uint64_t i = 0; i < arrlen(log_buf);) {
@@ -710,10 +690,5 @@ NOINLINE void GC_log_obj_slow(void *obj) {
   trace_heap_object(obj, maybe_log, (void *)addr);
 }
 
-INLINE void GC_log_obj(void *ptr) {
-  uint32_t rc = ((uint32_t *)ptr)[1];
-  if (unlikely((rc != 0) && (!(rc & LOGGED_MARK)))) {
-    MUSTTAIL return GC_log_obj_slow(ptr);
-  }
-  assert(((uint32_t *)ptr)[1] != LOGGED_MARK);
-}
+void GC_log_obj(void *ptr);
+

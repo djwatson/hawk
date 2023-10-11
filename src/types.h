@@ -109,9 +109,9 @@ long from_c_str(const char *s);
 long equalp(long a, long b);
 
 // GC interface:
-INLINE size_t heap_object_size(long *obj);
+size_t heap_object_size(long *obj);
 typedef void (*trace_callback)(long *field, void *ctx);
-INLINE void trace_heap_object(long *obj, trace_callback visit, void *ctx);
+void trace_heap_object(long *obj, trace_callback visit, void *ctx);
 
 typedef int64_t gc_obj;
 static inline symbol *to_symbol(gc_obj obj) {

@@ -1353,7 +1353,7 @@ LIBRARY_FUNC_B_LOAD(CLOSE) {
 }
 END_LIBRARY_FUNC
 
-INLINE long vm_peek_char(port_s *port) {
+inline long vm_peek_char(port_s *port) {
   // TODO jit still as the ptr tag.
   port = (port_s *)((long)port - PTR_TAG);
   if (likely(port->buf_pos < port->buf_sz)) {
@@ -1377,7 +1377,7 @@ LIBRARY_FUNC_B_LOAD(PEEK) {
 }
 END_LIBRARY_FUNC
 
-INLINE long vm_read_char(port_s *port) {
+inline long vm_read_char(port_s *port) {
   // TODO jit still as the ptr tag.
   port = (port_s *)((long)port - PTR_TAG);
   if (likely(port->buf_pos < port->buf_sz)) {
