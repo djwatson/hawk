@@ -81,6 +81,30 @@ void compile_file(const char *file) {
   run(func, list ? 3 : 2, args);
 }
 
+static char *escapeshellarg(char *str) {
+  char *escStr;
+  auto count = strlen(str) * 2 + 2 + 1;
+
+  escStr = malloc(count);
+  if (escStr == NULL) {
+    return NULL;
+  }
+  uint64_t pos = 0;
+  auto end = strlen(str);
+  escStr[pos++] = '\'';
+  for (uint64_t i = 0; i < end; i++) {
+    if (str[i] == '\'') {
+      escStr[pos++] = '\\';
+      escStr[pos++] = '\'';
+    } else {
+      escStr[pos++] = str[i];
+    }
+  }
+  escStr[pos++] = '\'';
+  escStr[pos++] = '\0';
+  return escStr;
+}
+
 void generate_exe(char *filename, const char *bc_name) {
   char tmp[512];
 
@@ -101,11 +125,13 @@ void generate_exe(char *filename, const char *bc_name) {
 
   filename[strlen(filename) - 4] = '\0';
 
+  char *arg = escapeshellarg(tmp);
   char tmp2[701];
   snprintf(
       tmp2, 700,
       "clang -flto -o %s $LDFLAGS -L. -lhawk_exe -lhawk_vm %s -lcapstone -lm",
-      filename, tmp);
+      filename, arg);
+  free(arg);
   printf("Running: %s\n", tmp2);
   if (system(tmp2)) {
     printf("Compile file error\n");
