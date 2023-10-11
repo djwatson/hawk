@@ -26,6 +26,15 @@ static par_copy *map_find(map *m, uint64_t needle) {
   return NULL;
 }
 
+static par_copy *map_find_or_error(map *m, uint64_t needle) {
+  __auto_type res = map_find(m, needle);
+  if (!res) {
+    printf("pcopy error\n");
+    exit(-1);
+  }
+  return res;
+}
+
 static void map_erase(map *m, uint64_t needle) {
   for (uint64_t i = 0; i < m->mp_sz; i++) {
     if (m->mp[i].from == needle) {
@@ -90,8 +99,8 @@ void serialize_parallel_copy(map *moves, map *moves_out, uint64_t tmp_reg) {
       if (map_find(&rmoves, r) == NULL) {
         continue;
       }
-      __auto_type work = map_find(&rmoves, r);
-      __auto_type rmove = map_find(&loc, work->to)->to;
+      __auto_type work = map_find_or_error(&rmoves, r);
+      __auto_type rmove = map_find_or_error(&loc, work->to)->to;
       map_insert(moves_out, rmove, r);
       map_set(&loc, work->to, r);
 

@@ -157,6 +157,10 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num);
 void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const char *name) {
   struct jit_code_entry *jitcode = malloc(sizeof(struct jit_code_entry));
   GDBElfImage *image = malloc(sizeof(GDBElfImage));
+  if (!image || !jitcode) {
+    printf("jit_reader_add: malloc failure\n");
+    exit(-1);
+  }
   build_elf(fn, len, image, jit_cnt);
 
   // __auto_type entry = new gdb_code_entry;

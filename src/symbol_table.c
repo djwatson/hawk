@@ -96,6 +96,10 @@ static void rehash() {
   }
   // TODO(djwatson) realloc+memset?
   sym_table = calloc(sizeof(table) + sizeof(symbol *) * new_sz, 1);
+  if (!sym_table) {
+    printf("symbol_table: calloc error\n");
+    exit(-1);
+  }
   sym_table->sz = new_sz;
   sym_table->cnt = 0;
 

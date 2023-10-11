@@ -120,7 +120,9 @@ static gc_obj read_vector(FILE *fptr) {
   }
 
   gc_obj *vals = malloc(sizeof(gc_obj) * len);
-  assert(vals);
+  if (!vals) {
+    read_error();
+  }
   for (uint64_t i = 0; i < len; i++) {
     vals[i] = read_const(fptr);
     GC_push_root(&vals[i]);
@@ -188,7 +190,9 @@ static bcfunc *parse_func(FILE *fptr, uint64_t const_offset,
   }
   // printf("Name size %i\n", name_count);
   char *name = malloc(name_count + 1);
-  assert(name);
+  if (!name) {
+    parse_error();
+  }
   name[name_count] = '\0';
   if (fread(name, 1, name_count, fptr) != name_count) {
     parse_error();
@@ -200,6 +204,9 @@ static bcfunc *parse_func(FILE *fptr, uint64_t const_offset,
   }
 
   bcfunc *f = malloc(sizeof(bcfunc) + sizeof(uint32_t) * code_count);
+  if (!f) {
+    parse_error();
+  }
   f->name = name;
   f->codelen = code_count;
   f->poly_cnt = 0;

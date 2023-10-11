@@ -105,7 +105,8 @@ bcfunc *find_func_for_frame(const uint32_t *pc) {
       return fun;
     }
   }
-  return NULL;
+  printf("Could not find func for frame: %p\n", pc);
+  exit(-1);
 }
 
 NOINLINE void FAIL_SLOWPATH(PARAMS) {
