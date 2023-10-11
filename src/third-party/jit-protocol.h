@@ -26,16 +26,9 @@
 
 #include <stdint.h>
 
-typedef enum
-{
-  JIT_NOACTION = 0,
-  JIT_REGISTER,
-  JIT_UNREGISTER
-} jit_actions_t;
+typedef enum { JIT_NOACTION = 0, JIT_REGISTER, JIT_UNREGISTER } jit_actions_t;
 
-
-struct jit_code_entry
-{
+struct jit_code_entry {
   struct jit_code_entry *next_entry;
   struct jit_code_entry *prev_entry;
   const void *symfile_addr;
@@ -48,19 +41,17 @@ struct gdb_code_entry {
   char funcname[256];
 };
 
-struct jit_descriptor
-{
+struct jit_descriptor {
   uint32_t version;
   uint32_t action_flag;
   struct jit_code_entry *relevant_entry;
   struct jit_code_entry *first_entry;
 };
 
-struct jit_descriptor __jit_debug_descriptor = { 1, 0, 0, 0 };
+struct jit_descriptor __jit_debug_descriptor = {1, 0, 0, 0};
 
-void __attribute__((noinline)) __jit_debug_register_code()
-{
-/* GDB sets a breakpoint at this function. */
+void __attribute__((noinline)) __jit_debug_register_code() {
+  /* GDB sets a breakpoint at this function. */
   __asm__ __volatile__("");
 }
 
