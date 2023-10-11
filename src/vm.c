@@ -344,7 +344,7 @@ LIBRARY_FUNC(ICLFUNC) {
 NEXT_FUNC
 
 
-LIBRARY_FUNC(CLFUNC)
+LIBRARY_FUNC(CLFUNC) {
     if (argcnt != ra) {
       pc += INS_D(*(pc+1)) + 1;
     } else {
@@ -354,10 +354,10 @@ LIBRARY_FUNC(CLFUNC)
       pc+=2;
     }
   afl_trace(pc);
-  NEXT_INSTR;
 }
+NEXT_FUNC
 
-LIBRARY_FUNC(ICLFUNCV)
+LIBRARY_FUNC(ICLFUNCV) {
     if (argcnt < ra) {
       pc += INS_D(*(pc+1)) + 1;
     } else {
@@ -367,10 +367,10 @@ LIBRARY_FUNC(ICLFUNCV)
     }
 
   afl_trace(pc);
-  NEXT_INSTR;
 }
+NEXT_FUNC
 
-LIBRARY_FUNC(CLFUNCV)
+LIBRARY_FUNC(CLFUNCV) {
     if (argcnt < ra) {
       pc += INS_D(*(pc+1)) + 1;
     } else {
@@ -383,39 +383,42 @@ LIBRARY_FUNC(CLFUNCV)
     }
 
   afl_trace(pc);
-  NEXT_INSTR;
 }
+NEXT_FUNC
 
-LIBRARY_FUNC_D(KSHORT)
+LIBRARY_FUNC_D(KSHORT) {
   // RD could be negative, do shift anyway.
   // Should be already checked in frontend.
   //
   // Extends sign to 64 bits, then ignores sign for shift,
   // then casts back to signed.
   frame[ra] = (int64_t)((uint64_t)(int64_t)rd << 3);
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_D(JMP)
+LIBRARY_FUNC_D(JMP) {
   pc += rd;
-  NEXT_INSTR;
 }
+NEXT_FUNC
 
-LIBRARY_FUNC(IRET1)
+LIBRARY_FUNC(IRET1) {
   pc = (unsigned int *)frame[-1];
   frame[-1] = frame[ra];
   frame -= (INS_A(*(pc - 1)) + 1);
-  NEXT_INSTR;
 }
+NEXT_FUNC
 
-LIBRARY_FUNC(RET1)
+LIBRARY_FUNC(RET1) {
   pc = (unsigned int *)frame[-1];
   frame[-1] = frame[ra];
   frame -= (INS_A(*(pc - 1)) + 1);
-  NEXT_INSTR;
 }
+NEXT_FUNC
 
-LIBRARY_FUNC(HALT)
-  }
+#define END_FUNC }
+LIBRARY_FUNC(HALT) {
+}
+END_FUNC
 
 // Note signed-ness of rc.
 #define LIBRARY_FUNC_MATH_VN(name, op)                                         \
@@ -535,8 +538,9 @@ long vm_memq(long fb, long fc) {
   return FALSE_REP;
 }
 
-LIBRARY_FUNC_BC_LOAD(MEMQ)
+LIBRARY_FUNC_BC_LOAD(MEMQ) {
   frame[ra] = vm_memq(fb, fc);
+}
 END_LIBRARY_FUNC
 
 long vm_assv(long fb, long fc) {
@@ -561,8 +565,9 @@ long vm_assv(long fb, long fc) {
   return FALSE_REP;
 }
 
-LIBRARY_FUNC_BC_LOAD(ASSV)
+LIBRARY_FUNC_BC_LOAD(ASSV) {
   frame[ra] = vm_assv(fb, fc);
+}
 END_LIBRARY_FUNC
 
 long vm_assq(long fb, long fc) {
@@ -580,8 +585,9 @@ long vm_assq(long fb, long fc) {
   return FALSE_REP;
 }
 
-LIBRARY_FUNC_BC_LOAD(ASSQ)
+LIBRARY_FUNC_BC_LOAD(ASSQ) {
   frame[ra] = vm_assq(fb, fc);
+}
 END_LIBRARY_FUNC
 
 long vm_length(long fb) {
@@ -596,12 +602,14 @@ long vm_length(long fb) {
   return cnt << 3;
 }
 
-LIBRARY_FUNC_B_LOAD(LENGTH)
+LIBRARY_FUNC_B_LOAD(LENGTH) {
   frame[ra] = vm_length(fb);
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(EQUAL?, EQUAL)
+LIBRARY_FUNC_BC_LOAD_NAME(EQUAL?, EQUAL) {
   frame[ra] = equalp(fb, fc);
+}
 END_LIBRARY_FUNC
 
 #define LIBRARY_FUNC_NUM_CMP(name, op, func)				      \
@@ -684,16 +692,17 @@ LIBRARY_FUNC_NUM_CMP(ISEQ, ==, SET_RES);
 LIBRARY_FUNC_JISF(JISF, INS_D(*(pc+1)) + 1, 2);
 LIBRARY_FUNC_JISF(JIST, 2, INS_D(*(pc+1)) + 1);
 
-LIBRARY_FUNC_D(GGET)
+LIBRARY_FUNC_D(GGET) {
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
   if (unlikely(gp->val == UNDEFINED_TAG)) {
     MUSTTAIL return UNDEFINED_SYMBOL_SLOWPATH(ARGS);
   }
 
   frame[ra] = gp->val;
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_D(GSET)
+LIBRARY_FUNC_D(GSET) {
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
 #ifdef JIT
   if (gp->opt !=0 && gp->opt != -1) {
@@ -710,21 +719,25 @@ LIBRARY_FUNC_D(GSET)
 #endif
   GC_log_obj(gp);
   gp->val = frame[ra];
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_D(KFUNC)
+LIBRARY_FUNC_D(KFUNC) {
   frame[ra] = (long)funcs[rd];
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_D(KONST)
+LIBRARY_FUNC_D(KONST) {
   frame[ra] = const_table[rd];
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(MOV)
+LIBRARY_FUNC_B_LOAD(MOV) {
   frame[ra] = fb;
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B(BOX)
+LIBRARY_FUNC_B(BOX) {
   stack_top = &frame[(rb > ra ? rb : ra) + 1];
   auto box = (cons_s *)GC_malloc(sizeof(cons_s));
   
@@ -733,17 +746,20 @@ LIBRARY_FUNC_B(BOX)
   box->a = frame[rb];
   box->b = NIL_TAG;
   frame[ra] = (long)box | CONS_TAG;
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(UNBOX)
+LIBRARY_FUNC_B_LOAD(UNBOX) {
   auto box = (cons_s *)(fb - CONS_TAG);
   frame[ra] = box->a;
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(SET-BOX!, SET_BOX)
+LIBRARY_FUNC_BC_LOAD_NAME(SET-BOX!, SET_BOX) {
   auto box = (cons_s *)(fb - CONS_TAG);
   GC_log_obj(box);
   box->a = fc;
+}
 END_LIBRARY_FUNC
 
 #define LIBRARY_FUNC_GUARD(name, iftrue, iffalse, finish)	             \
@@ -767,7 +783,7 @@ LIBRARY_FUNC_GUARD(GUARD, frame[ra] = TRUE_REP, frame[ra] = FALSE_REP, 1);
 LIBRARY_FUNC_GUARD(JGUARD, pc += 2, pc += INS_D(*(pc+1)) + 1, 0);
 LIBRARY_FUNC_GUARD(JNGUARD, pc += INS_D(*(pc+1)) + 1, pc += 2, 0);
 
-LIBRARY_FUNC_B(VECTOR)
+LIBRARY_FUNC_B(VECTOR) {
   stack_top = &frame[ra + rb];
   auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
   closure->type = VECTOR_TAG;
@@ -777,9 +793,10 @@ LIBRARY_FUNC_B(VECTOR)
     closure->v[i] = frame[ra + i];
   }
   frame[ra] = (long)closure | VECTOR_TAG;
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B(CLOSURE)
+LIBRARY_FUNC_B(CLOSURE) {
   // free vars + type + len + function ptr
   stack_top = &frame[ra + rb];
   auto closure = (closure_s *)GC_malloc(sizeof(long) * (rb + 2));
@@ -799,30 +816,34 @@ LIBRARY_FUNC_B(CLOSURE)
     /* } */
   }
   frame[ra] = (long)closure | CLOSURE_TAG;
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_NAME(CLOSURE-GET, CLOSURE_GET)
+LIBRARY_FUNC_BC_NAME(CLOSURE-GET, CLOSURE_GET) {
   auto fb = frame[rb];
 //TYPECHECK_TAG(fb, CLOSURE_TAG);
   auto closure = (closure_s *)(fb - CLOSURE_TAG);
   frame[ra] = closure->v[1 + rc];
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_NAME(CLOSURE-SET, CLOSURE_SET)
+LIBRARY_FUNC_BC_NAME(CLOSURE-SET, CLOSURE_SET) {
   auto fa = frame[ra];
   // No need to typecheck, that would be bad bytecode.
   auto closure = (closure_s *)(fa - CLOSURE_TAG);
   GC_log_obj(closure);
   closure->v[1 + rc] = frame[rb];
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(CLOSURE-PTR, CLOSURE_PTR)
+LIBRARY_FUNC_B_LOAD_NAME(CLOSURE-PTR, CLOSURE_PTR) {
   TYPECHECK_TAG(fb, CLOSURE_TAG);
   auto closure = (closure_s *)(fb - CLOSURE_TAG);
   frame[ra] = closure->v[0];
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD(APPLY)
+LIBRARY_FUNC_BC_LOAD(APPLY) {
   if (unlikely((fb & 0x7) != CLOSURE_TAG)) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
@@ -839,15 +860,14 @@ LIBRARY_FUNC_BC_LOAD(APPLY)
   auto func = (bcfunc *)clo->v[0];
   pc = &func->code[0];
   argcnt = a + 1;
-  
-  NEXT_INSTR;
 }
+NEXT_FUNC
 
 #ifdef PROFILER
 bool in_jit = false;
 #endif
 
-LIBRARY_FUNC_D(JFUNC)
+LIBRARY_FUNC_D(JFUNC) {
   // auto tnum = instr;
   //  printf("JFUNC/JLOOP run %i\n", rd);
   //  printf("frame before %i %li %li \n", frame-stack, frame[0], frame[1]);
@@ -857,14 +877,14 @@ LIBRARY_FUNC_D(JFUNC)
       INS_OP(trace->startpc) == ICLFUNC) {
     if (argcnt != INS_A(trace->startpc)) {
       pc += INS_D(*(pc + 1)) + 1;
-      goto out;
+      NEXT_INSTR;
     }
   }
   if (INS_OP(trace->startpc) == CLFUNCV ||
       INS_OP(trace->startpc) == ICLFUNCV) {
     if (argcnt < INS_A(trace->startpc)) {
       pc += INS_D(*(pc + 1)) + 1;
-      goto out;
+      NEXT_INSTR;
     }
   }
   // Check for argument type match
@@ -937,15 +957,14 @@ LIBRARY_FUNC_D(JFUNC)
     // Turn on recording again
     op_table_arg = (void **)l_op_table_record;
   }
- out:
-  NEXT_INSTR;
 }
+NEXT_FUNC
 
 #define LIBRARY_FUNC_COPY(name, copied)
 LIBRARY_FUNC_COPY(JLOOP, JFUNC);
 #define INS_JLOOP INS_JFUNC
 
-LIBRARY_FUNC_B(CALL)
+LIBRARY_FUNC_B(CALL) {
   auto cl = frame[ra+1];
   TYPECHECK_TAG(cl, CLOSURE_TAG);
   auto closure = (closure_s *)(cl - CLOSURE_TAG);
@@ -959,10 +978,10 @@ LIBRARY_FUNC_B(CALL)
   if (unlikely((frame + 256) > frame_top)) {
     MUSTTAIL return EXPAND_STACK_SLOWPATH(ARGS);
   }
-  NEXT_INSTR;
 }
+NEXT_FUNC
 
-LIBRARY_FUNC_B(LCALL)
+LIBRARY_FUNC_B(LCALL) {
   auto func = (bcfunc*)frame[ra];
 
   auto old_pc = pc;
@@ -973,10 +992,10 @@ LIBRARY_FUNC_B(LCALL)
   if (unlikely((frame + 256) > frame_top)) {
     MUSTTAIL return EXPAND_STACK_SLOWPATH(ARGS);
   }
-  NEXT_INSTR;
 }
+NEXT_FUNC
 
-LIBRARY_FUNC_B(CALLT)
+LIBRARY_FUNC_B(CALLT) {
   auto cl = frame[ra+1];
   TYPECHECK_TAG(cl, CLOSURE_TAG);
   auto closure = (closure_s *)(cl - CLOSURE_TAG);
@@ -990,11 +1009,10 @@ LIBRARY_FUNC_B(CALLT)
     frame[i] = frame[start + i];
   }
   // No need to stack size check for tailcalls since we reuse the frame.
-  
-  NEXT_INSTR;
 }
+NEXT_FUNC
 
-LIBRARY_FUNC_B(LCALLT)
+LIBRARY_FUNC_B(LCALLT) {
   auto func = (bcfunc*)frame[ra];
   pc = &func->code[0];
   
@@ -1004,9 +1022,8 @@ LIBRARY_FUNC_B(LCALLT)
     frame[i] = frame[start + i];
   }
   // No need to stack size check for tailcalls since we reuse the frame.
-  
-  NEXT_INSTR;
 }
+NEXT_FUNC
 
 #define LIBRARY_FUNC_EQV(name, name2, iftrue, iffalse, finish)		\
   LIBRARY_FUNC_BC_LOAD_NAME(name, name2)					\
@@ -1045,7 +1062,8 @@ static uint32_t max3(uint32_t a, uint32_t b, uint32_t c) {
   }
   return c;
 }
-LIBRARY_FUNC_BC(CONS)
+
+LIBRARY_FUNC_BC(CONS) {
   stack_top = &frame[max3(ra, rb, rc) + 1];
   auto c = (cons_s *)GC_malloc(sizeof(cons_s));
   
@@ -1055,6 +1073,7 @@ LIBRARY_FUNC_BC(CONS)
   c->b = frame[rc];
   
   frame[ra] = (long)c | CONS_TAG;
+}
 END_LIBRARY_FUNC
 
 #define LIBRARY_FUNC_CONS_OP(name, field)                                      \
@@ -1078,7 +1097,7 @@ void vm_make_vector(long vec, long val) {
   }
 }
 
-LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR)
+LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR) {
   long fb = frame[rb];
   TYPECHECK_FIXNUM(fb);
   
@@ -1098,6 +1117,7 @@ LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR)
   }
   
   frame[ra] = (long)vec | VECTOR_TAG;
+}
 END_LIBRARY_FUNC
 
 void vm_make_string(long str, long ch) {
@@ -1110,7 +1130,7 @@ void vm_make_string(long str, long ch) {
 }
 
 // TODO could be BC_LOAD_NAME?
-LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING)
+LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING) {
   long fb = frame[rb];
   TYPECHECK_FIXNUM(fb);
   auto len = fb >> 3;
@@ -1132,9 +1152,10 @@ LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING)
   str->str[len] = '\0';
   
   frame[ra] = (long)str | PTR_TAG;
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF)
+LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF) {
   TYPECHECK_FIXNUM(fc);
   TYPECHECK_TAG(fb, VECTOR_TAG);
   auto vec = (vector_s*)(fb - VECTOR_TAG);
@@ -1143,9 +1164,10 @@ LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF)
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   frame[ra] = vec->v[pos];
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF)
+LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF) {
   TYPECHECK_FIXNUM(fc);
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
   long pos = fc >> 3;
@@ -1153,20 +1175,23 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF)
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   frame[ra] = ((uint64_t)str->str[pos] << 8) | CHAR_TAG;
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(VECTOR-LENGTH, VECTOR_LENGTH)
+LIBRARY_FUNC_B_LOAD_NAME(VECTOR-LENGTH, VECTOR_LENGTH) {
   TYPECHECK_TAG(fb, VECTOR_TAG); 
   auto vec = (vector_s*)(fb - VECTOR_TAG);
   frame[ra] = (long)(vec->len);
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(STRING-LENGTH, STRING_LENGTH)
+LIBRARY_FUNC_B_LOAD_NAME(STRING-LENGTH, STRING_LENGTH) {
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
   frame[ra] = (long)(str->len);
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
+LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET) {
   auto fa = frame[ra];
   TYPECHECK_FIXNUM(fb);
   TYPECHECK_TAG(fa, VECTOR_TAG);
@@ -1178,9 +1203,10 @@ LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET)
   GC_log_obj(vec);
 
   vec->v[pos] = fc;
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET)
+LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET) {
   auto fa = frame[ra];
   TYPECHECK_FIXNUM(fb);
   TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
@@ -1190,6 +1216,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET)
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
   str->str[pos] = (char)((fc >> 8) & 0xff);
+}
 END_LIBRARY_FUNC
 
 #define LIBRARY_FUNC_CONS_SET_OP(str, name, field)                             \
@@ -1210,12 +1237,13 @@ void vm_write(long obj, long port_obj) {
   print_obj(obj, port->file);
 }
 
-LIBRARY_FUNC_BC_LOAD(WRITE)
+LIBRARY_FUNC_BC_LOAD(WRITE) {
   LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
   print_obj(fb, port->file);
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(WRITE-U8, WRITE_U8)
+LIBRARY_FUNC_BC_LOAD_NAME(WRITE-U8, WRITE_U8) {
   LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
   TYPECHECK_FIXNUM(fb);
   long byte = fb >> 3;
@@ -1225,20 +1253,23 @@ LIBRARY_FUNC_BC_LOAD_NAME(WRITE-U8, WRITE_U8)
   }
 
   fputc(b, port->file);
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(WRITE-DOUBLE, WRITE_DOUBLE)
+LIBRARY_FUNC_BC_LOAD_NAME(WRITE-DOUBLE, WRITE_DOUBLE) {
   LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
   TYPECHECK_TAG(fb, FLONUM_TAG);
   auto flo = (flonum_s *)(fb - FLONUM_TAG);
   
   fwrite(&flo->x, sizeof(flo->x), 1, port->file);
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(SYMBOL->STRING, SYMBOL_STRING)
+LIBRARY_FUNC_B_LOAD_NAME(SYMBOL->STRING, SYMBOL_STRING) {
   TYPECHECK_TAG(fb, SYMBOL_TAG);
   auto sym = (symbol *)(fb - SYMBOL_TAG);
   frame[ra] = sym->name;
+}
 END_LIBRARY_FUNC
 
 long vm_string_symbol(string_s* str) {
@@ -1256,7 +1287,7 @@ long vm_string_symbol(string_s* str) {
   return inserted;
 }
 
-LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
+LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL) {
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
   auto res = symbol_table_find(str);
   if (!res) {
@@ -1264,19 +1295,22 @@ LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL)
   } else {
     frame[ra] = tag_symbol(res);
   }
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(CHAR->INTEGER, CHAR_INTEGER)
+LIBRARY_FUNC_B_LOAD_NAME(CHAR->INTEGER, CHAR_INTEGER) {
   TYPECHECK_IMMEDIATE(fb, CHAR_TAG);
   frame[ra] = fb >> 5;
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(INTEGER->CHAR, INTEGER_CHAR)
+LIBRARY_FUNC_B_LOAD_NAME(INTEGER->CHAR, INTEGER_CHAR) {
   TYPECHECK_FIXNUM(fb);
   frame[ra] = (fb << 5) + CHAR_TAG;
+}
 END_LIBRARY_FUNC
-
-LIBRARY_FUNC_BC(OPEN)
+ 
+LIBRARY_FUNC_BC(OPEN) {
   auto fc = frame[rc];
   TYPECHECK_IMMEDIATE(fc, BOOL_TAG);
 
@@ -1315,9 +1349,10 @@ LIBRARY_FUNC_BC(OPEN)
     exit(-1);
   }
   frame[ra] = (long)port + PTR_TAG;
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(CLOSE)
+LIBRARY_FUNC_B_LOAD(CLOSE) {
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
   if (port->file) {
     fclose(port->file);
@@ -1327,6 +1362,7 @@ LIBRARY_FUNC_B_LOAD(CLOSE)
     close((int)port->fd);
     port->fd = -1;
   }
+}
 END_LIBRARY_FUNC
 
 INLINE long vm_peek_char(port_s* port) {
@@ -1347,9 +1383,10 @@ INLINE long vm_peek_char(port_s* port) {
   }
 }
 
-LIBRARY_FUNC_B_LOAD(PEEK)
+LIBRARY_FUNC_B_LOAD(PEEK) {
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
   frame[ra] = vm_peek_char((port_s*)fb);
+}
 END_LIBRARY_FUNC
 
 INLINE long vm_read_char(port_s* port) {
@@ -1372,13 +1409,14 @@ INLINE long vm_read_char(port_s* port) {
   }
 }
 
-LIBRARY_FUNC_B_LOAD(READ)
+LIBRARY_FUNC_B_LOAD(READ) {
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
   frame[ra] = vm_read_char((port_s*)fb);
+}
 END_LIBRARY_FUNC
 
 
-LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
+LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE) {
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
   // The extra block scope here is so that gcc's optimizer
   // will know it can release bufptr stack storage, otherwise
@@ -1403,9 +1441,10 @@ LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE)
    }
    free(bufptr);
   }
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(INEXACT)
+LIBRARY_FUNC_B_LOAD(INEXACT) {
   if ((fb & TAG_MASK) == FIXNUM_TAG) {
     stack_top = &frame[ra + 1];
     auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));
@@ -1418,9 +1457,10 @@ LIBRARY_FUNC_B_LOAD(INEXACT)
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(EXACT)
+LIBRARY_FUNC_B_LOAD(EXACT) {
   if ((fb & TAG_MASK) == FIXNUM_TAG) {
     frame[ra] = fb;
   } else if ((fb & TAG_MASK) == FLONUM_TAG) {
@@ -1431,9 +1471,10 @@ LIBRARY_FUNC_B_LOAD(EXACT)
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD(ROUND)
+LIBRARY_FUNC_B_LOAD(ROUND) {
   if ((fb & TAG_MASK) == FIXNUM_TAG) {
     frame[ra] = fb;
   } else if ((fb & TAG_MASK) == FLONUM_TAG) {
@@ -1451,6 +1492,7 @@ LIBRARY_FUNC_B_LOAD(ROUND)
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
+}
 END_LIBRARY_FUNC
 
 #define LIBRARY_FUNC_FLONUM_MATH(name, func)                                   \
@@ -1497,7 +1539,7 @@ long vm_callcc(long *frame) {
   return (long)cont | PTR_TAG;
 }
 
-LIBRARY_FUNC(CALLCC)
+LIBRARY_FUNC(CALLCC) {
   auto sz = frame - stack;
 						
   stack_top = &frame[ra + 1];
@@ -1508,6 +1550,7 @@ LIBRARY_FUNC(CALLCC)
   memcpy(cont->v, stack, sz * sizeof(long));
   
   frame[ra] = (long)cont | PTR_TAG;
+}
 END_LIBRARY_FUNC
 
 long vm_cc_resume(long c) {
@@ -1516,7 +1559,7 @@ long vm_cc_resume(long c) {
   return (long)&stack[cont->len >> 3];
 }
 
-LIBRARY_FUNC_BC_LOAD_NAME(CALLCC-RESUME, CALLCC_RESUME)
+LIBRARY_FUNC_BC_LOAD_NAME(CALLCC-RESUME, CALLCC_RESUME) {
   LOAD_TYPE_WITH_CHECK(cont, vector_s, fb, CONT_TAG);
   memcpy(stack, cont->v, (cont->len >> 3) * sizeof(long));
   frame = &stack[cont->len >> 3];
@@ -1525,26 +1568,27 @@ LIBRARY_FUNC_BC_LOAD_NAME(CALLCC-RESUME, CALLCC_RESUME)
   pc = (unsigned int *)frame[-1];
   frame[-1] = fc;
   frame -= (INS_A(*(pc - 1)) + 1);
-
-  NEXT_INSTR;
 }
+NEXT_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(FILE-EXISTS?, FILE_EXISTS)
+LIBRARY_FUNC_B_LOAD_NAME(FILE-EXISTS?, FILE_EXISTS) {
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG)
   if (0 == access(str->str, F_OK)) {
     frame[ra] = TRUE_REP;
   } else {
     frame[ra] = FALSE_REP;
   }
+}
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(DELETE-FILE, DELETE_FILE)
+LIBRARY_FUNC_B_LOAD_NAME(DELETE-FILE, DELETE_FILE) {
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG)
   if (0 == unlink(str->str)) {
     frame[ra] = TRUE_REP;
   } else {
     frame[ra] = FALSE_REP;
   }
+}
 END_LIBRARY_FUNC
 
 ///////////
