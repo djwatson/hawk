@@ -1,3 +1,6 @@
+// Copyright 2023 Dave Watson
+
+/*
 #include "asm_x64.h" // for REG_NONE
 #include "ir.h"      // for ir_ins, snap_s, snap_entry_s, trace_s, ir_ins_op
 #include "third-party/stb_ds.h"
@@ -53,7 +56,6 @@ void opt_loop(trace_s *trace, int *regs) {
         nsnap.pc = snap->pc;
         nsnap.offset = snap->offset;
         nsnap.exits = 0;
-        nsnap.link = -1;
         // Emit loopsnap - all final loop snapshots are carried through loop
         auto loopsnap = &trace->snaps[snap_cut - 1];
         for (uint64_t j = 0; j < arrlen(loopsnap->slots); j++) {
@@ -140,3 +142,4 @@ void opt_loop(trace_s *trace, int *regs) {
     }
   }
 }
+*/

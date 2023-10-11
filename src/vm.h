@@ -2,7 +2,6 @@
 
 #include <stdint.h>
 
-#include "bytecode.h"
 #include "defs.h"
 #include "types.h"
 

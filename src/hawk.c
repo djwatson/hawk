@@ -2,9 +2,10 @@
 
 #include <getopt.h>  // for no_argument, getopt_long, option
 #include <stdbool.h> // for bool, false, true
-#include <stdio.h>   // for printf
-#include <stdlib.h>  // for exit
-#include <string.h>  // for strcmp, strcpy, strlen
+#include <stdint.h>
+#include <stdio.h>  // for printf
+#include <stdlib.h> // for exit
+#include <string.h> // for strcmp, strcpy, strlen
 
 #include "gc.h" // for GC_init
 #ifdef JITDUMP
