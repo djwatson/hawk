@@ -224,7 +224,7 @@ void *copy(long *obj) {
   return res;
 }
 
-static void visit_cb(long *field, void *ctx) {
+static void visit_cb(gc_obj *field, void *ctx) {
   long ***lst = (long ***)ctx;
   if (is_ptr_type(*field)) {
     arrput(*lst, field);

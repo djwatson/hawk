@@ -125,7 +125,7 @@ static ep_result ep(uf *ht, bool unused, long a, long b, long k) {
   }
 }
 
-long equalp(long a, long b) {
+gc_obj equalp(gc_obj a, gc_obj b) {
   uf ht;
   uf_init(&ht);
   long k = k0;
@@ -235,7 +235,7 @@ void print_obj(long obj, FILE *file) {
   }
 }
 
-EXPORT long from_c_str(const char *s) {
+EXPORT gc_obj from_c_str(const char *s) {
   unsigned long len = strlen(s);
   auto str = (string_s *)GC_malloc(16 + len + 1);
   str->type = STRING_TAG;
@@ -248,7 +248,7 @@ EXPORT long from_c_str(const char *s) {
 
 // GC interface:
 
-inline size_t heap_object_size(long *obj) {
+inline size_t heap_object_size(void *obj) {
   auto type = *(uint32_t *)obj;
   switch (type) {
   case FLONUM_TAG:
@@ -278,7 +278,7 @@ inline size_t heap_object_size(long *obj) {
   }
 }
 
-inline void trace_heap_object(long *obj, trace_callback visit, void *ctx) {
+inline void trace_heap_object(void *obj, trace_callback visit, void *ctx) {
   // printf("Trace heap obj %p\n", obj);
   auto type = *(uint32_t *)obj;
   switch (type) {
