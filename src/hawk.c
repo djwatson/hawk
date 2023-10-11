@@ -126,12 +126,14 @@ void generate_exe(char *filename, const char *bc_name) {
   filename[strlen(filename) - 4] = '\0';
 
   char *arg = escapeshellarg(tmp);
+  char *esc_filename = escapeshellarg(filename);
   char tmp2[701];
   snprintf(
       tmp2, 700,
       "clang -flto -o %s $LDFLAGS -L. -lhawk_exe -lhawk_vm %s -lcapstone -lm",
-      filename, arg);
+      esc_filename, arg);
   free(arg);
+  free(esc_filename);
   printf("Running: %s\n", tmp2);
   if (system(tmp2)) {
     printf("Compile file error\n");
