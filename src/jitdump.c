@@ -80,9 +80,9 @@ void jit_dump(int len, uint64_t fn, const char *name) {
   if (write(fd, (void *)fn, len) != len) {
     goto error;
   }
-  
+
   return;
- error:
+error:
   printf("Jitdump: Could not write\n");
   exit(-1);
 }

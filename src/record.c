@@ -61,10 +61,10 @@ snap_s *side_exit = nullptr;
 static trace_s *parent = nullptr;
 static uint8_t unroll = 0;
 typedef struct {
-  uint32_t* key;
+  uint32_t *key;
   uint32_t value;
 } tailcall_counter;
-static tailcall_counter* tailcalled = nullptr;
+static tailcall_counter *tailcalled = nullptr;
 static uint32_t stack_top;
 
 unsigned int **downrec = NULL;
@@ -348,7 +348,7 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   trace->link = link;
   arrput(traces, trace);
 
-  //dump_trace(trace);
+  // dump_trace(trace);
   asm_jit(trace, side_exit, parent);
   if (verbose) {
     dump_trace(trace);
@@ -732,7 +732,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
                  stack_top);
       }
     }
-    __attribute__ ((fallthrough));
+    __attribute__((fallthrough));
   }
   case ICLFUNC:
   case CLFUNC: {
@@ -740,7 +740,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
         (argcnt != INS_A(*pc))) {
       break;
     }
-    __attribute__ ((fallthrough));
+    __attribute__((fallthrough));
   }
   case IFUNC:
   case FUNC: {
@@ -758,27 +758,27 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
       }
     }
 
-    // A pile of heuristics, to try and catch traces that are loops, but don't use
-    // the loop construct.
+    // A pile of heuristics, to try and catch traces that are loops, but don't
+    // use the loop construct.
     if (pc == pc_start && parent == NULL) {
       if ((hmget(tailcalled, pc)) >= UNROLL_LIMIT && depth == 0) {
-	auto link_trace = check_argument_match(frame, trace);
-	if (link_trace) {
-	  if (verbose)
-	    printf("Record stop loop\n");
-	  record_stop(pc, frame, link_trace->num);
-	  return 1;
-	}
+        auto link_trace = check_argument_match(frame, trace);
+        if (link_trace) {
+          if (verbose)
+            printf("Record stop loop\n");
+          record_stop(pc, frame, link_trace->num);
+          return 1;
+        }
       } else if (cnt > UNROLL_LIMIT && depth != 0) {
-	// Don't test on 'tailcalled' here, since up-recursion
-	// can't be a tailcall.
-	auto link_trace = check_argument_match(frame, trace);
-	if (link_trace) {
-	  if (verbose)
-	    printf("Record stop up-recursion\n");
-	  record_stop(pc, frame, link_trace->num);
-	  return 1;
-	}
+        // Don't test on 'tailcalled' here, since up-recursion
+        // can't be a tailcall.
+        auto link_trace = check_argument_match(frame, trace);
+        if (link_trace) {
+          if (verbose)
+            printf("Record stop up-recursion\n");
+          record_stop(pc, frame, link_trace->num);
+          return 1;
+        }
       }
     } else {
       if (cnt > UNROLL_ABORT_LIMIT) {
@@ -834,7 +834,7 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     // Check that we're going to the same return point,
     // almost like RET1.
     {
-      auto cont = (vector_s*)(frame[INS_B(i)] - PTR_TAG);
+      auto cont = (vector_s *)(frame[INS_B(i)] - PTR_TAG);
       auto resume_pc = cont->v[(cont->len >> 3) - 1];
       auto len_ref = push_ir(trace, IR_REF, c, 8 - PTR_TAG, UNDEFINED_TAG);
       auto len = push_ir(trace, IR_LOAD, len_ref, 0, FIXNUM_TAG);
@@ -875,7 +875,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     arrput(trace->consts, (frame_off + 1) << 3);
     // We have to guard the return point *before* the CCRES call, so we don't
     // need to do it here also.
-    push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS, CLOSURE_TAG);
+    push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS,
+            CLOSURE_TAG);
 
     /* add_snap(regs_list, (int)(regs - regs_list - 1), trace, */
     /* 	     (uint32_t *)old_pc, depth, -1); */
@@ -1034,35 +1035,36 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     if (INS_OP(i) == CALLT) {
       // Record the tailcall for checking for loop endings.
       {
-	auto clo = (closure_s*)(frame[INS_A(i) + 1] - CLOSURE_TAG);
-	auto call_pc = &((bcfunc*)clo->v[0])->code[0];
-	auto v = hmget(tailcalled, call_pc);
-	hmput(tailcalled, call_pc, v + 1);
+        auto clo = (closure_s *)(frame[INS_A(i) + 1] - CLOSURE_TAG);
+        auto call_pc = &((bcfunc *)clo->v[0])->code[0];
+        auto v = hmget(tailcalled, call_pc);
+        hmput(tailcalled, call_pc, v + 1);
       }
       // Check call type
       {
-	auto clo = record_stack_load(INS_A(i) + 1, frame);
-	if (!(clo & IR_CONST_BIAS)) {
-	  /* add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth,
-	   * INS_A(i) + INS_B(i)); */
-	  auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
-	  auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
-	  regs[INS_A(i)] = fun;
-	  auto cl = frame[INS_A(i) + 1];
-	  auto closure = (closure_s *)(cl - CLOSURE_TAG);
-	  auto knum = arrlen(trace->consts);
-	  arrput(trace->consts, closure->v[0]);
-	  push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
-	}
+        auto clo = record_stack_load(INS_A(i) + 1, frame);
+        if (!(clo & IR_CONST_BIAS)) {
+          /* add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth,
+           * INS_A(i) + INS_B(i)); */
+          auto ref =
+              push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
+          auto fun = push_ir(trace, IR_LOAD, ref, 0, 0);
+          regs[INS_A(i)] = fun;
+          auto cl = frame[INS_A(i) + 1];
+          auto closure = (closure_s *)(cl - CLOSURE_TAG);
+          auto knum = arrlen(trace->consts);
+          arrput(trace->consts, closure->v[0]);
+          push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
+        }
       }
     } else {
       // Label call
       // Record the tailcall for checking for loop endings.
       {
-	auto lfunc = (bcfunc*)frame[INS_A(i)];
-	auto call_pc = &lfunc->code[0];
-	auto v = hmget(tailcalled, call_pc);
-	hmput(tailcalled, call_pc, v + 1);
+        auto lfunc = (bcfunc *)frame[INS_A(i)];
+        auto call_pc = &lfunc->code[0];
+        auto v = hmget(tailcalled, call_pc);
+        hmput(tailcalled, call_pc, v + 1);
       }
     }
     /* { */
@@ -1507,7 +1509,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     auto alloc_sz_aligned =
         push_ir(trace, IR_MUL, alloc_sz, knum | IR_CONST_BIAS, FIXNUM_TAG);
     // TODO snaps??
-    auto cell = push_ir(trace, IR_ALLOC, alloc_sz_aligned, VECTOR_TAG, VECTOR_TAG);
+    auto cell =
+        push_ir(trace, IR_ALLOC, alloc_sz_aligned, VECTOR_TAG, VECTOR_TAG);
 
     auto ref = push_ir(trace, IR_REF, cell, 8 - VECTOR_TAG, UNDEFINED_TAG);
     push_ir(trace, IR_STORE, ref, sz, UNDEFINED_TAG);
@@ -1547,7 +1550,8 @@ int record_instr(unsigned int *pc, long *frame, long argcnt) {
     arrput(trace->consts, (long)(len << 3));
     push_ir(trace, IR_STORE, ref, knum | IR_CONST_BIAS, UNDEFINED_TAG);
     for (uint32_t cnt = 0; cnt < len; cnt++) {
-      ref = push_ir(trace, IR_REF, cell, 16 + cnt * 8 - VECTOR_TAG, UNDEFINED_TAG);
+      ref = push_ir(trace, IR_REF, cell, 16 + cnt * 8 - VECTOR_TAG,
+                    UNDEFINED_TAG);
       push_ir(trace, IR_STORE, ref, loaded[cnt], UNDEFINED_TAG);
     }
     stack_top = INS_A(i) + 1;

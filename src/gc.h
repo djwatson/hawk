@@ -1,11 +1,11 @@
 #pragma once
 
+#include "defs.h"
 #include <stdbool.h>
 #include <stddef.h>
-#include "defs.h"
 
-INLINE void * GC_malloc_no_collect(size_t sz);
-INLINE void * GC_malloc(size_t sz);
+INLINE void *GC_malloc_no_collect(size_t sz);
+INLINE void *GC_malloc(size_t sz);
 void *GC_realloc(void *ptr, size_t sz);
 void GC_enable(bool en);
 void GC_collect();

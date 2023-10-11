@@ -258,7 +258,8 @@ typedef struct exit_state {
   long snap;
 } exit_state;
 
-void jit_entry_stub(long *o_frame, Func fptr, exit_state *regs) asm("jit_entry_stub");
+void jit_entry_stub(long *o_frame, Func fptr,
+                    exit_state *regs) asm("jit_entry_stub");
 void jit_exit_stub() asm("jit_exit_stub");
 
 void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
@@ -684,11 +685,12 @@ static void emit_init_funcs() {
     done = true;
     emit_advance(8);
     log_offset = (uint64_t)emit_offset();
-    ((uint64_t*)emit_offset())[0] = (uint64_t)&jit_gc_log;
+    ((uint64_t *)emit_offset())[0] = (uint64_t)&jit_gc_log;
   }
 }
 
-void emit_vref(uint8_t reg, uint8_t opcode, trace_s* trace, ir_ins* op, int *slot, uint32_t *next_spill) {
+void emit_vref(uint8_t reg, uint8_t opcode, trace_s *trace, ir_ins *op,
+               int *slot, uint32_t *next_spill) {
   // TODO: fuse.
   uint8_t type;
   if (ir_is_const(op->op1)) {
@@ -713,8 +715,7 @@ void emit_vref(uint8_t reg, uint8_t opcode, trace_s* trace, ir_ins* op, int *slo
       arrput(trace->relocs, re);
       emit_mov64(R15, c1);
     } else {
-      emit_mem_reg_sib(opcode, 16 - type, 0, trace->ops[op->op2].reg,
-		       R15, reg);
+      emit_mem_reg_sib(opcode, 16 - type, 0, trace->ops[op->op2].reg, R15, reg);
 
       auto c1 = trace->consts[op->op1 - IR_CONST_BIAS];
       auto re = (reloc){emit_offset(), c1, RELOC_ABS};
@@ -725,11 +726,10 @@ void emit_vref(uint8_t reg, uint8_t opcode, trace_s* trace, ir_ins* op, int *slo
     if (ir_is_const(op->op2)) {
       // Must be fixnum
       auto c = trace->consts[op->op2 - IR_CONST_BIAS];
-      emit_mem_reg(opcode, 16 - type + c, trace->ops[op->op1].reg,
-		   reg);
+      emit_mem_reg(opcode, 16 - type + c, trace->ops[op->op1].reg, reg);
     } else {
       emit_mem_reg_sib(opcode, 16 - type, 0, trace->ops[op->op2].reg,
-		       trace->ops[op->op1].reg, reg);
+                       trace->ops[op->op1].reg, reg);
     }
   }
 }
@@ -1013,10 +1013,10 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         // printf("EMIT LOAD ONLY\n");
       }
       if (!ir_is_const(op->op1) && trace->ops[op->op1].op == IR_VREF) {
-	auto op1 = &trace->ops[op->op1];
-	emit_op_typecheck(op->reg, op->type, snap_labels[cur_snap]);
-	emit_vref(op->reg, OP_MOV_MR, trace, op1, slot, &next_spill);
-	break;
+        auto op1 = &trace->ops[op->op1];
+        emit_op_typecheck(op->reg, op->type, snap_labels[cur_snap]);
+        emit_vref(op->reg, OP_MOV_MR, trace, op1, slot, &next_spill);
+        break;
       }
 
       if (!ir_is_const(op->op1) && trace->ops[op->op1].op == IR_REF &&
@@ -1059,7 +1059,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     }
     case IR_VREF: {
       if (op->reg != REG_NONE) {
-	emit_vref(op->reg, OP_LEA, trace, op, slot, &next_spill);
+        emit_vref(op->reg, OP_LEA, trace, op, slot, &next_spill);
       }
       break;
     }
@@ -1169,7 +1169,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
     case IR_CCRES: {
       assert(op->reg == REG_NONE);
       op->reg = RDI;
-      __attribute__ ((fallthrough));
+      __attribute__((fallthrough));
     }
     case IR_CALLXS: {
       // Used for typecheck only
@@ -1381,10 +1381,10 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
       emit_arith_imm(OP_ARITH_SUB, RDI, b);
       if (op->type & IR_INS_TYPE_GUARD) {
-	auto retadd = (int64_t)(trace->consts[op->op1 - IR_CONST_BIAS]);
-	emit_jcc32(JNE, snap_labels[cur_snap]);
-	emit_mem_reg(OP_CMP, -8, RDI, R15);
-	emit_mov64(R15, retadd);
+        auto retadd = (int64_t)(trace->consts[op->op1 - IR_CONST_BIAS]);
+        emit_jcc32(JNE, snap_labels[cur_snap]);
+        emit_mem_reg(OP_CMP, -8, RDI, R15);
+        emit_mov64(R15, retadd);
       }
 
       break;

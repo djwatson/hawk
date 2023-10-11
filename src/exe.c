@@ -3,14 +3,14 @@
 // This is a stub library to generate exe's for compiled hawk programs.
 // It is not used in the 'hawk' executable itself.
 
-#include <stdbool.h>  // for bool, false, true
-#include <stdio.h>    // for printf
+#include <stdbool.h> // for bool, false, true
+#include <stdio.h>   // for printf
 
 #include "defs.h"
-#include "gc.h"      // for GC_init
-#include "readbc.h"  // for readbc_file, readbc_image
+#include "gc.h"     // for GC_init
+#include "readbc.h" // for readbc_file, readbc_image
 #include "record.h"
-#include "vm.h"  // for run
+#include "vm.h" // for run
 
 #define auto __auto_type
 #define nullptr NULL

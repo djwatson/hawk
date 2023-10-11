@@ -131,8 +131,7 @@ static void put_gc_block(gc_block *mem) {
 bool is_ptr_type(long obj) {
   auto type = obj & TAG_MASK;
   if (type == PTR_TAG || type == FLONUM_TAG || type == CONS_TAG ||
-      type == VECTOR_TAG ||
-      type == CLOSURE_TAG || type == SYMBOL_TAG) {
+      type == VECTOR_TAG || type == CLOSURE_TAG || type == SYMBOL_TAG) {
     return true;
   }
   return false;
@@ -183,8 +182,6 @@ static long get_forward(long obj) {
   auto ptr = (long *)obj;
   return ptr[1];
 }
-
-
 
 static gc_block *cur_copy_block = NULL;
 static uint8_t *copy_alloc_ptr = NULL;
@@ -675,16 +672,14 @@ static void scan_log_buf(void (*add_increment)(long *)) {
       auto v = *field;
       auto type = v & TAG_MASK;
       if (type == PTR_TAG || type == FLONUM_TAG || type == CONS_TAG ||
-	  type == VECTOR_TAG ||
-          type == CLOSURE_TAG || type == SYMBOL_TAG) {
+          type == VECTOR_TAG || type == CLOSURE_TAG || type == SYMBOL_TAG) {
         // printf("Add log increments: %p\n", *field);
         add_increment(field);
       }
       v = cur.addr;
       type = v & TAG_MASK;
       if (type == PTR_TAG || type == FLONUM_TAG || type == CONS_TAG ||
-	  type == VECTOR_TAG ||
-          type == CLOSURE_TAG || type == SYMBOL_TAG) {
+          type == VECTOR_TAG || type == CLOSURE_TAG || type == SYMBOL_TAG) {
         // printf("Add log decrements: %p\n", v);
         arrput(cur_decrements, v);
       }
@@ -704,7 +699,7 @@ static void maybe_log(long *v_p, void *c) {
   arrput(log_buf, ((log_item){(uint64_t)v_p - addr, v}));
 }
 
-extern void GC_log_obj_slow(void*obj) asm("GC_log_obj_slow") ;
+extern void GC_log_obj_slow(void *obj) asm("GC_log_obj_slow");
 NOINLINE void GC_log_obj_slow(void *obj) {
   uint32_t *rc_ptr = (uint32_t *)obj;
   rc_ptr[1] |= LOGGED_MARK;

@@ -72,23 +72,23 @@ static ep_result equalp_interleave(uf *ht, bool fast, long a, long b, long k) {
       return (ep_result){false, k};
     }
   }
-  if ((a&TAG_MASK) == VECTOR_TAG) {
-    if ((b&TAG_MASK) == VECTOR_TAG) {
+  if ((a & TAG_MASK) == VECTOR_TAG) {
+    if ((b & TAG_MASK) == VECTOR_TAG) {
       vector_s *va = (vector_s *)(a - VECTOR_TAG);
       vector_s *vb = (vector_s *)(b - VECTOR_TAG);
       if (va->len != vb->len) {
-	return (ep_result){false, k};
+        return (ep_result){false, k};
       }
       if (!fast && unionfind(ht, a, b)) {
-	return (ep_result){true, 0};
+        return (ep_result){true, 0};
       }
       // Decrement K once for the vector, but return same K value
       uint64_t lim = va->len >> 3;
       for (uint64_t i = 0; i < lim; i++) {
-	auto res = ep(ht, fast, va->v[i], vb->v[i], k - 1);
-	if (true != res.v) {
-	  return res;
-	}
+        auto res = ep(ht, fast, va->v[i], vb->v[i], k - 1);
+        if (true != res.v) {
+          return res;
+        }
       }
       return (ep_result){true, k};
     }
@@ -166,7 +166,7 @@ void print_obj(long obj, FILE *file) {
     fputs("#(", file);
     for (long i = 0; i < (v->len >> 3); i++) {
       if (i != 0) {
-	fputc(' ', file);
+        fputc(' ', file);
       }
       print_obj(v->v[i], file);
     }

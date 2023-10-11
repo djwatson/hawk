@@ -3,8 +3,8 @@
 #include <stdint.h>
 
 #include "bytecode.h"
-#include "types.h"
 #include "defs.h"
+#include "types.h"
 
 void run(bcfunc *func, long argcnt, const long *args);
 bcfunc *find_func_for_frame(const uint32_t *pc);
