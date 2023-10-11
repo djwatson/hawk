@@ -122,7 +122,7 @@ static gc_block *alloc_gc_block() {
 }
 
 static void put_gc_block(gc_block *mem) {
-  assert(mem != alloc_start);
+  assert(mem != (gc_block*)alloc_start);
   gc_alloc -= ALLOC_SZ;
   assert(mem->cnt == 0);
   arrput(free_gc_blocks, mem);
@@ -485,7 +485,7 @@ static int64_t trace2(long **lst, bool incr) {
     if (!is_ptr_type(item)) {
       continue;
     }
-    assert(ptr < alloc_start || ptr >= alloc_end);
+    assert(ptr < (long)alloc_start || ptr >= (long)alloc_end);
     if (incr) {
       if (((uint32_t *)ptr)[1] == 0) {
         // Increment line in block
