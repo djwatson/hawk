@@ -8,7 +8,7 @@
 #include "defs.h"
 #include "types.h"
 
-#define LOGGED_MARK (1UL<<31)
+#define LOGGED_MARK (1UL << 31)
 
 extern uint8_t *alloc_start;
 extern uint8_t *alloc_ptr;

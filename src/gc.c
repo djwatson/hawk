@@ -120,7 +120,7 @@ static gc_block *alloc_gc_block() {
 }
 
 static void put_gc_block(gc_block *mem) {
-  assert(mem != (gc_block*)alloc_start);
+  assert(mem != (gc_block *)alloc_start);
   gc_alloc -= ALLOC_SZ;
   assert(mem->cnt == 0);
   arrput(free_gc_blocks, mem);
@@ -454,8 +454,10 @@ static void GC_deinit() {
   if (verbose) {
     printf("GC's %i Full traces %i (%.02f)\n", gc_stats.traces,
            gc_stats.full_traces,
-	   gc_stats.traces ?
-           ((double)gc_stats.full_traces / (double)gc_stats.traces) * 100.0 : 0);
+           gc_stats.traces
+               ? ((double)gc_stats.full_traces / (double)gc_stats.traces) *
+                     100.0
+               : 0);
   }
 }
 
@@ -691,4 +693,3 @@ NOINLINE void GC_log_obj_slow(void *obj) {
 }
 
 void GC_log_obj(void *ptr);
-

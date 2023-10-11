@@ -115,7 +115,7 @@ static gc_obj read_ptr(FILE *fptr) {
 
 static gc_obj read_vector(FILE *fptr) {
   uint64_t len;
-  if (fread(&len, 1, 8, fptr) != 8) {
+  if (fread(&len, 1, 8, fptr) != 8 || len > (1UL << 29)) {
     read_error();
   }
 

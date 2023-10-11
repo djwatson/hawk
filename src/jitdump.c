@@ -103,6 +103,10 @@ EXPORT void jit_dump_init() {
 
   sprintf(buf, "jit-%i.dump", getpid());
   fd = open(buf, O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR);
+  if (fd < 0) {
+    printf("Error opening %s\n", buf);
+    exit(-1);
+  }
   struct timespec ts;
   int result = clock_gettime(CLOCK_MONOTONIC, &ts);
   if (result) {

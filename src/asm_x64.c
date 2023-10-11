@@ -1109,6 +1109,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       break;
     }
     case IR_ALLOC: {
+      if (op->reg == REG_NONE) {
+        maybe_assign_register(op_cnt, trace, slot, &next_spill);
+      }
       slot[op->reg] =
           op_cnt; // TODO must be different than op->reg and op->op1 reg
       maybe_assign_register(op->op1, trace, slot, &next_spill);
