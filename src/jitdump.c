@@ -318,12 +318,6 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num) {
   sym_hdr->sh_entsize = sizeof(Elf64_Sym);
   sym_hdr->sh_info = 2; // sym_func
 
-  __auto_type ehframe_hdr = &image->hdrs[5];
-  ehframe_hdr->sh_name = write_strz(&offset, image->data, ".eh_frame");
-  ehframe_hdr->sh_type = SHT_PROGBITS;
-  ehframe_hdr->sh_addralign = 1;
-  ehframe_hdr->sh_flags = SHF_ALLOC;
-
   shstrtab_hdr->sh_size = offset;
 
   // Write symbols
@@ -346,55 +340,4 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num) {
   funcsym->st_size = code_sz;
 
   str_hdr->sh_size = offset - start_offset;
-
-  // write ehframe
-  start_offset = offset;
-  // TODO align 8
-  __auto_type buffer = &image->data[0];
-  ehframe_hdr->sh_offset = offsetof(GDBElfImage, data) + start_offset;
-//   //////////////////////
-#define DB(x) (buffer[offset] = (x), offset++)
-#define DU16(x) (*(uint16_t *)&buffer[offset] = (x), offset += 2)
-#define DU32(x) (*(uint32_t *)&buffer[offset] = (x), offset += 4)
-#define DUV(x) (uleb128(&offset, buffer, (x)))
-#define DSV(x) (sleb128(&offset, buffer, (x)))
-#define DSTR(str) (write_strz(&offset, (uint8_t *)buffer, (str)))
-#define DALIGNNOP(s)                                                           \
-  while ((uintptr_t)offset & ((s)-1))                                          \
-  buffer[offset++] = DW_CFA_nop
-#define DSECT(name, stmt)                                                      \
-  {                                                                            \
-    uint32_t *szp_##name = (uint32_t *)&buffer[offset];                        \
-    offset += 4;                                                               \
-    stmt *szp_##name =                                                         \
-        (uint32_t)((&buffer[offset] - (uint8_t *)szp_##name) - 4);             \
-  }
-
-  //   /* Emit DWARF EH CIE. */
-  long cie_offset = offset;
-  DSECT(CIE, DU32(0);                     /* Offset to CIE itself. */
-        DB(DW_CIE_VERSION); DSTR("zR");   /* Augmentation. */
-        DUV(1);                           /* Code alignment factor. */
-        DSV(-(int32_t)sizeof(uintptr_t)); /* Data alignment factor. */
-        DB(DW_REG_RA);                    /* Return address register. */
-        DB(1); DB(DW_EH_PE_textrel | DW_EH_PE_udata4); /* Augmentation data. */
-        DB(DW_CFA_def_cfa); DUV(DW_REG_SP); DUV(sizeof(uintptr_t));
-        DB(DW_CFA_offset | DW_REG_RA); DUV(1); DALIGNNOP(sizeof(uintptr_t));)
-
-  //   /* Emit DWARF EH FDE. */
-  DSECT(FDE, DU32((uint32_t)(offset - cie_offset)); /* Offset to CIE. */
-        DU32(0);    /* Machine code offset relative to .text. */
-        DU32(code); /* Machine code length. */
-        DB(0);      /* Augmentation data. */
-        /* Registers saved in CFRAME. */
-
-        DB(DW_CFA_def_cfa_offset); DUV(16); DB(DW_CFA_offset | DW_REG_BP);
-        DUV(2); DB(DW_CFA_def_cfa_register); DUV(DW_REG_BP);
-        DALIGNNOP(sizeof(uintptr_t));)
-  ///////////
-  ehframe_hdr->sh_size = offset - start_offset;
-
-  // Note this breaks perf record inject for some reason?
-  // fd = open("elfout", O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR |
-  // S_IWUSR); write(fd, image, sizeof(GDBElfImage)); close(fd);
 }
