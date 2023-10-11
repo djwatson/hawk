@@ -96,7 +96,7 @@ static gc_obj read_ptr(FILE *fptr) {
   }
   if (ptrtype == STRING_TAG) {
     uint64_t len;
-    if (fread(&len, 1, 8, fptr) != 8) {
+    if (fread(&len, 1, 8, fptr) != 8 || len > 512) {
       read_error();
     }
     string_s *str = GC_malloc(16 + len + 1);
@@ -185,7 +185,7 @@ static void parse_error() {
 static bcfunc *parse_func(FILE *fptr, uint64_t const_offset,
                           uint64_t func_offset) {
   uint32_t name_count;
-  if (fread(&name_count, 1, 4, fptr) != 4) {
+  if (fread(&name_count, 1, 4, fptr) != 4 || name_count > 512) {
     parse_error();
   }
   // printf("Name size %i\n", name_count);
@@ -199,7 +199,7 @@ static bcfunc *parse_func(FILE *fptr, uint64_t const_offset,
   }
 
   uint32_t code_count;
-  if (fread(&code_count, 1, 4, fptr) != 4) {
+  if (fread(&code_count, 1, 4, fptr) != 4 || code_count > (1UL << 16)) {
     parse_error();
   }
 
@@ -237,7 +237,7 @@ static bcfunc *parse_func(FILE *fptr, uint64_t const_offset,
 static bcfunc *parse_funcs(FILE *fptr, uint64_t const_offset) {
   // Read functions
   uint32_t bccount;
-  if (fread(&bccount, 1, 4, fptr) != 4) {
+  if (fread(&bccount, 1, 4, fptr) != 4 || bccount > (1UL << 16)) {
     parse_error();
   }
   bcfunc *start_func = nullptr;
@@ -253,7 +253,7 @@ static bcfunc *parse_funcs(FILE *fptr, uint64_t const_offset) {
 static void read_const_table(FILE *fptr, uint64_t const_offset) {
   // Read constant table
   uint32_t const_count;
-  if (fread(&const_count, 1, 4, fptr) != 4) {
+  if (fread(&const_count, 1, 4, fptr) != 4 || const_count > (1UL << 16)) {
     parse_error();
   }
   // printf("constsize %i \n", const_count);
