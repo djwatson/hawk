@@ -154,7 +154,7 @@ typedef struct trace_s_s {
 #define UNROLL_LIMIT 1
 #define UNROLL_ABORT_LIMIT 5
 
-static inline bool ir_is_const(const int16_t op) { return op & IR_CONST_BIAS; }
+static inline bool ir_is_const(const uint16_t op) { return op & IR_CONST_BIAS; }
 static inline bool is_type_guard(const uint8_t type) {
   return type & IR_INS_TYPE_GUARD;
 }

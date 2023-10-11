@@ -57,7 +57,7 @@ typedef struct flonum_s {
 typedef struct string_s {
   uint32_t type;
   uint32_t rc;
-  uint64_t len;
+  gc_obj len;
   char str[];
 } string_s;
 
@@ -76,7 +76,7 @@ typedef struct symbol {
 typedef struct vector_s {
   uint32_t type;
   uint32_t rc;
-  uint64_t len;
+  gc_obj len;
   gc_obj v[];
 } vector_s;
 
