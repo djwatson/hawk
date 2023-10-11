@@ -29,7 +29,7 @@ typedef struct table {
   gc_obj entries[];
 } table;
 
-typedef void(*for_each_cb)(gc_obj *field);
+typedef void (*for_each_cb)(gc_obj *field);
 void symbol_table_for_each(for_each_cb cb);
 
 #define TOMBSTONE 1

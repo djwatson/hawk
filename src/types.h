@@ -122,18 +122,14 @@ static inline closure_s *to_closure(gc_obj obj) {
   return (closure_s *)(obj - CLOSURE_TAG);
 }
 // This one is not PTR, but anything!
-static inline void *to_raw_ptr(gc_obj obj) {
-  return (void*)(obj & ~TAG_MASK);
-}
+static inline void *to_raw_ptr(gc_obj obj) { return (void *)(obj & ~TAG_MASK); }
 static inline string_s *to_string(gc_obj obj) {
   return (string_s *)(obj - PTR_TAG);
 }
 static inline flonum_s *to_flonum(gc_obj obj) {
   return (flonum_s *)(obj - FLONUM_TAG);
 }
-static inline cons_s *to_cons(gc_obj obj) {
-  return (cons_s *)(obj - CONS_TAG);
-}
+static inline cons_s *to_cons(gc_obj obj) { return (cons_s *)(obj - CONS_TAG); }
 static inline vector_s *to_vector(gc_obj obj) {
   return (vector_s *)(obj - VECTOR_TAG);
 }
@@ -152,24 +148,14 @@ static inline uint8_t get_imm_tag(gc_obj obj) { return obj & IMMEDIATE_MASK; }
 static inline uint32_t get_ptr_tag(gc_obj obj) {
   return ((uint32_t *)(obj - PTR_TAG))[0];
 }
-static inline bool is_char(gc_obj obj) {
-  return get_imm_tag(obj) == CHAR_TAG;
-}
+static inline bool is_char(gc_obj obj) { return get_imm_tag(obj) == CHAR_TAG; }
 static inline bool is_closure(gc_obj obj) {
   return get_tag(obj) == CLOSURE_TAG;
 }
-static inline bool is_cons(gc_obj obj) {
-  return get_tag(obj) == CONS_TAG;
-}
-static inline bool is_ptr(gc_obj obj) {
-  return get_tag(obj) == PTR_TAG;
-}
-static inline bool is_vector(gc_obj obj) {
-  return get_tag(obj) == VECTOR_TAG;
-}
-static inline bool is_flonum(gc_obj obj) {
-  return get_tag(obj) == FLONUM_TAG;
-}
+static inline bool is_cons(gc_obj obj) { return get_tag(obj) == CONS_TAG; }
+static inline bool is_ptr(gc_obj obj) { return get_tag(obj) == PTR_TAG; }
+static inline bool is_vector(gc_obj obj) { return get_tag(obj) == VECTOR_TAG; }
+static inline bool is_flonum(gc_obj obj) { return get_tag(obj) == FLONUM_TAG; }
 static inline gc_obj tag_string(string_s *s) {
   return (gc_obj)((int64_t)s + PTR_TAG);
 }
@@ -188,4 +174,4 @@ static inline gc_obj tag_vector(vector_s *s) {
 static inline gc_obj tag_closure(closure_s *s) {
   return (gc_obj)((int64_t)s + CLOSURE_TAG);
 }
-#define RC_FIELD(obj) ((uint32_t*)obj)[1]
+#define RC_FIELD(obj) ((uint32_t *)obj)[1]
