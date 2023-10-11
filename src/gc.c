@@ -69,7 +69,7 @@ typedef struct {
   uint64_t addr;
 } log_item;
 
-#define COLLECT_SIZE (1024 * 1024 * 32)
+#define COLLECT_SIZE (1024UL * 1024 * 32)
 #define ALLOC_SZ_LOG 18
 #define ALLOC_SZ (1UL << ALLOC_SZ_LOG)
 #define ALLOC_SZ_MASK (ALLOC_SZ - 1)
@@ -273,7 +273,7 @@ static void full_trace(gc_obj *field) {
       // assert(to < (long)alloc_start || to >= (long)alloc_end);
     }
     //     printf("Visiting ptr field %lx moved to %lx \n", p, to);
-    *field = (uint64_t)to + tag;
+    *field = (int64_t)to + tag;
   next:
     if (arrlen(cur_increments) == 0) {
       break;
@@ -327,7 +327,7 @@ static void visit(gc_obj *field) {
       assert((uint8_t *)to < alloc_start || (uint8_t *)to >= alloc_end);
     }
     //     printf("Visiting ptr field %lx moved to %lx \n", p, to);
-    *field = (uint64_t)to + tag;
+    *field = (int64_t)to + tag;
   next:
     if (arrlen(cur_increments) == 0) {
       break;
@@ -655,7 +655,7 @@ static void scan_log_buf(void (*add_increment)(gc_obj *)) {
         // printf("Add log increments: %p\n", *field);
         add_increment(field);
       }
-      v = cur.addr;
+      v = (gc_obj)cur.addr;
       type = get_tag(v);
       if (is_ptr_type(type)) {
         // printf("Add log decrements: %p\n", v);
@@ -676,7 +676,6 @@ static void maybe_log(gc_obj *v_p, void *c) {
   arrput(log_buf, ((log_item){(uint64_t)v_p - addr, v}));
 }
 
-extern void GC_log_obj_slow(void *obj) asm("GC_log_obj_slow");
 NOINLINE void GC_log_obj_slow(void *obj) {
   RC_FIELD(obj) |= LOGGED_MARK;
   arrput(log_buf, ((log_item){LOG_OBJ_HEADER, (uint64_t)obj}));
