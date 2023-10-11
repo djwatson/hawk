@@ -1,3 +1,5 @@
+// Copyright 2023 Dave Watson
+
 #include "types.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -17,26 +19,30 @@
 
 // Straight from the paper https://legacy.cs.indiana.edu/~dyb/pubs/equal.pdf
 // Efficient Nondestructive Equality Checking for Trees and Graphs
-// TODO: Note that unlike SCM, this may cause a stack overflow when
-//       we recurse for car and vectors. maybe use an explicit stack here.
-static const long kb = -20;
-static const long k0 = 200;
+
+// TODO(djwatson): Note that unlike SCM, this may cause a stack
+//       overflow when we recurse for car and vectors. maybe use an
+//       explicit stack here.
+static const int64_t kb = -20;
+static const int64_t k0 = 200;
 typedef struct {
   bool v;
-  long k;
+  int64_t k;
 } ep_result;
-static ep_result ep(uf *ht, bool unused, long a, long b, long k);
-static ep_result equalp_interleave(uf *ht, bool fast, long a, long b, long k) {
+static ep_result ep(uf *ht, bool unused, gc_obj a, gc_obj b, int64_t k);
+static ep_result equalp_interleave(uf *ht, bool fast, gc_obj a, gc_obj b,
+                                   int64_t k) {
   // eq?
   if (a == b) {
     return (ep_result){true, k};
   }
+
   // Check cons, vector, string for equalp?
   // cons and vector check unionfind table for cycles.
-  if ((a & TAG_MASK) == CONS_TAG) {
-    if ((b & TAG_MASK) == CONS_TAG) {
-      cons_s *cell_a = (cons_s *)(a - CONS_TAG);
-      cons_s *cell_b = (cons_s *)(b - CONS_TAG);
+  if (is_cons(a)) {
+    if (is_cons(b)) {
+      auto cell_a = to_cons(a);
+      auto cell_b = to_cons(b);
       if (!fast && unionfind(ht, a, b)) {
         return (ep_result){true, 0};
       }
@@ -46,23 +52,22 @@ static ep_result equalp_interleave(uf *ht, bool fast, long a, long b, long k) {
         return res;
       }
       // And pass k through.
-      k = res.k;
-      MUSTTAIL return ep(ht, fast, cell_a->b, cell_b->b, k);
+      MUSTTAIL return ep(ht, fast, cell_a->b, cell_b->b, res.k);
     }
     return (ep_result){false, k};
   }
-  if ((a & TAG_MASK) == PTR_TAG) {
-    if ((b & TAG_MASK) != PTR_TAG) {
+  if (is_ptr(a)) {
+    if (!is_ptr(b)) {
       return (ep_result){false, k};
     }
-    long ta = *(uint32_t *)(a - PTR_TAG);
-    long tb = *(uint32_t *)(b - PTR_TAG);
+    auto ta = get_ptr_tag(a);
+    auto tb = get_ptr_tag(b);
     if (ta != tb) {
       return (ep_result){false, k};
     }
     if (ta == STRING_TAG) {
-      string_s *sa = (string_s *)(a - PTR_TAG);
-      string_s *sb = (string_s *)(b - PTR_TAG);
+      auto sa = to_string(a);
+      auto sb = to_string(b);
       if (sa->len != sb->len) {
         return (ep_result){false, k};
       }
@@ -72,51 +77,44 @@ static ep_result equalp_interleave(uf *ht, bool fast, long a, long b, long k) {
       return (ep_result){false, k};
     }
   }
-  if ((a & TAG_MASK) == VECTOR_TAG) {
-    if ((b & TAG_MASK) == VECTOR_TAG) {
-      vector_s *va = (vector_s *)(a - VECTOR_TAG);
-      vector_s *vb = (vector_s *)(b - VECTOR_TAG);
-      if (va->len != vb->len) {
-        return (ep_result){false, k};
-      }
-      if (!fast && unionfind(ht, a, b)) {
-        return (ep_result){true, 0};
-      }
-      // Decrement K once for the vector, but return same K value
-      uint64_t lim = va->len >> 3;
-      for (uint64_t i = 0; i < lim; i++) {
-        auto res = ep(ht, fast, va->v[i], vb->v[i], k - 1);
-        if (true != res.v) {
-          return res;
-        }
-      }
-      return (ep_result){true, k};
+  if (is_vector(a) && is_vector(b)) {
+    auto va = to_vector(a);
+    auto vb = to_vector(b);
+    if (va->len != vb->len) {
+      return (ep_result){false, k};
     }
+    if (!fast && unionfind(ht, a, b)) {
+      return (ep_result){true, 0};
+    }
+    // Decrement K once for the vector, but return same K value
+    uint64_t lim = va->len >> 3;
+    for (uint64_t i = 0; i < lim; i++) {
+      auto res = ep(ht, fast, va->v[i], vb->v[i], k - 1);
+      if (true != res.v) {
+        return res;
+      }
+    }
+    return (ep_result){true, k};
   }
   // eqp?
-  if ((a & TAG_MASK) == FLONUM_TAG) {
-    if ((b & TAG_MASK) != FLONUM_TAG) {
-      ep_result res = {false, k};
-      return res;
+  if (is_flonum(a)) {
+    if (!is_flonum(b)) {
+      return (ep_result){false, k};
     }
-    flonum_s *sa = (flonum_s *)(a - FLONUM_TAG);
-    flonum_s *sb = (flonum_s *)(b - FLONUM_TAG);
+    auto sa = to_flonum(a);
+    auto sb = to_flonum(b);
     if (sa->x == sb->x) {
-      ep_result res = {true, k};
-      return res;
-    } else {
-      ep_result res = {false, k};
-      return res;
+      return (ep_result){true, k};
     }
+    return (ep_result){false, k};
   }
   return (ep_result){false, k};
 }
 
-static ep_result ep(uf *ht, bool unused, long a, long b, long k) {
+static ep_result ep(uf *ht, bool unused, gc_obj a, gc_obj b, int64_t k) {
   if (k <= 0) {
     if (k == kb) {
-      k = k0 * 2;
-      MUSTTAIL return equalp_interleave(ht, true, a, b, k);
+      MUSTTAIL return equalp_interleave(ht, true, a, b, k0 * 2);
     } else {
       MUSTTAIL return equalp_interleave(ht, false, a, b, k);
     }
@@ -128,7 +126,7 @@ static ep_result ep(uf *ht, bool unused, long a, long b, long k) {
 gc_obj equalp(gc_obj a, gc_obj b) {
   uf ht;
   uf_init(&ht);
-  long k = k0;
+  int64_t k = k0;
 
   ep_result res = ep(&ht, true, a, b, k);
 
@@ -139,32 +137,29 @@ gc_obj equalp(gc_obj a, gc_obj b) {
   return FALSE_REP;
 }
 
-void print_obj(long obj, FILE *file) {
-  if (file == nullptr) {
-    file = stdout;
-  }
-  auto type = obj & TAG_MASK;
+void print_obj(gc_obj obj, FILE *file) {
+  auto type = get_tag(obj);
   switch (type) {
   case FIXNUM_TAG: {
     fprintf(file, "%li", obj >> 3);
     break;
   }
   case PTR_TAG: {
-    long ptrtype = *(uint32_t *)(obj - PTR_TAG);
+    auto ptrtype = get_ptr_tag(obj);
     if (ptrtype == STRING_TAG) {
-      auto str = (string_s *)(obj - PTR_TAG);
+      auto str = to_string(obj);
       fputs(str->str, file);
     } else if (ptrtype == PORT_TAG) {
       fputs("#<port>", file);
     } else {
-      fprintf(file, "PTR:%lx", ptrtype);
+      fprintf(file, "PTR:%x", ptrtype);
     }
     break;
   }
   case VECTOR_TAG: {
-    auto v = (vector_s *)(obj - VECTOR_TAG);
+    auto v = to_vector(obj);
     fputs("#(", file);
-    for (long i = 0; i < (v->len >> 3); i++) {
+    for (uint64_t i = 0; i < (v->len >> 3); i++) {
       if (i != 0) {
         fputc(' ', file);
       }
@@ -174,9 +169,9 @@ void print_obj(long obj, FILE *file) {
     break;
   }
   case FLONUM_TAG: {
-    auto f = (flonum_s *)(obj - FLONUM_TAG);
+    auto f = to_flonum(obj);
     char buffer[40];
-    sprintf(buffer, "%g", f->x);
+    snprintf(buffer, 40 - 3, "%g", f->x);
     if (strpbrk(buffer, ".eE") == nullptr) {
       size_t len = strlen(buffer);
       buffer[len] = '.';
@@ -187,11 +182,11 @@ void print_obj(long obj, FILE *file) {
     break;
   }
   case CONS_TAG: {
-    auto c = (cons_s *)(obj - CONS_TAG);
+    auto c = to_cons(obj);
     fputc('(', file);
-    while ((c->b & TAG_MASK) == CONS_TAG) {
+    while (is_cons(c->b)) {
       print_obj(c->a, file);
-      c = (cons_s *)(c->b - CONS_TAG);
+      c = to_cons(c->b);
       fputc(' ', file);
     }
     print_obj(c->a, file);
@@ -203,14 +198,14 @@ void print_obj(long obj, FILE *file) {
     break;
   }
   case SYMBOL_TAG: {
-    auto sym = (symbol *)(obj - SYMBOL_TAG);
-    string_s *sym_name = (string_s *)(sym->name - PTR_TAG);
+    auto sym = to_symbol(obj);
+    string_s *sym_name = get_sym_name(sym);
     fputs(sym_name->str, file);
     break;
   }
   case CLOSURE_TAG: {
-    closure_s *clo = (closure_s *)(obj - CLOSURE_TAG);
-    bcfunc *func = (bcfunc *)clo->v[0];
+    closure_s *clo = to_closure(obj);
+    bcfunc *func = closure_code_ptr(clo);
     fprintf(file, "#<procedure %s>", func->name);
     break;
   }
@@ -225,25 +220,25 @@ void print_obj(long obj, FILE *file) {
       fputs("<eof>", file);
     } else if (obj == UNDEFINED_TAG) {
       fputs("<undefined>", file);
-    } else if ((obj & IMMEDIATE_MASK) == CHAR_TAG) {
-      fputc((char)(obj >> 8), file);
+    } else if (is_char(obj)) {
+      fputc(obj >> 8, file);
     } else {
       fprintf(file, "Unknown immediate: %lx\n", obj);
     }
     break;
   }
+  default:
+    break;
   }
 }
 
 EXPORT gc_obj from_c_str(const char *s) {
-  unsigned long len = strlen(s);
-  auto str = (string_s *)GC_malloc(16 + len + 1);
-  str->type = STRING_TAG;
-  str->len = len << 3;
-  str->rc = 0;
+  auto len = strlen(s);
+  string_s *str = GC_malloc(16 + len + 1);
+  *str = (string_s){STRING_TAG, 0, len << 3};
   memcpy(str->str, s, len);
   str->str[len] = '\0';
-  return (long)str | PTR_TAG;
+  return tag_string(str);
 }
 
 // GC interface:
@@ -254,7 +249,7 @@ inline size_t heap_object_size(void *obj) {
   case FLONUM_TAG:
     return sizeof(flonum_s);
   case STRING_TAG: {
-    auto str = (vector_s *)obj;
+    auto str = (string_s *)obj;
     return (str->len >> 3) * sizeof(char) + 16 + 1 /* null tag */;
   }
   case SYMBOL_TAG:
@@ -262,19 +257,20 @@ inline size_t heap_object_size(void *obj) {
   case CONT_TAG:
   case VECTOR_TAG: {
     auto vec = (vector_s *)obj;
-    return (vec->len >> 3) * sizeof(long) + 16;
+    return (vec->len >> 3) * sizeof(gc_obj) + 16;
   }
   case CONS_TAG:
     return sizeof(cons_s);
   case CLOSURE_TAG: {
     auto clo = (closure_s *)obj;
-    return (clo->len >> 3) * sizeof(long) + 16;
+    return (clo->len >> 3) * sizeof(gc_obj) + 16;
   }
   case PORT_TAG:
     return sizeof(port_s);
   default:
     printf("Unknown heap object: %i\n", type);
     abort();
+    break;
   }
 }
 
@@ -295,7 +291,7 @@ inline void trace_heap_object(void *obj, trace_callback visit, void *ctx) {
   case CONT_TAG:
   case VECTOR_TAG: {
     auto vec = (vector_s *)obj;
-    for (long i = (vec->len >> 3); i > 0; i--) {
+    for (uint64_t i = vec->len >> 3; i > 0; i--) {
       visit(&vec->v[i] - 1, ctx);
     }
     break;
@@ -309,7 +305,7 @@ inline void trace_heap_object(void *obj, trace_callback visit, void *ctx) {
   case CLOSURE_TAG: {
     auto clo = (closure_s *)obj;
     // Note start from 1: first field is bcfunc* pointer.
-    for (long i = clo->len >> 3; i > 1; i--) {
+    for (uint64_t i = clo->len >> 3; i > 1; i--) {
       visit(&clo->v[i] - 1, ctx);
     }
     break;
@@ -319,5 +315,6 @@ inline void trace_heap_object(void *obj, trace_callback visit, void *ctx) {
   default:
     printf("Unknown heap object: %i\n", type);
     abort();
+    break;
   }
 }

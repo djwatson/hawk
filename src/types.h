@@ -127,6 +127,12 @@ static inline string_s *to_string(gc_obj obj) {
 static inline flonum_s *to_flonum(gc_obj obj) {
   return (flonum_s *)(obj - FLONUM_TAG);
 }
+static inline cons_s *to_cons(gc_obj obj) {
+  return (cons_s *)(obj - CONS_TAG);
+}
+static inline vector_s *to_vector(gc_obj obj) {
+  return (vector_s *)(obj - VECTOR_TAG);
+}
 static inline char to_char(gc_obj obj) { return (obj >> 8); }
 static inline bcfunc *closure_code_ptr(closure_s *clo) {
   return (bcfunc *)clo->v[0];
@@ -142,8 +148,23 @@ static inline uint8_t get_imm_tag(gc_obj obj) { return obj & IMMEDIATE_MASK; }
 static inline uint32_t get_ptr_tag(gc_obj obj) {
   return ((uint32_t *)(obj - PTR_TAG))[0];
 }
+static inline bool is_char(gc_obj obj) {
+  return get_imm_tag(obj) == CHAR_TAG;
+}
 static inline bool is_closure(gc_obj obj) {
   return get_tag(obj) == CLOSURE_TAG;
+}
+static inline bool is_cons(gc_obj obj) {
+  return get_tag(obj) == CONS_TAG;
+}
+static inline bool is_ptr(gc_obj obj) {
+  return get_tag(obj) == PTR_TAG;
+}
+static inline bool is_vector(gc_obj obj) {
+  return get_tag(obj) == VECTOR_TAG;
+}
+static inline bool is_flonum(gc_obj obj) {
+  return get_tag(obj) == FLONUM_TAG;
 }
 static inline gc_obj tag_string(string_s *s) {
   return (gc_obj)((int64_t)s + PTR_TAG);
