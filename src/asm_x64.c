@@ -1444,7 +1444,7 @@ done:
   if (jit_dump_flag) {
     jit_dump(len, (uint64_t)fn, dumpname);
   }
-  jit_reader_add(len, (uint64_t)fn, 0, 0, dumpname);
+  jit_reader_add(len, (uint64_t)fn);
 #endif
 #ifdef VALGRIND
   VALGRIND_DISCARD_TRANSLATIONS(fn, len);

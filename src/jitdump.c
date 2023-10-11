@@ -1,7 +1,9 @@
+// Copyright 2023 Dave Watson
+
 #define _GNU_SOURCE
 
 #include "jitdump.h"
-#include "defs.h"
+
 #include <assert.h>   // for assert
 #include <elf.h>      // for (anonymous), Elf64_Shdr, Elf64...
 #include <fcntl.h>    // for open, O_CLOEXEC, O_CREAT, O_RDWR
@@ -15,14 +17,16 @@
 #include <time.h>     // for clock_gettime, timespec, CLOCK...
 #include <unistd.h>   // for getpid, write, close, fsync
 
+#include "defs.h"
+
 static int jit_cnt = 0;
 
 /* Earlier perf_map tmp support - supplies names to jit regions */
 void perf_map(uint64_t fn, uint64_t len, const char *name) {
   char buf[256];
-  sprintf(buf, "/tmp/perf-%i.map", getpid());
+  snprintf(buf, sizeof(buf) - 1, "/tmp/perf-%i.map", getpid());
   __auto_type file = fopen(buf, "a");
-  if (strlen(name) != 0) {
+  if (strlen(name)) {
     fprintf(file, "%lx %lx jit function %s %i\n", (uint64_t)fn, len, name,
             jit_cnt);
   } else {
@@ -31,8 +35,14 @@ void perf_map(uint64_t fn, uint64_t len, const char *name) {
   fclose(file);
 }
 
-void *mapaddr = NULL;
-int fd;
+static void *mapaddr = NULL;
+static int fd;
+
+static void jit_dump_error() {
+  printf("Jitdump: Could not write\n");
+  exit(-1);
+}
+
 /* Newer jit dump support.  Requires perf record -k 1, and then perf
    inject, before perf report, but gives full asm listing */
 void jit_dump(int len, uint64_t fn, const char *name) {
@@ -50,7 +60,7 @@ void jit_dump(int len, uint64_t fn, const char *name) {
     uint64_t code_index;
   } record;
   char funcname[256];
-  sprintf(funcname, "Function_%s_%i", name, jit_cnt);
+  snprintf(funcname, sizeof(funcname) - 1, "Function_%s_%i", name, jit_cnt);
 
   // clock
   struct timespec ts;
@@ -72,19 +82,16 @@ void jit_dump(int len, uint64_t fn, const char *name) {
   record.code_index = jit_cnt;
 
   if (write(fd, &record, sizeof(record)) != sizeof(record)) {
-    goto error;
+    jit_dump_error();
   }
   if (write(fd, funcname, strlen(funcname) + 1) != strlen(funcname) + 1) {
-    goto error;
+    jit_dump_error();
   }
   if (write(fd, (void *)fn, len) != len) {
-    goto error;
+    jit_dump_error();
   }
 
   return;
-error:
-  printf("Jitdump: Could not write\n");
-  exit(-1);
 }
 
 struct {
@@ -101,7 +108,7 @@ struct {
 EXPORT void jit_dump_init() {
   char buf[256];
 
-  sprintf(buf, "jit-%i.dump", getpid());
+  snprintf(buf, sizeof(buf) - 1, "jit-%i.dump", getpid());
   fd = open(buf, O_CREAT | O_TRUNC | O_RDWR | O_CLOEXEC, S_IRUSR | S_IWUSR);
   if (fd < 0) {
     printf("Error opening %s\n", buf);
@@ -157,8 +164,8 @@ typedef struct GDBElfImage {
   uint8_t data[4096];
 } GDBElfImage;
 
-void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num);
-void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const char *name) {
+static void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num);
+void jit_reader_add(int len, uint64_t fn) {
   struct jit_code_entry *jitcode = malloc(sizeof(struct jit_code_entry));
   GDBElfImage *image = malloc(sizeof(GDBElfImage));
   if (!image || !jitcode) {
@@ -167,22 +174,17 @@ void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const char *name) {
   }
   build_elf(fn, len, image, jit_cnt);
 
-  // __auto_type entry = new gdb_code_entry;
-  //  entry->fn = fn;
-  //  entry->len = len;
-  // sprintf(entry->funcname, "Function_%s_%i_%i_%lx", name.c_str(), jit_cnt, i,
-  // p);
   jitcode->symfile_addr = image;
   jitcode->symfile_size = sizeof(GDBElfImage);
   jitcode->next_entry = NULL;
-  if (!first_entry) {
-    first_entry = jitcode;
-    last_entry = jitcode;
-    jitcode->prev_entry = NULL;
-  } else {
+  if (first_entry) {
     jitcode->prev_entry = last_entry;
     last_entry->next_entry = jitcode;
     last_entry = jitcode;
+  } else {
+    first_entry = jitcode;
+    last_entry = jitcode;
+    jitcode->prev_entry = NULL;
   }
 
   __jit_debug_descriptor.first_entry = first_entry;
@@ -198,7 +200,8 @@ void jit_reader_add(int len, uint64_t fn, int i, uint64_t p, const char *name) {
 // Sections text, strtab, symtab, debug info, debug_abbrev, debug_line,
 // debug_str (only nash), shstrtab, eh_frame (only lj) symbols file, func
 
-long write_buf(long *offset, uint8_t *data, void *obj, long len) {
+static int64_t write_buf(int64_t *offset, uint8_t *data, void *obj,
+                         int64_t len) {
   __auto_type start_offset = *offset;
   assert(*offset + len < 4096);
   memcpy(&data[*offset], obj, len);
@@ -206,9 +209,9 @@ long write_buf(long *offset, uint8_t *data, void *obj, long len) {
   return start_offset;
 }
 
-long write_strz(long *offset, uint8_t *data, const char *obj) {
+static int64_t write_strz(int64_t *offset, uint8_t *data, const char *obj) {
   __auto_type len = strlen(obj) + 1; // null terminated
-  return write_buf(offset, data, (void *)obj, (long)len);
+  return write_buf(offset, data, (void *)obj, (int64_t)len);
 }
 
 #define DW_CIE_VERSION 1
@@ -244,24 +247,11 @@ enum {
   DW_CFA_offset = 0x80
 };
 
-void uleb128(long *offset, uint8_t *buffer, uint32_t v) {
-  for (; v >= 0x80; v >>= 7) {
-    buffer[(*offset)++] = (uint8_t)((v & 0x7f) | 0x80);
-  }
-  buffer[(*offset)++] = (uint8_t)v;
-}
-
-void sleb128(long *offset, uint8_t *buffer, uint32_t v) {
-  for (; (uint32_t)(v + 0x40) >= 0x80; v >>= 7) {
-    buffer[(*offset)++] = (uint8_t)((v & 0x7f) | 0x80);
-  }
-  buffer[(*offset)++] = (uint8_t)(v & 0x7f);
-}
-
-void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num) {
+static void build_elf(uint64_t code, int code_sz, GDBElfImage *image,
+                      int32_t num) {
   memset(image, 0, sizeof(GDBElfImage));
 
-  long offset = 0;
+  int64_t offset = 0;
 
   Elf64_Ehdr hdr = {
       .e_ident = {ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3, ELFCLASS64, ELFDATA2LSB,
@@ -332,7 +322,7 @@ void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num) {
   filesym->st_info = STT_FILE;
   __auto_type funcsym = &image->syms[2];
   char tmp[244];
-  sprintf(tmp, "TRACE_%i", num);
+  snprintf(tmp, sizeof(tmp) - 1, "TRACE_%i", num);
   funcsym->st_name = write_strz(&offset, image->data, tmp) - st;
   funcsym->st_shndx = 2; // text
   funcsym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_FUNC);
