@@ -1,6 +1,6 @@
 fail_fast: false
 repos:
-  - repo: https://github.com/pocc/pre-commit-hooks
+  - repo: https://github.com/djwatson/pre-commit-hooks
     rev: master
     hooks:
       - id: clang-format

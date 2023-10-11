@@ -15,4 +15,5 @@ Checks: >
   -readability-function-cognitive-complexity,
   -bugprone-sizeof-expression,
   -clang-analyzer-core.uninitialized.*,
-  -clang-analyzer-core.UndefinedBinaryOperatorResult
+  -clang-analyzer-core.UndefinedBinaryOperatorResult,
+  -bugprone-reserved-identifier

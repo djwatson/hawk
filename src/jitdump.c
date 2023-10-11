@@ -90,8 +90,6 @@ void jit_dump(int len, uint64_t fn, const char *name) {
   if (write(fd, (void *)fn, len) != len) {
     jit_dump_error();
   }
-
-  return;
 }
 
 struct {
