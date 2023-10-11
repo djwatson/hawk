@@ -121,6 +121,10 @@ static inline symbol *to_symbol(gc_obj obj) {
 static inline closure_s *to_closure(gc_obj obj) {
   return (closure_s *)(obj - CLOSURE_TAG);
 }
+// This one is not PTR, but anything!
+static inline void *to_raw_ptr(gc_obj obj) {
+  return (void*)(obj & ~TAG_MASK);
+}
 static inline string_s *to_string(gc_obj obj) {
   return (string_s *)(obj - PTR_TAG);
 }
@@ -184,3 +188,4 @@ static inline gc_obj tag_vector(vector_s *s) {
 static inline gc_obj tag_closure(closure_s *s) {
   return (gc_obj)((int64_t)s + CLOSURE_TAG);
 }
+#define RC_FIELD(obj) ((uint32_t*)obj)[1]

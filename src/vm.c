@@ -44,10 +44,10 @@ static void afl_trace(uint32_t *pc) {
 #endif
 }
 
-long *frame_top;
+gc_obj *frame_top;
 unsigned int stacksz = 100;
-long *stack_top;
-long *stack = NULL;
+gc_obj *stack_top;
+gc_obj *stack = NULL;
 
 unsigned char hotmap[hotmap_sz];
 

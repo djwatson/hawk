@@ -36,7 +36,6 @@ inline INLINE void *GC_malloc_no_collect(size_t sz) {
   return NULL;
 }
 void *GC_realloc(void *ptr, size_t sz);
-void GC_enable(bool en);
 void GC_collect();
 void GC_log_obj_slow(void *obj) asm("GC_log_obj_slow");
 static inline bool is_logged(uint32_t rc) { return rc & LOGGED_MARK; }
