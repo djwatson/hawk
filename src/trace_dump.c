@@ -32,8 +32,6 @@ static void print_literal(gc_obj c) {
 
 static void print_const_or_val(int i, trace_s *ctrace) {
   if (ir_is_const(i)) {
-    printf("%04d", i);
-  } else {
     gc_obj c = ctrace->consts[i - IR_CONST_BIAS];
     int type = get_tag(c);
     switch (type) {
@@ -75,6 +73,8 @@ static void print_const_or_val(int i, trace_s *ctrace) {
       printf("Unknown print_const_or_val type: %i\n", type);
       break;
     }
+  } else {
+    printf("%04d", i);
   }
 }
 

@@ -456,7 +456,8 @@ static void GC_deinit() {
   if (verbose) {
     printf("GC's %i Full traces %i (%.02f)\n", gc_stats.traces,
            gc_stats.full_traces,
-           ((double)gc_stats.full_traces / (double)gc_stats.traces) * 100.0);
+	   gc_stats.traces ?
+           ((double)gc_stats.full_traces / (double)gc_stats.traces) * 100.0 : 0);
   }
 }
 
