@@ -169,3 +169,12 @@ gc_obj symbol_table_insert(string_s *str, bool can_alloc) {
 
   return result;
 }
+
+void symbol_table_for_each(for_each_cb cb) {
+  for (size_t i = 0; i < sym_table->sz; i++) {
+    auto cur = &sym_table->entries[i];
+    if (*cur != 0 && *cur != TOMBSTONE) {
+      cb(&sym_table->entries[i]);
+    }
+  }
+}

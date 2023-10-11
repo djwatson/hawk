@@ -144,6 +144,7 @@ static bool is_ptr_type(gc_obj obj) {
 void GC_push_root(gc_obj *root) { arrput(pushed_roots, root); }
 
 void GC_pop_root(const gc_obj *root) {
+  (void)root;
   assert(arrlen(pushed_roots) != 0);
 #ifdef NDEBUG
   (void)arrpop(pushed_roots);
@@ -240,13 +241,14 @@ static void clear_block_marks() {
 static inline gc_block *get_gc_block(void *ptr) {
   return (gc_block *)((uint64_t)ptr & ~ALLOC_SZ_MASK);
 }
-static void full_trace(gc_obj *field) {
-  auto lst = &cur_increments;
-  while (true) {
+static void full_trace(gc_obj *start_field) {
+  arrpush(cur_increments, start_field);
+  do {
+    gc_obj *field = arrpop(cur_increments);
     auto from = *field;
     auto tag = get_tag(from);
     if (!is_ptr_type(from)) {
-      goto next;
+      continue;
     }
     auto p = to_raw_ptr(from);
     auto to = is_forwarded(p) ? get_forward(p) : p;
@@ -255,9 +257,13 @@ static void full_trace(gc_obj *field) {
     auto block = get_gc_block(to);
     if (to == block) {
       gc_dalloc += heap_object_size(to);
-      goto next;
+      continue;
     }
-    if (!block_bt(block, to)) {
+    if (block_bt(block, to)) {
+      RC_FIELD(to)++;
+      // printf("INC %p to %i\n", to, ((uint32_t*)to)[1]);
+      // assert(to < (long)alloc_start || to >= (long)alloc_end);
+    } else {
       // assert(to >= (long)alloc_start && to < (long)alloc_end);
       //  If RC is 0.
       to = copy_obj(p);
@@ -266,20 +272,10 @@ static void full_trace(gc_obj *field) {
       RC_FIELD(to) = 1;
       // printf("INC %p to %i (0)\n", to, ((uint32_t*)to)[1]);
       //  Need to recursively visit all fields
-      trace_heap_object(to, visit_cb, lst);
-    } else {
-      RC_FIELD(to)++;
-      // printf("INC %p to %i\n", to, ((uint32_t*)to)[1]);
-      // assert(to < (long)alloc_start || to >= (long)alloc_end);
+      trace_heap_object(to, visit_cb, &cur_increments);
     }
-    //     printf("Visiting ptr field %lx moved to %lx \n", p, to);
     *field = (int64_t)to + tag;
-  next:
-    if (arrlen(cur_increments) == 0) {
-      break;
-    }
-    field = arrpop(cur_increments);
-  }
+  } while (arrlen(cur_increments));
 }
 
 static void sweep_large_allocs() {
@@ -301,13 +297,14 @@ NOINLINE static void sweep_free_blocks() {
     gc_alloc += ALLOC_SZ;
   }
 }
-static void visit(gc_obj *field) {
-  auto lst = &cur_increments;
-  while (true) {
+static void visit(gc_obj *start_field) {
+  arrpush(cur_increments, start_field);
+  do {
+    gc_obj *field = arrpop(cur_increments);
     auto from = *field;
     auto tag = get_tag(from);
     if (!is_ptr_type(from)) {
-      goto next;
+      continue;
     }
     auto p = to_raw_ptr(from);
     auto to = is_forwarded(p) ? get_forward(p) : p;
@@ -320,20 +317,15 @@ static void visit(gc_obj *field) {
       RC_FIELD(to)++;
       // printf("INC %p to %i (0)\n", to, ((uint32_t*)to)[1]);
       //  Need to recursively visit all fields
-      trace_heap_object(to, visit_cb, lst);
+      trace_heap_object(to, visit_cb, &cur_increments);
     } else {
       RC_FIELD(to)++;
       // printf("INC %p to %i\n", to, ((uint32_t*)to)[1]);
-      assert((uint8_t *)to < alloc_start || (uint8_t *)to >= alloc_end);
+      assert(!in_nursury(to));
     }
     //     printf("Visiting ptr field %lx moved to %lx \n", p, to);
     *field = (int64_t)to + tag;
-  next:
-    if (arrlen(cur_increments) == 0) {
-      break;
-    }
-    field = arrpop(cur_increments);
-  }
+  } while (arrlen(cur_increments));
 }
 
 // Static roots are the stack - stacksz,
@@ -344,7 +336,8 @@ extern trace_s *trace;
 extern trace_s **traces;
 extern gc_obj *symbols;
 
-static void visit_trace(trace_s *t, void (*add_root)(gc_obj *root)) {
+typedef void (*add_root_cb)(gc_obj *root);
+static void visit_trace(trace_s *t, add_root_cb add_root) {
   for (size_t i = 0; i < arrlen(t->consts); i++) {
     if (t->consts[i]) {
       add_root(&t->consts[i]);
@@ -354,36 +347,50 @@ static void visit_trace(trace_s *t, void (*add_root)(gc_obj *root)) {
     auto cur_reloc = &t->relocs[i];
     auto old = cur_reloc->obj;
     add_root(&cur_reloc->obj);
-    if (cur_reloc->obj != old) {
-      switch (cur_reloc->type) {
-      case RELOC_ABS: {
-        int64_t v = cur_reloc->obj;
-        memcpy((int64_t *)(cur_reloc->offset - 8), &v, sizeof(int64_t));
-        break;
-      }
-      case RELOC_ABS_NO_TAG: {
-        int64_t v = cur_reloc->obj;
-        v &= ~TAG_MASK;
-        memcpy((int64_t *)(cur_reloc->offset - 8), &v, sizeof(int64_t));
-        break;
-      }
-      case RELOC_SYM_ABS: {
-        auto sym = to_symbol(cur_reloc->obj);
-        int64_t v = (int64_t)&sym->val;
-        memcpy((int64_t *)(cur_reloc->offset - 8), &v, sizeof(int64_t));
-        break;
-      }
-      default: {
-        printf("Unknown reloc: %i\n", cur_reloc->type);
-        assert(false);
-      }
-      }
+    if (cur_reloc->obj == old) {
+      continue;
+    }
+
+    switch (cur_reloc->type) {
+    case RELOC_ABS: {
+      int64_t v = cur_reloc->obj;
+      memcpy((int64_t *)(cur_reloc->offset - 8), &v, sizeof(int64_t));
+      break;
+    }
+    case RELOC_ABS_NO_TAG: {
+      int64_t v = cur_reloc->obj;
+      v &= ~TAG_MASK;
+      memcpy((int64_t *)(cur_reloc->offset - 8), &v, sizeof(int64_t));
+      break;
+    }
+    case RELOC_SYM_ABS: {
+      auto sym = to_symbol(cur_reloc->obj);
+      int64_t v = (int64_t)&sym->val;
+      memcpy((int64_t *)(cur_reloc->offset - 8), &v, sizeof(int64_t));
+      break;
+    }
     }
   }
 }
+
+static void trace_jit_roots(add_root_cb add_root) {
+  // Scan traces
+#ifdef JIT
+  for (uint64_t i = 0; i < arrlen(traces); i++) {
+    auto t = traces[i];
+    // printf("Visit trace %i\n", cnt++);
+    visit_trace(t, add_root);
+  }
+  // Scan currently in-progress trace
+  if (trace != NULL) {
+    // printf("Visit in progress trace\n");
+    visit_trace(trace, add_root);
+  }
+#endif
+}
 //
 // Currently functions aren't GC'd.
-static void trace_roots(void (*add_root)(gc_obj *root)) {
+static void trace_roots(add_root_cb add_root) {
   // printf("Scan symbols from readbc...%li\n", arrlen(symbols));
   for (uint64_t i = 0; i < arrlen(symbols); i++) {
     add_root(&symbols[i]);
@@ -419,27 +426,9 @@ static void trace_roots(void (*add_root)(gc_obj *root)) {
     }
   }
   // printf("Scan symbol table...\n");
-  for (size_t i = 0; i < sym_table->sz; i++) {
-    auto cur = &sym_table->entries[i];
-    if (*cur != 0 && *cur != TOMBSTONE) {
-      auto tmp = &sym_table->entries[i];
-      add_root(tmp);
-    }
-  }
+  symbol_table_for_each(add_root);
 
-// Scan traces
-#ifdef JIT
-  for (uint64_t i = 0; i < arrlen(traces); i++) {
-    auto t = traces[i];
-    // printf("Visit trace %i\n", cnt++);
-    visit_trace(t, add_root);
-  }
-  // Scan currently in-progress trace
-  if (trace != NULL) {
-    // printf("Visit in progress trace\n");
-    visit_trace(trace, add_root);
-  }
-#endif
+  trace_jit_roots(add_root);
 }
 
 static struct {
@@ -460,11 +449,6 @@ static void GC_deinit() {
 }
 
 EXPORT void GC_init() {
-  /* alloc_start = (uint8_t *)mmap(NULL, alloc_sz, PROT_READ | PROT_WRITE, */
-  /*                              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0); */
-  /* assert(alloc_start); */
-  /* alloc_ptr = alloc_start; */
-  /* alloc_end = alloc_ptr + alloc_sz; */
   atexit(&GC_deinit);
   alloc_start = malloc(COLLECT_SIZE);
   alloc_ptr = alloc_start;
@@ -475,7 +459,7 @@ static void trace2_cb(gc_obj *obj, void *ctx) {
   gc_obj **lst = ctx;
   arrput(*lst, *obj);
 }
-static int64_t trace2(gc_obj **lst, bool incr) {
+static int64_t trace2(gc_obj **lst) {
   int64_t gc_freed = 0;
   while (arrlen(*lst)) {
     auto item = arrpop(*lst);
@@ -483,37 +467,25 @@ static int64_t trace2(gc_obj **lst, bool incr) {
     if (!is_ptr_type(item)) {
       continue;
     }
-    assert((uint8_t *)ptr < alloc_start || (uint8_t *)ptr >= alloc_end);
-    if (incr) {
-      if (RC_FIELD(ptr) == 0) {
-        // Increment line in block
-        auto block = get_gc_block(ptr);
-        if (block != ptr) {
-          block->cnt++;
-          gc_dalloc += heap_object_size(ptr);
-        }
-        trace_heap_object(ptr, trace2_cb, lst);
-      }
-      RC_FIELD(ptr)++;
-      // printf("INC %p to %i\n", ptr, ((uint32_t*)ptr)[1]);
+    assert(!in_nursury(ptr));
+    // printf("DEC %p to %i\n", ptr, ((uint32_t*)ptr)[1]);
+    if (--RC_FIELD(ptr)) {
+      continue;
+    }
+
+    // Recursive decrement
+    auto sz = heap_object_size(ptr);
+    trace_heap_object(ptr, trace2_cb, lst);
+    auto block = get_gc_block(ptr);
+    if (block == ptr) {
+      // printf("Free %p\n", ptr);
+      (void)hmdel(large_allocs, block);
+      free(block);
+      // unlink
     } else {
-      // printf("DEC %p to %i\n", ptr, ((uint32_t*)ptr)[1]);
-      if (--RC_FIELD(ptr) == 0) {
-        // Recursive decrement
-        auto sz = heap_object_size(ptr);
-        trace_heap_object(ptr, trace2_cb, lst);
-        auto block = get_gc_block(ptr);
-        if (block == ptr) {
-          // printf("Free %p\n", ptr);
-          (void)hmdel(large_allocs, block);
-          free(block);
-          // unlink
-        } else {
-          gc_dalloc -= sz;
-          if (--block->cnt == 0) {
-            put_gc_block(block);
-          }
-        }
+      gc_dalloc -= sz;
+      if (--block->cnt == 0) {
+        put_gc_block(block);
       }
     }
   }
@@ -583,7 +555,7 @@ NOINLINE void GC_collect() {
   // Run *last* iteration's decrements.
   // printf("Run %li decrements...\n", arrlen(cur_decrements));
   if (!fully_trace) {
-    trace2(&cur_decrements, false);
+    trace2(&cur_decrements);
   }
   arrsetlen(cur_decrements, 0);
   // printf("Done\n");
@@ -592,16 +564,14 @@ NOINLINE void GC_collect() {
   sweep_free_blocks();
   double ratio = ((double)gc_dalloc / (double)gc_alloc) * 100.0;
   if (verbose) {
-    printf("Heap sz: %li alloced: %li ratio: %.02f full: %i\n", gc_alloc,
+    printf("Heap sz: %lu alloced: %lu ratio: %.02f full: %i\n", gc_alloc,
            gc_dalloc, ratio, fully_trace);
   }
   arrsetlen(log_buf, 0);
 
   auto can_auto_adjust = (arrlen(gc_blocks) - arrlen(free_gc_blocks)) > 10;
 
-  if (can_auto_adjust && ratio < 90.0) {
-    // fully_trace = true;
-  } else {
+  if (!(can_auto_adjust && ratio < 90.0)) {
     fully_trace = false;
   }
 
