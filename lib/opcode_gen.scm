@@ -24,6 +24,11 @@
 	    (loop (cdr l) (cons (car l) cur)))
 	(list (list->string (reverse cur))))))
 
+(define (strip-quotes str)
+  (if (eq? #\" (string-ref str 0))
+      (substring str 1 (- (string-length str) 1))
+      str))
+
 (define (find-lib-funcs file)
   (define p (open-input-file file))
   (let loop ()
@@ -31,7 +36,7 @@
     (when (not (eof-object? line))
       (when (and (>= (string-length line) 7)
 		 (equal? "LIBRARY" (substring line 0 7)))
-	(let ((new-code (string->symbol (second (string-split line '(#\( #\) #\,))))))
+	(let ((new-code (string->symbol (strip-quotes (second (string-split line '(#\( #\) #\,)))))))
 	  (set! opcodes	(append opcodes (list (list new-code))))))
       (loop)))
   (close-input-port p))

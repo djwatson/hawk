@@ -80,7 +80,10 @@ while being more portable and easier to change.
       void **op_table_arg, long argcnt
 #define ARGS ra, instr, pc, frame, op_table_arg, argcnt
 #define DEBUG_VM(name)
-//#define DEBUG_VM(name) printf("pc %p %s ra %i rd %i rb %i rc %i\n", pc, name, ra, instr, instr&0xff, (instr>>8)); fflush(stdout);
+/* #define DEBUG_VM(name) \ */
+/*   printf("pc %p %s ra %i rd %i rb %i rc %i\n", pc, name, ra, instr, \ */
+/*          instr & 0xff, (instr >> 8)); \ */
+/*   fflush(stdout); */
 typedef void (*op_func)(PARAMS);
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
@@ -599,9 +602,7 @@ long vm_length(long fb) {
 LIBRARY_FUNC_B_LOAD(LENGTH) { frame[ra] = vm_length(fb); }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(EQUAL?, EQUAL) {
-  frame[ra] = equalp(fb, fc);
-}
+LIBRARY_FUNC_BC_LOAD_NAME("EQUAL?", EQUAL) { frame[ra] = equalp(fb, fc); }
 END_LIBRARY_FUNC
 
 #define LIBRARY_FUNC_NUM_CMP(name, op, func)                                   \
@@ -741,7 +742,7 @@ LIBRARY_FUNC_B_LOAD(UNBOX) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(SET-BOX!, SET_BOX) {
+LIBRARY_FUNC_BC_LOAD_NAME("SET-BOX!", SET_BOX) {
   auto box = (cons_s *)(fb - CONS_TAG);
   GC_log_obj(box);
   box->a = fc;
@@ -805,7 +806,7 @@ LIBRARY_FUNC_B(CLOSURE) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_NAME(CLOSURE-GET, CLOSURE_GET) {
+LIBRARY_FUNC_BC_NAME("CLOSURE-GET", CLOSURE_GET) {
   auto fb = frame[rb];
   // TYPECHECK_TAG(fb, CLOSURE_TAG);
   auto closure = (closure_s *)(fb - CLOSURE_TAG);
@@ -813,7 +814,7 @@ LIBRARY_FUNC_BC_NAME(CLOSURE-GET, CLOSURE_GET) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_NAME(CLOSURE-SET, CLOSURE_SET) {
+LIBRARY_FUNC_BC_NAME("CLOSURE-SET", CLOSURE_SET) {
   auto fa = frame[ra];
   // No need to typecheck, that would be bad bytecode.
   auto closure = (closure_s *)(fa - CLOSURE_TAG);
@@ -822,7 +823,7 @@ LIBRARY_FUNC_BC_NAME(CLOSURE-SET, CLOSURE_SET) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(CLOSURE-PTR, CLOSURE_PTR) {
+LIBRARY_FUNC_B_LOAD_NAME("CLOSURE-PTR", CLOSURE_PTR) {
   TYPECHECK_TAG(fb, CLOSURE_TAG);
   auto closure = (closure_s *)(fb - CLOSURE_TAG);
   frame[ra] = closure->v[0];
@@ -1083,7 +1084,7 @@ void vm_make_vector(long vec, long val) {
   }
 }
 
-LIBRARY_FUNC_BC_NAME(MAKE-VECTOR, MAKE_VECTOR) {
+LIBRARY_FUNC_BC_NAME("MAKE-VECTOR", MAKE_VECTOR) {
   long fb = frame[rb];
   TYPECHECK_FIXNUM(fb);
 
@@ -1116,7 +1117,7 @@ void vm_make_string(long str, long ch) {
 }
 
 // TODO could be BC_LOAD_NAME?
-LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING) {
+LIBRARY_FUNC_BC_NAME("MAKE-STRING", MAKE_STRING) {
   long fb = frame[rb];
   TYPECHECK_FIXNUM(fb);
   auto len = fb >> 3;
@@ -1141,7 +1142,7 @@ LIBRARY_FUNC_BC_NAME(MAKE-STRING, MAKE_STRING) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF) {
+LIBRARY_FUNC_BC_LOAD_NAME("VECTOR-REF", VECTOR_REF) {
   TYPECHECK_FIXNUM(fc);
   TYPECHECK_TAG(fb, VECTOR_TAG);
   auto vec = (vector_s *)(fb - VECTOR_TAG);
@@ -1153,7 +1154,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-REF, VECTOR_REF) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF) {
+LIBRARY_FUNC_BC_LOAD_NAME("STRING-REF", STRING_REF) {
   TYPECHECK_FIXNUM(fc);
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
   long pos = fc >> 3;
@@ -1164,20 +1165,20 @@ LIBRARY_FUNC_BC_LOAD_NAME(STRING-REF, STRING_REF) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(VECTOR-LENGTH, VECTOR_LENGTH) {
+LIBRARY_FUNC_B_LOAD_NAME("VECTOR-LENGTH", VECTOR_LENGTH) {
   TYPECHECK_TAG(fb, VECTOR_TAG);
   auto vec = (vector_s *)(fb - VECTOR_TAG);
   frame[ra] = (long)(vec->len);
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(STRING-LENGTH, STRING_LENGTH) {
+LIBRARY_FUNC_B_LOAD_NAME("STRING-LENGTH", STRING_LENGTH) {
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
   frame[ra] = (long)(str->len);
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET) {
+LIBRARY_FUNC_BC_LOAD_NAME("VECTOR-SET!", VECTOR_SET) {
   auto fa = frame[ra];
   TYPECHECK_FIXNUM(fb);
   TYPECHECK_TAG(fa, VECTOR_TAG);
@@ -1192,7 +1193,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(VECTOR-SET!, VECTOR_SET) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(STRING-SET!, STRING_SET) {
+LIBRARY_FUNC_BC_LOAD_NAME("STRING-SET!", STRING_SET) {
   auto fa = frame[ra];
   TYPECHECK_FIXNUM(fb);
   TYPECHECK_IMMEDIATE(fc, CHAR_TAG);
@@ -1214,8 +1215,8 @@ END_LIBRARY_FUNC
   cons->field = fb;                                                            \
   END_LIBRARY_FUNC
 
-LIBRARY_FUNC_CONS_SET_OP(SET-CAR!, SET_CAR, a);
-LIBRARY_FUNC_CONS_SET_OP(SET-CDR!, SET_CDR, b);
+LIBRARY_FUNC_CONS_SET_OP("SET-CAR!", SET_CAR, a);
+LIBRARY_FUNC_CONS_SET_OP("SET-CDR!", SET_CDR, b);
 
 // Called from jit. TODO could inline in jit.
 void vm_write(long obj, long port_obj) {
@@ -1229,7 +1230,7 @@ LIBRARY_FUNC_BC_LOAD(WRITE) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(WRITE-U8, WRITE_U8) {
+LIBRARY_FUNC_BC_LOAD_NAME("WRITE-U8", WRITE_U8) {
   LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
   TYPECHECK_FIXNUM(fb);
   long byte = fb >> 3;
@@ -1242,7 +1243,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(WRITE-U8, WRITE_U8) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_BC_LOAD_NAME(WRITE-DOUBLE, WRITE_DOUBLE) {
+LIBRARY_FUNC_BC_LOAD_NAME("WRITE-DOUBLE", WRITE_DOUBLE) {
   LOAD_TYPE_WITH_CHECK(port, port_s, fc, PORT_TAG);
   TYPECHECK_TAG(fb, FLONUM_TAG);
   auto flo = (flonum_s *)(fb - FLONUM_TAG);
@@ -1251,7 +1252,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(WRITE-DOUBLE, WRITE_DOUBLE) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(SYMBOL->STRING, SYMBOL_STRING) {
+LIBRARY_FUNC_B_LOAD_NAME("SYMBOL->STRING", SYMBOL_STRING) {
   TYPECHECK_TAG(fb, SYMBOL_TAG);
   auto sym = (symbol *)(fb - SYMBOL_TAG);
   frame[ra] = sym->name;
@@ -1273,7 +1274,7 @@ long vm_string_symbol(string_s *str) {
   return inserted;
 }
 
-LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL) {
+LIBRARY_FUNC_B_LOAD_NAME("STRING->SYMBOL", STRING_SYMBOL) {
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
   auto res = symbol_table_find(str);
   if (!res) {
@@ -1284,13 +1285,13 @@ LIBRARY_FUNC_B_LOAD_NAME(STRING->SYMBOL, STRING_SYMBOL) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(CHAR->INTEGER, CHAR_INTEGER) {
+LIBRARY_FUNC_B_LOAD_NAME("CHAR->INTEGER", CHAR_INTEGER) {
   TYPECHECK_IMMEDIATE(fb, CHAR_TAG);
   frame[ra] = fb >> 5;
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(INTEGER->CHAR, INTEGER_CHAR) {
+LIBRARY_FUNC_B_LOAD_NAME("INTEGER->CHAR", INTEGER_CHAR) {
   TYPECHECK_FIXNUM(fb);
   frame[ra] = (fb << 5) + CHAR_TAG;
 }
@@ -1402,8 +1403,7 @@ LIBRARY_FUNC_B_LOAD(READ) {
 }
 END_LIBRARY_FUNC
 
-
-LIBRARY_FUNC_B_LOAD_NAME(READ-LINE, READ_LINE) {
+LIBRARY_FUNC_B_LOAD_NAME("READ-LINE", READ_LINE) {
   LOAD_TYPE_WITH_CHECK(port, port_s, fb, PORT_TAG);
   // The extra block scope here is so that gcc's optimizer
   // will know it can release bufptr stack storage, otherwise
@@ -1546,7 +1546,7 @@ long vm_cc_resume(long c) {
   return (long)&stack[cont->len >> 3];
 }
 
-LIBRARY_FUNC_BC_LOAD_NAME(CALLCC-RESUME, CALLCC_RESUME) {
+LIBRARY_FUNC_BC_LOAD_NAME("CALLCC-RESUME", CALLCC_RESUME) {
   LOAD_TYPE_WITH_CHECK(cont, vector_s, fb, CONT_TAG);
   memcpy(stack, cont->v, (cont->len >> 3) * sizeof(long));
   frame = &stack[cont->len >> 3];
@@ -1558,7 +1558,7 @@ LIBRARY_FUNC_BC_LOAD_NAME(CALLCC-RESUME, CALLCC_RESUME) {
 }
 NEXT_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(FILE-EXISTS?, FILE_EXISTS) {
+LIBRARY_FUNC_B_LOAD_NAME("FILE-EXISTS?", FILE_EXISTS) {
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG)
   if (0 == access(str->str, F_OK)) {
     frame[ra] = TRUE_REP;
@@ -1568,7 +1568,7 @@ LIBRARY_FUNC_B_LOAD_NAME(FILE-EXISTS?, FILE_EXISTS) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME(DELETE-FILE, DELETE_FILE) {
+LIBRARY_FUNC_B_LOAD_NAME("DELETE-FILE", DELETE_FILE) {
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG)
   if (0 == unlink(str->str)) {
     frame[ra] = TRUE_REP;
