@@ -6,66 +6,74 @@
 
 typedef struct symbol symbol;
 
-// clang-format off
 typedef enum {
-  IR_LT,
-  IR_GE,
-  IR_LE,
-  IR_GT,
+  IR_ARG_NONE_NONE,
+  IR_ARG_IR_NONE,
+  IR_ARG_SYM_NONE,
+  IR_ARG_SYM_IR,
+  IR_ARG_IR_TYPE,
+  IR_ARG_IR_IR,
+  IR_ARG_IR_OFFSET,
+} ir_arg_type;
 
-  IR_EQ,
-  IR_NE,
-  IR_NOP,
-  IR_KFIX,
-  IR_KFUNC,
-  IR_GGET,
-  IR_GSET,
-  IR_RET,
-  IR_CALL,
-  IR_SLOAD,
-  IR_ARG,
+#define IR_INSTRUCTIONS                                                        \
+  X(IR_LT, IR_ARG_IR_IR)                                                       \
+  X(IR_GE, IR_ARG_IR_IR)                                                       \
+  X(IR_LE, IR_ARG_IR_IR)                                                       \
+  X(IR_GT, IR_ARG_IR_IR)                                                       \
+                                                                               \
+  X(IR_EQ, IR_ARG_IR_IR)                                                       \
+  X(IR_NE, IR_ARG_IR_IR)                                                       \
+  X(IR_NOP, IR_ARG_NONE_NONE)                                                  \
+  X(IR_KFIX, IR_ARG_IR_NONE)                                                   \
+  X(IR_GGET, IR_ARG_SYM_NONE)                                                  \
+  X(IR_GSET, IR_ARG_SYM_IR)                                                    \
+  X(IR_RET, IR_ARG_IR_IR)                                                      \
+  X(IR_SLOAD, IR_ARG_IR_NONE)                                                  \
+  X(IR_ARG, IR_ARG_IR_NONE)                                                    \
+                                                                               \
+  X(IR_ADD, IR_ARG_IR_IR)                                                      \
+  X(IR_SUB, IR_ARG_IR_IR)                                                      \
+  X(IR_MUL, IR_ARG_IR_IR)                                                      \
+  X(IR_DIV, IR_ARG_IR_IR)                                                      \
+  X(IR_REM, IR_ARG_IR_IR)                                                      \
+  X(IR_AND, IR_ARG_IR_IR)                                                      \
+                                                                               \
+  X(IR_SHR, IR_ARG_IR_OFFSET)                                                  \
+                                                                               \
+  X(IR_LOOP, IR_ARG_NONE_NONE)                                                 \
+  X(IR_PHI, IR_ARG_IR_IR)                                                      \
+  X(IR_ALLOC, IR_ARG_IR_TYPE)                                                  \
+  X(IR_GCLOG, IR_ARG_IR_NONE)                                                  \
+  X(IR_REF, IR_ARG_IR_OFFSET)                                                  \
+  X(IR_STRREF, IR_ARG_IR_IR)                                                   \
+  X(IR_VREF, IR_ARG_IR_IR)                                                     \
+  X(IR_STORE, IR_ARG_IR_IR)                                                    \
+  X(IR_STRST, IR_ARG_IR_IR)                                                    \
+  X(IR_LOAD, IR_ARG_IR_NONE)                                                   \
+  X(IR_STRLD, IR_ARG_IR_IR)                                                    \
+                                                                               \
+  X(IR_ABC, IR_ARG_IR_IR)                                                      \
+                                                                               \
+  X(IR_CALLXS, IR_ARG_IR_IR)                                                   \
+  X(IR_CARG, IR_ARG_IR_IR)                                                     \
+  X(IR_FLUSH, IR_ARG_NONE_NONE)                                                \
+  X(IR_CCRES, IR_ARG_IR_IR)                                                    \
+  X(IR_SAVEAP, IR_ARG_NONE_NONE)                                               \
+  X(IR_RESAP, IR_ARG_NONE_NONE)                                                \
+                                                                               \
+  X(IR_CHGTYPE, IR_ARG_IR_NONE)                                                \
+                                                                               \
+  X(IR_NONE, IR_ARG_NONE_NONE)
 
-  IR_ADD,
-  IR_SUB,
-  IR_MUL,
-  IR_DIV,
-  IR_REM,
-  IR_AND,
-
-  IR_SHR,
-
-  IR_LOOP,
-  IR_PHI,
-
-  IR_CAR,
-  IR_CDR,
-
-  IR_ALLOC,
-  IR_GCLOG,
-  IR_REF,
-  IR_STRREF,
-  IR_VREF,
-  IR_STORE,
-  IR_STRST,
-  IR_LOAD,
-  IR_STRLD,
-
-  IR_ABC,
-
-  IR_CALLXS,
-  IR_CARG,
-  IR_FLUSH,
-  IR_CCRES,
-  IR_SAVEAP,
-  IR_RESAP,
-
-  IR_CHGTYPE,
-
-  IR_NONE,
+typedef enum {
+#define X(name, arg) name,
+  IR_INSTRUCTIONS
+#undef X
 } ir_ins_op;
 
 typedef enum {
-  SLOAD_PARENT = 1 <<0,  // Loaded from parent.
+  SLOAD_PARENT = 1 << 0, // Loaded from parent.
   SLOAD_TYPED = 1 << 1,  // Already typechecked (at parent).
 } ir_sload_tag;
 
@@ -147,6 +155,13 @@ typedef struct trace_s_s {
 #define UNROLL_ABORT_LIMIT 5
 
 static inline bool ir_is_const(const int16_t op) { return op & IR_CONST_BIAS; }
+static inline bool is_type_guard(const uint8_t type) {
+  return type & IR_INS_TYPE_GUARD;
+}
+static inline uint8_t get_type(const uint8_t type) {
+  return type & ~IR_INS_TYPE_GUARD;
+}
 
 uint32_t push_ir(trace_s *trace, ir_ins_op op, uint32_t op1, uint32_t op2,
                  uint8_t type);
+extern ir_arg_type ir_ins_arg_type[];

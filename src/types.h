@@ -1,9 +1,9 @@
 #pragma once
 
+#include "defs.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-#include "defs.h"
 
 typedef struct bcfunc bcfunc;
 
@@ -114,17 +114,51 @@ typedef void (*trace_callback)(long *field, void *ctx);
 INLINE void trace_heap_object(long *obj, trace_callback visit, void *ctx);
 
 typedef int64_t gc_obj;
-static inline symbol *to_symbol(gc_obj obj) { return (symbol*)(obj - SYMBOL_TAG);}
-static inline closure_s *to_closure(gc_obj obj) { return (closure_s*)(obj - CLOSURE_TAG);}
-static inline string_s *to_string(gc_obj obj) { return (string_s*)(obj - PTR_TAG);}
-static inline bcfunc *closure_code_ptr(closure_s *clo) { return (bcfunc*)clo->v[0];}
-static inline string_s *get_sym_name(symbol* s) { return (string_s*)(s->name - PTR_TAG);}
-static inline gc_obj tag_sym(symbol* s) { return (gc_obj)((long)s + SYMBOL_TAG); }
+static inline symbol *to_symbol(gc_obj obj) {
+  return (symbol *)(obj - SYMBOL_TAG);
+}
+static inline closure_s *to_closure(gc_obj obj) {
+  return (closure_s *)(obj - CLOSURE_TAG);
+}
+static inline string_s *to_string(gc_obj obj) {
+  return (string_s *)(obj - PTR_TAG);
+}
+static inline flonum_s *to_flonum(gc_obj obj) {
+  return (flonum_s *)(obj - FLONUM_TAG);
+}
+static inline char to_char(gc_obj obj) { return (char)(obj >> 8); }
+static inline bcfunc *closure_code_ptr(closure_s *clo) {
+  return (bcfunc *)clo->v[0];
+}
+static inline string_s *get_sym_name(symbol *s) {
+  return (string_s *)(s->name - PTR_TAG);
+}
+static inline gc_obj tag_sym(symbol *s) {
+  return (gc_obj)((long)s + SYMBOL_TAG);
+}
 static inline uint8_t get_tag(gc_obj obj) { return obj & TAG_MASK; }
-static inline bool is_closure(gc_obj obj) { return get_tag(obj) == CLOSURE_TAG; }
-static inline gc_obj tag_string(string_s* s) { return (gc_obj)((long)s + PTR_TAG); }
-static inline gc_obj tag_symbol(symbol *s) { return (gc_obj)((long)s + SYMBOL_TAG); }
-static inline gc_obj tag_flonum(flonum_s *s) { return (gc_obj)((long)s + FLONUM_TAG); }
-static inline gc_obj tag_cons(cons_s *s) { return (gc_obj)((long)s + CONS_TAG); }
-static inline gc_obj tag_vector(vector_s *s) { return (gc_obj)((long)s + VECTOR_TAG); }
-static inline gc_obj tag_closure(closure_s *s) { return (gc_obj)((long)s + CLOSURE_TAG); }
+static inline uint8_t get_imm_tag(gc_obj obj) { return obj & IMMEDIATE_MASK; }
+static inline uint32_t get_ptr_tag(gc_obj obj) {
+  return ((uint32_t *)(obj - PTR_TAG))[0];
+};
+static inline bool is_closure(gc_obj obj) {
+  return get_tag(obj) == CLOSURE_TAG;
+}
+static inline gc_obj tag_string(string_s *s) {
+  return (gc_obj)((long)s + PTR_TAG);
+}
+static inline gc_obj tag_symbol(symbol *s) {
+  return (gc_obj)((long)s + SYMBOL_TAG);
+}
+static inline gc_obj tag_flonum(flonum_s *s) {
+  return (gc_obj)((long)s + FLONUM_TAG);
+}
+static inline gc_obj tag_cons(cons_s *s) {
+  return (gc_obj)((long)s + CONS_TAG);
+}
+static inline gc_obj tag_vector(vector_s *s) {
+  return (gc_obj)((long)s + VECTOR_TAG);
+}
+static inline gc_obj tag_closure(closure_s *s) {
+  return (gc_obj)((long)s + CLOSURE_TAG);
+}

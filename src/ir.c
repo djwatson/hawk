@@ -7,6 +7,12 @@
 #include "asm_x64.h"
 #include "third-party/stb_ds.h"
 
+ir_arg_type ir_ins_arg_type[] = {
+#define X(name, arg) arg,
+    IR_INSTRUCTIONS
+#undef X
+};
+
 // clang-format off
 const char* ir_names[] = {
   "LT    ",
@@ -18,11 +24,9 @@ const char* ir_names[] = {
   "NE    ",
   "NOP   ",
   "KFIX  ",
-  "KFUNC ",
   "GGET  ",
   "GSET  ",
   "RET   ",
-  "CALL  ",
   "SLOAD ",
   "ARG   ",
 
@@ -38,8 +42,6 @@ const char* ir_names[] = {
   "LOOP  ",
   "PHI   ",
 
-  "CAR   ",
-  "CDR   ",
   "ALLOC ",
   "GCLOG ",
   "REF   ",
