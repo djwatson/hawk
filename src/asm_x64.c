@@ -137,10 +137,8 @@ static void get_reg(uint8_t reg, trace_s *trace, uint32_t *next_spill,
 static int get_free_reg(trace_s *trace, uint32_t *next_spill, int *slot,
                         bool callee) {
   for (int i = 0; i < regcnt; i++) {
-    if (slot[i] == -1) {
-      if (!callee || reg_callee[i]) {
-        return i;
-      }
+    if (slot[i] == -1 && (!callee || reg_callee[i])) {
+      return i;
     }
   }
 
@@ -161,27 +159,28 @@ static int get_free_reg(trace_s *trace, uint32_t *next_spill, int *slot,
 // Re-assign non-callee saved regs to callee saved.
 static void preserve_for_call(trace_s *trace, int *slot, uint32_t *next_spill) {
   for (int i = 0; i < regcnt; i++) {
-    if (i != RDI && slot[i] != -1 && !reg_callee[i]) {
-      auto op = slot[i];
-      auto spill = trace->ops[op].slot;
-      if (trace->ops[op].slot == SLOT_NONE) {
-        // Reload from new spill slot
-        // We don't need to store here, original instruction will store.
-        spill = (*next_spill)++;
-        if (*next_spill >= 255) {
-          printf("Too many spill slots\n");
-          exit(-1);
-        }
-      }
-      trace->ops[op].slot = spill;
-      // printf("Assigning spill slot %i to op %i, mov to reg %s\n", spill, op,
-      // reg_names[trace->ops[op].reg]);
-
-      emit_mem_reg(OP_MOV_MR, 0, R15, trace->ops[op].reg);
-      emit_mov64(R15, (int64_t)&spill_slot[trace->ops[op].slot]);
-      trace->ops[op].reg = REG_NONE;
-      slot[i] = -1;
+    if (i == RDI || slot[i] == -1 || reg_callee[i]) {
+      continue;
     }
+    auto op = slot[i];
+    auto spill = trace->ops[op].slot;
+    if (trace->ops[op].slot == SLOT_NONE) {
+      // Reload from new spill slot
+      // We don't need to store here, original instruction will store.
+      spill = (*next_spill)++;
+      if (*next_spill >= 255) {
+        printf("Too many spill slots\n");
+        exit(-1);
+      }
+    }
+    trace->ops[op].slot = spill;
+    // printf("Assigning spill slot %i to op %i, mov to reg %s\n", spill, op,
+    // reg_names[trace->ops[op].reg]);
+
+    emit_mem_reg(OP_MOV_MR, 0, R15, trace->ops[op].reg);
+    emit_mov64(R15, (int64_t)&spill_slot[trace->ops[op].slot]);
+    trace->ops[op].reg = REG_NONE;
+    slot[i] = -1;
   }
 }
 
@@ -220,33 +219,34 @@ static void assign_snap_registers(unsigned snap_num, int *slot, trace_s *trace,
   auto snap = &trace->snaps[snap_num];
   for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto s = &snap->slots[i];
-    if (!ir_is_const(s->val)) {
-      auto op = &trace->ops[s->val];
-      if (op->reg == REG_NONE && op->slot == SLOT_NONE) {
-        // Try and find a free reg, or assign the next spill slot.
-        bool done = false;
-        for (int j = 0; j < regcnt; j++) {
-          if (slot[j] == -1) {
-            op->reg = j;
-            slot[op->reg] = s->val;
-            done = true;
-            lru_poke(&reg_lru, op->reg);
-            /* printf("Assigning snap register %s to op %i\n",
-             * reg_names[op->reg], s->val); */
-            break;
-          }
-        }
-        if (!done) {
-          // Couldn't find a free reg, assign a slot.
-          op->slot = (*next_spill)++;
-          /* printf("Assigning snap slot %i to op %i\n", op->slot, s->val); */
-          if (*next_spill >= 255) {
-            printf("Too many spill slots\n");
-            exit(-1);
-          }
-        }
+    if (ir_is_const(s->val)) {
+      continue;
+    }
+    auto op = &trace->ops[s->val];
+    if (op->reg != REG_NONE || op->slot != SLOT_NONE) {
+      continue;
+    }
+    // Try and find a free reg, or assign the next spill slot.
+    bool done = false;
+    for (int j = 0; j < regcnt; j++) {
+      if (slot[j] == -1) {
+        op->reg = j;
+        slot[op->reg] = s->val;
+        done = true;
+        lru_poke(&reg_lru, op->reg);
+        /* printf("Assigning snap register %s to op %i\n",
+         * reg_names[op->reg], s->val); */
+        break;
       }
-      // maybe_assign_register(s->val, trace, slot, next_spill);
+    }
+    if (!done) {
+      // Couldn't find a free reg, assign a slot.
+      op->slot = (*next_spill)++;
+      /* printf("Assigning snap slot %i to op %i\n", op->slot, s->val); */
+      if (*next_spill >= 255) {
+        printf("Too many spill slots\n");
+        exit(-1);
+      }
     }
   }
 }
@@ -392,7 +392,7 @@ static void emit_snap(uint16_t snap, trace_s *trace, const uint16_t *ignore) {
 
 static void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
                           uint8_t reg, uint32_t op2, trace_s *trace) {
-  if ((op2 & IR_CONST_BIAS) != 0U) {
+  if (ir_is_const(op2)) {
     int64_t v = trace->consts[op2 - IR_CONST_BIAS];
     // TODO: check V is of correct type, but we typecheck return pointers also,
     // which can move.
@@ -447,12 +447,12 @@ static void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code,
   emit_jcc32(JO, offset);
 
   auto reg2 = REG_NONE;
-  if (!(op->op2 & IR_CONST_BIAS)) {
+  if (!ir_is_const(op->op2)) {
     reg2 = trace->ops[op->op2].reg;
   }
 
   auto reg1 = REG_NONE;
-  if (!(op->op1 & IR_CONST_BIAS)) {
+  if (!ir_is_const(op->op1)) {
     reg1 = trace->ops[op->op1].reg;
   }
   auto reg = op->reg;
@@ -468,7 +468,7 @@ static void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code,
   } else {
     emit_arith_op(arith_code, op_code, reg, op->op2, trace);
   }
-  if (op->op1 & IR_CONST_BIAS) {
+  if (ir_is_const(op->op1)) {
     auto c = trace->consts[op->op1 - IR_CONST_BIAS];
     auto re = (reloc){emit_offset(), c, RELOC_ABS};
     arrput(trace->relocs, re);
@@ -520,12 +520,12 @@ static void emit_cmp(enum jcc_cond cmp, ir_ins *op, trace_s *trace,
 }
 
 static void emit_op_typecheck(uint8_t reg, uint8_t type, uint64_t offset) {
-  if ((type & IR_INS_TYPE_GUARD) != 0) {
+  if (is_type_guard(type)) {
     emit_jcc32(JNE, offset);
-    if ((type & ~IR_INS_TYPE_GUARD) == 0) {
+    if (is_fixnum(get_type(type))) {
       emit_op_imm32(OP_TEST_IMM, 0, reg, 0x7);
-    } else if ((type & TAG_MASK) == PTR_TAG) {
-      emit_cmp_reg_imm32(R15, type & ~IR_INS_TYPE_GUARD);
+    } else if (is_ptr(type)) {
+      emit_cmp_reg_imm32(R15, get_type(type));
       emit_mem_reg(OP_MOV_MR, -PTR_TAG, R15, R15);
       // remove rex.W
       uint8_t *off = (uint8_t *)emit_offset();
@@ -536,13 +536,13 @@ static void emit_op_typecheck(uint8_t reg, uint8_t type, uint64_t offset) {
       emit_cmp_reg_imm32(R15, 1);
       emit_op_imm32(OP_AND_IMM, 4, R15, 0x7);
       emit_reg_reg(OP_MOV, reg, R15);
-    } else if ((type & TAG_MASK) == LITERAL_TAG) {
-      auto lit_bits = (type & IMMEDIATE_MASK) & ~IR_INS_TYPE_GUARD;
+    } else if (is_literal(type)) {
+      auto lit_bits = get_imm_tag(get_type(type));
       emit_cmp_reg_imm32(R15, lit_bits);
       emit_op_imm32(OP_AND_IMM, 4, R15, 0xff);
       emit_reg_reg(OP_MOV, reg, R15);
     } else {
-      emit_cmp_reg_imm32(R15, type & ~IR_INS_TYPE_GUARD);
+      emit_cmp_reg_imm32(R15, get_type(type));
       emit_op_imm32(OP_AND_IMM, 4, R15, 0x7);
       emit_reg_reg(OP_MOV, reg, R15);
     }
@@ -891,7 +891,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       }
       // frame pointer in RDI
       auto reg = op->reg;
-      if ((op->type & IR_INS_TYPE_GUARD) == 0) {
+      if (!is_type_guard(op->type)) {
         goto done;
       }
       emit_op_typecheck(reg, op->type, snap_labels[cur_snap]);
@@ -939,7 +939,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       maybe_assign_register(op->op2, trace, slot, &next_spill);
       assert(!(op->op1 & IR_CONST_BIAS));
       assert(trace->ops[op->op1].op == IR_STRREF);
-      if (op->op2 & IR_CONST_BIAS) {
+      if (ir_is_const(op->op2)) {
         emit_mem_reg(OP_MOV8, 0, trace->ops[op->op1].reg, R15);
         // must be fixnum
         uint8_t c = trace->consts[op->op2 - IR_CONST_BIAS] >> 8;
@@ -958,7 +958,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       assert(!(op->op1 & IR_CONST_BIAS));
       assert(trace->ops[op->op1].op == IR_REF ||
              trace->ops[op->op1].op == IR_VREF);
-      if (op->op2 & IR_CONST_BIAS) {
+      if (ir_is_const(op->op2)) {
         emit_mem_reg(OP_MOV_RM, 0, trace->ops[op->op1].reg, R15);
         auto c = trace->consts[op->op2 - IR_CONST_BIAS];
         auto re = (reloc){emit_offset(), c, RELOC_ABS};
@@ -1383,7 +1383,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       auto b = (int32_t)trace->consts[op->op2 - IR_CONST_BIAS];
 
       emit_arith_imm(OP_ARITH_SUB, RDI, b);
-      if (op->type & IR_INS_TYPE_GUARD) {
+      if (is_type_guard(op->type)) {
         auto retadd = (int64_t)(trace->consts[op->op1 - IR_CONST_BIAS]);
         emit_jcc32(JNE, snap_labels[cur_snap]);
         emit_mem_reg(OP_CMP, -8, RDI, R15);
@@ -1495,44 +1495,44 @@ int jit_run(trace_s *trace, unsigned int **o_pc, long **o_frame, long *argcnt) {
 
   restore_snap(snap, trace, &state, o_frame, o_pc);
 
-  if (exit != arrlen(trace->snaps) - 1) {
-    if (snap->exits < 255) {
-      snap->exits++;
-      if (snap->exits == 255) {
-        if (verbose) {
-          printf("Blacklist: Side max in trace %i exit %lu\n", trace->num,
-                 exit);
-        }
+  if (exit == arrlen(trace->snaps) - 1) {
+    return 0;
+  }
+  if (snap->exits < 255) {
+    snap->exits++;
+    if (snap->exits == 255) {
+      if (verbose) {
+        printf("Blacklist: Side max in trace %i exit %lu\n", trace->num, exit);
       }
     }
-    if (snap->exits >= 10) {
-      if (snap->exits % 10 == 0 && snap->exits < 250) {
-        // printf("Hot snap %li\n", exit);
-        if (INS_OP(**o_pc) == JLOOP) {
-          // printf("HOT SNAP to JLOOP\n");
-          patchpc = *o_pc;
-          patchold = **o_pc;
-          auto otrace = trace_cache_get(INS_D(**o_pc));
-          **o_pc = otrace->startpc;
-        }
-        record_side(trace, snap);
-        return 1;
+  }
+  if (snap->exits >= 10) {
+    if (snap->exits % 10 == 0 && snap->exits < 250) {
+      // printf("Hot snap %li\n", exit);
+      if (INS_OP(**o_pc) == JLOOP) {
+        // printf("HOT SNAP to JLOOP\n");
+        patchpc = *o_pc;
+        patchold = **o_pc;
+        auto otrace = trace_cache_get(INS_D(**o_pc));
+        **o_pc = otrace->startpc;
       }
+      record_side(trace, snap);
+      return 1;
     }
-    // TODO this may or may not be working as intended:
-    // Should only replace if *this trace*'s start PC is o_pc,
-    // and it's originaly a RET, i.e. we predicted the RET wrong.
-    if (INS_OP(**o_pc) == JLOOP) {
-      // TODO make work for both RET1 and JLOOP
-      auto otrace = trace_cache_get(INS_D(**o_pc));
-      if (INS_OP(otrace->startpc) == LOOP) {
-        (*o_pc)++;
-      } else {
-        *o_pc = &otrace->startpc;
-      }
-      // printf("Exit to loop\n");
-      return 0;
+  }
+  // TODO this may or may not be working as intended:
+  // Should only replace if *this trace*'s start PC is o_pc,
+  // and it's originaly a RET, i.e. we predicted the RET wrong.
+  if (INS_OP(**o_pc) == JLOOP) {
+    // TODO make work for both RET1 and JLOOP
+    auto otrace = trace_cache_get(INS_D(**o_pc));
+    if (INS_OP(otrace->startpc) == LOOP) {
+      (*o_pc)++;
+    } else {
+      *o_pc = &otrace->startpc;
     }
+    // printf("Exit to loop\n");
+    return 0;
   }
 
   // printf("FN return\n");

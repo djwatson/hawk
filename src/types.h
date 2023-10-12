@@ -154,8 +154,10 @@ static inline bool is_closure(gc_obj obj) {
 }
 static inline bool is_cons(gc_obj obj) { return get_tag(obj) == CONS_TAG; }
 static inline bool is_ptr(gc_obj obj) { return get_tag(obj) == PTR_TAG; }
+static inline bool is_literal(gc_obj obj) { return get_tag(obj) == LITERAL_TAG; }
 static inline bool is_vector(gc_obj obj) { return get_tag(obj) == VECTOR_TAG; }
 static inline bool is_flonum(gc_obj obj) { return get_tag(obj) == FLONUM_TAG; }
+static inline bool is_fixnum(gc_obj obj) { return get_tag(obj) == FIXNUM_TAG; }
 static inline gc_obj tag_string(string_s *s) {
   return (gc_obj)((int64_t)s + PTR_TAG);
 }
