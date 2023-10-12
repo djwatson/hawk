@@ -43,7 +43,8 @@ static void afl_trace(uint32_t *pc) {
   __afl_trace(start);
 }
 #else
-static void afl_trace(uint32_t *pc) {}
+
+static void afl_trace(uint32_t *pc) {} //!OCLINT
 #endif
 
 gc_obj *frame_top;
@@ -52,6 +53,10 @@ gc_obj *stack_top;
 gc_obj *stack = NULL;
 
 unsigned char hotmap[hotmap_sz];
+
+static inline uint32_t hotmap_hash(const uint32_t *pc) {
+  return (((uint64_t)pc) >> 2) & hotmap_mask;
+}
 
 static void vm_init() {
   if (stack == NULL) {
@@ -86,7 +91,7 @@ while being more portable and easier to change.
 /*   printf("pc %p %s ra %i rd %i rb %i rc %i\n", pc, name, ra, instr, \ */
 /*          instr & 0xff, (instr >> 8)); \ */
 /*   fflush(stdout); */
-typedef void (*op_func)(PARAMS);
+typedef void (*op_func)(PARAMS); //!OCLINT
 static op_func l_op_table[INS_MAX];
 static op_func l_op_table_record[INS_MAX];
 #ifdef PROFILER
@@ -114,7 +119,7 @@ bcfunc *find_func_for_frame(const uint32_t *pc) {
   exit(-1);
 }
 
-NOINLINE void FAIL_SLOWPATH(PARAMS) {
+NOINLINE void FAIL_SLOWPATH(PARAMS) { //!OCLINT
   int i = 0;
   printf("FAIL PC: %p %s\n", pc, ins_names[INS_OP(*pc)]);
   while (&frame[-1] > stack) {
@@ -137,7 +142,7 @@ NOINLINE void FAIL_SLOWPATH_ARGCNT(PARAMS) {
 }
 
 void RECORD_START(PARAMS) {
-  hotmap[(((long)pc) >> 2) & hotmap_mask] = hotmap_cnt;
+  hotmap[hotmap_hash(pc)] = hotmap_cnt;
   // Extra check: we may have attempted to start recording *during*
   // a recording.
   if (joff || (op_table_arg == (void **)l_op_table_record)) {
@@ -167,24 +172,24 @@ void RECORD(PARAMS) {
                                           argcnt);
 }
 
-static long build_list(long start, long len, const long *frame) {
-  long lst = NIL_TAG;
+static gc_obj build_list(long start, long len, const long *frame) {
+  gc_obj lst = NIL_TAG;
   // printf("Build list from %i len %i\n", start, len);
   for (long pos = start + len - 1; pos >= start; pos--) {
     GC_push_root(&lst); // TODO just save in POS instead?
-    auto c = (cons_s *)GC_malloc(sizeof(cons_s));
+    cons_s *c = GC_malloc(sizeof(cons_s));
     GC_pop_root(&lst); // TODO just save in POS instead?
     c->type = CONS_TAG;
     c->rc = 0;
     c->a = frame[pos];
     c->b = lst;
-    lst = (long)c + CONS_TAG;
+    lst = tag_cons(c);
   }
 
   return lst;
 }
 
-NOINLINE void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) {
+NOINLINE void UNDEFINED_SYMBOL_SLOWPATH(PARAMS) { //!OCLINT
   auto rd = instr;
 
   symbol *gp = (symbol *)(const_table[rd] - SYMBOL_TAG);
@@ -270,7 +275,7 @@ NOINLINE void EXPAND_STACK_SLOWPATH(PARAMS) {
   }
 
 #define TYPECHECK_TAG(val, tag)                                                \
-  if (unlikely(((val)&TAG_MASK) != (tag))) {                                   \
+  if (unlikely((get_tag(val)) != (tag))) {                                     \
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }
 #define TYPECHECK_FIXNUM(val) TYPECHECK_TAG(val, FIXNUM_TAG)
@@ -288,10 +293,10 @@ NOINLINE void EXPAND_STACK_SLOWPATH(PARAMS) {
 LIBRARY_FUNC(ILOOP) {}
 END_LIBRARY_FUNC
 LIBRARY_FUNC(LOOP) {
-  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask]) <= hotmap_loop)) {
+  if (unlikely((hotmap[hotmap_hash(pc)]) <= hotmap_loop)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
-  hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_loop;
+  hotmap[hotmap_hash(pc)] -= hotmap_loop;
 }
 END_LIBRARY_FUNC
 
@@ -307,7 +312,7 @@ LIBRARY_FUNC(FUNC) {
   if (argcnt != ra) {
     MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
   }
-  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
+  if (unlikely((hotmap[hotmap_hash(pc)] -= hotmap_rec) == 0)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
 
@@ -329,7 +334,7 @@ LIBRARY_FUNC(FUNCV) {
   if (argcnt < ra) {
     MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
   }
-  if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) == 0)) {
+  if (unlikely((hotmap[hotmap_hash(pc)] -= hotmap_rec) == 0)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
   stack_top = &frame[ra + argcnt];
@@ -352,8 +357,7 @@ LIBRARY_FUNC(CLFUNC) {
   if (argcnt != ra) {
     pc += INS_D(*(pc + 1)) + 1;
   } else {
-    if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) ==
-                 0)) {
+    if (unlikely((hotmap[hotmap_hash(pc)] -= hotmap_rec) == 0)) {
       MUSTTAIL return RECORD_START(ARGS);
     }
     pc += 2;
@@ -379,8 +383,7 @@ LIBRARY_FUNC(CLFUNCV) {
   if (argcnt < ra) {
     pc += INS_D(*(pc + 1)) + 1;
   } else {
-    if (unlikely((hotmap[(((long)pc) >> 2) & hotmap_mask] -= hotmap_rec) ==
-                 0)) {
+    if (unlikely((hotmap[hotmap_hash(pc)] -= hotmap_rec) == 0)) {
       MUSTTAIL return RECORD_START(ARGS);
     }
     stack_top = &frame[ra + argcnt];
@@ -398,7 +401,7 @@ LIBRARY_FUNC_D(KSHORT) {
   //
   // Extends sign to 64 bits, then ignores sign for shift,
   // then casts back to signed.
-  frame[ra] = (int64_t)((uint64_t)(int64_t)rd << 3);
+  frame[ra] = tag_fixnum(rd);
 }
 END_LIBRARY_FUNC
 
@@ -420,7 +423,7 @@ LIBRARY_FUNC(RET1) {
 NEXT_FUNC
 
 #define END_FUNC }
-LIBRARY_FUNC(HALT) {}
+LIBRARY_FUNC(HALT) {} //!OCLINT unused parameter
 END_FUNC
 
 // Note signed-ness of rc.
@@ -429,8 +432,7 @@ END_FUNC
   char rc = (instr >> 8) & 0xff;                                               \
   long fb = frame[rb];                                                         \
   TYPECHECK_TAG(fb, FIXNUM_TAG);                                               \
-  if (unlikely(__builtin_##op##_overflow(                                      \
-          fb, (long)((unsigned long)((long)rc) << 3), &frame[ra]))) {          \
+  if (unlikely(__builtin_##op##_overflow(fb, tag_fixnum(rc), &frame[ra]))) {   \
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }                                                                            \
   END_LIBRARY_FUNC
@@ -457,44 +459,40 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
     auto fc = frame[rc];                                                       \
     double x_b;                                                                \
     double x_c;                                                                \
-    if ((fb & TAG_MASK) == FLONUM_TAG) {                                       \
-      x_b = ((flonum_s *)(fb - FLONUM_TAG))->x;                                \
-    } else if ((fb & TAG_MASK) == FIXNUM_TAG) {                                \
-      x_b = fb >> 3;                                                           \
+    if (is_flonum(fb)) {                                                       \
+      x_b = to_flonum(fb)->x;                                                  \
+    } else if (is_fixnum(fb)) {                                                \
+      x_b = to_fixnum(fb);                                                     \
     } else {                                                                   \
       MUSTTAIL return FAIL_SLOWPATH(ARGS);                                     \
     }                                                                          \
-    if ((fc & TAG_MASK) == FLONUM_TAG) {                                       \
-      x_c = ((flonum_s *)(fc - FLONUM_TAG))->x;                                \
-    } else if ((fc & TAG_MASK) == FIXNUM_TAG) {                                \
-      x_c = fc >> 3;                                                           \
+    if (is_flonum(fc)) {                                                       \
+      x_c = to_flonum(fc)->x;                                                  \
+    } else if (is_fixnum(fc)) {                                                \
+      x_c = to_fixnum(fc);                                                     \
     } else {                                                                   \
       MUSTTAIL return FAIL_SLOWPATH(ARGS);                                     \
     }                                                                          \
                                                                                \
     stack_top = &frame[ra + 1];                                                \
-    auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));                          \
-    r->x = op2(x_b, x_c);                                                      \
-    r->type = FLONUM_TAG;                                                      \
-    r->rc = 0;                                                                 \
-    frame[ra] = (long)r | FLONUM_TAG;                                          \
+    flonum_s *r = GC_malloc(sizeof(flonum_s));                                 \
+    *r = (flonum_s){FLONUM_TAG, 0, op2(x_b, x_c)};                             \
+    frame[ra] = tag_flonum(r);                                                 \
     pc++;                                                                      \
                                                                                \
     NEXT_INSTR;                                                                \
   }                                                                            \
                                                                                \
   LIBRARY_FUNC_BC_LOAD(name)                                                   \
-  if (likely((7 & (fb | fc)) == 0)) {                                          \
+  if (likely(is_fixnums(fb, fc))) {                                            \
     overflow;                                                                  \
-  } else if (likely(((7 & fb) == (7 & fc)) && ((7 & fc) == 2))) {              \
-    auto x_b = ((flonum_s *)(fb - FLONUM_TAG))->x;                             \
-    auto x_c = ((flonum_s *)(fc - FLONUM_TAG))->x;                             \
+  } else if (likely(get_tag(fb) == get_tag(fc)) && is_flonum(fc)) {            \
+    auto x_b = to_flonum(fb)->x;                                               \
+    auto x_c = to_flonum(fc)->x;                                               \
     stack_top = &frame[ra + 1];                                                \
-    auto r = (flonum_s *)GC_malloc(sizeof(flonum_s));                          \
-    r->x = op2(x_b, x_c);                                                      \
-    r->type = FLONUM_TAG;                                                      \
-    r->rc = 0;                                                                 \
-    frame[ra] = (long)r | FLONUM_TAG;                                          \
+    flonum_s *r = GC_malloc(sizeof(flonum_s));                                 \
+    *r = (flonum_s){FLONUM_TAG, 0, op2(x_b, x_c)};                             \
+    frame[ra] = tag_flonum(r);                                                 \
   } else {                                                                     \
     MUSTTAIL return INS_##name##_SLOWPATH(ARGS);                               \
   }                                                                            \
@@ -550,7 +548,9 @@ long vm_assv(long fb, long fc) {
   while ((fc & TAG_MASK) == CONS_TAG) {
     cons_s *cell = (cons_s *)(fc - CONS_TAG);
     if ((cell->a & TAG_MASK) != CONS_TAG) {
-      // TODO error
+      // TODO(djwatson) error propagates through jit
+      printf("Invalid assoc list in jit\n");
+      exit(-1);
     }
     cons_s *cella = (cons_s *)(cell->a - CONS_TAG);
     if (fb == cella->a) {
@@ -576,7 +576,9 @@ long vm_assq(long fb, long fc) {
   while ((fc & TAG_MASK) == CONS_TAG) {
     cons_s *cell = (cons_s *)(fc - CONS_TAG);
     if ((cell->a & TAG_MASK) != CONS_TAG) {
-      // TODO error
+      // TODO(djwatson) error propagates through jit
+      printf("Invalid assoc list in jit\n");
+      exit(-1);
     }
     cons_s *cella = (cons_s *)(cell->a - CONS_TAG);
     if (fb == cella->a) {
