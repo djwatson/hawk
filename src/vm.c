@@ -36,13 +36,15 @@ EXPORT int profile = 0;
 
 bcfunc **funcs = NULL;
 #define auto __auto_type
+#ifdef AFL
 void __afl_trace(const uint32_t x);
 static void afl_trace(uint32_t *pc) {
-#ifdef AFL
   int64_t start = _mm_crc32_u64(0, (uint64_t)pc) & ((1LL << 16) - 1);
   __afl_trace(start);
-#endif
 }
+#else
+static void afl_trace(uint32_t *pc) {}
+#endif
 
 gc_obj *frame_top;
 unsigned int stacksz = 100;
@@ -553,8 +555,9 @@ long vm_assv(long fb, long fc) {
     cons_s *cella = (cons_s *)(cell->a - CONS_TAG);
     if (fb == cella->a) {
       return cell->a;
-    } else if (((fb & TAG_MASK) == FLONUM_TAG) &&
-               ((cella->a & TAG_MASK) == FLONUM_TAG)) {
+    }
+    if (((fb & TAG_MASK) == FLONUM_TAG) &&
+        ((cella->a & TAG_MASK) == FLONUM_TAG)) {
       if (((flonum_s *)(fb - FLONUM_TAG))->x ==
           ((flonum_s *)(cella->a - FLONUM_TAG))->x) {
         return cell->a;
@@ -587,16 +590,16 @@ long vm_assq(long fb, long fc) {
 LIBRARY_FUNC_BC_LOAD(ASSQ) { frame[ra] = vm_assq(fb, fc); }
 END_LIBRARY_FUNC
 
-long vm_length(long fb) {
-  uint64_t cnt = 0;
+gc_obj vm_length(gc_obj fb) {
+  int64_t cnt = 0;
   while (true) {
-    if ((fb & TAG_MASK) != CONS_TAG) {
+    if (!is_cons(fb)) {
       break;
     }
     cnt++;
-    fb = ((cons_s *)(fb - CONS_TAG))->b;
+    fb = to_cons(fb)->b;
   }
-  return cnt << 3;
+  return tag_fixnum(cnt);
 }
 
 LIBRARY_FUNC_B_LOAD(LENGTH) { frame[ra] = vm_length(fb); }
@@ -883,17 +886,13 @@ LIBRARY_FUNC_D(JFUNC) {
       }
       uint8_t typ = get_object_ir_type(frame[op->op1]);
       if ((typ & ~IR_INS_TYPE_GUARD) != (op->type & ~IR_INS_TYPE_GUARD)) {
-        /* printf("check argument match fail trace %i arg %li\n", trace->num,
-         * i); */
-        /* printf("%x vs %x\n", typ&~IR_INS_TYPE_GUARD,
-         * (op->type&~IR_INS_TYPE_GUARD)); */
-        //      exit(-1);
         match = false;
         break;
       }
     }
-    if (match)
+    if (match) {
       break;
+    }
     trace = trace->next;
   }
   if (!match) {
@@ -1107,11 +1106,12 @@ LIBRARY_FUNC_BC_NAME("MAKE-VECTOR", MAKE_VECTOR) {
 }
 END_LIBRARY_FUNC
 
-void vm_make_string(long str, long ch) {
-  string_s *s = (string_s *)(str & ~TAG_MASK);
-  char c = ch >> 8;
+void vm_make_string(gc_obj str, gc_obj ch) {
+  // TODO(djwatson) check if we can use to_string from jit
+  string_s *s = to_raw_ptr(str);
+  auto c = to_char(ch);
 
-  long len = s->len >> 3;
+  auto len = to_fixnum(s->len);
   memset(&s->str[0], c, len);
   s->str[len] = '\0';
 }
@@ -1161,13 +1161,13 @@ LIBRARY_FUNC_BC_LOAD_NAME("STRING-REF", STRING_REF) {
   if ((long)(str->len >> 3) - pos < 0) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  frame[ra] = ((uint64_t)str->str[pos] << 8) | CHAR_TAG;
+  frame[ra] = tag_char(str->str[pos]);
 }
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME("VECTOR-LENGTH", VECTOR_LENGTH) {
   TYPECHECK_TAG(fb, VECTOR_TAG);
-  auto vec = (vector_s *)(fb - VECTOR_TAG);
+  auto vec = to_vector(fb);
   frame[ra] = (long)(vec->len);
 }
 END_LIBRARY_FUNC
@@ -1312,7 +1312,7 @@ LIBRARY_FUNC_BC(OPEN) {
   port->eof = FALSE_REP;
   port->buf_sz = 0;
   port->buf_pos = 0;
-  port->in_buffer = malloc(IN_BUFFER_SZ);
+  port->in_buffer = NULL;
 
   if ((fb & TAG_MASK) == FIXNUM_TAG) {
     port->fd = frame[rb] >> 3;
@@ -1336,7 +1336,8 @@ LIBRARY_FUNC_BC(OPEN) {
     printf("FDopen fail\n");
     exit(-1);
   }
-  frame[ra] = (long)port + PTR_TAG;
+  port->in_buffer = malloc(IN_BUFFER_SZ);
+  frame[ra] = tag_port(port);
 }
 END_LIBRARY_FUNC
 
@@ -1357,18 +1358,15 @@ inline long vm_peek_char(port_s *port) {
   // TODO jit still as the ptr tag.
   port = (port_s *)((long)port - PTR_TAG);
   if (likely(port->buf_pos < port->buf_sz)) {
-    int res = port->in_buffer[port->buf_pos];
-    return (((long)res) << 8) + CHAR_TAG;
+    return tag_char(port->in_buffer[port->buf_pos]);
   }
   port->buf_pos = 0;
   port->buf_sz = fread(port->in_buffer, 1, IN_BUFFER_SZ, port->file);
   if (port->buf_sz == 0) {
     port->eof = TRUE_REP;
     return EOF_TAG;
-  } else {
-    int res = port->in_buffer[0];
-    return (((long)res) << 8) + CHAR_TAG;
   }
+  return tag_char(port->in_buffer[0]);
 }
 
 LIBRARY_FUNC_B_LOAD(PEEK) {
@@ -1381,20 +1379,15 @@ inline long vm_read_char(port_s *port) {
   // TODO jit still as the ptr tag.
   port = (port_s *)((long)port - PTR_TAG);
   if (likely(port->buf_pos < port->buf_sz)) {
-    int res = port->in_buffer[port->buf_pos];
-    port->buf_pos++;
-    return (((long)res) << 8) + CHAR_TAG;
+    return tag_char(port->in_buffer[port->buf_pos++]);
   }
-  port->buf_pos = 0;
+  port->buf_pos = 1;
   port->buf_sz = fread(port->in_buffer, 1, IN_BUFFER_SZ, port->file);
   if (port->buf_sz == 0) {
     port->eof = TRUE_REP;
     return EOF_TAG;
-  } else {
-    port->buf_pos++;
-    int res = port->in_buffer[0];
-    return (((long)res) << 8) + CHAR_TAG;
   }
+  return tag_char(port->in_buffer[0]);
 }
 
 LIBRARY_FUNC_B_LOAD(READ) {
@@ -1512,7 +1505,7 @@ LIBRARY_FUNC_FLONUM_MATH(TAN, tan);
 LIBRARY_FUNC_FLONUM_MATH(ASIN, asin);
 LIBRARY_FUNC_FLONUM_MATH(ACOS, acos);
 
-long vm_callcc(long *frame) {
+long vm_callcc(const gc_obj *frame) {
   auto sz = frame - stack;
   auto cont = (vector_s *)GC_malloc_no_collect(sz * sizeof(long) + 16);
   if (!cont) {

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -129,6 +130,9 @@ static inline string_s *to_string(gc_obj obj) {
 static inline flonum_s *to_flonum(gc_obj obj) {
   return (flonum_s *)(obj - FLONUM_TAG);
 }
+static inline int64_t to_fixnum(gc_obj obj) {
+  return obj >> 3;
+}
 static inline cons_s *to_cons(gc_obj obj) { return (cons_s *)(obj - CONS_TAG); }
 static inline vector_s *to_vector(gc_obj obj) {
   return (vector_s *)(obj - VECTOR_TAG);
@@ -158,6 +162,10 @@ static inline bool is_literal(gc_obj obj) { return get_tag(obj) == LITERAL_TAG; 
 static inline bool is_vector(gc_obj obj) { return get_tag(obj) == VECTOR_TAG; }
 static inline bool is_flonum(gc_obj obj) { return get_tag(obj) == FLONUM_TAG; }
 static inline bool is_fixnum(gc_obj obj) { return get_tag(obj) == FIXNUM_TAG; }
+static inline gc_obj tag_fixnum(int64_t num) {
+  assert(((num << 3) >> 3) == num);
+  return (gc_obj)(num << 3);
+}
 static inline gc_obj tag_string(string_s *s) {
   return (gc_obj)((int64_t)s + PTR_TAG);
 }
@@ -175,5 +183,11 @@ static inline gc_obj tag_vector(vector_s *s) {
 }
 static inline gc_obj tag_closure(closure_s *s) {
   return (gc_obj)((int64_t)s + CLOSURE_TAG);
+}
+static inline gc_obj tag_port(port_s *s) {
+  return (gc_obj)((int64_t)s + PTR_TAG);
+}
+static inline gc_obj tag_char(char ch) {
+  return (gc_obj)(((int64_t)ch << 8) + CHAR_TAG);
 }
 #define RC_FIELD(obj) ((uint32_t *)obj)[1]
