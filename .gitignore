@@ -20,3 +20,6 @@ bootstrap.c
 test/tmp3
 test/bench/foo
 test/outputs/*
+*.so
+*.dump
+*.plist

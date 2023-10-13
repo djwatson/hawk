@@ -530,9 +530,9 @@ LIBRARY_FUNC_EQ(EQ, frame[ra] = TRUE_REP, frame[ra] = FALSE_REP, 1);
 LIBRARY_FUNC_EQ(JEQ, pc += 2, pc += INS_D(*(pc + 1)) + 1, 0);
 LIBRARY_FUNC_EQ(JNEQ, pc += INS_D(*(pc + 1)) + 1, pc += 2, 0);
 
-long vm_memq(long fb, long fc) {
-  while ((fc & TAG_MASK) == CONS_TAG) {
-    cons_s *cell = (cons_s *)(fc - CONS_TAG);
+gc_obj vm_memq(gc_obj fb, gc_obj fc) {
+  while (is_cons(fc)) {
+    cons_s *cell = to_cons(fc);
     if (fb == cell->a) {
       return fc;
     }
@@ -545,21 +545,20 @@ LIBRARY_FUNC_BC_LOAD(MEMQ) { frame[ra] = vm_memq(fb, fc); }
 END_LIBRARY_FUNC
 
 long vm_assv(long fb, long fc) {
-  while ((fc & TAG_MASK) == CONS_TAG) {
-    cons_s *cell = (cons_s *)(fc - CONS_TAG);
-    if ((cell->a & TAG_MASK) != CONS_TAG) {
+  while (is_cons(fc)) {
+    cons_s *cell = to_cons(fc);
+    if (!is_cons(cell->a)) {
       // TODO(djwatson) error propagates through jit
       printf("Invalid assoc list in jit\n");
       exit(-1);
     }
-    cons_s *cella = (cons_s *)(cell->a - CONS_TAG);
+    cons_s *cella = to_cons(cell->a);
     if (fb == cella->a) {
       return cell->a;
     }
-    if (((fb & TAG_MASK) == FLONUM_TAG) &&
-        ((cella->a & TAG_MASK) == FLONUM_TAG)) {
-      if (((flonum_s *)(fb - FLONUM_TAG))->x ==
-          ((flonum_s *)(cella->a - FLONUM_TAG))->x) {
+    if (is_flonum(fb) && is_flonum(cella->a)) {
+      if (to_flonum(fb)->x ==
+          to_flonum(cella->a)->x) {
         return cell->a;
       }
     }
@@ -573,14 +572,14 @@ LIBRARY_FUNC_BC_LOAD(ASSV) { frame[ra] = vm_assv(fb, fc); }
 END_LIBRARY_FUNC
 
 long vm_assq(long fb, long fc) {
-  while ((fc & TAG_MASK) == CONS_TAG) {
-    cons_s *cell = (cons_s *)(fc - CONS_TAG);
-    if ((cell->a & TAG_MASK) != CONS_TAG) {
+  while (is_cons(fc)) {
+    cons_s *cell = to_cons(fc);
+    if (!is_cons(cell->a)) {
       // TODO(djwatson) error propagates through jit
       printf("Invalid assoc list in jit\n");
       exit(-1);
     }
-    cons_s *cella = (cons_s *)(cell->a - CONS_TAG);
+    cons_s *cella = to_cons(cell->a);
     if (fb == cella->a) {
       return cell->a;
     }
