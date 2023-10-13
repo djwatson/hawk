@@ -49,31 +49,77 @@ add_custom_target(
   COMMAND clang-format -i *.h *.c
   )
 
-# Generate the bootstrap image.
-add_custom_command(
-  OUTPUT  bootstrap.scm.bc bootstrap.c
-  COMMAND
-  mkdir -p third-party
-  COMMAND
-  rsync ${CMAKE_SOURCE_DIR}/lib/bc.chez.scm ${CMAKE_SOURCE_DIR}/lib/bc.scm ${CMAKE_SOURCE_DIR}/lib/memory_layout.scm ${CMAKE_SOURCE_DIR}/lib/passes.scm ${CMAKE_SOURCE_DIR}/lib/bootstrap.scm ${CMAKE_SOURCE_DIR}/lib/str2num.scm .
-  COMMAND
-  rsync ${CMAKE_SOURCE_DIR}/third-party/alexpander.scm third-party/.
-  COMMAND
-  ${CHEZ} --script bc.chez.scm bootstrap.scm > /dev/null
-  COMMAND
-  xxd -i bootstrap.scm.bc > bootstrap.c
-  DEPENDS ${SCM_SOURCES} opcodes.scm
-)
+# Find a suitable scheme for bootstrapping.
+# Chez and chicken have been tested, it's likely most r5rs (+ write-u8) compatible
+# schemes will work with minor changes.
+find_program(CHEZ chez)
+if (NOT CHEZ)
+  find_program(CHEZ chezscheme)
+  if (NOT CHEZ)
+    find_program(CSC csc)
+    if (NOT CSC)
+      message(FATAL_ERROR "Can't find chez scheme for bootstrapping")
+    endif()
+  endif()
+endif()
 
+# Generate the bootstrap image.
+if (CHEZ)
+  message("Using " ${CHEZ} " for bootstrapping")
+  add_custom_command(
+    OUTPUT  bootstrap.scm.bc bootstrap.c
+    COMMAND
+    mkdir -p third-party
+    COMMAND
+    rsync ${CMAKE_SOURCE_DIR}/lib/bc.chez.scm ${CMAKE_SOURCE_DIR}/lib/bc.scm ${CMAKE_SOURCE_DIR}/lib/memory_layout.scm ${CMAKE_SOURCE_DIR}/lib/passes.scm ${CMAKE_SOURCE_DIR}/lib/bootstrap.scm ${CMAKE_SOURCE_DIR}/lib/str2num.scm .
+    COMMAND
+    rsync ${CMAKE_SOURCE_DIR}/third-party/alexpander.scm third-party/.
+    COMMAND
+    ${CHEZ} --script bc.chez.scm bootstrap.scm > /dev/null
+    COMMAND
+    xxd -i bootstrap.scm.bc > bootstrap.c
+    DEPENDS ${SCM_SOURCES} opcodes.scm
+    )
 # Generate the opcodes
 add_custom_command(
   OUTPUT opcodes.c opcodes.h opcodes-table.h opcodes.scm
   COMMAND
   rsync ${CMAKE_SOURCE_DIR}/lib/opcode_gen.scm ${CMAKE_SOURCE_DIR}/lib/util.scm ${CMAKE_SOURCE_DIR}/src/vm.c .
   COMMAND
-  ${CHEZ} --script ${CMAKE_SOURCE_DIR}/lib/opcode_gen.scm
+  ${CHEZ} --script ${CMAKE_SOURCE_DIR}/lib/opcode_gen.chez.scm
   DEPENDS ${CMAKE_SOURCE_DIR}/lib/util.scm ${CMAKE_SOURCE_DIR}/lib/opcode_gen.scm vm.c
 )
+else()
+  message("Using " ${CSC} " for bootstrapping")
+  add_custom_command(
+    OUTPUT  bootstrap.scm.bc bootstrap.c
+    COMMAND
+    mkdir -p third-party
+    COMMAND
+    rsync ${CMAKE_SOURCE_DIR}/lib/bc.chicken.scm ${CMAKE_SOURCE_DIR}/lib/bc.scm ${CMAKE_SOURCE_DIR}/lib/memory_layout.scm ${CMAKE_SOURCE_DIR}/lib/passes.scm ${CMAKE_SOURCE_DIR}/lib/bootstrap.scm ${CMAKE_SOURCE_DIR}/lib/str2num.scm .
+    COMMAND
+    rsync ${CMAKE_SOURCE_DIR}/third-party/alexpander.scm third-party/.
+    COMMAND
+    ${CSC} bc.chicken.scm
+    COMMAND
+    ./bc.chicken bootstrap.scm > /dev/null
+    COMMAND
+    xxd -i bootstrap.scm.bc > bootstrap.c
+    DEPENDS ${SCM_SOURCES} opcodes.scm
+    )
+# Generate the opcodes
+add_custom_command(
+  OUTPUT opcodes.c opcodes.h opcodes-table.h opcodes.scm
+  COMMAND
+  rsync ${CMAKE_SOURCE_DIR}/lib/opcode_gen.scm ${CMAKE_SOURCE_DIR}/lib/util.scm ${CMAKE_SOURCE_DIR}/src/vm.c .
+  COMMAND
+  ${CSC} ${CMAKE_SOURCE_DIR}/lib/opcode_gen.chicken.scm
+  COMMAND
+  ${CMAKE_SOURCE_DIR}/lib/opcode_gen.chicken
+  DEPENDS ${CMAKE_SOURCE_DIR}/lib/util.scm ${CMAKE_SOURCE_DIR}/lib/opcode_gen.scm vm.c
+)
+endif()
+
 
 # Actual executable
 add_executable(hawk  hawk.c)

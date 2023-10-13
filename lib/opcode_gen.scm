@@ -1,5 +1,4 @@
 (include "util.scm")
-(define (open-output-file-chez f) (open-output-file f 'replace ))
 
 (define opcodes '())
 
@@ -59,7 +58,7 @@
 		   (iota (length opcodes))))
 
 
-(define opcode-cpp (open-output-file-chez "opcodes.c"))
+(define opcode-cpp (open-output-file-generic "opcodes.c"))
 (display "const char* ins_names[] = {\n" opcode-cpp)
 (for-each (lambda (op)
 	    (display (format "  \"~a\",\n" (symbol->string (car op))) opcode-cpp)
@@ -67,7 +66,7 @@
 (display "};\n" opcode-cpp)
 (close-output-port opcode-cpp)
 
-(define opcode-h (open-output-file-chez "opcodes.h"))
+(define opcode-h (open-output-file-generic "opcodes.h"))
 (display "#pragma once\n\n" opcode-h)
 (display "extern const char* ins_names[];\n" opcode-h)
 (display "enum {\n" opcode-h)
@@ -78,7 +77,7 @@
 (display "};\n" opcode-h)
 (close-output-port opcode-h)
 
-(define op-table-h (open-output-file-chez "opcodes-table.h"))
+(define op-table-h (open-output-file-generic "opcodes-table.h"))
 (display "#ifdef PROFILER\n" op-table-h)
 (for-each (lambda (op)
 	    (display (format "void INS_PROFILE_~a(unsigned char ra, unsigned instr, unsigned *pc, long *frame, void **op_table_arg, long argcnt) {\n" (caddr op)) op-table-h)
@@ -99,7 +98,7 @@
 
 (close-output-port op-table-h)
 
-(define opcode-scm (open-output-file-chez "opcodes.scm"))
+(define opcode-scm (open-output-file-generic "opcodes.scm"))
 (display "(define opcodes '(\n" opcode-scm)
 (for-each (lambda (op)
 	    (display (format "  (~a ~a)\n" (symbol->string (car op)) (cadr op)) opcode-scm))

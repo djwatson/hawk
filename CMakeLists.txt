@@ -78,19 +78,6 @@ option(JIT "Enable JIT" ON)
 # the profiler is optional
 option(PROFILER "Enable PROFILER" OFF)
 
-# Find a suitable scheme for bootstrapping.
-# Chez and chicken have been tested, it's likely most r5rs (+ write-u8) compatible
-# schemes will work with minor changes.
-find_program(CHEZ chez)
-if (NOT CHEZ)
-  find_program(CHEZ chezscheme)
-  if (NOT CHEZ)
-    message(FATAL_ERROR "Can't find chez scheme for bootstrapping")
-  endif()
-endif()
-message("Using " ${CHEZ} " for bootstrapping")
-
-
 # PIE turned off for testing, since we JIT hot function detection is based on address of the function.
 include(CheckPIESupported)
 check_pie_supported()
