@@ -1,7 +1,7 @@
 
   set(SOURCES readbc.c opcodes.c vm.c bootstrap.c ir.c types.c symbol_table.c gc.c opcodes.h  parallel_copy.c lru.c  third-party/stb_ds.c unionfind.c trace_dump.c jit_stubs.s)
 set(SCM_SOURCES ../lib/bc.scm ../lib/passes.scm ../lib/bootstrap.scm ../lib/memory_layout.scm ../lib/bc.chez.scm ../lib/bc.chicken.scm ../lib/util.scm ../lib/str2num.scm)
-set(COMPILE_FLAGS  -Wall -Wextra -std=gnu11 -I${CMAKE_BINARY_DIR}/src -msse4 -fvisibility=hidden -fomit-frame-pointer -fno-exceptions -Wno-strict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference -Wno-sign-compare -Wno-type-limits -Wno-unused-command-line-argument)
+set(COMPILE_FLAGS -Wall -Wextra -std=gnu11 -I${CMAKE_BINARY_DIR}/src -msse4 -fvisibility=hidden -fomit-frame-pointer -fno-exceptions -Wno-strict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference -Wno-sign-compare -Wno-type-limits -Wno-unused-command-line-argument)
 set(LIBRARIES "m")
 if (JIT) 
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DJIT")
@@ -27,6 +27,7 @@ add_library(hawk_vm ${SOURCES} )
 add_library(hawk_exe exe.c)
 
 target_compile_options(hawk_vm PRIVATE  ${COMPILE_FLAGS} )
+target_link_options(hawk_vm PUBLIC -Wl,--gc-sections)
 target_compile_options(hawk_exe PRIVATE ${COMPILE_FLAGS} )
 set_property(TARGET hawk_vm PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 set_property(TARGET hawk_exe PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
