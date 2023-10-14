@@ -19,9 +19,9 @@ extern bcfunc **funcs;
 #define hotmap_tail_rec 1
 #define hotmap_mask (hotmap_sz - 1)
 
-gc_obj vm_read_char(port_s *port);
-gc_obj vm_peek_char(port_s *port);
-gc_obj vm_string_symbol(string_s *str);
+gc_obj vm_read_char(gc_obj p);
+gc_obj vm_peek_char(gc_obj p);
+gc_obj vm_string_symbol(gc_obj in);
 void vm_write(gc_obj obj, gc_obj port);
 void vm_make_string(gc_obj str, gc_obj ch);
 void vm_make_vector(gc_obj vec, gc_obj v);

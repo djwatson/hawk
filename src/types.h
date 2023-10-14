@@ -135,6 +135,7 @@ static inline cons_s *to_cons(gc_obj obj) { return (cons_s *)(obj - CONS_TAG); }
 static inline vector_s *to_vector(gc_obj obj) {
   return (vector_s *)(obj - VECTOR_TAG);
 }
+static inline port_s *to_port(gc_obj obj) { return (port_s *)(obj - PTR_TAG); }
 static inline char to_char(gc_obj obj) { return (obj >> 8); }
 static inline bcfunc *closure_code_ptr(closure_s *clo) {
   return (bcfunc *)clo->v[0];
@@ -158,6 +159,9 @@ static inline bool is_cons(gc_obj obj) { return get_tag(obj) == CONS_TAG; }
 static inline bool is_ptr(gc_obj obj) { return get_tag(obj) == PTR_TAG; }
 static inline bool is_literal(gc_obj obj) {
   return get_tag(obj) == LITERAL_TAG;
+}
+static inline bool is_string(gc_obj obj) {
+  return is_ptr(obj) && get_ptr_tag(obj) == STRING_TAG;
 }
 static inline bool is_vector(gc_obj obj) { return get_tag(obj) == VECTOR_TAG; }
 static inline bool is_flonum(gc_obj obj) { return get_tag(obj) == FLONUM_TAG; }
