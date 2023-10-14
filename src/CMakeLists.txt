@@ -87,7 +87,7 @@ if(SCHEME_BOOT)
     )
   # Generate the opcodes
   add_custom_command(
-    OUTPUT ${CMAKE_SOURCE_DIR}/src/opcodes.c ${CMAKE_SOURCE_DIR}/src/opcodes.h ${CMAKE_SOURCE_DIR}/src/opcodes-table.h ${CMAKE_SOURCE_DIR}/lib/opcodes.scm
+    OUTPUT ${CMAKE_SOURCE_DIR}/src/opcodes-gen.h ${CMAKE_SOURCE_DIR}/lib/opcodes.scm
     COMMAND
     ${SCHEME_BOOT} ${SCHEME_BOOT_SCRIPT}  ${CMAKE_SOURCE_DIR}/lib/opcode_gen${SCHEME_BOOT_EXT}.scm
     DEPENDS ${CMAKE_SOURCE_DIR}/lib/util.scm ${CMAKE_SOURCE_DIR}/lib/opcode_gen.scm ${CMAKE_SOURCE_DIR}/src/vm.c

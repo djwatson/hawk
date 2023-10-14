@@ -1593,9 +1593,31 @@ void INS_PROFILE_CALLCC_RESUME_ADJ(PARAMS) {
   MUSTTAIL return INS_CALLCC_RESUME(ARGS);
 }
 #endif
-//////////////
 
-#include "opcodes-table.h"
+////////////// Generate the instruction tables.
+
+#ifdef PROFILER
+#define X(name,str)				\
+static void INS_PROFILE_##name(PARAMS) {	\
+  profile_set_pc(pc);				\
+  MUSTTAIL return INS_##name(ARGS);		\
+}
+BYTECODE_INSTRUCTIONS
+#undef X
+#endif
+
+static void opcode_table_init() {
+#ifdef PROFILER
+#define X(name,str) l_op_table_profile[name] = INS_PROFILE_##name;
+BYTECODE_INSTRUCTIONS
+#undef X
+#endif
+#define X(name,str) l_op_table[name] = INS_##name;
+BYTECODE_INSTRUCTIONS
+#undef X
+}
+
+// Main function runner.
 
 EXPORT void run(bcfunc *func, long argcnt, const long *args) {
   vm_init();
