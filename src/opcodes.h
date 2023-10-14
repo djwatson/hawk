@@ -2,10 +2,10 @@
 
 #include "opcodes-gen.h"
 
-extern const char* ins_names[];
+extern const char *ins_names[];
 enum {
-#define X(name,str) name,
+#define X(name, str) name,
   BYTECODE_INSTRUCTIONS
 #undef X
-  INS_MAX
+      INS_MAX
 };

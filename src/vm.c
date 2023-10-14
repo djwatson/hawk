@@ -557,8 +557,7 @@ long vm_assv(long fb, long fc) {
       return cell->a;
     }
     if (is_flonum(fb) && is_flonum(cella->a)) {
-      if (to_flonum(fb)->x ==
-          to_flonum(cella->a)->x) {
+      if (to_flonum(fb)->x == to_flonum(cella->a)->x) {
         return cell->a;
       }
     }
@@ -1597,23 +1596,23 @@ void INS_PROFILE_CALLCC_RESUME_ADJ(PARAMS) {
 ////////////// Generate the instruction tables.
 
 #ifdef PROFILER
-#define X(name,str)				\
-static void INS_PROFILE_##name(PARAMS) {	\
-  profile_set_pc(pc);				\
-  MUSTTAIL return INS_##name(ARGS);		\
-}
+#define X(name, str)                                                           \
+  static void INS_PROFILE_##name(PARAMS) {                                     \
+    profile_set_pc(pc);                                                        \
+    MUSTTAIL return INS_##name(ARGS);                                          \
+  }
 BYTECODE_INSTRUCTIONS
 #undef X
 #endif
 
 static void opcode_table_init() {
 #ifdef PROFILER
-#define X(name,str) l_op_table_profile[name] = INS_PROFILE_##name;
-BYTECODE_INSTRUCTIONS
+#define X(name, str) l_op_table_profile[name] = INS_PROFILE_##name;
+  BYTECODE_INSTRUCTIONS
 #undef X
 #endif
-#define X(name,str) l_op_table[name] = INS_##name;
-BYTECODE_INSTRUCTIONS
+#define X(name, str) l_op_table[name] = INS_##name;
+  BYTECODE_INSTRUCTIONS
 #undef X
 }
 
