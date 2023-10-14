@@ -26,7 +26,7 @@ void vm_write(gc_obj obj, gc_obj port);
 void vm_make_string(gc_obj str, gc_obj ch);
 void vm_make_vector(gc_obj vec, gc_obj v);
 gc_obj vm_callcc(const gc_obj *frame);
-gc_obj vm_cc_resume(gc_obj c);
+gc_obj *vm_cc_resume(gc_obj c);
 void expand_stack(gc_obj **o_frame);
 gc_obj vm_length(gc_obj fb);
 gc_obj vm_memq(gc_obj fb, gc_obj fc);

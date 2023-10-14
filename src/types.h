@@ -91,9 +91,11 @@ typedef struct cons_s {
 typedef struct closure_s {
   uint32_t type;
   uint32_t rc;
-  uint64_t len;
+  gc_obj len;
   gc_obj v[];
 } closure_s;
+
+typedef closure_s cont_s;
 
 typedef struct port_s {
   uint32_t type;
@@ -121,6 +123,9 @@ static inline symbol *to_symbol(gc_obj obj) {
 }
 static inline closure_s *to_closure(gc_obj obj) {
   return (closure_s *)(obj - CLOSURE_TAG);
+}
+static inline cont_s *to_cont(gc_obj obj) {
+  return (cont_s *)(obj - PTR_TAG);
 }
 // This one is not PTR, but anything!
 static inline void *to_raw_ptr(gc_obj obj) { return (void *)(obj & ~TAG_MASK); }
@@ -187,6 +192,9 @@ static inline gc_obj tag_cons(cons_s *s) {
 }
 static inline gc_obj tag_vector(vector_s *s) {
   return (gc_obj)((int64_t)s + VECTOR_TAG);
+}
+static inline gc_obj tag_cont(closure_s *s) {
+  return (gc_obj)((int64_t)s + PTR_TAG);
 }
 static inline gc_obj tag_closure(closure_s *s) {
   return (gc_obj)((int64_t)s + CLOSURE_TAG);
