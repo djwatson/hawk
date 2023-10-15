@@ -32,3 +32,7 @@ gc_obj vm_length(gc_obj fb);
 gc_obj vm_memq(gc_obj fb, gc_obj fc);
 gc_obj vm_assq(gc_obj fb, gc_obj fc);
 gc_obj vm_assv(gc_obj fb, gc_obj fc);
+
+static inline uint32_t hotmap_hash(const uint32_t *pc) {
+  return (((uint64_t)pc) >> 2) & hotmap_mask;
+}

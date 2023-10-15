@@ -54,7 +54,7 @@ uint16_t max_slot3(uint32_t i) {
   return c;
 }
 
-long func;
+bcfunc *func;
 uint16_t regs_list[257];
 uint16_t *regs = &regs_list[1];
 snap_s *side_exit = nullptr;
@@ -94,69 +94,68 @@ uint32_t find_penalty_pc(const uint32_t *pc) {
 void penalty_pc(uint32_t *pc) {
   uint32_t i = 0;
   for (; i < blacklist_slot; i++) {
-    if (blacklist[i].pc == pc) {
-      if (blacklist[i].cnt >= BLACKLIST_MAX) {
-        if (verbose) {
-          printf("Blacklist pc %p\n", pc);
-        }
-        if (INS_OP(*pc) == FUNC) {
-          *pc = ((*pc) & ~0xff) + IFUNC;
-        } else if (INS_OP(*pc) == FUNCV) {
-          *pc = ((*pc) & ~0xff) + IFUNCV;
-        } else if (INS_OP(*pc) == CLFUNC) {
-          *pc = ((*pc) & ~0xff) + ICLFUNC;
-        } else if (INS_OP(*pc) == CLFUNCV) {
-          *pc = ((*pc) & ~0xff) + ICLFUNCV;
-        } else if (INS_OP(*pc) == LOOP) {
-          *pc = ((*pc) & ~0xff) + ILOOP;
-        } else if (INS_OP(*pc) == JLOOP) {
-          auto startpc = trace_cache_get(INS_D(*pc))->startpc;
-          if (INS_OP(startpc) == LOOP) {
-            trace_cache_get(INS_D(*pc))->startpc = (startpc & ~0xff) + ILOOP;
-          } else {
-            trace_cache_get(INS_D(*pc))->startpc = (startpc & ~0xff) + IRET1;
-          }
-        } else if (INS_OP(*pc) == JFUNC) {
-          auto ctrace = trace_cache_get(INS_D(*pc));
-          auto op = ctrace->startpc & 0xff;
-          auto oldpc = ctrace->startpc & ~0xff;
-          if (op == FUNC) {
-            ctrace->startpc = oldpc + IFUNC;
-          } else if (op == CLFUNC) {
-            ctrace->startpc = oldpc + ICLFUNC;
-          } else if (op == FUNCV) {
-            ctrace->startpc = oldpc + IFUNCV;
-          } else if (op == CLFUNCV) {
-            ctrace->startpc = oldpc + ICLFUNCV;
-          }
-        } else if (INS_OP(*pc) == RET1) {
-          *pc = ((*pc) & ~0xff) + IRET1;
-        } else {
-          printf("Could not blacklist %s\n", ins_names[INS_OP(*pc)]);
-          exit(-1);
-        }
-        int64_t next = i + 1;
-        while (next < blacklist_slot) {
-          blacklist_entry tmp = blacklist[next];
-          blacklist[next - 1] = blacklist[next];
-          blacklist[next] = tmp;
-          next++;
-        }
-        blacklist_slot--;
-      } else {
-        blacklist[i].cnt++;
-        // printf("Blacklist cnt now %i slot %i sz %i\n", blacklist[i].cnt, i,
-        // blacklist_slot);
-        int64_t prev = (int64_t)i - 1;
-        while (prev >= 0 && blacklist[prev].cnt <= blacklist[prev + 1].cnt) {
-          blacklist_entry tmp = blacklist[prev];
-          blacklist[prev] = blacklist[prev + 1];
-          blacklist[prev + 1] = tmp;
-          prev--;
-        }
-      }
-      return;
+    if (blacklist[i].pc != pc) {
+      continue;
     }
+    if (blacklist[i].cnt >= BLACKLIST_MAX) {
+      if (verbose) {
+        printf("Blacklist pc %p\n", pc);
+      }
+      if (INS_OP(*pc) == FUNC) {
+        *pc = ((*pc) & ~0xff) + IFUNC;
+      } else if (INS_OP(*pc) == FUNCV) {
+        *pc = ((*pc) & ~0xff) + IFUNCV;
+      } else if (INS_OP(*pc) == CLFUNC) {
+        *pc = ((*pc) & ~0xff) + ICLFUNC;
+      } else if (INS_OP(*pc) == CLFUNCV) {
+        *pc = ((*pc) & ~0xff) + ICLFUNCV;
+      } else if (INS_OP(*pc) == LOOP) {
+        *pc = ((*pc) & ~0xff) + ILOOP;
+      } else if (INS_OP(*pc) == JLOOP) {
+        auto startpc = trace_cache_get(INS_D(*pc))->startpc;
+        if (INS_OP(startpc) == LOOP) {
+          trace_cache_get(INS_D(*pc))->startpc = (startpc & ~0xff) + ILOOP;
+        } else {
+          trace_cache_get(INS_D(*pc))->startpc = (startpc & ~0xff) + IRET1;
+        }
+      } else if (INS_OP(*pc) == JFUNC) {
+        auto ctrace = trace_cache_get(INS_D(*pc));
+        auto op = ctrace->startpc & 0xff;
+        auto oldpc = ctrace->startpc & ~0xff;
+        if (op == FUNC) {
+          ctrace->startpc = oldpc + IFUNC;
+        } else if (op == CLFUNC) {
+          ctrace->startpc = oldpc + ICLFUNC;
+        } else if (op == FUNCV) {
+          ctrace->startpc = oldpc + IFUNCV;
+        } else if (op == CLFUNCV) {
+          ctrace->startpc = oldpc + ICLFUNCV;
+        }
+      } else if (INS_OP(*pc) == RET1) {
+        *pc = ((*pc) & ~0xff) + IRET1;
+      } else {
+        printf("Could not blacklist %s\n", ins_names[INS_OP(*pc)]);
+        exit(-1);
+      }
+      int64_t next = i + 1;
+      while (next < blacklist_slot) {
+        blacklist_entry tmp = blacklist[next];
+        blacklist[next - 1] = blacklist[next];
+        blacklist[next] = tmp;
+        next++;
+      }
+      blacklist_slot--;
+    } else {
+      blacklist[i].cnt++;
+      int64_t prev = (int64_t)i - 1;
+      while (prev >= 0 && blacklist[prev].cnt <= blacklist[prev + 1].cnt) {
+        blacklist_entry tmp = blacklist[prev];
+        blacklist[prev] = blacklist[prev + 1];
+        blacklist[prev + 1] = tmp;
+        prev--;
+      }
+    }
+    return;
   }
 
   // Didn't find it, add it to the list.
@@ -181,11 +180,11 @@ void pendpatch() {
   }
 }
 
-void trace_flush(trace_s *ctrace, bool all) {
+void trace_flush(trace_s *ctrace_start, bool all) {
   trace_s **q = NULL;
-  arrput(q, ctrace);
+  arrput(q, ctrace_start);
   while (arrlen(q)) {
-    ctrace = arrpop(q);
+    auto ctrace = arrpop(q);
     *ctrace->start = ctrace->startpc;
     for (uint32_t i = 0; i < arrlen(ctrace->syms); i++) {
       auto csym = ctrace->syms[i];
@@ -242,10 +241,10 @@ void record_start(unsigned int *pc, long *frame, long argcnt) {
   trace_state = START;
   unroll = 0;
   if (verbose) {
-    func = (long)find_func_for_frame(pc);
+    func = find_func_for_frame(pc);
     assert(func);
     printf("Record start %i at %s func %s\n", trace->num,
-           ins_names[INS_OP(*pc)], ((bcfunc *)func)->name);
+           ins_names[INS_OP(*pc)], func->name);
     if (parent != nullptr) {
       printf("Parent %i exit ir %i\n", parent->num, side_exit->ir);
     }
@@ -306,13 +305,13 @@ void record_start(unsigned int *pc, long *frame, long argcnt) {
 extern int joff;
 extern unsigned TRACE_MAX;
 
-void record_stop(unsigned int *pc, long *frame, int link) {
+static void record_stop(unsigned int *pc, int link) {
   auto offset = regs - regs_list - 1;
   add_snap(regs_list, (int)offset, trace, pc, depth, stack_top);
-  if (link == (int)arrlen(traces) && offset == 0) {
-    // Attempt to loop-fiy it.
-    // opt_loop(trace, regs);
-  }
+  /* if (link == (int)arrlen(traces) && offset == 0) { */
+  /*   // Attempt to loop-fiy it. */
+  /*   opt_loop(trace, regs); */
+  /* } */
 
   // if (arrlen(trace->ops) <= 3) {
   //   printf("Record abort: trace too small\n");
@@ -321,9 +320,9 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   // }
 
   pendpatch();
-  hmfree(tailcalled);
+  hmfree(tailcalled); //!OCLINT
 
-  if (side_exit != nullptr) {
+  if (side_exit) {
     if (verbose) {
       printf("Hooking to parent trace\n");
     }
@@ -363,7 +362,6 @@ void record_stop(unsigned int *pc, long *frame, int link) {
   arrfree(downrec);
   trace = nullptr;
   parent = nullptr;
-  // joff = 1;
 }
 
 void record_abort() {
@@ -386,7 +384,7 @@ void record_abort() {
   arrfree(trace->relocs);
   arrfree(trace->ops);
   arrfree(trace->snaps);
-  hmfree(tailcalled);
+  hmfree(tailcalled); //!OCLINT
 
   pendpatch();
   free(trace);
@@ -420,15 +418,13 @@ int record(unsigned int *pc, long *frame, long argcnt) {
       trace_state = TRACING;
     }
     return res;
-    break;
   }
   case TRACING: {
     pendpatch();
-    auto res = record_instr(pc, frame, argcnt);
-    return res;
-    break;
+    return record_instr(pc, frame, argcnt);
   }
-  default: {
+  default:
+  case START: {
     printf("BAD TRACE STATE %i\n", trace_state);
     exit(-1);
     return 1;
@@ -445,19 +441,13 @@ int record(unsigned int *pc, long *frame, long argcnt) {
 //      of the load instruction instead.
 // TODO: for records we may need a different strategy.
 uint8_t get_object_ir_type(int64_t obj) {
-  uint8_t t;
-  if ((obj & TAG_MASK) == PTR_TAG) {
-    int64_t *objp = (int64_t *)(obj - PTR_TAG);
-    t = (*objp) & IMMEDIATE_MASK;
-  } else if ((obj & TAG_MASK) == LITERAL_TAG) {
-    t = obj & IMMEDIATE_MASK;
-  } else {
-    t = obj & TAG_MASK;
+  if (is_ptr(obj)) {
+    return get_ptr_tag(obj);
   }
-  if (t == PTR_TAG) {
-    assert(false);
+  if (is_literal(obj)) {
+    return get_imm_tag(obj);
   }
-  return t;
+  return get_tag(obj);
 }
 
 int record_stack_load(int slot, const long *frame) {
@@ -514,15 +504,16 @@ void record_funcv(uint32_t i, uint32_t *pc, long *frame, long argcnt) {
   arrfree(locs);
 }
 
-void check_emit_funcv(uint32_t startpc, uint32_t *pc, long *frame,
-                      long argcnt) {
+static void check_emit_funcv(uint32_t startpc, uint32_t *pc, long *frame,
+                             long argcnt) {
   if (INS_OP(startpc) == FUNCV || INS_OP(startpc) == CLFUNCV) {
     stack_top = argcnt;
     record_funcv(startpc, pc, frame, argcnt);
   }
 }
 
-trace_s *check_argument_match(long *frame, trace_s *ptrace) {
+static trace_s *check_argument_match(trace_s *pt) {
+  auto ptrace = pt;
   while (ptrace) {
     bool found = true;
     for (uint64_t i = 0; i < arrlen(ptrace->ops); i++) {
@@ -532,17 +523,12 @@ trace_s *check_argument_match(long *frame, trace_s *ptrace) {
       }
       assert(regs[op->op1] != REGS_NONE);
       uint8_t typ;
-      if (regs[op->op1] & IR_CONST_BIAS) {
+      if (ir_is_const(regs[op->op1])) {
         typ = get_object_ir_type(trace->consts[regs[op->op1] - IR_CONST_BIAS]);
       } else {
         typ = trace->ops[regs[op->op1]].type;
       }
-      if ((typ & ~IR_INS_TYPE_GUARD) != (op->type & ~IR_INS_TYPE_GUARD)) {
-        /* printf("check argument match fail trace %i arg %li\n", ptrace->num,
-         * i); */
-        /* printf("%x vs %x\n", typ&~IR_INS_TYPE_GUARD,
-         * (op->type&~IR_INS_TYPE_GUARD)); */
-        // exit(-1);
+      if (get_type(typ) != get_type(op->type)) {
         found = false;
         break;
       }
@@ -581,12 +567,12 @@ static bool do_compare(uint8_t op, long v1, long v2) {
     return v1 != v2;
   default:
     abort();
+    break;
   }
 }
 
 static int record_comp2(uint8_t bc, uint8_t true_op, uint8_t false_op,
-                        uint8_t a, uint8_t b, uint8_t c, long *frame,
-                        uint32_t *pc, bool typecheck) {
+                        uint8_t a, uint8_t b, uint8_t c, long *frame) {
   uint32_t op1 = record_stack_load(b, frame);
   uint32_t op2 = record_stack_load(c, frame);
   int64_t v1 = frame[b];
@@ -699,24 +685,24 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     stack_top = INS_A(i) + INS_B(i);
     if ((pc == pc_start) && (depth == 0) && (trace_state == TRACING) &&
         INS_OP(trace->startpc) != RET1 && parent == nullptr) {
-      auto link_trace = check_argument_match(frame, trace);
+      auto link_trace = check_argument_match(trace);
       if (link_trace) {
         if (verbose) {
           printf("Record stop loop\n");
         }
-        record_stop(pc, frame, link_trace->num);
+        record_stop(pc, link_trace->num);
         return 1;
       }
     }
     if ((trace_state != START) && (!parent || (unroll++ >= 3))) {
       // TODO check the way luajit does it
-      if (!parent) {
+      if (parent) {
         if (verbose) {
-          printf("Record abort: Root trace hit untraced loop\n");
+          printf("Record abort: Unroll limit reached in loop for side trace\n");
         }
       } else {
         if (verbose) {
-          printf("Record abort: Unroll limit reached in loop for side trace\n");
+          printf("Record abort: Root trace hit untraced loop\n");
         }
       }
       hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
@@ -773,23 +759,23 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     // use the loop construct.
     if (pc == pc_start && parent == NULL) {
       if ((hmget(tailcalled, pc)) >= UNROLL_LIMIT && depth == 0) {
-        auto link_trace = check_argument_match(frame, trace);
+        auto link_trace = check_argument_match(trace);
         if (link_trace) {
           if (verbose) {
             printf("Record stop loop\n");
           }
-          record_stop(pc, frame, link_trace->num);
+          record_stop(pc, link_trace->num);
           return 1;
         }
       } else if (cnt > UNROLL_LIMIT && depth != 0) {
         // Don't test on 'tailcalled' here, since up-recursion
         // can't be a tailcall.
-        auto link_trace = check_argument_match(frame, trace);
+        auto link_trace = check_argument_match(trace);
         if (link_trace) {
           if (verbose) {
             printf("Record stop up-recursion\n");
           }
-          record_stop(pc, frame, link_trace->num);
+          record_stop(pc, link_trace->num);
           return 1;
         }
       }
@@ -805,10 +791,9 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
             pendpatch();
             penalty_pc(pc);
             trace_flush(traces[INS_D(*pc)], false);
-            hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
           }
         }
-        hotmap[(((long)pc) >> 2) & hotmap_mask] = 1;
+        hotmap[hotmap_hash(pc)] = 1;
         if (verbose) {
           printf("Record abort: unroll limit reached\n");
         }
@@ -884,7 +869,7 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     regs = &regs_list[1];
     regs[frame_off] = result;
     knum = arrlen(trace->consts);
-    arrput(trace->consts, (long)old_pc);
+    arrput(trace->consts, (gc_obj)old_pc);
     auto knum2 = arrlen(trace->consts);
     arrput(trace->consts, (frame_off + 1) << 3);
     // We have to guard the return point *before* the CCRES call, so we don't
@@ -922,7 +907,7 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
             if (verbose) {
               printf("Record stop downrec\n");
             }
-            record_stop(pc, frame, arrlen(traces));
+            record_stop(pc, arrlen(traces));
           } else {
             if (verbose) {
               printf("Record abort downrec\n");
@@ -967,7 +952,7 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
             if (verbose) {
               printf("Record stop return\n");
             }
-            record_stop(pc, frame, -1);
+            record_stop(pc, -1);
           }
         } else {
           if (verbose) {
@@ -999,7 +984,7 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     }
     if (INS_OP(i) == CALL) {
       auto clo = record_stack_load(INS_A(i) + 1, frame);
-      if (!(clo & IR_CONST_BIAS)) {
+      if (!ir_is_const(clo)) {
         /* add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth,
          * INS_A(i) + INS_B(i)); */
         auto ref = push_ir(trace, IR_REF, clo, 16 - CLOSURE_TAG, UNDEFINED_TAG);
@@ -1011,9 +996,9 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
         arrput(trace->consts, closure->v[0]);
         push_ir(trace, IR_EQ, fun, knum | IR_CONST_BIAS, IR_INS_TYPE_GUARD);
       }
-    } else {
-      // It's a label call, we must always go to this label.
     }
+    // Otherwise it's a label call, we must always go to this label.
+
     /* // Check call type */
     /* { */
     /*   auto v = frame[INS_A(i) + 1]; */
@@ -1060,7 +1045,7 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
       // Check call type
       {
         auto clo = record_stack_load(INS_A(i) + 1, frame);
-        if (!(clo & IR_CONST_BIAS)) {
+        if (!ir_is_const(clo)) {
           /* add_snap(regs_list, (int)(regs - regs_list - 1), trace, pc, depth,
            * INS_A(i) + INS_B(i)); */
           auto ref =
@@ -1185,15 +1170,13 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   case JEQV:
   case JEQ:
   case JISEQ: {
-    if (INS_OP(i) == JEQV) {
-      if ((frame[INS_B(i)] & TAG_MASK) == FLONUM_TAG ||
-          (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
-        if (verbose) {
-          printf("Record abort: flonum not supported in jeqv\n");
-        }
-        record_abort();
-        return 1;
+    if (INS_OP(i) == JEQV &&
+        (is_flonum(frame[INS_B(i)]) || is_flonum(frame[INS_C(i)]))) {
+      if (verbose) {
+        printf("Record abort: flonum not supported in jeqv\n");
       }
+      record_abort();
+      return 1;
     }
     return record_jcomp2(JEQ, IR_EQ, IR_NE, INS_B(i), INS_C(i), frame, pc,
                          false);
@@ -1201,15 +1184,13 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   case JNEQ:
   case JNEQV:
   case JISNEQ: {
-    if (INS_OP(i) == JNEQV) {
-      if ((frame[INS_B(i)] & TAG_MASK) == FLONUM_TAG ||
-          (frame[INS_C(i)] & TAG_MASK) == FLONUM_TAG) {
-        if (verbose) {
-          printf("Record abort: flonum not supported in jneqv\n");
-        }
-        record_abort();
-        return 1;
+    if (INS_OP(i) == JNEQV &&
+        (is_flonum(frame[INS_B(i)]) || is_flonum(frame[INS_C(i)]))) {
+      if (verbose) {
+        printf("Record abort: flonum not supported in jneqv\n");
       }
+      record_abort();
+      return 1;
     }
     return record_jcomp2(JNEQ, IR_NE, IR_EQ, INS_B(i), INS_C(i), frame, pc,
                          false);
@@ -1250,12 +1231,12 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     uint32_t offset = 0;
     uint8_t type;
     long obj;
-    if (op1 & IR_CONST_BIAS) {
+    if (ir_is_const(op1)) {
       obj = trace->consts[op1 - IR_CONST_BIAS];
     } else {
       obj = frame[INS_B(i)];
     }
-    if ((obj & TAG_MASK) != CONS_TAG) {
+    if (!is_cons(obj)) {
       printf("Record abort: car/cdr/unbox of non-cons cell\n");
       record_abort();
       return 1;
@@ -1278,24 +1259,23 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   case ISEQ:
   case EQV:
   case EQ: {
-    return record_comp2(EQ, IR_EQ, IR_NE, INS_A(i), INS_B(i), INS_C(i), frame,
-                        pc, false);
+    return record_comp2(EQ, IR_EQ, IR_NE, INS_A(i), INS_B(i), INS_C(i), frame);
   }
   case ISLTE: {
     return record_comp2(ISLTE, IR_LE, IR_GT, INS_A(i), INS_B(i), INS_C(i),
-                        frame, pc, false);
+                        frame);
   }
   case ISLT: {
-    return record_comp2(ISLT, IR_LT, IR_GE, INS_A(i), INS_B(i), INS_C(i), frame,
-                        pc, false);
+    return record_comp2(ISLT, IR_LT, IR_GE, INS_A(i), INS_B(i), INS_C(i),
+                        frame);
   }
   case ISGT: {
-    return record_comp2(ISGT, IR_GT, IR_LE, INS_A(i), INS_B(i), INS_C(i), frame,
-                        pc, false);
+    return record_comp2(ISGT, IR_GT, IR_LE, INS_A(i), INS_B(i), INS_C(i),
+                        frame);
   }
   case ISGTE: {
     return record_comp2(ISGTE, IR_GE, IR_LT, INS_A(i), INS_B(i), INS_C(i),
-                        frame, pc, false);
+                        frame);
   }
   case GUARD: {
     record_stack_load(INS_B(i), frame);
@@ -1409,7 +1389,7 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     //   all registers to stack.
     trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
     // TODO fixed closz
-    long closz = INS_B(i);
+    auto closz = INS_B(i);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, (sizeof(long) * (closz + 2)) << 3);
     auto cell = push_ir(trace, IR_ALLOC, knum | IR_CONST_BIAS, CLOSURE_TAG,
@@ -1419,10 +1399,10 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     arrput(trace->consts, (long)closz << 3);
     push_ir(trace, IR_STORE, ref, knum | IR_CONST_BIAS, 0);
     auto cnt = INS_B(i);
-    for (uint32_t j = 0; j < cnt; j++) {
+    for (uint8_t j = 0; j < cnt; j++) {
       record_stack_load(INS_A(i) + j, frame);
     }
-    for (long j = 0; j < closz; j++) {
+    for (uint8_t j = 0; j < closz; j++) {
       // Already loaded above
       auto a = record_stack_load(INS_A(i) + j, frame);
       ref =
@@ -1687,11 +1667,9 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   }
   case GGET: {
     // TODO check it is set?
-    long gp = const_table[INS_D(i)];
-    symbol *g = (symbol *)(gp - SYMBOL_TAG);
-    if (g->opt != -1 && ((g->val & TAG_MASK) == CLOSURE_TAG)) {
-      // printf("Optimize trace %i with sym %s\n",trace->num, (
-      // (string_s*)(g->name-PTR_TAG))->str);
+    auto gp = const_table[INS_D(i)];
+    symbol *g = to_symbol(gp);
+    if (g->opt != -1 && is_closure(g->val)) {
       g->opt = 1;
       hmputs(g->lst, (struct tv){.key = trace->num});
       auto knum = arrlen(trace->consts);
@@ -1701,10 +1679,9 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
       arrput(trace->consts, g->val);
       regs[INS_A(i)] = knum | IR_CONST_BIAS;
     } else {
-
       auto knum = arrlen(trace->consts);
       arrput(trace->consts, gp);
-      symbol *sym = (symbol *)(gp - SYMBOL_TAG);
+      symbol *sym = to_symbol(gp);
       uint8_t type = get_object_ir_type(sym->val);
       regs[INS_A(i)] = push_ir(trace, IR_GGET, knum | IR_CONST_BIAS, IR_NONE,
                                type | IR_INS_TYPE_GUARD);
@@ -1713,12 +1690,12 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     break;
   }
   case GSET: {
-    long gp = const_table[INS_D(i)];
-    symbol *g = (symbol *)(gp - SYMBOL_TAG);
+    auto gp = const_table[INS_D(i)];
+    symbol *g = to_symbol(gp);
     if (g->val == UNDEFINED_TAG || (g->opt != 0 && g->opt != -1)) {
       if (verbose) {
         printf("Record abort: Setting a currently-const global %s %li\n",
-               ((string_s *)(g->name - PTR_TAG))->str, g->opt);
+               get_sym_name(to_symbol(g->name))->str, g->opt);
       }
       record_abort();
       return 1;
@@ -1919,21 +1896,19 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     // Check if it is a returning trace
     auto ctrace = trace_cache_get(INS_D(i));
     stack_top = INS_A(ctrace->startpc);
-    if (INS_OP(ctrace->startpc) == CLFUNC ||
-        INS_OP(ctrace->startpc) == ICLFUNC) {
-      if (argcnt != INS_A(ctrace->startpc)) {
-        // The check will fail, and we will fall through to a later
-        // CLFUNC.
-        break;
-      }
+    if ((INS_OP(ctrace->startpc) == CLFUNC ||
+         INS_OP(ctrace->startpc) == ICLFUNC) &&
+        argcnt != INS_A(ctrace->startpc)) {
+      // The check will fail, and we will fall through to a later
+      // CLFUNC.
+      break;
     }
-    if (INS_OP(ctrace->startpc) == CLFUNCV ||
-        INS_OP(ctrace->startpc) == ICLFUNCV) {
-      if (argcnt < INS_A(ctrace->startpc)) {
-        // The check will fail, and we will fall through to a later
-        // CLFUNC.
-        break;
-      }
+    if ((INS_OP(ctrace->startpc) == CLFUNCV ||
+         INS_OP(ctrace->startpc) == ICLFUNCV) &&
+        argcnt < INS_A(ctrace->startpc)) {
+      // The check will fail, and we will fall through to a later
+      // CLFUNC.
+      break;
     }
     // Check if our argument types match.  If not, we trace through.
     // If it is a returning non-looping trace, trace through it.
@@ -1948,7 +1923,7 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     for (int j = 0; j < INS_A(i); j++) {
       regs[j] = record_stack_load(j, frame);
     }
-    auto link_trace = check_argument_match(frame, traces[INS_D(*pc)]);
+    auto link_trace = check_argument_match(traces[INS_D(*pc)]);
     if (!link_trace) {
       patchpc = pc;
       patchold = *pc;
@@ -1961,7 +1936,7 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
       printf("Record stop JFUNC %s\n", ins_names[INS_OP(link_trace->startpc)]);
     }
     check_emit_funcv(link_trace->startpc, pc, frame, argcnt);
-    record_stop(pc, frame, link_trace->num);
+    record_stop(pc, link_trace->num);
     // No stack top tracking
     return 1;
   }
@@ -1994,7 +1969,7 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
         }
         regs[arg] = record_stack_load(arg, frame);
       }
-      link_trace = check_argument_match(frame, traces[INS_D(i)]);
+      link_trace = check_argument_match(traces[INS_D(i)]);
       if (!link_trace) {
         patchpc = pc;
         patchold = *pc;
@@ -2009,7 +1984,7 @@ int record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
       printf("Record stop hit JLOOP\n");
     }
 
-    record_stop(pc, frame, link_trace->num);
+    record_stop(pc, link_trace->num);
     return 1;
   }
   default: {

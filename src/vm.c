@@ -59,10 +59,6 @@ gc_obj *stack = NULL;
 
 uint8_t hotmap[hotmap_sz];
 
-static inline uint32_t hotmap_hash(const uint32_t *pc) {
-  return (((uint64_t)pc) >> 2) & hotmap_mask;
-}
-
 static void vm_init() {
   if (stack == NULL) {
     stack = malloc(sizeof(*stack) * stacksz);
