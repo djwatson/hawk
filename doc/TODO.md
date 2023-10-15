@@ -134,3 +134,26 @@
 # code cleanup:
 * if we put symbols first in the bc file, we can pre-alloc 'symbols'
   in readbc, and use GC_push, and don't need to dirty the GC with it.
+* stdb_ds really pisses off the linters.
+* emit_x86 can be cleaned up substantially.
+* gc_obj should be a separate type
+
+# known bugs:
+* something about two scripts on the command line fails.
+
+# Needed for a 1.0 release:
+* full trace GC
+* constants, traces, functions all in GC.
+* ports need to be released / closed on GC.
+* repl
+* eval / dynamic-wind, r5rs-stuff
+* records
+* library-ize bootstrap
+* ffi?
+* a bunch of srfis?
+* bignums/complex/ratnums
+* better error messages in vm/jit, and recovery
+* Nice to have: 
+  * custom expander, so we can have:
+  * better error reporting on frontend
+  * debugger?
