@@ -91,7 +91,7 @@ enum jcc_cond {
 
 void emit_init();
 void emit_cleanup();
-uint64_t emit_offset();
+int64_t emit_offset();
 void emit_advance(int64_t offset);
 void emit_bind(uint64_t label, uint64_t jmp);
 void emit_check();
@@ -115,8 +115,8 @@ void emit_imm8(uint8_t imm);
 void emit_imm32(int32_t imm);
 void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst);
 void emit_reg_reg2(uint8_t opcode, uint8_t src, uint8_t dst);
-void emit_jcc32(enum jcc_cond cond, uint64_t offset);
+void emit_jcc32(enum jcc_cond cond, int64_t offset);
 void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm);
 void emit_cmp_reg_imm32(uint8_t r, int32_t imm);
-void emit_cmp_mem32_imm32(uint32_t offset, uint8_t r1, int32_t imm);
+void emit_cmp_mem32_imm32(int32_t offset, uint8_t r1, int32_t imm);
 void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm);

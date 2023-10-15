@@ -16,9 +16,9 @@
 // Custom hashtable.  I tried to use stb_ds, but it was too slow:
 // insertion/hashing isn't as fast as crc32+linear probe.
 static uf_item *map_find(uf *ht, int64_t key) {
-  int64_t start = _mm_crc32_u64(0, key);
+  auto start = _mm_crc32_u64(0, key);
 
-  int64_t sz_mask = ht->map_sz - 1;
+  auto sz_mask = ht->map_sz - 1;
   for (uint64_t i = 0; i < ht->map_sz; i++) {
     uint64_t slot = (i + start) & sz_mask;
     if (ht->map[slot].key == key) {
@@ -54,8 +54,8 @@ static void map_insert(uf *ht, int64_t key, uint64_t value) {
     }
   }
 
-  int64_t start = _mm_crc32_u64(0, key);
-  int64_t sz_mask = ht->map_sz - 1;
+  auto start = _mm_crc32_u64(0, key);
+  auto sz_mask = ht->map_sz - 1;
   for (uint64_t i = 0; i < ht->map_sz; i++) {
     uint64_t slot = (i + start) & sz_mask;
     if (ht->map[slot].key == 0) {

@@ -39,7 +39,8 @@ void lru_poke(lru *l, uint8_t node) {
   uint8_t prev_newest = l->head;
   if (node == prev_newest) {
     return;
-  } else if (l->data[prev_newest].prev != node) {
+  }
+  if (l->data[prev_newest].prev != node) {
     lru_remove(l, node);
     lru_insert_before(l, node, l->head);
   }

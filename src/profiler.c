@@ -23,7 +23,7 @@ static uint64_t cnt = 0;
 static uint64_t heap_ptr = 0;
 static uint64_t heap_end = 0;
 
-static size_t alloc_sz = 4096 * 16;
+static size_t alloc_sz = 4096 * 16UL;
 
 void *signal_safe_malloc(size_t sz) {
   if ((heap_ptr + sz) < heap_end) {
@@ -51,7 +51,7 @@ typedef struct sample_s {
 
 static sample *samples = nullptr;
 
-static uint64_t profile_stack_sz = 0;
+static int64_t profile_stack_sz = 0;
 static uint32_t **profile_stack = nullptr;
 static uint64_t profile_stack_max = 0;
 static uint32_t *pc;
@@ -65,8 +65,8 @@ void profile_add_frame(uint32_t *ptr) {
     } else {
       profile_stack_max *= 2;
     }
-    uint32_t **n = malloc(sizeof(int32_t *) * profile_stack_max);
-    memcpy(n, profile_stack, profile_stack_sz * sizeof(int32_t *));
+    uint32_t **n = malloc(sizeof(uint32_t *) * profile_stack_max);
+    memcpy(n, profile_stack, profile_stack_sz * sizeof(uint32_t *));
     auto old = profile_stack;
     profile_stack = n; // release
     free(old);

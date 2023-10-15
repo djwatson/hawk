@@ -437,7 +437,7 @@ static void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
 }
 
 static void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code,
-                       ir_ins *op, trace_s *trace, uint64_t offset, int *slot,
+                       ir_ins *op, trace_s *trace, int64_t offset, int *slot,
                        uint32_t *next_spill) {
   if (op->reg == REG_NONE) {
     return;
@@ -494,7 +494,7 @@ static void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code,
 }
 
 static void emit_cmp(enum jcc_cond cmp, ir_ins *op, trace_s *trace,
-                     uint64_t offset, int *slot, uint32_t *next_spill) {
+                     int64_t offset, int *slot, uint32_t *next_spill) {
   maybe_assign_register(op->op1, trace, slot, next_spill);
   maybe_assign_register(op->op2, trace, slot, next_spill);
 
@@ -519,7 +519,7 @@ static void emit_cmp(enum jcc_cond cmp, ir_ins *op, trace_s *trace,
   }
 }
 
-static void emit_op_typecheck(uint8_t reg, uint8_t type, uint64_t offset) {
+static void emit_op_typecheck(uint8_t reg, uint8_t type, int64_t offset) {
   if (is_type_guard(type)) {
     emit_jcc32(JNE, offset);
     if (is_fixnum(get_type(type))) {
@@ -756,7 +756,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   slot[RDI] = 0; // scheme frame ptr.
   slot[RBX] = 0; // allocation ptr.
 
-  uint64_t *snap_labels = NULL;
+  int64_t *snap_labels = NULL;
   arrsetlen(snap_labels, arrlen(trace->snaps));
 
   auto end = emit_offset();

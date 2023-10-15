@@ -95,7 +95,7 @@ void emit_ret() { *(--p) = 0xc3; }
 
 // TODO(djwatson) clean this up.  THe main issue is REX needs W=0.
 // Also check R1 does full checks for rsp/rbp
-void emit_cmp_mem32_imm32(uint32_t offset, uint8_t r1, int32_t imm) {
+void emit_cmp_mem32_imm32(int32_t offset, uint8_t r1, int32_t imm) {
   emit_imm32(imm);
   assert(r1 != RSP);
   assert(r1 != RBP);
@@ -130,13 +130,14 @@ void emit_cmp_reg_reg(uint8_t src, uint8_t dst) {
   emit_rex(1, src >> 3, 0, dst >> 3);
 }
 
-void emit_jcc32(enum jcc_cond cond, uint64_t offset) {
-  int64_t off = (int64_t)offset - (int64_t)emit_offset();
+void emit_jcc32(enum jcc_cond cond, int64_t offset) {
+  int64_t off = offset - (int64_t)emit_offset();
   if ((int32_t)((int8_t)off) == off) {
     *(--p) = (int8_t)off;
     *(--p) = cond - 0x10;
   } else {
-    emit_imm32(off);
+    // TODO assert that off fits in int32_t
+    emit_imm32((int32_t)off);
     *(--p) = cond;
     *(--p) = 0x0f;
   }
@@ -283,7 +284,7 @@ void emit_cmovl(uint8_t dst, uint8_t src) {
 
 /////////////////// memory
 
-uint64_t emit_offset() { return (uint64_t)p; }
+int64_t emit_offset() { return (int64_t)p; }
 
 void emit_bind(uint64_t label, uint64_t jmp) {
   assert(jmp);

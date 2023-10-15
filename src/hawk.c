@@ -246,6 +246,7 @@ int main(int argc, char *argv[]) {
         generate_exe(argv[i], tmp);
       }
       if (list || exe) {
+        free(tmp);
         break;
       }
       printf("Running script %s\n", tmp);

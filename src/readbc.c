@@ -36,15 +36,15 @@ static gc_obj read_symbol(FILE *fptr, uint64_t num) {
   }
   static char str_buf[str_buf_len + 1 + sizeof(string_s)]
       __attribute__((aligned(8)));
-  string_s *str = (string_s *)str_buf;
+  string_s *str = (string_s *)str_buf; // NOLINT
 
   // It's a new symbol in this bc file
-  uint64_t len;
+  int64_t len;
   if (8 != fread(&len, 1, 8, fptr) || len > str_buf_len) {
     read_error();
   }
 
-  *str = (string_s){STRING_TAG, 0, len << 3};
+  *str = (string_s){STRING_TAG, 0, tag_fixnum(len)};
   if (fread(str->str, 1, len, fptr) != len) {
     read_error();
   }
@@ -95,13 +95,13 @@ static gc_obj read_ptr(FILE *fptr) {
     read_error();
   }
   if (ptrtype == STRING_TAG) {
-    uint64_t len;
+    int64_t len;
     if (fread(&len, 1, 8, fptr) != 8 || len > 512) {
       read_error();
     }
     string_s *str = GC_malloc(16 + len + 1);
     str->type = ptrtype;
-    str->len = len << 3;
+    str->len = tag_fixnum(len);
     str->rc = 0;
     if (fread(&str->str, 1, len, fptr) != len) {
       read_error();
@@ -114,7 +114,7 @@ static gc_obj read_ptr(FILE *fptr) {
 }
 
 static gc_obj read_vector(FILE *fptr) {
-  uint64_t len;
+  int64_t len;
   if (fread(&len, 1, 8, fptr) != 8 || len > (1UL << 29)) {
     read_error();
   }
@@ -130,7 +130,7 @@ static gc_obj read_vector(FILE *fptr) {
 
   vector_s *v = GC_malloc(16 + len * sizeof(gc_obj));
   v->type = VECTOR_TAG;
-  v->len = len << 3;
+  v->len = tag_fixnum(len);
   v->rc = 0;
   for (int64_t i = len - 1; i >= 0; i--) {
     v->v[i] = vals[i];
@@ -141,7 +141,7 @@ static gc_obj read_vector(FILE *fptr) {
 }
 
 static gc_obj read_closure(FILE *fptr) {
-  uint64_t bcfunc_num;
+  int64_t bcfunc_num;
   if (fread(&bcfunc_num, 1, 8, fptr) != 8) {
     read_error();
   }
@@ -149,7 +149,7 @@ static gc_obj read_closure(FILE *fptr) {
   clo->type = CLOSURE_TAG;
   clo->rc = 0;
   clo->len = 1 << 3;
-  clo->v[0] = bcfunc_num << 3; // Updated below.
+  clo->v[0] = tag_fixnum(bcfunc_num); // Updated below.
   return tag_closure(clo);
 }
 
@@ -160,16 +160,21 @@ static gc_obj read_const(FILE *fptr) {
   }
   auto type = val & TAG_MASK;
   if (type == SYMBOL_TAG) {
-    return read_symbol(fptr, val >> 3);
-  } else if (type == FLONUM_TAG) {
+    return read_symbol(fptr, to_fixnum(val));
+  }
+  if (type == FLONUM_TAG) {
     return read_flonum(fptr);
-  } else if (type == CONS_TAG) {
+  }
+  if (type == CONS_TAG) {
     return read_cons(fptr);
-  } else if (type == PTR_TAG) {
+  }
+  if (type == PTR_TAG) {
     return read_ptr(fptr);
-  } else if (type == VECTOR_TAG) {
+  }
+  if (type == VECTOR_TAG) {
     return read_vector(fptr);
-  } else if (type == CLOSURE_TAG) {
+  }
+  if (type == CLOSURE_TAG) {
     return read_closure(fptr);
   }
 
@@ -316,7 +321,7 @@ static bcfunc *readbc(FILE *fptr) {
     auto v = const_table[i];
     if (is_closure(v)) {
       auto clo = to_closure(v);
-      clo->v[0] = (long)funcs[func_offset + (clo->v[0] >> 3)];
+      clo->v[0] = (gc_obj)funcs[func_offset + (clo->v[0] >> 3)];
     }
   }
 

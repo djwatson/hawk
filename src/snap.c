@@ -13,7 +13,8 @@
 
 void add_snap(const uint16_t *regs, ptrdiff_t off, trace_s *trace, uint32_t *pc,
               uint32_t depth, uint32_t stack_top) {
-  int32_t offset = off;
+  // TODO size check offset
+  int32_t offset = (int32_t)off; // NOLINT
   snap_s snap;
   snap.ir = arrlen(trace->ops);
   snap.pc = pc;
@@ -24,7 +25,7 @@ void add_snap(const uint16_t *regs, ptrdiff_t off, trace_s *trace, uint32_t *pc,
   snap.argcnt = 1;
   snap.patchpoint = 0;
   auto top = offset + stack_top + 1 /* offset */;
-  for (int16_t i = 0; i < top; i++) {
+  for (int32_t i = 0; i < top; i++) {
     if (regs[i] != REGS_NONE) {
       snap_entry_s entry;
       entry.slot = (int16_t)(i - 1); // offset by one for callt

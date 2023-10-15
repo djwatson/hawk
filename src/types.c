@@ -221,7 +221,7 @@ void print_obj(gc_obj obj, FILE *file) {
     } else if (obj == UNDEFINED_TAG) {
       fputs("<undefined>", file);
     } else if (is_char(obj)) {
-      fputc(obj >> 8, file);
+      fputc(to_char(obj), file);
     } else {
       fprintf(file, "Unknown immediate: %lx\n", obj);
     }
@@ -233,9 +233,9 @@ void print_obj(gc_obj obj, FILE *file) {
 }
 
 EXPORT gc_obj from_c_str(const char *s) {
-  auto len = strlen(s);
-  string_s *str = GC_malloc(16 + len + 1);
-  *str = (string_s){STRING_TAG, 0, len << 3};
+  auto len = (int64_t)strlen(s);
+  string_s *str = GC_malloc(sizeof(string_s) + len + 1);
+  *str = (string_s){STRING_TAG, 0, tag_fixnum(len)};
   memcpy(str->str, s, len);
   str->str[len] = '\0';
   return tag_string(str);
