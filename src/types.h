@@ -124,9 +124,7 @@ static inline symbol *to_symbol(gc_obj obj) {
 static inline closure_s *to_closure(gc_obj obj) {
   return (closure_s *)(obj - CLOSURE_TAG);
 }
-static inline cont_s *to_cont(gc_obj obj) {
-  return (cont_s *)(obj - PTR_TAG);
-}
+static inline cont_s *to_cont(gc_obj obj) { return (cont_s *)(obj - PTR_TAG); }
 // This one is not PTR, but anything!
 static inline void *to_raw_ptr(gc_obj obj) { return (void *)(obj & ~TAG_MASK); }
 static inline string_s *to_string(gc_obj obj) {

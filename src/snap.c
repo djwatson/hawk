@@ -42,8 +42,8 @@ void add_snap(const uint16_t *regs, ptrdiff_t off, trace_s *trace, uint32_t *pc,
 }
 
 // Replay a snap for a side-trace.
-uint32_t snap_replay(uint16_t **regs, snap_s *snap, trace_s *parent, trace_s *trace,
-                     int *d) {
+uint32_t snap_replay(uint16_t **regs, snap_s *snap, trace_s *parent,
+                     trace_s *trace, int *d) {
   for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto slot = &snap->slots[i];
     if (ir_is_const(slot->val)) {

@@ -20,7 +20,7 @@ static inline uint8_t INS_OP(uint32_t i) { return i & 0xff; }
 static inline uint8_t INS_A(uint32_t i) { return (i >> 8) & 0xff; }
 static inline uint8_t INS_B(uint32_t i) { return (i >> 16) & 0xff; }
 static inline uint8_t INS_C(uint32_t i) { return (i >> 24) & 0xff; }
-static inline uint16_t INS_D(uint32_t i) { return (i >> 16);}
+static inline uint16_t INS_D(uint32_t i) { return (i >> 16); }
 
 typedef struct bcfunc {
   char *name;
