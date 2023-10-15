@@ -149,8 +149,24 @@ EXPORT void jit_dump_close() {
 }
 
 /// GDB jit-reader interface
-
-#include "third-party/jit-protocol.h"
+#define JIT_REGISTER 1
+struct jit_code_entry {
+  struct jit_code_entry *next;
+  struct jit_code_entry *prev;
+  const void *addr;
+  uint64_t size;
+};
+struct jit_descriptor {
+  uint32_t version;
+  uint32_t action;
+  struct jit_code_entry *relevant_entry;
+  struct jit_code_entry *first_entry;
+};
+struct jit_descriptor __jit_debug_descriptor = {1, 0, 0, 0};
+void NOINLINE __jit_debug_register_code() {
+  /* GDB sets a breakpoint at this function. */
+  __asm__ __volatile__("");
+}
 
 struct jit_code_entry *last_entry = NULL;
 struct jit_code_entry *first_entry = NULL;
@@ -172,22 +188,22 @@ void jit_reader_add(int len, uint64_t fn) {
   }
   build_elf(fn, len, image, jit_cnt);
 
-  jitcode->symfile_addr = image;
-  jitcode->symfile_size = sizeof(GDBElfImage);
-  jitcode->next_entry = NULL;
+  jitcode->addr = image;
+  jitcode->size = sizeof(GDBElfImage);
+  jitcode->next = NULL;
   if (first_entry) {
-    jitcode->prev_entry = last_entry;
-    last_entry->next_entry = jitcode;
+    jitcode->prev = last_entry;
+    last_entry->next = jitcode;
     last_entry = jitcode;
   } else {
     first_entry = jitcode;
     last_entry = jitcode;
-    jitcode->prev_entry = NULL;
+    jitcode->prev = NULL;
   }
 
   __jit_debug_descriptor.first_entry = first_entry;
   __jit_debug_descriptor.relevant_entry = jitcode;
-  __jit_debug_descriptor.action_flag = JIT_REGISTER;
+  __jit_debug_descriptor.action = JIT_REGISTER;
   __jit_debug_descriptor.version = 1;
   __jit_debug_register_code();
   jit_cnt++;
