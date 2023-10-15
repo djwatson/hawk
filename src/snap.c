@@ -2,6 +2,7 @@
 
 #include "snap.h"
 
+#include <stddef.h>
 #include <stdint.h> // for uint32_t
 #include <stdio.h>  // for printf
 
@@ -10,8 +11,9 @@
 #include "ir.h" // for snap_s, snap_entry_s, ir_ins, trace_s, IR_CONST...
 #include "third-party/stb_ds.h"
 
-void add_snap(const uint16_t *regs, int32_t offset, trace_s *trace, uint32_t *pc,
+void add_snap(const uint16_t *regs, ptrdiff_t off, trace_s *trace, uint32_t *pc,
               uint32_t depth, uint32_t stack_top) {
+  int32_t offset = off;
   snap_s snap;
   snap.ir = arrlen(trace->ops);
   snap.pc = pc;
