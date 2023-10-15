@@ -10,8 +10,8 @@
 #include "ir.h" // for snap_s, snap_entry_s, ir_ins, trace_s, IR_CONST...
 #include "third-party/stb_ds.h"
 
-void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
-              uint32_t depth, int32_t stack_top) {
+void add_snap(const uint16_t *regs, int32_t offset, trace_s *trace, uint32_t *pc,
+              uint32_t depth, uint32_t stack_top) {
   snap_s snap;
   snap.ir = arrlen(trace->ops);
   snap.pc = pc;
@@ -23,7 +23,7 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
   snap.patchpoint = 0;
   auto top = offset + stack_top + 1 /* offset */;
   for (int16_t i = 0; i < top; i++) {
-    if (regs[i] != -1) {
+    if (regs[i] != REGS_NONE) {
       snap_entry_s entry;
       entry.slot = (int16_t)(i - 1); // offset by one for callt
       entry.val = regs[i];
@@ -40,7 +40,7 @@ void add_snap(const int *regs, int offset, trace_s *trace, uint32_t *pc,
 }
 
 // Replay a snap for a side-trace.
-uint32_t snap_replay(int **regs, snap_s *snap, trace_s *parent, trace_s *trace,
+uint32_t snap_replay(uint16_t **regs, snap_s *snap, trace_s *parent, trace_s *trace,
                      int *d) {
   for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto slot = &snap->slots[i];

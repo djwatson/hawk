@@ -57,7 +57,7 @@ unsigned int stacksz = 100;
 gc_obj *stack_top;
 gc_obj *stack = NULL;
 
-unsigned char hotmap[hotmap_sz];
+uint8_t hotmap[hotmap_sz];
 
 static inline uint32_t hotmap_hash(const uint32_t *pc) {
   return (((uint64_t)pc) >> 2) & hotmap_mask;

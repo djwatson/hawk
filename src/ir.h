@@ -79,6 +79,7 @@ typedef enum {
 
 extern const char *ir_names[];
 
+#define REGS_NONE 0xffff
 #define IR_CONST_BIAS 0x8000
 
 #define IR_INS_TYPE_GUARD 0x80
