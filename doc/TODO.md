@@ -136,7 +136,6 @@
   in readbc, and use GC_push, and don't need to dirty the GC with it.
 * stdb_ds really pisses off the linters.
 * emit_x86 can be cleaned up substantially.
-* gc_obj should be a separate type
 * cleanup relocs in asm
 * cleanup knums / consts in record
 * cleanup anything with '.value'

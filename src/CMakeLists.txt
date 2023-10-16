@@ -1,11 +1,11 @@
 
-  set(SOURCES readbc.c opcodes.c vm.c bootstrap.c ir.c types.c symbol_table.c gc.c opcodes.h  parallel_copy.c lru.c  third-party/stb_ds.c unionfind.c trace_dump.c jit_stubs.s)
+  set(SOURCES readbc.c opcodes.c vm.c bootstrap.c  types.c symbol_table.c gc.c opcodes.h  third-party/stb_ds.c unionfind.c )
 set(SCM_SOURCES ../lib/bc.scm ../lib/passes.scm ../lib/bootstrap.scm ../lib/memory_layout.scm ../lib/bc.chez.scm ../lib/bc.chicken.scm ../lib/util.scm ../lib/str2num.scm)
 set(COMPILE_FLAGS -Wall -Wextra -std=gnu11 -I${CMAKE_BINARY_DIR}/src -msse4 -fvisibility=hidden -fomit-frame-pointer -fno-exceptions -Wno-strict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference -Wno-sign-compare -Wno-type-limits -Wno-unused-command-line-argument)
 set(LIBRARIES "m")
 if (JIT) 
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DJIT")
-  set(SOURCES ${SOURCES} snap.c asm_x64.c record.c emit_x64.c)
+  set(SOURCES ${SOURCES} snap.c asm_x64.c record.c emit_x64.c parallel_copy.c lru.c trace_dump.c jit_stubs.s ir.c)
   if (HAVE_CAPSTONE)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DCAPSTONE")
     set(LIBRARIES ${LIBRARIES} "capstone")
@@ -46,7 +46,8 @@ add_custom_target(
 )
 
 file(GLOB FORMAT_SOURCES *.c *.h)
-list(REMOVE_ITEM FORMAT_SOURCES bootstrap.c third-party/stb_ds.c opcodes-gen.h jit_stubs.s opcodes-gen.h)
+list(REMOVE_ITEM FORMAT_SOURCES  ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/third-party/stb_ds.c ${CMAKE_CURRENT_SOURCE_DIR}/opcodes-gen.h ${CMAKE_CURRENT_SOURCE_DIR}/jit_stubs.s ${CMAKE_CURRENT_SOURCE_DIR}/opcodes-gen.h)
 add_custom_target(
   format
   COMMAND clang-format -i  ${FORMAT_SOURCES}
