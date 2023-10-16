@@ -13,3 +13,11 @@ repos:
       - id: cpplint
         args: ["--filter=-build/include_subdir,-whitespace/comments"]
       - id: include-what-you-use
+exclude: |
+  (?x)^(
+    tests/.*|
+    attic/.*|
+    .*third-party/.*|
+    src/bootstrap.c|
+    src/opcodes-gen.h
+  )$
