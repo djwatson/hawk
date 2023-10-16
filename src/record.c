@@ -443,7 +443,7 @@ bool record(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
 // TODO(djwatson) top bit is IR_INS_TYPE_GUARD, this should be part
 //      of the load instruction instead.
 // TODO(djwatson): for records we may need a different strategy.
-uint8_t get_object_ir_type(int64_t obj) {
+uint8_t get_object_ir_type(gc_obj obj) {
   if (is_ptr(obj)) {
     return get_ptr_tag(obj);
   }
@@ -491,11 +491,11 @@ void record_funcv(uint32_t i, uint32_t *pc, gc_obj *frame, int64_t argcnt) {
 
   // Build the list.
   auto knum = arrlen(trace->consts);
-  arrput(trace->consts, NIL_TAG);
+  arrput(trace->consts, NIL);
   uint16_t prev = knum | IR_CONST_BIAS;
   for (uint32_t j = 0; j < cnt; j++) {
     knum = arrlen(trace->consts);
-    arrput(trace->consts, sizeof(cons_s) << 3);
+    arrput(trace->consts, tag_fixnum(sizeof(cons_s)));
     auto cell =
         push_ir(trace, IR_ALLOC, knum | IR_CONST_BIAS, CONS_TAG, CONS_TAG);
     auto ref = push_ir(trace, IR_REF, cell, 8 - CONS_TAG, UNDEFINED_TAG);
@@ -546,13 +546,15 @@ static trace_s *check_argument_match(trace_s *pt) {
   return NULL;
 }
 
-static bool do_compare(uint8_t op, gc_obj v1, gc_obj v2) {
+static bool do_compare(uint8_t op, gc_obj v1o, gc_obj v2o) {
+  auto v1 = v1o.value;
+  auto v2 = v2o.value;
   switch (op) {
     // TODO(djwatson) these got swapped in the BC emitter on accident.
   case JISF:
-    return v1 != FALSE_REP;
+    return v1 != FALSE_REP.value;
   case JIST:
-    return v1 == FALSE_REP;
+    return v1 == FALSE_REP.value;
   case ISLT:
   case JISLT:
     return v1 < v2;
@@ -580,8 +582,8 @@ static int record_comp2(uint8_t bc, uint8_t true_op, uint8_t false_op,
                         uint8_t a, uint8_t b, uint8_t c, gc_obj *frame) {
   uint32_t op1 = record_stack_load(b, frame);
   uint32_t op2 = record_stack_load(c, frame);
-  int64_t v1 = frame[b];
-  int64_t v2 = frame[c];
+  auto v1 = frame[b];
+  auto v2 = frame[c];
   if (get_object_ir_type(v1) == FLONUM_TAG ||
       get_object_ir_type(v2) == FLONUM_TAG) {
     if (verbose) {
@@ -590,7 +592,7 @@ static int record_comp2(uint8_t bc, uint8_t true_op, uint8_t false_op,
     record_abort();
     return 1;
   }
-  int64_t constant = FALSE_REP;
+  auto constant = FALSE_REP;
   uint8_t op = false_op;
   bool result = do_compare(bc, frame[b], frame[c]);
 
@@ -616,9 +618,9 @@ static bool record_jcomp2(uint8_t bc, uint8_t true_op, uint8_t false_op,
   uint32_t op1 = record_stack_load(b, frame);
   uint32_t op2 = record_stack_load(c, frame);
   if (op1 >= IR_CONST_BIAS) {
-    type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
+    type = get_tag(trace->consts[op1 - IR_CONST_BIAS]);
   } else {
-    type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
+    type = get_type(trace->ops[op1].type);
   }
   if (typecheck && type != 0) {
     if (verbose) {
@@ -747,12 +749,12 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     stack_top = INS_A(i);
     // Check for unroll.
     int64_t cnt = 0;
-    auto p_pc = (uint32_t *)frame[-1]; // NOLINT
+    auto p_pc = to_return_address(frame[-1]);
     auto ret_pc = p_pc;
     auto pframe = frame;
     for (auto d = depth - 1; d > 0; d--) {
       pframe -= (INS_A(*(p_pc - 1)) + 1);
-      p_pc = (uint32_t *)pframe[-1]; // NOLINT
+      p_pc = to_return_address(pframe[-1]);
       if (p_pc == ret_pc) {
         cnt++;
       }
@@ -815,7 +817,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     push_ir(trace, IR_SAVEAP, 0, 0, UNDEFINED_TAG);
     auto op1 = push_ir(trace, IR_FLUSH, 0, 0, UNDEFINED_TAG);
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)vm_callcc);
+    arrput(trace->consts, (gc_obj){.ptr = vm_callcc});
     auto cont = push_ir(trace, IR_CALLXS, op1, knum | IR_CONST_BIAS, CONT_TAG);
     push_ir(trace, IR_RESAP, 0, 0, UNDEFINED_TAG);
     // TODO(djwatson) check GC result
@@ -848,7 +850,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
       push_ir(trace, IR_EQ, dest, knum | IR_CONST_BIAS, UNDEFINED_TAG);
     }
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)vm_cc_resume);
+    arrput(trace->consts, (gc_obj){.ptr = vm_cc_resume});
     push_ir(trace, IR_CCRES, c, knum | IR_CONST_BIAS, UNDEFINED_TAG);
 
     // TODO(djwatson): If the callcc exists in the same trace,
@@ -858,7 +860,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     //       on the stack.
 
     auto cont = to_cont(frame[INS_B(i)]);
-    auto old_pc = (uint32_t *)cont->v[(cont->len >> 3) - 1]; // NOLINT
+    auto old_pc = to_return_address(cont->v[to_fixnum(cont->len) - 1]);
     auto frame_off = INS_A(*(old_pc - 1));
     stack_top = frame_off + 1;
 
@@ -870,9 +872,9 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     regs = &regs_list[1];
     regs[frame_off] = result;
     knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)old_pc);
+    arrput(trace->consts, (gc_obj){.ptr = old_pc});
     auto knum2 = arrlen(trace->consts);
-    arrput(trace->consts, (frame_off + 1) << 3);
+    arrput(trace->consts, tag_fixnum(frame_off + 1));
     // We have to guard the return point *before* the CCRES call, so we don't
     // need to do it here also.
     push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS,
@@ -882,7 +884,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   case IRET1:
   case RET1: {
     if (depth == 0) {
-      auto old_pc = (unsigned int *)frame[-1];
+      auto old_pc = to_return_address(frame[-1]);
       if (INS_OP(*pc_start) == RET1 || side_exit != nullptr) {
         int cnt = 0;
         for (uint64_t p = 0; p < arrlen(downrec); p++) {
@@ -929,7 +931,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
         memset(regs, 0xff, frame_off * sizeof(regs[0]));
 
         auto knum = arrlen(trace->consts);
-        arrput(trace->consts, (gc_obj)old_pc);
+        arrput(trace->consts, (gc_obj){.raddress = old_pc});
         auto knum2 = arrlen(trace->consts);
         arrput(trace->consts, tag_fixnum(frame_off + 1));
         push_ir(trace, IR_RET, knum | IR_CONST_BIAS, knum2 | IR_CONST_BIAS,
@@ -937,8 +939,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
 
         stack_top = frame_off + 1;
         add_snap(regs_list, regs - regs_list - 1, trace,
-                 (uint32_t *)frame[-1], // NOLINT
-                 depth, stack_top);
+                 to_return_address(frame[-1]), depth, stack_top);
       } else {
         if (INS_OP(trace->startpc) == LOOP && parent == nullptr) {
           auto penalty = find_penalty_pc(pc_start);
@@ -964,7 +965,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     } else if (depth > 0) {
       depth--;
       regs[-1] = regs[INS_A(i)];
-      auto old_pc = (unsigned int *)frame[-1];
+      auto old_pc = to_return_address(frame[-1]);
       stack_top = INS_A(*(old_pc - 1)) + 1;
       assert(regs >= regs_list);
       regs -= (INS_A(*(old_pc - 1)) + 1);
@@ -1020,7 +1021,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     // Push PC link as const
     {
       auto knum = arrlen(trace->consts);
-      arrput(trace->consts, ((gc_obj)(pc + 1)));
+      arrput(trace->consts, ((gc_obj){.raddress = pc + 1}));
       regs[INS_A(i)] = knum | IR_CONST_BIAS; // TODO(djwatson) set PC
     }
 
@@ -1064,7 +1065,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
       // Label call
       // Record the tailcall for checking for loop endings.
       {
-        auto lfunc = (bcfunc *)frame[INS_A(i)]; // NOLINT
+        auto lfunc = to_func(frame[INS_A(i)]);
         auto call_pc = &lfunc->code[0];
         auto v = hmget(tailcalled, call_pc);
         hmput(tailcalled, call_pc, v + 1);
@@ -1102,7 +1103,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     int64_t k = (uint64_t)((int64_t)(int16_t)INS_D(i)) << 3; // NOLINT
     auto reg = INS_A(i);
     regs[reg] = arrlen(trace->consts) | IR_CONST_BIAS;
-    arrput(trace->consts, k);
+    arrput(trace->consts, (gc_obj){.value = k});
     stack_top = INS_A(i) + 1;
     break;
   }
@@ -1110,7 +1111,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     // TODO(djwatson) snapshots
     auto op1 = record_stack_load(INS_B(i), frame);
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)vm_string_symbol);
+    arrput(trace->consts, (gc_obj){.ptr = vm_string_symbol});
     push_ir(trace, IR_SAVEAP, 0, 0, UNDEFINED_TAG);
     auto sym = push_ir(trace, IR_CALLXS, op1, knum | IR_CONST_BIAS, SYMBOL_TAG);
     push_ir(trace, IR_RESAP, 0, 0, UNDEFINED_TAG);
@@ -1280,9 +1281,9 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   }
   case GUARD: {
     record_stack_load(INS_B(i), frame);
-    int64_t v = frame[INS_B(i)];
+    auto v = frame[INS_B(i)];
     auto type = INS_C(i);
-    int64_t c = FALSE_REP;
+    auto c = FALSE_REP;
     auto obj_type = get_object_ir_type(v);
     if (obj_type == type) {
       c = TRUE_REP;
@@ -1321,7 +1322,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     break;
   }
   case KFUNC: {
-    auto k = (gc_obj)funcs[INS_D(i)];
+    auto k = tag_func(funcs[INS_D(i)]);
     auto reg = INS_A(i);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, k);
@@ -1351,7 +1352,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     push_ir(trace, IR_ABC, vec, idx, IR_INS_TYPE_GUARD | VECTOR_TAG);
     auto vref = push_ir(trace, IR_VREF, vec, idx, 0);
 
-    uint64_t pos = frame[INS_C(i)] >> 3;
+    uint64_t pos = to_fixnum(frame[INS_C(i)]);
     vector_s *vec_d = to_vector(frame[INS_B(i)]);
     uint8_t type = get_object_ir_type(vec_d->v[pos]);
     regs[INS_A(i)] = push_ir(trace, IR_LOAD, vref, 0, IR_INS_TYPE_GUARD | type);
@@ -1424,7 +1425,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     } else {
       // BOX
       auto knum = arrlen(trace->consts);
-      arrput(trace->consts, NIL_TAG);
+      arrput(trace->consts, NIL);
       b = knum | IR_CONST_BIAS;
     }
     add_snap(regs_list, regs - regs_list - 1, trace, pc, depth,
@@ -1434,7 +1435,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     // all registers to stack.
     trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, sizeof(cons_s) << 3);
+    arrput(trace->consts, tag_fixnum(sizeof(cons_s)));
     auto cell =
         push_ir(trace, IR_ALLOC, knum | IR_CONST_BIAS, CONS_TAG, CONS_TAG);
     regs[INS_A(i)] = cell;
@@ -1479,7 +1480,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     // (make-string 100))
     auto arg = push_ir(trace, IR_CARG, cell, ch, UNDEFINED_TAG);
     knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)vm_make_string);
+    arrput(trace->consts, tag_ptr(vm_make_string));
     push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
     stack_top = INS_A(i) + 1;
     add_snap(regs_list, regs - regs_list - 1, trace, pc + 1, depth, stack_top);
@@ -1498,7 +1499,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
 
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (2) << 3);
+    arrput(trace->consts, tag_fixnum(2));
     auto alloc_sz =
         push_ir(trace, IR_ADD, sz, knum | IR_CONST_BIAS, FIXNUM_TAG);
     knum = arrlen(trace->consts);
@@ -1515,7 +1516,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
 
     auto arg = push_ir(trace, IR_CARG, cell, ch, UNDEFINED_TAG);
     knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)vm_make_vector);
+    arrput(trace->consts, tag_ptr(vm_make_vector));
     push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
     stack_top = INS_A(i) + 1;
     add_snap(regs_list, regs - regs_list - 1, trace, pc + 1, depth, stack_top);
@@ -1536,7 +1537,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     trace->snaps[arrlen(trace->snaps) - 1].exits = 255;
 
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (sizeof(vector_s) + 8UL * len) << 3);
+    arrput(trace->consts, tag_fixnum(sizeof(vector_s) + 8UL * len));
     auto cell =
         push_ir(trace, IR_ALLOC, knum | IR_CONST_BIAS, VECTOR_TAG, VECTOR_TAG);
     regs[reg] = cell;
@@ -1564,11 +1565,11 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     port_s *port = to_port(frame[INS_B(i)]);
     uint8_t type = CHAR_TAG;
     // TODO(djwatson) peek instead.
-    if (port->eof == TRUE_REP) {
+    if (port->eof.value == TRUE_REP.value) {
       type = EOF_TAG;
     }
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)vm_read_char);
+    arrput(trace->consts, tag_ptr(vm_read_char));
     regs[INS_A(i)] =
         push_ir(trace, IR_CALLXS, record_stack_load(INS_B(i), frame),
                 knum | IR_CONST_BIAS, type | IR_INS_TYPE_GUARD);
@@ -1580,11 +1581,11 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     port_s *port = to_port(frame[INS_B(i)]);
     uint8_t type = CHAR_TAG;
     // TODO(djwatson) peek instead.
-    if (port->eof == TRUE_REP) {
+    if (port->eof.value == TRUE_REP.value) {
       type = EOF_TAG;
     }
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)vm_peek_char);
+    arrput(trace->consts, tag_ptr(vm_peek_char));
     regs[INS_A(i)] =
         push_ir(trace, IR_CALLXS, record_stack_load(INS_B(i), frame),
                 knum | IR_CONST_BIAS, type | IR_INS_TYPE_GUARD);
@@ -1596,7 +1597,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     auto arg = push_ir(trace, IR_CARG, record_stack_load(INS_B(i), frame),
                        record_stack_load(INS_C(i), frame), UNDEFINED_TAG);
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)vm_write);
+    arrput(trace->consts, tag_ptr(vm_write));
     push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, UNDEFINED_TAG);
     stack_top = INS_A(i) + 1;
     add_snap(regs_list, regs - regs_list - 1, trace, pc + 1, depth, stack_top);
@@ -1606,7 +1607,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     auto arg = push_ir(trace, IR_CARG, record_stack_load(INS_B(i), frame),
                        record_stack_load(INS_C(i), frame), UNDEFINED_TAG);
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)equalp);
+    arrput(trace->consts, tag_ptr(equalp));
     regs[INS_A(i)] =
         push_ir(trace, IR_CALLXS, arg, knum | IR_CONST_BIAS, BOOL_TAG);
     stack_top = INS_A(i) + 1;
@@ -1614,7 +1615,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   }
   case LENGTH: {
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)vm_length);
+    arrput(trace->consts, tag_ptr(vm_length));
     regs[INS_A(i)] =
         push_ir(trace, IR_CALLXS, record_stack_load(INS_B(i), frame),
                 knum | IR_CONST_BIAS, FIXNUM_TAG);
@@ -1623,7 +1624,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   }
   case MEMQ: {
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)vm_memq);
+    arrput(trace->consts, tag_ptr(vm_memq));
     auto res = vm_memq(frame[INS_B(i)], frame[INS_C(i)]);
     auto typ = get_object_ir_type(res);
     auto arg = push_ir(trace, IR_CARG, record_stack_load(INS_B(i), frame),
@@ -1635,7 +1636,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   }
   case ASSQ: {
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)vm_assq);
+    arrput(trace->consts, tag_ptr(vm_assq));
     auto res = vm_assq(frame[INS_B(i)], frame[INS_C(i)]);
     auto typ = get_object_ir_type(res);
     auto arg = push_ir(trace, IR_CARG, record_stack_load(INS_B(i), frame),
@@ -1647,7 +1648,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   }
   case ASSV: {
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, (gc_obj)vm_assv);
+    arrput(trace->consts, tag_ptr(vm_assv));
     auto res = vm_assq(frame[INS_B(i)], frame[INS_C(i)]);
     auto typ = get_object_ir_type(res);
     auto arg = push_ir(trace, IR_CARG, record_stack_load(INS_B(i), frame),
@@ -1684,7 +1685,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   case GSET: {
     auto gp = const_table[INS_D(i)];
     symbol *g = to_symbol(gp);
-    if (g->val == UNDEFINED_TAG || (g->opt != 0 && g->opt != -1)) {
+    if (is_undefined(g->val) || (g->opt != 0 && g->opt != -1)) {
       if (verbose) {
         printf("Record abort: Setting a currently-const global %s %li\n",
                get_sym_name(to_symbol(g->name))->str, g->opt);
@@ -1704,13 +1705,13 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   }
   case SUBVN: {
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, ((int64_t)((int8_t)INS_C(i))) << 3);
+    arrput(trace->consts, tag_fixnum(((int64_t)((int8_t)INS_C(i)))));
     auto op1 = record_stack_load(INS_B(i), frame);
     uint8_t type = 0;
     if (op1 >= IR_CONST_BIAS) {
-      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
+      type = get_tag(trace->consts[op1 - IR_CONST_BIAS]);
     } else {
-      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
+      type = get_type(trace->ops[op1].type);
     }
     if (type != 0) {
       if (verbose) {
@@ -1727,13 +1728,13 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   case ADDVN: {
     // TODO(djwatson) check type
     auto knum = arrlen(trace->consts);
-    arrput(trace->consts, ((int64_t)((int8_t)INS_C(i))) << 3);
+    arrput(trace->consts, tag_fixnum((int64_t)((int8_t)INS_C(i))));
     auto op1 = record_stack_load(INS_B(i), frame);
     uint8_t type = 0;
     if (op1 >= IR_CONST_BIAS) {
-      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
+      type = get_tag(trace->consts[op1 - IR_CONST_BIAS]);
     } else {
-      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
+      type = get_type(trace->ops[op1].type);
     }
     if (type != 0) {
       if (verbose) {
@@ -1753,9 +1754,9 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     // TODO(djwatson): Assume no type change??
     uint8_t type = 0;
     if (op1 >= IR_CONST_BIAS) {
-      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
+      type = get_tag(trace->consts[op1 - IR_CONST_BIAS]);
     } else {
-      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
+      type = get_type(trace->ops[op1].type);
     }
     if (type != 0) {
       if (verbose) {
@@ -1774,9 +1775,9 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     // TODO(djwatson): Assume no type change??
     uint8_t type = 0;
     if (op1 >= IR_CONST_BIAS) {
-      type = trace->consts[op1 - IR_CONST_BIAS] & TAG_MASK;
+      type = get_tag(trace->consts[op1 - IR_CONST_BIAS]);
     } else {
-      type = trace->ops[op1].type & ~IR_INS_TYPE_GUARD;
+      type = get_type(trace->ops[op1].type);
     }
     if (type != 0) {
       if (verbose) {

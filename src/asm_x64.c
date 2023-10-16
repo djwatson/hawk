@@ -41,7 +41,7 @@ extern bool verbose;
 extern gc_obj *frame_top;
 EXPORT bool jit_dump_flag = false;
 
-int64_t spill_slot[256];
+gc_obj spill_slot[256];
 lru reg_lru;
 
 static void disassemble(const uint8_t *code, int len) {
@@ -266,8 +266,8 @@ void jit_exit_stub() asm("jit_exit_stub");
 
 static void restore_snap(snap_s *snap, trace_s *trace, exit_state *state,
                          gc_obj **o_frame, uint32_t **o_pc) {
-  (*o_frame) = (gc_obj *)state->regs[RDI]; // NOLINT
-  alloc_ptr = (uint8_t *)state->regs[RBX]; // NOLINT
+  (*o_frame) = (gc_obj *)state->regs[RDI].value; // NOLINT
+  alloc_ptr = (uint8_t *)state->regs[RBX].value; // NOLINT
   if ((*o_frame) >= frame_top) {
     expand_stack(o_frame);
   }
@@ -327,7 +327,7 @@ static void emit_call_arguments(uint16_t op, trace_s *trace, int arg) {
     auto c2 = trace->consts[op - IR_CONST_BIAS];
     auto re = (reloc){emit_offset(), c2, RELOC_ABS};
     arrput(trace->relocs, re);
-    emit_mov64(reg, c2);
+    emit_mov64(reg, c2.value);
   } else {
     auto cop = &trace->ops[op];
     if (cop->op == IR_CARG) {
@@ -366,7 +366,7 @@ static void emit_snap(uint16_t snap, trace_s *trace, const uint16_t *ignore) {
       emit_mem_reg(OP_MOV_RM, slot->slot * 8, RDI, R15);
       auto re = (reloc){emit_offset(), c, RELOC_ABS};
       arrput(trace->relocs, re);
-      emit_mov64(R15, (int64_t)(c));
+      emit_mov64(R15, c.value);
     } else {
       auto op = &trace->ops[slot->val];
 
@@ -394,7 +394,8 @@ static void emit_snap(uint16_t snap, trace_s *trace, const uint16_t *ignore) {
 static void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
                           uint8_t reg, uint32_t op2, trace_s *trace) {
   if (ir_is_const(op2)) {
-    int64_t v = trace->consts[op2 - IR_CONST_BIAS];
+    gc_obj obj = trace->consts[op2 - IR_CONST_BIAS];
+    auto v = obj.value;
     // TODO(djwatson): check V is of correct type, but we typecheck
     // return pointers also, which can move.
     if ((int64_t)((int32_t)v) == v && arith_code != OP_ARITH_NONE) {
@@ -408,7 +409,7 @@ static void emit_arith_op(enum ARITH_CODES arith_code, enum OPCODES op_code,
         emit_reg_reg(op_code, reg, R15);
       }
       // This is only necessary for cmp of a closure for call/callt
-      auto re = (reloc){emit_offset(), v, RELOC_ABS};
+      auto re = (reloc){emit_offset(), obj, RELOC_ABS};
       arrput(trace->relocs, re);
       emit_mov64(R15, v);
     }
@@ -473,7 +474,7 @@ static void emit_arith(enum ARITH_CODES arith_code, enum OPCODES op_code,
     auto c = trace->consts[op->op1 - IR_CONST_BIAS];
     auto re = (reloc){emit_offset(), c, RELOC_ABS};
     arrput(trace->relocs, re);
-    emit_mov64(reg, c);
+    emit_mov64(reg, c.value);
     if (reg == reg2) {
       emit_reg_reg(OP_MOV, reg2, R15);
     }
@@ -515,16 +516,17 @@ static void emit_cmp(enum jcc_cond cmp, ir_ins *op, trace_s *trace,
     auto c = trace->consts[op->op1 - IR_CONST_BIAS];
     auto re = (reloc){emit_offset(), c, RELOC_ABS};
     arrput(trace->relocs, re);
-    emit_mov64(reg, c);
+    emit_mov64(reg, c.value);
   }
 }
 
 static void emit_op_typecheck(uint8_t reg, uint8_t type, int64_t offset) {
   if (is_type_guard(type)) {
     emit_jcc32(JNE, offset);
-    if (is_fixnum(get_type(type))) {
+    auto cur_type = (gc_obj){.value = get_type(type)};
+    if (is_fixnum(cur_type)) {
       emit_op_imm32(OP_TEST_IMM, 0, reg, 0x7);
-    } else if (is_ptr(type)) {
+    } else if (is_ptr(cur_type)) {
       emit_cmp_reg_imm32(R15, get_type(type));
       emit_mem_reg(OP_MOV_MR, -PTR_TAG, R15, R15);
       // remove rex.W
@@ -536,8 +538,8 @@ static void emit_op_typecheck(uint8_t reg, uint8_t type, int64_t offset) {
       emit_cmp_reg_imm32(R15, 1);
       emit_op_imm32(OP_AND_IMM, 4, R15, 0x7);
       emit_reg_reg(OP_MOV, reg, R15);
-    } else if (is_literal(type)) {
-      auto lit_bits = get_imm_tag(get_type(type));
+    } else if (is_literal(cur_type)) {
+      auto lit_bits = get_imm_tag(cur_type);
       emit_cmp_reg_imm32(R15, lit_bits);
       emit_op_imm32(OP_AND_IMM, 4, R15, 0xff);
       emit_reg_reg(OP_MOV, reg, R15);
@@ -562,7 +564,7 @@ static void asm_add_to_pcopy(map *moves, ir_ins *op, uint16_t val,
         auto c2 = trace->consts[val - IR_CONST_BIAS];
         auto re = (reloc){emit_offset(), c2, RELOC_ABS};
         arrput(trace->relocs, re);
-        emit_mov64(RAX, c2);
+        emit_mov64(RAX, c2.value);
         emit_push(RAX);
       }
     } else {
@@ -573,7 +575,7 @@ static void asm_add_to_pcopy(map *moves, ir_ins *op, uint16_t val,
       auto c2 = trace->consts[val - IR_CONST_BIAS];
       auto re = (reloc){emit_offset(), c2, RELOC_ABS};
       arrput(trace->relocs, re);
-      emit_mov64(op->reg, c2);
+      emit_mov64(op->reg, c2.value);
     }
   } else {
     auto old_op = &trace->ops[val];
@@ -710,24 +712,24 @@ static void emit_vref(uint8_t reg, uint8_t opcode, trace_s *trace, ir_ins *op,
       // TODO(djwatson) could be a special reloc type and one mov.
       auto c2 = trace->consts[op->op2 - IR_CONST_BIAS];
       assert(((int64_t)((int32_t)c2)) == c2);
-      emit_mem_reg(opcode, (int32_t)(16 - type + c2), R15, reg);
+      emit_mem_reg(opcode, (int32_t)(16 - type + c2.value), R15, reg);
 
       auto c1 = trace->consts[op->op1 - IR_CONST_BIAS];
       auto re = (reloc){emit_offset(), c1, RELOC_ABS};
       arrput(trace->relocs, re);
-      emit_mov64(R15, c1);
+      emit_mov64(R15, c1.value);
     } else {
       emit_mem_reg_sib(opcode, 16 - type, 0, trace->ops[op->op2].reg, R15, reg);
 
       auto c1 = trace->consts[op->op1 - IR_CONST_BIAS];
       auto re = (reloc){emit_offset(), c1, RELOC_ABS};
       arrput(trace->relocs, re);
-      emit_mov64(R15, c1);
+      emit_mov64(R15, c1.value);
     }
   } else {
     if (ir_is_const(op->op2)) {
       // Must be fixnum
-      auto c = trace->consts[op->op2 - IR_CONST_BIAS];
+      auto c = trace->consts[op->op2 - IR_CONST_BIAS].value;
       assert(((int64_t)((int32_t)c)) == c);
       emit_mem_reg(opcode, (int32_t)(16 - type + c), trace->ops[op->op1].reg,
                    reg);
@@ -923,7 +925,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         emit_mem_reg(OP_MOV_RM, 0, R15, r);
         auto re = (reloc){emit_offset(), c, RELOC_ABS};
         arrput(trace->relocs, re);
-        emit_mov64(r, c);
+        emit_mov64(r, c.value);
       } else {
         emit_mem_reg(OP_MOV_RM, 0, R15, trace->ops[op->op2].reg);
       }
@@ -941,7 +943,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (ir_is_const(op->op2)) {
         emit_mem_reg(OP_MOV8, 0, trace->ops[op->op1].reg, R15);
         // must be fixnum
-        uint8_t c = trace->consts[op->op2 - IR_CONST_BIAS] >> 8;
+        uint8_t c = to_char(trace->consts[op->op2 - IR_CONST_BIAS]);
         emit_mov64(R15, c);
       } else {
         emit_mem_reg(OP_MOV8, 0, trace->ops[op->op1].reg, R15);
@@ -962,7 +964,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         auto c = trace->consts[op->op2 - IR_CONST_BIAS];
         auto re = (reloc){emit_offset(), c, RELOC_ABS};
         arrput(trace->relocs, re);
-        emit_mov64(R15, c);
+        emit_mov64(R15, c.value);
       } else {
         emit_mem_reg(OP_MOV_RM, 0, trace->ops[op->op1].reg,
                      trace->ops[op->op2].reg);
@@ -986,7 +988,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         // Must be a fixnum.
         auto c = trace->consts[op->op2 - IR_CONST_BIAS];
         assert(((int64_t)((int32_t)c)) == c);
-        emit_mem_reg(OP_LEA, (int32_t)(16 - PTR_TAG - (c >> 3)), reg1, op->reg);
+        emit_mem_reg(OP_LEA, (int32_t)(16 - PTR_TAG - to_fixnum(c)), reg1,
+                     op->reg);
       } else {
         emit_mem_reg_sib(OP_LEA, 16 - PTR_TAG, 0, R15, reg1, op->reg);
         emit_imm8(3);
@@ -997,7 +1000,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         auto c = trace->consts[op->op1 - IR_CONST_BIAS];
         auto re = (reloc){emit_offset(), c, RELOC_ABS};
         arrput(trace->relocs, re);
-        emit_mov64(reg1, (int64_t)(c));
+        emit_mov64(reg1, c.value);
       }
       break;
     }
@@ -1046,8 +1049,8 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (ir_is_const(op->op1)) {
         // Note this could be a vector or a string.
         vector_s *v =
-            (vector_s *)(trace->consts[op->op1 - IR_CONST_BIAS] - type);
-        emit_mov64(R15, (int32_t)v->len);
+            (vector_s *)(trace->consts[op->op1 - IR_CONST_BIAS].value - type);
+        emit_mov64(R15, (int32_t)v->len.value);
       } else {
         emit_mem_reg(OP_MOV_MR, 8 - type, trace->ops[op->op1].reg, R15);
       }
@@ -1068,7 +1071,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
           auto c = trace->consts[op->op1 - IR_CONST_BIAS];
           auto re = (reloc){emit_offset(), c, RELOC_ABS};
           arrput(trace->relocs, re);
-          emit_mov64(R15, c);
+          emit_mov64(R15, c.value);
         } else {
           emit_mem_reg(OP_LEA, op->op2, trace->ops[op->op1].reg, op->reg);
         }
@@ -1082,7 +1085,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       assert(!ir_is_const(op->op1));
       if (ir_is_const(op->op2)) {
         // must be fixnum
-        auto c = trace->consts[op->op2 - IR_CONST_BIAS] >> 3;
+        auto c = to_fixnum(trace->consts[op->op2 - IR_CONST_BIAS]);
         assert(((int64_t)((int32_t)c)) == c);
         emit_mem_reg(OP_LEA, (int32_t)(16 - PTR_TAG + c),
                      trace->ops[op->op1].reg, op->reg);
@@ -1124,7 +1127,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_jcc32(JAE, snap_labels[cur_snap]);
       emit_reg_reg(OP_CMP, R15, RBX);
       if (ir_is_const(op->op1)) {
-        auto c = trace->consts[op->op1 - IR_CONST_BIAS] >> 3;
+        auto c = to_fixnum(trace->consts[op->op1 - IR_CONST_BIAS]);
         assert(((int64_t)((int32_t)c)) == c);
         emit_arith_imm(OP_ARITH_ADD, RBX, (int32_t)c);
       } else {
@@ -1156,7 +1159,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         auto c = trace->consts[op->op1 - IR_CONST_BIAS];
         auto re = (reloc){emit_offset(), c, RELOC_ABS_NO_TAG};
         arrput(trace->relocs, re);
-        emit_mov64(R15, c & ~TAG_MASK);
+        emit_mov64(R15, (int64_t)to_raw_ptr(c));
       } else {
         reg = trace->ops[op->op1].reg;
         emit_op_imm32(OP_AND_IMM, 4, R15, ~0x7);
@@ -1190,7 +1193,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_reg_reg(OP_MOV, R15, RDI);
       // TODO(djwatson) probably in low mem, no need for mov64
       emit_call_indirect(RAX);
-      emit_mov64(RAX, c);
+      emit_mov64(RAX, c.value);
       // args
       emit_call_arguments(op->op1, trace, 0);
 
@@ -1237,7 +1240,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (ir_is_const(op->op1)) {
         auto c = trace->consts[op->op1 - IR_CONST_BIAS];
         // assert((c & TAG_MASK) == FIXNUM_TAG);
-        emit_mov64(op->reg, c >> op->op2);
+        emit_mov64(op->reg, c.value >> op->op2);
       } else {
         emit_imm8(op->op2);
         emit_reg_reg(OP_SAR_CONST, 7, op->reg);
@@ -1251,11 +1254,11 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (ir_is_const(op->op1)) {
         auto c = trace->consts[op->op1 - IR_CONST_BIAS];
         // assert((c & TAG_MASK) == FIXNUM_TAG);
-        emit_mov64(op->reg, c >> op->op2);
+        emit_mov64(op->reg, c.value >> op->op2);
       } else {
         auto c = trace->consts[op->op2 - IR_CONST_BIAS];
         assert(((int64_t)((int32_t)c)) == c);
-        emit_op_imm32(OP_AND_IMM, 4, op->reg, (int32_t)c);
+        emit_op_imm32(OP_AND_IMM, 4, op->reg, (int32_t)c.value);
         emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, op->reg);
       }
       break;
@@ -1266,7 +1269,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (ir_is_const(op->op1)) {
         auto c = trace->consts[op->op1 - IR_CONST_BIAS];
         assert((c & TAG_MASK) == FIXNUM_TAG);
-        emit_mov64(op->reg, (c << 5) + CHAR_TAG);
+        emit_mov64(op->reg, tag_char(to_fixnum(c)).value);
       } else {
         emit_arith_imm(OP_ARITH_ADD, op->reg, CHAR_TAG);
         emit_imm8(5);
@@ -1327,7 +1330,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (ir_is_const(op->op1)) {
         auto c = trace->consts[op->op1 - IR_CONST_BIAS];
         // C must be fixnum
-        emit_mov64(RAX, c >> 3);
+        emit_mov64(RAX, to_fixnum(c));
       } else {
         emit_imm8(3);
         emit_reg_reg(OP_SAR_CONST, 7, RAX);
@@ -1339,7 +1342,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       if (ir_is_const(op->op2)) {
         auto c = trace->consts[op->op2 - IR_CONST_BIAS];
         // C must be fixnum
-        emit_mov64(R15, c >> 3);
+        emit_mov64(R15, to_fixnum(c));
       } else {
         emit_imm8(3);
         emit_reg_reg(OP_SAR_CONST, 7, reg2);
@@ -1382,11 +1385,11 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       // TODO(djwatson) reloc if functions can move.
       // FIXNUM
       // Constant return address ptr.
-      auto b = (int32_t)trace->consts[op->op2 - IR_CONST_BIAS];
+      auto b = (int32_t)trace->consts[op->op2 - IR_CONST_BIAS].value;
 
       emit_arith_imm(OP_ARITH_SUB, RDI, b);
       if (is_type_guard(op->type)) {
-        auto retadd = (int64_t)(trace->consts[op->op1 - IR_CONST_BIAS]);
+        auto retadd = (int64_t)(trace->consts[op->op1 - IR_CONST_BIAS].value);
         emit_jcc32(JNE, snap_labels[cur_snap]);
         emit_mem_reg(OP_CMP, -8, RDI, R15);
         emit_mov64(R15, retadd);
@@ -1485,7 +1488,7 @@ int jit_run(trace_s *entry_trace, uint32_t **o_pc, gc_obj **o_frame,
   }
 
   /* printf("FN start %i %p %p\n", trace->num, alloc_ptr, alloc_end); */
-  state.regs[RBX] = (int64_t)alloc_ptr;
+  state.regs[RBX] = tag_ptr(alloc_ptr);
   jit_entry_stub(*o_frame, entry_trace->fn, &state);
   auto trace = state.trace;
   uint64_t exit = state.snap;

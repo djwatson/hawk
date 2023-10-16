@@ -33,7 +33,7 @@ static ep_result ep(uf *ht, bool unused, gc_obj a, gc_obj b, int64_t k);
 static ep_result equalp_interleave(uf *ht, bool fast, gc_obj a, gc_obj b,
                                    int64_t k) {
   // eq?
-  if (a == b) {
+  if (a.value == b.value) {
     return (ep_result){true, k};
   }
 
@@ -43,7 +43,7 @@ static ep_result equalp_interleave(uf *ht, bool fast, gc_obj a, gc_obj b,
     if (is_cons(b)) {
       auto cell_a = to_cons(a);
       auto cell_b = to_cons(b);
-      if (!fast && unionfind(ht, a, b)) {
+      if (!fast && unionfind(ht, a.value, b.value)) {
         return (ep_result){true, 0};
       }
       // Decrement k once
@@ -68,7 +68,7 @@ static ep_result equalp_interleave(uf *ht, bool fast, gc_obj a, gc_obj b,
     if (ta == STRING_TAG) {
       auto sa = to_string(a);
       auto sb = to_string(b);
-      if (sa->len != sb->len) {
+      if (sa->len.value != sb->len.value) {
         return (ep_result){false, k};
       }
       if (strcmp(sa->str, sb->str) == 0) {
@@ -80,14 +80,14 @@ static ep_result equalp_interleave(uf *ht, bool fast, gc_obj a, gc_obj b,
   if (is_vector(a) && is_vector(b)) {
     auto va = to_vector(a);
     auto vb = to_vector(b);
-    if (va->len != vb->len) {
+    if (va->len.value != vb->len.value) {
       return (ep_result){false, k};
     }
-    if (!fast && unionfind(ht, a, b)) {
+    if (!fast && unionfind(ht, a.value, b.value)) {
       return (ep_result){true, 0};
     }
     // Decrement K once for the vector, but return same K value
-    uint64_t lim = va->len >> 3;
+    uint64_t lim = to_fixnum(va->len);
     for (uint64_t i = 0; i < lim; i++) {
       auto res = ep(ht, fast, va->v[i], vb->v[i], k - 1);
       if (true != res.v) {
@@ -141,7 +141,7 @@ void print_obj(gc_obj obj, FILE *file) {
   auto type = get_tag(obj);
   switch (type) {
   case FIXNUM_TAG: {
-    fprintf(file, "%li", obj >> 3);
+    fprintf(file, "%li", to_fixnum(obj));
     break;
   }
   case PTR_TAG: {
@@ -159,7 +159,7 @@ void print_obj(gc_obj obj, FILE *file) {
   case VECTOR_TAG: {
     auto v = to_vector(obj);
     fputs("#(", file);
-    for (uint64_t i = 0; i < (v->len >> 3); i++) {
+    for (uint64_t i = 0; i < to_fixnum(v->len); i++) {
       if (i != 0) {
         fputc(' ', file);
       }
@@ -190,7 +190,7 @@ void print_obj(gc_obj obj, FILE *file) {
       fputc(' ', file);
     }
     print_obj(c->a, file);
-    if (c->b != NIL_TAG) {
+    if (c->b.value != NIL_TAG) {
       fputs(" . ", file);
       print_obj(c->b, file);
     }
@@ -210,20 +210,20 @@ void print_obj(gc_obj obj, FILE *file) {
     break;
   }
   case LITERAL_TAG: {
-    if (obj == TRUE_REP) {
+    if (obj.value == TRUE_REP.value) {
       fputs("#t", file);
-    } else if (obj == FALSE_REP) {
+    } else if (obj.value == FALSE_REP.value) {
       fputs("#f", file);
-    } else if (obj == NIL_TAG) {
+    } else if (obj.value == NIL_TAG) {
       fputs("()", file);
-    } else if (obj == EOF_TAG) {
+    } else if (obj.value == EOF_TAG) {
       fputs("<eof>", file);
-    } else if (obj == UNDEFINED_TAG) {
+    } else if (is_undefined(obj)) {
       fputs("<undefined>", file);
     } else if (is_char(obj)) {
       fputc(to_char(obj), file);
     } else {
-      fprintf(file, "Unknown immediate: %lx\n", obj);
+      fprintf(file, "Unknown immediate: %lx\n", obj.value);
     }
     break;
   }
@@ -250,20 +250,21 @@ inline size_t heap_object_size(void *obj) {
     return sizeof(flonum_s);
   case STRING_TAG: {
     auto str = (string_s *)obj;
-    return (str->len >> 3) * sizeof(char) + 16 + 1 /* null tag */;
+    return to_fixnum(str->len) * sizeof(char) + sizeof(string_s) +
+           1 /* null tag */;
   }
   case SYMBOL_TAG:
     return sizeof(symbol);
   case CONT_TAG:
   case VECTOR_TAG: {
     auto vec = (vector_s *)obj;
-    return (vec->len >> 3) * sizeof(gc_obj) + 16;
+    return to_fixnum(vec->len) * sizeof(gc_obj) + 16;
   }
   case CONS_TAG:
     return sizeof(cons_s);
   case CLOSURE_TAG: {
     auto clo = (closure_s *)obj;
-    return (clo->len >> 3) * sizeof(gc_obj) + 16;
+    return to_fixnum(clo->len) * sizeof(gc_obj) + 16;
   }
   case PORT_TAG:
     return sizeof(port_s);
@@ -291,7 +292,7 @@ inline void trace_heap_object(void *obj, trace_callback visit, void *ctx) {
   case CONT_TAG:
   case VECTOR_TAG: {
     auto vec = (vector_s *)obj;
-    for (uint64_t i = vec->len >> 3; i > 0; i--) {
+    for (uint64_t i = to_fixnum(vec->len); i > 0; i--) {
       visit(&vec->v[i] - 1, ctx);
     }
     break;
@@ -305,7 +306,7 @@ inline void trace_heap_object(void *obj, trace_callback visit, void *ctx) {
   case CLOSURE_TAG: {
     auto clo = (closure_s *)obj;
     // Note start from 1: first field is bcfunc* pointer.
-    for (uint64_t i = clo->len >> 3; i > 1; i--) {
+    for (uint64_t i = to_fixnum(clo->len); i > 1; i--) {
       visit(&clo->v[i] - 1, ctx);
     }
     break;

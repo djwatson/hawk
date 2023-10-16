@@ -15,15 +15,15 @@
 #include "types.h"
 
 static void print_literal(gc_obj c) {
-  if (c == FALSE_REP) {
+  if (c.value == FALSE_REP.value) {
     printf("\e[1;35m#f\e[m");
-  } else if (c == TRUE_REP) {
+  } else if (c.value == TRUE_REP.value) {
     printf("\e[1;35m#t\e[m");
-  } else if (c == NIL_TAG) {
+  } else if (c.value == NIL_TAG) {
     printf("\e[1;35mnil\e[m");
   } else if (get_imm_tag(c) == CHAR_TAG) {
     printf("'%c'", to_char(c));
-  } else if (c == EOF_TAG) {
+  } else if (c.value == EOF_TAG) {
     printf("eof");
   } else {
     printf("frame");
@@ -36,7 +36,7 @@ static void print_const_or_val(int i, trace_s *ctrace) {
     int type = get_tag(c);
     switch (type) {
     case FIXNUM_TAG:
-      printf("\e[1;35m%li\e[m", c >> 3);
+      printf("\e[1;35m%li\e[m", to_fixnum(c));
       break;
     case CLOSURE_TAG:
       printf("\e[1;31m<closure>\e[m");

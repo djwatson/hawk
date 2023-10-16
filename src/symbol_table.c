@@ -47,12 +47,10 @@ EXPORT symbol *symbol_table_find_cstr(const char *str) {
   auto mask = sym_table->sz - 1;
   for (size_t i = 0; i < sym_table->sz; i++) {
     auto cur = &sym_table->entries[(i + hash) & mask];
-    if (*cur == 0) {
+    if (cur->value == 0) {
       return NULL;
     }
-    if (*cur == TOMBSTONE) {
-      continue;
-    }
+
     symbol *curs = to_symbol(*cur);
     string_s *sym_name = get_sym_name(curs);
     if (strcmp(sym_name->str, str) == 0) {
@@ -76,7 +74,7 @@ static void symbol_table_insert_sym(symbol *sym) {
 
   for (size_t i = 0; i < sym_table->sz; i++) {
     auto cur = &sym_table->entries[(i + hash) & mask];
-    if (*cur == 0 || *cur == TOMBSTONE ||
+    if (cur->value == 0 ||
         strcmp(get_sym_name(to_symbol(*cur))->str, sym_name->str) == 0) {
       // Insert here.
       *cur = tag_sym(sym);
@@ -106,7 +104,7 @@ static void rehash() {
   // Rehash items.
   for (size_t i = 0; i < old->sz; i++) {
     auto cur = &old->entries[i];
-    if (*cur != 0 && *cur != TOMBSTONE) {
+    if (cur->value != 0) {
       symbol_table_insert_sym(to_symbol(*cur));
     }
   }
@@ -127,19 +125,21 @@ gc_obj symbol_table_insert(string_s *str, bool can_alloc) {
   assert(symbol_table_find(str) == NULL);
   // Build a new symbol.
   // Must dup the string, since strings are not immutable.
-  auto strlen = str->len >> 3;
+  auto strlen = to_fixnum(str->len);
   symbol *sym = NULL;
   if (can_alloc) {
     sym = GC_malloc(sizeof(symbol));
   } else {
     sym = GC_malloc_no_collect(sizeof(symbol));
     if (!sym) {
-      return 0;
+      return FALSE_REP;
     }
   }
 
   // Note re-load of str after allocation.
-  *sym = (symbol){SYMBOL_TAG, 0, tag_string(str), UNDEFINED_TAG, 0, NULL};
+  *sym = (symbol){
+      SYMBOL_TAG, 0,   tag_string(str), (gc_obj){.value = UNDEFINED_TAG},
+      0,          NULL};
 
   // Save new symbol in frame[ra].
   gc_obj result = tag_symbol(sym);
@@ -155,13 +155,13 @@ gc_obj symbol_table_insert(string_s *str, bool can_alloc) {
   } else {
     str2 = GC_malloc_no_collect(16 + strlen + 1);
     if (!str2) {
-      return 0;
+      return FALSE_REP;
     }
   }
   // Re-load sym after GC
   sym = to_symbol(result);
 
-  *str2 = (string_s){STRING_TAG, 0, strlen << 3};
+  *str2 = (string_s){STRING_TAG, 0, tag_fixnum(strlen)};
   // Re-load str after GC
   memcpy(str2->str, to_string(sym->name)->str, strlen + 1);
   sym->name = tag_string(str2);
@@ -173,7 +173,7 @@ gc_obj symbol_table_insert(string_s *str, bool can_alloc) {
 void symbol_table_for_each(for_each_cb cb) {
   for (size_t i = 0; i < sym_table->sz; i++) {
     auto cur = &sym_table->entries[i];
-    if (*cur != 0 && *cur != TOMBSTONE) {
+    if (cur->value != 0) {
       cb(&sym_table->entries[i]);
     }
   }

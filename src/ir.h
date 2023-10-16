@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "types.h"
+
 typedef struct symbol symbol;
 
 typedef enum {
@@ -125,8 +127,6 @@ typedef enum {
   RELOC_ABS_NO_TAG,
   RELOC_SYM_ABS,
 } reloc_type;
-
-typedef int64_t gc_obj;
 
 typedef struct {
   uint64_t offset;

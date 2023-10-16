@@ -70,8 +70,8 @@ void compile_file(const char *file) {
   // Watch out for GC safety, from_c_str allocates.
   auto str = from_c_str(file);
   auto sym = symbol_table_find_cstr("compile-file"); // DOes not allocate.
-  gc_obj args[3] = {0, str, TRUE_REP};
-  if ((sym == nullptr) || sym->val == UNDEFINED_TAG) {
+  gc_obj args[3] = {tag_fixnum(0), str, TRUE_REP};
+  if ((sym == nullptr) || is_undefined(sym->val)) {
     printf("Error: Attempting to compile a scm file, but can't find "
            "compile-file\n");
     exit(-1);

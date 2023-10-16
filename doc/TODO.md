@@ -137,6 +137,9 @@
 * stdb_ds really pisses off the linters.
 * emit_x86 can be cleaned up substantially.
 * gc_obj should be a separate type
+* cleanup relocs in asm
+* cleanup knums / consts in record
+* cleanup anything with '.value'
 
 # known bugs:
 * something about two scripts on the command line fails.

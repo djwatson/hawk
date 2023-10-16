@@ -148,7 +148,7 @@ static gc_obj read_closure(FILE *fptr) {
   closure_s *clo = GC_malloc(sizeof(closure_s) + 8);
   clo->type = CLOSURE_TAG;
   clo->rc = 0;
-  clo->len = 1 << 3;
+  clo->len = tag_fixnum(1);
   clo->v[0] = tag_fixnum(bcfunc_num); // Updated below.
   return tag_closure(clo);
 }
@@ -158,7 +158,7 @@ static gc_obj read_const(FILE *fptr) {
   if (fread(&val, 1, 8, fptr) != 8) {
     read_error();
   }
-  auto type = val & TAG_MASK;
+  auto type = get_tag(val);
   if (type == SYMBOL_TAG) {
     return read_symbol(fptr, to_fixnum(val));
   }
@@ -321,7 +321,7 @@ static bcfunc *readbc(FILE *fptr) {
     auto v = const_table[i];
     if (is_closure(v)) {
       auto clo = to_closure(v);
-      clo->v[0] = (gc_obj)funcs[func_offset + (clo->v[0] >> 3)];
+      clo->v[0] = (gc_obj){.func = funcs[func_offset + to_fixnum(clo->v[0])]};
     }
   }
 

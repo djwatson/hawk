@@ -128,7 +128,7 @@ NOINLINE void NO_LINT FAIL_SLOWPATH(PARAMS) { //!OCLINT
     if (res) {
       printf("FUNC: %s PC %li\n", res->name, pc - &res->code[0]);
     }
-    pc = (unsigned int *)frame[-1];
+    pc = to_return_address(frame[-1]);
     frame[-1] = frame[ra];
     frame -= (INS_A(*(pc - 1)) + 1);
     printf("%i PC: %p\n", i++, pc);
@@ -174,7 +174,7 @@ void NO_LINT RECORD(PARAMS) {
 }
 
 static gc_obj build_list(int64_t start, int64_t len, const gc_obj *frame) {
-  gc_obj lst = NIL_TAG;
+  gc_obj lst = NIL;
 
   GC_push_root(&lst);
   // printf("Build list from %i len %i\n", start, len);
@@ -287,7 +287,7 @@ NOINLINE void NO_LINT EXPAND_STACK_SLOWPATH(PARAMS) {
   }
 #define LOAD_TYPE_WITH_CHECK(name, type_s, val, tag)                           \
   TYPECHECK_TAG(val, PTR_TAG);                                                 \
-  auto(name) = (type_s *)((val)-PTR_TAG);                                      \
+  auto(name) = (type_s *)((val.value) - PTR_TAG);                              \
   if (unlikely((name)->type != (tag))) {                                       \
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }
@@ -411,14 +411,14 @@ LIBRARY_FUNC_D(JMP) { pc += rd; }
 NEXT_FUNC
 
 LIBRARY_FUNC(IRET1) {
-  pc = (unsigned int *)frame[-1];
+  pc = to_return_address(frame[-1]);
   frame[-1] = frame[ra];
   frame -= (INS_A(*(pc - 1)) + 1);
 }
 NEXT_FUNC
 
 LIBRARY_FUNC(RET1) {
-  pc = (unsigned int *)frame[-1];
+  pc = to_return_address(frame[-1]);
   frame[-1] = frame[ra];
   frame -= (INS_A(*(pc - 1)) + 1);
 }
@@ -434,7 +434,8 @@ END_FUNC
   int8_t rc = (instr >> 8) & 0xff;                                             \
   gc_obj fb = frame[rb];                                                       \
   TYPECHECK_TAG(fb, FIXNUM_TAG);                                               \
-  if (unlikely(__builtin_##op##_overflow(fb, tag_fixnum(rc), &frame[ra]))) {   \
+  if (unlikely(__builtin_##op##_overflow(fb.value, tag_fixnum(rc).value,       \
+                                         &frame[ra].value))) {                 \
     MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
   }                                                                            \
   END_LIBRARY_FUNC
@@ -445,7 +446,8 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
 // Note overflow may smash dest, so don't use frame[ra] directly.
 #define OVERFLOW_OP(op, name, shift)                                           \
   gc_obj tmp;                                                                  \
-  if (unlikely(__builtin_##op##_overflow(fb, fc >> (shift), &tmp))) {          \
+  if (unlikely(__builtin_##op##_overflow(fb.value, fc.value >> (shift),        \
+                                         &tmp.value))) {                       \
     MUSTTAIL return INS_##name##_SLOWPATH(ARGS);                               \
   }                                                                            \
   frame[ra] = tmp;
@@ -511,13 +513,15 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
 LIBRARY_FUNC_MATH_OVERFLOW_VV(ADDVV, add, MATH_ADD, 0);
 LIBRARY_FUNC_MATH_OVERFLOW_VV(SUBVV, sub, MATH_SUB, 0);
 LIBRARY_FUNC_MATH_OVERFLOW_VV(MULVV, mul, MATH_MUL, 3);
-LIBRARY_FUNC_MATH_VV(DIV, MATH_DIV, frame[ra] = ((uint64_t)(fb / fc) << 3));
+LIBRARY_FUNC_MATH_VV(DIV, MATH_DIV,
+                     frame[ra] = tag_fixnum((uint64_t)(fb.value / fc.value)));
 LIBRARY_FUNC_MATH_VV(REM, remainder,
-                     frame[ra] = ((uint64_t)((fb >> 3) % (fc >> 3))) << 3);
+                     frame[ra] = tag_fixnum((uint64_t)((to_fixnum(fb)) %
+                                                       (to_fixnum(fc)))));
 
 #define LIBRARY_FUNC_EQ(name, iftrue, iffalse, finish)                         \
   LIBRARY_FUNC_BC_LOAD(name)                                                   \
-  if (fb == fc) {                                                              \
+  if (fb.value == fc.value) {                                                  \
     iftrue;                                                                    \
   } else {                                                                     \
     iffalse;                                                                   \
@@ -536,7 +540,7 @@ gc_obj vm_memq(gc_obj fb, gc_obj fc) {
   auto cur = fc;
   while (is_cons(cur)) {
     cons_s *cell = to_cons(cur);
-    if (fb == cell->a) {
+    if (fb.value == cell->a.value) {
       return cur;
     }
     cur = cell->b;
@@ -557,7 +561,7 @@ gc_obj vm_assv(gc_obj fb, gc_obj fc) {
       exit(-1);
     }
     cons_s *cella = to_cons(cell->a);
-    if (fb == cella->a) {
+    if (fb.value == cella->a.value) {
       return cell->a;
     }
     if (is_flonum(fb) && is_flonum(cella->a) &&
@@ -583,7 +587,7 @@ gc_obj vm_assq(gc_obj fb, gc_obj fc) {
       exit(-1);
     }
     cons_s *cella = to_cons(cell->a);
-    if (fb == cella->a) {
+    if (fb.value == cella->a.value) {
       return cell->a;
     }
     cur = cell->b;
@@ -638,7 +642,7 @@ END_LIBRARY_FUNC
   }                                                                            \
   LIBRARY_FUNC_BC_LOAD(name)                                                   \
   if (likely(is_fixnums(fb, fc))) {                                            \
-    func(fb, fc, op);                                                          \
+    func(fb.value, fc.value, op);                                              \
   } else if (likely(get_tag(fb) == get_tag(fc)) && is_flonum(fc)) {            \
     auto x_b = to_flonum(fb)->x;                                               \
     auto x_c = to_flonum(fc)->x;                                               \
@@ -680,7 +684,7 @@ LIBRARY_FUNC_NUM_CMP(ISEQ, ==, SET_RES);
 
 #define LIBRARY_FUNC_JISF(name, iftrue, iffalse)                               \
   LIBRARY_FUNC_B_LOAD(name)                                                    \
-  if (fb == FALSE_REP) {                                                       \
+  if (fb.value == FALSE_REP.value) {                                           \
     pc += (iftrue);                                                            \
   } else {                                                                     \
     pc += (iffalse);                                                           \
@@ -693,7 +697,7 @@ LIBRARY_FUNC_JISF(JIST, 2, INS_D(*(pc + 1)) + 1);
 
 LIBRARY_FUNC_D(GGET) {
   symbol *gp = to_symbol(const_table[rd]);
-  if (unlikely(gp->val == UNDEFINED_TAG)) {
+  if (unlikely(is_undefined(gp->val))) {
     MUSTTAIL return UNDEFINED_SYMBOL_SLOWPATH(ARGS);
   }
 
@@ -705,7 +709,7 @@ LIBRARY_FUNC_D(GSET) {
   symbol *gp = to_symbol(const_table[rd]);
 #ifdef JIT
   if (gp->opt != 0 && gp->opt != -1) {
-    if (gp->val != UNDEFINED_TAG) {
+    if (!is_undefined(gp->val)) {
       // printf("Gupgrade %s\n", ((string_s*)(gp->name-PTR_TAG))->str);
       for (uint32_t i = 0; i < hmlen(gp->lst); i++) {
         // printf("Get trace %i\n", gp->lst[i].key);
@@ -721,7 +725,7 @@ LIBRARY_FUNC_D(GSET) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_D(KFUNC) { frame[ra] = (gc_obj)funcs[rd]; } // NOLINT
+LIBRARY_FUNC_D(KFUNC) { frame[ra] = (gc_obj){.func = funcs[rd]}; } // NOLINT
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_D(KONST) { frame[ra] = const_table[rd]; }
@@ -737,7 +741,7 @@ LIBRARY_FUNC_B(BOX) {
   box->type = CONS_TAG;
   box->rc = 0;
   box->a = frame[rb];
-  box->b = NIL_TAG;
+  box->b = NIL;
   frame[ra] = tag_cons(box);
 }
 END_LIBRARY_FUNC
@@ -758,10 +762,11 @@ END_LIBRARY_FUNC
 #define LIBRARY_FUNC_GUARD(name, iftrue, iffalse, finish)                      \
   LIBRARY_FUNC_BC(name)                                                        \
   gc_obj fb = frame[rb];                                                       \
+  bool is_lit = (rc & TAG_MASK) == LITERAL_TAG;                                \
                                                                                \
-  if ((is_literal(rc) && (rc == get_imm_tag(fb))) ||                           \
+  if ((is_lit && (rc == get_imm_tag(fb))) ||                                   \
       (is_ptr(fb) && (get_ptr_tag(fb) == rc)) ||                               \
-      (!is_literal(rc) && get_tag(fb) == rc)) {                                \
+      (!is_lit && get_tag(fb) == rc)) {                                        \
     iftrue;                                                                    \
   } else {                                                                     \
     iffalse;                                                                   \
@@ -781,7 +786,7 @@ LIBRARY_FUNC_B(VECTOR) {
   vector_s *vector = GC_malloc(sizeof(gc_obj) * rb + sizeof(vector_s));
   vector->type = VECTOR_TAG;
   vector->rc = 0;
-  vector->len = rb << 3;
+  vector->len = tag_fixnum(rb);
   for (int i = 0; i < rb; i++) {
     vector->v[i] = frame[ra + i];
   }
@@ -795,13 +800,13 @@ LIBRARY_FUNC_B(CLOSURE) {
   closure_s *closure = GC_malloc(sizeof(gc_obj) * rb + sizeof(closure_s));
   closure->type = CLOSURE_TAG;
   closure->rc = 0;
-  closure->len = rb << 3;
+  closure->len = tag_fixnum(rb);
 
   for (int i = 0; i < rb; i++) {
     closure->v[i] = frame[ra + i];
   }
   // Record polymorphic
-  auto fun = (bcfunc *)frame[ra]; // NOLINT
+  auto fun = to_func(frame[ra]); // NOLINT
   if (fun->poly_cnt < 50) {
     fun->poly_cnt++;
     /* if (fun->poly_cnt == 50) { */
@@ -962,7 +967,7 @@ LIBRARY_FUNC_B(CALL) {
   bcfunc *func = closure_code_ptr(closure);
   auto old_pc = pc;
   pc = &func->code[0];
-  frame[ra] = (gc_obj)(old_pc + 1); // NOLINT
+  frame[ra] = tag_return_address(old_pc + 1);
   frame += ra + 1;
   argcnt = rb - 1;
   if (unlikely((frame + 256) > frame_top)) {
@@ -972,11 +977,11 @@ LIBRARY_FUNC_B(CALL) {
 NEXT_FUNC
 
 LIBRARY_FUNC_B(LCALL) {
-  auto func = (bcfunc *)frame[ra]; // NOLINT
+  auto func = to_func(frame[ra]);
 
   auto old_pc = pc;
   pc = &func->code[0];
-  frame[ra] = (long)(old_pc + 1); // NOLINT
+  frame[ra] = tag_return_address(old_pc + 1);
   frame += ra + 1;
   argcnt = rb - 1;
   if (unlikely((frame + 256) > frame_top)) {
@@ -1003,7 +1008,7 @@ LIBRARY_FUNC_B(CALLT) {
 NEXT_FUNC
 
 LIBRARY_FUNC_B(LCALLT) {
-  auto func = (bcfunc *)frame[ra]; // NOLINT
+  auto func = to_func(frame[ra]);
   pc = &func->code[0];
 
   int64_t start = ra + 1;
@@ -1017,7 +1022,7 @@ NEXT_FUNC
 
 #define LIBRARY_FUNC_EQV(name, name2, iftrue, iffalse, finish)                 \
   LIBRARY_FUNC_BC_LOAD_NAME(name, name2)                                       \
-  if (fb == fc) {                                                              \
+  if (fb.value == fc.value) {                                                  \
     iftrue;                                                                    \
   } else if (get_tag(fb) == get_tag(fc) && is_flonum(fc)) {                    \
     auto x_b = to_flonum(fb)->x;                                               \
@@ -1271,7 +1276,8 @@ gc_obj vm_string_symbol(gc_obj in) {
     return tag_symbol(res);
   }
   auto inserted = symbol_table_insert(str, false);
-  if (!inserted) {
+  if (!inserted
+           .value) { // TODO(djwatson) cleanup and put in symbol_table_insert?
     return FALSE_REP;
   }
   return inserted;
@@ -1290,13 +1296,13 @@ END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME("CHAR->INTEGER", CHAR_INTEGER) {
   TYPECHECK_IMMEDIATE(fb, CHAR_TAG);
-  frame[ra] = fb >> 5;
+  frame[ra] = tag_fixnum(to_char(fb));
 }
 END_LIBRARY_FUNC
 
 LIBRARY_FUNC_B_LOAD_NAME("INTEGER->CHAR", INTEGER_CHAR) {
   TYPECHECK_FIXNUM(fb);
-  frame[ra] = (fb << 5) + CHAR_TAG;
+  frame[ra] = tag_char(to_fixnum(fb));
 }
 END_LIBRARY_FUNC
 
@@ -1311,19 +1317,20 @@ LIBRARY_FUNC_BC(OPEN) {
 
   port->type = PORT_TAG;
   port->rc = 0;
-  port->input_port = fc;
+  port->input_port = fc.value;
   port->eof = FALSE_REP;
   port->buf_sz = 0;
   port->buf_pos = 0;
   port->in_buffer = NULL;
 
   if (is_fixnum(fb)) {
-    port->fd = frame[rb] >> 3;
+    port->fd = to_fixnum(frame[rb]);
   } else if (is_string(fb)) {
     auto str = to_string(fb);
-    port->fd =
-        open(str->str, fc == TRUE_REP ? O_RDONLY : O_WRONLY | O_CREAT | O_TRUNC,
-             0777);
+    port->fd = open(str->str,
+                    fc.value == TRUE_REP.value ? O_RDONLY
+                                               : O_WRONLY | O_CREAT | O_TRUNC,
+                    0777);
     if (port->fd == -1) {
       printf("Could not open fd for file %s\n", str->str);
       exit(-1);
@@ -1331,7 +1338,8 @@ LIBRARY_FUNC_BC(OPEN) {
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  port->file = fdopen((int)port->fd, fc == TRUE_REP ? "r" : "w"); // NOLINT
+  port->file =
+      fdopen((int)port->fd, fc.value == TRUE_REP.value ? "r" : "w"); // NOLINT
   if (port->file == NULL) {
     printf("FDopen fail\n");
     exit(-1);
@@ -1363,7 +1371,7 @@ inline gc_obj vm_peek_char(gc_obj p) {
   port->buf_sz = fread(port->in_buffer, 1, IN_BUFFER_SZ, port->file);
   if (port->buf_sz == 0) {
     port->eof = TRUE_REP;
-    return EOF_TAG;
+    return EOF_OBJ;
   }
   return tag_char(port->in_buffer[0]);
 }
@@ -1383,7 +1391,7 @@ inline gc_obj vm_read_char(gc_obj p) {
   port->buf_sz = fread(port->in_buffer, 1, IN_BUFFER_SZ, port->file);
   if (port->buf_sz == 0) {
     port->eof = TRUE_REP;
-    return EOF_TAG;
+    return EOF_OBJ;
   }
   return tag_char(port->in_buffer[0]);
 }
@@ -1406,13 +1414,13 @@ LIBRARY_FUNC_B_LOAD_NAME("READ-LINE", READ_LINE) {
     ssize_t res = getline(&bufptr, &sz, port->file);
     if (res == -1) {
       port->eof = TRUE_REP;
-      frame[ra] = EOF_TAG;
+      frame[ra] = EOF_OBJ;
     } else {
       stack_top = &frame[ra + 1];
       string_s *str = GC_malloc(res + sizeof(string_s));
       str->type = STRING_TAG;
       str->rc = 0;
-      str->len = res << 3;
+      str->len = tag_fixnum(res);
       memcpy(str->str, bufptr, res);
       str->str[res - 1] = '\0';
       frame[ra] = tag_string(str);
@@ -1534,16 +1542,16 @@ END_LIBRARY_FUNC
 gc_obj *vm_cc_resume(gc_obj c) {
   auto cont = to_cont(c);
   memcpy(stack, cont->v, to_fixnum(cont->len) * sizeof(gc_obj));
-  return &stack[cont->len >> 3];
+  return &stack[to_fixnum(cont->len)];
 }
 
 LIBRARY_FUNC_BC_LOAD_NAME("CALLCC-RESUME", CALLCC_RESUME) {
   LOAD_TYPE_WITH_CHECK(cont, vector_s, fb, CONT_TAG);
   memcpy(stack, cont->v, to_fixnum(cont->len) * sizeof(gc_obj));
-  frame = &stack[cont->len >> 3];
+  frame = &stack[to_fixnum(cont->len)];
 
   // DO A RET
-  pc = (uint32_t *)frame[-1]; // NOLINT
+  pc = to_return_address(frame[-1]);
   frame[-1] = fc;
   frame -= (INS_A(*(pc - 1)) + 1);
 }
@@ -1626,7 +1634,7 @@ EXPORT void run(bcfunc *func, int64_t argcnt, const gc_obj *args) {
   gc_obj *frame;
   // Initial stack setup has a return to bytecode stub above.
 
-  stack[0] = (gc_obj)&final_code[1]; // return pc
+  stack[0] = tag_return_address(&final_code[1]); // return pc
   frame = &stack[1];
   frame_top = stack + stacksz - 256;
 

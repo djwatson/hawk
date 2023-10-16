@@ -45,9 +45,11 @@ add_custom_target(
   COMMAND cloc --by-file-by-lang ${SCM_SOURCES} ${CLOC_SOURCES} 
 )
 
+file(GLOB FORMAT_SOURCES *.c *.h)
+list(REMOVE_ITEM FORMAT_SOURCES bootstrap.c third-party/stb_ds.c opcodes-gen.h jit_stubs.s opcodes-gen.h)
 add_custom_target(
   format
-  COMMAND clang-format -i *.h *.c
+  COMMAND clang-format -i  ${FORMAT_SOURCES}
   )
 
 # Find a suitable scheme for bootstrapping.

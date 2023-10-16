@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "ir.h"
+#include "types.h"
 
 bool record(uint32_t *pc, gc_obj *frame, int64_t argcnt);
 bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt);
@@ -13,4 +14,4 @@ void trace_flush(trace_s *ctrace, bool all);
 void record_side(trace_s *parent, snap_s *side);
 trace_s *trace_cache_get(uint16_t tnum);
 void free_trace();
-uint8_t get_object_ir_type(int64_t obj);
+uint8_t get_object_ir_type(gc_obj obj);

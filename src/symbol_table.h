@@ -4,7 +4,6 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 
 #include "types.h"
 
@@ -19,8 +18,6 @@ gc_obj symbol_table_insert(string_s *str, bool can_alloc);
 symbol *symbol_table_find_cstr(const char *str);
 void symbol_table_clear();
 
-typedef int64_t gc_obj;
-
 // GC needs access.
 typedef struct table {
   size_t cnt; // Number of objects currently in hash.
@@ -31,7 +28,5 @@ typedef struct table {
 
 typedef void (*for_each_cb)(gc_obj *field);
 void symbol_table_for_each(for_each_cb cb);
-
-#define TOMBSTONE 1
 
 extern table *sym_table;

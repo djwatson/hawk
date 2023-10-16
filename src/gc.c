@@ -133,7 +133,7 @@ static void put_gc_block(gc_block *mem) {
 }
 
 static bool is_ptr_type(gc_obj obj) {
-  auto type = obj & TAG_MASK;
+  auto type = get_tag(obj);
   if (type == PTR_TAG || type == FLONUM_TAG || type == CONS_TAG ||
       type == VECTOR_TAG || type == CLOSURE_TAG || type == SYMBOL_TAG) {
     return true;
@@ -274,7 +274,7 @@ static void full_trace(gc_obj *start_field) {
       //  Need to recursively visit all fields
       trace_heap_object(to, visit_cb, &cur_increments);
     }
-    *field = (int64_t)to + tag;
+    *field = tag_void(to, tag);
   } while (arrlen(cur_increments));
 }
 
@@ -324,7 +324,7 @@ static void visit(gc_obj *start_field) {
       assert(!in_nursury(to));
     }
     //     printf("Visiting ptr field %lx moved to %lx \n", p, to);
-    *field = (int64_t)to + tag;
+    *field = tag_void(to, tag);
   } while (arrlen(cur_increments));
 }
 
@@ -339,7 +339,7 @@ extern gc_obj *symbols;
 typedef void (*add_root_cb)(gc_obj *root);
 static void visit_trace(trace_s *t, add_root_cb add_root) {
   for (size_t i = 0; i < arrlen(t->consts); i++) {
-    if (t->consts[i]) {
+    if (is_ptr_type(t->consts[i])) {
       add_root(&t->consts[i]);
     }
   }
@@ -347,18 +347,18 @@ static void visit_trace(trace_s *t, add_root_cb add_root) {
     auto cur_reloc = &t->relocs[i];
     auto old = cur_reloc->obj;
     add_root(&cur_reloc->obj);
-    if (cur_reloc->obj == old) {
+    if (cur_reloc->obj.value == old.value) {
       continue;
     }
 
     switch (cur_reloc->type) {
     case RELOC_ABS: {
-      int64_t v = cur_reloc->obj;
+      int64_t v = cur_reloc->obj.value;
       memcpy((int64_t *)(cur_reloc->offset - 8), &v, sizeof(int64_t));
       break;
     }
     case RELOC_ABS_NO_TAG: {
-      int64_t v = cur_reloc->obj;
+      int64_t v = cur_reloc->obj.value;
       v &= ~TAG_MASK;
       memcpy((int64_t *)(cur_reloc->offset - 8), &v, sizeof(int64_t));
       break;
@@ -403,7 +403,7 @@ static void trace_roots(add_root_cb add_root) {
 
   // printf("Scan stack...%u\n", stack_top - stack);
   for (gc_obj *sp = stack; sp < stack_top; sp++) {
-    if (*sp != 0) {
+    if (is_ptr_type(*sp)) {
       add_root(sp);
     }
   }
@@ -421,7 +421,7 @@ static void trace_roots(add_root_cb add_root) {
   memset(stack_top + 1, 0, ((uint64_t)frame_top - (uint64_t)(stack_top + 1)));
   // printf("Scan constant table... %li\n", const_table_sz);
   for (size_t i = 0; i < const_table_sz; i++) {
-    if (const_table[i] != 0) {
+    if (is_ptr_type(const_table[i])) {
       add_root(&const_table[i]);
     }
   }
@@ -620,14 +620,12 @@ static void scan_log_buf(void (*add_increment)(gc_obj *)) {
     while (cur.offset != LOG_OBJ_HEADER) {
       auto field = (gc_obj *)(addr + cur.offset);
       auto v = *field;
-      auto type = get_tag(v);
-      if (is_ptr_type(type)) {
+      if (is_ptr_type(v)) {
         // printf("Add log increments: %p\n", *field);
         add_increment(field);
       }
-      v = (gc_obj)cur.addr;
-      type = get_tag(v);
-      if (is_ptr_type(type)) {
+      v = (gc_obj){.value = cur.addr};
+      if (is_ptr_type(v)) {
         // printf("Add log decrements: %p\n", v);
         arrput(cur_decrements, v);
       }
@@ -643,7 +641,7 @@ static void scan_log_buf(void (*add_increment)(gc_obj *)) {
 static void maybe_log(gc_obj *v_p, void *c) {
   auto v = *v_p;
   uint64_t addr = (uint64_t)c;
-  arrput(log_buf, ((log_item){(uint64_t)v_p - addr, v}));
+  arrput(log_buf, ((log_item){(uint64_t)v_p - addr, v.value}));
 }
 
 NOINLINE void GC_log_obj_slow(void *obj) {
