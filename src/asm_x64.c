@@ -34,9 +34,6 @@
 #include "parallel_copy.h"
 #include "third-party/stb_ds.h"
 
-#define auto __auto_type
-#define nullptr NULL
-
 extern bool verbose;
 extern gc_obj *frame_top;
 EXPORT bool jit_dump_flag = false;

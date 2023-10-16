@@ -11,7 +11,7 @@ repos:
 #      - id: uncrustify
       - id: cppcheck
       - id: cpplint
-        args: ["--filter=-build/include_subdir,-whitespace/comments"]
+        args: ["--filter=-build/include_subdir,-whitespace/comments,-readability/casting,-readability/braces"]
       - id: include-what-you-use
 exclude: |
   (?x)^(
