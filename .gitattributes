@@ -2,3 +2,5 @@ test/** linguist-vendored
 third-party/** linguist-vendored
 src/third-party/** linguist-vendored
 attic/** linguist-vendored
+src/bootstrap.c linguist-vendored
+src/opcodes-gen.h linguist-vendored
