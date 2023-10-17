@@ -269,6 +269,7 @@ NOINLINE void NO_LINT EXPAND_STACK_SLOWPATH(PARAMS) {
 #define LIBRARY_FUNC_B_LOAD_NAME(str, name) LIBRARY_FUNC_B_LOAD(name)
 #define LIBRARY_FUNC_BC_LOAD_NAME(str, name) LIBRARY_FUNC_BC_LOAD(name)
 #define LIBRARY_FUNC_BC_NAME(str, name) LIBRARY_FUNC_BC(name)
+#define LIBRARY_FUNC_NAME(str, name) LIBRARY_FUNC(name)
 #define NEXT_FUNC                                                              \
   NEXT_INSTR;                                                                  \
   }
@@ -1220,6 +1221,25 @@ LIBRARY_FUNC_BC_LOAD_NAME("STRING-SET!", STRING_SET) {
   str->str[pos] = to_char(fc);
 }
 END_LIBRARY_FUNC
+
+LIBRARY_FUNC_NAME("STRING-COPY", STRING_COPY) {
+  // TODO(djwatson) Some of this is already checked in bootstrap?
+  LOAD_TYPE_WITH_CHECK(tostr, string_s, frame[ra], STRING_TAG);
+  auto tostart = frame[ra+1];
+  TYPECHECK_FIXNUM(tostart);
+  LOAD_TYPE_WITH_CHECK(fromstr, string_s, frame[ra+2], STRING_TAG);
+  auto fromstart = frame[ra+3];
+  TYPECHECK_FIXNUM(fromstart);
+  auto fromend = frame[ra+4];
+  TYPECHECK_FIXNUM(fromend);
+  // TODO(djwatson) more checking: len is positive, bounds check
+  // tostr, endstr, check tostr != fromstr??
+  auto len = to_fixnum(fromend) - to_fixnum(fromstart);
+
+  memcpy(&tostr->str[to_fixnum(tostart)], &fromstr->str[to_fixnum(fromstart)], len);
+}
+END_LIBRARY_FUNC
+  
 
 #define LIBRARY_FUNC_CONS_SET_OP(str, name, field)                             \
   LIBRARY_FUNC_B_LOAD_NAME(str, name)                                          \

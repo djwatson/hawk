@@ -598,15 +598,15 @@
 	    (string-set! c i (car chars))
 	    (loop (+ i 1) (cdr chars)))))
     c))
-(define (str-copy-loop tostr tostart fromstr fromstart fromend)
-  (let loop ((frompos fromstart) (topos tostart))
-    (if (< frompos fromend)
-	(begin
-	  (string-set! tostr topos (string-ref fromstr frompos))
-	  (loop (+ 1 frompos) (+ 1 topos))))))
+;; (define (str-copy-loop tostr tostart fromstr fromstart fromend)
+;;   (let loop ((frompos fromstart) (topos tostart))
+;;     (if (< frompos fromend)
+;; 	(begin
+;; 	  (string-set! tostr topos (string-ref fromstr frompos))
+;; 	  (loop (+ 1 frompos) (+ 1 topos))))))
 (define (substring str start end)
   (let ((c (make-string (- end start))))
-    (str-copy-loop c 0 str start end)
+    ($string-copy c 0 str start end)
     c))
 (define string-append
   (case-lambda
@@ -614,8 +614,8 @@
      (let* ((lena (string-length a))
 	    (lenb (string-length b))
 	    (newstr (make-string (+ lena lenb))))
-       (str-copy-loop newstr 0 a 0 lena)
-       (str-copy-loop newstr lena b 0 lenb)
+       ($string-copy newstr 0 a 0 lena)
+       ($string-copy newstr lena b 0 lenb)
        newstr))
     (strs
      (let* ((totallen (apply + (map string-length strs)))
@@ -623,8 +623,8 @@
        (let loop ((strs strs) (place 0))
 	 (if (not (null? strs))
 	     (let* ((cur_str (car strs))
-		    (cur_len (string-length cur_str)))
-	       (str-copy-loop newstr place (car strs) 0 cur_len)
+ 		    (cur_len (string-length cur_str)))
+	       ($string-copy newstr place (car strs) 0 cur_len)
 	       (loop (cdr strs) (+ place cur_len)))))
        newstr))))
 

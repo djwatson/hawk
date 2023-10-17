@@ -433,7 +433,7 @@
 					;(if (not rd) (dformat "Dropping for effect context: ~a\n" f))
   ;;(if (not rd) (error "ERror compile-vararg"))
   (finish bc cd (if rd (+ 1 rd) nr) rd)
-  (when (not (= rd nr))
+  (when (and rd (not (= rd nr)))
     (push-instr! bc (list 'MOV rd nr)))
   (push-instr! bc (list (symbol-to-bytecode (car f)) nr (- (length f) 1)))
   (fold
@@ -576,7 +576,7 @@
 	;; Builtins
 	(($vector-set! $string-set!) (compile-setter f bc env rd nr cd))
 	(($set-car! $set-cdr!) (compile-setter2 f bc env rd nr cd))
-	(($closure $vector) (compile-vararg f bc env rd nr cd))
+	(($closure $vector $string-copy) (compile-vararg f bc env rd nr cd))
 	(($const-closure) (compile-const-closure f bc env rd nr cd))
 	(($closure-set) (compile-closure-set f bc env rd nr cd))
 	(($label-call) (compile-label-call f bc env rd nr cd))

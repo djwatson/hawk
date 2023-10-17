@@ -12,12 +12,8 @@
   * ?? peval - sccp
   
   * conform - needs sccp, nboyer, sboyer, graphs - needs opt_loop
-  * swan wins: mazefun, lattice, nboyer - HUGE gc, peval, compiler - also huge, dynamic - also huge
-     * does NOT win at conform, graphs, crashes matrix
 
 # TODO
-* fusion - cleanup
-* string ops
 * fix buffering
 * inline single closure
 * fix let lambda
@@ -127,3 +123,33 @@
 * sink
 * loop
 * constant folding / sccp
+
+# code cleanup:
+* if we put symbols first in the bc file, we can pre-alloc 'symbols'
+  in readbc, and use GC_push, and don't need to dirty the GC with it.
+* stdb_ds really pisses off the linters.
+* emit_x86 can be cleaned up substantially.
+* cleanup relocs in asm
+* cleanup knums / consts in record
+* cleanup anything with '.value'
+* cleanup fusion in asm_x64
+
+# known bugs:
+* something about two scripts on the command line fails.
+
+# Needed for a 1.0 release:
+* full trace GC
+* constants, traces, functions all in GC.
+* ports need to be released / closed on GC.
+* repl
+* eval / dynamic-wind, r5rs-stuff
+* records
+* library-ize bootstrap
+* ffi?
+* a bunch of srfis?
+* bignums/complex/ratnums
+* better error messages in vm/jit, and recovery
+* Nice to have: 
+  * custom expander, so we can have:
+  * better error reporting on frontend
+  * debugger?
