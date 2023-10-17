@@ -1,24 +1,24 @@
 // Copyright 2023 Dave Watson
 
-#include <getopt.h>  // for no_argument, getopt_long, option
-#include <stdbool.h> // for bool, false, true
+#include <getopt.h>
+#include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>  // for printf
-#include <stdlib.h> // for exit
-#include <string.h> // for strcmp, strcpy, strlen
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "gc.h" // for GC_init
+#include "gc.h"
 #ifdef JITDUMP
-#include "jitdump.h" // for jit_dump_close, jit_dump_init
+#include "jitdump.h"
 #endif
 #ifdef PROFILER
-#include "profiler.h" // for profiler_start, profiler_stop
+#include "profiler.h"
 #endif
 #include "defs.h"
-#include "readbc.h"       // for readbc_file, readbc_image
-#include "symbol_table.h" // for symbol_table_find_cstr
-#include "types.h"        // for from_c_str, symbol, CLOSURE_TAG, TRUE_REP
-#include "vm.h"           // for run
+#include "readbc.h"
+#include "symbol_table.h"
+#include "types.h"
+#include "vm.h"
 
 void free_trace();
 

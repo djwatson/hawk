@@ -27,7 +27,7 @@ add_library(hawk_vm ${SOURCES} )
 add_library(hawk_exe exe.c)
 
 target_compile_options(hawk_vm PRIVATE  ${COMPILE_FLAGS} )
-target_link_options(hawk_vm PUBLIC -Wl,--gc-sections)
+#target_link_options(hawk_vm PUBLIC -Wl,--gc-sections)
 target_compile_options(hawk_exe PRIVATE ${COMPILE_FLAGS} )
 set_property(TARGET hawk_vm PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 set_property(TARGET hawk_exe PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
