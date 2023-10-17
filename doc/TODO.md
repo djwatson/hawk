@@ -16,7 +16,6 @@
 # TODO
 * fix buffering
 * inline single closure
-* fix let lambda
 
 * sccp pass / fold - 
   * Only matters for memory refs if we can CSE or DCE away^

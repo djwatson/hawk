@@ -794,7 +794,8 @@
       fix-letrec
       assignment-conversion
       optimize-direct ;; optional
-      lower-case-lambda ;; Can remove with new expander? 
+      lower-case-lambda ;; Can remove with new expander?
+      inline-called-once ;; optional
       lower-loops ;; optional
       name-lambdas
       ;; Closure conversion passes
