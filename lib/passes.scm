@@ -53,6 +53,24 @@
 	       (imap sexp f))))))
   (imap sexp c))
 
+(define (inline-called-once c)
+  (define (pass f)
+    (if (atom? f)
+	f
+	(case (car f)
+	  ((quote) f)
+	  ((let letrec)
+	   (if (and (= 1 (length (second f)))
+		    (pair? (second (first (second f))))
+		    (eq? 'lambda (first (second (first (second f))))))
+	       ;; It still might escape
+	       (begin
+		 (dformat "Maybe inline: ~a\n" (cons (first f) (first (second f))))
+		 (imap pass f))
+	       (imap pass f)))
+	  (else (imap pass f)))))
+  (imap pass c))
+
 ;; At this point, 'letrec' is fixed and only contains lambdas,
 ;; and 'let' hasn't appeared yet, so we only have to add bindings for lambda.
 (define (find-assigned f bindings)
