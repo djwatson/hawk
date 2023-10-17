@@ -4,7 +4,8 @@
 
 #include "gc.h"
 
-#include <assert.h>   // for assert
+#include <assert.h> // for assert
+#include <inttypes.h>
 #include <stdint.h>   // for uint8_t, int64_t
 #include <stdio.h>    // for printf
 #include <stdlib.h>   // for free, realloc
@@ -564,8 +565,8 @@ NOINLINE void GC_collect() {
   sweep_free_blocks();
   double ratio = ((double)gc_dalloc / (double)gc_alloc) * 100.0;
   if (verbose) {
-    printf("Heap sz: %lu alloced: %lu ratio: %.02f full: %i\n", gc_alloc,
-           gc_dalloc, ratio, fully_trace);
+    printf("Heap sz: %" PRIu64 " alloced: %" PRIu64 " ratio: %.02f full: %i\n",
+           gc_alloc, gc_dalloc, ratio, fully_trace);
   }
   arrsetlen(log_buf, 0);
 

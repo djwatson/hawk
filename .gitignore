@@ -23,3 +23,7 @@ test/outputs/*
 *.so
 *.dump
 *.plist
+CPackConfig.cmake
+CPackSourceConfig.cmake
+src/libhawk_vm.a
+src/libhawk_exe.a

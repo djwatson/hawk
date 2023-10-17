@@ -1,6 +1,7 @@
 // Copyright 2023 Dave Watson
 
 #include "types.h"
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -141,7 +142,7 @@ void print_obj(gc_obj obj, FILE *file) {
   auto type = get_tag(obj);
   switch (type) {
   case FIXNUM_TAG: {
-    fprintf(file, "%li", to_fixnum(obj));
+    fprintf(file, "%" PRId64, to_fixnum(obj));
     break;
   }
   case PTR_TAG: {
@@ -223,7 +224,7 @@ void print_obj(gc_obj obj, FILE *file) {
     } else if (is_char(obj)) {
       fputc(to_char(obj), file);
     } else {
-      fprintf(file, "Unknown immediate: %lx\n", obj.value);
+      fprintf(file, "Unknown immediate: %" PRIx64 "\n", obj.value);
     }
     break;
   }

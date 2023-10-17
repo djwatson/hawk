@@ -3,6 +3,7 @@
 #include "record.h"
 
 #include <assert.h> // for assert
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h> // for uint32_t
 #include <stdio.h>  // for printf
@@ -198,6 +199,11 @@ void trace_flush(trace_s *ctrace_start, bool all) {
       (void)hmdel(sym->lst, ctrace->num);
     }
     arrfree(ctrace->syms);
+    for (uint32_t i = 0; i < arrlen(ctrace->func_opts); i++) {
+      auto fun = ctrace->func_opts[i];
+      (void)hmdel(fun->lst, ctrace->num);
+    }
+    arrfree(ctrace->func_opts);
     if (ctrace->parent) {
       auto p = ctrace->parent;
       ctrace->parent = NULL;
@@ -231,6 +237,7 @@ void record_start(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   hmdefault(tailcalled, 0);
   trace = malloc(sizeof(trace_s));
   trace->syms = NULL;
+  trace->func_opts = NULL;
   trace->next = NULL;
   trace->ops = NULL;
   trace->consts = NULL;
@@ -379,6 +386,11 @@ void record_abort() {
     (void)hmdel(sym->lst, trace->num);
   }
   arrfree(trace->syms);
+  for (uint32_t i = 0; i < arrlen(trace->func_opts); i++) {
+    auto f = trace->func_opts[i];
+    (void)hmdel(f->lst, trace->num);
+  }
+  arrfree(trace->func_opts);
   // TODO(djwatson) separate func
   for (uint64_t i = 0; i < arrlen(trace->snaps); i++) {
     free_snap(&trace->snaps[i]);
@@ -1383,6 +1395,17 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     break;
   }
   case CLOSURE: {
+    // Check for monomorphic -> polymorphic
+    {
+      auto bfunc = to_func(frame[INS_A(i)]);
+      if (bfunc->poly_cnt < 2) {
+        if (verbose) {
+          printf("Record abort: non-polymorphic closure\n");
+        }
+        record_abort();
+        return -1;
+      }
+    }
     add_snap(regs_list, regs - regs_list - 1, trace, pc, depth,
              INS_A(i) + INS_B(i));
     // TODO(djwatson) this forces a side exit without recording.
@@ -1687,7 +1710,8 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     symbol *g = to_symbol(gp);
     if (is_undefined(g->val) || (g->opt != 0 && g->opt != -1)) {
       if (verbose) {
-        printf("Record abort: Setting a currently-const global %s %li\n",
+        printf("Record abort: Setting a currently-const global %s %" PRId64
+               "\n",
                get_sym_name(to_symbol(g->name))->str, g->opt);
       }
       record_abort();
@@ -1844,6 +1868,19 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   }
   case CLOSURE_GET: {
     auto clo = record_stack_load(INS_B(i), frame);
+    {
+      auto closure = to_closure(frame[INS_B(i)]);
+      auto bfun = closure_code_ptr(closure);
+      if (bfun->poly_cnt <= 1 && to_fixnum(closure->len) != 1) {
+        arrput(trace->func_opts, bfun);
+        hmputs(bfun->lst, (struct tv){.key = trace->num});
+
+        auto knum = arrlen(trace->consts);
+        arrput(trace->consts, closure->v[1 + INS_C(i)]);
+        regs[INS_A(i)] = knum | IR_CONST_BIAS;
+        break;
+      }
+    }
     auto ref = push_ir(trace, IR_REF, clo,
                        16 + (8 * (1 + INS_C(i))) - CLOSURE_TAG, UNDEFINED_TAG);
 

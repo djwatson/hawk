@@ -3,6 +3,7 @@
 #include "trace_dump.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -36,7 +37,7 @@ static void print_const_or_val(int i, trace_s *ctrace) {
     int type = get_tag(c);
     switch (type) {
     case FIXNUM_TAG:
-      printf("\e[1;35m%li\e[m", to_fixnum(c));
+      printf("\e[1;35m%" PRId64 "\e[m", to_fixnum(c));
       break;
     case CLOSURE_TAG:
       printf("\e[1;31m<closure>\e[m");

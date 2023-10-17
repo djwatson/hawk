@@ -22,9 +22,13 @@ static inline uint8_t INS_B(uint32_t i) { return (i >> 16) & 0xff; }
 static inline uint8_t INS_C(uint32_t i) { return (i >> 24) & 0xff; }
 static inline uint16_t INS_D(uint32_t i) { return (i >> 16); }
 
+struct tv {
+  uint16_t key;
+};
 typedef struct bcfunc {
   char *name;
   uint32_t codelen;
   uint8_t poly_cnt;
+  struct tv *lst;
   uint32_t code[];
 } bcfunc;

@@ -3,6 +3,7 @@
 #include "readbc.h"
 
 #include <assert.h> // for assert
+#include <inttypes.h>
 #include <stdint.h> // for uint64_t
 #include <stdio.h>  // for fread, printf, FILE, fclose, fmemopen, fopen
 #include <stdlib.h> // for exit, realloc
@@ -215,6 +216,7 @@ static bcfunc *parse_func(FILE *fptr, uint64_t const_offset,
   f->name = name;
   f->codelen = code_count;
   f->poly_cnt = 0;
+  f->lst = NULL;
 
   // printf("%i: code %i\n", i, code_count);
   for (uint32_t j = 0; j < code_count; j++) {
@@ -272,7 +274,7 @@ static void read_const_table(FILE *fptr, uint64_t const_offset) {
   memset(&const_table[const_table_sz], 0, sizeof(gc_obj) * const_count);
   const_table_sz += const_count;
   if (const_table_sz >= 65536) {
-    printf("ERROR const table too big! %lu\n", const_table_sz);
+    printf("ERROR const table too big! %" PRIu64 "\n", const_table_sz);
     exit(-1);
   }
   for (uint32_t j = 0; j < const_count; j++) {

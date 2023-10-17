@@ -25,10 +25,8 @@
     ((unless a b c ...)
      (if (not a) (begin b c ...)))))
 (define (jiffies-per-second) 1)
-(define (current-jiffy) (with-input-from-file "/proc/uptime" read))
-(define (current-second) (with-input-from-file "/proc/uptime" read))
-;(define (current-jiffy) 0)
-;(define (current-second) 0)
+(define (current-jiffy) 0)
+(define (current-second) 0)
 
 ;;; FIB -- A classic benchmark, computes fib(n) inefficiently.
 

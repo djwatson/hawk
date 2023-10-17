@@ -78,9 +78,6 @@ typedef struct string_s {
   char str[];
 } string_s;
 
-struct tv {
-  uint16_t key;
-};
 typedef struct symbol {
   uint32_t type;
   uint32_t rc;

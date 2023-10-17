@@ -16,10 +16,6 @@
      * does NOT win at conform, graphs, crashes matrix
 
 # TODO
-* fix letrec closures
-  [x] new closure algo
-  [x] constant pointer-only closures
-  [ ] optimistic monomorphic
 * fusion - cleanup
 * string ops
 * fix buffering

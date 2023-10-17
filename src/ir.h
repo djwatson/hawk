@@ -150,6 +150,7 @@ typedef struct trace_s_s {
   struct trace_s_s *parent;
   // For opt
   uint16_t *syms;
+  bcfunc **func_opts;
 } trace_s;
 
 #define UNROLL_LIMIT 1

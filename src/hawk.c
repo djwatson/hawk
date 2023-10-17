@@ -1,6 +1,7 @@
 // Copyright 2023 Dave Watson
 
 #include <getopt.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -119,7 +120,7 @@ void generate_exe(char *filename, const char *bc_name) {
     res = fgetc(fin);
     cnt++;
   }
-  fprintf(f, "};\nunsigned int exe_scm_bc_len = %lu;\n", cnt);
+  fprintf(f, "};\nunsigned int exe_scm_bc_len = %" PRIu64 ";\n", cnt);
   fclose(fin);
   fclose(f);
 

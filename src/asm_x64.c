@@ -1506,7 +1506,8 @@ int jit_run(trace_s *entry_trace, uint32_t **o_pc, gc_obj **o_frame,
   if (snap->exits < 255) {
     snap->exits++;
     if (snap->exits == 255 && verbose) {
-      printf("Blacklist: Side max in trace %i exit %lu\n", trace->num, exit);
+      printf("Blacklist: Side max in trace %i exit %" PRIu64 "\n", trace->num,
+             exit);
     }
   }
   if (snap->exits >= 10 && snap->exits % 10 == 0 && snap->exits < 250) {

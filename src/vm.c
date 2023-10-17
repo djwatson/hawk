@@ -2,8 +2,9 @@
 
 #include "vm.h"
 
-#include <assert.h>  // for assert
-#include <fcntl.h>   // for open, O_CREAT, O_RDONLY, O_TRUNC
+#include <assert.h> // for assert
+#include <fcntl.h>  // for open, O_CREAT, O_RDONLY, O_TRUNC
+#include <inttypes.h>
 #include <math.h>    // for remainder, acos, asin, atan, ceil, cos
 #include <stdbool.h> // for bool, false, true
 #include <stdio.h>   // for printf, fread, fwrite, fclose, fdopen
@@ -136,7 +137,7 @@ NOINLINE void NO_LINT FAIL_SLOWPATH(PARAMS) { //!OCLINT
 }
 
 NOINLINE void FAIL_SLOWPATH_ARGCNT(PARAMS) {
-  printf("FAIL ARGCNT INVALID calling %s given %li args takes %i\n",
+  printf("FAIL ARGCNT INVALID calling %s given %" PRId64 " args takes %i\n",
          find_func_for_frame(pc)->name, argcnt, ra);
 
   MUSTTAIL return FAIL_SLOWPATH(ARGS);
@@ -806,12 +807,15 @@ LIBRARY_FUNC_B(CLOSURE) {
     closure->v[i] = frame[ra + i];
   }
   // Record polymorphic
-  auto fun = to_func(frame[ra]); // NOLINT
+  auto fun = to_func(frame[ra]);
   if (fun->poly_cnt < 50) {
+    if (fun->poly_cnt == 1) {
+      for (uint32_t i = 0; i < hmlen(fun->lst); i++) {
+        trace_flush(trace_cache_get(fun->lst[i].key), true);
+      }
+      hmfree(fun->lst);
+    }
     fun->poly_cnt++;
-    /* if (fun->poly_cnt == 50) { */
-    /*   printf("Polymorphic func: %s\n", fun->name); */
-    /* } */
   }
   frame[ra] = tag_closure(closure);
 }
@@ -1338,8 +1342,7 @@ LIBRARY_FUNC_BC(OPEN) {
   } else {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);
   }
-  port->file =
-      fdopen((int)port->fd, fc.value == TRUE_REP.value ? "r" : "w"); // NOLINT
+  port->file = fdopen((int)port->fd, fc.value == TRUE_REP.value ? "r" : "w");
   if (port->file == NULL) {
     printf("FDopen fail\n");
     exit(-1);

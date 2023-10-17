@@ -75,6 +75,8 @@ elseif(HAWK)
   # TODO(djwatson) bug? Shouldn't need joff.
   set(SCHEME_BOOT_SCRIPT "--joff")
   set(SCHEME_BOOT_EXT "")
+else()
+  message(FATAL_ERROR "Could not find a suitable scheme for bootstraping")
 endif()
 
 # Generate the bootstrap image.
