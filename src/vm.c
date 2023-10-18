@@ -811,9 +811,8 @@ LIBRARY_FUNC_B(CLOSURE) {
   auto fun = to_func(frame[ra]);
   if (fun->poly_cnt < 50) {
     if (fun->poly_cnt == 1) {
-      printf("Make polymorphic %s\n", fun->name);
       for (uint32_t i = 0; i < hmlen(fun->lst); i++) {
-	printf("POLYMORPHIC %s flush of trace %i\n", fun->name, fun->lst[i].key);
+	//printf("POLYMORPHIC %s flush of trace %i\n", fun->name, fun->lst[i].key);
         trace_flush(trace_cache_get(fun->lst[i].key), true);
       }
       hmfree(fun->lst);
@@ -1221,6 +1220,12 @@ LIBRARY_FUNC_BC_LOAD_NAME("STRING-SET!", STRING_SET) {
   str->str[pos] = to_char(fc);
 }
 END_LIBRARY_FUNC
+
+void vm_string_copy(gc_obj tostr, gc_obj tostart, gc_obj fromstr, gc_obj fromstart, gc_obj fromend) {
+  auto len = to_fixnum(fromend) - to_fixnum(fromstart);
+  memcpy(&to_string(tostr)->str[to_fixnum(tostart)],
+	 &to_string(fromstr)->str[to_fixnum(fromstart)], len);
+}
 
 LIBRARY_FUNC_NAME("STRING-COPY", STRING_COPY) {
   // TODO(djwatson) Some of this is already checked in bootstrap?

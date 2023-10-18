@@ -304,6 +304,7 @@ static const uint8_t call_regs[] = {RDI, RSI, RDX, RCX, R8, R9};
 
 static void assign_call_registers(uint16_t op, trace_s *trace, int *slot,
                                   uint32_t *next_spill, int arg) {
+  assert(arg < 6); // all in reg
   if (!ir_is_const(op)) {
     auto cop = &trace->ops[op];
     if (cop->op == IR_CARG) {
