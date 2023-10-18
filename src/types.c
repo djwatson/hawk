@@ -244,7 +244,7 @@ EXPORT gc_obj from_c_str(const char *s) {
 
 // GC interface:
 
-inline size_t heap_object_size(void *obj) {
+INLINE inline size_t heap_object_size(void *obj) {
   auto type = *(uint32_t *)obj;
   switch (type) {
   case FLONUM_TAG:
@@ -276,7 +276,7 @@ inline size_t heap_object_size(void *obj) {
   }
 }
 
-inline void trace_heap_object(void *obj, trace_callback visit, void *ctx) {
+INLINE inline void trace_heap_object(void *obj, trace_callback visit, void *ctx) {
   // printf("Trace heap obj %p\n", obj);
   auto type = *(uint32_t *)obj;
   switch (type) {

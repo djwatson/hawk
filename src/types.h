@@ -127,9 +127,9 @@ gc_obj from_c_str(const char *s);
 gc_obj equalp(gc_obj a, gc_obj b);
 
 // GC interface:
-size_t heap_object_size(void *obj);
+INLINE size_t heap_object_size(void *obj);
 typedef void (*trace_callback)(gc_obj *field, void *ctx);
-void trace_heap_object(void *obj, trace_callback visit, void *ctx);
+INLINE void trace_heap_object(void *obj, trace_callback visit, void *ctx);
 
 MAYBE_UNUSED static inline symbol *to_symbol(gc_obj obj) {
   return (symbol *)(obj.value - SYMBOL_TAG);
