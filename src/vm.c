@@ -808,6 +808,7 @@ LIBRARY_FUNC_B(CLOSURE) {
     closure->v[i] = frame[ra + i];
   }
   // Record polymorphic
+#if defined(JIT)
   auto fun = to_func(frame[ra]);
   if (fun->poly_cnt < 50) {
     if (fun->poly_cnt == 1) {
@@ -819,6 +820,7 @@ LIBRARY_FUNC_B(CLOSURE) {
     }
     fun->poly_cnt++;
   }
+#endif
   frame[ra] = tag_closure(closure);
 }
 END_LIBRARY_FUNC
