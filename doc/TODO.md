@@ -4,14 +4,13 @@
   * input/output buffering: wc, cat, dynamic
   * read: dynamic read1 sum1
   * call/cc: ctak, fibc
-  * string ops: string
+  * matrix: ??
+  * graphs: LOOP_opt, sccp, GC
+  * peval - sccp
+  * conform - needs sccp, 
+
   * lattice: mostly catching the inner nested loop (lex-fixed) as a loop, and not allocating a closure for it.
     Need to inline called-once functions??
-  * dynamic: read is super slow, read by char
-  * graphs: LOOP_opt, sccp, GC
-  * ?? peval - sccp
-  
-  * conform - needs sccp, nboyer, sboyer, graphs - needs opt_loop
 
 # TODO
 * fix buffering
