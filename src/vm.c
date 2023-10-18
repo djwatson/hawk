@@ -810,7 +810,9 @@ LIBRARY_FUNC_B(CLOSURE) {
   auto fun = to_func(frame[ra]);
   if (fun->poly_cnt < 50) {
     if (fun->poly_cnt == 1) {
+      printf("Make polymorphic %s\n", fun->name);
       for (uint32_t i = 0; i < hmlen(fun->lst); i++) {
+	printf("POLYMORPHIC %s flush of trace %i\n", fun->name, fun->lst[i].key);
         trace_flush(trace_cache_get(fun->lst[i].key), true);
       }
       hmfree(fun->lst);
