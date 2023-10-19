@@ -1729,7 +1729,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
       if (verbose) {
         printf("Record abort: Setting a currently-const global %s %" PRId64
                "\n",
-               get_sym_name(to_symbol(g->name))->str, g->opt);
+               get_sym_name(g)->str, g->opt);
       }
       record_abort();
       return true;
