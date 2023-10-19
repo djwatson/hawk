@@ -1410,6 +1410,7 @@ LIBRARY_FUNC_B_LOAD(CLOSE) {
   if (port->fd != -1) {
     close((int)port->fd); // NOLINT
     port->fd = -1;
+    port->eof = TRUE_REP;
   }
 }
 END_LIBRARY_FUNC
@@ -1418,6 +1419,10 @@ inline gc_obj vm_peek_char(gc_obj p) {
   auto port = to_port(p);
   if (likely(port->buf_pos < port->buf_sz)) {
     return tag_char(port->in_buffer[port->buf_pos]);
+  }
+  if (port->fd == -1) {
+    port->eof = TRUE_REP;
+    return EOF_OBJ;
   }
   port->buf_pos = 0;
   port->buf_sz = fread(port->in_buffer, 1, IN_BUFFER_SZ, port->file);
