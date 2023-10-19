@@ -154,6 +154,7 @@ NOINLINE void NO_LINT FAIL_SLOWPATH(PARAMS) { //!OCLINT
     frame -= (INS_A(*(pc - 1)) + 1);
     printf("%i PC: %p\n", i++, pc);
   }
+  abort();
 }
 
 NOINLINE void FAIL_SLOWPATH_ARGCNT(PARAMS) {
