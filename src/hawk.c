@@ -190,7 +190,7 @@ static void deinit() {
 
 static void parse_args(int argc, char *argv[]) {
   int c;
-  while ((c = getopt_long(argc, argv, "vlphjd:", long_options, nullptr)) !=
+  while ((c = getopt_long(argc, argv, "vlphjs:d:", long_options, nullptr)) !=
          -1) {
     switch (c) {
     case 'e':
@@ -217,6 +217,10 @@ static void parse_args(int argc, char *argv[]) {
       TRACE_MAX = atoi(optarg);
       printf("MAX TRACE is %u\n", TRACE_MAX);
       break;
+    case 's':
+      printf("Random: %s\n", optarg);
+      srandom(atoi(optarg));
+	break;
     default:
       print_help();
       exit(-1);

@@ -60,15 +60,35 @@ gc_obj *stack = NULL;
 
 uint8_t hotmap[hotmap_sz];
 
+#ifdef RANDOM_SCHEDULE
+static bool should_jit() {
+  static uint8_t next = 0;
+  if (next-- == 0) {
+    next = random()%256;
+    return true;
+  }
+  return false;
+}
+//#define CHECK_RECORD_START(cnt) should_jit()
+#else
+#define CHECK_RECORD_START(cnt) unlikely((hotmap[hotmap_hash(pc)]--) == 0)
+#endif
+
 static void vm_init() {
   if (stack == NULL) {
     stack = malloc(sizeof(*stack) * stacksz);
     stack_top = stack;
     memset(stack, 0, sizeof(*stack) * stacksz);
   }
+#ifdef RANDOM_SCHEDULE
+  should_jit();
+#endif
 }
 
 EXPORT void free_vm() { free(stack); }
+
+
+
 
 /*
 This is a tail-calling interpreter that requires 'musttail' attribute, so
@@ -297,10 +317,9 @@ NOINLINE void NO_LINT EXPAND_STACK_SLOWPATH(PARAMS) {
 LIBRARY_FUNC(ILOOP) {}
 END_LIBRARY_FUNC
 LIBRARY_FUNC(LOOP) {
-  if (unlikely((hotmap[hotmap_hash(pc)]) <= hotmap_loop)) {
+  if (CHECK_RECORD_START(hotmap_loop)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
-  hotmap[hotmap_hash(pc)] -= hotmap_loop;
 }
 END_LIBRARY_FUNC
 
@@ -316,7 +335,7 @@ LIBRARY_FUNC(FUNC) {
   if (argcnt != ra) {
     MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
   }
-  if (unlikely((hotmap[hotmap_hash(pc)] -= hotmap_rec) == 0)) {
+  if (CHECK_RECORD_START(0)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
 
@@ -338,7 +357,7 @@ LIBRARY_FUNC(FUNCV) {
   if (argcnt < ra) {
     MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
   }
-  if (unlikely((hotmap[hotmap_hash(pc)] -= hotmap_rec) == 0)) {
+  if (CHECK_RECORD_START(0)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
   stack_top = &frame[ra + argcnt];
@@ -359,7 +378,7 @@ NEXT_FUNC
 
 LIBRARY_FUNC(CLFUNC) {
   if (argcnt == ra) {
-    if (unlikely((hotmap[hotmap_hash(pc)] -= hotmap_rec) == 0)) {
+    if (CHECK_RECORD_START(0)) {
       MUSTTAIL return RECORD_START(ARGS);
     }
     pc += 2;
@@ -387,7 +406,7 @@ LIBRARY_FUNC(CLFUNCV) {
   if (argcnt < ra) {
     pc += INS_D(*(pc + 1)) + 1;
   } else {
-    if (unlikely((hotmap[hotmap_hash(pc)] -= hotmap_rec) == 0)) {
+    if (CHECK_RECORD_START(0)) {
       MUSTTAIL return RECORD_START(ARGS);
     }
     stack_top = &frame[ra + argcnt];
