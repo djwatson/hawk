@@ -2034,8 +2034,8 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     return true;
   }
   default: {
-    bcfunc *fc = find_func_for_frame(pc);
     if (verbose) {
+      bcfunc *fc = find_func_for_frame(pc);
       printf("Record abort: NYI: CANT RECORD BYTECODE %s in %s\n",
              ins_names[INS_OP(i)], fc ? fc->name : "???");
     }
