@@ -168,11 +168,22 @@ void RECORD_START(PARAMS) {
   hotmap[hotmap_hash(pc)] = hotmap_cnt;
   // Extra check: we may have attempted to start recording *during*
   // a recording.
+  
+  // Reload values.  We may be trying to record a non-match.
+  auto op = INS_OP(*pc);
+  {
+    if (op == JFUNC || op == JLOOP) {
+      instr = trace_cache_get(INS_D(*pc))->startpc;
+      op = INS_OP(instr);
+      ra = (instr >> 8) & 0xff;
+    instr >>= 16;
+    }
+  }
   if (joff || (op_table_arg == l_op_table_record)) {
     // Tail call with original op table.
-    MUSTTAIL return l_op_table[INS_OP(*pc)](ARGS);
+    MUSTTAIL return l_op_table[op](ARGS);
   }
-  MUSTTAIL return l_op_table_record[INS_OP(*pc)](ra, instr, pc, frame,
+  MUSTTAIL return l_op_table_record[op](ra, instr, pc, frame,
                                                  l_op_table_record, argcnt);
 }
 
