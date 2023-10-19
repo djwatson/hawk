@@ -134,7 +134,10 @@
 * cleanup fusion in asm_x64
 
 # known bugs:
-* something about two scripts on the command line fails.
+There's lots of unimplemented features, but things that cause programs to crash:
+
+* 'Too many spill slots'.  Spills are hardcoded to max 256 currently,
+  some traces exceed this, and result in a exit(-1) and error message.
 
 # Needed for a 1.0 release:
 * full trace GC
