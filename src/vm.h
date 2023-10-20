@@ -14,7 +14,7 @@ extern bcfunc **funcs;
 
 #define hotmap_sz 64
 #define hotmap_cnt 200
-#define hotmap_loop 2
+#define hotmap_loop 3
 #define hotmap_rec 1
 #define hotmap_tail_rec 1
 #define hotmap_mask (hotmap_sz - 1)

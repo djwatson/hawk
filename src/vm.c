@@ -71,7 +71,7 @@ static bool should_jit() {
 }
 //#define CHECK_RECORD_START(cnt) should_jit()
 #else
-#define CHECK_RECORD_START(cnt) unlikely((hotmap[hotmap_hash(pc)]--) == 0)
+#define CHECK_RECORD_START(cnt) unlikely((hotmap[hotmap_hash(pc)]--) <= cnt)
 #endif
 
 static void vm_init() {
@@ -332,6 +332,7 @@ LIBRARY_FUNC(LOOP) {
   if (CHECK_RECORD_START(hotmap_loop)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
+  hotmap[hotmap_hash(pc)]-= (hotmap_loop - 1);
 }
 END_LIBRARY_FUNC
 
@@ -347,7 +348,7 @@ LIBRARY_FUNC(FUNC) {
   if (argcnt != ra) {
     MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
   }
-  if (CHECK_RECORD_START(0)) {
+  if (CHECK_RECORD_START(hotmap_rec)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
 
@@ -369,7 +370,7 @@ LIBRARY_FUNC(FUNCV) {
   if (argcnt < ra) {
     MUSTTAIL return FAIL_SLOWPATH_ARGCNT(ARGS);
   }
-  if (CHECK_RECORD_START(0)) {
+  if (CHECK_RECORD_START(hotmap_rec)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
   stack_top = &frame[ra + argcnt];
@@ -390,7 +391,7 @@ NEXT_FUNC
 
 LIBRARY_FUNC(CLFUNC) {
   if (argcnt == ra) {
-    if (CHECK_RECORD_START(0)) {
+    if (CHECK_RECORD_START(hotmap_rec)) {
       MUSTTAIL return RECORD_START(ARGS);
     }
     pc += 2;
@@ -418,7 +419,7 @@ LIBRARY_FUNC(CLFUNCV) {
   if (argcnt < ra) {
     pc += INS_D(*(pc + 1)) + 1;
   } else {
-    if (CHECK_RECORD_START(0)) {
+    if (CHECK_RECORD_START(hotmap_rec)) {
       MUSTTAIL return RECORD_START(ARGS);
     }
     stack_top = &frame[ra + argcnt];
