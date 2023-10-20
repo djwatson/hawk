@@ -868,13 +868,6 @@ LIBRARY_FUNC_BC_NAME("CLOSURE-SET", CLOSURE_SET) {
 }
 END_LIBRARY_FUNC
 
-LIBRARY_FUNC_B_LOAD_NAME("CLOSURE-PTR", CLOSURE_PTR) {
-  TYPECHECK_TAG(fb, CLOSURE_TAG);
-  auto closure = to_closure(fb);
-  frame[ra] = closure->v[0];
-}
-END_LIBRARY_FUNC
-
 LIBRARY_FUNC_BC_LOAD(APPLY) {
   if (unlikely(!is_closure(fb))) {
     MUSTTAIL return FAIL_SLOWPATH(ARGS);

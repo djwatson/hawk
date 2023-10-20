@@ -554,14 +554,9 @@ static void asm_add_to_pcopy(map *moves, ir_ins *op, uint16_t val,
     /* printf("Fill %s with a const\n", reg_names[op->reg]); */
     if (op->reg == REG_NONE) {
       if (op->slot != SLOT_NONE) {
-        emit_pop(RAX);
-        emit_mem_reg(OP_MOV_RM, 0, R15, RAX);
-        emit_mov64(R15, (int64_t)&spill_slot[op->slot]);
-        auto c2 = trace->consts[val - IR_CONST_BIAS];
-        auto re = (reloc){emit_offset(), c2, RELOC_ABS};
-        arrput(trace->relocs, re);
-        emit_mov64(RAX, c2.value);
-        emit_push(RAX);
+	// We never emit constants to spill slots, they're always
+	// just rematerialized to registers.
+	assert(false);
       }
     } else {
       if (op->slot != SLOT_NONE) {
