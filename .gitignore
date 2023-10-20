@@ -29,3 +29,6 @@ src/libhawk_vm.a
 src/libhawk_exe.a
 Testing/*
 compile_commands.json
+.ninja_deps
+.ninja_log
+build.ninja
