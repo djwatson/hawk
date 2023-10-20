@@ -1613,9 +1613,8 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     if (INS_OP(i) == PEEK) {
       op = IR_PEEKCH;
     }
-    regs[INS_A(i)] =
-        push_ir(trace, op, record_stack_load(INS_B(i), frame),
-                IR_NONE, type | IR_INS_TYPE_GUARD);
+    regs[INS_A(i)] = push_ir(trace, op, record_stack_load(INS_B(i), frame),
+                             IR_NONE, type | IR_INS_TYPE_GUARD);
     stack_top = INS_A(i) + 1; // TODO(djwatson) don't need +1?
     add_snap(regs_list, regs - regs_list - 1, trace, pc + 1, depth, stack_top);
     break;

@@ -554,9 +554,9 @@ static void asm_add_to_pcopy(map *moves, ir_ins *op, uint16_t val,
     /* printf("Fill %s with a const\n", reg_names[op->reg]); */
     if (op->reg == REG_NONE) {
       if (op->slot != SLOT_NONE) {
-	// We never emit constants to spill slots, they're always
-	// just rematerialized to registers.
-	assert(false);
+        // We never emit constants to spill slots, they're always
+        // just rematerialized to registers.
+        assert(false);
       }
     } else {
       if (op->slot != SLOT_NONE) {
@@ -1214,10 +1214,10 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_reg_reg(OP_MOV, RDI, R15);
       break;
     }
-    case IR_READCH: 
+    case IR_READCH:
     case IR_PEEKCH: {
       if (op->reg == REG_NONE) {
-	op->reg = get_free_reg(trace, &next_spill, slot, false);
+        op->reg = get_free_reg(trace, &next_spill, slot, false);
       }
       maybe_assign_register(op->op1, trace, slot, &next_spill);
 
@@ -1227,12 +1227,12 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_arith_imm(OP_ARITH_ADD, op->reg, CHAR_TAG);
       emit_imm8(8);
       emit_reg_reg(OP_SHL_CONST, 8, op->reg);
-      
+
       if (op->op == IR_READCH) {
-	emit_imm8(1);
-	emit_mem_reg(0x83 /* add */, 40 - PTR_TAG, R15, 0);
+        emit_imm8(1);
+        emit_mem_reg(0x83 /* add */, 40 - PTR_TAG, R15, 0);
       }
-      emit_mem_reg_sib2(OP_MOVZX8, 56- PTR_TAG, 0, op->reg, R15, op->reg);
+      emit_mem_reg_sib2(OP_MOVZX8, 56 - PTR_TAG, 0, op->reg, R15, op->reg);
       auto fastpath = emit_offset();
 
       // slowpath
@@ -1240,9 +1240,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       emit_op_typecheck(op->reg, op->type, snap_labels[cur_snap]);
       emit_reg_reg(OP_MOV, R15, op->reg);
       if (op->op == IR_READCH) {
-	emit_call_indirect_mem((int32_t)(read_char_offset - emit_offset()));
+        emit_call_indirect_mem((int32_t)(read_char_offset - emit_offset()));
       } else {
-	emit_call_indirect_mem((int32_t)(peek_char_offset - emit_offset()));
+        emit_call_indirect_mem((int32_t)(peek_char_offset - emit_offset()));
       }
 
       // Inline fast check
@@ -1254,9 +1254,9 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
         auto re = (reloc){emit_offset(), c, RELOC_ABS};
         arrput(trace->relocs, re);
         emit_mov64(R15, c.value);
-	
+
       } else {
-	emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, R15);
+        emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, R15);
       }
       break;
     }
