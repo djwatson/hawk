@@ -1586,14 +1586,14 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
   }
   case STRING_COPY: {
     auto slot = INS_A(i);
-    auto arg4 = push_ir(trace, IR_CARG, record_stack_load(slot+3, frame),
-                       record_stack_load(slot+4, frame), UNDEFINED_TAG);
-    auto arg3 = push_ir(trace, IR_CARG, 
-			record_stack_load(slot+2, frame), arg4, UNDEFINED_TAG);
-    auto arg2 = push_ir(trace, IR_CARG, 
-			record_stack_load(slot+1, frame), arg3, UNDEFINED_TAG);
-    auto arg1 = push_ir(trace, IR_CARG, 
-			record_stack_load(slot, frame), arg2, UNDEFINED_TAG);
+    auto arg4 = push_ir(trace, IR_CARG, record_stack_load(slot + 3, frame),
+                        record_stack_load(slot + 4, frame), UNDEFINED_TAG);
+    auto arg3 = push_ir(trace, IR_CARG, record_stack_load(slot + 2, frame),
+                        arg4, UNDEFINED_TAG);
+    auto arg2 = push_ir(trace, IR_CARG, record_stack_load(slot + 1, frame),
+                        arg3, UNDEFINED_TAG);
+    auto arg1 = push_ir(trace, IR_CARG, record_stack_load(slot, frame), arg2,
+                        UNDEFINED_TAG);
     auto knum = arrlen(trace->consts);
     arrput(trace->consts, tag_ptr(vm_string_copy));
     push_ir(trace, IR_CALLXS, arg1, knum | IR_CONST_BIAS, UNDEFINED_TAG);

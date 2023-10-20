@@ -161,7 +161,7 @@ static void init() {
 #endif
   // TODO(djwatson) this should work without joff?
   auto old_joff = joff;
-  //joff = 1;
+  // joff = 1;
   load_bootstrap();
   joff = old_joff;
 #ifdef AFL
@@ -220,7 +220,7 @@ static void parse_args(int argc, char *argv[]) {
     case 's':
       printf("Random: %s\n", optarg);
       srandom(atoi(optarg));
-	break;
+      break;
     default:
       print_help();
       exit(-1);
@@ -243,7 +243,7 @@ int main(int argc, char *argv[]) {
       printf("Compiling script %s\n", argv[i]);
       {
         auto old_joff = joff;
-        //joff = 1;
+        // joff = 1;
         compile_file(argv[i]);
         joff = old_joff;
       }

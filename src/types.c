@@ -276,7 +276,8 @@ INLINE inline size_t heap_object_size(void *obj) {
   }
 }
 
-INLINE inline void trace_heap_object(void *obj, trace_callback visit, void *ctx) {
+INLINE inline void trace_heap_object(void *obj, trace_callback visit,
+                                     void *ctx) {
   // printf("Trace heap obj %p\n", obj);
   auto type = *(uint32_t *)obj;
   switch (type) {

@@ -1080,22 +1080,20 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       maybe_assign_register(op->op2, trace, slot, &next_spill);
       uint8_t op1_reg;
       if (ir_is_const(op->op1)) {
-	op1_reg = get_free_reg(trace, &next_spill, slot, false);
+        op1_reg = get_free_reg(trace, &next_spill, slot, false);
       } else {
-	op1_reg = trace->ops[op->op1].reg;
+        op1_reg = trace->ops[op->op1].reg;
       }
       if (ir_is_const(op->op2)) {
-	// must be fixnum
-	auto c = to_fixnum(trace->consts[op->op2 - IR_CONST_BIAS]);
-	assert(((int64_t)((int32_t)c)) == c);
-	emit_mem_reg(OP_LEA, (int32_t)(16 - PTR_TAG + c),
-		     op1_reg, op->reg);
+        // must be fixnum
+        auto c = to_fixnum(trace->consts[op->op2 - IR_CONST_BIAS]);
+        assert(((int64_t)((int32_t)c)) == c);
+        emit_mem_reg(OP_LEA, (int32_t)(16 - PTR_TAG + c), op1_reg, op->reg);
       } else {
-	emit_mem_reg_sib(OP_LEA, 16 - PTR_TAG, 0, R15, op1_reg,
-			 op->reg);
-	emit_imm8(3);
-	emit_reg_reg(OP_SAR_CONST, 7, R15);
-	emit_reg_reg(OP_MOV_MR, R15, trace->ops[op->op2].reg);
+        emit_mem_reg_sib(OP_LEA, 16 - PTR_TAG, 0, R15, op1_reg, op->reg);
+        emit_imm8(3);
+        emit_reg_reg(OP_SAR_CONST, 7, R15);
+        emit_reg_reg(OP_MOV_MR, R15, trace->ops[op->op2].reg);
       }
       if (ir_is_const(op->op1)) {
         auto c = trace->consts[op->op1 - IR_CONST_BIAS];

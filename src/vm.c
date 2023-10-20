@@ -64,7 +64,7 @@ uint8_t hotmap[hotmap_sz];
 static bool should_jit() {
   static uint8_t next = 0;
   if (next-- == 0) {
-    next = random()%256;
+    next = random() % 256;
     return true;
   }
   return false;
@@ -86,9 +86,6 @@ static void vm_init() {
 }
 
 EXPORT void free_vm() { free(stack); }
-
-
-
 
 /*
 This is a tail-calling interpreter that requires 'musttail' attribute, so
@@ -168,7 +165,7 @@ void RECORD_START(PARAMS) {
   hotmap[hotmap_hash(pc)] = hotmap_cnt;
   // Extra check: we may have attempted to start recording *during*
   // a recording.
-  
+
   // Reload values.  We may be trying to record a non-match.
   auto op = INS_OP(*pc);
   {
@@ -176,15 +173,15 @@ void RECORD_START(PARAMS) {
       instr = trace_cache_get(INS_D(*pc))->startpc;
       op = INS_OP(instr);
       ra = (instr >> 8) & 0xff;
-    instr >>= 16;
+      instr >>= 16;
     }
   }
   if (joff || (op_table_arg == l_op_table_record)) {
     // Tail call with original op table.
     MUSTTAIL return l_op_table[op](ARGS);
   }
-  MUSTTAIL return l_op_table_record[op](ra, instr, pc, frame,
-                                                 l_op_table_record, argcnt);
+  MUSTTAIL return l_op_table_record[op](ra, instr, pc, frame, l_op_table_record,
+                                        argcnt);
 }
 
 void NO_LINT RECORD(PARAMS) {
@@ -332,7 +329,7 @@ LIBRARY_FUNC(LOOP) {
   if (CHECK_RECORD_START(hotmap_loop)) {
     MUSTTAIL return RECORD_START(ARGS);
   }
-  hotmap[hotmap_hash(pc)]-= (hotmap_loop - 1);
+  hotmap[hotmap_hash(pc)] -= (hotmap_loop - 1);
 }
 END_LIBRARY_FUNC
 
@@ -745,7 +742,7 @@ LIBRARY_FUNC_D(GSET) {
   if (gp->opt != 0 && gp->opt != -1) {
     if (!is_undefined(gp->val)) {
       // printf("Gupgrade %s\n", ((string_s*)(gp->name-PTR_TAG))->str);
-      while(hmlen(gp->lst)) {
+      while (hmlen(gp->lst)) {
         // printf("Get trace %i\n", gp->lst[i].key);
         trace_flush(trace_cache_get(gp->lst[0].key), true);
       }
@@ -844,7 +841,7 @@ LIBRARY_FUNC_B(CLOSURE) {
   auto fun = to_func(frame[ra]);
   if (fun->poly_cnt < 50) {
     if (fun->poly_cnt == 1) {
-      while(hmlen(fun->lst)) {
+      while (hmlen(fun->lst)) {
         trace_flush(trace_cache_get(fun->lst[0].key), true);
       }
       hmfree(fun->lst);
@@ -1254,30 +1251,31 @@ LIBRARY_FUNC_BC_LOAD_NAME("STRING-SET!", STRING_SET) {
 }
 END_LIBRARY_FUNC
 
-void vm_string_copy(gc_obj tostr, gc_obj tostart, gc_obj fromstr, gc_obj fromstart, gc_obj fromend) {
+void vm_string_copy(gc_obj tostr, gc_obj tostart, gc_obj fromstr,
+                    gc_obj fromstart, gc_obj fromend) {
   auto len = to_fixnum(fromend) - to_fixnum(fromstart);
   memcpy(&to_string(tostr)->str[to_fixnum(tostart)],
-	 &to_string(fromstr)->str[to_fixnum(fromstart)], len);
+         &to_string(fromstr)->str[to_fixnum(fromstart)], len);
 }
 
 LIBRARY_FUNC_NAME("STRING-COPY", STRING_COPY) {
   // TODO(djwatson) Some of this is already checked in bootstrap?
   LOAD_TYPE_WITH_CHECK(tostr, string_s, frame[ra], STRING_TAG);
-  auto tostart = frame[ra+1];
+  auto tostart = frame[ra + 1];
   TYPECHECK_FIXNUM(tostart);
-  LOAD_TYPE_WITH_CHECK(fromstr, string_s, frame[ra+2], STRING_TAG);
-  auto fromstart = frame[ra+3];
+  LOAD_TYPE_WITH_CHECK(fromstr, string_s, frame[ra + 2], STRING_TAG);
+  auto fromstart = frame[ra + 3];
   TYPECHECK_FIXNUM(fromstart);
-  auto fromend = frame[ra+4];
+  auto fromend = frame[ra + 4];
   TYPECHECK_FIXNUM(fromend);
   // TODO(djwatson) more checking: len is positive, bounds check
   // tostr, endstr, check tostr != fromstr??
   auto len = to_fixnum(fromend) - to_fixnum(fromstart);
 
-  memcpy(&tostr->str[to_fixnum(tostart)], &fromstr->str[to_fixnum(fromstart)], len);
+  memcpy(&tostr->str[to_fixnum(tostart)], &fromstr->str[to_fixnum(fromstart)],
+         len);
 }
 END_LIBRARY_FUNC
-  
 
 #define LIBRARY_FUNC_CONS_SET_OP(str, name, field)                             \
   LIBRARY_FUNC_B_LOAD_NAME(str, name)                                          \
