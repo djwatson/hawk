@@ -677,7 +677,11 @@ static void asm_jit_args(trace_s *trace, trace_s *dest_trace) {
 }
 
 static uint64_t log_offset;
+static uint64_t read_char_offset;
+static uint64_t peek_char_offset;
 extern void jit_gc_log(void) asm("jit_gc_log");
+extern void jit_read_char(void) asm("jit_read_char");
+extern void jit_peek_char(void) asm("jit_peek_char");
 static void emit_init_funcs() {
   static bool done = false;
   if (!done) {
@@ -686,6 +690,14 @@ static void emit_init_funcs() {
     emit_advance(8);
     log_offset = (uint64_t)emit_offset();
     ((uint64_t *)emit_offset())[0] = (uint64_t)&jit_gc_log;
+
+    emit_advance(8);
+    read_char_offset = (uint64_t)emit_offset();
+    ((uint64_t *)emit_offset())[0] = (uint64_t)&jit_read_char;
+
+    emit_advance(8);
+    peek_char_offset = (uint64_t)emit_offset();
+    ((uint64_t *)emit_offset())[0] = (uint64_t)&jit_peek_char;
   }
 }
 
@@ -1205,6 +1217,52 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
 
       // Save scheme frame ptr
       emit_reg_reg(OP_MOV, RDI, R15);
+      break;
+    }
+    case IR_READCH: 
+    case IR_PEEKCH: {
+      if (op->reg == REG_NONE) {
+	op->reg = get_free_reg(trace, &next_spill, slot, false);
+      }
+      maybe_assign_register(op->op1, trace, slot, &next_spill);
+
+      auto fin = emit_offset();
+
+      // fastpath
+      emit_arith_imm(OP_ARITH_ADD, op->reg, CHAR_TAG);
+      emit_imm8(8);
+      emit_reg_reg(OP_SHL_CONST, 8, op->reg);
+      
+      if (op->op == IR_READCH) {
+	emit_imm8(1);
+	emit_mem_reg(0x83 /* add */, 40 - PTR_TAG, R15, 0);
+      }
+      emit_mem_reg_sib2(OP_MOVZX8, 56- PTR_TAG, 0, op->reg, R15, op->reg);
+      auto fastpath = emit_offset();
+
+      // slowpath
+      emit_jmp32(fin - emit_offset());
+      emit_op_typecheck(op->reg, op->type, snap_labels[cur_snap]);
+      emit_reg_reg(OP_MOV, R15, op->reg);
+      if (op->op == IR_READCH) {
+	emit_call_indirect_mem((int32_t)(read_char_offset - emit_offset()));
+      } else {
+	emit_call_indirect_mem((int32_t)(peek_char_offset - emit_offset()));
+      }
+
+      // Inline fast check
+      emit_jcc32(JG, fastpath);
+      emit_mem_reg(OP_CMP, 48 - PTR_TAG, R15, op->reg);
+      emit_mem_reg(OP_MOV_MR, 40 - PTR_TAG, R15, op->reg);
+      if (ir_is_const(op->op1)) {
+        auto c = trace->consts[op->op1 - IR_CONST_BIAS];
+        auto re = (reloc){emit_offset(), c, RELOC_ABS};
+        arrput(trace->relocs, re);
+        emit_mov64(R15, c.value);
+	
+      } else {
+	emit_reg_reg(OP_MOV, trace->ops[op->op1].reg, R15);
+      }
       break;
     }
     case IR_EQ: {

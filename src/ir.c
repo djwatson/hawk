@@ -13,6 +13,7 @@ ir_arg_type ir_ins_arg_type[] = {
 #undef X
 };
 
+// TODO(djwatson) gen from x macro
 // clang-format off
 const char* ir_names[] = {
   "LT    ",
@@ -60,6 +61,8 @@ const char* ir_names[] = {
   "SAVEAP",
   "RESAP ",
 
+  "READCH",
+  "PEEKCH",
   "CHGTYP",
 
   "NONE  ",

@@ -1449,8 +1449,13 @@ inline gc_obj vm_read_char(gc_obj p) {
   if (likely(port->buf_pos < port->buf_sz)) {
     return tag_char(port->in_buffer[port->buf_pos++]);
   }
+  if (port->fd == -1) {
+    port->eof = TRUE_REP;
+    return EOF_OBJ;
+  }
   port->buf_pos = 1;
   port->buf_sz = fread(port->in_buffer, 1, sizeof(port->in_buffer), port->file);
+
   if (port->buf_sz == 0) {
     port->eof = TRUE_REP;
     return EOF_OBJ;

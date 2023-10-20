@@ -1601,6 +1601,7 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     add_snap(regs_list, regs - regs_list - 1, trace, pc + 1, depth, stack_top);
     break;
   }
+  case PEEK:
   case READ: {
     port_s *port = to_port(frame[INS_B(i)]);
     uint8_t type = CHAR_TAG;
@@ -1608,28 +1609,14 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
     if (port->eof.value == TRUE_REP.value) {
       type = EOF_TAG;
     }
-    auto knum = arrlen(trace->consts);
-    arrput(trace->consts, tag_ptr(vm_read_char));
-    regs[INS_A(i)] =
-        push_ir(trace, IR_CALLXS, record_stack_load(INS_B(i), frame),
-                knum | IR_CONST_BIAS, type | IR_INS_TYPE_GUARD);
-    stack_top = INS_A(i) + 1;
-    add_snap(regs_list, regs - regs_list - 1, trace, pc + 1, depth, stack_top);
-    break;
-  }
-  case PEEK: {
-    port_s *port = to_port(frame[INS_B(i)]);
-    uint8_t type = CHAR_TAG;
-    // TODO(djwatson) peek instead.
-    if (port->eof.value == TRUE_REP.value) {
-      type = EOF_TAG;
+    uint8_t op = IR_READCH;
+    if (INS_OP(i) == PEEK) {
+      op = IR_PEEKCH;
     }
-    auto knum = arrlen(trace->consts);
-    arrput(trace->consts, tag_ptr(vm_peek_char));
     regs[INS_A(i)] =
-        push_ir(trace, IR_CALLXS, record_stack_load(INS_B(i), frame),
-                knum | IR_CONST_BIAS, type | IR_INS_TYPE_GUARD);
-    stack_top = INS_A(i) + 1;
+        push_ir(trace, op, record_stack_load(INS_B(i), frame),
+                IR_NONE, type | IR_INS_TYPE_GUARD);
+    stack_top = INS_A(i) + 1; // TODO(djwatson) don't need +1?
     add_snap(regs_list, regs - regs_list - 1, trace, pc + 1, depth, stack_top);
     break;
   }

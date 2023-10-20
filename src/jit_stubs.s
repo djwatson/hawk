@@ -97,3 +97,59 @@ jit_gc_log:
 	pop r10
 	pop r11
 	ret
+
+	.globl vm_read_char
+	.globl jit_read_char	
+jit_read_char:
+	push r11
+	push r10
+	push r9
+	push r8
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rax
+
+	mov rdi, r15
+	call vm_read_char
+	mov r15, rax
+
+	pop rax
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+	pop r8
+	pop r9
+	pop r10
+	pop r11
+	ret
+
+	.globl vm_peek_char
+	.globl jit_peek_char	
+jit_peek_char:
+	push r11
+	push r10
+	push r9
+	push r8
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push rax
+
+	mov rdi, r15
+	call vm_peek_char
+	mov r15, rax
+
+	pop rax
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+	pop r8
+	pop r9
+	pop r10
+	pop r11
+	ret

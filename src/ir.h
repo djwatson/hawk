@@ -64,6 +64,9 @@ typedef enum {
   X(IR_SAVEAP, IR_ARG_NONE_NONE)                                               \
   X(IR_RESAP, IR_ARG_NONE_NONE)                                                \
                                                                                \
+  X(IR_READCH, IR_ARG_IR_NONE)						       \
+  X(IR_PEEKCH, IR_ARG_IR_NONE)						       \
+									       \
   X(IR_CHGTYPE, IR_ARG_IR_NONE)                                                \
                                                                                \
   X(IR_NONE, IR_ARG_NONE_NONE)
