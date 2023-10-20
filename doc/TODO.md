@@ -6,8 +6,7 @@
   * call/cc: ctak, fibc
   * matrix: ??
   * graphs: LOOP_opt, sccp, GC
-  * peval - sccp
-  * conform - needs sccp, 
+  * conform - needs sccp ??
 
   * lattice: mostly catching the inner nested loop (lex-fixed) as a loop, and not allocating a closure for it.
     Need to inline called-once functions??
