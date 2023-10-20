@@ -744,9 +744,9 @@ LIBRARY_FUNC_D(GSET) {
   if (gp->opt != 0 && gp->opt != -1) {
     if (!is_undefined(gp->val)) {
       // printf("Gupgrade %s\n", ((string_s*)(gp->name-PTR_TAG))->str);
-      for (uint32_t i = 0; i < hmlen(gp->lst); i++) {
+      while(hmlen(gp->lst)) {
         // printf("Get trace %i\n", gp->lst[i].key);
-        trace_flush(trace_cache_get(gp->lst[i].key), true);
+        trace_flush(trace_cache_get(gp->lst[0].key), true);
       }
       hmfree(gp->lst);
       gp->opt = -1;
@@ -843,9 +843,8 @@ LIBRARY_FUNC_B(CLOSURE) {
   auto fun = to_func(frame[ra]);
   if (fun->poly_cnt < 50) {
     if (fun->poly_cnt == 1) {
-      for (uint32_t i = 0; i < hmlen(fun->lst); i++) {
-	//printf("POLYMORPHIC %s flush of trace %i\n", fun->name, fun->lst[i].key);
-        trace_flush(trace_cache_get(fun->lst[i].key), true);
+      while(hmlen(fun->lst)) {
+        trace_flush(trace_cache_get(fun->lst[0].key), true);
       }
       hmfree(fun->lst);
     }
