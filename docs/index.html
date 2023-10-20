@@ -105,7 +105,7 @@ $ sudo make install</code></pre>
 	</p>
       </div>
       <div id="charts1"></div>
-      Hawk has an unoptimized read/write path.
+      Hawk has an unoptimized read/write path, and unoptimized continuation representation.
       <div id="charts2"></div>
       Hawk JIT does not currently support flonums, so all flonums benchmarks mostly use the VM.
       <div id="charts3"></div>
@@ -220,16 +220,16 @@ $ sudo make install</code></pre>
       makechart('mperm', [6.8400000000001455, 4.39300012588501, 4.34869, 5.05]);
       makechart('mazefun', [1.5799999999999272, 1.6059999465942383, 2.093023, 1.90]);
       makechart('array1', [4.5900000000001455, 1.4989999532699585, 2.981551, 2.00]);
-      makechart('wc', [0.9400000000000546, 1.5779999494552612, 5.82148, 1.29]);
+      makechart('wc', [0.9400000000000546, 1.5779999494552612, 5.82148, .648]);
       makechart('string', [2.9100000000003092, 2.611999988555908, 1.703866, .5]);
+      makechart('cat', [1.3100000000004002, 2.421999931335449, 10.767127, 1.371]);
       makechart('Totals', sums);
       cur_section = "charts2";
       makechart('ctak', [0.41000000000030923, 16.945999145507812, 1.854662, 3.29]);
       makechart('fibc', [0.30999999999994543, 9.291000366210938, 1.176995, 1.58]);
       makechart('dynamic', [1.3899999999998727, 2.3949999809265137, 3.172476, 1.83]);
-      makechart('cat', [1.3100000000004002, 2.421999931335449, 10.767127, 1.65]);
       makechart('tail', [0.0, 3.299999952316284, 2.195105, 0.24]);
-      makechart('read1', [0.5199999999999818, 1.9600000381469727, 1.245462, 0.95]);
+      makechart('read1', [0.5199999999999818, 1.9600000381469727, 1.245462, 0.781]);
       makechart('Totals', sums);
       cur_section = "charts3";
       makechart('sum1', [0.7400000000002365, 2.99, 0.762798, 1.79]);

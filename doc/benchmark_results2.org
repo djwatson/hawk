@@ -10,8 +10,8 @@
 | mperm     |  5.168 |     7.2 |  -39.318885 | *WIN* |                                                 |            |
 | ntakl     |  1.733 |     2.6 |  -50.028852 | *WIN* | FRONTEND                                        | x          |
 | takl      |  1.288 |     2.7 |  -109.62733 | *WIN* | same                                            | x          |
-| wc        |   1.29 |    .902 |   30.077519 |       | getc, print_obj, fputc, plt, call constant pool | x          |
-| cat       |   1.70 |   1.278 |   24.823529 |       | same as wc                                      | x          |
+| wc        |   .648 |    .902 |   30.077519 |       | getc, print_obj, fputc, plt, call constant pool | x          |
+| cat       |   1.37 |   1.278 |   24.823529 |       | same as wc                                      | x          |
 | cpstak    |  1.962 |     2.1 |  -7.0336391 | *WIN* | typecheck                                       |            |
 | primes    |     .5 |   .6999 |      -39.98 | *WIN* |                                                 | x          |
 | deriv     |    .89 |    .908 |  -2.0224719 | *WIN* | merge GC, lea fusion, typechecks, snapshot min  |            |
@@ -34,7 +34,7 @@
 | ctak      |   3.45 |      .4 |   88.405797 |       | cc representation                               | x          |
 | fibc      |  1.639 |    .328 |   79.987797 |       | cc representation                               | x          |
 | string    |     .5 |     2.5 |       -400. | *WIN* | string ops                                      |            |
-| read1     |   1.00 |   0.574 |        42.6 |       | read                                            |            |
+| read1     |   .781 |   0.574 |        42.6 |       | read                                            |            |
 | parsing   |    2.0 |     2.1 |         -5. | *WIN* | sccp                                            |            |
 | peval     |  1.475 |    1.46 |   1.0169492 |       | loop catching. sccp                             |            |
 | slatex    |   1.98 |   1.958 |   1.1111111 |       |                                                 |            |
