@@ -38,8 +38,6 @@ EXPORT unsigned TRACE_MAX = 65535;
 EXPORT int joff = 0;
 EXPORT int profile = 0;
 
-#define IN_BUFFER_SZ 4096
-
 bcfunc **funcs = NULL;
 #define auto __auto_type
 #ifdef AFL
@@ -1383,7 +1381,6 @@ LIBRARY_FUNC_BC(OPEN) {
   port->eof = FALSE_REP;
   port->buf_sz = 0;
   port->buf_pos = 0;
-  port->in_buffer = NULL;
 
   if (is_fixnum(fb)) {
     port->fd = to_fixnum(frame[rb]);
@@ -1405,7 +1402,6 @@ LIBRARY_FUNC_BC(OPEN) {
     printf("FDopen fail\n");
     exit(-1);
   }
-  port->in_buffer = malloc(IN_BUFFER_SZ);
   frame[ra] = tag_port(port);
 }
 END_LIBRARY_FUNC
@@ -1434,7 +1430,7 @@ inline gc_obj vm_peek_char(gc_obj p) {
     return EOF_OBJ;
   }
   port->buf_pos = 0;
-  port->buf_sz = fread(port->in_buffer, 1, IN_BUFFER_SZ, port->file);
+  port->buf_sz = fread(port->in_buffer, 1, sizeof(port->in_buffer), port->file);
   if (port->buf_sz == 0) {
     port->eof = TRUE_REP;
     return EOF_OBJ;
@@ -1454,7 +1450,7 @@ inline gc_obj vm_read_char(gc_obj p) {
     return tag_char(port->in_buffer[port->buf_pos++]);
   }
   port->buf_pos = 1;
-  port->buf_sz = fread(port->in_buffer, 1, IN_BUFFER_SZ, port->file);
+  port->buf_sz = fread(port->in_buffer, 1, sizeof(port->in_buffer), port->file);
   if (port->buf_sz == 0) {
     port->eof = TRUE_REP;
     return EOF_OBJ;

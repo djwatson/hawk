@@ -119,7 +119,7 @@ typedef struct port_s {
   gc_obj eof;
   uint64_t buf_pos;
   uint64_t buf_sz;
-  char *in_buffer;
+  char in_buffer[4096];
 } port_s;
 
 void print_obj(gc_obj obj, FILE *file);
