@@ -120,6 +120,9 @@ static void print_tag_type(uint8_t t) {
   case CHAR_TAG:
     printf("\e[1;34mchar\e[m ");
     break;
+  case CLOSURE_TAG:
+    printf("\e[1;34mclo \e[m ");
+    break;
   default:
     // Also UNDEFINED_TAG
     printf("     ");
