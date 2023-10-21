@@ -744,6 +744,7 @@
 (define (eof-object? c)
   ($guard c #x1c))
 
+(define read-buf (make-string 1000))
 (define read
   (case-lambda
    (() (read current-input-port-internal))
@@ -751,15 +752,15 @@
     (define line 1)
     (define (read2 port)
       (define (read-to-delimited)
-	(let loop ((res '()) (c (peek-char port)))
+	(let loop ((res 0) (c (peek-char port)))
 	  (if (eof-object? c)
-	      (if (not (null? res)) (list->string (reverse res)) c)
+	      (if (not (= 0 res)) (substring read-buf 0 res) c)
 	      (case c
-	       ((#\( #\) #\" #\| #\newline #\return #\space #\tab #\;)
-		(list->string (reverse res)))
-	       (else
-		(let ((res (cons (read-char port) res)))
-		  (loop res (peek-char port))))))))
+		((#\( #\) #\" #\| #\newline #\return #\space #\tab #\;)
+		 (substring read-buf 0 res))
+		(else
+		 (string-set! read-buf res (read-char port))
+		 (loop (+ res 1) (peek-char port)))))))
       (define (skip-whitespace)
 	(let loop ()
 	  (let ((c (peek-char port)))
@@ -804,15 +805,20 @@
 	    (else  c)))
 	)
       (define (read-delimited term)
-	(let loop ((res '()) (c (read-char port)))
+	(let loop ((res 0) (c (read-char port)))
 	  (cond
-	   ((eof-object? c) (error "incomplete object:" (list->string (reverse res)) "line: " line))
+	   ((eof-object? c) (error "incomplete object:" (substring read-buf 0 res) "line: " line))
 	   ((char=? #\\ c)
 	    (let ((es (read-escape)))
-	      (if es (loop (cons es res) (read-char port))
+	      (if es
+		  (begin
+		    (string-set! read-buf res es)
+		    (loop (+ 1 res) (read-char port)))
 		  (loop res (read-char port)))))
-	   ((char=? term c) (list->string (reverse res)))
-	   (else (loop (cons c res) (read-char port))))
+	   ((char=? term c) (substring read-buf 0 res))
+	   (else
+	    (string-set! read-buf res c)
+	    (loop (+ 1 res) (read-char port))))
 	  )
 	)
       (define (lower-case string)
@@ -858,7 +864,7 @@
 		 ((= 1 (string-length token)) (string-ref token 0))
 		 ((assoc token named-chars) => cdr)
 		 (else (error "Error invalid char: " token)))))))
-      (define (skip-comment depth)
+      (define (skip-comment)
 	(let loop ((depth 0))
 	  (case (read-char port)
 	    ((#\#) (loop (if (char=? #\| (peek-char port)) (+ 1 depth) depth)))
