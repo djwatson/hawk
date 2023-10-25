@@ -65,7 +65,7 @@
 		    (eq? 'lambda (first (second (first (second f))))))
 	       ;; It still might escape
 	       (begin
-		 (dformat "Maybe inline: ~a\n" (cons (first f) (first (second f))))
+		 ;;(dformat "Maybe inline: ~a\n" (cons (first f) (first (second f))))
 		 (imap pass f))
 	       (imap pass f)))
 	  (else (imap pass f)))))
