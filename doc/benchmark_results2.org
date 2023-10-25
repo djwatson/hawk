@@ -1,47 +1,47 @@
-| benchmark |   hawk |    chez |        diff | win   | reason                                          | loop trace |
-|-----------+--------+---------+-------------+-------+-------------------------------------------------+------------|
-| ack       |   2.13 |     1.9 |   10.798122 |       |                                                 | x          |
-| tak       |   1.26 |    1.56 |  -23.809524 | *WIN* |                                                 | x          |
-| fib       |   2.29 |     3.0 |  -31.004367 | *WIN* |                                                 |            |
-| sum       |    .89 |   1.546 |  -73.707865 | *WIN* |                                                 | x          |
-| diviter   |  1.034 |   1.041 | -0.67698259 | *WIN* | alloc inline, fusion                            | x          |
-| divrec    |  1.593 |   1.636 |  -2.6993095 | *WIN* | same                                            | x          |
-| nqueens   |   2.94 |     3.8 |  -29.251701 | *WIN* | closure analysis                                | x          |
-| mperm     |  5.168 |     7.2 |  -39.318885 | *WIN* |                                                 |            |
-| ntakl     |  1.733 |     2.6 |  -50.028852 | *WIN* | FRONTEND                                        | x          |
-| takl      |  1.288 |     2.7 |  -109.62733 | *WIN* | same                                            | x          |
-| wc        |   .648 |    .902 |   30.077519 |       | getc, print_obj, fputc, plt, call constant pool | x          |
-| cat       |   1.37 |   1.278 |   24.823529 |       | same as wc                                      | x          |
-| cpstak    |  1.962 |     2.1 |  -7.0336391 | *WIN* | typecheck                                       |            |
-| primes    |     .5 |   .6999 |      -39.98 | *WIN* |                                                 | x          |
-| deriv     |    .89 |    .908 |  -2.0224719 | *WIN* | merge GC, lea fusion, typechecks, snapshot min  |            |
-| triangl   |   .728 |   1.184 |  -62.637363 | *WIN* |                                                 | x          |
-| destruc   |   1.02 |    1.28 |  -25.490196 | *WIN* |                                                 | x          |
-| gcbench   |    .49 |    .556 |  -13.469388 | *WIN* | bigger nursury                                  |            |
-| puzzle    |  1.286 |    1.55 |  -20.528771 | *WIN* | loop opt                                        | x          |
-| paraffins |    4.0 |   4.270 |       -6.75 | *WIN* |                                                 | x          |
-| maze      |    .40 |    .845 |     -111.25 | *WIN* |                                                 | x          |
-| mazefun   |  1.904 |   1.731 |   9.0861345 |       |                                                 | x          |
-| lattice   |    2.7 |     2.7 |          0. | *WIN* | closure sinking, sccp                           | x          |
-| browse    |    .88 |    .987 |  -12.159091 | *WIN* |                                                 |            |
-| graphs    |   1.75 |     1.3 |   25.714286 |       | LOOP, closure analysis , closure sinking        | nested     |
-| conform   |   1.80 |   1.422 |         21. |       |                                                 |            |
-| sboyer    |   .756 |    .731 |   3.3068783 |       | ?? typecheck                                    |            |
-| nboyer    |  1.376 |   1.483 |  -7.7761628 | *WIN* | ??                                              |            |
-| array1    |    2.0 |     4.5 |       -125. | *WIN* |                                                 | x          |
-| earley    |   1.99 |     3.1 |  -55.778894 | *WIN* |                                                 | x          |
-| scheme    |   1.39 |     2.4 |  -72.661871 | *WIN* |                                                 | x          |
-| ctak      |   3.45 |      .4 |   88.405797 |       | cc representation                               | x          |
-| fibc      |  1.639 |    .328 |   79.987797 |       | cc representation                               | x          |
-| string    |     .5 |     2.5 |       -400. | *WIN* | string ops                                      |            |
-| read1     |   .781 |   0.574 |        42.6 |       | read                                            |            |
-| parsing   |    2.0 |     2.1 |         -5. | *WIN* | sccp                                            |            |
-| peval     |  1.475 |    1.46 |   1.0169492 |       | loop catching. sccp                             |            |
-| slatex    |   1.98 |   1.958 |   1.1111111 |       |                                                 |            |
-| equal     |   .200 |    .398 |        -99. | *WIN* |                                                 |            |
-| compiler  |  1.918 |   2.004 |  -4.4838373 | *WIN* | loop catching                                   |            |
-| matrix    |   1.11 |    .899 |   19.009009 |       | loop catching?? opt_loop                        |            |
-| dynamic   |  1.832 |   1.447 |   21.015284 |       | read                                            |            |
-| TOTAL     | 68.242 | 76.9779 |  -12.801354 | *WIN* |                                                 |            |
-|-----------+--------+---------+-------------+-------+-------------------------------------------------+------------|
-#+TBLFM: $4=($2-$3) * 100.0 /$2::$5='(if (not (= $2 0)) (if (>= $3 $2) '*WIN* "") "BAD");N::@>$2=vsum(@2..@-1)::@>$3=vsum(@2..@-1)
+| benchmark |  hawk |    chez |        diff | win   | reason                                                | loop trace |
+|-----------+-------+---------+-------------+-------+-------------------------------------------------------+------------|
+| ack       |  1.87 |     1.9 |  -1.6042781 | *WIN* |                                                       | x          |
+| tak       |  1.26 |    1.56 |  -23.809524 | *WIN* |                                                       | x          |
+| fib       |  2.29 |     3.0 |  -31.004367 | *WIN* |                                                       |            |
+| sum       |   .89 |   1.546 |  -73.707865 | *WIN* |                                                       | x          |
+| diviter   | 1.034 |   1.041 | -0.67698259 | *WIN* |                                                       | x          |
+| divrec    | 1.593 |   1.636 |  -2.6993095 | *WIN* |                                                       | x          |
+| nqueens   |  2.94 |     3.8 |  -29.251701 | *WIN* |                                                       | x          |
+| mperm     | 5.168 |     7.2 |  -39.318885 | *WIN* |                                                       |            |
+| ntakl     | 1.733 |     2.6 |  -50.028852 | *WIN* |                                                       | x          |
+| takl      |  1.96 |     2.7 |  -37.755102 | *WIN* |                                                       | x          |
+| wc        |  .537 |    .902 |  -67.970205 | *WIN* |                                                       | x          |
+| cat       | 1.268 |   1.278 | -0.78864353 | *WIN* | write fastpath                                        | x          |
+| cpstak    | 1.962 |     2.1 |  -7.0336391 | *WIN* |                                                       |            |
+| primes    |    .5 |   .6999 |      -39.98 | *WIN* |                                                       | x          |
+| deriv     |   .89 |    .908 |  -2.0224719 | *WIN* |                                                       |            |
+| triangl   |  .728 |   1.184 |  -62.637363 | *WIN* |                                                       | x          |
+| destruc   |  1.02 |    1.28 |  -25.490196 | *WIN* |                                                       | x          |
+| gcbench   |  .388 |    .556 |  -43.298969 | *WIN* |                                                       |            |
+| puzzle    | 1.286 |    1.55 |  -20.528771 | *WIN* |                                                       | x          |
+| paraffins |   3.9 |   4.270 |  -9.4871795 | *WIN* |                                                       | x          |
+| maze      |   .40 |    .845 |     -111.25 | *WIN* |                                                       | x          |
+| mazefun   | 1.693 |   1.731 |  -2.2445363 | *WIN* |                                                       | x          |
+| lattice   |   2.5 |     2.7 |         -8. | *WIN* |                                                       | x          |
+| browse    |   .80 |    .987 |     -23.375 | *WIN* |                                                       |            |
+| graphs    | 1.712 |     1.3 |   24.065421 |       | 'program' mode in chez.  DEFINITELY opt_loop SLOADS   | nested     |
+| conform   | 1.675 |   1.422 |   15.104478 |       | program mode. specializing on lambda args? fix spills |            |
+| sboyer    |  .721 |    .731 |  -1.3869626 | *WIN* | spills                                                |            |
+| nboyer    | 1.440 |   1.483 |  -2.9861111 | *WIN* |                                                       |            |
+| array1    |   2.0 |     4.5 |       -125. | *WIN* |                                                       | x          |
+| earley    |  2.15 |     3.1 |  -44.186047 | *WIN* |                                                       | x          |
+| scheme    |  1.39 |     2.4 |  -72.661871 | *WIN* |                                                       | x          |
+| ctak      |   4.5 |      .4 |   91.111111 |       | cc representation                                     | x          |
+| fibc      | 1.639 |    .328 |   79.987797 |       | cc representation                                     | x          |
+| string    |    .5 |     2.5 |       -400. | *WIN* |                                                       |            |
+| read1     |  .544 |   0.574 |  -5.5147059 | *WIN* |                                                       |            |
+| parsing   |  1.96 |     2.1 |  -7.1428571 | *WIN* |                                                       |            |
+| peval     | 1.483 |    1.51 |  -1.8206339 | *WIN* | fix spill slots                                       |            |
+| slatex    | 1.787 |   1.958 |  -9.5691102 | *WIN* | file jitops                                           |            |
+| equal     |  .200 |    .398 |        -99. | *WIN* |                                                       |            |
+| compiler  | 1.579 |   2.004 |  -26.915769 | *WIN* |                                                       |            |
+| matrix    |  1.11 |    1.11 |          0. | *WIN* | loop catching?? opt_loop                              |            |
+| dynamic   |  1.54 |   1.447 |   6.0389610 | OK    | read                                                  |            |
+| TOTAL     | 66.54 | 77.2389 |  -16.078900 | *WIN* |                                                       |            |
+|-----------+-------+---------+-------------+-------+-------------------------------------------------------+------------|
+#+TBLFM: $4=($2-$3) * 100.0 /$2::$5='(if (not (= $2 0)) (if (>= $3 $2) '*WIN* (if (>= (* 1.15 $3) $2) 'OK "")) "BAD");N::@>$2=vsum(@2..@-1)::@>$3=vsum(@2..@-1)

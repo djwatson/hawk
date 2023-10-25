@@ -1,8 +1,7 @@
 # Getting all jit to work bench2
 
 * loosing at: 
-  * input/output buffering: wc, cat, dynamic
-  * read: dynamic read1 sum1
+  * output buffering: cat
   * call/cc: ctak, fibc
   * matrix: ??
   * graphs: LOOP_opt, sccp, GC
@@ -12,7 +11,7 @@
     Need to inline called-once functions??
 
 # TODO
-* fix buffering
+* add output buffering
 * inline single closure
 
 * sccp pass / fold - 
