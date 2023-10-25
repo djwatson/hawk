@@ -51,13 +51,7 @@ static gc_obj read_symbol(FILE *fptr, uint64_t num) {
   }
   str->str[len] = '\0';
 
-  auto res = symbol_table_find_cstr(str->str);
-  gc_obj val;
-  if (res == nullptr) {
-    val = symbol_table_insert(str, true);
-  } else {
-    val = tag_symbol(res);
-  }
+  auto val = symbol_table_insert(str, true);
 
   arrput(symbols, val);
   return val;
@@ -286,6 +280,7 @@ static void read_const_table(FILE *fptr, uint64_t const_offset) {
 }
 
 static bcfunc *readbc(FILE *fptr) {
+  sym_table_init();
   auto const_offset = const_table_sz;
   arrfree(symbols);
 

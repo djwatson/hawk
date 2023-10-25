@@ -7,122 +7,123 @@
 #include <stdlib.h> // for calloc, free, size_t
 #include <string.h> // for strcmp
 
+#include "third-party/cwisstable.h"
+
 #include "defs.h"
 #include "gc.h"
 #include "types.h" // for string_s, symbol
 
-#define auto __auto_type
 
-/* FNV-1a */
-uint64_t str_hash(const char *str) {
-  const char *p = str;
-  uint64_t hash = 0xcbf29ce484222325;
+typedef struct {
+  uint32_t len;
+  const char* str;
+} StringView;
 
-  while (*p++ != 0) {
-    hash ^= *p;
-    hash *= 0x100000001b3;
+static inline size_t djb2_hash(const char *s)
+{
+  size_t h = 5381;
+  char c;
+  while ((c = *s++)) {
+      h = (h << 5) + h + c;
   }
+  return h;
+}
+static inline size_t MyMap_StringView_hash(const StringView* val) {
+  return djb2_hash(val->str);
+}
+static inline bool MyMap_StringView_eq(const StringView* a, const gc_obj* b) {
+  auto v = *(const gc_obj*)b;
+  assert(is_symbol(v));
+  auto sym = to_symbol(v);
+  auto name = get_sym_name(sym);
 
-  return hash;
+  return a->len == to_fixnum(name->len) &&
+    memcmp(name->str, a->str, a->len) == 0;
+}
+static inline size_t kCStrPolicy_hash(const void* val) {
+  auto v = *(const gc_obj*)val;
+  assert(is_symbol(v));
+  auto sym = to_symbol(v);
+  auto name = get_sym_name(sym);
+  return djb2_hash(name->str);
+}
+static inline bool kCStrPolicy_eq(const void* a, const void* b) {
+  auto va = *(const gc_obj*)a;
+  assert(is_symbol(va));
+  auto syma = to_symbol(va);
+  auto namea = get_sym_name(syma);
+
+  auto vb = *(const gc_obj*)b;
+  assert(is_symbol(vb));
+  auto symb = to_symbol(vb);
+  auto nameb = get_sym_name(symb);
+
+  return to_fixnum(namea->len) == to_fixnum(nameb->len)
+    && memcmp(namea->str, nameb->str, to_fixnum(namea->len)) == 0;
 }
 
-// string_s* to symbol* hash table.
-// Size must be power of two.
-// Bottom bits may be tombstone.
-// Open coded.
+CWISS_DECLARE_FLAT_SET_POLICY(kCStrPolicy, gc_obj,
+                              (key_hash, kCStrPolicy_hash),
+                              (key_eq, kCStrPolicy_eq));
+CWISS_DECLARE_HASHSET_WITH(MyMap, gc_obj, kCStrPolicy);
+CWISS_DECLARE_LOOKUP(MyMap, StringView);
+
 
 // TODO(djwatson) weak GC syms, and evict entries when they are collected.
 
-// Non-empty default table so we don't have to null check.
-static table empty_table = {0, 0};
-table *sym_table = &empty_table;
+static MyMap sym_table;
+static bool inited = false;
+void sym_table_init() {
+  if (!inited) {
+    inited = true;
+    sym_table = MyMap_new(1);
+  }
+}
 
+static symbol *symbol_table_find_internal(const char *str, const uint64_t len);
 symbol *symbol_table_find(string_s *str) {
-  return symbol_table_find_cstr(str->str);
+  return symbol_table_find_internal(str->str, to_fixnum(str->len));
 }
 
 EXPORT symbol *symbol_table_find_cstr(const char *str) {
-  auto hash = str_hash(str);
-
-  auto mask = sym_table->sz - 1;
-  for (size_t i = 0; i < sym_table->sz; i++) {
-    auto cur = &sym_table->entries[(i + hash) & mask];
-    if (cur->value == 0) {
-      return NULL;
-    }
-
-    symbol *curs = to_symbol(*cur);
-    string_s *sym_name = get_sym_name(curs);
-    if (strcmp(sym_name->str, str) == 0) {
-      return curs;
-    } // Mismatched comparison, continue.
-  }
-
-  return NULL;
+  return symbol_table_find_internal(str, strlen(str));
 }
 
-static void rehash();
-static void symbol_table_insert_sym(symbol *sym) {
-  if ((sym_table->cnt + 1) > (sym_table->sz / 2)) {
-    rehash();
-  }
-  sym_table->cnt++;
+static symbol *symbol_table_find_internal(const char *str, const uint64_t len) {
+  assert(inited);
 
-  string_s *sym_name = get_sym_name(sym);
-  auto hash = str_hash(sym_name->str);
-  auto mask = sym_table->sz - 1;
+  StringView s = {.len = len, .str = str};
 
-  for (size_t i = 0; i < sym_table->sz; i++) {
-    auto cur = &sym_table->entries[(i + hash) & mask];
-    if (cur->value == 0 ||
-        strcmp(get_sym_name(to_symbol(*cur))->str, sym_name->str) == 0) {
-      // Insert here.
-      *cur = tag_sym(sym);
-      return;
-    } // Mismatched comparison, continue.
+  auto it = MyMap_cfind_by_StringView(&sym_table, &s);
+  auto entry = MyMap_CIter_get(&it);
+  if (!entry) {
+    return NULL;
   }
-
-  // Definitely should find a spot.
-  assert(false);
-}
-
-static void rehash() {
-  auto old = sym_table;
-  auto new_sz = old->sz * 2;
-  if (new_sz == 0) {
-    new_sz = 2;
-  }
-  // TODO(djwatson) realloc+memset?
-  sym_table = calloc(sizeof(table) + sizeof(symbol *) * new_sz, 1);
-  if (!sym_table) {
-    printf("symbol_table: calloc error\n");
-    exit(-1);
-  }
-  sym_table->sz = new_sz;
-  sym_table->cnt = 0;
-
-  // Rehash items.
-  for (size_t i = 0; i < old->sz; i++) {
-    auto cur = &old->entries[i];
-    if (cur->value != 0) {
-      symbol_table_insert_sym(to_symbol(*cur));
-    }
-  }
-
-  if (old != &empty_table) {
-    free(old);
-  }
+  return to_symbol(*entry);
 }
 
 void symbol_table_clear() {
-  if (sym_table != &empty_table) {
-    free(sym_table);
-    sym_table = &empty_table;
-  }
+  assert(inited);
+  MyMap_destroy(&sym_table);
+  inited = false;
 }
 
 gc_obj symbol_table_insert(string_s *str, bool can_alloc) {
-  assert(symbol_table_find(str) == NULL);
+  assert(inited);
+
+  StringView s = {.len = to_fixnum(str->len), .str = str->str};
+  auto res = MyMap_deferred_insert_by_StringView(&sym_table, &s);
+  auto entry = MyMap_Iter_get(&res.iter);
+  if (!res.inserted) {
+    return *entry;
+  }
+
+  // GC may fire below, so we need to be careful about saving str, and
+  // potentially the new symbol.  We need something valid in the
+  // symbol table for GC rooting, so might as well put the string
+  // there.
+  *entry = tag_string(str);
+
   // Build a new symbol.
   // Must dup the string, since strings are not immutable.
   auto strlen = to_fixnum(str->len);
@@ -135,13 +136,15 @@ gc_obj symbol_table_insert(string_s *str, bool can_alloc) {
       return FALSE_REP;
     }
   }
+  // Reload str after gc.
+  str = to_string(*entry);
 
-  // Note re-load of str after allocation.
+  // str now saved in sym
   *sym = (symbol){
       SYMBOL_TAG, 0,   tag_string(str), (gc_obj){.value = UNDEFINED_TAG},
       0,          NULL};
 
-  // Save new symbol in frame[ra].
+  // Save new symbol in a GC root
   gc_obj result = tag_symbol(sym);
   // DUP the string, so that this one is immutable.
   // Note that original is in sym->name temporarily
@@ -165,16 +168,20 @@ gc_obj symbol_table_insert(string_s *str, bool can_alloc) {
   // Re-load str after GC
   memcpy(str2->str, to_string(sym->name)->str, strlen + 1);
   sym->name = tag_string(str2);
-  symbol_table_insert_sym(sym);
+  // symbol_table_insert_sym(sym);
+
+  *entry = result;
 
   return result;
 }
 
 void symbol_table_for_each(for_each_cb cb) {
-  for (size_t i = 0; i < sym_table->sz; i++) {
-    auto cur = &sym_table->entries[i];
-    if (cur->value != 0) {
-      cb(&sym_table->entries[i]);
-    }
+  assert(inited);
+
+  auto it = MyMap_iter(&sym_table);
+  auto entry = MyMap_Iter_get(&it);
+  while (entry) {
+    cb(entry);
+    entry = MyMap_Iter_next(&it);
   }
 }

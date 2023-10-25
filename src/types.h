@@ -197,6 +197,9 @@ MAYBE_UNUSED static inline bool is_cons(gc_obj obj) {
 MAYBE_UNUSED static inline bool is_ptr(gc_obj obj) {
   return get_tag(obj) == PTR_TAG;
 }
+MAYBE_UNUSED static inline bool is_symbol(gc_obj obj) {
+  return get_tag(obj) == SYMBOL_TAG;
+}
 MAYBE_UNUSED static inline bool is_literal(gc_obj obj) {
   return get_tag(obj) == LITERAL_TAG;
 }

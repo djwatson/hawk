@@ -67,7 +67,7 @@ static bool should_jit() {
   }
   return false;
 }
-//#define CHECK_RECORD_START(cnt) should_jit()
+#define CHECK_RECORD_START(cnt) should_jit()
 #else
 #define CHECK_RECORD_START(cnt) unlikely((hotmap[hotmap_hash(pc)]--) <= cnt)
 #endif
@@ -1324,26 +1324,12 @@ END_LIBRARY_FUNC
 ALIGNED8 gc_obj vm_string_symbol(gc_obj in) {
   auto str = to_string(in);
 
-  auto res = symbol_table_find(str);
-  if (res) {
-    return tag_symbol(res);
-  }
-  auto inserted = symbol_table_insert(str, false);
-  if (!inserted
-           .value) { // TODO(djwatson) cleanup and put in symbol_table_insert?
-    return FALSE_REP;
-  }
-  return inserted;
+  return symbol_table_insert(str, false);
 }
 
 LIBRARY_FUNC_B_LOAD_NAME("STRING->SYMBOL", STRING_SYMBOL) {
   LOAD_TYPE_WITH_CHECK(str, string_s, fb, STRING_TAG);
-  auto res = symbol_table_find(str);
-  if (res) {
-    frame[ra] = tag_symbol(res);
-  } else {
-    frame[ra] = symbol_table_insert(str, true);
-  }
+  frame[ra] = symbol_table_insert(str, true);
 }
 END_LIBRARY_FUNC
 

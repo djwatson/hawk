@@ -10,6 +10,7 @@
 typedef struct string_s string_s;
 typedef struct symbol symbol;
 
+void sym_table_init();
 symbol *symbol_table_find(string_s *str);
 // Inserts a string_s, making a copy of it for the new symbol.
 // Returns the tagged symbol object, or 0 if can_alloc = false and we
@@ -18,15 +19,5 @@ gc_obj symbol_table_insert(string_s *str, bool can_alloc);
 symbol *symbol_table_find_cstr(const char *str);
 void symbol_table_clear();
 
-// GC needs access.
-typedef struct table {
-  size_t cnt; // Number of objects currently in hash.
-  size_t sz;  // Size of backing buffer.
-
-  gc_obj entries[];
-} table;
-
 typedef void (*for_each_cb)(gc_obj *field);
 void symbol_table_for_each(for_each_cb cb);
-
-extern table *sym_table;
