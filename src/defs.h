@@ -13,6 +13,7 @@
 #define INLINE __attribute__((always_inline))
 #define WEAK __attribute__((weak))
 #define MAYBE_UNUSED __attribute__((unused))
+#define ALIGNED8 __attribute__((aligned(8)))
 
 #ifdef __clang__
 #define MUSTTAIL __attribute__((musttail))

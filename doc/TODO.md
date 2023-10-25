@@ -136,6 +136,8 @@ There's lots of unimplemented features, but things that cause programs to crash:
 
 * 'Too many spill slots'.  Spills are hardcoded to max 256 currently,
   some traces exceed this, and result in a exit(-1) and error message.
+* Under '-Os', some jit functions aren't 8-byte aligned, and cause GC issues
+  when they are rooted via trace->consts.  TODO add aligned(8)
 
 # Needed for a 1.0 release:
 * full trace GC

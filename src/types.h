@@ -124,7 +124,7 @@ typedef struct port_s {
 
 void print_obj(gc_obj obj, FILE *file);
 gc_obj from_c_str(const char *s);
-gc_obj equalp(gc_obj a, gc_obj b);
+ALIGNED8 gc_obj equalp(gc_obj a, gc_obj b);
 
 // GC interface:
 INLINE size_t heap_object_size(void *obj);

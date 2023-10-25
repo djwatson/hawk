@@ -565,7 +565,7 @@ LIBRARY_FUNC_EQ(EQ, frame[ra] = TRUE_REP, frame[ra] = FALSE_REP, 1);
 LIBRARY_FUNC_EQ(JEQ, pc += 2, pc += INS_D(*(pc + 1)) + 1, 0);
 LIBRARY_FUNC_EQ(JNEQ, pc += INS_D(*(pc + 1)) + 1, pc += 2, 0);
 
-gc_obj vm_memq(gc_obj fb, gc_obj fc) {
+ALIGNED8 gc_obj vm_memq(gc_obj fb, gc_obj fc) {
   auto cur = fc;
   while (is_cons(cur)) {
     cons_s *cell = to_cons(cur);
@@ -580,7 +580,7 @@ gc_obj vm_memq(gc_obj fb, gc_obj fc) {
 LIBRARY_FUNC_BC_LOAD(MEMQ) { frame[ra] = vm_memq(fb, fc); }
 END_LIBRARY_FUNC
 
-gc_obj vm_assv(gc_obj fb, gc_obj fc) {
+ALIGNED8 gc_obj vm_assv(gc_obj fb, gc_obj fc) {
   auto cur = fc;
   while (is_cons(cur)) {
     cons_s *cell = to_cons(cur);
@@ -606,7 +606,7 @@ gc_obj vm_assv(gc_obj fb, gc_obj fc) {
 LIBRARY_FUNC_BC_LOAD(ASSV) { frame[ra] = vm_assv(fb, fc); }
 END_LIBRARY_FUNC
 
-gc_obj vm_assq(gc_obj fb, gc_obj fc) {
+ALIGNED8 gc_obj vm_assq(gc_obj fb, gc_obj fc) {
   auto cur = fc;
   while (is_cons(cur)) {
     cons_s *cell = to_cons(cur);
@@ -627,7 +627,7 @@ gc_obj vm_assq(gc_obj fb, gc_obj fc) {
 LIBRARY_FUNC_BC_LOAD(ASSQ) { frame[ra] = vm_assq(fb, fc); }
 END_LIBRARY_FUNC
 
-gc_obj vm_length(gc_obj fb) {
+ALIGNED8 gc_obj vm_length(gc_obj fb) {
   int64_t cnt = 0;
   auto cur = fb;
   while (true) {
@@ -1108,7 +1108,7 @@ END_LIBRARY_FUNC
 LIBRARY_FUNC_CONS_OP(CAR, a);
 LIBRARY_FUNC_CONS_OP(CDR, b);
 
-void vm_make_vector(gc_obj vec, gc_obj val) {
+ALIGNED8 void vm_make_vector(gc_obj vec, gc_obj val) {
   auto v = to_vector(vec);
 
   auto len = to_fixnum(v->len);
@@ -1142,7 +1142,7 @@ LIBRARY_FUNC_BC_NAME("MAKE-VECTOR", MAKE_VECTOR) {
 }
 END_LIBRARY_FUNC
 
-void vm_make_string(gc_obj str, gc_obj ch) {
+ALIGNED8 void vm_make_string(gc_obj str, gc_obj ch) {
   // TODO(djwatson) check if we can use to_string from jit
   string_s *s = to_raw_ptr(str);
   auto c = to_char(ch);
@@ -1242,7 +1242,7 @@ LIBRARY_FUNC_BC_LOAD_NAME("STRING-SET!", STRING_SET) {
 }
 END_LIBRARY_FUNC
 
-void vm_string_copy(gc_obj tostr, gc_obj tostart, gc_obj fromstr,
+ALIGNED8 void vm_string_copy(gc_obj tostr, gc_obj tostart, gc_obj fromstr,
                     gc_obj fromstart, gc_obj fromend) {
   auto len = to_fixnum(fromend) - to_fixnum(fromstart);
   memcpy(&to_string(tostr)->str[to_fixnum(tostart)],
@@ -1281,7 +1281,7 @@ LIBRARY_FUNC_CONS_SET_OP("SET-CAR!", SET_CAR, a);
 LIBRARY_FUNC_CONS_SET_OP("SET-CDR!", SET_CDR, b);
 
 // Called from jit. TODO could inline in jit.
-void vm_write(gc_obj obj, gc_obj port_obj) {
+ALIGNED8 void vm_write(gc_obj obj, gc_obj port_obj) {
   auto port = to_port(port_obj);
   print_obj(obj, port->file);
 }
@@ -1321,7 +1321,7 @@ LIBRARY_FUNC_B_LOAD_NAME("SYMBOL->STRING", SYMBOL_STRING) {
 }
 END_LIBRARY_FUNC
 
-gc_obj vm_string_symbol(gc_obj in) {
+ALIGNED8 gc_obj vm_string_symbol(gc_obj in) {
   auto str = to_string(in);
 
   auto res = symbol_table_find(str);
@@ -1413,7 +1413,7 @@ LIBRARY_FUNC_B_LOAD(CLOSE) {
 }
 END_LIBRARY_FUNC
 
-inline gc_obj vm_peek_char(gc_obj p) {
+ALIGNED8 inline gc_obj vm_peek_char(gc_obj p) {
   auto port = to_port(p);
   if (likely(port->buf_pos < port->buf_sz)) {
     return tag_char(port->in_buffer[port->buf_pos]);
@@ -1437,7 +1437,7 @@ LIBRARY_FUNC_B_LOAD(PEEK) {
 }
 END_LIBRARY_FUNC
 
-inline gc_obj vm_read_char(gc_obj p) {
+ALIGNED8 inline gc_obj vm_read_char(gc_obj p) {
   auto port = to_port(p);
   if (likely(port->buf_pos < port->buf_sz)) {
     return tag_char(port->in_buffer[port->buf_pos++]);
@@ -1571,7 +1571,7 @@ LIBRARY_FUNC_FLONUM_MATH(TAN, tan);
 LIBRARY_FUNC_FLONUM_MATH(ASIN, asin);
 LIBRARY_FUNC_FLONUM_MATH(ACOS, acos);
 
-gc_obj vm_callcc(const gc_obj *frame) {
+ALIGNED8 gc_obj vm_callcc(const gc_obj *frame) {
   auto sz = frame - stack;
   cont_s *cont = GC_malloc_no_collect(sz * sizeof(gc_obj) + sizeof(cont_s));
   if (!cont) {
@@ -1599,7 +1599,7 @@ LIBRARY_FUNC(CALLCC) {
 }
 END_LIBRARY_FUNC
 
-gc_obj *vm_cc_resume(gc_obj c) {
+ALIGNED8 gc_obj *vm_cc_resume(gc_obj c) {
   auto cont = to_cont(c);
   memcpy(stack, cont->v, to_fixnum(cont->len) * sizeof(gc_obj));
   return &stack[to_fixnum(cont->len)];
