@@ -547,7 +547,7 @@ static void emit_op_typecheck(uint8_t reg, uint8_t type, int64_t offset) {
   }
 }
 
-static void asm_add_to_pcopy(map *moves, ir_ins *op, uint16_t val,
+static void asm_add_to_pcopy(par_copy **moves, ir_ins *op, uint16_t val,
                              trace_s *trace) {
   // If it is a constant, just emit it.
   if (val >= IR_CONST_BIAS) {
@@ -583,7 +583,7 @@ static void asm_add_to_pcopy(map *moves, ir_ins *op, uint16_t val,
     }
     // Add it to the map.
     if (to != REG_NONE) {
-      map_insert(moves, from, to);
+      arrput(*moves, ((par_copy){from, to}));
     }
     /* if (verbose) */
     /*   printf("Insert parallel copy %i to %i\n", from, to); */
@@ -603,45 +603,45 @@ static void asm_add_to_pcopy(map *moves, ir_ins *op, uint16_t val,
 // TODO(djwatson): move slots to a RIP relative location, and we can
 //       do this without a tmp for slot->reg and reg->slot, and a
 //       single tmp for slot->slot
-static void asm_emit_pcopy(map *res) {
-  for (int64_t i = (int64_t)res->mp_sz - 1; i >= 0; i--) {
+static void asm_emit_pcopy(par_copy *res) {
+  for (int64_t i = (int64_t)arrlen(res) - 1; i >= 0; i--) {
     // printf("Doing copy from %i to %i\n", res->mp[i].from, res->mp[i].to);
-    if (res->mp[i].from >= REG_NONE && res->mp[i].to >= REG_NONE) {
+    if (res[i].from >= REG_NONE && res[i].to >= REG_NONE) {
       // Move from spill to spill.
       // Need two tmp.
       emit_pop(RAX);
       emit_pop(R15);
       emit_mem_reg(OP_MOV_RM, 0, R15, RAX);
-      emit_mov64(R15, (int64_t)&spill_slot[res->mp[i].to - REG_NONE]);
+      emit_mov64(R15, (int64_t)&spill_slot[res[i].to - REG_NONE]);
       emit_mem_reg(OP_MOV_MR, 0, R15, RAX);
-      emit_mov64(R15, (int64_t)&spill_slot[res->mp[i].from - REG_NONE]);
+      emit_mov64(R15, (int64_t)&spill_slot[res[i].from - REG_NONE]);
       emit_push(R15);
       emit_push(RAX);
       if (verbose) {
         printf("WARNING slow spill to spill move\n");
       }
-    } else if (res->mp[i].from >= REG_NONE) {
+    } else if (res[i].from >= REG_NONE) {
       // Move from spill to reg.  Need a tmp.
-      if (res->mp[i].to != R15) {
+      if (res[i].to != R15) {
         emit_pop(R15);
       }
-      emit_mem_reg(OP_MOV_MR, 0, R15, res->mp[i].to);
-      emit_mov64(R15, (int64_t)&spill_slot[res->mp[i].from - REG_NONE]);
-      if (res->mp[i].to != R15) {
+      emit_mem_reg(OP_MOV_MR, 0, R15, res[i].to);
+      emit_mov64(R15, (int64_t)&spill_slot[res[i].from - REG_NONE]);
+      if (res[i].to != R15) {
         emit_push(R15);
       }
-    } else if (res->mp[i].to >= REG_NONE) {
+    } else if (res[i].to >= REG_NONE) {
       // Move from reg to spill.  Need a tmp.
       uint8_t tmp = R15;
-      if (res->mp[i].from == tmp) {
+      if (res[i].from == tmp) {
         tmp = RAX;
       }
       emit_pop(tmp);
-      emit_mem_reg(OP_MOV_RM, 0, tmp, res->mp[i].from);
-      emit_mov64(tmp, (int64_t)&spill_slot[res->mp[i].to - REG_NONE]);
+      emit_mem_reg(OP_MOV_RM, 0, tmp, res[i].from);
+      emit_mov64(tmp, (int64_t)&spill_slot[res[i].to - REG_NONE]);
       emit_push(tmp);
     } else {
-      emit_reg_reg(OP_MOV, res->mp[i].from, res->mp[i].to);
+      emit_reg_reg(OP_MOV, res[i].from, res[i].to);
     }
   }
 }
@@ -651,9 +651,7 @@ static void asm_jit_args(trace_s *trace, trace_s *dest_trace) {
   auto last_snap = &trace->snaps[arrlen(trace->snaps) - 1];
   // Parallel move if there are args
 
-  map moves;
-  map res;
-  moves.mp_sz = 0;
+  par_copy *moves = NULL;
   for (uint16_t op_cnt2 = 0; op_cnt2 < (uint16_t)arrlen(dest_trace->ops);
        op_cnt2++) {
     auto op = &dest_trace->ops[op_cnt2];
@@ -666,8 +664,10 @@ static void asm_jit_args(trace_s *trace, trace_s *dest_trace) {
     auto val = find_val_for_slot(op->op1 + last_snap->offset, last_snap);
     asm_add_to_pcopy(&moves, op, val, trace);
   }
-  serialize_parallel_copy(&moves, &res, R15);
-  asm_emit_pcopy(&res);
+  auto res = serialize_parallel_copy(moves, R15);
+  arrfree(moves);
+  asm_emit_pcopy(res);
+  arrfree(res);
   // printf("ASM JIT ARGS START %p CNT %i\n", emit_offset());
 }
 
@@ -1467,9 +1467,7 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
   // TODO(djwatson) parent loads should have separate TAG
   // Map parent sloads to a set of parallel moves from the parent.
   {
-    map moves;
-    map res;
-    moves.mp_sz = 0;
+    par_copy *moves = NULL;
     for (uint16_t op_cnt = 0; op_cnt < (uint16_t)arrlen(trace->ops); op_cnt++) {
       auto op = &trace->ops[op_cnt];
       if (op->op != IR_SLOAD || is_type_guard(op->type)) {
@@ -1478,8 +1476,10 @@ void asm_jit(trace_s *trace, snap_s *side_exit, trace_s *parent) {
       auto val = find_val_for_slot(op->op1, side_exit);
       asm_add_to_pcopy(&moves, op, val, parent);
     }
-    serialize_parallel_copy(&moves, &res, R15);
-    asm_emit_pcopy(&res);
+    auto res = serialize_parallel_copy(moves, R15);
+    arrfree(moves);
+    asm_emit_pcopy(res);
+    arrfree(res);
   }
 
   trace->fn = (Func)emit_offset();

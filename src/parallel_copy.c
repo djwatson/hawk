@@ -3,131 +3,109 @@
 #include "parallel_copy.h"
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define REG_MAX (256 + 32)
+#include "defs.h"
+#include "third-party/cwisstable.h"
+#include "third-party/stb_ds.h"
+#include "vec.h"
 
 /* serialize parallel copy implementation, based on
  * https://github.com/pfalcon/parcopy
  * Allows fan out, does not allow fan in / dst smashing.
  */
 
-static void map_init(map *m) { m->mp_sz = 0; }
+VEC_TYPE_IMPL(u64, uint64_t);
+CWISS_DECLARE_FLAT_HASHMAP(MyIntMap, uint32_t, uint32_t); //!OCLINT // NOLINT
 
-static par_copy *map_find(map *m, uint64_t needle) {
-  for (uint64_t i = 0; i < m->mp_sz; i++) {
-    if (m->mp[i].from == needle) {
-      return &m->mp[i];
-    }
-  }
-
-  return NULL;
-}
-
-static par_copy *map_find_or_error(map *m, uint64_t needle) {
-  __auto_type res = map_find(m, needle);
-  if (!res) {
-    printf("pcopy error\n");
-    exit(-1);
-  }
-  return res;
-}
-
-static void map_erase(map *m, uint64_t needle) {
-  for (uint64_t i = 0; i < m->mp_sz; i++) {
-    if (m->mp[i].from == needle) {
-      for (uint64_t j = i + 1; j < m->mp_sz; j++) {
-        m->mp[j - 1] = m->mp[j];
-      }
-      m->mp_sz--;
-      break;
-    }
+static void map_insert(MyIntMap *m, uint32_t key, uint32_t v) {
+  MyIntMap_Entry entry = {key, v};
+  auto res = MyIntMap_insert(m, &entry);
+  if (!res.inserted) {
+    auto k = MyIntMap_Iter_get(&res.iter);
+    assert(k);
+    assert(k->key == key);
+    k->val = v;
   }
 }
 
-void map_insert(map *m, uint64_t key, uint64_t value) {
-  if (m->mp_sz == MAX_MAP_SIZE) {
-    printf("Hit max map size in parcopy\n");
-    exit(-1);
-  }
-  m->mp[m->mp_sz].from = key;
-  m->mp[m->mp_sz].to = value;
-  m->mp_sz++;
-}
+par_copy *serialize_parallel_copy(par_copy *moves, uint64_t tmp_reg) {
+  par_copy *moves_out = NULL;
 
-static void map_set(map *m, uint64_t key, uint64_t value) {
-  __auto_type v = map_find(m, key);
-  if (v) {
-    v->to = value;
-  } else {
-    map_insert(m, key, value);
-  }
-}
+  uint64_t *ready = NULL;
 
-void serialize_parallel_copy(map *moves, map *moves_out, uint64_t tmp_reg) {
-  map_init(moves_out);
+  auto rmoves = MyIntMap_new(arrlen(moves));
+  auto loc = MyIntMap_new(arrlen(moves));
 
-  for (uint64_t i = 0; i < moves->mp_sz; i++) {
-    assert(moves->mp[i].from != tmp_reg);
-    assert(moves->mp[i].to != tmp_reg);
-  }
-
-  uint64_t ready[REG_MAX];
-  uint64_t ready_pos = 0;
-
-  map rmoves;
-  map loc;
-  map_init(&rmoves);
-  map_init(&loc);
-
-  for (uint64_t i = 0; i < moves->mp_sz; i++) {
+  for (uint64_t i = 0; i < arrlen(moves); i++) {
+    uint32_t from = moves[i].from;
+    uint32_t to = moves[i].to;
+    // Check tmp is really a tmp reg.
+    assert(from != tmp_reg);
+    assert(to != tmp_reg);
     // Check for dest-smashing.
-    assert(map_find(&rmoves, moves->mp[i].to) == NULL);
-    map_insert(&rmoves, moves->mp[i].to, moves->mp[i].from);
-    map_insert(&loc, moves->mp[i].from, moves->mp[i].from);
-    if (map_find(moves, moves->mp[i].to) == NULL) {
-      ready[ready_pos++] = moves->mp[i].to;
+    assert(!MyIntMap_contains(&rmoves, &to));
+    map_insert(&rmoves, to, from);
+    map_insert(&loc, from, from);
+  }
+  for (uint64_t i = 0; i < arrlen(moves); i++) {
+    uint32_t key = moves[i].to;
+    if (!MyIntMap_contains(&loc, &key)) {
+      arrpush_u64(&ready, moves[i].to);
     }
   }
 
-  while (rmoves.mp_sz != 0) {
-    while (ready_pos != 0) {
-      uint64_t r = ready[ready_pos - 1];
-      ready_pos--;
-      if (map_find(&rmoves, r) == NULL) {
+  while (MyIntMap_size(&rmoves) != 0) {
+    while (arrlen_u64(ready)) {
+      uint32_t r = arrpop_u64(ready);
+      auto it = MyIntMap_find(&rmoves, &r);
+      auto k = MyIntMap_Iter_get(&it);
+      if (k == NULL) {
         continue;
       }
-      __auto_type work = map_find_or_error(&rmoves, r);
-      __auto_type rmove = map_find_or_error(&loc, work->to)->to;
-      map_insert(moves_out, rmove, r);
-      map_set(&loc, work->to, r);
+      auto work_to = k->val;
+      auto it2 = MyIntMap_cfind(&loc, &work_to);
+      auto rmove_to = MyIntMap_CIter_get(&it2)->val;
+      arrput(moves_out, ((par_copy){rmove_to, r}));
+      map_insert(&loc, work_to, r);
 
-      map_erase(&rmoves, r);
+      MyIntMap_erase_at(it);
 
-      ready[ready_pos++] = rmove;
+      arrpush_u64(&ready, rmove_to);
     }
-    if (rmoves.mp_sz == 0) {
+    if (MyIntMap_size(&rmoves) == 0) {
       break;
     }
 
-    __auto_type from = rmoves.mp[0].to;
-    __auto_type to = rmoves.mp[0].from;
-    map_erase(&rmoves, to);
+    // There is a cycle, set one to tmp.
+
+    // Fetch any from rmoves.
+    auto it = MyIntMap_iter(&rmoves);
+    auto k = MyIntMap_Iter_get(&it);
+    auto from = k->val;
+    auto to = k->key;
+    MyIntMap_erase_at(it);
+
     if (from != to) {
-      // There is a cycle, set one to tmp.
-      map_insert(moves_out, from, tmp_reg);
+      arrput(moves_out, ((par_copy){from, tmp_reg}));
 
-      map_set(&loc, tmp_reg, tmp_reg);
-      ready[ready_pos++] = from;
+      map_insert(&loc, tmp_reg, tmp_reg);
+      arrpush_u64(&ready, from);
 
-      map_set(&rmoves, to, tmp_reg);
+      map_insert(&rmoves, to, tmp_reg);
     }
   }
+  MyIntMap_destroy(&rmoves);
+  MyIntMap_destroy(&loc);
+  arrfree_u64(&ready);
+
+  return moves_out;
 }
 
-#if 0
+/*
 uint64_t tmp = 101;
 map moves;
 map expected;
@@ -270,4 +248,4 @@ int main() {
   return 0;
 }
 
-#endif
+*/
