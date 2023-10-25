@@ -70,7 +70,7 @@ typedef struct {
   uint64_t addr;
 } log_item;
 
-#define COLLECT_SIZE (1024UL * 1024 * 32)
+#define COLLECT_SIZE (1024UL * 1024 * 50)
 #define ALLOC_SZ_LOG 18
 #define ALLOC_SZ (1UL << ALLOC_SZ_LOG)
 #define ALLOC_SZ_MASK (ALLOC_SZ - 1)
