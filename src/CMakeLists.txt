@@ -1,5 +1,5 @@
 
-  set(SOURCES readbc.c opcodes.c vm.c bootstrap.c  types.c symbol_table.c gc.c opcodes.h  third-party/stb_ds.c unionfind.c )
+  set(SOURCES readbc.c opcodes.c vm.c bootstrap.c  types.c symbol_table.c gc.c opcodes.h  third-party/stb_ds.c unionfind.c vec.c)
 set(SCM_SOURCES ../lib/bc.scm ../lib/passes.scm ../lib/bootstrap.scm ../lib/memory_layout.scm ../lib/bc.chez.scm ../lib/bc.chicken.scm ../lib/util.scm ../lib/str2num.scm)
 set(COMPILE_FLAGS -Wall -Wextra -std=gnu11 -I${CMAKE_BINARY_DIR}/src -msse4 -fvisibility=hidden -fomit-frame-pointer -fno-exceptions -Wno-strict-aliasing -Wdouble-promotion -Wshadow -Wno-unused-parameter -Wnull-dereference -Wno-sign-compare -Wno-type-limits -Wno-unused-command-line-argument)
 set(LIBRARIES "m")
