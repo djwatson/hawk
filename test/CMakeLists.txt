@@ -230,3 +230,5 @@ set_tests_properties(bench2/mperm PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 add_test(NAME bench2/equal WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test COMMAND ${CMAKE_BINARY_DIR}/src/hawk  bench2/equal.scm)
 set_tests_properties(bench2/equal PROPERTIES PASS_REGULAR_EXPRESSION "CSVLINE")
 
+# Regression
+add_test(NAME regression/closure WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test COMMAND ${CMAKE_BINARY_DIR}/src/hawk  regression/closure.scm)

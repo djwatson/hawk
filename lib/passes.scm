@@ -469,7 +469,7 @@
 	       (define (generate-closure-set g clo)
 		 (define (find-closure f)
 		   (let loop ((groups groups) (closures closures))
-		     (let loop2 ((lams (map car groups)))
+		     (let loop2 ((lams (car groups)))
 		       (if (null? lams)
 			   (loop (cdr groups) (cdr closures))
 			   (if (eq? f (caar lams))
