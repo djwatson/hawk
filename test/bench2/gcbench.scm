@@ -1,12 +1,6 @@
 (define (this-scheme-implementation-name)
   (string-append "boom-" "0.1"))
-(define (inexact a) (exact->inexact a))
-(define (inexact->exact a) a)
-(define (exact a) (inexact->exact a))
 (define (square n) (* n n))
-(define (jiffies-per-second)
-  1000000000 ;; returns 1 on my Bones, which is wrong. this number should work for ?many? linuxen
-  )
 ;; vector-map
 ;; read-line
 ;; complex/rational functions
@@ -24,11 +18,8 @@
   (syntax-rules ()
     ((unless a b c ...)
      (if (not a) (begin b c ...)))))
-(define (jiffies-per-second) 1)
 ;;(define (current-jiffy) (with-input-from-file "/proc/uptime" read))
 ;;(define (current-second) (with-input-from-file "/proc/uptime" read))
-(define (current-jiffy) 0)
-(define (current-second) 0)
 
 ;;  This is adapted from a benchmark written by John Ellis and Pete Kovac
 ;;  of Post Communications.
