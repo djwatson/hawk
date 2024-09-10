@@ -153,3 +153,5 @@ jit_peek_char:
 	pop r10
 	pop r11
 	ret
+
+.section .note.GNU-stack
