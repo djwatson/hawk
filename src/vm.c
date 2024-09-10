@@ -167,12 +167,15 @@ void RECORD_START(PARAMS) {
   // Reload values.  We may be trying to record a non-match.
   auto op = INS_OP(*pc);
   {
+#if defined(JIT)
+    
     if (op == JFUNC || op == JLOOP) {
       instr = trace_cache_get(INS_D(*pc))->startpc;
       op = INS_OP(instr);
       ra = (instr >> 8) & 0xff;
       instr >>= 16;
     }
+#endif
   }
   if (joff || (op_table_arg == l_op_table_record)) {
     // Tail call with original op table.
