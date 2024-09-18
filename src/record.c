@@ -1964,12 +1964,19 @@ bool record_instr(uint32_t *pc, gc_obj *frame, int64_t argcnt) {
       return record_instr(pc, frame, argcnt);
     }
 
-    if (verbose) {
-      printf("Record stop JFUNC %s\n", ins_names[INS_OP(link_trace->startpc)]);
+    if (true && arrlen(downrec) <= 1 && INS_OP(*pc_start) == RET1 && side_exit == nullptr) {
+      if (verbose) {
+	printf("Record abort DOWNREC JFUNC %s\n", ins_names[INS_OP(link_trace->startpc)]);
+      }
+      record_abort();
+    } else {
+      if (verbose) {
+	printf("Record stop JFUNC %s\n", ins_names[INS_OP(link_trace->startpc)]);
+      }
+      check_emit_funcv(link_trace->startpc, pc, frame, argcnt);
+      record_stop(pc, link_trace->num);
+      // No stack top tracking
     }
-    check_emit_funcv(link_trace->startpc, pc, frame, argcnt);
-    record_stop(pc, link_trace->num);
-    // No stack top tracking
     return true;
   }
   case JLOOP: {
