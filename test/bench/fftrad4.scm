@@ -37,7 +37,7 @@
 (define log-lut-table-size 9)
 
 (define low-lut
-  (vector
+  '#(
    1. 0.
    .7071067811865476 .7071067811865476
    .9238795325112867 .3826834323650898
@@ -553,7 +553,7 @@
    ))
 
 (define med-lut
-  (vector
+  '#(
    1. 0.
    .9999999999820472 5.9921124526424275e-6
    .9999999999281892 1.1984224905069707e-5
@@ -1070,7 +1070,7 @@
 
 
 (define high-lut
-  (vector
+  '#(
    1. 0.
    .9999999999999999 1.1703344634137277e-8
    .9999999999999998 2.3406689268274554e-8
@@ -1608,11 +1608,14 @@
                         start
                         end)
 
+      (define (bitwise-and1 x)
+	(modulo x 2))
+
       (define (bit-reverse x n)
 	(do ((i 0 (+ i 1))
 	     (x x (arithmetic-shift x -1))
 	     (result 0 (+ (* result 2)
-                          (bitwise-and x 1))))
+                          (bitwise-and1 x))))
 	    ((= i n) result)))
 
       (let loop ((i start)
