@@ -617,7 +617,9 @@
     ;;(dformat "no refs ~a ~a\n" var f)
     (if (atom? f)
 	(not (eq? f var))
-	(fold (lambda (a b) (and (no-refs? var a) b)) #t f)))
+	(if (eq? 'quote (car f))
+	    #t
+	    (fold (lambda (a b) (and (no-refs? var a) b)) #t f))))
   (define (only-tailcalls? var f)
     ;;(dformat "only tailcalls ~a ~a\n" var f)
     (if (atom? f)
