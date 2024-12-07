@@ -155,6 +155,16 @@ until the end of the scope, even if their last use is much sooner.
 This means the JIT must keep snapshots to them around for perhaps
 longer than it should.
 
+The 'top of stack' is implicit in most opcodes (as can be seen in
+record), so we know we only need to track up to that level of stack.
+It would be nice to have more precise lifetime info in the future, so
+at the very least dead let-bound variables would not be in the JIT's
+snapshots, and hence carried around in registers in the trace.  (One
+experiment here is that no benchmark uses more than ~60 registers, we
+could use one bit to indicate 'last use' for each argument.  However,
+there are still dead args at the start of branches, and after loops,
+that we would have to keep track of also).
+
 Opcodes themselves are *very* high level: For example, the ADD opcode
 functions on all types of numbers, and must run typechecks. This makes
 the bytecode extremely compact (there is no typechecking anywhere, and
