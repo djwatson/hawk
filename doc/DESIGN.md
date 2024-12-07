@@ -324,6 +324,37 @@ Many/most of the LuaJIT optimizations haven't been done:
   could do much more load/store analysis.
 * SINKING - we don't do any allocation sinking.  It is surprisingly
   straightforward in LuaJIT.
+  
+And some that aren't applicable to LUAJIT:
+
+* Global optimization:
+
+Chez's optimizes globals bound to functions, by having a separate slot
+for global functions that is called:  On the first call, it forwards
+it to the global's values closure.  If instead it isn't a closure, an
+error is signaled.  The *thunk* is reset if the global is ever set!.
+
+For the jit, Hawk optimistically just inlines the global as a
+constant value, and never checks it again.  If it is ever set!, we
+flush that trace (and any side traces).  Subsequent traces will *not*
+inline the constant value, and load the global.
+
+* Monomorphic closure:
+
+Similarly, closures that are monomorphic (we only ever create a single
+closure for a single function pointer), we inline directly, and never
+insert a check that the closure pointer matches. We again flush traces
+if we detect additional closures created, and begin to check closure
+pointers.
+
+The combination of these two optimizations is that the vast majority
+of toplevel is optimized as if it were a program, and yet will fall
+back to the required behavior of a global is re-set. 
+
+The downside is that once a global is set more than once, it will
+always add additional checks (which we could warn on).
+
+
 
 # TESTING
 
