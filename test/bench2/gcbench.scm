@@ -18,8 +18,11 @@
   (syntax-rules ()
     ((unless a b c ...)
      (if (not a) (begin b c ...)))))
-;;(define (current-jiffy) (with-input-from-file "/proc/uptime" read))
-;;(define (current-second) (with-input-from-file "/proc/uptime" read))
+(define (jiffies-per-second)
+  1000000000 ;; returns 1 on my Bones, which is wrong. this number should work for ?many? linuxen
+  )
+(define (current-jiffy) (with-input-from-file "/proc/uptime" read))
+(define (current-second) (with-input-from-file "/proc/uptime" read))
 
 ;;  This is adapted from a benchmark written by John Ellis and Pete Kovac
 ;;  of Post Communications.

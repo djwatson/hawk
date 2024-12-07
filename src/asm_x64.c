@@ -679,6 +679,8 @@ extern void jit_read_char(void) asm("jit_read_char");
 extern void jit_peek_char(void) asm("jit_peek_char");
 static void emit_init_funcs() {
   static bool done = false;
+  // We need to ensure these are all within range of the JIT.  Emit
+  // some jump stubs.
   if (!done) {
     emit_check();
     done = true;

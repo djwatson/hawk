@@ -150,7 +150,9 @@ There's a long list, but major work includes:
 * A full repl and not just per-script.
 * More tests.
 * aarch64 support.
-* FLONUM support in the JIT.
+* FLONUM support in the JIT.  Requires the GC to run collect() in traces - 
+  which means we need roots for traces (because we need to box flonums for trace exits, and we
+  need it to succeed.  I guess we could reserve some space, but that's cheesy).
 * Various missing NYI's in the jit.
 * Move more of the standard library to C as apporpriate - in partiular
   member/assoc and friends, and read / number->string / string->number,
