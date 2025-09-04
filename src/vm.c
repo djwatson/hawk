@@ -168,7 +168,7 @@ void RECORD_START(PARAMS) {
   auto op = INS_OP(*pc);
   {
 #if defined(JIT)
-    
+
     if (op == JFUNC || op == JLOOP) {
       instr = trace_cache_get(INS_D(*pc))->startpc;
       op = INS_OP(instr);
@@ -461,19 +461,32 @@ LIBRARY_FUNC(HALT) {} //!OCLINT unused parameter
 END_FUNC
 
 // Note signed-ness of rc.
-#define LIBRARY_FUNC_MATH_VN(name, op)                                         \
+#define LIBRARY_FUNC_MATH_VN(name, op, op2)                                    \
   LIBRARY_FUNC_B(name)                                                         \
   int8_t rc = (instr >> 8) & 0xff;                                             \
   gc_obj fb = frame[rb];                                                       \
-  TYPECHECK_TAG(fb, FIXNUM_TAG);                                               \
-  if (unlikely(__builtin_##op##_overflow(fb.value, tag_fixnum(rc).value,       \
-                                         &frame[ra].value))) {                 \
-    MUSTTAIL return FAIL_SLOWPATH(ARGS);                                       \
+  if (!is_fixnum(fb)) {                                                        \
+    double tmp = op2(to_flonum(fb)->x, rc);                                    \
+    stack_top = &frame[ra + 1];                                                \
+    flonum_s *r = GC_malloc(sizeof(flonum_s));                                 \
+    *r = (flonum_s){FLONUM_TAG, 0, tmp};                                       \
+    frame[ra] = tag_flonum(r);                                                 \
+  } else {                                                                     \
+    TYPECHECK_TAG(fb, FIXNUM_TAG);                                             \
+    if (unlikely(__builtin_##op##_overflow(fb.value, tag_fixnum(rc).value,     \
+                                           &frame[ra].value))) {               \
+      MUSTTAIL return FAIL_SLOWPATH(ARGS);                                     \
+    }                                                                          \
   }                                                                            \
   END_LIBRARY_FUNC
 
-LIBRARY_FUNC_MATH_VN(SUBVN, sub);
-LIBRARY_FUNC_MATH_VN(ADDVN, add);
+#define MATH_ADD(a, b) ((a) + (b))
+#define MATH_SUB(a, b) ((a) - (b))
+#define MATH_MUL(a, b) ((a) * (b))
+#define MATH_DIV(a, b) ((a) / (b))
+
+LIBRARY_FUNC_MATH_VN(SUBVN, sub, MATH_SUB);
+LIBRARY_FUNC_MATH_VN(ADDVN, add, MATH_ADD);
 
 // Note overflow may smash dest, so don't use frame[ra] directly.
 #define OVERFLOW_OP(op, name, shift)                                           \
@@ -536,11 +549,6 @@ LIBRARY_FUNC_MATH_VN(ADDVN, add);
 
 #define LIBRARY_FUNC_MATH_OVERFLOW_VV(name, op, op2, shift)                    \
   LIBRARY_FUNC_MATH_VV(name, op2, OVERFLOW_OP(op, name, shift));
-
-#define MATH_ADD(a, b) ((a) + (b))
-#define MATH_SUB(a, b) ((a) - (b))
-#define MATH_MUL(a, b) ((a) * (b))
-#define MATH_DIV(a, b) ((a) / (b))
 
 LIBRARY_FUNC_MATH_OVERFLOW_VV(ADDVV, add, MATH_ADD, 0);
 LIBRARY_FUNC_MATH_OVERFLOW_VV(SUBVV, sub, MATH_SUB, 0);
@@ -1246,7 +1254,7 @@ LIBRARY_FUNC_BC_LOAD_NAME("STRING-SET!", STRING_SET) {
 END_LIBRARY_FUNC
 
 ALIGNED8 void vm_string_copy(gc_obj tostr, gc_obj tostart, gc_obj fromstr,
-                    gc_obj fromstart, gc_obj fromend) {
+                             gc_obj fromstart, gc_obj fromend) {
   auto len = to_fixnum(fromend) - to_fixnum(fromstart);
   memcpy(&to_string(tostr)->str[to_fixnum(tostart)],
          &to_string(fromstr)->str[to_fixnum(fromstart)], len);
