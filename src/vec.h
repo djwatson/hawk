@@ -24,7 +24,6 @@ arr_header_t *arr_header(void *arr);
 // The main downside is the need for VEC_TYPE_IMPL/DEF somewhere, and the need
 // to append a name for each type, since typeof() runs after the preprocessor.
 
-
 #define VEC_TYPE_DEF(name, dtype)                                              \
   void arrfree_##name(dtype **arr);                                            \
   size_t arrlen_##name(dtype *arr);                                            \

@@ -33,7 +33,7 @@ ALIGNED8 gc_obj vm_memq(gc_obj fb, gc_obj fc);
 ALIGNED8 gc_obj vm_assq(gc_obj fb, gc_obj fc);
 ALIGNED8 gc_obj vm_assv(gc_obj fb, gc_obj fc);
 ALIGNED8 void vm_string_copy(gc_obj tostr, gc_obj tostart, gc_obj fromstr,
-                    gc_obj fromstart, gc_obj fromend);
+                             gc_obj fromstart, gc_obj fromend);
 
 static inline uint32_t hotmap_hash(const uint32_t *pc) {
   return (((uint64_t)pc) >> 2) & hotmap_mask;

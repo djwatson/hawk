@@ -13,61 +13,57 @@
 #include "gc.h"
 #include "types.h" // for string_s, symbol
 
-
 typedef struct {
   uint32_t len;
-  const char* str;
+  const char *str;
 } StringView;
 
-static inline size_t djb2_hash(const char *s)
-{
+static inline size_t djb2_hash(const char *s) {
   size_t h = 5381;
   char c;
   while ((c = *s++)) {
-      h = (h << 5) + h + c;
+    h = (h << 5) + h + c;
   }
   return h;
 }
-static inline size_t MyMap_StringView_hash(const StringView* val) {
+static inline size_t MyMap_StringView_hash(const StringView *val) {
   return djb2_hash(val->str);
 }
-static inline bool MyMap_StringView_eq(const StringView* a, const gc_obj* b) {
-  auto v = *(const gc_obj*)b;
+static inline bool MyMap_StringView_eq(const StringView *a, const gc_obj *b) {
+  auto v = *(const gc_obj *)b;
   assert(is_symbol(v));
   auto sym = to_symbol(v);
   auto name = get_sym_name(sym);
 
   return a->len == to_fixnum(name->len) &&
-    memcmp(name->str, a->str, a->len) == 0;
+         memcmp(name->str, a->str, a->len) == 0;
 }
-static inline size_t kCStrPolicy_hash(const void* val) {
-  auto v = *(const gc_obj*)val;
+static inline size_t kCStrPolicy_hash(const void *val) {
+  auto v = *(const gc_obj *)val;
   assert(is_symbol(v));
   auto sym = to_symbol(v);
   auto name = get_sym_name(sym);
   return djb2_hash(name->str);
 }
-static inline bool kCStrPolicy_eq(const void* a, const void* b) {
-  auto va = *(const gc_obj*)a;
+static inline bool kCStrPolicy_eq(const void *a, const void *b) {
+  auto va = *(const gc_obj *)a;
   assert(is_symbol(va));
   auto syma = to_symbol(va);
   auto namea = get_sym_name(syma);
 
-  auto vb = *(const gc_obj*)b;
+  auto vb = *(const gc_obj *)b;
   assert(is_symbol(vb));
   auto symb = to_symbol(vb);
   auto nameb = get_sym_name(symb);
 
-  return to_fixnum(namea->len) == to_fixnum(nameb->len)
-    && memcmp(namea->str, nameb->str, to_fixnum(namea->len)) == 0;
+  return to_fixnum(namea->len) == to_fixnum(nameb->len) &&
+         memcmp(namea->str, nameb->str, to_fixnum(namea->len)) == 0;
 }
 
-CWISS_DECLARE_FLAT_SET_POLICY(kCStrPolicy, gc_obj,
-                              (key_hash, kCStrPolicy_hash),
+CWISS_DECLARE_FLAT_SET_POLICY(kCStrPolicy, gc_obj, (key_hash, kCStrPolicy_hash),
                               (key_eq, kCStrPolicy_eq));
 CWISS_DECLARE_HASHSET_WITH(MyMap, gc_obj, kCStrPolicy);
 CWISS_DECLARE_LOOKUP(MyMap, StringView);
-
 
 // TODO(djwatson) weak GC syms, and evict entries when they are collected.
 

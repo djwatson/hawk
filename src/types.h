@@ -56,10 +56,8 @@ typedef struct {
 
 #define NIL                                                                    \
   (gc_obj) { .value = NIL_TAG }
-#define TRUE_REP                                                               \
-  (gc_obj) { .value = 0x0104 }
-#define FALSE_REP                                                              \
-  (gc_obj) { .value = 0x0004 }
+#define TRUE_REP (gc_obj){.value = 0x0104}
+#define FALSE_REP (gc_obj){.value = 0x0004}
 #define EOF_OBJ                                                                \
   (gc_obj) { .value = EOF_TAG }
 
