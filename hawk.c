@@ -1,11 +1,28 @@
 #include "bc.h"
 #include "types.h"
 
+#if defined(__clang__)
+#define BCFUNC_FLEXARRAY_DIAG_PUSH                                             \
+  _Pragma("clang diagnostic push") _Pragma(                                    \
+      "clang diagnostic ignored \"-Wgnu-variable-sized-type-not-at-end\"")
+#define BCFUNC_FLEXARRAY_DIAG_POP _Pragma("clang diagnostic pop")
+#elif defined(__GNUC__)
+#define BCFUNC_FLEXARRAY_DIAG_PUSH                                             \
+  _Pragma("GCC diagnostic push") _Pragma(                                      \
+      "GCC diagnostic ignored \"-Wgnu-variable-sized-type-not-at-end\"")
+#define BCFUNC_FLEXARRAY_DIAG_POP _Pragma("GCC diagnostic pop")
+#else
+#define BCFUNC_FLEXARRAY_DIAG_PUSH
+#define BCFUNC_FLEXARRAY_DIAG_POP
+#endif
+
+BCFUNC_FLEXARRAY_DIAG_PUSH
 typedef struct {
   bcfunc func;
   gc_obj consts[4];
   bc code[20];
 } prog_fib_bc;
+BCFUNC_FLEXARRAY_DIAG_POP
 
 static prog_fib_bc prog_fib = {
     .func =
@@ -54,11 +71,13 @@ static prog_fib_bc prog_fib = {
         },
 };
 
+BCFUNC_FLEXARRAY_DIAG_PUSH
 typedef struct {
   bcfunc func;
   gc_obj consts[2];
   bc code[4];
 } fib_loader_bc;
+BCFUNC_FLEXARRAY_DIAG_POP
 
 static fib_loader_bc fib_loader = {
     .func =
