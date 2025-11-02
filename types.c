@@ -39,9 +39,6 @@ bcfunc const *closure_code_ptr(closure_s const *clo) {
 string_s *get_sym_name(symbol *s) {
   return (string_s *)(s->name.value - PTR_TAG);
 }
-gc_obj tag_header(gc_header *s, uint8_t tag) {
-  return (gc_obj){.value = (int64_t)s + tag};
-}
 uint8_t get_tag(gc_obj obj) { return obj.value & TAG_MASK; }
 uint8_t get_imm_tag(gc_obj obj) { return obj.value & IMMEDIATE_MASK; }
 uint32_t get_ptr_tag(gc_obj obj) {
@@ -65,39 +62,6 @@ bool is_flonum(gc_obj obj) { return get_tag(obj) == FLONUM_TAG; }
 bool is_fixnum(gc_obj obj) { return get_tag(obj) == FIXNUM_TAG; }
 bool is_func(gc_obj obj) { return is_ptr(obj) && get_ptr_tag(obj) == FUNC_TAG; }
 bool is_heap_object(gc_obj obj) { return !is_fixnum(obj) && !is_literal(obj); }
-gc_obj tag_fixnum(int64_t num) {
-  assert(((num << 3) >> 3) == num);
-  return (gc_obj){.value = num << 3};
-}
-gc_obj tag_string(string_s *s) {
-  return (gc_obj){.value = ((int64_t)s + PTR_TAG)};
-}
-gc_obj tag_flonum(flonum_s *s) {
-  return (gc_obj){.value = ((int64_t)s + FLONUM_TAG)};
-}
-gc_obj tag_cons(cons_s *s) {
-  return (gc_obj){.value = ((int64_t)s + CONS_TAG)};
-}
-gc_obj tag_vector(vector_s *s) {
-  return (gc_obj){.value = ((int64_t)s + VECTOR_TAG)};
-}
-gc_obj tag_cont(closure_s *s) {
-  return (gc_obj){.value = ((int64_t)s + PTR_TAG)};
-}
-gc_obj tag_closure(closure_s *s) {
-  return (gc_obj){.value = ((int64_t)s + CLOSURE_TAG)};
-}
-gc_obj tag_char(char ch) {
-  return (gc_obj){.value = (((int64_t)ch << 8) + CHAR_TAG)};
-}
-gc_obj tag_return_address(bc *pc) { return (gc_obj){.raddress = pc}; }
-gc_obj tag_func(bcfunc *func) {
-  return (gc_obj){.value = ((int64_t)func + PTR_TAG)};
-}
-gc_obj tag_ptr(void *ptr) { return (gc_obj){.ptr = ptr}; }
-gc_obj tag_void(void *ptr, uint8_t tag) {
-  return (gc_obj){.value = (intptr_t)ptr | (tag & TAG_MASK)};
-}
 
 // This is mostly a debug aid: The scheme-level printer is defined in
 // scheme base code itself.

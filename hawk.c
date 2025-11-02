@@ -19,11 +19,10 @@ static prog_fib_bc prog_fib = {
         },
     .consts =
         {
-            TAG_FIXNUM_LITERAL(2),
-            (gc_obj){.value = (uintptr_t)&fib_sym +
-                              PTR_TAG}, // PROG-fib symbol wired in later
-            TAG_FIXNUM_LITERAL(1),
-            TAG_FIXNUM_LITERAL(-1),
+            tag_fixnum(2),
+            tag_symbol(&fib_sym),
+            tag_fixnum(1),
+            tag_fixnum(-1),
         },
     .code =
         {
@@ -50,11 +49,19 @@ static prog_fib_bc prog_fib = {
         },
 };
 
-static closure_s fib_clo = {
-    .len = TAG_FIXNUM_LITERAL(1),
-    .v = {(gc_obj){.value = ((int64_t)&prog_fib + PTR_TAG)}}};
+static closure_s fib_clo = {.header =
+                                {
+                                    .type = CLOSURE_TAG,
+                                },
+                            .len = tag_fixnum(1),
+                            .v = {tag_func(&prog_fib)}};
 static symbol fib_sym = {
-    .val = (gc_obj){.value = (uintptr_t)&fib_clo + CLOSURE_TAG},
+    .header =
+        {
+            .type = SYMBOL_TAG,
+        },
+
+    .val = tag_closure(&fib_clo),
 };
 
 BCFUNC_FLEXARRAY_DIAG_PUSH
@@ -74,7 +81,7 @@ static fib_loader_bc fib_loader = {
     .consts =
         {
             {.raddress = prog_fib.code}, // entry to PROG-fib
-            TAG_FIXNUM_LITERAL(40),
+            tag_fixnum(40),
         },
     .code =
         {

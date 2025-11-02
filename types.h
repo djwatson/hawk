@@ -1,6 +1,5 @@
 #pragma once
 
-#include <limits.h>
 #include <stdint.h>
 
 typedef struct bc bc;
@@ -13,15 +12,30 @@ typedef struct {
   };
 } gc_obj;
 
-#define TAG_FIXNUM_LITERAL(n)                                                  \
-  (/* 1. The compile-time check */                                             \
-   (void)sizeof(char[((int64_t)(n) >= (INT64_MIN / 8) &&                       \
-                      (int64_t)(n) <= (INT64_MAX / 8))                         \
-                         ? 1                                                   \
-                         : -1]),                                               \
-                                                                               \
-   /* 2. The resulting value */                                                \
-   (gc_obj){.value = (int64_t)(n) * 8})
+#define TAG_HEADER(ptr, tag)                                                   \
+  ((gc_obj){.value = (int64_t)((intptr_t)(ptr) + (uint8_t)(tag))})
+#define tag_header(ptr, tag) TAG_HEADER(ptr, tag)
+
+#define TAG_FIXNUM_LITERAL(n) ((gc_obj){.value = (int64_t)(n) * 8})
+#define tag_fixnum(n) ((gc_obj){.value = (int64_t)(n) * 8})
+#define tag_string(str) ((gc_obj){.value = (int64_t)(intptr_t)(str) + PTR_TAG})
+#define tag_symbol(sym)                                                        \
+  ((gc_obj){.value = (int64_t)(intptr_t)(sym) + SYMBOL_TAG})
+#define tag_flonum(flonum)                                                     \
+  ((gc_obj){.value = (int64_t)(intptr_t)(flonum) + FLONUM_TAG})
+#define tag_cons(cons) ((gc_obj){.value = (int64_t)(intptr_t)(cons) + CONS_TAG})
+#define tag_vector(vec)                                                        \
+  ((gc_obj){.value = (int64_t)(intptr_t)(vec) + VECTOR_TAG})
+#define tag_cont(cont) ((gc_obj){.value = (int64_t)(intptr_t)(cont) + PTR_TAG})
+#define tag_closure(clo)                                                       \
+  ((gc_obj){.value = (int64_t)(intptr_t)(clo) + CLOSURE_TAG})
+#define tag_char(ch)                                                           \
+  ((gc_obj){.value = ((int64_t)(uint8_t)(ch) << 8) + CHAR_TAG})
+#define tag_return_address(pc) ((gc_obj){.raddress = (pc)})
+#define tag_func(func) ((gc_obj){.value = (int64_t)(intptr_t)(func) + PTR_TAG})
+#define tag_ptr(ptrval) ((gc_obj){.ptr = (ptrval)})
+#define tag_void(ptrval, t)                                                    \
+  ((gc_obj){.value = ((intptr_t)(ptrval) | ((uint8_t)(t) & TAG_MASK))})
 
 typedef struct gc_header {
   union {
@@ -163,7 +177,6 @@ bcfunc *to_func(gc_obj obj);
 
 bcfunc const *closure_code_ptr(closure_s const *clo);
 string_s *get_sym_name(symbol *s);
-gc_obj tag_header(gc_header *s, uint8_t tag);
 uint8_t get_tag(gc_obj obj);
 uint8_t get_imm_tag(gc_obj obj);
 uint32_t get_ptr_tag(gc_obj obj);
@@ -181,15 +194,3 @@ bool is_flonum(gc_obj obj);
 bool is_fixnum(gc_obj obj);
 bool is_func(gc_obj obj);
 bool is_heap_object(gc_obj obj);
-gc_obj tag_fixnum(int64_t num);
-gc_obj tag_string(string_s *s);
-gc_obj tag_flonum(flonum_s *s);
-gc_obj tag_cons(cons_s *s);
-gc_obj tag_vector(vector_s *s);
-gc_obj tag_cont(closure_s *s);
-gc_obj tag_closure(closure_s *s);
-gc_obj tag_char(char ch);
-gc_obj tag_return_address(bc *pc);
-gc_obj tag_func(bcfunc *func);
-gc_obj tag_ptr(void *ptr);
-gc_obj tag_void(void *ptr, uint8_t tag);
