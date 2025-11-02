@@ -7,6 +7,8 @@
 #include "bc.h"
 #include "types.h"
 
+#define OP(code) case OP_##code:
+
 typedef struct vm_state {
   bc *pc;
   gc_obj *stack;

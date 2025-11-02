@@ -11,7 +11,7 @@
    bytecode, instead of then tracing the python meta-ops.
  */
 
-case OP_ADD: {
+OP(ADD) {
   auto v1 = stack_load(st, st->pc->v1);
   auto v2 = stack_load(st, st->pc->v2);
   auto res = emit_ov_math_op(add, +, v1, v2);
@@ -19,7 +19,7 @@ case OP_ADD: {
   next_op(st);
   break;
 }
-case OP_SUB: {
+OP(SUB) {
   auto v1 = stack_load(st, st->pc->v1);
   auto v2 = stack_load(st, st->pc->v2);
   auto res = emit_ov_math_op(sub, -, v1, v2);
@@ -27,17 +27,17 @@ case OP_SUB: {
   next_op(st);
   break;
 }
-case OP_CONST: {
+OP(CONST) {
   auto c = const_load(st, st->pc->v1);
   stack_save(st, st->pc->reg, c);
   next_op(st);
   break;
 }
-case OP_RET: {
+OP(RET) {
   return_frame(st);
   break;
 }
-case OP_LOOKUP: {
+OP(LOOKUP) {
   auto c = const_load(st, st->pc->v1);
   ensure_type(symbol, c);
   auto v1 = sym_load(c);
@@ -45,13 +45,13 @@ case OP_LOOKUP: {
   next_op(st);
   break;
 }
-case OP_FUNC: {
+OP(FUNC) {
   auto argcnt = st->pc->data - 1;
   next_op(st);
   // TODO argcnt check
   break;
 }
-case OP_LT: {
+OP(LT) {
   auto v1 = stack_load(st, st->pc->v1);
   auto v2 = stack_load(st, st->pc->v2);
   auto res = emit_math_cmp(lt, <, v1, v2);
@@ -59,12 +59,12 @@ case OP_LT: {
   next_op(st);
   break;
 }
-case OP_IF: {
+OP(IF) {
   auto v = stack_load(st, st->pc->reg);
   branch_if_false(st, v);
   break;
 }
-case OP_CLOSURE_GET: {
+OP(CLOSURE_GET) {
   auto clo = stack_load(st, st->pc->v1);
   auto slot = stack_load(st, st->pc->v2);
   auto res = closure_get(clo, slot);
@@ -72,7 +72,7 @@ case OP_CLOSURE_GET: {
   next_op(st);
   break;
 }
-case OP_LCALL: {
+OP(LCALL) {
   auto func = stack_load(st, st->pc->reg);
   auto frame_top = st->pc->reg;
   stack_save(st, st->pc->reg, return_address(st->pc + 1));
@@ -80,7 +80,7 @@ case OP_LCALL: {
   set_new_pc(st, func);
   break;
 }
-case OP_HALT: {
+OP(HALT) {
   halt();
   break;
 }
