@@ -12,38 +12,38 @@
  */
 
 case OP_ADD: {
-  auto v1 = stack_load(pc->v1);
-  auto v2 = stack_load(pc->v2);
-  auto res = emit_ov_math_op(add, +, pc->v1, pc->v2);
-  stack_save(pc->reg, res);
+  auto v1 = stack_load(st, st->pc->v1);
+  auto v2 = stack_load(st, st->pc->v2);
+  auto res = emit_ov_math_op(add, +, st->pc->v1, st->pc->v2);
+  stack_save(st, st->pc->reg, res);
   break;
 }
 case OP_SUB: {
-  auto v1 = stack_load(pc->v1);
-  auto v2 = stack_load(pc->v2);
-  auto res = emit_ov_math_op(sub, -, pc->v1, pc->v2);
-  stack_save(pc->reg, res);
+  auto v1 = stack_load(st, st->pc->v1);
+  auto v2 = stack_load(st, st->pc->v2);
+  auto res = emit_ov_math_op(sub, -, st->pc->v1, st->pc->v2);
+  stack_save(st, st->pc->reg, res);
   break;
 }
 case OP_CONST: {
-  auto c = const_load(pc->v1);
-  stack_save(pc->reg, c);
+  auto c = const_load(st->pc->v1);
+  stack_save(st, st->pc->reg, c);
   break;
 }
 case OP_RET: {
-  return_frame(pc);
+  return_frame(st);
   break;
 }
 case OP_LOOKUP: {
-  auto c = const_load(pc->v1);
+  auto c = const_load(st->pc->v1);
   ensure_type(symbol, c);
   auto v1 = sym_load(c);
-  stack_save(pc->reg, v1);
+  stack_save(st, st->pc->reg, v1);
   break;
 }
 case OP_FUNC: {
-  auto fun = stack_load(pc->v1);
-  auto args = stack_load(pc->v2);
+  auto fun = stack_load(st, st->pc->v1);
+  auto args = stack_load(st, st->pc->v2);
   ensure_type(closure, fun);
   prepare_call(fun);
   check_arity(fun, args);
@@ -51,28 +51,28 @@ case OP_FUNC: {
   break;
 }
 case OP_LT: {
-  auto v1 = stack_load(pc->v1);
-  auto v2 = stack_load(pc->v2);
-  auto res = emit_math_cmp(lt, <, pc->v1, pc->v2);
-  stack_save(pc->reg, res);
+  auto v1 = stack_load(st, st->pc->v1);
+  auto v2 = stack_load(st, st->pc->v2);
+  auto res = emit_math_cmp(lt, <, st->pc->v1, st->pc->v2);
+  stack_save(st, st->pc->reg, res);
   break;
 }
 case OP_IF: {
-  auto v = stack_load(pc->v1);
+  auto v = stack_load(st, st->pc->v1);
   branch_if_false(v);
   break;
 }
 case OP_CLOSURE_GET: {
-  auto clo = stack_load(pc->v1);
-  auto slot = pc->v2;
+  auto clo = stack_load(st, st->pc->v1);
+  auto slot = st->pc->v2;
   auto res = closure_get(clo, slot);
-  stack_save(pc->reg, res);
+  stack_save(st, st->pc->reg, res);
   break;
 }
 case OP_LCALL: {
-  auto func = (bc *)stack_load(pc->reg).ptr;
-  auto frame_top = pc->reg;
-  stack_save(pc->reg, return_address(func + 1));
+  auto func = (bc *)stack_load(st, st->pc->reg).ptr;
+  auto frame_top = st->pc->reg;
+  stack_save(st, st->pc->reg, return_address(func + 1));
   adjust_stack_depth(func->reg + 1);
   set_new_pc(func);
   break;

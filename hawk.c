@@ -1,6 +1,7 @@
 #include "hawk.h"
 #include "bc.h"
 #include "types.h"
+#include "vm.h"
 
 BCFUNC_FLEXARRAY_DIAG_PUSH
 typedef struct {
@@ -92,4 +93,4 @@ static fib_loader_bc fib_loader = {
         },
 };
 
-int main() {}
+int main() { auto res = vm(&fib_loader.code[0]); }
