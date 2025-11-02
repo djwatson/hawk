@@ -6,7 +6,7 @@
 BCFUNC_FLEXARRAY_DIAG_PUSH
 typedef struct {
   bcfunc func;
-  gc_obj consts[4];
+  gc_obj consts[5];
   bc code[20];
 } prog_fib_bc;
 BCFUNC_FLEXARRAY_DIAG_POP
@@ -15,38 +15,39 @@ static symbol fib_sym;
 static prog_fib_bc prog_fib = {
     .func =
         {
-            .const_cnt = 4,
+            .const_cnt = 5,
             .bc_cnt = 20,
         },
     .consts =
         {
             tag_fixnum(2),
             tag_symbol(&fib_sym),
+            tag_fixnum(0),
             tag_fixnum(1),
-            tag_fixnum(-1),
+            tag_fixnum(2),
         },
     .code =
         {
-            {OP_FUNC, 2, 0, 0},        // FUNC           2
-            {OP_CONST, 2, 0, 0},       // CONST          2 0
-            {OP_LT, 2, 1, 2},          // FX_LT          2 1 2
-            {OP_IF, 0, 2, 2},          // IF             2 2  ==> 6
-            {OP_RET, 1, 0, 0},         // RET            1
-            {OP_LOOKUP, 3, 1, 0},      // LOOKUP         3 1
-            {OP_CONST, 4, 2, 0},       // CONST          4 2
-            {OP_SUB, 4, 1, 4},         // SUB            4 1 4
-            {OP_CONST, 2, 3, 0},       // CONST          2 3
-            {OP_CLOSURE_GET, 2, 3, 2}, // CLOSURE_GET    2 3 2
-            {OP_LCALL, 2, 3, 0},       // LCALL          2 3
-            {OP_LOOKUP, 4, 1, 0},      // LOOKUP         4 1
-            {OP_CONST, 5, 0, 0},       // CONST          5 0
-            {OP_SUB, 5, 1, 5},         // SUB            5 1 5
-            {OP_CONST, 3, 3, 0},       // CONST          3 3
-            {OP_CLOSURE_GET, 3, 4, 3}, // CLOSURE_GET    3 4 3
-            {OP_LCALL, 3, 3, 0},       // LCALL          3 3
-            {OP_ADD, 2, 2, 3},         // ADD            2 2 3
-            {OP_RET, 2, 0, 0},         // RET            2
-            {OP_HALT, 0, 0, 0},        // HALT
+            {OP_FUNC, 2, 0, 0},
+            {OP_CONST, 2, .data = 11},
+            {OP_LT, 2, 1, 2},         
+            {OP_IF, 2, .data = 2},
+            {OP_RET, 1, 0, 0},    
+            {OP_LOOKUP, 3, .data = 13},
+            {OP_CONST, 4, .data = 10},       
+            {OP_SUB, 4, 1, 4},         
+            {OP_CONST, 2, .data = 14}, 
+            {OP_CLOSURE_GET, 2, 3, 2}, 
+            {OP_LCALL, 2, 2, 0},       
+            {OP_LOOKUP, 4, .data = 19},
+            {OP_CONST, 5, .data = 14}, 
+            {OP_SUB, 5, 1, 5},         
+            {OP_CONST, 3, .data = 20}, 
+            {OP_CLOSURE_GET, 3, 4, 3}, 
+            {OP_LCALL, 3, 3, 0},       
+            {OP_ADD, 2, 2, 3},         
+            {OP_RET, 2, 0, 0},         
+            {OP_HALT, 0, 0, 0},        
         },
 };
 
@@ -81,16 +82,19 @@ static fib_loader_bc fib_loader = {
         },
     .consts =
         {
-            {.raddress = prog_fib.code}, // entry to PROG-fib
+	  tag_func(&prog_fib), // entry to PROG-fib
             tag_fixnum(40),
         },
     .code =
         {
-            {OP_CONST, 2, 0, 0}, // load fib entry
-            {OP_CONST, 1, 1, 0}, // push argument 40
-            {OP_LCALL, 2, 0, 0}, // invoke fib
+            {OP_CONST, 0, .data = 4}, // load fib entry
+            {OP_CONST, 2, .data = 3}, // push argument 40
+            {OP_LCALL, 0, 0, 0}, // invoke fib
             {OP_HALT, 0, 0, 0},  // halt after call
         },
 };
 
-int main() { auto res = vm(&fib_loader.code[0]); }
+int main() {
+  auto res = vm(&fib_loader.code[0]);
+  print_obj(res, stdout);
+}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdio.h>
 
 typedef struct bc bc;
 
@@ -194,3 +195,5 @@ bool is_flonum(gc_obj obj);
 bool is_fixnum(gc_obj obj);
 bool is_func(gc_obj obj);
 bool is_heap_object(gc_obj obj);
+
+void print_obj(gc_obj obj, FILE *file);

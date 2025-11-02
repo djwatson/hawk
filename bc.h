@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-typedef enum {
+typedef enum : uint8_t {
   OP_ADD,
   OP_SUB,
   OP_CONST,
@@ -32,3 +32,5 @@ typedef struct bc {
     uint32_t full_data;
   };
 } bc;
+
+static_assert(sizeof(bc) == 4, "bc instructions must be 4 bytes");

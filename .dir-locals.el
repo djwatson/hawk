@@ -1,4 +1,2 @@
-((c-mode . ((before-save-hook . (lambda ()
-                                  (when (derived-mode-p 'c-mode)
-                                    (clang-format-buffer))))))
-)
+((c-mode . ((before-save-hook . (my-c-mode-format-on-save))))
+

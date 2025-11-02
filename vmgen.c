@@ -14,20 +14,23 @@
 case OP_ADD: {
   auto v1 = stack_load(st, st->pc->v1);
   auto v2 = stack_load(st, st->pc->v2);
-  auto res = emit_ov_math_op(add, +, st->pc->v1, st->pc->v2);
+  auto res = emit_ov_math_op(add, +, v1, v2);
   stack_save(st, st->pc->reg, res);
+  next_op(st);
   break;
 }
 case OP_SUB: {
   auto v1 = stack_load(st, st->pc->v1);
   auto v2 = stack_load(st, st->pc->v2);
-  auto res = emit_ov_math_op(sub, -, st->pc->v1, st->pc->v2);
+  auto res = emit_ov_math_op(sub, -, v1, v2);
   stack_save(st, st->pc->reg, res);
+  next_op(st);
   break;
 }
 case OP_CONST: {
-  auto c = const_load(st->pc->v1);
+  auto c = const_load(st, st->pc->v1);
   stack_save(st, st->pc->reg, c);
+  next_op(st);
   break;
 }
 case OP_RET: {
@@ -35,46 +38,46 @@ case OP_RET: {
   break;
 }
 case OP_LOOKUP: {
-  auto c = const_load(st->pc->v1);
+  auto c = const_load(st, st->pc->v1);
   ensure_type(symbol, c);
   auto v1 = sym_load(c);
   stack_save(st, st->pc->reg, v1);
+  next_op(st);
   break;
 }
 case OP_FUNC: {
-  auto fun = stack_load(st, st->pc->v1);
-  auto args = stack_load(st, st->pc->v2);
-  ensure_type(closure, fun);
-  prepare_call(fun);
-  check_arity(fun, args);
-  call_dispatch(fun);
+  auto argcnt = st->pc->data - 1;
+  next_op(st);
+  // TODO argcnt check
   break;
 }
 case OP_LT: {
   auto v1 = stack_load(st, st->pc->v1);
   auto v2 = stack_load(st, st->pc->v2);
-  auto res = emit_math_cmp(lt, <, st->pc->v1, st->pc->v2);
+  auto res = emit_math_cmp(lt, <, v1, v2);
   stack_save(st, st->pc->reg, res);
+  next_op(st);
   break;
 }
 case OP_IF: {
-  auto v = stack_load(st, st->pc->v1);
-  branch_if_false(v);
+  auto v = stack_load(st, st->pc->reg);
+  branch_if_false(st, v);
   break;
 }
 case OP_CLOSURE_GET: {
   auto clo = stack_load(st, st->pc->v1);
-  auto slot = st->pc->v2;
+  auto slot = stack_load(st, st->pc->v2);
   auto res = closure_get(clo, slot);
   stack_save(st, st->pc->reg, res);
+  next_op(st);
   break;
 }
 case OP_LCALL: {
-  auto func = (bc *)stack_load(st, st->pc->reg).ptr;
+  auto func = stack_load(st, st->pc->reg);
   auto frame_top = st->pc->reg;
-  stack_save(st, st->pc->reg, return_address(func + 1));
-  adjust_stack_depth(func->reg + 1);
-  set_new_pc(func);
+  stack_save(st, st->pc->reg, return_address(st->pc + 1));
+  adjust_stack_depth(st, frame_top + 1);
+  set_new_pc(st, func);
   break;
 }
 case OP_HALT: {
