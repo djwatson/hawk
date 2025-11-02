@@ -2,18 +2,23 @@
 
 #include <stdint.h>
 
+#define OPS					\
+  X(ADD)					\
+    X(SUB)					\
+    X(CONST)					\
+    X(RET)					\
+    X(LOOKUP)					\
+    X(FUNC)					\
+    X(LT)					\
+    X(IF)					\
+    X(CLOSURE_GET)					\
+    X(LCALL)					\
+    X(HALT)					
 typedef enum : uint8_t {
-  OP_ADD,
-  OP_SUB,
-  OP_CONST,
-  OP_RET,
-  OP_LOOKUP,
-  OP_FUNC,
-  OP_LT,
-  OP_IF,
-  OP_CLOSURE_GET,
-  OP_LCALL,
-  OP_HALT,
+#define X(name) OP_##name,
+  OPS
+  #undef X
+    OP_INS_MAX,
 } ops;
 
 typedef struct bc {

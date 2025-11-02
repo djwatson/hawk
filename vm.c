@@ -6,8 +6,9 @@
 
 #include "bc.h"
 #include "types.h"
+#include "hawk.h"
 
-#define OP(code) case OP_##code:
+#define OP(code) gc_obj impl_##code(vm_state* st) 
 
 typedef struct vm_state {
   bc *pc;
@@ -76,11 +77,21 @@ void set_new_pc(vm_state* st, gc_obj func) {
   st->pc = (bc*)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
 }
 #define halt() return st->stack[0]
-void next_op(vm_state* st) {
-  st->pc++;
-}
+void next_op(vm_state *st) { st->pc++; }
+
+
+
+typedef gc_obj (*op_func)(vm_state *st);
+static op_func impls[OP_INS_MAX];
+#define next(state) MUSTTAIL return impls[st->pc->op](st);
+
+  #include "vmgen.c"
 
 gc_obj vm(bc *pc) {
+#define X(name) impls[OP_##name] = impl_##name;
+OPS
+#undef X
+
   vm_state state = {.pc = pc,
                     .stack = calloc(1024, sizeof(gc_obj)),
                     .stack_size = 1024,
@@ -89,9 +100,6 @@ gc_obj vm(bc *pc) {
   state.stack_orig = state.stack;
   vm_state *st = &state;
 
-  while (true) {
-    switch (st->pc->op) {
-#include "vmgen.c"
-    };
-  }
+  // TODO
+  return impls[st->pc->op](st);
 }
