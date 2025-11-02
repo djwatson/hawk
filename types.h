@@ -1,3 +1,6 @@
+#pragma once
+
+#include <limits.h>
 #include <stdint.h>
 
 typedef struct bc bc;
@@ -9,6 +12,16 @@ typedef struct {
     void *ptr;
   };
 } gc_obj;
+
+#define TAG_FIXNUM_LITERAL(n)                                                  \
+  (/* 1. The compile-time check */                                             \
+   (void)sizeof(char[((int64_t)(n) >= (INT64_MIN / 8) &&                       \
+                      (int64_t)(n) <= (INT64_MAX / 8))                         \
+                         ? 1                                                   \
+                         : -1]),                                               \
+                                                                               \
+   /* 2. The resulting value */                                                \
+   (gc_obj){.value = (int64_t)(n) * 8})
 
 typedef struct gc_header {
   union {

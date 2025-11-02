@@ -1,20 +1,6 @@
+#include "hawk.h"
 #include "bc.h"
 #include "types.h"
-
-#if defined(__clang__)
-#define BCFUNC_FLEXARRAY_DIAG_PUSH                                             \
-  _Pragma("clang diagnostic push") _Pragma(                                    \
-      "clang diagnostic ignored \"-Wgnu-variable-sized-type-not-at-end\"")
-#define BCFUNC_FLEXARRAY_DIAG_POP _Pragma("clang diagnostic pop")
-#elif defined(__GNUC__)
-#define BCFUNC_FLEXARRAY_DIAG_PUSH                                             \
-  _Pragma("GCC diagnostic push") _Pragma(                                      \
-      "GCC diagnostic ignored \"-Wgnu-variable-sized-type-not-at-end\"")
-#define BCFUNC_FLEXARRAY_DIAG_POP _Pragma("GCC diagnostic pop")
-#else
-#define BCFUNC_FLEXARRAY_DIAG_PUSH
-#define BCFUNC_FLEXARRAY_DIAG_POP
-#endif
 
 BCFUNC_FLEXARRAY_DIAG_PUSH
 typedef struct {
@@ -24,6 +10,7 @@ typedef struct {
 } prog_fib_bc;
 BCFUNC_FLEXARRAY_DIAG_POP
 
+static symbol fib_sym;
 static prog_fib_bc prog_fib = {
     .func =
         {
@@ -32,43 +19,42 @@ static prog_fib_bc prog_fib = {
         },
     .consts =
         {
-            {.value = 2},
-            {.ptr = nullptr}, // PROG-fib symbol wired in later
-            {.value = 1},
-            {.value = -1},
+            TAG_FIXNUM_LITERAL(2),
+            (gc_obj){.value = (uintptr_t)&fib_sym +
+                              PTR_TAG}, // PROG-fib symbol wired in later
+            TAG_FIXNUM_LITERAL(1),
+            TAG_FIXNUM_LITERAL(-1),
         },
     .code =
         {
-            {.op = OP_FUNC, .reg = 2, .v1 = 0, .v2 = 0},  // FUNC           2
-            {.op = OP_CONST, .reg = 2, .v1 = 0, .v2 = 0}, // CONST          2 0
-            {.op = OP_LT, .reg = 2, .v1 = 1, .v2 = 2}, // FX_LT          2 1 2
-            {.op = OP_IF,
-             .reg = 0,
-             .v1 = 2,
-             .v2 = 2}, // IF             2 2  ==> 6
-            {.op = OP_RET, .reg = 1, .v1 = 0, .v2 = 0},    // RET            1
-            {.op = OP_LOOKUP, .reg = 3, .v1 = 1, .v2 = 0}, // LOOKUP         3 1
-            {.op = OP_CONST, .reg = 4, .v1 = 2, .v2 = 0},  // CONST          4 2
-            {.op = OP_SUB, .reg = 4, .v1 = 1, .v2 = 4}, // SUB            4 1 4
-            {.op = OP_CONST, .reg = 2, .v1 = 3, .v2 = 0}, // CONST          2 3
-            {.op = OP_CLOSURE_GET,
-             .reg = 2,
-             .v1 = 3,
-             .v2 = 2}, // CLOSURE_GET    2 3 2
-            {.op = OP_LCALL, .reg = 2, .v1 = 3, .v2 = 0},  // LCALL          2 3
-            {.op = OP_LOOKUP, .reg = 4, .v1 = 1, .v2 = 0}, // LOOKUP         4 1
-            {.op = OP_CONST, .reg = 5, .v1 = 0, .v2 = 0},  // CONST          5 0
-            {.op = OP_SUB, .reg = 5, .v1 = 1, .v2 = 5}, // SUB            5 1 5
-            {.op = OP_CONST, .reg = 3, .v1 = 3, .v2 = 0}, // CONST          3 3
-            {.op = OP_CLOSURE_GET,
-             .reg = 3,
-             .v1 = 4,
-             .v2 = 3}, // CLOSURE_GET    3 4 3
-            {.op = OP_LCALL, .reg = 3, .v1 = 3, .v2 = 0}, // LCALL          3 3
-            {.op = OP_ADD, .reg = 2, .v1 = 2, .v2 = 3},  // ADD            2 2 3
-            {.op = OP_RET, .reg = 2, .v1 = 0, .v2 = 0},  // RET            2
-            {.op = OP_HALT, .reg = 0, .v1 = 0, .v2 = 0}, // HALT
+            {OP_FUNC, 2, 0, 0},        // FUNC           2
+            {OP_CONST, 2, 0, 0},       // CONST          2 0
+            {OP_LT, 2, 1, 2},          // FX_LT          2 1 2
+            {OP_IF, 0, 2, 2},          // IF             2 2  ==> 6
+            {OP_RET, 1, 0, 0},         // RET            1
+            {OP_LOOKUP, 3, 1, 0},      // LOOKUP         3 1
+            {OP_CONST, 4, 2, 0},       // CONST          4 2
+            {OP_SUB, 4, 1, 4},         // SUB            4 1 4
+            {OP_CONST, 2, 3, 0},       // CONST          2 3
+            {OP_CLOSURE_GET, 2, 3, 2}, // CLOSURE_GET    2 3 2
+            {OP_LCALL, 2, 3, 0},       // LCALL          2 3
+            {OP_LOOKUP, 4, 1, 0},      // LOOKUP         4 1
+            {OP_CONST, 5, 0, 0},       // CONST          5 0
+            {OP_SUB, 5, 1, 5},         // SUB            5 1 5
+            {OP_CONST, 3, 3, 0},       // CONST          3 3
+            {OP_CLOSURE_GET, 3, 4, 3}, // CLOSURE_GET    3 4 3
+            {OP_LCALL, 3, 3, 0},       // LCALL          3 3
+            {OP_ADD, 2, 2, 3},         // ADD            2 2 3
+            {OP_RET, 2, 0, 0},         // RET            2
+            {OP_HALT, 0, 0, 0},        // HALT
         },
+};
+
+static closure_s fib_clo = {
+    .len = TAG_FIXNUM_LITERAL(1),
+    .v = {(gc_obj){.value = ((int64_t)&prog_fib + PTR_TAG)}}};
+static symbol fib_sym = {
+    .val = (gc_obj){.value = (uintptr_t)&fib_clo + CLOSURE_TAG},
 };
 
 BCFUNC_FLEXARRAY_DIAG_PUSH
@@ -88,14 +74,14 @@ static fib_loader_bc fib_loader = {
     .consts =
         {
             {.raddress = prog_fib.code}, // entry to PROG-fib
-            {.value = 40},
+            TAG_FIXNUM_LITERAL(40),
         },
     .code =
         {
-            {.op = OP_CONST, .reg = 2, .v1 = 0, .v2 = 0}, // load fib entry
-            {.op = OP_CONST, .reg = 1, .v1 = 1, .v2 = 0}, // push argument 40
-            {.op = OP_LCALL, .reg = 2, .v1 = 0, .v2 = 0}, // invoke fib
-            {.op = OP_HALT, .reg = 0, .v1 = 0, .v2 = 0},  // halt after call
+            {OP_CONST, 2, 0, 0}, // load fib entry
+            {OP_CONST, 1, 1, 0}, // push argument 40
+            {OP_LCALL, 2, 0, 0}, // invoke fib
+            {OP_HALT, 0, 0, 0},  // halt after call
         },
 };
 
