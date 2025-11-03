@@ -20,26 +20,26 @@ static prog_fib_bc prog_fib = {
         },
     .consts =
         {
-            tag_fixnum(2),
+            TAG_FIXNUM_LITERAL(2),
             tag_symbol(&fib_sym),
-            tag_fixnum(0),
-            tag_fixnum(1),
-            tag_fixnum(2),
+            TAG_FIXNUM_LITERAL(0),
+            TAG_FIXNUM_LITERAL(1),
+            TAG_FIXNUM_LITERAL(2),
         },
     .code =
         {
    	    {OP_FUNC, 2, 0, 0},
-            {OP_KSHORT, 2, .data = tag_fixnum(2).value},
+            {OP_KSHORT, 2, .data = TAG_FIXNUM_VALUE(2)},
             {OP_LT, 2, 1, 2},         
             {OP_IF, 2, .data = 2},
             {OP_RET, 1, 0, 0},    
             {OP_LOOKUP, 3, .data = 13},
-            {OP_KSHORT, 4, .data = tag_fixnum(1).value},       
+            {OP_KSHORT, 4, .data = TAG_FIXNUM_VALUE(1)},       
             {OP_SUB, 4, 1, 4},         
             {OP_CLOSURE_GET, 2, 3, 0}, 
             {OP_LCALL, 2, 2, 0},       
             {OP_LOOKUP, 4, .data = 18},
-            {OP_KSHORT, 5, .data = tag_fixnum(2).value}, 
+            {OP_KSHORT, 5, .data = TAG_FIXNUM_VALUE(2)}, 
             {OP_SUB, 5, 1, 5},         
             {OP_CLOSURE_GET, 3, 4, 0}, 
             {OP_LCALL, 3, 3, 0},       
@@ -53,7 +53,7 @@ static closure_s fib_clo = {.header =
                                 {
                                     .type = CLOSURE_TAG,
                                 },
-                            .len = tag_fixnum(1),
+                            .len = TAG_FIXNUM_LITERAL(1),
                             .v = {tag_func(&prog_fib)}};
 static symbol fib_sym = {
     .header =
@@ -81,7 +81,7 @@ static fib_loader_bc fib_loader = {
     .consts =
         {
 	  tag_func(&prog_fib), // entry to PROG-fib
-            tag_fixnum(40),
+            TAG_FIXNUM_LITERAL(40),
         },
     .code =
         {
