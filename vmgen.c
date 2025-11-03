@@ -12,75 +12,75 @@
  */
 
 OP(ADD) {
-  auto v1 = stack_load(st, st->pc->v1);
-  auto v2 = stack_load(st, st->pc->v2);
+  auto v1 = stack_load(stack, pc->v1);
+  auto v2 = stack_load(stack, pc->v2);
   auto res = emit_ov_math_op(add, +, v1, v2);
-  stack_save(st, st->pc->reg, res);
-  next_op(st);
-  next(st);
+  stack_save(stack, pc->reg, res);
+  next_op(pc);
+  next();
 }
 OP(SUB) {
-  auto v1 = stack_load(st, st->pc->v1);
-  auto v2 = stack_load(st, st->pc->v2);
+  auto v1 = stack_load(stack, pc->v1);
+  auto v2 = stack_load(stack, pc->v2);
   auto res = emit_ov_math_op(sub, -, v1, v2);
-  stack_save(st, st->pc->reg, res);
-  next_op(st);
-  next(st);
+  stack_save(stack, pc->reg, res);
+  next_op(pc);
+  next();
 }
 OP(CONST) {
-  auto c = const_load(st, st->pc->v1);
-  stack_save(st, st->pc->reg, c);
-  next_op(st);
-  next(st);
+  auto c = const_load(pc, pc->v1);
+  stack_save(stack, pc->reg, c);
+  next_op(pc);
+  next();
 }
 OP(RET) {
-  return_frame(st);
-  next(st);
+  return_frame(pc, stack);
+  next();
 }
 OP(LOOKUP) {
-  auto c = const_load(st, st->pc->v1);
+  auto c = const_load(pc, pc->v1);
   ensure_type(symbol, c);
   auto v1 = sym_load(c);
-  stack_save(st, st->pc->reg, v1);
-  next_op(st);
-  next(st);
+  stack_save(stack, pc->reg, v1);
+  next_op(pc);
+  next();
 }
 OP(FUNC) {
-  auto argcnt = st->pc->data - 1;
-  next_op(st);
+  auto argcnt = pc->data - 1;
+  next_op(pc);
   // TODO argcnt check
-  next(st);
+  next();
 }
 OP(LT) {
-  auto v1 = stack_load(st, st->pc->v1);
-  auto v2 = stack_load(st, st->pc->v2);
+  auto v1 = stack_load(stack, pc->v1);
+  auto v2 = stack_load(stack, pc->v2);
   auto res = emit_math_cmp(lt, <, v1, v2);
-  stack_save(st, st->pc->reg, res);
-  next_op(st);
-  next(st);
+  stack_save(stack, pc->reg, res);
+  next_op(pc);
+  next();
 }
 OP(IF) {
-  auto v = stack_load(st, st->pc->reg);
-  branch_if_false(st, v);
-  next(st);
+  auto v = stack_load(stack, pc->reg);
+  pc = branch_if_false(pc, v);
+  next();
 }
 OP(CLOSURE_GET) {
-  auto clo = stack_load(st, st->pc->v1);
-  auto slot = stack_load(st, st->pc->v2);
+  auto clo = stack_load(stack, pc->v1);
+  auto slot = stack_load(stack, pc->v2);
   auto res = closure_get(clo, slot);
-  stack_save(st, st->pc->reg, res);
-  next_op(st);
-  next(st);
+  stack_save(stack, pc->reg, res);
+  next_op(pc);
+  next();
 }
 OP(LCALL) {
-  auto func = stack_load(st, st->pc->reg);
-  auto frame_top = st->pc->reg;
-  stack_save(st, st->pc->reg, return_address(st->pc + 1));
-  adjust_stack_depth(st, frame_top + 1);
-  set_new_pc(st, func);
-  next(st);
+  auto func = stack_load(stack, pc->reg);
+  auto frame_top = pc->reg;
+  stack_save(stack, pc->reg, return_address(pc + 1));
+  stack = adjust_stack_depth(stack, frame_top + 1);
+  pc = set_new_pc(pc, func);
+  next();
 }
 OP(HALT) {
   halt();
-  next(st);
+  next();
 }

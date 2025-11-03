@@ -8,36 +8,26 @@
 #include "types.h"
 #include "hawk.h"
 
-#define OP(code) gc_obj impl_##code(vm_state* st) 
+#define OP(code) gc_obj impl_##code(bc *pc, gc_obj *stack) 
 
-typedef struct vm_state {
-  bc *pc;
-  gc_obj *stack;
-  gc_obj *stack_limit;
-  gc_obj *stack_orig;
-  size_t stack_size;
-  bool record;
-} vm_state;
-
-gc_obj stack_load(vm_state *st, uint8_t slot) { return st->stack[slot]; }
-void stack_save(vm_state *st, uint8_t slot, gc_obj res) {
-  st->stack[slot] = res;
+gc_obj stack_load(gc_obj* stack, uint8_t slot) { return stack[slot]; }
+void stack_save(gc_obj* stack, uint8_t slot, gc_obj res) {
+  stack[slot] = res;
 }
-gc_obj const_load(vm_state *st, uint16_t offset) {
-  return *(gc_obj*)(st->pc - st->pc->data);
+gc_obj const_load(bc *pc, uint16_t offset) {
+  return *(gc_obj*)(pc - pc->data);
 }
 // TODO typecheck
 #define emit_ov_math_op(name, sym, v1, v2) tag_fixnum(to_fixnum(v1) sym to_fixnum(v2));
 #define emit_math_cmp(name, sym, v1, v2) to_fixnum(v1) < to_fixnum(v2) ? TRUE_REP : FALSE_REP
 #define ensure_type(type, val)
-void return_frame(vm_state *st) {
-  auto ret = st->stack[st->pc->reg];
+#define return_frame(pc, stack)                                                \
+  auto ret = stack[pc->reg];                                                   \
+  pc = to_return_address(stack[-1]);                                           \
+  auto old_pc = pc - 1;                                                        \
+  stack -= old_pc->reg + 1;                                                    \
+  stack[old_pc->reg] = ret;
 
-  st->pc = to_return_address(st->stack[-1]);
-  auto old_pc = st->pc - 1;
-  st->stack -= old_pc->reg + 1;
-  st->stack[old_pc->reg] = ret;
-}
 gc_obj sym_load(gc_obj sym) {
   return to_symbol(sym)->val;
 }
@@ -48,18 +38,11 @@ void check_arity(gc_obj fun, gc_obj args) {
   // TODO nothing for now
   
 }
-void call_dispatch(vm_state* st, uint8_t frame_top, gc_obj fun) {
-  st->stack[frame_top] = tag_return_address(st->pc + 1);
-  st->stack += frame_top + 1;
-  auto func = to_func(fun);
-  st->pc = (bc*)(func->data + (func->const_cnt * sizeof(gc_obj)));
-  // TODO something?
-}
-void branch_if_false(vm_state *st, gc_obj b) {
+bc* branch_if_false(bc* pc, gc_obj b) {
   if (b.value == FALSE_REP.value) {
-    st->pc += st->pc->data;
+    return pc + pc->data;
   } else {
-    st->pc++;
+    return pc+1;
   }
 }
 gc_obj closure_get(gc_obj clo, gc_obj slot) {
@@ -68,22 +51,21 @@ gc_obj closure_get(gc_obj clo, gc_obj slot) {
 gc_obj return_address(bc * ra) {
   return tag_return_address(ra);
 }
-void adjust_stack_depth(vm_state* st, int depth) {
+gc_obj* adjust_stack_depth(gc_obj * stack, int depth) {
   // TODO check stack depth?
-  st->stack += depth;
+  return stack += depth;
 }
-void set_new_pc(vm_state* st, gc_obj func) {
+bc* set_new_pc(bc* pc, gc_obj func) {
   auto bfunc = to_func(func);
-  st->pc = (bc*)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
+  return (bc*)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
 }
-#define halt() return st->stack[0]
-void next_op(vm_state *st) { st->pc++; }
+#define halt() return stack[0]
+#define next_op(pc) pc++;
 
 
-
-typedef gc_obj (*op_func)(vm_state *st);
+typedef gc_obj (*op_func)(bc* pc, gc_obj* stack);
 static op_func impls[OP_INS_MAX];
-#define next(state) MUSTTAIL return impls[st->pc->op](st);
+#define next() MUSTTAIL return impls[pc->op](pc, stack);
 
   #include "vmgen.c"
 
@@ -91,15 +73,8 @@ gc_obj vm(bc *pc) {
 #define X(name) impls[OP_##name] = impl_##name;
 OPS
 #undef X
-
-  vm_state state = {.pc = pc,
-                    .stack = calloc(1024, sizeof(gc_obj)),
-                    .stack_size = 1024,
-                    .record = false};
-  state.stack_limit = state.stack + state.stack_size;
-  state.stack_orig = state.stack;
-  vm_state *st = &state;
+  gc_obj* stack = calloc(1024, sizeof(gc_obj));
 
   // TODO
-  return impls[st->pc->op](st);
+ return impls[pc->op](pc, stack);
 }
