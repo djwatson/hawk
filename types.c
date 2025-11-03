@@ -1,4 +1,3 @@
-
 #include <assert.h>
 #include <inttypes.h>
 #include <stdbool.h>
@@ -17,21 +16,6 @@ char *immediate_tag_names[] = {IMMEDIATE_TAGS};
 
 char *ptr_tag_names[] = {PTR_TAGS};
 #undef X
-symbol *to_symbol(gc_obj obj) { return (symbol *)(obj.value - SYMBOL_TAG); }
-closure_s *to_closure(gc_obj obj) {
-  return (closure_s *)(obj.value - CLOSURE_TAG);
-}
-cont_s *to_cont(gc_obj obj) { return (cont_s *)(obj.value - PTR_TAG); }
-// This one is not PTR, but anything!
-void *to_raw_ptr(gc_obj obj) { return (void *)(obj.value & ~TAG_MASK); }
-string_s *to_string(gc_obj obj) { return (string_s *)(obj.value - PTR_TAG); }
-flonum_s *to_flonum(gc_obj obj) { return (flonum_s *)(obj.value - FLONUM_TAG); }
-int64_t to_fixnum(gc_obj obj) { return obj.value >> 3; }
-cons_s *to_cons(gc_obj obj) { return (cons_s *)(obj.value - CONS_TAG); }
-vector_s *to_vector(gc_obj obj) { return (vector_s *)(obj.value - VECTOR_TAG); }
-char to_char(gc_obj obj) { return (char)(obj.value >> 8); }
-bc *to_return_address(gc_obj obj) { return obj.raddress; }
-bcfunc *to_func(gc_obj obj) { return (bcfunc *)(obj.value - PTR_TAG); }
 
 bcfunc const *closure_code_ptr(closure_s const *clo) {
   return (bcfunc *)clo->v[0].value;
@@ -39,29 +23,6 @@ bcfunc const *closure_code_ptr(closure_s const *clo) {
 string_s *get_sym_name(symbol *s) {
   return (string_s *)(s->name.value - PTR_TAG);
 }
-uint8_t get_tag(gc_obj obj) { return obj.value & TAG_MASK; }
-uint8_t get_imm_tag(gc_obj obj) { return obj.value & IMMEDIATE_MASK; }
-uint32_t get_ptr_tag(gc_obj obj) {
-  return ((uint32_t *)(obj.value - PTR_TAG))[0];
-}
-bool is_char(gc_obj obj) { return get_imm_tag(obj) == CHAR_TAG; }
-bool is_closure(gc_obj obj) { return get_tag(obj) == CLOSURE_TAG; }
-bool is_cons(gc_obj obj) { return get_tag(obj) == CONS_TAG; }
-bool is_ptr(gc_obj obj) { return get_tag(obj) == PTR_TAG; }
-bool is_literal(gc_obj obj) { return get_tag(obj) == LITERAL_TAG; }
-bool is_string(gc_obj obj) {
-  return is_ptr(obj) && get_ptr_tag(obj) == STRING_TAG;
-}
-bool is_record(gc_obj obj) {
-  return is_ptr(obj) && get_ptr_tag(obj) == RECORD_TAG;
-}
-bool is_undefined(gc_obj obj) { return get_imm_tag(obj) == UNDEFINED_TAG; }
-bool is_vector(gc_obj obj) { return get_tag(obj) == VECTOR_TAG; }
-bool is_symbol(gc_obj obj) { return get_tag(obj) == SYMBOL_TAG; }
-bool is_flonum(gc_obj obj) { return get_tag(obj) == FLONUM_TAG; }
-bool is_fixnum(gc_obj obj) { return get_tag(obj) == FIXNUM_TAG; }
-bool is_func(gc_obj obj) { return is_ptr(obj) && get_ptr_tag(obj) == FUNC_TAG; }
-bool is_heap_object(gc_obj obj) { return !is_fixnum(obj) && !is_literal(obj); }
 
 // This is mostly a debug aid: The scheme-level printer is defined in
 // scheme base code itself.

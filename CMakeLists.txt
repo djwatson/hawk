@@ -18,7 +18,7 @@ add_executable(
   util/list.c
 )
 
-set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+#set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 target_include_directories(
   hawk PRIVATE

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -165,39 +166,100 @@ typedef struct closure_s {
 typedef closure_s cont_s;
 
 // Type accessors
-gc_header *to_gc_header(gc_obj obj);
-symbol *to_symbol(gc_obj obj);
-closure_s *to_closure(gc_obj obj);
-cont_s *to_cont(gc_obj obj);
-// This one is not PTR, but anything!
-void *to_raw_ptr(gc_obj obj);
-string_s *to_string(gc_obj obj);
-flonum_s *to_flonum(gc_obj obj);
-int64_t to_fixnum(gc_obj obj);
-cons_s *to_cons(gc_obj obj);
-vector_s *to_vector(gc_obj obj);
-char to_char(gc_obj obj);
-bc *to_return_address(gc_obj obj);
-bcfunc *to_func(gc_obj obj);
+static inline gc_header *to_gc_header(gc_obj obj) {
+  return (gc_header *)(obj.value & ~(int64_t)TAG_MASK);
+}
+static inline symbol *to_symbol(gc_obj obj) {
+  return (symbol *)(obj.value - SYMBOL_TAG);
+}
+static inline closure_s *to_closure(gc_obj obj) {
+  return (closure_s *)(obj.value - CLOSURE_TAG);
+}
+static inline cont_s *to_cont(gc_obj obj) {
+  return (cont_s *)(obj.value - PTR_TAG);
+}
+static inline void *to_raw_ptr(gc_obj obj) {
+  return (void *)(obj.value & ~(int64_t)TAG_MASK);
+}
+static inline string_s *to_string(gc_obj obj) {
+  return (string_s *)(obj.value - PTR_TAG);
+}
+static inline flonum_s *to_flonum(gc_obj obj) {
+  return (flonum_s *)(obj.value - FLONUM_TAG);
+}
+static inline int64_t to_fixnum(gc_obj obj) {
+  return obj.value >> FIXNUM_SHIFT;
+}
+static inline cons_s *to_cons(gc_obj obj) {
+  return (cons_s *)(obj.value - CONS_TAG);
+}
+static inline vector_s *to_vector(gc_obj obj) {
+  return (vector_s *)(obj.value - VECTOR_TAG);
+}
+static inline char to_char(gc_obj obj) {
+  return (char)(obj.value >> 8);
+}
+static inline bc *to_return_address(gc_obj obj) {
+  return obj.raddress;
+}
+static inline bcfunc *to_func(gc_obj obj) {
+  return (bcfunc *)(obj.value - PTR_TAG);
+}
+
+static inline uint8_t get_tag(gc_obj obj) {
+  return (uint8_t)(obj.value & TAG_MASK);
+}
+static inline uint8_t get_imm_tag(gc_obj obj) {
+  return (uint8_t)(obj.value & IMMEDIATE_MASK);
+}
+static inline uint32_t get_ptr_tag(gc_obj obj) {
+  return ((uint32_t *)(obj.value - PTR_TAG))[0];
+}
+
+static inline bool is_char(gc_obj obj) {
+  return get_imm_tag(obj) == CHAR_TAG;
+}
+static inline bool is_closure(gc_obj obj) {
+  return get_tag(obj) == CLOSURE_TAG;
+}
+static inline bool is_cons(gc_obj obj) {
+  return get_tag(obj) == CONS_TAG;
+}
+static inline bool is_ptr(gc_obj obj) {
+  return get_tag(obj) == PTR_TAG;
+}
+static inline bool is_literal(gc_obj obj) {
+  return get_tag(obj) == LITERAL_TAG;
+}
+static inline bool is_string(gc_obj obj) {
+  return is_ptr(obj) && get_ptr_tag(obj) == STRING_TAG;
+}
+static inline bool is_record(gc_obj obj) {
+  return is_ptr(obj) && get_ptr_tag(obj) == RECORD_TAG;
+}
+static inline bool is_symbol(gc_obj obj) {
+  return get_tag(obj) == SYMBOL_TAG;
+}
+static inline bool is_undefined(gc_obj obj) {
+  return get_imm_tag(obj) == UNDEFINED_TAG;
+}
+static inline bool is_vector(gc_obj obj) {
+  return get_tag(obj) == VECTOR_TAG;
+}
+static inline bool is_flonum(gc_obj obj) {
+  return get_tag(obj) == FLONUM_TAG;
+}
+static inline bool is_fixnum(gc_obj obj) {
+  return get_tag(obj) == FIXNUM_TAG;
+}
+static inline bool is_func(gc_obj obj) {
+  return is_ptr(obj) && get_ptr_tag(obj) == FUNC_TAG;
+}
+static inline bool is_heap_object(gc_obj obj) {
+  return !is_fixnum(obj) && !is_literal(obj);
+}
 
 bcfunc const *closure_code_ptr(closure_s const *clo);
 string_s *get_sym_name(symbol *s);
-uint8_t get_tag(gc_obj obj);
-uint8_t get_imm_tag(gc_obj obj);
-uint32_t get_ptr_tag(gc_obj obj);
-bool is_char(gc_obj obj);
-bool is_closure(gc_obj obj);
-bool is_cons(gc_obj obj);
-bool is_ptr(gc_obj obj);
-bool is_literal(gc_obj obj);
-bool is_string(gc_obj obj);
-bool is_record(gc_obj obj);
-bool is_symbol(gc_obj obj);
-bool is_undefined(gc_obj obj);
-bool is_vector(gc_obj obj);
-bool is_flonum(gc_obj obj);
-bool is_fixnum(gc_obj obj);
-bool is_func(gc_obj obj);
-bool is_heap_object(gc_obj obj);
 
 void print_obj(gc_obj obj, FILE *file);
