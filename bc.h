@@ -5,6 +5,7 @@
 #define OPS					\
   X(ADD)					\
     X(SUB)					\
+    X(KSHORT)					\
     X(CONST)					\
     X(RET)					\
     X(LOOKUP)					\

@@ -70,8 +70,8 @@ static inline bc* branch_if_false(bc* pc, gc_obj b) {
     return pc+1;
   }
 }
-static inline gc_obj closure_get(gc_obj clo, gc_obj slot) {
-  return to_closure(clo)->v[to_fixnum(slot)];
+static inline gc_obj closure_get(gc_obj clo, uint8_t slot) {
+  return to_closure(clo)->v[slot];
 }
 static inline gc_obj return_address(bc * ra) {
   return tag_return_address(ra);

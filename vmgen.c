@@ -33,6 +33,13 @@ OP(CONST) {
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
+OP(KSHORT) {
+  gc_obj c;
+  c.value = pc->data;
+  stack_save(stack, pc->reg, c);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
 OP(RET) {
   auto frame = return_frame(pc, stack);
   pc = frame.pc;
@@ -68,7 +75,7 @@ OP(IF) {
 }
 OP(CLOSURE_GET) {
   auto clo = stack_load(stack, pc->v1);
-  auto slot = stack_load(stack, pc->v2);
+  auto slot = pc->v2;
   auto res = closure_get(clo, slot);
   stack_save(stack, pc->reg, res);
   pc = next_op(pc);
