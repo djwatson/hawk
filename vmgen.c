@@ -55,9 +55,14 @@ OP(LOOKUP) {
   dispatch_next(pc, stack);
 }
 OP(FUNC) {
-  auto argcnt = pc->data - 1;
-  pc = next_op(pc);
   // TODO argcnt check
+  auto expect_argcnt = pc->data - 1;
+  if (check_record_start(pc)) {
+    printf("START RECORDING\n");
+    op_table = record_impls;
+  }
+  
+  pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 OP(LT) {

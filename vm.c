@@ -8,16 +8,43 @@
 #include "types.h"
 #include "hawk.h"
 
-#define OP(code) PRESERVE_NONE gc_obj impl_##code(bc *pc, gc_obj *stack)
 
-typedef gc_obj PRESERVE_NONE (*op_func)(bc *pc, gc_obj *stack);
+  enum : uint8_t {
+  hotmap_sz = 64,
+  hotmap_loop = 3,
+  hotmap_mask = (hotmap_sz - 1),
+  hotmap_rec = 1,
+  hotmap_cnt = 200,
+};
+static uint8_t hotmap[hotmap_sz];
+static uint8_t max_trace = 1;
+
+static inline uint32_t hotmap_hash(void *pc) {
+  return (((uint64_t)pc) >> 3) & hotmap_mask;
+}
+static inline bool check_record_start(void* pc) {
+  uint8_t *hot_loc = &hotmap[hotmap_hash(pc)];                            
+  uint8_t prev_hot = *hot_loc;                                            
+  *hot_loc -= 1;
+  if ((max_trace > 0) && prev_hot < *hot_loc) {
+    *hot_loc = hotmap_cnt;
+    // TODO make a new trace?
+    return true;
+  } else {
+    return false;
+  }
+}  
+
+#define OP(code) PRESERVE_NONE gc_obj impl_##code(bc *pc, gc_obj *stack, void* op_table, uint8_t argcnt)
+
+typedef gc_obj PRESERVE_NONE (*op_func)(bc *pc, gc_obj *stack, void* op_table, uint8_t argcnt);
+static op_func record_impls[OP_INS_MAX];
 
 typedef struct {
   bc *pc;
   gc_obj *stack;
 } frame_state;
 
-static op_func impls[OP_INS_MAX];
 
 static inline gc_obj stack_load(gc_obj* stack, uint8_t slot) { return stack[slot]; }
 static inline void stack_save(gc_obj* stack, uint8_t slot, gc_obj res) {
@@ -85,16 +112,25 @@ static inline bc* set_new_pc(bc* pc, gc_obj func) {
   return (bc*)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
 }
 #define dispatch_next(pc, stack) \
-  MUSTTAIL return impls[pc->op](pc, stack);
+  op_func impl = ((op_func*)op_table)[pc->op];	\
+  MUSTTAIL return impl(pc, stack, op_table, 0);
 
 
   #include "vmgen.c"
 
-gc_obj vm(bc *pc) {
-#define X(name) impls[OP_##name] = impl_##name;
-OPS
+static op_func impls[OP_INS_MAX] = {
+#define X(name) impl_##name,
+    OPS
 #undef X
+};
+static op_func record_impls[OP_INS_MAX] = {
+#define X(name) impl_##name,
+    OPS
+#undef X
+    };
+
+gc_obj vm(bc *pc) {
   gc_obj* stack = calloc(1024, sizeof(gc_obj));
 
- return impls[pc->op](pc, stack);
+ return impls[pc->op](pc, stack, impls, 0);
 }
