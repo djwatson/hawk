@@ -8,64 +8,85 @@
 #include "types.h"
 #include "hawk.h"
 
-#define OP(code) gc_obj impl_##code(bc *pc, gc_obj *stack) 
+#define OP(code) gc_obj impl_##code(bc *pc, gc_obj *stack)
 
-gc_obj stack_load(gc_obj* stack, uint8_t slot) { return stack[slot]; }
-void stack_save(gc_obj* stack, uint8_t slot, gc_obj res) {
+typedef gc_obj (*op_func)(bc *pc, gc_obj *stack);
+
+typedef struct {
+  bc *pc;
+  gc_obj *stack;
+} frame_state;
+
+static op_func impls[OP_INS_MAX];
+
+static inline gc_obj stack_load(gc_obj* stack, uint8_t slot) { return stack[slot]; }
+static inline void stack_save(gc_obj* stack, uint8_t slot, gc_obj res) {
   stack[slot] = res;
 }
-gc_obj const_load(bc *pc, uint16_t offset) {
+static inline gc_obj const_load(bc *pc, uint16_t offset) {
   return *(gc_obj*)(pc - pc->data);
 }
-// TODO typecheck
-#define emit_ov_math_op(name, sym, v1, v2) tag_fixnum(to_fixnum(v1) sym to_fixnum(v2));
-#define emit_math_cmp(name, sym, v1, v2) to_fixnum(v1) < to_fixnum(v2) ? TRUE_REP : FALSE_REP
-#define ensure_type(type, val)
-#define return_frame(pc, stack)                                                \
-  auto ret = stack[pc->reg];                                                   \
-  pc = to_return_address(stack[-1]);                                           \
-  auto old_pc = pc - 1;                                                        \
-  stack -= old_pc->reg + 1;                                                    \
-  stack[old_pc->reg] = ret;
+static inline gc_obj emit_ov_math_add(gc_obj v1, gc_obj v2) {
+  return tag_fixnum(to_fixnum(v1) + to_fixnum(v2));
+}
+static inline gc_obj emit_ov_math_sub(gc_obj v1, gc_obj v2) {
+  return tag_fixnum(to_fixnum(v1) - to_fixnum(v2));
+}
+static inline gc_obj emit_math_cmp_lt(gc_obj v1, gc_obj v2) {
+  return to_fixnum(v1) < to_fixnum(v2) ? TRUE_REP : FALSE_REP;
+}
+static inline void ensure_symbol(gc_obj val) {
+  (void)val;
+}
+static inline frame_state return_frame(bc *pc, gc_obj *stack) {
+  auto ret = stack[pc->reg];
+  auto new_pc = to_return_address(stack[-1]);
+  auto old_pc = new_pc - 1;
+  auto new_stack = stack - old_pc->reg - 1;
+  new_stack[old_pc->reg] = ret;
+  return (frame_state){.pc = new_pc, .stack = new_stack};
+}
+static inline bc* next_op(bc *pc) {
+  return pc + 1;
+}
+static inline gc_obj halt(gc_obj *stack) {
+  return stack[0];
+}
 
-gc_obj sym_load(gc_obj sym) {
+static inline gc_obj sym_load(gc_obj sym) {
   return to_symbol(sym)->val;
 }
-void prepare_call(gc_obj fun) {
+static inline void prepare_call(gc_obj fun) {
   // TODO nothing?
 }
-void check_arity(gc_obj fun, gc_obj args) {
+static inline void check_arity(gc_obj fun, gc_obj args) {
   // TODO nothing for now
   
 }
-bc* branch_if_false(bc* pc, gc_obj b) {
+static inline bc* branch_if_false(bc* pc, gc_obj b) {
   if (b.value == FALSE_REP.value) {
     return pc + pc->data;
   } else {
     return pc+1;
   }
 }
-gc_obj closure_get(gc_obj clo, gc_obj slot) {
+static inline gc_obj closure_get(gc_obj clo, gc_obj slot) {
   return to_closure(clo)->v[to_fixnum(slot)];
 }
-gc_obj return_address(bc * ra) {
+static inline gc_obj return_address(bc * ra) {
   return tag_return_address(ra);
 }
-gc_obj* adjust_stack_depth(gc_obj * stack, int depth) {
+static inline gc_obj* adjust_stack_depth(gc_obj * stack, int depth) {
   // TODO check stack depth?
   return stack += depth;
 }
-bc* set_new_pc(bc* pc, gc_obj func) {
+static inline bc* set_new_pc(bc* pc, gc_obj func) {
   auto bfunc = to_func(func);
   return (bc*)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
 }
-#define halt() return stack[0]
-#define next_op(pc) pc++;
-
-
-typedef gc_obj (*op_func)(bc* pc, gc_obj* stack);
-static op_func impls[OP_INS_MAX];
-#define next() MUSTTAIL return impls[pc->op](pc, stack);
+static inline gc_obj dispatch_next(bc *pc, gc_obj *stack) {
+  MUSTTAIL return impls[pc->op](pc, stack);
+}
 
   #include "vmgen.c"
 
@@ -75,6 +96,5 @@ OPS
 #undef X
   gc_obj* stack = calloc(1024, sizeof(gc_obj));
 
-  // TODO
  return impls[pc->op](pc, stack);
 }
