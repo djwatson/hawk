@@ -8,9 +8,9 @@
 #include "types.h"
 #include "hawk.h"
 
-#define OP(code) gc_obj impl_##code(bc *pc, gc_obj *stack)
+#define OP(code) PRESERVE_NONE gc_obj impl_##code(bc *pc, gc_obj *stack)
 
-typedef gc_obj (*op_func)(bc *pc, gc_obj *stack);
+typedef gc_obj PRESERVE_NONE (*op_func)(bc *pc, gc_obj *stack);
 
 typedef struct {
   bc *pc;
@@ -84,9 +84,9 @@ static inline bc* set_new_pc(bc* pc, gc_obj func) {
   auto bfunc = to_func(func);
   return (bc*)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
 }
-static inline gc_obj dispatch_next(bc *pc, gc_obj *stack) {
+#define dispatch_next(pc, stack) \
   MUSTTAIL return impls[pc->op](pc, stack);
-}
+
 
   #include "vmgen.c"
 

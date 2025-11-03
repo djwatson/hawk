@@ -17,7 +17,7 @@ OP(ADD) {
   auto res = emit_ov_math_add(v1, v2);
   stack_save(stack, pc->reg, res);
   pc = next_op(pc);
-  return dispatch_next(pc, stack);
+  dispatch_next(pc, stack);
 }
 OP(SUB) {
   auto v1 = stack_load(stack, pc->v1);
@@ -25,19 +25,19 @@ OP(SUB) {
   auto res = emit_ov_math_sub(v1, v2);
   stack_save(stack, pc->reg, res);
   pc = next_op(pc);
-  return dispatch_next(pc, stack);
+  dispatch_next(pc, stack);
 }
 OP(CONST) {
   auto c = const_load(pc, pc->v1);
   stack_save(stack, pc->reg, c);
   pc = next_op(pc);
-  return dispatch_next(pc, stack);
+  dispatch_next(pc, stack);
 }
 OP(RET) {
   auto frame = return_frame(pc, stack);
   pc = frame.pc;
   stack = frame.stack;
-  return dispatch_next(pc, stack);
+  dispatch_next(pc, stack);
 }
 OP(LOOKUP) {
   auto c = const_load(pc, pc->v1);
@@ -45,13 +45,13 @@ OP(LOOKUP) {
   auto v1 = sym_load(c);
   stack_save(stack, pc->reg, v1);
   pc = next_op(pc);
-  return dispatch_next(pc, stack);
+  dispatch_next(pc, stack);
 }
 OP(FUNC) {
   auto argcnt = pc->data - 1;
   pc = next_op(pc);
   // TODO argcnt check
-  return dispatch_next(pc, stack);
+  dispatch_next(pc, stack);
 }
 OP(LT) {
   auto v1 = stack_load(stack, pc->v1);
@@ -59,12 +59,12 @@ OP(LT) {
   auto res = emit_math_cmp_lt(v1, v2);
   stack_save(stack, pc->reg, res);
   pc = next_op(pc);
-  return dispatch_next(pc, stack);
+  dispatch_next(pc, stack);
 }
 OP(IF) {
   auto v = stack_load(stack, pc->reg);
   pc = branch_if_false(pc, v);
-  return dispatch_next(pc, stack);
+  dispatch_next(pc, stack);
 }
 OP(CLOSURE_GET) {
   auto clo = stack_load(stack, pc->v1);
@@ -72,7 +72,7 @@ OP(CLOSURE_GET) {
   auto res = closure_get(clo, slot);
   stack_save(stack, pc->reg, res);
   pc = next_op(pc);
-  return dispatch_next(pc, stack);
+  dispatch_next(pc, stack);
 }
 OP(LCALL) {
   auto func = stack_load(stack, pc->reg);
@@ -80,7 +80,7 @@ OP(LCALL) {
   stack_save(stack, pc->reg, return_address(pc + 1));
   stack = adjust_stack_depth(stack, frame_top + 1);
   pc = set_new_pc(pc, func);
-  return dispatch_next(pc, stack);
+  dispatch_next(pc, stack);
 }
 OP(HALT) {
   return halt(stack);
