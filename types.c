@@ -21,7 +21,11 @@ bcfunc const *closure_code_ptr(closure_s const *clo) {
   return (bcfunc *)clo->v[0].value;
 }
 string_s *get_sym_name(symbol *s) {
-  return (string_s *)(s->name.value - PTR_TAG);
+  // TODO remove.  must always have name.
+  if (s->name.value) {
+    return (string_s *)(s->name.value - PTR_TAG);
+  }
+  return nullptr;
 }
 
 // This is mostly a debug aid: The scheme-level printer is defined in
