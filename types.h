@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-typedef struct bc bc;
+#include "bc.h"
 
 typedef struct {
   union {

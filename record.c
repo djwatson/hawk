@@ -7,8 +7,24 @@
 #include "types.h"
 #include "vec.h"
 
+typedef struct {
+  bool changed;
+  bool live;
+  slot loc;
+} sentry;
+
 VEC_TYPE_IMPL(ins, ir_ins);
 VEC_TYPE_IMPL(consts, gc_obj);
+VEC_TYPE_IMPL(sentry, sentry);
+VEC_TYPE_IMPL(snap, snap);
+VEC_TYPE_IMPL(snap_entry, snap_entry);
+
+typedef struct {
+  sentry *stack;
+  uint16_t stack_off;
+  bc *start_ins;
+  uint8_t depth;
+} trace_state;
 
 // TODO merge type shit
 typedef struct {
@@ -29,9 +45,33 @@ extern op_func impls[OP_INS_MAX];
 extern op_func record_impls[OP_INS_MAX];
 // end TODO
 
+static void vm_add_snap(bc *pc) {
+  snap snap = {.pc = pc,
+                 .offset = ts.stack_off,
+                 .ir = arrlen_ins(cur_trace->ins),
+                 .exits = 0};
+  for (size_t i = 0; i < arrlen_sentry(ts.stack); i++) {
+    if (ts.stack[i].changed && ts.stack[i].live) {
+      snap_entry entry = {.slot = (uint16_t)i, .val = ts.stack[i].loc};
+      arrpush_snap_entry(&snap.slots, entry);
+    }
+  }
+  arrpush_snap(&cur_trace->snaps, snap);
+}
+
+static sentry *get_sentry(uint64_t idx) {
+  auto len = arrlen_sentry(ts.stack);
+  while (len++ <= (idx + ts.stack_off)) {
+    sentry entry = {.live = false, .changed = false};
+    arrpush_sentry(&ts.stack, entry);
+  }
+  return &ts.stack[idx + ts.stack_off];
+}
+
 static inline slot stack_load(gc_obj *stack, uint8_t pos) {
-  if (ts.live[pos]) {
-    return ts.regs[pos];
+  auto entry = get_sentry(pos);
+  if (entry->live) {
+    return entry->loc;
   }
   // emit stack load
   ir_ins ins = (ir_ins){
@@ -43,13 +83,16 @@ static inline slot stack_load(gc_obj *stack, uint8_t pos) {
 
   // Save instr slot in our shadow regs, and return!.
   slot n = (slot){.constant = false, .loc = idx};
-  ts.regs[pos] = n;
-  ts.live[pos] = true;
+  entry->live = true;
+  entry->changed = false;
+  entry->loc = n;
   return n;
 }
 static inline void stack_save(gc_obj *stack, uint8_t pos, slot res) {
-  ts.regs[pos] = res;
-  ts.live[pos] = true;
+  auto entry = get_sentry(pos);
+  entry->live = true;
+  entry->changed = true;
+  entry->loc = res;
 }
 static inline slot const_load(bc *pc, uint16_t offset) {
   // We use a non-moving gc, so this is just a runtime constant, always.
@@ -95,7 +138,10 @@ static inline slot constify_data(uint16_t data) {
   return n;
 }
 static inline frame_state return_frame(bc *pc, gc_obj *stack) {
+  // TODO
+  vm_add_snap(pc);
   printf("return_frame\n");
+  abort();
   return (frame_state){pc, stack};
 }
 static inline bc *next_op(bc *pc) { return pc; }
@@ -115,6 +161,8 @@ static inline slot sym_load(slot sym) {
 static inline void prepare_call(gc_obj fun) { printf("prepare call\n"); }
 static inline void check_arity(gc_obj fun, gc_obj args) {}
 static inline bc *branch_if_false(bc *pc, gc_obj *stack, slot b) {
+  // TODO: move AFTER branch
+  vm_add_snap(pc);
   // We're going to directly peek at the stack here.
   auto res = stack[pc->reg];
   // TODO:snapshot
@@ -149,7 +197,7 @@ static inline slot return_address(bc *ra) {
   return (slot){.constant = true, .loc = c_idx};
 }
 static inline gc_obj *adjust_stack_depth(gc_obj *stack, int depth) {
-  ts.regs_off += depth;
+  ts.stack_off += depth;
   ts.depth++;
   return stack;
 }
@@ -173,6 +221,7 @@ static inline bc *set_new_pc(bc *pc, gc_obj *stack, slot func) {
 }
 static inline void *check_record_start(bc *pc, gc_obj *stack, void *op_table) {
   if (pc == ts.start_ins) {
+    vm_add_snap(pc);
     printf("Record done\n");
     print_ir(cur_trace);
     exit(0);
@@ -194,9 +243,11 @@ void record_start(bc *pc, gc_obj *stack) {
   cur_trace = malloc(sizeof(trace));
   cur_trace->ins = nullptr;
   cur_trace->consts = nullptr;
+  cur_trace->snaps = nullptr;
   cur_trace->stackpos = 0;
   ts.start_ins = pc;
-  ts.regs_off = 0;
+  ts.stack_off = 0;
   ts.depth = 0;
-  memset(ts.live, 0, sizeof(ts.live));
+  ts.stack = nullptr;
+  vm_add_snap(pc);
 }

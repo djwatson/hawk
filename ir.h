@@ -74,15 +74,8 @@ typedef struct {
   uint16_t stackpos;
   ir_ins *ins;
   gc_obj *consts;
+  snap *snaps;
 } trace;
-
-typedef struct {
-  slot regs[257]; // need offset by 1 - to grab -1.
-  bool live[257];
-  bc *start_ins;
-  uint16_t regs_off;
-  uint8_t depth;
-} trace_state;
 
 enum : uint8_t {
   REG_NONE = 0xff,
@@ -93,3 +86,5 @@ void print_ir(trace *t);
 
 VEC_TYPE_DEF(ins, ir_ins);
 VEC_TYPE_DEF(consts, gc_obj);
+VEC_TYPE_DEF(snap, snap);
+VEC_TYPE_DEF(snap_entry, snap_entry);

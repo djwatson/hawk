@@ -50,9 +50,35 @@ char *ir_names[] = {
 #undef X
 };
 
+static void print_snap(snap *snap, trace* t) {
+  printf("SNAP[ir=%i pc=%p off=%i", snap->ir, snap->pc, snap->offset);
+  uint64_t frame = snap->offset - 1;
+  for (uint64_t j = arrlen_snap_entry(snap->slots); j != 0; j--) {
+    auto entry = &snap->slots[j - 1];
+    printf(" %i=", entry->slot);
+    if (entry->slot == frame) {
+      printf("\e[1;34mframe\e[m");
+      assert(entry->val.constant);
+      uint8_t frame_offset =
+          (to_return_address(t->consts[entry->val.loc]) - 1)->reg;
+      frame -= (frame_offset + 1);
+    } else {
+      print_slot(entry->val, t);
+    }
+  }
+  printf("]\n");
+}
+
 void print_ir(trace *t) {
-  size_t count = arrlen_ins(t->ins);
-  for (size_t i = 0; i < count; i++) {
+  uint64_t cur_snap = 0;
+  for (size_t i = 0; i < arrlen_ins(t->ins) + 1 /* last snap */; i++) {
+    while (cur_snap < arrlen_snap(t->snaps) && t->snaps[cur_snap].ir == i) {
+      print_snap(&t->snaps[cur_snap], t);
+      cur_snap++;
+    }
+    if (i == arrlen_ins(t->ins)) {
+      break;
+    }
     ir_ins *ins = &t->ins[i];
     printf("%04zu %-8s", i, ir_names[ins->op]);
     switch (ins->op) {
