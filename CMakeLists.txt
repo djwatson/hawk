@@ -7,6 +7,8 @@ set(CMAKE_C_COMPILER clang)
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+#set(CMAKE_C_CLANG_TIDY "clang-tidy")
+
 add_executable(
   hawk
   hawk.c

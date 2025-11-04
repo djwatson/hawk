@@ -46,9 +46,8 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, void *op_table) {
     // TODO make a new trace?
     record_start(pc, stack);
     return record_impls;
-  } else {
-    return op_table;
   }
+  return op_table;
 }
 
 static inline gc_obj stack_load(gc_obj *stack, uint8_t slot) {
@@ -91,9 +90,8 @@ static inline void check_arity(gc_obj fun, gc_obj args) {
 static inline bc *branch_if_false(bc *pc, gc_obj *stack, gc_obj b) {
   if (b.value == FALSE_REP.value) {
     return pc + pc->data;
-  } else {
-    return pc + 1;
   }
+  return pc + 1;
 }
 static inline gc_obj closure_get(gc_obj clo, uint8_t slot) {
   return to_closure(clo)->v[slot];
@@ -101,7 +99,7 @@ static inline gc_obj closure_get(gc_obj clo, uint8_t slot) {
 static inline gc_obj return_address(bc *ra) { return tag_return_address(ra); }
 static inline gc_obj *adjust_stack_depth(gc_obj *stack, int depth) {
   // TODO check stack depth?
-  return stack += depth;
+  return stack + depth;
 }
 static inline bc *set_new_pc(bc *pc, gc_obj *stack, gc_obj func) {
   auto bfunc = to_func(func);
@@ -111,7 +109,7 @@ static inline gc_obj constify_data(uint16_t data) {
   return (gc_obj){.value = data};
 }
 #define dispatch_next(pc, stack)                                               \
-  op_func impl = ((op_func *)op_table)[pc->op];                                \
+  op_func impl = ((op_func *)op_table)[(pc)->op];                              \
   MUSTTAIL return impl(pc, stack, op_table, 0);
 
 #include "vmgen.c"

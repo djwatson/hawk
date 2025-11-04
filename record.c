@@ -127,7 +127,6 @@ static inline bc *branch_if_false(bc *pc, gc_obj *stack, slot b) {
                         .op2 = b,
                         .reg = REG_NONE,
                         .spill = SPILL_NONE};
-  auto idx = arrlen_ins(cur_trace->ins);
   arrpush_ins(&cur_trace->ins, ins);
 
   return pc;
@@ -167,7 +166,6 @@ static inline bc *set_new_pc(bc *pc, gc_obj *stack, slot func) {
                           .op2 = func,
                           .reg = REG_NONE,
                           .spill = SPILL_NONE};
-    auto idx = arrlen_ins(cur_trace->ins);
     arrpush_ins(&cur_trace->ins, ins);
   }
 
@@ -186,7 +184,7 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, void *op_table) {
 // Tailcall to the non-recording version, which will then tailcall the
 // next *recording* opcode
 #define dispatch_next(pc, stack)                                               \
-  op_func impl = ((op_func *)impls)[pc->op];                                   \
+  op_func impl = ((op_func *)impls)[(pc)->op];                                 \
   MUSTTAIL return impl(pc, stack, op_table, 0);
 
 #include "vmgen.c"
