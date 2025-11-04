@@ -5,9 +5,28 @@
 #include "vec.h"
 
 typedef struct {
-  bool constant;
+  bool constant : 1;
   uint16_t loc : 15;
 } slot;
+
+typedef struct snap_entry {
+  uint16_t slot;
+  slot val;
+} snap_entry;
+
+typedef struct {
+  bc *pc;
+  uint16_t ir;
+  uint16_t offset;
+  snap_entry *slots;
+
+  // Side trace info
+  uint8_t exits;
+  // for debugging only, to remove
+  uint32_t snap_sz;
+  // Add jump to side trace here
+  void *code;
+} snap;
 
 #define IR_OPS					\
   X(NOP)					\
@@ -34,20 +53,22 @@ typedef struct {
   ir_ins_op op;
   uint8_t type;
   union {
-    struct {
-      slot op1;
-      slot op2;
-    };
-    uint32_t data;
-  };
-  union {
     uint16_t prev;
     struct {
       uint8_t reg;
       uint8_t spill; // spill slot.
     };
   };
+  union {
+    struct {
+      slot op1;
+      slot op2;
+    };
+    uint32_t data;
+  };
 } ir_ins;
+
+static_assert(sizeof(ir_ins) == 8, "ir_ins instructions must be 8 bytes");
 
 typedef struct {
   uint16_t stackpos;
