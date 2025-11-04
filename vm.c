@@ -38,7 +38,7 @@ static inline bool check_record_start(void* pc) {
 #define OP(code) PRESERVE_NONE gc_obj impl_##code(bc *pc, gc_obj *stack, void* op_table, uint8_t argcnt)
 
 typedef gc_obj PRESERVE_NONE (*op_func)(bc *pc, gc_obj *stack, void* op_table, uint8_t argcnt);
-static op_func record_impls[OP_INS_MAX];
+op_func record_impls[OP_INS_MAX];
 
 typedef struct {
   bc *pc;
@@ -111,6 +111,9 @@ static inline bc* set_new_pc(bc* pc, gc_obj func) {
   auto bfunc = to_func(func);
   return (bc*)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
 }
+static inline gc_obj constify_data(uint16_t data) {
+  return (gc_obj){.value = data };
+}
 #define dispatch_next(pc, stack) \
   op_func impl = ((op_func*)op_table)[pc->op];	\
   MUSTTAIL return impl(pc, stack, op_table, 0);
@@ -118,13 +121,16 @@ static inline bc* set_new_pc(bc* pc, gc_obj func) {
 
   #include "vmgen.c"
 
-static op_func impls[OP_INS_MAX] = {
+op_func impls[OP_INS_MAX] = {
 #define X(name) impl_##name,
     OPS
 #undef X
 };
-static op_func record_impls[OP_INS_MAX] = {
-#define X(name) impl_##name,
+#define X(name) PRESERVE_NONE gc_obj record_##name(bc *pc, gc_obj *stack, void* op_table, uint8_t argcnt);
+    OPS
+#undef X
+op_func record_impls[OP_INS_MAX] = {
+#define X(name) record_##name,
     OPS
 #undef X
     };

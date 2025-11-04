@@ -12,6 +12,7 @@ add_executable(
   hawk.c
   vm.c
   types.c
+  record.c
   gc.c
   alloc_table.c
   util/bitset.c

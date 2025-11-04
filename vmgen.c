@@ -34,8 +34,7 @@ OP(CONST) {
   dispatch_next(pc, stack);
 }
 OP(KSHORT) {
-  gc_obj c;
-  c.value = pc->data;
+  auto c = constify_data(pc->data);
   stack_save(stack, pc->reg, c);
   pc = next_op(pc);
   dispatch_next(pc, stack);
@@ -58,8 +57,8 @@ OP(FUNC) {
   // TODO argcnt check
   auto expect_argcnt = pc->data - 1;
   if (check_record_start(pc)) {
-    printf("START RECORDING\n");
-    op_table = record_impls;
+    //printf("START RECORDING\n");
+    //op_table = record_impls;
   }
   
   pc = next_op(pc);
