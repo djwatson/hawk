@@ -56,10 +56,7 @@ OP(LOOKUP) {
 OP(FUNC) {
   // TODO argcnt check
   auto expect_argcnt = pc->data - 1;
-  if (check_record_start(pc)) {
-    //printf("START RECORDING\n");
-    //op_table = record_impls;
-  }
+  op_table = check_record_start(pc, stack, op_table);
   
   pc = next_op(pc);
   dispatch_next(pc, stack);
@@ -74,7 +71,7 @@ OP(LT) {
 }
 OP(IF) {
   auto v = stack_load(stack, pc->reg);
-  pc = branch_if_false(pc, v);
+  pc = branch_if_false(pc, stack, v);
   dispatch_next(pc, stack);
 }
 OP(CLOSURE_GET) {
@@ -90,7 +87,7 @@ OP(LCALL) {
   auto frame_top = pc->reg;
   stack_save(stack, pc->reg, return_address(pc + 1));
   stack = adjust_stack_depth(stack, frame_top + 1);
-  pc = set_new_pc(pc, func);
+  pc = set_new_pc(pc, stack, func);
   dispatch_next(pc, stack);
 }
 OP(HALT) {

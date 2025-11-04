@@ -22,29 +22,32 @@ static uint8_t max_trace = 1;
 static inline uint32_t hotmap_hash(void *pc) {
   return (((uint64_t)pc) >> 3) & hotmap_mask;
 }
-static inline bool check_record_start(void* pc) {
-  uint8_t *hot_loc = &hotmap[hotmap_hash(pc)];                            
-  uint8_t prev_hot = *hot_loc;                                            
-  *hot_loc -= 1;
-  if ((max_trace > 0) && prev_hot < *hot_loc) {
-    *hot_loc = hotmap_cnt;
-    // TODO make a new trace?
-    return true;
-  } else {
-    return false;
-  }
-}  
-
 #define OP(code) PRESERVE_NONE gc_obj impl_##code(bc *pc, gc_obj *stack, void* op_table, uint8_t argcnt)
 
 typedef gc_obj PRESERVE_NONE (*op_func)(bc *pc, gc_obj *stack, void* op_table, uint8_t argcnt);
 op_func record_impls[OP_INS_MAX];
+op_func impls[OP_INS_MAX];
 
 typedef struct {
   bc *pc;
   gc_obj *stack;
 } frame_state;
 
+// todo cleanup del=cl
+void record_start(bc* pc, gc_obj* stack);
+static inline void* check_record_start(bc* pc, gc_obj* stack, void* op_table) {
+  uint8_t *hot_loc = &hotmap[hotmap_hash(pc)];                            
+  uint8_t prev_hot = *hot_loc;                                            
+  *hot_loc -= 1;
+  if ((max_trace > 0) && prev_hot < *hot_loc && op_table == impls) {
+    *hot_loc = hotmap_cnt;
+    // TODO make a new trace?
+    record_start(pc, stack);
+    return record_impls;
+  } else {
+    return op_table;
+  }
+}  
 
 static inline gc_obj stack_load(gc_obj* stack, uint8_t slot) { return stack[slot]; }
 static inline void stack_save(gc_obj* stack, uint8_t slot, gc_obj res) {
@@ -90,7 +93,7 @@ static inline void check_arity(gc_obj fun, gc_obj args) {
   // TODO nothing for now
   
 }
-static inline bc* branch_if_false(bc* pc, gc_obj b) {
+static inline bc* branch_if_false(bc* pc, gc_obj* stack, gc_obj b) {
   if (b.value == FALSE_REP.value) {
     return pc + pc->data;
   } else {
@@ -107,7 +110,7 @@ static inline gc_obj* adjust_stack_depth(gc_obj * stack, int depth) {
   // TODO check stack depth?
   return stack += depth;
 }
-static inline bc* set_new_pc(bc* pc, gc_obj func) {
+static inline bc* set_new_pc(bc* pc, gc_obj* stack, gc_obj func) {
   auto bfunc = to_func(func);
   return (bc*)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
 }
