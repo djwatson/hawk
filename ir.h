@@ -28,25 +28,25 @@ typedef struct {
   void *code;
 } snap;
 
-#define IR_OPS					\
-  X(NOP)					\
-  X(LT)					\
-  X(ADD)					\
-  X(SUB)					\
-  X(GGET)					\
-  X(GSET)					\
-  X(RET)					\
-  X(SLOAD)					\
-  X(ARG)					\
-  X(GUARD_EQ)					\
-  X(REF)					\
-  X(LOAD)					\
-  X(STORE)					
+#define IR_OPS                                                                 \
+  X(NOP)                                                                       \
+  X(LT)                                                                        \
+  X(ADD)                                                                       \
+  X(SUB)                                                                       \
+  X(GGET)                                                                      \
+  X(GSET)                                                                      \
+  X(RET)                                                                       \
+  X(SLOAD)                                                                     \
+  X(ARG)                                                                       \
+  X(GUARD_EQ)                                                                  \
+  X(REF)                                                                       \
+  X(LOAD)                                                                      \
+  X(STORE)
 typedef enum : uint8_t {
 #define X(name) IR_##name,
   IR_OPS
-  #undef X
-    IR_INS_MAX,
+#undef X
+      IR_INS_MAX,
 } ir_ins_op;
 
 typedef struct {
@@ -79,7 +79,7 @@ typedef struct {
 typedef struct {
   slot regs[257]; // need offset by 1 - to grab -1.
   bool live[257];
-  bc* start_ins;
+  bc *start_ins;
   uint16_t regs_off;
   uint8_t depth;
 } trace_state;
@@ -89,7 +89,7 @@ enum : uint8_t {
   SPILL_NONE = 0xff,
 };
 
-void print_ir(trace* t);
+void print_ir(trace *t);
 
 VEC_TYPE_DEF(ins, ir_ins);
 VEC_TYPE_DEF(consts, gc_obj);

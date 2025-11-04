@@ -15,7 +15,7 @@ static symbol fib_sym;
 static prog_fib_bc prog_fib = {
     .func =
         {
-	  .header = {.type = FUNC_TAG, .rc = 0},
+            .header = {.type = FUNC_TAG, .rc = 0},
             .const_cnt = 5,
             .bc_cnt = 20,
         },
@@ -29,24 +29,24 @@ static prog_fib_bc prog_fib = {
         },
     .code =
         {
-   	    {OP_FUNC, 2, 0, 0},
+            {OP_FUNC, 2, 0, 0},
             {OP_KSHORT, 2, .data = TAG_FIXNUM_VALUE(2)},
-            {OP_LT, 2, 1, 2},         
+            {OP_LT, 2, 1, 2},
             {OP_IF, 2, .data = 2},
-            {OP_RET, 1, 0, 0},    
+            {OP_RET, 1, 0, 0},
             {OP_LOOKUP, 3, .data = 13},
-            {OP_KSHORT, 4, .data = TAG_FIXNUM_VALUE(1)},       
-            {OP_SUB, 4, 1, 4},         
-            {OP_CLOSURE_GET, 2, 3, 0}, 
-            {OP_LCALL, 2, 2, 0},       
+            {OP_KSHORT, 4, .data = TAG_FIXNUM_VALUE(1)},
+            {OP_SUB, 4, 1, 4},
+            {OP_CLOSURE_GET, 2, 3, 0},
+            {OP_LCALL, 2, 2, 0},
             {OP_LOOKUP, 4, .data = 18},
-            {OP_KSHORT, 5, .data = TAG_FIXNUM_VALUE(2)}, 
-            {OP_SUB, 5, 1, 5},         
-            {OP_CLOSURE_GET, 3, 4, 0}, 
-            {OP_LCALL, 3, 3, 0},       
-            {OP_ADD, 2, 2, 3},         
-            {OP_RET, 2, 0, 0},         
-            {OP_HALT, 0, 0, 0},        
+            {OP_KSHORT, 5, .data = TAG_FIXNUM_VALUE(2)},
+            {OP_SUB, 5, 1, 5},
+            {OP_CLOSURE_GET, 3, 4, 0},
+            {OP_LCALL, 3, 3, 0},
+            {OP_ADD, 2, 2, 3},
+            {OP_RET, 2, 0, 0},
+            {OP_HALT, 0, 0, 0},
         },
 };
 
@@ -81,15 +81,15 @@ static fib_loader_bc fib_loader = {
         },
     .consts =
         {
-	  tag_func(&prog_fib), // entry to PROG-fib
+            tag_func(&prog_fib), // entry to PROG-fib
             TAG_FIXNUM_LITERAL(40),
         },
     .code =
         {
             {OP_CONST, 0, .data = 4}, // load fib entry
             {OP_CONST, 2, .data = 3}, // push argument 40
-            {OP_LCALL, 0, 0, 0}, // invoke fib
-            {OP_HALT, 0, 0, 0},  // halt after call
+            {OP_LCALL, 0, 0, 0},      // invoke fib
+            {OP_HALT, 0, 0, 0},       // halt after call
         },
 };
 

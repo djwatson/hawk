@@ -196,12 +196,8 @@ static inline cons_s *to_cons(gc_obj obj) {
 static inline vector_s *to_vector(gc_obj obj) {
   return (vector_s *)(obj.value - VECTOR_TAG);
 }
-static inline char to_char(gc_obj obj) {
-  return (char)(obj.value >> 8);
-}
-static inline bc *to_return_address(gc_obj obj) {
-  return obj.raddress;
-}
+static inline char to_char(gc_obj obj) { return (char)(obj.value >> 8); }
+static inline bc *to_return_address(gc_obj obj) { return obj.raddress; }
 static inline bcfunc *to_func(gc_obj obj) {
   return (bcfunc *)(obj.value - PTR_TAG);
 }
@@ -216,18 +212,12 @@ static inline uint32_t get_ptr_tag(gc_obj obj) {
   return ((uint32_t *)(obj.value - PTR_TAG))[0];
 }
 
-static inline bool is_char(gc_obj obj) {
-  return get_imm_tag(obj) == CHAR_TAG;
-}
+static inline bool is_char(gc_obj obj) { return get_imm_tag(obj) == CHAR_TAG; }
 static inline bool is_closure(gc_obj obj) {
   return get_tag(obj) == CLOSURE_TAG;
 }
-static inline bool is_cons(gc_obj obj) {
-  return get_tag(obj) == CONS_TAG;
-}
-static inline bool is_ptr(gc_obj obj) {
-  return get_tag(obj) == PTR_TAG;
-}
+static inline bool is_cons(gc_obj obj) { return get_tag(obj) == CONS_TAG; }
+static inline bool is_ptr(gc_obj obj) { return get_tag(obj) == PTR_TAG; }
 static inline bool is_literal(gc_obj obj) {
   return get_tag(obj) == LITERAL_TAG;
 }
@@ -237,21 +227,13 @@ static inline bool is_string(gc_obj obj) {
 static inline bool is_record(gc_obj obj) {
   return is_ptr(obj) && get_ptr_tag(obj) == RECORD_TAG;
 }
-static inline bool is_symbol(gc_obj obj) {
-  return get_tag(obj) == SYMBOL_TAG;
-}
+static inline bool is_symbol(gc_obj obj) { return get_tag(obj) == SYMBOL_TAG; }
 static inline bool is_undefined(gc_obj obj) {
   return get_imm_tag(obj) == UNDEFINED_TAG;
 }
-static inline bool is_vector(gc_obj obj) {
-  return get_tag(obj) == VECTOR_TAG;
-}
-static inline bool is_flonum(gc_obj obj) {
-  return get_tag(obj) == FLONUM_TAG;
-}
-static inline bool is_fixnum(gc_obj obj) {
-  return get_tag(obj) == FIXNUM_TAG;
-}
+static inline bool is_vector(gc_obj obj) { return get_tag(obj) == VECTOR_TAG; }
+static inline bool is_flonum(gc_obj obj) { return get_tag(obj) == FLONUM_TAG; }
+static inline bool is_fixnum(gc_obj obj) { return get_tag(obj) == FIXNUM_TAG; }
 static inline bool is_func(gc_obj obj) {
   return is_ptr(obj) && get_ptr_tag(obj) == FUNC_TAG;
 }

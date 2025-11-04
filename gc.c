@@ -414,7 +414,7 @@ static slab_info *alloc_slab(uint64_t sz_class) {
   }
   assert(0 == ((uint64_t)free->start & (default_slab_size - 1)));
 
-  //memset(free->start, 0, sz);
+  // memset(free->start, 0, sz);
   free->end = free->start + sz;
   list_add(&free->link, &live_slabs);
 

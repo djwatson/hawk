@@ -15,7 +15,7 @@ static void print_slot(slot s, trace *t) {
       printf("\e[1;35m%f\e[m", to_flonum(gc)->x);
     } else if (is_symbol(gc)) {
       auto name = get_sym_name(to_symbol(gc));
-      printf("\e[1;35m%s\e[m", name? name->str : "<symbol>");
+      printf("\e[1;35m%s\e[m", name ? name->str : "<symbol>");
     } else if (gc.value == FALSE_REP.value) {
       printf("\e[1;35m#f\e[m");
     } else if (gc.value == TRUE_REP.value) {
@@ -46,14 +46,14 @@ static void print_slot_immediate(slot s) {
 
 char *ir_names[] = {
 #define X(name) #name,
-  IR_OPS
-  #undef X
+    IR_OPS
+#undef X
 };
 
-void print_ir(trace* t) {
+void print_ir(trace *t) {
   size_t count = arrlen_ins(t->ins);
   for (size_t i = 0; i < count; i++) {
-    ir_ins* ins = &t->ins[i];
+    ir_ins *ins = &t->ins[i];
     printf("%04zu %-8s", i, ir_names[ins->op]);
     switch (ins->op) {
     case IR_NOP:
