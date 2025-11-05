@@ -240,14 +240,8 @@ static  void *check_record_start(bc *pc, gc_obj *stack, void *op_table) {
 
 void record_start(bc *pc, gc_obj *stack) {
   printf("Record start\n");
-  cur_trace = malloc(sizeof(trace));
-  cur_trace->ins = nullptr;
-  cur_trace->consts = nullptr;
-  cur_trace->snaps = nullptr;
-  cur_trace->stackpos = 0;
+  cur_trace = calloc(1, sizeof(trace));
+  memset(&ts, 0, sizeof(ts));
   ts.start_ins = pc;
-  ts.stack_off = 0;
-  ts.depth = 0;
-  ts.stack = nullptr;
   vm_add_snap(pc);
 }
