@@ -4,27 +4,36 @@
 
 #include <stdint.h>
 
+#define ASM_X64_REGISTER_LIST(X)                                               \
+  X(RAX)                                                                       \
+  X(RCX)                                                                       \
+  X(RDX)                                                                       \
+  X(RBX)                                                                       \
+  X(RSP)                                                                       \
+  X(RBP)                                                                       \
+  X(RSI)                                                                       \
+  X(RDI)                                                                       \
+  X(R8)                                                                        \
+  X(R9)                                                                        \
+  X(R10)                                                                       \
+  X(R11)                                                                       \
+  X(R12)                                                                       \
+  X(R13)                                                                       \
+  X(R14)                                                                       \
+  X(R15)
+
 enum registers : uint8_t {
-  RAX = 0,
-  RCX = 1,
-  RDX = 2,
-  RBX = 3,
-  RSP = 4,
-  RBP = 5,
-  RSI = 6,
-  RDI = 7,
-  R8 = 8,
-  R9 = 9,
-  R10 = 10,
-  R11 = 11,
-  R12 = 12,
-  R13 = 13,
-  R14 = 14,
-  R15 = 15,
-  MAX_REG = 16,
+#define X(name) name,
+  ASM_X64_REGISTER_LIST(X)
+#undef X
+      MAX_REG,
 
   RET_REG = RAX,
+  RTMP = R15,
+  RSTACK = RDI,
 };
+
+void asm_mark_unallocatable(bool used[MAX_REG]);
 
 enum ARITH_CODES {
   ASM_ARITH_ADD = 0,
@@ -128,3 +137,5 @@ void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm);
 void emit_cmp_reg_imm32(uint8_t r, int32_t imm);
 void emit_cmp_mem32_imm32(int32_t offset, uint8_t r1, int32_t imm);
 void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm);
+
+extern const char *const reg_names[MAX_REG];

@@ -11,6 +11,23 @@
 
 extern uint8_t *p;
 
+const char *const reg_names[MAX_REG] = {
+#define X(name) #name,
+  ASM_AARCH64_REGISTER_LIST(X)
+#undef X
+};
+
+void asm_mark_unallocatable(bool used[MAX_REG]) {
+  used[SP] = true;
+  used[FP] = true;
+  used[LR] = true;
+  used[RTMP] = true;
+  used[RSTACK] = true;
+  used[X16] = true;
+  used[X17] = true;
+  used[X18] = true;
+}
+
 static void bump(int64_t delta) { p -= delta; }
 
 static uint64_t count_trailing_zeros64(uint64_t n) {

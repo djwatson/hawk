@@ -65,8 +65,8 @@ static void get_reg(uint8_t reg, trace *trace, uint32_t *next_spill,
     /* } */
 
     /* trace->ops[op].slot = spill; */
-    /* emit_mem_reg(OP_MOV_MR, 0, R15, trace->ops[op].reg); */
-    /* emit_mov64(R15, (int64_t)&spill_slot[trace->ops[op].slot]); */
+    /* emit_mem_reg(OP_MOV_MR, 0, RTMP, trace->ops[op].reg); */
+    /* emit_mov64(RTMP, (int64_t)&spill_slot[trace->ops[op].slot]); */
     /* trace->ops[op].reg = REG_NONE; */
     /* slot[reg] = -1; */
     /* lru_poke(&reg_lru, reg); */
@@ -108,11 +108,11 @@ void emit(trace *t) {
   regmap reg_to_slot[MAX_REG];
   memset(reg_to_slot, 0, sizeof(reg_to_slot));
 
-  // Unallocatable.
-  reg_to_slot[R15].used = true;
-  reg_to_slot[RSP].used = true;
-  reg_to_slot[RDI].used = true;
-  reg_to_slot[RBX].used = true;
+  bool reserved[MAX_REG] = {0};
+  asm_mark_unallocatable(reserved);
+  for (int i = 0; i < MAX_REG; i++) {
+    reg_to_slot[i].used = reserved[i];
+  }
 
   long *snap_labels = malloc(sizeof(long) * arrlen_snap(t->snaps));
   auto end = emit_offset();
@@ -162,15 +162,15 @@ void emit(trace *t) {
       // printf("Spilling op %li to slot %i from reg %s\n", op_cnt, op->slot,
       // reg_names[op->reg]);
       abort();
-      /* emit_mem_reg(OP_MOV_RM, 0, R15, op->reg); */
-      /* emit_mov64(R15, (int64_t)&spill_slot[op->slot]); */
+      /* emit_mem_reg(OP_MOV_RM, 0, RTMP, op->reg); */
+      /* emit_mov64(RTMP, (int64_t)&spill_slot[op->slot]); */
     }
     /* if (op->reg == REG_NONE) { */
     /*   printf("WARNING: emitting op with no reg: %i\n", op_cnt); */
     /* } */
 
     // free current register.
-    if (op->reg != REG_NONE && op->reg != RDI && op->op != IR_ARG) {
+    if (op->reg != REG_NONE && op->reg != RSTACK && op->op != IR_ARG) {
       assert(reg_to_slot[op->reg].s == op_cnt);
       reg_to_slot[op->reg].used = false;
     }
@@ -181,14 +181,14 @@ void emit(trace *t) {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
       assert(!op->op2.constant);
-      uint8_t reg = R15;
+      uint8_t reg = RTMP;
       if (!op->op1.constant) {
         reg = t->ins[op->op1.loc].reg;
       }
       emit_jcc32(JNE, snap_labels[cur_snap]);
       emit_reg_reg(ASM_CMP, reg, t->ins[op->op2.loc].reg);
       if (op->op1.constant) {
-        emit_mov64(R15, t->consts[op->op1.loc].value);
+        emit_mov64(RTMP, t->consts[op->op1.loc].value);
       }
       break;
     }
@@ -203,7 +203,7 @@ void emit(trace *t) {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
       assert(!op->op1.constant);
-      uint8_t op2_reg = R15;
+      uint8_t op2_reg = RTMP;
       if (!op->op2.constant) {
         op2_reg = t->ins[op->op1.loc].reg;
       }
@@ -218,7 +218,7 @@ void emit(trace *t) {
       emit_jcc32(JL, tr);
       emit_reg_reg(ASM_CMP, op2_reg, t->ins[op->op1.loc].reg);
       if (op->op2.constant) {
-        emit_mov64(R15, t->consts[op->op2.loc].value);
+        emit_mov64(RTMP, t->consts[op->op2.loc].value);
       }
       break;
     }
@@ -226,7 +226,7 @@ void emit(trace *t) {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
       assert(!op->op1.constant);
-      uint8_t reg = R15;
+      uint8_t reg = RTMP;
       if (!op->op2.constant) {
         reg = t->ins[op->op2.loc].reg;
       } else {
@@ -237,12 +237,12 @@ void emit(trace *t) {
         emit_reg_reg(ASM_MOV, t->ins[op->op1.loc].reg, op->reg);
       }
       if (op->op2.constant) {
-        emit_mov64(R15, t->consts[op->op2.loc].value);
+        emit_mov64(RTMP, t->consts[op->op2.loc].value);
       }
       break;
     }
     case IR_SLOAD: {
-      emit_mem_reg(ASM_MOV_MR, op->data * 8, RDI, op->reg);
+      emit_mem_reg(ASM_MOV_MR, op->data * 8, RSTACK, op->reg);
       break;
     }
     case IR_GGET: {

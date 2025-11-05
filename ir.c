@@ -1,4 +1,5 @@
 #include "ir.h"
+#include "asm.h"
 
 static void print_slot(slot s, trace *t) {
   if (s.constant) {
@@ -69,10 +70,6 @@ static void print_snap(snap *snap, trace *t) {
   printf("]\n");
 }
 
-const char *reg_names[] = {
-    "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi", "r8 ",
-    "r9 ", "r10", "r11", "r12", "r13", "r14", "r15", "   ",
-};
 void print_ir(trace *t) {
   uint64_t cur_snap = 0;
   for (size_t i = 0; i < arrlen_ins(t->ins) + 1 /* last snap */; i++) {
@@ -86,7 +83,7 @@ void print_ir(trace *t) {
     ir_ins *ins = &t->ins[i];
     printf("%04zu", i);
     if (ins->reg != REG_NONE) {
-      printf(" %s", reg_names[ins->reg]);
+      printf(" %-3s", reg_names[ins->reg]);
     } else {
       printf("    ");
     }

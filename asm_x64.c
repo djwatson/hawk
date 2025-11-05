@@ -11,6 +11,18 @@
 
 extern uint8_t *p;
 
+const char *const reg_names[MAX_REG] = {
+#define X(name) #name,
+  ASM_X64_REGISTER_LIST(X)
+#undef X
+};
+
+void asm_mark_unallocatable(bool used[MAX_REG]) {
+  used[RSP] = true;
+  used[RTMP] = true;
+  used[RSTACK] = true;
+}
+
 static uint8_t low3bits(uint8_t r) { return 0x7 & r; }
 
 uint8_t callee_save[] = {RBX, RBP, R12, R13, R14, R15};

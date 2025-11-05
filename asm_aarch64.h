@@ -4,27 +4,55 @@
 
 #include <stdint.h>
 
-enum registers : uint8_t {
-  RAX = 0,
-  RCX = 1,
-  RDX = 2,
-  RBX = 3,
-  RSP = 4,
-  RBP = 5,
-  RSI = 6,
-  RDI = 7,
-  R8 = 8,
-  R9 = 9,
-  R10 = 10,
-  R11 = 11,
-  R12 = 12,
-  R13 = 13,
-  R14 = 14,
-  R15 = 15,
-  MAX_REG = 16,
+#define ASM_AARCH64_REGISTER_LIST(X)                                           \
+  X(X0)                                                                        \
+  X(X1)                                                                        \
+  X(X2)                                                                        \
+  X(X3)                                                                        \
+  X(X4)                                                                        \
+  X(X5)                                                                        \
+  X(X6)                                                                        \
+  X(X7)                                                                        \
+  X(X8)                                                                        \
+  X(X9)                                                                        \
+  X(X10)                                                                       \
+  X(X11)                                                                       \
+  X(X12)                                                                       \
+  X(X13)                                                                       \
+  X(X14)                                                                       \
+  X(X15)                                                                       \
+  X(X16)                                                                       \
+  X(X17)                                                                       \
+  X(X18)                                                                       \
+  X(X19)                                                                       \
+  X(X20)                                                                       \
+  X(X21)                                                                       \
+  X(X22)                                                                       \
+  X(X23)                                                                       \
+  X(X24)                                                                       \
+  X(X25)                                                                       \
+  X(X26)                                                                       \
+  X(X27)                                                                       \
+  X(X28)                                                                       \
+  X(X29)                                                                       \
+  X(X30)                                                                       \
+  X(XZR)
 
-  RET_REG = RAX,
+enum registers : uint8_t {
+#define X(name) name,
+  ASM_AARCH64_REGISTER_LIST(X)
+#undef X
+      MAX_REG,
+
+  RET_REG = X0,
+  RSTACK = X6,
+  RTMP = X7,
+  FP = X29,
+  LR = X30,
+  SP = XZR,
 };
+
+void asm_mark_unallocatable(bool used[MAX_REG]);
 
 enum ARITH_CODES {
   ASM_ARITH_ADD = 0,
@@ -128,3 +156,5 @@ void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm);
 void emit_cmp_reg_imm32(uint8_t r, int32_t imm);
 void emit_cmp_mem32_imm32(int32_t offset, uint8_t r1, int32_t imm);
 void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm);
+
+extern const char *const reg_names[MAX_REG];

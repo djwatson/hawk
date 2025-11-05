@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-Project uses c23, including 'auto'.
+Project uses c23, including 'auto'.  no need to include stdbool.h, c23 includes bool by default.
 
 ## Build, Test, and Development Commands
 
@@ -11,5 +11,6 @@ Project uses c23, including 'auto'.
 - Keep comments concise; add explanatory comments only for non-obvious control flow or GC interactions.
 
 ## Testing Guidelines
+build with `cmake --build build`.  You can build aarch64 with `cmake --build build_aarch64`
 
 ## Commit & Pull Request Guidelines
