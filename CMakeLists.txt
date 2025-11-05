@@ -19,9 +19,14 @@ add_executable(
   vec.c
   ir.c
   alloc_table.c
+  emit.c
+  asm_x64.c
+  x64.c
   util/bitset.c
   util/list.c
 )
+
+target_link_libraries(hawk PRIVATE capstone)
 
 #set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 

@@ -88,3 +88,5 @@ VEC_TYPE_DEF(ins, ir_ins);
 VEC_TYPE_DEF(consts, gc_obj);
 VEC_TYPE_DEF(snap, snap);
 VEC_TYPE_DEF(snap_entry, snap_entry);
+
+extern char *ir_names[];

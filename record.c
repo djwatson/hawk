@@ -6,6 +6,7 @@
 #include "string.h"
 #include "types.h"
 #include "vec.h"
+#include "emit.h"
 
 typedef struct {
   bool changed;
@@ -224,6 +225,7 @@ static  void *check_record_start(bc *pc, gc_obj *stack, void *op_table) {
     vm_add_snap(pc);
     printf("Record done\n");
     print_ir(cur_trace);
+    emit(cur_trace);
     exit(0);
     return impls;
   }
