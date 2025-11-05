@@ -13,7 +13,7 @@ extern uint8_t *p;
 
 const char *const reg_names[MAX_REG] = {
 #define X(name) #name,
-  ASM_AARCH64_REGISTER_LIST(X)
+    ASM_AARCH64_REGISTER_LIST(X)
 #undef X
 };
 
@@ -107,7 +107,14 @@ void save_callee_regs() { printf("TODO save callee save \n"); }
 
 void emit_ret() { emit_op(0xD65F03C0); }
 
-void emit_jmp32(int32_t offset) { printf("TODO jmp32 \n"); }
+void emit_jmp32(int32_t offset) {
+  int64_t delta = (int64_t)offset + 4;
+  assert((delta & 0x3) == 0);
+  int64_t imm26 = delta / 4;
+  assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
+  uint32_t opcode = 0x14000000u | ((uint32_t)imm26 & 0x03ffffffu);
+  emit_op(opcode);
+}
 static uint32_t movz_opcode(uint8_t rd, uint16_t imm16, uint8_t chunk) {
   assert(rd < 31);
   assert(chunk < 4);
@@ -157,7 +164,6 @@ static int find_first_nonzero_index(const uint16_t *chunks) {
 
 // Load a 64-bit constant into a register, mirroring GAS priority.
 void emit_mov64(uint8_t rd, int64_t imm) {
-  printf("Emit mov64:0x%lx\n", imm);
   assert(rd < 31);
   uint64_t value = (uint64_t)imm;
 
