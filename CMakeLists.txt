@@ -9,6 +9,11 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 #set(CMAKE_C_CLANG_TIDY "clang-tidy")
 
+set(ASM_SOURCE asm_x64.c)
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+  set(ASM_SOURCE asm_aarch64.c)
+endif()
+
 add_executable(
   hawk
   hawk.c
@@ -20,7 +25,7 @@ add_executable(
   ir.c
   alloc_table.c
   emit.c
-  asm_x64.c
+  ${ASM_SOURCE}
   zone_alloc.c
   hashtable.c
   disassemble.c

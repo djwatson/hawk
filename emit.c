@@ -4,7 +4,7 @@
 #include <string.h>
 #include <sys/mman.h>
 
-#include "asm_x64.h"
+#include "asm.h"
 #include "disassemble.h"
 #include "ir.h"
 
