@@ -8,11 +8,11 @@
 typedef struct {
   size_t len;
   size_t cap;
-} arr_header_t;
+} vec_header_t;
 
 void arr_grow(void **arr, size_t elemsize, size_t min_cap);
 
-arr_header_t *arr_header(void *arr);
+vec_header_t *vec_header(void *arr);
 
 // Yet another dynamic vector implementation.
 // This one uses real functions, so that it doesn't piss off any linters.
@@ -33,37 +33,37 @@ arr_header_t *arr_header(void *arr);
 #define VEC_TYPE_IMPL(name, dtype)                                             \
   void arrfree_##name(dtype **arr) {                                           \
     if (*arr) {                                                                \
-      free(arr_header(*arr));                                                  \
+      free(vec_header(*arr));                                                  \
       *arr = nullptr;                                                          \
     }                                                                          \
   }                                                                            \
   size_t arrlen_##name(dtype *arr) {                                           \
     if (arr) {                                                                 \
-      return arr_header(arr)->len;                                             \
+      return vec_header(arr)->len;                                             \
     }                                                                          \
     return 0;                                                                  \
   }                                                                            \
   void arrsetlen_##name(dtype **arr, size_t len) {                             \
-    if ((*arr) == nullptr || len > arr_header(*arr)->cap) {                    \
+    if ((*arr) == nullptr || len > vec_header(*arr)->cap) {                    \
       arr_grow((void **)arr, sizeof(dtype), len);                              \
     }                                                                          \
-    arr_header(*arr)->len = len;                                               \
+    vec_header(*arr)->len = len;                                               \
   }                                                                            \
   void arrpush_##name(dtype **arr, dtype v) {                                  \
     if ((*arr) == nullptr ||                                                   \
-        arr_header(*arr)->len + 1 > arr_header(*arr)->cap) {                   \
+        vec_header(*arr)->len + 1 > vec_header(*arr)->cap) {                   \
       arr_grow((void **)arr, sizeof(dtype),                                    \
-               *arr ? (arr_header(*arr)->len + 1) : 1);                        \
+               *arr ? (vec_header(*arr)->len + 1) : 1);                        \
     }                                                                          \
-    (*arr)[arr_header(*arr)->len++] = v;                                       \
+    (*arr)[vec_header(*arr)->len++] = v;                                       \
   }                                                                            \
   dtype arrpop_##name(dtype *arr) {                                            \
     assert(arr);                                                               \
-    auto h = arr_header(arr);                                                  \
+    auto h = vec_header(arr);                                                  \
     return arr[--h->len];                                                      \
   }                                                                            \
   dtype arrlast_##name(dtype *arr) {                                           \
     assert(arr);                                                               \
-    auto h = arr_header(arr);                                                  \
+    auto h = vec_header(arr);                                                  \
     return arr[h->len - 1];                                                    \
   }

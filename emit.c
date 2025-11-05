@@ -6,31 +6,7 @@
 
 #include "ir.h"
 #include "x64.h"
-
-static void disassemble(const uint8_t *code, int len) {
-  csh handle;
-  cs_insn *insn;
-  size_t count;
-
-  if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK) {
-    return;
-  }
-  cs_option(handle, CS_OPT_SYNTAX, CS_OPT_SYNTAX_INTEL); // Set Intel syntax
-  count = cs_disasm(handle, code, len, (uint64_t)code, 0, &insn);
-  if (count > 0) {
-    size_t j;
-    for (j = 0; j < count; j++) {
-      printf("0x%" PRIx64 ":\t%s\t\t%s\n", insn[j].address, insn[j].mnemonic,
-             insn[j].op_str);
-    }
-
-    cs_free(insn, count);
-  } else {
-    printf("ERROR: Failed to disassemble given code!\n");
-  }
-
-  cs_close(&handle);
-}
+#include "disassemble.h"
 
 typedef struct {
   uint16_t s;
@@ -116,7 +92,7 @@ void emit(trace* t) {
     switch (op->op) {
       default: {
       printf("Can't jit op: %s\n", ir_names[op->op]);
-      exit(-1);
+      //exit(-1);
       }
     }
   }

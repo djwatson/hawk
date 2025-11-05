@@ -22,6 +22,10 @@ add_executable(
   emit.c
   asm_x64.c
   x64.c
+  zone_alloc.c
+  hashtable.c
+  disassemble.c
+  array.c
   util/bitset.c
   util/list.c
 )

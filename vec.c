@@ -4,11 +4,11 @@
 
 #include <stdio.h>
 
-arr_header_t *arr_header(void *arr) { return (arr_header_t *)arr - 1; }
+vec_header_t *vec_header(void *arr) { return (vec_header_t *)arr - 1; }
 void arr_grow(void **arr, size_t elemsize, size_t min_cap) {
-  arr_header_t *h = nullptr;
+  vec_header_t *h = nullptr;
   if (*arr) {
-    h = arr_header(*arr);
+    h = vec_header(*arr);
   }
   size_t new_cap = min_cap;
   if (h && new_cap < h->cap * 2) {
@@ -17,7 +17,7 @@ void arr_grow(void **arr, size_t elemsize, size_t min_cap) {
   if (new_cap < 4) {
     new_cap = 4;
   }
-  arr_header_t *res = realloc(h, sizeof(arr_header_t) + (elemsize * new_cap));
+  vec_header_t *res = realloc(h, sizeof(vec_header_t) + (elemsize * new_cap));
   if (!res) {
     printf("Can't realloc arr_grow\n");
     abort();
