@@ -4,9 +4,9 @@
 #include <string.h>
 #include <sys/mman.h>
 
+#include "asm_x64.h"
 #include "disassemble.h"
 #include "ir.h"
-#include "x64.h"
 
 typedef struct {
   uint16_t s;
@@ -122,6 +122,7 @@ void emit(trace *t) {
   for (uint64_t i = arrlen_snap(t->snaps); i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
     emit_jmp32((int32_t)(exit_label - emit_offset()));
+    // TODO this needs to be a FLUSH of the snapshot.
     emit_mov64(RET_REG, i - 1);
     snap_labels[i - 1] = emit_offset();
   }
@@ -184,8 +185,8 @@ void emit(trace *t) {
       if (!op->op1.constant) {
         reg = t->ins[op->op1.loc].reg;
       }
-      emit_jcc32(0x85, snap_labels[cur_snap]);
-      emit_reg_reg(0x39, reg, t->ins[op->op2.loc].reg);
+      emit_jcc32(JNE, snap_labels[cur_snap]);
+      emit_reg_reg(ASM_CMP, reg, t->ins[op->op2.loc].reg);
       if (op->op1.constant) {
         emit_mov64(R15, t->consts[op->op1.loc].value);
       }
@@ -193,15 +194,55 @@ void emit(trace *t) {
     }
     case IR_LOAD: {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
+      assert(!op->op1.constant);
+      emit_mem_reg(ASM_MOV_MR, (uint16_t)op->op2.loc + 8,
+                   t->ins[op->op1.loc].reg, op->reg);
       break;
     }
-    case IR_LT:
+    case IR_LT: {
+      maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
+      maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
+      assert(!op->op1.constant);
+      uint8_t op2_reg = R15;
+      if (!op->op2.constant) {
+        op2_reg = t->ins[op->op1.loc].reg;
+      }
+
+      auto lt_fin = emit_offset();
+      emit_mov64(op->reg, TRUE_REP.value);
+      auto tr = emit_offset();
+      // whacky why does jmp32 take absolute, and jcc32 take relative?
+      // TODO make this set instead?
+      emit_jmp32(lt_fin - emit_offset());
+      emit_mov64(op->reg, FALSE_REP.value);
+      emit_jcc32(JL, tr);
+      emit_reg_reg(ASM_CMP, op2_reg, t->ins[op->op1.loc].reg);
+      if (op->op2.constant) {
+        emit_mov64(R15, t->consts[op->op2.loc].value);
+      }
+      break;
+    }
     case IR_SUB: {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
+      assert(!op->op1.constant);
+      uint8_t reg = R15;
+      if (!op->op2.constant) {
+        reg = t->ins[op->op2.loc].reg;
+      } else {
+        assert(t->ins[op->op2.loc].reg != op->reg);
+      }
+      emit_reg_reg(ASM_SUB, reg, op->reg);
+      if (t->ins[op->op1.loc].reg != op->reg) {
+        emit_reg_reg(ASM_MOV, t->ins[op->op1.loc].reg, op->reg);
+      }
+      if (op->op2.constant) {
+        emit_mov64(R15, t->consts[op->op2.loc].value);
+      }
       break;
     }
     case IR_SLOAD: {
+      emit_mem_reg(ASM_MOV_MR, op->data * 8, RDI, op->reg);
       break;
     }
     case IR_GGET: {

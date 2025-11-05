@@ -23,6 +23,7 @@ static const size_t msize = page_cnt * 4096;
 
 static uint8_t low3bits(uint8_t r) { return 0x7 & r; }
 
+uint8_t callee_save[] = {RBX, RBP, R12, R13, R14, R15};
 /////////////////// instruction encoding
 
 void emit_rex(uint8_t w, uint8_t r, uint8_t x, uint8_t b) {
@@ -315,6 +316,17 @@ void emit_init() {
   assert(mtop);
   p = mtop + msize;
   mend = p;
+}
+
+void restore_callee_regs() {
+  for (uint8_t i = 0; i < 5; i++) {
+    emit_pop(callee_save[i]);
+  }
+}
+void save_callee_regs() {
+  for (uint8_t i = 5; i > 0; i--) {
+    emit_push(callee_save[i - 1]);
+  }
 }
 
 /*

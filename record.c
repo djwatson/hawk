@@ -181,7 +181,7 @@ static bc *branch_if_false(bc *pc, gc_obj *stack, slot b) {
   return pc;
 }
 static slot closure_get(slot clo, uint8_t pos) {
-  slot c_pos = (slot){.constant = true, .loc = pos};
+  slot c_pos = (slot){.constant = true, .loc = pos + 8};
 
   ir_ins ins = (ir_ins){.op = IR_LOAD,
                         .op1 = clo,
