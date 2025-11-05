@@ -13,9 +13,94 @@ typedef struct {
   bool used;
 } regmap;
 
-static void assign_snap_registers(size_t cur_snap , regmap* regs, trace* t, uint32_t *next_spill) {}
-static void maybe_assign_register(uint16_t v, trace *trace, regmap *slot,
-                                  uint32_t *next_spill) {}
+static void assign_snap_registers(size_t snap_num, regmap *regs, trace *t,
+                                  uint32_t *next_spill) {
+  // Get a free register, if any.  If already assigned a slot, do nothing.
+  // If no free registers, assign a slot.
+  auto snap = &t->snaps[snap_num];
+  for (uint64_t i = 0; i < arrlen_snap_entry(snap->slots); i++) {
+    auto s = &snap->slots[i];
+    if (s->val.constant) {
+      continue;
+    }
+    auto op = &t->ins[s->val.loc];
+    if (op->reg != REG_NONE || op->spill != SPILL_NONE) {
+      continue;
+    }
+    // Try and find a free reg, or assign the next spill slot.
+    bool done = false;
+    for (int j = 0; j < MAX_REG; j++) {
+      if (!regs[j].used) {
+        op->reg = j;
+        regs[op->reg].s = s->val.loc;
+	regs[op->reg].used = true;
+        done = true;
+        //lru_poke(&reg_lru, op->reg);
+        /* printf("Assigning snap register %s to op %i\n",
+         * reg_names[op->reg], s->val); */
+        break;
+      }
+    }
+    if (!done) {
+      // Couldn't find a free reg, assign a slot.
+      op->spill = (*next_spill)++;
+      /* printf("Assigning snap slot %i to op %i\n", op->slot, s->val); */
+      assert(*next_spill < 255);
+      //check_spill_cnt(*next_spill);
+    }
+  }
+}
+// Get a specific reg, spilling if necessary.
+static void get_reg(uint8_t reg, trace *trace, uint32_t *next_spill,
+                    regmap *slot) {
+  if (slot[reg].used) {
+    /* // printf("Spilling reg %s\n", reg_names[reg]); */
+    /* auto op = slot[reg]; */
+    /* assert(trace->ops[op].reg != REG_NONE); */
+
+    /* auto spill = trace->ops[op].slot; */
+    /* if (trace->ops[op].slot == SLOT_NONE) { */
+    /*   spill = (*next_spill)++; */
+    /*   check_spill_cnt(*next_spill); */
+    /* } */
+
+    /* trace->ops[op].slot = spill; */
+    /* emit_mem_reg(OP_MOV_MR, 0, R15, trace->ops[op].reg); */
+    /* emit_mov64(R15, (int64_t)&spill_slot[trace->ops[op].slot]); */
+    /* trace->ops[op].reg = REG_NONE; */
+    /* slot[reg] = -1; */
+    /* lru_poke(&reg_lru, reg); */
+    abort();
+  }
+  slot[reg].used = true;
+}
+static int get_free_reg(trace *trace, uint32_t *next_spill, regmap *slot,
+                        bool callee) {
+  for (int i = 0; i < MAX_REG; i++) {
+    if (!slot[i].used) {
+      return i;
+    }
+  }
+
+  abort();
+  // Spill.
+
+  //get_reg(oldest, trace, next_spill, slot);
+  //return oldest;
+}
+static void maybe_assign_register(slot v, trace *trace, regmap *slot,
+                                  uint32_t *next_spill) {
+  if (!v.constant) {
+    auto op = &trace->ins[v.loc];
+    if (op->reg == REG_NONE) {
+      op->reg = get_free_reg(trace, next_spill, slot, false);
+      slot[op->reg].s = v.loc;
+      slot[op->reg].used = true;
+    }
+    // TODO
+    //lru_poke(&reg_lru, op->reg);
+  }
+}
 
 void emit(trace* t) {
   // TODO move init somewhere else
@@ -70,7 +155,7 @@ void emit(trace* t) {
     // Check for spill
     if (op->spill != SPILL_NONE) {
       if (op->reg == REG_NONE) {
-        maybe_assign_register(op_cnt, t, reg_to_slot, &next_spill);
+        maybe_assign_register((slot){.constant = false, .loc = op_cnt}, t, reg_to_slot, &next_spill);
       }
       // printf("Spilling op %li to slot %i from reg %s\n", op_cnt, op->slot,
       // reg_names[op->reg]);
@@ -90,7 +175,28 @@ void emit(trace* t) {
 
     emit_check();
     switch (op->op) {
-      default: {
+    case IR_GUARD_EQ:{
+      maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
+      maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
+      break;
+    }
+    case IR_LOAD:{
+      maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
+      break;
+    }
+    case IR_LT:
+    case IR_SUB:{
+      maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
+      maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
+      break;
+    }
+    case IR_SLOAD: {
+      break;
+    }
+    case IR_GGET: {
+      break;
+    }
+    default: {
       printf("Can't jit op: %s\n", ir_names[op->op]);
       //exit(-1);
       }

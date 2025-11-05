@@ -224,8 +224,8 @@ static  void *check_record_start(bc *pc, gc_obj *stack, void *op_table) {
   if (pc == ts.start_ins) {
     vm_add_snap(pc);
     printf("Record done\n");
-    print_ir(cur_trace);
     emit(cur_trace);
+    print_ir(cur_trace);
     exit(0);
     return impls;
   }
