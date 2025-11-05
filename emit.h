@@ -2,4 +2,4 @@
 
 #include "ir.h"
 
-void emit(trace* t);
+void emit(trace *t);

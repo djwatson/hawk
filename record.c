@@ -1,12 +1,12 @@
 #include <stdlib.h>
 
 #include "bc.h"
+#include "emit.h"
 #include "hawk.h"
 #include "ir.h"
 #include "string.h"
 #include "types.h"
 #include "vec.h"
-#include "emit.h"
 
 typedef struct {
   bool changed;
@@ -48,9 +48,9 @@ extern op_func record_impls[OP_INS_MAX];
 
 static void vm_add_snap(bc *pc) {
   snap snap = {.pc = pc,
-                 .offset = ts.stack_off,
-                 .ir = arrlen_ins(cur_trace->ins),
-                 .exits = 0};
+               .offset = ts.stack_off,
+               .ir = arrlen_ins(cur_trace->ins),
+               .exits = 0};
   for (size_t i = 0; i < arrlen_sentry(ts.stack); i++) {
     if (ts.stack[i].changed && ts.stack[i].live) {
       snap_entry entry = {.slot = (uint16_t)i, .val = ts.stack[i].loc};
@@ -69,7 +69,7 @@ static sentry *get_sentry(uint64_t idx) {
   return &ts.stack[idx + ts.stack_off];
 }
 
-static  slot stack_load(gc_obj *stack, uint8_t pos) {
+static slot stack_load(gc_obj *stack, uint8_t pos) {
   auto entry = get_sentry(pos);
   if (entry->live) {
     return entry->loc;
@@ -89,13 +89,13 @@ static  slot stack_load(gc_obj *stack, uint8_t pos) {
   entry->loc = n;
   return n;
 }
-static  void stack_save(gc_obj *stack, uint8_t pos, slot res) {
+static void stack_save(gc_obj *stack, uint8_t pos, slot res) {
   auto entry = get_sentry(pos);
   entry->live = true;
   entry->changed = true;
   entry->loc = res;
 }
-static  slot const_load(bc *pc, uint16_t offset) {
+static slot const_load(bc *pc, uint16_t offset) {
   // We use a non-moving gc, so this is just a runtime constant, always.
   auto c = *(gc_obj *)(pc - pc->data);
   // Save it to consts array
@@ -103,7 +103,7 @@ static  slot const_load(bc *pc, uint16_t offset) {
   arrpush_consts(&cur_trace->consts, c);
   return (slot){.constant = true, .loc = idx};
 }
-static  slot emit_ov_math_add(slot v1, slot v2) {
+static slot emit_ov_math_add(slot v1, slot v2) {
   // TODO fold for consts.
   ir_ins ins = (ir_ins){
       .op = IR_ADD, .op1 = v1, .op2 = v2, .reg = REG_NONE, .spill = SPILL_NONE};
@@ -111,7 +111,7 @@ static  slot emit_ov_math_add(slot v1, slot v2) {
   arrpush_ins(&cur_trace->ins, ins);
   return (slot){.constant = false, .loc = idx};
 }
-static  slot emit_ov_math_sub(slot v1, slot v2) {
+static slot emit_ov_math_sub(slot v1, slot v2) {
   // TODO fold for consts.
   ir_ins ins = (ir_ins){
       .op = IR_SUB, .op1 = v1, .op2 = v2, .reg = REG_NONE, .spill = SPILL_NONE};
@@ -119,7 +119,7 @@ static  slot emit_ov_math_sub(slot v1, slot v2) {
   arrpush_ins(&cur_trace->ins, ins);
   return (slot){.constant = false, .loc = idx};
 }
-static  slot emit_math_cmp_lt(slot v1, slot v2) {
+static slot emit_math_cmp_lt(slot v1, slot v2) {
   // TODO fold for consts.
   ir_ins ins = (ir_ins){
       .op = IR_LT, .op1 = v1, .op2 = v2, .reg = REG_NONE, .spill = SPILL_NONE};
@@ -127,8 +127,8 @@ static  slot emit_math_cmp_lt(slot v1, slot v2) {
   arrpush_ins(&cur_trace->ins, ins);
   return (slot){.constant = false, .loc = idx};
 }
-static  void ensure_symbol(slot val) {}
-static  slot constify_data(uint16_t data) {
+static void ensure_symbol(slot val) {}
+static slot constify_data(uint16_t data) {
   // Save in constants array
   auto idx = arrlen_consts(cur_trace->consts);
   gc_obj c = (gc_obj){.value = data};
@@ -138,20 +138,20 @@ static  slot constify_data(uint16_t data) {
   slot n = (slot){.constant = true, .loc = idx};
   return n;
 }
-static  frame_state return_frame(bc *pc, gc_obj *stack) {
+static frame_state return_frame(bc *pc, gc_obj *stack) {
   // TODO
   vm_add_snap(pc);
   printf("return_frame\n");
   abort();
   return (frame_state){pc, stack};
 }
-static  bc *next_op(bc *pc) { return pc; }
-static  gc_obj halt(gc_obj *stack) {
+static bc *next_op(bc *pc) { return pc; }
+static gc_obj halt(gc_obj *stack) {
   printf("DONE\n");
   return stack[0];
 }
 
-static  slot sym_load(slot sym) {
+static slot sym_load(slot sym) {
   ir_ins ins =
       (ir_ins){.op = IR_GGET, .op1 = sym, .reg = REG_NONE, .spill = SPILL_NONE};
   auto idx = arrlen_ins(cur_trace->ins);
@@ -159,9 +159,9 @@ static  slot sym_load(slot sym) {
 
   return (slot){.constant = false, .loc = idx};
 }
-static  void prepare_call(gc_obj fun) { printf("prepare call\n"); }
-static  void check_arity(gc_obj fun, gc_obj args) {}
-static  bc *branch_if_false(bc *pc, gc_obj *stack, slot b) {
+static void prepare_call(gc_obj fun) { printf("prepare call\n"); }
+static void check_arity(gc_obj fun, gc_obj args) {}
+static bc *branch_if_false(bc *pc, gc_obj *stack, slot b) {
   // TODO: move AFTER branch
   vm_add_snap(pc);
   // We're going to directly peek at the stack here.
@@ -180,7 +180,7 @@ static  bc *branch_if_false(bc *pc, gc_obj *stack, slot b) {
 
   return pc;
 }
-static  slot closure_get(slot clo, uint8_t pos) {
+static slot closure_get(slot clo, uint8_t pos) {
   slot c_pos = (slot){.constant = true, .loc = pos};
 
   ir_ins ins = (ir_ins){.op = IR_LOAD,
@@ -192,17 +192,17 @@ static  slot closure_get(slot clo, uint8_t pos) {
   arrpush_ins(&cur_trace->ins, ins);
   return (slot){.constant = false, .loc = idx};
 }
-static  slot return_address(bc *ra) {
+static slot return_address(bc *ra) {
   auto c_idx = arrlen_consts(cur_trace->consts);
   arrpush_consts(&cur_trace->consts, tag_return_address(ra));
   return (slot){.constant = true, .loc = c_idx};
 }
-static  gc_obj *adjust_stack_depth(gc_obj *stack, int depth) {
+static gc_obj *adjust_stack_depth(gc_obj *stack, int depth) {
   ts.stack_off += depth;
   ts.depth++;
   return stack;
 }
-static  bc *set_new_pc(bc *pc, gc_obj *stack, slot func) {
+static bc *set_new_pc(bc *pc, gc_obj *stack, slot func) {
   if (!func.constant) {
     // Func isn't a constant, we need a runtime check.
     // Peek at destination
@@ -220,7 +220,7 @@ static  bc *set_new_pc(bc *pc, gc_obj *stack, slot func) {
 
   return pc;
 }
-static  void *check_record_start(bc *pc, gc_obj *stack, void *op_table) {
+static void *check_record_start(bc *pc, gc_obj *stack, void *op_table) {
   if (pc == ts.start_ins) {
     vm_add_snap(pc);
     printf("Record done\n");

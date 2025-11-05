@@ -2,7 +2,6 @@
 
 #pragma once
 
-
 #include <stdint.h>
 
 #include "x64.h"

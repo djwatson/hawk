@@ -50,7 +50,7 @@ char *ir_names[] = {
 #undef X
 };
 
-static void print_snap(snap *snap, trace* t) {
+static void print_snap(snap *snap, trace *t) {
   printf("SNAP[ir=%i pc=%p off=%i", snap->ir, snap->pc, snap->offset);
   uint64_t frame = snap->offset - 1;
   for (uint64_t j = arrlen_snap_entry(snap->slots); j != 0; j--) {
@@ -70,23 +70,8 @@ static void print_snap(snap *snap, trace* t) {
 }
 
 const char *reg_names[] = {
-  "rax",
-  "rcx",
-  "rdx",
-  "rbx",
-  "rsp",
-  "rbp",
-  "rsi",
-  "rdi",
-  "r8 ",
-  "r9 ",
-  "r10",
-  "r11",
-  "r12",
-  "r13",
-  "r14",
-  "r15",
-  "   ",
+    "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi", "r8 ",
+    "r9 ", "r10", "r11", "r12", "r13", "r14", "r15", "   ",
 };
 void print_ir(trace *t) {
   uint64_t cur_snap = 0;

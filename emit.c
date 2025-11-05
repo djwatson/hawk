@@ -1,12 +1,12 @@
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
 
-#include <sys/mman.h>
-#include <string.h>
 #include <assert.h>
+#include <string.h>
+#include <sys/mman.h>
 
+#include "disassemble.h"
 #include "ir.h"
 #include "x64.h"
-#include "disassemble.h"
 
 typedef struct {
   uint16_t s;
@@ -33,9 +33,9 @@ static void assign_snap_registers(size_t snap_num, regmap *regs, trace *t,
       if (!regs[j].used) {
         op->reg = j;
         regs[op->reg].s = s->val.loc;
-	regs[op->reg].used = true;
+        regs[op->reg].used = true;
         done = true;
-        //lru_poke(&reg_lru, op->reg);
+        // lru_poke(&reg_lru, op->reg);
         /* printf("Assigning snap register %s to op %i\n",
          * reg_names[op->reg], s->val); */
         break;
@@ -46,7 +46,7 @@ static void assign_snap_registers(size_t snap_num, regmap *regs, trace *t,
       op->spill = (*next_spill)++;
       /* printf("Assigning snap slot %i to op %i\n", op->slot, s->val); */
       assert(*next_spill < 255);
-      //check_spill_cnt(*next_spill);
+      // check_spill_cnt(*next_spill);
     }
   }
 }
@@ -85,8 +85,8 @@ static int get_free_reg(trace *trace, uint32_t *next_spill, regmap *slot,
   abort();
   // Spill.
 
-  //get_reg(oldest, trace, next_spill, slot);
-  //return oldest;
+  // get_reg(oldest, trace, next_spill, slot);
+  // return oldest;
 }
 static void maybe_assign_register(slot v, trace *trace, regmap *slot,
                                   uint32_t *next_spill) {
@@ -98,11 +98,11 @@ static void maybe_assign_register(slot v, trace *trace, regmap *slot,
       slot[op->reg].used = true;
     }
     // TODO
-    //lru_poke(&reg_lru, op->reg);
+    // lru_poke(&reg_lru, op->reg);
   }
 }
 
-void emit(trace* t) {
+void emit(trace *t) {
   // TODO move init somewhere else
   emit_init();
   regmap reg_to_slot[MAX_REG];
@@ -114,14 +114,13 @@ void emit(trace* t) {
   reg_to_slot[RDI].used = true;
   reg_to_slot[RBX].used = true;
 
-
-  long*snap_labels = malloc(sizeof(long) * arrlen_snap(t->snaps));
+  long *snap_labels = malloc(sizeof(long) * arrlen_snap(t->snaps));
   auto end = emit_offset();
   emit_ret();
   restore_callee_regs();
   auto exit_label = emit_offset();
-  for(uint64_t i = arrlen_snap(t->snaps); i > 0; i--) {
-    snap* snap = &t->snaps[i-1];
+  for (uint64_t i = arrlen_snap(t->snaps); i > 0; i--) {
+    snap *snap = &t->snaps[i - 1];
     emit_jmp32((int32_t)(exit_label - emit_offset()));
     emit_mov64(RET_REG, i - 1);
     snap_labels[i - 1] = emit_offset();
@@ -135,8 +134,9 @@ void emit(trace* t) {
   // checking for stack size (eventually)
 
   // No loopback to start:
-  emit_jmp32((int32_t)(snap_labels[(arrlen_snap(t->snaps)-1)] - emit_offset()));
-  
+  emit_jmp32(
+      (int32_t)(snap_labels[(arrlen_snap(t->snaps) - 1)] - emit_offset()));
+
   size_t cur_snap = arrlen_snap(t->snaps) - 1;
   auto op_cnt_idx = arrlen_ins(t->ins);
   uint32_t next_spill = 0;
@@ -155,7 +155,8 @@ void emit(trace* t) {
     // Check for spill
     if (op->spill != SPILL_NONE) {
       if (op->reg == REG_NONE) {
-        maybe_assign_register((slot){.constant = false, .loc = op_cnt}, t, reg_to_slot, &next_spill);
+        maybe_assign_register((slot){.constant = false, .loc = op_cnt}, t,
+                              reg_to_slot, &next_spill);
       }
       // printf("Spilling op %li to slot %i from reg %s\n", op_cnt, op->slot,
       // reg_names[op->reg]);
@@ -175,27 +176,27 @@ void emit(trace* t) {
 
     emit_check();
     switch (op->op) {
-    case IR_GUARD_EQ:{
+    case IR_GUARD_EQ: {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
       assert(!op->op2.constant);
       uint8_t reg = R15;
       if (!op->op1.constant) {
-	reg = t->ins[op->op1.loc].reg;
+        reg = t->ins[op->op1.loc].reg;
       }
       emit_jcc32(0x85, snap_labels[cur_snap]);
       emit_reg_reg(0x39, reg, t->ins[op->op2.loc].reg);
       if (op->op1.constant) {
-	emit_mov64(R15, t->consts[op->op1.loc].value);
+        emit_mov64(R15, t->consts[op->op1.loc].value);
       }
       break;
     }
-    case IR_LOAD:{
+    case IR_LOAD: {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       break;
     }
     case IR_LT:
-    case IR_SUB:{
+    case IR_SUB: {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
       break;
@@ -208,8 +209,8 @@ void emit(trace* t) {
     }
     default: {
       printf("Can't jit op: %s\n", ir_names[op->op]);
-      //exit(-1);
-      }
+      // exit(-1);
+    }
     }
   }
   free(snap_labels);
@@ -218,7 +219,7 @@ void emit(trace* t) {
   save_callee_regs();
 
   auto sz = end - emit_offset();
-  disassemble((uint8_t*)emit_offset(), sz);
+  disassemble((uint8_t *)emit_offset(), sz);
   // emit and done
   // patch if side trace
 }

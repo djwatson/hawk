@@ -21,9 +21,8 @@ enum registers : uint8_t {
   R15 = 15,
   MAX_REG = 16,
 
-    RET_REG = RAX,
+  RET_REG = RAX,
 };
-
 
 void restore_callee_regs();
 void save_callee_regs();
@@ -73,5 +72,3 @@ enum jcc_cond {
   JS = 0x88,
 };
 void emit_jcc32(enum jcc_cond cond, int64_t offset);
-
-
