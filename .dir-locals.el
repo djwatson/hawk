@@ -1,2 +1,3 @@
-((c-mode . ((before-save-hook . (my-c-mode-format-on-save))))
+((c-mode . ((eval . (add-hook 'before-save-hook #'my-c-mode-format-on-save nil t)))))
+
 
