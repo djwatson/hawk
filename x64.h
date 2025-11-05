@@ -38,3 +38,40 @@ int64_t emit_offset();
 void emit_advance(int64_t offset);
 void emit_bind(uint64_t label, uint64_t jmp);
 void emit_check();
+void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst);
+
+enum jcc_cond {
+  JA = 0x87,
+  JAE = 0x83,
+  JB = 0x82,
+  JBE = 0x86,
+  JC = 0x82,
+  JE = 0x84,
+  JZ = 0x84,
+  JG = 0x8f,
+  JGE = 0x8d,
+  JL = 0x8c,
+  JLE = 0x8e,
+  JNA = 0x86,
+  JNAE = 0x82,
+  JNB = 0x83,
+  JBC = 0x83,
+  JNC = 0x83,
+  JNE = 0x85,
+  JNG = 0x8e,
+  JNGE = 0x8c,
+  JNL = 0x8b,
+  JNLE = 0x8f,
+  JNO = 0x81,
+  JNP = 0x8b,
+  JNS = 0x89,
+  JNZ = 0x85,
+  JO = 0x80,
+  JP = 0x8a,
+  JPE = 0x8a,
+  JPO = 0x8b,
+  JS = 0x88,
+};
+void emit_jcc32(enum jcc_cond cond, int64_t offset);
+
+

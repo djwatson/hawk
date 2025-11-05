@@ -178,6 +178,16 @@ void emit(trace* t) {
     case IR_GUARD_EQ:{
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
+      assert(!op->op2.constant);
+      uint8_t reg = R15;
+      if (!op->op1.constant) {
+	reg = t->ins[op->op1.loc].reg;
+      }
+      emit_jcc32(0x85, snap_labels[cur_snap]);
+      emit_reg_reg(0x39, reg, t->ins[op->op2.loc].reg);
+      if (op->op1.constant) {
+	emit_mov64(R15, t->consts[op->op1.loc].value);
+      }
       break;
     }
     case IR_LOAD:{
