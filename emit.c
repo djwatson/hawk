@@ -260,6 +260,7 @@ void emit(trace *t) {
   save_callee_regs();
 
   auto sz = end - emit_offset();
+  printf("Disassembly: %li\n", sz);
   disassemble((uint8_t *)emit_offset(), sz);
   // emit and done
   // patch if side trace

@@ -26,6 +26,7 @@ add_executable(
   alloc_table.c
   emit.c
   ${ASM_SOURCE}
+  asm.c
   zone_alloc.c
   hashtable.c
   disassemble.c

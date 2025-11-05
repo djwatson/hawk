@@ -5,21 +5,11 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
 
 #include "asm_x64.h"
 
-static uint8_t *mtop = nullptr;
-static uint8_t *mend = nullptr;
-static uint8_t *p = nullptr;
-
-static const size_t page_cnt = 4000;
-static const size_t msize = page_cnt * 4096;
-
-#define auto __auto_type
+extern uint8_t *p;
 
 static uint8_t low3bits(uint8_t r) { return 0x7 & r; }
 
@@ -285,39 +275,6 @@ void emit_cmovl(uint8_t dst, uint8_t src) {
 
 /////////////////// memory
 
-int64_t emit_offset() { return (int64_t)p; }
-
-void emit_bind(uint64_t label, uint64_t jmp) {
-  assert(jmp);
-  assert(label);
-  auto offset = (int32_t)((int64_t)label - (int64_t)jmp);
-  memcpy((int32_t *)(jmp - 4), &offset, sizeof(int32_t));
-}
-
-void emit_advance(int64_t offset) { p -= offset; }
-
-void emit_check() {
-  if (p - mtop <= 64) {
-    printf("Fail: Out of jit memory\n");
-    exit(-1);
-  }
-}
-
-void emit_cleanup() { munmap(mtop, msize); }
-
-void emit_init() {
-  if (mtop) {
-    return;
-  }
-
-  mtop = mmap(nullptr, msize, PROT_READ | PROT_WRITE | PROT_EXEC,
-              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  atexit(&emit_cleanup);
-  assert(mtop);
-  p = mtop + msize;
-  mend = p;
-}
-
 void restore_callee_regs() {
   for (uint8_t i = 0; i < 5; i++) {
     emit_pop(callee_save[i]);
@@ -328,33 +285,3 @@ void save_callee_regs() {
     emit_push(callee_save[i - 1]);
   }
 }
-
-/*
-int main() {
-  emit_init();
-  auto end = emit_offset();
-  emit_check();
-
-  emit_ret();
-  //emit_mov64(RAX, 101);
-
-  //emit_imm32(101);
-  // *(--p) = 0xb8 | RAX;
-
-  long foo = 101;
-  emit_imm64((int64_t)&foo);
-  *(--p) = 0xa1;
-  emit_rex(1, 0, 0, 0);
-
-  //disassemble(emit_offset(), end - emit_offset());
-
-  long (*res)(void) = emit_offset();
-
-  long result = res();
-  printf("Res: %li\n", result);
-
-  emit_cleanup();
-
-  return 0;
-}
-*/
