@@ -102,9 +102,35 @@ static void emit_op(uint32_t code) {
   memcpy(p, &code, 4);
 }
 
-void restore_callee_regs() { printf("TODO resotre callee save \n"); }
+static uint32_t stp_pre(uint8_t rt, uint8_t rt2, uint8_t rn, int32_t offset) {
+  assert((offset % 8) == 0);
+  int32_t imm = offset / 8;
+  assert(imm >= -64 && imm <= 63);
+  uint32_t imm7 = (uint32_t)(imm & 0x7f);
+  return 0xA9800000u | (imm7 << 15) | ((uint32_t)rt2 << 10) |
+         ((uint32_t)rn << 5) | (uint32_t)rt;
+}
 
-void save_callee_regs() { printf("TODO save callee save \n"); }
+static uint32_t ldp_post(uint8_t rt, uint8_t rt2, uint8_t rn, int32_t offset) {
+  assert((offset % 8) == 0);
+  int32_t imm = offset / 8;
+  assert(imm >= -64 && imm <= 63);
+  uint32_t imm7 = (uint32_t)(imm & 0x7f);
+  return 0xA8C00000u | (imm7 << 15) | ((uint32_t)rt2 << 10) |
+         ((uint32_t)rn << 5) | (uint32_t)rt;
+}
+
+void restore_callee_regs() {
+  emit_op(ldp_post(FP, LR, SP, 16));
+  emit_op(ldp_post(X25, X26, SP, 16));
+  emit_op(ldp_post(X27, X28, SP, 16));
+}
+
+void save_callee_regs() {
+  emit_op(stp_pre(X27, X28, SP, -16));
+  emit_op(stp_pre(X25, X26, SP, -16));
+  emit_op(stp_pre(FP, LR, SP, -16));
+}
 
 void emit_ret() { emit_op(0xD65F03C0); }
 
