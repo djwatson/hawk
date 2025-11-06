@@ -7,8 +7,8 @@
 #include <string.h>
 #include <sys/mman.h>
 
-#include "asm.h"
 #include "array.h"
+#include "asm.h"
 #include "disassemble.h"
 #include "ir.h"
 #include "zone_alloc.h"
@@ -144,13 +144,14 @@ static void comment_append(zone *z, comment_entry **comments, char const *fmt,
 static void emit_stack_offset_and_check(snap const *snap) {
   if (snap->offset) {
     emit_add_constant(RSTACK, RSTACK, snap->offset * 8);
-    
+
     // TODO
     // check frame overflow
     /* jit_ldxi(s->jit, JIT_R0, JIT_V0, 16); */
     /* auto ok = jit_bltr(s->jit, JIT_R1, JIT_R0); */
 
-    /* // Slow path: Save stack pointer in vm_state, call slowpath, restore stack */
+    /* // Slow path: Save stack pointer in vm_state, call slowpath, restore
+     * stack */
     /* // pointer. */
     /* jit_stxi(s->jit, 8, JIT_V0, JIT_R1); */
     /* jit_calli_1(s->jit, expand_stack, */
@@ -161,8 +162,7 @@ static void emit_stack_offset_and_check(snap const *snap) {
   }
 }
 
-static void emit_snap(trace *t, snap *snap,
-                      regmap *regs, bool exit) {
+static void emit_snap(trace *t, snap *snap, regmap *regs, bool exit) {
   auto consts = t->consts;
   // If this is an exiting snapshot (vs. a loop back)
   // then record exit PC & snapshot.
@@ -176,21 +176,22 @@ static void emit_snap(trace *t, snap *snap,
   for (uint64_t j = 0; j < arrlen_snap_entry(snap->slots); j++) {
     auto entry = &snap->slots[j];
     if (entry->val.constant) {
-      emit_store_constant((int64_t)entry->slot * 8, RSTACK, consts[entry->val.loc].value);
+      emit_store_constant((int64_t)entry->slot * 8, RSTACK,
+                          consts[entry->val.loc].value);
     } else {
       auto is_spill = t->ins[entry->val.loc].spill != SPILL_NONE;
       if (t->ins[entry->val.loc].type == FLONUM_TAG) {
-	abort();
+        abort();
       } else {
         auto from_reg = RTMP;
         if (is_spill) {
-	  abort();
+          abort();
           /* jit_ldi(s->jit, JIT_R0, */
           /*         &spill_gpr_slots[trace->ir[entry->val.loc].spill]); */
         } else {
           from_reg = t->ins[entry->val.loc].reg;
         }
-	emit_store((int64_t)entry->slot * 8, RSTACK, from_reg);
+        emit_store((int64_t)entry->slot * 8, RSTACK, from_reg);
       }
     }
   }
@@ -218,12 +219,12 @@ void emit(trace *t) {
   emit_ret();
   restore_callee_regs();
   auto exit_label = emit_offset();
-  for (uint64_t i = arrlen_snap(t->snaps)-1; i > 0; i--) {
+  for (uint64_t i = arrlen_snap(t->snaps) - 1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
     // To be replaced by actual snap exit code at the end.
     emit_jmp32((int32_t)(exit_label - emit_offset()));
     snap_labels[i - 1] = emit_offset();
-    COMMENT("Snap exit #%i", i-1);
+    COMMENT("Snap exit #%i", i - 1);
   }
 
   // TODO
@@ -235,14 +236,14 @@ void emit(trace *t) {
 
   // No loopback to start:
   size_t cur_snap = arrlen_snap(t->snaps) - 1;
-  emit_jmp32(
-      (int32_t)(exit_label - emit_offset()));
+  emit_jmp32((int32_t)(exit_label - emit_offset()));
   snap_labels[cur_snap] = emit_offset();
 
   auto op_cnt_idx = arrlen_ins(t->ins);
   uint32_t next_spill = 0;
   assign_snap_registers(cur_snap, reg_to_slot, t, &next_spill);
-  emit_snap(t, &t->snaps[cur_snap], reg_to_slot, true); // TODO jump back to entry
+  emit_snap(t, &t->snaps[cur_snap], reg_to_slot,
+            true); // TODO jump back to entry
   COMMENT("Loopback (snap exit %i)", cur_snap);
   bool done = false;
   for (; op_cnt_idx > 0 && !done; op_cnt_idx--) {
@@ -303,10 +304,6 @@ void emit(trace *t) {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
       assert(!op->op1.constant);
-      uint8_t op2_reg = RTMP;
-      if (!op->op2.constant) {
-        op2_reg = t->ins[op->op1.loc].reg;
-      }
 
       auto lt_fin = emit_offset();
       emit_mov64(op->reg, TRUE_REP.value);
@@ -341,7 +338,7 @@ void emit(trace *t) {
       break;
     }
     case IR_GGET: {
-      emit_mem_load(16, op->reg, RTMP);
+      emit_mem_load(16, RTMP, op->reg);
       emit_mov64(RTMP, t->consts[op->op1.loc].value);
       break;
     }
@@ -358,16 +355,16 @@ void emit(trace *t) {
   save_callee_regs();
   COMMENT("ENTRY");
 
-  // Emit even MORE snap exits.  We didn't have register allocation previously, but now we do.
-  // Since these are slowpath exists, the extra branches probably don't matter much.
+  // Emit even MORE snap exits.  We didn't have register allocation previously,
+  // but now we do. Since these are slowpath exists, the extra branches probably
+  // don't matter much.
   for (uint64_t i = arrlen_snap(t->snaps) - 1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
     emit_jmp32((int32_t)(exit_label - emit_offset()));
     emit_snap(t, snap, reg_to_slot, true);
     emit_jmp32_patch_here(snap_labels[i - 1]);
-    COMMENT("Snap exit #%i", i-1);
+    COMMENT("Snap exit #%i", i - 1);
   }
-
 
   emit_writable_end();
   auto sz = end - emit_offset();

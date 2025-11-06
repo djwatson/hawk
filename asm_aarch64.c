@@ -358,18 +358,17 @@ void emit_cmp_constant(enum cmp_kind kind, uint8_t reg, int64_t imm) {
   emit_mov64(RTMP, imm);
 }
 
-static void emit_add_sub(uint32_t base, uint8_t dst, uint8_t lhs,
-                         uint8_t rhs) {
+static void emit_add_sub(uint32_t base, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   assert(dst < MAX_REG);
   assert(lhs < MAX_REG);
   assert(rhs < MAX_REG);
-  uint32_t opcode = base | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) |
-                    (uint32_t)dst;
+  uint32_t opcode =
+      base | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) | (uint32_t)dst;
   emit_op(opcode);
 }
 
-static void emit_add_sub_constant(uint32_t base, uint32_t reg_base,
-                                  uint8_t dst, uint8_t lhs, int64_t imm) {
+static void emit_add_sub_constant(uint32_t base, uint32_t reg_base, uint8_t dst,
+                                  uint8_t lhs, int64_t imm) {
   uint32_t shift = 0;
   uint32_t imm12 = 0;
   if (encode_subs_immediate(imm, &shift, &imm12)) {
@@ -431,6 +430,6 @@ void emit_store(int32_t offset, uint8_t base, uint8_t src) {
 
 void emit_store_constant(int32_t offset, uint8_t base, int64_t value) {
   assert(base < MAX_REG);
-  emit_mov64(RTMP, value);
   emit_store(offset, base, RTMP);
+  emit_mov64(RTMP, value);
 }

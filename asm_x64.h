@@ -29,8 +29,17 @@ enum registers : uint8_t {
       MAX_REG,
 
   RET_REG = RAX,
+  RET_REG2 = RDX,
+  RARG0 = RDI,
+  RARG1 = RSI,
+  RARG2 = RDX,
+  RARG3 = RCX,
+  RARG4 = R8,
+  RARG5 = R9,
+
   RTMP = R15,
-  RSTACK = RDI,
+  // Must be callee-save.
+  RSTACK = R12,
 };
 
 void asm_mark_unallocatable(bool used[MAX_REG]);
@@ -101,35 +110,28 @@ enum jcc_cond {
   JS = 0x88,
 };
 
+enum cmp_kind {
+  CMP_EQ,
+  CMP_LT,
+};
+
 void restore_callee_regs();
 void save_callee_regs();
 
 void emit_ret();
 void emit_jmp32(int32_t offset);
-void emit_jmp_abs(enum registers r);
-void emit_jmp_indirect(int32_t offset);
-void emit_call_indirect(uint8_t r);
-void emit_call_indirect_mem(int32_t offset);
-void emit_call32(int32_t offset);
+void emit_jmp32_patch_here(int64_t patch);
 void emit_mov64(uint8_t r, int64_t imm);
-void emit_pop(uint8_t r);
-void emit_push(uint8_t r);
-void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2);
-void emit_mem_reg2(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2);
-void emit_mem_reg_sib(uint8_t opcode, int32_t offset, uint8_t scale,
-                      uint8_t index, uint8_t base, uint8_t reg);
-void emit_mem_reg_sib2(uint8_t opcode, int32_t offset, uint8_t scale,
-                       uint8_t index, uint8_t base, uint8_t reg);
 void emit_mem_load(int32_t offset, uint8_t base, uint8_t dst);
-void emit_rex(uint8_t w, uint8_t r, uint8_t x, uint8_t b);
-void emit_imm8(uint8_t imm);
-void emit_imm32(int32_t imm);
-void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst);
-void emit_reg_reg2(uint8_t opcode, uint8_t src, uint8_t dst);
+void emit_store(int32_t offset, uint8_t base, uint8_t src);
+void emit_store_constant(int32_t offset, uint8_t base, int64_t value);
 void emit_jcc32(enum jcc_cond cond, int64_t offset);
-void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm);
-void emit_cmp_reg_imm32(uint8_t r, int32_t imm);
-void emit_cmp_mem32_imm32(int32_t offset, uint8_t r1, int32_t imm);
-void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm);
+void emit_cmp(enum cmp_kind kind, uint8_t lhs, uint8_t rhs);
+void emit_cmp_constant(enum cmp_kind kind, uint8_t reg, int64_t imm);
+void emit_add(uint8_t dst, uint8_t lhs, uint8_t rhs);
+void emit_add_constant(uint8_t dst, uint8_t lhs, int64_t imm);
+void emit_sub(uint8_t dst, uint8_t lhs, uint8_t rhs);
+void emit_sub_constant(uint8_t dst, uint8_t lhs, int64_t imm);
+void emit_mov(uint8_t dst, uint8_t src);
 
 extern const char *const reg_names[MAX_REG];

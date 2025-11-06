@@ -11,9 +11,11 @@
 
 const char *const reg_names[MAX_REG] = {
 #define X(name) #name,
-  ASM_X64_REGISTER_LIST(X)
+    ASM_X64_REGISTER_LIST(X)
 #undef X
 };
+
+void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst);
 
 void asm_mark_unallocatable(bool used[MAX_REG]) {
   used[RSP] = true;
@@ -264,6 +266,13 @@ void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm) {
   }
 }
 
+static void emit_neg(uint8_t r) {
+  *(--p) = 0xf7 + (0x7 & r);
+  if (r >> 3) {
+    emit_rex(0, 0, 0, r >> 3);
+  }
+}
+
 void emit_push(uint8_t r) {
   *(--p) = 0x50 + (0x7 & r);
   if (r >> 3) {
@@ -285,6 +294,73 @@ void emit_cmovl(uint8_t dst, uint8_t src) {
   *(--p) = 0x4c;
   *(--p) = 0x0f;
   emit_rex(1, src >> 3, 0, dst >> 3);
+}
+
+void emit_mov(uint8_t dst, uint8_t src) { emit_reg_reg(ASM_MOV_MR, dst, src); }
+void emit_cmp(enum cmp_kind kind, uint8_t lhs, uint8_t rhs) {
+  emit_reg_reg(ASM_CMP, lhs, rhs);
+}
+void emit_cmp_constant(enum cmp_kind kind, uint8_t reg, int64_t imm) {
+  if (fits_in_32(imm)) {
+    emit_cmp_reg_imm32(reg, (int32_t)imm);
+  } else {
+    emit_cmp(kind, reg, RTMP);
+    emit_mov64(RTMP, imm);
+  }
+}
+
+void emit_add(uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  if (dst == lhs) {
+    emit_reg_reg(ASM_ADD, lhs, rhs);
+  } else if (rhs == dst) {
+    emit_reg_reg(ASM_ADD, dst, lhs);
+  } else {
+    emit_reg_reg(ASM_ADD, dst, rhs);
+    emit_mov(dst, lhs);
+  }
+}
+static void emit_add_sub_constant(enum ARITH_CODES op, uint8_t dst, uint8_t lhs,
+                                  int64_t imm) {
+  if (dst == lhs) {
+    emit_arith_imm(op, dst, imm);
+  } else {
+    emit_arith_imm(op, dst, imm);
+    emit_mov(dst, lhs);
+  }
+}
+
+// Slightly different from emit_add, since we need to negate if reversed.
+void emit_sub(uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  if (dst == lhs) {
+    emit_reg_reg(ASM_SUB, lhs, rhs);
+  } else if (rhs == dst) {
+    emit_neg(dst);
+    emit_reg_reg(ASM_SUB, dst, lhs);
+  } else {
+    emit_reg_reg(ASM_SUB, dst, rhs);
+    emit_mov(dst, lhs);
+  }
+}
+void emit_add_constant(uint8_t dst, uint8_t lhs, int64_t imm) {
+  emit_add_sub_constant(ASM_ARITH_ADD, dst, lhs, imm);
+}
+void emit_sub_constant(uint8_t dst, uint8_t lhs, int64_t imm) {
+  emit_add_sub_constant(ASM_ARITH_SUB, dst, lhs, imm);
+}
+void emit_store(int32_t offset, uint8_t base, uint8_t src) {
+  emit_mem_reg(ASM_MOV_RM, offset, base, src);
+}
+void emit_store_constant(int32_t offset, uint8_t base, int64_t value) {
+  emit_store(offset, base, RTMP);
+  emit_mov64(RTMP, value);
+}
+void emit_jmp32_patch_here(int64_t patch) {
+  assert(patch);
+  int64_t target = emit_offset();
+  int64_t delta = target - patch - 5;
+  // TODO fix, make sure fits in 32 bits?
+  assert(fits_in_32(delta));
+  memcpy((uint8_t *)patch + 1, &delta, 4);
 }
 
 /////////////////// memory
