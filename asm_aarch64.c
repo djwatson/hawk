@@ -118,6 +118,9 @@ static uint32_t ldp_post(uint8_t rt, uint8_t rt2, uint8_t rn, int32_t offset) {
 
 void restore_callee_regs() {
   emit_op(ldp_post(FP, LR, SP, 16));
+  emit_op(ldp_post(X19, X20, SP, 16));
+  emit_op(ldp_post(X21, X22, SP, 16));
+  emit_op(ldp_post(X23, X24, SP, 16));
   emit_op(ldp_post(X25, X26, SP, 16));
   emit_op(ldp_post(X27, X28, SP, 16));
 }
@@ -125,6 +128,9 @@ void restore_callee_regs() {
 void save_callee_regs() {
   emit_op(stp_pre(X27, X28, SP, -16));
   emit_op(stp_pre(X25, X26, SP, -16));
+  emit_op(stp_pre(X23, X24, SP, -16));
+  emit_op(stp_pre(X21, X22, SP, -16));
+  emit_op(stp_pre(X19, X20, SP, -16));
   emit_op(stp_pre(FP, LR, SP, -16));
 }
 
