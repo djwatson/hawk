@@ -46,7 +46,8 @@ enum registers : uint8_t {
 
   RET_REG = X0,
   RET_REG2 = X1,
-  RSTACK = X6,
+  RSTACK = X25,
+  RARG0 = X0,
   RTMP = X7,
   FP = X29,
   LR = X30,
@@ -95,5 +96,6 @@ void emit_add(uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_add_constant(uint8_t dst, uint8_t lhs, int64_t imm);
 void emit_sub(uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_sub_constant(uint8_t dst, uint8_t lhs, int64_t imm);
+void emit_mov(uint8_t dst, uint8_t src);
 
 extern const char *const reg_names[MAX_REG];

@@ -395,6 +395,14 @@ void emit_sub_constant(uint8_t dst, uint8_t lhs, int64_t imm) {
   assert(lhs < MAX_REG);
   emit_add_sub_constant(0xD1000000u, 0xCB000000u, dst, lhs, imm);
 }
+
+void emit_mov(uint8_t dst, uint8_t src) {
+  assert(dst < MAX_REG);
+  assert(src < MAX_REG);
+  uint32_t opcode =
+      0xAA0003E0u | ((uint32_t)src << 16) | (uint32_t)dst; // ORR Xd, XZR, Xm
+  emit_op(opcode);
+}
 void emit_mem_load(int32_t offset, uint8_t base, uint8_t dst) {
   assert((offset % 8) == 0);
   int32_t imm = offset / 8;

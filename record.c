@@ -50,7 +50,9 @@ static void vm_add_snap(bc *pc) {
   snap snap = {.pc = pc,
                .offset = ts.stack_off,
                .ir = arrlen_ins(cur_trace->ins),
-               .exits = 0};
+               .exits = 0,
+	       .trace = cur_trace,
+  };
   for (size_t i = 0; i < arrlen_sentry(ts.stack); i++) {
     if (ts.stack[i].changed && ts.stack[i].live) {
       snap_entry entry = {.slot = (uint16_t)i, .val = ts.stack[i].loc};

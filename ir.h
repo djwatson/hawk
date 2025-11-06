@@ -14,6 +14,7 @@ typedef struct snap_entry {
   slot val;
 } snap_entry;
 
+typedef struct trace trace;
 typedef struct {
   bc *pc;
   uint16_t ir;
@@ -22,10 +23,7 @@ typedef struct {
 
   // Side trace info
   uint8_t exits;
-  // for debugging only, to remove
-  uint32_t snap_sz;
-  // Add jump to side trace here
-  void *code;
+  trace* trace;
 } snap;
 
 #define IR_OPS                                                                 \
@@ -70,7 +68,7 @@ typedef struct {
 
 static_assert(sizeof(ir_ins) == 8, "ir_ins instructions must be 8 bytes");
 
-typedef struct {
+typedef struct trace {
   uint16_t stackpos;
   ir_ins *ins;
   gc_obj *consts;

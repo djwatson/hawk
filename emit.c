@@ -168,7 +168,7 @@ static void emit_snap(trace *t, snap *snap,
   // then record exit PC & snapshot.
   if (exit) {
     emit_mov64(RET_REG2, (intptr_t)snap);
-    emit_mov64(RET_REG, (intptr_t)t);
+    emit_mov(RET_REG, RSTACK);
   }
 
   emit_stack_offset_and_check(snap);
@@ -242,7 +242,7 @@ void emit(trace *t) {
   auto op_cnt_idx = arrlen_ins(t->ins);
   uint32_t next_spill = 0;
   assign_snap_registers(cur_snap, reg_to_slot, t, &next_spill);
-  emit_snap(t, &t->snaps[cur_snap], reg_to_slot, false);
+  emit_snap(t, &t->snaps[cur_snap], reg_to_slot, true); // TODO jump back to entry
   COMMENT("Loopback (snap exit %i)", cur_snap);
   bool done = false;
   for (; op_cnt_idx > 0 && !done; op_cnt_idx--) {
@@ -354,6 +354,7 @@ void emit(trace *t) {
   }
   // emit parcopy from loop end
   // parcopy from parent trace?
+  emit_mov(RSTACK, RARG0);
   save_callee_regs();
   COMMENT("ENTRY");
 
