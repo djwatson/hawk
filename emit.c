@@ -182,14 +182,11 @@ void emit(trace *t) {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
       assert(!op->op2.constant);
-      uint8_t reg = RTMP;
-      if (!op->op1.constant) {
-        reg = t->ins[op->op1.loc].reg;
-      }
       emit_jcc32(JNE, snap_labels[cur_snap]);
-      emit_reg_reg(ASM_CMP, reg, t->ins[op->op2.loc].reg);
-      if (op->op1.constant) {
-        emit_mov64(RTMP, t->consts[op->op1.loc].value);
+      if (!op->op1.constant) {
+	emit_cmp(CMP_EQ, t->ins[op->op1.loc].reg, t->ins[op->op2.loc].reg);
+      } else {
+	emit_cmp_constant(CMP_EQ, t->ins[op->op2.loc].reg, t->consts[op->op1.loc].value);
       }
       break;
     }

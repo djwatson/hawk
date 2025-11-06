@@ -120,6 +120,10 @@ enum jcc_cond {
   // JPO = 0x8b,
 };
 
+enum cmp_kind {
+  CMP_EQ,
+};
+
 void emit_init();
 void emit_cleanup();
 int64_t emit_offset();
@@ -159,5 +163,7 @@ void emit_op_imm32(uint8_t opcode, uint8_t r1, uint8_t r2, int32_t imm);
 void emit_cmp_reg_imm32(uint8_t r, int32_t imm);
 void emit_cmp_mem32_imm32(int32_t offset, uint8_t r1, int32_t imm);
 void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm);
+void emit_cmp(enum cmp_kind kind, uint8_t lhs, uint8_t rhs);
+void emit_cmp_constant(enum cmp_kind kind, uint8_t reg, int64_t imm);
 
 extern const char *const reg_names[MAX_REG];

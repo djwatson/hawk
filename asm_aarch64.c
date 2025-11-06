@@ -212,6 +212,30 @@ static uint32_t orr_logical_immediate_opcode(uint8_t rd, uint8_t N,
          ((uint32_t)imms << 10) | (31u << 5) | (uint32_t)rd;
 }
 
+static bool encode_subs_immediate(int64_t imm, uint32_t *shift,
+                                  uint32_t *imm12) {
+  assert(shift);
+  assert(imm12);
+  if (imm < 0) {
+    return false;
+  }
+  uint64_t uimm = (uint64_t)imm;
+  if (uimm <= UINT64_C(0xFFF)) {
+    *shift = 0;
+    *imm12 = (uint32_t)uimm;
+    return true;
+  }
+  if ((uimm & UINT64_C(0xFFF)) == 0) {
+    uint64_t shifted = uimm >> 12;
+    if (shifted <= UINT64_C(0xFFF)) {
+      *shift = 1;
+      *imm12 = (uint32_t)shifted;
+      return true;
+    }
+  }
+  return false;
+}
+
 static int count_nonzero_chunks(const uint16_t *chunks) {
   int count = 0;
   for (int i = 0; i < 4; i++) {
@@ -300,6 +324,31 @@ void emit_mov64(uint8_t rd, int64_t imm) {
     }
     emit_op(movn_opcode(rd, nchunks[first], (uint8_t)first));
   }
+}
+
+void emit_cmp(enum cmp_kind kind, uint8_t lhs, uint8_t rhs) {
+  assert(kind == CMP_EQ);
+  assert(lhs < MAX_REG);
+  assert(rhs < MAX_REG);
+  uint32_t opcode = 0xEB000000u | ((uint32_t)rhs << 16) |
+                    ((uint32_t)lhs << 5) | UINT32_C(31);
+  emit_op(opcode);
+}
+
+void emit_cmp_constant(enum cmp_kind kind, uint8_t reg, int64_t imm) {
+  assert(kind == CMP_EQ);
+  assert(reg < MAX_REG);
+  uint32_t shift = 0;
+  uint32_t imm12 = 0;
+  if (encode_subs_immediate(imm, &shift, &imm12)) {
+    uint32_t opcode =
+        0xF1000000u | (shift << 22) | (imm12 << 10) | ((uint32_t)reg << 5) |
+        UINT32_C(31);
+    emit_op(opcode);
+    return;
+  }
+  emit_mov64(RTMP, imm);
+  emit_cmp(kind, reg, RTMP);
 }
 
 void emit_pop(uint8_t r) { printf("TODO pop \n"); }
