@@ -19,6 +19,7 @@ VEC_TYPE_IMPL(consts, gc_obj);
 VEC_TYPE_IMPL(sentry, sentry);
 VEC_TYPE_IMPL(snap, snap);
 VEC_TYPE_IMPL(snap_entry, snap_entry);
+VEC_TYPE_IMPL(trace, trace *);
 
 typedef struct {
   sentry *stack;
@@ -36,6 +37,8 @@ typedef struct {
 // TODO not global
 static trace *cur_trace;
 static trace_state ts;
+
+trace **traces = nullptr;
 
 #define OP(code)                                                               \
   PRESERVE_NONE gc_obj record_##code(bc *pc, gc_obj *stack, void *op_table,    \
@@ -223,20 +226,26 @@ static bc *set_new_pc(bc *pc, gc_obj *stack, slot func) {
 
   return pc;
 }
+static void *jit_func(bc **pc, gc_obj **stack, void *op_table) { abort(); }
 extern uint8_t max_trace;
 static void *check_record_start(bc **pc, gc_obj **stack, void *op_table) {
   if (*pc == ts.start_ins) {
     vm_add_snap(*pc);
     printf("Record done\n");
-    auto fn = emit(cur_trace);
+    cur_trace->fn = emit(cur_trace);
     print_ir(cur_trace);
     // exit(0);
     max_trace--;
-    printf("RUNNING\n");
-    auto res = fn(*stack);
-    *stack = res.stack;
-    *pc = res.snap->pc;
-    printf("RUNNING done\n");
+    *ts.start_ins = (bc){
+        .op = OP_JFUNC,
+        .data = arrlen_trace(traces),
+    };
+    arrpush_trace(&traces, cur_trace);
+    /* printf("RUNNING\n"); */
+    /* auto res = cur_trace->fn(*stack); */
+    /* *stack = res.stack; */
+    /* *pc = res.snap->pc; */
+    /* printf("RUNNING done\n"); */
     return impls;
   }
   return op_table;

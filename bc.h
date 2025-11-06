@@ -10,6 +10,7 @@
   X(RET)                                                                       \
   X(LOOKUP)                                                                    \
   X(FUNC)                                                                      \
+  X(JFUNC)                                                                     \
   X(LT)                                                                        \
   X(IF)                                                                        \
   X(CLOSURE_GET)                                                               \

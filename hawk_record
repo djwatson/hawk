@@ -1,0 +1,4 @@
+#!/bin/bash
+
+sudo perf record -e cycles -g -k1 ./build/hawk --dump $@
+

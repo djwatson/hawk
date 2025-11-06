@@ -6,6 +6,7 @@
 
 #include "bc.h"
 #include "hawk.h"
+#include "ir.h"
 #include "types.h"
 
 enum : uint8_t {
@@ -108,6 +109,18 @@ static inline bc *set_new_pc(bc *pc, gc_obj *stack, gc_obj func) {
 }
 static inline gc_obj constify_data(uint16_t data) {
   return (gc_obj){.value = data};
+}
+
+extern trace **traces;
+static inline void *jit_func(bc **pc, gc_obj **stack, void *op_table) {
+  auto jfunc = (*pc)->data;
+  // printf("RUN jit %i\n", jfunc);
+  auto fn = traces[jfunc]->fn;
+  auto res = fn(*stack);
+  *pc = res.snap->pc;
+  *stack = res.stack;
+  // printf("RUN DONE jit %i\n", jfunc);
+  return op_table;
 }
 #define dispatch_next(pc, stack)                                               \
   op_func impl = ((op_func *)op_table)[(pc)->op];                              \

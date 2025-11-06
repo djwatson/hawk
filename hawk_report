@@ -1,0 +1,4 @@
+#!/bin/bash
+
+sudo perf inject --jit --input perf.data --output perf.jit.data
+sudo perf report --no-children --input perf.jit.data -Mintel

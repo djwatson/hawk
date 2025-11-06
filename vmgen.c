@@ -61,6 +61,13 @@ OP(FUNC) {
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
+OP(JFUNC) {
+  // TODO argcnt check
+  auto f = pc->data;
+  op_table = jit_func(&pc, &stack, op_table);
+
+  dispatch_next(pc, stack);
+}
 OP(LT) {
   auto v1 = stack_load(stack, pc->v1);
   auto v2 = stack_load(stack, pc->v2);

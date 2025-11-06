@@ -332,7 +332,7 @@ trace_fn emit(trace *t) {
       assert(!op->op1.constant);
       if (op->op2.constant) {
         emit_sub_constant(op->reg, t->ins[op->op1.loc].reg,
-                          t->consts[op->op1.loc].value);
+                          t->consts[op->op2.loc].value);
       } else {
         emit_sub(op->reg, t->ins[op->op1.loc].reg, t->ins[op->op2.loc].reg);
       }
@@ -356,6 +356,8 @@ trace_fn emit(trace *t) {
   }
   // emit parcopy from loop end
   // parcopy from parent trace?
+  emit_jmp32_patch_here(snap_labels[arrlen_snap(t->snaps) - 1]);
+
   emit_mov(RSTACK, RARG0);
   save_callee_regs();
   COMMENT("ENTRY");
@@ -379,6 +381,8 @@ trace_fn emit(trace *t) {
   zone_free(&z);
   free(snap_labels);
   jit_reader_add(end - entry, entry);
+  jit_dump(sz, emit_offset(), "TRACE");
+  perf_map(emit_offset(), sz, "TRACE");
   return (trace_fn)entry;
   // emit and done
   // patch if side trace

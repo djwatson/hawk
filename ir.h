@@ -68,11 +68,18 @@ typedef struct {
 
 static_assert(sizeof(ir_ins) == 8, "ir_ins instructions must be 8 bytes");
 
+struct trace_result {
+  gc_obj *stack;
+  snap *snap;
+};
+
+typedef struct trace_result (*trace_fn)(gc_obj *stack);
 typedef struct trace {
   uint16_t stackpos;
   ir_ins *ins;
   gc_obj *consts;
   snap *snaps;
+  trace_fn fn;
 } trace;
 
 enum : uint8_t {
