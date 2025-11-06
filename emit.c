@@ -1,6 +1,7 @@
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -358,7 +359,7 @@ void emit(trace *t) {
 
   emit_writable_end();
   auto sz = end - emit_offset();
-  printf("Disassembly: %li\n", sz);
+  printf("Disassembly: %" PRId64 "\n", sz);
   disassemble((uint8_t *)emit_offset(), sz, comments);
   zone_free(&z);
   // emit and done

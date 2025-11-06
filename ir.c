@@ -1,11 +1,13 @@
 #include "ir.h"
 #include "asm.h"
 
+#include <inttypes.h>
+
 static void print_slot(slot s, trace *t) {
   if (s.constant) {
     auto gc = t->consts[s.loc];
     if (is_fixnum(gc)) {
-      printf("\e[1;35m%li\e[m", to_fixnum(gc));
+      printf("\e[1;35m%" PRId64 "\e[m", to_fixnum(gc));
     } else if (is_char(gc)) {
       printf("\e[1;35m'%c'\e[m", to_char(gc));
     } else if (is_string(gc)) {
@@ -30,7 +32,7 @@ static void print_slot(slot s, trace *t) {
     } else if (gc.value == NIL.value) {
       printf("\e[1;35m()\e[m");
     } else {
-      printf("\e[1;31mUNKNOWN %lx\e[m", gc.value);
+      printf("\e[1;31mUNKNOWN %" PRIx64 "\e[m", (uint64_t)gc.value);
     }
   } else {
     printf("%04d", s.loc);

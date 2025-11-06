@@ -115,7 +115,7 @@ void disassemble(const uint8_t *code, size_t len, const comment_entry *comments)
 
     auto idx = hm_geti(label_targets, addr);
     if (idx >= 0) {
-      printf(".L%li:\n", idx);
+      printf(".L%td:\n", idx);
     }
 
     idx = -1;
@@ -148,7 +148,7 @@ void disassemble(const uint8_t *code, size_t len, const comment_entry *comments)
       if (resolved) {
         printf("\t%s\t%s\n", insn[i].mnemonic, resolved);
       } else {
-        printf("\t%s\t.L%li\n", insn[i].mnemonic, idx);
+        printf("\t%s\t.L%td\n", insn[i].mnemonic, idx);
       }
     } else {
       printf("\t%s\t%s\n", insn[i].mnemonic, insn[i].op_str);
