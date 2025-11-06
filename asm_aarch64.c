@@ -326,29 +326,71 @@ void emit_mov64(uint8_t rd, int64_t imm) {
   }
 }
 
+static uint32_t cmp_opcode(enum cmp_kind kind) {
+  switch (kind) {
+  case CMP_EQ:
+  case CMP_LT:
+    return 0xEB000000u; // SUBS XZR, lhs, rhs (alias for CMP)
+  default:
+    abort();
+  }
+}
+
+static uint32_t cmp_imm_opcode(enum cmp_kind kind) {
+  switch (kind) {
+  case CMP_EQ:
+  case CMP_LT:
+    return 0xF1000000u; // SUBS XZR, reg, #imm (alias for CMP)
+  default:
+    abort();
+  }
+}
+
 void emit_cmp(enum cmp_kind kind, uint8_t lhs, uint8_t rhs) {
-  assert(kind == CMP_EQ);
   assert(lhs < MAX_REG);
   assert(rhs < MAX_REG);
-  uint32_t opcode = 0xEB000000u | ((uint32_t)rhs << 16) |
-                    ((uint32_t)lhs << 5) | UINT32_C(31);
+  uint32_t base = cmp_opcode(kind);
+  uint32_t opcode =
+      base | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) | UINT32_C(31);
   emit_op(opcode);
 }
 
 void emit_cmp_constant(enum cmp_kind kind, uint8_t reg, int64_t imm) {
-  assert(kind == CMP_EQ);
   assert(reg < MAX_REG);
   uint32_t shift = 0;
   uint32_t imm12 = 0;
   if (encode_subs_immediate(imm, &shift, &imm12)) {
-    uint32_t opcode =
-        0xF1000000u | (shift << 22) | (imm12 << 10) | ((uint32_t)reg << 5) |
-        UINT32_C(31);
+    uint32_t opcode = cmp_imm_opcode(kind) | (shift << 22) | (imm12 << 10) |
+                      ((uint32_t)reg << 5) | UINT32_C(31);
     emit_op(opcode);
     return;
   }
-  emit_mov64(RTMP, imm);
   emit_cmp(kind, reg, RTMP);
+  emit_mov64(RTMP, imm);
+}
+
+void emit_sub(uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  assert(dst < MAX_REG);
+  assert(lhs < MAX_REG);
+  assert(rhs < MAX_REG);
+  uint32_t opcode = 0xCB000000u | ((uint32_t)rhs << 16) |
+                    ((uint32_t)lhs << 5) | (uint32_t)dst;
+  emit_op(opcode);
+}
+
+void emit_sub_constant(uint8_t dst, uint8_t lhs, int64_t imm) {
+  assert(dst < MAX_REG);
+  assert(lhs < MAX_REG);
+  uint32_t shift = 0;
+  uint32_t imm12 = 0;
+  if (encode_subs_immediate(imm, &shift, &imm12)) {
+    uint32_t opcode = 0xD1000000u | (shift << 22) | (imm12 << 10) |
+                      ((uint32_t)lhs << 5) | (uint32_t)dst;
+    emit_op(opcode);
+    return;
+  }
+  emit_sub(dst, lhs, RTMP);
+  emit_mov64(RTMP, imm);
 }
 
 void emit_pop(uint8_t r) { printf("TODO pop \n"); }
