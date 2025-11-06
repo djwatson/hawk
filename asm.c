@@ -59,7 +59,8 @@ void emit_init() {
 
   auto mem = mmap(nullptr, msize, prot, flags, -1, 0);
   if (mem == MAP_FAILED) {
-    fprintf(stderr, "Fail: mmap(%zu bytes) for JIT arena: %s\n", msize, strerror(errno));
+    fprintf(stderr, "Fail: mmap(%zu bytes) for JIT arena: %s\n", msize,
+            strerror(errno));
     exit(EXIT_FAILURE);
   }
 

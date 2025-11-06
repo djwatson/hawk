@@ -23,7 +23,7 @@ typedef struct {
 
   // Side trace info
   uint8_t exits;
-  trace* trace;
+  trace *trace;
 } snap;
 
 #define IR_OPS                                                                 \

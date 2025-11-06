@@ -81,7 +81,7 @@ static uint64_t sz_to_page_class(uint64_t sz) {
 
   // If already a power of two, go down one class.
   if ((pages & (pages - 1)) == 0) {
-    class --;
+    class--;
   }
 
   return class;

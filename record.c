@@ -47,11 +47,12 @@ extern op_func record_impls[OP_INS_MAX];
 // end TODO
 
 static void vm_add_snap(bc *pc) {
-  snap snap = {.pc = pc,
-               .offset = ts.stack_off,
-               .ir = arrlen_ins(cur_trace->ins),
-               .exits = 0,
-	       .trace = cur_trace,
+  snap snap = {
+      .pc = pc,
+      .offset = ts.stack_off,
+      .ir = arrlen_ins(cur_trace->ins),
+      .exits = 0,
+      .trace = cur_trace,
   };
   for (size_t i = 0; i < arrlen_sentry(ts.stack); i++) {
     if (ts.stack[i].changed && ts.stack[i].live) {
