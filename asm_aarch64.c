@@ -369,28 +369,48 @@ void emit_cmp_constant(enum cmp_kind kind, uint8_t reg, int64_t imm) {
   emit_mov64(RTMP, imm);
 }
 
-void emit_sub(uint8_t dst, uint8_t lhs, uint8_t rhs) {
+static void emit_add_sub(uint32_t base, uint8_t dst, uint8_t lhs,
+                         uint8_t rhs) {
   assert(dst < MAX_REG);
   assert(lhs < MAX_REG);
   assert(rhs < MAX_REG);
-  uint32_t opcode = 0xCB000000u | ((uint32_t)rhs << 16) |
-                    ((uint32_t)lhs << 5) | (uint32_t)dst;
+  uint32_t opcode = base | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) |
+                    (uint32_t)dst;
   emit_op(opcode);
+}
+
+static void emit_add_sub_constant(uint32_t base, uint32_t reg_base,
+                                  uint8_t dst, uint8_t lhs, int64_t imm) {
+  uint32_t shift = 0;
+  uint32_t imm12 = 0;
+  if (encode_subs_immediate(imm, &shift, &imm12)) {
+    uint32_t opcode = base | (shift << 22) | (imm12 << 10) |
+                      ((uint32_t)lhs << 5) | (uint32_t)dst;
+    emit_op(opcode);
+    return;
+  }
+  emit_add_sub(reg_base, dst, lhs, RTMP);
+  emit_mov64(RTMP, imm);
+}
+
+void emit_add(uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  emit_add_sub(0x8B000000u, dst, lhs, rhs);
+}
+
+void emit_add_constant(uint8_t dst, uint8_t lhs, int64_t imm) {
+  assert(dst < MAX_REG);
+  assert(lhs < MAX_REG);
+  emit_add_sub_constant(0x91000000u, 0x8B000000u, dst, lhs, imm);
+}
+
+void emit_sub(uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  emit_add_sub(0xCB000000u, dst, lhs, rhs);
 }
 
 void emit_sub_constant(uint8_t dst, uint8_t lhs, int64_t imm) {
   assert(dst < MAX_REG);
   assert(lhs < MAX_REG);
-  uint32_t shift = 0;
-  uint32_t imm12 = 0;
-  if (encode_subs_immediate(imm, &shift, &imm12)) {
-    uint32_t opcode = 0xD1000000u | (shift << 22) | (imm12 << 10) |
-                      ((uint32_t)lhs << 5) | (uint32_t)dst;
-    emit_op(opcode);
-    return;
-  }
-  emit_sub(dst, lhs, RTMP);
-  emit_mov64(RTMP, imm);
+  emit_add_sub_constant(0xD1000000u, 0xCB000000u, dst, lhs, imm);
 }
 
 void emit_pop(uint8_t r) { printf("TODO pop \n"); }

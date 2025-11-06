@@ -45,6 +45,7 @@ enum registers : uint8_t {
       MAX_REG,
 
   RET_REG = X0,
+  RET_REG2 = X1,
   RSTACK = X6,
   RTMP = X7,
   FP = X29,
@@ -166,6 +167,8 @@ void emit_cmp_mem32_imm32(int32_t offset, uint8_t r1, int32_t imm);
 void emit_arith_imm(enum ARITH_CODES op, uint8_t src, int32_t imm);
 void emit_cmp(enum cmp_kind kind, uint8_t lhs, uint8_t rhs);
 void emit_cmp_constant(enum cmp_kind kind, uint8_t reg, int64_t imm);
+void emit_add(uint8_t dst, uint8_t lhs, uint8_t rhs);
+void emit_add_constant(uint8_t dst, uint8_t lhs, int64_t imm);
 void emit_sub(uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_sub_constant(uint8_t dst, uint8_t lhs, int64_t imm);
 

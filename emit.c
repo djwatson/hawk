@@ -102,6 +102,61 @@ static void maybe_assign_register(slot v, trace *trace, regmap *slot,
   }
 }
 
+static void emit_stack_offset_and_check(snap const *snap) {
+  if (snap->offset) {
+    emit_add(RSTACK, RSTACK, snap->offset * 8);
+    
+    // TODO
+    // check frame overflow
+    /* jit_ldxi(s->jit, JIT_R0, JIT_V0, 16); */
+    /* auto ok = jit_bltr(s->jit, JIT_R1, JIT_R0); */
+
+    /* // Slow path: Save stack pointer in vm_state, call slowpath, restore stack */
+    /* // pointer. */
+    /* jit_stxi(s->jit, 8, JIT_V0, JIT_R1); */
+    /* jit_calli_1(s->jit, expand_stack, */
+    /*             jit_operand_gpr(JIT_OPERAND_ABI_POINTER, JIT_V0)); */
+    /* jit_ldxi(s->jit, JIT_R1, JIT_V0, 8); */
+
+    /* jit_patch_here(s->jit, ok); */
+  }
+}
+
+static void emit_snap(trace *t, snap *snap,
+                      regmap *regs, bool exit) {
+  auto consts = t->consts;
+  for (uint64_t j = 0; j < arrlen_snap_entry(snap->slots); j++) {
+    auto entry = &snap->slots[j];
+    if (entry->val.constant) {
+      emit_store_constant((int64_t)entry->slot * 8, RSTACK, consts[entry->val.loc].value);
+    } else {
+      auto is_spill = t->ins[entry->val.loc].spill != SPILL_NONE;
+      if (t->ins[entry->val.loc].type == FLONUM_TAG) {
+	abort();
+      } else {
+        auto from_reg = RTMP;
+        if (is_spill) {
+	  abort();
+          /* jit_ldi(s->jit, JIT_R0, */
+          /*         &spill_gpr_slots[trace->ir[entry->val.loc].spill]); */
+        } else {
+          from_reg = t->ins[entry->val.loc].reg;
+        }
+	emit_store((int64_t)entry->slot * 8, RSTACK, from_reg);
+      }
+    }
+  }
+
+  emit_stack_offset_and_check(snap);
+
+  // If this is an exiting snapshot (vs. a loop back)
+  // then record exit PC & snapshot.
+  if (exit) {
+    emit_mov64(RET_REG2, (intptr_t)snap);
+    emit_mov64(RET_REG, (intptr_t)t);
+  }
+}
+
 void emit(trace *t) {
   // TODO move init somewhere else
   emit_init();
