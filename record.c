@@ -184,7 +184,7 @@ static bc *branch_if_false(bc *pc, gc_obj *stack, slot b) {
   return pc;
 }
 static slot closure_get(slot clo, uint8_t pos) {
-  slot c_pos = (slot){.constant = true, .loc = pos + 8};
+  slot c_pos = (slot){.constant = true, .loc = pos + 8 - CLOSURE_TAG};
 
   ir_ins ins = (ir_ins){.op = IR_LOAD,
                         .op1 = clo,
@@ -223,13 +223,20 @@ static bc *set_new_pc(bc *pc, gc_obj *stack, slot func) {
 
   return pc;
 }
-static void *check_record_start(bc *pc, gc_obj *stack, void *op_table) {
-  if (pc == ts.start_ins) {
-    vm_add_snap(pc);
+extern uint8_t max_trace;
+static void *check_record_start(bc **pc, gc_obj **stack, void *op_table) {
+  if (*pc == ts.start_ins) {
+    vm_add_snap(*pc);
     printf("Record done\n");
-    emit(cur_trace);
+    auto fn = emit(cur_trace);
     print_ir(cur_trace);
-    exit(0);
+    // exit(0);
+    max_trace--;
+    printf("RUNNING\n");
+    auto res = fn(*stack);
+    *stack = res.stack;
+    *pc = res.snap->pc;
+    printf("RUNNING done\n");
     return impls;
   }
   return op_table;

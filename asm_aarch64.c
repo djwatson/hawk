@@ -409,22 +409,38 @@ void emit_mov(uint8_t dst, uint8_t src) {
   emit_op(opcode);
 }
 void emit_mem_load(int32_t offset, uint8_t base, uint8_t dst) {
-  assert((offset % 8) == 0);
-  int32_t imm = offset / 8;
-  assert(imm >= 0 && imm < 4096);
-  uint32_t opcode = 0xF9400000u | ((uint32_t)imm << 10) |
-                    ((uint32_t)base << 5) | (uint32_t)dst;
+  assert(base < MAX_REG);
+  assert(dst < MAX_REG);
+  if ((offset % 8) == 0 && offset >= 0) {
+    int32_t imm = offset / 8;
+    assert(imm < 4096);
+    uint32_t opcode = 0xF9400000u | ((uint32_t)imm << 10) |
+                      ((uint32_t)base << 5) | (uint32_t)dst;
+    emit_op(opcode);
+    return;
+  }
+  assert(offset >= -256 && offset <= 255);
+  uint32_t imm9 = (uint32_t)(offset & 0x1ff);
+  uint32_t opcode =
+      0xF8400000u | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)dst;
   emit_op(opcode);
 }
 
 void emit_store(int32_t offset, uint8_t base, uint8_t src) {
-  assert((offset % 8) == 0);
   assert(base < MAX_REG);
   assert(src < MAX_REG);
-  int32_t imm = offset / 8;
-  assert(imm >= 0 && imm < 4096);
-  uint32_t opcode = 0xF9000000u | ((uint32_t)imm << 10) |
-                    ((uint32_t)base << 5) | (uint32_t)src;
+  if ((offset % 8) == 0 && offset >= 0) {
+    int32_t imm = offset / 8;
+    assert(imm < 4096);
+    uint32_t opcode = 0xF9000000u | ((uint32_t)imm << 10) |
+                      ((uint32_t)base << 5) | (uint32_t)src;
+    emit_op(opcode);
+    return;
+  }
+  assert(offset >= -256 && offset <= 255);
+  uint32_t imm9 = (uint32_t)(offset & 0x1ff);
+  uint32_t opcode =
+      0xF8000000u | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)src;
   emit_op(opcode);
 }
 

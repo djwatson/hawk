@@ -45,14 +45,11 @@ static inline gc_obj tag_fixnum(int64_t n) {
 
 typedef struct gc_header {
   union {
-    struct {
-      uint32_t type;
-      uint32_t rc;
-    };
+    uint64_t type;
     uint64_t fwdtag;
   };
-  struct gc_header *fwd;
 } gc_header;
+static_assert(sizeof(gc_header) == 8, "gc header is 8 bytes");
 
 typedef struct bcfunc {
   gc_header header;

@@ -15,7 +15,7 @@ static symbol fib_sym;
 static prog_fib_bc prog_fib = {
     .func =
         {
-            .header = {.type = FUNC_TAG, .rc = 0},
+            .header = {.type = FUNC_TAG},
             .const_cnt = 5,
             .bc_cnt = 20,
         },

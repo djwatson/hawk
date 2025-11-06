@@ -67,7 +67,7 @@ enum OPCODES {
   ASM_TEST_IMM = 0xf7,
   ASM_AND_IMM = 0x81,
   ASM_CMP_IMM = 0x81,
-  ASM_CMP = 0x39,
+  ASM_CMP = 0x3b,
   ASM_LEA = 0x8d,
   ASM_AND = 0x83,
   ASM_SAR_CONST = 0xC1,

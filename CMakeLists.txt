@@ -28,6 +28,7 @@ add_executable(
   ${ASM_SOURCE}
   asm.c
   zone_alloc.c
+  jitdump.c
   hashtable.c
   disassemble.c
   array.c

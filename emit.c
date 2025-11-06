@@ -1,5 +1,7 @@
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
 
+#include "emit.h"
+
 #include <assert.h>
 #include <inttypes.h>
 #include <stdarg.h>
@@ -11,6 +13,7 @@
 #include "asm.h"
 #include "disassemble.h"
 #include "ir.h"
+#include "jitdump.h"
 #include "zone_alloc.h"
 
 typedef struct {
@@ -199,9 +202,11 @@ static void emit_snap(trace *t, snap *snap, regmap *regs, bool exit) {
 
 #define COMMENT(...) comment_append(&z, &comments, __VA_ARGS__)
 
-void emit(trace *t) {
+trace_fn emit(trace *t) {
   // TODO move init somewhere else
   emit_init();
+  jit_dump_init();
+
   emit_writable_begin();
   regmap reg_to_slot[MAX_REG];
   memset(reg_to_slot, 0, sizeof(reg_to_slot));
@@ -339,7 +344,7 @@ void emit(trace *t) {
     }
     case IR_GGET: {
       emit_mem_load(16, RTMP, op->reg);
-      emit_mov64(RTMP, t->consts[op->op1.loc].value);
+      emit_mov64(RTMP, t->consts[op->op1.loc].value - SYMBOL_TAG);
       break;
     }
     default: {
@@ -354,6 +359,7 @@ void emit(trace *t) {
   emit_mov(RSTACK, RARG0);
   save_callee_regs();
   COMMENT("ENTRY");
+  auto entry = emit_offset();
 
   // Emit even MORE snap exits.  We didn't have register allocation previously,
   // but now we do. Since these are slowpath exists, the extra branches probably
@@ -372,6 +378,8 @@ void emit(trace *t) {
   disassemble((uint8_t *)emit_offset(), sz, comments);
   zone_free(&z);
   free(snap_labels);
+  jit_reader_add(end - entry, entry);
+  return (trace_fn)entry;
   // emit and done
   // patch if side trace
 }

@@ -16,7 +16,7 @@ enum : uint8_t {
   hotmap_cnt = 200,
 };
 static uint8_t hotmap[hotmap_sz];
-static uint8_t max_trace = 1;
+uint8_t max_trace = 1;
 
 static inline uint32_t hotmap_hash(void *pc) {
   return (((uint64_t)pc) >> 3) & hotmap_mask;
@@ -37,14 +37,15 @@ typedef struct {
 
 // todo cleanup del=cl
 void record_start(bc *pc, gc_obj *stack);
-static inline void *check_record_start(bc *pc, gc_obj *stack, void *op_table) {
+static inline void *check_record_start(bc **pc, gc_obj **stack,
+                                       void *op_table) {
   uint8_t *hot_loc = &hotmap[hotmap_hash(pc)];
   uint8_t prev_hot = *hot_loc;
   *hot_loc -= 1;
   if ((max_trace > 0) && prev_hot < *hot_loc && op_table == impls) {
     *hot_loc = hotmap_cnt;
     // TODO make a new trace?
-    record_start(pc, stack);
+    record_start(*pc, *stack);
     return record_impls;
   }
   return op_table;
