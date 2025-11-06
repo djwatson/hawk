@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "asm_aarch64.h"
@@ -113,6 +114,48 @@ void emit_jmp32(int32_t offset) {
   int64_t imm26 = delta / 4;
   assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
   uint32_t opcode = 0x14000000u | ((uint32_t)imm26 & 0x03ffffffu);
+  emit_op(opcode);
+}
+
+static uint8_t arm_cond_from_jcc(enum jcc_cond cond) {
+  static const uint8_t map[256] = {
+      [JO] = 0x6,  // VS
+      [JNO] = 0x7, // VC
+      [JB] = 0x3,  // LO/CC
+      [JAE] = 0x2, // HS/CS
+      [JE] = 0x0,  // EQ
+      [JNE] = 0x1, // NE
+      [JBE] = 0x9, // LS
+      [JA] = 0x8,  // HI
+      [JS] = 0x4,  // MI
+      [JNS] = 0x5, // PL
+      [JL] = 0xb,  // LT
+      [JGE] = 0xa, // GE
+      [JLE] = 0xd, // LE
+      [JG] = 0xc,  // GT
+  };
+  uint8_t code = map[cond];
+  if (code == 0) {
+    // Only JE maps to 0; for anything else 0 means unmapped.
+    if (cond != JE) {
+      abort();
+    }
+  }
+  return code;
+}
+
+void emit_jcc32(enum jcc_cond cond, int64_t target) {
+  if (cond == JP) {
+    abort();
+  }
+  uint8_t arm_cond = arm_cond_from_jcc(cond);
+  int64_t delta = target - (int64_t)emit_offset();
+  delta += 4;
+  assert((delta & 0x3) == 0);
+  int64_t imm19 = delta / 4;
+  assert(imm19 >= -(1LL << 18) && imm19 < (1LL << 18));
+  uint32_t opcode =
+      0x54000000u | (((uint32_t)imm19 & 0x7ffffu) << 5) | (uint32_t)arm_cond;
   emit_op(opcode);
 }
 static uint32_t movz_opcode(uint8_t rd, uint16_t imm16, uint8_t chunk) {
@@ -243,8 +286,4 @@ void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
 
 void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst) {
   printf("TODO emit_reg_reg \n");
-}
-
-void emit_jcc32(enum jcc_cond cond, int64_t offset) {
-  printf("TODO emit_jcc32 \n");
 }
