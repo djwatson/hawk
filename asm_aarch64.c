@@ -306,6 +306,15 @@ void emit_pop(uint8_t r) { printf("TODO pop \n"); }
 
 void emit_push(uint8_t r) { printf("TODO push \n"); }
 
+void emit_mem_load(int32_t offset, uint8_t base, uint8_t dst) {
+  assert((offset % 8) == 0);
+  int32_t imm = offset / 8;
+  assert(imm >= 0 && imm < 4096);
+  uint32_t opcode = 0xF9400000u | ((uint32_t)imm << 10) |
+                    ((uint32_t)base << 5) | (uint32_t)dst;
+  emit_op(opcode);
+}
+
 void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
   printf("TODO emit_mem_reg \n");
 }

@@ -227,6 +227,10 @@ void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
   }
 }
 
+void emit_mem_load(int32_t offset, uint8_t base, uint8_t dst) {
+  emit_mem_reg(ASM_MOV_MR, offset, base, dst);
+}
+
 // TODO(djwatson) merge the '2' byte versions
 void emit_mem_reg2(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
   if (low3bits(r1) == RSP) {

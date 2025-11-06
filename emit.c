@@ -195,8 +195,8 @@ void emit(trace *t) {
     case IR_LOAD: {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       assert(!op->op1.constant);
-      emit_mem_reg(ASM_MOV_MR, (uint16_t)op->op2.loc + 8,
-                   t->ins[op->op1.loc].reg, op->reg);
+      emit_mem_load((uint16_t)op->op2.loc + 8, t->ins[op->op1.loc].reg,
+                    op->reg);
       break;
     }
     case IR_LT: {
@@ -242,7 +242,7 @@ void emit(trace *t) {
       break;
     }
     case IR_SLOAD: {
-      emit_mem_reg(ASM_MOV_MR, op->data * 8, RSTACK, op->reg);
+      emit_mem_load(op->data * 8, RSTACK, op->reg);
       break;
     }
     case IR_GGET: {
