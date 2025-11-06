@@ -4,13 +4,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "asm_aarch64.h"
-
-extern uint8_t *p;
+#include "asm.h"
 
 const char *const reg_names[MAX_REG] = {
 #define X(name) #name,
@@ -28,8 +25,6 @@ void asm_mark_unallocatable(bool used[MAX_REG]) {
   used[X17] = true;
   used[X18] = true;
 }
-
-static void bump(int64_t delta) { p -= delta; }
 
 static uint64_t count_trailing_zeros64(uint64_t n) {
   if (n == 0) {
@@ -143,39 +138,13 @@ void emit_jmp32(int32_t offset) {
   emit_op(opcode);
 }
 
-static uint8_t arm_cond_from_jcc(enum jcc_cond cond) {
-  static const uint8_t map[256] = {
-      [JO] = 0x6,  // VS
-      [JNO] = 0x7, // VC
-      [JB] = 0x3,  // LO/CC
-      [JAE] = 0x2, // HS/CS
-      [JE] = 0x0,  // EQ
-      [JNE] = 0x1, // NE
-      [JBE] = 0x9, // LS
-      [JA] = 0x8,  // HI
-      [JS] = 0x4,  // MI
-      [JNS] = 0x5, // PL
-      [JL] = 0xb,  // LT
-      [JGE] = 0xa, // GE
-      [JLE] = 0xd, // LE
-      [JG] = 0xc,  // GT
-  };
-  uint8_t code = map[cond];
-  if (code == 0) {
-    // Only JE maps to 0; for anything else 0 means unmapped.
-    if (cond != JE) {
-      abort();
-    }
-  }
-  return code;
-}
-
 void emit_jcc32(enum jcc_cond cond, int64_t target) {
   if (cond == JP) {
     abort();
   }
-  uint8_t arm_cond = arm_cond_from_jcc(cond);
-  int64_t delta = target - (int64_t)emit_offset();
+  uint8_t arm_cond = (uint8_t)cond;
+  assert(arm_cond <= 0xf);
+  int64_t delta = target - emit_offset();
   delta += 4;
   assert((delta & 0x3) == 0);
   int64_t imm19 = delta / 4;
@@ -412,11 +381,6 @@ void emit_sub_constant(uint8_t dst, uint8_t lhs, int64_t imm) {
   assert(lhs < MAX_REG);
   emit_add_sub_constant(0xD1000000u, 0xCB000000u, dst, lhs, imm);
 }
-
-void emit_pop(uint8_t r) { printf("TODO pop \n"); }
-
-void emit_push(uint8_t r) { printf("TODO push \n"); }
-
 void emit_mem_load(int32_t offset, uint8_t base, uint8_t dst) {
   assert((offset % 8) == 0);
   int32_t imm = offset / 8;
@@ -441,12 +405,4 @@ void emit_store_constant(int32_t offset, uint8_t base, int64_t value) {
   assert(base < MAX_REG);
   emit_store(offset, base, RTMP);
   emit_mov64(RTMP, value);
-}
-
-void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
-  printf("TODO emit_mem_reg \n");
-}
-
-void emit_reg_reg(uint8_t opcode, uint8_t src, uint8_t dst) {
-  printf("TODO emit_reg_reg \n");
 }

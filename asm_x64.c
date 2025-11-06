@@ -7,9 +7,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "asm_x64.h"
-
-extern uint8_t *p;
+#include "asm.h"
 
 const char *const reg_names[MAX_REG] = {
 #define X(name) #name,
