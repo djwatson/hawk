@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -136,6 +137,19 @@ void emit_jmp32(int32_t offset) {
   assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
   uint32_t opcode = 0x14000000u | ((uint32_t)imm26 & 0x03ffffffu);
   emit_op(opcode);
+}
+
+void emit_jmp32_patch_here(int64_t patch) {
+  assert(patch);
+  int64_t target = emit_offset();
+  int64_t delta = target - patch;
+  fprintf(stderr, "patch=%p target=%p delta=%lld\n", (void *)patch,
+          (void *)target, (long long)delta);
+  assert((delta & 0x3) == 0);
+  int64_t imm26 = delta / 4;
+  assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
+  uint32_t opcode = 0x14000000u | ((uint32_t)imm26 & 0x03ffffffu);
+  memcpy((void *)patch, &opcode, sizeof(opcode));
 }
 
 void emit_jcc32(enum jcc_cond cond, int64_t target) {
@@ -403,6 +417,6 @@ void emit_store(int32_t offset, uint8_t base, uint8_t src) {
 
 void emit_store_constant(int32_t offset, uint8_t base, int64_t value) {
   assert(base < MAX_REG);
-  emit_store(offset, base, RTMP);
   emit_mov64(RTMP, value);
+  emit_store(offset, base, RTMP);
 }

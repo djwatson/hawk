@@ -218,13 +218,12 @@ void emit(trace *t) {
   emit_ret();
   restore_callee_regs();
   auto exit_label = emit_offset();
-  for (uint64_t i = arrlen_snap(t->snaps); i > 0; i--) {
+  for (uint64_t i = arrlen_snap(t->snaps)-1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
+    // To be replaced by actual snap exit code at the end.
     emit_jmp32((int32_t)(exit_label - emit_offset()));
-    // TODO this needs to be a FLUSH of the snapshot.
-    emit_mov64(RET_REG, i - 1);
     snap_labels[i - 1] = emit_offset();
-    COMMENT("Snap exit #%i", i);
+    COMMENT("Snap exit #%i", i-1);
   }
 
   // TODO
@@ -235,15 +234,16 @@ void emit(trace *t) {
   // checking for stack size (eventually)
 
   // No loopback to start:
-  emit_jmp32(
-      (int32_t)(snap_labels[(arrlen_snap(t->snaps) - 1)] - emit_offset()));
-
   size_t cur_snap = arrlen_snap(t->snaps) - 1;
+  emit_jmp32(
+      (int32_t)(exit_label - emit_offset()));
+  snap_labels[cur_snap] = emit_offset();
+
   auto op_cnt_idx = arrlen_ins(t->ins);
   uint32_t next_spill = 0;
   assign_snap_registers(cur_snap, reg_to_slot, t, &next_spill);
   emit_snap(t, &t->snaps[cur_snap], reg_to_slot, false);
-  COMMENT("Loopback");
+  COMMENT("Loopback (snap exit %i)", cur_snap);
   bool done = false;
   for (; op_cnt_idx > 0 && !done; op_cnt_idx--) {
     uint16_t op_cnt = op_cnt_idx - 1;
@@ -352,16 +352,28 @@ void emit(trace *t) {
     }
     COMMENT("%i %s", op_cnt, ir_names[op->op]);
   }
-  free(snap_labels);
   // emit parcopy from loop end
   // parcopy from parent trace?
   save_callee_regs();
+  COMMENT("ENTRY");
+
+  // Emit even MORE snap exits.  We didn't have register allocation previously, but now we do.
+  // Since these are slowpath exists, the extra branches probably don't matter much.
+  for (uint64_t i = arrlen_snap(t->snaps) - 1; i > 0; i--) {
+    snap *snap = &t->snaps[i - 1];
+    emit_jmp32((int32_t)(exit_label - emit_offset()));
+    emit_snap(t, snap, reg_to_slot, true);
+    emit_jmp32_patch_here(snap_labels[i - 1]);
+    COMMENT("Snap exit #%i", i-1);
+  }
+
 
   emit_writable_end();
   auto sz = end - emit_offset();
   printf("Disassembly: %" PRId64 "\n", sz);
   disassemble((uint8_t *)emit_offset(), sz, comments);
   zone_free(&z);
+  free(snap_labels);
   // emit and done
   // patch if side trace
 }

@@ -83,6 +83,7 @@ void save_callee_regs();
 
 void emit_ret();
 void emit_jmp32(int32_t offset);
+void emit_jmp32_patch_here(int64_t patch);
 void emit_mov64(uint8_t r, int64_t imm);
 void emit_mem_load(int32_t offset, uint8_t base, uint8_t dst);
 void emit_store(int32_t offset, uint8_t base, uint8_t src);
