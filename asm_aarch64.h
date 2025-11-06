@@ -126,6 +126,8 @@ int64_t emit_offset();
 void emit_advance(int64_t offset);
 void emit_bind(uint64_t label, uint64_t jmp);
 void emit_check();
+void emit_writable_begin();
+void emit_writable_end();
 
 void restore_callee_regs();
 void save_callee_regs();

@@ -105,6 +105,7 @@ static void maybe_assign_register(slot v, trace *trace, regmap *slot,
 void emit(trace *t) {
   // TODO move init somewhere else
   emit_init();
+  emit_writable_begin();
   regmap reg_to_slot[MAX_REG];
   memset(reg_to_slot, 0, sizeof(reg_to_slot));
 
@@ -259,6 +260,7 @@ void emit(trace *t) {
   // parcopy from parent trace?
   save_callee_regs();
 
+  emit_writable_end();
   auto sz = end - emit_offset();
   printf("Disassembly: %li\n", sz);
   disassemble((uint8_t *)emit_offset(), sz);

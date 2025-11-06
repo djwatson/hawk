@@ -1,9 +1,14 @@
 #include <assert.h>
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+
+#if defined(__APPLE__) && defined(__aarch64__)
+#include <pthread.h>
+#endif
 
 static uint8_t *mtop = nullptr;
 static uint8_t *mend = nullptr;
@@ -30,17 +35,48 @@ void emit_check() {
   }
 }
 
-void emit_cleanup() { munmap(mtop, msize); }
+void emit_cleanup() {
+  if (!mtop) {
+    return;
+  }
+
+  munmap(mtop, msize);
+  mtop = nullptr;
+  mend = nullptr;
+  p = nullptr;
+}
 
 void emit_init() {
   if (mtop) {
     return;
   }
 
-  mtop = mmap(nullptr, msize, PROT_READ | PROT_WRITE | PROT_EXEC,
-              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  auto prot = PROT_READ | PROT_WRITE | PROT_EXEC;
+  auto flags = MAP_PRIVATE | MAP_ANONYMOUS;
+#if defined(__APPLE__) && defined(MAP_JIT)
+  flags |= MAP_JIT;
+#endif
+
+  auto mem = mmap(nullptr, msize, prot, flags, -1, 0);
+  if (mem == MAP_FAILED) {
+    fprintf(stderr, "Fail: mmap(%zu bytes) for JIT arena: %s\n", msize, strerror(errno));
+    exit(EXIT_FAILURE);
+  }
+
   atexit(&emit_cleanup);
-  assert(mtop);
+  mtop = (uint8_t *)mem;
   p = mtop + msize;
   mend = p;
+}
+
+void emit_writable_begin() {
+#if defined(__APPLE__) && defined(__aarch64__)
+  pthread_jit_write_protect_np(0);
+#endif
+}
+
+void emit_writable_end() {
+#if defined(__APPLE__) && defined(__aarch64__)
+  pthread_jit_write_protect_np(1);
+#endif
 }
