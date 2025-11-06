@@ -3,7 +3,10 @@
 
 #include <dlfcn.h>
 #include <stdio.h>
+#include <sys/types.h>
 
+#include "disassemble.h"
+#include "array.h"
 #include "hashtable.h"
 #include "zone_alloc.h"
 
@@ -26,7 +29,7 @@ static const char *resolve_address(void *addr) {
   return info.dli_sname;
 }
 
-void disassemble(const uint8_t *code, size_t len) {
+void disassemble(const uint8_t *code, size_t len, const comment_entry *comments) {
   csh handle;
   cs_insn *insn;
   size_t count;
@@ -99,9 +102,16 @@ void disassemble(const uint8_t *code, size_t len) {
     }
   }
 
-  // Second pass: print disassembly with labels
+  // Second pass: print disassembly with labels and comments
+  ssize_t cur_comment = (ssize_t)arrlen(comments) - 1;
   for (size_t i = 0; i < count; i++) {
     uint64_t addr = insn[i].address;
+
+    while (cur_comment >= 0 &&
+           (uint64_t)comments[cur_comment].offset == addr) {
+      printf("// %s\n", comments[cur_comment].text);
+      cur_comment--;
+    }
 
     auto idx = hm_geti(label_targets, addr);
     if (idx >= 0) {

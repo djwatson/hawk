@@ -1,18 +1,21 @@
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
 
 #include <assert.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
 
 #include "asm.h"
+#include "array.h"
 #include "disassemble.h"
 #include "ir.h"
+#include "zone_alloc.h"
 
 typedef struct {
   uint16_t s;
   bool used;
 } regmap;
-
 static void assign_snap_registers(size_t snap_num, regmap *regs, trace *t,
                                   uint32_t *next_spill) {
   // Get a free register, if any.  If already assigned a slot, do nothing.
@@ -102,9 +105,44 @@ static void maybe_assign_register(slot v, trace *trace, regmap *slot,
   }
 }
 
+static char *zone_vsprintf(zone *z, char const *fmt, va_list args) {
+  va_list measure;
+  va_copy(measure, args);
+  int needed = vsnprintf(nullptr, 0, fmt, measure);
+  va_end(measure);
+  if (needed < 0) {
+    abort();
+  }
+
+  size_t bytes = (size_t)needed + 1;
+  char *buf = zone_malloc(z, bytes);
+  if (!buf) {
+    abort();
+  }
+
+  va_list write_args;
+  va_copy(write_args, args);
+  int written = vsnprintf(buf, bytes, fmt, write_args);
+  va_end(write_args);
+  if (written < 0 || written >= (int)bytes) {
+    abort();
+  }
+  return buf;
+}
+
+static void comment_append(zone *z, comment_entry **comments, char const *fmt,
+                           ...) {
+  va_list args;
+  va_start(args, fmt);
+  char *msg = zone_vsprintf(z, fmt, args);
+  va_end(args);
+  comment_entry entry = {.offset = emit_offset(), .text = msg};
+  arrput(z, *comments, entry);
+}
+
 static void emit_stack_offset_and_check(snap const *snap) {
   if (snap->offset) {
-    emit_add(RSTACK, RSTACK, snap->offset * 8);
+    emit_add_constant(RSTACK, RSTACK, snap->offset * 8);
     
     // TODO
     // check frame overflow
@@ -125,6 +163,15 @@ static void emit_stack_offset_and_check(snap const *snap) {
 static void emit_snap(trace *t, snap *snap,
                       regmap *regs, bool exit) {
   auto consts = t->consts;
+  // If this is an exiting snapshot (vs. a loop back)
+  // then record exit PC & snapshot.
+  if (exit) {
+    emit_mov64(RET_REG2, (intptr_t)snap);
+    emit_mov64(RET_REG, (intptr_t)t);
+  }
+
+  emit_stack_offset_and_check(snap);
+
   for (uint64_t j = 0; j < arrlen_snap_entry(snap->slots); j++) {
     auto entry = &snap->slots[j];
     if (entry->val.constant) {
@@ -146,16 +193,9 @@ static void emit_snap(trace *t, snap *snap,
       }
     }
   }
-
-  emit_stack_offset_and_check(snap);
-
-  // If this is an exiting snapshot (vs. a loop back)
-  // then record exit PC & snapshot.
-  if (exit) {
-    emit_mov64(RET_REG2, (intptr_t)snap);
-    emit_mov64(RET_REG, (intptr_t)t);
-  }
 }
+
+#define COMMENT(...) comment_append(&z, &comments, __VA_ARGS__)
 
 void emit(trace *t) {
   // TODO move init somewhere else
@@ -163,6 +203,8 @@ void emit(trace *t) {
   emit_writable_begin();
   regmap reg_to_slot[MAX_REG];
   memset(reg_to_slot, 0, sizeof(reg_to_slot));
+  zone z = {};
+  comment_entry *comments = nullptr;
 
   bool reserved[MAX_REG] = {0};
   asm_mark_unallocatable(reserved);
@@ -181,6 +223,7 @@ void emit(trace *t) {
     // TODO this needs to be a FLUSH of the snapshot.
     emit_mov64(RET_REG, i - 1);
     snap_labels[i - 1] = emit_offset();
+    COMMENT("Snap exit #%i", i);
   }
 
   // TODO
@@ -198,6 +241,8 @@ void emit(trace *t) {
   auto op_cnt_idx = arrlen_ins(t->ins);
   uint32_t next_spill = 0;
   assign_snap_registers(cur_snap, reg_to_slot, t, &next_spill);
+  emit_snap(t, &t->snaps[cur_snap], reg_to_slot, false);
+  COMMENT("Loopback");
   bool done = false;
   for (; op_cnt_idx > 0 && !done; op_cnt_idx--) {
     uint16_t op_cnt = op_cnt_idx - 1;
@@ -295,6 +340,8 @@ void emit(trace *t) {
       break;
     }
     case IR_GGET: {
+      emit_mem_load(16, op->reg, RTMP);
+      emit_mov64(RTMP, t->consts[op->op1.loc].value);
       break;
     }
     default: {
@@ -302,6 +349,7 @@ void emit(trace *t) {
       // exit(-1);
     }
     }
+    COMMENT("%i %s", op_cnt, ir_names[op->op]);
   }
   free(snap_labels);
   // emit parcopy from loop end
@@ -311,7 +359,8 @@ void emit(trace *t) {
   emit_writable_end();
   auto sz = end - emit_offset();
   printf("Disassembly: %li\n", sz);
-  disassemble((uint8_t *)emit_offset(), sz);
+  disassemble((uint8_t *)emit_offset(), sz, comments);
+  zone_free(&z);
   // emit and done
   // patch if side trace
 }

@@ -426,6 +426,23 @@ void emit_mem_load(int32_t offset, uint8_t base, uint8_t dst) {
   emit_op(opcode);
 }
 
+void emit_store(int32_t offset, uint8_t base, uint8_t src) {
+  assert((offset % 8) == 0);
+  assert(base < MAX_REG);
+  assert(src < MAX_REG);
+  int32_t imm = offset / 8;
+  assert(imm >= 0 && imm < 4096);
+  uint32_t opcode = 0xF9000000u | ((uint32_t)imm << 10) |
+                    ((uint32_t)base << 5) | (uint32_t)src;
+  emit_op(opcode);
+}
+
+void emit_store_constant(int32_t offset, uint8_t base, int64_t value) {
+  assert(base < MAX_REG);
+  emit_store(offset, base, RTMP);
+  emit_mov64(RTMP, value);
+}
+
 void emit_mem_reg(uint8_t opcode, int32_t offset, uint8_t r1, uint8_t r2) {
   printf("TODO emit_mem_reg \n");
 }
