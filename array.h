@@ -42,4 +42,5 @@ void arrlen_set(void const *arr, size_t len);
   for (typeof((arr)[0])(value), *value##_p = &(arr)[0];                        \
        value##_p < (arr) + arrlen(arr) && ((value) = *value##_p, 1);           \
        value##_p++)
-void arr_reverse(void **arr);
+void arr_reverse_elems(void *arr, size_t elem_size);
+#define arr_reverse(arr) arr_reverse_elems((arr), sizeof((arr)[0]))

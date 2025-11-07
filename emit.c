@@ -25,7 +25,7 @@ static void assign_snap_registers(size_t snap_num, regmap *regs, trace *t,
   // Get a free register, if any.  If already assigned a slot, do nothing.
   // If no free registers, assign a slot.
   auto snap = &t->snaps[snap_num];
-  for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
+  arr_for_each_idx(snap->slots, i) {
     auto s = &snap->slots[i];
     if (s->val.constant) {
       continue;
@@ -176,7 +176,7 @@ static void emit_snap(trace *t, snap *snap, regmap *regs, bool exit) {
 
   emit_stack_offset_and_check(snap);
 
-  for (uint64_t j = 0; j < arrlen(snap->slots); j++) {
+  arr_for_each_idx(snap->slots, j) {
     auto entry = &snap->slots[j];
     if (entry->val.constant) {
       emit_store_constant((int64_t)entry->slot * 8, RSTACK,
@@ -377,6 +377,7 @@ for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
   emit_writable_end();
   auto sz = end - emit_offset();
   printf("Disassembly: %" PRId64 "\n", sz);
+  arr_reverse(comments);
   disassemble((uint8_t *)emit_offset(), sz, comments);
   zone_free(&z);
   free(snap_labels);

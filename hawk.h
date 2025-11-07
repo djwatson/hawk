@@ -16,6 +16,12 @@
 #define unlikely(x) __builtin_expect(x, 0)
 #define ALIGNED8 __attribute__((aligned(8)))
 #define EXPORT __attribute__((visibility("default")))
+#define SWAP(type, a, b)                                                       \
+  do {                                                                         \
+    type SWAP_tmp = (a);                                                       \
+    (a) = (b);                                                                 \
+    (b) = SWAP_tmp;                                                            \
+  } while (0)
 
 #define BCFUNC_FLEXARRAY_DIAG_PUSH                                             \
   _Pragma("clang diagnostic push") _Pragma(                                    \

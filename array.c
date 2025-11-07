@@ -2,9 +2,11 @@
 
 #include <assert.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "array.h"
+#include "hawk.h"
 
 void *arrgrowf(zone *z, void *a, size_t elemsize, size_t addlen,
                size_t min_cap) {
@@ -60,17 +62,23 @@ void arrlen_set(void const *a, size_t len) {
   header->length = len;
 }
 
-void arr_reverse(void **arr) {
-  if (!arr || arrlen(arr) == 0) {
+void arr_reverse_elems(void *a, size_t elem_size) {
+  if (!a) {
     return;
   }
-  uint64_t start = 0;
-  uint64_t end = arrlen(arr) - 1;
+  size_t len = arrlen(a);
+  if (len <= 1) {
+    return;
+  }
+  uint8_t *data = a;
+  size_t start = 0;
+  size_t end = len - 1;
   while (start < end) {
-    auto temp = arr[start];
-    arr[start] = arr[end];
-    arr[end] = temp;
-
+    for (size_t b = 0; b < elem_size; b++) {
+      uint8_t *lhs = data + (start * elem_size) + b;
+      uint8_t *rhs = data + (end * elem_size) + b;
+      SWAP(uint8_t, *lhs, *rhs);
+    }
     start++;
     end--;
   }

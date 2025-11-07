@@ -103,14 +103,17 @@ void disassemble(const uint8_t *code, size_t len,
     }
   }
 
+  size_t comment_idx = 0;
+  size_t comment_cnt = arrlen(comments);
+
   // Second pass: print disassembly with labels and comments
-  ssize_t cur_comment = (ssize_t)arrlen(comments) - 1;
   for (size_t i = 0; i < count; i++) {
     uint64_t addr = insn[i].address;
 
-    while (cur_comment >= 0 && (uint64_t)comments[cur_comment].offset == addr) {
-      printf("// %s\n", comments[cur_comment].text);
-      cur_comment--;
+    while (comment_idx < comment_cnt &&
+           (uint64_t)comments[comment_idx].offset == addr) {
+      printf("// %s\n", comments[comment_idx].text);
+      comment_idx++;
     }
 
     auto idx = hm_geti(label_targets, addr);
