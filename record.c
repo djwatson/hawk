@@ -10,24 +10,50 @@
 #include "types.h"
 #include "vm.h"
 
-#define TRACE_STATE(state) (&(state)->record.trace_state)
-#define CUR_TRACE(state) ((state)->record.cur_trace)
-#define TRACES(state) ((state)->record.traces)
+static inline trace_state *record_trace_state(vm_state *state) {
+  return &state->record.trace_state;
+}
+
+static inline trace *record_current_trace(vm_state *state) {
+  return state->record.cur_trace;
+}
+
+static inline void record_set_current_trace(vm_state *state, trace *trace) {
+  state->record.cur_trace = trace;
+}
+
+static inline uint32_t record_trace_count(vm_state *state) {
+  return arrlen(state->record.traces);
+}
+
+static inline void record_append_trace(vm_state *state, trace *trace) {
+  arrput(nullptr, state->record.traces, trace);
+}
+
+static void snapshot_live_slots(trace_state *ts, snap *snap) {
+  arr_for_each_idx(ts->stack, i) {
+    sentry entry = ts->stack[i];
+    if (entry.changed && entry.live) {
+      snap_entry slot = {.slot = (uint16_t)i, .val = entry.loc};
+      arrput(nullptr, snap->slots, slot);
+    }
+  }
+}
 
 #define OP(code)                                                               \
   PRESERVE_NONE gc_obj record_##code(bc *pc, gc_obj *stack, vm_state *state,   \
                                      void *op_table, uint8_t argcnt)
 
 static slot add_const(vm_state *state, gc_obj value) {
-  auto trace = CUR_TRACE(state);
-  auto idx = arrlen(trace->consts);
-  arrput(nullptr, trace->consts, value);
+  trace *trace_obj = record_current_trace(state);
+  auto idx = arrlen(trace_obj->consts);
+  arrput(nullptr, trace_obj->consts, value);
   return (slot){.constant = true, .loc = idx};
 }
 
 static void vm_add_snap(vm_state *state, bc *pc) {
-  auto *ts = TRACE_STATE(state);
-  auto *cur_trace = CUR_TRACE(state);
+  trace_state *ts = record_trace_state(state);
+  trace *cur_trace = record_current_trace(state);
   snap snap = {
       .pc = pc,
       .offset = ts->stack_off,
@@ -35,17 +61,12 @@ static void vm_add_snap(vm_state *state, bc *pc) {
       .exits = 0,
       .trace = cur_trace,
   };
-  arr_for_each_idx(ts->stack, i) {
-    if (ts->stack[i].changed && ts->stack[i].live) {
-      snap_entry entry = {.slot = (uint16_t)i, .val = ts->stack[i].loc};
-      arrput(nullptr, snap.slots, entry);
-    }
-  }
+  snapshot_live_slots(ts, &snap);
   arrput(nullptr, cur_trace->snaps, snap);
 }
 
 static sentry *get_sentry(vm_state *state, uint64_t idx) {
-  auto *ts = TRACE_STATE(state);
+  trace_state *ts = record_trace_state(state);
   auto len = arrlen(ts->stack);
   while (len++ <= (idx + ts->stack_off)) {
     sentry entry = {.live = false, .changed = false};
@@ -55,9 +76,9 @@ static sentry *get_sentry(vm_state *state, uint64_t idx) {
 }
 
 static slot add_inst(vm_state *state, ir_ins ins) {
-  auto trace = CUR_TRACE(state);
-  auto idx = arrlen(trace->ins);
-  arrput(nullptr, trace->ins, ins);
+  trace *trace_obj = record_current_trace(state);
+  auto idx = arrlen(trace_obj->ins);
+  arrput(nullptr, trace_obj->ins, ins);
   return (slot){.constant = false, .loc = idx};
 }
 
@@ -166,7 +187,7 @@ static slot return_address(vm_state *state, bc *ra) {
   return add_const(state, tag_return_address(ra));
 }
 static gc_obj *adjust_stack_depth(vm_state *state, gc_obj *stack, int depth) {
-  auto *ts = TRACE_STATE(state);
+  trace_state *ts = record_trace_state(state);
   ts->stack_off += depth;
   ts->depth++;
   return stack;
@@ -194,8 +215,8 @@ static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
 }
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table) {
-  auto *ts = TRACE_STATE(state);
-  auto *cur_trace = CUR_TRACE(state);
+  trace_state *ts = record_trace_state(state);
+  trace *cur_trace = record_current_trace(state);
   if (pc == ts->start_ins) {
     vm_add_snap(state, pc);
     cur_trace->fn = emit(cur_trace);
@@ -204,9 +225,9 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
     state->max_trace--;
     *ts->start_ins = (bc){
         .op = OP_JFUNC,
-        .data = arrlen(TRACES(state)),
+        .data = record_trace_count(state),
     };
-    arrput(nullptr, TRACES(state), cur_trace);
+    record_append_trace(state, cur_trace);
     return state->impls;
   }
   return op_table;
@@ -222,8 +243,9 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 
 void record_start(vm_state *state, bc *pc, gc_obj *stack) {
   printf("Record start\n");
-  CUR_TRACE(state) = calloc(1, sizeof(trace));
-  memset(TRACE_STATE(state), 0, sizeof(trace_state));
-  TRACE_STATE(state)->start_ins = pc;
+  record_set_current_trace(state, calloc(1, sizeof(trace)));
+  trace_state *ts = record_trace_state(state);
+  memset(ts, 0, sizeof(trace_state));
+  ts->start_ins = pc;
   vm_add_snap(state, pc);
 }
