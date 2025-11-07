@@ -52,7 +52,7 @@ enum ARITH_CODES {
 };
 
 enum OPCODES {
-  ASM_ADD = 0x01,
+  ASM_ADD = 0x03,
   ASM_SUB = 0x29,
   ASM_XCHG = 0x87,
   ASM_MOV = 0x89,
