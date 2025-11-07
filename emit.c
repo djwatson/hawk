@@ -247,6 +247,7 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, regmap *regs,
   }
 
   emit_stack_offset_and_check(s, snap);
+  snap->patch_point = emit_offset(s);
 
   arr_for_each_idx(snap->slots, j) {
     emit_snap_store_entry(s, t, &snap->slots[j]);
@@ -283,7 +284,6 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     // To be replaced by actual snap exit code at the end.
     emit_jmp32(s, (int32_t)(exit_label - emit_offset(s)));
     snap_labels[i - 1] = emit_offset(s);
-    t->snaps[i - 1].patch_point = emit_offset(s);
     COMMENT("Snap exit #%i", i - 1);
   }
 

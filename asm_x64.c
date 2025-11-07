@@ -376,6 +376,7 @@ void emit_jmp32_patch_here(emit_state *s, int64_t patch) {
   int64_t delta = target - patch - 5;
   // TODO fix, make sure fits in 32 bits?
   assert(fits_in_32(delta));
+  uint8_t jmp = 0xe9;
   memcpy((uint8_t *)patch + 1, &delta, 4);
 }
 
