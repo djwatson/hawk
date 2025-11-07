@@ -84,6 +84,7 @@ typedef struct trace {
   uint16_t num;
   trace *parent;
   uint16_t link;
+  uint64_t trace_start;
 } trace;
 
 enum : uint8_t {

@@ -14,6 +14,7 @@
 #include "disassemble.h"
 #include "ir.h"
 #include "jitdump.h"
+#include "record.h"
 #include "zone_alloc.h"
 
 typedef struct {
@@ -254,7 +255,7 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, regmap *regs,
 
 #define COMMENT(...) comment_append(emit_offset(s), &z, &comments, __VA_ARGS__)
 
-trace_fn emit(trace *t, emit_state *s) {
+trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // TODO move init somewhere else
   emit_init(s);
   jit_dump_init();
@@ -285,23 +286,22 @@ trace_fn emit(trace *t, emit_state *s) {
     COMMENT("Snap exit #%i", i - 1);
   }
 
-  // TODO
-  // loopback emit, or jump to exit
-  // for loopback:
-  // don't forget to store snap below, and
-  // update stack ptr
-  // checking for stack size (eventually)
-
-  // No loopback to start:
   size_t cur_snap = arrlen(t->snaps) - 1;
-  emit_jmp32(s, (int32_t)(exit_label - emit_offset(s)));
-  snap_labels[cur_snap] = emit_offset(s);
-
   auto op_cnt_idx = arrlen(t->ins);
   uint32_t next_spill = 0;
   assign_snap_registers(cur_snap, reg_to_slot, t, &next_spill);
-  emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, true);
-  COMMENT("Loopback (snap exit %i)", cur_snap);
+  if (t->link == t->num) {
+    emit_jmp32(s, (int32_t)(exit_label - emit_offset(s)));
+    snap_labels[cur_snap] = emit_offset(s);
+
+    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, true);
+    COMMENT("Loopback (snap exit %i)", cur_snap);
+  } else {
+    trace *linked_trace = record->traces[t->link];
+    emit_jmp32(s, (int32_t)(linked_trace->trace_start - emit_offset(s)));
+    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false);
+    COMMENT("Link to trace %i (snap exit %i)", t->link, cur_snap);
+  }
   bool done = false;
   for (; op_cnt_idx > 0 && !done; op_cnt_idx--) {
     uint16_t op_cnt = op_cnt_idx - 1;
@@ -329,6 +329,11 @@ trace_fn emit(trace *t, emit_state *s) {
     /*   printf("WARNING: emitting op with no reg: %i\n", op_cnt); */
     /* } */
 
+    // Assign reg to this if it doesn't have a reg yet.
+    if (op->op == IR_RET) {
+      maybe_assign_register((slot){.constant = false, .loc = op_cnt}, t,
+                            reg_to_slot, &next_spill);
+    }
     // free current register.
     if (op->reg != REG_NONE && op->reg != RSTACK && op->op != IR_ARG) {
       assert(reg_to_slot[op->reg].s == op_cnt);
@@ -380,6 +385,17 @@ trace_fn emit(trace *t, emit_state *s) {
       emit_mov64(s, RTMP, slot_const(t, op->op1) - SYMBOL_TAG);
       break;
     }
+    case IR_RET: {
+      // mov ra to a register
+
+      emit_sub_constant(s, RSTACK, RSTACK, slot_const(t, op->op1));
+      emit_jcc32(s, JNE, snap_labels[cur_snap]);
+      emit_cmp_constant(s, CMP_EQ, op->reg, slot_const(t, op->op2));
+      // cmp stack[-1], jmp to snap if not equal
+      emit_mem_load(s, -8, RSTACK, op->reg);
+
+      break;
+    }
     default: {
       printf("Can't jit op: %s\n", ir_names[op->op]);
       // exit(-1);
@@ -389,8 +405,11 @@ trace_fn emit(trace *t, emit_state *s) {
   }
   // emit parcopy from loop end
   // parcopy from parent trace?
-  emit_jmp32_patch_here(s, snap_labels[arrlen(t->snaps) - 1]);
+  if (t->link == t->num) { // self link
+    emit_jmp32_patch_here(s, snap_labels[arrlen(t->snaps) - 1]);
+  }
 
+  t->trace_start = emit_offset(s);
   emit_mov(s, RSTACK, RARG0);
   save_callee_regs(s);
   COMMENT("ENTRY");

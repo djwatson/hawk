@@ -257,8 +257,8 @@ static void record_finish(bc *pc, vm_state *state) {
   trace *cur_trace = record_current_trace(state);
   vm_add_snap(state, pc);
   print_ir(cur_trace);
-  cur_trace->fn = emit(cur_trace, &state->emit);
   cur_trace->num = arrlen(state->record.traces);
+  cur_trace->fn = emit(cur_trace, &state->emit, &state->record);
   print_ir(cur_trace);
   state->max_trace--;
   if (cur_trace->parent) {

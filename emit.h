@@ -3,4 +3,6 @@
 #include "asm.h"
 #include "ir.h"
 
-trace_fn emit(trace *t, emit_state *s);
+struct record_state;
+
+trace_fn emit(trace *t, emit_state *s, struct record_state *record);
