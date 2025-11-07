@@ -128,10 +128,7 @@ void print_ir(trace *t) {
     case IR_RET:
       printf(" ");
       print_slot(ins->op1, t);
-      if (ins->op2.constant || ins->op2.loc) {
-        printf(", ");
-        print_slot(ins->op2, t);
-      }
+      printf(", \e[1;35m#<bc 0x%lx>\e[m", t->consts[ins->op2.loc].value);
       break;
     default:
       if (ins->data) {

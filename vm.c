@@ -137,7 +137,8 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
     if (res.snap->exits == 255) {
       printf("Blacklist side snap\n");
     }
-    if (res.snap->exits >= 10 && res.snap->exits % 10 == 0) {
+    if (res.snap->exits >= 10 && res.snap->exits % 10 == 0 &&
+        state->max_trace > 0) {
       printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
       record_start_side(state, *pc, *stack, res.snap);
       return state->record_impls;
