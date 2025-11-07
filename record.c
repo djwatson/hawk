@@ -150,7 +150,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack) {
     }
     // Side traces *may* go down the stack.
     // 1) record load for result
-    auto res = stack_load(state, stack, pc->op);
+    auto res = stack_load(state, stack, pc->reg);
     // 2) get the frame offset
     auto ra = to_return_address(stack[-1]);
     auto old_pc = ra - 1;
