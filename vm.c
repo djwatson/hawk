@@ -3,51 +3,41 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include "bc.h"
-#include "hawk.h"
 #include "ir.h"
-#include "types.h"
+#include "record.h"
 
 enum : uint8_t {
-  hotmap_sz = 64,
+  hotmap_sz = VM_HOTMAP_SZ,
   hotmap_loop = 3,
   hotmap_mask = (hotmap_sz - 1),
   hotmap_rec = 1,
   hotmap_cnt = 200,
 };
-static uint8_t hotmap[hotmap_sz];
-uint8_t max_trace = 1;
 
 static inline uint32_t hotmap_hash(void *pc) {
   return (((uint64_t)pc) >> 3) & hotmap_mask;
 }
 #define OP(code)                                                               \
-  PRESERVE_NONE gc_obj impl_##code(bc *pc, gc_obj *stack, void *op_table,      \
-                                   uint8_t argcnt)
-
-typedef gc_obj PRESERVE_NONE (*op_func)(bc *pc, gc_obj *stack, void *op_table,
-                                        uint8_t argcnt);
-op_func record_impls[OP_INS_MAX];
-op_func impls[OP_INS_MAX];
+  PRESERVE_NONE gc_obj impl_##code(bc *pc, gc_obj *stack, vm_state *state,     \
+                                   void *op_table, uint8_t argcnt)
 
 typedef struct {
   bc *pc;
   gc_obj *stack;
 } frame_state;
 
-// todo cleanup del=cl
-void record_start(bc *pc, gc_obj *stack);
-static inline void *check_record_start(bc **pc, gc_obj **stack,
+static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                        void *op_table) {
-  uint8_t *hot_loc = &hotmap[hotmap_hash(pc)];
+  uint8_t *hot_loc = &state->hotmap[hotmap_hash(pc)];
   uint8_t prev_hot = *hot_loc;
   *hot_loc -= 1;
-  if ((max_trace > 0) && prev_hot < *hot_loc && op_table == impls) {
+  if ((state->max_trace > 0) && prev_hot < *hot_loc &&
+      op_table == state->impls) {
     *hot_loc = hotmap_cnt;
-    // TODO make a new trace?
-    record_start(*pc, *stack);
-    return record_impls;
+    record_start(state, pc, stack);
+    return state->record_impls;
   }
   return op_table;
 }
@@ -112,7 +102,9 @@ static inline gc_obj constify_data(uint16_t data) {
 }
 
 extern trace **traces;
-static inline void *jit_func(bc **pc, gc_obj **stack, void *op_table) {
+static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
+                             void *op_table) {
+  (void)state;
   auto jfunc = (*pc)->data;
   // printf("RUN jit %i\n", jfunc);
   auto fn = traces[jfunc]->fn;
@@ -124,28 +116,30 @@ static inline void *jit_func(bc **pc, gc_obj **stack, void *op_table) {
 }
 #define dispatch_next(pc, stack)                                               \
   op_func impl = ((op_func *)op_table)[(pc)->op];                              \
-  MUSTTAIL return impl(pc, stack, op_table, 0);
+  MUSTTAIL return impl(pc, stack, state, op_table, 0);
 
 #include "vmgen.c"
 
-op_func impls[OP_INS_MAX] = {
-#define X(name) impl_##name,
-    OPS
-#undef X
-};
 #define X(name)                                                                \
-  PRESERVE_NONE gc_obj record_##name(bc *pc, gc_obj *stack, void *op_table,    \
-                                     uint8_t argcnt);
-OPS
+  PRESERVE_NONE gc_obj record_##name(bc *pc, gc_obj *stack, vm_state *state,   \
+                                     void *op_table, uint8_t argcnt);
+OPS;
 #undef X
-    op_func record_impls[OP_INS_MAX] = {
-#define X(name) record_##name,
-        OPS
+
+static void vm_state_init(vm_state *state) {
+  memset(state, 0, sizeof(*state));
+  state->max_trace = 1;
+#define X(name) state->impls[OP_##name] = impl_##name;
+  OPS
 #undef X
-};
+#define X(name) state->record_impls[OP_##name] = record_##name;
+      OPS
+#undef X
+}
 
 gc_obj vm(bc *pc) {
   gc_obj *stack = calloc(1024, sizeof(gc_obj));
+  vm_state *state = calloc(1, sizeof(vm_state));
 
-  return impls[pc->op](pc, stack, impls, 0);
+  return state->impls[pc->op](pc, stack, state, state->impls, 0);
 }

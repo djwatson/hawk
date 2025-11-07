@@ -5,6 +5,7 @@
 #include "emit.h"
 #include "hawk.h"
 #include "ir.h"
+#include "record.h"
 #include "string.h"
 #include "types.h"
 
@@ -34,12 +35,8 @@ static trace_state ts;
 trace **traces = nullptr;
 
 #define OP(code)                                                               \
-  PRESERVE_NONE gc_obj record_##code(bc *pc, gc_obj *stack, void *op_table,    \
-                                     uint8_t argcnt)
-typedef gc_obj PRESERVE_NONE (*op_func)(bc *pc, gc_obj *stack, void *op_table,
-                                        uint8_t argcnt);
-extern op_func impls[OP_INS_MAX];
-extern op_func record_impls[OP_INS_MAX];
+  PRESERVE_NONE gc_obj record_##code(bc *pc, gc_obj *stack, vm_state *state,   \
+                                     void *op_table, uint8_t argcnt)
 // end TODO
 
 static void vm_add_snap(bc *pc) {
@@ -219,27 +216,24 @@ static bc *set_new_pc(bc *pc, gc_obj *stack, slot func) {
 
   return pc;
 }
-static void *jit_func(bc **pc, gc_obj **stack, void *op_table) { abort(); }
-extern uint8_t max_trace;
-static void *check_record_start(bc **pc, gc_obj **stack, void *op_table) {
-  if (*pc == ts.start_ins) {
-    vm_add_snap(*pc);
-    printf("Record done\n");
+static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
+                      void *op_table) {
+  (void)state;
+  abort();
+}
+static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
+                                void *op_table) {
+  if (pc == ts.start_ins) {
+    vm_add_snap(pc);
     cur_trace->fn = emit(cur_trace);
     print_ir(cur_trace);
-    // exit(0);
-    max_trace--;
+    state->max_trace--;
     *ts.start_ins = (bc){
         .op = OP_JFUNC,
         .data = arrlen(traces),
     };
     arrput(nullptr, traces, cur_trace);
-    /* printf("RUNNING\n"); */
-    /* auto res = cur_trace->fn(*stack); */
-    /* *stack = res.stack; */
-    /* *pc = res.snap->pc; */
-    /* printf("RUNNING done\n"); */
-    return impls;
+    return state->impls;
   }
   return op_table;
 }
@@ -247,12 +241,13 @@ static void *check_record_start(bc **pc, gc_obj **stack, void *op_table) {
 // Tailcall to the non-recording version, which will then tailcall the
 // next *recording* opcode
 #define dispatch_next(pc, stack)                                               \
-  op_func impl = ((op_func *)impls)[(pc)->op];                                 \
-  MUSTTAIL return impl(pc, stack, op_table, 0);
+  op_func impl = state->impls[(pc)->op];                                       \
+  MUSTTAIL return impl(pc, stack, state, op_table, 0);
 
 #include "vmgen.c"
 
-void record_start(bc *pc, gc_obj *stack) {
+void record_start(vm_state *state, bc *pc, gc_obj *stack) {
+  (void)state;
   printf("Record start\n");
   cur_trace = calloc(1, sizeof(trace));
   memset(&ts, 0, sizeof(ts));

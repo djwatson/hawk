@@ -56,7 +56,7 @@ OP(LOOKUP) {
 OP(FUNC) {
   // TODO argcnt check
   auto expect_argcnt = pc->data - 1;
-  op_table = check_record_start(&pc, &stack, op_table);
+  op_table = check_record_start(pc, stack, state, op_table);
 
   pc = next_op(pc);
   dispatch_next(pc, stack);
@@ -64,7 +64,7 @@ OP(FUNC) {
 OP(JFUNC) {
   // TODO argcnt check
   auto f = pc->data;
-  op_table = jit_func(&pc, &stack, op_table);
+  op_table = jit_func(&pc, &stack, state, op_table);
 
   dispatch_next(pc, stack);
 }
