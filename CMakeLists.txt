@@ -7,6 +7,9 @@ set(CMAKE_C_COMPILER clang)
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+#add_compile_options(-fsanitize=address)
+#add_link_options(-fsanitize=address)
+
 #set(CMAKE_C_CLANG_TIDY "clang-tidy")
 
 set(ASM_SOURCE asm_x64.c)

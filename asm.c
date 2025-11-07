@@ -14,7 +14,7 @@ static uint8_t *mtop = nullptr;
 static uint8_t *mend = nullptr;
 uint8_t *p = nullptr;
 
-static const size_t page_cnt = 4000;
+static const size_t page_cnt = 250;
 static const size_t msize = page_cnt * 4096;
 
 int64_t emit_offset() { return (int64_t)p; }
@@ -68,6 +68,9 @@ void emit_init() {
   mtop = (uint8_t *)mem;
   p = mtop + msize;
   mend = p;
+
+  // Valgrind requires some readahead space.
+  p--;
 }
 
 void emit_writable_begin() {

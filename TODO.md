@@ -22,12 +22,9 @@
 
 # simple VM
 
-* c - because we need musttail, so only clang/llvm, zig, or asm seem to support it.
 * use conservative collector on stack, but precise on heap, allowing dumping.
 * Hmmm maybe allow toplevel and module - DON'T inline modules?  Or track which are inlined? ugh.
   * make this optional, I guess.
-* generate VM and TRACE from single spec.
-  * This makes things like error checking, and setting/getting stack slots, much more consistent.
 * Loader should be agnostic to GC - symbols first, then funcs? Consts in a table per func?
   * non-moving GC from callcc.
 * bytecode should FUNC should have frame size - do everything either
@@ -35,8 +32,6 @@
 * visualization of bytecodes.  SO helpful.
 
 ## tracer
-  * backwards is waaaay easier
-  * have some sort of emit like lightening that works for both aarch64 and x86_64
 * visualization of traces
 * register-ize first couple args. Keep track of type.
 * dead/kills - no idea.  We could analyze bytecode, or just do
@@ -45,7 +40,6 @@
 * CALLT detect loops too
 * multiple return values from the start
 * punt on: more than 256 refs.
-* emit LOTS of code, stubs for start/exit, don't make these interpreter loops, it's harder.
 
 ### opts
 
