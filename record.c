@@ -18,6 +18,20 @@
   PRESERVE_NONE gc_obj record_##code(bc *pc, gc_obj *stack, vm_state *state,   \
                                      void *op_table, uint8_t argcnt)
 
+static slot add_const(vm_state *state, gc_obj value) {
+  auto trace = CUR_TRACE(state);
+  auto idx = arrlen(trace->consts);
+  arrput(nullptr, trace->consts, value);
+  return (slot){.constant = true, .loc = idx};
+}
+
+static slot add_inst(vm_state *state, ir_ins ins) {
+  auto trace = CUR_TRACE(state);
+  auto idx = arrlen(trace->ins);
+  arrput(nullptr, trace->ins, ins);
+  return (slot){.constant = false, .loc = idx};
+}
+
 static void vm_add_snap(vm_state *state, bc *pc) {
   auto *ts = TRACE_STATE(state);
   auto *cur_trace = CUR_TRACE(state);
@@ -56,12 +70,7 @@ static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos) {
   ir_ins ins = (ir_ins){
       .op = IR_SLOAD, .data = pos, .reg = REG_NONE, .spill = SPILL_NONE};
 
-  // Save in instructions array
-  auto idx = arrlen(CUR_TRACE(state)->ins);
-  arrput(nullptr, CUR_TRACE(state)->ins, ins);
-
-  // Save instr slot in our shadow regs, and return!.
-  slot n = (slot){.constant = false, .loc = idx};
+  slot n = add_inst(state, ins);
   entry->live = true;
   entry->changed = false;
   entry->loc = n;
@@ -76,45 +85,30 @@ static void stack_save(vm_state *state, gc_obj *stack, uint8_t pos, slot res) {
 static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   // We use a non-moving gc, so this is just a runtime constant, always.
   auto c = *(gc_obj *)(pc - pc->data);
-  // Save it to consts array
-  auto idx = arrlen(CUR_TRACE(state)->consts);
-  arrput(nullptr, CUR_TRACE(state)->consts, c);
-  return (slot){.constant = true, .loc = idx};
+  return add_const(state, c);
 }
 static slot emit_ov_math_add(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
   ir_ins ins = (ir_ins){
       .op = IR_ADD, .op1 = v1, .op2 = v2, .reg = REG_NONE, .spill = SPILL_NONE};
-  auto idx = arrlen(CUR_TRACE(state)->ins);
-  arrput(nullptr, CUR_TRACE(state)->ins, ins);
-  return (slot){.constant = false, .loc = idx};
+  return add_inst(state, ins);
 }
 static slot emit_ov_math_sub(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
   ir_ins ins = (ir_ins){
       .op = IR_SUB, .op1 = v1, .op2 = v2, .reg = REG_NONE, .spill = SPILL_NONE};
-  auto idx = arrlen(CUR_TRACE(state)->ins);
-  arrput(nullptr, CUR_TRACE(state)->ins, ins);
-  return (slot){.constant = false, .loc = idx};
+  return add_inst(state, ins);
 }
 static slot emit_math_cmp_lt(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
   ir_ins ins = (ir_ins){
       .op = IR_LT, .op1 = v1, .op2 = v2, .reg = REG_NONE, .spill = SPILL_NONE};
-  auto idx = arrlen(CUR_TRACE(state)->ins);
-  arrput(nullptr, CUR_TRACE(state)->ins, ins);
-  return (slot){.constant = false, .loc = idx};
+  return add_inst(state, ins);
 }
 static void ensure_symbol(slot val) {}
 static slot constify_data(vm_state *state, uint16_t data) {
-  // Save in constants array
-  auto idx = arrlen(CUR_TRACE(state)->consts);
   gc_obj c = (gc_obj){.value = data};
-  arrput(nullptr, CUR_TRACE(state)->consts, c);
-
-  // return as a slot.
-  slot n = (slot){.constant = true, .loc = idx};
-  return n;
+  return add_const(state, c);
 }
 static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack) {
   // TODO
@@ -133,10 +127,7 @@ static gc_obj halt(vm_state *state, gc_obj *stack) {
 static slot sym_load(vm_state *state, slot sym) {
   ir_ins ins =
       (ir_ins){.op = IR_GGET, .op1 = sym, .reg = REG_NONE, .spill = SPILL_NONE};
-  auto idx = arrlen(CUR_TRACE(state)->ins);
-  arrput(nullptr, CUR_TRACE(state)->ins, ins);
-
-  return (slot){.constant = false, .loc = idx};
+  return add_inst(state, ins);
 }
 static void prepare_call(gc_obj fun) { printf("prepare call\n"); }
 static void check_arity(gc_obj fun, gc_obj args) {}
@@ -146,16 +137,14 @@ static bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack, slot b) {
   // We're going to directly peek at the stack here.
   auto res = stack[pc->reg];
   // TODO:snapshot
-  auto c_idx = arrlen(CUR_TRACE(state)->consts);
-  arrput(nullptr, CUR_TRACE(state)->consts, res);
-  slot must_be = (slot){.constant = true, .loc = c_idx};
+  slot must_be = add_const(state, res);
 
   ir_ins ins = (ir_ins){.op = IR_GUARD_EQ,
                         .op1 = must_be,
                         .op2 = b,
                         .reg = REG_NONE,
                         .spill = SPILL_NONE};
-  arrput(nullptr, CUR_TRACE(state)->ins, ins);
+  add_inst(state, ins);
 
   return pc;
 }
@@ -167,14 +156,10 @@ static slot closure_get(vm_state *state, slot clo, uint8_t pos) {
                         .op2 = c_pos,
                         .reg = REG_NONE,
                         .spill = SPILL_NONE};
-  auto idx = arrlen(CUR_TRACE(state)->ins);
-  arrput(nullptr, CUR_TRACE(state)->ins, ins);
-  return (slot){.constant = false, .loc = idx};
+  return add_inst(state, ins);
 }
 static slot return_address(vm_state *state, bc *ra) {
-  auto c_idx = arrlen(CUR_TRACE(state)->consts);
-  arrput(nullptr, CUR_TRACE(state)->consts, tag_return_address(ra));
-  return (slot){.constant = true, .loc = c_idx};
+  return add_const(state, tag_return_address(ra));
 }
 static gc_obj *adjust_stack_depth(vm_state *state, gc_obj *stack, int depth) {
   auto *ts = TRACE_STATE(state);
@@ -186,16 +171,14 @@ static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
   if (!func.constant) {
     // Func isn't a constant, we need a runtime check.
     // Peek at destination
-    auto c_idx = arrlen(CUR_TRACE(state)->consts);
-    arrput(nullptr, CUR_TRACE(state)->consts, stack[pc->reg]);
-    slot must_be = (slot){.constant = true, .loc = c_idx};
+    slot must_be = add_const(state, stack[pc->reg]);
 
     ir_ins ins = (ir_ins){.op = IR_GUARD_EQ,
                           .op1 = must_be,
                           .op2 = func,
                           .reg = REG_NONE,
                           .spill = SPILL_NONE};
-    arrput(nullptr, CUR_TRACE(state)->ins, ins);
+    add_inst(state, ins);
   }
 
   return pc;
