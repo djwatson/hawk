@@ -150,6 +150,7 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
   op_func impl = ((op_func *)op_table)[(pc)->op];                              \
   MUSTTAIL return impl(pc, stack, state, op_table, 0);
 
+#define VMGEN_TRACE_OP(code) ((void)0)
 #include "vmgen.c"
 
 #define X(name)                                                                \

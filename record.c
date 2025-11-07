@@ -240,6 +240,10 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   op_func impl = state->impls[(pc)->op];                                       \
   MUSTTAIL return impl(pc, stack, state, op_table, 0);
 
+#define VMGEN_TRACE_OP(code)                                                   \
+  do {                                                                         \
+    printf("record op: %s\n", #code);                                          \
+  } while (0)
 #include "vmgen.c"
 
 void record_start(vm_state *state, bc *pc, gc_obj *stack) {
