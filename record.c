@@ -258,7 +258,7 @@ static void record_finish(bc *pc, vm_state *state) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   vm_add_snap(state, pc);
-  print_ir(cur_trace);
+  // print_ir(cur_trace);
   cur_trace->num = arrlen(state->record.traces);
   cur_trace->fn = emit(cur_trace, &state->emit, &state->record);
   print_ir(cur_trace);
@@ -309,7 +309,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 #include "vmgen.c"
 
 void record_start(vm_state *state, bc *pc, gc_obj *stack) {
-  printf("Record start\n");
+  printf("Record start %li\n", arrlen(state->record.traces));
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   trace_state *ts = record_trace_state(state);
   memset(ts, 0, sizeof(trace_state));
@@ -318,7 +318,7 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack) {
 }
 
 void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
-  printf("Record start side\n");
+  printf("Record start side %li\n", arrlen(state->record.traces));
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   trace_state *ts = record_trace_state(state);
   record_current_trace(state)->parent = snap->trace;

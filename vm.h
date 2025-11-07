@@ -21,7 +21,7 @@ enum { VM_HOTMAP_SZ = 64 };
 
 typedef struct vm_state {
   uint8_t hotmap[VM_HOTMAP_SZ];
-  uint8_t max_trace;
+  uint16_t max_trace;
   op_func record_impls[OP_INS_MAX];
   op_func impls[OP_INS_MAX];
   record_state record;
