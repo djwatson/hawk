@@ -109,6 +109,47 @@ static void maybe_assign_register(slot v, trace *trace, regmap *slot,
   }
 }
 
+static inline ir_ins *slot_ins(trace *t, slot v) {
+  assert(!v.constant);
+  return &t->ins[v.loc];
+}
+
+static inline uint8_t slot_reg(trace *t, slot v) { return slot_ins(t, v)->reg; }
+
+static inline int64_t slot_const(trace *t, slot v) {
+  assert(v.constant);
+  return t->consts[v.loc].value;
+}
+
+static void emit_cmp_slots(emit_state *s, enum cmp_kind cmp, trace *t,
+                           regmap *regs, uint32_t *next_spill, slot lhs,
+                           slot rhs) {
+  assert(!lhs.constant && "LHS must be a register");
+  maybe_assign_register(lhs, t, regs, next_spill);
+  maybe_assign_register(rhs, t, regs, next_spill);
+
+  if (rhs.constant) {
+    emit_cmp_constant(s, cmp, slot_reg(t, lhs), slot_const(t, rhs));
+    return;
+  }
+
+  emit_cmp(s, cmp, slot_reg(t, lhs), slot_reg(t, rhs));
+}
+
+static void emit_sub_slots(emit_state *s, trace *t, regmap *regs,
+                           uint32_t *next_spill, uint8_t dst, slot lhs,
+                           slot rhs) {
+  assert(!lhs.constant && "Left operand must be in a register");
+  maybe_assign_register(lhs, t, regs, next_spill);
+  maybe_assign_register(rhs, t, regs, next_spill);
+
+  if (rhs.constant) {
+    emit_sub_constant(s, dst, slot_reg(t, lhs), slot_const(t, rhs));
+  } else {
+    emit_sub(s, dst, slot_reg(t, lhs), slot_reg(t, rhs));
+  }
+}
+
 static char *zone_vsprintf(zone *z, char const *fmt, va_list args) {
   va_list measure;
   va_copy(measure, args);
@@ -165,9 +206,30 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
   }
 }
 
+static void emit_snap_store_entry(emit_state *s, trace *t,
+                                  snap_entry const *entry) {
+  auto stack_offset = (int64_t)entry->slot * 8;
+  if (entry->val.constant) {
+    emit_store_constant(s, stack_offset, RSTACK, slot_const(t, entry->val));
+    return;
+  }
+
+  auto ins = slot_ins(t, entry->val);
+  if (ins->type == FLONUM_TAG) {
+    abort();
+  }
+
+  if (ins->spill != SPILL_NONE) {
+    abort();
+    /* jit_ldi(s->jit, JIT_R0, */
+    /*         &spill_gpr_slots[trace->ir[entry->val.loc].spill]); */
+  }
+
+  emit_store(s, stack_offset, RSTACK, ins->reg);
+}
+
 static void emit_snap(emit_state *s, trace *t, snap *snap, regmap *regs,
                       bool exit) {
-  auto consts = t->consts;
   // If this is an exiting snapshot (vs. a loop back)
   // then record exit PC & snapshot.
   if (exit) {
@@ -178,26 +240,7 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, regmap *regs,
   emit_stack_offset_and_check(s, snap);
 
   arr_for_each_idx(snap->slots, j) {
-    auto entry = &snap->slots[j];
-    if (entry->val.constant) {
-      emit_store_constant(s, (int64_t)entry->slot * 8, RSTACK,
-                          consts[entry->val.loc].value);
-    } else {
-      auto is_spill = t->ins[entry->val.loc].spill != SPILL_NONE;
-      if (t->ins[entry->val.loc].type == FLONUM_TAG) {
-        abort();
-      } else {
-        auto from_reg = RTMP;
-        if (is_spill) {
-          abort();
-          /* jit_ldi(s->jit, JIT_R0, */
-          /*         &spill_gpr_slots[trace->ir[entry->val.loc].spill]); */
-        } else {
-          from_reg = t->ins[entry->val.loc].reg;
-        }
-        emit_store(s, (int64_t)entry->slot * 8, RSTACK, from_reg);
-      }
-    }
+    emit_snap_store_entry(s, t, &snap->slots[j]);
   }
 }
 
@@ -287,30 +330,18 @@ trace_fn emit(trace *t, emit_state *s) {
     emit_check(s);
     switch (op->op) {
     case IR_GUARD_EQ: {
-      maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
-      maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
-      assert(!op->op2.constant);
       emit_jcc32(s, JNE, snap_labels[cur_snap]);
-      if (!op->op1.constant) {
-        emit_cmp(s, CMP_EQ, t->ins[op->op1.loc].reg, t->ins[op->op2.loc].reg);
-      } else {
-        emit_cmp_constant(s, CMP_EQ, t->ins[op->op2.loc].reg,
-                          t->consts[op->op1.loc].value);
-      }
+      emit_cmp_slots(s, CMP_EQ, t, reg_to_slot, &next_spill, op->op1, op->op2);
       break;
     }
     case IR_LOAD: {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       assert(!op->op1.constant);
-      emit_mem_load(s, (uint16_t)op->op2.loc + 8, t->ins[op->op1.loc].reg,
+      emit_mem_load(s, (uint16_t)op->op2.loc + 8, slot_reg(t, op->op1),
                     op->reg);
       break;
     }
     case IR_LT: {
-      maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
-      maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
-      assert(!op->op1.constant);
-
       auto lt_fin = emit_offset(s);
       emit_mov64(s, op->reg, TRUE_REP.value);
       auto tr = emit_offset(s);
@@ -319,24 +350,11 @@ trace_fn emit(trace *t, emit_state *s) {
       emit_jmp32(s, lt_fin - emit_offset(s));
       emit_mov64(s, op->reg, FALSE_REP.value);
       emit_jcc32(s, JL, tr);
-      if (op->op2.constant) {
-        emit_cmp_constant(s, CMP_LT, t->ins[op->op1.loc].reg,
-                          t->consts[op->op2.loc].value);
-      } else {
-        emit_cmp(s, CMP_LT, t->ins[op->op1.loc].reg, t->ins[op->op2.loc].reg);
-      }
+      emit_cmp_slots(s, CMP_LT, t, reg_to_slot, &next_spill, op->op1, op->op2);
       break;
     }
     case IR_SUB: {
-      maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
-      maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
-      assert(!op->op1.constant);
-      if (op->op2.constant) {
-        emit_sub_constant(s, op->reg, t->ins[op->op1.loc].reg,
-                          t->consts[op->op2.loc].value);
-      } else {
-        emit_sub(s, op->reg, t->ins[op->op1.loc].reg, t->ins[op->op2.loc].reg);
-      }
+      emit_sub_slots(s, t, reg_to_slot, &next_spill, op->reg, op->op1, op->op2);
       break;
     }
     case IR_SLOAD: {
@@ -345,7 +363,7 @@ trace_fn emit(trace *t, emit_state *s) {
     }
     case IR_GGET: {
       emit_mem_load(s, 16, RTMP, op->reg);
-      emit_mov64(s, RTMP, t->consts[op->op1.loc].value - SYMBOL_TAG);
+      emit_mov64(s, RTMP, slot_const(t, op->op1) - SYMBOL_TAG);
       break;
     }
     default: {

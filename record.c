@@ -165,8 +165,8 @@ static bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack, slot b) {
   slot must_be = add_const(state, res);
 
   ir_ins ins = (ir_ins){.op = IR_GUARD_EQ,
-                        .op1 = must_be,
-                        .op2 = b,
+                        .op1 = b,
+                        .op2 = must_be,
                         .reg = REG_NONE,
                         .spill = SPILL_NONE};
   add_inst(state, ins);
@@ -199,8 +199,8 @@ static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
     slot must_be = add_const(state, stack[pc->reg]);
 
     ir_ins ins = (ir_ins){.op = IR_GUARD_EQ,
-                          .op1 = must_be,
-                          .op2 = func,
+                          .op1 = func,
+                          .op2 = must_be,
                           .reg = REG_NONE,
                           .spill = SPILL_NONE};
     add_inst(state, ins);
