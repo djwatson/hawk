@@ -24,6 +24,7 @@ typedef struct {
   // Side trace info
   uint8_t depth;
   uint8_t exits;
+  uint64_t patch_point;
   trace *trace;
 } snap;
 

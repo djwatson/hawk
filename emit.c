@@ -283,6 +283,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     // To be replaced by actual snap exit code at the end.
     emit_jmp32(s, (int32_t)(exit_label - emit_offset(s)));
     snap_labels[i - 1] = emit_offset(s);
+    t->snaps[i - 1].patch_point = emit_offset(s);
     COMMENT("Snap exit #%i", i - 1);
   }
 
@@ -410,14 +411,16 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   }
 
   t->trace_start = emit_offset(s);
-  emit_mov(s, RSTACK, RARG0);
-  save_callee_regs(s);
+  if (!t->parent) {
+    emit_mov(s, RSTACK, RARG0);
+    save_callee_regs(s);
+  }
   COMMENT("ENTRY");
   auto entry = emit_offset(s);
 
-  // Emit even MORE snap exits.  We didn't have register allocation previously,
-  // but now we do. Since these are slowpath exists, the extra branches probably
-  // don't matter much.
+  // Emit even MORE snap exits.  We didn't have register allocation
+  // previously, but now we do. Since these are slowpath exists, the extra
+  // branches probably don't matter much.
   for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
     emit_jmp32(s, (int32_t)(exit_label - emit_offset(s)));

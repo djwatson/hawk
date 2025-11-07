@@ -262,6 +262,7 @@ static void record_finish(bc *pc, vm_state *state) {
   print_ir(cur_trace);
   state->max_trace--;
   if (cur_trace->parent) {
+
     printf("TODO install side trace\n");
   } else {
     *ts->start_ins = (bc){
