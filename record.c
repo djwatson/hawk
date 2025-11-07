@@ -25,13 +25,6 @@ static slot add_const(vm_state *state, gc_obj value) {
   return (slot){.constant = true, .loc = idx};
 }
 
-static slot add_inst(vm_state *state, ir_ins ins) {
-  auto trace = CUR_TRACE(state);
-  auto idx = arrlen(trace->ins);
-  arrput(nullptr, trace->ins, ins);
-  return (slot){.constant = false, .loc = idx};
-}
-
 static void vm_add_snap(vm_state *state, bc *pc) {
   auto *ts = TRACE_STATE(state);
   auto *cur_trace = CUR_TRACE(state);
@@ -61,6 +54,22 @@ static sentry *get_sentry(vm_state *state, uint64_t idx) {
   return &ts->stack[idx + ts->stack_off];
 }
 
+static slot add_inst(vm_state *state, ir_ins ins) {
+  auto trace = CUR_TRACE(state);
+  auto idx = arrlen(trace->ins);
+  arrput(nullptr, trace->ins, ins);
+  return (slot){.constant = false, .loc = idx};
+}
+
+static void set_stack(vm_state *state, uint8_t reg, slot val) {
+  auto entry = get_sentry(state, reg);
+  *entry = (sentry){
+      .live = true,
+      .changed = true,
+      .loc = val,
+  };
+}
+
 static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos) {
   auto entry = get_sentry(state, pos);
   if (entry->live) {
@@ -70,17 +79,12 @@ static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos) {
   ir_ins ins = (ir_ins){
       .op = IR_SLOAD, .data = pos, .reg = REG_NONE, .spill = SPILL_NONE};
 
-  slot n = add_inst(state, ins);
-  entry->live = true;
+  set_stack(state, pos, add_inst(state, ins));
   entry->changed = false;
-  entry->loc = n;
-  return n;
+  return entry->loc;
 }
 static void stack_save(vm_state *state, gc_obj *stack, uint8_t pos, slot res) {
-  auto entry = get_sentry(state, pos);
-  entry->live = true;
-  entry->changed = true;
-  entry->loc = res;
+  set_stack(state, pos, res);
 }
 static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   // We use a non-moving gc, so this is just a runtime constant, always.
