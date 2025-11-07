@@ -22,6 +22,7 @@ typedef struct {
   snap_entry *slots;
 
   // Side trace info
+  uint8_t depth;
   uint8_t exits;
   trace *trace;
 } snap;
@@ -81,6 +82,8 @@ typedef struct trace {
   snap *snaps;
   trace_fn fn;
   uint16_t num;
+  trace *parent;
+  uint16_t link;
 } trace;
 
 enum : uint8_t {

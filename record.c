@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 
 #include "array.h"
@@ -58,6 +59,7 @@ static void vm_add_snap(vm_state *state, bc *pc) {
       .pc = pc,
       .offset = ts->stack_off,
       .ir = arrlen(cur_trace->ins),
+      .depth = ts->depth,
       .exits = 0,
       .trace = cur_trace,
   };
@@ -135,11 +137,53 @@ static slot constify_data(vm_state *state, uint16_t data) {
   gc_obj c = (gc_obj){.value = data};
   return add_const(state, c);
 }
-static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack) {
-  // TODO
-  vm_add_snap(state, pc);
-  printf("return_frame\n");
+static void record_abort(vm_state *state) {
+  // TODO this needs to return correct impl, and clear current trace.
   abort();
+}
+static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack) {
+  if (record_trace_state(state)->depth == 0) {
+    // Root traces cannot return
+    if (!record_current_trace(state)->parent) {
+      printf("Record abort: return\n");
+      record_abort(state);
+    }
+    // Side traces *may* go down the stack.
+    // 1) record load for result
+    auto res = stack_load(state, stack, pc->op);
+    // 2) get the frame offset
+    auto ra = to_return_address(stack[-1]);
+    auto old_pc = ra - 1;
+    auto offset = old_pc->reg + 1;
+    // 3) Clear regs / set result in new regs
+    assert(record_trace_state(state)->stack_off == 0);
+    arrlen_set(record_trace_state(state)->stack, 0);
+    // 4) Const-ify the current return address
+    // TODO(davejwatson) this const_ra needs to be updated by the GC.
+    auto const_ra = add_const(state, stack[-1]);
+    auto const_offset = add_const(state, tag_fixnum(offset));
+    // 5) add a new IR: IR_RET that checks ret and does a ret.
+    ir_ins ins = {.op = IR_RET,
+                  .op1 = const_offset,
+                  .op2 = const_ra,
+                  .reg = REG_NONE,
+                  .spill = SPILL_NONE,
+                  .type = UNDEFINED_TAG};
+    add_inst(state, ins);
+    // 6) set new stack top.
+    set_stack(state, old_pc->reg, res);
+    // 7) Add a snap, since we changed the stack / RA, we can't go back.
+    vm_add_snap(state, ra);
+  } else {
+    record_trace_state(state)->depth--;
+    abort();
+    /* auto ret = state->stack[state->stack_offset + func->reg]; */
+    /* auto pc = to_return_address(stack[-1]); */
+    /* auto old_pc = pc - 1; */
+    /* state->stack_offset -= old_pc->reg + 1; */
+    /* state->stack[state->stack_offset + old_pc->reg] = ret; */
+    /* arrlen_set(state->stack, state->stack_offset + old_pc->reg + 1); */
+  }
   return (frame_state){pc, stack};
 }
 static bc *next_op(bc *pc) { return pc; }
@@ -208,27 +252,45 @@ static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
 
   return pc;
 }
+static void record_finish(bc *pc, vm_state *state) {
+  trace_state *ts = record_trace_state(state);
+  trace *cur_trace = record_current_trace(state);
+  vm_add_snap(state, pc);
+  print_ir(cur_trace);
+  cur_trace->fn = emit(cur_trace, &state->emit);
+  cur_trace->num = arrlen(state->record.traces);
+  print_ir(cur_trace);
+  state->max_trace--;
+  if (cur_trace->parent) {
+    printf("TODO install side trace\n");
+  } else {
+    *ts->start_ins = (bc){
+        .op = OP_JFUNC,
+        .data = record_trace_count(state),
+    };
+  }
+  record_append_trace(state, cur_trace);
+}
 static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
                       void *op_table) {
-  (void)state;
-  abort();
+  // LINK IT!
+  auto cur_trace = record_current_trace(state);
+  if (cur_trace->parent) {
+    cur_trace->link = (*pc)->data;
+    record_finish(*pc, state);
+    return state->impls;
+  } else {
+    // TODO
+    abort();
+  }
 }
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   if (pc == ts->start_ins) {
-    vm_add_snap(state, pc);
-    cur_trace->fn = emit(cur_trace, &state->emit);
-    cur_trace->num = arrlen(state->record.traces);
-    print_ir(cur_trace);
-    // exit(0);
-    state->max_trace--;
-    *ts->start_ins = (bc){
-        .op = OP_JFUNC,
-        .data = record_trace_count(state),
-    };
-    record_append_trace(state, cur_trace);
+    cur_trace->link = arrlen(state->record.traces);
+    record_finish(pc, state);
     return state->impls;
   }
   return op_table;
@@ -252,5 +314,16 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack) {
   trace_state *ts = record_trace_state(state);
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
+  vm_add_snap(state, pc);
+}
+
+void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
+  printf("Record start side\n");
+  record_set_current_trace(state, calloc(1, sizeof(trace)));
+  trace_state *ts = record_trace_state(state);
+  record_current_trace(state)->parent = snap->trace;
+  memset(ts, 0, sizeof(trace_state));
+  ts->start_ins = pc;
+  ts->depth = snap->depth;
   vm_add_snap(state, pc);
 }
