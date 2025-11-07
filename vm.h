@@ -2,6 +2,7 @@
 
 #include "hawk.h"
 #include "bc.h"
+#include "record.h"
 #include "types.h"
 
 struct vm_state;
@@ -17,6 +18,7 @@ typedef struct vm_state {
   uint8_t max_trace;
   op_func record_impls[OP_INS_MAX];
   op_func impls[OP_INS_MAX];
+  record_state record;
 } vm_state;
 
 gc_obj vm(bc *pc);
