@@ -80,6 +80,7 @@ typedef struct trace {
   gc_obj *consts;
   snap *snaps;
   trace_fn fn;
+  uint16_t num;
 } trace;
 
 enum : uint8_t {

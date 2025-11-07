@@ -130,6 +130,19 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
   auto res = fn(*stack);
   *pc = res.snap->pc;
   *stack = res.stack;
+
+  // Check for side trace start.
+  if (res.snap->exits < 255) {
+    res.snap->exits++;
+    if (res.snap->exits == 255) {
+      printf("Blacklist side snap\n");
+    }
+    if (res.snap->exits >= 10 && res.snap->exits % 10 == 0) {
+      printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
+      record_start(state, *pc, *stack);
+      return state->record_impls;
+    }
+  }
   // printf("RUN DONE jit %i\n", jfunc);
   return op_table;
 }
@@ -147,7 +160,7 @@ OPS;
 
 static void vm_state_init(vm_state *state) {
   memset(state, 0, sizeof(*state));
-  state->max_trace = 1;
+  state->max_trace = 2;
 #define X(name) state->impls[OP_##name] = impl_##name;
   OPS
 #undef X
