@@ -10,12 +10,6 @@
 #include "types.h"
 #include "vm.h"
 
-// TODO merge type shit
-typedef struct {
-  bc *pc;
-  gc_obj *stack;
-} frame_state;
-
 #define TRACE_STATE(state) (&(state)->record.trace_state)
 #define CUR_TRACE(state) ((state)->record.cur_trace)
 #define TRACES(state) ((state)->record.traces)
@@ -23,7 +17,6 @@ typedef struct {
 #define OP(code)                                                               \
   PRESERVE_NONE gc_obj record_##code(bc *pc, gc_obj *stack, vm_state *state,   \
                                      void *op_table, uint8_t argcnt)
-// end TODO
 
 static void vm_add_snap(vm_state *state, bc *pc) {
   auto *ts = TRACE_STATE(state);

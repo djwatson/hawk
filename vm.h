@@ -11,6 +11,11 @@ typedef gc_obj PRESERVE_NONE (*op_func)(bc *pc, gc_obj *stack,
                                         struct vm_state *state,
                                         void *op_table, uint8_t argcnt);
 
+typedef struct {
+  bc *pc;
+  gc_obj *stack;
+} frame_state;
+
 enum { VM_HOTMAP_SZ = 64 };
 
 typedef struct vm_state {

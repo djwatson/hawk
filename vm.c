@@ -23,11 +23,6 @@ static inline uint32_t hotmap_hash(void *pc) {
   PRESERVE_NONE gc_obj impl_##code(bc *pc, gc_obj *stack, vm_state *state,     \
                                    void *op_table, uint8_t argcnt)
 
-typedef struct {
-  bc *pc;
-  gc_obj *stack;
-} frame_state;
-
 static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                        void *op_table) {
   uint8_t *hot_loc = &state->hotmap[hotmap_hash(pc)];
