@@ -52,9 +52,7 @@ void emit_imm32(int32_t imm) {
   memcpy(p, &imm, sizeof(imm));
 }
 
-static bool fits_in_32(int64_t imm) {
-  return imm == (int64_t)(int32_t)imm;
-}
+static bool fits_in_32(int64_t imm) { return imm == (int64_t)(int32_t)imm; }
 
 static bool fits_in_u32(int64_t imm) {
   return imm >= 0 && imm <= (int64_t)UINT32_MAX;

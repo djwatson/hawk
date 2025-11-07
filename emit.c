@@ -219,12 +219,12 @@ trace_fn emit(trace *t) {
     reg_to_slot[i].used = reserved[i];
   }
 
-long *snap_labels = malloc(sizeof(long) * arrlen(t->snaps));
+  long *snap_labels = malloc(sizeof(long) * arrlen(t->snaps));
   auto end = emit_offset();
   emit_ret();
   restore_callee_regs();
   auto exit_label = emit_offset();
-for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
+  for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
     // To be replaced by actual snap exit code at the end.
     emit_jmp32((int32_t)(exit_label - emit_offset()));
@@ -240,11 +240,11 @@ for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
   // checking for stack size (eventually)
 
   // No loopback to start:
-size_t cur_snap = arrlen(t->snaps) - 1;
+  size_t cur_snap = arrlen(t->snaps) - 1;
   emit_jmp32((int32_t)(exit_label - emit_offset()));
   snap_labels[cur_snap] = emit_offset();
 
-auto op_cnt_idx = arrlen(t->ins);
+  auto op_cnt_idx = arrlen(t->ins);
   uint32_t next_spill = 0;
   assign_snap_registers(cur_snap, reg_to_slot, t, &next_spill);
   emit_snap(t, &t->snaps[cur_snap], reg_to_slot,
@@ -356,7 +356,7 @@ auto op_cnt_idx = arrlen(t->ins);
   }
   // emit parcopy from loop end
   // parcopy from parent trace?
-emit_jmp32_patch_here(snap_labels[arrlen(t->snaps) - 1]);
+  emit_jmp32_patch_here(snap_labels[arrlen(t->snaps) - 1]);
 
   emit_mov(RSTACK, RARG0);
   save_callee_regs();
@@ -366,7 +366,7 @@ emit_jmp32_patch_here(snap_labels[arrlen(t->snaps) - 1]);
   // Emit even MORE snap exits.  We didn't have register allocation previously,
   // but now we do. Since these are slowpath exists, the extra branches probably
   // don't matter much.
-for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
+  for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
     emit_jmp32((int32_t)(exit_label - emit_offset()));
     emit_snap(t, snap, reg_to_slot, true);
