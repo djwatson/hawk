@@ -1,25 +1,3 @@
-# passes
-* fix-letrec! - just check no letrec.
-* assignment-convert! - just check no asssigned.
-* recover-let
-* loops
-* name-lambdas
-* closure convert simple! -   just check no free.
-* output to BC.
-
-* simple integerations for bytecode ops
-
-## later:
-* lift complex / bignums?
-* count uses 
-* advanced closure conversion (with subpasses)
-
-## maybe?  probably unnecesary with jit:
-* scev
-* cp0
-* type inference
-  * storage use analsis?
-
 # simple VM
 
 * use conservative collector on stack, but precise on heap, allowing dumping.
@@ -49,4 +27,27 @@
 * sinking
 * loop? never really found useful
 * dce - implicit.  Only useful with LOOP
+
+
+# passes
+* fix-letrec! - just check no letrec.
+* assignment-convert! - just check no asssigned.
+* recover-let
+* loops
+* name-lambdas
+* closure convert simple! -   just check no free.
+* output to BC.
+
+* simple integerations for bytecode ops
+
+## later:
+* lift complex / bignums?
+* count uses 
+* advanced closure conversion (with subpasses)
+
+## maybe?  probably unnecesary with jit:
+* scev
+* cp0
+* type inference
+  * storage use analsis?
 

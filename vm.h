@@ -1,15 +1,16 @@
 #pragma once
 
-#include "hawk.h"
+#include "asm.h"
 #include "bc.h"
+#include "hawk.h"
 #include "record.h"
 #include "types.h"
 
 struct vm_state;
 
 typedef gc_obj PRESERVE_NONE (*op_func)(bc *pc, gc_obj *stack,
-                                        struct vm_state *state,
-                                        void *op_table, uint8_t argcnt);
+                                        struct vm_state *state, void *op_table,
+                                        uint8_t argcnt);
 
 typedef struct {
   bc *pc;
@@ -24,6 +25,7 @@ typedef struct vm_state {
   op_func record_impls[OP_INS_MAX];
   op_func impls[OP_INS_MAX];
   record_state record;
+  emit_state emit;
 } vm_state;
 
 gc_obj vm(bc *pc);

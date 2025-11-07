@@ -219,7 +219,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   trace *cur_trace = record_current_trace(state);
   if (pc == ts->start_ins) {
     vm_add_snap(state, pc);
-    cur_trace->fn = emit(cur_trace);
+    cur_trace->fn = emit(cur_trace, &state->emit);
     print_ir(cur_trace);
     // exit(0);
     state->max_trace--;

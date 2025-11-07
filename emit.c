@@ -134,19 +134,19 @@ static char *zone_vsprintf(zone *z, char const *fmt, va_list args) {
   return buf;
 }
 
-static void comment_append(zone *z, comment_entry **comments, char const *fmt,
-                           ...) {
+static void comment_append(int64_t offset, zone *z, comment_entry **comments,
+                           char const *fmt, ...) {
   va_list args;
   va_start(args, fmt);
   char *msg = zone_vsprintf(z, fmt, args);
   va_end(args);
-  comment_entry entry = {.offset = emit_offset(), .text = msg};
+  comment_entry entry = {.offset = offset, .text = msg};
   arrput(z, *comments, entry);
 }
 
-static void emit_stack_offset_and_check(snap const *snap) {
+static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
   if (snap->offset) {
-    emit_add_constant(RSTACK, RSTACK, snap->offset * 8);
+    emit_add_constant(s, RSTACK, RSTACK, snap->offset * 8);
 
     // TODO
     // check frame overflow
@@ -165,21 +165,22 @@ static void emit_stack_offset_and_check(snap const *snap) {
   }
 }
 
-static void emit_snap(trace *t, snap *snap, regmap *regs, bool exit) {
+static void emit_snap(emit_state *s, trace *t, snap *snap, regmap *regs,
+                      bool exit) {
   auto consts = t->consts;
   // If this is an exiting snapshot (vs. a loop back)
   // then record exit PC & snapshot.
   if (exit) {
-    emit_mov64(RET_REG2, (intptr_t)snap);
-    emit_mov(RET_REG, RSTACK);
+    emit_mov64(s, RET_REG2, (intptr_t)snap);
+    emit_mov(s, RET_REG, RSTACK);
   }
 
-  emit_stack_offset_and_check(snap);
+  emit_stack_offset_and_check(s, snap);
 
   arr_for_each_idx(snap->slots, j) {
     auto entry = &snap->slots[j];
     if (entry->val.constant) {
-      emit_store_constant((int64_t)entry->slot * 8, RSTACK,
+      emit_store_constant(s, (int64_t)entry->slot * 8, RSTACK,
                           consts[entry->val.loc].value);
     } else {
       auto is_spill = t->ins[entry->val.loc].spill != SPILL_NONE;
@@ -194,20 +195,20 @@ static void emit_snap(trace *t, snap *snap, regmap *regs, bool exit) {
         } else {
           from_reg = t->ins[entry->val.loc].reg;
         }
-        emit_store((int64_t)entry->slot * 8, RSTACK, from_reg);
+        emit_store(s, (int64_t)entry->slot * 8, RSTACK, from_reg);
       }
     }
   }
 }
 
-#define COMMENT(...) comment_append(&z, &comments, __VA_ARGS__)
+#define COMMENT(...) comment_append(emit_offset(s), &z, &comments, __VA_ARGS__)
 
-trace_fn emit(trace *t) {
+trace_fn emit(trace *t, emit_state *s) {
   // TODO move init somewhere else
-  emit_init();
+  emit_init(s);
   jit_dump_init();
 
-  emit_writable_begin();
+  emit_writable_begin(s);
   regmap reg_to_slot[MAX_REG];
   memset(reg_to_slot, 0, sizeof(reg_to_slot));
   zone z = {};
@@ -220,15 +221,16 @@ trace_fn emit(trace *t) {
   }
 
   long *snap_labels = malloc(sizeof(long) * arrlen(t->snaps));
-  auto end = emit_offset();
-  emit_ret();
-  restore_callee_regs();
-  auto exit_label = emit_offset();
+  auto end = emit_offset(s);
+  emit_ret(s);
+  restore_callee_regs(s);
+  emit_check(s);
+  auto exit_label = emit_offset(s);
   for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
     // To be replaced by actual snap exit code at the end.
-    emit_jmp32((int32_t)(exit_label - emit_offset()));
-    snap_labels[i - 1] = emit_offset();
+    emit_jmp32(s, (int32_t)(exit_label - emit_offset(s)));
+    snap_labels[i - 1] = emit_offset(s);
     COMMENT("Snap exit #%i", i - 1);
   }
 
@@ -241,14 +243,13 @@ trace_fn emit(trace *t) {
 
   // No loopback to start:
   size_t cur_snap = arrlen(t->snaps) - 1;
-  emit_jmp32((int32_t)(exit_label - emit_offset()));
-  snap_labels[cur_snap] = emit_offset();
+  emit_jmp32(s, (int32_t)(exit_label - emit_offset(s)));
+  snap_labels[cur_snap] = emit_offset(s);
 
   auto op_cnt_idx = arrlen(t->ins);
   uint32_t next_spill = 0;
   assign_snap_registers(cur_snap, reg_to_slot, t, &next_spill);
-  emit_snap(t, &t->snaps[cur_snap], reg_to_slot,
-            true); // TODO jump back to entry
+  emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, true);
   COMMENT("Loopback (snap exit %i)", cur_snap);
   bool done = false;
   for (; op_cnt_idx > 0 && !done; op_cnt_idx--) {
@@ -283,17 +284,17 @@ trace_fn emit(trace *t) {
       reg_to_slot[op->reg].used = false;
     }
 
-    emit_check();
+    emit_check(s);
     switch (op->op) {
     case IR_GUARD_EQ: {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
       assert(!op->op2.constant);
-      emit_jcc32(JNE, snap_labels[cur_snap]);
+      emit_jcc32(s, JNE, snap_labels[cur_snap]);
       if (!op->op1.constant) {
-        emit_cmp(CMP_EQ, t->ins[op->op1.loc].reg, t->ins[op->op2.loc].reg);
+        emit_cmp(s, CMP_EQ, t->ins[op->op1.loc].reg, t->ins[op->op2.loc].reg);
       } else {
-        emit_cmp_constant(CMP_EQ, t->ins[op->op2.loc].reg,
+        emit_cmp_constant(s, CMP_EQ, t->ins[op->op2.loc].reg,
                           t->consts[op->op1.loc].value);
       }
       break;
@@ -301,7 +302,7 @@ trace_fn emit(trace *t) {
     case IR_LOAD: {
       maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
       assert(!op->op1.constant);
-      emit_mem_load((uint16_t)op->op2.loc + 8, t->ins[op->op1.loc].reg,
+      emit_mem_load(s, (uint16_t)op->op2.loc + 8, t->ins[op->op1.loc].reg,
                     op->reg);
       break;
     }
@@ -310,19 +311,19 @@ trace_fn emit(trace *t) {
       maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
       assert(!op->op1.constant);
 
-      auto lt_fin = emit_offset();
-      emit_mov64(op->reg, TRUE_REP.value);
-      auto tr = emit_offset();
+      auto lt_fin = emit_offset(s);
+      emit_mov64(s, op->reg, TRUE_REP.value);
+      auto tr = emit_offset(s);
       // whacky why does jmp32 take absolute, and jcc32 take relative?
       // TODO make this set instead?
-      emit_jmp32(lt_fin - emit_offset());
-      emit_mov64(op->reg, FALSE_REP.value);
-      emit_jcc32(JL, tr);
+      emit_jmp32(s, lt_fin - emit_offset(s));
+      emit_mov64(s, op->reg, FALSE_REP.value);
+      emit_jcc32(s, JL, tr);
       if (op->op2.constant) {
-        emit_cmp_constant(CMP_LT, t->ins[op->op1.loc].reg,
+        emit_cmp_constant(s, CMP_LT, t->ins[op->op1.loc].reg,
                           t->consts[op->op2.loc].value);
       } else {
-        emit_cmp(CMP_LT, t->ins[op->op1.loc].reg, t->ins[op->op2.loc].reg);
+        emit_cmp(s, CMP_LT, t->ins[op->op1.loc].reg, t->ins[op->op2.loc].reg);
       }
       break;
     }
@@ -331,20 +332,20 @@ trace_fn emit(trace *t) {
       maybe_assign_register(op->op2, t, reg_to_slot, &next_spill);
       assert(!op->op1.constant);
       if (op->op2.constant) {
-        emit_sub_constant(op->reg, t->ins[op->op1.loc].reg,
+        emit_sub_constant(s, op->reg, t->ins[op->op1.loc].reg,
                           t->consts[op->op2.loc].value);
       } else {
-        emit_sub(op->reg, t->ins[op->op1.loc].reg, t->ins[op->op2.loc].reg);
+        emit_sub(s, op->reg, t->ins[op->op1.loc].reg, t->ins[op->op2.loc].reg);
       }
       break;
     }
     case IR_SLOAD: {
-      emit_mem_load(op->data * 8, RSTACK, op->reg);
+      emit_mem_load(s, op->data * 8, RSTACK, op->reg);
       break;
     }
     case IR_GGET: {
-      emit_mem_load(16, RTMP, op->reg);
-      emit_mov64(RTMP, t->consts[op->op1.loc].value - SYMBOL_TAG);
+      emit_mem_load(s, 16, RTMP, op->reg);
+      emit_mov64(s, RTMP, t->consts[op->op1.loc].value - SYMBOL_TAG);
       break;
     }
     default: {
@@ -356,34 +357,34 @@ trace_fn emit(trace *t) {
   }
   // emit parcopy from loop end
   // parcopy from parent trace?
-  emit_jmp32_patch_here(snap_labels[arrlen(t->snaps) - 1]);
+  emit_jmp32_patch_here(s, snap_labels[arrlen(t->snaps) - 1]);
 
-  emit_mov(RSTACK, RARG0);
-  save_callee_regs();
+  emit_mov(s, RSTACK, RARG0);
+  save_callee_regs(s);
   COMMENT("ENTRY");
-  auto entry = emit_offset();
+  auto entry = emit_offset(s);
 
   // Emit even MORE snap exits.  We didn't have register allocation previously,
   // but now we do. Since these are slowpath exists, the extra branches probably
   // don't matter much.
   for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
-    emit_jmp32((int32_t)(exit_label - emit_offset()));
-    emit_snap(t, snap, reg_to_slot, true);
-    emit_jmp32_patch_here(snap_labels[i - 1]);
+    emit_jmp32(s, (int32_t)(exit_label - emit_offset(s)));
+    emit_snap(s, t, snap, reg_to_slot, true);
+    emit_jmp32_patch_here(s, snap_labels[i - 1]);
     COMMENT("Snap exit #%i", i - 1);
   }
 
-  emit_writable_end();
-  auto sz = end - emit_offset();
+  emit_writable_end(s);
+  auto sz = end - emit_offset(s);
   printf("Disassembly: %" PRId64 "\n", sz);
   arr_reverse(comments);
-  disassemble((uint8_t *)emit_offset(), sz, comments);
+  disassemble((uint8_t *)emit_offset(s), sz, comments);
   zone_free(&z);
   free(snap_labels);
   jit_reader_add(end - entry, entry);
-  jit_dump(sz, emit_offset(), "TRACE");
-  perf_map(emit_offset(), sz, "TRACE");
+  jit_dump(sz, emit_offset(s), "TRACE");
+  perf_map(emit_offset(s), sz, "TRACE");
   return (trace_fn)entry;
   // emit and done
   // patch if side trace

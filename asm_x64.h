@@ -115,23 +115,25 @@ enum cmp_kind {
   CMP_LT,
 };
 
-void restore_callee_regs();
-void save_callee_regs();
+void restore_callee_regs(emit_state *s);
+void save_callee_regs(emit_state *s);
 
-void emit_ret();
-void emit_jmp32(int32_t offset);
-void emit_jmp32_patch_here(int64_t patch);
-void emit_mov64(uint8_t r, int64_t imm);
-void emit_mem_load(int32_t offset, uint8_t base, uint8_t dst);
-void emit_store(int32_t offset, uint8_t base, uint8_t src);
-void emit_store_constant(int32_t offset, uint8_t base, int64_t value);
-void emit_jcc32(enum jcc_cond cond, int64_t offset);
-void emit_cmp(enum cmp_kind kind, uint8_t lhs, uint8_t rhs);
-void emit_cmp_constant(enum cmp_kind kind, uint8_t reg, int64_t imm);
-void emit_add(uint8_t dst, uint8_t lhs, uint8_t rhs);
-void emit_add_constant(uint8_t dst, uint8_t lhs, int64_t imm);
-void emit_sub(uint8_t dst, uint8_t lhs, uint8_t rhs);
-void emit_sub_constant(uint8_t dst, uint8_t lhs, int64_t imm);
-void emit_mov(uint8_t dst, uint8_t src);
+void emit_ret(emit_state *s);
+void emit_jmp32(emit_state *s, int32_t offset);
+void emit_jmp32_patch_here(emit_state *s, int64_t patch);
+void emit_mov64(emit_state *s, uint8_t r, int64_t imm);
+void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
+void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
+void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
+                         int64_t value);
+void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t offset);
+void emit_cmp(emit_state *s, enum cmp_kind kind, uint8_t lhs, uint8_t rhs);
+void emit_cmp_constant(emit_state *s, enum cmp_kind kind, uint8_t reg,
+                       int64_t imm);
+void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
+void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
+void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
+void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
+void emit_mov(emit_state *s, uint8_t dst, uint8_t src);
 
 extern const char *const reg_names[MAX_REG];

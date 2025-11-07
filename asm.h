@@ -1,15 +1,21 @@
 #pragma once
 
-void emit_init();
-void emit_cleanup();
-int64_t emit_offset();
-void emit_advance(int64_t offset);
-void emit_bind(uint64_t label, uint64_t jmp);
-void emit_check();
-void emit_writable_begin();
-void emit_writable_end();
+#include <stdint.h>
 
-extern uint8_t *p;
+typedef struct emit_state {
+  uint8_t *mtop;
+  uint8_t *mend;
+  uint8_t *p;
+} emit_state;
+
+void emit_init(emit_state *s);
+void emit_cleanup(emit_state *s);
+int64_t emit_offset(emit_state *s);
+void emit_advance(emit_state *s, int64_t offset);
+void emit_bind(emit_state *s, uint64_t label, uint64_t jmp);
+void emit_check(emit_state *s);
+void emit_writable_begin(emit_state *s);
+void emit_writable_end(emit_state *s);
 
 #if defined(__aarch64__)
 #include "asm_aarch64.h"
