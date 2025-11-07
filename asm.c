@@ -77,7 +77,7 @@ void emit_init(emit_state *s) {
   s->mend = s->p;
 
   // Valgrind requires some readahead space.
-  s->p--;
+  s->p -= 4;
 }
 
 void emit_writable_begin(emit_state *s) {
