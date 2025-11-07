@@ -1,6 +1,7 @@
 #include "ir.h"
 #include "asm.h"
 
+#include <assert.h>
 #include <inttypes.h>
 
 static void print_slot(slot s, trace *t) {
@@ -56,7 +57,7 @@ char *ir_names[] = {
 static void print_snap(snap *snap, trace *t) {
   printf("SNAP[ir=%i pc=%p off=%i", snap->ir, snap->pc, snap->offset);
   uint64_t frame = snap->offset - 1;
-  for (uint64_t j = arrlen_snap_entry(snap->slots); j != 0; j--) {
+  for (uint64_t j = arrlen(snap->slots); j != 0; j--) {
     auto entry = &snap->slots[j - 1];
     printf(" %i=", entry->slot);
     if (entry->slot == frame) {
@@ -74,12 +75,12 @@ static void print_snap(snap *snap, trace *t) {
 
 void print_ir(trace *t) {
   uint64_t cur_snap = 0;
-  for (size_t i = 0; i < arrlen_ins(t->ins) + 1 /* last snap */; i++) {
-    while (cur_snap < arrlen_snap(t->snaps) && t->snaps[cur_snap].ir == i) {
+  for (size_t i = 0; i < arrlen(t->ins) + 1 /* last snap */; i++) {
+    while (cur_snap < arrlen(t->snaps) && t->snaps[cur_snap].ir == i) {
       print_snap(&t->snaps[cur_snap], t);
       cur_snap++;
     }
-    if (i == arrlen_ins(t->ins)) {
+    if (i == arrlen(t->ins)) {
       break;
     }
     ir_ins *ins = &t->ins[i];

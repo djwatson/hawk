@@ -25,7 +25,7 @@ static void assign_snap_registers(size_t snap_num, regmap *regs, trace *t,
   // Get a free register, if any.  If already assigned a slot, do nothing.
   // If no free registers, assign a slot.
   auto snap = &t->snaps[snap_num];
-  for (uint64_t i = 0; i < arrlen_snap_entry(snap->slots); i++) {
+  for (uint64_t i = 0; i < arrlen(snap->slots); i++) {
     auto s = &snap->slots[i];
     if (s->val.constant) {
       continue;
@@ -176,7 +176,7 @@ static void emit_snap(trace *t, snap *snap, regmap *regs, bool exit) {
 
   emit_stack_offset_and_check(snap);
 
-  for (uint64_t j = 0; j < arrlen_snap_entry(snap->slots); j++) {
+  for (uint64_t j = 0; j < arrlen(snap->slots); j++) {
     auto entry = &snap->slots[j];
     if (entry->val.constant) {
       emit_store_constant((int64_t)entry->slot * 8, RSTACK,
@@ -219,12 +219,12 @@ trace_fn emit(trace *t) {
     reg_to_slot[i].used = reserved[i];
   }
 
-  long *snap_labels = malloc(sizeof(long) * arrlen_snap(t->snaps));
+long *snap_labels = malloc(sizeof(long) * arrlen(t->snaps));
   auto end = emit_offset();
   emit_ret();
   restore_callee_regs();
   auto exit_label = emit_offset();
-  for (uint64_t i = arrlen_snap(t->snaps) - 1; i > 0; i--) {
+for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
     // To be replaced by actual snap exit code at the end.
     emit_jmp32((int32_t)(exit_label - emit_offset()));
@@ -240,11 +240,11 @@ trace_fn emit(trace *t) {
   // checking for stack size (eventually)
 
   // No loopback to start:
-  size_t cur_snap = arrlen_snap(t->snaps) - 1;
+size_t cur_snap = arrlen(t->snaps) - 1;
   emit_jmp32((int32_t)(exit_label - emit_offset()));
   snap_labels[cur_snap] = emit_offset();
 
-  auto op_cnt_idx = arrlen_ins(t->ins);
+auto op_cnt_idx = arrlen(t->ins);
   uint32_t next_spill = 0;
   assign_snap_registers(cur_snap, reg_to_slot, t, &next_spill);
   emit_snap(t, &t->snaps[cur_snap], reg_to_slot,
@@ -356,7 +356,7 @@ trace_fn emit(trace *t) {
   }
   // emit parcopy from loop end
   // parcopy from parent trace?
-  emit_jmp32_patch_here(snap_labels[arrlen_snap(t->snaps) - 1]);
+emit_jmp32_patch_here(snap_labels[arrlen(t->snaps) - 1]);
 
   emit_mov(RSTACK, RARG0);
   save_callee_regs();
@@ -366,7 +366,7 @@ trace_fn emit(trace *t) {
   // Emit even MORE snap exits.  We didn't have register allocation previously,
   // but now we do. Since these are slowpath exists, the extra branches probably
   // don't matter much.
-  for (uint64_t i = arrlen_snap(t->snaps) - 1; i > 0; i--) {
+for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
     emit_jmp32((int32_t)(exit_label - emit_offset()));
     emit_snap(t, snap, reg_to_slot, true);

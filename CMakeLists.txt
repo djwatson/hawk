@@ -21,7 +21,6 @@ add_executable(
   types.c
   record.c
   gc.c
-  vec.c
   ir.c
   alloc_table.c
   emit.c

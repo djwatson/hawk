@@ -1,8 +1,8 @@
 #pragma once
 
+#include "array.h"
 #include "stdint.h"
 #include "types.h"
-#include "vec.h"
 
 typedef struct {
   bool constant : 1;
@@ -88,10 +88,5 @@ enum : uint8_t {
 };
 
 void print_ir(trace *t);
-
-VEC_TYPE_DEF(ins, ir_ins);
-VEC_TYPE_DEF(consts, gc_obj);
-VEC_TYPE_DEF(snap, snap);
-VEC_TYPE_DEF(snap_entry, snap_entry);
 
 extern char *ir_names[];

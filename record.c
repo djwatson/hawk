@@ -1,25 +1,18 @@
 #include <stdlib.h>
 
+#include "array.h"
 #include "bc.h"
 #include "emit.h"
 #include "hawk.h"
 #include "ir.h"
 #include "string.h"
 #include "types.h"
-#include "vec.h"
 
 typedef struct {
   bool changed;
   bool live;
   slot loc;
 } sentry;
-
-VEC_TYPE_IMPL(ins, ir_ins);
-VEC_TYPE_IMPL(consts, gc_obj);
-VEC_TYPE_IMPL(sentry, sentry);
-VEC_TYPE_IMPL(snap, snap);
-VEC_TYPE_IMPL(snap_entry, snap_entry);
-VEC_TYPE_IMPL(trace, trace *);
 
 typedef struct {
   sentry *stack;
@@ -53,24 +46,24 @@ static void vm_add_snap(bc *pc) {
   snap snap = {
       .pc = pc,
       .offset = ts.stack_off,
-      .ir = arrlen_ins(cur_trace->ins),
+      .ir = arrlen(cur_trace->ins),
       .exits = 0,
       .trace = cur_trace,
   };
-  for (size_t i = 0; i < arrlen_sentry(ts.stack); i++) {
+  for (size_t i = 0; i < arrlen(ts.stack); i++) {
     if (ts.stack[i].changed && ts.stack[i].live) {
       snap_entry entry = {.slot = (uint16_t)i, .val = ts.stack[i].loc};
-      arrpush_snap_entry(&snap.slots, entry);
+      arrput(nullptr, snap.slots, entry);
     }
   }
-  arrpush_snap(&cur_trace->snaps, snap);
+  arrput(nullptr, cur_trace->snaps, snap);
 }
 
 static sentry *get_sentry(uint64_t idx) {
-  auto len = arrlen_sentry(ts.stack);
+  auto len = arrlen(ts.stack);
   while (len++ <= (idx + ts.stack_off)) {
     sentry entry = {.live = false, .changed = false};
-    arrpush_sentry(&ts.stack, entry);
+    arrput(nullptr, ts.stack, entry);
   }
   return &ts.stack[idx + ts.stack_off];
 }
@@ -85,8 +78,8 @@ static slot stack_load(gc_obj *stack, uint8_t pos) {
       .op = IR_SLOAD, .data = pos, .reg = REG_NONE, .spill = SPILL_NONE};
 
   // Save in instructions array
-  auto idx = arrlen_ins(cur_trace->ins);
-  arrpush_ins(&cur_trace->ins, ins);
+  auto idx = arrlen(cur_trace->ins);
+  arrput(nullptr, cur_trace->ins, ins);
 
   // Save instr slot in our shadow regs, and return!.
   slot n = (slot){.constant = false, .loc = idx};
@@ -105,40 +98,40 @@ static slot const_load(bc *pc, uint16_t offset) {
   // We use a non-moving gc, so this is just a runtime constant, always.
   auto c = *(gc_obj *)(pc - pc->data);
   // Save it to consts array
-  auto idx = arrlen_consts(cur_trace->consts);
-  arrpush_consts(&cur_trace->consts, c);
+  auto idx = arrlen(cur_trace->consts);
+  arrput(nullptr, cur_trace->consts, c);
   return (slot){.constant = true, .loc = idx};
 }
 static slot emit_ov_math_add(slot v1, slot v2) {
   // TODO fold for consts.
   ir_ins ins = (ir_ins){
       .op = IR_ADD, .op1 = v1, .op2 = v2, .reg = REG_NONE, .spill = SPILL_NONE};
-  auto idx = arrlen_ins(cur_trace->ins);
-  arrpush_ins(&cur_trace->ins, ins);
+  auto idx = arrlen(cur_trace->ins);
+  arrput(nullptr, cur_trace->ins, ins);
   return (slot){.constant = false, .loc = idx};
 }
 static slot emit_ov_math_sub(slot v1, slot v2) {
   // TODO fold for consts.
   ir_ins ins = (ir_ins){
       .op = IR_SUB, .op1 = v1, .op2 = v2, .reg = REG_NONE, .spill = SPILL_NONE};
-  auto idx = arrlen_ins(cur_trace->ins);
-  arrpush_ins(&cur_trace->ins, ins);
+  auto idx = arrlen(cur_trace->ins);
+  arrput(nullptr, cur_trace->ins, ins);
   return (slot){.constant = false, .loc = idx};
 }
 static slot emit_math_cmp_lt(slot v1, slot v2) {
   // TODO fold for consts.
   ir_ins ins = (ir_ins){
       .op = IR_LT, .op1 = v1, .op2 = v2, .reg = REG_NONE, .spill = SPILL_NONE};
-  auto idx = arrlen_ins(cur_trace->ins);
-  arrpush_ins(&cur_trace->ins, ins);
+  auto idx = arrlen(cur_trace->ins);
+  arrput(nullptr, cur_trace->ins, ins);
   return (slot){.constant = false, .loc = idx};
 }
 static void ensure_symbol(slot val) {}
 static slot constify_data(uint16_t data) {
   // Save in constants array
-  auto idx = arrlen_consts(cur_trace->consts);
+  auto idx = arrlen(cur_trace->consts);
   gc_obj c = (gc_obj){.value = data};
-  arrpush_consts(&cur_trace->consts, c);
+  arrput(nullptr, cur_trace->consts, c);
 
   // return as a slot.
   slot n = (slot){.constant = true, .loc = idx};
@@ -160,8 +153,8 @@ static gc_obj halt(gc_obj *stack) {
 static slot sym_load(slot sym) {
   ir_ins ins =
       (ir_ins){.op = IR_GGET, .op1 = sym, .reg = REG_NONE, .spill = SPILL_NONE};
-  auto idx = arrlen_ins(cur_trace->ins);
-  arrpush_ins(&cur_trace->ins, ins);
+  auto idx = arrlen(cur_trace->ins);
+  arrput(nullptr, cur_trace->ins, ins);
 
   return (slot){.constant = false, .loc = idx};
 }
@@ -173,8 +166,8 @@ static bc *branch_if_false(bc *pc, gc_obj *stack, slot b) {
   // We're going to directly peek at the stack here.
   auto res = stack[pc->reg];
   // TODO:snapshot
-  auto c_idx = arrlen_consts(cur_trace->consts);
-  arrpush_consts(&cur_trace->consts, res);
+  auto c_idx = arrlen(cur_trace->consts);
+  arrput(nullptr, cur_trace->consts, res);
   slot must_be = (slot){.constant = true, .loc = c_idx};
 
   ir_ins ins = (ir_ins){.op = IR_GUARD_EQ,
@@ -182,7 +175,7 @@ static bc *branch_if_false(bc *pc, gc_obj *stack, slot b) {
                         .op2 = b,
                         .reg = REG_NONE,
                         .spill = SPILL_NONE};
-  arrpush_ins(&cur_trace->ins, ins);
+  arrput(nullptr, cur_trace->ins, ins);
 
   return pc;
 }
@@ -194,13 +187,13 @@ static slot closure_get(slot clo, uint8_t pos) {
                         .op2 = c_pos,
                         .reg = REG_NONE,
                         .spill = SPILL_NONE};
-  auto idx = arrlen_ins(cur_trace->ins);
-  arrpush_ins(&cur_trace->ins, ins);
+  auto idx = arrlen(cur_trace->ins);
+  arrput(nullptr, cur_trace->ins, ins);
   return (slot){.constant = false, .loc = idx};
 }
 static slot return_address(bc *ra) {
-  auto c_idx = arrlen_consts(cur_trace->consts);
-  arrpush_consts(&cur_trace->consts, tag_return_address(ra));
+  auto c_idx = arrlen(cur_trace->consts);
+  arrput(nullptr, cur_trace->consts, tag_return_address(ra));
   return (slot){.constant = true, .loc = c_idx};
 }
 static gc_obj *adjust_stack_depth(gc_obj *stack, int depth) {
@@ -212,8 +205,8 @@ static bc *set_new_pc(bc *pc, gc_obj *stack, slot func) {
   if (!func.constant) {
     // Func isn't a constant, we need a runtime check.
     // Peek at destination
-    auto c_idx = arrlen_consts(cur_trace->consts);
-    arrpush_consts(&cur_trace->consts, stack[pc->reg]);
+    auto c_idx = arrlen(cur_trace->consts);
+    arrput(nullptr, cur_trace->consts, stack[pc->reg]);
     slot must_be = (slot){.constant = true, .loc = c_idx};
 
     ir_ins ins = (ir_ins){.op = IR_GUARD_EQ,
@@ -221,7 +214,7 @@ static bc *set_new_pc(bc *pc, gc_obj *stack, slot func) {
                           .op2 = func,
                           .reg = REG_NONE,
                           .spill = SPILL_NONE};
-    arrpush_ins(&cur_trace->ins, ins);
+    arrput(nullptr, cur_trace->ins, ins);
   }
 
   return pc;
@@ -238,9 +231,9 @@ static void *check_record_start(bc **pc, gc_obj **stack, void *op_table) {
     max_trace--;
     *ts.start_ins = (bc){
         .op = OP_JFUNC,
-        .data = arrlen_trace(traces),
+        .data = arrlen(traces),
     };
-    arrpush_trace(&traces, cur_trace);
+    arrput(nullptr, traces, cur_trace);
     /* printf("RUNNING\n"); */
     /* auto res = cur_trace->fn(*stack); */
     /* *stack = res.stack; */
