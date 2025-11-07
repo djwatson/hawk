@@ -136,17 +136,25 @@ static void emit_cmp_slots(emit_state *s, enum cmp_kind cmp, trace *t,
   emit_cmp(s, cmp, slot_reg(t, lhs), slot_reg(t, rhs));
 }
 
-static void emit_sub_slots(emit_state *s, trace *t, regmap *regs,
-                           uint32_t *next_spill, uint8_t dst, slot lhs,
-                           slot rhs) {
+static void emit_arith_slots(emit_state *s, trace *t, regmap *regs,
+                             uint32_t *next_spill, uint8_t dst, slot lhs,
+                             slot rhs, bool is_sub) {
   assert(!lhs.constant && "Left operand must be in a register");
   maybe_assign_register(lhs, t, regs, next_spill);
   maybe_assign_register(rhs, t, regs, next_spill);
 
   if (rhs.constant) {
-    emit_sub_constant(s, dst, slot_reg(t, lhs), slot_const(t, rhs));
+    if (is_sub) {
+      emit_sub_constant(s, dst, slot_reg(t, lhs), slot_const(t, rhs));
+    } else {
+      emit_add_constant(s, dst, slot_reg(t, lhs), slot_const(t, rhs));
+    }
   } else {
-    emit_sub(s, dst, slot_reg(t, lhs), slot_reg(t, rhs));
+    if (is_sub) {
+      emit_sub(s, dst, slot_reg(t, lhs), slot_reg(t, rhs));
+    } else {
+      emit_add(s, dst, slot_reg(t, lhs), slot_reg(t, rhs));
+    }
   }
 }
 
@@ -354,7 +362,13 @@ trace_fn emit(trace *t, emit_state *s) {
       break;
     }
     case IR_SUB: {
-      emit_sub_slots(s, t, reg_to_slot, &next_spill, op->reg, op->op1, op->op2);
+      emit_arith_slots(s, t, reg_to_slot, &next_spill, op->reg, op->op1,
+                       op->op2, true);
+      break;
+    }
+    case IR_ADD: {
+      emit_arith_slots(s, t, reg_to_slot, &next_spill, op->reg, op->op1,
+                       op->op2, false);
       break;
     }
     case IR_SLOAD: {

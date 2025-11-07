@@ -236,6 +236,7 @@ void emit_mem_reg(emit_state *s, uint8_t opcode, int32_t offset, uint8_t r1,
 }
 
 void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
+  assert(dst < MAX_REG);
   emit_mem_reg(s, ASM_MOV_MR, offset, base, dst);
 }
 
