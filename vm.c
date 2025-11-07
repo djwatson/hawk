@@ -135,7 +135,8 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
   if (res.snap->exits < 255) {
     res.snap->exits++;
     if (res.snap->exits == 255) {
-      printf("Blacklist side snap\n");
+      printf("Blacklist side trace %i snap %i \n", res.snap->trace->num,
+             res.snap->ir);
     }
     if (res.snap->exits >= 10 && res.snap->exits % 10 == 0 &&
         state->max_trace > 0) {

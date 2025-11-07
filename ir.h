@@ -83,7 +83,9 @@ typedef struct trace {
   snap *snaps;
   trace_fn fn;
   uint16_t num;
+  // TODO can remove parent
   trace *parent;
+  snap *parent_snap;
   uint16_t link;
   uint64_t trace_start;
 } trace;

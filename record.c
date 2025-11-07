@@ -261,10 +261,7 @@ static void record_finish(bc *pc, vm_state *state) {
   cur_trace->fn = emit(cur_trace, &state->emit, &state->record);
   print_ir(cur_trace);
   state->max_trace--;
-  if (cur_trace->parent) {
-
-    printf("TODO install side trace\n");
-  } else {
+  if (!cur_trace->parent) {
     *ts->start_ins = (bc){
         .op = OP_JFUNC,
         .data = record_trace_count(state),
@@ -323,6 +320,7 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   trace_state *ts = record_trace_state(state);
   record_current_trace(state)->parent = snap->trace;
+  record_current_trace(state)->parent_snap = snap;
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
   ts->depth = snap->depth;

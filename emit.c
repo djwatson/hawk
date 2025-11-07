@@ -414,6 +414,9 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   if (!t->parent) {
     emit_mov(s, RSTACK, RARG0);
     save_callee_regs(s);
+  } else {
+    // Install the side trace.
+    emit_jmp32_patch_here(s, t->parent_snap->patch_point);
   }
   COMMENT("ENTRY");
   auto entry = emit_offset(s);
@@ -437,8 +440,9 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   zone_free(&z);
   free(snap_labels);
   jit_reader_add(end - entry, entry);
-  jit_dump(sz, emit_offset(s), "TRACE");
-  perf_map(emit_offset(s), sz, "TRACE");
+  char *dumpname = t->parent ? "Side Trace" : "Trace";
+  jit_dump(sz, emit_offset(s), dumpname);
+  perf_map(emit_offset(s), sz, dumpname);
   return (trace_fn)entry;
   // emit and done
   // patch if side trace
