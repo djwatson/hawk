@@ -453,6 +453,8 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   jit_dump(sz, emit_offset(s), dumpname);
   perf_map(emit_offset(s), sz, dumpname);
 #endif
+// Call the built-in function to flush the cache for the specific range
+  __builtin___clear_cache((char*)emit_offset(s), (char*)emit_offset(s) + sz);
   return (trace_fn)entry;
   // emit and done
   // patch if side trace
