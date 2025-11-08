@@ -132,7 +132,6 @@
       padding: 2px 6px;
       border-radius: 4px;
       background: #f7f9fd;
-      border: 1px solid #dbe3f4;
       align-items: center;
     }
     .opcode-addr {
@@ -489,8 +488,8 @@
         const title = document.createElement("div");
         title.className = "trace-title";
         title.textContent = trace.kind === "side"
-          ? `Side Trace ${idx + 1}`
-          : `Trace ${idx + 1}`;
+          ? `Side Trace ${idx}`
+          : `Trace ${idx}`;
 
         const meta = document.createElement("div");
         meta.className = "trace-meta";
@@ -504,8 +503,8 @@
           const lineage = document.createElement("div");
           lineage.className = "trace-meta";
           const parentLabel = traceData[trace.parentTrace]?.kind === "side"
-            ? `Side Trace ${trace.parentTrace + 1}`
-            : `Trace ${trace.parentTrace + 1}`;
+            ? `Side Trace ${trace.parentTrace}`
+            : `Trace ${trace.parentTrace}`;
           lineage.textContent = `From ${parentLabel} @ SNAP ${trace.snapshot ?? "?"}`;
           lineage.style.marginBottom = "6px";
           card.appendChild(lineage);
@@ -564,7 +563,7 @@
         opcode.className = "opcode-name";
         opcode.textContent = latest ? latest.opcode : "—";
         if (latest) {
-          opcode.title = `Updated by Trace ${latest.traceIndex + 1}`;
+          opcode.title = `Updated by Trace ${latest.traceIndex}`;
         }
 
         const coverageCell = document.createElement("div");
@@ -577,7 +576,7 @@
             badge.className = "trace-badge";
             const sourceTrace = traceData[hit.traceIndex];
             const prefix = sourceTrace?.kind === "side" ? "S" : "T";
-            badge.textContent = `${prefix}${hit.traceIndex + 1}`;
+            badge.textContent = `${prefix}${hit.traceIndex}`;
             badge.style.background = colorPalette[hit.traceIndex % colorPalette.length];
             coverageCell.appendChild(badge);
           });
@@ -614,8 +613,8 @@
         }
         const nodeId = `t${idx}`;
         const label = trace.kind === "side"
-          ? `Side Trace ${idx + 1}`
-          : `Trace ${idx + 1}`;
+          ? `Side Trace ${idx}`
+          : `Trace ${idx}`;
         lines.push(`${nodeId}["${label}"]`);
       });
 
