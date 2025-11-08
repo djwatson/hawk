@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "asm.h"
+#include "hawk.h"
 
 const char *const reg_names[MAX_REG] = {
 #define X(name) #name,
@@ -25,7 +26,6 @@ void asm_mark_unallocatable(bool used[MAX_REG]) {
 
 static uint8_t low3bits(uint8_t r) { return 0x7 & r; }
 
-uint8_t callee_save[] = {RBX, RBP, R12, R13, R14, R15};
 /////////////////// instruction encoding
 
 #define p (s->p)
@@ -383,13 +383,15 @@ void emit_jmp32_patch_here(emit_state *s, int64_t patch) {
 
 /////////////////// memory
 
+// Emit R15 twice, so we have an odd number - and therefore a balanced stack
+uint8_t callee_save[] = {RBX, RBP, R12, R13, R14, R15, R15};
 void restore_callee_regs(emit_state *s) {
-  for (uint8_t i = 0; i < 5; i++) {
+  for (uint8_t i = 0; i < ARRAY_LEN(callee_save); i++) {
     emit_pop(s, callee_save[i]);
   }
 }
 void save_callee_regs(emit_state *s) {
-  for (uint8_t i = 5; i > 0; i--) {
+  for (uint8_t i = ARRAY_LEN(callee_save); i > 0; i--) {
     emit_push(s, callee_save[i - 1]);
   }
 }

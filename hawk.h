@@ -22,6 +22,7 @@
     (a) = (b);                                                                 \
     (b) = SWAP_tmp;                                                            \
   } while (0)
+#define ARRAY_LEN(x) (sizeof(x) / sizeof((x)[0]))
 
 #define BCFUNC_FLEXARRAY_DIAG_PUSH                                             \
   _Pragma("clang diagnostic push") _Pragma(                                    \
