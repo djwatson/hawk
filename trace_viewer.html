@@ -134,6 +134,10 @@
       background: #f7f9fd;
       align-items: center;
     }
+    .opcode-row.highlight {
+      background: #fff5dd;
+      box-shadow: 0 0 0 2px #f4c96f inset;
+    }
     .opcode-addr {
       font-weight: 600;
       font-size: 13px;
@@ -200,6 +204,16 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
       margin-bottom: 6px;
+    }
+    .snap-link {
+      color: #2c5ed2;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .snap-link:hover,
+    .snap-link:focus-visible {
+      color: #1c3f8f;
+      outline: none;
     }
     pre {
       margin: 0;
@@ -282,6 +296,8 @@
     const traceGraph = document.getElementById("traceGraph");
 
     let opcodeIndex = [];
+    let highlightedAddress = null;
+    let highlightedRow = null;
 
     async function loadLog() {
       statusEl.textContent = "Loading output.log…";
@@ -480,6 +496,7 @@
       traceData.forEach((trace, idx) => {
         const card = document.createElement("section");
         card.className = "trace-card";
+        card.id = `trace-${idx}`;
         card.style.borderLeftColor = colorPalette[idx % colorPalette.length];
 
         const header = document.createElement("div");
@@ -514,7 +531,7 @@
         grid.className = "trace-grid";
 
         const bytecodeBlock = buildColumn("Bytecode", cleanBlock(trace.bytecode));
-        const irBlock = buildColumn("IR / Snapshots", cleanBlock(trace.ir));
+        const irBlock = buildIrColumn(trace);
         const asmLines = trace.disassemblyHeader
           ? [trace.disassemblyHeader, ...trace.asm]
           : trace.asm;
@@ -537,6 +554,50 @@
       });
     }
 
+    function buildIrColumn(trace) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "column";
+      const heading = document.createElement("div");
+      heading.className = "column-title";
+      heading.textContent = "IR / Snapshots";
+      wrapper.appendChild(heading);
+      const pre = document.createElement("pre");
+      if (!trace.ir.length) {
+        pre.textContent = "—";
+        wrapper.appendChild(pre);
+        return wrapper;
+      }
+      trace.ir.forEach((line) => {
+        const cleanLine = line.replace(ansiRegex, "");
+        if (cleanLine.startsWith("SNAP[")) {
+          const snapSpan = document.createElement("span");
+          snapSpan.className = "snap-link";
+          snapSpan.textContent = cleanLine;
+          const pcMatch = cleanLine.match(/pc=(0x[0-9a-fA-F]+)/i);
+          if (pcMatch) {
+            const { display } = normalizeAddress(pcMatch[1]);
+            snapSpan.tabIndex = 0;
+            const handleActivate = (event) => {
+              event.preventDefault();
+              highlightOpcode(display);
+            };
+            snapSpan.addEventListener("click", handleActivate);
+            snapSpan.addEventListener("keypress", (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                handleActivate(event);
+              }
+            });
+          }
+          pre.appendChild(snapSpan);
+        } else {
+          pre.appendChild(document.createTextNode(cleanLine));
+        }
+        pre.appendChild(document.createTextNode("\n"));
+      });
+      wrapper.appendChild(pre);
+      return wrapper;
+    }
+
     function renderCoverage(limit) {
       sliderValue.textContent = `${limit}`;
       coverageCount.textContent = limit;
@@ -554,6 +615,7 @@
 
         const row = document.createElement("div");
         row.className = "opcode-row";
+        row.dataset.address = entry.address.toLowerCase();
 
         const addr = document.createElement("div");
         addr.className = "opcode-addr";
@@ -589,6 +651,34 @@
       });
 
       opcodeTable.appendChild(fragment);
+      applyHighlight();
+    }
+
+    function highlightOpcode(address) {
+      if (!address) {
+        return;
+      }
+      highlightedAddress = address.toLowerCase();
+      applyHighlight(true);
+    }
+
+    function applyHighlight(scroll = false) {
+      if (highlightedRow) {
+        highlightedRow.classList.remove("highlight");
+        highlightedRow = null;
+      }
+      if (!highlightedAddress) {
+        return;
+      }
+      const target = opcodeTable.querySelector(`[data-address="${highlightedAddress}"]`);
+      if (!target) {
+        return;
+      }
+      highlightedRow = target;
+      target.classList.add("highlight");
+      if (scroll) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     }
 
     async function renderGraph(limit = traceData.length) {
@@ -616,6 +706,7 @@
           ? `Side Trace ${idx}`
           : `Trace ${idx}`;
         lines.push(`${nodeId}["${label}"]`);
+        lines.push(`click ${nodeId} "#trace-${idx}" "View ${label}"`);
       });
 
       traceData.forEach((trace, idx) => {
