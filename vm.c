@@ -1,10 +1,10 @@
 // Copyright 2024 Dave Watson <dade.watson@gmail.com>
 
+#include <profiler.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <profiler.h>
 
 #include "ir.h"
 #include "vm.h"

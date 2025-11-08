@@ -1,14 +1,14 @@
 # VM impl
-* maybe more test programs
-* argument passing - max_trace, also insert aborts at certain ops
-* sampling profiler, for time spent in jit.
-
+* fix profiler
+* figure out up-recursion/down-recursion
 * get registers passing between traces
 * get branches snapshot AFTER branch.
-* figure out up-recursion/down-recursion
+
+* argument passing - max_trace, also insert aborts at certain ops
 * register-ize args
+
+* maybe more test programs
 * cleanup traces memory
-* trace visualization
 * track stack-top
 * merge branch&test, jumps.
 
@@ -22,12 +22,8 @@
   * make this optional, I guess.
 * Loader should be agnostic to GC - symbols first, then funcs? Consts in a table per func?
   * non-moving GC from callcc.
-* bytecode should FUNC should have frame size - do everything either
-  SP or IP relative?  Don't store pointer to BC object if unnecessary.
-* visualization of bytecodes.  SO helpful.
 
 ## tracer
-* visualization of traces
 * register-ize first couple args. Keep track of type.
 * dead/kills - no idea.  We could analyze bytecode, or just do
   top-of-stack tracking like previous.
