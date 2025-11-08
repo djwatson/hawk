@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <profiler.h>
 
 #include "ir.h"
 #include "vm.h"
@@ -75,6 +76,7 @@ static inline frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack) {
 static inline bc *next_op(bc *pc) { return pc + 1; }
 static inline gc_obj halt(vm_state *state, gc_obj *stack) {
   (void)state;
+  profiler_stop();
   return stack[0];
 }
 
@@ -127,7 +129,9 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
   // printf("RUN jit %i\n", jfunc);
   auto traces = state->record.traces;
   auto fn = traces[jfunc]->fn;
+  profiler_set_in_jit(true);
   auto res = fn(*stack);
+  profiler_set_in_jit(false);
   *pc = res.snap->pc;
   *stack = res.stack;
 
@@ -175,6 +179,7 @@ gc_obj vm(bc *pc) {
   gc_obj *stack = calloc(1024, sizeof(gc_obj));
   vm_state *state = calloc(1, sizeof(vm_state));
   vm_state_init(state);
+  profiler_start();
 
   return state->impls[pc->op](pc, stack, state, state->impls, 0);
 }

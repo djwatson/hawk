@@ -33,8 +33,10 @@ set(
   ${ASM_SOURCE}
   asm.c
   zone_alloc.c
+  profiler.c
   hashtable.c
   disassemble.c
+  profiler.c
   array.c
   util/bitset.c
   util/list.c
