@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Newhawk Trace Viewer</title>
+  <style>
+    :root {
+      font-family: "Source Code Pro", Consolas, monospace;
+      color: #e5e5e5;
+      background: #0f1115;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+      background: inherit;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 24px;
+      font-weight: 600;
+    }
+    h2 {
+      margin: 24px 0 12px;
+      font-size: 20px;
+      font-weight: 600;
+    }
+    .panel {
+      margin-bottom: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+    }
+    .panel label {
+      font-size: 14px;
+      color: #9aa2b1;
+    }
+    input[type="range"] {
+      width: 240px;
+    }
+    button {
+      background: #303a52;
+      color: #fff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #394362;
+    }
+    #status {
+      font-size: 13px;
+      color: #9aa2b1;
+    }
+    .coverage-panel,
+    .graph-panel {
+      border: 1px solid #293040;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 24px;
+      background: #141824;
+    }
+    .coverage-header,
+    .graph-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 10px;
+      gap: 12px;
+    }
+    .coverage-title,
+    .graph-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .coverage-meta,
+    .graph-meta {
+      font-size: 13px;
+      color: #8ea0c2;
+    }
+    .opcode-table {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    .trace-graph {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .graph-row {
+      display: grid;
+      grid-template-columns: 220px 120px 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: #0f1117;
+      border: 1px solid #1f2532;
+    }
+    .graph-trace {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }
+    .graph-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #f94144;
+      flex-shrink: 0;
+    }
+    .graph-connector {
+      font-size: 12px;
+      color: #8ea0c2;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .graph-parent {
+      font-size: 13px;
+      color: #e5e5e5;
+    }
+    .opcode-row {
+      display: grid;
+      grid-template-columns: 140px 1fr 1fr;
+      gap: 12px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #0f1117;
+      border: 1px solid #1f2532;
+      align-items: center;
+    }
+    .opcode-addr {
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .opcode-name {
+      font-size: 13px;
+    }
+    .opcode-coverage {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 13px;
+    }
+    .trace-badge {
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #0f1115;
+      font-weight: 600;
+      font-size: 12px;
+    }
+    .trace-card {
+      border: 1px solid #293040;
+      border-left-width: 4px;
+      margin-bottom: 20px;
+      padding: 12px;
+      border-radius: 4px;
+      background: #161a23;
+    }
+    .trace-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+    .trace-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .trace-meta {
+      font-size: 12px;
+      color: #9aa2b1;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .trace-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .column {
+      background: #0f1117;
+      border-radius: 4px;
+      padding: 8px;
+      border: 1px solid #1f2532;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+    }
+    .column-title {
+      font-size: 13px;
+      color: #8ea0c2;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 13px;
+      line-height: 1.42;
+      flex: 1;
+    }
+    .hidden {
+      display: none;
+    }
+    @media (max-width: 800px) {
+      .opcode-row {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 600px) {
+      body {
+        padding: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Trace viewer (output.log)</h1>
+  <div class="panel">
+    <label>
+      Coverage up to trace
+      <input id="traceSlider" type="range" min="0" value="0" step="1">
+      <span id="sliderValue">0</span>/<span id="traceTotal">0</span>
+    </label>
+    <button id="reloadButton" type="button">Reload output.log</button>
+    <span id="status"></span>
+  </div>
+
+  <section class="coverage-panel">
+    <div class="coverage-header">
+      <div class="coverage-title">Opcode Coverage</div>
+      <div class="coverage-meta">
+        Showing traces: <span id="coverageCount">0</span>/<span id="coverageTotal">0</span>
+      </div>
+    </div>
+    <div id="opcodeTable" class="opcode-table"></div>
+  </section>
+
+  <section class="graph-panel">
+    <div class="graph-header">
+      <div class="graph-title">Trace Links</div>
+      <div class="graph-meta">Parent snapshots and patch targets</div>
+    </div>
+    <div id="traceGraph" class="trace-graph">
+      <div class="trace-meta">Rendering…</div>
+    </div>
+  </section>
+
+  <h2>Traces</h2>
+  <div id="traceContainer"></div>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    if (window.mermaid) {
+      window.mermaid.initialize({ startOnLoad: false, theme: "dark" });
+    }
+    const colorPalette = [
+      "#f94144", "#f3722c", "#f8961e", "#f9844a", "#f9c74f",
+      "#90be6d", "#43aa8b", "#577590", "#8e63d3", "#ff6f91"
+    ];
+    const ansiRegex = /\u001b\[[0-9;]*m/g;
+    let traceData = [];
+
+    const slider = document.getElementById("traceSlider");
+    const sliderValue = document.getElementById("sliderValue");
+    const traceTotalEl = document.getElementById("traceTotal");
+    const statusEl = document.getElementById("status");
+    const container = document.getElementById("traceContainer");
+    const reloadButton = document.getElementById("reloadButton");
+    const opcodeTable = document.getElementById("opcodeTable");
+    const coverageCount = document.getElementById("coverageCount");
+    const coverageTotal = document.getElementById("coverageTotal");
+    const traceGraph = document.getElementById("traceGraph");
+
+    let opcodeIndex = [];
+
+    async function loadLog() {
+      statusEl.textContent = "Loading output.log…";
+      container.innerHTML = "";
+      try {
+        const response = await fetch("output.log", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`Failed to fetch output.log (${response.status})`);
+        }
+        const text = await response.text();
+        traceData = parseTraces(text);
+        if (!traceData.length) {
+          statusEl.textContent = "No traces found.";
+          opcodeIndex = [];
+          traceTotalEl.textContent = "0";
+          coverageTotal.textContent = "0";
+          coverageCount.textContent = "0";
+          sliderValue.textContent = "0";
+          opcodeTable.innerHTML = "<div class=\"trace-meta\">No trace records present.</div>";
+          traceGraph.innerHTML = "<div class=\"trace-meta\">No trace links.</div>";
+          slider.max = 0;
+          slider.value = 0;
+          slider.disabled = true;
+          return;
+        }
+        traceTotalEl.textContent = traceData.length;
+        slider.max = traceData.length;
+        slider.value = traceData.length;
+        slider.disabled = false;
+        opcodeIndex = buildOpcodeIndex(traceData);
+        coverageTotal.textContent = traceData.length;
+        statusEl.textContent = `Loaded ${traceData.length} traces`;
+        renderCoverage(traceData.length);
+        renderGraph(traceData.length);
+        renderTraces();
+      } catch (err) {
+        statusEl.textContent = err.message;
+        slider.disabled = true;
+      }
+    }
+
+    function parseTraces(text) {
+      const lines = text.split(/\r?\n/);
+      const traces = [];
+      let current = null;
+      let mode = null;
+      let pendingSide = null;
+
+      for (const raw of lines) {
+        const line = raw.trimEnd();
+        if (line.startsWith("Record start")) {
+          if (current) {
+            traces.push(current);
+          }
+          current = {
+            title: line,
+            disassemblyHeader: "",
+            bytecode: [],
+            asm: [],
+            ir: [],
+            notes: [],
+            recordOps: [],
+            kind: line.includes("side") || pendingSide ? "side" : "main",
+            parentTrace: pendingSide ? pendingSide.parentTrace : null,
+            snapshot: pendingSide ? pendingSide.snapshot : null,
+            links: []
+          };
+          pendingSide = null;
+          mode = "bytecode";
+          continue;
+        }
+        if (!current) {
+          continue;
+        }
+        if (line.startsWith("Disassembly:")) {
+          current.disassemblyHeader = line;
+          mode = "asm";
+          continue;
+        }
+        if (line.startsWith("SNAP[")) {
+          mode = "ir";
+          current.ir.push(line);
+          continue;
+        }
+        if (line.startsWith("Try side trace")) {
+          current.notes.push(line);
+          const parts = line.split(/\s+/);
+          const parentTrace = parseInt(parts[3], 10);
+          const snapshot = parseInt(parts[4], 10);
+          pendingSide = {
+            parentTrace: Number.isNaN(parentTrace) ? null : parentTrace,
+            snapshot: Number.isNaN(snapshot) ? null : snapshot
+          };
+          continue;
+        }
+        if (line.startsWith("record op:")) {
+          current.bytecode.push(line);
+          const parsed = parseRecordOp(line);
+          if (parsed) {
+            current.recordOps.push(parsed);
+          }
+          continue;
+        }
+        if (mode === "bytecode") {
+          if (line) {
+            current.bytecode.push(line);
+          }
+        } else if (mode === "asm") {
+          current.asm.push(line);
+          const linkMatch = line.match(/Link to trace\s+(\d+)(?:.*snap exit\s+(\d+))?/i);
+          if (linkMatch) {
+            current.links.push({
+              type: "patch",
+              target: parseInt(linkMatch[1], 10),
+              snapshot: linkMatch[2] ? parseInt(linkMatch[2], 10) : null
+            });
+          }
+          const loopMatch = line.match(/Loopback\s*\(snap exit\s+(\d+)\)/i);
+          if (loopMatch) {
+            current.links.push({
+              type: "loop",
+              target: null,
+              snapshot: parseInt(loopMatch[1], 10)
+            });
+          }
+        } else if (mode === "ir") {
+          if (line || current.ir.length) {
+            current.ir.push(line);
+          }
+        }
+      }
+      if (current) {
+        traces.push(current);
+      }
+      return traces;
+    }
+
+    function parseRecordOp(line) {
+      const parts = line.split("record op:")[1]?.trim();
+      if (!parts) {
+        return null;
+      }
+      const [addrRaw, opcode] = parts.split(/\s+/, 2);
+      if (!addrRaw || !opcode) {
+        return null;
+      }
+      const { display, value } = normalizeAddress(addrRaw);
+      return { address: display, value, opcode: opcode.trim() };
+    }
+
+    function normalizeAddress(raw) {
+      const match = raw.match(/0x([0-9a-fA-F]+)/g);
+      if (!match) {
+        return { display: raw, value: BigInt(0) };
+      }
+      const hex = match[match.length - 1].replace(/^0x/, "");
+      const display = `0x${hex.toLowerCase()}`;
+      return { display, value: BigInt(`0x${hex}`) };
+    }
+
+    function buildOpcodeIndex(traces) {
+      const map = new Map();
+      traces.forEach((trace, traceIndex) => {
+        trace.recordOps.forEach((op, seq) => {
+          if (!map.has(op.address)) {
+            map.set(op.address, {
+              address: op.address,
+              value: op.value,
+              history: []
+            });
+          }
+          map.get(op.address).history.push({
+            traceIndex,
+            opcode: op.opcode,
+            seq
+          });
+        });
+      });
+      return [...map.values()].sort((a, b) => {
+        if (a.value === b.value) {
+          return a.address.localeCompare(b.address);
+        }
+        return a.value < b.value ? -1 : 1;
+      });
+    }
+
+    function cleanBlock(lines) {
+      return lines
+        .map((line) => line.replace(ansiRegex, ""))
+        .join("\n")
+        .trim();
+    }
+
+    function renderTraces() {
+      container.innerHTML = "";
+      traceData.forEach((trace, idx) => {
+        const card = document.createElement("section");
+        card.className = "trace-card";
+        card.style.borderLeftColor = colorPalette[idx % colorPalette.length];
+
+        const header = document.createElement("div");
+        header.className = "trace-header";
+
+        const title = document.createElement("div");
+        title.className = "trace-title";
+        title.textContent = trace.kind === "side"
+          ? `Side Trace ${idx + 1}`
+          : `Trace ${idx + 1}`;
+
+        const meta = document.createElement("div");
+        meta.className = "trace-meta";
+        meta.textContent = trace.title || "Record";
+
+        header.appendChild(title);
+        header.appendChild(meta);
+        card.appendChild(header);
+
+        if (trace.parentTrace != null) {
+          const lineage = document.createElement("div");
+          lineage.className = "trace-meta";
+          const parentLabel = traceData[trace.parentTrace]?.kind === "side"
+            ? `Side Trace ${trace.parentTrace + 1}`
+            : `Trace ${trace.parentTrace + 1}`;
+          lineage.textContent = `From ${parentLabel} @ SNAP ${trace.snapshot ?? "?"}`;
+          lineage.style.marginBottom = "6px";
+          card.appendChild(lineage);
+        }
+
+        const grid = document.createElement("div");
+        grid.className = "trace-grid";
+
+        const bytecodeBlock = buildColumn("Bytecode", cleanBlock(trace.bytecode));
+        const irBlock = buildColumn("IR / Snapshots", cleanBlock(trace.ir));
+        const asmLines = trace.disassemblyHeader
+          ? [trace.disassemblyHeader, ...trace.asm]
+          : trace.asm;
+        const asmBlock = buildColumn("ASM", cleanBlock(asmLines));
+
+        grid.appendChild(bytecodeBlock);
+        grid.appendChild(irBlock);
+        grid.appendChild(asmBlock);
+        card.appendChild(grid);
+
+        if (trace.notes.length) {
+          const notes = document.createElement("div");
+          notes.className = "trace-meta";
+          notes.style.marginTop = "8px";
+          notes.textContent = trace.notes.join(" | ");
+          card.appendChild(notes);
+        }
+
+        container.appendChild(card);
+      });
+    }
+
+    function renderCoverage(limit) {
+      sliderValue.textContent = `${limit}`;
+      coverageCount.textContent = limit;
+      opcodeTable.innerHTML = "";
+      const fragment = document.createDocumentFragment();
+
+      opcodeIndex.forEach((entry) => {
+        const history = entry.history.filter((h) => h.traceIndex < limit);
+        const latest = history.length ? history[history.length - 1] : null;
+        const coverage = Array.from(
+          new Map(
+            history.map((h) => [h.traceIndex, h])
+          ).values()
+        );
+
+        const row = document.createElement("div");
+        row.className = "opcode-row";
+
+        const addr = document.createElement("div");
+        addr.className = "opcode-addr";
+        addr.textContent = entry.address;
+
+        const opcode = document.createElement("div");
+        opcode.className = "opcode-name";
+        opcode.textContent = latest ? latest.opcode : "—";
+        if (latest) {
+          opcode.title = `Updated by Trace ${latest.traceIndex + 1}`;
+        }
+
+        const coverageCell = document.createElement("div");
+        coverageCell.className = "opcode-coverage";
+        if (coverage.length === 0) {
+          coverageCell.textContent = "—";
+        } else {
+          coverage.forEach((hit) => {
+            const badge = document.createElement("span");
+            badge.className = "trace-badge";
+            const sourceTrace = traceData[hit.traceIndex];
+            const prefix = sourceTrace?.kind === "side" ? "S" : "T";
+            badge.textContent = `${prefix}${hit.traceIndex + 1}`;
+            badge.style.background = colorPalette[hit.traceIndex % colorPalette.length];
+            coverageCell.appendChild(badge);
+          });
+        }
+
+        row.appendChild(addr);
+        row.appendChild(opcode);
+        row.appendChild(coverageCell);
+        fragment.appendChild(row);
+      });
+
+      opcodeTable.appendChild(fragment);
+    }
+
+    async function renderGraph(limit = traceData.length) {
+      if (!traceData.length) {
+        traceGraph.innerHTML = "<div class=\"trace-meta\">No traces available.</div>";
+        return;
+      }
+      if (!window.mermaid) {
+        traceGraph.innerHTML = "<div class=\"trace-meta\">Mermaid failed to load.</div>";
+        return;
+      }
+
+      if (!limit) {
+        traceGraph.innerHTML = "<div class=\"trace-meta\">Move the slider to include at least one trace.</div>";
+        return;
+      }
+
+      const lines = ["graph TD"];
+      traceData.forEach((trace, idx) => {
+        if (idx >= limit) {
+          return;
+        }
+        const nodeId = `t${idx}`;
+        const label = trace.kind === "side"
+          ? `Side Trace ${idx + 1}`
+          : `Trace ${idx + 1}`;
+        lines.push(`${nodeId}["${label}"]`);
+      });
+
+      traceData.forEach((trace, idx) => {
+        if (idx >= limit) {
+          return;
+        }
+        const nodeId = `t${idx}`;
+        if (trace.parentTrace != null && traceData[trace.parentTrace]) {
+          const label = trace.snapshot != null ? `snap ${trace.snapshot}` : "snap ?";
+          lines.push(`t${trace.parentTrace} -->|${label}| ${nodeId}`);
+        }
+        (trace.links || []).forEach((link) => {
+          if (link.type === "patch" && link.target != null && traceData[link.target]) {
+            if (link.target >= limit) {
+              return;
+            }
+            const label = link.snapshot != null ? `exit ${link.snapshot}` : "exit";
+            lines.push(`${nodeId} -.->|${label}| t${link.target}`);
+          } else if (link.type === "loop") {
+            const label = link.snapshot != null ? `loop ${link.snapshot}` : "loop";
+            lines.push(`${nodeId} -->|${label}| ${nodeId}`);
+          }
+        });
+      });
+
+      const definition = lines.join("\n");
+      traceGraph.innerHTML = "<div class=\"trace-meta\">Rendering graph…</div>";
+      try {
+        const { svg } = await window.mermaid.render(`traceGraph${Date.now()}`, definition);
+        traceGraph.innerHTML = svg;
+      } catch (err) {
+        traceGraph.innerHTML = `<div class="trace-meta">Graph render failed: ${err.message}</div>`;
+      }
+    }
+
+    function buildColumn(title, body) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "column";
+      const heading = document.createElement("div");
+      heading.className = "column-title";
+      heading.textContent = title;
+      const pre = document.createElement("pre");
+      pre.textContent = body || "—";
+      wrapper.appendChild(heading);
+      wrapper.appendChild(pre);
+      return wrapper;
+    }
+
+    slider.addEventListener("input", (event) => {
+      const count = Number(event.target.value);
+      renderCoverage(count);
+      renderGraph(count);
+    });
+
+    reloadButton.addEventListener("click", () => {
+      loadLog();
+    });
+
+    loadLog();
+  </script>
+</body>
+</html>

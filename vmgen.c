@@ -12,13 +12,13 @@
  */
 
 #ifndef VMGEN_TRACE_OP
-#define VMGEN_TRACE_OP(code) ((void)0)
+#define VMGEN_TRACE_OP(pc, code) ((void)0)
 #endif
 
 #ifndef OP_BEGIN
 #define OP_BEGIN(code)                                                         \
   OP(code) {                                                                   \
-    VMGEN_TRACE_OP(code);
+    VMGEN_TRACE_OP(pc, code);
 #define END }
 #endif
 
