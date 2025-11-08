@@ -1,5 +1,5 @@
 # VM impl
-* fix profiler
+
 * figure out up-recursion/down-recursion
 * get registers passing between traces
 * get branches snapshot AFTER branch.

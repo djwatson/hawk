@@ -150,8 +150,6 @@ void emit_jmp32_patch_here(emit_state *s, int64_t patch) {
   assert(patch);
   int64_t target = emit_offset(s);
   int64_t delta = target - patch;
-  fprintf(stderr, "patch=%p target=%p delta=%lld\n", (void *)patch,
-          (void *)target, (long long)delta);
   assert((delta & 0x3) == 0);
   int64_t imm26 = delta / 4;
   assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
