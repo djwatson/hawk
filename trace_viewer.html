@@ -6,13 +6,14 @@
   <style>
     :root {
       font-family: "Source Code Pro", Consolas, monospace;
-      color: #e5e5e5;
-      background: #0f1115;
+      color: #1f2430;
+      background: #f5f7fc;
     }
     body {
       margin: 0;
       padding: 24px;
       background: inherit;
+      color: inherit;
     }
     h1 {
       margin: 0 0 12px;
@@ -33,33 +34,35 @@
     }
     .panel label {
       font-size: 14px;
-      color: #9aa2b1;
+      color: #4b566d;
     }
     input[type="range"] {
       width: 240px;
     }
     button {
-      background: #303a52;
+      background: #4d6cf7;
       color: #fff;
       border: none;
       padding: 6px 14px;
       border-radius: 4px;
       cursor: pointer;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
     }
     button:hover {
-      background: #394362;
+      background: #3b5add;
     }
     #status {
       font-size: 13px;
-      color: #9aa2b1;
+      color: #5c647a;
     }
     .coverage-panel,
     .graph-panel {
-      border: 1px solid #293040;
+      border: 1px solid #d6deef;
       border-radius: 6px;
       padding: 12px;
       margin-bottom: 24px;
-      background: #141824;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
     }
     .coverage-header,
     .graph-header {
@@ -77,7 +80,7 @@
     .coverage-meta,
     .graph-meta {
       font-size: 13px;
-      color: #8ea0c2;
+      color: #5f6c86;
     }
     .opcode-table {
       display: grid;
@@ -96,8 +99,8 @@
       align-items: center;
       padding: 6px 8px;
       border-radius: 4px;
-      background: #0f1117;
-      border: 1px solid #1f2532;
+      background: #f3f6fc;
+      border: 1px solid #dbe3f4;
     }
     .graph-trace {
       display: flex;
@@ -114,13 +117,13 @@
     }
     .graph-connector {
       font-size: 12px;
-      color: #8ea0c2;
+      color: #6c7794;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
     .graph-parent {
       font-size: 13px;
-      color: #e5e5e5;
+      color: inherit;
     }
     .opcode-row {
       display: grid;
@@ -128,8 +131,8 @@
       gap: 12px;
       padding: 2px 6px;
       border-radius: 4px;
-      background: #0f1117;
-      border: 1px solid #1f2532;
+      background: #f7f9fd;
+      border: 1px solid #dbe3f4;
       align-items: center;
     }
     .opcode-addr {
@@ -153,12 +156,13 @@
       font-size: 12px;
     }
     .trace-card {
-      border: 1px solid #293040;
+      border: 1px solid #d6deef;
       border-left-width: 4px;
       margin-bottom: 20px;
       padding: 12px;
       border-radius: 4px;
-      background: #161a23;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
     }
     .trace-header {
       display: flex;
@@ -173,7 +177,7 @@
     }
     .trace-meta {
       font-size: 12px;
-      color: #9aa2b1;
+      color: #5d667e;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
@@ -183,17 +187,17 @@
       gap: 12px;
     }
     .column {
-      background: #0f1117;
+      background: #f8faff;
       border-radius: 4px;
       padding: 8px;
-      border: 1px solid #1f2532;
+      border: 1px solid #dbe3f4;
       min-height: 140px;
       display: flex;
       flex-direction: column;
     }
     .column-title {
       font-size: 13px;
-      color: #8ea0c2;
+      color: #6a7795;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       margin-bottom: 6px;
@@ -258,7 +262,7 @@
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      window.mermaid.initialize({ startOnLoad: false, theme: "dark" });
+      window.mermaid.initialize({ startOnLoad: false, theme: "default" });
     }
     const colorPalette = [
       "#f94144", "#f3722c", "#f8961e", "#f9844a", "#f9c74f",
