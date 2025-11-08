@@ -275,7 +275,11 @@
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <script>
     if (window.mermaid) {
-      window.mermaid.initialize({ startOnLoad: false, theme: "default" });
+      window.mermaid.initialize({
+        startOnLoad: false,
+        theme: "default",
+        securityLevel: "loose"
+      });
     }
     const colorPalette = [
       "#f94144", "#f3722c", "#f8961e", "#f9844a", "#f9c74f",
@@ -298,6 +302,14 @@
     let opcodeIndex = [];
     let highlightedAddress = null;
     let highlightedRow = null;
+    let snapNodeMeta = {};
+    let currentGraphId = null;
+    const escapeId = (value) => {
+      if (window.CSS && CSS.escape) {
+        return CSS.escape(value);
+      }
+      return value.replace(/([.#:[\],])/g, "\\$1");
+    };
 
     async function loadLog() {
       statusEl.textContent = "Loading output.log…";
@@ -363,7 +375,8 @@
             kind: line.includes("side") || pendingSide ? "side" : "main",
             parentTrace: pendingSide ? pendingSide.parentTrace : null,
             snapshot: pendingSide ? pendingSide.snapshot : null,
-            links: []
+            links: [],
+            snapshots: []
           };
           pendingSide = null;
           mode = "bytecode";
@@ -380,6 +393,19 @@
         if (line.startsWith("SNAP[")) {
           mode = "ir";
           current.ir.push(line);
+          const pcMatch = line.match(/pc=(0x[0-9a-fA-F]+)/i);
+          if (pcMatch) {
+            const { display } = normalizeAddress(pcMatch[1]);
+            current.snapshots.push({
+              index: current.snapshots.length,
+              pc: display
+            });
+          } else {
+            current.snapshots.push({
+              index: current.snapshots.length,
+              pc: null
+            });
+          }
           continue;
         }
         if (line.startsWith("Try side trace")) {
@@ -681,6 +707,30 @@
       }
     }
 
+    window.highlightSnapFromGraph = (nodeId) => {
+      const meta = snapNodeMeta[nodeId];
+      console.debug("Graph snap click", { nodeId, meta });
+      if (!meta) {
+        console.warn("No metadata for snap node", nodeId);
+        return;
+      }
+      if (meta.address) {
+        highlightOpcode(meta.address);
+        return;
+      }
+      if (meta.parentTrace == null || meta.snapshotIndex == null) {
+        console.warn("Missing parent trace or snapshot index", meta);
+        return;
+      }
+      const parentTrace = traceData[meta.parentTrace];
+      const snapshot = parentTrace?.snapshots?.[meta.snapshotIndex];
+      if (snapshot?.pc) {
+        highlightOpcode(snapshot.pc);
+      } else {
+        console.warn("No pc for snapshot", meta);
+      }
+    };
+
     async function renderGraph(limit = traceData.length) {
       if (!traceData.length) {
         traceGraph.innerHTML = "<div class=\"trace-meta\">No traces available.</div>";
@@ -696,7 +746,8 @@
         return;
       }
 
-      const lines = ["graph TD"];
+      snapNodeMeta = {};
+      const lines = ["graph TD", "classDef snapLabel fill:#fdf7e3,stroke:#f4c96f,color:#8a5b06;font-size:12px"];
       traceData.forEach((trace, idx) => {
         if (idx >= limit) {
           return;
@@ -715,8 +766,24 @@
         }
         const nodeId = `t${idx}`;
         if (trace.parentTrace != null && traceData[trace.parentTrace]) {
-          const label = trace.snapshot != null ? `snap ${trace.snapshot}` : "snap ?";
-          lines.push(`t${trace.parentTrace} -->|${label}| ${nodeId}`);
+          const parentId = `t${trace.parentTrace}`;
+          const snapLabel = trace.snapshot != null ? `snap ${trace.snapshot}` : "snap ?";
+          const snapNodeId = `snap_${trace.parentTrace}_${idx}`;
+          lines.push(`${snapNodeId}["${snapLabel}"]:::snapLabel`);
+          lines.push(`${parentId} --> ${snapNodeId}`);
+          lines.push(`${snapNodeId} --> ${nodeId}`);
+          lines.push(`click ${snapNodeId} highlightSnapFromGraph "Highlight ${snapLabel}"`);
+          const parentTraceData = traceData[trace.parentTrace];
+          const snapshotIndex = trace.snapshot;
+          const address = snapshotIndex != null
+            ? parentTraceData?.snapshots?.[snapshotIndex]?.pc ?? null
+            : null;
+          snapNodeMeta[snapNodeId] = {
+            parentTrace: trace.parentTrace,
+            snapshotIndex,
+            address,
+            label: snapLabel
+          };
         }
         (trace.links || []).forEach((link) => {
           if (link.type === "patch" && link.target != null && traceData[link.target]) {
@@ -735,8 +802,12 @@
       const definition = lines.join("\n");
       traceGraph.innerHTML = "<div class=\"trace-meta\">Rendering graph…</div>";
       try {
-        const { svg } = await window.mermaid.render(`traceGraph${Date.now()}`, definition);
+        const graphId = `traceGraph${Date.now()}`;
+        currentGraphId = graphId;
+        console.log("Rendering Mermaid graph", { limit, snapNodes: Object.keys(snapNodeMeta).length, graphId });
+        const { svg } = await window.mermaid.render(graphId, definition);
         traceGraph.innerHTML = svg;
+        attachSnapNodeHandlers();
       } catch (err) {
         traceGraph.innerHTML = `<div class="trace-meta">Graph render failed: ${err.message}</div>`;
       }
@@ -753,6 +824,81 @@
       wrapper.appendChild(heading);
       wrapper.appendChild(pre);
       return wrapper;
+    }
+
+    function findSnapNodeElement(nodeId) {
+      const prefixes = ["", "flowchart-", "flowchart-node-", "state-"];
+      const suffixes = ["", "-0", "-1", "-2", "-label"];
+      for (const prefix of prefixes) {
+        for (const suffix of suffixes) {
+          const base = `${prefix}${nodeId}${suffix}`;
+          const candidates = [base];
+          if (currentGraphId) {
+            candidates.push(`${currentGraphId}_${base}`);
+          }
+          for (const candidate of candidates) {
+            const el = traceGraph.querySelector(`#${escapeId(candidate)}`);
+            if (el) {
+              console.log("Found snap node by id", candidate);
+              return el;
+            }
+          }
+        }
+      }
+      const contains = traceGraph.querySelector(`g[id*="${nodeId}"]`);
+      if (contains) {
+        console.log("Found snap node by contains", contains.id);
+        return contains;
+      }
+      const title = Array.from(traceGraph.querySelectorAll("title")).find(
+        (el) => el.textContent.trim() === nodeId
+      );
+      if (title && title.parentElement) {
+        console.log("Found snap node by title", title.textContent);
+        return title.parentElement;
+      }
+      const labelText = snapNodeMeta[nodeId]?.label;
+      if (labelText) {
+        const labelNode = Array.from(traceGraph.querySelectorAll("g")).find((node) => {
+          const text = node.textContent?.trim();
+          return text === labelText;
+        });
+        if (labelNode) {
+          console.log("Found snap node by label text", labelText);
+          return labelNode;
+        }
+      }
+      return null;
+    }
+
+    function attachSnapNodeHandlers() {
+      const ids = Array.from(traceGraph.querySelectorAll("[id]")).map((node) => node.id);
+      const titles = Array.from(traceGraph.querySelectorAll("title")).map((node) => node.textContent);
+      console.log("Attaching snap handlers", { availableIds: ids, titleIds: titles });
+      Object.keys(snapNodeMeta).forEach((nodeId) => {
+        const node = findSnapNodeElement(nodeId);
+        if (!node) {
+          console.warn("Snap label node not found", nodeId);
+          return;
+        }
+        const activate = (event) => {
+          if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          highlightSnapFromGraph(nodeId);
+        };
+        console.log("Binding snap node", nodeId);
+        node.style.cursor = "pointer";
+        node.setAttribute("role", "button");
+        node.setAttribute("tabindex", "0");
+        node.addEventListener("click", activate);
+        node.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            activate(event);
+          }
+        });
+      });
     }
 
     slider.addEventListener("input", (event) => {
