@@ -1,3 +1,19 @@
+# VM impl
+* maybe more test programs
+* argument passing - max_trace, also insert aborts at certain ops
+* sampling profiler, for time spent in jit.
+
+* get registers passing between traces
+* get branches snapshot AFTER branch.
+* figure out up-recursion/down-recursion
+* register-ize args
+* cleanup traces memory
+* trace visualization
+* track stack-top
+
+* typechecking
+* math ops - fixnum,flonum, slowpaths.
+
 # simple VM
 
 * use conservative collector on stack, but precise on heap, allowing dumping.

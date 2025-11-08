@@ -394,6 +394,10 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
       emit_cmp_constant(s, CMP_EQ, op->reg, slot_const(t, op->op2));
       // cmp stack[-1], jmp to snap if not equal
       emit_mem_load(s, -8, RSTACK, op->reg);
+      /* if (t->num == 1 && op_cnt == 6) { */
+      /*   emit_jmp32(s, snap_labels[cur_snap] - emit_offset(s)); */
+      /*   COMMENT("ABORT"); */
+      /* } */
 
       break;
     }

@@ -163,7 +163,7 @@ OPS;
 
 static void vm_state_init(vm_state *state) {
   memset(state, 0, sizeof(*state));
-  state->max_trace = 2;
+  state->max_trace = 700;
 #define X(name) state->impls[OP_##name] = impl_##name;
   OPS
 #undef X
