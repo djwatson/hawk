@@ -10,6 +10,7 @@
 * cleanup traces memory
 * trace visualization
 * track stack-top
+* merge branch&test, jumps.
 
 * typechecking
 * math ops - fixnum,flonum, slowpaths.

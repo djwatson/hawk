@@ -11,6 +11,9 @@
 #include "types.h"
 #include "vm.h"
 
+// TODO: record abort if depth > ~20
+// TODO: record abort if len > ~4000
+
 static inline trace_state *record_trace_state(vm_state *state) {
   return &state->record.trace_state;
 }
@@ -142,6 +145,20 @@ static void record_abort(vm_state *state) {
   abort();
 }
 static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack) {
+  // TODO check for down-rec
+  // add downrec array
+  // cases:
+  // depth > 0:
+  //   reduce depth and keep tracing.
+  // depth == 0
+  //   side/downrec trace:
+  //     count downrec to this pc. If nonzero, abort and
+  //     restart as downrec.
+  //     downrec trace: capture!
+  //   parent trace:
+  //     if we're not yet at 'desperate' levels, abort and retry.
+  //     if we're desperate, capture the trace, but mark as a 'desperate'
+  //        future traces can trace through desperate instead of linking.
   if (record_trace_state(state)->depth == 0) {
     // Root traces cannot return
     if (!record_current_trace(state)->parent) {
@@ -288,6 +305,13 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
+  // Several cases.
+  // parent trace:
+  //  depth == 0: tailcalled loop.
+  //  depth != 0: up-recursion.
+  // side trace:
+  //  check for up-recursion and abort, restart trying to capture an
+  //  up-recursive trace.
   if (pc == ts->start_ins) {
     cur_trace->link = arrlen(state->record.traces);
     record_finish(pc, state);
