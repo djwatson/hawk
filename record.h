@@ -15,6 +15,7 @@ typedef struct trace_state {
   uint16_t stack_off;
   bc *start_ins;
   uint8_t depth;
+  bc **downrec;
 } trace_state;
 
 typedef struct record_state {

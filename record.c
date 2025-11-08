@@ -165,6 +165,28 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack) {
       printf("Record abort: return\n");
       record_abort(state);
     }
+
+    // count returns NOTE that we're not checking against the
+    // destination address, but the 'ret' address.  Otherwise we get
+    // endless chains where there are two different return locations,
+    // but the second one fails - and we don't save the downrec array
+    // between traces, so the next side trace only also has two
+    // downrec to two locations (although the first matches the first
+    // in the parent trace).
+    //
+    // This may mean this ISN'T a downrecursive case, but if so, it
+    // will eventually be blacklisted. Better to catch down-rec with
+    // slight penalty for weird cases that look like downrec but aren't.
+    int cnt = 0;
+    arr_for_each(record_trace_state(state)->downrec, downrec_ra) {
+      printf("RETURN %p %p\n", pc, downrec_ra);
+      if (downrec_ra == pc) {
+        cnt++;
+      }
+    }
+    printf("RETURN ADDRESS COUNT: %i %i\n", cnt,
+           arrlen(record_trace_state(state)->downrec));
+
     // Side traces *may* go down the stack.
     // 1) record load for result
     auto res = stack_load(state, stack, pc->reg);
@@ -172,6 +194,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack) {
     auto ra = to_return_address(stack[-1]);
     auto old_pc = ra - 1;
     auto offset = old_pc->reg + 1;
+
     // 3) Clear regs / set result in new regs
     assert(record_trace_state(state)->stack_off == 0);
     arrlen_set(record_trace_state(state)->stack, 0);
@@ -191,6 +214,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack) {
     set_stack(state, old_pc->reg, res);
     // 7) Add a snap, since we changed the stack / RA, we can't go back.
     vm_add_snap(state, ra);
+    arrput(nullptr, record_trace_state(state)->downrec, pc);
   } else {
     record_trace_state(state)->depth--;
     abort();
@@ -287,6 +311,7 @@ static void record_finish(bc *pc, vm_state *state) {
     };
   }
   record_append_trace(state, cur_trace);
+  arrfree(ts->downrec);
 }
 static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
                       void *op_table) {
