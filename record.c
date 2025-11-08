@@ -184,8 +184,8 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack) {
         cnt++;
       }
     }
-    printf("RETURN ADDRESS COUNT: %i %i\n", cnt,
-           arrlen(record_trace_state(state)->downrec));
+    size_t downrec_len = arrlen(record_trace_state(state)->downrec);
+    printf("RETURN ADDRESS COUNT: %i %zu\n", cnt, downrec_len);
 
     // Side traces *may* go down the stack.
     // 1) record load for result

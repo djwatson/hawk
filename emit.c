@@ -13,7 +13,9 @@
 #include "asm.h"
 #include "disassemble.h"
 #include "ir.h"
+#ifdef HAVE_ELF_H
 #include "jitdump.h"
+#endif
 #include "record.h"
 #include "zone_alloc.h"
 
@@ -259,7 +261,9 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, regmap *regs,
 trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // TODO move init somewhere else
   emit_init(s);
+#ifdef HAVE_ELF_H
   jit_dump_init();
+#endif
 
   emit_writable_begin(s);
   regmap reg_to_slot[MAX_REG];
@@ -443,10 +447,12 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   disassemble((uint8_t *)emit_offset(s), sz, comments);
   zone_free(&z);
   free(snap_labels);
+#ifdef HAVE_ELF_H
   jit_reader_add(end - entry, entry);
   char *dumpname = t->parent ? "Side Trace" : "Trace";
   jit_dump(sz, emit_offset(s), dumpname);
   perf_map(emit_offset(s), sz, dumpname);
+#endif
   return (trace_fn)entry;
   // emit and done
   // patch if side trace

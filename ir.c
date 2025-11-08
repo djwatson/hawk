@@ -128,7 +128,8 @@ void print_ir(trace *t) {
     case IR_RET:
       printf(" ");
       print_slot(ins->op1, t);
-      printf(", \e[1;35m#<bc 0x%lx>\e[m", t->consts[ins->op2.loc].value);
+      printf(", \e[1;35m#<bc 0x%" PRIx64 ">\e[m",
+             (uint64_t)t->consts[ins->op2.loc].value);
       break;
     default:
       if (ins->data) {

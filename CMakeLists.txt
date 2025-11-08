@@ -7,6 +7,9 @@ set(CMAKE_C_COMPILER clang)
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+include(CheckIncludeFile)
+check_include_file("elf.h" HAVE_ELF_H)
+
 #add_compile_options(-fsanitize=address)
 #add_link_options(-fsanitize=address)
 
@@ -17,8 +20,8 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
   set(ASM_SOURCE asm_aarch64.c)
 endif()
 
-add_executable(
-  hawk
+set(
+  hawk_sources
   hawk.c
   vm.c
   types.c
@@ -30,13 +33,20 @@ add_executable(
   ${ASM_SOURCE}
   asm.c
   zone_alloc.c
-  jitdump.c
   hashtable.c
   disassemble.c
   array.c
   util/bitset.c
   util/list.c
 )
+
+if(HAVE_ELF_H)
+  list(APPEND hawk_sources jitdump.c)
+else()
+  message(STATUS "elf.h not found; disabling jitdump support")
+endif()
+
+add_executable(hawk ${hawk_sources})
 
 set(capstone_search_dirs)
 if(DEFINED ENV{HOMEBREW_PREFIX})
@@ -71,6 +81,10 @@ if(NOT CAPSTONE_LIBRARY)
 endif()
 
 target_link_libraries(hawk PRIVATE ${CAPSTONE_LIBRARY})
+
+if(HAVE_ELF_H)
+  target_compile_definitions(hawk PRIVATE HAVE_ELF_H=1)
+endif()
 
 #set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
