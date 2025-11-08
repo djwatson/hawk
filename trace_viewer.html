@@ -351,6 +351,20 @@
       }
     }
 
+    function resolveSnapshotIndex(parentTrace, snapshotIr) {
+      if (!parentTrace || snapshotIr == null || !Array.isArray(parentTrace.snapshots)) {
+        return null;
+      }
+      const match = parentTrace.snapshots.find((snap) => snap.ir === snapshotIr);
+      if (match) {
+        return match.index;
+      }
+      if (Number.isInteger(snapshotIr) && parentTrace.snapshots[snapshotIr]) {
+        return snapshotIr;
+      }
+      return null;
+    }
+
     function parseTraces(text) {
       const lines = text.split(/\r?\n/);
       const traces = [];
@@ -364,6 +378,10 @@
           if (current) {
             traces.push(current);
           }
+          const parentTraceIndex = pendingSide ? pendingSide.parentTrace : null;
+          const snapshotIr = pendingSide ? pendingSide.snapshotIr : null;
+          const parentTraceData = parentTraceIndex != null ? traces[parentTraceIndex] : null;
+          const snapshotIndex = resolveSnapshotIndex(parentTraceData, snapshotIr);
           current = {
             title: line,
             disassemblyHeader: "",
@@ -373,8 +391,9 @@
             notes: [],
             recordOps: [],
             kind: line.includes("side") || pendingSide ? "side" : "main",
-            parentTrace: pendingSide ? pendingSide.parentTrace : null,
-            snapshot: pendingSide ? pendingSide.snapshot : null,
+            parentTrace: parentTraceIndex,
+            snapshotIr,
+            snapshotIndex,
             links: [],
             snapshots: []
           };
@@ -394,15 +413,19 @@
           mode = "ir";
           current.ir.push(line);
           const pcMatch = line.match(/pc=(0x[0-9a-fA-F]+)/i);
+          const irMatch = line.match(/SNAP\[ir=(\d+)/i);
+          const irValue = irMatch ? parseInt(irMatch[1], 10) : null;
           if (pcMatch) {
             const { display } = normalizeAddress(pcMatch[1]);
             current.snapshots.push({
               index: current.snapshots.length,
+              ir: Number.isNaN(irValue) ? null : irValue,
               pc: display
             });
           } else {
             current.snapshots.push({
               index: current.snapshots.length,
+              ir: Number.isNaN(irValue) ? null : irValue,
               pc: null
             });
           }
@@ -412,10 +435,10 @@
           current.notes.push(line);
           const parts = line.split(/\s+/);
           const parentTrace = parseInt(parts[3], 10);
-          const snapshot = parseInt(parts[4], 10);
+          const snapshotIr = parseInt(parts[4], 10);
           pendingSide = {
             parentTrace: Number.isNaN(parentTrace) ? null : parentTrace,
-            snapshot: Number.isNaN(snapshot) ? null : snapshot
+            snapshotIr: Number.isNaN(snapshotIr) ? null : snapshotIr
           };
           continue;
         }
@@ -548,7 +571,7 @@
           const parentLabel = traceData[trace.parentTrace]?.kind === "side"
             ? `Side Trace ${trace.parentTrace}`
             : `Trace ${trace.parentTrace}`;
-          lineage.textContent = `From ${parentLabel} @ SNAP ${trace.snapshot ?? "?"}`;
+          lineage.textContent = `From ${parentLabel} @ SNAP ${trace.snapshotIr ?? "?"}`;
           lineage.style.marginBottom = "6px";
           card.appendChild(lineage);
         }
@@ -718,12 +741,23 @@
         highlightOpcode(meta.address);
         return;
       }
-      if (meta.parentTrace == null || meta.snapshotIndex == null) {
-        console.warn("Missing parent trace or snapshot index", meta);
+      if (meta.parentTrace == null) {
+        console.warn("Missing parent trace for snapshot", meta);
         return;
       }
       const parentTrace = traceData[meta.parentTrace];
-      const snapshot = parentTrace?.snapshots?.[meta.snapshotIndex];
+      if (!parentTrace) {
+        console.warn("Parent trace not found for snapshot", meta);
+        return;
+      }
+      const snapshotIndex = meta.snapshotIndex != null
+        ? meta.snapshotIndex
+        : resolveSnapshotIndex(parentTrace, meta.snapshotIr ?? null);
+      if (snapshotIndex == null) {
+        console.warn("Unable to resolve snapshot index", meta);
+        return;
+      }
+      const snapshot = parentTrace.snapshots?.[snapshotIndex];
       if (snapshot?.pc) {
         highlightOpcode(snapshot.pc);
       } else {
@@ -767,20 +801,23 @@
         const nodeId = `t${idx}`;
         if (trace.parentTrace != null && traceData[trace.parentTrace]) {
           const parentId = `t${trace.parentTrace}`;
-          const snapLabel = trace.snapshot != null ? `snap ${trace.snapshot}` : "snap ?";
+          const snapLabel = trace.snapshotIr != null ? `snap ${trace.snapshotIr}` : "snap ?";
           const snapNodeId = `snap_${trace.parentTrace}_${idx}`;
           lines.push(`${snapNodeId}["${snapLabel}"]:::snapLabel`);
           lines.push(`${parentId} --> ${snapNodeId}`);
           lines.push(`${snapNodeId} --> ${nodeId}`);
           lines.push(`click ${snapNodeId} highlightSnapFromGraph "Highlight ${snapLabel}"`);
           const parentTraceData = traceData[trace.parentTrace];
-          const snapshotIndex = trace.snapshot;
+          const snapshotIndex = trace.snapshotIndex != null
+            ? trace.snapshotIndex
+            : resolveSnapshotIndex(parentTraceData, trace.snapshotIr);
           const address = snapshotIndex != null
             ? parentTraceData?.snapshots?.[snapshotIndex]?.pc ?? null
             : null;
           snapNodeMeta[snapNodeId] = {
             parentTrace: trace.parentTrace,
             snapshotIndex,
+            snapshotIr: trace.snapshotIr,
             address,
             label: snapLabel
           };
