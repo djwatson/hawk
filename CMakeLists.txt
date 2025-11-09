@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.20)
 
 project(newhawk C)
 
+option(USE_RANDOM_SCHEDULE "Enable random schedule debugging" OFF)
+
 set(CMAKE_C_COMPILER clang)
 
 set(CMAKE_C_STANDARD 23)
@@ -89,6 +91,10 @@ if(HAVE_ELF_H)
 endif()
 
 #set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+
+if(USE_RANDOM_SCHEDULE)
+    target_compile_definitions(hawk PRIVATE RANDOM_SCHEDULE)
+endif()
 
 target_include_directories(
   hawk PRIVATE

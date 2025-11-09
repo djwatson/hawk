@@ -1,6 +1,6 @@
 // Copyright 2024 Dave Watson <dade.watson@gmail.com>
+#define _DEFAULT_SOURCE
 
-#include <profiler.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +8,7 @@
 
 #include "ir.h"
 #include "jitdump.h"
+#include "profiler.h"
 #include "vm.h"
 
 enum : uint8_t {
@@ -17,7 +18,14 @@ enum : uint8_t {
   hotmap_rec = 1,
   hotmap_cnt = 200,
 };
-
+static bool should_jit() {
+  static uint8_t next = 0;
+  if (next-- == 0) {
+    next = random() % 256;
+    return true;
+  }
+  return false;
+}
 static inline uint32_t hotmap_hash(void *pc) {
   return (((uint64_t)pc) >> 3) & hotmap_mask;
 }
@@ -30,7 +38,12 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   uint8_t *hot_loc = &state->hotmap[hotmap_hash(pc)];
   uint8_t prev_hot = *hot_loc;
   *hot_loc -= 1;
-  if ((state->max_trace > 0) && prev_hot < *hot_loc &&
+  if ((state->max_trace > 0) &&
+#ifdef RANDOM_SCHEDULE
+      should_jit() &&
+#else
+      prev_hot < *hot_loc &&
+#endif
       op_table == state->impls) {
     *hot_loc = hotmap_cnt;
     record_start(state, pc, stack);
@@ -153,15 +166,26 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
   }
   // Check for side trace start.
   if (res.snap->exits < 255) {
+    bool should_try_side = false;
+#ifdef RANDOM_SCHEDULE
+    if (should_jit() && state->max_trace > 0) {
+      should_try_side = true;
+      res.snap->exits++;
+    }
+#else
     res.snap->exits++;
+    if (res.snap->exits >= 10 && res.snap->exits % 10 == 0 &&
+        state->max_trace > 0) {
+      should_try_side = true;
+    }
+#endif
     if (res.snap->exits == 255) {
       if (verbose) {
         printf("Blacklist side trace %i snap %i \n", res.snap->trace->num,
                res.snap->ir);
       }
     }
-    if (res.snap->exits >= 10 && res.snap->exits % 10 == 0 &&
-        state->max_trace > 0) {
+    if (should_try_side) {
       if (verbose) {
         printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
       }

@@ -4,7 +4,6 @@
 * get registers passing between traces
 * get branches snapshot AFTER branch.
 
-* command line arguments - max_trace, also insert aborts at certain ops
 * register-ize args
 
 * maybe more test programs
