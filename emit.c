@@ -423,6 +423,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   } else {
     // Install the side trace.
     emit_jmp32_patch_here(s, t->parent_snap->patch_point);
+    __builtin___clear_cache((char *)t->parent_snap->patch_point, (char *)t->parent_snap->patch_point + 16);
   }
   COMMENT("ENTRY");
   auto entry = emit_offset(s);
