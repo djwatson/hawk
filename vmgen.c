@@ -51,9 +51,10 @@ END OP_BEGIN(KSHORT) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(RET) {
-  auto frame = return_frame(state, pc, stack);
+  auto frame = return_frame(state, pc, stack, op_table);
   pc = frame.pc;
   stack = frame.stack;
+  op_table = frame.ops;
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(LOOKUP) {

@@ -88,6 +88,7 @@ typedef struct trace {
   snap *parent_snap;
   uint16_t link;
   uint64_t trace_start;
+  bc start_pc;
 } trace;
 
 enum : uint8_t {

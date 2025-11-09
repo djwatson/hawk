@@ -65,14 +65,15 @@ static inline gc_obj emit_math_cmp_lt(vm_state *state, gc_obj v1, gc_obj v2) {
   return to_fixnum(v1) < to_fixnum(v2) ? TRUE_REP : FALSE_REP;
 }
 static inline void ensure_symbol(gc_obj val) { (void)val; }
-static inline frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack) {
+static inline frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
+                                       void *op_table) {
   (void)state;
   auto ret = stack[pc->reg];
   auto new_pc = to_return_address(stack[-1]);
   auto old_pc = new_pc - 1;
   auto new_stack = stack - old_pc->reg - 1;
   new_stack[old_pc->reg] = ret;
-  return (frame_state){.pc = new_pc, .stack = new_stack};
+  return (frame_state){.pc = new_pc, .stack = new_stack, .ops = op_table};
 }
 static inline bc *next_op(bc *pc) { return pc + 1; }
 static inline gc_obj halt(vm_state *state, gc_obj *stack) {
@@ -132,7 +133,8 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
   auto jfunc = (*pc)->data;
   // printf("RUN jit %i\n", jfunc);
   auto traces = state->record.traces;
-  auto fn = traces[jfunc]->fn;
+  auto trace = traces[jfunc];
+  auto fn = trace->fn;
   profiler_set_in_jit(true);
   auto res = fn(*stack);
   profiler_set_in_jit(false);
@@ -153,6 +155,15 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
       return state->record_impls;
     }
   }
+
+  // Check if a return trace - return trace aborts to JFUNC, but we need to
+  // actually run RET
+  if ((*pc)->op == OP_JFUNC) {
+    auto trace = traces[(*pc)->data];
+    if (trace->num == res.snap->trace->num && trace->start_pc.op == OP_RET) {
+      (*pc) = &trace->start_pc;
+    }
+  }
   // printf("RUN DONE jit %i\n", jfunc);
   return op_table;
 }
@@ -170,7 +181,7 @@ OPS;
 
 static void vm_state_init(vm_state *state) {
   memset(state, 0, sizeof(*state));
-  state->max_trace = 700;
+  state->max_trace = 4;
 #define X(name) state->impls[OP_##name] = impl_##name;
   OPS
 #undef X
