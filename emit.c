@@ -261,9 +261,6 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, regmap *regs,
 trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // TODO move init somewhere else
   emit_init(s);
-#ifdef HAVE_ELF_H
-  jit_dump_init();
-#endif
 
   emit_writable_begin(s);
   regmap reg_to_slot[MAX_REG];
@@ -453,8 +450,8 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   jit_dump(sz, emit_offset(s), dumpname);
   perf_map(emit_offset(s), sz, dumpname);
 #endif
-// Call the built-in function to flush the cache for the specific range
-  __builtin___clear_cache((char*)emit_offset(s), (char*)emit_offset(s) + sz);
+  // Call the built-in function to flush the cache for the specific range
+  __builtin___clear_cache((char *)emit_offset(s), (char *)emit_offset(s) + sz);
   return (trace_fn)entry;
   // emit and done
   // patch if side trace

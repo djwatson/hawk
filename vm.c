@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "ir.h"
+#include "jitdump.h"
 #include "vm.h"
 
 enum : uint8_t {
@@ -77,6 +78,9 @@ static inline bc *next_op(bc *pc) { return pc + 1; }
 static inline gc_obj halt(vm_state *state, gc_obj *stack) {
   (void)state;
   profiler_stop();
+#ifdef HAVE_ELF_H
+  jit_dump_close();
+#endif
   return stack[0];
 }
 
@@ -178,6 +182,9 @@ static void vm_state_init(vm_state *state) {
 gc_obj vm(bc *pc) {
   gc_obj *stack = calloc(1024, sizeof(gc_obj));
   vm_state *state = calloc(1, sizeof(vm_state));
+#ifdef HAVE_ELF_H
+  jit_dump_init();
+#endif
   vm_state_init(state);
   profiler_start();
 
