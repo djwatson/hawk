@@ -304,12 +304,63 @@
     let highlightedRow = null;
     let snapNodeMeta = {};
     let currentGraphId = null;
+    let completedTraces = [];
+    let traceNumberToTrace = new Map();
     const escapeId = (value) => {
       if (window.CSS && CSS.escape) {
         return CSS.escape(value);
       }
       return value.replace(/([.#:[\],])/g, "\\$1");
     };
+
+    function prepareTraceOrdering() {
+      traceNumberToTrace = new Map();
+      completedTraces = [];
+      traceData.forEach((trace, idx) => {
+        trace.rawIndex = idx;
+        trace.orderIndex = null;
+        if (!trace.aborted && Number.isInteger(trace.traceNumber)) {
+          completedTraces.push(trace);
+        }
+      });
+      completedTraces.sort((a, b) => {
+        if (a.traceNumber === b.traceNumber) {
+          return (a.rawIndex ?? 0) - (b.rawIndex ?? 0);
+        }
+        if (a.traceNumber == null) {
+          return 1;
+        }
+        if (b.traceNumber == null) {
+          return -1;
+        }
+        return a.traceNumber - b.traceNumber;
+      });
+      completedTraces.forEach((trace, orderIndex) => {
+        trace.orderIndex = orderIndex;
+        traceNumberToTrace.set(trace.traceNumber, trace);
+      });
+    }
+
+    function getTraceByNumber(traceNumber) {
+      if (!Number.isInteger(traceNumber)) {
+        return null;
+      }
+      return traceNumberToTrace.get(traceNumber) ?? null;
+    }
+
+    function clampTraceLimit(limit) {
+      const total = completedTraces.length;
+      if (!Number.isFinite(limit)) {
+        return total;
+      }
+      if (limit < 0) {
+        return 0;
+      }
+      if (limit > total) {
+        return total;
+      }
+      return limit;
+    }
 
     async function loadLog() {
       statusEl.textContent = "Loading output.log…";
@@ -335,15 +386,31 @@
           slider.disabled = true;
           return;
         }
-        traceTotalEl.textContent = traceData.length;
-        slider.max = traceData.length;
-        slider.value = traceData.length;
-        slider.disabled = false;
-        opcodeIndex = buildOpcodeIndex(traceData);
-        coverageTotal.textContent = traceData.length;
-        statusEl.textContent = `Loaded ${traceData.length} traces`;
-        renderCoverage(traceData.length);
-        renderGraph(traceData.length);
+
+        prepareTraceOrdering();
+        const completedCount = completedTraces.length;
+        const abortedCount = traceData.length - completedCount;
+        traceTotalEl.textContent = completedCount;
+        coverageTotal.textContent = completedCount;
+        slider.max = completedCount;
+        slider.value = completedCount;
+        slider.disabled = completedCount === 0;
+        sliderValue.textContent = `${completedCount}`;
+        opcodeIndex = completedCount ? buildOpcodeIndex(completedTraces) : [];
+        coverageCount.textContent = `${completedCount}`;
+        statusEl.textContent = abortedCount
+          ? `Loaded ${completedCount} traces (${abortedCount} aborts ignored)`
+          : `Loaded ${completedCount} traces`;
+
+        if (!completedCount) {
+          opcodeTable.innerHTML = "<div class=\"trace-meta\">No completed trace records present.</div>";
+          traceGraph.innerHTML = "<div class=\"trace-meta\">No trace links available.</div>";
+          renderTraces();
+          return;
+        }
+
+        renderCoverage(completedCount);
+        renderGraph(completedCount);
         renderTraces();
       } catch (err) {
         statusEl.textContent = err.message;
@@ -371,16 +438,29 @@
       let current = null;
       let mode = null;
       let pendingSide = null;
+      const traceByNumber = new Map();
+      const finalizeCurrent = () => {
+        if (!current) {
+          return;
+        }
+        traces.push(current);
+        if (Number.isInteger(current.traceNumber)) {
+          traceByNumber.set(current.traceNumber, current);
+        }
+      };
 
       for (const raw of lines) {
         const line = raw.trimEnd();
         if (line.startsWith("Record start")) {
           if (current) {
-            traces.push(current);
+            finalizeCurrent();
           }
           const parentTraceIndex = pendingSide ? pendingSide.parentTrace : null;
           const snapshotIr = pendingSide ? pendingSide.snapshotIr : null;
-          const parentTraceData = parentTraceIndex != null ? traces[parentTraceIndex] : null;
+          const parentTraceData = parentTraceIndex != null ? traceByNumber.get(parentTraceIndex) : null;
+          const numberMatch = line.match(/Record start(?: side)?\s+(\d+)/i);
+          const parsedNumber = numberMatch ? parseInt(numberMatch[1], 10) : null;
+          const traceNumber = Number.isNaN(parsedNumber) ? null : parsedNumber;
           const snapshotIndex = resolveSnapshotIndex(parentTraceData, snapshotIr);
           current = {
             title: line,
@@ -395,10 +475,23 @@
             snapshotIr,
             snapshotIndex,
             links: [],
-            snapshots: []
+            snapshots: [],
+            traceNumber,
+            aborted: false
           };
           pendingSide = null;
           mode = "bytecode";
+          continue;
+        }
+        if (line.startsWith("Record abort:")) {
+          if (current) {
+            current.aborted = true;
+            current.abortReason = line;
+            current.notes.push(line);
+            finalizeCurrent();
+            current = null;
+          }
+          mode = null;
           continue;
         }
         if (!current) {
@@ -479,7 +572,7 @@
         }
       }
       if (current) {
-        traces.push(current);
+        finalizeCurrent();
       }
       return traces;
     }
@@ -509,7 +602,10 @@
 
     function buildOpcodeIndex(traces) {
       const map = new Map();
-      traces.forEach((trace, traceIndex) => {
+      traces.forEach((trace) => {
+        if (!Number.isInteger(trace.traceNumber)) {
+          return;
+        }
         trace.recordOps.forEach((op, seq) => {
           if (!map.has(op.address)) {
             map.set(op.address, {
@@ -519,7 +615,8 @@
             });
           }
           map.get(op.address).history.push({
-            traceIndex,
+            traceIndex: trace.traceNumber,
+            orderIndex: trace.orderIndex ?? 0,
             opcode: op.opcode,
             seq
           });
@@ -545,17 +642,27 @@
       traceData.forEach((trace, idx) => {
         const card = document.createElement("section");
         card.className = "trace-card";
-        card.id = `trace-${idx}`;
-        card.style.borderLeftColor = colorPalette[idx % colorPalette.length];
+        const rawIndex = trace.rawIndex ?? idx;
+        card.id = `trace-${rawIndex}`;
+        if (trace.aborted) {
+          card.style.borderLeftColor = "#dbe3f4";
+        } else {
+          const paletteIndex = trace.orderIndex ?? rawIndex;
+          card.style.borderLeftColor = colorPalette[paletteIndex % colorPalette.length];
+        }
 
         const header = document.createElement("div");
         header.className = "trace-header";
 
         const title = document.createElement("div");
         title.className = "trace-title";
-        title.textContent = trace.kind === "side"
-          ? `Side Trace ${idx}`
-          : `Trace ${idx}`;
+        const numberLabel = Number.isInteger(trace.traceNumber)
+          ? trace.traceNumber
+          : rawIndex;
+        const baseLabel = trace.kind === "side" ? "Side Trace" : "Trace";
+        title.textContent = trace.aborted
+          ? `${baseLabel} ${numberLabel} (aborted)`
+          : `${baseLabel} ${numberLabel}`;
 
         const meta = document.createElement("div");
         meta.className = "trace-meta";
@@ -568,10 +675,10 @@
         if (trace.parentTrace != null) {
           const lineage = document.createElement("div");
           lineage.className = "trace-meta";
-          const parentLabel = traceData[trace.parentTrace]?.kind === "side"
-            ? `Side Trace ${trace.parentTrace}`
-            : `Trace ${trace.parentTrace}`;
-          lineage.textContent = `From ${parentLabel} @ SNAP ${trace.snapshotIr ?? "?"}`;
+          const parentTrace = getTraceByNumber(trace.parentTrace);
+          const parentNumber = parentTrace?.traceNumber ?? trace.parentTrace;
+          const parentType = parentTrace?.kind === "side" ? "Side Trace" : "Trace";
+          lineage.textContent = `From ${parentType} ${parentNumber} @ SNAP ${trace.snapshotIr ?? "?"}`;
           lineage.style.marginBottom = "6px";
           card.appendChild(lineage);
         }
@@ -648,13 +755,14 @@
     }
 
     function renderCoverage(limit) {
-      sliderValue.textContent = `${limit}`;
-      coverageCount.textContent = limit;
+      const clampedLimit = clampTraceLimit(limit);
+      sliderValue.textContent = `${clampedLimit}`;
+      coverageCount.textContent = `${clampedLimit}`;
       opcodeTable.innerHTML = "";
       const fragment = document.createDocumentFragment();
 
       opcodeIndex.forEach((entry) => {
-        const history = entry.history.filter((h) => h.traceIndex < limit);
+        const history = entry.history.filter((h) => (h.orderIndex ?? 0) < clampedLimit);
         const latest = history.length ? history[history.length - 1] : null;
         const coverage = Array.from(
           new Map(
@@ -685,10 +793,13 @@
           coverage.forEach((hit) => {
             const badge = document.createElement("span");
             badge.className = "trace-badge";
-            const sourceTrace = traceData[hit.traceIndex];
+            const sourceTrace = getTraceByNumber(hit.traceIndex);
             const prefix = sourceTrace?.kind === "side" ? "S" : "T";
-            badge.textContent = `${prefix}${hit.traceIndex}`;
-            badge.style.background = colorPalette[hit.traceIndex % colorPalette.length];
+            badge.textContent = sourceTrace
+              ? `${prefix}${sourceTrace.traceNumber}`
+              : `T${hit.traceIndex}`;
+            const paletteIndex = sourceTrace?.orderIndex ?? 0;
+            badge.style.background = colorPalette[paletteIndex % colorPalette.length];
             coverageCell.appendChild(badge);
           });
         }
@@ -741,11 +852,11 @@
         highlightOpcode(meta.address);
         return;
       }
-      if (meta.parentTrace == null) {
+      if (meta.parentTraceNumber == null) {
         console.warn("Missing parent trace for snapshot", meta);
         return;
       }
-      const parentTrace = traceData[meta.parentTrace];
+      const parentTrace = getTraceByNumber(meta.parentTraceNumber);
       if (!parentTrace) {
         console.warn("Parent trace not found for snapshot", meta);
         return;
@@ -765,9 +876,9 @@
       }
     };
 
-    async function renderGraph(limit = traceData.length) {
-      if (!traceData.length) {
-        traceGraph.innerHTML = "<div class=\"trace-meta\">No traces available.</div>";
+    async function renderGraph(limit = completedTraces.length) {
+      if (!completedTraces.length) {
+        traceGraph.innerHTML = "<div class=\"trace-meta\">No trace links available.</div>";
         return;
       }
       if (!window.mermaid) {
@@ -775,60 +886,60 @@
         return;
       }
 
-      if (!limit) {
+      const clampedLimit = clampTraceLimit(limit);
+      if (!clampedLimit) {
         traceGraph.innerHTML = "<div class=\"trace-meta\">Move the slider to include at least one trace.</div>";
         return;
       }
 
+      const activeTraces = completedTraces.slice(0, clampedLimit);
       snapNodeMeta = {};
       const lines = ["graph TD", "classDef snapLabel fill:#fdf7e3,stroke:#f4c96f,color:#8a5b06;font-size:12px"];
-      traceData.forEach((trace, idx) => {
-        if (idx >= limit) {
-          return;
-        }
-        const nodeId = `t${idx}`;
+      activeTraces.forEach((trace) => {
+        const nodeId = `t${trace.traceNumber}`;
         const label = trace.kind === "side"
-          ? `Side Trace ${idx}`
-          : `Trace ${idx}`;
+          ? `Side Trace ${trace.traceNumber}`
+          : `Trace ${trace.traceNumber}`;
         lines.push(`${nodeId}["${label}"]`);
-        lines.push(`click ${nodeId} "#trace-${idx}" "View ${label}"`);
+        const targetId = trace.rawIndex ?? trace.traceNumber;
+        lines.push(`click ${nodeId} "#trace-${targetId}" "View ${label}"`);
       });
 
-      traceData.forEach((trace, idx) => {
-        if (idx >= limit) {
-          return;
-        }
-        const nodeId = `t${idx}`;
-        if (trace.parentTrace != null && traceData[trace.parentTrace]) {
-          const parentId = `t${trace.parentTrace}`;
-          const snapLabel = trace.snapshotIr != null ? `snap ${trace.snapshotIr}` : "snap ?";
-          const snapNodeId = `snap_${trace.parentTrace}_${idx}`;
-          lines.push(`${snapNodeId}["${snapLabel}"]:::snapLabel`);
-          lines.push(`${parentId} --> ${snapNodeId}`);
-          lines.push(`${snapNodeId} --> ${nodeId}`);
-          lines.push(`click ${snapNodeId} highlightSnapFromGraph "Highlight ${snapLabel}"`);
-          const parentTraceData = traceData[trace.parentTrace];
-          const snapshotIndex = trace.snapshotIndex != null
-            ? trace.snapshotIndex
-            : resolveSnapshotIndex(parentTraceData, trace.snapshotIr);
-          const address = snapshotIndex != null
-            ? parentTraceData?.snapshots?.[snapshotIndex]?.pc ?? null
-            : null;
-          snapNodeMeta[snapNodeId] = {
-            parentTrace: trace.parentTrace,
-            snapshotIndex,
-            snapshotIr: trace.snapshotIr,
-            address,
-            label: snapLabel
-          };
+      activeTraces.forEach((trace) => {
+        const nodeId = `t${trace.traceNumber}`;
+        if (trace.parentTrace != null) {
+          const parentTrace = getTraceByNumber(trace.parentTrace);
+          if (parentTrace && (parentTrace.orderIndex ?? 0) < clampedLimit) {
+            const parentId = `t${parentTrace.traceNumber}`;
+            const snapLabel = trace.snapshotIr != null ? `snap ${trace.snapshotIr}` : "snap ?";
+            const snapNodeId = `snap_${parentTrace.traceNumber}_${trace.traceNumber}`;
+            lines.push(`${snapNodeId}["${snapLabel}"]:::snapLabel`);
+            lines.push(`${parentId} --> ${snapNodeId}`);
+            lines.push(`${snapNodeId} --> ${nodeId}`);
+            lines.push(`click ${snapNodeId} highlightSnapFromGraph "Highlight ${snapLabel}"`);
+            const snapshotIndex = trace.snapshotIndex != null
+              ? trace.snapshotIndex
+              : resolveSnapshotIndex(parentTrace, trace.snapshotIr);
+            const address = snapshotIndex != null
+              ? parentTrace?.snapshots?.[snapshotIndex]?.pc ?? null
+              : null;
+            snapNodeMeta[snapNodeId] = {
+              parentTraceNumber: parentTrace.traceNumber,
+              snapshotIndex,
+              snapshotIr: trace.snapshotIr,
+              address,
+              label: snapLabel
+            };
+          }
         }
         (trace.links || []).forEach((link) => {
-          if (link.type === "patch" && link.target != null && traceData[link.target]) {
-            if (link.target >= limit) {
+          if (link.type === "patch" && Number.isInteger(link.target)) {
+            const targetTrace = getTraceByNumber(link.target);
+            if (!targetTrace || (targetTrace.orderIndex ?? 0) >= clampedLimit) {
               return;
             }
             const label = link.snapshot != null ? `exit ${link.snapshot}` : "exit";
-            lines.push(`${nodeId} -.->|${label}| t${link.target}`);
+            lines.push(`${nodeId} -.->|${label}| t${targetTrace.traceNumber}`);
           } else if (link.type === "loop") {
             const label = link.snapshot != null ? `loop ${link.snapshot}` : "loop";
             lines.push(`${nodeId} -->|${label}| ${nodeId}`);
@@ -841,7 +952,7 @@
       try {
         const graphId = `traceGraph${Date.now()}`;
         currentGraphId = graphId;
-        console.log("Rendering Mermaid graph", { limit, snapNodes: Object.keys(snapNodeMeta).length, graphId });
+        console.log("Rendering Mermaid graph", { limit: clampedLimit, snapNodes: Object.keys(snapNodeMeta).length, graphId });
         const { svg } = await window.mermaid.render(graphId, definition);
         traceGraph.innerHTML = svg;
         attachSnapNodeHandlers();
@@ -939,7 +1050,8 @@
     }
 
     slider.addEventListener("input", (event) => {
-      const count = Number(event.target.value);
+      const count = clampTraceLimit(Number(event.target.value));
+      slider.value = count;
       renderCoverage(count);
       renderGraph(count);
     });
