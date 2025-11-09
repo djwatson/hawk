@@ -141,6 +141,14 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
   *pc = res.snap->pc;
   *stack = res.stack;
 
+  // Check if a return trace - return trace aborts to JFUNC, but we need to
+  // actually run RET
+  if ((*pc)->op == OP_JFUNC) {
+    auto trace = traces[(*pc)->data];
+    if (trace->num == res.snap->trace->num && trace->start_pc.op == OP_RET) {
+      (*pc) = &trace->start_pc;
+    }
+  }
   // Check for side trace start.
   if (res.snap->exits < 255) {
     res.snap->exits++;
@@ -156,14 +164,6 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
     }
   }
 
-  // Check if a return trace - return trace aborts to JFUNC, but we need to
-  // actually run RET
-  if ((*pc)->op == OP_JFUNC) {
-    auto trace = traces[(*pc)->data];
-    if (trace->num == res.snap->trace->num && trace->start_pc.op == OP_RET) {
-      (*pc) = &trace->start_pc;
-    }
-  }
   // printf("RUN DONE jit %i\n", jfunc);
   return op_table;
 }
@@ -181,7 +181,7 @@ OPS;
 
 static void vm_state_init(vm_state *state) {
   memset(state, 0, sizeof(*state));
-  state->max_trace = 4;
+  state->max_trace = 500;
 #define X(name) state->impls[OP_##name] = impl_##name;
   OPS
 #undef X

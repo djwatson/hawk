@@ -352,14 +352,16 @@ static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
                       void *op_table) {
   // LINK IT!
   auto cur_trace = record_current_trace(state);
+  // TODO can we clean this up?  side traces spawned from downrec traces aren't
+  // downrec traces!
+  if (is_downrec_trace(record_trace_state(state)) && !cur_trace->parent) {
+    printf("Record abort: can't downrec to JFUNC\n");
+    record_abort(state);
+    return state->impls;
+  }
   if (cur_trace->parent) {
     cur_trace->link = (*pc)->data;
     record_finish(*pc, state);
-    return state->impls;
-  }
-  if (is_downrec_trace(record_trace_state(state))) {
-    printf("Record abort: can't downrec to JFUNC\n");
-    record_abort(state);
     return state->impls;
   }
   // TODO
