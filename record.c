@@ -16,7 +16,9 @@
 
 #define VMGEN_TRACE_OP(pc, code)                                               \
   do {                                                                         \
-    printf("record op: %p %s\n", pc, #code);                                   \
+    if (verbose) {                                                             \
+      printf("record op: %p %s\n", pc, #code);                                 \
+    }                                                                          \
   } while (0)
 static bool is_downrec_trace(trace_state *ts) {
   return ts->start_ins->op == OP_RET;
@@ -166,10 +168,11 @@ static void record_finish(bc *pc, vm_state *state) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   vm_add_snap(state, pc);
-  // print_ir(cur_trace);
   cur_trace->num = arrlen(state->record.traces);
   cur_trace->fn = emit(cur_trace, &state->emit, &state->record);
-  print_ir(cur_trace);
+  if (verbose) {
+    print_ir(cur_trace);
+  }
   state->max_trace--;
   if (!cur_trace->parent) {
     *ts->start_ins = (bc){
@@ -200,7 +203,9 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     // Root traces cannot return
     if (!record_current_trace(state)->parent &&
         !is_downrec_trace(record_trace_state(state))) {
-      printf("Record abort: return\n");
+      if (verbose) {
+        printf("Record abort: return\n");
+      }
       record_abort(state);
       return (frame_state){pc, stack, op_table};
     }
@@ -226,7 +231,9 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     // If this is a side trace, we've detected potential downrecursion.
     // Abort and start a downrec trace.
     if (record_current_trace(state)->parent && cnt) {
-      printf("Record abort: potential downrec detected\n");
+      if (verbose) {
+        printf("Record abort: potential downrec detected\n");
+      }
       clear_trace_state(record_trace_state(state));
       free_trace(record_current_trace(state));
       record_start(state, pc, stack);
@@ -283,7 +290,6 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
 static bc *next_op(bc *pc) { return pc; }
 static gc_obj halt(vm_state *state, gc_obj *stack) {
   (void)state;
-  printf("DONE\n");
   return stack[0];
 }
 
@@ -355,7 +361,9 @@ static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
   // TODO can we clean this up?  side traces spawned from downrec traces aren't
   // downrec traces!
   if (is_downrec_trace(record_trace_state(state)) && !cur_trace->parent) {
-    printf("Record abort: can't downrec to JFUNC\n");
+    if (verbose) {
+      printf("Record abort: can't downrec to JFUNC\n");
+    }
     record_abort(state);
     return state->impls;
   }
@@ -395,7 +403,9 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 #include "vmgen.c"
 
 void record_start(vm_state *state, bc *pc, gc_obj *stack) {
-  printf("Record start %li\n", arrlen(state->record.traces));
+  if (verbose) {
+    printf("Record start %li\n", arrlen(state->record.traces));
+  }
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   record_current_trace(state)->start_pc = *pc;
   trace_state *ts = record_trace_state(state);
@@ -405,7 +415,9 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack) {
 }
 
 void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
-  printf("Record start side %li\n", arrlen(state->record.traces));
+  if (verbose) {
+    printf("Record start side %li\n", arrlen(state->record.traces));
+  }
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   trace_state *ts = record_trace_state(state);
   record_current_trace(state)->parent = snap->trace;

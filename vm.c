@@ -82,6 +82,9 @@ static inline gc_obj halt(vm_state *state, gc_obj *stack) {
 #ifdef HAVE_ELF_H
   jit_dump_close();
 #endif
+  if (verbose) {
+    printf("There were %li traces\n", arrlen(state->record.traces));
+  }
   return stack[0];
 }
 
@@ -131,7 +134,6 @@ static inline gc_obj constify_data(vm_state *state, uint16_t data) {
 static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
                              void *op_table) {
   auto jfunc = (*pc)->data;
-  // printf("RUN jit %i\n", jfunc);
   auto traces = state->record.traces;
   auto trace = traces[jfunc];
   auto fn = trace->fn;
@@ -153,12 +155,16 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
   if (res.snap->exits < 255) {
     res.snap->exits++;
     if (res.snap->exits == 255) {
-      printf("Blacklist side trace %i snap %i \n", res.snap->trace->num,
-             res.snap->ir);
+      if (verbose) {
+        printf("Blacklist side trace %i snap %i \n", res.snap->trace->num,
+               res.snap->ir);
+      }
     }
     if (res.snap->exits >= 10 && res.snap->exits % 10 == 0 &&
         state->max_trace > 0) {
-      printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
+      if (verbose) {
+        printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
+      }
       record_start_side(state, *pc, *stack, res.snap);
       return state->record_impls;
     }
@@ -181,7 +187,7 @@ OPS;
 
 static void vm_state_init(vm_state *state) {
   memset(state, 0, sizeof(*state));
-  state->max_trace = 500;
+  state->max_trace = max_trace;
 #define X(name) state->impls[OP_##name] = impl_##name;
   OPS
 #undef X
@@ -194,10 +200,14 @@ gc_obj vm(bc *pc) {
   gc_obj *stack = calloc(1024, sizeof(gc_obj));
   vm_state *state = calloc(1, sizeof(vm_state));
 #ifdef HAVE_ELF_H
-  jit_dump_init();
+  if (jit_dump_flag) {
+    jit_dump_init();
+  }
 #endif
   vm_state_init(state);
-  profiler_start();
+  if (profile) {
+    profiler_start();
+  }
 
   return state->impls[pc->op](pc, stack, state, state->impls, 0);
 }

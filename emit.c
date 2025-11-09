@@ -12,6 +12,7 @@
 #include "array.h"
 #include "asm.h"
 #include "disassemble.h"
+#include "hawk.h"
 #include "ir.h"
 #ifdef HAVE_ELF_H
 #include "jitdump.h"
@@ -439,16 +440,20 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
 
   emit_writable_end(s);
   auto sz = end - emit_offset(s);
-  printf("Disassembly: %" PRId64 "\n", sz);
-  arr_reverse(comments);
-  disassemble((uint8_t *)emit_offset(s), sz, comments);
+  if (verbose) {
+    printf("Disassembly: %" PRId64 "\n", sz);
+    arr_reverse(comments);
+    disassemble((uint8_t *)emit_offset(s), sz, comments);
+  }
   zone_free(&z);
   free(snap_labels);
 #ifdef HAVE_ELF_H
-  jit_reader_add(end - entry, entry);
-  char *dumpname = t->parent ? "Side Trace" : "Trace";
-  jit_dump(sz, emit_offset(s), dumpname);
-  perf_map(emit_offset(s), sz, dumpname);
+  if (jit_dump_flag) {
+    jit_reader_add(end - entry, entry);
+    char *dumpname = t->parent ? "Side Trace" : "Trace";
+    jit_dump(sz, emit_offset(s), dumpname);
+    perf_map(emit_offset(s), sz, dumpname);
+  }
 #endif
   // Call the built-in function to flush the cache for the specific range
   __builtin___clear_cache((char *)emit_offset(s), (char *)emit_offset(s) + sz);
