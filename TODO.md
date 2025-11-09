@@ -2,13 +2,13 @@
 
 * get registers passing between traces
 * get branches snapshot AFTER branch.
+* merge branch&test, jumps.
 
 * register-ize args
 
 * maybe more test programs
 * cleanup traces memory
 * track stack-top
-* merge branch&test, jumps.
 
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
