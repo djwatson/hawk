@@ -6,6 +6,7 @@
 #include "emit.h"
 #include "hawk.h"
 #include "ir.h"
+#include "opt_dce.h"
 #include "record.h"
 #include "string.h"
 #include "types.h"
@@ -169,6 +170,7 @@ static void record_finish(bc *pc, vm_state *state) {
   trace *cur_trace = record_current_trace(state);
   vm_add_snap(state, pc);
   cur_trace->num = arrlen(state->record.traces);
+  dce(cur_trace);
   cur_trace->fn = emit(cur_trace, &state->emit, &state->record);
   if (verbose) {
     print_ir(cur_trace);
@@ -301,7 +303,8 @@ static slot sym_load(vm_state *state, slot sym) {
 static void prepare_call(gc_obj fun) { printf("prepare call\n"); }
 static void check_arity(gc_obj fun, gc_obj args) {}
 static bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack, slot b) {
-  // TODO: move AFTER branch
+  // TODO: FIX STACK TOP TRACKING HACK
+  arrlen_set(record_trace_state(state)->stack, pc->reg);
   // We're going to directly peek at the stack here.
   auto res = stack[pc->reg];
   // TODO:snapshot

@@ -43,6 +43,7 @@ set(
   array.c
   util/bitset.c
   util/list.c
+  opt_dce.c
 )
 
 if(HAVE_ELF_H)

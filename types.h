@@ -218,6 +218,7 @@ static inline bool is_ptr(gc_obj obj) { return get_tag(obj) == PTR_TAG; }
 static inline bool is_literal(gc_obj obj) {
   return get_tag(obj) == LITERAL_TAG;
 }
+static inline bool is_bool(gc_obj obj) { return get_imm_tag(obj) == BOOL_TAG; }
 static inline bool is_string(gc_obj obj) {
   return is_ptr(obj) && get_ptr_tag(obj) == STRING_TAG;
 }

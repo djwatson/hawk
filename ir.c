@@ -49,7 +49,12 @@ static void print_slot_immediate(slot s) {
 }
 
 char *ir_names[] = {
-#define X(name) #name,
+#define X(name, type) #name,
+    IR_OPS
+#undef X
+};
+ir_arg_type ir_ins_types[] = {
+#define X(name, type) IR_##type,
     IR_OPS
 #undef X
 };
@@ -118,6 +123,7 @@ void print_ir(trace *t) {
     case IR_ADD:
     case IR_SUB:
     case IR_LT:
+    case IR_GT:
     case IR_GUARD_EQ:
     case IR_STORE:
       printf(" ");
@@ -141,5 +147,19 @@ void print_ir(trace *t) {
       break;
     }
     printf("\n");
+  }
+}
+
+bool ir_sideeff(ir_ins_op op) {
+  switch (op) {
+  case IR_GSET:
+  case IR_RET:
+  case IR_GT:
+  case IR_GUARD_EQ:
+  case IR_LOAD:
+    return true;
+    break;
+  default:
+    return false;
   }
 }

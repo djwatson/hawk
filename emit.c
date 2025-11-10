@@ -370,6 +370,11 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
       emit_cmp_slots(s, CMP_LT, t, reg_to_slot, &next_spill, op->op1, op->op2);
       break;
     }
+    case IR_GT: {
+      emit_jcc32(s, JL, snap_labels[cur_snap]);
+      emit_cmp_slots(s, CMP_LT, t, reg_to_slot, &next_spill, op->op1, op->op2);
+      break;
+    }
     case IR_SUB: {
       emit_arith_slots(s, t, reg_to_slot, &next_spill, op->reg, op->op1,
                        op->op2, true);
@@ -404,6 +409,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
 
       break;
     }
+    case IR_NOP:
     case IR_PMOV:
       // Done at end.
       break;

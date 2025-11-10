@@ -23,34 +23,39 @@ static void mark_snaps(trace *trace, bool *marks) {
 static void propagate(trace *trace, bool *marks) {
   for (uint64_t i = arrlen(trace->ins); i > 0; i--) {
     auto ins = &trace->ins[i - 1];
-    if ((ins->op == IR_IFT || ins->op == IR_IFF) &&
-        trace->ins[ins->a1.loc].op <= IR_FL_GT && !marks[ins->a1.loc]) {
+    if ((ins->op == IR_GUARD_EQ && ins->op2.constant &&
+         is_bool(trace->consts[ins->op2.loc])) &&
+        trace->ins[ins->op1.loc].op <= IR_GT && !marks[ins->op1.loc]) {
       // If the jump is the only use of a comparison, we can fold the
       // jump in to the compare.
       uint8_t prev_op = ins->op;
       *ins = trace->ins[ins->op1.loc];
       ins->type = GUARD_TAG;
-      if (prev_op == IR_IFF) {
+      if (FALSE_REP.value == trace->consts[ins->op2.loc].value) {
         // Flip.
         ins->op ^= 1;
+        printf("INVERT GUARD\n");
       }
+      ins->op = IR_GT;
     }
-    if (ir_sideeff(*ins)) {
+
+    if (ir_sideeff(ins->op)) {
       marks[i - 1] = true;
     }
     if (!marks[i - 1]) {
       if (verbose) {
         fprintf(stderr, "IR_DEAD: %lu %s\n", i - 1, ir_names[ins->op]);
       }
-      ins->op = IR_DEAD;
+      ins->op = IR_NOP;
       continue;
     }
-    auto type = ir_instruction_types[ins->op];
-    if ((type == IR_ARG_IR_NONE || type == IR_ARG_IR_IR) && !ins->a1.constant) {
-      marks[ins->a1.loc] = true;
+    auto type = ir_ins_types[ins->op];
+    if ((type == IR_ARG_IR_NONE || type == IR_ARG_IR_IR) &&
+        !ins->op1.constant) {
+      marks[ins->op1.loc] = true;
     }
-    if (type == IR_ARG_IR_IR && !ins->a2.constant) {
-      marks[ins->a2.loc] = true;
+    if (type == IR_ARG_IR_IR && !ins->op2.constant) {
+      marks[ins->op2.loc] = true;
     }
   }
 }

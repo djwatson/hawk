@@ -28,23 +28,33 @@ typedef struct {
   trace *trace;
 } snap;
 
-#define IR_OPS                                                                 \
-  X(NOP)                                                                       \
-  X(LT)                                                                        \
-  X(ADD)                                                                       \
-  X(SUB)                                                                       \
-  X(GGET)                                                                      \
-  X(GSET)                                                                      \
-  X(RET)                                                                       \
-  X(SLOAD)                                                                     \
-  X(PMOV)                                                                      \
-  X(ARG)                                                                       \
-  X(GUARD_EQ)                                                                  \
-  X(REF)                                                                       \
-  X(LOAD)                                                                      \
-  X(STORE)
 typedef enum : uint8_t {
-#define X(name) IR_##name,
+  IR_ARG_NONE_NONE,
+  IR_ARG_STACK,
+  IR_ARG_IR_NONE,
+  IR_ARG_IR_IR,
+  IR_ARG_REG,
+  IR_ARG_OFFSET,
+} ir_arg_type;
+
+#define IR_OPS                                                                 \
+  X(LT, ARG_IR_IR)                                                             \
+  X(GT, ARG_IR_IR)                                                             \
+  X(NOP, ARG_NONE_NONE)                                                        \
+  X(ADD, ARG_IR_IR)                                                            \
+  X(SUB, ARG_IR_IR)                                                            \
+  X(GGET, ARG_IR_NONE)                                                         \
+  X(GSET, ARG_IR_IR)                                                           \
+  X(RET, ARG_IR_IR)                                                            \
+  X(SLOAD, ARG_STACK)                                                          \
+  X(PMOV, ARG_REG)                                                             \
+  X(ARG, ARG_REG)                                                              \
+  X(GUARD_EQ, ARG_IR_IR)                                                       \
+  X(REF, ARG_IR_IR)                                                            \
+  X(LOAD, ARG_IR_IR)                                                           \
+  X(STORE, ARG_IR_IR)
+typedef enum : uint8_t {
+#define X(name, type) IR_##name,
   IR_OPS
 #undef X
       IR_INS_MAX,
@@ -100,3 +110,6 @@ enum : uint8_t {
 void print_ir(trace *t);
 
 extern char *ir_names[];
+extern ir_arg_type ir_ins_types[];
+
+bool ir_sideeff(ir_ins_op op);
