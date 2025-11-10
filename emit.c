@@ -436,7 +436,9 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
       if (ins.spill != SPILL_NONE) {
         abort();
       }
-      arrput(nullptr, cpy, ((par_copy){.from = ins.data, .to = ins.reg}));
+      if (ins.reg != REG_NONE) {
+        arrput(nullptr, cpy, ((par_copy){.from = ins.data, .to = ins.reg}));
+      }
       auto res = serialize_parallel_copy(cpy, RTMP);
       arr_for_each(res, mov) { emit_mov(s, mov.to, mov.from); }
       COMMENT("PARALLEL COPY FROM PARENT:");

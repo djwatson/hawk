@@ -302,11 +302,18 @@ static void prepare_call(gc_obj fun) { printf("prepare call\n"); }
 static void check_arity(gc_obj fun, gc_obj args) {}
 static bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack, slot b) {
   // TODO: move AFTER branch
-  vm_add_snap(state, pc);
   // We're going to directly peek at the stack here.
   auto res = stack[pc->reg];
   // TODO:snapshot
   slot must_be = add_const(state, res);
+  bc *next_pc;
+  if (res.value == FALSE_REP.value) {
+    next_pc = pc + pc->data;
+    vm_add_snap(state, pc + 1);
+  } else {
+    next_pc = pc + 1;
+    vm_add_snap(state, pc + pc->data);
+  }
 
   ir_ins ins = (ir_ins){.op = IR_GUARD_EQ,
                         .op1 = b,
@@ -314,6 +321,7 @@ static bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack, slot b) {
                         .reg = REG_NONE,
                         .spill = SPILL_NONE};
   add_inst(state, ins);
+  vm_add_snap(state, next_pc);
 
   return pc;
 }

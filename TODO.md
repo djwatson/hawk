@@ -1,6 +1,5 @@
 # VM impl
 
-* get branches snapshot AFTER branch.
 * merge branch&test, jumps.
 * register-ize args
 
