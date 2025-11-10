@@ -331,7 +331,7 @@ static bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack, slot b) {
 static slot closure_get(vm_state *state, slot clo, uint8_t pos) {
   // Store byte offset to the captured variable (header is 16 bytes).
   slot c_pos =
-      (slot){.constant = true, .loc = (uint16_t)(pos * 8 + 8 - CLOSURE_TAG)};
+      (slot){.constant = true, .loc = (uint16_t)((pos * 8) + 8 - CLOSURE_TAG)};
 
   ir_ins ins = (ir_ins){.op = IR_LOAD,
                         .op1 = clo,

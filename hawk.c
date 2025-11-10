@@ -170,7 +170,7 @@ static fib_loader_bc fib_loader = {
 };
 
 int main(int argc, char *argv[]) {
-  auto rest = parse_args(argc, argv);
+  parse_args(argc, argv);
 
   auto res = vm(&fib_loader.code[0]);
   print_obj(res, stdout);

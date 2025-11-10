@@ -17,4 +17,5 @@ Checks: >
   -clang-analyzer-core.uninitialized.*,
   -clang-analyzer-core.UndefinedBinaryOperatorResult,
   -bugprone-reserved-identifier,
-  -bugprone-multi-level-implicit-pointer-conversion
+  -bugprone-multi-level-implicit-pointer-conversion,
+  -readability-implicit-bool-conversion

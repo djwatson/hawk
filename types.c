@@ -97,7 +97,9 @@ void print_obj(gc_obj obj, FILE *file) { //!OCLINT
   case SYMBOL_TAG: {
     auto sym = to_symbol(obj);
     string_s const *sym_name = get_sym_name(sym);
-    fputs(sym_name->str, file);
+    if (sym_name) {
+      fputs(sym_name->str, file);
+    }
     break;
   }
   case CLOSURE_TAG: {

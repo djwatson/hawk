@@ -200,7 +200,7 @@ static void comment_append(int64_t offset, zone *z, comment_entry **comments,
 
 static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
   if (snap->offset) {
-    emit_add_constant(s, RSTACK, RSTACK, snap->offset * 8);
+    emit_add_constant(s, RSTACK, RSTACK, (int64_t)snap->offset * 8);
 
     // TODO
     // check frame overflow
@@ -221,7 +221,7 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
 
 static void emit_snap_store_entry(emit_state *s, trace *t,
                                   snap_entry const *entry) {
-  auto stack_offset = (int64_t)entry->slot * 8;
+  auto stack_offset = (int32_t)entry->slot * 8;
   if (entry->val.constant) {
     emit_store_constant(s, stack_offset, RSTACK, slot_const(t, entry->val));
     return;
