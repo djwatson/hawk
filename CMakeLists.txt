@@ -15,7 +15,7 @@ check_include_file("elf.h" HAVE_ELF_H)
 #add_compile_options(-fsanitize=address)
 #add_link_options(-fsanitize=address)
 
-set(CMAKE_C_CLANG_TIDY "clang-tidy")
+#set(CMAKE_C_CLANG_TIDY "clang-tidy")
 
 set(ASM_SOURCE asm_x64.c)
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")

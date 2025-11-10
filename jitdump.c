@@ -18,7 +18,7 @@
 #include "jitdump.h"
 
 static int jit_cnt = 0;
-static void *mapaddr = 0;
+static void *mapaddr = nullptr;
 static int fd;
 
 static void jit_dump_error() {
@@ -133,7 +133,7 @@ void jit_dump_init() {
   fsync(fd);
 
   mapaddr =
-      mmap(NULL, sizeof(header), PROT_READ | PROT_EXEC, MAP_PRIVATE, fd, 0);
+      mmap(nullptr, sizeof(header), PROT_READ | PROT_EXEC, MAP_PRIVATE, fd, 0);
   if (!mapaddr) {
     printf("Failed to map file\n");
     exit(-1);
@@ -164,14 +164,14 @@ struct jit_descriptor {
   struct jit_code_entry *relevant_entry;
   struct jit_code_entry *first_entry;
 };
-struct jit_descriptor __jit_debug_descriptor = {1, 0, 0, 0}; //!OCLINT
+struct jit_descriptor __jit_debug_descriptor = {1, 0, nullptr, nullptr};
 void NOINLINE __jit_debug_register_code() {
   // GDB sets a breakpoint at this function.
   __asm__ __volatile__("");
 }
 
-struct jit_code_entry *last_entry = NULL;
-struct jit_code_entry *first_entry = NULL;
+struct jit_code_entry *last_entry = nullptr;
+struct jit_code_entry *first_entry = nullptr;
 
 typedef struct GDBElfImage {
   Elf64_Ehdr hdr;
@@ -180,8 +180,7 @@ typedef struct GDBElfImage {
   uint8_t data[4096];
 } GDBElfImage;
 
-static void build_elf(uint64_t code, int code_sz, GDBElfImage *image, //!OCLINT
-                      int num);
+static void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num);
 
 void jit_reader_add(int len, uint64_t fn) {
   struct jit_code_entry *jitcode = malloc(sizeof(struct jit_code_entry));
@@ -194,7 +193,7 @@ void jit_reader_add(int len, uint64_t fn) {
 
   jitcode->addr = image;
   jitcode->size = sizeof(GDBElfImage);
-  jitcode->next = NULL;
+  jitcode->next = nullptr;
   if (first_entry) {
     jitcode->prev = last_entry;
     last_entry->next = jitcode;
@@ -202,7 +201,7 @@ void jit_reader_add(int len, uint64_t fn) {
   } else {
     first_entry = jitcode;
     last_entry = jitcode;
-    jitcode->prev = NULL;
+    jitcode->prev = nullptr;
   }
 
   __jit_debug_descriptor.first_entry = first_entry;
@@ -232,7 +231,10 @@ static int64_t write_strz(int64_t *offset, uint8_t *data, const char *obj) {
   return write_buf(offset, data, (void *)obj, (int64_t)len);
 }
 
-#define DW_CIE_VERSION 1
+enum {
+  DW_CIE_VERSION = 1,
+};
+
 enum {
   // Yes, the order is strange, but correct.
   DW_REG_AX,

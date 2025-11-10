@@ -386,7 +386,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
       break;
     }
     case IR_SLOAD: {
-      emit_mem_load(s, op->data * 8, RSTACK, op->reg);
+      emit_mem_load(s, (int32_t)op->data * 8, RSTACK, op->reg);
       break;
     }
     case IR_GGET: {
@@ -453,7 +453,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     }
 
     // Install the side trace.
-    emit_jmp32_patch_here(s, t->parent_snap->patch_point);
+    emit_jmp32_patch_here(s, (int64_t)t->parent_snap->patch_point);
     __builtin___clear_cache((char *)t->parent_snap->patch_point,
                             (char *)t->parent_snap->patch_point + 16);
   }
@@ -482,9 +482,9 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   free(snap_labels);
 #ifdef HAVE_ELF_H
   if (jit_dump_flag) {
-    jit_reader_add(end - entry, entry);
+    jit_reader_add((int)(end - entry), entry);
     char *dumpname = t->parent ? "Side Trace" : "Trace";
-    jit_dump(sz, emit_offset(s), dumpname);
+    jit_dump((int)sz, emit_offset(s), dumpname);
     perf_map(emit_offset(s), sz, dumpname);
   }
 #endif

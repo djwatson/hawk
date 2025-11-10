@@ -18,4 +18,5 @@ Checks: >
   -clang-analyzer-core.UndefinedBinaryOperatorResult,
   -bugprone-reserved-identifier,
   -bugprone-multi-level-implicit-pointer-conversion,
-  -readability-implicit-bool-conversion
+  -readability-implicit-bool-conversion,
+  -readability-suspicious-call-argument

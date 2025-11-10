@@ -66,7 +66,7 @@ par_copy *serialize_parallel_copy(par_copy *moves, uint64_t tmp_reg) {
   return res;
 }
 
-#if 0
+/*
 void run_test(uint64_t *input, size_t len) {
   par_copy *moves = nullptr;
   size_t pos = 0;
@@ -140,4 +140,5 @@ int main() {
     run_test(test, 5);
   }
 }
-#endif
+
+*/

@@ -28,7 +28,6 @@ static void propagate(trace *trace, bool *marks) {
         trace->ins[ins->op1.loc].op <= IR_GT && !marks[ins->op1.loc]) {
       // If the jump is the only use of a comparison, we can fold the
       // jump in to the compare.
-      uint8_t prev_op = ins->op;
       *ins = trace->ins[ins->op1.loc];
       ins->type = GUARD_TAG;
       if (FALSE_REP.value == trace->consts[ins->op2.loc].value) {
