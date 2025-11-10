@@ -30,7 +30,7 @@ static bool addr_in_range(uint64_t addr, uint64_t start, uint64_t end) {
 }
 
 static void maybe_label_insert(zone *z, label_entry **labels, uint64_t target,
-                              uint64_t start, uint64_t end) {
+                               uint64_t start, uint64_t end) {
   if (addr_in_range(target, start, end)) {
     hm_insert(z, *labels, target);
   }
