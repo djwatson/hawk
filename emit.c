@@ -284,7 +284,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
     // To be replaced by actual snap exit code at the end.
-    emit_jmp32(s, (int32_t)(exit_label - emit_offset(s)));
+    emit_jmp32(s, exit_label);
     snap->patch_point = emit_offset(s);
     snap_labels[i - 1] = emit_offset(s);
     COMMENT("Snap exit #%i", i - 1);
@@ -295,14 +295,14 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   uint32_t next_spill = 0;
   assign_snap_registers(cur_snap, reg_to_slot, t, &next_spill);
   if (t->link == t->num) {
-    emit_jmp32(s, (int32_t)(exit_label - emit_offset(s)));
+    emit_jmp32(s, exit_label);
     snap_labels[cur_snap] = emit_offset(s);
 
     emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false);
     COMMENT("Loopback (snap exit %i)", cur_snap);
   } else {
     trace *linked_trace = record->traces[t->link];
-    emit_jmp32(s, (int32_t)(linked_trace->trace_start - emit_offset(s)));
+    emit_jmp32(s, (int64_t)linked_trace->trace_start);
     emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false);
     COMMENT("Link to trace %i (snap exit %i)", t->link, cur_snap);
   }
@@ -364,7 +364,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
       auto tr = emit_offset(s);
       // whacky why does jmp32 take absolute, and jcc32 take relative?
       // TODO make this set instead?
-      emit_jmp32(s, lt_fin - emit_offset(s));
+      emit_jmp32(s, lt_fin);
       emit_mov64(s, op->reg, FALSE_REP.value);
       emit_jcc32(s, JL, tr);
       emit_cmp_slots(s, CMP_LT, t, reg_to_slot, &next_spill, op->op1, op->op2);
@@ -403,7 +403,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
       // cmp stack[-1], jmp to snap if not equal
       emit_mem_load(s, -8, RSTACK, op->reg);
       /* if (t->num == 1 && op_cnt == 6) { */
-      /*   emit_jmp32(s, snap_labels[cur_snap] - emit_offset(s)); */
+      /*   emit_jmp32(s, snap_labels[cur_snap]); */
       /*   COMMENT("ABORT"); */
       /* } */
 
@@ -465,7 +465,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // branches probably don't matter much.
   for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
-    emit_jmp32(s, (int32_t)(exit_label - emit_offset(s)));
+    emit_jmp32(s, exit_label);
     emit_snap(s, t, snap, reg_to_slot, true);
     emit_jmp32_patch_here(s, snap_labels[i - 1]);
     COMMENT("Snap exit #%i", i - 1);

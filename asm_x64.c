@@ -152,8 +152,10 @@ void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t offset) {
   }
 }
 
-void emit_jmp32(emit_state *s, int32_t offset) {
-  emit_imm32(s, offset);
+void emit_jmp32(emit_state *s, int64_t target) {
+  int64_t delta = target - emit_offset(s);
+  assert(fits_in_32(delta));
+  emit_imm32(s, (int32_t)delta);
   *(--p) = 0xe9;
 }
 

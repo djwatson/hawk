@@ -137,8 +137,9 @@ void save_callee_regs(emit_state *s) {
 
 void emit_ret(emit_state *s) { emit_op(s, 0xD65F03C0); }
 
-void emit_jmp32(emit_state *s, int32_t offset) {
-  int64_t delta = (int64_t)offset + 4;
+void emit_jmp32(emit_state *s, int64_t target) {
+  int64_t delta = target - emit_offset(s);
+  delta += 4;
   assert((delta & 0x3) == 0);
   int64_t imm26 = delta / 4;
   assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));

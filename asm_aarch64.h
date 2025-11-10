@@ -83,7 +83,7 @@ void restore_callee_regs(emit_state *s);
 void save_callee_regs(emit_state *s);
 
 void emit_ret(emit_state *s);
-void emit_jmp32(emit_state *s, int32_t offset);
+void emit_jmp32(emit_state *s, int64_t target);
 void emit_jmp32_patch_here(emit_state *s, int64_t patch);
 void emit_mov64(emit_state *s, uint8_t r, int64_t imm);
 void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
