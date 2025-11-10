@@ -140,7 +140,7 @@ void emit_cmp_reg_reg(emit_state *s, uint8_t src, uint8_t dst) {
 }
 
 void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t offset) {
-  int64_t off = offset - (int64_t)emit_offset(s);
+  int64_t off = offset - emit_offset(s);
   if ((int32_t)((int8_t)off) == off) {
     *(--p) = (int8_t)off;
     *(--p) = cond - 0x10;
@@ -338,12 +338,20 @@ void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
 }
 static void emit_add_sub_constant(emit_state *s, enum ARITH_CODES op,
                                   uint8_t dst, uint8_t lhs, int64_t imm) {
-  if (dst == lhs) {
-    emit_arith_imm(s, op, dst, imm);
-  } else {
-    emit_arith_imm(s, op, dst, imm);
-    emit_mov(s, dst, lhs);
+  if (fits_in_32(imm)) {
+    emit_arith_imm(s, op, dst, (int32_t)imm);
+    if (dst != lhs) {
+      emit_mov(s, dst, lhs);
+    }
+    return;
   }
+
+  if (op == ASM_ARITH_ADD) {
+    emit_add(s, dst, lhs, RTMP);
+  } else {
+    emit_sub(s, dst, lhs, RTMP);
+  }
+  emit_mov64(s, RTMP, imm);
 }
 
 // Slightly different from emit_add, since we need to negate if reversed.
