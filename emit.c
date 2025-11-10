@@ -298,7 +298,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     emit_jmp32(s, (int32_t)(exit_label - emit_offset(s)));
     snap_labels[cur_snap] = emit_offset(s);
 
-    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, true);
+    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false);
     COMMENT("Loopback (snap exit %i)", cur_snap);
   } else {
     trace *linked_trace = record->traces[t->link];
