@@ -37,6 +37,7 @@ typedef struct {
   X(GSET)                                                                      \
   X(RET)                                                                       \
   X(SLOAD)                                                                     \
+  X(PMOV)                                                                      \
   X(ARG)                                                                       \
   X(GUARD_EQ)                                                                  \
   X(REF)                                                                       \

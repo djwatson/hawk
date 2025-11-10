@@ -131,6 +131,9 @@ void print_ir(trace *t) {
       printf(", \e[1;35m#<bc 0x%" PRIx64 ">\e[m",
              (uint64_t)t->consts[ins->op2.loc].value);
       break;
+    case IR_PMOV:
+      printf(" %s", reg_names[ins->data]);
+      break;
     default:
       if (ins->data) {
         printf(" data=%u", ins->data);

@@ -17,6 +17,7 @@
 #ifdef HAVE_ELF_H
 #include "jitdump.h"
 #endif
+#include "parallel_copy.h"
 #include "record.h"
 #include "zone_alloc.h"
 
@@ -250,7 +251,6 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, regmap *regs,
   }
 
   emit_stack_offset_and_check(s, snap);
-  snap->patch_point = emit_offset(s);
 
   arr_for_each_idx(snap->slots, j) {
     emit_snap_store_entry(s, t, &snap->slots[j]);
@@ -285,6 +285,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     snap *snap = &t->snaps[i - 1];
     // To be replaced by actual snap exit code at the end.
     emit_jmp32(s, (int32_t)(exit_label - emit_offset(s)));
+    snap->patch_point = emit_offset(s);
     snap_labels[i - 1] = emit_offset(s);
     COMMENT("Snap exit #%i", i - 1);
   }
@@ -403,6 +404,9 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
 
       break;
     }
+    case IR_PMOV:
+      // Done at end.
+      break;
     default: {
       printf("Can't jit op: %s\n", ir_names[op->op]);
       // exit(-1);
@@ -418,12 +422,32 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
 
   t->trace_start = emit_offset(s);
   if (!t->parent) {
+    // Emit an entry point from C.
     emit_mov(s, RSTACK, RARG0);
     save_callee_regs(s);
   } else {
+    // Emit register shuffle.
+    par_copy *cpy = nullptr;
+    for (uint64_t i = 0; i < arrlen(t->ins); i++) {
+      auto ins = t->ins[i];
+      if (ins.op != IR_PMOV) {
+        break;
+      }
+      if (ins.spill != SPILL_NONE) {
+        abort();
+      }
+      arrput(nullptr, cpy, ((par_copy){.from = ins.data, .to = ins.reg}));
+      auto res = serialize_parallel_copy(cpy, RTMP);
+      arr_for_each(res, mov) { emit_mov(s, mov.to, mov.from); }
+      COMMENT("PARALLEL COPY FROM PARENT:");
+      arrfree(cpy);
+      arrfree(res);
+    }
+
     // Install the side trace.
     emit_jmp32_patch_here(s, t->parent_snap->patch_point);
-    __builtin___clear_cache((char *)t->parent_snap->patch_point, (char *)t->parent_snap->patch_point + 16);
+    __builtin___clear_cache((char *)t->parent_snap->patch_point,
+                            (char *)t->parent_snap->patch_point + 16);
   }
   COMMENT("ENTRY");
   auto entry = emit_offset(s);

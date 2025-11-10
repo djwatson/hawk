@@ -427,4 +427,24 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
   ts->start_ins = pc;
   ts->depth = snap->depth;
   vm_add_snap(state, pc);
+
+  // Replay snapshot loads, so we keep things in register.
+  arr_for_each_idx(snap->slots, j) {
+    auto entry = &snap->slots[j];
+    if (entry->val.constant) {
+      set_stack(state, entry->slot,
+                add_const(state, snap->trace->consts[entry->val.loc]));
+    } else {
+      auto old_ins = &snap->trace->ins[entry->val.loc];
+      if (old_ins->spill != SPILL_NONE) {
+        abort();
+      } else {
+        set_stack(state, entry->slot,
+                  add_inst(state, (ir_ins){.op = IR_PMOV,
+                                           .data = old_ins->reg,
+                                           .spill = SPILL_NONE,
+                                           .reg = REG_NONE}));
+      }
+    }
+  }
 }

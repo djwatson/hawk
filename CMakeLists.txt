@@ -38,6 +38,7 @@ set(
   profiler.c
   hashtable.c
   disassemble.c
+  parallel_copy.c
   profiler.c
   array.c
   util/bitset.c
