@@ -423,6 +423,29 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack) {
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
   vm_add_snap(state, pc);
+
+  // OK! Let's put function arguments in registers.
+  assert(pc->op == OP_FUNC || pc->op == OP_RET);
+  switch (pc->op) {
+  case OP_FUNC:
+    for (int i = 0; i < MIN(pc->data, REG_ARG_CNT); i++) {
+      auto inst = add_inst(state, (ir_ins){.op = IR_ARG,
+                                           .data = i,
+                                           .spill = SPILL_NONE,
+                                           .reg = REG_NONE});
+      auto entry = get_sentry(state, i);
+      *entry = (sentry){
+          .live = true,
+          .changed = false,
+          .loc = inst,
+      };
+    }
+    break;
+  case OP_RET:
+
+  default:
+    abort();
+  }
 }
 
 void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {

@@ -108,7 +108,6 @@ void print_ir(trace *t) {
       printf(" \e[1;33mstack %i\e[m", ins->data);
       break;
     case IR_GGET:
-    case IR_ARG:
       printf(" ");
       print_slot(ins->op1, t);
       break;
@@ -139,6 +138,9 @@ void print_ir(trace *t) {
       break;
     case IR_PMOV:
       printf(" %s", reg_names[ins->data]);
+      break;
+    case IR_ARG:
+      printf(" \e[1;33m%i\e[m", ins->data);
       break;
     default:
       if (ins->data) {

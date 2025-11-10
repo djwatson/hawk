@@ -105,7 +105,7 @@ static prog_fib_bc prog_fib = {
         },
     .code =
         {
-            {OP_FUNC, 2, 0, 0},
+            {OP_FUNC, 2, .data = 2},
             {OP_KSHORT, 2, .data = TAG_FIXNUM_VALUE(2)},
             {OP_LT, 2, 1, 2},
             {OP_IF, 2, .data = 2},

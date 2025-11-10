@@ -2,7 +2,6 @@
 
 * Actually, rethink BC: figure out stack top for EACH op.
    because unfortunately, IF doesn't have enough info.
-* merge branch&test, jumps.
 
 * register-ize args
 
