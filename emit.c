@@ -198,6 +198,27 @@ static void comment_append(int64_t offset, zone *z, comment_entry **comments,
   arrput(z, *comments, entry);
 }
 
+static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
+  size_t len = arrlen(t->ins);
+  while (*idx < len) {
+    ir_ins *ins = &t->ins[(*idx)++];
+    if (ins->op == IR_NOP) {
+      continue;
+    }
+    if (ins->op != op) {
+      *idx = len;
+      return nullptr;
+    }
+    return ins;
+  }
+  return nullptr;
+}
+
+#define for_each_leading_op(trace_ptr, opcode, ins_var)                        \
+  for (size_t _##ins_var##_idx = 0;                                            \
+       ((ins_var) =                                                            \
+            next_leading_op((trace_ptr), (opcode), &_##ins_var##_idx));)
+
 static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
   if (snap->offset) {
     emit_add_constant(s, RSTACK, RSTACK, (int64_t)snap->offset * 8);
@@ -248,18 +269,12 @@ typedef struct {
 
 static ignoremap *collect_loopback_regs(trace *t, snap *sn) {
   ignoremap *regs = nullptr;
-  for (uint64_t i = 0; i < arrlen(t->ins); i++) {
-    auto ins = t->ins[i];
-    if (ins.op == IR_NOP) {
-      continue;
-    }
-    if (ins.op != IR_ARG) {
-      break;
-    }
-    if (ins.spill != SPILL_NONE) {
+  ir_ins *ins = nullptr;
+  for_each_leading_op(t, IR_ARG, ins) {
+    if (ins->spill != SPILL_NONE) {
       abort();
     }
-    arrput(nullptr, regs, ((ignoremap){(uint16_t)(sn->offset + ins.data), 0}));
+    arrput(nullptr, regs, ((ignoremap){(uint16_t)(sn->offset + ins->data), 0}));
   }
   return regs;
 }
@@ -372,24 +387,17 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     emit_jmp32(s, (int64_t)linked_trace->trace_start);
     par_copy *cpy = nullptr;
     size_t arg_idx = 0;
-    arr_for_each(linked_trace->ins, ins) {
-      if (ins.op == IR_NOP) {
-        continue;
-      }
-      if (ins.op != IR_ARG) {
-        break;
-      }
-      if (ins.spill != SPILL_NONE || ins.reg == REG_NONE) {
-        abort();
-      }
-      if (arg_idx >= arrlen(link_loopback_regs)) {
+    ir_ins *linked_arg = nullptr;
+    for_each_leading_op(linked_trace, IR_ARG, linked_arg) {
+      if (linked_arg->spill != SPILL_NONE || linked_arg->reg == REG_NONE) {
         abort();
       }
       auto reg_map = link_loopback_regs[arg_idx++];
       if (reg_map.reg == REG_NONE) {
         abort();
       }
-      arrput(nullptr, cpy, ((par_copy){.from = reg_map.reg, .to = ins.reg}));
+      arrput(nullptr, cpy,
+             ((par_copy){.from = reg_map.reg, .to = linked_arg->reg}));
     }
     if (arg_idx != arrlen(link_loopback_regs)) {
       abort();
@@ -523,23 +531,21 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     // Emit a loopbackentry point
     // emit parcopy from loop end
     par_copy *cpy = nullptr;
+    ir_ins *arg_ins = nullptr;
 
     int cnt = 0;
-    for (uint64_t i = 0; i < arrlen(t->ins); i++) {
-      auto ins = t->ins[i];
-      if (ins.op == IR_NOP) {
-        continue;
+    for_each_leading_op(t, IR_ARG, arg_ins) {
+      if (arg_ins->spill != SPILL_NONE) {
+        abort();
       }
-      if (ins.op != IR_ARG) {
-        break;
-      }
-      if (ins.spill != SPILL_NONE) {
+      if (cnt >= arrlen(loopback_regs)) {
         abort();
       }
       auto reg = loopback_regs[cnt++];
-      arrput(nullptr, cpy, ((par_copy){.from = reg.reg, .to = ins.reg}));
+      arrput(nullptr, cpy, ((par_copy){.from = reg.reg, .to = arg_ins->reg}));
       /* } else { */
-      /*   emit_mem_load(s, (int32_t)ins.data * 8, RSTACK, ins.reg); */
+      /*   emit_mem_load(s, (int32_t)arg_ins->data * 8, RSTACK, arg_ins->reg);
+       */
       /* } */
     }
     {
@@ -557,19 +563,12 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
 
     // Emit an entry point from C.
     emit_jmp32(s, t->trace_start);
-    for (uint64_t i = 0; i < arrlen(t->ins); i++) {
-      auto ins = t->ins[i];
-      if (ins.op == IR_NOP) {
-        continue;
-      }
-      if (ins.op != IR_ARG) {
-        break;
-      }
-      if (ins.spill != SPILL_NONE) {
+    for_each_leading_op(t, IR_ARG, arg_ins) {
+      if (arg_ins->spill != SPILL_NONE) {
         abort();
       }
-      if (ins.reg != REG_NONE) {
-        emit_mem_load(s, (int32_t)ins.data * 8, RSTACK, ins.reg);
+      if (arg_ins->reg != REG_NONE) {
+        emit_mem_load(s, (int32_t)arg_ins->data * 8, RSTACK, arg_ins->reg);
       }
     }
     emit_mov(s, RSTACK, RARG0);
@@ -577,19 +576,14 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   } else {
     // Emit register shuffle.
     par_copy *cpy = nullptr;
-    for (uint64_t i = 0; i < arrlen(t->ins); i++) {
-      auto ins = t->ins[i];
-      if (ins.op == IR_NOP) {
-        continue;
-      }
-      if (ins.op != IR_PMOV) {
-        break;
-      }
-      if (ins.spill != SPILL_NONE) {
+    ir_ins *pmov_ins = nullptr;
+    for_each_leading_op(t, IR_PMOV, pmov_ins) {
+      if (pmov_ins->spill != SPILL_NONE) {
         abort();
       }
-      if (ins.reg != REG_NONE) {
-        arrput(nullptr, cpy, ((par_copy){.from = ins.data, .to = ins.reg}));
+      if (pmov_ins->reg != REG_NONE) {
+        arrput(nullptr, cpy,
+               ((par_copy){.from = pmov_ins->data, .to = pmov_ins->reg}));
       }
     }
     auto res = serialize_parallel_copy(cpy, RTMP);
