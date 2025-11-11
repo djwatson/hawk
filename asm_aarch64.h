@@ -51,6 +51,10 @@ enum registers : uint8_t {
   RTMP = X7,
   FP = X29,
   LR = X30,
+  // In AArch64, register 31 is XZR (zero register) in most contexts,
+  // but it is interpreted as SP (stack pointer) in some instructions,
+  // particularly for memory access. We use SP as an alias for XZR
+  // to represent register 31.
   SP = XZR,
 };
 

@@ -117,22 +117,27 @@ static uint32_t ldp_post(uint8_t rt, uint8_t rt2, uint8_t rn, int32_t offset) {
          ((uint32_t)rn << 5) | (uint32_t)rt;
 }
 
+static const struct {
+  uint8_t r1, r2;
+} callee_saved_pairs[] = {
+    {X27, X28}, {X25, X26}, {X23, X24}, {X21, X22}, {X19, X20}, {FP, LR},
+};
+
 void restore_callee_regs(emit_state *s) {
-  emit_op(s, ldp_post(FP, LR, SP, 16));
-  emit_op(s, ldp_post(X19, X20, SP, 16));
-  emit_op(s, ldp_post(X21, X22, SP, 16));
-  emit_op(s, ldp_post(X23, X24, SP, 16));
-  emit_op(s, ldp_post(X25, X26, SP, 16));
-  emit_op(s, ldp_post(X27, X28, SP, 16));
+  for (size_t i = 0; i < sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0]);
+       i++) {
+    const size_t j =
+        sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0]) - 1 - i;
+    emit_op(s, ldp_post(callee_saved_pairs[j].r1, callee_saved_pairs[j].r2, SP, 16));
+  }
 }
 
 void save_callee_regs(emit_state *s) {
-  emit_op(s, stp_pre(X27, X28, SP, -16));
-  emit_op(s, stp_pre(X25, X26, SP, -16));
-  emit_op(s, stp_pre(X23, X24, SP, -16));
-  emit_op(s, stp_pre(X21, X22, SP, -16));
-  emit_op(s, stp_pre(X19, X20, SP, -16));
-  emit_op(s, stp_pre(FP, LR, SP, -16));
+  for (size_t i = 0; i < sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0]);
+       i++) {
+    emit_op(
+        s, stp_pre(callee_saved_pairs[i].r1, callee_saved_pairs[i].r2, SP, -16));
+  }
 }
 
 void emit_ret(emit_state *s) { emit_op(s, 0xD65F03C0); }
@@ -244,6 +249,25 @@ static int find_first_nonzero_index(const uint16_t *chunks) {
   return -1;
 }
 
+static void emit_mov_sequence(emit_state *s, uint8_t rd, const uint16_t *chunks,
+                              bool use_movn) {
+  int first = find_first_nonzero_index(chunks);
+  assert(first >= 0);
+  for (int i = 3; i >= 0; i--) {
+    if (i == first) {
+      continue;
+    }
+    if (chunks[i] != 0) {
+      emit_op(s, movk_opcode(rd, chunks[i], (uint8_t)i));
+    }
+  }
+  if (use_movn) {
+    emit_op(s, movn_opcode(rd, chunks[first], (uint8_t)first));
+  } else {
+    emit_op(s, movz_opcode(rd, chunks[first], (uint8_t)first));
+  }
+}
+
 // Load a 64-bit constant into a register, mirroring GAS priority.
 void emit_mov64(emit_state *s, uint8_t rd, int64_t imm) {
   assert(rd < 31);
@@ -289,29 +313,9 @@ void emit_mov64(emit_state *s, uint8_t rd, int64_t imm) {
   int cost_z = nonzero;
   int cost_n = 1 + nonffff;
   if (cost_z <= cost_n) {
-    int first = find_first_nonzero_index(chunks);
-    assert(first >= 0);
-    for (int i = 3; i >= 0; i--) {
-      if (i == first) {
-        continue;
-      }
-      if (chunks[i] != 0) {
-        emit_op(s, movk_opcode(rd, chunks[i], (uint8_t)i));
-      }
-    }
-    emit_op(s, movz_opcode(rd, chunks[first], (uint8_t)first));
+    emit_mov_sequence(s, rd, chunks, false);
   } else {
-    int first = find_first_nonzero_index(nchunks);
-    assert(first >= 0);
-    for (int i = 3; i >= 0; i--) {
-      if (i == first) {
-        continue;
-      }
-      if (nchunks[i] != 0) {
-        emit_op(s, movk_opcode(rd, nchunks[i], (uint8_t)i));
-      }
-    }
-    emit_op(s, movn_opcode(rd, nchunks[first], (uint8_t)first));
+    emit_mov_sequence(s, rd, nchunks, true);
   }
 }
 
