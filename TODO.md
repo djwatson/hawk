@@ -1,5 +1,8 @@
 # VM impl
 
+* cleanup first unnecessary snap
+* general cleanup
+
 * Actually, rethink BC: figure out stack top for EACH op.
    because unfortunately, IF doesn't have enough info.
 

@@ -422,36 +422,29 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack) {
   trace_state *ts = record_trace_state(state);
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
+  // TODO no need to save
   vm_add_snap(state, pc);
 
   // OK! Let's put function arguments in registers.
+  // Note these *must* be marked as 'changed', since ARGS aren't saved between
+  // trace loops at all.
   assert(pc->op == OP_FUNC || pc->op == OP_RET);
   switch (pc->op) {
   case OP_FUNC:
     for (int i = 0; i < MIN(pc->data, REG_ARG_CNT); i++) {
-      auto inst = add_inst(state, (ir_ins){.op = IR_ARG,
-                                           .data = i,
-                                           .spill = SPILL_NONE,
-                                           .reg = REG_NONE});
-      auto entry = get_sentry(state, i);
-      *entry = (sentry){
-          .live = true,
-          .changed = true,
-          .loc = inst,
-      };
+      set_stack(state, i,
+                add_inst(state, (ir_ins){.op = IR_ARG,
+                                         .data = i,
+                                         .spill = SPILL_NONE,
+                                         .reg = REG_NONE}));
     }
     break;
   case OP_RET:
-    auto inst = add_inst(state, (ir_ins){.op = IR_ARG,
-                                         .data = pc->reg,
-                                         .spill = SPILL_NONE,
-                                         .reg = REG_NONE});
-    auto entry = get_sentry(state, pc->reg);
-    *entry = (sentry){
-        .live = true,
-        .changed = true,
-        .loc = inst,
-    };
+    set_stack(state, pc->reg,
+              add_inst(state, (ir_ins){.op = IR_ARG,
+                                       .data = pc->reg,
+                                       .spill = SPILL_NONE,
+                                       .reg = REG_NONE}));
     break;
   default:
     abort();
@@ -471,6 +464,7 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
   ts->depth = snap->depth;
+  // TODO no need to save
   vm_add_snap(state, pc);
 
   // Replay snapshot loads, so we keep things in register.
