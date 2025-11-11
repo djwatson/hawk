@@ -436,13 +436,23 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack) {
       auto entry = get_sentry(state, i);
       *entry = (sentry){
           .live = true,
-          .changed = false,
+          .changed = true,
           .loc = inst,
       };
     }
     break;
   case OP_RET:
-
+    auto inst = add_inst(state, (ir_ins){.op = IR_ARG,
+                                         .data = pc->reg,
+                                         .spill = SPILL_NONE,
+                                         .reg = REG_NONE});
+    auto entry = get_sentry(state, pc->reg);
+    *entry = (sentry){
+        .live = true,
+        .changed = false,
+        .loc = inst,
+    };
+    break;
   default:
     abort();
   }

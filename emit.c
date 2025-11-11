@@ -241,8 +241,12 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
   emit_store(s, stack_offset, RSTACK, ins->reg);
 }
 
+typedef struct {
+  uint16_t slot;
+  uint8_t reg;
+} ignoremap;
 static void emit_snap(emit_state *s, trace *t, snap *snap, regmap *regs,
-                      bool exit) {
+                      bool exit, ignoremap *ignore) {
   // If this is an exiting snapshot (vs. a loop back)
   // then record exit PC & snapshot.
   if (exit) {
@@ -253,7 +257,19 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, regmap *regs,
   emit_stack_offset_and_check(s, snap);
 
   arr_for_each_idx(snap->slots, j) {
-    emit_snap_store_entry(s, t, &snap->slots[j]);
+    bool ignored = false;
+    for (size_t i = 0; i < arrlen(ignore); i++) {
+      if (snap->slots[j].slot == ignore[i].slot) {
+        ignored = true;
+        assert(!snap->slots[j].val.constant);
+        ignore[i].reg = t->ins[snap->slots[j].val.loc].reg;
+        break;
+      }
+    }
+    if (ignored) {
+    } else {
+      emit_snap_store_entry(s, t, &snap->slots[j]);
+    }
   }
 }
 
@@ -293,17 +309,33 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   size_t cur_snap = arrlen(t->snaps) - 1;
   auto op_cnt_idx = arrlen(t->ins);
   uint32_t next_spill = 0;
+
+  ignoremap *loopback_regs = nullptr;
   assign_snap_registers(cur_snap, reg_to_slot, t, &next_spill);
   if (t->link == t->num) {
+    auto sn = &t->snaps[cur_snap];
     emit_jmp32(s, exit_label);
     snap_labels[cur_snap] = emit_offset(s);
 
-    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false);
+    for (uint64_t i = 0; i < arrlen(t->ins); i++) {
+      auto ins = t->ins[i];
+      if (ins.op == IR_NOP) {
+        continue;
+      }
+      if (ins.op != IR_ARG) {
+        break;
+      }
+      if (ins.spill != SPILL_NONE) {
+        abort();
+      }
+      arrput(nullptr, loopback_regs, ((ignoremap){sn->offset + ins.data, 0}));
+    }
+    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false, loopback_regs);
     COMMENT("Loopback (snap exit %i)", cur_snap);
   } else {
     trace *linked_trace = record->traces[t->link];
     emit_jmp32(s, (int64_t)linked_trace->trace_start);
-    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false);
+    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false, nullptr);
     COMMENT("Link to trace %i (snap exit %i)", t->link, cur_snap);
   }
   bool done = false;
@@ -409,6 +441,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
 
       break;
     }
+    case IR_ARG:
     case IR_NOP:
     case IR_PMOV:
       // Done at end.
@@ -420,15 +453,59 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     }
     COMMENT("%i %s", op_cnt, ir_names[op->op]);
   }
-  // emit parcopy from loop end
-  // parcopy from parent trace?
-  if (t->link == t->num) { // self link
-    emit_jmp32_patch_here(s, snap_labels[arrlen(t->snaps) - 1]);
-  }
-
   t->trace_start = emit_offset(s);
   if (!t->parent) {
+    // Emit a loopbackentry point
+    // emit parcopy from loop end
+    par_copy *cpy = nullptr;
+
+    int cnt = 0;
+    for (uint64_t i = 0; i < arrlen(t->ins); i++) {
+      auto ins = t->ins[i];
+      if (ins.op == IR_NOP) {
+        continue;
+      }
+      if (ins.op != IR_ARG) {
+        break;
+      }
+      if (ins.spill != SPILL_NONE) {
+        abort();
+      }
+      auto reg = loopback_regs[cnt++];
+      arrput(nullptr, cpy, ((par_copy){.from = reg.reg, .to = ins.reg}));
+      /* } else { */
+      /*   emit_mem_load(s, (int32_t)ins.data * 8, RSTACK, ins.reg); */
+      /* } */
+    }
+    {
+      auto res = serialize_parallel_copy(cpy, RTMP);
+      arr_for_each(res, mov) { emit_mov(s, mov.to, mov.from); }
+      arrfree(cpy);
+      arrfree(res);
+    }
+
+    if (t->link == t->num) { // self link
+      emit_jmp32_patch_here(s, snap_labels[arrlen(t->snaps) - 1]);
+    }
+    COMMENT("LOOPBACK ENTRY");
+
     // Emit an entry point from C.
+    emit_jmp32(s, t->trace_start);
+    for (uint64_t i = 0; i < arrlen(t->ins); i++) {
+      auto ins = t->ins[i];
+      if (ins.op == IR_NOP) {
+        continue;
+      }
+      if (ins.op != IR_ARG) {
+        break;
+      }
+      if (ins.spill != SPILL_NONE) {
+        abort();
+      }
+      if (ins.reg != REG_NONE) {
+        emit_mem_load(s, (int32_t)ins.data * 8, RSTACK, ins.reg);
+      }
+    }
     emit_mov(s, RSTACK, RARG0);
     save_callee_regs(s);
   } else {
@@ -436,6 +513,9 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     par_copy *cpy = nullptr;
     for (uint64_t i = 0; i < arrlen(t->ins); i++) {
       auto ins = t->ins[i];
+      if (ins.op == IR_NOP) {
+        continue;
+      }
       if (ins.op != IR_PMOV) {
         break;
       }
@@ -457,7 +537,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     __builtin___clear_cache((char *)t->parent_snap->patch_point,
                             (char *)t->parent_snap->patch_point + 16);
   }
-  COMMENT("ENTRY");
+  COMMENT("CENTRY");
   auto entry = emit_offset(s);
 
   // Emit even MORE snap exits.  We didn't have register allocation
@@ -466,7 +546,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
     emit_jmp32(s, exit_label);
-    emit_snap(s, t, snap, reg_to_slot, true);
+    emit_snap(s, t, snap, reg_to_slot, true, nullptr);
     emit_jmp32_patch_here(s, snap_labels[i - 1]);
     COMMENT("Snap exit #%i", i - 1);
   }
