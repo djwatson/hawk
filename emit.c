@@ -245,6 +245,50 @@ typedef struct {
   uint16_t slot;
   uint8_t reg;
 } ignoremap;
+
+static ignoremap *collect_loopback_regs(trace *t, snap *sn) {
+  ignoremap *regs = nullptr;
+  for (uint64_t i = 0; i < arrlen(t->ins); i++) {
+    auto ins = t->ins[i];
+    if (ins.op == IR_NOP) {
+      continue;
+    }
+    if (ins.op != IR_ARG) {
+      break;
+    }
+    if (ins.spill != SPILL_NONE) {
+      abort();
+    }
+    arrput(nullptr, regs, ((ignoremap){(uint16_t)(sn->offset + ins.data), 0}));
+  }
+  return regs;
+}
+
+static void fill_loopback_reg_assignments(trace *t, snap *sn,
+                                          ignoremap *loopback_regs) {
+  if (!loopback_regs) {
+    return;
+  }
+  arr_for_each_idx(loopback_regs, i) {
+    uint16_t slot = loopback_regs[i].slot;
+    bool found = false;
+    arr_for_each_idx(sn->slots, j) {
+      auto entry = &sn->slots[j];
+      if (entry->slot != slot) {
+        continue;
+      }
+      if (entry->val.constant) {
+        abort();
+      }
+      loopback_regs[i].reg = t->ins[entry->val.loc].reg;
+      found = true;
+      break;
+    }
+    if (!found) {
+      abort();
+    }
+  }
+}
 static void emit_snap(emit_state *s, trace *t, snap *snap, regmap *regs,
                       bool exit, ignoremap *ignore) {
   // If this is an exiting snapshot (vs. a loop back)
@@ -317,25 +361,46 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     emit_jmp32(s, exit_label);
     snap_labels[cur_snap] = emit_offset(s);
 
-    for (uint64_t i = 0; i < arrlen(t->ins); i++) {
-      auto ins = t->ins[i];
+    loopback_regs = collect_loopback_regs(t, sn);
+    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false, loopback_regs);
+    COMMENT("Loopback (snap exit %i)", cur_snap);
+  } else {
+    trace *linked_trace = record->traces[t->link];
+    auto sn = &t->snaps[cur_snap];
+    ignoremap *link_loopback_regs = collect_loopback_regs(linked_trace, sn);
+    fill_loopback_reg_assignments(t, sn, link_loopback_regs);
+    emit_jmp32(s, (int64_t)linked_trace->trace_start);
+    par_copy *cpy = nullptr;
+    size_t arg_idx = 0;
+    arr_for_each(linked_trace->ins, ins) {
       if (ins.op == IR_NOP) {
         continue;
       }
       if (ins.op != IR_ARG) {
         break;
       }
-      if (ins.spill != SPILL_NONE) {
+      if (ins.spill != SPILL_NONE || ins.reg == REG_NONE) {
         abort();
       }
-      arrput(nullptr, loopback_regs, ((ignoremap){sn->offset + ins.data, 0}));
+      if (arg_idx >= arrlen(link_loopback_regs)) {
+        abort();
+      }
+      auto reg_map = link_loopback_regs[arg_idx++];
+      if (reg_map.reg == REG_NONE) {
+        abort();
+      }
+      arrput(nullptr, cpy, ((par_copy){.from = reg_map.reg, .to = ins.reg}));
     }
-    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false, loopback_regs);
-    COMMENT("Loopback (snap exit %i)", cur_snap);
-  } else {
-    trace *linked_trace = record->traces[t->link];
-    emit_jmp32(s, (int64_t)linked_trace->trace_start);
-    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false, nullptr);
+    if (arg_idx != arrlen(link_loopback_regs)) {
+      abort();
+    }
+    auto moves = serialize_parallel_copy(cpy, RTMP);
+    arr_reverse(moves);
+    arr_for_each(moves, mov) { emit_mov(s, mov.to, mov.from); }
+    arrfree(cpy);
+    arrfree(moves);
+    emit_snap(s, t, sn, reg_to_slot, false, link_loopback_regs);
+    arrfree(link_loopback_regs);
     COMMENT("Link to trace %i (snap exit %i)", t->link, cur_snap);
   }
   bool done = false;
@@ -479,6 +544,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     }
     {
       auto res = serialize_parallel_copy(cpy, RTMP);
+      arr_reverse(res);
       arr_for_each(res, mov) { emit_mov(s, mov.to, mov.from); }
       arrfree(cpy);
       arrfree(res);
@@ -525,12 +591,13 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
       if (ins.reg != REG_NONE) {
         arrput(nullptr, cpy, ((par_copy){.from = ins.data, .to = ins.reg}));
       }
-      auto res = serialize_parallel_copy(cpy, RTMP);
-      arr_for_each(res, mov) { emit_mov(s, mov.to, mov.from); }
-      COMMENT("PARALLEL COPY FROM PARENT:");
-      arrfree(cpy);
-      arrfree(res);
     }
+    auto res = serialize_parallel_copy(cpy, RTMP);
+    arr_reverse(res);
+    arr_for_each(res, mov) { emit_mov(s, mov.to, mov.from); }
+    arrfree(cpy);
+    arrfree(res);
+    COMMENT("PARALLEL COPY FROM PARENT:");
 
     // Install the side trace.
     emit_jmp32_patch_here(s, (int64_t)t->parent_snap->patch_point);

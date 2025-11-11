@@ -3,8 +3,6 @@
 * Actually, rethink BC: figure out stack top for EACH op.
    because unfortunately, IF doesn't have enough info.
 
-* register-ize args
-
 * maybe more test programs
 * cleanup traces memory
 * track stack-top

@@ -159,6 +159,7 @@ bool ir_sideeff(ir_ins_op op) {
   case IR_GT:
   case IR_GUARD_EQ:
   case IR_LOAD:
+  case IR_PMOV:
     return true;
     break;
   default:
