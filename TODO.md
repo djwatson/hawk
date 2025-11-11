@@ -3,15 +3,17 @@
 * cleanup first unnecessary snap
 * general cleanup
 
-* Actually, rethink BC: figure out stack top for EACH op.
-   because unfortunately, IF doesn't have enough info.
-
 * maybe more test programs
 * cleanup traces memory
-* track stack-top
 
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
+
+* Actually, rethink BC: figure out stack top for EACH op.
+   because unfortunately, IF doesn't have enough info.
+* Ugh, same with ARG: we can't know to drop it.
+
+* track stack-top
 
 # simple VM
 
@@ -22,7 +24,7 @@
   * non-moving GC from callcc.
 
 ## tracer
-* register-ize first couple args. Keep track of type.
+* Keep track of type.
 * dead/kills - no idea.  We could analyze bytecode, or just do
   top-of-stack tracking like previous.
 * lazy typecheck - but then emit at the top.
@@ -36,7 +38,7 @@
    * gvn
 * mem opts
 * sinking
-* loop? never really found useful
+* loop? never really found useful, because reg-args covers most cases.
 * dce - implicit.  Only useful with LOOP
 
 
