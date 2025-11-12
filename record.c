@@ -30,6 +30,7 @@ static void clear_trace_state(trace_state *ts) {
   arrfree(ts->downrec);
 }
 static void free_trace(trace *trace) {
+  arr_for_each(trace->snaps, snap) { arrfree(snap.slots); }
   arrfree(trace->ins);
   arrfree(trace->consts);
   arrfree(trace->snaps);
@@ -497,4 +498,11 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
     }
   }
   vm_add_snap(state, pc);
+}
+
+void free_traces(struct vm_state *state) {
+  auto rs = &state->record;
+  arr_for_each(rs->traces, trace) { free_trace(trace); }
+  arrfree(rs->trace_state.stack);
+  arrfree(rs->traces);
 }

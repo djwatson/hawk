@@ -642,6 +642,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   zone_free(&s->z);
   s->comments = nullptr;
   free(snap_labels);
+  arrfree(loopback_regs);
 #ifdef HAVE_ELF_H
   if (jit_dump_flag) {
     jit_reader_add((int)(end - entry), entry);

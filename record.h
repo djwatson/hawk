@@ -30,3 +30,4 @@ struct vm_state;
 void record_start(struct vm_state *state, bc *pc, gc_obj *stack);
 void record_start_side(struct vm_state *state, bc *pc, gc_obj *stack,
                        snap *snap);
+void free_traces(struct vm_state *state);

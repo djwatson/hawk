@@ -98,7 +98,11 @@ static inline gc_obj halt(vm_state *state, gc_obj *stack) {
   if (verbose) {
     printf("There were %li traces\n", arrlen(state->record.traces));
   }
-  return stack[0];
+  auto res = stack[0];
+  free_traces(state);
+  free(stack);
+  free(state);
+  return res;
 }
 
 static inline gc_obj sym_load(vm_state *state, gc_obj sym) {

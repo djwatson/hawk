@@ -202,6 +202,7 @@ void disassemble(const uint8_t *code, size_t len,
     }
   }
 
+  zone_free(&z);
   cs_free(insn, count);
   cs_close(&handle);
 }

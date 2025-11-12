@@ -3,7 +3,6 @@
 * general cleanup
 
 * maybe more test programs
-* cleanup traces memory
 
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
@@ -27,7 +26,6 @@
 * dead/kills - no idea.  We could analyze bytecode, or just do
   top-of-stack tracking like previous.
 * lazy typecheck - but then emit at the top.
-* CALLT detect loops too
 * multiple return values from the start
 * punt on: more than 256 refs.
 
