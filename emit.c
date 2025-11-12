@@ -356,6 +356,66 @@ static long *emit_snapshot_exit_jumps(emit_state *s, snap *snaps) {
   return snap_labels;
 }
 
+ignoremap *link_to_next_trace(emit_state *s, trace *t, regmap *reg_to_slot,
+                              uint32_t *next_spill, long *snap_labels) {
+  ignoremap *loopback_regs = nullptr;
+  auto cur_snap = arrlen(t->snaps) - 1;
+  assign_snap_registers(cur_snap, reg_to_slot, t, next_spill);
+  if (t->link == t) {
+    // We're linking to ourselves.  Unfortunately we don't have
+    // register allocation information yet for the *start* of the
+    // trace, only the end.  So save the loopback_regs state, and we
+    // will do a parallel move to make them match later
+    auto sn = &t->snaps[cur_snap];
+    auto unused = emit_offset(s) + 16;
+    emit_jmp32(s, unused);
+    snap_labels[cur_snap] = emit_offset(s);
+
+    loopback_regs = collect_loopback_regs(t, sn);
+    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false, loopback_regs);
+    COMMENT("Loopback (snap exit %i)", cur_snap);
+  } else {
+    // Generate a parallel move so our exit state matches the linked
+    // trace's entry state.
+
+    // For things we flush to memory this is no big deal, this is more
+    // complicated because traces expect the first REG_ARG_CNT args in memory.
+    // (the same way most calling conventions keep the first X args in
+    // register).
+    trace *linked_trace = t->link;
+    auto sn = &t->snaps[cur_snap];
+    ignoremap *link_loopback_regs = collect_loopback_regs(linked_trace, sn);
+    fill_loopback_reg_assignments(t, sn, link_loopback_regs);
+    emit_jmp32(s, (int64_t)linked_trace->trace_start);
+    par_copy *cpy = nullptr;
+    size_t arg_idx = 0;
+    ir_ins *linked_arg = nullptr;
+    for_each_leading_op(linked_trace, IR_ARG, linked_arg) {
+      if (linked_arg->spill != SPILL_NONE || linked_arg->reg == REG_NONE) {
+        abort();
+      }
+      auto reg_map = link_loopback_regs[arg_idx++];
+      if (reg_map.reg == REG_NONE) {
+        abort();
+      }
+      arrput(nullptr, cpy,
+             ((par_copy){.from = reg_map.reg, .to = linked_arg->reg}));
+    }
+    if (arg_idx != arrlen(link_loopback_regs)) {
+      abort();
+    }
+    auto moves = serialize_parallel_copy(cpy, RTMP);
+    arr_reverse(moves);
+    arr_for_each(moves, mov) { emit_mov(s, mov.to, mov.from); }
+    arrfree(cpy);
+    arrfree(moves);
+    emit_snap(s, t, sn, reg_to_slot, false, link_loopback_regs);
+    arrfree(link_loopback_regs);
+    COMMENT("Link to trace %i (snap exit %i)", t->link->num, cur_snap);
+  }
+  return loopback_regs;
+}
+
 trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // Initialize asm emitter memory if not already done (once per process)
   emit_init(s);
@@ -388,50 +448,12 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   auto op_cnt_idx = arrlen(t->ins);
   uint32_t next_spill = 0;
 
-  ignoremap *loopback_regs = nullptr;
-  assign_snap_registers(cur_snap, reg_to_slot, t, &next_spill);
-  if (t->link == t->num) {
-    auto sn = &t->snaps[cur_snap];
-    emit_jmp32(s, exit_label);
-    snap_labels[cur_snap] = emit_offset(s);
+  // Link to the next trace: Which is either ourselves (if a looping parent
+  // trace), or another trace (if a side trace).
+  ignoremap *loopback_regs =
+      link_to_next_trace(s, t, reg_to_slot, &next_spill, snap_labels);
 
-    loopback_regs = collect_loopback_regs(t, sn);
-    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false, loopback_regs);
-    COMMENT("Loopback (snap exit %i)", cur_snap);
-  } else {
-    trace *linked_trace = record->traces[t->link];
-    auto sn = &t->snaps[cur_snap];
-    ignoremap *link_loopback_regs = collect_loopback_regs(linked_trace, sn);
-    fill_loopback_reg_assignments(t, sn, link_loopback_regs);
-    emit_jmp32(s, (int64_t)linked_trace->trace_start);
-    par_copy *cpy = nullptr;
-    size_t arg_idx = 0;
-    ir_ins *linked_arg = nullptr;
-    for_each_leading_op(linked_trace, IR_ARG, linked_arg) {
-      if (linked_arg->spill != SPILL_NONE || linked_arg->reg == REG_NONE) {
-        abort();
-      }
-      auto reg_map = link_loopback_regs[arg_idx++];
-      if (reg_map.reg == REG_NONE) {
-        abort();
-      }
-      arrput(nullptr, cpy,
-             ((par_copy){.from = reg_map.reg, .to = linked_arg->reg}));
-    }
-    if (arg_idx != arrlen(link_loopback_regs)) {
-      abort();
-    }
-    auto moves = serialize_parallel_copy(cpy, RTMP);
-    arr_reverse(moves);
-    arr_for_each(moves, mov) { emit_mov(s, mov.to, mov.from); }
-    arrfree(cpy);
-    arrfree(moves);
-    emit_snap(s, t, sn, reg_to_slot, false, link_loopback_regs);
-    arrfree(link_loopback_regs);
-    COMMENT("Link to trace %i (snap exit %i)", t->link, cur_snap);
-  }
-  bool done = false;
-  for (; op_cnt_idx > 0 && !done; op_cnt_idx--) {
+  for (; op_cnt_idx > 0; op_cnt_idx--) {
     uint16_t op_cnt = op_cnt_idx - 1;
     while (cur_snap >= 0 && t->snaps[cur_snap].ir > op_cnt) {
       if (cur_snap > 0) {
@@ -575,7 +597,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
       arrfree(res);
     }
 
-    if (t->link == t->num) { // self link
+    if (t->link == t) { // self link
       emit_jmp32_patch_here(s, snap_labels[arrlen(t->snaps) - 1]);
     }
     COMMENT("LOOPBACK ENTRY");

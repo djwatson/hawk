@@ -245,7 +245,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
       return return_frame(state, pc, stack, op_table);
     }
     if (is_downrec_trace(record_trace_state(state)) && cnt) {
-      record_current_trace(state)->link = arrlen(state->record.traces);
+      record_current_trace(state)->link = record_current_trace(state);
       record_finish(pc, state);
       return (frame_state){pc, stack, state->impls};
     }
@@ -394,7 +394,7 @@ static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
     return state->impls;
   }
   if (cur_trace->parent) {
-    cur_trace->link = (*pc)->data;
+    cur_trace->link = state->record.traces[(*pc)->data];
     record_finish(*pc, state);
     return state->impls;
   }
@@ -413,7 +413,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   //  check for up-recursion and abort, restart trying to capture an
   //  up-recursive trace.
   if (pc == ts->start_ins) {
-    cur_trace->link = arrlen(state->record.traces);
+    cur_trace->link = cur_trace;
     record_finish(pc, state);
     return state->impls;
   }
