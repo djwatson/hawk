@@ -148,7 +148,7 @@ void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t offset) {
     *(--p) = (int8_t)off;
     *(--p) = cond - 0x10;
   } else {
-    // TODO assert that off fits in int32_t
+    assert(fits_in_32(off));
     emit_imm32(s, (int32_t)off);
     *(--p) = cond;
     *(--p) = 0x0f;
@@ -388,7 +388,6 @@ void emit_jmp32_patch_here(emit_state *s, int64_t patch) {
   assert(patch);
   int64_t target = emit_offset(s);
   int64_t delta = target - patch - 5;
-  // TODO fix, make sure fits in 32 bits?
   assert(fits_in_32(delta));
   uint8_t jmp = 0xe9;
   memcpy((uint8_t *)patch, &jmp, 1);

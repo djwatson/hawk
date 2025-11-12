@@ -188,7 +188,6 @@ static void record_finish(bc *pc, vm_state *state) {
 }
 static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
                                 void *op_table) {
-  // TODO check for down-rec
   // add downrec array
   // cases:
   // depth > 0:
@@ -262,7 +261,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     assert(record_trace_state(state)->stack_off == 0);
     arrlen_set(record_trace_state(state)->stack, 0);
     // 4) Const-ify the current return address
-    // TODO(davejwatson) this const_ra needs to be updated by the GC.
+
     auto const_ra = add_const(state, stack[-1]);
     auto const_offset = add_const(state, tag_fixnum(offset));
     // 5) add a new IR: IR_RET that checks ret and does a ret.
@@ -308,7 +307,7 @@ static bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack, slot b) {
   arrlen_set(record_trace_state(state)->stack, pc->reg);
   // We're going to directly peek at the stack here.
   auto res = stack[pc->reg];
-  // TODO:snapshot
+
   slot must_be = add_const(state, res);
   bc *next_pc;
   if (res.value == FALSE_REP.value) {
