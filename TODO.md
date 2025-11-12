@@ -11,6 +11,10 @@
 * Ugh, same with ARG: we can't know to drop it.
 
 * track stack-top
+* argcnt check
+* spill slots
+* remove 'parent', use parent snap instead.
+* use set in jmps?
 
 # simple VM
 
