@@ -1,7 +1,5 @@
 # VM impl
 
-* general cleanup
-
 * maybe more test programs
 
 * typechecking
