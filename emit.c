@@ -365,7 +365,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     COMMENT("Snap exit #%i", i - 1);
   }
 
-  size_t cur_snap = arrlen(t->snaps) - 1;
+  int32_t cur_snap = (int32_t)arrlen(t->snaps) - 1;
   auto op_cnt_idx = arrlen(t->ins);
   uint32_t next_spill = 0;
 

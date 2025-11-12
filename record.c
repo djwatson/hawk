@@ -436,8 +436,6 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack) {
   trace_state *ts = record_trace_state(state);
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
-  // TODO no need to save
-  vm_add_snap(state, pc);
 
   // OK! Let's put function arguments in registers.
   // Note these *must* be marked as 'changed', since ARGS aren't saved between
@@ -478,8 +476,6 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
   ts->depth = snap->depth;
-  // TODO no need to save
-  vm_add_snap(state, pc);
 
   // Replay snapshot loads, so we keep things in register.
   arr_for_each_idx(snap->slots, j) {

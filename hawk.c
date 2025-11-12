@@ -212,9 +212,10 @@ static fib_loader_bc fib_loader = {
         },
     .consts =
         {
-            // tag_func(&prog_fib), // entry to PROG-fib
-            tag_func(&prog_sum),
-            TAG_FIXNUM_LITERAL(1000000000),
+            tag_func(&prog_fib), // entry to PROG-fib
+                                 // tag_func(&prog_sum),
+            // TAG_FIXNUM_LITERAL(1000000000),
+            TAG_FIXNUM_LITERAL(40),
         },
     .code =
         {

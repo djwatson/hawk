@@ -1,6 +1,5 @@
 # VM impl
 
-* cleanup first unnecessary snap
 * general cleanup
 
 * maybe more test programs
