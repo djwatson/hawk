@@ -341,8 +341,7 @@ static void emit_exit_to_c(emit_state *s) {
   restore_callee_regs(s);
 }
 
-static long *emit_snapshot_exit_jumps(emit_state *s, snap *snaps) {
-  long *snap_labels = malloc(sizeof(long) * arrlen(snaps));
+static void emit_snapshot_exit_jumps(emit_state *s, snap *snaps) {
   for (uint64_t i = arrlen(snaps) - 1; i > 0; i--) {
     snap *snap = &snaps[i - 1];
     // To be replaced by actual snap exit code at the end, so just put a
@@ -350,15 +349,13 @@ static long *emit_snapshot_exit_jumps(emit_state *s, snap *snaps) {
     auto unused = emit_offset(s) + 16;
     emit_jmp32(s, unused);
     snap->patch_point = emit_offset(s);
-    snap_labels[i - 1] = emit_offset(s);
     COMMENT("Snap exit #%i", i - 1);
   }
-  return snap_labels;
 }
 
 static ignoremap *link_to_next_trace(emit_state *s, trace *t,
-                                     regmap *reg_to_slot, uint32_t *next_spill,
-                                     long *snap_labels) {
+                                     regmap *reg_to_slot,
+                                     uint32_t *next_spill) {
   ignoremap *loopback_regs = nullptr;
   auto cur_snap = arrlen(t->snaps) - 1;
   assign_snap_registers(cur_snap, reg_to_slot, t, next_spill);
@@ -370,7 +367,7 @@ static ignoremap *link_to_next_trace(emit_state *s, trace *t,
     auto sn = &t->snaps[cur_snap];
     auto unused = emit_offset(s) + 16;
     emit_jmp32(s, unused);
-    snap_labels[cur_snap] = emit_offset(s);
+    t->snaps[cur_snap].patch_point = emit_offset(s);
 
     loopback_regs = collect_loopback_regs(t, sn);
     emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false, loopback_regs);
@@ -418,7 +415,7 @@ static ignoremap *link_to_next_trace(emit_state *s, trace *t,
 }
 
 static void emit_ir(emit_state *s, trace *t, regmap *reg_to_slot,
-                    uint32_t *next_spill, long *snap_labels) {
+                    uint32_t *next_spill) {
   int32_t cur_snap = (int32_t)arrlen(t->snaps) - 1;
   auto op_cnt_idx = arrlen(t->ins);
   for (; op_cnt_idx > 0; op_cnt_idx--) {
@@ -461,7 +458,7 @@ static void emit_ir(emit_state *s, trace *t, regmap *reg_to_slot,
     emit_check(s);
     switch (op->op) {
     case IR_GUARD_EQ: {
-      emit_jcc32(s, JNE, snap_labels[cur_snap]);
+      emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
       emit_cmp_slots(s, CMP_EQ, t, reg_to_slot, next_spill, op->op1, op->op2);
       break;
     }
@@ -485,7 +482,7 @@ static void emit_ir(emit_state *s, trace *t, regmap *reg_to_slot,
       break;
     }
     case IR_GT: {
-      emit_jcc32(s, JL, snap_labels[cur_snap]);
+      emit_jcc32(s, JL, t->snaps[cur_snap].patch_point);
       emit_cmp_slots(s, CMP_LT, t, reg_to_slot, next_spill, op->op1, op->op2);
       break;
     }
@@ -512,7 +509,7 @@ static void emit_ir(emit_state *s, trace *t, regmap *reg_to_slot,
       // mov ra to a register
 
       emit_sub_constant(s, RSTACK, RSTACK, slot_const(t, op->op1));
-      emit_jcc32(s, JNE, snap_labels[cur_snap]);
+      emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
       emit_cmp_constant(s, CMP_EQ, op->reg, slot_const(t, op->op2));
       // cmp stack[-1], jmp to snap if not equal
       emit_mem_load(s, -8, RSTACK, op->reg);
@@ -540,7 +537,7 @@ static void emit_ir(emit_state *s, trace *t, regmap *reg_to_slot,
 // Emit *two* entry points:
 // One that loops back from the current trace
 // One from c.
-static void emit_root_trace_entry(emit_state *s, trace *t, long *snap_labels,
+static void emit_root_trace_entry(emit_state *s, trace *t,
                                   ignoremap *loopback_regs) {
   // Emit a loopbackentry point
   // emit parcopy from loop end
@@ -571,7 +568,7 @@ static void emit_root_trace_entry(emit_state *s, trace *t, long *snap_labels,
   }
 
   if (t->link == t) { // self link
-    emit_jmp32_patch_here(s, snap_labels[arrlen(t->snaps) - 1]);
+    emit_jmp32_patch_here(s, t->snaps[arrlen(t->snaps) - 1].patch_point);
   }
   COMMENT("LOOPBACK ENTRY");
 
@@ -617,7 +614,7 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
 }
 
 static void emit_finish_snap_exits(emit_state *s, trace *t, int64_t exit_label,
-                                   regmap *reg_to_slot, long *snap_labels) {
+                                   regmap *reg_to_slot) {
   // Emit even MORE snap exits.  We didn't have register allocation
   // previously, but now we do. Since these are slowpath exists, the extra
   // branches probably don't matter much.
@@ -625,7 +622,7 @@ static void emit_finish_snap_exits(emit_state *s, trace *t, int64_t exit_label,
     snap *snap = &t->snaps[i - 1];
     emit_jmp32(s, exit_label);
     emit_snap(s, t, snap, reg_to_slot, true, nullptr);
-    emit_jmp32_patch_here(s, snap_labels[i - 1]);
+    emit_jmp32_patch_here(s, t->snaps[i - 1].patch_point);
     COMMENT("Snap exit #%i", i - 1);
   }
 }
@@ -656,28 +653,27 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // Exist stubs for all but the last. These are eventually replaced
   // by jumps to side traces as we emit them.  Otherwise we restore
   // state and jump to the C exit stub.
-  auto snap_labels = emit_snapshot_exit_jumps(s, t->snaps);
+  emit_snapshot_exit_jumps(s, t->snaps);
 
   uint32_t next_spill = 0;
 
   // Link to the next trace: Which is either ourselves (if a looping parent
   // trace), or another trace (if a side trace).
-  ignoremap *loopback_regs =
-      link_to_next_trace(s, t, reg_to_slot, &next_spill, snap_labels);
+  ignoremap *loopback_regs = link_to_next_trace(s, t, reg_to_slot, &next_spill);
 
-  emit_ir(s, t, reg_to_slot, &next_spill, snap_labels);
+  emit_ir(s, t, reg_to_slot, &next_spill);
 
   // This is where the trace will start when other traces are linked to it.
   t->trace_start = emit_offset(s);
 
   if (!t->parent) {
-    emit_root_trace_entry(s, t, snap_labels, loopback_regs);
+    emit_root_trace_entry(s, t, loopback_regs);
   } else {
     emit_side_trace_entry(s, t);
   }
   auto entry = emit_offset(s);
 
-  emit_finish_snap_exits(s, t, exit_label, reg_to_slot, snap_labels);
+  emit_finish_snap_exits(s, t, exit_label, reg_to_slot);
 
   emit_writable_end(s);
   auto sz = end - emit_offset(s);
@@ -690,7 +686,6 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // Cleanup
   zone_free(&s->z);
   s->comments = nullptr;
-  free(snap_labels);
   arrfree(loopback_regs);
 
   // Install debuginfo for gdb & linux perf tool.
