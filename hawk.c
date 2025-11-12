@@ -177,8 +177,7 @@ static prog_sum_bc prog_sum = {
             {OP_SUB, 5, 1, 5},
             {OP_ADD, 6, 1, 2},
             {OP_CLOSURE_GET, 3, 4, 0},
-            {OP_LCALLT, 3, 3, 0},
-            {OP_RET, 3, 3, 0},
+            {OP_LCALLT, 3, 4, 0},
         },
 };
 
@@ -215,7 +214,7 @@ static fib_loader_bc fib_loader = {
         {
             // tag_func(&prog_fib), // entry to PROG-fib
             tag_func(&prog_sum),
-            TAG_FIXNUM_LITERAL(100000000),
+            TAG_FIXNUM_LITERAL(1000000000),
         },
     .code =
         {

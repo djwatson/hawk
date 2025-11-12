@@ -110,10 +110,10 @@ END OP_BEGIN(LCALL) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(LCALLT) {
+  auto argcnt = pc->data - 1;
   auto func = stack_load(state, stack, pc->reg);
   auto frame_top = pc->reg;
-  stack_save(state, stack, pc->reg, return_address(state, pc + 1));
-  stack = adjust_stack_depth(state, stack, frame_top + 1);
+  stack_memmov(state, stack, frame_top + 1, argcnt);
   pc = set_new_pc(state, pc, stack, func);
   dispatch_next(pc, stack);
 }

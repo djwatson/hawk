@@ -133,6 +133,10 @@ static inline gc_obj *adjust_stack_depth(vm_state *state, gc_obj *stack,
   // TODO check stack depth?
   return stack + depth;
 }
+static inline void stack_memmov(vm_state *state, gc_obj *stack, uint16_t from,
+                                uint16_t cnt) {
+  memmove(&stack[0], &stack[from], cnt * sizeof(gc_obj));
+}
 static inline bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack,
                              gc_obj func) {
   (void)state;

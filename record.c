@@ -349,6 +349,20 @@ static gc_obj *adjust_stack_depth(vm_state *state, gc_obj *stack, int depth) {
   ts->depth++;
   return stack;
 }
+static void stack_memmov(vm_state *state, gc_obj *stack, uint16_t from,
+                         uint16_t cnt) {
+  trace_state *ts = record_trace_state(state);
+  // The same as the VM:
+  // memmove(&stack[0], &stack[from], cnt * sizeof(gc_obj));
+  uint16_t to = 0;
+  while (cnt-- > 0) {
+    auto entry = stack_load(state, stack, from++);
+    set_stack(state, to++, entry);
+  }
+
+  // Shrink stack to current stack top.
+  arrlen_set(ts->stack, to + ts->stack_off);
+}
 static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
   if (!func.constant) {
     // Func isn't a constant, we need a runtime check.
