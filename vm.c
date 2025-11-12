@@ -211,6 +211,9 @@ OPS;
 
 static void vm_state_init(vm_state *state) {
   memset(state, 0, sizeof(*state));
+  for (int i = 0; i < VM_HOTMAP_SZ; i++) {
+    state->hotmap[i] = hotmap_cnt;
+  }
   state->max_trace = max_trace;
 #define X(name) state->impls[OP_##name] = impl_##name;
   OPS

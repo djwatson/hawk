@@ -144,8 +144,64 @@ static symbol fib_sym = {
 BCFUNC_FLEXARRAY_DIAG_PUSH
 typedef struct {
   bcfunc func;
+  gc_obj consts[5];
+  bc code[20];
+} prog_sum_bc;
+BCFUNC_FLEXARRAY_DIAG_POP
+
+static symbol sum_sym;
+static prog_sum_bc prog_sum = {
+    .func =
+        {
+            .header = {.type = FUNC_TAG},
+            .const_cnt = 5,
+            .bc_cnt = 20,
+        },
+    .consts =
+        {
+            TAG_FIXNUM_LITERAL(2),
+            tag_symbol(&sum_sym),
+            TAG_FIXNUM_LITERAL(0),
+            TAG_FIXNUM_LITERAL(1),
+            TAG_FIXNUM_LITERAL(2),
+        },
+    .code =
+        {
+            {OP_FUNC, 3, .data = 3},
+            {OP_KSHORT, 3, .data = TAG_FIXNUM_VALUE(0)},
+            {OP_LT, 3, 1, 3},
+            {OP_IF, 3, .data = 2},
+            {OP_RET, 2, 0, 0},
+            {OP_LOOKUP, 4, .data = 13},
+            {OP_KSHORT, 5, .data = TAG_FIXNUM_VALUE(1)},
+            {OP_SUB, 5, 1, 5},
+            {OP_ADD, 6, 1, 2},
+            {OP_CLOSURE_GET, 3, 4, 0},
+            {OP_LCALLT, 3, 3, 0},
+            {OP_RET, 3, 3, 0},
+        },
+};
+
+static closure_s sum_clo = {.header =
+                                {
+                                    .type = CLOSURE_TAG,
+                                },
+                            .len = TAG_FIXNUM_LITERAL(1),
+                            .v = {tag_func(&prog_sum)}};
+static symbol sum_sym = {
+    .header =
+        {
+            .type = SYMBOL_TAG,
+        },
+
+    .val = tag_closure(&sum_clo),
+};
+
+BCFUNC_FLEXARRAY_DIAG_PUSH
+typedef struct {
+  bcfunc func;
   gc_obj consts[2];
-  bc code[4];
+  bc code[5];
 } fib_loader_bc;
 BCFUNC_FLEXARRAY_DIAG_POP
 
@@ -153,19 +209,21 @@ static fib_loader_bc fib_loader = {
     .func =
         {
             .const_cnt = 2,
-            .bc_cnt = 4,
+            .bc_cnt = 5,
         },
     .consts =
         {
-            tag_func(&prog_fib), // entry to PROG-fib
-            TAG_FIXNUM_LITERAL(40),
+            // tag_func(&prog_fib), // entry to PROG-fib
+            tag_func(&prog_sum),
+            TAG_FIXNUM_LITERAL(100000000),
         },
     .code =
         {
             {OP_CONST, 0, .data = 4}, // load fib entry
             {OP_CONST, 2, .data = 3}, // push argument 40
-            {OP_LCALL, 0, 0, 0},      // invoke fib
-            {OP_HALT, 0, 0, 0},       // halt after call
+            {OP_KSHORT, 3, .data = 0},
+            {OP_LCALL, 0, 0, 0}, // invoke fib
+            {OP_HALT, 0, 0, 0},  // halt after call
         },
 };
 

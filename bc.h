@@ -52,6 +52,7 @@
   X(IF)                                                                        \
   X(CLOSURE_GET)                                                               \
   X(LCALL)                                                                     \
+  X(LCALLT)                                                                    \
   X(HALT)
 typedef enum : uint8_t {
 #define X(name) OP_##name,
