@@ -356,8 +356,9 @@ static long *emit_snapshot_exit_jumps(emit_state *s, snap *snaps) {
   return snap_labels;
 }
 
-ignoremap *link_to_next_trace(emit_state *s, trace *t, regmap *reg_to_slot,
-                              uint32_t *next_spill, long *snap_labels) {
+static ignoremap *link_to_next_trace(emit_state *s, trace *t,
+                                     regmap *reg_to_slot, uint32_t *next_spill,
+                                     long *snap_labels) {
   ignoremap *loopback_regs = nullptr;
   auto cur_snap = arrlen(t->snaps) - 1;
   assign_snap_registers(cur_snap, reg_to_slot, t, next_spill);
@@ -416,48 +417,15 @@ ignoremap *link_to_next_trace(emit_state *s, trace *t, regmap *reg_to_slot,
   return loopback_regs;
 }
 
-trace_fn emit(trace *t, emit_state *s, record_state *record) {
-  // Initialize asm emitter memory if not already done (once per process)
-  emit_init(s);
-
-  // Remember, we're emitting backwards! This makes the register
-  // allocator much simpler to write, no state needs to be preserved.
-
-  emit_writable_begin(s);
-  regmap reg_to_slot[MAX_REG];
-  memset(reg_to_slot, 0, sizeof(reg_to_slot));
-
-  // Set up register allocator.
-  bool reserved[MAX_REG] = {0};
-  asm_mark_unallocatable(reserved);
-  for (int i = 0; i < MAX_REG; i++) {
-    reg_to_slot[i].used = reserved[i];
-  }
-
-  // Emit a return-to-c stub.
-  auto end = emit_offset(s);
-  emit_exit_to_c(s);
-  auto exit_label = emit_offset(s);
-
-  // Exist stubs for all but the last. These are eventually replaced
-  // by jumps to side traces as we emit them.  Otherwise we restore
-  // state and jump to the C exit stub.
-  auto snap_labels = emit_snapshot_exit_jumps(s, t->snaps);
-
+static void emit_ir(emit_state *s, trace *t, regmap *reg_to_slot,
+                    uint32_t *next_spill, long *snap_labels) {
   int32_t cur_snap = (int32_t)arrlen(t->snaps) - 1;
   auto op_cnt_idx = arrlen(t->ins);
-  uint32_t next_spill = 0;
-
-  // Link to the next trace: Which is either ourselves (if a looping parent
-  // trace), or another trace (if a side trace).
-  ignoremap *loopback_regs =
-      link_to_next_trace(s, t, reg_to_slot, &next_spill, snap_labels);
-
   for (; op_cnt_idx > 0; op_cnt_idx--) {
     uint16_t op_cnt = op_cnt_idx - 1;
     while (cur_snap >= 0 && t->snaps[cur_snap].ir > op_cnt) {
       if (cur_snap > 0) {
-        assign_snap_registers(cur_snap - 1, reg_to_slot, t, &next_spill);
+        assign_snap_registers(cur_snap - 1, reg_to_slot, t, next_spill);
       }
       cur_snap--;
     }
@@ -467,7 +435,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     if (op->spill != SPILL_NONE) {
       if (op->reg == REG_NONE) {
         maybe_assign_register((slot){.constant = false, .loc = op_cnt}, t,
-                              reg_to_slot, &next_spill);
+                              reg_to_slot, next_spill);
       }
       // printf("Spilling op %li to slot %i from reg %s\n", op_cnt, op->slot,
       // reg_names[op->reg]);
@@ -482,7 +450,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     // Assign reg to this if it doesn't have a reg yet.
     if (op->op == IR_RET) {
       maybe_assign_register((slot){.constant = false, .loc = op_cnt}, t,
-                            reg_to_slot, &next_spill);
+                            reg_to_slot, next_spill);
     }
     // free current register.
     if (op->reg != REG_NONE && op->reg != RSTACK && op->op != IR_ARG) {
@@ -494,11 +462,11 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     switch (op->op) {
     case IR_GUARD_EQ: {
       emit_jcc32(s, JNE, snap_labels[cur_snap]);
-      emit_cmp_slots(s, CMP_EQ, t, reg_to_slot, &next_spill, op->op1, op->op2);
+      emit_cmp_slots(s, CMP_EQ, t, reg_to_slot, next_spill, op->op1, op->op2);
       break;
     }
     case IR_LOAD: {
-      maybe_assign_register(op->op1, t, reg_to_slot, &next_spill);
+      maybe_assign_register(op->op1, t, reg_to_slot, next_spill);
       assert(!op->op1.constant);
       emit_mem_load(s, (uint16_t)op->op2.loc + 8, slot_reg(t, op->op1),
                     op->reg);
@@ -513,22 +481,22 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
       emit_jmp32(s, lt_fin);
       emit_mov64(s, op->reg, FALSE_REP.value);
       emit_jcc32(s, JL, tr);
-      emit_cmp_slots(s, CMP_LT, t, reg_to_slot, &next_spill, op->op1, op->op2);
+      emit_cmp_slots(s, CMP_LT, t, reg_to_slot, next_spill, op->op1, op->op2);
       break;
     }
     case IR_GT: {
       emit_jcc32(s, JL, snap_labels[cur_snap]);
-      emit_cmp_slots(s, CMP_LT, t, reg_to_slot, &next_spill, op->op1, op->op2);
+      emit_cmp_slots(s, CMP_LT, t, reg_to_slot, next_spill, op->op1, op->op2);
       break;
     }
     case IR_SUB: {
-      emit_arith_slots(s, t, reg_to_slot, &next_spill, op->reg, op->op1,
-                       op->op2, true);
+      emit_arith_slots(s, t, reg_to_slot, next_spill, op->reg, op->op1, op->op2,
+                       true);
       break;
     }
     case IR_ADD: {
-      emit_arith_slots(s, t, reg_to_slot, &next_spill, op->reg, op->op1,
-                       op->op2, false);
+      emit_arith_slots(s, t, reg_to_slot, next_spill, op->reg, op->op1, op->op2,
+                       false);
       break;
     }
     case IR_SLOAD: {
@@ -567,81 +535,89 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     }
     COMMENT("%i %s", op_cnt, ir_names[op->op]);
   }
-  t->trace_start = emit_offset(s);
-  if (!t->parent) {
-    // Emit a loopbackentry point
-    // emit parcopy from loop end
-    par_copy *cpy = nullptr;
-    ir_ins *arg_ins = nullptr;
+}
 
-    int cnt = 0;
-    for_each_leading_op(t, IR_ARG, arg_ins) {
-      if (arg_ins->spill != SPILL_NONE) {
-        abort();
-      }
-      if (cnt >= arrlen(loopback_regs)) {
-        abort();
-      }
-      auto reg = loopback_regs[cnt++];
-      arrput(nullptr, cpy, ((par_copy){.from = reg.reg, .to = arg_ins->reg}));
-      /* } else { */
-      /*   emit_mem_load(s, (int32_t)arg_ins->data * 8, RSTACK, arg_ins->reg);
-       */
-      /* } */
-    }
-    {
-      auto res = serialize_parallel_copy(cpy, RTMP);
-      arr_reverse(res);
-      arr_for_each(res, mov) { emit_mov(s, mov.to, mov.from); }
-      arrfree(cpy);
-      arrfree(res);
-    }
+// Emit *two* entry points:
+// One that loops back from the current trace
+// One from c.
+static void emit_root_trace_entry(emit_state *s, trace *t, long *snap_labels,
+                                  ignoremap *loopback_regs) {
+  // Emit a loopbackentry point
+  // emit parcopy from loop end
+  par_copy *cpy = nullptr;
+  ir_ins *arg_ins = nullptr;
 
-    if (t->link == t) { // self link
-      emit_jmp32_patch_here(s, snap_labels[arrlen(t->snaps) - 1]);
+  int cnt = 0;
+  for_each_leading_op(t, IR_ARG, arg_ins) {
+    if (arg_ins->spill != SPILL_NONE) {
+      abort();
     }
-    COMMENT("LOOPBACK ENTRY");
-
-    // Emit an entry point from C.
-    emit_jmp32(s, t->trace_start);
-    for_each_leading_op(t, IR_ARG, arg_ins) {
-      if (arg_ins->spill != SPILL_NONE) {
-        abort();
-      }
-      if (arg_ins->reg != REG_NONE) {
-        emit_mem_load(s, (int32_t)arg_ins->data * 8, RSTACK, arg_ins->reg);
-      }
+    if (cnt >= arrlen(loopback_regs)) {
+      abort();
     }
-    emit_mov(s, RSTACK, RARG0);
-    save_callee_regs(s);
-  } else {
-    // Emit register shuffle.
-    par_copy *cpy = nullptr;
-    ir_ins *pmov_ins = nullptr;
-    for_each_leading_op(t, IR_PMOV, pmov_ins) {
-      if (pmov_ins->spill != SPILL_NONE) {
-        abort();
-      }
-      if (pmov_ins->reg != REG_NONE) {
-        arrput(nullptr, cpy,
-               ((par_copy){.from = pmov_ins->data, .to = pmov_ins->reg}));
-      }
-    }
+    auto reg = loopback_regs[cnt++];
+    arrput(nullptr, cpy, ((par_copy){.from = reg.reg, .to = arg_ins->reg}));
+    /* } else { */
+    /*   emit_mem_load(s, (int32_t)arg_ins->data * 8, RSTACK, arg_ins->reg);
+     */
+    /* } */
+  }
+  {
     auto res = serialize_parallel_copy(cpy, RTMP);
     arr_reverse(res);
     arr_for_each(res, mov) { emit_mov(s, mov.to, mov.from); }
     arrfree(cpy);
     arrfree(res);
-    COMMENT("PARALLEL COPY FROM PARENT:");
-
-    // Install the side trace.
-    emit_jmp32_patch_here(s, (int64_t)t->parent_snap->patch_point);
-    __builtin___clear_cache((char *)t->parent_snap->patch_point,
-                            (char *)t->parent_snap->patch_point + 16);
   }
-  COMMENT("CENTRY");
-  auto entry = emit_offset(s);
 
+  if (t->link == t) { // self link
+    emit_jmp32_patch_here(s, snap_labels[arrlen(t->snaps) - 1]);
+  }
+  COMMENT("LOOPBACK ENTRY");
+
+  // Emit an entry point from C.
+  emit_jmp32(s, t->trace_start);
+  for_each_leading_op(t, IR_ARG, arg_ins) {
+    if (arg_ins->spill != SPILL_NONE) {
+      abort();
+    }
+    if (arg_ins->reg != REG_NONE) {
+      emit_mem_load(s, (int32_t)arg_ins->data * 8, RSTACK, arg_ins->reg);
+    }
+  }
+  emit_mov(s, RSTACK, RARG0);
+  save_callee_regs(s);
+  COMMENT("CENTRY");
+}
+
+static void emit_side_trace_entry(emit_state *s, trace *t) {
+  // Emit register shuffle.
+  par_copy *cpy = nullptr;
+  ir_ins *pmov_ins = nullptr;
+  for_each_leading_op(t, IR_PMOV, pmov_ins) {
+    if (pmov_ins->spill != SPILL_NONE) {
+      abort();
+    }
+    if (pmov_ins->reg != REG_NONE) {
+      arrput(nullptr, cpy,
+             ((par_copy){.from = pmov_ins->data, .to = pmov_ins->reg}));
+    }
+  }
+  auto res = serialize_parallel_copy(cpy, RTMP);
+  arr_reverse(res);
+  arr_for_each(res, mov) { emit_mov(s, mov.to, mov.from); }
+  arrfree(cpy);
+  arrfree(res);
+  COMMENT("PARALLEL COPY FROM PARENT:");
+
+  // Install the side trace.
+  emit_jmp32_patch_here(s, (int64_t)t->parent_snap->patch_point);
+  __builtin___clear_cache((char *)t->parent_snap->patch_point,
+                          (char *)t->parent_snap->patch_point + 16);
+}
+
+static void emit_finish_snap_exits(emit_state *s, trace *t, int64_t exit_label,
+                                   regmap *reg_to_slot, long *snap_labels) {
   // Emit even MORE snap exits.  We didn't have register allocation
   // previously, but now we do. Since these are slowpath exists, the extra
   // branches probably don't matter much.
@@ -652,6 +628,56 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     emit_jmp32_patch_here(s, snap_labels[i - 1]);
     COMMENT("Snap exit #%i", i - 1);
   }
+}
+
+trace_fn emit(trace *t, emit_state *s, record_state *record) {
+  // Initialize asm emitter memory if not already done (once per process)
+  emit_init(s);
+
+  // Remember, we're emitting backwards! This makes the register
+  // allocator much simpler to write, no state needs to be preserved.
+
+  emit_writable_begin(s);
+  regmap reg_to_slot[MAX_REG];
+  memset(reg_to_slot, 0, sizeof(reg_to_slot));
+
+  // Set up register allocator.
+  bool reserved[MAX_REG] = {0};
+  asm_mark_unallocatable(reserved);
+  for (int i = 0; i < MAX_REG; i++) {
+    reg_to_slot[i].used = reserved[i];
+  }
+
+  // Emit a return-to-c stub.
+  auto end = emit_offset(s);
+  emit_exit_to_c(s);
+  auto exit_label = emit_offset(s);
+
+  // Exist stubs for all but the last. These are eventually replaced
+  // by jumps to side traces as we emit them.  Otherwise we restore
+  // state and jump to the C exit stub.
+  auto snap_labels = emit_snapshot_exit_jumps(s, t->snaps);
+
+  uint32_t next_spill = 0;
+
+  // Link to the next trace: Which is either ourselves (if a looping parent
+  // trace), or another trace (if a side trace).
+  ignoremap *loopback_regs =
+      link_to_next_trace(s, t, reg_to_slot, &next_spill, snap_labels);
+
+  emit_ir(s, t, reg_to_slot, &next_spill, snap_labels);
+
+  // This is where the trace will start when other traces are linked to it.
+  t->trace_start = emit_offset(s);
+
+  if (!t->parent) {
+    emit_root_trace_entry(s, t, snap_labels, loopback_regs);
+  } else {
+    emit_side_trace_entry(s, t);
+  }
+  auto entry = emit_offset(s);
+
+  emit_finish_snap_exits(s, t, exit_label, reg_to_slot, snap_labels);
 
   emit_writable_end(s);
   auto sz = end - emit_offset(s);
@@ -661,10 +687,13 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
     disassemble((uint8_t *)emit_offset(s), sz, s->comments);
   }
 
+  // Cleanup
   zone_free(&s->z);
   s->comments = nullptr;
   free(snap_labels);
   arrfree(loopback_regs);
+
+  // Install debuginfo for gdb & linux perf tool.
 #ifdef HAVE_ELF_H
   if (jit_dump_flag) {
     jit_reader_add((int)(end - entry), entry);
@@ -676,6 +705,4 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // Call the built-in function to flush the cache for the specific range
   __builtin___clear_cache((char *)emit_offset(s), (char *)emit_offset(s) + sz);
   return (trace_fn)entry;
-  // emit and done
-  // patch if side trace
 }
