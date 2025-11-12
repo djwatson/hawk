@@ -1,6 +1,7 @@
 # VM impl
 
 * maybe more test programs
+* fix stack overflow
 
 * typechecking
 * math ops - fixnum,flonum, slowpaths.

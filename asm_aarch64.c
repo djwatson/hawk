@@ -10,7 +10,7 @@
 
 #include "asm.h"
 
-const char *const reg_names[MAX_REG] = {
+const char *const reg_names[AARCH64_MAX_REG] = {
 #define X(name) #name,
     ASM_AARCH64_REGISTER_LIST(X)
 #undef X

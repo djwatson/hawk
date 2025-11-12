@@ -21,75 +21,68 @@
 #include "record.h"
 #include "zone_alloc.h"
 
-typedef struct {
-  uint16_t s;
-  bool used;
-} regmap;
-static void assign_snap_registers(size_t snap_num, regmap *regs, trace *t,
-                                  uint32_t *next_spill) {
+static void assign_snap_registers(emit_state *s, size_t snap_num, trace *t) {
   // Get a free register, if any.  If already assigned a slot, do nothing.
   // If no free registers, assign a slot.
   auto snap = &t->snaps[snap_num];
   arr_for_each_idx(snap->slots, i) {
-    auto s = &snap->slots[i];
-    if (s->val.constant) {
+    auto sl = &snap->slots[i];
+    if (sl->val.constant) {
       continue;
     }
-    auto op = &t->ins[s->val.loc];
+    auto op = &t->ins[sl->val.loc];
     if (op->reg != REG_NONE || op->spill != SPILL_NONE) {
       continue;
     }
     // Try and find a free reg, or assign the next spill slot.
     bool done = false;
     for (int j = 0; j < MAX_REG; j++) {
-      if (!regs[j].used) {
+      if (!s->reg_to_slot[j].used) {
         op->reg = j;
-        regs[op->reg].s = s->val.loc;
-        regs[op->reg].used = true;
+        s->reg_to_slot[op->reg].s = sl->val.loc;
+        s->reg_to_slot[op->reg].used = true;
         done = true;
         // lru_poke(&reg_lru, op->reg);
         /* printf("Assigning snap register %s to op %i\n",
-         * reg_names[op->reg], s->val); */
+         * reg_names[op->reg], sl->val); */
         break;
       }
     }
     if (!done) {
       // Couldn't find a free reg, assign a slot.
-      op->spill = (*next_spill)++;
-      /* printf("Assigning snap slot %i to op %i\n", op->slot, s->val); */
-      assert(*next_spill < 255);
-      // check_spill_cnt(*next_spill);
+      op->spill = (s->next_spill)++;
+      /* printf("Assigning snap slot %i to op %i\n", op->slot, sl->val); */
+      assert(s->next_spill < 255);
+      // check_spill_cnt(s->next_spill);
     }
   }
 }
 // Get a specific reg, spilling if necessary.
-static void get_reg(uint8_t reg, trace *trace, uint32_t *next_spill,
-                    regmap *slot) {
-  if (slot[reg].used) {
+static void get_reg(emit_state *s, uint8_t reg, trace *trace) {
+  if (s->reg_to_slot[reg].used) {
     /* // printf("Spilling reg %s\n", reg_names[reg]); */
-    /* auto op = slot[reg]; */
+    /* auto op = s->reg_to_slot[reg]; */
     /* assert(trace->ops[op].reg != REG_NONE); */
 
     /* auto spill = trace->ops[op].slot; */
     /* if (trace->ops[op].slot == SLOT_NONE) { */
-    /*   spill = (*next_spill)++; */
-    /*   check_spill_cnt(*next_spill); */
+    /*   spill = (s->next_spill)++; */
+    /*   check_spill_cnt(s->next_spill); */
     /* } */
 
     /* trace->ops[op].slot = spill; */
     /* emit_mem_reg(OP_MOV_MR, 0, RTMP, trace->ops[op].reg); */
     /* emit_mov64(RTMP, (int64_t)&spill_slot[trace->ops[op].slot]); */
     /* trace->ops[op].reg = REG_NONE; */
-    /* slot[reg] = -1; */
+    /* s->reg_to_slot[reg] = -1; */
     /* lru_poke(&reg_lru, reg); */
     abort();
   }
-  slot[reg].used = true;
+  s->reg_to_slot[reg].used = true;
 }
-static int get_free_reg(trace *trace, uint32_t *next_spill, regmap *slot,
-                        bool callee) {
+static int get_free_reg(emit_state *s, trace *trace, bool callee) {
   for (int i = 0; i < MAX_REG; i++) {
-    if (!slot[i].used) {
+    if (!s->reg_to_slot[i].used) {
       return i;
     }
   }
@@ -97,17 +90,16 @@ static int get_free_reg(trace *trace, uint32_t *next_spill, regmap *slot,
   abort();
   // Spill.
 
-  // get_reg(oldest, trace, next_spill, slot);
+  // get_reg(oldest, trace, s->next_spill, slot);
   // return oldest;
 }
-static void maybe_assign_register(slot v, trace *trace, regmap *slot,
-                                  uint32_t *next_spill) {
+static void maybe_assign_register(emit_state *s, slot v, trace *trace) {
   if (!v.constant) {
     auto op = &trace->ins[v.loc];
     if (op->reg == REG_NONE) {
-      op->reg = get_free_reg(trace, next_spill, slot, false);
-      slot[op->reg].s = v.loc;
-      slot[op->reg].used = true;
+      op->reg = get_free_reg(s, trace, false);
+      s->reg_to_slot[op->reg].s = v.loc;
+      s->reg_to_slot[op->reg].used = true;
     }
     // TODO
     // lru_poke(&reg_lru, op->reg);
@@ -126,12 +118,11 @@ static inline int64_t slot_const(trace *t, slot v) {
   return t->consts[v.loc].value;
 }
 
-static void emit_cmp_slots(emit_state *s, enum cmp_kind cmp, trace *t,
-                           regmap *regs, uint32_t *next_spill, slot lhs,
+static void emit_cmp_slots(emit_state *s, enum cmp_kind cmp, trace *t, slot lhs,
                            slot rhs) {
   assert(!lhs.constant && "LHS must be a register");
-  maybe_assign_register(lhs, t, regs, next_spill);
-  maybe_assign_register(rhs, t, regs, next_spill);
+  maybe_assign_register(s, lhs, t);
+  maybe_assign_register(s, rhs, t);
 
   if (rhs.constant) {
     emit_cmp_constant(s, cmp, slot_reg(t, lhs), slot_const(t, rhs));
@@ -141,12 +132,11 @@ static void emit_cmp_slots(emit_state *s, enum cmp_kind cmp, trace *t,
   emit_cmp(s, cmp, slot_reg(t, lhs), slot_reg(t, rhs));
 }
 
-static void emit_arith_slots(emit_state *s, trace *t, regmap *regs,
-                             uint32_t *next_spill, uint8_t dst, slot lhs,
+static void emit_arith_slots(emit_state *s, trace *t, uint8_t dst, slot lhs,
                              slot rhs, bool is_sub) {
   assert(!lhs.constant && "Left operand must be in a register");
-  maybe_assign_register(lhs, t, regs, next_spill);
-  maybe_assign_register(rhs, t, regs, next_spill);
+  maybe_assign_register(s, lhs, t);
+  maybe_assign_register(s, rhs, t);
 
   if (rhs.constant) {
     if (is_sub) {
@@ -304,8 +294,8 @@ static void fill_loopback_reg_assignments(trace *t, snap *sn,
     }
   }
 }
-static void emit_snap(emit_state *s, trace *t, snap *snap, regmap *regs,
-                      bool exit, ignoremap *ignore) {
+static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
+                      ignoremap *ignore) {
   // If this is an exiting snapshot (vs. a loop back)
   // then record exit PC & snapshot.
   if (exit) {
@@ -353,12 +343,10 @@ static void emit_snapshot_exit_jumps(emit_state *s, snap *snaps) {
   }
 }
 
-static ignoremap *link_to_next_trace(emit_state *s, trace *t,
-                                     regmap *reg_to_slot,
-                                     uint32_t *next_spill) {
+static ignoremap *link_to_next_trace(emit_state *s, trace *t) {
   ignoremap *loopback_regs = nullptr;
   auto cur_snap = arrlen(t->snaps) - 1;
-  assign_snap_registers(cur_snap, reg_to_slot, t, next_spill);
+  assign_snap_registers(s, cur_snap, t);
   if (t->link == t) {
     // We're linking to ourselves.  Unfortunately we don't have
     // register allocation information yet for the *start* of the
@@ -370,7 +358,7 @@ static ignoremap *link_to_next_trace(emit_state *s, trace *t,
     t->snaps[cur_snap].patch_point = emit_offset(s);
 
     loopback_regs = collect_loopback_regs(t, sn);
-    emit_snap(s, t, &t->snaps[cur_snap], reg_to_slot, false, loopback_regs);
+    emit_snap(s, t, &t->snaps[cur_snap], false, loopback_regs);
     COMMENT("Loopback (snap exit %i)", cur_snap);
   } else {
     // Generate a parallel move so our exit state matches the linked
@@ -407,22 +395,21 @@ static ignoremap *link_to_next_trace(emit_state *s, trace *t,
     arr_for_each(moves, mov) { emit_mov(s, mov.to, mov.from); }
     arrfree(cpy);
     arrfree(moves);
-    emit_snap(s, t, sn, reg_to_slot, false, link_loopback_regs);
+    emit_snap(s, t, sn, false, link_loopback_regs);
     arrfree(link_loopback_regs);
     COMMENT("Link to trace %i (snap exit %i)", t->link->num, cur_snap);
   }
   return loopback_regs;
 }
 
-static void emit_ir(emit_state *s, trace *t, regmap *reg_to_slot,
-                    uint32_t *next_spill) {
+static void emit_ir(emit_state *s, trace *t) {
   int32_t cur_snap = (int32_t)arrlen(t->snaps) - 1;
   auto op_cnt_idx = arrlen(t->ins);
   for (; op_cnt_idx > 0; op_cnt_idx--) {
     uint16_t op_cnt = op_cnt_idx - 1;
     while (cur_snap >= 0 && t->snaps[cur_snap].ir > op_cnt) {
       if (cur_snap > 0) {
-        assign_snap_registers(cur_snap - 1, reg_to_slot, t, next_spill);
+        assign_snap_registers(s, cur_snap - 1, t);
       }
       cur_snap--;
     }
@@ -431,8 +418,7 @@ static void emit_ir(emit_state *s, trace *t, regmap *reg_to_slot,
     // Check for spill
     if (op->spill != SPILL_NONE) {
       if (op->reg == REG_NONE) {
-        maybe_assign_register((slot){.constant = false, .loc = op_cnt}, t,
-                              reg_to_slot, next_spill);
+        maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
       }
       // printf("Spilling op %li to slot %i from reg %s\n", op_cnt, op->slot,
       // reg_names[op->reg]);
@@ -446,24 +432,23 @@ static void emit_ir(emit_state *s, trace *t, regmap *reg_to_slot,
 
     // Assign reg to this if it doesn't have a reg yet.
     if (op->op == IR_RET) {
-      maybe_assign_register((slot){.constant = false, .loc = op_cnt}, t,
-                            reg_to_slot, next_spill);
+      maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
     }
     // free current register.
     if (op->reg != REG_NONE && op->reg != RSTACK && op->op != IR_ARG) {
-      assert(reg_to_slot[op->reg].s == op_cnt);
-      reg_to_slot[op->reg].used = false;
+      assert(s->reg_to_slot[op->reg].s == op_cnt);
+      s->reg_to_slot[op->reg].used = false;
     }
 
     emit_check(s);
     switch (op->op) {
     case IR_GUARD_EQ: {
       emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
-      emit_cmp_slots(s, CMP_EQ, t, reg_to_slot, next_spill, op->op1, op->op2);
+      emit_cmp_slots(s, CMP_EQ, t, op->op1, op->op2);
       break;
     }
     case IR_LOAD: {
-      maybe_assign_register(op->op1, t, reg_to_slot, next_spill);
+      maybe_assign_register(s, op->op1, t);
       assert(!op->op1.constant);
       emit_mem_load(s, (uint16_t)op->op2.loc + 8, slot_reg(t, op->op1),
                     op->reg);
@@ -478,22 +463,20 @@ static void emit_ir(emit_state *s, trace *t, regmap *reg_to_slot,
       emit_jmp32(s, lt_fin);
       emit_mov64(s, op->reg, FALSE_REP.value);
       emit_jcc32(s, JL, tr);
-      emit_cmp_slots(s, CMP_LT, t, reg_to_slot, next_spill, op->op1, op->op2);
+      emit_cmp_slots(s, CMP_LT, t, op->op1, op->op2);
       break;
     }
     case IR_GT: {
       emit_jcc32(s, JL, t->snaps[cur_snap].patch_point);
-      emit_cmp_slots(s, CMP_LT, t, reg_to_slot, next_spill, op->op1, op->op2);
+      emit_cmp_slots(s, CMP_LT, t, op->op1, op->op2);
       break;
     }
     case IR_SUB: {
-      emit_arith_slots(s, t, reg_to_slot, next_spill, op->reg, op->op1, op->op2,
-                       true);
+      emit_arith_slots(s, t, op->reg, op->op1, op->op2, true);
       break;
     }
     case IR_ADD: {
-      emit_arith_slots(s, t, reg_to_slot, next_spill, op->reg, op->op1, op->op2,
-                       false);
+      emit_arith_slots(s, t, op->reg, op->op1, op->op2, false);
       break;
     }
     case IR_SLOAD: {
@@ -613,15 +596,15 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
                           (char *)t->parent_snap->patch_point + 16);
 }
 
-static void emit_finish_snap_exits(emit_state *s, trace *t, int64_t exit_label,
-                                   regmap *reg_to_slot) {
+static void emit_finish_snap_exits(emit_state *s, trace *t,
+                                   int64_t exit_label) {
   // Emit even MORE snap exits.  We didn't have register allocation
   // previously, but now we do. Since these are slowpath exists, the extra
   // branches probably don't matter much.
   for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
     snap *snap = &t->snaps[i - 1];
     emit_jmp32(s, exit_label);
-    emit_snap(s, t, snap, reg_to_slot, true, nullptr);
+    emit_snap(s, t, snap, true, nullptr);
     emit_jmp32_patch_here(s, t->snaps[i - 1].patch_point);
     COMMENT("Snap exit #%i", i - 1);
   }
@@ -635,15 +618,15 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // allocator much simpler to write, no state needs to be preserved.
 
   emit_writable_begin(s);
-  regmap reg_to_slot[MAX_REG];
-  memset(reg_to_slot, 0, sizeof(reg_to_slot));
+  memset(s->reg_to_slot, 0, sizeof(s->reg_to_slot));
 
   // Set up register allocator.
   bool reserved[MAX_REG] = {0};
   asm_mark_unallocatable(reserved);
   for (int i = 0; i < MAX_REG; i++) {
-    reg_to_slot[i].used = reserved[i];
+    s->reg_to_slot[i].used = reserved[i];
   }
+  s->next_spill = 0;
 
   // Emit a return-to-c stub.
   auto end = emit_offset(s);
@@ -655,13 +638,11 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // state and jump to the C exit stub.
   emit_snapshot_exit_jumps(s, t->snaps);
 
-  uint32_t next_spill = 0;
-
   // Link to the next trace: Which is either ourselves (if a looping parent
   // trace), or another trace (if a side trace).
-  ignoremap *loopback_regs = link_to_next_trace(s, t, reg_to_slot, &next_spill);
+  ignoremap *loopback_regs = link_to_next_trace(s, t);
 
-  emit_ir(s, t, reg_to_slot, &next_spill);
+  emit_ir(s, t);
 
   // This is where the trace will start when other traces are linked to it.
   t->trace_start = emit_offset(s);
@@ -673,7 +654,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   }
   auto entry = emit_offset(s);
 
-  emit_finish_snap_exits(s, t, exit_label, reg_to_slot);
+  emit_finish_snap_exits(s, t, exit_label);
 
   emit_writable_end(s);
   auto sz = end - emit_offset(s);

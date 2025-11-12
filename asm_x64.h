@@ -26,7 +26,7 @@ enum registers : uint8_t {
 #define X(name) name,
   ASM_X64_REGISTER_LIST(X)
 #undef X
-      MAX_REG,
+      X64_MAX_REG,
 
   RET_REG = RAX,
   RET_REG2 = RDX,
@@ -41,6 +41,8 @@ enum registers : uint8_t {
   // Must be callee-save.
   RSTACK = R12,
 };
+
+_Static_assert(X64_MAX_REG < MAX_REG, "X64_MAX_REG must be less than MAX_REG");
 
 void asm_mark_unallocatable(bool used[MAX_REG]);
 
@@ -136,4 +138,4 @@ void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
 void emit_mov(emit_state *s, uint8_t dst, uint8_t src);
 
-extern const char *const reg_names[MAX_REG];
+extern const char *const reg_names[X64_MAX_REG];

@@ -13,7 +13,7 @@
 static void emit_reg_reg(emit_state *s, uint8_t opcode, uint8_t src,
                          uint8_t dst);
 
-const char *const reg_names[MAX_REG] = {
+const char *const reg_names[X64_MAX_REG] = {
 #define X(name) #name,
     ASM_X64_REGISTER_LIST(X)
 #undef X
