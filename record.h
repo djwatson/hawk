@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bc.h"
+#include "emit.h"
 #include "ir.h"
 #include "types.h"
 
@@ -22,6 +23,7 @@ typedef struct record_state {
   trace *cur_trace;
   trace_state trace_state;
   trace **traces;
+  emit_state emit_state;
 } record_state;
 
 struct vm_state;

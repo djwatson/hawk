@@ -332,38 +332,57 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, regmap *regs,
   }
 }
 
-#define COMMENT(...) comment_append(emit_offset(s), &z, &comments, __VA_ARGS__)
+#define COMMENT(...)                                                           \
+  comment_append(emit_offset(s), &s->z, &s->comments, __VA_ARGS__)
+
+static void emit_exit_to_c(emit_state *s) {
+  emit_check(s);
+  emit_ret(s);
+  restore_callee_regs(s);
+}
+
+static long *emit_snapshot_exit_jumps(emit_state *s, snap *snaps) {
+  long *snap_labels = malloc(sizeof(long) * arrlen(snaps));
+  for (uint64_t i = arrlen(snaps) - 1; i > 0; i--) {
+    snap *snap = &snaps[i - 1];
+    // To be replaced by actual snap exit code at the end, so just put a
+    // placeholder to reserve instruction space.
+    auto unused = emit_offset(s) + 16;
+    emit_jmp32(s, unused);
+    snap->patch_point = emit_offset(s);
+    snap_labels[i - 1] = emit_offset(s);
+    COMMENT("Snap exit #%i", i - 1);
+  }
+  return snap_labels;
+}
 
 trace_fn emit(trace *t, emit_state *s, record_state *record) {
-  // TODO move init somewhere else
+  // Initialize asm emitter memory if not already done (once per process)
   emit_init(s);
+
+  // Remember, we're emitting backwards! This makes the register
+  // allocator much simpler to write, no state needs to be preserved.
 
   emit_writable_begin(s);
   regmap reg_to_slot[MAX_REG];
   memset(reg_to_slot, 0, sizeof(reg_to_slot));
-  zone z = {};
-  comment_entry *comments = nullptr;
 
+  // Set up register allocator.
   bool reserved[MAX_REG] = {0};
   asm_mark_unallocatable(reserved);
   for (int i = 0; i < MAX_REG; i++) {
     reg_to_slot[i].used = reserved[i];
   }
 
-  long *snap_labels = malloc(sizeof(long) * arrlen(t->snaps));
+  // Emit a return-to-c stub.
   auto end = emit_offset(s);
-  emit_ret(s);
-  restore_callee_regs(s);
-  emit_check(s);
+  emit_exit_to_c(s);
   auto exit_label = emit_offset(s);
-  for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
-    snap *snap = &t->snaps[i - 1];
-    // To be replaced by actual snap exit code at the end.
-    emit_jmp32(s, exit_label);
-    snap->patch_point = emit_offset(s);
-    snap_labels[i - 1] = emit_offset(s);
-    COMMENT("Snap exit #%i", i - 1);
-  }
+
+  // Exist stubs for all but the last. These are eventually replaced
+  // by jumps to side traces as we emit them.  Otherwise we restore
+  // state and jump to the C exit stub.
+  auto snap_labels = emit_snapshot_exit_jumps(s, t->snaps);
 
   int32_t cur_snap = (int32_t)arrlen(t->snaps) - 1;
   auto op_cnt_idx = arrlen(t->ins);
@@ -616,10 +635,12 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   auto sz = end - emit_offset(s);
   if (verbose) {
     printf("Disassembly: %" PRId64 "\n", sz);
-    arr_reverse(comments);
-    disassemble((uint8_t *)emit_offset(s), sz, comments);
+    arr_reverse(s->comments);
+    disassemble((uint8_t *)emit_offset(s), sz, s->comments);
   }
-  zone_free(&z);
+
+  zone_free(&s->z);
+  s->comments = nullptr;
   free(snap_labels);
 #ifdef HAVE_ELF_H
   if (jit_dump_flag) {

@@ -59,6 +59,9 @@ void emit_init(emit_state *s) {
     return;
   }
 
+  memset(&s->z, 0, sizeof(s->z));
+  s->comments = nullptr;
+
   auto prot = PROT_READ | PROT_WRITE | PROT_EXEC;
   auto flags = MAP_PRIVATE | MAP_ANONYMOUS;
 #if defined(__APPLE__) && defined(MAP_JIT)

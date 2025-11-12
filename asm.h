@@ -1,11 +1,15 @@
 #pragma once
 
+#include "disassemble.h"
+#include "zone_alloc.h"
 #include <stdint.h>
 
 typedef struct emit_state {
   uint8_t *mtop;
   uint8_t *mend;
   uint8_t *p;
+  zone z;
+  comment_entry *comments;
 } emit_state;
 
 void emit_init(emit_state *s);

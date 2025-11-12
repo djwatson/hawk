@@ -219,6 +219,8 @@ static void vm_state_init(vm_state *state) {
     state->hotmap[i] = hotmap_cnt;
   }
   state->max_trace = max_trace;
+
+  emit_init(&state->emit);
 #define X(name) state->impls[OP_##name] = impl_##name;
   OPS
 #undef X
