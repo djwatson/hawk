@@ -46,6 +46,27 @@ set(
   opt_dce.c
 )
 
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+set(OPCODES_SCHEME ${CMAKE_CURRENT_SOURCE_DIR}/lib/opcodes.scm)
+add_custom_command(
+  OUTPUT ${OPCODES_SCHEME}
+  COMMAND
+    ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/gen_opcodes.py
+    --header
+    ${CMAKE_CURRENT_SOURCE_DIR}/bc.h
+    --output
+    ${OPCODES_SCHEME}
+  DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/bc.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/gen_opcodes.py
+  COMMENT "Generating Scheme opcode definitions"
+  VERBATIM
+)
+
+add_custom_target(opcodes_scm ALL DEPENDS ${OPCODES_SCHEME})
+
 if(HAVE_ELF_H)
   list(APPEND hawk_sources jitdump.c)
 else()
@@ -53,6 +74,7 @@ else()
 endif()
 
 add_executable(hawk ${hawk_sources})
+add_dependencies(hawk opcodes_scm)
 
 set(capstone_search_dirs)
 if(DEFINED ENV{HOMEBREW_PREFIX})
