@@ -28,6 +28,7 @@
 
 (define primcalls '((+ . ADD) (- . SUB) (< . LT) (= . EQV) (display . WRITE)))
 (define (variable-assigned? var) (vector-ref var 2))
+(define (variable-name var) (vector-ref var 1))
 (define (fix-letrec ir)
   (match ir
     (#(app #(ref #(var ,name #f (core primitive)) #t #f ,ann) ,args ,ann2)
@@ -81,7 +82,7 @@
       (let ((in-env (assq var env)))
         (finish (if in-env
                     (cdr in-env)
-                    (begin (add-op fun `(LOOKUP ,top ,(add-const fun var))) top))))
+                    (begin (add-op fun `(LOOKUP ,top ,(add-const fun (variable-name var)))) top))))
       ;; TODO possibly needs mov?
     )
     (#(quote ,datum ,ann)
@@ -119,7 +120,7 @@
               (loop next (cdr args) (cons res argres)))))
       (finish top))
     (#(define ,var ,(compile-cont exp) ,ann)
-      (add-op fun `(DEFINE ,exp ,(add-const fun var)))
+      (add-op fun `(DEFINE ,exp ,(add-const fun (variable-name var))))
       #f)
     (#(begin (,sexps ___ ,tail-sexp) ,ann)
       (map compile-cont sexps)
@@ -135,7 +136,7 @@
   (let loop ((ann (read r)) (res '()))
     (if (eof-object? ann) (reverse res) (loop (read r) (cons ann res)))))
 
-(define (write-bc fun)
+(define (print-bc fun)
   (display "Compiled fun ")
   (display (fun-name fun))
   (display "\nConsts:\n")
@@ -145,17 +146,27 @@
   (for-each (lambda (bc) (display bc) (newline)) (reverse (fun-code fun)))
   (newline))
 
+(define (write-bc fun port)
+  ;; TODO: write consts recursively.
+  ;; TODO: write fun BC. in 32-bit format: opcode given in opcodes.scm, then a b c as 8-bit fields (0 if unused), or a & D, where a is 8 bit and D is 16 bit.
+  ;; LOOKUP, DEFINE, & CONST all need 4-byte OFFSETS backwards as 16-bit values (i.e. 1 means 4 bytes backwards)
+)
+
 (define (compile-file file)
   (parameterize ((funs (make-funs-list)))
     (define port (open-input-file file))
+    (define out-port (open-output-file (string-append file ".bc")))
     (define forms (read-file port))
     (define expanded (expand-toplevel forms))
     (define fixed `#(begin ,(map fix-letrec expanded) #f))
     (define main (make-fun "main"))
     (compile fixed main '() 0 #t)
     (add-fun main)
-    (for-each write-bc (reverse (get-funs)))
-    (close-input-port port)))
+    ;; TODO:
+    ;; write header
+    (for-each (lambda (fun) (write-bc fun port)) (reverse (get-funs)))
+    (close-input-port port)
+    (close-output-port out-port)))
 
 (display "Compiling:")
 (display (cdr (command-line)))
@@ -164,12 +175,12 @@
 
 ;; IR:
 ;; passes:
-;; fix-letrec - just verify no letrec*
-;; assignment-convert - verify no assigned.
+;; DONE fix-letrec - just verify no letrec*
+;; DONE assignment-convert - verify no assigned.
 ;; recover-let: yea probably need or closure convert
 ;; name-lambdas? TODO
 ;; closure convert - just ensure no free.
-;; inline simple prims.
+;; DONE inline simple prims.
 ;; output BC.
 
 
