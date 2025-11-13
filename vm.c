@@ -211,7 +211,7 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
 
 #include "vmgen.c"
 
-#define X(name)                                                                \
+#define X(name, type)                                                          \
   PRESERVE_NONE gc_obj record_##name(bc *pc, gc_obj *stack, vm_state *state,   \
                                      void *op_table, uint8_t argcnt);
 OPS;
@@ -225,10 +225,10 @@ static void vm_state_init(vm_state *state) {
   state->max_trace = max_trace;
 
   emit_init(&state->emit);
-#define X(name) state->impls[OP_##name] = impl_##name;
+#define X(name, type) state->impls[OP_##name] = impl_##name;
   OPS
 #undef X
-#define X(name) state->record_impls[OP_##name] = record_##name;
+#define X(name, type) state->record_impls[OP_##name] = record_##name;
       OPS
 #undef X
 }

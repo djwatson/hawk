@@ -40,22 +40,22 @@
 // round, sin, sqrt, atan, cos, truncate, floor, ceiling, exp, log, tan , asin,
 // acos
 #define OPS                                                                    \
-  X(ADD)                                                                       \
-  X(SUB)                                                                       \
-  X(KSHORT)                                                                    \
-  X(CONST)                                                                     \
-  X(RET)                                                                       \
-  X(LOOKUP)                                                                    \
-  X(FUNC)                                                                      \
-  X(JFUNC)                                                                     \
-  X(LT)                                                                        \
-  X(IF)                                                                        \
-  X(CLOSURE_GET)                                                               \
-  X(LCALL)                                                                     \
-  X(LCALLT)                                                                    \
-  X(HALT)
+  X(ADD, ABC)                                                                  \
+  X(SUB, ABC)                                                                  \
+  X(KSHORT, AD)                                                                \
+  X(CONST, AD)                                                                 \
+  X(RET, A)                                                                    \
+  X(LOOKUP, AD)                                                                \
+  X(FUNC, AD)                                                                  \
+  X(JFUNC, AD)                                                                 \
+  X(LT, ABC)                                                                   \
+  X(IF, AD)                                                                    \
+  X(CLOSURE_GET, ABC)                                                          \
+  X(LCALL, AD)                                                                 \
+  X(LCALLT, AD)                                                                \
+  X(HALT, A)
 typedef enum : uint8_t {
-#define X(name) OP_##name,
+#define X(name, type) OP_##name,
   OPS
 #undef X
       OP_INS_MAX,
