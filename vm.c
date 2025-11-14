@@ -109,6 +109,13 @@ static inline gc_obj sym_load(vm_state *state, gc_obj sym) {
   (void)state;
   return to_symbol(sym)->val;
 }
+static inline void sym_store(vm_state *state, gc_obj sym, gc_obj val) {
+  (void)state;
+  to_symbol(sym)->val = val;
+}
+static inline void obj_write(vm_state *state, gc_obj val) {
+  print_obj(val, stdout);
+}
 static inline void prepare_call(gc_obj fun) {
   // TODO nothing?
 }

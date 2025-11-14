@@ -300,6 +300,12 @@ static slot sym_load(vm_state *state, slot sym) {
       (ir_ins){.op = IR_GGET, .op1 = sym, .reg = REG_NONE, .spill = SPILL_NONE};
   return add_inst(state, ins);
 }
+static void sym_store(vm_state *state, slot sym, slot val) {
+  ir_ins ins =
+      (ir_ins){.op = IR_GSET, .op1 = sym, .reg = REG_NONE, .spill = SPILL_NONE};
+  add_inst(state, ins);
+}
+static void obj_write(vm_state *state, slot val) { abort(); }
 static void prepare_call(gc_obj fun) { printf("prepare call\n"); }
 static void check_arity(gc_obj fun, gc_obj args) {}
 static bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack, slot b) {

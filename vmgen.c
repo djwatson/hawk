@@ -59,9 +59,21 @@ END OP_BEGIN(RET) {
 }
 END OP_BEGIN(LOOKUP) {
   auto c = const_load(state, pc, pc->v1);
-  ensure_symbol(c);
   auto v1 = sym_load(state, c);
   stack_save(state, stack, pc->reg, v1);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
+END OP_BEGIN(DEFINE) {
+  auto c = const_load(state, pc, pc->v1);
+  auto val = stack_load(state, stack, pc->reg);
+  sym_store(state, c, val);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
+END OP_BEGIN(WRITE) {
+  auto val = const_load(state, pc, pc->v1);
+  obj_write(state, val);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
