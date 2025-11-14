@@ -46,6 +46,8 @@
   X(CONST, AD)                                                                 \
   X(RET, A)                                                                    \
   X(LOOKUP, AD)                                                                \
+  X(DEFINE, AD)                                                                \
+  X(WRITE, AD)                                                                \
   X(FUNC, AD)                                                                  \
   X(JFUNC, AD)                                                                 \
   X(LT, ABC)                                                                   \

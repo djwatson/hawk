@@ -113,7 +113,7 @@
                  (res (compile arg fun env top #f))
                  (next (if (= res top) (+ top 1) top)))
             (loop next (cdr args)))))
-      (add-op fun `(,(if tail 'CALLT 'CALL) ,top ,(length args)))
+      (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(length args)))
       (if tail #f top))
     (#(primcall ,op ,args ,ann)
       (let loop ((atop top) (args args) (argres '()))
@@ -232,12 +232,27 @@
     (hash-table-ref const-table c)))
 
 (define (write-bc fun port consts const-table)
-  (write-u8 #xff port)
+  (define code (reverse (fun-code fun)))
+  (write-u64 func-tag port)
+  (write-u64 (hash-table-size (fun-consts fun)) port)
+  ;; TODO : write out consts in order of hash table res: sort it? the second item is idx.
+  (write-u32 (length code) port)
+  (for-each (lambda (c)
+	      (define op (first c))
+	      (unless (assq op opcodes) (error "Unknown opcode:" op))
+	      (write-u8 (cdr (assq op opcodes)) port) ;; eval? or some easier way?
+	      (write-u8 (second c) port)
+	      (cond
+	       ((assq op ops_abc)
+		(write-u8 (third c) port)
+		(write-u8 (fourth c) port))
+	       ((assq op ops_ad)
+		(write-u16 (second c) port))
+	       (else
+		(write-u16 0 port)))) code)
   ;; TODO: write fun BC. in 32-bit format: opcode given in
   ;; opcodes.scm, then a b c as 8-bit fields (0 if unused), or a & D,
   ;; where a is 8 bit and D is 16 bit.
-
-  ;; LOOKUP, DEFINE, & CONST all need 4-byte OFFSETS backwards as 16-bit values (i.e. 1 means 4 bytes backwards)
 )
 
 (define (compile-file file)

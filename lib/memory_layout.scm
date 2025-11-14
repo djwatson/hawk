@@ -17,7 +17,7 @@
 ;; First 8 bytes are always the tag.
 (define string-tag #b001001)
 (define port-tag #b011001)
-(define box-tag #b100001)
+(define func-tag #b100001)
 (define cont-tag #b101001)
 ;; literals, using literal-tag (so bottom 3 bits must be 0b111)
 (define true-rep #x00000104)
