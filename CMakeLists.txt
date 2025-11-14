@@ -25,6 +25,7 @@ endif()
 set(
   hawk_sources
   hawk.c
+  readbc.c
   vm.c
   types.c
   record.c
