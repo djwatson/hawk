@@ -45,14 +45,15 @@
 
 ;; Functions.
 (define-record-type fun
-  (make-fun-record code name consts)
+  (make-fun-record code name consts const-list)
   fun?
   (code fun-code set-fun-code!)
   (name fun-name)
-  (consts fun-consts))
+  (consts fun-consts)
+  (const-list fun-consts-list set-fun-consts-list!))
 
 (define (make-fun name)
-  (make-fun-record '() name (make-hash-table equal?)))
+  (make-fun-record '() name (make-hash-table equal?) '()))
 
 (define (add-op fun op) (set-fun-code! fun (cons op (fun-code fun))))
 
@@ -69,8 +70,44 @@
 (define (add-const fun datum)
   (define consts (fun-consts fun))
   (unless (hash-table-exists? consts datum)
-    (hash-table-set! consts datum (hash-table-size consts)))
+    (hash-table-set! consts datum (hash-table-size consts))
+    (set-fun-consts-list! fun (cons datum (fun-consts-list fun))))
   (hash-table-ref consts datum))
+
+(define (make-const-order) (cons '() #f))
+(define (const-order-add! order c) (set-car! order (cons c (car order))))
+(define (const-order-list order) (car order))
+
+(define (ensure-const-id datum consts const-table const-order)
+  (unless (hash-table-exists? consts datum)
+    (hash-table-set! consts datum datum))
+  (let ((canonical (hash-table-ref consts datum)))
+    (if (hash-table-exists? const-table canonical)
+        (hash-table-ref const-table canonical)
+        (let ((idx (hash-table-size const-table)))
+          (hash-table-set! const-table canonical idx)
+          (const-order-add! const-order canonical)
+          (register-const-deps canonical consts const-table const-order)
+          idx))))
+
+(define (register-const-deps datum consts const-table const-order)
+  (cond
+    ((symbol? datum)
+      (ensure-const-id (symbol->string datum) consts const-table const-order))
+    ((fun? datum)
+      (ensure-const-id (fun-name datum) consts const-table const-order)
+      (for-each (lambda (const)
+                  (ensure-const-id const consts const-table const-order))
+                (reverse (fun-consts-list datum))))
+    (else #f)))
+
+(define (const-id-of datum consts const-table)
+  (unless (hash-table-exists? consts datum)
+    (error "Unknown constant during emission:" datum))
+  (let ((canonical (hash-table-ref consts datum)))
+    (unless (hash-table-exists? const-table canonical)
+      (error "Missing ID for constant:" datum))
+    (hash-table-ref const-table canonical)))
 
 (define (compile ir fun env top tail)
   (define (compile-cont ir) (compile ir fun env top #f))
@@ -205,9 +242,9 @@
 (define (write-const p c consts const-table)
   (cond
     ((symbol? c)
-      (let ((name (write-const-hashed p (symbol->string c) consts const-table)))
+      (let ((name-id (const-id-of (symbol->string c) consts const-table)))
         (write-u64 symbol-tag p)
-        (write-u64 (tag-ptr name ptr-tag) p)))
+        (write-u64 (tag-ptr name-id ptr-tag) p)))
     ;; ((flonum? c))
     ;; ((fixnum? c))
     ;; ((char? c))
@@ -221,21 +258,15 @@
     ;; ((pair? c))
     ((fun? c) (write-bc c p consts const-table))
     (else (error "Unknown const in write-const:" c))))
-(define (write-const-hashed port c consts const-table)
-  (unless (hash-table-exists? consts c)
-    (hash-table-set! consts c c))
-  (let ((c (hash-table-ref consts c)))
-    (unless (hash-table-exists? const-table c)
-      (let ((idx (hash-table-size const-table)))
-	(hash-table-set! const-table c idx)
-	(write-const port c consts const-table)))
-    (hash-table-ref const-table c)))
 
 (define (write-bc fun port consts const-table)
   (define code (reverse (fun-code fun)))
+  (define const-count (hash-table-size (fun-consts fun)))
   (write-u64 func-tag port)
-  (write-u64 (hash-table-size (fun-consts fun)) port)
-  ;; TODO : write out consts in order of hash table res: sort it? the second item is idx.
+  (write-u64 const-count port)
+  (for-each (lambda (const)
+              (write-u64 (const-id-of const consts const-table) port))
+            (reverse (fun-consts-list fun)))
   (write-u32 (length code) port)
   (for-each (lambda (c)
 	      (define op (first c))
@@ -265,6 +296,7 @@
     (define main (make-fun "main"))
     (define consts (make-hash-table equal?)) ;; de-duplication table.
     (define const-table (make-hash-table eq?)) ;; Result ordering.  ALSO sorts out recursive structures.
+    (define const-order (make-const-order))
     (close-input-port port)
     ;; Actual compilation step.
     (compile fixed main '() 0 #t)
@@ -277,11 +309,15 @@
     (write-u8 0 out)
     (let ((funs (reverse (get-funs))))
       (for-each (lambda (fun)
-                  (for-each (lambda (const) (write-const-hashed out const consts const-table))
-                            (hash-table-keys (fun-consts fun)))
-		  (write-const-hashed out fun consts const-table))
+                  (ensure-const-id fun consts const-table const-order))
                 funs)
-      (for-each print-bc funs))
+      (let* ((const-list (const-order-list const-order))
+	     (const-count (length const-list)))
+	(write-u32 const-count out)
+	(for-each (lambda (const)
+                    (write-const out const consts const-table))
+                  const-list)
+	(for-each print-bc funs)))
     (close-output-port out)))
 
 (display "Compiling:")
