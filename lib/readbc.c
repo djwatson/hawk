@@ -33,11 +33,7 @@ static uint32_t reader_u32(buffer_reader *reader);
 static uint64_t reader_u64(buffer_reader *reader);
 static void reader_bytes(buffer_reader *reader, void *dst, size_t len);
 static void *gc_alloc(size_t size);
-static int64_t decode_fixnum(uint64_t value);
-static size_t decode_ptr_id(uint64_t value);
 static void resolve_or_enqueue(heap_state *heap, size_t id, gc_obj *slot);
-static void publish_const(heap_state *heap, size_t id, gc_obj value);
-static void fulfill_fixups(heap_state *heap, size_t id, gc_obj value);
 static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap);
 static gc_obj deserialize_string(buffer_reader *reader);
 static gc_obj deserialize_symbol(buffer_reader *reader, heap_state *heap);
@@ -94,13 +90,22 @@ bool heap_deserialize_from_file(char const *path, heap_state *out_heap) {
     size_t id = const_count - 1 - i;
     out_heap->current_id = id;
     gc_obj value = deserialize_constant(&reader, out_heap);
-    publish_const(out_heap, id, value);
+    if (id >= out_heap->count) {
+      fprintf(stderr, "Publishing invalid constant id %zu\n", id);
+      goto cleanup;
+    }
+    out_heap->objects[id] = value;
   }
 
-  if (arrlen(out_heap->fixups) != 0) {
-    fprintf(stderr, "Unresolved fixups after deserialization\n");
-    goto cleanup;
+  for (size_t i = 0; i < arrlen(out_heap->fixups); i++) {
+    fixup_entry entry = out_heap->fixups[i];
+    if (entry.id >= out_heap->count) {
+      fprintf(stderr, "Fixup references invalid id %zu\n", entry.id);
+      goto cleanup;
+    }
+    *entry.slot = out_heap->objects[entry.id];
   }
+  arrlen_set(out_heap->fixups, 0);
 
   if (reader.pos != reader.size) {
     fprintf(stderr, "Trailing data remaining after deserialization\n");
@@ -211,22 +216,6 @@ static void *gc_alloc(size_t size) {
   return ptr;
 }
 
-static int64_t decode_fixnum(uint64_t value) {
-  if ((value & TAG_MASK) != FIXNUM_TAG) {
-    fprintf(stderr, "Expected fixnum tagged value\n");
-    exit(EXIT_FAILURE);
-  }
-  return (int64_t)value >> FIXNUM_SHIFT;
-}
-
-static size_t decode_ptr_id(uint64_t value) {
-  if ((value & TAG_MASK) != PTR_TAG) {
-    fprintf(stderr, "Expected pointer-tagged ID reference\n");
-    exit(EXIT_FAILURE);
-  }
-  return (size_t)((value - PTR_TAG) >> FIXNUM_SHIFT);
-}
-
 static void resolve_or_enqueue(heap_state *heap, size_t dep_id, gc_obj *slot) {
   if (dep_id >= heap->count) {
     fprintf(stderr, "Reference to invalid constant id %zu\n", dep_id);
@@ -243,27 +232,6 @@ static void resolve_or_enqueue(heap_state *heap, size_t dep_id, gc_obj *slot) {
   arrput(NULL, heap->fixups, entry);
 }
 
-static void publish_const(heap_state *heap, size_t id, gc_obj value) {
-  if (id >= heap->count) {
-    fprintf(stderr, "Publishing invalid constant id %zu\n", id);
-    exit(EXIT_FAILURE);
-  }
-  heap->objects[id] = value;
-  fulfill_fixups(heap, id, value);
-}
-
-static void fulfill_fixups(heap_state *heap, size_t id, gc_obj value) {
-  for (size_t i = 0; i < arrlen(heap->fixups);) {
-    if (heap->fixups[i].id == id) {
-      *heap->fixups[i].slot = value;
-      size_t last = arrlen(heap->fixups) - 1;
-      heap->fixups[i] = heap->fixups[last];
-      arrpop(heap->fixups);
-      continue;
-    }
-    i++;
-  }
-}
 
 static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {
   uint64_t tag = reader_u64(reader);
@@ -281,7 +249,8 @@ static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {
 
 static gc_obj deserialize_string(buffer_reader *reader) {
   uint64_t len_word = reader_u64(reader);
-  int64_t len = decode_fixnum(len_word);
+  gc_obj len_obj = {.value = (int64_t)len_word};
+  int64_t len = to_fixnum(len_obj);
   if (len < 0) {
     fprintf(stderr, "Negative string length\n");
     exit(EXIT_FAILURE);
@@ -298,7 +267,11 @@ static gc_obj deserialize_string(buffer_reader *reader) {
 
 static gc_obj deserialize_symbol(buffer_reader *reader, heap_state *heap) {
   uint64_t name_ref = reader_u64(reader);
-  size_t name_id = decode_ptr_id(name_ref);
+  if ((name_ref & TAG_MASK) != PTR_TAG) {
+    fprintf(stderr, "Expected pointer-tagged ID reference\n");
+    exit(EXIT_FAILURE);
+  }
+  size_t name_id = (size_t)((name_ref - PTR_TAG) >> FIXNUM_SHIFT);
   symbol *sym = gc_alloc(sizeof(symbol));
   sym->header.type = SYMBOL_TAG;
   sym->val = UNDEFINED;
@@ -316,19 +289,6 @@ static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
   }
   size_t const_cnt = (size_t)const_cnt64;
 
-  size_t *const_ids = NULL;
-  if (const_cnt > 0) {
-    const_ids = malloc(const_cnt * sizeof(size_t));
-    if (!const_ids) {
-      fprintf(stderr, "Out of memory storing function const ids\n");
-      exit(EXIT_FAILURE);
-    }
-  }
-  for (size_t i = 0; i < const_cnt; i++) {
-    uint64_t ref_id = reader_u64(reader);
-    const_ids[i] = (size_t)ref_id;
-  }
-
   uint32_t bc_cnt32 = reader_u32(reader);
   size_t bc_cnt = (size_t)bc_cnt32;
 
@@ -344,9 +304,14 @@ static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
   bc *code = (bc *)(func->data + const_cnt * sizeof(gc_obj));
 
   for (size_t i = 0; i < const_cnt; i++) {
-    resolve_or_enqueue(heap, const_ids[i], &const_slots[i]);
+    uint64_t ref_id = reader_u64(reader);
+    if ((ref_id & TAG_MASK) != PTR_TAG) {
+      fprintf(stderr, "Expected pointer-tagged ID reference\n");
+      exit(EXIT_FAILURE);
+    }
+    size_t dep_id = (size_t)((ref_id - PTR_TAG) >> FIXNUM_SHIFT);
+    resolve_or_enqueue(heap, dep_id, &const_slots[i]);
   }
-  free(const_ids);
 
   for (size_t i = 0; i < bc_cnt; i++) {
     uint32_t word = reader_u32(reader);
