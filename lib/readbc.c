@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -32,6 +33,8 @@ static uint8_t reader_u8(buffer_reader *reader);
 static uint32_t reader_u32(buffer_reader *reader);
 static uint64_t reader_u64(buffer_reader *reader);
 static void reader_bytes(buffer_reader *reader, void *dst, size_t len);
+static size_t pvarint_len(uint8_t prefix);
+static uint64_t reader_pvarint(buffer_reader *reader);
 static void *gc_alloc(size_t size);
 static void resolve_or_enqueue(heap_state *heap, size_t id, gc_obj *slot);
 static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap);
@@ -65,15 +68,20 @@ bool heap_deserialize_from_file(char const *path, heap_state *out_heap) {
     }
   }
 
-  uint8_t version = reader_u8(&reader);
+  uint64_t version = reader_pvarint(&reader);
   if (version != 0) {
-    fprintf(stderr, "Unsupported bytecode version: %u\n", version);
+    fprintf(stderr, "Unsupported bytecode version: %llu\n",
+            (unsigned long long)version);
     free(file_data);
     return false;
   }
 
-  uint32_t const_count32 = reader_u32(&reader);
-  size_t const_count = (size_t)const_count32;
+  uint64_t const_count64 = reader_pvarint(&reader);
+  if (const_count64 > SIZE_MAX) {
+    fprintf(stderr, "Constant table too large\n");
+    goto cleanup;
+  }
+  size_t const_count = (size_t)const_count64;
 
   bool ok = false;
 
@@ -206,6 +214,29 @@ static void reader_bytes(buffer_reader *reader, void *dst, size_t len) {
   reader->pos += len;
 }
 
+static size_t pvarint_len(uint8_t prefix) {
+  return 1 + __builtin_ctz(((unsigned)prefix) | 0x100);
+}
+
+static uint64_t reader_pvarint(buffer_reader *reader) {
+  uint8_t first = reader_u8(reader);
+  size_t len = pvarint_len(first);
+  if (len < 9) {
+    uint8_t buf[9] = {0};
+    buf[0] = first;
+    if (len > 1) {
+      reader_bytes(reader, buf + 1, len - 1);
+    }
+    uint64_t res = 0;
+    memcpy(&res, buf, len);
+    size_t unused = 64 - 8 * len;
+    return (res << unused) >> (unused + len);
+  }
+  uint64_t value = 0;
+  reader_bytes(reader, &value, 8);
+  return value;
+}
+
 static void *gc_alloc(size_t size) {
   void *ptr = malloc(size);
   if (!ptr) {
@@ -234,7 +265,7 @@ static void resolve_or_enqueue(heap_state *heap, size_t dep_id, gc_obj *slot) {
 
 
 static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {
-  uint64_t tag = reader_u64(reader);
+  uint64_t tag = reader_pvarint(reader);
   if (tag == STRING_TAG) {
     return deserialize_string(reader);
   }
@@ -248,7 +279,7 @@ static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {
 }
 
 static gc_obj deserialize_string(buffer_reader *reader) {
-  uint64_t len_word = reader_u64(reader);
+  uint64_t len_word = reader_pvarint(reader);
   gc_obj len_obj = {.value = (int64_t)len_word};
   int64_t len = to_fixnum(len_obj);
   if (len < 0) {
@@ -266,7 +297,7 @@ static gc_obj deserialize_string(buffer_reader *reader) {
 }
 
 static gc_obj deserialize_symbol(buffer_reader *reader, heap_state *heap) {
-  uint64_t name_ref = reader_u64(reader);
+  uint64_t name_ref = reader_pvarint(reader);
   if ((name_ref & TAG_MASK) != PTR_TAG) {
     fprintf(stderr, "Expected pointer-tagged ID reference\n");
     exit(EXIT_FAILURE);
@@ -282,15 +313,19 @@ static gc_obj deserialize_symbol(buffer_reader *reader, heap_state *heap) {
 }
 
 static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
-  uint64_t const_cnt64 = reader_u64(reader);
+  uint64_t const_cnt64 = reader_pvarint(reader);
   if (const_cnt64 > SIZE_MAX) {
     fprintf(stderr, "Function constant table too large\n");
     exit(EXIT_FAILURE);
   }
   size_t const_cnt = (size_t)const_cnt64;
 
-  uint32_t bc_cnt32 = reader_u32(reader);
-  size_t bc_cnt = (size_t)bc_cnt32;
+  uint64_t bc_cnt64 = reader_pvarint(reader);
+  if (bc_cnt64 > SIZE_MAX) {
+    fprintf(stderr, "Bytecode length too large\n");
+    exit(EXIT_FAILURE);
+  }
+  size_t bc_cnt = (size_t)bc_cnt64;
 
   size_t payload_size =
       sizeof(bcfunc) + (const_cnt * sizeof(gc_obj)) + (bc_cnt * sizeof(bc));
@@ -305,12 +340,7 @@ static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
 
   for (size_t i = 0; i < const_cnt; i++) {
     uint64_t ref_id = reader_u64(reader);
-    if ((ref_id & TAG_MASK) != PTR_TAG) {
-      fprintf(stderr, "Expected pointer-tagged ID reference\n");
-      exit(EXIT_FAILURE);
-    }
-    size_t dep_id = (size_t)((ref_id - PTR_TAG) >> FIXNUM_SHIFT);
-    resolve_or_enqueue(heap, dep_id, &const_slots[i]);
+    resolve_or_enqueue(heap, (size_t)ref_id, &const_slots[i]);
   }
 
   for (size_t i = 0; i < bc_cnt; i++) {
