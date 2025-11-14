@@ -44,13 +44,17 @@
     (,else (cont-pass ir fix-letrec))))
 
 ;; Functions.
+(define-record-type fun
+  (make-fun-record code name consts)
+  fun?
+  (code fun-code set-fun-code!)
+  (name fun-name)
+  (consts fun-consts))
+
 (define (make-fun name)
-  ;; code name consts
-  (vector '() name (make-hash-table equal?)))
-(define (fun-name fun) (vector-ref fun 1))
-(define (fun-code fun) (vector-ref fun 0))
-(define (fun-consts fun) (vector-ref fun 2))
-(define (add-op fun op) (vector-set! fun 0 (cons op (fun-code fun))))
+  (make-fun-record '() name (make-hash-table equal?)))
+
+(define (add-op fun op) (set-fun-code! fun (cons op (fun-code fun))))
 
 ;; Function list as a parameter (mutable)
 (define funs (make-parameter #f))
@@ -74,7 +78,7 @@
   (match ir
     (#(lambda ,vars ,body ,ann)
       (let ((new-fun (make-fun "lambda")) (new-env (map cons vars (iota (length vars)))))
-        (add-op fun `(LABEL ,top ,(length (get-funs))))
+        (add-op fun `(CONST ,top ,(add-const new-fun new-fun)))
         (add-fun new-fun)
         (add-op new-fun `(FUNC ,(length vars)))
         (map (lambda (ir) (compile ir new-fun new-env (length vars) #t)) body))
@@ -168,11 +172,40 @@
   (write-u8 (mask-byte v) p)
   (write-u8 (mask-byte (arithmetic-shift v -8)) p))
 
+(define (zigzag-encode v)
+  (let ((shifted (arithmetic-shift (abs v) 1)))
+    (if (negative? v)
+       (+ shifted 1)
+       shifted)))
+
+;; prefix varint
+;;    7 bits -> 0xxxxxxx
+;;    14 bits -> 10xxxxxx xxxxxxxx
+;;    ...
+;;    35 bits -> 11110xxx xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx
+;;    ...
+;;    128 bits -> 11111111 11111111 xxxxxxxx xxxxxxxx ... xxxxxxxx
+(define (write-pvarint-u64 v p )
+  (define (write-bytes v cnt p)
+    (do ((i 0 (+ i 1)) (v v (arithmetic-shift v -8)))
+	((= i cnt))
+      (write-u8 (mask-byte v) p)))
+  (let loop ((i 1) (shift 7))
+    (if (= i 9)
+	(begin
+          (write-u8 0 p)
+          (write-bytes v 8 p))
+	(if (< v (arithmetic-shift 1 shift)) ;; fixed?
+            (write-bytes (+ (arithmetic-shift v i)
+                            (arithmetic-shift 1 (- i 1)))
+                         i p)
+            (loop (+ i 1) (+ shift 7))))))
+
 (define (tag-ptr ptr tag) (+ (* ptr 8) tag))
-(define (write-const p c consts)
+(define (write-const p c consts const-table)
   (cond
     ((symbol? c)
-      (let ((name (write-const-hashed p (symbol->string c) consts)))
+      (let ((name (write-const-hashed p (symbol->string c) consts const-table)))
         (write-u64 symbol-tag p)
         (write-u64 (tag-ptr name ptr-tag) p)))
     ;; ((flonum? c))
@@ -186,15 +219,20 @@
       (string-for-each (lambda (c) (write-u8 (char->integer c) p)) c))
     ;; ((vector? c))
     ;; ((pair? c))
+    ((fun? c) (write-bc c p consts const-table))
     (else (error "Unknown const in write-const:" c))))
-(define (write-const-hashed port c consts)
+(define (write-const-hashed port c consts const-table)
   (unless (hash-table-exists? consts c)
-    (hash-table-set! consts c (hash-table-size consts))
-    (write-const port c consts))
-  (hash-table-ref consts c))
+    (hash-table-set! consts c c))
+  (let ((c (hash-table-ref consts c)))
+    (unless (hash-table-exists? const-table c)
+      (let ((idx (hash-table-size const-table)))
+	(hash-table-set! const-table c idx)
+	(write-const port c consts const-table)))
+    (hash-table-ref const-table c)))
 
-(define (write-bc fun port consts)
-
+(define (write-bc fun port consts const-table)
+  (write-u8 #xff port)
   ;; TODO: write fun BC. in 32-bit format: opcode given in
   ;; opcodes.scm, then a b c as 8-bit fields (0 if unused), or a & D,
   ;; where a is 8 bit and D is 16 bit.
@@ -210,7 +248,8 @@
     (define expanded (expand-toplevel forms))
     (define fixed `#(begin ,(map fix-letrec expanded) #f))
     (define main (make-fun "main"))
-    (define consts (make-hash-table equal?))
+    (define consts (make-hash-table equal?)) ;; de-duplication table.
+    (define const-table (make-hash-table eq?)) ;; Result ordering.  ALSO sorts out recursive structures.
     (close-input-port port)
     ;; Actual compilation step.
     (compile fixed main '() 0 #t)
@@ -223,8 +262,9 @@
     (write-u8 0 out)
     (let ((funs (reverse (get-funs))))
       (for-each (lambda (fun)
-                  (for-each (lambda (const) (write-const-hashed out const consts))
-                            (hash-table-keys (fun-consts fun))))
+                  (for-each (lambda (const) (write-const-hashed out const consts const-table))
+                            (hash-table-keys (fun-consts fun)))
+		  (write-const-hashed out fun consts const-table))
                 funs)
       (for-each print-bc funs))
     (close-output-port out)))
@@ -243,5 +283,27 @@
 ;; closure convert - just ensure no free.
 ;; DONE inline simple prims.
 ;; output BC.
+#|
+static size_t pvarint_len(const uint8_t p) {
+  return 1 + __builtin_ctz(p | 0x100);
+}
 
-
+static uint64_t read_pvarint(FILE *fptr) {
+  uint64_t res;
+  if (1 != fread(&res, 1, 1, fptr)) {
+    read_error();
+  }
+  uint8_t len = pvarint_len(res);
+  if (len < 9) {
+    size_t unused = 64 - 8 * len;
+    if (len - 1 != fread(((uint8_t *)&res) + 1, 1, len - 1, fptr)) {
+      read_error();
+    }
+    return res << unused >> (unused + len);
+  }
+  if (8 != fread(&res, 1, 8, fptr)) {
+    read_error();
+  }
+  return res;
+}
+|#

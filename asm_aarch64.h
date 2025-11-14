@@ -58,7 +58,7 @@ enum registers : uint8_t {
   SP = XZR,
 };
 
-_Static_assert(AARCH64_MAX_REG < MAX_REG,
+static_assert(AARCH64_MAX_REG <= MAX_REG,
                "AARCH64_MAX_REG must be less than MAX_REG");
 
 void asm_mark_unallocatable(bool used[MAX_REG]);
