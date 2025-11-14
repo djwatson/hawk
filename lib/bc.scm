@@ -1,8 +1,9 @@
 ;; Bytecode generator for hawk
 
 (import (scheme base) (scheme write) (read) (expand) (scheme process-context) (scheme file) (match)
-        (srfi 69) (srfi 1))
+        (srfi 69) (srfi 1) (srfi 151))
 (include "opcodes.scm")
+(include "memory_layout.scm")
 
 (define (cont-pass ir c)
   (match ir
@@ -146,27 +147,87 @@
   (for-each (lambda (bc) (display bc) (newline)) (reverse (fun-code fun)))
   (newline))
 
-(define (write-bc fun port)
-  ;; TODO: write consts recursively.
-  ;; TODO: write fun BC. in 32-bit format: opcode given in opcodes.scm, then a b c as 8-bit fields (0 if unused), or a & D, where a is 8 bit and D is 16 bit.
+(define (mask-byte b) (modulo b 256))
+(define (write-u32 v p)
+  (write-u8 (mask-byte v) p)
+  (write-u8 (mask-byte (arithmetic-shift v -8)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -16)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -24)) p))
+
+(define (write-u64 v p)
+  (write-u8 (mask-byte v) p)
+  (write-u8 (mask-byte (arithmetic-shift v -8)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -16)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -24)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -32)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -40)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -48)) p)
+  (write-u8 (mask-byte (arithmetic-shift v -56)) p))
+
+(define (write-u16 v p)
+  (write-u8 (mask-byte v) p)
+  (write-u8 (mask-byte (arithmetic-shift v -8)) p))
+
+(define (tag-ptr ptr tag) (+ (* ptr 8) tag))
+(define (write-const p c consts)
+  (cond
+    ((symbol? c)
+      (let ((name (write-const-hashed p (symbol->string c) consts)))
+        (write-u64 symbol-tag p)
+        (write-u64 (tag-ptr name ptr-tag) p)))
+    ;; ((flonum? c))
+    ;; ((fixnum? c))
+    ;; ((char? c))
+    ;; ((boolean? c))
+    ;; ((null? c))
+    ((string? c)
+      (write-u64 string-tag p)
+      (write-u64 (tag-ptr (string-length c) fixnum-tag) p)
+      (string-for-each (lambda (c) (write-u8 (char->integer c) p)) c))
+    ;; ((vector? c))
+    ;; ((pair? c))
+    (else (error "Unknown const in write-const:" c))))
+(define (write-const-hashed port c consts)
+  (unless (hash-table-exists? consts c)
+    (hash-table-set! consts c (hash-table-size consts))
+    (write-const port c consts))
+  (hash-table-ref consts c))
+
+(define (write-bc fun port consts)
+
+  ;; TODO: write fun BC. in 32-bit format: opcode given in
+  ;; opcodes.scm, then a b c as 8-bit fields (0 if unused), or a & D,
+  ;; where a is 8 bit and D is 16 bit.
+
   ;; LOOKUP, DEFINE, & CONST all need 4-byte OFFSETS backwards as 16-bit values (i.e. 1 means 4 bytes backwards)
 )
 
 (define (compile-file file)
   (parameterize ((funs (make-funs-list)))
     (define port (open-input-file file))
-    (define out-port (open-output-file (string-append file ".bc")))
+    (define out (open-output-file (string-append file ".bc")))
     (define forms (read-file port))
     (define expanded (expand-toplevel forms))
     (define fixed `#(begin ,(map fix-letrec expanded) #f))
     (define main (make-fun "main"))
+    (define consts (make-hash-table equal?))
+    (close-input-port port)
+    ;; Actual compilation step.
     (compile fixed main '() 0 #t)
     (add-fun main)
-    ;; TODO:
-    ;; write header
-    (for-each (lambda (fun) (write-bc fun port)) (reverse (get-funs)))
-    (close-input-port port)
-    (close-output-port out-port)))
+
+    ;; Emit to file.
+    ;; Magic
+    (string-for-each (lambda (c) (write-u8 (char->integer c) out)) "HAWK")
+    ;; version
+    (write-u8 0 out)
+    (let ((funs (reverse (get-funs))))
+      (for-each (lambda (fun)
+                  (for-each (lambda (const) (write-const-hashed out const consts))
+                            (hash-table-keys (fun-consts fun))))
+                funs)
+      (for-each print-bc funs))
+    (close-output-port out)))
 
 (display "Compiling:")
 (display (cdr (command-line)))
