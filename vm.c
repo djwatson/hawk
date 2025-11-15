@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "gc.h"
 #include "ir.h"
 #include "jitdump.h"
 #include "profiler.h"
@@ -100,7 +101,6 @@ static inline gc_obj halt(vm_state *state, gc_obj *stack) {
   }
   auto res = stack[0];
   free_traces(state);
-  free(stack);
   free(state);
   return res;
 }
@@ -241,8 +241,10 @@ static void vm_state_init(vm_state *state) {
 }
 
 gc_obj vm(bc *pc) {
-  gc_obj *stack = calloc(1024, sizeof(gc_obj));
+  gc_obj *stack = gc_alloc(1024 * sizeof(gc_obj));
+  memset(stack, 0, 1024 * sizeof(gc_obj));
   vm_state *state = calloc(1, sizeof(vm_state));
+  gc_add_root((uintptr_t *)&stack);
 #ifdef HAVE_ELF_H
   if (jit_dump_flag) {
     jit_dump_init();

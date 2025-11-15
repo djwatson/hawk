@@ -7,6 +7,7 @@
 
 #include "array.h"
 #include "bc.h"
+#include "gc.h"
 #include "readbc.h"
 #include "types.h"
 
@@ -37,7 +38,6 @@ static void reader_bytes(buffer_reader *reader, void *dst, size_t len);
 static size_t pvarint_len(uint8_t prefix);
 static uint64_t reader_pvarint(buffer_reader *reader);
 static int64_t zigzag_decode(uint64_t value);
-static void *gc_alloc(size_t size);
 static void resolve_or_enqueue(heap_state *heap, size_t id, gc_obj *slot);
 static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap);
 static gc_obj deserialize_const_closure(buffer_reader *reader,
@@ -86,16 +86,16 @@ gc_obj heap_deserialize_from_file(char const *path) {
   }
   size_t const_count = (size_t)const_count64;
 
-  bool ok = false;
-
-  out_heap.objects = calloc(const_count ? const_count : 1, sizeof(gc_obj));
+  // out_heap is on stack, so GC will save all out_heap.objects.
+  out_heap.objects = gc_alloc(const_count * sizeof(gc_obj));
+  memset(out_heap.objects, 0, const_count * sizeof(gc_obj));
   if (!out_heap.objects) {
     fprintf(stderr, "Out of memory allocating constant tables\n");
     goto cleanup;
   }
   out_heap.count = const_count;
   out_heap.current_id = const_count;
-  out_heap.fixups = NULL;
+  out_heap.fixups = nullptr;
 
   for (size_t i = 0; i < const_count; i++) {
     size_t id = const_count - 1 - i;
@@ -125,14 +125,13 @@ gc_obj heap_deserialize_from_file(char const *path) {
     goto cleanup;
   }
 
-  ok = true;
-
 cleanup:
   arrfree(out_heap.fixups);
   free(file_data);
-  if (!ok) {
-    free(out_heap.objects);
-  }
+
+  // all heap objects are no longer protected - only things reachable
+  // from the initializer bcfunc will be kept (which is probably
+  // everything, otherwise it wouldn't have been compiled!)
   return out_heap.objects[0];
 }
 
@@ -140,29 +139,29 @@ static uint8_t *read_entire_file(char const *path, size_t *out_size) {
   FILE *fp = fopen(path, "rb");
   if (!fp) {
     perror("fopen");
-    return NULL;
+    return nullptr;
   }
   if (fseek(fp, 0, SEEK_END) != 0) {
     perror("fseek");
     fclose(fp);
-    return NULL;
+    return nullptr;
   }
   long sz = ftell(fp);
   if (sz < 0) {
     perror("ftell");
     fclose(fp);
-    return NULL;
+    return nullptr;
   }
   if (fseek(fp, 0, SEEK_SET) != 0) {
     perror("fseek");
     fclose(fp);
-    return NULL;
+    return nullptr;
   }
   uint8_t *buffer = malloc((size_t)sz);
   if (!buffer) {
     fprintf(stderr, "Failed to allocate %ld bytes\n", sz);
     fclose(fp);
-    return NULL;
+    return nullptr;
   }
   if (sz > 0) {
     size_t read_bytes = fread(buffer, 1, (size_t)sz, fp);
@@ -170,7 +169,7 @@ static uint8_t *read_entire_file(char const *path, size_t *out_size) {
       fprintf(stderr, "Short read when loading bytecode\n");
       free(buffer);
       fclose(fp);
-      return NULL;
+      return nullptr;
     }
   }
   fclose(fp);
@@ -245,16 +244,6 @@ static int64_t zigzag_decode(uint64_t value) {
   return (int64_t)((value >> 1) ^ (uint64_t)-(int64_t)(value & 1));
 }
 
-static void *gc_alloc(size_t size) {
-  void *ptr = malloc(size);
-  if (!ptr) {
-    fprintf(stderr, "gc_alloc failed for %zu bytes\n", size);
-    exit(EXIT_FAILURE);
-  }
-  memset(ptr, 0, size);
-  return ptr;
-}
-
 static void resolve_or_enqueue(heap_state *heap, size_t dep_id, gc_obj *slot) {
   if (dep_id >= heap->count) {
     fprintf(stderr, "Reference to invalid constant id %zu\n", dep_id);
@@ -268,7 +257,7 @@ static void resolve_or_enqueue(heap_state *heap, size_t dep_id, gc_obj *slot) {
       .id = dep_id,
       .slot = slot,
   };
-  arrput(NULL, heap->fixups, entry);
+  arrput(nullptr, heap->fixups, entry);
 }
 
 static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {
@@ -322,7 +311,7 @@ static gc_obj deserialize_symbol(buffer_reader *reader, heap_state *heap) {
   sym->header.type = SYMBOL_TAG;
   sym->val = UNDEFINED;
   sym->opt = 0;
-  sym->lst = NULL;
+  sym->lst = nullptr;
   resolve_or_enqueue(heap, name_id, &sym->name);
   return tag_symbol(sym);
 }

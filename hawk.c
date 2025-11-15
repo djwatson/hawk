@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "bc.h"
+#include "gc.h"
 #include "hawk.h"
 #include "readbc.h"
 #include "types.h"
@@ -81,6 +82,9 @@ static char *parse_args(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
+  auto fp = __builtin_frame_address(0);
+  gc_init(fp);
+
   auto filename = parse_args(argc, argv);
 
   auto start = heap_deserialize_from_file(filename);

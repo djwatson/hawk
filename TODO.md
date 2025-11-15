@@ -1,7 +1,7 @@
 # VM impl
 
-* get real GC going?
 * fix stack overflow*
+* comparison ops - ONLY jumps, both BC and IR, like luajit
 
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
