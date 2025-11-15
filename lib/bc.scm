@@ -303,6 +303,7 @@
     (define out (open-output-file (string-append file ".bc")))
     (define forms (read-file port))
     (define expanded (expand-toplevel forms))
+    (define unused (display (map ir->sexp expanded)))
     (define fixed `#(begin ,(map fix-letrec expanded) #f))
     (define main (make-fun "main"))
     (define consts (make-hash-table equal?)) ;; de-duplication table.

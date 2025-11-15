@@ -38,7 +38,11 @@ typedef enum : uint8_t {
 } ir_arg_type;
 
 #define IR_OPS                                                                 \
+  X(EQ, ARG_IR_IR)                                                             \
+  X(NE, ARG_IR_IR)                                                             \
   X(LT, ARG_IR_IR)                                                             \
+  X(GTE, ARG_IR_IR)                                                            \
+  X(LTE, ARG_IR_IR)                                                            \
   X(GT, ARG_IR_IR)                                                             \
   X(NOP, ARG_NONE_NONE)                                                        \
   X(ADD, ARG_IR_IR)                                                            \

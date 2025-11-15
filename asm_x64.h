@@ -114,7 +114,11 @@ enum jcc_cond {
 
 enum cmp_kind {
   CMP_EQ,
+  CMP_NE,
   CMP_LT,
+  CMP_LTE,
+  CMP_GTE,
+  CMP_GT,
 };
 
 void restore_callee_regs(emit_state *s);

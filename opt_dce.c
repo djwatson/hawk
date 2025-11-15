@@ -28,17 +28,17 @@ static void propagate(trace *trace, bool *marks) {
         trace->ins[ins->op1.loc].op <= IR_GT && !marks[ins->op1.loc]) {
       // If the jump is the only use of a comparison, we can fold the
       // jump in to the compare.
+      auto val = trace->consts[ins->op2.loc].value;
       *ins = trace->ins[ins->op1.loc];
       ins->type = GUARD_TAG;
-      if (FALSE_REP.value == trace->consts[ins->op2.loc].value) {
+      if (FALSE_REP.value == val) {
         // Flip.
         ins->op ^= 1;
         printf("INVERT GUARD\n");
       }
-      ins->op = IR_GT;
     }
 
-    if (ir_sideeff(ins->op)) {
+    if (ir_sideeff(ins->op) || ins->type == GUARD_TAG) {
       marks[i - 1] = true;
     }
     if (!marks[i - 1]) {

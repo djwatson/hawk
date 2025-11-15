@@ -104,6 +104,7 @@ static sentry *get_sentry(vm_state *state, uint64_t idx) {
 
 static slot add_inst(vm_state *state, ir_ins ins) {
   trace *trace_obj = record_current_trace(state);
+  ins.type = 0;
   auto idx = arrlen(trace_obj->ins);
   arrput(nullptr, trace_obj->ins, ins);
   return (slot){.constant = false, .loc = idx};
