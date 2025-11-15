@@ -44,6 +44,7 @@
   X(SUB, ABC)                                                                  \
   X(KSHORT, AD)                                                                \
   X(CONST, AD)                                                                 \
+  X(MOV, AD)                                                                   \
   X(RET, A)                                                                    \
   X(LOOKUP, AD)                                                                \
   X(DEFINE, AD)                                                                \

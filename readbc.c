@@ -108,6 +108,9 @@ gc_obj heap_deserialize_from_file(char const *path) {
     out_heap.objects[id] = value;
   }
 
+  if (arrlen(out_heap.fixups)) {
+    printf("There are %li fixups\n", arrlen(out_heap.fixups));
+  }
   for (size_t i = 0; i < arrlen(out_heap.fixups); i++) {
     fixup_entry entry = out_heap.fixups[i];
     if (entry.id >= out_heap.count) {
@@ -116,7 +119,6 @@ gc_obj heap_deserialize_from_file(char const *path) {
     }
     *entry.slot = out_heap.objects[entry.id];
   }
-  arrlen_set(out_heap.fixups, 0);
 
   if (reader.pos != reader.size) {
     fprintf(stderr, "Trailing data remaining after deserialization\n");

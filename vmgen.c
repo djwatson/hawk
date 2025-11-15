@@ -50,6 +50,12 @@ END OP_BEGIN(KSHORT) {
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
+END OP_BEGIN(MOV) {
+  auto c = stack_load(state, stack, pc->data);
+  stack_save(state, stack, pc->reg, c);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
 END OP_BEGIN(RET) {
   auto frame = return_frame(state, pc, stack, op_table);
   pc = frame.pc;

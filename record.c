@@ -449,7 +449,7 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack) {
   assert(pc->op == OP_FUNC || pc->op == OP_RET);
   switch (pc->op) {
   case OP_FUNC:
-    for (int i = 0; i < MIN(pc->data, REG_ARG_CNT); i++) {
+    for (int i = 0; i < MIN(pc->reg, REG_ARG_CNT); i++) {
       set_stack(state, i,
                 add_inst(state, (ir_ins){.op = IR_ARG,
                                          .data = i,
