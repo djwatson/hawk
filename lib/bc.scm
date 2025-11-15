@@ -308,7 +308,8 @@
     (string-for-each (lambda (c) (write-u8 (char->integer c) out)) "HAWK")
     ;; version
     (write-pvarint-u64 0 out)
-    (let ((funs (reverse (get-funs))))
+    ;; TODO reverse funs?
+    (let ((funs (get-funs)))
       (for-each (lambda (fun) (ensure-const-id fun consts const-table const-order))
                 funs)
       (let* ((const-list (const-order-list const-order))

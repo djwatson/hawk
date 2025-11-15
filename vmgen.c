@@ -39,7 +39,7 @@ END OP_BEGIN(SUB) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(CONST) {
-  auto c = const_load(state, pc, pc->v1);
+  auto c = const_load(state, pc, pc->data);
   stack_save(state, stack, pc->reg, c);
   pc = next_op(pc);
   dispatch_next(pc, stack);
@@ -58,14 +58,14 @@ END OP_BEGIN(RET) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(LOOKUP) {
-  auto c = const_load(state, pc, pc->v1);
+  auto c = const_load(state, pc, pc->data);
   auto v1 = sym_load(state, c);
   stack_save(state, stack, pc->reg, v1);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(DEFINE) {
-  auto c = const_load(state, pc, pc->v1);
+  auto c = const_load(state, pc, pc->data);
   auto val = stack_load(state, stack, pc->reg);
   sym_store(state, c, val);
   pc = next_op(pc);

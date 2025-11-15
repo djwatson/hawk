@@ -7,6 +7,7 @@
 
 #include "array.h"
 #include "bc.h"
+#include "readbc.h"
 #include "types.h"
 
 typedef struct {
@@ -42,15 +43,14 @@ static gc_obj deserialize_string(buffer_reader *reader);
 static gc_obj deserialize_symbol(buffer_reader *reader, heap_state *heap);
 static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap);
 
-bool heap_deserialize_from_file(char const *path, heap_state *out_heap) {
-  if (!out_heap) {
-    return false;
-  }
-  memset(out_heap, 0, sizeof(*out_heap));
+gc_obj heap_deserialize_from_file(char const *path) {
+  heap_state out_heap;
+
+  memset(&out_heap, 0, sizeof(out_heap));
   size_t file_size = 0;
   uint8_t *file_data = read_entire_file(path, &file_size);
   if (!file_data) {
-    return false;
+    return FALSE_REP;
   }
 
   buffer_reader reader = {
@@ -64,7 +64,7 @@ bool heap_deserialize_from_file(char const *path, heap_state *out_heap) {
     if (reader_u8(&reader) != (uint8_t)expected_magic[i]) {
       fprintf(stderr, "Invalid bytecode magic\n");
       free(file_data);
-      return false;
+      return FALSE_REP;
     }
   }
 
@@ -73,7 +73,7 @@ bool heap_deserialize_from_file(char const *path, heap_state *out_heap) {
     fprintf(stderr, "Unsupported bytecode version: %llu\n",
             (unsigned long long)version);
     free(file_data);
-    return false;
+    return FALSE_REP;
   }
 
   uint64_t const_count64 = reader_pvarint(&reader);
@@ -85,35 +85,35 @@ bool heap_deserialize_from_file(char const *path, heap_state *out_heap) {
 
   bool ok = false;
 
-  out_heap->objects = calloc(const_count ? const_count : 1, sizeof(gc_obj));
-  if (!out_heap->objects) {
+  out_heap.objects = calloc(const_count ? const_count : 1, sizeof(gc_obj));
+  if (!out_heap.objects) {
     fprintf(stderr, "Out of memory allocating constant tables\n");
     goto cleanup;
   }
-  out_heap->count = const_count;
-  out_heap->current_id = const_count;
-  out_heap->fixups = NULL;
+  out_heap.count = const_count;
+  out_heap.current_id = const_count;
+  out_heap.fixups = NULL;
 
   for (size_t i = 0; i < const_count; i++) {
     size_t id = const_count - 1 - i;
-    out_heap->current_id = id;
-    gc_obj value = deserialize_constant(&reader, out_heap);
-    if (id >= out_heap->count) {
+    out_heap.current_id = id;
+    gc_obj value = deserialize_constant(&reader, &out_heap);
+    if (id >= out_heap.count) {
       fprintf(stderr, "Publishing invalid constant id %zu\n", id);
       goto cleanup;
     }
-    out_heap->objects[id] = value;
+    out_heap.objects[id] = value;
   }
 
-  for (size_t i = 0; i < arrlen(out_heap->fixups); i++) {
-    fixup_entry entry = out_heap->fixups[i];
-    if (entry.id >= out_heap->count) {
+  for (size_t i = 0; i < arrlen(out_heap.fixups); i++) {
+    fixup_entry entry = out_heap.fixups[i];
+    if (entry.id >= out_heap.count) {
       fprintf(stderr, "Fixup references invalid id %zu\n", entry.id);
       goto cleanup;
     }
-    *entry.slot = out_heap->objects[entry.id];
+    *entry.slot = out_heap.objects[entry.id];
   }
-  arrlen_set(out_heap->fixups, 0);
+  arrlen_set(out_heap.fixups, 0);
 
   if (reader.pos != reader.size) {
     fprintf(stderr, "Trailing data remaining after deserialization\n");
@@ -123,13 +123,12 @@ bool heap_deserialize_from_file(char const *path, heap_state *out_heap) {
   ok = true;
 
 cleanup:
-  arrfree(out_heap->fixups);
+  arrfree(out_heap.fixups);
   free(file_data);
   if (!ok) {
-    free(out_heap->objects);
-    memset(out_heap, 0, sizeof(*out_heap));
+    free(out_heap.objects);
   }
-  return ok;
+  return out_heap.objects[0];
 }
 
 static uint8_t *read_entire_file(char const *path, size_t *out_size) {
@@ -263,7 +262,6 @@ static void resolve_or_enqueue(heap_state *heap, size_t dep_id, gc_obj *slot) {
   arrput(NULL, heap->fixups, entry);
 }
 
-
 static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {
   uint64_t tag = reader_pvarint(reader);
   if (tag == STRING_TAG) {
@@ -275,6 +273,8 @@ static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {
   if (tag == FUNC_TAG) {
     return deserialize_function(reader, heap);
   }
+  // TODO check tag == FIXNUM_TAG, and if so , zigzag decode and set value.
+  // Otherwise, error.
   return (gc_obj){.value = (int64_t)tag};
 }
 

@@ -5,6 +5,7 @@
 
 #include "bc.h"
 #include "hawk.h"
+#include "readbc.h"
 #include "types.h"
 #include "vm.h"
 
@@ -230,6 +231,14 @@ static fib_loader_bc fib_loader = {
 int main(int argc, char *argv[]) {
   parse_args(argc, argv);
 
-  auto res = vm(&fib_loader.code[0]);
+  auto start = heap_deserialize_from_file("sum.scm.bc");
+  if (!is_func(start)) {
+    printf("Error loading sum.scm\n");
+    exit(-1);
+  }
+  auto f = to_func(start);
+  auto code_start = (bc *)&f->data[f->const_cnt * sizeof(gc_obj)];
+
+  auto res = vm(code_start);
   print_obj(res, stdout);
 }
