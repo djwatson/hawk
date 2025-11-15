@@ -285,9 +285,6 @@
               (unless (assq op opcodes) (error "Unknown opcode:" op))
               (write-u8 (cdr (assq op opcodes)) port) ;; eval? or some easier way?
               (write-u8 (second c) port)
-              (display "Writing op:")
-              (display op)
-              (newline)
               (cond
                 ((memq op '(LOOKUP CONST DEFINE))
                   (let* ((const-offset (- (hash-table-size (fun-consts fun)) (third c)))

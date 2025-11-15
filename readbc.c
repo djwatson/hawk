@@ -375,8 +375,6 @@ static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
   for (size_t i = 0; i < bc_cnt; i++) {
     uint32_t word = reader_u32(reader);
     code[i].full_data = word;
-    printf("Read %s %i %i %i\n", bc_names[code[i].op], code[i].reg, code[i].v1,
-           code[i].v2);
   }
 
   return tag_func(func);
