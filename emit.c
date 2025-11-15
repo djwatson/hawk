@@ -118,18 +118,17 @@ static inline int64_t slot_const(trace *t, slot v) {
   return t->consts[v.loc].value;
 }
 
-static void emit_cmp_slots(emit_state *s, enum cmp_kind cmp, trace *t, slot lhs,
-                           slot rhs) {
+static void emit_cmp_slots(emit_state *s, trace *t, slot lhs, slot rhs) {
   assert(!lhs.constant && "LHS must be a register");
   maybe_assign_register(s, lhs, t);
   maybe_assign_register(s, rhs, t);
 
   if (rhs.constant) {
-    emit_cmp_constant(s, cmp, slot_reg(t, lhs), slot_const(t, rhs));
+    emit_cmp_constant(s, slot_reg(t, lhs), slot_const(t, rhs));
     return;
   }
 
-  emit_cmp(s, cmp, slot_reg(t, lhs), slot_reg(t, rhs));
+  emit_cmp(s, slot_reg(t, lhs), slot_reg(t, rhs));
 }
 
 static void emit_arith_slots(emit_state *s, trace *t, uint8_t dst, slot lhs,
@@ -444,7 +443,7 @@ static void emit_ir(emit_state *s, trace *t) {
     switch (op->op) {
     case IR_GUARD_EQ: {
       emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
-      emit_cmp_slots(s, CMP_EQ, t, op->op1, op->op2);
+      emit_cmp_slots(s, t, op->op1, op->op2);
       break;
     }
     case IR_LOAD: {
@@ -457,7 +456,7 @@ static void emit_ir(emit_state *s, trace *t) {
     case IR_LT: {
       if (op->type == GUARD_TAG) {
         emit_jcc32(s, JGE, t->snaps[cur_snap].patch_point);
-        emit_cmp_slots(s, CMP_GTE, t, op->op1, op->op2);
+        emit_cmp_slots(s, t, op->op1, op->op2);
       } else {
         auto lt_fin = emit_offset(s);
         emit_mov64(s, op->reg, TRUE_REP.value);
@@ -465,7 +464,7 @@ static void emit_ir(emit_state *s, trace *t) {
         emit_jmp32(s, lt_fin);
         emit_mov64(s, op->reg, FALSE_REP.value);
         emit_jcc32(s, JL, tr);
-        emit_cmp_slots(s, CMP_LT, t, op->op1, op->op2);
+        emit_cmp_slots(s, t, op->op1, op->op2);
       }
       break;
     }
@@ -474,7 +473,7 @@ static void emit_ir(emit_state *s, trace *t) {
         abort();
       }
       emit_jcc32(s, JLE, t->snaps[cur_snap].patch_point);
-      emit_cmp_slots(s, CMP_LTE, t, op->op1, op->op2);
+      emit_cmp_slots(s, t, op->op1, op->op2);
       break;
     }
     case IR_GTE: {
@@ -482,7 +481,7 @@ static void emit_ir(emit_state *s, trace *t) {
         abort();
       }
       emit_jcc32(s, JL, t->snaps[cur_snap].patch_point);
-      emit_cmp_slots(s, CMP_LT, t, op->op1, op->op2);
+      emit_cmp_slots(s, t, op->op1, op->op2);
       break;
     }
     case IR_SUB: {
@@ -507,7 +506,7 @@ static void emit_ir(emit_state *s, trace *t) {
 
       emit_sub_constant(s, RSTACK, RSTACK, slot_const(t, op->op1));
       emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
-      emit_cmp_constant(s, CMP_EQ, op->reg, slot_const(t, op->op2));
+      emit_cmp_constant(s, op->reg, slot_const(t, op->op2));
       // cmp stack[-1], jmp to snap if not equal
       emit_mem_load(s, -8, RSTACK, op->reg);
       /* if (t->num == 1 && op_cnt == 6) { */

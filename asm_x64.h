@@ -112,15 +112,6 @@ enum jcc_cond {
   JS = 0x88,
 };
 
-enum cmp_kind {
-  CMP_EQ,
-  CMP_NE,
-  CMP_LT,
-  CMP_LTE,
-  CMP_GTE,
-  CMP_GT,
-};
-
 void restore_callee_regs(emit_state *s);
 void save_callee_regs(emit_state *s);
 
@@ -133,9 +124,8 @@ void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value);
 void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t offset);
-void emit_cmp(emit_state *s, enum cmp_kind kind, uint8_t lhs, uint8_t rhs);
-void emit_cmp_constant(emit_state *s, enum cmp_kind kind, uint8_t reg,
-                       int64_t imm);
+void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs);
+void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm);
 void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
 void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
