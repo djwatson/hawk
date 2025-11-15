@@ -40,6 +40,8 @@ static int64_t zigzag_decode(uint64_t value);
 static void *gc_alloc(size_t size);
 static void resolve_or_enqueue(heap_state *heap, size_t id, gc_obj *slot);
 static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap);
+static gc_obj deserialize_const_closure(buffer_reader *reader,
+                                        heap_state *heap);
 static gc_obj deserialize_string(buffer_reader *reader);
 static gc_obj deserialize_symbol(buffer_reader *reader, heap_state *heap);
 static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap);
@@ -278,10 +280,12 @@ static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {
   if (tag == FUNC_TAG) {
     return deserialize_function(reader, heap);
   }
+  if (tag == CLOSURE_TAG) {
+    return deserialize_const_closure(reader, heap);
+  }
   int64_t decoded = zigzag_decode(tag);
   if ((decoded & TAG_MASK) != FIXNUM_TAG) {
-    fprintf(stderr, "Unknown constant tag 0x%llx\n",
-            (unsigned long long)tag);
+    fprintf(stderr, "Unknown constant tag 0x%llx\n", (unsigned long long)tag);
     exit(EXIT_FAILURE);
   }
   return (gc_obj){.value = decoded};
@@ -321,6 +325,22 @@ static gc_obj deserialize_symbol(buffer_reader *reader, heap_state *heap) {
   return tag_symbol(sym);
 }
 
+static gc_obj deserialize_const_closure(buffer_reader *reader,
+                                        heap_state *heap) {
+  uint64_t fun_ref = reader_pvarint(reader);
+  if ((fun_ref & TAG_MASK) != CLOSURE_TAG) {
+    fprintf(stderr, "Expected closure-tagged ID reference\n");
+    exit(EXIT_FAILURE);
+  }
+  size_t fun_id = (size_t)((fun_ref - CLOSURE_TAG) >> FIXNUM_SHIFT);
+  size_t slot_count = 1;
+  closure_s *clo = gc_alloc(sizeof(closure_s) + slot_count * sizeof(gc_obj));
+  clo->header.type = CLOSURE_TAG;
+  clo->len = tag_fixnum((int64_t)slot_count);
+  resolve_or_enqueue(heap, fun_id, &clo->v[0]);
+  return tag_closure(clo);
+}
+
 static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
   uint64_t const_cnt64 = reader_pvarint(reader);
   if (const_cnt64 > SIZE_MAX) {
@@ -355,6 +375,8 @@ static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
   for (size_t i = 0; i < bc_cnt; i++) {
     uint32_t word = reader_u32(reader);
     code[i].full_data = word;
+    printf("Read %s %i %i %i\n", bc_names[code[i].op], code[i].reg, code[i].v1,
+           code[i].v2);
   }
 
   return tag_func(func);

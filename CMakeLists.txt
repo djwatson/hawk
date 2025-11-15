@@ -45,6 +45,7 @@ set(
   util/bitset.c
   util/list.c
   opt_dce.c
+  bc.c
 )
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)

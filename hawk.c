@@ -240,5 +240,5 @@ int main(int argc, char *argv[]) {
   auto code_start = (bc *)&f->data[f->const_cnt * sizeof(gc_obj)];
 
   auto res = vm(code_start);
-  print_obj(res, stdout);
+  // print_obj(res, stdout);
 }

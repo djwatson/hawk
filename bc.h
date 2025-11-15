@@ -47,8 +47,8 @@
   X(RET, A)                                                                    \
   X(LOOKUP, AD)                                                                \
   X(DEFINE, AD)                                                                \
-  X(WRITE, AD)                                                                \
-  X(FUNC, AD)                                                                  \
+  X(WRITE, AD)                                                                 \
+  X(FUNC, A)                                                                   \
   X(JFUNC, AD)                                                                 \
   X(LT, ABC)                                                                   \
   X(IF, AD)                                                                    \
@@ -81,3 +81,4 @@ typedef struct bc {
 } bc;
 
 static_assert(sizeof(bc) == 4, "bc instructions must be 4 bytes");
+extern char *bc_names[];

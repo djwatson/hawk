@@ -72,7 +72,7 @@ END OP_BEGIN(DEFINE) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(WRITE) {
-  auto val = const_load(state, pc, pc->v1);
+  auto val = stack_load(state, stack, pc->v1);
   obj_write(state, val);
   pc = next_op(pc);
   dispatch_next(pc, stack);

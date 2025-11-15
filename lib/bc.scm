@@ -97,6 +97,8 @@
   (cond
     ((symbol? datum)
       (ensure-const-id (symbol->string datum) consts const-table const-order))
+    ((const-closure? datum)
+      (ensure-const-id (const-closure-fun datum) consts const-table const-order))
     ((fun? datum)
       (ensure-const-id (fun-name datum) consts const-table const-order)
       (for-each (lambda (const) (ensure-const-id const consts const-table const-order))
@@ -111,16 +113,20 @@
       (error "Missing ID for constant:" datum))
     (hash-table-ref const-table canonical)))
 
+(define-record-type const-closure (make-const-closure fun) const-closure?
+  (fun const-closure-fun))
+
 (define (compile ir fun env top tail)
   (define (compile-cont ir) (compile ir fun env top #f))
   (define (finish res) (if tail (begin (add-op fun `(RET ,res))) res))
   (match ir
     (#(lambda ,vars ,body ,ann)
       (let* ((new-fun (make-fun "lambda"))
+             (clo (make-const-closure new-fun))
              ;; TODO: figure out if we really need closure offset
              (closure-offset 1)
              (new-env (map cons vars (iota (length vars) closure-offset))))
-        (add-op fun `(CONST ,top ,(add-const fun new-fun)))
+        (add-op fun `(CONST ,top ,(add-const fun clo)))
         (add-fun new-fun)
         (add-op new-fun `(FUNC ,(+ closure-offset (length vars))))
         (map (lambda (ir) (compile ir new-fun new-env (+ closure-offset (length vars)) #t))
@@ -260,6 +266,10 @@
     ;; ((vector? c))
     ;; ((pair? c))
     ((fun? c) (write-bc c p consts const-table))
+    ((const-closure? c)
+      (write-pvarint-u64 closure-tag p)
+      (let ((fun-id (const-id-of (const-closure-fun c) consts const-table)))
+        (write-pvarint-u64 (tag-ptr fun-id closure-tag) p)))
     (else (error "Unknown const in write-const:" c))))
 
 (define (write-bc fun port consts const-table)
@@ -275,15 +285,19 @@
               (unless (assq op opcodes) (error "Unknown opcode:" op))
               (write-u8 (cdr (assq op opcodes)) port) ;; eval? or some easier way?
               (write-u8 (second c) port)
+              (display "Writing op:")
+              (display op)
+              (newline)
               (cond
                 ((memq op '(LOOKUP CONST DEFINE))
                   (let* ((const-offset (- (hash-table-size (fun-consts fun)) (third c)))
                          (code-offset (+ idx (* 2 const-offset))))
                     (unless (fits-in-int16 code-offset) (error "Bad const offset"))
                     (write-u16 code-offset port)))
-                ((assq op ops_abc) (write-u8 (third c) port) (write-u8 (fourth c) port))
-                ((assq op ops_ad) (write-u16 (third c) port))
-                (else (write-u16 0 port))))
+                ((memq op ops_abc) (write-u8 (third c) port) (write-u8 (fourth c) port))
+                ((memq op ops_ad) (write-u16 (third c) port))
+                ((memq op ops_a) (write-u16 0 port))
+                (else (error "Unknown op type:" c))))
             code
             (iota (length code))))
 
@@ -300,7 +314,8 @@
     (define const-order (make-const-order))
     (close-input-port port)
     ;; Actual compilation step.
-    (compile fixed main '() 0 #t)
+    (compile fixed main '() 0 #f)
+    (add-op main `(HALT 0))
     (add-fun main)
 
     ;; Emit to file.
