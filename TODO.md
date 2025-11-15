@@ -1,20 +1,24 @@
 # VM impl
 
-* maybe more test programs
-* fix stack overflow
+* get real GC going?
+* fix stack overflow*
 
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
+* sumfp, fibfp
 
 * Actually, rethink BC: figure out stack top for EACH op.
    because unfortunately, IF doesn't have enough info.
+* yea use JMP
 * Ugh, same with ARG: we can't know to drop it.
 
 * track stack-top
 * argcnt check
+* lookup check
+* lcall check - check for closure!
 * spill slots
 * remove 'parent', use parent snap instead.
-* use set in jmps?
+* use setcc in jmps we couldn't fold.
 
 # simple VM
 
