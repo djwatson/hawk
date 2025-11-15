@@ -36,6 +36,7 @@ static uint64_t reader_u64(buffer_reader *reader);
 static void reader_bytes(buffer_reader *reader, void *dst, size_t len);
 static size_t pvarint_len(uint8_t prefix);
 static uint64_t reader_pvarint(buffer_reader *reader);
+static int64_t zigzag_decode(uint64_t value);
 static void *gc_alloc(size_t size);
 static void resolve_or_enqueue(heap_state *heap, size_t id, gc_obj *slot);
 static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap);
@@ -236,6 +237,10 @@ static uint64_t reader_pvarint(buffer_reader *reader) {
   return value;
 }
 
+static int64_t zigzag_decode(uint64_t value) {
+  return (int64_t)((value >> 1) ^ (uint64_t)-(int64_t)(value & 1));
+}
+
 static void *gc_alloc(size_t size) {
   void *ptr = malloc(size);
   if (!ptr) {
@@ -273,9 +278,13 @@ static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {
   if (tag == FUNC_TAG) {
     return deserialize_function(reader, heap);
   }
-  // TODO check tag == FIXNUM_TAG, and if so , zigzag decode and set value.
-  // Otherwise, error.
-  return (gc_obj){.value = (int64_t)tag};
+  int64_t decoded = zigzag_decode(tag);
+  if ((decoded & TAG_MASK) != FIXNUM_TAG) {
+    fprintf(stderr, "Unknown constant tag 0x%llx\n",
+            (unsigned long long)tag);
+    exit(EXIT_FAILURE);
+  }
+  return (gc_obj){.value = decoded};
 }
 
 static gc_obj deserialize_string(buffer_reader *reader) {
