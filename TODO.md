@@ -1,6 +1,5 @@
 # VM impl
 
-
 * add vm_state stack to GC.  We only want to track stack_bottom - stack+256.
 * comparison ops - ONLY jumps, both BC and IR, like luajit
 * Actually, rethink BC: figure out stack top for EACH op.
@@ -11,16 +10,16 @@
 * math ops - fixnum,flonum, slowpaths.
 * sumfp, fibfp
 
-* Ugh, same with ARG: we can't know to drop it. Don't know if unused based on only trace, need
-  usage info from .... something? either a post-pass live in JIT from BC, or pre-pass in compiler.
-
 * track stack-top
 * argcnt check
 * lookup check
 * lcall check - check for closure!
 * spill slots
 * remove 'parent', use parent snap instead.
-* use setcc in jmps we couldn't fold.
+* use setcc in jmps we couldn't fold. - we're removing this entirely.
+
+* Ugh, same with ARG: we can't know to drop it. Don't know if unused based on only trace, need
+  usage info from .... something? either a post-pass live in JIT from BC, or pre-pass in compiler.
 
 # simple VM
 

@@ -137,7 +137,7 @@ void print_ir(trace *t) {
              (uint64_t)t->consts[ins->op2.loc].value);
       break;
     case IR_PMOV:
-      printf(" %s", reg_names[ins->data]);
+      printf(" %i (%s)", ins->data, reg_names[ins->data]);
       break;
     case IR_ARG:
       printf(" \e[1;33m%i\e[m", ins->data);
