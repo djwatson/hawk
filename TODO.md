@@ -1,6 +1,7 @@
 # VM impl
 
-* fix stack overflow*
+
+* add vm_state stack to GC.  We only want to track stack_bottom - stack+256.
 * comparison ops - ONLY jumps, both BC and IR, like luajit
 * Actually, rethink BC: figure out stack top for EACH op.
    because unfortunately, IF doesn't have enough info.
@@ -69,3 +70,6 @@
 * type inference
   * storage use analsis?
 
+# notes:
+
+* using a VM forces us to reserve stack space for args, unlike a compiler. For large stack usage this results in higher memory use.  See sum1.scm

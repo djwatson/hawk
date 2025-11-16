@@ -117,8 +117,9 @@ static inline void obj_write(vm_state *state, gc_obj val) {
   print_obj(val, stdout);
 }
 void expand_stack(vm_state *state, gc_obj **stack) {
+  // TODO: this should really be a stack *cache*
   size_t oldsz = (size_t)(state->stack_top - state->stack_bottom);
-  size_t newsz = oldsz * 2;
+  size_t newsz = oldsz * 1.3;
   auto offset = *stack - state->stack_bottom;
   if (verbose) {
     printf("MUST EXPAND STACK now %li\n", newsz);
@@ -129,7 +130,8 @@ void expand_stack(vm_state *state, gc_obj **stack) {
     abort();
   }
   size_t grow = newsz - oldsz;
-  memset(&newstack[oldsz], 0, grow * sizeof(gc_obj));
+  // Since we're a conservative GC, no need to zero.
+  /* memset(&newstack[oldsz], 0, grow * sizeof(gc_obj)); */
   state->stack_bottom = newstack;
   state->stack_top = newstack + newsz;
   state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
@@ -266,16 +268,17 @@ static void vm_state_init(vm_state *state) {
 }
 
 gc_obj vm(bc *pc) {
+  size_t default_size = 1024;
   vm_state *state = calloc(1, sizeof(vm_state));
   vm_state_init(state);
 
-  gc_obj *stack = calloc(1024, sizeof(gc_obj));
+  gc_obj *stack = calloc(default_size, sizeof(gc_obj));
   if (!stack) {
     fprintf(stderr, "Failed to allocate VM stack\n");
     exit(EXIT_FAILURE);
   }
   state->stack_bottom = stack;
-  state->stack_top = stack + 1024;
+  state->stack_top = stack + default_size;
   state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
 #ifdef HAVE_ELF_H
   if (jit_dump_flag) {

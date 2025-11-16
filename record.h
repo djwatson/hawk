@@ -17,6 +17,7 @@ typedef struct trace_state {
   bc *start_ins;
   uint8_t depth;
   bc **downrec;
+  bool skip_start_check;
 } trace_state;
 
 typedef struct record_state {

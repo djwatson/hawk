@@ -164,8 +164,8 @@ static slot constify_data(vm_state *state, uint16_t data) {
   return add_const(state, c);
 }
 static void record_abort(vm_state *state) {
-  clear_trace_state(record_trace_state(state));
   free_trace(record_current_trace(state));
+  clear_trace_state(record_trace_state(state));
 }
 static void record_finish(bc *pc, vm_state *state) {
   trace_state *ts = record_trace_state(state);
@@ -422,6 +422,10 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   //  check for up-recursion and abort, restart trying to capture an
   //  up-recursive trace.
   if (pc == ts->start_ins) {
+    if (ts->skip_start_check) {
+      ts->skip_start_check = false;
+      return op_table;
+    }
     cur_trace->link = cur_trace;
     record_finish(pc, state);
     return state->impls;
@@ -446,6 +450,7 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack) {
   trace_state *ts = record_trace_state(state);
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
+  ts->skip_start_check = (pc->op == OP_RET);
 
   // OK! Let's put function arguments in registers.
   // Note these *must* be marked as 'changed', since ARGS aren't saved between
@@ -485,6 +490,7 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
   record_current_trace(state)->start_pc = *pc;
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
+  ts->skip_start_check = (pc->op == OP_RET);
   ts->depth = snap->depth;
 
   // Replay snapshot loads, so we keep things in register.
