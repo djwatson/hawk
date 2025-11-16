@@ -91,7 +91,6 @@ static inline frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
 }
 static inline bc *next_op(bc *pc) { return pc + 1; }
 static inline gc_obj halt(vm_state *state, gc_obj *stack) {
-  (void)state;
   profiler_stop();
 #ifdef HAVE_ELF_H
   jit_dump_close();
@@ -101,6 +100,7 @@ static inline gc_obj halt(vm_state *state, gc_obj *stack) {
   }
   auto res = stack[0];
   free_traces(state);
+  free(state->stack_bottom);
   free(state);
   return res;
 }
@@ -117,19 +117,22 @@ static inline void obj_write(vm_state *state, gc_obj val) {
   print_obj(val, stdout);
 }
 void expand_stack(vm_state *state, gc_obj **stack) {
-  size_t oldsz = state->stack_top - state->stack_bottom;
+  size_t oldsz = (size_t)(state->stack_top - state->stack_bottom);
   size_t newsz = oldsz * 2;
-  gc_obj *old_bottom = state->stack_bottom;
   auto offset = *stack - state->stack_bottom;
   if (verbose) {
     printf("MUST EXPAND STACK now %li\n", newsz);
   }
-  gc_obj *newstack = gc_alloc(sizeof(gc_obj) * newsz);
+  gc_obj *newstack = realloc(state->stack_bottom, sizeof(gc_obj) * newsz);
+  if (!newstack) {
+    fprintf(stderr, "Failed to realloc stack\n");
+    abort();
+  }
+  size_t grow = newsz - oldsz;
+  memset(&newstack[oldsz], 0, grow * sizeof(gc_obj));
   state->stack_bottom = newstack;
   state->stack_top = newstack + newsz;
   state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
-  memcpy(newstack, old_bottom, oldsz * sizeof(gc_obj));
-  memset(&newstack[oldsz], 0, oldsz * sizeof(gc_obj));
   *stack = &newstack[offset];
 }
 
@@ -266,9 +269,11 @@ gc_obj vm(bc *pc) {
   vm_state *state = calloc(1, sizeof(vm_state));
   vm_state_init(state);
 
-  // Since stack is itself on the stack, conservative GC will walk it.
-  gc_obj *stack = gc_alloc(1024 * sizeof(gc_obj));
-  memset(stack, 0, 1024 * sizeof(gc_obj));
+  gc_obj *stack = calloc(1024, sizeof(gc_obj));
+  if (!stack) {
+    fprintf(stderr, "Failed to allocate VM stack\n");
+    exit(EXIT_FAILURE);
+  }
   state->stack_bottom = stack;
   state->stack_top = stack + 1024;
   state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
