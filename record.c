@@ -308,6 +308,9 @@ static void sym_store(vm_state *state, slot sym, slot val) {
 }
 static void obj_write(vm_state *state, slot val) { abort(); }
 static void prepare_call(gc_obj fun) { printf("prepare call\n"); }
+// Nothing necessary for record - we will check in emit_snapshot - checks will
+// be elided if we never hit a snapshot!
+static inline void check_expand_stack(vm_state *state, gc_obj **stack) {}
 static void check_arity(gc_obj fun, gc_obj args) {}
 static bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack, slot b) {
   // TODO: FIX STACK TOP TRACKING HACK

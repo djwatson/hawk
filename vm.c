@@ -116,6 +116,28 @@ static inline void sym_store(vm_state *state, gc_obj sym, gc_obj val) {
 static inline void obj_write(vm_state *state, gc_obj val) {
   print_obj(val, stdout);
 }
+void expand_stack(vm_state *state, gc_obj **stack) {
+  size_t oldsz = state->stack_top - state->stack_bottom;
+  size_t newsz = oldsz * 2;
+  gc_obj *old_bottom = state->stack_bottom;
+  auto offset = *stack - state->stack_bottom;
+  if (verbose) {
+    printf("MUST EXPAND STACK now %li\n", newsz);
+  }
+  gc_obj *newstack = gc_alloc(sizeof(gc_obj) * newsz);
+  state->stack_bottom = newstack;
+  state->stack_top = newstack + newsz;
+  state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
+  memcpy(newstack, old_bottom, oldsz * sizeof(gc_obj));
+  memset(&newstack[oldsz], 0, oldsz * sizeof(gc_obj));
+  *stack = &newstack[offset];
+}
+
+static inline void check_expand_stack(vm_state *state, gc_obj **stack) {
+  if (*stack >= state->stack_limit) {
+    expand_stack(state, stack);
+  }
+}
 static inline void prepare_call(gc_obj fun) {
   // TODO nothing?
 }
@@ -166,7 +188,7 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
   auto trace = traces[jfunc];
   auto fn = trace->fn;
   profiler_set_in_jit(true);
-  auto res = fn(*stack);
+  auto res = fn(state, *stack);
   profiler_set_in_jit(false);
   *pc = res.snap->pc;
   *stack = res.stack;
@@ -241,16 +263,20 @@ static void vm_state_init(vm_state *state) {
 }
 
 gc_obj vm(bc *pc) {
+  vm_state *state = calloc(1, sizeof(vm_state));
+  vm_state_init(state);
+
+  // Since stack is itself on the stack, conservative GC will walk it.
   gc_obj *stack = gc_alloc(1024 * sizeof(gc_obj));
   memset(stack, 0, 1024 * sizeof(gc_obj));
-  vm_state *state = calloc(1, sizeof(vm_state));
-  gc_add_root((uintptr_t *)&stack);
+  state->stack_bottom = stack;
+  state->stack_top = stack + 1024;
+  state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
 #ifdef HAVE_ELF_H
   if (jit_dump_flag) {
     jit_dump_init();
   }
 #endif
-  vm_state_init(state);
   if (profile) {
     profiler_start();
   }

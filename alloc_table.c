@@ -3,6 +3,9 @@
 void alloc_table_init(alloc_table *table, uintptr_t start, uintptr_t end) {
   table->min = start;
   table->size = end - start;
+  // TODO mmap, since most of this will never be used? or
+  // MADVISE(NONE, FREE) or whatever. I.e. we need virtual memory only here,
+  // most of it doesn't need to be real memory.
   table->table = malloc(sizeof(void *) * ((end - start) >> shift));
 }
 

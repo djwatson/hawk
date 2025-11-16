@@ -2,15 +2,16 @@
 
 * fix stack overflow*
 * comparison ops - ONLY jumps, both BC and IR, like luajit
+* Actually, rethink BC: figure out stack top for EACH op.
+   because unfortunately, IF doesn't have enough info.
+* yea use JMP
 
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
 * sumfp, fibfp
 
-* Actually, rethink BC: figure out stack top for EACH op.
-   because unfortunately, IF doesn't have enough info.
-* yea use JMP
-* Ugh, same with ARG: we can't know to drop it.
+* Ugh, same with ARG: we can't know to drop it. Don't know if unused based on only trace, need
+  usage info from .... something? either a post-pass live in JIT from BC, or pre-pass in compiler.
 
 * track stack-top
 * argcnt check

@@ -22,6 +22,7 @@ void asm_mark_unallocatable(bool used[MAX_REG]) {
   used[LR] = true;
   used[RTMP] = true;
   used[RSTACK] = true;
+  used[RSTATE] = true;
   used[X16] = true;
   used[X17] = true;
   used[X18] = true;
@@ -124,19 +125,20 @@ static const struct {
 };
 
 void restore_callee_regs(emit_state *s) {
-  for (size_t i = 0; i < sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0]);
-       i++) {
+  for (size_t i = 0;
+       i < sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0]); i++) {
     const size_t j =
         sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0]) - 1 - i;
-    emit_op(s, ldp_post(callee_saved_pairs[j].r1, callee_saved_pairs[j].r2, SP, 16));
+    emit_op(s, ldp_post(callee_saved_pairs[j].r1, callee_saved_pairs[j].r2, SP,
+                        16));
   }
 }
 
 void save_callee_regs(emit_state *s) {
-  for (size_t i = 0; i < sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0]);
-       i++) {
-    emit_op(
-        s, stp_pre(callee_saved_pairs[i].r1, callee_saved_pairs[i].r2, SP, -16));
+  for (size_t i = 0;
+       i < sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0]); i++) {
+    emit_op(s, stp_pre(callee_saved_pairs[i].r1, callee_saved_pairs[i].r2, SP,
+                       -16));
   }
 }
 
@@ -319,12 +321,11 @@ void emit_mov64(emit_state *s, uint8_t rd, int64_t imm) {
   }
 }
 
-
 void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
   assert(lhs < MAX_REG);
   assert(rhs < MAX_REG);
-  uint32_t opcode = 0xEB000000u | ((uint32_t)rhs << 16) |
-                    ((uint32_t)lhs << 5) | UINT32_C(31);
+  uint32_t opcode =
+      0xEB000000u | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) | UINT32_C(31);
   emit_op(s, opcode);
 }
 

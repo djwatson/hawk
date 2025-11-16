@@ -23,6 +23,7 @@ void asm_mark_unallocatable(bool used[MAX_REG]) {
   used[RSP] = true;
   used[RTMP] = true;
   used[RSTACK] = true;
+  used[RSTATE] = true;
 }
 
 static uint8_t low3bits(uint8_t r) { return 0x7 & r; }
@@ -89,6 +90,8 @@ static void emit_call_indirect(emit_state *s, uint8_t r) {
   *(--p) = 0xff;
   emit_rex(s, 1, 0, 0, r >> 3);
 }
+
+void emit_call_reg(emit_state *s, uint8_t r) { emit_call_indirect(s, r); }
 
 static void emit_call_indirect_mem(emit_state *s, int32_t offset) {
   emit_imm32(s, offset);
@@ -293,14 +296,14 @@ static void emit_neg(emit_state *s, uint8_t r) {
   }
 }
 
-static void emit_push(emit_state *s, uint8_t r) {
+void emit_push(emit_state *s, uint8_t r) {
   *(--p) = 0x50 + (0x7 & r);
   if (r >> 3) {
     emit_rex(s, 0, 0, 0, r >> 3);
   }
 }
 
-static void emit_pop(emit_state *s, uint8_t r) {
+void emit_pop(emit_state *s, uint8_t r) {
   *(--p) = 0x58 | (0x7 & r);
   if (r >> 3) {
     emit_rex(s, 0, 0, 0, r >> 3);

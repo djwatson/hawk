@@ -86,6 +86,9 @@ END OP_BEGIN(WRITE) {
 END OP_BEGIN(FUNC) {
   // TODO argcnt check
   auto expect_argcnt = pc->data - 1;
+
+  // TODO merge with arity check?
+  check_expand_stack(state, &stack);
   op_table = check_record_start(pc, stack, state, op_table);
 
   pc = next_op(pc);

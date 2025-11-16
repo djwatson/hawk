@@ -19,6 +19,8 @@
 
 #include "alloc_table.h"
 #include "gc.h"
+#include "hawk.h"
+#include "profiler.h"
 #include "util/bitset.h"
 #include "util/kvec.h"
 #include "util/list.h"
@@ -125,6 +127,7 @@ static uintptr_t memstart;
 static uintptr_t memend;
 
 void gc_init(void *stacktop_in) {
+  // ~2GB, which is sufficient for every r7rs benchmark.
   uint64_t gc_virtual_space = PAGE_SIZE * PAGE_SIZE * 120;
   auto gc_space_env = getenv("GC_SPACE");
   if (gc_space_env) {
@@ -226,9 +229,10 @@ static void merge_and_free_slab(slab_info *slab) {
 static uint64_t collect_big = 0;
 static bool next_force_full = false;
 __attribute__((noinline, preserve_none)) static void gc_collect() {
-  /* struct timespec start; */
-  /* struct timespec end; */
-  /* clock_gettime(CLOCK_MONOTONIC, &start); */
+  profiler_set_in_gc(true);
+  struct timespec start;
+  struct timespec end;
+  clock_gettime(CLOCK_MONOTONIC, &start);
   bool collect_full = next_force_full;
 
 #ifdef GENGC
@@ -317,7 +321,7 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
 
   // Sweep empty blocks.
   uint64_t freed_bytes = 0;
-  /* uint64_t total_bytes = 0; */
+  uint64_t total_bytes = 0;
   itr = live_slabs.next;
   while (!list_is_head(itr, &live_slabs)) {
     auto next_itr = itr->next;
@@ -365,20 +369,21 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
 
   kv_destroy(markstack);
 
-  /* clock_gettime(CLOCK_MONOTONIC, &end); */
-  /* auto rem_bytes = total_bytes - freed_bytes; */
-  /* double time_taken = */
-  /*     ((double)end.tv_sec - (double)start.tv_sec) * 1000.0; // sec to ms */
-  /* time_taken += */
-  /*     ((double)end.tv_nsec - (double)start.tv_nsec) / 1000000.0; // ns to ms
-   */
-  /* printf( */
-  /* 	 "COLLECT %.3f ms, full %i, %li total %li, freed %li, free%% %f,
-   * next_collect %li, totsize %li rembytes %li, frag %% %f\n", */
-  /* 	 time_taken, collect_full, totsize, total_bytes, freed_bytes, 100.0 *
-   * (double)freed_bytes / (double)total_bytes, next_collect, */
-  /* 	 totsize, rem_bytes, */
-  /* 	 100.0 * (double) (rem_bytes - totsize) / (double)rem_bytes); */
+  clock_gettime(CLOCK_MONOTONIC, &end);
+  auto rem_bytes = total_bytes - freed_bytes;
+  double time_taken =
+      ((double)end.tv_sec - (double)start.tv_sec) * 1000.0; // sec to ms
+  time_taken +=
+      ((double)end.tv_nsec - (double)start.tv_nsec) / 1000000.0; // ns to ms
+  if (verbose) {
+    printf("COLLECT %.3f ms, full %i, %li total %li, freed %li, free%% %f, "
+           "next_collect %li, totsize % li rembytes % li, frag %%%f\n",
+           time_taken, collect_full, totsize, total_bytes, freed_bytes,
+           100.0 * (double)freed_bytes / (double)total_bytes, next_collect,
+           totsize, rem_bytes,
+           100.0 * (double)(rem_bytes - totsize) / (double)rem_bytes);
+  }
+  profiler_set_in_gc(false);
 }
 
 static slab_info *alloc_slab(uint64_t sz_class) {

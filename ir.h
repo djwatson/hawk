@@ -4,6 +4,8 @@
 #include "stdint.h"
 #include "types.h"
 
+typedef struct vm_state vm_state;
+
 typedef struct {
   bool constant : 1;
   uint16_t loc : 15;
@@ -90,7 +92,7 @@ struct trace_result {
   snap *snap;
 };
 
-typedef struct trace_result (*trace_fn)(gc_obj *stack);
+typedef struct trace_result (*trace_fn)(vm_state *state, gc_obj *stack);
 typedef struct trace {
   uint16_t stackpos;
   ir_ins *ins;

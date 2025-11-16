@@ -46,7 +46,6 @@ enum registers : uint8_t {
 
   RET_REG = X0,
   RET_REG2 = X1,
-  RSTACK = X25,
   RARG0 = X0,
   RTMP = X7,
   FP = X29,
@@ -56,6 +55,9 @@ enum registers : uint8_t {
   // particularly for memory access. We use SP as an alias for XZR
   // to represent register 31.
   SP = XZR,
+  // Must be callee-save
+  RSTACK = X25,
+  RSATE = X26,
 };
 
 static_assert(AARCH64_MAX_REG <= MAX_REG,

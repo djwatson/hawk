@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -14,6 +15,7 @@
 #include "disassemble.h"
 #include "hawk.h"
 #include "ir.h"
+#include "vm.h"
 #ifdef HAVE_ELF_H
 #include "jitdump.h"
 #endif
@@ -208,25 +210,45 @@ static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
        ((ins_var) =                                                            \
             next_leading_op((trace_ptr), (opcode), &_##ins_var##_idx));)
 
+static __attribute__((preserve_all)) gc_obj *
+jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
+  expand_stack(state, &stack);
+  return stack;
+}
+
+#define COMMENT(...)                                                           \
+  comment_append(emit_offset(s), &s->z, &s->comments, __VA_ARGS__)
+
 static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
-  if (snap->offset) {
-    emit_add_constant(s, RSTACK, RSTACK, (int64_t)snap->offset * 8);
-
-    // TODO
-    // check frame overflow
-    /* jit_ldxi(s->jit, JIT_R0, JIT_V0, 16); */
-    /* auto ok = jit_bltr(s->jit, JIT_R1, JIT_R0); */
-
-    /* // Slow path: Save stack pointer in vm_state, call slowpath, restore
-     * stack */
-    /* // pointer. */
-    /* jit_stxi(s->jit, 8, JIT_V0, JIT_R1); */
-    /* jit_calli_1(s->jit, expand_stack, */
-    /*             jit_operand_gpr(JIT_OPERAND_ABI_POINTER, JIT_V0)); */
-    /* jit_ldxi(s->jit, JIT_R1, JIT_V0, 8); */
-
-    /* jit_patch_here(s->jit, ok); */
+  if (!snap->offset) {
+    return;
   }
+
+  emit_add_constant(s, RSTACK, RSTACK, (int64_t)snap->offset * 8);
+
+  auto done = emit_offset(s);
+
+  // TODO: move all this to another stub, so we're not exploding code size with
+  // all these push/pops.  We can just CALL stub directly.
+  emit_pop(s, RET_REG);
+  emit_pop(s, RET_REG);
+  emit_pop(s, RARG1);
+  emit_pop(s, RARG0);
+  emit_mov(s, RSTACK, RET_REG);
+  emit_call_reg(s, RTMP);
+
+  emit_mov64(s, RTMP, (intptr_t)&jit_expand_stack_slowpath);
+  emit_mov(s, RARG0, RSTATE);
+  emit_mov(s, RARG1, RSTACK);
+  emit_push(s, RARG0);
+  emit_push(s, RARG1);
+  emit_push(s, RET_REG);
+  emit_push(s, RET_REG);
+
+  emit_jcc32(s, JL, done);
+  emit_cmp(s, RSTACK, RTMP);
+  emit_mem_load(s, (int32_t)offsetof(vm_state, stack_limit), RSTATE, RTMP);
+  COMMENT("Emit stack guard check");
 }
 
 static void emit_snap_store_entry(emit_state *s, trace *t,
@@ -320,9 +342,6 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
     }
   }
 }
-
-#define COMMENT(...)                                                           \
-  comment_append(emit_offset(s), &s->z, &s->comments, __VA_ARGS__)
 
 static void emit_exit_to_c(emit_state *s) {
   emit_check(s);
@@ -579,7 +598,8 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
       emit_mem_load(s, (int32_t)arg_ins->data * 8, RSTACK, arg_ins->reg);
     }
   }
-  emit_mov(s, RSTACK, RARG0);
+  emit_mov(s, RSTACK, RARG1);
+  emit_mov(s, RSTATE, RARG0);
   save_callee_regs(s);
   COMMENT("CENTRY");
 }

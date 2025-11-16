@@ -10,6 +10,7 @@
 #include "gc.h"
 #include "readbc.h"
 #include "types.h"
+#include "util/util.h"
 
 typedef struct {
   uint8_t *data;
@@ -292,7 +293,7 @@ static gc_obj deserialize_string(buffer_reader *reader) {
   }
   size_t bytes = (size_t)len;
   size_t alloc_size = sizeof(string_s) + bytes + 1;
-  string_s *str = gc_alloc(alloc_size);
+  string_s *str = gc_alloc(align(alloc_size, sizeof(gc_obj)));
   str->header.type = STRING_TAG;
   str->len = tag_fixnum(bytes);
   reader_bytes(reader, str->str, bytes);
@@ -349,7 +350,7 @@ static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
 
   size_t payload_size =
       sizeof(bcfunc) + (const_cnt * sizeof(gc_obj)) + (bc_cnt * sizeof(bc));
-  bcfunc *func = gc_alloc(payload_size);
+  bcfunc *func = gc_alloc(align(payload_size, sizeof(gc_obj)));
   func->header.type = FUNC_TAG;
   func->name = UNDEFINED;
   func->const_cnt = const_cnt;
