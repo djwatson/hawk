@@ -156,9 +156,10 @@ static inline void prepare_call(gc_obj fun) {
 static inline void check_arity(gc_obj fun, gc_obj args) {
   // TODO nothing for now
 }
-static inline bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack,
-                                  gc_obj b) {
+static inline bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
+                               gc_obj b) {
   (void)state;
+  (void)stack;
   pc++; // Next opcode must be JMP.
   if (b.value == FALSE_REP.value) {
     // follow jmp.

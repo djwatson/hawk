@@ -110,12 +110,12 @@ END OP_BEGIN(JLT) {
   auto v1 = stack_load(state, stack, pc->v1);
   auto v2 = stack_load(state, stack, pc->v2);
   auto res = emit_math_cmp_lt(state, v1, v2);
-  pc = branch_if_false(state, pc, stack, res);
+  pc = branch_if_op(state, pc, stack, res);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(IF) {
   auto v = stack_load(state, stack, pc->data);
-  pc = branch_if_false(state, pc, stack, v);
+  pc = branch_if_op(state, pc, stack, v);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(JMP) {

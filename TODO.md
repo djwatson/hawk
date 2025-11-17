@@ -1,10 +1,5 @@
 # VM impl
 
-* comparison ops - ONLY jumps, both BC and IR, like luajit
-* Actually, rethink BC: figure out stack top for EACH op.
-   because unfortunately, IF doesn't have enough info.
-* yea use JMP
-
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
 * sumfp, fibfp
@@ -15,7 +10,6 @@
 * lcall check - check for closure!
 * spill slots
 * remove 'parent', use parent snap instead.
-* use setcc in jmps we couldn't fold. - we're removing this entirely.
 
 * Ugh, same with ARG: we can't know to drop it. Don't know if unused based on only trace, need
   usage info from .... something? either a post-pass live in JIT from BC, or pre-pass in compiler.
@@ -25,8 +19,6 @@
 * use conservative collector on stack, but precise on heap, allowing dumping.
 * Hmmm maybe allow toplevel and module - DON'T inline modules?  Or track which are inlined? ugh.
   * make this optional, I guess.
-* Loader should be agnostic to GC - symbols first, then funcs? Consts in a table per func?
-  * non-moving GC from callcc.
 
 ## tracer
 * Keep track of type.

@@ -473,32 +473,16 @@ static void emit_ir(emit_state *s, trace *t) {
       break;
     }
     case IR_LT: {
-      if (op->type == GUARD_TAG) {
-        emit_jcc32(s, JGE, t->snaps[cur_snap].patch_point);
-        emit_cmp_slots(s, t, op->op1, op->op2);
-      } else {
-        auto lt_fin = emit_offset(s);
-        emit_mov64(s, op->reg, TRUE_REP.value);
-        auto tr = emit_offset(s);
-        emit_jmp32(s, lt_fin);
-        emit_mov64(s, op->reg, FALSE_REP.value);
-        emit_jcc32(s, JL, tr);
-        emit_cmp_slots(s, t, op->op1, op->op2);
-      }
+      emit_jcc32(s, JGE, t->snaps[cur_snap].patch_point);
+      emit_cmp_slots(s, t, op->op1, op->op2);
       break;
     }
     case IR_GT: {
-      if (op->type != GUARD_TAG) {
-        abort();
-      }
       emit_jcc32(s, JLE, t->snaps[cur_snap].patch_point);
       emit_cmp_slots(s, t, op->op1, op->op2);
       break;
     }
     case IR_GTE: {
-      if (op->type != GUARD_TAG) {
-        abort();
-      }
       emit_jcc32(s, JL, t->snaps[cur_snap].patch_point);
       emit_cmp_slots(s, t, op->op1, op->op2);
       break;

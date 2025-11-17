@@ -153,10 +153,9 @@ static slot emit_ov_math_sub(vm_state *state, slot v1, slot v2) {
   return add_inst(state, ins);
 }
 static slot emit_math_cmp_lt(vm_state *state, slot v1, slot v2) {
-  // TODO fold for consts.
-  ir_ins ins = (ir_ins){
-      .op = IR_LT, .op1 = v1, .op2 = v2, .reg = REG_NONE, .spill = SPILL_NONE};
-  return add_inst(state, ins);
+  (void)state;
+  (void)v2;
+  return v1;
 }
 static void ensure_symbol(slot val) {}
 static slot constify_data(vm_state *state, uint16_t data) {
@@ -172,7 +171,10 @@ static void record_finish(bc *pc, vm_state *state) {
   trace *cur_trace = record_current_trace(state);
   vm_add_snap(state, pc);
   cur_trace->num = arrlen(state->record.traces);
-  dce(cur_trace);
+  // dce(cur_trace);
+  if (verbose) {
+    print_ir(cur_trace);
+  }
   cur_trace->fn = emit(cur_trace, &state->emit, &state->record);
   if (verbose) {
     print_ir(cur_trace);
@@ -312,22 +314,45 @@ static void prepare_call(gc_obj fun) { printf("prepare call\n"); }
 // be elided if we never hit a snapshot!
 static inline void check_expand_stack(vm_state *state, gc_obj **stack) {}
 static void check_arity(gc_obj fun, gc_obj args) {}
-static bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack, slot b) {
-  arrlen_set(record_trace_state(state)->stack, pc->reg);
-  // We're going to directly peek at the stack here.
+static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack, slot b) {
+  trace_state *ts = record_trace_state(state);
   bool res;
+  ir_ins ins;
   switch (pc->op) {
-  case OP_JLT:
-    auto v1 = stack[pc->v1];
-    auto v2 = stack[pc->v2];
-    res = to_fixnum(v1) < to_fixnum(v2);
+  case OP_IF: {
+    auto val = stack[pc->data];
+    res = val.value != FALSE_REP.value;
+    slot must_be = add_const(state, res ? TRUE_REP : FALSE_REP);
+    ins = (ir_ins){.op = IR_GUARD_EQ,
+                   .op1 = b,
+                   .op2 = must_be,
+                   .reg = REG_NONE,
+                   .spill = SPILL_NONE};
     break;
+  }
+  case OP_JLT: {
+    auto lhs = stack[pc->v1];
+    auto rhs = stack[pc->v2];
+    res = to_fixnum(lhs) < to_fixnum(rhs);
+    slot lhs_slot = stack_load(state, stack, pc->v1);
+    slot rhs_slot = stack_load(state, stack, pc->v2);
+    ins = (ir_ins){.op = res ? IR_LT : IR_GTE,
+                   .op1 = lhs_slot,
+                   .op2 = rhs_slot,
+                   .reg = REG_NONE,
+                   .spill = SPILL_NONE,
+                   .type = GUARD_TAG};
+    break;
+  }
   default:
     abort();
   }
 
+  // pc->reg is the new top of stack.  Clear out anything above before
+  // snapshotting.
+  arrlen_set(ts->stack, pc->reg);
+
   auto jmp_pc = pc + 1;
-  slot must_be = add_const(state, res ? TRUE_REP : FALSE_REP);
   bc *next_pc;
   if (!res) {
     next_pc = jmp_pc + jmp_pc->data;
@@ -337,14 +362,8 @@ static bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack, slot b) {
     vm_add_snap(state, jmp_pc + jmp_pc->data);
   }
 
-  ir_ins ins = (ir_ins){.op = IR_GUARD_EQ,
-                        .op1 = b,
-                        .op2 = must_be,
-                        .reg = REG_NONE,
-                        .spill = SPILL_NONE};
   add_inst(state, ins);
   vm_add_snap(state, next_pc);
-
   return pc;
 }
 static slot closure_get(vm_state *state, slot clo, uint8_t pos) {

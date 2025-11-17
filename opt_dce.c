@@ -23,21 +23,8 @@ static void mark_snaps(trace *trace, bool *marks) {
 static void propagate(trace *trace, bool *marks) {
   for (uint64_t i = arrlen(trace->ins); i > 0; i--) {
     auto ins = &trace->ins[i - 1];
-    if ((ins->op == IR_GUARD_EQ && ins->op2.constant &&
-         is_bool(trace->consts[ins->op2.loc])) &&
-        trace->ins[ins->op1.loc].op <= IR_GT && !marks[ins->op1.loc]) {
-      // If the jump is the only use of a comparison, we can fold the
-      // jump in to the compare.
-      auto val = trace->consts[ins->op2.loc].value;
-      *ins = trace->ins[ins->op1.loc];
-      ins->type = GUARD_TAG;
-      if (FALSE_REP.value == val) {
-        // Flip.
-        ins->op ^= 1;
-        printf("INVERT GUARD\n");
-      }
-    }
 
+    // TODO need to clean up and verify all ir_sideeff.
     if (ir_sideeff(ins->op) || ins->type == GUARD_TAG) {
       marks[i - 1] = true;
     }
