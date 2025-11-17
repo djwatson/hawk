@@ -106,17 +106,20 @@ END OP_BEGIN(JFUNC) {
 
   dispatch_next(pc, stack);
 }
-END OP_BEGIN(LT) {
+END OP_BEGIN(JLT) {
   auto v1 = stack_load(state, stack, pc->v1);
   auto v2 = stack_load(state, stack, pc->v2);
   auto res = emit_math_cmp_lt(state, v1, v2);
-  stack_save(state, stack, pc->reg, res);
-  pc = next_op(pc);
+  pc = branch_if_false(state, pc, stack, res);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(IF) {
-  auto v = stack_load(state, stack, pc->reg);
+  auto v = stack_load(state, stack, pc->data);
   pc = branch_if_false(state, pc, stack, v);
+  dispatch_next(pc, stack);
+}
+END OP_BEGIN(JMP) {
+  pc += pc->data;
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(CLOSURE_GET) {

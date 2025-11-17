@@ -43,6 +43,26 @@
     (#(set! ,var ,exp ,global? ,ann) (error "Set! not supported yet"))
     (,else (cont-pass ir fix-letrec))))
 
+;; The bytecode does not support raw comparison operators, only
+;; branching versions.  Replace comparison ops with branching +
+;; comparison if in an 'if' test position, otherwise replace with a
+;; branch + true/false constant result.
+(define jcmp '((LT . JLT) (EQV . JEQV)))
+(define (lower-comparisons ir)
+  (match ir
+    ;; If it's already behind a if test, it's okay
+    (#(if #(primcall ,test ,args ,ann1) ,then ,else ,ann2)
+      (guard (assq test jcmp))
+      `#(if #(primcall ,test ,(map lower-comparisons args) ,ann1)
+            ,(lower-comparisons then)
+            ,(lower-comparisons else)
+            ,ann1))
+    ;; Otherwise wrap it in if branch.
+    (#(primcall ,test ,args ,ann1)
+      (guard (assq test jcmp))
+      `#(if #(primcall ,test ,(map lower-comparisons args) ,ann1) #t #f ,ann1))
+    (,else (cont-pass ir lower-comparisons))))
+
 ;; Functions.
 (define-record-type fun (make-fun-record code name consts const-list) fun?
   (code fun-code set-fun-code!)
@@ -145,8 +165,12 @@
           (add-op fun `(CONST ,top ,(add-const fun datum))))
       (finish top))
     (#(if ,test ,then ,else ,ann)
-      (compile test fun env top #f)
-      (let* ((offset (length (fun-code fun))) (brop (list 'IF top 0)))
+      (match test
+        (#(primcall ,op ,args ,ann)
+          (guard (assq op jcmp))
+          (compile `#(primcall ,(cdr (assq op jcmp)) ,args ,ann) fun env top #f))
+        (,else (compile test fun env top #f) (add-op fun (list 'IF top top))))
+      (let* ((offset (length (fun-code fun))) (brop (list 'JMP top 0)))
         (add-op fun brop)
         (compile then fun env top tail)
         (set-car! (cddr brop) (- (length (fun-code fun)) offset)))
@@ -305,13 +329,14 @@
     (define expanded (expand-toplevel forms))
     (define unused (display (map ir->sexp expanded)))
     (define fixed `#(begin ,(map fix-letrec expanded) #f))
+    (define lowered (lower-comparisons fixed))
     (define main (make-fun "main"))
     (define consts (make-hash-table equal?)) ;; de-duplication table.
     (define const-table (make-hash-table eq?)) ;; Result ordering.  ALSO sorts out recursive structures.
     (define const-order (make-const-order))
     (close-input-port port)
     ;; Actual compilation step.
-    (compile fixed main '() 0 #f)
+    (compile lowered main '() 0 #f)
     (add-op main `(HALT 0))
     (add-fun main)
 

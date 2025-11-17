@@ -159,9 +159,12 @@ static inline void check_arity(gc_obj fun, gc_obj args) {
 static inline bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack,
                                   gc_obj b) {
   (void)state;
+  pc++; // Next opcode must be JMP.
   if (b.value == FALSE_REP.value) {
+    // follow jmp.
     return pc + pc->data;
   }
+  // skip jmp.
   return pc + 1;
 }
 static inline gc_obj closure_get(vm_state *state, gc_obj clo, uint8_t slot) {

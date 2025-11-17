@@ -313,19 +313,28 @@ static void prepare_call(gc_obj fun) { printf("prepare call\n"); }
 static inline void check_expand_stack(vm_state *state, gc_obj **stack) {}
 static void check_arity(gc_obj fun, gc_obj args) {}
 static bc *branch_if_false(vm_state *state, bc *pc, gc_obj *stack, slot b) {
-  // TODO: FIX STACK TOP TRACKING HACK
   arrlen_set(record_trace_state(state)->stack, pc->reg);
   // We're going to directly peek at the stack here.
-  auto res = stack[pc->reg];
+  bool res;
+  switch (pc->op) {
+  case OP_JLT:
+    auto v1 = stack[pc->v1];
+    auto v2 = stack[pc->v2];
+    res = to_fixnum(v1) < to_fixnum(v2);
+    break;
+  default:
+    abort();
+  }
 
-  slot must_be = add_const(state, res);
+  auto jmp_pc = pc + 1;
+  slot must_be = add_const(state, res ? TRUE_REP : FALSE_REP);
   bc *next_pc;
-  if (res.value == FALSE_REP.value) {
-    next_pc = pc + pc->data;
-    vm_add_snap(state, pc + 1);
+  if (!res) {
+    next_pc = jmp_pc + jmp_pc->data;
+    vm_add_snap(state, jmp_pc + 1);
   } else {
-    next_pc = pc + 1;
-    vm_add_snap(state, pc + pc->data);
+    next_pc = jmp_pc + 1;
+    vm_add_snap(state, jmp_pc + jmp_pc->data);
   }
 
   ir_ins ins = (ir_ins){.op = IR_GUARD_EQ,

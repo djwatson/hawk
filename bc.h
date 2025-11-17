@@ -51,8 +51,9 @@
   X(WRITE, AD)                                                                 \
   X(FUNC, A)                                                                   \
   X(JFUNC, AD)                                                                 \
-  X(LT, ABC)                                                                   \
+  X(JLT, ABC)                                                                  \
   X(IF, AD)                                                                    \
+  X(JMP, AD)                                                                   \
   X(CLOSURE_GET, ABC)                                                          \
   X(LCALL, AD)                                                                 \
   X(LCALLT, AD)                                                                \
