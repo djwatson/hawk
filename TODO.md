@@ -1,6 +1,5 @@
 # VM impl
 
-* add vm_state stack to GC.  We only want to track stack_bottom - stack+256.
 * comparison ops - ONLY jumps, both BC and IR, like luajit
 * Actually, rethink BC: figure out stack top for EACH op.
    because unfortunately, IF doesn't have enough info.

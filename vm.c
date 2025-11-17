@@ -100,6 +100,7 @@ static inline gc_obj halt(vm_state *state, gc_obj *stack) {
   }
   auto res = stack[0];
   free_traces(state);
+  gc_remove_root((uint64_t *)state->stack_bottom);
   free(state->stack_bottom);
   free(state);
   return res;
@@ -120,10 +121,12 @@ void expand_stack(vm_state *state, gc_obj **stack) {
   // TODO: this should really be a stack *cache*
   size_t oldsz = (size_t)(state->stack_top - state->stack_bottom);
   size_t newsz = oldsz * 1.3;
+  gc_obj *old_bottom = state->stack_bottom;
   auto offset = *stack - state->stack_bottom;
   if (verbose) {
     printf("MUST EXPAND STACK now %li\n", newsz);
   }
+  gc_remove_root((uint64_t *)old_bottom);
   gc_obj *newstack = realloc(state->stack_bottom, sizeof(gc_obj) * newsz);
   if (!newstack) {
     fprintf(stderr, "Failed to realloc stack\n");
@@ -135,6 +138,10 @@ void expand_stack(vm_state *state, gc_obj **stack) {
   state->stack_bottom = newstack;
   state->stack_top = newstack + newsz;
   state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
+  // Potential improvement: the GC could callback to get the current stack size.
+  // (or rather, stack + 256 redzone).
+  // If the stack grew large but then stayed small, GC time would be improved.
+  gc_add_root((uint64_t *)state->stack_bottom, newsz);
   *stack = &newstack[offset];
 }
 
@@ -280,6 +287,7 @@ gc_obj vm(bc *pc) {
   state->stack_bottom = stack;
   state->stack_top = stack + default_size;
   state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
+  gc_add_root((uint64_t *)state->stack_bottom, default_size);
 #ifdef HAVE_ELF_H
   if (jit_dump_flag) {
     jit_dump_init();

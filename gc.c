@@ -64,7 +64,12 @@ typedef struct freelist_s {
 static freelist_s freelist[size_classes];
 static kvec_t(slab_info *) partials[size_classes];
 static LIST_HEAD(live_slabs);
-static kvec_t(uint64_t *) roots;
+typedef struct root_range {
+  uint64_t *ptr;
+  size_t len;
+} root_range;
+
+static kvec_t(root_range) roots;
 
 static constexpr uint16_t page_classes = 16;
 static kvec_t(slab_info *) pages_free[page_classes];
@@ -156,14 +161,20 @@ void gc_init(void *stacktop_in) {
   }
 }
 
-void gc_add_root(uint64_t *rootp) { kv_push(roots, rootp); }
+void gc_add_root(uint64_t *rootp, size_t len) {
+  kv_push(roots, ((root_range){.ptr = rootp, .len = len}));
+}
 
-void gc_pop_root(uint64_t const *rootp) {
+void gc_remove_root(uint64_t const *rootp) {
+  for (size_t i = 0; i < kv_size(roots); i++) {
+    if (kv_A(roots, i).ptr == rootp) {
+      kv_A(roots, i) = kv_A(roots, kv_size(roots) - 1);
+      (void)kv_pop(roots);
+      return;
+    }
+  }
 #ifndef NDEBUG
-  auto old_rootp = kv_pop(roots);
-  assert(old_rootp == rootp);
-#else
-  kv_pop(roots);
+  assert(!"Attempted to remove unknown GC root");
 #endif
 }
 
@@ -307,9 +318,11 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
   }
 
   // Mark static roots
-  for (uint64_t i = 0; i < kv_size(roots); i++) {
+  for (size_t i = 0; i < kv_size(roots); i++) {
     auto root = kv_A(roots, i);
-    kv_push(markstack, ((range){root, root + 1}));
+    if (root.ptr && root.len > 0) {
+      kv_push(markstack, ((range){root.ptr, root.ptr + root.len}));
+    }
   }
 
   // Mark stack
