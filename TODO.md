@@ -1,8 +1,8 @@
 # VM impl
 
-* cleanup record.c math ops - we can probably split like in vm.c
-* remove frame_state, just modify **pc and **stack
-
+* argcnt check
+* lookup check
+* lcall check - check for closure!
 
 * optimistic globals
 
@@ -11,11 +11,14 @@
 * sumfp, fibfp
 
 * track stack-top
-* argcnt check
-* lookup check
-* lcall check - check for closure!
 * spill slots
+
+# cleanup
+* cleanup record.c math ops - we can probably split like in vm.c
+* remove frame_state, just modify **pc and **stack
 * remove 'parent', use parent snap instead.
+
+
 
 * Ugh, same with ARG: we can't know to drop it. Don't know if unused based on only trace, need
   usage info from .... something? either a post-pass live in JIT from BC, or pre-pass in compiler.

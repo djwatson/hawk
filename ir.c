@@ -160,6 +160,11 @@ bool ir_sideeff(ir_ins_op op) {
   case IR_GSET:
   case IR_RET:
   case IR_GT:
+  case IR_LT:
+  case IR_LTE:
+  case IR_GTE:
+  case IR_EQ:
+  case IR_NE:
   case IR_GUARD_EQ:
   case IR_LOAD:
   case IR_PMOV:
