@@ -185,6 +185,9 @@ static void record_finish(bc *pc, vm_state *state) {
   vm_add_snap(state, pc);
   cur_trace->num = arrlen(state->record.traces);
   dce(cur_trace);
+  if (verbose) {
+    print_ir(cur_trace);
+  }
   cur_trace->fn = emit(cur_trace, &state->emit, &state->record);
   if (verbose) {
     print_ir(cur_trace);
@@ -309,8 +312,15 @@ static gc_obj halt(vm_state *state, gc_obj *stack) {
 }
 
 static slot sym_load(vm_state *state, slot sym) {
+  auto trace = record_current_trace(state);
+  auto s = to_symbol(trace->consts[sym.loc]);
+  if (s->opt >= 0) {
+    s->opt = 1;
+    return add_const(state, s->val);
+  }
   ir_ins ins =
       (ir_ins){.op = IR_GGET, .op1 = sym, .reg = REG_NONE, .spill = SPILL_NONE};
+
   return add_inst(state, ins);
 }
 static void sym_store(vm_state *state, slot sym, slot val) {
@@ -400,6 +410,12 @@ static slot closure_get(vm_state *state, slot clo, uint8_t pos) {
   slot c_pos =
       (slot){.constant = true, .loc = (uint16_t)((pos * 8) + 8 - CLOSURE_TAG)};
 
+  if (clo.constant) {
+    auto trace = record_current_trace(state);
+    auto c = to_closure(trace->consts[clo.loc]);
+    auto res = c->v[pos];
+    return add_const(state, res);
+  }
   ir_ins ins = (ir_ins){.op = IR_LOAD,
                         .op1 = clo,
                         .op2 = c_pos,

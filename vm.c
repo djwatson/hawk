@@ -131,7 +131,17 @@ static inline gc_obj sym_load(vm_state *state, gc_obj sym) {
 }
 static inline void sym_store(vm_state *state, gc_obj sym, gc_obj val) {
   (void)state;
-  to_symbol(sym)->val = val;
+  auto s = to_symbol(sym);
+  if (s->opt > 0) {
+    // TODO clear all traces
+    printf("Muist abort optimistic globals\n");
+    abort();
+  }
+  if (s->val.value != DEAD.value) {
+    // If we've set this more than once, mark it as non-inlinable.
+    s->opt = -1;
+  }
+  s->val = val;
 }
 static inline void obj_write(vm_state *state, gc_obj val) {
   print_obj(val, stdout);

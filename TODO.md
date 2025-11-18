@@ -1,12 +1,12 @@
 # VM impl
 
-* optimistic globals
 
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
 * sumfp, fibfp
 
 * lookup check - fix expander thingy
+* optimistic globals - TODO fail.  Also needs expander fix. need to support set!
 
 * track stack-top
 * spill slots

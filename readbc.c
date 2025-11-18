@@ -288,7 +288,7 @@ static gc_obj deserialize_symbol(buffer_reader *reader, heap_state *heap) {
   size_t name_id = (size_t)((name_ref - PTR_TAG) >> FIXNUM_SHIFT);
   symbol *sym = gc_alloc(sizeof(symbol));
   sym->header.type = SYMBOL_TAG;
-  sym->val = UNDEFINED;
+  sym->val = DEAD;
   sym->opt = 0;
   sym->lst = nullptr;
   resolve_or_enqueue(heap, name_id, &sym->name);
