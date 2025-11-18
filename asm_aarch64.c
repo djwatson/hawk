@@ -426,6 +426,40 @@ void emit_pop(emit_state *s, uint8_t r) {
   emit_mem_load(s, 0, SP, r);
 }
 
+void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count) {
+  size_t i = 0;
+  for (; i + 1 < count; i += 2) {
+    uint8_t r1 = regs[i];
+    uint8_t r2 = regs[i + 1];
+    assert(r1 < MAX_REG);
+    assert(r2 < MAX_REG);
+    emit_op(s, stp_pre(r1, r2, SP, -16));
+  }
+  if (count & 1) {
+    uint8_t r = regs[count - 1];
+    assert(r < MAX_REG);
+    emit_op(s, stp_pre(r, XZR, SP, -16));
+  }
+}
+
+void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count) {
+  size_t i = count;
+  if (count & 1) {
+    uint8_t r = regs[count - 1];
+    assert(r < MAX_REG);
+    emit_op(s, ldp_post(r, XZR, SP, 16));
+    i--;
+  }
+  while (i > 0) {
+    uint8_t r1 = regs[i - 2];
+    uint8_t r2 = regs[i - 1];
+    assert(r1 < MAX_REG);
+    assert(r2 < MAX_REG);
+    emit_op(s, ldp_post(r1, r2, SP, 16));
+    i -= 2;
+  }
+}
+
 void emit_mov(emit_state *s, uint8_t dst, uint8_t src) {
   assert(dst < MAX_REG);
   assert(src < MAX_REG);

@@ -249,10 +249,6 @@ static size_t collect_regs_to_preserve(ignoremap *ignore,
     regs[count++] = reg;
     added[reg] = true;
   }
-  if ((count & 1) && count > 0) {
-    regs[count] = regs[count - 1];
-    count++;
-  }
   return count;
 }
 
@@ -271,18 +267,14 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
 
   // TODO: move all this to another stub, so we're not exploding code size with
   // all these push/pops.  We can just CALL stub directly.
-  for (size_t i = regs_cnt; i > 0; i--) {
-    emit_pop(s, regs_to_save[i - 1]);
-  }
+  emit_pop_regs(s, regs_to_save, regs_cnt);
   emit_mov(s, RSTACK, RET_REG);
   emit_call_reg(s, RTMP);
 
   emit_mov64(s, RTMP, (intptr_t)&jit_expand_stack_slowpath);
   emit_mov(s, RARG0, RSTATE);
   emit_mov(s, RARG1, RSTACK);
-  for (size_t i = 0; i < regs_cnt; i++) {
-    emit_push(s, regs_to_save[i]);
-  }
+  emit_push_regs(s, regs_to_save, regs_cnt);
 
   emit_jcc32(s, JL, done);
   emit_cmp(s, RSTACK, RTMP);

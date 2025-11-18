@@ -29,8 +29,9 @@ static void clear_trace_state(trace_state *ts) {
   arrfree(ts->stack);
   arrfree(ts->downrec);
 }
+static void free_snap(snap *snap) { arrfree(snap->slots); }
 static void free_trace(trace *trace) {
-  arr_for_each(trace->snaps, snap) { arrfree(snap.slots); }
+  arr_for_each(trace->snaps, snap) { free_snap(&snap); }
   arrfree(trace->ins);
   arrfree(trace->consts);
   arrfree(trace->snaps);
@@ -80,7 +81,7 @@ static slot add_const(vm_state *state, gc_obj value) {
 static void vm_add_snap(vm_state *state, bc *pc) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
-  snap snap = {
+  snap sn = {
       .pc = pc,
       .offset = ts->stack_off,
       .ir = arrlen(cur_trace->ins),
@@ -88,8 +89,15 @@ static void vm_add_snap(vm_state *state, bc *pc) {
       .exits = 0,
       .trace = cur_trace,
   };
-  snapshot_live_slots(ts, &snap);
-  arrput(nullptr, cur_trace->snaps, snap);
+  snapshot_live_slots(ts, &sn);
+  // No need for duplicate snaps at the same IR.  use the newest.
+  if (arrlen(cur_trace->snaps) && arrlast(cur_trace->snaps)->ir == sn.ir) {
+    // TODO arrpop
+    auto old = arrlast(cur_trace->snaps);
+    arrpop(cur_trace->snaps);
+    free_snap(old);
+  }
+  arrput(nullptr, cur_trace->snaps, sn);
 }
 
 static sentry *get_sentry(vm_state *state, uint64_t idx) {

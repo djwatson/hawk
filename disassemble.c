@@ -83,6 +83,7 @@ void disassemble(const uint8_t *code, size_t len,
   }
 
   cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON); // Needed for operand info
+  cs_option(handle, CS_OPT_SKIPDATA, CS_OPT_ON);
 
   uint64_t start_addr = (uint64_t)code;
   uint64_t end_addr = start_addr + len;

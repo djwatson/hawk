@@ -4,6 +4,7 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -321,6 +322,26 @@ void emit_pop(emit_state *s, uint8_t r) {
   *(--p) = 0x58 | (0x7 & r);
   if (r >> 3) {
     emit_rex(s, 0, 0, 0, r >> 3);
+  }
+}
+
+void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count) {
+  bool odd = count & 1;
+  for (size_t i = 0; i < count; i++) {
+    emit_push(s, regs[i]);
+  }
+  if (odd) {
+    emit_sub_constant(s, RSP, RSP, 8);
+  }
+}
+
+void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count) {
+  bool odd = count & 1;
+  if (odd) {
+    emit_add_constant(s, RSP, RSP, 8);
+  }
+  for (size_t i = count; i > 0; i--) {
+    emit_pop(s, regs[i - 1]);
   }
 }
 
