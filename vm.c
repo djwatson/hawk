@@ -109,7 +109,7 @@ static inline gc_obj emit_math_cmp_lt(vm_state *state, gc_obj v1, gc_obj v2) {
   if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
     auto f1 = to_flonum(v1);
     auto f2 = to_flonum(v2);
-    return f1 < f2 ? TRUE_REP : FALSE_REP;
+    return f1->x < f2->x ? TRUE_REP : FALSE_REP;
   }
   // TODO other math types!
   abort();

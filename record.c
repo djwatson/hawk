@@ -225,7 +225,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
         printf("Record abort: return\n");
       }
       record_abort(state);
-      return (frame_state){pc, stack, op_table};
+      return (frame_state){pc, stack, state->impls};
     }
 
     // count returns NOTE that we're not checking against the
@@ -510,7 +510,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 // next *recording* opcode
 #define dispatch_next(pc, stack)                                               \
   op_func impl = state->impls[(pc)->op];                                       \
-  MUSTTAIL return impl(pc, stack, state, op_table, 0);
+  MUSTTAIL return impl(pc, stack, state, op_table, argcnt);
 
 #include "vmgen.c"
 
