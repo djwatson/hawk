@@ -33,8 +33,6 @@ typedef struct {
 static uint8_t *read_entire_file(char const *path, size_t *out_size);
 static void reader_require(buffer_reader *reader, size_t bytes);
 static uint8_t reader_u8(buffer_reader *reader);
-static uint32_t reader_u32(buffer_reader *reader);
-static uint64_t reader_u64(buffer_reader *reader);
 static void reader_bytes(buffer_reader *reader, void *dst, size_t len);
 static size_t pvarint_len(uint8_t prefix);
 static uint64_t reader_pvarint(buffer_reader *reader);
@@ -192,26 +190,6 @@ static uint8_t reader_u8(buffer_reader *reader) {
   return reader->data[reader->pos++];
 }
 
-static uint32_t reader_u32(buffer_reader *reader) {
-  reader_require(reader, 4);
-  uint32_t v = 0;
-  for (int i = 0; i < 4; i++) {
-    v |= (uint32_t)reader->data[reader->pos + i] << (8u * i);
-  }
-  reader->pos += 4;
-  return v;
-}
-
-static uint64_t reader_u64(buffer_reader *reader) {
-  reader_require(reader, 8);
-  uint64_t v = 0;
-  for (int i = 0; i < 8; i++) {
-    v |= (uint64_t)reader->data[reader->pos + i] << (8u * i);
-  }
-  reader->pos += 8;
-  return v;
-}
-
 static void reader_bytes(buffer_reader *reader, void *dst, size_t len) {
   reader_require(reader, len);
   memcpy(dst, reader->data + reader->pos, len);
@@ -357,17 +335,14 @@ static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
   func->bc_cnt = bc_cnt;
 
   gc_obj *const_slots = (gc_obj *)func->data;
-  bc *code = (bc *)(func->data + const_cnt * sizeof(gc_obj));
+  bc *code = (bc *)(func->data + (const_cnt * sizeof(gc_obj)));
 
   for (size_t i = 0; i < const_cnt; i++) {
-    uint64_t ref_id = reader_u64(reader);
+    uint64_t ref_id = reader_pvarint(reader);
     resolve_or_enqueue(heap, (size_t)ref_id, &const_slots[i]);
   }
 
-  for (size_t i = 0; i < bc_cnt; i++) {
-    uint32_t word = reader_u32(reader);
-    code[i].full_data = word;
-  }
+  reader_bytes(reader, code, bc_cnt * sizeof(uint32_t));
 
   return tag_func(func);
 }
