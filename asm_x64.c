@@ -26,6 +26,20 @@ void asm_mark_unallocatable(bool used[MAX_REG]) {
   used[RSTATE] = true;
 }
 
+bool asm_is_callee_saved(uint8_t reg) {
+  switch (reg) {
+  case RBX:
+  case RBP:
+  case R12:
+  case R13:
+  case R14:
+  case R15:
+    return true;
+  default:
+    return false;
+  }
+}
+
 static uint8_t low3bits(uint8_t r) { return 0x7 & r; }
 
 /////////////////// instruction encoding

@@ -71,6 +71,7 @@ static_assert(AARCH64_MAX_REG <= MAX_REG,
               "AARCH64_MAX_REG must be less than MAX_REG");
 
 void asm_mark_unallocatable(bool used[MAX_REG]);
+bool asm_is_callee_saved(uint8_t reg);
 
 enum jcc_cond {
   JO = 0x6,  // VS

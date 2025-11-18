@@ -177,9 +177,6 @@ static void record_finish(bc *pc, vm_state *state) {
   vm_add_snap(state, pc);
   cur_trace->num = arrlen(state->record.traces);
   // dce(cur_trace);
-  if (verbose) {
-    print_ir(cur_trace);
-  }
   cur_trace->fn = emit(cur_trace, &state->emit, &state->record);
   if (verbose) {
     print_ir(cur_trace);

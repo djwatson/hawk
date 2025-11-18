@@ -46,6 +46,7 @@ enum registers : uint8_t {
 _Static_assert(X64_MAX_REG < MAX_REG, "X64_MAX_REG must be less than MAX_REG");
 
 void asm_mark_unallocatable(bool used[MAX_REG]);
+bool asm_is_callee_saved(uint8_t reg);
 
 enum ARITH_CODES {
   ASM_ARITH_ADD = 0,

@@ -219,10 +219,51 @@ jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
 #define COMMENT(...)                                                           \
   comment_append(emit_offset(s), &s->z, &s->comments, __VA_ARGS__)
 
-static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
+typedef struct {
+  uint16_t slot;
+  uint8_t reg;
+  uint8_t target_reg;
+  bool needs_constant;
+  int64_t constant_value;
+} ignoremap;
+
+static size_t collect_regs_to_preserve(ignoremap *ignore,
+                                       uint8_t regs[MAX_REG]) {
+  size_t count = 0;
+  bool added[MAX_REG] = {0};
+  size_t ignore_len = arrlen(ignore);
+  for (size_t i = 0; i < ignore_len; i++) {
+    uint8_t reg = ignore[i].reg;
+    if (reg == REG_NONE) {
+      continue;
+    }
+    if (reg >= MAX_REG) {
+      abort();
+    }
+    if (asm_is_callee_saved(reg)) {
+      continue;
+    }
+    if (added[reg]) {
+      continue;
+    }
+    regs[count++] = reg;
+    added[reg] = true;
+  }
+  if ((count & 1) && count > 0) {
+    regs[count] = regs[count - 1];
+    count++;
+  }
+  return count;
+}
+
+static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
+                                        ignoremap *ignore) {
   if (!snap->offset) {
     return;
   }
+
+  uint8_t regs_to_save[MAX_REG];
+  size_t regs_cnt = collect_regs_to_preserve(ignore, regs_to_save);
 
   emit_add_constant(s, RSTACK, RSTACK, (int64_t)snap->offset * 8);
 
@@ -230,32 +271,18 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
 
   // TODO: move all this to another stub, so we're not exploding code size with
   // all these push/pops.  We can just CALL stub directly.
-  emit_pop(s, RET_REG);
-  emit_pop(s, RET_REG);
-  emit_pop(s, RARG7);
-  emit_pop(s, RARG6);
-  emit_pop(s, RARG5);
-  emit_pop(s, RARG4);
-  emit_pop(s, RARG3);
-  emit_pop(s, RARG2);
-  emit_pop(s, RARG1);
-  emit_pop(s, RARG0);
+  for (size_t i = regs_cnt; i > 0; i--) {
+    emit_pop(s, regs_to_save[i - 1]);
+  }
   emit_mov(s, RSTACK, RET_REG);
   emit_call_reg(s, RTMP);
 
   emit_mov64(s, RTMP, (intptr_t)&jit_expand_stack_slowpath);
   emit_mov(s, RARG0, RSTATE);
   emit_mov(s, RARG1, RSTACK);
-  emit_push(s, RARG0);
-  emit_push(s, RARG1);
-  emit_push(s, RARG2);
-  emit_push(s, RARG3);
-  emit_push(s, RARG4);
-  emit_push(s, RARG5);
-  emit_push(s, RARG6);
-  emit_push(s, RARG7);
-  emit_push(s, RET_REG);
-  emit_push(s, RET_REG);
+  for (size_t i = 0; i < regs_cnt; i++) {
+    emit_push(s, regs_to_save[i]);
+  }
 
   emit_jcc32(s, JL, done);
   emit_cmp(s, RSTACK, RTMP);
@@ -284,14 +311,6 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
 
   emit_store(s, stack_offset, RSTACK, ins->reg);
 }
-
-typedef struct {
-  uint16_t slot;
-  uint8_t reg;
-  uint8_t target_reg;
-  bool needs_constant;
-  int64_t constant_value;
-} ignoremap;
 
 // Collect list of ARG registers used in trace and map them to exit values.
 static ignoremap *collect_loopback_regs(trace *arg_trace, trace *exit_trace,
@@ -373,7 +392,6 @@ static void collect_loopback_parallel_moves(emit_state *s, trace *arg_trace,
     if (reg_map->reg == REG_NONE) {
       abort();
     }
-    printf("==================LIVE %s\n", reg_names[reg_map->reg]);
     arrput(nullptr, cpy,
            ((par_copy){.from = reg_map->reg, .to = arg_ins->reg}));
   }
@@ -391,7 +409,7 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
 
   // TODO ignoremap .reg may still be live.
 
-  emit_stack_offset_and_check(s, snap);
+  emit_stack_offset_and_check(s, snap, ignore);
 
   arr_for_each_idx(snap->slots, j) {
     bool ignored = false;

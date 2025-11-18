@@ -28,6 +28,26 @@ void asm_mark_unallocatable(bool used[MAX_REG]) {
   used[X18] = true;
 }
 
+bool asm_is_callee_saved(uint8_t reg) {
+  switch (reg) {
+  case X19:
+  case X20:
+  case X21:
+  case X22:
+  case X23:
+  case X24:
+  case X25:
+  case X26:
+  case X27:
+  case X28:
+  case FP:
+  case LR:
+    return true;
+  default:
+    return false;
+  }
+}
+
 static uint64_t count_trailing_zeros64(uint64_t n) {
   if (n == 0) {
     return 64;
