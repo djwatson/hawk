@@ -157,8 +157,11 @@ static inline void check_expand_stack(vm_state *state, gc_obj **stack) {
 static inline void prepare_call(gc_obj fun) {
   // TODO nothing?
 }
-static inline void check_arity(gc_obj fun, gc_obj args) {
-  // TODO nothing for now
+static inline void check_arity(int expected, uint8_t args) {
+  if (args != expected) {
+    printf("Bad argcnt expected %i got %i\n", expected, args);
+    abort();
+  }
 }
 static inline bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
                                gc_obj b) {
@@ -256,7 +259,7 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
 }
 #define dispatch_next(pc, stack)                                               \
   op_func impl = ((op_func *)op_table)[(pc)->op];                              \
-  MUSTTAIL return impl(pc, stack, state, op_table, 0);
+  MUSTTAIL return impl(pc, stack, state, op_table, argcnt);
 
 #include "vmgen.c"
 

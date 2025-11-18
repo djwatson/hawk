@@ -323,7 +323,7 @@ static void prepare_call(gc_obj fun) { printf("prepare call\n"); }
 // Nothing necessary for record - we will check in emit_snapshot - checks will
 // be elided if we never hit a snapshot!
 static inline void check_expand_stack(vm_state *state, gc_obj **stack) {}
-static void check_arity(gc_obj fun, gc_obj args) {}
+static void check_arity(int fun, uint8_t args) {}
 static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack, slot b) {
   trace_state *ts = record_trace_state(state);
   bool res;

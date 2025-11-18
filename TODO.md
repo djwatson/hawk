@@ -1,6 +1,5 @@
 # VM impl
 
-* argcnt check
 * lookup check
 * lcall check - check for closure!
 
@@ -20,14 +19,14 @@
 
 
 
-* Ugh, same with ARG: we can't know to drop it. Don't know if unused based on only trace, need
-  usage info from .... something? either a post-pass live in JIT from BC, or pre-pass in compiler.
-
 # simple VM
 
 * use conservative collector on stack, but precise on heap, allowing dumping.
 * Hmmm maybe allow toplevel and module - DON'T inline modules?  Or track which are inlined? ugh.
   * make this optional, I guess.
+* Ugh, same with ARG: we can't know to drop it. Don't know if unused based on only trace, need
+  usage info from .... something? either a post-pass live in JIT from BC, or pre-pass in compiler.
+
 
 ## tracer
 * Keep track of type.

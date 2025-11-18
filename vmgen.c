@@ -90,7 +90,8 @@ END OP_BEGIN(WRITE) {
 }
 END OP_BEGIN(FUNC) {
   // TODO argcnt check
-  auto expect_argcnt = pc->data - 1;
+  auto expect_argcnt = pc->reg;
+  check_arity(expect_argcnt, argcnt);
 
   // TODO merge with arity check?
   check_expand_stack(state, &stack);
@@ -100,7 +101,7 @@ END OP_BEGIN(FUNC) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(JFUNC) {
-  // TODO argcnt check
+  // TODO argcnt check - no, will be put in trace itself!
   auto f = pc->data;
   op_table = jit_func(&pc, &stack, state, op_table);
 
@@ -138,6 +139,7 @@ END OP_BEGIN(CLOSURE_GET) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(LCALL) {
+  argcnt = pc->data - 1;
   auto func = stack_load(state, stack, pc->reg);
   auto frame_top = pc->reg;
   stack_save(state, stack, pc->reg, return_address(state, pc + 1));
@@ -146,7 +148,7 @@ END OP_BEGIN(LCALL) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(LCALLT) {
-  auto argcnt = pc->data - 1;
+  argcnt = pc->data - 1;
   auto func = stack_load(state, stack, pc->reg);
   auto frame_top = pc->reg;
   stack_memmov(state, stack, frame_top + 1, argcnt);
