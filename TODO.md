@@ -1,5 +1,6 @@
 # VM impl
 
+* get aarch push/pop working. cleanup - looks like argument calling convention sucks
 * free extra snaps back to back in ACK
 * cleanup record.c math ops - we can probably split like in vm.c
 

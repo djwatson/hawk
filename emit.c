@@ -232,6 +232,12 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
   // all these push/pops.  We can just CALL stub directly.
   emit_pop(s, RET_REG);
   emit_pop(s, RET_REG);
+  emit_pop(s, RARG7);
+  emit_pop(s, RARG6);
+  emit_pop(s, RARG5);
+  emit_pop(s, RARG4);
+  emit_pop(s, RARG3);
+  emit_pop(s, RARG2);
   emit_pop(s, RARG1);
   emit_pop(s, RARG0);
   emit_mov(s, RSTACK, RET_REG);
@@ -242,6 +248,12 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
   emit_mov(s, RARG1, RSTACK);
   emit_push(s, RARG0);
   emit_push(s, RARG1);
+  emit_push(s, RARG2);
+  emit_push(s, RARG3);
+  emit_push(s, RARG4);
+  emit_push(s, RARG5);
+  emit_push(s, RARG6);
+  emit_push(s, RARG7);
   emit_push(s, RET_REG);
   emit_push(s, RET_REG);
 
@@ -361,6 +373,7 @@ static void collect_loopback_parallel_moves(emit_state *s, trace *arg_trace,
     if (reg_map->reg == REG_NONE) {
       abort();
     }
+    printf("==================LIVE %s\n", reg_names[reg_map->reg]);
     arrput(nullptr, cpy,
            ((par_copy){.from = reg_map->reg, .to = arg_ins->reg}));
   }
@@ -375,6 +388,8 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
     emit_mov64(s, RET_REG2, (intptr_t)snap);
     emit_mov(s, RET_REG, RSTACK);
   }
+
+  // TODO ignoremap .reg may still be live.
 
   emit_stack_offset_and_check(s, snap);
 

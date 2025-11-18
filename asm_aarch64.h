@@ -47,6 +47,13 @@ enum registers : uint8_t {
   RET_REG = X0,
   RET_REG2 = X1,
   RARG0 = X0,
+  RARG1 = X1,
+  RARG2 = X2,
+  RARG3 = X3,
+  RARG4 = X4,
+  RARG5 = X5,
+  RARG6 = X6,
+  RARG7 = X7,
   RTMP = X7,
   FP = X29,
   LR = X30,
@@ -57,7 +64,7 @@ enum registers : uint8_t {
   SP = XZR,
   // Must be callee-save
   RSTACK = X25,
-  RSATE = X26,
+  RSTATE = X26,
 };
 
 static_assert(AARCH64_MAX_REG <= MAX_REG,
@@ -90,6 +97,9 @@ void emit_ret(emit_state *s);
 void emit_jmp32(emit_state *s, int64_t target);
 void emit_jmp32_patch_here(emit_state *s, int64_t patch);
 void emit_mov64(emit_state *s, uint8_t r, int64_t imm);
+void emit_call_reg(emit_state *s, uint8_t r);
+void emit_push(emit_state *s, uint8_t r);
+void emit_pop(emit_state *s, uint8_t r);
 void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
 void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,

@@ -321,6 +321,12 @@ void emit_mov64(emit_state *s, uint8_t rd, int64_t imm) {
   }
 }
 
+void emit_call_reg(emit_state *s, uint8_t r) {
+  assert(r < MAX_REG);
+  uint32_t opcode = 0xD63F0000u | ((uint32_t)r << 5); // BLR Xr
+  emit_op(s, opcode);
+}
+
 void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
   assert(lhs < MAX_REG);
   assert(rhs < MAX_REG);
@@ -386,6 +392,18 @@ void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   assert(dst < MAX_REG);
   assert(lhs < MAX_REG);
   emit_add_sub_constant(s, 0xD1000000u, 0xCB000000u, dst, lhs, imm);
+}
+
+void emit_push(emit_state *s, uint8_t r) {
+  assert(r < MAX_REG);
+  emit_store(s, 0, SP, r);
+  emit_sub_constant(s, SP, SP, 16);
+}
+
+void emit_pop(emit_state *s, uint8_t r) {
+  assert(r < MAX_REG);
+  emit_add_constant(s, SP, SP, 16);
+  emit_mem_load(s, 0, SP, r);
 }
 
 void emit_mov(emit_state *s, uint8_t dst, uint8_t src) {
