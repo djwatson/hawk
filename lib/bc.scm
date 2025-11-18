@@ -1,7 +1,17 @@
 ;; Bytecode generator for hawk
 
-(import (scheme base) (scheme write) (read) (expand) (scheme process-context) (scheme file) (match)
-        (srfi 69) (srfi 1) (srfi 151))
+(import (scheme base)
+        (scheme write)
+        (read)
+        (expand)
+        (scheme process-context)
+        (scheme file)
+        (match)
+        (srfi 69)
+        (srfi 1)
+        (srfi 151)
+        ;; gauche
+        (rename (only (binary io) write-f64) (write-f64 write-double)))
 (include "opcodes.scm")
 (include "memory_layout.scm")
 
@@ -256,13 +266,14 @@
 
 (define (tag-ptr ptr tag) (+ (* ptr 8) tag))
 (define (fixnum? c) (and (integer? c) (exact? c) (fits-in-int64 c)))
+(define (flonum? c) (and (inexact? c) (real? c)))
 (define (write-const p c consts const-table)
   (cond
     ((symbol? c)
       (let ((name-id (const-id-of (symbol->string c) consts const-table)))
         (write-pvarint-u64 symbol-tag p)
         (write-pvarint-u64 (tag-ptr name-id ptr-tag) p)))
-    ;; ((flonum? c))
+    ((flonum? c) (write-pvarint-u64 flonum-tag p) (write-double c p))
     ((fixnum? c) (write-pvarint-u64 (zigzag-encode (tag-ptr c fixnum-tag)) p))
     ;; ((char? c))
     ;; ((boolean? c))
@@ -313,7 +324,7 @@
     (define out (open-output-file (string-append file ".bc")))
     (define forms (read-file port))
     (define expanded (expand-toplevel forms))
-    (define unused (display (map ir->sexp expanded)))
+    (define unused (begin (display (map ir->sexp expanded)) (newline) (newline)))
     (define fixed `#(begin ,(map fix-letrec expanded) #f))
     (define lowered (lower-comparisons fixed))
     (define main (make-fun "main"))

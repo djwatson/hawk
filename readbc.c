@@ -33,6 +33,7 @@ typedef struct {
 static uint8_t *read_entire_file(char const *path, size_t *out_size);
 static void reader_require(buffer_reader *reader, size_t bytes);
 static uint8_t reader_u8(buffer_reader *reader);
+static double reader_double(buffer_reader *reader);
 static void reader_bytes(buffer_reader *reader, void *dst, size_t len);
 static size_t pvarint_len(uint8_t prefix);
 static uint64_t reader_pvarint(buffer_reader *reader);
@@ -190,6 +191,14 @@ static uint8_t reader_u8(buffer_reader *reader) {
   return reader->data[reader->pos++];
 }
 
+static double reader_double(buffer_reader *reader) {
+  reader_require(reader, 8);
+  double res;
+  memcpy(&res, &reader->data[reader->pos], sizeof(double));
+  reader->pos += 8;
+  return res;
+}
+
 static void reader_bytes(buffer_reader *reader, void *dst, size_t len) {
   reader_require(reader, len);
   memcpy(dst, reader->data + reader->pos, len);
@@ -252,6 +261,12 @@ static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {
   }
   if (tag == CLOSURE_TAG) {
     return deserialize_const_closure(reader, heap);
+  }
+  if (tag == FLONUM_TAG) {
+    flonum_s *f = gc_alloc(sizeof(flonum_s));
+    f->header.type = FLONUM_TAG;
+    f->x = reader_double(reader);
+    return tag_flonum(f);
   }
   int64_t decoded = zigzag_decode(tag);
   if ((decoded & TAG_MASK) != FIXNUM_TAG) {
