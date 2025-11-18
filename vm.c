@@ -69,19 +69,65 @@ static inline gc_obj const_load(vm_state *state, bc *pc, uint16_t offset) {
 }
 static inline gc_obj emit_ov_math_add(vm_state *state, gc_obj v1, gc_obj v2) {
   (void)state;
-  return tag_fixnum(to_fixnum(v1) + to_fixnum(v2));
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    // TODO overflow
+    return tag_fixnum(to_fixnum(v1) + to_fixnum(v2));
+  }
+  if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
+    auto f1 = to_flonum(v1);
+    auto f2 = to_flonum(v2);
+    flonum_s *res = gc_alloc(sizeof(flonum_s));
+    res->header.type = FLONUM_TAG;
+    res->x = f1->x + f2->x;
+    return tag_flonum(res);
+  }
+  // TODO other math types!
+  abort();
 }
 static inline gc_obj emit_ov_math_sub(vm_state *state, gc_obj v1, gc_obj v2) {
   (void)state;
-  return tag_fixnum(to_fixnum(v1) - to_fixnum(v2));
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    // TODO overflow
+    return tag_fixnum(to_fixnum(v1) - to_fixnum(v2));
+  }
+  if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
+    auto f1 = to_flonum(v1);
+    auto f2 = to_flonum(v2);
+    flonum_s *res = gc_alloc(sizeof(flonum_s));
+    res->header.type = FLONUM_TAG;
+    res->x = f1->x - f2->x;
+    return tag_flonum(res);
+  }
+  // TODO other math types!
+  abort();
 }
 static inline gc_obj emit_math_cmp_lt(vm_state *state, gc_obj v1, gc_obj v2) {
   (void)state;
-  return to_fixnum(v1) < to_fixnum(v2) ? TRUE_REP : FALSE_REP;
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    return to_fixnum(v1) < to_fixnum(v2) ? TRUE_REP : FALSE_REP;
+  }
+  if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
+    auto f1 = to_flonum(v1);
+    auto f2 = to_flonum(v2);
+    return f1 < f2 ? TRUE_REP : FALSE_REP;
+  }
+  // TODO other math types!
+  abort();
+  (void)state;
 }
 static inline gc_obj emit_math_cmp_eq(vm_state *state, gc_obj v1, gc_obj v2) {
   (void)state;
-  return to_fixnum(v1) == to_fixnum(v2) ? TRUE_REP : FALSE_REP;
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    return to_fixnum(v1) == to_fixnum(v2) ? TRUE_REP : FALSE_REP;
+  }
+  if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
+    auto f1 = to_flonum(v1);
+    auto f2 = to_flonum(v2);
+    return f1 == f2 ? TRUE_REP : FALSE_REP;
+  }
+  // TODO other math types!
+  abort();
+  (void)state;
 }
 static inline void ensure_symbol(gc_obj val) { (void)val; }
 static inline frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,

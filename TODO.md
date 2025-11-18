@@ -20,7 +20,7 @@
 
 # simple VM
 
-* debug info serialized
+* debug info serialized - hmm maybe keep in scheme format?
 * use conservative collector on stack, but precise on heap, allowing dumping.
 * Hmmm maybe allow toplevel and module - DON'T inline modules?  Or track which are inlined? ugh.
   * make this optional, I guess.
