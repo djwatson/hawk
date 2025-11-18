@@ -133,6 +133,7 @@ END OP_BEGIN(JMP) {
 }
 END OP_BEGIN(CLOSURE_GET) {
   auto clo = stack_load(state, stack, pc->v1);
+  fail_if_not_closure(clo);
   auto slot = pc->v2;
   auto res = closure_get(state, clo, slot);
   stack_save(state, stack, pc->reg, res);

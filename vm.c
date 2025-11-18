@@ -110,7 +110,14 @@ static inline gc_obj halt(vm_state *state, gc_obj *stack) {
   free(state);
   return res;
 }
-
+static inline void fail_if_not_closure(gc_obj clo) {
+  if (!is_closure(clo)) {
+    printf("Attempting to call a non-closure:");
+    print_obj(clo, stdout);
+    printf("\n");
+    abort();
+  }
+}
 static inline gc_obj sym_load(vm_state *state, gc_obj sym) {
   (void)state;
   auto s = to_symbol(sym);
@@ -120,7 +127,7 @@ static inline gc_obj sym_load(vm_state *state, gc_obj sym) {
     printf("Symbol not defined: %.*s", (int)to_fixnum(name->len), name->str);
     abort();
   }
-  return
+  return res;
 }
 static inline void sym_store(vm_state *state, gc_obj sym, gc_obj val) {
   (void)state;

@@ -1,13 +1,12 @@
 # VM impl
 
-* lookup check
-* lcall check - check for closure!
-
 * optimistic globals
 
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
 * sumfp, fibfp
+
+* lookup check - fix expander thingy
 
 * track stack-top
 * spill slots
@@ -21,6 +20,7 @@
 
 # simple VM
 
+* debug info serialized
 * use conservative collector on stack, but precise on heap, allowing dumping.
 * Hmmm maybe allow toplevel and module - DON'T inline modules?  Or track which are inlined? ugh.
   * make this optional, I guess.
