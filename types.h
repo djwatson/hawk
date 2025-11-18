@@ -235,6 +235,12 @@ static inline bool is_fixnum(gc_obj obj) { return get_tag(obj) == FIXNUM_TAG; }
 static inline bool is_func(gc_obj obj) {
   return is_ptr(obj) && get_ptr_tag(obj) == FUNC_TAG;
 }
+static inline uint32_t get_type_tag(gc_obj obj) {
+  if (is_ptr(obj)) {
+    return ((uint32_t *)(obj.value - PTR_TAG))[0];
+  }
+  return get_tag(obj);
+}
 static inline bool is_heap_object(gc_obj obj) {
   return !is_fixnum(obj) && !is_literal(obj);
 }

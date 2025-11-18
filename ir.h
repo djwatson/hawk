@@ -68,7 +68,8 @@ typedef enum : uint8_t {
 
 typedef struct {
   ir_ins_op op;
-  uint8_t type;
+  uint8_t type : 7;
+  uint8_t guard : 1;
   union {
     uint16_t prev;
     struct {

@@ -78,6 +78,54 @@ static void print_snap(snap *snap, trace *t) {
   printf("]\n");
 }
 
+static void print_tag_type(uint8_t t) {
+  switch (t) {
+  case FIXNUM_TAG:
+    printf("\e[1;35mfix \e[m ");
+    break;
+  case CONS_TAG:
+    printf("\e[1;34mcons\e[m ");
+    break;
+  case FLONUM_TAG:
+    printf("\e[1;34mflo \e[m ");
+    break;
+  case SYMBOL_TAG:
+    printf("\e[1;34msym \e[m ");
+    break;
+  case BOOL_TAG:
+    printf("\e[1;34mbool\e[m ");
+    break;
+  case NIL_TAG:
+    printf("\e[1;34mnil \e[m ");
+    break;
+  case EOF_TAG:
+    printf("\e[1;34meof \e[m ");
+    break;
+  case STRING_TAG:
+    printf("\e[1;34mstr \e[m ");
+    break;
+  case VECTOR_TAG:
+    printf("\e[1;34mvec \e[m ");
+    break;
+  case CONT_TAG:
+    printf("\e[1;34mcont\e[m ");
+    break;
+  case PTR_TAG:
+    printf("\e[1;34mptr \e[m ");
+    break;
+  case CHAR_TAG:
+    printf("\e[1;34mchar\e[m ");
+    break;
+  case CLOSURE_TAG:
+    printf("\e[1;34mclo \e[m ");
+    break;
+  default:
+    // Also UNDEFINED_TAG
+    printf("     ");
+    break;
+  }
+}
+
 void print_ir(trace *t) {
   uint64_t cur_snap = 0;
   for (size_t i = 0; i < arrlen(t->ins) + 1 /* last snap */; i++) {
@@ -100,6 +148,7 @@ void print_ir(trace *t) {
     } else {
       printf("    ");
     }
+    print_tag_type(ins->type);
     printf("%-8s", ir_names[ins->op]);
     switch (ins->op) {
     case IR_NOP:

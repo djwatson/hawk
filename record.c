@@ -111,8 +111,9 @@ static sentry *get_sentry(vm_state *state, uint64_t idx) {
 }
 
 static slot add_inst(vm_state *state, ir_ins ins) {
+  ins.guard = 0;
+  ins.type = UNDEFINED_TAG;
   trace *trace_obj = record_current_trace(state);
-  ins.type = 0;
   auto idx = arrlen(trace_obj->ins);
   arrput(nullptr, trace_obj->ins, ins);
   return (slot){.constant = false, .loc = idx};
@@ -147,6 +148,17 @@ static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   // We use a non-moving gc, so this is just a runtime constant, always.
   auto c = *(gc_obj *)(pc - pc->data);
   return add_const(state, c);
+}
+static uint8_t get_slot_type(trace *t, slot v) {
+  if (v.constant) {
+    return get_type_tag(t->consts[v.loc]);
+  } else {
+    return t->ins[v.loc].type;
+  }
+}
+static void add_typecheck(ir_ins *ins, gc_obj *stack, uint8_t loc) {
+  ins->type = get_type_tag(stack[loc]);
+  ins->guard = true;
 }
 static slot emit_ov_math_add(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
@@ -366,7 +378,7 @@ static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack, slot b) {
                    .op2 = rhs_slot,
                    .reg = REG_NONE,
                    .spill = SPILL_NONE,
-                   .type = GUARD_TAG};
+                   .type = UNDEFINED_TAG};
     break;
   }
   case OP_JEQV: {
@@ -380,7 +392,7 @@ static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack, slot b) {
                    .op2 = rhs_slot,
                    .reg = REG_NONE,
                    .spill = SPILL_NONE,
-                   .type = GUARD_TAG};
+                   .type = UNDEFINED_TAG};
     break;
   }
   default:
