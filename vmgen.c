@@ -113,6 +113,13 @@ END OP_BEGIN(JLT) {
   pc = branch_if_op(state, pc, stack, res);
   dispatch_next(pc, stack);
 }
+END OP_BEGIN(JEQV) {
+  auto v1 = stack_load(state, stack, pc->v1);
+  auto v2 = stack_load(state, stack, pc->v2);
+  auto res = emit_math_cmp_eq(state, v1, v2);
+  pc = branch_if_op(state, pc, stack, res);
+  dispatch_next(pc, stack);
+}
 END OP_BEGIN(IF) {
   auto v = stack_load(state, stack, pc->data);
   pc = branch_if_op(state, pc, stack, v);

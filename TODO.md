@@ -1,5 +1,10 @@
 # VM impl
 
+* free extra snaps back to back in ACK
+* cleanup record.c math ops - we can probably split like in vm.c
+
+* optimistic globals
+
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
 * sumfp, fibfp

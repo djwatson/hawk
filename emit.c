@@ -492,6 +492,16 @@ static void emit_ir(emit_state *s, trace *t) {
       emit_cmp_slots(s, t, op->op1, op->op2);
       break;
     }
+    case IR_EQ: {
+      emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
+      emit_cmp_slots(s, t, op->op1, op->op2);
+      break;
+    }
+    case IR_NE: {
+      emit_jcc32(s, JE, t->snaps[cur_snap].patch_point);
+      emit_cmp_slots(s, t, op->op1, op->op2);
+      break;
+    }
     case IR_LOAD: {
       maybe_assign_register(s, op->op1, t);
       assert(!op->op1.constant);

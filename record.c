@@ -157,6 +157,11 @@ static slot emit_math_cmp_lt(vm_state *state, slot v1, slot v2) {
   (void)v2;
   return v1;
 }
+static slot emit_math_cmp_eq(vm_state *state, slot v1, slot v2) {
+  (void)state;
+  (void)v2;
+  return v1;
+}
 static void ensure_symbol(slot val) {}
 static slot constify_data(vm_state *state, uint16_t data) {
   gc_obj c = (gc_obj){.value = data};
@@ -337,6 +342,20 @@ static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack, slot b) {
     slot lhs_slot = stack_load(state, stack, pc->v1);
     slot rhs_slot = stack_load(state, stack, pc->v2);
     ins = (ir_ins){.op = res ? IR_LT : IR_GTE,
+                   .op1 = lhs_slot,
+                   .op2 = rhs_slot,
+                   .reg = REG_NONE,
+                   .spill = SPILL_NONE,
+                   .type = GUARD_TAG};
+    break;
+  }
+  case OP_JEQV: {
+    auto lhs = stack[pc->v1];
+    auto rhs = stack[pc->v2];
+    res = to_fixnum(lhs) == to_fixnum(rhs);
+    slot lhs_slot = stack_load(state, stack, pc->v1);
+    slot rhs_slot = stack_load(state, stack, pc->v2);
+    ins = (ir_ins){.op = res ? IR_EQ : IR_NE,
                    .op1 = lhs_slot,
                    .op2 = rhs_slot,
                    .reg = REG_NONE,

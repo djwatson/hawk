@@ -122,7 +122,10 @@ void print_ir(trace *t) {
     case IR_ADD:
     case IR_SUB:
     case IR_LT:
+    case IR_EQ:
+    case IR_NE:
     case IR_GT:
+    case IR_GTE:
     case IR_GUARD_EQ:
     case IR_STORE:
       printf(" ");
