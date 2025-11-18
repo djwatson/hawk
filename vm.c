@@ -1,6 +1,7 @@
 // Copyright 2024 Dave Watson <dade.watson@gmail.com>
 #define _DEFAULT_SOURCE
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -112,7 +113,14 @@ static inline gc_obj halt(vm_state *state, gc_obj *stack) {
 
 static inline gc_obj sym_load(vm_state *state, gc_obj sym) {
   (void)state;
-  return to_symbol(sym)->val;
+  auto s = to_symbol(sym);
+  auto res = s->val;
+  if (res.value == DEAD.value) {
+    auto name = get_sym_name(s);
+    printf("Symbol not defined: %.*s", (int)to_fixnum(name->len), name->str);
+    abort();
+  }
+  return
 }
 static inline void sym_store(vm_state *state, gc_obj sym, gc_obj val) {
   (void)state;

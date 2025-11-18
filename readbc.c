@@ -330,7 +330,7 @@ static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
       sizeof(bcfunc) + (const_cnt * sizeof(gc_obj)) + (bc_cnt * sizeof(bc));
   bcfunc *func = gc_alloc(align(payload_size, sizeof(gc_obj)));
   func->header.type = FUNC_TAG;
-  func->name = UNDEFINED;
+  func->name = DEAD;
   func->const_cnt = const_cnt;
   func->bc_cnt = bc_cnt;
 

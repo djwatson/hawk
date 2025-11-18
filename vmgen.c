@@ -70,6 +70,7 @@ END OP_BEGIN(RET) {
 }
 END OP_BEGIN(LOOKUP) {
   auto c = const_load(state, pc, pc->data);
+  // No need to check if c is a symbol, the compiler guarantees it
   auto v1 = sym_load(state, c);
   stack_save(state, stack, pc->reg, v1);
   pc = next_op(pc);
