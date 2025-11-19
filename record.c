@@ -324,6 +324,9 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     }
     if (downrec_trace && seen_downrec && at_trace_start) {
       cur_trace->link = cur_trace;
+      if (verbose) {
+        printf("Record stop: downrec\n");
+      }
       record_finish(pc, state);
       return (frame_state){pc, stack, state->impls};
     }
@@ -503,6 +506,9 @@ static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
   }
   if (cur_trace->parent) {
     cur_trace->link = state->record.traces[(*pc)->data];
+    if (verbose) {
+      printf("Record stop: side trace linked to root trace\n");
+    }
     record_finish(*pc, state);
     return state->impls;
   }
@@ -526,6 +532,9 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
       return op_table;
     }
     cur_trace->link = cur_trace;
+    if (verbose) {
+      printf("Record stop: root loop trace\n");
+    }
     record_finish(pc, state);
     return state->impls;
   }
