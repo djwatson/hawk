@@ -473,18 +473,37 @@ static void emit_loopback_constants(emit_state *s, ignoremap *loopback_regs) {
   }
 }
 
-static void emit_parallel_moves(emit_state *s, par_copy *cpy,
-                                ignoremap *loopback_regs) {
+static const uint8_t PAR_MOVE_MARKER = UINT8_MAX;
+
+static uint8_t resolve_tmp_reg(uint8_t peer) {
+  if (peer != PAR_MOVE_MARKER && is_fpr_reg(peer)) {
+    return FRTMP;
+  }
+  return RTMP;
+}
+
+static void emit_serialized_moves(emit_state *s, par_copy *cpy,
+                                  ignoremap *loopback_regs) {
   emit_loopback_constants(s, loopback_regs);
-  par_copy *moves = serialize_parallel_copy(cpy, RTMP);
+  par_copy *moves = serialize_parallel_copy(cpy, PAR_MOVE_MARKER);
   arr_reverse(moves);
   arr_for_each_idx(moves, i) {
     auto mov = moves[i];
-    if (is_fpr_reg(mov.to) || is_fpr_reg(mov.from)) {
-      assert(is_fpr_reg(mov.to) && is_fpr_reg(mov.from));
-      emit_fmov(s, mov.to, mov.from);
+    uint8_t from = mov.from;
+    uint8_t to = mov.to;
+    if (from == PAR_MOVE_MARKER) {
+      from = resolve_tmp_reg(to);
+    }
+    if (to == PAR_MOVE_MARKER) {
+      to = resolve_tmp_reg(from);
+    }
+    bool dst_fpr = is_fpr_reg(to);
+    bool src_fpr = is_fpr_reg(from);
+    if (dst_fpr || src_fpr) {
+      assert(dst_fpr && src_fpr);
+      emit_fmov(s, to, from);
     } else {
-      emit_mov(s, mov.to, mov.from);
+      emit_mov(s, to, from);
     }
   }
   arrfree(cpy);
@@ -512,7 +531,7 @@ static void collect_loopback_parallel_moves(emit_state *s, trace *arg_trace,
     arrput(nullptr, cpy,
            ((par_copy){.from = reg_map->reg, .to = arg_ins->reg}));
   }
-  emit_parallel_moves(s, cpy, loopback_regs);
+  emit_serialized_moves(s, cpy, loopback_regs);
 }
 
 static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
@@ -788,11 +807,7 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
              ((par_copy){.from = pmov_ins->data, .to = pmov_ins->reg}));
     }
   }
-  auto res = serialize_parallel_copy(cpy, RTMP);
-  arr_reverse(res);
-  arr_for_each(res, mov) { emit_mov(s, mov.to, mov.from); }
-  arrfree(cpy);
-  arrfree(res);
+  emit_serialized_moves(s, cpy, nullptr);
   COMMENT("PARALLEL COPY FROM PARENT:");
 
   // Install the side trace.
