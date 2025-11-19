@@ -30,14 +30,12 @@ enum : int32_t {
 };
 static_assert(FLONUM_SIZE_CLASS < (int32_t)size_classes,
               "flonum size class must exist");
-static freelist_s *const flonum_freelist =
-    &freelist[FLONUM_SIZE_CLASS];
+static freelist_s *const flonum_freelist = &freelist[FLONUM_SIZE_CLASS];
 static const int32_t freelist_start_offset =
     (int32_t)offsetof(freelist_s, start_ptr);
 static const int32_t freelist_end_offset =
     (int32_t)offsetof(freelist_s, end_ptr);
-static const int32_t flonum_payload_offset =
-    (int32_t)offsetof(flonum_s, x);
+static const int32_t flonum_payload_offset = (int32_t)offsetof(flonum_s, x);
 
 static inline bool ins_uses_freg(ir_ins const *ins) {
   return ins->type == FLONUM_TAG;
@@ -863,18 +861,22 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   } else {
     emit_side_trace_entry(s, t);
   }
-  auto entry = emit_offset(s);
 
+  auto entry = emit_offset(s);
   emit_finish_snap_exits(s, t, exit_label);
+  auto start_no_constants = emit_offset(s);
 
   emit_constant_pool(s);
   emit_writable_end(s);
-  auto sz = end - entry;
+  auto sz = end - start_no_constants;
   if (verbose) {
     printf("Disassembly: %" PRId64 "\n", sz);
     arr_reverse(s->comments);
-    disassemble((uint8_t *)entry, sz, s->comments);
+    disassemble((uint8_t *)start_no_constants, sz, s->comments);
   }
+
+  auto start = emit_offset(s);
+  sz = end - start;
 
   // Cleanup
   zone_free(&s->z);
@@ -884,13 +886,13 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // Install debuginfo for gdb & linux perf tool.
 #ifdef HAVE_ELF_H
   if (jit_dump_flag) {
-    jit_reader_add((int)sz, entry);
+    jit_reader_add((int)sz, start);
     char *dumpname = t->parent ? "Side Trace" : "Trace";
-    jit_dump((int)sz, entry, dumpname);
-    perf_map(entry, sz, dumpname);
+    jit_dump((int)sz, start, dumpname);
+    perf_map(start, sz, dumpname);
   }
 #endif
   // Call the built-in function to flush the cache for the specific range
-  __builtin___clear_cache((char *)entry, (char *)entry + sz);
+  __builtin___clear_cache((char *)entry, (char *)start + sz);
   return (trace_fn)entry;
 }
