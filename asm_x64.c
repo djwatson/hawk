@@ -489,6 +489,16 @@ void emit_fadd(emit_state *s, uint8_t dst, uint8_t src) {
 void emit_fsub(emit_state *s, uint8_t dst, uint8_t src) {
   emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(dst), hw_fpr(src));
 }
+
+void emit_fadd_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
+  emit_fadd(s, dst, FRTMP);
+  load_constant(s, add_constant(s, imm), FRTMP);
+}
+
+void emit_fsub_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
+  emit_fsub(s, dst, FRTMP);
+  load_constant(s, add_constant(s, imm), FRTMP);
+}
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   emit_add_sub_constant(s, ASM_ARITH_ADD, dst, lhs, imm);
 }

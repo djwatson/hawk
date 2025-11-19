@@ -500,6 +500,16 @@ void emit_fsub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   emit_op(s, opcode);
 }
 
+void emit_fadd_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
+  emit_fadd(s, dst, dst, FRTMP);
+  load_constant(s, add_constant(s, imm), FRTMP);
+}
+
+void emit_fsub_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
+  emit_fsub(s, dst, dst, FRTMP);
+  load_constant(s, add_constant(s, imm), FRTMP);
+}
+
 void emit_push(emit_state *s, uint8_t r) {
   assert(r < MAX_REG);
   emit_store(s, 0, SP, r);

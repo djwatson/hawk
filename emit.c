@@ -347,6 +347,16 @@ static uint8_t get_flonum_operand_reg(emit_state *s, trace *t, slot v,
   return reg;
 }
 
+static void emit_fadd_reg(emit_state *s, uint8_t dst, uint8_t rhs) {
+#if defined(__x86_64__)
+  emit_fadd(s, dst, rhs);
+#elif defined(__aarch64__)
+  emit_fadd(s, dst, dst, rhs);
+#else
+#error "Unsupported architecture"
+#endif
+}
+
 static void emit_fsub_reg(emit_state *s, uint8_t dst, uint8_t rhs) {
 #if defined(__x86_64__)
   emit_fsub(s, dst, rhs);
@@ -360,7 +370,12 @@ static void emit_fsub_reg(emit_state *s, uint8_t dst, uint8_t rhs) {
 static void emit_flonum_sub(emit_state *s, trace *t, ir_ins *op) {
   assert(is_fpr_reg(op->reg));
   load_flonum_into_reg(s, t, op->op1, op->reg);
-  uint8_t rhs_reg = get_flonum_operand_reg(s, t, op->op2, true);
+  if (op->op2.constant) {
+    emit_fsub_constant(s, op->reg, op->reg,
+                       slot_flonum_constant(t, op->op2));
+    return;
+  }
+  uint8_t rhs_reg = get_flonum_operand_reg(s, t, op->op2, false);
   emit_fsub_reg(s, op->reg, rhs_reg);
 }
 
@@ -368,6 +383,17 @@ static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins *op) {
   uint8_t lhs_reg = get_flonum_operand_reg(s, t, op->op1, false);
   uint8_t rhs_reg = get_flonum_operand_reg(s, t, op->op2, true);
   emit_fcmp(s, lhs_reg, rhs_reg);
+}
+static void emit_flonum_add(emit_state *s, trace *t, ir_ins *op) {
+  assert(is_fpr_reg(op->reg));
+  load_flonum_into_reg(s, t, op->op1, op->reg);
+  if (op->op2.constant) {
+    emit_fadd_constant(s, op->reg, op->reg,
+                       slot_flonum_constant(t, op->op2));
+    return;
+  }
+  uint8_t rhs_reg = get_flonum_operand_reg(s, t, op->op2, false);
+  emit_fadd_reg(s, op->reg, rhs_reg);
 }
 
 static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
@@ -712,7 +738,13 @@ static void emit_ir(emit_state *s, trace *t) {
       break;
     }
     case IR_ADD: {
-      emit_arith_slots(s, t, op->reg, op->op1, op->op2, false);
+      if (op->type == FLONUM_TAG) {
+        maybe_assign_register(s, op->op1, t);
+        maybe_assign_register(s, op->op2, t);
+        emit_flonum_add(s, t, op);
+      } else {
+        emit_arith_slots(s, t, op->reg, op->op1, op->op2, false);
+      }
       break;
     }
     case IR_SLOAD: {
