@@ -153,6 +153,7 @@ void emit_mov64(emit_state *s, uint8_t r, int64_t imm);
 void emit_call_reg(emit_state *s, uint8_t r);
 void emit_push(emit_state *s, uint8_t r);
 void emit_pop(emit_state *s, uint8_t r);
+void emit_debugtrap(emit_state *s);
 void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count);
 void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count);
 void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);

@@ -385,6 +385,8 @@ void emit_pop(emit_state *s, uint8_t r) {
   }
 }
 
+void emit_debugtrap(emit_state *s) { *(--p) = 0xcc; }
+
 void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count) {
   bool odd = count & 1;
   for (size_t i = 0; i < count; i++) {

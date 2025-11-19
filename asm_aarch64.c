@@ -496,6 +496,8 @@ void emit_pop(emit_state *s, uint8_t r) {
   emit_mem_load(s, 0, SP, r);
 }
 
+void emit_debugtrap(emit_state *s) { emit_op(s, UINT32_C(0xD4200000)); }
+
 void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count) {
   size_t i = 0;
   for (; i + 1 < count; i += 2) {

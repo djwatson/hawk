@@ -13,6 +13,7 @@
 #include "array.h"
 #include "asm.h"
 #include "disassemble.h"
+#include "gc.h"
 #include "hawk.h"
 #include "ir.h"
 #include "vm.h"
@@ -23,6 +24,20 @@
 #include "record.h"
 #include "zone_alloc.h"
 
+static_assert((sizeof(flonum_s) & 7) == 0, "flonum_s must be 8-byte aligned");
+enum : int32_t {
+  FLONUM_SIZE_CLASS = (int32_t)(sizeof(flonum_s) / 8),
+};
+static_assert(FLONUM_SIZE_CLASS < (int32_t)size_classes,
+              "flonum size class must exist");
+static freelist_s *const flonum_freelist =
+    &freelist[FLONUM_SIZE_CLASS];
+static const int32_t freelist_start_offset =
+    (int32_t)offsetof(freelist_s, start_ptr);
+static const int32_t freelist_end_offset =
+    (int32_t)offsetof(freelist_s, end_ptr);
+static const int32_t flonum_payload_offset =
+    (int32_t)offsetof(flonum_s, x);
 static void assign_snap_registers(emit_state *s, size_t snap_num, trace *t) {
   // Get a free register, if any.  If already assigned a slot, do nothing.
   // If no free registers, assign a slot.
@@ -282,6 +297,37 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
   COMMENT("Emit stack guard check");
 }
 
+static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
+                                   ir_ins *ins) {
+  assert(ins->reg < MAX_FREG);
+  emit_pop(s, RET_REG);
+  emit_pop(s, RET_REG2);
+
+  emit_store(s, stack_offset, RSTACK, RTMP);
+  emit_add_constant(s, RTMP, RTMP, FLONUM_TAG);
+  emit_mov(s, RTMP, RET_REG);
+  emit_fstore(s, flonum_payload_offset, RET_REG, ins->reg);
+  emit_store_constant(s, 0, RET_REG, FLONUM_TAG);
+
+  emit_store(s, freelist_start_offset, RTMP, RET_REG2);
+  emit_mov64(s, RTMP, (intptr_t)flonum_freelist);
+  emit_mov(s, RET_REG2, RTMP);
+
+  auto continue_label = emit_offset(s);
+  emit_debugtrap(s);
+  emit_jcc32(s, JLE, continue_label);
+  emit_cmp(s, RTMP, RET_REG2);
+
+  emit_add_constant(s, RTMP, RTMP, (int32_t)sizeof(flonum_s));
+  emit_mov(s, RTMP, RET_REG);
+  emit_mem_load(s, freelist_end_offset, RTMP, RET_REG2);
+  emit_mem_load(s, freelist_start_offset, RTMP, RET_REG);
+  emit_mov64(s, RTMP, (intptr_t)flonum_freelist);
+
+  emit_push(s, RET_REG2);
+  emit_push(s, RET_REG);
+}
+
 static void emit_snap_store_entry(emit_state *s, trace *t,
                                   snap_entry const *entry) {
   auto stack_offset = (int32_t)entry->slot * 8;
@@ -292,7 +338,8 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
 
   auto ins = slot_ins(t, entry->val);
   if (ins->type == FLONUM_TAG) {
-    abort();
+    emit_snap_store_flonum(s, stack_offset, ins);
+    return;
   }
 
   if (ins->spill != SPILL_NONE) {
