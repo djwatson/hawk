@@ -102,8 +102,11 @@ static inline gc_obj emit_ov_math_sub(vm_state *state, gc_obj v1, gc_obj v2) {
   // TODO other math types!
   abort();
 }
-static inline gc_obj emit_math_cmp_lt(vm_state *state, gc_obj v1, gc_obj v2) {
+static inline gc_obj emit_math_cmp_lt(vm_state *state, bc *pc, gc_obj *stack,
+                                      gc_obj v1, gc_obj v2) {
   (void)state;
+  (void)pc;
+  (void)stack;
   if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
     return to_fixnum(v1) < to_fixnum(v2) ? TRUE_REP : FALSE_REP;
   }
@@ -116,8 +119,11 @@ static inline gc_obj emit_math_cmp_lt(vm_state *state, gc_obj v1, gc_obj v2) {
   abort();
   (void)state;
 }
-static inline gc_obj emit_math_cmp_eq(vm_state *state, gc_obj v1, gc_obj v2) {
+static inline gc_obj emit_math_cmp_eq(vm_state *state, bc *pc, gc_obj *stack,
+                                      gc_obj v1, gc_obj v2) {
   (void)state;
+  (void)pc;
+  (void)stack;
   if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
     return to_fixnum(v1) == to_fixnum(v2) ? TRUE_REP : FALSE_REP;
   }
@@ -129,6 +135,10 @@ static inline gc_obj emit_math_cmp_eq(vm_state *state, gc_obj v1, gc_obj v2) {
   // TODO other math types!
   abort();
   (void)state;
+}
+static inline gc_obj emit_if_branch(vm_state *state, bc *pc, gc_obj *stack,
+                                    gc_obj obj) {
+  return obj;
 }
 static inline void ensure_symbol(gc_obj val) { (void)val; }
 static inline frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,

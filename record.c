@@ -71,6 +71,11 @@ static void snapshot_live_slots(trace_state *ts, snap *snap) {
   PRESERVE_NONE gc_obj record_##code(bc *pc, gc_obj *stack, vm_state *state,   \
                                      void *op_table, uint8_t argcnt)
 
+typedef struct {
+  bool taken;
+  ir_ins guard;
+} branch_result;
+
 static slot add_const(vm_state *state, gc_obj value) {
   trace *trace_obj = record_current_trace(state);
   auto idx = arrlen(trace_obj->consts);
@@ -193,15 +198,32 @@ static slot emit_ov_math_sub(vm_state *state, slot v1, slot v2) {
       IR(.op = IR_SUB, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
   return add_inst(state, ins);
 }
-static slot emit_math_cmp_lt(vm_state *state, slot v1, slot v2) {
-  (void)state;
-  (void)v2;
-  return v1;
+static branch_result emit_math_cmp_lt(vm_state *state, bc *pc, gc_obj *stack,
+                                      slot v1, slot v2) {
+  auto lhs = stack[pc->v1];
+  auto rhs = stack[pc->v2];
+  bool res = to_fixnum(lhs) < to_fixnum(rhs);
+
+  branch_result br = {
+      .taken = res,
+      .guard = IR(.op = res ? IR_LT : IR_GTE, .op1 = v1, .op2 = v2,
+                  .type = UNDEFINED_TAG),
+  };
+  return br;
 }
-static slot emit_math_cmp_eq(vm_state *state, slot v1, slot v2) {
-  (void)state;
-  (void)v2;
-  return v1;
+static branch_result emit_math_cmp_eq(vm_state *state, bc *pc, gc_obj *stack,
+                                      slot v1, slot v2) {
+  auto lhs = stack[pc->v1];
+  auto rhs = stack[pc->v2];
+  bool res = to_fixnum(lhs) == to_fixnum(rhs);
+
+  auto t = record_current_trace(state);
+  branch_result br = {
+      .taken = res,
+      .guard = IR(.op = res ? IR_EQ : IR_NE, .op1 = v1, .op2 = v2,
+                  .type = get_slot_type(t, v1)),
+  };
+  return br;
 }
 static void ensure_symbol(slot val) {}
 static slot constify_data(vm_state *state, uint16_t data) {
@@ -384,50 +406,28 @@ static inline void fail_if_not_closure(slot sym) {
 static void check_arity(int fun, uint8_t args) {
   // TODO
 }
-static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack, slot b) {
+static branch_result emit_if_branch(vm_state *state, bc *pc, gc_obj *stack,
+                                    slot cond) {
+  auto val = stack[pc->data];
+  bool taken = val.value != FALSE_REP.value;
+  slot must_be = add_const(state, taken ? TRUE_REP : FALSE_REP);
+  branch_result br = {
+      .taken = taken,
+      .guard = IR(.op = IR_GUARD_EQ, .op1 = cond, .op2 = must_be),
+  };
+  return br;
+}
+static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
+                        branch_result br) {
   trace_state *ts = record_trace_state(state);
-  auto t = record_current_trace(state);
-  bool res;
-  ir_ins ins;
-  switch (pc->op) {
-  case OP_IF: {
-    auto val = stack[pc->data];
-    res = val.value != FALSE_REP.value;
-    slot must_be = add_const(state, res ? TRUE_REP : FALSE_REP);
-    ins = IR(.op = IR_GUARD_EQ, .op1 = b, .op2 = must_be);
-    break;
-  }
-  case OP_JLT: {
-    auto lhs = stack[pc->v1];
-    auto rhs = stack[pc->v2];
-    res = to_fixnum(lhs) < to_fixnum(rhs);
-    slot lhs_slot = stack_load(state, stack, pc->v1, false);
-    slot rhs_slot = stack_load(state, stack, pc->v2, false);
-    ins = IR(.op = res ? IR_LT : IR_GTE, .op1 = lhs_slot, .op2 = rhs_slot,
-             .type = UNDEFINED_TAG);
-    break;
-  }
-  case OP_JEQV: {
-    auto lhs = stack[pc->v1];
-    auto rhs = stack[pc->v2];
-    res = to_fixnum(lhs) == to_fixnum(rhs);
-    slot lhs_slot = stack_load(state, stack, pc->v1, false);
-    slot rhs_slot = stack_load(state, stack, pc->v2, false);
-    ins = IR(.op = res ? IR_EQ : IR_NE, .op1 = lhs_slot, .op2 = rhs_slot,
-             .type = get_slot_type(t, lhs_slot));
-    break;
-  }
-  default:
-    abort();
-  }
-
+  (void)stack;
   // pc->reg is the new top of stack.  Clear out anything above before
   // snapshotting.
   arrlen_set(ts->stack, pc->reg);
 
   auto jmp_pc = pc + 1;
   bc *next_pc;
-  if (!res) {
+  if (!br.taken) {
     next_pc = jmp_pc + jmp_pc->data;
     vm_add_snap(state, jmp_pc + 1);
   } else {
@@ -435,7 +435,7 @@ static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack, slot b) {
     vm_add_snap(state, jmp_pc + jmp_pc->data);
   }
 
-  add_inst(state, ins);
+  add_inst(state, br.guard);
   vm_add_snap(state, next_pc);
   return pc;
 }

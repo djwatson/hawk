@@ -112,20 +112,21 @@ END OP_BEGIN(JFUNC) {
 END OP_BEGIN(JLT) {
   auto v1 = stack_load(state, stack, pc->v1, true);
   auto v2 = stack_load(state, stack, pc->v2, true);
-  auto res = emit_math_cmp_lt(state, v1, v2);
+  auto res = emit_math_cmp_lt(state, pc, stack, v1, v2);
   pc = branch_if_op(state, pc, stack, res);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(JEQV) {
   auto v1 = stack_load(state, stack, pc->v1, true);
   auto v2 = stack_load(state, stack, pc->v2, true);
-  auto res = emit_math_cmp_eq(state, v1, v2);
+  auto res = emit_math_cmp_eq(state, pc, stack, v1, v2);
   pc = branch_if_op(state, pc, stack, res);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(IF) {
   auto v = stack_load(state, stack, pc->data, false);
-  pc = branch_if_op(state, pc, stack, v);
+  auto res = emit_if_branch(state, pc, stack, v);
+  pc = branch_if_op(state, pc, stack, res);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(JMP) {
