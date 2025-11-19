@@ -235,6 +235,15 @@ static void record_finish(bc *pc, vm_state *state) {
   record_append_trace(state, cur_trace);
   clear_trace_state(ts);
 }
+static int downrec_hits(trace_state *ts, bc *pc) {
+  int cnt = 0;
+  arr_for_each(ts->downrec, downrec_ra) {
+    if (downrec_ra == pc) {
+      cnt++;
+    }
+  }
+  return cnt;
+}
 static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
                                 void *op_table) {
   // add downrec array
@@ -250,10 +259,13 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
   //     if we're not yet at 'desperate' levels, abort and retry.
   //     if we're desperate, capture the trace, but mark as a 'desperate'
   //        future traces can trace through desperate instead of linking.
-  if (record_trace_state(state)->depth == 0) {
+  trace_state *ts = record_trace_state(state);
+  trace *cur_trace = record_current_trace(state);
+  bool downrec_trace = is_downrec_trace(ts);
+  bool at_trace_start = (pc == ts->start_ins);
+  if (ts->depth == 0) {
     // Root traces cannot return
-    if (!record_current_trace(state)->parent &&
-        !is_downrec_trace(record_trace_state(state))) {
+    if (!cur_trace->parent && !downrec_trace) {
       if (verbose) {
         printf("Record abort: return\n");
       }
@@ -272,29 +284,24 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     // This may mean this ISN'T a downrecursive case, but if so, it
     // will eventually be blacklisted. Better to catch down-rec with
     // slight penalty for weird cases that look like downrec but aren't.
-    int cnt = 0;
-    arr_for_each(record_trace_state(state)->downrec, downrec_ra) {
-      if (downrec_ra == pc) {
-        cnt++;
-      }
-    }
+    int cnt = downrec_hits(ts, pc);
+    bool seen_downrec = cnt > 0;
 
     // If this is a side trace, we've detected potential downrecursion.
     // Abort and start a downrec trace.
-    if (record_current_trace(state)->parent && cnt) {
+    if (cur_trace->parent && seen_downrec) {
       if (verbose) {
         printf("Record abort: potential downrec detected\n");
       }
-      clear_trace_state(record_trace_state(state));
-      free_trace(record_current_trace(state));
+      clear_trace_state(ts);
+      free_trace(cur_trace);
       record_start(state, pc, stack);
       // UGH there must be a better way?
       VMGEN_TRACE_OP(pc, RET);
       return return_frame(state, pc, stack, op_table);
     }
-    if (is_downrec_trace(record_trace_state(state)) && cnt &&
-        pc == record_trace_state(state)->start_ins) {
-      record_current_trace(state)->link = record_current_trace(state);
+    if (downrec_trace && seen_downrec && at_trace_start) {
+      cur_trace->link = cur_trace;
       record_finish(pc, state);
       return (frame_state){pc, stack, state->impls};
     }
@@ -308,9 +315,8 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     auto offset = old_pc->reg + 1;
 
     // 3) Clear regs / set result in new regs
-    // assert(record_trace_state(state)->stack_off == 0);
-    arrlen_set(record_trace_state(state)->stack,
-               record_trace_state(state)->stack_off);
+    // assert(ts->stack_off == 0);
+    arrlen_set(ts->stack, ts->stack_off);
     // 4) Const-ify the current return address
 
     auto const_ra = add_const(state, stack[-1]);
@@ -323,11 +329,9 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     set_stack(state, old_pc->reg, res);
     // 7) Add a snap, since we changed the stack / RA, we can't go back.
     vm_add_snap(state, ra);
-    arrput(nullptr, record_trace_state(state)->downrec, pc);
+    arrput(nullptr, ts->downrec, pc);
   } else {
-    if (is_downrec_trace(record_trace_state(state)) &&
-        (pc == record_trace_state(state)->start_ins) &&
-        (arrlen(record_current_trace(state)->ins) > 1)) {
+    if (downrec_trace && at_trace_start && (arrlen(cur_trace->ins) > 1)) {
       // We've walked UP the stack to the same return statement somehow. Abort.
       if (verbose) {
         printf("Record abort: couldn't catch downrec, walked up.\n");
@@ -335,8 +339,8 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
       record_abort(state);
       return (frame_state){pc, stack, state->impls};
     }
-    record_trace_state(state)->depth--;
-    if (!is_downrec_trace(record_trace_state(state))) {
+    ts->depth--;
+    if (!downrec_trace) {
       abort();
     }
     /* auto ret = state->stack[state->stack_offset + func->reg]; */
@@ -576,9 +580,10 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
   }
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   trace_state *ts = record_trace_state(state);
-  record_current_trace(state)->parent = snap->trace;
-  record_current_trace(state)->parent_snap = snap;
-  record_current_trace(state)->start_pc = *pc;
+  trace *cur_trace = record_current_trace(state);
+  cur_trace->parent = snap->trace;
+  cur_trace->parent_snap = snap;
+  cur_trace->start_pc = *pc;
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
   ts->skip_start_check = (pc->op == OP_RET);
