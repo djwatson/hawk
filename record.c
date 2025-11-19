@@ -189,8 +189,8 @@ static slot emit_ov_math_sub(vm_state *state, slot v1, slot v2) {
   if (get_slot_type(t, v1) != get_slot_type(t, v2)) {
     abort();
   }
-  ir_ins ins = IR(.op = IR_SUB, .op1 = v1, .op2 = v2, .guard = true,
-                  .type = get_slot_type(t, v1));
+  ir_ins ins =
+      IR(.op = IR_SUB, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
   return add_inst(state, ins);
 }
 static slot emit_math_cmp_lt(vm_state *state, slot v1, slot v2) {

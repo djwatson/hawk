@@ -1,6 +1,7 @@
 # VM impl
 
 
+* lazy typecheck - needs PMOV guard and loopback guards to be fixed still
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
 * sumfp, fibfp
@@ -29,10 +30,8 @@
 
 
 ## tracer
-* Keep track of type.
 * dead/kills - no idea.  We could analyze bytecode, or just do
   top-of-stack tracking like previous.
-* lazy typecheck - but then emit at the top.
 * multiple return values from the start
 * punt on: more than 256 refs.
 

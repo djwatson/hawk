@@ -148,6 +148,7 @@ void print_ir(trace *t) {
     } else {
       printf("    ");
     }
+    printf("%s ", ins->guard ? ">" : " ");
     print_tag_type(ins->type);
     printf("%-8s", ir_names[ins->op]);
     switch (ins->op) {
