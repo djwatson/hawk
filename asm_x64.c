@@ -8,8 +8,8 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "asm.h"
 #include "array.h"
+#include "asm.h"
 #include "hawk.h"
 
 static void emit_reg_reg(emit_state *s, uint8_t opcode, uint8_t src,
@@ -25,7 +25,7 @@ const char *const reg_names[X64_MAX_REG] = {
     ASM_X64_REGISTER_LIST(X)
 #undef X
 #define X(name) #name,
-    ASM_X64_FREGISTER_LIST(X)
+        ASM_X64_FREGISTER_LIST(X)
 #undef X
 };
 
@@ -378,6 +378,23 @@ static void emit_neg(emit_state *s, uint8_t r) {
     emit_rex(s, 0, 0, 0, r >> 3);
   }
 }
+static void emit_fneg(emit_state *s, uint8_t r) {
+  assert(r >= FPR_REG_START && r < X64_MAX_REG);
+  uint8_t hw = hw_fpr(r);
+  int idx = add_constant(s, -0.0);
+  constant_entry *entry = &s->const_pool[idx];
+
+  emit_imm32(s, 0);
+  uint8_t *disp = p;
+  emit_modrm(s, 0x0, 0x7 & hw, 0x5);
+  *(--p) = 0x57;
+  *(--p) = 0x0f;
+  emit_rex(s, 0, hw >> 3, 0, 0);
+  *(--p) = 0x66;
+
+  const_patch patch = {.inst0 = disp, .inst1 = nullptr};
+  arrput(&s->z, entry->patches, patch);
+}
 
 void emit_push(emit_state *s, uint8_t r) {
   *(--p) = 0x50 + (0x7 & r);
@@ -483,15 +500,31 @@ void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
     emit_mov(s, dst, lhs);
   }
 }
-void emit_fadd(emit_state *s, uint8_t dst, uint8_t src) {
-  emit_sse_reg_reg(s, 0xF2, 0x58, hw_fpr(dst), hw_fpr(src));
+void emit_fadd(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  if (dst == lhs) {
+    emit_sse_reg_reg(s, 0xF2, 0x58, hw_fpr(lhs), hw_fpr(rhs));
+  } else if (rhs == dst) {
+    emit_sse_reg_reg(s, 0xF2, 0x58, hw_fpr(dst), hw_fpr(lhs));
+  } else {
+    emit_sse_reg_reg(s, 0xF2, 0x58, hw_fpr(dst), hw_fpr(rhs));
+    emit_fmov(s, dst, lhs);
+  }
 }
-void emit_fsub(emit_state *s, uint8_t dst, uint8_t src) {
-  emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(dst), hw_fpr(src));
+
+void emit_fsub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  if (dst == lhs) {
+    emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(lhs), hw_fpr(rhs));
+  } else if (rhs == dst) {
+    emit_fneg(s, dst);
+    emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(dst), hw_fpr(lhs));
+  } else {
+    emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(dst), hw_fpr(rhs));
+    emit_fmov(s, dst, lhs);
+  }
 }
 
 void emit_fadd_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
-  emit_fadd(s, dst, FRTMP);
+  emit_fadd(s, dst, lhs, FRTMP);
   load_constant(s, add_constant(s, imm), FRTMP);
 }
 

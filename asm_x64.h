@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define ASM_X64_REGISTER_LIST(X)                                               \
   X(RAX)                                                                       \
@@ -46,9 +46,9 @@ enum registers : uint8_t {
   ASM_X64_REGISTER_LIST(X)
 #undef X
 #define X(name) name,
-  ASM_X64_FREGISTER_LIST(X)
+      ASM_X64_FREGISTER_LIST(X)
 #undef X
-      X64_MAX_REG,
+          X64_MAX_REG,
 
   RET_REG = RAX,
   RET_REG2 = RDX,
@@ -172,8 +172,8 @@ void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
 void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
-void emit_fadd(emit_state *s, uint8_t dst, uint8_t src);
-void emit_fsub(emit_state *s, uint8_t dst, uint8_t src);
+void emit_fadd(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
+void emit_fsub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_fadd_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm);
 void emit_fsub_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm);
 void emit_mov(emit_state *s, uint8_t dst, uint8_t src);
