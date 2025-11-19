@@ -139,9 +139,13 @@ void print_ir(trace *t) {
     ir_ins *ins = &t->ins[i];
     printf("%04zu", i);
     if (ins->reg != REG_NONE) {
-      printf(" %-3s", reg_names[ins->reg]);
+      if (ins->type == FLONUM_TAG) {
+        printf(" %-4s", freg_names[ins->reg]);
+      } else {
+        printf(" %-4s", reg_names[ins->reg]);
+      }
     } else {
-      printf("    ");
+      printf("     ");
     }
     if (ins->spill != SPILL_NONE) {
       printf("\e[1;31m[%i]\e[m ", ins->spill);

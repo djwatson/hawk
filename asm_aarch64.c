@@ -16,6 +16,11 @@ const char *const reg_names[AARCH64_MAX_REG] = {
     ASM_AARCH64_REGISTER_LIST(X)
 #undef X
 };
+const char *const freg_names[AARCH64_MAX_FREG] = {
+#define X(name) #name,
+    ASM_AARCH64_FREGISTER_LIST(X)
+#undef X
+};
 
 void asm_mark_unallocatable(bool used[MAX_REG]) {
   used[SP] = true;

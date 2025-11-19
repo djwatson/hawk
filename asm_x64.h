@@ -179,6 +179,7 @@ void emit_fsub(emit_state *s, uint8_t dst, uint8_t src);
 void emit_mov(emit_state *s, uint8_t dst, uint8_t src);
 
 extern const char *const reg_names[X64_MAX_REG];
+extern const char *const freg_names[X64_MAX_FREG];
 
 void asm_load_constant(emit_state *s, int idx, uint8_t dst);
 void asm_patch_constant_pool(emit_state *s);

@@ -153,8 +153,7 @@ void emit_constant_pool(emit_state *s) {
   asm_patch_constant_pool(s);
 
   for (size_t i = 0; i < len; i++) {
-    arrfree(s->const_pool[i].patches);
+    s->const_pool[i].patches = nullptr;
   }
-  arrfree(s->const_pool);
   s->const_pool = nullptr;
 }

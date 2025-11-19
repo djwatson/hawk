@@ -20,6 +20,11 @@ const char *const reg_names[X64_MAX_REG] = {
     ASM_X64_REGISTER_LIST(X)
 #undef X
 };
+const char *const freg_names[X64_MAX_FREG] = {
+#define X(name) #name,
+    ASM_X64_FREGISTER_LIST(X)
+#undef X
+};
 
 void asm_mark_unallocatable(bool used[MAX_REG]) {
   used[RSP] = true;

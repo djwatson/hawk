@@ -38,6 +38,20 @@ static const int32_t freelist_end_offset =
     (int32_t)offsetof(freelist_s, end_ptr);
 static const int32_t flonum_payload_offset =
     (int32_t)offsetof(flonum_s, x);
+
+static inline bool ins_uses_freg(ir_ins const *ins) {
+  return ins->type == FLONUM_TAG;
+}
+
+static int alloc_reg_from_pool(regmap *regs, size_t max_regs) {
+  for (size_t i = 0; i < max_regs; i++) {
+    if (!regs[i].used) {
+      return (int)i;
+    }
+  }
+  abort();
+}
+
 static void assign_snap_registers(emit_state *s, size_t snap_num, trace *t) {
   // Get a free register, if any.  If already assigned a slot, do nothing.
   // If no free registers, assign a slot.
@@ -52,17 +66,30 @@ static void assign_snap_registers(emit_state *s, size_t snap_num, trace *t) {
       continue;
     }
     // Try and find a free reg, or assign the next spill slot.
+    bool uses_freg = ins_uses_freg(op);
     bool done = false;
-    for (int j = 0; j < MAX_REG; j++) {
-      if (!s->regs[j].used) {
-        op->reg = j;
-        s->regs[op->reg].s = sl->val.loc;
-        s->regs[op->reg].used = true;
-        done = true;
-        // lru_poke(&reg_lru, op->reg);
-        /* printf("Assigning snap register %s to op %i\n",
-         * reg_names[op->reg], sl->val); */
-        break;
+    if (uses_freg) {
+      for (int j = 0; j < MAX_FREG; j++) {
+        if (!s->fregs[j].used) {
+          op->reg = j;
+          s->fregs[op->reg].s = sl->val.loc;
+          s->fregs[op->reg].used = true;
+          done = true;
+          break;
+        }
+      }
+    } else {
+      for (int j = 0; j < MAX_REG; j++) {
+        if (!s->regs[j].used) {
+          op->reg = j;
+          s->regs[op->reg].s = sl->val.loc;
+          s->regs[op->reg].used = true;
+          done = true;
+          // lru_poke(&reg_lru, op->reg);
+          /* printf("Assigning snap register %s to op %i\n",
+           * reg_names[op->reg], sl->val); */
+          break;
+        }
       }
     }
     if (!done) {
@@ -97,26 +124,19 @@ static void get_reg(emit_state *s, uint8_t reg, trace *trace) {
   }
   s->regs[reg].used = true;
 }
-static int get_free_reg(emit_state *s, trace *trace, bool callee) {
-  for (int i = 0; i < MAX_REG; i++) {
-    if (!s->regs[i].used) {
-      return i;
-    }
-  }
-
-  abort();
-  // Spill.
-
-  // get_reg(oldest, trace, s->next_spill, slot);
-  // return oldest;
-}
 static void maybe_assign_register(emit_state *s, slot v, trace *trace) {
   if (!v.constant) {
     auto op = &trace->ins[v.loc];
     if (op->reg == REG_NONE) {
-      op->reg = get_free_reg(s, trace, false);
-      s->regs[op->reg].s = v.loc;
-      s->regs[op->reg].used = true;
+      if (ins_uses_freg(op)) {
+        op->reg = (uint8_t)alloc_reg_from_pool(s->fregs, MAX_FREG);
+        s->fregs[op->reg].s = v.loc;
+        s->fregs[op->reg].used = true;
+      } else {
+        op->reg = (uint8_t)alloc_reg_from_pool(s->regs, MAX_REG);
+        s->regs[op->reg].s = v.loc;
+        s->regs[op->reg].used = true;
+      }
     }
     // TODO
     // lru_poke(&reg_lru, op->reg);
@@ -325,6 +345,8 @@ static void load_flonum_into_reg(emit_state *s, trace *t, slot v, uint8_t dst) {
   if (src != dst) {
     emit_fmov(s, dst, src);
   }
+}
+
 static uint8_t get_flonum_operand_reg(emit_state *s, trace *t, slot v,
                                       bool allow_constant) {
   if (v.constant) {
@@ -614,9 +636,14 @@ static void emit_ir(emit_state *s, trace *t) {
       maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
     }
     // free current register.
-    if (op->reg != REG_NONE && op->reg != RSTACK && op->op != IR_ARG) {
-      assert(s->regs[op->reg].s == op_cnt);
-      s->regs[op->reg].used = false;
+    if (op->reg != REG_NONE && op->op != IR_ARG) {
+      if (ins_uses_freg(op)) {
+        assert(s->fregs[op->reg].s == op_cnt);
+        s->fregs[op->reg].used = false;
+      } else if (op->reg != RSTACK) {
+        assert(s->regs[op->reg].s == op_cnt);
+        s->regs[op->reg].used = false;
+      }
     }
 
     emit_check(s);
@@ -656,6 +683,8 @@ static void emit_ir(emit_state *s, trace *t) {
     case IR_GTE: {
       emit_jcc32(s, JL, t->snaps[cur_snap].patch_point);
       if (op->type == FLONUM_TAG) {
+        maybe_assign_register(s, op->op1, t);
+        maybe_assign_register(s, op->op2, t);
         emit_flonum_cmp(s, t, op);
       } else {
         emit_cmp_slots(s, t, op->op1, op->op2);
@@ -664,6 +693,8 @@ static void emit_ir(emit_state *s, trace *t) {
     }
     case IR_SUB: {
       if (op->type == FLONUM_TAG) {
+        maybe_assign_register(s, op->op1, t);
+        maybe_assign_register(s, op->op2, t);
         emit_flonum_sub(s, t, op);
       } else {
         emit_arith_slots(s, t, op->reg, op->op1, op->op2, true);
@@ -805,6 +836,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   for (int i = 0; i < MAX_REG; i++) {
     s->regs[i].used = reserved[i];
   }
+  s->fregs[FRTMP].used = true;
   s->next_spill = 0;
 
   // Emit a return-to-c stub.
@@ -837,11 +869,11 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
 
   emit_constant_pool(s);
   emit_writable_end(s);
-  auto sz = end - emit_offset(s);
+  auto sz = end - entry;
   if (verbose) {
     printf("Disassembly: %" PRId64 "\n", sz);
     arr_reverse(s->comments);
-    disassemble((uint8_t *)emit_offset(s), sz, s->comments);
+    disassemble((uint8_t *)entry, sz, s->comments);
   }
 
   // Cleanup
@@ -852,13 +884,13 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // Install debuginfo for gdb & linux perf tool.
 #ifdef HAVE_ELF_H
   if (jit_dump_flag) {
-    jit_reader_add((int)(end - entry), entry);
+    jit_reader_add((int)sz, entry);
     char *dumpname = t->parent ? "Side Trace" : "Trace";
-    jit_dump((int)sz, emit_offset(s), dumpname);
-    perf_map(emit_offset(s), sz, dumpname);
+    jit_dump((int)sz, entry, dumpname);
+    perf_map(entry, sz, dumpname);
   }
 #endif
   // Call the built-in function to flush the cache for the specific range
-  __builtin___clear_cache((char *)emit_offset(s), (char *)emit_offset(s) + sz);
+  __builtin___clear_cache((char *)entry, (char *)entry + sz);
   return (trace_fn)entry;
 }
