@@ -18,6 +18,16 @@
 #define unlikely(x) __builtin_expect(x, 0)
 #define ALIGNED8 __attribute__((aligned(8)))
 #define EXPORT __attribute__((visibility("default")))
+#if defined(__clang__)
+#define IR_PRAGMA_DISABLE                                                      \
+  _Pragma("clang diagnostic push")                                             \
+      _Pragma("clang diagnostic ignored \"-Winitializer-overrides\"")
+#define IR_PRAGMA_RESTORE _Pragma("clang diagnostic pop")
+#else
+#define IR_PRAGMA_DISABLE
+#define IR_PRAGMA_RESTORE
+#endif
+
 #define SWAP(type, a, b)                                                       \
   do {                                                                         \
     type SWAP_tmp = (a);                                                       \

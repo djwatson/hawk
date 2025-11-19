@@ -78,6 +78,14 @@ static slot add_const(vm_state *state, gc_obj value) {
   return (slot){.constant = true, .loc = idx};
 }
 
+#define IR(...)                                                                \
+  IR_PRAGMA_DISABLE((ir_ins){.type = UNDEFINED_TAG,                            \
+                             .guard = false,                                   \
+                             .reg = REG_NONE,                                  \
+                             .spill = SPILL_NONE,                              \
+                             __VA_ARGS__})                                     \
+  IR_PRAGMA_RESTORE
+
 static void vm_add_snap(vm_state *state, bc *pc) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
@@ -111,12 +119,17 @@ static sentry *get_sentry(vm_state *state, uint64_t idx) {
 }
 
 static slot add_inst(vm_state *state, ir_ins ins) {
-  ins.guard = 0;
-  ins.type = UNDEFINED_TAG;
   trace *trace_obj = record_current_trace(state);
   auto idx = arrlen(trace_obj->ins);
   arrput(nullptr, trace_obj->ins, ins);
   return (slot){.constant = false, .loc = idx};
+}
+
+static uint8_t get_slot_type(trace *t, slot v) {
+  if (v.constant) {
+    return get_type_tag(t->consts[v.loc]);
+  }
+  return t->ins[v.loc].type;
 }
 
 static void set_stack(vm_state *state, uint8_t reg, slot val) {
@@ -128,14 +141,21 @@ static void set_stack(vm_state *state, uint8_t reg, slot val) {
   };
 }
 
-static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos) {
+static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos,
+                       bool typecheck) {
   auto entry = get_sentry(state, pos);
   if (entry->live) {
-    return entry->loc;
+    auto res = entry->loc;
+    if (typecheck & !res.constant) {
+      auto ins = &record_current_trace(state)->ins[res.loc];
+      assert(ins->type == get_type_tag(stack[pos]));
+      ins->guard = true;
+    }
+    return res;
   }
   // emit stack load
-  ir_ins ins = (ir_ins){
-      .op = IR_SLOAD, .data = pos, .reg = REG_NONE, .spill = SPILL_NONE};
+  ir_ins ins = IR(.op = IR_SLOAD, .data = pos, .type = get_type_tag(stack[pos]),
+                  .guard = typecheck);
 
   set_stack(state, pos, add_inst(state, ins));
   entry->changed = false;
@@ -149,27 +169,28 @@ static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   auto c = *(gc_obj *)(pc - pc->data);
   return add_const(state, c);
 }
-static uint8_t get_slot_type(trace *t, slot v) {
-  if (v.constant) {
-    return get_type_tag(t->consts[v.loc]);
-  } else {
-    return t->ins[v.loc].type;
-  }
-}
 static void add_typecheck(ir_ins *ins, gc_obj *stack, uint8_t loc) {
   ins->type = get_type_tag(stack[loc]);
   ins->guard = true;
 }
 static slot emit_ov_math_add(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
-  ir_ins ins = (ir_ins){
-      .op = IR_ADD, .op1 = v1, .op2 = v2, .reg = REG_NONE, .spill = SPILL_NONE};
+  auto t = record_current_trace(state);
+  if (get_slot_type(t, v1) != get_slot_type(t, v2)) {
+    abort();
+  }
+  ir_ins ins =
+      IR(.op = IR_ADD, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
   return add_inst(state, ins);
 }
 static slot emit_ov_math_sub(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
-  ir_ins ins = (ir_ins){
-      .op = IR_SUB, .op1 = v1, .op2 = v2, .reg = REG_NONE, .spill = SPILL_NONE};
+  auto t = record_current_trace(state);
+  if (get_slot_type(t, v1) != get_slot_type(t, v2)) {
+    abort();
+  }
+  ir_ins ins = IR(.op = IR_SUB, .op1 = v1, .op2 = v2, .guard = true,
+                  .type = get_slot_type(t, v1));
   return add_inst(state, ins);
 }
 static slot emit_math_cmp_lt(vm_state *state, slot v1, slot v2) {
@@ -279,7 +300,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
 
     // Side traces *may* go down the stack.
     // 1) record load for result
-    auto res = stack_load(state, stack, pc->reg);
+    auto res = stack_load(state, stack, pc->reg, false);
     // 2) get the frame offset
     auto ra = to_return_address(stack[-1]);
     auto old_pc = ra - 1;
@@ -293,12 +314,8 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     auto const_ra = add_const(state, stack[-1]);
     auto const_offset = add_const(state, tag_fixnum(offset));
     // 5) add a new IR: IR_RET that checks ret and does a ret.
-    ir_ins ins = {.op = IR_RET,
-                  .op1 = const_offset,
-                  .op2 = const_ra,
-                  .reg = REG_NONE,
-                  .spill = SPILL_NONE,
-                  .type = UNDEFINED_TAG};
+    ir_ins ins = IR(.op = IR_RET, .op1 = const_offset, .op2 = const_ra,
+                    .type = get_type_tag(stack[pc->reg]));
     add_inst(state, ins);
     // 6) set new stack top.
     set_stack(state, old_pc->reg, res);
@@ -330,14 +347,12 @@ static slot sym_load(vm_state *state, slot sym) {
     s->opt = 1;
     return add_const(state, s->val);
   }
-  ir_ins ins =
-      (ir_ins){.op = IR_GGET, .op1 = sym, .reg = REG_NONE, .spill = SPILL_NONE};
+  ir_ins ins = IR(.op = IR_GGET, .op1 = sym);
 
   return add_inst(state, ins);
 }
 static void sym_store(vm_state *state, slot sym, slot val) {
-  ir_ins ins =
-      (ir_ins){.op = IR_GSET, .op1 = sym, .reg = REG_NONE, .spill = SPILL_NONE};
+  ir_ins ins = IR(.op = IR_GSET, .op1 = sym);
   add_inst(state, ins);
 }
 static void obj_write(vm_state *state, slot val) { abort(); }
@@ -353,6 +368,7 @@ static void check_arity(int fun, uint8_t args) {
 }
 static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack, slot b) {
   trace_state *ts = record_trace_state(state);
+  auto t = record_current_trace(state);
   bool res;
   ir_ins ins;
   switch (pc->op) {
@@ -360,39 +376,27 @@ static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack, slot b) {
     auto val = stack[pc->data];
     res = val.value != FALSE_REP.value;
     slot must_be = add_const(state, res ? TRUE_REP : FALSE_REP);
-    ins = (ir_ins){.op = IR_GUARD_EQ,
-                   .op1 = b,
-                   .op2 = must_be,
-                   .reg = REG_NONE,
-                   .spill = SPILL_NONE};
+    ins = IR(.op = IR_GUARD_EQ, .op1 = b, .op2 = must_be);
     break;
   }
   case OP_JLT: {
     auto lhs = stack[pc->v1];
     auto rhs = stack[pc->v2];
     res = to_fixnum(lhs) < to_fixnum(rhs);
-    slot lhs_slot = stack_load(state, stack, pc->v1);
-    slot rhs_slot = stack_load(state, stack, pc->v2);
-    ins = (ir_ins){.op = res ? IR_LT : IR_GTE,
-                   .op1 = lhs_slot,
-                   .op2 = rhs_slot,
-                   .reg = REG_NONE,
-                   .spill = SPILL_NONE,
-                   .type = UNDEFINED_TAG};
+    slot lhs_slot = stack_load(state, stack, pc->v1, false);
+    slot rhs_slot = stack_load(state, stack, pc->v2, false);
+    ins = IR(.op = res ? IR_LT : IR_GTE, .op1 = lhs_slot, .op2 = rhs_slot,
+             .type = UNDEFINED_TAG);
     break;
   }
   case OP_JEQV: {
     auto lhs = stack[pc->v1];
     auto rhs = stack[pc->v2];
     res = to_fixnum(lhs) == to_fixnum(rhs);
-    slot lhs_slot = stack_load(state, stack, pc->v1);
-    slot rhs_slot = stack_load(state, stack, pc->v2);
-    ins = (ir_ins){.op = res ? IR_EQ : IR_NE,
-                   .op1 = lhs_slot,
-                   .op2 = rhs_slot,
-                   .reg = REG_NONE,
-                   .spill = SPILL_NONE,
-                   .type = UNDEFINED_TAG};
+    slot lhs_slot = stack_load(state, stack, pc->v1, false);
+    slot rhs_slot = stack_load(state, stack, pc->v2, false);
+    ins = IR(.op = res ? IR_EQ : IR_NE, .op1 = lhs_slot, .op2 = rhs_slot,
+             .type = get_slot_type(t, lhs_slot));
     break;
   }
   default:
@@ -428,11 +432,7 @@ static slot closure_get(vm_state *state, slot clo, uint8_t pos) {
     auto res = c->v[pos];
     return add_const(state, res);
   }
-  ir_ins ins = (ir_ins){.op = IR_LOAD,
-                        .op1 = clo,
-                        .op2 = c_pos,
-                        .reg = REG_NONE,
-                        .spill = SPILL_NONE};
+  ir_ins ins = IR(.op = IR_LOAD, .op1 = clo, .op2 = c_pos);
   return add_inst(state, ins);
 }
 static slot return_address(vm_state *state, bc *ra) {
@@ -451,7 +451,7 @@ static void stack_memmov(vm_state *state, gc_obj *stack, uint16_t from,
   // memmove(&stack[0], &stack[from], cnt * sizeof(gc_obj));
   uint16_t to = 0;
   while (cnt-- > 0) {
-    auto entry = stack_load(state, stack, from++);
+    auto entry = stack_load(state, stack, from++, false);
     set_stack(state, to++, entry);
   }
 
@@ -464,11 +464,7 @@ static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
     // Peek at destination
     slot must_be = add_const(state, stack[pc->reg]);
 
-    ir_ins ins = (ir_ins){.op = IR_GUARD_EQ,
-                          .op1 = func,
-                          .op2 = must_be,
-                          .reg = REG_NONE,
-                          .spill = SPILL_NONE};
+    ir_ins ins = IR(.op = IR_GUARD_EQ, .op1 = func, .op2 = must_be);
     add_inst(state, ins);
   }
 
@@ -545,18 +541,14 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack) {
   case OP_FUNC:
     for (int i = 0; i < MIN(pc->reg, REG_ARG_CNT); i++) {
       set_stack(state, i,
-                add_inst(state, (ir_ins){.op = IR_ARG,
-                                         .data = i,
-                                         .spill = SPILL_NONE,
-                                         .reg = REG_NONE}));
+                add_inst(state, IR(.op = IR_ARG, .data = i,
+                                   .type = get_type_tag(stack[i]))));
     }
     break;
   case OP_RET:
     set_stack(state, pc->reg,
-              add_inst(state, (ir_ins){.op = IR_ARG,
-                                       .data = pc->reg,
-                                       .spill = SPILL_NONE,
-                                       .reg = REG_NONE}));
+              add_inst(state, IR(.op = IR_ARG, .data = pc->reg,
+                                 .type = get_type_tag(stack[pc->reg]))));
     break;
   default:
     abort();
@@ -590,10 +582,8 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
         abort();
       } else {
         set_stack(state, entry->slot,
-                  add_inst(state, (ir_ins){.op = IR_PMOV,
-                                           .data = old_ins->reg,
-                                           .spill = SPILL_NONE,
-                                           .reg = REG_NONE}));
+                  add_inst(state, IR(.op = IR_PMOV, .data = old_ins->reg,
+                                     .type = old_ins->type)));
       }
     }
   }

@@ -54,7 +54,8 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   return op_table;
 }
 
-static inline gc_obj stack_load(vm_state *state, gc_obj *stack, uint8_t slot) {
+static inline gc_obj stack_load(vm_state *state, gc_obj *stack, uint8_t slot,
+                                bool typecheck) {
   (void)state;
   return stack[slot];
 }
