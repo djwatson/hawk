@@ -41,13 +41,24 @@ static inline bool ins_uses_freg(ir_ins const *ins) {
   return ins->type == FLONUM_TAG;
 }
 
-static int alloc_reg_from_pool(regmap *regs, size_t max_regs) {
-  for (size_t i = 0; i < max_regs; i++) {
-    if (!regs[i].used) {
-      return (int)i;
+static inline bool is_fpr_reg(uint8_t reg) { return reg >= FPR_REG_START; }
+
+static int alloc_gpr(emit_state *s) {
+  for (int i = 0; i < (int)FPR_REG_START; i++) {
+    if (!s->regs[i].used) {
+      return i;
     }
   }
-  abort();
+  return REG_NONE;
+}
+
+static int alloc_fpr(emit_state *s) {
+  for (int i = FPR_REG_START; i < FPR_REG_END; i++) {
+    if (!s->regs[i].used) {
+      return i;
+    }
+  }
+  return REG_NONE;
 }
 
 static void assign_snap_registers(emit_state *s, size_t snap_num, trace *t) {
@@ -64,38 +75,20 @@ static void assign_snap_registers(emit_state *s, size_t snap_num, trace *t) {
       continue;
     }
     // Try and find a free reg, or assign the next spill slot.
-    bool uses_freg = ins_uses_freg(op);
-    bool done = false;
-    if (uses_freg) {
-      for (int j = 0; j < MAX_FREG; j++) {
-        if (!s->fregs[j].used) {
-          op->reg = j;
-          s->fregs[op->reg].s = sl->val.loc;
-          s->fregs[op->reg].used = true;
-          done = true;
-          break;
-        }
-      }
+    if (ins_uses_freg(op)) {
+      op->reg = (uint8_t)alloc_fpr(s);
     } else {
-      for (int j = 0; j < MAX_REG; j++) {
-        if (!s->regs[j].used) {
-          op->reg = j;
-          s->regs[op->reg].s = sl->val.loc;
-          s->regs[op->reg].used = true;
-          done = true;
-          // lru_poke(&reg_lru, op->reg);
-          /* printf("Assigning snap register %s to op %i\n",
-           * reg_names[op->reg], sl->val); */
-          break;
-        }
-      }
+      op->reg = (uint8_t)alloc_gpr(s);
     }
-    if (!done) {
+    if (op->reg == REG_NONE) {
       // Couldn't find a free reg, assign a slot.
       op->spill = (s->next_spill)++;
       /* printf("Assigning snap slot %i to op %i\n", op->slot, sl->val); */
       assert(s->next_spill < 255);
       // check_spill_cnt(s->next_spill);
+    } else {
+      s->regs[op->reg].s = sl->val.loc;
+      s->regs[op->reg].used = true;
     }
   }
 }
@@ -126,15 +119,13 @@ static void maybe_assign_register(emit_state *s, slot v, trace *trace) {
   if (!v.constant) {
     auto op = &trace->ins[v.loc];
     if (op->reg == REG_NONE) {
-      if (ins_uses_freg(op)) {
-        op->reg = (uint8_t)alloc_reg_from_pool(s->fregs, MAX_FREG);
-        s->fregs[op->reg].s = v.loc;
-        s->fregs[op->reg].used = true;
-      } else {
-        op->reg = (uint8_t)alloc_reg_from_pool(s->regs, MAX_REG);
-        s->regs[op->reg].s = v.loc;
-        s->regs[op->reg].used = true;
+      op->reg =
+          ins_uses_freg(op) ? (uint8_t)alloc_fpr(s) : (uint8_t)alloc_gpr(s);
+      if (op->reg == REG_NONE) {
+        abort();
       }
+      s->regs[op->reg].s = v.loc;
+      s->regs[op->reg].used = true;
     }
     // TODO
     // lru_poke(&reg_lru, op->reg);
@@ -270,7 +261,7 @@ static size_t collect_regs_to_preserve(ignoremap *ignore,
     if (reg == REG_NONE) {
       continue;
     }
-    if (reg >= MAX_REG) {
+    if (reg >= FPR_REG_END) {
       abort();
     }
     if (asm_is_callee_saved(reg)) {
@@ -331,7 +322,7 @@ static uint8_t load_flonum_constant_tmp(emit_state *s, trace *t, slot v) {
 }
 
 static void load_flonum_into_reg(emit_state *s, trace *t, slot v, uint8_t dst) {
-  assert(dst < MAX_FREG);
+  assert(is_fpr_reg(dst));
   if (v.constant) {
     double value = slot_flonum_constant(t, v);
     int idx = add_constant(s, value);
@@ -339,7 +330,7 @@ static void load_flonum_into_reg(emit_state *s, trace *t, slot v, uint8_t dst) {
     return;
   }
   uint8_t src = slot_reg(t, v);
-  assert(src < MAX_FREG);
+  assert(is_fpr_reg(src));
   if (src != dst) {
     emit_fmov(s, dst, src);
   }
@@ -352,7 +343,7 @@ static uint8_t get_flonum_operand_reg(emit_state *s, trace *t, slot v,
     return load_flonum_constant_tmp(s, t, v);
   }
   uint8_t reg = slot_reg(t, v);
-  assert(reg < MAX_FREG);
+  assert(is_fpr_reg(reg));
   return reg;
 }
 
@@ -367,7 +358,7 @@ static void emit_fsub_reg(emit_state *s, uint8_t dst, uint8_t rhs) {
 }
 
 static void emit_flonum_sub(emit_state *s, trace *t, ir_ins *op) {
-  assert(op->reg < MAX_FREG);
+  assert(is_fpr_reg(op->reg));
   load_flonum_into_reg(s, t, op->op1, op->reg);
   uint8_t rhs_reg = get_flonum_operand_reg(s, t, op->op2, true);
   emit_fsub_reg(s, op->reg, rhs_reg);
@@ -381,7 +372,7 @@ static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins *op) {
 
 static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
                                    ir_ins *ins) {
-  assert(ins->reg < MAX_FREG);
+  assert(is_fpr_reg(ins->reg));
   emit_pop(s, RET_REG);
   emit_pop(s, RET_REG2);
 
@@ -635,10 +626,7 @@ static void emit_ir(emit_state *s, trace *t) {
     }
     // free current register.
     if (op->reg != REG_NONE && op->op != IR_ARG) {
-      if (ins_uses_freg(op)) {
-        assert(s->fregs[op->reg].s == op_cnt);
-        s->fregs[op->reg].used = false;
-      } else if (op->reg != RSTACK) {
+      if (op->reg != RSTACK) {
         assert(s->regs[op->reg].s == op_cnt);
         s->regs[op->reg].used = false;
       }
@@ -826,7 +814,6 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
 
   emit_writable_begin(s);
   memset(s->regs, 0, sizeof(s->regs));
-  memset(s->fregs, 0, sizeof(s->fregs));
 
   // Set up register allocator.
   bool reserved[MAX_REG] = {0};
@@ -834,7 +821,8 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   for (int i = 0; i < MAX_REG; i++) {
     s->regs[i].used = reserved[i];
   }
-  s->fregs[FRTMP].used = true;
+  // TODO move this back to asm backends?
+  s->regs[FRTMP].used = true;
   s->next_spill = 0;
 
   // Emit a return-to-c stub.

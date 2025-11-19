@@ -15,12 +15,15 @@
 static void emit_reg_reg(emit_state *s, uint8_t opcode, uint8_t src,
                          uint8_t dst);
 
+static inline uint8_t hw_fpr(uint8_t reg) {
+  assert(reg >= FPR_REG_START && reg < X64_MAX_REG);
+  return reg - FPR_REG_START;
+}
+
 const char *const reg_names[X64_MAX_REG] = {
 #define X(name) #name,
     ASM_X64_REGISTER_LIST(X)
 #undef X
-};
-const char *const freg_names[X64_MAX_FREG] = {
 #define X(name) #name,
     ASM_X64_FREGISTER_LIST(X)
 #undef X
@@ -326,9 +329,9 @@ void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
 }
 
 void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
-  assert(dst < MAX_FREG);
-  assert(base < MAX_REG);
-  emit_sse_mem(s, 0xF2, 0x10, offset, base, dst);
+  assert(dst >= FPR_REG_START && dst < X64_MAX_REG);
+  assert(base < FPR_REG_START);
+  emit_sse_mem(s, 0xF2, 0x10, offset, base, hw_fpr(dst));
 }
 
 // TODO(djwatson) merge the '2' byte versions
@@ -426,12 +429,10 @@ void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
   emit_reg_reg(s, ASM_CMP, lhs, rhs);
 }
 void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
-  emit_sse_reg_reg(s, 0x66, 0x2E, lhs, rhs);
+  emit_sse_reg_reg(s, 0x66, 0x2E, hw_fpr(lhs), hw_fpr(rhs));
 }
 void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
-  assert(dst < MAX_FREG);
-  assert(src < MAX_FREG);
-  emit_sse_reg_reg(s, 0xF2, 0x10, src, dst);
+  emit_sse_reg_reg(s, 0xF2, 0x10, hw_fpr(src), hw_fpr(dst));
 }
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   if (fits_in_32(imm)) {
@@ -483,10 +484,10 @@ void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   }
 }
 void emit_fadd(emit_state *s, uint8_t dst, uint8_t src) {
-  emit_sse_reg_reg(s, 0xF2, 0x58, dst, src);
+  emit_sse_reg_reg(s, 0xF2, 0x58, hw_fpr(src), hw_fpr(dst));
 }
 void emit_fsub(emit_state *s, uint8_t dst, uint8_t src) {
-  emit_sse_reg_reg(s, 0xF2, 0x5C, dst, src);
+  emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(src), hw_fpr(dst));
 }
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   emit_add_sub_constant(s, ASM_ARITH_ADD, dst, lhs, imm);
@@ -499,9 +500,9 @@ void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
 }
 
 void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
-  assert(src < MAX_FREG);
-  assert(base < MAX_REG);
-  emit_sse_mem(s, 0xF2, 0x11, offset, base, src);
+  assert(src >= FPR_REG_START && src < X64_MAX_REG);
+  assert(base < FPR_REG_START);
+  emit_sse_mem(s, 0xF2, 0x11, offset, base, hw_fpr(src));
 }
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value) {
@@ -534,11 +535,11 @@ void save_callee_regs(emit_state *s) {
 }
 
 void asm_load_constant(emit_state *s, int idx, uint8_t dst) {
-  assert(dst < MAX_FREG);
+  assert(dst >= FPR_REG_START && dst < X64_MAX_REG);
   assert(idx >= 0);
   assert((size_t)idx < arrlen(s->const_pool));
   constant_entry *entry = &s->const_pool[idx];
-  uint8_t *disp = emit_sse_literal_load(s, dst);
+  uint8_t *disp = emit_sse_literal_load(s, hw_fpr(dst));
   const_patch patch = {.inst0 = disp, .inst1 = nullptr};
   arrput(&s->z, entry->patches, patch);
 }

@@ -77,6 +77,9 @@ enum registers : uint8_t {
 #define X(name) name,
   ASM_AARCH64_REGISTER_LIST(X)
 #undef X
+#define X(name) name,
+  ASM_AARCH64_FREGISTER_LIST(X)
+#undef X
       AARCH64_MAX_REG,
 
   RET_REG = X0,
@@ -102,18 +105,13 @@ enum registers : uint8_t {
   RSTATE = X26,
 };
 
+enum { FPR_REG_START = V0 };
+enum { AARCH64_GPR_COUNT = FPR_REG_START };
+enum { AARCH64_FPR_COUNT = AARCH64_MAX_REG - FPR_REG_START };
+enum { FPR_REG_END = AARCH64_MAX_REG };
+
 static_assert(AARCH64_MAX_REG <= MAX_REG,
               "AARCH64_MAX_REG must be less than MAX_REG");
-
-enum fregisters : uint8_t {
-#define X(name) name,
-  ASM_AARCH64_FREGISTER_LIST(X)
-#undef X
-      AARCH64_MAX_FREG
-};
-
-static_assert(AARCH64_MAX_FREG <= MAX_FREG,
-              "AARCH64_MAX_FREG must be less than MAX_FREG");
 enum : uint8_t {
   FRTMP = V31,
 };
@@ -172,7 +170,5 @@ void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
 void emit_mov(emit_state *s, uint8_t dst, uint8_t src);
 
 extern const char *const reg_names[AARCH64_MAX_REG];
-extern const char *const freg_names[AARCH64_MAX_FREG];
-
 void asm_load_constant(emit_state *s, int idx, uint8_t dst);
 void asm_patch_constant_pool(emit_state *s);

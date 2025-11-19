@@ -5,8 +5,7 @@
 #include <stdint.h>
 #include <stdbool.h> // For bool type
 
-#define MAX_REG 32
-#define MAX_FREG 32
+#define MAX_REG 64
 
 typedef struct {
   uint8_t *inst0;
@@ -31,7 +30,6 @@ typedef struct emit_state {
   zone z;
   comment_entry *comments;
   regmap regs[MAX_REG];
-  regmap fregs[MAX_FREG];
   uint32_t next_spill;
   constant_entry *const_pool;
 } emit_state;

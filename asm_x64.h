@@ -45,6 +45,9 @@ enum registers : uint8_t {
 #define X(name) name,
   ASM_X64_REGISTER_LIST(X)
 #undef X
+#define X(name) name,
+  ASM_X64_FREGISTER_LIST(X)
+#undef X
       X64_MAX_REG,
 
   RET_REG = RAX,
@@ -62,17 +65,12 @@ enum registers : uint8_t {
   RSTATE = R13,
 };
 
-_Static_assert(X64_MAX_REG < MAX_REG, "X64_MAX_REG must be less than MAX_REG");
+enum { FPR_REG_START = XMM0 };
+enum { X64_GPR_COUNT = FPR_REG_START };
+enum { X64_FPR_COUNT = X64_MAX_REG - FPR_REG_START };
+enum { FPR_REG_END = X64_MAX_REG };
 
-enum fregisters : uint8_t {
-#define X(name) name,
-  ASM_X64_FREGISTER_LIST(X)
-#undef X
-      X64_MAX_FREG
-};
-
-_Static_assert(X64_MAX_FREG <= MAX_FREG,
-               "X64_MAX_FREG must be less than MAX_FREG");
+_Static_assert(X64_MAX_REG <= MAX_REG, "X64_MAX_REG must be less than MAX_REG");
 enum : uint8_t {
   FRTMP = XMM15,
 };
@@ -179,7 +177,5 @@ void emit_fsub(emit_state *s, uint8_t dst, uint8_t src);
 void emit_mov(emit_state *s, uint8_t dst, uint8_t src);
 
 extern const char *const reg_names[X64_MAX_REG];
-extern const char *const freg_names[X64_MAX_FREG];
-
 void asm_load_constant(emit_state *s, int idx, uint8_t dst);
 void asm_patch_constant_pool(emit_state *s);
