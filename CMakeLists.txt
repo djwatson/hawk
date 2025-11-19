@@ -9,6 +9,8 @@ set(CMAKE_C_COMPILER clang)
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+include(CTest)
+
 include(CheckIncludeFile)
 check_include_file("elf.h" HAVE_ELF_H)
 
@@ -129,6 +131,38 @@ target_include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/util
   ${CAPSTONE_INCLUDE_DIR}
 )
+
+if(BUILD_TESTING)
+  add_test(
+    NAME hawk_sum
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sum.scm.bc
+  )
+  set_tests_properties(
+    hawk_sum PROPERTIES PASS_REGULAR_EXPRESSION "500000000500000000"
+  )
+
+  add_test(
+    NAME hawk_tak
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/tak.scm.bc
+  )
+  set_tests_properties(hawk_tak PROPERTIES PASS_REGULAR_EXPRESSION "12")
+
+  add_test(
+    NAME hawk_ack
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/ack.scm.bc
+  )
+  set_tests_properties(
+    hawk_ack PROPERTIES PASS_REGULAR_EXPRESSION "32765"
+  )
+
+  add_test(
+    NAME hawk_fib
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/fib.scm.bc
+  )
+  set_tests_properties(
+    hawk_fib PROPERTIES PASS_REGULAR_EXPRESSION "102334155"
+  )
+endif()
 
 file(
   GLOB
