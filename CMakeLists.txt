@@ -128,3 +128,21 @@ target_include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/util
   ${CAPSTONE_INCLUDE_DIR}
 )
+
+file(
+  GLOB
+  extra_clean_files
+  CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/*.dump"
+  "${CMAKE_CURRENT_SOURCE_DIR}/*.so"
+  "${CMAKE_CURRENT_SOURCE_DIR}/perf.*"
+  "${CMAKE_CURRENT_SOURCE_DIR}/*~"
+)
+if(extra_clean_files)
+  set_property(
+    DIRECTORY
+    APPEND
+    PROPERTY ADDITIONAL_MAKE_CLEAN_FILES
+    ${extra_clean_files}
+  )
+endif()
