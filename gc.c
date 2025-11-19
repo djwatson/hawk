@@ -26,8 +26,6 @@
 #include "util/list.h"
 #include "util/util.h"
 
-static constexpr uint64_t size_classes = 4096 / 8;
-
 // May be already defined.
 #ifndef PAGE_SIZE
 static constexpr uint64_t PAGE_SIZE = 1UL << 12;
@@ -55,13 +53,7 @@ typedef struct slab_info {
 
 static int64_t slab_sz(slab_info *slab) { return (int64_t)slab->class * 8; }
 
-typedef struct freelist_s {
-  uint64_t start_ptr;
-  uint64_t end_ptr;
-  slab_info *slab;
-} freelist_s;
-
-static freelist_s freelist[size_classes];
+freelist_s freelist[size_classes];
 static kvec_t(slab_info *) partials[size_classes];
 static LIST_HEAD(live_slabs);
 typedef struct root_range {
@@ -440,8 +432,7 @@ static slab_info *alloc_slab(uint64_t sz_class) {
   return free;
 }
 
-NOINLINE __attribute__((preserve_most)) static void *
-gc_alloc_slow(uint64_t sz) {
+NOINLINE __attribute__((preserve_most)) void *gc_alloc_slow(uint64_t sz) {
   if (collect_cnt >= next_collect) {
     collect_cnt = 0;
     gc_collect();
@@ -469,24 +460,6 @@ gc_alloc_slow(uint64_t sz) {
     collect_cnt += freelist[sz_class].end_ptr - freelist[sz_class].start_ptr;
   }
   return gc_alloc(sz);
-}
-
-void *gc_alloc(uint64_t sz) {
-  assert((sz & 0x7) == 0);
-  uint64_t sz_class = sz / 8;
-  if (unlikely(sz_class >= size_classes)) {
-    return gc_alloc_slow(sz);
-  }
-  auto fl = &freelist[sz_class];
-
-  auto s = fl->start_ptr;
-  auto start = fl->start_ptr + (sz_class * 8);
-  if (unlikely(start > fl->end_ptr)) {
-    return gc_alloc_slow(sz);
-  }
-
-  fl->start_ptr = start;
-  return (void *)s;
 }
 
 void gc_log(uint64_t a) {
