@@ -292,7 +292,8 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
       VMGEN_TRACE_OP(pc, RET);
       return return_frame(state, pc, stack, op_table);
     }
-    if (is_downrec_trace(record_trace_state(state)) && cnt) {
+    if (is_downrec_trace(record_trace_state(state)) && cnt &&
+        pc == record_trace_state(state)->start_ins) {
       record_current_trace(state)->link = record_current_trace(state);
       record_finish(pc, state);
       return (frame_state){pc, stack, state->impls};
@@ -307,8 +308,9 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     auto offset = old_pc->reg + 1;
 
     // 3) Clear regs / set result in new regs
-    assert(record_trace_state(state)->stack_off == 0);
-    arrlen_set(record_trace_state(state)->stack, 0);
+    // assert(record_trace_state(state)->stack_off == 0);
+    arrlen_set(record_trace_state(state)->stack,
+               record_trace_state(state)->stack_off);
     // 4) Const-ify the current return address
 
     auto const_ra = add_const(state, stack[-1]);
@@ -323,8 +325,20 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     vm_add_snap(state, ra);
     arrput(nullptr, record_trace_state(state)->downrec, pc);
   } else {
+    if (is_downrec_trace(record_trace_state(state)) &&
+        (pc == record_trace_state(state)->start_ins) &&
+        (arrlen(record_current_trace(state)->ins) > 1)) {
+      // We've walked UP the stack to the same return statement somehow. Abort.
+      if (verbose) {
+        printf("Record abort: couldn't catch downrec, walked up.\n");
+      }
+      record_abort(state);
+      return (frame_state){pc, stack, state->impls};
+    }
     record_trace_state(state)->depth--;
-    abort();
+    if (!is_downrec_trace(record_trace_state(state))) {
+      abort();
+    }
     /* auto ret = state->stack[state->stack_offset + func->reg]; */
     /* auto pc = to_return_address(stack[-1]); */
     /* auto old_pc = pc - 1; */
@@ -502,7 +516,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   // side trace:
   //  check for up-recursion and abort, restart trying to capture an
   //  up-recursive trace.
-  if (pc == ts->start_ins) {
+  if (pc == ts->start_ins && !is_downrec_trace(ts)) {
     if (ts->skip_start_check) {
       ts->skip_start_check = false;
       return op_table;

@@ -1,6 +1,7 @@
 # VM impl
 
 
+* get RET snapshotting correct
 * lazy typecheck - needs PMOV guard and loopback guards to be fixed still
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
