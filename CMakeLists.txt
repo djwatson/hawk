@@ -77,6 +77,7 @@ endif()
 
 add_executable(hawk ${hawk_sources})
 add_dependencies(hawk opcodes_scm)
+#set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 set(capstone_search_dirs)
 if(DEFINED ENV{HOMEBREW_PREFIX})

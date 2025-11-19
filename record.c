@@ -285,6 +285,10 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
   trace *cur_trace = record_current_trace(state);
   bool downrec_trace = is_downrec_trace(ts);
   bool at_trace_start = (pc == ts->start_ins);
+
+  // for RET specifically: set stack top to pc->reg
+  arrlen_set(ts->stack, pc->reg + 1);
+
   if (ts->depth == 0) {
     // Root traces cannot return
     if (!cur_trace->parent && !downrec_trace) {
