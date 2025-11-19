@@ -404,6 +404,13 @@ void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
       0x1E602000u | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5);
   emit_op(s, opcode);
 }
+void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
+  assert(dst < MAX_FREG);
+  assert(src < MAX_FREG);
+  uint32_t opcode =
+      0x1E204000u | ((uint32_t)src << 16) | ((uint32_t)dst << 5);
+  emit_op(s, opcode);
+}
 
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   assert(reg < MAX_REG);

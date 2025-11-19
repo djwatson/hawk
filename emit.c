@@ -297,6 +297,68 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
   COMMENT("Emit stack guard check");
 }
 
+static double slot_flonum_constant(trace *t, slot v) {
+  assert(v.constant);
+  gc_obj obj = t->consts[v.loc];
+  assert(is_flonum(obj));
+  return to_flonum(obj)->x;
+}
+
+static uint8_t load_flonum_constant_tmp(emit_state *s, trace *t, slot v) {
+  assert(v.constant);
+  double value = slot_flonum_constant(t, v);
+  int idx = add_constant(s, value);
+  load_constant(s, idx, FRTMP);
+  return FRTMP;
+}
+
+static void load_flonum_into_reg(emit_state *s, trace *t, slot v, uint8_t dst) {
+  assert(dst < MAX_FREG);
+  if (v.constant) {
+    double value = slot_flonum_constant(t, v);
+    int idx = add_constant(s, value);
+    load_constant(s, idx, dst);
+    return;
+  }
+  uint8_t src = slot_reg(t, v);
+  assert(src < MAX_FREG);
+  if (src != dst) {
+    emit_fmov(s, dst, src);
+  }
+static uint8_t get_flonum_operand_reg(emit_state *s, trace *t, slot v,
+                                      bool allow_constant) {
+  if (v.constant) {
+    assert(allow_constant);
+    return load_flonum_constant_tmp(s, t, v);
+  }
+  uint8_t reg = slot_reg(t, v);
+  assert(reg < MAX_FREG);
+  return reg;
+}
+
+static void emit_fsub_reg(emit_state *s, uint8_t dst, uint8_t rhs) {
+#if defined(__x86_64__)
+  emit_fsub(s, dst, rhs);
+#elif defined(__aarch64__)
+  emit_fsub(s, dst, dst, rhs);
+#else
+#error "Unsupported architecture"
+#endif
+}
+
+static void emit_flonum_sub(emit_state *s, trace *t, ir_ins *op) {
+  assert(op->reg < MAX_FREG);
+  load_flonum_into_reg(s, t, op->op1, op->reg);
+  uint8_t rhs_reg = get_flonum_operand_reg(s, t, op->op2, true);
+  emit_fsub_reg(s, op->reg, rhs_reg);
+}
+
+static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins *op) {
+  uint8_t lhs_reg = get_flonum_operand_reg(s, t, op->op1, false);
+  uint8_t rhs_reg = get_flonum_operand_reg(s, t, op->op2, true);
+  emit_fcmp(s, lhs_reg, rhs_reg);
+}
+
 static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
                                    ir_ins *ins) {
   assert(ins->reg < MAX_FREG);
@@ -593,11 +655,19 @@ static void emit_ir(emit_state *s, trace *t) {
     }
     case IR_GTE: {
       emit_jcc32(s, JL, t->snaps[cur_snap].patch_point);
-      emit_cmp_slots(s, t, op->op1, op->op2);
+      if (op->type == FLONUM_TAG) {
+        emit_flonum_cmp(s, t, op);
+      } else {
+        emit_cmp_slots(s, t, op->op1, op->op2);
+      }
       break;
     }
     case IR_SUB: {
-      emit_arith_slots(s, t, op->reg, op->op1, op->op2, true);
+      if (op->type == FLONUM_TAG) {
+        emit_flonum_sub(s, t, op);
+      } else {
+        emit_arith_slots(s, t, op->reg, op->op1, op->op2, true);
+      }
       break;
     }
     case IR_ADD: {

@@ -207,7 +207,7 @@ static branch_result emit_math_cmp_lt(vm_state *state, bc *pc, gc_obj *stack,
   branch_result br = {
       .taken = res,
       .guard = IR(.op = res ? IR_LT : IR_GTE, .op1 = v1, .op2 = v2,
-                  .type = UNDEFINED_TAG),
+                  .type = get_slot_type(record_current_trace(state), v1)),
   };
   return br;
 }

@@ -73,6 +73,9 @@ enum fregisters : uint8_t {
 
 _Static_assert(X64_MAX_FREG <= MAX_FREG,
                "X64_MAX_FREG must be less than MAX_FREG");
+enum : uint8_t {
+  FRTMP = XMM15,
+};
 
 void asm_mark_unallocatable(bool used[MAX_REG]);
 bool asm_is_callee_saved(uint8_t reg);
@@ -154,6 +157,7 @@ void emit_call_reg(emit_state *s, uint8_t r);
 void emit_push(emit_state *s, uint8_t r);
 void emit_pop(emit_state *s, uint8_t r);
 void emit_debugtrap(emit_state *s);
+void emit_fmov(emit_state *s, uint8_t dst, uint8_t src);
 void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count);
 void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count);
 void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
