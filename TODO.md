@@ -12,11 +12,8 @@
 * spill slots
 
 # cleanup
-* cleanup record.c math ops - we can probably split like in vm.c
 * remove frame_state, just modify **pc and **stack
 * remove 'parent', use parent snap instead.
-
-
 
 # simple VM
 

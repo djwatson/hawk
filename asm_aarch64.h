@@ -39,6 +39,40 @@
   X(X30)                                                                       \
   X(XZR)
 
+#define ASM_AARCH64_FREGISTER_LIST(X)                                          \
+  X(V0)                                                                        \
+  X(V1)                                                                        \
+  X(V2)                                                                        \
+  X(V3)                                                                        \
+  X(V4)                                                                        \
+  X(V5)                                                                        \
+  X(V6)                                                                        \
+  X(V7)                                                                        \
+  X(V8)                                                                        \
+  X(V9)                                                                        \
+  X(V10)                                                                       \
+  X(V11)                                                                       \
+  X(V12)                                                                       \
+  X(V13)                                                                       \
+  X(V14)                                                                       \
+  X(V15)                                                                       \
+  X(V16)                                                                       \
+  X(V17)                                                                       \
+  X(V18)                                                                       \
+  X(V19)                                                                       \
+  X(V20)                                                                       \
+  X(V21)                                                                       \
+  X(V22)                                                                       \
+  X(V23)                                                                       \
+  X(V24)                                                                       \
+  X(V25)                                                                       \
+  X(V26)                                                                       \
+  X(V27)                                                                       \
+  X(V28)                                                                       \
+  X(V29)                                                                       \
+  X(V30)                                                                       \
+  X(V31)
+
 enum registers : uint8_t {
 #define X(name) name,
   ASM_AARCH64_REGISTER_LIST(X)
@@ -70,6 +104,16 @@ enum registers : uint8_t {
 
 static_assert(AARCH64_MAX_REG <= MAX_REG,
               "AARCH64_MAX_REG must be less than MAX_REG");
+
+enum fregisters : uint8_t {
+#define X(name) name,
+  ASM_AARCH64_FREGISTER_LIST(X)
+#undef X
+      AARCH64_MAX_FREG
+};
+
+static_assert(AARCH64_MAX_FREG <= MAX_FREG,
+              "AARCH64_MAX_FREG must be less than MAX_FREG");
 
 void asm_mark_unallocatable(bool used[MAX_REG]);
 bool asm_is_callee_saved(uint8_t reg);

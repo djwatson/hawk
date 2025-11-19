@@ -39,10 +39,10 @@ static void assign_snap_registers(emit_state *s, size_t snap_num, trace *t) {
     // Try and find a free reg, or assign the next spill slot.
     bool done = false;
     for (int j = 0; j < MAX_REG; j++) {
-      if (!s->reg_to_slot[j].used) {
+      if (!s->regs[j].used) {
         op->reg = j;
-        s->reg_to_slot[op->reg].s = sl->val.loc;
-        s->reg_to_slot[op->reg].used = true;
+        s->regs[op->reg].s = sl->val.loc;
+        s->regs[op->reg].used = true;
         done = true;
         // lru_poke(&reg_lru, op->reg);
         /* printf("Assigning snap register %s to op %i\n",
@@ -61,9 +61,9 @@ static void assign_snap_registers(emit_state *s, size_t snap_num, trace *t) {
 }
 // Get a specific reg, spilling if necessary.
 static void get_reg(emit_state *s, uint8_t reg, trace *trace) {
-  if (s->reg_to_slot[reg].used) {
+  if (s->regs[reg].used) {
     /* // printf("Spilling reg %s\n", reg_names[reg]); */
-    /* auto op = s->reg_to_slot[reg]; */
+    /* auto op = s->regs[reg]; */
     /* assert(trace->ops[op].reg != REG_NONE); */
 
     /* auto spill = trace->ops[op].slot; */
@@ -76,15 +76,15 @@ static void get_reg(emit_state *s, uint8_t reg, trace *trace) {
     /* emit_mem_reg(OP_MOV_MR, 0, RTMP, trace->ops[op].reg); */
     /* emit_mov64(RTMP, (int64_t)&spill_slot[trace->ops[op].slot]); */
     /* trace->ops[op].reg = REG_NONE; */
-    /* s->reg_to_slot[reg] = -1; */
+    /* s->regs[reg] = -1; */
     /* lru_poke(&reg_lru, reg); */
     abort();
   }
-  s->reg_to_slot[reg].used = true;
+  s->regs[reg].used = true;
 }
 static int get_free_reg(emit_state *s, trace *trace, bool callee) {
   for (int i = 0; i < MAX_REG; i++) {
-    if (!s->reg_to_slot[i].used) {
+    if (!s->regs[i].used) {
       return i;
     }
   }
@@ -100,8 +100,8 @@ static void maybe_assign_register(emit_state *s, slot v, trace *trace) {
     auto op = &trace->ins[v.loc];
     if (op->reg == REG_NONE) {
       op->reg = get_free_reg(s, trace, false);
-      s->reg_to_slot[op->reg].s = v.loc;
-      s->reg_to_slot[op->reg].used = true;
+      s->regs[op->reg].s = v.loc;
+      s->regs[op->reg].used = true;
     }
     // TODO
     // lru_poke(&reg_lru, op->reg);
@@ -506,8 +506,8 @@ static void emit_ir(emit_state *s, trace *t) {
     }
     // free current register.
     if (op->reg != REG_NONE && op->reg != RSTACK && op->op != IR_ARG) {
-      assert(s->reg_to_slot[op->reg].s == op_cnt);
-      s->reg_to_slot[op->reg].used = false;
+      assert(s->regs[op->reg].s == op_cnt);
+      s->regs[op->reg].used = false;
     }
 
     emit_check(s);
@@ -679,13 +679,14 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // allocator much simpler to write, no state needs to be preserved.
 
   emit_writable_begin(s);
-  memset(s->reg_to_slot, 0, sizeof(s->reg_to_slot));
+  memset(s->regs, 0, sizeof(s->regs));
+  memset(s->fregs, 0, sizeof(s->fregs));
 
   // Set up register allocator.
   bool reserved[MAX_REG] = {0};
   asm_mark_unallocatable(reserved);
   for (int i = 0; i < MAX_REG; i++) {
-    s->reg_to_slot[i].used = reserved[i];
+    s->regs[i].used = reserved[i];
   }
   s->next_spill = 0;
 

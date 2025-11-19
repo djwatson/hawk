@@ -144,6 +144,32 @@ static const struct {
     {X27, X28}, {X25, X26}, {X23, X24}, {X21, X22}, {X19, X20}, {FP, LR},
 };
 
+static uint32_t stp_pre_q(uint8_t rt, uint8_t rt2, uint8_t rn,
+                          int32_t offset) {
+  assert((offset % 16) == 0);
+  int32_t imm = offset / 16;
+  assert(imm >= -64 && imm <= 63);
+  uint32_t imm7 = (uint32_t)(imm & 0x7f);
+  return 0xAD800000u | (imm7 << 15) | ((uint32_t)rt2 << 10) |
+         ((uint32_t)rn << 5) | (uint32_t)rt;
+}
+
+static uint32_t ldp_post_q(uint8_t rt, uint8_t rt2, uint8_t rn,
+                           int32_t offset) {
+  assert((offset % 16) == 0);
+  int32_t imm = offset / 16;
+  assert(imm >= -64 && imm <= 63);
+  uint32_t imm7 = (uint32_t)(imm & 0x7f);
+  return 0xACC00000u | (imm7 << 15) | ((uint32_t)rt2 << 10) |
+         ((uint32_t)rn << 5) | (uint32_t)rt;
+}
+
+static const struct {
+  uint8_t r1, r2;
+} callee_saved_fp_pairs[] = {
+    {V16, V17}, {V18, V19},
+};
+
 void restore_callee_regs(emit_state *s) {
   for (size_t i = 0;
        i < sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0]); i++) {
@@ -152,9 +178,24 @@ void restore_callee_regs(emit_state *s) {
     emit_op(s, ldp_post(callee_saved_pairs[j].r1, callee_saved_pairs[j].r2, SP,
                         16));
   }
+  for (size_t i = 0; i < sizeof(callee_saved_fp_pairs) /
+                               sizeof(callee_saved_fp_pairs[0]);
+       i++) {
+    const size_t j = sizeof(callee_saved_fp_pairs) /
+                         sizeof(callee_saved_fp_pairs[0]) -
+                     1 - i;
+    emit_op(s, ldp_post_q(callee_saved_fp_pairs[j].r1,
+                          callee_saved_fp_pairs[j].r2, SP, 32));
+  }
 }
 
 void save_callee_regs(emit_state *s) {
+  for (size_t i = 0; i < sizeof(callee_saved_fp_pairs) /
+                               sizeof(callee_saved_fp_pairs[0]);
+       i++) {
+    emit_op(s, stp_pre_q(callee_saved_fp_pairs[i].r1,
+                         callee_saved_fp_pairs[i].r2, SP, -32));
+  }
   for (size_t i = 0;
        i < sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0]); i++) {
     emit_op(s, stp_pre(callee_saved_pairs[i].r1, callee_saved_pairs[i].r2, SP,

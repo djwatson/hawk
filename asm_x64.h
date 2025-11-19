@@ -23,6 +23,24 @@
   X(R14)                                                                       \
   X(R15)
 
+#define ASM_X64_FREGISTER_LIST(X)                                              \
+  X(XMM0)                                                                      \
+  X(XMM1)                                                                      \
+  X(XMM2)                                                                      \
+  X(XMM3)                                                                      \
+  X(XMM4)                                                                      \
+  X(XMM5)                                                                      \
+  X(XMM6)                                                                      \
+  X(XMM7)                                                                      \
+  X(XMM8)                                                                      \
+  X(XMM9)                                                                      \
+  X(XMM10)                                                                     \
+  X(XMM11)                                                                     \
+  X(XMM12)                                                                     \
+  X(XMM13)                                                                     \
+  X(XMM14)                                                                     \
+  X(XMM15)
+
 enum registers : uint8_t {
 #define X(name) name,
   ASM_X64_REGISTER_LIST(X)
@@ -45,6 +63,16 @@ enum registers : uint8_t {
 };
 
 _Static_assert(X64_MAX_REG < MAX_REG, "X64_MAX_REG must be less than MAX_REG");
+
+enum fregisters : uint8_t {
+#define X(name) name,
+  ASM_X64_FREGISTER_LIST(X)
+#undef X
+      X64_MAX_FREG
+};
+
+_Static_assert(X64_MAX_FREG <= MAX_FREG,
+               "X64_MAX_FREG must be less than MAX_FREG");
 
 void asm_mark_unallocatable(bool used[MAX_REG]);
 bool asm_is_callee_saved(uint8_t reg);
