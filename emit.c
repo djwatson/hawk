@@ -480,7 +480,12 @@ static void emit_parallel_moves(emit_state *s, par_copy *cpy,
   arr_reverse(moves);
   arr_for_each_idx(moves, i) {
     auto mov = moves[i];
-    emit_mov(s, mov.to, mov.from);
+    if (is_fpr_reg(mov.to) || is_fpr_reg(mov.from)) {
+      assert(is_fpr_reg(mov.to) && is_fpr_reg(mov.from));
+      emit_fmov(s, mov.to, mov.from);
+    } else {
+      emit_mov(s, mov.to, mov.from);
+    }
   }
   arrfree(cpy);
   arrfree(moves);
@@ -756,7 +761,12 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
       abort();
     }
     if (arg_ins->reg != REG_NONE) {
-      emit_mem_load(s, (int32_t)arg_ins->data * 8, RSTACK, arg_ins->reg);
+      auto offset = (int32_t)arg_ins->data * 8;
+      if (ins_uses_freg(arg_ins)) {
+        emit_fmem_load(s, offset, RSTACK, arg_ins->reg);
+      } else {
+        emit_mem_load(s, offset, RSTACK, arg_ins->reg);
+      }
     }
   }
   emit_mov(s, RSTACK, RARG1);

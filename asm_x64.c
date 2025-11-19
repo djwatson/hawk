@@ -432,7 +432,7 @@ void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
   emit_sse_reg_reg(s, 0x66, 0x2E, hw_fpr(lhs), hw_fpr(rhs));
 }
 void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
-  emit_sse_reg_reg(s, 0xF2, 0x10, hw_fpr(src), hw_fpr(dst));
+  emit_sse_reg_reg(s, 0xF2, 0x10, hw_fpr(dst), hw_fpr(src));
 }
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   if (fits_in_32(imm)) {
@@ -484,10 +484,10 @@ void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   }
 }
 void emit_fadd(emit_state *s, uint8_t dst, uint8_t src) {
-  emit_sse_reg_reg(s, 0xF2, 0x58, hw_fpr(src), hw_fpr(dst));
+  emit_sse_reg_reg(s, 0xF2, 0x58, hw_fpr(dst), hw_fpr(src));
 }
 void emit_fsub(emit_state *s, uint8_t dst, uint8_t src) {
-  emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(src), hw_fpr(dst));
+  emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(dst), hw_fpr(src));
 }
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   emit_add_sub_constant(s, ASM_ARITH_ADD, dst, lhs, imm);
