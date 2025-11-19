@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "asm.h"
+#include "array.h"
 
 const char *const reg_names[AARCH64_MAX_REG] = {
 #define X(name) #name,
@@ -396,6 +397,14 @@ void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
   emit_op(s, opcode);
 }
 
+void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
+  assert(lhs < MAX_FREG);
+  assert(rhs < MAX_FREG);
+  uint32_t opcode =
+      0x1E602000u | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5);
+  emit_op(s, opcode);
+}
+
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   assert(reg < MAX_REG);
   uint32_t shift = 0;
@@ -453,6 +462,26 @@ void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   assert(dst < MAX_REG);
   assert(lhs < MAX_REG);
   emit_add_sub_constant(s, 0xD1000000u, 0xCB000000u, dst, lhs, imm);
+}
+
+void emit_fadd(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  assert(dst < MAX_FREG);
+  assert(lhs < MAX_FREG);
+  assert(rhs < MAX_FREG);
+  uint32_t opcode =
+      0x1E602800u | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) |
+      (uint32_t)dst;
+  emit_op(s, opcode);
+}
+
+void emit_fsub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  assert(dst < MAX_FREG);
+  assert(lhs < MAX_FREG);
+  assert(rhs < MAX_FREG);
+  uint32_t opcode =
+      0x1E603800u | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) |
+      (uint32_t)dst;
+  emit_op(s, opcode);
 }
 
 void emit_push(emit_state *s, uint8_t r) {
@@ -526,6 +555,24 @@ void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   emit_op(s, opcode);
 }
 
+void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
+  assert(base < MAX_REG);
+  assert(dst < MAX_FREG);
+  if ((offset % 8) == 0 && offset >= 0) {
+    int32_t imm = offset / 8;
+    assert(imm < 4096);
+    uint32_t opcode = 0xFD400000u | ((uint32_t)imm << 10) |
+                      ((uint32_t)base << 5) | (uint32_t)dst;
+    emit_op(s, opcode);
+    return;
+  }
+  assert(offset >= -256 && offset <= 255);
+  uint32_t imm9 = (uint32_t)(offset & 0x1ff);
+  uint32_t opcode =
+      0xFC400000u | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)dst;
+  emit_op(s, opcode);
+}
+
 void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
   assert(base < MAX_REG);
   assert(src < MAX_REG);
@@ -544,9 +591,76 @@ void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
   emit_op(s, opcode);
 }
 
+void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
+  assert(base < MAX_REG);
+  assert(src < MAX_FREG);
+  if ((offset % 8) == 0 && offset >= 0) {
+    int32_t imm = offset / 8;
+    assert(imm < 4096);
+    uint32_t opcode = 0xFD000000u | ((uint32_t)imm << 10) |
+                      ((uint32_t)base << 5) | (uint32_t)src;
+    emit_op(s, opcode);
+    return;
+  }
+  assert(offset >= -256 && offset <= 255);
+  uint32_t imm9 = (uint32_t)(offset & 0x1ff);
+  uint32_t opcode =
+      0xFC000000u | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)src;
+  emit_op(s, opcode);
+}
+
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value) {
   assert(base < MAX_REG);
   emit_store(s, offset, base, RTMP);
   emit_mov64(s, RTMP, value);
+}
+
+void asm_load_constant(emit_state *s, int idx, uint8_t dst) {
+  assert(s);
+  assert(dst < MAX_FREG);
+  assert(idx >= 0);
+  assert((size_t)idx < arrlen(s->const_pool));
+  constant_entry *entry = &s->const_pool[idx];
+  emit_op(s, 0x90000000u | ((uint32_t)RTMP << 5) | (uint32_t)RTMP);
+  uint8_t *adrp_site = p;
+  emit_op(s, 0xFD400000u | ((uint32_t)RTMP << 5) | (uint32_t)dst);
+  uint8_t *ldr_site = p;
+  const_patch patch = {.inst0 = adrp_site, .inst1 = ldr_site};
+  arrput(&s->z, entry->patches, patch);
+}
+
+void asm_patch_constant_pool(emit_state *s) {
+  size_t len = arrlen(s->const_pool);
+  for (size_t i = 0; i < len; i++) {
+    constant_entry *entry = &s->const_pool[i];
+    size_t patch_len = arrlen(entry->patches);
+    for (size_t j = 0; j < patch_len; j++) {
+      uint8_t *adrp_site = entry->patches[j].inst0;
+      uint8_t *ldr_site = entry->patches[j].inst1;
+      assert(adrp_site && ldr_site);
+
+      uint64_t const_addr = (uint64_t)entry->addr;
+      uint64_t pc = (uint64_t)adrp_site;
+      int64_t page_delta =
+          ((int64_t)(const_addr >> 12)) - ((int64_t)(pc >> 12));
+      assert(page_delta >= -(1LL << 20) && page_delta < (1LL << 20));
+      uint32_t immlo = (uint32_t)(page_delta & 0x3);
+      uint32_t immhi = (uint32_t)((page_delta >> 2) & 0x7FFFF);
+      uint32_t rd = (*((uint32_t *)adrp_site)) & 0x1F;
+      uint32_t adrp =
+          0x90000000u | (immlo << 29) | (immhi << 5) | (rd & 0x1F);
+      memcpy(adrp_site, &adrp, sizeof(adrp));
+
+      uint64_t page_offset = const_addr & 0xFFFu;
+      assert((page_offset & 0x7) == 0);
+      uint32_t imm12 = (uint32_t)(page_offset >> 3);
+      uint32_t orig = *((uint32_t *)ldr_site);
+      uint32_t base = (orig >> 5) & 0x1F;
+      uint32_t dst = orig & 0x1F;
+      uint32_t ldr =
+          0xFD400000u | (imm12 << 10) | (base << 5) | (dst & 0x1F);
+      memcpy(ldr_site, &ldr, sizeof(ldr));
+    }
+  }
 }

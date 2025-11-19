@@ -718,6 +718,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
 
   emit_finish_snap_exits(s, t, exit_label);
 
+  emit_constant_pool(s);
   emit_writable_end(s);
   auto sz = end - emit_offset(s);
   if (verbose) {

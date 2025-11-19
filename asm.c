@@ -7,6 +7,7 @@
 #include <sys/mman.h>
 
 #include "asm.h"
+#include "array.h"
 
 #if defined(__APPLE__) && defined(__aarch64__)
 #include <pthread.h>
@@ -45,6 +46,14 @@ void emit_cleanup(emit_state *s) {
   assert(s);
   if (!s->mtop) {
     return;
+  }
+
+  if (s->const_pool) {
+    for (size_t i = 0; i < arrlen(s->const_pool); i++) {
+      arrfree(s->const_pool[i].patches);
+    }
+    arrfree(s->const_pool);
+    s->const_pool = nullptr;
   }
 
   munmap(s->mtop, msize);
@@ -95,4 +104,57 @@ void emit_writable_end(emit_state *s) {
 #if defined(__APPLE__) && defined(__aarch64__)
   pthread_jit_write_protect_np(1);
 #endif
+}
+
+int add_constant(emit_state *s, double value) {
+  assert(s);
+  union {
+    double d;
+    uint64_t u;
+  } target = {.d = value};
+  size_t len = arrlen(s->const_pool);
+  for (size_t i = 0; i < len; i++) {
+    union {
+      double d;
+      uint64_t u;
+    } existing = {.d = s->const_pool[i].value};
+    if (existing.u == target.u) {
+      return (int)i;
+    }
+  }
+  constant_entry entry = {.value = value, .addr = nullptr, .patches = nullptr};
+  arrput(&s->z, s->const_pool, entry);
+  return (int)(arrlen(s->const_pool) - 1);
+}
+
+void load_constant(emit_state *s, int idx, uint8_t dst) {
+  assert(s);
+  assert(idx >= 0);
+  assert((size_t)idx < arrlen(s->const_pool));
+  asm_load_constant(s, idx, dst);
+}
+
+void emit_constant_pool(emit_state *s) {
+  assert(s);
+  size_t len = arrlen(s->const_pool);
+  if (!len) {
+    return;
+  }
+
+  uintptr_t aligned = (uintptr_t)s->p & ~(uintptr_t)0x7;
+  s->p = (uint8_t *)aligned;
+
+  for (size_t i = 0; i < len; i++) {
+    s->p -= sizeof(double);
+    memcpy(s->p, &s->const_pool[i].value, sizeof(double));
+    s->const_pool[i].addr = s->p;
+  }
+
+  asm_patch_constant_pool(s);
+
+  for (size_t i = 0; i < len; i++) {
+    arrfree(s->const_pool[i].patches);
+  }
+  arrfree(s->const_pool);
+  s->const_pool = nullptr;
 }

@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "asm.h"
+#include "array.h"
 #include "hawk.h"
 
 static void emit_reg_reg(emit_state *s, uint8_t opcode, uint8_t src,
@@ -209,6 +210,28 @@ static void emit_reg_reg2(emit_state *s, uint8_t opcode, uint8_t src,
   emit_rex(s, 1, src >> 3, 0, dst >> 3);
 }
 
+static void emit_sse_reg_reg(emit_state *s, uint8_t prefix, uint8_t opcode,
+                             uint8_t src, uint8_t dst) {
+  emit_modrm(s, 0x3, 0x7 & src, 0x7 & dst);
+  *(--p) = opcode;
+  *(--p) = 0x0f;
+  emit_rex(s, 0, src >> 3, 0, dst >> 3);
+  if (prefix) {
+    *(--p) = prefix;
+  }
+}
+
+static uint8_t *emit_sse_literal_load(emit_state *s, uint8_t dst) {
+  emit_imm32(s, 0);
+  uint8_t *disp = p;
+  emit_modrm(s, 0x0, 0x7 & dst, 0x5);
+  *(--p) = 0x10;
+  *(--p) = 0x0f;
+  emit_rex(s, 0, dst >> 3, 0, 0);
+  *(--p) = 0xf2;
+  return disp;
+}
+
 static void emit_mem_reg_sib(emit_state *s, uint8_t opcode, int32_t offset,
                              uint8_t scale, uint8_t index, uint8_t base,
                              uint8_t reg) {
@@ -261,9 +284,46 @@ static void emit_mem_reg(emit_state *s, uint8_t opcode, int32_t offset,
   }
 }
 
+static void emit_sse_mem(emit_state *s, uint8_t prefix, uint8_t opcode,
+                         int32_t offset, uint8_t base, uint8_t freg) {
+  if (low3bits(base) == RSP) {
+    if ((int32_t)((int8_t)offset) == offset) {
+      *(--p) = (int8_t)offset;
+      emit_sib(s, 0, RSP, base);
+      emit_modrm(s, 0x1, 0x7 & freg, 0x4);
+    } else {
+      emit_imm32(s, offset);
+      emit_sib(s, 0, RSP, base);
+      emit_modrm(s, 0x2, 0x7 & freg, 0x4);
+    }
+  } else {
+    if (offset == 0 && low3bits(base) != RBP) {
+      emit_modrm(s, 0x0, 0x7 & freg, 0x7 & base);
+    } else if ((int32_t)((int8_t)offset) == offset) {
+      *(--p) = (int8_t)offset;
+      emit_modrm(s, 0x1, 0x7 & freg, 0x7 & base);
+    } else {
+      emit_imm32(s, offset);
+      emit_modrm(s, 0x2, 0x7 & freg, 0x7 & base);
+    }
+  }
+  *(--p) = opcode;
+  *(--p) = 0x0f;
+  emit_rex(s, 0, freg >> 3, 0, base >> 3);
+  if (prefix) {
+    *(--p) = prefix;
+  }
+}
+
 void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   assert(dst < MAX_REG);
   emit_mem_reg(s, ASM_MOV_MR, offset, base, dst);
+}
+
+void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
+  assert(dst < MAX_FREG);
+  assert(base < MAX_REG);
+  emit_sse_mem(s, 0xF2, 0x10, offset, base, dst);
 }
 
 // TODO(djwatson) merge the '2' byte versions
@@ -358,6 +418,9 @@ void emit_mov(emit_state *s, uint8_t dst, uint8_t src) {
 void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
   emit_reg_reg(s, ASM_CMP, lhs, rhs);
 }
+void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
+  emit_sse_reg_reg(s, 0x66, 0x2E, lhs, rhs);
+}
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   if (fits_in_32(imm)) {
     emit_cmp_reg_imm32(s, reg, (int32_t)imm);
@@ -407,6 +470,12 @@ void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
     emit_mov(s, dst, lhs);
   }
 }
+void emit_fadd(emit_state *s, uint8_t dst, uint8_t src) {
+  emit_sse_reg_reg(s, 0xF2, 0x58, dst, src);
+}
+void emit_fsub(emit_state *s, uint8_t dst, uint8_t src) {
+  emit_sse_reg_reg(s, 0xF2, 0x5C, dst, src);
+}
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   emit_add_sub_constant(s, ASM_ARITH_ADD, dst, lhs, imm);
 }
@@ -415,6 +484,12 @@ void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
 }
 void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
   emit_mem_reg(s, ASM_MOV_RM, offset, base, src);
+}
+
+void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
+  assert(src < MAX_FREG);
+  assert(base < MAX_REG);
+  emit_sse_mem(s, 0xF2, 0x11, offset, base, src);
 }
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value) {
@@ -443,5 +518,32 @@ void restore_callee_regs(emit_state *s) {
 void save_callee_regs(emit_state *s) {
   for (size_t i = ARRAY_LEN(callee_save); i > 0; i--) {
     emit_push(s, callee_save[i - 1]);
+  }
+}
+
+void asm_load_constant(emit_state *s, int idx, uint8_t dst) {
+  assert(dst < MAX_FREG);
+  assert(idx >= 0);
+  assert((size_t)idx < arrlen(s->const_pool));
+  constant_entry *entry = &s->const_pool[idx];
+  uint8_t *disp = emit_sse_literal_load(s, dst);
+  const_patch patch = {.inst0 = disp, .inst1 = nullptr};
+  arrput(&s->z, entry->patches, patch);
+}
+
+void asm_patch_constant_pool(emit_state *s) {
+  size_t len = arrlen(s->const_pool);
+  for (size_t i = 0; i < len; i++) {
+    constant_entry *entry = &s->const_pool[i];
+    size_t patch_len = arrlen(entry->patches);
+    for (size_t j = 0; j < patch_len; j++) {
+      uint8_t *disp = entry->patches[j].inst0;
+      assert(disp);
+      int64_t delta =
+          (int64_t)(entry->addr - (disp + (ptrdiff_t)sizeof(int32_t)));
+      assert(delta >= INT32_MIN && delta <= INT32_MAX);
+      int32_t rel = (int32_t)delta;
+      memcpy(disp, &rel, sizeof(rel));
+    }
   }
 }

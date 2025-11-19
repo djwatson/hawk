@@ -9,6 +9,17 @@
 #define MAX_FREG 32
 
 typedef struct {
+  uint8_t *inst0;
+  uint8_t *inst1;
+} const_patch;
+
+typedef struct {
+  double value;
+  uint8_t *addr;
+  const_patch *patches;
+} constant_entry;
+
+typedef struct {
   uint16_t s;
   bool used;
 } regmap;
@@ -22,6 +33,7 @@ typedef struct emit_state {
   regmap regs[MAX_REG];
   regmap fregs[MAX_FREG];
   uint32_t next_spill;
+  constant_entry *const_pool;
 } emit_state;
 
 #if defined(__aarch64__)
@@ -40,3 +52,6 @@ void emit_bind(emit_state *s, uint64_t label, uint64_t jmp);
 void emit_check(emit_state *s);
 void emit_writable_begin(emit_state *s);
 void emit_writable_end(emit_state *s);
+int add_constant(emit_state *s, double value);
+void load_constant(emit_state *s, int idx, uint8_t dst);
+void emit_constant_pool(emit_state *s);
