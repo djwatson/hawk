@@ -60,6 +60,13 @@ static void emit_rex(emit_state *s, uint8_t w, uint8_t r, uint8_t x,
   *(--p) = 0x40 | (w << 3) | (r << 2) | (x << 1) | b;
 }
 
+static void emit_rex_optional(emit_state *s, uint8_t w, uint8_t r, uint8_t x,
+                              uint8_t b) {
+  if (w | r | x | b) {
+    emit_rex(s, w, r, x, b);
+  }
+}
+
 static void emit_modrm(emit_state *s, uint8_t mod, uint8_t reg, uint8_t rm) {
   *(--p) = (mod << 6) | (reg << 3) | rm;
 }
@@ -223,21 +230,34 @@ static void emit_sse_reg_reg(emit_state *s, uint8_t prefix, uint8_t opcode,
   emit_modrm(s, 0x3, 0x7 & src, 0x7 & dst);
   *(--p) = opcode;
   *(--p) = 0x0f;
-  emit_rex(s, 0, src >> 3, 0, dst >> 3);
+  emit_rex_optional(s, 0, src >> 3, 0, dst >> 3);
   if (prefix) {
     *(--p) = prefix;
   }
 }
 
-static uint8_t *emit_sse_literal_load(emit_state *s, uint8_t dst) {
+static uint8_t *emit_sse_literal_instr(emit_state *s, uint8_t prefix,
+                                       uint8_t opcode, uint8_t dst) {
   emit_imm32(s, 0);
   uint8_t *disp = p;
   emit_modrm(s, 0x0, 0x7 & dst, 0x5);
-  *(--p) = 0x10;
+  *(--p) = opcode;
   *(--p) = 0x0f;
-  emit_rex(s, 0, dst >> 3, 0, 0);
-  *(--p) = 0xf2;
+  emit_rex_optional(s, 0, dst >> 3, 0, 0);
+  if (prefix) {
+    *(--p) = prefix;
+  }
   return disp;
+}
+
+static void emit_sse_literal_constant(emit_state *s, uint8_t prefix,
+                                      uint8_t opcode, uint8_t dst, int idx) {
+  assert(idx >= 0);
+  assert((size_t)idx < arrlen(s->const_pool));
+  constant_entry *entry = &s->const_pool[idx];
+  uint8_t *disp = emit_sse_literal_instr(s, prefix, opcode, dst);
+  const_patch patch = {.inst0 = disp, .inst1 = nullptr};
+  arrput(&s->z, entry->patches, patch);
 }
 
 static void emit_mem_reg_sib(emit_state *s, uint8_t opcode, int32_t offset,
@@ -317,7 +337,7 @@ static void emit_sse_mem(emit_state *s, uint8_t prefix, uint8_t opcode,
   }
   *(--p) = opcode;
   *(--p) = 0x0f;
-  emit_rex(s, 0, freg >> 3, 0, base >> 3);
+  emit_rex_optional(s, 0, freg >> 3, 0, base >> 3);
   if (prefix) {
     *(--p) = prefix;
   }
@@ -389,7 +409,7 @@ static void emit_fneg(emit_state *s, uint8_t r) {
   emit_modrm(s, 0x0, 0x7 & hw, 0x5);
   *(--p) = 0x57;
   *(--p) = 0x0f;
-  emit_rex(s, 0, hw >> 3, 0, 0);
+  emit_rex_optional(s, 0, hw >> 3, 0, 0);
   *(--p) = 0x66;
 
   const_patch patch = {.inst0 = disp, .inst1 = nullptr};
@@ -449,8 +469,8 @@ void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
   emit_sse_reg_reg(s, 0x66, 0x2E, hw_fpr(lhs), hw_fpr(rhs));
 }
 void emit_fcmp_constant(emit_state *s, uint8_t reg, double imm) {
-  emit_sse_reg_reg(s, 0x66, 0x2E, hw_fpr(reg), hw_fpr(FRTMP));
-  load_constant(s, add_constant(s, imm), FRTMP);
+  int idx = add_constant(s, imm);
+  emit_sse_literal_constant(s, 0x66, 0x2E, hw_fpr(reg), idx);
 }
 void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
   emit_sse_reg_reg(s, 0xF2, 0x10, hw_fpr(dst), hw_fpr(src));
@@ -528,13 +548,19 @@ void emit_fsub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
 }
 
 void emit_fadd_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
-  emit_fadd(s, dst, lhs, FRTMP);
-  load_constant(s, add_constant(s, imm), FRTMP);
+  int idx = add_constant(s, imm);
+  emit_sse_literal_constant(s, 0xF2, 0x58, hw_fpr(dst), idx);
+  if (dst != lhs) {
+    emit_fmov(s, dst, lhs);
+  }
 }
 
 void emit_fsub_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
-  emit_fsub(s, dst, lhs, FRTMP);
-  load_constant(s, add_constant(s, imm), FRTMP);
+  int idx = add_constant(s, imm);
+  emit_sse_literal_constant(s, 0xF2, 0x5C, hw_fpr(dst), idx);
+  if (dst != lhs) {
+    emit_fmov(s, dst, lhs);
+  }
 }
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   emit_add_sub_constant(s, ASM_ARITH_ADD, dst, lhs, imm);
@@ -585,10 +611,7 @@ void asm_load_constant(emit_state *s, int idx, uint8_t dst) {
   assert(dst >= FPR_REG_START && dst < X64_MAX_REG);
   assert(idx >= 0);
   assert((size_t)idx < arrlen(s->const_pool));
-  constant_entry *entry = &s->const_pool[idx];
-  uint8_t *disp = emit_sse_literal_load(s, hw_fpr(dst));
-  const_patch patch = {.inst0 = disp, .inst1 = nullptr};
-  arrput(&s->z, entry->patches, patch);
+  emit_sse_literal_constant(s, 0xF2, 0x10, hw_fpr(dst), idx);
 }
 
 void asm_patch_constant_pool(emit_state *s) {

@@ -316,7 +316,8 @@ static double slot_flonum_constant(trace *t, slot v) {
 static void emit_flonum_sub(emit_state *s, trace *t, ir_ins *op) {
   assert(is_fpr_reg(op->reg));
   if (op->op2.constant) {
-    emit_fsub_constant(s, op->reg, op->reg, slot_flonum_constant(t, op->op2));
+    emit_fsub_constant(s, op->reg, slot_reg(t, op->op1),
+                       slot_flonum_constant(t, op->op2));
     return;
   }
   emit_fsub(s, op->reg, slot_reg(t, op->op1), slot_reg(t, op->op2));
@@ -333,7 +334,8 @@ static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins *op) {
 static void emit_flonum_add(emit_state *s, trace *t, ir_ins *op) {
   assert(is_fpr_reg(op->reg));
   if (op->op2.constant) {
-    emit_fadd_constant(s, op->reg, op->reg, slot_flonum_constant(t, op->op2));
+    emit_fadd_constant(s, op->reg, slot_reg(t, op->op1),
+                       slot_flonum_constant(t, op->op2));
     return;
   }
   emit_fadd(s, op->reg, slot_reg(t, op->op1), slot_reg(t, op->op2));
@@ -660,7 +662,8 @@ static void emit_ir(emit_state *s, trace *t) {
       break;
     }
     case IR_GTE: {
-      emit_jcc32(s, JL, t->snaps[cur_snap].patch_point);
+      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JB : JL;
+      emit_jcc32(s, guard, t->snaps[cur_snap].patch_point);
       if (op->type == FLONUM_TAG) {
         maybe_assign_register(s, op->op1, t);
         maybe_assign_register(s, op->op2, t);
@@ -757,7 +760,9 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
     if (arg_ins->reg != REG_NONE) {
       auto offset = (int32_t)arg_ins->data * 8;
       if (ins_uses_freg(arg_ins)) {
-        emit_fmem_load(s, offset, RSTACK, arg_ins->reg);
+        emit_fmem_load(s, flonum_payload_offset - FLONUM_TAG, RTMP,
+                       arg_ins->reg);
+        emit_mem_load(s, offset, RSTACK, RTMP);
       } else {
         emit_mem_load(s, offset, RSTACK, arg_ins->reg);
       }
@@ -852,19 +857,16 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
 
   auto entry = emit_offset(s);
   emit_finish_snap_exits(s, t, exit_label);
-  auto start_no_constants = emit_offset(s);
+  auto start = emit_offset(s);
 
   emit_constant_pool(s);
   emit_writable_end(s);
-  auto sz = end - start_no_constants;
+  auto sz = end - start;
   if (verbose) {
     printf("Disassembly: %" PRId64 "\n", sz);
     arr_reverse(s->comments);
-    disassemble((uint8_t *)start_no_constants, sz, s->comments);
+    disassemble((uint8_t *)start, sz, s->comments);
   }
-
-  auto start = emit_offset(s);
-  sz = end - start;
 
   // Cleanup
   zone_free(&s->z);
@@ -874,7 +876,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   // Install debuginfo for gdb & linux perf tool.
 #ifdef HAVE_ELF_H
   if (jit_dump_flag) {
-    jit_reader_add((int)sz, start);
+    jit_reader_add((int)(end - entry), entry);
     char *dumpname = t->parent ? "Side Trace" : "Trace";
     jit_dump((int)sz, start, dumpname);
     perf_map(start, sz, dumpname);
