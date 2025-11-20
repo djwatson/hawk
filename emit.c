@@ -883,6 +883,6 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   }
 #endif
   // Call the built-in function to flush the cache for the specific range
-  __builtin___clear_cache((char *)entry, (char *)start + sz);
+  __builtin___clear_cache((char *)emit_offset(s), (char *)end);
   return (trace_fn)entry;
 }
