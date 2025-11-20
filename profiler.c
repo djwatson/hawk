@@ -1,5 +1,5 @@
 // Copyright 2023 Dave Watson
-
+#define _GNU_SOURCE
 #define _XOPEN_SOURCE 700
 
 #include "profiler.h"
@@ -13,12 +13,12 @@
 #include <ucontext.h>
 #include <unistd.h>
 
-#include "hawk.h"
 #include "emit.h"
+#include "hawk.h"
 #include "vm.h"
 
 static const useconds_t k_sample_interval_usec = 5; // 0.25ms
-static const size_t k_max_pc_samples = 1 << 15;
+enum { k_max_pc_samples = 1 << 15 };
 static volatile sig_atomic_t sample_ticks = 0;
 static volatile sig_atomic_t total_samples = 0;
 static volatile sig_atomic_t jit_samples = 0;
@@ -79,14 +79,24 @@ static void *ucontext_pc(void *uc) {
   if (!uc) {
     return nullptr;
   }
+#if defined(__APPLE__)
 #if defined(__aarch64__)
   return (void *)((ucontext_t *)uc)->uc_mcontext->__ss.__pc;
 #elif defined(__x86_64__)
   return (void *)((ucontext_t *)uc)->uc_mcontext->__ss.__rip;
-#else
+#endif
+#elif defined(__linux__)
+#if defined(__x86_64__)
+  ucontext_t *l = (ucontext_t *)uc;
+
+  return (void *)l->uc_mcontext.gregs[REG_RIP];
+#elif defined(__aarch64__)
+  ucontext_t *l = (ucontext_t *)uc;
+  return (void *)l->uc_mcontext.pc;
+#endif
+#endif
   (void)uc;
   return nullptr;
-#endif
 }
 
 // Best-effort ring buffer store; only the handler writes, so no locks needed.
