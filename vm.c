@@ -153,10 +153,11 @@ static inline frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
 }
 static inline bc *next_op(bc *pc) { return pc + 1; }
 static inline gc_obj halt(vm_state *state, gc_obj *stack) {
-  profiler_stop();
+  profiler_stop(state);
 #ifdef HAVE_ELF_H
   jit_dump_close();
 #endif
+  emit_disassemble_all(&state->emit);
   if (verbose) {
     printf("There were %li traces\n", arrlen(state->record.traces));
   }
@@ -387,7 +388,7 @@ gc_obj vm(bc *pc) {
   }
 #endif
   if (profile) {
-    profiler_start();
+    profiler_start(state);
   }
 
   return state->impls[pc->op](pc, stack, state, state->impls, 0);

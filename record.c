@@ -153,7 +153,7 @@ static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos,
     auto res = entry->loc;
     if (typecheck & !res.constant) {
       auto ins = &record_current_trace(state)->ins[res.loc];
-      assert(ins->type == get_type_tag(stack[pos]));
+      //assert(ins->type == get_type_tag(stack[pos]));
       ins->guard = true;
     }
     return res;

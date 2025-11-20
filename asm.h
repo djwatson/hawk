@@ -29,6 +29,8 @@ typedef struct emit_state {
   uint8_t *p;
   zone z;
   comment_entry *comments;
+  comment_entry *global_comments;
+  zone global_comment_zone;
   regmap regs[MAX_REG];
   uint32_t next_spill;
   constant_entry *const_pool;
@@ -53,3 +55,6 @@ void emit_writable_end(emit_state *s);
 int add_constant(emit_state *s, double value);
 void load_constant(emit_state *s, int idx, uint8_t dst);
 void emit_constant_pool(emit_state *s);
+void emit_disassemble_all(emit_state *s);
+void emit_add_global_comment(emit_state *s, int64_t offset, const char *fmt,
+                             ...);
