@@ -1,4 +1,3 @@
-(define tak 10)
 (define (tak x y z)
   (if (< y x)
       (tak (tak (- x 1) y z)

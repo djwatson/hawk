@@ -155,22 +155,30 @@ static const struct {
 
 static uint32_t stp_pre_q(uint8_t rt, uint8_t rt2, uint8_t rn,
                           int32_t offset) {
+  assert(rt >= FPR_REG_START && rt < AARCH64_MAX_REG);
+  assert(rt2 >= FPR_REG_START && rt2 < AARCH64_MAX_REG);
+  uint8_t rt_hw = hw_fpr(rt);
+  uint8_t rt2_hw = hw_fpr(rt2);
   assert((offset % 16) == 0);
   int32_t imm = offset / 16;
   assert(imm >= -64 && imm <= 63);
   uint32_t imm7 = (uint32_t)(imm & 0x7f);
-  return 0xAD800000u | (imm7 << 15) | ((uint32_t)rt2 << 10) |
-         ((uint32_t)rn << 5) | (uint32_t)rt;
+  return 0xAD800000u | (imm7 << 15) | ((uint32_t)rt2_hw << 10) |
+         ((uint32_t)rn << 5) | (uint32_t)rt_hw;
 }
 
 static uint32_t ldp_post_q(uint8_t rt, uint8_t rt2, uint8_t rn,
                            int32_t offset) {
+  assert(rt >= FPR_REG_START && rt < AARCH64_MAX_REG);
+  assert(rt2 >= FPR_REG_START && rt2 < AARCH64_MAX_REG);
+  uint8_t rt_hw = hw_fpr(rt);
+  uint8_t rt2_hw = hw_fpr(rt2);
   assert((offset % 16) == 0);
   int32_t imm = offset / 16;
   assert(imm >= -64 && imm <= 63);
   uint32_t imm7 = (uint32_t)(imm & 0x7f);
-  return 0xACC00000u | (imm7 << 15) | ((uint32_t)rt2 << 10) |
-         ((uint32_t)rn << 5) | (uint32_t)rt;
+  return 0xACC00000u | (imm7 << 15) | ((uint32_t)rt2_hw << 10) |
+         ((uint32_t)rn << 5) | (uint32_t)rt_hw;
 }
 
 static const struct {
