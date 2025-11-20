@@ -119,7 +119,7 @@ void emit_mov64(emit_state *s, uint8_t r, int64_t imm) {
 static void emit_call_indirect(emit_state *s, uint8_t r) {
   emit_modrm(s, 0x3, 0x2, 0x7 & r);
   *(--p) = 0xff;
-  emit_rex(s, 1, 0, 0, r >> 3);
+  emit_rex_optional(s, 0, 0, 0, r >> 3);
 }
 
 void emit_call_reg(emit_state *s, uint8_t r) { emit_call_indirect(s, r); }
@@ -128,7 +128,7 @@ static void emit_call_indirect_mem(emit_state *s, int32_t offset) {
   emit_imm32(s, offset);
   emit_modrm(s, 0x00, 2, RBP);
   *(--p) = 0xff;
-  emit_rex(s, 1, 0, 0, 0);
+  emit_rex_optional(s, 0, 0, 0, 0);
 }
 
 static void emit_call32(emit_state *s, int32_t offset) {
@@ -418,16 +418,12 @@ static void emit_fneg(emit_state *s, uint8_t r) {
 
 void emit_push(emit_state *s, uint8_t r) {
   *(--p) = 0x50 + (0x7 & r);
-  if (r >> 3) {
-    emit_rex(s, 0, 0, 0, r >> 3);
-  }
+  emit_rex_optional(s, 0, 0, 0, r >> 3);
 }
 
 void emit_pop(emit_state *s, uint8_t r) {
   *(--p) = 0x58 | (0x7 & r);
-  if (r >> 3) {
-    emit_rex(s, 0, 0, 0, r >> 3);
-  }
+  emit_rex_optional(s, 0, 0, 0, r >> 3);
 }
 
 void emit_debugtrap(emit_state *s) { *(--p) = 0xcc; }
@@ -435,7 +431,13 @@ void emit_debugtrap(emit_state *s) { *(--p) = 0xcc; }
 void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count) {
   bool odd = count & 1;
   for (size_t i = 0; i < count; i++) {
-    emit_push(s, regs[i]);
+    uint8_t reg = regs[i];
+    if (reg >= FPR_REG_START) {
+      emit_sub_constant(s, RSP, RSP, 16);
+      emit_fstore(s, 0, RSP, reg);
+    } else {
+      emit_push(s, reg);
+    }
   }
   if (odd) {
     emit_sub_constant(s, RSP, RSP, 8);
@@ -448,7 +450,13 @@ void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count) {
     emit_add_constant(s, RSP, RSP, 8);
   }
   for (size_t i = count; i > 0; i--) {
-    emit_pop(s, regs[i - 1]);
+    uint8_t reg = regs[i - 1];
+    if (reg >= FPR_REG_START) {
+      emit_fmem_load(s, 0, RSP, reg);
+      emit_add_constant(s, RSP, RSP, 16);
+    } else {
+      emit_pop(s, reg);
+    }
   }
 }
 
