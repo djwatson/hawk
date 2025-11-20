@@ -448,6 +448,10 @@ void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
 void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
   emit_sse_reg_reg(s, 0x66, 0x2E, hw_fpr(lhs), hw_fpr(rhs));
 }
+void emit_fcmp_constant(emit_state *s, uint8_t reg, double imm) {
+  emit_sse_reg_reg(s, 0x66, 0x2E, hw_fpr(reg), hw_fpr(FRTMP));
+  load_constant(s, add_constant(s, imm), FRTMP);
+}
 void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
   emit_sse_reg_reg(s, 0xF2, 0x10, hw_fpr(dst), hw_fpr(src));
 }
@@ -529,7 +533,7 @@ void emit_fadd_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
 }
 
 void emit_fsub_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
-  emit_fsub(s, dst, FRTMP);
+  emit_fsub(s, dst, lhs, FRTMP);
   load_constant(s, add_constant(s, imm), FRTMP);
 }
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {

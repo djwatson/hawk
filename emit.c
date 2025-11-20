@@ -313,65 +313,30 @@ static double slot_flonum_constant(trace *t, slot v) {
   return to_flonum(obj)->x;
 }
 
-static uint8_t load_flonum_constant_tmp(emit_state *s, trace *t, slot v) {
-  assert(v.constant);
-  double value = slot_flonum_constant(t, v);
-  int idx = add_constant(s, value);
-  load_constant(s, idx, FRTMP);
-  return FRTMP;
-}
-
-static void load_flonum_into_reg(emit_state *s, trace *t, slot v, uint8_t dst) {
-  assert(is_fpr_reg(dst));
-  if (v.constant) {
-    double value = slot_flonum_constant(t, v);
-    int idx = add_constant(s, value);
-    load_constant(s, idx, dst);
-    return;
-  }
-  uint8_t src = slot_reg(t, v);
-  assert(is_fpr_reg(src));
-  if (src != dst) {
-    emit_fmov(s, dst, src);
-  }
-}
-
-static uint8_t get_flonum_operand_reg(emit_state *s, trace *t, slot v,
-                                      bool allow_constant) {
-  if (v.constant) {
-    assert(allow_constant);
-    return load_flonum_constant_tmp(s, t, v);
-  }
-  uint8_t reg = slot_reg(t, v);
-  assert(is_fpr_reg(reg));
-  return reg;
-}
-
 static void emit_flonum_sub(emit_state *s, trace *t, ir_ins *op) {
   assert(is_fpr_reg(op->reg));
-  load_flonum_into_reg(s, t, op->op1, op->reg);
   if (op->op2.constant) {
     emit_fsub_constant(s, op->reg, op->reg, slot_flonum_constant(t, op->op2));
     return;
   }
-  uint8_t rhs_reg = get_flonum_operand_reg(s, t, op->op2, false);
-  emit_fsub_reg(s, op->reg, rhs_reg);
+  emit_fsub(s, op->reg, slot_reg(t, op->op1), slot_reg(t, op->op2));
 }
 
 static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins *op) {
-  uint8_t lhs_reg = get_flonum_operand_reg(s, t, op->op1, false);
-  uint8_t rhs_reg = get_flonum_operand_reg(s, t, op->op2, true);
-  emit_fcmp(s, lhs_reg, rhs_reg);
+  if (op->op2.constant) {
+    emit_fcmp_constant(s, slot_reg(t, op->op1),
+                       slot_flonum_constant(t, op->op2));
+    return;
+  }
+  emit_fcmp(s, slot_reg(t, op->op1), slot_reg(t, op->op2));
 }
 static void emit_flonum_add(emit_state *s, trace *t, ir_ins *op) {
   assert(is_fpr_reg(op->reg));
-  load_flonum_into_reg(s, t, op->op1, op->reg);
   if (op->op2.constant) {
     emit_fadd_constant(s, op->reg, op->reg, slot_flonum_constant(t, op->op2));
     return;
   }
-  uint8_t rhs_reg = get_flonum_operand_reg(s, t, op->op2, false);
-  emit_fadd(s, op->reg, rhs_reg);
+  emit_fadd(s, op->reg, slot_reg(t, op->op1), slot_reg(t, op->op2));
 }
 
 static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
