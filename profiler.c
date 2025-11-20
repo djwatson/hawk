@@ -17,7 +17,7 @@
 #include "emit.h"
 #include "vm.h"
 
-static const useconds_t k_sample_interval_usec = 250; // 0.25ms
+static const useconds_t k_sample_interval_usec = 5; // 0.25ms
 static const size_t k_max_pc_samples = 1 << 15;
 static volatile sig_atomic_t sample_ticks = 0;
 static volatile sig_atomic_t total_samples = 0;
@@ -59,6 +59,19 @@ static int cmp_pc_count_desc(const void *a, const void *b) {
     return -1;
   }
   return 0;
+}
+
+static const char *hot_color_for_ratio(double ratio) {
+  if (ratio >= 0.75) {
+    return "\e[1;31m"; // red
+  }
+  if (ratio >= 0.5) {
+    return "\e[1;33m"; // yellow/orange-ish
+  }
+  if (ratio >= 0.25) {
+    return "\e[94m"; // light blue
+  }
+  return "\e[1;34m"; // dark blue
 }
 
 // Extract PC from ucontext in a signal-safe way.
@@ -241,12 +254,21 @@ EXPORT void profiler_stop(vm_state *state) {
     size_t to_print = run_len < 10 ? run_len : 10;
     printf("Top JIT PCs (samples=%zu):\n", (size_t)pc_cnt);
     for (size_t i = 0; i < to_print; i++) {
-      printf("  pc=%p hits=%zu\n", runs[i].pc, runs[i].hits);
+      double pct = (double)runs[i].hits / (double)pc_cnt * 100.0;
+      printf("  pc=%p hits=%zu (%.2f%%)\n", runs[i].pc, runs[i].hits, pct);
     }
     if (state) {
+      size_t max_hits = runs[0].hits;
+      if (max_hits == 0) {
+        max_hits = 1;
+      }
       for (size_t i = 0; i < to_print; i++) {
+        double ratio = (double)runs[i].hits / (double)max_hits;
+        const char *color = hot_color_for_ratio(ratio);
+        double pct = (double)runs[i].hits / (double)pc_cnt * 100.0;
         emit_add_global_comment(&state->emit, (int64_t)(uintptr_t)runs[i].pc,
-                                "HOT pc=%p hits=%zu", runs[i].pc, runs[i].hits);
+                                "%sHOT pc=%p hits=%zu (%.2f%%)\x1b[0m", color,
+                                runs[i].pc, runs[i].hits, pct);
       }
     }
     free(runs);
