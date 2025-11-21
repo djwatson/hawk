@@ -1,3 +1,25 @@
+#### post mortem
+
+Giving up on this - RET side traces simply MUST load the return address and check if it is in the same trace.  Additionally, this means there is a long line of RET side traces if something returns to many places.  TAK is like, at least 30% slower than it needs to be, partially because of this. 
+
+Checking stack size was also a contributor to slow TAK.
+
+we REALLY want call+ret matching for the return address buffer / prediction.
+
+Overall, method-JIT should be best, followed by LLVM.
+
+Some nice things though:
+We got profiling to work on aarch64 by just keeping track of top-N+dumping everything. 
+Disassembler is quite nice, with comments and such.
+
+AARCH support was surprisingly straightforward: branches are plenty
+big (~128MB? conditional is 1MB).  It's unikely a JIT needs more than
+128MB branches.  Different story on riscv though!
+
+THe merged record/vm flow was ... okay.  Adding new opcodes, like CALL
+vs LCALL, was stupid easy! but somethings are VERY specific to record
+vs. vm.
+
 # VM impl
 
 * lazy typecheck - needs PMOV guard and loopback guards to be fixed still
