@@ -157,8 +157,8 @@ static inline gc_obj halt(vm_state *state, gc_obj *stack) {
 #ifdef HAVE_ELF_H
   jit_dump_close();
 #endif
-  emit_disassemble_all(&state->emit);
   if (verbose) {
+    // emit_disassemble_all(&state->emit);
     printf("There were %li traces\n", arrlen(state->record.traces));
   }
   auto res = stack[0];
