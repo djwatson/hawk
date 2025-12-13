@@ -191,6 +191,7 @@ void disassemble(const uint8_t *code, size_t len,
       }
 #endif
     }
+    printf("%lx", addr);
     if (idx >= 0) {
       auto resolved = resolve_address((void *)label_targets[idx].key);
       if (resolved) {

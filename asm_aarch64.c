@@ -8,8 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "asm.h"
 #include "array.h"
+#include "asm.h"
 
 static inline uint8_t hw_fpr(uint8_t reg) {
   assert(reg >= FPR_REG_START && reg < AARCH64_MAX_REG);
@@ -21,7 +21,7 @@ const char *const reg_names[AARCH64_MAX_REG] = {
     ASM_AARCH64_REGISTER_LIST(X)
 #undef X
 #define X(name) #name,
-    ASM_AARCH64_FREGISTER_LIST(X)
+        ASM_AARCH64_FREGISTER_LIST(X)
 #undef X
 };
 
@@ -153,8 +153,7 @@ static const struct {
     {X27, X28}, {X25, X26}, {X23, X24}, {X21, X22}, {X19, X20}, {FP, LR},
 };
 
-static uint32_t stp_pre_q(uint8_t rt, uint8_t rt2, uint8_t rn,
-                          int32_t offset) {
+static uint32_t stp_pre_q(uint8_t rt, uint8_t rt2, uint8_t rn, int32_t offset) {
   assert(rt >= FPR_REG_START && rt < AARCH64_MAX_REG);
   assert(rt2 >= FPR_REG_START && rt2 < AARCH64_MAX_REG);
   uint8_t rt_hw = hw_fpr(rt);
@@ -184,7 +183,8 @@ static uint32_t ldp_post_q(uint8_t rt, uint8_t rt2, uint8_t rn,
 static const struct {
   uint8_t r1, r2;
 } callee_saved_fp_pairs[] = {
-    {V16, V17}, {V18, V19},
+    {V16, V17},
+    {V18, V19},
 };
 
 void restore_callee_regs(emit_state *s) {
@@ -195,20 +195,20 @@ void restore_callee_regs(emit_state *s) {
     emit_op(s, ldp_post(callee_saved_pairs[j].r1, callee_saved_pairs[j].r2, SP,
                         16));
   }
-  for (size_t i = 0; i < sizeof(callee_saved_fp_pairs) /
-                               sizeof(callee_saved_fp_pairs[0]);
+  for (size_t i = 0;
+       i < sizeof(callee_saved_fp_pairs) / sizeof(callee_saved_fp_pairs[0]);
        i++) {
-    const size_t j = sizeof(callee_saved_fp_pairs) /
-                         sizeof(callee_saved_fp_pairs[0]) -
-                     1 - i;
+    const size_t j =
+        sizeof(callee_saved_fp_pairs) / sizeof(callee_saved_fp_pairs[0]) - 1 -
+        i;
     emit_op(s, ldp_post_q(callee_saved_fp_pairs[j].r1,
                           callee_saved_fp_pairs[j].r2, SP, 32));
   }
 }
 
 void save_callee_regs(emit_state *s) {
-  for (size_t i = 0; i < sizeof(callee_saved_fp_pairs) /
-                               sizeof(callee_saved_fp_pairs[0]);
+  for (size_t i = 0;
+       i < sizeof(callee_saved_fp_pairs) / sizeof(callee_saved_fp_pairs[0]);
        i++) {
     emit_op(s, stp_pre_q(callee_saved_fp_pairs[i].r1,
                          callee_saved_fp_pairs[i].r2, SP, -32));
@@ -428,8 +428,8 @@ void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
 void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
   assert(lhs >= FPR_REG_START && lhs < AARCH64_MAX_REG);
   assert(rhs >= FPR_REG_START && rhs < AARCH64_MAX_REG);
-  uint32_t opcode =
-      0x1E602000u | ((uint32_t)hw_fpr(rhs) << 16) | ((uint32_t)hw_fpr(lhs) << 5);
+  uint32_t opcode = 0x1E602000u | ((uint32_t)hw_fpr(rhs) << 16) |
+                    ((uint32_t)hw_fpr(lhs) << 5);
   emit_op(s, opcode);
 }
 void emit_fcmp_constant(emit_state *s, uint8_t reg, double imm) {
@@ -445,8 +445,8 @@ void emit_fmov_constant(emit_state *s, uint8_t dst, double imm) {
 void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
   assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
   assert(src >= FPR_REG_START && src < AARCH64_MAX_REG);
-  uint32_t opcode = 0x1E604000u | ((uint32_t)hw_fpr(src) << 5) |
-                    (uint32_t)hw_fpr(dst);
+  uint32_t opcode =
+      0x1E604000u | ((uint32_t)hw_fpr(src) << 5) | (uint32_t)hw_fpr(dst);
   emit_op(s, opcode);
 }
 
@@ -513,9 +513,8 @@ void emit_fadd(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
   assert(lhs >= FPR_REG_START && lhs < AARCH64_MAX_REG);
   assert(rhs >= FPR_REG_START && rhs < AARCH64_MAX_REG);
-  uint32_t opcode =
-      0x1E602800u | ((uint32_t)hw_fpr(rhs) << 16) |
-      ((uint32_t)hw_fpr(lhs) << 5) | (uint32_t)hw_fpr(dst);
+  uint32_t opcode = 0x1E602800u | ((uint32_t)hw_fpr(rhs) << 16) |
+                    ((uint32_t)hw_fpr(lhs) << 5) | (uint32_t)hw_fpr(dst);
   emit_op(s, opcode);
 }
 
@@ -523,9 +522,8 @@ void emit_fsub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
   assert(lhs >= FPR_REG_START && lhs < AARCH64_MAX_REG);
   assert(rhs >= FPR_REG_START && rhs < AARCH64_MAX_REG);
-  uint32_t opcode =
-      0x1E603800u | ((uint32_t)hw_fpr(rhs) << 16) |
-      ((uint32_t)hw_fpr(lhs) << 5) | (uint32_t)hw_fpr(dst);
+  uint32_t opcode = 0x1E603800u | ((uint32_t)hw_fpr(rhs) << 16) |
+                    ((uint32_t)hw_fpr(lhs) << 5) | (uint32_t)hw_fpr(dst);
   emit_op(s, opcode);
 }
 
@@ -574,12 +572,14 @@ static size_t build_reg_ops(uint8_t const *regs, size_t count, reg_op *ops,
       bool fpr_pair = r1_is_fpr && r2_is_fpr;
       bool gpr_pair = !r1_is_fpr && !r2_is_fpr;
       if (fpr_pair || gpr_pair) {
-        ops[op_count++] = (reg_op){.r1 = r1, .r2 = r2, .fpr = r1_is_fpr, .pair = true};
+        ops[op_count++] =
+            (reg_op){.r1 = r1, .r2 = r2, .fpr = r1_is_fpr, .pair = true};
         i += 2;
         continue;
       }
     }
-    ops[op_count++] = (reg_op){.r1 = r1, .r2 = XZR, .fpr = r1_is_fpr, .pair = false};
+    ops[op_count++] =
+        (reg_op){.r1 = r1, .r2 = XZR, .fpr = r1_is_fpr, .pair = false};
     i += 1;
   }
   return op_count;
@@ -669,9 +669,8 @@ void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   }
   assert(offset >= -256 && offset <= 255);
   uint32_t imm9 = (uint32_t)(offset & 0x1ff);
-  uint32_t opcode =
-      0xFC400000u | (imm9 << 12) | ((uint32_t)base << 5) |
-      (uint32_t)hw_fpr(dst);
+  uint32_t opcode = 0xFC400000u | (imm9 << 12) | ((uint32_t)base << 5) |
+                    (uint32_t)hw_fpr(dst);
   emit_op(s, opcode);
 }
 
@@ -706,9 +705,8 @@ void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
   }
   assert(offset >= -256 && offset <= 255);
   uint32_t imm9 = (uint32_t)(offset & 0x1ff);
-  uint32_t opcode =
-      0xFC000000u | (imm9 << 12) | ((uint32_t)base << 5) |
-      (uint32_t)hw_fpr(src);
+  uint32_t opcode = 0xFC000000u | (imm9 << 12) | ((uint32_t)base << 5) |
+                    (uint32_t)hw_fpr(src);
   emit_op(s, opcode);
 }
 
@@ -724,12 +722,11 @@ void asm_load_constant(emit_state *s, int idx, uint8_t dst) {
   assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
   assert(idx >= 0);
   assert((size_t)idx < arrlen(s->const_pool));
+  emit_op(s, 0xFD400000u | ((uint32_t)RTMP << 5) | (uint32_t)hw_fpr(dst));
+  uint8_t *ldr_site = p;
   constant_entry *entry = &s->const_pool[idx];
   emit_op(s, 0x90000000u | ((uint32_t)RTMP << 5) | (uint32_t)RTMP);
   uint8_t *adrp_site = p;
-  emit_op(s, 0xFD400000u | ((uint32_t)RTMP << 5) |
-          (uint32_t)hw_fpr(dst));
-  uint8_t *ldr_site = p;
   const_patch patch = {.inst0 = adrp_site, .inst1 = ldr_site};
   arrput(&s->z, entry->patches, patch);
 }
@@ -752,8 +749,7 @@ void asm_patch_constant_pool(emit_state *s) {
       uint32_t immlo = (uint32_t)(page_delta & 0x3);
       uint32_t immhi = (uint32_t)((page_delta >> 2) & 0x7FFFF);
       uint32_t rd = (*((uint32_t *)adrp_site)) & 0x1F;
-      uint32_t adrp =
-          0x90000000u | (immlo << 29) | (immhi << 5) | (rd & 0x1F);
+      uint32_t adrp = 0x90000000u | (immlo << 29) | (immhi << 5) | (rd & 0x1F);
       memcpy(adrp_site, &adrp, sizeof(adrp));
 
       uint64_t page_offset = const_addr & 0xFFFu;
@@ -762,8 +758,7 @@ void asm_patch_constant_pool(emit_state *s) {
       uint32_t orig = *((uint32_t *)ldr_site);
       uint32_t base = (orig >> 5) & 0x1F;
       uint32_t dst = orig & 0x1F;
-      uint32_t ldr =
-          0xFD400000u | (imm12 << 10) | (base << 5) | (dst & 0x1F);
+      uint32_t ldr = 0xFD400000u | (imm12 << 10) | (base << 5) | (dst & 0x1F);
       memcpy(ldr_site, &ldr, sizeof(ldr));
     }
   }
