@@ -25,6 +25,7 @@ uint64_t *gc_get_stack_top();
 void gc_log(uint64_t a);
 
 NOINLINE __attribute__((preserve_most)) void *gc_alloc_slow(uint64_t sz);
+NOINLINE __attribute__((preserve_most)) void gc_alloc_refill(uint64_t sz);
 
 static inline void *gc_alloc(uint64_t sz) {
   assert((sz & 0x7) == 0);

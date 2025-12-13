@@ -80,7 +80,7 @@ void emit_init_slowpath(emit_state *s) {
 
   emit_call_reg(s, RTMP);
   emit_mov64(s, RARG0, (int64_t)sizeof(flonum_s));
-  emit_mov64(s, RTMP, (int64_t)&gc_alloc_slow);
+  emit_mov64(s, RTMP, (int64_t)&gc_alloc_refill);
   emit_push_regs(s, slowpath_regs, reg_cnt);
   auto start = (uint8_t *)emit_offset(s);
   s->flonum_alloc_slowpath = start;
@@ -528,7 +528,8 @@ static void emit_loopback_constants(emit_state *s, ignoremap *loopback_regs) {
       abort();
     }
     if (map->target_reg >= FPR_REG_START) {
-      emit_fmov_constant(s, map->target_reg, to_flonum((gc_obj){.value=map->constant_value})->x);
+      emit_fmov_constant(s, map->target_reg,
+                         to_flonum((gc_obj){.value = map->constant_value})->x);
     } else {
       emit_mov64(s, map->target_reg, map->constant_value);
     }
@@ -786,11 +787,11 @@ static void emit_ir(emit_state *s, trace *t) {
     }
     case IR_SLOAD: {
       if (op->type == FLONUM_TAG) {
-	// TODO must load flonum.
-	emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, op->reg);
-	emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
+        // TODO must load flonum.
+        emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, op->reg);
+        emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
       } else {
-	emit_mem_load(s, (int32_t)op->data * 8, RSTACK, op->reg);
+        emit_mem_load(s, (int32_t)op->data * 8, RSTACK, op->reg);
       }
       break;
     }
