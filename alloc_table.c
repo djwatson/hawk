@@ -36,3 +36,8 @@ void alloc_table_set_range(alloc_table *table, void *val, void *p,
     ps += ind_sz;
   }
 }
+
+void alloc_table_free(alloc_table *table) {
+  free(table->table);
+  table->table = nullptr;
+}

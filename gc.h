@@ -23,6 +23,7 @@ void gc_add_root(uint64_t *rootp, size_t len);
 void gc_remove_root(uint64_t const *rootp);
 uint64_t *gc_get_stack_top();
 void gc_log(uint64_t a);
+void gc_free(void);
 
 NOINLINE __attribute__((preserve_most)) void *gc_alloc_slow(uint64_t sz);
 NOINLINE __attribute__((preserve_most)) void gc_alloc_refill(uint64_t sz);

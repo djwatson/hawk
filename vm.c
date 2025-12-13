@@ -164,6 +164,8 @@ gc_obj halt(vm_state *state, gc_obj *stack) {
   auto res = stack[0];
   free_traces(state);
   gc_remove_root((uint64_t *)state->stack_bottom);
+  emit_cleanup(&state->emit);
+  gc_free();
   free(state->stack_bottom);
   free(state);
   return res;

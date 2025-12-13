@@ -6,7 +6,6 @@ X GC needs to work in traces, faster fastpath somehow?
   * broken slowpath - we should not need refill(), just alloc_slow
   * slowpath has explicit regs in emit, should be in backend
   
-* figure out why valgrind says we're leaking mem  
 * aarch64 callee-saved fprs seem broken.
   
 * Check GC traces trace roots / constants

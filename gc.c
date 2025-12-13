@@ -36,6 +36,10 @@ static uint64_t collect_cnt = 0;
 static alloc_table atable;
 
 static uint64_t *stacktop;
+static uintptr_t mem_base;
+static uintptr_t memstart;
+static uintptr_t memend;
+static uint64_t mem_map_size;
 
 uint64_t *gc_get_stack_top() { return stacktop; }
 
@@ -120,9 +124,6 @@ bool get_partial_range(uint64_t sz_class, freelist_s *fl) {
   return true;
 }
 
-static uintptr_t memstart;
-static uintptr_t memend;
-
 void gc_init(void *stacktop_in) {
   // ~2GB, which is sufficient for every r7rs benchmark.
   uint64_t gc_virtual_space = PAGE_SIZE * PAGE_SIZE * 120;
@@ -130,12 +131,14 @@ void gc_init(void *stacktop_in) {
   if (gc_space_env) {
     gc_virtual_space = atoll(gc_space_env);
   }
-  memstart = (intptr_t)mmap(nullptr, gc_virtual_space, PROT_READ | PROT_WRITE,
+  mem_base = (intptr_t)mmap(nullptr, gc_virtual_space, PROT_READ | PROT_WRITE,
                             MAP_PRIVATE | MAP_ANON, -1, 0);
-  if ((intptr_t)memstart == -1) {
+  if ((intptr_t)mem_base == -1) {
     printf("Can't alloc virtual space: %" PRIu64 "\n", gc_virtual_space);
     abort();
   }
+  mem_map_size = gc_virtual_space;
+  memstart = mem_base;
   memend = memstart + gc_virtual_space;
   memstart = align(memstart, default_slab_size);
   alloc_table_init(&atable, memstart, memend);
@@ -510,4 +513,38 @@ void gc_log(uint64_t a) {
     }
   }
 #endif
+}
+
+static void free_slab_info(slab_info *slab) {
+  if (!slab) {
+    return;
+  }
+  free(slab);
+}
+
+void gc_free(void) {
+  kv_destroy(roots);
+  for (uint64_t i = 0; i < size_classes; i++) {
+    kv_destroy(partials[i]);
+  }
+  list_head *itr = live_slabs.next;
+  while (!list_is_head(itr, &live_slabs)) {
+    auto next_itr = itr->next;
+    auto slab = container_of(itr, slab_info, link);
+    list_del(itr);
+    free_slab_info(slab);
+    itr = next_itr;
+  }
+  for (uint64_t i = 0; i < page_classes; i++) {
+    for (size_t j = 0; j < kv_size(pages_free[i]); j++) {
+      free_slab_info(kv_A(pages_free[i], j));
+    }
+    kv_destroy(pages_free[i]);
+  }
+  alloc_table_free(&atable);
+  if (mem_base) {
+    munmap((void *)mem_base, mem_map_size);
+    mem_base = 0;
+    mem_map_size = 0;
+  }
 }

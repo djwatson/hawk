@@ -1,14 +1,14 @@
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <inttypes.h>
 
-#include "asm.h"
 #include "array.h"
+#include "asm.h"
 
 #if defined(__APPLE__) && defined(__aarch64__)
 #include <pthread.h>
@@ -49,7 +49,6 @@ void emit_disassemble_all(emit_state *s) {
 
   printf("Full JIT disassembly (%zu bytes):\n", len);
   disassemble(s->p, len, comments);
-  arrfree(comments);
 }
 
 int64_t emit_offset(emit_state *s) {
@@ -93,7 +92,6 @@ void emit_cleanup(emit_state *s) {
   }
   arrfree(s->comments);
   s->comments = nullptr;
-  arrfree(s->global_comments);
   s->global_comments = nullptr;
   zone_free(&s->global_comment_zone);
   memset(&s->global_comment_zone, 0, sizeof(s->global_comment_zone));
