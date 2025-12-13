@@ -407,6 +407,9 @@ void emit_call_reg(emit_state *s, uint8_t r) {
 
 void emit_call32(emit_state *s, int64_t target) {
   int64_t delta = target - emit_offset(s);
+  // PC-relative branches use the address of this instruction; account for
+  // backwards emission moving the pointer after encoding.
+  delta += 4;
   assert((delta & 0x3) == 0);
   int64_t imm26 = delta >> 2;
   assert(imm26 >= -(1 << 25) && imm26 <= ((1 << 25) - 1));

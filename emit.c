@@ -90,6 +90,10 @@ void emit_init_slowpath(emit_state *s) {
   register_jit_symbol(start, s->flonum_alloc_slowpath, (uint8_t *)end,
                       "GC slowpath");
 #endif
+  if (verbose) {
+    printf("GC slowpath: %" PRId64 "\n", end - (long)start);
+    disassemble((uint8_t *)start, end - (long)start, nullptr);
+  }
 }
 
 static inline bool ins_uses_freg(ir_ins const *ins) {
