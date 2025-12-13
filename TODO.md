@@ -2,12 +2,17 @@
 
 # VM impl
 
-* GC needs to work in traces, faster fastpath somehow?
+X GC needs to work in traces, faster fastpath somehow?
+  * slowpath broken - some get_partial returning full partials for some reason
+  * broken slowpath - we should not need refill(), just alloc_slow
+  * fibfp broken on aarch ??
+  * stack unbalanced on slowpath, getting prinf errors?
+  * slowpath has explicit regs in emit, should be in backend
 
 * lazy typecheck - needs PMOV guard and loopback guards to be fixed still
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
-* sumfp, fibfp
+X sumfp, fibfp
 
 * lookup check - fix expander thingy
 * optimistic globals - TODO fail.  Also needs expander fix. need to support set!
