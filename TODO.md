@@ -3,7 +3,6 @@
 # VM impl
 
 X GC needs to work in traces, faster fastpath somehow?
-  * slowpath broken - some get_partial returning full partials for some reason
   * broken slowpath - we should not need refill(), just alloc_slow
   * stack unbalanced on slowpath, getting prinf errors?
   * slowpath has explicit regs in emit, should be in backend

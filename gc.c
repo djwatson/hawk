@@ -459,10 +459,7 @@ NOINLINE __attribute__((preserve_most)) void gc_alloc_refill(uint64_t sz) {
     freelist[sz_class].slab = slab;
     collect_cnt += freelist[sz_class].end_ptr - freelist[sz_class].start_ptr;
   }
-  if (freelist[sz_class].start_ptr == freelist[sz_class].end_ptr) {
-    // TODO this is broken.
-    gc_alloc_refill(sz);
-  }
+  assert(freelist[sz_class].start_ptr != freelist[sz_class].end_ptr);
 }
 NOINLINE __attribute__((preserve_most)) void *gc_alloc_slow(uint64_t sz) {
   if (collect_cnt >= next_collect) {
@@ -491,6 +488,7 @@ NOINLINE __attribute__((preserve_most)) void *gc_alloc_slow(uint64_t sz) {
     freelist[sz_class].slab = slab;
     collect_cnt += freelist[sz_class].end_ptr - freelist[sz_class].start_ptr;
   }
+  assert(freelist[sz_class].start_ptr != freelist[sz_class].end_ptr);
   return gc_alloc(sz);
 }
 
