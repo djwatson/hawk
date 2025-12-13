@@ -134,6 +134,8 @@ void emit_init(emit_state *s) {
 
   // Valgrind requires some readahead space.
   s->p -= 4;
+
+  emit_init_slowpath(s);
 }
 
 void emit_writable_begin(emit_state *s) {

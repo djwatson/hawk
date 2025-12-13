@@ -4,5 +4,13 @@
       sum
       (run (- i 1.) (+ i sum))))
 
-(display (run 1e8 0.0))
+(define (doit i sum)
+  (if (= i 0)
+      sum
+      (begin
+	(doit (- i 1) (+ sum (run 1e6 0.0))))))
+
+;(display (run 1e9 0.0))
+(display (doit 5000 0.0))
+
 

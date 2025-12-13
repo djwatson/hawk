@@ -131,9 +131,15 @@ static void emit_call_indirect_mem(emit_state *s, int32_t offset) {
   emit_rex_optional(s, 0, 0, 0, 0);
 }
 
-static void emit_call32(emit_state *s, int32_t offset) {
+static void emit_call32_imm(emit_state *s, int32_t offset) {
   emit_imm32(s, offset);
   *(--p) = 0xe8;
+}
+
+void emit_call32(emit_state *s, int64_t target) {
+  int64_t delta = target - emit_offset(s);
+  assert(fits_in_32(delta));
+  emit_call32_imm(s, (int32_t)delta);
 }
 
 void emit_ret(emit_state *s) { *(--p) = 0xc3; }

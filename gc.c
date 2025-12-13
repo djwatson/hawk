@@ -433,6 +433,7 @@ static slab_info *alloc_slab(uint64_t sz_class) {
 }
 
 NOINLINE __attribute__((preserve_most)) void *gc_alloc_slow(uint64_t sz) {
+  printf("Alloc slow\n");
   if (collect_cnt >= next_collect) {
     collect_cnt = 0;
     gc_collect();

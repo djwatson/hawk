@@ -405,6 +405,15 @@ void emit_call_reg(emit_state *s, uint8_t r) {
   emit_op(s, opcode);
 }
 
+void emit_call32(emit_state *s, int64_t target) {
+  int64_t delta = target - emit_offset(s);
+  assert((delta & 0x3) == 0);
+  int64_t imm26 = delta >> 2;
+  assert(imm26 >= -(1 << 25) && imm26 <= ((1 << 25) - 1));
+  uint32_t opcode = 0x94000000u | ((uint32_t)imm26 & UINT32_C(0x03FFFFFF));
+  emit_op(s, opcode);
+}
+
 void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
   assert(lhs < MAX_REG);
   assert(rhs < MAX_REG);
@@ -538,35 +547,62 @@ void emit_debugtrap(emit_state *s) { emit_op(s, UINT32_C(0xD4200000)); }
 
 void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count) {
   size_t i = 0;
-  for (; i + 1 < count; i += 2) {
+  while (i < count) {
     uint8_t r1 = regs[i];
-    uint8_t r2 = regs[i + 1];
     assert(r1 < MAX_REG);
-    assert(r2 < MAX_REG);
-    emit_op(s, stp_pre(r1, r2, SP, -16));
-  }
-  if (count & 1) {
-    uint8_t r = regs[count - 1];
-    assert(r < MAX_REG);
-    emit_op(s, stp_pre(r, XZR, SP, -16));
+    if (i + 1 < count) {
+      uint8_t r2 = regs[i + 1];
+      assert(r2 < MAX_REG);
+      bool fpr_pair = (r1 >= FPR_REG_START) && (r2 >= FPR_REG_START);
+      bool gpr_pair = (r1 < FPR_REG_START) && (r2 < FPR_REG_START);
+      if (fpr_pair) {
+        emit_op(s, stp_pre_q(r1, r2, SP, -16));
+        i += 2;
+        continue;
+      }
+      if (gpr_pair) {
+        emit_op(s, stp_pre(r1, r2, SP, -16));
+        i += 2;
+        continue;
+      }
+    }
+    if (r1 >= FPR_REG_START) {
+      emit_sub_constant(s, SP, SP, 16);
+      emit_fstore(s, 0, SP, r1);
+    } else {
+      emit_op(s, stp_pre(r1, XZR, SP, -16));
+    }
+    i++;
   }
 }
 
 void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count) {
   size_t i = count;
-  if (count & 1) {
-    uint8_t r = regs[count - 1];
-    assert(r < MAX_REG);
-    emit_op(s, ldp_post(r, XZR, SP, 16));
-    i--;
-  }
   while (i > 0) {
-    uint8_t r1 = regs[i - 2];
-    uint8_t r2 = regs[i - 1];
+    uint8_t r1 = regs[i - 1];
     assert(r1 < MAX_REG);
-    assert(r2 < MAX_REG);
-    emit_op(s, ldp_post(r1, r2, SP, 16));
-    i -= 2;
+    if (i >= 2) {
+      uint8_t r0 = regs[i - 2];
+      bool fpr_pair = (r0 >= FPR_REG_START) && (r1 >= FPR_REG_START);
+      bool gpr_pair = (r0 < FPR_REG_START) && (r1 < FPR_REG_START);
+      if (fpr_pair) {
+        emit_op(s, ldp_post_q(r0, r1, SP, 16));
+        i -= 2;
+        continue;
+      }
+      if (gpr_pair) {
+        emit_op(s, ldp_post(r0, r1, SP, 16));
+        i -= 2;
+        continue;
+      }
+    }
+    if (r1 >= FPR_REG_START) {
+      emit_fmem_load(s, 0, SP, r1);
+      emit_add_constant(s, SP, SP, 16);
+    } else {
+      emit_op(s, ldp_post(r1, XZR, SP, 16));
+    }
+    i -= 1;
   }
 }
 

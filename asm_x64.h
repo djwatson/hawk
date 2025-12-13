@@ -152,6 +152,7 @@ void emit_jmp32(emit_state *s, int64_t target);
 void emit_jmp32_patch_here(emit_state *s, int64_t patch);
 void emit_mov64(emit_state *s, uint8_t r, int64_t imm);
 void emit_call_reg(emit_state *s, uint8_t r);
+void emit_call32(emit_state *s, int64_t target);
 void emit_push(emit_state *s, uint8_t r);
 void emit_pop(emit_state *s, uint8_t r);
 void emit_debugtrap(emit_state *s);

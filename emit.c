@@ -37,6 +37,61 @@ static const int32_t freelist_end_offset =
     (int32_t)offsetof(freelist_s, end_ptr);
 static const int32_t flonum_payload_offset = (int32_t)offsetof(flonum_s, x);
 
+#ifdef HAVE_ELF_H
+static void register_jit_symbol(uint8_t *start, uint8_t *entry, uint8_t *end,
+                                const char *name) {
+  if (!jit_dump_flag) {
+    return;
+  }
+  jit_reader_add((int)(end - entry), (uint64_t)entry);
+  jit_dump((int)(end - start), (uint64_t)start, name);
+  perf_map((uint64_t)start, (uint64_t)(end - start), name);
+}
+#endif
+
+void emit_init_slowpath(emit_state *s) {
+  if (s->flonum_alloc_slowpath) {
+    return;
+  }
+
+#if defined(__x86_64__)
+  static const uint8_t slowpath_regs[] = {
+      RAX,  RCX,  RDX,  RBX,   RBP,   RSI,   RDI,   R8,    R9,   R10,  R11,
+      R12,  R13,  R14,  R15,   XMM0,  XMM1,  XMM2,  XMM3,  XMM4, XMM5, XMM6,
+      XMM7, XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14, XMM15};
+#elif defined(__aarch64__)
+  static const uint8_t slowpath_regs[] = {
+      X0,  X1,  X2,  X3,  X4,  X5,  X6,  X7,  X8,  X9,  X10, X11, X12,
+      X13, X14, X15, X16, X17, X18, X19, X20, X21, X22, X23, X24, X25,
+      X26, X27, X28, FP,  LR,  V0,  V1,  V2,  V3,  V4,  V5,  V6,  V7,
+      V8,  V9,  V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20,
+      V21, V22, V23, V24, V25, V26, V27, V28, V29, V30, V31};
+#else
+#error "Unsupported architecture"
+#endif
+
+  auto end = emit_offset(s);
+  size_t reg_cnt = sizeof(slowpath_regs) / sizeof(slowpath_regs[0]);
+
+  emit_writable_begin(s);
+
+  emit_ret(s);
+  emit_pop_regs(s, slowpath_regs, reg_cnt);
+
+  emit_call_reg(s, RTMP);
+  emit_mov64(s, RTMP, (int64_t)&gc_alloc_slow);
+  emit_mov64(s, RARG0, (int64_t)sizeof(flonum_s));
+  emit_push_regs(s, slowpath_regs, reg_cnt);
+  auto start = (uint8_t *)emit_offset(s);
+  s->flonum_alloc_slowpath = start;
+
+  emit_writable_end(s);
+#ifdef HAVE_ELF_H
+  register_jit_symbol(start, s->flonum_alloc_slowpath, (uint8_t *)end,
+                      "GC slowpath");
+#endif
+}
+
 static inline bool ins_uses_freg(ir_ins const *ins) {
   return ins->type == FLONUM_TAG;
 }
@@ -363,6 +418,7 @@ static void emit_flonum_add(emit_state *s, trace *t, ir_ins *op) {
 
 static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
                                    ir_ins *ins) {
+  assert(s->flonum_alloc_slowpath);
   assert(is_fpr_reg(ins->reg));
   emit_pop(s, RET_REG);
   emit_pop(s, RET_REG2);
@@ -381,7 +437,14 @@ static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
   emit_debugtrap(s);
   emit_jcc32(s, JLE, continue_label);
   emit_cmp(s, RTMP, RET_REG2);
-
+  emit_add_constant(s, RTMP, RTMP, (int32_t)sizeof(flonum_s));
+  emit_mov(s, RTMP, RET_REG);
+  emit_mem_load(s, freelist_end_offset, RTMP, RET_REG2);
+  emit_mem_load(s, freelist_start_offset, RTMP, RET_REG);
+  emit_mov64(s, RTMP, (intptr_t)flonum_freelist);
+  emit_call32(s, (int64_t)s->flonum_alloc_slowpath);
+  emit_jcc32(s, JLE, continue_label);
+  emit_cmp(s, RTMP, RET_REG2);
   emit_add_constant(s, RTMP, RTMP, (int32_t)sizeof(flonum_s));
   emit_mov(s, RTMP, RET_REG);
   emit_mem_load(s, freelist_end_offset, RTMP, RET_REG2);
@@ -897,12 +960,9 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
 
   // Install debuginfo for gdb & linux perf tool.
 #ifdef HAVE_ELF_H
-  if (jit_dump_flag) {
-    jit_reader_add((int)(end - entry), entry);
-    char *dumpname = t->parent ? "Side Trace" : "Trace";
-    jit_dump((int)sz, start, dumpname);
-    perf_map(start, sz, dumpname);
-  }
+  char *dumpname = t->parent ? "Side Trace" : "Trace";
+  register_jit_symbol((uint8_t *)start, (uint8_t *)entry, (uint8_t *)end,
+                      dumpname);
 #endif
   // Call the built-in function to flush the cache for the specific range
   __builtin___clear_cache((char *)emit_offset(s), (char *)end);

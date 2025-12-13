@@ -34,6 +34,7 @@ typedef struct emit_state {
   regmap regs[MAX_REG];
   uint32_t next_spill;
   constant_entry *const_pool;
+  uint8_t *flonum_alloc_slowpath;
 } emit_state;
 
 #if defined(__aarch64__)
@@ -45,6 +46,7 @@ typedef struct emit_state {
 #endif
 
 void emit_init(emit_state *s);
+void emit_init_slowpath(emit_state *s);
 void emit_cleanup(emit_state *s);
 int64_t emit_offset(emit_state *s);
 void emit_advance(emit_state *s, int64_t offset);
