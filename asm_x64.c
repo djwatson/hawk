@@ -95,6 +95,7 @@ static bool fits_in_u32(int64_t imm) {
 }
 
 void emit_mov64(emit_state *s, uint8_t r, int64_t imm) {
+  assert(r < FPR_REG_START);
   // Note that 'imm' isn't necessarily a number here,
   // so we can't narrow negative numbers.
 #ifndef VALGRIND
@@ -485,6 +486,11 @@ void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
 void emit_fcmp_constant(emit_state *s, uint8_t reg, double imm) {
   int idx = add_constant(s, imm);
   emit_sse_literal_constant(s, 0x66, 0x2E, hw_fpr(reg), idx);
+}
+
+void emit_fmov_constant(emit_state *s, uint8_t dst, double imm) {
+  int idx = add_constant(s, imm);
+  load_constant(s, idx, dst);
 }
 void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
   emit_sse_reg_reg(s, 0xF2, 0x10, hw_fpr(dst), hw_fpr(src));

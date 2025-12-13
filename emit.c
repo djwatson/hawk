@@ -527,7 +527,11 @@ static void emit_loopback_constants(emit_state *s, ignoremap *loopback_regs) {
     if (map->target_reg == REG_NONE) {
       abort();
     }
-    emit_mov64(s, map->target_reg, map->constant_value);
+    if (map->target_reg >= FPR_REG_START) {
+      emit_fmov_constant(s, map->target_reg, to_flonum((gc_obj){.value=map->constant_value})->x);
+    } else {
+      emit_mov64(s, map->target_reg, map->constant_value);
+    }
   }
 }
 
