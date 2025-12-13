@@ -478,6 +478,8 @@ void emit_mov(emit_state *s, uint8_t dst, uint8_t src) {
   emit_reg_reg(s, ASM_MOV_MR, dst, src);
 }
 void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
+  assert(lhs < FPR_REG_START);
+  assert(rhs < FPR_REG_START);
   emit_reg_reg(s, ASM_CMP, lhs, rhs);
 }
 void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
@@ -496,6 +498,7 @@ void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
   emit_sse_reg_reg(s, 0xF2, 0x10, hw_fpr(dst), hw_fpr(src));
 }
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
+  assert(reg < FPR_REG_START);
   if (fits_in_32(imm)) {
     emit_cmp_reg_imm32(s, reg, (int32_t)imm);
   } else {

@@ -418,8 +418,8 @@ void emit_call32(emit_state *s, int64_t target) {
 }
 
 void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
-  assert(lhs < MAX_REG);
-  assert(rhs < MAX_REG);
+  assert(lhs < FPR_REG_START);
+  assert(rhs < FPR_REG_START);
   uint32_t opcode =
       0xEB000000u | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) | UINT32_C(31);
   emit_op(s, opcode);
@@ -451,7 +451,7 @@ void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
 }
 
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
-  assert(reg < MAX_REG);
+  assert(reg < FPR_REG_START);
   uint32_t shift = 0;
   uint32_t imm12 = 0;
   if (encode_subs_immediate(imm, &shift, &imm12)) {

@@ -352,7 +352,9 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     auto const_offset = add_const(state, tag_fixnum(offset));
     // 5) add a new IR: IR_RET that checks ret and does a ret.
     ir_ins ins = IR(.op = IR_RET, .op1 = const_offset, .op2 = const_ra,
-                    .type = get_type_tag(stack[pc->reg]));
+                    // RET only manipulates the return address/stack pointer;
+                    // keep it in a GPR regardless of value type.
+                    .type = FIXNUM_TAG);
     add_inst(state, ins);
     // 6) set new stack top.
     set_stack(state, old_pc->reg, res);
