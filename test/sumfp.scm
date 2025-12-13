@@ -11,6 +11,6 @@
 	(doit (- i 1) (+ sum (run 1e6 0.0))))))
 
 ;(display (run 1e9 0.0))
-(display (doit 5000 0.0))
+(display (doit 500 0.0))
 
 
