@@ -5,9 +5,13 @@
 X GC needs to work in traces, faster fastpath somehow?
   * slowpath broken - some get_partial returning full partials for some reason
   * broken slowpath - we should not need refill(), just alloc_slow
-  * fibfp broken on aarch ??
   * stack unbalanced on slowpath, getting prinf errors?
   * slowpath has explicit regs in emit, should be in backend
+  
+* figure out why valgrind says we're leaking mem  
+* aarch64 callee-saved fprs seem broken.
+  
+* Check GC traces trace roots / constants
 
 * lazy typecheck - needs PMOV guard and loopback guards to be fixed still
 * typechecking
@@ -20,6 +24,10 @@ X sumfp, fibfp
 * track stack-top
 * spill slots
 
+* rest of ops: cfunc, cfuncv, callcc/callcc_resume, guard, load/load_char, store/STore-char, integer->char/char->integer, apply, alloc, rest of cmps, rest of maths, exact/inexact, closure.  That's it.
+
+* fix stack overflow, just allocate a new section.
+
 # cleanup
 * remove frame_state, just modify **pc and **stack
 * remove 'parent', use parent snap instead.
@@ -28,11 +36,12 @@ X sumfp, fibfp
 
 * debug info serialized - hmm maybe keep in scheme format?
 * use conservative collector on stack, but precise on heap, allowing dumping.
+  * this would be 'hard' if there are any saved continuations?  
+     * actually maybe not, since it's just VM stuff on the stack (i.e. walk ret chain).
 * Hmmm maybe allow toplevel and module - DON'T inline modules?  Or track which are inlined? ugh.
   * make this optional, I guess.
 * Ugh, same with ARG: we can't know to drop it. Don't know if unused based on only trace, need
   usage info from .... something? either a post-pass live in JIT from BC, or pre-pass in compiler.
-
 
 ## tracer
 * dead/kills - no idea.  We could analyze bytecode, or just do
