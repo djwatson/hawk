@@ -435,13 +435,14 @@ void emit_pop(emit_state *s, uint8_t r) {
 
 void emit_debugtrap(emit_state *s) { *(--p) = 0xcc; }
 
-void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count) {
-  bool odd = count & 1;
+void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count,
+                    bool abi) {
+  bool odd = (count + abi) & 1;
   for (size_t i = 0; i < count; i++) {
     uint8_t reg = regs[i];
     if (reg >= FPR_REG_START) {
-      emit_sub_constant(s, RSP, RSP, 16);
       emit_fstore(s, 0, RSP, reg);
+      emit_sub_constant(s, RSP, RSP, 16);
     } else {
       emit_push(s, reg);
     }
@@ -451,16 +452,16 @@ void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count) {
   }
 }
 
-void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count) {
-  bool odd = count & 1;
+void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi) {
+  bool odd = (count + abi) & 1;
   if (odd) {
     emit_add_constant(s, RSP, RSP, 8);
   }
   for (size_t i = count; i > 0; i--) {
     uint8_t reg = regs[i - 1];
     if (reg >= FPR_REG_START) {
-      emit_fmem_load(s, 0, RSP, reg);
       emit_add_constant(s, RSP, RSP, 16);
+      emit_fmem_load(s, 0, RSP, reg);
     } else {
       emit_pop(s, reg);
     }

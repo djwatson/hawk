@@ -4,7 +4,6 @@
 
 X GC needs to work in traces, faster fastpath somehow?
   * broken slowpath - we should not need refill(), just alloc_slow
-  * stack unbalanced on slowpath, getting prinf errors?
   * slowpath has explicit regs in emit, should be in backend
   
 * figure out why valgrind says we're leaking mem  

@@ -54,18 +54,18 @@ void emit_init_slowpath(emit_state *s) {
     return;
   }
 
+  // gc_alloc_refill/slowpath is marked preserve_most.  We must preserve all
+  // caller-saved xmm, and R11, (and any registers we use).
 #if defined(__x86_64__)
   static const uint8_t slowpath_regs[] = {
-      RAX,  RCX,  RDX,  RBX,   RBP,   RSI,   RDI,   R8,    R9,   R10,  R11,
-      R12,  R13,  R14,  R15,   XMM0,  XMM1,  XMM2,  XMM3,  XMM4, XMM5, XMM6,
-      XMM7, XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14, XMM15};
+      // Only R11 is not preserved.
+      R11,  RARG0, RET_REG, XMM0,  XMM1,  XMM2,  XMM3,  XMM4,  XMM5, XMM6,
+      XMM7, XMM8,  XMM9,    XMM10, XMM11, XMM12, XMM13, XMM14, XMM15};
 #elif defined(__aarch64__)
   static const uint8_t slowpath_regs[] = {
-      X0,  X1,  X2,  X3,  X4,  X5,  X6,  X7,  X8,  X9,  X10, X11, X12,
-      X13, X14, X15, X16, X17, X18, X19, X20, X21, X22, X23, X24, X25,
-      X26, X27, X28, FP,  LR,  V0,  V1,  V2,  V3,  V4,  V5,  V6,  V7,
-      V8,  V9,  V10, V11, V12, V13, V14, V15, V16, V17, V18, V19, V20,
-      V21, V22, V23, V24, V25, V26, V27, V28, V29, V30, V31};
+      X0,  X1,  X2,  X3,  X4,  X5,  X6,  X7,  X8,  FP,  LR,  V0,  V1,  V2,  V3,
+      V4,  V5,  V6,  V7,  V8,  V9,  V10, V11, V12, V13, V14, V15, V16, V17, V18,
+      V19, V20, V21, V22, V23, V24, V25, V26, V27, V28, V29, V30, V31};
 #else
 #error "Unsupported architecture"
 #endif
@@ -76,12 +76,12 @@ void emit_init_slowpath(emit_state *s) {
   emit_writable_begin(s);
 
   emit_ret(s);
-  emit_pop_regs(s, slowpath_regs, reg_cnt);
+  emit_pop_regs(s, slowpath_regs, reg_cnt, true);
 
   emit_call_reg(s, RTMP);
   emit_mov64(s, RARG0, (int64_t)sizeof(flonum_s));
   emit_mov64(s, RTMP, (int64_t)&gc_alloc_refill);
-  emit_push_regs(s, slowpath_regs, reg_cnt);
+  emit_push_regs(s, slowpath_regs, reg_cnt, true);
   auto start = (uint8_t *)emit_offset(s);
   s->flonum_alloc_slowpath = start;
 
@@ -370,14 +370,14 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
 
   // TODO: move all this to another stub, so we're not exploding code size with
   // all these push/pops.  We can just CALL stub directly.
-  emit_pop_regs(s, regs_to_save, regs_cnt);
+  emit_pop_regs(s, regs_to_save, regs_cnt, false);
   emit_mov(s, RSTACK, RET_REG);
   emit_call_reg(s, RTMP);
 
   emit_mov64(s, RTMP, (intptr_t)&jit_expand_stack_slowpath);
   emit_mov(s, RARG0, RSTATE);
   emit_mov(s, RARG1, RSTACK);
-  emit_push_regs(s, regs_to_save, regs_cnt);
+  emit_push_regs(s, regs_to_save, regs_cnt, false);
 
   emit_jcc32(s, JL, done);
   emit_cmp(s, RSTACK, RTMP);

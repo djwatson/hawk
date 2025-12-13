@@ -153,7 +153,7 @@ static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos,
     auto res = entry->loc;
     if (typecheck & !res.constant) {
       auto ins = &record_current_trace(state)->ins[res.loc];
-      //assert(ins->type == get_type_tag(stack[pos]));
+      // assert(ins->type == get_type_tag(stack[pos]));
       ins->guard = true;
     }
     return res;
@@ -384,10 +384,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
   return (frame_state){pc, stack, op_table};
 }
 static bc *next_op(bc *pc) { return pc; }
-static gc_obj halt(vm_state *state, gc_obj *stack) {
-  (void)state;
-  return stack[0];
-}
+gc_obj halt(vm_state *state, gc_obj *stack);
 
 static slot sym_load(vm_state *state, slot sym) {
   auto trace = record_current_trace(state);

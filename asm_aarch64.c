@@ -585,7 +585,8 @@ static size_t build_reg_ops(uint8_t const *regs, size_t count, reg_op *ops,
   return op_count;
 }
 
-void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count) {
+void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count,
+                    bool abi) {
   reg_op ops[MAX_REG];
   size_t op_count = build_reg_ops(regs, count, ops, MAX_REG);
 
@@ -608,7 +609,7 @@ void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count) {
   }
 }
 
-void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count) {
+void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi) {
   reg_op ops[MAX_REG];
   size_t op_count = build_reg_ops(regs, count, ops, MAX_REG);
 

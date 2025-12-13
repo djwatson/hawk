@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #define ASM_AARCH64_REGISTER_LIST(X)                                           \
   X(X0)                                                                        \
@@ -78,9 +78,9 @@ enum registers : uint8_t {
   ASM_AARCH64_REGISTER_LIST(X)
 #undef X
 #define X(name) name,
-  ASM_AARCH64_FREGISTER_LIST(X)
+      ASM_AARCH64_FREGISTER_LIST(X)
 #undef X
-      AARCH64_MAX_REG,
+          AARCH64_MAX_REG,
 
   RET_REG = X0,
   RET_REG2 = X1,
@@ -150,8 +150,8 @@ void emit_push(emit_state *s, uint8_t r);
 void emit_pop(emit_state *s, uint8_t r);
 void emit_debugtrap(emit_state *s);
 void emit_fmov(emit_state *s, uint8_t dst, uint8_t src);
-void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count);
-void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count);
+void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi);
+void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi);
 void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
 void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
 void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
