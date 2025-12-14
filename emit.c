@@ -874,7 +874,7 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
     }
     if (pmov_ins->reg != REG_NONE) {
       arrput(nullptr, cpy,
-             ((par_copy){.from = pmov_ins->data, .to = pmov_ins->reg}));
+             ((par_copy){.from = pmov_ins->prev_reg, .to = pmov_ins->reg}));
     }
   }
   emit_serialized_moves(s, cpy, nullptr);

@@ -82,6 +82,11 @@ typedef struct {
       slot op1;
       slot op2;
     };
+    // PMOV data
+    struct {
+      uint8_t prev_reg;
+      bool prev_guard;
+    };
     uint32_t data;
   };
 } ir_ins;

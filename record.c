@@ -638,7 +638,8 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
         abort();
       } else {
         set_stack(state, entry->slot,
-                  add_inst(state, IR(.op = IR_PMOV, .data = old_ins->reg,
+                  add_inst(state, IR(.op = IR_PMOV, .prev_reg = old_ins->reg,
+                                     .prev_guard = old_ins->guard,
                                      .type = old_ins->type)));
       }
     }
