@@ -86,7 +86,7 @@ END OP_BEGIN(DEFINE) {
 }
 END OP_BEGIN(WRITE) {
   auto val = stack_load(state, stack, pc->v1, false);
-  obj_write(state, val);
+  obj_write(state, val, &op_table);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }

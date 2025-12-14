@@ -203,7 +203,7 @@ static inline void sym_store(vm_state *state, gc_obj sym, gc_obj val) {
   }
   s->val = val;
 }
-static inline void obj_write(vm_state *state, gc_obj val) {
+static inline void obj_write(vm_state *state, gc_obj val, void **op_table) {
   print_obj(val, stdout);
 }
 void expand_stack(vm_state *state, gc_obj **stack) {

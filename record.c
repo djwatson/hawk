@@ -420,7 +420,13 @@ static void sym_store(vm_state *state, slot sym, slot val) {
   ir_ins ins = IR(.op = IR_GSET, .op1 = sym);
   add_inst(state, ins);
 }
-static void obj_write(vm_state *state, slot val) { abort(); }
+static void obj_write(vm_state *state, slot val, void **op_table) {
+  if (verbose) {
+    printf("Record abort: can't record WRITE\n");
+  }
+  record_abort(state);
+  *op_table = state->impls;
+}
 static void prepare_call(gc_obj fun) { printf("prepare call\n"); }
 // Nothing necessary for record - we will check in emit_snapshot - checks will
 // be elided if we never hit a snapshot!
