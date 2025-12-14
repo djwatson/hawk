@@ -85,6 +85,36 @@ static inline gc_obj emit_ov_math_add(vm_state *state, gc_obj v1, gc_obj v2) {
   // TODO other math types!
   abort();
 }
+static gc_obj scm_inexact(gc_obj v1) {
+  if (is_fixnum(v1)) {
+    flonum_s *res = gc_alloc(sizeof(flonum_s));
+    res->header.type = FLONUM_TAG;
+    res->x = (double)to_fixnum(v1);
+    return tag_flonum(res);
+  }
+  if (is_flonum(v1)) {
+    return v1;
+  }
+  abort();
+}
+static NOINLINE gc_obj emit_ov_math_sub_slow(vm_state *state, gc_obj v1,
+                                             gc_obj v2) {
+  if (is_flonum(v1) || is_flonum(v2)) {
+    double r = to_flonum(scm_inexact(v1))->x - to_flonum(scm_inexact(v2))->x;
+    flonum_s *res = gc_alloc(sizeof(flonum_s));
+    res->header.type = FLONUM_TAG;
+    res->x = r;
+    return tag_flonum(res);
+  }
+  if (is_fixnum(v1) && is_fixnum(v2)) {
+    gc_obj res;
+    if (!__builtin_sub_overflow(v1.value, v2.value, &res.value)) {
+      return res;
+    }
+    return emit_ov_math_sub_slow(state, scm_inexact(v1), scm_inexact(v2));
+  }
+  abort();
+}
 static inline gc_obj emit_ov_math_sub(vm_state *state, gc_obj v1, gc_obj v2) {
   (void)state;
   if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
@@ -99,8 +129,37 @@ static inline gc_obj emit_ov_math_sub(vm_state *state, gc_obj v1, gc_obj v2) {
     res->x = f1->x - f2->x;
     return tag_flonum(res);
   }
-  // TODO other math types!
-  abort();
+  MUSTTAIL return emit_ov_math_sub_slow(state, v1, v2);
+}
+
+static NOINLINE gc_obj emit_math_cmp_lt_slowpath(vm_state *state, bc *pc,
+                                                 gc_obj *stack, gc_obj v1,
+                                                 gc_obj v2) {
+  bool res;
+  /* if (is_compnum(a) || is_compnum(b)) { */
+  /*   res = COMPCMP(a, b); */
+  if (is_flonum(v1) || is_flonum(v2)) {
+    res = to_flonum(scm_inexact(v1))->x < to_flonum(scm_inexact(v2))->x;
+    /* } else if (is_ratnum(a) || is_ratnum(b)) { */
+    /*   ratnum_s ba = get_ratnum(a); */
+    /*   ratnum_s bb = get_ratnum(b); */
+    /*   res = OP(ratnum_cmp(ba, bb), 0); */
+    /* } else if (is_bignum(a) || is_bignum(b)) { */
+    /*   mpz_t ba; */
+    /*   mpz_t bb; */
+    /*   get_bignum(a, &ba); */
+    /*   get_bignum(b, &bb); */
+    /*   res = OP(mpz_cmp(ba, bb), 0); */
+  } else if (is_fixnum(v1) && is_fixnum(v2)) {
+    res = to_fixnum(v1) < to_fixnum(v2);
+  } else {
+    // scm_runtime_error0("Invalid type in " #OPNAME);
+    abort();
+  }
+  if (res) {
+    return TRUE_REP;
+  }
+  return FALSE_REP;
 }
 static inline gc_obj emit_math_cmp_lt(vm_state *state, bc *pc, gc_obj *stack,
                                       gc_obj v1, gc_obj v2) {
@@ -116,8 +175,7 @@ static inline gc_obj emit_math_cmp_lt(vm_state *state, bc *pc, gc_obj *stack,
     return f1->x < f2->x ? TRUE_REP : FALSE_REP;
   }
   // TODO other math types!
-  abort();
-  (void)state;
+  MUSTTAIL return emit_math_cmp_lt_slowpath(state, pc, stack, v1, v2);
 }
 static inline gc_obj emit_math_cmp_eq(vm_state *state, bc *pc, gc_obj *stack,
                                       gc_obj v1, gc_obj v2) {

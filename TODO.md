@@ -3,7 +3,7 @@
 # VM impl
 
 * lazy typecheck - needs PMOV guard and loopback guards to be fixed still
-* typechecking
+* typechecking - add GUARD typechecks, probably for all types?
 * math ops - fixnum,flonum, slowpaths.
 
 * next: diviter, divrec, sumloop, nqueens.
