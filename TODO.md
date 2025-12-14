@@ -2,17 +2,13 @@
 
 # VM impl
 
-X GC needs to work in traces, faster fastpath somehow?
-  * slowpath has explicit regs in emit, should be in backend
-  
-* aarch64 callee-saved fprs seem broken.
-  
 * Check GC traces trace roots / constants
 
 * lazy typecheck - needs PMOV guard and loopback guards to be fixed still
 * typechecking
 * math ops - fixnum,flonum, slowpaths.
-X sumfp, fibfp
+
+* next: diviter, divrec, sumloop, nqueens.
 
 * lookup check - fix expander thingy
 * optimistic globals - TODO fail.  Also needs expander fix. need to support set!
@@ -22,11 +18,12 @@ X sumfp, fibfp
 
 * rest of ops: cfunc, cfuncv, callcc/callcc_resume, guard, load/load_char, store/STore-char, integer->char/char->integer, apply, alloc, rest of cmps, rest of maths, exact/inexact, closure.  That's it.
 
-* fix stack overflow, just allocate a new section.
+* update stack overflow, just allocate a new section.
 
 # cleanup
 * remove frame_state, just modify **pc and **stack
 * remove 'parent', use parent snap instead.
+* we could improve emit_snap_store_flonum to use fewer registers / optimistic check for free
 
 # simple VM
 

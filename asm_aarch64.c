@@ -51,6 +51,14 @@ bool asm_is_callee_saved(uint8_t reg) {
   case X28:
   case FP:
   case LR:
+  case V8:
+  case V9:
+  case V10:
+  case V11:
+  case V12:
+  case V13:
+  case V14:
+  case V15:
     return true;
   default:
     return false;
@@ -183,8 +191,10 @@ static uint32_t ldp_post_q(uint8_t rt, uint8_t rt2, uint8_t rn,
 static const struct {
   uint8_t r1, r2;
 } callee_saved_fp_pairs[] = {
-    {V16, V17},
-    {V18, V19},
+    {V8, V9},
+    {V10, V11},
+    {V12, V13},
+    {V14, V15},
 };
 
 void restore_callee_regs(emit_state *s) {
@@ -594,7 +604,7 @@ void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count,
     reg_op *op = &ops[i];
     if (op->pair) {
       if (op->fpr) {
-        emit_op(s, stp_pre_q(op->r1, op->r2, SP, -16));
+        emit_op(s, stp_pre_q(op->r1, op->r2, SP, -32));
       } else {
         emit_op(s, stp_pre(op->r1, op->r2, SP, -16));
       }
@@ -607,17 +617,23 @@ void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count,
       emit_op(s, stp_pre(op->r1, XZR, SP, -16));
     }
   }
+  if (abi) {
+    emit_op(s, stp_pre(FP, LR, SP, -16));
+  }
 }
 
 void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi) {
   reg_op ops[MAX_REG];
   size_t op_count = build_reg_ops(regs, count, ops, MAX_REG);
 
+  if (abi) {
+    emit_op(s, ldp_post(FP, LR, SP, 16));
+  }
   for (size_t i = op_count; i > 0; i--) {
     reg_op *op = &ops[i - 1];
     if (op->pair) {
       if (op->fpr) {
-        emit_op(s, ldp_post_q(op->r1, op->r2, SP, 16));
+        emit_op(s, ldp_post_q(op->r1, op->r2, SP, 32));
       } else {
         emit_op(s, ldp_post(op->r1, op->r2, SP, 16));
       }
@@ -633,6 +649,9 @@ void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi) {
 }
 
 void emit_mov(emit_state *s, uint8_t dst, uint8_t src) {
+  if (dst == src) {
+    return;
+  }
   assert(dst < MAX_REG);
   assert(src < MAX_REG);
   uint32_t opcode =

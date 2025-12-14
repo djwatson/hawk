@@ -476,6 +476,9 @@ static void emit_cmovl(emit_state *s, uint8_t dst, uint8_t src) {
 }
 
 void emit_mov(emit_state *s, uint8_t dst, uint8_t src) {
+  if (dst == src) {
+    return;
+  }
   emit_reg_reg(s, ASM_MOV_MR, dst, src);
 }
 void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs) {

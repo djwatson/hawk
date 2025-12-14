@@ -58,6 +58,7 @@ enum registers : uint8_t {
   RARG3 = RCX,
   RARG4 = R8,
   RARG5 = R9,
+  SP = RSP,
 
   RTMP = R15,
   // Must be callee-save.

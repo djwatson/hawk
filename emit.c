@@ -54,27 +54,16 @@ void emit_init_slowpath(emit_state *s) {
   if (s->flonum_alloc_slowpath) {
     return;
   }
-
-  // gc_alloc_refill/slowpath is marked preserve_most.  We must preserve all
-  // caller-saved fpr, and R11, (and any registers we use).
-#if defined(__x86_64__)
-  static const uint8_t slowpath_regs[] = {
-      // Only R11 is not preserved.
-      R11,  XMM0, XMM1,  XMM2,  XMM3,  XMM4,  XMM5,  XMM6, XMM7,
-      XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14, XMM15};
-#elif defined(__aarch64__)
-  static const uint8_t slowpath_regs[] = {
-      // x0-x8 not preserved (as well as x16-x18, that we don't use).
-      // We don't save x0 since that is RET_REG
-      X1,  X2,  X3,  X4,  X5,  X6,  X7,  X8,  FP,  LR,  V0,  V1,  V2,  V3,
-      V4,  V5,  V6,  V7,  V8,  V9,  V10, V11, V12, V13, V14, V15, V16, V17,
-      V18, V19, V20, V21, V22, V23, V24, V25, V26, V27, V28, V29, V30, V31};
-#else
-#error "Unsupported architecture"
-#endif
+  // TODO: we COULD optimize this for preserve_most
+  uint8_t slowpath_regs[64];
+  size_t reg_cnt = 0;
+  for (int i = 0; i < FPR_REG_END; i++) {
+    if (i != RET_REG && !asm_is_callee_saved(i) && i != SP) {
+      slowpath_regs[reg_cnt++] = i;
+    }
+  }
 
   auto end = emit_offset(s);
-  size_t reg_cnt = sizeof(slowpath_regs) / sizeof(slowpath_regs[0]);
 
   emit_writable_begin(s);
 
