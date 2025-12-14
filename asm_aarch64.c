@@ -474,6 +474,20 @@ void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   emit_mov64(s, RTMP, imm);
 }
 
+void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm) {
+  assert(reg < FPR_REG_START);
+  uint8_t N = 0;
+  uint8_t immr = 0;
+  uint8_t imms = 0;
+  if (!encode_logical_immediate64((uint64_t)imm, &N, &immr, &imms)) {
+    abort();
+  }
+  uint32_t opcode = 0xF2000000u | ((uint32_t)N << 22) |
+                    ((uint32_t)immr << 16) | ((uint32_t)imms << 10) |
+                    ((uint32_t)reg << 5) | UINT32_C(31);
+  emit_op(s, opcode);
+}
+
 static void emit_add_sub(emit_state *s, uint32_t base, uint8_t dst, uint8_t lhs,
                          uint8_t rhs) {
   assert(dst < MAX_REG);

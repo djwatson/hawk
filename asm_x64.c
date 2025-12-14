@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "array.h"
@@ -509,6 +510,15 @@ void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
     emit_cmp(s, reg, RTMP);
     emit_mov64(s, RTMP, imm);
   }
+}
+
+void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm) {
+  assert(reg < FPR_REG_START);
+  if (!fits_in_32(imm)) {
+    abort();
+  }
+  emit_imm32(s, (int32_t)imm);
+  emit_reg_reg(s, ASM_TEST_IMM, 0, reg);
 }
 
 void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {

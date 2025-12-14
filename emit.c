@@ -810,6 +810,18 @@ static void emit_ir(emit_state *s, trace *t) {
     case IR_ARG:
     case IR_NOP:
     case IR_PMOV:
+      // Typecheck
+      if (op->guard) {
+        if (op->type == FIXNUM_TAG) {
+          // Note we're jumping to the NEXT snap here, subtle.  The first snap
+          // is actually after the arg/pmovs, but that's ok, since they're
+          // treated specially and already in registers anyway.
+          emit_jcc32(s, JNE, t->snaps[cur_snap + 1].patch_point);
+          emit_test_constant(s, op->reg, TAG_MASK);
+        } else {
+          abort();
+        }
+      }
       // Done at end.
       break;
     default: {

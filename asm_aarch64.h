@@ -164,6 +164,7 @@ void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs);
 void emit_fcmp_constant(emit_state *s, uint8_t reg, double imm);
 void emit_fmov_constant(emit_state *s, uint8_t dst, double imm);
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm);
+void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm);
 void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_fadd(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
