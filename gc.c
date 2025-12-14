@@ -114,7 +114,7 @@ bool get_partial_range(uint64_t sz_class, freelist_s *fl) {
     fl->slab = nullptr;
     [[clang::musttail]] return get_partial_range(sz_class, fl);
   }
-  uint64_t new_end = maxbit - 1;
+  uint64_t new_end = maxbit;
   find_next_bit(slab->markbits, maxbit, new_start + 1, false, &new_end);
   for (uint64_t i = new_start; i < new_end; i++) {
     assert(!bt(slab->markbits, i));
