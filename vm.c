@@ -361,6 +361,12 @@ static void vm_state_init(vm_state *state) {
   }
   state->max_trace = max_trace;
 
+#ifdef HAVE_ELF_H
+  if (jit_dump_flag) {
+    jit_dump_init();
+  }
+#endif
+
   record_init(&state->record);
   emit_init(&state->emit);
 #define X(name, type) state->impls[OP_##name] = impl_##name;
@@ -385,11 +391,6 @@ gc_obj vm(bc *pc) {
   state->stack_top = stack + default_size;
   state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
   gc_add_root((uint64_t *)state->stack_bottom, default_size);
-#ifdef HAVE_ELF_H
-  if (jit_dump_flag) {
-    jit_dump_init();
-  }
-#endif
   if (profile) {
     profiler_start(state);
   }
