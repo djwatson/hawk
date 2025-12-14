@@ -1,8 +1,7 @@
 #### post mortem
 
 # VM impl
-
-* Check GC traces trace roots / constants
+* --dump seems to dump garbage names???
 
 * lazy typecheck - needs PMOV guard and loopback guards to be fixed still
 * typechecking

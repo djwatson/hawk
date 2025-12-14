@@ -66,6 +66,8 @@ typedef struct root_range {
 } root_range;
 
 static kvec_t(root_range) roots;
+static gc_scan_callback scan_callback;
+static void *scan_data;
 
 static constexpr uint16_t page_classes = 16;
 static kvec_t(slab_info *) pages_free[page_classes];
@@ -173,6 +175,11 @@ void gc_remove_root(uint64_t const *rootp) {
 #endif
 }
 
+void gc_set_scan_callback(gc_scan_callback cb, void *data) {
+  scan_callback = cb;
+  scan_data = data;
+}
+
 typedef struct range {
   uint64_t *start;
   uint64_t *end;
@@ -180,6 +187,12 @@ typedef struct range {
 
 static uint64_t totsize;
 static kvec_t(range) markstack;
+
+static void gc_add_mark_root(uint64_t *rootp, size_t len) {
+  assert(rootp);
+  assert(len >= 1);
+  kv_push(markstack, ((range){rootp, rootp + len}));
+}
 
 static void mark() {
   while (kv_size(markstack) > 0) {
@@ -318,6 +331,9 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
     if (root.ptr && root.len > 0) {
       kv_push(markstack, ((range){root.ptr, root.ptr + root.len}));
     }
+  }
+  if (scan_callback) {
+    scan_callback(scan_data, gc_add_mark_root);
   }
 
   // Mark stack

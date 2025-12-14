@@ -361,6 +361,7 @@ static void vm_state_init(vm_state *state) {
   }
   state->max_trace = max_trace;
 
+  record_init(&state->record);
   emit_init(&state->emit);
 #define X(name, type) state->impls[OP_##name] = impl_##name;
   OPS

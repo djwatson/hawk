@@ -28,6 +28,7 @@ typedef struct record_state {
 } record_state;
 
 struct vm_state;
+void record_init(record_state *record);
 void record_start(struct vm_state *state, bc *pc, gc_obj *stack);
 void record_start_side(struct vm_state *state, bc *pc, gc_obj *stack,
                        snap *snap);

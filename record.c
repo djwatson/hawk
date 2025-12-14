@@ -4,6 +4,7 @@
 #include "array.h"
 #include "bc.h"
 #include "emit.h"
+#include "gc.h"
 #include "hawk.h"
 #include "ir.h"
 #include "opt_dce.h"
@@ -75,6 +76,23 @@ typedef struct {
   bool taken;
   ir_ins guard;
 } branch_result;
+
+static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
+  record_state *record = data;
+  trace *cur_trace = record->cur_trace;
+  if (cur_trace && arrlen(cur_trace->consts) > 0) {
+    add_root((uint64_t *)cur_trace->consts, arrlen(cur_trace->consts));
+  }
+  arr_for_each(record->traces, trace_obj) {
+    if (trace_obj && arrlen(trace_obj->consts) > 0) {
+      add_root((uint64_t *)trace_obj->consts, arrlen(trace_obj->consts));
+    }
+  }
+}
+
+void record_init(record_state *record) {
+  gc_set_scan_callback(record_scan_roots, record);
+}
 
 static slot add_const(vm_state *state, gc_obj value) {
   trace *trace_obj = record_current_trace(state);
@@ -232,6 +250,7 @@ static slot constify_data(vm_state *state, uint16_t data) {
 }
 static void record_abort(vm_state *state) {
   free_trace(record_current_trace(state));
+  record_set_current_trace(state, nullptr);
   clear_trace_state(record_trace_state(state));
 }
 static void record_finish(bc *pc, vm_state *state) {
@@ -626,4 +645,5 @@ void free_traces(struct vm_state *state) {
   arr_for_each(rs->traces, trace) { free_trace(trace); }
   arrfree(rs->trace_state.stack);
   arrfree(rs->traces);
+  rs->cur_trace = nullptr;
 }
