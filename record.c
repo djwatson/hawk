@@ -520,6 +520,25 @@ static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
 
   return pc;
 }
+
+static bool ensure_args_match_trace(gc_obj *stack, trace *trace) {
+  assert(trace);
+  bc *pc = &trace->start_pc;
+  auto argcnt = MIN(pc->reg, REG_ARG_CNT);
+  for (int i = 0; i < argcnt; i++) {
+    if ((size_t)i >= arrlen(trace->ins)) {
+      break;
+    }
+    ir_ins *ins = &trace->ins[i];
+    if (ins->op != IR_ARG || ins->data != (uint32_t)i) {
+      continue;
+    }
+    if (ins->type != get_type_tag(stack[i])) {
+      return false;
+    }
+  }
+  return true;
+}
 static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
                       void *op_table) {
   // LINK IT!
@@ -534,7 +553,13 @@ static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
     return state->impls;
   }
   if (cur_trace->parent) {
-    cur_trace->link = state->record.traces[(*pc)->data];
+    trace *target = state->record.traces[(*pc)->data];
+    bool match = ensure_args_match_trace(*stack, target);
+    if (!match) {
+      // TODO we need to call or do impl_FUNC instead, with target->start_pc
+      return op_table;
+    }
+    cur_trace->link = target;
     if (verbose) {
       printf("Record stop: side trace linked to root trace\n");
     }
