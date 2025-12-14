@@ -122,7 +122,8 @@ static void vm_add_snap(vm_state *state, bc *pc) {
   };
   snapshot_live_slots(ts, &sn);
   // No need for duplicate snaps at the same IR.  use the newest.
-  if (arrlen(cur_trace->snaps) && arrlast(cur_trace->snaps)->ir == sn.ir) {
+  if (arrlen(cur_trace->snaps) && arrlast(cur_trace->snaps)->ir == sn.ir &&
+      arrlast(cur_trace->snaps)->pc == sn.pc) {
     // TODO arrpop
     auto old = arrlast(cur_trace->snaps);
     arrpop(cur_trace->snaps);
