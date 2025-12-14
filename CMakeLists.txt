@@ -142,6 +142,20 @@ if(BUILD_TESTING)
   )
 
   add_test(
+    NAME hawk_sumfp
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sumfp.scm.bc
+  )
+  set_tests_properties(
+    hawk_sumfp PROPERTIES PASS_REGULAR_EXPRESSION "2.5e\\+14"
+  )
+
+  add_test(
+    NAME hawk_sum1
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sum1.scm.bc
+  )
+  set_tests_properties(hawk_sum1 PROPERTIES PASS_REGULAR_EXPRESSION "500001500001")
+
+  add_test(
     NAME hawk_tak
     COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/tak.scm.bc
   )
@@ -161,6 +175,14 @@ if(BUILD_TESTING)
   )
   set_tests_properties(
     hawk_fib PROPERTIES PASS_REGULAR_EXPRESSION "102334155"
+  )
+
+  add_test(
+    NAME hawk_fibfp
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/fibfp.scm.bc
+  )
+  set_tests_properties(
+    hawk_fibfp PROPERTIES PASS_REGULAR_EXPRESSION "9.22746e\\+06"
   )
 endif()
 
