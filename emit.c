@@ -43,7 +43,7 @@ static void register_jit_symbol(uint8_t *start, uint8_t *entry, uint8_t *end,
   if (!jit_dump_flag) {
     return;
   }
-  jit_reader_add((int)(end - entry), (uint64_t)entry);
+  jit_reader_add((int)(end - entry), (uint64_t)entry, name);
   jit_dump((int)(end - start), (uint64_t)start, name);
   perf_map((uint64_t)start, (uint64_t)(end - start), name);
 }
@@ -80,7 +80,7 @@ void emit_init_slowpath(emit_state *s) {
   emit_writable_end(s);
 #ifdef HAVE_ELF_H
   register_jit_symbol(start, s->flonum_alloc_slowpath, (uint8_t *)end,
-                      "GC slowpath");
+                      "GCslowpath");
 #endif
   if (verbose) {
     printf("GC slowpath: %" PRId64 "\n", end - (long)start);
@@ -967,9 +967,11 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
 
   // Install debuginfo for gdb & linux perf tool.
 #ifdef HAVE_ELF_H
-  char *dumpname = t->parent ? "Side Trace" : "Trace";
+  char funcname[256];
+  char *dumpname = t->parent ? "SIDE" : "TRACE";
+  snprintf(funcname, sizeof(funcname), "%s_%i", dumpname, t->num);
   register_jit_symbol((uint8_t *)start, (uint8_t *)entry, (uint8_t *)end,
-                      dumpname);
+                      funcname);
 #endif
   // Call the built-in function to flush the cache for the specific range
   __builtin___clear_cache((char *)emit_offset(s), (char *)end);

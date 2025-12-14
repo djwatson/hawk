@@ -1,7 +1,6 @@
 #### post mortem
 
 # VM impl
-* --dump seems to dump garbage names???
 
 * lazy typecheck - needs PMOV guard and loopback guards to be fixed still
 * typechecking

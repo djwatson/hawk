@@ -3,6 +3,7 @@
 #define _GNU_SOURCE
 
 #include <assert.h>
+#include <ctype.h>
 #include <elf.h>
 #include <fcntl.h>
 #include <stddef.h> // for offsetof
@@ -59,7 +60,8 @@ void jit_dump(int len, uint64_t fn, const char *name) {
     uint64_t code_index;
   } record;
   char funcname[256];
-  snprintf(funcname, sizeof(funcname) - 1, "Function_%s_%i", name, jit_cnt);
+  assert(name);
+  snprintf(funcname, sizeof(funcname), "Function_%s", name);
 
   // clock
   struct timespec ts;
@@ -180,16 +182,18 @@ typedef struct GDBElfImage {
   uint8_t data[4096];
 } GDBElfImage;
 
-static void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num);
+static void build_elf(uint64_t code, int code_sz, GDBElfImage *image, int num,
+                      const char *name);
 
-void jit_reader_add(int len, uint64_t fn) {
+void jit_reader_add(int len, uint64_t fn, const char *name) {
+  assert(name);
   struct jit_code_entry *jitcode = malloc(sizeof(struct jit_code_entry));
   GDBElfImage *image = malloc(sizeof(GDBElfImage));
   if (!image || !jitcode) {
     printf("jit_reader_add: malloc failure\n");
     exit(-1);
   }
-  build_elf(fn, len, image, jit_cnt);
+  build_elf(fn, len, image, jit_cnt, name);
 
   jitcode->addr = image;
   jitcode->size = sizeof(GDBElfImage);
@@ -268,7 +272,8 @@ enum {
 };
 
 static void build_elf(uint64_t code, int code_sz, GDBElfImage *image, //!OCLINT
-                      int32_t num) {
+                      int32_t num, const char *name) {
+  assert(name);
   memset(image, 0, sizeof(GDBElfImage));
 
   int64_t offset = 0;
@@ -340,9 +345,7 @@ static void build_elf(uint64_t code, int code_sz, GDBElfImage *image, //!OCLINT
   filesym->st_shndx = SHN_ABS;
   filesym->st_info = STT_FILE;
   __auto_type funcsym = &image->syms[2];
-  char tmp[244];
-  snprintf(tmp, sizeof(tmp) - 1, "TRACE_%i", num);
-  funcsym->st_name = write_strz(&offset, image->data, tmp) - st;
+  funcsym->st_name = write_strz(&offset, image->data, name) - st;
   funcsym->st_shndx = 2; // text
   funcsym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_FUNC);
   funcsym->st_value = 0;
