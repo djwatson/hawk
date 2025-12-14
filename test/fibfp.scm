@@ -4,12 +4,9 @@
       (+ (fibfp (- n 1.))
          (fibfp (- n 2.)))))
 
-(define (run i)
+(define (run i res)
   (if (= i 10)
-      1
-      (begin
-	(fibfp 35.0)
-	(run (+ i 1)))))
-(run 0)
-;(display (fibfp 35.0))
+      res
+      (run (+ i 1) (fibfp 35.0))))
+(display (run 0 0))
 
