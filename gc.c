@@ -435,35 +435,6 @@ static slab_info *alloc_slab(uint64_t sz_class) {
   return free;
 }
 
-NOINLINE __attribute__((preserve_most)) void gc_alloc_refill(uint64_t sz) {
-  if (collect_cnt >= next_collect) {
-    collect_cnt = 0;
-    gc_collect();
-    return gc_alloc_refill(sz);
-  }
-  assert((sz & 0x7) == 0);
-
-  uint64_t sz_class = sz / 8;
-  // It is a large slab.
-  if (sz_class >= size_classes) {
-    auto slab = alloc_slab(sz_class);
-    collect_cnt += sz;
-    return;
-  }
-  // It's in a small slab.
-  if (!get_partial_range(sz_class, &freelist[sz_class])) {
-    auto slab = alloc_slab(sz_class);
-    // Leave room for logbits
-    memset(slab->start, 0, mark_byte_cnt);
-    slab->start += mark_byte_cnt;
-
-    freelist[sz_class].start_ptr = (uint64_t)slab->start;
-    freelist[sz_class].end_ptr = (uint64_t)slab->end;
-    freelist[sz_class].slab = slab;
-    collect_cnt += freelist[sz_class].end_ptr - freelist[sz_class].start_ptr;
-  }
-  assert(freelist[sz_class].start_ptr != freelist[sz_class].end_ptr);
-}
 NOINLINE __attribute__((preserve_most)) void *gc_alloc_slow(uint64_t sz) {
   if (collect_cnt >= next_collect) {
     collect_cnt = 0;

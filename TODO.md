@@ -3,7 +3,6 @@
 # VM impl
 
 X GC needs to work in traces, faster fastpath somehow?
-  * broken slowpath - we should not need refill(), just alloc_slow
   * slowpath has explicit regs in emit, should be in backend
   
 * aarch64 callee-saved fprs seem broken.
