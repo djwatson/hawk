@@ -814,6 +814,10 @@ static void emit_ir(emit_state *s, trace *t) {
     case IR_PMOV:
       // Typecheck
       if (op->guard) {
+        if (op->op == IR_PMOV && op->prev_guard) {
+          // No need to guard twice, parent trace already ran guard.
+          break;
+        }
         if (op->type == FIXNUM_TAG) {
           emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
           emit_test_constant(s, op->reg, TAG_MASK);

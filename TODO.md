@@ -1,7 +1,6 @@
 #### post mortem
 
 # VM impl
-* get PMOV guard working, check same as prev type
 * to_flonum impl for GTE/sub
 * Hmmm what happens if we abort because of typechecks???
 * half finished - all the typcheck types
