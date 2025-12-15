@@ -58,7 +58,8 @@ typedef enum : uint8_t {
   X(GUARD_EQ, ARG_IR_IR)                                                       \
   X(REF, ARG_IR_IR)                                                            \
   X(LOAD, ARG_IR_IR)                                                           \
-  X(STORE, ARG_IR_IR)
+  X(STORE, ARG_IR_IR)                                                          \
+  X(INEXACT, ARG_IR_NONE)
 typedef enum : uint8_t {
 #define X(name, type) IR_##name,
   IR_OPS

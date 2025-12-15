@@ -382,10 +382,6 @@ static double slot_flonum_constant(trace *t, slot v) {
   if (is_flonum(obj)) {
     return to_flonum(obj)->x;
   }
-  // TODO this is a hack, change in record.
-  if (is_fixnum(obj)) {
-    return (double)to_fixnum(obj);
-  }
   abort();
 }
 

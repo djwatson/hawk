@@ -211,12 +211,36 @@ static slot emit_ov_math_add(vm_state *state, slot v1, slot v2) {
       IR(.op = IR_ADD, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
   return add_inst(state, ins);
 }
+static slot convert_to_flonum(vm_state *state, slot v1) {
+  auto t = record_current_trace(state);
+  auto t1 = get_slot_type(t, v1);
+  if (t1 == FLONUM_TAG) {
+    return v1;
+  }
+  if (t1 == FIXNUM_TAG) {
+    if (v1.constant) {
+      flonum_s *res = gc_alloc(sizeof(flonum_s));
+      res->header.type = FLONUM_TAG;
+      res->x = (double)to_fixnum(t->consts[v1.loc]);
+      return add_const(state, tag_flonum(res));
+    }
+    ir_ins ins = IR(.op = IR_INEXACT, .op1 = v1, .type = FLONUM_TAG);
+    return add_inst(state, ins);
+  }
+  abort();
+}
 static slot emit_ov_math_sub(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
   auto t = record_current_trace(state);
-  if (get_slot_type(t, v1) != get_slot_type(t, v2)) {
-    printf("WARNING: bad type\n");
-    // abort();
+  auto t1 = get_slot_type(t, v1);
+  auto t2 = get_slot_type(t, v2);
+  if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
+    v1 = convert_to_flonum(state, v1);
+    v2 = convert_to_flonum(state, v2);
+  } else if (t1 == FIXNUM_TAG && t2 == FIXNUM_TAG) {
+    // OK.
+  } else {
+    abort();
   }
   ir_ins ins =
       IR(.op = IR_SUB, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
@@ -227,6 +251,17 @@ static branch_result emit_math_cmp_lt(vm_state *state, bc *pc, gc_obj *stack,
   auto lhs = stack[pc->v1];
   auto rhs = stack[pc->v2];
   bool res = to_fixnum(lhs) < to_fixnum(rhs);
+  auto t = record_current_trace(state);
+  auto t1 = get_slot_type(t, v1);
+  auto t2 = get_slot_type(t, v2);
+  if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
+    v1 = convert_to_flonum(state, v1);
+    v2 = convert_to_flonum(state, v2);
+  } else if (t1 == FIXNUM_TAG && t2 == FIXNUM_TAG) {
+    // OK.
+  } else {
+    abort();
+  }
 
   branch_result br = {
       .taken = res,

@@ -1,6 +1,4 @@
 # VM impl
-* probably need guard types for other than PMOV/ARG
-* to_flonum impl for GTE/sub
 * Hmmm what happens if we abort because of typechecks???
   * need to decode start_pc instruction, and run that instead in VM.  Ugh.
 * half finished - all the typcheck types
