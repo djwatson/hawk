@@ -1,6 +1,4 @@
 # VM impl
-* Hmmm what happens if we abort because of typechecks???
-  * need to decode start_pc instruction, and run that instead in VM.  Ugh.
 * half finished - all the typcheck types
 * half finished - currently we DO make multiple root traces, but they just get replaced.  DOH
    * need chaining, both in JIT code and linking from the first root trace.
@@ -23,6 +21,8 @@
 * remove frame_state, just modify **pc and **stack
 * remove 'parent', use parent snap instead.
 * we could improve emit_snap_store_flonum to use fewer registers / optimistic check for free
+* ir printing can use the ir type flags
+* We can also use the new instr decoded instead of patchpc I think
 
 # simple VM
 

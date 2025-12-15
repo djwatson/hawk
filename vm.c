@@ -32,8 +32,9 @@ static inline uint32_t hotmap_hash(void *pc) {
   return (((uint64_t)pc) >> 3) & hotmap_mask;
 }
 #define OP(code)                                                               \
-  PRESERVE_NONE gc_obj impl_##code(bc *pc, gc_obj *stack, vm_state *state,     \
-                                   void *op_table, uint8_t argcnt)
+  PRESERVE_NONE gc_obj impl_##code(bc instr, bc *pc, gc_obj *stack,            \
+                                   vm_state *state, void *op_table,            \
+                                   uint8_t argcnt)
 
 static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                        void *op_table) {
@@ -347,8 +348,8 @@ static inline gc_obj constify_data(vm_state *state, uint16_t data) {
   return (gc_obj){.value = data};
 }
 
-static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
-                             void *op_table) {
+static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
+                             vm_state *state, void *op_table, uint8_t *argcnt) {
   auto jfunc = (*pc)->data;
   auto traces = state->record.traces;
   auto trace = traces[jfunc];
@@ -357,6 +358,7 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
   auto res = fn(state, *stack);
   profiler_set_in_jit(false);
   *pc = res.snap->pc;
+  *instr = **pc;
   *stack = res.stack;
 
   // Check if a return trace - return trace aborts to JFUNC, but we need to
@@ -365,6 +367,7 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
     auto trace = traces[(*pc)->data];
     if (trace->num == res.snap->trace->num && trace->start_pc.op == OP_RET) {
       (*pc) = &trace->start_pc;
+      *instr = **pc;
     }
   }
   // Check for side trace start.
@@ -397,6 +400,7 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
         }
         record_start(state, *pc, *stack);
         (*pc)++;
+        *instr = **pc;
       } else {
         if (verbose) {
           printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
@@ -406,19 +410,28 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
       return state->record_impls;
     }
   }
+  if (res.snap->ir == 0 && res.snap->trace->parent == nullptr) {
+    // We aborted because of typechecking arguments,
+    // we're pointing at a OP_JFUNC, when we really want to run the code
+    // directly.
+    *instr = res.snap->trace->start_pc;
+    // arity was already checked, just patch it here.
+    *argcnt = instr->reg;
+  }
 
   // printf("RUN DONE jit %i\n", jfunc);
   return op_table;
 }
 #define dispatch_next(pc, stack)                                               \
   op_func impl = ((op_func *)op_table)[(pc)->op];                              \
-  MUSTTAIL return impl(pc, stack, state, op_table, argcnt);
+  MUSTTAIL return impl(*pc, pc, stack, state, op_table, argcnt);
 
 #include "vmgen.c"
 
 #define X(name, type)                                                          \
-  PRESERVE_NONE gc_obj record_##name(bc *pc, gc_obj *stack, vm_state *state,   \
-                                     void *op_table, uint8_t argcnt);
+  PRESERVE_NONE gc_obj record_##name(bc instr, bc *pc, gc_obj *stack,          \
+                                     vm_state *state, void *op_table,          \
+                                     uint8_t argcnt);
 OPS;
 #undef X
 
@@ -463,5 +476,5 @@ gc_obj vm(bc *pc) {
     profiler_start(state);
   }
 
-  return state->impls[pc->op](pc, stack, state, state->impls, 0);
+  return state->impls[pc->op](*pc, pc, stack, state, state->impls, 0);
 }

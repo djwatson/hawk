@@ -73,8 +73,9 @@ static void snapshot_live_slots(trace_state *ts, snap *snap) {
 }
 
 #define OP(code)                                                               \
-  PRESERVE_NONE gc_obj record_##code(bc *pc, gc_obj *stack, vm_state *state,   \
-                                     void *op_table, uint8_t argcnt)
+  PRESERVE_NONE gc_obj record_##code(bc instr, bc *pc, gc_obj *stack,          \
+                                     vm_state *state, void *op_table,          \
+                                     uint8_t argcnt)
 
 typedef struct {
   bool taken;
@@ -581,9 +582,10 @@ static bool ensure_args_match_trace(gc_obj *stack, trace *trace) {
 }
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table);
-static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
-                      void *op_table) {
+static void *jit_func(bc *instr, bc **pc, gc_obj **stack, vm_state *state,
+                      void *op_table, uint8_t *argcnt) {
   // LINK IT!
+  *instr = **pc;
   auto cur_trace = record_current_trace(state);
   // TODO can we clean this up?  side traces spawned from downrec traces aren't
   // downrec traces!
@@ -603,6 +605,7 @@ static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
     state->record.old_patch = **pc;
     state->record.patchpc = *pc;
     **pc = target->start_pc;
+    *instr = **pc;
     return check_record_start(*pc, *stack, state, op_table);
   }
 
@@ -647,7 +650,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 // next *recording* opcode
 #define dispatch_next(pc, stack)                                               \
   op_func impl = state->impls[(pc)->op];                                       \
-  MUSTTAIL return impl(pc, stack, state, op_table, argcnt);
+  MUSTTAIL return impl(*pc, pc, stack, state, op_table, argcnt);
 
 #include "vmgen.c"
 

@@ -92,7 +92,7 @@ END OP_BEGIN(WRITE) {
 }
 END OP_BEGIN(FUNC) {
   // TODO argcnt check
-  auto expect_argcnt = pc->reg;
+  auto expect_argcnt = instr.reg;
   check_arity(expect_argcnt, argcnt);
 
   // TODO merge with arity check?
@@ -105,9 +105,13 @@ END OP_BEGIN(FUNC) {
 END OP_BEGIN(JFUNC) {
   // TODO argcnt check - no, will be put in trace itself!
   auto f = pc->data;
-  op_table = jit_func(&pc, &stack, state, op_table);
+  op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
 
-  dispatch_next(pc, stack);
+  /* if ((*pc).op != instr.op) { */
+  /*   abort(); */
+  /* } */
+  op_func impl = ((op_func *)op_table)[instr.op];
+  MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
 }
 END OP_BEGIN(JLT) {
   auto v1 = stack_load(state, stack, pc->v1, true);

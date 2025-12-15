@@ -158,6 +158,7 @@ void print_ir(trace *t) {
       printf(" \e[1;33mstack %i\e[m", ins->data);
       break;
     case IR_GGET:
+    case IR_INEXACT:
       printf(" ");
       print_slot(ins->op1, t);
       break;

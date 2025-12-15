@@ -8,7 +8,7 @@
 
 struct vm_state;
 
-typedef gc_obj PRESERVE_NONE (*op_func)(bc *pc, gc_obj *stack,
+typedef gc_obj PRESERVE_NONE (*op_func)(bc instr, bc *pc, gc_obj *stack,
                                         struct vm_state *state, void *op_table,
                                         uint8_t argcnt);
 
