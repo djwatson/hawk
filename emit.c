@@ -818,13 +818,9 @@ static void emit_ir(emit_state *s, trace *t) {
           emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
           emit_test_constant(s, op->reg, TAG_MASK);
         } else if (op->type == FLONUM_TAG) {
-          emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
-          // TODO: emit_ some sort of compare such that:
-          // op->reg & 0x7 == FLONUM_TAG (2).
-          // RTMP is available for use.
+          // These are already typechecked (and are in xmm register).
         } else {
-          printf("WARNING: guard for non-fixnum tag\n");
-          // abort();
+          abort();
         }
       }
       // Done at end.
@@ -869,6 +865,12 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
       if (ins_uses_freg(arg_ins)) {
         emit_fmem_load(s, flonum_payload_offset - FLONUM_TAG, RTMP,
                        arg_ins->reg);
+        // We need to typecheck to verify it is a flonum.
+        emit_jcc32(s, JNE, t->snaps[0].patch_point);
+        emit_cmp_constant(s, RTMP2, FLONUM_TAG);
+        emit_and_constant(s, RTMP2, RTMP, TAG_MASK);
+
+        // Load ptr from stack.
         emit_mem_load(s, offset, RSTACK, RTMP);
       } else {
         emit_mem_load(s, offset, RSTACK, arg_ins->reg);

@@ -93,6 +93,7 @@ enum registers : uint8_t {
   RARG6 = X6,
   RARG7 = X7,
   RTMP = X7,
+  RTMP2 = X8,
   FP = X29,
   LR = X30,
   // In AArch64, register 31 is XZR (zero register) in most contexts,
@@ -165,6 +166,7 @@ void emit_fcmp_constant(emit_state *s, uint8_t reg, double imm);
 void emit_fmov_constant(emit_state *s, uint8_t dst, double imm);
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm);
 void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm);
+void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm);
 void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_fadd(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
