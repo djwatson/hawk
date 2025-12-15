@@ -569,6 +569,20 @@ static void emit_serialized_moves(emit_state *s, par_copy *cpy,
   arrfree(cpy);
   arrfree(moves);
 }
+static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
+                           int32_t cur_snap) {
+  assert(op->guard);
+  if (op->type == FIXNUM_TAG) {
+    emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
+    emit_test_constant(s, op->reg, TAG_MASK);
+    COMMENT("  typecheck");
+  } else if (op->type == FLONUM_TAG) {
+    // These are already typechecked (and are in xmm register).
+  } else {
+    abort();
+  }
+}
+
 // Collect destination of loopback exist register/constant/spill slot values.
 // Arrange
 static void collect_loopback_parallel_moves(emit_state *s, trace *arg_trace,
@@ -766,6 +780,9 @@ static void emit_ir(emit_state *s, trace *t) {
         maybe_assign_register(s, op->op2, t);
         emit_flonum_sub(s, t, op);
       } else {
+        if (op->guard) {
+          emit_typecheck(s, t, op, cur_snap);
+        }
         emit_arith_slots(s, t, op->reg, op->op1, op->op2, true);
       }
       break;
@@ -781,9 +798,19 @@ static void emit_ir(emit_state *s, trace *t) {
       break;
     }
     case IR_SLOAD: {
+      if (op->guard) {
+        emit_typecheck(s, t, op, cur_snap);
+      }
       if (op->type == FLONUM_TAG) {
         emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, op->reg);
+        // We need to typecheck to verify it is a flonum.
+        // TODO if we had a spare register this would be more efficent.
         emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
+        emit_jcc32(s, JNE, t->snaps[0].patch_point);
+        emit_cmp_constant(s, RTMP, FLONUM_TAG);
+        emit_and_constant(s, RTMP, RTMP, TAG_MASK);
+        emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
+        COMMENT("  flonum typecheck");
       } else {
         emit_mem_load(s, (int32_t)op->data * 8, RSTACK, op->reg);
       }
@@ -818,14 +845,7 @@ static void emit_ir(emit_state *s, trace *t) {
           // No need to guard twice, parent trace already ran guard.
           break;
         }
-        if (op->type == FIXNUM_TAG) {
-          emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
-          emit_test_constant(s, op->reg, TAG_MASK);
-        } else if (op->type == FLONUM_TAG) {
-          // These are already typechecked (and are in xmm register).
-        } else {
-          abort();
-        }
+        emit_typecheck(s, t, op, cur_snap);
       }
       // Done at end.
       break;
@@ -835,7 +855,9 @@ static void emit_ir(emit_state *s, trace *t) {
       // exit(-1);
     }
     }
-    if (op->guard && !(op->op == IR_ARG || op->op == IR_PMOV)) {
+    // TODO: maybe move emit_typecheck here, instead of each individual one.
+    if (op->guard && !(op->op == IR_ARG || op->op == IR_PMOV ||
+                       op->op == IR_SLOAD || op->op == IR_SUB)) {
       abort();
     }
     COMMENT("%i %s", op_cnt, ir_names[op->op]);
@@ -876,6 +898,7 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
         emit_jcc32(s, JNE, t->snaps[0].patch_point);
         emit_cmp_constant(s, RTMP2, FLONUM_TAG);
         emit_and_constant(s, RTMP2, RTMP, TAG_MASK);
+        COMMENT("  flonum typecheck");
 
         // Load ptr from stack.
         emit_mem_load(s, offset, RSTACK, RTMP);
