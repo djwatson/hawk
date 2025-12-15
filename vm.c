@@ -389,10 +389,20 @@ static inline void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
       }
     }
     if (should_try_side) {
-      if (verbose) {
-        printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
+      if (res.snap->ir == 0) {
+        // It's a special, new-root trace!
+        if (verbose) {
+          printf("Try NEW root trace %i %i\n", res.snap->trace->num,
+                 res.snap->ir);
+        }
+        record_start(state, *pc, *stack);
+        (*pc)++;
+      } else {
+        if (verbose) {
+          printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
+        }
+        record_start_side(state, *pc, *stack, res.snap);
       }
-      record_start_side(state, *pc, *stack, res.snap);
       return state->record_impls;
     }
   }

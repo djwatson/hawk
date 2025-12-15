@@ -16,10 +16,14 @@
 // TODO: record abort if depth > ~20
 // TODO: record abort if len > ~4000
 
-#define VMGEN_TRACE_OP(pc, code)                                               \
+#define VMGEN_TRACE_OP(pc, code, state)                                        \
   do {                                                                         \
     if (verbose) {                                                             \
       printf("record op: %p %s\n", pc, #code);                                 \
+    }                                                                          \
+    if (state->record.patchpc) {                                               \
+      *state->record.patchpc = state->record.old_patch;                        \
+      state->record.patchpc = nullptr;                                         \
     }                                                                          \
   } while (0)
 static bool is_downrec_trace(trace_state *ts) {
@@ -122,9 +126,9 @@ static void vm_add_snap(vm_state *state, bc *pc) {
   };
   snapshot_live_slots(ts, &sn);
   // No need for duplicate snaps at the same IR.  use the newest.
-  if (arrlen(cur_trace->snaps) && arrlast(cur_trace->snaps)->ir == sn.ir &&
-      arrlast(cur_trace->snaps)->pc == sn.pc) {
-    // TODO arrpop
+  // TODO: watch out for removing first snap??? since that one is special and
+  // means 'arg types don't match'.
+  if (arrlen(cur_trace->snaps) && arrlast(cur_trace->snaps)->ir == sn.ir) {
     auto old = arrlast(cur_trace->snaps);
     arrpop(cur_trace->snaps);
     free_snap(old);
@@ -211,7 +215,8 @@ static slot emit_ov_math_sub(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
   auto t = record_current_trace(state);
   if (get_slot_type(t, v1) != get_slot_type(t, v2)) {
-    abort();
+    printf("WARNING: bad type\n");
+    // abort();
   }
   ir_ins ins =
       IR(.op = IR_SUB, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
@@ -343,7 +348,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
       free_trace(cur_trace);
       record_start(state, pc, stack);
       // UGH there must be a better way?
-      VMGEN_TRACE_OP(pc, RET);
+      VMGEN_TRACE_OP(pc, RET, state);
       return return_frame(state, pc, stack, op_table);
     }
     if (downrec_trace && seen_downrec && at_trace_start) {
@@ -539,6 +544,8 @@ static bool ensure_args_match_trace(gc_obj *stack, trace *trace) {
   }
   return true;
 }
+static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
+                                void *op_table);
 static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
                       void *op_table) {
   // LINK IT!
@@ -552,13 +559,19 @@ static void *jit_func(bc **pc, gc_obj **stack, vm_state *state,
     record_abort(state);
     return state->impls;
   }
+
+  trace *target = state->record.traces[(*pc)->data];
+  bool match = ensure_args_match_trace(*stack, target);
+  if (!match) {
+    // Patchpc, record and run FUNC instead. Patch back after record & runing.
+    printf("No match, record FUNC\n");
+    state->record.old_patch = **pc;
+    state->record.patchpc = *pc;
+    **pc = target->start_pc;
+    return check_record_start(*pc, *stack, state, op_table);
+  }
+
   if (cur_trace->parent) {
-    trace *target = state->record.traces[(*pc)->data];
-    bool match = ensure_args_match_trace(*stack, target);
-    if (!match) {
-      // TODO we need to call or do impl_FUNC instead, with target->start_pc
-      return op_table;
-    }
     cur_trace->link = target;
     if (verbose) {
       printf("Record stop: side trace linked to root trace\n");
@@ -608,12 +621,18 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack) {
     printf("Record start %li\n", arrlen(state->record.traces));
   }
   record_set_current_trace(state, calloc(1, sizeof(trace)));
+  if (pc->op == OP_JFUNC) {
+    state->record.patchpc = pc;
+    state->record.old_patch = *pc;
+    *pc = state->record.traces[pc->data]->start_pc;
+  }
   record_current_trace(state)->start_pc = *pc;
   trace_state *ts = record_trace_state(state);
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
   ts->skip_start_check = (pc->op == OP_RET);
 
+  vm_add_snap(state, pc);
   // OK! Let's put function arguments in registers.
   // Note these *must* be marked as 'changed', since ARGS aren't saved between
   // trace loops at all.
@@ -652,6 +671,7 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
   ts->skip_start_check = (pc->op == OP_RET);
   ts->depth = snap->depth;
 
+  vm_add_snap(state, pc);
   // Replay snapshot loads, so we keep things in register.
   arr_for_each_idx(snap->slots, j) {
     auto entry = &snap->slots[j];
@@ -663,10 +683,13 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
       if (old_ins->spill != SPILL_NONE) {
         abort();
       } else {
-        set_stack(state, entry->slot,
-                  add_inst(state, IR(.op = IR_PMOV, .prev_reg = old_ins->reg,
-                                     .prev_guard = old_ins->guard,
-                                     .type = old_ins->type)));
+        // We may have aborted because of a guard on PMOV, so we need to check
+        // again.
+        set_stack(
+            state, entry->slot,
+            add_inst(state, IR(.op = IR_PMOV, .prev_reg = old_ins->reg,
+                               .prev_guard = old_ins->guard,
+                               .type = get_type_tag(stack[entry->slot]))));
       }
     }
   }

@@ -360,8 +360,6 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
 
   auto done = emit_offset(s);
 
-  // TODO: move all this to another stub, so we're not exploding code size with
-  // all these push/pops.  We can just CALL stub directly.
   emit_pop_regs(s, regs_to_save, regs_cnt, false);
   emit_mov(s, RSTACK, RET_REG);
   emit_call_reg(s, RTMP);
@@ -380,8 +378,15 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
 static double slot_flonum_constant(trace *t, slot v) {
   assert(v.constant);
   gc_obj obj = t->consts[v.loc];
-  assert(is_flonum(obj));
-  return to_flonum(obj)->x;
+  // assert(is_flonum(obj));
+  if (is_flonum(obj)) {
+    return to_flonum(obj)->x;
+  }
+  // TODO this is a hack, change in record.
+  if (is_fixnum(obj)) {
+    return (double)to_fixnum(obj);
+  }
+  abort();
 }
 
 static void emit_flonum_sub(emit_state *s, trace *t, ir_ins *op) {
@@ -598,8 +603,6 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
     emit_mov(s, RET_REG, RSTACK);
   }
 
-  // TODO ignoremap .reg may still be live.
-
   emit_stack_offset_and_check(s, snap, ignore);
 
   arr_for_each_idx(snap->slots, j) {
@@ -779,7 +782,6 @@ static void emit_ir(emit_state *s, trace *t) {
     }
     case IR_SLOAD: {
       if (op->type == FLONUM_TAG) {
-        // TODO must load flonum.
         emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, op->reg);
         emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
       } else {
@@ -813,13 +815,16 @@ static void emit_ir(emit_state *s, trace *t) {
       // Typecheck
       if (op->guard) {
         if (op->type == FIXNUM_TAG) {
-          // Note we're jumping to the NEXT snap here, subtle.  The first snap
-          // is actually after the arg/pmovs, but that's ok, since they're
-          // treated specially and already in registers anyway.
-          emit_jcc32(s, JNE, t->snaps[cur_snap + 1].patch_point);
+          emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
           emit_test_constant(s, op->reg, TAG_MASK);
+        } else if (op->type == FLONUM_TAG) {
+          emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
+          // TODO: emit_ some sort of compare such that:
+          // op->reg & 0x7 == FLONUM_TAG (2).
+          // RTMP is available for use.
         } else {
-          abort();
+          printf("WARNING: guard for non-fixnum tag\n");
+          // abort();
         }
       }
       // Done at end.

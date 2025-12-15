@@ -25,6 +25,8 @@ typedef struct record_state {
   trace_state trace_state;
   trace **traces;
   emit_state emit_state;
+  bc *patchpc;
+  bc old_patch;
 } record_state;
 
 struct vm_state;
