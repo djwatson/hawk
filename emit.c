@@ -835,6 +835,9 @@ static void emit_ir(emit_state *s, trace *t) {
       // exit(-1);
     }
     }
+    if (op->guard && !(op->op == IR_ARG || op->op == IR_PMOV)) {
+      abort();
+    }
     COMMENT("%i %s", op_cnt, ir_names[op->op]);
   }
 }

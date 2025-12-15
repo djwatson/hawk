@@ -1,16 +1,13 @@
-#### post mortem
-
 # VM impl
+* probably need guard types for other than PMOV/ARG
 * to_flonum impl for GTE/sub
 * Hmmm what happens if we abort because of typechecks???
+  * need to decode start_pc instruction, and run that instead in VM.  Ugh.
 * half finished - all the typcheck types
 * half finished - currently we DO make multiple root traces, but they just get replaced.  DOH
    * need chaining, both in JIT code and linking from the first root trace.
 
-* lazy typecheck - needs PMOV guard and loopback guards to be fixed still
-* typechecking - add GUARD typechecks, probably for all types?
-
-* math ops - fixnum,flonum, slowpaths.
+* math ops - fixnum,flonum, slowpaths. 
 
 * next: diviter, divrec, sumloop, nqueens.
 
