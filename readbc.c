@@ -220,7 +220,7 @@ static uint64_t reader_pvarint(buffer_reader *reader) {
     }
     uint64_t res = 0;
     memcpy(&res, buf, len);
-    size_t unused = 64 - 8 * len;
+    size_t unused = 64 - (8 * len);
     return (res << unused) >> (unused + len);
   }
   uint64_t value = 0;
@@ -288,7 +288,7 @@ static gc_obj deserialize_string(buffer_reader *reader) {
   size_t alloc_size = sizeof(string_s) + bytes + 1;
   string_s *str = gc_alloc(align(alloc_size, sizeof(gc_obj)));
   str->header.type = STRING_TAG;
-  str->len = tag_fixnum(bytes);
+  str->len = tag_fixnum((int64_t)bytes);
   reader_bytes(reader, str->str, bytes);
   str->str[bytes] = '\0';
   return tag_string(str);
@@ -319,7 +319,8 @@ static gc_obj deserialize_const_closure(buffer_reader *reader,
   }
   size_t fun_id = (size_t)((fun_ref - CLOSURE_TAG) >> FIXNUM_SHIFT);
   size_t slot_count = 1;
-  closure_s *clo = gc_alloc(sizeof(closure_s) + slot_count * sizeof(gc_obj));
+  closure_s *clo =
+      gc_alloc(sizeof(closure_s) + (slot_count * sizeof(gc_obj)));
   clo->header.type = CLOSURE_TAG;
   clo->len = tag_fixnum((int64_t)slot_count);
   resolve_or_enqueue(heap, fun_id, &clo->v[0]);

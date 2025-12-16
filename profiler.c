@@ -79,18 +79,18 @@ static void *ucontext_pc(void *uc) {
   if (!uc) {
     return nullptr;
   }
-#if defined(__APPLE__)
-#if defined(__aarch64__)
+#ifdef __APPLE__
+#ifdef __aarch64__
   return (void *)((ucontext_t *)uc)->uc_mcontext->__ss.__pc;
-#elif defined(__x86_64__)
+#elifdef __x86_64__
   return (void *)((ucontext_t *)uc)->uc_mcontext->__ss.__rip;
 #endif
-#elif defined(__linux__)
-#if defined(__x86_64__)
+#elifdef __linux__
+#ifdef __x86_64__
   ucontext_t *l = (ucontext_t *)uc;
 
   return (void *)l->uc_mcontext.gregs[REG_RIP];
-#elif defined(__aarch64__)
+#elifdef __aarch64__
   ucontext_t *l = (ucontext_t *)uc;
   return (void *)l->uc_mcontext.pc;
 #endif
@@ -150,7 +150,7 @@ EXPORT void profiler_start(vm_state *state) {
   struct itimerval timer;
   memset(&timer, 0, sizeof(timer));
   timer.it_value.tv_sec = 0;
-  timer.it_value.tv_usec = k_sample_interval_usec;
+  timer.it_value.tv_usec = (suseconds_t)k_sample_interval_usec;
   timer.it_interval = timer.it_value;
   if (setitimer(ITIMER_PROF, &timer, nullptr) == -1) {
     perror("setitimer");

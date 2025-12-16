@@ -268,19 +268,21 @@ static inline void obj_write(vm_state *state, gc_obj val, void **op_table) {
 void expand_stack(vm_state *state, gc_obj **stack) {
   // TODO: this should really be a stack *cache*
   size_t oldsz = (size_t)(state->stack_top - state->stack_bottom);
-  size_t newsz = oldsz * 1.3;
+  size_t newsz = oldsz + (oldsz / 3);
+  if (newsz <= oldsz) {
+    newsz = oldsz + 1;
+  }
   gc_obj *old_bottom = state->stack_bottom;
   auto offset = *stack - state->stack_bottom;
   if (verbose) {
     printf("MUST EXPAND STACK now %li\n", newsz);
   }
-  gc_remove_root((uint64_t *)old_bottom);
+  gc_remove_root((const uint64_t *)old_bottom);
   gc_obj *newstack = realloc(state->stack_bottom, sizeof(gc_obj) * newsz);
   if (!newstack) {
     fprintf(stderr, "Failed to realloc stack\n");
     abort();
   }
-  size_t grow = newsz - oldsz;
   // Since we're a conservative GC, no need to zero.
   /* memset(&newstack[oldsz], 0, grow * sizeof(gc_obj)); */
   state->stack_bottom = newstack;
@@ -289,7 +291,7 @@ void expand_stack(vm_state *state, gc_obj **stack) {
   // Potential improvement: the GC could callback to get the current stack size.
   // (or rather, stack + 256 redzone).
   // If the stack grew large but then stayed small, GC time would be improved.
-  gc_add_root((uint64_t *)state->stack_bottom, newsz);
+  gc_add_root((const uint64_t *)state->stack_bottom, newsz);
   *stack = &newstack[offset];
 }
 
@@ -424,9 +426,10 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
 }
 #define dispatch_next(pc, stack)                                               \
   op_func impl = ((op_func *)op_table)[(pc)->op];                              \
-  MUSTTAIL return impl(*pc, pc, stack, state, op_table, argcnt);
+  MUSTTAIL return impl(*(pc), (pc), (stack), state, op_table, argcnt);
 
-#include "vmgen.c"
+// NOLINTNEXTLINE(bugprone-suspicious-include)
+#include "vmgen.c" // NOLINT(build/include)
 
 #define X(name, type)                                                          \
   PRESERVE_NONE gc_obj record_##name(bc instr, bc *pc, gc_obj *stack,          \
@@ -471,7 +474,7 @@ gc_obj vm(bc *pc) {
   state->stack_bottom = stack;
   state->stack_top = stack + default_size;
   state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
-  gc_add_root((uint64_t *)state->stack_bottom, default_size);
+  gc_add_root((const uint64_t *)state->stack_bottom, default_size);
   if (profile) {
     profiler_start(state);
   }

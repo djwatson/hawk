@@ -95,6 +95,6 @@ int main(int argc, char *argv[]) {
   auto f = to_func(start);
   auto code_start = (bc *)&f->data[f->const_cnt * sizeof(gc_obj)];
 
-  auto res = vm(code_start);
-  // print_obj(res, stdout);
+  (void)vm(code_start);
+  // print_obj(vm(code_start), stdout);
 }

@@ -21,9 +21,9 @@
     if (verbose) {                                                             \
       printf("record op: %p %s\n", pc, #code);                                 \
     }                                                                          \
-    if (state->record.patchpc) {                                               \
-      *state->record.patchpc = state->record.old_patch;                        \
-      state->record.patchpc = nullptr;                                         \
+    if ((state)->record.patchpc) {                                             \
+      *(state)->record.patchpc = (state)->record.old_patch;                    \
+      (state)->record.patchpc = nullptr;                                       \
     }                                                                          \
   } while (0)
 static bool is_downrec_trace(trace_state *ts) {
@@ -650,9 +650,10 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 // next *recording* opcode
 #define dispatch_next(pc, stack)                                               \
   op_func impl = state->impls[(pc)->op];                                       \
-  MUSTTAIL return impl(*pc, pc, stack, state, op_table, argcnt);
+  MUSTTAIL return impl(*(pc), (pc), (stack), state, op_table, argcnt);
 
-#include "vmgen.c"
+// NOLINTNEXTLINE(bugprone-suspicious-include)
+#include "vmgen.c" // NOLINT(build/include)
 
 void record_start(vm_state *state, bc *pc, gc_obj *stack) {
   if (verbose) {

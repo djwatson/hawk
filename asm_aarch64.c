@@ -142,7 +142,7 @@ static uint32_t stp_pre(uint8_t rt, uint8_t rt2, uint8_t rn, int32_t offset) {
   int32_t imm = offset / 8;
   assert(imm >= -64 && imm <= 63);
   uint32_t imm7 = (uint32_t)(imm & 0x7f);
-  return 0xA9800000u | (imm7 << 15) | ((uint32_t)rt2 << 10) |
+  return 0xA9800000U | (imm7 << 15) | ((uint32_t)rt2 << 10) |
          ((uint32_t)rn << 5) | (uint32_t)rt;
 }
 
@@ -151,7 +151,7 @@ static uint32_t ldp_post(uint8_t rt, uint8_t rt2, uint8_t rn, int32_t offset) {
   int32_t imm = offset / 8;
   assert(imm >= -64 && imm <= 63);
   uint32_t imm7 = (uint32_t)(imm & 0x7f);
-  return 0xA8C00000u | (imm7 << 15) | ((uint32_t)rt2 << 10) |
+  return 0xA8C00000U | (imm7 << 15) | ((uint32_t)rt2 << 10) |
          ((uint32_t)rn << 5) | (uint32_t)rt;
 }
 
@@ -170,7 +170,7 @@ static uint32_t stp_pre_q(uint8_t rt, uint8_t rt2, uint8_t rn, int32_t offset) {
   int32_t imm = offset / 16;
   assert(imm >= -64 && imm <= 63);
   uint32_t imm7 = (uint32_t)(imm & 0x7f);
-  return 0xAD800000u | (imm7 << 15) | ((uint32_t)rt2_hw << 10) |
+  return 0xAD800000U | (imm7 << 15) | ((uint32_t)rt2_hw << 10) |
          ((uint32_t)rn << 5) | (uint32_t)rt_hw;
 }
 
@@ -184,7 +184,7 @@ static uint32_t ldp_post_q(uint8_t rt, uint8_t rt2, uint8_t rn,
   int32_t imm = offset / 16;
   assert(imm >= -64 && imm <= 63);
   uint32_t imm7 = (uint32_t)(imm & 0x7f);
-  return 0xACC00000u | (imm7 << 15) | ((uint32_t)rt2_hw << 10) |
+  return 0xACC00000U | (imm7 << 15) | ((uint32_t)rt2_hw << 10) |
          ((uint32_t)rn << 5) | (uint32_t)rt_hw;
 }
 
@@ -200,17 +200,18 @@ static const struct {
 void restore_callee_regs(emit_state *s) {
   for (size_t i = 0;
        i < sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0]); i++) {
-    const size_t j =
-        sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0]) - 1 - i;
+    const size_t j = (sizeof(callee_saved_pairs) /
+                      sizeof(callee_saved_pairs[0])) -
+                     1 - i;
     emit_op(s, ldp_post(callee_saved_pairs[j].r1, callee_saved_pairs[j].r2, SP,
                         16));
   }
   for (size_t i = 0;
        i < sizeof(callee_saved_fp_pairs) / sizeof(callee_saved_fp_pairs[0]);
        i++) {
-    const size_t j =
-        sizeof(callee_saved_fp_pairs) / sizeof(callee_saved_fp_pairs[0]) - 1 -
-        i;
+    const size_t j = (sizeof(callee_saved_fp_pairs) /
+                      sizeof(callee_saved_fp_pairs[0])) -
+                     1 - i;
     emit_op(s, ldp_post_q(callee_saved_fp_pairs[j].r1,
                           callee_saved_fp_pairs[j].r2, SP, 32));
   }
@@ -238,7 +239,7 @@ void emit_jmp32(emit_state *s, int64_t target) {
   assert((delta & 0x3) == 0);
   int64_t imm26 = delta / 4;
   assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
-  uint32_t opcode = 0x14000000u | ((uint32_t)imm26 & 0x03ffffffu);
+  uint32_t opcode = 0x14000000U | ((uint32_t)imm26 & 0x03ffffffU);
   emit_op(s, opcode);
 }
 
@@ -249,7 +250,7 @@ void emit_jmp32_patch_here(emit_state *s, int64_t patch) {
   assert((delta & 0x3) == 0);
   int64_t imm26 = delta / 4;
   assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
-  uint32_t opcode = 0x14000000u | ((uint32_t)imm26 & 0x03ffffffu);
+  uint32_t opcode = 0x14000000U | ((uint32_t)imm26 & 0x03ffffffU);
   memcpy((void *)patch, &opcode, sizeof(opcode));
 }
 
@@ -265,35 +266,35 @@ void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t target) {
   int64_t imm19 = delta / 4;
   assert(imm19 >= -(1LL << 18) && imm19 < (1LL << 18));
   uint32_t opcode =
-      0x54000000u | (((uint32_t)imm19 & 0x7ffffu) << 5) | (uint32_t)arm_cond;
+      0x54000000U | (((uint32_t)imm19 & 0x7ffffU) << 5) | (uint32_t)arm_cond;
   emit_op(s, opcode);
 }
 static uint32_t movz_opcode(uint8_t rd, uint16_t imm16, uint8_t chunk) {
   assert(rd < 31);
   assert(chunk < 4);
   uint32_t hw = chunk & 0x3;
-  return 0xD2800000u | (hw << 21) | ((uint32_t)imm16 << 5) | (uint32_t)rd;
+  return 0xD2800000U | (hw << 21) | ((uint32_t)imm16 << 5) | (uint32_t)rd;
 }
 
 static uint32_t movn_opcode(uint8_t rd, uint16_t imm16, uint8_t chunk) {
   assert(rd < 31);
   assert(chunk < 4);
   uint32_t hw = chunk & 0x3;
-  return 0x92800000u | (hw << 21) | ((uint32_t)imm16 << 5) | (uint32_t)rd;
+  return 0x92800000U | (hw << 21) | ((uint32_t)imm16 << 5) | (uint32_t)rd;
 }
 
 static uint32_t movk_opcode(uint8_t rd, uint16_t imm16, uint8_t chunk) {
   assert(rd < 31);
   assert(chunk < 4);
   uint32_t hw = chunk & 0x3;
-  return 0xF2800000u | (hw << 21) | ((uint32_t)imm16 << 5) | (uint32_t)rd;
+  return 0xF2800000U | (hw << 21) | ((uint32_t)imm16 << 5) | (uint32_t)rd;
 }
 
 static uint32_t orr_logical_immediate_opcode(uint8_t rd, uint8_t N,
                                              uint8_t immr, uint8_t imms) {
   assert(rd < 31);
-  return 0xB2000000u | ((uint32_t)N << 22) | ((uint32_t)immr << 16) |
-         ((uint32_t)imms << 10) | (31u << 5) | (uint32_t)rd;
+  return 0xB2000000U | ((uint32_t)N << 22) | ((uint32_t)immr << 16) |
+         ((uint32_t)imms << 10) | (31U << 5) | (uint32_t)rd;
 }
 
 static bool encode_subs_immediate(int64_t imm, uint32_t *shift,
@@ -411,7 +412,7 @@ void emit_mov64(emit_state *s, uint8_t rd, int64_t imm) {
 
 void emit_call_reg(emit_state *s, uint8_t r) {
   assert(r < MAX_REG);
-  uint32_t opcode = 0xD63F0000u | ((uint32_t)r << 5); // BLR Xr
+  uint32_t opcode = 0xD63F0000U | ((uint32_t)r << 5); // BLR Xr
   emit_op(s, opcode);
 }
 
@@ -423,7 +424,7 @@ void emit_call32(emit_state *s, int64_t target) {
   assert((delta & 0x3) == 0);
   int64_t imm26 = delta >> 2;
   assert(imm26 >= -(1 << 25) && imm26 <= ((1 << 25) - 1));
-  uint32_t opcode = 0x94000000u | ((uint32_t)imm26 & UINT32_C(0x03FFFFFF));
+  uint32_t opcode = 0x94000000U | ((uint32_t)imm26 & UINT32_C(0x03FFFFFF));
   emit_op(s, opcode);
 }
 
@@ -431,14 +432,14 @@ void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
   assert(lhs < FPR_REG_START);
   assert(rhs < FPR_REG_START);
   uint32_t opcode =
-      0xEB000000u | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) | UINT32_C(31);
+      0xEB000000U | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) | UINT32_C(31);
   emit_op(s, opcode);
 }
 
 void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
   assert(lhs >= FPR_REG_START && lhs < AARCH64_MAX_REG);
   assert(rhs >= FPR_REG_START && rhs < AARCH64_MAX_REG);
-  uint32_t opcode = 0x1E602000u | ((uint32_t)hw_fpr(rhs) << 16) |
+  uint32_t opcode = 0x1E602000U | ((uint32_t)hw_fpr(rhs) << 16) |
                     ((uint32_t)hw_fpr(lhs) << 5);
   emit_op(s, opcode);
 }
@@ -456,7 +457,7 @@ void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
   assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
   assert(src >= FPR_REG_START && src < AARCH64_MAX_REG);
   uint32_t opcode =
-      0x1E604000u | ((uint32_t)hw_fpr(src) << 5) | (uint32_t)hw_fpr(dst);
+      0x1E604000U | ((uint32_t)hw_fpr(src) << 5) | (uint32_t)hw_fpr(dst);
   emit_op(s, opcode);
 }
 
@@ -465,7 +466,7 @@ void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   uint32_t shift = 0;
   uint32_t imm12 = 0;
   if (encode_subs_immediate(imm, &shift, &imm12)) {
-    uint32_t opcode = 0xF1000000u | (shift << 22) | (imm12 << 10) |
+    uint32_t opcode = 0xF1000000U | (shift << 22) | (imm12 << 10) |
                       ((uint32_t)reg << 5) | UINT32_C(31);
     emit_op(s, opcode);
     return;
@@ -482,7 +483,7 @@ void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm) {
   if (!encode_logical_immediate64((uint64_t)imm, &N, &immr, &imms)) {
     abort();
   }
-  uint32_t opcode = 0xF2000000u | ((uint32_t)N << 22) | ((uint32_t)immr << 16) |
+  uint32_t opcode = 0xF2000000U | ((uint32_t)N << 22) | ((uint32_t)immr << 16) |
                     ((uint32_t)imms << 10) | ((uint32_t)reg << 5) |
                     UINT32_C(31);
   emit_op(s, opcode);
@@ -497,7 +498,7 @@ void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm) {
   if (!encode_logical_immediate64((uint64_t)imm, &N, &immr, &imms)) {
     abort();
   }
-  uint32_t opcode = 0x92000000u | ((uint32_t)N << 22) | ((uint32_t)immr << 16) |
+  uint32_t opcode = 0x92000000U | ((uint32_t)N << 22) | ((uint32_t)immr << 16) |
                     ((uint32_t)imms << 10) | ((uint32_t)src << 5) |
                     (uint32_t)dst;
   emit_op(s, opcode);
@@ -529,30 +530,30 @@ static void emit_add_sub_constant(emit_state *s, uint32_t base,
 }
 
 void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
-  emit_add_sub(s, 0x8B000000u, dst, lhs, rhs);
+  emit_add_sub(s, 0x8B000000U, dst, lhs, rhs);
 }
 
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   assert(dst < MAX_REG);
   assert(lhs < MAX_REG);
-  emit_add_sub_constant(s, 0x91000000u, 0x8B000000u, dst, lhs, imm);
+  emit_add_sub_constant(s, 0x91000000U, 0x8B000000U, dst, lhs, imm);
 }
 
 void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
-  emit_add_sub(s, 0xCB000000u, dst, lhs, rhs);
+  emit_add_sub(s, 0xCB000000U, dst, lhs, rhs);
 }
 
 void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   assert(dst < MAX_REG);
   assert(lhs < MAX_REG);
-  emit_add_sub_constant(s, 0xD1000000u, 0xCB000000u, dst, lhs, imm);
+  emit_add_sub_constant(s, 0xD1000000U, 0xCB000000U, dst, lhs, imm);
 }
 
 void emit_fadd(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
   assert(lhs >= FPR_REG_START && lhs < AARCH64_MAX_REG);
   assert(rhs >= FPR_REG_START && rhs < AARCH64_MAX_REG);
-  uint32_t opcode = 0x1E602800u | ((uint32_t)hw_fpr(rhs) << 16) |
+  uint32_t opcode = 0x1E602800U | ((uint32_t)hw_fpr(rhs) << 16) |
                     ((uint32_t)hw_fpr(lhs) << 5) | (uint32_t)hw_fpr(dst);
   emit_op(s, opcode);
 }
@@ -561,7 +562,7 @@ void emit_fsub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
   assert(lhs >= FPR_REG_START && lhs < AARCH64_MAX_REG);
   assert(rhs >= FPR_REG_START && rhs < AARCH64_MAX_REG);
-  uint32_t opcode = 0x1E603800u | ((uint32_t)hw_fpr(rhs) << 16) |
+  uint32_t opcode = 0x1E603800U | ((uint32_t)hw_fpr(rhs) << 16) |
                     ((uint32_t)hw_fpr(lhs) << 5) | (uint32_t)hw_fpr(dst);
   emit_op(s, opcode);
 }
@@ -684,7 +685,7 @@ void emit_mov(emit_state *s, uint8_t dst, uint8_t src) {
   assert(dst < MAX_REG);
   assert(src < MAX_REG);
   uint32_t opcode =
-      0xAA0003E0u | ((uint32_t)src << 16) | (uint32_t)dst; // ORR Xd, XZR, Xm
+      0xAA0003E0U | ((uint32_t)src << 16) | (uint32_t)dst; // ORR Xd, XZR, Xm
   emit_op(s, opcode);
 }
 void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
@@ -693,7 +694,7 @@ void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   if ((offset % 8) == 0 && offset >= 0) {
     int32_t imm = offset / 8;
     assert(imm < 4096);
-    uint32_t opcode = 0xF9400000u | ((uint32_t)imm << 10) |
+    uint32_t opcode = 0xF9400000U | ((uint32_t)imm << 10) |
                       ((uint32_t)base << 5) | (uint32_t)dst;
     emit_op(s, opcode);
     return;
@@ -701,7 +702,7 @@ void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   assert(offset >= -256 && offset <= 255);
   uint32_t imm9 = (uint32_t)(offset & 0x1ff);
   uint32_t opcode =
-      0xF8400000u | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)dst;
+      0xF8400000U | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)dst;
   emit_op(s, opcode);
 }
 
@@ -711,14 +712,14 @@ void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   if ((offset % 8) == 0 && offset >= 0) {
     int32_t imm = offset / 8;
     assert(imm < 4096);
-    uint32_t opcode = 0xFD400000u | ((uint32_t)imm << 10) |
+    uint32_t opcode = 0xFD400000U | ((uint32_t)imm << 10) |
                       ((uint32_t)base << 5) | (uint32_t)hw_fpr(dst);
     emit_op(s, opcode);
     return;
   }
   assert(offset >= -256 && offset <= 255);
   uint32_t imm9 = (uint32_t)(offset & 0x1ff);
-  uint32_t opcode = 0xFC400000u | (imm9 << 12) | ((uint32_t)base << 5) |
+  uint32_t opcode = 0xFC400000U | (imm9 << 12) | ((uint32_t)base << 5) |
                     (uint32_t)hw_fpr(dst);
   emit_op(s, opcode);
 }
@@ -729,7 +730,7 @@ void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
   if ((offset % 8) == 0 && offset >= 0) {
     int32_t imm = offset / 8;
     assert(imm < 4096);
-    uint32_t opcode = 0xF9000000u | ((uint32_t)imm << 10) |
+    uint32_t opcode = 0xF9000000U | ((uint32_t)imm << 10) |
                       ((uint32_t)base << 5) | (uint32_t)src;
     emit_op(s, opcode);
     return;
@@ -737,7 +738,7 @@ void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
   assert(offset >= -256 && offset <= 255);
   uint32_t imm9 = (uint32_t)(offset & 0x1ff);
   uint32_t opcode =
-      0xF8000000u | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)src;
+      0xF8000000U | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)src;
   emit_op(s, opcode);
 }
 
@@ -747,14 +748,14 @@ void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
   if ((offset % 8) == 0 && offset >= 0) {
     int32_t imm = offset / 8;
     assert(imm < 4096);
-    uint32_t opcode = 0xFD000000u | ((uint32_t)imm << 10) |
+    uint32_t opcode = 0xFD000000U | ((uint32_t)imm << 10) |
                       ((uint32_t)base << 5) | (uint32_t)hw_fpr(src);
     emit_op(s, opcode);
     return;
   }
   assert(offset >= -256 && offset <= 255);
   uint32_t imm9 = (uint32_t)(offset & 0x1ff);
-  uint32_t opcode = 0xFC000000u | (imm9 << 12) | ((uint32_t)base << 5) |
+  uint32_t opcode = 0xFC000000U | (imm9 << 12) | ((uint32_t)base << 5) |
                     (uint32_t)hw_fpr(src);
   emit_op(s, opcode);
 }
@@ -771,10 +772,10 @@ void asm_load_constant(emit_state *s, int idx, uint8_t dst) {
   assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
   assert(idx >= 0);
   assert((size_t)idx < arrlen(s->const_pool));
-  emit_op(s, 0xFD400000u | ((uint32_t)RTMP << 5) | (uint32_t)hw_fpr(dst));
+  emit_op(s, 0xFD400000U | ((uint32_t)RTMP << 5) | (uint32_t)hw_fpr(dst));
   uint8_t *ldr_site = p;
   constant_entry *entry = &s->const_pool[idx];
-  emit_op(s, 0x90000000u | ((uint32_t)RTMP << 5) | (uint32_t)RTMP);
+  emit_op(s, 0x90000000U | ((uint32_t)RTMP << 5) | (uint32_t)RTMP);
   uint8_t *adrp_site = p;
   const_patch patch = {.inst0 = adrp_site, .inst1 = ldr_site};
   arrput(&s->z, entry->patches, patch);
@@ -798,16 +799,16 @@ void asm_patch_constant_pool(emit_state *s) {
       uint32_t immlo = (uint32_t)(page_delta & 0x3);
       uint32_t immhi = (uint32_t)((page_delta >> 2) & 0x7FFFF);
       uint32_t rd = (*((uint32_t *)adrp_site)) & 0x1F;
-      uint32_t adrp = 0x90000000u | (immlo << 29) | (immhi << 5) | (rd & 0x1F);
+      uint32_t adrp = 0x90000000U | (immlo << 29) | (immhi << 5) | (rd & 0x1F);
       memcpy(adrp_site, &adrp, sizeof(adrp));
 
-      uint64_t page_offset = const_addr & 0xFFFu;
+      uint64_t page_offset = const_addr & 0xFFFU;
       assert((page_offset & 0x7) == 0);
       uint32_t imm12 = (uint32_t)(page_offset >> 3);
       uint32_t orig = *((uint32_t *)ldr_site);
       uint32_t base = (orig >> 5) & 0x1F;
       uint32_t dst = orig & 0x1F;
-      uint32_t ldr = 0xFD400000u | (imm12 << 10) | (base << 5) | (dst & 0x1F);
+      uint32_t ldr = 0xFD400000U | (imm12 << 10) | (base << 5) | (dst & 0x1F);
       memcpy(ldr_site, &ldr, sizeof(ldr));
     }
   }

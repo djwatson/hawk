@@ -159,7 +159,7 @@ void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
 void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value);
-void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t offset);
+void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t target);
 void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs);
 void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs);
 void emit_fcmp_constant(emit_state *s, uint8_t reg, double imm);

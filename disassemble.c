@@ -67,13 +67,13 @@ void disassemble(const uint8_t *code, size_t len,
     return;
   }
 
-#if defined(__x86_64__)
+#ifdef __x86_64__
   auto arch = CS_ARCH_X86;
   auto mode = CS_MODE_64;
-#elif defined(__aarch64__)
+#elifdef __aarch64__
   auto arch = CS_ARCH_ARM64;
   auto mode = CS_MODE_ARM;
-#elif defined(__riscv)
+#elifdef __riscv
   auto arch = CS_ARCH_RISCV;
   auto mode = CS_MODE_RISCV64;
 #endif
@@ -108,21 +108,21 @@ void disassemble(const uint8_t *code, size_t len,
 
     // Handle conditional/unconditional jumps
     if (is_control_flow(&insn[i])) {
-#if defined(__x86_64__)
+#ifdef __x86_64__
       for (size_t j = 0; j < detail->x86.op_count; j++) {
         if (detail->x86.operands[j].type == X86_OP_IMM) {
           uint64_t target = detail->x86.operands[j].imm;
           maybe_label_insert(&z, &label_targets, target, start_addr, end_addr);
         }
       }
-#elif defined(__aarch64__)
+#elifdef __aarch64__
       for (size_t j = 0; j < detail->arm64.op_count; j++) {
         if (detail->arm64.operands[j].type == ARM64_OP_IMM) {
           uint64_t target = detail->arm64.operands[j].imm;
           maybe_label_insert(&z, &label_targets, target, start_addr, end_addr);
         }
       }
-#elif defined(__riscv)
+#elifdef __riscv
       for (size_t j = 0; j < detail->riscv.op_count; j++) {
         if (detail->riscv.operands[j].type == RISCV_OP_IMM) {
           uint64_t target = detail->riscv.operands[j].imm + insn[i].address;
@@ -157,7 +157,7 @@ void disassemble(const uint8_t *code, size_t len,
     cs_detail *detail = insn[i].detail;
 
     if (detail && is_control_flow(&insn[i])) {
-#if defined(__x86_64__)
+#ifdef __x86_64__
       for (size_t j = 0; j < detail->x86.op_count; j++) {
         if (detail->x86.operands[j].type == X86_OP_IMM) {
           uint64_t target = detail->x86.operands[j].imm;
@@ -168,7 +168,7 @@ void disassemble(const uint8_t *code, size_t len,
           }
         }
       }
-#elif defined(__aarch64__)
+#elifdef __aarch64__
       for (size_t j = 0; j < detail->arm64.op_count; j++) {
         if (detail->arm64.operands[j].type == ARM64_OP_IMM) {
           uint64_t target = detail->arm64.operands[j].imm;
@@ -179,7 +179,7 @@ void disassemble(const uint8_t *code, size_t len,
           }
         }
       }
-#elif defined(__riscv)
+#elifdef __riscv
       for (size_t j = 0; j < detail->riscv.op_count; j++) {
         if (detail->riscv.operands[j].type == RISCV_OP_IMM) {
           uint64_t target = detail->riscv.operands[j].imm + insn[i].address;

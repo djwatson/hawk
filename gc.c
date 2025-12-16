@@ -61,7 +61,7 @@ freelist_s freelist[size_classes];
 static kvec_t(slab_info *) partials[size_classes];
 static LIST_HEAD(live_slabs);
 typedef struct root_range {
-  uint64_t *ptr;
+  const uint64_t *ptr;
   size_t len;
 } root_range;
 
@@ -119,8 +119,8 @@ bool get_partial_range(uint64_t sz_class, freelist_s *fl) {
   for (uint64_t i = new_start; i < new_end; i++) {
     assert(!bt(slab->markbits, i));
   }
-  fl->start_ptr = (uint64_t)slab->start + new_start * slab_sz(slab);
-  fl->end_ptr = (uint64_t)slab->start + new_end * slab_sz(slab);
+  fl->start_ptr = (uint64_t)slab->start + (new_start * slab_sz(slab));
+  fl->end_ptr = (uint64_t)slab->start + (new_end * slab_sz(slab));
   assert((uintptr_t)fl->start_ptr >= (uintptr_t)fl->slab->start);
   assert((uintptr_t)fl->end_ptr <= (uintptr_t)fl->slab->end);
   return true;
@@ -158,7 +158,7 @@ void gc_init(void *stacktop_in) {
   }
 }
 
-void gc_add_root(uint64_t *rootp, size_t len) {
+void gc_add_root(const uint64_t *rootp, size_t len) {
   kv_push(roots, ((root_range){.ptr = rootp, .len = len}));
 }
 
@@ -181,14 +181,14 @@ void gc_set_scan_callback(gc_scan_callback cb, void *data) {
 }
 
 typedef struct range {
-  uint64_t *start;
-  uint64_t *end;
+  const uint64_t *start;
+  const uint64_t *end;
 } range;
 
 static uint64_t totsize;
 static kvec_t(range) markstack;
 
-static void gc_add_mark_root(uint64_t *rootp, size_t len) {
+static void gc_add_mark_root(const uint64_t *rootp, size_t len) {
   assert(rootp);
   assert(len >= 1);
   kv_push(markstack, ((range){rootp, rootp + len}));
@@ -218,8 +218,9 @@ static void mark() {
           totsize += slab_sz(slab);
           slab->marked += slab->class * 8;
           bts(slab->markbits, index);
-          kv_push(markstack, ((range){(uint64_t *)base_ptr,
-                                      (uint64_t *)(base_ptr + slab_sz(slab))}));
+          kv_push(markstack,
+                  ((range){(const uint64_t *)base_ptr,
+                           (const uint64_t *)(base_ptr + slab_sz(slab))}));
         }
       }
       r.start++;
@@ -302,7 +303,8 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
           // otherwise it will already traced if live.
           if (bt(slab->markbits, index)) {
             kv_push(markstack,
-                    ((range){(uint64_t *)logptr, (uint64_t *)(logptr + 8)}));
+                    ((range){(const uint64_t *)logptr,
+                             (const uint64_t *)(logptr + 8)}));
           }
 
           bit = res + 1;
@@ -313,8 +315,8 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
         //  Large objects use a single bit, bit 0 in markbits
         if (bt(slab->markbits, 1)) {
           kv_push(markstack,
-                  ((range){(uint64_t *)slab->start,
-                           (uint64_t *)(slab->start + slab_sz(slab))}));
+                  ((range){(const uint64_t *)slab->start,
+                           (const uint64_t *)(slab->start + slab_sz(slab))}));
           // Reset markbit.
           btr(slab->markbits, 1);
         }

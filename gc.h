@@ -16,13 +16,13 @@ typedef struct freelist_s {
   slab_info *slab;
 } freelist_s;
 
-typedef void (*gc_scan_root_cb)(uint64_t *rootp, size_t len);
+typedef void (*gc_scan_root_cb)(const uint64_t *rootp, size_t len);
 typedef void (*gc_scan_callback)(void *data, gc_scan_root_cb add_root);
 
 extern freelist_s freelist[size_classes];
 
 void gc_init(void *stacktop);
-void gc_add_root(uint64_t *rootp, size_t len);
+void gc_add_root(const uint64_t *rootp, size_t len);
 void gc_remove_root(uint64_t const *rootp);
 void gc_set_scan_callback(gc_scan_callback cb, void *data);
 uint64_t *gc_get_stack_top();

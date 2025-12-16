@@ -84,7 +84,7 @@ void emit_init_slowpath(emit_state *s) {
 #endif
   if (verbose) {
     printf("GC slowpath: %" PRId64 "\n", end - (long)start);
-    disassemble((uint8_t *)start, end - (long)start, nullptr);
+    disassemble(start, end - (long)start, nullptr);
   }
 }
 
@@ -95,7 +95,7 @@ static inline bool ins_uses_freg(ir_ins const *ins) {
 static inline bool is_fpr_reg(uint8_t reg) { return reg >= FPR_REG_START; }
 
 static int alloc_gpr(emit_state *s) {
-  for (int i = 0; i < (int)FPR_REG_START; i++) {
+  for (int i = 0; i < FPR_REG_START; i++) {
     if (!s->regs[i].used) {
       return i;
     }
@@ -569,7 +569,7 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
                            int32_t cur_snap) {
   assert(op->guard);
   if (op->type == FIXNUM_TAG) {
-    emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
+    emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
     emit_test_constant(s, op->reg, TAG_MASK);
     COMMENT("  typecheck");
   } else if (op->type == FLONUM_TAG) {
@@ -726,18 +726,14 @@ static void emit_ir(emit_state *s, trace *t) {
 
     emit_check(s);
     switch (op->op) {
-    case IR_GUARD_EQ: {
-      emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
-      emit_cmp_slots(s, t, op->op1, op->op2);
-      break;
-    }
+    case IR_GUARD_EQ:
     case IR_EQ: {
-      emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
+      emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
       emit_cmp_slots(s, t, op->op1, op->op2);
       break;
     }
     case IR_NE: {
-      emit_jcc32(s, JE, t->snaps[cur_snap].patch_point);
+      emit_jcc32(s, JE, (int64_t)t->snaps[cur_snap].patch_point);
       emit_cmp_slots(s, t, op->op1, op->op2);
       break;
     }
@@ -749,18 +745,18 @@ static void emit_ir(emit_state *s, trace *t) {
       break;
     }
     case IR_LT: {
-      emit_jcc32(s, JGE, t->snaps[cur_snap].patch_point);
+      emit_jcc32(s, JGE, (int64_t)t->snaps[cur_snap].patch_point);
       emit_cmp_slots(s, t, op->op1, op->op2);
       break;
     }
     case IR_GT: {
-      emit_jcc32(s, JLE, t->snaps[cur_snap].patch_point);
+      emit_jcc32(s, JLE, (int64_t)t->snaps[cur_snap].patch_point);
       emit_cmp_slots(s, t, op->op1, op->op2);
       break;
     }
     case IR_GTE: {
       enum jcc_cond guard = (op->type == FLONUM_TAG) ? JB : JL;
-      emit_jcc32(s, guard, t->snaps[cur_snap].patch_point);
+      emit_jcc32(s, guard, (int64_t)t->snaps[cur_snap].patch_point);
       if (op->type == FLONUM_TAG) {
         maybe_assign_register(s, op->op1, t);
         maybe_assign_register(s, op->op2, t);
@@ -802,7 +798,7 @@ static void emit_ir(emit_state *s, trace *t) {
         // We need to typecheck to verify it is a flonum.
         // TODO if we had a spare register this would be more efficent.
         emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
-        emit_jcc32(s, JNE, t->snaps[0].patch_point);
+        emit_jcc32(s, JNE, (int64_t)t->snaps[0].patch_point);
         emit_cmp_constant(s, RTMP, FLONUM_TAG);
         emit_and_constant(s, RTMP, RTMP, TAG_MASK);
         emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
@@ -821,7 +817,7 @@ static void emit_ir(emit_state *s, trace *t) {
       // mov ra to a register
 
       emit_sub_constant(s, RSTACK, RSTACK, slot_const(t, op->op1));
-      emit_jcc32(s, JNE, t->snaps[cur_snap].patch_point);
+      emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
       emit_cmp_constant(s, op->reg, slot_const(t, op->op2));
       // cmp stack[-1], jmp to snap if not equal
       emit_mem_load(s, -8, RSTACK, op->reg);
@@ -874,12 +870,13 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
   collect_loopback_parallel_moves(s, t, loopback_regs);
 
   if (t->link == t) { // self link
-    emit_jmp32_patch_here(s, t->snaps[arrlen(t->snaps) - 1].patch_point);
+    emit_jmp32_patch_here(s,
+                          (int64_t)t->snaps[arrlen(t->snaps) - 1].patch_point);
   }
   COMMENT("LOOPBACK ENTRY");
 
   // Emit an entry point from C.
-  emit_jmp32(s, t->trace_start);
+  emit_jmp32(s, (int64_t)t->trace_start);
   ir_ins *arg_ins = nullptr;
   for_each_leading_op(t, IR_ARG, arg_ins) {
     if (arg_ins->spill != SPILL_NONE) {
@@ -891,7 +888,7 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
         emit_fmem_load(s, flonum_payload_offset - FLONUM_TAG, RTMP,
                        arg_ins->reg);
         // We need to typecheck to verify it is a flonum.
-        emit_jcc32(s, JNE, t->snaps[0].patch_point);
+        emit_jcc32(s, JNE, (int64_t)t->snaps[0].patch_point);
         emit_cmp_constant(s, RTMP2, FLONUM_TAG);
         emit_and_constant(s, RTMP2, RTMP, TAG_MASK);
         COMMENT("  flonum typecheck");
@@ -940,7 +937,7 @@ static void emit_finish_snap_exits(emit_state *s, trace *t,
     snap *snap = &t->snaps[i - 1];
     emit_jmp32(s, exit_label);
     emit_snap(s, t, snap, true, nullptr);
-    emit_jmp32_patch_here(s, t->snaps[i - 1].patch_point);
+    emit_jmp32_patch_here(s, (int64_t)t->snaps[i - 1].patch_point);
     COMMENT("Snap exit #%i", i - 1);
   }
 }
