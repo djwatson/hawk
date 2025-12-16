@@ -49,7 +49,7 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 #endif
       op_table == state->impls) {
     *hot_loc = hotmap_cnt;
-    record_start(state, pc, stack);
+    record_start(state, pc, stack, nullptr);
     return state->record_impls;
   }
   return op_table;
@@ -396,7 +396,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
           printf("Try NEW root trace %i %i\n", res.snap->trace->num,
                  res.snap->ir);
         }
-        record_start(state, *pc, *stack);
+        record_start(state, *pc, *stack, res.snap);
         (*pc)++;
         *instr = **pc;
       } else {

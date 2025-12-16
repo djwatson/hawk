@@ -285,12 +285,21 @@ static slot constify_data(vm_state *state, uint16_t data) {
   gc_obj c = (gc_obj){.value = data};
   return add_const(state, c);
 }
+// TODO remove, replace with instr vm usage
+static void pend_patch(vm_state *state) {
+  if ((state)->record.patchpc) {
+    *(state)->record.patchpc = (state)->record.old_patch;
+    (state)->record.patchpc = nullptr;
+  }
+}
 static void record_abort(vm_state *state) {
+  pend_patch(state);
   free_trace(record_current_trace(state));
   record_set_current_trace(state, nullptr);
   clear_trace_state(record_trace_state(state));
 }
 static void record_finish(bc *pc, vm_state *state) {
+  pend_patch(state);
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   vm_add_snap(state, pc);
@@ -299,17 +308,22 @@ static void record_finish(bc *pc, vm_state *state) {
   if (verbose) {
     print_ir(cur_trace);
   }
-  cur_trace->fn = emit(cur_trace, &state->emit, &state->record);
+  cur_trace->fn = emit(cur_trace, &state->emit, &state->record, ts->poly_entry);
   if (verbose) {
     print_ir(cur_trace);
   }
   state->max_trace--;
-  if (!cur_trace->parent) {
+  if (ts->type == TRACE_TYPE_ROOT) {
     *ts->start_ins = (bc){
         .op = OP_JFUNC,
         .data = record_trace_count(state),
     };
   }
+  if (ts->type == TRACE_TYPE_POLY_ROOT) {
+    assert(ts->poly_entry->trace->next == nullptr);
+    ts->poly_entry->trace->next = cur_trace;
+  }
+  printf("Finish record type %i\n", ts->type);
   record_append_trace(state, cur_trace);
   clear_trace_state(ts);
 }
@@ -377,7 +391,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
       }
       clear_trace_state(ts);
       free_trace(cur_trace);
-      record_start(state, pc, stack);
+      record_start(state, pc, stack, nullptr);
       // UGH there must be a better way?
       VMGEN_TRACE_OP(pc, RET, state);
       return return_frame(state, pc, stack, op_table);
@@ -649,7 +663,8 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 // NOLINTNEXTLINE(bugprone-suspicious-include)
 #include "vmgen.c" // NOLINT(build/include)
 
-void record_start(vm_state *state, bc *pc, gc_obj *stack) {
+void record_start(vm_state *state, bc *pc, gc_obj *stack,
+                  const snap *poly_entry) {
   if (verbose) {
     printf("Record start %li\n", arrlen(state->record.traces));
   }
@@ -664,6 +679,8 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack) {
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
   ts->skip_start_check = (pc->op == OP_RET);
+  ts->type = poly_entry ? TRACE_TYPE_POLY_ROOT : TRACE_TYPE_ROOT;
+  ts->poly_entry = poly_entry;
 
   vm_add_snap(state, pc);
   // OK! Let's put function arguments in registers.
@@ -703,6 +720,7 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
   ts->start_ins = pc;
   ts->skip_start_check = (pc->op == OP_RET);
   ts->depth = snap->depth;
+  ts->type = TRACE_TYPE_SIDE;
 
   vm_add_snap(state, pc);
   // Replay snapshot loads, so we keep things in register.

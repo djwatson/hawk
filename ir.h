@@ -113,6 +113,7 @@ typedef struct trace {
   trace *link;
   uint64_t trace_start;
   bc start_pc;
+  trace *next; // Chained polymorphic traces.
 } trace;
 
 enum : uint8_t {

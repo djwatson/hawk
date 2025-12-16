@@ -1,5 +1,4 @@
 # VM impl
-* half finished - all the typcheck types
 * half finished - currently we DO make multiple root traces, but they just get replaced.  DOH
    * need chaining, both in JIT code and linking from the first root trace.
 
@@ -12,6 +11,7 @@
 
 * track stack-top
 * spill slots
+* half finished - all the typcheck types
 
 * rest of ops: cfunc, cfuncv, callcc/callcc_resume, guard, load/load_char, store/STore-char, integer->char/char->integer, apply, alloc, rest of cmps, rest of maths, exact/inexact, closure.  That's it.
 

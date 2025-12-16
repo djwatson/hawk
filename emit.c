@@ -862,7 +862,8 @@ static void emit_ir(emit_state *s, trace *t) {
 // One that loops back from the current trace
 // One from c.
 static void emit_root_trace_entry(emit_state *s, trace *t,
-                                  ignoremap *loopback_regs) {
+                                  ignoremap *loopback_regs,
+                                  const snap *poly_entry) {
   size_t snap_cnt = arrlen(t->snaps);
   if (!snap_cnt) {
     return;
@@ -902,6 +903,11 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
       }
     }
   }
+  if (poly_entry) {
+    emit_jmp32_patch_here(s, (int64_t)poly_entry->patch_point);
+    __builtin___clear_cache((char *)poly_entry->patch_point,
+                            (char *)poly_entry->patch_point + 16);
+  }
   emit_mov(s, RSTACK, RARG1);
   emit_mov(s, RSTATE, RARG0);
   save_callee_regs(s);
@@ -929,7 +935,7 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
   __builtin___clear_cache((char *)t->parent_snap->patch_point,
                           (char *)t->parent_snap->patch_point + 16);
 }
-
+void emit_install_poly_root(emit_state *s, int64_t entry, const snap *snap) {}
 static void emit_finish_snap_exits(emit_state *s, trace *t,
                                    int64_t exit_label) {
   // Emit even MORE snap exits.  We didn't have register allocation
@@ -944,7 +950,8 @@ static void emit_finish_snap_exits(emit_state *s, trace *t,
   }
 }
 
-trace_fn emit(trace *t, emit_state *s, record_state *record) {
+trace_fn emit(trace *t, emit_state *s, record_state *record,
+              const snap *poly_entry) {
   // Initialize asm emitter memory if not already done (once per process)
   emit_init(s);
 
@@ -984,7 +991,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record) {
   t->trace_start = emit_offset(s);
 
   if (!t->parent) {
-    emit_root_trace_entry(s, t, loopback_regs);
+    emit_root_trace_entry(s, t, loopback_regs, poly_entry);
   } else {
     emit_side_trace_entry(s, t);
   }
