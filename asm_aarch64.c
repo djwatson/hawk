@@ -482,9 +482,9 @@ void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm) {
   if (!encode_logical_immediate64((uint64_t)imm, &N, &immr, &imms)) {
     abort();
   }
-  uint32_t opcode = 0xF2000000u | ((uint32_t)N << 22) |
-                    ((uint32_t)immr << 16) | ((uint32_t)imms << 10) |
-                    ((uint32_t)reg << 5) | UINT32_C(31);
+  uint32_t opcode = 0xF2000000u | ((uint32_t)N << 22) | ((uint32_t)immr << 16) |
+                    ((uint32_t)imms << 10) | ((uint32_t)reg << 5) |
+                    UINT32_C(31);
   emit_op(s, opcode);
 }
 
@@ -497,9 +497,9 @@ void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm) {
   if (!encode_logical_immediate64((uint64_t)imm, &N, &immr, &imms)) {
     abort();
   }
-  uint32_t opcode = 0x92000000u | ((uint32_t)N << 22) |
-                    ((uint32_t)immr << 16) | ((uint32_t)imms << 10) |
-                    ((uint32_t)src << 5) | (uint32_t)dst;
+  uint32_t opcode = 0x92000000u | ((uint32_t)N << 22) | ((uint32_t)immr << 16) |
+                    ((uint32_t)imms << 10) | ((uint32_t)src << 5) |
+                    (uint32_t)dst;
   emit_op(s, opcode);
 }
 

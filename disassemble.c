@@ -1,8 +1,8 @@
 #define _GNU_SOURCE
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
 
-#include <inttypes.h>
 #include <dlfcn.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>

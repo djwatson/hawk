@@ -305,8 +305,8 @@ static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
        ((ins_var) =                                                            \
             next_leading_op((trace_ptr), (opcode), &_##ins_var##_idx));)
 
-static __attribute__((preserve_all)) gc_obj *
-jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
+static __attribute__((preserve_all))
+gc_obj *jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
   expand_stack(state, &stack);
   return stack;
 }

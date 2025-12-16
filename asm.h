@@ -2,8 +2,8 @@
 
 #include "disassemble.h"
 #include "zone_alloc.h"
-#include <stdint.h>
 #include <stdbool.h> // For bool type
+#include <stdint.h>
 
 #define MAX_REG 64
 
