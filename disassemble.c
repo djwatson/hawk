@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
 
+#include <inttypes.h>
 #include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -191,7 +192,7 @@ void disassemble(const uint8_t *code, size_t len,
       }
 #endif
     }
-    printf("%lx", addr);
+    printf("%" PRIx64, addr);
     if (idx >= 0) {
       auto resolved = resolve_address((void *)label_targets[idx].key);
       if (resolved) {

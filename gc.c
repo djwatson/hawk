@@ -400,8 +400,9 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
   time_taken +=
       ((double)end.tv_nsec - (double)start.tv_nsec) / 1000000.0; // ns to ms
   if (verbose) {
-    printf("COLLECT %.3f ms, full %i, %li total %li, freed %li, free%% %f, "
-           "next_collect %li, totsize % li rembytes % li, frag %%%f\n",
+    printf("COLLECT %.3f ms, full %i, %" PRIu64 " total %" PRIu64
+           ", freed %" PRIu64 ", free%% %f, next_collect %" PRIu64
+           ", totsize %" PRIu64 " rembytes %" PRIu64 ", frag %%%f\n",
            time_taken, collect_full, totsize, total_bytes, freed_bytes,
            100.0 * (double)freed_bytes / (double)total_bytes, next_collect,
            totsize, rem_bytes,

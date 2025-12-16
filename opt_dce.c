@@ -2,6 +2,7 @@
 
 #include "opt_dce.h"
 
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -30,7 +31,8 @@ static void propagate(trace *trace, bool *marks) {
     }
     if (!marks[i - 1]) {
       if (verbose) {
-        fprintf(stderr, "IR_DEAD: %lu %s\n", i - 1, ir_names[ins->op]);
+        fprintf(stderr, "IR_DEAD: %" PRIu64 " %s\n", i - 1,
+                ir_names[ins->op]);
       }
       ins->op = IR_NOP;
       continue;
