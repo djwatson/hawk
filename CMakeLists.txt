@@ -150,6 +150,14 @@ if(BUILD_TESTING)
   )
 
   add_test(
+    NAME hawk_summix
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/summix.scm.bc
+  )
+  set_tests_properties(
+    hawk_summix PROPERTIES PASS_REGULAR_EXPRESSION "50000000500000005e\\+155000000050000000"
+  )
+
+  add_test(
     NAME hawk_sum1
     COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sum1.scm.bc
   )

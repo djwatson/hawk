@@ -323,7 +323,6 @@ static void record_finish(bc *pc, vm_state *state) {
     assert(ts->poly_entry->trace->next == nullptr);
     ts->poly_entry->trace->next = cur_trace;
   }
-  printf("Finish record type %i\n", ts->type);
   record_append_trace(state, cur_trace);
   clear_trace_state(ts);
 }
@@ -570,23 +569,30 @@ static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
   return pc;
 }
 
-static bool ensure_args_match_trace(gc_obj *stack, trace *trace) {
-  assert(trace);
-  bc *pc = &trace->start_pc;
-  auto argcnt = MIN(pc->reg, REG_ARG_CNT);
-  for (int i = 0; i < argcnt; i++) {
-    if ((size_t)i >= arrlen(trace->ins)) {
-      break;
+static trace *ensure_args_match_trace(gc_obj *stack, trace *head) {
+  assert(head);
+  for (trace *candidate = head; candidate; candidate = candidate->next) {
+    bc *pc = &candidate->start_pc;
+    auto argcnt = MIN(pc->reg, REG_ARG_CNT);
+    bool match = true;
+    for (int i = 0; i < argcnt; i++) {
+      if ((size_t)i >= arrlen(candidate->ins)) {
+        break;
+      }
+      ir_ins *ins = &candidate->ins[i];
+      if (ins->op != IR_ARG || ins->data != (uint32_t)i) {
+        continue;
+      }
+      if (ins->type != get_type_tag(stack[i])) {
+        match = false;
+        break;
+      }
     }
-    ir_ins *ins = &trace->ins[i];
-    if (ins->op != IR_ARG || ins->data != (uint32_t)i) {
-      continue;
-    }
-    if (ins->type != get_type_tag(stack[i])) {
-      return false;
+    if (match) {
+      return candidate;
     }
   }
-  return true;
+  return nullptr;
 }
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table);
@@ -606,10 +612,9 @@ static void *jit_func(bc *instr, bc **pc, gc_obj **stack, vm_state *state,
   }
 
   trace *target = state->record.traces[(*pc)->data];
-  bool match = ensure_args_match_trace(*stack, target);
-  if (!match) {
+  trace *matched = ensure_args_match_trace(*stack, target);
+  if (!matched) {
     // Patchpc, record and run FUNC instead. Patch back after record & runing.
-    printf("No match, record FUNC\n");
     state->record.old_patch = **pc;
     state->record.patchpc = *pc;
     **pc = target->start_pc;
@@ -618,7 +623,7 @@ static void *jit_func(bc *instr, bc **pc, gc_obj **stack, vm_state *state,
   }
 
   if (cur_trace->parent) {
-    cur_trace->link = target;
+    cur_trace->link = matched;
     if (verbose) {
       printf("Record stop: side trace linked to root trace\n");
     }

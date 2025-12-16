@@ -1,7 +1,4 @@
 # VM impl
-* half finished - currently we DO make multiple root traces, but they just get replaced.  DOH
-   * need chaining, both in JIT code and linking from the first root trace.
-
 * math ops - fixnum,flonum, slowpaths. 
 
 * next: diviter, divrec, sumloop, nqueens.
