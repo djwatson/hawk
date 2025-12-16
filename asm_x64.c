@@ -77,8 +77,6 @@ static void emit_sib(emit_state *s, uint8_t scale, uint8_t index,
   *(--p) = (scale << 6) | ((0x7 & index) << 3) | ((0x7 & base));
 }
 
-static void emit_imm8(emit_state *s, uint8_t imm) { *(--p) = imm; }
-
 static void emit_imm64(emit_state *s, int64_t imm) {
   p -= sizeof(int64_t);
   memcpy(p, &imm, sizeof(imm));
@@ -126,13 +124,6 @@ static void emit_call_indirect(emit_state *s, uint8_t r) {
 
 void emit_call_reg(emit_state *s, uint8_t r) { emit_call_indirect(s, r); }
 
-static void emit_call_indirect_mem(emit_state *s, int32_t offset) {
-  emit_imm32(s, offset);
-  emit_modrm(s, 0x00, 2, RBP);
-  *(--p) = 0xff;
-  emit_rex_optional(s, 0, 0, 0, 0);
-}
-
 static void emit_call32_imm(emit_state *s, int32_t offset) {
   emit_imm32(s, offset);
   *(--p) = 0xe8;
@@ -146,28 +137,6 @@ void emit_call32(emit_state *s, int64_t target) {
 
 void emit_ret(emit_state *s) { *(--p) = 0xc3; }
 
-// TODO(djwatson) clean this up.  THe main issue is REX needs W=0.
-// Also check R1 does full checks for rsp/rbp
-static void emit_cmp_mem32_imm32(emit_state *s, int32_t offset, uint8_t r1,
-                                 int32_t imm) {
-  emit_imm32(s, imm);
-  assert(r1 != RSP);
-  assert(r1 != RBP);
-  uint8_t r2 = 0x7;
-
-  if (offset == 0 && low3bits(r1) != RBP) {
-    emit_modrm(s, 0x0, r2, 0x7 & r1);
-  } else if ((int32_t)((int8_t)offset) == offset) {
-    *(--p) = (int8_t)offset;
-    emit_modrm(s, 0x1, r2, 0x7 & r1);
-  } else {
-    emit_imm32(s, offset);
-    emit_modrm(s, 0x2, r2, 0x7 & r1);
-  }
-
-  *(--p) = 0x81;
-  emit_rex(s, 0, 0, 0, r1 >> 3);
-}
 static void emit_cmp_reg_imm32(emit_state *s, uint8_t r, int32_t imm) {
   if ((int32_t)((int8_t)imm) == imm) {
     *(--p) = imm;
@@ -176,12 +145,6 @@ static void emit_cmp_reg_imm32(emit_state *s, uint8_t r, int32_t imm) {
     emit_imm32(s, imm);
     emit_reg_reg(s, 0x81, 7, r);
   }
-}
-
-static void emit_cmp_reg_reg(emit_state *s, uint8_t src, uint8_t dst) {
-  emit_modrm(s, 0x3, 0x7 & src, 0x7 & dst);
-  *(--p) = 0x3b;
-  emit_rex(s, 1, src >> 3, 0, dst >> 3);
 }
 
 void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t offset) {
@@ -204,32 +167,10 @@ void emit_jmp32(emit_state *s, int64_t target) {
   *(--p) = 0xe9;
 }
 
-static void emit_jmp_indirect(emit_state *s, int32_t offset) {
-  emit_imm32(s, offset);
-  emit_modrm(s, 0x0, 4, RBP);
-  *(--p) = 0xff;
-}
-
-static void emit_jmp_abs(emit_state *s, enum registers r) {
-  emit_modrm(s, 0x3, 4, 0x7 & r);
-  *(--p) = 0xff;
-  if (r >> 3) {
-    emit_rex(s, 0, 0, 0, r >> 3);
-  }
-}
-
 static void emit_reg_reg(emit_state *s, uint8_t opcode, uint8_t src,
                          uint8_t dst) {
   emit_modrm(s, 0x3, 0x7 & src, 0x7 & dst);
   *(--p) = opcode;
-  emit_rex(s, 1, src >> 3, 0, dst >> 3);
-}
-
-static void emit_reg_reg2(emit_state *s, uint8_t opcode, uint8_t src,
-                          uint8_t dst) {
-  emit_modrm(s, 0x3, 0x7 & src, 0x7 & dst);
-  *(--p) = opcode;
-  *(--p) = 0x0f;
   emit_rex(s, 1, src >> 3, 0, dst >> 3);
 }
 
@@ -281,23 +222,6 @@ static void emit_mem_reg_sib(emit_state *s, uint8_t opcode, int32_t offset,
     emit_modrm(s, 0x2, 0x7 & reg, 0x4);
   }
   *(--p) = opcode;
-  emit_rex(s, 1, reg >> 3, index >> 3, base >> 3);
-}
-
-static void emit_mem_reg_sib2(emit_state *s, uint8_t opcode, int32_t offset,
-                              uint8_t scale, uint8_t index, uint8_t base,
-                              uint8_t reg) {
-  if ((int32_t)((int8_t)offset) == offset) {
-    *(--p) = (int8_t)offset;
-    emit_sib(s, scale, index, base);
-    emit_modrm(s, 0x1, 0x7 & reg, 0x4);
-  } else {
-    emit_imm32(s, offset);
-    emit_sib(s, scale, index, base);
-    emit_modrm(s, 0x2, 0x7 & reg, 0x4);
-  }
-  *(--p) = opcode;
-  *(--p) = 0xf;
   emit_rex(s, 1, reg >> 3, index >> 3, base >> 3);
 }
 
@@ -362,32 +286,7 @@ void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   emit_sse_mem(s, 0xF2, 0x10, offset, base, hw_fpr(dst));
 }
 
-// TODO(djwatson) merge the '2' byte versions
-static void emit_mem_reg2(emit_state *s, uint8_t opcode, int32_t offset,
-                          uint8_t r1, uint8_t r2) {
-  if (low3bits(r1) == RSP) {
-    emit_mem_reg_sib2(s, opcode, offset, 0, RSP, r1, r2);
-  } else {
-    if ((int32_t)((int8_t)offset) == offset) {
-      *(--p) = (int8_t)offset;
-      emit_modrm(s, 0x1, 0x7 & r2, 0x7 & r1);
-    } else {
-      emit_imm32(s, offset);
-      emit_modrm(s, 0x2, 0x7 & r2, 0x7 & r1);
-    }
-    *(--p) = opcode;
-    *(--p) = 0xF;
-    emit_rex(s, 1, r2 >> 3, 0, r1 >> 3);
-  }
-}
-
 /////////////////// opcodes
-
-static void emit_op_imm32(emit_state *s, uint8_t opcode, uint8_t r1, uint8_t r2,
-                          int32_t imm) {
-  emit_imm32(s, imm);
-  emit_reg_reg(s, opcode, r1, r2);
-}
 
 static void emit_arith_imm(emit_state *s, enum ARITH_CODES op, uint8_t src,
                            int32_t imm) {
@@ -467,13 +366,6 @@ void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi) {
       emit_pop(s, reg);
     }
   }
-}
-
-static void emit_cmovl(emit_state *s, uint8_t dst, uint8_t src) {
-  emit_modrm(s, 0x3, 0x7 & src, 0x7 & dst);
-  *(--p) = 0x4c;
-  *(--p) = 0x0f;
-  emit_rex(s, 1, src >> 3, 0, dst >> 3);
 }
 
 void emit_mov(emit_state *s, uint8_t dst, uint8_t src) {
