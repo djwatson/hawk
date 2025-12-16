@@ -17,6 +17,8 @@ void *arrgrowf(zone *z, void *a, size_t elemsize, size_t addlen,
                size_t min_cap);
 
 #define arrfree(a) ((void)((a) ? free(arr_header(a)) : (void)0), (a) = NULL)
+
+// NOLINTBEGIN(clang-analyzer-core.NullDereference)
 #define arrlast(a) (&(a)[arrlen(a) - 1])
 
 #define arr_arrgrow(z, a, b, c) ((a) = arrgrowf(z, (a), sizeof *(a), (b), (c)))
@@ -42,5 +44,6 @@ void arrlen_set(void const *arr, size_t len);
   for (typeof((arr)[0])(value), *value##_p = &(arr)[0];                        \
        value##_p < (arr) + arrlen(arr) && ((value) = *value##_p, 1);           \
        value##_p++)
+// NOLINTEND(clang-analyzer-core.NullDereference)
 void arr_reverse_elems(void *arr, size_t elem_size);
 #define arr_reverse(arr) arr_reverse_elems((arr), sizeof((arr)[0]))

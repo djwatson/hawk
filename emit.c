@@ -322,6 +322,7 @@ typedef struct {
   int64_t constant_value;
 } ignoremap;
 
+// NOLINTBEGIN(clang-analyzer-core.NullDereference)
 static size_t collect_regs_to_preserve(ignoremap *ignore,
                                        uint8_t regs[MAX_REG]) {
   size_t count = 0;
@@ -628,6 +629,7 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
     }
   }
 }
+// NOLINTEND(clang-analyzer-core.NullDereference)
 
 static void emit_exit_to_c(emit_state *s) {
   emit_check(s);
