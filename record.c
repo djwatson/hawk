@@ -198,10 +198,6 @@ static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   auto c = *(gc_obj *)(pc - pc->data);
   return add_const(state, c);
 }
-static void add_typecheck(ir_ins *ins, gc_obj *stack, uint8_t loc) {
-  ins->type = get_type_tag(stack[loc]);
-  ins->guard = true;
-}
 static slot emit_ov_math_add(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
   auto t = record_current_trace(state);
@@ -285,7 +281,6 @@ static branch_result emit_math_cmp_eq(vm_state *state, bc *pc, gc_obj *stack,
   };
   return br;
 }
-static void ensure_symbol(slot val) {}
 static slot constify_data(vm_state *state, uint16_t data) {
   gc_obj c = (gc_obj){.value = data};
   return add_const(state, c);
@@ -469,7 +464,6 @@ static void obj_write(vm_state *state, slot val, void **op_table) {
   record_abort(state);
   *op_table = state->impls;
 }
-static void prepare_call(gc_obj fun) { printf("prepare call\n"); }
 // Nothing necessary for record - we will check in emit_snapshot - checks will
 // be elided if we never hit a snapshot!
 static inline void check_expand_stack(vm_state *state, gc_obj **stack) {}

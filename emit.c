@@ -144,28 +144,28 @@ static void assign_snap_registers(emit_state *s, size_t snap_num, trace *t) {
   }
 }
 // Get a specific reg, spilling if necessary.
-static void get_reg(emit_state *s, uint8_t reg, trace *trace) {
-  if (s->regs[reg].used) {
-    /* // printf("Spilling reg %s\n", reg_names[reg]); */
-    /* auto op = s->regs[reg]; */
-    /* assert(trace->ops[op].reg != REG_NONE); */
+/* static void get_reg(emit_state *s, uint8_t reg, trace *trace) { */
+/*   if (s->regs[reg].used) { */
+/*     /\* // printf("Spilling reg %s\n", reg_names[reg]); *\/ */
+/*     /\* auto op = s->regs[reg]; *\/ */
+/*     /\* assert(trace->ops[op].reg != REG_NONE); *\/ */
 
-    /* auto spill = trace->ops[op].slot; */
-    /* if (trace->ops[op].slot == SLOT_NONE) { */
-    /*   spill = (s->next_spill)++; */
-    /*   check_spill_cnt(s->next_spill); */
-    /* } */
+/*     /\* auto spill = trace->ops[op].slot; *\/ */
+/*     /\* if (trace->ops[op].slot == SLOT_NONE) { *\/ */
+/*     /\*   spill = (s->next_spill)++; *\/ */
+/*     /\*   check_spill_cnt(s->next_spill); *\/ */
+/*     /\* } *\/ */
 
-    /* trace->ops[op].slot = spill; */
-    /* emit_mem_reg(OP_MOV_MR, 0, RTMP, trace->ops[op].reg); */
-    /* emit_mov64(RTMP, (int64_t)&spill_slot[trace->ops[op].slot]); */
-    /* trace->ops[op].reg = REG_NONE; */
-    /* s->regs[reg] = -1; */
-    /* lru_poke(&reg_lru, reg); */
-    abort();
-  }
-  s->regs[reg].used = true;
-}
+/*     /\* trace->ops[op].slot = spill; *\/ */
+/*     /\* emit_mem_reg(OP_MOV_MR, 0, RTMP, trace->ops[op].reg); *\/ */
+/*     /\* emit_mov64(RTMP, (int64_t)&spill_slot[trace->ops[op].slot]); *\/ */
+/*     /\* trace->ops[op].reg = REG_NONE; *\/ */
+/*     /\* s->regs[reg] = -1; *\/ */
+/*     /\* lru_poke(&reg_lru, reg); *\/ */
+/*     abort(); */
+/*   } */
+/*   s->regs[reg].used = true; */
+/* } */
 static void maybe_assign_register(emit_state *s, slot v, trace *trace) {
   if (!v.constant) {
     auto op = &trace->ins[v.loc];

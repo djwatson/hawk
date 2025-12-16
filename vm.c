@@ -199,7 +199,6 @@ static inline gc_obj emit_if_branch(vm_state *state, bc *pc, gc_obj *stack,
                                     gc_obj obj) {
   return obj;
 }
-static inline void ensure_symbol(gc_obj val) { (void)val; }
 static inline frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
                                        void *op_table) {
   (void)state;
@@ -299,9 +298,6 @@ static inline void check_expand_stack(vm_state *state, gc_obj **stack) {
   if (*stack >= state->stack_limit) {
     expand_stack(state, stack);
   }
-}
-static inline void prepare_call(gc_obj fun) {
-  // TODO nothing?
 }
 static inline void check_arity(int expected, uint8_t args) {
   if (args != expected) {
