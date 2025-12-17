@@ -14,8 +14,18 @@
         (rename (only (binary io) write-f64) (write-f64 write-double)))
 (include "opcodes.scm")
 (include "memory_layout.scm")
+(include "fix-letrec.scm")
+
+(define-syntax ->
+   (syntax-rules ()
+     ((_ arg (command args ...) rest ...) (-> (command arg args ...) rest ...))
+     ((_ arg command rest ...) (-> (command arg) rest ...))
+     ((_ arg) arg)))
 
 (define (cont-pass ir c)
+  (display "Cont pass:")
+  (display (ir->sexp ir))
+  (newline)
   (match ir
     (#(app ,fun ,sexps ,ann)
       (vector-set! ir 1 (c fun))
@@ -26,32 +36,36 @@
       (vector-set! ir 3 (c else)))
     (#(ref ,var ,global ,mutable ,ann) #t)
     (#(set! ,var ,exp ,global? ,ann) (vector-set! ir 2 (c exp)))
-    (#(lambda ,vars ,body ,ann) (vector-set! ir 2 (map c body)))
-    (#(letrec* ,bindings ,body ,ann) (error "Need letrec conversion"))
+    (#(lambda ,vars ,body ,ann) (vector-set! ir 2 (c body)))
+    (#(letrec* ,bindings ,body ,ann)
+      (for val bindings (set-car! (cdr val) (c (second val))))
+      (vector-set! ir 2 (c body))
+      ir)
     (#(quote ,datum ,ann) #t)
     (#(begin ,sexps ,ann) (vector-set! ir 1 (map c sexps)))
     (#(void ,ann) #t)
     (#(define ,var ,exp ,ann) (vector-set! ir 2 (c exp)))
 
     ;; From this file:
-    (#(primcall ,op ,args ,ann) (vector-set! ir 2 (map c args))))
+    (#(primcall ,op ,args ,ann) (vector-set! ir 2 (map c args)))
+    (,else (error "Invalid IR:" ir)))
   ir)
 
 (define primcalls '((+ . ADD) (- . SUB) (< . LT) (= . EQV) (display . WRITE)))
 (define (variable-assigned? var) (vector-ref var 2))
 (define (variable-name var) (vector-ref var 1))
-(define (fix-letrec ir)
+(define (simple-pass ir)
   (match ir
     (#(app #(ref #(var ,name #f (core primitive)) #t #f ,ann) ,args ,ann2)
       (guard (assq name primcalls))
       ;;(display "FOUND primcall to ") (display name) (newline)
-      `#(primcall ,(cdr (assq name primcalls)) ,(map fix-letrec args) ,ann))
+      `#(primcall ,(cdr (assq name primcalls)) ,(map simple-pass args) ,ann))
     ;; TODO check not assigned?
     (#(ref ,var ,global ,mutable ,ann)
       (when (variable-assigned? var) (error "var assigned"))
       ir)
     (#(set! ,var ,exp ,global? ,ann) (error "Set! not supported yet"))
-    (,else (cont-pass ir fix-letrec))))
+    (,else (cont-pass ir simple-pass))))
 
 ;; The bytecode does not support raw comparison operators, only
 ;; branching versions.  Replace comparison ops with branching +
@@ -159,8 +173,7 @@
         (add-op fun `(CONST ,top ,(add-const fun clo)))
         (add-fun new-fun)
         (add-op new-fun `(FUNC ,(+ closure-offset (length vars))))
-        (map (lambda (ir) (compile ir new-fun new-env (+ closure-offset (length vars)) #t))
-             body))
+        (compile body new-fun new-env (+ closure-offset (length vars)) #t))
       (finish top))
     (#(ref ,var ,global ,mutable ,ann)
       (let ((in-env (assq var env)))
@@ -215,11 +228,8 @@
     (#(begin (,sexps ___ ,tail-sexp) ,ann)
       (map compile-cont sexps)
       (compile tail-sexp fun env top tail))
-    (,else
-      (display "UNKNOWN OP:")
-      (display (vector-ref ir 0))
-      (newline)
-      (cont-pass ir compile-cont))))
+    (#(void ,ann) (add-op fun `(KSHORT ,top ,undefined-tag)) (finish top))
+    (,else (error "UNKNOWN OP:" ir))))
 
 (define (read-file port)
   (define r (make-reader port "<stdin>"))
@@ -289,6 +299,8 @@
       (write-pvarint-u64 closure-tag p)
       (let ((fun-id (const-id-of (const-closure-fun c) consts const-table)))
         (write-pvarint-u64 (tag-ptr fun-id closure-tag) p)))
+    ((boolean? c)
+      (if c (write-pvarint-u64 true-rep p) (write-pvarint-u64 false-rep p)))
     (else (error "Unknown const in write-const:" c))))
 
 (define (write-bc fun port consts const-table)
@@ -324,8 +336,10 @@
     (define out (open-output-file (string-append file ".bc")))
     (define forms (read-file port))
     (define expanded (expand-toplevel forms))
-    (define unused (begin (display (map ir->sexp expanded)) (newline) (newline)))
-    (define fixed `#(begin ,(map fix-letrec expanded) #f))
+    (define unused (begin (display expanded) (newline) (newline)))
+    (define simple `#(begin ,(map simple-pass expanded) #f))
+    (define fixed (fix-letrec simple))
+    (define unused2 (begin (display fixed) (newline) (newline)))
     (define lowered (lower-comparisons fixed))
     (define main (make-fun "main"))
     (define consts (make-hash-table equal?)) ;; de-duplication table.
