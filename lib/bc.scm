@@ -54,6 +54,7 @@
 (define primcalls '((+ . ADD) (- . SUB) (< . LT) (= . EQV) (display . WRITE)))
 (define (variable-assigned? var) (vector-ref var 2))
 (define (variable-name var) (vector-ref var 1))
+;; Inlines primitives, verifies no assigned vars (TODO)
 (define (simple-pass ir)
   (match ir
     (#(app #(ref #(var ,name #f (core primitive)) #t #f ,ann) ,args ,ann2)
@@ -66,6 +67,47 @@
       ir)
     (#(set! ,var ,exp ,global? ,ann) (error "Set! not supported yet"))
     (,else (cont-pass ir simple-pass))))
+
+(define (recover-let ir)
+  (match ir
+    (#(app #(lambda ,args ,body ,lambda-ann) (,params ___) ,app-ann)
+      (guard (list? args) (= (length args) (length params)))
+      (if (null? params)
+          (recover-let body)
+          `#(let
+             ,(map list args (map recover-let params))
+             ,(recover-let body)
+             ,lambda-ann)))
+    ;; TODO: the rest-args cases
+    ;; ((call (lambda (case (,first ___ . ,rest) ,body)) ,params ___)
+    ;;   (guard (not (null? rest)) (<= (length first) (length params)))
+    ;;   (let ((params (recover-let params))
+    ;;         (first-params (take params (length first)))
+    ;;         (rest-params (drop params (length first))))
+    ;;     `(let
+    ;;       (,@(map list first first-params) (,rest (call (lookup list) ,@rest-params)))
+    ;;       ,(recover-let body))))
+    ;; ((call (lambda (case ,arg ,body)) ,params ___)
+    ;;   (guard (symbol? arg))
+    ;;   `(let ((,arg (call (lookup list) ,@(map recover-let params))))
+    ;;      ,(recover-let body)))
+    (,else (cont-pass ir recover-let))))
+
+(define (name-lambdas ir)
+  (match ir
+    (#(define ,var #(lambda ,args ,(name-lambdas body) ,lam-ann) ,define-ann)
+      `#(define ,var
+          #(lambda ,(symbol->string (vector-ref var 1)) ,args ,body ,lam-ann)
+          ,define-ann))
+    (#(lambda ,args ,(name-lambdas body) ,lam-ann)
+      #(lambda "anon" ,args ,(name-lambdas body) ,lam-ann))
+    ;; TODO more names.
+    ;; ((set! ,var (lambda ,(name-lambdas cases) ___))
+    ;;  `(set! ,var (nlambda ,(symbol->string var) ,cases ___)))
+    ;; ((fix ,vars (lambda ,(name-lambdas cases) ___) ___ ,(name-lambdas fix-body))
+    ;;  (let ((names (map symbol->string vars)))
+    ;;    `(fix ,vars (nlambda ,names ,cases ___) ___ ,fix-body)))
+    (,else (cont-pass ir name-lambdas))))
 
 ;; The bytecode does not support raw comparison operators, only
 ;; branching versions.  Replace comparison ops with branching +
@@ -164,8 +206,8 @@
   (define (compile-cont ir) (compile ir fun env top #f))
   (define (finish res) (if tail (begin (add-op fun `(RET ,res))) res))
   (match ir
-    (#(lambda ,vars ,body ,ann)
-      (let* ((new-fun (make-fun "lambda"))
+    (#(lambda ,name ,vars ,body ,ann)
+      (let* ((new-fun (make-fun name))
              (clo (make-const-closure new-fun))
              ;; TODO: figure out if we really need closure offset
              (closure-offset 1)
@@ -331,16 +373,21 @@
             (iota (length code))))
 
 (define (compile-file file)
+  (define (debug-print item) (display item) (newline) item)
+  (define (run-expansion forms) `#(begin ,(expand-toplevel forms) #f))
   (parameterize ((funs (make-funs-list)))
     (define port (open-input-file file))
     (define out (open-output-file (string-append file ".bc")))
-    (define forms (read-file port))
-    (define expanded (expand-toplevel forms))
-    (define unused (begin (display expanded) (newline) (newline)))
-    (define simple `#(begin ,(map simple-pass expanded) #f))
-    (define fixed (fix-letrec simple))
-    (define unused2 (begin (display fixed) (newline) (newline)))
-    (define lowered (lower-comparisons fixed))
+    (define lowered
+      (-> port
+          read-file
+          run-expansion
+          debug-print
+          simple-pass
+          fix-letrec
+          lower-comparisons
+          recover-let
+          name-lambdas))
     (define main (make-fun "main"))
     (define consts (make-hash-table equal?)) ;; de-duplication table.
     (define const-table (make-hash-table eq?)) ;; Result ordering.  ALSO sorts out recursive structures.
@@ -375,9 +422,8 @@
 
 ;; IR:
 ;; passes:
-;; DONE fix-letrec - just verify no letrec*
 ;; DONE assignment-convert - verify no assigned.
-;; recover-let: yea probably need or closure convert
+;; DONE recover-let: yea probably need or closure convert
 ;; name-lambdas? TODO
 ;; closure convert - just ensure no free.
 ;; DONE inline simple prims.
