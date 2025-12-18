@@ -37,6 +37,7 @@
     (#(ref ,var ,global ,mutable ,ann) #t)
     (#(set! ,var ,exp ,global? ,ann) (vector-set! ir 2 (c exp)))
     (#(lambda ,vars ,body ,ann) (vector-set! ir 2 (c body)))
+    (#(nlambda ,name ,vars ,body ,ann) (vector-set! ir 3 (c body)))
     (#(letrec* ,bindings ,body ,ann)
       (for val bindings (set-car! (cdr val) (c (second val))))
       (vector-set! ir 2 (c body))
@@ -93,14 +94,15 @@
     ;;      ,(recover-let body)))
     (,else (cont-pass ir recover-let))))
 
+;; adds name field to lambdas.
 (define (name-lambdas ir)
   (match ir
     (#(define ,var #(lambda ,args ,(name-lambdas body) ,lam-ann) ,define-ann)
       `#(define ,var
-          #(lambda ,(symbol->string (vector-ref var 1)) ,args ,body ,lam-ann)
+          #(nlambda ,(symbol->string (vector-ref var 1)) ,args ,body ,lam-ann)
           ,define-ann))
     (#(lambda ,args ,(name-lambdas body) ,lam-ann)
-      #(lambda "anon" ,args ,(name-lambdas body) ,lam-ann))
+      `#(nlambda "anon" ,args ,(name-lambdas body) ,lam-ann))
     ;; TODO more names.
     ;; ((set! ,var (lambda ,(name-lambdas cases) ___))
     ;;  `(set! ,var (nlambda ,(symbol->string var) ,cases ___)))
@@ -108,6 +110,23 @@
     ;;  (let ((names (map symbol->string vars)))
     ;;    `(fix ,vars (nlambda ,names ,cases ___) ___ ,fix-body)))
     (,else (cont-pass ir name-lambdas))))
+
+(define (fix-all ir)
+  (display "fix-all:")
+  (display ir)
+  (newline)
+  (match ir
+    ;; Don't need to run on already-fixed things.
+    (#(letrec* ((,vars #(nlambda ,name ,args ,(fix-all body) ,lam-ann) ,unused-ann) ___)
+        ,(fix-all letrec-body)
+        ,letrec-ann)
+      `#(letrec* ((,vars #(nlambda ,name ,args ,body ,lam-ann) ,unused-ann) ___)
+          ,letrec-body
+          ,letrec-ann))
+    (#(nlambda ,name ,args ,(fix-all body) ,ann)
+      (let ((tmp (vector 'var (string->symbol name) #f #f)))
+        `#(letrec* ((,tmp #(nlambda ,name ,args ,body ,ann))) #(ref ,tmp #f #f #f) #f)))
+    (,else (cont-pass ir fix-all))))
 
 ;; The bytecode does not support raw comparison operators, only
 ;; branching versions.  Replace comparison ops with branching +
@@ -387,7 +406,12 @@
           fix-letrec
           lower-comparisons
           recover-let
-          name-lambdas))
+          name-lambdas
+          fix-all
+          debug-print
+          ;;uncover-free
+          ;;convert-closures
+      ))
     (define main (make-fun "main"))
     (define consts (make-hash-table equal?)) ;; de-duplication table.
     (define const-table (make-hash-table eq?)) ;; Result ordering.  ALSO sorts out recursive structures.
