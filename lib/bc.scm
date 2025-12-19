@@ -42,6 +42,10 @@
       (for val bindings (set-car! (cdr val) (c (second val))))
       (vector-set! ir 2 (c body))
       ir)
+    (#(let ,bindings ,body ,ann)
+      (for val bindings (set-car! (cdr val) (c (second val))))
+      (vector-set! ir 2 (c body))
+      ir)
     (#(quote ,datum ,ann) #t)
     (#(begin ,sexps ,ann) (vector-set! ir 1 (map c sexps)))
     (#(void ,ann) #t)
@@ -111,6 +115,7 @@
     ;;    `(fix ,vars (nlambda ,names ,cases ___) ___ ,fix-body)))
     (,else (cont-pass ir name-lambdas))))
 
+;; Add  fix (i.e. letrec*) to all.
 (define (fix-all ir)
   (display "fix-all:")
   (display ir)
@@ -120,13 +125,57 @@
     (#(letrec* ((,vars #(nlambda ,name ,args ,(fix-all body) ,lam-ann) ,unused-ann) ___)
         ,(fix-all letrec-body)
         ,letrec-ann)
-      `#(letrec* ((,vars #(nlambda ,name ,args ,body ,lam-ann) ,unused-ann) ___)
-          ,letrec-body
-          ,letrec-ann))
+      (let ((bindings
+               (omap (var name args body lam-ann unused-ann)
+                     (vars name args body lam-ann unused-ann)
+                     `(,var #(nlambda ,name ,args ,body ,lam-ann) ,unused-ann))))
+        `#(letrec* ,bindings ,letrec-body ,letrec-ann)))
     (#(nlambda ,name ,args ,(fix-all body) ,ann)
       (let ((tmp (vector 'var (string->symbol name) #f #f)))
-        `#(letrec* ((,tmp #(nlambda ,name ,args ,body ,ann))) #(ref ,tmp #f #f #f) #f)))
+        `#(letrec* ((,tmp #(nlambda ,name ,args ,body ,ann) #f))
+            #(ref ,tmp #f #f #f)
+            #f)))
     (,else (cont-pass ir fix-all))))
+
+(define (uncover-free ir)
+  (let uncover-free ((ir ir) (bindings '()) (fv-info (make-hash-table eq?)))
+    (define (pass ir)
+      (match ir
+        (#(var ,name ,global ,library)
+          (when (memq uv bindings) (hash-table-set! fv-info uv #t))
+          ir)
+        (#(let ((,vars ,(pass inits)) ___) ,body ,ann)
+          (let ((new-body (uncover-free body (append vars bindings) fv-info)))
+            (for key vars (hash-table-delete! fv-info key))
+            `#(let ,(omap (vars inits) (vars inits) `(,vars ,inits)) ,new-body ,ann)))
+        ;; TODO the same as let?
+        ;; ((loop ,vars ,name ,body ,(pass args) ___)
+        ;;   (let ((new-body (uncover-free body (append vars bindings) fv-info)))
+        ;;     (for key vars (hash-table-delete! fv-info key))
+        ;;     `(loop ,vars ,name ,new-body ,args ___)))
+        (#(letrec* ((,vars #(nlambda ,name ,args ,lbody ,lann) ,lrann) ___) ,body ,ann)
+          (let* ((new-env (append vars bindings))
+                 (infos (omap _ vars (make-hash-table eq?)))
+                 (new-lbodies
+                    (omap (args lbody info)
+                          (args lbody infos) ;; For each lambda
+                          (uncover-free lbody (append (to-proper args) new-env) info)))
+                 (new-body (uncover-free body new-env fv-info))
+                 (free-vars
+                    (omap (args table)
+                          (args infos) ;; for each lambda
+                          (for key (to-proper args) (hash-table-delete! table key))
+                          (hash-table-keys table))))
+
+            (for table infos (hash-table-merge! fv-info table))
+            (for key vars (hash-table-delete! fv-info key))
+            (let ((bindings
+                     (omap (var name free-vars args new-lbody lann lrann)
+                           (vars name free-vars args new-lbodies lann lrann)
+                           `(,var #(nlambda ,name (free ,@free-vars) ,args ,new-lbody ,lann) ,lrann))))
+              `#(letrec ,bindings ,new-body ,ann))))
+        (,else (cont-pass ir pass))))
+    (pass ir)))
 
 ;; The bytecode does not support raw comparison operators, only
 ;; branching versions.  Replace comparison ops with branching +
@@ -409,7 +458,7 @@
           name-lambdas
           fix-all
           debug-print
-          ;;uncover-free
+          uncover-free
           ;;convert-closures
       ))
     (define main (make-fun "main"))

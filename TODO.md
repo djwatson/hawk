@@ -1,6 +1,4 @@
 # VM impl
-* math ops - fixnum,flonum, slowpaths. 
-
 * next: diviter, divrec, sumloop, nqueens.
 
 * lookup check - fix expander thingy
@@ -20,6 +18,11 @@
 * we could improve emit_snap_store_flonum to use fewer registers / optimistic check for free
 * ir printing can use the ir type flags
 * We can also use the new instr decoded instead of patchpc I think
+
+* builders needs to be in with the rest of the IR passes. Use builders instead of backtick to build stuff.
+* matchers kinda suck with annotations and unused fields, ugh???
+* ir->sexp is used for debugging, we need a pretty-print IR I guess?
+* move passes to separate file?
 
 # simple VM
 
