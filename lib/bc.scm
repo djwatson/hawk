@@ -141,8 +141,8 @@
   (let uncover-free ((ir ir) (bindings '()) (fv-info (make-hash-table eq?)))
     (define (pass ir)
       (match ir
-        (#(var ,name ,global ,library)
-          (when (memq uv bindings) (hash-table-set! fv-info uv #t))
+        (#(ref ,var ,unused ,unused2 ,unused3)
+          (when (memq var bindings) (hash-table-set! fv-info var #t))
           ir)
         (#(let ((,vars ,(pass inits)) ___) ,body ,ann)
           (let ((new-body (uncover-free body (append vars bindings) fv-info)))
