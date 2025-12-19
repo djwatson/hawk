@@ -177,6 +177,57 @@
         (,else (cont-pass ir pass))))
     (pass ir)))
 
+(define (convert-closures e)
+  (let convert-closures ((e e) (replace '()))
+    (define-pass convert
+                 x
+                 (,uv (guard (symbol? uv)) (cond ((assq uv replace) => cdr) (else x)))
+                 ((fix ,vars
+                       (nlambda ,name (free ,free ___) (case ,args ,lbody) ___)
+                       ___
+                       ,(convert body))
+                  (let* ((var-labels
+                            (map (lambda (n)
+                                   (string->symbol (string-append (symbol->string n) "-label")))
+                                 vars))
+                         (closure-vars (omap _ vars (gen-sym 'clo)))
+                         (new-lbody
+                            (omap (clo free case-bodies)
+                                  (closure-vars free lbody) ;; for each lambda
+                                  (omap body
+                                        case-bodies ;; for each case
+                                        (convert-closures body
+                                                          (omap (fv num)
+                                                                (free (iota (length free) 1))
+                                                                `(,fv .
+                                                                      (primcall closure-ref
+                                                                                ,clo
+                                                                                ,num)))))))
+                         (new-args
+                            (omap (clo-var case-args)
+                                  (closure-vars args) ;; for each lambda
+                                  (omap args
+                                        case-args ;; for each case
+                                        `(,clo-var . ,args))))
+                         (fvars-cnt (map length free)))
+                    `(labels ,var-labels
+                             (nlambda ,name (case ,new-args ,new-lbody) ___)
+                             ___
+                             (let
+                              ((,vars (closure ,fvars-cnt (label ,var-labels))) ___)
+                              (begin
+                                ,@(apply append
+                                         (omap (clo fvars)
+                                               (vars free)
+                                               (omap (fv num)
+                                                     (fvars (iota (length fvars) 1))
+                                                     `(primcall closure-set!
+                                                                ,clo
+                                                                ,num
+                                                                ,(convert fv)))))
+                                ,body))))))
+    (convert e)))
+
 ;; The bytecode does not support raw comparison operators, only
 ;; branching versions.  Replace comparison ops with branching +
 ;; comparison if in an 'if' test position, otherwise replace with a
@@ -459,8 +510,7 @@
           fix-all
           debug-print
           uncover-free
-          ;;convert-closures
-      ))
+          convert-closures))
     (define main (make-fun "main"))
     (define consts (make-hash-table equal?)) ;; de-duplication table.
     (define const-table (make-hash-table eq?)) ;; Result ordering.  ALSO sorts out recursive structures.
