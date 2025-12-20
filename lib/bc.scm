@@ -23,9 +23,9 @@
      ((_ arg) arg)))
 
 (define (cont-pass ir c)
-  (display "Cont pass:")
-  (display (ir->sexp ir))
-  (newline)
+  ;; (display "Cont pass:")
+  ;; (display (ir->sexp ir))
+  ;; (newline)
   (match ir
     (#(app ,fun ,sexps ,ann)
       (vector-set! ir 1 (c fun))
@@ -117,9 +117,9 @@
 
 ;; Add  fix (i.e. letrec*) to all.
 (define (fix-all ir)
-  (display "fix-all:")
-  (display ir)
-  (newline)
+  ;; (display "fix-all:")
+  ;; (display ir)
+  ;; (newline)
   (match ir
     ;; Don't need to run on already-fixed things.
     (#(letrec* ((,vars #(nlambda ,name ,args ,(fix-all body) ,lam-ann) ,unused-ann) ___)
@@ -182,8 +182,7 @@
     (define (convert ir)
       (match ir
         (#(ref ,var ,unused ,unused2 ,unused3)
-          (cond ((assq var replace) => (lambda (newvar) (vector-set! ir 1 newvar))))
-          ir)
+          (cond ((assq var replace) => (lambda (newvar) (cdr newvar))) (else ir)))
         (#(letrec* ((,vars #(nlambda ,name (free ,free ___) ,args ,lbody ,lann) ,lrann) ___)
             ,(convert body)
             ,ann)
@@ -199,10 +198,11 @@
                           (convert-closures body
                                             (omap (fv num)
                                                   (free (iota (length free) 1))
-                                                  `(,fv . #(primcall closure-ref
-                                                            (#(ref ,clo #f #t #f)
-                                                             #(quote ,num #f))
-                                                            #f))))))
+                                                  `(,fv .
+                                                        #(primcall closure-ref
+                                                                   (#(ref ,clo #f #t #f)
+                                                                    #(quote ,num #f))
+                                                                   #f))))))
                  (new-args
                     (omap (clo-var case-args)
                           (closure-vars args) ;; for each lambda
@@ -226,10 +226,10 @@
                                      (omap (fv num)
                                            (fvars (iota (length fvars) 1))
                                            `#(primcall closure-set!
-                                              (#(ref ,clo #f #t #f)
-                                               #(quote ,num #f)
-                                               ,(convert `#(ref ,fv #f #t #f)))
-                                              #f))))
+                                                       (#(ref ,clo #f #t #f)
+                                                        #(quote ,num #f)
+                                                        ,(convert `#(ref ,fv #f #t #f)))
+                                                       #f))))
                       ,body)
                      #f)
                   #f)
@@ -334,17 +334,46 @@
   (define (compile-cont ir) (compile ir fun env top #f))
   (define (finish res) (if tail (begin (add-op fun `(RET ,res))) res))
   (match ir
-    (#(lambda ,name ,vars ,body ,ann)
-      (let* ((new-fun (make-fun name))
-             (clo (make-const-closure new-fun))
-             ;; TODO: figure out if we really need closure offset
-             (closure-offset 1)
-             (new-env (map cons vars (iota (length vars) closure-offset))))
-        (add-op fun `(CONST ,top ,(add-const fun clo)))
-        (add-fun new-fun)
-        (add-op new-fun `(FUNC ,(+ closure-offset (length vars))))
-        (compile body new-fun new-env (+ closure-offset (length vars)) #t))
-      (finish top))
+    (#(letrec* ((,vars ,inits ,ann1) ___) ,body ,ann2)
+      (let* ((label-funs
+                (omap init
+                      inits
+                      (match init
+                        (#(nlambda ,name ,args ,lbody ,lann) (make-fun name))
+                        (,else (error "Invalid letrec* init in compile:" init)))))
+             (label-env (map cons vars label-funs)))
+        (for-each (lambda (func init var)
+                    (match init
+                      (#(nlambda ,name ,args ,lbody ,lann)
+                        (let* ((arg-list (to-proper args))
+                               (arg-env (map cons arg-list (iota (length arg-list) 0)))
+                               (new-env (append arg-env label-env env)))
+                          (add-fun func)
+                          (add-op func `(FUNC ,(length arg-list)))
+                          (compile lbody func new-env (length arg-list) #t)))
+                      (,else (error "Invalid letrec* init in compile:" init))))
+                  label-funs
+                  inits
+                  vars)
+        (compile body fun (append label-env env) top tail)))
+    (#(closure ,cnt #(label ,label))
+      (cond
+        ((assq label env) =>
+           (lambda (entry)
+             (add-op fun `(CONST ,top ,(add-const fun (cdr entry))))
+             (add-op fun `(CLOSURE ,top ,cnt))
+             (finish top)))
+        (else (error "Unknown label in closure:" label))))
+    (#(let ((,vars ,inits) ___) ,body ,ann)
+      (let ((regs (iota (length vars) top)))
+        (for (init reg) (inits regs)
+          (let ((res (compile init fun env reg #f)))
+            (unless (= res reg) (add-op fun `(MOV ,reg ,res)))))
+        (compile body
+                 fun
+                 (append (map cons vars regs) env)
+                 (+ top (length vars))
+                 tail)))
     (#(ref ,var ,global ,mutable ,ann)
       (let ((in-env (assq var env)))
         (finish (if in-env
@@ -383,6 +412,24 @@
       (add-op fun `(CLOSURE_GET ,top ,(+ top 1) 0))
       (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(+ 2 (length args))))
       (if tail #f top))
+    (#(primcall closure-ref (,clo ,slot) ,ann)
+      (let ((slot-num
+               (match slot
+                 (#(quote ,num ,ann2) num)
+                 (,else (error "Invalid closure-ref slot:" slot)))))
+        (let ((clo-res (compile clo fun env top #f)))
+          (add-op fun `(CLOSURE_GET ,top ,clo-res ,slot-num))
+          (finish top))))
+    (#(primcall closure-set! (,clo ,slot ,val) ,ann)
+      (let ((slot-num
+               (match slot
+                 (#(quote ,num ,ann2) num)
+                 (,else (error "Invalid closure-set! slot:" slot)))))
+        (let* ((val-res (compile val fun env top #f))
+               (clo-res (compile clo fun env (+ top 1) #f)))
+          (unless (= val-res top) (add-op fun `(MOV ,top ,val-res)))
+          (add-op fun `(CLOSURE_SET ,top ,clo-res ,slot-num))
+          (finish top))))
     (#(primcall ,op ,args ,ann)
       (let loop ((atop top) (args args) (argres '()))
         (if (null? args)

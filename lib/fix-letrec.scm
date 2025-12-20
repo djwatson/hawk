@@ -70,9 +70,9 @@
 
 ;; Return (values free complex expr assigned)
 (define (%fix-letrec expr)
-  (display "Fix-letrec:\n")
-  (display expr)
-  (newline)
+  ;; (display "Fix-letrec:\n")
+  ;; (display expr)
+  ;; (newline)
   (match expr
     (#(begin (,(%fix-letrec free complex expr assigned) ___) ,ann)
       (values (set-union* free)
@@ -220,11 +220,11 @@
 
 (define (fix-letrec expr)
   (let-values (((free complex expr assigned) (%fix-letrec expr)))
-    (display "Fix done:\n")
-    (display expr)
-    (newline)
-    (display (ir->sexp expr))
-    (newline)
+    ;; (display "Fix done:\n")
+    ;; (display expr)
+    ;; (newline)
+    ;; (display (ir->sexp expr))
+    ;; (newline)
     expr))
 
 
