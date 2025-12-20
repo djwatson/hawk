@@ -518,6 +518,7 @@
         (write-pvarint-u64 (tag-ptr fun-id closure-tag) p)))
     ((boolean? c)
       (if c (write-pvarint-u64 true-rep p) (write-pvarint-u64 false-rep p)))
+    ((null? c) (write-pvarint-u64 nil-tag p))
     (else (error "Unknown const in write-const:" c))))
 
 (define (write-bc fun port consts const-table)

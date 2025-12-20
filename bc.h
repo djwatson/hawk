@@ -56,6 +56,8 @@
   X(IF, AD)                                                                    \
   X(JMP, AD)                                                                   \
   X(CLOSURE_GET, ABC)                                                          \
+  X(CLOSURE_SET, ABC)                                                          \
+  X(CLOSURE, AD)                                                               \
   X(LCALL, AD)                                                                 \
   X(LCALLT, AD)                                                                \
   X(HALT, A)
