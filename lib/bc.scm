@@ -173,60 +173,69 @@
                      (omap (var name free-vars args new-lbody lann lrann)
                            (vars name free-vars args new-lbodies lann lrann)
                            `(,var #(nlambda ,name (free ,@free-vars) ,args ,new-lbody ,lann) ,lrann))))
-              `#(letrec ,bindings ,new-body ,ann))))
+              `#(letrec* ,bindings ,new-body ,ann))))
         (,else (cont-pass ir pass))))
     (pass ir)))
 
-(define (convert-closures e)
-  (let convert-closures ((e e) (replace '()))
-    (define-pass convert
-                 x
-                 (,uv (guard (symbol? uv)) (cond ((assq uv replace) => cdr) (else x)))
-                 ((fix ,vars
-                       (nlambda ,name (free ,free ___) (case ,args ,lbody) ___)
-                       ___
-                       ,(convert body))
-                  (let* ((var-labels
-                            (map (lambda (n)
-                                   (string->symbol (string-append (symbol->string n) "-label")))
-                                 vars))
-                         (closure-vars (omap _ vars (gen-sym 'clo)))
-                         (new-lbody
-                            (omap (clo free case-bodies)
-                                  (closure-vars free lbody) ;; for each lambda
-                                  (omap body
-                                        case-bodies ;; for each case
-                                        (convert-closures body
-                                                          (omap (fv num)
-                                                                (free (iota (length free) 1))
-                                                                `(,fv .
-                                                                      (primcall closure-ref
-                                                                                ,clo
-                                                                                ,num)))))))
-                         (new-args
-                            (omap (clo-var case-args)
-                                  (closure-vars args) ;; for each lambda
-                                  (omap args
-                                        case-args ;; for each case
-                                        `(,clo-var . ,args))))
-                         (fvars-cnt (map length free)))
-                    `(labels ,var-labels
-                             (nlambda ,name (case ,new-args ,new-lbody) ___)
-                             ___
-                             (let
-                              ((,vars (closure ,fvars-cnt (label ,var-labels))) ___)
-                              (begin
-                                ,@(apply append
-                                         (omap (clo fvars)
-                                               (vars free)
-                                               (omap (fv num)
-                                                     (fvars (iota (length fvars) 1))
-                                                     `(primcall closure-set!
-                                                                ,clo
-                                                                ,num
-                                                                ,(convert fv)))))
-                                ,body))))))
-    (convert e)))
+(define (convert-closures ir)
+  (let convert-closures ((ir ir) (replace '()))
+    (define (convert ir)
+      (match ir
+        (#(ref ,var ,unused ,unused2 ,unused3)
+          (cond ((assq var replace) => (lambda (newvar) (vector-set! ir 1 newvar))))
+          ir)
+        (#(letrec* ((,vars #(nlambda ,name (free ,free ___) ,args ,lbody ,lann) ,lrann) ___)
+            ,(convert body)
+            ,ann)
+          (let* ((var-labels
+                    (map (lambda (n)
+                           (string->symbol (string-append (symbol->string (vector-ref n 1))
+                                                          "-label")))
+                         vars))
+                 (closure-vars (omap _ vars `#(var clo #f #f)))
+                 (new-lbody
+                    (omap (clo free body)
+                          (closure-vars free lbody) ;; for each lambda
+                          (convert-closures body
+                                            (omap (fv num)
+                                                  (free (iota (length free) 1))
+                                                  `(,fv . #(primcall closure-ref
+                                                            (#(ref ,clo #f #t #f)
+                                                             #(quote ,num #f))
+                                                            #f))))))
+                 (new-args
+                    (omap (clo-var case-args)
+                          (closure-vars args) ;; for each lambda
+                          `(,clo-var . ,case-args)))
+                 (fvars-cnt (map length free))
+                 (new-label-bindings
+                    (omap (label name args lbody lann lrann)
+                          (var-labels name new-args new-lbody lann lrann)
+                          `(,label #(nlambda ,name ,args ,lbody ,lann) ,lrann)))
+                 (new-closure-bindings
+                    (omap (var fvar-cnt label)
+                          (vars fvars-cnt var-labels)
+                          `(,var #(closure ,fvar-cnt #(label ,label))))))
+            `#(letrec* ,new-label-bindings
+                #(let
+                  ,new-closure-bindings
+                  #(begin
+                     (,@(apply append
+                               (omap (clo fvars)
+                                     (vars free)
+                                     (omap (fv num)
+                                           (fvars (iota (length fvars) 1))
+                                           `#(primcall closure-set!
+                                              (#(ref ,clo #f #t #f)
+                                               #(quote ,num #f)
+                                               ,(convert `#(ref ,fv #f #t #f)))
+                                              #f))))
+                      ,body)
+                     #f)
+                  #f)
+                #f)))
+        (,else (cont-pass ir convert))))
+    (convert ir)))
 
 ;; The bytecode does not support raw comparison operators, only
 ;; branching versions.  Replace comparison ops with branching +
