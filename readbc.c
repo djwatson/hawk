@@ -268,6 +268,15 @@ static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {
     f->x = reader_double(reader);
     return tag_flonum(f);
   }
+  if (tag == NIL_TAG) {
+    return NIL;
+  }
+  if (tag == TRUE_REP.value) {
+    return TRUE_REP;
+  }
+  if (tag == FALSE_REP.value) {
+    return FALSE_REP;
+  }
   int64_t decoded = zigzag_decode(tag);
   if ((decoded & TAG_MASK) != FIXNUM_TAG) {
     fprintf(stderr, "Unknown constant tag 0x%llx\n", (unsigned long long)tag);
@@ -319,8 +328,7 @@ static gc_obj deserialize_const_closure(buffer_reader *reader,
   }
   size_t fun_id = (size_t)((fun_ref - CLOSURE_TAG) >> FIXNUM_SHIFT);
   size_t slot_count = 1;
-  closure_s *clo =
-      gc_alloc(sizeof(closure_s) + (slot_count * sizeof(gc_obj)));
+  closure_s *clo = gc_alloc(sizeof(closure_s) + (slot_count * sizeof(gc_obj)));
   clo->header.type = CLOSURE_TAG;
   clo->len = tag_fixnum((int64_t)slot_count);
   resolve_or_enqueue(heap, fun_id, &clo->v[0]);
@@ -328,6 +336,11 @@ static gc_obj deserialize_const_closure(buffer_reader *reader,
 }
 
 static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
+  gc_obj name = deserialize_constant(reader, heap);
+  if (!is_string(name)) {
+    fprintf(stderr, "Expected function name string\n");
+    exit(EXIT_FAILURE);
+  }
   uint64_t const_cnt64 = reader_pvarint(reader);
   if (const_cnt64 > SIZE_MAX) {
     fprintf(stderr, "Function constant table too large\n");
@@ -346,7 +359,7 @@ static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
       sizeof(bcfunc) + (const_cnt * sizeof(gc_obj)) + (bc_cnt * sizeof(bc));
   bcfunc *func = gc_alloc(align(payload_size, sizeof(gc_obj)));
   func->header.type = FUNC_TAG;
-  func->name = DEAD;
+  func->name = name;
   func->const_cnt = const_cnt;
   func->bc_cnt = bc_cnt;
 

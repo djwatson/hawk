@@ -524,6 +524,7 @@
   (define code (reverse (fun-code fun)))
   (define const-count (hash-table-size (fun-consts fun)))
   (write-pvarint-u64 func-tag port)
+  (write-const port (fun-name fun) consts const-table)
   (write-pvarint-u64 const-count port)
   (write-pvarint-u64 (length code) port)
   (for-each (lambda (const)
