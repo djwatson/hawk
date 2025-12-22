@@ -242,7 +242,7 @@ static inline gc_obj sym_load(vm_state *state, gc_obj sym) {
   auto res = s->val;
   if (res.value == DEAD.value) {
     auto name = get_sym_name(s);
-    printf("Symbol not defined: %.*s", (int)to_fixnum(name->len), name->str);
+    printf("Symbol not defined: %.*s\n", (int)to_fixnum(name->len), name->str);
     abort();
   }
   return res;

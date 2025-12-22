@@ -254,7 +254,10 @@
     ;; Otherwise wrap it in if branch.
     (#(primcall ,test ,args ,ann1)
       (guard (assq test jcmp))
-      `#(if #(primcall ,test ,(map lower-comparisons args) ,ann1) #t #f ,ann1))
+      `#(if #(primcall ,test ,(map lower-comparisons args) ,ann1)
+            #(quote #t ,ann1)
+            #(quote #f ,ann1)
+            ,ann1))
     (,else (cont-pass ir lower-comparisons))))
 
 ;; Functions.
