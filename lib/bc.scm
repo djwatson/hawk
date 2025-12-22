@@ -403,12 +403,11 @@
           res)))
     (#(app ,func ,args ,ann)
       ;; Leave room for func + pointer.
-      (let loop ((top (+ top 2)) (args args))
+      (let loop ((top (+ top 1)) (args (cons func args)))
         (unless (null? args)
           (let* ((arg (car args)) (res (compile arg fun env top #f)))
             (unless (= res top) (add-op fun `(MOV ,top ,res)))
             (loop (+ top 1) (cdr args)))))
-      (compile func fun env (+ top 1) #f)
       (add-op fun `(CLOSURE_GET ,top ,(+ top 1) 0))
       (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(+ 2 (length args))))
       (if tail #f top))
