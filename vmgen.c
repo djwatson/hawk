@@ -146,6 +146,20 @@ END OP_BEGIN(CLOSURE_GET) {
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
+END OP_BEGIN(CLOSURE_SET) {
+  auto val = stack_load(state, stack, pc->reg, false);
+  auto clo = stack_load(state, stack, pc->v1, false);
+  auto slot = pc->v2;
+  closure_set(state, clo, slot, val, &op_table);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
+END OP_BEGIN(CLOSURE) {
+  auto clo = closure_alloc(state, stack, pc);
+  stack_save(state, stack, pc->reg, clo);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
 END OP_BEGIN(LCALL) {
   argcnt = pc->data - 1;
   auto func = stack_load(state, stack, pc->reg, true);

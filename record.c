@@ -477,6 +477,20 @@ static void obj_write(vm_state *state, slot val, void **op_table) {
   record_abort(state);
   *op_table = state->impls;
 }
+static void closure_set(vm_state *state, slot clo, uint8_t pos, slot val,
+                        void **op_table) {
+  if (verbose) {
+    printf("Record abort: can't record CLOSURE_SET\n");
+  }
+  record_abort(state);
+  *op_table = state->impls;
+}
+static slot closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
+  (void)state;
+  (void)stack;
+  (void)pc;
+  abort();
+}
 // Nothing necessary for record - we will check in emit_snapshot - checks will
 // be elided if we never hit a snapshot!
 static inline void check_expand_stack(vm_state *state, gc_obj **stack) {}
