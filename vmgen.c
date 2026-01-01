@@ -177,5 +177,20 @@ END OP_BEGIN(LCALLT) {
   pc = set_new_pc(state, pc, stack, func);
   dispatch_next(pc, stack);
 }
+END OP_BEGIN(ALLOC) {
+  abort();
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
+END OP_BEGIN(STORE) {
+  abort();
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
+END OP_BEGIN(LOAD) {
+  abort();
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
 END OP_BEGIN(HALT) { return halt(state, stack); }
 END

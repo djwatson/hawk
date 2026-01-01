@@ -68,7 +68,7 @@
       `#(primcall ,(cdr (assq name primcalls)) ,(map simple-pass args) ,ann))
     ;; TODO check not assigned?
     (#(ref ,var ,global ,mutable ,ann)
-      (when (variable-assigned? var) (error "var assigned"))
+      (when (variable-assigned? var) (error "var assigned" var))
       ir)
     (#(set! ,var ,exp ,global? ,ann) (error "Set! not supported yet"))
     (,else (cont-pass ir simple-pass))))
@@ -551,7 +551,7 @@
             (iota (length code))))
 
 (define (compile-file file)
-  (define (debug-print item) (display item) (newline) item)
+  (define (debug-print item) (display (ir->sexp item)) (newline) item)
   (define (run-expansion forms) `#(begin ,(expand-toplevel forms) #f))
   (parameterize ((funs (make-funs-list)))
     (define port (open-input-file file))

@@ -49,6 +49,9 @@
   X(LOOKUP, AD)                                                                \
   X(DEFINE, AD)                                                                \
   X(WRITE, AD)                                                                 \
+  X(ALLOC, ABC)                                                                \
+  X(STORE, ABC)                                                                \
+  X(LOAD, ABC)                                                                 \
   X(FUNC, A)                                                                   \
   X(JFUNC, AD)                                                                 \
   X(JLT, ABC)                                                                  \
