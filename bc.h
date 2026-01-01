@@ -56,6 +56,7 @@
   X(JFUNC, AD)                                                                 \
   X(JLT, ABC)                                                                  \
   X(JEQV, ABC)                                                                 \
+  X(GUARD, ABC)                                                                \
   X(IF, AD)                                                                    \
   X(JMP, AD)                                                                   \
   X(CLOSURE_GET, ABC)                                                          \

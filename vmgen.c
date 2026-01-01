@@ -178,17 +178,25 @@ END OP_BEGIN(LCALLT) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(ALLOC) {
-  abort();
+  auto obj = alloc_obj(state, stack, pc);
+  stack_save(state, stack, pc->reg, obj);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(STORE) {
-  abort();
+  store_obj(state, stack, pc);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
+END OP_BEGIN(GUARD) {
+  auto res = guard_obj(state, stack, pc);
+  stack_save(state, stack, pc->reg, res);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(LOAD) {
-  abort();
+  auto res = load_obj(state, stack, pc);
+  stack_save(state, stack, pc->reg, res);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }

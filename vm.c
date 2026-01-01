@@ -13,6 +13,12 @@
 #include "profiler.h"
 #include "vm.h"
 
+#define VMGEN_TRACE_OP(pc, code, state)                                        \
+  do {                                                                         \
+    if (verbose) {                                                             \
+      printf("run op: %p %s\n", pc, #code);                                    \
+    }                                                                          \
+  } while (0)
 enum : uint8_t {
   hotmap_sz = VM_HOTMAP_SZ,
   hotmap_loop = 3,
@@ -320,6 +326,55 @@ static inline bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
 static inline gc_obj closure_get(vm_state *state, gc_obj clo, uint8_t slot) {
   (void)state;
   return to_closure(clo)->v[slot];
+}
+static inline void store_obj(vm_state *state, gc_obj *stack, bc *pc) {
+  (void)state;
+  auto dest = stack_load(state, stack, pc->reg, true);
+  auto val = stack_load(state, stack, pc->v1, false);
+  auto off = stack_load(state, stack, pc->v2, true);
+  assert(is_heap_object(dest));
+  assert(is_fixnum(off));
+
+  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(dest) + sizeof(gc_header));
+  base[to_fixnum(off)] = val;
+}
+static inline gc_obj load_obj(vm_state *state, gc_obj *stack, bc *pc) {
+  (void)state;
+  auto src = stack_load(state, stack, pc->v1, true);
+  auto off = stack_load(state, stack, pc->v2, true);
+  assert(is_heap_object(src));
+  assert(is_fixnum(off));
+
+  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
+  return base[to_fixnum(off)];
+}
+static inline gc_obj alloc_obj(vm_state *state, gc_obj *stack, bc *pc) {
+  (void)state;
+  auto sz_obj = stack_load(state, stack, pc->v1, true);
+  auto type_obj = stack_load(state, stack, pc->v2, true);
+  assert(is_fixnum(sz_obj));
+  assert(is_fixnum(type_obj));
+  uint64_t sz = (uint64_t)to_fixnum(sz_obj);
+  uint64_t type = (uint64_t)to_fixnum(type_obj);
+  assert((sz & 0x7) == 0);
+
+  auto obj = (gc_header *)gc_alloc(sz);
+  obj->type = type;
+  return type < 8 ? tag_header(obj, (uint8_t)type) : tag_header(obj, PTR_TAG);
+}
+static inline gc_obj guard_obj(vm_state *state, gc_obj *stack, bc *pc) {
+  (void)state;
+  auto val = stack_load(state, stack, pc->v1, false);
+  auto want_tag_obj = stack_load(state, stack, pc->v2, true);
+  assert(is_fixnum(want_tag_obj));
+  uint64_t want_tag = (uint64_t)to_fixnum(want_tag_obj);
+  uint64_t got_tag = (uint64_t)get_type_tag(val);
+
+  if (got_tag == LITERAL_TAG) {
+    return ((uint64_t)val.value & IMMEDIATE_MASK) == want_tag ? TRUE_REP
+                                                              : FALSE_REP;
+  }
+  return got_tag == want_tag ? TRUE_REP : FALSE_REP;
 }
 static inline gc_obj closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
   (void)state;

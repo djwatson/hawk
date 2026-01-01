@@ -477,6 +477,38 @@ static void obj_write(vm_state *state, slot val, void **op_table) {
   record_abort(state);
   *op_table = state->impls;
 }
+static slot alloc_obj(vm_state *state, gc_obj *stack, bc *pc) {
+  (void)state;
+  (void)stack;
+  (void)pc;
+  abort();
+}
+static void store_obj(vm_state *state, gc_obj *stack, bc *pc) {
+  (void)state;
+  (void)stack;
+  (void)pc;
+  abort();
+}
+static slot load_obj(vm_state *state, gc_obj *stack, bc *pc) {
+  (void)state;
+  (void)stack;
+  (void)pc;
+  if (verbose) {
+    printf("Record abort: can't record LOAD\n");
+  }
+  record_abort(state);
+  return (slot){0};
+}
+static slot guard_obj(vm_state *state, gc_obj *stack, bc *pc) {
+  (void)state;
+  (void)stack;
+  (void)pc;
+  if (verbose) {
+    printf("Record abort: can't record GUARD\n");
+  }
+  record_abort(state);
+  return (slot){0};
+}
 static void closure_set(vm_state *state, slot clo, uint8_t pos, slot val,
                         void **op_table) {
   if (verbose) {

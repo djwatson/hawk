@@ -434,7 +434,9 @@
     (#(primcall ,op ,args ,ann)
       (let loop ((atop top) (args args) (argres '()))
         (if (null? args)
-            (add-op fun `(,op ,top ,@(reverse argres)))
+            (let ((argres (reverse argres)))
+              (add-op fun
+                      `(,op ,@(if (eq? op 'STORE) '() (list top)) ,@argres)))
             (let* ((arg (car args))
                    (res (compile arg fun env atop #f))
                    (next (if (= res atop) (+ atop 1) atop)))
