@@ -134,7 +134,7 @@ END OP_BEGIN(IF) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(JMP) {
-  pc += pc->data;
+  pc = vmgen_jmp_advance(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(CLOSURE_GET) {

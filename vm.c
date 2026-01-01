@@ -75,6 +75,7 @@ static inline gc_obj const_load(vm_state *state, bc *pc, uint16_t offset) {
   (void)state;
   return *(gc_obj *)(pc - pc->data);
 }
+static inline bc *vmgen_jmp_advance(bc *pc) { return pc + pc->data; }
 static inline gc_obj emit_ov_math_add(vm_state *state, gc_obj v1, gc_obj v2) {
   (void)state;
   if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {

@@ -198,6 +198,7 @@ static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   auto c = *(gc_obj *)(pc - pc->data);
   return add_const(state, c);
 }
+static inline bc *vmgen_jmp_advance(bc *pc) { return pc; }
 static slot emit_ov_math_add(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
   auto t = record_current_trace(state);
