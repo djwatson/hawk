@@ -6,31 +6,30 @@
 // Things that deal with types or the stack
 // Things that are hardware instructions
 
-// WRITE -debug?
-// LCALLT
 // FUNCV - actually all CFUNC
 // IFUNC, IFUNCV
 // CFUNC, CFUNCV
-// LOOP? JLOOP, ILOOP
 // CALLCC/CALLCC_RESUME
-// GUARD
-// LOAD / LOAD_CHAR
-// STORE / STORE_CHAR
+// LOAD_CHAR
+// STORE_CHAR
 // INTEGER->CHAR, CHAR->INTEGER
 // APPLY
-// ALLOC
 // more comparisons - GT,LT,GE,LE,EQ,EQV,EQUAL?
 // more math - MUL DIV MOD
-// even more math - bit ops
-// EXACT, INEXACT
-// CLOSURE
-// JMP, LJMP??
 // FCALL
+// EXACT, INEXACT
+
+// optional:
+// even more math - bit ops
+// LOOP? JLOOP, ILOOP, LJMP
 // RETN
 
 // These would make bytecode smaller/more efficient:
 // ADDVN, SUBVN?
 // JCMP?
+// ALLOC can inline args
+// some calls like GCALL / GCALLT (global calls, inline the CLOSURE_GET)
+// LOAD/STORE with inline args
 
 // These would make the interpreter faster, but have no effect on JIT:
 // More scheme ops: MEMQ,ASSV,ASSQ, VECTOR,CAR,CDR,CONS
