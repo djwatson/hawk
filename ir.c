@@ -179,6 +179,7 @@ void print_ir(trace *t) {
     case IR_GTE:
     case IR_GUARD_EQ:
     case IR_STORE:
+    case IR_ALLOC:
       printf(" ");
       print_slot(ins->op1, t);
       printf(", ");
@@ -220,6 +221,7 @@ bool ir_sideeff(ir_ins_op op) {
   case IR_GUARD_EQ:
   case IR_LOAD:
   case IR_PMOV:
+  case IR_ALLOC:
     return true;
     break;
   default:

@@ -441,15 +441,15 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
       return (frame_state){pc, stack, state->impls};
     }
     ts->depth--;
-    if (!downrec_trace) {
-      abort();
-    }
-    /* auto ret = state->stack[state->stack_offset + func->reg]; */
-    /* auto pc = to_return_address(stack[-1]); */
-    /* auto old_pc = pc - 1; */
-    /* state->stack_offset -= old_pc->reg + 1; */
-    /* state->stack[state->stack_offset + old_pc->reg] = ret; */
+    assert(ts->depth >= 0);
+
+    auto ret = stack_load(state, stack, pc->reg, false);
+    stack_save(state, stack, -1, ret);
+    // TODO: set stack_top
     /* arrlen_set(state->stack, state->stack_offset + old_pc->reg + 1); */
+    auto new_pc = to_return_address(stack[-1]);
+    auto old_pc = new_pc - 1;
+    ts->stack_off -= (old_pc->reg + 1);
   }
   return (frame_state){pc, stack, op_table};
 }
@@ -479,10 +479,25 @@ static void obj_write(vm_state *state, slot val, void **op_table) {
   *op_table = state->impls;
 }
 static slot alloc_obj(vm_state *state, gc_obj *stack, bc *pc) {
-  (void)state;
-  (void)stack;
-  (void)pc;
-  abort();
+  auto sz = stack_load(state, stack, pc->v1, true);
+  auto type = stack_load(state, stack, pc->v2, true);
+  if (!sz.constant) {
+    if (verbose) {
+      printf("Record abort: ALLOC size not constant\n");
+    }
+    record_abort(state);
+    return (slot){0};
+  }
+  if (!type.constant) {
+    if (verbose) {
+      printf("Record abort: ALLOC type not constant\n");
+    }
+    record_abort(state);
+    return (slot){0};
+  }
+
+  ir_ins ins = IR(.op = IR_ALLOC, .op1 = sz, .op2 = type, .type = PTR_TAG);
+  return add_inst(state, ins);
 }
 static void store_obj(vm_state *state, gc_obj *stack, bc *pc) {
   (void)state;

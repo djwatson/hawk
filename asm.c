@@ -112,6 +112,7 @@ void emit_init(emit_state *s) {
   memset(&s->global_comment_zone, 0, sizeof(s->global_comment_zone));
   s->comments = nullptr;
   s->global_comments = nullptr;
+  s->alloc_slowpath = nullptr;
 
   auto prot = PROT_READ | PROT_WRITE | PROT_EXEC;
   auto flags = MAP_PRIVATE | MAP_ANONYMOUS;

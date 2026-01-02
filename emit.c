@@ -51,7 +51,7 @@ static void register_jit_symbol(uint8_t *start, uint8_t *entry, uint8_t *end,
 
 // Slowpath: RET_REG will be the requested size, AND return value.
 void emit_init_slowpath(emit_state *s) {
-  if (s->flonum_alloc_slowpath) {
+  if (s->alloc_slowpath) {
     return;
   }
   // TODO: we COULD optimize this for preserve_most
@@ -75,11 +75,11 @@ void emit_init_slowpath(emit_state *s) {
   emit_mov(s, RARG0, RET_REG);
   emit_push_regs(s, slowpath_regs, reg_cnt, true);
   auto start = (uint8_t *)emit_offset(s);
-  s->flonum_alloc_slowpath = start;
+  s->alloc_slowpath = start;
 
   emit_writable_end(s);
 #ifdef HAVE_ELF_H
-  register_jit_symbol(start, s->flonum_alloc_slowpath, (uint8_t *)end,
+  register_jit_symbol(start, s->alloc_slowpath, (uint8_t *)end,
                       "GCslowpath");
 #endif
   if (verbose) {
@@ -416,7 +416,7 @@ static void emit_flonum_add(emit_state *s, trace *t, ir_ins *op) {
 
 static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
                                    ir_ins *ins) {
-  assert(s->flonum_alloc_slowpath);
+  assert(s->alloc_slowpath);
   assert(is_fpr_reg(ins->reg));
   emit_pop(s, RET_REG);
   emit_pop(s, RET_REG2);
@@ -437,7 +437,7 @@ static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
   // No space, call slowpath
   auto continue_label = emit_offset(s);
   emit_jmp32(s, slow_continue_label);
-  emit_call32(s, (int64_t)s->flonum_alloc_slowpath);
+  emit_call32(s, (int64_t)s->alloc_slowpath);
   emit_mov64(s, RET_REG, sizeof(flonum_s));
 
   // Check for fastpath space
@@ -828,6 +828,28 @@ static void emit_ir(emit_state *s, trace *t) {
       /*   COMMENT("ABORT"); */
       /* } */
 
+      break;
+    }
+    case IR_ALLOC: {
+      if (op->reg == REG_NONE) {
+        maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
+      }
+      assert(op->reg != REG_NONE);
+      assert(op->reg != RET_REG);
+      assert(op->op1.constant);
+      assert(op->op2.constant);
+      int64_t size_bytes = slot_const(t, op->op1) >> FIXNUM_SHIFT;
+      assert((size_bytes & 7) == 0);
+      uint64_t type_val = (uint64_t)(slot_const(t, op->op2) >> FIXNUM_SHIFT);
+      uint8_t tag_bits = (uint8_t)(type_val & TAG_MASK);
+      assert(s->alloc_slowpath);
+
+      emit_pop(s, RET_REG);
+      emit_add_constant(s, op->reg, RET_REG, tag_bits);
+      emit_store_constant(s, 0, RET_REG, (int64_t)type_val);
+      emit_call32(s, (int64_t)s->alloc_slowpath);
+      emit_mov64(s, RET_REG, size_bytes);
+      emit_push(s, RET_REG);
       break;
     }
     case IR_ARG:
