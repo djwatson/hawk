@@ -323,8 +323,11 @@ static inline bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
   // skip jmp.
   return pc + 1;
 }
-static inline gc_obj closure_get(vm_state *state, gc_obj clo, uint8_t slot) {
+static inline gc_obj closure_get(vm_state *state, gc_obj *stack, gc_obj clo,
+                                 uint8_t slot, uint8_t clo_idx) {
   (void)state;
+  (void)stack;
+  (void)clo_idx;
   return to_closure(clo)->v[slot];
 }
 static inline void store_obj(vm_state *state, gc_obj *stack, bc *pc) {

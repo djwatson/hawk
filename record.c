@@ -485,6 +485,7 @@ static void obj_write(vm_state *state, slot val, void **op_table) {
 static slot alloc_obj(vm_state *state, gc_obj *stack, bc *pc) {
   auto sz = stack_load(state, stack, pc->v1, true);
   auto type = stack_load(state, stack, pc->v2, true);
+  assert(type.constant);
   if (!sz.constant) {
     if (verbose) {
       printf("Record abort: ALLOC size not constant\n");
@@ -492,15 +493,11 @@ static slot alloc_obj(vm_state *state, gc_obj *stack, bc *pc) {
     record_abort(state);
     return (slot){0};
   }
-  if (!type.constant) {
-    if (verbose) {
-      printf("Record abort: ALLOC type not constant\n");
-    }
-    record_abort(state);
-    return (slot){0};
-  }
 
-  ir_ins ins = IR(.op = IR_ALLOC, .op1 = sz, .op2 = type, .type = PTR_TAG);
+  auto t = record_current_trace(state);
+  auto type_const = t->consts[type.loc];
+  ir_ins ins = IR(.op = IR_ALLOC, .op1 = sz, .op2 = type,
+                  .type = (uint8_t)to_fixnum(type_const));
   return add_inst(state, ins);
 }
 static void store_obj(vm_state *state, gc_obj *stack, bc *pc) {
@@ -585,7 +582,8 @@ static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
   vm_add_snap(state, next_pc);
   return pc;
 }
-static slot closure_get(vm_state *state, slot clo, uint8_t pos) {
+static slot closure_get(vm_state *state, gc_obj *stack, slot clo, uint8_t pos,
+                        uint8_t clo_idx) {
   // Store byte offset to the captured variable (header is 16 bytes).
   slot c_pos =
       (slot){.constant = true, .loc = (uint16_t)((pos * 8) + 8 - CLOSURE_TAG)};
@@ -596,7 +594,11 @@ static slot closure_get(vm_state *state, slot clo, uint8_t pos) {
     auto res = c->v[pos];
     return add_const(state, res);
   }
-  ir_ins ins = IR(.op = IR_LOAD, .op1 = clo, .op2 = c_pos);
+  gc_obj clo_obj = stack[clo_idx];
+  gc_obj loaded = to_closure(clo_obj)->v[pos];
+
+  ir_ins ins = IR(.op = IR_LOAD, .op1 = clo, .op2 = c_pos,
+                  .type = (uint8_t)get_type_tag(loaded));
   return add_inst(state, ins);
 }
 static slot return_address(vm_state *state, bc *ra) {

@@ -79,8 +79,7 @@ void emit_init_slowpath(emit_state *s) {
 
   emit_writable_end(s);
 #ifdef HAVE_ELF_H
-  register_jit_symbol(start, s->alloc_slowpath, (uint8_t *)end,
-                      "GCslowpath");
+  register_jit_symbol(start, s->alloc_slowpath, (uint8_t *)end, "GCslowpath");
 #endif
   if (verbose) {
     printf("GC slowpath: %" PRId64 "\n", end - (long)start);
@@ -305,8 +304,8 @@ static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
        ((ins_var) =                                                            \
             next_leading_op((trace_ptr), (opcode), &_##ins_var##_idx));)
 
-static __attribute__((preserve_all))
-gc_obj *jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
+static __attribute__((preserve_all)) gc_obj *
+jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
   expand_stack(state, &stack);
   return stack;
 }
@@ -576,7 +575,8 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
   } else if (op->type == FLONUM_TAG) {
     // These are already typechecked (and are in xmm register).
   } else {
-    abort();
+    // TODO TODO TODO
+    // abort();
   }
 }
 
@@ -742,6 +742,9 @@ static void emit_ir(emit_state *s, trace *t) {
     case IR_LOAD: {
       maybe_assign_register(s, op->op1, t);
       assert(!op->op1.constant);
+      if (op->guard) {
+        emit_typecheck(s, t, op, cur_snap);
+      }
       emit_mem_load(s, (uint16_t)op->op2.loc + 8, slot_reg(t, op->op1),
                     op->reg);
       break;
@@ -872,8 +875,9 @@ static void emit_ir(emit_state *s, trace *t) {
     }
     }
     // TODO: maybe move emit_typecheck here, instead of each individual one.
-    if (op->guard && !(op->op == IR_ARG || op->op == IR_PMOV ||
-                       op->op == IR_SLOAD || op->op == IR_SUB)) {
+    if (op->guard &&
+        !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
+          op->op == IR_SUB || op->op == IR_LOAD)) {
       abort();
     }
     COMMENT("%i %s", op_cnt, ir_names[op->op]);

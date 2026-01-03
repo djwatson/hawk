@@ -104,6 +104,9 @@ static void print_tag_type(uint8_t t) {
   case STRING_TAG:
     printf("\e[1;34mstr \e[m ");
     break;
+  case FUNC_TAG:
+    printf("\e[1;34mfunc\e[m ");
+    break;
   case VECTOR_TAG:
     printf("\e[1;34mvec \e[m ");
     break;

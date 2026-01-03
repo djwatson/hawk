@@ -142,7 +142,7 @@ END OP_BEGIN(CLOSURE_GET) {
   auto clo = stack_load(state, stack, pc->v1, false);
   fail_if_not_closure(clo);
   auto slot = pc->v2;
-  auto res = closure_get(state, clo, slot);
+  auto res = closure_get(state, stack, clo, slot, pc->v1);
   stack_save(state, stack, pc->reg, res);
   pc = next_op(pc);
   dispatch_next(pc, stack);
