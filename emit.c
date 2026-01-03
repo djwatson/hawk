@@ -71,7 +71,7 @@ void emit_init_slowpath(emit_state *s) {
   emit_pop_regs(s, slowpath_regs, reg_cnt, true);
 
   emit_call_reg(s, RTMP);
-  emit_mov64(s, RTMP, (int64_t)&gc_alloc_slow);
+  emit_mov64(s, RTMP, (int64_t)&gc_alloc);
   emit_mov(s, RARG0, RET_REG);
   emit_push_regs(s, slowpath_regs, reg_cnt, true);
   auto start = (uint8_t *)emit_offset(s);
@@ -847,12 +847,14 @@ static void emit_ir(emit_state *s, trace *t) {
       uint8_t tag_bits = (uint8_t)(type_val & TAG_MASK);
       assert(s->alloc_slowpath);
 
+      emit_pop(s, RET_REG2);
       emit_pop(s, RET_REG);
       emit_add_constant(s, op->reg, RET_REG, tag_bits);
       emit_store_constant(s, 0, RET_REG, (int64_t)type_val);
       emit_call32(s, (int64_t)s->alloc_slowpath);
       emit_mov64(s, RET_REG, size_bytes);
       emit_push(s, RET_REG);
+      emit_push(s, RET_REG2);
       break;
     }
     case IR_ARG:

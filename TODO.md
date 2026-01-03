@@ -1,3 +1,5 @@
+* fixup emit_tyupecheck for more than fixnum types
+
 # VM impl
 * next: diviter, divrec, sumloop, nqueens.
 
