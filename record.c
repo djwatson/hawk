@@ -147,6 +147,10 @@ static sentry *get_sentry(vm_state *state, uint64_t idx) {
   return &ts->stack[idx + ts->stack_off];
 }
 
+static inline void set_stack_len(trace_state *ts, uint32_t len) {
+  arrlen_set(ts->stack, ts->stack_off + len);
+}
+
 static slot add_inst(vm_state *state, ir_ins ins) {
   trace *trace_obj = record_current_trace(state);
   auto idx = arrlen(trace_obj->ins);
@@ -357,7 +361,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
   bool at_trace_start = (pc == ts->start_ins);
 
   // for RET specifically: set stack top to pc->reg
-  arrlen_set(ts->stack, ts->stack_off + pc->reg + 1);
+  set_stack_len(ts, pc->reg + 1);
 
   if (ts->depth == 0) {
     // Root traces cannot return
@@ -415,7 +419,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
 
     // 3) Clear regs / set result in new regs
     // assert(ts->stack_off == 0);
-    arrlen_set(ts->stack, ts->stack_off);
+    set_stack_len(ts, 0);
     // 4) Const-ify the current return address
 
     auto const_ra = add_const(state, stack[-1]);
@@ -448,7 +452,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     auto old_pc = new_pc - 1;
     ts->stack_off -= (old_pc->reg + 1);
     // Trim traced stack to caller frame and store return value in caller slot.
-    arrlen_set(ts->stack, ts->stack_off + old_pc->reg + 1);
+    set_stack_len(ts, old_pc->reg + 1);
     stack_save(state, stack, old_pc->reg, ret);
   }
   return (frame_state){pc, stack, op_table};
@@ -565,7 +569,7 @@ static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
   (void)stack;
   // pc->reg is the new top of stack.  Clear out anything above before
   // snapshotting.
-  arrlen_set(ts->stack, ts->stack_off + pc->reg);
+  set_stack_len(ts, pc->reg);
 
   auto jmp_pc = pc + 1;
   bc *next_pc;
@@ -616,7 +620,7 @@ static void stack_memmov(vm_state *state, gc_obj *stack, uint16_t from,
   }
 
   // Shrink stack to current stack top.
-  arrlen_set(ts->stack, to + ts->stack_off);
+  set_stack_len(ts, to);
 }
 static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
   if (!func.constant) {
