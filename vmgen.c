@@ -58,11 +58,12 @@ END OP_BEGIN(MOV) {
 }
 END OP_BEGIN(RET) {
   auto c = stack_load(state, stack, pc->reg, false);
-  auto res = check_record_start(pc, stack, state, op_table);
-  if (res != op_table) {
-    op_table = res;
-    dispatch_next(pc, stack);
-  }
+  // TODO: re-enable eventually
+  /* auto res = check_record_start(pc, stack, state, op_table); */
+  /* if (res != op_table) { */
+  /*   op_table = res; */
+  /*   dispatch_next(pc, stack); */
+  /* } */
   auto frame = return_frame(state, pc, stack, op_table);
   pc = frame.pc;
   stack = frame.stack;

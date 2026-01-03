@@ -16,7 +16,6 @@
 #define VMGEN_TRACE_OP(pc, code, state)                                        \
   do {                                                                         \
     if (verbose) {                                                             \
-      printf("run op: %p %s\n", pc, #code);                                    \
     }                                                                          \
   } while (0)
 enum : uint8_t {

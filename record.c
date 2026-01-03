@@ -357,7 +357,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
   bool at_trace_start = (pc == ts->start_ins);
 
   // for RET specifically: set stack top to pc->reg
-  arrlen_set(ts->stack, pc->reg + 1);
+  arrlen_set(ts->stack, ts->stack_off + pc->reg + 1);
 
   if (ts->depth == 0) {
     // Root traces cannot return
@@ -444,12 +444,12 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     assert(ts->depth >= 0);
 
     auto ret = stack_load(state, stack, pc->reg, false);
-    stack_save(state, stack, -1, ret);
-    // TODO: set stack_top
-    /* arrlen_set(state->stack, state->stack_offset + old_pc->reg + 1); */
     auto new_pc = to_return_address(stack[-1]);
     auto old_pc = new_pc - 1;
     ts->stack_off -= (old_pc->reg + 1);
+    // Trim traced stack to caller frame and store return value in caller slot.
+    arrlen_set(ts->stack, ts->stack_off + old_pc->reg + 1);
+    stack_save(state, stack, old_pc->reg, ret);
   }
   return (frame_state){pc, stack, op_table};
 }
@@ -565,7 +565,7 @@ static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
   (void)stack;
   // pc->reg is the new top of stack.  Clear out anything above before
   // snapshotting.
-  arrlen_set(ts->stack, pc->reg);
+  arrlen_set(ts->stack, ts->stack_off + pc->reg);
 
   auto jmp_pc = pc + 1;
   bc *next_pc;
@@ -787,6 +787,7 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
   ts->start_ins = pc;
   ts->skip_start_check = (pc->op == OP_RET);
   ts->depth = snap->depth;
+  ts->stack_off = snap->offset;
   ts->type = TRACE_TYPE_SIDE;
 
   vm_add_snap(state, pc);
