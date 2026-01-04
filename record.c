@@ -501,10 +501,13 @@ static slot alloc_obj(vm_state *state, gc_obj *stack, bc *pc) {
   return add_inst(state, ins);
 }
 static void store_obj(vm_state *state, gc_obj *stack, bc *pc) {
-  (void)state;
-  (void)stack;
-  (void)pc;
-  abort();
+  auto obj = stack_load(state, stack, pc->reg, true);
+  auto val = stack_load(state, stack, pc->v1, false);
+  auto offset = stack_load(state, stack, pc->v2, true);
+
+  auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
+  add_inst(state, IR(.op = IR_STORE, .op1 = ref, .op2 = val,
+                     .type = get_slot_type(record_current_trace(state), obj)));
 }
 static slot load_obj(vm_state *state, gc_obj *stack, bc *pc) {
   (void)state;

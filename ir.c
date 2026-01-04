@@ -165,13 +165,13 @@ void print_ir(trace *t) {
       printf(" ");
       print_slot(ins->op1, t);
       break;
-    case IR_REF:
     case IR_LOAD:
       printf(" ");
       print_slot(ins->op1, t);
       printf(", ");
       print_slot_immediate(ins->op2);
       break;
+    case IR_REF:
     case IR_GSET:
     case IR_ADD:
     case IR_SUB:
@@ -222,7 +222,7 @@ bool ir_sideeff(ir_ins_op op) {
   case IR_EQ:
   case IR_NE:
   case IR_GUARD_EQ:
-  case IR_LOAD:
+  case IR_STORE:
   case IR_PMOV:
   case IR_ALLOC:
     return true;

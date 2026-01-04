@@ -749,6 +749,46 @@ static void emit_ir(emit_state *s, trace *t) {
                     op->reg);
       break;
     }
+    case IR_STORE: {
+      ir_ins *ref = slot_ins(t, op->op1);
+      assert(ref->op == IR_REF);
+
+      if (op->reg == REG_NONE) {
+        maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
+      }
+
+      maybe_assign_register(s, ref->op1, t);
+      if (!ref->op2.constant) {
+        maybe_assign_register(s, ref->op2, t);
+      }
+      if (!op->op2.constant) {
+        maybe_assign_register(s, op->op2, t);
+      }
+
+      uint8_t base_reg = slot_reg(t, ref->op1);
+
+      if (op->op2.constant) {
+        emit_store(s, 0, op->reg, RTMP);
+        emit_mov64(s, RTMP, slot_const(t, op->op2));
+      } else {
+        emit_store(s, 0, op->reg, slot_reg(t, op->op2));
+      }
+      emit_add(s, op->reg, op->reg, base_reg);
+      if (ref->op2.constant) {
+        int64_t offset = slot_const(t, ref->op2) + (int64_t)(8 - op->type);
+        emit_mov64(s, op->reg, offset);
+      } else {
+        emit_add_constant(s, op->reg, op->reg, 8 - op->type);
+        emit_mov(s, op->reg, slot_reg(t, ref->op2));
+      }
+      if (op->reg != REG_NONE) {
+        s->regs[op->reg].used = false;
+      }
+      break;
+    }
+    case IR_REF: {
+      break;
+    }
     case IR_LT: {
       emit_jcc32(s, JGE, (int64_t)t->snaps[cur_snap].patch_point);
       emit_cmp_slots(s, t, op->op1, op->op2);
@@ -847,14 +887,18 @@ static void emit_ir(emit_state *s, trace *t) {
       uint8_t tag_bits = (uint8_t)(type_val & TAG_MASK);
       assert(s->alloc_slowpath);
 
-      emit_pop(s, RET_REG2);
-      emit_pop(s, RET_REG);
+      if (op->reg != RET_REG) {
+        emit_pop(s, RET_REG);
+        emit_pop(s, RET_REG);
+      }
       emit_add_constant(s, op->reg, RET_REG, tag_bits);
       emit_store_constant(s, 0, RET_REG, (int64_t)type_val);
       emit_call32(s, (int64_t)s->alloc_slowpath);
       emit_mov64(s, RET_REG, size_bytes);
-      emit_push(s, RET_REG);
-      emit_push(s, RET_REG2);
+      if (op->reg != RET_REG) {
+        emit_push(s, RET_REG);
+        emit_push(s, RET_REG);
+      }
       break;
     }
     case IR_ARG:
@@ -879,7 +923,7 @@ static void emit_ir(emit_state *s, trace *t) {
     // TODO: maybe move emit_typecheck here, instead of each individual one.
     if (op->guard &&
         !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
-          op->op == IR_SUB || op->op == IR_LOAD)) {
+          op->op == IR_SUB || op->op == IR_LOAD || op->op == IR_ALLOC)) {
       abort();
     }
     COMMENT("%i %s", op_cnt, ir_names[op->op]);
