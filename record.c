@@ -511,14 +511,12 @@ static void store_obj(vm_state *state, gc_obj *stack, bc *pc) {
                      .type = get_slot_type(record_current_trace(state), obj)));
 }
 static slot load_obj(vm_state *state, gc_obj *stack, bc *pc) {
-  (void)state;
-  (void)stack;
-  (void)pc;
-  if (verbose) {
-    printf("Record abort: can't record LOAD\n");
-  }
-  record_abort(state);
-  return (slot){0};
+  auto obj = stack_load(state, stack, pc->v1, true);
+  auto offset = stack_load(state, stack, pc->v2, true);
+  auto type = get_slot_type(record_current_trace(state), obj);
+
+  ir_ins ins = IR(.op = IR_LOAD, .op1 = obj, .op2 = offset, .type = type);
+  return add_inst(state, ins);
 }
 static slot guard_obj(vm_state *state, gc_obj *stack, bc *pc) {
   auto obj = stack_load(state, stack, pc->v1, false);
