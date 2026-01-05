@@ -63,6 +63,8 @@ add_custom_command(
     ${CMAKE_CURRENT_SOURCE_DIR}/bc.h
     --output
     ${OPCODES_SCHEME}
+  COMMAND
+    ${CMAKE_COMMAND} -E touch ${OPCODES_SCHEME}
   DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/bc.h
     ${CMAKE_CURRENT_SOURCE_DIR}/gen_opcodes.py
