@@ -7,6 +7,7 @@
 #include "gc.h"
 #include "hawk.h"
 #include "ir.h"
+#include "fold.h"
 #include "opt_dce.h"
 #include "record.h"
 #include "string.h"
@@ -154,6 +155,7 @@ static inline void set_stack_len(trace_state *ts, uint32_t len) {
 
 static slot add_inst(vm_state *state, ir_ins ins) {
   trace *trace_obj = record_current_trace(state);
+  fold_instr(trace_obj, &ins);
   auto idx = arrlen(trace_obj->ins);
   arrput(nullptr, trace_obj->ins, ins);
   return (slot){.constant = false, .loc = idx};

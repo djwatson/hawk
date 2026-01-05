@@ -46,6 +46,7 @@ set(
   array.c
   util/bitset.c
   util/list.c
+  fold.c
   opt_dce.c
   bc.c
 )
@@ -79,6 +80,20 @@ endif()
 
 add_executable(hawk ${hawk_sources})
 add_dependencies(hawk opcodes_scm)
+# fold generator
+add_executable(host_gen_fold host/gen_fold.c array.c hashtable.c zone_alloc.c)
+target_include_directories(
+  host_gen_fold PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+                        ${CMAKE_CURRENT_SOURCE_DIR}/util)
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/fold_gen.h
+  COMMAND host_gen_fold ${CMAKE_CURRENT_SOURCE_DIR}/fold.c >
+          ${CMAKE_CURRENT_BINARY_DIR}/fold_gen.h
+  DEPENDS host_gen_fold fold.c
+  COMMENT "Generating fold lookup table"
+  VERBATIM)
+add_custom_target(fold_gen DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/fold_gen.h)
+add_dependencies(hawk fold_gen)
 #set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 set(capstone_search_dirs)
@@ -129,6 +144,7 @@ target_include_directories(
   hawk PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/util
+  ${CMAKE_CURRENT_BINARY_DIR}
   ${CAPSTONE_INCLUDE_DIR}
 )
 
