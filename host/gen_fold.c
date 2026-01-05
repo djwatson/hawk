@@ -8,6 +8,7 @@
 #include "array.h"
 #include "hashtable.h"
 #include "zone_alloc.h"
+#include "fold.h"
 
 char *ir_names[] = {
 #define X(name, type) #name,
@@ -27,6 +28,13 @@ static ir_ins_op nexttoken(char **p) {
   }
   **p = '\0';
   (*p)++;
+
+  if (strcmp(start, "CONST") == 0) {
+    return FOLD_ARG_CONST;
+  }
+  if (strcmp(start, "_") == 0) {
+    return FOLD_ARG_ANY;
+  }
 
   if (!sh_contains(name_to_insn, start)) {
     printf("Can't find token: %s\n", start);
@@ -94,7 +102,7 @@ int main(int argc, char *argv[]) {
   for (uint64_t i = 0; i < IR_INS_MAX; i++) {
     sh_put(&z, name_to_insn, ir_names[i], i);
   }
-  sh_put(&z, name_to_insn, "_", 0xff);
+  sh_put(&z, name_to_insn, "_", FOLD_ARG_ANY);
 
   FILE *f = fopen(argv[1], "r");
   if (!f) {

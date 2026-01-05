@@ -1,4 +1,13 @@
+* fixup snap0 for traces: we MUST save ARGs back to stack.
 * fixup emit_tyupecheck for more than fixnum types
+* LuaJIT doesn’t rewrite to NOP; its fold function returns DROPFOLD
+  for always-true guards, which removes the guard and doesn’t emit an
+  instruction at all (and FAILFOLD for always-false). If we want to
+  mirror that, FOLD_DROP should signal “do not emit/keep this guard”,
+  and the caller should skip adding the instruction rather than
+  leaving a NOP behind. Happy to switch FOLD_DROP handling to “don’t
+  append the instruction” instead of op = IR_NOP.
+
 
 # VM impl
 * next: diviter, divrec, sumloop, nqueens.

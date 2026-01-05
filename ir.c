@@ -166,11 +166,6 @@ void print_ir(trace *t) {
       print_slot(ins->op1, t);
       break;
     case IR_LOAD:
-      printf(" ");
-      print_slot(ins->op1, t);
-      printf(", ");
-      print_slot_immediate(ins->op2);
-      break;
     case IR_REF:
     case IR_GSET:
     case IR_ADD:

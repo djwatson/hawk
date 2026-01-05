@@ -8,6 +8,7 @@
 typedef enum fold_result {
   FOLD_NEXT,
   FOLD_RETRY,
+  FOLD_DROP,
 } fold_result;
 
 typedef fold_result (*fold_func_type)(trace *t, ir_ins *in);
@@ -37,8 +38,13 @@ static uint32_t fold_key(trace *t, ir_ins *in) {
                           ir_ins *in __attribute__((unused)))
 #define cur_ins (*in)
 
-IRFOLD(GUARD_EQ _ _)
-IRFOLDF(fold_guard_const_const) { abort(); }
+IRFOLD(GUARD_EQ CONST CONST)
+IRFOLDF(fold_guard_const_const) {
+  if (t->consts[cur_ins.op1.loc].value == t->consts[cur_ins.op2.loc].value) {
+    return FOLD_DROP;
+  }
+  return FOLD_NEXT;
+}
 
 #undef cur_ins
 
@@ -65,12 +71,14 @@ static fold_result fold_one(trace *t, ir_ins *in) {
 }
 
 void fold_instr(trace *trace, ir_ins *in) {
-  while (fold_one(trace, in) == FOLD_RETRY) {
-  }
-}
-
-void fold_trace(trace *trace) {
-  for (size_t i = 0; i < arrlen(trace->ins); i++) {
-    fold_instr(trace, &trace->ins[i]);
+  for (;;) {
+    fold_result res = fold_one(trace, in);
+    if (res == FOLD_RETRY) {
+      continue;
+    }
+    if (res == FOLD_DROP) {
+      in->op = IR_NOP;
+    }
+    return;
   }
 }

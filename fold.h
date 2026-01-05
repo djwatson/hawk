@@ -10,4 +10,3 @@ enum : uint8_t {
 };
 
 void fold_instr(trace *trace, ir_ins *in);
-void fold_trace(trace *trace);

@@ -572,11 +572,17 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
     emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
     emit_test_constant(s, op->reg, TAG_MASK);
     COMMENT("  typecheck");
+  } else if (op->type == CONS_TAG) {
+    emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
+    emit_cmp_constant(s, RTMP, CONS_TAG);
+    emit_and_constant(s, RTMP, RTMP, TAG_MASK);
+    emit_mov(s, RTMP, op->reg);
+    COMMENT("  typecheck");
   } else if (op->type == FLONUM_TAG) {
     // These are already typechecked (and are in xmm register).
   } else {
     // TODO TODO TODO
-    // abort();
+    /* abort(); */
   }
 }
 
@@ -605,6 +611,22 @@ static void collect_loopback_parallel_moves(emit_state *s, trace *arg_trace,
   emit_serialized_moves(s, cpy, loopback_regs);
 }
 
+static void emit_snap0_args(emit_state *s, trace *t, snap *snap) {
+  ir_ins *arg_ins = nullptr;
+  for_each_leading_op(t, IR_ARG, arg_ins) {
+    uint16_t arg_slot = (uint16_t)(snap->offset + arg_ins->data);
+    snap_entry entry = {
+        .slot = arg_slot,
+        .val =
+            {
+                .constant = false,
+                .loc = (uint16_t)(arg_ins - t->ins),
+            },
+    };
+    emit_snap_store_entry(s, t, &entry);
+  }
+}
+
 static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
                       ignoremap *ignore) {
   // If this is an exiting snapshot (vs. a loop back)
@@ -615,6 +637,10 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
   }
 
   emit_stack_offset_and_check(s, snap, ignore);
+
+  if (snap == &t->snaps[0]) {
+    emit_snap0_args(s, t, snap);
+  }
 
   arr_for_each_idx(snap->slots, j) {
     bool ignored = false;
@@ -742,11 +768,13 @@ static void emit_ir(emit_state *s, trace *t) {
     case IR_LOAD: {
       maybe_assign_register(s, op->op1, t);
       assert(!op->op1.constant);
+      assert(op->op2.constant);
       if (op->guard) {
         emit_typecheck(s, t, op, cur_snap);
       }
-      emit_mem_load(s, (uint16_t)op->op2.loc + 8, slot_reg(t, op->op1),
-                    op->reg);
+      int64_t offset_bytes =
+          to_fixnum(t->consts[op->op2.loc]) + (int64_t)sizeof(gc_header);
+      emit_mem_load(s, (int32_t)offset_bytes, slot_reg(t, op->op1), op->reg);
       break;
     }
     case IR_STORE: {

@@ -4,10 +4,10 @@
 #include "array.h"
 #include "bc.h"
 #include "emit.h"
+#include "fold.h"
 #include "gc.h"
 #include "hawk.h"
 #include "ir.h"
-#include "fold.h"
 #include "opt_dce.h"
 #include "record.h"
 #include "string.h"
@@ -517,6 +517,13 @@ static slot load_obj(vm_state *state, gc_obj *stack, bc *pc) {
   auto offset = stack_load(state, stack, pc->v2, true);
   auto type = get_slot_type(record_current_trace(state), obj);
 
+  assert(offset.constant);
+  offset = add_const(
+      state,
+      tag_fixnum(
+          (to_fixnum(record_current_trace(state)->consts[offset.loc]) * 8) -
+          get_tag(stack[pc->v1])));
+
   ir_ins ins = IR(.op = IR_LOAD, .op1 = obj, .op2 = offset, .type = type);
   return add_inst(state, ins);
 }
@@ -587,8 +594,7 @@ static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
 static slot closure_get(vm_state *state, gc_obj *stack, slot clo, uint8_t pos,
                         uint8_t clo_idx) {
   // Store byte offset to the captured variable (header is 16 bytes).
-  slot c_pos =
-      (slot){.constant = true, .loc = (uint16_t)((pos * 8) + 8 - CLOSURE_TAG)};
+  slot c_pos = add_const(state, tag_fixnum((pos * 8) + 8 - CLOSURE_TAG));
 
   if (clo.constant) {
     auto trace = record_current_trace(state);
