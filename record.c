@@ -519,20 +519,10 @@ static slot load_obj(vm_state *state, gc_obj *stack, bc *pc) {
   return add_inst(state, ins);
 }
 static slot guard_obj(vm_state *state, gc_obj *stack, bc *pc) {
-  auto obj = stack_load(state, stack, pc->v1, false);
+  // Typecheck the object slot; SLOAD will emit the guard for us.
+  stack_load(state, stack, pc->v1, true);
   auto want_tag = stack_load(state, stack, pc->v2, true);
-
-  // Guard that the value matches what we saw during recording.
-  if (!obj.constant) {
-    slot must_be = add_const(state, stack[pc->v1]);
-    ir_ins ins = IR(.op = IR_GUARD_EQ, .op1 = obj, .op2 = must_be);
-    add_inst(state, ins);
-  }
-  if (!want_tag.constant) {
-    slot must_be = add_const(state, stack[pc->v2]);
-    ir_ins ins = IR(.op = IR_GUARD_EQ, .op1 = want_tag, .op2 = must_be);
-    add_inst(state, ins);
-  }
+  assert(want_tag.constant);
   bool matches = guard_obj_matches(stack[pc->v1], stack[pc->v2]);
   return add_const(state, matches ? TRUE_REP : FALSE_REP);
 }
