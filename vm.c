@@ -12,6 +12,7 @@
 #include "jitdump.h"
 #include "profiler.h"
 #include "vm.h"
+#include "vm_guard.h"
 
 #define VMGEN_TRACE_OP(pc, code, state)                                        \
   do {                                                                         \
@@ -369,15 +370,8 @@ static inline gc_obj guard_obj(vm_state *state, gc_obj *stack, bc *pc) {
   (void)state;
   auto val = stack_load(state, stack, pc->v1, false);
   auto want_tag_obj = stack_load(state, stack, pc->v2, true);
-  assert(is_fixnum(want_tag_obj));
-  uint64_t want_tag = (uint64_t)to_fixnum(want_tag_obj);
-  uint64_t got_tag = (uint64_t)get_type_tag(val);
 
-  if (got_tag == LITERAL_TAG) {
-    return ((uint64_t)val.value & IMMEDIATE_MASK) == want_tag ? TRUE_REP
-                                                              : FALSE_REP;
-  }
-  return got_tag == want_tag ? TRUE_REP : FALSE_REP;
+  return guard_obj_matches(val, want_tag_obj) ? TRUE_REP : FALSE_REP;
 }
 static inline gc_obj closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
   (void)state;

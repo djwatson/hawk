@@ -12,6 +12,7 @@
 #include "string.h"
 #include "types.h"
 #include "vm.h"
+#include "vm_guard.h"
 
 // TODO: record abort if depth > ~20
 // TODO: record abort if len > ~4000
@@ -520,14 +521,22 @@ static slot load_obj(vm_state *state, gc_obj *stack, bc *pc) {
   return (slot){0};
 }
 static slot guard_obj(vm_state *state, gc_obj *stack, bc *pc) {
-  (void)state;
-  (void)stack;
-  (void)pc;
-  if (verbose) {
-    printf("Record abort: can't record GUARD\n");
+  auto obj = stack_load(state, stack, pc->v1, false);
+  auto want_tag = stack_load(state, stack, pc->v2, true);
+
+  // Guard that the value matches what we saw during recording.
+  if (!obj.constant) {
+    slot must_be = add_const(state, stack[pc->v1]);
+    ir_ins ins = IR(.op = IR_GUARD_EQ, .op1 = obj, .op2 = must_be);
+    add_inst(state, ins);
   }
-  record_abort(state);
-  return (slot){0};
+  if (!want_tag.constant) {
+    slot must_be = add_const(state, stack[pc->v2]);
+    ir_ins ins = IR(.op = IR_GUARD_EQ, .op1 = want_tag, .op2 = must_be);
+    add_inst(state, ins);
+  }
+  bool matches = guard_obj_matches(stack[pc->v1], stack[pc->v2]);
+  return add_const(state, matches ? TRUE_REP : FALSE_REP);
 }
 static void closure_set(vm_state *state, slot clo, uint8_t pos, slot val,
                         void **op_table) {
