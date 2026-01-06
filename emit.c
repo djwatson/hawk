@@ -318,6 +318,8 @@ typedef struct {
   uint8_t target_reg;
   bool needs_constant;
   int64_t constant_value;
+  bool needs_stack_load;
+  uint8_t type;
 } ignoremap;
 
 // NOLINTBEGIN(clang-analyzer-core.NullDereference)
@@ -497,11 +499,14 @@ static ignoremap *collect_loopback_regs(trace *arg_trace, trace *exit_trace,
       } else {
         map.reg = slot_reg(exit_trace, entry->val);
         map.needs_constant = false;
+        map.type = slot_ins(exit_trace, entry->val)->type;
       }
       break;
     }
     if (!found) {
-      abort();
+      map.needs_stack_load = true;
+      map.reg = REG_NONE;
+      map.type = ins->type;
     }
     arrput(nullptr, regs, map);
   }
@@ -599,6 +604,18 @@ static void collect_loopback_parallel_moves(emit_state *s, trace *arg_trace,
     auto reg_map = &loopback_regs[arg_idx++];
     reg_map->target_reg = arg_ins->reg;
     if (reg_map->needs_constant) {
+      continue;
+    }
+    if (reg_map->needs_stack_load) {
+      if (reg_map->type == FLONUM_TAG) {
+        auto stack_off = (int32_t)reg_map->slot * 8;
+        emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, reg_map->target_reg);
+        emit_mem_load(s, stack_off, RSTACK, RTMP);
+        emit_mov(s, RTMP, reg_map->target_reg);
+      } else {
+        auto stack_off = (int32_t)reg_map->slot * 8;
+        emit_mem_load(s, stack_off, RSTACK, reg_map->target_reg);
+      }
       continue;
     }
     if (reg_map->reg == REG_NONE) {

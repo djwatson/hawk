@@ -544,10 +544,15 @@ static void closure_set(vm_state *state, slot clo, uint8_t pos, slot val,
   *op_table = state->impls;
 }
 static slot closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
-  (void)state;
   (void)stack;
-  (void)pc;
-  abort();
+  uint64_t capture_cnt = (uint64_t)pc->data + 1;
+  int64_t size_bytes =
+      (int64_t)(sizeof(closure_s) + (capture_cnt * sizeof(gc_obj)));
+
+  auto sz = add_const(state, tag_fixnum(size_bytes));
+  auto type = add_const(state, tag_fixnum(CLOSURE_TAG));
+  ir_ins ins = IR(.op = IR_ALLOC, .op1 = sz, .op2 = type, .type = CLOSURE_TAG);
+  return add_inst(state, ins);
 }
 // Nothing necessary for record - we will check in emit_snapshot - checks will
 // be elided if we never hit a snapshot!
