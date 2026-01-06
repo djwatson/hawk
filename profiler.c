@@ -34,6 +34,7 @@ static bool prev_sa_valid = false;
 
 static volatile sig_atomic_t jit_active = 0;
 static volatile sig_atomic_t gc_active = 0;
+static volatile sig_atomic_t gc_depth = 0;
 static void *pc_samples[k_max_pc_samples];
 static volatile sig_atomic_t pc_sample_count = 0;
 
@@ -167,7 +168,8 @@ void profiler_register_jit_symbol(void *start, void *end, const char *name) {
   if (!copy) {
     return;
   }
-  jit_symbol js = {.start = (uintptr_t)start, .end = (uintptr_t)end, .name = copy};
+  jit_symbol js = {
+      .start = (uintptr_t)start, .end = (uintptr_t)end, .name = copy};
   arrput(nullptr, jit_syms, js);
 }
 
@@ -191,13 +193,51 @@ static void handler(int sig, siginfo_t *si, void *uc) {
     gc_samples++;
   } else if (jit_active) {
     jit_samples++;
-    record_pc_sample(ucontext_pc(uc));
   }
+  record_pc_sample(ucontext_pc(uc));
 }
 
 void profiler_set_in_jit(bool active) { jit_active = active ? 1 : 0; }
 
-void profiler_set_in_gc(bool active) { gc_active = active ? 1 : 0; }
+void profiler_set_in_gc(bool active) {
+  if (active) {
+    gc_depth++;
+    gc_active = 1;
+  } else {
+    if (gc_depth > 0) {
+      gc_depth--;
+    }
+    if (gc_depth == 0) {
+      gc_active = 0;
+    }
+  }
+}
+
+uint64_t profiler_gc_enter(void) {
+  gc_depth++;
+  gc_active = 1;
+  return (uint64_t)total_samples;
+}
+
+void profiler_gc_exit(uint64_t start_total_samples, uint64_t duration_ns) {
+  if (gc_depth > 0) {
+    gc_depth--;
+  }
+  if (gc_depth == 0) {
+    gc_active = 0;
+  }
+  uint64_t expected = duration_ns / ((uint64_t)k_sample_interval_usec * 1000ULL);
+  uint64_t actual = 0;
+  sig_atomic_t cur_total = total_samples;
+  if ((uint64_t)cur_total > start_total_samples) {
+    actual = (uint64_t)cur_total - start_total_samples;
+  }
+  if (expected > actual) {
+    uint64_t missing = expected - actual;
+    total_samples += (sig_atomic_t)missing;
+    gc_samples += (sig_atomic_t)missing;
+  }
+}
 
 EXPORT void profiler_start(vm_state *state) {
   if (profiler_running) {
@@ -338,7 +378,8 @@ EXPORT void profiler_stop(vm_state *state) {
       char symbuf[128];
       const char *sym = symbolize_pc(runs[i].pc, symbuf, sizeof(symbuf));
       if (!sym || sym[0] == '\0') {
-        snprintf(symbuf, sizeof(symbuf), "0x%lx", (unsigned long)(uintptr_t)runs[i].pc);
+        snprintf(symbuf, sizeof(symbuf), "0x%lx",
+                 (unsigned long)(uintptr_t)runs[i].pc);
         sym = symbuf;
       }
       const char *plus = strchr(sym, '+');
@@ -372,7 +413,8 @@ EXPORT void profiler_stop(vm_state *state) {
     printf("Top JIT PCs (samples=%zu):\n", (size_t)pc_cnt);
     for (size_t i = 0; i < to_print; i++) {
       double pct = (double)sym_hits[i].hits / (double)pc_cnt * 100.0;
-      printf("  %s hits=%zu (%.2f%%)\n", sym_hits[i].name, sym_hits[i].hits, pct);
+      printf("  %s hits=%zu (%.2f%%)\n", sym_hits[i].name, sym_hits[i].hits,
+             pct);
     }
     if (state) {
       size_t max_hits = runs[0].hits;
