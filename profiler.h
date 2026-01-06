@@ -9,3 +9,4 @@ void profiler_start(struct vm_state *state);
 void profiler_stop(struct vm_state *state);
 void profiler_set_in_jit(bool active);
 void profiler_set_in_gc(bool active);
+void profiler_register_jit_symbol(void *start, void *end, const char *name);

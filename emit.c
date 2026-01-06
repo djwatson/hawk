@@ -16,6 +16,7 @@
 #include "gc.h"
 #include "hawk.h"
 #include "ir.h"
+#include "profiler.h"
 #include "vm.h"
 #ifdef HAVE_ELF_H
 #include "jitdump.h"
@@ -37,17 +38,17 @@ static const int32_t freelist_end_offset =
     (int32_t)offsetof(freelist_s, end_ptr);
 static const int32_t flonum_payload_offset = (int32_t)offsetof(flonum_s, x);
 
-#ifdef HAVE_ELF_H
 static void register_jit_symbol(uint8_t *start, uint8_t *entry, uint8_t *end,
                                 const char *name) {
-  if (!jit_dump_flag) {
-    return;
+  profiler_register_jit_symbol(start, end, name);
+#ifdef HAVE_ELF_H
+  if (jit_dump_flag) {
+    jit_reader_add((int)(end - entry), (uint64_t)entry, name);
+    jit_dump((int)(end - start), (uint64_t)start, name);
+    perf_map((uint64_t)start, (uint64_t)(end - start), name);
   }
-  jit_reader_add((int)(end - entry), (uint64_t)entry, name);
-  jit_dump((int)(end - start), (uint64_t)start, name);
-  perf_map((uint64_t)start, (uint64_t)(end - start), name);
-}
 #endif
+}
 
 // Slowpath: RET_REG will be the requested size, AND return value.
 void emit_init_slowpath(emit_state *s) {
@@ -78,9 +79,7 @@ void emit_init_slowpath(emit_state *s) {
   s->alloc_slowpath = start;
 
   emit_writable_end(s);
-#ifdef HAVE_ELF_H
   register_jit_symbol(start, s->alloc_slowpath, (uint8_t *)end, "GCslowpath");
-#endif
   if (verbose) {
     printf("GC slowpath: %" PRId64 "\n", end - (long)start);
     disassemble(start, end - (long)start, nullptr);
@@ -1117,13 +1116,11 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   arrfree(loopback_regs);
 
   // Install debuginfo for gdb & linux perf tool.
-#ifdef HAVE_ELF_H
   char funcname[256];
   char *dumpname = t->parent ? "SIDE" : "TRACE";
   snprintf(funcname, sizeof(funcname), "%s_%i", dumpname, t->num);
   register_jit_symbol((uint8_t *)start, (uint8_t *)entry, (uint8_t *)end,
                       funcname);
-#endif
   // Call the built-in function to flush the cache for the specific range
   __builtin___clear_cache((char *)emit_offset(s), (char *)end);
   return (trace_fn)entry;

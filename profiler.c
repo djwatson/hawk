@@ -17,6 +17,7 @@
 #include <ucontext.h>
 #include <unistd.h>
 
+#include "array.h"
 #include "emit.h"
 #include "hawk.h"
 #include "vm.h"
@@ -36,6 +37,24 @@ static volatile sig_atomic_t gc_active = 0;
 static void *pc_samples[k_max_pc_samples];
 static volatile sig_atomic_t pc_sample_count = 0;
 
+typedef struct {
+  uintptr_t start;
+  uintptr_t end;
+  char *name;
+} jit_symbol;
+
+static jit_symbol *jit_syms = nullptr;
+
+typedef struct {
+  void *pc;
+  size_t hits;
+} pc_count;
+
+typedef struct {
+  char name[128];
+  size_t hits;
+} sym_count;
+
 static int cmp_void_ptr(const void *a, const void *b) {
   uintptr_t pa = (uintptr_t)*(void *const *)a;
   uintptr_t pb = (uintptr_t)*(void *const *)b;
@@ -48,14 +67,21 @@ static int cmp_void_ptr(const void *a, const void *b) {
   return 0;
 }
 
-typedef struct {
-  void *pc;
-  size_t hits;
-} pc_count;
-
 static int cmp_pc_count_desc(const void *a, const void *b) {
   size_t ha = ((const pc_count *)a)->hits;
   size_t hb = ((const pc_count *)b)->hits;
+  if (ha < hb) {
+    return 1;
+  }
+  if (ha > hb) {
+    return -1;
+  }
+  return 0;
+}
+
+static int cmp_sym_count_desc(const void *a, const void *b) {
+  size_t ha = ((const sym_count *)a)->hits;
+  size_t hb = ((const sym_count *)b)->hits;
   if (ha < hb) {
     return 1;
   }
@@ -104,11 +130,20 @@ static void *ucontext_pc(void *uc) {
 }
 
 static const char *symbolize_pc(void *pc, char *buf, size_t buf_sz) {
-#if defined(__APPLE__) || defined(__linux__) || defined(__unix__)
   if (buf_sz == 0) {
     return "";
   }
   buf[0] = '\0';
+  uintptr_t addr = (uintptr_t)pc;
+  for (size_t i = 0; i < arrlen(jit_syms); i++) {
+    const jit_symbol *js = &jit_syms[i];
+    if (addr >= js->start && addr < js->end && js->name) {
+      uintptr_t off = addr - js->start;
+      snprintf(buf, buf_sz, "%s+0x%lx", js->name, (unsigned long)off);
+      return buf;
+    }
+  }
+#if defined(__APPLE__) || defined(__linux__) || defined(__unix__)
   Dl_info info;
   if (dladdr(pc, &info) && info.dli_sname) {
     uintptr_t off = (uintptr_t)pc - (uintptr_t)info.dli_saddr;
@@ -122,6 +157,18 @@ static const char *symbolize_pc(void *pc, char *buf, size_t buf_sz) {
   (void)buf_sz;
   return "";
 #endif
+}
+
+void profiler_register_jit_symbol(void *start, void *end, const char *name) {
+  if (!start || !end || start >= end || !name) {
+    return;
+  }
+  char *copy = strdup(name);
+  if (!copy) {
+    return;
+  }
+  jit_symbol js = {.start = (uintptr_t)start, .end = (uintptr_t)end, .name = copy};
+  arrput(nullptr, jit_syms, js);
 }
 
 // Best-effort ring buffer store; only the handler writes, so no locks needed.
@@ -286,18 +333,46 @@ EXPORT void profiler_stop(vm_state *state) {
 
     qsort(runs, run_len, sizeof(pc_count), cmp_pc_count_desc);
 
-    size_t to_print = run_len < 10 ? run_len : 10;
-    printf("Top JIT PCs (samples=%zu):\n", (size_t)pc_cnt);
-    for (size_t i = 0; i < to_print; i++) {
-      double pct = (double)runs[i].hits / (double)pc_cnt * 100.0;
+    sym_count *sym_hits = nullptr;
+    for (size_t i = 0; i < run_len; i++) {
       char symbuf[128];
       const char *sym = symbolize_pc(runs[i].pc, symbuf, sizeof(symbuf));
-      if (sym && sym[0] != '\0') {
-        printf("  pc=%p (%s) hits=%zu (%.2f%%)\n", runs[i].pc, sym,
-               runs[i].hits, pct);
-      } else {
-        printf("  pc=%p hits=%zu (%.2f%%)\n", runs[i].pc, runs[i].hits, pct);
+      if (!sym || sym[0] == '\0') {
+        snprintf(symbuf, sizeof(symbuf), "0x%lx", (unsigned long)(uintptr_t)runs[i].pc);
+        sym = symbuf;
       }
+      const char *plus = strchr(sym, '+');
+      size_t base_len = plus ? (size_t)(plus - sym) : strlen(sym);
+      char base[128];
+      if (base_len >= sizeof(base)) {
+        base_len = sizeof(base) - 1;
+      }
+      memcpy(base, sym, base_len);
+      base[base_len] = '\0';
+      bool merged = false;
+      for (size_t j = 0; j < arrlen(sym_hits); j++) {
+        if (strcmp(sym_hits[j].name, base) == 0) {
+          sym_hits[j].hits += runs[i].hits;
+          merged = true;
+          break;
+        }
+      }
+      if (!merged) {
+        sym_count sc;
+        strncpy(sc.name, base, sizeof(sc.name) - 1);
+        sc.name[sizeof(sc.name) - 1] = '\0';
+        sc.hits = runs[i].hits;
+        arrput(nullptr, sym_hits, sc);
+      }
+    }
+
+    qsort(sym_hits, arrlen(sym_hits), sizeof(sym_count), cmp_sym_count_desc);
+
+    size_t to_print = arrlen(sym_hits) < 10 ? arrlen(sym_hits) : 10;
+    printf("Top JIT PCs (samples=%zu):\n", (size_t)pc_cnt);
+    for (size_t i = 0; i < to_print; i++) {
+      double pct = (double)sym_hits[i].hits / (double)pc_cnt * 100.0;
+      printf("  %s hits=%zu (%.2f%%)\n", sym_hits[i].name, sym_hits[i].hits, pct);
     }
     if (state) {
       size_t max_hits = runs[0].hits;
