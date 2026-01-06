@@ -1,9 +1,13 @@
 // Copyright 2023 Dave Watson
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE
+#endif
 #define _GNU_SOURCE
 #define _XOPEN_SOURCE 700
 
 #include "profiler.h"
 
+#include <dlfcn.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -97,6 +101,27 @@ static void *ucontext_pc(void *uc) {
 #endif
   (void)uc;
   return nullptr;
+}
+
+static const char *symbolize_pc(void *pc, char *buf, size_t buf_sz) {
+#if defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+  if (buf_sz == 0) {
+    return "";
+  }
+  buf[0] = '\0';
+  Dl_info info;
+  if (dladdr(pc, &info) && info.dli_sname) {
+    uintptr_t off = (uintptr_t)pc - (uintptr_t)info.dli_saddr;
+    snprintf(buf, buf_sz, "%s+0x%lx", info.dli_sname, (unsigned long)off);
+    return buf;
+  }
+  return "";
+#else
+  (void)pc;
+  (void)buf;
+  (void)buf_sz;
+  return "";
+#endif
 }
 
 // Best-effort ring buffer store; only the handler writes, so no locks needed.
@@ -265,7 +290,14 @@ EXPORT void profiler_stop(vm_state *state) {
     printf("Top JIT PCs (samples=%zu):\n", (size_t)pc_cnt);
     for (size_t i = 0; i < to_print; i++) {
       double pct = (double)runs[i].hits / (double)pc_cnt * 100.0;
-      printf("  pc=%p hits=%zu (%.2f%%)\n", runs[i].pc, runs[i].hits, pct);
+      char symbuf[128];
+      const char *sym = symbolize_pc(runs[i].pc, symbuf, sizeof(symbuf));
+      if (sym && sym[0] != '\0') {
+        printf("  pc=%p (%s) hits=%zu (%.2f%%)\n", runs[i].pc, sym,
+               runs[i].hits, pct);
+      } else {
+        printf("  pc=%p hits=%zu (%.2f%%)\n", runs[i].pc, runs[i].hits, pct);
+      }
     }
     if (state) {
       size_t max_hits = runs[0].hits;
