@@ -1,3 +1,4 @@
+(import (scheme r5rs))
 (define (fibfp n)
   (if (< n 2.)
       n

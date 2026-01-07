@@ -467,13 +467,22 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
           printf("Try NEW root trace %i %i\n", res.snap->trace->num,
                  res.snap->ir);
         }
-        if ((*pc)->op == OP_RET) {
-          *instr = **pc;
-        } else {
-          (*pc)++;
+        bc start = res.snap->trace->start_pc;
+        if ((*pc)->op == OP_JFUNC) {
+          // Remember the JFUNC so record_finish can restore it after recording
+          // the polymorphic root trace.
+          state->record.patchpc = *pc;
+          state->record.old_patch = **pc;
+          // Restore original opcode before recording a new root trace.
+          **pc = start;
+        }
+        *instr = start;
+        record_start(state, *pc, *stack, res.snap);
+        if (start.op != OP_RET) {
+          // Skip over FUNC/JFUNC so we actually record body instructions.
+          *pc = next_op(*pc);
           *instr = **pc;
         }
-        record_start(state, *pc, *stack, res.snap);
       } else {
         if (verbose) {
           printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);

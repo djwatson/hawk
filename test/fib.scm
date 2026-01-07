@@ -1,5 +1,5 @@
-;(use-modules (system vm disassembler))
-;(import (rnrs))
+
+(import (scheme r5rs))
 (define (fib n)
   (if (< n 2) n
       (+
