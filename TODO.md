@@ -1,4 +1,4 @@
-* fixup snap0 for traces: we MUST save ARGs back to stack.
+* extra unnecessary branch checks before regalloc
 * fixup emit_tyupecheck for more than fixnum types
 * LuaJIT doesn’t rewrite to NOP; its fold function returns DROPFOLD
   for always-true guards, which removes the guard and doesn’t emit an
@@ -30,6 +30,7 @@
 * ir printing can use the ir type flags
 * We can also use the new instr decoded instead of patchpc I think
 
+# scheme cleanup
 * builders needs to be in with the rest of the IR passes. Use builders instead of backtick to build stuff.
 * matchers kinda suck with annotations and unused fields, ugh???
 * ir->sexp is used for debugging, we need a pretty-print IR I guess?
@@ -54,24 +55,24 @@
 
 ### opts
 
-* fold 
+X fold 
    * gvn
 * mem opts
 * sinking
 * loop? never really found useful, because reg-args covers most cases.
-* dce - implicit.  Only useful with LOOP
+X dce - implicit.  Only useful with LOOP
 
 
 # passes
-* fix-letrec! - just check no letrec.
+X fix-letrec! - just check no letrec.
 * assignment-convert! - just check no asssigned.
-* recover-let
+X recover-let
 * loops
-* name-lambdas
-* closure convert simple! -   just check no free.
-* output to BC.
+X name-lambdas
+X closure convert simple! -   just check no free.
+X output to BC.
 
-* simple integerations for bytecode ops
+X simple integerations for bytecode ops
 
 ## later:
 * lift complex / bignums?

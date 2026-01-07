@@ -83,15 +83,61 @@ endif()
 add_executable(hawk ${hawk_sources})
 add_dependencies(hawk opcodes_scm)
 # fold generator
-add_executable(host_gen_fold host/gen_fold.c array.c hashtable.c zone_alloc.c)
-target_include_directories(
-  host_gen_fold PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-                        ${CMAKE_CURRENT_SOURCE_DIR}/util)
+set(gen_fold_target gen_fold)
+set(
+  gen_fold_sources
+  host/gen_fold.c
+  array.c
+  hashtable.c
+  zone_alloc.c
+)
+set(gen_fold_source_paths)
+foreach(src ${gen_fold_sources})
+  list(APPEND gen_fold_source_paths
+       ${CMAKE_CURRENT_SOURCE_DIR}/${src})
+endforeach()
+set(
+  gen_fold_includes
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/util
+)
+set(gen_fold_exe $<TARGET_FILE:gen_fold>)
+set(gen_fold_include_flags)
+foreach(dir ${gen_fold_includes})
+  list(APPEND gen_fold_include_flags -I${dir})
+endforeach()
+if(CMAKE_CROSSCOMPILING)
+  set(gen_fold_target gen_fold_host)
+  set(gen_fold_exe ${CMAKE_CURRENT_BINARY_DIR}/gen_fold_tool)
+  find_program(HOST_CC NAMES clang cc)
+  if(NOT HOST_CC)
+    message(FATAL_ERROR "No host C compiler found to build gen_fold")
+  endif()
+  add_custom_command(
+    OUTPUT ${gen_fold_exe}
+    COMMAND
+      ${HOST_CC}
+      -std=c23
+      -O2
+      -g
+      ${gen_fold_include_flags}
+      ${gen_fold_source_paths}
+      -o ${gen_fold_exe}
+    DEPENDS ${gen_fold_source_paths}
+    BYPRODUCTS ${gen_fold_exe}
+    COMMENT "Building host gen_fold tool for codegen"
+    VERBATIM
+  )
+  add_custom_target(${gen_fold_target} DEPENDS ${gen_fold_exe})
+else()
+  add_executable(gen_fold ${gen_fold_sources})
+  target_include_directories(gen_fold PRIVATE ${gen_fold_includes})
+endif()
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/fold_gen.h
-  COMMAND host_gen_fold ${CMAKE_CURRENT_SOURCE_DIR}/fold.c >
+  COMMAND ${gen_fold_exe} ${CMAKE_CURRENT_SOURCE_DIR}/fold.c >
           ${CMAKE_CURRENT_BINARY_DIR}/fold_gen.h
-  DEPENDS host_gen_fold fold.c
+  DEPENDS ${gen_fold_target} fold.c
   COMMENT "Generating fold lookup table"
   VERBATIM)
 add_custom_target(fold_gen DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/fold_gen.h)
