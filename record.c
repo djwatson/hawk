@@ -23,13 +23,9 @@
     if (verbose) {                                                             \
       printf("record op: %p %s\n", pc, #code);                                 \
     }                                                                          \
-    if ((state)->record.patchpc) {                                             \
-      *(state)->record.patchpc = (state)->record.old_patch;                    \
-      (state)->record.patchpc = nullptr;                                       \
-    }                                                                          \
   } while (0)
 static bool is_downrec_trace(trace_state *ts) {
-  return ts->start_ins->op == OP_RET;
+  return ts->start_is_ret;
 }
 
 static void clear_trace_state(trace_state *ts) {
@@ -293,21 +289,12 @@ static slot constify_data(vm_state *state, uint16_t data) {
   gc_obj c = (gc_obj){.value = data};
   return add_const(state, c);
 }
-// TODO remove, replace with instr vm usage
-static void pend_patch(vm_state *state) {
-  if ((state)->record.patchpc) {
-    *(state)->record.patchpc = (state)->record.old_patch;
-    (state)->record.patchpc = nullptr;
-  }
-}
 static void record_abort(vm_state *state) {
-  pend_patch(state);
   free_trace(record_current_trace(state));
   record_set_current_trace(state, nullptr);
   clear_trace_state(record_trace_state(state));
 }
 static void record_finish(bc *pc, vm_state *state) {
-  pend_patch(state);
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   vm_add_snap(state, pc);
@@ -398,7 +385,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
       }
       clear_trace_state(ts);
       free_trace(cur_trace);
-      record_start(state, pc, stack, nullptr);
+      record_start(state, pc, *pc, stack, nullptr);
       // UGH there must be a better way?
       VMGEN_TRACE_OP(pc, RET, state);
       return return_frame(state, pc, stack, op_table);
@@ -695,11 +682,7 @@ static void *jit_func(bc *instr, bc **pc, gc_obj **stack, vm_state *state,
   trace *target = state->record.traces[(*pc)->data];
   trace *matched = ensure_args_match_trace(*stack, target);
   if (!matched) {
-    // Patchpc, record and run FUNC instead. Patch back after record & runing.
-    state->record.old_patch = **pc;
-    state->record.patchpc = *pc;
-    **pc = target->start_pc;
-    *instr = **pc;
+    *instr = target->start_pc;
     return check_record_start(*pc, *stack, state, op_table);
   }
 
@@ -749,22 +732,18 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 // NOLINTNEXTLINE(bugprone-suspicious-include)
 #include "vmgen.c" // NOLINT(build/include)
 
-void record_start(vm_state *state, bc *pc, gc_obj *stack,
+void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
                   const snap *poly_entry) {
   if (verbose) {
     printf("Record start %li\n", arrlen(state->record.traces));
   }
   record_set_current_trace(state, calloc(1, sizeof(trace)));
-  if (pc->op == OP_JFUNC) {
-    state->record.patchpc = pc;
-    state->record.old_patch = *pc;
-    *pc = state->record.traces[pc->data]->start_pc;
-  }
-  record_current_trace(state)->start_pc = *pc;
+  record_current_trace(state)->start_pc = instr;
   trace_state *ts = record_trace_state(state);
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
-  ts->skip_start_check = (pc->op == OP_RET);
+  ts->start_is_ret = (instr.op == OP_RET);
+  ts->skip_start_check = ts->start_is_ret;
   ts->type = poly_entry ? TRACE_TYPE_POLY_ROOT : TRACE_TYPE_ROOT;
   ts->poly_entry = poly_entry;
 
@@ -772,19 +751,19 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack,
   // OK! Let's put function arguments in registers.
   // Note these *must* be marked as 'changed', since ARGS aren't saved between
   // trace loops at all.
-  assert(pc->op == OP_FUNC || pc->op == OP_RET);
-  switch (pc->op) {
+  assert(instr.op == OP_FUNC || instr.op == OP_RET);
+  switch (instr.op) {
   case OP_FUNC:
-    for (int i = 0; i < MIN(pc->reg, REG_ARG_CNT); i++) {
+    for (int i = 0; i < MIN(instr.reg, REG_ARG_CNT); i++) {
       set_stack(state, i,
                 add_inst(state, IR(.op = IR_ARG, .data = i,
                                    .type = get_type_tag(stack[i]))));
     }
     break;
   case OP_RET:
-    set_stack(state, pc->reg,
-              add_inst(state, IR(.op = IR_ARG, .data = pc->reg,
-                                 .type = get_type_tag(stack[pc->reg]))));
+    set_stack(state, instr.reg,
+              add_inst(state, IR(.op = IR_ARG, .data = instr.reg,
+                                 .type = get_type_tag(stack[instr.reg]))));
     break;
   default:
     abort();
@@ -792,7 +771,8 @@ void record_start(vm_state *state, bc *pc, gc_obj *stack,
   vm_add_snap(state, pc);
 }
 
-void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
+void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
+                       snap *snap) {
   if (verbose) {
     printf("Record start side %li\n", arrlen(state->record.traces));
   }
@@ -801,10 +781,11 @@ void record_start_side(vm_state *state, bc *pc, gc_obj *stack, snap *snap) {
   trace *cur_trace = record_current_trace(state);
   cur_trace->parent = snap->trace;
   cur_trace->parent_snap = snap;
-  cur_trace->start_pc = *pc;
+  cur_trace->start_pc = instr;
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
-  ts->skip_start_check = (pc->op == OP_RET);
+  ts->start_is_ret = (instr.op == OP_RET);
+  ts->skip_start_check = ts->start_is_ret;
   ts->depth = snap->depth;
   ts->stack_off = snap->offset;
   ts->type = TRACE_TYPE_SIDE;

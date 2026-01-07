@@ -55,7 +55,7 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 #endif
       op_table == state->impls) {
     *hot_loc = hotmap_cnt;
-    record_start(state, pc, stack, nullptr);
+    record_start(state, pc, *pc, stack, nullptr);
     return state->record_impls;
   }
   return op_table;
@@ -468,16 +468,8 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
                  res.snap->ir);
         }
         bc start = res.snap->trace->start_pc;
-        if ((*pc)->op == OP_JFUNC) {
-          // Remember the JFUNC so record_finish can restore it after recording
-          // the polymorphic root trace.
-          state->record.patchpc = *pc;
-          state->record.old_patch = **pc;
-          // Restore original opcode before recording a new root trace.
-          **pc = start;
-        }
         *instr = start;
-        record_start(state, *pc, *stack, res.snap);
+        record_start(state, *pc, start, *stack, res.snap);
         if (start.op != OP_RET) {
           // Skip over FUNC/JFUNC so we actually record body instructions.
           *pc = next_op(*pc);
@@ -487,7 +479,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
         if (verbose) {
           printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
         }
-        record_start_side(state, *pc, *stack, res.snap);
+        record_start_side(state, *pc, **pc, *stack, res.snap);
       }
       return state->record_impls;
     }

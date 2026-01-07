@@ -23,41 +23,41 @@
 #endif
 
 OP_BEGIN(ADD) {
-  auto v1 = stack_load(state, stack, pc->v1, true);
-  auto v2 = stack_load(state, stack, pc->v2, true);
+  auto v1 = stack_load(state, stack, instr.v1, true);
+  auto v2 = stack_load(state, stack, instr.v2, true);
   auto res = emit_ov_math_add(state, v1, v2);
-  stack_save(state, stack, pc->reg, res);
+  stack_save(state, stack, instr.reg, res);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(SUB) {
-  auto v1 = stack_load(state, stack, pc->v1, true);
-  auto v2 = stack_load(state, stack, pc->v2, true);
+  auto v1 = stack_load(state, stack, instr.v1, true);
+  auto v2 = stack_load(state, stack, instr.v2, true);
   auto res = emit_ov_math_sub(state, v1, v2);
-  stack_save(state, stack, pc->reg, res);
+  stack_save(state, stack, instr.reg, res);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(CONST) {
-  auto c = const_load(state, pc, pc->data);
-  stack_save(state, stack, pc->reg, c);
+  auto c = const_load(state, pc, instr.data);
+  stack_save(state, stack, instr.reg, c);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(KSHORT) {
-  auto c = constify_data(state, pc->data);
-  stack_save(state, stack, pc->reg, c);
+  auto c = constify_data(state, instr.data);
+  stack_save(state, stack, instr.reg, c);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(MOV) {
-  auto c = stack_load(state, stack, pc->data, false);
-  stack_save(state, stack, pc->reg, c);
+  auto c = stack_load(state, stack, instr.data, false);
+  stack_save(state, stack, instr.reg, c);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(RET) {
-  auto c = stack_load(state, stack, pc->reg, false);
+  auto c = stack_load(state, stack, instr.reg, false);
   // TODO: re-enable eventually
   auto res = check_record_start(pc, stack, state, op_table);
   if (res != op_table) {
@@ -71,22 +71,22 @@ END OP_BEGIN(RET) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(LOOKUP) {
-  auto c = const_load(state, pc, pc->data);
+  auto c = const_load(state, pc, instr.data);
   // No need to check if c is a symbol, the compiler guarantees it
   auto v1 = sym_load(state, c);
-  stack_save(state, stack, pc->reg, v1);
+  stack_save(state, stack, instr.reg, v1);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(DEFINE) {
-  auto c = const_load(state, pc, pc->data);
-  auto val = stack_load(state, stack, pc->reg, false);
+  auto c = const_load(state, pc, instr.data);
+  auto val = stack_load(state, stack, instr.reg, false);
   sym_store(state, c, val);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(WRITE) {
-  auto val = stack_load(state, stack, pc->v1, false);
+  auto val = stack_load(state, stack, instr.v1, false);
   obj_write(state, val, &op_table);
   pc = next_op(pc);
   dispatch_next(pc, stack);
@@ -105,7 +105,7 @@ END OP_BEGIN(FUNC) {
 }
 END OP_BEGIN(JFUNC) {
   // TODO argcnt check - no, will be put in trace itself!
-  auto f = pc->data;
+  auto f = instr.data;
   op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
 
   /* if ((*pc).op != instr.op) { */
@@ -115,21 +115,21 @@ END OP_BEGIN(JFUNC) {
   MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
 }
 END OP_BEGIN(JLT) {
-  auto v1 = stack_load(state, stack, pc->v1, true);
-  auto v2 = stack_load(state, stack, pc->v2, true);
+  auto v1 = stack_load(state, stack, instr.v1, true);
+  auto v2 = stack_load(state, stack, instr.v2, true);
   auto res = emit_math_cmp_lt(state, pc, stack, v1, v2);
   pc = branch_if_op(state, pc, stack, res);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(JEQV) {
-  auto v1 = stack_load(state, stack, pc->v1, true);
-  auto v2 = stack_load(state, stack, pc->v2, true);
+  auto v1 = stack_load(state, stack, instr.v1, true);
+  auto v2 = stack_load(state, stack, instr.v2, true);
   auto res = emit_math_cmp_eq(state, pc, stack, v1, v2);
   pc = branch_if_op(state, pc, stack, res);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(IF) {
-  auto v = stack_load(state, stack, pc->data, false);
+  auto v = stack_load(state, stack, instr.data, false);
   auto res = emit_if_branch(state, pc, stack, v);
   pc = branch_if_op(state, pc, stack, res);
   dispatch_next(pc, stack);
@@ -139,48 +139,48 @@ END OP_BEGIN(JMP) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(CLOSURE_GET) {
-  auto clo = stack_load(state, stack, pc->v1, false);
+  auto clo = stack_load(state, stack, instr.v1, false);
   fail_if_not_closure(clo);
-  auto slot = pc->v2;
-  auto res = closure_get(state, stack, clo, slot, pc->v1);
-  stack_save(state, stack, pc->reg, res);
+  auto slot = instr.v2;
+  auto res = closure_get(state, stack, clo, slot, instr.v1);
+  stack_save(state, stack, instr.reg, res);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(CLOSURE_SET) {
-  auto val = stack_load(state, stack, pc->reg, false);
-  auto clo = stack_load(state, stack, pc->v1, false);
-  auto slot = pc->v2;
+  auto val = stack_load(state, stack, instr.reg, false);
+  auto clo = stack_load(state, stack, instr.v1, false);
+  auto slot = instr.v2;
   closure_set(state, clo, slot, val, &op_table);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(CLOSURE) {
   auto clo = closure_alloc(state, stack, pc);
-  stack_save(state, stack, pc->reg, clo);
+  stack_save(state, stack, instr.reg, clo);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(LCALL) {
-  argcnt = pc->data - 1;
-  auto func = stack_load(state, stack, pc->reg, true);
-  auto frame_top = pc->reg;
-  stack_save(state, stack, pc->reg, return_address(state, pc + 1));
+  argcnt = instr.data - 1;
+  auto func = stack_load(state, stack, instr.reg, true);
+  auto frame_top = instr.reg;
+  stack_save(state, stack, instr.reg, return_address(state, pc + 1));
   stack = adjust_stack_depth(state, stack, frame_top + 1);
   pc = set_new_pc(state, pc, stack, func);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(LCALLT) {
-  argcnt = pc->data - 1;
-  auto func = stack_load(state, stack, pc->reg, true);
-  auto frame_top = pc->reg;
+  argcnt = instr.data - 1;
+  auto func = stack_load(state, stack, instr.reg, true);
+  auto frame_top = instr.reg;
   stack_memmov(state, stack, frame_top + 1, argcnt);
   pc = set_new_pc(state, pc, stack, func);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(ALLOC) {
   auto obj = alloc_obj(state, stack, pc);
-  stack_save(state, stack, pc->reg, obj);
+  stack_save(state, stack, instr.reg, obj);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
@@ -191,13 +191,13 @@ END OP_BEGIN(STORE) {
 }
 END OP_BEGIN(GUARD) {
   auto res = guard_obj(state, stack, pc);
-  stack_save(state, stack, pc->reg, res);
+  stack_save(state, stack, instr.reg, res);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(LOAD) {
   auto res = load_obj(state, stack, pc);
-  stack_save(state, stack, pc->reg, res);
+  stack_save(state, stack, instr.reg, res);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }

@@ -28,7 +28,7 @@
 * remove 'parent', use parent snap instead.
 * we could improve emit_snap_store_flonum to use fewer registers / optimistic check for free
 * ir printing can use the ir type flags
-* We can also use the new instr decoded instead of patchpc I think
+* the skip_start_check could be generic, and we could cleanup NEW root traces etc. Not sure why it's not working, I made an attempt.
 
 # scheme cleanup
 * builders needs to be in with the rest of the IR passes. Use builders instead of backtick to build stuff.
