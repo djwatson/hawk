@@ -467,9 +467,13 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
           printf("Try NEW root trace %i %i\n", res.snap->trace->num,
                  res.snap->ir);
         }
+        if ((*pc)->op == OP_RET) {
+          *instr = **pc;
+        } else {
+          (*pc)++;
+          *instr = **pc;
+        }
         record_start(state, *pc, *stack, res.snap);
-        (*pc)++;
-        *instr = **pc;
       } else {
         if (verbose) {
           printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);

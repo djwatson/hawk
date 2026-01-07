@@ -4,7 +4,8 @@
 #define _DARWIN_C_SOURCE
 
 // Comment out to turn off generational GC.
-#define GENGC 1
+// TODO re-enable after logging SET commands
+// #define GENGC 1
 
 #include <sys/mman.h>
 
@@ -302,9 +303,8 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
           // Only walk remembered set if the object it is in is already marked -
           // otherwise it will already traced if live.
           if (bt(slab->markbits, index)) {
-            kv_push(markstack,
-                    ((range){(const uint64_t *)logptr,
-                             (const uint64_t *)(logptr + 8)}));
+            kv_push(markstack, ((range){(const uint64_t *)logptr,
+                                        (const uint64_t *)(logptr + 8)}));
           }
 
           bit = res + 1;
