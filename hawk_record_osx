@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+out_dir="$root_dir/osx-trace-out"
+trace_file="$out_dir/profile.trace"
+samples_xml="$out_dir/samples.xml"
+hawk_bin="$root_dir/build/hawk"
+
+rm -rf "$out_dir"
+mkdir -p "$out_dir"
+
+echo "Recording to $trace_file"
+# or 'Time Profiler' if you haven't saved a fast template
+xcrun xctrace record \
+  --template 'TimeProfilerFast' \
+  --time-limit 15s \
+  --output "$trace_file" \
+  --launch "$hawk_bin" -- --dump "$@"
+
+echo "Exporting samples to $samples_xml"
+xcrun xctrace export \
+  --input "$trace_file" \
+  --output "$samples_xml" \
+  --xpath "/trace-toc/run[@number='1']/data/table[@schema='time-profile']"
+
+merge_tool="$root_dir/tools/jit_instruments_merge.py"
+jit_dump=$(ls -t "$root_dir"/jit-*.dump 2>/dev/null | head -1 || true)
+
+if [[ -n "$jit_dump" ]]; then
+  echo "Merging -> $out_dir/report.html"
+  python3 "$merge_tool" "$samples_xml" "$jit_dump" --out "$out_dir/report.html"
+else
+  echo "Merge skipped (no jit-*.dump found)"
+fi
+
+echo "Trace:   $trace_file"
+echo "Samples: $samples_xml"
