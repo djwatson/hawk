@@ -17,40 +17,6 @@
 static const size_t page_cnt = 250;
 static const size_t msize = page_cnt * 4096;
 
-static int comment_sort(const void *a, const void *b) {
-  const comment_entry *lhs = (const comment_entry *)a;
-  const comment_entry *rhs = (const comment_entry *)b;
-  if (lhs->offset < rhs->offset) {
-    return -1;
-  }
-  if (lhs->offset > rhs->offset) {
-    return 1;
-  }
-  return 0;
-}
-
-void emit_disassemble_all(emit_state *s) {
-  if (!s || !s->p || !s->mtop) {
-    return;
-  }
-  size_t len = (size_t)(s->mend - s->p);
-  if (len == 0) {
-    return;
-  }
-
-  comment_entry *comments = nullptr;
-  size_t comment_cnt = arrlen(s->global_comments);
-  if (comment_cnt) {
-    for (size_t i = 0; i < comment_cnt; i++) {
-      arrput(nullptr, comments, s->global_comments[i]);
-    }
-    qsort(comments, comment_cnt, sizeof(comment_entry), comment_sort);
-  }
-
-  printf("Full JIT disassembly (%zu bytes):\n", len);
-  disassemble(s->p, len, comments);
-}
-
 int64_t emit_offset(emit_state *s) {
   assert(s);
   return (int64_t)s->p;
@@ -92,9 +58,6 @@ void emit_cleanup(emit_state *s) {
   }
   arrfree(s->comments);
   s->comments = nullptr;
-  s->global_comments = nullptr;
-  zone_free(&s->global_comment_zone);
-  memset(&s->global_comment_zone, 0, sizeof(s->global_comment_zone));
 
   munmap(s->mtop, msize);
   s->mtop = nullptr;
@@ -109,9 +72,7 @@ void emit_init(emit_state *s) {
   }
 
   memset(&s->z, 0, sizeof(s->z));
-  memset(&s->global_comment_zone, 0, sizeof(s->global_comment_zone));
   s->comments = nullptr;
-  s->global_comments = nullptr;
   s->alloc_slowpath = nullptr;
 
   auto prot = PROT_READ | PROT_WRITE | PROT_EXEC;

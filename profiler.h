@@ -4,9 +4,8 @@
 
 #include <stdint.h>
 
-struct vm_state;
-void profiler_start(struct vm_state *state);
-void profiler_stop(struct vm_state *state);
+void profiler_start(void);
+void profiler_stop(void);
 void profiler_set_in_jit(bool active);
 void profiler_set_in_gc(bool active);
 uint64_t profiler_gc_enter(void);

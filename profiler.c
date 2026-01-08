@@ -6,24 +6,18 @@
 #define _XOPEN_SOURCE 700
 
 #include "profiler.h"
+#include "hawk.h"
 
-#include <dlfcn.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
-#include <ucontext.h>
 #include <unistd.h>
 
-#include "array.h"
-#include "emit.h"
-#include "hawk.h"
-#include "vm.h"
-
 static const useconds_t k_sample_interval_usec = 5; // 0.25ms
-enum { k_max_pc_samples = 1 << 15 };
+
 static volatile sig_atomic_t sample_ticks = 0;
 static volatile sig_atomic_t total_samples = 0;
 static volatile sig_atomic_t jit_samples = 0;
@@ -35,152 +29,11 @@ static bool prev_sa_valid = false;
 static volatile sig_atomic_t jit_active = 0;
 static volatile sig_atomic_t gc_active = 0;
 static volatile sig_atomic_t gc_depth = 0;
-static void *pc_samples[k_max_pc_samples];
-static volatile sig_atomic_t pc_sample_count = 0;
-
-typedef struct {
-  uintptr_t start;
-  uintptr_t end;
-  char *name;
-} jit_symbol;
-
-static jit_symbol *jit_syms = nullptr;
-
-typedef struct {
-  void *pc;
-  size_t hits;
-} pc_count;
-
-typedef struct {
-  char name[128];
-  size_t hits;
-} sym_count;
-
-static int cmp_void_ptr(const void *a, const void *b) {
-  uintptr_t pa = (uintptr_t)*(void *const *)a;
-  uintptr_t pb = (uintptr_t)*(void *const *)b;
-  if (pa < pb) {
-    return -1;
-  }
-  if (pa > pb) {
-    return 1;
-  }
-  return 0;
-}
-
-static int cmp_pc_count_desc(const void *a, const void *b) {
-  size_t ha = ((const pc_count *)a)->hits;
-  size_t hb = ((const pc_count *)b)->hits;
-  if (ha < hb) {
-    return 1;
-  }
-  if (ha > hb) {
-    return -1;
-  }
-  return 0;
-}
-
-static int cmp_sym_count_desc(const void *a, const void *b) {
-  size_t ha = ((const sym_count *)a)->hits;
-  size_t hb = ((const sym_count *)b)->hits;
-  if (ha < hb) {
-    return 1;
-  }
-  if (ha > hb) {
-    return -1;
-  }
-  return 0;
-}
-
-static const char *hot_color_for_ratio(double ratio) {
-  if (ratio >= 0.75) {
-    return "\e[1;31m"; // red
-  }
-  if (ratio >= 0.5) {
-    return "\e[1;33m"; // yellow/orange-ish
-  }
-  if (ratio >= 0.25) {
-    return "\e[94m"; // light blue
-  }
-  return "\e[1;34m"; // dark blue
-}
-
-// Extract PC from ucontext in a signal-safe way.
-static void *ucontext_pc(void *uc) {
-  if (!uc) {
-    return nullptr;
-  }
-#ifdef __APPLE__
-#ifdef __aarch64__
-  return (void *)((ucontext_t *)uc)->uc_mcontext->__ss.__pc;
-#elifdef __x86_64__
-  return (void *)((ucontext_t *)uc)->uc_mcontext->__ss.__rip;
-#endif
-#elifdef __linux__
-#ifdef __x86_64__
-  ucontext_t *l = (ucontext_t *)uc;
-
-  return (void *)l->uc_mcontext.gregs[REG_RIP];
-#elifdef __aarch64__
-  ucontext_t *l = (ucontext_t *)uc;
-  return (void *)l->uc_mcontext.pc;
-#endif
-#endif
-  (void)uc;
-  return nullptr;
-}
-
-static const char *symbolize_pc(void *pc, char *buf, size_t buf_sz) {
-  if (buf_sz == 0) {
-    return "";
-  }
-  buf[0] = '\0';
-  uintptr_t addr = (uintptr_t)pc;
-  for (size_t i = 0; i < arrlen(jit_syms); i++) {
-    const jit_symbol *js = &jit_syms[i];
-    if (addr >= js->start && addr < js->end && js->name) {
-      uintptr_t off = addr - js->start;
-      snprintf(buf, buf_sz, "%s+0x%lx", js->name, (unsigned long)off);
-      return buf;
-    }
-  }
-#if defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-  Dl_info info;
-  if (dladdr(pc, &info) && info.dli_sname) {
-    uintptr_t off = (uintptr_t)pc - (uintptr_t)info.dli_saddr;
-    snprintf(buf, buf_sz, "%s+0x%lx", info.dli_sname, (unsigned long)off);
-    return buf;
-  }
-  return "";
-#else
-  (void)pc;
-  (void)buf;
-  (void)buf_sz;
-  return "";
-#endif
-}
 
 void profiler_register_jit_symbol(void *start, void *end, const char *name) {
-  if (!start || !end || start >= end || !name) {
-    return;
-  }
-  char *copy = strdup(name);
-  if (!copy) {
-    return;
-  }
-  jit_symbol js = {
-      .start = (uintptr_t)start, .end = (uintptr_t)end, .name = copy};
-  arrput(nullptr, jit_syms, js);
-}
-
-// Best-effort ring buffer store; only the handler writes, so no locks needed.
-static void record_pc_sample(void *pc) {
-  sig_atomic_t idx = pc_sample_count;
-  if (idx >= (sig_atomic_t)k_max_pc_samples) {
-    return;
-  }
-  pc_samples[idx] = pc;
-  pc_sample_count = idx + 1;
+  (void)start;
+  (void)end;
+  (void)name;
 }
 
 static void handler(int sig, siginfo_t *si, void *uc) {
@@ -194,7 +47,6 @@ static void handler(int sig, siginfo_t *si, void *uc) {
   } else if (jit_active) {
     jit_samples++;
   }
-  record_pc_sample(ucontext_pc(uc));
 }
 
 void profiler_set_in_jit(bool active) { jit_active = active ? 1 : 0; }
@@ -239,14 +91,9 @@ void profiler_gc_exit(uint64_t start_total_samples, uint64_t duration_ns) {
   }
 }
 
-EXPORT void profiler_start(vm_state *state) {
+EXPORT void profiler_start(void) {
   if (profiler_running) {
     return;
-  }
-  // Make current hospital for later pc comments.
-  if (state) {
-    // Clear any old samples left from prior runs.
-    pc_sample_count = 0;
   }
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
@@ -272,48 +119,10 @@ EXPORT void profiler_start(vm_state *state) {
   total_samples = 0;
   jit_samples = 0;
   gc_samples = 0;
-  pc_sample_count = 0;
   profiler_running = true;
 }
 
-/* struct tree { */
-/*   long cnt; */
-/*   std::unordered_map<long, tree> next; */
-/* }; */
-
-/* static void profiler_display_tree_node(const tree *node, int indent) { */
-/*   std::vector<std::pair<long, const tree *>> nodes; */
-/*   for (const auto &leaf : node->next) { */
-/*     if (leaf.second.cnt > cnt / 100) { */
-/*       nodes.emplace_back(leaf.first, &leaf.second); */
-/*     } */
-/*   } */
-
-/*   if (nodes.empty()) { */
-/*     return; */
-/*   } */
-
-/*   auto sorter = [](std::pair<long, const tree *> const &s1, */
-/*                    std::pair<long, const tree *> const &s2) { */
-/*     return s1.second->cnt > s2.second->cnt; */
-/*   }; */
-/*   std::sort(nodes.begin(), nodes.end(), sorter); */
-/*   for (auto &item : nodes) { */
-/*     auto func = find_func_for_frame((uint32_t *)item.first); */
-/*     if (func != nullptr) { */
-/*       printf("%*c %.2f%% %s %s %li\n", indent, ' ', */
-/*              (double)item.second->cnt / cnt * 100.0, func->name.c_str(), */
-/*              ins_names[INS_OP(*(uint32_t *)item.first)], */
-/*              (uint32_t *)item.first - (func->code).data()); */
-/*     } else { */
-/*       printf("%*cCan't find func for frame %li\n", indent, ' ', item.first);
- */
-/*     } */
-/*     profiler_display_tree_node(item.second, indent + 5); */
-/*   } */
-/* } */
-
-EXPORT void profiler_stop(vm_state *state) {
+EXPORT void profiler_stop(void) {
   if (!profiler_running) {
     return;
   }
@@ -340,98 +149,4 @@ EXPORT void profiler_stop(vm_state *state) {
   double other = (double)(tot - (on_gc + on_trace));
   double vm_pct = other / total * 100.0;
   printf("VM: %.02f%%\n", vm_pct);
-
-  sig_atomic_t pc_cnt = pc_sample_count;
-  if (pc_cnt > 0) {
-    size_t count = (size_t)pc_cnt;
-    void **copy = malloc(count * sizeof(void *));
-    if (!copy) {
-      printf("Failed to alloc for pc samples\n");
-      return;
-    }
-    memcpy(copy, pc_samples, count * sizeof(void *));
-    qsort(copy, count, sizeof(void *), cmp_void_ptr);
-    pc_count *runs = malloc(count * sizeof(pc_count));
-    if (!runs) {
-      free(copy);
-      printf("Failed to alloc for pc histogram\n");
-      return;
-    }
-
-    size_t run_len = 0;
-    for (size_t i = 0; i < count;) {
-      size_t j = i + 1;
-      while (j < count && copy[j] == copy[i]) {
-        j++;
-      }
-      runs[run_len].pc = copy[i];
-      runs[run_len].hits = j - i;
-      run_len++;
-      i = j;
-    }
-    free(copy);
-
-    qsort(runs, run_len, sizeof(pc_count), cmp_pc_count_desc);
-
-    sym_count *sym_hits = nullptr;
-    for (size_t i = 0; i < run_len; i++) {
-      char symbuf[128];
-      const char *sym = symbolize_pc(runs[i].pc, symbuf, sizeof(symbuf));
-      if (!sym || sym[0] == '\0') {
-        snprintf(symbuf, sizeof(symbuf), "0x%lx",
-                 (unsigned long)(uintptr_t)runs[i].pc);
-        sym = symbuf;
-      }
-      const char *plus = strchr(sym, '+');
-      size_t base_len = plus ? (size_t)(plus - sym) : strlen(sym);
-      char base[128];
-      if (base_len >= sizeof(base)) {
-        base_len = sizeof(base) - 1;
-      }
-      memcpy(base, sym, base_len);
-      base[base_len] = '\0';
-      bool merged = false;
-      for (size_t j = 0; j < arrlen(sym_hits); j++) {
-        if (strcmp(sym_hits[j].name, base) == 0) {
-          sym_hits[j].hits += runs[i].hits;
-          merged = true;
-          break;
-        }
-      }
-      if (!merged) {
-        sym_count sc;
-        strncpy(sc.name, base, sizeof(sc.name) - 1);
-        sc.name[sizeof(sc.name) - 1] = '\0';
-        sc.hits = runs[i].hits;
-        arrput(nullptr, sym_hits, sc);
-      }
-    }
-
-    qsort(sym_hits, arrlen(sym_hits), sizeof(sym_count), cmp_sym_count_desc);
-
-    size_t to_print = arrlen(sym_hits) < 10 ? arrlen(sym_hits) : 10;
-    printf("Top JIT PCs (samples=%zu):\n", (size_t)pc_cnt);
-    for (size_t i = 0; i < to_print; i++) {
-      double pct = (double)sym_hits[i].hits / (double)pc_cnt * 100.0;
-      printf("  %s hits=%zu (%.2f%%)\n", sym_hits[i].name, sym_hits[i].hits,
-             pct);
-    }
-    if (state) {
-      size_t max_hits = runs[0].hits;
-      if (max_hits == 0) {
-        max_hits = 1;
-      }
-      for (size_t i = 0; i < to_print; i++) {
-        double ratio = (double)runs[i].hits / (double)max_hits;
-        const char *color = hot_color_for_ratio(ratio);
-        double pct = (double)runs[i].hits / (double)pc_cnt * 100.0;
-        emit_add_global_comment(&state->emit, (int64_t)(uintptr_t)runs[i].pc,
-                                "%sHOT pc=%p hits=%zu (%.2f%%)\x1b[0m", color,
-                                runs[i].pc, runs[i].hits, pct);
-      }
-    }
-    free(runs);
-  }
-
-  /*   profiler_display_tree_node(&tree_root, 0); */
 }

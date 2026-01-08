@@ -1,3 +1,6 @@
+* we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!
+* args need to typecheck BEFORE entry to func:
+  because on loopback we *already* know the arg type!
 * extra unnecessary branch checks before regalloc
 * fixup emit_tyupecheck for more than fixnum types
 * LuaJIT doesn’t rewrite to NOP; its fold function returns DROPFOLD

@@ -258,26 +258,6 @@ static void comment_append(int64_t offset, zone *z, comment_entry **comments,
   arrput(z, *comments, entry);
 }
 
-static void append_global_comment(emit_state *s, int64_t offset,
-                                  char const *fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  char *msg = zone_vsprintf(&s->global_comment_zone, fmt, args);
-  va_end(args);
-  comment_entry entry = {.offset = offset, .text = msg};
-  arrput(&s->global_comment_zone, s->global_comments, entry);
-}
-
-void emit_add_global_comment(emit_state *s, int64_t offset, const char *fmt,
-                             ...) {
-  va_list args;
-  va_start(args, fmt);
-  char *msg = zone_vsprintf(&s->global_comment_zone, fmt, args);
-  va_end(args);
-  comment_entry entry = {.offset = offset, .text = msg};
-  arrput(&s->global_comment_zone, s->global_comments, entry);
-}
-
 static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
   size_t len = arrlen(t->ins);
   while (*idx < len) {
@@ -1136,8 +1116,6 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   }
 
   auto entry = emit_offset(s);
-  append_global_comment(s, entry, "ENTRY trace #%u (%s)", (unsigned)t->num,
-                        t->parent ? "side" : "root");
   emit_finish_snap_exits(s, t, exit_label);
   auto start = emit_offset(s);
 

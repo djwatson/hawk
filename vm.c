@@ -218,10 +218,9 @@ static inline frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
 }
 static inline bc *next_op(bc *pc) { return pc + 1; }
 gc_obj halt(vm_state *state, gc_obj *stack) {
-  profiler_stop(state);
+  profiler_stop();
   jit_dump_close();
   if (verbose) {
-    // emit_disassemble_all(&state->emit);
     printf("There were %li traces\n", arrlen(state->record.traces));
   }
   auto res = stack[0];
@@ -544,7 +543,7 @@ gc_obj vm(bc *pc) {
   state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
   gc_add_root((const uint64_t *)state->stack_bottom, default_size);
   if (profile) {
-    profiler_start(state);
+    profiler_start();
   }
 
   return state->impls[pc->op](*pc, pc, stack, state, state->impls, 0);
