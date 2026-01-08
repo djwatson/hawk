@@ -20,9 +20,7 @@ static struct option long_options[] = {
     {"version", no_argument, nullptr, 0},
     {"profile", no_argument, nullptr, 'p'},
     {"joff", no_argument, nullptr, 'o'},
-#ifdef HAVE_ELF_H
     {"dump", no_argument, nullptr, 'd'},
-#endif
     {"help", no_argument, nullptr, 'h'},
     {"max-trace", required_argument, nullptr, 'm'},
     {nullptr, no_argument, nullptr, 0},

@@ -4,7 +4,7 @@
 
 #include <assert.h>
 #include <ctype.h>
-#include <elf.h>
+#include <inttypes.h>
 #include <fcntl.h>
 #include <stddef.h> // for offsetof
 #include <stdint.h>
@@ -12,15 +12,45 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#if defined(__linux__)
+#include <sys/syscall.h>
+#endif
 #include <time.h>
 #include <unistd.h>
+#if defined(__APPLE__)
+#include <pthread.h>
+#endif
 
 #include "hawk.h"
 #include "jitdump.h"
+#include "elf_compat.h"
 
 static int jit_cnt = 0;
 static void *mapaddr = nullptr;
 static int fd;
+
+static uint32_t current_tid() {
+#if defined(__APPLE__)
+  uint64_t tid = 0;
+  int err = pthread_threadid_np(nullptr, &tid);
+  if (err == 0) {
+    return (uint32_t)tid;
+  }
+  return (uint32_t)getpid();
+#elif defined(__linux__)
+  return (uint32_t)syscall(SYS_gettid);
+#else
+  return (uint32_t)getpid();
+#endif
+}
+
+static uint32_t current_elf_machine() {
+#if defined(__aarch64__) || defined(__arm64__)
+  return EM_AARCH64;
+#else
+  return EM_X86_64;
+#endif
+}
 
 static void jit_dump_error() {
   printf("Jitdump: Could not write\n");
@@ -36,9 +66,11 @@ void perf_map(uint64_t fn, uint64_t len, const char *name) {
     jit_dump_error();
   }
   if (strlen(name)) {
-    fprintf(file, "%lx %lx jit function %s %i\n", fn, len, name, jit_cnt);
+    fprintf(file, "%" PRIx64 " %" PRIx64 " jit function %s %i\n", fn, len,
+            name, jit_cnt);
   } else {
-    fprintf(file, "%lx %lx jit anon function %i\n", fn, len, jit_cnt);
+    fprintf(file, "%" PRIx64 " %" PRIx64 " jit anon function %i\n", fn, len,
+            jit_cnt);
   }
   fclose(file);
 }
@@ -76,7 +108,7 @@ void jit_dump(int len, uint64_t fn, const char *name) {
   record.total_size = sizeof(record) + len + strlen(funcname) + 1;
 
   record.pid = getpid();
-  record.tid = gettid();
+  record.tid = current_tid();
   record.vma = fn;
   record.code_addr = fn;
   record.code_size = len;
@@ -124,7 +156,7 @@ void jit_dump_init() {
   header.magic = 0x4A695444;
   header.version = 1;
   header.total_size = sizeof(header);
-  header.elf_mach = EM_X86_64;
+  header.elf_mach = current_elf_machine();
   header.pad1 = 0;
   header.pid = getpid();
   header.flags = 0;
@@ -282,7 +314,7 @@ static void build_elf(uint64_t code, int code_sz, GDBElfImage *image, //!OCLINT
       .e_ident = {ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3, ELFCLASS64, ELFDATA2LSB,
                   1, ELFOSABI_SYSV, 0, 0, 0, 0, 0, 0, 0, 0},
       .e_type = ET_REL,
-      .e_machine = EM_X86_64,
+      .e_machine = current_elf_machine(),
       .e_version = EV_CURRENT,
       .e_entry = 0,
       .e_phoff = 0,

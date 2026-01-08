@@ -74,10 +74,9 @@ add_custom_command(
 
 add_custom_target(opcodes_scm ALL DEPENDS ${OPCODES_SCHEME})
 
-if(HAVE_ELF_H)
-  list(APPEND hawk_sources jitdump.c)
-else()
-  message(STATUS "elf.h not found; disabling jitdump support")
+list(APPEND hawk_sources jitdump.c)
+if(NOT HAVE_ELF_H)
+  message(STATUS "elf.h not found; using local ELF compat header for jitdump")
 endif()
 
 add_executable(hawk ${hawk_sources})
@@ -177,10 +176,6 @@ if(NOT CAPSTONE_LIBRARY)
 endif()
 
 target_link_libraries(hawk PRIVATE ${CAPSTONE_LIBRARY})
-
-if(HAVE_ELF_H)
-  target_compile_definitions(hawk PRIVATE HAVE_ELF_H=1)
-endif()
 
 #set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 

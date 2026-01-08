@@ -18,9 +18,7 @@
 #include "ir.h"
 #include "profiler.h"
 #include "vm.h"
-#ifdef HAVE_ELF_H
 #include "jitdump.h"
-#endif
 #include "parallel_copy.h"
 #include "record.h"
 #include "zone_alloc.h"
@@ -41,13 +39,11 @@ static const int32_t flonum_payload_offset = (int32_t)offsetof(flonum_s, x);
 static void register_jit_symbol(uint8_t *start, uint8_t *entry, uint8_t *end,
                                 const char *name) {
   profiler_register_jit_symbol(start, end, name);
-#ifdef HAVE_ELF_H
   if (jit_dump_flag) {
     jit_reader_add((int)(end - entry), (uint64_t)entry, name);
     jit_dump((int)(end - start), (uint64_t)start, name);
     perf_map((uint64_t)start, (uint64_t)(end - start), name);
   }
-#endif
 }
 
 // Slowpath: RET_REG will be the requested size, AND return value.

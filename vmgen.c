@@ -58,7 +58,6 @@ END OP_BEGIN(MOV) {
 }
 END OP_BEGIN(RET) {
   auto c = stack_load(state, stack, instr.reg, false);
-  // TODO: re-enable eventually
   auto res = check_record_start(pc, stack, state, op_table);
   if (res != op_table) {
     op_table = res;

@@ -219,9 +219,7 @@ static inline frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
 static inline bc *next_op(bc *pc) { return pc + 1; }
 gc_obj halt(vm_state *state, gc_obj *stack) {
   profiler_stop(state);
-#ifdef HAVE_ELF_H
   jit_dump_close();
-#endif
   if (verbose) {
     // emit_disassemble_all(&state->emit);
     printf("There were %li traces\n", arrlen(state->record.traces));
@@ -517,11 +515,9 @@ static void vm_state_init(vm_state *state) {
   }
   state->max_trace = max_trace;
 
-#ifdef HAVE_ELF_H
   if (jit_dump_flag) {
     jit_dump_init();
   }
-#endif
 
   record_init(&state->record);
   emit_init(&state->emit);
