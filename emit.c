@@ -641,6 +641,33 @@ static void emit_snap0_args(emit_state *s, trace *t, snap *snap) {
     };
     emit_snap_store_entry(s, t, &entry);
   }
+
+  if (!t->parent_snap) {
+    return;
+  }
+
+  // Flush parent-moved values for side traces so snapshot 0 has a valid stack.
+  size_t snap_idx = 0;
+  ir_ins *pmov_ins = nullptr;
+  for_each_leading_op(t, IR_PMOV, pmov_ins) {
+    while (snap_idx < arrlen(t->parent_snap->slots) &&
+           t->parent_snap->slots[snap_idx].val.constant) {
+      snap_idx++;
+    }
+    if (snap_idx >= arrlen(t->parent_snap->slots)) {
+      abort();
+    }
+    snap_entry entry = {
+        .slot = t->parent_snap->slots[snap_idx].slot,
+        .val =
+            {
+                .constant = false,
+                .loc = (uint16_t)(pmov_ins - t->ins),
+            },
+    };
+    emit_snap_store_entry(s, t, &entry);
+    snap_idx++;
+  }
 }
 
 static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
