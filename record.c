@@ -24,9 +24,7 @@
       printf("record op: %p %s\n", pc, #code);                                 \
     }                                                                          \
   } while (0)
-static bool is_downrec_trace(trace_state *ts) {
-  return ts->start_is_ret;
-}
+static bool is_downrec_trace(trace_state *ts) { return ts->start_is_ret; }
 
 static void clear_trace_state(trace_state *ts) {
   arrfree(ts->stack);
@@ -528,8 +526,8 @@ static void closure_set(vm_state *state, slot clo, uint8_t pos, slot val,
 
   slot c_pos = add_const(state, tag_fixnum((pos * 8) + 8 - CLOSURE_TAG));
   auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
-  add_inst(state, IR(.op = IR_STORE, .op1 = ref, .op2 = val,
-                     .type = CLOSURE_TAG));
+  add_inst(state,
+           IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = CLOSURE_TAG));
 }
 static slot closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
   (void)stack;
@@ -727,8 +725,8 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 // Tailcall to the non-recording version, which will then tailcall the
 // next *recording* opcode
 #define dispatch_next(pc, stack)                                               \
-  op_func impl = state->impls[(pc)->op];                                       \
-  MUSTTAIL return impl(*(pc), (pc), (stack), state, op_table, argcnt);
+  op_func impl = state->impls[instr.op];                                       \
+  MUSTTAIL return impl(instr, (pc), (stack), state, op_table, argcnt);
 
 // NOLINTNEXTLINE(bugprone-suspicious-include)
 #include "vmgen.c" // NOLINT(build/include)

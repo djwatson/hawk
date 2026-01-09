@@ -61,12 +61,17 @@ END OP_BEGIN(RET) {
   auto res = check_record_start(pc, stack, state, op_table);
   if (res != op_table) {
     op_table = res;
+    instr = *pc;
     dispatch_next(pc, stack);
   }
+  auto old_op_table = op_table;
   auto frame = return_frame(state, pc, stack, op_table);
   pc = frame.pc;
   stack = frame.stack;
   op_table = frame.ops;
+  if (old_op_table != op_table) {
+    instr = *pc;
+  }
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(LOOKUP) {
@@ -97,7 +102,11 @@ END OP_BEGIN(FUNC) {
 
   // TODO merge with arity check?
   check_expand_stack(state, &stack);
+  auto old_ops = op_table;
   op_table = check_record_start(pc, stack, state, op_table);
+  if (op_table != old_ops) {
+    instr = *pc;
+  }
 
   pc = next_op(pc);
   dispatch_next(pc, stack);
