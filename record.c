@@ -524,11 +524,12 @@ static slot guard_obj(vm_state *state, gc_obj *stack, bc *pc) {
 }
 static void closure_set(vm_state *state, slot clo, uint8_t pos, slot val,
                         void **op_table) {
-  if (verbose) {
-    printf("Record abort: can't record CLOSURE_SET\n");
-  }
-  record_abort(state);
-  *op_table = state->impls;
+  (void)op_table;
+
+  slot c_pos = add_const(state, tag_fixnum((pos * 8) + 8 - CLOSURE_TAG));
+  auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
+  add_inst(state, IR(.op = IR_STORE, .op1 = ref, .op2 = val,
+                     .type = CLOSURE_TAG));
 }
 static slot closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
   (void)stack;
