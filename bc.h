@@ -63,7 +63,8 @@
   X(CLOSURE, AD)                                                               \
   X(LCALL, AD)                                                                 \
   X(LCALLT, AD)                                                                \
-  X(HALT, A)
+  X(HALT, A)                                                                   \
+  X(IFUNC, A)
 typedef enum : uint8_t {
 #define X(name, type) OP_##name,
   OPS

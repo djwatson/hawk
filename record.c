@@ -6,6 +6,7 @@
 #include "emit.h"
 #include "fold.h"
 #include "gc.h"
+#include "hashtable.h"
 #include "hawk.h"
 #include "ir.h"
 #include "opt_dce.h"
@@ -29,7 +30,9 @@
     VMGEN_TRACE_OP_NOABORT(pc, code, state, argcnt);                           \
     trace_state *ts = record_trace_state(state);                               \
     if (ts->depth >= 20) {                                                     \
-      printf("Record abort depth >= 20\n");                                    \
+      if (verbose) {                                                           \
+        printf("Record abort depth >= 20\n");                                  \
+      }                                                                        \
       record_abort(state);                                                     \
       op_table = state->impls;                                                 \
       op_func impl = ((op_func *)op_table)[pc->op];                            \
@@ -37,6 +40,51 @@
     }                                                                          \
   } while (0)
 static bool is_downrec_trace(trace_state *ts) { return ts->start_is_ret; }
+
+enum {
+  BLACKLIST_MAX = 64,
+};
+
+static const char *func_name_from_pc(bc *pc) {
+  assert(pc);
+  bcfunc *func = gc_base_ptr(pc);
+  return to_string(func->name)->str;
+}
+
+static uint32_t find_penalty_pc(record_state *record, const bc *pc) {
+  auto idx = hm_geti(record->blacklist, (bc *)pc);
+  if (idx >= 0) {
+    return record->blacklist[idx].value;
+  }
+  return 0;
+}
+
+static void penalty_pc(record_state *record, bc *pc) {
+  if (!pc) {
+    return;
+  }
+
+  auto idx = hm_geti(record->blacklist, pc);
+  if (idx >= 0) {
+    auto cnt = ++record->blacklist[idx].value;
+    if (cnt >= BLACKLIST_MAX) {
+      if (verbose) {
+        const char *fname = func_name_from_pc(pc);
+        printf("Blacklist pc %p %s\n", pc, fname);
+      }
+      if (pc->op == OP_FUNC) {
+        pc->op = OP_IFUNC;
+      } else if (verbose) {
+        const char *fname = func_name_from_pc(pc);
+        printf("Could not blacklist %s %s\n", bc_names[pc->op], fname);
+      }
+      hm_del(record->blacklist, pc);
+    }
+    return;
+  }
+
+  hm_put(&record->blacklist_zone, record->blacklist, pc, 1);
+}
 
 static void clear_trace_state(trace_state *ts) {
   arrfree(ts->stack);
@@ -59,10 +107,8 @@ static void print_record_debug(bc *pc, char *code, vm_state *state) {
     printf(" . ");
   }
   printf("record op: %p %s", pc, code);
-  if (pc->op == OP_FUNC) {
-    bcfunc *func = gc_base_ptr(pc);
-    printf(" %s", to_string(func->name)->str);
-  }
+  const char *fname = func_name_from_pc(pc);
+  printf(" %s", fname);
   printf("\n");
 }
 
@@ -117,6 +163,8 @@ static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
 
 void record_init(record_state *record) {
   gc_set_scan_callback(record_scan_roots, record);
+  memset(&record->blacklist_zone, 0, sizeof(record->blacklist_zone));
+  record->blacklist = nullptr;
 }
 
 static slot add_const(vm_state *state, gc_obj value) {
@@ -312,9 +360,14 @@ static slot constify_data(vm_state *state, uint16_t data) {
   return add_const(state, c);
 }
 static void record_abort(vm_state *state) {
-  free_trace(record_current_trace(state));
+  trace_state *ts = record_trace_state(state);
+  penalty_pc(&state->record, ts->start_ins);
+  trace *cur_trace = record_current_trace(state);
+  if (cur_trace) {
+    free_trace(cur_trace);
+  }
   record_set_current_trace(state, nullptr);
-  clear_trace_state(record_trace_state(state));
+  clear_trace_state(ts);
 }
 static void record_finish(bc *pc, vm_state *state) {
   trace_state *ts = record_trace_state(state);
@@ -719,7 +772,9 @@ static void *jit_func(bc *instr, bc **pc, gc_obj **stack, vm_state *state,
   }
   // TODO
   record_abort(state);
-  printf("Record abort: Root trace to JFUNC\n");
+  if (verbose) {
+    printf("Record abort: Root trace to JFUNC\n");
+  }
   return state->impls;
 }
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
@@ -765,9 +820,8 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
                   const snap *poly_entry) {
 
   if (verbose) {
-    bcfunc *func = gc_base_ptr(pc);
-    printf("Record start %li %s\n", arrlen(state->record.traces),
-           to_string(func->name)->str);
+    const char *fname = func_name_from_pc(pc);
+    printf("Record start %p %li %s\n", pc, arrlen(state->record.traces), fname);
   }
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   record_current_trace(state)->start_pc = instr;
@@ -852,5 +906,7 @@ void free_traces(struct vm_state *state) {
   arr_for_each(rs->traces, trace) { free_trace(trace); }
   arrfree(rs->trace_state.stack);
   arrfree(rs->traces);
+  zone_free(&rs->blacklist_zone);
+  rs->blacklist = nullptr;
   rs->cur_trace = nullptr;
 }

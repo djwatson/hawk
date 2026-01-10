@@ -2,14 +2,21 @@
 
 #include "bc.h"
 #include "emit.h"
+#include "hashtable.h"
 #include "ir.h"
 #include "types.h"
+#include "zone_alloc.h"
 
 typedef struct sentry {
   bool changed;
   bool live;
   slot loc;
 } sentry;
+
+typedef struct blacklist_entry {
+  bc *key;
+  uint32_t value;
+} blacklist_entry;
 
 typedef enum trace_type : uint8_t {
   TRACE_TYPE_ROOT,
@@ -34,6 +41,8 @@ typedef struct record_state {
   trace_state trace_state;
   trace **traces;
   emit_state emit_state;
+  zone blacklist_zone;
+  blacklist_entry *blacklist;
 } record_state;
 
 struct vm_state;

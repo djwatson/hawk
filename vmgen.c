@@ -115,6 +115,14 @@ END OP_BEGIN(FUNC) {
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
+END OP_BEGIN(IFUNC) {
+  auto expect_argcnt = instr.reg;
+  check_arity(expect_argcnt, argcnt);
+  check_expand_stack(state, &stack);
+
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
 END OP_BEGIN(JFUNC) {
   // TODO argcnt check - no, will be put in trace itself!
   auto f = instr.data;

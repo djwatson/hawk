@@ -31,7 +31,7 @@ static void propagate(trace *trace, bool *marks) {
     }
     if (!marks[i - 1]) {
       if (verbose) {
-        fprintf(stderr, "IR_DEAD: %" PRIu64 " %s\n", i - 1, ir_names[ins->op]);
+        printf("IR_DEAD: %" PRIu64 " %s\n", i - 1, ir_names[ins->op]);
       }
       ins->op = IR_NOP;
       continue;

@@ -8,6 +8,7 @@
 #include "array.h"
 #include "bc.h"
 #include "gc.h"
+#include "hawk.h"
 #include "readbc.h"
 #include "types.h"
 #include "util/util.h"
@@ -108,7 +109,7 @@ gc_obj heap_deserialize_from_file(char const *path) {
     out_heap.objects[id] = value;
   }
 
-  if (arrlen(out_heap.fixups)) {
+  if (verbose && arrlen(out_heap.fixups)) {
     printf("There are %li fixups\n", arrlen(out_heap.fixups));
   }
   for (size_t i = 0; i < arrlen(out_heap.fixups); i++) {
