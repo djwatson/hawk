@@ -18,10 +18,22 @@
 // TODO: record abort if depth > ~20
 // TODO: record abort if len > ~4000
 
-#define VMGEN_TRACE_OP(pc, code, state)                                        \
+#define VMGEN_TRACE_OP_NOABORT(pc, code, state, argcnt)                        \
   do {                                                                         \
     if (verbose) {                                                             \
-      printf("record op: %p %s\n", pc, #code);                                 \
+      print_record_debug(pc, #code, state);                                    \
+    }                                                                          \
+  } while (0)
+#define VMGEN_TRACE_OP(pc, code, state, argcnt)                                \
+  do {                                                                         \
+    VMGEN_TRACE_OP_NOABORT(pc, code, state, argcnt);                           \
+    trace_state *ts = record_trace_state(state);                               \
+    if (ts->depth >= 20) {                                                     \
+      printf("Record abort depth >= 20\n");                                    \
+      record_abort(state);                                                     \
+      op_table = state->impls;                                                 \
+      op_func impl = ((op_func *)op_table)[pc->op];                            \
+      MUSTTAIL return impl(*pc, pc, stack, state, state->impls, argcnt);       \
     }                                                                          \
   } while (0)
 static bool is_downrec_trace(trace_state *ts) { return ts->start_is_ret; }
@@ -40,6 +52,18 @@ static void free_trace(trace *trace) {
 }
 static inline trace_state *record_trace_state(vm_state *state) {
   return &state->record.trace_state;
+}
+static void print_record_debug(bc *pc, char *code, vm_state *state) {
+  trace_state *ts = record_trace_state(state);
+  for (int i = 0; i < ts->depth; i++) {
+    printf(" . ");
+  }
+  printf("record op: %p %s", pc, code);
+  if (pc->op == OP_FUNC) {
+    bcfunc *func = gc_base_ptr(pc);
+    printf(" %s", to_string(func->name)->str);
+  }
+  printf("\n");
 }
 
 static inline trace *record_current_trace(vm_state *state) {
@@ -385,7 +409,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
       free_trace(cur_trace);
       record_start(state, pc, *pc, stack, nullptr);
       // UGH there must be a better way?
-      VMGEN_TRACE_OP(pc, RET, state);
+      VMGEN_TRACE_OP_NOABORT(pc, RET, state, 0);
       return return_frame(state, pc, stack, op_table);
     }
     if (downrec_trace && seen_downrec && at_trace_start) {
@@ -694,7 +718,9 @@ static void *jit_func(bc *instr, bc **pc, gc_obj **stack, vm_state *state,
     return state->impls;
   }
   // TODO
-  abort();
+  record_abort(state);
+  printf("Record abort: Root trace to JFUNC\n");
+  return state->impls;
 }
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table) {
@@ -714,7 +740,11 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
     }
     cur_trace->link = cur_trace;
     if (verbose) {
-      printf("Record stop: root loop trace\n");
+      if (ts->depth != 0) {
+        printf("Record stop: up-recursion\n");
+      } else {
+        printf("Record stop: root loop\n");
+      }
     }
     record_finish(pc, state);
     return state->impls;
@@ -733,8 +763,11 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 
 void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
                   const snap *poly_entry) {
+
   if (verbose) {
-    printf("Record start %li\n", arrlen(state->record.traces));
+    bcfunc *func = gc_base_ptr(pc);
+    printf("Record start %li %s\n", arrlen(state->record.traces),
+           to_string(func->name)->str);
   }
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   record_current_trace(state)->start_pc = instr;

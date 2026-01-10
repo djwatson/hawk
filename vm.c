@@ -14,7 +14,7 @@
 #include "vm.h"
 #include "vm_guard.h"
 
-#define VMGEN_TRACE_OP(pc, code, state)                                        \
+#define VMGEN_TRACE_OP(pc, code, state, argcnt)                                \
   do {                                                                         \
     if (verbose) {                                                             \
     }                                                                          \
@@ -53,7 +53,13 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 #else
       prev_hot < *hot_loc &&
 #endif
-      op_table == state->impls) {
+      op_table == state->impls && state->record.cur_trace == nullptr &&
+      (pc->op == OP_FUNC || pc->op == OP_RET)) {
+    if (state->record.cur_trace != nullptr) {
+      printf("Record while recording???\n");
+      abort();
+    }
+
     *hot_loc = hotmap_cnt;
     record_start(state, pc, *pc, stack, nullptr);
     return state->record_impls;
@@ -425,6 +431,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   *pc = res.snap->pc;
   *instr = **pc;
   *stack = res.stack;
+  // printf("Exit trace %i snap ir %i\n", res.snap->trace->num, res.snap->ir);
 
   // Check if a return trace - return trace aborts to JFUNC, but we need to
   // actually run RET

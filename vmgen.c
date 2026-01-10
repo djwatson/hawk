@@ -12,13 +12,13 @@
  */
 
 #ifndef VMGEN_TRACE_OP
-#define VMGEN_TRACE_OP(pc, code, state) ((void)0)
+#define VMGEN_TRACE_OP(pc, code, state, argcnt) ((void)0)
 #endif
 
 #ifndef OP_BEGIN
 #define OP_BEGIN(code)                                                         \
   OP(code) {                                                                   \
-    VMGEN_TRACE_OP(pc, code, state);
+    VMGEN_TRACE_OP(pc, code, state, argcnt);
 #define END }
 #endif
 
@@ -58,12 +58,16 @@ END OP_BEGIN(MOV) {
 }
 END OP_BEGIN(RET) {
   auto c = stack_load(state, stack, instr.reg, false);
-  auto res = check_record_start(pc, stack, state, op_table);
-  if (res != op_table) {
-    op_table = res;
-    instr = *pc;
-    dispatch_next(pc, stack);
-  }
+  // TODO: re-enable.  This needs to be a MUCH lower priority, so we
+  // don't record down-rec before up-rec.  Or alternatively, maybe
+  // ONLY enable down-rec recording if the function has an up-rec trace already.
+
+  /* auto res = check_record_start(pc, stack, state, op_table); */
+  /* if (res != op_table) { */
+  /*   op_table = res; */
+  /*   instr = *pc; */
+  /*   dispatch_next(pc, stack); */
+  /* } */
   auto old_op_table = op_table;
   auto frame = return_frame(state, pc, stack, op_table);
   pc = frame.pc;

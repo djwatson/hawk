@@ -181,6 +181,19 @@ void gc_set_scan_callback(gc_scan_callback cb, void *data) {
   scan_data = data;
 }
 
+void *gc_base_ptr(void *p) {
+  slab_info *slab = nullptr;
+  bool found = alloc_table_lookup(&atable, p, (void **)&slab);
+  assert(found);
+  assert(slab);
+  assert(!list_empty(&slab->link));
+  assert((uint8_t *)p >= slab->start);
+  assert((uint8_t *)p < slab->end);
+  uint64_t index = ((uint64_t)p - (uint64_t)slab->start) / slab_sz(slab);
+  uint64_t base_ptr = (uint64_t)slab->start + (slab_sz(slab) * index);
+  return (void *)base_ptr;
+}
+
 typedef struct range {
   const uint64_t *start;
   const uint64_t *end;
