@@ -9,4 +9,16 @@ enum : uint8_t {
   FOLD_ARG_CONST = 0xfe,
 };
 
-void fold_instr(trace *trace, ir_ins *in);
+typedef enum {
+  FOLD_NEXT,
+  FOLD_RETRY,
+  FOLD_DROP,
+  FOLD_CONST,
+} fold_action;
+
+typedef struct {
+  fold_action action;
+  gc_obj constant;
+} fold_result;
+
+fold_result fold_instr(trace *trace, ir_ins *in);

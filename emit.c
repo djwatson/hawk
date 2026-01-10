@@ -16,11 +16,11 @@
 #include "gc.h"
 #include "hawk.h"
 #include "ir.h"
-#include "profiler.h"
-#include "vm.h"
 #include "jitdump.h"
 #include "parallel_copy.h"
+#include "profiler.h"
 #include "record.h"
+#include "vm.h"
 #include "zone_alloc.h"
 
 static_assert((sizeof(flonum_s) & 7) == 0, "flonum_s must be 8-byte aligned");
@@ -970,7 +970,9 @@ static void emit_ir(emit_state *s, trace *t) {
     // TODO: maybe move emit_typecheck here, instead of each individual one.
     if (op->guard &&
         !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
-          op->op == IR_SUB || op->op == IR_LOAD || op->op == IR_ALLOC)) {
+          op->op == IR_LOAD || op->op == IR_ALLOC ||
+          /* TODO add and sub need to be overflow checks for fixnums */
+          op->op == IR_SUB || op->op == IR_ADD)) {
       abort();
     }
     COMMENT("%i %s", op_cnt, ir_names[op->op]);

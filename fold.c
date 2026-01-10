@@ -4,14 +4,15 @@
 #include <stdlib.h>
 
 #include "array.h"
-
-typedef enum fold_result {
-  FOLD_NEXT,
-  FOLD_RETRY,
-  FOLD_DROP,
-} fold_result;
+#include "gc.h"
 
 typedef fold_result (*fold_func_type)(trace *t, ir_ins *in);
+
+static fold_result fold_next(void) { return (fold_result){.action = FOLD_NEXT}; }
+static fold_result fold_drop(void) { return (fold_result){.action = FOLD_DROP}; }
+static fold_result fold_const(gc_obj constant) {
+  return (fold_result){.action = FOLD_CONST, .constant = constant};
+}
 
 static uint8_t fold_arg(trace *t, ir_ins *in, uint8_t idx) {
   auto arg_type = ir_ins_types[in->op];
@@ -38,12 +39,23 @@ static uint32_t fold_key(trace *t, ir_ins *in) {
                           ir_ins *in __attribute__((unused)))
 #define cur_ins (*in)
 
+// If the inputs are always const, no need to guard anything!
 IRFOLD(GUARD_EQ CONST CONST)
-IRFOLDF(fold_guard_const_const) {
-  if (t->consts[cur_ins.op1.loc].value == t->consts[cur_ins.op2.loc].value) {
-    return FOLD_DROP;
+IRFOLD(NE CONST CONST)
+IRFOLDF(fold_guard_const_const) { return fold_drop(); }
+
+IRFOLD(SUB CONST CONST)
+IRFOLDF(fold_sub_const_const) {
+  auto lhs = t->consts[in->op1.loc];
+  auto rhs = t->consts[in->op2.loc];
+  if (in->type == FLONUM_TAG) {
+    auto res = (flonum_s *)gc_alloc(sizeof(flonum_s));
+    res->header.type = FLONUM_TAG;
+    res->x = to_flonum(lhs)->x - to_flonum(rhs)->x;
+    return fold_const(tag_flonum(res));
   }
-  return FOLD_NEXT;
+  auto diff = to_fixnum(lhs) - to_fixnum(rhs);
+  return fold_const(tag_fixnum(diff));
 }
 
 #undef cur_ins
@@ -59,26 +71,23 @@ static fold_result fold_one(trace *t, ir_ins *in) {
     uint32_t fh = fold_hash[h];
     if ((fh & 0xffffff) == k) {
       auto res = fold_func_table[fh >> 24](t, in);
-      if (res != FOLD_NEXT) {
+      if (res.action != FOLD_NEXT) {
         return res;
       }
     }
     if (any == 0xffff) {
-      return FOLD_NEXT;
+      return fold_next();
     }
     any = (any | (any >> 8)) ^ 0xff00;
   }
 }
 
-void fold_instr(trace *trace, ir_ins *in) {
+fold_result fold_instr(trace *trace, ir_ins *in) {
   for (;;) {
     fold_result res = fold_one(trace, in);
-    if (res == FOLD_RETRY) {
+    if (res.action == FOLD_RETRY) {
       continue;
     }
-    if (res == FOLD_DROP) {
-      in->op = IR_NOP;
-    }
-    return;
+    return res;
   }
 }

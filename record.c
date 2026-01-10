@@ -221,7 +221,13 @@ static inline void set_stack_len(trace_state *ts, uint32_t len) {
 
 static slot add_inst(vm_state *state, ir_ins ins) {
   trace *trace_obj = record_current_trace(state);
-  fold_instr(trace_obj, &ins);
+  auto fold_res = fold_instr(trace_obj, &ins);
+  if (fold_res.action == FOLD_DROP) {
+    return (slot){.constant = false, .loc = 0x7fff};
+  }
+  if (fold_res.action == FOLD_CONST) {
+    return add_const(state, fold_res.constant);
+  }
   auto idx = arrlen(trace_obj->ins);
   arrput(nullptr, trace_obj->ins, ins);
   return (slot){.constant = false, .loc = idx};
