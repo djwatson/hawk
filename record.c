@@ -205,17 +205,23 @@ static void vm_add_snap(vm_state *state, bc *pc) {
   arrput(nullptr, cur_trace->snaps, sn);
 }
 
-static sentry *get_sentry(vm_state *state, uint64_t idx) {
-  trace_state *ts = record_trace_state(state);
+static void ensure_stack_len(trace_state *ts, uint32_t need) {
   auto len = arrlen(ts->stack);
-  while (len++ <= (idx + ts->stack_off)) {
+  while (len < need) {
     sentry entry = {.live = false, .changed = false};
     arrput(nullptr, ts->stack, entry);
+    len++;
   }
+}
+
+static sentry *get_sentry(vm_state *state, uint64_t idx) {
+  trace_state *ts = record_trace_state(state);
+  ensure_stack_len(ts, ts->stack_off + idx + 1);
   return &ts->stack[idx + ts->stack_off];
 }
 
 static inline void set_stack_len(trace_state *ts, uint32_t len) {
+  ensure_stack_len(ts, ts->stack_off + len);
   arrlen_set(ts->stack, ts->stack_off + len);
 }
 
