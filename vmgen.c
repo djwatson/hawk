@@ -69,7 +69,7 @@ END OP_BEGIN(RET) {
   /*   dispatch_next(pc, stack); */
   /* } */
   auto old_op_table = op_table;
-  auto frame = return_frame(state, pc, stack, op_table);
+  auto frame = return_frame(state, instr, pc, stack, op_table);
   pc = frame.pc;
   stack = frame.stack;
   op_table = frame.ops;

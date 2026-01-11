@@ -49,6 +49,6 @@ struct vm_state;
 void record_init(record_state *record);
 void record_start(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
                   const snap *poly_entry);
-void record_start_side(struct vm_state *state, bc *pc, bc instr,
-                       gc_obj *stack, snap *snap);
+void record_start_side(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
+                       snap *snap);
 void free_traces(struct vm_state *state);

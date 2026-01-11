@@ -212,10 +212,10 @@ static inline gc_obj emit_if_branch(vm_state *state, bc *pc, gc_obj *stack,
                                     gc_obj obj) {
   return obj;
 }
-static inline frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
-                                       void *op_table) {
+static inline frame_state return_frame(vm_state *state, bc instr, bc *pc,
+                                       gc_obj *stack, void *op_table) {
   (void)state;
-  auto ret = stack[pc->reg];
+  auto ret = stack[instr.reg];
   auto new_pc = to_return_address(stack[-1]);
   auto old_pc = new_pc - 1;
   auto new_stack = stack - old_pc->reg - 1;
@@ -433,14 +433,13 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   *stack = res.stack;
   // printf("Exit trace %i snap ir %i\n", res.snap->trace->num, res.snap->ir);
 
-  // Check if a return trace - return trace aborts to JFUNC, but we need to
-  // actually run RET
+  // If we're exiting to a JFUNC, it means we've failed some check at
+  // the start of a trace (otherwise we would have linked to it). Run
+  // the code in the VM instead.
   if ((*pc)->op == OP_JFUNC) {
     auto trace = traces[(*pc)->data];
-    if (trace->num == res.snap->trace->num && trace->start_pc.op == OP_RET) {
-      (*pc) = &trace->start_pc;
-      *instr = **pc;
-    }
+    *instr = trace->start_pc;
+    assert(instr->op != OP_JFUNC);
   }
   // Check for side trace start.
   if (res.snap->exits < 255) {
@@ -483,7 +482,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
         if (verbose) {
           printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
         }
-        record_start_side(state, *pc, **pc, *stack, res.snap);
+        record_start_side(state, *pc, *instr, *stack, res.snap);
       }
       return state->record_impls;
     }

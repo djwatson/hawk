@@ -1,6 +1,5 @@
 # Currently working on:
-* hawk: /home/davejwatson/myprojects/newhawk/gc.c:187: void *gc_base_ptr(void *): Assertion `found' failed.
-  something recording is pointing to temporary pc and not a real pc.
+* figure out why sum1 is broken, does a record op JFUNC
 * Trying to figure out ARG looping issue - we need to typetest BEFORE loopback.  
   sub-traces need to be side traces? Otherwise we can never make a null? check a real loop back to somewhere as a side-trace.  ugh. what to do?
 * Similarly, add/sub need to actually do overflow checks so we keep type info.

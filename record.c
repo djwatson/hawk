@@ -387,9 +387,9 @@ static void record_finish(bc *pc, vm_state *state) {
   vm_add_snap(state, pc);
   cur_trace->num = arrlen(state->record.traces);
   dce(cur_trace);
-  if (verbose) {
-    print_ir(cur_trace);
-  }
+  /* if (verbose) { */
+  /*   print_ir(cur_trace); */
+  /* } */
   cur_trace->fn = emit(cur_trace, &state->emit, &state->record, ts->poly_entry);
   if (verbose) {
     print_ir(cur_trace);
@@ -417,8 +417,8 @@ static int downrec_hits(trace_state *ts, bc *pc) {
   }
   return cnt;
 }
-static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
-                                void *op_table) {
+static frame_state return_frame(vm_state *state, bc instr, bc *pc,
+                                gc_obj *stack, void *op_table) {
   // add downrec array
   // cases:
   // depth > 0:
@@ -438,7 +438,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
   bool at_trace_start = (pc == ts->start_ins);
 
   // for RET specifically: set stack top to pc->reg
-  set_stack_len(ts, pc->reg + 1);
+  set_stack_len(ts, instr.reg + 1);
 
   if (ts->depth == 0) {
     // Root traces cannot return
@@ -475,7 +475,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
       record_start(state, pc, *pc, stack, nullptr);
       // UGH there must be a better way?
       VMGEN_TRACE_OP_NOABORT(pc, RET, state, 0);
-      return return_frame(state, pc, stack, op_table);
+      return return_frame(state, *pc, pc, stack, op_table);
     }
     if (downrec_trace && seen_downrec && at_trace_start) {
       cur_trace->link = cur_trace;
@@ -488,7 +488,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
 
     // Side traces *may* go down the stack.
     // 1) record load for result
-    auto res = stack_load(state, stack, pc->reg, false);
+    auto res = stack_load(state, stack, instr.reg, false);
     // 2) get the frame offset
     auto ra = to_return_address(stack[-1]);
     auto old_pc = ra - 1;
@@ -524,7 +524,7 @@ static frame_state return_frame(vm_state *state, bc *pc, gc_obj *stack,
     ts->depth--;
     assert(ts->depth >= 0);
 
-    auto ret = stack_load(state, stack, pc->reg, false);
+    auto ret = stack_load(state, stack, instr.reg, false);
     auto new_pc = to_return_address(stack[-1]);
     auto old_pc = new_pc - 1;
     ts->stack_off -= (old_pc->reg + 1);
@@ -874,6 +874,7 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   if (verbose) {
     printf("Record start side %li\n", arrlen(state->record.traces));
   }
+  assert(instr.op != OP_JFUNC);
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
