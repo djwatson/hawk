@@ -263,9 +263,9 @@ static void merge_and_free_slab(slab_info *slab) {
 static uint64_t collect_big = 0;
 static bool next_force_full = false;
 __attribute__((noinline, preserve_none)) static void gc_collect() {
-  uint64_t prof_gc_start = profiler_gc_enter();
   struct timespec start;
   struct timespec end;
+  profiler_set_in_gc(true);
   clock_gettime(CLOCK_MONOTONIC, &start);
   bool collect_full = next_force_full;
 
@@ -423,10 +423,7 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
            totsize, rem_bytes,
            100.0 * (double)(rem_bytes - totsize) / (double)rem_bytes);
   }
-  uint64_t duration_ns =
-      (uint64_t)(end.tv_sec - start.tv_sec) * 1000000000ULL +
-      (uint64_t)(end.tv_nsec - start.tv_nsec);
-  profiler_gc_exit(prof_gc_start, duration_ns);
+  profiler_set_in_gc(false);
 }
 
 static slab_info *alloc_slab(uint64_t sz_class) {
