@@ -16,9 +16,6 @@
 #include "vm.h"
 #include "vm_guard.h"
 
-// TODO: record abort if depth > ~20
-// TODO: record abort if len > ~4000
-
 #define VMGEN_TRACE_OP_NOABORT(pc, code, state, argcnt)                        \
   do {                                                                         \
     if (verbose) {                                                             \
@@ -29,9 +26,10 @@
   do {                                                                         \
     VMGEN_TRACE_OP_NOABORT(pc, code, state, argcnt);                           \
     trace_state *ts = record_trace_state(state);                               \
-    if (ts->depth >= 20) {                                                     \
+    trace *cur_trace = record_current_trace(state);                            \
+    if (ts->depth >= 20 || arrlen(cur_trace->ins) >= 500) {                    \
       if (verbose) {                                                           \
-        printf("Record abort depth >= 20\n");                                  \
+        printf("Record abort: too long or too deep\n");                        \
       }                                                                        \
       record_abort(state);                                                     \
       op_table = state->impls;                                                 \

@@ -924,7 +924,6 @@ static void emit_ir(emit_state *s, trace *t) {
         maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
       }
       assert(op->reg != REG_NONE);
-      assert(op->reg != RET_REG);
       assert(op->op1.constant);
       assert(op->op2.constant);
       int64_t size_bytes = slot_const(t, op->op1) >> FIXNUM_SHIFT;
