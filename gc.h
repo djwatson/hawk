@@ -30,7 +30,7 @@ void *gc_base_ptr(void *p);
 void gc_log(uint64_t a);
 void gc_free(void);
 
-NOINLINE __attribute__((preserve_most)) void *gc_alloc_slow(uint64_t sz);
+NOINLINE void *gc_alloc_slow(uint64_t sz);
 
 static inline void *gc_alloc(uint64_t sz) {
   assert((sz & 0x7) == 0);
@@ -42,7 +42,7 @@ static inline void *gc_alloc(uint64_t sz) {
   uint64_t s = fl->start_ptr;
   uint64_t start = fl->start_ptr + (sz_class * 8);
   if (unlikely(start > fl->end_ptr)) {
-    return gc_alloc_slow(sz);
+    [[clang::musttail]] return gc_alloc_slow(sz);
   }
   fl->start_ptr = start;
   return (void *)s;

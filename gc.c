@@ -433,15 +433,14 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
 
   clock_gettime(CLOCK_MONOTONIC, &end);
   auto live_bytes = total_bytes - freed_bytes;
-  auto freed_pct =
-      total_bytes == 0 ? 0.0
+  auto freed_pct = total_bytes == 0
+                       ? 0.0
                        : 100.0 * (double)freed_bytes / (double)total_bytes;
   auto live_pct =
       live_bytes == 0 ? 0.0 : 100.0 * (double)totsize / (double)live_bytes;
-  auto frag_pct =
-      live_bytes == 0
-          ? 0.0
-          : 100.0 * (double)(live_bytes - totsize) / (double)live_bytes;
+  auto frag_pct = live_bytes == 0 ? 0.0
+                                  : 100.0 * (double)(live_bytes - totsize) /
+                                        (double)live_bytes;
   double time_taken =
       ((double)end.tv_sec - (double)start.tv_sec) * 1000.0; // sec to ms
   time_taken +=
@@ -458,8 +457,8 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
     const char *mode = collect_full ? "full" : "partial";
     printf("COLLECT %.3f ms (%s) freed %s/%s (%.1f%%), live %s (%.1f%%), "
            "frag %.1f%%, next_collect %s\n",
-           time_taken, mode, freed_buf, total_buf, freed_pct, live_buf, live_pct,
-           frag_pct, next_buf);
+           time_taken, mode, freed_buf, total_buf, freed_pct, live_buf,
+           live_pct, frag_pct, next_buf);
   }
   profiler_set_in_gc(false);
 }
@@ -505,7 +504,7 @@ static slab_info *alloc_slab(uint64_t sz_class) {
   return free;
 }
 
-NOINLINE __attribute__((preserve_most)) void *gc_alloc_slow(uint64_t sz) {
+NOINLINE void *gc_alloc_slow(uint64_t sz) {
   if (collect_cnt >= next_collect) {
     collect_cnt = 0;
     gc_collect();
