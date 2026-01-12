@@ -800,30 +800,35 @@ static void emit_ir(emit_state *s, trace *t) {
       ir_ins *ref = slot_ins(t, op->op1);
       assert(ref->op == IR_REF);
 
-      // We need a tmp reg.
-      maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
       maybe_assign_register(s, ref->op1, t);
       maybe_assign_register(s, ref->op2, t);
       maybe_assign_register(s, op->op2, t);
+      auto val_reg = RTMP;
+      if (!op->op2.constant) {
+        val_reg = slot_reg(t, op->op2);
+      }
 
-      uint8_t base_reg = slot_reg(t, ref->op1);
+      auto base_reg = slot_reg(t, ref->op1);
+      if (ref->op2.constant) {
+        // Offset is a constant.
+        auto offset = slot_const(t, ref->op2) + (int64_t)(8 - op->type);
+        // TODO check fits in int32_t.
+        emit_store(s, (int32_t)offset, base_reg, val_reg);
+      } else {
+        // We need a tmp reg.
+        // TODO: x64 supports index, base, const addressing, but other arches
+        // don't
+        maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
+
+        // Offset is NOT a const, need additional offset + typed offset.
+        emit_store(s, 8 - op->type, base_reg, val_reg);
+        emit_add(s, op->reg, op->reg, base_reg);
+        emit_mov(s, op->reg, slot_reg(t, ref->op2));
+        s->regs[op->reg].used = false;
+      }
 
       if (op->op2.constant) {
-        emit_store(s, 0, op->reg, RTMP);
         emit_mov64(s, RTMP, slot_const(t, op->op2));
-      } else {
-        emit_store(s, 0, op->reg, slot_reg(t, op->op2));
-      }
-      emit_add(s, op->reg, op->reg, base_reg);
-      if (ref->op2.constant) {
-        int64_t offset = slot_const(t, ref->op2) + (int64_t)(8 - op->type);
-        emit_mov64(s, op->reg, offset);
-      } else {
-        emit_add_constant(s, op->reg, op->reg, 8 - op->type);
-        emit_mov(s, op->reg, slot_reg(t, ref->op2));
-      }
-      if (op->reg != REG_NONE) {
-        s->regs[op->reg].used = false;
       }
       break;
     }

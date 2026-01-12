@@ -613,21 +613,37 @@ static void closure_set(vm_state *state, slot clo, uint8_t pos, slot val,
                         void **op_table) {
   (void)op_table;
 
-  slot c_pos = add_const(state, tag_fixnum((pos * 8) + 8 - CLOSURE_TAG));
+  slot c_pos = add_const(state, tag_fixnum(pos + 1));
   auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
   add_inst(state,
            IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = CLOSURE_TAG));
 }
 static slot closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
-  (void)stack;
   uint64_t capture_cnt = (uint64_t)pc->data + 1;
+  uint8_t start = pc->reg;
   int64_t size_bytes =
       (int64_t)(sizeof(closure_s) + (capture_cnt * sizeof(gc_obj)));
 
   auto sz = add_const(state, tag_fixnum(size_bytes));
   auto type = add_const(state, tag_fixnum(CLOSURE_TAG));
   ir_ins ins = IR(.op = IR_ALLOC, .op1 = sz, .op2 = type, .type = CLOSURE_TAG);
-  return add_inst(state, ins);
+  auto clo = add_inst(state, ins);
+
+  // Initialize closure length.
+  slot len_off = add_const(state, tag_fixnum(0));
+  slot len_val = add_const(state, tag_fixnum((int64_t)capture_cnt));
+  auto len_ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = len_off));
+  add_inst(state,
+           IR(.op = IR_STORE, .op1 = len_ref, .op2 = len_val,
+              .type = CLOSURE_TAG));
+
+  // Capture values from the stack, matching the VM behavior.
+  for (uint64_t i = 0; i < capture_cnt; i++) {
+    auto val = stack_load(state, stack, (uint8_t)(start + i), false);
+    closure_set(state, clo, (uint8_t)i, val, nullptr);
+  }
+
+  return clo;
 }
 // Nothing necessary for record - we will check in emit_snapshot - checks will
 // be elided if we never hit a snapshot!
@@ -673,15 +689,15 @@ static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
 }
 static slot closure_get(vm_state *state, gc_obj *stack, slot clo, uint8_t pos,
                         uint8_t clo_idx) {
-  // Store byte offset to the captured variable (header is 16 bytes).
-  slot c_pos = add_const(state, tag_fixnum((pos * 8) + 8 - CLOSURE_TAG));
-
   if (clo.constant) {
     auto trace = record_current_trace(state);
     auto c = to_closure(trace->consts[clo.loc]);
     auto res = c->v[pos];
     return add_const(state, res);
   }
+  // Store byte offset to the captured variable (header is 16 bytes).
+  slot c_pos = add_const(state, tag_fixnum((pos * 8) + 8 - CLOSURE_TAG));
+
   gc_obj clo_obj = stack[clo_idx];
   gc_obj loaded = to_closure(clo_obj)->v[pos];
 
