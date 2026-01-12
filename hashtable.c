@@ -138,7 +138,7 @@ bool hm_del_internal(void const *t, size_t elemsize, void *key, size_t keysize,
            (char *)t + (header->length * elemsize), elemsize);
     hash = hash_key((char *)t + (header->length * elemsize), keysize, string);
     for (size_t j = 0; j < sz; j++) {
-      auto probe2 = (hash + i) & mask;
+      auto probe2 = (hash + j) & mask;
       uint32_t elem2 = header->table[probe2];
       assert(elem2);
       if (elem2 == HM_TOMBSTONE) {
@@ -147,7 +147,7 @@ bool hm_del_internal(void const *t, size_t elemsize, void *key, size_t keysize,
       elem2--; // We're indexed off by one, because 0 means dne.
       if (cmp_key((char *)t + (elem2 * elemsize), (char *)t + (elem * elemsize),
                   keysize, string)) {
-        header->table[probe] = elem + 1;
+        header->table[probe2] = elem + 1;
         return true;
       }
     }
