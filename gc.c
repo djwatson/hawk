@@ -44,6 +44,30 @@ static uint64_t mem_map_size;
 
 uint64_t *gc_get_stack_top() { return stacktop; }
 
+static void format_bytes(char *buf, size_t buf_sz, uint64_t bytes) {
+  double val = bytes;
+  const char *suffix = "B";
+  bool exact = true;
+  if (bytes >= (1ULL << 30)) {
+    val = bytes / (double)(1ULL << 30);
+    suffix = "GB";
+    exact = false;
+  } else if (bytes >= (1ULL << 20)) {
+    val = bytes / (double)(1ULL << 20);
+    suffix = "MB";
+    exact = false;
+  } else if (bytes >= (1ULL << 10)) {
+    val = bytes / (double)(1ULL << 10);
+    suffix = "KB";
+    exact = false;
+  }
+  if (exact) {
+    snprintf(buf, buf_sz, "%" PRIu64 "%s", bytes, suffix);
+  } else {
+    snprintf(buf, buf_sz, "%.1f%s", val, suffix);
+  }
+}
+
 static constexpr uint64_t mark_word_cnt = (default_slab_size / 8) / 64;
 static constexpr uint64_t mark_byte_cnt = (default_slab_size / 8) / 8;
 
@@ -267,6 +291,7 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
   struct timespec end;
   profiler_set_in_gc(true);
   clock_gettime(CLOCK_MONOTONIC, &start);
+  totsize = 0;
   bool collect_full = next_force_full;
 
 #ifdef GENGC
@@ -287,7 +312,6 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
     slab_info *slab = container_of(itr, slab_info, link);
 
     if (collect_full) {
-      totsize = 0;
       memset(slab->markbits, 0, sizeof(slab->markbits));
       slab->marked = 0;
       if (slab->class < size_classes) {
@@ -366,23 +390,23 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
     auto next_itr = itr->next;
     auto slab = container_of(itr, slab_info, link);
     assert(!list_empty(&slab->link));
+    auto slab_bytes = slab->end - slab->start;
+    total_bytes += slab_bytes;
     if (slab->marked == 0) {
       list_del(itr);
       merge_and_free_slab(slab);
-      freed_bytes += slab->end - slab->start;
+      freed_bytes += slab_bytes;
     } else {
-      auto tot_size = slab->end - slab->start;
-      /* if (slab->marked != tot_size) { */
+      /* if (slab->marked != slab_bytes) { */
       /* 	printf("Frag %i clss %i %% %f\n", slab->marked, slab->class,
-       * 100.0*(double)(tot_size - slab->marked) / (double)tot_size); */
+       * 100.0*(double)(slab_bytes - slab->marked) / (double)slab_bytes); */
       /* } */
       if (slab->class < size_classes) {
-        if (slab->marked < tot_size / 2) {
+        if (slab->marked < slab_bytes / 2) {
           kv_push(partials[slab->class], slab);
         }
       }
     }
-    /* total_bytes += slab->end - slab->start; */
     itr = next_itr;
   }
   for (uint64_t i = 0; i < size_classes; i++) {
@@ -390,7 +414,6 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
     freelist[i].end_ptr = default_slab_size;
     freelist[i].slab = nullptr;
   }
-  /* uint64_t live_bytes = total_bytes - freed_bytes; */
 
   // TODO: ideally we would have a running statistic
   // how many bytes we *expect* to be freed by a full collect vs.
@@ -409,19 +432,34 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
   kv_destroy(markstack);
 
   clock_gettime(CLOCK_MONOTONIC, &end);
-  auto rem_bytes = total_bytes - freed_bytes;
+  auto live_bytes = total_bytes - freed_bytes;
+  auto freed_pct =
+      total_bytes == 0 ? 0.0
+                       : 100.0 * (double)freed_bytes / (double)total_bytes;
+  auto live_pct =
+      live_bytes == 0 ? 0.0 : 100.0 * (double)totsize / (double)live_bytes;
+  auto frag_pct =
+      live_bytes == 0
+          ? 0.0
+          : 100.0 * (double)(live_bytes - totsize) / (double)live_bytes;
   double time_taken =
       ((double)end.tv_sec - (double)start.tv_sec) * 1000.0; // sec to ms
   time_taken +=
       ((double)end.tv_nsec - (double)start.tv_nsec) / 1000000.0; // ns to ms
   if (verbose) {
-    printf("COLLECT %.3f ms, full %i, %" PRIu64 " total %" PRIu64
-           ", freed %" PRIu64 ", free%% %f, next_collect %" PRIu64
-           ", totsize %" PRIu64 " rembytes %" PRIu64 ", frag %%%f\n",
-           time_taken, collect_full, totsize, total_bytes, freed_bytes,
-           100.0 * (double)freed_bytes / (double)total_bytes, next_collect,
-           totsize, rem_bytes,
-           100.0 * (double)(rem_bytes - totsize) / (double)rem_bytes);
+    char freed_buf[32];
+    char total_buf[32];
+    char live_buf[32];
+    char next_buf[32];
+    format_bytes(freed_buf, sizeof(freed_buf), freed_bytes);
+    format_bytes(total_buf, sizeof(total_buf), total_bytes);
+    format_bytes(live_buf, sizeof(live_buf), totsize);
+    format_bytes(next_buf, sizeof(next_buf), next_collect);
+    const char *mode = collect_full ? "full" : "partial";
+    printf("COLLECT %.3f ms (%s) freed %s/%s (%.1f%%), live %s (%.1f%%), "
+           "frag %.1f%%, next_collect %s\n",
+           time_taken, mode, freed_buf, total_buf, freed_pct, live_buf, live_pct,
+           frag_pct, next_buf);
   }
   profiler_set_in_gc(false);
 }
