@@ -1,7 +1,10 @@
 #define _DEFAULT_SOURCE
 
 #include <getopt.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "bc.h"
 #include "gc.h"
@@ -84,6 +87,26 @@ int main(int argc, char *argv[]) {
   gc_init(fp);
 
   auto filename = parse_args(argc, argv);
+  char *filename_alloc = nullptr;
+
+  auto ext = strrchr(filename, '.');
+  if (!ext || strcmp(ext, ".bc") != 0) {
+    size_t len = strlen(filename);
+    size_t path_len = len + 3 + 1;
+    filename_alloc = malloc(path_len);
+    if (!filename_alloc) {
+      printf("Must manually compile bitcode file for %s\n", filename);
+      exit(-1);
+    }
+    snprintf(filename_alloc, path_len, "%s.bc", filename);
+    if (access(filename_alloc, F_OK) == 0) {
+      filename = filename_alloc;
+    } else {
+      printf("Must manually compile bitcode file for %s\n", filename_alloc);
+      free(filename_alloc);
+      exit(-1);
+    }
+  }
 
   auto start = heap_deserialize_from_file(filename);
   if (!is_func(start)) {
@@ -93,6 +116,6 @@ int main(int argc, char *argv[]) {
   auto f = to_func(start);
   auto code_start = (bc *)&f->data[f->const_cnt * sizeof(gc_obj)];
 
+  free(filename_alloc);
   (void)vm(code_start);
-  // print_obj(vm(code_start), stdout);
 }

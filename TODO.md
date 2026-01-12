@@ -1,8 +1,11 @@
 # Currently working on:
-* it looks like ir_load for non constant offsets needs to know type tag also
-  old hawk had separate IR_REF and IR_VREF / IR_STRREFs for this.
 * Trying to figure out ARG looping issue - we need to typetest BEFORE loopback.  
   sub-traces need to be side traces? Otherwise we can never make a null? check a real loop back to somewhere as a side-trace.  ugh. what to do?
+  
+  I think maybe we poly-split only on flonum vs. fixnum? UGUUGUHGUHGUHG
+  
+* it looks like ir_load for non constant offsets needs to know type tag also
+  old hawk had separate IR_REF and IR_VREF / IR_STRREFs for this.
 * Similarly, add/sub need to actually do overflow checks so we keep type info.
 
 # VM impl
