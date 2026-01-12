@@ -33,7 +33,10 @@ static void propagate(trace *trace, bool *marks) {
       if (verbose) {
         printf("IR_DEAD: %" PRIu64 " %s\n", i - 1, ir_names[ins->op]);
       }
+      // We could have dropped something like a function closure,
+      // where we've optimistically guarded the whole trace.
       ins->op = IR_NOP;
+      ins->guard = false;
       continue;
     }
     auto type = ir_ins_types[ins->op];

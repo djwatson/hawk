@@ -440,6 +440,9 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
     auto trace = traces[(*pc)->data];
     *instr = trace->start_pc;
     assert(instr->op != OP_JFUNC);
+    if (instr->op == OP_FUNC) {
+      *argcnt = instr->reg;
+    }
   }
   // Check for side trace start.
   if (res.snap->exits < 255) {

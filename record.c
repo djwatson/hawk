@@ -633,9 +633,8 @@ static slot closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
   slot len_off = add_const(state, tag_fixnum(0));
   slot len_val = add_const(state, tag_fixnum((int64_t)capture_cnt));
   auto len_ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = len_off));
-  add_inst(state,
-           IR(.op = IR_STORE, .op1 = len_ref, .op2 = len_val,
-              .type = CLOSURE_TAG));
+  add_inst(state, IR(.op = IR_STORE, .op1 = len_ref, .op2 = len_val,
+                     .type = CLOSURE_TAG));
 
   // Capture values from the stack, matching the VM behavior.
   for (uint64_t i = 0; i < capture_cnt; i++) {
@@ -810,6 +809,9 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
+  if (arrlen(cur_trace->ins) == 0) {
+    return op_table;
+  }
   // Several cases.
   // parent trace:
   //  depth == 0: tailcalled loop.
