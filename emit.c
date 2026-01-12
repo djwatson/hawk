@@ -800,17 +800,11 @@ static void emit_ir(emit_state *s, trace *t) {
       ir_ins *ref = slot_ins(t, op->op1);
       assert(ref->op == IR_REF);
 
-      if (op->reg == REG_NONE) {
-        maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
-      }
-
+      // We need a tmp reg.
+      maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
       maybe_assign_register(s, ref->op1, t);
-      if (!ref->op2.constant) {
-        maybe_assign_register(s, ref->op2, t);
-      }
-      if (!op->op2.constant) {
-        maybe_assign_register(s, op->op2, t);
-      }
+      maybe_assign_register(s, ref->op2, t);
+      maybe_assign_register(s, op->op2, t);
 
       uint8_t base_reg = slot_reg(t, ref->op1);
 

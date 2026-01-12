@@ -769,6 +769,7 @@ static void *jit_func(bc *instr, bc **pc, gc_obj **stack, vm_state *state,
 
   trace *target = state->record.traces[(*pc)->data];
   trace *matched = ensure_args_match_trace(*stack, target);
+  matched = target;
   if (!matched) {
     *instr = target->start_pc;
     return check_record_start(*pc, *stack, state, op_table);

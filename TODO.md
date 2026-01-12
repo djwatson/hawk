@@ -1,5 +1,5 @@
 # Currently working on:
-* figure out why sum1 is broken, does a record op JFUNC
+* figure out why closure_get closure_set broken
 * Trying to figure out ARG looping issue - we need to typetest BEFORE loopback.  
   sub-traces need to be side traces? Otherwise we can never make a null? check a real loop back to somewhere as a side-trace.  ugh. what to do?
 * Similarly, add/sub need to actually do overflow checks so we keep type info.

@@ -463,7 +463,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
       }
     }
     if (should_try_side) {
-      if (res.snap->ir == 0) {
+      if (false && res.snap->ir == 0) {
         // It's a special, new-root trace!
         // This happens when ARG typechecks fail.
         if (verbose) {
@@ -487,14 +487,14 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
       return state->record_impls;
     }
   }
-  if (res.snap->ir == 0 && res.snap->trace->parent == nullptr) {
-    // We aborted because of typechecking arguments,
-    // we're pointing at a OP_JFUNC, when we really want to run the code
-    // directly.
-    *instr = res.snap->trace->start_pc;
-    // arity was already checked, just patch it here.
-    *argcnt = instr->reg;
-  }
+  /* if (res.snap->ir == 0 && res.snap->trace->parent == nullptr) { */
+  /*   // We aborted because of typechecking arguments, */
+  /*   // we're pointing at a OP_JFUNC, when we really want to run the code */
+  /*   // directly. */
+  /*   *instr = res.snap->trace->start_pc; */
+  /*   // arity was already checked, just patch it here. */
+  /*   *argcnt = instr->reg; */
+  /* } */
 
   // printf("RUN DONE jit %i\n", jfunc);
   return op_table;
