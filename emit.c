@@ -390,18 +390,20 @@ static void emit_flonum_add(emit_state *s, trace *t, ir_ins *op) {
   emit_fadd(s, op->reg, slot_reg(t, op->op1), slot_reg(t, op->op2));
 }
 
-static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
-                                   ir_ins *ins) {
+static void emit_box_flonum(emit_state *s, int32_t stack_offset,
+                            uint8_t fpr_reg, bool store_to_stack) {
   assert(s->alloc_slowpath);
-  assert(is_fpr_reg(ins->reg));
+  assert(is_fpr_reg(fpr_reg));
   emit_pop(s, RET_REG);
   emit_pop(s, RET_REG2);
 
   // Do stuff with allocated space.
-  emit_store(s, stack_offset, RSTACK, RTMP);
+  if (store_to_stack) {
+    emit_store(s, stack_offset, RSTACK, RTMP);
+  }
   emit_add_constant(s, RTMP, RTMP, FLONUM_TAG);
   emit_mov(s, RTMP, RET_REG);
-  emit_fstore(s, flonum_payload_offset, RET_REG, ins->reg);
+  emit_fstore(s, flonum_payload_offset, RET_REG, fpr_reg);
   emit_store_constant(s, 0, RET_REG, FLONUM_TAG);
 
   auto slow_continue_label = emit_offset(s);
@@ -427,6 +429,17 @@ static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
 
   emit_push(s, RET_REG2);
   emit_push(s, RET_REG);
+}
+
+static void emit_unbox_flonum(emit_state *s, uint8_t gpr_reg, uint8_t fpr_reg) {
+  assert(!is_fpr_reg(gpr_reg));
+  assert(is_fpr_reg(fpr_reg));
+  emit_fmem_load(s, flonum_payload_offset - FLONUM_TAG, gpr_reg, fpr_reg);
+}
+
+static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
+                                   ir_ins *ins) {
+  emit_box_flonum(s, stack_offset, ins->reg, true);
 }
 
 static void emit_snap_store_entry(emit_state *s, trace *t,
@@ -536,8 +549,18 @@ static void emit_serialized_moves(emit_state *s, par_copy *cpy,
     bool dst_fpr = is_fpr_reg(to);
     bool src_fpr = is_fpr_reg(from);
     if (dst_fpr || src_fpr) {
-      assert(dst_fpr && src_fpr);
-      emit_fmov(s, to, from);
+      if (dst_fpr && src_fpr) {
+        emit_fmov(s, to, from);
+      } else if (!dst_fpr && src_fpr) {
+        emit_mov(s, to, RTMP);
+        emit_box_flonum(s, 0, from, false);
+        COMMENT("Box flonum %s to reg %s", reg_names[from], reg_names[to]);
+      } else if (dst_fpr && !src_fpr) {
+        emit_unbox_flonum(s, from, to);
+        COMMENT("Unbox flonum %s to %s", reg_names[from], reg_names[to]);
+      } else {
+        assert(!"Unsupported register move");
+      }
     } else {
       emit_mov(s, to, from);
     }
@@ -631,6 +654,7 @@ static void emit_snap0_args(emit_state *s, trace *t, snap *snap) {
       snap_idx++;
     }
     if (snap_idx >= arrlen(t->parent_snap->slots)) {
+      return; // TODODODODODODODODO
       abort();
     }
     snap_entry entry = {
