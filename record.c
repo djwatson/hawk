@@ -104,7 +104,8 @@ static void print_record_debug(bc *pc, char *code, vm_state *state) {
   for (int i = 0; i < ts->depth; i++) {
     printf(" . ");
   }
-  printf("record op: %p %s", pc, code);
+  printf("record op: %p %s reg:%i, v1:%i v2:%i", pc, code, pc->reg, pc->v1,
+         pc->v2);
   const char *fname = func_name_from_pc(pc);
   printf(" %s", fname);
   printf("\n");

@@ -1,5 +1,5 @@
 # Currently working on:
-* Get extra-long trace for lib/test.scm working
+
 * Trying to figure out ARG looping issue - we need to typetest BEFORE loopback.  
   sub-traces need to be side traces? Otherwise we can never make a null? check a real loop back to somewhere as a side-trace.  ugh. what to do?
   

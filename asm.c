@@ -17,6 +17,36 @@
 static const size_t page_cnt = 250;
 static const size_t msize = page_cnt * 4096;
 
+static void emit_ensure_space(emit_state *s, size_t bytes) {
+  assert(s);
+  size_t available = (size_t)(s->p - s->mtop);
+  if (available < bytes) {
+    printf("Fail: Out of jit memory\n");
+    exit(EXIT_FAILURE);
+  }
+}
+
+uint8_t *emit_byte(emit_state *s, uint8_t value) {
+  emit_ensure_space(s, sizeof(uint8_t));
+  s->p -= sizeof(uint8_t);
+  *s->p = value;
+  return s->p;
+}
+
+uint8_t *emit_imm32(emit_state *s, uint32_t imm) {
+  emit_ensure_space(s, sizeof(uint32_t));
+  s->p -= sizeof(uint32_t);
+  memcpy(s->p, &imm, sizeof(imm));
+  return s->p;
+}
+
+uint8_t *emit_imm64(emit_state *s, uint64_t imm) {
+  emit_ensure_space(s, sizeof(uint64_t));
+  s->p -= sizeof(uint64_t);
+  memcpy(s->p, &imm, sizeof(imm));
+  return s->p;
+}
+
 int64_t emit_offset(emit_state *s) {
   assert(s);
   return (int64_t)s->p;
@@ -33,14 +63,6 @@ void emit_bind(emit_state *s, uint64_t label, uint64_t jmp) {
 void emit_advance(emit_state *s, int64_t offset) {
   assert(s);
   s->p -= offset;
-}
-
-void emit_check(emit_state *s) {
-  assert(s);
-  if (s->p - s->mtop <= 64) {
-    printf("Fail: Out of jit memory\n");
-    exit(-1);
-  }
 }
 
 void emit_cleanup(emit_state *s) {

@@ -131,10 +131,8 @@ static bool encode_logical_immediate64(uint64_t val, uint8_t *N, uint8_t *immr,
   return true;
 }
 
-#define p (s->p)
-static void emit_op(emit_state *s, uint32_t code) {
-  p -= 4;
-  memcpy(p, &code, 4);
+static uint8_t *emit_op(emit_state *s, uint32_t code) {
+  return emit_imm32(s, code);
 }
 
 static uint32_t stp_pre(uint8_t rt, uint8_t rt2, uint8_t rn, int32_t offset) {
@@ -772,11 +770,11 @@ void asm_load_constant(emit_state *s, int idx, uint8_t dst) {
   assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
   assert(idx >= 0);
   assert((size_t)idx < arrlen(s->const_pool));
-  emit_op(s, 0xFD400000U | ((uint32_t)RTMP << 5) | (uint32_t)hw_fpr(dst));
-  uint8_t *ldr_site = p;
+  uint8_t *ldr_site =
+      emit_op(s, 0xFD400000U | ((uint32_t)RTMP << 5) | (uint32_t)hw_fpr(dst));
   constant_entry *entry = &s->const_pool[idx];
-  emit_op(s, 0x90000000U | ((uint32_t)RTMP << 5) | (uint32_t)RTMP);
-  uint8_t *adrp_site = p;
+  uint8_t *adrp_site =
+      emit_op(s, 0x90000000U | ((uint32_t)RTMP << 5) | (uint32_t)RTMP);
   const_patch patch = {.inst0 = adrp_site, .inst1 = ldr_site};
   arrput(&s->z, entry->patches, patch);
 }

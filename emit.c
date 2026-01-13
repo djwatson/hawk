@@ -677,7 +677,6 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
 // NOLINTEND(clang-analyzer-core.NullDereference)
 
 static void emit_exit_to_c(emit_state *s) {
-  emit_check(s);
   emit_ret(s);
   restore_callee_regs(s);
 }
@@ -771,7 +770,6 @@ static void emit_ir(emit_state *s, trace *t) {
       }
     }
 
-    emit_check(s);
     switch (op->op) {
     case IR_GUARD_EQ:
     case IR_EQ: {
