@@ -265,8 +265,8 @@ static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos,
       bool already_guarded = ins->guard;
       ins->guard = true;
       if ((ins->op == IR_ARG || ins->op == IR_PMOV) && !already_guarded) {
-        ir_ins typecheck_ins =
-            IR(.op = IR_TYPECHECK, .op1 = res, .type = ins->type, .guard = true);
+        ir_ins typecheck_ins = IR(.op = IR_TYPECHECK, .op1 = res,
+                                  .type = ins->type, .guard = true);
         add_inst(state, typecheck_ins);
       }
     }
@@ -914,24 +914,6 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   ts->type = TRACE_TYPE_SIDE;
 
   vm_add_snap(state, pc);
-  if (snap->ir == 0) {
-    trace *parent = snap->trace;
-    size_t len = arrlen(parent->ins);
-    for (size_t i = 0; i < len; i++) {
-      ir_ins *arg_ins = &parent->ins[i];
-      if (arg_ins->op != IR_ARG) {
-        break;
-      }
-      if (arg_ins->spill != SPILL_NONE) {
-        abort();
-      }
-      set_stack(
-          state, arg_ins->data,
-          add_inst(state, IR(.op = IR_PMOV, .prev_reg = arg_ins->reg,
-                             .prev_guard = false,
-                             .type = get_type_tag(stack[arg_ins->data]))));
-    }
-  }
   // Replay snapshot loads, so we keep things in register.
   arr_for_each_idx(snap->slots, j) {
     auto entry = &snap->slots[j];

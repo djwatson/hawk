@@ -630,50 +630,6 @@ static void collect_loopback_parallel_moves(emit_state *s, trace *arg_trace,
   emit_serialized_moves(s, cpy, loopback_regs);
 }
 
-static void emit_snap0_args(emit_state *s, trace *t, snap *snap) {
-  ir_ins *arg_ins = nullptr;
-  for_each_leading_op(t, IR_ARG, arg_ins) {
-    uint16_t arg_slot = (uint16_t)(snap->offset + arg_ins->data);
-    snap_entry entry = {
-        .slot = arg_slot,
-        .val =
-            {
-                .constant = false,
-                .loc = (uint16_t)(arg_ins - t->ins),
-            },
-    };
-    emit_snap_store_entry(s, t, &entry);
-  }
-
-  if (!t->parent_snap) {
-    return;
-  }
-
-  // Flush parent-moved values for side traces so snapshot 0 has a valid stack.
-  size_t snap_idx = 0;
-  ir_ins *pmov_ins = nullptr;
-  for_each_leading_op(t, IR_PMOV, pmov_ins) {
-    while (snap_idx < arrlen(t->parent_snap->slots) &&
-           t->parent_snap->slots[snap_idx].val.constant) {
-      snap_idx++;
-    }
-    if (snap_idx >= arrlen(t->parent_snap->slots)) {
-      return; // TODODODODODODODODO
-      abort();
-    }
-    snap_entry entry = {
-        .slot = t->parent_snap->slots[snap_idx].slot,
-        .val =
-            {
-                .constant = false,
-                .loc = (uint16_t)(pmov_ins - t->ins),
-            },
-    };
-    emit_snap_store_entry(s, t, &entry);
-    snap_idx++;
-  }
-}
-
 static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
                       ignoremap *ignore) {
   // If this is an exiting snapshot (vs. a loop back)
@@ -684,10 +640,6 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
   }
 
   emit_stack_offset_and_check(s, snap, ignore);
-
-  if (snap == &t->snaps[0]) {
-    emit_snap0_args(s, t, snap);
-  }
 
   arr_for_each_idx(snap->slots, j) {
     bool ignored = false;
@@ -915,7 +867,7 @@ static void emit_ir(emit_state *s, trace *t) {
         // We need to typecheck to verify it is a flonum.
         // TODO if we had a spare register this would be more efficent.
         emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
-        emit_jcc32(s, JNE, (int64_t)t->snaps[0].patch_point);
+        emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
         emit_cmp_constant(s, RTMP, FLONUM_TAG);
         emit_and_constant(s, RTMP, RTMP, TAG_MASK);
         emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
@@ -1032,7 +984,7 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
         emit_fmem_load(s, flonum_payload_offset - FLONUM_TAG, RTMP,
                        arg_ins->reg);
         // We need to typecheck to verify it is a flonum.
-        emit_jcc32(s, JNE, (int64_t)t->snaps[0].patch_point);
+        emit_jcc32(s, JNE, (int64_t)t->snaps[1].patch_point);
         emit_cmp_constant(s, RTMP2, FLONUM_TAG);
         emit_and_constant(s, RTMP2, RTMP, TAG_MASK);
         COMMENT("  flonum typecheck");
