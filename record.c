@@ -903,7 +903,7 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   ts->start_is_ret = (instr.op == OP_RET);
   ts->skip_start_check = ts->start_is_ret;
   ts->depth = snap->depth;
-  ts->stack_off = snap->offset;
+  ts->stack_off = 0;
   ts->type = TRACE_TYPE_SIDE;
 
   vm_add_snap(state, pc);
@@ -928,6 +928,9 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
       }
     }
   }
+  // We set this last, since snapshots have absolute indexs, and set_stack is
+  // relative to stack_off.
+  ts->stack_off = snap->offset;
   vm_add_snap(state, pc);
 }
 
