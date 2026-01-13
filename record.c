@@ -262,7 +262,13 @@ static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos,
     if (typecheck & !res.constant) {
       auto ins = &record_current_trace(state)->ins[res.loc];
       // assert(ins->type == get_type_tag(stack[pos]));
+      bool already_guarded = ins->guard;
       ins->guard = true;
+      if ((ins->op == IR_ARG || ins->op == IR_PMOV) && !already_guarded) {
+        ir_ins typecheck_ins =
+            IR(.op = IR_TYPECHECK, .op1 = res, .type = ins->type, .guard = true);
+        add_inst(state, typecheck_ins);
+      }
     }
     return res;
   }

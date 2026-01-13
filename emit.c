@@ -571,15 +571,19 @@ static void emit_serialized_moves(emit_state *s, par_copy *cpy,
 static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
                            int32_t cur_snap) {
   assert(op->guard);
+  uint8_t reg = op->reg;
+  if (op->op == IR_TYPECHECK) {
+    reg = slot_reg(t, op->op1);
+  }
   if (op->type == FIXNUM_TAG) {
     emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
-    emit_test_constant(s, op->reg, TAG_MASK);
+    emit_test_constant(s, reg, TAG_MASK);
     COMMENT("  typecheck");
   } else if (op->type == CONS_TAG) {
     emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
     emit_cmp_constant(s, RTMP, CONS_TAG);
     emit_and_constant(s, RTMP, RTMP, TAG_MASK);
-    emit_mov(s, RTMP, op->reg);
+    emit_mov(s, RTMP, reg);
     COMMENT("  typecheck");
   } else if (op->type == FLONUM_TAG) {
     // These are already typechecked (and are in xmm register).
@@ -971,16 +975,12 @@ static void emit_ir(emit_state *s, trace *t) {
     case IR_ARG:
     case IR_NOP:
     case IR_PMOV:
-      // Typecheck
-      if (op->guard) {
-        if (op->op == IR_PMOV && op->prev_guard) {
-          // No need to guard twice, parent trace already ran guard.
-          break;
-        }
-        emit_typecheck(s, t, op, cur_snap);
-      }
-      // Done at end.
       break;
+    case IR_TYPECHECK: {
+      maybe_assign_register(s, op->op1, t);
+      emit_typecheck(s, t, op, cur_snap);
+      break;
+    }
     default: {
       printf("Can't jit op: %s\n", ir_names[op->op]);
       abort();
@@ -990,7 +990,7 @@ static void emit_ir(emit_state *s, trace *t) {
     // TODO: maybe move emit_typecheck here, instead of each individual one.
     if (op->guard &&
         !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
-          op->op == IR_LOAD || op->op == IR_ALLOC ||
+          op->op == IR_LOAD || op->op == IR_ALLOC || op->op == IR_TYPECHECK ||
           /* TODO add and sub need to be overflow checks for fixnums */
           op->op == IR_SUB || op->op == IR_ADD)) {
       abort();

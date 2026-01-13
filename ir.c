@@ -196,6 +196,10 @@ void print_ir(trace *t) {
     case IR_ARG:
       printf(" \e[1;33m%i\e[m", ins->data);
       break;
+    case IR_TYPECHECK:
+      printf(" ");
+      print_slot(ins->op1, t);
+      break;
     default:
       if (ins->data) {
         printf(" data=%u", ins->data);
@@ -220,6 +224,7 @@ bool ir_sideeff(ir_ins_op op) {
   case IR_STORE:
   case IR_PMOV:
   case IR_ALLOC:
+  case IR_TYPECHECK:
     return true;
     break;
   default:

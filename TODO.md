@@ -1,4 +1,7 @@
 # Currently working on:
+* re-designing using a new IR_TYPECHECK so that typechecks of PMOVS and ARGS can go after the snapshot. 
+  Also we should always have entries to non-side traces typecheck ahead of time in a special snap?
+  Or rather, the loopback should jump directly to the correct place after typechecking already happens.
 
 * Trying to figure out ARG looping issue - we need to typetest BEFORE loopback.  
   sub-traces need to be side traces? Otherwise we can never make a null? check a real loop back to somewhere as a side-trace.  ugh. what to do?
