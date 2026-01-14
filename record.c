@@ -262,17 +262,7 @@ static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos,
     if (typecheck & !res.constant) {
       auto ins = &record_current_trace(state)->ins[res.loc];
       // assert(ins->type == get_type_tag(stack[pos]));
-      bool already_guarded = ins->guard;
-      if ((ins->op == IR_ARG || ins->op == IR_PMOV) && !already_guarded) {
-        auto checked = add_inst(state, IR(.op = IR_TYPECHECK, .op1 = res,
-                                          .type = get_type_tag(stack[pos]),
-                                          .guard = true));
-        entry->loc = checked;
-        entry->changed = true;
-        res = checked;
-      } else {
-        ins->guard = true;
-      }
+      ins->guard = true;
     }
     return res;
   }
@@ -818,7 +808,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
-  if (arrlen(cur_trace->ins) == 0 || arrlast(cur_trace->ins)->op == IR_PMOV) {
+  if (arrlen(cur_trace->ins) <= ts->start_record_size) {
     return op_table;
   }
   // Several cases.
@@ -829,10 +819,6 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   //  check for up-recursion and abort, restart trying to capture an
   //  up-recursive trace.
   if (pc == ts->start_ins && !is_downrec_trace(ts)) {
-    if (ts->skip_start_check) {
-      ts->skip_start_check = false;
-      return op_table;
-    }
     cur_trace->link = cur_trace;
     if (verbose) {
       if (ts->depth != 0) {
@@ -869,11 +855,9 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
   ts->start_is_ret = (instr.op == OP_RET);
-  ts->skip_start_check = ts->start_is_ret;
   ts->type = poly_entry ? TRACE_TYPE_POLY_ROOT : TRACE_TYPE_ROOT;
   ts->poly_entry = poly_entry;
 
-  vm_add_snap(state, pc);
   // OK! Let's put function arguments in registers.
   // Note these *must* be marked as 'changed', since ARGS aren't saved between
   // trace loops at all.
@@ -881,18 +865,44 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   switch (instr.op) {
   case OP_FUNC:
     for (int i = 0; i < MIN(instr.reg, REG_ARG_CNT); i++) {
-      set_stack(state, i, add_inst(state, IR(.op = IR_ARG, .data = i)));
+      set_stack(
+          state, i,
+          add_inst(state, IR(.op = IR_ARG, .data = i, .type = UNDEFINED_TAG)));
     }
     break;
   case OP_RET:
     set_stack(state, instr.reg,
-              add_inst(state, IR(.op = IR_ARG, .data = instr.reg)));
+              add_inst(state, IR(.op = IR_ARG, .data = instr.reg,
+                                 .type = UNDEFINED_TAG)));
 
     break;
   default:
     abort();
   }
   vm_add_snap(state, pc);
+  // Typecheck entry arguments up-front so later uses can target the checked
+  // value.
+  switch (instr.op) {
+  case OP_FUNC:
+    for (int i = 0; i < MIN(instr.reg, REG_ARG_CNT); i++) {
+      auto s = get_sentry(state, i);
+      auto checked = add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc,
+                                        .type = get_type_tag(stack[i])));
+      set_stack(state, i, checked);
+    }
+    break;
+  case OP_RET: {
+    auto s = get_sentry(state, instr.reg);
+    auto checked = add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc,
+                                      .type = get_type_tag(stack[instr.reg])));
+    set_stack(state, instr.reg, checked);
+    break;
+  }
+  default:
+    abort();
+  }
+  vm_add_snap(state, pc);
+  ts->start_record_size = arrlen(record_current_trace(state)->ins);
 }
 
 void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
@@ -910,12 +920,10 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
   ts->start_is_ret = (instr.op == OP_RET);
-  ts->skip_start_check = ts->start_is_ret;
   ts->depth = snap->depth;
   ts->stack_off = 0;
   ts->type = TRACE_TYPE_SIDE;
 
-  vm_add_snap(state, pc);
   // Replay snapshot loads, so we keep things in register.
   arr_for_each_idx(snap->slots, j) {
     auto entry = &snap->slots[j];
@@ -927,11 +935,14 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
       if (old_ins->spill != SPILL_NONE) {
         abort();
       } else {
-        // We may have aborted because of a guard on PMOV, so we need to check
-        // again.
+        if (old_ins->type == FLONUM_TAG && !old_ins->guard) {
+          abort();
+        }
         set_stack(state, entry->slot,
-                  add_inst(state, IR(.op = IR_PMOV, .prev_reg = old_ins->reg,
-                                     .prev_guard = old_ins->guard)));
+                  add_inst(state,
+                           IR(.op = IR_PMOV, .prev_reg = old_ins->reg,
+                              .prev_guard = old_ins->guard,
+                              .guard = old_ins->guard, .type = old_ins->type)));
       }
     }
   }
@@ -939,6 +950,26 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   // relative to stack_off.
   ts->stack_off = snap->offset;
   vm_add_snap(state, pc);
+
+  // Insert initial typechecks for replayed values.
+  arr_for_each_idx(snap->slots, j) {
+    auto entry = &snap->slots[j];
+    if (entry->val.constant) {
+      continue;
+    }
+    auto s = get_sentry(state, entry->slot);
+    auto old_ins = &snap->trace->ins[entry->val.loc];
+    if (old_ins->guard) {
+      // Already typechecked.
+      continue;
+    }
+    auto checked =
+        add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc,
+                           .type = get_type_tag(stack[entry->slot])));
+    set_stack(state, entry->slot, checked);
+  }
+  vm_add_snap(state, pc);
+  ts->start_record_size = arrlen(record_current_trace(state)->ins);
 }
 
 void free_traces(struct vm_state *state) {

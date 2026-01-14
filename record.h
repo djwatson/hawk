@@ -31,9 +31,9 @@ typedef struct trace_state {
   bool start_is_ret;
   uint8_t depth;
   bc **downrec;
-  bool skip_start_check;
   trace_type type;
   const snap *poly_entry;
+  uint32_t start_record_size;
 } trace_state;
 
 typedef struct record_state {

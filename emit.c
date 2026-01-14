@@ -570,7 +570,9 @@ static void emit_serialized_moves(emit_state *s, par_copy *cpy,
 }
 static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
                            int32_t cur_snap) {
-  assert(op->guard);
+  if (!op->guard) {
+    return;
+  }
   uint8_t reg = op->reg;
   if (op->op == IR_TYPECHECK) {
     reg = slot_reg(t, op->op1);
@@ -578,17 +580,19 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
   if (op->type == FIXNUM_TAG) {
     emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
     emit_test_constant(s, reg, TAG_MASK);
-    COMMENT("  typecheck");
+    COMMENT("  typecheck fix");
   } else if (op->type == CONS_TAG) {
     emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
     emit_cmp_constant(s, RTMP, CONS_TAG);
     emit_and_constant(s, RTMP, RTMP, TAG_MASK);
     emit_mov(s, RTMP, reg);
-    COMMENT("  typecheck");
+    COMMENT("  typecheck cons");
   } else if (op->type == FLONUM_TAG) {
     // These are already typechecked (and are in xmm register).
+    COMMENT("  TODO typecheck flonum");
   } else {
     // TODO TODO TODO
+    COMMENT("  TODO typecheck OTHER");
     /* abort(); */
   }
 }
@@ -766,9 +770,7 @@ static void emit_ir(emit_state *s, trace *t) {
       maybe_assign_register(s, op->op1, t);
       assert(!op->op1.constant);
       assert(op->op2.constant);
-      if (op->guard) {
-        emit_typecheck(s, t, op, cur_snap);
-      }
+      emit_typecheck(s, t, op, cur_snap);
       int64_t offset_bytes =
           to_fixnum(t->consts[op->op2.loc]) + (int64_t)sizeof(gc_header);
       emit_mem_load(s, (int32_t)offset_bytes, slot_reg(t, op->op1), op->reg);
@@ -841,9 +843,7 @@ static void emit_ir(emit_state *s, trace *t) {
         maybe_assign_register(s, op->op2, t);
         emit_flonum_sub(s, t, op);
       } else {
-        if (op->guard) {
-          emit_typecheck(s, t, op, cur_snap);
-        }
+        emit_typecheck(s, t, op, cur_snap);
         emit_arith_slots(s, t, op->reg, op->op1, op->op2, true);
       }
       break;
@@ -854,14 +854,14 @@ static void emit_ir(emit_state *s, trace *t) {
         maybe_assign_register(s, op->op2, t);
         emit_flonum_add(s, t, op);
       } else {
+        // TODO: check for overflow
+        emit_typecheck(s, t, op, cur_snap);
         emit_arith_slots(s, t, op->reg, op->op1, op->op2, false);
       }
       break;
     }
     case IR_SLOAD: {
-      if (op->guard) {
-        emit_typecheck(s, t, op, cur_snap);
-      }
+      emit_typecheck(s, t, op, cur_snap);
       if (op->type == FLONUM_TAG) {
         emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, op->reg);
         // We need to typecheck to verify it is a flonum.
@@ -949,7 +949,6 @@ static void emit_ir(emit_state *s, trace *t) {
     if (op->guard &&
         !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
           op->op == IR_LOAD || op->op == IR_ALLOC || op->op == IR_TYPECHECK ||
-          /* TODO add and sub need to be overflow checks for fixnums */
           op->op == IR_SUB || op->op == IR_ADD)) {
       abort();
     }
