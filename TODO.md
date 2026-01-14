@@ -1,23 +1,24 @@
+# typecheck redesign:
+ * hoist IR_TYPECHECK to top, after a snap saving IR_ARG or IR_PMOV.
+ * have things pointed at IR_TYPECHECK (i.e. save it in stack). (this should also remove dups).
+ * Save a *new* already-typechecked entry snap right after the typechecks, we can jump to this when we have a matching entry,
+   (and we can chain them, or just call the generic entry).
+ * On *recording* loopback looking for matching, potentially need to add typecheck guards.
+ * This should keep us on the happy path! We're both a side trace, but can keep things in correct register type and avoid typechecks.
+   
 # Currently working on:
-* re-designing using a new IR_TYPECHECK so that typechecks of PMOVS and ARGS can go after the snapshot. 
-  Also we should always have entries to non-side traces typecheck ahead of time in a special snap?
-  Or rather, the loopback should jump directly to the correct place after typechecking already happens.
 
-* Trying to figure out ARG looping issue - we need to typetest BEFORE loopback.  
-  sub-traces need to be side traces? Otherwise we can never make a null? check a real loop back to somewhere as a side-trace.  ugh. what to do?
-  
-  I think maybe we poly-split only on flonum vs. fixnum? UGUUGUHGUHGUHG
-  
 * improve perf of IR_ALLOC
   
 * it looks like ir_load for non constant offsets needs to know type tag also
   old hawk had separate IR_REF and IR_VREF / IR_STRREFs for this.
 * Similarly, add/sub need to actually do overflow checks so we keep type info.
 
-* re-add RET down handling, get working well
 * Do check for side-trace should be uprec abort
-* cleanup skip_start_check, WHEN do we record finish
-* 
+* Do check for side-trace tail-call should be root loop abort
+* cleanup skip_start_check, WHEN do we record finish - needs to be more generic
+
+* re-add RET down handling, get working well (original hawk never had this)
 
 # VM impl
 * next: diviter, divrec, sumloop, nqueens.
@@ -39,12 +40,7 @@
 * we could improve emit_snap_store_flonum to use fewer registers / optimistic check for free
 * ir printing can use the ir type flags
 * the skip_start_check could be generic, and we could cleanup NEW root traces etc. Not sure why it's not working, I made an attempt.
-* cleanup setting of 'instr' in vmgen when changing recording state. 
-  this only needs to be done in recording, not VM mode.
 * we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!
-* args need to typecheck BEFORE entry to func:
-  because on loopback we *already* know the arg type!
-* extra unnecessary branch checks before regalloc
 * fixup emit_tyupecheck for more than fixnum types
 
 
