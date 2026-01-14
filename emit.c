@@ -76,7 +76,7 @@ void emit_init_slowpath(emit_state *s) {
 
   emit_writable_end(s);
   register_jit_symbol(start, s->alloc_slowpath, (uint8_t *)end, "GCslowpath");
-  if (verbose) {
+  if (false && verbose) {
     printf("GC slowpath: %" PRId64 "\n", end - (long)start);
     disassemble(start, end - (long)start, nullptr);
   }

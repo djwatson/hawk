@@ -739,30 +739,61 @@ static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
   return pc;
 }
 
-static trace *ensure_args_match_trace(gc_obj *stack, trace *head) {
-  assert(head);
-  for (trace *candidate = head; candidate; candidate = candidate->next) {
-    bc *pc = &candidate->start_pc;
-    auto argcnt = MIN(pc->reg, REG_ARG_CNT);
-    bool match = true;
-    for (int i = 0; i < argcnt; i++) {
-      if ((size_t)i >= arrlen(candidate->ins)) {
-        break;
-      }
-      ir_ins *ins = &candidate->ins[i];
-      if (ins->op != IR_ARG || ins->data != (uint32_t)i) {
-        continue;
-      }
-      if (ins->type != get_type_tag(stack[i])) {
-        match = false;
-        break;
-      }
+static int slot_arg_index(trace *t, slot s) {
+  if (s.constant) {
+    return -1;
+  }
+  ir_ins *ins = &t->ins[s.loc];
+  if (ins->op == IR_ARG) {
+    return (int)ins->data;
+  }
+  return -1;
+}
+
+static bool ensure_args_match_trace(vm_state *state, gc_obj *stack,
+                                    trace *target, trace *cur_trace) {
+  if (!target) {
+    return false;
+  }
+  bool needs_guard[REG_ARG_CNT] = {0};
+  bool match = true;
+
+  arr_for_each_idx(target->ins, i) {
+    ir_ins *ins = &target->ins[i];
+    if (ins->op == IR_ARG || ins->op == IR_PMOV) {
+      continue;
     }
-    if (match) {
-      return candidate;
+    if (ins->op != IR_TYPECHECK) {
+      break;
+    }
+    if (!ins->guard) {
+      continue;
+    }
+    int arg_idx = slot_arg_index(target, ins->op1);
+    if (arg_idx < 0 || arg_idx >= REG_ARG_CNT) {
+      continue;
+    }
+    needs_guard[arg_idx] = true;
+    if (get_type_tag(stack[arg_idx]) != ins->type) {
+      match = false;
+      break;
     }
   }
-  return nullptr;
+
+  if (match && cur_trace) {
+    trace_state *ts = record_trace_state(state);
+    for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
+      if (!needs_guard[arg_idx]) {
+        continue;
+      }
+      sentry *entry = get_sentry(state, arg_idx);
+      if (!entry->live || entry->loc.constant) {
+        continue;
+      }
+      cur_trace->ins[entry->loc.loc].guard = true;
+    }
+  }
+  return match;
 }
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table);
@@ -782,15 +813,10 @@ static void *jit_func(bc *instr, bc **pc, gc_obj **stack, vm_state *state,
   }
 
   trace *target = state->record.traces[(*pc)->data];
-  trace *matched = ensure_args_match_trace(*stack, target);
-  matched = target;
-  if (!matched) {
-    *instr = target->start_pc;
-    return check_record_start(*pc, *stack, state, op_table);
-  }
+  bool matched = ensure_args_match_trace(state, *stack, target, cur_trace);
 
   if (cur_trace->parent) {
-    cur_trace->link = matched;
+    cur_trace->link = target;
     if (verbose) {
       printf("Record stop: side trace linked to root trace\n");
     }
@@ -808,6 +834,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
+  ensure_args_match_trace(state, stack, cur_trace, cur_trace);
   if (arrlen(cur_trace->ins) <= ts->start_record_size) {
     return op_table;
   }
