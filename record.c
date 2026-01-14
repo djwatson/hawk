@@ -263,11 +263,15 @@ static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos,
       auto ins = &record_current_trace(state)->ins[res.loc];
       // assert(ins->type == get_type_tag(stack[pos]));
       bool already_guarded = ins->guard;
-      ins->guard = true;
       if ((ins->op == IR_ARG || ins->op == IR_PMOV) && !already_guarded) {
-        ir_ins typecheck_ins = IR(.op = IR_TYPECHECK, .op1 = res,
-                                  .type = ins->type, .guard = true);
-        add_inst(state, typecheck_ins);
+        auto checked = add_inst(state, IR(.op = IR_TYPECHECK, .op1 = res,
+                                          .type = get_type_tag(stack[pos]),
+                                          .guard = true));
+        entry->loc = checked;
+        entry->changed = true;
+        res = checked;
+      } else {
+        ins->guard = true;
       }
     }
     return res;
@@ -877,15 +881,13 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   switch (instr.op) {
   case OP_FUNC:
     for (int i = 0; i < MIN(instr.reg, REG_ARG_CNT); i++) {
-      set_stack(state, i,
-                add_inst(state, IR(.op = IR_ARG, .data = i,
-                                   .type = get_type_tag(stack[i]))));
+      set_stack(state, i, add_inst(state, IR(.op = IR_ARG, .data = i)));
     }
     break;
   case OP_RET:
     set_stack(state, instr.reg,
-              add_inst(state, IR(.op = IR_ARG, .data = instr.reg,
-                                 .type = get_type_tag(stack[instr.reg]))));
+              add_inst(state, IR(.op = IR_ARG, .data = instr.reg)));
+
     break;
   default:
     abort();
@@ -927,11 +929,9 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
       } else {
         // We may have aborted because of a guard on PMOV, so we need to check
         // again.
-        set_stack(
-            state, entry->slot,
-            add_inst(state, IR(.op = IR_PMOV, .prev_reg = old_ins->reg,
-                               .prev_guard = old_ins->guard,
-                               .type = get_type_tag(stack[entry->slot]))));
+        set_stack(state, entry->slot,
+                  add_inst(state, IR(.op = IR_PMOV, .prev_reg = old_ins->reg,
+                                     .prev_guard = old_ins->guard)));
       }
     }
   }

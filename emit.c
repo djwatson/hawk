@@ -930,6 +930,12 @@ static void emit_ir(emit_state *s, trace *t) {
       break;
     case IR_TYPECHECK: {
       maybe_assign_register(s, op->op1, t);
+      if (op->reg == REG_NONE) {
+      } else if (is_fpr_reg(op->reg)) {
+        emit_unbox_flonum(s, slot_reg(t, op->op1), op->reg);
+      } else {
+        emit_mov(s, op->reg, slot_reg(t, op->op1));
+      }
       emit_typecheck(s, t, op, cur_snap);
       break;
     }
