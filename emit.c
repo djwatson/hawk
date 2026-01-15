@@ -279,8 +279,8 @@ static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
        ((ins_var) =                                                            \
             next_leading_op((trace_ptr), (opcode), &_##ins_var##_idx));)
 
-static __attribute__((preserve_all)) gc_obj *
-jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
+static __attribute__((preserve_all))
+gc_obj *jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
   expand_stack(state, &stack);
   return stack;
 }
@@ -440,6 +440,7 @@ static void emit_unbox_flonum(emit_state *s, uint8_t gpr_reg, uint8_t fpr_reg) {
 static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
                                    ir_ins *ins) {
   emit_box_flonum(s, stack_offset, ins->reg, true);
+  COMMENT("Snap store flonum");
 }
 
 static void emit_snap_store_entry(emit_state *s, trace *t,
@@ -467,14 +468,15 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
 
 // Collect list of ARG registers used in trace and map them to exit values.
 static ignoremap *collect_loopback_regs(trace *arg_trace, trace *exit_trace,
-                                        snap *sn) {
+                                        snap *sn, snap *entry_snap) {
   ignoremap *regs = nullptr;
   ir_ins *ins = nullptr;
   for_each_leading_op(arg_trace, IR_ARG, ins) {
     if (ins->spill != SPILL_NONE) {
       abort();
     }
-    ignoremap map = {.slot = (uint16_t)(sn->offset + ins->data)};
+    uint16_t base_off = entry_snap ? entry_snap->offset : sn->offset;
+    ignoremap map = {.slot = (uint16_t)(base_off + ins->data)};
     bool found = false;
     arr_for_each_idx(sn->slots, j) {
       auto entry = &sn->slots[j];
@@ -677,13 +679,18 @@ static void emit_snapshot_exit_jumps(emit_state *s, snap *snaps) {
   }
 }
 
-static ignoremap *link_to_next_trace(emit_state *s, trace *t) {
+static ignoremap *link_to_next_trace(emit_state *s, trace *t,
+                                     uint8_t entry_snap_idx) {
   ignoremap *loopback_regs = nullptr;
   auto cur_snap = arrlen(t->snaps) - 1;
   assign_snap_registers(s, cur_snap, t);
   auto sn = &t->snaps[cur_snap];
   trace *linked_trace = t->link;
-  loopback_regs = collect_loopback_regs(linked_trace, t, sn);
+  snap *entry_snap = nullptr;
+  if (entry_snap_idx < arrlen(linked_trace->snaps)) {
+    entry_snap = &linked_trace->snaps[entry_snap_idx];
+  }
+  loopback_regs = collect_loopback_regs(linked_trace, t, sn, entry_snap);
   if (t->link == t) {
     // We're linking to ourselves.  Unfortunately we don't have
     // register allocation information yet for the *start* of the
@@ -1049,7 +1056,7 @@ static void emit_finish_snap_exits(emit_state *s, trace *t,
 }
 
 trace_fn emit(trace *t, emit_state *s, record_state *record,
-              const snap *poly_entry) {
+              const snap *poly_entry, uint8_t link_entry_snap) {
   // Initialize asm emitter memory if not already done (once per process)
   emit_init(s);
 
@@ -1081,7 +1088,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
 
   // Link to the next trace: Which is either ourselves (if a looping parent
   // trace), or another trace (if a side trace).
-  ignoremap *loopback_regs = link_to_next_trace(s, t);
+  ignoremap *loopback_regs = link_to_next_trace(s, t, link_entry_snap);
 
   emit_ir(s, t);
 

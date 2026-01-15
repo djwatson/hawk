@@ -112,6 +112,7 @@ typedef struct trace {
   // TODO can remove parent
   trace *parent;
   snap *parent_snap;
+  uint8_t link_entry_snap;
   trace *link;
   uint64_t trace_start;
   bc start_pc;

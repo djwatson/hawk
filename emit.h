@@ -6,4 +6,4 @@
 struct record_state;
 
 trace_fn emit(trace *t, emit_state *s, struct record_state *record,
-              const snap *poly_entry);
+              const snap *poly_entry, uint8_t link_entry_snap);

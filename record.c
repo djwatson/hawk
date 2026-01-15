@@ -389,7 +389,8 @@ static void record_finish(bc *pc, vm_state *state) {
   if (verbose) {
     print_ir(cur_trace);
   }
-  cur_trace->fn = emit(cur_trace, &state->emit, &state->record, ts->poly_entry);
+  cur_trace->fn = emit(cur_trace, &state->emit, &state->record, ts->poly_entry,
+                       cur_trace->link_entry_snap);
   if (verbose) {
     print_ir(cur_trace);
   }
@@ -750,50 +751,63 @@ static int slot_arg_index(trace *t, slot s) {
   return -1;
 }
 
-static bool ensure_args_match_trace(vm_state *state, gc_obj *stack,
-                                    trace *target, trace *cur_trace) {
-  if (!target) {
-    return false;
-  }
-  bool needs_guard[REG_ARG_CNT] = {0};
-  bool match = true;
+typedef struct {
+  trace *trace;
+  bool matched;
+} trace_match;
 
-  arr_for_each_idx(target->ins, i) {
-    ir_ins *ins = &target->ins[i];
-    if (ins->op == IR_ARG || ins->op == IR_PMOV) {
-      continue;
-    }
-    if (ins->op != IR_TYPECHECK) {
-      break;
-    }
-    if (!ins->guard) {
-      continue;
-    }
-    int arg_idx = slot_arg_index(target, ins->op1);
-    if (arg_idx < 0 || arg_idx >= REG_ARG_CNT) {
-      continue;
-    }
-    needs_guard[arg_idx] = true;
-    if (get_type_tag(stack[arg_idx]) != ins->type) {
-      match = false;
-      break;
-    }
-  }
+static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
+                                           trace *head, trace *cur_trace) {
+  trace_match res = {.trace = head, .matched = false};
+  for (trace *candidate = head; candidate; candidate = candidate->next) {
+    bool needs_guard[REG_ARG_CNT] = {0};
+    bool match = true;
 
-  if (match && cur_trace) {
-    trace_state *ts = record_trace_state(state);
-    for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
-      if (!needs_guard[arg_idx]) {
+    arr_for_each_idx(candidate->ins, i) {
+      ir_ins *ins = &candidate->ins[i];
+      if (ins->op == IR_ARG || ins->op == IR_PMOV) {
         continue;
       }
-      sentry *entry = get_sentry(state, arg_idx);
-      if (!entry->live || entry->loc.constant) {
+      if (ins->op != IR_TYPECHECK) {
+        break;
+      }
+      if (!ins->guard) {
         continue;
       }
-      cur_trace->ins[entry->loc.loc].guard = true;
+      int arg_idx = slot_arg_index(candidate, ins->op1);
+      if (arg_idx < 0 || arg_idx >= REG_ARG_CNT) {
+        continue;
+      }
+      needs_guard[arg_idx] = true;
+      if (get_type_tag(stack[arg_idx]) != ins->type) {
+        match = false;
+        break;
+      }
     }
+
+    if (!match) {
+      continue;
+    }
+
+    res.trace = candidate;
+    res.matched = true;
+
+    if (cur_trace) {
+      for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
+        if (!needs_guard[arg_idx]) {
+          continue;
+        }
+        sentry *entry = get_sentry(state, arg_idx);
+        if (!entry->live || entry->loc.constant) {
+          continue;
+        }
+        cur_trace->ins[entry->loc.loc].guard = true;
+      }
+    }
+    break;
   }
-  return match;
+
+  return res;
 }
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table);
@@ -813,10 +827,12 @@ static void *jit_func(bc *instr, bc **pc, gc_obj **stack, vm_state *state,
   }
 
   trace *target = state->record.traces[(*pc)->data];
-  bool matched = ensure_args_match_trace(state, *stack, target, cur_trace);
+  trace_match match =
+      ensure_args_match_trace(state, *stack, target, cur_trace);
 
   if (cur_trace->parent) {
-    cur_trace->link = target;
+    cur_trace->link = match.trace;
+    cur_trace->link_entry_snap = match.matched ? 1 : 0;
     if (verbose) {
       printf("Record stop: side trace linked to root trace\n");
     }
@@ -834,7 +850,8 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
-  ensure_args_match_trace(state, stack, cur_trace, cur_trace);
+  trace_match match = ensure_args_match_trace(state, stack, cur_trace,
+                                              cur_trace);
   if (arrlen(cur_trace->ins) <= ts->start_record_size) {
     return op_table;
   }
@@ -846,7 +863,8 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   //  check for up-recursion and abort, restart trying to capture an
   //  up-recursive trace.
   if (pc == ts->start_ins && !is_downrec_trace(ts)) {
-    cur_trace->link = cur_trace;
+    cur_trace->link = match.trace;
+    cur_trace->link_entry_snap = match.matched ? 1 : 0;
     if (verbose) {
       if (ts->depth != 0) {
         printf("Record stop: up-recursion\n");
