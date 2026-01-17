@@ -476,7 +476,10 @@ static ignoremap *collect_loopback_regs(trace *arg_trace, trace *exit_trace,
       abort();
     }
     uint16_t base_off = entry_snap ? entry_snap->offset : sn->offset;
-    ignoremap map = {.slot = (uint16_t)(base_off + ins->data)};
+    ignoremap map = {
+        .slot = (uint16_t)(base_off + ins->data),
+        .target_reg = REG_NONE,
+    };
     bool found = false;
     arr_for_each_idx(sn->slots, j) {
       auto entry = &sn->slots[j];
@@ -493,6 +496,20 @@ static ignoremap *collect_loopback_regs(trace *arg_trace, trace *exit_trace,
         map.type = slot_ins(exit_trace, entry->val)->type;
       }
       break;
+    }
+    // If we have an entry snap, use its register assignment (if any).
+    if (entry_snap) {
+      arr_for_each_idx(entry_snap->slots, j) {
+        auto entry = &entry_snap->slots[j];
+        if (entry->slot != map.slot) {
+          continue;
+        }
+        if (!entry->val.constant) {
+          map.target_reg = slot_reg(arg_trace, entry->val);
+          map.type = slot_ins(arg_trace, entry->val)->type;
+        }
+        break;
+      }
     }
     if (!found) {
       map.needs_stack_load = true;
@@ -611,7 +628,9 @@ static void collect_loopback_parallel_moves(emit_state *s, trace *arg_trace,
       abort();
     }
     auto reg_map = &loopback_regs[arg_idx++];
-    reg_map->target_reg = arg_ins->reg;
+    if (reg_map->target_reg == REG_NONE) {
+      reg_map->target_reg = arg_ins->reg;
+    }
     if (reg_map->needs_constant) {
       continue;
     }
@@ -630,8 +649,11 @@ static void collect_loopback_parallel_moves(emit_state *s, trace *arg_trace,
     if (reg_map->reg == REG_NONE) {
       abort();
     }
+    if (reg_map->target_reg == REG_NONE) {
+      abort();
+    }
     arrput(nullptr, cpy,
-           ((par_copy){.from = reg_map->reg, .to = arg_ins->reg}));
+           ((par_copy){.from = reg_map->reg, .to = reg_map->target_reg}));
   }
   emit_serialized_moves(s, cpy, loopback_regs);
 }
@@ -688,7 +710,14 @@ static ignoremap *link_to_next_trace(emit_state *s, trace *t,
   trace *linked_trace = t->link;
   snap *entry_snap = nullptr;
   if (entry_snap_idx < arrlen(linked_trace->snaps)) {
+    assign_snap_registers(s, entry_snap_idx, linked_trace);
     entry_snap = &linked_trace->snaps[entry_snap_idx];
+  }
+  if (verbose) {
+    printf("link_to_next_trace t%i -> t%i cur_snap %zu entry_idx %u "
+           "sn_off %u entry_off %u\n",
+           t->num, linked_trace->num, cur_snap, entry_snap_idx, sn->offset,
+           entry_snap ? entry_snap->offset : 0);
   }
   loopback_regs = collect_loopback_regs(linked_trace, t, sn, entry_snap);
   if (t->link == t) {
@@ -968,7 +997,8 @@ static void emit_ir(emit_state *s, trace *t) {
 // One from c.
 static void emit_root_trace_entry(emit_state *s, trace *t,
                                   ignoremap *loopback_regs,
-                                  const snap *poly_entry) {
+                                  const snap *poly_entry,
+                                  uint8_t entry_snap_idx) {
   size_t snap_cnt = arrlen(t->snaps);
   if (!snap_cnt) {
     return;
@@ -977,10 +1007,8 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
   // emit parcopy from loop end
   collect_loopback_parallel_moves(s, t, loopback_regs);
 
-  if (t->link == t) { // self link
-    emit_jmp32_patch_here(s,
-                          (int64_t)t->snaps[arrlen(t->snaps) - 1].patch_point);
-  }
+  emit_jmp32_patch_here(s,
+                        (int64_t)t->snaps[arrlen(t->snaps) - 1].patch_point);
   COMMENT("LOOPBACK ENTRY");
 
   // Emit an entry point from C.
@@ -1096,7 +1124,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   t->trace_start = emit_offset(s);
 
   if (!t->parent) {
-    emit_root_trace_entry(s, t, loopback_regs, poly_entry);
+    emit_root_trace_entry(s, t, loopback_regs, poly_entry, link_entry_snap);
   } else {
     emit_side_trace_entry(s, t);
   }
