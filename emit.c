@@ -750,7 +750,7 @@ static ignoremap *link_to_next_trace(emit_state *s, trace *t,
   return loopback_regs;
 }
 
-static void emit_ir(emit_state *s, trace *t) {
+static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
   int32_t cur_snap = (int32_t)arrlen(t->snaps) - 1;
   auto op_cnt_idx = arrlen(t->ins);
   for (; op_cnt_idx > 0; op_cnt_idx--) {
@@ -760,6 +760,9 @@ static void emit_ir(emit_state *s, trace *t) {
         assign_snap_registers(s, cur_snap - 1, t);
       }
       cur_snap--;
+      if (cur_snap == 0 && snap_entry_label && *snap_entry_label == -1) {
+        *snap_entry_label = emit_offset(s);
+      }
     }
     auto op = &t->ins[op_cnt];
 
@@ -998,21 +1001,28 @@ static void emit_ir(emit_state *s, trace *t) {
 static void emit_root_trace_entry(emit_state *s, trace *t,
                                   ignoremap *loopback_regs,
                                   const snap *poly_entry,
-                                  uint8_t entry_snap_idx) {
+                                  uint8_t entry_snap_idx,
+                                  int64_t snap_entry_label) {
   size_t snap_cnt = arrlen(t->snaps);
   if (!snap_cnt) {
     return;
   }
+  // TODO make this emit_jmp32 jump to the cur_snap TODO saved emit_offset IF
+  // entry_snap_idx == 1 don't emit anything if entry_snap_idx == 0
+  if (entry_snap_idx == 1) {
+    emit_jmp32(s, snap_entry_label);
+  }
+
   // Emit a loopbackentry point
   // emit parcopy from loop end
   collect_loopback_parallel_moves(s, t, loopback_regs);
 
-  emit_jmp32_patch_here(s,
-                        (int64_t)t->snaps[arrlen(t->snaps) - 1].patch_point);
+  emit_jmp32_patch_here(s, (int64_t)t->snaps[arrlen(t->snaps) - 1].patch_point);
   COMMENT("LOOPBACK ENTRY");
 
   // Emit an entry point from C.
   emit_jmp32(s, (int64_t)t->trace_start);
+
   ir_ins *arg_ins = nullptr;
   for_each_leading_op(t, IR_ARG, arg_ins) {
     if (arg_ins->spill != SPILL_NONE) {
@@ -1118,13 +1128,15 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // trace), or another trace (if a side trace).
   ignoremap *loopback_regs = link_to_next_trace(s, t, link_entry_snap);
 
-  emit_ir(s, t);
+  int64_t snap_entry_label = -1;
+  emit_ir(s, t, &snap_entry_label);
 
   // This is where the trace will start when other traces are linked to it.
   t->trace_start = emit_offset(s);
 
   if (!t->parent) {
-    emit_root_trace_entry(s, t, loopback_regs, poly_entry, link_entry_snap);
+    emit_root_trace_entry(s, t, loopback_regs, poly_entry, link_entry_snap,
+                          snap_entry_label);
   } else {
     emit_side_trace_entry(s, t);
   }
