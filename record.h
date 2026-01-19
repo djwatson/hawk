@@ -47,8 +47,7 @@ typedef struct record_state {
 
 struct vm_state;
 void record_init(record_state *record);
-void record_start(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                  const snap *poly_entry);
+void record_start(struct vm_state *state, bc *pc, bc instr, gc_obj *stack);
 void record_start_side(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                       snap *snap);
+                       snap *side_snap, const snap *poly_entry);
 void free_traces(struct vm_state *state);

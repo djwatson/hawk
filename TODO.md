@@ -1,12 +1,7 @@
-# typecheck redesign:
- * hoist IR_TYPECHECK to top, after a snap saving IR_ARG or IR_PMOV.
- * have things pointed at IR_TYPECHECK (i.e. save it in stack). (this should also remove dups).
- * Save a *new* already-typechecked entry snap right after the typechecks, we can jump to this when we have a matching entry,
-   (and we can chain them, or just call the generic entry).
- * On *recording* loopback looking for matching, potentially need to add typecheck guards.
- * This should keep us on the happy path! We're both a side trace, but can keep things in correct register type and avoid typechecks.
-   
 # Currently working on:
+
+* Get 'already typechecked' path to remove the jmp
+* summix isn't selecting for correct 'already-typechecked' path
 
 * improve perf of IR_ALLOC
   
@@ -42,7 +37,6 @@
 * the skip_start_check could be generic, and we could cleanup NEW root traces etc. Not sure why it's not working, I made an attempt.
 * we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!
 * fixup emit_tyupecheck for more than fixnum types
-
 
 # scheme cleanup
 * builders needs to be in with the rest of the IR passes. Use builders instead of backtick to build stuff.

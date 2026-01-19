@@ -61,7 +61,7 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
     }
 
     *hot_loc = hotmap_cnt;
-    record_start(state, pc, *pc, stack, nullptr);
+    record_start(state, pc, *pc, stack);
     return state->record_impls;
   }
   return op_table;
@@ -466,7 +466,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
       }
     }
     if (should_try_side) {
-      if (false && res.snap->ir == 0) {
+      if (res.snap->ir == 0) {
         // It's a special, new-root trace!
         // This happens when ARG typechecks fail.
         if (verbose) {
@@ -475,7 +475,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
         }
         bc start = res.snap->trace->start_pc;
         *instr = start;
-        record_start(state, *pc, start, *stack, res.snap);
+        record_start(state, *pc, start, *stack);
         if (start.op != OP_RET) {
           // Skip over FUNC/JFUNC so we actually record body instructions.
           *pc = next_op(*pc);
@@ -485,7 +485,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
         if (verbose) {
           printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
         }
-        record_start_side(state, *pc, *instr, *stack, res.snap);
+        record_start_side(state, *pc, *instr, *stack, res.snap, res.snap);
       }
       return state->record_impls;
     }

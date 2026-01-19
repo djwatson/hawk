@@ -87,6 +87,7 @@ static void penalty_pc(record_state *record, bc *pc) {
 static void clear_trace_state(trace_state *ts) {
   arrfree(ts->stack);
   arrfree(ts->downrec);
+  ts->poly_entry = nullptr;
 }
 static void free_snap(snap *snap) { arrfree(snap->slots); }
 static void free_trace(trace *trace) {
@@ -374,6 +375,9 @@ static void record_abort(vm_state *state) {
   trace_state *ts = record_trace_state(state);
   penalty_pc(&state->record, ts->start_ins);
   trace *cur_trace = record_current_trace(state);
+  if (ts->poly_entry) {
+    ts->poly_entry = nullptr;
+  }
   if (cur_trace) {
     free_trace(cur_trace);
   }
@@ -400,10 +404,6 @@ static void record_finish(bc *pc, vm_state *state) {
         .op = OP_JFUNC,
         .data = record_trace_count(state),
     };
-  }
-  if (ts->type == TRACE_TYPE_POLY_ROOT) {
-    assert(ts->poly_entry->trace->next == nullptr);
-    ts->poly_entry->trace->next = cur_trace;
   }
   record_append_trace(state, cur_trace);
   clear_trace_state(ts);
@@ -472,7 +472,7 @@ static frame_state return_frame(vm_state *state, bc instr, bc *pc,
       }
       clear_trace_state(ts);
       free_trace(cur_trace);
-      record_start(state, pc, *pc, stack, nullptr);
+      record_start(state, pc, *pc, stack);
       // UGH there must be a better way?
       VMGEN_TRACE_OP_NOABORT(pc, RET, state, 0);
       return return_frame(state, *pc, pc, stack, op_table);
@@ -759,7 +759,13 @@ typedef struct {
 static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
                                            trace *head, trace *cur_trace) {
   trace_match res = {.trace = head, .matched = false};
+  if (verbose && head) {
+    printf("Arg match head trace %i\n", head->num);
+  }
   for (trace *candidate = head; candidate; candidate = candidate->next) {
+    if (verbose) {
+      printf("Arg match? trace %i\n", candidate->num);
+    }
     bool needs_guard[REG_ARG_CNT] = {0};
     bool match = true;
 
@@ -780,6 +786,10 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
       }
       needs_guard[arg_idx] = true;
       if (get_type_tag(stack[arg_idx]) != ins->type) {
+        if (verbose) {
+          printf("  arg%d type mismatch want %u got %u\n", arg_idx, ins->type,
+                 get_type_tag(stack[arg_idx]));
+        }
         match = false;
         break;
       }
@@ -791,6 +801,9 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
 
     res.trace = candidate;
     res.matched = true;
+    if (verbose) {
+      printf("  matched trace %i\n", candidate->num);
+    }
 
     if (cur_trace) {
       for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
@@ -827,8 +840,7 @@ static void *jit_func(bc *instr, bc **pc, gc_obj **stack, vm_state *state,
   }
 
   trace *target = state->record.traces[(*pc)->data];
-  trace_match match =
-      ensure_args_match_trace(state, *stack, target, cur_trace);
+  trace_match match = ensure_args_match_trace(state, *stack, target, cur_trace);
 
   if (cur_trace->parent) {
     cur_trace->link = match.trace;
@@ -850,8 +862,8 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
-  trace_match match = ensure_args_match_trace(state, stack, cur_trace,
-                                              cur_trace);
+  trace_match match =
+      ensure_args_match_trace(state, stack, cur_trace, cur_trace);
   if (arrlen(cur_trace->ins) <= ts->start_record_size) {
     return op_table;
   }
@@ -887,8 +899,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 // NOLINTNEXTLINE(bugprone-suspicious-include)
 #include "vmgen.c" // NOLINT(build/include)
 
-void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                  const snap *poly_entry) {
+void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack) {
 
   if (verbose) {
     const char *fname = func_name_from_pc(pc);
@@ -900,8 +911,8 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
   ts->start_is_ret = (instr.op == OP_RET);
-  ts->type = poly_entry ? TRACE_TYPE_POLY_ROOT : TRACE_TYPE_ROOT;
-  ts->poly_entry = poly_entry;
+  ts->type = TRACE_TYPE_ROOT;
+  ts->poly_entry = nullptr;
 
   // OK! Let's put function arguments in registers.
   // Note these *must* be marked as 'changed', since ARGS aren't saved between
@@ -951,7 +962,7 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
 }
 
 void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                       snap *snap) {
+                       snap *side_snap, const snap *poly_entry) {
   if (verbose) {
     printf("Record start side %li\n", arrlen(state->record.traces));
   }
@@ -959,24 +970,28 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
-  cur_trace->parent = snap->trace;
-  cur_trace->parent_snap = snap;
+  cur_trace->parent = side_snap->trace;
+  cur_trace->parent_snap = side_snap;
   cur_trace->start_pc = instr;
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
   ts->start_is_ret = (instr.op == OP_RET);
-  ts->depth = snap->depth;
+  ts->depth = side_snap->depth;
   ts->stack_off = 0;
   ts->type = TRACE_TYPE_SIDE;
+  ts->poly_entry = poly_entry;
+  if (poly_entry) {
+    poly_entry->trace->next = cur_trace;
+  }
 
   // Replay snapshot loads, so we keep things in register.
-  arr_for_each_idx(snap->slots, j) {
-    auto entry = &snap->slots[j];
+  arr_for_each_idx(side_snap->slots, j) {
+    auto entry = &side_snap->slots[j];
     if (entry->val.constant) {
       set_stack(state, entry->slot,
-                add_const(state, snap->trace->consts[entry->val.loc]));
+                add_const(state, side_snap->trace->consts[entry->val.loc]));
     } else {
-      auto old_ins = &snap->trace->ins[entry->val.loc];
+      auto old_ins = &side_snap->trace->ins[entry->val.loc];
       if (old_ins->spill != SPILL_NONE) {
         abort();
       } else {
@@ -993,17 +1008,17 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   }
   // We set this last, since snapshots have absolute indexs, and set_stack is
   // relative to stack_off.
-  ts->stack_off = snap->offset;
+  ts->stack_off = side_snap->offset;
   vm_add_snap(state, pc);
 
   // Insert initial typechecks for replayed values.
-  arr_for_each_idx(snap->slots, j) {
-    auto entry = &snap->slots[j];
+  arr_for_each_idx(side_snap->slots, j) {
+    auto entry = &side_snap->slots[j];
     if (entry->val.constant) {
       continue;
     }
     auto s = get_sentry(state, entry->slot);
-    auto old_ins = &snap->trace->ins[entry->val.loc];
+    auto old_ins = &side_snap->trace->ins[entry->val.loc];
     if (old_ins->guard) {
       // Already typechecked.
       continue;
