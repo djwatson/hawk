@@ -475,15 +475,17 @@ static ignoremap *collect_loopback_regs(trace *arg_trace, trace *exit_trace,
     if (ins->spill != SPILL_NONE) {
       abort();
     }
-    uint16_t base_off = entry_snap ? entry_snap->offset : sn->offset;
-    ignoremap map = {
-        .slot = (uint16_t)(base_off + ins->data),
-        .target_reg = REG_NONE,
-    };
+    // Slots in the exiting snapshot are relative to its offset; entry snapshot
+    // slots are relative to the entry snapshot offset. Keep them distinct.
+    uint16_t exit_slot = (uint16_t)(sn->offset + ins->data);
+    uint16_t entry_slot =
+        (uint16_t)((entry_snap ? entry_snap->offset : sn->offset) +
+                   ins->data);
+    ignoremap map = {.slot = exit_slot, .target_reg = REG_NONE};
     bool found = false;
     arr_for_each_idx(sn->slots, j) {
       auto entry = &sn->slots[j];
-      if (entry->slot != map.slot) {
+      if (entry->slot != exit_slot) {
         continue;
       }
       found = true;
@@ -501,7 +503,7 @@ static ignoremap *collect_loopback_regs(trace *arg_trace, trace *exit_trace,
     if (entry_snap) {
       arr_for_each_idx(entry_snap->slots, j) {
         auto entry = &entry_snap->slots[j];
-        if (entry->slot != map.slot) {
+        if (entry->slot != entry_slot) {
           continue;
         }
         if (!entry->val.constant) {
@@ -741,7 +743,10 @@ static ignoremap *link_to_next_trace(emit_state *s, trace *t,
     // complicated because traces expect the first REG_ARG_CNT args in memory.
     // (the same way most calling conventions keep the first X args in
     // register).
-    emit_jmp32(s, (int64_t)linked_trace->trace_start);
+    int64_t target = (entry_snap_idx == 1 && linked_trace->snap_entry_label != -1)
+                         ? linked_trace->snap_entry_label
+                         : (int64_t)linked_trace->trace_start;
+    emit_jmp32(s, target);
     collect_loopback_parallel_moves(s, linked_trace, loopback_regs);
     emit_snap(s, t, sn, false, loopback_regs);
     arrfree(loopback_regs);
@@ -1130,6 +1135,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
 
   int64_t snap_entry_label = -1;
   emit_ir(s, t, &snap_entry_label);
+  t->snap_entry_label = snap_entry_label;
 
   // This is where the trace will start when other traces are linked to it.
   t->trace_start = emit_offset(s);

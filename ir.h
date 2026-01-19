@@ -115,6 +115,7 @@ typedef struct trace {
   uint8_t link_entry_snap;
   trace *link;
   uint64_t trace_start;
+  int64_t snap_entry_label;
   bc start_pc;
   trace *next; // Chained polymorphic traces.
 } trace;
