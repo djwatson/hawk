@@ -28,6 +28,7 @@ set(
   hawk_sources
   hawk.c
   readbc.c
+  ftoa.c
   vm.c
   types.c
   record.c
@@ -205,7 +206,7 @@ if(BUILD_TESTING)
     COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sumfp.scm.bc
   )
   set_tests_properties(
-    hawk_sumfp PROPERTIES PASS_REGULAR_EXPRESSION "2.5e\\+14"
+    hawk_sumfp PROPERTIES PASS_REGULAR_EXPRESSION "2.5000025e\\+14"
   )
 
   add_test(
@@ -249,7 +250,7 @@ if(BUILD_TESTING)
     COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/fibfp.scm.bc
   )
   set_tests_properties(
-    hawk_fibfp PROPERTIES PASS_REGULAR_EXPRESSION "9.22746e\\+06"
+    hawk_fibfp PROPERTIES PASS_REGULAR_EXPRESSION "9227465.0"
   )
 endif()
 

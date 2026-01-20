@@ -3,6 +3,8 @@
 * Get 'already typechecked' path to remove the jmp
 * summix isn't selecting for correct 'already-typechecked' path
 
+* get type names printing better, print_type_tag
+
 * improve perf of IR_ALLOC
   
 * it looks like ir_load for non constant offsets needs to know type tag also

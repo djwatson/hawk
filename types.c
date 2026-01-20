@@ -1,12 +1,11 @@
 #include <assert.h>
 #include <inttypes.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "bc.h"
+#include "ftoa.h"
 #include "types.h"
 
 #define X(name, num) #name,
@@ -63,19 +62,13 @@ void print_obj(gc_obj obj, FILE *file) { //!OCLINT
   }
   case FLONUM_TAG: {
     auto f = to_flonum(obj);
-    char buffer[40];
-    snprintf(buffer, 40 - 3, "%g", f->x);
-    if (strpbrk(buffer, ".eE") == nullptr) {
-      size_t len = strlen(buffer);
-      buffer[len] = '.';
-      buffer[len + 1] = '0';
-      buffer[len + 2] = '\0';
-    }
+    char *buffer = ftoa_fast(f->x);
     // Print it using only as many digits required as necessary, such
     // that the reader will read the same number back. printf can only
     // display a specific number of digits.
     // dtoa(f->x, buffer);
     fputs(buffer, file);
+    free(buffer);
     break;
   }
   case CONS_TAG: {

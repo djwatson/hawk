@@ -388,7 +388,6 @@ static void record_finish(bc *pc, vm_state *state) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   vm_add_snap(state, pc);
-  cur_trace->num = arrlen(state->record.traces);
   dce(cur_trace);
   if (verbose) {
     print_ir(cur_trace);
@@ -903,10 +902,11 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack) {
 
   if (verbose) {
     const char *fname = func_name_from_pc(pc);
-    printf("Record start %p %li %s\n", pc, arrlen(state->record.traces), fname);
+    printf("Record start %p %i %s\n", pc, record_trace_count(state), fname);
   }
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   record_current_trace(state)->start_pc = instr;
+  record_current_trace(state)->num = record_trace_count(state);
   trace_state *ts = record_trace_state(state);
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
@@ -964,7 +964,7 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack) {
 void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
                        snap *side_snap, const snap *poly_entry) {
   if (verbose) {
-    printf("Record start side %li\n", arrlen(state->record.traces));
+    printf("Record start side %i\n", record_trace_count(state));
   }
   assert(instr.op != OP_JFUNC);
   record_set_current_trace(state, calloc(1, sizeof(trace)));
@@ -973,6 +973,7 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   cur_trace->parent = side_snap->trace;
   cur_trace->parent_snap = side_snap;
   cur_trace->start_pc = instr;
+  cur_trace->num = record_trace_count(state);
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
   ts->start_is_ret = (instr.op == OP_RET);
