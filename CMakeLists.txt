@@ -38,6 +38,7 @@ set(
   emit.c
   ${ASM_SOURCE}
   asm.c
+  comments.c
   zone_alloc.c
   profiler.c
   hashtable.c

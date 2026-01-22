@@ -4,7 +4,6 @@
 
 #include <assert.h>
 #include <inttypes.h>
-#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -12,6 +11,7 @@
 
 #include "array.h"
 #include "asm.h"
+#include "comments.h"
 #include "disassemble.h"
 #include "gc.h"
 #include "hawk.h"
@@ -221,41 +221,6 @@ static void emit_arith_slots(emit_state *s, trace *t, uint8_t dst, slot lhs,
       emit_add(s, dst, slot_reg(t, lhs), slot_reg(t, rhs));
     }
   }
-}
-
-static char *zone_vsprintf(zone *z, char const *fmt, va_list args) {
-  va_list measure;
-  va_copy(measure, args);
-  int needed = vsnprintf(nullptr, 0, fmt, measure);
-  va_end(measure);
-  if (needed < 0) {
-    abort();
-  }
-
-  size_t bytes = (size_t)needed + 1;
-  char *buf = zone_malloc(z, bytes);
-  if (!buf) {
-    abort();
-  }
-
-  va_list write_args;
-  va_copy(write_args, args);
-  int written = vsnprintf(buf, bytes, fmt, write_args);
-  va_end(write_args);
-  if (written < 0 || written >= (int)bytes) {
-    abort();
-  }
-  return buf;
-}
-
-static void comment_append(int64_t offset, zone *z, comment_entry **comments,
-                           char const *fmt, ...) {
-  va_list args;
-  va_start(args, fmt);
-  char *msg = zone_vsprintf(z, fmt, args);
-  va_end(args);
-  comment_entry entry = {.offset = offset, .text = msg};
-  arrput(z, *comments, entry);
 }
 
 static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
