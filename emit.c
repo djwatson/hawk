@@ -433,19 +433,14 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
 
 // Collect list of ARG registers used in trace and map them to exit values.
 static ignoremap *collect_loopback_regs(trace *arg_trace, trace *exit_trace,
-                                        snap *sn, snap *entry_snap) {
+                                        snap *sn) {
   ignoremap *regs = nullptr;
   ir_ins *ins = nullptr;
   for_each_leading_op(arg_trace, IR_ARG, ins) {
     if (ins->spill != SPILL_NONE) {
       abort();
     }
-    // Slots in the exiting snapshot are relative to its offset; entry snapshot
-    // slots are relative to the entry snapshot offset. Keep them distinct.
     uint16_t exit_slot = (uint16_t)(sn->offset + ins->data);
-    uint16_t entry_slot =
-        (uint16_t)((entry_snap ? entry_snap->offset : sn->offset) +
-                   ins->data);
     ignoremap map = {.slot = exit_slot, .target_reg = REG_NONE};
     bool found = false;
     arr_for_each_idx(sn->slots, j) {
@@ -463,20 +458,6 @@ static ignoremap *collect_loopback_regs(trace *arg_trace, trace *exit_trace,
         map.type = slot_ins(exit_trace, entry->val)->type;
       }
       break;
-    }
-    // If we have an entry snap, use its register assignment (if any).
-    if (entry_snap) {
-      arr_for_each_idx(entry_snap->slots, j) {
-        auto entry = &entry_snap->slots[j];
-        if (entry->slot != entry_slot) {
-          continue;
-        }
-        if (!entry->val.constant) {
-          map.target_reg = slot_reg(arg_trace, entry->val);
-          map.type = slot_ins(arg_trace, entry->val)->type;
-        }
-        break;
-      }
     }
     if (!found) {
       map.needs_stack_load = true;
@@ -586,7 +567,8 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
 // Collect destination of loopback exist register/constant/spill slot values.
 // Arrange
 static void collect_loopback_parallel_moves(emit_state *s, trace *arg_trace,
-                                            ignoremap *loopback_regs) {
+                                            ignoremap *loopback_regs,
+                                            snap *entry_snap) {
   par_copy *cpy = nullptr;
   size_t arg_idx = 0;
   ir_ins *arg_ins = nullptr;
@@ -595,6 +577,20 @@ static void collect_loopback_parallel_moves(emit_state *s, trace *arg_trace,
       abort();
     }
     auto reg_map = &loopback_regs[arg_idx++];
+    if (entry_snap && reg_map->target_reg == REG_NONE) {
+      uint16_t entry_slot = (uint16_t)(entry_snap->offset + arg_ins->data);
+      arr_for_each_idx(entry_snap->slots, j) {
+        auto entry = &entry_snap->slots[j];
+        if (entry->slot != entry_slot) {
+          continue;
+        }
+        if (!entry->val.constant) {
+          reg_map->target_reg = slot_reg(arg_trace, entry->val);
+          reg_map->type = slot_ins(arg_trace, entry->val)->type;
+        }
+        break;
+      }
+    }
     if (reg_map->target_reg == REG_NONE) {
       reg_map->target_reg = arg_ins->reg;
     }
@@ -686,7 +682,7 @@ static ignoremap *link_to_next_trace(emit_state *s, trace *t,
            t->num, linked_trace->num, cur_snap, entry_snap_idx, sn->offset,
            entry_snap ? entry_snap->offset : 0);
   }
-  loopback_regs = collect_loopback_regs(linked_trace, t, sn, entry_snap);
+  loopback_regs = collect_loopback_regs(linked_trace, t, sn);
   if (t->link == t) {
     // We're linking to ourselves.  Unfortunately we don't have
     // register allocation information yet for the *start* of the
@@ -712,7 +708,8 @@ static ignoremap *link_to_next_trace(emit_state *s, trace *t,
                          ? linked_trace->snap_entry_label
                          : (int64_t)linked_trace->trace_start;
     emit_jmp32(s, target);
-    collect_loopback_parallel_moves(s, linked_trace, loopback_regs);
+    collect_loopback_parallel_moves(s, linked_trace, loopback_regs,
+                                    entry_snap);
     emit_snap(s, t, sn, false, loopback_regs);
     arrfree(loopback_regs);
     COMMENT("Link to trace %i (snap exit %i)", t->link->num, cur_snap);
@@ -973,6 +970,11 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
                                   const snap *poly_entry,
                                   uint8_t entry_snap_idx,
                                   int64_t snap_entry_label) {
+  snap *entry_snap =
+      entry_snap_idx < arrlen(t->snaps) ? &t->snaps[entry_snap_idx] : nullptr;
+  if (entry_snap) {
+    assign_snap_registers(s, entry_snap_idx, t);
+  }
   size_t snap_cnt = arrlen(t->snaps);
   if (!snap_cnt) {
     return;
@@ -985,7 +987,7 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
 
   // Emit a loopbackentry point
   // emit parcopy from loop end
-  collect_loopback_parallel_moves(s, t, loopback_regs);
+  collect_loopback_parallel_moves(s, t, loopback_regs, entry_snap);
 
   emit_jmp32_patch_here(s, (int64_t)t->snaps[arrlen(t->snaps) - 1].patch_point);
   COMMENT("LOOPBACK ENTRY");
