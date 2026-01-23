@@ -560,13 +560,12 @@ static void emit_exit_to_c(emit_state *s) {
   restore_callee_regs(s);
 }
 
-static void emit_snapshot_exit_jumps(emit_state *s, snap *snaps) {
+static void emit_snapshot_exit_jumps(emit_state *s, trace *t, snap *snaps,
+                                     int64_t exit_label) {
   for (uint64_t i = arrlen(snaps) - 1; i > 0; i--) {
     snap *snap = &snaps[i - 1];
-    // To be replaced by actual snap exit code at the end, so just put a
-    // placeholder to reserve instruction space.
-    auto unused = emit_offset(s) + 16;
-    emit_jmp32(s, unused);
+    emit_jmp32(s, exit_label);
+    emit_snap(s, t, snap, true, nullptr);
     snap->patch_point = emit_offset(s);
     COMMENT("Snap exit #%i", i - 1);
   }
@@ -905,43 +904,31 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
                           (char *)t->parent_snap->patch_point + 16);
 }
 void emit_install_poly_root(emit_state *s, int64_t entry, const snap *snap) {}
-static void emit_finish_snap_exits(emit_state *s, trace *t,
-                                   int64_t exit_label) {
-  // Emit even MORE snap exits.  We didn't have register allocation
-  // previously, but now we do. Since these are slowpath exists, the extra
-  // branches probably don't matter much.
-  for (uint64_t i = arrlen(t->snaps) - 1; i > 0; i--) {
-    snap *snap = &t->snaps[i - 1];
-    emit_jmp32(s, exit_label);
-    emit_snap(s, t, snap, true, nullptr);
-    emit_jmp32_patch_here(s, (int64_t)t->snaps[i - 1].patch_point);
-    COMMENT("Snap exit #%i", i - 1);
-  }
-}
 
 trace_fn emit(trace *t, emit_state *s, record_state *record,
               const snap *poly_entry, uint8_t link_entry_snap) {
   // Initialize asm emitter memory if not already done (once per process)
   emit_init(s);
 
+  // Allocate registers, print the IR in verbose mode.
   regalloc(t);
   if (verbose) {
     print_ir(t);
   }
+
   // Remember, we're emitting backwards! This makes the register
   // allocator much simpler to write, no state needs to be preserved.
-
   emit_writable_begin(s);
 
   // Emit a return-to-c stub.
+  // TODO: could be shared by ALL traces
   auto end = emit_offset(s);
   emit_exit_to_c(s);
   auto exit_label = emit_offset(s);
 
-  // Exist stubs for all but the last. These are eventually replaced
-  // by jumps to side traces as we emit them.  Otherwise we restore
-  // state and jump to the C exit stub.
-  emit_snapshot_exit_jumps(s, t->snaps);
+  // Exist stubs for all but the last. These restore the scheme stack state,
+  // putting any in-register values back on the stack, and boxing flonums.
+  emit_snapshot_exit_jumps(s, t, t->snaps, exit_label);
 
   // Link to the next trace: Which is either ourselves (if a looping parent
   // trace), or another trace (if a side trace).
@@ -961,8 +948,6 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
     emit_side_trace_entry(s, t);
   }
 
-  auto entry = emit_offset(s);
-  emit_finish_snap_exits(s, t, exit_label);
   auto start = emit_offset(s);
 
   emit_constant_pool(s);
@@ -983,9 +968,9 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   char funcname[256];
   char *dumpname = t->parent ? "SIDE" : "TRACE";
   snprintf(funcname, sizeof(funcname), "%s_%i", dumpname, t->num);
-  register_jit_symbol((uint8_t *)start, (uint8_t *)entry, (uint8_t *)end,
+  register_jit_symbol((uint8_t *)start, (uint8_t *)start, (uint8_t *)end,
                       funcname);
   // Call the built-in function to flush the cache for the specific range
   __builtin___clear_cache((char *)emit_offset(s), (char *)end);
-  return (trace_fn)entry;
+  return (trace_fn)start;
 }
