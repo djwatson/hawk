@@ -241,15 +241,17 @@ void emit_jmp32(emit_state *s, int64_t target) {
   emit_op(s, opcode);
 }
 
-void emit_jmp32_patch_here(emit_state *s, int64_t patch) {
+void emit_jmp32_patch_there(emit_state *s, int64_t patch, int64_t target) {
   assert(patch);
-  int64_t target = emit_offset(s);
   int64_t delta = target - patch;
   assert((delta & 0x3) == 0);
   int64_t imm26 = delta / 4;
   assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
   uint32_t opcode = 0x14000000U | ((uint32_t)imm26 & 0x03ffffffU);
   memcpy((void *)patch, &opcode, sizeof(opcode));
+}
+void emit_jmp32_patch_here(emit_state *s, int64_t patch) {
+  emit_jmp32_patch_there(s, patch, emit_offset(s));
 }
 
 void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t target) {

@@ -517,14 +517,16 @@ void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
   emit_store(s, offset, base, RTMP);
   emit_mov64(s, RTMP, value);
 }
-void emit_jmp32_patch_here(emit_state *s, int64_t patch) {
+void emit_jmp32_patch_there(emit_state *s, int64_t patch, int64_t target) {
   assert(patch);
-  int64_t target = emit_offset(s);
   int64_t delta = target - patch - 5;
   assert(fits_in_32(delta));
   uint8_t jmp = 0xe9;
   memcpy((uint8_t *)patch, &jmp, 1);
   memcpy((uint8_t *)patch + 1, &delta, 4);
+}
+void emit_jmp32_patch_here(emit_state *s, int64_t patch) {
+  emit_jmp32_patch_there(s, patch, emit_offset(s));
 }
 
 /////////////////// memory

@@ -21,6 +21,7 @@ void save_callee_regs(emit_state *s);
 void emit_ret(emit_state *s);
 void emit_jmp32(emit_state *s, int64_t target);
 void emit_jmp32_patch_here(emit_state *s, int64_t patch);
+void emit_jmp32_patch_there(emit_state *s, int64_t patch, int64_t target);
 void emit_mov64(emit_state *s, uint8_t r, int64_t imm);
 void emit_call_reg(emit_state *s, uint8_t r);
 void emit_call32(emit_state *s, int64_t target);
