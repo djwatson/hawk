@@ -18,19 +18,12 @@ typedef struct {
   const_patch *patches;
 } constant_entry;
 
-typedef struct {
-  uint16_t s;
-  bool used;
-} regmap;
-
 typedef struct emit_state {
   uint8_t *mtop;
   uint8_t *mend;
   uint8_t *p;
   zone z;
   comment_entry *comments;
-  regmap regs[MAX_REG];
-  uint32_t next_spill;
   constant_entry *const_pool;
   uint8_t *alloc_slowpath;
 } emit_state;

@@ -36,6 +36,7 @@ set(
   ir.c
   alloc_table.c
   emit.c
+  regalloc.c
   ${ASM_SOURCE}
   asm.c
   comments.c

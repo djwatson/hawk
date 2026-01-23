@@ -389,14 +389,8 @@ static void record_finish(bc *pc, vm_state *state) {
   trace *cur_trace = record_current_trace(state);
   vm_add_snap(state, pc);
   dce(cur_trace);
-  if (verbose) {
-    print_ir(cur_trace);
-  }
   cur_trace->fn = emit(cur_trace, &state->emit, &state->record, ts->poly_entry,
                        cur_trace->link_entry_snap);
-  if (verbose) {
-    print_ir(cur_trace);
-  }
   state->max_trace--;
   if (ts->type == TRACE_TYPE_ROOT) {
     *ts->start_ins = (bc){

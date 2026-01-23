@@ -20,6 +20,7 @@
 #include "parallel_copy.h"
 #include "profiler.h"
 #include "record.h"
+#include "regalloc.h"
 #include "vm.h"
 #include "zone_alloc.h"
 
@@ -88,95 +89,6 @@ static inline bool ins_uses_freg(ir_ins const *ins) {
 
 static inline bool is_fpr_reg(uint8_t reg) { return reg >= FPR_REG_START; }
 
-static int alloc_gpr(emit_state *s) {
-  for (int i = 0; i < FPR_REG_START; i++) {
-    if (!s->regs[i].used) {
-      return i;
-    }
-  }
-  return REG_NONE;
-}
-
-static int alloc_fpr(emit_state *s) {
-  for (int i = FPR_REG_START; i < FPR_REG_END; i++) {
-    if (!s->regs[i].used) {
-      return i;
-    }
-  }
-  return REG_NONE;
-}
-
-static void assign_snap_registers(emit_state *s, size_t snap_num, trace *t) {
-  // Get a free register, if any.  If already assigned a slot, do nothing.
-  // If no free registers, assign a slot.
-  auto snap = &t->snaps[snap_num];
-  arr_for_each_idx(snap->slots, i) {
-    auto sl = &snap->slots[i];
-    if (sl->val.constant) {
-      continue;
-    }
-    auto op = &t->ins[sl->val.loc];
-    if (op->reg != REG_NONE || op->spill != SPILL_NONE) {
-      continue;
-    }
-    // Try and find a free reg, or assign the next spill slot.
-    if (ins_uses_freg(op)) {
-      op->reg = (uint8_t)alloc_fpr(s);
-    } else {
-      op->reg = (uint8_t)alloc_gpr(s);
-    }
-    if (op->reg == REG_NONE) {
-      // Couldn't find a free reg, assign a slot.
-      op->spill = (s->next_spill)++;
-      /* printf("Assigning snap slot %i to op %i\n", op->slot, sl->val); */
-      assert(s->next_spill < 255);
-      // check_spill_cnt(s->next_spill);
-    } else {
-      s->regs[op->reg].s = sl->val.loc;
-      s->regs[op->reg].used = true;
-    }
-  }
-}
-// Get a specific reg, spilling if necessary.
-/* static void get_reg(emit_state *s, uint8_t reg, trace *trace) { */
-/*   if (s->regs[reg].used) { */
-/*     /\* // printf("Spilling reg %s\n", reg_names[reg]); *\/ */
-/*     /\* auto op = s->regs[reg]; *\/ */
-/*     /\* assert(trace->ops[op].reg != REG_NONE); *\/ */
-
-/*     /\* auto spill = trace->ops[op].slot; *\/ */
-/*     /\* if (trace->ops[op].slot == SLOT_NONE) { *\/ */
-/*     /\*   spill = (s->next_spill)++; *\/ */
-/*     /\*   check_spill_cnt(s->next_spill); *\/ */
-/*     /\* } *\/ */
-
-/*     /\* trace->ops[op].slot = spill; *\/ */
-/*     /\* emit_mem_reg(OP_MOV_MR, 0, RTMP, trace->ops[op].reg); *\/ */
-/*     /\* emit_mov64(RTMP, (int64_t)&spill_slot[trace->ops[op].slot]); *\/ */
-/*     /\* trace->ops[op].reg = REG_NONE; *\/ */
-/*     /\* s->regs[reg] = -1; *\/ */
-/*     /\* lru_poke(&reg_lru, reg); *\/ */
-/*     abort(); */
-/*   } */
-/*   s->regs[reg].used = true; */
-/* } */
-static void maybe_assign_register(emit_state *s, slot v, trace *trace) {
-  if (!v.constant) {
-    auto op = &trace->ins[v.loc];
-    if (op->reg == REG_NONE) {
-      op->reg =
-          ins_uses_freg(op) ? (uint8_t)alloc_fpr(s) : (uint8_t)alloc_gpr(s);
-      if (op->reg == REG_NONE) {
-        abort();
-      }
-      s->regs[op->reg].s = v.loc;
-      s->regs[op->reg].used = true;
-    }
-    // TODO
-    // lru_poke(&reg_lru, op->reg);
-  }
-}
-
 static inline ir_ins *slot_ins(trace *t, slot v) {
   assert(!v.constant);
   return &t->ins[v.loc];
@@ -191,8 +103,6 @@ static inline int64_t slot_const(trace *t, slot v) {
 
 static void emit_cmp_slots(emit_state *s, trace *t, slot lhs, slot rhs) {
   assert(!lhs.constant && "LHS must be a register");
-  maybe_assign_register(s, lhs, t);
-  maybe_assign_register(s, rhs, t);
 
   if (rhs.constant) {
     emit_cmp_constant(s, slot_reg(t, lhs), slot_const(t, rhs));
@@ -205,8 +115,6 @@ static void emit_cmp_slots(emit_state *s, trace *t, slot lhs, slot rhs) {
 static void emit_arith_slots(emit_state *s, trace *t, uint8_t dst, slot lhs,
                              slot rhs, bool is_sub) {
   assert(!lhs.constant && "Left operand must be in a register");
-  maybe_assign_register(s, lhs, t);
-  maybe_assign_register(s, rhs, t);
 
   if (rhs.constant) {
     if (is_sub) {
@@ -244,8 +152,8 @@ static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
        ((ins_var) =                                                            \
             next_leading_op((trace_ptr), (opcode), &_##ins_var##_idx));)
 
-static __attribute__((preserve_all))
-gc_obj *jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
+static __attribute__((preserve_all)) gc_obj *
+jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
   expand_stack(state, &stack);
   return stack;
 }
@@ -668,14 +576,10 @@ static ignoremap *link_to_next_trace(emit_state *s, trace *t,
                                      uint8_t entry_snap_idx) {
   ignoremap *loopback_regs = nullptr;
   auto cur_snap = arrlen(t->snaps) - 1;
-  assign_snap_registers(s, cur_snap, t);
+
   auto sn = &t->snaps[cur_snap];
   trace *linked_trace = t->link;
-  snap *entry_snap = nullptr;
-  if (entry_snap_idx < arrlen(linked_trace->snaps)) {
-    assign_snap_registers(s, entry_snap_idx, linked_trace);
-    entry_snap = &linked_trace->snaps[entry_snap_idx];
-  }
+  snap *entry_snap = &linked_trace->snaps[entry_snap_idx];
   if (verbose) {
     printf("link_to_next_trace t%i -> t%i cur_snap %zu entry_idx %u "
            "sn_off %u entry_off %u\n",
@@ -704,12 +608,12 @@ static ignoremap *link_to_next_trace(emit_state *s, trace *t,
     // complicated because traces expect the first REG_ARG_CNT args in memory.
     // (the same way most calling conventions keep the first X args in
     // register).
-    int64_t target = (entry_snap_idx == 1 && linked_trace->snap_entry_label != -1)
-                         ? linked_trace->snap_entry_label
-                         : (int64_t)linked_trace->trace_start;
+    int64_t target =
+        (entry_snap_idx == 1 && linked_trace->snap_entry_label != -1)
+            ? linked_trace->snap_entry_label
+            : (int64_t)linked_trace->trace_start;
     emit_jmp32(s, target);
-    collect_loopback_parallel_moves(s, linked_trace, loopback_regs,
-                                    entry_snap);
+    collect_loopback_parallel_moves(s, linked_trace, loopback_regs, entry_snap);
     emit_snap(s, t, sn, false, loopback_regs);
     arrfree(loopback_regs);
     COMMENT("Link to trace %i (snap exit %i)", t->link->num, cur_snap);
@@ -723,42 +627,12 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
   for (; op_cnt_idx > 0; op_cnt_idx--) {
     uint16_t op_cnt = op_cnt_idx - 1;
     while (cur_snap >= 0 && t->snaps[cur_snap].ir > op_cnt) {
-      if (cur_snap > 0) {
-        assign_snap_registers(s, cur_snap - 1, t);
-      }
       cur_snap--;
       if (cur_snap == 0 && snap_entry_label && *snap_entry_label == -1) {
         *snap_entry_label = emit_offset(s);
       }
     }
     auto op = &t->ins[op_cnt];
-
-    // Check for spill
-    if (op->spill != SPILL_NONE) {
-      if (op->reg == REG_NONE) {
-        maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
-      }
-      // printf("Spilling op %li to slot %i from reg %s\n", op_cnt, op->slot,
-      // reg_names[op->reg]);
-      abort();
-      /* emit_mem_reg(OP_MOV_RM, 0, RTMP, op->reg); */
-      /* emit_mov64(RTMP, (int64_t)&spill_slot[op->slot]); */
-    }
-    /* if (op->reg == REG_NONE) { */
-    /*   printf("WARNING: emitting op with no reg: %i\n", op_cnt); */
-    /* } */
-
-    // Assign reg to this if it doesn't have a reg yet.
-    if (op->op == IR_RET) {
-      maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
-    }
-    // free current register.
-    if (op->reg != REG_NONE && op->op != IR_ARG) {
-      if (op->reg != RSTACK) {
-        assert(s->regs[op->reg].s == op_cnt);
-        s->regs[op->reg].used = false;
-      }
-    }
 
     switch (op->op) {
     case IR_GUARD_EQ:
@@ -773,7 +647,6 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
       break;
     }
     case IR_LOAD: {
-      maybe_assign_register(s, op->op1, t);
       assert(!op->op1.constant);
       assert(op->op2.constant);
       emit_typecheck(s, t, op, cur_snap);
@@ -784,11 +657,7 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
     }
     case IR_STORE: {
       ir_ins *ref = slot_ins(t, op->op1);
-      assert(ref->op == IR_REF);
 
-      maybe_assign_register(s, ref->op1, t);
-      maybe_assign_register(s, ref->op2, t);
-      maybe_assign_register(s, op->op2, t);
       auto val_reg = RTMP;
       if (!op->op2.constant) {
         val_reg = slot_reg(t, op->op2);
@@ -804,13 +673,11 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
         // We need a tmp reg.
         // TODO: x64 supports index, base, const addressing, but other arches
         // don't
-        maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
 
         // Offset is NOT a const, need additional offset + typed offset.
         emit_store(s, 8 - op->type, base_reg, val_reg);
         emit_add(s, op->reg, op->reg, base_reg);
         emit_mov(s, op->reg, slot_reg(t, ref->op2));
-        s->regs[op->reg].used = false;
       }
 
       if (op->op2.constant) {
@@ -835,8 +702,6 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
       enum jcc_cond guard = (op->type == FLONUM_TAG) ? JB : JL;
       emit_jcc32(s, guard, (int64_t)t->snaps[cur_snap].patch_point);
       if (op->type == FLONUM_TAG) {
-        maybe_assign_register(s, op->op1, t);
-        maybe_assign_register(s, op->op2, t);
         emit_flonum_cmp(s, t, op);
       } else {
         emit_cmp_slots(s, t, op->op1, op->op2);
@@ -845,8 +710,6 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
     }
     case IR_SUB: {
       if (op->type == FLONUM_TAG) {
-        maybe_assign_register(s, op->op1, t);
-        maybe_assign_register(s, op->op2, t);
         emit_flonum_sub(s, t, op);
       } else {
         emit_typecheck(s, t, op, cur_snap);
@@ -856,8 +719,6 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
     }
     case IR_ADD: {
       if (op->type == FLONUM_TAG) {
-        maybe_assign_register(s, op->op1, t);
-        maybe_assign_register(s, op->op2, t);
         emit_flonum_add(s, t, op);
       } else {
         // TODO: check for overflow
@@ -904,9 +765,6 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
       break;
     }
     case IR_ALLOC: {
-      if (op->reg == REG_NONE) {
-        maybe_assign_register(s, (slot){.constant = false, .loc = op_cnt}, t);
-      }
       assert(op->reg != REG_NONE);
       assert(op->op1.constant);
       assert(op->op2.constant);
@@ -935,7 +793,6 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
     case IR_PMOV:
       break;
     case IR_TYPECHECK: {
-      maybe_assign_register(s, op->op1, t);
       if (op->reg == REG_NONE) {
       } else if (is_fpr_reg(op->reg)) {
         emit_unbox_flonum(s, slot_reg(t, op->op1), op->reg);
@@ -972,9 +829,6 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
                                   int64_t snap_entry_label) {
   snap *entry_snap =
       entry_snap_idx < arrlen(t->snaps) ? &t->snaps[entry_snap_idx] : nullptr;
-  if (entry_snap) {
-    assign_snap_registers(s, entry_snap_idx, t);
-  }
   size_t snap_cnt = arrlen(t->snaps);
   if (!snap_cnt) {
     return;
@@ -1070,21 +924,14 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // Initialize asm emitter memory if not already done (once per process)
   emit_init(s);
 
+  regalloc(t);
+  if (verbose) {
+    print_ir(t);
+  }
   // Remember, we're emitting backwards! This makes the register
   // allocator much simpler to write, no state needs to be preserved.
 
   emit_writable_begin(s);
-  memset(s->regs, 0, sizeof(s->regs));
-
-  // Set up register allocator.
-  bool reserved[MAX_REG] = {0};
-  asm_mark_unallocatable(reserved);
-  for (int i = 0; i < MAX_REG; i++) {
-    s->regs[i].used = reserved[i];
-  }
-  // TODO move this back to asm backends?
-  s->regs[FRTMP].used = true;
-  s->next_spill = 0;
 
   // Emit a return-to-c stub.
   auto end = emit_offset(s);
