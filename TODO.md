@@ -1,7 +1,6 @@
 # Currently working on:
 
-* Get 'already typechecked' path to remove the jmp
-* summix isn't selecting for correct 'already-typechecked' path
+* Let's flip asm emission back to forwards - so much easier to work on
 
 * get type names printing better, print_type_tag
 
@@ -13,7 +12,6 @@
 
 * Do check for side-trace should be uprec abort
 * Do check for side-trace tail-call should be root loop abort
-* cleanup skip_start_check, WHEN do we record finish - needs to be more generic
 
 * re-add RET down handling, get working well (original hawk never had this)
 
