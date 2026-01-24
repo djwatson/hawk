@@ -19,7 +19,7 @@ static const size_t msize = page_cnt * 4096;
 
 static void emit_ensure_space(emit_state *s, size_t bytes) {
   assert(s);
-  size_t available = (size_t)(s->p - s->mtop);
+  size_t available = (size_t)(s->mend - s->p);
   if (available < bytes) {
     printf("Fail: Out of jit memory\n");
     exit(EXIT_FAILURE);
@@ -28,23 +28,26 @@ static void emit_ensure_space(emit_state *s, size_t bytes) {
 
 uint8_t *emit_byte(emit_state *s, uint8_t value) {
   emit_ensure_space(s, sizeof(uint8_t));
-  s->p -= sizeof(uint8_t);
-  *s->p = value;
-  return s->p;
+  uint8_t *out = s->p;
+  *out = value;
+  s->p += sizeof(uint8_t);
+  return out;
 }
 
 uint8_t *emit_imm32(emit_state *s, uint32_t imm) {
   emit_ensure_space(s, sizeof(uint32_t));
-  s->p -= sizeof(uint32_t);
-  memcpy(s->p, &imm, sizeof(imm));
-  return s->p;
+  uint8_t *out = s->p;
+  memcpy(out, &imm, sizeof(imm));
+  s->p += sizeof(uint32_t);
+  return out;
 }
 
 uint8_t *emit_imm64(emit_state *s, uint64_t imm) {
   emit_ensure_space(s, sizeof(uint64_t));
-  s->p -= sizeof(uint64_t);
-  memcpy(s->p, &imm, sizeof(imm));
-  return s->p;
+  uint8_t *out = s->p;
+  memcpy(out, &imm, sizeof(imm));
+  s->p += sizeof(uint64_t);
+  return out;
 }
 
 int64_t emit_offset(emit_state *s) {
@@ -62,7 +65,7 @@ void emit_bind(emit_state *s, uint64_t label, uint64_t jmp) {
 
 void emit_advance(emit_state *s, int64_t offset) {
   assert(s);
-  s->p -= offset;
+  s->p += offset;
 }
 
 void emit_cleanup(emit_state *s) {
@@ -111,11 +114,11 @@ void emit_init(emit_state *s) {
   }
 
   s->mtop = (uint8_t *)mem;
-  s->p = s->mtop + msize;
-  s->mend = s->p;
+  s->mend = s->mtop + msize;
+  s->p = s->mtop;
 
   // Valgrind requires some readahead space.
-  s->p -= 4;
+  s->p += 4;
 
   emit_init_slowpath(s);
 }
@@ -169,13 +172,15 @@ void emit_constant_pool(emit_state *s) {
     return;
   }
 
-  uintptr_t aligned = (uintptr_t)s->p & ~(uintptr_t)0x7;
-  s->p = (uint8_t *)aligned;
+  size_t pad = (size_t)((8 - ((uintptr_t)s->p & 7)) & 7);
+  size_t needed = pad + len * sizeof(double);
+  emit_ensure_space(s, needed);
+  s->p += pad;
 
   for (size_t i = 0; i < len; i++) {
-    s->p -= sizeof(double);
     memcpy(s->p, &s->const_pool[i].value, sizeof(double));
     s->const_pool[i].addr = s->p;
+    s->p += sizeof(double);
   }
 
   asm_patch_constant_pool(s);

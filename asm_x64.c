@@ -89,37 +89,35 @@ void emit_mov64(emit_state *s, uint8_t r, int64_t imm) {
 #ifndef VALGRIND
   if (!fits_in_u32(imm)) {
 #endif
-    emit_imm64(s, (uint64_t)imm);
-    emit_byte(s, 0xb8 | (0x7 & r));
     emit_rex(s, 1, 0, 0, r >> 3);
+    emit_byte(s, 0xb8 | (0x7 & r));
+    emit_imm64(s, (uint64_t)imm);
 #ifndef VALGRIND
   } else {
     // Unfortunately valgrind doesn't like this:
     // We do *NOT* want to sign-extend here!
-    emit_imm32(s, (uint32_t)imm);
+    emit_rex_optional(s, 0, 0, 0, r >> 3);
     emit_byte(s, 0xb8 | (0x7 & r));
-    if (r >> 3) {
-      emit_rex(s, 0, 0, 0, r >> 3);
-    }
+    emit_imm32(s, (uint32_t)imm);
   }
 #endif
 }
 
 static void emit_call_indirect(emit_state *s, uint8_t r) {
-  emit_modrm(s, 0x3, 0x2, 0x7 & r);
-  emit_byte(s, 0xff);
   emit_rex_optional(s, 0, 0, 0, r >> 3);
+  emit_byte(s, 0xff);
+  emit_modrm(s, 0x3, 0x2, 0x7 & r);
 }
 
 void emit_call_reg(emit_state *s, uint8_t r) { emit_call_indirect(s, r); }
 
 static void emit_call32_imm(emit_state *s, int32_t offset) {
-  emit_imm32(s, (uint32_t)offset);
   emit_byte(s, 0xe8);
+  emit_imm32(s, (uint32_t)offset);
 }
 
 void emit_call32(emit_state *s, int64_t target) {
-  int64_t delta = target - emit_offset(s);
+  int64_t delta = target - (emit_offset(s) + 5);
   assert(fits_in_32(delta));
   emit_call32_imm(s, (int32_t)delta);
 }
@@ -128,63 +126,65 @@ void emit_ret(emit_state *s) { emit_byte(s, 0xc3); }
 
 static void emit_cmp_reg_imm32(emit_state *s, uint8_t r, int32_t imm) {
   if ((int32_t)((int8_t)imm) == imm) {
-    emit_byte(s, (uint8_t)imm);
     emit_reg_reg(s, 0x83, 7, r);
+    emit_byte(s, (uint8_t)imm);
   } else {
-    emit_imm32(s, (uint32_t)imm);
     emit_reg_reg(s, 0x81, 7, r);
+    emit_imm32(s, (uint32_t)imm);
   }
 }
 
 void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t offset) {
-  int64_t off = offset - emit_offset(s);
-  if ((int32_t)((int8_t)off) == off) {
-    emit_byte(s, (uint8_t)off);
+  int64_t cur = emit_offset(s);
+  int64_t short_delta = offset - (cur + 2);
+  if ((int32_t)((int8_t)short_delta) == short_delta) {
     emit_byte(s, (uint8_t)(cond - 0x10));
-  } else {
-    assert(fits_in_32(off));
-    emit_imm32(s, (uint32_t)off);
-    emit_byte(s, cond);
-    emit_byte(s, 0x0f);
+    emit_byte(s, (uint8_t)short_delta);
+    return;
   }
+
+  int64_t delta = offset - (cur + 6);
+  assert(fits_in_32(delta));
+  emit_byte(s, 0x0f);
+  emit_byte(s, cond);
+  emit_imm32(s, (uint32_t)delta);
 }
 
 void emit_jmp32(emit_state *s, int64_t target) {
-  int64_t delta = target - emit_offset(s);
+  int64_t delta = target - (emit_offset(s) + 5);
   assert(fits_in_32(delta));
-  emit_imm32(s, (uint32_t)delta);
   emit_byte(s, 0xe9);
+  emit_imm32(s, (uint32_t)delta);
 }
 
 static void emit_reg_reg(emit_state *s, uint8_t opcode, uint8_t src,
                          uint8_t dst) {
-  emit_modrm(s, 0x3, 0x7 & src, 0x7 & dst);
-  emit_byte(s, opcode);
   emit_rex(s, 1, src >> 3, 0, dst >> 3);
+  emit_byte(s, opcode);
+  emit_modrm(s, 0x3, 0x7 & src, 0x7 & dst);
 }
 
 static void emit_sse_reg_reg(emit_state *s, uint8_t prefix, uint8_t opcode,
                              uint8_t src, uint8_t dst) {
-  emit_modrm(s, 0x3, 0x7 & src, 0x7 & dst);
-  emit_byte(s, opcode);
-  emit_byte(s, 0x0f);
-  emit_rex_optional(s, 0, src >> 3, 0, dst >> 3);
   if (prefix) {
     emit_byte(s, prefix);
   }
+  emit_rex_optional(s, 0, src >> 3, 0, dst >> 3);
+  emit_byte(s, 0x0f);
+  emit_byte(s, opcode);
+  emit_modrm(s, 0x3, 0x7 & src, 0x7 & dst);
 }
 
 static uint8_t *emit_sse_literal_instr(emit_state *s, uint8_t prefix,
                                        uint8_t opcode, uint8_t dst) {
-  uint8_t *disp = emit_imm32(s, 0);
-  emit_modrm(s, 0x0, 0x7 & dst, 0x5);
-  emit_byte(s, opcode);
-  emit_byte(s, 0x0f);
-  emit_rex_optional(s, 0, dst >> 3, 0, 0);
   if (prefix) {
     emit_byte(s, prefix);
   }
-  return disp;
+  emit_rex_optional(s, 0, dst >> 3, 0, 0);
+  emit_byte(s, 0x0f);
+  emit_byte(s, opcode);
+  emit_modrm(s, 0x0, 0x7 & dst, 0x5);
+  return emit_imm32(s, 0);
 }
 
 static void emit_sse_literal_constant(emit_state *s, uint8_t prefix,
@@ -200,17 +200,25 @@ static void emit_sse_literal_constant(emit_state *s, uint8_t prefix,
 static void emit_mem_reg_sib(emit_state *s, uint8_t opcode, int32_t offset,
                              uint8_t scale, uint8_t index, uint8_t base,
                              uint8_t reg) {
-  if ((int32_t)((int8_t)offset) == offset) {
-    emit_byte(s, (uint8_t)offset);
-    emit_sib(s, scale, index, base);
-    emit_modrm(s, 0x1, 0x7 & reg, 0x4);
+  bool disp8 = (int32_t)((int8_t)offset) == offset;
+  uint8_t mod;
+  if (offset == 0 && base != RBP) {
+    mod = 0x0;
+  } else if (disp8) {
+    mod = 0x1;
   } else {
-    emit_imm32(s, (uint32_t)offset);
-    emit_sib(s, scale, index, base);
-    emit_modrm(s, 0x2, 0x7 & reg, 0x4);
+    mod = 0x2;
   }
-  emit_byte(s, opcode);
+
   emit_rex(s, 1, reg >> 3, index >> 3, base >> 3);
+  emit_byte(s, opcode);
+  emit_modrm(s, mod, 0x7 & reg, 0x4);
+  emit_sib(s, scale, index, base);
+  if (mod == 0x1) {
+    emit_byte(s, (uint8_t)offset);
+  } else if (mod == 0x2 || (mod == 0x0 && base == RBP)) {
+    emit_imm32(s, (uint32_t)offset);
+  }
 }
 
 static void emit_mem_reg(emit_state *s, uint8_t opcode, int32_t offset,
@@ -218,48 +226,57 @@ static void emit_mem_reg(emit_state *s, uint8_t opcode, int32_t offset,
   if (low3bits(r1) == RSP) {
     emit_mem_reg_sib(s, opcode, offset, 0, RSP, r1, r2);
   } else {
+    bool disp8 = (int32_t)((int8_t)offset) == offset;
+    uint8_t mod;
     if (offset == 0 && low3bits(r1) != RBP) {
-      emit_modrm(s, 0x0, 0x7 & r2, 0x7 & r1);
-    } else if ((int32_t)((int8_t)offset) == offset) {
-      emit_byte(s, (uint8_t)offset);
-      emit_modrm(s, 0x1, 0x7 & r2, 0x7 & r1);
+      mod = 0x0;
+    } else if (disp8) {
+      mod = 0x1;
     } else {
-      emit_imm32(s, (uint32_t)offset);
-      emit_modrm(s, 0x2, 0x7 & r2, 0x7 & r1);
+      mod = 0x2;
     }
-    emit_byte(s, opcode);
+
     emit_rex(s, 1, r2 >> 3, 0, r1 >> 3);
+    emit_byte(s, opcode);
+    emit_modrm(s, mod, 0x7 & r2, 0x7 & r1);
+    if (mod == 0x1) {
+      emit_byte(s, (uint8_t)offset);
+    } else if (mod == 0x2) {
+      emit_imm32(s, (uint32_t)offset);
+    }
   }
 }
 
 static void emit_sse_mem(emit_state *s, uint8_t prefix, uint8_t opcode,
                          int32_t offset, uint8_t base, uint8_t freg) {
-  if (low3bits(base) == RSP) {
-    if ((int32_t)((int8_t)offset) == offset) {
-      emit_byte(s, (uint8_t)offset);
-      emit_sib(s, 0, RSP, base);
-      emit_modrm(s, 0x1, 0x7 & freg, 0x4);
-    } else {
-      emit_imm32(s, (uint32_t)offset);
-      emit_sib(s, 0, RSP, base);
-      emit_modrm(s, 0x2, 0x7 & freg, 0x4);
-    }
+  bool disp8 = (int32_t)((int8_t)offset) == offset;
+  uint8_t mod;
+  if (offset == 0 && low3bits(base) != RBP) {
+    mod = 0x0;
+  } else if (disp8) {
+    mod = 0x1;
   } else {
-    if (offset == 0 && low3bits(base) != RBP) {
-      emit_modrm(s, 0x0, 0x7 & freg, 0x7 & base);
-    } else if ((int32_t)((int8_t)offset) == offset) {
-      emit_byte(s, (uint8_t)offset);
-      emit_modrm(s, 0x1, 0x7 & freg, 0x7 & base);
-    } else {
-      emit_imm32(s, (uint32_t)offset);
-      emit_modrm(s, 0x2, 0x7 & freg, 0x7 & base);
-    }
+    mod = 0x2;
   }
-  emit_byte(s, opcode);
-  emit_byte(s, 0x0f);
-  emit_rex_optional(s, 0, freg >> 3, 0, base >> 3);
+
   if (prefix) {
     emit_byte(s, prefix);
+  }
+  emit_rex_optional(s, 0, freg >> 3, 0, base >> 3);
+  emit_byte(s, 0x0f);
+  emit_byte(s, opcode);
+
+  if (low3bits(base) == RSP) {
+    emit_modrm(s, mod, 0x7 & freg, 0x4);
+    emit_sib(s, 0, RSP, base);
+  } else {
+    emit_modrm(s, mod, 0x7 & freg, 0x7 & base);
+  }
+
+  if (mod == 0x1) {
+    emit_byte(s, (uint8_t)offset);
+  } else if (mod == 0x2) {
+    emit_imm32(s, (uint32_t)offset);
   }
 }
 
@@ -279,19 +296,18 @@ void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
 static void emit_arith_imm(emit_state *s, enum ARITH_CODES op, uint8_t src,
                            int32_t imm) {
   if ((int32_t)((int8_t)imm) == imm) {
-    emit_byte(s, (uint8_t)imm);
     emit_reg_reg(s, 0x83, op, src);
+    emit_byte(s, (uint8_t)imm);
   } else {
-    emit_imm32(s, (uint32_t)imm);
     emit_reg_reg(s, 0x81, op, src);
+    emit_imm32(s, (uint32_t)imm);
   }
 }
 
 static void emit_neg(emit_state *s, uint8_t r) {
-  emit_byte(s, (uint8_t)(0xf7 + (0x7 & r)));
-  if (r >> 3) {
-    emit_rex(s, 0, 0, 0, r >> 3);
-  }
+  emit_rex_optional(s, 0, 0, 0, r >> 3);
+  emit_byte(s, 0xf7);
+  emit_modrm(s, 0x3, 0x3, 0x7 & r);
 }
 static void emit_fneg(emit_state *s, uint8_t r) {
   assert(r >= FPR_REG_START && r < X64_MAX_REG);
@@ -299,25 +315,25 @@ static void emit_fneg(emit_state *s, uint8_t r) {
   int idx = add_constant(s, -0.0);
   constant_entry *entry = &s->const_pool[idx];
 
-  uint8_t *disp = emit_imm32(s, 0);
-  emit_modrm(s, 0x0, 0x7 & hw, 0x5);
-  emit_byte(s, 0x57);
-  emit_byte(s, 0x0f);
-  emit_rex_optional(s, 0, hw >> 3, 0, 0);
   emit_byte(s, 0x66);
+  emit_rex_optional(s, 0, hw >> 3, 0, 0);
+  emit_byte(s, 0x0f);
+  emit_byte(s, 0x57);
+  emit_modrm(s, 0x0, 0x7 & hw, 0x5);
+  uint8_t *disp = emit_imm32(s, 0);
 
   const_patch patch = {.inst0 = disp, .inst1 = nullptr};
   arrput(&s->z, entry->patches, patch);
 }
 
 void emit_push(emit_state *s, uint8_t r) {
-  emit_byte(s, (uint8_t)(0x50 + (0x7 & r)));
   emit_rex_optional(s, 0, 0, 0, r >> 3);
+  emit_byte(s, (uint8_t)(0x50 + (0x7 & r)));
 }
 
 void emit_pop(emit_state *s, uint8_t r) {
-  emit_byte(s, (uint8_t)(0x58 | (0x7 & r)));
   emit_rex_optional(s, 0, 0, 0, r >> 3);
+  emit_byte(s, (uint8_t)(0x58 | (0x7 & r)));
 }
 
 void emit_debugtrap(emit_state *s) { emit_byte(s, 0xcc); }
@@ -325,33 +341,33 @@ void emit_debugtrap(emit_state *s) { emit_byte(s, 0xcc); }
 void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count,
                     bool abi) {
   bool odd = (count + abi) & 1;
+  if (odd) {
+    emit_sub_constant(s, RSP, RSP, 8);
+  }
   for (size_t i = 0; i < count; i++) {
     uint8_t reg = regs[i];
     if (reg >= FPR_REG_START) {
-      emit_fstore(s, 0, RSP, reg);
       emit_sub_constant(s, RSP, RSP, 16);
+      emit_fstore(s, 0, RSP, reg);
     } else {
       emit_push(s, reg);
     }
-  }
-  if (odd) {
-    emit_sub_constant(s, RSP, RSP, 8);
   }
 }
 
 void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi) {
   bool odd = (count + abi) & 1;
-  if (odd) {
-    emit_add_constant(s, RSP, RSP, 8);
-  }
   for (size_t i = count; i > 0; i--) {
     uint8_t reg = regs[i - 1];
     if (reg >= FPR_REG_START) {
-      emit_add_constant(s, RSP, RSP, 16);
       emit_fmem_load(s, 0, RSP, reg);
+      emit_add_constant(s, RSP, RSP, 16);
     } else {
       emit_pop(s, reg);
     }
+  }
+  if (odd) {
+    emit_add_constant(s, RSP, RSP, 8);
   }
 }
 
@@ -386,8 +402,8 @@ void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   if (fits_in_32(imm)) {
     emit_cmp_reg_imm32(s, reg, (int32_t)imm);
   } else {
-    emit_cmp(s, reg, RTMP);
     emit_mov64(s, RTMP, imm);
+    emit_cmp(s, reg, RTMP);
   }
 }
 
@@ -396,8 +412,8 @@ void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm) {
   if (!fits_in_32(imm)) {
     abort();
   }
-  emit_imm32(s, (uint32_t)imm);
   emit_reg_reg(s, ASM_TEST_IMM, 0, reg);
+  emit_imm32(s, (uint32_t)imm);
 }
 
 void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm) {
@@ -408,11 +424,11 @@ void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm) {
   }
   int32_t imm32 = (int32_t)imm;
   if ((int32_t)((int8_t)imm32) == imm32) {
-    emit_byte(s, (uint8_t)imm32);
     emit_reg_reg(s, ASM_AND, 4, dst);
+    emit_byte(s, (uint8_t)imm32);
   } else {
-    emit_imm32(s, (uint32_t)imm32);
     emit_reg_reg(s, ASM_AND_IMM, 4, dst);
+    emit_imm32(s, (uint32_t)imm32);
   }
   if (dst != src) {
     emit_mov(s, dst, src);
@@ -425,39 +441,46 @@ void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   } else if (rhs == dst) {
     emit_reg_reg(s, ASM_ADD, dst, lhs);
   } else {
-    emit_reg_reg(s, ASM_ADD, dst, rhs);
     emit_mov(s, dst, lhs);
+    emit_reg_reg(s, ASM_ADD, dst, rhs);
   }
 }
 static void emit_add_sub_constant(emit_state *s, enum ARITH_CODES op,
                                   uint8_t dst, uint8_t lhs, int64_t imm) {
   if (fits_in_32(imm)) {
-    emit_arith_imm(s, op, dst, (int32_t)imm);
     if (dst != lhs) {
       emit_mov(s, dst, lhs);
     }
+    emit_arith_imm(s, op, dst, (int32_t)imm);
     return;
   }
 
+  emit_mov64(s, RTMP, imm);
   if (op == ASM_ARITH_ADD) {
     emit_add(s, dst, lhs, RTMP);
   } else {
     emit_sub(s, dst, lhs, RTMP);
   }
-  emit_mov64(s, RTMP, imm);
 }
 
 // Slightly different from emit_add, since we need to negate if reversed.
 void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
-  if (dst == lhs) {
-    emit_reg_reg(s, ASM_SUB, lhs, rhs);
-  } else if (rhs == dst) {
-    emit_neg(s, dst);
-    emit_reg_reg(s, ASM_SUB, dst, lhs);
-  } else {
+  if (dst == lhs && dst != rhs) {
     emit_reg_reg(s, ASM_SUB, dst, rhs);
+    return;
+  }
+
+  if (rhs == dst) {
+    emit_mov(s, RTMP, rhs);
+    emit_mov(s, dst, lhs);
+    emit_reg_reg(s, ASM_SUB, dst, RTMP);
+    return;
+  }
+
+  if (dst != lhs) {
     emit_mov(s, dst, lhs);
   }
+  emit_reg_reg(s, ASM_SUB, dst, rhs);
 }
 void emit_fadd(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   if (dst == lhs) {
@@ -465,8 +488,8 @@ void emit_fadd(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   } else if (rhs == dst) {
     emit_sse_reg_reg(s, 0xF2, 0x58, hw_fpr(dst), hw_fpr(lhs));
   } else {
-    emit_sse_reg_reg(s, 0xF2, 0x58, hw_fpr(dst), hw_fpr(rhs));
     emit_fmov(s, dst, lhs);
+    emit_sse_reg_reg(s, 0xF2, 0x58, hw_fpr(dst), hw_fpr(rhs));
   }
 }
 
@@ -474,28 +497,28 @@ void emit_fsub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   if (dst == lhs) {
     emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(lhs), hw_fpr(rhs));
   } else if (rhs == dst) {
-    emit_fneg(s, dst);
     emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(dst), hw_fpr(lhs));
+    emit_fneg(s, dst);
   } else {
-    emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(dst), hw_fpr(rhs));
     emit_fmov(s, dst, lhs);
+    emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(dst), hw_fpr(rhs));
   }
 }
 
 void emit_fadd_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
   int idx = add_constant(s, imm);
-  emit_sse_literal_constant(s, 0xF2, 0x58, hw_fpr(dst), idx);
   if (dst != lhs) {
     emit_fmov(s, dst, lhs);
   }
+  emit_sse_literal_constant(s, 0xF2, 0x58, hw_fpr(dst), idx);
 }
 
 void emit_fsub_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
   int idx = add_constant(s, imm);
-  emit_sse_literal_constant(s, 0xF2, 0x5C, hw_fpr(dst), idx);
   if (dst != lhs) {
     emit_fmov(s, dst, lhs);
   }
+  emit_sse_literal_constant(s, 0xF2, 0x5C, hw_fpr(dst), idx);
 }
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   emit_add_sub_constant(s, ASM_ARITH_ADD, dst, lhs, imm);
@@ -514,8 +537,8 @@ void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
 }
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value) {
-  emit_store(s, offset, base, RTMP);
   emit_mov64(s, RTMP, value);
+  emit_store(s, offset, base, RTMP);
 }
 void emit_jmp32_patch_there(emit_state *s, int64_t patch, int64_t target) {
   assert(patch);

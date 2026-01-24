@@ -233,7 +233,6 @@ void emit_ret(emit_state *s) { emit_op(s, 0xD65F03C0); }
 
 void emit_jmp32(emit_state *s, int64_t target) {
   int64_t delta = target - emit_offset(s);
-  delta += 4;
   assert((delta & 0x3) == 0);
   int64_t imm26 = delta / 4;
   assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
@@ -261,7 +260,6 @@ void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t target) {
   uint8_t arm_cond = (uint8_t)cond;
   assert(arm_cond <= 0xf);
   int64_t delta = target - emit_offset(s);
-  delta += 4;
   assert((delta & 0x3) == 0);
   int64_t imm19 = delta / 4;
   assert(imm19 >= -(1LL << 18) && imm19 < (1LL << 18));
@@ -418,9 +416,6 @@ void emit_call_reg(emit_state *s, uint8_t r) {
 
 void emit_call32(emit_state *s, int64_t target) {
   int64_t delta = target - emit_offset(s);
-  // PC-relative branches use the address of this instruction; account for
-  // backwards emission moving the pointer after encoding.
-  delta += 4;
   assert((delta & 0x3) == 0);
   int64_t imm26 = delta >> 2;
   assert(imm26 >= -(1 << 25) && imm26 <= ((1 << 25) - 1));
@@ -445,8 +440,8 @@ void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs) {
 }
 void emit_fcmp_constant(emit_state *s, uint8_t reg, double imm) {
   assert(reg >= FPR_REG_START && reg < AARCH64_MAX_REG);
-  emit_fcmp(s, reg, FRTMP);
   load_constant(s, add_constant(s, imm), FRTMP);
+  emit_fcmp(s, reg, FRTMP);
 }
 
 void emit_fmov_constant(emit_state *s, uint8_t dst, double imm) {
@@ -471,8 +466,8 @@ void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
     emit_op(s, opcode);
     return;
   }
-  emit_cmp(s, reg, RTMP);
   emit_mov64(s, RTMP, imm);
+  emit_cmp(s, reg, RTMP);
 }
 
 void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm) {
@@ -525,8 +520,8 @@ static void emit_add_sub_constant(emit_state *s, uint32_t base,
     emit_op(s, opcode);
     return;
   }
-  emit_add_sub(s, reg_base, dst, lhs, RTMP);
   emit_mov64(s, RTMP, imm);
+  emit_add_sub(s, reg_base, dst, lhs, RTMP);
 }
 
 void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
@@ -568,25 +563,25 @@ void emit_fsub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
 }
 
 void emit_fadd_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
-  emit_fadd(s, dst, lhs, FRTMP);
   load_constant(s, add_constant(s, imm), FRTMP);
+  emit_fadd(s, dst, lhs, FRTMP);
 }
 
 void emit_fsub_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
-  emit_fsub(s, dst, lhs, FRTMP);
   load_constant(s, add_constant(s, imm), FRTMP);
+  emit_fsub(s, dst, lhs, FRTMP);
 }
 
 void emit_push(emit_state *s, uint8_t r) {
   assert(r < MAX_REG);
-  emit_store(s, 0, SP, r);
   emit_sub_constant(s, SP, SP, 16);
+  emit_store(s, 0, SP, r);
 }
 
 void emit_pop(emit_state *s, uint8_t r) {
   assert(r < MAX_REG);
-  emit_add_constant(s, SP, SP, 16);
   emit_mem_load(s, 0, SP, r);
+  emit_add_constant(s, SP, SP, 16);
 }
 
 void emit_debugtrap(emit_state *s) { emit_op(s, UINT32_C(0xD4200000)); }
@@ -763,8 +758,8 @@ void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value) {
   assert(base < MAX_REG);
-  emit_store(s, offset, base, RTMP);
   emit_mov64(s, RTMP, value);
+  emit_store(s, offset, base, RTMP);
 }
 
 void asm_load_constant(emit_state *s, int idx, uint8_t dst) {
