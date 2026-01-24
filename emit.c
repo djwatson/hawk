@@ -485,8 +485,7 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
       continue;
     }
     auto entry = &entry_snap->slots[j];
-    ignoremap map = {
-        .slot = entry->slot, .target_reg = REG_NONE};
+    ignoremap map = {.slot = entry->slot, .target_reg = REG_NONE};
     if (entry->val.constant) {
       map.needs_constant = true;
       map.constant_value = slot_const(entry_trace, entry->val);
@@ -589,6 +588,7 @@ static void link_to_next_trace(emit_state *s, trace *t,
 
   ignoremap *loopback_regs =
       collect_loopback_moves(s, t, linked_trace, sn, entry_snap);
+  // TODO is this duplicated?  Probably still need to adjust offset though.
   emit_snap(s, t, sn, false, loopback_regs);
   arrfree(loopback_regs);
   if (linked_trace == t) {
@@ -809,20 +809,8 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
     }
     if (arg_ins->reg != REG_NONE) {
       auto offset = (int32_t)arg_ins->data * 8;
-      if (ins_uses_freg(arg_ins)) {
-        emit_fmem_load(s, flonum_payload_offset - FLONUM_TAG, RTMP,
-                       arg_ins->reg);
-        // We need to typecheck to verify it is a flonum.
-        emit_jcc32(s, JNE, (int64_t)t->snaps[1].patch_point);
-        emit_cmp_constant(s, RTMP2, FLONUM_TAG);
-        emit_and_constant(s, RTMP2, RTMP, TAG_MASK);
-        COMMENT("  flonum typecheck");
-
-        // Load ptr from stack.
-        emit_mem_load(s, offset, RSTACK, RTMP);
-      } else {
-        emit_mem_load(s, offset, RSTACK, arg_ins->reg);
-      }
+      assert(!ins_uses_freg(arg_ins));
+      emit_mem_load(s, offset, RSTACK, arg_ins->reg);
     }
   }
   if (poly_entry) {
@@ -857,7 +845,6 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
   __builtin___clear_cache((char *)t->parent_snap->patch_point,
                           (char *)t->parent_snap->patch_point + 16);
 }
-void emit_install_poly_root(emit_state *s, int64_t entry, const snap *snap) {}
 
 trace_fn emit(trace *t, emit_state *s, record_state *record,
               const snap *poly_entry, uint8_t link_entry_snap) {
