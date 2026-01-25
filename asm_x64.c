@@ -125,6 +125,24 @@ void emit_call32(emit_state *s, int64_t target) {
 
 void emit_ret(emit_state *s) { emit_byte(s, 0xc3); }
 
+void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t *target) {
+  (void)s;
+  assert(loc);
+  assert(target);
+  int64_t delta = (int64_t)target - (int64_t)(loc + 4);
+  assert(fits_in_32(delta));
+  memcpy(loc, &delta, sizeof(int32_t));
+}
+
+void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t *target) {
+  (void)s;
+  assert(loc);
+  assert(target);
+  int64_t delta = (int64_t)target - (int64_t)(loc + 4);
+  assert(fits_in_32(delta));
+  memcpy(loc, &delta, sizeof(int32_t));
+}
+
 static void emit_cmp_reg_imm32(emit_state *s, uint8_t r, int32_t imm) {
   if ((int32_t)((int8_t)imm) == imm) {
     emit_reg_reg(s, 0x83, 7, r);
@@ -135,30 +153,45 @@ static void emit_cmp_reg_imm32(emit_state *s, uint8_t r, int32_t imm) {
   }
 }
 
-void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t offset) {
-  int64_t cur = emit_offset(s);
-  int64_t short_delta = offset - (cur + 2);
-  if ((int32_t)((int8_t)short_delta) == short_delta) {
-    emit_byte(s, (uint8_t)(cond - 0x10));
-    emit_byte(s, (uint8_t)short_delta);
+void emit_jcc32(emit_state *s, enum jcc_cond cond, label *target) {
+  assert(target);
+  if (target->emitted) {
+    int64_t cur = emit_offset(s);
+    int64_t short_delta = (int64_t)target->addr - (cur + 2);
+    if ((int32_t)((int8_t)short_delta) == short_delta) {
+      emit_byte(s, (uint8_t)(cond - 0x10));
+      emit_byte(s, (uint8_t)short_delta);
+      return;
+    }
+
+    int64_t delta = (int64_t)target->addr - (cur + 6);
+    assert(fits_in_32(delta));
+    emit_byte(s, 0x0f);
+    emit_byte(s, cond);
+    emit_imm32(s, (uint32_t)delta);
     return;
   }
 
-  int64_t delta = offset - (cur + 6);
-  if (!fits_in_32(delta)) {
-    printf("TODO FIXME JCC32\n");
-  }
-  // assert(fits_in_32(delta));
+  // Unresolved label: always use the long encoding for easier patching.
   emit_byte(s, 0x0f);
   emit_byte(s, cond);
-  emit_imm32(s, (uint32_t)delta);
+  auto loc = emit_imm32(s, 0);
+  label_add_patch(s, target, LABEL_PATCH_JCC32, loc);
 }
 
-void emit_jmp32(emit_state *s, int64_t target) {
-  int64_t delta = target - (emit_offset(s) + 5);
-  assert(fits_in_32(delta));
+void emit_jmp32(emit_state *s, label *target) {
+  assert(target);
+  if (target->emitted) {
+    int64_t delta = (int64_t)target->addr - (emit_offset(s) + 5);
+    assert(fits_in_32(delta));
+    emit_byte(s, 0xe9);
+    emit_imm32(s, (uint32_t)delta);
+    return;
+  }
+
   emit_byte(s, 0xe9);
-  emit_imm32(s, (uint32_t)delta);
+  auto loc = emit_imm32(s, 0);
+  label_add_patch(s, target, LABEL_PATCH_JMP32, loc);
 }
 
 static void emit_reg_reg(emit_state *s, uint8_t opcode, uint8_t src,
@@ -198,7 +231,7 @@ static void emit_sse_literal_constant(emit_state *s, uint8_t prefix,
   constant_entry *entry = &s->const_pool[idx];
   uint8_t *disp = emit_sse_literal_instr(s, prefix, opcode, dst);
   const_patch patch = {.inst0 = disp, .inst1 = nullptr};
-  arrput(&s->z, entry->patches, patch);
+  arrput(nullptr, entry->patches, patch);
 }
 
 static void emit_mem_reg_sib(emit_state *s, uint8_t opcode, int32_t offset,
@@ -543,17 +576,6 @@ void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value) {
   emit_mov64(s, RTMP, value);
   emit_store(s, offset, base, RTMP);
-}
-void emit_jmp32_patch_there(emit_state *s, int64_t patch, int64_t target) {
-  assert(patch);
-  int64_t delta = target - patch - 5;
-  assert(fits_in_32(delta));
-  uint8_t jmp = 0xe9;
-  memcpy((uint8_t *)patch, &jmp, 1);
-  memcpy((uint8_t *)patch + 1, &delta, 4);
-}
-void emit_jmp32_patch_here(emit_state *s, int64_t patch) {
-  emit_jmp32_patch_there(s, patch, emit_offset(s));
 }
 
 /////////////////// memory

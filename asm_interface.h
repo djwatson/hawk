@@ -9,19 +9,23 @@
 
 typedef struct emit_state emit_state;
 enum jcc_cond;
+enum label_patch_kind;
+typedef struct label_patch label_patch;
+typedef struct label label;
 
 void asm_mark_unallocatable(bool used[]);
 bool asm_is_callee_saved(uint8_t reg);
 void asm_load_constant(emit_state *s, int idx, uint8_t dst);
 void asm_patch_constant_pool(emit_state *s);
+void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t *target);
+void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t *target);
 
 void restore_callee_regs(emit_state *s);
 void save_callee_regs(emit_state *s);
 
 void emit_ret(emit_state *s);
-void emit_jmp32(emit_state *s, int64_t target);
-void emit_jmp32_patch_here(emit_state *s, int64_t patch);
-void emit_jmp32_patch_there(emit_state *s, int64_t patch, int64_t target);
+void emit_label(emit_state *s, label *label);
+void emit_jmp32(emit_state *s, label *target);
 void emit_mov64(emit_state *s, uint8_t r, int64_t imm);
 void emit_call_reg(emit_state *s, uint8_t r);
 void emit_call32(emit_state *s, int64_t target);
@@ -37,7 +41,7 @@ void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
 void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value);
-void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t offset);
+void emit_jcc32(emit_state *s, enum jcc_cond cond, label *target);
 void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs);
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm);
 void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm);

@@ -210,7 +210,8 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
 
   emit_add_constant(s, RSTACK, RSTACK, (int64_t)snap->offset * 8);
 
-  auto done = emit_offset(s);
+  label done = {0};
+  emit_label(s, &done);
 
   emit_pop_regs(s, regs_to_save, regs_cnt, false);
   emit_mov(s, RSTACK, RET_REG);
@@ -221,7 +222,7 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
   emit_mov(s, RARG1, RSTACK);
   emit_push_regs(s, regs_to_save, regs_cnt, false);
 
-  emit_jcc32(s, JL, done);
+  emit_jcc32(s, JL, &done);
   emit_cmp(s, RSTACK, RTMP);
   emit_mem_load(s, (int32_t)offsetof(vm_state, stack_limit), RSTATE, RTMP);
   COMMENT("Emit stack guard check");
@@ -281,20 +282,22 @@ static void emit_box_flonum(emit_state *s, int32_t stack_offset,
   emit_fstore(s, flonum_payload_offset, RET_REG, fpr_reg);
   emit_store_constant(s, 0, RET_REG, FLONUM_TAG);
 
-  auto slow_continue_label = emit_offset(s);
+  label slow_continue_label = {0};
+  emit_label(s, &slow_continue_label);
   // There WAS space, store new freelist end.
   emit_store(s, freelist_start_offset, RTMP, RET_REG2);
   emit_mov64(s, RTMP, (intptr_t)flonum_freelist);
   emit_mov(s, RET_REG2, RTMP);
 
   // No space, call slowpath
-  auto continue_label = emit_offset(s);
-  emit_jmp32(s, slow_continue_label);
+  label continue_label = {0};
+  emit_label(s, &continue_label);
+  emit_jmp32(s, &slow_continue_label);
   emit_call32(s, (int64_t)s->alloc_slowpath);
   emit_mov64(s, RET_REG, sizeof(flonum_s));
 
   // Check for fastpath space
-  emit_jcc32(s, JLE, continue_label);
+  emit_jcc32(s, JLE, &continue_label);
   emit_cmp(s, RTMP, RET_REG2);
   emit_add_constant(s, RTMP, RTMP, (int32_t)sizeof(flonum_s));
   emit_mov(s, RTMP, RET_REG);
@@ -420,13 +423,13 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
   if (op->type == FIXNUM_TAG) {
     COMMENT("  typecheck fix");
     emit_test_constant(s, reg, TAG_MASK);
-    emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
+    emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
   } else if (op->type == CONS_TAG) {
     COMMENT("  typecheck cons");
     emit_mov(s, RTMP, reg);
     emit_and_constant(s, RTMP, RTMP, TAG_MASK);
     emit_cmp_constant(s, RTMP, CONS_TAG);
-    emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
+    emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
   } else if (op->type == FLONUM_TAG) {
     // These are already typechecked (and are in xmm register).
     COMMENT("  TODO typecheck flonum");
@@ -562,14 +565,15 @@ static void emit_exit_to_c(emit_state *s) {
   emit_ret(s);
 }
 
-static void emit_snapshot_exits(emit_state *s, trace *t, snap *snaps) {
+static void emit_snapshot_exits(emit_state *s, trace *t, snap *snaps,
+                                label *exit_label) {
   for (uint64_t i = arrlen(snaps) - 1; i > 0; i--) {
     COMMENT("Snap exit #%i", i - 1);
     snap *snap = &snaps[i - 1];
-    snap->patch_point = emit_offset(s);
+    emit_label(s, &snap->patch_point);
     emit_snap(s, t, snap, true, nullptr);
     // TODO
-    emit_jmp32(s, emit_offset(s) /*exit_label)*/);
+    emit_jmp32(s, exit_label);
   }
 }
 
@@ -593,8 +597,8 @@ static void link_to_next_trace(emit_state *s, trace *t,
   emit_snap(s, t, sn, false, loopback_regs);
   arrfree(loopback_regs);
 
-  auto target = entry_snap_idx == 1 ? t->link->snap_entry_label
-                                    : (int64_t)t->link->trace_start;
+  label *target = entry_snap_idx == 1 ? &t->link->snap_entry_label
+                                      : &t->link->trace_start;
   emit_jmp32(s, target);
 }
 
@@ -605,7 +609,7 @@ static void emit_ir(emit_state *s, trace *t) {
     while (t->snaps[cur_snap].ir == op_cnt_idx) {
       cur_snap++;
       if (cur_snap == 1) {
-        t->snap_entry_label = emit_offset(s);
+        emit_label(s, &t->snap_entry_label);
       }
     }
     auto op = &t->ins[op_cnt_idx];
@@ -615,12 +619,12 @@ static void emit_ir(emit_state *s, trace *t) {
     case IR_GUARD_EQ:
     case IR_EQ: {
       emit_cmp_slots(s, t, op->op1, op->op2);
-      emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
+      emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_NE: {
       emit_cmp_slots(s, t, op->op1, op->op2);
-      emit_jcc32(s, JE, (int64_t)t->snaps[cur_snap].patch_point);
+      emit_jcc32(s, JE, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_LOAD: {
@@ -667,12 +671,12 @@ static void emit_ir(emit_state *s, trace *t) {
     }
     case IR_LT: {
       emit_cmp_slots(s, t, op->op1, op->op2);
-      emit_jcc32(s, JGE, (int64_t)t->snaps[cur_snap].patch_point);
+      emit_jcc32(s, JGE, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_GT: {
       emit_cmp_slots(s, t, op->op1, op->op2);
-      emit_jcc32(s, JLE, (int64_t)t->snaps[cur_snap].patch_point);
+      emit_jcc32(s, JLE, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_GTE: {
@@ -682,7 +686,7 @@ static void emit_ir(emit_state *s, trace *t) {
         emit_cmp_slots(s, t, op->op1, op->op2);
       }
       enum jcc_cond guard = (op->type == FLONUM_TAG) ? JB : JL;
-      emit_jcc32(s, guard, (int64_t)t->snaps[cur_snap].patch_point);
+      emit_jcc32(s, guard, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_SUB: {
@@ -712,7 +716,7 @@ static void emit_ir(emit_state *s, trace *t) {
         emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
         emit_and_constant(s, RTMP, RTMP, TAG_MASK);
         emit_cmp_constant(s, RTMP, FLONUM_TAG);
-        emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
+        emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
         emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
         emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, op->reg);
       } else {
@@ -732,7 +736,7 @@ static void emit_ir(emit_state *s, trace *t) {
       // cmp stack[-1], jmp to snap if not equal
       emit_mem_load(s, -8, RSTACK, op->reg);
       emit_cmp_constant(s, op->reg, slot_const(t, op->op2));
-      emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
+      emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
       emit_sub_constant(s, RSTACK, RSTACK, slot_const(t, op->op1));
 
       break;
@@ -830,10 +834,7 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
   emit_serialized_moves(s, cpy, nullptr);
   COMMENT("PARALLEL COPY FROM PARENT:");
 
-  // Install the side trace.
-  emit_jmp32_patch_here(s, (int64_t)t->parent_snap->patch_point);
-  __builtin___clear_cache((char *)t->parent_snap->patch_point,
-                          (char *)t->parent_snap->patch_point + 16);
+  // TODO: Install the side trace with the label-based patching scheme.
 }
 
 trace_fn emit(trace *t, emit_state *s, record_state *record,
@@ -864,7 +865,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
 
   // This is where the trace will start when other traces are linked to it.
   // (without typechecking).
-  t->trace_start = emit_offset(s);
+  emit_label(s, &t->trace_start);
 
   emit_ir(s, t);
 
@@ -872,12 +873,13 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // trace), or another trace (if a side trace).
   link_to_next_trace(s, t, link_entry_snap);
 
+  label exit_label = {0};
   // Exist stubs for all but the loopback (last). These restore the scheme stack
   // state, putting any in-register values back on the stack, and boxing
   // flonums.
-  emit_snapshot_exits(s, t, t->snaps);
+  emit_snapshot_exits(s, t, t->snaps, &exit_label);
 
-  auto exit_label = emit_offset(s);
+  emit_label(s, &exit_label);
   emit_exit_to_c(s);
   auto end = emit_offset(s);
 

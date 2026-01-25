@@ -1,6 +1,7 @@
 #pragma once
 
 #include "array.h"
+#include "asm.h"
 #include "stdint.h"
 #include "types.h"
 
@@ -26,7 +27,7 @@ typedef struct {
   // Side trace info
   uint8_t depth;
   uint8_t exits;
-  uint64_t patch_point;
+  label patch_point;
   trace *trace;
 } snap;
 
@@ -114,8 +115,8 @@ typedef struct trace {
   snap *parent_snap;
   uint8_t link_entry_snap;
   trace *link;
-  uint64_t trace_start;
-  int64_t snap_entry_label;
+  label trace_start;
+  label snap_entry_label;
   bc start_pc;
   trace *next; // Chained polymorphic traces.
 } trace;

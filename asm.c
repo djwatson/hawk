@@ -55,6 +55,39 @@ int64_t emit_offset(emit_state *s) {
   return (int64_t)s->p;
 }
 
+void label_add_patch(emit_state *s, label *label, enum label_patch_kind kind,
+                     uint8_t *loc) {
+  assert(s);
+  assert(label);
+  label_patch patch = {.kind = kind, .loc = loc};
+  // Use heap-backed arrays so we can free after patching.
+  arrput(nullptr, label->patches, patch);
+}
+
+void emit_label(emit_state *s, label *label) {
+  assert(s);
+  assert(label);
+  assert(!label->emitted);
+  label->emitted = true;
+  label->addr = (uint8_t *)emit_offset(s);
+  arr_for_each(label->patches, patch) {
+    switch (patch.kind) {
+    case LABEL_PATCH_JMP32:
+      asm_patch_jmp32(s, patch.loc, label->addr);
+      break;
+    case LABEL_PATCH_JCC32:
+      asm_patch_jcc32(s, patch.loc, label->addr);
+      break;
+    default:
+      abort();
+    }
+  }
+  if (label->patches) {
+    arrfree(label->patches);
+    label->patches = nullptr;
+  }
+}
+
 void emit_bind(emit_state *s, uint64_t label, uint64_t jmp) {
   (void)s;
   assert(jmp);

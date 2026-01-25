@@ -12,6 +12,19 @@ typedef struct {
   uint8_t *inst1;
 } const_patch;
 
+enum label_patch_kind { LABEL_PATCH_JMP32, LABEL_PATCH_JCC32 };
+
+typedef struct label_patch {
+  enum label_patch_kind kind;
+  uint8_t *loc;
+} label_patch;
+
+typedef struct label {
+  uint8_t *addr;
+  label_patch *patches;
+  bool emitted;
+} label;
+
 typedef struct {
   double value;
   uint8_t *addr;
@@ -50,3 +63,5 @@ void emit_writable_end(emit_state *s);
 int add_constant(emit_state *s, double value);
 void load_constant(emit_state *s, int idx, uint8_t dst);
 void emit_constant_pool(emit_state *s);
+void label_add_patch(emit_state *s, label *label, enum label_patch_kind kind,
+                     uint8_t *loc);

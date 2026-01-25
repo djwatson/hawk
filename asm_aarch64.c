@@ -231,41 +231,74 @@ void save_callee_regs(emit_state *s) {
 
 void emit_ret(emit_state *s) { emit_op(s, 0xD65F03C0); }
 
-void emit_jmp32(emit_state *s, int64_t target) {
-  int64_t delta = target - emit_offset(s);
+void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t *target) {
+  (void)s;
+  assert(loc);
+  assert(target);
+  int64_t delta = (int64_t)target - (int64_t)loc;
   assert((delta & 0x3) == 0);
   int64_t imm26 = delta / 4;
   assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
-  uint32_t opcode = 0x14000000U | ((uint32_t)imm26 & 0x03ffffffU);
-  emit_op(s, opcode);
+  uint32_t opcode =
+      ((*(uint32_t *)loc) & UINT32_C(0xFC000000)) |
+      ((uint32_t)imm26 & UINT32_C(0x03ffffff));
+  memcpy(loc, &opcode, sizeof(opcode));
 }
 
-void emit_jmp32_patch_there(emit_state *s, int64_t patch, int64_t target) {
-  assert(patch);
-  int64_t delta = target - patch;
-  assert((delta & 0x3) == 0);
-  int64_t imm26 = delta / 4;
-  assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
-  uint32_t opcode = 0x14000000U | ((uint32_t)imm26 & 0x03ffffffU);
-  memcpy((void *)patch, &opcode, sizeof(opcode));
-}
-void emit_jmp32_patch_here(emit_state *s, int64_t patch) {
-  emit_jmp32_patch_there(s, patch, emit_offset(s));
-}
-
-void emit_jcc32(emit_state *s, enum jcc_cond cond, int64_t target) {
-  if (cond == JP) {
-    abort();
-  }
-  uint8_t arm_cond = (uint8_t)cond;
-  assert(arm_cond <= 0xf);
-  int64_t delta = target - emit_offset(s);
+void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t *target) {
+  (void)s;
+  assert(loc);
+  assert(target);
+  uint32_t inst = *(uint32_t *)loc;
+  uint32_t cond = inst & UINT32_C(0xF);
+  int64_t delta = (int64_t)target - (int64_t)loc;
   assert((delta & 0x3) == 0);
   int64_t imm19 = delta / 4;
   assert(imm19 >= -(1LL << 18) && imm19 < (1LL << 18));
   uint32_t opcode =
-      0x54000000U | (((uint32_t)imm19 & 0x7ffffU) << 5) | (uint32_t)arm_cond;
-  emit_op(s, opcode);
+      (inst & UINT32_C(0xFF00001F)) |
+      (((uint32_t)imm19 & UINT32_C(0x7ffff)) << 5) | cond;
+  memcpy(loc, &opcode, sizeof(opcode));
+}
+
+void emit_jmp32(emit_state *s, label *target) {
+  assert(target);
+  if (target->emitted) {
+    int64_t delta = (int64_t)target->addr - emit_offset(s);
+    assert((delta & 0x3) == 0);
+    int64_t imm26 = delta / 4;
+    assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
+    uint32_t opcode = 0x14000000U | ((uint32_t)imm26 & 0x03ffffffU);
+    emit_op(s, opcode);
+    return;
+  }
+
+  uint32_t opcode = 0x14000000U;
+  auto loc = emit_op(s, opcode);
+  label_add_patch(s, target, LABEL_PATCH_JMP32, loc);
+}
+
+void emit_jcc32(emit_state *s, enum jcc_cond cond, label *target) {
+  if (cond == JP) {
+    abort();
+  }
+  assert(target);
+  uint8_t arm_cond = (uint8_t)cond;
+  assert(arm_cond <= 0xf);
+  if (target->emitted) {
+    int64_t delta = (int64_t)target->addr - emit_offset(s);
+    assert((delta & 0x3) == 0);
+    int64_t imm19 = delta / 4;
+    assert(imm19 >= -(1LL << 18) && imm19 < (1LL << 18));
+    uint32_t opcode =
+        0x54000000U | (((uint32_t)imm19 & 0x7ffffU) << 5) | (uint32_t)arm_cond;
+    emit_op(s, opcode);
+    return;
+  }
+
+  uint32_t opcode = 0x54000000U | (uint32_t)arm_cond;
+  auto loc = emit_op(s, opcode);
+  label_add_patch(s, target, LABEL_PATCH_JCC32, loc);
 }
 static uint32_t movz_opcode(uint8_t rd, uint16_t imm16, uint8_t chunk) {
   assert(rd < 31);
@@ -773,7 +806,7 @@ void asm_load_constant(emit_state *s, int idx, uint8_t dst) {
   uint8_t *adrp_site =
       emit_op(s, 0x90000000U | ((uint32_t)RTMP << 5) | (uint32_t)RTMP);
   const_patch patch = {.inst0 = adrp_site, .inst1 = ldr_site};
-  arrput(&s->z, entry->patches, patch);
+  arrput(nullptr, entry->patches, patch);
 }
 
 void asm_patch_constant_pool(emit_state *s) {
