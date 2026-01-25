@@ -62,18 +62,19 @@ void emit_init_slowpath(emit_state *s) {
     }
   }
 
-  auto end = emit_offset(s);
+  auto start = (uint8_t *)emit_offset(s);
 
   emit_writable_begin(s);
 
-  emit_ret(s);
-  emit_pop_regs(s, slowpath_regs, reg_cnt, true);
-
-  emit_call_reg(s, RTMP);
-  emit_mov64(s, RTMP, (int64_t)&gc_alloc);
-  emit_mov(s, RARG0, RET_REG);
   emit_push_regs(s, slowpath_regs, reg_cnt, true);
-  auto start = (uint8_t *)emit_offset(s);
+  emit_mov(s, RARG0, RET_REG);
+  emit_mov64(s, RTMP, (int64_t)&gc_alloc);
+  emit_call_reg(s, RTMP);
+
+  emit_pop_regs(s, slowpath_regs, reg_cnt, true);
+  emit_ret(s);
+
+  auto end = emit_offset(s);
   s->alloc_slowpath = start;
 
   emit_writable_end(s);
@@ -373,9 +374,7 @@ static uint8_t resolve_tmp_reg(uint8_t peer) {
 
 static void emit_serialized_moves(emit_state *s, par_copy *cpy,
                                   ignoremap *loopback_regs) {
-  emit_loopback_constants(s, loopback_regs);
   par_copy *moves = serialize_parallel_copy(cpy, PAR_MOVE_MARKER);
-  arr_reverse(moves);
   arr_for_each_idx(moves, i) {
     auto mov = moves[i];
     uint8_t from = mov.from;
@@ -392,12 +391,12 @@ static void emit_serialized_moves(emit_state *s, par_copy *cpy,
       if (dst_fpr && src_fpr) {
         emit_fmov(s, to, from);
       } else if (!dst_fpr && src_fpr) {
-        emit_mov(s, to, RTMP);
-        emit_box_flonum(s, 0, from, false);
         COMMENT("Box flonum %s to reg %s", reg_names[from], reg_names[to]);
+        emit_box_flonum(s, 0, from, false);
+        emit_mov(s, to, RTMP);
       } else if (dst_fpr && !src_fpr) {
-        emit_unbox_flonum(s, from, to);
         COMMENT("Unbox flonum %s to %s", reg_names[from], reg_names[to]);
+        emit_unbox_flonum(s, from, to);
       } else {
         assert(!"Unsupported register move");
       }
@@ -405,6 +404,7 @@ static void emit_serialized_moves(emit_state *s, par_copy *cpy,
       emit_mov(s, to, from);
     }
   }
+  emit_loopback_constants(s, loopback_regs);
   arrfree(cpy);
   arrfree(moves);
 }
@@ -418,15 +418,15 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
     reg = slot_reg(t, op->op1);
   }
   if (op->type == FIXNUM_TAG) {
-    emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
-    emit_test_constant(s, reg, TAG_MASK);
     COMMENT("  typecheck fix");
-  } else if (op->type == CONS_TAG) {
+    emit_test_constant(s, reg, TAG_MASK);
     emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
-    emit_cmp_constant(s, RTMP, CONS_TAG);
-    emit_and_constant(s, RTMP, RTMP, TAG_MASK);
-    emit_mov(s, RTMP, reg);
+  } else if (op->type == CONS_TAG) {
     COMMENT("  typecheck cons");
+    emit_mov(s, RTMP, reg);
+    emit_and_constant(s, RTMP, RTMP, TAG_MASK);
+    emit_cmp_constant(s, RTMP, CONS_TAG);
+    emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
   } else if (op->type == FLONUM_TAG) {
     // These are already typechecked (and are in xmm register).
     COMMENT("  TODO typecheck flonum");
@@ -557,18 +557,19 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
 // NOLINTEND(clang-analyzer-core.NullDereference)
 
 static void emit_exit_to_c(emit_state *s) {
-  emit_ret(s);
+  COMMENT("CEXIT");
   restore_callee_regs(s);
+  emit_ret(s);
 }
 
-static void emit_snapshot_exit_jumps(emit_state *s, trace *t, snap *snaps,
-                                     int64_t exit_label) {
+static void emit_snapshot_exits(emit_state *s, trace *t, snap *snaps) {
   for (uint64_t i = arrlen(snaps) - 1; i > 0; i--) {
-    snap *snap = &snaps[i - 1];
-    emit_jmp32(s, exit_label);
-    emit_snap(s, t, snap, true, nullptr);
-    snap->patch_point = emit_offset(s);
     COMMENT("Snap exit #%i", i - 1);
+    snap *snap = &snaps[i - 1];
+    snap->patch_point = emit_offset(s);
+    emit_snap(s, t, snap, true, nullptr);
+    // TODO
+    emit_jmp32(s, emit_offset(s) /*exit_label)*/);
   }
 }
 
@@ -580,56 +581,55 @@ static void link_to_next_trace(emit_state *s, trace *t,
   trace *linked_trace = t->link;
   snap *entry_snap = &linked_trace->snaps[entry_snap_idx];
 
-  // Choose target destination later - we may be linking to ourselves, and we
-  // don't have the offset yet.
-  auto unused = emit_offset(s) + 16;
-  emit_jmp32(s, unused);
-  sn->patch_point = emit_offset(s);
+  if (linked_trace == t) {
+    COMMENT("Loopback (snap exit %i)", cur_snap);
+  } else {
+    COMMENT("Link to trace %i (snap exit %i)", t->link->num, cur_snap);
+  }
 
   ignoremap *loopback_regs =
       collect_loopback_moves(s, t, linked_trace, sn, entry_snap);
   // TODO is this duplicated?  Probably still need to adjust offset though.
   emit_snap(s, t, sn, false, loopback_regs);
   arrfree(loopback_regs);
-  if (linked_trace == t) {
-    COMMENT("Loopback (snap exit %i)", cur_snap);
-  } else {
-    COMMENT("Link to trace %i (snap exit %i)", t->link->num, cur_snap);
-  }
+
+  auto target = entry_snap_idx == 1 ? t->link->snap_entry_label
+                                    : (int64_t)t->link->trace_start;
+  emit_jmp32(s, target);
 }
 
-static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
-  int32_t cur_snap = (int32_t)arrlen(t->snaps) - 1;
-  auto op_cnt_idx = arrlen(t->ins);
-  for (; op_cnt_idx > 0; op_cnt_idx--) {
-    uint16_t op_cnt = op_cnt_idx - 1;
-    while (cur_snap >= 0 && t->snaps[cur_snap].ir > op_cnt) {
-      cur_snap--;
-      if (cur_snap == 0 && snap_entry_label && *snap_entry_label == -1) {
-        *snap_entry_label = emit_offset(s);
+static void emit_ir(emit_state *s, trace *t) {
+  int32_t cur_snap = 0;
+
+  for (int op_cnt_idx = 0; op_cnt_idx < arrlen(t->ins); op_cnt_idx++) {
+    while (t->snaps[cur_snap].ir == op_cnt_idx) {
+      cur_snap++;
+      if (cur_snap == 1) {
+        t->snap_entry_label = emit_offset(s);
       }
     }
-    auto op = &t->ins[op_cnt];
+    auto op = &t->ins[op_cnt_idx];
 
+    COMMENT("%i %s", op_cnt_idx, ir_names[op->op]);
     switch (op->op) {
     case IR_GUARD_EQ:
     case IR_EQ: {
-      emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
       emit_cmp_slots(s, t, op->op1, op->op2);
+      emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_NE: {
-      emit_jcc32(s, JE, (int64_t)t->snaps[cur_snap].patch_point);
       emit_cmp_slots(s, t, op->op1, op->op2);
+      emit_jcc32(s, JE, (int64_t)t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_LOAD: {
       assert(!op->op1.constant);
       assert(op->op2.constant);
-      emit_typecheck(s, t, op, cur_snap);
       int64_t offset_bytes =
           to_fixnum(t->consts[op->op2.loc]) + (int64_t)sizeof(gc_header);
       emit_mem_load(s, (int32_t)offset_bytes, slot_reg(t, op->op1), op->reg);
+      emit_typecheck(s, t, op, cur_snap);
       break;
     }
     case IR_STORE: {
@@ -652,9 +652,9 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
         // don't
 
         // Offset is NOT a const, need additional offset + typed offset.
-        emit_store(s, 8 - op->type, base_reg, val_reg);
-        emit_add(s, op->reg, op->reg, base_reg);
         emit_mov(s, op->reg, slot_reg(t, ref->op2));
+        emit_add(s, op->reg, op->reg, base_reg);
+        emit_store(s, 8 - op->type, base_reg, val_reg);
       }
 
       if (op->op2.constant) {
@@ -666,31 +666,31 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
       break;
     }
     case IR_LT: {
-      emit_jcc32(s, JGE, (int64_t)t->snaps[cur_snap].patch_point);
       emit_cmp_slots(s, t, op->op1, op->op2);
+      emit_jcc32(s, JGE, (int64_t)t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_GT: {
-      emit_jcc32(s, JLE, (int64_t)t->snaps[cur_snap].patch_point);
       emit_cmp_slots(s, t, op->op1, op->op2);
+      emit_jcc32(s, JLE, (int64_t)t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_GTE: {
-      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JB : JL;
-      emit_jcc32(s, guard, (int64_t)t->snaps[cur_snap].patch_point);
       if (op->type == FLONUM_TAG) {
         emit_flonum_cmp(s, t, op);
       } else {
         emit_cmp_slots(s, t, op->op1, op->op2);
       }
+      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JB : JL;
+      emit_jcc32(s, guard, (int64_t)t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_SUB: {
       if (op->type == FLONUM_TAG) {
         emit_flonum_sub(s, t, op);
       } else {
-        emit_typecheck(s, t, op, cur_snap);
         emit_arith_slots(s, t, op->reg, op->op1, op->op2, true);
+        emit_typecheck(s, t, op, cur_snap);
       }
       break;
     }
@@ -699,45 +699,41 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
         emit_flonum_add(s, t, op);
       } else {
         // TODO: check for overflow
-        emit_typecheck(s, t, op, cur_snap);
         emit_arith_slots(s, t, op->reg, op->op1, op->op2, false);
+        emit_typecheck(s, t, op, cur_snap);
       }
       break;
     }
     case IR_SLOAD: {
-      emit_typecheck(s, t, op, cur_snap);
       if (op->type == FLONUM_TAG) {
-        emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, op->reg);
         // We need to typecheck to verify it is a flonum.
         // TODO if we had a spare register this would be more efficent.
-        emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
-        emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
-        emit_cmp_constant(s, RTMP, FLONUM_TAG);
-        emit_and_constant(s, RTMP, RTMP, TAG_MASK);
-        emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
         COMMENT("  flonum typecheck");
+        emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
+        emit_and_constant(s, RTMP, RTMP, TAG_MASK);
+        emit_cmp_constant(s, RTMP, FLONUM_TAG);
+        emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
+        emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
+        emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, op->reg);
       } else {
         emit_mem_load(s, (int32_t)op->data * 8, RSTACK, op->reg);
       }
+      emit_typecheck(s, t, op, cur_snap);
       break;
     }
     case IR_GGET: {
-      emit_mem_load(s, 16, RTMP, op->reg);
       emit_mov64(s, RTMP, slot_const(t, op->op1) - SYMBOL_TAG);
+      emit_mem_load(s, 16, RTMP, op->reg);
       break;
     }
     case IR_RET: {
       // mov ra to a register
 
-      emit_sub_constant(s, RSTACK, RSTACK, slot_const(t, op->op1));
-      emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
-      emit_cmp_constant(s, op->reg, slot_const(t, op->op2));
       // cmp stack[-1], jmp to snap if not equal
       emit_mem_load(s, -8, RSTACK, op->reg);
-      /* if (t->num == 1 && op_cnt == 6) { */
-      /*   emit_jmp32(s, snap_labels[cur_snap]); */
-      /*   COMMENT("ABORT"); */
-      /* } */
+      emit_cmp_constant(s, op->reg, slot_const(t, op->op2));
+      emit_jcc32(s, JNE, (int64_t)t->snaps[cur_snap].patch_point);
+      emit_sub_constant(s, RSTACK, RSTACK, slot_const(t, op->op1));
 
       break;
     }
@@ -752,16 +748,16 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
       assert(s->alloc_slowpath);
 
       if (op->reg != RET_REG) {
-        emit_pop(s, RET_REG);
-        emit_pop(s, RET_REG);
+        emit_push(s, RET_REG);
+        emit_push(s, RET_REG);
       }
-      emit_add_constant(s, op->reg, RET_REG, tag_bits);
-      emit_store_constant(s, 0, RET_REG, (int64_t)type_val);
-      emit_call32(s, (int64_t)s->alloc_slowpath);
       emit_mov64(s, RET_REG, size_bytes);
+      emit_call32(s, (int64_t)s->alloc_slowpath);
+      emit_store_constant(s, 0, RET_REG, (int64_t)type_val);
+      emit_add_constant(s, op->reg, RET_REG, tag_bits);
       if (op->reg != RET_REG) {
-        emit_push(s, RET_REG);
-        emit_push(s, RET_REG);
+        emit_pop(s, RET_REG);
+        emit_pop(s, RET_REG);
       }
       break;
     }
@@ -770,13 +766,13 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
     case IR_PMOV:
       break;
     case IR_TYPECHECK: {
+      emit_typecheck(s, t, op, cur_snap);
       if (op->reg == REG_NONE) {
       } else if (is_fpr_reg(op->reg)) {
         emit_unbox_flonum(s, slot_reg(t, op->op1), op->reg);
       } else {
         emit_mov(s, op->reg, slot_reg(t, op->op1));
       }
-      emit_typecheck(s, t, op, cur_snap);
       break;
     }
     default: {
@@ -792,16 +788,19 @@ static void emit_ir(emit_state *s, trace *t, int64_t *snap_entry_label) {
           op->op == IR_SUB || op->op == IR_ADD)) {
       abort();
     }
-    COMMENT("%i %s", op_cnt, ir_names[op->op]);
   }
 }
 
 // Emit *two* entry points:
 // One that loops back from the current trace
 // One from c.
-static void emit_root_trace_entry(emit_state *s, trace *t,
-                                  const snap *poly_entry) {
+static void emit_root_trace_entry(emit_state *s, trace *t) {
   // Emit an entry point from C.
+  COMMENT("CENTRY");
+  save_callee_regs(s);
+  emit_mov(s, RSTATE, RARG0);
+  emit_mov(s, RSTACK, RARG1);
+
   ir_ins *arg_ins = nullptr;
   for_each_leading_op(t, IR_ARG, arg_ins) {
     if (arg_ins->spill != SPILL_NONE) {
@@ -813,15 +812,6 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
       emit_mem_load(s, offset, RSTACK, arg_ins->reg);
     }
   }
-  if (poly_entry) {
-    emit_jmp32_patch_here(s, (int64_t)poly_entry->patch_point);
-    __builtin___clear_cache((char *)poly_entry->patch_point,
-                            (char *)poly_entry->patch_point + 16);
-  }
-  emit_mov(s, RSTACK, RARG1);
-  emit_mov(s, RSTATE, RARG0);
-  save_callee_regs(s);
-  COMMENT("CENTRY");
 }
 
 static void emit_side_trace_entry(emit_state *s, trace *t) {
@@ -863,46 +853,40 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
 
   // Emit a return-to-c stub.
   // TODO: could be shared by ALL traces
-  auto end = emit_offset(s);
-  emit_exit_to_c(s);
-  auto exit_label = emit_offset(s);
+  auto start = emit_offset(s);
 
-  // Exist stubs for all but the last. These restore the scheme stack state,
-  // putting any in-register values back on the stack, and boxing flonums.
-  emit_snapshot_exit_jumps(s, t, t->snaps, exit_label);
-
-  // Link to the next trace: Which is either ourselves (if a looping parent
-  // trace), or another trace (if a side trace).
-  link_to_next_trace(s, t, link_entry_snap);
-
-  int64_t snap_entry_label = -1;
-  emit_ir(s, t, &snap_entry_label);
-  t->snap_entry_label = snap_entry_label;
+  if (!t->parent) {
+    emit_root_trace_entry(s, t);
+  } else {
+    abort();
+    /* emit_side_trace_entry(s, t); */
+  }
 
   // This is where the trace will start when other traces are linked to it.
   // (without typechecking).
   t->trace_start = emit_offset(s);
 
-  if (!t->parent) {
-    emit_root_trace_entry(s, t, poly_entry);
-  } else {
-    emit_side_trace_entry(s, t);
-  }
+  emit_ir(s, t);
 
-  // Correct loopback jmp destination.
-  int64_t target = link_entry_snap == 1 ? t->link->snap_entry_label
-                                        : (int64_t)t->link->trace_start;
-  emit_jmp32_patch_there(s, (int64_t)t->snaps[arrlen(t->snaps) - 1].patch_point,
-                         target);
+  // Link to the next trace: Which is either ourselves (if a looping parent
+  // trace), or another trace (if a side trace).
+  link_to_next_trace(s, t, link_entry_snap);
 
-  auto start = emit_offset(s);
+  // Exist stubs for all but the loopback (last). These restore the scheme stack
+  // state, putting any in-register values back on the stack, and boxing
+  // flonums.
+  emit_snapshot_exits(s, t, t->snaps);
+
+  auto exit_label = emit_offset(s);
+  emit_exit_to_c(s);
+  auto end = emit_offset(s);
 
   emit_constant_pool(s);
   emit_writable_end(s);
+
   auto sz = end - start;
   if (verbose) {
     printf("Disassembly: %" PRId64 "\n", sz);
-    arr_reverse(s->comments);
     disassemble((uint8_t *)start, sz, s->comments);
   }
 
