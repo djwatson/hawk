@@ -79,10 +79,11 @@ void emit_init_slowpath(emit_state *s) {
 
   emit_writable_end(s);
   register_jit_symbol(start, s->alloc_slowpath, (uint8_t *)end, "GCslowpath");
-  if (false && verbose) {
-    printf("GC slowpath: %" PRId64 "\n", end - (long)start);
-    disassemble(start, end - (long)start, nullptr);
-  }
+
+  /* if (verbose) { */
+  /*   printf("GC slowpath: %" PRId64 "\n", end - (long)start); */
+  /*   disassemble(start, end - (long)start, nullptr); */
+  /* } */
 }
 
 static inline bool ins_uses_freg(ir_ins const *ins) {
@@ -271,43 +272,47 @@ static void emit_box_flonum(emit_state *s, int32_t stack_offset,
                             uint8_t fpr_reg, bool store_to_stack) {
   assert(s->alloc_slowpath);
   assert(is_fpr_reg(fpr_reg));
-  emit_pop(s, RET_REG);
-  emit_pop(s, RET_REG2);
+
+  label continue_label = {};
+  label slow_continue_label = {};
+
+  emit_push(s, RET_REG);
+  emit_push(s, RET_REG2);
+
+  // Check for fastpath space
+  emit_mov64(s, RTMP, (intptr_t)flonum_freelist);
+  emit_mem_load(s, freelist_start_offset, RTMP, RET_REG);
+  emit_mem_load(s, freelist_end_offset, RTMP, RET_REG2);
+  emit_mov(s, RTMP, RET_REG);
+  emit_add_constant(s, RTMP, RTMP, (int32_t)sizeof(flonum_s));
+  emit_cmp(s, RTMP, RET_REG2);
+  emit_jcc32(s, JLE, &continue_label);
+
+  // No space, call slowpath
+  emit_mov64(s, RET_REG, sizeof(flonum_s));
+  emit_call32(s, (int64_t)s->alloc_slowpath);
+  emit_jmp32(s, &slow_continue_label);
+  emit_label(s, &continue_label);
+
+  emit_mov(s, RET_REG2, RTMP);
+  emit_mov64(s, RTMP, (intptr_t)flonum_freelist);
+  emit_store(s, freelist_start_offset, RTMP, RET_REG2);
+
+  // There WAS space, store new freelist end.
+  emit_label(s, &slow_continue_label);
+
+  emit_store_constant(s, 0, RET_REG, FLONUM_TAG);
+  emit_fstore(s, flonum_payload_offset, RET_REG, fpr_reg);
+  emit_mov(s, RTMP, RET_REG);
+  emit_add_constant(s, RTMP, RTMP, FLONUM_TAG);
 
   // Do stuff with allocated space.
   if (store_to_stack) {
     emit_store(s, stack_offset, RSTACK, RTMP);
   }
-  emit_add_constant(s, RTMP, RTMP, FLONUM_TAG);
-  emit_mov(s, RTMP, RET_REG);
-  emit_fstore(s, flonum_payload_offset, RET_REG, fpr_reg);
-  emit_store_constant(s, 0, RET_REG, FLONUM_TAG);
-
-  label slow_continue_label = {0};
-  emit_label(s, &slow_continue_label);
-  // There WAS space, store new freelist end.
-  emit_store(s, freelist_start_offset, RTMP, RET_REG2);
-  emit_mov64(s, RTMP, (intptr_t)flonum_freelist);
-  emit_mov(s, RET_REG2, RTMP);
-
-  // No space, call slowpath
-  label continue_label = {0};
-  emit_label(s, &continue_label);
-  emit_jmp32(s, &slow_continue_label);
-  emit_call32(s, (int64_t)s->alloc_slowpath);
-  emit_mov64(s, RET_REG, sizeof(flonum_s));
-
-  // Check for fastpath space
-  emit_jcc32(s, JLE, &continue_label);
-  emit_cmp(s, RTMP, RET_REG2);
-  emit_add_constant(s, RTMP, RTMP, (int32_t)sizeof(flonum_s));
-  emit_mov(s, RTMP, RET_REG);
-  emit_mem_load(s, freelist_end_offset, RTMP, RET_REG2);
-  emit_mem_load(s, freelist_start_offset, RTMP, RET_REG);
-  emit_mov64(s, RTMP, (intptr_t)flonum_freelist);
-
-  emit_push(s, RET_REG2);
-  emit_push(s, RET_REG);
+  emit_pop(s, RET_REG2);
+  emit_pop(s, RET_REG);
+  COMMENT("   end box flonum %s", reg_names[fpr_reg]);
 }
 
 static void emit_unbox_flonum(emit_state *s, uint8_t gpr_reg, uint8_t fpr_reg) {
@@ -318,9 +323,9 @@ static void emit_unbox_flonum(emit_state *s, uint8_t gpr_reg, uint8_t fpr_reg) {
 
 static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
                                    ir_ins *ins) {
-  emit_box_flonum(s, stack_offset, ins->reg, true);
   COMMENT("Snap store flonum reg %s to slot %i", reg_names[ins->reg],
           stack_offset / 8);
+  emit_box_flonum(s, stack_offset, ins->reg, true);
 }
 
 static void emit_snap_store_entry(emit_state *s, trace *t,
@@ -427,9 +432,8 @@ static void emit_loopback_stack_loads(emit_state *s, ignoremap *loopback_regs) {
     }
     auto stack_off = (int32_t)reg_map->slot * 8;
     if (reg_map->type == FLONUM_TAG) {
-      emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, reg_map->target_reg);
       emit_mem_load(s, stack_off, RSTACK, RTMP);
-      emit_mov(s, RTMP, reg_map->target_reg);
+      emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, reg_map->target_reg);
     } else {
       emit_mem_load(s, stack_off, RSTACK, reg_map->target_reg);
     }
@@ -838,6 +842,7 @@ static void emit_root_trace_entry(emit_state *s, trace *t) {
 
 static void emit_side_trace_entry(emit_state *s, trace *t) {
   // Emit register shuffle.
+  COMMENT("PARALLEL COPY FROM PARENT:");
   par_copy *cpy = nullptr;
   ir_ins *pmov_ins = nullptr;
   for_each_leading_op(t, IR_PMOV, pmov_ins) {
@@ -850,7 +855,6 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
     }
   }
   emit_serialized_moves(s, cpy, nullptr);
-  COMMENT("PARALLEL COPY FROM PARENT:");
 
   // TODO: Install the side trace with the label-based patching scheme.
 }
@@ -877,8 +881,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   if (!t->parent) {
     emit_root_trace_entry(s, t);
   } else {
-    abort();
-    /* emit_side_trace_entry(s, t); */
+    emit_side_trace_entry(s, t);
   }
 
   // This is where the trace will start when other traces are linked to it.
