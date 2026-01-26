@@ -3,6 +3,7 @@
 * Let's flip asm emission back to forwards - so much easier to work on
   * it's easy to compare old vs. new asm to see what we missed
   * cleanup loopback regs even more
+  * get aarch64 working again
 
 * get type names printing better, print_type_tag
 

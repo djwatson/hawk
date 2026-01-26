@@ -261,6 +261,18 @@ void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t *target) {
   memcpy(loc, &opcode, sizeof(opcode));
 }
 
+void asm_write_jmp32_at(emit_state *s, uint8_t *loc, uint8_t *target) {
+  (void)s;
+  assert(loc);
+  assert(target);
+  int64_t delta = (int64_t)target - (int64_t)loc;
+  assert((delta & 0x3) == 0);
+  int64_t imm26 = delta / 4;
+  assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
+  uint32_t opcode = 0x14000000U | ((uint32_t)imm26 & 0x03ffffffU);
+  memcpy(loc, &opcode, sizeof(opcode));
+}
+
 void emit_jmp32(emit_state *s, label *target) {
   assert(target);
   if (target->emitted) {

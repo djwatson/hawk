@@ -841,6 +841,11 @@ static void emit_root_trace_entry(emit_state *s, trace *t) {
 }
 
 static void emit_side_trace_entry(emit_state *s, trace *t) {
+  // Install the side trace.
+  uint8_t *patch_loc = t->parent_snap->patch_point.addr;
+  asm_write_jmp32_at(s, patch_loc, (uint8_t *)emit_offset(s));
+  __builtin___clear_cache((char *)patch_loc, (char *)patch_loc + 16);
+
   // Emit register shuffle.
   COMMENT("PARALLEL COPY FROM PARENT:");
   par_copy *cpy = nullptr;
@@ -855,8 +860,6 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
     }
   }
   emit_serialized_moves(s, cpy, nullptr);
-
-  // TODO: Install the side trace with the label-based patching scheme.
 }
 
 trace_fn emit(trace *t, emit_state *s, record_state *record,
