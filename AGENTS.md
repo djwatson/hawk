@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 Project uses c23, including 'auto'.  no need to include stdbool.h, c23 includes bool by default.
-This is a jit compiler.  ASM emission happens *backwards*.
+This is a tracing jit compiler.
 
 ## Build, Test, and Development Commands
 

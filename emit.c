@@ -210,22 +210,23 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
 
   emit_add_constant(s, RSTACK, RSTACK, (int64_t)snap->offset * 8);
 
-  label done = {0};
-  emit_label(s, &done);
-
-  emit_pop_regs(s, regs_to_save, regs_cnt, false);
-  emit_mov(s, RSTACK, RET_REG);
-  emit_call_reg(s, RTMP);
-
-  emit_mov64(s, RTMP, (intptr_t)&jit_expand_stack_slowpath);
-  emit_mov(s, RARG0, RSTATE);
-  emit_mov(s, RARG1, RSTACK);
-  emit_push_regs(s, regs_to_save, regs_cnt, false);
-
-  emit_jcc32(s, JL, &done);
-  emit_cmp(s, RSTACK, RTMP);
-  emit_mem_load(s, (int32_t)offsetof(vm_state, stack_limit), RSTATE, RTMP);
   COMMENT("Emit stack guard check");
+  label done = {0};
+  emit_mem_load(s, (int32_t)offsetof(vm_state, stack_limit), RSTATE, RTMP);
+  emit_cmp(s, RSTACK, RTMP);
+  emit_jcc32(s, JL, &done);
+
+  emit_push_regs(s, regs_to_save, regs_cnt, false);
+  emit_mov(s, RARG1, RSTACK);
+  emit_mov(s, RARG0, RSTATE);
+  emit_mov64(s, RTMP, (intptr_t)&jit_expand_stack_slowpath);
+
+  emit_call_reg(s, RTMP);
+  emit_mov(s, RSTACK, RET_REG);
+  emit_pop_regs(s, regs_to_save, regs_cnt, false);
+
+  emit_label(s, &done);
+  COMMENT("   end stack guard check");
 }
 
 static double slot_flonum_constant(trace *t, slot v) {
@@ -535,14 +536,6 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
 
 static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
                       ignoremap *ignore) {
-  // If this is an exiting snapshot (vs. a loop back)
-  // then record exit PC & snapshot.
-  if (exit) {
-    emit_mov64(s, RET_REG2, (intptr_t)snap);
-    emit_mov(s, RET_REG, RSTACK);
-  }
-
-  emit_stack_offset_and_check(s, snap, ignore);
 
   arr_for_each_idx(snap->slots, j) {
     bool ignored = false;
@@ -556,6 +549,14 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
       emit_snap_store_entry(s, t, &snap->slots[j]);
     }
   }
+
+  emit_stack_offset_and_check(s, snap, ignore);
+  // If this is an exiting snapshot (vs. a loop back)
+  // then record exit PC & snapshot.
+  if (exit) {
+    emit_mov64(s, RET_REG2, (intptr_t)snap);
+    emit_mov(s, RET_REG, RSTACK);
+  }
 }
 // NOLINTEND(clang-analyzer-core.NullDereference)
 
@@ -567,12 +568,11 @@ static void emit_exit_to_c(emit_state *s) {
 
 static void emit_snapshot_exits(emit_state *s, trace *t, snap *snaps,
                                 label *exit_label) {
-  for (uint64_t i = arrlen(snaps) - 1; i > 0; i--) {
-    COMMENT("Snap exit #%i", i - 1);
-    snap *snap = &snaps[i - 1];
+  for (uint64_t i = 0; i < arrlen(snaps) - 1; i++) {
+    COMMENT("Snap exit #%i", i);
+    snap *snap = &snaps[i];
     emit_label(s, &snap->patch_point);
     emit_snap(s, t, snap, true, nullptr);
-    // TODO
     emit_jmp32(s, exit_label);
   }
 }
@@ -597,8 +597,8 @@ static void link_to_next_trace(emit_state *s, trace *t,
   emit_snap(s, t, sn, false, loopback_regs);
   arrfree(loopback_regs);
 
-  label *target = entry_snap_idx == 1 ? &t->link->snap_entry_label
-                                      : &t->link->trace_start;
+  label *target =
+      entry_snap_idx == 1 ? &t->link->snap_entry_label : &t->link->trace_start;
   emit_jmp32(s, target);
 }
 
@@ -606,11 +606,12 @@ static void emit_ir(emit_state *s, trace *t) {
   int32_t cur_snap = 0;
 
   for (int op_cnt_idx = 0; op_cnt_idx < arrlen(t->ins); op_cnt_idx++) {
-    while (t->snaps[cur_snap].ir == op_cnt_idx) {
-      cur_snap++;
-      if (cur_snap == 1) {
+    while (cur_snap < arrlen(t->snaps) &&
+           t->snaps[cur_snap + 1].ir == op_cnt_idx) {
+      if (cur_snap == 0) {
         emit_label(s, &t->snap_entry_label);
       }
+      cur_snap++;
     }
     auto op = &t->ins[op_cnt_idx];
 
