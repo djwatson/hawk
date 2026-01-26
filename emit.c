@@ -204,11 +204,8 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
   if (!snap->offset) {
     return;
   }
-
   uint8_t regs_to_save[MAX_REG];
   size_t regs_cnt = collect_regs_to_preserve(ignore, regs_to_save);
-
-  emit_add_constant(s, RSTACK, RSTACK, (int64_t)snap->offset * 8);
 
   COMMENT("Emit stack guard check");
   label done = {0};
@@ -227,6 +224,9 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
 
   emit_label(s, &done);
   COMMENT("   end stack guard check");
+
+  // Advance stack pointer after confirming we have space.
+  emit_add_constant(s, RSTACK, RSTACK, (int64_t)snap->offset * 8);
 }
 
 static double slot_flonum_constant(trace *t, slot v) {
@@ -412,6 +412,29 @@ static void emit_serialized_moves(emit_state *s, par_copy *cpy,
   arrfree(cpy);
   arrfree(moves);
 }
+
+static void emit_loopback_stack_loads(emit_state *s, ignoremap *loopback_regs) {
+  if (!loopback_regs) {
+    return;
+  }
+  arr_for_each_idx(loopback_regs, i) {
+    auto reg_map = &loopback_regs[i];
+    if (!reg_map->needs_stack_load) {
+      continue;
+    }
+    if (reg_map->target_reg == REG_NONE) {
+      continue;
+    }
+    auto stack_off = (int32_t)reg_map->slot * 8;
+    if (reg_map->type == FLONUM_TAG) {
+      emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, reg_map->target_reg);
+      emit_mem_load(s, stack_off, RSTACK, RTMP);
+      emit_mov(s, RTMP, reg_map->target_reg);
+    } else {
+      emit_mem_load(s, stack_off, RSTACK, reg_map->target_reg);
+    }
+  }
+}
 static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
                            int32_t cur_snap) {
   if (!op->guard) {
@@ -443,7 +466,7 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
 
 static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
                                          trace *entry_trace, snap *exit_snap,
-                                         snap *entry_snap) {
+                                         snap *entry_snap, par_copy **cpy_out) {
   ignoremap *loopback_regs = nullptr;
   par_copy *cpy = nullptr;
 
@@ -512,15 +535,6 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
       if (reg_map->target_reg == REG_NONE) {
         abort();
       }
-      if (reg_map->type == FLONUM_TAG) {
-        auto stack_off = (int32_t)reg_map->slot * 8;
-        emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, reg_map->target_reg);
-        emit_mem_load(s, stack_off, RSTACK, RTMP);
-        emit_mov(s, RTMP, reg_map->target_reg);
-      } else {
-        auto stack_off = (int32_t)reg_map->slot * 8;
-        emit_mem_load(s, stack_off, RSTACK, reg_map->target_reg);
-      }
       continue;
     }
     if (reg_map->reg == REG_NONE || reg_map->target_reg == REG_NONE) {
@@ -530,7 +544,7 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
            ((par_copy){.from = reg_map->reg, .to = reg_map->target_reg}));
   }
 
-  emit_serialized_moves(s, cpy, loopback_regs);
+  *cpy_out = cpy;
   return loopback_regs;
 }
 
@@ -591,10 +605,13 @@ static void link_to_next_trace(emit_state *s, trace *t,
     COMMENT("Link to trace %i (snap exit %i)", t->link->num, cur_snap);
   }
 
+  par_copy *cpy = nullptr;
   ignoremap *loopback_regs =
-      collect_loopback_moves(s, t, linked_trace, sn, entry_snap);
+      collect_loopback_moves(s, t, linked_trace, sn, entry_snap, &cpy);
   // TODO is this duplicated?  Probably still need to adjust offset though.
   emit_snap(s, t, sn, false, loopback_regs);
+  emit_loopback_stack_loads(s, loopback_regs);
+  emit_serialized_moves(s, cpy, loopback_regs);
   arrfree(loopback_regs);
 
   label *target =
