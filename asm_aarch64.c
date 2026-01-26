@@ -198,18 +198,17 @@ static const struct {
 void restore_callee_regs(emit_state *s) {
   for (size_t i = 0;
        i < sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0]); i++) {
-    const size_t j = (sizeof(callee_saved_pairs) /
-                      sizeof(callee_saved_pairs[0])) -
-                     1 - i;
+    const size_t j =
+        (sizeof(callee_saved_pairs) / sizeof(callee_saved_pairs[0])) - 1 - i;
     emit_op(s, ldp_post(callee_saved_pairs[j].r1, callee_saved_pairs[j].r2, SP,
                         16));
   }
   for (size_t i = 0;
        i < sizeof(callee_saved_fp_pairs) / sizeof(callee_saved_fp_pairs[0]);
        i++) {
-    const size_t j = (sizeof(callee_saved_fp_pairs) /
-                      sizeof(callee_saved_fp_pairs[0])) -
-                     1 - i;
+    const size_t j =
+        (sizeof(callee_saved_fp_pairs) / sizeof(callee_saved_fp_pairs[0])) - 1 -
+        i;
     emit_op(s, ldp_post_q(callee_saved_fp_pairs[j].r1,
                           callee_saved_fp_pairs[j].r2, SP, 32));
   }
@@ -239,9 +238,8 @@ void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t *target) {
   assert((delta & 0x3) == 0);
   int64_t imm26 = delta / 4;
   assert(imm26 >= -(1LL << 25) && imm26 < (1LL << 25));
-  uint32_t opcode =
-      ((*(uint32_t *)loc) & UINT32_C(0xFC000000)) |
-      ((uint32_t)imm26 & UINT32_C(0x03ffffff));
+  uint32_t opcode = ((*(uint32_t *)loc) & UINT32_C(0xFC000000)) |
+                    ((uint32_t)imm26 & UINT32_C(0x03ffffff));
   memcpy(loc, &opcode, sizeof(opcode));
 }
 
@@ -255,9 +253,8 @@ void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t *target) {
   assert((delta & 0x3) == 0);
   int64_t imm19 = delta / 4;
   assert(imm19 >= -(1LL << 18) && imm19 < (1LL << 18));
-  uint32_t opcode =
-      (inst & UINT32_C(0xFF00001F)) |
-      (((uint32_t)imm19 & UINT32_C(0x7ffff)) << 5) | cond;
+  uint32_t opcode = (inst & UINT32_C(0xFF00001F)) |
+                    (((uint32_t)imm19 & UINT32_C(0x7ffff)) << 5) | cond;
   memcpy(loc, &opcode, sizeof(opcode));
 }
 
@@ -387,18 +384,18 @@ static void emit_mov_sequence(emit_state *s, uint8_t rd, const uint16_t *chunks,
                               bool use_movn) {
   int first = find_first_nonzero_index(chunks);
   assert(first >= 0);
-  for (int i = 3; i >= 0; i--) {
+  if (use_movn) {
+    emit_op(s, movn_opcode(rd, chunks[first], (uint8_t)first));
+  } else {
+    emit_op(s, movz_opcode(rd, chunks[first], (uint8_t)first));
+  }
+  for (int i = 0; i < 4; i++) {
     if (i == first) {
       continue;
     }
     if (chunks[i] != 0) {
       emit_op(s, movk_opcode(rd, chunks[i], (uint8_t)i));
     }
-  }
-  if (use_movn) {
-    emit_op(s, movn_opcode(rd, chunks[first], (uint8_t)first));
-  } else {
-    emit_op(s, movz_opcode(rd, chunks[first], (uint8_t)first));
   }
 }
 
@@ -812,11 +809,11 @@ void asm_load_constant(emit_state *s, int idx, uint8_t dst) {
   assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
   assert(idx >= 0);
   assert((size_t)idx < arrlen(s->const_pool));
-  uint8_t *ldr_site =
-      emit_op(s, 0xFD400000U | ((uint32_t)RTMP << 5) | (uint32_t)hw_fpr(dst));
   constant_entry *entry = &s->const_pool[idx];
   uint8_t *adrp_site =
       emit_op(s, 0x90000000U | ((uint32_t)RTMP << 5) | (uint32_t)RTMP);
+  uint8_t *ldr_site =
+      emit_op(s, 0xFD400000U | ((uint32_t)RTMP << 5) | (uint32_t)hw_fpr(dst));
   const_patch patch = {.inst0 = adrp_site, .inst1 = ldr_site};
   arrput(nullptr, entry->patches, patch);
 }

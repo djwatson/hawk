@@ -927,6 +927,6 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   register_jit_symbol((uint8_t *)start, (uint8_t *)start, (uint8_t *)end,
                       funcname);
   // Call the built-in function to flush the cache for the specific range
-  __builtin___clear_cache((char *)emit_offset(s), (char *)end);
+  __builtin___clear_cache((char *)start, (char *)emit_offset(s));
   return (trace_fn)start;
 }
