@@ -586,6 +586,8 @@ static void emit_exit_to_c(emit_state *s) {
 
 static void emit_snapshot_exits(emit_state *s, trace *t, snap *snaps,
                                 label *exit_label) {
+  // There will always be at least two snapshots.  Don't write the last, it's
+  // the loopback snap.
   for (uint64_t i = 0; i < arrlen(snaps) - 1; i++) {
     COMMENT("Snap exit #%i", i);
     snap *snap = &snaps[i];
@@ -662,7 +664,9 @@ static void emit_ir(emit_state *s, trace *t) {
       ir_ins *ref = slot_ins(t, op->op1);
 
       auto val_reg = RTMP;
-      if (!op->op2.constant) {
+      if (op->op2.constant) {
+        emit_mov64(s, val_reg, slot_const(t, op->op2));
+      } else {
         val_reg = slot_reg(t, op->op2);
       }
 
@@ -670,7 +674,7 @@ static void emit_ir(emit_state *s, trace *t) {
       if (ref->op2.constant) {
         // Offset is a constant.
         auto offset = slot_const(t, ref->op2) + (int64_t)(8 - op->type);
-        // TODO check fits in int32_t.
+        assert((int32_t)offset == offset);
         emit_store(s, (int32_t)offset, base_reg, val_reg);
       } else {
         // We need a tmp reg.
@@ -680,12 +684,9 @@ static void emit_ir(emit_state *s, trace *t) {
         // Offset is NOT a const, need additional offset + typed offset.
         emit_mov(s, op->reg, slot_reg(t, ref->op2));
         emit_add(s, op->reg, op->reg, base_reg);
-        emit_store(s, 8 - op->type, base_reg, val_reg);
+        emit_store(s, 8 - op->type, op->reg, val_reg);
       }
 
-      if (op->op2.constant) {
-        emit_mov64(s, RTMP, slot_const(t, op->op2));
-      }
       break;
     }
     case IR_REF: {
@@ -863,7 +864,7 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
 }
 
 trace_fn emit(trace *t, emit_state *s, record_state *record,
-              const snap *poly_entry, uint8_t link_entry_snap) {
+              uint8_t link_entry_snap) {
   // Initialize asm emitter memory if not already done (once per process)
   emit_init(s);
 
