@@ -166,12 +166,6 @@ jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
 
 typedef struct {
   uint16_t slot;
-  uint8_t reg;
-  uint8_t target_reg;
-} ignoremap;
-
-typedef struct {
-  uint16_t slot;
   uint8_t target_reg;
 } load_entry;
 
@@ -180,14 +174,31 @@ typedef struct {
   int64_t constant_value;
 } const_entry;
 
+static inline void add_entry_mapping(trace *entry_trace, snap_entry *entry,
+                                     uint16_t slot, load_entry **loads,
+                                     const_entry **consts) {
+  if (!entry->val.constant) {
+    arrput(nullptr, *loads,
+           ((load_entry){.slot = slot,
+                         .target_reg = slot_reg(entry_trace, entry->val)}));
+    return;
+  }
+  uint8_t tgt = slot_reg(entry_trace, entry->val);
+  if (tgt != REG_NONE) {
+    arrput(
+        nullptr, *consts,
+        ((const_entry){.target_reg = tgt,
+                       .constant_value = slot_const(entry_trace, entry->val)}));
+  }
+}
+
 // NOLINTBEGIN(clang-analyzer-core.NullDereference)
-static size_t collect_regs_to_preserve(ignoremap *ignore,
+static size_t collect_regs_to_preserve(uint8_t *regs_in, size_t len,
                                        uint8_t regs[MAX_REG]) {
   size_t count = 0;
   bool added[MAX_REG] = {0};
-  size_t ignore_len = arrlen(ignore);
-  for (size_t i = 0; i < ignore_len; i++) {
-    uint8_t reg = ignore[i].reg;
+  for (size_t i = 0; i < len; i++) {
+    uint8_t reg = regs_in[i];
     if (reg == REG_NONE) {
       continue;
     }
@@ -207,12 +218,13 @@ static size_t collect_regs_to_preserve(ignoremap *ignore,
 }
 
 static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
-                                        ignoremap *ignore) {
+                                        uint8_t *regs_in) {
   if (!snap->offset) {
     return;
   }
   uint8_t regs_to_save[MAX_REG];
-  size_t regs_cnt = collect_regs_to_preserve(ignore, regs_to_save);
+  size_t regs_cnt =
+      collect_regs_to_preserve(regs_in, arrlen(regs_in), regs_to_save);
 
   COMMENT("Emit stack guard check");
   label done = {0};
@@ -334,29 +346,6 @@ static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
   emit_box_flonum(s, stack_offset, ins->reg, true);
 }
 
-static void emit_snap_store_entry(emit_state *s, trace *t,
-                                  snap_entry const *entry) {
-  auto stack_offset = (int32_t)entry->slot * 8;
-  if (entry->val.constant) {
-    emit_store_constant(s, stack_offset, RSTACK, slot_const(t, entry->val));
-    return;
-  }
-
-  auto ins = slot_ins(t, entry->val);
-  if (ins->type == FLONUM_TAG) {
-    emit_snap_store_flonum(s, stack_offset, ins);
-    return;
-  }
-
-  if (ins->spill != SPILL_NONE) {
-    abort();
-    /* jit_ldi(s->jit, JIT_R0, */
-    /*         &spill_gpr_slots[trace->ir[entry->val.loc].spill]); */
-  }
-
-  emit_store(s, stack_offset, RSTACK, ins->reg);
-}
-
 static void emit_loopback_constants(emit_state *s, const_entry *consts) {
   arr_for_each_idx(consts, i) {
     auto map = &consts[i];
@@ -459,15 +448,16 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
   }
 }
 
-static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
-                                         trace *entry_trace, snap *exit_snap,
-                                         snap *entry_snap, par_copy **cpy_out,
-                                         const_entry **consts_out,
-                                         load_entry **loads_out) {
-  ignoremap *loopback_regs = nullptr;
+static void
+collect_loopback_moves(emit_state *s, trace *exit_trace, trace *entry_trace,
+                       snap *exit_snap, snap *entry_snap, par_copy **cpy_out,
+                       const_entry **consts_out, load_entry **loads_out,
+                       uint16_t **ignore_slots_out, uint8_t **regs_out) {
   const_entry *consts = nullptr;
   load_entry *loads = nullptr;
   par_copy *cpy = nullptr;
+  uint16_t *ignore_slots = nullptr;
+  uint8_t *regs = nullptr;
 
   size_t exit_len = arrlen(exit_snap->slots);
   size_t entry_len = arrlen(entry_snap->slots);
@@ -482,24 +472,24 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
     uint16_t entry_slot = entry->slot;
 
     if (exit_logical == (int32_t)entry_slot) {
-      ignoremap map = {.slot = exit_slot,
-                       .reg = exit_entry->val.constant
-                                  ? REG_NONE
-                                  : slot_reg(exit_trace, exit_entry->val),
-                       .target_reg = entry->val.constant
-                                         ? REG_NONE
-                                         : slot_reg(entry_trace, entry->val)};
-      arrput(nullptr, loopback_regs, map);
+      uint8_t exit_reg = exit_entry->val.constant
+                             ? REG_NONE
+                             : slot_reg(exit_trace, exit_entry->val);
+      uint8_t entry_reg =
+          entry->val.constant ? REG_NONE : slot_reg(entry_trace, entry->val);
+      arrput(nullptr, ignore_slots, exit_slot);
+      if (exit_reg != REG_NONE) {
+        arrput(nullptr, regs, exit_reg);
+      }
 
       if (exit_entry->val.constant && !entry->val.constant) {
         arrput(nullptr, consts,
-               ((const_entry){.target_reg = map.target_reg,
+               ((const_entry){.target_reg = entry_reg,
                               .constant_value =
                                   slot_const(exit_trace, exit_entry->val)}));
       } else if (!exit_entry->val.constant && !entry->val.constant &&
-                 map.reg != map.target_reg && map.target_reg != REG_NONE) {
-        arrput(nullptr, cpy,
-               ((par_copy){.from = map.reg, .to = map.target_reg}));
+                 exit_reg != entry_reg && entry_reg != REG_NONE) {
+        arrput(nullptr, cpy, ((par_copy){.from = exit_reg, .to = entry_reg}));
       }
 
       i++;
@@ -514,38 +504,54 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
     }
 
     // entry slot lower than exit logical: unmatched entry -> stack load/const
-    if (!entry->val.constant) {
-      arrput(nullptr, loads,
-             ((load_entry){.slot = entry_slot,
-                           .target_reg = slot_reg(entry_trace, entry->val)}));
-    }
+    add_entry_mapping(entry_trace, entry, entry_slot, &loads, &consts);
     j++;
   }
 
   // Remaining unmatched entry slots.
   while (j < entry_len) {
     auto entry = &entry_snap->slots[j];
-    if (!entry->val.constant) {
-      arrput(nullptr, loads,
-             ((load_entry){.slot = entry->slot,
-                           .target_reg = slot_reg(entry_trace, entry->val)}));
-    }
+    add_entry_mapping(entry_trace, entry, entry->slot, &loads, &consts);
     j++;
   }
 
   *cpy_out = cpy;
   *consts_out = consts;
   *loads_out = loads;
-  return loopback_regs;
+  *ignore_slots_out = ignore_slots;
+  *regs_out = regs;
+}
+
+static void emit_snap_store_entry(emit_state *s, trace *t,
+                                  snap_entry const *entry) {
+  auto stack_offset = (int32_t)entry->slot * 8;
+  if (entry->val.constant) {
+    emit_store_constant(s, stack_offset, RSTACK, slot_const(t, entry->val));
+    return;
+  }
+
+  auto ins = slot_ins(t, entry->val);
+  if (ins->type == FLONUM_TAG) {
+    emit_snap_store_flonum(s, stack_offset, ins);
+    return;
+  }
+
+  if (ins->spill != SPILL_NONE) {
+    abort();
+    /* jit_ldi(s->jit, JIT_R0, */
+    /*         &spill_gpr_slots[trace->ir[entry->val.loc].spill]); */
+  }
+
+  emit_store(s, stack_offset, RSTACK, ins->reg);
 }
 
 static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
-                      ignoremap *ignore) {
+                      uint16_t *ignore_slots, uint8_t *regs_in) {
 
   arr_for_each_idx(snap->slots, j) {
     bool ignored = false;
-    for (size_t i = 0; i < arrlen(ignore); i++) {
-      if (snap->slots[j].slot == ignore[i].slot) {
+    for (size_t i = 0; i < arrlen(ignore_slots); i++) {
+      if (snap->slots[j].slot == ignore_slots[i]) {
         ignored = true;
         break;
       }
@@ -555,7 +561,7 @@ static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
     }
   }
 
-  emit_stack_offset_and_check(s, snap, ignore);
+  emit_stack_offset_and_check(s, snap, regs_in);
   // If this is an exiting snapshot (vs. a loop back)
   // then record exit PC & snapshot.
   if (exit) {
@@ -579,7 +585,7 @@ static void emit_snapshot_exits(emit_state *s, trace *t, snap *snaps,
     COMMENT("Snap exit #%i", i);
     snap *snap = &snaps[i];
     emit_label(s, &snap->patch_point);
-    emit_snap(s, t, snap, true, nullptr);
+    emit_snap(s, t, snap, true, nullptr, nullptr);
     emit_jmp32(s, exit_label);
   }
 }
@@ -598,20 +604,29 @@ static void link_to_next_trace(emit_state *s, trace *t,
     COMMENT("Link to trace %i (snap exit %i)", t->link->num, cur_snap);
   }
 
-  // We try to reconcile the exit snapshot with the entry snapshot.
-  // We split to 1) registers that need parallel move, 2) constants that need
-  // loading. 3) slots that need saving (which is the inverse of 1, and done by
-  // ignoremap+emit_snap)
+  // Reconcile exit snapshot to entry snapshot:
+  // 1) both en-registered, then we do a parallel move
+  // 2) constants we load
+  // 3) stack loads needed (in entry but not exit).
+  // 4) All the above get put in ignore_slots, and
+  //    we emit_snap as normal, ignoring all those slots that we handle
+  //    manually.
+  // 5) We also have a list of registers that need preserving if we have
+  //    to take a slowpath in expand_stack_slowpath. (TODO cleanup)
+  // TODO we currently don't handle spill slots at all!! ugh.
   par_copy *cpy = nullptr;
   const_entry *consts = nullptr;
   load_entry *loads = nullptr;
-  ignoremap *loopback_regs = collect_loopback_moves(
-      s, t, linked_trace, sn, entry_snap, &cpy, &consts, &loads);
-  emit_snap(s, t, sn, false, loopback_regs);
+  uint16_t *ignore_slots = nullptr;
+  uint8_t *regs_to_preserve = nullptr;
+  collect_loopback_moves(s, t, linked_trace, sn, entry_snap, &cpy, &consts,
+                         &loads, &ignore_slots, &regs_to_preserve);
+  emit_snap(s, t, sn, false, ignore_slots, regs_to_preserve);
   emit_loopback_stack_loads(s, loads);
   emit_serialized_moves(s, cpy);
   emit_loopback_constants(s, consts);
-  arrfree(loopback_regs);
+  arrfree(ignore_slots);
+  arrfree(regs_to_preserve);
   arrfree(loads);
   arrfree(consts);
 
