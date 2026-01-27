@@ -15,6 +15,7 @@
 #include "comments.h"
 #include "disassemble.h"
 #include "gc.h"
+#include "hashtable.h"
 #include "hawk.h"
 #include "ir.h"
 #include "jitdump.h"
@@ -469,25 +470,19 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
   ignoremap *loopback_regs = nullptr;
   par_copy *cpy = nullptr;
 
+  size_t exit_len = arrlen(exit_snap->slots);
   size_t entry_len = arrlen(entry_snap->slots);
-  bool *entry_seen = entry_len ? calloc(entry_len, sizeof(bool)) : nullptr;
-
-  arr_for_each_idx(exit_snap->slots, i) {
+  size_t i = 0;
+  size_t j = 0;
+  while (i < exit_len && j < entry_len) {
     auto exit_entry = &exit_snap->slots[i];
     uint16_t exit_slot = exit_entry->slot;
     int32_t exit_logical =
         (int32_t)exit_entry->slot - (int32_t)exit_snap->offset;
-    size_t entry_idx = SIZE_MAX;
-    arr_for_each_idx(entry_snap->slots, j) {
-      auto candidate = &entry_snap->slots[j];
-      uint16_t entry_slot = candidate->slot;
-      if (exit_logical == (int32_t)entry_slot) {
-        entry_idx = j;
-        break;
-      }
-    }
-    if (entry_idx != SIZE_MAX) {
-      auto entry = &entry_snap->slots[entry_idx];
+    auto entry = &entry_snap->slots[j];
+    uint16_t entry_slot = entry->slot;
+
+    if (exit_logical == (int32_t)entry_slot) {
       ignoremap map = {
           .slot = exit_slot, .target_reg = REG_NONE, .action = LOOP_COPY};
       if (exit_entry->val.constant) {
@@ -499,16 +494,33 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
       if (!entry->val.constant) {
         map.target_reg = slot_reg(entry_trace, entry->val);
       }
-      entry_seen[entry_idx] = true;
       arrput(nullptr, loopback_regs, map);
+      i++;
+      j++;
       continue;
     }
+
+    if (exit_logical < (int32_t)entry_slot) {
+      // exit slot not present in entry; skip it
+      i++;
+      continue;
+    }
+
+    // entry slot lower than exit logical: unmatched entry -> stack load/const
+    ignoremap map = {.slot = entry_slot, .target_reg = REG_NONE};
+    if (entry->val.constant) {
+      map.action = LOOP_CONST;
+      map.constant_value = slot_const(entry_trace, entry->val);
+    } else {
+      map.action = LOOP_STACK_LOAD;
+      map.target_reg = slot_reg(entry_trace, entry->val);
+    }
+    arrput(nullptr, loopback_regs, map);
+    j++;
   }
 
-  arr_for_each_idx(entry_snap->slots, j) {
-    if (entry_seen[j]) {
-      continue;
-    }
+  // Remaining unmatched entry slots.
+  while (j < entry_len) {
     auto entry = &entry_snap->slots[j];
     ignoremap map = {.slot = entry->slot, .target_reg = REG_NONE};
     if (entry->val.constant) {
@@ -519,9 +531,8 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
       map.target_reg = slot_reg(entry_trace, entry->val);
     }
     arrput(nullptr, loopback_regs, map);
+    j++;
   }
-
-  free(entry_seen);
 
   arr_for_each_idx(loopback_regs, i) {
     auto reg_map = &loopback_regs[i];
