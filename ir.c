@@ -154,57 +154,42 @@ void print_ir(trace *t) {
     printf("%s ", ins->guard ? ">" : " ");
     print_tag_type(ins->type);
     printf("%-8s", ir_names[ins->op]);
-    switch (ins->op) {
-    case IR_NOP:
+    ir_arg_type arg_type = ir_ins_types[ins->op];
+    switch (arg_type) {
+    case IR_ARG_NONE_NONE:
       break;
-    case IR_SLOAD:
+    case IR_ARG_STACK:
       printf(" \e[1;33mstack %i\e[m", ins->data);
       break;
-    case IR_GGET:
-    case IR_INEXACT:
+    case IR_ARG_IR_NONE:
       printf(" ");
       print_slot(ins->op1, t);
       break;
-    case IR_LOAD:
-    case IR_REF:
-    case IR_GSET:
-    case IR_ADD:
-    case IR_SUB:
-    case IR_LT:
-    case IR_EQ:
-    case IR_NE:
-    case IR_GT:
-    case IR_GTE:
-    case IR_GUARD_EQ:
-    case IR_STORE:
-    case IR_ALLOC:
+    case IR_ARG_IR_IR:
       printf(" ");
       print_slot(ins->op1, t);
       printf(", ");
       print_slot(ins->op2, t);
       break;
-    case IR_RET:
+    case IR_ARG_IR_ADDR:
       printf(" ");
       print_slot(ins->op1, t);
       printf(", \e[1;35m#<bc 0x%" PRIx64 ">\e[m",
              (uint64_t)t->consts[ins->op2.loc].value);
       break;
-    case IR_PMOV:
+    case IR_ARG_REG:
+      printf(" \e[1;33m%i\e[m", ins->data);
+      break;
+    case IR_ARG_PMOV:
       printf(" %i %s (%s)", ins->prev_reg, ins->prev_guard ? "(GUARD)" : "",
              reg_names[ins->prev_reg]);
       break;
-    case IR_ARG:
-      printf(" \e[1;33m%i\e[m", ins->data);
+    case IR_ARG_OFFSET:
+      printf(" +%i", ins->data);
       break;
-    case IR_TYPECHECK:
-      printf(" ");
-      print_slot(ins->op1, t);
-      break;
-    default:
-      if (ins->data) {
-        printf(" data=%u", ins->data);
-      }
-      break;
+    }
+    if (arg_type == IR_ARG_NONE_NONE && ins->data) {
+      printf(" data=%u", ins->data);
     }
     printf("\n");
   }

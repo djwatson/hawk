@@ -36,7 +36,9 @@ typedef enum : uint8_t {
   IR_ARG_STACK,
   IR_ARG_IR_NONE,
   IR_ARG_IR_IR,
+  IR_ARG_IR_ADDR,
   IR_ARG_REG,
+  IR_ARG_PMOV,
   IR_ARG_OFFSET,
 } ir_arg_type;
 
@@ -52,10 +54,10 @@ typedef enum : uint8_t {
   X(SUB, ARG_IR_IR)                                                            \
   X(GGET, ARG_IR_NONE)                                                         \
   X(GSET, ARG_IR_IR)                                                           \
-  X(RET, ARG_IR_IR)                                                            \
+  X(RET, ARG_IR_ADDR)                                                          \
   X(SLOAD, ARG_STACK)                                                          \
   X(TYPECHECK, ARG_IR_NONE)                                                    \
-  X(PMOV, ARG_REG)                                                             \
+  X(PMOV, ARG_PMOV)                                                            \
   X(ARG, ARG_REG)                                                              \
   X(GUARD_EQ, ARG_IR_IR)                                                       \
   X(REF, ARG_IR_IR)                                                            \

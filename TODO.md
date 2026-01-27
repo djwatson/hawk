@@ -11,8 +11,6 @@
 * Do check for side-trace should be uprec abort
 * Do check for side-trace tail-call should be root loop abort
 
-* re-add RET down handling, get working well (original hawk never had this)
-
 # VM impl
 * next: diviter, divrec, sumloop, nqueens.
 
@@ -58,6 +56,7 @@
   top-of-stack tracking like previous.
 * multiple return values from the start
 * punt on: more than 256 refs.
+* re-add RET down handling, get working well (original hawk never had this)
 
 ### opts
 
