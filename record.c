@@ -400,6 +400,7 @@ static void record_finish(bc *pc, vm_state *state) {
   }
   record_append_trace(state, cur_trace);
   clear_trace_state(ts);
+  record_set_current_trace(state, nullptr);
 }
 static int downrec_hits(trace_state *ts, bc *pc) {
   int cnt = 0;

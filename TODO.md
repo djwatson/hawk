@@ -1,6 +1,6 @@
 # Currently working on:
 
-* get type names printing better, print_type_tag
+* get type names printing better, print_type_tag (needs color and short names???)
 
 * improve perf of IR_ALLOC
   
@@ -56,7 +56,6 @@
   top-of-stack tracking like previous.
 * multiple return values from the start
 * punt on: more than 256 refs.
-* re-add RET down handling, get working well (original hawk never had this)
 
 ### opts
 
