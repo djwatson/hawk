@@ -15,7 +15,6 @@
 #include "comments.h"
 #include "disassemble.h"
 #include "gc.h"
-#include "hashtable.h"
 #include "hawk.h"
 #include "ir.h"
 #include "jitdump.h"
@@ -169,13 +168,17 @@ typedef struct {
   uint16_t slot;
   uint8_t reg;
   uint8_t target_reg;
-  enum {
-    LOOP_CONST,
-    LOOP_STACK_LOAD,
-    LOOP_COPY,
-  } action;
-  int64_t constant_value;
 } ignoremap;
+
+typedef struct {
+  uint16_t slot;
+  uint8_t target_reg;
+} load_entry;
+
+typedef struct {
+  uint8_t target_reg;
+  int64_t constant_value;
+} const_entry;
 
 // NOLINTBEGIN(clang-analyzer-core.NullDereference)
 static size_t collect_regs_to_preserve(ignoremap *ignore,
@@ -354,12 +357,9 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
   emit_store(s, stack_offset, RSTACK, ins->reg);
 }
 
-static void emit_loopback_constants(emit_state *s, ignoremap *loopback_regs) {
-  arr_for_each_idx(loopback_regs, i) {
-    auto map = &loopback_regs[i];
-    if (map->action != LOOP_CONST) {
-      continue;
-    }
+static void emit_loopback_constants(emit_state *s, const_entry *consts) {
+  arr_for_each_idx(consts, i) {
+    auto map = &consts[i];
     assert(map->target_reg != REG_NONE);
     if (is_fpr_reg(map->target_reg)) {
       emit_fmov_constant(s, map->target_reg,
@@ -379,8 +379,7 @@ static uint8_t resolve_tmp_reg(uint8_t peer) {
   return RTMP;
 }
 
-static void emit_serialized_moves(emit_state *s, par_copy *cpy,
-                                  ignoremap *loopback_regs) {
+static void emit_serialized_moves(emit_state *s, par_copy *cpy) {
   par_copy *moves = serialize_parallel_copy(cpy, PAR_MOVE_MARKER);
   arr_for_each_idx(moves, i) {
     auto mov = moves[i];
@@ -411,17 +410,13 @@ static void emit_serialized_moves(emit_state *s, par_copy *cpy,
       emit_mov(s, to, from);
     }
   }
-  emit_loopback_constants(s, loopback_regs);
   arrfree(cpy);
   arrfree(moves);
 }
 
-static void emit_loopback_stack_loads(emit_state *s, ignoremap *loopback_regs) {
-  arr_for_each_idx(loopback_regs, i) {
-    auto reg_map = &loopback_regs[i];
-    if (reg_map->action != LOOP_STACK_LOAD) {
-      continue;
-    }
+static void emit_loopback_stack_loads(emit_state *s, load_entry *loads) {
+  arr_for_each_idx(loads, i) {
+    auto reg_map = &loads[i];
     assert(reg_map->target_reg != REG_NONE);
     auto stack_off = (int32_t)reg_map->slot * 8;
     if (is_fpr_reg(reg_map->target_reg)) {
@@ -466,8 +461,12 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
 
 static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
                                          trace *entry_trace, snap *exit_snap,
-                                         snap *entry_snap, par_copy **cpy_out) {
+                                         snap *entry_snap, par_copy **cpy_out,
+                                         const_entry **consts_out,
+                                         load_entry **loads_out) {
   ignoremap *loopback_regs = nullptr;
+  const_entry *consts = nullptr;
+  load_entry *loads = nullptr;
   par_copy *cpy = nullptr;
 
   size_t exit_len = arrlen(exit_snap->slots);
@@ -483,18 +482,26 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
     uint16_t entry_slot = entry->slot;
 
     if (exit_logical == (int32_t)entry_slot) {
-      ignoremap map = {
-          .slot = exit_slot, .target_reg = REG_NONE, .action = LOOP_COPY};
-      if (exit_entry->val.constant) {
-        map.action = LOOP_CONST;
-        map.constant_value = slot_const(exit_trace, exit_entry->val);
-      } else {
-        map.reg = slot_reg(exit_trace, exit_entry->val);
-      }
-      if (!entry->val.constant) {
-        map.target_reg = slot_reg(entry_trace, entry->val);
-      }
+      ignoremap map = {.slot = exit_slot,
+                       .reg = exit_entry->val.constant
+                                  ? REG_NONE
+                                  : slot_reg(exit_trace, exit_entry->val),
+                       .target_reg = entry->val.constant
+                                         ? REG_NONE
+                                         : slot_reg(entry_trace, entry->val)};
       arrput(nullptr, loopback_regs, map);
+
+      if (exit_entry->val.constant && !entry->val.constant) {
+        arrput(nullptr, consts,
+               ((const_entry){.target_reg = map.target_reg,
+                              .constant_value =
+                                  slot_const(exit_trace, exit_entry->val)}));
+      } else if (!exit_entry->val.constant && !entry->val.constant &&
+                 map.reg != map.target_reg && map.target_reg != REG_NONE) {
+        arrput(nullptr, cpy,
+               ((par_copy){.from = map.reg, .to = map.target_reg}));
+      }
+
       i++;
       j++;
       continue;
@@ -507,45 +514,28 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
     }
 
     // entry slot lower than exit logical: unmatched entry -> stack load/const
-    ignoremap map = {.slot = entry_slot, .target_reg = REG_NONE};
-    if (entry->val.constant) {
-      map.action = LOOP_CONST;
-      map.constant_value = slot_const(entry_trace, entry->val);
-    } else {
-      map.action = LOOP_STACK_LOAD;
-      map.target_reg = slot_reg(entry_trace, entry->val);
+    if (!entry->val.constant) {
+      arrput(nullptr, loads,
+             ((load_entry){.slot = entry_slot,
+                           .target_reg = slot_reg(entry_trace, entry->val)}));
     }
-    arrput(nullptr, loopback_regs, map);
     j++;
   }
 
   // Remaining unmatched entry slots.
   while (j < entry_len) {
     auto entry = &entry_snap->slots[j];
-    ignoremap map = {.slot = entry->slot, .target_reg = REG_NONE};
-    if (entry->val.constant) {
-      map.action = LOOP_CONST;
-      map.constant_value = slot_const(entry_trace, entry->val);
-    } else {
-      map.action = LOOP_STACK_LOAD;
-      map.target_reg = slot_reg(entry_trace, entry->val);
+    if (!entry->val.constant) {
+      arrput(nullptr, loads,
+             ((load_entry){.slot = entry->slot,
+                           .target_reg = slot_reg(entry_trace, entry->val)}));
     }
-    arrput(nullptr, loopback_regs, map);
     j++;
   }
 
-  arr_for_each_idx(loopback_regs, i) {
-    auto reg_map = &loopback_regs[i];
-    if (reg_map->action == LOOP_COPY) {
-      if (reg_map->reg == REG_NONE || reg_map->target_reg == REG_NONE) {
-        continue;
-      }
-      arrput(nullptr, cpy,
-             ((par_copy){.from = reg_map->reg, .to = reg_map->target_reg}));
-    }
-  }
-
   *cpy_out = cpy;
+  *consts_out = consts;
+  *loads_out = loads;
   return loopback_regs;
 }
 
@@ -608,14 +598,22 @@ static void link_to_next_trace(emit_state *s, trace *t,
     COMMENT("Link to trace %i (snap exit %i)", t->link->num, cur_snap);
   }
 
+  // We try to reconcile the exit snapshot with the entry snapshot.
+  // We split to 1) registers that need parallel move, 2) constants that need
+  // loading. 3) slots that need saving (which is the inverse of 1, and done by
+  // ignoremap+emit_snap)
   par_copy *cpy = nullptr;
-  ignoremap *loopback_regs =
-      collect_loopback_moves(s, t, linked_trace, sn, entry_snap, &cpy);
-  // TODO is this duplicated?  Probably still need to adjust offset though.
+  const_entry *consts = nullptr;
+  load_entry *loads = nullptr;
+  ignoremap *loopback_regs = collect_loopback_moves(
+      s, t, linked_trace, sn, entry_snap, &cpy, &consts, &loads);
   emit_snap(s, t, sn, false, loopback_regs);
-  emit_loopback_stack_loads(s, loopback_regs);
-  emit_serialized_moves(s, cpy, loopback_regs);
+  emit_loopback_stack_loads(s, loads);
+  emit_serialized_moves(s, cpy);
+  emit_loopback_constants(s, consts);
   arrfree(loopback_regs);
+  arrfree(loads);
+  arrfree(consts);
 
   label *target =
       entry_snap_idx == 1 ? &t->link->snap_entry_label : &t->link->trace_start;
@@ -857,7 +855,7 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
              ((par_copy){.from = pmov_ins->prev_reg, .to = pmov_ins->reg}));
     }
   }
-  emit_serialized_moves(s, cpy, nullptr);
+  emit_serialized_moves(s, cpy);
 }
 
 trace_fn emit(trace *t, emit_state *s, record_state *record,
