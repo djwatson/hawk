@@ -168,10 +168,12 @@ typedef struct {
   uint16_t slot;
   uint8_t reg;
   uint8_t target_reg;
-  bool needs_constant;
+  enum {
+    LOOP_CONST,
+    LOOP_STACK_LOAD,
+    LOOP_COPY,
+  } action;
   int64_t constant_value;
-  bool needs_stack_load;
-  uint8_t type;
 } ignoremap;
 
 // NOLINTBEGIN(clang-analyzer-core.NullDereference)
@@ -352,18 +354,13 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
 }
 
 static void emit_loopback_constants(emit_state *s, ignoremap *loopback_regs) {
-  if (!loopback_regs) {
-    return;
-  }
   arr_for_each_idx(loopback_regs, i) {
     auto map = &loopback_regs[i];
-    if (!map->needs_constant) {
+    if (map->action != LOOP_CONST) {
       continue;
     }
-    if (map->target_reg == REG_NONE) {
-      continue;
-    }
-    if (map->target_reg >= FPR_REG_START) {
+    assert(map->target_reg != REG_NONE);
+    if (is_fpr_reg(map->target_reg)) {
       emit_fmov_constant(s, map->target_reg,
                          to_flonum((gc_obj){.value = map->constant_value})->x);
     } else {
@@ -419,19 +416,17 @@ static void emit_serialized_moves(emit_state *s, par_copy *cpy,
 }
 
 static void emit_loopback_stack_loads(emit_state *s, ignoremap *loopback_regs) {
-  if (!loopback_regs) {
-    return;
-  }
   arr_for_each_idx(loopback_regs, i) {
     auto reg_map = &loopback_regs[i];
-    if (!reg_map->needs_stack_load) {
+    if (reg_map->action != LOOP_STACK_LOAD) {
       continue;
     }
-    if (reg_map->target_reg == REG_NONE) {
-      continue;
-    }
+    assert(reg_map->target_reg != REG_NONE);
     auto stack_off = (int32_t)reg_map->slot * 8;
-    if (reg_map->type == FLONUM_TAG) {
+    if (is_fpr_reg(reg_map->target_reg)) {
+      // This has already been typechecked as a flonum in record.c
+      // ensure_args_match_trace, otherwise we would have picked a
+      // generic entry point with a GPR boxed flonum.
       emit_mem_load(s, stack_off, RSTACK, RTMP);
       emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, reg_map->target_reg);
     } else {
@@ -493,17 +488,16 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
     }
     if (entry_idx != SIZE_MAX) {
       auto entry = &entry_snap->slots[entry_idx];
-      ignoremap map = {.slot = exit_slot, .target_reg = REG_NONE};
+      ignoremap map = {
+          .slot = exit_slot, .target_reg = REG_NONE, .action = LOOP_COPY};
       if (exit_entry->val.constant) {
-        map.needs_constant = true;
+        map.action = LOOP_CONST;
         map.constant_value = slot_const(exit_trace, exit_entry->val);
       } else {
         map.reg = slot_reg(exit_trace, exit_entry->val);
-        map.type = slot_ins(exit_trace, exit_entry->val)->type;
       }
       if (!entry->val.constant) {
         map.target_reg = slot_reg(entry_trace, entry->val);
-        map.type = slot_ins(entry_trace, entry->val)->type;
       }
       entry_seen[entry_idx] = true;
       arrput(nullptr, loopback_regs, map);
@@ -518,12 +512,11 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
     auto entry = &entry_snap->slots[j];
     ignoremap map = {.slot = entry->slot, .target_reg = REG_NONE};
     if (entry->val.constant) {
-      map.needs_constant = true;
+      map.action = LOOP_CONST;
       map.constant_value = slot_const(entry_trace, entry->val);
     } else {
-      map.needs_stack_load = true;
+      map.action = LOOP_STACK_LOAD;
       map.target_reg = slot_reg(entry_trace, entry->val);
-      map.type = slot_ins(entry_trace, entry->val)->type;
     }
     arrput(nullptr, loopback_regs, map);
   }
@@ -532,20 +525,13 @@ static ignoremap *collect_loopback_moves(emit_state *s, trace *exit_trace,
 
   arr_for_each_idx(loopback_regs, i) {
     auto reg_map = &loopback_regs[i];
-    if (reg_map->needs_constant) {
-      continue;
-    }
-    if (reg_map->needs_stack_load) {
-      if (reg_map->target_reg == REG_NONE) {
-        abort();
+    if (reg_map->action == LOOP_COPY) {
+      if (reg_map->reg == REG_NONE || reg_map->target_reg == REG_NONE) {
+        continue;
       }
-      continue;
+      arrput(nullptr, cpy,
+             ((par_copy){.from = reg_map->reg, .to = reg_map->target_reg}));
     }
-    if (reg_map->reg == REG_NONE || reg_map->target_reg == REG_NONE) {
-      continue;
-    }
-    arrput(nullptr, cpy,
-           ((par_copy){.from = reg_map->reg, .to = reg_map->target_reg}));
   }
 
   *cpy_out = cpy;
