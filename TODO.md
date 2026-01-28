@@ -1,7 +1,5 @@
 # Currently working on:
 
-* get type names printing better, print_type_tag (needs color and short names???)
-
 * improve perf of IR_ALLOC
   
 * it looks like ir_load for non constant offsets needs to know type tag also
@@ -11,8 +9,10 @@
 * Do check for side-trace should be uprec abort
 * Do check for side-trace tail-call should be root loop abort
 
+* get type names printing better, print_type_tag (needs color and short names???)
+
 # VM impl
-* next: diviter, divrec, sumloop, nqueens.
+* next: diviter, sumloop, nqueens.
 
 * lookup check - fix expander thingy
 * optimistic globals - TODO fail.  Also needs expander fix. need to support set!
