@@ -394,11 +394,18 @@
         (#(primcall ,op ,args ,ann)
           (guard (assq op jcmp))
           (compile `#(primcall ,(cdr (assq op jcmp)) ,args ,ann) fun env top #f))
-        (,else (compile test fun env top #f) (add-op fun (list 'IF top top))))
+        (,else
+          (let ((treg (compile test fun env top #f)))
+            ;; IF reads its test from the data field; use the actual result reg.
+            (add-op fun `(IF ,treg ,treg)))))
       (let* ((offset (length (fun-code fun))) (brop (list 'JMP top 0)))
         (add-op fun brop)
         (compile then fun env top tail)
-        (set-car! (cddr brop) (- (length (fun-code fun)) offset)))
+        ;; If not in tail position, an extra JMP is inserted before the else
+        ;; path. Account for that so the false branch lands on else code.
+        (set-car! (cddr brop)
+                  (+ (- (length (fun-code fun)) offset)
+                     (if tail 0 1))))
       (let ((offset (length (fun-code fun))) (jop (list 'JMP top 0)))
         (unless tail (add-op fun jop))
         (let ((res (compile else fun env top tail)))
