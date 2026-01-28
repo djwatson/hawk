@@ -1,7 +1,5 @@
 # Currently working on:
 
-* improve perf of IR_ALLOC
-  
 * it looks like ir_load for non constant offsets needs to know type tag also
   old hawk had separate IR_REF and IR_VREF / IR_STRREFs for this.
 * Similarly, add/sub need to actually do overflow checks so we keep type info.
@@ -12,7 +10,7 @@
 * get type names printing better, print_type_tag (needs color and short names???)
 
 # VM impl
-* next: diviter, sumloop, nqueens.
+* next: sumloop, nqueens.
 
 * lookup check - fix expander thingy
 * optimistic globals - TODO fail.  Also needs expander fix. need to support set!
