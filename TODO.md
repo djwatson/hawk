@@ -1,5 +1,13 @@
 # Currently working on:
 
+## trying to get nqueens working
+
+* types are mixing up 'bool' and 'null' eg. literals 
+* need to implement regalloc spilling.
+* get downrec tracing working agian in nqueens
+
+## other
+
 * it looks like ir_load for non constant offsets needs to know type tag also
   old hawk had separate IR_REF and IR_VREF / IR_STRREFs for this.
 * Similarly, add/sub need to actually do overflow checks so we keep type info.
@@ -8,6 +16,7 @@
 * Do check for side-trace tail-call should be root loop abort
 
 * get type names printing better, print_type_tag (needs color and short names???)
+
 
 # VM impl
 * next: sumloop, nqueens.

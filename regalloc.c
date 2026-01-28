@@ -112,6 +112,7 @@ static void maybe_assign_register(regalloc_state *s, slot v, trace *t) {
       op->reg =
           ins_uses_freg(op) ? (uint8_t)alloc_fpr(s) : (uint8_t)alloc_gpr(s);
       if (op->reg == REG_NONE) {
+        printf("TODO MUST IMPLEMENT REG SPILLING\n");
         abort();
       }
       s->regs[op->reg].s = v.loc;

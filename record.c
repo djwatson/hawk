@@ -583,7 +583,11 @@ static void store_obj(vm_state *state, gc_obj *stack, bc *pc) {
 static slot load_obj(vm_state *state, gc_obj *stack, bc *pc) {
   auto obj = stack_load(state, stack, pc->v1, true);
   auto offset = stack_load(state, stack, pc->v2, true);
-  auto type = get_slot_type(record_current_trace(state), obj);
+  // Peek at leaded type
+  auto src = stack[pc->v1];
+  auto off = stack[pc->v2];
+  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
+  auto type = get_type_tag(base[to_fixnum(off)]);
 
   assert(offset.constant);
   offset = add_const(
@@ -856,8 +860,6 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
-  trace_match match =
-      ensure_args_match_trace(state, stack, cur_trace, cur_trace);
   if (arrlen(cur_trace->ins) <= ts->start_record_size) {
     return op_table;
   }
@@ -869,6 +871,8 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   //  check for up-recursion and abort, restart trying to capture an
   //  up-recursive trace.
   if (pc == ts->start_ins && !is_downrec_trace(ts)) {
+    trace_match match =
+        ensure_args_match_trace(state, stack, cur_trace, cur_trace);
     cur_trace->link = match.trace;
     cur_trace->link_entry_snap = match.matched ? 1 : 0;
     if (verbose) {
@@ -897,7 +901,8 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack) {
 
   if (verbose) {
     const char *fname = func_name_from_pc(pc);
-    printf("Record start %p %i %s\n", pc, record_trace_count(state), fname);
+    printf("Record start %p %i %s %s\n", pc, record_trace_count(state), fname,
+           instr.op == OP_RET ? "DOWNREC" : "");
   }
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   record_current_trace(state)->start_pc = instr;
