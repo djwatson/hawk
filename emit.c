@@ -430,8 +430,11 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
     emit_cmp_constant(s, RTMP, CONS_TAG);
     emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
   } else if (op->type == FLONUM_TAG) {
-    // These are already typechecked (and are in xmm register).
-    assert(is_fpr_reg(reg));
+    COMMENT("  typecheck flonum");
+    emit_mov(s, RTMP, reg);
+    emit_and_constant(s, RTMP, RTMP, TAG_MASK);
+    emit_cmp_constant(s, RTMP, FLONUM_TAG);
+    emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
   } else if (op->type == FUNC_TAG) {
     // func loads ONLY happen from closure loads, no need to typecheck.
   } else if ((op->type & TAG_MASK) == LITERAL_TAG) {

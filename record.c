@@ -202,6 +202,9 @@ static void vm_add_snap(vm_state *state, bc *pc) {
     arrpop(cur_trace->snaps);
     free_snap(old);
   }
+  if (verbose) {
+    printf("Add snap %i\n", arrlen(cur_trace->snaps));
+  }
   arrput(nullptr, cur_trace->snaps, sn);
 }
 
@@ -234,7 +237,11 @@ static slot add_inst(vm_state *state, ir_ins ins) {
   if (fold_res.action == FOLD_CONST) {
     return add_const(state, fold_res.constant);
   }
+
   auto idx = arrlen(trace_obj->ins);
+  if (verbose) {
+    printf("Add ins %zu\n", idx);
+  }
   arrput(nullptr, trace_obj->ins, ins);
   return (slot){.constant = false, .loc = idx};
 }
@@ -268,8 +275,9 @@ static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos,
     return res;
   }
   // emit stack load
-  ir_ins ins = IR(.op = IR_SLOAD, .data = pos, .type = get_type_tag(stack[pos]),
-                  .guard = typecheck);
+  trace_state *ts = record_trace_state(state);
+  ir_ins ins = IR(.op = IR_SLOAD, .data = pos + ts->stack_off,
+                  .type = get_type_tag(stack[pos]), .guard = typecheck);
 
   set_stack(state, pos, add_inst(state, ins));
   entry->changed = false;
@@ -997,9 +1005,6 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
       if (old_ins->spill != SPILL_NONE) {
         abort();
       } else {
-        if (old_ins->type == FLONUM_TAG && !old_ins->guard) {
-          abort();
-        }
         set_stack(state, entry->slot,
                   add_inst(state,
                            IR(.op = IR_PMOV, .prev_reg = old_ins->reg,
