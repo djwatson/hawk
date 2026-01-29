@@ -157,8 +157,8 @@ static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
        ((ins_var) =                                                            \
             next_leading_op((trace_ptr), (opcode), &_##ins_var##_idx));)
 
-static __attribute__((preserve_all)) gc_obj *
-jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
+static __attribute__((preserve_all))
+gc_obj *jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
   expand_stack(state, &stack);
   return stack;
 }
@@ -434,10 +434,16 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
     assert(is_fpr_reg(reg));
   } else if (op->type == FUNC_TAG) {
     // func loads ONLY happen from closure loads, no need to typecheck.
+  } else if ((op->type & TAG_MASK) == LITERAL_TAG) {
+    // Literal or other immediate types: compare full immediate byte.
+    uint8_t want_tag = (uint8_t)(op->type & IMMEDIATE_MASK);
+    COMMENT("  typecheck literal");
+    emit_mov(s, RTMP, reg);
+    emit_and_constant(s, RTMP, RTMP, IMMEDIATE_MASK);
+    emit_cmp_constant(s, RTMP, want_tag);
+    emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
   } else {
-    // TODO TODO TODO
-    COMMENT("  TODO typecheck OTHER");
-    /* abort(); */
+    abort();
   }
 }
 
