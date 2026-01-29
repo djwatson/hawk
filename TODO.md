@@ -2,8 +2,7 @@
 
 ## trying to get nqueens working
 
-* types are mixing up 'bool' and 'null' eg. literals 
-* need to implement regalloc spilling.
+* types are mixing up 'bool' and 'null' eg. literals  - bool needs to actually be true/false explciitly. I think
 * get downrec tracing working agian in nqueens
 
 ## other
@@ -17,6 +16,7 @@
 
 * get type names printing better, print_type_tag (needs color and short names???)
 
+* currently (cons) calls IR_STORE, but this forces a snapshot-  many more snapshots than really necessary (because we're only storing to NEW memory, we shouldn't need to snapshot).
 
 # VM impl
 * next: sumloop, nqueens.

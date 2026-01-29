@@ -76,6 +76,7 @@ static int spill_gpr(regalloc_state *s, uint16_t reload_at) {
   if (ir->spill == SPILL_NONE) {
     ir->spill = assign_spill(s);
   }
+  ir->reg = REG_NONE;
   s->regs[victim].used = false;
   arrput(nullptr, s->reloads,
          ((reload_info){(uint16_t)victim, reload_at, s->regs[victim].s}));
@@ -99,6 +100,7 @@ static int spill_fpr(regalloc_state *s, uint16_t reload_at) {
   if (ir->spill == SPILL_NONE) {
     ir->spill = assign_spill(s);
   }
+  ir->reg = REG_NONE;
   s->regs[victim].used = false;
   arrput(nullptr, s->reloads,
          ((reload_info){(uint16_t)victim, reload_at, s->regs[victim].s}));

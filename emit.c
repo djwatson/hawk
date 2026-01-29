@@ -431,7 +431,9 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
     emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
   } else if (op->type == FLONUM_TAG) {
     // These are already typechecked (and are in xmm register).
-    COMMENT("  TODO typecheck flonum");
+    assert(is_fpr_reg(reg));
+  } else if (op->type == FUNC_TAG) {
+    // func loads ONLY happen from closure loads, no need to typecheck.
   } else {
     // TODO TODO TODO
     COMMENT("  TODO typecheck OTHER");
@@ -883,6 +885,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
     // Emit spills.
     if (op->spill != SPILL_NONE) {
       int32_t spill_offset = (int32_t)op->spill * 8;
+      COMMENT("  ... spill");
       if (op->type == FLONUM_TAG) {
         emit_fstore(s, spill_offset, RSTACK, op->reg);
       } else {
@@ -895,6 +898,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
            regmap->reloads[reload_idx].reload_at == op_cnt_idx) {
       auto reload = regmap->reloads[reload_idx];
       auto spilled = &t->ins[reload.ir_idx];
+      COMMENT("RELOAD op %i to reg %s", reload.ir_idx, reg_names[reload.reg]);
       int32_t offset = (int32_t)spilled->spill * 8;
       if (spilled->type == FLONUM_TAG) {
         emit_fmem_load(s, offset, RSTACK, reload.reg);
