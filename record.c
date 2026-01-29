@@ -202,9 +202,6 @@ static void vm_add_snap(vm_state *state, bc *pc) {
     arrpop(cur_trace->snaps);
     free_snap(old);
   }
-  if (verbose) {
-    printf("Add snap %i\n", arrlen(cur_trace->snaps));
-  }
   arrput(nullptr, cur_trace->snaps, sn);
 }
 
@@ -239,9 +236,6 @@ static slot add_inst(vm_state *state, ir_ins ins) {
   }
 
   auto idx = arrlen(trace_obj->ins);
-  if (verbose) {
-    printf("Add ins %zu\n", idx);
-  }
   arrput(nullptr, trace_obj->ins, ins);
   return (slot){.constant = false, .loc = idx};
 }
@@ -1026,7 +1020,7 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
     }
     auto s = get_sentry(state, entry->slot);
     auto old_ins = &side_snap->trace->ins[entry->val.loc];
-    if (old_ins->guard) {
+    if (old_ins->guard || old_ins->type == FLONUM_TAG) {
       // Already typechecked.
       continue;
     }

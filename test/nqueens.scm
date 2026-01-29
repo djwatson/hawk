@@ -19,10 +19,9 @@
 (define (car a)
   (sys:LOAD a 0))
 (define (append a b)
-  (let loop ((a a) (b b))
-    (if (null? a)
-	b
-	(cons (car a) (loop (cdr a) b)))))
+  (if (null? a)
+      b
+      (cons (car a) (append (cdr a) b))))
 ;;;;;;;;;;;;;;;;;
 
 (define trace? #f)

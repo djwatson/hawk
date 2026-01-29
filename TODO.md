@@ -2,7 +2,7 @@
 
 ## trying to get nqueens working
 
-* types are mixing up 'bool' and 'null' eg. literals  - bool needs to actually be true/false explciitly. I think
+* fix fibfp (and then nqeeuns) trace explosion based on typecheck.
 * get downrec tracing working agian in nqueens
 
 ## other
