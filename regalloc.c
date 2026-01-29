@@ -199,8 +199,8 @@ regalloc_result regalloc(trace *t) {
     }
     auto op = &t->ins[op_cnt];
 
-    // If we need to spill, ensure we have a tmp reg.
-    if (op->reg == REG_NONE && op->spill != SPILL_NONE) {
+    // If we need to spill or typecheck, ensure we have a tmp reg.
+    if (op->reg == REG_NONE && (op->spill != SPILL_NONE || op->guard)) {
       maybe_assign_register(&s, (slot){.constant = false, .loc = op_cnt},
                             op_cnt);
     }

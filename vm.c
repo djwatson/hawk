@@ -466,28 +466,12 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
       }
     }
     if (should_try_side) {
-      if (res.snap->ir == 0) {
-        // It's a special, new-root trace!
-        // This happens when ARG typechecks fail.
-        if (verbose) {
-          printf("Try NEW root trace %i %i\n", res.snap->trace->num,
-                 res.snap->ir);
-        }
-        bc start = res.snap->trace->start_pc;
-        *instr = start;
-        record_start(state, *pc, start, *stack);
-        if (start.op != OP_RET) {
-          // Skip over FUNC/JFUNC so we actually record body instructions.
-          *pc = next_op(*pc);
-          *instr = **pc;
-        }
-      } else {
-        if (verbose) {
-          printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
-        }
-        record_start_side(state, *pc, *instr, *stack, res.snap,
-                          res.snap->ir == 0 ? res.snap : nullptr);
+      bool is_poly_trace = res.snap == &res.snap->trace->snaps[0];
+      if (verbose) {
+        printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
       }
+      record_start_side(state, *pc, *instr, *stack, res.snap,
+                        is_poly_trace ? res.snap : nullptr);
       return state->record_impls;
     }
   }

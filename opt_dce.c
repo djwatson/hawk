@@ -26,7 +26,7 @@ static void propagate(trace *trace, bool *marks) {
     auto ins = &trace->ins[i - 1];
 
     // TODO need to clean up and verify all ir_sideeff.
-    if (ir_sideeff(ins->op)) {
+    if (ir_sideeff(ins->op) || ins->guard) {
       marks[i - 1] = true;
     }
     if (!marks[i - 1]) {
