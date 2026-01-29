@@ -197,6 +197,12 @@ regalloc_result regalloc(trace *t) {
     }
     auto op = &t->ins[op_cnt];
 
+    // If we need to spill, ensure we have a tmp reg.
+    if (op->reg == REG_NONE && op->spill != SPILL_NONE) {
+      maybe_assign_register(&s, (slot){.constant = false, .loc = op_cnt},
+                            op_cnt);
+    }
+
     // free current register.  We don't free IR_ARG since they are all
     // live on entry.
     if (op->reg != REG_NONE && op->op != IR_ARG) {
