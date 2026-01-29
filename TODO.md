@@ -2,7 +2,9 @@
 
 ## trying to get nqueens working
 
-* fix fibfp (and then nqeeuns) trace explosion based on typecheck.
+* fix nqueens uprec tracing: 
+  * Do check for side-trace should be uprec abort
+  * Do check for side-trace tail-call should be root loop abort
 * get downrec tracing working agian in nqueens
 
 ## other
@@ -11,8 +13,6 @@
   old hawk had separate IR_REF and IR_VREF / IR_STRREFs for this.
 * Similarly, add/sub need to actually do overflow checks so we keep type info.
 
-* Do check for side-trace should be uprec abort
-* Do check for side-trace tail-call should be root loop abort
 
 * get type names printing better, print_type_tag (needs color and short names???)
 

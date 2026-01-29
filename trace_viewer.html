@@ -127,7 +127,7 @@
     }
     .opcode-row {
       display: grid;
-      grid-template-columns: 140px 1fr 1fr;
+      grid-template-columns: 140px 140px 1fr 1fr;
       gap: 12px;
       padding: 2px 6px;
       border-radius: 4px;
@@ -144,6 +144,13 @@
     }
     .opcode-name {
       font-size: 13px;
+    }
+    .opcode-func {
+      font-size: 13px;
+      color: #3b4660;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .opcode-coverage {
       display: flex;
@@ -535,7 +542,7 @@
           };
           continue;
         }
-        if (line.startsWith("record op:")) {
+        if (line.includes("record op:")) {
           current.bytecode.push(line);
           const parsed = parseRecordOp(line);
           if (parsed) {
@@ -578,16 +585,20 @@
     }
 
     function parseRecordOp(line) {
-      const parts = line.split("record op:")[1]?.trim();
+      const cleaned = line.replace(/^[\s\.]+/, "");
+      const parts = cleaned.split("record op:")[1]?.trim();
       if (!parts) {
         return null;
       }
-      const [addrRaw, opcode] = parts.split(/\s+/, 2);
+      const tokens = parts.split(/\s+/);
+      const addrRaw = tokens[0];
+      const opcode = tokens[1];
       if (!addrRaw || !opcode) {
         return null;
       }
+      const fn = tokens[tokens.length - 1];
       const { display, value } = normalizeAddress(addrRaw);
-      return { address: display, value, opcode: opcode.trim() };
+      return { address: display, value, opcode: opcode.trim(), fn };
     }
 
     function normalizeAddress(raw) {
@@ -618,6 +629,7 @@
             traceIndex: trace.traceNumber,
             orderIndex: trace.orderIndex ?? 0,
             opcode: op.opcode,
+            fn: op.fn,
             seq
           });
         });
@@ -785,6 +797,10 @@
           opcode.title = `Updated by Trace ${latest.traceIndex}`;
         }
 
+        const func = document.createElement("div");
+        func.className = "opcode-func";
+        func.textContent = latest?.fn ?? "—";
+
         const coverageCell = document.createElement("div");
         coverageCell.className = "opcode-coverage";
         if (coverage.length === 0) {
@@ -806,6 +822,7 @@
 
         row.appendChild(addr);
         row.appendChild(opcode);
+        row.appendChild(func);
         row.appendChild(coverageCell);
         fragment.appendChild(row);
       });
