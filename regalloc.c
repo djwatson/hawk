@@ -77,7 +77,8 @@ static int spill_gpr(regalloc_state *s, uint16_t reload_at) {
     ir->spill = assign_spill(s);
   }
   s->regs[victim].used = false;
-  arrput(nullptr, s->reloads, ((reload_info){(uint16_t)victim, reload_at}));
+  arrput(nullptr, s->reloads,
+         ((reload_info){(uint16_t)victim, reload_at, s->regs[victim].s}));
   return victim;
 }
 
@@ -99,7 +100,8 @@ static int spill_fpr(regalloc_state *s, uint16_t reload_at) {
     ir->spill = assign_spill(s);
   }
   s->regs[victim].used = false;
-  arrput(nullptr, s->reloads, ((reload_info){(uint16_t)victim, reload_at}));
+  arrput(nullptr, s->reloads,
+         ((reload_info){(uint16_t)victim, reload_at, s->regs[victim].s}));
   return victim;
 }
 
@@ -260,5 +262,6 @@ regalloc_result regalloc(trace *t) {
     }
   }
 
+  arr_reverse(s.reloads);
   return (regalloc_result){.bindings = bindings, .reloads = s.reloads};
 }

@@ -11,6 +11,7 @@ typedef struct {
 typedef struct {
   uint16_t reg;
   uint16_t reload_at;
+  uint16_t ir_idx;
 } reload_info;
 
 typedef struct {

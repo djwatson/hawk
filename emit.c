@@ -635,8 +635,9 @@ static void link_to_next_trace(emit_state *s, trace *t,
   emit_jmp32(s, target);
 }
 
-static void emit_ir(emit_state *s, trace *t) {
+static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
   int32_t cur_snap = 0;
+  size_t reload_idx = 0;
 
   for (int op_cnt_idx = 0; op_cnt_idx < arrlen(t->ins); op_cnt_idx++) {
     while (cur_snap < arrlen(t->snaps) &&
@@ -876,6 +877,19 @@ static void emit_ir(emit_state *s, trace *t) {
           op->op == IR_SUB || op->op == IR_ADD)) {
       abort();
     }
+
+    while (reload_idx < arrlen(regmap->reloads) &&
+           regmap->reloads[reload_idx].reload_at == op_cnt_idx) {
+      auto reload = regmap->reloads[reload_idx];
+      auto spilled = &t->ins[reload.ir_idx];
+      int32_t offset = (int32_t)spilled->spill * 8;
+      if (spilled->type == FLONUM_TAG) {
+        emit_fmem_load(s, offset, RSTACK, reload.reg);
+      } else {
+        emit_mem_load(s, offset, RSTACK, reload.reg);
+      }
+      reload_idx++;
+    }
   }
 }
 
@@ -930,9 +944,6 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   emit_init(s);
 
   // Allocate registers, print the IR in verbose mode.
-  if (verbose) {
-    print_ir(t);
-  }
   auto regmap = regalloc(t);
   if (verbose) {
     print_ir(t);
@@ -956,7 +967,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // (without typechecking).
   emit_label(s, &t->trace_start);
 
-  emit_ir(s, t);
+  emit_ir(s, t, &regmap);
 
   // Link to the next trace: Which is either ourselves (if a looping parent
   // trace), or another trace (if a side trace).
