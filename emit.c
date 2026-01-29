@@ -104,32 +104,34 @@ static inline int64_t slot_const(trace *t, slot v) {
   return t->consts[v.loc].value;
 }
 
-static void emit_cmp_slots(emit_state *s, trace *t, slot lhs, slot rhs) {
-  assert(!lhs.constant && "LHS must be a register");
-
+static void emit_cmp_regs(emit_state *s, trace *t, uint8_t lhs_reg, slot rhs,
+                          uint8_t rhs_reg) {
+  assert(lhs_reg != REG_NONE);
   if (rhs.constant) {
-    emit_cmp_constant(s, slot_reg(t, lhs), slot_const(t, rhs));
+    emit_cmp_constant(s, lhs_reg, slot_const(t, rhs));
     return;
   }
-
-  emit_cmp(s, slot_reg(t, lhs), slot_reg(t, rhs));
+  assert(rhs_reg != REG_NONE);
+  emit_cmp(s, lhs_reg, rhs_reg);
 }
 
-static void emit_arith_slots(emit_state *s, trace *t, uint8_t dst, slot lhs,
-                             slot rhs, bool is_sub) {
-  assert(!lhs.constant && "Left operand must be in a register");
+static void emit_arith_regs(emit_state *s, trace *t, uint8_t dst,
+                            uint8_t lhs_reg, slot rhs, uint8_t rhs_reg,
+                            bool is_sub) {
+  assert(lhs_reg != REG_NONE);
 
   if (rhs.constant) {
     if (is_sub) {
-      emit_sub_constant(s, dst, slot_reg(t, lhs), slot_const(t, rhs));
+      emit_sub_constant(s, dst, lhs_reg, slot_const(t, rhs));
     } else {
-      emit_add_constant(s, dst, slot_reg(t, lhs), slot_const(t, rhs));
+      emit_add_constant(s, dst, lhs_reg, slot_const(t, rhs));
     }
   } else {
+    assert(rhs_reg != REG_NONE);
     if (is_sub) {
-      emit_sub(s, dst, slot_reg(t, lhs), slot_reg(t, rhs));
+      emit_sub(s, dst, lhs_reg, rhs_reg);
     } else {
-      emit_add(s, dst, slot_reg(t, lhs), slot_reg(t, rhs));
+      emit_add(s, dst, lhs_reg, rhs_reg);
     }
   }
 }
@@ -258,32 +260,32 @@ static double slot_flonum_constant(trace *t, slot v) {
   abort();
 }
 
-static void emit_flonum_sub(emit_state *s, trace *t, ir_ins *op) {
+static void emit_flonum_sub(emit_state *s, trace *t, ir_ins *op,
+                            uint8_t lhs_reg, uint8_t rhs_reg) {
   assert(is_fpr_reg(op->reg));
   if (op->op2.constant) {
-    emit_fsub_constant(s, op->reg, slot_reg(t, op->op1),
-                       slot_flonum_constant(t, op->op2));
+    emit_fsub_constant(s, op->reg, lhs_reg, slot_flonum_constant(t, op->op2));
     return;
   }
-  emit_fsub(s, op->reg, slot_reg(t, op->op1), slot_reg(t, op->op2));
+  emit_fsub(s, op->reg, lhs_reg, rhs_reg);
 }
 
-static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins *op) {
+static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins *op,
+                            uint8_t lhs_reg, uint8_t rhs_reg) {
   if (op->op2.constant) {
-    emit_fcmp_constant(s, slot_reg(t, op->op1),
-                       slot_flonum_constant(t, op->op2));
+    emit_fcmp_constant(s, lhs_reg, slot_flonum_constant(t, op->op2));
     return;
   }
-  emit_fcmp(s, slot_reg(t, op->op1), slot_reg(t, op->op2));
+  emit_fcmp(s, lhs_reg, rhs_reg);
 }
-static void emit_flonum_add(emit_state *s, trace *t, ir_ins *op) {
+static void emit_flonum_add(emit_state *s, trace *t, ir_ins *op,
+                            uint8_t lhs_reg, uint8_t rhs_reg) {
   assert(is_fpr_reg(op->reg));
   if (op->op2.constant) {
-    emit_fadd_constant(s, op->reg, slot_reg(t, op->op1),
-                       slot_flonum_constant(t, op->op2));
+    emit_fadd_constant(s, op->reg, lhs_reg, slot_flonum_constant(t, op->op2));
     return;
   }
-  emit_fadd(s, op->reg, slot_reg(t, op->op1), slot_reg(t, op->op2));
+  emit_fadd(s, op->reg, lhs_reg, rhs_reg);
 }
 
 static void emit_box_flonum(emit_state *s, int32_t stack_offset,
@@ -337,13 +339,6 @@ static void emit_unbox_flonum(emit_state *s, uint8_t gpr_reg, uint8_t fpr_reg) {
   assert(!is_fpr_reg(gpr_reg));
   assert(is_fpr_reg(fpr_reg));
   emit_fmem_load(s, flonum_payload_offset - FLONUM_TAG, gpr_reg, fpr_reg);
-}
-
-static void emit_snap_store_flonum(emit_state *s, int32_t stack_offset,
-                                   ir_ins *ins) {
-  COMMENT("Snap store flonum reg %s to slot %i", reg_names[ins->reg],
-          stack_offset / 8);
-  emit_box_flonum(s, stack_offset, ins->reg, true);
 }
 
 static void emit_loopback_constants(emit_state *s, const_entry *consts) {
@@ -420,13 +415,9 @@ static void emit_loopback_stack_loads(emit_state *s, load_entry *loads) {
   }
 }
 static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
-                           int32_t cur_snap) {
+                           int32_t cur_snap, uint8_t reg) {
   if (!op->guard) {
     return;
-  }
-  uint8_t reg = op->reg;
-  if (op->op == IR_TYPECHECK) {
-    reg = slot_reg(t, op->op1);
   }
   if (op->type == FIXNUM_TAG) {
     COMMENT("  typecheck fix");
@@ -531,18 +522,25 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
   }
 
   auto ins = slot_ins(t, entry->val);
-  if (ins->type == FLONUM_TAG) {
-    emit_snap_store_flonum(s, stack_offset, ins);
-    return;
-  }
-
+  uint8_t val_reg = ins->reg;
   if (ins->spill != SPILL_NONE) {
-    abort();
-    /* jit_ldi(s->jit, JIT_R0, */
-    /*         &spill_gpr_slots[trace->ir[entry->val.loc].spill]); */
+    int32_t spill_offset = (int32_t)ins->spill * 8;
+    if (ins->type == FLONUM_TAG) {
+      emit_fmem_load(s, spill_offset, RSTACK, FRTMP);
+      val_reg = FRTMP;
+    } else {
+      emit_mem_load(s, spill_offset, RSTACK, RTMP);
+      val_reg = RTMP;
+    }
   }
 
-  emit_store(s, stack_offset, RSTACK, ins->reg);
+  if (ins->type == FLONUM_TAG) {
+    COMMENT("Snap store flonum reg %s to slot %i", reg_names[val_reg],
+            stack_offset / 8);
+    emit_box_flonum(s, stack_offset, val_reg, true);
+  } else {
+    emit_store(s, stack_offset, RSTACK, val_reg);
+  }
 }
 
 static void emit_snap(emit_state *s, trace *t, snap *snap, bool exit,
@@ -640,6 +638,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
   size_t reload_idx = 0;
 
   for (int op_cnt_idx = 0; op_cnt_idx < arrlen(t->ins); op_cnt_idx++) {
+    uint8_t arg0_reg = regmap->bindings[op_cnt_idx].arg[0].reg;
+    uint8_t arg1_reg = regmap->bindings[op_cnt_idx].arg[1].reg;
     while (cur_snap < arrlen(t->snaps) &&
            t->snaps[cur_snap + 1].ir == op_cnt_idx) {
       if (cur_snap == 0) {
@@ -653,12 +653,12 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
     switch (op->op) {
     case IR_GUARD_EQ:
     case IR_EQ: {
-      emit_cmp_slots(s, t, op->op1, op->op2);
+      emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
       emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_NE: {
-      emit_cmp_slots(s, t, op->op1, op->op2);
+      emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
       emit_jcc32(s, JE, &t->snaps[cur_snap].patch_point);
       break;
     }
@@ -667,21 +667,22 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
       assert(op->op2.constant);
       int64_t offset_bytes =
           to_fixnum(t->consts[op->op2.loc]) + (int64_t)sizeof(gc_header);
-      emit_mem_load(s, (int32_t)offset_bytes, slot_reg(t, op->op1), op->reg);
-      emit_typecheck(s, t, op, cur_snap);
+      emit_mem_load(s, (int32_t)offset_bytes, arg0_reg, op->reg);
+      emit_typecheck(s, t, op, cur_snap, op->reg);
       break;
     }
     case IR_STORE: {
       ir_ins *ref = slot_ins(t, op->op1);
+      uint16_t ref_idx = op->op1.loc;
 
       auto val_reg = RTMP;
       if (op->op2.constant) {
         emit_mov64(s, val_reg, slot_const(t, op->op2));
       } else {
-        val_reg = slot_reg(t, op->op2);
+        val_reg = arg1_reg;
       }
 
-      auto base_reg = slot_reg(t, ref->op1);
+      auto base_reg = regmap->bindings[ref_idx].arg[0].reg;
       if (ref->op2.constant) {
         // Offset is a constant.
         auto offset = slot_const(t, ref->op2) + (int64_t)(8 - op->type);
@@ -693,7 +694,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
         // don't
 
         // Offset is NOT a const, need additional offset + typed offset.
-        emit_mov(s, op->reg, slot_reg(t, ref->op2));
+        auto offset_reg = regmap->bindings[ref_idx].arg[1].reg;
+        emit_mov(s, op->reg, offset_reg);
         emit_add(s, op->reg, op->reg, base_reg);
         emit_store(s, 8 - op->type, op->reg, val_reg);
       }
@@ -704,20 +706,20 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
       break;
     }
     case IR_LT: {
-      emit_cmp_slots(s, t, op->op1, op->op2);
+      emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
       emit_jcc32(s, JGE, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_GT: {
-      emit_cmp_slots(s, t, op->op1, op->op2);
+      emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
       emit_jcc32(s, JLE, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_GTE: {
       if (op->type == FLONUM_TAG) {
-        emit_flonum_cmp(s, t, op);
+        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
       } else {
-        emit_cmp_slots(s, t, op->op1, op->op2);
+        emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
       }
       enum jcc_cond guard = (op->type == FLONUM_TAG) ? JB : JL;
       emit_jcc32(s, guard, &t->snaps[cur_snap].patch_point);
@@ -725,20 +727,20 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
     }
     case IR_SUB: {
       if (op->type == FLONUM_TAG) {
-        emit_flonum_sub(s, t, op);
+        emit_flonum_sub(s, t, op, arg0_reg, arg1_reg);
       } else {
-        emit_arith_slots(s, t, op->reg, op->op1, op->op2, true);
-        emit_typecheck(s, t, op, cur_snap);
+        emit_arith_regs(s, t, op->reg, arg0_reg, op->op2, arg1_reg, true);
+        emit_typecheck(s, t, op, cur_snap, op->reg);
       }
       break;
     }
     case IR_ADD: {
       if (op->type == FLONUM_TAG) {
-        emit_flonum_add(s, t, op);
+        emit_flonum_add(s, t, op, arg0_reg, arg1_reg);
       } else {
         // TODO: check for overflow
-        emit_arith_slots(s, t, op->reg, op->op1, op->op2, false);
-        emit_typecheck(s, t, op, cur_snap);
+        emit_arith_regs(s, t, op->reg, arg0_reg, op->op2, arg1_reg, false);
+        emit_typecheck(s, t, op, cur_snap, op->reg);
       }
       break;
     }
@@ -756,7 +758,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
       } else {
         emit_mem_load(s, (int32_t)op->data * 8, RSTACK, op->reg);
       }
-      emit_typecheck(s, t, op, cur_snap);
+      emit_typecheck(s, t, op, cur_snap, op->reg);
       break;
     }
     case IR_GGET: {
@@ -855,12 +857,12 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
     case IR_PMOV:
       break;
     case IR_TYPECHECK: {
-      emit_typecheck(s, t, op, cur_snap);
+      emit_typecheck(s, t, op, cur_snap, arg0_reg);
       if (op->reg == REG_NONE) {
       } else if (is_fpr_reg(op->reg)) {
-        emit_unbox_flonum(s, slot_reg(t, op->op1), op->reg);
+        emit_unbox_flonum(s, arg0_reg, op->reg);
       } else {
-        emit_mov(s, op->reg, slot_reg(t, op->op1));
+        emit_mov(s, op->reg, arg0_reg);
       }
       break;
     }
@@ -878,6 +880,17 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
       abort();
     }
 
+    // Emit spills.
+    if (op->spill != SPILL_NONE) {
+      int32_t spill_offset = (int32_t)op->spill * 8;
+      if (op->type == FLONUM_TAG) {
+        emit_fstore(s, spill_offset, RSTACK, op->reg);
+      } else {
+        emit_store(s, spill_offset, RSTACK, op->reg);
+      }
+    }
+
+    // Emit reloads.
     while (reload_idx < arrlen(regmap->reloads) &&
            regmap->reloads[reload_idx].reload_at == op_cnt_idx) {
       auto reload = regmap->reloads[reload_idx];
