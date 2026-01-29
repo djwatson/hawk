@@ -579,6 +579,7 @@ static void store_obj(vm_state *state, gc_obj *stack, bc *pc) {
   auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
   add_inst(state, IR(.op = IR_STORE, .op1 = ref, .op2 = val,
                      .type = get_slot_type(record_current_trace(state), obj)));
+  vm_add_snap(state, pc + 1);
 }
 static slot load_obj(vm_state *state, gc_obj *stack, bc *pc) {
   auto obj = stack_load(state, stack, pc->v1, true);

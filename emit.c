@@ -227,7 +227,7 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
       collect_regs_to_preserve(regs_in, arrlen(regs_in), regs_to_save);
 
   COMMENT("Emit stack guard check");
-  label done = {0};
+  label done = {};
   emit_mem_load(s, (int32_t)offsetof(vm_state, stack_limit), RSTATE, RTMP);
   emit_cmp(s, RSTACK, RTMP);
   emit_jcc32(s, JL, &done);
@@ -930,7 +930,10 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   emit_init(s);
 
   // Allocate registers, print the IR in verbose mode.
-  regalloc(t);
+  if (verbose) {
+    print_ir(t);
+  }
+  auto regmap = regalloc(t);
   if (verbose) {
     print_ir(t);
   }
@@ -959,7 +962,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // trace), or another trace (if a side trace).
   link_to_next_trace(s, t, link_entry_snap);
 
-  label exit_label = {0};
+  label exit_label = {};
   // Exist stubs for all but the loopback (last). These restore the scheme stack
   // state, putting any in-register values back on the stack, and boxing
   // flonums.
@@ -981,6 +984,8 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // Cleanup
   zone_free(&s->z);
   s->comments = nullptr;
+  arrfree(regmap.reloads);
+  free(regmap.bindings);
 
   // Install debuginfo for gdb & linux perf tool.
   char funcname[256];
