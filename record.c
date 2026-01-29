@@ -866,6 +866,19 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   if (arrlen(cur_trace->ins) <= ts->start_record_size) {
     return op_table;
   }
+  int64_t cnt = 0;
+  if (pc->op == OP_FUNC) {
+    auto p_pc = to_return_address(stack[-1]);
+    auto ret_pc = p_pc;
+    auto pstack = stack;
+    for (auto d = ts->depth - 1; d > 0; d--) {
+      pstack = pstack - (p_pc - 1)->reg - 1;
+      p_pc = to_return_address(pstack[-1]);
+      if (p_pc == ret_pc) {
+        cnt++;
+      }
+    }
+  }
   // Several cases.
   // parent trace:
   //  depth == 0: tailcalled loop.
@@ -886,6 +899,13 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
       }
     }
     record_finish(pc, state);
+    return state->impls;
+  }
+  if (pc != ts->start_ins && cnt > 0) {
+    if (verbose) {
+      printf("Record abort: uprec detected, restart\n");
+    }
+    record_abort(state);
     return state->impls;
   }
   return op_table;
