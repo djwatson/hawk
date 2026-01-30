@@ -157,8 +157,8 @@ static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
        ((ins_var) =                                                            \
             next_leading_op((trace_ptr), (opcode), &_##ins_var##_idx));)
 
-static __attribute__((preserve_all))
-gc_obj *jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
+static __attribute__((preserve_all)) gc_obj *
+jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
   expand_stack(state, &stack);
   return stack;
 }
@@ -777,6 +777,13 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
     case IR_GGET: {
       emit_mov64(s, RTMP, slot_const(t, op->op1) - SYMBOL_TAG);
       emit_mem_load(s, 16, RTMP, op->reg);
+      emit_typecheck(s, t, op, cur_snap, op->reg);
+      break;
+    }
+    case IR_GSET: {
+      emit_mov64(s, RTMP, slot_const(t, op->op1) - SYMBOL_TAG);
+      assert(!op->op2.constant);
+      emit_store(s, 16, RTMP, slot_reg(t, op->op2));
       break;
     }
     case IR_RET: {
@@ -889,7 +896,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
     if (op->guard &&
         !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
           op->op == IR_LOAD || op->op == IR_ALLOC || op->op == IR_TYPECHECK ||
-          op->op == IR_SUB || op->op == IR_ADD)) {
+          op->op == IR_SUB || op->op == IR_ADD || op->op == IR_GGET)) {
       abort();
     }
 

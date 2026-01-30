@@ -188,9 +188,6 @@ void print_ir(trace *t) {
       printf(" +%i", ins->data);
       break;
     }
-    if (arg_type == IR_ARG_NONE_NONE && ins->data) {
-      printf(" data=%u", ins->data);
-    }
     printf("\n");
   }
 }

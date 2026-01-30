@@ -231,6 +231,10 @@ regalloc_result regalloc(trace *t) {
       maybe_assign_register(&s, op->op1, op_cnt);
       bindings[op_cnt].arg[0].reg = slot_reg(t, op->op1);
       break;
+    case IR_GSET:
+      maybe_assign_register(&s, op->op2, op_cnt);
+      bindings[op_cnt].arg[1].reg = slot_reg(t, op->op2);
+      break;
     case IR_STORE:
       auto ref = slot_ins(t, op->op1);
       uint16_t ref_idx = op->op1.loc;

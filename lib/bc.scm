@@ -298,7 +298,7 @@
 ;; branching versions.  Replace comparison ops with branching +
 ;; comparison if in an 'if' test position, otherwise replace with a
 ;; branch + true/false constant result.
-(define jcmp '((LT . JLT) (EQV . JEQV)))
+(define jcmp '((LT . JLT) (GT . JGT) (LTE . JLTE) (GTE . JGTE) (EQV . JEQV)))
 (define (lower-comparisons ir)
   (match ir
     ;; If it's already behind a if test, it's okay
@@ -628,11 +628,10 @@
           run-expansion
           simple-pass
           fix-letrec
-          debug-print
           assignment-conversion
-          debug-print
           lower-comparisons
           recover-let
+          debug-print
           name-lambdas
           fix-all
           uncover-free
@@ -677,27 +676,5 @@
 ;; closure convert - just ensure no free.
 ;; DONE inline simple prims.
 ;; output BC.
-#|
-static size_t pvarint_len(const uint8_t p) {
-  return 1 + __builtin_ctz(p | 0x100);
-}
 
-static uint64_t read_pvarint(FILE *fptr) {
-  uint64_t res;
-  if (1 != fread(&res, 1, 1, fptr)) {
-    read_error();
-  }
-  uint8_t len = pvarint_len(res);
-  if (len < 9) {
-    size_t unused = 64 - 8 * len;
-    if (len - 1 != fread(((uint8_t *)&res) + 1, 1, len - 1, fptr)) {
-      read_error();
-    }
-    return res << unused >> (unused + len);
-  }
-  if (8 != fread(&res, 1, 8, fptr)) {
-    read_error();
-  }
-  return res;
-}
-|#
+
