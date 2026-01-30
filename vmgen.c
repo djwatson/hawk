@@ -62,12 +62,12 @@ END OP_BEGIN(RET) {
   // don't record down-rec before up-rec.  Or alternatively, maybe
   // ONLY enable down-rec recording if the function has an up-rec trace already.
 
-  /* auto res = check_record_start(pc, stack, state, op_table); */
-  /* if (res != op_table) { */
-  /*   op_table = res; */
-  /*   instr = *pc; */
-  /*   dispatch_next(pc, stack); */
-  /* } */
+  auto res = check_record_start(pc, stack, state, op_table);
+  if (res != op_table) {
+    op_table = res;
+    instr = *pc;
+    dispatch_next(pc, stack);
+  }
   auto old_op_table = op_table;
   auto frame = return_frame(state, instr, pc, stack, op_table);
   pc = frame.pc;

@@ -1,12 +1,5 @@
 # Currently working on:
 
-## trying to get nqueens working
-
-* fix nqueens uprec tracing: 
-  * Do check for side-trace should be uprec abort
-  * Do check for side-trace tail-call should be root loop abort
-* get downrec tracing working agian in nqueens
-
 ## other
 
 * it looks like ir_load for non constant offsets needs to know type tag also
@@ -18,8 +11,11 @@
 
 * currently (cons) calls IR_STORE, but this forces a snapshot-  many more snapshots than really necessary (because we're only storing to NEW memory, we shouldn't need to snapshot).
 
+* Do check for side-trace tail-call should be root loop abort
+   * have code, need to see if useful on more tests
+
 # VM impl
-* next: sumloop, nqueens.
+* next: sumloop
 
 * lookup check - fix expander thingy
 * optimistic globals - TODO fail.  Also needs expander fix. need to support set!
