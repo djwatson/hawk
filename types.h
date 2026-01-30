@@ -239,6 +239,9 @@ static inline uint32_t get_type_tag(gc_obj obj) {
   if (is_ptr(obj)) {
     return ((uint32_t *)(obj.value - PTR_TAG))[0];
   }
+  if (is_literal(obj)) {
+    return get_imm_tag(obj);
+  }
   return get_tag(obj);
 }
 static inline bool is_heap_object(gc_obj obj) {
