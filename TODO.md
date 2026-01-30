@@ -11,7 +11,6 @@
 * currently (cons) calls IR_STORE, but this forces a snapshot-  many more snapshots than really necessary (because we're only storing to NEW memory, we shouldn't need to snapshot).
 
 # VM impl
-* next: sumloop
 
 * lookup check - fix expander thingy
 * optimistic globals - TODO fail.  Also needs expander fix. need to support set!

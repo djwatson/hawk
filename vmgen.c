@@ -134,20 +134,20 @@ END OP_BEGIN(JFUNC) {
   op_func impl = ((op_func *)op_table)[instr.op];
   MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
 }
-END OP_BEGIN(JLT) {
-  auto v1 = stack_load(state, stack, instr.v1, true);
-  auto v2 = stack_load(state, stack, instr.v2, true);
-  auto res = emit_math_cmp_lt(state, pc, stack, v1, v2);
-  pc = branch_if_op(state, pc, stack, res);
-  dispatch_next(pc, stack);
+#define CMP_BRANCH(OPNAME, EMIT_FN)                                           \
+END OP_BEGIN(OPNAME) {                                                        \
+  auto v1 = stack_load(state, stack, instr.v1, true);                         \
+  auto v2 = stack_load(state, stack, instr.v2, true);                         \
+  auto res = EMIT_FN(state, pc, stack, v1, v2);                               \
+  pc = branch_if_op(state, pc, stack, res);                                   \
+  dispatch_next(pc, stack);                                                   \
 }
-END OP_BEGIN(JEQV) {
-  auto v1 = stack_load(state, stack, instr.v1, true);
-  auto v2 = stack_load(state, stack, instr.v2, true);
-  auto res = emit_math_cmp_eq(state, pc, stack, v1, v2);
-  pc = branch_if_op(state, pc, stack, res);
-  dispatch_next(pc, stack);
-}
+
+CMP_BRANCH(JLT, emit_math_cmp_lt)
+CMP_BRANCH(JGT, emit_math_cmp_gt)
+CMP_BRANCH(JLTE, emit_math_cmp_lte)
+CMP_BRANCH(JGTE, emit_math_cmp_gte)
+CMP_BRANCH(JEQV, emit_math_cmp_eq)
 END OP_BEGIN(IF) {
   auto v = stack_load(state, stack, instr.data, false);
   auto res = emit_if_branch(state, pc, stack, v);

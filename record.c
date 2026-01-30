@@ -331,30 +331,36 @@ static slot emit_ov_math_sub(vm_state *state, slot v1, slot v2) {
       IR(.op = IR_SUB, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
   return add_inst(state, ins);
 }
-static branch_result emit_math_cmp_lt(vm_state *state, bc *pc, gc_obj *stack,
-                                      slot v1, slot v2) {
-  auto lhs = stack[pc->v1];
-  auto rhs = stack[pc->v2];
-  bool res = to_fixnum(lhs) < to_fixnum(rhs);
-  auto t = record_current_trace(state);
-  auto t1 = get_slot_type(t, v1);
-  auto t2 = get_slot_type(t, v2);
-  if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
-    v1 = convert_to_flonum(state, v1);
-    v2 = convert_to_flonum(state, v2);
-  } else if (t1 == FIXNUM_TAG && t2 == FIXNUM_TAG) {
-    // OK.
-  } else {
-    abort();
+#define DEFINE_BRANCH_CMP(name, taken_op, not_taken_op, cmp_expr)              \
+  static branch_result emit_math_cmp_##name(vm_state *state, bc *pc,           \
+                                            gc_obj *stack, slot v1, slot v2) { \
+    auto lhs = stack[pc->v1];                                                  \
+    auto rhs = stack[pc->v2];                                                  \
+    bool res = (cmp_expr);                                                     \
+    auto t = record_current_trace(state);                                      \
+    auto t1 = get_slot_type(t, v1);                                            \
+    auto t2 = get_slot_type(t, v2);                                            \
+    if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {                                \
+      v1 = convert_to_flonum(state, v1);                                       \
+      v2 = convert_to_flonum(state, v2);                                       \
+    } else if (t1 == FIXNUM_TAG && t2 == FIXNUM_TAG) {                         \
+      /* OK. */                                                                \
+    } else {                                                                   \
+      abort();                                                                 \
+    }                                                                          \
+                                                                               \
+    branch_result br = {                                                       \
+        .taken = res,                                                          \
+        .guard = IR(.op = res ? taken_op : not_taken_op, .op1 = v1, .op2 = v2, \
+                    .type = get_slot_type(record_current_trace(state), v1)),   \
+    };                                                                         \
+    return br;                                                                 \
   }
 
-  branch_result br = {
-      .taken = res,
-      .guard = IR(.op = res ? IR_LT : IR_GTE, .op1 = v1, .op2 = v2,
-                  .type = get_slot_type(record_current_trace(state), v1)),
-  };
-  return br;
-}
+DEFINE_BRANCH_CMP(lt, IR_LT, IR_GTE, to_fixnum(lhs) < to_fixnum(rhs))
+DEFINE_BRANCH_CMP(gt, IR_GT, IR_LTE, to_fixnum(lhs) > to_fixnum(rhs))
+DEFINE_BRANCH_CMP(lte, IR_LTE, IR_GT, to_fixnum(lhs) <= to_fixnum(rhs))
+DEFINE_BRANCH_CMP(gte, IR_GTE, IR_LT, to_fixnum(lhs) >= to_fixnum(rhs))
 static branch_result emit_math_cmp_eq(vm_state *state, bc *pc, gc_obj *stack,
                                       slot v1, slot v2) {
   auto lhs = stack[pc->v1];
@@ -540,12 +546,12 @@ static slot sym_load(vm_state *state, slot sym) {
     s->opt = 1;
     return add_const(state, s->val);
   }
-  ir_ins ins = IR(.op = IR_GGET, .op1 = sym);
+  ir_ins ins = IR(.op = IR_GGET, .op1 = sym, .type = get_type_tag(s->val));
 
   return add_inst(state, ins);
 }
 static void sym_store(vm_state *state, slot sym, slot val) {
-  ir_ins ins = IR(.op = IR_GSET, .op1 = sym);
+  ir_ins ins = IR(.op = IR_GSET, .op1 = sym, .op2 = val);
   add_inst(state, ins);
 }
 static void obj_write(vm_state *state, slot val, void **op_table) {
