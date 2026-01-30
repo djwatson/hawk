@@ -226,6 +226,12 @@ if(BUILD_TESTING)
   set_tests_properties(hawk_sum1 PROPERTIES PASS_REGULAR_EXPRESSION "500001500001")
 
   add_test(
+    NAME hawk_sumloop
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sumloop.scm.bc
+  )
+  set_tests_properties(hawk_sumloop PROPERTIES PASS_REGULAR_EXPRESSION "1000000000")
+
+  add_test(
     NAME hawk_tak
     COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/tak.scm.bc
   )
