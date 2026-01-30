@@ -6,13 +6,9 @@
   old hawk had separate IR_REF and IR_VREF / IR_STRREFs for this.
 * Similarly, add/sub need to actually do overflow checks so we keep type info.
 
-
 * get type names printing better, print_type_tag (needs color and short names???)
 
 * currently (cons) calls IR_STORE, but this forces a snapshot-  many more snapshots than really necessary (because we're only storing to NEW memory, we shouldn't need to snapshot).
-
-* Do check for side-trace tail-call should be root loop abort
-   * have code, need to see if useful on more tests
 
 # VM impl
 * next: sumloop
@@ -59,6 +55,9 @@
   top-of-stack tracking like previous.
 * multiple return values from the start
 * punt on: more than 256 refs.
+* Do check for side-trace tail-call should be root loop abort
+   * have code, need to see if useful on more tests
+
 
 ### opts
 

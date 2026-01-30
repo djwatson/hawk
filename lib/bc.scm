@@ -56,7 +56,15 @@
     (,else (error "Invalid IR:" ir)))
   ir)
 
-(define primcalls '((+ . ADD) (- . SUB) (< . LT) (= . EQV) (display . WRITE)))
+(define primcalls
+  '((+ . ADD)
+    (- . SUB)
+    (< . LT)
+    (> . GT)
+    (= . EQV)
+    (>= . GTE)
+    (<= . LTE)
+    (display . WRITE)))
 (define (variable-assigned? var) (vector-ref var 2))
 (define (variable-name var) (vector-ref var 1))
 ;; Inlines primitives, verifies no assigned vars (TODO)
@@ -64,14 +72,63 @@
   (match ir
     (#(app #(ref #(var ,name #f (core primitive)) #t #f ,ann) ,args ,ann2)
       (guard (assq name primcalls))
-      ;;(display "FOUND primcall to ") (display name) (newline)
       `#(primcall ,(cdr (assq name primcalls)) ,(map simple-pass args) ,ann))
-    ;; TODO check not assigned?
-    (#(ref ,var ,global ,mutable ,ann)
-      (when (variable-assigned? var) (error "var assigned" var))
-      ir)
-    (#(set! ,var ,exp ,global? ,ann) (error "Set! not supported yet"))
     (,else (cont-pass ir simple-pass))))
+
+(define (assignment-conversion ir)
+  (let ((counter 0))
+    (define (fresh-box var)
+      (set! counter (+ counter 1))
+      (vector 'var
+              (string->symbol (string-append (symbol->string (variable-name var))
+                                             "-box"
+                                             (number->string counter)))
+              #f
+              #f))
+
+    (define (convert expr boxes)
+      (match expr
+        (#(ref ,var ,global ,mutable ,ann)
+          (cond
+            ((assq var boxes) =>
+               (lambda (box)
+                 `#(primcall LOAD (#(ref ,(cdr box) #f #t #f) #(quote 0 ,ann)) ,ann)))
+            (else expr)))
+
+        (#(set! ,var ,exp ,global? ,ann)
+          (let ((new-exp (convert exp boxes)))
+            (cond
+              ((assq var boxes) =>
+                 (lambda (box)
+                   `#(primcall STORE (#(ref ,(cdr box) #f #t #f) ,new-exp #(quote 0 ,ann)) ,ann)))
+              (else `#(set! ,var ,new-exp ,global? ,ann)))))
+
+        (#(lambda ,args ,body ,ann)
+          (let* ((arg-list (to-proper args))
+                 (boxed-args (filter variable-assigned? arg-list))
+                 (new-boxes (map (lambda (v) (cons v (fresh-box v))) boxed-args))
+                 (allocs
+                    (map (lambda (b)
+                           `(,(cdr b) #(primcall ALLOC (#(quote 24 ,ann) #(quote 3 ,ann)) ,ann)))
+                         new-boxes))
+                 (stores
+                    (map (lambda (b)
+                           `#(primcall STORE
+                                       (#(ref ,(cdr b) #f #t #f)
+                                        #(ref ,(car b) #f #t #f)
+                                        #(quote 0 ,ann))
+                                       ,ann))
+                         new-boxes))
+                 (new-body (convert body (append new-boxes boxes)))
+                 (body*
+                    (if (null? stores) new-body `#(begin ,(append stores (list new-body)) ,ann))))
+            (if (null? new-boxes)
+                `#(lambda ,args ,new-body ,ann)
+                `#(lambda ,args #(let ,allocs ,body* ,ann) ,ann))))
+
+        (,else (cont-pass expr (lambda (child) (convert child boxes))))))
+
+    (convert ir '())))
 
 (define (recover-let ir)
   (match ir
@@ -403,9 +460,7 @@
         (compile then fun env top tail)
         ;; If not in tail position, an extra JMP is inserted before the else
         ;; path. Account for that so the false branch lands on else code.
-        (set-car! (cddr brop)
-                  (+ (- (length (fun-code fun)) offset)
-                     (if tail 0 1))))
+        (set-car! (cddr brop) (+ (- (length (fun-code fun)) offset) (if tail 0 1))))
       (let ((offset (length (fun-code fun))) (jop (list 'JMP top 0)))
         (unless tail (add-op fun jop))
         (let ((res (compile else fun env top tail)))
@@ -442,14 +497,16 @@
       (let loop ((atop top) (args args) (argres '()))
         (if (null? args)
             (let ((argres (reverse argres)))
-              (add-op fun
-                      `(,op ,@(if (eq? op 'STORE) '() (list top)) ,@argres)))
+              (add-op fun `(,op ,@(if (eq? op 'STORE) '() (list top)) ,@argres)))
             (let* ((arg (car args))
                    (res (compile arg fun env atop #f))
                    (next (if (= res atop) (+ atop 1) atop)))
               (loop next (cdr args) (cons res argres)))))
       (finish top))
     (#(define ,var ,(compile-cont exp) ,ann)
+      (add-op fun `(DEFINE ,exp ,(add-const fun (variable-name var))))
+      #f)
+    (#(set! ,var ,(compile-cont exp) #t ,ann)
       (add-op fun `(DEFINE ,exp ,(add-const fun (variable-name var))))
       #f)
     (#(begin (,sexps ___ ,tail-sexp) ,ann)
@@ -569,14 +626,15 @@
       (-> port
           read-file
           run-expansion
-          debug-print
           simple-pass
           fix-letrec
+          debug-print
+          assignment-conversion
+          debug-print
           lower-comparisons
           recover-let
           name-lambdas
           fix-all
-          debug-print
           uncover-free
           convert-closures))
     (define main (make-fun "main"))

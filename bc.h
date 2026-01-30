@@ -54,6 +54,9 @@
   X(FUNC, A)                                                                   \
   X(JFUNC, AD)                                                                 \
   X(JLT, ABC)                                                                  \
+  X(JGT, ABC)                                                                  \
+  X(JLTE, ABC)                                                                 \
+  X(JGTE, ABC)                                                                 \
   X(JEQV, ABC)                                                                 \
   X(GUARD, ABC)                                                                \
   X(IF, AD)                                                                    \
