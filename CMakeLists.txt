@@ -254,6 +254,30 @@ if(BUILD_TESTING)
   set_tests_properties(
     hawk_fibfp PROPERTIES PASS_REGULAR_EXPRESSION "9227465.0"
   )
+
+  add_test(
+    NAME hawk_diviter
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/diviter.scm.bc
+  )
+  set_tests_properties(
+    hawk_diviter PROPERTIES PASS_REGULAR_EXPRESSION "5000000"
+  )
+
+  add_test(
+    NAME hawk_divrec
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/divrec.scm.bc
+  )
+  set_tests_properties(
+    hawk_divrec PROPERTIES PASS_REGULAR_EXPRESSION "5000000"
+  )
+
+  add_test(
+    NAME hawk_nqueens
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/nqueens.scm.bc
+  )
+  set_tests_properties(
+    hawk_nqueens PROPERTIES PASS_REGULAR_EXPRESSION "73712"
+  )
 endif()
 
 file(
