@@ -1,5 +1,18 @@
 # Currently working on:
 
+## tests:
+* primes.scm
+* array1.scm
+* takl.scm
+* deriv.scm
+* fft.scm
+* bst.scm
+* nbody.scm
+
+* probably need to fix closure conversion at some point
+* need to get a real runtime/bootstrap file
+* get r5rs scm working
+
 ## other
 
 * it looks like ir_load for non constant offsets needs to know type tag also
