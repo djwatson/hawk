@@ -1,7 +1,8 @@
 # Currently working on:
 
+* fix remove RET downrec primes.scm
+
 ## tests:
-* primes.scm
 * array1.scm
 * takl.scm
 * deriv.scm

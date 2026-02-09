@@ -744,7 +744,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
       } else {
         emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
       }
-      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JBE : JLE;
+      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JA : JG;
       emit_jcc32(s, guard, &t->snaps[cur_snap].patch_point);
       break;
     }
