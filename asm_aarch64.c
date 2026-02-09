@@ -30,6 +30,7 @@ void asm_mark_unallocatable(bool used[MAX_REG]) {
   used[FP] = true;
   used[LR] = true;
   used[RTMP] = true;
+  used[RTMP2] = true;
   used[RSTACK] = true;
   used[RSTATE] = true;
   used[X16] = true;
@@ -566,6 +567,27 @@ static void emit_add_sub_constant(emit_state *s, uint32_t base,
   emit_add_sub(s, reg_base, dst, lhs, RTMP);
 }
 
+static void emit_sdiv(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  assert(dst < FPR_REG_START);
+  assert(lhs < FPR_REG_START);
+  assert(rhs < FPR_REG_START);
+  uint32_t opcode = 0x9AC00C00U | ((uint32_t)rhs << 16) |
+                    ((uint32_t)lhs << 5) | (uint32_t)dst;
+  emit_op(s, opcode);
+}
+
+static void emit_msub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs,
+                      uint8_t acc) {
+  assert(dst < FPR_REG_START);
+  assert(lhs < FPR_REG_START);
+  assert(rhs < FPR_REG_START);
+  assert(acc < FPR_REG_START);
+  uint32_t opcode = 0x9B008000U | ((uint32_t)rhs << 16) |
+                    ((uint32_t)acc << 10) | ((uint32_t)lhs << 5) |
+                    (uint32_t)dst;
+  emit_op(s, opcode);
+}
+
 void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   emit_add_sub(s, 0x8B000000U, dst, lhs, rhs);
 }
@@ -581,11 +603,24 @@ void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
 }
 
 void emit_mod(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
-  (void)s;
-  (void)dst;
-  (void)lhs;
-  (void)rhs;
-  abort();
+  assert(dst < FPR_REG_START);
+  assert(lhs < FPR_REG_START);
+  assert(rhs < FPR_REG_START);
+
+  // Preserve operands in dedicated scratch regs:
+  //   RTMP2 = lhs, RTMP = rhs
+  // then compute:
+  //   dst = sdiv(RTMP2, RTMP)
+  //   dst = msub(dst, RTMP, RTMP2) => RTMP2 - dst*RTMP
+  if (rhs == RTMP2) {
+    emit_mov(s, RTMP, rhs);
+    emit_mov(s, RTMP2, lhs);
+  } else {
+    emit_mov(s, RTMP2, lhs);
+    emit_mov(s, RTMP, rhs);
+  }
+  emit_sdiv(s, dst, RTMP2, RTMP);
+  emit_msub(s, dst, dst, RTMP, RTMP2);
 }
 
 void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
