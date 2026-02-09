@@ -738,11 +738,35 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
       emit_jcc32(s, guard, &t->snaps[cur_snap].patch_point);
       break;
     }
+    case IR_LTE: {
+      if (op->type == FLONUM_TAG) {
+        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
+      } else {
+        emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
+      }
+      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JBE : JLE;
+      emit_jcc32(s, guard, &t->snaps[cur_snap].patch_point);
+      break;
+    }
     case IR_SUB: {
       if (op->type == FLONUM_TAG) {
         emit_flonum_sub(s, t, op, arg0_reg, arg1_reg);
       } else {
         emit_arith_regs(s, t, op->reg, arg0_reg, op->op2, arg1_reg, true);
+        emit_typecheck(s, t, op, cur_snap, op->reg);
+      }
+      break;
+    }
+    case IR_MOD: {
+      if (op->type == FLONUM_TAG) {
+        abort();
+      } else {
+        if (op->op2.constant) {
+          emit_mov64(s, RTMP, slot_const(t, op->op2));
+          emit_mod(s, op->reg, arg0_reg, RTMP);
+        } else {
+          emit_mod(s, op->reg, arg0_reg, arg1_reg);
+        }
         emit_typecheck(s, t, op, cur_snap, op->reg);
       }
       break;
@@ -896,7 +920,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
     if (op->guard &&
         !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
           op->op == IR_LOAD || op->op == IR_ALLOC || op->op == IR_TYPECHECK ||
-          op->op == IR_SUB || op->op == IR_ADD || op->op == IR_GGET)) {
+          op->op == IR_SUB || op->op == IR_ADD || op->op == IR_MOD ||
+          op->op == IR_GGET)) {
       abort();
     }
 

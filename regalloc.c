@@ -218,9 +218,11 @@ regalloc_result regalloc(trace *t) {
     case IR_NE:
     case IR_LT:
     case IR_GT:
+    case IR_LTE:
     case IR_GTE:
     case IR_SUB:
     case IR_ADD:
+    case IR_MOD:
       maybe_assign_register(&s, op->op1, op_cnt);
       maybe_assign_register(&s, op->op2, op_cnt);
       bindings[op_cnt].arg[0].reg = slot_reg(t, op->op1);

@@ -356,6 +356,16 @@ static void emit_neg(emit_state *s, uint8_t r) {
   emit_byte(s, 0xf7);
   emit_modrm(s, 0x3, 0x3, 0x7 & r);
 }
+
+static void emit_cqo(emit_state *s) {
+  emit_rex(s, 1, 0, 0, 0);
+  emit_byte(s, ASM_CQO);
+}
+
+static void emit_idiv_signed(emit_state *s, uint8_t divisor) {
+  emit_reg_reg(s, ASM_IDIV, 7, divisor);
+}
+
 static void emit_fneg(emit_state *s, uint8_t r) {
   assert(r >= FPR_REG_START && r < X64_MAX_REG);
   uint8_t hw = hw_fpr(r);
@@ -529,6 +539,43 @@ void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   }
   emit_reg_reg(s, ASM_SUB, dst, rhs);
 }
+
+void emit_mod(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  assert(dst < FPR_REG_START);
+  assert(lhs < FPR_REG_START);
+  assert(rhs < FPR_REG_START);
+
+  bool save_rax = dst != RAX;
+  bool save_rdx = dst != RDX;
+  if (save_rax) {
+    emit_push(s, RAX);
+  }
+  if (save_rdx) {
+    emit_push(s, RDX);
+  }
+
+  uint8_t divisor = rhs;
+  if (rhs == RAX || rhs == RDX) {
+    emit_mov(s, RTMP, rhs);
+    divisor = RTMP;
+  }
+
+  emit_mov(s, RAX, lhs);
+  emit_cqo(s);
+  emit_idiv_signed(s, divisor);
+
+  if (dst != RDX) {
+    emit_mov(s, dst, RDX);
+  }
+
+  if (save_rdx) {
+    emit_pop(s, RDX);
+  }
+  if (save_rax) {
+    emit_pop(s, RAX);
+  }
+}
+
 void emit_fadd(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   if (dst == lhs) {
     emit_sse_reg_reg(s, 0xF2, 0x58, hw_fpr(lhs), hw_fpr(rhs));

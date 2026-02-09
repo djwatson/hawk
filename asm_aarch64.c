@@ -580,6 +580,14 @@ void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   emit_add_sub(s, 0xCB000000U, dst, lhs, rhs);
 }
 
+void emit_mod(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  (void)s;
+  (void)dst;
+  (void)lhs;
+  (void)rhs;
+  abort();
+}
+
 void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   assert(dst < MAX_REG);
   assert(lhs < MAX_REG);

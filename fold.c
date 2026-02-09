@@ -76,6 +76,14 @@ IRFOLDF(fold_add_const_const) {
   return fold_const(tag_fixnum(diff));
 }
 
+IRFOLD(ADD CONST _)
+IRFOLDF(fold_add_const_any) {
+  slot tmp = in->op1;
+  in->op1 = in->op2;
+  in->op2 = tmp;
+  return (fold_result){.action = FOLD_RETRY};
+}
+
 #undef cur_ins
 
 #include "fold_gen.h"
