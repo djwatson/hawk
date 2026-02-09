@@ -178,7 +178,7 @@ if(NOT CAPSTONE_LIBRARY)
   message(FATAL_ERROR "libcapstone not found. Install capstone or set CAPSTONE_LIBRARY.")
 endif()
 
-target_link_libraries(hawk PRIVATE ${CAPSTONE_LIBRARY})
+target_link_libraries(hawk PRIVATE ${CAPSTONE_LIBRARY} m)
 
 #set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 

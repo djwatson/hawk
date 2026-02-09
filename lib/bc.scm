@@ -59,6 +59,7 @@
 (define primcalls
   '((+ . ADD)
     (- . SUB)
+    (modulo . MOD)
     (< . LT)
     (> . GT)
     (= . EQV)

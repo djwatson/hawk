@@ -2,6 +2,7 @@
 #define _DEFAULT_SOURCE
 
 #include <assert.h>
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -144,6 +145,26 @@ static inline gc_obj emit_ov_math_sub(vm_state *state, gc_obj v1, gc_obj v2) {
     return tag_flonum(res);
   }
   MUSTTAIL return emit_ov_math_sub_slow(state, v1, v2);
+}
+static NOINLINE gc_obj emit_ov_math_mod_slow(vm_state *state, gc_obj v1,
+                                             gc_obj v2) {
+  (void)state;
+  if (is_flonum(v1) || is_flonum(v2)) {
+    double r = fmod(to_flonum(scm_inexact(v1))->x, to_flonum(scm_inexact(v2))->x);
+    flonum_s *res = gc_alloc(sizeof(flonum_s));
+    res->header.type = FLONUM_TAG;
+    res->x = r;
+    return tag_flonum(res);
+  }
+  // TODO other math types!
+  abort();
+}
+static inline gc_obj emit_ov_math_mod(vm_state *state, gc_obj v1, gc_obj v2) {
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    int64_t res = to_fixnum(v1) % to_fixnum(v2);
+    return tag_fixnum(res);
+  }
+  MUSTTAIL return emit_ov_math_mod_slow(state, v1, v2);
 }
 
 static NOINLINE gc_obj emit_math_cmp_lt_slowpath(vm_state *state, bc *pc,
