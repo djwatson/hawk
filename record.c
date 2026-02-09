@@ -1103,7 +1103,8 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
     if (entry->val.constant) {
       continue;
     }
-    auto s = get_sentry(state, entry->slot);
+    assert(entry->slot >= ts->stack_off);
+    auto s = get_sentry(state, (uint64_t)entry->slot - ts->stack_off);
     auto old_ins = &side_snap->trace->ins[entry->val.loc];
     if (old_ins->guard || old_ins->type == FLONUM_TAG) {
       // Already typechecked.
