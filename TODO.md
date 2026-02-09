@@ -1,18 +1,24 @@
 # Currently working on:
 
-* set_stack_len in record branch_if_op seems broken
 * unclear if ensure_args_match_trace is working as intended, could be cleaned up
   * forward (GUARD) to IR_TYPECHECK, then more consistent and smaller matching.
   * basically we're conflating 'do we need to emit a typecheck'? and 'does thing NEED to be typechecked already when we are here?'.
 
 * RET traces seem completely broken for takl.
 
+* figure out nqueens bug after re-enabling RET traces with amount??
+
+* get arrays working, then array1 should work.
+
+* get 'list' and 'map' working, then deriv.scm should work
+
+* fft and nbody probably require a handful of more flonum routines
+
 ## tests:
 * array1.scm
-* takl.scm
 * deriv.scm
 * fft.scm
-* bst.scm
+* BST.scm
 * nbody.scm
 
 * probably need to fix closure conversion at some point

@@ -457,8 +457,8 @@
           (compile `#(primcall ,(cdr (assq op jcmp)) ,args ,ann) fun env top #f))
         (,else
           (let ((treg (compile test fun env top #f)))
-            ;; IF reads its test from the data field; use the actual result reg.
-            (add-op fun `(IF ,treg ,treg)))))
+            ;; IF uses reg as stack top metadata and reads test from data.
+            (add-op fun `(IF ,top ,treg)))))
       (let* ((offset (length (fun-code fun))) (brop (list 'JMP top 0)))
         (add-op fun brop)
         (compile then fun env top tail)
