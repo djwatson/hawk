@@ -43,6 +43,7 @@ static void resolve_or_enqueue(heap_state *heap, size_t id, gc_obj *slot);
 static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap);
 static gc_obj deserialize_const_closure(buffer_reader *reader,
                                         heap_state *heap);
+static gc_obj deserialize_cons(buffer_reader *reader, heap_state *heap);
 static gc_obj deserialize_string(buffer_reader *reader);
 static gc_obj deserialize_symbol(buffer_reader *reader, heap_state *heap);
 static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap);
@@ -263,6 +264,9 @@ static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {
   if (tag == CLOSURE_TAG) {
     return deserialize_const_closure(reader, heap);
   }
+  if (tag == CONS_TAG) {
+    return deserialize_cons(reader, heap);
+  }
   if (tag == FLONUM_TAG) {
     flonum_s *f = gc_alloc(sizeof(flonum_s));
     f->header.type = FLONUM_TAG;
@@ -334,6 +338,22 @@ static gc_obj deserialize_const_closure(buffer_reader *reader,
   clo->len = tag_fixnum((int64_t)slot_count);
   resolve_or_enqueue(heap, fun_id, &clo->v[0]);
   return tag_closure(clo);
+}
+
+static gc_obj deserialize_cons(buffer_reader *reader, heap_state *heap) {
+  uint64_t car_id64 = reader_pvarint(reader);
+  uint64_t cdr_id64 = reader_pvarint(reader);
+  if (car_id64 > SIZE_MAX || cdr_id64 > SIZE_MAX) {
+    fprintf(stderr, "Cons references invalid constant id width\n");
+    exit(EXIT_FAILURE);
+  }
+  cons_s *pair = gc_alloc(sizeof(cons_s));
+  pair->header.type = CONS_TAG;
+  pair->a = DEAD;
+  pair->b = DEAD;
+  resolve_or_enqueue(heap, (size_t)car_id64, &pair->a);
+  resolve_or_enqueue(heap, (size_t)cdr_id64, &pair->b);
+  return tag_cons(pair);
 }
 
 static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {

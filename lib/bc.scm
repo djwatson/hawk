@@ -372,6 +372,9 @@
   (cond
     ((symbol? datum)
       (ensure-const-id (symbol->string datum) consts const-table const-order))
+    ((pair? datum)
+      (ensure-const-id (car datum) consts const-table const-order)
+      (ensure-const-id (cdr datum) consts const-table const-order))
     ((const-closure? datum)
       (ensure-const-id (const-closure-fun datum) consts const-table const-order))
     ((fun? datum)
@@ -578,7 +581,10 @@
       (write-pvarint-u64 (tag-ptr (string-length c) fixnum-tag) p)
       (string-for-each (lambda (c) (write-u8 (char->integer c) p)) c))
     ;; ((vector? c))
-    ;; ((pair? c))
+    ((pair? c)
+      (write-pvarint-u64 cons-tag p)
+      (write-pvarint-u64 (const-id-of (car c) consts const-table) p)
+      (write-pvarint-u64 (const-id-of (cdr c) consts const-table) p))
     ((fun? c) (write-bc c p consts const-table))
     ((const-closure? c)
       (write-pvarint-u64 closure-tag p)
@@ -677,5 +683,4 @@
 ;; closure convert - just ensure no free.
 ;; DONE inline simple prims.
 ;; output BC.
-
 
