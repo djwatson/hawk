@@ -197,7 +197,7 @@ static void vm_add_snap(vm_state *state, bc *pc) {
   // No need for duplicate snaps at the same IR.  use the newest.
   // TODO: watch out for removing first snap??? since that one is special and
   // means 'arg types don't match'.
-  if (arrlen(cur_trace->snaps) && arrlast(cur_trace->snaps)->ir == sn.ir) {
+  if (arrlen(cur_trace->snaps) > 2 && arrlast(cur_trace->snaps)->ir == sn.ir) {
     auto old = arrlast(cur_trace->snaps);
     arrpop(cur_trace->snaps);
     free_snap(old);

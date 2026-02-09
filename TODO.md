@@ -1,5 +1,12 @@
 # Currently working on:
 
+* set_stack_len in record branch_if_op seems broken
+* unclear if ensure_args_match_trace is working as intended, could be cleaned up
+  * forward (GUARD) to IR_TYPECHECK, then more consistent and smaller matching.
+  * basically we're conflating 'do we need to emit a typecheck'? and 'does thing NEED to be typechecked already when we are here?'.
+
+* RET traces seem completely broken for takl.
+
 ## tests:
 * array1.scm
 * takl.scm
