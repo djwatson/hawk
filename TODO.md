@@ -1,7 +1,5 @@
 # Currently working on:
 
-* fix remove RET downrec primes.scm
-
 ## tests:
 * array1.scm
 * takl.scm

@@ -798,13 +798,6 @@ static int pmov_arg_index(trace *t, uint16_t ins_loc) {
   return -1;
 }
 
-static bool same_entry_pc(trace *a, trace *b) {
-  if (!a || !b || arrlen(a->snaps) == 0 || arrlen(b->snaps) == 0) {
-    return false;
-  }
-  return a->snaps[0].pc == b->snaps[0].pc;
-}
-
 typedef struct {
   trace *trace;
   bool matched;
@@ -819,12 +812,6 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
   for (trace *candidate = head; candidate; candidate = candidate->next) {
     if (verbose) {
       printf("Arg match? trace %i\n", candidate->num);
-    }
-    if (!same_entry_pc(head, candidate)) {
-      if (verbose) {
-        printf("  skip trace %i: different entry pc\n", candidate->num);
-      }
-      continue;
     }
     bool needs_guard[REG_ARG_CNT] = {0};
     bool match = true;
