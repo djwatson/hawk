@@ -423,6 +423,10 @@ static void record_finish(bc *pc, vm_state *state) {
         .data = record_trace_count(state),
     };
   }
+  if (ts->poly_entry) {
+    // Only install polymorphic chaining after successful recording.
+    ts->poly_entry->trace->next = cur_trace;
+  }
   record_append_trace(state, cur_trace);
   clear_trace_state(ts);
   record_set_current_trace(state, nullptr);
@@ -775,6 +779,32 @@ static int slot_arg_index(trace *t, slot s) {
   return -1;
 }
 
+static int pmov_arg_index(trace *t, uint16_t ins_loc) {
+  if (arrlen(t->snaps) == 0) {
+    return -1;
+  }
+  snap *entry_snap = &t->snaps[0];
+  arr_for_each_idx(entry_snap->slots, i) {
+    auto entry = &entry_snap->slots[i];
+    if (entry->val.constant || entry->val.loc != ins_loc) {
+      continue;
+    }
+    int logical_slot = (int)entry->slot - (int)entry_snap->offset;
+    if (logical_slot < 0 || logical_slot >= REG_ARG_CNT) {
+      return -1;
+    }
+    return logical_slot;
+  }
+  return -1;
+}
+
+static bool same_entry_pc(trace *a, trace *b) {
+  if (!a || !b || arrlen(a->snaps) == 0 || arrlen(b->snaps) == 0) {
+    return false;
+  }
+  return a->snaps[0].pc == b->snaps[0].pc;
+}
+
 typedef struct {
   trace *trace;
   bool matched;
@@ -790,12 +820,40 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
     if (verbose) {
       printf("Arg match? trace %i\n", candidate->num);
     }
+    if (!same_entry_pc(head, candidate)) {
+      if (verbose) {
+        printf("  skip trace %i: different entry pc\n", candidate->num);
+      }
+      continue;
+    }
     bool needs_guard[REG_ARG_CNT] = {0};
     bool match = true;
 
     arr_for_each_idx(candidate->ins, i) {
       ir_ins *ins = &candidate->ins[i];
-      if (ins->op == IR_ARG || ins->op == IR_PMOV) {
+      if (ins->op == IR_ARG) {
+        continue;
+      }
+      if (ins->op == IR_PMOV) {
+        if (!ins->guard) {
+          continue;
+        }
+        int arg_idx = pmov_arg_index(candidate, (uint16_t)i);
+        if (arg_idx < 0 || arg_idx >= REG_ARG_CNT) {
+          // Guarded PMOV without an entry-arg mapping is ambiguous.
+          // Reject this candidate rather than guessing.
+          match = false;
+          break;
+        }
+        needs_guard[arg_idx] = true;
+        if (get_type_tag(stack[arg_idx]) != ins->type) {
+          if (verbose) {
+            printf("  arg%d type mismatch want %u got %u\n", arg_idx, ins->type,
+                   get_type_tag(stack[arg_idx]));
+          }
+          match = false;
+          break;
+        }
         continue;
       }
       if (ins->op != IR_TYPECHECK) {
@@ -1027,9 +1085,6 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   ts->stack_off = 0;
   ts->type = TRACE_TYPE_SIDE;
   ts->poly_entry = poly_entry;
-  if (poly_entry) {
-    poly_entry->trace->next = cur_trace;
-  }
 
   // Replay snapshot loads, so we keep things in register.
   arr_for_each_idx(side_snap->slots, j) {
