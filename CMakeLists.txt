@@ -292,6 +292,14 @@ if(BUILD_TESTING)
   set_tests_properties(
     hawk_nqueens PROPERTIES PASS_REGULAR_EXPRESSION "73712"
   )
+
+  add_test(
+    NAME hawk_primes
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/primes.scm
+  )
+  set_tests_properties(
+    hawk_primes PROPERTIES PASS_REGULAR_EXPRESSION "\\(2 3 5 7 11 13.*983 991 997\\)"
+  )
 endif()
 
 file(

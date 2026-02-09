@@ -1,6 +1,6 @@
 ;;; CPSTAK -- A continuation-passing version of the TAK benchmark.
 ;;; A good test of first class procedures and tail recursion.
-;(import (scheme r5rs))
+(import (scheme r5rs))
 
 (define (tak x y z k)
   (if (>= y x)
