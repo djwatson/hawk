@@ -805,6 +805,8 @@ static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
   return pc;
 }
 
+static int pmov_arg_index(trace *t, uint16_t ins_loc);
+
 static int slot_arg_index(trace *t, slot s) {
   if (s.constant) {
     return -1;
@@ -812,6 +814,9 @@ static int slot_arg_index(trace *t, slot s) {
   ir_ins *ins = &t->ins[s.loc];
   if (ins->op == IR_ARG) {
     return (int)ins->data;
+  }
+  if (ins->op == IR_PMOV) {
+    return pmov_arg_index(t, s.loc);
   }
   return -1;
 }
