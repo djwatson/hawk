@@ -206,7 +206,7 @@ void emit_constant_pool(emit_state *s) {
   }
 
   size_t pad = (size_t)((8 - ((uintptr_t)s->p & 7)) & 7);
-  size_t needed = pad + len * sizeof(double);
+  size_t needed = pad + (len * sizeof(double));
   emit_ensure_space(s, needed);
   s->p += pad;
 

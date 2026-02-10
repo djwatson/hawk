@@ -192,7 +192,7 @@ static inline void add_entry_mapping(trace *entry_trace, snap_entry *entry,
 }
 
 // NOLINTBEGIN(clang-analyzer-core.NullDereference)
-static size_t collect_regs_to_preserve(uint8_t *regs_in, size_t len,
+static size_t collect_regs_to_preserve(uint8_t const *regs_in, size_t len,
                                        uint8_t regs[MAX_REG]) {
   size_t count = 0;
   bool added[MAX_REG] = {0};
@@ -217,7 +217,7 @@ static size_t collect_regs_to_preserve(uint8_t *regs_in, size_t len,
 }
 
 static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
-                                        uint8_t *regs_in) {
+                                        uint8_t const *regs_in) {
   if (!snap->offset) {
     return;
   }

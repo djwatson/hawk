@@ -20,7 +20,7 @@ struct {
   ir_ins_op value;
 } *name_to_insn = nullptr;
 
-static ir_ins_op nexttoken(char **p) {
+static uint8_t nexttoken(char **p) {
   char *start = *p;
   while (**p != ' ' && **p != ')') {
     (*p)++;
@@ -54,7 +54,6 @@ static void find_hash(uint32_t *rules) {
   if (!used) {
     abort();
   }
-  size_t sz = arrlen(rules);
 
   for (size_t sz = arrlen(rules); sz <= arrlen(rules) * 2; sz++) {
     printf("//testing sz %li\n", sz);
@@ -113,9 +112,8 @@ int main(int argc, char *argv[]) {
   }
   char *line = nullptr;
   size_t n = 0;
-  ssize_t res;
   printf("static fold_func_type fold_func_table[] = {\n");
-  while ((res = getline(&line, &n, f)) != -1) {
+  while (getline(&line, &n, f) != -1) {
     if ((0 == strncmp(line, "IRFOLD(", 7))) {
       auto c = &line[7];
       auto op = nexttoken(&c);

@@ -125,7 +125,7 @@ void emit_call32(emit_state *s, int64_t target) {
 
 void emit_ret(emit_state *s) { emit_byte(s, 0xc3); }
 
-void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t *target) {
+void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t const *target) {
   (void)s;
   assert(loc);
   assert(target);
@@ -134,7 +134,7 @@ void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t *target) {
   memcpy(loc, &delta, sizeof(int32_t));
 }
 
-void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t *target) {
+void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t const *target) {
   (void)s;
   assert(loc);
   assert(target);
@@ -143,7 +143,7 @@ void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t *target) {
   memcpy(loc, &delta, sizeof(int32_t));
 }
 
-void asm_write_jmp32_at(emit_state *s, uint8_t *loc, uint8_t *target) {
+void asm_write_jmp32_at(emit_state *s, uint8_t *loc, uint8_t const *target) {
   (void)s;
   assert(loc);
   assert(target);

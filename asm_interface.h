@@ -17,9 +17,9 @@ void asm_mark_unallocatable(bool used[]);
 bool asm_is_callee_saved(uint8_t reg);
 void asm_load_constant(emit_state *s, int idx, uint8_t dst);
 void asm_patch_constant_pool(emit_state *s);
-void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t *target);
-void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t *target);
-void asm_write_jmp32_at(emit_state *s, uint8_t *loc, uint8_t *target);
+void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t const *target);
+void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t const *target);
+void asm_write_jmp32_at(emit_state *s, uint8_t *loc, uint8_t const *target);
 
 void restore_callee_regs(emit_state *s);
 void save_callee_regs(emit_state *s);

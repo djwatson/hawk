@@ -231,7 +231,7 @@ void save_callee_regs(emit_state *s) {
 
 void emit_ret(emit_state *s) { emit_op(s, 0xD65F03C0); }
 
-void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t *target) {
+void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t const *target) {
   (void)s;
   assert(loc);
   assert(target);
@@ -244,7 +244,7 @@ void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t *target) {
   memcpy(loc, &opcode, sizeof(opcode));
 }
 
-void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t *target) {
+void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t const *target) {
   (void)s;
   assert(loc);
   assert(target);
@@ -259,7 +259,7 @@ void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t *target) {
   memcpy(loc, &opcode, sizeof(opcode));
 }
 
-void asm_write_jmp32_at(emit_state *s, uint8_t *loc, uint8_t *target) {
+void asm_write_jmp32_at(emit_state *s, uint8_t *loc, uint8_t const *target) {
   (void)s;
   assert(loc);
   assert(target);

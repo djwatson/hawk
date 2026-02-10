@@ -19,22 +19,23 @@
 #define VMGEN_TRACE_OP_NOABORT(pc, code, state, argcnt)                        \
   do {                                                                         \
     if (verbose) {                                                             \
-      print_record_debug(pc, #code, state);                                    \
+      print_record_debug((pc), #code, (state));                                \
     }                                                                          \
   } while (0)
 #define VMGEN_TRACE_OP(pc, code, state, argcnt)                                \
   do {                                                                         \
     VMGEN_TRACE_OP_NOABORT(pc, code, state, argcnt);                           \
-    trace_state *ts = record_trace_state(state);                               \
-    trace *cur_trace = record_current_trace(state);                            \
+    trace_state *ts = record_trace_state((state));                             \
+    trace *cur_trace = record_current_trace((state));                          \
     if (ts->depth >= 20 || arrlen(cur_trace->ins) >= 500) {                    \
       if (verbose) {                                                           \
         printf("Record abort: too long or too deep\n");                        \
       }                                                                        \
-      record_abort(state);                                                     \
-      op_table = state->impls;                                                 \
-      op_func impl = ((op_func *)op_table)[pc->op];                            \
-      MUSTTAIL return impl(*pc, pc, stack, state, state->impls, argcnt);       \
+      record_abort((state));                                                   \
+      op_table = (state)->impls;                                               \
+      op_func impl = ((op_func *)op_table)[(pc)->op];                          \
+      MUSTTAIL return impl(*(pc), (pc), stack, (state), (state)->impls,        \
+                           (argcnt));                                          \
     }                                                                          \
   } while (0)
 static bool is_downrec_trace(trace_state *ts) { return ts->start_is_ret; }
@@ -404,7 +405,8 @@ static inline double numeric_to_double(gc_obj v) {
                                                                                \
     branch_result br = {                                                       \
         .taken = res,                                                          \
-        .guard = IR(.op = res ? taken_op : not_taken_op, .op1 = v1, .op2 = v2, \
+        .guard = IR(.op = (res) ? (taken_op) : (not_taken_op), .op1 = v1,      \
+                    .op2 = v2,                                                  \
                     .type = get_slot_type(record_current_trace(state), v1)),   \
     };                                                                         \
     return br;                                                                 \

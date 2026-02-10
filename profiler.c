@@ -38,7 +38,7 @@ static bool profiler_running = false;
 static uint64_t now_ns(void) {
   struct timespec ts;
   clock_gettime(profiler_clock, &ts);
-  return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+  return ((uint64_t)ts.tv_sec * 1000000000ULL) + (uint64_t)ts.tv_nsec;
 }
 
 static void switch_bucket(profiler_bucket next) {

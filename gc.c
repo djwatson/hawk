@@ -45,19 +45,19 @@ static uint64_t mem_map_size;
 uint64_t *gc_get_stack_top() { return stacktop; }
 
 static void format_bytes(char *buf, size_t buf_sz, uint64_t bytes) {
-  double val = bytes;
+  double val = (double)bytes;
   const char *suffix = "B";
   bool exact = true;
   if (bytes >= (1ULL << 30)) {
-    val = bytes / (double)(1ULL << 30);
+    val = (double)bytes / (double)(1ULL << 30);
     suffix = "GB";
     exact = false;
   } else if (bytes >= (1ULL << 20)) {
-    val = bytes / (double)(1ULL << 20);
+    val = (double)bytes / (double)(1ULL << 20);
     suffix = "MB";
     exact = false;
   } else if (bytes >= (1ULL << 10)) {
-    val = bytes / (double)(1ULL << 10);
+    val = (double)bytes / (double)(1ULL << 10);
     suffix = "KB";
     exact = false;
   }
@@ -292,15 +292,14 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
   profiler_set_in_gc(true);
   clock_gettime(CLOCK_MONOTONIC, &start);
   totsize = 0;
-  bool collect_full = next_force_full;
-
 #ifdef GENGC
+  bool collect_full = next_force_full;
   if (collect_big++ == 8) {
     collect_big = 0;
     collect_full = true;
   }
 #else
-  collect_full = true;
+  bool collect_full = true;
 #endif
 
   // Init mark stack
