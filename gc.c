@@ -19,11 +19,11 @@
 // #include <time.h>
 
 #include "alloc_table.h"
+#include "array.h"
 #include "gc.h"
 #include "hawk.h"
 #include "profiler.h"
 #include "util/bitset.h"
-#include "util/kvec.h"
 #include "util/list.h"
 #include "util/util.h"
 
@@ -83,19 +83,19 @@ typedef struct slab_info {
 static int64_t slab_sz(slab_info *slab) { return (int64_t)slab->class * 8; }
 
 freelist_s freelist[size_classes];
-static kvec_t(slab_info *) partials[size_classes];
+static slab_info **partials[size_classes];
 static LIST_HEAD(live_slabs);
 typedef struct root_range {
   const uint64_t *ptr;
   size_t len;
 } root_range;
 
-static kvec_t(root_range) roots;
+static root_range *roots;
 static gc_scan_callback scan_callback;
 static void *scan_data;
 
 static constexpr uint16_t page_classes = 16;
-static kvec_t(slab_info *) pages_free[page_classes];
+static slab_info **pages_free[page_classes];
 
 static uint64_t page_class_to_sz(uint64_t page_class) {
   return (1UL << page_class) * PAGE_SIZE;
@@ -122,8 +122,8 @@ bool get_partial_range(uint64_t sz_class, freelist_s *fl) {
 
   int64_t end_index = -1;
   if (!slab || fl->end_ptr >= (uint64_t)slab->end) {
-    if (kv_size(partials[sz_class]) > 0) {
-      slab = kv_pop(partials[sz_class]);
+    if (arrlen(partials[sz_class]) > 0) {
+      slab = partials[sz_class][arrpop(partials[sz_class])];
       assert(slab->class == sz_class);
       fl->slab = slab;
     } else {
@@ -175,23 +175,23 @@ void gc_init(void *stacktop_in) {
   // the fastpath.
   for (uint64_t i = 0; i < size_classes; i++) {
     freelist[i] = (freelist_s){default_slab_size, default_slab_size, nullptr};
-    kv_init(partials[i]);
+    partials[i] = nullptr;
   }
-  kv_init(roots);
+  roots = nullptr;
   for (uint64_t i = 0; i < page_classes; i++) {
-    kv_init(pages_free[i]);
+    pages_free[i] = nullptr;
   }
 }
 
 void gc_add_root(const uint64_t *rootp, size_t len) {
-  kv_push(roots, ((root_range){.ptr = rootp, .len = len}));
+  arrput(roots, ((root_range){.ptr = rootp, .len = len}));
 }
 
 void gc_remove_root(uint64_t const *rootp) {
-  for (size_t i = 0; i < kv_size(roots); i++) {
-    if (kv_A(roots, i).ptr == rootp) {
-      kv_A(roots, i) = kv_A(roots, kv_size(roots) - 1);
-      (void)kv_pop(roots);
+  for (size_t i = 0; i < arrlen(roots); i++) {
+    if (roots[i].ptr == rootp) {
+      roots[i] = roots[arrlen(roots) - 1];
+      (void)arrpop(roots);
       return;
     }
   }
@@ -224,17 +224,17 @@ typedef struct range {
 } range;
 
 static uint64_t totsize;
-static kvec_t(range) markstack;
+static range *markstack;
 
 static void gc_add_mark_root(const uint64_t *rootp, size_t len) {
   assert(rootp);
   assert(len >= 1);
-  kv_push(markstack, ((range){rootp, rootp + len}));
+  arrput(markstack, ((range){rootp, rootp + len}));
 }
 
 static void mark() {
-  while (kv_size(markstack) > 0) {
-    range r = kv_pop(markstack);
+  while (arrlen(markstack) > 0) {
+    range r = markstack[arrpop(markstack)];
     //  Double check it is aligned.
     assert(((int64_t)r.start & 0x7) == 0);
     assert(((int64_t)r.end & 0x7) == 0);
@@ -256,9 +256,9 @@ static void mark() {
           totsize += slab_sz(slab);
           slab->marked += slab->class * 8;
           bts(slab->markbits, index);
-          kv_push(markstack,
-                  ((range){(const uint64_t *)base_ptr,
-                           (const uint64_t *)(base_ptr + slab_sz(slab))}));
+          arrput(markstack,
+                 ((range){(const uint64_t *)base_ptr,
+                          (const uint64_t *)(base_ptr + slab_sz(slab))}));
         }
       }
       r.start++;
@@ -281,7 +281,7 @@ static void merge_and_free_slab(slab_info *slab) {
     return;
   }
   init_list_head(&slab->link);
-  kv_push(pages_free[page_class], slab);
+  arrput(pages_free[page_class], slab);
 }
 
 static uint64_t collect_big = 0;
@@ -304,7 +304,7 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
 #endif
 
   // Init mark stack
-  kv_init(markstack);
+  markstack = nullptr;
 
   // Clear marks
   list_head *itr;
@@ -340,8 +340,8 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
           // Only walk remembered set if the object it is in is already marked -
           // otherwise it will already traced if live.
           if (bt(slab->markbits, index)) {
-            kv_push(markstack, ((range){(const uint64_t *)logptr,
-                                        (const uint64_t *)(logptr + 8)}));
+            arrput(markstack, ((range){(const uint64_t *)logptr,
+                                       (const uint64_t *)(logptr + 8)}));
           }
 
           bit = res + 1;
@@ -351,9 +351,9 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
       } else {
         //  Large objects use a single bit, bit 0 in markbits
         if (bt(slab->markbits, 1)) {
-          kv_push(markstack,
-                  ((range){(const uint64_t *)slab->start,
-                           (const uint64_t *)(slab->start + slab_sz(slab))}));
+          arrput(markstack,
+                 ((range){(const uint64_t *)slab->start,
+                          (const uint64_t *)(slab->start + slab_sz(slab))}));
           // Reset markbit.
           btr(slab->markbits, 1);
         }
@@ -361,14 +361,14 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
     }
   }
   for (uint64_t i = 0; i < size_classes; i++) {
-    kv_clear(partials[i]);
+    arrlen_set(partials[i], 0);
   }
 
   // Mark static roots
-  for (size_t i = 0; i < kv_size(roots); i++) {
-    auto root = kv_A(roots, i);
+  for (size_t i = 0; i < arrlen(roots); i++) {
+    auto root = roots[i];
     if (root.ptr && root.len > 0) {
-      kv_push(markstack, ((range){root.ptr, root.ptr + root.len}));
+      arrput(markstack, ((range){root.ptr, root.ptr + root.len}));
     }
   }
   if (scan_callback) {
@@ -377,7 +377,7 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
 
   // Mark stack
   uint64_t *sp = (uint64_t *)__builtin_frame_address(0);
-  kv_push(markstack, ((range){sp, stacktop}));
+  arrput(markstack, ((range){sp, stacktop}));
 
   // Run mark loop.
   mark();
@@ -403,7 +403,7 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
       /* } */
       if (slab->class < size_classes) {
         if (slab->marked < slab_bytes / 2) {
-          kv_push(partials[slab->class], slab);
+          arrput(partials[slab->class], slab);
         }
       }
     }
@@ -429,7 +429,7 @@ __attribute__((noinline, preserve_none)) static void gc_collect() {
     next_force_full = true;
   }
 
-  kv_destroy(markstack);
+  arrfree(markstack);
 
   clock_gettime(CLOCK_MONOTONIC, &end);
   auto live_bytes = total_bytes - freed_bytes;
@@ -473,8 +473,8 @@ static slab_info *alloc_slab(uint64_t sz_class) {
 
   // TODO: split the range here based on actual size.
   // TODO: check larger bins & split.
-  if (page_class < page_classes && kv_size(pages_free[page_class])) {
-    slab_info *free = kv_pop(pages_free[page_class]);
+  if (page_class < page_classes && arrlen(pages_free[page_class])) {
+    slab_info *free = pages_free[page_class][arrpop(pages_free[page_class])];
     if (free) {
       assert((int64_t)sz <= (free->end - free->start));
       free->class = sz_class;
@@ -563,9 +563,9 @@ static void free_slab_info(slab_info *slab) {
 }
 
 void gc_free(void) {
-  kv_destroy(roots);
+  arrfree(roots);
   for (uint64_t i = 0; i < size_classes; i++) {
-    kv_destroy(partials[i]);
+    arrfree(partials[i]);
   }
   list_head *itr = live_slabs.next;
   while (!list_is_head(itr, &live_slabs)) {
@@ -576,10 +576,10 @@ void gc_free(void) {
     itr = next_itr;
   }
   for (uint64_t i = 0; i < page_classes; i++) {
-    for (size_t j = 0; j < kv_size(pages_free[i]); j++) {
-      free_slab_info(kv_A(pages_free[i], j));
+    for (size_t j = 0; j < arrlen(pages_free[i]); j++) {
+      free_slab_info(pages_free[i][j]);
     }
-    kv_destroy(pages_free[i]);
+    arrfree(pages_free[i]);
   }
   alloc_table_free(&atable);
   if (mem_base) {

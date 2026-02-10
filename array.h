@@ -28,7 +28,7 @@ void *arrgrowf(void *a, size_t elemsize, size_t addlen, size_t min_cap);
 
 #define arrput(a, v) (arrmaybegrow(a, 1), (a)[arr_header(a)->length++] = (v))
 
-#define arrpop(a) (arr_header(a)->length--)
+#define arrpop(a) (--arr_header(a)->length)
 size_t arrlen(void const *arr);
 void arrlen_set(void const *arr, size_t len);
 
