@@ -1,6 +1,6 @@
 # Currently working on:
 
-* get arrays working, then array1 should work.
+* alloc size not constant array1 fix
 
 * unclear if ensure_args_match_trace is working as intended, could be cleaned up
   * forward (GUARD) to IR_TYPECHECK, then more consistent and smaller matching.

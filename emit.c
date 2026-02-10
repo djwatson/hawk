@@ -285,6 +285,17 @@ static void emit_flonum_add(emit_state *s, trace *t, ir_ins *op,
   emit_fadd(s, op->reg, lhs_reg, rhs_reg);
 }
 
+static void emit_flonum_mul(emit_state *s, trace *t, ir_ins *op,
+                            uint8_t lhs_reg, uint8_t rhs_reg) {
+  assert(is_fpr_reg(op->reg));
+  if (op->op2.constant) {
+    emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op2));
+    emit_fmul(s, op->reg, lhs_reg, FRTMP);
+    return;
+  }
+  emit_fmul(s, op->reg, lhs_reg, rhs_reg);
+}
+
 static void emit_box_flonum(emit_state *s, int32_t stack_offset,
                             uint8_t fpr_reg, bool store_to_stack) {
   assert(s->alloc_slowpath);
@@ -769,6 +780,19 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
       }
       break;
     }
+    case IR_MUL: {
+      if (op->type == FLONUM_TAG) {
+        emit_flonum_mul(s, t, op, arg0_reg, arg1_reg);
+      } else {
+        if (op->op2.constant) {
+          emit_mul_constant(s, op->reg, arg0_reg, slot_const(t, op->op2));
+        } else {
+          emit_mul(s, op->reg, arg0_reg, arg1_reg);
+        }
+        emit_typecheck(s, t, op, cur_snap, op->reg);
+      }
+      break;
+    }
     case IR_MOD: {
       if (op->type == FLONUM_TAG) {
         abort();
@@ -932,7 +956,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
     if (op->guard &&
         !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
           op->op == IR_LOAD || op->op == IR_ALLOC || op->op == IR_TYPECHECK ||
-          op->op == IR_SUB || op->op == IR_ADD || op->op == IR_MOD ||
+          op->op == IR_SUB || op->op == IR_ADD || op->op == IR_MUL ||
+          op->op == IR_MOD ||
           op->op == IR_GGET)) {
       abort();
     }

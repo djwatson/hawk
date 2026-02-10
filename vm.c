@@ -448,8 +448,10 @@ static inline gc_obj load_obj(vm_state *state, gc_obj *stack, bc *pc) {
   auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
   return base[to_fixnum(off)];
 }
-static inline gc_obj alloc_obj(vm_state *state, gc_obj *stack, bc *pc) {
+static inline gc_obj alloc_obj(vm_state *state, gc_obj *stack, bc *pc,
+                               void **op_table) {
   (void)state;
+  (void)op_table;
   auto sz_obj = stack_load(state, stack, pc->v1, true);
   auto type_obj = stack_load(state, stack, pc->v2, true);
   assert(is_fixnum(sz_obj));

@@ -218,7 +218,7 @@ END OP_BEGIN(LCALLT) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(ALLOC) {
-  auto obj = alloc_obj(state, stack, pc);
+  auto obj = alloc_obj(state, stack, pc, &op_table);
   stack_save(state, stack, instr.reg, obj);
   pc = next_op(pc);
   dispatch_next(pc, stack);

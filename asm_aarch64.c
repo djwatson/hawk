@@ -602,6 +602,40 @@ void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   emit_add_sub(s, 0xCB000000U, dst, lhs, rhs);
 }
 
+void emit_mul(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  assert(dst < FPR_REG_START);
+  assert(lhs < FPR_REG_START);
+  assert(rhs < FPR_REG_START);
+  uint32_t opcode = 0x9B007C00U | ((uint32_t)rhs << 16) |
+                    ((uint32_t)lhs << 5) | (uint32_t)dst;
+  emit_op(s, opcode);
+}
+
+void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
+  assert(dst < FPR_REG_START);
+  assert(lhs < FPR_REG_START);
+  if (imm == 0) {
+    emit_mov64(s, dst, 0);
+    return;
+  }
+  if (imm == 1) {
+    if (dst != lhs) {
+      emit_mov(s, dst, lhs);
+    }
+    return;
+  }
+  if (imm == 2) {
+    emit_add(s, dst, lhs, lhs);
+    return;
+  }
+  if (imm == -1) {
+    emit_sub(s, dst, XZR, lhs);
+    return;
+  }
+  emit_mov64(s, RTMP, imm);
+  emit_mul(s, dst, lhs, RTMP);
+}
+
 void emit_mod(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   assert(dst < FPR_REG_START);
   assert(lhs < FPR_REG_START);
@@ -643,6 +677,15 @@ void emit_fsub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   assert(lhs >= FPR_REG_START && lhs < AARCH64_MAX_REG);
   assert(rhs >= FPR_REG_START && rhs < AARCH64_MAX_REG);
   uint32_t opcode = 0x1E603800U | ((uint32_t)hw_fpr(rhs) << 16) |
+                    ((uint32_t)hw_fpr(lhs) << 5) | (uint32_t)hw_fpr(dst);
+  emit_op(s, opcode);
+}
+
+void emit_fmul(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
+  assert(lhs >= FPR_REG_START && lhs < AARCH64_MAX_REG);
+  assert(rhs >= FPR_REG_START && rhs < AARCH64_MAX_REG);
+  uint32_t opcode = 0x1E600800U | ((uint32_t)hw_fpr(rhs) << 16) |
                     ((uint32_t)hw_fpr(lhs) << 5) | (uint32_t)hw_fpr(dst);
   emit_op(s, opcode);
 }

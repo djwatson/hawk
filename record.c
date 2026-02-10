@@ -352,11 +352,21 @@ static slot emit_ov_math_sub(vm_state *state, slot v1, slot v2) {
   return add_inst(state, ins);
 }
 static slot emit_ov_math_mul(vm_state *state, slot v1, slot v2) {
-  (void)state;
-  (void)v1;
-  (void)v2;
-  // TODO: recording/JIT support for MUL.
-  abort();
+  // TODO fold for consts.
+  auto t = record_current_trace(state);
+  auto t1 = get_slot_type(t, v1);
+  auto t2 = get_slot_type(t, v2);
+  if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
+    v1 = convert_to_flonum(state, v1);
+    v2 = convert_to_flonum(state, v2);
+  } else if (t1 == FIXNUM_TAG && t2 == FIXNUM_TAG) {
+    // OK.
+  } else {
+    abort();
+  }
+  ir_ins ins =
+      IR(.op = IR_MUL, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
+  return add_inst(state, ins);
 }
 static slot emit_ov_math_mod(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
@@ -627,7 +637,8 @@ static void obj_write(vm_state *state, slot val, void **op_table) {
   record_abort(state);
   *op_table = state->impls;
 }
-static slot alloc_obj(vm_state *state, gc_obj *stack, bc *pc) {
+static slot alloc_obj(vm_state *state, gc_obj *stack, bc *pc,
+                      void **op_table) {
   auto sz = stack_load(state, stack, pc->v1, true);
   auto type = stack_load(state, stack, pc->v2, true);
   assert(type.constant);
@@ -636,6 +647,7 @@ static slot alloc_obj(vm_state *state, gc_obj *stack, bc *pc) {
       printf("Record abort: ALLOC size not constant\n");
     }
     record_abort(state);
+    *op_table = state->impls;
     return (slot){0};
   }
 

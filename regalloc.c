@@ -222,6 +222,7 @@ regalloc_result regalloc(trace *t) {
     case IR_GTE:
     case IR_SUB:
     case IR_ADD:
+    case IR_MUL:
     case IR_MOD:
     case IR_LOAD:
       maybe_assign_register(&s, op->op1, op_cnt);
