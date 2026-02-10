@@ -351,6 +351,13 @@ static slot emit_ov_math_sub(vm_state *state, slot v1, slot v2) {
       IR(.op = IR_SUB, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
   return add_inst(state, ins);
 }
+static slot emit_ov_math_mul(vm_state *state, slot v1, slot v2) {
+  (void)state;
+  (void)v1;
+  (void)v2;
+  // TODO: recording/JIT support for MUL.
+  abort();
+}
 static slot emit_ov_math_mod(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
   auto t = record_current_trace(state);

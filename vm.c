@@ -150,6 +150,25 @@ static inline gc_obj emit_ov_math_sub(vm_state *state, gc_obj v1, gc_obj v2) {
   }
   MUSTTAIL return emit_ov_math_sub_slow(state, v1, v2);
 }
+static inline gc_obj emit_ov_math_mul(vm_state *state, gc_obj v1, gc_obj v2) {
+  (void)state;
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    gc_obj res;
+    if (!__builtin_mul_overflow(v1.value, to_fixnum(v2), &res.value)) {
+      return res;
+    }
+    abort();
+  }
+  if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
+    auto f1 = to_flonum(v1);
+    auto f2 = to_flonum(v2);
+    flonum_s *res = gc_alloc(sizeof(flonum_s));
+    res->header.type = FLONUM_TAG;
+    res->x = f1->x * f2->x;
+    return tag_flonum(res);
+  }
+  abort();
+}
 static NOINLINE gc_obj emit_ov_math_mod_slow(vm_state *state, gc_obj v1,
                                              gc_obj v2) {
   (void)state;

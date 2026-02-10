@@ -185,9 +185,9 @@ static inline void add_entry_mapping(trace *entry_trace, snap_entry *entry,
   }
   uint8_t tgt = slot_reg(entry_trace, entry->val);
   if (tgt != REG_NONE) {
-    arrput(*consts,
-        ((const_entry){.target_reg = tgt,
-                       .constant_value = slot_const(entry_trace, entry->val)}));
+    arrput(*consts, ((const_entry){.target_reg = tgt,
+                                   .constant_value =
+                                       slot_const(entry_trace, entry->val)}));
   }
 }
 
@@ -416,15 +416,16 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
   if (!op->guard) {
     return;
   }
+  // TODO: some of these the code could be merged
   if (op->type == FIXNUM_TAG) {
     COMMENT("  typecheck fix");
     emit_test_constant(s, reg, TAG_MASK);
     emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
-  } else if (op->type == CONS_TAG) {
-    COMMENT("  typecheck cons");
+  } else if (op->type == CONS_TAG || op->type == VECTOR_TAG) {
+    COMMENT("  typecheck %s", low_tag_names[op->type]);
     emit_mov(s, RTMP, reg);
     emit_and_constant(s, RTMP, RTMP, TAG_MASK);
-    emit_cmp_constant(s, RTMP, CONS_TAG);
+    emit_cmp_constant(s, RTMP, op->type);
     emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
   } else if (op->type == FLONUM_TAG) {
     if (!is_fpr_reg(reg)) {
@@ -484,10 +485,9 @@ collect_loopback_moves(emit_state *s, trace *exit_trace, trace *entry_trace,
       }
 
       if (exit_entry->val.constant && !entry->val.constant) {
-        arrput(consts,
-               ((const_entry){.target_reg = entry_reg,
-                              .constant_value =
-                                  slot_const(exit_trace, exit_entry->val)}));
+        arrput(consts, ((const_entry){.target_reg = entry_reg,
+                                      .constant_value = slot_const(
+                                          exit_trace, exit_entry->val)}));
       } else if (!exit_entry->val.constant && !entry->val.constant &&
                  exit_reg != entry_reg && entry_reg != REG_NONE) {
         arrput(cpy, ((par_copy){.from = exit_reg, .to = entry_reg}));

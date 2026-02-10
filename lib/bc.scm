@@ -59,6 +59,7 @@
 (define primcalls
   '((+ . ADD)
     (- . SUB)
+    (* . MUL)
     (modulo . MOD)
     (< . LT)
     (> . GT)
@@ -683,4 +684,5 @@
 ;; closure convert - just ensure no free.
 ;; DONE inline simple prims.
 ;; output BC.
+
 
