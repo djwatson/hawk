@@ -42,11 +42,11 @@ set(
   asm.c
   comments.c
   profiler.c
-  hashtable.c
+  util/hashtable.c
   disassemble.c
   parallel_copy.c
   profiler.c
-  array.c
+  util/array.c
   util/bitset.c
   util/list.c
   fold.c
@@ -89,8 +89,8 @@ set(gen_fold_target gen_fold)
 set(
   gen_fold_sources
   host/gen_fold.c
-  array.c
-  hashtable.c
+  util/array.c
+  util/hashtable.c
 )
 set(gen_fold_source_paths)
 foreach(src ${gen_fold_sources})
