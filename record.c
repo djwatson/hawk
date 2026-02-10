@@ -368,12 +368,29 @@ static slot emit_ov_math_mod(vm_state *state, slot v1, slot v2) {
       IR(.op = IR_MOD, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
   return add_inst(state, ins);
 }
-#define DEFINE_BRANCH_CMP(name, taken_op, not_taken_op, cmp_expr)              \
+static inline double numeric_to_double(gc_obj v) {
+  if (is_flonum(v)) {
+    return to_flonum(v)->x;
+  }
+  if (is_fixnum(v)) {
+    return (double)to_fixnum(v);
+  }
+  abort();
+}
+
+#define DEFINE_BRANCH_CMP(name, taken_op, not_taken_op, cmp_op)                \
   static branch_result emit_math_cmp_##name(vm_state *state, bc *pc,           \
                                             gc_obj *stack, slot v1, slot v2) { \
     auto lhs = stack[pc->v1];                                                  \
     auto rhs = stack[pc->v2];                                                  \
-    bool res = (cmp_expr);                                                     \
+    bool res;                                                                  \
+    if (is_flonum(lhs) || is_flonum(rhs)) {                                    \
+      res = numeric_to_double(lhs) cmp_op numeric_to_double(rhs);              \
+    } else if (is_fixnum(lhs) && is_fixnum(rhs)) {                             \
+      res = to_fixnum(lhs) cmp_op to_fixnum(rhs);                              \
+    } else {                                                                   \
+      abort();                                                                 \
+    }                                                                          \
     auto t = record_current_trace(state);                                      \
     auto t1 = get_slot_type(t, v1);                                            \
     auto t2 = get_slot_type(t, v2);                                            \
@@ -394,10 +411,10 @@ static slot emit_ov_math_mod(vm_state *state, slot v1, slot v2) {
     return br;                                                                 \
   }
 
-DEFINE_BRANCH_CMP(lt, IR_LT, IR_GTE, to_fixnum(lhs) < to_fixnum(rhs))
-DEFINE_BRANCH_CMP(gt, IR_GT, IR_LTE, to_fixnum(lhs) > to_fixnum(rhs))
-DEFINE_BRANCH_CMP(lte, IR_LTE, IR_GT, to_fixnum(lhs) <= to_fixnum(rhs))
-DEFINE_BRANCH_CMP(gte, IR_GTE, IR_LT, to_fixnum(lhs) >= to_fixnum(rhs))
+DEFINE_BRANCH_CMP(lt, IR_LT, IR_GTE, <)
+DEFINE_BRANCH_CMP(gt, IR_GT, IR_LTE, >)
+DEFINE_BRANCH_CMP(lte, IR_LTE, IR_GT, <=)
+DEFINE_BRANCH_CMP(gte, IR_GTE, IR_LT, >=)
 static branch_result emit_math_cmp_eq(vm_state *state, bc *pc, gc_obj *stack,
                                       slot v1, slot v2) {
   auto lhs = stack[pc->v1];

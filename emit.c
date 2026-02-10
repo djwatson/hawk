@@ -719,13 +719,23 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
       break;
     }
     case IR_LT: {
-      emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
-      emit_jcc32(s, JGE, &t->snaps[cur_snap].patch_point);
+      if (op->type == FLONUM_TAG) {
+        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
+      } else {
+        emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
+      }
+      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JAE : JGE;
+      emit_jcc32(s, guard, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_GT: {
-      emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
-      emit_jcc32(s, JLE, &t->snaps[cur_snap].patch_point);
+      if (op->type == FLONUM_TAG) {
+        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
+      } else {
+        emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
+      }
+      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JBE : JLE;
+      emit_jcc32(s, guard, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_GTE: {
