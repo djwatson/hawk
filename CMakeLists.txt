@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 project(newhawk C)
 
 option(USE_RANDOM_SCHEDULE "Enable random schedule debugging" OFF)
+option(ENABLE_COVERAGE "Enable LLVM source-based coverage instrumentation" OFF)
 
 set(CMAKE_C_COMPILER clang)
 
@@ -145,6 +146,26 @@ add_custom_command(
 add_custom_target(fold_gen DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/fold_gen.h)
 add_dependencies(hawk fold_gen)
 #set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+
+if(ENABLE_COVERAGE)
+  if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+    set(coverage_compile_flags -O0 -g -fprofile-instr-generate -fcoverage-mapping)
+    set(coverage_link_flags -fprofile-instr-generate -fcoverage-mapping)
+  elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    set(coverage_compile_flags -O0 -g --coverage)
+    set(coverage_link_flags --coverage)
+  else()
+    message(FATAL_ERROR "Coverage is only supported with Clang or GCC compilers.")
+  endif()
+
+  target_compile_options(hawk PRIVATE ${coverage_compile_flags})
+  target_link_options(hawk PRIVATE ${coverage_link_flags})
+
+  if(TARGET gen_fold)
+    target_compile_options(gen_fold PRIVATE ${coverage_compile_flags})
+    target_link_options(gen_fold PRIVATE ${coverage_link_flags})
+  endif()
+endif()
 
 set(capstone_search_dirs)
 if(DEFINED ENV{HOMEBREW_PREFIX})
