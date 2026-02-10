@@ -247,7 +247,7 @@ static void resolve_or_enqueue(heap_state *heap, size_t dep_id, gc_obj *slot) {
       .id = dep_id,
       .slot = slot,
   };
-  arrput(nullptr, heap->fixups, entry);
+  arrput(heap->fixups, entry);
 }
 
 static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {

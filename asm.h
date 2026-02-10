@@ -1,7 +1,6 @@
 #pragma once
 
 #include "disassemble.h"
-#include "zone_alloc.h"
 #include <stdbool.h> // For bool type
 #include <stdint.h>
 
@@ -35,7 +34,6 @@ typedef struct emit_state {
   uint8_t *mtop;
   uint8_t *mend;
   uint8_t *p;
-  zone z;
   comment_entry *comments;
   constant_entry *const_pool;
   uint8_t *alloc_slowpath;

@@ -3,8 +3,7 @@
 #pragma once
 
 #include <stddef.h>
-
-#include "zone_alloc.h"
+#include <stdlib.h>
 
 typedef struct {
   size_t length;
@@ -13,23 +12,21 @@ typedef struct {
 
 array_header *arr_header(void const *t);
 
-void *arrgrowf(zone *z, void *a, size_t elemsize, size_t addlen,
-               size_t min_cap);
+void *arrgrowf(void *a, size_t elemsize, size_t addlen, size_t min_cap);
 
 #define arrfree(a) ((void)((a) ? free(arr_header(a)) : (void)0), (a) = NULL)
 
 // NOLINTBEGIN(clang-analyzer-core.NullDereference)
 #define arrlast(a) (&(a)[arrlen(a) - 1])
 
-#define arr_arrgrow(z, a, b, c) ((a) = arrgrowf(z, (a), sizeof *(a), (b), (c)))
+#define arr_arrgrow(a, b, c) ((a) = arrgrowf((a), sizeof *(a), (b), (c)))
 
-#define arrmaybegrow(z, a, n)                                                  \
+#define arrmaybegrow(a, n)                                                     \
   ((!(a) || arr_header(a)->length + (n) >= arr_header(a)->capacity)            \
-       ? (arr_arrgrow(z, a, n, n), 0)                                          \
+       ? (arr_arrgrow(a, n, n), 0)                                             \
        : 0)
 
-#define arrput(z, a, v)                                                        \
-  (arrmaybegrow(z, a, 1), (a)[arr_header(a)->length++] = (v))
+#define arrput(a, v) (arrmaybegrow(a, 1), (a)[arr_header(a)->length++] = (v))
 
 #define arrpop(a) (arr_header(a)->length--)
 size_t arrlen(void const *arr);

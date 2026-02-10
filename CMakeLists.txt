@@ -41,7 +41,6 @@ set(
   ${ASM_SOURCE}
   asm.c
   comments.c
-  zone_alloc.c
   profiler.c
   hashtable.c
   disassemble.c
@@ -92,7 +91,6 @@ set(
   host/gen_fold.c
   array.c
   hashtable.c
-  zone_alloc.c
 )
 set(gen_fold_source_paths)
 foreach(src ${gen_fold_sources})

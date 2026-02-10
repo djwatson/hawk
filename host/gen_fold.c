@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
       auto left = nexttoken(&c);
       auto right = nexttoken(&c);
       uint32_t rule = cur_func << 24 | op << 16 | left << 8 | right;
-      arrput(nullptr, rules, rule);
+      arrput(rules, rule);
     } else if (0 == strncmp(line, "IRFOLDF(", 8)) {
       auto c = &line[8];
       while (*c++ != ')') {

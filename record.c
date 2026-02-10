@@ -125,7 +125,7 @@ static inline uint32_t record_trace_count(vm_state *state) {
 }
 
 static inline void record_append_trace(vm_state *state, trace *trace) {
-  arrput(nullptr, state->record.traces, trace);
+  arrput(state->record.traces, trace);
 }
 
 static void snapshot_live_slots(trace_state *ts, snap *snap) {
@@ -133,7 +133,7 @@ static void snapshot_live_slots(trace_state *ts, snap *snap) {
     sentry entry = ts->stack[i];
     if (entry.changed && entry.live) {
       snap_entry slot = {.slot = (uint16_t)i, .val = entry.loc};
-      arrput(nullptr, snap->slots, slot);
+      arrput(snap->slots, slot);
     }
   }
 }
@@ -169,7 +169,7 @@ void record_init(record_state *record) {
 static slot add_const(vm_state *state, gc_obj value) {
   trace *trace_obj = record_current_trace(state);
   auto idx = arrlen(trace_obj->consts);
-  arrput(nullptr, trace_obj->consts, value);
+  arrput(trace_obj->consts, value);
   return (slot){.constant = true, .loc = idx};
 }
 
@@ -201,14 +201,14 @@ static void vm_add_snap(vm_state *state, bc *pc) {
     arrpop(cur_trace->snaps);
     free_snap(old);
   }
-  arrput(nullptr, cur_trace->snaps, sn);
+  arrput(cur_trace->snaps, sn);
 }
 
 static void ensure_stack_len(trace_state *ts, uint32_t need) {
   auto len = arrlen(ts->stack);
   while (len < need) {
     sentry entry = {.live = false, .changed = false};
-    arrput(nullptr, ts->stack, entry);
+    arrput(ts->stack, entry);
     len++;
   }
 }
@@ -250,7 +250,7 @@ static slot add_inst(vm_state *state, ir_ins ins) {
   }
 
   auto idx = arrlen(trace_obj->ins);
-  arrput(nullptr, trace_obj->ins, ins);
+  arrput(trace_obj->ins, ins);
   return (slot){.constant = false, .loc = idx};
 }
 
@@ -570,7 +570,7 @@ static frame_state return_frame(vm_state *state, bc instr, bc *pc,
     set_stack(state, old_pc->reg, res);
     // 7) Add a snap, since we changed the stack / RA, we can't go back.
     vm_add_snap(state, ra);
-    arrput(nullptr, ts->downrec, pc);
+    arrput(ts->downrec, pc);
   } else {
     if (downrec_trace && at_trace_start && (arrlen(cur_trace->ins) > 1)) {
       // We've walked UP the stack to the same return statement somehow. Abort.

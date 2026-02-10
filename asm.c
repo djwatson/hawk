@@ -61,7 +61,7 @@ void label_add_patch(emit_state *s, label *label, enum label_patch_kind kind,
   assert(label);
   label_patch patch = {.kind = kind, .loc = loc};
   // Use heap-backed arrays so we can free after patching.
-  arrput(nullptr, label->patches, patch);
+  arrput(label->patches, patch);
 }
 
 void emit_label(emit_state *s, label *label) {
@@ -130,7 +130,6 @@ void emit_init(emit_state *s) {
     return;
   }
 
-  memset(&s->z, 0, sizeof(s->z));
   s->comments = nullptr;
   s->alloc_slowpath = nullptr;
 
@@ -188,7 +187,7 @@ int add_constant(emit_state *s, double value) {
     }
   }
   constant_entry entry = {.value = value, .addr = nullptr, .patches = nullptr};
-  arrput(nullptr, s->const_pool, entry);
+  arrput(s->const_pool, entry);
   return (int)(arrlen(s->const_pool) - 1);
 }
 

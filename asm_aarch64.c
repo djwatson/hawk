@@ -858,7 +858,7 @@ void asm_load_constant(emit_state *s, int idx, uint8_t dst) {
   uint8_t *ldr_site =
       emit_op(s, 0xFD400000U | ((uint32_t)RTMP << 5) | (uint32_t)hw_fpr(dst));
   const_patch patch = {.inst0 = adrp_site, .inst1 = ldr_site};
-  arrput(nullptr, entry->patches, patch);
+  arrput(entry->patches, patch);
 }
 
 void asm_patch_constant_pool(emit_state *s) {

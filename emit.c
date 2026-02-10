@@ -178,15 +178,14 @@ static inline void add_entry_mapping(trace *entry_trace, snap_entry *entry,
                                      uint16_t slot, load_entry **loads,
                                      const_entry **consts) {
   if (!entry->val.constant) {
-    arrput(nullptr, *loads,
+    arrput(*loads,
            ((load_entry){.slot = slot,
                          .target_reg = slot_reg(entry_trace, entry->val)}));
     return;
   }
   uint8_t tgt = slot_reg(entry_trace, entry->val);
   if (tgt != REG_NONE) {
-    arrput(
-        nullptr, *consts,
+    arrput(*consts,
         ((const_entry){.target_reg = tgt,
                        .constant_value = slot_const(entry_trace, entry->val)}));
   }
@@ -479,19 +478,19 @@ collect_loopback_moves(emit_state *s, trace *exit_trace, trace *entry_trace,
                              : slot_reg(exit_trace, exit_entry->val);
       uint8_t entry_reg =
           entry->val.constant ? REG_NONE : slot_reg(entry_trace, entry->val);
-      arrput(nullptr, ignore_slots, exit_slot);
+      arrput(ignore_slots, exit_slot);
       if (exit_reg != REG_NONE) {
-        arrput(nullptr, regs, exit_reg);
+        arrput(regs, exit_reg);
       }
 
       if (exit_entry->val.constant && !entry->val.constant) {
-        arrput(nullptr, consts,
+        arrput(consts,
                ((const_entry){.target_reg = entry_reg,
                               .constant_value =
                                   slot_const(exit_trace, exit_entry->val)}));
       } else if (!exit_entry->val.constant && !entry->val.constant &&
                  exit_reg != entry_reg && entry_reg != REG_NONE) {
-        arrput(nullptr, cpy, ((par_copy){.from = exit_reg, .to = entry_reg}));
+        arrput(cpy, ((par_copy){.from = exit_reg, .to = entry_reg}));
       }
 
       i++;
@@ -999,7 +998,7 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
       abort();
     }
     if (pmov_ins->reg != REG_NONE) {
-      arrput(nullptr, cpy,
+      arrput(cpy,
              ((par_copy){.from = pmov_ins->prev_reg, .to = pmov_ins->reg}));
     }
   }

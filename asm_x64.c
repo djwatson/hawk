@@ -241,7 +241,7 @@ static void emit_sse_literal_constant(emit_state *s, uint8_t prefix,
   constant_entry *entry = &s->const_pool[idx];
   uint8_t *disp = emit_sse_literal_instr(s, prefix, opcode, dst);
   const_patch patch = {.inst0 = disp, .inst1 = nullptr};
-  arrput(nullptr, entry->patches, patch);
+  arrput(entry->patches, patch);
 }
 
 static void emit_mem_reg_sib(emit_state *s, uint8_t opcode, int32_t offset,
@@ -380,7 +380,7 @@ static void emit_fneg(emit_state *s, uint8_t r) {
   uint8_t *disp = emit_imm32(s, 0);
 
   const_patch patch = {.inst0 = disp, .inst1 = nullptr};
-  arrput(nullptr, entry->patches, patch);
+  arrput(entry->patches, patch);
 }
 
 void emit_push(emit_state *s, uint8_t r) {

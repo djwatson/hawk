@@ -8,8 +8,7 @@
 #include "array.h"
 #include "hawk.h"
 
-void *arrgrowf(zone *z, void *a, size_t elemsize, size_t addlen,
-               size_t min_cap) {
+void *arrgrowf(void *a, size_t elemsize, size_t addlen, size_t min_cap) {
   size_t new_cap = min_cap + addlen;
   array_header *header = nullptr;
   if (a) {
@@ -25,16 +24,8 @@ void *arrgrowf(zone *z, void *a, size_t elemsize, size_t addlen,
     }
   }
 
-  array_header *b;
   auto new_size = sizeof(array_header) + (elemsize * new_cap);
-  if (z) {
-    b = zone_realloc(
-        z, header,
-        header ? (sizeof(array_header) + (elemsize * header->capacity)) : 0,
-        new_size);
-  } else {
-    b = realloc(header, new_size);
-  }
+  array_header *b = realloc(header, new_size);
   b->capacity = new_cap;
   if (!header) {
     b->length = 0;

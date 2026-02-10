@@ -38,7 +38,7 @@ static void move_one(int i, size_t len, par_copy *moves, status *s,
         break;
       case BEING_MOVED:
         par_copy copy = {.from = moves[j].from, .to = tmp};
-        arrput(nullptr, *res, copy);
+        arrput(*res, copy);
         moves[j].from = tmp;
         break;
       case MOVED:
@@ -47,7 +47,7 @@ static void move_one(int i, size_t len, par_copy *moves, status *s,
     }
   }
   par_copy copy = {.from = moves[i].from, .to = moves[i].to};
-  arrput(nullptr, *res, copy);
+  arrput(*res, copy);
   s[i] = MOVED;
 }
 
@@ -73,7 +73,7 @@ void run_test(uint64_t *input, size_t len) {
   for (size_t i = 0; i < len; i++) {
     par_copy mov = {.from = input[pos], .to = input[pos + 1]};
     pos += 2;
-    arrput(nullptr, moves, mov);
+    arrput(moves, mov);
   }
   auto res = serialize_parallel_copy(moves, 15);
   arr_for_each(res, m) { printf("MOVE: %li to %li\n", m.from, m.to); }

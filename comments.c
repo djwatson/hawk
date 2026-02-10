@@ -40,5 +40,5 @@ void comment_append(int64_t offset, comment_entry **comments, const char *fmt,
   char *msg = heap_vsprintf(fmt, args);
   va_end(args);
   comment_entry entry = {.offset = offset, .text = msg};
-  arrput(nullptr, *comments, entry);
+  arrput(*comments, entry);
 }
