@@ -14,7 +14,6 @@
 * fft and nbody probably require a handful of more flonum routines
 
 ## tests:
-* array1.scm
 * deriv.scm
 * fft.scm
 * BST.scm
