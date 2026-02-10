@@ -114,6 +114,7 @@ void emit_cleanup(emit_state *s) {
     arrfree(s->const_pool);
     s->const_pool = nullptr;
   }
+  arr_for_each(s->comments, entry) { free((void *)entry.text); }
   arrfree(s->comments);
   s->comments = nullptr;
 
@@ -187,7 +188,7 @@ int add_constant(emit_state *s, double value) {
     }
   }
   constant_entry entry = {.value = value, .addr = nullptr, .patches = nullptr};
-  arrput(&s->z, s->const_pool, entry);
+  arrput(nullptr, s->const_pool, entry);
   return (int)(arrlen(s->const_pool) - 1);
 }
 
@@ -219,7 +220,8 @@ void emit_constant_pool(emit_state *s) {
   asm_patch_constant_pool(s);
 
   for (size_t i = 0; i < len; i++) {
-    s->const_pool[i].patches = nullptr;
+    arrfree(s->const_pool[i].patches);
   }
+  arrfree(s->const_pool);
   s->const_pool = nullptr;
 }

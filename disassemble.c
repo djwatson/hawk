@@ -10,7 +10,6 @@
 #include "array.h"
 #include "disassemble.h"
 #include "hashtable.h"
-#include "zone_alloc.h"
 
 typedef struct {
   uint64_t key;
@@ -97,8 +96,6 @@ void disassemble(const uint8_t *code, size_t len,
   }
 
   label_entry *label_targets = nullptr;
-  zone z = {};
-
   // First pass: collect all jump target addresses
   for (size_t i = 0; i < count; i++) {
     cs_detail *detail = insn[i].detail;
@@ -206,7 +203,6 @@ void disassemble(const uint8_t *code, size_t len,
   }
 
   hm_free(label_targets);
-  zone_free(&z);
   cs_free(insn, count);
   cs_close(&handle);
 }

@@ -7,7 +7,6 @@
 
 #include "array.h"
 #include "hashtable.h"
-#include "zone_alloc.h"
 #include "fold.h"
 
 char *ir_names[] = {
@@ -50,8 +49,11 @@ static uint32_t hash(uint32_t key, uint32_t hashval) {
   return key;
 }
 
-static void find_hash(zone *z, uint32_t *rules) {
-  uint32_t *used = zone_malloc(z, arrlen(rules) * 2 * sizeof(uint32_t));
+static void find_hash(uint32_t *rules) {
+  uint32_t *used = malloc(arrlen(rules) * 2 * sizeof(uint32_t));
+  if (!used) {
+    abort();
+  }
   size_t sz = arrlen(rules);
 
   for (size_t sz = arrlen(rules); sz <= arrlen(rules) * 2; sz++) {
@@ -81,10 +83,12 @@ static void find_hash(zone *z, uint32_t *rules) {
         printf("  key %%= %li;\n", sz);
         printf("  return key;\n");
         printf("}\n");
+        free(used);
         return;
       }
     }
   }
+  free(used);
   printf("FAILURE\n");
 }
 
@@ -93,7 +97,6 @@ int main(int argc, char *argv[]) {
 
   srand(0);
 
-  zone z = {};
   if (argc != 2) {
     abort();
   }
@@ -119,7 +122,7 @@ int main(int argc, char *argv[]) {
       auto left = nexttoken(&c);
       auto right = nexttoken(&c);
       uint32_t rule = cur_func << 24 | op << 16 | left << 8 | right;
-      arrput(&z, rules, rule);
+      arrput(nullptr, rules, rule);
     } else if (0 == strncmp(line, "IRFOLDF(", 8)) {
       auto c = &line[8];
       while (*c++ != ')') {
@@ -134,9 +137,9 @@ int main(int argc, char *argv[]) {
   }
   printf("};\n\n");
 
-  find_hash(&z, rules);
+  find_hash(rules);
 
   sh_free(name_to_insn);
+  arrfree(rules);
   free(line);
-  zone_free(&z);
 }

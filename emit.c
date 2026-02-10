@@ -23,7 +23,6 @@
 #include "record.h"
 #include "regalloc.h"
 #include "vm.h"
-#include "zone_alloc.h"
 
 static_assert((sizeof(flonum_s) & 7) == 0, "flonum_s must be 8-byte aligned");
 enum : int32_t {
@@ -163,8 +162,7 @@ jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
   return stack;
 }
 
-#define COMMENT(...)                                                           \
-  comment_append(emit_offset(s), &s->z, &s->comments, __VA_ARGS__)
+#define COMMENT(...) comment_append(emit_offset(s), &s->comments, __VA_ARGS__)
 
 typedef struct {
   uint16_t slot;
@@ -1063,8 +1061,8 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   }
 
   // Cleanup
-  zone_free(&s->z);
-  s->comments = nullptr;
+  arr_for_each(s->comments, entry) { free((void *)entry.text); }
+  arrfree(s->comments);
   arrfree(regmap.reloads);
   free(regmap.bindings);
 

@@ -7,9 +7,8 @@
 #include <stdlib.h>
 
 #include "array.h"
-#include "zone_alloc.h"
 
-static char *zone_vsprintf(zone *z, const char *fmt, va_list args) {
+static char *heap_vsprintf(const char *fmt, va_list args) {
   va_list measure;
   va_copy(measure, args);
   int needed = vsnprintf(nullptr, 0, fmt, measure);
@@ -19,7 +18,7 @@ static char *zone_vsprintf(zone *z, const char *fmt, va_list args) {
   }
 
   size_t bytes = (size_t)needed + 1;
-  char *buf = zone_malloc(z, bytes);
+  char *buf = malloc(bytes);
   if (!buf) {
     abort();
   }
@@ -34,12 +33,12 @@ static char *zone_vsprintf(zone *z, const char *fmt, va_list args) {
   return buf;
 }
 
-void comment_append(int64_t offset, zone *z, comment_entry **comments,
-                    const char *fmt, ...) {
+void comment_append(int64_t offset, comment_entry **comments, const char *fmt,
+                    ...) {
   va_list args;
   va_start(args, fmt);
-  char *msg = zone_vsprintf(z, fmt, args);
+  char *msg = heap_vsprintf(fmt, args);
   va_end(args);
   comment_entry entry = {.offset = offset, .text = msg};
-  arrput(z, *comments, entry);
+  arrput(nullptr, *comments, entry);
 }
