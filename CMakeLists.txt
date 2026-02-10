@@ -238,6 +238,15 @@ if(BUILD_TESTING)
   set_tests_properties(hawk_tak PROPERTIES PASS_REGULAR_EXPRESSION "12")
 
   add_test(
+    NAME hawk_takl
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/takl.scm
+  )
+  set_tests_properties(
+    hawk_takl PROPERTIES PASS_REGULAR_EXPRESSION
+                         "\\(6 5 4 3 2 1\\).*\n\\(7 6 5 4 3 2 1\\).*\n\\(10 9 8 7 6 5 4 3 2 1\\).*\n\\(13 12 11 10 9 8 7 6 5 4 3 2 1\\)"
+  )
+
+  add_test(
     NAME hawk_cpstak
     COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/cpstak.scm.bc
   )

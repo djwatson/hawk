@@ -1,15 +1,13 @@
 # Currently working on:
 
+* get arrays working, then array1 should work.
+
 * unclear if ensure_args_match_trace is working as intended, could be cleaned up
   * forward (GUARD) to IR_TYPECHECK, then more consistent and smaller matching.
   * basically we're conflating 'do we need to emit a typecheck'? and 'does thing NEED to be typechecked already when we are here?'.
-* figure out nqueens bug after re-enabling RET traces with amount??
 
 * downrec traces don't ensure_args_match and link without boxing/typecheck
-* RET traces seem completely broken for takl.
 
-
-* get arrays working, then array1 should work.
 
 * get 'list' and 'map' working, then deriv.scm should work
 
