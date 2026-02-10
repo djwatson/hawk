@@ -150,7 +150,8 @@ static NOINLINE gc_obj emit_ov_math_mod_slow(vm_state *state, gc_obj v1,
                                              gc_obj v2) {
   (void)state;
   if (is_flonum(v1) || is_flonum(v2)) {
-    double r = fmod(to_flonum(scm_inexact(v1))->x, to_flonum(scm_inexact(v2))->x);
+    double r =
+        fmod(to_flonum(scm_inexact(v1))->x, to_flonum(scm_inexact(v2))->x);
     flonum_s *res = gc_alloc(sizeof(flonum_s));
     res->header.type = FLONUM_TAG;
     res->x = r;
@@ -264,7 +265,39 @@ gc_obj halt(vm_state *state, gc_obj *stack) {
   profiler_stop();
   jit_dump_close();
   if (verbose) {
-    printf("There were %li traces\n", arrlen(state->record.traces));
+    size_t up_recursive_traces = 0;
+    size_t ret_traces = 0;
+    size_t side_traces = 0;
+    size_t normal_loop_traces = 0;
+    auto traces = state->record.traces;
+    arr_for_each_idx(traces, i) {
+      auto t = traces[i];
+      if (t->parent != nullptr) {
+        side_traces++;
+        continue;
+      }
+      if (t->start_pc.op == OP_RET) {
+        ret_traces++;
+        continue;
+      }
+      if (t->start_pc.op == OP_FUNC) {
+        bool last_snap_has_offset = false;
+        if (arrlen(t->snaps) > 0) {
+          auto last_snap = &t->snaps[arrlen(t->snaps) - 1];
+          last_snap_has_offset = last_snap->offset != 0;
+        }
+        if (last_snap_has_offset) {
+          up_recursive_traces++;
+        } else {
+          normal_loop_traces++;
+        }
+      }
+    }
+    printf("Trace counts (%li total):\n", (long)arrlen(traces));
+    printf("  up-recursive: %li\n", (long)up_recursive_traces);
+    printf("  down-recursive: %li\n", (long)ret_traces);
+    printf("  normal-loop: %li\n", (long)normal_loop_traces);
+    printf("  side: %li\n", (long)side_traces);
   }
   auto res = stack[0];
   free_traces(state);

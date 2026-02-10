@@ -85,7 +85,7 @@ EXPORT void profiler_stop(void) {
   double gc_pct = (double)bucket_time_ns[BUCKET_GC] / total * 100.0;
   double vm_pct = (double)bucket_time_ns[BUCKET_VM] / total * 100.0;
 
-  printf("On-trace: %.02f%% (%.3f ms)\n", on_trace_pct,
+  printf("\nOn-trace: %.02f%% (%.3f ms)\n", on_trace_pct,
          (double)bucket_time_ns[BUCKET_JIT] / 1e6);
   printf("In-gc: %.02f%% (%.3f ms)\n", gc_pct,
          (double)bucket_time_ns[BUCKET_GC] / 1e6);

@@ -142,14 +142,14 @@ END OP_BEGIN(JFUNC) {
   op_func impl = ((op_func *)op_table)[instr.op];
   MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
 }
-#define CMP_BRANCH(OPNAME, EMIT_FN)                                           \
-END OP_BEGIN(OPNAME) {                                                        \
-  auto v1 = stack_load(state, stack, instr.v1, true);                         \
-  auto v2 = stack_load(state, stack, instr.v2, true);                         \
-  auto res = EMIT_FN(state, pc, stack, v1, v2);                               \
-  pc = branch_if_op(state, pc, stack, res);                                   \
-  dispatch_next(pc, stack);                                                   \
-}
+#define CMP_BRANCH(OPNAME, EMIT_FN)                                            \
+  END OP_BEGIN(OPNAME) {                                                       \
+    auto v1 = stack_load(state, stack, instr.v1, true);                        \
+    auto v2 = stack_load(state, stack, instr.v2, true);                        \
+    auto res = EMIT_FN(state, pc, stack, v1, v2);                              \
+    pc = branch_if_op(state, pc, stack, res);                                  \
+    dispatch_next(pc, stack);                                                  \
+  }
 
 CMP_BRANCH(JLT, emit_math_cmp_lt)
 CMP_BRANCH(JGT, emit_math_cmp_gt)
