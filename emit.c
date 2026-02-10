@@ -674,10 +674,15 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
     }
     case IR_LOAD: {
       assert(!op->op1.constant);
-      assert(op->op2.constant);
-      int64_t offset_bytes =
-          to_fixnum(t->consts[op->op2.loc]) + (int64_t)sizeof(gc_header);
-      emit_mem_load(s, (int32_t)offset_bytes, arg0_reg, op->reg);
+      int32_t typed_offset =
+          (int32_t)((int64_t)sizeof(gc_header) - slot_ins(t, op->op1)->type);
+      if (op->op2.constant) {
+        int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
+        emit_mem_load(s, (int32_t)offset_bytes, arg0_reg, op->reg);
+      } else {
+        emit_add(s, RTMP, arg1_reg, arg0_reg);
+        emit_mem_load(s, typed_offset, RTMP, op->reg);
+      }
       emit_typecheck(s, t, op, cur_snap, op->reg);
       break;
     }

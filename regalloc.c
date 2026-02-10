@@ -223,12 +223,12 @@ regalloc_result regalloc(trace *t) {
     case IR_SUB:
     case IR_ADD:
     case IR_MOD:
+    case IR_LOAD:
       maybe_assign_register(&s, op->op1, op_cnt);
       maybe_assign_register(&s, op->op2, op_cnt);
       bindings[op_cnt].arg[0].reg = slot_reg(t, op->op1);
       bindings[op_cnt].arg[1].reg = slot_reg(t, op->op2);
       break;
-    case IR_LOAD:
     case IR_TYPECHECK:
       maybe_assign_register(&s, op->op1, op_cnt);
       bindings[op_cnt].arg[0].reg = slot_reg(t, op->op1);

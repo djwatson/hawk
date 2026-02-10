@@ -413,7 +413,7 @@ static inline double numeric_to_double(gc_obj v) {
     branch_result br = {                                                       \
         .taken = res,                                                          \
         .guard = IR(.op = (res) ? (taken_op) : (not_taken_op), .op1 = v1,      \
-                    .op2 = v2,                                                  \
+                    .op2 = v2,                                                 \
                     .type = get_slot_type(record_current_trace(state), v1)),   \
     };                                                                         \
     return br;                                                                 \
@@ -664,13 +664,6 @@ static slot load_obj(vm_state *state, gc_obj *stack, bc *pc) {
   auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
   auto type = get_type_tag(base[to_fixnum(off)]);
 
-  assert(offset.constant);
-  offset = add_const(
-      state,
-      tag_fixnum(
-          (to_fixnum(record_current_trace(state)->consts[offset.loc]) * 8) -
-          get_tag(stack[pc->v1])));
-
   ir_ins ins = IR(.op = IR_LOAD, .op1 = obj, .op2 = offset, .type = type);
   return add_inst(state, ins);
 }
@@ -767,8 +760,8 @@ static slot closure_get(vm_state *state, gc_obj *stack, slot clo, uint8_t pos,
     auto res = c->v[pos];
     return add_const(state, res);
   }
-  // Store byte offset to the captured variable (header is 16 bytes).
-  slot c_pos = add_const(state, tag_fixnum((pos * 8) + 8 - CLOSURE_TAG));
+  // IR_LOAD now applies header/tag adjustment in emit; keep this as slot index.
+  slot c_pos = add_const(state, tag_fixnum(pos + 1));
 
   gc_obj clo_obj = stack[clo_idx];
   gc_obj loaded = to_closure(clo_obj)->v[pos];
@@ -939,8 +932,8 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
     if (cur_trace) {
       // A trace is only safe to match if every required entry-arg guard can be
       // re-applied from the side trace's outgoing state. If an arg isn't in the
-      // outgoing snapshot (not live/changed), linking here would skip a required
-      // type guard on re-entry.
+      // outgoing snapshot (not live/changed), linking here would skip a
+      // required type guard on re-entry.
       for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
         if (!needs_guard[arg_idx]) {
           continue;
