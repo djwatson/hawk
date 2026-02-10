@@ -78,6 +78,10 @@ static inline void stack_save(vm_state *state, gc_obj *stack, uint8_t slot,
   (void)state;
   stack[slot] = res;
 }
+static inline void set_stack_top(vm_state *state, uint8_t top) {
+  (void)state;
+  (void)top;
+}
 static inline gc_obj const_load(vm_state *state, bc *pc, uint16_t offset) {
   (void)state;
   return *(gc_obj *)(pc - pc->data);

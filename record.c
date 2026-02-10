@@ -295,6 +295,10 @@ static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos,
 static void stack_save(vm_state *state, gc_obj *stack, uint8_t pos, slot res) {
   set_stack(state, pos, res);
 }
+static inline void set_stack_top(vm_state *state, uint8_t top) {
+  trace_state *ts = record_trace_state(state);
+  set_stack_len(ts, (uint32_t)top);
+}
 static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   // We use a non-moving gc, so this is just a runtime constant, always.
   auto c = *(gc_obj *)(pc - pc->data);
