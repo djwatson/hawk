@@ -220,6 +220,21 @@ static sentry *get_sentry(vm_state *state, uint64_t idx) {
   return &ts->stack[idx + ts->stack_off];
 }
 
+static sentry *get_sentry_abs(vm_state *state, uint64_t abs_idx) {
+  trace_state *ts = record_trace_state(state);
+  ensure_stack_len(ts, abs_idx + 1);
+  return &ts->stack[abs_idx];
+}
+
+static void set_stack_abs(vm_state *state, uint16_t abs_slot, slot val) {
+  auto entry = get_sentry_abs(state, abs_slot);
+  *entry = (sentry){
+      .live = true,
+      .changed = true,
+      .loc = val,
+  };
+}
+
 static inline void set_stack_len(trace_state *ts, uint32_t len) {
   ensure_stack_len(ts, ts->stack_off + len);
   arrlen_set(ts->stack, ts->stack_off + len);
@@ -287,6 +302,7 @@ static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
 }
 static inline bc *vmgen_jmp_advance(bc *pc) { return pc; }
 static slot emit_ov_math_add(vm_state *state, slot v1, slot v2) {
+
   // TODO fold for consts.
   auto t = record_current_trace(state);
   if (get_slot_type(t, v1) != get_slot_type(t, v2)) {
@@ -1103,17 +1119,16 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
     if (entry->val.constant) {
       continue;
     }
-    assert(entry->slot >= ts->stack_off);
-    auto s = get_sentry(state, (uint64_t)entry->slot - ts->stack_off);
+    auto s = get_sentry_abs(state, entry->slot);
     auto old_ins = &side_snap->trace->ins[entry->val.loc];
+    int64_t rel_slot = (int64_t)entry->slot - (int64_t)ts->stack_off;
     if (old_ins->guard || old_ins->type == FLONUM_TAG) {
       // Already typechecked.
       continue;
     }
-    auto checked =
-        add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc,
-                           .type = get_type_tag(stack[entry->slot])));
-    set_stack(state, entry->slot, checked);
+    auto checked = add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc,
+                                      .type = get_type_tag(stack[rel_slot])));
+    set_stack_abs(state, entry->slot, checked);
   }
   vm_add_snap(state, pc);
   ts->start_record_size = arrlen(record_current_trace(state)->ins);
