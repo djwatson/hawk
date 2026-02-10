@@ -848,6 +848,7 @@ typedef struct {
 static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
                                            trace *head, trace *cur_trace) {
   trace_match res = {.trace = head, .matched = false};
+
   if (verbose && head) {
     printf("Arg match head trace %i\n", head->num);
   }
@@ -875,6 +876,10 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
           break;
         }
         needs_guard[arg_idx] = true;
+        if (verbose) {
+          printf("  need_guard[arg%d] = 1 (pmov ins=%zu type=%u)\n", arg_idx, i,
+                 ins->type);
+        }
         if (get_type_tag(stack[arg_idx]) != ins->type) {
           if (verbose) {
             printf("  arg%d type mismatch want %u got %u\n", arg_idx, ins->type,
@@ -896,6 +901,10 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
         continue;
       }
       needs_guard[arg_idx] = true;
+      if (verbose) {
+        printf("  need_guard[arg%d] = 1 (typecheck ins=%zu type=%u)\n", arg_idx,
+               i, ins->type);
+      }
       if (get_type_tag(stack[arg_idx]) != ins->type) {
         if (verbose) {
           printf("  arg%d type mismatch want %u got %u\n", arg_idx, ins->type,
@@ -907,13 +916,59 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
     }
 
     if (!match) {
+      if (verbose) {
+        printf("  needs_guard:");
+        for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
+          if (needs_guard[arg_idx]) {
+            printf(" %d", arg_idx);
+          }
+        }
+        printf("\n");
+      }
       continue;
+    }
+
+    if (cur_trace) {
+      // A trace is only safe to match if every required entry-arg guard can be
+      // re-applied from the side trace's outgoing state. If an arg isn't in the
+      // outgoing snapshot (not live/changed), linking here would skip a required
+      // type guard on re-entry.
+      for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
+        if (!needs_guard[arg_idx]) {
+          continue;
+        }
+        sentry *entry = get_sentry(state, arg_idx);
+        if (!entry->live || !entry->changed) {
+          if (verbose) {
+            printf("  reject trace %i: missing outgoing snap slot for arg%d "
+                   "(live=%d changed=%d)\n",
+                   candidate->num, arg_idx, entry->live, entry->changed);
+          }
+          match = false;
+          break;
+        }
+      }
+      if (!match) {
+        continue;
+      }
     }
 
     res.trace = candidate;
     res.matched = true;
     if (verbose) {
       printf("  matched trace %i\n", candidate->num);
+      printf("  needs_guard:");
+      bool any_needs_guard = false;
+      for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
+        if (needs_guard[arg_idx]) {
+          printf(" %d", arg_idx);
+          any_needs_guard = true;
+        }
+      }
+      if (!any_needs_guard) {
+        printf(" (none)");
+      }
+      printf("\n");
     }
 
     if (cur_trace) {
@@ -921,11 +976,23 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
         if (!needs_guard[arg_idx]) {
           continue;
         }
+        if (verbose) {
+          printf("  propagate guard for arg%d\n", arg_idx);
+        }
         sentry *entry = get_sentry(state, arg_idx);
-        if (!entry->live || entry->loc.constant) {
+        if (!entry->live || !entry->changed || entry->loc.constant) {
+          if (verbose) {
+            printf("    skip arg%d guard propagation (live=%d changed=%d "
+                   "constant=%d)\n",
+                   arg_idx, entry->live, entry->changed, entry->loc.constant);
+          }
           continue;
         }
         cur_trace->ins[entry->loc.loc].guard = true;
+        if (verbose) {
+          printf("    set guard on cur_trace ins=%u for arg%d\n",
+                 entry->loc.loc, arg_idx);
+        }
       }
     }
     break;
