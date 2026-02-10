@@ -81,7 +81,7 @@ static void penalty_pc(record_state *record, bc *pc) {
     return;
   }
 
-  hm_put(&record->blacklist_zone, record->blacklist, pc, 1);
+  hm_put(record->blacklist, pc, 1);
 }
 
 static void clear_trace_state(trace_state *ts) {
@@ -163,7 +163,6 @@ static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
 
 void record_init(record_state *record) {
   gc_set_scan_callback(record_scan_roots, record);
-  memset(&record->blacklist_zone, 0, sizeof(record->blacklist_zone));
   record->blacklist = nullptr;
 }
 
@@ -1232,7 +1231,6 @@ void free_traces(struct vm_state *state) {
   arr_for_each(rs->traces, trace) { free_trace(trace); }
   arrfree(rs->trace_state.stack);
   arrfree(rs->traces);
-  zone_free(&rs->blacklist_zone);
-  rs->blacklist = nullptr;
+  hm_free(rs->blacklist);
   rs->cur_trace = nullptr;
 }

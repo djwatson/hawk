@@ -30,10 +30,10 @@ static bool addr_in_range(uint64_t addr, uint64_t start, uint64_t end) {
   return addr >= start && addr < end;
 }
 
-static void maybe_label_insert(zone *z, label_entry **labels, uint64_t target,
+static void maybe_label_insert(label_entry **labels, uint64_t target,
                                uint64_t start, uint64_t end) {
   if (addr_in_range(target, start, end)) {
-    hm_insert(z, *labels, target);
+    hm_insert(*labels, target);
   }
 }
 
@@ -112,21 +112,21 @@ void disassemble(const uint8_t *code, size_t len,
       for (size_t j = 0; j < detail->x86.op_count; j++) {
         if (detail->x86.operands[j].type == X86_OP_IMM) {
           uint64_t target = detail->x86.operands[j].imm;
-          maybe_label_insert(&z, &label_targets, target, start_addr, end_addr);
+          maybe_label_insert(&label_targets, target, start_addr, end_addr);
         }
       }
 #elifdef __aarch64__
       for (size_t j = 0; j < detail->arm64.op_count; j++) {
         if (detail->arm64.operands[j].type == ARM64_OP_IMM) {
           uint64_t target = detail->arm64.operands[j].imm;
-          maybe_label_insert(&z, &label_targets, target, start_addr, end_addr);
+          maybe_label_insert(&label_targets, target, start_addr, end_addr);
         }
       }
 #elifdef __riscv
       for (size_t j = 0; j < detail->riscv.op_count; j++) {
         if (detail->riscv.operands[j].type == RISCV_OP_IMM) {
           uint64_t target = detail->riscv.operands[j].imm + insn[i].address;
-          maybe_label_insert(&z, &label_targets, target, start_addr, end_addr);
+          maybe_label_insert(&label_targets, target, start_addr, end_addr);
         }
       }
 #else
@@ -205,6 +205,7 @@ void disassemble(const uint8_t *code, size_t len,
     }
   }
 
+  hm_free(label_targets);
   zone_free(&z);
   cs_free(insn, count);
   cs_close(&handle);

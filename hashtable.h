@@ -3,8 +3,8 @@
 #pragma once
 
 #include <stddef.h>
-
-#include "zone_alloc.h"
+#include <stdint.h>
+#include <stdlib.h>
 
 typedef struct {
   size_t length;
@@ -19,8 +19,9 @@ ptrdiff_t hm_geti_internal(void const *t, size_t elemsize, void *key,
                            size_t keysize, bool string);
 bool hm_del_internal(void const *t, size_t elemsize, void *key, size_t keysize,
                      bool string);
-void *hm_put_internal(zone *z, void *t, size_t elemsize, void *key,
-                      size_t keysize, bool string);
+void *hm_put_internal(void *t, size_t elemsize, void *key, size_t keysize,
+                      bool string);
+void hm_free_internal(void *t);
 
 size_t hm_len(void const *t);
 // ptrdiff_t hm_geti(T const *t, TK key);
@@ -52,21 +53,22 @@ size_t hm_len(void const *t);
        ? nullptr                                                               \
        : &(t)[hm_header(t)->tmp])
 
-// void hm_put(zone* z, T* t, TK key, TV value);
-#define hm_put(z, t, k, val)                                                   \
-  ((t) = hm_put_internal(z, t, sizeof *(t), ADDROF((t)->key, k),               \
+// void hm_put(T* t, TK key, TV value);
+#define hm_put(t, k, val)                                                      \
+  ((t) = hm_put_internal(t, sizeof *(t), ADDROF((t)->key, k),                  \
                          sizeof((t)->key), false),                             \
    (t)[hm_header(t)->tmp].value = (val))
-// void hm_insert(zone* z, T* t, TK key);
-#define hm_insert(z, t, k)                                                     \
-  ((t) = hm_put_internal(z, t, sizeof *(t), ADDROF((t)->key, k),               \
+// void hm_insert(T* t, TK key);
+#define hm_insert(t, k)                                                        \
+  ((t) = hm_put_internal(t, sizeof *(t), ADDROF((t)->key, k),                  \
                          sizeof((t)->key), false))
 // bool hm_del(T* t, TK key);
 #define hm_del(t, k)                                                           \
   hm_del_internal(t, sizeof *(t), ADDROF((t)->key, k), sizeof((t)->key), false)
 
-/// String-keyed hash tables.  Does *not* manage key memory.  Use a zone.
-#define sh_free(a) ((void)((a) ? free(hm_header(a)) : (void)0), (a) = NULL)
+/// String-keyed hash tables.  Does *not* manage key memory.
+#define hm_free(a) ((void)hm_free_internal((void *)(a)), (a) = NULL)
+#define sh_free(a) hm_free(a)
 // ptrdiff_t hm_geti(T const *t, TK key);
 #define sh_geti(t, k)                                                          \
   hm_geti_internal((t), sizeof *(t), ADDROF((t)->key, k), sizeof((t)->key),    \
@@ -94,14 +96,14 @@ size_t hm_len(void const *t);
        ? nullptr                                                               \
        : &(t)[hm_header(t)->tmp])
 
-// void sh_put(zone* z, T* t, TK key, TV value);
-#define sh_put(z, t, k, val)                                                   \
-  ((t) = hm_put_internal(z, t, sizeof *(t), ADDROF((t)->key, k),               \
+// void sh_put(T* t, TK key, TV value);
+#define sh_put(t, k, val)                                                      \
+  ((t) = hm_put_internal(t, sizeof *(t), ADDROF((t)->key, k),                  \
                          sizeof((t)->key), true),                              \
    (t)[hm_header(t)->tmp].value = (val))
-// void sh_insert(zone* z, T* t, TK key);
-#define sh_insert(z, t, k)                                                     \
-  ((t) = hm_put_internal(z, t, sizeof *(t), ADDROF((t)->key, k),               \
+// void sh_insert(T* t, TK key);
+#define sh_insert(t, k)                                                        \
+  ((t) = hm_put_internal(t, sizeof *(t), ADDROF((t)->key, k),                  \
                          sizeof((t)->key), true))
 // bool sh_del(T* t, TK key);
 #define sh_del(t, k)                                                           \

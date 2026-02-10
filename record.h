@@ -5,7 +5,6 @@
 #include "hashtable.h"
 #include "ir.h"
 #include "types.h"
-#include "zone_alloc.h"
 
 typedef struct sentry {
   bool changed;
@@ -41,7 +40,6 @@ typedef struct record_state {
   trace_state trace_state;
   trace **traces;
   emit_state emit_state;
-  zone blacklist_zone;
   blacklist_entry *blacklist;
 } record_state;
 

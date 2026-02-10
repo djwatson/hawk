@@ -100,9 +100,9 @@ int main(int argc, char *argv[]) {
   uint32_t *rules = nullptr;
 
   for (uint64_t i = 0; i < IR_INS_MAX; i++) {
-    sh_put(&z, name_to_insn, ir_names[i], i);
+    sh_put(name_to_insn, ir_names[i], i);
   }
-  sh_put(&z, name_to_insn, "_", FOLD_ARG_ANY);
+  sh_put(name_to_insn, "_", FOLD_ARG_ANY);
 
   FILE *f = fopen(argv[1], "r");
   if (!f) {
@@ -136,6 +136,7 @@ int main(int argc, char *argv[]) {
 
   find_hash(&z, rules);
 
+  sh_free(name_to_insn);
   free(line);
   zone_free(&z);
 }

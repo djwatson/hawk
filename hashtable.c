@@ -6,7 +6,6 @@
 #include <string.h>
 
 #include "hashtable.h"
-#include "zone_alloc.h"
 
 /*
 The main motivation for *yet another hash table* was getting one that
@@ -14,7 +13,7 @@ would pass all the linters in C without much complaint.
 
 Secondary, it wouldn't explode compile times.
 
-Also, it zone-allocates.
+Also, it heap-allocates.
 
 So overall we're left with few macros as possible in the header, just
 enough to type-erase the key and value type, and most of the work in
@@ -157,19 +156,29 @@ bool hm_del_internal(void const *t, size_t elemsize, void *key, size_t keysize,
   return false;
 }
 
-static void *hm_expand(zone *z, void const *t, size_t elemsize, size_t keysize,
+static void *hm_expand(void const *t, size_t elemsize, size_t keysize,
                        bool string) {
   hash_header const *header = nullptr;
+  uint32_t *old_table = nullptr;
   size_t new_size = 4;
   if (t) {
     header = hm_header(t);
+    old_table = header->table;
     new_size = header->capacity * 2;
   }
-  hash_header *new_header = zone_realloc(
-      z, header, t ? sizeof(hash_header) + (elemsize * header->capacity) : 0,
-      sizeof(hash_header) + (new_size * elemsize));
-  new_header->table = zone_malloc(z, new_size * 2 * sizeof(uint32_t));
+  hash_header *new_header =
+      realloc((void *)header, sizeof(hash_header) + (new_size * elemsize));
+  if (!new_header) {
+    abort();
+  }
+  new_header->table = calloc(new_size * 2, sizeof(uint32_t));
+  if (!new_header->table) {
+    abort();
+  }
   new_header->capacity = new_size;
+  if (old_table) {
+    free(old_table);
+  }
   void *new_t = (char *)new_header + sizeof(hash_header);
 
   if (header) {
@@ -193,14 +202,14 @@ static void *hm_expand(zone *z, void const *t, size_t elemsize, size_t keysize,
   return new_t;
 }
 
-void *hm_put_internal(zone *z, void *t, size_t elemsize, void *key,
-                      size_t keysize, bool string) {
+void *hm_put_internal(void *t, size_t elemsize, void *key, size_t keysize,
+                      bool string) {
   if (!t) {
-    t = hm_expand(z, t, elemsize, keysize, string);
+    t = hm_expand(t, elemsize, keysize, string);
   }
   auto header = hm_header(t);
   if (header->length == header->capacity) {
-    t = hm_expand(z, t, elemsize, keysize, string);
+    t = hm_expand(t, elemsize, keysize, string);
     header = hm_header(t);
   }
 
@@ -230,27 +239,35 @@ void *hm_put_internal(zone *z, void *t, size_t elemsize, void *key,
   return t;
 }
 
+void hm_free_internal(void *t) {
+  if (!t) {
+    return;
+  }
+  auto header = hm_header(t);
+  free(header->table);
+  free(header);
+}
+
 /*
 int main() {
-  zone z = {0};
   struct {
     int key;
   } *set = nullptr;
   assert(hm_len(set) == 0);
-  hm_insert(&z, set, 1);
+  hm_insert(set, 1);
   assert(hm_len(set) == 1);
-  hm_insert(&z, set, 1);
+  hm_insert(set, 1);
   assert(hm_len(set) == 1);
-  hm_insert(&z, set, 10);
+  hm_insert(set, 10);
   assert(hm_len(set) == 2);
-  hm_insert(&z, set, 20);
+  hm_insert(set, 20);
   assert(hm_len(set) == 3);
-  hm_insert(&z, set, 30);
+  hm_insert(set, 30);
   assert(hm_len(set) == 4);
-  hm_insert(&z, set, 40);
+  hm_insert(set, 40);
   assert(hm_contains(set, 40));
   assert(hm_len(set) == 5);
-  hm_insert(&z, set, 20);
+  hm_insert(set, 20);
   assert(hm_len(set) == 5);
   assert(hm_contains(set, 40));
 
@@ -286,8 +303,8 @@ int main() {
     int value;
   } *map = nullptr;
 
-  hm_put(&z, map, 10, 100);
-  hm_put(&z, map, 20, 200);
+  hm_put(map, 10, 100);
+  hm_put(map, 20, 200);
   assert(hm_getv(map, 10) == 100);
   assert(hm_getp_null(map, 20)->value == 200);
 
@@ -298,7 +315,7 @@ int main() {
   } *smap = nullptr;
 
   char* foo = "foobar";
-  sh_insert(&z, smap, foo);
+  sh_insert(smap, foo);
   assert(sh_contains(smap, foo));
 
   // Double check that we're not just comparing char* pointers.
@@ -306,10 +323,12 @@ int main() {
   memcpy(foo2, foo, 6);
 
   assert(sh_contains(smap, foo2));
-  sh_insert(&z, smap, foo2);
+  sh_insert(smap, foo2);
   sh_del(smap, foo2);
   assert(0 == sh_len(smap));
 
-  zone_free(&z);
+  hm_free(set);
+  hm_free(map);
+  sh_free(smap);
 }
 */
