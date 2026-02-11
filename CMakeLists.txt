@@ -328,6 +328,14 @@ if(BUILD_TESTING)
   set_tests_properties(
     hawk_primes PROPERTIES PASS_REGULAR_EXPRESSION "\\(2 3 5 7 11 13.*983 991 997\\)"
   )
+
+  add_test(
+    NAME hawk_array2
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/array2.scm
+  )
+  set_tests_properties(
+    hawk_array2 PROPERTIES PASS_REGULAR_EXPRESSION "1000000"
+  )
 endif()
 
 file(
