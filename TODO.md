@@ -1,6 +1,7 @@
 # Currently working on:
 
-* alloc size not constant array1 fix
+* figure out why deriv is slow
+  * downrec abort not working (start of trace is failing?)
 
 * unclear if ensure_args_match_trace is working as intended, could be cleaned up
   * forward (GUARD) to IR_TYPECHECK, then more consistent and smaller matching.
@@ -9,12 +10,9 @@
 * downrec traces don't ensure_args_match and link without boxing/typecheck
 
 
-* get 'list' and 'map' working, then deriv.scm should work
-
 * fft and nbody probably require a handful of more flonum routines
 
 ## tests:
-* deriv.scm
 * fft.scm
 * BST.scm
 * nbody.scm
