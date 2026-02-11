@@ -52,6 +52,7 @@ void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
 void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_mul(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
+void emit_sar_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm);
 void emit_mod(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
 void emit_mov(emit_state *s, uint8_t dst, uint8_t src);

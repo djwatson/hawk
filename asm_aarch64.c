@@ -636,6 +636,15 @@ void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   emit_mul(s, dst, lhs, RTMP);
 }
 
+void emit_sar_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm) {
+  assert(dst < FPR_REG_START);
+  assert(src < FPR_REG_START);
+  assert(imm < 64);
+  uint32_t opcode = 0x9340FC00U | ((uint32_t)imm << 16) |
+                    ((uint32_t)src << 5) | (uint32_t)dst;
+  emit_op(s, opcode);
+}
+
 void emit_mod(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   assert(dst < FPR_REG_START);
   assert(lhs < FPR_REG_START);

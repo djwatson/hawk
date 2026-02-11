@@ -785,9 +785,12 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
         emit_flonum_mul(s, t, op, arg0_reg, arg1_reg);
       } else {
         if (op->op2.constant) {
-          emit_mul_constant(s, op->reg, arg0_reg, slot_const(t, op->op2));
+          int64_t rhs_untagged = slot_const(t, op->op2) / (1LL << FIXNUM_SHIFT);
+          emit_mul_constant(s, op->reg, arg0_reg, rhs_untagged);
         } else {
-          emit_mul(s, op->reg, arg0_reg, arg1_reg);
+          // Keep tagged-fixnum semantics: untag one operand into RTMP.
+          emit_sar_constant(s, RTMP, arg1_reg, FIXNUM_SHIFT);
+          emit_mul(s, op->reg, arg0_reg, RTMP);
         }
         emit_typecheck(s, t, op, cur_snap, op->reg);
       }
