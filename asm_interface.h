@@ -15,6 +15,7 @@ typedef struct label label;
 
 void asm_mark_unallocatable(bool used[]);
 bool asm_is_callee_saved(uint8_t reg);
+bool asm_rtmp2_reserved(void);
 void asm_load_constant(emit_state *s, int idx, uint8_t dst);
 void asm_patch_constant_pool(emit_state *s);
 void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t const *target);

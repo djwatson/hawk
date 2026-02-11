@@ -642,14 +642,7 @@ static slot alloc_obj(vm_state *state, gc_obj *stack, bc *pc,
   auto sz = stack_load(state, stack, pc->v1, true);
   auto type = stack_load(state, stack, pc->v2, true);
   assert(type.constant);
-  if (!sz.constant) {
-    if (verbose) {
-      printf("Record abort: ALLOC size not constant\n");
-    }
-    record_abort(state);
-    *op_table = state->impls;
-    return (slot){0};
-  }
+  (void)op_table;
 
   auto t = record_current_trace(state);
   auto type_const = t->consts[type.loc];

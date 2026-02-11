@@ -231,6 +231,7 @@ regalloc_result regalloc(trace *t) {
       bindings[op_cnt].arg[1].reg = slot_reg(t, op->op2);
       break;
     case IR_TYPECHECK:
+    case IR_ALLOC:
       maybe_assign_register(&s, op->op1, op_cnt);
       bindings[op_cnt].arg[0].reg = slot_reg(t, op->op1);
       break;
@@ -239,6 +240,7 @@ regalloc_result regalloc(trace *t) {
       bindings[op_cnt].arg[1].reg = slot_reg(t, op->op2);
       break;
     case IR_STORE:
+      // STORE is always IR_STORE + IR_REF, so treat them together.
       auto ref = slot_ins(t, op->op1);
       uint16_t ref_idx = op->op1.loc;
       assert(ref->op == IR_REF);
@@ -264,7 +266,6 @@ regalloc_result regalloc(trace *t) {
                             op_cnt);
       s.regs[op->reg].used = false;
       break;
-    case IR_ALLOC: // currently only constants supported.
     case IR_REF:
     case IR_SLOAD:
     case IR_GGET:

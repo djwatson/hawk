@@ -66,6 +66,8 @@ bool asm_is_callee_saved(uint8_t reg) {
   }
 }
 
+bool asm_rtmp2_reserved(void) { return true; }
+
 static uint64_t count_trailing_zeros64(uint64_t n) {
   if (n == 0) {
     return 64;

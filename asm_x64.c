@@ -52,6 +52,8 @@ bool asm_is_callee_saved(uint8_t reg) {
   }
 }
 
+bool asm_rtmp2_reserved(void) { return false; }
+
 static uint8_t low3bits(uint8_t r) { return 0x7 & r; }
 
 /////////////////// instruction encoding

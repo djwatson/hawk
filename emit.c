@@ -47,7 +47,11 @@ static void register_jit_symbol(uint8_t *start, uint8_t *entry, uint8_t *end,
   }
 }
 
-// Slowpath: RET_REG will be the requested size, AND return value.
+static inline void *gc_alloc_tagged(uint64_t tagged_sz) {
+  return gc_alloc((uint64_t)(tagged_sz >> FIXNUM_SHIFT));
+}
+
+// Slowpath: RET_REG is tagged size on entry, allocation result on return.
 void emit_init_slowpath(emit_state *s) {
   if (s->alloc_slowpath) {
     return;
@@ -67,7 +71,7 @@ void emit_init_slowpath(emit_state *s) {
 
   emit_push_regs(s, slowpath_regs, reg_cnt, true);
   emit_mov(s, RARG0, RET_REG);
-  emit_mov64(s, RTMP, (int64_t)&gc_alloc);
+  emit_mov64(s, RTMP, (int64_t)&gc_alloc_tagged);
   emit_call_reg(s, RTMP);
 
   emit_pop_regs(s, slowpath_regs, reg_cnt, true);
@@ -317,7 +321,7 @@ static void emit_box_flonum(emit_state *s, int32_t stack_offset,
   emit_jcc32(s, JLE, &continue_label);
 
   // No space, call slowpath
-  emit_mov64(s, RET_REG, sizeof(flonum_s));
+  emit_mov64(s, RET_REG, TAG_FIXNUM_VALUE(sizeof(flonum_s)));
   emit_call32(s, (int64_t)s->alloc_slowpath);
   emit_jmp32(s, &slow_continue_label);
   emit_label(s, &continue_label);
@@ -862,77 +866,114 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
     }
     case IR_ALLOC: {
       assert(op->reg != REG_NONE);
-      assert(op->op1.constant);
       assert(op->op2.constant);
-      int64_t size_bytes = slot_const(t, op->op1) >> FIXNUM_SHIFT;
-      assert((size_bytes & 7) == 0);
+      bool dynamic_alloc = !op->op1.constant;
       uint64_t type_val = (uint64_t)(slot_const(t, op->op2) >> FIXNUM_SHIFT);
       uint8_t tag_bits = (uint8_t)(type_val & TAG_MASK);
-      uint64_t size_class = (uint64_t)size_bytes / 8;
       assert(s->alloc_slowpath);
 
+      uint8_t save_regs[3];
+      size_t save_cnt = 0;
       bool preserve_ret = op->reg != RET_REG;
       bool preserve_ret2 = op->reg != RET_REG2;
-      int pushes = 0;
-      bool pad_stack = false;
+      bool preserve_rtmp2 =
+          dynamic_alloc && !asm_rtmp2_reserved() && op->reg != RTMP2;
+      if (preserve_rtmp2) {
+        save_regs[save_cnt++] = RTMP2;
+      }
       if (preserve_ret2) {
-        emit_push(s, RET_REG2);
-        pushes++;
+        save_regs[save_cnt++] = RET_REG2;
       }
       if (preserve_ret) {
         // Keep caller's RET_REG live if allocation result goes elsewhere.
-        emit_push(s, RET_REG);
-        pushes++;
+        save_regs[save_cnt++] = RET_REG;
       }
-      if (pushes & 1) {
-        // Maintain 16-byte stack alignment for calls below.
-        emit_push(s, RTMP);
-        pad_stack = true;
-      }
+      emit_push_regs(s, save_regs, save_cnt, false);
 
-      if (size_class < size_classes) {
-        freelist_s *alloc_freelist = &freelist[size_class];
-        label fastpath = {};
-        label slow_cont = {};
+      if (op->op1.constant) {
+        int64_t tagged_size = slot_const(t, op->op1);
+        int64_t size_bytes = tagged_size >> FIXNUM_SHIFT;
+        assert((size_bytes & 7) == 0);
+        uint64_t size_class = (uint64_t)size_bytes / 8;
+        if (size_class < size_classes) {
+          freelist_s *alloc_freelist = &freelist[size_class];
+          label fastpath = {};
+          label slow_cont = {};
 
-        // Fastpath: inline gc_alloc for known size class.
-        emit_mov64(s, RTMP, (intptr_t)alloc_freelist);
-        emit_mem_load(s, freelist_start_offset, RTMP, RET_REG);
-        emit_mem_load(s, freelist_end_offset, RTMP, RET_REG2);
-        emit_mov(s, RTMP, RET_REG);
-        emit_add_constant(s, RTMP, RTMP, size_bytes);
-        emit_cmp(s, RTMP, RET_REG2);
-        emit_jcc32(s, JLE, &fastpath);
+          // Fastpath: inline gc_alloc for known size class.
+          emit_mov64(s, RTMP, (intptr_t)alloc_freelist);
+          emit_mem_load(s, freelist_start_offset, RTMP, RET_REG);
+          emit_mem_load(s, freelist_end_offset, RTMP, RET_REG2);
+          emit_mov(s, RTMP, RET_REG);
+          emit_add_constant(s, RTMP, RTMP, size_bytes);
+          emit_cmp(s, RTMP, RET_REG2);
+          emit_jcc32(s, JLE, &fastpath);
 
-        // Slowpath: call shared stub.
-        emit_mov64(s, RET_REG, size_bytes);
-        emit_call32(s, (int64_t)s->alloc_slowpath);
-        emit_jmp32(s, &slow_cont);
+          // Slowpath: call shared stub with tagged size.
+          emit_mov64(s, RET_REG, tagged_size);
+          emit_call32(s, (int64_t)s->alloc_slowpath);
+          emit_jmp32(s, &slow_cont);
 
-        emit_label(s, &fastpath);
-        // Update freelist start_ptr to new head.
-        emit_mov(s, RET_REG2, RTMP);
-        emit_mov64(s, RTMP, (intptr_t)alloc_freelist);
-        emit_store(s, freelist_start_offset, RTMP, RET_REG2);
-        emit_label(s, &slow_cont);
+          emit_label(s, &fastpath);
+          // Update freelist start_ptr to new head.
+          emit_mov(s, RET_REG2, RTMP);
+          emit_mov64(s, RTMP, (intptr_t)alloc_freelist);
+          emit_store(s, freelist_start_offset, RTMP, RET_REG2);
+          emit_label(s, &slow_cont);
+        } else {
+          // Large objects still go through the slowpath.
+          emit_mov64(s, RET_REG, tagged_size);
+          emit_call32(s, (int64_t)s->alloc_slowpath);
+        }
       } else {
-        // Large objects still go through the slowpath.
-        emit_mov64(s, RET_REG, size_bytes);
+        // Dynamic size fastpath:
+        //   size_class = tagged_size >> (FIXNUM_SHIFT + 3)
+        //   if in range, probe freelist[size_class] inline
+        //   otherwise call slowpath.
+        label dyn_fastpath = {};
+        label dyn_fast_commit = {};
+        label dyn_slowpath = {};
+        label dyn_cont = {};
+
+        assert(arg0_reg != REG_NONE);
+
+        COMMENT("  Alloc with dynamic size");
+        emit_sar_constant(s, RET_REG2, arg0_reg, FIXNUM_SHIFT + 3);
+        emit_cmp_constant(s, RET_REG2, (int64_t)size_classes);
+        emit_jcc32(s, JGE, &dyn_slowpath);
+
+        COMMENT("  Fastpath small size");
+        emit_label(s, &dyn_fastpath);
+        emit_mul_constant(s, RET_REG2, RET_REG2, (int64_t)sizeof(freelist_s));
+        emit_add_constant(s, RET_REG2, RET_REG2, (int64_t)(intptr_t)freelist);
+        emit_mov(s, RTMP2, RET_REG2);
+        emit_mem_load(s, freelist_start_offset, RTMP2, RET_REG);
+        emit_mem_load(s, freelist_end_offset, RTMP2, RET_REG2);
+
+        // new_head = start_ptr + size_bytes, where size_bytes = tagged >> 3.
+        emit_sar_constant(s, RTMP, arg0_reg, FIXNUM_SHIFT);
+        emit_add(s, RTMP, RET_REG, RTMP);
+        emit_cmp(s, RTMP, RET_REG2);
+        emit_jcc32(s, JLE, &dyn_fast_commit);
+
+        COMMENT("  Slowpath (size too big or freelist empty)");
+        emit_label(s, &dyn_slowpath);
+        emit_mov(s, RET_REG, arg0_reg);
         emit_call32(s, (int64_t)s->alloc_slowpath);
+        emit_jmp32(s, &dyn_cont);
+
+        // Fastpath success: store updated start_ptr.
+        COMMENT("  Fastpath commit");
+        emit_label(s, &dyn_fast_commit);
+        emit_store(s, freelist_start_offset, RTMP2, RTMP);
+        emit_label(s, &dyn_cont);
       }
 
+      COMMENT("  Alloc commit type");
       emit_store_constant(s, 0, RET_REG, (int64_t)type_val);
       emit_add_constant(s, op->reg, RET_REG, tag_bits);
 
-      if (pad_stack) {
-        emit_pop(s, RTMP);
-      }
-      if (preserve_ret) {
-        emit_pop(s, RET_REG);
-      }
-      if (preserve_ret2) {
-        emit_pop(s, RET_REG2);
-      }
+      emit_pop_regs(s, save_regs, save_cnt, false);
       break;
     }
     case IR_ARG:
@@ -960,8 +1001,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result *regmap) {
         !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
           op->op == IR_LOAD || op->op == IR_ALLOC || op->op == IR_TYPECHECK ||
           op->op == IR_SUB || op->op == IR_ADD || op->op == IR_MUL ||
-          op->op == IR_MOD ||
-          op->op == IR_GGET)) {
+          op->op == IR_MOD || op->op == IR_GGET)) {
       abort();
     }
 
