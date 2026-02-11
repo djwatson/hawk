@@ -433,6 +433,20 @@ DEFINE_BRANCH_CMP(lt, IR_LT, IR_GTE, <)
 DEFINE_BRANCH_CMP(gt, IR_GT, IR_LTE, >)
 DEFINE_BRANCH_CMP(lte, IR_LTE, IR_GT, <=)
 DEFINE_BRANCH_CMP(gte, IR_GTE, IR_LT, >=)
+static branch_result emit_math_cmp_jeq(vm_state *state, bc *pc, gc_obj *stack,
+                                       slot v1, slot v2) {
+  auto lhs = stack[pc->v1];
+  auto rhs = stack[pc->v2];
+  bool res = lhs.value == rhs.value;
+
+  auto t = record_current_trace(state);
+  branch_result br = {
+      .taken = res,
+      .guard = IR(.op = res ? IR_EQ : IR_NE, .op1 = v1, .op2 = v2,
+                  .type = get_slot_type(t, v1)),
+  };
+  return br;
+}
 static branch_result emit_math_cmp_eq(vm_state *state, bc *pc, gc_obj *stack,
                                       slot v1, slot v2) {
   auto lhs = stack[pc->v1];

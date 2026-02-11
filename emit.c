@@ -436,7 +436,8 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
     COMMENT("  typecheck fix");
     emit_test_constant(s, reg, TAG_MASK);
     emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
-  } else if (op->type == CONS_TAG || op->type == VECTOR_TAG) {
+  } else if (op->type == CONS_TAG || op->type == VECTOR_TAG ||
+             op->type == SYMBOL_TAG) {
     COMMENT("  typecheck %s", low_tag_names[op->type]);
     emit_mov(s, RTMP, reg);
     emit_and_constant(s, RTMP, RTMP, TAG_MASK);

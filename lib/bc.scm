@@ -63,6 +63,7 @@
     (modulo . MOD)
     (< . LT)
     (> . GT)
+    (eq? . EQ)
     (= . EQV)
     (>= . GTE)
     (<= . LTE)
@@ -300,7 +301,7 @@
 ;; branching versions.  Replace comparison ops with branching +
 ;; comparison if in an 'if' test position, otherwise replace with a
 ;; branch + true/false constant result.
-(define jcmp '((LT . JLT) (GT . JGT) (LTE . JLTE) (GTE . JGTE) (EQV . JEQV)))
+(define jcmp '((LT . JLT) (GT . JGT) (LTE . JLTE) (GTE . JGTE) (EQ . JEQ) (EQV . JEQV)))
 (define (lower-comparisons ir)
   (match ir
     ;; If it's already behind a if test, it's okay
@@ -684,5 +685,4 @@
 ;; closure convert - just ensure no free.
 ;; DONE inline simple prims.
 ;; output BC.
-
 

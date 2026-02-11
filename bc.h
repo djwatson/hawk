@@ -59,6 +59,7 @@
   X(JGT, ABC)                                                                  \
   X(JLTE, ABC)                                                                 \
   X(JGTE, ABC)                                                                 \
+  X(JEQ, ABC)                                                                  \
   X(JEQV, ABC)                                                                 \
   X(GUARD, ABC)                                                                \
   X(IF, AD)                                                                    \
