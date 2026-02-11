@@ -699,6 +699,13 @@ void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
 }
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value) {
+  if (fits_in_32(value)) {
+    // x86-64 has no imm8 encoding for MOV r/m64, imm; small immediates use
+    // the sign-extending imm32 form.
+    emit_mem_reg(s, 0xC7, offset, base, 0);
+    emit_imm32(s, (uint32_t)value);
+    return;
+  }
   emit_mov64(s, RTMP, value);
   emit_store(s, offset, base, RTMP);
 }
