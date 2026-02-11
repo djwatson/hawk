@@ -1,5 +1,6 @@
 #include "fold.h"
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -46,6 +47,7 @@ static uint32_t fold_key(trace *t, ir_ins *in) {
 // If the inputs are always const, no need to guard anything!
 IRFOLD(GUARD_EQ CONST CONST)
 IRFOLD(NE CONST CONST)
+IRFOLD(EQ CONST CONST)
 IRFOLDF(fold_guard_const_const) { return fold_drop(); }
 
 IRFOLD(SUB CONST CONST)
@@ -82,6 +84,17 @@ IRFOLDF(fold_add_const_any) {
   in->op1 = in->op2;
   in->op2 = tmp;
   return (fold_result){.action = FOLD_RETRY};
+}
+
+IRFOLD(LOAD CONST CONST)
+IRFOLDF(fold_load_const_const) {
+  auto src = t->consts[in->op1.loc];
+  auto off = t->consts[in->op2.loc];
+  assert(is_heap_object(src));
+  assert(is_fixnum(off));
+
+  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
+  return fold_const(base[to_fixnum(off)]);
 }
 
 #undef cur_ins
