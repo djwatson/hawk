@@ -29,8 +29,13 @@ enum : uint8_t {
 };
 static bool should_jit() {
   static uint8_t next = 0;
+  static bool initialized = false;
+  if (!initialized) {
+    next = (uint8_t)(random() % 256);
+    initialized = true;
+  }
   if (next-- == 0) {
-    next = random() % 256;
+    next = (uint8_t)(random() % 256);
     return true;
   }
   return false;
