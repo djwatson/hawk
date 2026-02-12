@@ -1,7 +1,13 @@
 # Currently working on:
 
+* FIGURE OUT WHY derive uprec abort doesn't work in deriv, only in random_schedule mode, not stat mode.
+
 * figure out why deriv is slow
   * downrec abort not working (start of trace is failing?)
+  * GC start_ptr cache is essential (for cons cells).  Maybe need a small copying nursury
+  * GC next_collect is 10x too big.
+  * deriv.scm needs better closure conversion.
+  * need to remove push/pop of GC regs.
 
 * unclear if ensure_args_match_trace is working as intended, could be cleaned up
   * forward (GUARD) to IR_TYPECHECK, then more consistent and smaller matching.
