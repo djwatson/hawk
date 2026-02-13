@@ -917,22 +917,6 @@ static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
   }
 }
 
-static void build_fixed_output(regalloc2_state *s, regalloc2_result *out) {
-  out->fixed_reg_to_range_map = calloc(MAX_REG, sizeof(uint16_t));
-  assert(out->fixed_reg_to_range_map != NULL);
-  for (uint16_t r = 0; r < MAX_REG; r++) {
-    out->fixed_reg_to_range_map[r] = (uint16_t)arrlen(out->fixed_ranges);
-    arr_for_each_idx(s->fixed[r], i) {
-      auto fr = s->fixed[r][i];
-      arrput(out->fixed_ranges, ((fixed_reg_range){
-                                    .reg = (uint8_t)r,
-                                    .start = fr.start,
-                                    .end = fr.end,
-                                }));
-    }
-  }
-}
-
 static void write_back_trace_locations(regalloc2_state *s,
                                        regalloc2_result const *out) {
   size_t ins_len = arrlen(s->t->ins);
@@ -974,7 +958,6 @@ regalloc2_result regalloc2(trace *t) {
   linear_scan_allocate(&s);
 
   regalloc2_result out = {0};
-  build_fixed_output(&s, &out);
   build_dense_maps(&s, &out);
   write_back_trace_locations(&s, &out);
   normalize_spill_reload_ops(&s);
@@ -997,11 +980,9 @@ void regalloc2_result_free(regalloc2_result *r) {
   }
   arrfree(r->dense_locs);
   arrfree(r->spill_reload_ops);
-  arrfree(r->fixed_ranges);
   free(r->ir_output_locs);
   free(r->ir_id_to_dense_map);
   free(r->snap_id_to_dense_map);
-  free(r->fixed_reg_to_range_map);
   memset(r, 0, sizeof(*r));
 }
 
@@ -1187,12 +1168,4 @@ void regalloc2_print(trace *t, regalloc2_result const *r) {
       }
     }
   }
-}
-
-regalloc_result regalloc(trace *t) {
-  (void)t;
-  fprintf(stderr,
-          "regalloc() legacy interface has been removed; update emit.c to use "
-          "regalloc2 output.\n");
-  abort();
 }
