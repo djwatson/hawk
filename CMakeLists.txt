@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(CMAKE_C_COMPILER clang CACHE STRING "C compiler" FORCE)
+set(CMAKE_C_COMPILER clang CACHE STRING "C compiler")
 
 project(newhawk C)
 

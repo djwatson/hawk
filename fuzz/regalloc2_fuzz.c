@@ -15,9 +15,23 @@ bool jit_dump_flag = false;
 int64_t max_trace = 0;
 
 #if defined(__x86_64__)
-const char *const reg_names[X64_MAX_REG] = {[0] = "R0"};
+const char *const reg_names[X64_MAX_REG] = {
+#define X(name) #name,
+    ASM_X64_REGISTER_LIST(X)
+#undef X
+#define X(name) #name,
+        ASM_X64_FREGISTER_LIST(X)
+#undef X
+};
 #elif defined(__aarch64__)
-const char *const reg_names[AARCH64_MAX_REG] = {[0] = "R0"};
+const char *const reg_names[AARCH64_MAX_REG] = {
+#define X(name) #name,
+    ASM_AARCH64_REGISTER_LIST(X)
+#undef X
+#define X(name) #name,
+        ASM_AARCH64_FREGISTER_LIST(X)
+#undef X
+};
 #else
 #error "Unsupported architecture"
 #endif
@@ -212,15 +226,28 @@ static size_t snap_row_end(trace const *t, regalloc2_result const *r,
 }
 
 static void check_loc_holds(uint16_t const regs[MAX_REG],
-                            uint16_t const spills[MAX_SPILL],
-                            dense_loc_entry d) {
+                            uint16_t const spills[MAX_SPILL], dense_loc_entry d,
+                            char const *where, uint16_t ir_or_snap,
+                            uint16_t value_id) {
   if (d.kind == LOC_REG) {
     if (d.reg >= MAX_REG || regs[d.reg] != d.value_id) {
+      fprintf(stderr,
+              "check_loc_holds REG fail @%s idx=%u expect_v=%u got_entry_v=%u "
+              "reg=%u reg_content=%u\n",
+              where, ir_or_snap, value_id, d.value_id, d.reg,
+              d.reg < MAX_REG ? regs[d.reg] : UINT16_MAX);
+      fflush(stderr);
       abort();
     }
     return;
   }
   if (d.spill >= MAX_SPILL || spills[d.spill] != d.value_id) {
+    fprintf(stderr,
+            "check_loc_holds SPILL fail @%s idx=%u expect_v=%u got_entry_v=%u "
+            "spill=%u spill_content=%u\n",
+            where, ir_or_snap, value_id, d.value_id, d.spill,
+            d.spill < MAX_SPILL ? spills[d.spill] : UINT16_MAX);
+    fflush(stderr);
     abort();
   }
 }
@@ -274,14 +301,26 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
         if (cur >= end || r->dense_locs[cur].value_id != ins->op1.loc) {
           abort();
         }
-        check_loc_holds(regs, spills, r->dense_locs[cur]);
+        if (r->dense_locs[cur].kind != LOC_REG) {
+          fprintf(stderr, "regalloc2 verifier: ir-op1 not in register @ir=%u\n",
+                  ir);
+          abort();
+        }
+        check_loc_holds(regs, spills, r->dense_locs[cur], "ir-op1", ir,
+                        ins->op1.loc);
         cur++;
       }
       if (!ins->op2.constant) {
         if (cur >= end || r->dense_locs[cur].value_id != ins->op2.loc) {
           abort();
         }
-        check_loc_holds(regs, spills, r->dense_locs[cur]);
+        if (r->dense_locs[cur].kind != LOC_REG) {
+          fprintf(stderr, "regalloc2 verifier: ir-op2 not in register @ir=%u\n",
+                  ir);
+          abort();
+        }
+        check_loc_holds(regs, spills, r->dense_locs[cur], "ir-op2", ir,
+                        ins->op2.loc);
         cur++;
       }
       break;
@@ -291,7 +330,13 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
         if (cur >= end || r->dense_locs[cur].value_id != ins->op1.loc) {
           abort();
         }
-        check_loc_holds(regs, spills, r->dense_locs[cur]);
+        if (r->dense_locs[cur].kind != LOC_REG) {
+          fprintf(stderr, "regalloc2 verifier: ir-op1 not in register @ir=%u\n",
+                  ir);
+          abort();
+        }
+        check_loc_holds(regs, spills, r->dense_locs[cur], "ir-op1", ir,
+                        ins->op1.loc);
         cur++;
       }
       break;
@@ -344,7 +389,10 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
           abort();
         }
         spills[e.spill] = e.value_id;
-        regs[e.reg] = UINT16_MAX;
+        bool keep_reg = !e.before && e.ir_idx == e.value_id;
+        if (!keep_reg) {
+          regs[e.reg] = UINT16_MAX;
+        }
       }
       op_after++;
     }
@@ -359,7 +407,8 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
       size_t sstart = r->snap_id_to_dense_map[last_snap];
       size_t send = snap_row_end(t, r, last_snap);
       for (size_t j = sstart; j < send; j++) {
-        check_loc_holds(regs, spills, r->dense_locs[j]);
+        check_loc_holds(regs, spills, r->dense_locs[j], "snapshot", last_snap,
+                        r->dense_locs[j].value_id);
       }
     }
   }
@@ -373,7 +422,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
       .state = mix_seed(Data, Size),
   };
 
-  printf("RUN\n");
+  // printf("RUN\n");
   trace t = {0};
   fill_consts(&t);
   uint16_t max_const_loc = (uint16_t)(arrlen(t.consts) - 1);
@@ -381,9 +430,22 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     fill_instruction(&rng, &t, i, max_const_loc);
   }
   fill_snapshots(&rng, &t);
-  print_ir(&t);
+  // print_ir(&t);
 
   regalloc2_result r = regalloc2(&t);
+  // regalloc2_print(&t, &r);
+  size_t spill_output_count = 0;
+  for (size_t ir = 0; ir < arrlen(t.ins); ir++) {
+    if (r.ir_output_locs[ir].present &&
+        r.ir_output_locs[ir].loc.kind == LOC_SPILL) {
+      spill_output_count++;
+    }
+  }
+  size_t spill_op_count = arrlen(r.spill_reload_ops);
+  if (spill_output_count > 10 || spill_op_count > 10) {
+    printf("regalloc2 spills: outputs=%zu ops=%zu\n", spill_output_count,
+           spill_op_count);
+  }
   verify_regalloc2(&t, &r);
   regalloc2_result_free(&r);
   free_trace(&t);

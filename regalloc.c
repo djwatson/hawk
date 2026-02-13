@@ -1,6 +1,7 @@
 #include "regalloc.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,6 +40,8 @@ typedef struct regalloc_state {
   next_use *next_uses;
 } regalloc_state;
 
+typedef struct regalloc2_state regalloc2_state;
+
 static inline bool ins_uses_freg(ir_ins const *ins) {
   return ins->type == FLONUM_TAG;
 }
@@ -51,6 +54,8 @@ static inline ir_ins *slot_ins(trace *t, slot v) {
 static uint8_t assign_spill(regalloc_state *s);
 static void collect_next_uses(regalloc_state *s);
 static void print_next_uses(regalloc_state *s);
+static dense_loc_entry lookup_loc(regalloc2_state *s, uint16_t value_id,
+                                  uint16_t pos);
 
 static void add_next_use(regalloc_state *s, uint16_t loc, uint16_t ir_idx,
                          bool before, bool is_snap) {
@@ -76,8 +81,7 @@ static void collect_next_uses(regalloc_state *s) {
 
   size_t snap_len = arrlen(s->t->snaps);
   size_t cur_snap = snap_len;
-  uint16_t cur_snap_end_ir =
-      snap_len == 0 ? (uint16_t)ins_len : (uint16_t)(s->t->snaps[snap_len - 1].ir - 1);
+  uint16_t cur_snap_end_ir = ins_len;
 
   for (size_t i = ins_len; i > 0; i--) {
     while (cur_snap != 0 &&
@@ -156,7 +160,7 @@ typedef struct {
   uint8_t loc;
 } value_range;
 
-typedef struct {
+typedef struct regalloc2_state {
   trace *t;
   uint32_t *uses;
   next_use *next_uses;
@@ -187,6 +191,24 @@ static uint16_t interval_next_use_pos(regalloc2_state *s, uint16_t value_id,
   uint32_t use_idx = s->uses[value_id];
   while (use_idx != 0) {
     auto n = s->next_uses[use_idx];
+    uint16_t pos = use_pos(n);
+    if (pos >= from_pos) {
+      return pos;
+    }
+    use_idx = n.next;
+  }
+  return UINT16_MAX;
+}
+
+static uint16_t interval_next_ir_use_pos(regalloc2_state *s, uint16_t value_id,
+                                         uint16_t from_pos) {
+  uint32_t use_idx = s->uses[value_id];
+  while (use_idx != 0) {
+    auto n = s->next_uses[use_idx];
+    if (n.is_snap) {
+      use_idx = n.next;
+      continue;
+    }
     uint16_t pos = use_pos(n);
     if (pos >= from_pos) {
       return pos;
@@ -231,6 +253,81 @@ static void add_event(regalloc2_state *s, uint16_t pos, bool is_reload,
                              .reg = reg,
                              .spill = spill};
   arrput(s->ops, e);
+}
+
+static int spill_reload_op_cmp(void const *a, void const *b) {
+  auto ea = (spill_reload_op const *)a;
+  auto eb = (spill_reload_op const *)b;
+  if (ea->ir_idx != eb->ir_idx) {
+    return ea->ir_idx < eb->ir_idx ? -1 : 1;
+  }
+  if (ea->before != eb->before) {
+    return ea->before ? -1 : 1;
+  }
+  if (ea->is_reload != eb->is_reload) {
+    // At a use position, spill old reg content before reloading new value.
+    return ea->is_reload ? 1 : -1;
+  }
+  if (ea->reg != eb->reg) {
+    return ea->reg < eb->reg ? -1 : 1;
+  }
+  if (ea->value_id != eb->value_id) {
+    return ea->value_id < eb->value_id ? -1 : 1;
+  }
+  if (ea->spill != eb->spill) {
+    return ea->spill < eb->spill ? -1 : 1;
+  }
+  return 0;
+}
+
+static bool ir_uses_value_before(trace const *t, uint16_t ir_idx,
+                                 uint16_t value_id) {
+  auto ins = &t->ins[ir_idx];
+  switch (ir_ins_types[ins->op]) {
+  case IR_ARG_IR_IR:
+    return (!ins->op1.constant && ins->op1.loc == value_id) ||
+           (!ins->op2.constant && ins->op2.loc == value_id);
+  case IR_ARG_IR_NONE:
+  case IR_ARG_IR_ADDR:
+    return !ins->op1.constant && ins->op1.loc == value_id;
+  default:
+    return false;
+  }
+}
+
+static void normalize_spill_reload_ops(regalloc2_state *s) {
+  arr_for_each_idx(s->ops, i) {
+    auto *e = &s->ops[i];
+    if (!e->is_reload || !e->before) {
+      continue;
+    }
+    if (!ir_uses_value_before(s->t, e->ir_idx, e->value_id)) {
+      continue;
+    }
+    auto loc = lookup_loc(s, e->value_id, ir_before_pos(e->ir_idx));
+    if (loc.kind == LOC_REG) {
+      e->reg = loc.reg;
+    }
+  }
+
+  if (arrlen(s->ops) > 1) {
+    qsort(s->ops, arrlen(s->ops), sizeof(spill_reload_op), spill_reload_op_cmp);
+  }
+
+  size_t out = 0;
+  arr_for_each_idx(s->ops, i) {
+    if (out != 0) {
+      auto prev = s->ops[out - 1];
+      auto cur = s->ops[i];
+      if (prev.ir_idx == cur.ir_idx && prev.before == cur.before &&
+          prev.is_reload == cur.is_reload && prev.value_id == cur.value_id &&
+          prev.reg == cur.reg && prev.spill == cur.spill) {
+        continue;
+      }
+    }
+    s->ops[out++] = s->ops[i];
+  }
+  arrlen_set(s->ops, out);
 }
 
 static uint8_t get_or_assign_spill_slot(regalloc2_state *s, uint16_t value_id) {
@@ -287,7 +384,8 @@ static int pick_next_unhandled(ls_interval *ints) {
       continue;
     }
     if (best == -1 || ints[i].start < ints[best].start ||
-        (ints[i].start == ints[best].start && ints[i].value_id < ints[best].value_id)) {
+        (ints[i].start == ints[best].start &&
+         ints[i].value_id < ints[best].value_id)) {
       best = (int)i;
     }
   }
@@ -314,10 +412,8 @@ static dense_loc_entry lookup_loc(regalloc2_state *s, uint16_t value_id,
 
   auto spill = s->spill_slots[value_id];
   assert(spill != SPILL_NONE);
-  return (dense_loc_entry){.kind = LOC_SPILL,
-                           .reg = REG_NONE,
-                           .spill = spill,
-                           .value_id = value_id};
+  return (dense_loc_entry){
+      .kind = LOC_SPILL, .reg = REG_NONE, .spill = spill, .value_id = value_id};
 }
 
 static void build_intervals(regalloc2_state *s) {
@@ -348,9 +444,8 @@ static void init_fixed_intervals(regalloc2_state *s) {
   bool reserved[MAX_REG] = {0};
   asm_mark_unallocatable(reserved);
   reserved[FRTMP] = true;
-  uint16_t max_pos = arrlen(s->t->ins) == 0
-                         ? 0
-                         : (uint16_t)(arrlen(s->t->ins) * 2 - 1);
+  uint16_t max_pos =
+      arrlen(s->t->ins) == 0 ? 0 : (uint16_t)(arrlen(s->t->ins) * 2 - 1);
   for (int r = 0; r < MAX_REG; r++) {
     if (reserved[r]) {
       add_fixed_full(s, (uint8_t)r, max_pos);
@@ -382,6 +477,94 @@ static void split_interval(regalloc2_state *s, ls_interval *it,
   uint16_t old_end = it->end;
   it->end = child_start - 1;
   add_interval(s, it->value_id, child_start, old_end);
+}
+
+static void dump_value_ranges(regalloc2_state *s, uint16_t value_id) {
+  fprintf(stderr, "  ranges for v%u:", value_id);
+  bool found = false;
+  arr_for_each_idx(s->ranges, i) {
+    auto r = s->ranges[i];
+    if (r.value_id != value_id) {
+      continue;
+    }
+    found = true;
+    if (r.in_reg) {
+      fprintf(stderr, " [%" PRIu16 ",%" PRIu16 "]=%s", r.start, r.end,
+              reg_names[r.loc]);
+    } else {
+      fprintf(stderr, " [%" PRIu16 ",%" PRIu16 "]=S%u", r.start, r.end, r.loc);
+    }
+  }
+  if (!found) {
+    fprintf(stderr, " <none>");
+  }
+  fprintf(stderr, "\n");
+}
+
+static void dump_value_uses(regalloc2_state *s, uint16_t value_id) {
+  fprintf(stderr, "  uses for v%u:", value_id);
+  uint32_t use_idx = s->uses[value_id];
+  if (use_idx == 0) {
+    fprintf(stderr, " <none>\n");
+    return;
+  }
+  while (use_idx != 0) {
+    auto n = s->next_uses[use_idx];
+    fprintf(stderr, " %s%s@%u", n.is_snap ? "S-" : "I-", n.before ? "B" : "A",
+            n.ir_idx);
+    use_idx = n.next;
+  }
+  fprintf(stderr, "\n");
+}
+
+static void dump_value_intervals(regalloc2_state *s, uint16_t value_id) {
+  fprintf(stderr, "  intervals for v%u:", value_id);
+  bool found = false;
+  arr_for_each_idx(s->intervals, i) {
+    auto it = s->intervals[i];
+    if (it.value_id != value_id) {
+      continue;
+    }
+    found = true;
+    fprintf(stderr, " [%" PRIu16 ",%" PRIu16 "]", it.start, it.end);
+  }
+  if (!found) {
+    fprintf(stderr, " <none>");
+  }
+  fprintf(stderr, "\n");
+}
+
+static void dump_ir_events(regalloc2_state *s, uint16_t ir_idx) {
+  fprintf(stderr, "  events at ir=%u:", ir_idx);
+  bool found = false;
+  arr_for_each_idx(s->ops, i) {
+    auto e = s->ops[i];
+    if (e.ir_idx != ir_idx) {
+      continue;
+    }
+    found = true;
+    fprintf(stderr, " [%s %s v%u reg=%s spill=%u]",
+            e.before ? "before" : "after", e.is_reload ? "reload" : "spill",
+            e.value_id, reg_names[e.reg], e.spill);
+  }
+  if (!found) {
+    fprintf(stderr, " <none>");
+  }
+  fprintf(stderr, "\n");
+}
+
+static void maybe_add_reload_at_start(regalloc2_state *s, ls_interval const *it,
+                                      uint16_t pos) {
+  if (pos == 0) {
+    return;
+  }
+  if (s->spill_slots[it->value_id] == SPILL_NONE) {
+    return;
+  }
+  auto prev = lookup_loc(s, it->value_id, (uint16_t)(pos - 1));
+  if (prev.kind == LOC_SPILL) {
+    add_event(s, pos, true, it->value_id, it->reg, prev.spill);
+  }
 }
 
 static void linear_scan_allocate(regalloc2_state *s) {
@@ -441,6 +624,7 @@ static void linear_scan_allocate(regalloc2_state *s) {
       cur->active_start = cur_pos;
       cur->active = true;
       reg_owner[reg] = cur_idx;
+      maybe_add_reload_at_start(s, cur, cur_pos);
 
       if (reg_until != UINT16_MAX && reg_until < cur->end) {
         split_interval(s, cur, (uint16_t)(reg_until + 1));
@@ -450,8 +634,19 @@ static void linear_scan_allocate(regalloc2_state *s) {
 
     if (!pos_before(cur_pos)) {
       uint8_t spill = get_or_assign_spill_slot(s, cur->value_id);
-      add_range_spill(s, cur->value_id, cur->start, cur->end, spill);
+      uint16_t first_use = interval_next_ir_use_pos(s, cur->value_id, cur_pos);
+      if (first_use == UINT16_MAX || first_use > cur->end) {
+        add_range_spill(s, cur->value_id, cur->start, cur->end, spill);
+        cur->done = true;
+        continue;
+      }
+      uint16_t cur_end = cur->end;
       cur->done = true;
+      if (first_use > cur_pos) {
+        add_range_spill(s, cur->value_id, cur_pos, (uint16_t)(first_use - 1),
+                        spill);
+      }
+      add_interval(s, cur->value_id, first_use, cur_end);
       continue;
     }
 
@@ -468,13 +663,14 @@ static void linear_scan_allocate(regalloc2_state *s) {
         continue;
       }
       auto *cand = &s->intervals[owner];
-      uint16_t next = interval_next_use_pos(s, cand->value_id, cur_pos);
+      uint16_t next = interval_next_ir_use_pos(s, cand->value_id, cur_pos);
       if (next == cur_pos) {
         continue;
       }
       bool already_spilled = s->spill_slots[cand->value_id] != SPILL_NONE;
       if (victim_idx < 0 || next > victim_next_use ||
-          (next == victim_next_use && already_spilled && !victim_already_spilled)) {
+          (next == victim_next_use && already_spilled &&
+           !victim_already_spilled)) {
         victim_idx = owner;
         victim_next_use = next;
         victim_reg = reg;
@@ -483,37 +679,61 @@ static void linear_scan_allocate(regalloc2_state *s) {
     }
 
     if (victim_idx < 0) {
-      uint8_t spill = get_or_assign_spill_slot(s, cur->value_id);
-      add_range_spill(s, cur->value_id, cur->start, cur->end, spill);
-      cur->done = true;
-      continue;
+      fprintf(stderr,
+              "regalloc2 bailout: no register available at use position "
+              "for value %u at pos %u\n",
+              cur->value_id, cur_pos);
+      fprintf(stderr, "  class regs: [%u,%u)\n", class_start, class_end);
+      for (uint8_t reg = class_start; reg < class_end; reg++) {
+        bool fixed = fixed_covers(s, reg, cur_pos);
+        int owner = reg_owner[reg];
+        fprintf(stderr, "  reg=%s fixed=%d owner=%d", reg_names[reg], fixed,
+                owner);
+        if (owner >= 0) {
+          auto *cand = &s->intervals[owner];
+          uint16_t next = interval_next_ir_use_pos(s, cand->value_id, cur_pos);
+          fprintf(stderr, " owner_v=%u owner_range=[%u,%u] next_use=%u",
+                  cand->value_id, cand->start, cand->end, next);
+        }
+        fprintf(stderr, "\n");
+      }
+      dump_value_ranges(s, cur->value_id);
+      dump_value_intervals(s, cur->value_id);
+      dump_value_uses(s, cur->value_id);
+      abort();
     }
 
     auto *victim = &s->intervals[victim_idx];
-    uint8_t spill = get_or_assign_spill_slot(s, victim->value_id);
-    if (victim->active_start < cur_pos) {
-      add_range_reg(s, victim->value_id, victim->active_start,
-                    (uint16_t)(cur_pos - 1), victim->reg);
+    uint16_t victim_value_id = victim->value_id;
+    uint16_t victim_end = victim->end;
+    uint16_t victim_active_start = victim->active_start;
+    uint8_t victim_reg_u8 = victim->reg;
+    uint8_t spill = get_or_assign_spill_slot(s, victim_value_id);
+    if (victim_active_start < cur_pos) {
+      add_range_reg(s, victim_value_id, victim_active_start,
+                    (uint16_t)(cur_pos - 1), victim_reg_u8);
     }
-    uint16_t stack_end =
-        victim_next_use == UINT16_MAX ? victim->end : (uint16_t)(victim_next_use - 1);
+    uint16_t stack_end = victim_next_use == UINT16_MAX
+                             ? victim_end
+                             : (uint16_t)(victim_next_use - 1);
     if (stack_end >= cur_pos) {
-      add_range_spill(s, victim->value_id, cur_pos, stack_end, spill);
+      add_range_spill(s, victim_value_id, cur_pos, stack_end, spill);
     }
-    add_event(s, cur_pos, false, victim->value_id, victim->reg, spill);
-    if (victim_next_use != UINT16_MAX && victim_next_use <= victim->end) {
-      add_interval(s, victim->value_id, victim_next_use, victim->end);
-      add_event(s, victim_next_use, true, victim->value_id, victim->reg, spill);
+    add_event(s, cur_pos, false, victim_value_id, victim_reg_u8, spill);
+    if (victim_next_use != UINT16_MAX && victim_next_use <= victim_end) {
+      add_interval(s, victim_value_id, victim_next_use, victim_end);
+      add_event(s, victim_next_use, true, victim_value_id, victim_reg_u8, spill);
     }
     reg_owner[victim_reg] = -1;
-    victim->active = false;
-    victim->done = true;
-    victim->reg = REG_NONE;
+    s->intervals[victim_idx].active = false;
+    s->intervals[victim_idx].done = true;
+    s->intervals[victim_idx].reg = REG_NONE;
 
-    cur->reg = (uint8_t)victim_reg;
-    cur->active_start = cur_pos;
-    cur->active = true;
+    s->intervals[cur_idx].reg = (uint8_t)victim_reg;
+    s->intervals[cur_idx].active_start = cur_pos;
+    s->intervals[cur_idx].active = true;
     reg_owner[victim_reg] = cur_idx;
+    maybe_add_reload_at_start(s, &s->intervals[cur_idx], cur_pos);
   }
 
   arr_for_each_idx(s->intervals, i) {
@@ -543,16 +763,52 @@ static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
     switch (ir_ins_types[ins->op]) {
     case IR_ARG_IR_IR:
       if (!ins->op1.constant) {
-        arrput(out->dense_locs, lookup_loc(s, ins->op1.loc, pos));
+        auto loc = lookup_loc(s, ins->op1.loc, pos);
+        if (loc.kind != LOC_REG) {
+          fprintf(stderr,
+                  "regalloc2 invalid: op1 in spill slot at ir=%u value=%u "
+                  "spill=%u\n",
+                  i, ins->op1.loc, loc.spill);
+          dump_value_ranges(s, ins->op1.loc);
+          dump_value_intervals(s, ins->op1.loc);
+          dump_value_uses(s, ins->op1.loc);
+          dump_ir_events(s, i);
+          abort();
+        }
+        arrput(out->dense_locs, loc);
       }
       if (!ins->op2.constant) {
-        arrput(out->dense_locs, lookup_loc(s, ins->op2.loc, pos));
+        auto loc = lookup_loc(s, ins->op2.loc, pos);
+        if (loc.kind != LOC_REG) {
+          fprintf(stderr,
+                  "regalloc2 invalid: op2 in spill slot at ir=%u value=%u "
+                  "spill=%u\n",
+                  i, ins->op2.loc, loc.spill);
+          dump_value_ranges(s, ins->op2.loc);
+          dump_value_intervals(s, ins->op2.loc);
+          dump_value_uses(s, ins->op2.loc);
+          dump_ir_events(s, i);
+          abort();
+        }
+        arrput(out->dense_locs, loc);
       }
       break;
     case IR_ARG_IR_NONE:
     case IR_ARG_IR_ADDR:
       if (!ins->op1.constant) {
-        arrput(out->dense_locs, lookup_loc(s, ins->op1.loc, pos));
+        auto loc = lookup_loc(s, ins->op1.loc, pos);
+        if (loc.kind != LOC_REG) {
+          fprintf(stderr,
+                  "regalloc2 invalid: op1 in spill slot at ir=%u value=%u "
+                  "spill=%u\n",
+                  i, ins->op1.loc, loc.spill);
+          dump_value_ranges(s, ins->op1.loc);
+          dump_value_intervals(s, ins->op1.loc);
+          dump_value_uses(s, ins->op1.loc);
+          dump_ir_events(s, i);
+          abort();
+        }
+        arrput(out->dense_locs, loc);
       }
       break;
     default:
@@ -564,6 +820,10 @@ static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
     if (has_uses || has_spill) {
       out->ir_output_locs[i].present = true;
       out->ir_output_locs[i].loc = lookup_loc(s, i, out_pos);
+      if (has_spill && out->ir_output_locs[i].loc.kind == LOC_REG) {
+        add_event(s, out_pos, false, i, out->ir_output_locs[i].loc.reg,
+                  s->spill_slots[i]);
+      }
     }
   }
 
@@ -574,7 +834,16 @@ static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
     arr_for_each_idx(sn->slots, i) {
       auto v = sn->slots[i].val;
       if (!v.constant) {
-        arrput(out->dense_locs, lookup_loc(s, v.loc, pos));
+        auto spill = s->spill_slots[v.loc];
+        if (spill != SPILL_NONE) {
+          arrput(out->dense_locs,
+                 ((dense_loc_entry){.kind = LOC_SPILL,
+                                    .reg = REG_NONE,
+                                    .spill = spill,
+                                    .value_id = v.loc}));
+        } else {
+          arrput(out->dense_locs, lookup_loc(s, v.loc, pos));
+        }
       }
     }
   }
@@ -588,10 +857,10 @@ static void build_fixed_output(regalloc2_state *s, regalloc2_result *out) {
     arr_for_each_idx(s->fixed[r], i) {
       auto fr = s->fixed[r][i];
       arrput(out->fixed_ranges, ((fixed_reg_range){
-                                   .reg = (uint8_t)r,
-                                   .start = fr.start,
-                                   .end = fr.end,
-                                 }));
+                                    .reg = (uint8_t)r,
+                                    .start = fr.start,
+                                    .end = fr.end,
+                                }));
     }
   }
 }
@@ -600,6 +869,7 @@ regalloc2_result regalloc2(trace *t) {
   regalloc2_state s = {.t = t};
   regalloc_state use_builder = {.t = t};
   collect_next_uses(&use_builder);
+  // print_next_uses(&use_builder);
   s.uses = use_builder.uses;
   s.next_uses = use_builder.next_uses;
 
@@ -613,9 +883,10 @@ regalloc2_result regalloc2(trace *t) {
   linear_scan_allocate(&s);
 
   regalloc2_result out = {0};
-  out.spill_reload_ops = s.ops;
   build_fixed_output(&s, &out);
   build_dense_maps(&s, &out);
+  normalize_spill_reload_ops(&s);
+  out.spill_reload_ops = s.ops;
 
   arrfree(s.intervals);
   arrfree(s.ranges);
@@ -642,11 +913,65 @@ void regalloc2_result_free(regalloc2_result *r) {
   memset(r, 0, sizeof(*r));
 }
 
-static void print_loc(dense_loc_entry d) {
+static void print_alloc_loc(dense_loc_entry d) {
   if (d.kind == LOC_REG) {
-    printf("v%u=R%s", d.value_id, reg_names[d.reg]);
+    printf("%s", reg_names[d.reg]);
   } else {
-    printf("v%u=S%u", d.value_id, d.spill);
+    printf("S%u", d.spill);
+  }
+}
+
+static void format_alloc_loc(char *buf, size_t n, dense_loc_entry d) {
+  if (d.kind == LOC_REG) {
+    snprintf(buf, n, "%s", reg_names[d.reg]);
+  } else {
+    snprintf(buf, n, "S%u", d.spill);
+  }
+}
+
+static void print_const_slot(slot s, trace *t) {
+  assert(s.constant);
+  auto gc = t->consts[s.loc];
+  if (is_fixnum(gc)) {
+    printf("\e[1;35m%" PRId64 "\e[m", to_fixnum(gc));
+  } else if (is_char(gc)) {
+    printf("\e[1;35m'%c'\e[m", to_char(gc));
+  } else if (is_string(gc)) {
+    printf("\e[1;35m\"%s\"\e[m", to_string(gc)->str);
+  } else if (is_record(gc)) {
+    printf("\e[1;35m#<record>\e[m");
+  } else if (is_flonum(gc)) {
+    printf("\e[1;35m%f\e[m", to_flonum(gc)->x);
+  } else if (is_symbol(gc)) {
+    auto name = get_sym_name(to_symbol(gc));
+    printf("\e[1;35m%s\e[m", name ? name->str : "<symbol>");
+  } else if (gc.value == FALSE_REP.value) {
+    printf("\e[1;35m#f\e[m");
+  } else if (gc.value == TRUE_REP.value) {
+    printf("\e[1;35m#t\e[m");
+  } else if (is_closure(gc)) {
+    printf("\e[1;31mCLOSURE\e[m");
+  } else if (is_vector(gc)) {
+    printf("\e[1;31mvector\e[m");
+  } else if (is_func(gc)) {
+    printf("\e[1;31mFUNC\e[m");
+  } else if (gc.value == NIL.value) {
+    printf("\e[1;35m()\e[m");
+  } else {
+    printf("\e[1;31mUNKNOWN %" PRIx64 "\e[m", (uint64_t)gc.value);
+  }
+}
+
+static void print_input_slot(slot s, trace *t, dense_loc_entry const *in_loc) {
+  if (s.constant) {
+    print_const_slot(s, t);
+    return;
+  }
+  printf("%04u=", s.loc);
+  if (in_loc) {
+    print_alloc_loc(*in_loc);
+  } else {
+    printf("?");
   }
 }
 
@@ -657,16 +982,39 @@ void regalloc2_print(trace *t, regalloc2_result const *r) {
   size_t snap_idx = 0;
   for (size_t ir = 0; ir <= ins_len; ir++) {
     while (snap_idx < snap_len && t->snaps[snap_idx].ir == ir) {
+      auto sn = &t->snaps[snap_idx];
       size_t sstart = r->snap_id_to_dense_map[snap_idx];
       size_t send = (snap_idx + 1 < snap_len)
                         ? r->snap_id_to_dense_map[snap_idx + 1]
                         : (r->dense_locs ? arrlen(r->dense_locs) : 0);
-      printf("  SNAP %04zu @ir=%u :", snap_idx, t->snaps[snap_idx].ir);
-      for (size_t j = sstart; j < send; j++) {
-        printf(" ");
-        print_loc(r->dense_locs[j]);
+      size_t entry_len = arrlen(sn->slots);
+      size_t *dense_by_entry = calloc(entry_len, sizeof(size_t));
+      assert(dense_by_entry != NULL || entry_len == 0);
+      for (size_t i = 0; i < entry_len; i++) {
+        dense_by_entry[i] = SIZE_MAX;
       }
-      printf("\n");
+      size_t j = sstart;
+      arr_for_each_idx(sn->slots, k) {
+        auto e = sn->slots[k];
+        if (!e.val.constant && j < send) {
+          dense_by_entry[k] = j++;
+        }
+      }
+
+      printf("SNAP[ir=%u", sn->ir);
+      for (size_t i = entry_len; i != 0; i--) {
+        auto e = sn->slots[i - 1];
+        printf(" %u=", e.slot);
+        if (e.val.constant) {
+          print_const_slot(e.val, t);
+        } else if (dense_by_entry[i - 1] != SIZE_MAX) {
+          print_alloc_loc(r->dense_locs[dense_by_entry[i - 1]]);
+        } else {
+          printf("?");
+        }
+      }
+      printf("]\n");
+      free(dense_by_entry);
       snap_idx++;
     }
     if (ir == ins_len) {
@@ -680,18 +1028,63 @@ void regalloc2_print(trace *t, regalloc2_result const *r) {
       }
     }
     size_t start = r->ir_id_to_dense_map[ir];
-    size_t end = (ir + 1 < ins_len) ? r->ir_id_to_dense_map[ir + 1]
-                                    : (snap_len > 0 ? r->snap_id_to_dense_map[0]
-                                                    : (r->dense_locs ? arrlen(r->dense_locs) : 0));
-    printf("  IR %04zu %-10s in:", ir, ir_names[t->ins[ir].op]);
-    for (size_t j = start; j < end; j++) {
-      printf(" ");
-      print_loc(r->dense_locs[j]);
-    }
-    printf(" out:");
+    size_t end =
+        (ir + 1 < ins_len)
+            ? r->ir_id_to_dense_map[ir + 1]
+            : (snap_len > 0 ? r->snap_id_to_dense_map[0]
+                            : (r->dense_locs ? arrlen(r->dense_locs) : 0));
+    auto ins = &t->ins[ir];
+    size_t in_idx = start;
+
+    printf("%04zu ", ir);
     if (r->ir_output_locs[ir].present) {
+      char out_loc[32];
+      format_alloc_loc(out_loc, sizeof(out_loc), r->ir_output_locs[ir].loc);
+      printf("%-7s", out_loc);
+    } else {
+      printf("%-7s", "");
+    }
+    printf(" %-8s", ir_names[ins->op]);
+    switch (ir_ins_types[ins->op]) {
+    case IR_ARG_NONE_NONE:
+      break;
+    case IR_ARG_STACK:
+      printf(" \e[1;33mstack %i\e[m", ins->data);
+      break;
+    case IR_ARG_IR_NONE:
       printf(" ");
-      print_loc(r->ir_output_locs[ir].loc);
+      print_input_slot(
+          ins->op1, t,
+          ins->op1.constant || in_idx >= end ? NULL : &r->dense_locs[in_idx++]);
+      break;
+    case IR_ARG_IR_IR:
+      printf(" ");
+      print_input_slot(
+          ins->op1, t,
+          ins->op1.constant || in_idx >= end ? NULL : &r->dense_locs[in_idx++]);
+      printf(", ");
+      print_input_slot(
+          ins->op2, t,
+          ins->op2.constant || in_idx >= end ? NULL : &r->dense_locs[in_idx++]);
+      break;
+    case IR_ARG_IR_ADDR:
+      printf(" ");
+      print_input_slot(
+          ins->op1, t,
+          ins->op1.constant || in_idx >= end ? NULL : &r->dense_locs[in_idx++]);
+      printf(", \e[1;35m#<bc 0x%" PRIx64 ">\e[m",
+             (uint64_t)t->consts[ins->op2.loc].value);
+      break;
+    case IR_ARG_REG:
+      printf(" \e[1;33m%i\e[m", ins->data);
+      break;
+    case IR_ARG_PMOV:
+      printf(" %i %s (%s)", ins->prev_reg, ins->prev_guard ? "(GUARD)" : "",
+             reg_names[ins->prev_reg]);
+      break;
+    case IR_ARG_OFFSET:
+      printf(" +%i", ins->data);
+      break;
     }
     printf("\n");
     arr_for_each_idx(r->spill_reload_ops, eidx) {
