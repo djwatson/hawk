@@ -442,10 +442,10 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     }
   }
   size_t spill_op_count = arrlen(r.spill_reload_ops);
-  if (spill_output_count > 10 || spill_op_count > 10) {
-    printf("regalloc2 spills: outputs=%zu ops=%zu\n", spill_output_count,
-           spill_op_count);
-  }
+  /* if (spill_output_count > 10 || spill_op_count > 10) { */
+  /*   printf("regalloc2 spills: outputs=%zu ops=%zu\n", spill_output_count, */
+  /*          spill_op_count); */
+  /* } */
   verify_regalloc2(&t, &r);
   regalloc2_result_free(&r);
   free_trace(&t);
