@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 3.20)
 
+set(CMAKE_C_COMPILER clang CACHE STRING "C compiler" FORCE)
+
 project(newhawk C)
 
 option(USE_RANDOM_SCHEDULE "Enable random schedule debugging" OFF)
 option(ENABLE_COVERAGE "Enable LLVM source-based coverage instrumentation" OFF)
-
-set(CMAKE_C_COMPILER clang)
 
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -23,6 +23,26 @@ check_include_file("elf.h" HAVE_ELF_H)
 set(ASM_SOURCE asm_x64.c)
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
   set(ASM_SOURCE asm_aarch64.c)
+endif()
+
+if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+  add_executable(
+    regalloc2_fuzz
+    fuzz/regalloc2_fuzz.c
+    regalloc.c
+    ir.c
+    util/array.c
+  )
+  target_compile_options(regalloc2_fuzz PRIVATE -fsanitize=fuzzer,address)
+  target_link_options(regalloc2_fuzz PRIVATE -fsanitize=fuzzer,address)
+  target_include_directories(
+    regalloc2_fuzz PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/util
+    ${CMAKE_CURRENT_BINARY_DIR}
+  )
+else()
+  message(FATAL_ERROR "regalloc2_fuzz requires Clang/libFuzzer")
 endif()
 
 set(

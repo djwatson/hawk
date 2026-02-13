@@ -1,0 +1,4 @@
+If:
+  PathMatch: .*\.[ch]
+CompileFlags:
+  Add: [-std=c23, -I../util, -I..]
