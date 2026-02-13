@@ -23,11 +23,20 @@ typedef struct {
   uint16_t last_use;
 } regmap;
 
+typedef struct {
+  uint16_t ir_idx;
+  bool before;
+  bool is_snap;
+  uint32_t next;
+} next_use;
+
 typedef struct regalloc_state {
   regmap regs[MAX_REG];
   uint32_t next_spill;
   trace *t;
   reload_info *reloads;
+  uint32_t *uses;
+  next_use *next_uses;
 } regalloc_state;
 
 static inline bool ins_uses_freg(ir_ins const *ins) {
@@ -40,6 +49,87 @@ static inline ir_ins *slot_ins(trace *t, slot v) {
 }
 
 static uint8_t assign_spill(regalloc_state *s);
+static void collect_next_uses(regalloc_state *s);
+static void print_next_uses(regalloc_state *s);
+
+static void add_next_use(regalloc_state *s, uint16_t loc, uint16_t ir_idx,
+                         bool before, bool is_snap) {
+  auto next = (next_use){.ir_idx = ir_idx,
+                         .before = before,
+                         .is_snap = is_snap,
+                         .next = s->uses[loc]};
+  s->uses[loc] = (uint32_t)arrlen(s->next_uses);
+  arrput(s->next_uses, next);
+}
+
+static void collect_next_uses(regalloc_state *s) {
+  size_t ins_len = arrlen(s->t->ins);
+  if (ins_len == 0) {
+    return;
+  }
+
+  s->uses = calloc(ins_len, sizeof(uint32_t));
+  assert(s->uses != NULL);
+
+  // Use 0 as the null index in use chains.
+  arrput(s->next_uses, ((next_use){0}));
+
+  size_t snap_len = arrlen(s->t->snaps);
+  size_t cur_snap = snap_len;
+  uint16_t cur_snap_end_ir = s->t->snaps[snap_len - 1].ir - 1;
+
+  for (size_t i = ins_len; i > 0; i--) {
+    while (cur_snap != 0 &&
+           (cur_snap == snap_len || s->t->snaps[cur_snap].ir >= (i - 1))) {
+      cur_snap--;
+      auto cur = &s->t->snaps[cur_snap];
+      arr_for_each_idx(cur->slots, slot_i) {
+        auto val = cur->slots[slot_i].val;
+        if (!val.constant) {
+          add_next_use(s, val.loc, cur_snap_end_ir, false, true);
+        }
+      }
+      cur_snap_end_ir = cur->ir;
+    }
+
+    auto ins = &s->t->ins[i - 1];
+    switch (ir_ins_types[ins->op]) {
+    case IR_ARG_IR_IR:
+      if (!ins->op2.constant) {
+        add_next_use(s, ins->op2.loc, (uint16_t)(i - 1), true, false);
+      }
+      [[fallthrough]];
+    case IR_ARG_IR_NONE:
+    case IR_ARG_IR_ADDR:
+      if (!ins->op1.constant) {
+        add_next_use(s, ins->op1.loc, (uint16_t)(i - 1), true, false);
+      }
+      break;
+    default:
+      break;
+    }
+  }
+}
+
+static void print_next_uses(regalloc_state *s) {
+  size_t ins_len = arrlen(s->t->ins);
+  printf("next_use chains:\n");
+  for (size_t i = 0; i < ins_len; i++) {
+    printf("  %04zu:", i);
+    uint32_t next_idx = s->uses[i];
+    if (next_idx == 0) {
+      printf(" <none>\n");
+      continue;
+    }
+    while (next_idx != 0) {
+      auto cur = s->next_uses[next_idx];
+      printf(" %s%s@%u", cur.is_snap ? "S-" : "I-", cur.before ? "B" : "A",
+             cur.ir_idx);
+      next_idx = cur.next;
+    }
+    printf("\n");
+  }
+}
 
 static int alloc_gpr(regalloc_state *s) {
   for (int i = 0; i < FPR_REG_START; i++) {
@@ -173,6 +263,10 @@ regalloc_result regalloc(trace *t) {
   size_t ins_len = arrlen(t->ins);
   reg_binding *bindings = malloc(ins_len * sizeof(reg_binding));
   memset(bindings, 0xff, ins_len * sizeof(reg_binding));
+  collect_next_uses(&s);
+  if (verbose) {
+    print_next_uses(&s);
+  }
 
   // Set up register allocator.
   bool reserved[MAX_REG] = {0};
@@ -225,19 +319,16 @@ regalloc_result regalloc(trace *t) {
     case IR_MUL:
     case IR_MOD:
     case IR_LOAD:
+    case IR_GSET:
+    case IR_ALLOC:
       maybe_assign_register(&s, op->op1, op_cnt);
       maybe_assign_register(&s, op->op2, op_cnt);
       bindings[op_cnt].arg[0].reg = slot_reg(t, op->op1);
       bindings[op_cnt].arg[1].reg = slot_reg(t, op->op2);
       break;
     case IR_TYPECHECK:
-    case IR_ALLOC:
       maybe_assign_register(&s, op->op1, op_cnt);
       bindings[op_cnt].arg[0].reg = slot_reg(t, op->op1);
-      break;
-    case IR_GSET:
-      maybe_assign_register(&s, op->op2, op_cnt);
-      bindings[op_cnt].arg[1].reg = slot_reg(t, op->op2);
       break;
     case IR_STORE:
       // STORE is always IR_STORE + IR_REF, so treat them together.
@@ -279,5 +370,7 @@ regalloc_result regalloc(trace *t) {
   }
 
   arr_reverse(s.reloads);
+  arrfree(s.next_uses);
+  free(s.uses);
   return (regalloc_result){.bindings = bindings, .reloads = s.reloads};
 }
