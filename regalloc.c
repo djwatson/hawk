@@ -417,10 +417,7 @@ static void linear_scan_allocate(regalloc2_state *s) {
         }
         int owner = reg_owner[reg];
         if (owner >= 0) {
-          auto owner_end = s->intervals[owner].end;
-          if (owner_end + 1 < free_until) {
-            free_until = owner_end + 1;
-          }
+          continue;
         }
       }
       if (free_until > cur->end) {
@@ -451,6 +448,13 @@ static void linear_scan_allocate(regalloc2_state *s) {
       continue;
     }
 
+    if (!pos_before(cur_pos)) {
+      uint8_t spill = get_or_assign_spill_slot(s, cur->value_id);
+      add_range_spill(s, cur->value_id, cur->start, cur->end, spill);
+      cur->done = true;
+      continue;
+    }
+
     int victim_idx = -1;
     uint16_t victim_next_use = 0;
     int victim_reg = -1;
@@ -465,6 +469,9 @@ static void linear_scan_allocate(regalloc2_state *s) {
       }
       auto *cand = &s->intervals[owner];
       uint16_t next = interval_next_use_pos(s, cand->value_id, cur_pos);
+      if (next == cur_pos) {
+        continue;
+      }
       bool already_spilled = s->spill_slots[cand->value_id] != SPILL_NONE;
       if (victim_idx < 0 || next > victim_next_use ||
           (next == victim_next_use && already_spilled && !victim_already_spilled)) {

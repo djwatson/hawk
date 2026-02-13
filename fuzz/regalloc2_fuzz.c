@@ -117,13 +117,27 @@ static void fill_instruction(fuzz_rng *r, trace *t, uint16_t i,
   case IR_ARG_IR_IR:
     ins.op1 = random_slot(r, max_loc, max_const_loc);
     ins.op2 = random_slot(r, max_loc, max_const_loc);
+    if (i == 0) {
+      ins.op1.constant = true;
+      ins.op1.loc = rng_u16(r, max_const_loc);
+      ins.op2.constant = true;
+      ins.op2.loc = rng_u16(r, max_const_loc);
+    }
     break;
   case IR_ARG_IR_NONE:
     ins.op1 = random_slot(r, max_loc, max_const_loc);
+    if (i == 0) {
+      ins.op1.constant = true;
+      ins.op1.loc = rng_u16(r, max_const_loc);
+    }
     ins.op2 = (slot){.constant = true, .loc = 0};
     break;
   case IR_ARG_IR_ADDR:
     ins.op1 = random_slot(r, max_loc, max_const_loc);
+    if (i == 0) {
+      ins.op1.constant = true;
+      ins.op1.loc = rng_u16(r, max_const_loc);
+    }
     ins.op2 = (slot){.constant = true, .loc = rng_u16(r, max_const_loc)};
     break;
   case IR_ARG_STACK:
@@ -176,7 +190,8 @@ static void free_trace(trace *t) {
   arrfree(t->consts);
 }
 
-static size_t ir_row_end(trace const *t, regalloc2_result const *r, uint16_t ir) {
+static size_t ir_row_end(trace const *t, regalloc2_result const *r,
+                         uint16_t ir) {
   size_t ins_len = arrlen(t->ins);
   if (ir + 1 < ins_len) {
     return r->ir_id_to_dense_map[ir + 1];
@@ -335,7 +350,8 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
     }
     op_before = op_after;
 
-    while (snap_cursor < snap_len && t->snaps[snap_cursor].ir <= (uint16_t)(ir + 1)) {
+    while (snap_cursor < snap_len &&
+           t->snaps[snap_cursor].ir <= (uint16_t)(ir + 1)) {
       snap_cursor++;
     }
     if (snap_cursor > 0) {
@@ -357,6 +373,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
       .state = mix_seed(Data, Size),
   };
 
+  printf("RUN\n");
   trace t = {0};
   fill_consts(&t);
   uint16_t max_const_loc = (uint16_t)(arrlen(t.consts) - 1);
