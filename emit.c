@@ -1068,9 +1068,7 @@ static void emit_side_trace_entry(emit_state *s, trace *t) {
   par_copy *cpy = nullptr;
   ir_ins *pmov_ins = nullptr;
   for_each_leading_op(t, IR_PMOV, pmov_ins) {
-    if (pmov_ins->spill != SPILL_NONE) {
-      abort();
-    }
+    assert(pmov_ins->reg != REG_NONE);
     if (pmov_ins->reg != REG_NONE) {
       arrput(cpy,
              ((par_copy){.from = pmov_ins->prev_reg, .to = pmov_ins->reg}));

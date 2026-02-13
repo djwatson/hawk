@@ -1,6 +1,12 @@
 # Currently working on:
 
+* Need to re-write regalloc - get precise lifetimes with hints, do a FORWARD regalloc.
+  * This will fix PMOV - PMOV will match previous snapshot identically.
+
 * FIGURE OUT WHY derive uprec abort doesn't work in deriv, only in random_schedule mode, not stat mode.
+  * uprec/downrec REALLY need to go MORE than one up/down, so that we
+    force them to not accidentally happen in non-rec situations.
+
 
 * figure out why deriv is slow
   * downrec abort not working (start of trace is failing?)
