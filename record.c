@@ -1210,15 +1210,17 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
                 add_const(state, side_snap->trace->consts[entry->val.loc]));
     } else {
       auto old_ins = &side_snap->trace->ins[entry->val.loc];
+      ir_ins pmov = IR(.op = IR_PMOV,
+                       .prev_reg = old_ins->reg,
+                       .prev_guard = old_ins->guard,
+                       .guard = old_ins->guard,
+                       .type = old_ins->type);
       if (old_ins->spill != SPILL_NONE) {
-        abort();
+        pmov.spill = old_ins->spill;
       } else {
-        set_stack(state, entry->slot,
-                  add_inst(state,
-                           IR(.op = IR_PMOV, .prev_reg = old_ins->reg,
-                              .prev_guard = old_ins->guard,
-                              .guard = old_ins->guard, .type = old_ins->type)));
+        pmov.reg = old_ins->reg;
       }
+      set_stack(state, entry->slot, add_inst(state, pmov));
     }
   }
   // We set this last, since snapshots have absolute indexs, and set_stack is

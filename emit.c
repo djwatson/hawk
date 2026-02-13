@@ -138,6 +138,12 @@ static uint8_t ir_input_reg(trace const *t, regalloc2_result const *r,
         ir_ins_types[ins->op] == IR_ARG_IR_IR ||
         ir_ins_types[ins->op] == IR_ARG_IR_ADDR) {
       if (ins->op1.constant) {
+        if (ins->op == IR_RET) {
+          assert(in_idx < end);
+          auto loc = r->dense_locs[in_idx++];
+          assert(loc.kind == LOC_REG);
+          return loc.reg;
+        }
         return REG_NONE;
       }
       assert(in_idx < end);
@@ -1021,11 +1027,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       break;
     }
     case IR_RET: {
-      // mov ra to a register
-
-      // cmp stack[-1], jmp to snap if not equal
-      emit_mem_load(s, -8, RSTACK, RTMP);
-      emit_cmp_constant(s, RTMP, slot_const(t, op->op2));
+      // Compare return address on stack to expected target.
+      assert(arg0_reg != REG_NONE);
+      emit_mem_load(s, -8, RSTACK, arg0_reg);
+      emit_cmp_constant(s, arg0_reg, slot_const(t, op->op2));
       emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
       emit_sub_constant(s, RSTACK, RSTACK, slot_const(t, op->op1));
 
@@ -1203,24 +1208,11 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
 
 static void emit_side_trace_entry(emit_state *s, trace *t,
                                   regalloc2_result const *regmap) {
+  (void)regmap;
   // Install the side trace.
   uint8_t *patch_loc = t->parent_snap->patch_point.addr;
   asm_write_jmp32_at(s, patch_loc, (uint8_t *)emit_offset(s));
   __builtin___clear_cache((char *)patch_loc, (char *)patch_loc + 16);
-
-  // Emit register shuffle.
-  COMMENT("PARALLEL COPY FROM PARENT:");
-  par_copy *cpy = nullptr;
-  ir_ins *pmov_ins = nullptr;
-  for_each_leading_op(t, IR_PMOV, pmov_ins) {
-    uint16_t ir_idx = (uint16_t)(pmov_ins - t->ins);
-    uint8_t dst = ir_output_reg(regmap, ir_idx);
-    if (dst != REG_NONE) {
-      arrput(cpy,
-             ((par_copy){.from = pmov_ins->prev_reg, .to = dst}));
-    }
-  }
-  emit_serialized_moves(s, cpy);
 }
 
 trace_fn emit(trace *t, emit_state *s, record_state *record,

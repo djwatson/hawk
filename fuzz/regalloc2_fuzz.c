@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -114,6 +115,73 @@ static ir_ins_op random_op(fuzz_rng *r) {
       IR_LOAD, IR_STORE, IR_ALLOC, IR_INEXACT,
   };
   return ops[rng_next(r) % ARRAY_LEN(ops)];
+}
+
+static uint8_t random_alloc_reg(fuzz_rng *r, bool is_float,
+                                bool used_regs[MAX_REG]) {
+  bool reserved[MAX_REG] = {0};
+  asm_mark_unallocatable(reserved);
+  uint8_t pool[MAX_REG];
+  uint8_t pool_len = 0;
+  uint8_t start = is_float ? FPR_REG_START : 0;
+  uint8_t end = is_float ? FPR_REG_END : FPR_REG_START;
+  for (uint8_t reg = start; reg < end; reg++) {
+    if (reserved[reg] || used_regs[reg]) {
+      continue;
+    }
+    pool[pool_len++] = reg;
+  }
+  if (pool_len == 0) {
+    return REG_NONE;
+  }
+  return pool[rng_next(r) % pool_len];
+}
+
+static uint8_t random_unique_spill(fuzz_rng *r, bool used_spills[10]) {
+  uint8_t pool[10];
+  uint8_t pool_len = 0;
+  for (uint8_t i = 0; i < 10; i++) {
+    if (!used_spills[i]) {
+      pool[pool_len++] = i;
+    }
+  }
+  if (pool_len == 0) {
+    return SPILL_NONE;
+  }
+  return pool[rng_next(r) % pool_len];
+}
+
+static void fill_leading_pmov_instruction(fuzz_rng *r, trace *t,
+                                          bool used_regs[MAX_REG],
+                                          bool used_spills[10]) {
+  ir_ins ins = {0};
+  ins.op = IR_PMOV;
+  ins.type = random_type_tag(r);
+  ins.guard = rng_bool(r);
+  ins.prev_guard = rng_bool(r);
+  ins.reg = REG_NONE;
+  ins.spill = SPILL_NONE;
+  ins.prev_reg = REG_NONE;
+
+  uint8_t spill = random_unique_spill(r, used_spills);
+  uint8_t reg = random_alloc_reg(r, ins.type == FLONUM_TAG, used_regs);
+
+  if (spill != SPILL_NONE && (reg == REG_NONE || rng_bool(r))) {
+    ins.spill = spill;
+    used_spills[spill] = true;
+  } else {
+    if (reg != REG_NONE) {
+      ins.reg = reg;
+      ins.prev_reg = reg;
+      used_regs[reg] = true;
+    } else {
+      assert(spill != SPILL_NONE);
+      ins.spill = spill;
+      used_spills[spill] = true;
+    }
+  }
+
+  arrput(t->ins, ins);
 }
 
 static void fill_instruction(fuzz_rng *r, trace *t, uint16_t i,
@@ -338,6 +406,11 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
         check_loc_holds(regs, spills, r->dense_locs[cur], "ir-op1", ir,
                         ins->op1.loc);
         cur++;
+      } else if (ins->op == IR_RET) {
+        if (cur >= end || r->dense_locs[cur].kind != LOC_REG) {
+          abort();
+        }
+        cur++;
       }
       break;
     default:
@@ -426,7 +499,18 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   trace t = {0};
   fill_consts(&t);
   uint16_t max_const_loc = (uint16_t)(arrlen(t.consts) - 1);
+  uint16_t leading_pmov_count =
+      rng_bool(&rng) ? rng_u16(&rng, 10) : 0;
+  if (leading_pmov_count > FUZZ_INS_COUNT) {
+    leading_pmov_count = FUZZ_INS_COUNT;
+  }
+  bool used_regs[MAX_REG] = {0};
+  bool used_spills[10] = {0};
   for (uint16_t i = 0; i < FUZZ_INS_COUNT; i++) {
+    if (i < leading_pmov_count) {
+      fill_leading_pmov_instruction(&rng, &t, used_regs, used_spills);
+      continue;
+    }
     fill_instruction(&rng, &t, i, max_const_loc);
   }
   fill_snapshots(&rng, &t);

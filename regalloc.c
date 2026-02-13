@@ -221,6 +221,14 @@ static void add_fixed_full(regalloc2_state *s, uint8_t reg, uint16_t max_pos) {
   arrput(s->fixed[reg], ((fixed_range){.start = 0, .end = max_pos}));
 }
 
+static void add_fixed_range(regalloc2_state *s, uint8_t reg, uint16_t start,
+                            uint16_t end) {
+  if (start > end) {
+    return;
+  }
+  arrput(s->fixed[reg], ((fixed_range){.start = start, .end = end}));
+}
+
 static void add_event(regalloc2_state *s, uint16_t pos, bool is_reload,
                       uint16_t value_id, uint8_t reg, uint8_t spill) {
   auto e = (spill_reload_op){.ir_idx = pos_ir(pos),
@@ -354,6 +362,20 @@ static int add_interval(regalloc2_state *s, uint16_t value_id, uint16_t start,
   return (int)arrlen(s->intervals) - 1;
 }
 
+static int add_temp_interval(regalloc2_state *s, uint16_t value_id,
+                             uint16_t start, uint16_t end) {
+  auto it = (ls_interval){.value_id = value_id,
+                          .start = start,
+                          .end = end,
+                          .is_float = false,
+                          .reg = REG_NONE,
+                          .active_start = 0,
+                          .active = false,
+                          .done = false};
+  arrput(s->intervals, it);
+  return (int)arrlen(s->intervals) - 1;
+}
+
 static int pick_next_unhandled(ls_interval *ints) {
   int best = -1;
   for (size_t i = 0; i < arrlen(ints); i++) {
@@ -396,6 +418,10 @@ static dense_loc_entry lookup_loc(regalloc2_state *s, uint16_t value_id,
 static void build_intervals(regalloc2_state *s) {
   size_t ins_len = arrlen(s->t->ins);
   for (uint16_t v = 0; v < ins_len; v++) {
+    auto ins = &s->t->ins[v];
+    if (ins->op == IR_PMOV && ins->spill == SPILL_NONE && ins->reg != REG_NONE) {
+      continue;
+    }
     uint16_t first_use = interval_next_use_pos(s, v, 0);
     if (first_use == UINT16_MAX) {
       continue;
@@ -417,6 +443,18 @@ static void build_intervals(regalloc2_state *s) {
   }
 }
 
+static void add_ret_tmp_intervals(regalloc2_state *s) {
+  size_t ins_len = arrlen(s->t->ins);
+  for (uint16_t i = 0; i < ins_len; i++) {
+    auto ins = &s->t->ins[i];
+    if (ins->op != IR_RET || !ins->op1.constant) {
+      continue;
+    }
+    uint16_t pos = ir_before_pos(i);
+    add_temp_interval(s, i, pos, pos);
+  }
+}
+
 static void init_fixed_intervals(regalloc2_state *s) {
   bool reserved[MAX_REG] = {0};
   asm_mark_unallocatable(reserved);
@@ -427,6 +465,47 @@ static void init_fixed_intervals(regalloc2_state *s) {
     if (reserved[r]) {
       add_fixed_full(s, (uint8_t)r, max_pos);
     }
+  }
+}
+
+static void seed_pmov_locations(regalloc2_state *s) {
+  arr_for_each_idx(s->t->ins, i) {
+    auto ins = &s->t->ins[i];
+    if (ins->op != IR_PMOV) {
+      continue;
+    }
+
+    if (ins->spill != SPILL_NONE) {
+      s->spill_slots[i] = ins->spill;
+      if ((uint16_t)ins->spill >= s->next_spill) {
+        s->next_spill = (uint8_t)(ins->spill + 1);
+      }
+      continue;
+    }
+
+    if (ins->reg == REG_NONE) {
+      continue;
+    }
+
+    uint16_t first_use = interval_next_use_pos(s, (uint16_t)i, 0);
+    if (first_use == UINT16_MAX) {
+      continue;
+    }
+
+    uint16_t start = ir_after_pos((uint16_t)i);
+    uint16_t end = start > first_use ? start : first_use;
+    uint32_t use_idx = s->uses[i];
+    while (use_idx != 0) {
+      auto n = s->next_uses[use_idx];
+      uint16_t p = use_pos(n);
+      if (p > end) {
+        end = p;
+      }
+      use_idx = n.next;
+    }
+
+    add_range_reg(s, (uint16_t)i, start, end, ins->reg);
+    add_fixed_range(s, ins->reg, start, end);
   }
 }
 
@@ -786,6 +865,18 @@ static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
           abort();
         }
         arrput(out->dense_locs, loc);
+      } else if (ins->op == IR_RET) {
+        auto loc = lookup_loc(s, i, pos);
+        if (loc.kind != LOC_REG) {
+          fprintf(stderr, "regalloc2 invalid: RET tmp not in register at ir=%u\n",
+                  i);
+          dump_value_ranges(s, i);
+          dump_value_intervals(s, i);
+          dump_value_uses(s, i);
+          dump_ir_events(s, i);
+          abort();
+        }
+        arrput(out->dense_locs, loc);
       }
       break;
     default:
@@ -842,6 +933,25 @@ static void build_fixed_output(regalloc2_state *s, regalloc2_result *out) {
   }
 }
 
+static void write_back_trace_locations(regalloc2_state *s,
+                                       regalloc2_result const *out) {
+  size_t ins_len = arrlen(s->t->ins);
+  for (uint16_t i = 0; i < ins_len; i++) {
+    s->t->ins[i].reg = REG_NONE;
+    s->t->ins[i].spill = SPILL_NONE;
+
+    if (s->spill_slots[i] != SPILL_NONE) {
+      s->t->ins[i].spill = s->spill_slots[i];
+      continue;
+    }
+
+    if (out->ir_output_locs[i].present &&
+        out->ir_output_locs[i].loc.kind == LOC_REG) {
+      s->t->ins[i].reg = out->ir_output_locs[i].loc.reg;
+    }
+  }
+}
+
 regalloc2_result regalloc2(trace *t) {
   regalloc2_state s = {.t = t};
   use_chain_builder use_builder = {.t = t};
@@ -858,12 +968,15 @@ regalloc2_result regalloc2(trace *t) {
   memset(s.spill_slots, SPILL_NONE, ins_len * sizeof(uint8_t));
 
   init_fixed_intervals(&s);
+  seed_pmov_locations(&s);
   build_intervals(&s);
+  add_ret_tmp_intervals(&s);
   linear_scan_allocate(&s);
 
   regalloc2_result out = {0};
   build_fixed_output(&s, &out);
   build_dense_maps(&s, &out);
+  write_back_trace_locations(&s, &out);
   normalize_spill_reload_ops(&s);
   out.spill_reload_ops = s.ops;
 
