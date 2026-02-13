@@ -36,6 +36,7 @@ string_s *get_sym_name(symbol *s) {
 
 #define FUZZ_INS_COUNT 100
 #define FUZZ_CONST_COUNT 64
+#define MAX_SPILL 256
 
 static uint32_t mix_seed(const uint8_t *data, size_t size) {
   uint32_t x = (uint32_t)size ^ 0x9e3779b9U;
@@ -175,6 +176,179 @@ static void free_trace(trace *t) {
   arrfree(t->consts);
 }
 
+static size_t ir_row_end(trace const *t, regalloc2_result const *r, uint16_t ir) {
+  size_t ins_len = arrlen(t->ins);
+  if (ir + 1 < ins_len) {
+    return r->ir_id_to_dense_map[ir + 1];
+  }
+  if (arrlen(t->snaps) > 0) {
+    return r->snap_id_to_dense_map[0];
+  }
+  return arrlen(r->dense_locs);
+}
+
+static size_t snap_row_end(trace const *t, regalloc2_result const *r,
+                           uint16_t snap_idx) {
+  size_t snap_len = arrlen(t->snaps);
+  if (snap_idx + 1 < snap_len) {
+    return r->snap_id_to_dense_map[snap_idx + 1];
+  }
+  return arrlen(r->dense_locs);
+}
+
+static void check_loc_holds(uint16_t const regs[MAX_REG],
+                            uint16_t const spills[MAX_SPILL],
+                            dense_loc_entry d) {
+  if (d.kind == LOC_REG) {
+    if (d.reg >= MAX_REG || regs[d.reg] != d.value_id) {
+      abort();
+    }
+    return;
+  }
+  if (d.spill >= MAX_SPILL || spills[d.spill] != d.value_id) {
+    abort();
+  }
+}
+
+static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
+  uint16_t regs[MAX_REG];
+  uint16_t spills[MAX_SPILL];
+  for (size_t i = 0; i < MAX_REG; i++) {
+    regs[i] = UINT16_MAX;
+  }
+  for (size_t i = 0; i < MAX_SPILL; i++) {
+    spills[i] = UINT16_MAX;
+  }
+
+  size_t op_before = 0;
+  size_t op_after = 0;
+  size_t op_len = arrlen(r->spill_reload_ops);
+  size_t snap_cursor = 0;
+  size_t snap_len = arrlen(t->snaps);
+
+  for (uint16_t ir = 0; ir < arrlen(t->ins); ir++) {
+    while (op_before < op_len) {
+      auto e = r->spill_reload_ops[op_before];
+      if (e.ir_idx != ir || !e.before) {
+        break;
+      }
+      if (e.is_reload) {
+        if (e.spill >= MAX_SPILL || spills[e.spill] != e.value_id ||
+            e.reg >= MAX_REG) {
+          abort();
+        }
+        regs[e.reg] = e.value_id;
+      } else {
+        if (e.reg >= MAX_REG || regs[e.reg] != e.value_id ||
+            e.spill >= MAX_SPILL) {
+          abort();
+        }
+        spills[e.spill] = e.value_id;
+        regs[e.reg] = UINT16_MAX;
+      }
+      op_before++;
+    }
+
+    auto ins = &t->ins[ir];
+    size_t start = r->ir_id_to_dense_map[ir];
+    size_t end = ir_row_end(t, r, ir);
+    size_t cur = start;
+    switch (ir_ins_types[ins->op]) {
+    case IR_ARG_IR_IR:
+      if (!ins->op1.constant) {
+        if (cur >= end || r->dense_locs[cur].value_id != ins->op1.loc) {
+          abort();
+        }
+        check_loc_holds(regs, spills, r->dense_locs[cur]);
+        cur++;
+      }
+      if (!ins->op2.constant) {
+        if (cur >= end || r->dense_locs[cur].value_id != ins->op2.loc) {
+          abort();
+        }
+        check_loc_holds(regs, spills, r->dense_locs[cur]);
+        cur++;
+      }
+      break;
+    case IR_ARG_IR_NONE:
+    case IR_ARG_IR_ADDR:
+      if (!ins->op1.constant) {
+        if (cur >= end || r->dense_locs[cur].value_id != ins->op1.loc) {
+          abort();
+        }
+        check_loc_holds(regs, spills, r->dense_locs[cur]);
+        cur++;
+      }
+      break;
+    default:
+      break;
+    }
+    if (cur != end) {
+      abort();
+    }
+
+    auto out = r->ir_output_locs[ir];
+    if (out.present) {
+      auto d = out.loc;
+      if (d.value_id != ir) {
+        abort();
+      }
+      if (d.kind == LOC_REG) {
+        if (d.reg >= MAX_REG) {
+          abort();
+        }
+        bool out_is_flo = t->ins[ir].type == FLONUM_TAG;
+        bool reg_is_fpr = d.reg >= FPR_REG_START && d.reg < FPR_REG_END;
+        if (out_is_flo != reg_is_fpr) {
+          abort();
+        }
+        regs[d.reg] = ir;
+      } else {
+        if (d.spill >= MAX_SPILL) {
+          abort();
+        }
+        spills[d.spill] = ir;
+      }
+    }
+
+    op_after = op_before;
+    while (op_after < op_len) {
+      auto e = r->spill_reload_ops[op_after];
+      if (e.ir_idx != ir || e.before) {
+        break;
+      }
+      if (e.is_reload) {
+        if (e.spill >= MAX_SPILL || spills[e.spill] != e.value_id ||
+            e.reg >= MAX_REG) {
+          abort();
+        }
+        regs[e.reg] = e.value_id;
+      } else {
+        if (e.reg >= MAX_REG || regs[e.reg] != e.value_id ||
+            e.spill >= MAX_SPILL) {
+          abort();
+        }
+        spills[e.spill] = e.value_id;
+        regs[e.reg] = UINT16_MAX;
+      }
+      op_after++;
+    }
+    op_before = op_after;
+
+    while (snap_cursor < snap_len && t->snaps[snap_cursor].ir <= (uint16_t)(ir + 1)) {
+      snap_cursor++;
+    }
+    if (snap_cursor > 0) {
+      uint16_t last_snap = (uint16_t)(snap_cursor - 1);
+      size_t sstart = r->snap_id_to_dense_map[last_snap];
+      size_t send = snap_row_end(t, r, last_snap);
+      for (size_t j = sstart; j < send; j++) {
+        check_loc_holds(regs, spills, r->dense_locs[j]);
+      }
+    }
+  }
+}
+
 int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   fuzz_rng rng = {
       .data = Data,
@@ -193,6 +367,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   print_ir(&t);
 
   regalloc2_result r = regalloc2(&t);
+  verify_regalloc2(&t, &r);
   regalloc2_result_free(&r);
   free_trace(&t);
   return 0;
