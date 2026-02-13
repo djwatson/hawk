@@ -509,10 +509,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     fill_instruction(&rng, &t, i, max_const_loc);
   }
   fill_snapshots(&rng, &t);
-  // print_ir(&t);
-
   regalloc2_result r = regalloc2(&t);
-  // regalloc2_print(&t, &r);
+  // print_ir(&t, &r);
   size_t spill_output_count = 0;
   for (size_t ir = 0; ir < arrlen(t.ins); ir++) {
     if (t.ins[ir].spill != SPILL_NONE && t.ins[ir].reg == REG_NONE) {

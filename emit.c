@@ -1213,8 +1213,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // Allocate registers, print the IR in verbose mode.
   auto regmap = regalloc2(t);
   if (verbose) {
-    print_ir(t);
-    regalloc2_print(t, &regmap);
+    print_ir(t, &regmap);
   }
 
   // Remember, we're emitting backwards! This makes the register

@@ -413,7 +413,8 @@ static void build_intervals(regalloc2_state *s) {
   size_t ins_len = arrlen(s->t->ins);
   for (uint16_t v = 0; v < ins_len; v++) {
     auto ins = &s->t->ins[v];
-    if (ins->op == IR_PMOV && ins->spill == SPILL_NONE && ins->reg != REG_NONE) {
+    if (ins->op == IR_PMOV && ins->spill == SPILL_NONE &&
+        ins->reg != REG_NONE) {
       continue;
     }
     uint16_t first_use = interval_next_use_pos(s, v, 0);
@@ -771,7 +772,8 @@ static void linear_scan_allocate(regalloc2_state *s) {
     add_event(s, cur_pos, false, victim_value_id, victim_reg_u8, spill);
     if (victim_next_use != UINT16_MAX && victim_next_use <= victim_end) {
       add_interval(s, victim_value_id, victim_next_use, victim_end);
-      add_event(s, victim_next_use, true, victim_value_id, victim_reg_u8, spill);
+      add_event(s, victim_next_use, true, victim_value_id, victim_reg_u8,
+                spill);
     }
     reg_owner[victim_reg] = -1;
     s->intervals[victim_idx].active = false;
@@ -859,8 +861,8 @@ static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
       } else if (ins->op == IR_RET) {
         auto loc = lookup_loc(s, i, pos);
         if (loc.kind != LOC_REG) {
-          fprintf(stderr, "regalloc2 invalid: RET tmp not in register at ir=%u\n",
-                  i);
+          fprintf(stderr,
+                  "regalloc2 invalid: RET tmp not in register at ir=%u\n", i);
           dump_value_ranges(s, i);
           dump_value_intervals(s, i);
           dump_value_uses(s, i);
@@ -893,11 +895,10 @@ static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
       if (!v.constant) {
         auto spill = s->t->ins[v.loc].spill;
         if (spill != SPILL_NONE) {
-          arrput(out->dense_locs,
-                 ((dense_loc_entry){.kind = LOC_SPILL,
-                                    .reg = REG_NONE,
-                                    .spill = spill,
-                                    .value_id = v.loc}));
+          arrput(out->dense_locs, ((dense_loc_entry){.kind = LOC_SPILL,
+                                                     .reg = REG_NONE,
+                                                     .spill = spill,
+                                                     .value_id = v.loc}));
         } else {
           arrput(out->dense_locs, lookup_loc(s, v.loc, pos));
         }
@@ -943,7 +944,7 @@ regalloc2_result regalloc2(trace *t) {
   add_ret_tmp_intervals(&s);
   linear_scan_allocate(&s);
 
-  regalloc2_result out = {0};
+  regalloc2_result out = {};
   build_dense_maps(&s, &out);
   write_back_trace_locations(&s);
   normalize_spill_reload_ops(&s);
@@ -968,190 +969,4 @@ void regalloc2_result_free(regalloc2_result *r) {
   free(r->ir_id_to_dense_map);
   free(r->snap_id_to_dense_map);
   memset(r, 0, sizeof(*r));
-}
-
-static void print_alloc_loc(dense_loc_entry d) {
-  if (d.kind == LOC_REG) {
-    printf("%s", reg_names[d.reg]);
-  } else {
-    printf("S%u", d.spill);
-  }
-}
-
-static void format_alloc_loc(char *buf, size_t n, dense_loc_entry d) {
-  if (d.kind == LOC_REG) {
-    snprintf(buf, n, "%s", reg_names[d.reg]);
-  } else {
-    snprintf(buf, n, "S%u", d.spill);
-  }
-}
-
-static void print_const_slot(slot s, trace *t) {
-  assert(s.constant);
-  auto gc = t->consts[s.loc];
-  if (is_fixnum(gc)) {
-    printf("\e[1;35m%" PRId64 "\e[m", to_fixnum(gc));
-  } else if (is_char(gc)) {
-    printf("\e[1;35m'%c'\e[m", to_char(gc));
-  } else if (is_string(gc)) {
-    printf("\e[1;35m\"%s\"\e[m", to_string(gc)->str);
-  } else if (is_record(gc)) {
-    printf("\e[1;35m#<record>\e[m");
-  } else if (is_flonum(gc)) {
-    printf("\e[1;35m%f\e[m", to_flonum(gc)->x);
-  } else if (is_symbol(gc)) {
-    auto name = get_sym_name(to_symbol(gc));
-    printf("\e[1;35m%s\e[m", name ? name->str : "<symbol>");
-  } else if (gc.value == FALSE_REP.value) {
-    printf("\e[1;35m#f\e[m");
-  } else if (gc.value == TRUE_REP.value) {
-    printf("\e[1;35m#t\e[m");
-  } else if (is_closure(gc)) {
-    printf("\e[1;31mCLOSURE\e[m");
-  } else if (is_vector(gc)) {
-    printf("\e[1;31mvector\e[m");
-  } else if (is_func(gc)) {
-    printf("\e[1;31mFUNC\e[m");
-  } else if (gc.value == NIL.value) {
-    printf("\e[1;35m()\e[m");
-  } else {
-    printf("\e[1;31mUNKNOWN %" PRIx64 "\e[m", (uint64_t)gc.value);
-  }
-}
-
-static void print_input_slot(slot s, trace *t, dense_loc_entry const *in_loc) {
-  if (s.constant) {
-    print_const_slot(s, t);
-    return;
-  }
-  printf("%04u=", s.loc);
-  if (in_loc) {
-    print_alloc_loc(*in_loc);
-  } else {
-    printf("?");
-  }
-}
-
-void regalloc2_print(trace *t, regalloc2_result const *r) {
-  size_t ins_len = arrlen(t->ins);
-  size_t snap_len = arrlen(t->snaps);
-  printf("regalloc2:\n");
-  size_t snap_idx = 0;
-  for (size_t ir = 0; ir <= ins_len; ir++) {
-    while (snap_idx < snap_len && t->snaps[snap_idx].ir == ir) {
-      auto sn = &t->snaps[snap_idx];
-      size_t sstart = r->snap_id_to_dense_map[snap_idx];
-      size_t send = (snap_idx + 1 < snap_len)
-                        ? r->snap_id_to_dense_map[snap_idx + 1]
-                        : (r->dense_locs ? arrlen(r->dense_locs) : 0);
-      size_t entry_len = arrlen(sn->slots);
-      size_t *dense_by_entry = calloc(entry_len, sizeof(size_t));
-      assert(dense_by_entry != NULL || entry_len == 0);
-      for (size_t i = 0; i < entry_len; i++) {
-        dense_by_entry[i] = SIZE_MAX;
-      }
-      size_t j = sstart;
-      arr_for_each_idx(sn->slots, k) {
-        auto e = sn->slots[k];
-        if (!e.val.constant && j < send) {
-          dense_by_entry[k] = j++;
-        }
-      }
-
-      printf("SNAP[ir=%u", sn->ir);
-      for (size_t i = entry_len; i != 0; i--) {
-        auto e = sn->slots[i - 1];
-        printf(" %u=", e.slot);
-        if (e.val.constant) {
-          print_const_slot(e.val, t);
-        } else if (dense_by_entry[i - 1] != SIZE_MAX) {
-          print_alloc_loc(r->dense_locs[dense_by_entry[i - 1]]);
-        } else {
-          printf("?");
-        }
-      }
-      printf("]\n");
-      free(dense_by_entry);
-      snap_idx++;
-    }
-    if (ir == ins_len) {
-      break;
-    }
-    arr_for_each_idx(r->spill_reload_ops, eidx) {
-      auto e = r->spill_reload_ops[eidx];
-      if (e.ir_idx == ir && e.before) {
-        printf("    %s BEFORE ir=%zu ", e.is_reload ? "RELOAD" : "SPILL", ir);
-        printf("v%u reg=%s spill=%u\n", e.value_id, reg_names[e.reg], e.spill);
-      }
-    }
-    size_t start = r->ir_id_to_dense_map[ir];
-    size_t end =
-        (ir + 1 < ins_len)
-            ? r->ir_id_to_dense_map[ir + 1]
-            : (snap_len > 0 ? r->snap_id_to_dense_map[0]
-                            : (r->dense_locs ? arrlen(r->dense_locs) : 0));
-    auto ins = &t->ins[ir];
-    size_t in_idx = start;
-
-    printf("%04zu ", ir);
-    if (ins->spill != SPILL_NONE) {
-      char out_loc[32];
-      snprintf(out_loc, sizeof(out_loc), "S%u", ins->spill);
-      printf("%-7s", out_loc);
-    } else if (ins->reg != REG_NONE) {
-      printf("%-7s", reg_names[ins->reg]);
-    } else {
-      printf("%-7s", "");
-    }
-    printf(" %-8s", ir_names[ins->op]);
-    switch (ir_ins_types[ins->op]) {
-    case IR_ARG_NONE_NONE:
-      break;
-    case IR_ARG_STACK:
-      printf(" \e[1;33mstack %i\e[m", ins->data);
-      break;
-    case IR_ARG_IR_NONE:
-      printf(" ");
-      print_input_slot(
-          ins->op1, t,
-          ins->op1.constant || in_idx >= end ? NULL : &r->dense_locs[in_idx++]);
-      break;
-    case IR_ARG_IR_IR:
-      printf(" ");
-      print_input_slot(
-          ins->op1, t,
-          ins->op1.constant || in_idx >= end ? NULL : &r->dense_locs[in_idx++]);
-      printf(", ");
-      print_input_slot(
-          ins->op2, t,
-          ins->op2.constant || in_idx >= end ? NULL : &r->dense_locs[in_idx++]);
-      break;
-    case IR_ARG_IR_ADDR:
-      printf(" ");
-      print_input_slot(
-          ins->op1, t,
-          ins->op1.constant || in_idx >= end ? NULL : &r->dense_locs[in_idx++]);
-      printf(", \e[1;35m#<bc 0x%" PRIx64 ">\e[m",
-             (uint64_t)t->consts[ins->op2.loc].value);
-      break;
-    case IR_ARG_REG:
-      printf(" \e[1;33m%i\e[m", ins->data);
-      break;
-    case IR_ARG_PMOV:
-      printf(" %i %s (%s)", ins->prev_reg, ins->prev_guard ? "(GUARD)" : "",
-             reg_names[ins->prev_reg]);
-      break;
-    case IR_ARG_OFFSET:
-      printf(" +%i", ins->data);
-      break;
-    }
-    printf("\n");
-    arr_for_each_idx(r->spill_reload_ops, eidx) {
-      auto e = r->spill_reload_ops[eidx];
-      if (e.ir_idx == ir && !e.before) {
-        printf("    %s AFTER  ir=%zu ", e.is_reload ? "RELOAD" : "SPILL", ir);
-        printf("v%u reg=%s spill=%u\n", e.value_id, reg_names[e.reg], e.spill);
-      }
-    }
-  }
 }

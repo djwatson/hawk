@@ -18,6 +18,7 @@ typedef struct snap_entry {
 } snap_entry;
 
 typedef struct trace trace;
+typedef struct regalloc2_result regalloc2_result;
 typedef struct {
   bc *pc;
   uint16_t ir;
@@ -130,7 +131,7 @@ enum : uint8_t {
   SPILL_NONE = 0xff,
 };
 
-void print_ir(trace *t);
+void print_ir(trace *t, regalloc2_result const *regmap);
 
 extern char *ir_names[];
 extern ir_arg_type ir_ins_types[];

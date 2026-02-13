@@ -1,8 +1,10 @@
 #include "ir.h"
 #include "asm.h"
+#include "regalloc.h"
 
 #include <assert.h>
 #include <inttypes.h>
+#include <stdlib.h>
 
 static void print_slot(slot s, trace *t) {
   if (s.constant) {
@@ -59,22 +61,108 @@ ir_arg_type ir_ins_types[] = {
 #undef X
 };
 
-static void print_snap(snap *snap, trace *t) {
+static void print_alloc_loc(dense_loc_entry d) {
+  if (d.kind == LOC_REG) {
+    printf("%s", reg_names[d.reg]);
+  } else {
+    printf("S%u", d.spill);
+  }
+}
+
+static size_t ir_dense_row_end(trace const *t, regalloc2_result const *r,
+                               size_t ir_idx) {
+  size_t ins_len = arrlen(t->ins);
+  size_t snap_len = arrlen(t->snaps);
+  if (ir_idx + 1 < ins_len) {
+    return r->ir_id_to_dense_map[ir_idx + 1];
+  }
+  if (snap_len > 0) {
+    return r->snap_id_to_dense_map[0];
+  }
+  return r->dense_locs ? arrlen(r->dense_locs) : 0;
+}
+
+static size_t snap_dense_row_end(trace const *t, regalloc2_result const *r,
+                                 size_t snap_idx) {
+  size_t snap_len = arrlen(t->snaps);
+  if (snap_idx + 1 < snap_len) {
+    return r->snap_id_to_dense_map[snap_idx + 1];
+  }
+  return r->dense_locs ? arrlen(r->dense_locs) : 0;
+}
+
+static void print_input_slot(slot s, trace *t, dense_loc_entry const *in_loc) {
+  if (s.constant) {
+    print_slot(s, t);
+    return;
+  }
+  printf("%04u", s.loc);
+  if (in_loc) {
+    printf(" (");
+    print_alloc_loc(*in_loc);
+    printf(")");
+  }
+}
+
+static void print_spill_reload_events(regalloc2_result const *regmap, size_t ir,
+                                      bool before) {
+  arr_for_each_idx(regmap->spill_reload_ops, eidx) {
+    auto e = regmap->spill_reload_ops[eidx];
+    if (e.ir_idx == ir && e.before == before) {
+      printf("    %s %s ir=%zu v%u reg=%s spill=%u\n",
+             e.is_reload ? "RELOAD" : "SPILL", before ? "BEFORE" : "AFTER ",
+             ir, e.value_id, reg_names[e.reg], e.spill);
+    }
+  }
+}
+
+static void print_snap(snap *snap, trace *t, regalloc2_result const *regmap,
+                       size_t snap_idx) {
   printf("SNAP[ir=%i pc=%p off=%i", snap->ir, snap->pc, snap->offset);
   uint64_t frame = snap->offset - 1;
+  size_t sstart = 0;
+  size_t send = 0;
+  size_t dense_cur = 0;
+  size_t *dense_by_entry = NULL;
+  if (regmap) {
+    sstart = regmap->snap_id_to_dense_map[snap_idx];
+    send = snap_dense_row_end(t, regmap, snap_idx);
+    size_t entry_len = arrlen(snap->slots);
+    dense_by_entry = calloc(entry_len, sizeof(size_t));
+    assert(dense_by_entry != NULL || entry_len == 0);
+    for (size_t i = 0; i < entry_len; i++) {
+      dense_by_entry[i] = SIZE_MAX;
+    }
+    dense_cur = sstart;
+    arr_for_each_idx(snap->slots, k) {
+      auto e = snap->slots[k];
+      if (!e.val.constant && dense_cur < send) {
+        dense_by_entry[k] = dense_cur++;
+      }
+    }
+  }
+
   for (uint64_t j = arrlen(snap->slots); j != 0; j--) {
     auto entry = &snap->slots[j - 1];
-    printf(" %i=", entry->slot);
+    printf(" %02i=", entry->slot);
     if (entry->slot == frame) {
       printf("\e[1;34mframe\e[m");
       assert(entry->val.constant);
       uint8_t frame_offset =
           (to_return_address(t->consts[entry->val.loc]) - 1)->reg;
       frame -= (frame_offset + 1);
+    } else if (regmap && !entry->val.constant) {
+      printf("%04u", entry->val.loc);
+      if (dense_by_entry[j - 1] != SIZE_MAX) {
+        printf(" (");
+        print_alloc_loc(regmap->dense_locs[dense_by_entry[j - 1]]);
+        printf(")");
+      }
     } else {
       print_slot(entry->val, t);
     }
   }
+  free(dense_by_entry);
   printf("]\n");
 }
 
@@ -129,17 +217,27 @@ static void print_tag_type(uint8_t t) {
   }
 }
 
-void print_ir(trace *t) {
+void print_ir(trace *t, regalloc2_result const *regmap) {
   uint64_t cur_snap = 0;
   for (size_t i = 0; i < arrlen(t->ins) + 1 /* last snap */; i++) {
     while (cur_snap < arrlen(t->snaps) && t->snaps[cur_snap].ir == i) {
-      print_snap(&t->snaps[cur_snap], t);
+      print_snap(&t->snaps[cur_snap], t, regmap, cur_snap);
       cur_snap++;
     }
     if (i == arrlen(t->ins)) {
       break;
     }
+    if (regmap) {
+      print_spill_reload_events(regmap, i, true);
+    }
     ir_ins *ins = &t->ins[i];
+    size_t in_idx = 0;
+    size_t end = 0;
+    if (regmap) {
+      in_idx = regmap->ir_id_to_dense_map[i];
+      end = ir_dense_row_end(t, regmap, i);
+    }
+
     printf("%04zu", i);
     if (ins->reg != REG_NONE) {
       printf(" %-4s", reg_names[ins->reg]);
@@ -163,17 +261,41 @@ void print_ir(trace *t) {
       break;
     case IR_ARG_IR_NONE:
       printf(" ");
-      print_slot(ins->op1, t);
+      if (regmap) {
+        print_input_slot(ins->op1, t, ins->op1.constant || in_idx >= end
+                                         ? NULL
+                                         : &regmap->dense_locs[in_idx++]);
+      } else {
+        print_slot(ins->op1, t);
+      }
       break;
     case IR_ARG_IR_IR:
       printf(" ");
-      print_slot(ins->op1, t);
+      if (regmap) {
+        print_input_slot(ins->op1, t, ins->op1.constant || in_idx >= end
+                                         ? NULL
+                                         : &regmap->dense_locs[in_idx++]);
+      } else {
+        print_slot(ins->op1, t);
+      }
       printf(", ");
-      print_slot(ins->op2, t);
+      if (regmap) {
+        print_input_slot(ins->op2, t, ins->op2.constant || in_idx >= end
+                                         ? NULL
+                                         : &regmap->dense_locs[in_idx++]);
+      } else {
+        print_slot(ins->op2, t);
+      }
       break;
     case IR_ARG_IR_ADDR:
       printf(" ");
-      print_slot(ins->op1, t);
+      if (regmap) {
+        print_input_slot(ins->op1, t, ins->op1.constant || in_idx >= end
+                                         ? NULL
+                                         : &regmap->dense_locs[in_idx++]);
+      } else {
+        print_slot(ins->op1, t);
+      }
       printf(", \e[1;35m#<bc 0x%" PRIx64 ">\e[m",
              (uint64_t)t->consts[ins->op2.loc].value);
       break;
@@ -189,6 +311,9 @@ void print_ir(trace *t) {
       break;
     }
     printf("\n");
+    if (regmap) {
+      print_spill_reload_events(regmap, i, false);
+    }
   }
 }
 
