@@ -186,15 +186,8 @@ static dense_loc_entry snap_entry_loc(trace const *t, regalloc2_result const *r,
   return r->dense_locs[dense_idx];
 }
 
-static uint8_t ir_output_reg(regalloc2_result const *r, uint16_t ir_idx) {
-  if (!r->ir_output_locs[ir_idx].present) {
-    return REG_NONE;
-  }
-  auto loc = r->ir_output_locs[ir_idx].loc;
-  if (loc.kind != LOC_REG) {
-    return REG_NONE;
-  }
-  return loc.reg;
+static uint8_t ir_output_reg(trace const *t, uint16_t ir_idx) {
+  return t->ins[ir_idx].reg;
 }
 
 static void emit_cmp_regs(emit_state *s, trace *t, uint8_t lhs_reg, slot rhs,
@@ -835,10 +828,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       cur_snap++;
     }
     auto op = &t->ins[op_cnt_idx];
-    auto out_loc = regmap->ir_output_locs[op_cnt_idx];
-    uint8_t out_reg = out_loc.present && out_loc.loc.kind == LOC_REG
-                          ? out_loc.loc.reg
-                          : REG_NONE;
+    uint8_t out_reg = op->reg;
     uint8_t dst_reg = out_reg;
     if (dst_reg == REG_NONE) {
       dst_reg = ins_uses_freg(op) ? FRTMP : RTMP;
@@ -1193,7 +1183,7 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
   ir_ins *arg_ins = nullptr;
   for_each_leading_op(t, IR_ARG, arg_ins) {
     uint16_t ir_idx = (uint16_t)(arg_ins - t->ins);
-    uint8_t out_reg = ir_output_reg(regmap, ir_idx);
+    uint8_t out_reg = ir_output_reg(t, ir_idx);
     if (out_reg != REG_NONE) {
       auto offset = (int32_t)arg_ins->data * 8;
       if (is_fpr_reg(out_reg)) {

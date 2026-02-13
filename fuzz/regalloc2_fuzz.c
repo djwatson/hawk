@@ -420,28 +420,23 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
       abort();
     }
 
-    auto out = r->ir_output_locs[ir];
-    if (out.present) {
-      auto d = out.loc;
-      if (d.value_id != ir) {
+    if (t->ins[ir].reg != REG_NONE) {
+      uint8_t reg = t->ins[ir].reg;
+      if (reg >= MAX_REG) {
         abort();
       }
-      if (d.kind == LOC_REG) {
-        if (d.reg >= MAX_REG) {
-          abort();
-        }
-        bool out_is_flo = t->ins[ir].type == FLONUM_TAG;
-        bool reg_is_fpr = d.reg >= FPR_REG_START && d.reg < FPR_REG_END;
-        if (out_is_flo != reg_is_fpr) {
-          abort();
-        }
-        regs[d.reg] = ir;
-      } else {
-        if (d.spill >= MAX_SPILL) {
-          abort();
-        }
-        spills[d.spill] = ir;
+      bool out_is_flo = t->ins[ir].type == FLONUM_TAG;
+      bool reg_is_fpr = reg >= FPR_REG_START && reg < FPR_REG_END;
+      if (out_is_flo != reg_is_fpr) {
+        abort();
       }
+      regs[reg] = ir;
+    } else if (t->ins[ir].spill != SPILL_NONE) {
+      uint8_t spill = t->ins[ir].spill;
+      if (spill >= MAX_SPILL) {
+        abort();
+      }
+      spills[spill] = ir;
     }
 
     op_after = op_before;
@@ -520,8 +515,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   // regalloc2_print(&t, &r);
   size_t spill_output_count = 0;
   for (size_t ir = 0; ir < arrlen(t.ins); ir++) {
-    if (r.ir_output_locs[ir].present &&
-        r.ir_output_locs[ir].loc.kind == LOC_SPILL) {
+    if (t.ins[ir].spill != SPILL_NONE && t.ins[ir].reg == REG_NONE) {
       spill_output_count++;
     }
   }

@@ -799,10 +799,8 @@ static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
   size_t ins_len = arrlen(s->t->ins);
   size_t snap_len = arrlen(s->t->snaps);
   out->ir_id_to_dense_map = calloc(ins_len, sizeof(uint16_t));
-  out->ir_output_locs = calloc(ins_len, sizeof(ir_output_loc));
   out->snap_id_to_dense_map = calloc(snap_len, sizeof(uint16_t));
   assert(out->ir_id_to_dense_map != NULL || ins_len == 0);
-  assert(out->ir_output_locs != NULL || ins_len == 0);
   assert(out->snap_id_to_dense_map != NULL || snap_len == 0);
 
   for (uint16_t i = 0; i < ins_len; i++) {
@@ -879,11 +877,9 @@ static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
     bool has_uses = s->uses[i] != 0;
     bool has_spill = s->t->ins[i].spill != SPILL_NONE;
     if (has_uses || has_spill) {
-      out->ir_output_locs[i].present = true;
-      out->ir_output_locs[i].loc = lookup_loc(s, i, out_pos);
-      if (has_spill && out->ir_output_locs[i].loc.kind == LOC_REG) {
-        add_event(s, out_pos, false, i, out->ir_output_locs[i].loc.reg,
-                  s->t->ins[i].spill);
+      auto out_loc = lookup_loc(s, i, out_pos);
+      if (has_spill && out_loc.kind == LOC_REG) {
+        add_event(s, out_pos, false, i, out_loc.reg, s->t->ins[i].spill);
       }
     }
   }
@@ -910,14 +906,17 @@ static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
   }
 }
 
-static void write_back_trace_locations(regalloc2_state *s,
-                                       regalloc2_result const *out) {
+static void write_back_trace_locations(regalloc2_state *s) {
   size_t ins_len = arrlen(s->t->ins);
   for (uint16_t i = 0; i < ins_len; i++) {
     s->t->ins[i].reg = REG_NONE;
-    if (out->ir_output_locs[i].present &&
-        out->ir_output_locs[i].loc.kind == LOC_REG) {
-      s->t->ins[i].reg = out->ir_output_locs[i].loc.reg;
+    bool has_uses = s->uses[i] != 0;
+    bool has_spill = s->t->ins[i].spill != SPILL_NONE;
+    if (has_uses || has_spill) {
+      auto out_loc = lookup_loc(s, i, ir_after_pos(i));
+      if (out_loc.kind == LOC_REG) {
+        s->t->ins[i].reg = out_loc.reg;
+      }
     }
   }
 }
@@ -946,7 +945,7 @@ regalloc2_result regalloc2(trace *t) {
 
   regalloc2_result out = {0};
   build_dense_maps(&s, &out);
-  write_back_trace_locations(&s, &out);
+  write_back_trace_locations(&s);
   normalize_spill_reload_ops(&s);
   out.spill_reload_ops = s.ops;
 
@@ -966,7 +965,6 @@ void regalloc2_result_free(regalloc2_result *r) {
   }
   arrfree(r->dense_locs);
   arrfree(r->spill_reload_ops);
-  free(r->ir_output_locs);
   free(r->ir_id_to_dense_map);
   free(r->snap_id_to_dense_map);
   memset(r, 0, sizeof(*r));
@@ -1096,10 +1094,12 @@ void regalloc2_print(trace *t, regalloc2_result const *r) {
     size_t in_idx = start;
 
     printf("%04zu ", ir);
-    if (r->ir_output_locs[ir].present) {
+    if (ins->spill != SPILL_NONE) {
       char out_loc[32];
-      format_alloc_loc(out_loc, sizeof(out_loc), r->ir_output_locs[ir].loc);
+      snprintf(out_loc, sizeof(out_loc), "S%u", ins->spill);
       printf("%-7s", out_loc);
+    } else if (ins->reg != REG_NONE) {
+      printf("%-7s", reg_names[ins->reg]);
     } else {
       printf("%-7s", "");
     }

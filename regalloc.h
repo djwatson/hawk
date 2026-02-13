@@ -15,11 +15,6 @@ typedef struct {
 } dense_loc_entry;
 
 typedef struct {
-  bool present;
-  dense_loc_entry loc;
-} ir_output_loc;
-
-typedef struct {
   uint16_t ir_idx;
   bool before;
   bool is_reload;
@@ -30,7 +25,6 @@ typedef struct {
 
 typedef struct {
   dense_loc_entry *dense_locs;
-  ir_output_loc *ir_output_locs;
   uint16_t *ir_id_to_dense_map;
   uint16_t *snap_id_to_dense_map;
   spill_reload_op *spill_reload_ops;
