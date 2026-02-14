@@ -39,6 +39,7 @@ typedef struct {
   uint16_t end;
   bool is_float;
   uint8_t reg;
+  uint8_t forced_start_reg;
   uint16_t active_start;
   bool active;
   bool done;
@@ -344,11 +345,19 @@ static void add_range_spill(regalloc2_state *s, uint16_t value_id,
 
 static int add_interval(regalloc2_state *s, uint16_t value_id, uint16_t start,
                         uint16_t end) {
+  uint8_t forced_start_reg = REG_NONE;
+  if (start == ir_after_pos(value_id)) {
+    auto ins = &s->t->ins[value_id];
+    if (ins->op == IR_PMOV && ins->spill == SPILL_NONE && ins->reg != REG_NONE) {
+      forced_start_reg = ins->reg;
+    }
+  }
   auto it = (ls_interval){.value_id = value_id,
                           .start = start,
                           .end = end,
                           .is_float = ins_uses_freg(&s->t->ins[value_id]),
                           .reg = REG_NONE,
+                          .forced_start_reg = forced_start_reg,
                           .active_start = 0,
                           .active = false,
                           .done = false};
@@ -363,6 +372,7 @@ static int add_temp_interval(regalloc2_state *s, uint16_t value_id,
                           .end = end,
                           .is_float = false,
                           .reg = REG_NONE,
+                          .forced_start_reg = REG_NONE,
                           .active_start = 0,
                           .active = false,
                           .done = false};
@@ -412,11 +422,6 @@ static dense_loc_entry lookup_loc(regalloc2_state *s, uint16_t value_id,
 static void build_intervals(regalloc2_state *s) {
   size_t ins_len = arrlen(s->t->ins);
   for (uint16_t v = 0; v < ins_len; v++) {
-    auto ins = &s->t->ins[v];
-    if (ins->op == IR_PMOV && ins->spill == SPILL_NONE &&
-        ins->reg != REG_NONE) {
-      continue;
-    }
     uint16_t first_use = interval_next_use_pos(s, v, 0);
     if (first_use == UINT16_MAX) {
       continue;
@@ -460,46 +465,6 @@ static void init_fixed_intervals(regalloc2_state *s) {
     if (reserved[r]) {
       add_fixed_full(s, (uint8_t)r, max_pos);
     }
-  }
-}
-
-static void seed_pmov_locations(regalloc2_state *s) {
-  arr_for_each_idx(s->t->ins, i) {
-    auto ins = &s->t->ins[i];
-    if (ins->op != IR_PMOV) {
-      continue;
-    }
-
-    if (ins->spill != SPILL_NONE) {
-      if ((uint16_t)ins->spill >= s->next_spill) {
-        s->next_spill = (uint8_t)(ins->spill + 1);
-      }
-      continue;
-    }
-
-    if (ins->reg == REG_NONE) {
-      continue;
-    }
-
-    uint16_t first_use = interval_next_use_pos(s, (uint16_t)i, 0);
-    if (first_use == UINT16_MAX) {
-      continue;
-    }
-
-    uint16_t start = ir_after_pos((uint16_t)i);
-    uint16_t end = start > first_use ? start : first_use;
-    uint32_t use_idx = s->uses[i];
-    while (use_idx != 0) {
-      auto n = s->next_uses[use_idx];
-      uint16_t p = use_pos(n);
-      if (p > end) {
-        end = p;
-      }
-      use_idx = n.next;
-    }
-
-    add_range_reg(s, (uint16_t)i, start, end, ins->reg);
-    add_fixed_range(s, ins->reg, start, end);
   }
 }
 
@@ -634,6 +599,40 @@ static void linear_scan_allocate(regalloc2_state *s) {
 
     uint8_t class_start = cur->is_float ? FPR_REG_START : 0;
     uint8_t class_end = cur->is_float ? FPR_REG_END : FPR_REG_START;
+
+    if (cur->forced_start_reg != REG_NONE) {
+      uint8_t forced_reg = cur->forced_start_reg;
+      if (forced_reg < class_start || forced_reg >= class_end ||
+          fixed_covers(s, forced_reg, cur_pos)) {
+        fprintf(stderr,
+                "regalloc2 invalid PMOV start reg at value=%u reg=%u pos=%u\n",
+                cur->value_id, forced_reg, cur_pos);
+        abort();
+      }
+      if (reg_owner[forced_reg] >= 0) {
+        fprintf(stderr,
+                "regalloc2 invalid PMOV start reg already owned: value=%u "
+                "reg=%u owner=%d pos=%u\n",
+                cur->value_id, forced_reg, reg_owner[forced_reg], cur_pos);
+        abort();
+      }
+
+      cur->reg = forced_reg;
+      cur->active_start = cur_pos;
+      cur->active = true;
+      reg_owner[forced_reg] = cur_idx;
+      maybe_add_reload_at_start(s, cur, cur_pos);
+
+      uint16_t fixed_start = fixed_next_start(s, forced_reg, cur_pos);
+      if (fixed_start != UINT16_MAX && fixed_start > cur_pos) {
+        uint16_t forced_until = (uint16_t)(fixed_start - 1);
+        if (forced_until < cur->end) {
+          split_interval(s, cur, (uint16_t)(forced_until + 1));
+        }
+      }
+      continue;
+    }
+
     uint16_t best_full_until = 0;
     int best_full_reg = -1;
     uint16_t best_partial_until = 0;
@@ -939,7 +938,6 @@ regalloc2_result regalloc2(trace *t) {
   }
 
   init_fixed_intervals(&s);
-  seed_pmov_locations(&s);
   build_intervals(&s);
   add_ret_tmp_intervals(&s);
   linear_scan_allocate(&s);
