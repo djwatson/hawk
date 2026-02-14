@@ -111,18 +111,6 @@ static size_t ir_dense_row_end(trace const *t, regalloc2_result const *r,
   if (ir + 1 < ins_len) {
     return r->ir_id_to_dense_map[ir + 1];
   }
-  if (arrlen(t->snaps) > 0) {
-    return r->snap_id_to_dense_map[0];
-  }
-  return r->dense_locs ? arrlen(r->dense_locs) : 0;
-}
-
-static size_t snap_dense_row_end(trace const *t, regalloc2_result const *r,
-                                 uint16_t snap_idx) {
-  size_t snap_len = arrlen(t->snaps);
-  if (snap_idx + 1 < snap_len) {
-    return r->snap_id_to_dense_map[snap_idx + 1];
-  }
   return r->dense_locs ? arrlen(r->dense_locs) : 0;
 }
 
@@ -173,17 +161,22 @@ static uint8_t ir_input_reg(trace const *t, regalloc2_result const *r,
 
 static dense_loc_entry snap_entry_loc(trace const *t, regalloc2_result const *r,
                                       uint16_t snap_idx, size_t entry_idx) {
+  (void)r;
   auto sn = &t->snaps[snap_idx];
-  size_t start = r->snap_id_to_dense_map[snap_idx];
-  size_t end = snap_dense_row_end(t, r, snap_idx);
-  size_t dense_idx = start;
-  for (size_t i = 0; i < entry_idx; i++) {
-    if (!sn->slots[i].val.constant) {
-      dense_idx++;
-    }
+  auto entry = &sn->slots[entry_idx];
+  assert(!entry->val.constant);
+  auto ins = &t->ins[entry->val.loc];
+  if (ins->spill != SPILL_NONE) {
+    return (dense_loc_entry){.kind = LOC_SPILL,
+                             .reg = REG_NONE,
+                             .spill = ins->spill,
+                             .value_id = entry->val.loc};
   }
-  assert(dense_idx < end);
-  return r->dense_locs[dense_idx];
+  assert(ins->reg != REG_NONE);
+  return (dense_loc_entry){.kind = LOC_REG,
+                           .reg = ins->reg,
+                           .spill = SPILL_NONE,
+                           .value_id = entry->val.loc};
 }
 
 static uint8_t ir_output_reg(trace const *t, uint16_t ir_idx) {

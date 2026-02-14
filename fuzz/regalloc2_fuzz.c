@@ -278,18 +278,6 @@ static size_t ir_row_end(trace const *t, regalloc2_result const *r,
   if (ir + 1 < ins_len) {
     return r->ir_id_to_dense_map[ir + 1];
   }
-  if (arrlen(t->snaps) > 0) {
-    return r->snap_id_to_dense_map[0];
-  }
-  return arrlen(r->dense_locs);
-}
-
-static size_t snap_row_end(trace const *t, regalloc2_result const *r,
-                           uint16_t snap_idx) {
-  size_t snap_len = arrlen(t->snaps);
-  if (snap_idx + 1 < snap_len) {
-    return r->snap_id_to_dense_map[snap_idx + 1];
-  }
   return arrlen(r->dense_locs);
 }
 
@@ -468,16 +456,30 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
 
     while (snap_cursor < snap_len &&
            t->snaps[snap_cursor].ir <= (uint16_t)(ir + 1)) {
-      snap_cursor++;
-    }
-    if (snap_cursor > 0) {
-      uint16_t last_snap = (uint16_t)(snap_cursor - 1);
-      size_t sstart = r->snap_id_to_dense_map[last_snap];
-      size_t send = snap_row_end(t, r, last_snap);
-      for (size_t j = sstart; j < send; j++) {
-        check_loc_holds(regs, spills, r->dense_locs[j], "snapshot", last_snap,
-                        r->dense_locs[j].value_id);
+      uint16_t snap_idx = (uint16_t)snap_cursor;
+      auto sn = &t->snaps[snap_idx];
+      arr_for_each_idx(sn->slots, k) {
+        auto v = sn->slots[k].val;
+        if (v.constant) {
+          continue;
+        }
+        auto src = &t->ins[v.loc];
+        dense_loc_entry loc = {.value_id = v.loc};
+        if (src->spill != SPILL_NONE) {
+          loc.kind = LOC_SPILL;
+          loc.reg = REG_NONE;
+          loc.spill = src->spill;
+        } else {
+          if (src->reg == REG_NONE) {
+            abort();
+          }
+          loc.kind = LOC_REG;
+          loc.reg = src->reg;
+          loc.spill = SPILL_NONE;
+        }
+        check_loc_holds(regs, spills, loc, "snapshot", snap_idx, v.loc);
       }
+      snap_cursor++;
     }
   }
 }
@@ -494,8 +496,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   trace t = {0};
   fill_consts(&t);
   uint16_t max_const_loc = (uint16_t)(arrlen(t.consts) - 1);
-  uint16_t leading_pmov_count =
-      rng_bool(&rng) ? rng_u16(&rng, 10) : 0;
+  uint16_t leading_pmov_count = rng_bool(&rng) ? rng_u16(&rng, 10) : 0;
   if (leading_pmov_count > FUZZ_INS_COUNT) {
     leading_pmov_count = FUZZ_INS_COUNT;
   }
@@ -510,7 +511,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   }
   fill_snapshots(&rng, &t);
   regalloc2_result r = regalloc2(&t);
-  // print_ir(&t, &r);
+  print_ir(&t, &r);
   size_t spill_output_count = 0;
   for (size_t ir = 0; ir < arrlen(t.ins); ir++) {
     if (t.ins[ir].spill != SPILL_NONE && t.ins[ir].reg == REG_NONE) {

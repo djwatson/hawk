@@ -149,10 +149,6 @@ static inline uint16_t ir_after_pos(uint16_t ir_idx) { return ir_idx * 2 + 1; }
 static inline uint16_t pos_ir(uint16_t pos) { return pos / 2; }
 static inline bool pos_before(uint16_t pos) { return (pos % 2) == 0; }
 
-static inline uint16_t snap_capture_pos(snap const *s) {
-  return s->ir == 0 ? 0 : ir_after_pos((uint16_t)(s->ir - 1));
-}
-
 static inline uint16_t use_pos(next_use n) {
   return n.before ? ir_before_pos(n.ir_idx) : ir_after_pos(n.ir_idx);
 }
@@ -798,11 +794,8 @@ static void linear_scan_allocate(regalloc2_state *s) {
 
 static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
   size_t ins_len = arrlen(s->t->ins);
-  size_t snap_len = arrlen(s->t->snaps);
   out->ir_id_to_dense_map = calloc(ins_len, sizeof(uint16_t));
-  out->snap_id_to_dense_map = calloc(snap_len, sizeof(uint16_t));
   assert(out->ir_id_to_dense_map != NULL || ins_len == 0);
-  assert(out->snap_id_to_dense_map != NULL || snap_len == 0);
 
   for (uint16_t i = 0; i < ins_len; i++) {
     out->ir_id_to_dense_map[i] = (uint16_t)arrlen(out->dense_locs);
@@ -885,25 +878,6 @@ static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
     }
   }
 
-  for (uint16_t sidx = 0; sidx < snap_len; sidx++) {
-    auto sn = &s->t->snaps[sidx];
-    uint16_t pos = snap_capture_pos(sn);
-    out->snap_id_to_dense_map[sidx] = (uint16_t)arrlen(out->dense_locs);
-    arr_for_each_idx(sn->slots, i) {
-      auto v = sn->slots[i].val;
-      if (!v.constant) {
-        auto spill = s->t->ins[v.loc].spill;
-        if (spill != SPILL_NONE) {
-          arrput(out->dense_locs, ((dense_loc_entry){.kind = LOC_SPILL,
-                                                     .reg = REG_NONE,
-                                                     .spill = spill,
-                                                     .value_id = v.loc}));
-        } else {
-          arrput(out->dense_locs, lookup_loc(s, v.loc, pos));
-        }
-      }
-    }
-  }
 }
 
 static void write_back_trace_locations(regalloc2_state *s) {
@@ -965,6 +939,5 @@ void regalloc2_result_free(regalloc2_result *r) {
   arrfree(r->dense_locs);
   arrfree(r->spill_reload_ops);
   free(r->ir_id_to_dense_map);
-  free(r->snap_id_to_dense_map);
   memset(r, 0, sizeof(*r));
 }

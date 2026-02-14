@@ -26,7 +26,6 @@ typedef struct {
 typedef struct regalloc2_result {
   dense_loc_entry *dense_locs;
   uint16_t *ir_id_to_dense_map;
-  uint16_t *snap_id_to_dense_map;
   spill_reload_op *spill_reload_ops;
 } regalloc2_result;
 

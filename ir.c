@@ -4,7 +4,6 @@
 
 #include <assert.h>
 #include <inttypes.h>
-#include <stdlib.h>
 
 static void print_slot(slot s, trace *t) {
   if (s.constant) {
@@ -72,21 +71,8 @@ static void print_alloc_loc(dense_loc_entry d) {
 static size_t ir_dense_row_end(trace const *t, regalloc2_result const *r,
                                size_t ir_idx) {
   size_t ins_len = arrlen(t->ins);
-  size_t snap_len = arrlen(t->snaps);
   if (ir_idx + 1 < ins_len) {
     return r->ir_id_to_dense_map[ir_idx + 1];
-  }
-  if (snap_len > 0) {
-    return r->snap_id_to_dense_map[0];
-  }
-  return r->dense_locs ? arrlen(r->dense_locs) : 0;
-}
-
-static size_t snap_dense_row_end(trace const *t, regalloc2_result const *r,
-                                 size_t snap_idx) {
-  size_t snap_len = arrlen(t->snaps);
-  if (snap_idx + 1 < snap_len) {
-    return r->snap_id_to_dense_map[snap_idx + 1];
   }
   return r->dense_locs ? arrlen(r->dense_locs) : 0;
 }
@@ -118,29 +104,9 @@ static void print_spill_reload_events(regalloc2_result const *regmap, size_t ir,
 
 static void print_snap(snap *snap, trace *t, regalloc2_result const *regmap,
                        size_t snap_idx) {
+  (void)snap_idx;
   printf("SNAP[ir=%i pc=%p off=%i", snap->ir, snap->pc, snap->offset);
   uint64_t frame = snap->offset - 1;
-  size_t sstart = 0;
-  size_t send = 0;
-  size_t dense_cur = 0;
-  size_t *dense_by_entry = NULL;
-  if (regmap) {
-    sstart = regmap->snap_id_to_dense_map[snap_idx];
-    send = snap_dense_row_end(t, regmap, snap_idx);
-    size_t entry_len = arrlen(snap->slots);
-    dense_by_entry = calloc(entry_len, sizeof(size_t));
-    assert(dense_by_entry != NULL || entry_len == 0);
-    for (size_t i = 0; i < entry_len; i++) {
-      dense_by_entry[i] = SIZE_MAX;
-    }
-    dense_cur = sstart;
-    arr_for_each_idx(snap->slots, k) {
-      auto e = snap->slots[k];
-      if (!e.val.constant && dense_cur < send) {
-        dense_by_entry[k] = dense_cur++;
-      }
-    }
-  }
 
   for (uint64_t j = arrlen(snap->slots); j != 0; j--) {
     auto entry = &snap->slots[j - 1];
@@ -153,16 +119,20 @@ static void print_snap(snap *snap, trace *t, regalloc2_result const *regmap,
       frame -= (frame_offset + 1);
     } else if (regmap && !entry->val.constant) {
       printf("%04u", entry->val.loc);
-      if (dense_by_entry[j - 1] != SIZE_MAX) {
+      auto in = &t->ins[entry->val.loc];
+      if (in->spill != SPILL_NONE) {
         printf(" (");
-        print_alloc_loc(regmap->dense_locs[dense_by_entry[j - 1]]);
+        printf("S%u", in->spill);
+        printf(")");
+      } else if (in->reg != REG_NONE) {
+        printf(" (");
+        printf("%s", reg_names[in->reg]);
         printf(")");
       }
     } else {
       print_slot(entry->val, t);
     }
   }
-  free(dense_by_entry);
   printf("]\n");
 }
 
