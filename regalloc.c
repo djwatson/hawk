@@ -57,12 +57,17 @@ typedef struct regalloc2_state {
 
   ls_interval *unhandled_intervals;
   ls_interval *active_intervals;
+  ls_interval *expired_intervals;
   fixed_range *active_fixed[MAX_REG];
   fixed_range *inactive_fixed[MAX_REG];
   value_range *ranges;
+  dense_loc_entry *dense_locs;
+  uint16_t *ir_id_to_dense_map;
   register_op *ops;
   uint8_t next_spill;
 } regalloc2_state;
+
+typedef void (*ir_arg_callback)(slot s, void *ctx);
 
 static void add_next_use(regalloc2_state *s, uint16_t loc, uint16_t ir_idx,
                          bool before, bool is_snap) {
@@ -143,6 +148,21 @@ static void print_next_uses(regalloc2_state *s) {
   }
 }
 
+static void walk_ir_args(ir_ins const *ins, ir_arg_callback cb, void *ctx) {
+  switch (ir_ins_types[ins->op]) {
+  case IR_ARG_IR_IR:
+    cb(ins->op1, ctx);
+    cb(ins->op2, ctx);
+    break;
+  case IR_ARG_IR_NONE:
+  case IR_ARG_IR_ADDR:
+    cb(ins->op1, ctx);
+    break;
+  default:
+    break;
+  }
+}
+
 static inline uint16_t ir_before_pos(uint16_t ir_idx) { return ir_idx * 2; }
 static inline uint16_t ir_after_pos(uint16_t ir_idx) { return ir_idx * 2 + 1; }
 
@@ -151,6 +171,38 @@ static inline bool pos_before(uint16_t pos) { return (pos % 2) == 0; }
 
 static inline uint16_t use_pos(next_use n) {
   return n.before ? ir_before_pos(n.ir_idx) : ir_after_pos(n.ir_idx);
+}
+
+static dense_loc_entry lookup_loc(regalloc2_state *s, uint16_t value_id,
+                                  uint16_t pos) {
+  for (size_t i = 0; i < arrlen(s->expired_intervals); i++) {
+    auto it = s->expired_intervals[i];
+    if (it.value_id != value_id) {
+      continue;
+    }
+    if (it.start <= pos && pos <= it.end) {
+      if (it.reg != REG_NONE) {
+        return (dense_loc_entry){.kind = LOC_REG,
+                                 .reg = it.reg,
+                                 .spill = SPILL_NONE,
+                                 .value_id = value_id};
+      }
+      break;
+    }
+  }
+
+  auto ins = &s->t->ins[value_id];
+  if (ins->spill != SPILL_NONE) {
+    return (dense_loc_entry){.kind = LOC_SPILL,
+                             .reg = REG_NONE,
+                             .spill = ins->spill,
+                             .value_id = value_id};
+  }
+  assert(ins->reg != REG_NONE);
+  return (dense_loc_entry){.kind = LOC_REG,
+                           .reg = ins->reg,
+                           .spill = SPILL_NONE,
+                           .value_id = value_id};
 }
 
 static void init_fixed_intervals(regalloc2_state *s) {
@@ -238,6 +290,7 @@ static void expire_active_intervals(regalloc2_state *s, uint16_t current_pos) {
   size_t i = 0;
   while (i < arrlen(s->active_intervals)) {
     if (s->active_intervals[i].end < current_pos) {
+      arrput(s->expired_intervals, s->active_intervals[i]);
       size_t last_idx = arrlen(s->active_intervals) - 1;
       s->active_intervals[i] = s->active_intervals[last_idx];
       arrpop(s->active_intervals);
@@ -412,6 +465,52 @@ static void compute_free_until_positions(regalloc2_state *s,
   }
 }
 
+typedef struct {
+  regalloc2_state *s;
+  uint16_t pos;
+} dense_loc_ctx;
+
+static void collect_dense_loc_from_arg(slot v, void *ctx) {
+  if (v.constant) {
+    return;
+  }
+  auto c = (dense_loc_ctx *)ctx;
+  arrput(c->s->dense_locs, lookup_loc(c->s, v.loc, c->pos));
+}
+
+static void finalize_register_locations(regalloc2_state *s) {
+  size_t ins_len = arrlen(s->t->ins);
+  if (ins_len == 0) {
+    return;
+  }
+
+  s->ir_id_to_dense_map = calloc(ins_len, sizeof(uint16_t));
+  assert(s->ir_id_to_dense_map != NULL);
+
+  for (uint16_t ir_idx = 0; ir_idx < ins_len; ir_idx++) {
+    auto ins = &s->t->ins[ir_idx];
+    uint16_t def_pos =
+        ins->op == IR_RET ? ir_before_pos(ir_idx) : ir_after_pos(ir_idx);
+    for (size_t i = 0; i < arrlen(s->expired_intervals); i++) {
+      auto it = s->expired_intervals[i];
+      if (it.value_id == ir_idx && it.start == def_pos) {
+        s->t->ins[ir_idx].reg = it.reg;
+        break;
+      }
+    }
+
+    assert(arrlen(s->dense_locs) <= UINT16_MAX);
+    s->ir_id_to_dense_map[ir_idx] = (uint16_t)arrlen(s->dense_locs);
+    auto ctx = (dense_loc_ctx){.s = s, .pos = ir_before_pos(ir_idx)};
+    walk_ir_args(ins, collect_dense_loc_from_arg, &ctx);
+
+    // RET with constant still needs an input register in existing emit path.
+    if (ins->op == IR_RET && ins->op1.constant) {
+      arrput(s->dense_locs, lookup_loc(s, ir_idx, ir_before_pos(ir_idx)));
+    }
+  }
+}
+
 static void linear_scan_allocate(regalloc2_state *s) {
   while (arrlen(s->unhandled_intervals)) {
     // Find next interval to handle
@@ -569,6 +668,9 @@ static void linear_scan_allocate(regalloc2_state *s) {
       arrput(s->active_intervals, current);
     }
   }
+
+  expire_active_intervals(s, UINT16_MAX);
+  finalize_register_locations(s);
 }
 
 regalloc2_result regalloc2(trace *t) {
@@ -593,10 +695,13 @@ regalloc2_result regalloc2(trace *t) {
   linear_scan_allocate(&s);
 
   regalloc2_result out = {};
+  out.dense_locs = s.dense_locs;
+  out.ir_id_to_dense_map = s.ir_id_to_dense_map;
   out.register_ops = s.ops;
 
   arrfree(s.unhandled_intervals);
   arrfree(s.active_intervals);
+  arrfree(s.expired_intervals);
   arrfree(s.ranges);
   for (int i = 0; i < MAX_REG; i++) {
     arrfree(s.inactive_fixed[i]);
