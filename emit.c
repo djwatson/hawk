@@ -105,21 +105,10 @@ static inline int64_t slot_const(trace *t, slot v) {
   return t->consts[v.loc].value;
 }
 
-static size_t ir_dense_row_end(trace const *t, regalloc2_result const *r,
-                               uint16_t ir) {
-  size_t ins_len = arrlen(t->ins);
-  if (ir + 1 < ins_len) {
-    return r->ir_id_to_dense_map[ir + 1];
-  }
-  return r->dense_locs ? arrlen(r->dense_locs) : 0;
-}
-
 static uint8_t ir_input_reg(trace const *t, regalloc2_result const *r,
                             uint16_t ir_idx, uint8_t arg_idx) {
   auto ins = &t->ins[ir_idx];
-  size_t start = r->ir_id_to_dense_map[ir_idx];
-  size_t end = ir_dense_row_end(t, r, ir_idx);
-  size_t in_idx = start;
+  size_t in_idx = r->ir_id_to_dense_map[ir_idx];
 
   if (arg_idx == 0) {
     if (ir_ins_types[ins->op] == IR_ARG_IR_NONE ||
@@ -127,14 +116,12 @@ static uint8_t ir_input_reg(trace const *t, regalloc2_result const *r,
         ir_ins_types[ins->op] == IR_ARG_IR_ADDR) {
       if (ins->op1.constant) {
         if (ins->op == IR_RET) {
-          assert(in_idx < end);
           auto loc = r->dense_locs[in_idx++];
           assert(loc.kind == LOC_REG);
           return loc.reg;
         }
         return REG_NONE;
       }
-      assert(in_idx < end);
       auto loc = r->dense_locs[in_idx++];
       assert(loc.kind == LOC_REG);
       return loc.reg;
@@ -144,13 +131,11 @@ static uint8_t ir_input_reg(trace const *t, regalloc2_result const *r,
 
   if (arg_idx == 1 && ir_ins_types[ins->op] == IR_ARG_IR_IR) {
     if (!ins->op1.constant) {
-      assert(in_idx < end);
       in_idx++;
     }
     if (ins->op2.constant) {
       return REG_NONE;
     }
-    assert(in_idx < end);
     auto loc = r->dense_locs[in_idx++];
     assert(loc.kind == LOC_REG);
     return loc.reg;
@@ -159,9 +144,8 @@ static uint8_t ir_input_reg(trace const *t, regalloc2_result const *r,
   return REG_NONE;
 }
 
-static dense_loc_entry snap_entry_loc(trace const *t, regalloc2_result const *r,
-                                      uint16_t snap_idx, size_t entry_idx) {
-  (void)r;
+static dense_loc_entry snap_entry_loc(trace const *t, uint16_t snap_idx,
+                                      size_t entry_idx) {
   auto sn = &t->snaps[snap_idx];
   auto entry = &sn->slots[entry_idx];
   assert(!entry->val.constant);
@@ -567,10 +551,10 @@ static void collect_loopback_moves(
       dense_loc_entry exit_loc = {0};
       dense_loc_entry entry_loc = {0};
       if (!exit_entry->val.constant) {
-        exit_loc = snap_entry_loc(exit_trace, exit_map, exit_snap_idx, i);
+        exit_loc = snap_entry_loc(exit_trace, exit_snap_idx, i);
       }
       if (!entry->val.constant) {
-        entry_loc = snap_entry_loc(entry_trace, entry_map, entry_snap_idx, j);
+        entry_loc = snap_entry_loc(entry_trace, entry_snap_idx, j);
       }
 
       if (!exit_entry->val.constant && exit_loc.kind == LOC_REG) {
@@ -617,7 +601,7 @@ static void collect_loopback_moves(
     // entry slot lower than exit logical: unmatched entry -> stack load/const
     dense_loc_entry entry_loc = {0};
     if (!entry->val.constant) {
-      entry_loc = snap_entry_loc(entry_trace, entry_map, entry_snap_idx, j);
+      entry_loc = snap_entry_loc(entry_trace, entry_snap_idx, j);
     }
     add_entry_mapping(entry_trace, entry, entry_slot, entry_loc, &loads,
                       &consts);
@@ -629,7 +613,7 @@ static void collect_loopback_moves(
     auto entry = &entry_snap->slots[j];
     dense_loc_entry entry_loc = {0};
     if (!entry->val.constant) {
-      entry_loc = snap_entry_loc(entry_trace, entry_map, entry_snap_idx, j);
+      entry_loc = snap_entry_loc(entry_trace, entry_snap_idx, j);
     }
     add_entry_mapping(entry_trace, entry, entry->slot, entry_loc, &loads,
                       &consts);
@@ -654,7 +638,7 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
   }
 
   auto ins = &t->ins[entry->val.loc];
-  auto loc = snap_entry_loc(t, regmap, snap_idx, entry_idx);
+  auto loc = snap_entry_loc(t, snap_idx, entry_idx);
   uint8_t val_reg = REG_NONE;
   if (loc.kind == LOC_SPILL) {
     int32_t spill_offset = (int32_t)loc.spill * 8;

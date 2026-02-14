@@ -268,15 +268,6 @@ static void free_trace(trace *t) {
   arrfree(t->consts);
 }
 
-static size_t ir_row_end(trace const *t, regalloc2_result const *r,
-                         uint16_t ir) {
-  size_t ins_len = arrlen(t->ins);
-  if (ir + 1 < ins_len) {
-    return r->ir_id_to_dense_map[ir + 1];
-  }
-  return arrlen(r->dense_locs);
-}
-
 static void check_loc_holds(uint16_t const regs[MAX_REG],
                             uint16_t const spills[MAX_SPILL], dense_loc_entry d,
                             char const *where, uint16_t ir_or_snap,
@@ -344,13 +335,11 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
     }
 
     auto ins = &t->ins[ir];
-    size_t start = r->ir_id_to_dense_map[ir];
-    size_t end = ir_row_end(t, r, ir);
-    size_t cur = start;
+    size_t cur = r->ir_id_to_dense_map[ir];
     switch (ir_ins_types[ins->op]) {
     case IR_ARG_IR_IR:
       if (!ins->op1.constant) {
-        if (cur >= end || r->dense_locs[cur].value_id != ins->op1.loc) {
+        if (r->dense_locs[cur].value_id != ins->op1.loc) {
           abort();
         }
         if (r->dense_locs[cur].kind != LOC_REG) {
@@ -363,7 +352,7 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
         cur++;
       }
       if (!ins->op2.constant) {
-        if (cur >= end || r->dense_locs[cur].value_id != ins->op2.loc) {
+        if (r->dense_locs[cur].value_id != ins->op2.loc) {
           abort();
         }
         if (r->dense_locs[cur].kind != LOC_REG) {
@@ -379,7 +368,7 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
     case IR_ARG_IR_NONE:
     case IR_ARG_IR_ADDR:
       if (!ins->op1.constant) {
-        if (cur >= end || r->dense_locs[cur].value_id != ins->op1.loc) {
+        if (r->dense_locs[cur].value_id != ins->op1.loc) {
           abort();
         }
         if (r->dense_locs[cur].kind != LOC_REG) {
@@ -391,7 +380,7 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
                         ins->op1.loc);
         cur++;
       } else if (ins->op == IR_RET) {
-        if (cur >= end || r->dense_locs[cur].kind != LOC_REG) {
+        if (r->dense_locs[cur].kind != LOC_REG) {
           abort();
         }
         cur++;
@@ -400,7 +389,11 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
     default:
       break;
     }
-    if (cur != end) {
+    if (ir + 1 < arrlen(t->ins)) {
+      if (cur != r->ir_id_to_dense_map[ir + 1]) {
+        abort();
+      }
+    } else if (cur != arrlen(r->dense_locs)) {
       abort();
     }
 

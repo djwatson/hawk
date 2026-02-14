@@ -792,6 +792,23 @@ static void linear_scan_allocate(regalloc2_state *s) {
   }
 }
 
+static void append_ir_input_loc(regalloc2_state *s, regalloc2_result *out,
+                                uint16_t ir_idx, uint16_t value_id,
+                                uint16_t pos, char const *operand_tag) {
+  auto loc = lookup_loc(s, value_id, pos);
+  if (loc.kind != LOC_REG) {
+    fprintf(stderr,
+            "regalloc2 invalid: %s in spill slot at ir=%u value=%u spill=%u\n",
+            operand_tag, ir_idx, value_id, loc.spill);
+    dump_value_ranges(s, value_id);
+    dump_value_intervals(s, value_id);
+    dump_value_uses(s, value_id);
+    dump_ir_events(s, ir_idx);
+    abort();
+  }
+  arrput(out->dense_locs, loc);
+}
+
 static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
   size_t ins_len = arrlen(s->t->ins);
   out->ir_id_to_dense_map = calloc(ins_len, sizeof(uint16_t));
@@ -804,52 +821,16 @@ static void build_dense_maps(regalloc2_state *s, regalloc2_result *out) {
     switch (ir_ins_types[ins->op]) {
     case IR_ARG_IR_IR:
       if (!ins->op1.constant) {
-        auto loc = lookup_loc(s, ins->op1.loc, pos);
-        if (loc.kind != LOC_REG) {
-          fprintf(stderr,
-                  "regalloc2 invalid: op1 in spill slot at ir=%u value=%u "
-                  "spill=%u\n",
-                  i, ins->op1.loc, loc.spill);
-          dump_value_ranges(s, ins->op1.loc);
-          dump_value_intervals(s, ins->op1.loc);
-          dump_value_uses(s, ins->op1.loc);
-          dump_ir_events(s, i);
-          abort();
-        }
-        arrput(out->dense_locs, loc);
+        append_ir_input_loc(s, out, i, ins->op1.loc, pos, "op1");
       }
       if (!ins->op2.constant) {
-        auto loc = lookup_loc(s, ins->op2.loc, pos);
-        if (loc.kind != LOC_REG) {
-          fprintf(stderr,
-                  "regalloc2 invalid: op2 in spill slot at ir=%u value=%u "
-                  "spill=%u\n",
-                  i, ins->op2.loc, loc.spill);
-          dump_value_ranges(s, ins->op2.loc);
-          dump_value_intervals(s, ins->op2.loc);
-          dump_value_uses(s, ins->op2.loc);
-          dump_ir_events(s, i);
-          abort();
-        }
-        arrput(out->dense_locs, loc);
+        append_ir_input_loc(s, out, i, ins->op2.loc, pos, "op2");
       }
       break;
     case IR_ARG_IR_NONE:
     case IR_ARG_IR_ADDR:
       if (!ins->op1.constant) {
-        auto loc = lookup_loc(s, ins->op1.loc, pos);
-        if (loc.kind != LOC_REG) {
-          fprintf(stderr,
-                  "regalloc2 invalid: op1 in spill slot at ir=%u value=%u "
-                  "spill=%u\n",
-                  i, ins->op1.loc, loc.spill);
-          dump_value_ranges(s, ins->op1.loc);
-          dump_value_intervals(s, ins->op1.loc);
-          dump_value_uses(s, ins->op1.loc);
-          dump_ir_events(s, i);
-          abort();
-        }
-        arrput(out->dense_locs, loc);
+        append_ir_input_loc(s, out, i, ins->op1.loc, pos, "op1");
       } else if (ins->op == IR_RET) {
         auto loc = lookup_loc(s, i, pos);
         if (loc.kind != LOC_REG) {

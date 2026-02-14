@@ -5,7 +5,8 @@
 #include <assert.h>
 #include <inttypes.h>
 
-static void print_slot(slot s, trace *t) {
+static void print_slot(slot s, trace *t, regalloc2_result const *regmap,
+                       size_t *in_idx) {
   if (s.constant) {
     auto gc = t->consts[s.loc];
     if (is_fixnum(gc)) {
@@ -37,15 +38,17 @@ static void print_slot(slot s, trace *t) {
       printf("\e[1;31mUNKNOWN %" PRIx64 "\e[m", (uint64_t)gc.value);
     }
   } else {
-    printf("%04d", s.loc);
-  }
-}
-
-static void print_slot_immediate(slot s) {
-  if (s.constant) {
-    printf("\e[1;33m#%i\e[m", s.loc);
-  } else {
-    printf("v%u", (unsigned)s.loc);
+    printf("%04u", s.loc);
+    if (regmap) {
+      auto in_loc = regmap->dense_locs[(*in_idx)++];
+      printf(" (");
+      if (in_loc.kind == LOC_REG) {
+        printf("%s", reg_names[in_loc.reg]);
+      } else {
+        printf("S%u", in_loc.spill);
+      }
+      printf(")");
+    }
   }
 }
 
@@ -59,36 +62,6 @@ ir_arg_type ir_ins_types[] = {
     IR_OPS
 #undef X
 };
-
-static void print_alloc_loc(dense_loc_entry d) {
-  if (d.kind == LOC_REG) {
-    printf("%s", reg_names[d.reg]);
-  } else {
-    printf("S%u", d.spill);
-  }
-}
-
-static size_t ir_dense_row_end(trace const *t, regalloc2_result const *r,
-                               size_t ir_idx) {
-  size_t ins_len = arrlen(t->ins);
-  if (ir_idx + 1 < ins_len) {
-    return r->ir_id_to_dense_map[ir_idx + 1];
-  }
-  return r->dense_locs ? arrlen(r->dense_locs) : 0;
-}
-
-static void print_input_slot(slot s, trace *t, dense_loc_entry const *in_loc) {
-  if (s.constant) {
-    print_slot(s, t);
-    return;
-  }
-  printf("%04u", s.loc);
-  if (in_loc) {
-    printf(" (");
-    print_alloc_loc(*in_loc);
-    printf(")");
-  }
-}
 
 static void print_spill_reload_events(regalloc2_result const *regmap, size_t ir,
                                       bool before) {
@@ -130,7 +103,7 @@ static void print_snap(snap *snap, trace *t, regalloc2_result const *regmap,
         printf(")");
       }
     } else {
-      print_slot(entry->val, t);
+      print_slot(entry->val, t, NULL, NULL);
     }
   }
   printf("]\n");
@@ -202,10 +175,8 @@ void print_ir(trace *t, regalloc2_result const *regmap) {
     }
     ir_ins *ins = &t->ins[i];
     size_t in_idx = 0;
-    size_t end = 0;
     if (regmap) {
       in_idx = regmap->ir_id_to_dense_map[i];
-      end = ir_dense_row_end(t, regmap, i);
     }
 
     printf("%04zu", i);
@@ -231,41 +202,17 @@ void print_ir(trace *t, regalloc2_result const *regmap) {
       break;
     case IR_ARG_IR_NONE:
       printf(" ");
-      if (regmap) {
-        print_input_slot(ins->op1, t, ins->op1.constant || in_idx >= end
-                                         ? NULL
-                                         : &regmap->dense_locs[in_idx++]);
-      } else {
-        print_slot(ins->op1, t);
-      }
+      print_slot(ins->op1, t, regmap, &in_idx);
       break;
     case IR_ARG_IR_IR:
       printf(" ");
-      if (regmap) {
-        print_input_slot(ins->op1, t, ins->op1.constant || in_idx >= end
-                                         ? NULL
-                                         : &regmap->dense_locs[in_idx++]);
-      } else {
-        print_slot(ins->op1, t);
-      }
+      print_slot(ins->op1, t, regmap, &in_idx);
       printf(", ");
-      if (regmap) {
-        print_input_slot(ins->op2, t, ins->op2.constant || in_idx >= end
-                                         ? NULL
-                                         : &regmap->dense_locs[in_idx++]);
-      } else {
-        print_slot(ins->op2, t);
-      }
+      print_slot(ins->op2, t, regmap, &in_idx);
       break;
     case IR_ARG_IR_ADDR:
       printf(" ");
-      if (regmap) {
-        print_input_slot(ins->op1, t, ins->op1.constant || in_idx >= end
-                                         ? NULL
-                                         : &regmap->dense_locs[in_idx++]);
-      } else {
-        print_slot(ins->op1, t);
-      }
+      print_slot(ins->op1, t, regmap, &in_idx);
       printf(", \e[1;35m#<bc 0x%" PRIx64 ">\e[m",
              (uint64_t)t->consts[ins->op2.loc].value);
       break;
