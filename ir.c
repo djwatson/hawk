@@ -65,12 +65,20 @@ ir_arg_type ir_ins_types[] = {
 
 static void print_spill_reload_events(regalloc2_result const *regmap, size_t ir,
                                       bool before) {
-  arr_for_each_idx(regmap->spill_reload_ops, eidx) {
-    auto e = regmap->spill_reload_ops[eidx];
+  arr_for_each_idx(regmap->register_ops, eidx) {
+    auto e = regmap->register_ops[eidx];
     if (e.ir_idx == ir && e.before == before) {
-      printf("    %s %s ir=%zu v%u reg=%s spill=%u\n",
-             e.is_reload ? "RELOAD" : "SPILL", before ? "BEFORE" : "AFTER ",
-             ir, e.value_id, reg_names[e.reg], e.spill);
+      if (e.kind == REGISTER_OP_RELOAD) {
+        printf("    RELOAD %s ir=%zu v%u reg=%s spill=%u\n",
+               before ? "BEFORE" : "AFTER ", ir, e.value_id, reg_names[e.reg],
+               e.spill);
+      } else {
+        const char *dst = e.reg == REG_NONE ? "-" : reg_names[e.reg];
+        const char *src = e.src_reg == REG_NONE ? "-" : reg_names[e.src_reg];
+        printf("    MOVE %s ir=%zu v%u src=%s dst=%s spill=%u\n",
+               before ? "BEFORE" : "AFTER ", ir, e.value_id, src, dst,
+               e.spill);
+      }
     }
   }
 }

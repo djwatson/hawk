@@ -60,7 +60,7 @@ typedef struct regalloc2_state {
   fixed_range *active_fixed[MAX_REG];
   fixed_range *inactive_fixed[MAX_REG];
   value_range *ranges;
-  spill_reload_op *ops;
+  register_op *ops;
   uint8_t next_spill;
 } regalloc2_state;
 
@@ -285,6 +285,65 @@ static void adjust_inactive_fixed_intervals(regalloc2_state *s,
   }
 }
 
+static void split_interval(regalloc2_state *s, ls_interval *interval,
+                           uint16_t split_pos, uint8_t parent_reg) {
+  assert(split_pos > interval->start);
+  assert(split_pos <= interval->end);
+
+  auto child = *interval;
+  child.start = split_pos;
+  child.reg = REG_NONE;
+  arrput(s->unhandled_intervals, child);
+
+  interval->end = split_pos - 1;
+
+  uint8_t spill = get_or_assign_spill_slot(s, child.value_id);
+  arrput(s->ops, ((register_op){.ir_idx = pos_ir(split_pos),
+                                .before = pos_before(split_pos),
+                                .kind = REGISTER_OP_MOVE,
+                                .value_id = child.value_id,
+                                .reg = REG_NONE,
+                                .src_reg = parent_reg,
+                                .spill = spill}));
+}
+
+static inline bool reg_matches_interval_class(ls_interval const *interval,
+                                              uint8_t reg) {
+  if (interval->is_float) {
+    return reg >= FPR_REG_START && reg < FPR_REG_END;
+  }
+  return reg < FPR_REG_START;
+}
+
+static void compute_free_until_positions(regalloc2_state *s,
+                                         ls_interval const *current,
+                                         uint16_t free_until_pos[MAX_REG]) {
+  for (int r = 0; r < MAX_REG; r++) {
+    free_until_pos[r] =
+        reg_matches_interval_class(current, (uint8_t)r) ? UINT16_MAX : 0;
+  }
+
+  arr_for_each(s->active_intervals, it) {
+    if (it.reg != REG_NONE) {
+      free_until_pos[it.reg] = 0;
+    }
+  }
+
+  for (int r = 0; r < MAX_REG; r++) {
+    if (arrlen(s->active_fixed[r]) > 0) {
+      free_until_pos[r] = 0;
+    }
+  }
+
+  for (int r = 0; r < MAX_REG; r++) {
+    arr_for_each(s->inactive_fixed[r], range) {
+      if (range.start >= current->start && range.start < free_until_pos[r]) {
+        free_until_pos[r] = range.start;
+      }
+    }
+  }
+}
+
 static void linear_scan_allocate(regalloc2_state *s) {
   int reg_owner[MAX_REG];
   for (int i = 0; i < MAX_REG; i++) {
@@ -292,13 +351,75 @@ static void linear_scan_allocate(regalloc2_state *s) {
   }
 
   while (arrlen(s->unhandled_intervals)) {
+    // Find next interval to handle
     auto current = pop_smallest_unhandled_interval(s);
+
+    // Update active/inactive
     expire_active_intervals(s, current.start);
     adjust_active_fixed_intervals(s, current.start);
     adjust_inactive_fixed_intervals(s, current.start);
 
-    // find feasable free-until positions
+    // Calculate free until invervals
+    uint16_t free_until_pos[MAX_REG];
+    compute_free_until_positions(s, &current, free_until_pos);
+
+    uint8_t full_reg = REG_NONE;
+    uint16_t full_reg_free_until = UINT16_MAX;
+    uint8_t partial_reg = REG_NONE;
+    uint16_t partial_reg_free_until = 0;
+    bool hint_full = false;
+    bool hint_partial = false;
+    for (int r = 0; r < MAX_REG; r++) {
+      if (!reg_matches_interval_class(&current, (uint8_t)r)) {
+        continue;
+      }
+      // TODO PMOV hints need to take even if partial.
+      uint16_t free_until = free_until_pos[r];
+      bool is_hint = current.hint != REG_NONE && (uint8_t)r == current.hint;
+      if (is_hint && free_until > current.end) {
+        hint_full = true;
+      }
+      if (is_hint && free_until > current.start) {
+        hint_partial = true;
+      }
+      if (free_until > current.end && free_until < full_reg_free_until) {
+        full_reg = (uint8_t)r;
+        full_reg_free_until = free_until;
+      }
+      if (free_until > partial_reg_free_until) {
+        partial_reg = (uint8_t)r;
+        partial_reg_free_until = free_until;
+      }
+    }
+
+    // See if we found a valid register.
+    uint8_t chosen_reg = REG_NONE;
+    if (full_reg != REG_NONE) {
+      if (hint_full) {
+        chosen_reg = current.hint;
+      } else {
+        chosen_reg = full_reg;
+      }
+    } else if (hint_partial) {
+      chosen_reg = current.hint;
+      split_interval(s, &current, free_until_pos[current.hint], chosen_reg);
+    } else if (partial_reg != REG_NONE &&
+               partial_reg_free_until > current.start) {
+      chosen_reg = partial_reg;
+      split_interval(s, &current, partial_reg_free_until, chosen_reg);
+    }
+
+    if (chosen_reg != REG_NONE) {
+      current.reg = chosen_reg;
+      s->t->ins[current.value_id].reg = current.reg;
+      reg_owner[current.reg] = current.value_id;
+      arrput(s->active_intervals, current);
+      continue;
+    }
+
+    // Spilling section
   }
+}
 }
 
 regalloc2_result regalloc2(trace *t) {
@@ -323,6 +444,7 @@ regalloc2_result regalloc2(trace *t) {
   linear_scan_allocate(&s);
 
   regalloc2_result out = {};
+  out.register_ops = s.ops;
 
   arrfree(s.unhandled_intervals);
   arrfree(s.active_intervals);
@@ -338,7 +460,7 @@ regalloc2_result regalloc2(trace *t) {
 
 void regalloc2_result_free(regalloc2_result *r) {
   arrfree(r->dense_locs);
-  arrfree(r->spill_reload_ops);
+  arrfree(r->register_ops);
   free(r->ir_id_to_dense_map);
   memset(r, 0, sizeof(*r));
 }

@@ -14,19 +14,25 @@ typedef struct {
   uint16_t value_id; // TODO could remove?
 } dense_loc_entry;
 
+typedef enum : uint8_t {
+  REGISTER_OP_RELOAD,
+  REGISTER_OP_MOVE,
+} register_op_kind;
+
 typedef struct {
   uint16_t ir_idx;
   bool before;
-  bool is_reload;
+  register_op_kind kind;
   uint16_t value_id;
   uint8_t reg;
+  uint8_t src_reg;
   uint8_t spill;
-} spill_reload_op;
+} register_op;
 
 typedef struct regalloc2_result {
   dense_loc_entry *dense_locs;
   uint16_t *ir_id_to_dense_map;
-  spill_reload_op *spill_reload_ops;
+  register_op *register_ops;
 } regalloc2_result;
 
 regalloc2_result regalloc2(trace *t);

@@ -307,29 +307,40 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
 
   size_t op_before = 0;
   size_t op_after = 0;
-  size_t op_len = arrlen(r->spill_reload_ops);
+  size_t op_len = arrlen(r->register_ops);
   size_t snap_cursor = 0;
   size_t snap_len = arrlen(t->snaps);
 
   for (uint16_t ir = 0; ir < arrlen(t->ins); ir++) {
     while (op_before < op_len) {
-      auto e = r->spill_reload_ops[op_before];
+      auto e = r->register_ops[op_before];
       if (e.ir_idx != ir || !e.before) {
         break;
       }
-      if (e.is_reload) {
+      if (e.kind == REGISTER_OP_RELOAD) {
         if (e.spill >= MAX_SPILL || spills[e.spill] != e.value_id ||
             e.reg >= MAX_REG) {
           abort();
         }
         regs[e.reg] = e.value_id;
-      } else {
-        if (e.reg >= MAX_REG || regs[e.reg] != e.value_id ||
-            e.spill >= MAX_SPILL) {
+      } else if (e.kind == REGISTER_OP_MOVE) {
+        if (e.src_reg >= MAX_REG || regs[e.src_reg] != e.value_id) {
           abort();
         }
-        spills[e.spill] = e.value_id;
-        regs[e.reg] = UINT16_MAX;
+        if (e.reg != REG_NONE) {
+          if (e.reg >= MAX_REG) {
+            abort();
+          }
+          regs[e.reg] = e.value_id;
+        }
+        if (e.spill != SPILL_NONE) {
+          if (e.spill >= MAX_SPILL) {
+            abort();
+          }
+          spills[e.spill] = e.value_id;
+        }
+      } else {
+        abort();
       }
       op_before++;
     }
@@ -418,26 +429,34 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
 
     op_after = op_before;
     while (op_after < op_len) {
-      auto e = r->spill_reload_ops[op_after];
+      auto e = r->register_ops[op_after];
       if (e.ir_idx != ir || e.before) {
         break;
       }
-      if (e.is_reload) {
+      if (e.kind == REGISTER_OP_RELOAD) {
         if (e.spill >= MAX_SPILL || spills[e.spill] != e.value_id ||
             e.reg >= MAX_REG) {
           abort();
         }
         regs[e.reg] = e.value_id;
-      } else {
-        if (e.reg >= MAX_REG || regs[e.reg] != e.value_id ||
-            e.spill >= MAX_SPILL) {
+      } else if (e.kind == REGISTER_OP_MOVE) {
+        if (e.src_reg >= MAX_REG || regs[e.src_reg] != e.value_id) {
           abort();
         }
-        spills[e.spill] = e.value_id;
-        bool keep_reg = !e.before && e.ir_idx == e.value_id;
-        if (!keep_reg) {
-          regs[e.reg] = UINT16_MAX;
+        if (e.reg != REG_NONE) {
+          if (e.reg >= MAX_REG) {
+            abort();
+          }
+          regs[e.reg] = e.value_id;
         }
+        if (e.spill != SPILL_NONE) {
+          if (e.spill >= MAX_SPILL) {
+            abort();
+          }
+          spills[e.spill] = e.value_id;
+        }
+      } else {
+        abort();
       }
       op_after++;
     }
@@ -507,7 +526,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
       spill_output_count++;
     }
   }
-  size_t spill_op_count = arrlen(r.spill_reload_ops);
+  size_t spill_op_count = arrlen(r.register_ops);
   /* if (spill_output_count > 10 || spill_op_count > 10) { */
   /*   printf("regalloc2 spills: outputs=%zu ops=%zu\n", spill_output_count, */
   /*          spill_op_count); */
