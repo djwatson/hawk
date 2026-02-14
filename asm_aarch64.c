@@ -36,6 +36,7 @@ void asm_mark_unallocatable(bool used[MAX_REG]) {
   used[X16] = true;
   used[X17] = true;
   used[X18] = true;
+  used[FRTMP] = true;
 }
 
 bool asm_is_callee_saved(uint8_t reg) {
@@ -573,8 +574,8 @@ static void emit_sdiv(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   assert(dst < FPR_REG_START);
   assert(lhs < FPR_REG_START);
   assert(rhs < FPR_REG_START);
-  uint32_t opcode = 0x9AC00C00U | ((uint32_t)rhs << 16) |
-                    ((uint32_t)lhs << 5) | (uint32_t)dst;
+  uint32_t opcode = 0x9AC00C00U | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) |
+                    (uint32_t)dst;
   emit_op(s, opcode);
 }
 
@@ -608,8 +609,8 @@ void emit_mul(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   assert(dst < FPR_REG_START);
   assert(lhs < FPR_REG_START);
   assert(rhs < FPR_REG_START);
-  uint32_t opcode = 0x9B007C00U | ((uint32_t)rhs << 16) |
-                    ((uint32_t)lhs << 5) | (uint32_t)dst;
+  uint32_t opcode = 0x9B007C00U | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) |
+                    (uint32_t)dst;
   emit_op(s, opcode);
 }
 
@@ -642,8 +643,8 @@ void emit_sar_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm) {
   assert(dst < FPR_REG_START);
   assert(src < FPR_REG_START);
   assert(imm < 64);
-  uint32_t opcode = 0x9340FC00U | ((uint32_t)imm << 16) |
-                    ((uint32_t)src << 5) | (uint32_t)dst;
+  uint32_t opcode = 0x9340FC00U | ((uint32_t)imm << 16) | ((uint32_t)src << 5) |
+                    (uint32_t)dst;
   emit_op(s, opcode);
 }
 

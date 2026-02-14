@@ -36,6 +36,7 @@ void asm_mark_unallocatable(bool used[MAX_REG]) {
   used[RTMP] = true;
   used[RSTACK] = true;
   used[RSTATE] = true;
+  used[FRTMP] = true;
 }
 
 bool asm_is_callee_saved(uint8_t reg) {
