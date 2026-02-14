@@ -121,6 +121,7 @@ static uint8_t random_alloc_reg(fuzz_rng *r, bool is_float,
                                 bool used_regs[MAX_REG]) {
   bool reserved[MAX_REG] = {0};
   asm_mark_unallocatable(reserved);
+  reserved[FRTMP] = true;
   uint8_t pool[MAX_REG];
   uint8_t pool_len = 0;
   uint8_t start = is_float ? FPR_REG_START : 0;
@@ -154,6 +155,7 @@ static uint8_t random_unique_spill(fuzz_rng *r, bool used_spills[10]) {
 static void fill_leading_pmov_instruction(fuzz_rng *r, trace *t,
                                           bool used_regs[MAX_REG],
                                           bool used_spills[10]) {
+  (void)used_spills;
   ir_ins ins = {0};
   ins.op = IR_PMOV;
   ins.type = random_type_tag(r);
@@ -163,23 +165,17 @@ static void fill_leading_pmov_instruction(fuzz_rng *r, trace *t,
   ins.spill = SPILL_NONE;
   ins.prev_reg = REG_NONE;
 
-  uint8_t spill = random_unique_spill(r, used_spills);
+  // Leading PMOVs model side-trace replay: precolored, unique registers.
   uint8_t reg = random_alloc_reg(r, ins.type == FLONUM_TAG, used_regs);
-
-  if (spill != SPILL_NONE && (reg == REG_NONE || rng_bool(r))) {
-    ins.spill = spill;
-    used_spills[spill] = true;
-  } else {
-    if (reg != REG_NONE) {
-      ins.reg = reg;
-      ins.prev_reg = reg;
-      used_regs[reg] = true;
-    } else {
-      assert(spill != SPILL_NONE);
-      ins.spill = spill;
-      used_spills[spill] = true;
-    }
+  if (reg == REG_NONE) {
+    // Fall back to GPR class to keep leading PMOVs precolored.
+    ins.type = UNDEFINED_TAG;
+    reg = random_alloc_reg(r, false, used_regs);
+    assert(reg != REG_NONE);
   }
+  ins.reg = reg;
+  ins.prev_reg = reg;
+  used_regs[reg] = true;
 
   arrput(t->ins, ins);
 }
@@ -511,7 +507,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   }
   fill_snapshots(&rng, &t);
   regalloc2_result r = regalloc2(&t);
-  print_ir(&t, &r);
+  //  print_ir(&t, &r);
   size_t spill_output_count = 0;
   for (size_t ir = 0; ir < arrlen(t.ins); ir++) {
     if (t.ins[ir].spill != SPILL_NONE && t.ins[ir].reg == REG_NONE) {
