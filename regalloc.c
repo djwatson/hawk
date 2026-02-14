@@ -40,6 +40,7 @@ typedef struct {
   bool is_float;
   uint8_t reg;
   uint8_t hint;
+  uint8_t deferred_move_from;
 } ls_interval;
 
 typedef struct {
@@ -175,24 +176,30 @@ static inline uint16_t use_pos(next_use n) {
 
 static dense_loc_entry lookup_loc(regalloc2_state *s, uint16_t value_id,
                                   uint16_t pos) {
+  bool found = false;
+  ls_interval best = {};
   for (size_t i = 0; i < arrlen(s->expired_intervals); i++) {
     auto it = s->expired_intervals[i];
     if (it.value_id != value_id) {
       continue;
     }
     if (it.start <= pos && pos <= it.end) {
-      if (it.reg != REG_NONE) {
-        return (dense_loc_entry){.kind = LOC_REG,
-                                 .reg = it.reg,
-                                 .spill = SPILL_NONE,
-                                 .value_id = value_id};
+      if (!found || it.end > best.end) {
+        best = it;
+        found = true;
       }
-      break;
     }
   }
 
   auto ins = &s->t->ins[value_id];
-  if (ins->spill != SPILL_NONE) {
+  if (found) {
+    if (best.reg != REG_NONE) {
+      return (dense_loc_entry){.kind = LOC_REG,
+                               .reg = best.reg,
+                               .spill = SPILL_NONE,
+                               .value_id = value_id};
+    }
+    assert(ins->spill != SPILL_NONE);
     return (dense_loc_entry){.kind = LOC_SPILL,
                              .reg = REG_NONE,
                              .spill = ins->spill,
@@ -234,7 +241,8 @@ static int add_interval(regalloc2_state *s, uint16_t value_id, uint16_t start,
                           .end = end,
                           .is_float = ins_uses_freg(&s->t->ins[value_id]),
                           .reg = REG_NONE,
-                          .hint = REG_NONE};
+                          .hint = REG_NONE,
+                          .deferred_move_from = REG_NONE};
   arrput(s->unhandled_intervals, it);
   return (int)arrlen(s->unhandled_intervals) - 1;
 }
@@ -346,18 +354,11 @@ static void split_interval(regalloc2_state *s, ls_interval *interval,
   auto child = *interval;
   child.start = split_pos;
   child.reg = REG_NONE;
+  child.deferred_move_from = parent_reg;
+  get_or_assign_spill_slot(s, child.value_id);
   arrput(s->unhandled_intervals, child);
 
   interval->end = split_pos - 1;
-
-  uint8_t spill = get_or_assign_spill_slot(s, child.value_id);
-  arrput(s->ops, ((register_op){.ir_idx = pos_ir(split_pos),
-                                .before = pos_before(split_pos),
-                                .kind = REGISTER_OP_MOVE,
-                                .value_id = child.value_id,
-                                .reg = REG_NONE,
-                                .src_reg = parent_reg,
-                                .spill = spill}));
 }
 
 static uint16_t interval_next_use_from(regalloc2_state *s, uint16_t value_id,
@@ -399,13 +400,6 @@ static void spill_active_interval(regalloc2_state *s, ls_interval victim,
   assert(victim.reg != REG_NONE);
   uint16_t next_use = interval_next_use_from(s, victim.value_id, current_pos);
   uint8_t spill = get_or_assign_spill_slot(s, victim.value_id);
-  arrput(s->ops, ((register_op){.ir_idx = pos_ir(current_pos),
-                                .before = pos_before(current_pos),
-                                .kind = REGISTER_OP_MOVE,
-                                .value_id = victim.value_id,
-                                .reg = REG_NONE,
-                                .src_reg = victim.reg,
-                                .spill = spill}));
 
   if (next_use == UINT16_MAX || next_use > victim.end) {
     return;
@@ -413,19 +407,42 @@ static void spill_active_interval(regalloc2_state *s, ls_interval victim,
   if (next_use <= current_pos) {
     return;
   }
-  arrput(s->unhandled_intervals, ((ls_interval){.value_id = victim.value_id,
-                                                .start = next_use,
-                                                .end = victim.end,
-                                                .is_float = victim.is_float,
-                                                .reg = REG_NONE,
-                                                .hint = victim.hint}));
+  arrput(s->unhandled_intervals,
+         ((ls_interval){.value_id = victim.value_id,
+                        .start = next_use,
+                        .end = victim.end,
+                        .is_float = victim.is_float,
+                        .reg = REG_NONE,
+                        .hint = victim.hint,
+                        .deferred_move_from = REG_NONE}));
   arrput(s->ops, ((register_op){.ir_idx = pos_ir(next_use),
-                                .before = pos_before(next_use),
+                                .before = true,
                                 .kind = REGISTER_OP_RELOAD,
                                 .value_id = victim.value_id,
                                 .reg = victim.reg,
                                 .src_reg = REG_NONE,
                                 .spill = spill}));
+}
+
+static void emit_deferred_move_if_needed(regalloc2_state *s,
+                                         ls_interval *interval) {
+  if (interval->deferred_move_from == REG_NONE) {
+    return;
+  }
+  assert(interval->reg != REG_NONE);
+  uint16_t move_pos = interval->start;
+  if (!pos_before(move_pos)) {
+    move_pos--;
+  }
+  get_or_assign_spill_slot(s, interval->value_id);
+  arrput(s->ops, ((register_op){.ir_idx = pos_ir(move_pos),
+                                .before = pos_before(move_pos),
+                                .kind = REGISTER_OP_MOVE,
+                                .value_id = interval->value_id,
+                                .reg = interval->reg,
+                                .src_reg = interval->deferred_move_from,
+                                .spill = SPILL_NONE}));
+  interval->deferred_move_from = REG_NONE;
 }
 
 static inline bool reg_matches_interval_class(ls_interval const *interval,
@@ -489,8 +506,7 @@ static void finalize_register_locations(regalloc2_state *s) {
 
   for (uint16_t ir_idx = 0; ir_idx < ins_len; ir_idx++) {
     auto ins = &s->t->ins[ir_idx];
-    uint16_t def_pos =
-        ins->op == IR_RET ? ir_before_pos(ir_idx) : ir_after_pos(ir_idx);
+    uint16_t def_pos = ir_after_pos(ir_idx);
     for (size_t i = 0; i < arrlen(s->expired_intervals); i++) {
       auto it = s->expired_intervals[i];
       if (it.value_id == ir_idx && it.start == def_pos) {
@@ -526,7 +542,8 @@ static void linear_scan_allocate(regalloc2_state *s) {
     compute_free_until_positions(s, &current, free_until_pos);
 
     uint8_t full_reg = REG_NONE;
-    uint16_t full_reg_free_until = UINT16_MAX;
+    uint16_t full_reg_free_until = 0;
+    bool have_full_reg = false;
     uint8_t partial_reg = REG_NONE;
     uint16_t partial_reg_free_until = 0;
     bool hint_full = false;
@@ -544,9 +561,11 @@ static void linear_scan_allocate(regalloc2_state *s) {
       if (is_hint && free_until > current.start) {
         hint_partial = true;
       }
-      if (free_until > current.end && free_until < full_reg_free_until) {
+      if (free_until > current.end &&
+          (!have_full_reg || free_until < full_reg_free_until)) {
         full_reg = (uint8_t)r;
         full_reg_free_until = free_until;
+        have_full_reg = true;
       }
       if (free_until > partial_reg_free_until) {
         partial_reg = (uint8_t)r;
@@ -573,6 +592,7 @@ static void linear_scan_allocate(regalloc2_state *s) {
 
     if (chosen_reg != REG_NONE) {
       current.reg = chosen_reg;
+      emit_deferred_move_if_needed(s, &current);
       s->t->ins[current.value_id].reg = current.reg;
       arrput(s->active_intervals, current);
       continue;
@@ -660,6 +680,7 @@ static void linear_scan_allocate(regalloc2_state *s) {
     }
 
     current.reg = spill_reg;
+    emit_deferred_move_if_needed(s, &current);
     s->t->ins[current.value_id].reg = current.reg;
     if (fixed_limit > current.end) {
       arrput(s->active_intervals, current);
@@ -671,6 +692,24 @@ static void linear_scan_allocate(regalloc2_state *s) {
 
   expire_active_intervals(s, UINT16_MAX);
   finalize_register_locations(s);
+}
+
+static int register_op_cmp(void const *a, void const *b) {
+  auto lhs = (register_op const *)a;
+  auto rhs = (register_op const *)b;
+  if (lhs->ir_idx < rhs->ir_idx) {
+    return -1;
+  }
+  if (lhs->ir_idx > rhs->ir_idx) {
+    return 1;
+  }
+  if (lhs->before && !rhs->before) {
+    return -1;
+  }
+  if (!lhs->before && rhs->before) {
+    return 1;
+  }
+  return 0;
 }
 
 regalloc2_result regalloc2(trace *t) {
@@ -693,6 +732,9 @@ regalloc2_result regalloc2(trace *t) {
   init_fixed_intervals(&s);
   build_intervals(&s);
   linear_scan_allocate(&s);
+  if (arrlen(s.ops) > 1) {
+    qsort(s.ops, arrlen(s.ops), sizeof(s.ops[0]), register_op_cmp);
+  }
 
   regalloc2_result out = {};
   out.dense_locs = s.dense_locs;

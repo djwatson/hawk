@@ -73,7 +73,14 @@ static void print_spill_reload_events(regalloc2_result const *regmap, size_t ir,
                before ? "BEFORE" : "AFTER ", ir, e.value_id, reg_names[e.reg],
                e.spill);
       } else {
-        const char *dst = e.reg == REG_NONE ? "-" : reg_names[e.reg];
+        char dst_buf[32] = {0};
+        const char *dst = "-";
+        if (e.reg != REG_NONE) {
+          dst = reg_names[e.reg];
+        } else if (e.spill != SPILL_NONE) {
+          snprintf(dst_buf, sizeof(dst_buf), "S%u", e.spill);
+          dst = dst_buf;
+        }
         const char *src = e.src_reg == REG_NONE ? "-" : reg_names[e.src_reg];
         printf("    MOVE %s ir=%zu v%u src=%s dst=%s spill=%u\n",
                before ? "BEFORE" : "AFTER ", ir, e.value_id, src, dst,

@@ -49,7 +49,7 @@ string_s *get_sym_name(symbol *s) {
   return NULL;
 }
 
-#define FUZZ_INS_COUNT 10
+#define FUZZ_INS_COUNT 100
 #define FUZZ_CONST_COUNT 64
 #define MAX_SPILL SPILL_NONE
 
@@ -325,6 +325,12 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
         regs[e.reg] = e.value_id;
       } else if (e.kind == REGISTER_OP_MOVE) {
         if (e.src_reg >= MAX_REG || regs[e.src_reg] != e.value_id) {
+          fprintf(stderr,
+                  "MOVE before fail ir=%u op_idx=%zu v=%u src_reg=%u src_has=%u "
+                  "dst_reg=%u spill=%u\n",
+                  ir, op_before, e.value_id, e.src_reg,
+                  e.src_reg < MAX_REG ? regs[e.src_reg] : UINT16_MAX, e.reg,
+                  e.spill);
           abort();
         }
         if (e.reg != REG_NONE) {
@@ -419,7 +425,8 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
         abort();
       }
       regs[reg] = ir;
-    } else if (t->ins[ir].spill != SPILL_NONE) {
+    }
+    if (t->ins[ir].spill != SPILL_NONE) {
       uint8_t spill = t->ins[ir].spill;
       if (spill >= MAX_SPILL) {
         abort();
@@ -441,6 +448,12 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
         regs[e.reg] = e.value_id;
       } else if (e.kind == REGISTER_OP_MOVE) {
         if (e.src_reg >= MAX_REG || regs[e.src_reg] != e.value_id) {
+          fprintf(stderr,
+                  "MOVE after fail ir=%u op_idx=%zu v=%u src_reg=%u src_has=%u "
+                  "dst_reg=%u spill=%u\n",
+                  ir, op_after, e.value_id, e.src_reg,
+                  e.src_reg < MAX_REG ? regs[e.src_reg] : UINT16_MAX, e.reg,
+                  e.spill);
           abort();
         }
         if (e.reg != REG_NONE) {
@@ -518,7 +531,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
     fill_instruction(&rng, &t, i, max_const_loc);
   }
   fill_snapshots(&rng, &t);
-  print_ir(&t, nullptr);
+  /* print_ir(&t, nullptr); */
   regalloc2_result r = regalloc2(&t);
   print_ir(&t, &r);
   size_t spill_output_count = 0;
