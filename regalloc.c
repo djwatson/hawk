@@ -307,6 +307,74 @@ static void split_interval(regalloc2_state *s, ls_interval *interval,
                                 .spill = spill}));
 }
 
+static uint16_t interval_next_use_from(regalloc2_state *s, uint16_t value_id,
+                                       uint16_t from_pos) {
+  uint32_t use_idx = s->uses[value_id];
+  while (use_idx != 0) {
+    auto n = s->next_uses[use_idx];
+    uint16_t pos = use_pos(n);
+    if (pos >= from_pos) {
+      return pos;
+    }
+    use_idx = n.next;
+  }
+  return UINT16_MAX;
+}
+
+static uint16_t next_inactive_fixed_start(regalloc2_state *s, uint8_t reg,
+                                          uint16_t from_pos) {
+  uint16_t out = UINT16_MAX;
+  arr_for_each(s->inactive_fixed[reg], range) {
+    if (range.start >= from_pos && range.start < out) {
+      out = range.start;
+    }
+  }
+  return out;
+}
+
+static int find_active_interval_by_reg(regalloc2_state *s, uint8_t reg) {
+  for (size_t i = 0; i < arrlen(s->active_intervals); i++) {
+    if (s->active_intervals[i].reg == reg) {
+      return (int)i;
+    }
+  }
+  return -1;
+}
+
+static void spill_active_interval(regalloc2_state *s, ls_interval victim,
+                                  uint16_t current_pos) {
+  assert(victim.reg != REG_NONE);
+  uint16_t next_use = interval_next_use_from(s, victim.value_id, current_pos);
+  uint8_t spill = get_or_assign_spill_slot(s, victim.value_id);
+  arrput(s->ops, ((register_op){.ir_idx = pos_ir(current_pos),
+                                .before = pos_before(current_pos),
+                                .kind = REGISTER_OP_MOVE,
+                                .value_id = victim.value_id,
+                                .reg = REG_NONE,
+                                .src_reg = victim.reg,
+                                .spill = spill}));
+
+  if (next_use == UINT16_MAX || next_use > victim.end) {
+    return;
+  }
+  if (next_use <= current_pos) {
+    return;
+  }
+  arrput(s->unhandled_intervals, ((ls_interval){.value_id = victim.value_id,
+                                                .start = next_use,
+                                                .end = victim.end,
+                                                .is_float = victim.is_float,
+                                                .reg = REG_NONE,
+                                                .hint = victim.hint}));
+  arrput(s->ops, ((register_op){.ir_idx = pos_ir(next_use),
+                                .before = pos_before(next_use),
+                                .kind = REGISTER_OP_RELOAD,
+                                .value_id = victim.value_id,
+                                .reg = victim.reg,
+                                .src_reg = REG_NONE,
+                                .spill = spill}));
+}
+
 static inline bool reg_matches_interval_class(ls_interval const *interval,
                                               uint8_t reg) {
   if (interval->is_float) {
@@ -345,11 +413,6 @@ static void compute_free_until_positions(regalloc2_state *s,
 }
 
 static void linear_scan_allocate(regalloc2_state *s) {
-  int reg_owner[MAX_REG];
-  for (int i = 0; i < MAX_REG; i++) {
-    reg_owner[i] = -1;
-  }
-
   while (arrlen(s->unhandled_intervals)) {
     // Find next interval to handle
     auto current = pop_smallest_unhandled_interval(s);
@@ -412,14 +475,100 @@ static void linear_scan_allocate(regalloc2_state *s) {
     if (chosen_reg != REG_NONE) {
       current.reg = chosen_reg;
       s->t->ins[current.value_id].reg = current.reg;
-      reg_owner[current.reg] = current.value_id;
       arrput(s->active_intervals, current);
       continue;
     }
 
-    // Spilling section
+    // Spilling
+    uint16_t next_use_pos[MAX_REG];
+    bool reg_ok[MAX_REG] = {0};
+    bool owner_was_spilled[MAX_REG] = {0};
+    for (int r = 0; r < MAX_REG; r++) {
+      if (reg_matches_interval_class(&current, (uint8_t)r)) {
+        reg_ok[r] = true;
+        next_use_pos[r] = UINT16_MAX;
+      } else {
+        next_use_pos[r] = 0;
+      }
+    }
+
+    for (int r = 0; r < MAX_REG; r++) {
+      if (!reg_ok[r]) {
+        continue;
+      }
+      if (arrlen(s->active_fixed[r]) > 0) {
+        reg_ok[r] = false;
+        continue;
+      }
+      uint16_t fixed_start =
+          next_inactive_fixed_start(s, (uint8_t)r, current.start);
+      if (fixed_start < next_use_pos[r]) {
+        next_use_pos[r] = fixed_start;
+      }
+    }
+
+    arr_for_each(s->active_intervals, it) {
+      if (it.reg == REG_NONE || !reg_ok[it.reg]) {
+        continue;
+      }
+      uint16_t next_use = interval_next_use_from(s, it.value_id, current.start);
+      if (next_use <= current.start) {
+        reg_ok[it.reg] = false;
+        continue;
+      }
+      if (next_use < next_use_pos[it.reg]) {
+        next_use_pos[it.reg] = next_use;
+      }
+      owner_was_spilled[it.reg] = s->t->ins[it.value_id].spill != SPILL_NONE;
+    }
+
+    // We have info, now pick best
+    uint8_t spill_reg = REG_NONE;
+    uint16_t best_next_use = 0;
+    bool best_owner_spilled = false;
+    for (int r = 0; r < MAX_REG; r++) {
+      if (!reg_ok[r]) {
+        continue;
+      }
+      uint16_t n = next_use_pos[r];
+      bool spilled_before = owner_was_spilled[r];
+      if (spill_reg == REG_NONE || n > best_next_use ||
+          (n == best_next_use && spilled_before && !best_owner_spilled)) {
+        spill_reg = (uint8_t)r;
+        best_next_use = n;
+        best_owner_spilled = spilled_before;
+      }
+    }
+    if (spill_reg == REG_NONE) {
+      abort();
+    }
+
+    int victim_idx = find_active_interval_by_reg(s, spill_reg);
+    // Just for debug checking....
+    uint16_t fixed_limit =
+        next_inactive_fixed_start(s, spill_reg, current.start);
+    if (fixed_limit <= current.start) {
+      abort();
+    }
+
+    // Spill/split current register owner if there is one.
+    if (victim_idx >= 0) {
+      auto victim = s->active_intervals[victim_idx];
+      assert(victim.start <= current.start);
+      assert(victim.end >= current.start);
+      spill_active_interval(s, victim, current.start);
+      s->active_intervals[victim_idx].end = current.start - 1;
+    }
+
+    current.reg = spill_reg;
+    s->t->ins[current.value_id].reg = current.reg;
+    if (fixed_limit > current.end) {
+      arrput(s->active_intervals, current);
+    } else {
+      split_interval(s, &current, fixed_limit, current.reg);
+      arrput(s->active_intervals, current);
+    }
   }
-}
 }
 
 regalloc2_result regalloc2(trace *t) {
