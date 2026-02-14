@@ -325,12 +325,13 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
         regs[e.reg] = e.value_id;
       } else if (e.kind == REGISTER_OP_MOVE) {
         if (e.src_reg >= MAX_REG || regs[e.src_reg] != e.value_id) {
-          fprintf(stderr,
-                  "MOVE before fail ir=%u op_idx=%zu v=%u src_reg=%u src_has=%u "
-                  "dst_reg=%u spill=%u\n",
-                  ir, op_before, e.value_id, e.src_reg,
-                  e.src_reg < MAX_REG ? regs[e.src_reg] : UINT16_MAX, e.reg,
-                  e.spill);
+          fprintf(
+              stderr,
+              "MOVE before fail ir=%u op_idx=%zu v=%u src_reg=%u src_has=%u "
+              "dst_reg=%u spill=%u\n",
+              ir, op_before, e.value_id, e.src_reg,
+              e.src_reg < MAX_REG ? regs[e.src_reg] : UINT16_MAX, e.reg,
+              e.spill);
           abort();
         }
         if (e.reg != REG_NONE) {
@@ -533,7 +534,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   fill_snapshots(&rng, &t);
   /* print_ir(&t, nullptr); */
   regalloc2_result r = regalloc2(&t);
-  print_ir(&t, &r);
+  /* print_ir(&t, &r); */
   size_t spill_output_count = 0;
   for (size_t ir = 0; ir < arrlen(t.ins); ir++) {
     if (t.ins[ir].spill != SPILL_NONE && t.ins[ir].reg == REG_NONE) {

@@ -41,6 +41,7 @@ typedef struct {
   uint8_t reg;
   uint8_t hint;
   uint8_t deferred_move_from;
+  uint8_t deferred_reload_spill;
 } ls_interval;
 
 typedef struct {
@@ -242,7 +243,8 @@ static int add_interval(regalloc2_state *s, uint16_t value_id, uint16_t start,
                           .is_float = ins_uses_freg(&s->t->ins[value_id]),
                           .reg = REG_NONE,
                           .hint = REG_NONE,
-                          .deferred_move_from = REG_NONE};
+                          .deferred_move_from = REG_NONE,
+                          .deferred_reload_spill = SPILL_NONE};
   arrput(s->unhandled_intervals, it);
   return (int)arrlen(s->unhandled_intervals) - 1;
 }
@@ -251,8 +253,8 @@ static void build_intervals(regalloc2_state *s) {
   size_t ins_len = arrlen(s->t->ins);
   for (uint16_t v = 0; v < ins_len; v++) {
     auto ins = &s->t->ins[v];
-    // RETS need a tmp register (even if no use).
-    if (ins->op == IR_RET) {
+    // RET with constant input needs a tmp register for existing emit path.
+    if (ins->op == IR_RET && ins->op1.constant) {
       uint16_t pos = ir_before_pos(v);
       add_interval(s, v, pos, pos);
     }
@@ -355,6 +357,7 @@ static void split_interval(regalloc2_state *s, ls_interval *interval,
   child.start = split_pos;
   child.reg = REG_NONE;
   child.deferred_move_from = parent_reg;
+  child.deferred_reload_spill = SPILL_NONE;
   get_or_assign_spill_slot(s, child.value_id);
   arrput(s->unhandled_intervals, child);
 
@@ -368,6 +371,20 @@ static uint16_t interval_next_use_from(regalloc2_state *s, uint16_t value_id,
     auto n = s->next_uses[use_idx];
     uint16_t pos = use_pos(n);
     if (pos >= from_pos) {
+      return pos;
+    }
+    use_idx = n.next;
+  }
+  return UINT16_MAX;
+}
+
+static uint16_t interval_next_use_after(regalloc2_state *s, uint16_t value_id,
+                                        uint16_t from_pos) {
+  uint32_t use_idx = s->uses[value_id];
+  while (use_idx != 0) {
+    auto n = s->next_uses[use_idx];
+    uint16_t pos = use_pos(n);
+    if (pos > from_pos) {
       return pos;
     }
     use_idx = n.next;
@@ -398,13 +415,10 @@ static int find_active_interval_by_reg(regalloc2_state *s, uint8_t reg) {
 static void spill_active_interval(regalloc2_state *s, ls_interval victim,
                                   uint16_t current_pos) {
   assert(victim.reg != REG_NONE);
-  uint16_t next_use = interval_next_use_from(s, victim.value_id, current_pos);
+  uint16_t next_use = interval_next_use_after(s, victim.value_id, current_pos);
   uint8_t spill = get_or_assign_spill_slot(s, victim.value_id);
 
   if (next_use == UINT16_MAX || next_use > victim.end) {
-    return;
-  }
-  if (next_use <= current_pos) {
     return;
   }
   arrput(s->unhandled_intervals,
@@ -414,14 +428,35 @@ static void spill_active_interval(regalloc2_state *s, ls_interval victim,
                         .is_float = victim.is_float,
                         .reg = REG_NONE,
                         .hint = victim.hint,
-                        .deferred_move_from = REG_NONE}));
-  arrput(s->ops, ((register_op){.ir_idx = pos_ir(next_use),
-                                .before = true,
+                        .deferred_move_from = REG_NONE,
+                        .deferred_reload_spill = spill}));
+}
+
+typedef struct {
+  uint16_t ir_idx;
+  bool before;
+} deferred_op_pos;
+
+static deferred_op_pos deferred_op_position(ls_interval const *interval) {
+  return (deferred_op_pos){.ir_idx = pos_ir(interval->start),
+                           .before = pos_before(interval->start)};
+}
+
+static void emit_deferred_reload_if_needed(regalloc2_state *s,
+                                           ls_interval *interval) {
+  if (interval->deferred_reload_spill == SPILL_NONE) {
+    return;
+  }
+  assert(interval->reg != REG_NONE);
+  auto p = deferred_op_position(interval);
+  arrput(s->ops, ((register_op){.ir_idx = p.ir_idx,
+                                .before = p.before,
                                 .kind = REGISTER_OP_RELOAD,
-                                .value_id = victim.value_id,
-                                .reg = victim.reg,
+                                .value_id = interval->value_id,
+                                .reg = interval->reg,
                                 .src_reg = REG_NONE,
-                                .spill = spill}));
+                                .spill = interval->deferred_reload_spill}));
+  interval->deferred_reload_spill = SPILL_NONE;
 }
 
 static void emit_deferred_move_if_needed(regalloc2_state *s,
@@ -430,19 +465,22 @@ static void emit_deferred_move_if_needed(regalloc2_state *s,
     return;
   }
   assert(interval->reg != REG_NONE);
-  uint16_t move_pos = interval->start;
-  if (!pos_before(move_pos)) {
-    move_pos--;
-  }
+  auto p = deferred_op_position(interval);
   get_or_assign_spill_slot(s, interval->value_id);
-  arrput(s->ops, ((register_op){.ir_idx = pos_ir(move_pos),
-                                .before = pos_before(move_pos),
+  arrput(s->ops, ((register_op){.ir_idx = p.ir_idx,
+                                .before = p.before,
                                 .kind = REGISTER_OP_MOVE,
                                 .value_id = interval->value_id,
                                 .reg = interval->reg,
                                 .src_reg = interval->deferred_move_from,
                                 .spill = SPILL_NONE}));
   interval->deferred_move_from = REG_NONE;
+}
+
+static void emit_deferred_register_ops_if_needed(regalloc2_state *s,
+                                                 ls_interval *interval) {
+  emit_deferred_reload_if_needed(s, interval);
+  emit_deferred_move_if_needed(s, interval);
 }
 
 static inline bool reg_matches_interval_class(ls_interval const *interval,
@@ -592,8 +630,10 @@ static void linear_scan_allocate(regalloc2_state *s) {
 
     if (chosen_reg != REG_NONE) {
       current.reg = chosen_reg;
-      emit_deferred_move_if_needed(s, &current);
-      s->t->ins[current.value_id].reg = current.reg;
+      emit_deferred_register_ops_if_needed(s, &current);
+      if (current.start == ir_after_pos(current.value_id)) {
+        s->t->ins[current.value_id].reg = current.reg;
+      }
       arrput(s->active_intervals, current);
       continue;
     }
@@ -680,8 +720,10 @@ static void linear_scan_allocate(regalloc2_state *s) {
     }
 
     current.reg = spill_reg;
-    emit_deferred_move_if_needed(s, &current);
-    s->t->ins[current.value_id].reg = current.reg;
+    emit_deferred_register_ops_if_needed(s, &current);
+    if (current.start == ir_after_pos(current.value_id)) {
+      s->t->ins[current.value_id].reg = current.reg;
+    }
     if (fixed_limit > current.end) {
       arrput(s->active_intervals, current);
     } else {
@@ -709,13 +751,19 @@ static int register_op_cmp(void const *a, void const *b) {
   if (!lhs->before && rhs->before) {
     return 1;
   }
+  if (lhs->kind < rhs->kind) {
+    return -1;
+  }
+  if (lhs->kind > rhs->kind) {
+    return 1;
+  }
   return 0;
 }
 
 regalloc2_result regalloc2(trace *t) {
   regalloc2_state s = {.t = t};
   collect_next_uses(&s);
-  if (verbose) {
+  if (verbose || getenv("REGALLOC_DEBUG_NEXT_USES")) {
     print_next_uses(&s);
   }
 
