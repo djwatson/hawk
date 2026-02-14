@@ -589,14 +589,15 @@ static void collect_loopback_moves(
       if (exit_entry->val.constant && !entry->val.constant &&
           entry_loc.kind == LOC_REG) {
         arrput(consts, ((const_entry){.target_reg = entry_loc.reg,
-                                      .constant_value =
-                                          slot_const(exit_trace, exit_entry->val)}));
+                                      .constant_value = slot_const(
+                                          exit_trace, exit_entry->val)}));
         handled = true;
       } else if (!exit_entry->val.constant && !entry->val.constant &&
                  entry_loc.kind == LOC_REG) {
         if (exit_loc.kind == LOC_REG) {
           if (exit_loc.reg != entry_loc.reg) {
-            arrput(cpy, ((par_copy){.from = exit_loc.reg, .to = entry_loc.reg}));
+            arrput(cpy,
+                   ((par_copy){.from = exit_loc.reg, .to = entry_loc.reg}));
           }
           handled = true;
         } else {
@@ -625,7 +626,8 @@ static void collect_loopback_moves(
     if (!entry->val.constant) {
       entry_loc = snap_entry_loc(entry_trace, entry_map, entry_snap_idx, j);
     }
-    add_entry_mapping(entry_trace, entry, entry_slot, entry_loc, &loads, &consts);
+    add_entry_mapping(entry_trace, entry, entry_slot, entry_loc, &loads,
+                      &consts);
     j++;
   }
 
@@ -636,7 +638,8 @@ static void collect_loopback_moves(
     if (!entry->val.constant) {
       entry_loc = snap_entry_loc(entry_trace, entry_map, entry_snap_idx, j);
     }
-    add_entry_mapping(entry_trace, entry, entry->slot, entry_loc, &loads, &consts);
+    add_entry_mapping(entry_trace, entry, entry->slot, entry_loc, &loads,
+                      &consts);
     j++;
   }
 

@@ -1203,26 +1203,39 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   ts->poly_entry = poly_entry;
 
   // Replay snapshot loads, so we keep things in register.
+  size_t parent_ins_len = arrlen(side_snap->trace->ins);
+  slot *pmov_by_parent_id = malloc(parent_ins_len * sizeof(slot));
+  assert(pmov_by_parent_id != NULL || parent_ins_len == 0);
+  for (size_t i = 0; i < parent_ins_len; i++) {
+    pmov_by_parent_id[i] = (slot){.constant = true, .loc = 0};
+  }
   arr_for_each_idx(side_snap->slots, j) {
     auto entry = &side_snap->slots[j];
     if (entry->val.constant) {
       set_stack(state, entry->slot,
                 add_const(state, side_snap->trace->consts[entry->val.loc]));
     } else {
-      auto old_ins = &side_snap->trace->ins[entry->val.loc];
-      ir_ins pmov = IR(.op = IR_PMOV,
-                       .prev_reg = old_ins->reg,
-                       .prev_guard = old_ins->guard,
-                       .guard = old_ins->guard,
-                       .type = old_ins->type);
-      if (old_ins->spill != SPILL_NONE) {
-        pmov.spill = old_ins->spill;
-      } else {
-        pmov.reg = old_ins->reg;
+      uint16_t parent_id = entry->val.loc;
+      slot pmov = pmov_by_parent_id[parent_id];
+      if (pmov.constant) {
+        auto old_ins = &side_snap->trace->ins[parent_id];
+        ir_ins pmov_ins = IR(.op = IR_PMOV,
+                             .prev_reg = old_ins->reg,
+                             .prev_guard = old_ins->guard,
+                             .guard = old_ins->guard,
+                             .type = old_ins->type);
+        if (old_ins->spill != SPILL_NONE) {
+          pmov_ins.spill = old_ins->spill;
+        } else {
+          pmov_ins.reg = old_ins->reg;
+        }
+        pmov = add_inst(state, pmov_ins);
+        pmov_by_parent_id[parent_id] = pmov;
       }
-      set_stack(state, entry->slot, add_inst(state, pmov));
+      set_stack(state, entry->slot, pmov);
     }
   }
+  free(pmov_by_parent_id);
   // We set this last, since snapshots have absolute indexs, and set_stack is
   // relative to stack_off.
   ts->stack_off = side_snap->offset;

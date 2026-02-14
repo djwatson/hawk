@@ -4,6 +4,12 @@
   * cleanup ir printing
   * do FIXED for ALLOC to make sure it works I guess
     * and for DIV?
+  * remove dense-regalloc
+    * snapshots don't need anything! just .reg and .spill
+	* only inputs change.
+  * PMOVS can be hints? I think?
+  * cleanup regalloc moving core to interval somewhere
+  * fix 'raw encoded positions' with before/after/snap
 
 * FIGURE OUT WHY derive uprec abort doesn't work in deriv, only in random_schedule mode, not stat mode.
   * uprec/downrec REALLY need to go MORE than one up/down, so that we
