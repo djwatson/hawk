@@ -51,7 +51,7 @@ string_s *get_sym_name(symbol *s) {
 
 #define FUZZ_INS_COUNT 100
 #define FUZZ_CONST_COUNT 64
-#define MAX_SPILL 256
+#define MAX_SPILL SPILL_NONE
 
 static uint32_t mix_seed(const uint8_t *data, size_t size) {
   uint32_t x = (uint32_t)size ^ 0x9e3779b9U;
