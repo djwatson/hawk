@@ -155,7 +155,6 @@ static uint8_t random_unique_spill(fuzz_rng *r, bool used_spills[10]) {
 static void fill_leading_pmov_instruction(fuzz_rng *r, trace *t,
                                           bool used_regs[MAX_REG],
                                           bool used_spills[10]) {
-  (void)used_spills;
   ir_ins ins = {0};
   ins.op = IR_PMOV;
   ins.type = random_type_tag(r);
@@ -165,13 +164,31 @@ static void fill_leading_pmov_instruction(fuzz_rng *r, trace *t,
   ins.spill = SPILL_NONE;
   ins.prev_reg = REG_NONE;
 
-  // Leading PMOVs model side-trace replay: precolored, unique registers.
+  // Leading PMOVs model side-trace replay with unique precolored locations.
+  bool try_spill = rng_bool(r);
+  if (try_spill) {
+    uint8_t spill = random_unique_spill(r, used_spills);
+    if (spill != SPILL_NONE) {
+      ins.spill = spill;
+      used_spills[spill] = true;
+      arrput(t->ins, ins);
+      return;
+    }
+  }
+
   uint8_t reg = random_alloc_reg(r, ins.type == FLONUM_TAG, used_regs);
   if (reg == REG_NONE) {
-    // Fall back to GPR class to keep leading PMOVs precolored.
+    // Fall back to GPR class to keep PMOVs precolored in a legal register.
     ins.type = UNDEFINED_TAG;
     reg = random_alloc_reg(r, false, used_regs);
-    assert(reg != REG_NONE);
+    if (reg == REG_NONE) {
+      uint8_t spill = random_unique_spill(r, used_spills);
+      assert(spill != SPILL_NONE);
+      ins.spill = spill;
+      used_spills[spill] = true;
+      arrput(t->ins, ins);
+      return;
+    }
   }
   ins.reg = reg;
   ins.prev_reg = reg;
@@ -212,7 +229,7 @@ static void fill_instruction(fuzz_rng *r, trace *t, uint16_t i,
     break;
   case IR_ARG_IR_ADDR:
     ins.op1 = random_slot(r, max_loc, max_const_loc);
-    if (i == 0) {
+    if (ins.op == IR_RET || i == 0) {
       ins.op1.constant = true;
       ins.op1.loc = rng_u16(r, max_const_loc);
     }
@@ -472,17 +489,6 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   /* print_ir(&t, nullptr); */
   regalloc2_result r = regalloc2(&t);
   /* print_ir(&t, &r); */
-  size_t spill_output_count = 0;
-  for (size_t ir = 0; ir < arrlen(t.ins); ir++) {
-    if (t.ins[ir].spill != SPILL_NONE && t.ins[ir].reg == REG_NONE) {
-      spill_output_count++;
-    }
-  }
-  size_t spill_op_count = arrlen(r.reload_ops);
-  /* if (spill_output_count > 10 || spill_op_count > 10) { */
-  /*   printf("regalloc2 spills: outputs=%zu ops=%zu\n", spill_output_count, */
-  /*          spill_op_count); */
-  /* } */
   verify_regalloc2(&t, &r);
   regalloc2_result_free(&r);
   free_trace(&t);
