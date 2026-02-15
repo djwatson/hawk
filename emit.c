@@ -523,8 +523,7 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
 }
 
 static void collect_loopback_moves(
-    trace *exit_trace, regalloc2_result const *exit_map, uint16_t exit_snap_idx,
-    trace *entry_trace, regalloc2_result const *entry_map,
+    trace *exit_trace, uint16_t exit_snap_idx, trace *entry_trace,
     uint16_t entry_snap_idx, par_copy **cpy_out, const_entry **consts_out,
     load_entry **loads_out, uint16_t **ignore_slots_out, uint8_t **regs_out) {
   const_entry *consts = nullptr;
@@ -715,15 +714,7 @@ static void link_to_next_trace(emit_state *s, trace *t,
                                uint8_t entry_snap_idx) {
   auto cur_snap = (uint16_t)(arrlen(t->snaps) - 1);
 
-  auto sn = &t->snaps[cur_snap];
   trace *linked_trace = t->link;
-  snap *entry_snap = &linked_trace->snaps[entry_snap_idx];
-  regalloc2_result linked_map = {0};
-  regalloc2_result const *entry_map = regmap;
-  if (linked_trace != t) {
-    linked_map = regalloc2(linked_trace);
-    entry_map = &linked_map;
-  }
 
   if (linked_trace == t) {
     COMMENT("Loopback (snap exit %i)", cur_snap);
@@ -745,9 +736,8 @@ static void link_to_next_trace(emit_state *s, trace *t,
   load_entry *loads = nullptr;
   uint16_t *ignore_slots = nullptr;
   uint8_t *regs_to_preserve = nullptr;
-  collect_loopback_moves(t, regmap, cur_snap, linked_trace, entry_map,
-                         entry_snap_idx, &cpy, &consts, &loads, &ignore_slots,
-                         &regs_to_preserve);
+  collect_loopback_moves(t, cur_snap, linked_trace, entry_snap_idx, &cpy,
+                         &consts, &loads, &ignore_slots, &regs_to_preserve);
   emit_snap(s, t, regmap, cur_snap, false, ignore_slots, regs_to_preserve);
   emit_loopback_stack_loads(s, loads);
   emit_serialized_moves(s, cpy);
@@ -760,10 +750,6 @@ static void link_to_next_trace(emit_state *s, trace *t,
   label *target =
       entry_snap_idx == 1 ? &t->link->snap_entry_label : &t->link->trace_start;
   emit_jmp32(s, target);
-
-  if (linked_trace != t) {
-    regalloc2_result_free(&linked_map);
-  }
 }
 
 static void emit_reload_events(emit_state *s, trace *t,
