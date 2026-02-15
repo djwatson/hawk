@@ -305,51 +305,26 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
     spills[i] = UINT16_MAX;
   }
 
-  size_t op_before = 0;
-  size_t op_after = 0;
-  size_t op_len = arrlen(r->register_ops);
+  size_t reload_cursor = 0;
+  size_t reload_len = arrlen(r->reload_ops);
   size_t snap_cursor = 0;
   size_t snap_len = arrlen(t->snaps);
 
   for (uint16_t ir = 0; ir < arrlen(t->ins); ir++) {
-    while (op_before < op_len) {
-      auto e = r->register_ops[op_before];
-      if (e.ir_idx != ir || !e.before) {
+    while (reload_cursor < reload_len) {
+      auto e = r->reload_ops[reload_cursor];
+      if (e.ir_idx != ir) {
         break;
       }
-      if (e.kind == REGISTER_OP_RELOAD) {
-        if (e.spill >= MAX_SPILL || spills[e.spill] != e.value_id ||
-            e.reg >= MAX_REG) {
-          abort();
-        }
-        regs[e.reg] = e.value_id;
-      } else if (e.kind == REGISTER_OP_MOVE) {
-        if (e.src_reg >= MAX_REG || regs[e.src_reg] != e.value_id) {
-          fprintf(
-              stderr,
-              "MOVE before fail ir=%u op_idx=%zu v=%u src_reg=%u src_has=%u "
-              "dst_reg=%u spill=%u\n",
-              ir, op_before, e.value_id, e.src_reg,
-              e.src_reg < MAX_REG ? regs[e.src_reg] : UINT16_MAX, e.reg,
-              e.spill);
-          abort();
-        }
-        if (e.reg != REG_NONE) {
-          if (e.reg >= MAX_REG) {
-            abort();
-          }
-          regs[e.reg] = e.value_id;
-        }
-        if (e.spill != SPILL_NONE) {
-          if (e.spill >= MAX_SPILL) {
-            abort();
-          }
-          spills[e.spill] = e.value_id;
-        }
-      } else {
+      if (e.reg >= MAX_REG || e.value_id >= arrlen(t->ins)) {
         abort();
       }
-      op_before++;
+      uint8_t spill = t->ins[e.value_id].spill;
+      if (spill >= MAX_SPILL || spills[spill] != e.value_id) {
+        abort();
+      }
+      regs[e.reg] = e.value_id;
+      reload_cursor++;
     }
 
     auto ins = &t->ins[ir];
@@ -435,47 +410,6 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
       spills[spill] = ir;
     }
 
-    op_after = op_before;
-    while (op_after < op_len) {
-      auto e = r->register_ops[op_after];
-      if (e.ir_idx != ir || e.before) {
-        break;
-      }
-      if (e.kind == REGISTER_OP_RELOAD) {
-        if (e.spill >= MAX_SPILL || spills[e.spill] != e.value_id ||
-            e.reg >= MAX_REG) {
-          abort();
-        }
-        regs[e.reg] = e.value_id;
-      } else if (e.kind == REGISTER_OP_MOVE) {
-        if (e.src_reg >= MAX_REG || regs[e.src_reg] != e.value_id) {
-          fprintf(stderr,
-                  "MOVE after fail ir=%u op_idx=%zu v=%u src_reg=%u src_has=%u "
-                  "dst_reg=%u spill=%u\n",
-                  ir, op_after, e.value_id, e.src_reg,
-                  e.src_reg < MAX_REG ? regs[e.src_reg] : UINT16_MAX, e.reg,
-                  e.spill);
-          abort();
-        }
-        if (e.reg != REG_NONE) {
-          if (e.reg >= MAX_REG) {
-            abort();
-          }
-          regs[e.reg] = e.value_id;
-        }
-        if (e.spill != SPILL_NONE) {
-          if (e.spill >= MAX_SPILL) {
-            abort();
-          }
-          spills[e.spill] = e.value_id;
-        }
-      } else {
-        abort();
-      }
-      op_after++;
-    }
-    op_before = op_after;
-
     while (snap_cursor < snap_len &&
            t->snaps[snap_cursor].ir <= (uint16_t)(ir + 1)) {
       uint16_t snap_idx = (uint16_t)snap_cursor;
@@ -503,6 +437,9 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
       }
       snap_cursor++;
     }
+  }
+  if (reload_cursor != reload_len) {
+    abort();
   }
 }
 
@@ -541,7 +478,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
       spill_output_count++;
     }
   }
-  size_t spill_op_count = arrlen(r.register_ops);
+  size_t spill_op_count = arrlen(r.reload_ops);
   /* if (spill_output_count > 10 || spill_op_count > 10) { */
   /*   printf("regalloc2 spills: outputs=%zu ops=%zu\n", spill_output_count, */
   /*          spill_op_count); */

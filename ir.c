@@ -63,30 +63,16 @@ ir_arg_type ir_ins_types[] = {
 #undef X
 };
 
-static void print_spill_reload_events(regalloc2_result const *regmap, size_t ir,
-                                      bool before) {
-  arr_for_each_idx(regmap->register_ops, eidx) {
-    auto e = regmap->register_ops[eidx];
-    if (e.ir_idx == ir && e.before == before) {
-      if (e.kind == REGISTER_OP_RELOAD) {
-        printf("    RELOAD %s ir=%zu v%u reg=%s spill=%u\n",
-               before ? "BEFORE" : "AFTER ", ir, e.value_id, reg_names[e.reg],
-               e.spill);
-      } else {
-        char dst_buf[32] = {0};
-        const char *dst = "-";
-        if (e.reg != REG_NONE) {
-          dst = reg_names[e.reg];
-        } else if (e.spill != SPILL_NONE) {
-          snprintf(dst_buf, sizeof(dst_buf), "S%u", e.spill);
-          dst = dst_buf;
-        }
-        const char *src = e.src_reg == REG_NONE ? "-" : reg_names[e.src_reg];
-        printf("    MOVE %s ir=%zu v%u src=%s dst=%s spill=%u\n",
-               before ? "BEFORE" : "AFTER ", ir, e.value_id, src, dst,
-               e.spill);
-      }
+static void print_reload_events(trace *t, regalloc2_result const *regmap,
+                                size_t ir) {
+  arr_for_each_idx(regmap->reload_ops, eidx) {
+    auto e = regmap->reload_ops[eidx];
+    if (e.ir_idx != ir) {
+      continue;
     }
+    auto spill = t->ins[e.value_id].spill;
+    printf("    RELOAD BEFORE ir=%zu v%u reg=%s spill=%u\n", ir, e.value_id,
+           reg_names[e.reg], spill);
   }
 }
 
@@ -186,7 +172,7 @@ void print_ir(trace *t, regalloc2_result const *regmap) {
       break;
     }
     if (regmap) {
-      print_spill_reload_events(regmap, i, true);
+      print_reload_events(t, regmap, i);
     }
     ir_ins *ins = &t->ins[i];
     size_t in_idx = 0;
@@ -243,9 +229,6 @@ void print_ir(trace *t, regalloc2_result const *regmap) {
       break;
     }
     printf("\n");
-    if (regmap) {
-      print_spill_reload_events(regmap, i, false);
-    }
   }
 }
 

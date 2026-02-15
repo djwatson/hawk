@@ -766,46 +766,22 @@ static void link_to_next_trace(emit_state *s, trace *t,
   }
 }
 
-static void emit_spill_reload_events(emit_state *s, trace *t,
-                                     regalloc2_result const *regmap,
-                                     uint16_t ir_idx, bool before) {
-  arr_for_each_idx(regmap->register_ops, eidx) {
-    auto e = regmap->register_ops[eidx];
-    if (e.ir_idx != ir_idx || e.before != before) {
+static void emit_reload_events(emit_state *s, trace *t,
+                               regalloc2_result const *regmap,
+                               uint16_t ir_idx) {
+  arr_for_each_idx(regmap->reload_ops, eidx) {
+    auto e = regmap->reload_ops[eidx];
+    if (e.ir_idx != ir_idx) {
       continue;
     }
     auto value = &t->ins[e.value_id];
-    if (e.kind == REGISTER_OP_RELOAD) {
-      int32_t offset = (int32_t)e.spill * 8;
-      COMMENT("RELOAD op %u to reg %s", e.value_id, reg_names[e.reg]);
-      if (value->type == FLONUM_TAG) {
-        emit_fmem_load(s, offset, RSTACK, e.reg);
-      } else {
-        emit_mem_load(s, offset, RSTACK, e.reg);
-      }
-      continue;
-    }
-
-    if (e.kind == REGISTER_OP_MOVE) {
-      if (e.src_reg != REG_NONE && e.reg != REG_NONE && e.src_reg != e.reg) {
-        COMMENT("MOVE op %u %s->%s", e.value_id, reg_names[e.src_reg],
-                reg_names[e.reg]);
-        if (value->type == FLONUM_TAG) {
-          emit_fmov(s, e.reg, e.src_reg);
-        } else {
-          emit_mov(s, e.reg, e.src_reg);
-        }
-      }
-      if (e.src_reg != REG_NONE && e.spill != SPILL_NONE) {
-        int32_t offset = (int32_t)e.spill * 8;
-        COMMENT("MOVE op %u %s->spill[%u]", e.value_id, reg_names[e.src_reg],
-                e.spill);
-        if (value->type == FLONUM_TAG) {
-          emit_fstore(s, offset, RSTACK, e.src_reg);
-        } else {
-          emit_store(s, offset, RSTACK, e.src_reg);
-        }
-      }
+    assert(value->spill != SPILL_NONE);
+    int32_t offset = (int32_t)value->spill * 8;
+    COMMENT("RELOAD op %u to reg %s", e.value_id, reg_names[e.reg]);
+    if (value->type == FLONUM_TAG) {
+      emit_fmem_load(s, offset, RSTACK, e.reg);
+    } else {
+      emit_mem_load(s, offset, RSTACK, e.reg);
     }
   }
 }
@@ -831,7 +807,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     }
 
     COMMENT("%i %s", op_cnt_idx, ir_names[op->op]);
-    emit_spill_reload_events(s, t, regmap, op_cnt_idx, true);
+    emit_reload_events(s, t, regmap, op_cnt_idx);
 
     switch (op->op) {
     case IR_GUARD_EQ:
@@ -1161,7 +1137,6 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
           op->op == IR_MOD || op->op == IR_GGET)) {
       abort();
     }
-    emit_spill_reload_events(s, t, regmap, op_cnt_idx, false);
   }
 }
 
