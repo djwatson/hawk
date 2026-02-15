@@ -605,14 +605,6 @@ static frame_state return_frame(vm_state *state, bc instr, bc *pc,
     vm_add_snap(state, ra);
     arrput(ts->downrec, pc);
   } else {
-    if (downrec_trace && at_trace_start && (arrlen(cur_trace->ins) > 1)) {
-      // We've walked UP the stack to the same return statement somehow. Abort.
-      if (verbose) {
-        printf("Record abort: couldn't catch downrec, walked up.\n");
-      }
-      record_abort(state);
-      return (frame_state){pc, stack, state->impls};
-    }
     ts->depth--;
     assert(ts->depth >= 0);
 
@@ -651,8 +643,7 @@ static void obj_write(vm_state *state, slot val, void **op_table) {
   record_abort(state);
   *op_table = state->impls;
 }
-static slot alloc_obj(vm_state *state, gc_obj *stack, bc *pc,
-                      void **op_table) {
+static slot alloc_obj(vm_state *state, gc_obj *stack, bc *pc, void **op_table) {
   auto sz = stack_load(state, stack, pc->v1, true);
   auto type = stack_load(state, stack, pc->v2, true);
   assert(type.constant);
@@ -1219,11 +1210,9 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
       slot pmov = pmov_by_parent_id[parent_id];
       if (pmov.constant) {
         auto old_ins = &side_snap->trace->ins[parent_id];
-        ir_ins pmov_ins = IR(.op = IR_PMOV,
-                             .prev_reg = old_ins->reg,
+        ir_ins pmov_ins = IR(.op = IR_PMOV, .prev_reg = old_ins->reg,
                              .prev_guard = old_ins->guard,
-                             .guard = old_ins->guard,
-                             .type = old_ins->type);
+                             .guard = old_ins->guard, .type = old_ins->type);
         if (old_ins->spill != SPILL_NONE) {
           pmov_ins.spill = old_ins->spill;
         } else {
