@@ -41,9 +41,18 @@ typedef void (*ir_arg_callback)(slot s, void *ctx);
 static void add_next_use(regalloc2_state *s, uint16_t loc, uint16_t ir_idx,
                          bool before, bool is_snap);
 
-static void walk_ir_args(ir_ins const *ins, ir_arg_callback cb, void *ctx) {
+static void walk_ir_args(trace const *t, ir_ins const *ins, ir_arg_callback cb,
+                         void *ctx) {
   slot op1 = ins->op1;
   slot op2 = ins->op2;
+  if (ins->op == IR_STORE) {
+    auto ptr_ins = &t->ins[op1.loc];
+    walk_ir_args(t, ptr_ins, cb, ctx);
+    if (!op2.constant) {
+      cb(op2, ctx);
+    }
+    return;
+  }
   switch (ir_ins_types[ins->op]) {
   case IR_ARG_IR_IR:
     if (!op1.constant) {
@@ -135,7 +144,7 @@ static void collect_next_uses(regalloc2_state *s) {
     auto ins = &s->t->ins[i - 1];
     next_use_ctx next_ctx = {
         .s = s, .ir_idx = (uint16_t)(i - 1), .before = true, .is_snap = false};
-    walk_ir_args(ins, add_next_use_cb, &next_ctx);
+    walk_ir_args(s->t, ins, add_next_use_cb, &next_ctx);
   }
 }
 
@@ -184,9 +193,10 @@ static uint8_t find_current_reg_for_value(regalloc2_state *s,
   return REG_NONE;
 }
 
-static bool value_used_by_ir_ins(ir_ins const *ins, uint16_t value_id) {
+static bool value_used_by_ir_ins(trace const *t, ir_ins const *ins,
+                                 uint16_t value_id) {
   value_used_ctx ctx = {.value_id = value_id};
-  walk_ir_args(ins, value_used_cb, &ctx);
+  walk_ir_args(t, ins, value_used_cb, &ctx);
   return ctx.used;
 }
 
@@ -203,7 +213,7 @@ static uint8_t find_reg_to_spill(regalloc2_state *s, uint16_t start,
     }
 
     uint16_t value_id = s->regs[i];
-    if (cur_ins && value_used_by_ir_ins(cur_ins, value_id)) {
+    if (cur_ins && value_used_by_ir_ins(s->t, cur_ins, value_id)) {
       continue;
     }
     uint32_t next_idx = s->uses[value_id];
@@ -352,8 +362,8 @@ regalloc2_result regalloc2(trace *t) {
 
     ir_arg_ctx arg_ctx = {.s = &s, .cur_idx = (uint16_t)i, .ins = ins};
     s.ir_id_to_dense_map[i] = arrlen(s.dense_locs);
-    walk_ir_args(ins, materialize_arg_cb, &arg_ctx);
-    walk_ir_args(ins, free_arg_cb, &arg_ctx);
+    walk_ir_args(t, ins, materialize_arg_cb, &arg_ctx);
+    walk_ir_args(t, ins, free_arg_cb, &arg_ctx);
 
     // Custom IR_PMOV handling
     if (ins->op == IR_PMOV) {
@@ -361,6 +371,9 @@ regalloc2_result regalloc2(trace *t) {
         ins->reg = ins->prev_reg;
         s.regs[ins->prev_reg] = i;
       }
+      continue;
+    }
+    if (ins->op == IR_REF) {
       continue;
     }
     if (s.uses[i]) {
