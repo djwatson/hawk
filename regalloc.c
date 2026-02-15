@@ -1,6 +1,5 @@
 #include "regalloc.h"
 
-#include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -106,7 +105,9 @@ static void collect_next_uses(regalloc2_state *s) {
   }
 
   s->uses = calloc(ins_len, sizeof(uint32_t));
-  assert(s->uses != NULL);
+  if (!s->uses) {
+    abort();
+  }
 
   // Use 0 as the null index in use chains.
   arrput(s->next_uses, ((next_use){0}));
@@ -122,7 +123,9 @@ static void collect_next_uses(regalloc2_state *s) {
       auto cur = &s->t->snaps[cur_snap];
       arr_for_each_idx(cur->slots, slot_i) {
         auto val = cur->slots[slot_i].val;
-        if (!val.constant) {
+        // We ONLY add snapshots as a 'use' if it doesn't already exist:
+        // This is so snapshots don't affect 'find next use' spilling heuristic.
+        if (!val.constant && !s->uses[val.loc]) {
           add_next_use(s, val.loc, cur_snap_end_ir, false, true);
         }
       }
@@ -161,7 +164,9 @@ static uint8_t get_or_assign_spill_slot(regalloc2_state *s, uint16_t value_id) {
   if (ins->spill != SPILL_NONE) {
     return ins->spill;
   }
-  assert(s->next_spill < 255);
+  if (s->next_spill == 255) {
+    abort();
+  }
   ins->spill = s->next_spill++;
   return ins->spill;
 }
@@ -211,7 +216,9 @@ static uint8_t find_reg_to_spill(regalloc2_state *s, uint16_t start,
       have_candidate = true;
     }
   }
-  assert(have_candidate);
+  if (!have_candidate) {
+    abort();
+  }
 
   uint16_t spill_value_id = s->regs[spill_reg];
   auto spill_ins = &s->t->ins[spill_value_id];
