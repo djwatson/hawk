@@ -34,16 +34,6 @@ void *arrgrowf(void *a, size_t elemsize, size_t addlen, size_t min_cap) {
   return (char *)b + sizeof(array_header);
 }
 
-array_header *arr_header(void const *t) { return (array_header *)t - 1; }
-
-size_t arrlen(void const *a) {
-  if (a) {
-    array_header *header = arr_header(a);
-    return header->length;
-  }
-  return 0;
-}
-
 void arrlen_set(void const *a, size_t len) {
   if (!a) {
     return;

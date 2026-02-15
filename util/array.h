@@ -10,13 +10,22 @@ typedef struct {
   size_t capacity;
 } array_header;
 
-array_header *arr_header(void const *t);
+static inline array_header *arr_header(void const *t) {
+  return (array_header *)t - 1;
+}
 
 void *arrgrowf(void *a, size_t elemsize, size_t addlen, size_t min_cap);
 
 #define arrfree(a) ((void)((a) ? free(arr_header(a)) : (void)0), (a) = NULL)
 
 // NOLINTBEGIN(clang-analyzer-core.NullDereference)
+static inline size_t arrlen(void const *a) {
+  if (a) {
+    array_header *header = arr_header(a);
+    return header->length;
+  }
+  return 0;
+}
 #define arrlast(a) (&(a)[arrlen(a) - 1])
 
 #define arr_arrgrow(a, b, c) ((a) = arrgrowf((a), sizeof *(a), (b), (c)))
@@ -29,7 +38,7 @@ void *arrgrowf(void *a, size_t elemsize, size_t addlen, size_t min_cap);
 #define arrput(a, v) (arrmaybegrow(a, 1), (a)[arr_header(a)->length++] = (v))
 
 #define arrpop(a) (--arr_header(a)->length)
-size_t arrlen(void const *arr);
+
 void arrlen_set(void const *arr, size_t len);
 
 #define arr_for_each_idx(arr, idx)                                             \
