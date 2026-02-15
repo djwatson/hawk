@@ -19,10 +19,6 @@ typedef struct {
 
 typedef struct regalloc2_state regalloc2_state;
 
-static inline bool ins_uses_freg(ir_ins const *ins) {
-  return ins->type == FLONUM_TAG;
-}
-
 static void collect_next_uses(regalloc2_state *s);
 static void print_next_uses(regalloc2_state *s);
 
@@ -43,6 +39,55 @@ typedef struct regalloc2_state {
 } regalloc2_state;
 
 typedef void (*ir_arg_callback)(slot s, void *ctx);
+static void add_next_use(regalloc2_state *s, uint16_t loc, uint16_t ir_idx,
+                         bool before, bool is_snap);
+
+static void walk_ir_args(ir_ins const *ins, ir_arg_callback cb, void *ctx) {
+  slot op1 = ins->op1;
+  slot op2 = ins->op2;
+  switch (ir_ins_types[ins->op]) {
+  case IR_ARG_IR_IR:
+    if (!op1.constant) {
+      cb(op1, ctx);
+    }
+    if (!op2.constant) {
+      cb(op2, ctx);
+    }
+    break;
+  case IR_ARG_IR_NONE:
+  case IR_ARG_IR_ADDR:
+    if (!op1.constant) {
+      cb(op1, ctx);
+    }
+    break;
+  default:
+    break;
+  }
+}
+
+typedef struct {
+  regalloc2_state *s;
+  uint16_t ir_idx;
+  bool before;
+  bool is_snap;
+} next_use_ctx;
+
+static void add_next_use_cb(slot sl, void *ctx) {
+  auto c = (next_use_ctx *)ctx;
+  add_next_use(c->s, sl.loc, c->ir_idx, c->before, c->is_snap);
+}
+
+typedef struct {
+  uint16_t value_id;
+  bool used;
+} value_used_ctx;
+
+static void value_used_cb(slot sl, void *ctx) {
+  auto c = (value_used_ctx *)ctx;
+  if (sl.loc == c->value_id) {
+    c->used = true;
+  }
+}
 
 static void add_next_use(regalloc2_state *s, uint16_t loc, uint16_t ir_idx,
                          bool before, bool is_snap) {
@@ -85,21 +130,9 @@ static void collect_next_uses(regalloc2_state *s) {
     }
 
     auto ins = &s->t->ins[i - 1];
-    switch (ir_ins_types[ins->op]) {
-    case IR_ARG_IR_IR:
-      if (!ins->op2.constant) {
-        add_next_use(s, ins->op2.loc, (uint16_t)(i - 1), true, false);
-      }
-      [[fallthrough]];
-    case IR_ARG_IR_NONE:
-    case IR_ARG_IR_ADDR:
-      if (!ins->op1.constant) {
-        add_next_use(s, ins->op1.loc, (uint16_t)(i - 1), true, false);
-      }
-      break;
-    default:
-      break;
-    }
+    next_use_ctx next_ctx = {
+        .s = s, .ir_idx = (uint16_t)(i - 1), .before = true, .is_snap = false};
+    walk_ir_args(ins, add_next_use_cb, &next_ctx);
   }
 }
 
@@ -120,21 +153,6 @@ static void print_next_uses(regalloc2_state *s) {
       next_idx = cur.next;
     }
     printf("\n");
-  }
-}
-
-static void walk_ir_args(ir_ins const *ins, ir_arg_callback cb, void *ctx) {
-  switch (ir_ins_types[ins->op]) {
-  case IR_ARG_IR_IR:
-    cb(ins->op1, ctx);
-    cb(ins->op2, ctx);
-    break;
-  case IR_ARG_IR_NONE:
-  case IR_ARG_IR_ADDR:
-    cb(ins->op1, ctx);
-    break;
-  default:
-    break;
   }
 }
 
@@ -162,21 +180,44 @@ static uint8_t find_current_reg_for_value(regalloc2_state *s,
 }
 
 static bool value_used_by_ir_ins(ir_ins const *ins, uint16_t value_id) {
-  switch (ir_ins_types[ins->op]) {
-  case IR_ARG_IR_IR:
-    if (!ins->op1.constant && ins->op1.loc == value_id) {
-      return true;
+  value_used_ctx ctx = {.value_id = value_id};
+  walk_ir_args(ins, value_used_cb, &ctx);
+  return ctx.used;
+}
+
+static uint8_t find_reg_to_spill(regalloc2_state *s, uint16_t start,
+                                 uint16_t end, ir_ins const *cur_ins) {
+  // Spill the value with the farthest immediate next use in this register
+  // class.
+  uint8_t spill_reg = REG_NONE;
+  uint32_t farthest_use = 0;
+  bool have_candidate = false;
+  for (uint16_t i = start; i < end; i++) {
+    if (s->regs[i] == ALLOC_NONE || s->regs[i] == ALLOC_UNALLOCATABLE) {
+      continue;
     }
-    if (!ins->op2.constant && ins->op2.loc == value_id) {
-      return true;
+
+    uint16_t value_id = s->regs[i];
+    if (cur_ins && value_used_by_ir_ins(cur_ins, value_id)) {
+      continue;
     }
-    return false;
-  case IR_ARG_IR_NONE:
-  case IR_ARG_IR_ADDR:
-    return !ins->op1.constant && ins->op1.loc == value_id;
-  default:
-    return false;
+    uint32_t next_idx = s->uses[value_id];
+    uint32_t candidate_next_use =
+        next_idx ? s->next_uses[next_idx].ir_idx : UINT32_MAX;
+
+    if (!have_candidate || candidate_next_use > farthest_use) {
+      farthest_use = candidate_next_use;
+      spill_reg = (uint8_t)i;
+      have_candidate = true;
+    }
   }
+  assert(have_candidate);
+
+  uint16_t spill_value_id = s->regs[spill_reg];
+  auto spill_ins = &s->t->ins[spill_value_id];
+  spill_ins->spill = get_or_assign_spill_slot(s, spill_value_id);
+  s->regs[spill_reg] = ALLOC_NONE;
+  return spill_reg;
 }
 
 static uint8_t find_free_reg(regalloc2_state *s, bool flonum,
@@ -192,54 +233,7 @@ static uint8_t find_free_reg(regalloc2_state *s, bool flonum,
     }
   }
 
-  // Spill the value with the farthest upcoming use in this register class.
-  uint8_t spill_reg = REG_NONE;
-  uint32_t farthest_use = 0;
-  bool have_candidate = false;
-  for (uint16_t i = start; i < end; i++) {
-    if (s->regs[i] == ALLOC_NONE || s->regs[i] == ALLOC_UNALLOCATABLE) {
-      continue;
-    }
-
-    uint16_t value_id = s->regs[i];
-    if (cur_ins && value_used_by_ir_ins(cur_ins, value_id)) {
-      continue;
-    }
-    uint32_t next_idx = s->uses[value_id];
-    uint32_t candidate_farthest = 0;
-    bool has_use = false;
-    while (next_idx) {
-      auto use = s->next_uses[next_idx];
-      if (!has_use || use.ir_idx > candidate_farthest) {
-        candidate_farthest = use.ir_idx;
-      }
-      has_use = true;
-      next_idx = use.next;
-    }
-    if (!has_use) {
-      candidate_farthest = UINT32_MAX;
-    }
-
-    if (!have_candidate || candidate_farthest > farthest_use) {
-      farthest_use = candidate_farthest;
-      spill_reg = (uint8_t)i;
-      have_candidate = true;
-    }
-  }
-  assert(have_candidate);
-
-  uint16_t spill_value_id = s->regs[spill_reg];
-  auto spill_ins = &s->t->ins[spill_value_id];
-  spill_ins->spill = get_or_assign_spill_slot(s, spill_value_id);
-  s->regs[spill_reg] = ALLOC_NONE;
-  return spill_reg;
-}
-static void allocate_reg(slot sl, void *ctx) {
-  if (sl.constant) {
-    return;
-  }
-  auto s = (regalloc2_state *)ctx;
-  auto ins = &s->t->ins[sl.loc];
+  return find_reg_to_spill(s, start, end, cur_ins);
 }
 
 static void maybe_free_reg(regalloc2_state *s, uint16_t cur_idx, uint16_t idx) {
@@ -280,15 +274,10 @@ typedef struct {
   regalloc2_state *s;
   uint16_t cur_idx;
   ir_ins const *ins;
-  uint16_t to_free[2];
-  uint8_t to_free_len;
-} maybe_free_reg_ctx;
+} ir_arg_ctx;
 
-static void maybe_free_reg_cb(slot sl, void *ctx) {
-  if (sl.constant) {
-    return;
-  }
-  auto c = (maybe_free_reg_ctx *)ctx;
+static void materialize_arg_cb(slot sl, void *ctx) {
+  auto c = (ir_arg_ctx *)ctx;
   regalloc2_state *s = c->s;
   uint16_t value_id = sl.loc;
   auto in = &s->t->ins[value_id];
@@ -305,7 +294,11 @@ static void maybe_free_reg_cb(slot sl, void *ctx) {
   arrput(
       s->dense_locs,
       ((dense_loc_entry){.kind = LOC_REG, .reg = reg, .value_id = value_id}));
-  c->to_free[c->to_free_len++] = value_id;
+}
+
+static void free_arg_cb(slot sl, void *ctx) {
+  auto c = (ir_arg_ctx *)ctx;
+  maybe_free_reg(c->s, c->cur_idx, sl.loc);
 }
 
 regalloc2_result regalloc2(trace *t) {
@@ -327,7 +320,8 @@ regalloc2_result regalloc2(trace *t) {
     print_next_uses(&s);
   }
 
-  // PMOVs may be spilled, find them, and find next valid spill slot.
+  // PMOVs are pre-assigned spill slots and registers the parent trace.
+  // Find next valid spill slot.
   size_t ins_len = arrlen(t->ins);
   size_t snap_idx = 0;
   size_t snap_len = arrlen(t->snaps);
@@ -348,21 +342,19 @@ regalloc2_result regalloc2(trace *t) {
     }
 
     auto ins = &t->ins[i];
+
+    ir_arg_ctx arg_ctx = {.s = &s, .cur_idx = (uint16_t)i, .ins = ins};
+    s.ir_id_to_dense_map[i] = arrlen(s.dense_locs);
+    walk_ir_args(ins, materialize_arg_cb, &arg_ctx);
+    walk_ir_args(ins, free_arg_cb, &arg_ctx);
+
     // Custom IR_PMOV handling
     if (ins->op == IR_PMOV) {
-      s.ir_id_to_dense_map[i] = arrlen(s.dense_locs);
       if (ins->prev_reg != REG_NONE) {
         ins->reg = ins->prev_reg;
         s.regs[ins->prev_reg] = i;
       }
       continue;
-    }
-
-    maybe_free_reg_ctx free_ctx = {.s = &s, .cur_idx = (uint16_t)i, .ins = ins};
-    s.ir_id_to_dense_map[i] = arrlen(s.dense_locs);
-    walk_ir_args(ins, maybe_free_reg_cb, &free_ctx);
-    for (uint8_t free_i = 0; free_i < free_ctx.to_free_len; free_i++) {
-      maybe_free_reg(&s, (uint16_t)i, free_ctx.to_free[free_i]);
     }
     if (s.uses[i]) {
       auto res = find_free_reg(&s, ins->type == FLONUM_TAG, ins);
