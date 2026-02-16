@@ -1074,7 +1074,8 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   // side trace:
   //  check for up-recursion and abort, restart trying to capture an
   //  up-recursive trace.
-  if (pc == ts->start_ins && !is_downrec_trace(ts)) {
+  if (pc == ts->start_ins && !is_downrec_trace(ts) &&
+      (ts->depth == 0 || cnt >= 3)) {
     trace_match match =
         ensure_args_match_trace(state, stack, cur_trace, cur_trace);
     cur_trace->link = match.trace;
@@ -1089,7 +1090,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
     record_finish(pc, state);
     return state->impls;
   }
-  if (pc != ts->start_ins && cnt > 0) {
+  if (pc != ts->start_ins && cnt >= 10) {
     if (verbose) {
       printf("Record abort: uprec detected, restart\n");
     }
