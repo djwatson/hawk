@@ -37,6 +37,8 @@ static const int32_t freelist_end_offset =
     (int32_t)offsetof(freelist_s, end_ptr);
 static const int32_t flonum_payload_offset = (int32_t)offsetof(flonum_s, x);
 
+static gc_obj spills[256];
+
 static void register_jit_symbol(uint8_t *start, uint8_t *entry, uint8_t *end,
                                 const char *name) {
   profiler_register_jit_symbol(start, end, name);
@@ -103,6 +105,11 @@ static inline ir_ins *slot_ins(trace *t, slot v) {
 static inline int64_t slot_const(trace *t, slot v) {
   assert(v.constant);
   return t->consts[v.loc].value;
+}
+
+static inline int32_t spill_offset(uint8_t spill) {
+  assert(spill != SPILL_NONE);
+  return (int32_t)spill * 8;
 }
 
 static uint8_t ir_input_reg(trace const *t, regalloc2_result const *r,
@@ -640,12 +647,12 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
   auto loc = snap_entry_loc(t, snap_idx, entry_idx);
   uint8_t val_reg = REG_NONE;
   if (loc.kind == LOC_SPILL) {
-    int32_t spill_offset = (int32_t)loc.spill * 8;
+    emit_mov64(s, RTMP, (intptr_t)spills);
     if (ins->type == FLONUM_TAG) {
-      emit_fmem_load(s, spill_offset, RSTACK, FRTMP);
+      emit_fmem_load(s, spill_offset(loc.spill), RTMP, FRTMP);
       val_reg = FRTMP;
     } else {
-      emit_mem_load(s, spill_offset, RSTACK, RTMP);
+      emit_mem_load(s, spill_offset(loc.spill), RTMP, RTMP);
       val_reg = RTMP;
     }
   } else {
@@ -762,12 +769,12 @@ static void emit_reload_events(emit_state *s, trace *t,
     }
     auto value = &t->ins[e.value_id];
     assert(value->spill != SPILL_NONE);
-    int32_t offset = (int32_t)value->spill * 8;
     COMMENT("RELOAD op %u to reg %s", e.value_id, reg_names[e.reg]);
+    emit_mov64(s, RTMP, (intptr_t)spills);
     if (value->type == FLONUM_TAG) {
-      emit_fmem_load(s, offset, RSTACK, e.reg);
+      emit_fmem_load(s, spill_offset(value->spill), RTMP, e.reg);
     } else {
-      emit_mem_load(s, offset, RSTACK, e.reg);
+      emit_mem_load(s, spill_offset(value->spill), RTMP, e.reg);
     }
   }
 }
@@ -1114,6 +1121,16 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       abort();
       // exit(-1);
     }
+    }
+    if (op->spill != SPILL_NONE) {
+      assert(out_reg != REG_NONE);
+      COMMENT("SPILL op %u to S%u", op_cnt_idx, op->spill);
+      emit_mov64(s, RTMP, (intptr_t)spills);
+      if (op->type == FLONUM_TAG) {
+        emit_fstore(s, spill_offset(op->spill), RTMP, out_reg);
+      } else {
+        emit_store(s, spill_offset(op->spill), RTMP, out_reg);
+      }
     }
     // TODO: maybe move emit_typecheck here, instead of each individual one.
     if (op->guard &&
