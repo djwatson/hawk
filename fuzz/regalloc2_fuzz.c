@@ -99,22 +99,49 @@ static uint8_t random_type_tag(fuzz_rng *r) {
   return tags[rng_next(r) % ARRAY_LEN(tags)];
 }
 
-static slot random_slot(fuzz_rng *r, uint16_t max_ir_loc,
-                        uint16_t max_const_loc) {
+static bool random_non_ref_loc(fuzz_rng *r, trace const *t, uint16_t max_ir_loc,
+                               uint16_t *out) {
+  uint16_t pool[FUZZ_INS_COUNT];
+  uint16_t pool_len = 0;
+  for (uint16_t i = 0; i <= max_ir_loc; i++) {
+    if (t->ins[i].op == IR_REF) {
+      continue;
+    }
+    pool[pool_len++] = i;
+  }
+  if (pool_len == 0) {
+    return false;
+  }
+  *out = pool[rng_next(r) % pool_len];
+  return true;
+}
+
+static slot random_slot_no_ref(fuzz_rng *r, trace const *t, uint16_t max_ir_loc,
+                               uint16_t max_const_loc) {
   slot s = {0};
   s.constant = rng_bool(r);
-  s.loc = s.constant ? rng_u16(r, max_const_loc) : rng_u16(r, max_ir_loc);
+  if (s.constant || arrlen(t->ins) == 0) {
+    s.constant = true;
+    s.loc = rng_u16(r, max_const_loc);
+    return s;
+  }
+  uint16_t loc = 0;
+  if (!random_non_ref_loc(r, t, max_ir_loc, &loc)) {
+    s.constant = true;
+    s.loc = rng_u16(r, max_const_loc);
+    return s;
+  }
+  s.constant = false;
+  s.loc = loc;
   return s;
 }
 
 static ir_ins_op random_op(fuzz_rng *r) {
-  static const ir_ins_op ops[] = {
-      IR_EQ,   IR_NE,    IR_LT,    IR_GTE,       IR_LTE,      IR_GT,
-      IR_NOP,  IR_ADD,   IR_SUB,   IR_MUL,       IR_MOD,      IR_GGET,
-      IR_GSET, IR_RET,   IR_SLOAD, IR_TYPECHECK, IR_GUARD_EQ, IR_REF,
-      IR_LOAD, IR_STORE, IR_ALLOC, IR_INEXACT,
-  };
-  return ops[rng_next(r) % ARRAY_LEN(ops)];
+  ir_ins_op op;
+  do {
+    op = (ir_ins_op)(rng_next(r) % IR_INS_MAX);
+  } while (op == IR_PMOV || op == IR_ARG || op == IR_REF);
+  return op;
 }
 
 static uint8_t random_alloc_reg(fuzz_rng *r, bool is_float,
@@ -197,8 +224,9 @@ static void fill_leading_pmov_instruction(fuzz_rng *r, trace *t,
   arrput(t->ins, ins);
 }
 
-static void fill_instruction(fuzz_rng *r, trace *t, uint16_t i,
-                             uint16_t max_const_loc) {
+static uint16_t fill_instruction(fuzz_rng *r, trace *t, uint16_t max_const_loc,
+                                 uint16_t slots_left) {
+  uint16_t i = (uint16_t)arrlen(t->ins);
   ir_ins ins = {0};
   ins.op = random_op(r);
   ins.type = random_type_tag(r);
@@ -207,11 +235,47 @@ static void fill_instruction(fuzz_rng *r, trace *t, uint16_t i,
   ins.spill = SPILL_NONE;
 
   uint16_t max_loc = i == 0 ? 0 : (uint16_t)(i - 1);
+
+  // Match recorder behavior: IR_STORE consumes an IR_REF in op1.
+  if (ins.op == IR_STORE) {
+    if (i == 0 || slots_left < 2) {
+      ins.op = IR_NOP;
+    } else {
+      ir_ins ref = {0};
+      ref.op = IR_REF;
+      ref.type = random_type_tag(r);
+      ref.guard = rng_bool(r);
+      ref.reg = REG_NONE;
+      ref.spill = SPILL_NONE;
+      ref.op1 = random_slot_no_ref(r, t, max_loc, max_const_loc);
+      ref.op2 = random_slot_no_ref(r, t, max_loc, max_const_loc);
+      if (i == 0) {
+        ref.op1.constant = true;
+        ref.op1.loc = rng_u16(r, max_const_loc);
+        ref.op2.constant = true;
+        ref.op2.loc = rng_u16(r, max_const_loc);
+      }
+      arrput(t->ins, ref);
+
+      ir_ins store = {0};
+      store.op = IR_STORE;
+      store.type = ins.type;
+      store.guard = ins.guard;
+      store.reg = REG_NONE;
+      store.spill = SPILL_NONE;
+      store.op1 = (slot){.constant = false, .loc = i};
+      store.op2 = random_slot_no_ref(r, t, (uint16_t)(arrlen(t->ins) - 1),
+                                     max_const_loc);
+      arrput(t->ins, store);
+      return 2;
+    }
+  }
+
   ir_arg_type kind = ir_ins_types[ins.op];
   switch (kind) {
   case IR_ARG_IR_IR:
-    ins.op1 = random_slot(r, max_loc, max_const_loc);
-    ins.op2 = random_slot(r, max_loc, max_const_loc);
+    ins.op1 = random_slot_no_ref(r, t, max_loc, max_const_loc);
+    ins.op2 = random_slot_no_ref(r, t, max_loc, max_const_loc);
     if (i == 0) {
       ins.op1.constant = true;
       ins.op1.loc = rng_u16(r, max_const_loc);
@@ -220,7 +284,7 @@ static void fill_instruction(fuzz_rng *r, trace *t, uint16_t i,
     }
     break;
   case IR_ARG_IR_NONE:
-    ins.op1 = random_slot(r, max_loc, max_const_loc);
+    ins.op1 = random_slot_no_ref(r, t, max_loc, max_const_loc);
     if (i == 0) {
       ins.op1.constant = true;
       ins.op1.loc = rng_u16(r, max_const_loc);
@@ -228,7 +292,7 @@ static void fill_instruction(fuzz_rng *r, trace *t, uint16_t i,
     ins.op2 = (slot){.constant = true, .loc = 0};
     break;
   case IR_ARG_IR_ADDR:
-    ins.op1 = random_slot(r, max_loc, max_const_loc);
+    ins.op1 = random_slot_no_ref(r, t, max_loc, max_const_loc);
     if (ins.op == IR_RET || i == 0) {
       ins.op1.constant = true;
       ins.op1.loc = rng_u16(r, max_const_loc);
@@ -245,6 +309,7 @@ static void fill_instruction(fuzz_rng *r, trace *t, uint16_t i,
   }
 
   arrput(t->ins, ins);
+  return 1;
 }
 
 static void fill_snapshots(fuzz_rng *r, trace *t) {
@@ -264,7 +329,13 @@ static void fill_snapshots(fuzz_rng *r, trace *t) {
       if (e.val.constant) {
         e.val.loc = rng_u16(r, FUZZ_CONST_COUNT - 1);
       } else {
-        e.val.loc = rng_u16(r, (uint16_t)(ir - 1));
+        uint16_t loc = 0;
+        if (!random_non_ref_loc(r, t, (uint16_t)(ir - 1), &loc)) {
+          e.val.constant = true;
+          e.val.loc = rng_u16(r, FUZZ_CONST_COUNT - 1);
+        } else {
+          e.val.loc = loc;
+        }
       }
       arrput(sn.slots, e);
     }
@@ -312,6 +383,28 @@ static void check_loc_holds(uint16_t const regs[MAX_REG],
   }
 }
 
+static void verify_dense_arg(trace const *t, regalloc2_result const *r,
+                             uint16_t const regs[MAX_REG],
+                             uint16_t const spills[MAX_SPILL], size_t *cur,
+                             uint16_t ir, slot arg, char const *where) {
+  if (arg.constant) {
+    return;
+  }
+  if (r->dense_locs[*cur].value_id != arg.loc) {
+    fprintf(stderr,
+            "regalloc2 verifier: %s value mismatch @ir=%u expect=%u got=%u\n",
+            where, ir, arg.loc, r->dense_locs[*cur].value_id);
+    abort();
+  }
+  if (r->dense_locs[*cur].kind != LOC_REG) {
+    fprintf(stderr, "regalloc2 verifier: %s not in register @ir=%u\n", where,
+            ir);
+    abort();
+  }
+  check_loc_holds(regs, spills, r->dense_locs[*cur], where, ir, arg.loc);
+  (*cur)++;
+}
+
 static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
   uint16_t regs[MAX_REG];
   uint16_t spills[MAX_SPILL];
@@ -346,49 +439,29 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
 
     auto ins = &t->ins[ir];
     size_t cur = r->ir_id_to_dense_map[ir];
+    if (ins->op == IR_STORE) {
+      if (ins->op1.constant || ins->op1.loc >= arrlen(t->ins)) {
+        abort();
+      }
+      auto ref = &t->ins[ins->op1.loc];
+      if (ref->op != IR_REF) {
+        abort();
+      }
+      verify_dense_arg(t, r, regs, spills, &cur, ir, ref->op1, "store-ref-op1");
+      verify_dense_arg(t, r, regs, spills, &cur, ir, ref->op2, "store-ref-op2");
+      verify_dense_arg(t, r, regs, spills, &cur, ir, ins->op2, "store-val");
+      goto verify_cursor_done;
+    }
+
     switch (ir_ins_types[ins->op]) {
     case IR_ARG_IR_IR:
-      if (!ins->op1.constant) {
-        if (r->dense_locs[cur].value_id != ins->op1.loc) {
-          abort();
-        }
-        if (r->dense_locs[cur].kind != LOC_REG) {
-          fprintf(stderr, "regalloc2 verifier: ir-op1 not in register @ir=%u\n",
-                  ir);
-          abort();
-        }
-        check_loc_holds(regs, spills, r->dense_locs[cur], "ir-op1", ir,
-                        ins->op1.loc);
-        cur++;
-      }
-      if (!ins->op2.constant) {
-        if (r->dense_locs[cur].value_id != ins->op2.loc) {
-          abort();
-        }
-        if (r->dense_locs[cur].kind != LOC_REG) {
-          fprintf(stderr, "regalloc2 verifier: ir-op2 not in register @ir=%u\n",
-                  ir);
-          abort();
-        }
-        check_loc_holds(regs, spills, r->dense_locs[cur], "ir-op2", ir,
-                        ins->op2.loc);
-        cur++;
-      }
+      verify_dense_arg(t, r, regs, spills, &cur, ir, ins->op1, "ir-op1");
+      verify_dense_arg(t, r, regs, spills, &cur, ir, ins->op2, "ir-op2");
       break;
     case IR_ARG_IR_NONE:
     case IR_ARG_IR_ADDR:
       if (!ins->op1.constant) {
-        if (r->dense_locs[cur].value_id != ins->op1.loc) {
-          abort();
-        }
-        if (r->dense_locs[cur].kind != LOC_REG) {
-          fprintf(stderr, "regalloc2 verifier: ir-op1 not in register @ir=%u\n",
-                  ir);
-          abort();
-        }
-        check_loc_holds(regs, spills, r->dense_locs[cur], "ir-op1", ir,
-                        ins->op1.loc);
-        cur++;
+        verify_dense_arg(t, r, regs, spills, &cur, ir, ins->op1, "ir-op1");
       } else if (ins->op == IR_RET) {
         if (r->dense_locs[cur].kind != LOC_REG) {
           abort();
@@ -399,6 +472,7 @@ static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
     default:
       break;
     }
+  verify_cursor_done:
     if (ir + 1 < arrlen(t->ins)) {
       if (cur != r->ir_id_to_dense_map[ir + 1]) {
         abort();
@@ -478,12 +552,14 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   }
   bool used_regs[MAX_REG] = {0};
   bool used_spills[10] = {0};
-  for (uint16_t i = 0; i < FUZZ_INS_COUNT; i++) {
+  for (uint16_t i = 0; i < FUZZ_INS_COUNT;) {
     if (i < leading_pmov_count) {
       fill_leading_pmov_instruction(&rng, &t, used_regs, used_spills);
+      i++;
       continue;
     }
-    fill_instruction(&rng, &t, i, max_const_loc);
+    uint16_t slots_left = (uint16_t)(FUZZ_INS_COUNT - i);
+    i += fill_instruction(&rng, &t, max_const_loc, slots_left);
   }
   fill_snapshots(&rng, &t);
   /* print_ir(&t, nullptr); */
