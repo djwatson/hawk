@@ -7,7 +7,6 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/mman.h>
 
 #include "array.h"
@@ -96,6 +95,9 @@ static inline bool ins_uses_freg(ir_ins const *ins) {
 }
 
 static inline bool is_fpr_reg(uint8_t reg) { return reg >= FPR_REG_START; }
+static dense_loc_entry snap_entry_loc(trace const *t, uint16_t snap_idx,
+                                      size_t entry_idx);
+static const uint8_t PAR_MOVE_MARKER = UINT8_MAX;
 
 static inline ir_ins *slot_ins(trace *t, slot v) {
   assert(!v.constant);
@@ -227,8 +229,8 @@ static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
        ((ins_var) =                                                            \
             next_leading_op((trace_ptr), (opcode), &_##ins_var##_idx));)
 
-static __attribute__((preserve_all)) gc_obj *
-jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
+static __attribute__((preserve_all))
+gc_obj *jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
   expand_stack(state, &stack);
   return stack;
 }
@@ -248,13 +250,15 @@ typedef struct {
 static inline void add_entry_mapping(trace *entry_trace, snap_entry *entry,
                                      uint16_t slot, dense_loc_entry entry_loc,
                                      load_entry **loads, const_entry **consts) {
-  (void)entry_trace;
+  (void)entry_loc;
   (void)consts;
   if (entry->val.constant) {
     return;
   }
-  if (entry_loc.kind == LOC_REG) {
-    arrput(*loads, ((load_entry){.slot = slot, .target_reg = entry_loc.reg}));
+  auto ins = &entry_trace->ins[entry->val.loc];
+  uint8_t target_reg = ins->reg;
+  if (target_reg != REG_NONE) {
+    arrput(*loads, ((load_entry){.slot = slot, .target_reg = target_reg}));
   }
 }
 
@@ -429,8 +433,6 @@ static void emit_loopback_constants(emit_state *s, const_entry *consts) {
   }
 }
 
-static const uint8_t PAR_MOVE_MARKER = UINT8_MAX;
-
 static uint8_t resolve_tmp_reg(uint8_t peer) {
   if (peer != PAR_MOVE_MARKER && is_fpr_reg(peer)) {
     return FRTMP;
@@ -489,6 +491,32 @@ static void emit_loopback_stack_loads(emit_state *s, load_entry *loads) {
     }
   }
 }
+
+static void emit_loopback_entry_spills(emit_state *s, trace *entry_trace,
+                                       uint16_t entry_snap_idx) {
+  auto entry_snap = &entry_trace->snaps[entry_snap_idx];
+  arr_for_each_idx(entry_snap->slots, i) {
+    auto entry = &entry_snap->slots[i];
+    if (entry->val.constant) {
+      continue;
+    }
+    auto ins = &entry_trace->ins[entry->val.loc];
+    if (ins->spill == SPILL_NONE) {
+      continue;
+    }
+    if (ins->reg == REG_NONE) {
+      continue;
+    }
+
+    emit_mov64(s, RTMP, (intptr_t)spills);
+    if (ins->type == FLONUM_TAG) {
+      emit_fstore(s, spill_offset(ins->spill), RTMP, ins->reg);
+    } else {
+      emit_store(s, spill_offset(ins->spill), RTMP, ins->reg);
+    }
+  }
+}
+
 static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
                            int32_t cur_snap, uint8_t reg) {
   if (!op->guard) {
@@ -529,10 +557,12 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
   }
 }
 
-static void collect_loopback_moves(
-    trace *exit_trace, uint16_t exit_snap_idx, trace *entry_trace,
-    uint16_t entry_snap_idx, par_copy **cpy_out, const_entry **consts_out,
-    load_entry **loads_out, uint16_t **ignore_slots_out, uint8_t **regs_out) {
+static void collect_loopback_moves(trace *exit_trace, uint16_t exit_snap_idx,
+                                   trace *entry_trace, uint16_t entry_snap_idx,
+                                   par_copy **cpy_out, const_entry **consts_out,
+                                   load_entry **loads_out,
+                                   uint16_t **ignore_slots_out,
+                                   uint8_t **regs_out) {
   const_entry *consts = nullptr;
   load_entry *loads = nullptr;
   par_copy *cpy = nullptr;
@@ -556,11 +586,16 @@ static void collect_loopback_moves(
     if (exit_logical == (int32_t)entry_slot) {
       dense_loc_entry exit_loc = {0};
       dense_loc_entry entry_loc = {0};
+      uint8_t entry_reg = REG_NONE;
       if (!exit_entry->val.constant) {
         exit_loc = snap_entry_loc(exit_trace, exit_snap_idx, i);
       }
       if (!entry->val.constant) {
         entry_loc = snap_entry_loc(entry_trace, entry_snap_idx, j);
+        entry_reg = entry_trace->ins[entry->val.loc].reg;
+        if (entry_reg == REG_NONE && entry_loc.kind == LOC_REG) {
+          entry_reg = entry_loc.reg;
+        }
       }
 
       if (!exit_entry->val.constant && exit_loc.kind == LOC_REG) {
@@ -568,29 +603,21 @@ static void collect_loopback_moves(
         arrput(regs, exit_reg);
       }
 
-      bool handled = false;
       if (exit_entry->val.constant && !entry->val.constant &&
-          entry_loc.kind == LOC_REG) {
-        arrput(consts, ((const_entry){.target_reg = entry_loc.reg,
+          entry_reg != REG_NONE) {
+        arrput(consts, ((const_entry){.target_reg = entry_reg,
                                       .constant_value = slot_const(
                                           exit_trace, exit_entry->val)}));
-        handled = true;
       } else if (!exit_entry->val.constant && !entry->val.constant &&
-                 entry_loc.kind == LOC_REG) {
+                 entry_reg != REG_NONE) {
         if (exit_loc.kind == LOC_REG) {
-          if (exit_loc.reg != entry_loc.reg) {
-            arrput(cpy,
-                   ((par_copy){.from = exit_loc.reg, .to = entry_loc.reg}));
+          if (exit_loc.reg != entry_reg) {
+            arrput(cpy, ((par_copy){.from = exit_loc.reg, .to = entry_reg}));
           }
-          handled = true;
         } else {
-          arrput(loads, ((load_entry){.slot = entry_slot,
-                                      .target_reg = entry_loc.reg}));
+          arrput(loads,
+                 ((load_entry){.slot = entry_slot, .target_reg = entry_reg}));
         }
-      }
-
-      if (handled) {
-        arrput(ignore_slots, exit_slot);
       }
 
       i++;
@@ -637,6 +664,7 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
                                   regalloc2_result const *regmap,
                                   uint16_t snap_idx, size_t entry_idx,
                                   snap_entry const *entry) {
+  (void)regmap;
   auto stack_offset = (int32_t)entry->slot * 8;
   if (entry->val.constant) {
     emit_store_constant(s, stack_offset, RSTACK, slot_const(t, entry->val));
@@ -751,6 +779,7 @@ static void link_to_next_trace(emit_state *s, trace *t,
   emit_serialized_moves(s, cpy);
   emit_loopback_stack_loads(s, loads);
   emit_loopback_constants(s, consts);
+  emit_loopback_entry_spills(s, linked_trace, entry_snap_idx);
   arrfree(ignore_slots);
   arrfree(regs_to_preserve);
   arrfree(loads);
