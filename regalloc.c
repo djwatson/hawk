@@ -367,8 +367,7 @@ regalloc2_result regalloc2(trace *t) {
 
     // Custom IR_PMOV handling
     if (ins->op == IR_PMOV) {
-      if (ins->prev_reg != REG_NONE) {
-        ins->reg = ins->prev_reg;
+      if (ins->reg != REG_NONE) {
         s.regs[ins->prev_reg] = i;
       }
       continue;
@@ -376,7 +375,7 @@ regalloc2_result regalloc2(trace *t) {
     if (ins->op == IR_REF) {
       continue;
     }
-    if (s.uses[i]) {
+    if (s.uses[i] && ins->op != IR_PMOV) {
       auto res = find_free_reg(&s, ins->type == FLONUM_TAG, ins);
       ins->reg = res;
       s.regs[res] = i;

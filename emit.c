@@ -746,8 +746,10 @@ static void link_to_next_trace(emit_state *s, trace *t,
   collect_loopback_moves(t, cur_snap, linked_trace, entry_snap_idx, &cpy,
                          &consts, &loads, &ignore_slots, &regs_to_preserve);
   emit_snap(s, t, regmap, cur_snap, false, ignore_slots, regs_to_preserve);
-  emit_loopback_stack_loads(s, loads);
+  // Execute reg->reg reconciliation before stack loads so load targets do not
+  // clobber move sources from the exit state.
   emit_serialized_moves(s, cpy);
+  emit_loopback_stack_loads(s, loads);
   emit_loopback_constants(s, consts);
   arrfree(ignore_slots);
   arrfree(regs_to_preserve);
@@ -1122,7 +1124,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       // exit(-1);
     }
     }
-    if (op->spill != SPILL_NONE) {
+    if (op->spill != SPILL_NONE && (op->op != IR_PMOV || op->reg != REG_NONE)) {
       assert(out_reg != REG_NONE);
       COMMENT("SPILL op %u to S%u", op_cnt_idx, op->spill);
       emit_mov64(s, RTMP, (intptr_t)spills);
