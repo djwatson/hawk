@@ -1,9 +1,9 @@
 # Currently working on:
 
+* cleanup loopback shit
 * FIGURE OUT WHY derive uprec abort doesn't work in deriv, only in random_schedule mode, not stat mode.
   * uprec/downrec REALLY need to go MORE than one up/down, so that we
     force them to not accidentally happen in non-rec situations.
-
 
 * figure out why deriv is slow
   * downrec abort not working (start of trace is failing?)
@@ -12,12 +12,10 @@
   * deriv.scm needs better closure conversion.
   * need to remove push/pop of GC regs.
 
-* unclear if ensure_args_match_trace is working as intended, could be cleaned up
-  * forward (GUARD) to IR_TYPECHECK, then more consistent and smaller matching.
-  * basically we're conflating 'do we need to emit a typecheck'? and 'does thing NEED to be typechecked already when we are here?'.
+* cleanupensure_args_match_trace.  poly traces could emit 'arg' instead, and then ensure_args_match_trace doesn't need to know ANYTHING about '
+pmov'
 
 * downrec traces don't ensure_args_match and link without boxing/typecheck
-
 
 * fft and nbody probably require a handful of more flonum routines
 
@@ -97,19 +95,8 @@ X fold
 * loop? never really found useful, because reg-args covers most cases.
 X dce - implicit.  Only useful with LOOP
 
-
 # passes
-X fix-letrec! - just check no letrec.
-* assignment-convert! - just check no asssigned.
-X recover-let
 * loops
-X name-lambdas
-X closure convert simple! -   just check no free.
-X output to BC.
-
-X simple integerations for bytecode ops
-
-## later:
 * lift complex / bignums?
 * count uses 
 * advanced closure conversion (with subpasses)
