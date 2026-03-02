@@ -6,6 +6,7 @@ project(newhawk C)
 
 option(USE_RANDOM_SCHEDULE "Enable random schedule debugging" OFF)
 option(ENABLE_COVERAGE "Enable LLVM source-based coverage instrumentation" OFF)
+option(ENABLE_REGALLOC2_FUZZ "Build regalloc2 libFuzzer target when supported" ON)
 
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -13,6 +14,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 include(CTest)
 
 include(CheckIncludeFile)
+include(CheckCSourceCompiles)
 check_include_file("elf.h" HAVE_ELF_H)
 
 #add_compile_options(-fsanitize=address)
@@ -25,24 +27,31 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
   set(ASM_SOURCE asm_aarch64.c)
 endif()
 
-if(CMAKE_C_COMPILER_ID MATCHES "Clang")
-  add_executable(
-    regalloc2_fuzz
-    fuzz/regalloc2_fuzz.c
-    regalloc.c
-    ir.c
-    util/array.c
-  )
-  target_compile_options(regalloc2_fuzz PRIVATE -fsanitize=fuzzer,address)
-  target_link_options(regalloc2_fuzz PRIVATE -fsanitize=fuzzer,address)
-  target_include_directories(
-    regalloc2_fuzz PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/util
-    ${CMAKE_CURRENT_BINARY_DIR}
-  )
-else()
-  message(FATAL_ERROR "regalloc2_fuzz requires Clang/libFuzzer")
+if(ENABLE_REGALLOC2_FUZZ AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+  set(_saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
+  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -fsanitize=fuzzer,address")
+  check_c_source_compiles("int main(void) { return 0; }" HAVE_LIBFUZZER_RUNTIME)
+  set(CMAKE_REQUIRED_FLAGS "${_saved_required_flags}")
+
+  if(HAVE_LIBFUZZER_RUNTIME)
+    add_executable(
+      regalloc2_fuzz
+      fuzz/regalloc2_fuzz.c
+      regalloc.c
+      ir.c
+      util/array.c
+    )
+    target_compile_options(regalloc2_fuzz PRIVATE -fsanitize=fuzzer,address)
+    target_link_options(regalloc2_fuzz PRIVATE -fsanitize=fuzzer,address)
+    target_include_directories(
+      regalloc2_fuzz PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}
+      ${CMAKE_CURRENT_SOURCE_DIR}/util
+      ${CMAKE_CURRENT_BINARY_DIR}
+    )
+  else()
+    message(STATUS "Skipping regalloc2_fuzz: libFuzzer runtime not available")
+  endif()
 endif()
 
 set(
