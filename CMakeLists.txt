@@ -322,7 +322,7 @@ if(BUILD_TESTING)
     COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/diviter.scm.bc
   )
   set_tests_properties(
-    hawk_diviter PROPERTIES PASS_REGULAR_EXPRESSION "5000000"
+    hawk_diviter PROPERTIES PASS_REGULAR_EXPRESSION "500"
   )
 
   add_test(
@@ -330,7 +330,7 @@ if(BUILD_TESTING)
     COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/divrec.scm.bc
   )
   set_tests_properties(
-    hawk_divrec PROPERTIES PASS_REGULAR_EXPRESSION "5000000"
+    hawk_divrec PROPERTIES PASS_REGULAR_EXPRESSION "500"
   )
 
   add_test(

@@ -18,9 +18,9 @@
 (define (iterative-div2 l)
   (do ((l l (cddr l)) (a '() (cons (car l) a))) ((null? l) a)))
 
-(define (run x out)
-  (if (= x 0) out (run (- x 1) (iterative-div2 (create-n 1000)))))
+(define (run x ll out)
+  (if (= x 0) out (run (- x 1) ll (iterative-div2 ll))))
 
-(display (length (run 1000000 0)))
-
+(let ((ll (create-n 1000)))
+  (display (length (run 1000000 ll 0))))
 

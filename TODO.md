@@ -1,18 +1,16 @@
 # Currently working on:
 
 * cleanup loopback shit
-* FIGURE OUT WHY derive uprec abort doesn't work in deriv, only in random_schedule mode, not stat mode.
-  * uprec/downrec REALLY need to go MORE than one up/down, so that we
-    force them to not accidentally happen in non-rec situations.
 
 * figure out why deriv is slow
+  * really need a tracing nursury
   * downrec abort not working (start of trace is failing?)
   * GC start_ptr cache is essential (for cons cells).  Maybe need a small copying nursury
   * GC next_collect is 10x too big.
   * deriv.scm needs better closure conversion.
   * need to remove push/pop of GC regs.
 
-* cleanupensure_args_match_trace.  poly traces could emit 'arg' instead, and then ensure_args_match_trace doesn't need to know ANYTHING about '
+* cleanup ensure_args_match_trace.  poly traces could emit 'arg' instead, and then ensure_args_match_trace doesn't need to know ANYTHING about '
 pmov'
 
 * downrec traces don't ensure_args_match and link without boxing/typecheck
