@@ -335,6 +335,11 @@ static void emit_flonum_sub(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
     emit_fsub_constant(s, dst, lhs_reg, slot_flonum_constant(t, op->op2));
     return;
   }
+  if (op->op1.constant) {
+    emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op1));
+    emit_fsub(s, dst, FRTMP, rhs_reg);
+    return;
+  }
   emit_fsub(s, dst, lhs_reg, rhs_reg);
 }
 
@@ -342,6 +347,11 @@ static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins *op,
                             uint8_t lhs_reg, uint8_t rhs_reg) {
   if (op->op2.constant) {
     emit_fcmp_constant(s, lhs_reg, slot_flonum_constant(t, op->op2));
+    return;
+  }
+  if (op->op1.constant) {
+    emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op1));
+    emit_fcmp(s, FRTMP, rhs_reg);
     return;
   }
   emit_fcmp(s, lhs_reg, rhs_reg);
@@ -353,6 +363,11 @@ static void emit_flonum_add(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
     emit_fadd_constant(s, dst, lhs_reg, slot_flonum_constant(t, op->op2));
     return;
   }
+  if (op->op1.constant) {
+    emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op1));
+    emit_fadd(s, dst, FRTMP, rhs_reg);
+    return;
+  }
   emit_fadd(s, dst, lhs_reg, rhs_reg);
 }
 
@@ -362,6 +377,11 @@ static void emit_flonum_mul(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
   if (op->op2.constant) {
     emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op2));
     emit_fmul(s, dst, lhs_reg, FRTMP);
+    return;
+  }
+  if (op->op1.constant) {
+    emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op1));
+    emit_fmul(s, dst, FRTMP, rhs_reg);
     return;
   }
   emit_fmul(s, dst, lhs_reg, rhs_reg);
@@ -849,14 +869,28 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       assert(!op->op1.constant);
       int32_t typed_offset =
           (int32_t)((int64_t)sizeof(gc_header) - slot_ins(t, op->op1)->type);
-      if (op->op2.constant) {
-        int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
-        emit_mem_load(s, (int32_t)offset_bytes, arg0_reg, dst_reg);
+      if (op->type == FLONUM_TAG) {
+        // Slot contains a tagged flonum gc_obj; load object first, then payload.
+        uint8_t obj_reg = asm_rtmp2_reserved() ? RET_REG2 : RTMP2;
+        if (op->op2.constant) {
+          int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
+          emit_mem_load(s, (int32_t)offset_bytes, arg0_reg, obj_reg);
+        } else {
+          emit_add(s, obj_reg, arg1_reg, arg0_reg);
+          emit_mem_load(s, typed_offset, obj_reg, obj_reg);
+        }
+        emit_typecheck(s, t, op, cur_snap, obj_reg);
+        emit_fmem_load(s, 8 - FLONUM_TAG, obj_reg, dst_reg);
       } else {
-        emit_add(s, RTMP, arg1_reg, arg0_reg);
-        emit_mem_load(s, typed_offset, RTMP, dst_reg);
+        if (op->op2.constant) {
+          int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
+          emit_mem_load(s, (int32_t)offset_bytes, arg0_reg, dst_reg);
+        } else {
+          emit_add(s, RTMP, arg1_reg, arg0_reg);
+          emit_mem_load(s, typed_offset, RTMP, dst_reg);
+        }
+        emit_typecheck(s, t, op, cur_snap, dst_reg);
       }
-      emit_typecheck(s, t, op, cur_snap, dst_reg);
       break;
     }
     case IR_STORE: {
@@ -867,7 +901,24 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       if (op->op2.constant) {
         emit_mov64(s, val_reg, slot_const(t, op->op2));
       } else {
-        val_reg = arg1_reg;
+        // IR_STORE materializes inputs as [ref args..., value].
+        // So arg1_reg is not the value reg when REF has two args.
+        size_t in_idx = regmap->ir_id_to_dense_map[op_cnt_idx];
+        size_t ref_arg_cnt = 0;
+        if (!ref->op1.constant) {
+          ref_arg_cnt++;
+        }
+        if (!ref->op2.constant) {
+          ref_arg_cnt++;
+        }
+        auto val_loc = regmap->dense_locs[in_idx + ref_arg_cnt];
+        assert(val_loc.kind == LOC_REG);
+        val_reg = val_loc.reg;
+        if (is_fpr_reg(val_reg)) {
+          // Object stores are tagged gc_obj slots; box flonum payload first.
+          emit_box_flonum(s, 0, val_reg, false);
+          val_reg = RTMP;
+        }
       }
 
       auto base_reg = ir_input_reg(t, regmap, ref_idx, 0);
