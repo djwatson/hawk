@@ -78,6 +78,20 @@ IRFOLDF(fold_add_const_const) {
   return fold_const(tag_fixnum(diff));
 }
 
+IRFOLD(MUL CONST CONST)
+IRFOLDF(fold_mul_const_const) {
+  auto lhs = t->consts[in->op1.loc];
+  auto rhs = t->consts[in->op2.loc];
+  if (in->type == FLONUM_TAG) {
+    auto res = (flonum_s *)gc_alloc(sizeof(flonum_s));
+    res->header.type = FLONUM_TAG;
+    res->x = to_flonum(lhs)->x * to_flonum(rhs)->x;
+    return fold_const(tag_flonum(res));
+  }
+  auto prod = to_fixnum(lhs) * to_fixnum(rhs);
+  return fold_const(tag_fixnum(prod));
+}
+
 IRFOLD(ADD CONST _)
 IRFOLDF(fold_add_const_any) {
   slot tmp = in->op1;
