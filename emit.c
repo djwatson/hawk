@@ -966,11 +966,13 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     }
     case IR_LT: {
       if (op->type == FLONUM_TAG) {
-        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
+        // For floating-point, side-exit on !(lhs < rhs), including unordered.
+        // Compare rhs vs lhs so a single JBE catches >= and NaN.
+        emit_flonum_cmp(s, t, op, arg1_reg, arg0_reg);
       } else {
         emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
       }
-      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JAE : JGE;
+      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JBE : JGE;
       emit_jcc32(s, guard, &t->snaps[cur_snap].patch_point);
       break;
     }
@@ -987,20 +989,24 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     case IR_GTE: {
       if (op->type == FLONUM_TAG) {
         emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
+        // Side-exit on !(lhs >= rhs): lhs < rhs OR unordered.
+        emit_jcc32(s, JP, &t->snaps[cur_snap].patch_point);
+        emit_jcc32(s, JB, &t->snaps[cur_snap].patch_point);
       } else {
         emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
+        emit_jcc32(s, JL, &t->snaps[cur_snap].patch_point);
       }
-      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JB : JL;
-      emit_jcc32(s, guard, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_LTE: {
       if (op->type == FLONUM_TAG) {
-        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
+        // For floating-point, side-exit on !(lhs <= rhs), including unordered.
+        // Compare rhs vs lhs so JB catches > and NaN.
+        emit_flonum_cmp(s, t, op, arg1_reg, arg0_reg);
       } else {
         emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
       }
-      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JA : JG;
+      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JB : JG;
       emit_jcc32(s, guard, &t->snaps[cur_snap].patch_point);
       break;
     }
@@ -1181,7 +1187,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
         assert(arg0_reg != REG_NONE);
 
         COMMENT("  Alloc with dynamic size");
-        emit_sar_constant(s, RET_REG2, arg0_reg, FIXNUM_SHIFT + 3);
+        // Preserve original tagged size across fastpath probing; RET_REG is reused.
+        emit_mov(s, RTMP2, arg0_reg);
+        emit_sar_constant(s, RET_REG2, RTMP2, FIXNUM_SHIFT + 3);
         emit_cmp_constant(s, RET_REG2, (int64_t)size_classes);
         emit_jcc32(s, JGE, &dyn_slowpath);
 
@@ -1189,26 +1197,32 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
         emit_label(s, &dyn_fastpath);
         emit_mul_constant(s, RET_REG2, RET_REG2, (int64_t)sizeof(freelist_s));
         emit_add_constant(s, RET_REG2, RET_REG2, (int64_t)(intptr_t)freelist);
-        emit_mov(s, RTMP2, RET_REG2);
-        emit_mem_load(s, freelist_start_offset, RTMP2, RET_REG);
-        emit_mem_load(s, freelist_end_offset, RTMP2, RET_REG2);
+        emit_mem_load(s, freelist_start_offset, RET_REG2, RET_REG);
+        emit_mem_load(s, freelist_end_offset, RET_REG2, RET_REG2);
 
         // new_head = start_ptr + size_bytes, where size_bytes = tagged >> 3.
-        emit_sar_constant(s, RTMP, arg0_reg, FIXNUM_SHIFT);
+        emit_sar_constant(s, RTMP, RTMP2, FIXNUM_SHIFT);
         emit_add(s, RTMP, RET_REG, RTMP);
         emit_cmp(s, RTMP, RET_REG2);
         emit_jcc32(s, JLE, &dyn_fast_commit);
 
         COMMENT("  Slowpath (size too big or freelist empty)");
         emit_label(s, &dyn_slowpath);
-        emit_mov(s, RET_REG, arg0_reg);
+        emit_mov(s, RET_REG, RTMP2);
         emit_call32(s, (int64_t)s->alloc_slowpath);
         emit_jmp32(s, &dyn_cont);
 
         // Fastpath success: store updated start_ptr.
         COMMENT("  Fastpath commit");
         emit_label(s, &dyn_fast_commit);
-        emit_store(s, freelist_start_offset, RTMP2, RTMP);
+        // Recompute freelist base from preserved tagged size.
+        emit_sar_constant(s, RET_REG2, RTMP2, FIXNUM_SHIFT + 3);
+        emit_mul_constant(s, RET_REG2, RET_REG2, (int64_t)sizeof(freelist_s));
+        // Avoid emit_add_constant here: large immediates use RTMP on x64, which
+        // holds new_head for this fast-commit path.
+        emit_mov64(s, RTMP2, (int64_t)(intptr_t)freelist);
+        emit_add(s, RET_REG2, RET_REG2, RTMP2);
+        emit_store(s, freelist_start_offset, RET_REG2, RTMP);
         emit_label(s, &dyn_cont);
       }
 

@@ -34,6 +34,7 @@ const char *const reg_names[X64_MAX_REG] = {
 void asm_mark_unallocatable(bool used[MAX_REG]) {
   used[RSP] = true;
   used[RTMP] = true;
+  used[RTMP2] = true;
   used[RSTACK] = true;
   used[RSTATE] = true;
   used[FRTMP] = true;
@@ -53,7 +54,7 @@ bool asm_is_callee_saved(uint8_t reg) {
   }
 }
 
-bool asm_rtmp2_reserved(void) { return false; }
+bool asm_rtmp2_reserved(void) { return true; }
 
 static uint8_t low3bits(uint8_t r) { return 0x7 & r; }
 

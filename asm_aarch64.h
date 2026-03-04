@@ -136,7 +136,7 @@ enum jcc_cond {
   JGE = 0xa, // GE
   JLE = 0xd, // LE
   JG = 0xc,  // GT
-  JP = 0xff, // Not supported on AArch64; keep sentinel for abort.
+  JP = 0x6,  // VS (used for floating-point unordered).
 };
 
 extern const char *const reg_names[AARCH64_MAX_REG];

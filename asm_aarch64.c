@@ -292,9 +292,6 @@ void emit_jmp32(emit_state *s, label *target) {
 }
 
 void emit_jcc32(emit_state *s, enum jcc_cond cond, label *target) {
-  if (cond == JP) {
-    abort();
-  }
   assert(target);
   uint8_t arm_cond = (uint8_t)cond;
   assert(arm_cond <= 0xf);

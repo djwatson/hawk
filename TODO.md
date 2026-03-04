@@ -55,6 +55,7 @@ pmov'
 * update stack overflow, just allocate a new section.
 
 # cleanup
+* GUARD_EQ/NEQ should just be GUARD_TRUE/FALSE
 * remove frame_state, just modify **pc and **stack
 * remove 'parent', use parent snap instead.
 * we could improve emit_snap_store_flonum to use fewer registers / optimistic check for free
