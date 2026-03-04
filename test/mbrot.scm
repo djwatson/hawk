@@ -41,7 +41,10 @@
     (mbrot matrix -1.0 -0.5 0.005 n)
     (vector-ref (vector-ref matrix 0) 0)))
 
-(display (test 75))
+(define (run n out)
+  (if (= n 0) out
+      (run (- n 1) (test 75))))
+(display (run 1000 0))
 
 ;5
 
