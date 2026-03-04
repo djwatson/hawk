@@ -57,6 +57,14 @@ END OP_BEGIN(MOD) {
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
+END OP_BEGIN(INEXACT) {
+  auto v1 = stack_load(state, stack, instr.data, true);
+  auto res = scm_inexact(state, v1);
+  set_stack_top(state, instr.reg + 1);
+  stack_save(state, stack, instr.reg, res);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
 END OP_BEGIN(CONST) {
   auto c = const_load(state, pc, instr.data);
   stack_save(state, stack, instr.reg, c);

@@ -501,6 +501,13 @@ void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
       0x1E604000U | ((uint32_t)hw_fpr(src) << 5) | (uint32_t)hw_fpr(dst);
   emit_op(s, opcode);
 }
+void emit_int64_to_double(emit_state *s, uint8_t dst, uint8_t src) {
+  assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
+  assert(src < FPR_REG_START);
+  uint32_t opcode =
+      0x9E620000U | ((uint32_t)src << 5) | (uint32_t)hw_fpr(dst);
+  emit_op(s, opcode);
+}
 
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   assert(reg < FPR_REG_START);

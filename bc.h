@@ -43,6 +43,7 @@
   X(SUB, ABC)                                                                  \
   X(MUL, ABC)                                                                  \
   X(MOD, ABC)                                                                  \
+  X(INEXACT, AD)                                                               \
   X(KSHORT, AD)                                                                \
   X(CONST, AD)                                                                 \
   X(MOV, AD)                                                                   \

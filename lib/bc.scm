@@ -61,6 +61,7 @@
     (- . SUB)
     (* . MUL)
     (modulo . MOD)
+    (exact->inexact . INEXACT)
     (< . LT)
     (> . GT)
     (eq? . EQ)
@@ -685,4 +686,3 @@
 ;; closure convert - just ensure no free.
 ;; DONE inline simple prims.
 ;; output BC.
-

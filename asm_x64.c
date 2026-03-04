@@ -457,6 +457,15 @@ void emit_fmov_constant(emit_state *s, uint8_t dst, double imm) {
 void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
   emit_sse_reg_reg(s, 0xF2, 0x10, hw_fpr(dst), hw_fpr(src));
 }
+void emit_int64_to_double(emit_state *s, uint8_t dst, uint8_t src) {
+  assert(dst >= FPR_REG_START && dst < X64_MAX_REG);
+  assert(src < FPR_REG_START);
+  emit_byte(s, 0xF2);
+  emit_rex(s, 1, hw_fpr(dst) >> 3, 0, src >> 3);
+  emit_byte(s, 0x0F);
+  emit_byte(s, 0x2A);
+  emit_modrm(s, 0x3, low3bits(hw_fpr(dst)), low3bits(src));
+}
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   assert(reg < FPR_REG_START);
   if (fits_in_32(imm)) {

@@ -1,5 +1,12 @@
 # Currently working on:
 
+* mbrot
+* pnpoly
+* triangl
+* fft.scm
+* BST.scm
+* nbody.scm
+
 * cleanup loopback shit
 
 * figure out why deriv is slow
@@ -18,9 +25,6 @@ pmov'
 * fft and nbody probably require a handful of more flonum routines
 
 ## tests:
-* fft.scm
-* BST.scm
-* nbody.scm
 
 * probably need to fix closure conversion at some point
 * need to get a real runtime/bootstrap file

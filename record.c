@@ -334,6 +334,9 @@ static slot convert_to_flonum(vm_state *state, slot v1) {
   }
   abort();
 }
+static slot scm_inexact(vm_state *state, slot v1) {
+  return convert_to_flonum(state, v1);
+}
 static slot emit_ov_math_sub(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
   auto t = record_current_trace(state);

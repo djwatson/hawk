@@ -983,6 +983,14 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       }
       break;
     }
+    case IR_INEXACT: {
+      assert(op->type == FLONUM_TAG);
+      assert(!op->op1.constant);
+      assert(is_fpr_reg(dst_reg));
+      emit_sar_constant(s, RTMP, arg0_reg, FIXNUM_SHIFT);
+      emit_int64_to_double(s, dst_reg, RTMP);
+      break;
+    }
     case IR_SLOAD: {
       if (op->type == FLONUM_TAG) {
         // We need to typecheck to verify it is a flonum.
@@ -1168,7 +1176,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
         !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
           op->op == IR_LOAD || op->op == IR_ALLOC || op->op == IR_TYPECHECK ||
           op->op == IR_SUB || op->op == IR_ADD || op->op == IR_MUL ||
-          op->op == IR_MOD || op->op == IR_GGET)) {
+          op->op == IR_MOD || op->op == IR_GGET || op->op == IR_INEXACT)) {
       abort();
     }
   }
