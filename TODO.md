@@ -1,6 +1,7 @@
 # Currently working on:
 
-* mbrot
+* mbrot - broken regalloc in load/store
+
 * pnpoly
 * triangl
 * fft.scm

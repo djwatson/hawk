@@ -46,6 +46,7 @@ static gc_obj deserialize_const_closure(buffer_reader *reader,
 static gc_obj deserialize_cons(buffer_reader *reader, heap_state *heap);
 static gc_obj deserialize_string(buffer_reader *reader);
 static gc_obj deserialize_symbol(buffer_reader *reader, heap_state *heap);
+static gc_obj deserialize_vector(buffer_reader *reader, heap_state *heap);
 static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap);
 
 gc_obj heap_deserialize_from_file(char const *path) {
@@ -267,6 +268,9 @@ static gc_obj deserialize_constant(buffer_reader *reader, heap_state *heap) {
   if (tag == CONS_TAG) {
     return deserialize_cons(reader, heap);
   }
+  if (tag == VECTOR_TAG) {
+    return deserialize_vector(reader, heap);
+  }
   if (tag == FLONUM_TAG) {
     flonum_s *f = gc_alloc(sizeof(flonum_s));
     f->header.type = FLONUM_TAG;
@@ -354,6 +358,31 @@ static gc_obj deserialize_cons(buffer_reader *reader, heap_state *heap) {
   resolve_or_enqueue(heap, (size_t)car_id64, &pair->a);
   resolve_or_enqueue(heap, (size_t)cdr_id64, &pair->b);
   return tag_cons(pair);
+}
+
+static gc_obj deserialize_vector(buffer_reader *reader, heap_state *heap) {
+  uint64_t len_word = reader_pvarint(reader);
+  gc_obj len_obj = {.value = (int64_t)len_word};
+  int64_t len = to_fixnum(len_obj);
+  if (len < 0) {
+    fprintf(stderr, "Negative vector length\n");
+    exit(EXIT_FAILURE);
+  }
+  size_t elem_count = (size_t)len;
+  vector_s *vec =
+      gc_alloc(sizeof(vector_s) + (elem_count * sizeof(gc_obj)));
+  vec->header.type = VECTOR_TAG;
+  vec->len = tag_fixnum((int64_t)elem_count);
+  for (size_t i = 0; i < elem_count; i++) {
+    uint64_t id64 = reader_pvarint(reader);
+    if (id64 > SIZE_MAX) {
+      fprintf(stderr, "Vector references invalid constant id width\n");
+      exit(EXIT_FAILURE);
+    }
+    vec->v[i] = DEAD;
+    resolve_or_enqueue(heap, (size_t)id64, &vec->v[i]);
+  }
+  return tag_vector(vec);
 }
 
 static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
