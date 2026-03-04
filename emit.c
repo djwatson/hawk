@@ -387,6 +387,22 @@ static void emit_flonum_mul(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
   emit_fmul(s, dst, lhs_reg, rhs_reg);
 }
 
+static void emit_flonum_div(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
+                            uint8_t lhs_reg, uint8_t rhs_reg) {
+  assert(is_fpr_reg(dst));
+  if (op->op2.constant) {
+    emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op2));
+    emit_fdiv(s, dst, lhs_reg, FRTMP);
+    return;
+  }
+  if (op->op1.constant) {
+    emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op1));
+    emit_fdiv(s, dst, FRTMP, rhs_reg);
+    return;
+  }
+  emit_fdiv(s, dst, lhs_reg, rhs_reg);
+}
+
 static void emit_box_flonum(emit_state *s, int32_t stack_offset,
                             uint8_t fpr_reg, bool store_to_stack) {
   assert(s->alloc_slowpath);
@@ -860,6 +876,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
       break;
     }
+    case IR_GUARD_NEQ:
     case IR_NE: {
       emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
       emit_jcc32(s, JE, &t->snaps[cur_snap].patch_point);
@@ -1009,6 +1026,14 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
           emit_mul(s, dst_reg, arg0_reg, RTMP);
         }
         emit_typecheck(s, t, op, cur_snap, dst_reg);
+      }
+      break;
+    }
+    case IR_DIV: {
+      if (op->type == FLONUM_TAG) {
+        emit_flonum_div(s, t, dst_reg, op, arg0_reg, arg1_reg);
+      } else {
+        abort();
       }
       break;
     }
@@ -1229,6 +1254,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
         !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
           op->op == IR_LOAD || op->op == IR_ALLOC || op->op == IR_TYPECHECK ||
           op->op == IR_SUB || op->op == IR_ADD || op->op == IR_MUL ||
+          op->op == IR_DIV ||
           op->op == IR_MOD || op->op == IR_GGET || op->op == IR_INEXACT)) {
       abort();
     }

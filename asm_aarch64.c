@@ -709,6 +709,15 @@ void emit_fmul(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   emit_op(s, opcode);
 }
 
+void emit_fdiv(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
+  assert(lhs >= FPR_REG_START && lhs < AARCH64_MAX_REG);
+  assert(rhs >= FPR_REG_START && rhs < AARCH64_MAX_REG);
+  uint32_t opcode = 0x1E601800U | ((uint32_t)hw_fpr(rhs) << 16) |
+                    ((uint32_t)hw_fpr(lhs) << 5) | (uint32_t)hw_fpr(dst);
+  emit_op(s, opcode);
+}
+
 void emit_fadd_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
   load_constant(s, add_constant(s, imm), FRTMP);
   emit_fadd(s, dst, lhs, FRTMP);

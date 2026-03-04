@@ -49,6 +49,15 @@ END OP_BEGIN(MUL) {
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
+END OP_BEGIN(DIV) {
+  auto v1 = stack_load(state, stack, instr.v1, true);
+  auto v2 = stack_load(state, stack, instr.v2, true);
+  auto res = emit_ov_math_div(state, v1, v2);
+  set_stack_top(state, instr.reg + 1);
+  stack_save(state, stack, instr.reg, res);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
 END OP_BEGIN(MOD) {
   auto v1 = stack_load(state, stack, instr.v1, true);
   auto v2 = stack_load(state, stack, instr.v2, true);

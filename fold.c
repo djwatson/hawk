@@ -46,9 +46,26 @@ static uint32_t fold_key(trace *t, ir_ins *in) {
 
 // If the inputs are always const, no need to guard anything!
 IRFOLD(GUARD_EQ CONST CONST)
+IRFOLD(GUARD_NEQ CONST CONST)
 IRFOLD(NE CONST CONST)
 IRFOLD(EQ CONST CONST)
 IRFOLDF(fold_guard_const_const) { return fold_drop(); }
+
+IRFOLD(GUARD_NEQ _ CONST)
+IRFOLDF(fold_guard_neq_any_const) {
+  auto rhs = t->consts[in->op2.loc];
+  bool rhs_bool = get_type_tag(rhs) == BOOL_TAG;
+  bool lhs_flonum = false;
+  if (in->op1.constant) {
+    lhs_flonum = is_flonum(t->consts[in->op1.loc]);
+  } else {
+    lhs_flonum = t->ins[in->op1.loc].type == FLONUM_TAG;
+  }
+  if (rhs_bool && lhs_flonum) {
+    return fold_drop();
+  }
+  return fold_next();
+}
 
 IRFOLD(SUB CONST CONST)
 IRFOLDF(fold_sub_const_const) {

@@ -2,7 +2,7 @@
 
 * mbrot - broken regalloc in load/store
 
-* pnpoly
+* pnpoly - hmmm not quite working yet
 * triangl
 * fft.scm
 * BST.scm

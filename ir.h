@@ -54,6 +54,7 @@ typedef enum : uint8_t {
   X(ADD, ARG_IR_IR)                                                            \
   X(SUB, ARG_IR_IR)                                                            \
   X(MUL, ARG_IR_IR)                                                            \
+  X(DIV, ARG_IR_IR)                                                            \
   X(MOD, ARG_IR_IR)                                                            \
   X(GGET, ARG_IR_NONE)                                                         \
   X(GSET, ARG_IR_IR)                                                           \
@@ -63,6 +64,7 @@ typedef enum : uint8_t {
   X(PMOV, ARG_PMOV)                                                            \
   X(ARG, ARG_REG)                                                              \
   X(GUARD_EQ, ARG_IR_IR)                                                       \
+  X(GUARD_NEQ, ARG_IR_IR)                                                      \
   X(REF, ARG_IR_IR)                                                            \
   X(LOAD, ARG_IR_IR)                                                           \
   X(STORE, ARG_IR_IR)                                                          \

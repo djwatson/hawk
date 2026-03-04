@@ -677,6 +677,19 @@ void emit_fmul(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   }
 }
 
+void emit_fdiv(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  if (dst == lhs) {
+    emit_sse_reg_reg(s, 0xF2, 0x5E, hw_fpr(lhs), hw_fpr(rhs));
+  } else if (rhs == dst) {
+    emit_fmov(s, FRTMP, lhs);
+    emit_sse_reg_reg(s, 0xF2, 0x5E, hw_fpr(FRTMP), hw_fpr(rhs));
+    emit_fmov(s, dst, FRTMP);
+  } else {
+    emit_fmov(s, dst, lhs);
+    emit_sse_reg_reg(s, 0xF2, 0x5E, hw_fpr(dst), hw_fpr(rhs));
+  }
+}
+
 void emit_fadd_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
   int idx = add_constant(s, imm);
   if (dst != lhs) {

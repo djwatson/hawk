@@ -60,6 +60,7 @@
   '((+ . ADD)
     (- . SUB)
     (* . MUL)
+    (/ . DIV)
     (modulo . MOD)
     (exact->inexact . INEXACT)
     (< . LT)

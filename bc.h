@@ -42,6 +42,7 @@
   X(ADD, ABC)                                                                  \
   X(SUB, ABC)                                                                  \
   X(MUL, ABC)                                                                  \
+  X(DIV, ABC)                                                                  \
   X(MOD, ABC)                                                                  \
   X(INEXACT, AD)                                                               \
   X(KSHORT, AD)                                                                \

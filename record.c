@@ -371,6 +371,17 @@ static slot emit_ov_math_mul(vm_state *state, slot v1, slot v2) {
       IR(.op = IR_MUL, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
   return add_inst(state, ins);
 }
+static slot emit_ov_math_div(vm_state *state, slot v1, slot v2) {
+  auto t = record_current_trace(state);
+  auto t1 = get_slot_type(t, v1);
+  auto t2 = get_slot_type(t, v2);
+  if (t1 != FLONUM_TAG || t2 != FLONUM_TAG) {
+    abort();
+  }
+  ir_ins ins =
+      IR(.op = IR_DIV, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
+  return add_inst(state, ins);
+}
 static slot emit_ov_math_mod(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
   auto t = record_current_trace(state);
@@ -736,10 +747,12 @@ static branch_result emit_if_branch(vm_state *state, bc *pc, gc_obj *stack,
                                     slot cond) {
   auto val = stack[pc->data];
   bool taken = val.value != FALSE_REP.value;
-  slot must_be = add_const(state, taken ? TRUE_REP : FALSE_REP);
+  slot false_val = add_const(state, FALSE_REP);
   branch_result br = {
       .taken = taken,
-      .guard = IR(.op = IR_GUARD_EQ, .op1 = cond, .op2 = must_be),
+      .guard = IR(.op = taken ? IR_GUARD_NEQ : IR_GUARD_EQ,
+                  .op1 = cond,
+                  .op2 = false_val),
   };
   return br;
 }
