@@ -883,18 +883,24 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       break;
     }
     case IR_LOAD: {
-      assert(!op->op1.constant);
-      int32_t typed_offset =
-          (int32_t)((int64_t)sizeof(gc_header) - slot_ins(t, op->op1)->type);
+      uint8_t base_reg = arg0_reg;
+      if (op->op1.constant) {
+        // Materialize constant base object pointer for direct loads.
+        base_reg = RTMP;
+        emit_mov64(s, base_reg, slot_const(t, op->op1));
+      }
+      uint8_t base_type = op->op1.constant ? get_tag(t->consts[op->op1.loc])
+                                           : slot_ins(t, op->op1)->type;
+      int32_t typed_offset = (int32_t)((int64_t)sizeof(gc_header) - base_type);
       if (op->type == FLONUM_TAG) {
         // Slot contains a tagged flonum gc_obj; load object first, then payload.
         // Prefer the dedicated secondary scratch register when available.
         uint8_t obj_reg = asm_rtmp2_reserved() ? RTMP2 : RET_REG2;
         if (op->op2.constant) {
           int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
-          emit_mem_load(s, (int32_t)offset_bytes, arg0_reg, obj_reg);
+          emit_mem_load(s, (int32_t)offset_bytes, base_reg, obj_reg);
         } else {
-          emit_add(s, obj_reg, arg1_reg, arg0_reg);
+          emit_add(s, obj_reg, arg1_reg, base_reg);
           emit_mem_load(s, typed_offset, obj_reg, obj_reg);
         }
         emit_typecheck(s, t, op, cur_snap, obj_reg);
@@ -902,9 +908,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       } else {
         if (op->op2.constant) {
           int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
-          emit_mem_load(s, (int32_t)offset_bytes, arg0_reg, dst_reg);
+          emit_mem_load(s, (int32_t)offset_bytes, base_reg, dst_reg);
         } else {
-          emit_add(s, RTMP, arg1_reg, arg0_reg);
+          emit_add(s, RTMP, arg1_reg, base_reg);
           emit_mem_load(s, typed_offset, RTMP, dst_reg);
         }
         emit_typecheck(s, t, op, cur_snap, dst_reg);
@@ -939,7 +945,13 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
         }
       }
 
-      auto base_reg = ir_input_reg(t, regmap, ref_idx, 0);
+      uint8_t base_reg = ir_input_reg(t, regmap, ref_idx, 0);
+      if (ref->op1.constant) {
+        // REF base can be a constant object (e.g. global vector).
+        // Materialize it explicitly since constant args have no input reg.
+        base_reg = RTMP2;
+        emit_mov64(s, base_reg, slot_const(t, ref->op1));
+      }
       if (ref->op2.constant) {
         // Offset is a constant.
         auto offset = slot_const(t, ref->op2) + (int64_t)(8 - op->type);
@@ -952,10 +964,15 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
 
         // Offset is NOT a const, need additional offset + typed offset.
         auto offset_reg = ir_input_reg(t, regmap, ref_idx, 1);
-        // Prefer the dedicated secondary scratch register when available.
-        uint8_t addr_reg = asm_rtmp2_reserved() ? RTMP2 : RET_REG2;
-        emit_mov(s, addr_reg, offset_reg);
-        emit_add(s, addr_reg, addr_reg, base_reg);
+        uint8_t addr_reg = RTMP2;
+        if (ref->op1.constant) {
+          // base_reg is already RTMP2 here; build address directly from const base.
+          emit_mov64(s, addr_reg, slot_const(t, ref->op1));
+          emit_add(s, addr_reg, addr_reg, offset_reg);
+        } else {
+          emit_mov(s, addr_reg, offset_reg);
+          emit_add(s, addr_reg, addr_reg, base_reg);
+        }
         emit_store(s, 8 - op->type, addr_reg, val_reg);
       }
 

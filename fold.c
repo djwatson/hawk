@@ -51,6 +51,15 @@ IRFOLD(NE CONST CONST)
 IRFOLD(EQ CONST CONST)
 IRFOLDF(fold_guard_const_const) { return fold_drop(); }
 
+IRFOLD(NE CONST _)
+IRFOLD(EQ CONST _)
+IRFOLDF(fold_guard_eq_const_any) {
+  slot tmp = in->op1;
+  in->op1 = in->op2;
+  in->op2 = tmp;
+  return (fold_result){.action = FOLD_RETRY};
+}
+
 IRFOLD(GUARD_NEQ _ CONST)
 IRFOLDF(fold_guard_neq_any_const) {
   auto rhs = t->consts[in->op2.loc];
