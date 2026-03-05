@@ -55,6 +55,7 @@ typedef enum : uint8_t {
   X(SUB, ARG_IR_IR)                                                            \
   X(MUL, ARG_IR_IR)                                                            \
   X(DIV, ARG_IR_IR)                                                            \
+  X(QUOTIENT, ARG_IR_IR)                                                       \
   X(MOD, ARG_IR_IR)                                                            \
   X(GGET, ARG_IR_NONE)                                                         \
   X(GSET, ARG_IR_IR)                                                           \

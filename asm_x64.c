@@ -467,6 +467,15 @@ void emit_int64_to_double(emit_state *s, uint8_t dst, uint8_t src) {
   emit_byte(s, 0x2A);
   emit_modrm(s, 0x3, low3bits(hw_fpr(dst)), low3bits(src));
 }
+void emit_double_to_int64_trunc(emit_state *s, uint8_t dst, uint8_t src) {
+  assert(dst < FPR_REG_START);
+  assert(src >= FPR_REG_START && src < X64_MAX_REG);
+  emit_byte(s, 0xF2);
+  emit_rex(s, 1, dst >> 3, 0, hw_fpr(src) >> 3);
+  emit_byte(s, 0x0F);
+  emit_byte(s, 0x2C);
+  emit_modrm(s, 0x3, low3bits(dst), low3bits(hw_fpr(src)));
+}
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   assert(reg < FPR_REG_START);
   if (fits_in_32(imm)) {
@@ -635,6 +644,47 @@ void emit_mod(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   if (dst != RDX) {
     emit_mov(s, dst, RDX);
   }
+
+  if (save_rdx) {
+    emit_pop(s, RDX);
+  }
+  if (save_rax) {
+    emit_pop(s, RAX);
+  }
+}
+
+void emit_quotient(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  assert(dst < FPR_REG_START);
+  assert(lhs < FPR_REG_START);
+  assert(rhs < FPR_REG_START);
+
+  bool save_rax = dst != RAX;
+  bool save_rdx = dst != RDX;
+  if (save_rax) {
+    emit_push(s, RAX);
+  }
+  if (save_rdx) {
+    emit_push(s, RDX);
+  }
+
+  uint8_t divisor = rhs;
+  if (rhs == RAX || rhs == RDX) {
+    emit_mov(s, RTMP, rhs);
+    divisor = RTMP;
+  }
+
+  // Inputs are tagged fixnums. Untag both, divide, then retag the quotient.
+  emit_sar_constant(s, RAX, lhs, 3);
+  emit_sar_constant(s, divisor, divisor, 3);
+  emit_cqo(s);
+  emit_idiv_signed(s, divisor);
+
+  if (dst != RAX) {
+    emit_mov(s, dst, RAX);
+  }
+  emit_add(s, dst, dst, dst);
+  emit_add(s, dst, dst, dst);
+  emit_add(s, dst, dst, dst);
 
   if (save_rdx) {
     emit_pop(s, RDX);

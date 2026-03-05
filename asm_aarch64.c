@@ -505,6 +505,13 @@ void emit_int64_to_double(emit_state *s, uint8_t dst, uint8_t src) {
       0x9E620000U | ((uint32_t)src << 5) | (uint32_t)hw_fpr(dst);
   emit_op(s, opcode);
 }
+void emit_double_to_int64_trunc(emit_state *s, uint8_t dst, uint8_t src) {
+  assert(dst < FPR_REG_START);
+  assert(src >= FPR_REG_START && src < AARCH64_MAX_REG);
+  uint32_t opcode =
+      0x9E780000U | ((uint32_t)hw_fpr(src) << 5) | (uint32_t)dst;
+  emit_op(s, opcode);
+}
 
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   assert(reg < FPR_REG_START);
@@ -671,6 +678,25 @@ void emit_mod(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   }
   emit_sdiv(s, dst, RTMP2, RTMP);
   emit_msub(s, dst, dst, RTMP, RTMP2);
+}
+
+void emit_quotient(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  assert(dst < FPR_REG_START);
+  assert(lhs < FPR_REG_START);
+  assert(rhs < FPR_REG_START);
+
+  // Inputs are tagged fixnums. Untag both, divide, then retag the quotient.
+  if (rhs == RTMP2) {
+    emit_mov(s, RTMP, rhs);
+    emit_mov(s, RTMP2, lhs);
+  } else {
+    emit_mov(s, RTMP2, lhs);
+    emit_mov(s, RTMP, rhs);
+  }
+  emit_sar_constant(s, RTMP2, RTMP2, 3);
+  emit_sar_constant(s, RTMP, RTMP, 3);
+  emit_sdiv(s, dst, RTMP2, RTMP);
+  emit_mul_constant(s, dst, dst, 8);
 }
 
 void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {

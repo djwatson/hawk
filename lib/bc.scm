@@ -61,6 +61,8 @@
     (- . SUB)
     (* . MUL)
     (/ . DIV)
+    (quotient . QUOTIENT)
+    (truncate-quotient . QUOTIENT)
     (modulo . MOD)
     (exact->inexact . INEXACT)
     (< . LT)

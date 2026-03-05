@@ -1,6 +1,7 @@
 #include "fold.h"
 
 #include <assert.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -53,6 +54,8 @@ IRFOLDF(fold_guard_const_const) { return fold_drop(); }
 
 IRFOLD(NE CONST _)
 IRFOLD(EQ CONST _)
+IRFOLD(MUL CONST _)
+IRFOLD(LT CONST _)
 IRFOLDF(fold_guard_eq_const_any) {
   slot tmp = in->op1;
   in->op1 = in->op2;
@@ -116,6 +119,20 @@ IRFOLDF(fold_mul_const_const) {
   }
   auto prod = to_fixnum(lhs) * to_fixnum(rhs);
   return fold_const(tag_fixnum(prod));
+}
+
+IRFOLD(QUOTIENT CONST CONST)
+IRFOLDF(fold_quotient_const_const) {
+  auto lhs = t->consts[in->op1.loc];
+  auto rhs = t->consts[in->op2.loc];
+  if (in->type == FLONUM_TAG) {
+    auto res = (flonum_s *)gc_alloc(sizeof(flonum_s));
+    res->header.type = FLONUM_TAG;
+    res->x = trunc(to_flonum(lhs)->x / to_flonum(rhs)->x);
+    return fold_const(tag_flonum(res));
+  }
+  auto q = to_fixnum(lhs) / to_fixnum(rhs);
+  return fold_const(tag_fixnum(q));
 }
 
 IRFOLD(ADD CONST _)

@@ -382,6 +382,24 @@ static slot emit_ov_math_div(vm_state *state, slot v1, slot v2) {
       IR(.op = IR_DIV, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
   return add_inst(state, ins);
 }
+static slot emit_ov_math_quotient(vm_state *state, slot v1, slot v2) {
+  auto t = record_current_trace(state);
+  auto t1 = get_slot_type(t, v1);
+  auto t2 = get_slot_type(t, v2);
+  if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
+    v1 = convert_to_flonum(state, v1);
+    v2 = convert_to_flonum(state, v2);
+  } else if (t1 == FIXNUM_TAG && t2 == FIXNUM_TAG) {
+    // OK.
+  } else {
+    abort();
+  }
+  ir_ins ins = IR(.op = IR_QUOTIENT,
+                  .op1 = v1,
+                  .op2 = v2,
+                  .type = get_slot_type(record_current_trace(state), v1));
+  return add_inst(state, ins);
+}
 static slot emit_ov_math_mod(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.
   auto t = record_current_trace(state);

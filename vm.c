@@ -189,6 +189,29 @@ static inline gc_obj emit_ov_math_div(vm_state *state, gc_obj v1, gc_obj v2) {
   }
   abort();
 }
+static inline gc_obj emit_ov_math_quotient(vm_state *state, gc_obj v1,
+                                           gc_obj v2) {
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    return tag_fixnum(to_fixnum(v1) / to_fixnum(v2));
+  }
+  if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
+    auto f1 = to_flonum(v1);
+    auto f2 = to_flonum(v2);
+    flonum_s *res = gc_alloc(sizeof(flonum_s));
+    res->header.type = FLONUM_TAG;
+    res->x = trunc(f1->x / f2->x);
+    return tag_flonum(res);
+  }
+  if (is_flonum(v1) || is_flonum(v2)) {
+    double r = trunc(to_flonum(scm_inexact(state, v1))->x /
+                     to_flonum(scm_inexact(state, v2))->x);
+    flonum_s *res = gc_alloc(sizeof(flonum_s));
+    res->header.type = FLONUM_TAG;
+    res->x = r;
+    return tag_flonum(res);
+  }
+  abort();
+}
 static NOINLINE gc_obj emit_ov_math_mod_slow(vm_state *state, gc_obj v1,
                                              gc_obj v2) {
   (void)state;
