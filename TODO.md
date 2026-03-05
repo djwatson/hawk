@@ -1,6 +1,5 @@
 # Currently working on:
 
-* triangl
 * fft.scm
 * BST.scm
 * nbody.scm
@@ -19,8 +18,6 @@
 pmov'
 
 * downrec traces don't ensure_args_match and link without boxing/typecheck
-
-* fft and nbody probably require a handful of more flonum routines
 
 * regalloc could be improved to not reserve RTMP2 ugh
 

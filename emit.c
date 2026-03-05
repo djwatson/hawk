@@ -1117,8 +1117,14 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     }
     case IR_GSET: {
       emit_mov64(s, RTMP, slot_const(t, op->op1) - SYMBOL_TAG);
-      assert(!op->op2.constant);
-      emit_store(s, 16, RTMP, arg1_reg);
+      uint8_t val_reg = arg1_reg;
+      if (op->op2.constant) {
+        val_reg = RTMP2;
+        emit_mov64(s, val_reg, slot_const(t, op->op2));
+      } else {
+        assert(val_reg != REG_NONE);
+      }
+      emit_store(s, 16, RTMP, val_reg);
       break;
     }
     case IR_RET: {
