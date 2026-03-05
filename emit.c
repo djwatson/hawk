@@ -990,24 +990,25 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     }
     case IR_LT: {
       if (op->type == FLONUM_TAG) {
-        // For floating-point, side-exit on !(lhs < rhs), including unordered.
-        // Compare rhs vs lhs so a single JBE catches >= and NaN.
-        emit_flonum_cmp(s, t, op, arg1_reg, arg0_reg);
+        // Side-exit on !(lhs < rhs): lhs >= rhs OR unordered.
+        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
+        emit_jcc32(s, JP, &t->snaps[cur_snap].patch_point);
+        emit_jcc32(s, JAE, &t->snaps[cur_snap].patch_point);
       } else {
         emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
+        emit_jcc32(s, JGE, &t->snaps[cur_snap].patch_point);
       }
-      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JBE : JGE;
-      emit_jcc32(s, guard, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_GT: {
       if (op->type == FLONUM_TAG) {
+        // Side-exit on !(lhs > rhs): lhs <= rhs OR unordered.
         emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
+        emit_jcc32(s, JBE, &t->snaps[cur_snap].patch_point);
       } else {
         emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
+        emit_jcc32(s, JLE, &t->snaps[cur_snap].patch_point);
       }
-      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JBE : JLE;
-      emit_jcc32(s, guard, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_GTE: {
@@ -1024,14 +1025,14 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     }
     case IR_LTE: {
       if (op->type == FLONUM_TAG) {
-        // For floating-point, side-exit on !(lhs <= rhs), including unordered.
-        // Compare rhs vs lhs so JB catches > and NaN.
-        emit_flonum_cmp(s, t, op, arg1_reg, arg0_reg);
+        // Side-exit on !(lhs <= rhs): lhs > rhs OR unordered.
+        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
+        emit_jcc32(s, JP, &t->snaps[cur_snap].patch_point);
+        emit_jcc32(s, JA, &t->snaps[cur_snap].patch_point);
       } else {
         emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
+        emit_jcc32(s, JG, &t->snaps[cur_snap].patch_point);
       }
-      enum jcc_cond guard = (op->type == FLONUM_TAG) ? JB : JG;
-      emit_jcc32(s, guard, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_SUB: {

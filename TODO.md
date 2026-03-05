@@ -1,9 +1,5 @@
 # Currently working on:
 
-* fft.scm
-* BST.scm
-* nbody.scm
-
 * cleanup loopback shit
 
 * figure out why deriv is slow
