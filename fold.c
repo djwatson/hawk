@@ -53,9 +53,16 @@ IRFOLD(EQ CONST CONST)
 IRFOLDF(fold_guard_const_const) { return fold_drop(); }
 
 IRFOLD(NE CONST _)
+IRFOLD(ADD CONST _)
+IRFOLD(SUB CONST _)
+IRFOLD(DIV CONST _)
+IRFOLD(MOD CONST _)
 IRFOLD(EQ CONST _)
 IRFOLD(MUL CONST _)
 IRFOLD(LT CONST _)
+IRFOLD(GT CONST _)
+IRFOLD(LTE CONST _)
+IRFOLD(GTE CONST _)
 IRFOLDF(fold_guard_eq_const_any) {
   slot tmp = in->op1;
   in->op1 = in->op2;
@@ -133,14 +140,6 @@ IRFOLDF(fold_quotient_const_const) {
   }
   auto q = to_fixnum(lhs) / to_fixnum(rhs);
   return fold_const(tag_fixnum(q));
-}
-
-IRFOLD(ADD CONST _)
-IRFOLDF(fold_add_const_any) {
-  slot tmp = in->op1;
-  in->op1 = in->op2;
-  in->op2 = tmp;
-  return (fold_result){.action = FOLD_RETRY};
 }
 
 IRFOLD(LOAD CONST CONST)

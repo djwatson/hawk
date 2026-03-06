@@ -416,11 +416,8 @@ static slot emit_ov_math_mul(vm_state *state, slot v1, slot v2) {
 }
 static slot emit_ov_math_div(vm_state *state, slot v1, slot v2) {
   auto t = record_current_trace(state);
-  auto t1 = get_slot_type(t, v1);
-  auto t2 = get_slot_type(t, v2);
-  if (t1 != FLONUM_TAG || t2 != FLONUM_TAG) {
-    abort();
-  }
+  v1 = convert_to_flonum(state, v1);
+  v2 = convert_to_flonum(state, v2);
   ir_ins ins =
       IR(.op = IR_DIV, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
   return add_inst(state, ins);

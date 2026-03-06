@@ -879,14 +879,28 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     switch (op->op) {
     case IR_GUARD_EQ:
     case IR_EQ: {
-      emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
-      emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
+      if (op->type == FLONUM_TAG) {
+        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
+        emit_jcc32(s, JP, &t->snaps[cur_snap].patch_point);
+        emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
+      } else {
+        emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
+        emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
+      }
       break;
     }
     case IR_GUARD_NEQ:
     case IR_NE: {
-      emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
-      emit_jcc32(s, JE, &t->snaps[cur_snap].patch_point);
+      if (op->type == FLONUM_TAG) {
+        label done = {};
+        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
+        emit_jcc32(s, JP, &done);
+        emit_jcc32(s, JE, &t->snaps[cur_snap].patch_point);
+        emit_label(s, &done);
+      } else {
+        emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
+        emit_jcc32(s, JE, &t->snaps[cur_snap].patch_point);
+      }
       break;
     }
     case IR_LOAD: {

@@ -1,5 +1,7 @@
 # Currently working on:
 
+* simplex
+
 * cleanup loopback shit
 
 * figure out why deriv is slow

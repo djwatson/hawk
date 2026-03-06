@@ -81,6 +81,10 @@
 ;; Inlines primitives, verifies no assigned vars (TODO)
 (define (simple-pass ir)
   (match ir
+    (#(app #(ref #(var - #f (core primitive)) #t #f ,ann) (,arg) ,ann2)
+      `#(primcall SUB (#(quote 0 ,ann) ,(simple-pass arg)) ,ann))
+    (#(app #(ref #(var / #f (core primitive)) #t #f ,ann) (,arg) ,ann2)
+      `#(primcall DIV (#(quote 1 ,ann) ,(simple-pass arg)) ,ann))
     (#(app #(ref #(var ,name #f (core primitive)) #t #f ,ann) ,args ,ann2)
       (guard (assq name primcalls))
       `#(primcall ,(cdr (assq name primcalls)) ,(map simple-pass args) ,ann))
