@@ -1,4 +1,6 @@
 #include <assert.h>
+#include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "array.h"
@@ -334,8 +336,49 @@ static slot convert_to_flonum(vm_state *state, slot v1) {
   }
   abort();
 }
+static slot convert_to_fixnum(vm_state *state, slot v1) {
+  auto t = record_current_trace(state);
+  auto t1 = get_slot_type(t, v1);
+  if (t1 == FIXNUM_TAG) {
+    return v1;
+  }
+  if (t1 == FLONUM_TAG) {
+    if (v1.constant) {
+      double x = to_flonum(t->consts[v1.loc])->x;
+      if (!isfinite(x) || x < (double)INT64_MIN || x > (double)INT64_MAX) {
+        abort();
+      }
+      return add_const(state, tag_fixnum((int64_t)x));
+    }
+    ir_ins ins = IR(.op = IR_EXACT, .op1 = v1, .type = FIXNUM_TAG);
+    return add_inst(state, ins);
+  }
+  abort();
+}
 static slot scm_inexact(vm_state *state, slot v1) {
   return convert_to_flonum(state, v1);
+}
+static slot scm_exact(vm_state *state, slot v1) {
+  return convert_to_fixnum(state, v1);
+}
+static slot scm_truncate(vm_state *state, slot v1) {
+  auto t = record_current_trace(state);
+  auto t1 = get_slot_type(t, v1);
+  if (t1 == FIXNUM_TAG) {
+    return v1;
+  }
+  if (t1 == FLONUM_TAG) {
+    if (v1.constant) {
+      double x = trunc(to_flonum(t->consts[v1.loc])->x);
+      flonum_s *res = gc_alloc(sizeof(flonum_s));
+      res->header.type = FLONUM_TAG;
+      res->x = x;
+      return add_const(state, tag_flonum(res));
+    }
+    ir_ins ins = IR(.op = IR_TRUNCATE, .op1 = v1, .type = FLONUM_TAG);
+    return add_inst(state, ins);
+  }
+  abort();
 }
 static slot emit_ov_math_sub(vm_state *state, slot v1, slot v2) {
   // TODO fold for consts.

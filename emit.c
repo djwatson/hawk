@@ -1114,6 +1114,23 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       emit_int64_to_double(s, dst_reg, RTMP);
       break;
     }
+    case IR_EXACT: {
+      assert(op->type == FIXNUM_TAG);
+      assert(!op->op1.constant);
+      assert(!is_fpr_reg(dst_reg));
+      assert(is_fpr_reg(arg0_reg));
+      emit_double_to_int64_trunc(s, RTMP, arg0_reg);
+      emit_mul_constant(s, dst_reg, RTMP, (1LL << FIXNUM_SHIFT));
+      break;
+    }
+    case IR_TRUNCATE: {
+      assert(op->type == FLONUM_TAG);
+      assert(!op->op1.constant);
+      assert(is_fpr_reg(dst_reg));
+      assert(is_fpr_reg(arg0_reg));
+      emit_ftruncate(s, dst_reg, arg0_reg);
+      break;
+    }
     case IR_SLOAD: {
       if (op->type == FLONUM_TAG) {
         // We need to typecheck to verify it is a flonum.
@@ -1314,7 +1331,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
           op->op == IR_LOAD || op->op == IR_ALLOC || op->op == IR_TYPECHECK ||
           op->op == IR_SUB || op->op == IR_ADD || op->op == IR_MUL ||
           op->op == IR_DIV || op->op == IR_QUOTIENT ||
-          op->op == IR_MOD || op->op == IR_GGET || op->op == IR_INEXACT)) {
+          op->op == IR_MOD || op->op == IR_GGET || op->op == IR_INEXACT ||
+          op->op == IR_EXACT || op->op == IR_TRUNCATE)) {
       abort();
     }
   }

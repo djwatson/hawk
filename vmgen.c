@@ -83,6 +83,22 @@ END OP_BEGIN(INEXACT) {
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
+END OP_BEGIN(EXACT) {
+  auto v1 = stack_load(state, stack, instr.data, true);
+  auto res = scm_exact(state, v1);
+  set_stack_top(state, instr.reg + 1);
+  stack_save(state, stack, instr.reg, res);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
+END OP_BEGIN(TRUNCATE) {
+  auto v1 = stack_load(state, stack, instr.data, true);
+  auto res = scm_truncate(state, v1);
+  set_stack_top(state, instr.reg + 1);
+  stack_save(state, stack, instr.reg, res);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
 END OP_BEGIN(CONST) {
   auto c = const_load(state, pc, instr.data);
   stack_save(state, stack, instr.reg, c);

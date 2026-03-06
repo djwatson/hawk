@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -122,6 +123,33 @@ static gc_obj scm_inexact(vm_state *state, gc_obj v1) {
   }
   abort();
 }
+static gc_obj scm_exact(vm_state *state, gc_obj v1) {
+  (void)state;
+  if (is_fixnum(v1)) {
+    return v1;
+  }
+  if (is_flonum(v1)) {
+    double x = to_flonum(v1)->x;
+    if (!isfinite(x) || x < (double)INT64_MIN || x > (double)INT64_MAX) {
+      abort();
+    }
+    return tag_fixnum((int64_t)x);
+  }
+  abort();
+}
+static gc_obj scm_truncate(vm_state *state, gc_obj v1) {
+  (void)state;
+  if (is_fixnum(v1)) {
+    return v1;
+  }
+  if (is_flonum(v1)) {
+    flonum_s *res = gc_alloc(sizeof(flonum_s));
+    res->header.type = FLONUM_TAG;
+    res->x = trunc(to_flonum(v1)->x);
+    return tag_flonum(res);
+  }
+  abort();
+}
 static NOINLINE gc_obj emit_ov_math_sub_slow(vm_state *state, gc_obj v1,
                                              gc_obj v2) {
   if (is_flonum(v1) || is_flonum(v2)) {
@@ -159,7 +187,6 @@ static inline gc_obj emit_ov_math_sub(vm_state *state, gc_obj v1, gc_obj v2) {
   MUSTTAIL return emit_ov_math_sub_slow(state, v1, v2);
 }
 static inline gc_obj emit_ov_math_mul(vm_state *state, gc_obj v1, gc_obj v2) {
-  (void)state;
   if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
     gc_obj res;
     if (!__builtin_mul_overflow(v1.value, to_fixnum(v2), &res.value)) {
@@ -173,6 +200,14 @@ static inline gc_obj emit_ov_math_mul(vm_state *state, gc_obj v1, gc_obj v2) {
     flonum_s *res = gc_alloc(sizeof(flonum_s));
     res->header.type = FLONUM_TAG;
     res->x = f1->x * f2->x;
+    return tag_flonum(res);
+  }
+  if (is_flonum(v1) || is_flonum(v2)) {
+    double r = to_flonum(scm_inexact(state, v1))->x *
+               to_flonum(scm_inexact(state, v2))->x;
+    flonum_s *res = gc_alloc(sizeof(flonum_s));
+    res->header.type = FLONUM_TAG;
+    res->x = r;
     return tag_flonum(res);
   }
   abort();
