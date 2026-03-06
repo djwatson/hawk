@@ -50,6 +50,10 @@ IRFOLD(GUARD_EQ CONST CONST)
 IRFOLD(GUARD_NEQ CONST CONST)
 IRFOLD(NE CONST CONST)
 IRFOLD(EQ CONST CONST)
+IRFOLD(GTE CONST CONST)
+IRFOLD(LTE CONST CONST)
+IRFOLD(GT CONST CONST)
+IRFOLD(LT CONST CONST)
 IRFOLDF(fold_guard_const_const) { return fold_drop(); }
 
 IRFOLD(NE CONST _)
@@ -67,7 +71,7 @@ IRFOLDF(fold_guard_eq_const_any) {
   slot tmp = in->op1;
   in->op1 = in->op2;
   in->op2 = tmp;
-  return (fold_result){.action = FOLD_RETRY};
+  return (fold_result){.action = FOLD_NEXT};
 }
 
 IRFOLD(GUARD_NEQ _ CONST)
