@@ -512,6 +512,13 @@ void emit_double_to_int64_trunc(emit_state *s, uint8_t dst, uint8_t src) {
       0x9E780000U | ((uint32_t)hw_fpr(src) << 5) | (uint32_t)dst;
   emit_op(s, opcode);
 }
+void emit_ftruncate(emit_state *s, uint8_t dst, uint8_t src) {
+  assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
+  assert(src >= FPR_REG_START && src < AARCH64_MAX_REG);
+  uint32_t opcode =
+      0x1E65C000U | ((uint32_t)hw_fpr(src) << 5) | (uint32_t)hw_fpr(dst);
+  emit_op(s, opcode);
+}
 
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   assert(reg < FPR_REG_START);

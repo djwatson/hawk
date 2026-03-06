@@ -476,6 +476,17 @@ void emit_double_to_int64_trunc(emit_state *s, uint8_t dst, uint8_t src) {
   emit_byte(s, 0x2C);
   emit_modrm(s, 0x3, low3bits(dst), low3bits(hw_fpr(src)));
 }
+void emit_ftruncate(emit_state *s, uint8_t dst, uint8_t src) {
+  assert(dst >= FPR_REG_START && dst < X64_MAX_REG);
+  assert(src >= FPR_REG_START && src < X64_MAX_REG);
+  emit_byte(s, 0x66);
+  emit_rex(s, 0, hw_fpr(dst) >> 3, 0, hw_fpr(src) >> 3);
+  emit_byte(s, 0x0F);
+  emit_byte(s, 0x3A);
+  emit_byte(s, 0x0B);
+  emit_modrm(s, 0x3, low3bits(hw_fpr(dst)), low3bits(hw_fpr(src)));
+  emit_byte(s, 0x03); // round toward zero
+}
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   assert(reg < FPR_REG_START);
   if (fits_in_32(imm)) {
@@ -709,8 +720,11 @@ void emit_fsub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   if (dst == lhs) {
     emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(lhs), hw_fpr(rhs));
   } else if (rhs == dst) {
-    emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(dst), hw_fpr(lhs));
-    emit_fneg(s, dst);
+    // Preserve IEEE-754 edge cases (notably signed zero) by avoiding
+    // -(rhs - lhs) when dst aliases rhs.
+    emit_fmov(s, FRTMP, lhs);
+    emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(FRTMP), hw_fpr(rhs));
+    emit_fmov(s, dst, FRTMP);
   } else {
     emit_fmov(s, dst, lhs);
     emit_sse_reg_reg(s, 0xF2, 0x5C, hw_fpr(dst), hw_fpr(rhs));

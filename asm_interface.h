@@ -62,6 +62,7 @@ void emit_fadd(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_fsub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_fmul(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_fdiv(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
+void emit_ftruncate(emit_state *s, uint8_t dst, uint8_t src);
 void emit_fadd_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm);
 void emit_fsub_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm);
 void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs);
