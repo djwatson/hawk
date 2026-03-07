@@ -434,9 +434,7 @@ static slot emit_ov_math_quotient(vm_state *state, slot v1, slot v2) {
   } else {
     abort();
   }
-  ir_ins ins = IR(.op = IR_QUOTIENT,
-                  .op1 = v1,
-                  .op2 = v2,
+  ir_ins ins = IR(.op = IR_QUOTIENT, .op1 = v1, .op2 = v2,
                   .type = get_slot_type(record_current_trace(state), v1));
   return add_inst(state, ins);
 }
@@ -784,11 +782,10 @@ static slot closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
   add_inst(state, IR(.op = IR_STORE, .op1 = len_ref, .op2 = len_val,
                      .type = CLOSURE_TAG));
 
-  // Capture values from the stack, matching the VM behavior.
-  for (uint64_t i = 0; i < capture_cnt; i++) {
-    auto val = stack_load(state, stack, (uint8_t)(start + i), false);
-    closure_set(state, clo, (uint8_t)i, val, nullptr);
-  }
+  // Only seed slot 0 with the function label; closure captures are
+  // initialized via explicit CLOSURE_SET bytecodes.
+  auto label = stack_load(state, stack, start, false);
+  closure_set(state, clo, 0, label, nullptr);
 
   return clo;
 }
@@ -808,8 +805,7 @@ static branch_result emit_if_branch(vm_state *state, bc *pc, gc_obj *stack,
   slot false_val = add_const(state, FALSE_REP);
   branch_result br = {
       .taken = taken,
-      .guard = IR(.op = taken ? IR_GUARD_NEQ : IR_GUARD_EQ,
-                  .op1 = cond,
+      .guard = IR(.op = taken ? IR_GUARD_NEQ : IR_GUARD_EQ, .op1 = cond,
                   .op2 = false_val),
   };
   return br;

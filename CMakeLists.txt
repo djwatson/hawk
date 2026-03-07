@@ -365,6 +365,67 @@ if(BUILD_TESTING)
   set_tests_properties(
     hawk_array2 PROPERTIES PASS_REGULAR_EXPRESSION "1000000"
   )
+
+  add_test(
+    NAME hawk_deriv
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/deriv.scm.bc
+  )
+  set_tests_properties(
+    hawk_deriv PROPERTIES PASS_REGULAR_EXPRESSION "\\(\\+ \\(\\* \\(\\* 3 x x\\)"
+  )
+
+  add_test(
+    NAME hawk_quicksort
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/quicksort.scm.bc
+  )
+
+  add_test(
+    NAME hawk_pnpoly
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/pnpoly.scm.bc
+  )
+  set_tests_properties(
+    hawk_pnpoly PROPERTIES PASS_REGULAR_EXPRESSION "9"
+  )
+
+  add_test(
+    NAME hawk_triangl
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/triangl.scm.bc
+  )
+  set_tests_properties(
+    hawk_triangl PROPERTIES PASS_REGULAR_EXPRESSION "\\(22 34 31 15 7 1 20 17 25 6 5 13 32\\)"
+  )
+
+  add_test(
+    NAME hawk_simplex
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/simplex.scm.bc
+  )
+  set_tests_properties(
+    hawk_simplex PROPERTIES PASS_REGULAR_EXPRESSION "\\(#\\(2 5 1 7\\) #\\(0 6 4 3\\)\\)"
+  )
+
+  add_test(
+    NAME hawk_perm9
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/perm9.scm.bc
+  )
+  set_tests_properties(
+    hawk_perm9 PROPERTIES PASS_REGULAR_EXPRESSION "16329600"
+  )
+
+  add_test(
+    NAME hawk_fft
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/fft.scm.bc
+  )
+  set_tests_properties(
+    hawk_fft PROPERTIES PASS_REGULAR_EXPRESSION "0\\.0"
+  )
+
+  add_test(
+    NAME hawk_mbrot
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/mbrot.scm.bc
+  )
+  set_tests_properties(
+    hawk_mbrot PROPERTIES PASS_REGULAR_EXPRESSION "5"
+  )
 endif()
 
 file(

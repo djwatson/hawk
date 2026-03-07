@@ -172,20 +172,26 @@
 
 ;; adds name field to lambdas.
 (define (name-lambdas ir)
-  (match ir
-    (#(define ,var #(lambda ,args ,(name-lambdas body) ,lam-ann) ,define-ann)
-      `#(define ,var
-          #(nlambda ,(symbol->string (vector-ref var 1)) ,args ,body ,lam-ann)
-          ,define-ann))
-    (#(lambda ,args ,(name-lambdas body) ,lam-ann)
-      `#(nlambda "anon" ,args ,(name-lambdas body) ,lam-ann))
-    ;; TODO more names.
-    ;; ((set! ,var (lambda ,(name-lambdas cases) ___))
-    ;;  `(set! ,var (nlambda ,(symbol->string var) ,cases ___)))
-    ;; ((fix ,vars (lambda ,(name-lambdas cases) ___) ___ ,(name-lambdas fix-body))
-    ;;  (let ((names (map symbol->string vars)))
-    ;;    `(fix ,vars (nlambda ,names ,cases ___) ___ ,fix-body)))
-    (,else (cont-pass ir name-lambdas))))
+  (define (name-lambdas-int ir cur)
+    (define (name-lambdas ir)
+      (match ir
+        (#(define ,var #(lambda ,args ,body ,lam-ann) ,define-ann)
+          (let ((name (symbol->string (vector-ref var 1))))
+            `#(define ,var
+                #(nlambda ,name ,args ,(name-lambdas-int body name) ,lam-ann)
+                ,define-ann)))
+        (#(lambda ,args ,(name-lambdas body) ,lam-ann)
+          (let ((name (string-append cur "-anon")))
+            `#(nlambda ,name ,args ,(name-lambdas-int body name) ,lam-ann)))
+        ;; TODO more names.
+        ;; ((set! ,var (lambda ,(name-lambdas-int cases) ___))
+        ;;  `(set! ,var (nlambda ,(symbol->string var) ,cases ___)))
+        ;; ((fix ,vars (lambda ,(name-lambdas-int cases) ___) ___ ,(name-lambdas-int fix-body))
+        ;;  (let ((names (map symbol->string vars)))
+        ;;    `(fix ,vars (nlambda ,names ,cases ___) ___ ,fix-body)))
+        (,else (cont-pass ir name-lambdas))))
+    (name-lambdas ir))
+  (name-lambdas-int ir "REPL"))
 
 ;; Add  fix (i.e. letrec*) to all.
 (define (fix-all ir)
@@ -313,7 +319,8 @@
 ;; branching versions.  Replace comparison ops with branching +
 ;; comparison if in an 'if' test position, otherwise replace with a
 ;; branch + true/false constant result.
-(define jcmp '((LT . JLT) (GT . JGT) (LTE . JLTE) (GTE . JGTE) (EQ . JEQ) (EQV . JEQV)))
+(define jcmp
+  '((LT . JLT) (GT . JGT) (LTE . JLTE) (GTE . JGTE) (EQ . JEQ) (EQV . JEQV)))
 (define (lower-comparisons ir)
   (match ir
     ;; If it's already behind a if test, it's okay
@@ -363,10 +370,8 @@
   (cond
     ((annotation? datum) (normalize-const (annotation-sexp datum)))
     ((pair? datum)
-      (cons (normalize-const (car datum))
-            (normalize-const (cdr datum))))
-    ((vector? datum)
-      (list->vector (map normalize-const (vector->list datum))))
+      (cons (normalize-const (car datum)) (normalize-const (cdr datum))))
+    ((vector? datum) (list->vector (map normalize-const (vector->list datum))))
     (else datum)))
 
 (define (add-const fun datum)
@@ -398,8 +403,7 @@
     ((symbol? datum)
       (ensure-const-id (symbol->string datum) consts const-table const-order))
     ((vector? datum)
-      (vector-for-each (lambda (elt)
-                         (ensure-const-id elt consts const-table const-order))
+      (vector-for-each (lambda (elt) (ensure-const-id elt consts const-table const-order))
                        datum))
     ((pair? datum)
       (ensure-const-id (car datum) consts const-table const-order)
@@ -612,8 +616,7 @@
     ((vector? c)
       (write-pvarint-u64 vector-tag p)
       (write-pvarint-u64 (tag-ptr (vector-length c) fixnum-tag) p)
-      (vector-for-each (lambda (elt)
-                         (write-pvarint-u64 (const-id-of elt consts const-table) p))
+      (vector-for-each (lambda (elt) (write-pvarint-u64 (const-id-of elt consts const-table) p))
                        c))
     ((pair? c)
       (write-pvarint-u64 cons-tag p)
@@ -672,11 +675,11 @@
           assignment-conversion
           lower-comparisons
           recover-let
-          debug-print
           name-lambdas
           fix-all
           uncover-free
-          convert-closures))
+          convert-closures
+          debug-print))
     (define main (make-fun "main"))
     (define consts (make-hash-table equal?)) ;; de-duplication table.
     (define const-table (make-hash-table eq?)) ;; Result ordering.  ALSO sorts out recursive structures.

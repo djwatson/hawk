@@ -561,9 +561,9 @@ static inline gc_obj closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
   closure_s *clo = gc_alloc(sizeof(closure_s) + (sizeof(gc_obj) * sz));
   clo->header.type = CLOSURE_TAG;
   clo->len = tag_fixnum((int64_t)sz);
-  for (uint64_t i = 0; i < sz; i++) {
-    clo->v[i] = stack[start + i];
-  }
+  // Only seed slot 0 with the function label; closure captures are
+  // initialized via explicit CLOSURE_SET bytecodes.
+  clo->v[0] = stack[start];
   return tag_closure(clo);
 }
 static inline void closure_set(vm_state *state, gc_obj clo, uint8_t slot,
