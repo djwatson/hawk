@@ -494,15 +494,19 @@
             (add-op fun `(IF ,top ,treg)))))
       (let* ((offset (length (fun-code fun))) (brop (list 'JMP top 0)))
         (add-op fun brop)
-        (compile then fun env top tail)
+        (let ((then-res (compile then fun env top tail)))
+          (unless (or tail (= then-res top))
+            (add-op fun `(MOV ,top ,then-res))))
         ;; If not in tail position, an extra JMP is inserted before the else
         ;; path. Account for that so the false branch lands on else code.
         (set-car! (cddr brop) (+ (- (length (fun-code fun)) offset) (if tail 0 1))))
       (let ((offset (length (fun-code fun))) (jop (list 'JMP top 0)))
         (unless tail (add-op fun jop))
         (let ((res (compile else fun env top tail)))
+          (unless (or tail (= res top))
+            (add-op fun `(MOV ,top ,res)))
           (set-car! (cddr jop) (- (length (fun-code fun)) offset))
-          res)))
+          (if tail res top))))
     (#(app ,func ,args ,ann)
       ;; Leave room for func + pointer.
       (let loop ((top (+ top 1)) (args (cons func args)))

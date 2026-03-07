@@ -384,7 +384,7 @@ if(BUILD_TESTING)
     COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/pnpoly.scm.bc
   )
   set_tests_properties(
-    hawk_pnpoly PROPERTIES PASS_REGULAR_EXPRESSION "9"
+    hawk_pnpoly PROPERTIES PASS_REGULAR_EXPRESSION "6"
   )
 
   add_test(
