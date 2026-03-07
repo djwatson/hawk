@@ -400,7 +400,7 @@ if(BUILD_TESTING)
     COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/simplex.scm.bc
   )
   set_tests_properties(
-    hawk_simplex PROPERTIES PASS_REGULAR_EXPRESSION "\\(#\\(2 5 1 7\\) #\\(0 6 4 3\\)\\)"
+    hawk_simplex PROPERTIES PASS_REGULAR_EXPRESSION "\\(#\\(4 1 3 2\\) #\\(0 5 7 6\\)\\)"
   )
 
   add_test(

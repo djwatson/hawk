@@ -19,6 +19,9 @@ static fold_result fold_drop(void) {
 static fold_result fold_const(gc_obj constant) {
   return (fold_result){.action = FOLD_CONST, .constant = constant};
 }
+static fold_result fold_retry(void) {
+  return (fold_result){.action = FOLD_RETRY};
+}
 
 static uint8_t fold_arg(trace *t, ir_ins *in, uint8_t idx) {
   auto arg_type = ir_ins_types[in->op];
@@ -58,20 +61,59 @@ IRFOLDF(fold_guard_const_const) { return fold_drop(); }
 
 IRFOLD(NE CONST _)
 IRFOLD(ADD CONST _)
-IRFOLD(SUB CONST _)
-IRFOLD(DIV CONST _)
-IRFOLD(MOD CONST _)
 IRFOLD(EQ CONST _)
 IRFOLD(MUL CONST _)
-IRFOLD(LT CONST _)
-IRFOLD(GT CONST _)
-IRFOLD(LTE CONST _)
-IRFOLD(GTE CONST _)
-IRFOLDF(fold_guard_eq_const_any) {
+IRFOLDF(fold_commutative_const_lhs) {
   slot tmp = in->op1;
   in->op1 = in->op2;
   in->op2 = tmp;
   return (fold_result){.action = FOLD_NEXT};
+}
+
+IRFOLD(LT CONST _)
+IRFOLD(GT CONST _)
+IRFOLD(LTE CONST _)
+IRFOLD(GTE CONST _)
+IRFOLDF(fold_cmp_const_lhs) {
+  slot tmp = in->op1;
+  in->op1 = in->op2;
+  in->op2 = tmp;
+  switch (in->op) {
+  case IR_LT:
+    in->op = IR_GT;
+    break;
+  case IR_GT:
+    in->op = IR_LT;
+    break;
+  case IR_LTE:
+    in->op = IR_GTE;
+    break;
+  case IR_GTE:
+    in->op = IR_LTE;
+    break;
+  default:
+    abort();
+  }
+  return fold_retry();
+}
+
+IRFOLD(SUB CONST _)
+IRFOLD(DIV CONST _)
+IRFOLD(MOD CONST _)
+IRFOLDF(fold_noncommutative_const_lhs) {
+  // Materialize lhs constant to a register so emit can handle lhs as non-const.
+  auto const_op = (ir_ins){
+      .op = IR_CONST,
+      .type = get_type_tag(t->consts[in->op1.loc]),
+      .guard = false,
+      .reg = REG_NONE,
+      .spill = SPILL_NONE,
+      .op1 = in->op1,
+  };
+  uint16_t idx = arrlen(t->ins);
+  arrput(t->ins, const_op);
+  in->op1 = (slot){.constant = false, .loc = idx};
+  return fold_retry();
 }
 
 IRFOLD(GUARD_NEQ _ CONST)

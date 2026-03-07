@@ -1049,6 +1049,15 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       }
       break;
     }
+    case IR_CONST: {
+      assert(op->op1.constant);
+      if (op->type == FLONUM_TAG) {
+        emit_fmov_constant(s, dst_reg, slot_flonum_constant(t, op->op1));
+      } else {
+        emit_mov64(s, dst_reg, slot_const(t, op->op1));
+      }
+      break;
+    }
     case IR_SUB: {
       if (op->type == FLONUM_TAG) {
         emit_flonum_sub(s, t, dst_reg, op, arg0_reg, arg1_reg);
