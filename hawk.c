@@ -61,7 +61,7 @@ static char *parse_args(int argc, char *argv[]) {
       max_trace = atoi(optarg);
       break;
     case 's':
-      printf("Random: %s\n", optarg);
+      // printf("Random: %s\n", optarg);
       srandom(atoi(optarg));
       break;
     case 'p':
