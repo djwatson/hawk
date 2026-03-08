@@ -101,30 +101,13 @@ static inline gc_obj const_load(vm_state *state, bc *pc, uint16_t offset) {
   return *(gc_obj *)(pc - pc->data);
 }
 static inline bc *vmgen_jmp_advance(bc *pc) { return pc + pc->data; }
-static inline gc_obj emit_ov_math_add(vm_state *state, gc_obj v1, gc_obj v2) {
-  (void)state;
-  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
-    // TODO overflow
-    return tag_fixnum(to_fixnum(v1) + to_fixnum(v2));
-  }
-  if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
-    auto f1 = to_flonum(v1);
-    auto f2 = to_flonum(v2);
-    flonum_s *res = gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = f1->x + f2->x;
-    return tag_flonum(res);
-  }
-  // TODO other math types!
-  abort();
-}
+DEFINE_VM_RUNTIME_NUMERIC_BINOP(
+    add, (void)state; return tag_fixnum(to_fixnum(v1) + to_fixnum(v2));,
+    return vm_box_flonum(to_flonum(v1)->x + to_flonum(v2)->x);, abort();)
 static gc_obj scm_inexact(vm_state *state, gc_obj v1) {
   (void)state;
   if (is_fixnum(v1)) {
-    flonum_s *res = gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = (double)to_fixnum(v1);
-    return tag_flonum(res);
+    return vm_box_flonum((double)to_fixnum(v1));
   }
   if (is_flonum(v1)) {
     return v1;
@@ -151,10 +134,7 @@ static gc_obj scm_truncate(vm_state *state, gc_obj v1) {
     return v1;
   }
   if (is_flonum(v1)) {
-    flonum_s *res = gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = trunc(to_flonum(v1)->x);
-    return tag_flonum(res);
+    return vm_box_flonum(trunc(to_flonum(v1)->x));
   }
   abort();
 }
@@ -164,10 +144,7 @@ static NOINLINE gc_obj emit_ov_math_sub_slow(vm_state *state, gc_obj v1,
     auto fl1 = scm_inexact(state, v1);
     auto fl2 = scm_inexact(state, v2);
     double r = to_flonum(fl1)->x - to_flonum(fl2)->x;
-    flonum_s *res = gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = r;
-    return tag_flonum(res);
+    return vm_box_flonum(r);
   }
   if (is_fixnum(v1) && is_fixnum(v2)) {
     gc_obj res;
@@ -179,87 +156,41 @@ static NOINLINE gc_obj emit_ov_math_sub_slow(vm_state *state, gc_obj v1,
   }
   abort();
 }
-static inline gc_obj emit_ov_math_sub(vm_state *state, gc_obj v1, gc_obj v2) {
-  (void)state;
-  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
-    // TODO overflow
-    return tag_fixnum(to_fixnum(v1) - to_fixnum(v2));
-  }
-  if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
-    auto f1 = to_flonum(v1);
-    auto f2 = to_flonum(v2);
-    flonum_s *res = gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = f1->x - f2->x;
-    return tag_flonum(res);
-  }
-  MUSTTAIL return emit_ov_math_sub_slow(state, v1, v2);
-}
-static inline gc_obj emit_ov_math_mul(vm_state *state, gc_obj v1, gc_obj v2) {
-  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
-    gc_obj res;
-    if (!__builtin_mul_overflow(v1.value, to_fixnum(v2), &res.value)) {
-      return res;
+DEFINE_VM_RUNTIME_NUMERIC_BINOP(
+    sub, (void)state; return tag_fixnum(to_fixnum(v1) - to_fixnum(v2));,
+    return vm_box_flonum(to_flonum(v1)->x - to_flonum(v2)->x);,
+    MUSTTAIL return emit_ov_math_sub_slow(state, v1, v2);)
+DEFINE_VM_RUNTIME_NUMERIC_BINOP(
+    mul, gc_obj res; if (!__builtin_mul_overflow(v1.value, to_fixnum(v2),
+                                                 &res.value)) { return res; }
+         abort();,
+    return vm_box_flonum(to_flonum(v1)->x * to_flonum(v2)->x);,
+    if (is_flonum(v1) || is_flonum(v2)) {
+      auto fl1 = scm_inexact(state, v1);
+      auto fl2 = scm_inexact(state, v2);
+      return vm_box_flonum(to_flonum(fl1)->x * to_flonum(fl2)->x);
     }
-    abort();
-  }
-  if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
-    auto f1 = to_flonum(v1);
-    auto f2 = to_flonum(v2);
-    flonum_s *res = gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = f1->x * f2->x;
-    return tag_flonum(res);
-  }
-  if (is_flonum(v1) || is_flonum(v2)) {
-    auto fl1 = scm_inexact(state, v1);
-    auto fl2 = scm_inexact(state, v2);
-    double r = to_flonum(fl1)->x * to_flonum(fl2)->x;
-    flonum_s *res = gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = r;
-    return tag_flonum(res);
-  }
-  abort();
-}
+    abort();)
 static inline gc_obj emit_ov_math_div(vm_state *state, gc_obj v1, gc_obj v2) {
   auto fl1 = scm_inexact(state, v1);
   auto fl2 = scm_inexact(state, v2);
   abort_if_zero_divisor(fl2);
   auto f1 = to_flonum(fl1);
   auto f2 = to_flonum(fl2);
-  flonum_s *res = gc_alloc(sizeof(flonum_s));
-  res->header.type = FLONUM_TAG;
-  res->x = f1->x / f2->x;
-  return tag_flonum(res);
+  return vm_box_flonum(f1->x / f2->x);
 }
-static inline gc_obj emit_ov_math_quotient(vm_state *state, gc_obj v1,
-                                           gc_obj v2) {
-  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+DEFINE_VM_RUNTIME_NUMERIC_BINOP(
+    quotient, abort_if_zero_divisor(v2);
+    return tag_fixnum(to_fixnum(v1) / to_fixnum(v2));,
     abort_if_zero_divisor(v2);
-    return tag_fixnum(to_fixnum(v1) / to_fixnum(v2));
-  }
-  if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
-    abort_if_zero_divisor(v2);
-    auto f1 = to_flonum(v1);
-    auto f2 = to_flonum(v2);
-    flonum_s *res = gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = trunc(f1->x / f2->x);
-    return tag_flonum(res);
-  }
-  if (is_flonum(v1) || is_flonum(v2)) {
-    auto fl1 = scm_inexact(state, v1);
-    auto fl2 = scm_inexact(state, v2);
-    abort_if_zero_divisor(fl2);
-    double r = trunc(to_flonum(fl1)->x / to_flonum(fl2)->x);
-    flonum_s *res = gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = r;
-    return tag_flonum(res);
-  }
-  abort();
-}
+    return vm_box_flonum(trunc(to_flonum(v1)->x / to_flonum(v2)->x));,
+    if (is_flonum(v1) || is_flonum(v2)) {
+      auto fl1 = scm_inexact(state, v1);
+      auto fl2 = scm_inexact(state, v2);
+      abort_if_zero_divisor(fl2);
+      return vm_box_flonum(trunc(to_flonum(fl1)->x / to_flonum(fl2)->x));
+    }
+    abort();)
 static NOINLINE gc_obj emit_ov_math_mod_slow(vm_state *state, gc_obj v1,
                                              gc_obj v2) {
   (void)state;
@@ -268,22 +199,15 @@ static NOINLINE gc_obj emit_ov_math_mod_slow(vm_state *state, gc_obj v1,
     auto fl2 = scm_inexact(state, v2);
     abort_if_zero_divisor(fl2);
     double r = fmod(to_flonum(fl1)->x, to_flonum(fl2)->x);
-    flonum_s *res = gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = r;
-    return tag_flonum(res);
+    return vm_box_flonum(r);
   }
   // TODO other math types!
   abort();
 }
-static inline gc_obj emit_ov_math_mod(vm_state *state, gc_obj v1, gc_obj v2) {
-  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
-    abort_if_zero_divisor(v2);
-    int64_t res = to_fixnum(v1) % to_fixnum(v2);
-    return tag_fixnum(res);
-  }
-  MUSTTAIL return emit_ov_math_mod_slow(state, v1, v2);
-}
+DEFINE_VM_RUNTIME_NUMERIC_BINOP(
+    mod, abort_if_zero_divisor(v2);
+    return tag_fixnum(to_fixnum(v1) % to_fixnum(v2));, (void)state;,
+    MUSTTAIL return emit_ov_math_mod_slow(state, v1, v2);)
 
 static NOINLINE gc_obj emit_math_cmp_lt_slowpath(vm_state *state, bc *pc,
                                                  gc_obj *stack, gc_obj v1,

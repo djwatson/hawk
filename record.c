@@ -307,17 +307,7 @@ static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   return add_const(state, c);
 }
 static inline bc *vmgen_jmp_advance(bc *pc) { return pc; }
-static slot emit_ov_math_add(vm_state *state, slot v1, slot v2) {
-
-  // TODO fold for consts.
-  auto t = record_current_trace(state);
-  if (get_slot_type(t, v1) != get_slot_type(t, v2)) {
-    abort();
-  }
-  ir_ins ins =
-      IR(.op = IR_ADD, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
-  return add_inst(state, ins);
-}
+DEFINE_RECORD_NUMERIC_BINOP_SAME_TYPE(add, IR_ADD)
 static slot convert_to_flonum(vm_state *state, slot v1) {
   auto t = record_current_trace(state);
   auto t1 = get_slot_type(t, v1);
@@ -326,10 +316,7 @@ static slot convert_to_flonum(vm_state *state, slot v1) {
   }
   if (t1 == FIXNUM_TAG) {
     if (v1.constant) {
-      flonum_s *res = gc_alloc(sizeof(flonum_s));
-      res->header.type = FLONUM_TAG;
-      res->x = (double)to_fixnum(t->consts[v1.loc]);
-      return add_const(state, tag_flonum(res));
+      return add_const(state, vm_box_flonum((double)to_fixnum(t->consts[v1.loc])));
     }
     ir_ins ins = IR(.op = IR_INEXACT, .op1 = v1, .type = FLONUM_TAG);
     return add_inst(state, ins);
@@ -370,91 +357,18 @@ static slot scm_truncate(vm_state *state, slot v1) {
   if (t1 == FLONUM_TAG) {
     if (v1.constant) {
       double x = trunc(to_flonum(t->consts[v1.loc])->x);
-      flonum_s *res = gc_alloc(sizeof(flonum_s));
-      res->header.type = FLONUM_TAG;
-      res->x = x;
-      return add_const(state, tag_flonum(res));
+      return add_const(state, vm_box_flonum(x));
     }
     ir_ins ins = IR(.op = IR_TRUNCATE, .op1 = v1, .type = FLONUM_TAG);
     return add_inst(state, ins);
   }
   abort();
 }
-static slot emit_ov_math_sub(vm_state *state, slot v1, slot v2) {
-  // TODO fold for consts.
-  auto t = record_current_trace(state);
-  auto t1 = get_slot_type(t, v1);
-  auto t2 = get_slot_type(t, v2);
-  if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
-    v1 = convert_to_flonum(state, v1);
-    v2 = convert_to_flonum(state, v2);
-  } else if (t1 == FIXNUM_TAG && t2 == FIXNUM_TAG) {
-    // OK.
-  } else {
-    abort();
-  }
-  ir_ins ins =
-      IR(.op = IR_SUB, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
-  return add_inst(state, ins);
-}
-static slot emit_ov_math_mul(vm_state *state, slot v1, slot v2) {
-  // TODO fold for consts.
-  auto t = record_current_trace(state);
-  auto t1 = get_slot_type(t, v1);
-  auto t2 = get_slot_type(t, v2);
-  if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
-    v1 = convert_to_flonum(state, v1);
-    v2 = convert_to_flonum(state, v2);
-  } else if (t1 == FIXNUM_TAG && t2 == FIXNUM_TAG) {
-    // OK.
-  } else {
-    abort();
-  }
-  ir_ins ins =
-      IR(.op = IR_MUL, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
-  return add_inst(state, ins);
-}
-static slot emit_ov_math_div(vm_state *state, slot v1, slot v2) {
-  auto t = record_current_trace(state);
-  v1 = convert_to_flonum(state, v1);
-  v2 = convert_to_flonum(state, v2);
-  ir_ins ins =
-      IR(.op = IR_DIV, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
-  return add_inst(state, ins);
-}
-static slot emit_ov_math_quotient(vm_state *state, slot v1, slot v2) {
-  auto t = record_current_trace(state);
-  auto t1 = get_slot_type(t, v1);
-  auto t2 = get_slot_type(t, v2);
-  if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
-    v1 = convert_to_flonum(state, v1);
-    v2 = convert_to_flonum(state, v2);
-  } else if (t1 == FIXNUM_TAG && t2 == FIXNUM_TAG) {
-    // OK.
-  } else {
-    abort();
-  }
-  ir_ins ins = IR(.op = IR_QUOTIENT, .op1 = v1, .op2 = v2,
-                  .type = get_slot_type(record_current_trace(state), v1));
-  return add_inst(state, ins);
-}
-static slot emit_ov_math_mod(vm_state *state, slot v1, slot v2) {
-  // TODO fold for consts.
-  auto t = record_current_trace(state);
-  auto t1 = get_slot_type(t, v1);
-  auto t2 = get_slot_type(t, v2);
-  if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
-    v1 = convert_to_flonum(state, v1);
-    v2 = convert_to_flonum(state, v2);
-  } else if (t1 == FIXNUM_TAG && t2 == FIXNUM_TAG) {
-    // OK.
-  } else {
-    abort();
-  }
-  ir_ins ins =
-      IR(.op = IR_MOD, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));
-  return add_inst(state, ins);
-}
+DEFINE_RECORD_NUMERIC_BINOP_COERCED(sub, IR_SUB)
+DEFINE_RECORD_NUMERIC_BINOP_COERCED(mul, IR_MUL)
+DEFINE_RECORD_NUMERIC_BINOP_FORCE_FLONUM(div, IR_DIV)
+DEFINE_RECORD_NUMERIC_BINOP_COERCED(quotient, IR_QUOTIENT)
+DEFINE_RECORD_NUMERIC_BINOP_COERCED(mod, IR_MOD)
 static inline double numeric_to_double(gc_obj v) {
   if (is_flonum(v)) {
     return to_flonum(v)->x;
