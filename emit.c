@@ -1305,9 +1305,11 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
         emit_label(s, &dyn_fast_commit);
         // Recompute freelist base from preserved tagged size.
         emit_sar_constant(s, RET_REG2, RTMP2, FIXNUM_SHIFT + 3);
-        emit_mul_constant(s, RET_REG2, RET_REG2, (int64_t)sizeof(freelist_s));
-        // Avoid emit_add_constant here: large immediates use RTMP on x64, which
-        // holds new_head for this fast-commit path.
+        // Avoid emit_mul_constant/emit_add_constant here: both may use RTMP as a
+        // scratch register on some backends, and RTMP holds new_head on this
+        // fast-commit path.
+        emit_mov64(s, RTMP2, (int64_t)sizeof(freelist_s));
+        emit_mul(s, RET_REG2, RET_REG2, RTMP2);
         emit_mov64(s, RTMP2, (int64_t)(intptr_t)freelist);
         emit_add(s, RET_REG2, RET_REG2, RTMP2);
         emit_store(s, freelist_start_offset, RET_REG2, RTMP);
