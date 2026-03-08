@@ -1145,7 +1145,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   //  check for up-recursion and abort, restart trying to capture an
   //  up-recursive trace.
   if (pc == ts->start_ins && !is_downrec_trace(ts) &&
-      (ts->depth == 0 || cnt >= 3)) {
+      (ts->depth == 0 || cnt >= 4)) {
     trace_match match =
         ensure_args_match_trace(state, stack, cur_trace, cur_trace);
     cur_trace->link = match.trace;

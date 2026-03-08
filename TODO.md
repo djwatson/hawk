@@ -1,7 +1,5 @@
 # Currently working on:
 
-/build//hawk test/triangl.scm -s17 -vp --max-trace=2
-
 * cleanup loopback shit
 
 * figure out why deriv is slow

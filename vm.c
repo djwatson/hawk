@@ -79,6 +79,14 @@ static inline gc_obj stack_load(vm_state *state, gc_obj *stack, uint8_t slot,
   (void)state;
   return stack[slot];
 }
+static inline void abort_if_zero_divisor(gc_obj v) {
+  if (is_fixnum(v) && to_fixnum(v) == 0) {
+    abort();
+  }
+  if (is_flonum(v) && to_flonum(v)->x == 0.0) {
+    abort();
+  }
+}
 static inline void stack_save(vm_state *state, gc_obj *stack, uint8_t slot,
                               gc_obj res) {
   (void)state;
@@ -153,8 +161,9 @@ static gc_obj scm_truncate(vm_state *state, gc_obj v1) {
 static NOINLINE gc_obj emit_ov_math_sub_slow(vm_state *state, gc_obj v1,
                                              gc_obj v2) {
   if (is_flonum(v1) || is_flonum(v2)) {
-    double r = to_flonum(scm_inexact(state, v1))->x -
-               to_flonum(scm_inexact(state, v2))->x;
+    auto fl1 = scm_inexact(state, v1);
+    auto fl2 = scm_inexact(state, v2);
+    double r = to_flonum(fl1)->x - to_flonum(fl2)->x;
     flonum_s *res = gc_alloc(sizeof(flonum_s));
     res->header.type = FLONUM_TAG;
     res->x = r;
@@ -203,8 +212,9 @@ static inline gc_obj emit_ov_math_mul(vm_state *state, gc_obj v1, gc_obj v2) {
     return tag_flonum(res);
   }
   if (is_flonum(v1) || is_flonum(v2)) {
-    double r = to_flonum(scm_inexact(state, v1))->x *
-               to_flonum(scm_inexact(state, v2))->x;
+    auto fl1 = scm_inexact(state, v1);
+    auto fl2 = scm_inexact(state, v2);
+    double r = to_flonum(fl1)->x * to_flonum(fl2)->x;
     flonum_s *res = gc_alloc(sizeof(flonum_s));
     res->header.type = FLONUM_TAG;
     res->x = r;
@@ -213,8 +223,11 @@ static inline gc_obj emit_ov_math_mul(vm_state *state, gc_obj v1, gc_obj v2) {
   abort();
 }
 static inline gc_obj emit_ov_math_div(vm_state *state, gc_obj v1, gc_obj v2) {
-  auto f1 = to_flonum(scm_inexact(state, v1));
-  auto f2 = to_flonum(scm_inexact(state, v2));
+  auto fl1 = scm_inexact(state, v1);
+  auto fl2 = scm_inexact(state, v2);
+  abort_if_zero_divisor(fl2);
+  auto f1 = to_flonum(fl1);
+  auto f2 = to_flonum(fl2);
   flonum_s *res = gc_alloc(sizeof(flonum_s));
   res->header.type = FLONUM_TAG;
   res->x = f1->x / f2->x;
@@ -223,9 +236,11 @@ static inline gc_obj emit_ov_math_div(vm_state *state, gc_obj v1, gc_obj v2) {
 static inline gc_obj emit_ov_math_quotient(vm_state *state, gc_obj v1,
                                            gc_obj v2) {
   if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    abort_if_zero_divisor(v2);
     return tag_fixnum(to_fixnum(v1) / to_fixnum(v2));
   }
   if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
+    abort_if_zero_divisor(v2);
     auto f1 = to_flonum(v1);
     auto f2 = to_flonum(v2);
     flonum_s *res = gc_alloc(sizeof(flonum_s));
@@ -234,8 +249,10 @@ static inline gc_obj emit_ov_math_quotient(vm_state *state, gc_obj v1,
     return tag_flonum(res);
   }
   if (is_flonum(v1) || is_flonum(v2)) {
-    double r = trunc(to_flonum(scm_inexact(state, v1))->x /
-                     to_flonum(scm_inexact(state, v2))->x);
+    auto fl1 = scm_inexact(state, v1);
+    auto fl2 = scm_inexact(state, v2);
+    abort_if_zero_divisor(fl2);
+    double r = trunc(to_flonum(fl1)->x / to_flonum(fl2)->x);
     flonum_s *res = gc_alloc(sizeof(flonum_s));
     res->header.type = FLONUM_TAG;
     res->x = r;
@@ -247,9 +264,10 @@ static NOINLINE gc_obj emit_ov_math_mod_slow(vm_state *state, gc_obj v1,
                                              gc_obj v2) {
   (void)state;
   if (is_flonum(v1) || is_flonum(v2)) {
-    double r =
-        fmod(to_flonum(scm_inexact(state, v1))->x,
-             to_flonum(scm_inexact(state, v2))->x);
+    auto fl1 = scm_inexact(state, v1);
+    auto fl2 = scm_inexact(state, v2);
+    abort_if_zero_divisor(fl2);
+    double r = fmod(to_flonum(fl1)->x, to_flonum(fl2)->x);
     flonum_s *res = gc_alloc(sizeof(flonum_s));
     res->header.type = FLONUM_TAG;
     res->x = r;
@@ -260,6 +278,7 @@ static NOINLINE gc_obj emit_ov_math_mod_slow(vm_state *state, gc_obj v1,
 }
 static inline gc_obj emit_ov_math_mod(vm_state *state, gc_obj v1, gc_obj v2) {
   if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    abort_if_zero_divisor(v2);
     int64_t res = to_fixnum(v1) % to_fixnum(v2);
     return tag_fixnum(res);
   }
