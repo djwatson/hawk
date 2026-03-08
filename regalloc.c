@@ -333,9 +333,9 @@ regalloc2_result regalloc2(trace *t) {
   }
 
   collect_next_uses(&s);
-  if (verbose || getenv("REGALLOC_DEBUG_NEXT_USES")) {
-    print_next_uses(&s);
-  }
+  /* if (verbose || getenv("REGALLOC_DEBUG_NEXT_USES")) { */
+  /*   print_next_uses(&s); */
+  /* } */
 
   // PMOVs are pre-assigned spill slots and registers the parent trace.
   // Find next valid spill slot.

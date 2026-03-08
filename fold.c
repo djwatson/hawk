@@ -192,6 +192,9 @@ IRFOLD(LOAD CONST CONST)
 IRFOLDF(fold_load_const_const) {
   auto src = t->consts[in->op1.loc];
   auto off = t->consts[in->op2.loc];
+  if (get_type_tag(src) != CLOSURE_TAG) {
+    return fold_next();
+  }
   assert(is_heap_object(src));
   assert(is_fixnum(off));
 
