@@ -229,8 +229,8 @@ static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
        ((ins_var) =                                                            \
             next_leading_op((trace_ptr), (opcode), &_##ins_var##_idx));)
 
-static __attribute__((preserve_all))
-gc_obj *jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
+static __attribute__((preserve_all)) gc_obj *
+jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
   expand_stack(state, &stack);
   return stack;
 }
@@ -562,7 +562,7 @@ static void emit_loopback_entry_spills(emit_state *s, trace *entry_trace,
 
 static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
                            int32_t cur_snap, uint8_t reg) {
-  if (!op->guard) {
+  if (!op->guard && op->type != FLONUM_TAG) {
     return;
   }
   // TODO: some of these the code could be merged
@@ -914,8 +914,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
                                            : slot_ins(t, op->op1)->type;
       int32_t typed_offset = (int32_t)((int64_t)sizeof(gc_header) - base_type);
       if (op->type == FLONUM_TAG) {
-        // Slot contains a tagged flonum gc_obj; load object first, then payload.
-        // Prefer the dedicated secondary scratch register when available.
+        // Slot contains a tagged flonum gc_obj; load object first, then
+        // payload. Prefer the dedicated secondary scratch register when
+        // available.
         uint8_t obj_reg = asm_rtmp2_reserved() ? RTMP2 : RET_REG2;
         if (op->op2.constant) {
           int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
@@ -987,7 +988,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
         auto offset_reg = ir_input_reg(t, regmap, ref_idx, 1);
         uint8_t addr_reg = RTMP2;
         if (ref->op1.constant) {
-          // base_reg is already RTMP2 here; build address directly from const base.
+          // base_reg is already RTMP2 here; build address directly from const
+          // base.
           emit_mov64(s, addr_reg, slot_const(t, ref->op1));
           emit_add(s, addr_reg, addr_reg, offset_reg);
         } else {
@@ -1272,7 +1274,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
         assert(arg0_reg != REG_NONE);
 
         COMMENT("  Alloc with dynamic size");
-        // Preserve original tagged size across fastpath probing; RET_REG is reused.
+        // Preserve original tagged size across fastpath probing; RET_REG is
+        // reused.
         emit_mov(s, RTMP2, arg0_reg);
         emit_sar_constant(s, RET_REG2, RTMP2, FIXNUM_SHIFT + 3);
         emit_cmp_constant(s, RET_REG2, (int64_t)size_classes);
@@ -1353,9 +1356,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
         !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
           op->op == IR_LOAD || op->op == IR_ALLOC || op->op == IR_TYPECHECK ||
           op->op == IR_SUB || op->op == IR_ADD || op->op == IR_MUL ||
-          op->op == IR_DIV || op->op == IR_QUOTIENT ||
-          op->op == IR_MOD || op->op == IR_GGET || op->op == IR_INEXACT ||
-          op->op == IR_EXACT || op->op == IR_TRUNCATE)) {
+          op->op == IR_DIV || op->op == IR_QUOTIENT || op->op == IR_MOD ||
+          op->op == IR_GGET || op->op == IR_INEXACT || op->op == IR_EXACT ||
+          op->op == IR_TRUNCATE)) {
       abort();
     }
   }

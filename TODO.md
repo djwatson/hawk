@@ -1,6 +1,6 @@
 # Currently working on:
 
-* simplex
+/build//hawk test/triangl.scm -s17 -vp --max-trace=2
 
 * cleanup loopback shit
 
