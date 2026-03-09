@@ -785,8 +785,6 @@ static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
   return pc;
 }
 
-static int pmov_arg_index(trace *t, uint16_t ins_loc);
-
 static int slot_arg_index(trace *t, slot s) {
   if (s.constant) {
     return -1;
@@ -794,28 +792,6 @@ static int slot_arg_index(trace *t, slot s) {
   ir_ins *ins = &t->ins[s.loc];
   if (ins->op == IR_ARG) {
     return (int)ins->data;
-  }
-  if (ins->op == IR_PMOV) {
-    return pmov_arg_index(t, s.loc);
-  }
-  return -1;
-}
-
-static int pmov_arg_index(trace *t, uint16_t ins_loc) {
-  if (arrlen(t->snaps) == 0) {
-    return -1;
-  }
-  snap *entry_snap = &t->snaps[0];
-  arr_for_each_idx(entry_snap->slots, i) {
-    auto entry = &entry_snap->slots[i];
-    if (entry->val.constant || entry->val.loc != ins_loc) {
-      continue;
-    }
-    int logical_slot = (int)entry->slot - (int)entry_snap->offset;
-    if (logical_slot < 0 || logical_slot >= REG_ARG_CNT) {
-      return -1;
-    }
-    return logical_slot;
   }
   return -1;
 }
@@ -842,32 +818,6 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
     arr_for_each_idx(candidate->ins, i) {
       ir_ins *ins = &candidate->ins[i];
       if (ins->op == IR_ARG) {
-        continue;
-      }
-      if (ins->op == IR_PMOV) {
-        if (!ins->guard) {
-          continue;
-        }
-        int arg_idx = pmov_arg_index(candidate, (uint16_t)i);
-        if (arg_idx < 0 || arg_idx >= REG_ARG_CNT) {
-          // Guarded PMOV without an entry-arg mapping is ambiguous.
-          // Reject this candidate rather than guessing.
-          match = false;
-          break;
-        }
-        needs_guard[arg_idx] = true;
-        if (verbose) {
-          printf("  need_guard[arg%d] = 1 (pmov ins=%zu type=%u)\n", arg_idx, i,
-                 ins->type);
-        }
-        if (get_type_tag(stack[arg_idx]) != ins->type) {
-          if (verbose) {
-            printf("  arg%d type mismatch want %u got %u\n", arg_idx, ins->type,
-                   get_type_tag(stack[arg_idx]));
-          }
-          match = false;
-          break;
-        }
         continue;
       }
       if (ins->op != IR_TYPECHECK) {

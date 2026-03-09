@@ -10,9 +10,6 @@
   * deriv.scm needs better closure conversion.
   * need to remove push/pop of GC regs.
 
-* cleanup ensure_args_match_trace.  poly traces could emit 'arg' instead, and then ensure_args_match_trace doesn't need to know ANYTHING about '
-pmov'
-
 * downrec traces don't ensure_args_match and link without boxing/typecheck
 
 * regalloc could be improved to not reserve RTMP2 ugh
