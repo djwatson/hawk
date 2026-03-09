@@ -5,7 +5,7 @@
 #include <assert.h>
 #include <inttypes.h>
 
-static void print_slot(slot s, trace *t, regalloc2_result const *regmap,
+static void print_slot(slot s, trace *t, regalloc_result const *regmap,
                        size_t *in_idx) {
   if (s.constant) {
     auto gc = t->consts[s.loc];
@@ -68,7 +68,7 @@ static bool ir_has_side_effects[] = {
 #undef X
 };
 
-static void print_reload_events(trace *t, regalloc2_result const *regmap,
+static void print_reload_events(trace *t, regalloc_result const *regmap,
                                 size_t ir) {
   arr_for_each_idx(regmap->reload_ops, eidx) {
     auto e = regmap->reload_ops[eidx];
@@ -81,7 +81,7 @@ static void print_reload_events(trace *t, regalloc2_result const *regmap,
   }
 }
 
-static void print_snap(snap *snap, trace *t, regalloc2_result const *regmap,
+static void print_snap(snap *snap, trace *t, regalloc_result const *regmap,
                        size_t snap_idx) {
   (void)snap_idx;
   printf("SNAP[ir=%i pc=%p off=%i", snap->ir, snap->pc, snap->offset);
@@ -166,7 +166,7 @@ static void print_tag_type(uint8_t t) {
   }
 }
 
-void print_ir(trace *t, regalloc2_result const *regmap) {
+void print_ir(trace *t, regalloc_result const *regmap) {
   uint64_t cur_snap = 0;
   for (size_t i = 0; i < arrlen(t->ins) + 1 /* last snap */; i++) {
     while (cur_snap < arrlen(t->snaps) && t->snaps[cur_snap].ir == i) {

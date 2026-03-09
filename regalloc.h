@@ -20,11 +20,11 @@ typedef struct {
   uint8_t reg;
 } reload_op;
 
-typedef struct regalloc2_result {
+typedef struct regalloc_result {
   dense_loc_entry *dense_locs;
   uint16_t *ir_id_to_dense_map;
   reload_op *reload_ops;
-} regalloc2_result;
+} regalloc_result;
 
-regalloc2_result regalloc2(trace *t);
-void regalloc2_result_free(regalloc2_result *r);
+regalloc_result regalloc(trace *t);
+void regalloc_result_free(regalloc_result *r);

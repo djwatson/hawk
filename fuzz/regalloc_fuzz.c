@@ -383,7 +383,7 @@ static void check_loc_holds(uint16_t const regs[MAX_REG],
   }
 }
 
-static void verify_dense_arg(trace const *t, regalloc2_result const *r,
+static void verify_dense_arg(trace const *t, regalloc_result const *r,
                              uint16_t const regs[MAX_REG],
                              uint16_t const spills[MAX_SPILL], size_t *cur,
                              uint16_t ir, slot arg, char const *where) {
@@ -392,12 +392,12 @@ static void verify_dense_arg(trace const *t, regalloc2_result const *r,
   }
   if (r->dense_locs[*cur].value_id != arg.loc) {
     fprintf(stderr,
-            "regalloc2 verifier: %s value mismatch @ir=%u expect=%u got=%u\n",
+            "regalloc verifier: %s value mismatch @ir=%u expect=%u got=%u\n",
             where, ir, arg.loc, r->dense_locs[*cur].value_id);
     abort();
   }
   if (r->dense_locs[*cur].kind != LOC_REG) {
-    fprintf(stderr, "regalloc2 verifier: %s not in register @ir=%u\n", where,
+    fprintf(stderr, "regalloc verifier: %s not in register @ir=%u\n", where,
             ir);
     abort();
   }
@@ -405,7 +405,7 @@ static void verify_dense_arg(trace const *t, regalloc2_result const *r,
   (*cur)++;
 }
 
-static void verify_regalloc2(trace const *t, regalloc2_result const *r) {
+static void verify_regalloc(trace const *t, regalloc_result const *r) {
   uint16_t regs[MAX_REG];
   uint16_t spills[MAX_SPILL];
   for (size_t i = 0; i < MAX_REG; i++) {
@@ -563,10 +563,10 @@ int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
   }
   fill_snapshots(&rng, &t);
   /* print_ir(&t, nullptr); */
-  regalloc2_result r = regalloc2(&t);
+  regalloc_result r = regalloc(&t);
   /* print_ir(&t, &r); */
-  verify_regalloc2(&t, &r);
-  regalloc2_result_free(&r);
+  verify_regalloc(&t, &r);
+  regalloc_result_free(&r);
   free_trace(&t);
   return 0;
 }

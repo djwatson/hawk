@@ -116,7 +116,7 @@ static inline int32_t spill_offset(uint8_t spill) {
   return (int32_t)spill * 8;
 }
 
-static uint8_t ir_input_reg(trace const *t, regalloc2_result const *r,
+static uint8_t ir_input_reg(trace const *t, regalloc_result const *r,
                             uint16_t ir_idx, uint8_t arg_idx) {
   auto ins = &t->ins[ir_idx];
   size_t in_idx = r->ir_id_to_dense_map[ir_idx];
@@ -677,7 +677,7 @@ static void collect_loopback_moves(trace *exit_trace, uint16_t exit_snap_idx,
 }
 
 static void emit_snap_store_entry(emit_state *s, trace *t,
-                                  regalloc2_result const *regmap,
+                                  regalloc_result const *regmap,
                                   uint16_t snap_idx, size_t entry_idx,
                                   snap_entry const *entry) {
   (void)regmap;
@@ -712,7 +712,7 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
   }
 }
 
-static void emit_snap(emit_state *s, trace *t, regalloc2_result const *regmap,
+static void emit_snap(emit_state *s, trace *t, regalloc_result const *regmap,
                       uint16_t snap_idx, bool exit, uint16_t *ignore_slots,
                       uint8_t *regs_in) {
   auto snap = &t->snaps[snap_idx];
@@ -747,7 +747,7 @@ static void emit_exit_to_c(emit_state *s) {
 }
 
 static void emit_snapshot_exits(emit_state *s, trace *t,
-                                regalloc2_result const *regmap, snap *snaps,
+                                regalloc_result const *regmap, snap *snaps,
                                 label *exit_label) {
   // There will always be at least two snapshots.  Don't write the last, it's
   // the loopback snap.
@@ -761,7 +761,7 @@ static void emit_snapshot_exits(emit_state *s, trace *t,
 }
 
 static void link_to_next_trace(emit_state *s, trace *t,
-                               regalloc2_result const *regmap,
+                               regalloc_result const *regmap,
                                uint8_t entry_snap_idx) {
   auto cur_snap = (uint16_t)(arrlen(t->snaps) - 1);
 
@@ -807,7 +807,7 @@ static void link_to_next_trace(emit_state *s, trace *t,
 }
 
 static void emit_reload_events(emit_state *s, trace *t,
-                               regalloc2_result const *regmap,
+                               regalloc_result const *regmap,
                                uint16_t ir_idx) {
   arr_for_each_idx(regmap->reload_ops, eidx) {
     auto e = regmap->reload_ops[eidx];
@@ -826,7 +826,7 @@ static void emit_reload_events(emit_state *s, trace *t,
   }
 }
 
-static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
+static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
 
   int32_t cur_snap = 0;
 
@@ -1252,7 +1252,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
 // One that loops back from the current trace
 // One from c.
 static void emit_root_trace_entry(emit_state *s, trace *t,
-                                  regalloc2_result const *regmap) {
+                                  regalloc_result const *regmap) {
   // Emit an entry point from C.
   COMMENT("CENTRY");
   save_callee_regs(s);
@@ -1278,7 +1278,7 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
 }
 
 static void emit_side_trace_entry(emit_state *s, trace *t,
-                                  regalloc2_result const *regmap) {
+                                  regalloc_result const *regmap) {
   (void)regmap;
   // Install the side trace.
   uint8_t *patch_loc = t->parent_snap->patch_point.addr;
@@ -1292,7 +1292,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   emit_init(s);
 
   // Allocate registers, print the IR in verbose mode.
-  auto regmap = regalloc2(t);
+  auto regmap = regalloc(t);
   if (verbose) {
     print_ir(t, &regmap);
   }
@@ -1343,7 +1343,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // Cleanup
   arr_for_each(s->comments, entry) { free((void *)entry.text); }
   arrfree(s->comments);
-  regalloc2_result_free(&regmap);
+  regalloc_result_free(&regmap);
 
   // Install debuginfo for gdb & linux perf tool.
   char funcname[256];
