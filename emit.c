@@ -373,6 +373,20 @@ static void emit_flonum_binop(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
   binop(s, dst, lhs_reg, rhs_reg);
 }
 
+static inline void emit_arith_case(emit_state *s, trace *t, ir_ins *op,
+                                   uint8_t dst_reg, uint8_t lhs_reg,
+                                   uint8_t rhs_reg, int32_t cur_snap,
+                                   typeof(&emit_add) reg_emit,
+                                   typeof(&emit_add_constant) const_emit,
+                                   typeof(&emit_fadd) float_emit) {
+  if (op->type == FLONUM_TAG) {
+    emit_flonum_binop(s, t, dst_reg, op, float_emit, lhs_reg, rhs_reg);
+  } else {
+    emit_fixnum_binop_const(s, t, op, dst_reg, lhs_reg, rhs_reg, cur_snap,
+                            reg_emit, const_emit);
+  }
+}
+
 static void emit_box_flonum(emit_state *s, int32_t stack_offset,
                             uint8_t fpr_reg, bool store_to_stack) {
   assert(s->alloc_slowpath);
@@ -836,15 +850,20 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     COMMENT("%i %s", op_cnt_idx, ir_names[op->op]);
     emit_reload_events(s, t, regmap, op_cnt_idx);
 
+#define EMIT_CMP_CASE(opname, f_fail, i_fail)                                  \
+  case opname: {                                                               \
+    emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, f_fail, i_fail);   \
+    break;                                                                     \
+  }
+#define EMIT_ARITH_CASE(opname, reg_emit, const_emit, float_emit)              \
+  case opname: {                                                               \
+    emit_arith_case(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap, reg_emit,\
+                    const_emit, float_emit);                                   \
+    break;                                                                     \
+  }
     switch (op->op) {
-    case IR_EQ: {
-      emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JNE, JNE);
-      break;
-    }
-    case IR_NE: {
-      emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JE, JE);
-      break;
-    }
+      EMIT_CMP_CASE(IR_EQ, JNE, JNE)
+      EMIT_CMP_CASE(IR_NE, JE, JE)
     case IR_LOAD: {
       uint8_t base_reg = arg0_reg;
       if (op->op1.constant) {
@@ -943,22 +962,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
 
       break;
     }
-    case IR_LT: {
-      emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JAE, JGE);
-      break;
-    }
-    case IR_GT: {
-      emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JBE, JLE);
-      break;
-    }
-    case IR_GTE: {
-      emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JB, JL);
-      break;
-    }
-    case IR_LTE: {
-      emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JA, JG);
-      break;
-    }
+      EMIT_CMP_CASE(IR_LT, JAE, JGE)
+      EMIT_CMP_CASE(IR_GT, JBE, JLE)
+      EMIT_CMP_CASE(IR_GTE, JB, JL)
+      EMIT_CMP_CASE(IR_LTE, JA, JG)
     case IR_CONST: {
       assert(op->op1.constant);
       if (op->type == FLONUM_TAG) {
@@ -968,15 +975,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       }
       break;
     }
-    case IR_SUB: {
-      if (op->type == FLONUM_TAG) {
-        emit_flonum_binop(s, t, dst_reg, op, emit_fsub, arg0_reg, arg1_reg);
-      } else {
-        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
-                                emit_sub, emit_sub_constant);
-      }
-      break;
-    }
+      EMIT_ARITH_CASE(IR_SUB, emit_sub, emit_sub_constant, emit_fsub)
     case IR_MUL: {
       if (op->type == FLONUM_TAG) {
         emit_flonum_binop(s, t, dst_reg, op, emit_fmul, arg0_reg, arg1_reg);
@@ -1019,15 +1018,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       }
       break;
     }
-    case IR_ADD: {
-      if (op->type == FLONUM_TAG) {
-        emit_flonum_binop(s, t, dst_reg, op, emit_fadd, arg0_reg, arg1_reg);
-      } else {
-        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
-                                emit_add, emit_add_constant);
-      }
-      break;
-    }
+      EMIT_ARITH_CASE(IR_ADD, emit_add, emit_add_constant, emit_fadd)
     case IR_INEXACT: {
       assert(op->type == FLONUM_TAG);
       assert(!op->op1.constant);
@@ -1279,8 +1270,10 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
         emit_unbox_flonum(s, RTMP, out_reg);
       } else {
         emit_mem_load(s, offset, RSTACK, out_reg);
-      }
     }
+    }
+#undef EMIT_ARITH_CASE
+#undef EMIT_CMP_CASE
   }
 }
 
