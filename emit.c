@@ -878,7 +878,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
         // Slot contains a tagged flonum gc_obj; load object first, then
         // payload. Prefer the dedicated secondary scratch register when
         // available.
-        uint8_t obj_reg = asm_rtmp2_reserved() ? RTMP2 : RET_REG2;
+        uint8_t obj_reg = RTMP2;
         if (op->op2.constant) {
           int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
           emit_mem_load(s, (int32_t)offset_bytes, base_reg, obj_reg);
@@ -1093,11 +1093,6 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
       size_t save_cnt = 0;
       bool preserve_ret = dst_reg != RET_REG;
       bool preserve_ret2 = dst_reg != RET_REG2;
-      bool preserve_rtmp2 =
-          dynamic_alloc && !asm_rtmp2_reserved() && dst_reg != RTMP2;
-      if (preserve_rtmp2) {
-        save_regs[save_cnt++] = RTMP2;
-      }
       if (preserve_ret2) {
         save_regs[save_cnt++] = RET_REG2;
       }

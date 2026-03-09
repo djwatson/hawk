@@ -7,78 +7,81 @@
 #include "asm_interface.h"
 
 #define ASM_AARCH64_REGISTER_LIST(X)                                           \
-  X(X0)                                                                        \
-  X(X1)                                                                        \
-  X(X2)                                                                        \
-  X(X3)                                                                        \
-  X(X4)                                                                        \
-  X(X5)                                                                        \
-  X(X6)                                                                        \
-  X(X7)                                                                        \
-  X(X8)                                                                        \
-  X(X9)                                                                        \
-  X(X10)                                                                       \
-  X(X11)                                                                       \
-  X(X12)                                                                       \
-  X(X13)                                                                       \
-  X(X14)                                                                       \
-  X(X15)                                                                       \
-  X(X16)                                                                       \
-  X(X17)                                                                       \
-  X(X18)                                                                       \
-  X(X19)                                                                       \
-  X(X20)                                                                       \
-  X(X21)                                                                       \
-  X(X22)                                                                       \
-  X(X23)                                                                       \
-  X(X24)                                                                       \
-  X(X25)                                                                       \
-  X(X26)                                                                       \
-  X(X27)                                                                       \
-  X(X28)                                                                       \
-  X(X29)                                                                       \
-  X(X30)                                                                       \
-  X(XZR)
+  X(X0, false, false)                                                          \
+  X(X1, false, false)                                                          \
+  X(X2, false, false)                                                          \
+  X(X3, false, false)                                                          \
+  X(X4, false, false)                                                          \
+  X(X5, false, false)                                                          \
+  X(X6, false, false)                                                          \
+  X(X7, true, false)                                                           \
+  X(X8, true, false)                                                           \
+  X(X9, false, false)                                                          \
+  X(X10, false, false)                                                         \
+  X(X11, false, false)                                                         \
+  X(X12, false, false)                                                         \
+  X(X13, false, false)                                                         \
+  X(X14, false, false)                                                         \
+  X(X15, false, false)                                                         \
+  X(X16, true, false)                                                          \
+  X(X17, true, false)                                                          \
+  X(X18, true, false)                                                          \
+  X(X19, false, true)                                                          \
+  X(X20, false, true)                                                          \
+  X(X21, false, true)                                                          \
+  X(X22, false, true)                                                          \
+  X(X23, false, true)                                                          \
+  X(X24, false, true)                                                          \
+  X(X25, true, true)                                                           \
+  X(X26, true, true)                                                           \
+  X(X27, false, true)                                                          \
+  X(X28, false, true)                                                          \
+  X(X29, true, true)                                                           \
+  X(X30, true, true)                                                           \
+  X(XZR, true, false)
 
 #define ASM_AARCH64_FREGISTER_LIST(X)                                          \
-  X(V0)                                                                        \
-  X(V1)                                                                        \
-  X(V2)                                                                        \
-  X(V3)                                                                        \
-  X(V4)                                                                        \
-  X(V5)                                                                        \
-  X(V6)                                                                        \
-  X(V7)                                                                        \
-  X(V8)                                                                        \
-  X(V9)                                                                        \
-  X(V10)                                                                       \
-  X(V11)                                                                       \
-  X(V12)                                                                       \
-  X(V13)                                                                       \
-  X(V14)                                                                       \
-  X(V15)                                                                       \
-  X(V16)                                                                       \
-  X(V17)                                                                       \
-  X(V18)                                                                       \
-  X(V19)                                                                       \
-  X(V20)                                                                       \
-  X(V21)                                                                       \
-  X(V22)                                                                       \
-  X(V23)                                                                       \
-  X(V24)                                                                       \
-  X(V25)                                                                       \
-  X(V26)                                                                       \
-  X(V27)                                                                       \
-  X(V28)                                                                       \
-  X(V29)                                                                       \
-  X(V30)                                                                       \
-  X(V31)
+  X(V0, false, false)                                                          \
+  X(V1, false, false)                                                          \
+  X(V2, false, false)                                                          \
+  X(V3, false, false)                                                          \
+  X(V4, false, false)                                                          \
+  X(V5, false, false)                                                          \
+  X(V6, false, false)                                                          \
+  X(V7, false, false)                                                          \
+  X(V8, false, true)                                                           \
+  X(V9, false, true)                                                           \
+  X(V10, false, true)                                                          \
+  X(V11, false, true)                                                          \
+  X(V12, false, true)                                                          \
+  X(V13, false, true)                                                          \
+  X(V14, false, true)                                                          \
+  X(V15, false, true)                                                          \
+  X(V16, false, false)                                                         \
+  X(V17, false, false)                                                         \
+  X(V18, false, false)                                                         \
+  X(V19, false, false)                                                         \
+  X(V20, false, false)                                                         \
+  X(V21, false, false)                                                         \
+  X(V22, false, false)                                                         \
+  X(V23, false, false)                                                         \
+  X(V24, false, false)                                                         \
+  X(V25, false, false)                                                         \
+  X(V26, false, false)                                                         \
+  X(V27, false, false)                                                         \
+  X(V28, false, false)                                                         \
+  X(V29, false, false)                                                         \
+  X(V30, false, false)                                                         \
+  X(V31, true, false)
+
+#define ASM_REGISTER_LIST(X) ASM_AARCH64_REGISTER_LIST(X)
+#define ASM_FREGISTER_LIST(X) ASM_AARCH64_FREGISTER_LIST(X)
 
 enum registers : uint8_t {
-#define X(name) name,
+#define X(name, unallocatable, callee_saved) name,
   ASM_AARCH64_REGISTER_LIST(X)
 #undef X
-#define X(name) name,
+#define X(name, unallocatable, callee_saved) name,
       ASM_AARCH64_FREGISTER_LIST(X)
 #undef X
           AARCH64_MAX_REG,
@@ -118,9 +121,6 @@ enum : uint8_t {
   FRTMP = V31,
 };
 
-void asm_mark_unallocatable(bool used[MAX_REG]);
-bool asm_is_callee_saved(uint8_t reg);
-
 enum jcc_cond {
   JO = 0x6,  // VS
   JNO = 0x7, // VC
@@ -139,4 +139,4 @@ enum jcc_cond {
   JP = 0x6,  // VS (used for floating-point unordered).
 };
 
-extern const char *const reg_names[AARCH64_MAX_REG];
+extern const char *const reg_names[FPR_REG_END];

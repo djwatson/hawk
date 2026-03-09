@@ -17,19 +17,19 @@ int64_t max_trace = 0;
 
 #if defined(__x86_64__)
 const char *const reg_names[X64_MAX_REG] = {
-#define X(name) #name,
+#define X(name, unallocatable, callee_saved) #name,
     ASM_X64_REGISTER_LIST(X)
 #undef X
-#define X(name) #name,
+#define X(name, unallocatable, callee_saved) #name,
         ASM_X64_FREGISTER_LIST(X)
 #undef X
 };
 #elif defined(__aarch64__)
 const char *const reg_names[AARCH64_MAX_REG] = {
-#define X(name) #name,
+#define X(name, unallocatable, callee_saved) #name,
     ASM_AARCH64_REGISTER_LIST(X)
 #undef X
-#define X(name) #name,
+#define X(name, unallocatable, callee_saved) #name,
         ASM_AARCH64_FREGISTER_LIST(X)
 #undef X
 };

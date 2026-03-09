@@ -22,40 +22,6 @@ static inline uint8_t hw_fpr(uint8_t reg) {
   return reg - FPR_REG_START;
 }
 
-const char *const reg_names[X64_MAX_REG] = {
-#define X(name) #name,
-    ASM_X64_REGISTER_LIST(X)
-#undef X
-#define X(name) #name,
-        ASM_X64_FREGISTER_LIST(X)
-#undef X
-};
-
-void asm_mark_unallocatable(bool used[MAX_REG]) {
-  used[RSP] = true;
-  used[RTMP] = true;
-  used[RTMP2] = true;
-  used[RSTACK] = true;
-  used[RSTATE] = true;
-  used[FRTMP] = true;
-}
-
-bool asm_is_callee_saved(uint8_t reg) {
-  switch (reg) {
-  case RBX:
-  case RBP:
-  case R12:
-  case R13:
-  case R14:
-  case R15:
-    return true;
-  default:
-    return false;
-  }
-}
-
-bool asm_rtmp2_reserved(void) { return true; }
-
 static uint8_t low3bits(uint8_t r) { return 0x7 & r; }
 
 /////////////////// instruction encoding
@@ -157,6 +123,41 @@ void asm_write_jmp32_at(emit_state *s, uint8_t *loc, uint8_t const *target) {
   memcpy(loc + 1, &delta, sizeof(int32_t));
 }
 
+void asm_emit_jmp32_resolved(emit_state *s, uint8_t const *target) {
+  int64_t delta = (int64_t)target - (emit_offset(s) + 5);
+  assert(fits_in_32(delta));
+  emit_byte(s, 0xe9);
+  emit_imm32(s, (uint32_t)delta);
+}
+
+uint8_t *asm_emit_jmp32_placeholder(emit_state *s) {
+  emit_byte(s, 0xe9);
+  return emit_imm32(s, 0);
+}
+
+void asm_emit_jcc32_resolved(emit_state *s, enum jcc_cond cond,
+                             uint8_t const *target) {
+  int64_t cur = emit_offset(s);
+  int64_t short_delta = (int64_t)target - (cur + 2);
+  if ((int32_t)((int8_t)short_delta) == short_delta) {
+    emit_byte(s, (uint8_t)(cond - 0x10));
+    emit_byte(s, (uint8_t)short_delta);
+    return;
+  }
+
+  int64_t delta = (int64_t)target - (cur + 6);
+  assert(fits_in_32(delta));
+  emit_byte(s, 0x0f);
+  emit_byte(s, cond);
+  emit_imm32(s, (uint32_t)delta);
+}
+
+uint8_t *asm_emit_jcc32_placeholder(emit_state *s, enum jcc_cond cond) {
+  emit_byte(s, 0x0f);
+  emit_byte(s, cond);
+  return emit_imm32(s, 0);
+}
+
 static void emit_cmp_reg_imm32(emit_state *s, uint8_t r, int32_t imm) {
   if ((int32_t)((int8_t)imm) == imm) {
     emit_reg_reg(s, 0x83, 7, r);
@@ -165,47 +166,6 @@ static void emit_cmp_reg_imm32(emit_state *s, uint8_t r, int32_t imm) {
     emit_reg_reg(s, 0x81, 7, r);
     emit_imm32(s, (uint32_t)imm);
   }
-}
-
-void emit_jcc32(emit_state *s, enum jcc_cond cond, label *target) {
-  assert(target);
-  if (target->emitted) {
-    int64_t cur = emit_offset(s);
-    int64_t short_delta = (int64_t)target->addr - (cur + 2);
-    if ((int32_t)((int8_t)short_delta) == short_delta) {
-      emit_byte(s, (uint8_t)(cond - 0x10));
-      emit_byte(s, (uint8_t)short_delta);
-      return;
-    }
-
-    int64_t delta = (int64_t)target->addr - (cur + 6);
-    assert(fits_in_32(delta));
-    emit_byte(s, 0x0f);
-    emit_byte(s, cond);
-    emit_imm32(s, (uint32_t)delta);
-    return;
-  }
-
-  // Unresolved label: always use the long encoding for easier patching.
-  emit_byte(s, 0x0f);
-  emit_byte(s, cond);
-  auto loc = emit_imm32(s, 0);
-  label_add_patch(s, target, LABEL_PATCH_JCC32, loc);
-}
-
-void emit_jmp32(emit_state *s, label *target) {
-  assert(target);
-  if (target->emitted) {
-    int64_t delta = (int64_t)target->addr - (emit_offset(s) + 5);
-    assert(fits_in_32(delta));
-    emit_byte(s, 0xe9);
-    emit_imm32(s, (uint32_t)delta);
-    return;
-  }
-
-  emit_byte(s, 0xe9);
-  auto loc = emit_imm32(s, 0);
-  label_add_patch(s, target, LABEL_PATCH_JMP32, loc);
 }
 
 static void emit_reg_reg(emit_state *s, uint8_t opcode, uint8_t src,

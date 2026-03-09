@@ -17,6 +17,26 @@
 static const size_t page_cnt = 250;
 static const size_t msize = page_cnt * 4096;
 
+const char *const reg_names[FPR_REG_END] = {
+#define X(name, unallocatable, callee_saved) #name,
+    ASM_REGISTER_LIST(X)
+    ASM_FREGISTER_LIST(X)
+#undef X
+};
+
+bool asm_is_callee_saved(uint8_t reg) {
+  switch (reg) {
+#define X(name, unallocatable, callee_saved)                                   \
+  case name:                                                                   \
+    return callee_saved;
+    ASM_REGISTER_LIST(X)
+    ASM_FREGISTER_LIST(X)
+#undef X
+  default:
+    return false;
+  }
+}
+
 static void emit_ensure_space(emit_state *s, size_t bytes) {
   assert(s);
   size_t available = (size_t)(s->mend - s->p);
@@ -86,6 +106,28 @@ void emit_label(emit_state *s, label *label) {
     arrfree(label->patches);
     label->patches = nullptr;
   }
+}
+
+void emit_jmp32(emit_state *s, label *target) {
+  assert(target);
+  if (target->emitted) {
+    asm_emit_jmp32_resolved(s, target->addr);
+    return;
+  }
+
+  uint8_t *loc = asm_emit_jmp32_placeholder(s);
+  label_add_patch(s, target, LABEL_PATCH_JMP32, loc);
+}
+
+void emit_jcc32(emit_state *s, enum jcc_cond cond, label *target) {
+  assert(target);
+  if (target->emitted) {
+    asm_emit_jcc32_resolved(s, cond, target->addr);
+    return;
+  }
+
+  uint8_t *loc = asm_emit_jcc32_placeholder(s, cond);
+  label_add_patch(s, target, LABEL_PATCH_JCC32, loc);
 }
 
 void emit_bind(emit_state *s, uint64_t label, uint64_t jmp) {

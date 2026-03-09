@@ -7,46 +7,49 @@
 #include "asm_interface.h"
 
 #define ASM_X64_REGISTER_LIST(X)                                               \
-  X(RAX)                                                                       \
-  X(RCX)                                                                       \
-  X(RDX)                                                                       \
-  X(RBX)                                                                       \
-  X(RSP)                                                                       \
-  X(RBP)                                                                       \
-  X(RSI)                                                                       \
-  X(RDI)                                                                       \
-  X(R8)                                                                        \
-  X(R9)                                                                        \
-  X(R10)                                                                       \
-  X(R11)                                                                       \
-  X(R12)                                                                       \
-  X(R13)                                                                       \
-  X(R14)                                                                       \
-  X(R15)
+  X(RAX, false, false)                                                         \
+  X(RCX, false, false)                                                         \
+  X(RDX, false, false)                                                         \
+  X(RBX, false, true)                                                          \
+  X(RSP, true, false)                                                          \
+  X(RBP, false, true)                                                          \
+  X(RSI, false, false)                                                         \
+  X(RDI, false, false)                                                         \
+  X(R8, false, false)                                                          \
+  X(R9, false, false)                                                          \
+  X(R10, false, false)                                                         \
+  X(R11, false, false)                                                         \
+  X(R12, true, true)                                                           \
+  X(R13, true, true)                                                           \
+  X(R14, true, true)                                                           \
+  X(R15, true, true)
 
 #define ASM_X64_FREGISTER_LIST(X)                                              \
-  X(XMM0)                                                                      \
-  X(XMM1)                                                                      \
-  X(XMM2)                                                                      \
-  X(XMM3)                                                                      \
-  X(XMM4)                                                                      \
-  X(XMM5)                                                                      \
-  X(XMM6)                                                                      \
-  X(XMM7)                                                                      \
-  X(XMM8)                                                                      \
-  X(XMM9)                                                                      \
-  X(XMM10)                                                                     \
-  X(XMM11)                                                                     \
-  X(XMM12)                                                                     \
-  X(XMM13)                                                                     \
-  X(XMM14)                                                                     \
-  X(XMM15)
+  X(XMM0, false, false)                                                        \
+  X(XMM1, false, false)                                                        \
+  X(XMM2, false, false)                                                        \
+  X(XMM3, false, false)                                                        \
+  X(XMM4, false, false)                                                        \
+  X(XMM5, false, false)                                                        \
+  X(XMM6, false, false)                                                        \
+  X(XMM7, false, false)                                                        \
+  X(XMM8, false, false)                                                        \
+  X(XMM9, false, false)                                                        \
+  X(XMM10, false, false)                                                       \
+  X(XMM11, false, false)                                                       \
+  X(XMM12, false, false)                                                       \
+  X(XMM13, false, false)                                                       \
+  X(XMM14, false, false)                                                       \
+  X(XMM15, true, false)
+
+#define ASM_REGISTER_LIST(X) ASM_X64_REGISTER_LIST(X)
+#define ASM_FREGISTER_LIST(X) ASM_X64_FREGISTER_LIST(X)
 
 enum registers : uint8_t {
-#define X(name) name,
+#define X(name, unallocatable, callee_saved) name,
   ASM_X64_REGISTER_LIST(X)
 #undef X
-#define X(name) name,
+#define X(name, unallocatable, callee_saved) name,
       ASM_X64_FREGISTER_LIST(X)
 #undef X
           X64_MAX_REG,
@@ -77,9 +80,6 @@ _Static_assert(X64_MAX_REG <= MAX_REG, "X64_MAX_REG must be less than MAX_REG");
 enum : uint8_t {
   FRTMP = XMM15,
 };
-
-void asm_mark_unallocatable(bool used[MAX_REG]);
-bool asm_is_callee_saved(uint8_t reg);
 
 enum ARITH_CODES {
   ASM_ARITH_ADD = 0,
@@ -147,4 +147,4 @@ enum jcc_cond {
   JS = 0x88,
 };
 
-extern const char *const reg_names[X64_MAX_REG];
+extern const char *const reg_names[FPR_REG_END];
