@@ -13,10 +13,10 @@
 #include "ir.h"
 #include "opt_dce.h"
 #include "record.h"
+#include "runtime.h"
 #include "string.h"
 #include "types.h"
 #include "vm.h"
-#include "runtime.h"
 
 #define VMGEN_TRACE_OP_NOABORT(pc, code, state, argcnt)                        \
   do {                                                                         \
@@ -845,42 +845,27 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
       }
     }
 
-    if (!match) {
-      if (verbose) {
-        printf("  needs_guard:");
-        for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
-          if (needs_guard[arg_idx]) {
-            printf(" %d", arg_idx);
-          }
-        }
-        printf("\n");
-      }
-      continue;
-    }
-
-    if (cur_trace) {
-      // A trace is only safe to match if every required entry-arg guard can be
-      // re-applied from the side trace's outgoing state. If an arg isn't in the
-      // outgoing snapshot (not live/changed), linking here would skip a
-      // required type guard on re-entry.
-      for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
-        if (!needs_guard[arg_idx]) {
-          continue;
-        }
-        sentry *entry = get_sentry(state, arg_idx);
-        if (!entry->live || !entry->changed) {
-          if (verbose) {
-            printf("  reject trace %i: missing outgoing snap slot for arg%d "
-                   "(live=%d changed=%d)\n",
-                   candidate->num, arg_idx, entry->live, entry->changed);
-          }
-          match = false;
-          break;
-        }
-      }
-      if (!match) {
+    // A trace is only safe to match if every required entry-arg guard can be
+    // re-applied from the side trace's outgoing state. If an arg isn't in the
+    // outgoing snapshot (not live/changed), linking here would skip a
+    // required type guard on re-entry.
+    for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
+      if (!needs_guard[arg_idx]) {
         continue;
       }
+      sentry *entry = get_sentry(state, arg_idx);
+      if (!entry->live || !entry->changed) {
+        if (verbose) {
+          printf("  reject trace %i: missing outgoing snap slot for arg%d "
+                 "(live=%d changed=%d)\n",
+                 candidate->num, arg_idx, entry->live, entry->changed);
+        }
+        match = false;
+        break;
+      }
+    }
+    if (!match) {
+      continue;
     }
 
     res.trace = candidate;
