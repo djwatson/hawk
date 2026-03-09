@@ -7,6 +7,7 @@
 
 #include "array.h"
 #include "gc.h"
+#include "vm_guard.h"
 
 typedef fold_result (*fold_func_type)(trace *t, ir_ins *in);
 
@@ -136,56 +137,32 @@ IRFOLD(SUB CONST CONST)
 IRFOLDF(fold_sub_const_const) {
   auto lhs = t->consts[in->op1.loc];
   auto rhs = t->consts[in->op2.loc];
-  if (in->type == FLONUM_TAG) {
-    auto res = (flonum_s *)gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = to_flonum(lhs)->x - to_flonum(rhs)->x;
-    return fold_const(tag_flonum(res));
-  }
-  auto diff = to_fixnum(lhs) - to_fixnum(rhs);
-  return fold_const(tag_fixnum(diff));
+  VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, to_fixnum(lhs) - to_fixnum(rhs),
+                              numeric_to_double(lhs) - numeric_to_double(rhs));
 }
 
 IRFOLD(ADD CONST CONST)
 IRFOLDF(fold_add_const_const) {
   auto lhs = t->consts[in->op1.loc];
   auto rhs = t->consts[in->op2.loc];
-  if (in->type == FLONUM_TAG) {
-    auto res = (flonum_s *)gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = to_flonum(lhs)->x + to_flonum(rhs)->x;
-    return fold_const(tag_flonum(res));
-  }
-  auto diff = to_fixnum(lhs) + to_fixnum(rhs);
-  return fold_const(tag_fixnum(diff));
+  VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, to_fixnum(lhs) + to_fixnum(rhs),
+                              numeric_to_double(lhs) + numeric_to_double(rhs));
 }
 
 IRFOLD(MUL CONST CONST)
 IRFOLDF(fold_mul_const_const) {
   auto lhs = t->consts[in->op1.loc];
   auto rhs = t->consts[in->op2.loc];
-  if (in->type == FLONUM_TAG) {
-    auto res = (flonum_s *)gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = to_flonum(lhs)->x * to_flonum(rhs)->x;
-    return fold_const(tag_flonum(res));
-  }
-  auto prod = to_fixnum(lhs) * to_fixnum(rhs);
-  return fold_const(tag_fixnum(prod));
+  VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, to_fixnum(lhs) * to_fixnum(rhs),
+                              numeric_to_double(lhs) * numeric_to_double(rhs));
 }
 
 IRFOLD(QUOTIENT CONST CONST)
 IRFOLDF(fold_quotient_const_const) {
   auto lhs = t->consts[in->op1.loc];
   auto rhs = t->consts[in->op2.loc];
-  if (in->type == FLONUM_TAG) {
-    auto res = (flonum_s *)gc_alloc(sizeof(flonum_s));
-    res->header.type = FLONUM_TAG;
-    res->x = trunc(to_flonum(lhs)->x / to_flonum(rhs)->x);
-    return fold_const(tag_flonum(res));
-  }
-  auto q = to_fixnum(lhs) / to_fixnum(rhs);
-  return fold_const(tag_fixnum(q));
+  VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, to_fixnum(lhs) / to_fixnum(rhs),
+                              trunc(numeric_to_double(lhs) / numeric_to_double(rhs)));
 }
 
 IRFOLD(LOAD CONST CONST)

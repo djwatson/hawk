@@ -307,7 +307,8 @@ static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   return add_const(state, c);
 }
 static inline bc *vmgen_jmp_advance(bc *pc) { return pc; }
-DEFINE_RECORD_NUMERIC_BINOP_SAME_TYPE(add, IR_ADD)
+static slot convert_to_flonum(vm_state *state, slot v1);
+DEFINE_RECORD_NUMERIC_BINOP_COERCED(add, IR_ADD)
 static slot convert_to_flonum(vm_state *state, slot v1) {
   auto t = record_current_trace(state);
   auto t1 = get_slot_type(t, v1);
@@ -369,16 +370,6 @@ DEFINE_RECORD_NUMERIC_BINOP_COERCED(mul, IR_MUL)
 DEFINE_RECORD_NUMERIC_BINOP_FORCE_FLONUM(div, IR_DIV)
 DEFINE_RECORD_NUMERIC_BINOP_COERCED(quotient, IR_QUOTIENT)
 DEFINE_RECORD_NUMERIC_BINOP_COERCED(mod, IR_MOD)
-static inline double numeric_to_double(gc_obj v) {
-  if (is_flonum(v)) {
-    return to_flonum(v)->x;
-  }
-  if (is_fixnum(v)) {
-    return (double)to_fixnum(v);
-  }
-  abort();
-}
-
 #define DEFINE_BRANCH_CMP(name, taken_op, not_taken_op, cmp_op)                \
   static branch_result emit_math_cmp_##name(vm_state *state, bc *pc,           \
                                             gc_obj *stack, slot v1, slot v2) { \

@@ -102,8 +102,8 @@ static inline gc_obj const_load(vm_state *state, bc *pc, uint16_t offset) {
 }
 static inline bc *vmgen_jmp_advance(bc *pc) { return pc + pc->data; }
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
-    add, (void)state; return tag_fixnum(to_fixnum(v1) + to_fixnum(v2));,
-    return vm_box_flonum(to_flonum(v1)->x + to_flonum(v2)->x);, abort();)
+    add, return tag_fixnum(to_fixnum(v1) + to_fixnum(v2));,
+    return vm_box_flonum(numeric_to_double(v1) + numeric_to_double(v2));)
 static gc_obj scm_inexact(vm_state *state, gc_obj v1) {
   (void)state;
   if (is_fixnum(v1)) {
@@ -138,39 +138,14 @@ static gc_obj scm_truncate(vm_state *state, gc_obj v1) {
   }
   abort();
 }
-static NOINLINE gc_obj emit_ov_math_sub_slow(vm_state *state, gc_obj v1,
-                                             gc_obj v2) {
-  if (is_flonum(v1) || is_flonum(v2)) {
-    auto fl1 = scm_inexact(state, v1);
-    auto fl2 = scm_inexact(state, v2);
-    double r = to_flonum(fl1)->x - to_flonum(fl2)->x;
-    return vm_box_flonum(r);
-  }
-  if (is_fixnum(v1) && is_fixnum(v2)) {
-    gc_obj res;
-    if (!__builtin_sub_overflow(v1.value, v2.value, &res.value)) {
-      return res;
-    }
-    return emit_ov_math_sub_slow(state, scm_inexact(state, v1),
-                                 scm_inexact(state, v2));
-  }
-  abort();
-}
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
-    sub, (void)state; return tag_fixnum(to_fixnum(v1) - to_fixnum(v2));,
-    return vm_box_flonum(to_flonum(v1)->x - to_flonum(v2)->x);,
-    MUSTTAIL return emit_ov_math_sub_slow(state, v1, v2);)
+    sub, return tag_fixnum(to_fixnum(v1) - to_fixnum(v2));,
+    return vm_box_flonum(numeric_to_double(v1) - numeric_to_double(v2));)
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     mul, gc_obj res; if (!__builtin_mul_overflow(v1.value, to_fixnum(v2),
                                                  &res.value)) { return res; }
          abort();,
-    return vm_box_flonum(to_flonum(v1)->x * to_flonum(v2)->x);,
-    if (is_flonum(v1) || is_flonum(v2)) {
-      auto fl1 = scm_inexact(state, v1);
-      auto fl2 = scm_inexact(state, v2);
-      return vm_box_flonum(to_flonum(fl1)->x * to_flonum(fl2)->x);
-    }
-    abort();)
+    return vm_box_flonum(numeric_to_double(v1) * numeric_to_double(v2));)
 static inline gc_obj emit_ov_math_div(vm_state *state, gc_obj v1, gc_obj v2) {
   auto fl1 = scm_inexact(state, v1);
   auto fl2 = scm_inexact(state, v2);
@@ -183,31 +158,12 @@ DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     quotient, abort_if_zero_divisor(v2);
     return tag_fixnum(to_fixnum(v1) / to_fixnum(v2));,
     abort_if_zero_divisor(v2);
-    return vm_box_flonum(trunc(to_flonum(v1)->x / to_flonum(v2)->x));,
-    if (is_flonum(v1) || is_flonum(v2)) {
-      auto fl1 = scm_inexact(state, v1);
-      auto fl2 = scm_inexact(state, v2);
-      abort_if_zero_divisor(fl2);
-      return vm_box_flonum(trunc(to_flonum(fl1)->x / to_flonum(fl2)->x));
-    }
-    abort();)
-static NOINLINE gc_obj emit_ov_math_mod_slow(vm_state *state, gc_obj v1,
-                                             gc_obj v2) {
-  (void)state;
-  if (is_flonum(v1) || is_flonum(v2)) {
-    auto fl1 = scm_inexact(state, v1);
-    auto fl2 = scm_inexact(state, v2);
-    abort_if_zero_divisor(fl2);
-    double r = fmod(to_flonum(fl1)->x, to_flonum(fl2)->x);
-    return vm_box_flonum(r);
-  }
-  // TODO other math types!
-  abort();
-}
+    return vm_box_flonum(trunc(numeric_to_double(v1) / numeric_to_double(v2)));)
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     mod, abort_if_zero_divisor(v2);
-    return tag_fixnum(to_fixnum(v1) % to_fixnum(v2));, (void)state;,
-    MUSTTAIL return emit_ov_math_mod_slow(state, v1, v2);)
+    return tag_fixnum(to_fixnum(v1) % to_fixnum(v2));,
+    abort_if_zero_divisor(v2);
+    return vm_box_flonum(fmod(numeric_to_double(v1), numeric_to_double(v2)));)
 
 static NOINLINE gc_obj emit_math_cmp_lt_slowpath(vm_state *state, bc *pc,
                                                  gc_obj *stack, gc_obj v1,

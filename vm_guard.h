@@ -13,6 +13,16 @@ static inline gc_obj vm_box_flonum(double x) {
   return tag_flonum(res);
 }
 
+static inline double numeric_to_double(gc_obj v) {
+  if (is_flonum(v)) {
+    return to_flonum(v)->x;
+  }
+  if (is_fixnum(v)) {
+    return (double)to_fixnum(v);
+  }
+  abort();
+}
+
 static inline uint8_t numeric_guard_type(uint8_t t1, uint8_t t2) {
   if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
     return FLONUM_TAG;
@@ -23,17 +33,28 @@ static inline uint8_t numeric_guard_type(uint8_t t1, uint8_t t2) {
   abort();
 }
 
-#define DEFINE_VM_RUNTIME_NUMERIC_BINOP(name, fixnum_body, flonum_body,        \
-                                        fallback_body)                         \
-  static inline gc_obj emit_ov_math_##name(vm_state *state, gc_obj v1,         \
-                                           gc_obj v2) {                        \
-    if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {                        \
+#define VM_NUMERIC_TYPE_OF(v)                                                  \
+  (is_flonum((v)) ? FLONUM_TAG                                                 \
+                  : (is_fixnum((v)) ? FIXNUM_TAG : (abort(), 0)))
+
+static inline uint8_t numeric_obj_guard_type(gc_obj lhs, gc_obj rhs) {
+  return numeric_guard_type(VM_NUMERIC_TYPE_OF(lhs), VM_NUMERIC_TYPE_OF(rhs));
+}
+
+#define VM_NUMERIC_DISPATCH_VALUES(lhs, rhs, fixnum_body, flonum_body)         \
+  do {                                                                         \
+    uint8_t numeric_type__ = numeric_obj_guard_type((lhs), (rhs));             \
+    if (numeric_type__ == FIXNUM_TAG) {                                        \
       fixnum_body                                                              \
     }                                                                          \
-    if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {                        \
-      flonum_body                                                              \
-    }                                                                          \
-    fallback_body                                                              \
+    flonum_body                                                                \
+  } while (0)
+
+#define DEFINE_VM_RUNTIME_NUMERIC_BINOP(name, fixnum_body, flonum_body)        \
+  static inline gc_obj emit_ov_math_##name(vm_state *state, gc_obj v1,         \
+                                           gc_obj v2) {                        \
+    (void)state;                                                               \
+    VM_NUMERIC_DISPATCH_VALUES(v1, v2, fixnum_body, flonum_body);              \
   }
 
 #define DEFINE_RECORD_NUMERIC_BINOP_SAME_TYPE(name, ir_op)                     \
@@ -68,6 +89,14 @@ static inline uint8_t numeric_guard_type(uint8_t t1, uint8_t t2) {
         IR(.op = ir_op, .op1 = v1, .op2 = v2, .type = FLONUM_TAG);             \
     return add_inst(state, ins);                                               \
   }
+
+#define VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, fixnum_body, flonum_body)        \
+  do {                                                                         \
+    if (numeric_obj_guard_type((lhs), (rhs)) == FLONUM_TAG) {                  \
+      return fold_const(vm_box_flonum(flonum_body));                           \
+    }                                                                          \
+    return fold_const(tag_fixnum(fixnum_body));                                \
+  } while (0)
 
 static inline bool guard_obj_matches(gc_obj val, gc_obj want_tag_obj) {
   assert(is_fixnum(want_tag_obj));
