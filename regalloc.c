@@ -36,16 +36,6 @@ typedef struct regalloc_state {
   uint8_t next_spill;
 } regalloc_state;
 
-static void init_unallocatable_regs(bool used[MAX_REG]) {
-#define X(name, unallocatable, callee_saved)                                   \
-  if (unallocatable) {                                                         \
-    used[name] = true;                                                         \
-  }
-  ASM_REGISTER_LIST(X)
-  ASM_FREGISTER_LIST(X)
-#undef X
-}
-
 static uint8_t collect_ir_args(trace const *t, ir_ins const *ins, slot *args) {
   uint8_t count = 0;
   slot op1 = ins->op1;
@@ -277,7 +267,7 @@ static void materialize_arg_or_ensure_loc(regalloc_state *s, uint16_t cur_idx,
 static void init_regs(regalloc_state *s) {
   memset(s->regs, 0xff, sizeof(s->regs));
   bool unallocatable[MAX_REG] = {0};
-  init_unallocatable_regs(unallocatable);
+  asm_init_unallocatable_regs(unallocatable);
   for (uint16_t i = 0; i < MAX_REG; i++) {
     if (unallocatable[i]) {
       s->regs[i] = ALLOC_UNALLOCATABLE;

@@ -50,6 +50,8 @@ if(ENABLE_REGALLOC_FUZZ AND CMAKE_C_COMPILER_ID MATCHES "Clang")
       fuzz/regalloc_fuzz.c
       regalloc.c
       ir.c
+      ${ASM_SOURCE}
+      asm.c
       util/array.c
     )
     target_compile_options(regalloc_fuzz PRIVATE -fsanitize=fuzzer,address)

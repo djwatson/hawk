@@ -15,34 +15,7 @@ bool profile = false;
 bool jit_dump_flag = false;
 int64_t max_trace = 0;
 
-#if defined(__x86_64__)
-const char *const reg_names[X64_MAX_REG] = {
-#define X(name, unallocatable, callee_saved) #name,
-    ASM_X64_REGISTER_LIST(X)
-#undef X
-#define X(name, unallocatable, callee_saved) #name,
-        ASM_X64_FREGISTER_LIST(X)
-#undef X
-};
-#elif defined(__aarch64__)
-const char *const reg_names[AARCH64_MAX_REG] = {
-#define X(name, unallocatable, callee_saved) #name,
-    ASM_AARCH64_REGISTER_LIST(X)
-#undef X
-#define X(name, unallocatable, callee_saved) #name,
-        ASM_AARCH64_FREGISTER_LIST(X)
-#undef X
-};
-#else
-#error "Unsupported architecture"
-#endif
-
-void asm_mark_unallocatable(bool used[MAX_REG]) {
-  memset(used, 0, MAX_REG * sizeof(bool));
-  used[RTMP] = true;
-  used[RSTACK] = true;
-  used[RSTATE] = true;
-}
+void emit_init_slowpath(emit_state *s) { (void)s; }
 
 string_s *get_sym_name(symbol *s) {
   (void)s;
@@ -147,7 +120,7 @@ static ir_ins_op random_op(fuzz_rng *r) {
 static uint8_t random_alloc_reg(fuzz_rng *r, bool is_float,
                                 bool used_regs[MAX_REG]) {
   bool reserved[MAX_REG] = {0};
-  asm_mark_unallocatable(reserved);
+  asm_init_unallocatable_regs(reserved);
   reserved[FRTMP] = true;
   uint8_t pool[MAX_REG];
   uint8_t pool_len = 0;

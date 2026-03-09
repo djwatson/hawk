@@ -63,3 +63,13 @@ void load_constant(emit_state *s, int idx, uint8_t dst);
 void emit_constant_pool(emit_state *s);
 void label_add_patch(emit_state *s, label *label, enum label_patch_kind kind,
                      uint8_t *loc);
+
+static inline void asm_init_unallocatable_regs(bool used[MAX_REG]) {
+#define X(name, unallocatable, callee_saved)                                   \
+  if (unallocatable) {                                                         \
+    used[name] = true;                                                         \
+  }
+  ASM_REGISTER_LIST(X)
+  ASM_FREGISTER_LIST(X)
+#undef X
+}
