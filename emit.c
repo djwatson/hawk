@@ -841,12 +841,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     emit_reload_events(s, t, regmap, op_cnt_idx);
 
     switch (op->op) {
-    case IR_GUARD_EQ:
     case IR_EQ: {
       emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JNE, JNE);
       break;
     }
-    case IR_GUARD_NEQ:
     case IR_NE: {
       emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JE, JE);
       break;

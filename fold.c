@@ -50,8 +50,6 @@ static uint32_t fold_key(trace *t, ir_ins *in) {
 #define cur_ins (*in)
 
 // If the inputs are always const, no need to guard anything!
-IRFOLD(GUARD_EQ CONST CONST)
-IRFOLD(GUARD_NEQ CONST CONST)
 IRFOLD(NE CONST CONST)
 IRFOLD(EQ CONST CONST)
 IRFOLD(GTE CONST CONST)
@@ -117,7 +115,7 @@ IRFOLDF(fold_noncommutative_const_lhs) {
   return fold_retry();
 }
 
-IRFOLD(GUARD_NEQ _ CONST)
+IRFOLD(NE _ CONST)
 IRFOLDF(fold_guard_neq_any_const) {
   auto rhs = t->consts[in->op2.loc];
   bool rhs_bool = get_type_tag(rhs) == BOOL_TAG;

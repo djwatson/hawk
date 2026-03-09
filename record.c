@@ -705,8 +705,7 @@ static branch_result emit_if_branch(vm_state *state, bc *pc, gc_obj *stack,
   slot false_val = add_const(state, FALSE_REP);
   branch_result br = {
       .taken = taken,
-      .guard = IR(.op = taken ? IR_GUARD_NEQ : IR_GUARD_EQ, .op1 = cond,
-                  .op2 = false_val),
+      .guard = IR(.op = taken ? IR_NE : IR_EQ, .op1 = cond, .op2 = false_val),
   };
   return br;
 }
@@ -779,7 +778,7 @@ static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
     // Peek at destination
     slot must_be = add_const(state, stack[pc->reg]);
 
-    ir_ins ins = IR(.op = IR_GUARD_EQ, .op1 = func, .op2 = must_be);
+    ir_ins ins = IR(.op = IR_EQ, .op1 = func, .op2 = must_be);
     add_inst(state, ins);
   }
 

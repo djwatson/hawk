@@ -242,8 +242,6 @@ bool ir_sideeff(ir_ins_op op) {
   case IR_GTE:
   case IR_EQ:
   case IR_NE:
-  case IR_GUARD_EQ:
-  case IR_GUARD_NEQ:
   case IR_STORE:
   case IR_PMOV:
   case IR_ALLOC:

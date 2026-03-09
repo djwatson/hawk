@@ -65,8 +65,6 @@ typedef enum : uint8_t {
   X(TYPECHECK, ARG_IR_NONE)                                                    \
   X(PMOV, ARG_PMOV)                                                            \
   X(ARG, ARG_REG)                                                              \
-  X(GUARD_EQ, ARG_IR_IR)                                                       \
-  X(GUARD_NEQ, ARG_IR_IR)                                                      \
   X(REF, ARG_IR_IR)                                                            \
   X(LOAD, ARG_IR_IR)                                                           \
   X(STORE, ARG_IR_IR)                                                          \
