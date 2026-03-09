@@ -37,64 +37,40 @@ typedef struct regalloc2_state {
   uint8_t next_spill;
 } regalloc2_state;
 
-typedef void (*ir_arg_callback)(slot s, void *ctx);
 static void add_next_use(regalloc2_state *s, uint16_t loc, uint16_t ir_idx,
                          bool before, bool is_snap);
 
-static void walk_ir_args(trace const *t, ir_ins const *ins, ir_arg_callback cb,
-                         void *ctx) {
+static uint8_t collect_ir_args(trace const *t, ir_ins const *ins, slot *args) {
+  uint8_t count = 0;
   slot op1 = ins->op1;
   slot op2 = ins->op2;
   if (ins->op == IR_STORE) {
     auto ptr_ins = &t->ins[op1.loc];
-    walk_ir_args(t, ptr_ins, cb, ctx);
+    count = collect_ir_args(t, ptr_ins, args);
     if (!op2.constant) {
-      cb(op2, ctx);
+      args[count++] = op2;
     }
-    return;
+    return count;
   }
   switch (ir_ins_types[ins->op]) {
   case IR_ARG_IR_IR:
     if (!op1.constant) {
-      cb(op1, ctx);
+      args[count++] = op1;
     }
     if (!op2.constant) {
-      cb(op2, ctx);
+      args[count++] = op2;
     }
     break;
   case IR_ARG_IR_NONE:
   case IR_ARG_IR_ADDR:
     if (!op1.constant) {
-      cb(op1, ctx);
+      args[count++] = op1;
     }
     break;
   default:
     break;
   }
-}
-
-typedef struct {
-  regalloc2_state *s;
-  uint16_t ir_idx;
-  bool before;
-  bool is_snap;
-} next_use_ctx;
-
-static void add_next_use_cb(slot sl, void *ctx) {
-  auto c = (next_use_ctx *)ctx;
-  add_next_use(c->s, sl.loc, c->ir_idx, c->before, c->is_snap);
-}
-
-typedef struct {
-  uint16_t value_id;
-  bool used;
-} value_used_ctx;
-
-static void value_used_cb(slot sl, void *ctx) {
-  auto c = (value_used_ctx *)ctx;
-  if (sl.loc == c->value_id) {
-    c->used = true;
-  }
+  return count;
 }
 
 static void add_next_use(regalloc2_state *s, uint16_t loc, uint16_t ir_idx,
@@ -142,9 +118,11 @@ static void collect_next_uses(regalloc2_state *s) {
     }
 
     auto ins = &s->t->ins[i - 1];
-    next_use_ctx next_ctx = {
-        .s = s, .ir_idx = (uint16_t)(i - 1), .before = true, .is_snap = false};
-    walk_ir_args(s->t, ins, add_next_use_cb, &next_ctx);
+    slot args[3];
+    uint8_t arg_count = collect_ir_args(s->t, ins, args);
+    for (uint8_t arg = 0; arg < arg_count; arg++) {
+      add_next_use(s, args[arg].loc, (uint16_t)(i - 1), true, false);
+    }
   }
 }
 
@@ -195,9 +173,14 @@ static uint8_t find_current_reg_for_value(regalloc2_state *s,
 
 static bool value_used_by_ir_ins(trace const *t, ir_ins const *ins,
                                  uint16_t value_id) {
-  value_used_ctx ctx = {.value_id = value_id};
-  walk_ir_args(t, ins, value_used_cb, &ctx);
-  return ctx.used;
+  slot args[3];
+  uint8_t arg_count = collect_ir_args(t, ins, args);
+  for (uint8_t arg = 0; arg < arg_count; arg++) {
+    if (args[arg].loc == value_id) {
+      return true;
+    }
+  }
+  return false;
 }
 
 static uint8_t find_reg_to_spill(regalloc2_state *s, uint16_t start,
@@ -287,35 +270,20 @@ static void maybe_free_snapshot(regalloc2_state *s, uint16_t cur_idx,
   }
 }
 
-typedef struct {
-  regalloc2_state *s;
-  uint16_t cur_idx;
-  ir_ins const *ins;
-} ir_arg_ctx;
-
-static void materialize_arg_cb(slot sl, void *ctx) {
-  auto c = (ir_arg_ctx *)ctx;
-  regalloc2_state *s = c->s;
-  uint16_t value_id = sl.loc;
+static void materialize_arg_or_ensure_loc(regalloc2_state *s, uint16_t cur_idx,
+                                          ir_ins const *ins, uint16_t value_id) {
   auto in = &s->t->ins[value_id];
   uint8_t reg = find_current_reg_for_value(s, value_id);
   if (reg == REG_NONE) {
     get_or_assign_spill_slot(s, value_id);
-    reg = find_free_reg(s, in->type == FLONUM_TAG, c->ins);
+    reg = find_free_reg(s, in->type == FLONUM_TAG, ins);
     s->regs[reg] = value_id;
-    arrput(
-        s->ops,
-        ((reload_op){.ir_idx = c->cur_idx, .value_id = value_id, .reg = reg}));
+    arrput(s->ops,
+           ((reload_op){.ir_idx = cur_idx, .value_id = value_id, .reg = reg}));
   }
 
-  arrput(
-      s->dense_locs,
-      ((dense_loc_entry){.kind = LOC_REG, .reg = reg, .value_id = value_id}));
-}
-
-static void free_arg_cb(slot sl, void *ctx) {
-  auto c = (ir_arg_ctx *)ctx;
-  maybe_free_reg(c->s, c->cur_idx, sl.loc);
+  arrput(s->dense_locs,
+         ((dense_loc_entry){.kind = LOC_REG, .reg = reg, .value_id = value_id}));
 }
 
 regalloc2_result regalloc2(trace *t) {
@@ -359,11 +327,16 @@ regalloc2_result regalloc2(trace *t) {
     }
 
     auto ins = &t->ins[i];
+    slot args[3];
+    uint8_t arg_count = collect_ir_args(t, ins, args);
 
-    ir_arg_ctx arg_ctx = {.s = &s, .cur_idx = (uint16_t)i, .ins = ins};
     s.ir_id_to_dense_map[i] = arrlen(s.dense_locs);
-    walk_ir_args(t, ins, materialize_arg_cb, &arg_ctx);
-    walk_ir_args(t, ins, free_arg_cb, &arg_ctx);
+    for (uint8_t arg = 0; arg < arg_count; arg++) {
+      materialize_arg_or_ensure_loc(&s, (uint16_t)i, ins, args[arg].loc);
+    }
+    for (uint8_t arg = 0; arg < arg_count; arg++) {
+      maybe_free_reg(&s, (uint16_t)i, args[arg].loc);
+    }
 
     // Custom IR_PMOV handling
     if (ins->op == IR_PMOV) {
