@@ -24,6 +24,11 @@ static fold_result fold_retry(void) {
   return (fold_result){.action = FOLD_RETRY};
 }
 
+static inline ir_ins_op swap_cmp_op(ir_ins_op op) {
+  assert(op >= IR_LT && op <= IR_GTE);
+  return (ir_ins_op)(op ^ 1);
+}
+
 static uint8_t fold_arg(trace *t, ir_ins *in, uint8_t idx) {
   auto arg_type = ir_ins_types[in->op];
   if (idx == 0 && (arg_type == IR_ARG_IR_NONE || arg_type == IR_ARG_IR_IR)) {
@@ -77,22 +82,7 @@ IRFOLDF(fold_cmp_const_lhs) {
   slot tmp = in->op1;
   in->op1 = in->op2;
   in->op2 = tmp;
-  switch (in->op) {
-  case IR_LT:
-    in->op = IR_GT;
-    break;
-  case IR_GT:
-    in->op = IR_LT;
-    break;
-  case IR_LTE:
-    in->op = IR_GTE;
-    break;
-  case IR_GTE:
-    in->op = IR_LTE;
-    break;
-  default:
-    abort();
-  }
+  in->op = swap_cmp_op(in->op);
   return fold_retry();
 }
 
