@@ -422,17 +422,16 @@ static branch_result emit_math_cmp_jeq(vm_state *state, bc *pc, gc_obj *stack,
   };
   return br;
 }
-static branch_result emit_math_cmp_eq(vm_state *state, bc *pc, gc_obj *stack,
-                                      slot v1, slot v2) {
+static branch_result emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
+                                        slot v1, slot v2) {
   auto lhs = stack[pc->v1];
   auto rhs = stack[pc->v2];
-  bool res = to_fixnum(lhs) == to_fixnum(rhs);
-
   auto t = record_current_trace(state);
+  bool res = obj_jeqv(lhs, rhs);
   branch_result br = {
       .taken = res,
       .guard = IR(.op = res ? IR_EQ : IR_NE, .op1 = v1, .op2 = v2,
-                  .type = get_slot_type(t, v1)),
+                  .type = RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs)),
   };
   return br;
 }

@@ -86,6 +86,20 @@ static inline uint8_t numeric_obj_guard_type(gc_obj lhs, gc_obj rhs) {
     flonum_body                                                                \
   } while (0)
 
+static inline bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
+  VM_NUMERIC_DISPATCH_VALUES(lhs, rhs, return to_fixnum(lhs) == to_fixnum(rhs);,
+                             return numeric_to_double(lhs) ==
+                                    numeric_to_double(rhs););
+}
+
+static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
+  if ((is_fixnum(lhs) || is_flonum(lhs)) &&
+      (is_fixnum(rhs) || is_flonum(rhs))) {
+    return numeric_eqv(lhs, rhs);
+  }
+  return lhs.value == rhs.value;
+}
+
 #define DEFINE_VM_RUNTIME_NUMERIC_BINOP(name, fixnum_body, flonum_body)        \
   static inline gc_obj emit_ov_math_##name(vm_state *state, gc_obj v1,         \
                                            gc_obj v2) {                        \
@@ -125,6 +139,12 @@ static inline uint8_t numeric_obj_guard_type(gc_obj lhs, gc_obj rhs) {
         IR(.op = ir_op, .op1 = v1, .op2 = v2, .type = FLONUM_TAG);             \
     return add_inst(state, ins);                                               \
   }
+
+#define RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs)                            \
+  (((is_fixnum((lhs)) || is_flonum((lhs))) &&                                  \
+    (is_fixnum((rhs)) || is_flonum((rhs))))                                    \
+       ? numeric_guard_type(get_slot_type((t), (v1)), get_slot_type((t), (v2)))\
+       : get_slot_type((t), (v1)))
 
 #define VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, fixnum_body, flonum_body)        \
   do {                                                                         \

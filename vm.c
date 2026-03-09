@@ -205,22 +205,12 @@ static inline gc_obj emit_math_cmp_jeq(vm_state *state, bc *pc, gc_obj *stack,
   (void)stack;
   return v1.value == v2.value ? TRUE_REP : FALSE_REP;
 }
-static inline gc_obj emit_math_cmp_eq(vm_state *state, bc *pc, gc_obj *stack,
-                                      gc_obj v1, gc_obj v2) {
+static inline gc_obj emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
+                                        gc_obj v1, gc_obj v2) {
   (void)state;
   (void)pc;
   (void)stack;
-  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
-    return to_fixnum(v1) == to_fixnum(v2) ? TRUE_REP : FALSE_REP;
-  }
-  if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
-    auto f1 = to_flonum(v1);
-    auto f2 = to_flonum(v2);
-    return f1 == f2 ? TRUE_REP : FALSE_REP;
-  }
-  // TODO other math types!
-  abort();
-  (void)state;
+  return obj_jeqv(v1, v2) ? TRUE_REP : FALSE_REP;
 }
 static inline gc_obj emit_if_branch(vm_state *state, bc *pc, gc_obj *stack,
                                     gc_obj obj) {

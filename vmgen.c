@@ -210,7 +210,7 @@ CMP_BRANCH(JGT, emit_math_cmp_gt)
 CMP_BRANCH(JLTE, emit_math_cmp_lte)
 CMP_BRANCH(JGTE, emit_math_cmp_gte)
 CMP_BRANCH(JEQ, emit_math_cmp_jeq)
-CMP_BRANCH(JEQV, emit_math_cmp_eq)
+CMP_BRANCH(JEQV, emit_math_cmp_jeqv)
 END OP_BEGIN(IF) {
   auto v = stack_load(state, stack, instr.data, false);
   auto res = emit_if_branch(state, pc, stack, v);
