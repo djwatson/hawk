@@ -146,32 +146,25 @@ DEFINE_VM_RUNTIME_NUMERIC_BINOP(
 static NOINLINE gc_obj emit_math_cmp_lt_slowpath(vm_state *state, bc *pc,
                                                  gc_obj *stack, gc_obj v1,
                                                  gc_obj v2) {
-  bool res;
+  (void)state;
+  (void)pc;
+  (void)stack;
   /* if (is_compnum(a) || is_compnum(b)) { */
   /*   res = COMPCMP(a, b); */
-  if (is_flonum(v1) || is_flonum(v2)) {
-    res = to_flonum(scm_inexact(state, v1))->x <
-          to_flonum(scm_inexact(state, v2))->x;
-    /* } else if (is_ratnum(a) || is_ratnum(b)) { */
-    /*   ratnum_s ba = get_ratnum(a); */
-    /*   ratnum_s bb = get_ratnum(b); */
-    /*   res = OP(ratnum_cmp(ba, bb), 0); */
-    /* } else if (is_bignum(a) || is_bignum(b)) { */
-    /*   mpz_t ba; */
-    /*   mpz_t bb; */
-    /*   get_bignum(a, &ba); */
-    /*   get_bignum(b, &bb); */
-    /*   res = OP(mpz_cmp(ba, bb), 0); */
-  } else if (is_fixnum(v1) && is_fixnum(v2)) {
-    res = to_fixnum(v1) < to_fixnum(v2);
-  } else {
-    // scm_runtime_error0("Invalid type in " #OPNAME);
-    abort();
-  }
-  if (res) {
-    return TRUE_REP;
-  }
-  return FALSE_REP;
+  VM_NUMERIC_DISPATCH_VALUES(
+      v1, v2, return to_fixnum(v1) < to_fixnum(v2) ? TRUE_REP : FALSE_REP;,
+      return numeric_to_double(v1) < numeric_to_double(v2) ? TRUE_REP
+                                                           : FALSE_REP;);
+  /* } else if (is_ratnum(a) || is_ratnum(b)) { */
+  /*   ratnum_s ba = get_ratnum(a); */
+  /*   ratnum_s bb = get_ratnum(b); */
+  /*   res = OP(ratnum_cmp(ba, bb), 0); */
+  /* } else if (is_bignum(a) || is_bignum(b)) { */
+  /*   mpz_t ba; */
+  /*   mpz_t bb; */
+  /*   get_bignum(a, &ba); */
+  /*   get_bignum(b, &bb); */
+  /*   res = OP(mpz_cmp(ba, bb), 0); */
 }
 static inline gc_obj emit_math_cmp_lt(vm_state *state, bc *pc, gc_obj *stack,
                                       gc_obj v1, gc_obj v2) {
