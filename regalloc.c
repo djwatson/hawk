@@ -19,7 +19,6 @@ typedef struct {
 typedef struct regalloc2_state regalloc2_state;
 
 static void collect_next_uses(regalloc2_state *s);
-static void print_next_uses(regalloc2_state *s);
 
 #define ALLOC_NONE UINT16_MAX
 #define ALLOC_UNALLOCATABLE (UINT16_MAX - 1)
@@ -36,9 +35,6 @@ typedef struct regalloc2_state {
   reload_op *ops;
   uint8_t next_spill;
 } regalloc2_state;
-
-static void add_next_use(regalloc2_state *s, uint16_t loc, uint16_t ir_idx,
-                         bool before, bool is_snap);
 
 static uint8_t collect_ir_args(trace const *t, ir_ins const *ins, slot *args) {
   uint8_t count = 0;
@@ -123,26 +119,6 @@ static void collect_next_uses(regalloc2_state *s) {
     for (uint8_t arg = 0; arg < arg_count; arg++) {
       add_next_use(s, args[arg].loc, (uint16_t)(i - 1), true, false);
     }
-  }
-}
-
-static void print_next_uses(regalloc2_state *s) {
-  size_t ins_len = arrlen(s->t->ins);
-  printf("next_use chains:\n");
-  for (size_t i = 0; i < ins_len; i++) {
-    printf("  %04zu:", i);
-    uint32_t next_idx = s->uses[i];
-    if (next_idx == 0) {
-      printf(" <none>\n");
-      continue;
-    }
-    while (next_idx != 0) {
-      auto cur = s->next_uses[next_idx];
-      printf(" %s%s@%u", cur.is_snap ? "S-" : "I-", cur.before ? "B" : "A",
-             cur.ir_idx);
-      next_idx = cur.next;
-    }
-    printf("\n");
   }
 }
 
@@ -286,37 +262,40 @@ static void materialize_arg_or_ensure_loc(regalloc2_state *s, uint16_t cur_idx,
          ((dense_loc_entry){.kind = LOC_REG, .reg = reg, .value_id = value_id}));
 }
 
-regalloc2_result regalloc2(trace *t) {
-  regalloc2_state s = {
-      .t = t, .ir_id_to_dense_map = malloc(arrlen(t->ins) * sizeof(uint16_t))};
-  for (uint16_t i = 0; i < MAX_REG; i++) {
-    s.regs[i] = ALLOC_NONE;
-  }
+static void init_regs(regalloc2_state *s) {
+  memset(s->regs, 0xff, sizeof(s->regs));
   bool unallocatable[MAX_REG] = {0};
   asm_mark_unallocatable(unallocatable);
   for (uint16_t i = 0; i < MAX_REG; i++) {
     if (unallocatable[i]) {
-      s.regs[i] = ALLOC_UNALLOCATABLE;
+      s->regs[i] = ALLOC_UNALLOCATABLE;
     }
   }
+}
 
+static uint8_t find_initial_next_spill(trace *t) {
+  uint8_t next_spill = 0;
+  arr_for_each_idx(t->ins, i) {
+    if (t->ins[i].spill != SPILL_NONE &&
+        (uint16_t)t->ins[i].spill >= next_spill) {
+      next_spill = (uint8_t)(t->ins[i].spill + 1);
+    }
+  }
+  return next_spill;
+}
+
+regalloc2_result regalloc2(trace *t) {
+  regalloc2_state s = {
+      .t = t, .ir_id_to_dense_map = malloc(arrlen(t->ins) * sizeof(uint16_t))};
+  init_regs(&s);
   collect_next_uses(&s);
-  /* if (verbose || getenv("REGALLOC_DEBUG_NEXT_USES")) { */
-  /*   print_next_uses(&s); */
-  /* } */
 
   // PMOVs are pre-assigned spill slots and registers the parent trace.
   // Find next valid spill slot.
   size_t ins_len = arrlen(t->ins);
   size_t snap_idx = 0;
   size_t snap_len = arrlen(t->snaps);
-  s.next_spill = 0;
-  for (size_t i = 0; i < ins_len; i++) {
-    if (t->ins[i].spill != SPILL_NONE &&
-        (uint16_t)t->ins[i].spill >= s.next_spill) {
-      s.next_spill = (uint8_t)(t->ins[i].spill + 1);
-    }
-  }
+  s.next_spill = find_initial_next_spill(t);
 
   for (size_t i = 0; i < ins_len; i++) {
     while (snap_idx < snap_len && t->snaps[snap_idx].ir == i) {
