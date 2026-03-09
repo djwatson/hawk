@@ -97,6 +97,8 @@ static inline bool ins_uses_freg(ir_ins const *ins) {
 static inline bool is_fpr_reg(uint8_t reg) { return reg >= FPR_REG_START; }
 static dense_loc_entry snap_entry_loc(trace const *t, uint16_t snap_idx,
                                       size_t entry_idx);
+static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
+                           int32_t cur_snap, uint8_t reg);
 static const uint8_t PAR_MOVE_MARKER = UINT8_MAX;
 
 static inline ir_ins *slot_ins(trace *t, slot v) {
@@ -320,6 +322,47 @@ static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins const *op,
   }
   emit_fcmp(s, lhs_reg, rhs_reg);
 }
+
+static inline void emit_guard_cmp(emit_state *s, trace *t, ir_ins const *op,
+                                  uint8_t lhs_reg, uint8_t rhs_reg,
+                                  int32_t cur_snap, enum jcc_cond f_fail,
+                                  enum jcc_cond i_fail) {
+  if (op->type == FLONUM_TAG) {
+    emit_flonum_cmp(s, t, op, lhs_reg, rhs_reg);
+    emit_jcc32(s, f_fail, &t->snaps[cur_snap].patch_point);
+    return;
+  }
+
+  emit_cmp_regs(s, t, lhs_reg, op->op2, rhs_reg);
+  emit_jcc32(s, i_fail, &t->snaps[cur_snap].patch_point);
+}
+
+static inline void emit_fixnum_binop_const(
+    emit_state *s, trace *t, ir_ins const *op, uint8_t dst_reg,
+    uint8_t lhs_reg, uint8_t rhs_reg, int32_t cur_snap,
+    typeof(&emit_add) reg_emit, typeof(&emit_add_constant) const_emit) {
+  if (op->op2.constant) {
+    const_emit(s, dst_reg, lhs_reg, slot_const(t, op->op2));
+  } else {
+    reg_emit(s, dst_reg, lhs_reg, rhs_reg);
+  }
+  emit_typecheck(s, t, op, cur_snap, dst_reg);
+}
+
+static inline void emit_fixnum_binop_reg(emit_state *s, trace *t,
+                                         ir_ins const *op, uint8_t dst_reg,
+                                         uint8_t lhs_reg, uint8_t rhs_reg,
+                                         int32_t cur_snap,
+                                         typeof(&emit_quotient) reg_emit) {
+  if (op->op2.constant) {
+    emit_mov64(s, RTMP, slot_const(t, op->op2));
+    reg_emit(s, dst_reg, lhs_reg, RTMP);
+  } else {
+    reg_emit(s, dst_reg, lhs_reg, rhs_reg);
+  }
+  emit_typecheck(s, t, op, cur_snap, dst_reg);
+}
+
 static void emit_flonum_binop(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
                               typeof(&emit_fadd) binop, uint8_t lhs_reg,
                               uint8_t rhs_reg) {
@@ -780,41 +823,6 @@ static void emit_reload_events(emit_state *s, trace *t,
   }
 }
 
-#define EMIT_GUARD_CMP(f_fail0, f_fail1, i_fail)                               \
-  do {                                                                         \
-    if (op->type == FLONUM_TAG) {                                              \
-      emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);                           \
-      emit_jcc32(s, (f_fail0), &t->snaps[cur_snap].patch_point);               \
-      if ((f_fail1) != (enum jcc_cond) - 1) {                                  \
-        emit_jcc32(s, (f_fail1), &t->snaps[cur_snap].patch_point);             \
-      }                                                                        \
-    } else {                                                                   \
-      emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);                        \
-      emit_jcc32(s, (i_fail), &t->snaps[cur_snap].patch_point);                \
-    }                                                                          \
-  } while (0)
-
-#define EMIT_FIXNUM_BINOP_CONST(reg_emit, const_emit)                          \
-  do {                                                                         \
-    if (op->op2.constant) {                                                    \
-      (const_emit)(s, dst_reg, arg0_reg, slot_const(t, op->op2));              \
-    } else {                                                                   \
-      (reg_emit)(s, dst_reg, arg0_reg, arg1_reg);                              \
-    }                                                                          \
-    emit_typecheck(s, t, op, cur_snap, dst_reg);                               \
-  } while (0)
-
-#define EMIT_FIXNUM_BINOP_REG(reg_emit)                                        \
-  do {                                                                         \
-    if (op->op2.constant) {                                                    \
-      emit_mov64(s, RTMP, slot_const(t, op->op2));                             \
-      (reg_emit)(s, dst_reg, arg0_reg, RTMP);                                  \
-    } else {                                                                   \
-      (reg_emit)(s, dst_reg, arg0_reg, arg1_reg);                              \
-    }                                                                          \
-    emit_typecheck(s, t, op, cur_snap, dst_reg);                               \
-  } while (0)
-
 static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
 
   int32_t cur_snap = 0;
@@ -842,12 +850,12 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     switch (op->op) {
     case IR_GUARD_EQ:
     case IR_EQ: {
-      EMIT_GUARD_CMP(JNE, (enum jcc_cond) - 1, JNE);
+      emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JNE, JNE);
       break;
     }
     case IR_GUARD_NEQ:
     case IR_NE: {
-      EMIT_GUARD_CMP(JE, (enum jcc_cond) - 1, JE);
+      emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JE, JE);
       break;
     }
     case IR_LOAD: {
@@ -948,23 +956,20 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
 
       break;
     }
-    case IR_REF: {
-      break;
-    }
     case IR_LT: {
-      EMIT_GUARD_CMP(JAE, (enum jcc_cond) - 1, JGE);
+      emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JAE, JGE);
       break;
     }
     case IR_GT: {
-      EMIT_GUARD_CMP(JBE, (enum jcc_cond) - 1, JLE);
+      emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JBE, JLE);
       break;
     }
     case IR_GTE: {
-      EMIT_GUARD_CMP(JB, (enum jcc_cond) - 1, JL);
+      emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JB, JL);
       break;
     }
     case IR_LTE: {
-      EMIT_GUARD_CMP(JA, (enum jcc_cond) - 1, JG);
+      emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, JA, JG);
       break;
     }
     case IR_CONST: {
@@ -980,7 +985,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       if (op->type == FLONUM_TAG) {
         emit_flonum_binop(s, t, dst_reg, op, emit_fsub, arg0_reg, arg1_reg);
       } else {
-        EMIT_FIXNUM_BINOP_CONST(emit_sub, emit_sub_constant);
+        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg,
+                                cur_snap, emit_sub, emit_sub_constant);
       }
       break;
     }
@@ -1012,7 +1018,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
         emit_flonum_binop(s, t, dst_reg, op, emit_fdiv, arg0_reg, arg1_reg);
         emit_ftruncate(s, dst_reg, dst_reg);
       } else {
-        EMIT_FIXNUM_BINOP_REG(emit_quotient);
+        emit_fixnum_binop_reg(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
+                              emit_quotient);
       }
       break;
     }
@@ -1020,7 +1027,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       if (op->type == FLONUM_TAG) {
         abort();
       } else {
-        EMIT_FIXNUM_BINOP_REG(emit_mod);
+        emit_fixnum_binop_reg(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
+                              emit_mod);
       }
       break;
     }
@@ -1028,7 +1036,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       if (op->type == FLONUM_TAG) {
         emit_flonum_binop(s, t, dst_reg, op, emit_fadd, arg0_reg, arg1_reg);
       } else {
-        EMIT_FIXNUM_BINOP_CONST(emit_add, emit_add_constant);
+        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg,
+                                cur_snap, emit_add, emit_add_constant);
       }
       break;
     }
@@ -1224,6 +1233,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       emit_pop_regs(s, save_regs, save_cnt, false);
       break;
     }
+    case IR_REF:
     case IR_ARG:
     case IR_NOP:
     case IR_PMOV:
@@ -1266,9 +1276,6 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     }
   }
 
-#undef EMIT_FIXNUM_BINOP_REG
-#undef EMIT_FIXNUM_BINOP_CONST
-#undef EMIT_GUARD_CMP
 }
 
 // Emit *two* entry points:
