@@ -266,3 +266,14 @@ void emit_constant_pool(emit_state *s) {
   arrfree(s->const_pool);
   s->const_pool = nullptr;
 }
+
+void emit_quotient_constant(emit_state *s, uint8_t dst, uint8_t lhs,
+                            int64_t imm) {
+  emit_mov64(s, RTMP, imm);
+  emit_quotient(s, dst, lhs, RTMP);
+}
+
+void emit_mod_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
+  emit_mov64(s, RTMP, imm);
+  emit_mod(s, dst, lhs, RTMP);
+}

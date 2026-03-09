@@ -346,20 +346,6 @@ emit_fixnum_binop_const(emit_state *s, trace *t, ir_ins const *op,
   emit_typecheck(s, t, op, cur_snap, dst_reg);
 }
 
-static inline void emit_fixnum_binop_reg(emit_state *s, trace *t,
-                                         ir_ins const *op, uint8_t dst_reg,
-                                         uint8_t lhs_reg, uint8_t rhs_reg,
-                                         int32_t cur_snap,
-                                         typeof(&emit_quotient) reg_emit) {
-  if (op->op2.constant) {
-    emit_mov64(s, RTMP, slot_const(t, op->op2));
-    reg_emit(s, dst_reg, lhs_reg, RTMP);
-  } else {
-    reg_emit(s, dst_reg, lhs_reg, rhs_reg);
-  }
-  emit_typecheck(s, t, op, cur_snap, dst_reg);
-}
-
 static void emit_flonum_binop(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
                               typeof(&emit_fadd) binop, uint8_t lhs_reg,
                               uint8_t rhs_reg) {
@@ -1004,8 +990,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
         emit_flonum_binop(s, t, dst_reg, op, emit_fdiv, arg0_reg, arg1_reg);
         emit_ftruncate(s, dst_reg, dst_reg);
       } else {
-        emit_fixnum_binop_reg(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
-                              emit_quotient);
+        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg,
+                                cur_snap, emit_quotient,
+                                emit_quotient_constant);
       }
       break;
     }
@@ -1013,8 +1000,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
       if (op->type == FLONUM_TAG) {
         abort();
       } else {
-        emit_fixnum_binop_reg(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
-                              emit_mod);
+        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg,
+                                cur_snap, emit_mod, emit_mod_constant);
       }
       break;
     }

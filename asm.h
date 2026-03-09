@@ -63,6 +63,9 @@ void load_constant(emit_state *s, int idx, uint8_t dst);
 void emit_constant_pool(emit_state *s);
 void label_add_patch(emit_state *s, label *label, enum label_patch_kind kind,
                      uint8_t *loc);
+void emit_quotient_constant(emit_state *s, uint8_t dst, uint8_t lhs,
+                            int64_t imm);
+void emit_mod_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
 
 static inline void asm_init_unallocatable_regs(bool used[MAX_REG]) {
 #define X(name, unallocatable, callee_saved)                                   \
