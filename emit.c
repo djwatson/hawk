@@ -525,42 +525,39 @@ static void emit_loopback_entry_spills(emit_state *s, trace *entry_trace,
 
 static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
                            int32_t cur_snap, uint8_t reg) {
-  if (!op->guard && op->type != FLONUM_TAG) {
+  if ((!op->guard && op->type != FLONUM_TAG) ||
+      (op->type == FLONUM_TAG && is_fpr_reg(reg))) {
     return;
   }
-  // TODO: some of these the code could be merged
-  if (op->type == FIXNUM_TAG) {
-    COMMENT("  typecheck fix");
+
+  int64_t mask = TAG_MASK;
+  int64_t want = op->type;
+  COMMENT("  typecheck %s", low_tag_names[op->type & TAG_MASK]);
+  switch (op->type) {
+  case FIXNUM_TAG:
     emit_test_constant(s, reg, TAG_MASK);
     emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
-  } else if (op->type == CONS_TAG || op->type == VECTOR_TAG ||
-             op->type == SYMBOL_TAG) {
-    COMMENT("  typecheck %s", low_tag_names[op->type]);
-    emit_mov(s, RTMP, reg);
-    emit_and_constant(s, RTMP, RTMP, TAG_MASK);
-    emit_cmp_constant(s, RTMP, op->type);
-    emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
-  } else if (op->type == FLONUM_TAG) {
-    if (!is_fpr_reg(reg)) {
-      COMMENT("  typecheck flonum");
-      emit_mov(s, RTMP, reg);
-      emit_and_constant(s, RTMP, RTMP, TAG_MASK);
-      emit_cmp_constant(s, RTMP, FLONUM_TAG);
-      emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
-    }
-  } else if (op->type == FUNC_TAG) {
+    return;
+  case CONS_TAG:
+  case VECTOR_TAG:
+  case SYMBOL_TAG:
+  case FLONUM_TAG:
+    break;
+  case FUNC_TAG:
     // func loads ONLY happen from closure loads, no need to typecheck.
-  } else if ((op->type & TAG_MASK) == LITERAL_TAG) {
-    // Literal or other immediate types: compare full immediate byte.
-    uint8_t want_tag = (uint8_t)(op->type & IMMEDIATE_MASK);
-    COMMENT("  typecheck literal");
-    emit_mov(s, RTMP, reg);
-    emit_and_constant(s, RTMP, RTMP, IMMEDIATE_MASK);
-    emit_cmp_constant(s, RTMP, want_tag);
-    emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
-  } else {
-    abort();
+    return;
+  default:
+    if ((op->type & TAG_MASK) != LITERAL_TAG) {
+      abort();
+    }
+    mask = IMMEDIATE_MASK;
+    want &= IMMEDIATE_MASK;
   }
+
+  emit_mov(s, RTMP, reg);
+  emit_and_constant(s, RTMP, RTMP, mask);
+  emit_cmp_constant(s, RTMP, want);
+  emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
 }
 
 static void collect_loopback_moves(trace *exit_trace, uint16_t exit_snap_idx,
@@ -1058,20 +1055,12 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       break;
     }
     case IR_SLOAD: {
+      uint8_t load_reg = op->type == FLONUM_TAG ? RTMP : dst_reg;
+      emit_mem_load(s, (int32_t)op->data * 8, RSTACK, load_reg);
+      emit_typecheck(s, t, op, cur_snap, load_reg);
       if (op->type == FLONUM_TAG) {
-        // We need to typecheck to verify it is a flonum.
-        // TODO if we had a spare register this would be more efficent.
-        COMMENT("  flonum typecheck");
-        emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
-        emit_and_constant(s, RTMP, RTMP, TAG_MASK);
-        emit_cmp_constant(s, RTMP, FLONUM_TAG);
-        emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
-        emit_mem_load(s, (int32_t)op->data * 8, RSTACK, RTMP);
-        emit_fmem_load(s, 8 - FLONUM_TAG, RTMP, dst_reg);
-      } else {
-        emit_mem_load(s, (int32_t)op->data * 8, RSTACK, dst_reg);
+        emit_fmem_load(s, 8 - FLONUM_TAG, load_reg, dst_reg);
       }
-      emit_typecheck(s, t, op, cur_snap, dst_reg);
       break;
     }
     case IR_GGET: {
