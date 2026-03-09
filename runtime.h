@@ -1,6 +1,8 @@
 #pragma once
 
 #include <assert.h>
+#include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "gc.h"
@@ -19,6 +21,40 @@ static inline double numeric_to_double(gc_obj v) {
   }
   if (is_fixnum(v)) {
     return (double)to_fixnum(v);
+  }
+  abort();
+}
+
+static inline gc_obj numeric_inexact_value(gc_obj v) {
+  if (is_fixnum(v)) {
+    return vm_box_flonum((double)to_fixnum(v));
+  }
+  if (is_flonum(v)) {
+    return v;
+  }
+  abort();
+}
+
+static inline gc_obj numeric_exact_value(gc_obj v) {
+  if (is_fixnum(v)) {
+    return v;
+  }
+  if (is_flonum(v)) {
+    double x = to_flonum(v)->x;
+    if (!isfinite(x) || x < (double)INT64_MIN || x > (double)INT64_MAX) {
+      abort();
+    }
+    return tag_fixnum((int64_t)x);
+  }
+  abort();
+}
+
+static inline gc_obj numeric_truncate_value(gc_obj v) {
+  if (is_fixnum(v)) {
+    return v;
+  }
+  if (is_flonum(v)) {
+    return vm_box_flonum(trunc(to_flonum(v)->x));
   }
   abort();
 }

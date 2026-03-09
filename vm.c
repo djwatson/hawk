@@ -106,37 +106,15 @@ DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     return vm_box_flonum(numeric_to_double(v1) + numeric_to_double(v2));)
 static gc_obj scm_inexact(vm_state *state, gc_obj v1) {
   (void)state;
-  if (is_fixnum(v1)) {
-    return vm_box_flonum((double)to_fixnum(v1));
-  }
-  if (is_flonum(v1)) {
-    return v1;
-  }
-  abort();
+  return numeric_inexact_value(v1);
 }
 static gc_obj scm_exact(vm_state *state, gc_obj v1) {
   (void)state;
-  if (is_fixnum(v1)) {
-    return v1;
-  }
-  if (is_flonum(v1)) {
-    double x = to_flonum(v1)->x;
-    if (!isfinite(x) || x < (double)INT64_MIN || x > (double)INT64_MAX) {
-      abort();
-    }
-    return tag_fixnum((int64_t)x);
-  }
-  abort();
+  return numeric_exact_value(v1);
 }
 static gc_obj scm_truncate(vm_state *state, gc_obj v1) {
   (void)state;
-  if (is_fixnum(v1)) {
-    return v1;
-  }
-  if (is_flonum(v1)) {
-    return vm_box_flonum(trunc(to_flonum(v1)->x));
-  }
-  abort();
+  return numeric_truncate_value(v1);
 }
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     sub, return tag_fixnum(to_fixnum(v1) - to_fixnum(v2));,

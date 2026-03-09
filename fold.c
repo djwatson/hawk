@@ -133,6 +133,24 @@ IRFOLDF(fold_guard_neq_any_const) {
   return fold_next();
 }
 
+IRFOLD(INEXACT CONST _)
+IRFOLDF(fold_inexact_const) {
+  auto value = t->consts[in->op1.loc];
+  return fold_const(numeric_inexact_value(value));
+}
+
+IRFOLD(EXACT CONST _)
+IRFOLDF(fold_exact_const) {
+  auto value = t->consts[in->op1.loc];
+  return fold_const(numeric_exact_value(value));
+}
+
+IRFOLD(TRUNCATE CONST _)
+IRFOLDF(fold_truncate_const) {
+  auto value = t->consts[in->op1.loc];
+  return fold_const(numeric_truncate_value(value));
+}
+
 IRFOLD(SUB CONST CONST)
 IRFOLDF(fold_sub_const_const) {
   auto lhs = t->consts[in->op1.loc];

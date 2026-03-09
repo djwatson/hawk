@@ -308,6 +308,7 @@ static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
 }
 static inline bc *vmgen_jmp_advance(bc *pc) { return pc; }
 static slot convert_to_flonum(vm_state *state, slot v1);
+static slot convert_to_fixnum(vm_state *state, slot v1);
 DEFINE_RECORD_NUMERIC_BINOP_COERCED(add, IR_ADD)
 static slot convert_to_flonum(vm_state *state, slot v1) {
   auto t = record_current_trace(state);
@@ -357,8 +358,7 @@ static slot scm_truncate(vm_state *state, slot v1) {
   }
   if (t1 == FLONUM_TAG) {
     if (v1.constant) {
-      double x = trunc(to_flonum(t->consts[v1.loc])->x);
-      return add_const(state, vm_box_flonum(x));
+      return add_const(state, numeric_truncate_value(t->consts[v1.loc]));
     }
     ir_ins ins = IR(.op = IR_TRUNCATE, .op1 = v1, .type = FLONUM_TAG);
     return add_inst(state, ins);
