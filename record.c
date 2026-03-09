@@ -16,7 +16,7 @@
 #include "string.h"
 #include "types.h"
 #include "vm.h"
-#include "vm_guard.h"
+#include "runtime.h"
 
 #define VMGEN_TRACE_OP_NOABORT(pc, code, state, argcnt)                        \
   do {                                                                         \

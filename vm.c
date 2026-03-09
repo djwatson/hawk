@@ -14,7 +14,7 @@
 #include "jitdump.h"
 #include "profiler.h"
 #include "vm.h"
-#include "vm_guard.h"
+#include "runtime.h"
 
 #define VMGEN_TRACE_OP(pc, code, state, argcnt)                                \
   do {                                                                         \

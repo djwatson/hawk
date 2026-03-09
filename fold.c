@@ -7,7 +7,7 @@
 
 #include "array.h"
 #include "gc.h"
-#include "vm_guard.h"
+#include "runtime.h"
 
 typedef fold_result (*fold_func_type)(trace *t, ir_ins *in);
 
