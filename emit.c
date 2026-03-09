@@ -832,13 +832,12 @@ static void emit_reload_events(emit_state *s, trace *t,
   }
 }
 
-static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
 #define EMIT_GUARD_CMP(f_fail0, f_fail1, i_fail)                               \
   do {                                                                         \
     if (op->type == FLONUM_TAG) {                                              \
       emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);                           \
       emit_jcc32(s, (f_fail0), &t->snaps[cur_snap].patch_point);               \
-      if ((f_fail1) != (enum jcc_cond)-1) {                                    \
+      if ((f_fail1) != (enum jcc_cond) - 1) {                                  \
         emit_jcc32(s, (f_fail1), &t->snaps[cur_snap].patch_point);             \
       }                                                                        \
     } else {                                                                   \
@@ -868,6 +867,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     emit_typecheck(s, t, op, cur_snap, dst_reg);                               \
   } while (0)
 
+static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
+
   int32_t cur_snap = 0;
 
   for (uint16_t op_cnt_idx = 0; op_cnt_idx < arrlen(t->ins); op_cnt_idx++) {
@@ -893,12 +894,12 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     switch (op->op) {
     case IR_GUARD_EQ:
     case IR_EQ: {
-      EMIT_GUARD_CMP(JNE, (enum jcc_cond)-1, JNE);
+      EMIT_GUARD_CMP(JNE, (enum jcc_cond) - 1, JNE);
       break;
     }
     case IR_GUARD_NEQ:
     case IR_NE: {
-      EMIT_GUARD_CMP(JE, (enum jcc_cond)-1, JE);
+      EMIT_GUARD_CMP(JE, (enum jcc_cond) - 1, JE);
       break;
     }
     case IR_LOAD: {
@@ -1003,19 +1004,19 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       break;
     }
     case IR_LT: {
-      EMIT_GUARD_CMP(JAE, (enum jcc_cond)-1, JGE);
+      EMIT_GUARD_CMP(JAE, (enum jcc_cond) - 1, JGE);
       break;
     }
     case IR_GT: {
-      EMIT_GUARD_CMP(JBE, (enum jcc_cond)-1, JLE);
+      EMIT_GUARD_CMP(JBE, (enum jcc_cond) - 1, JLE);
       break;
     }
     case IR_GTE: {
-      EMIT_GUARD_CMP(JB, (enum jcc_cond)-1, JL);
+      EMIT_GUARD_CMP(JB, (enum jcc_cond) - 1, JL);
       break;
     }
     case IR_LTE: {
-      EMIT_GUARD_CMP(JA, (enum jcc_cond)-1, JG);
+      EMIT_GUARD_CMP(JA, (enum jcc_cond) - 1, JG);
       break;
     }
     case IR_CONST: {
@@ -1257,8 +1258,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
         emit_label(s, &dyn_fast_commit);
         // Recompute freelist base from preserved tagged size.
         emit_sar_constant(s, RET_REG2, RTMP2, FIXNUM_SHIFT + 3);
-        // Avoid emit_mul_constant/emit_add_constant here: both may use RTMP as a
-        // scratch register on some backends, and RTMP holds new_head on this
+        // Avoid emit_mul_constant/emit_add_constant here: both may use RTMP as
+        // a scratch register on some backends, and RTMP holds new_head on this
         // fast-commit path.
         emit_mov64(s, RTMP2, (int64_t)sizeof(freelist_s));
         emit_mul(s, RET_REG2, RET_REG2, RTMP2);
