@@ -73,13 +73,13 @@ static inline uint8_t numeric_result_type(uint8_t t1, uint8_t t2) {
   (is_flonum((v)) ? FLONUM_TAG                                                 \
                   : (is_fixnum((v)) ? FIXNUM_TAG : (abort(), 0)))
 
-static inline uint8_t numeric_obj_guard_type(gc_obj lhs, gc_obj rhs) {
+static inline uint8_t numeric_obj_result_type(gc_obj lhs, gc_obj rhs) {
   return numeric_result_type(VM_NUMERIC_TYPE_OF(lhs), VM_NUMERIC_TYPE_OF(rhs));
 }
 
 #define VM_NUMERIC_DISPATCH_VALUES(lhs, rhs, fixnum_body, flonum_body)         \
   do {                                                                         \
-    uint8_t numeric_type__ = numeric_obj_guard_type((lhs), (rhs));             \
+    uint8_t numeric_type__ = numeric_obj_result_type((lhs), (rhs));            \
     if (numeric_type__ == FIXNUM_TAG) {                                        \
       fixnum_body                                                              \
     }                                                                          \
@@ -105,17 +105,6 @@ static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
                                            gc_obj v2) {                        \
     (void)state;                                                               \
     VM_NUMERIC_DISPATCH_VALUES(v1, v2, fixnum_body, flonum_body);              \
-  }
-
-#define DEFINE_RECORD_NUMERIC_BINOP_SAME_TYPE(name, ir_op)                     \
-  static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2) {         \
-    auto t = record_current_trace(state);                                      \
-    if (get_slot_type(t, v1) != get_slot_type(t, v2)) {                        \
-      abort();                                                                 \
-    }                                                                          \
-    ir_ins ins =                                                               \
-        IR(.op = ir_op, .op1 = v1, .op2 = v2, .type = get_slot_type(t, v1));   \
-    return add_inst(state, ins);                                               \
   }
 
 #define DEFINE_RECORD_NUMERIC_BINOP_COERCED(name, ir_op)                       \
@@ -149,7 +138,7 @@ static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
 
 #define VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, fixnum_body, flonum_body)        \
   do {                                                                         \
-    if (numeric_obj_guard_type((lhs), (rhs)) == FLONUM_TAG) {                  \
+    if (numeric_obj_result_type((lhs), (rhs)) == FLONUM_TAG) {                 \
       return fold_const(vm_box_flonum(flonum_body));                           \
     }                                                                          \
     return fold_const(tag_fixnum(fixnum_body));                                \

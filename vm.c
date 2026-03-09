@@ -182,22 +182,28 @@ static inline gc_obj emit_math_cmp_lt(vm_state *state, bc *pc, gc_obj *stack,
   // TODO other math types!
   MUSTTAIL return emit_math_cmp_lt_slowpath(state, pc, stack, v1, v2);
 }
-static inline gc_obj emit_math_cmp_gt(vm_state *state, bc *pc, gc_obj *stack,
-                                      gc_obj v1, gc_obj v2) {
-  MUSTTAIL return emit_math_cmp_lt(state, pc, stack, v2, v1);
-}
-static inline gc_obj emit_math_cmp_gte(vm_state *state, bc *pc, gc_obj *stack,
-                                       gc_obj v1, gc_obj v2) {
-  auto lt_res = emit_math_cmp_lt(state, pc, stack, v1, v2);
-  if (lt_res.value == TRUE_REP.value) {
-    return FALSE_REP;
+#define DEFINE_VM_RUNTIME_CMP_SWAP(name, cmp_fn)                               \
+  static inline gc_obj emit_math_cmp_##name(vm_state *state, bc *pc,           \
+                                            gc_obj *stack, gc_obj v1,          \
+                                            gc_obj v2) {                       \
+    MUSTTAIL return cmp_fn(state, pc, stack, v2, v1);                          \
   }
-  return TRUE_REP;
-}
-static inline gc_obj emit_math_cmp_lte(vm_state *state, bc *pc, gc_obj *stack,
-                                       gc_obj v1, gc_obj v2) {
-  MUSTTAIL return emit_math_cmp_gte(state, pc, stack, v2, v1);
-}
+
+#define DEFINE_VM_RUNTIME_CMP_NEGATE(name, cmp_fn)                             \
+  static inline gc_obj emit_math_cmp_##name(vm_state *state, bc *pc,           \
+                                            gc_obj *stack, gc_obj v1,          \
+                                            gc_obj v2) {                       \
+    auto cmp_res = cmp_fn(state, pc, stack, v1, v2);                           \
+    return cmp_res.value == TRUE_REP.value ? FALSE_REP : TRUE_REP;             \
+  }
+
+DEFINE_VM_RUNTIME_CMP_SWAP(gt, emit_math_cmp_lt)
+DEFINE_VM_RUNTIME_CMP_NEGATE(gte, emit_math_cmp_lt)
+DEFINE_VM_RUNTIME_CMP_NEGATE(lte, emit_math_cmp_gt)
+
+#undef DEFINE_VM_RUNTIME_CMP_NEGATE
+#undef DEFINE_VM_RUNTIME_CMP_SWAP
+
 static inline gc_obj emit_math_cmp_jeq(vm_state *state, bc *pc, gc_obj *stack,
                                        gc_obj v1, gc_obj v2) {
   (void)state;
