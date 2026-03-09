@@ -59,7 +59,7 @@ static inline gc_obj numeric_truncate_value(gc_obj v) {
   abort();
 }
 
-static inline uint8_t numeric_guard_type(uint8_t t1, uint8_t t2) {
+static inline uint8_t numeric_result_type(uint8_t t1, uint8_t t2) {
   if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
     return FLONUM_TAG;
   }
@@ -74,7 +74,7 @@ static inline uint8_t numeric_guard_type(uint8_t t1, uint8_t t2) {
                   : (is_fixnum((v)) ? FIXNUM_TAG : (abort(), 0)))
 
 static inline uint8_t numeric_obj_guard_type(gc_obj lhs, gc_obj rhs) {
-  return numeric_guard_type(VM_NUMERIC_TYPE_OF(lhs), VM_NUMERIC_TYPE_OF(rhs));
+  return numeric_result_type(VM_NUMERIC_TYPE_OF(lhs), VM_NUMERIC_TYPE_OF(rhs));
 }
 
 #define VM_NUMERIC_DISPATCH_VALUES(lhs, rhs, fixnum_body, flonum_body)         \
@@ -121,8 +121,8 @@ static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
 #define DEFINE_RECORD_NUMERIC_BINOP_COERCED(name, ir_op)                       \
   static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2) {         \
     auto t = record_current_trace(state);                                      \
-    uint8_t type = numeric_guard_type(get_slot_type(t, v1),                    \
-                                      get_slot_type(t, v2));                   \
+    uint8_t type = numeric_result_type(get_slot_type(t, v1),                   \
+                                       get_slot_type(t, v2));                  \
     if (type == FLONUM_TAG) {                                                  \
       v1 = convert_to_flonum(state, v1);                                       \
       v2 = convert_to_flonum(state, v2);                                       \
@@ -143,7 +143,8 @@ static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
 #define RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs)                            \
   (((is_fixnum((lhs)) || is_flonum((lhs))) &&                                  \
     (is_fixnum((rhs)) || is_flonum((rhs))))                                    \
-       ? numeric_guard_type(get_slot_type((t), (v1)), get_slot_type((t), (v2)))\
+       ? numeric_result_type(get_slot_type((t), (v1)),                         \
+                             get_slot_type((t), (v2)))                         \
        : get_slot_type((t), (v1)))
 
 #define VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, fixnum_body, flonum_body)        \

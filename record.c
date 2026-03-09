@@ -318,7 +318,7 @@ static slot convert_to_flonum(vm_state *state, slot v1) {
   }
   if (t1 == FIXNUM_TAG) {
     if (v1.constant) {
-      return add_const(state, vm_box_flonum((double)to_fixnum(t->consts[v1.loc])));
+      return add_const(state, numeric_inexact_value(t->consts[v1.loc]));
     }
     ir_ins ins = IR(.op = IR_INEXACT, .op1 = v1, .type = FLONUM_TAG);
     return add_inst(state, ins);
@@ -333,11 +333,7 @@ static slot convert_to_fixnum(vm_state *state, slot v1) {
   }
   if (t1 == FLONUM_TAG) {
     if (v1.constant) {
-      double x = to_flonum(t->consts[v1.loc])->x;
-      if (!isfinite(x) || x < (double)INT64_MIN || x > (double)INT64_MAX) {
-        abort();
-      }
-      return add_const(state, tag_fixnum((int64_t)x));
+      return add_const(state, numeric_exact_value(t->consts[v1.loc]));
     }
     ir_ins ins = IR(.op = IR_EXACT, .op1 = v1, .type = FIXNUM_TAG);
     return add_inst(state, ins);
