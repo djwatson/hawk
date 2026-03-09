@@ -53,12 +53,17 @@ static void print_slot(slot s, trace *t, regalloc2_result const *regmap,
 }
 
 char *ir_names[] = {
-#define X(name, type) #name,
+#define X(name, type, sideeff) #name,
     IR_OPS
 #undef X
 };
 ir_arg_type ir_ins_types[] = {
-#define X(name, type) IR_##type,
+#define X(name, type, sideeff) IR_##type,
+    IR_OPS
+#undef X
+};
+static bool ir_has_side_effects[] = {
+#define X(name, type, sideeff) sideeff,
     IR_OPS
 #undef X
 };
@@ -233,22 +238,5 @@ void print_ir(trace *t, regalloc2_result const *regmap) {
 }
 
 bool ir_sideeff(ir_ins_op op) {
-  switch (op) {
-  case IR_GSET:
-  case IR_RET:
-  case IR_GT:
-  case IR_LT:
-  case IR_LTE:
-  case IR_GTE:
-  case IR_EQ:
-  case IR_NE:
-  case IR_STORE:
-  case IR_PMOV:
-  case IR_ALLOC:
-  case IR_TYPECHECK:
-    return true;
-    break;
-  default:
-    return false;
-  }
+  return ir_has_side_effects[op];
 }

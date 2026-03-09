@@ -71,7 +71,7 @@ IRFOLDF(fold_commutative_const_lhs) {
   slot tmp = in->op1;
   in->op1 = in->op2;
   in->op2 = tmp;
-  return (fold_result){.action = FOLD_NEXT};
+  return fold_next();
 }
 
 IRFOLD(LT CONST _)
@@ -83,7 +83,7 @@ IRFOLDF(fold_cmp_const_lhs) {
   in->op1 = in->op2;
   in->op2 = tmp;
   in->op = swap_cmp_op(in->op);
-  return fold_retry();
+  return fold_next();
 }
 
 IRFOLD(SUB CONST _)
@@ -167,8 +167,9 @@ IRFOLD(QUOTIENT CONST CONST)
 IRFOLDF(fold_quotient_const_const) {
   auto lhs = t->consts[in->op1.loc];
   auto rhs = t->consts[in->op2.loc];
-  VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, to_fixnum(lhs) / to_fixnum(rhs),
-                              trunc(numeric_to_double(lhs) / numeric_to_double(rhs)));
+  VM_FOLD_NUMERIC_CONST_BINOP(
+      lhs, rhs, to_fixnum(lhs) / to_fixnum(rhs),
+      trunc(numeric_to_double(lhs) / numeric_to_double(rhs)));
 }
 
 IRFOLD(LOAD CONST CONST)

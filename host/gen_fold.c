@@ -10,7 +10,7 @@
 #include "fold.h"
 
 char *ir_names[] = {
-#define X(name, type) #name,
+#define X(name, type, sideeff) #name,
     IR_OPS
 #undef X
 };

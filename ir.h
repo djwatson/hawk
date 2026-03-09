@@ -43,37 +43,38 @@ typedef enum : uint8_t {
   IR_ARG_OFFSET,
 } ir_arg_type;
 
+// Opname, arg types, side effecting
 #define IR_OPS                                                                 \
-  X(EQ, ARG_IR_IR)                                                             \
-  X(NE, ARG_IR_IR)                                                             \
-  X(LT, ARG_IR_IR)                                                             \
-  X(GT, ARG_IR_IR)                                                             \
-  X(LTE, ARG_IR_IR)                                                            \
-  X(GTE, ARG_IR_IR)                                                            \
-  X(NOP, ARG_NONE_NONE)                                                        \
-  X(CONST, ARG_IR_NONE)                                                        \
-  X(ADD, ARG_IR_IR)                                                            \
-  X(SUB, ARG_IR_IR)                                                            \
-  X(MUL, ARG_IR_IR)                                                            \
-  X(DIV, ARG_IR_IR)                                                            \
-  X(QUOTIENT, ARG_IR_IR)                                                       \
-  X(MOD, ARG_IR_IR)                                                            \
-  X(GGET, ARG_IR_NONE)                                                         \
-  X(GSET, ARG_IR_IR)                                                           \
-  X(RET, ARG_IR_ADDR)                                                          \
-  X(SLOAD, ARG_STACK)                                                          \
-  X(TYPECHECK, ARG_IR_NONE)                                                    \
-  X(PMOV, ARG_PMOV)                                                            \
-  X(ARG, ARG_REG)                                                              \
-  X(REF, ARG_IR_IR)                                                            \
-  X(LOAD, ARG_IR_IR)                                                           \
-  X(STORE, ARG_IR_IR)                                                          \
-  X(ALLOC, ARG_IR_IR)                                                          \
-  X(EXACT, ARG_IR_NONE)                                                        \
-  X(TRUNCATE, ARG_IR_NONE)                                                     \
-  X(INEXACT, ARG_IR_NONE)
+  X(EQ, ARG_IR_IR, true)                                                       \
+  X(NE, ARG_IR_IR, true)                                                       \
+  X(LT, ARG_IR_IR, true)                                                       \
+  X(GT, ARG_IR_IR, true)                                                       \
+  X(LTE, ARG_IR_IR, true)                                                      \
+  X(GTE, ARG_IR_IR, true)                                                      \
+  X(NOP, ARG_NONE_NONE, false)                                                 \
+  X(CONST, ARG_IR_NONE, false)                                                 \
+  X(ADD, ARG_IR_IR, false)                                                     \
+  X(SUB, ARG_IR_IR, false)                                                     \
+  X(MUL, ARG_IR_IR, false)                                                     \
+  X(DIV, ARG_IR_IR, false)                                                     \
+  X(QUOTIENT, ARG_IR_IR, false)                                                \
+  X(MOD, ARG_IR_IR, false)                                                     \
+  X(GGET, ARG_IR_NONE, false)                                                  \
+  X(GSET, ARG_IR_IR, true)                                                     \
+  X(RET, ARG_IR_ADDR, true)                                                    \
+  X(SLOAD, ARG_STACK, false)                                                   \
+  X(TYPECHECK, ARG_IR_NONE, true)                                              \
+  X(PMOV, ARG_PMOV, false)                                                     \
+  X(ARG, ARG_REG, false)                                                       \
+  X(REF, ARG_IR_IR, false)                                                     \
+  X(LOAD, ARG_IR_IR, false)                                                    \
+  X(STORE, ARG_IR_IR, true)                                                    \
+  X(ALLOC, ARG_IR_IR, false)                                                   \
+  X(EXACT, ARG_IR_NONE, false)                                                 \
+  X(TRUNCATE, ARG_IR_NONE, false)                                              \
+  X(INEXACT, ARG_IR_NONE, false)
 typedef enum : uint8_t {
-#define X(name, type) IR_##name,
+#define X(name, type, sideeff) IR_##name,
   IR_OPS
 #undef X
       IR_INS_MAX,
