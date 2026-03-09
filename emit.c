@@ -307,21 +307,6 @@ static double slot_flonum_constant(trace *t, slot v) {
   abort();
 }
 
-static void emit_flonum_sub(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
-                            uint8_t lhs_reg, uint8_t rhs_reg) {
-  assert(is_fpr_reg(dst));
-  if (op->op2.constant) {
-    emit_fsub_constant(s, dst, lhs_reg, slot_flonum_constant(t, op->op2));
-    return;
-  }
-  if (op->op1.constant) {
-    emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op1));
-    emit_fsub(s, dst, FRTMP, rhs_reg);
-    return;
-  }
-  emit_fsub(s, dst, lhs_reg, rhs_reg);
-}
-
 static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins const *op,
                             uint8_t lhs_reg, uint8_t rhs_reg) {
   if (op->op2.constant) {
@@ -335,58 +320,21 @@ static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins const *op,
   }
   emit_fcmp(s, lhs_reg, rhs_reg);
 }
-static void emit_flonum_add(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
-                            uint8_t lhs_reg, uint8_t rhs_reg) {
-  assert(is_fpr_reg(dst));
-  if (op->op2.constant) {
-    emit_fadd_constant(s, dst, lhs_reg, slot_flonum_constant(t, op->op2));
-    return;
-  }
-  if (op->op1.constant) {
-    emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op1));
-    emit_fadd(s, dst, FRTMP, rhs_reg);
-    return;
-  }
-  emit_fadd(s, dst, lhs_reg, rhs_reg);
-}
-
-static void emit_flonum_mul(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
-                            uint8_t lhs_reg, uint8_t rhs_reg) {
+static void emit_flonum_binop(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
+                              typeof(&emit_fadd) binop, uint8_t lhs_reg,
+                              uint8_t rhs_reg) {
   assert(is_fpr_reg(dst));
   if (op->op2.constant) {
     emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op2));
-    emit_fmul(s, dst, lhs_reg, FRTMP);
+    binop(s, dst, lhs_reg, FRTMP);
     return;
   }
   if (op->op1.constant) {
     emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op1));
-    emit_fmul(s, dst, FRTMP, rhs_reg);
+    binop(s, dst, FRTMP, rhs_reg);
     return;
   }
-  emit_fmul(s, dst, lhs_reg, rhs_reg);
-}
-
-static void emit_flonum_div(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
-                            uint8_t lhs_reg, uint8_t rhs_reg) {
-  assert(is_fpr_reg(dst));
-  if (op->op2.constant) {
-    emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op2));
-    emit_fdiv(s, dst, lhs_reg, FRTMP);
-    return;
-  }
-  if (op->op1.constant) {
-    emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op1));
-    emit_fdiv(s, dst, FRTMP, rhs_reg);
-    return;
-  }
-  emit_fdiv(s, dst, lhs_reg, rhs_reg);
-}
-
-static void emit_flonum_quotient(emit_state *s, trace *t, uint8_t dst,
-                                 ir_ins *op, uint8_t lhs_reg, uint8_t rhs_reg) {
-  emit_flonum_div(s, t, dst, op, lhs_reg, rhs_reg);
-  emit_double_to_int64_trunc(s, RTMP, dst);
-  emit_int64_to_double(s, dst, RTMP);
+  binop(s, dst, lhs_reg, rhs_reg);
 }
 
 static void emit_box_flonum(emit_state *s, int32_t stack_offset,
@@ -1030,7 +978,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     }
     case IR_SUB: {
       if (op->type == FLONUM_TAG) {
-        emit_flonum_sub(s, t, dst_reg, op, arg0_reg, arg1_reg);
+        emit_flonum_binop(s, t, dst_reg, op, emit_fsub, arg0_reg, arg1_reg);
       } else {
         EMIT_FIXNUM_BINOP_CONST(emit_sub, emit_sub_constant);
       }
@@ -1038,7 +986,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     }
     case IR_MUL: {
       if (op->type == FLONUM_TAG) {
-        emit_flonum_mul(s, t, dst_reg, op, arg0_reg, arg1_reg);
+        emit_flonum_binop(s, t, dst_reg, op, emit_fmul, arg0_reg, arg1_reg);
       } else {
         if (op->op2.constant) {
           int64_t rhs_untagged = slot_const(t, op->op2) / (1LL << FIXNUM_SHIFT);
@@ -1053,7 +1001,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     }
     case IR_DIV: {
       if (op->type == FLONUM_TAG) {
-        emit_flonum_div(s, t, dst_reg, op, arg0_reg, arg1_reg);
+        emit_flonum_binop(s, t, dst_reg, op, emit_fdiv, arg0_reg, arg1_reg);
       } else {
         abort();
       }
@@ -1061,7 +1009,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     }
     case IR_QUOTIENT: {
       if (op->type == FLONUM_TAG) {
-        emit_flonum_quotient(s, t, dst_reg, op, arg0_reg, arg1_reg);
+        emit_flonum_binop(s, t, dst_reg, op, emit_fdiv, arg0_reg, arg1_reg);
+        emit_ftruncate(s, dst_reg, dst_reg);
       } else {
         EMIT_FIXNUM_BINOP_REG(emit_quotient);
       }
@@ -1077,9 +1026,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     }
     case IR_ADD: {
       if (op->type == FLONUM_TAG) {
-        emit_flonum_add(s, t, dst_reg, op, arg0_reg, arg1_reg);
+        emit_flonum_binop(s, t, dst_reg, op, emit_fadd, arg0_reg, arg1_reg);
       } else {
-        // TODO: check for overflow
         EMIT_FIXNUM_BINOP_CONST(emit_add, emit_add_constant);
       }
       break;
@@ -1258,9 +1206,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
         emit_label(s, &dyn_fast_commit);
         // Recompute freelist base from preserved tagged size.
         emit_sar_constant(s, RET_REG2, RTMP2, FIXNUM_SHIFT + 3);
-        // Avoid emit_mul_constant/emit_add_constant here: both may use RTMP as
-        // a scratch register on some backends, and RTMP holds new_head on this
-        // fast-commit path.
+        // Avoid emit_mul_constant/emit_add_constant here: both may use RTMP
+        // as a scratch register on some backends, and RTMP holds new_head on
+        // this fast-commit path.
         emit_mov64(s, RTMP2, (int64_t)sizeof(freelist_s));
         emit_mul(s, RET_REG2, RET_REG2, RTMP2);
         emit_mov64(s, RTMP2, (int64_t)(intptr_t)freelist);
@@ -1395,8 +1343,8 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   link_to_next_trace(s, t, &regmap, link_entry_snap);
 
   label exit_label = {};
-  // Exist stubs for all but the loopback (last). These restore the scheme stack
-  // state, putting any in-register values back on the stack, and boxing
+  // Exist stubs for all but the loopback (last). These restore the scheme
+  // stack state, putting any in-register values back on the stack, and boxing
   // flonums.
   emit_snapshot_exits(s, t, &regmap, t->snaps, &exit_label);
 
