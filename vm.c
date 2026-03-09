@@ -514,8 +514,11 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
       if (verbose) {
         printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
       }
-      record_start_side(state, *pc, *instr, *stack, res.snap,
-                        is_poly_trace ? res.snap : nullptr);
+      if (is_poly_trace) {
+        record_start_poly(state, *pc, *instr, *stack, res.snap);
+      } else {
+        record_start_side(state, *pc, *instr, *stack, res.snap);
+      }
       return state->record_impls;
     }
   }

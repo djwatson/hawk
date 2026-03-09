@@ -456,7 +456,7 @@ static void record_finish(bc *pc, vm_state *state) {
   cur_trace->fn =
       emit(cur_trace, &state->emit, &state->record, cur_trace->link_entry_snap);
   state->max_trace--;
-  if (ts->type == TRACE_TYPE_ROOT) {
+  if (!cur_trace->parent) {
     *ts->start_ins = (bc){
         .op = OP_JFUNC,
         .data = record_trace_count(state),
@@ -1078,23 +1078,21 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 // NOLINTNEXTLINE(bugprone-suspicious-include)
 #include "vmgen.c" // NOLINT(build/include)
 
-void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack) {
-
-  if (verbose) {
-    const char *fname = func_name_from_pc(pc);
-    printf("Record start %p %i %s %s\n", pc, record_trace_count(state), fname,
-           instr.op == OP_RET ? "DOWNREC" : "");
-  }
+static trace *record_begin_trace(vm_state *state, bc *pc, bc instr) {
   record_set_current_trace(state, calloc(1, sizeof(trace)));
-  record_current_trace(state)->start_pc = instr;
-  record_current_trace(state)->num = record_trace_count(state);
+  trace *cur_trace = record_current_trace(state);
+  cur_trace->start_pc = instr;
+  cur_trace->num = record_trace_count(state);
   trace_state *ts = record_trace_state(state);
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
   ts->start_is_ret = (instr.op == OP_RET);
-  ts->type = TRACE_TYPE_ROOT;
-  ts->poly_entry = nullptr;
+  return cur_trace;
+}
 
+static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
+                                   gc_obj *stack) {
+  trace_state *ts = record_trace_state(state);
   // OK! Let's put function arguments in registers.
   // Note these *must* be marked as 'changed', since ARGS aren't saved between
   // trace loops at all.
@@ -1142,26 +1140,48 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack) {
   ts->start_record_size = arrlen(record_current_trace(state)->ins);
 }
 
-void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                       snap *side_snap, const snap *poly_entry) {
+void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack) {
+
   if (verbose) {
-    printf("Record start side %i\n", record_trace_count(state));
+    const char *fname = func_name_from_pc(pc);
+    printf("Record start %p %i %s %s\n", pc, record_trace_count(state), fname,
+           instr.op == OP_RET ? "DOWNREC" : "");
+  }
+  record_begin_trace(state, pc, instr);
+  trace_state *ts = record_trace_state(state);
+  ts->poly_entry = nullptr;
+  record_seed_entry_args(state, pc, instr, stack);
+}
+
+void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
+                       snap *side_snap) {
+  if (verbose) {
+    printf("Record start poly %i\n", record_trace_count(state));
   }
   assert(instr.op != OP_JFUNC);
-  record_set_current_trace(state, calloc(1, sizeof(trace)));
+  record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   cur_trace->parent = side_snap->trace;
   cur_trace->parent_snap = side_snap;
-  cur_trace->start_pc = instr;
-  cur_trace->num = record_trace_count(state);
-  memset(ts, 0, sizeof(trace_state));
-  ts->start_ins = pc;
-  ts->start_is_ret = (instr.op == OP_RET);
   ts->depth = side_snap->depth;
-  ts->stack_off = 0;
-  ts->type = TRACE_TYPE_SIDE;
-  ts->poly_entry = poly_entry;
+  ts->poly_entry = side_snap;
+  record_seed_entry_args(state, pc, instr, stack);
+}
+
+void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
+                       snap *side_snap) {
+  if (verbose) {
+    printf("Record start side %i\n", record_trace_count(state));
+  }
+  assert(instr.op != OP_JFUNC);
+  record_begin_trace(state, pc, instr);
+  trace_state *ts = record_trace_state(state);
+  trace *cur_trace = record_current_trace(state);
+  cur_trace->parent = side_snap->trace;
+  cur_trace->parent_snap = side_snap;
+  ts->depth = side_snap->depth;
+  ts->poly_entry = nullptr;
 
   // Replay snapshot loads, so we keep things in register.
   size_t parent_ins_len = arrlen(side_snap->trace->ins);
