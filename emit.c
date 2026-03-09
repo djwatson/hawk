@@ -187,27 +187,6 @@ static void emit_cmp_regs(emit_state *s, trace *t, uint8_t lhs_reg, slot rhs,
   emit_cmp(s, lhs_reg, rhs_reg);
 }
 
-static void emit_arith_regs(emit_state *s, trace *t, uint8_t dst,
-                            uint8_t lhs_reg, slot rhs, uint8_t rhs_reg,
-                            bool is_sub) {
-  assert(lhs_reg != REG_NONE);
-
-  if (rhs.constant) {
-    if (is_sub) {
-      emit_sub_constant(s, dst, lhs_reg, slot_const(t, rhs));
-    } else {
-      emit_add_constant(s, dst, lhs_reg, slot_const(t, rhs));
-    }
-  } else {
-    assert(rhs_reg != REG_NONE);
-    if (is_sub) {
-      emit_sub(s, dst, lhs_reg, rhs_reg);
-    } else {
-      emit_add(s, dst, lhs_reg, rhs_reg);
-    }
-  }
-}
-
 static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
   size_t len = arrlen(t->ins);
   while (*idx < len) {
@@ -343,7 +322,7 @@ static void emit_flonum_sub(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
   emit_fsub(s, dst, lhs_reg, rhs_reg);
 }
 
-static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins *op,
+static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins const *op,
                             uint8_t lhs_reg, uint8_t rhs_reg) {
   if (op->op2.constant) {
     emit_fcmp_constant(s, lhs_reg, slot_flonum_constant(t, op->op2));
@@ -560,7 +539,7 @@ static void emit_loopback_entry_spills(emit_state *s, trace *entry_trace,
   }
 }
 
-static void emit_typecheck(emit_state *s, trace *t, ir_ins *op,
+static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
                            int32_t cur_snap, uint8_t reg) {
   if (!op->guard && op->type != FLONUM_TAG) {
     return;
@@ -854,6 +833,41 @@ static void emit_reload_events(emit_state *s, trace *t,
 }
 
 static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
+#define EMIT_GUARD_CMP(f_fail0, f_fail1, i_fail)                               \
+  do {                                                                         \
+    if (op->type == FLONUM_TAG) {                                              \
+      emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);                           \
+      emit_jcc32(s, (f_fail0), &t->snaps[cur_snap].patch_point);               \
+      if ((f_fail1) != (enum jcc_cond)-1) {                                    \
+        emit_jcc32(s, (f_fail1), &t->snaps[cur_snap].patch_point);             \
+      }                                                                        \
+    } else {                                                                   \
+      emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);                        \
+      emit_jcc32(s, (i_fail), &t->snaps[cur_snap].patch_point);                \
+    }                                                                          \
+  } while (0)
+
+#define EMIT_FIXNUM_BINOP_CONST(reg_emit, const_emit)                          \
+  do {                                                                         \
+    if (op->op2.constant) {                                                    \
+      (const_emit)(s, dst_reg, arg0_reg, slot_const(t, op->op2));              \
+    } else {                                                                   \
+      (reg_emit)(s, dst_reg, arg0_reg, arg1_reg);                              \
+    }                                                                          \
+    emit_typecheck(s, t, op, cur_snap, dst_reg);                               \
+  } while (0)
+
+#define EMIT_FIXNUM_BINOP_REG(reg_emit)                                        \
+  do {                                                                         \
+    if (op->op2.constant) {                                                    \
+      emit_mov64(s, RTMP, slot_const(t, op->op2));                             \
+      (reg_emit)(s, dst_reg, arg0_reg, RTMP);                                  \
+    } else {                                                                   \
+      (reg_emit)(s, dst_reg, arg0_reg, arg1_reg);                              \
+    }                                                                          \
+    emit_typecheck(s, t, op, cur_snap, dst_reg);                               \
+  } while (0)
+
   int32_t cur_snap = 0;
 
   for (uint16_t op_cnt_idx = 0; op_cnt_idx < arrlen(t->ins); op_cnt_idx++) {
@@ -879,28 +893,12 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
     switch (op->op) {
     case IR_GUARD_EQ:
     case IR_EQ: {
-      if (op->type == FLONUM_TAG) {
-        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
-        emit_jcc32(s, JP, &t->snaps[cur_snap].patch_point);
-        emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
-      } else {
-        emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
-        emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
-      }
+      EMIT_GUARD_CMP(JNE, (enum jcc_cond)-1, JNE);
       break;
     }
     case IR_GUARD_NEQ:
     case IR_NE: {
-      if (op->type == FLONUM_TAG) {
-        label done = {};
-        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
-        emit_jcc32(s, JP, &done);
-        emit_jcc32(s, JE, &t->snaps[cur_snap].patch_point);
-        emit_label(s, &done);
-      } else {
-        emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
-        emit_jcc32(s, JE, &t->snaps[cur_snap].patch_point);
-      }
+      EMIT_GUARD_CMP(JE, (enum jcc_cond)-1, JE);
       break;
     }
     case IR_LOAD: {
@@ -1005,50 +1003,19 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       break;
     }
     case IR_LT: {
-      if (op->type == FLONUM_TAG) {
-        // Side-exit on !(lhs < rhs): lhs >= rhs OR unordered.
-        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
-        emit_jcc32(s, JP, &t->snaps[cur_snap].patch_point);
-        emit_jcc32(s, JAE, &t->snaps[cur_snap].patch_point);
-      } else {
-        emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
-        emit_jcc32(s, JGE, &t->snaps[cur_snap].patch_point);
-      }
+      EMIT_GUARD_CMP(JAE, (enum jcc_cond)-1, JGE);
       break;
     }
     case IR_GT: {
-      if (op->type == FLONUM_TAG) {
-        // Side-exit on !(lhs > rhs): lhs <= rhs OR unordered.
-        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
-        emit_jcc32(s, JBE, &t->snaps[cur_snap].patch_point);
-      } else {
-        emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
-        emit_jcc32(s, JLE, &t->snaps[cur_snap].patch_point);
-      }
+      EMIT_GUARD_CMP(JBE, (enum jcc_cond)-1, JLE);
       break;
     }
     case IR_GTE: {
-      if (op->type == FLONUM_TAG) {
-        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
-        // Side-exit on !(lhs >= rhs): lhs < rhs OR unordered.
-        emit_jcc32(s, JP, &t->snaps[cur_snap].patch_point);
-        emit_jcc32(s, JB, &t->snaps[cur_snap].patch_point);
-      } else {
-        emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
-        emit_jcc32(s, JL, &t->snaps[cur_snap].patch_point);
-      }
+      EMIT_GUARD_CMP(JB, (enum jcc_cond)-1, JL);
       break;
     }
     case IR_LTE: {
-      if (op->type == FLONUM_TAG) {
-        // Side-exit on !(lhs <= rhs): lhs > rhs OR unordered.
-        emit_flonum_cmp(s, t, op, arg0_reg, arg1_reg);
-        emit_jcc32(s, JP, &t->snaps[cur_snap].patch_point);
-        emit_jcc32(s, JA, &t->snaps[cur_snap].patch_point);
-      } else {
-        emit_cmp_regs(s, t, arg0_reg, op->op2, arg1_reg);
-        emit_jcc32(s, JG, &t->snaps[cur_snap].patch_point);
-      }
+      EMIT_GUARD_CMP(JA, (enum jcc_cond)-1, JG);
       break;
     }
     case IR_CONST: {
@@ -1064,8 +1031,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       if (op->type == FLONUM_TAG) {
         emit_flonum_sub(s, t, dst_reg, op, arg0_reg, arg1_reg);
       } else {
-        emit_arith_regs(s, t, dst_reg, arg0_reg, op->op2, arg1_reg, true);
-        emit_typecheck(s, t, op, cur_snap, dst_reg);
+        EMIT_FIXNUM_BINOP_CONST(emit_sub, emit_sub_constant);
       }
       break;
     }
@@ -1077,7 +1043,6 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
           int64_t rhs_untagged = slot_const(t, op->op2) / (1LL << FIXNUM_SHIFT);
           emit_mul_constant(s, dst_reg, arg0_reg, rhs_untagged);
         } else {
-          // Keep tagged-fixnum semantics: untag one operand into RTMP.
           emit_sar_constant(s, RTMP, arg1_reg, FIXNUM_SHIFT);
           emit_mul(s, dst_reg, arg0_reg, RTMP);
         }
@@ -1097,13 +1062,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       if (op->type == FLONUM_TAG) {
         emit_flonum_quotient(s, t, dst_reg, op, arg0_reg, arg1_reg);
       } else {
-        if (op->op2.constant) {
-          emit_mov64(s, RTMP, slot_const(t, op->op2));
-          emit_quotient(s, dst_reg, arg0_reg, RTMP);
-        } else {
-          emit_quotient(s, dst_reg, arg0_reg, arg1_reg);
-        }
-        emit_typecheck(s, t, op, cur_snap, dst_reg);
+        EMIT_FIXNUM_BINOP_REG(emit_quotient);
       }
       break;
     }
@@ -1111,13 +1070,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       if (op->type == FLONUM_TAG) {
         abort();
       } else {
-        if (op->op2.constant) {
-          emit_mov64(s, RTMP, slot_const(t, op->op2));
-          emit_mod(s, dst_reg, arg0_reg, RTMP);
-        } else {
-          emit_mod(s, dst_reg, arg0_reg, arg1_reg);
-        }
-        emit_typecheck(s, t, op, cur_snap, dst_reg);
+        EMIT_FIXNUM_BINOP_REG(emit_mod);
       }
       break;
     }
@@ -1126,8 +1079,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
         emit_flonum_add(s, t, dst_reg, op, arg0_reg, arg1_reg);
       } else {
         // TODO: check for overflow
-        emit_arith_regs(s, t, dst_reg, arg0_reg, op->op2, arg1_reg, false);
-        emit_typecheck(s, t, op, cur_snap, dst_reg);
+        EMIT_FIXNUM_BINOP_CONST(emit_add, emit_add_constant);
       }
       break;
     }
@@ -1364,6 +1316,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       abort();
     }
   }
+
+#undef EMIT_FIXNUM_BINOP_REG
+#undef EMIT_FIXNUM_BINOP_CONST
+#undef EMIT_GUARD_CMP
 }
 
 // Emit *two* entry points:
