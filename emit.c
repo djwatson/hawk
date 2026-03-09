@@ -311,13 +311,9 @@ static double slot_flonum_constant(trace *t, slot v) {
 
 static void emit_flonum_cmp(emit_state *s, trace *t, ir_ins const *op,
                             uint8_t lhs_reg, uint8_t rhs_reg) {
+  assert(!op->op1.constant); // fold should have already removed these.
   if (op->op2.constant) {
     emit_fcmp_constant(s, lhs_reg, slot_flonum_constant(t, op->op2));
-    return;
-  }
-  if (op->op1.constant) {
-    emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op1));
-    emit_fcmp(s, FRTMP, rhs_reg);
     return;
   }
   emit_fcmp(s, lhs_reg, rhs_reg);
@@ -337,10 +333,11 @@ static inline void emit_guard_cmp(emit_state *s, trace *t, ir_ins const *op,
   emit_jcc32(s, i_fail, &t->snaps[cur_snap].patch_point);
 }
 
-static inline void emit_fixnum_binop_const(
-    emit_state *s, trace *t, ir_ins const *op, uint8_t dst_reg,
-    uint8_t lhs_reg, uint8_t rhs_reg, int32_t cur_snap,
-    typeof(&emit_add) reg_emit, typeof(&emit_add_constant) const_emit) {
+static inline void
+emit_fixnum_binop_const(emit_state *s, trace *t, ir_ins const *op,
+                        uint8_t dst_reg, uint8_t lhs_reg, uint8_t rhs_reg,
+                        int32_t cur_snap, typeof(&emit_add) reg_emit,
+                        typeof(&emit_add_constant) const_emit) {
   if (op->op2.constant) {
     const_emit(s, dst_reg, lhs_reg, slot_const(t, op->op2));
   } else {
@@ -367,14 +364,10 @@ static void emit_flonum_binop(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
                               typeof(&emit_fadd) binop, uint8_t lhs_reg,
                               uint8_t rhs_reg) {
   assert(is_fpr_reg(dst));
+  assert(!op->op1.constant); // fold should have already removed these.
   if (op->op2.constant) {
     emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op2));
     binop(s, dst, lhs_reg, FRTMP);
-    return;
-  }
-  if (op->op1.constant) {
-    emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op1));
-    binop(s, dst, FRTMP, rhs_reg);
     return;
   }
   binop(s, dst, lhs_reg, rhs_reg);
@@ -985,8 +978,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       if (op->type == FLONUM_TAG) {
         emit_flonum_binop(s, t, dst_reg, op, emit_fsub, arg0_reg, arg1_reg);
       } else {
-        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg,
-                                cur_snap, emit_sub, emit_sub_constant);
+        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
+                                emit_sub, emit_sub_constant);
       }
       break;
     }
@@ -1036,8 +1029,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       if (op->type == FLONUM_TAG) {
         emit_flonum_binop(s, t, dst_reg, op, emit_fadd, arg0_reg, arg1_reg);
       } else {
-        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg,
-                                cur_snap, emit_add, emit_add_constant);
+        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
+                                emit_add, emit_add_constant);
       }
       break;
     }
@@ -1275,7 +1268,6 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       abort();
     }
   }
-
 }
 
 // Emit *two* entry points:
