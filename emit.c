@@ -530,28 +530,27 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
     return;
   }
 
+  uint8_t low_tag = op->type & TAG_MASK;
   int64_t mask = TAG_MASK;
   int64_t want = op->type;
-  COMMENT("  typecheck %s", low_tag_names[op->type & TAG_MASK]);
-  switch (op->type) {
+  COMMENT("  typecheck %s", low_tag_names[low_tag]);
+  switch (low_tag) {
+  case LITERAL_TAG:
+    mask = IMMEDIATE_MASK;
+    want &= IMMEDIATE_MASK;
+    break;
   case FIXNUM_TAG:
     emit_test_constant(s, reg, TAG_MASK);
     emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
     return;
-  case CONS_TAG:
-  case VECTOR_TAG:
-  case SYMBOL_TAG:
-  case FLONUM_TAG:
-    break;
-  case FUNC_TAG:
-    // func loads ONLY happen from closure loads, no need to typecheck.
-    return;
-  default:
-    if ((op->type & TAG_MASK) != LITERAL_TAG) {
-      abort();
+  case PTR_TAG:
+    if (op->type == FUNC_TAG) {
+      // func loads ONLY happen from closure loads, no need to typecheck.
+      return;
     }
-    mask = IMMEDIATE_MASK;
-    want &= IMMEDIATE_MASK;
+    abort();
+  default:
+    break;
   }
 
   emit_mov(s, RTMP, reg);
@@ -1055,7 +1054,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc2_result const *regmap) {
       break;
     }
     case IR_SLOAD: {
-      uint8_t load_reg = op->type == FLONUM_TAG ? RTMP : dst_reg;
+      // Note emit_typecheck uses RTMP
+      uint8_t load_reg = op->type == FLONUM_TAG ? RTMP2 : dst_reg;
       emit_mem_load(s, (int32_t)op->data * 8, RSTACK, load_reg);
       emit_typecheck(s, t, op, cur_snap, load_reg);
       if (op->type == FLONUM_TAG) {
