@@ -160,3 +160,91 @@ void print_obj(gc_obj obj, FILE *file) { //!OCLINT
     break;
   }
 }
+
+static inline size_t heap_align(size_t size) {
+  return (size + sizeof(gc_obj) - 1) & ~(sizeof(gc_obj) - 1);
+}
+
+size_t heap_object_size(void *obj) {
+  auto type = *(uint64_t *)obj;
+  switch (type) {
+  case FLONUM_TAG:
+    return sizeof(flonum_s);
+  case STRING_TAG: {
+    auto str = (string_s *)obj;
+    return heap_align(sizeof(string_s) + (size_t)to_fixnum(str->len) + 1);
+  }
+  case SYMBOL_TAG:
+    return sizeof(symbol);
+  case CONT_TAG:
+  case RECORD_TAG:
+  case VECTOR_TAG: {
+    auto vec = (vector_s *)obj;
+    return sizeof(vector_s) + (size_t)to_fixnum(vec->len) * sizeof(gc_obj);
+  }
+  case CONS_TAG:
+    return sizeof(cons_s);
+  case CLOSURE_TAG: {
+    auto clo = (closure_s *)obj;
+    return sizeof(closure_s) + (size_t)to_fixnum(clo->len) * sizeof(gc_obj);
+  }
+  case FUNC_TAG: {
+    auto func = (bcfunc *)obj;
+    return heap_align(sizeof(bcfunc) + (func->const_cnt * sizeof(gc_obj)) +
+                      (func->bc_cnt * sizeof(bc)));
+  }
+  default:
+    printf("Unknown heap object size: %" PRIu64 " (0x%" PRIx64 ")\n", type,
+           type);
+    abort();
+  }
+}
+
+static void trace_gc_obj_array(gc_obj *objs, uint64_t len, trace_callback visit,
+                               void *ctx) {
+  for (uint64_t i = len; i > 0; i--) {
+    visit(&objs[i - 1], ctx);
+  }
+}
+
+void trace_heap_object(gc_header *obj, trace_callback visit, void *ctx) {
+  auto type = obj->type;
+  switch (type) {
+  case FLONUM_TAG:
+  case STRING_TAG:
+    return;
+  case SYMBOL_TAG: {
+    auto sym = (symbol *)obj;
+    visit(&sym->name, ctx);
+    visit(&sym->val, ctx);
+    return;
+  }
+  case CONT_TAG:
+  case RECORD_TAG:
+  case VECTOR_TAG: {
+    auto vec = (vector_s *)obj;
+    trace_gc_obj_array(vec->v, (uint64_t)to_fixnum(vec->len), visit, ctx);
+    return;
+  }
+  case CONS_TAG: {
+    auto cons = (cons_s *)obj;
+    visit(&cons->b, ctx);
+    visit(&cons->a, ctx);
+    return;
+  }
+  case CLOSURE_TAG: {
+    auto clo = (closure_s *)obj;
+    trace_gc_obj_array(clo->v, (uint64_t)to_fixnum(clo->len), visit, ctx);
+    return;
+  }
+  case FUNC_TAG: {
+    auto func = (bcfunc *)obj;
+    visit(&func->name, ctx);
+    trace_gc_obj_array((gc_obj *)func->data, func->const_cnt, visit, ctx);
+    return;
+  }
+  default:
+    printf("Unknown heap object: %" PRIu64 " (0x%" PRIx64 ")\n", type, type);
+    abort();
+  }
+}
