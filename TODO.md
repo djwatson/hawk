@@ -34,7 +34,6 @@
 * update stack overflow, just allocate a new section (linked stack segments, much faster callcc handling)
 
 # cleanup
-* remove frame_state, just modify **pc and **stack
 * remove 'parent', use parent snap instead.
 * we could improve emit_snap_store_flonum to use fewer registers / optimistic check for free
 * ir printing can use the ir type flags

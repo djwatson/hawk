@@ -131,10 +131,7 @@ END OP_BEGIN(RET) {
   /* } */
 
   auto old_op_table = op_table;
-  auto frame = return_frame(state, instr, pc, stack, op_table);
-  pc = frame.pc;
-  stack = frame.stack;
-  op_table = frame.ops;
+  return_frame(state, instr, &pc, &stack, &op_table);
   if (old_op_table != op_table) {
     instr = *pc;
   }

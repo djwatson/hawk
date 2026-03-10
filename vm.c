@@ -222,15 +222,17 @@ static inline gc_obj emit_if_branch(vm_state *state, bc *pc, gc_obj *stack,
                                     gc_obj obj) {
   return obj;
 }
-static inline frame_state return_frame(vm_state *state, bc instr, bc *pc,
-                                       gc_obj *stack, void *op_table) {
+static inline void return_frame(vm_state *state, bc instr, bc **pc,
+                                gc_obj **stack, void **op_table) {
   (void)state;
-  auto ret = stack[instr.reg];
-  auto new_pc = to_return_address(stack[-1]);
+  (void)op_table;
+  auto ret = (*stack)[instr.reg];
+  auto new_pc = to_return_address((*stack)[-1]);
   auto old_pc = new_pc - 1;
-  auto new_stack = stack - old_pc->reg - 1;
+  auto new_stack = *stack - old_pc->reg - 1;
   new_stack[old_pc->reg] = ret;
-  return (frame_state){.pc = new_pc, .stack = new_stack, .ops = op_table};
+  *pc = new_pc;
+  *stack = new_stack;
 }
 static inline bc *next_op(bc *pc) { return pc + 1; }
 gc_obj halt(vm_state *state, gc_obj *stack) {

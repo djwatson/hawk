@@ -479,8 +479,8 @@ static int downrec_hits(trace_state *ts, bc *pc) {
   }
   return cnt;
 }
-static frame_state return_frame(vm_state *state, bc instr, bc *pc,
-                                gc_obj *stack, void *op_table) {
+static void return_frame(vm_state *state, bc instr, bc **pc, gc_obj **stack,
+                         void **op_table) {
   // add downrec array
   // cases:
   // depth > 0:
@@ -497,7 +497,7 @@ static frame_state return_frame(vm_state *state, bc instr, bc *pc,
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   bool downrec_trace = is_downrec_trace(ts);
-  bool at_trace_start = (pc == ts->start_ins);
+  bool at_trace_start = (*pc == ts->start_ins);
 
   // for RET specifically: set stack top to pc->reg
   set_stack_len(ts, instr.reg + 1);
@@ -509,7 +509,8 @@ static frame_state return_frame(vm_state *state, bc instr, bc *pc,
         printf("Record abort: return\n");
       }
       record_abort(state);
-      return (frame_state){pc, stack, state->impls};
+      *op_table = state->impls;
+      return;
     }
 
     // count returns NOTE that we're not checking against the
@@ -523,7 +524,7 @@ static frame_state return_frame(vm_state *state, bc instr, bc *pc,
     // This may mean this ISN'T a downrecursive case, but if so, it
     // will eventually be blacklisted. Better to catch down-rec with
     // slight penalty for weird cases that look like downrec but aren't.
-    int cnt = downrec_hits(ts, pc);
+    int cnt = downrec_hits(ts, *pc);
     bool seen_downrec = cnt > 0;
 
     // If this is a side trace, we've detected potential downrecursion.
@@ -534,25 +535,27 @@ static frame_state return_frame(vm_state *state, bc instr, bc *pc,
       }
       clear_trace_state(ts);
       free_trace(cur_trace);
-      record_start(state, pc, *pc, stack);
+      record_start(state, *pc, **pc, *stack);
       // UGH there must be a better way?
-      VMGEN_TRACE_OP_NOABORT(pc, RET, state, 0);
-      return return_frame(state, *pc, pc, stack, op_table);
+      VMGEN_TRACE_OP_NOABORT(*pc, RET, state, 0);
+      return_frame(state, **pc, pc, stack, op_table);
+      return;
     }
     if (downrec_trace && seen_downrec && at_trace_start) {
       cur_trace->link = cur_trace;
       if (verbose) {
         printf("Record stop: downrec\n");
       }
-      record_finish(pc, state);
-      return (frame_state){pc, stack, state->impls};
+      record_finish(*pc, state);
+      *op_table = state->impls;
+      return;
     }
 
     // Side traces *may* go down the stack.
     // 1) record load for result
-    auto res = stack_load(state, stack, instr.reg, false);
+    auto res = stack_load(state, *stack, instr.reg, false);
     // 2) get the frame offset
-    auto ra = to_return_address(stack[-1]);
+    auto ra = to_return_address((*stack)[-1]);
     auto old_pc = ra - 1;
     auto offset = old_pc->reg + 1;
 
@@ -561,7 +564,7 @@ static frame_state return_frame(vm_state *state, bc instr, bc *pc,
     set_stack_len(ts, 0);
     // 4) Const-ify the current return address
 
-    auto const_ra = add_const(state, stack[-1]);
+    auto const_ra = add_const(state, (*stack)[-1]);
     auto const_offset = add_const(state, tag_fixnum(offset));
     // 5) add a new IR: IR_RET that checks ret and does a ret.
     ir_ins ins = IR(.op = IR_RET, .op1 = const_offset, .op2 = const_ra,
@@ -573,20 +576,19 @@ static frame_state return_frame(vm_state *state, bc instr, bc *pc,
     set_stack(state, old_pc->reg, res);
     // 7) Add a snap, since we changed the stack / RA, we can't go back.
     vm_add_snap(state, ra);
-    arrput(ts->downrec, pc);
+    arrput(ts->downrec, *pc);
   } else {
     ts->depth--;
     assert(ts->depth >= 0);
 
-    auto ret = stack_load(state, stack, instr.reg, false);
-    auto new_pc = to_return_address(stack[-1]);
+    auto ret = stack_load(state, *stack, instr.reg, false);
+    auto new_pc = to_return_address((*stack)[-1]);
     auto old_pc = new_pc - 1;
     ts->stack_off -= (old_pc->reg + 1);
     // Trim traced stack to caller frame and store return value in caller slot.
     set_stack_len(ts, old_pc->reg + 1);
-    stack_save(state, stack, old_pc->reg, ret);
+    stack_save(state, *stack, old_pc->reg, ret);
   }
-  return (frame_state){pc, stack, op_table};
 }
 static bc *next_op(bc *pc) { return pc; }
 gc_obj halt(vm_state *state, gc_obj *stack);
