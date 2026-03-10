@@ -1,7 +1,5 @@
 # Currently working on:
 
-* cleanup loopback shit
-
 * figure out why deriv is slow
   * really need a tracing nursury
   * downrec abort not working (start of trace is failing?)
