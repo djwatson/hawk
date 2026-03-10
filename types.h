@@ -251,4 +251,6 @@ static inline bool is_heap_object(gc_obj obj) {
 bcfunc const *closure_code_ptr(closure_s const *clo);
 string_s *get_sym_name(symbol *s);
 
+const char *type_tag_name(uint8_t tag);
+void print_type_tag(FILE *file, uint8_t tag);
 void print_obj(gc_obj obj, FILE *file);

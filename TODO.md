@@ -20,8 +20,6 @@
 
 ## other
 
-* get type names printing better, print_type_tag (needs color and short names???)
-
 * currently (cons) calls IR_STORE, but this forces a snapshot-  many more snapshots than really necessary (because we're only storing to NEW memory, we shouldn't need to snapshot).
 
 # VM impl
@@ -35,10 +33,7 @@
 
 # cleanup
 * we could improve emit_snap_store_flonum to use fewer registers / optimistic check for free
-* ir printing can use the ir type flags
-* the skip_start_check could be generic, and we could cleanup NEW root traces etc. Not sure why it's not working, I made an attempt.
 * we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!
-* fixup emit_tyupecheck for more than fixnum types
 
 # scheme cleanup
 * builders needs to be in with the rest of the IR passes. Use builders instead of backtick to build stuff.

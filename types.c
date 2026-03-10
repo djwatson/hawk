@@ -19,6 +19,41 @@ char *ptr_tag_names[] = {PTR_TAGS};
 bcfunc const *closure_code_ptr(closure_s const *clo) {
   return (bcfunc *)clo->v[0].value;
 }
+
+static const char *type_tag_names[256] = {
+    [FIXNUM_TAG] = "fix",
+    [CONS_TAG] = "cons",
+    [FLONUM_TAG] = "flo",
+    [SYMBOL_TAG] = "sym",
+    [BOOL_TAG] = "bool",
+    [NIL_TAG] = "nil",
+    [EOF_TAG] = "eof",
+    [STRING_TAG] = "str",
+    [FUNC_TAG] = "func",
+    [VECTOR_TAG] = "vec",
+    [CONT_TAG] = "cont",
+    [PTR_TAG] = "ptr",
+    [CHAR_TAG] = "char",
+    [CLOSURE_TAG] = "clo",
+    [UNDEFINED_TAG] = "",
+};
+
+const char *type_tag_name(uint8_t tag) {
+  auto name = type_tag_names[tag];
+  return name ? name : "?";
+}
+
+void print_type_tag(FILE *file, uint8_t tag) {
+  auto name = type_tag_name(tag);
+  if (name[0] == '\0') {
+    fputs("      ", file);
+    return;
+  }
+  fputs(tag == FIXNUM_TAG ? "\e[1;35m" : "\e[1;34m", file);
+  fprintf(file, "%-5s", name);
+  fputs("\e[m ", file);
+}
+
 string_s *get_sym_name(symbol *s) {
   // TODO remove.  must always have name.
   if (s->name.value) {
