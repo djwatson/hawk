@@ -353,20 +353,6 @@ static void emit_flonum_binop(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
   binop(s, dst, lhs_reg, rhs_reg);
 }
 
-static inline void emit_arith_case(emit_state *s, trace *t, ir_ins *op,
-                                   uint8_t dst_reg, uint8_t lhs_reg,
-                                   uint8_t rhs_reg, int32_t cur_snap,
-                                   typeof(&emit_add) reg_emit,
-                                   typeof(&emit_add_constant) const_emit,
-                                   typeof(&emit_fadd) float_emit) {
-  if (op->type == FLONUM_TAG) {
-    emit_flonum_binop(s, t, dst_reg, op, float_emit, lhs_reg, rhs_reg);
-  } else {
-    emit_fixnum_binop_const(s, t, op, dst_reg, lhs_reg, rhs_reg, cur_snap,
-                            reg_emit, const_emit);
-  }
-}
-
 static void emit_box_flonum(emit_state *s, int32_t stack_offset,
                             uint8_t fpr_reg, bool store_to_stack) {
   assert(s->alloc_slowpath);
@@ -829,10 +815,17 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
     emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, f_fail, i_fail);    \
     break;                                                                     \
   }
-#define EMIT_ARITH_CASE(opname, reg_emit, const_emit, float_emit)              \
+#define EMIT_GUARDED_ARITH_CASE(opname, float_emit, reg_emit, const_emit)      \
   case opname: {                                                               \
-    emit_arith_case(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap, reg_emit, \
-                    const_emit, float_emit);                                   \
+    if (op->type == FLONUM_TAG) {                                              \
+      emit_flonum_binop(s, t, dst_reg, op, float_emit, arg0_reg, arg1_reg);   \
+    } else if (op->op2.constant) {                                             \
+      const_emit(s, dst_reg, arg0_reg, slot_const(t, op->op2),                \
+                 &t->snaps[cur_snap].patch_point);                             \
+    } else {                                                                   \
+      reg_emit(s, dst_reg, arg0_reg, arg1_reg,                                 \
+               &t->snaps[cur_snap].patch_point);                               \
+    }                                                                          \
     break;                                                                     \
   }
     switch (op->op) {
@@ -949,19 +942,23 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
       }
       break;
     }
-      EMIT_ARITH_CASE(IR_SUB, emit_sub, emit_sub_constant, emit_fsub)
+      EMIT_GUARDED_ARITH_CASE(IR_SUB, emit_fsub,
+                              asm_emit_fixnum_sub_guard_overflow,
+                              asm_emit_fixnum_sub_constant_guard_overflow)
     case IR_MUL: {
       if (op->type == FLONUM_TAG) {
         emit_flonum_binop(s, t, dst_reg, op, emit_fmul, arg0_reg, arg1_reg);
       } else {
         if (op->op2.constant) {
           int64_t rhs_untagged = slot_const(t, op->op2) / (1LL << FIXNUM_SHIFT);
-          emit_mul_constant(s, dst_reg, arg0_reg, rhs_untagged);
+          asm_emit_fixnum_mul_constant_guard_overflow(
+              s, dst_reg, arg0_reg, rhs_untagged,
+              &t->snaps[cur_snap].patch_point);
         } else {
           emit_sar_constant(s, RTMP, arg1_reg, FIXNUM_SHIFT);
-          emit_mul(s, dst_reg, arg0_reg, RTMP);
+          asm_emit_fixnum_mul_guard_overflow(s, dst_reg, arg0_reg, RTMP,
+                                             &t->snaps[cur_snap].patch_point);
         }
-        emit_typecheck(s, t, op, cur_snap, dst_reg);
       }
       break;
     }
@@ -992,7 +989,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
       }
       break;
     }
-      EMIT_ARITH_CASE(IR_ADD, emit_add, emit_add_constant, emit_fadd)
+      EMIT_GUARDED_ARITH_CASE(IR_ADD, emit_fadd,
+                              asm_emit_fixnum_add_guard_overflow,
+                              asm_emit_fixnum_add_constant_guard_overflow)
     case IR_INEXACT: {
       assert(op->type == FLONUM_TAG);
       assert(!op->op1.constant);

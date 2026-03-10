@@ -495,6 +495,7 @@ void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
     emit_reg_reg(s, ASM_ADD, dst, rhs);
   }
 }
+
 static void emit_add_sub_constant(emit_state *s, enum ARITH_CODES op,
                                   uint8_t dst, uint8_t lhs, int64_t imm) {
   if (fits_in_32(imm)) {
@@ -575,6 +576,26 @@ void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   emit_mov64(s, RTMP, imm);
   emit_mul(s, dst, lhs, RTMP);
 }
+
+#define DEFINE_FIXNUM_GUARD_OVERFLOW(name)                                     \
+  void asm_emit_fixnum_##name##_guard_overflow(emit_state *s, uint8_t dst,    \
+                                                uint8_t lhs, uint8_t rhs,      \
+                                                label *overflow_target) {      \
+    emit_##name(s, dst, lhs, rhs);                                             \
+    emit_jcc32(s, JO, overflow_target);                                        \
+  }                                                                            \
+  void asm_emit_fixnum_##name##_constant_guard_overflow(                       \
+      emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm,                    \
+      label *overflow_target) {                                                \
+    emit_##name##_constant(s, dst, lhs, imm);                                  \
+    emit_jcc32(s, JO, overflow_target);                                        \
+  }
+
+DEFINE_FIXNUM_GUARD_OVERFLOW(add)
+DEFINE_FIXNUM_GUARD_OVERFLOW(sub)
+DEFINE_FIXNUM_GUARD_OVERFLOW(mul)
+
+#undef DEFINE_FIXNUM_GUARD_OVERFLOW
 
 void emit_sar_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm) {
   assert(dst < FPR_REG_START);

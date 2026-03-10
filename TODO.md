@@ -20,26 +20,18 @@
 
 ## other
 
-* it looks like ir_load for non constant offsets needs to know type tag also
-  old hawk had separate IR_REF and IR_VREF / IR_STRREFs for this.
-* Similarly, add/sub need to actually do overflow checks so we keep type info.
-
 * get type names printing better, print_type_tag (needs color and short names???)
 
 * currently (cons) calls IR_STORE, but this forces a snapshot-  many more snapshots than really necessary (because we're only storing to NEW memory, we shouldn't need to snapshot).
 
 # VM impl
 
-* lookup check - fix expander thingy
-* optimistic globals - TODO fail.  Also needs expander fix. need to support set!
-
 * track stack-top
-* spill slots
-* half finished - all the typcheck types
+* half finished - all the typcheck types - (need more ptr types)
 
-* rest of ops: cfunc, cfuncv, callcc/callcc_resume, load_char, STore-char, integer->char/char->integer, apply, rest of cmps, rest of maths, exact/inexact.  That's it.
+* rest of ops: cfunc, cfuncv, callcc/callcc_resume, load_char, STore-char, integer->char/char->integer, apply.  That's it.
 
-* update stack overflow, just allocate a new section.
+* update stack overflow, just allocate a new section (linked stack segments, much faster callcc handling)
 
 # cleanup
 * remove frame_state, just modify **pc and **stack

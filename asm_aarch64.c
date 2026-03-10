@@ -516,6 +516,32 @@ static void emit_add_sub(emit_state *s, uint32_t base, uint8_t dst, uint8_t lhs,
   emit_op(s, opcode);
 }
 
+static void emit_smulh(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  assert(dst < FPR_REG_START);
+  assert(lhs < FPR_REG_START);
+  assert(rhs < FPR_REG_START);
+  uint32_t opcode = 0x9B407C00U | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) |
+                    (uint32_t)dst;
+  emit_op(s, opcode);
+}
+
+#define DEFINE_FIXNUM_ADD_SUB_GUARD_OVERFLOW(name, reg_opcode, imm_opcode,     \
+                                              reg_base)                         \
+  void asm_emit_fixnum_##name##_guard_overflow(emit_state *s, uint8_t dst,     \
+                                                uint8_t lhs, uint8_t rhs,       \
+                                                label *overflow_target) {       \
+    emit_add_sub(s, reg_opcode, dst, lhs, rhs);                                \
+    emit_jcc32(s, JO, overflow_target);                                         \
+  }                                                                             \
+  void asm_emit_fixnum_##name##_constant_guard_overflow(                        \
+      emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm,                     \
+      label *overflow_target) {                                                 \
+    assert(dst < MAX_REG);                                                      \
+    assert(lhs < MAX_REG);                                                      \
+    emit_add_sub_constant(s, imm_opcode, reg_base, dst, lhs, imm);             \
+    emit_jcc32(s, JO, overflow_target);                                         \
+  }
+
 static void emit_add_sub_constant(emit_state *s, uint32_t base,
                                   uint32_t reg_base, uint8_t dst, uint8_t lhs,
                                   int64_t imm) {
@@ -566,6 +592,9 @@ void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   emit_add_sub(s, 0xCB000000U, dst, lhs, rhs);
 }
 
+DEFINE_FIXNUM_ADD_SUB_GUARD_OVERFLOW(add, 0xAB000000U, 0xB1000000U, 0xAB000000U)
+DEFINE_FIXNUM_ADD_SUB_GUARD_OVERFLOW(sub, 0xEB000000U, 0xF1000000U, 0xEB000000U)
+
 void emit_mul(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   assert(dst < FPR_REG_START);
   assert(lhs < FPR_REG_START);
@@ -573,6 +602,22 @@ void emit_mul(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   uint32_t opcode = 0x9B007C00U | ((uint32_t)rhs << 16) | ((uint32_t)lhs << 5) |
                     (uint32_t)dst;
   emit_op(s, opcode);
+}
+
+static inline void emit_fixnum_mul_guard_overflow_reg(emit_state *s, uint8_t dst,
+                                                       uint8_t lhs, uint8_t rhs,
+                                                       label *overflow_target) {
+  emit_smulh(s, RTMP, lhs, rhs);
+  emit_mul(s, dst, lhs, rhs);
+  emit_sar_constant(s, RTMP2, dst, 63);
+  emit_cmp(s, RTMP, RTMP2);
+  emit_jcc32(s, JNE, overflow_target);
+}
+
+void asm_emit_fixnum_mul_guard_overflow(emit_state *s, uint8_t dst,
+                                        uint8_t lhs, uint8_t rhs,
+                                        label *overflow_target) {
+  emit_fixnum_mul_guard_overflow_reg(s, dst, lhs, rhs, overflow_target);
 }
 
 void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
@@ -599,6 +644,15 @@ void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   emit_mov64(s, RTMP, imm);
   emit_mul(s, dst, lhs, RTMP);
 }
+
+void asm_emit_fixnum_mul_constant_guard_overflow(emit_state *s, uint8_t dst,
+                                                 uint8_t lhs, int64_t imm,
+                                                 label *overflow_target) {
+  emit_mov64(s, RTMP2, imm);
+  emit_fixnum_mul_guard_overflow_reg(s, dst, lhs, RTMP2, overflow_target);
+}
+
+#undef DEFINE_FIXNUM_ADD_SUB_GUARD_OVERFLOW
 
 void emit_sar_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm) {
   assert(dst < FPR_REG_START);

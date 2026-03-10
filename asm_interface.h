@@ -56,6 +56,24 @@ void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
 void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_mul(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
+void asm_emit_fixnum_add_guard_overflow(emit_state *s, uint8_t dst,
+                                        uint8_t lhs, uint8_t rhs,
+                                        label *overflow_target);
+void asm_emit_fixnum_add_constant_guard_overflow(emit_state *s, uint8_t dst,
+                                                 uint8_t lhs, int64_t imm,
+                                                 label *overflow_target);
+void asm_emit_fixnum_sub_guard_overflow(emit_state *s, uint8_t dst,
+                                        uint8_t lhs, uint8_t rhs,
+                                        label *overflow_target);
+void asm_emit_fixnum_sub_constant_guard_overflow(emit_state *s, uint8_t dst,
+                                                 uint8_t lhs, int64_t imm,
+                                                 label *overflow_target);
+void asm_emit_fixnum_mul_guard_overflow(emit_state *s, uint8_t dst,
+                                        uint8_t lhs, uint8_t rhs,
+                                        label *overflow_target);
+void asm_emit_fixnum_mul_constant_guard_overflow(emit_state *s, uint8_t dst,
+                                                 uint8_t lhs, int64_t imm,
+                                                 label *overflow_target);
 void emit_sar_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm);
 void emit_quotient(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_quotient_constant(emit_state *s, uint8_t dst, uint8_t lhs,
