@@ -246,7 +246,7 @@ gc_obj halt(vm_state *state, gc_obj *stack) {
     auto traces = state->record.traces;
     arr_for_each_idx(traces, i) {
       auto t = traces[i];
-      if (t->parent != nullptr) {
+      if (t->parent_snap != nullptr) {
         side_traces++;
         continue;
       }

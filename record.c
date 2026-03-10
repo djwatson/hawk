@@ -456,7 +456,7 @@ static void record_finish(bc *pc, vm_state *state) {
   cur_trace->fn =
       emit(cur_trace, &state->emit, &state->record, cur_trace->link_entry_snap);
   state->max_trace--;
-  if (!cur_trace->parent) {
+  if (!cur_trace->parent_snap) {
     *ts->start_ins = (bc){
         .op = OP_JFUNC,
         .data = record_trace_count(state),
@@ -504,7 +504,7 @@ static void return_frame(vm_state *state, bc instr, bc **pc, gc_obj **stack,
 
   if (ts->depth == 0) {
     // Root traces cannot return
-    if (!cur_trace->parent && !downrec_trace) {
+    if (!cur_trace->parent_snap && !downrec_trace) {
       if (verbose) {
         printf("Record abort: return\n");
       }
@@ -529,7 +529,7 @@ static void return_frame(vm_state *state, bc instr, bc **pc, gc_obj **stack,
 
     // If this is a side trace, we've detected potential downrecursion.
     // Abort and start a downrec trace.
-    if (cur_trace->parent && seen_downrec) {
+    if (cur_trace->parent_snap && seen_downrec) {
       if (verbose) {
         printf("Record abort: potential downrec detected\n");
       }
@@ -887,7 +887,7 @@ static void *jit_func(bc *instr, bc **pc, gc_obj **stack, vm_state *state,
   auto cur_trace = record_current_trace(state);
   // TODO can we clean this up?  side traces spawned from downrec traces aren't
   // downrec traces!
-  if (is_downrec_trace(record_trace_state(state)) && !cur_trace->parent) {
+  if (is_downrec_trace(record_trace_state(state)) && !cur_trace->parent_snap) {
     if (verbose) {
       printf("Record abort: can't downrec to JFUNC\n");
     }
@@ -898,7 +898,7 @@ static void *jit_func(bc *instr, bc **pc, gc_obj **stack, vm_state *state,
   trace *target = state->record.traces[(*pc)->data];
   trace_match match = ensure_args_match_trace(state, *stack, target, cur_trace);
 
-  if (cur_trace->parent) {
+  if (cur_trace->parent_snap) {
     cur_trace->link = match.trace;
     cur_trace->link_entry_snap = match.matched ? 1 : 0;
     if (verbose) {
@@ -1060,7 +1060,6 @@ void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
-  cur_trace->parent = side_snap->trace;
   cur_trace->parent_snap = side_snap;
   ts->depth = side_snap->depth;
   ts->poly_entry = side_snap;
@@ -1076,7 +1075,6 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
-  cur_trace->parent = side_snap->trace;
   cur_trace->parent_snap = side_snap;
   ts->depth = side_snap->depth;
   ts->poly_entry = nullptr;

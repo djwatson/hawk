@@ -1273,7 +1273,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // TODO: could be shared by ALL traces
   auto start = emit_offset(s);
 
-  if (!t->parent) {
+  if (!t->parent_snap) {
     emit_root_trace_entry(s, t, &regmap);
   } else {
     emit_side_trace_entry(s, t, &regmap);
@@ -1315,7 +1315,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
 
   // Install debuginfo for gdb & linux perf tool.
   char funcname[256];
-  char *dumpname = t->parent ? "SIDE" : "TRACE";
+  char *dumpname = t->parent_snap ? "SIDE" : "TRACE";
   snprintf(funcname, sizeof(funcname), "%s_%i", dumpname, t->num);
   register_jit_symbol((uint8_t *)start, (uint8_t *)start, (uint8_t *)end,
                       funcname);

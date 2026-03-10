@@ -34,7 +34,6 @@
 * update stack overflow, just allocate a new section (linked stack segments, much faster callcc handling)
 
 # cleanup
-* remove 'parent', use parent snap instead.
 * we could improve emit_snap_store_flonum to use fewer registers / optimistic check for free
 * ir printing can use the ir type flags
 * the skip_start_check could be generic, and we could cleanup NEW root traces etc. Not sure why it's not working, I made an attempt.

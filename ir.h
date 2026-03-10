@@ -120,8 +120,6 @@ typedef struct trace {
   snap *snaps;
   trace_fn fn;
   uint16_t num;
-  // TODO can remove parent
-  trace *parent;
   snap *parent_snap;
   uint8_t link_entry_snap;
   trace *link;
