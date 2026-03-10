@@ -83,8 +83,7 @@ static char *parse_args(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-  auto fp = __builtin_frame_address(0);
-  gc_init(fp);
+  gc_init();
 
   auto filename = parse_args(argc, argv);
   char *filename_alloc = nullptr;

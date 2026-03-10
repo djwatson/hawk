@@ -407,11 +407,16 @@ static gc_obj deserialize_function(buffer_reader *reader, heap_state *heap) {
 
   size_t payload_size =
       sizeof(bcfunc) + (const_cnt * sizeof(gc_obj)) + (bc_cnt * sizeof(bc));
-  bcfunc *func = gc_alloc(align(payload_size, sizeof(gc_obj)));
+  bcfunc *func = malloc(align(payload_size, sizeof(gc_obj)));
+  if (!func) {
+    fprintf(stderr, "Out of memory allocating function object\n");
+    exit(EXIT_FAILURE);
+  }
   func->header.type = FUNC_TAG;
   func->name = name;
   func->const_cnt = const_cnt;
   func->bc_cnt = bc_cnt;
+  gc_register_bcfunc(func);
 
   gc_obj *const_slots = (gc_obj *)func->data;
   bc *code = (bc *)(func->data + (const_cnt * sizeof(gc_obj)));
