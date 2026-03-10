@@ -414,6 +414,7 @@ static inline gc_obj alloc_obj(vm_state *state, gc_obj *stack, bc *pc,
   assert((sz & 0x7) == 0);
 
   auto obj = (gc_header *)gc_alloc(sz);
+  memset(obj, 0, (size_t)sz);
   obj->type = type;
   return type < 8 ? tag_header(obj, (uint8_t)type) : tag_header(obj, PTR_TAG);
 }
@@ -428,7 +429,9 @@ static inline gc_obj closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
   (void)state;
   uint64_t sz = (uint64_t)pc->data + 1;
   uint8_t start = pc->reg;
-  closure_s *clo = gc_alloc(sizeof(closure_s) + (sizeof(gc_obj) * sz));
+  size_t bytes = sizeof(closure_s) + (sizeof(gc_obj) * sz);
+  closure_s *clo = gc_alloc(bytes);
+  memset(clo, 0, bytes);
   clo->header.type = CLOSURE_TAG;
   clo->len = tag_fixnum((int64_t)sz);
   // Only seed slot 0 with the function label; closure captures are

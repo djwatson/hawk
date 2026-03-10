@@ -29,6 +29,7 @@
 
 # VM impl
 
+* we can NOT zero simple objects alloced like strings, cons cells, flonum, anything that's fully initialized before a GC (NOT closures, vectors, etc)
 * track stack-top
 * half finished - all the typcheck types - (need more ptr types)
 * rest of ops: cfunc, cfuncv, callcc/callcc_resume, load_char, STore-char, integer->char/char->integer, apply.  That's it.

@@ -215,16 +215,12 @@ void gc_free(void) {
 }
 
 NOINLINE void *gc_alloc_slow(uint64_t sz) {
+  gc_collect();
   uintptr_t addr = gc_hp;
   uintptr_t new_hp = align_size(addr + sz);
   if (new_hp > gc_limit) {
-    gc_collect();
-    addr = gc_hp;
-    new_hp = align_size(addr + sz);
-    if (new_hp > gc_limit) {
-      fprintf(stderr, "out of memory %" PRIu64 "\n", sz);
-      abort();
-    }
+    fprintf(stderr, "out of memory %" PRIu64 "\n", sz);
+    abort();
   }
   gc_hp = new_hp;
   return (void *)addr;
