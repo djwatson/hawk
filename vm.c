@@ -103,7 +103,8 @@ static inline gc_obj const_load(vm_state *state, bc *pc, uint16_t offset) {
 static inline bc *vmgen_jmp_advance(bc *pc) { return pc + pc->data; }
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     add, return tag_fixnum(to_fixnum(v1) + to_fixnum(v2));
-    , return vm_box_flonum(numeric_to_double(v1) + numeric_to_double(v2));)
+    , return root2_box_flonum(&v1, &v2,
+                              numeric_to_double(v1) + numeric_to_double(v2));)
 static gc_obj scm_inexact(vm_state *state, gc_obj v1) {
   (void)state;
   return numeric_inexact_value(v1);
@@ -118,28 +119,33 @@ static gc_obj scm_truncate(vm_state *state, gc_obj v1) {
 }
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     sub, return tag_fixnum(to_fixnum(v1) - to_fixnum(v2));
-    , return vm_box_flonum(numeric_to_double(v1) - numeric_to_double(v2));)
+    , return root2_box_flonum(&v1, &v2,
+                              numeric_to_double(v1) - numeric_to_double(v2));)
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     mul, gc_obj res;
     if (!__builtin_mul_overflow(v1.value, to_fixnum(v2), &res.value)) {
       return res;
     } abort();
-    , return vm_box_flonum(numeric_to_double(v1) * numeric_to_double(v2));)
+    , return root2_box_flonum(&v1, &v2,
+                              numeric_to_double(v1) * numeric_to_double(v2));)
 static inline gc_obj emit_ov_math_div(vm_state *state, gc_obj v1, gc_obj v2) {
   (void)state;
   abort_if_zero_divisor(v2);
-  return vm_box_flonum(numeric_to_double(v1) / numeric_to_double(v2));
+  return root2_box_flonum(&v1, &v2,
+                          numeric_to_double(v1) / numeric_to_double(v2));
 }
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     quotient, abort_if_zero_divisor(v2);
     return tag_fixnum(to_fixnum(v1) / to_fixnum(v2));
     , abort_if_zero_divisor(v2);
-    return vm_box_flonum(trunc(numeric_to_double(v1) / numeric_to_double(v2)));)
+    return root2_box_flonum(
+        &v1, &v2, trunc(numeric_to_double(v1) / numeric_to_double(v2)));)
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     mod, abort_if_zero_divisor(v2);
     return tag_fixnum(to_fixnum(v1) % to_fixnum(v2));
     , abort_if_zero_divisor(v2);
-    return vm_box_flonum(fmod(numeric_to_double(v1), numeric_to_double(v2)));)
+    return root2_box_flonum(&v1, &v2,
+                            fmod(numeric_to_double(v1), numeric_to_double(v2)));)
 
 static NOINLINE gc_obj emit_math_cmp_lt_slowpath(vm_state *state, bc *pc,
                                                  gc_obj *stack, gc_obj v1,

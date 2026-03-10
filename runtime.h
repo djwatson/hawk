@@ -15,6 +15,22 @@ static inline gc_obj vm_box_flonum(double x) {
   return tag_flonum(res);
 }
 
+static inline gc_obj root1_box_flonum(gc_obj *v, double x) {
+  gc_add_root((const uint64_t *)v, 1);
+  gc_obj res = vm_box_flonum(x);
+  gc_remove_root((const uint64_t *)v);
+  return res;
+}
+
+static inline gc_obj root2_box_flonum(gc_obj *lhs, gc_obj *rhs, double x) {
+  gc_add_root((const uint64_t *)lhs, 1);
+  gc_add_root((const uint64_t *)rhs, 1);
+  gc_obj res = vm_box_flonum(x);
+  gc_remove_root((const uint64_t *)rhs);
+  gc_remove_root((const uint64_t *)lhs);
+  return res;
+}
+
 static inline double numeric_to_double(gc_obj v) {
   if (is_flonum(v)) {
     return to_flonum(v)->x;
@@ -27,7 +43,7 @@ static inline double numeric_to_double(gc_obj v) {
 
 static inline gc_obj numeric_inexact_value(gc_obj v) {
   if (is_fixnum(v)) {
-    return vm_box_flonum((double)to_fixnum(v));
+    return root1_box_flonum(&v, (double)to_fixnum(v));
   }
   if (is_flonum(v)) {
     return v;
@@ -54,7 +70,7 @@ static inline gc_obj numeric_truncate_value(gc_obj v) {
     return v;
   }
   if (is_flonum(v)) {
-    return vm_box_flonum(trunc(to_flonum(v)->x));
+    return root1_box_flonum(&v, trunc(to_flonum(v)->x));
   }
   abort();
 }
@@ -139,7 +155,7 @@ static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
 #define VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, fixnum_body, flonum_body)        \
   do {                                                                         \
     if (numeric_obj_result_type((lhs), (rhs)) == FLONUM_TAG) {                 \
-      return fold_const(vm_box_flonum(flonum_body));                           \
+      return fold_const(root2_box_flonum(&(lhs), &(rhs), (flonum_body)));      \
     }                                                                          \
     return fold_const(tag_fixnum(fixnum_body));                                \
   } while (0)
