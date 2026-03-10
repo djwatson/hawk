@@ -785,17 +785,6 @@ static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
   return pc;
 }
 
-static int slot_arg_index(trace *t, slot s) {
-  if (s.constant) {
-    return -1;
-  }
-  ir_ins *ins = &t->ins[s.loc];
-  if (ins->op == IR_ARG) {
-    return (int)ins->data;
-  }
-  return -1;
-}
-
 typedef struct {
   trace *trace;
   bool matched;
@@ -805,41 +794,23 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
                                            trace *head, trace *cur_trace) {
   trace_match res = {.trace = head, .matched = false};
 
-  if (verbose && head) {
-    printf("Arg match head trace %i\n", head->num);
-  }
   for (trace *candidate = head; candidate; candidate = candidate->next) {
     if (verbose) {
       printf("Arg match? trace %i\n", candidate->num);
     }
     bool needs_guard[REG_ARG_CNT] = {0};
     bool match = true;
+    size_t entry_ir_start = candidate->snaps[0].ir;
+    size_t entry_ir_end = candidate->snaps[1].ir;
 
-    arr_for_each_idx(candidate->ins, i) {
+    for (size_t i = entry_ir_start; i < entry_ir_end; i++) {
       ir_ins *ins = &candidate->ins[i];
-      if (ins->op == IR_ARG) {
-        continue;
-      }
-      if (ins->op != IR_TYPECHECK) {
-        break;
-      }
       if (!ins->guard) {
         continue;
       }
-      int arg_idx = slot_arg_index(candidate, ins->op1);
-      if (arg_idx < 0 || arg_idx >= REG_ARG_CNT) {
-        continue;
-      }
+      auto arg_idx = candidate->ins[ins->op1.loc].data;
       needs_guard[arg_idx] = true;
-      if (verbose) {
-        printf("  need_guard[arg%d] = 1 (typecheck ins=%zu type=%u)\n", arg_idx,
-               i, ins->type);
-      }
       if (get_type_tag(stack[arg_idx]) != ins->type) {
-        if (verbose) {
-          printf("  arg%d type mismatch want %u got %u\n", arg_idx, ins->type,
-                 get_type_tag(stack[arg_idx]));
-        }
         match = false;
         break;
       }
@@ -855,11 +826,6 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
       }
       sentry *entry = get_sentry(state, arg_idx);
       if (!entry->live || !entry->changed) {
-        if (verbose) {
-          printf("  reject trace %i: missing outgoing snap slot for arg%d "
-                 "(live=%d changed=%d)\n",
-                 candidate->num, arg_idx, entry->live, entry->changed);
-        }
         match = false;
         break;
       }
@@ -896,11 +862,6 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
         }
         sentry *entry = get_sentry(state, arg_idx);
         if (!entry->live || !entry->changed || entry->loc.constant) {
-          if (verbose) {
-            printf("    skip arg%d guard propagation (live=%d changed=%d "
-                   "constant=%d)\n",
-                   arg_idx, entry->live, entry->changed, entry->loc.constant);
-          }
           continue;
         }
         cur_trace->ins[entry->loc.loc].guard = true;
