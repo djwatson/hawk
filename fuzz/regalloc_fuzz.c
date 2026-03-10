@@ -17,11 +17,6 @@ int64_t max_trace = 0;
 
 void emit_init_slowpath(emit_state *s) { (void)s; }
 
-string_s *get_sym_name(symbol *s) {
-  (void)s;
-  return NULL;
-}
-
 #define FUZZ_INS_COUNT 100
 #define FUZZ_CONST_COUNT 64
 #define MAX_SPILL SPILL_NONE

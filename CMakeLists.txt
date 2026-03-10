@@ -48,8 +48,10 @@ if(ENABLE_REGALLOC_FUZZ AND CMAKE_C_COMPILER_ID MATCHES "Clang")
     add_executable(
       regalloc_fuzz
       fuzz/regalloc_fuzz.c
+      ftoa.c
       regalloc.c
       ir.c
+      types.c
       ${ASM_SOURCE}
       asm.c
       util/array.c
