@@ -13,8 +13,8 @@
 #include "ir.h"
 #include "jitdump.h"
 #include "profiler.h"
-#include "vm.h"
 #include "runtime.h"
+#include "vm.h"
 
 #define VMGEN_TRACE_OP(pc, code, state, argcnt)                                \
   do {                                                                         \
@@ -102,8 +102,8 @@ static inline gc_obj const_load(vm_state *state, bc *pc, uint16_t offset) {
 }
 static inline bc *vmgen_jmp_advance(bc *pc) { return pc + pc->data; }
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
-    add, return tag_fixnum(to_fixnum(v1) + to_fixnum(v2));,
-    return vm_box_flonum(numeric_to_double(v1) + numeric_to_double(v2));)
+    add, return tag_fixnum(to_fixnum(v1) + to_fixnum(v2));
+    , return vm_box_flonum(numeric_to_double(v1) + numeric_to_double(v2));)
 static gc_obj scm_inexact(vm_state *state, gc_obj v1) {
   (void)state;
   return numeric_inexact_value(v1);
@@ -117,30 +117,28 @@ static gc_obj scm_truncate(vm_state *state, gc_obj v1) {
   return numeric_truncate_value(v1);
 }
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
-    sub, return tag_fixnum(to_fixnum(v1) - to_fixnum(v2));,
-    return vm_box_flonum(numeric_to_double(v1) - numeric_to_double(v2));)
+    sub, return tag_fixnum(to_fixnum(v1) - to_fixnum(v2));
+    , return vm_box_flonum(numeric_to_double(v1) - numeric_to_double(v2));)
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
-    mul, gc_obj res; if (!__builtin_mul_overflow(v1.value, to_fixnum(v2),
-                                                 &res.value)) { return res; }
-         abort();,
-    return vm_box_flonum(numeric_to_double(v1) * numeric_to_double(v2));)
+    mul, gc_obj res;
+    if (!__builtin_mul_overflow(v1.value, to_fixnum(v2), &res.value)) {
+      return res;
+    } abort();
+    , return vm_box_flonum(numeric_to_double(v1) * numeric_to_double(v2));)
 static inline gc_obj emit_ov_math_div(vm_state *state, gc_obj v1, gc_obj v2) {
-  auto fl1 = scm_inexact(state, v1);
-  auto fl2 = scm_inexact(state, v2);
-  abort_if_zero_divisor(fl2);
-  auto f1 = to_flonum(fl1);
-  auto f2 = to_flonum(fl2);
-  return vm_box_flonum(f1->x / f2->x);
+  (void)state;
+  abort_if_zero_divisor(v2);
+  return vm_box_flonum(numeric_to_double(v1) / numeric_to_double(v2));
 }
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     quotient, abort_if_zero_divisor(v2);
-    return tag_fixnum(to_fixnum(v1) / to_fixnum(v2));,
-    abort_if_zero_divisor(v2);
+    return tag_fixnum(to_fixnum(v1) / to_fixnum(v2));
+    , abort_if_zero_divisor(v2);
     return vm_box_flonum(trunc(numeric_to_double(v1) / numeric_to_double(v2)));)
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     mod, abort_if_zero_divisor(v2);
-    return tag_fixnum(to_fixnum(v1) % to_fixnum(v2));,
-    abort_if_zero_divisor(v2);
+    return tag_fixnum(to_fixnum(v1) % to_fixnum(v2));
+    , abort_if_zero_divisor(v2);
     return vm_box_flonum(fmod(numeric_to_double(v1), numeric_to_double(v2)));)
 
 static NOINLINE gc_obj emit_math_cmp_lt_slowpath(vm_state *state, bc *pc,
@@ -152,9 +150,9 @@ static NOINLINE gc_obj emit_math_cmp_lt_slowpath(vm_state *state, bc *pc,
   /* if (is_compnum(a) || is_compnum(b)) { */
   /*   res = COMPCMP(a, b); */
   VM_NUMERIC_DISPATCH_VALUES(
-      v1, v2, return to_fixnum(v1) < to_fixnum(v2) ? TRUE_REP : FALSE_REP;,
-      return numeric_to_double(v1) < numeric_to_double(v2) ? TRUE_REP
-                                                           : FALSE_REP;);
+      v1, v2, return to_fixnum(v1) < to_fixnum(v2) ? TRUE_REP : FALSE_REP;
+      , return numeric_to_double(v1) < numeric_to_double(v2) ? TRUE_REP
+                                                             : FALSE_REP;);
   /* } else if (is_ratnum(a) || is_ratnum(b)) { */
   /*   ratnum_s ba = get_ratnum(a); */
   /*   ratnum_s bb = get_ratnum(b); */
@@ -183,16 +181,14 @@ static inline gc_obj emit_math_cmp_lt(vm_state *state, bc *pc, gc_obj *stack,
   MUSTTAIL return emit_math_cmp_lt_slowpath(state, pc, stack, v1, v2);
 }
 #define DEFINE_VM_RUNTIME_CMP_SWAP(name, cmp_fn)                               \
-  static inline gc_obj emit_math_cmp_##name(vm_state *state, bc *pc,           \
-                                            gc_obj *stack, gc_obj v1,          \
-                                            gc_obj v2) {                       \
+  static inline gc_obj emit_math_cmp_##name(                                   \
+      vm_state *state, bc *pc, gc_obj *stack, gc_obj v1, gc_obj v2) {          \
     MUSTTAIL return cmp_fn(state, pc, stack, v2, v1);                          \
   }
 
 #define DEFINE_VM_RUNTIME_CMP_NEGATE(name, cmp_fn)                             \
-  static inline gc_obj emit_math_cmp_##name(vm_state *state, bc *pc,           \
-                                            gc_obj *stack, gc_obj v1,          \
-                                            gc_obj v2) {                       \
+  static inline gc_obj emit_math_cmp_##name(                                   \
+      vm_state *state, bc *pc, gc_obj *stack, gc_obj v1, gc_obj v2) {          \
     auto cmp_res = cmp_fn(state, pc, stack, v1, v2);                           \
     return cmp_res.value == TRUE_REP.value ? FALSE_REP : TRUE_REP;             \
   }
