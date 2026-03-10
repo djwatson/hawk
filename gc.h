@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hawk.h"
 #include "util/util.h"
 
 typedef void (*gc_scan_root_cb)(const uint64_t *rootp, size_t len);
@@ -19,9 +20,18 @@ void *gc_base_ptr(void *p);
 void gc_log(uint64_t a);
 void gc_free(void);
 
+extern uintptr_t gc_hp;
+extern uintptr_t gc_limit;
+
 NOINLINE void *gc_alloc_slow(uint64_t sz);
 
 static inline void *gc_alloc(uint64_t sz) {
   assert((sz & 0x7) == 0);
-  return gc_alloc_slow(sz);
+  uintptr_t addr = gc_hp;
+  uintptr_t new_hp = addr + sz;
+  if (likely(new_hp <= gc_limit)) {
+    gc_hp = new_hp;
+    return (void *)addr;
+  }
+  MUSTTAIL return gc_alloc_slow(sz);
 }

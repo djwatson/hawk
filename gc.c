@@ -11,15 +11,12 @@
 #include "array.h"
 #include "gc.h"
 #include "hawk.h"
-#include "hashtable.h"
 #include "types.h"
 
 typedef struct {
   uintptr_t mem;
-  uintptr_t hp;
   uintptr_t from_space;
   uintptr_t to_space;
-  uintptr_t limit;
   size_t size;
 } gc_heap;
 
@@ -29,22 +26,27 @@ typedef struct {
 } root_range;
 
 static gc_heap heap;
+uintptr_t gc_hp;
+uintptr_t gc_limit;
 static root_range *roots;
 static gc_scan_callback scan_callback;
 static void *scan_data;
 static gc_header **worklist;
 
 typedef struct {
-  gc_header *key;
-  gc_header *value;
-} moved_entry;
-
-typedef struct {
   bcfunc *ptr;
 } pinned_func_entry;
 
-static moved_entry *moved_objs;
 static pinned_func_entry *pinned_funcs;
+
+enum : uint64_t {
+  FORWARD_TAG = UINT64_MAX,
+};
+
+typedef struct {
+  uint64_t fwdtag;
+  gc_header *fwd;
+} gc_forward;
 
 static uintptr_t align_size(uintptr_t size) {
   return (size + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
@@ -56,16 +58,18 @@ static bool in_space(uintptr_t p, uintptr_t base) {
   return p >= base && p < base + space_size();
 }
 
-static bool is_pinned_func(gc_header *obj) {
-  if (!obj || obj->type != FUNC_TAG) {
-    return false;
-  }
-  arr_for_each(pinned_funcs, entry) {
-    if ((gc_header *)entry.ptr == obj) {
-      return true;
-    }
-  }
-  return false;
+static bool is_forwarded(gc_header const *obj) {
+  return ((gc_forward const *)obj)->fwdtag == FORWARD_TAG;
+}
+
+static gc_header *forwarded(gc_header const *obj) {
+  return ((gc_forward const *)obj)->fwd;
+}
+
+static void forward_obj(gc_header *obj, gc_header *new_obj) {
+  gc_forward *fwd = (gc_forward *)obj;
+  fwd->fwd = new_obj;
+  fwd->fwdtag = FORWARD_TAG;
 }
 
 static void scan_object(gc_header *obj);
@@ -76,51 +80,44 @@ static void visit_field(gc_obj *slot, void *ctx) {
     return;
   }
   gc_header *obj = to_gc_header(*slot);
-  if (is_pinned_func(obj) || !in_space((uintptr_t)obj, heap.from_space)) {
+  if (!in_space((uintptr_t)obj, heap.from_space)) {
     return;
   }
-  auto moved = hm_getp_null(moved_objs, obj);
-  if (moved) {
-    *slot = tag_header(moved->value, get_tag(*slot));
+  if (is_forwarded(obj)) {
+    *slot = tag_header(forwarded(obj), get_tag(*slot));
     return;
   }
   size_t sz = align_size(heap_object_size(obj));
-  if (heap.hp + sz > heap.limit) {
-    fprintf(stderr, "out of memory during collection\n");
+  if (gc_hp + sz > gc_limit) {
+    fprintf(stderr, "out of memory during collection, increate GC_SPACE\n");
     abort();
   }
-  gc_header *copy = (gc_header *)heap.hp;
+  gc_header *copy = (gc_header *)gc_hp;
   memcpy(copy, obj, sz);
-  heap.hp += sz;
-  hm_put(moved_objs, obj, copy);
+  gc_hp += sz;
+  forward_obj(obj, copy);
   *slot = tag_header(copy, get_tag(*slot));
   arrput(worklist, copy);
 }
 
 static void scan_root_range(const uint64_t *start, const uint64_t *end) {
-  const uint64_t *lo = start;
-  const uint64_t *hi = end;
-  if (hi < lo) {
-    lo = end;
-    hi = start;
-  }
-  for (const uint64_t *p = lo; p < hi; p++) {
+  assert(start <= end);
+  for (const uint64_t *p = start; p < end; p++) {
     visit_field((gc_obj *)p, nullptr);
   }
 }
 
 static void gc_add_mark_root(const uint64_t *rootp, size_t len) {
-  if (!rootp || len == 0) {
-    return;
-  }
+  assert(rootp);
+  assert(len != 0);
   scan_root_range(rootp, rootp + len);
 }
 
 static void flip_spaces(void) {
-  heap.hp = heap.from_space;
+  gc_hp = heap.from_space;
   heap.from_space = heap.to_space;
-  heap.to_space = heap.hp;
-  heap.limit = heap.hp + space_size();
+  heap.to_space = gc_hp;
+  gc_limit = gc_hp + space_size();
 }
 
 static void scan_object(gc_header *obj) {
@@ -132,8 +129,6 @@ static void gc_collect(void) {
     fprintf(stderr, "gc_collect()\n");
   }
   flip_spaces();
-  hm_free(moved_objs);
-  moved_objs = nullptr;
   arrlen_set(worklist, 0);
 
   arr_for_each(roots, root) { gc_add_mark_root(root.ptr, root.len); }
@@ -164,15 +159,9 @@ void gc_init(void) {
   heap.mem = (uintptr_t)mem;
   heap.to_space = (uintptr_t)mem;
   heap.from_space = (uintptr_t)mem + heap_size;
-  heap.hp = (uintptr_t)mem;
-  heap.limit = (uintptr_t)mem + heap_size;
+  gc_hp = (uintptr_t)mem;
+  gc_limit = (uintptr_t)mem + heap_size;
   heap.size = heap_size * 2;
-  roots = nullptr;
-  scan_callback = nullptr;
-  scan_data = nullptr;
-  worklist = nullptr;
-  moved_objs = nullptr;
-  pinned_funcs = nullptr;
 }
 
 void gc_add_root(const uint64_t *rootp, size_t len) {
@@ -180,16 +169,15 @@ void gc_add_root(const uint64_t *rootp, size_t len) {
 }
 
 void gc_remove_root(uint64_t const *rootp) {
-  for (size_t i = 0; i < arrlen(roots); i++) {
-    if (roots[i].ptr == rootp) {
-      roots[i] = *arrlast(roots);
+  for (size_t i = arrlen(roots); i > 0; i--) {
+    size_t idx = i - 1;
+    if (roots[idx].ptr == rootp) {
+      roots[idx] = *arrlast(roots);
       arrpop(roots);
       return;
     }
   }
-#ifndef NDEBUG
   assert(!"Attempted to remove unknown GC root");
-#endif
 }
 
 void gc_set_scan_callback(gc_scan_callback cb, void *data) {
@@ -210,49 +198,34 @@ void *gc_base_ptr(void *p) {
       return entry.ptr;
     }
   }
-  uintptr_t active = heap.to_space;
-  uintptr_t cur = heap.mem;
-  uintptr_t target = (uintptr_t)p;
-  cur = active;
-  while (cur < heap.hp) {
-    size_t sz = heap_object_size((void *)cur);
-    uintptr_t next = cur + align_size(sz);
-    if (cur <= target && target < next) {
-      return (void *)cur;
-    }
-    cur = next;
-  }
-  return p;
+  return nullptr;
 }
 
-void gc_log(uint64_t a) { (void)a; }
+void gc_log(uint64_t a) {
+  (void)a;
+  abort();
+}
 
 void gc_free(void) {
   arrfree(roots);
   arrfree(worklist);
-  hm_free(moved_objs);
   arr_for_each(pinned_funcs, entry) { free(entry.ptr); }
   arrfree(pinned_funcs);
-  if (heap.mem) {
-    munmap((void *)heap.mem, heap.size);
-  }
-  heap = (gc_heap){0};
-  scan_callback = nullptr;
-  scan_data = nullptr;
+  munmap((void *)heap.mem, heap.size);
 }
 
 NOINLINE void *gc_alloc_slow(uint64_t sz) {
-  uintptr_t addr = heap.hp;
+  uintptr_t addr = gc_hp;
   uintptr_t new_hp = align_size(addr + sz);
-  if (new_hp > heap.limit) {
+  if (new_hp > gc_limit) {
     gc_collect();
-    addr = heap.hp;
+    addr = gc_hp;
     new_hp = align_size(addr + sz);
-    if (new_hp > heap.limit) {
+    if (new_hp > gc_limit) {
       fprintf(stderr, "out of memory %" PRIu64 "\n", sz);
       abort();
     }
   }
-  heap.hp = new_hp;
+  gc_hp = new_hp;
   return (void *)addr;
 }
