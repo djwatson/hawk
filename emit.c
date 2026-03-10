@@ -255,21 +255,6 @@ typedef struct {
   int64_t constant_value;
 } const_entry;
 
-static inline void add_entry_mapping(trace *entry_trace, snap_entry *entry,
-                                     uint16_t slot, dense_loc_entry entry_loc,
-                                     load_entry **loads, const_entry **consts) {
-  (void)entry_loc;
-  (void)consts;
-  if (entry->val.constant) {
-    return;
-  }
-  auto ins = &entry_trace->ins[entry->val.loc];
-  uint8_t target_reg = ins->reg;
-  if (target_reg != REG_NONE) {
-    arrput(*loads, ((load_entry){.slot = slot, .target_reg = target_reg}));
-  }
-}
-
 // NOLINTBEGIN(clang-analyzer-core.NullDereference)
 static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
   if (!snap->offset) {
@@ -622,24 +607,26 @@ static void collect_loopback_moves(trace *exit_trace, uint16_t exit_snap_idx,
     }
 
     // entry slot lower than exit logical: unmatched entry -> stack load/const
-    dense_loc_entry entry_loc = {0};
     if (!entry->val.constant) {
-      entry_loc = snap_entry_loc(entry_trace, entry_snap_idx, j);
+      uint8_t target_reg = entry_trace->ins[entry->val.loc].reg;
+      if (target_reg != REG_NONE) {
+        arrput(loads,
+               ((load_entry){.slot = entry_slot, .target_reg = target_reg}));
+      }
     }
-    add_entry_mapping(entry_trace, entry, entry_slot, entry_loc, &loads,
-                      &consts);
     j++;
   }
 
   // Remaining unmatched entry slots.
   while (j < entry_len) {
     auto entry = &entry_snap->slots[j];
-    dense_loc_entry entry_loc = {0};
     if (!entry->val.constant) {
-      entry_loc = snap_entry_loc(entry_trace, entry_snap_idx, j);
+      uint8_t target_reg = entry_trace->ins[entry->val.loc].reg;
+      if (target_reg != REG_NONE) {
+        arrput(loads, ((load_entry){.slot = entry->slot,
+                                    .target_reg = target_reg}));
+      }
     }
-    add_entry_mapping(entry_trace, entry, entry->slot, entry_loc, &loads,
-                      &consts);
     j++;
   }
 
