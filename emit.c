@@ -593,12 +593,14 @@ static void collect_loopback_moves(trace *exit_trace, uint16_t exit_snap_idx,
 
       if (exit_entry->val.constant && !entry->val.constant &&
           entry_reg != REG_NONE) {
+        arrput(ignore_slots, exit_slot);
         arrput(consts, ((const_entry){.target_reg = entry_reg,
                                       .constant_value = slot_const(
                                           exit_trace, exit_entry->val)}));
       } else if (!exit_entry->val.constant && !entry->val.constant &&
                  entry_reg != REG_NONE) {
         if (exit_loc.kind == LOC_REG) {
+          arrput(ignore_slots, exit_slot);
           if (exit_loc.reg != entry_reg) {
             arrput(cpy, ((par_copy){.from = exit_loc.reg, .to = entry_reg}));
           }
