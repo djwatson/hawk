@@ -79,7 +79,6 @@ set(
   record.c
   gc.c
   ir.c
-  alloc_table.c
   emit.c
   regalloc.c
   ${ASM_SOURCE}
@@ -91,8 +90,6 @@ set(
   parallel_copy.c
   profiler.c
   util/array.c
-  util/bitset.c
-  util/list.c
   fold.c
   opt_dce.c
   bc.c
