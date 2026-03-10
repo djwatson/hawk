@@ -37,6 +37,7 @@ typedef struct emit_state {
   comment_entry *comments;
   constant_entry *const_pool;
   uint8_t *alloc_slowpath;
+  uint8_t *expand_stack_slowpath;
 } emit_state;
 
 #if defined(__aarch64__)

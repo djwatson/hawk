@@ -52,22 +52,34 @@ static inline void *gc_alloc_tagged(uint64_t tagged_sz) {
   return gc_alloc((uint64_t)(tagged_sz >> FIXNUM_SHIFT));
 }
 
-// Slowpath: RET_REG is tagged size on entry, allocation result on return.
+static size_t collect_non_callee_saved_regs(uint8_t regs[64],
+                                            bool include_ret_reg) {
+  size_t reg_cnt = 0;
+  for (int i = 0; i < FPR_REG_END; i++) {
+    if (i == SP) {
+      continue;
+    }
+    if (!include_ret_reg && i == RET_REG) {
+      continue;
+    }
+    if (asm_is_callee_saved(i)) {
+      continue;
+    }
+    regs[reg_cnt++] = (uint8_t)i;
+  }
+  return reg_cnt;
+}
+
 void emit_init_slowpath(emit_state *s) {
   if (s->alloc_slowpath) {
     return;
   }
-  // TODO: we COULD optimize this for preserve_most
   uint8_t slowpath_regs[64];
-  size_t reg_cnt = 0;
-  for (int i = 0; i < FPR_REG_END; i++) {
-    if (i != RET_REG && !asm_is_callee_saved(i) && i != SP) {
-      slowpath_regs[reg_cnt++] = i;
-    }
-  }
+  size_t reg_cnt = collect_non_callee_saved_regs(slowpath_regs, false);
 
-  auto start = (uint8_t *)emit_offset(s);
+  auto alloc_start = (uint8_t *)emit_offset(s);
 
+  // Slowpath: RET_REG is tagged size on entry, allocation result on return.
   emit_writable_begin(s);
 
   emit_push_regs(s, slowpath_regs, reg_cnt, true);
@@ -78,16 +90,37 @@ void emit_init_slowpath(emit_state *s) {
   emit_pop_regs(s, slowpath_regs, reg_cnt, true);
   emit_ret(s);
 
-  auto end = emit_offset(s);
-  s->alloc_slowpath = start;
+  auto alloc_end = emit_offset(s);
+  s->alloc_slowpath = alloc_start;
 
   emit_writable_end(s);
-  register_jit_symbol(start, s->alloc_slowpath, (uint8_t *)end, "GCslowpath");
+  register_jit_symbol(alloc_start, s->alloc_slowpath, (uint8_t *)alloc_end,
+                      "GCslowpath");
 
-  /* if (verbose) { */
-  /*   printf("GC slowpath: %" PRId64 "\n", end - (long)start); */
-  /*   disassemble(start, end - (long)start, nullptr); */
-  /* } */
+  // Slowpath for expanding stack size.
+  reg_cnt = collect_non_callee_saved_regs(slowpath_regs, true);
+  auto expand_start = (uint8_t *)emit_offset(s);
+
+  emit_writable_begin(s);
+
+  emit_push_regs(s, slowpath_regs, reg_cnt, true);
+  emit_sub_constant(s, SP, SP, 16);
+  emit_store(s, 0, SP, RSTACK);
+  emit_mov(s, RARG0, RSTATE);
+  emit_add_constant(s, RARG1, SP, 0);
+  emit_mov64(s, RTMP, (intptr_t)&expand_stack);
+  emit_call_reg(s, RTMP);
+  emit_mem_load(s, 0, SP, RSTACK);
+  emit_add_constant(s, SP, SP, 16);
+  emit_pop_regs(s, slowpath_regs, reg_cnt, true);
+  emit_ret(s);
+
+  auto expand_end = emit_offset(s);
+  s->expand_stack_slowpath = expand_start;
+
+  emit_writable_end(s);
+  register_jit_symbol(expand_start, s->expand_stack_slowpath,
+                      (uint8_t *)expand_end, "ExpandStackSlowpath");
 }
 
 static inline bool ins_uses_freg(ir_ins const *ins) {
@@ -210,12 +243,6 @@ static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
        ((ins_var) =                                                            \
             next_leading_op((trace_ptr), (opcode), &_##ins_var##_idx));)
 
-static __attribute__((preserve_all)) gc_obj *
-jit_expand_stack_slowpath(vm_state *state, gc_obj *stack) {
-  expand_stack(state, &stack);
-  return stack;
-}
-
 #define COMMENT(...) comment_append(emit_offset(s), &s->comments, __VA_ARGS__)
 
 typedef struct {
@@ -244,38 +271,10 @@ static inline void add_entry_mapping(trace *entry_trace, snap_entry *entry,
 }
 
 // NOLINTBEGIN(clang-analyzer-core.NullDereference)
-static size_t collect_regs_to_preserve(uint8_t const *regs_in, size_t len,
-                                       uint8_t regs[MAX_REG]) {
-  size_t count = 0;
-  bool added[MAX_REG] = {0};
-  for (size_t i = 0; i < len; i++) {
-    uint8_t reg = regs_in[i];
-    if (reg == REG_NONE) {
-      continue;
-    }
-    if (reg >= FPR_REG_END) {
-      abort();
-    }
-    if (asm_is_callee_saved(reg)) {
-      continue;
-    }
-    if (added[reg]) {
-      continue;
-    }
-    regs[count++] = reg;
-    added[reg] = true;
-  }
-  return count;
-}
-
-static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
-                                        uint8_t const *regs_in) {
+static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
   if (!snap->offset) {
     return;
   }
-  uint8_t regs_to_save[MAX_REG];
-  size_t regs_cnt =
-      collect_regs_to_preserve(regs_in, arrlen(regs_in), regs_to_save);
 
   COMMENT("Emit stack guard check");
   label done = {};
@@ -283,14 +282,8 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap,
   emit_cmp(s, RSTACK, RTMP);
   emit_jcc32(s, JL, &done);
 
-  emit_push_regs(s, regs_to_save, regs_cnt, false);
-  emit_mov(s, RARG1, RSTACK);
-  emit_mov(s, RARG0, RSTATE);
-  emit_mov64(s, RTMP, (intptr_t)&jit_expand_stack_slowpath);
-
-  emit_call_reg(s, RTMP);
-  emit_mov(s, RSTACK, RET_REG);
-  emit_pop_regs(s, regs_to_save, regs_cnt, false);
+  assert(s->expand_stack_slowpath);
+  emit_call32(s, (int64_t)s->expand_stack_slowpath);
 
   emit_label(s, &done);
   COMMENT("   end stack guard check");
@@ -563,13 +556,11 @@ static void collect_loopback_moves(trace *exit_trace, uint16_t exit_snap_idx,
                                    trace *entry_trace, uint16_t entry_snap_idx,
                                    par_copy **cpy_out, const_entry **consts_out,
                                    load_entry **loads_out,
-                                   uint16_t **ignore_slots_out,
-                                   uint8_t **regs_out) {
+                                   uint16_t **ignore_slots_out) {
   const_entry *consts = nullptr;
   load_entry *loads = nullptr;
   par_copy *cpy = nullptr;
   uint16_t *ignore_slots = nullptr;
-  uint8_t *regs = nullptr;
 
   auto exit_snap = &exit_trace->snaps[exit_snap_idx];
   auto entry_snap = &entry_trace->snaps[entry_snap_idx];
@@ -598,11 +589,6 @@ static void collect_loopback_moves(trace *exit_trace, uint16_t exit_snap_idx,
         if (entry_reg == REG_NONE && entry_loc.kind == LOC_REG) {
           entry_reg = entry_loc.reg;
         }
-      }
-
-      if (!exit_entry->val.constant && exit_loc.kind == LOC_REG) {
-        uint8_t exit_reg = exit_loc.reg;
-        arrput(regs, exit_reg);
       }
 
       if (exit_entry->val.constant && !entry->val.constant &&
@@ -659,7 +645,6 @@ static void collect_loopback_moves(trace *exit_trace, uint16_t exit_snap_idx,
   *consts_out = consts;
   *loads_out = loads;
   *ignore_slots_out = ignore_slots;
-  *regs_out = regs;
 }
 
 static void emit_snap_store_entry(emit_state *s, trace *t,
@@ -699,8 +684,7 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
 }
 
 static void emit_snap(emit_state *s, trace *t, regalloc_result const *regmap,
-                      uint16_t snap_idx, bool exit, uint16_t *ignore_slots,
-                      uint8_t *regs_in) {
+                      uint16_t snap_idx, bool exit, uint16_t *ignore_slots) {
   auto snap = &t->snaps[snap_idx];
 
   arr_for_each_idx(snap->slots, j) {
@@ -716,7 +700,7 @@ static void emit_snap(emit_state *s, trace *t, regalloc_result const *regmap,
     }
   }
 
-  emit_stack_offset_and_check(s, snap, regs_in);
+  emit_stack_offset_and_check(s, snap);
   // If this is an exiting snapshot (vs. a loop back)
   // then record exit PC & snapshot.
   if (exit) {
@@ -741,7 +725,7 @@ static void emit_snapshot_exits(emit_state *s, trace *t,
     COMMENT("Snap exit #%i", i);
     snap *snap = &snaps[i];
     emit_label(s, &snap->patch_point);
-    emit_snap(s, t, regmap, (uint16_t)i, true, nullptr, nullptr);
+    emit_snap(s, t, regmap, (uint16_t)i, true, nullptr);
     emit_jmp32(s, exit_label);
   }
 }
@@ -766,16 +750,13 @@ static void link_to_next_trace(emit_state *s, trace *t,
   // 4) All the above get put in ignore_slots, and
   //    we emit_snap as normal, ignoring all those slots that we handle
   //    manually.
-  // 5) We also have a list of registers that need preserving if we have
-  //    to take a slowpath in expand_stack_slowpath. (TODO cleanup)
   par_copy *cpy = nullptr;
   const_entry *consts = nullptr;
   load_entry *loads = nullptr;
   uint16_t *ignore_slots = nullptr;
-  uint8_t *regs_to_preserve = nullptr;
   collect_loopback_moves(t, cur_snap, linked_trace, entry_snap_idx, &cpy,
-                         &consts, &loads, &ignore_slots, &regs_to_preserve);
-  emit_snap(s, t, regmap, cur_snap, false, ignore_slots, regs_to_preserve);
+                         &consts, &loads, &ignore_slots);
+  emit_snap(s, t, regmap, cur_snap, false, ignore_slots);
   // Execute reg->reg reconciliation before stack loads so load targets do not
   // clobber move sources from the exit state.
   emit_serialized_moves(s, cpy);
@@ -783,7 +764,6 @@ static void link_to_next_trace(emit_state *s, trace *t,
   emit_loopback_constants(s, consts);
   emit_loopback_entry_spills(s, linked_trace, entry_snap_idx);
   arrfree(ignore_slots);
-  arrfree(regs_to_preserve);
   arrfree(loads);
   arrfree(consts);
 
@@ -793,8 +773,7 @@ static void link_to_next_trace(emit_state *s, trace *t,
 }
 
 static void emit_reload_events(emit_state *s, trace *t,
-                               regalloc_result const *regmap,
-                               uint16_t ir_idx) {
+                               regalloc_result const *regmap, uint16_t ir_idx) {
   arr_for_each_idx(regmap->reload_ops, eidx) {
     auto e = regmap->reload_ops[eidx];
     if (e.ir_idx != ir_idx) {
@@ -838,12 +817,12 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
 
 #define EMIT_CMP_CASE(opname, f_fail, i_fail)                                  \
   case opname: {                                                               \
-    emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, f_fail, i_fail);   \
+    emit_guard_cmp(s, t, op, arg0_reg, arg1_reg, cur_snap, f_fail, i_fail);    \
     break;                                                                     \
   }
 #define EMIT_ARITH_CASE(opname, reg_emit, const_emit, float_emit)              \
   case opname: {                                                               \
-    emit_arith_case(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap, reg_emit,\
+    emit_arith_case(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap, reg_emit, \
                     const_emit, float_emit);                                   \
     break;                                                                     \
   }
@@ -990,9 +969,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
         emit_flonum_binop(s, t, dst_reg, op, emit_fdiv, arg0_reg, arg1_reg);
         emit_ftruncate(s, dst_reg, dst_reg);
       } else {
-        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg,
-                                cur_snap, emit_quotient,
-                                emit_quotient_constant);
+        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
+                                emit_quotient, emit_quotient_constant);
       }
       break;
     }
@@ -1000,8 +978,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
       if (op->type == FLONUM_TAG) {
         abort();
       } else {
-        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg,
-                                cur_snap, emit_mod, emit_mod_constant);
+        emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
+                                emit_mod, emit_mod_constant);
       }
       break;
     }
@@ -1252,7 +1230,7 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
         emit_unbox_flonum(s, RTMP, out_reg);
       } else {
         emit_mem_load(s, offset, RSTACK, out_reg);
-    }
+      }
     }
 #undef EMIT_ARITH_CASE
 #undef EMIT_CMP_CASE

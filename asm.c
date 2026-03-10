@@ -174,6 +174,7 @@ void emit_init(emit_state *s) {
 
   s->comments = nullptr;
   s->alloc_slowpath = nullptr;
+  s->expand_stack_slowpath = nullptr;
 
   auto prot = PROT_READ | PROT_WRITE | PROT_EXEC;
   auto flags = MAP_PRIVATE | MAP_ANONYMOUS;
