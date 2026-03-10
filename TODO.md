@@ -11,6 +11,11 @@
 * downrec traces don't ensure_args_match and link without boxing/typecheck
 
 * regalloc could be improved to not reserve RTMP2 ugh
+  LOAD: could use IR_REF to remove RTMP2 usage
+  STORE: could alloc a reg in IR_REF to 
+  GSET: needs a tmp reg
+  SLOAD: would need separate IR_TYPECHECK or tmp reg
+  ALLOC: cleanup fastpath
 
 ## tests:
 
@@ -26,9 +31,7 @@
 
 * track stack-top
 * half finished - all the typcheck types - (need more ptr types)
-
 * rest of ops: cfunc, cfuncv, callcc/callcc_resume, load_char, STore-char, integer->char/char->integer, apply.  That's it.
-
 * update stack overflow, just allocate a new section (linked stack segments, much faster callcc handling)
 
 # cleanup
