@@ -168,6 +168,9 @@ static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
 
     bool patched = false;
     arr_for_each(trace_obj->gc_const_locs, loc) {
+      if (!asm_mov64_patchable_is_live(loc)) {
+        continue;
+      }
       gc_obj obj = {.value = asm_read_mov64_patchable(loc)};
       if (!is_heap_object(obj)) {
         continue;

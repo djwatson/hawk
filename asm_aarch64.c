@@ -293,7 +293,7 @@ uint8_t *asm_emit_mov64_patchable(emit_state *s, uint8_t rd, int64_t imm) {
   return loc;
 }
 
-int64_t asm_read_mov64_patchable(uint8_t const *loc) {
+bool asm_mov64_patchable_is_live(uint8_t const *loc) {
   assert(loc);
   uint32_t const *ops = (uint32_t const *)loc;
   uint32_t op0 = ops[0];
@@ -301,17 +301,24 @@ int64_t asm_read_mov64_patchable(uint8_t const *loc) {
   uint32_t op2 = ops[2];
   uint32_t op3 = ops[3];
   uint8_t rd = (uint8_t)(op0 & 31);
-  assert((op0 & 0xff800000U) == 0xd2800000U);
-  assert((op1 & 0xff800000U) == 0xf2800000U);
-  assert((op2 & 0xff800000U) == 0xf2800000U);
-  assert((op3 & 0xff800000U) == 0xf2800000U);
-  assert((op1 & 31) == rd);
-  assert((op2 & 31) == rd);
-  assert((op3 & 31) == rd);
-  assert(mov_wide_shift(op0) == 0);
-  assert(mov_wide_shift(op1) == 1);
-  assert(mov_wide_shift(op2) == 2);
-  assert(mov_wide_shift(op3) == 3);
+  return (op0 & 0xff800000U) == 0xd2800000U &&
+         (op1 & 0xff800000U) == 0xf2800000U &&
+         (op2 & 0xff800000U) == 0xf2800000U &&
+         (op3 & 0xff800000U) == 0xf2800000U && (op1 & 31) == rd &&
+         (op2 & 31) == rd && (op3 & 31) == rd && mov_wide_shift(op0) == 0 &&
+         mov_wide_shift(op1) == 1 && mov_wide_shift(op2) == 2 &&
+         mov_wide_shift(op3) == 3;
+}
+
+int64_t asm_read_mov64_patchable(uint8_t const *loc) {
+  assert(loc);
+  assert(asm_mov64_patchable_is_live(loc));
+  uint32_t const *ops = (uint32_t const *)loc;
+  uint32_t op0 = ops[0];
+  uint32_t op1 = ops[1];
+  uint32_t op2 = ops[2];
+  uint32_t op3 = ops[3];
+  uint8_t rd = (uint8_t)(op0 & 31);
   uint64_t value = (uint64_t)mov_wide_imm16(op0) |
                    ((uint64_t)mov_wide_imm16(op1) << 16) |
                    ((uint64_t)mov_wide_imm16(op2) << 32) |
@@ -322,6 +329,7 @@ int64_t asm_read_mov64_patchable(uint8_t const *loc) {
 void asm_patch_mov64_patchable(emit_state *s, uint8_t *loc, int64_t imm) {
   (void)s;
   assert(loc);
+  assert(asm_mov64_patchable_is_live(loc));
   uint32_t *ops = (uint32_t *)loc;
   uint8_t rd = (uint8_t)(ops[0] & 31);
   uint64_t value = (uint64_t)imm;

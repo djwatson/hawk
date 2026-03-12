@@ -62,10 +62,14 @@ uint8_t *asm_emit_mov64_patchable(emit_state *s, uint8_t r, int64_t imm) {
   return loc;
 }
 
+bool asm_mov64_patchable_is_live(uint8_t const *loc) {
+  assert(loc);
+  return (loc[0] & 0xfe) == 0x48 && (loc[1] & 0xf8) == 0xb8;
+}
+
 int64_t asm_read_mov64_patchable(uint8_t const *loc) {
   assert(loc);
-  assert((loc[0] & 0xfe) == 0x48);
-  assert((loc[1] & 0xf8) == 0xb8);
+  assert(asm_mov64_patchable_is_live(loc));
   int64_t imm = 0;
   memcpy(&imm, loc + 2, sizeof(imm));
   return imm;
@@ -74,8 +78,7 @@ int64_t asm_read_mov64_patchable(uint8_t const *loc) {
 void asm_patch_mov64_patchable(emit_state *s, uint8_t *loc, int64_t imm) {
   (void)s;
   assert(loc);
-  assert((loc[0] & 0xfe) == 0x48);
-  assert((loc[1] & 0xf8) == 0xb8);
+  assert(asm_mov64_patchable_is_live(loc));
   memcpy(loc + 2, &imm, sizeof(imm));
 }
 
