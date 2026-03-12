@@ -515,7 +515,9 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
       }
     }
     if (should_try_side) {
-      bool is_poly_trace = res.snap == &res.snap->trace->snaps[0];
+      auto parent = res.snap->trace;
+      bool is_poly_trace =
+          res.snap == &parent->snaps[0] && parent->kind != TRACE_SIDE;
       if (verbose) {
         printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
       }

@@ -1078,6 +1078,7 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack) {
   }
   record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);
+  record_current_trace(state)->kind = TRACE_ROOT;
   ts->poly_entry = nullptr;
   record_seed_entry_args(state, pc, instr, stack);
 }
@@ -1091,6 +1092,7 @@ void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
+  cur_trace->kind = TRACE_POLY;
   cur_trace->parent_snap = side_snap;
   ts->depth = side_snap->depth;
   ts->poly_entry = side_snap;
@@ -1106,6 +1108,7 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
+  cur_trace->kind = TRACE_SIDE;
   cur_trace->parent_snap = side_snap;
   ts->depth = side_snap->depth;
   ts->poly_entry = nullptr;

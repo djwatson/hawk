@@ -112,6 +112,12 @@ struct trace_result {
 };
 
 typedef struct trace_result (*trace_fn)(vm_state *state, gc_obj *stack);
+typedef enum : uint8_t {
+  TRACE_ROOT,
+  TRACE_SIDE,
+  TRACE_POLY,
+} trace_kind;
+
 typedef struct trace {
   uint16_t stackpos;
   ir_ins *ins;
@@ -120,6 +126,7 @@ typedef struct trace {
   uint8_t **gc_const_locs;
   trace_fn fn;
   uint16_t num;
+  trace_kind kind;
   snap *parent_snap;
   uint8_t link_entry_snap;
   trace *link;
