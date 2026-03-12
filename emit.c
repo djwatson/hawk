@@ -566,7 +566,13 @@ static void emit_snap_store_entry(emit_state *s, trace *t, uint16_t snap_idx,
                                  size_t entry_idx, snap_entry const *entry) {
   auto stack_offset = (int32_t)entry->slot * 8;
   if (entry->val.constant) {
-    emit_store_constant(s, stack_offset, RSTACK, slot_const(t, entry->val));
+    gc_obj value = slot_gc_obj(t, entry->val);
+    if (is_heap_object(value)) {
+      emit_heap_constant(s, t, RTMP, value);
+      emit_store(s, stack_offset, RSTACK, RTMP);
+    } else {
+      emit_store_constant(s, stack_offset, RSTACK, value.value);
+    }
     return;
   }
 
@@ -810,7 +816,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       EMIT_CMP_CASE(IR_EQ, JNE, JNE)
       EMIT_CMP_CASE(IR_NE, JE, JE)
     case IR_LOAD: {
-      uint8_t base_reg = arg0_reg;
+      uint8_t base_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
+      uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
       if (op->op1.constant) {
         // Materialize constant base object pointer for direct loads.
         base_reg = RTMP;
@@ -828,7 +835,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
           int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
           emit_mem_load(s, (int32_t)offset_bytes, base_reg, obj_reg);
         } else {
-          emit_add(s, obj_reg, arg1_reg, base_reg);
+          emit_add(s, obj_reg, offset_reg, base_reg);
           emit_mem_load(s, typed_offset, obj_reg, obj_reg);
         }
         emit_typecheck(s, t, op, cur_snap, obj_reg);
@@ -838,7 +845,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
           int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
           emit_mem_load(s, (int32_t)offset_bytes, base_reg, dst_reg);
         } else {
-          emit_add(s, RTMP, arg1_reg, base_reg);
+          emit_add(s, RTMP, offset_reg, base_reg);
           emit_mem_load(s, typed_offset, RTMP, dst_reg);
         }
         emit_typecheck(s, t, op, cur_snap, dst_reg);
@@ -849,8 +856,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       ir_ins *ref = slot_ins(t, op->op1);
       auto val_reg = arg0_reg;
       if (op->op2.constant) {
-        emit_heap_constant(s, t, RTMP2, slot_gc_obj(t, op->op2));
-        val_reg = RTMP2;
+        emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op2));
+        val_reg = RTMP;
       } else {
         val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
       }
@@ -1024,7 +1031,6 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       assert(op->op2.constant);
       uint64_t type_val = (uint64_t)(slot_const(t, op->op2) >> FIXNUM_SHIFT);
       uint8_t tag_bits = (uint8_t)(type_val & TAG_MASK);
-      assert(s->alloc_slowpath);
 
       uint8_t save_regs[3];
       size_t save_cnt = 0;
@@ -1042,18 +1048,35 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       if (op->op1.constant) {
         int64_t tagged_size = slot_const(t, op->op1);
         emit_mov64(s, RET_REG, tagged_size);
-        emit_call32(s, (int64_t)s->alloc_slowpath);
       } else {
         assert(arg0_reg != REG_NONE);
         emit_mov(s, RET_REG, arg0_reg);
-        emit_call32(s, (int64_t)s->alloc_slowpath);
       }
+
+      label alloc_fail = {};
+      label alloc_done = {};
+      emit_mov64(s, RTMP, (intptr_t)&gc_hp);
+      emit_mem_load(s, 0, RTMP, RET_REG2);
+      emit_sar_constant(s, RTMP2, RET_REG, FIXNUM_SHIFT);
+      emit_add(s, RTMP2, RET_REG2, RTMP2);
+      emit_mov64(s, RTMP, (intptr_t)&gc_limit);
+      emit_mem_load(s, 0, RTMP, RTMP);
+      emit_cmp(s, RTMP2, RTMP);
+      emit_jcc32(s, JA, &alloc_fail);
+      emit_mov64(s, RTMP, (intptr_t)&gc_hp);
+      emit_store(s, 0, RTMP, RTMP2);
+      emit_mov(s, RET_REG, RET_REG2);
 
       COMMENT("  Alloc commit type");
       emit_store_constant(s, 0, RET_REG, (int64_t)type_val);
       emit_add_constant(s, dst_reg, RET_REG, tag_bits);
 
       emit_pop_regs(s, save_regs, save_cnt, false);
+      emit_jmp32(s, &alloc_done);
+      emit_label(s, &alloc_fail);
+      emit_pop_regs(s, save_regs, save_cnt, false);
+      emit_jmp32(s, &t->snaps[cur_snap].patch_point);
+      emit_label(s, &alloc_done);
       break;
     }
     case IR_REF:
