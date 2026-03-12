@@ -44,6 +44,8 @@
 
 #define ASM_REGISTER_LIST(X) ASM_X64_REGISTER_LIST(X)
 #define ASM_FREGISTER_LIST(X) ASM_X64_FREGISTER_LIST(X)
+#define GPR_ALLOCATABLE 11
+#define FPR_ALLOCATABLE 15
 
 enum registers : uint8_t {
 #define X(name, unallocatable, callee_saved) name,

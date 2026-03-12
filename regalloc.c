@@ -8,6 +8,7 @@
 #include "asm.h"
 #include "hawk.h"
 #include "ir.h"
+#include "lru.h"
 
 typedef struct {
   uint16_t ir_idx;
@@ -27,6 +28,7 @@ typedef struct regalloc_state {
   trace *t;
   uint32_t *uses;
   next_use *next_uses;
+  bool *spilled;
 
   uint16_t regs[MAX_REG];
 
@@ -35,6 +37,21 @@ typedef struct regalloc_state {
   reload_op *ops;
   uint8_t next_spill;
 } regalloc_state;
+
+static bool value_is_flonum(trace const *t, uint16_t value_id) {
+  return t->ins[value_id].type == FLONUM_TAG;
+}
+
+static lru *value_lru_for(lru *gpr, lru *fpr, bool flonum) {
+  return flonum ? fpr : gpr;
+}
+
+static void limit_live_values(regalloc_state *s, lru *lru, uint16_t max) {
+  while (lru->count > max) {
+    uint16_t spill_value = lru_pop_oldest(lru);
+    s->spilled[spill_value] = true;
+  }
+}
 
 static uint8_t collect_ir_args(trace const *t, ir_ins const *ins, slot *args) {
   uint8_t count = 0;
@@ -97,6 +114,15 @@ static void collect_next_uses(regalloc_state *s) {
   size_t cur_snap = snap_len;
   uint16_t cur_snap_end_ir = ins_len;
 
+  s->spilled = calloc(ins_len, sizeof(bool));
+  if (!s->spilled) {
+    abort();
+  }
+
+  lru gpr_live;
+  lru fpr_live;
+  lru_init(&gpr_live);
+  lru_init(&fpr_live);
   for (size_t i = ins_len; i > 0; i--) {
     while (cur_snap != 0 &&
            (cur_snap == snap_len || s->t->snaps[cur_snap].ir >= (i - 1))) {
@@ -108,17 +134,33 @@ static void collect_next_uses(regalloc_state *s) {
         // This is so snapshots don't affect 'find next use' spilling heuristic.
         if (!val.constant && !s->uses[val.loc]) {
           add_next_use(s, val.loc, cur_snap_end_ir, false, true);
+          auto value_lru = value_lru_for(&gpr_live, &fpr_live,
+                                         value_is_flonum(s->t, val.loc));
+          lru_add(value_lru, val.loc);
         }
       }
+      limit_live_values(s, &gpr_live, GPR_ALLOCATABLE);
+      limit_live_values(s, &fpr_live, FPR_ALLOCATABLE);
       cur_snap_end_ir = cur->ir;
     }
 
-    auto ins = &s->t->ins[i - 1];
+    uint16_t value_id = (uint16_t)(i - 1);
+    auto value_lru =
+        value_lru_for(&gpr_live, &fpr_live, value_is_flonum(s->t, value_id));
+    lru_remove(value_lru, value_id);
+
+    auto ins = &s->t->ins[value_id];
     slot args[3];
     uint8_t arg_count = collect_ir_args(s->t, ins, args);
     for (uint8_t arg = 0; arg < arg_count; arg++) {
-      add_next_use(s, args[arg].loc, (uint16_t)(i - 1), true, false);
+      add_next_use(s, args[arg].loc, value_id, true, false);
+      auto arg_lru = value_lru_for(&gpr_live, &fpr_live,
+                                   value_is_flonum(s->t, args[arg].loc));
+      lru_poke(arg_lru, args[arg].loc);
     }
+    // TODO if we need tmp values, add them here?
+    limit_live_values(s, &gpr_live, GPR_ALLOCATABLE);
+    limit_live_values(s, &fpr_live, FPR_ALLOCATABLE);
   }
 }
 
@@ -345,6 +387,7 @@ regalloc_result regalloc(trace *t) {
       .reload_ops = s.ops,
       .dense_locs = s.dense_locs,
       .ir_id_to_dense_map = s.ir_id_to_dense_map,
+      .spilled = s.spilled,
   };
   arrfree(s.next_uses);
   free(s.uses);
@@ -355,5 +398,6 @@ void regalloc_result_free(regalloc_result *r) {
   arrfree(r->dense_locs);
   arrfree(r->reload_ops);
   free(r->ir_id_to_dense_map);
+  free(r->spilled);
   memset(r, 0, sizeof(*r));
 }

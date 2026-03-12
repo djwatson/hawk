@@ -50,6 +50,7 @@ if(ENABLE_REGALLOC_FUZZ AND CMAKE_C_COMPILER_ID MATCHES "Clang")
       fuzz/regalloc_fuzz.c
       ftoa.c
       regalloc.c
+      lru.c
       ir.c
       types.c
       ${ASM_SOURCE}
@@ -81,6 +82,7 @@ set(
   ir.c
   emit.c
   regalloc.c
+  lru.c
   ${ASM_SOURCE}
   asm.c
   comments.c

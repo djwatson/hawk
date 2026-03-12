@@ -24,6 +24,7 @@ typedef struct regalloc_result {
   dense_loc_entry *dense_locs;
   uint16_t *ir_id_to_dense_map;
   reload_op *reload_ops;
+  bool *spilled;
 } regalloc_result;
 
 regalloc_result regalloc(trace *t);
