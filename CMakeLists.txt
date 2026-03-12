@@ -32,7 +32,9 @@ if(ENABLE_REGALLOC_FUZZ AND CMAKE_C_COMPILER_ID MATCHES "Clang")
     unset(HAVE_LIBFUZZER_RUNTIME CACHE)
   endif()
   set(_saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
+  set(_saved_try_compile_target_type "${CMAKE_TRY_COMPILE_TARGET_TYPE}")
   set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -fsanitize=fuzzer,address")
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
   check_c_source_compiles(
     "
       int LLVMFuzzerTestOneInput(const unsigned char *Data, unsigned long Size) {
@@ -43,6 +45,7 @@ if(ENABLE_REGALLOC_FUZZ AND CMAKE_C_COMPILER_ID MATCHES "Clang")
     "
     HAVE_LIBFUZZER_RUNTIME)
   set(CMAKE_REQUIRED_FLAGS "${_saved_required_flags}")
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE "${_saved_try_compile_target_type}")
 
   if(HAVE_LIBFUZZER_RUNTIME)
     add_executable(
