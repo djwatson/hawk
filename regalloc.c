@@ -38,14 +38,6 @@ typedef struct regalloc_state {
   uint8_t next_spill;
 } regalloc_state;
 
-static bool value_is_flonum(trace const *t, uint16_t value_id) {
-  return t->ins[value_id].type == FLONUM_TAG;
-}
-
-static lru *value_lru_for(lru *gpr, lru *fpr, bool flonum) {
-  return flonum ? fpr : gpr;
-}
-
 static void limit_live_values(regalloc_state *s, lru *lru, uint16_t max) {
   while (lru->count > max) {
     uint16_t spill_value = lru_pop_oldest(lru);
@@ -136,8 +128,8 @@ static void collect_next_uses(regalloc_state *s) {
         // This is so snapshots don't affect 'find next use' spilling heuristic.
         if (!val.constant && !s->uses[val.loc]) {
           add_next_use(s, val.loc, cur_snap_end_ir, false, true);
-          auto value_lru = value_lru_for(&gpr_live, &fpr_live,
-                                         value_is_flonum(s->t, val.loc));
+          auto value_lru =
+              s->t->ins[val.loc].type == FLONUM_TAG ? &fpr_live : &gpr_live;
           lru_add(value_lru, val.loc);
         }
       }
@@ -147,7 +139,7 @@ static void collect_next_uses(regalloc_state *s) {
     }
 
     auto value_lru =
-        value_lru_for(&gpr_live, &fpr_live, value_is_flonum(s->t, value_id));
+        s->t->ins[value_id].type == FLONUM_TAG ? &fpr_live : &gpr_live;
     lru_remove(value_lru, value_id);
 
     auto ins = &s->t->ins[value_id];
@@ -155,8 +147,8 @@ static void collect_next_uses(regalloc_state *s) {
     uint8_t arg_count = collect_ir_args(s->t, ins, args);
     for (uint8_t arg = 0; arg < arg_count; arg++) {
       add_next_use(s, args[arg].loc, value_id, true, false);
-      auto arg_lru = value_lru_for(&gpr_live, &fpr_live,
-                                   value_is_flonum(s->t, args[arg].loc));
+      auto arg_lru = s->t->ins[args[arg].loc].type == FLONUM_TAG ? &fpr_live
+                                                                 : &gpr_live;
       lru_poke(arg_lru, args[arg].loc);
     }
     // TODO if we need tmp values, add them here?
@@ -164,7 +156,7 @@ static void collect_next_uses(regalloc_state *s) {
     // at the same time as the input registers.
     uint16_t gpr_limit = GPR_ALLOCATABLE;
     uint16_t fpr_limit = FPR_ALLOCATABLE;
-    if (value_is_flonum(s->t, value_id)) {
+    if (s->t->ins[value_id].type == FLONUM_TAG) {
       fpr_limit--;
     } else {
       gpr_limit--;
@@ -202,16 +194,19 @@ static bool value_used_by_ir_ins(trace const *t, ir_ins const *ins,
   return false;
 }
 
-static uint8_t find_reg_to_spill(regalloc_state *s, uint16_t start,
-                                 uint16_t end, ir_ins const *cur_ins) {
-  // Reuse the register whose resident value is already assigned a spill slot
-  // and has the farthest immediate next use in this register class.
-  uint8_t spill_reg = REG_NONE;
+static uint8_t find_free_reg(regalloc_state *s, bool flonum,
+                             ir_ins const *cur_ins) {
+  uint16_t start = flonum ? FPR_REG_START : 0;
+  uint16_t end = flonum ? FPR_REG_END : FPR_REG_START;
+  uint16_t spill_reg = UINT16_MAX;
   uint32_t farthest_use = 0;
   bool have_candidate = false;
   for (uint16_t i = start; i < end; i++) {
-    if (s->regs[i] == ALLOC_NONE || s->regs[i] == ALLOC_UNALLOCATABLE) {
+    if (s->regs[i] == ALLOC_UNALLOCATABLE) {
       continue;
+    }
+    if (s->regs[i] == ALLOC_NONE) {
+      return (uint8_t)i;
     }
 
     uint16_t value_id = s->regs[i];
@@ -236,23 +231,7 @@ static uint8_t find_reg_to_spill(regalloc_state *s, uint16_t start,
   }
 
   s->regs[spill_reg] = ALLOC_NONE;
-  return spill_reg;
-}
-
-static uint8_t find_free_reg(regalloc_state *s, bool flonum,
-                             ir_ins const *cur_ins) {
-  uint16_t start = flonum ? FPR_REG_START : 0;
-  uint16_t end = flonum ? FPR_REG_END : FPR_REG_START;
-  for (uint16_t i = start; i < end; i++) {
-    if (s->regs[i] == ALLOC_UNALLOCATABLE) {
-      continue;
-    }
-    if (s->regs[i] == ALLOC_NONE) {
-      return i;
-    }
-  }
-
-  return find_reg_to_spill(s, start, end, cur_ins);
+  return (uint8_t)spill_reg;
 }
 
 static void maybe_free_reg(regalloc_state *s, uint16_t cur_idx, uint16_t idx,
