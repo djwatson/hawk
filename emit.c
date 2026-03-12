@@ -55,8 +55,8 @@ static void *gc_alloc_ir_slowpath(uint64_t tagged_sz, uint8_t *reg_save,
                                   uint64_t const spill_mask[4]) {
   for (uint8_t reg = 0; reg < FPR_REG_START; reg++) {
     if (gpr_mask & (1ULL << reg)) {
-      gc_add_root((uint64_t const *)(reg_save + alloc_reg_save_slot_offset(reg)),
-                  1);
+      gc_add_root(
+          (uint64_t const *)(reg_save + alloc_reg_save_slot_offset(reg)), 1);
     }
   }
   for (uint16_t spill = 0; spill < spill_slot_count; spill++) {
@@ -942,7 +942,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       assert(val_reg != REG_NONE || op->op2.constant);
       if (is_fpr_reg(val_reg)) {
         emit_box_flonum(s, 0, val_reg, false);
-        val_reg = RTMP2;
+        val_reg = RTMP;
       }
 
       auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
@@ -1126,8 +1126,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
       arr_for_each_idx(t->ins, i) {
         auto live = &t->ins[i];
-        if (i == op_cnt_idx || !ra_state->uses[i] || live->spill == SPILL_NONE ||
-            live->type == FLONUM_TAG) {
+        if (i == op_cnt_idx || !ra_state->uses[i] ||
+            live->spill == SPILL_NONE || live->type == FLONUM_TAG) {
           continue;
         }
         spill_mask[live->spill >> 6] |= 1ULL << (live->spill & 63);
