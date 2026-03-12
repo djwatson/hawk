@@ -28,6 +28,60 @@ static_assert((sizeof(flonum_s) & 7) == 0, "flonum_s must be 8-byte aligned");
 static const int32_t flonum_payload_offset = (int32_t)offsetof(flonum_s, x);
 
 static gc_obj spills[256];
+enum : uint16_t { spill_slot_count = 256 };
+
+enum : int32_t {
+  alloc_slowpath_result_offset = 0,
+  alloc_slowpath_spill_mask_offset = 16,
+  alloc_slowpath_reg_save_offset = 48,
+  alloc_slowpath_reg_save_stride = 16,
+  alloc_slowpath_frame_size =
+      alloc_slowpath_reg_save_offset + MAX_REG * alloc_slowpath_reg_save_stride,
+};
+
+static_assert((alloc_slowpath_frame_size & 15) == 0,
+              "alloc slowpath frame must stay aligned");
+
+static inline int32_t alloc_reg_save_offset(uint8_t reg) {
+  return alloc_slowpath_reg_save_offset + reg * alloc_slowpath_reg_save_stride;
+}
+
+static inline int32_t alloc_reg_save_slot_offset(uint8_t reg) {
+  return reg * alloc_slowpath_reg_save_stride;
+}
+
+static void *gc_alloc_ir_slowpath(uint64_t tagged_sz, uint8_t *reg_save,
+                                  uint64_t gpr_mask,
+                                  uint64_t const spill_mask[4]) {
+  for (uint8_t reg = 0; reg < FPR_REG_START; reg++) {
+    if (gpr_mask & (1ULL << reg)) {
+      gc_add_root((uint64_t const *)(reg_save + alloc_reg_save_slot_offset(reg)),
+                  1);
+    }
+  }
+  for (uint16_t spill = 0; spill < spill_slot_count; spill++) {
+    uint64_t word = spill_mask[spill >> 6];
+    if (word & (1ULL << (spill & 63))) {
+      gc_add_root((uint64_t const *)&spills[spill], 1);
+    }
+  }
+
+  void *ptr = gc_alloc((uint64_t)(tagged_sz >> FIXNUM_SHIFT));
+
+  for (uint16_t spill = 0; spill < spill_slot_count; spill++) {
+    uint64_t word = spill_mask[spill >> 6];
+    if (word & (1ULL << (spill & 63))) {
+      gc_remove_root((uint64_t const *)&spills[spill]);
+    }
+  }
+  for (uint8_t reg = 0; reg < FPR_REG_START; reg++) {
+    if (gpr_mask & (1ULL << reg)) {
+      gc_remove_root(
+          (uint64_t const *)(reg_save + alloc_reg_save_slot_offset(reg)));
+    }
+  }
+  return ptr;
+}
 
 static void register_jit_symbol(uint8_t *start, uint8_t *entry, uint8_t *end,
                                 const char *name) {
@@ -158,6 +212,22 @@ static void emit_heap_constant(emit_state *s, trace *t, uint8_t reg,
 static inline int32_t spill_offset(uint8_t spill) {
   assert(spill != SPILL_NONE);
   return (int32_t)spill * 8;
+}
+
+static void emit_save_live_reg(emit_state *s, uint8_t reg) {
+  if (is_fpr_reg(reg)) {
+    emit_fstore(s, alloc_reg_save_offset(reg), SP, reg);
+  } else {
+    emit_store(s, alloc_reg_save_offset(reg), SP, reg);
+  }
+}
+
+static void emit_restore_live_reg(emit_state *s, uint8_t reg) {
+  if (is_fpr_reg(reg)) {
+    emit_fmem_load(s, alloc_reg_save_offset(reg), SP, reg);
+  } else {
+    emit_mem_load(s, alloc_reg_save_offset(reg), SP, reg);
+  }
 }
 
 static value_loc snap_entry_loc(trace const *t, uint16_t snap_idx,
@@ -1039,19 +1109,39 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       assert(op->op2.constant);
       uint64_t type_val = (uint64_t)(slot_const(t, op->op2) >> FIXNUM_SHIFT);
       uint8_t tag_bits = (uint8_t)(type_val & TAG_MASK);
-
-      uint8_t save_regs[3];
-      size_t save_cnt = 0;
-      bool preserve_ret = dst_reg != RET_REG;
-      bool preserve_ret2 = dst_reg != RET_REG2;
-      if (preserve_ret2) {
-        save_regs[save_cnt++] = RET_REG2;
+      bool live_regs[MAX_REG] = {0};
+      uint64_t live_gpr_mask = 0;
+      uint64_t spill_mask[4] = {0};
+      size_t ins_len = arrlen(t->ins);
+      for (uint8_t reg = 0; reg < MAX_REG; reg++) {
+        uint16_t value_id = ra_state->regs[reg];
+        if (value_id >= ins_len || value_id == op_cnt_idx ||
+            !ra_state->uses[value_id]) {
+          continue;
+        }
+        live_regs[reg] = true;
+        if (!is_fpr_reg(reg)) {
+          live_gpr_mask |= 1ULL << reg;
+        }
       }
-      if (preserve_ret) {
-        // Keep caller's RET_REG live if allocation result goes elsewhere.
-        save_regs[save_cnt++] = RET_REG;
+      arr_for_each_idx(t->ins, i) {
+        auto live = &t->ins[i];
+        if (i == op_cnt_idx || !ra_state->uses[i] || live->spill == SPILL_NONE ||
+            live->type == FLONUM_TAG) {
+          continue;
+        }
+        spill_mask[live->spill >> 6] |= 1ULL << (live->spill & 63);
       }
-      emit_push_regs(s, save_regs, save_cnt, false);
+      emit_sub_constant(s, SP, SP, alloc_slowpath_frame_size);
+      for (uint8_t reg = 0; reg < MAX_REG; reg++) {
+        if (live_regs[reg]) {
+          emit_save_live_reg(s, reg);
+        }
+      }
+      for (uint8_t word = 0; word < 4; word++) {
+        emit_store_constant(s, alloc_slowpath_spill_mask_offset + word * 8, SP,
+                            (int64_t)spill_mask[word]);
+      }
 
       if (op->op1.constant) {
         int64_t tagged_size = slot_const(t, op->op1);
@@ -1062,7 +1152,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
 
       label alloc_fail = {};
-      label alloc_done = {};
+      label alloc_commit = {};
       emit_mov64(s, RTMP, (intptr_t)&gc_hp);
       emit_mem_load(s, 0, RTMP, RET_REG2);
       emit_sar_constant(s, RTMP2, RET_REG, FIXNUM_SHIFT);
@@ -1074,17 +1164,26 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       emit_mov64(s, RTMP, (intptr_t)&gc_hp);
       emit_store(s, 0, RTMP, RTMP2);
       emit_mov(s, RET_REG, RET_REG2);
-
-      COMMENT("  Alloc commit type");
-      emit_store_constant(s, 0, RET_REG, (int64_t)type_val);
-      emit_add_constant(s, dst_reg, RET_REG, tag_bits);
-
-      emit_pop_regs(s, save_regs, save_cnt, false);
-      emit_jmp32(s, &alloc_done);
+      emit_store(s, alloc_slowpath_result_offset, SP, RET_REG);
+      emit_jmp32(s, &alloc_commit);
       emit_label(s, &alloc_fail);
-      emit_pop_regs(s, save_regs, save_cnt, false);
-      emit_jmp32(s, &t->snaps[cur_snap].patch_point);
-      emit_label(s, &alloc_done);
+      emit_mov(s, RARG0, RET_REG);
+      emit_add_constant(s, RARG1, SP, alloc_slowpath_reg_save_offset);
+      emit_mov64(s, RARG2, (int64_t)live_gpr_mask);
+      emit_add_constant(s, RARG3, SP, alloc_slowpath_spill_mask_offset);
+      emit_mov64(s, RTMP, (intptr_t)&gc_alloc_ir_slowpath);
+      emit_call_reg(s, RTMP);
+      emit_store(s, alloc_slowpath_result_offset, SP, RET_REG);
+      emit_label(s, &alloc_commit);
+      for (uint8_t reg = 0; reg < MAX_REG; reg++) {
+        if (live_regs[reg]) {
+          emit_restore_live_reg(s, reg);
+        }
+      }
+      emit_mem_load(s, alloc_slowpath_result_offset, SP, RTMP);
+      emit_add_constant(s, SP, SP, alloc_slowpath_frame_size);
+      emit_store_constant(s, 0, RTMP, (int64_t)type_val);
+      emit_add_constant(s, dst_reg, RTMP, tag_bits);
       break;
     }
     case IR_REF:
