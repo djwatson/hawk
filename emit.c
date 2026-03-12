@@ -181,6 +181,12 @@ static void emit_cmp_regs(emit_state *s, trace *t, uint8_t lhs_reg, slot rhs,
                           uint8_t rhs_reg) {
   assert(lhs_reg != REG_NONE);
   if (rhs.constant) {
+    if (is_heap_object(slot_gc_obj(t, rhs))) {
+      uint8_t cmp_reg = rhs_reg != REG_NONE ? rhs_reg : RTMP;
+      emit_heap_constant(s, t, cmp_reg, slot_gc_obj(t, rhs));
+      emit_cmp(s, lhs_reg, cmp_reg);
+      return;
+    }
     emit_cmp_constant(s, lhs_reg, slot_const(t, rhs));
     return;
   }
@@ -754,6 +760,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     auto op = &t->ins[op_cnt_idx];
 
     COMMENT("%i %s", op_cnt_idx, ir_names[op->op]);
+    // Begin regalloc
+    // TODO: cleanup arg0_reg etc
     slot args[3];
     uint8_t arg_count = regalloc_collect_ir_args(t, op, args);
     uint8_t arg_regs[3] = {REG_NONE, REG_NONE, REG_NONE};
@@ -792,6 +800,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     } else {
       // no-op
     }
+    // End regalloc
 
 #define EMIT_CMP_CASE(opname, f_fail, i_fail)                                  \
   case opname: {                                                               \

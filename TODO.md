@@ -1,7 +1,5 @@
 # Currently working on:
 
-* something broken in vm_add_snap IF branches for deriv, nqueens
-
 * next version, root all registers (since we have reg state now!) and call slowpath.
 * get box_flonum working for all paths, similarly rooting all the things.
 
