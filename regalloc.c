@@ -1,5 +1,6 @@
 #include "regalloc.h"
 
+#include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -124,6 +125,7 @@ static void collect_next_uses(regalloc_state *s) {
   lru_init(&gpr_live);
   lru_init(&fpr_live);
   for (size_t i = ins_len; i > 0; i--) {
+    uint16_t value_id = (uint16_t)(i - 1);
     while (cur_snap != 0 &&
            (cur_snap == snap_len || s->t->snaps[cur_snap].ir >= (i - 1))) {
       cur_snap--;
@@ -144,7 +146,6 @@ static void collect_next_uses(regalloc_state *s) {
       cur_snap_end_ir = cur->ir;
     }
 
-    uint16_t value_id = (uint16_t)(i - 1);
     auto value_lru =
         value_lru_for(&gpr_live, &fpr_live, value_is_flonum(s->t, value_id));
     lru_remove(value_lru, value_id);
@@ -159,21 +160,21 @@ static void collect_next_uses(regalloc_state *s) {
       lru_poke(arg_lru, args[arg].loc);
     }
     // TODO if we need tmp values, add them here?
-    limit_live_values(s, &gpr_live, GPR_ALLOCATABLE);
-    limit_live_values(s, &fpr_live, FPR_ALLOCATABLE);
+    // In the current regalloc, the output register is live
+    // at the same time as the input registers.
+    uint16_t gpr_limit = GPR_ALLOCATABLE;
+    uint16_t fpr_limit = FPR_ALLOCATABLE;
+    if (value_is_flonum(s->t, value_id)) {
+      fpr_limit--;
+    } else {
+      gpr_limit--;
+    }
+    if (ins->op == IR_RET) {
+      gpr_limit--;
+    }
+    limit_live_values(s, &gpr_live, gpr_limit);
+    limit_live_values(s, &fpr_live, fpr_limit);
   }
-}
-
-static uint8_t get_or_assign_spill_slot(regalloc_state *s, uint16_t value_id) {
-  auto ins = &s->t->ins[value_id];
-  if (ins->spill != SPILL_NONE) {
-    return ins->spill;
-  }
-  if (s->next_spill == 255) {
-    abort();
-  }
-  ins->spill = s->next_spill++;
-  return ins->spill;
 }
 
 static uint8_t find_current_reg_for_value(regalloc_state *s,
@@ -203,8 +204,8 @@ static bool value_used_by_ir_ins(trace const *t, ir_ins const *ins,
 
 static uint8_t find_reg_to_spill(regalloc_state *s, uint16_t start,
                                  uint16_t end, ir_ins const *cur_ins) {
-  // Spill the value with the farthest immediate next use in this register
-  // class.
+  // Reuse the register whose resident value is already assigned a spill slot
+  // and has the farthest immediate next use in this register class.
   uint8_t spill_reg = REG_NONE;
   uint32_t farthest_use = 0;
   bool have_candidate = false;
@@ -215,6 +216,9 @@ static uint8_t find_reg_to_spill(regalloc_state *s, uint16_t start,
 
     uint16_t value_id = s->regs[i];
     if (cur_ins && value_used_by_ir_ins(s->t, cur_ins, value_id)) {
+      continue;
+    }
+    if (s->t->ins[value_id].spill == SPILL_NONE) {
       continue;
     }
     uint32_t next_idx = s->uses[value_id];
@@ -231,9 +235,6 @@ static uint8_t find_reg_to_spill(regalloc_state *s, uint16_t start,
     abort();
   }
 
-  uint16_t spill_value_id = s->regs[spill_reg];
-  auto spill_ins = &s->t->ins[spill_value_id];
-  spill_ins->spill = get_or_assign_spill_slot(s, spill_value_id);
   s->regs[spill_reg] = ALLOC_NONE;
   return spill_reg;
 }
@@ -254,25 +255,24 @@ static uint8_t find_free_reg(regalloc_state *s, bool flonum,
   return find_reg_to_spill(s, start, end, cur_ins);
 }
 
-static void maybe_free_reg(regalloc_state *s, uint16_t cur_idx, uint16_t idx) {
+static void maybe_free_reg(regalloc_state *s, uint16_t cur_idx, uint16_t idx,
+                           bool keep_current_before) {
   auto next_idx = s->uses[idx];
   while (next_idx) {
     auto cur_use = s->next_uses[next_idx];
-    if (cur_use.ir_idx <= cur_idx) {
+    if (cur_use.ir_idx < cur_idx ||
+        (cur_use.ir_idx == cur_idx &&
+         (!keep_current_before || !cur_use.before))) {
       next_idx = cur_use.next;
       continue;
     }
     break;
   }
   s->uses[idx] = next_idx;
-
   uint8_t reg = find_current_reg_for_value(s, idx);
   if (reg == REG_NONE) {
     return;
   }
-  // If there is no next use, and we haven't already freed
-  // (i.e. multiple uses at some IR op)
-  // Then free the register.
   if (!next_idx) {
     s->regs[reg] = ALLOC_NONE;
   }
@@ -283,7 +283,7 @@ static void maybe_free_snapshot(regalloc_state *s, uint16_t cur_idx,
   arr_for_each_idx(sn->slots, i) {
     auto val = sn->slots[i].val;
     if (!val.constant) {
-      maybe_free_reg(s, cur_idx, val.loc);
+      maybe_free_reg(s, cur_idx, val.loc, true);
     }
   }
 }
@@ -294,7 +294,7 @@ static void materialize_arg_or_ensure_loc(regalloc_state *s, uint16_t cur_idx,
   auto in = &s->t->ins[value_id];
   uint8_t reg = find_current_reg_for_value(s, value_id);
   if (reg == REG_NONE) {
-    get_or_assign_spill_slot(s, value_id);
+    assert(in->spill != SPILL_NONE);
     reg = find_free_reg(s, in->type == FLONUM_TAG, ins);
     s->regs[reg] = value_id;
     arrput(s->ops,
@@ -328,6 +328,18 @@ static uint8_t find_initial_next_spill(trace *t) {
   return next_spill;
 }
 
+static void assign_initial_spill_slots(regalloc_state *s) {
+  arr_for_each_idx(s->t->ins, i) {
+    if (!s->spilled[i] || s->t->ins[i].spill != SPILL_NONE) {
+      continue;
+    }
+    if (s->next_spill == 255) {
+      abort();
+    }
+    s->t->ins[i].spill = s->next_spill++;
+  }
+}
+
 regalloc_result regalloc(trace *t) {
   regalloc_state s = {
       .t = t, .ir_id_to_dense_map = malloc(arrlen(t->ins) * sizeof(uint16_t))};
@@ -340,6 +352,8 @@ regalloc_result regalloc(trace *t) {
   size_t snap_idx = 0;
   size_t snap_len = arrlen(t->snaps);
   s.next_spill = find_initial_next_spill(t);
+  assign_initial_spill_slots(&s);
+  //print_ir(t, nullptr);
 
   for (size_t i = 0; i < ins_len; i++) {
     while (snap_idx < snap_len && t->snaps[snap_idx].ir == i) {
@@ -358,12 +372,12 @@ regalloc_result regalloc(trace *t) {
       materialize_arg_or_ensure_loc(&s, (uint16_t)i, ins, args[arg].loc);
     }
     for (uint8_t arg = 0; arg < arg_count; arg++) {
-      maybe_free_reg(&s, (uint16_t)i, args[arg].loc);
+      maybe_free_reg(&s, (uint16_t)i, args[arg].loc, false);
     }
 
     // Custom IR_PMOV handling
     if (ins->op == IR_PMOV) {
-      if (ins->reg != REG_NONE) {
+      if (ins->reg != REG_NONE && s.uses[i]) {
         s.regs[ins->prev_reg] = i;
       }
       continue;
