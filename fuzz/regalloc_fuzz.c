@@ -21,6 +21,107 @@ void emit_init_slowpath(emit_state *s) { (void)s; }
 #define FUZZ_CONST_COUNT 64
 #define MAX_SPILL SPILL_NONE
 
+typedef enum : uint8_t {
+  LOC_REG,
+  LOC_SPILL,
+} loc_kind;
+
+typedef struct {
+  loc_kind kind;
+  uint8_t reg;
+  uint8_t spill;
+  uint16_t value_id;
+} dense_loc_entry;
+
+typedef struct {
+  uint16_t ir_idx;
+  uint16_t value_id;
+  uint8_t reg;
+} reload_op;
+
+typedef struct {
+  dense_loc_entry *dense_locs;
+  uint16_t *ir_id_to_dense_map;
+  reload_op *reload_ops;
+} regalloc_result;
+
+static regalloc_result regalloc(trace *t) {
+  regalloc_state s;
+  regalloc_state_init(&s, t);
+  dense_loc_entry *dense_locs = nullptr;
+  uint16_t *ir_id_to_dense_map = nullptr;
+  reload_op *reload_ops = nullptr;
+  size_t ins_len = arrlen(t->ins);
+  size_t snap_idx = 0;
+  size_t snap_len = arrlen(t->snaps);
+
+  if (ins_len > 0) {
+    ir_id_to_dense_map = malloc(ins_len * sizeof(*ir_id_to_dense_map));
+    if (!ir_id_to_dense_map) {
+      abort();
+    }
+  }
+
+  for (size_t i = 0; i < ins_len; i++) {
+    while (snap_idx < snap_len && t->snaps[snap_idx].ir == i) {
+      if (snap_idx > 0) {
+        regalloc_maybe_free_snapshot(&s, (uint16_t)i, &t->snaps[snap_idx - 1]);
+      }
+      snap_idx++;
+    }
+
+    auto ins = &t->ins[i];
+    slot args[3];
+    uint8_t arg_count = regalloc_collect_ir_args(t, ins, args);
+
+    ir_id_to_dense_map[i] = (uint16_t)arrlen(dense_locs);
+    for (uint8_t arg = 0; arg < arg_count; arg++) {
+      uint16_t value_id = args[arg].loc;
+      uint8_t reg = regalloc_find_current_reg_for_value(&s, value_id);
+      if (reg == REG_NONE) {
+        auto in = &t->ins[value_id];
+        assert(in->spill != SPILL_NONE);
+        reg = regalloc_find_free_reg(&s, in->type == FLONUM_TAG, ins);
+        s.regs[reg] = value_id;
+        arrput(reload_ops,
+               ((reload_op){.ir_idx = (uint16_t)i,
+                            .value_id = value_id,
+                            .reg = reg}));
+      }
+      arrput(dense_locs,
+             ((dense_loc_entry){.kind = LOC_REG,
+                                .reg = reg,
+                                .value_id = value_id}));
+    }
+    for (uint8_t arg = 0; arg < arg_count; arg++) {
+      regalloc_maybe_free_reg(&s, (uint16_t)i, args[arg].loc, false);
+    }
+
+    regalloc_assign_output(&s, (uint16_t)i, ins);
+    if (ins->op == IR_RET) {
+      auto tmp = regalloc_find_free_reg(&s, false, ins);
+      arrput(dense_locs,
+             ((dense_loc_entry){.kind = LOC_REG,
+                                .reg = tmp,
+                                .value_id = (uint16_t)i}));
+    }
+  }
+
+  regalloc_state_free(&s);
+  return (regalloc_result){
+      .dense_locs = dense_locs,
+      .ir_id_to_dense_map = ir_id_to_dense_map,
+      .reload_ops = reload_ops,
+  };
+}
+
+static void regalloc_result_free(regalloc_result *r) {
+  arrfree(r->dense_locs);
+  arrfree(r->reload_ops);
+  free(r->ir_id_to_dense_map);
+  memset(r, 0, sizeof(*r));
+}
+
 static uint32_t mix_seed(const uint8_t *data, size_t size) {
   uint32_t x = (uint32_t)size ^ 0x9e3779b9U;
   for (size_t i = 0; i < size; i++) {

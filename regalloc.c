@@ -11,32 +11,8 @@
 #include "ir.h"
 #include "lru.h"
 
-typedef struct {
-  uint16_t ir_idx;
-  bool before;
-  bool is_snap;
-  uint32_t next;
-} next_use;
-
-typedef struct regalloc_state regalloc_state;
-
-static void collect_next_uses(regalloc_state *s);
-
 #define ALLOC_NONE UINT16_MAX
 #define ALLOC_UNALLOCATABLE (UINT16_MAX - 1)
-
-typedef struct regalloc_state {
-  trace *t;
-  uint32_t *uses;
-  next_use *next_uses;
-
-  uint16_t regs[MAX_REG];
-
-  dense_loc_entry *dense_locs;
-  uint16_t *ir_id_to_dense_map;
-  reload_op *ops;
-  uint8_t next_spill;
-} regalloc_state;
 
 static void limit_live_values(regalloc_state *s, lru *lru, uint16_t max) {
   while (lru->count > max) {
@@ -51,13 +27,13 @@ static void limit_live_values(regalloc_state *s, lru *lru, uint16_t max) {
   }
 }
 
-static uint8_t collect_ir_args(trace const *t, ir_ins const *ins, slot *args) {
+uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins, slot *args) {
   uint8_t count = 0;
   slot op1 = ins->op1;
   slot op2 = ins->op2;
   if (ins->op == IR_STORE) {
     auto ptr_ins = &t->ins[op1.loc];
-    count = collect_ir_args(t, ptr_ins, args);
+    count = regalloc_collect_ir_args(t, ptr_ins, args);
     if (!op2.constant) {
       args[count++] = op2;
     }
@@ -94,7 +70,7 @@ static void add_next_use(regalloc_state *s, uint16_t loc, uint16_t ir_idx,
   arrput(s->next_uses, next);
 }
 
-static void collect_next_uses(regalloc_state *s) {
+void regalloc_collect_next_uses(regalloc_state *s) {
   size_t ins_len = arrlen(s->t->ins);
   if (ins_len == 0) {
     return;
@@ -144,7 +120,7 @@ static void collect_next_uses(regalloc_state *s) {
 
     auto ins = &s->t->ins[value_id];
     slot args[3];
-    uint8_t arg_count = collect_ir_args(s->t, ins, args);
+    uint8_t arg_count = regalloc_collect_ir_args(s->t, ins, args);
     for (uint8_t arg = 0; arg < arg_count; arg++) {
       add_next_use(s, args[arg].loc, value_id, true, false);
       auto arg_lru = s->t->ins[args[arg].loc].type == FLONUM_TAG ? &fpr_live
@@ -169,8 +145,8 @@ static void collect_next_uses(regalloc_state *s) {
   }
 }
 
-static uint8_t find_current_reg_for_value(regalloc_state *s,
-                                          uint16_t value_id) {
+uint8_t regalloc_find_current_reg_for_value(regalloc_state *s,
+                                            uint16_t value_id) {
   for (uint16_t reg = 0; reg < MAX_REG; reg++) {
     if (s->regs[reg] == ALLOC_NONE || s->regs[reg] == ALLOC_UNALLOCATABLE) {
       continue;
@@ -185,7 +161,7 @@ static uint8_t find_current_reg_for_value(regalloc_state *s,
 static bool value_used_by_ir_ins(trace const *t, ir_ins const *ins,
                                  uint16_t value_id) {
   slot args[3];
-  uint8_t arg_count = collect_ir_args(t, ins, args);
+  uint8_t arg_count = regalloc_collect_ir_args(t, ins, args);
   for (uint8_t arg = 0; arg < arg_count; arg++) {
     if (args[arg].loc == value_id) {
       return true;
@@ -194,8 +170,8 @@ static bool value_used_by_ir_ins(trace const *t, ir_ins const *ins,
   return false;
 }
 
-static uint8_t find_free_reg(regalloc_state *s, bool flonum,
-                             ir_ins const *cur_ins) {
+uint8_t regalloc_find_free_reg(regalloc_state *s, bool flonum,
+                               ir_ins const *cur_ins) {
   uint16_t start = flonum ? FPR_REG_START : 0;
   uint16_t end = flonum ? FPR_REG_END : FPR_REG_START;
   uint16_t spill_reg = UINT16_MAX;
@@ -234,8 +210,8 @@ static uint8_t find_free_reg(regalloc_state *s, bool flonum,
   return (uint8_t)spill_reg;
 }
 
-static void maybe_free_reg(regalloc_state *s, uint16_t cur_idx, uint16_t idx,
-                           bool keep_current_before) {
+void regalloc_maybe_free_reg(regalloc_state *s, uint16_t cur_idx, uint16_t idx,
+                            bool keep_current_before) {
   auto next_idx = s->uses[idx];
   while (next_idx) {
     auto cur_use = s->next_uses[next_idx];
@@ -248,7 +224,7 @@ static void maybe_free_reg(regalloc_state *s, uint16_t cur_idx, uint16_t idx,
     break;
   }
   s->uses[idx] = next_idx;
-  uint8_t reg = find_current_reg_for_value(s, idx);
+  uint8_t reg = regalloc_find_current_reg_for_value(s, idx);
   if (reg == REG_NONE) {
     return;
   }
@@ -257,125 +233,68 @@ static void maybe_free_reg(regalloc_state *s, uint16_t cur_idx, uint16_t idx,
   }
 }
 
-static void maybe_free_snapshot(regalloc_state *s, uint16_t cur_idx,
+void regalloc_maybe_free_snapshot(regalloc_state *s, uint16_t cur_idx,
                                 snap const *sn) {
   arr_for_each_idx(sn->slots, i) {
     auto val = sn->slots[i].val;
     if (!val.constant) {
-      maybe_free_reg(s, cur_idx, val.loc, true);
+      regalloc_maybe_free_reg(s, cur_idx, val.loc, true);
     }
   }
 }
 
-static void materialize_arg_or_ensure_loc(regalloc_state *s, uint16_t cur_idx,
-                                          ir_ins const *ins,
-                                          uint16_t value_id) {
+uint8_t regalloc_materialize_arg_or_ensure_loc(regalloc_state *s, uint16_t cur_idx,
+                                              ir_ins const *ins,
+                                              uint16_t value_id) {
+  (void)cur_idx;
   auto in = &s->t->ins[value_id];
-  uint8_t reg = find_current_reg_for_value(s, value_id);
+  uint8_t reg = regalloc_find_current_reg_for_value(s, value_id);
   if (reg == REG_NONE) {
     assert(in->spill != SPILL_NONE);
-    reg = find_free_reg(s, in->type == FLONUM_TAG, ins);
+    reg = regalloc_find_free_reg(s, in->type == FLONUM_TAG, ins);
     s->regs[reg] = value_id;
-    arrput(s->ops,
-           ((reload_op){.ir_idx = cur_idx, .value_id = value_id, .reg = reg}));
   }
-
-  arrput(
-      s->dense_locs,
-      ((dense_loc_entry){.kind = LOC_REG, .reg = reg, .value_id = value_id}));
+  return reg;
 }
 
-static void init_regs(regalloc_state *s) {
-  memset(s->regs, 0xff, sizeof(s->regs));
-  bool unallocatable[MAX_REG] = {0};
-  asm_init_unallocatable_regs(unallocatable);
-  for (uint16_t i = 0; i < MAX_REG; i++) {
-    if (unallocatable[i]) {
-      s->regs[i] = ALLOC_UNALLOCATABLE;
+void regalloc_assign_output(regalloc_state *s, uint16_t ir_idx, ir_ins *ins) {
+  if (ins->op == IR_PMOV) {
+    if (ins->reg != REG_NONE && s->uses[ir_idx]) {
+      s->regs[ins->prev_reg] = ir_idx;
     }
+    return;
   }
+  if (ins->op == IR_REF || !s->uses[ir_idx]) {
+    return;
+  }
+  if (ins->reg == REG_NONE) {
+    ins->reg = regalloc_find_free_reg(s, ins->type == FLONUM_TAG, ins);
+  }
+  s->regs[ins->reg] = ir_idx;
 }
 
-static uint8_t find_initial_next_spill(trace *t) {
-  uint8_t next_spill = 0;
+void regalloc_state_init(regalloc_state *s, trace *t) {
+  memset(s, 0, sizeof(*s));
+  s->t = t;
+  s->next_spill = 0;
   arr_for_each_idx(t->ins, i) {
-    if (t->ins[i].spill != SPILL_NONE &&
-        (uint16_t)t->ins[i].spill >= next_spill) {
-      next_spill = (uint8_t)(t->ins[i].spill + 1);
+    if (t->ins[i].spill != SPILL_NONE && t->ins[i].spill >= s->next_spill) {
+      s->next_spill = (uint8_t)(t->ins[i].spill + 1);
     }
   }
-  return next_spill;
-}
-
-regalloc_result regalloc(trace *t) {
-  regalloc_state s = {
-      .t = t, .ir_id_to_dense_map = malloc(arrlen(t->ins) * sizeof(uint16_t))};
-  init_regs(&s);
-  s.next_spill = find_initial_next_spill(t);
-  collect_next_uses(&s);
-
-  // PMOVs are pre-assigned spill slots and registers the parent trace.
-  // Find next valid spill slot.
-  size_t ins_len = arrlen(t->ins);
-  size_t snap_idx = 0;
-  size_t snap_len = arrlen(t->snaps);
-  //print_ir(t, nullptr);
-
-  for (size_t i = 0; i < ins_len; i++) {
-    while (snap_idx < snap_len && t->snaps[snap_idx].ir == i) {
-      if (snap_idx > 0) {
-        maybe_free_snapshot(&s, (uint16_t)i, &t->snaps[snap_idx - 1]);
-      }
-      snap_idx++;
-    }
-
-    auto ins = &t->ins[i];
-    slot args[3];
-    uint8_t arg_count = collect_ir_args(t, ins, args);
-
-    s.ir_id_to_dense_map[i] = arrlen(s.dense_locs);
-    for (uint8_t arg = 0; arg < arg_count; arg++) {
-      materialize_arg_or_ensure_loc(&s, (uint16_t)i, ins, args[arg].loc);
-    }
-    for (uint8_t arg = 0; arg < arg_count; arg++) {
-      maybe_free_reg(&s, (uint16_t)i, args[arg].loc, false);
-    }
-
-    // Custom IR_PMOV handling
-    if (ins->op == IR_PMOV) {
-      if (ins->reg != REG_NONE && s.uses[i]) {
-        s.regs[ins->prev_reg] = i;
-      }
-      continue;
-    }
-    if (ins->op == IR_REF) {
-      continue;
-    }
-    if (s.uses[i] && ins->op != IR_PMOV) {
-      auto res = find_free_reg(&s, ins->type == FLONUM_TAG, ins);
-      ins->reg = res;
-      s.regs[res] = i;
-    }
-    if (ins->op == IR_RET) {
-      auto tmp = find_free_reg(&s, false, ins);
-      arrput(s.dense_locs,
-             ((dense_loc_entry){.kind = LOC_REG, .reg = tmp, .value_id = i}));
+  memset(s->regs, 0xff, sizeof(s->regs));
+  bool unallocatable_regs[MAX_REG] = {0};
+  asm_init_unallocatable_regs(unallocatable_regs);
+  for (uint16_t reg = 0; reg < MAX_REG; reg++) {
+    if (unallocatable_regs[reg]) {
+      s->regs[reg] = ALLOC_UNALLOCATABLE;
     }
   }
-
-  regalloc_result out = {
-      .reload_ops = s.ops,
-      .dense_locs = s.dense_locs,
-      .ir_id_to_dense_map = s.ir_id_to_dense_map,
-  };
-  arrfree(s.next_uses);
-  free(s.uses);
-  return out;
+  regalloc_collect_next_uses(s);
 }
 
-void regalloc_result_free(regalloc_result *r) {
-  arrfree(r->dense_locs);
-  arrfree(r->reload_ops);
-  free(r->ir_id_to_dense_map);
-  memset(r, 0, sizeof(*r));
+void regalloc_state_free(regalloc_state *s) {
+  arrfree(s->next_uses);
+  free(s->uses);
+  memset(s, 0, sizeof(*s));
 }

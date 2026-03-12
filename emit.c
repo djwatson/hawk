@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
 
 #include "array.h"
@@ -118,8 +119,14 @@ static inline bool ins_uses_freg(ir_ins const *ins) {
 }
 
 static inline bool is_fpr_reg(uint8_t reg) { return reg >= FPR_REG_START; }
-static dense_loc_entry snap_entry_loc(trace const *t, uint16_t snap_idx,
-                                      size_t entry_idx);
+typedef struct {
+  bool spilled;
+  uint8_t reg;
+  uint8_t spill;
+} value_loc;
+
+static value_loc snap_entry_loc(trace const *t, uint16_t snap_idx,
+                                size_t entry_idx);
 static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
                            int32_t cur_snap, uint8_t reg);
 static const uint8_t PAR_MOVE_MARKER = UINT8_MAX;
@@ -139,62 +146,17 @@ static inline int32_t spill_offset(uint8_t spill) {
   return (int32_t)spill * 8;
 }
 
-static uint8_t ir_input_reg(trace const *t, regalloc_result const *r,
-                            uint16_t ir_idx, uint8_t arg_idx) {
-  auto ins = &t->ins[ir_idx];
-  size_t in_idx = r->ir_id_to_dense_map[ir_idx];
-
-  if (arg_idx == 0) {
-    if (ir_ins_types[ins->op] == IR_ARG_IR_NONE ||
-        ir_ins_types[ins->op] == IR_ARG_IR_IR ||
-        ir_ins_types[ins->op] == IR_ARG_IR_ADDR) {
-      if (ins->op1.constant) {
-        if (ins->op == IR_RET) {
-          auto loc = r->dense_locs[in_idx++];
-          assert(loc.kind == LOC_REG);
-          return loc.reg;
-        }
-        return REG_NONE;
-      }
-      auto loc = r->dense_locs[in_idx++];
-      assert(loc.kind == LOC_REG);
-      return loc.reg;
-    }
-    return REG_NONE;
-  }
-
-  if (arg_idx == 1 && ir_ins_types[ins->op] == IR_ARG_IR_IR) {
-    if (!ins->op1.constant) {
-      in_idx++;
-    }
-    if (ins->op2.constant) {
-      return REG_NONE;
-    }
-    auto loc = r->dense_locs[in_idx++];
-    assert(loc.kind == LOC_REG);
-    return loc.reg;
-  }
-
-  return REG_NONE;
-}
-
-static dense_loc_entry snap_entry_loc(trace const *t, uint16_t snap_idx,
-                                      size_t entry_idx) {
+static value_loc snap_entry_loc(trace const *t, uint16_t snap_idx,
+                                size_t entry_idx) {
   auto sn = &t->snaps[snap_idx];
   auto entry = &sn->slots[entry_idx];
   assert(!entry->val.constant);
   auto ins = &t->ins[entry->val.loc];
   if (ins->spill != SPILL_NONE) {
-    return (dense_loc_entry){.kind = LOC_SPILL,
-                             .reg = REG_NONE,
-                             .spill = ins->spill,
-                             .value_id = entry->val.loc};
+    return (value_loc){.spilled = true, .reg = REG_NONE, .spill = ins->spill};
   }
   assert(ins->reg != REG_NONE);
-  return (dense_loc_entry){.kind = LOC_REG,
-                           .reg = ins->reg,
-                           .spill = SPILL_NONE,
-                           .value_id = entry->val.loc};
+  return (value_loc){.spilled = false, .reg = ins->reg, .spill = SPILL_NONE};
 }
 
 static uint8_t ir_output_reg(trace const *t, uint16_t ir_idx) {
@@ -495,8 +457,8 @@ static void collect_link_actions(trace *exit_trace, uint16_t exit_snap_idx,
     uint16_t entry_slot = entry->slot;
 
     if (exit_logical == (int32_t)entry_slot) {
-      dense_loc_entry exit_loc = {0};
-      dense_loc_entry entry_loc = {0};
+      value_loc exit_loc = {0};
+      value_loc entry_loc = {0};
       uint8_t entry_reg = REG_NONE;
       if (!exit_entry->val.constant) {
         exit_loc = snap_entry_loc(exit_trace, exit_snap_idx, i);
@@ -504,7 +466,7 @@ static void collect_link_actions(trace *exit_trace, uint16_t exit_snap_idx,
       if (!entry->val.constant) {
         entry_loc = snap_entry_loc(entry_trace, entry_snap_idx, j);
         entry_reg = entry_trace->ins[entry->val.loc].reg;
-        if (entry_reg == REG_NONE && entry_loc.kind == LOC_REG) {
+        if (entry_reg == REG_NONE && !entry_loc.spilled) {
           entry_reg = entry_loc.reg;
         }
       }
@@ -523,7 +485,7 @@ static void collect_link_actions(trace *exit_trace, uint16_t exit_snap_idx,
                         }));
       } else if (!exit_entry->val.constant && !entry->val.constant &&
                  entry_reg != REG_NONE) {
-        if (exit_loc.kind == LOC_REG) {
+        if (!exit_loc.spilled) {
           arrput(actions, ((link_action){
                               .kind = LINK_MOVE,
                               .exit_entry_idx = (uint16_t)i,
@@ -585,11 +547,8 @@ static void collect_link_actions(trace *exit_trace, uint16_t exit_snap_idx,
   *actions_out = actions;
 }
 
-static void emit_snap_store_entry(emit_state *s, trace *t,
-                                  regalloc_result const *regmap,
-                                  uint16_t snap_idx, size_t entry_idx,
-                                  snap_entry const *entry) {
-  (void)regmap;
+static void emit_snap_store_entry(emit_state *s, trace *t, uint16_t snap_idx,
+                                 size_t entry_idx, snap_entry const *entry) {
   auto stack_offset = (int32_t)entry->slot * 8;
   if (entry->val.constant) {
     emit_store_constant(s, stack_offset, RSTACK, slot_const(t, entry->val));
@@ -599,7 +558,7 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
   auto ins = &t->ins[entry->val.loc];
   auto loc = snap_entry_loc(t, snap_idx, entry_idx);
   uint8_t val_reg = REG_NONE;
-  if (loc.kind == LOC_SPILL) {
+  if (loc.spilled) {
     emit_mov64(s, RTMP, (intptr_t)spills);
     if (ins->type == FLONUM_TAG) {
       emit_fmem_load(s, spill_offset(loc.spill), RTMP, FRTMP);
@@ -621,12 +580,11 @@ static void emit_snap_store_entry(emit_state *s, trace *t,
   }
 }
 
-static void emit_snap(emit_state *s, trace *t, regalloc_result const *regmap,
-                      uint16_t snap_idx, bool exit) {
+static void emit_snap(emit_state *s, trace *t, uint16_t snap_idx, bool exit) {
   auto snap = &t->snaps[snap_idx];
 
   arr_for_each_idx(snap->slots, j) {
-    emit_snap_store_entry(s, t, regmap, snap_idx, j, &snap->slots[j]);
+    emit_snap_store_entry(s, t, snap_idx, j, &snap->slots[j]);
   }
 
   emit_stack_offset_and_check(s, snap);
@@ -645,8 +603,7 @@ static void emit_exit_to_c(emit_state *s) {
   emit_ret(s);
 }
 
-static void emit_snapshot_exits(emit_state *s, trace *t,
-                                regalloc_result const *regmap, snap *snaps,
+static void emit_snapshot_exits(emit_state *s, trace *t, snap *snaps,
                                 label *exit_label) {
   // There will always be at least two snapshots.  Don't write the last, it's
   // the loopback snap.
@@ -654,14 +611,13 @@ static void emit_snapshot_exits(emit_state *s, trace *t,
     COMMENT("Snap exit #%i", i);
     snap *snap = &snaps[i];
     emit_label(s, &snap->patch_point);
-    emit_snap(s, t, regmap, (uint16_t)i, true);
+    emit_snap(s, t, (uint16_t)i, true);
     emit_jmp32(s, exit_label);
   }
 }
 
 static void link_to_next_trace(emit_state *s, trace *t,
-                               regalloc_result const *regmap,
-                               uint8_t entry_snap_idx) {
+                              uint8_t entry_snap_idx) {
   auto cur_snap = (uint16_t)(arrlen(t->snaps) - 1);
 
   trace *linked_trace = t->link;
@@ -684,7 +640,7 @@ static void link_to_next_trace(emit_state *s, trace *t,
       }
     }
     if (!skip) {
-      emit_snap_store_entry(s, t, regmap, cur_snap, j, &snap->slots[j]);
+      emit_snap_store_entry(s, t, cur_snap, j, &snap->slots[j]);
     }
   }
   emit_stack_offset_and_check(s, snap);
@@ -735,48 +691,86 @@ static void link_to_next_trace(emit_state *s, trace *t,
   emit_jmp32(s, target);
 }
 
-static void emit_reload_events(emit_state *s, trace *t,
-                               regalloc_result const *regmap, uint16_t ir_idx) {
-  arr_for_each_idx(regmap->reload_ops, eidx) {
-    auto e = regmap->reload_ops[eidx];
-    if (e.ir_idx != ir_idx) {
-      continue;
-    }
-    auto value = &t->ins[e.value_id];
-    assert(value->spill != SPILL_NONE);
-    COMMENT("RELOAD op %u to reg %s", e.value_id, reg_names[e.reg]);
-    emit_mov64(s, RTMP, (intptr_t)spills);
-    if (value->type == FLONUM_TAG) {
-      emit_fmem_load(s, spill_offset(value->spill), RTMP, e.reg);
-    } else {
-      emit_mem_load(s, spill_offset(value->spill), RTMP, e.reg);
-    }
+static void emit_reload_arg(emit_state *s, trace *t, uint16_t value_id,
+                           uint8_t reg) {
+  auto in = &t->ins[value_id];
+  emit_mov64(s, RTMP, (intptr_t)spills);
+  if (in->type == FLONUM_TAG) {
+    emit_fmem_load(s, spill_offset(in->spill), RTMP, reg);
+  } else {
+    emit_mem_load(s, spill_offset(in->spill), RTMP, reg);
   }
 }
 
-static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
+static inline uint8_t emit_arg_reg(slot args[3], uint8_t arg_regs[3],
+                                   uint8_t arg_count, slot target) {
+  if (target.constant) {
+    return REG_NONE;
+  }
+  for (uint8_t i = 0; i < arg_count; i++) {
+    if (!args[i].constant && args[i].loc == target.loc) {
+      return arg_regs[i];
+    }
+  }
+  return REG_NONE;
+}
 
-  int32_t cur_snap = 0;
+static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
+  int32_t cur_snap = -1;
+  size_t snap_idx = 0;
 
   for (uint16_t op_cnt_idx = 0; op_cnt_idx < arrlen(t->ins); op_cnt_idx++) {
-    uint8_t arg0_reg = ir_input_reg(t, regmap, op_cnt_idx, 0);
-    uint8_t arg1_reg = ir_input_reg(t, regmap, op_cnt_idx, 1);
-    while ((size_t)(cur_snap + 1) < arrlen(t->snaps) &&
-           t->snaps[cur_snap + 1].ir == op_cnt_idx) {
-      if (cur_snap == 0) {
+    while (snap_idx < arrlen(t->snaps) && t->snaps[snap_idx].ir == op_cnt_idx) {
+      if (snap_idx == 1) {
         emit_label(s, &t->snap_entry_label);
       }
-      cur_snap++;
+      if (snap_idx > 0) {
+        regalloc_maybe_free_snapshot(ra_state, op_cnt_idx,
+                                    &t->snaps[snap_idx - 1]);
+      }
+      cur_snap = (int32_t)snap_idx;
+      snap_idx++;
     }
     auto op = &t->ins[op_cnt_idx];
-    uint8_t out_reg = op->reg;
-    uint8_t dst_reg = out_reg;
-    if (dst_reg == REG_NONE) {
-      dst_reg = ins_uses_freg(op) ? FRTMP : RTMP;
-    }
 
     COMMENT("%i %s", op_cnt_idx, ir_names[op->op]);
-    emit_reload_events(s, t, regmap, op_cnt_idx);
+    slot args[3];
+    uint8_t arg_count = regalloc_collect_ir_args(t, op, args);
+    uint8_t arg_regs[3] = {REG_NONE, REG_NONE, REG_NONE};
+    for (uint8_t arg = 0; arg < arg_count; arg++) {
+      if (args[arg].constant) {
+        continue;
+      }
+      uint8_t old_reg = regalloc_find_current_reg_for_value(ra_state, args[arg].loc);
+      uint8_t arg_reg = regalloc_materialize_arg_or_ensure_loc(
+          ra_state, (uint16_t)op_cnt_idx, op, args[arg].loc);
+      arg_regs[arg] = arg_reg;
+      if (old_reg == REG_NONE) {
+        emit_reload_arg(s, t, args[arg].loc, arg_reg);
+      }
+    }
+    for (uint8_t arg = 0; arg < arg_count; arg++) {
+      if (!args[arg].constant) {
+        regalloc_maybe_free_reg(ra_state, (uint16_t)op_cnt_idx, args[arg].loc,
+                                false);
+      }
+    }
+
+    regalloc_assign_output(ra_state, op_cnt_idx, op);
+    uint8_t out_reg = op->reg;
+    uint8_t dst_reg = out_reg;
+    if (op->op == IR_RET && out_reg == REG_NONE) {
+      dst_reg = regalloc_find_free_reg(ra_state, false, op);
+    } else if (dst_reg == REG_NONE) {
+      dst_reg = ins_uses_freg(op) ? FRTMP : RTMP;
+    }
+    uint8_t arg0_reg = arg_count > 0 ? arg_regs[0] : REG_NONE;
+    uint8_t arg1_reg = arg_count > 1 ? arg_regs[1] : REG_NONE;
+    if (op->op == IR_RET && arg0_reg == REG_NONE) {
+      arg0_reg = dst_reg;
+    } else {
+      // no-op
+    }
 
 #define EMIT_CMP_CASE(opname, f_fail, i_fail)                                  \
   case opname: {                                                               \
@@ -837,33 +831,20 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
     }
     case IR_STORE: {
       ir_ins *ref = slot_ins(t, op->op1);
-      uint16_t ref_idx = op->op1.loc;
-
-      auto val_reg = RTMP;
+      auto val_reg = arg0_reg;
       if (op->op2.constant) {
-        emit_mov64(s, val_reg, slot_const(t, op->op2));
+        emit_mov64(s, RTMP2, slot_const(t, op->op2));
+        val_reg = RTMP2;
       } else {
-        // IR_STORE materializes inputs as [ref args..., value].
-        // So arg1_reg is not the value reg when REF has two args.
-        size_t in_idx = regmap->ir_id_to_dense_map[op_cnt_idx];
-        size_t ref_arg_cnt = 0;
-        if (!ref->op1.constant) {
-          ref_arg_cnt++;
-        }
-        if (!ref->op2.constant) {
-          ref_arg_cnt++;
-        }
-        auto val_loc = regmap->dense_locs[in_idx + ref_arg_cnt];
-        assert(val_loc.kind == LOC_REG);
-        val_reg = val_loc.reg;
-        if (is_fpr_reg(val_reg)) {
-          // Object stores are tagged gc_obj slots; box flonum payload first.
-          emit_box_flonum(s, 0, val_reg, false);
-          val_reg = RTMP;
-        }
+        val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+      }
+      assert(val_reg != REG_NONE || op->op2.constant);
+      if (is_fpr_reg(val_reg)) {
+        emit_box_flonum(s, 0, val_reg, false);
+        val_reg = RTMP2;
       }
 
-      uint8_t base_reg = ir_input_reg(t, regmap, ref_idx, 0);
+      auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
       if (ref->op1.constant) {
         // REF base can be a constant object (e.g. global vector).
         // Materialize it explicitly since constant args have no input reg.
@@ -881,7 +862,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
         // don't
 
         // Offset is NOT a const, need additional offset + typed offset.
-        auto offset_reg = ir_input_reg(t, regmap, ref_idx, 1);
+        auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
         uint8_t addr_reg = RTMP2;
         if (ref->op1.constant) {
           // base_reg is already RTMP2 here; build address directly from const
@@ -1003,7 +984,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
     }
     case IR_GSET: {
       emit_mov64(s, RTMP, slot_const(t, op->op1) - SYMBOL_TAG);
-      uint8_t val_reg = arg1_reg;
+      uint8_t val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
       if (op->op2.constant) {
         val_reg = RTMP2;
         emit_mov64(s, val_reg, slot_const(t, op->op2));
@@ -1062,6 +1043,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
     case IR_REF:
     case IR_ARG:
     case IR_NOP:
+      break;
     case IR_PMOV:
       break;
     case IR_TYPECHECK: {
@@ -1107,7 +1089,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc_result const *regmap) {
 // One that loops back from the current trace
 // One from c.
 static void emit_root_trace_entry(emit_state *s, trace *t,
-                                  regalloc_result const *regmap) {
+                                  regalloc_state *ra_state) {
+  regalloc_state arg_state;
+  regalloc_state_init(&arg_state, t);
   // Emit an entry point from C.
   COMMENT("CENTRY");
   save_callee_regs(s);
@@ -1117,6 +1101,7 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
   ir_ins *arg_ins = nullptr;
   for_each_leading_op(t, IR_ARG, arg_ins) {
     uint16_t ir_idx = (uint16_t)(arg_ins - t->ins);
+    regalloc_assign_output(&arg_state, ir_idx, arg_ins);
     uint8_t out_reg = ir_output_reg(t, ir_idx);
     if (out_reg != REG_NONE) {
       auto offset = (int32_t)arg_ins->data * 8;
@@ -1127,14 +1112,14 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
         emit_mem_load(s, offset, RSTACK, out_reg);
       }
     }
-#undef EMIT_ARITH_CASE
-#undef EMIT_CMP_CASE
   }
+  regalloc_state_free(&arg_state);
+  (void)ra_state;
 }
 
 static void emit_side_trace_entry(emit_state *s, trace *t,
-                                  regalloc_result const *regmap) {
-  (void)regmap;
+                                  regalloc_state *ra_state) {
+  (void)ra_state;
   // Install the side trace.
   uint8_t *patch_loc = t->parent_snap->patch_point.addr;
   asm_write_jmp32_at(s, patch_loc, (uint8_t *)emit_offset(s));
@@ -1147,12 +1132,13 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   emit_init(s);
 
   // Allocate registers, print the IR in verbose mode.
-  auto regmap = regalloc(t);
+  regalloc_state reg_state;
+  regalloc_state_init(&reg_state, t);
   if (verbose) {
-    print_ir(t, &regmap);
+    print_ir(t);
   }
-
-  // Remember, we're emitting backwards! This makes the register
+  
+  // Remember, we're emitting backwards? This makes the register
   // allocator much simpler to write, no state needs to be preserved.
   emit_writable_begin(s);
 
@@ -1161,26 +1147,26 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   auto start = emit_offset(s);
 
   if (!t->parent_snap) {
-    emit_root_trace_entry(s, t, &regmap);
+    emit_root_trace_entry(s, t, &reg_state);
   } else {
-    emit_side_trace_entry(s, t, &regmap);
+    emit_side_trace_entry(s, t, &reg_state);
   }
 
   // This is where the trace will start when other traces are linked to it.
   // (without typechecking).
   emit_label(s, &t->trace_start);
 
-  emit_ir(s, t, &regmap);
+  emit_ir(s, t, &reg_state);
 
   // Link to the next trace: Which is either ourselves (if a looping parent
   // trace), or another trace (if a side trace).
-  link_to_next_trace(s, t, &regmap, link_entry_snap);
+  link_to_next_trace(s, t, link_entry_snap);
 
   label exit_label = {};
   // Exist stubs for all but the loopback (last). These restore the scheme
   // stack state, putting any in-register values back on the stack, and boxing
   // flonums.
-  emit_snapshot_exits(s, t, &regmap, t->snaps, &exit_label);
+  emit_snapshot_exits(s, t, t->snaps, &exit_label);
 
   emit_label(s, &exit_label);
   emit_exit_to_c(s);
@@ -1198,7 +1184,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // Cleanup
   arr_for_each(s->comments, entry) { free((void *)entry.text); }
   arrfree(s->comments);
-  regalloc_result_free(&regmap);
+  regalloc_state_free(&reg_state);
 
   // Install debuginfo for gdb & linux perf tool.
   char funcname[256];

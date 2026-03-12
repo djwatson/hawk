@@ -1,5 +1,10 @@
 # Currently working on:
 
+* get GC constants rooted in-trace, using mov64 or constant movz, movk... series.  Update on GC.
+* initial version, just abort on slowpath
+* next version, root all registers (since we have reg state now!) and call slowpath.
+* get box_flonum working for all paths, similarly rooting all the things.
+
 * figure out why deriv is slow
   * really need a tracing nursury
   * downrec abort not working (start of trace is failing?)
