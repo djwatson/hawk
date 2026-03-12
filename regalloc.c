@@ -29,7 +29,6 @@ typedef struct regalloc_state {
   trace *t;
   uint32_t *uses;
   next_use *next_uses;
-  bool *spilled;
 
   uint16_t regs[MAX_REG];
 
@@ -50,7 +49,13 @@ static lru *value_lru_for(lru *gpr, lru *fpr, bool flonum) {
 static void limit_live_values(regalloc_state *s, lru *lru, uint16_t max) {
   while (lru->count > max) {
     uint16_t spill_value = lru_pop_oldest(lru);
-    s->spilled[spill_value] = true;
+    auto ins = &s->t->ins[spill_value];
+    if (ins->spill == SPILL_NONE) {
+      if (s->next_spill == 255) {
+        abort();
+      }
+      ins->spill = s->next_spill++;
+    }
   }
 }
 
@@ -114,11 +119,6 @@ static void collect_next_uses(regalloc_state *s) {
   size_t snap_len = arrlen(s->t->snaps);
   size_t cur_snap = snap_len;
   uint16_t cur_snap_end_ir = ins_len;
-
-  s->spilled = calloc(ins_len, sizeof(bool));
-  if (!s->spilled) {
-    abort();
-  }
 
   lru gpr_live;
   lru fpr_live;
@@ -328,22 +328,11 @@ static uint8_t find_initial_next_spill(trace *t) {
   return next_spill;
 }
 
-static void assign_initial_spill_slots(regalloc_state *s) {
-  arr_for_each_idx(s->t->ins, i) {
-    if (!s->spilled[i] || s->t->ins[i].spill != SPILL_NONE) {
-      continue;
-    }
-    if (s->next_spill == 255) {
-      abort();
-    }
-    s->t->ins[i].spill = s->next_spill++;
-  }
-}
-
 regalloc_result regalloc(trace *t) {
   regalloc_state s = {
       .t = t, .ir_id_to_dense_map = malloc(arrlen(t->ins) * sizeof(uint16_t))};
   init_regs(&s);
+  s.next_spill = find_initial_next_spill(t);
   collect_next_uses(&s);
 
   // PMOVs are pre-assigned spill slots and registers the parent trace.
@@ -351,8 +340,6 @@ regalloc_result regalloc(trace *t) {
   size_t ins_len = arrlen(t->ins);
   size_t snap_idx = 0;
   size_t snap_len = arrlen(t->snaps);
-  s.next_spill = find_initial_next_spill(t);
-  assign_initial_spill_slots(&s);
   //print_ir(t, nullptr);
 
   for (size_t i = 0; i < ins_len; i++) {
@@ -401,7 +388,6 @@ regalloc_result regalloc(trace *t) {
       .reload_ops = s.ops,
       .dense_locs = s.dense_locs,
       .ir_id_to_dense_map = s.ir_id_to_dense_map,
-      .spilled = s.spilled,
   };
   arrfree(s.next_uses);
   free(s.uses);
@@ -412,6 +398,5 @@ void regalloc_result_free(regalloc_result *r) {
   arrfree(r->dense_locs);
   arrfree(r->reload_ops);
   free(r->ir_id_to_dense_map);
-  free(r->spilled);
   memset(r, 0, sizeof(*r));
 }
