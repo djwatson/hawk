@@ -369,8 +369,7 @@ static gc_obj deserialize_vector(buffer_reader *reader, heap_state *heap) {
     exit(EXIT_FAILURE);
   }
   size_t elem_count = (size_t)len;
-  vector_s *vec =
-      gc_alloc(sizeof(vector_s) + (elem_count * sizeof(gc_obj)));
+  vector_s *vec = gc_alloc(sizeof(vector_s) + (elem_count * sizeof(gc_obj)));
   vec->header.type = VECTOR_TAG;
   vec->len = tag_fixnum((int64_t)elem_count);
   for (size_t i = 0; i < elem_count; i++) {

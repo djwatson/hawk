@@ -19,8 +19,7 @@ static const size_t msize = page_cnt * 4096;
 
 const char *const reg_names[FPR_REG_END] = {
 #define X(name, unallocatable, callee_saved) #name,
-    ASM_REGISTER_LIST(X)
-    ASM_FREGISTER_LIST(X)
+    ASM_REGISTER_LIST(X) ASM_FREGISTER_LIST(X)
 #undef X
 };
 

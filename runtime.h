@@ -86,8 +86,7 @@ static inline uint8_t numeric_result_type(uint8_t t1, uint8_t t2) {
 }
 
 #define VM_NUMERIC_TYPE_OF(v)                                                  \
-  (is_flonum((v)) ? FLONUM_TAG                                                 \
-                  : (is_fixnum((v)) ? FIXNUM_TAG : (abort(), 0)))
+  (is_flonum((v)) ? FLONUM_TAG : (is_fixnum((v)) ? FIXNUM_TAG : (abort(), 0)))
 
 static inline uint8_t numeric_obj_result_type(gc_obj lhs, gc_obj rhs) {
   return numeric_result_type(VM_NUMERIC_TYPE_OF(lhs), VM_NUMERIC_TYPE_OF(rhs));
@@ -103,9 +102,9 @@ static inline uint8_t numeric_obj_result_type(gc_obj lhs, gc_obj rhs) {
   } while (0)
 
 static inline bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
-  VM_NUMERIC_DISPATCH_VALUES(lhs, rhs, return to_fixnum(lhs) == to_fixnum(rhs);,
-                             return numeric_to_double(lhs) ==
-                                    numeric_to_double(rhs););
+  VM_NUMERIC_DISPATCH_VALUES(lhs, rhs, return to_fixnum(lhs) == to_fixnum(rhs);
+                             , return numeric_to_double(lhs) ==
+                                      numeric_to_double(rhs););
 }
 
 static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
@@ -126,8 +125,8 @@ static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
 #define DEFINE_RECORD_NUMERIC_BINOP_COERCED(name, ir_op)                       \
   static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2) {         \
     auto t = record_current_trace(state);                                      \
-    uint8_t type = numeric_result_type(get_slot_type(t, v1),                   \
-                                       get_slot_type(t, v2));                  \
+    uint8_t type =                                                             \
+        numeric_result_type(get_slot_type(t, v1), get_slot_type(t, v2));       \
     if (type == FLONUM_TAG) {                                                  \
       v1 = convert_to_flonum(state, v1);                                       \
       v2 = convert_to_flonum(state, v2);                                       \
@@ -140,8 +139,7 @@ static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
   static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2) {         \
     v1 = convert_to_flonum(state, v1);                                         \
     v2 = convert_to_flonum(state, v2);                                         \
-    ir_ins ins =                                                               \
-        IR(.op = ir_op, .op1 = v1, .op2 = v2, .type = FLONUM_TAG);             \
+    ir_ins ins = IR(.op = ir_op, .op1 = v1, .op2 = v2, .type = FLONUM_TAG);    \
     return add_inst(state, ins);                                               \
   }
 

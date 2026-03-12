@@ -604,9 +604,9 @@ void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
 }
 
 #define DEFINE_FIXNUM_GUARD_OVERFLOW(name)                                     \
-  void asm_emit_fixnum_##name##_guard_overflow(emit_state *s, uint8_t dst,    \
-                                                uint8_t lhs, uint8_t rhs,      \
-                                                label *overflow_target) {      \
+  void asm_emit_fixnum_##name##_guard_overflow(emit_state *s, uint8_t dst,     \
+                                               uint8_t lhs, uint8_t rhs,       \
+                                               label *overflow_target) {       \
     emit_##name(s, dst, lhs, rhs);                                             \
     emit_jcc32(s, JO, overflow_target);                                        \
   }                                                                            \

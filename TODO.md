@@ -1,7 +1,7 @@
 # Currently working on:
 
-* get GC constants rooted in-trace, using mov64 or constant movz, movk... series.  Update on GC.
-* initial version, just abort on slowpath
+* something broken in vm_add_snap IF branches for deriv, nqueens
+
 * next version, root all registers (since we have reg state now!) and call slowpath.
 * get box_flonum working for all paths, similarly rooting all the things.
 

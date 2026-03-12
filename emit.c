@@ -149,8 +149,7 @@ static inline gc_obj slot_gc_obj(trace *t, slot v) {
 static void emit_heap_constant(emit_state *s, trace *t, uint8_t reg,
                                gc_obj value) {
   if (is_heap_object(value)) {
-    arrput(t->gc_const_locs,
-           asm_emit_mov64_patchable(s, reg, value.value));
+    arrput(t->gc_const_locs, asm_emit_mov64_patchable(s, reg, value.value));
     return;
   }
   emit_mov64(s, reg, value.value);
@@ -507,12 +506,12 @@ static void collect_link_actions(trace *exit_trace, uint16_t exit_snap_idx,
                               .move = {.from = exit_loc.reg, .to = entry_reg},
                           }));
         } else {
-          arrput(actions, ((link_action){
-                              .kind = LINK_LOAD,
-                              .exit_entry_idx = UINT16_MAX,
-                              .load = {.slot = entry_slot,
-                                       .target_reg = entry_reg},
-                          }));
+          arrput(actions,
+                 ((link_action){
+                     .kind = LINK_LOAD,
+                     .exit_entry_idx = UINT16_MAX,
+                     .load = {.slot = entry_slot, .target_reg = entry_reg},
+                 }));
         }
       }
 
@@ -531,12 +530,12 @@ static void collect_link_actions(trace *exit_trace, uint16_t exit_snap_idx,
     if (!entry->val.constant) {
       uint8_t target_reg = entry_trace->ins[entry->val.loc].reg;
       if (target_reg != REG_NONE) {
-        arrput(actions, ((link_action){
-                            .kind = LINK_LOAD,
-                            .exit_entry_idx = UINT16_MAX,
-                            .load = {.slot = entry_slot,
-                                     .target_reg = target_reg},
-                        }));
+        arrput(actions,
+               ((link_action){
+                   .kind = LINK_LOAD,
+                   .exit_entry_idx = UINT16_MAX,
+                   .load = {.slot = entry_slot, .target_reg = target_reg},
+               }));
       }
     }
     j++;
@@ -548,12 +547,12 @@ static void collect_link_actions(trace *exit_trace, uint16_t exit_snap_idx,
     if (!entry->val.constant) {
       uint8_t target_reg = entry_trace->ins[entry->val.loc].reg;
       if (target_reg != REG_NONE) {
-        arrput(actions, ((link_action){
-                            .kind = LINK_LOAD,
-                            .exit_entry_idx = UINT16_MAX,
-                            .load = {.slot = entry->slot,
-                                     .target_reg = target_reg},
-                        }));
+        arrput(actions,
+               ((link_action){
+                   .kind = LINK_LOAD,
+                   .exit_entry_idx = UINT16_MAX,
+                   .load = {.slot = entry->slot, .target_reg = target_reg},
+               }));
       }
     }
     j++;
@@ -563,7 +562,7 @@ static void collect_link_actions(trace *exit_trace, uint16_t exit_snap_idx,
 }
 
 static void emit_snap_store_entry(emit_state *s, trace *t, uint16_t snap_idx,
-                                 size_t entry_idx, snap_entry const *entry) {
+                                  size_t entry_idx, snap_entry const *entry) {
   auto stack_offset = (int32_t)entry->slot * 8;
   if (entry->val.constant) {
     gc_obj value = slot_gc_obj(t, entry->val);
@@ -638,7 +637,7 @@ static void emit_snapshot_exits(emit_state *s, trace *t, snap *snaps,
 }
 
 static void link_to_next_trace(emit_state *s, trace *t,
-                              uint8_t entry_snap_idx) {
+                               uint8_t entry_snap_idx) {
   auto cur_snap = (uint16_t)(arrlen(t->snaps) - 1);
 
   trace *linked_trace = t->link;
@@ -699,9 +698,8 @@ static void link_to_next_trace(emit_state *s, trace *t,
             s, action->constant.target_reg,
             to_flonum((gc_obj){.value = action->constant.constant_value})->x);
       } else {
-        emit_heap_constant(
-            s, t, action->constant.target_reg,
-            (gc_obj){.value = action->constant.constant_value});
+        emit_heap_constant(s, t, action->constant.target_reg,
+                           (gc_obj){.value = action->constant.constant_value});
       }
     }
   }
@@ -714,7 +712,7 @@ static void link_to_next_trace(emit_state *s, trace *t,
 }
 
 static void emit_reload_arg(emit_state *s, trace *t, uint16_t value_id,
-                           uint8_t reg) {
+                            uint8_t reg) {
   auto in = &t->ins[value_id];
   emit_mov64(s, RTMP, (intptr_t)spills);
   if (in->type == FLONUM_TAG) {
@@ -748,7 +746,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
       if (snap_idx > 0) {
         regalloc_maybe_free_snapshot(ra_state, op_cnt_idx,
-                                    &t->snaps[snap_idx - 1]);
+                                     &t->snaps[snap_idx - 1]);
       }
       cur_snap = (int32_t)snap_idx;
       snap_idx++;
@@ -763,7 +761,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       if (args[arg].constant) {
         continue;
       }
-      uint8_t old_reg = regalloc_find_current_reg_for_value(ra_state, args[arg].loc);
+      uint8_t old_reg =
+          regalloc_find_current_reg_for_value(ra_state, args[arg].loc);
       uint8_t arg_reg = regalloc_materialize_arg_or_ensure_loc(
           ra_state, (uint16_t)op_cnt_idx, op, args[arg].loc);
       arg_regs[arg] = arg_reg;
@@ -802,9 +801,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
 #define EMIT_GUARDED_ARITH_CASE(opname, float_emit, reg_emit, const_emit)      \
   case opname: {                                                               \
     if (op->type == FLONUM_TAG) {                                              \
-      emit_flonum_binop(s, t, dst_reg, op, float_emit, arg0_reg, arg1_reg);   \
+      emit_flonum_binop(s, t, dst_reg, op, float_emit, arg0_reg, arg1_reg);    \
     } else if (op->op2.constant) {                                             \
-      const_emit(s, dst_reg, arg0_reg, slot_const(t, op->op2),                \
+      const_emit(s, dst_reg, arg0_reg, slot_const(t, op->op2),                 \
                  &t->snaps[cur_snap].patch_point);                             \
     } else {                                                                   \
       reg_emit(s, dst_reg, arg0_reg, arg1_reg,                                 \
@@ -1176,7 +1175,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   if (verbose) {
     print_ir(t);
   }
-  
+
   // Remember, we're emitting backwards? This makes the register
   // allocator much simpler to write, no state needs to be preserved.
   emit_writable_begin(s);

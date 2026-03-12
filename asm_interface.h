@@ -40,8 +40,7 @@ void emit_call32(emit_state *s, int64_t target);
 void emit_push(emit_state *s, uint8_t r);
 void emit_pop(emit_state *s, uint8_t r);
 void emit_fmov(emit_state *s, uint8_t dst, uint8_t src);
-void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count,
-                    bool abi);
+void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi);
 void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi);
 void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
 void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
@@ -59,21 +58,18 @@ void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
 void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_mul(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
-void asm_emit_fixnum_add_guard_overflow(emit_state *s, uint8_t dst,
-                                        uint8_t lhs, uint8_t rhs,
-                                        label *overflow_target);
+void asm_emit_fixnum_add_guard_overflow(emit_state *s, uint8_t dst, uint8_t lhs,
+                                        uint8_t rhs, label *overflow_target);
 void asm_emit_fixnum_add_constant_guard_overflow(emit_state *s, uint8_t dst,
                                                  uint8_t lhs, int64_t imm,
                                                  label *overflow_target);
-void asm_emit_fixnum_sub_guard_overflow(emit_state *s, uint8_t dst,
-                                        uint8_t lhs, uint8_t rhs,
-                                        label *overflow_target);
+void asm_emit_fixnum_sub_guard_overflow(emit_state *s, uint8_t dst, uint8_t lhs,
+                                        uint8_t rhs, label *overflow_target);
 void asm_emit_fixnum_sub_constant_guard_overflow(emit_state *s, uint8_t dst,
                                                  uint8_t lhs, int64_t imm,
                                                  label *overflow_target);
-void asm_emit_fixnum_mul_guard_overflow(emit_state *s, uint8_t dst,
-                                        uint8_t lhs, uint8_t rhs,
-                                        label *overflow_target);
+void asm_emit_fixnum_mul_guard_overflow(emit_state *s, uint8_t dst, uint8_t lhs,
+                                        uint8_t rhs, label *overflow_target);
 void asm_emit_fixnum_mul_constant_guard_overflow(emit_state *s, uint8_t dst,
                                                  uint8_t lhs, int64_t imm,
                                                  label *overflow_target);

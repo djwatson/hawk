@@ -2,9 +2,9 @@
 
 #pragma once
 
+#include "asm_interface.h"
 #include <stddef.h>
 #include <stdint.h>
-#include "asm_interface.h"
 
 #define ASM_AARCH64_REGISTER_LIST(X)                                           \
   X(X0, false, false)                                                          \

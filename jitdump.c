@@ -4,8 +4,8 @@
 
 #include <assert.h>
 #include <ctype.h>
-#include <inttypes.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <stddef.h> // for offsetof
 #include <stdint.h>
 #include <stdio.h>
@@ -21,9 +21,9 @@
 #include <pthread.h>
 #endif
 
+#include "elf_compat.h"
 #include "hawk.h"
 #include "jitdump.h"
-#include "elf_compat.h"
 
 static int jit_cnt = 0;
 static void *mapaddr = nullptr;
@@ -66,8 +66,8 @@ void perf_map(uint64_t fn, uint64_t len, const char *name) {
     jit_dump_error();
   }
   if (strlen(name)) {
-    fprintf(file, "%" PRIx64 " %" PRIx64 " jit function %s %i\n", fn, len,
-            name, jit_cnt);
+    fprintf(file, "%" PRIx64 " %" PRIx64 " jit function %s %i\n", fn, len, name,
+            jit_cnt);
   } else {
     fprintf(file, "%" PRIx64 " %" PRIx64 " jit anon function %i\n", fn, len,
             jit_cnt);

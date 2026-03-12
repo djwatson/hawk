@@ -66,5 +66,5 @@ typedef struct {
 #define STB_GLOBAL 1
 #define STT_FILE 4
 #define STT_FUNC 2
-#define ELF64_ST_INFO(bind, type) (((bind) << 4) + ((type)&0xf))
+#define ELF64_ST_INFO(bind, type) (((bind) << 4) + ((type) & 0xf))
 #endif

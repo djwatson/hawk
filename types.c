@@ -21,21 +21,11 @@ bcfunc const *closure_code_ptr(closure_s const *clo) {
 }
 
 static const char *type_tag_names[256] = {
-    [FIXNUM_TAG] = "fix",
-    [CONS_TAG] = "cons",
-    [FLONUM_TAG] = "flo",
-    [SYMBOL_TAG] = "sym",
-    [BOOL_TAG] = "bool",
-    [NIL_TAG] = "nil",
-    [EOF_TAG] = "eof",
-    [STRING_TAG] = "str",
-    [FUNC_TAG] = "func",
-    [VECTOR_TAG] = "vec",
-    [CONT_TAG] = "cont",
-    [PTR_TAG] = "ptr",
-    [CHAR_TAG] = "char",
-    [CLOSURE_TAG] = "clo",
-    [UNDEFINED_TAG] = "",
+    [FIXNUM_TAG] = "fix", [CONS_TAG] = "cons",   [FLONUM_TAG] = "flo",
+    [SYMBOL_TAG] = "sym", [BOOL_TAG] = "bool",   [NIL_TAG] = "nil",
+    [EOF_TAG] = "eof",    [STRING_TAG] = "str",  [FUNC_TAG] = "func",
+    [VECTOR_TAG] = "vec", [CONT_TAG] = "cont",   [PTR_TAG] = "ptr",
+    [CHAR_TAG] = "char",  [CLOSURE_TAG] = "clo", [UNDEFINED_TAG] = "",
 };
 
 const char *type_tag_name(uint8_t tag) {

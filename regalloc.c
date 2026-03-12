@@ -14,6 +14,25 @@
 #define ALLOC_NONE UINT16_MAX
 #define ALLOC_UNALLOCATABLE (UINT16_MAX - 1)
 
+// A simple two-pass register allocator: The first pass collects
+// next-use chains, and calculates register pressure, and picks spills.
+//
+// The forward pass, that is integrated in to emit.c, then actually
+// chooses registers.  Potential spill candidates are pre-computed,
+// but it still has some freedom to perhaps pick a better spill based
+// on next-use.
+
+// (TODO: investigate if dropping next-use chains entirely, and having the
+// backwards walk emit where some irs are 'spilled', i.e. no longer in register,
+// is worthwhile - unclear if next-use chains pay for themselves or not).
+
+// This is very similar to 'SSA-based' register allocation, where spilling and
+// register allocation are separate.
+
+// We're slightly more complicated than LuaJIT here, because instead
+// of a single backwards pass, we're emitting code forward (both for
+// clarity, and to make loopback register parallel copies easier).
+
 static void limit_live_values(regalloc_state *s, lru *lru, uint16_t max) {
   while (lru->count > max) {
     uint16_t spill_value = lru_pop_oldest(lru);
@@ -27,7 +46,8 @@ static void limit_live_values(regalloc_state *s, lru *lru, uint16_t max) {
   }
 }
 
-uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins, slot *args) {
+uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins,
+                                 slot *args) {
   uint8_t count = 0;
   slot op1 = ins->op1;
   slot op2 = ins->op2;
@@ -123,11 +143,10 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     uint8_t arg_count = regalloc_collect_ir_args(s->t, ins, args);
     for (uint8_t arg = 0; arg < arg_count; arg++) {
       add_next_use(s, args[arg].loc, value_id, true, false);
-      auto arg_lru = s->t->ins[args[arg].loc].type == FLONUM_TAG ? &fpr_live
-                                                                 : &gpr_live;
+      auto arg_lru =
+          s->t->ins[args[arg].loc].type == FLONUM_TAG ? &fpr_live : &gpr_live;
       lru_poke(arg_lru, args[arg].loc);
     }
-    // TODO if we need tmp values, add them here?
     // In the current regalloc, the output register is live
     // at the same time as the input registers.
     uint16_t gpr_limit = GPR_ALLOCATABLE;
@@ -137,6 +156,7 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     } else {
       gpr_limit--;
     }
+    // RET requires a tmp reg.
     if (ins->op == IR_RET) {
       gpr_limit--;
     }
@@ -211,7 +231,7 @@ uint8_t regalloc_find_free_reg(regalloc_state *s, bool flonum,
 }
 
 void regalloc_maybe_free_reg(regalloc_state *s, uint16_t cur_idx, uint16_t idx,
-                            bool keep_current_before) {
+                             bool keep_current_before) {
   auto next_idx = s->uses[idx];
   while (next_idx) {
     auto cur_use = s->next_uses[next_idx];
@@ -234,7 +254,7 @@ void regalloc_maybe_free_reg(regalloc_state *s, uint16_t cur_idx, uint16_t idx,
 }
 
 void regalloc_maybe_free_snapshot(regalloc_state *s, uint16_t cur_idx,
-                                snap const *sn) {
+                                  snap const *sn) {
   arr_for_each_idx(sn->slots, i) {
     auto val = sn->slots[i].val;
     if (!val.constant) {
@@ -243,9 +263,10 @@ void regalloc_maybe_free_snapshot(regalloc_state *s, uint16_t cur_idx,
   }
 }
 
-uint8_t regalloc_materialize_arg_or_ensure_loc(regalloc_state *s, uint16_t cur_idx,
-                                              ir_ins const *ins,
-                                              uint16_t value_id) {
+uint8_t regalloc_materialize_arg_or_ensure_loc(regalloc_state *s,
+                                               uint16_t cur_idx,
+                                               ir_ins const *ins,
+                                               uint16_t value_id) {
   (void)cur_idx;
   auto in = &s->t->ins[value_id];
   uint8_t reg = regalloc_find_current_reg_for_value(s, value_id);

@@ -26,6 +26,8 @@ static void print_slot(slot s, trace *t) {
       printf("\e[1;35m#t\e[m");
     } else if (is_closure(gc)) {
       printf("\e[1;31mCLOSURE\e[m");
+    } else if (is_cons(gc)) {
+      printf("\e[1;31mCONS\e[m");
     } else if (is_vector(gc)) {
       printf("\e[1;31mvector\e[m");
     } else if (is_func(gc)) {
@@ -153,6 +155,4 @@ void print_ir(trace *t) {
   }
 }
 
-bool ir_sideeff(ir_ins_op op) {
-  return ir_has_side_effects[op];
-}
+bool ir_sideeff(ir_ins_op op) { return ir_has_side_effects[op]; }
