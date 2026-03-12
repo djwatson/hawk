@@ -141,6 +141,21 @@ static inline int64_t slot_const(trace *t, slot v) {
   return t->consts[v.loc].value;
 }
 
+static inline gc_obj slot_gc_obj(trace *t, slot v) {
+  assert(v.constant);
+  return t->consts[v.loc];
+}
+
+static void emit_heap_constant(emit_state *s, trace *t, uint8_t reg,
+                               gc_obj value) {
+  if (is_heap_object(value)) {
+    arrput(t->gc_const_locs,
+           asm_emit_mov64_patchable(s, reg, value.value));
+    return;
+  }
+  emit_mov64(s, reg, value.value);
+}
+
 static inline int32_t spill_offset(uint8_t spill) {
   assert(spill != SPILL_NONE);
   return (int32_t)spill * 8;
@@ -678,8 +693,9 @@ static void link_to_next_trace(emit_state *s, trace *t,
             s, action->constant.target_reg,
             to_flonum((gc_obj){.value = action->constant.constant_value})->x);
       } else {
-        emit_mov64(s, action->constant.target_reg,
-                   action->constant.constant_value);
+        emit_heap_constant(
+            s, t, action->constant.target_reg,
+            (gc_obj){.value = action->constant.constant_value});
       }
     }
   }
@@ -798,7 +814,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       if (op->op1.constant) {
         // Materialize constant base object pointer for direct loads.
         base_reg = RTMP;
-        emit_mov64(s, base_reg, slot_const(t, op->op1));
+        emit_heap_constant(s, t, base_reg, slot_gc_obj(t, op->op1));
       }
       uint8_t base_type = op->op1.constant ? get_tag(t->consts[op->op1.loc])
                                            : slot_ins(t, op->op1)->type;
@@ -833,7 +849,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       ir_ins *ref = slot_ins(t, op->op1);
       auto val_reg = arg0_reg;
       if (op->op2.constant) {
-        emit_mov64(s, RTMP2, slot_const(t, op->op2));
+        emit_heap_constant(s, t, RTMP2, slot_gc_obj(t, op->op2));
         val_reg = RTMP2;
       } else {
         val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
@@ -849,7 +865,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         // REF base can be a constant object (e.g. global vector).
         // Materialize it explicitly since constant args have no input reg.
         base_reg = RTMP2;
-        emit_mov64(s, base_reg, slot_const(t, ref->op1));
+        emit_heap_constant(s, t, base_reg, slot_gc_obj(t, ref->op1));
       }
       if (ref->op2.constant) {
         // Offset is a constant.
@@ -867,7 +883,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         if (ref->op1.constant) {
           // base_reg is already RTMP2 here; build address directly from const
           // base.
-          emit_mov64(s, addr_reg, slot_const(t, ref->op1));
+          emit_heap_constant(s, t, addr_reg, slot_gc_obj(t, ref->op1));
           emit_add(s, addr_reg, addr_reg, offset_reg);
         } else {
           emit_mov(s, addr_reg, offset_reg);
@@ -887,7 +903,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       if (op->type == FLONUM_TAG) {
         emit_fmov_constant(s, dst_reg, slot_flonum_constant(t, op->op1));
       } else {
-        emit_mov64(s, dst_reg, slot_const(t, op->op1));
+        emit_heap_constant(s, t, dst_reg, slot_gc_obj(t, op->op1));
       }
       break;
     }
@@ -977,21 +993,21 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       break;
     }
     case IR_GGET: {
-      emit_mov64(s, RTMP, slot_const(t, op->op1) - SYMBOL_TAG);
-      emit_mem_load(s, 16, RTMP, dst_reg);
+      emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op1));
+      emit_mem_load(s, 16 - SYMBOL_TAG, RTMP, dst_reg);
       emit_typecheck(s, t, op, cur_snap, dst_reg);
       break;
     }
     case IR_GSET: {
-      emit_mov64(s, RTMP, slot_const(t, op->op1) - SYMBOL_TAG);
+      emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op1));
       uint8_t val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
       if (op->op2.constant) {
         val_reg = RTMP2;
-        emit_mov64(s, val_reg, slot_const(t, op->op2));
+        emit_heap_constant(s, t, val_reg, slot_gc_obj(t, op->op2));
       } else {
         assert(val_reg != REG_NONE);
       }
-      emit_store(s, 16, RTMP, val_reg);
+      emit_store(s, 16 - SYMBOL_TAG, RTMP, val_reg);
       break;
     }
     case IR_RET: {
@@ -1145,6 +1161,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // Emit a return-to-c stub.
   // TODO: could be shared by ALL traces
   auto start = emit_offset(s);
+  t->code_start = (uint8_t *)start;
 
   if (!t->parent_snap) {
     emit_root_trace_entry(s, t, &reg_state);
@@ -1171,6 +1188,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   emit_label(s, &exit_label);
   emit_exit_to_c(s);
   auto end = emit_offset(s);
+  t->code_end = (uint8_t *)end;
 
   emit_constant_pool(s);
   emit_writable_end(s);

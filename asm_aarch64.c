@@ -274,6 +274,59 @@ static uint32_t movk_opcode(uint8_t rd, uint16_t imm16, uint8_t chunk) {
   return 0xF2800000U | (hw << 21) | ((uint32_t)imm16 << 5) | (uint32_t)rd;
 }
 
+static uint16_t mov_wide_imm16(uint32_t op) { return (uint16_t)((op >> 5) & 0xffff); }
+
+static uint8_t mov_wide_shift(uint32_t op) { return (uint8_t)((op >> 21) & 0x3); }
+
+uint8_t *asm_emit_mov64_patchable(emit_state *s, uint8_t rd, int64_t imm) {
+  assert(rd < 31);
+  uint64_t value = (uint64_t)imm;
+  uint8_t *loc = (uint8_t *)emit_offset(s);
+  emit_op(s, movz_opcode(rd, (uint16_t)(value & 0xffff), 0));
+  emit_op(s, movk_opcode(rd, (uint16_t)((value >> 16) & 0xffff), 1));
+  emit_op(s, movk_opcode(rd, (uint16_t)((value >> 32) & 0xffff), 2));
+  emit_op(s, movk_opcode(rd, (uint16_t)((value >> 48) & 0xffff), 3));
+  return loc;
+}
+
+int64_t asm_read_mov64_patchable(uint8_t const *loc) {
+  assert(loc);
+  uint32_t const *ops = (uint32_t const *)loc;
+  uint32_t op0 = ops[0];
+  uint32_t op1 = ops[1];
+  uint32_t op2 = ops[2];
+  uint32_t op3 = ops[3];
+  uint8_t rd = (uint8_t)(op0 & 31);
+  assert((op0 & 0xff800000U) == 0xd2800000U);
+  assert((op1 & 0xff800000U) == 0xf2800000U);
+  assert((op2 & 0xff800000U) == 0xf2800000U);
+  assert((op3 & 0xff800000U) == 0xf2800000U);
+  assert((op1 & 31) == rd);
+  assert((op2 & 31) == rd);
+  assert((op3 & 31) == rd);
+  assert(mov_wide_shift(op0) == 0);
+  assert(mov_wide_shift(op1) == 1);
+  assert(mov_wide_shift(op2) == 2);
+  assert(mov_wide_shift(op3) == 3);
+  uint64_t value = (uint64_t)mov_wide_imm16(op0) |
+                   ((uint64_t)mov_wide_imm16(op1) << 16) |
+                   ((uint64_t)mov_wide_imm16(op2) << 32) |
+                   ((uint64_t)mov_wide_imm16(op3) << 48);
+  return (int64_t)value;
+}
+
+void asm_patch_mov64_patchable(emit_state *s, uint8_t *loc, int64_t imm) {
+  (void)s;
+  assert(loc);
+  uint32_t *ops = (uint32_t *)loc;
+  uint8_t rd = (uint8_t)(ops[0] & 31);
+  uint64_t value = (uint64_t)imm;
+  ops[0] = movz_opcode(rd, (uint16_t)(value & 0xffff), 0);
+  ops[1] = movk_opcode(rd, (uint16_t)((value >> 16) & 0xffff), 1);
+  ops[2] = movk_opcode(rd, (uint16_t)((value >> 32) & 0xffff), 2);
+  ops[3] = movk_opcode(rd, (uint16_t)((value >> 48) & 0xffff), 3);
+}
+
 static uint32_t orr_logical_immediate_opcode(uint8_t rd, uint8_t N,
                                              uint8_t immr, uint8_t imms) {
   assert(rd < 31);

@@ -53,6 +53,32 @@ static bool fits_in_u32(int64_t imm) {
   return imm >= 0 && imm <= (int64_t)UINT32_MAX;
 }
 
+uint8_t *asm_emit_mov64_patchable(emit_state *s, uint8_t r, int64_t imm) {
+  assert(r < FPR_REG_START);
+  uint8_t *loc = (uint8_t *)emit_offset(s);
+  emit_rex(s, 1, 0, 0, r >> 3);
+  emit_byte(s, 0xb8 | (0x7 & r));
+  emit_imm64(s, (uint64_t)imm);
+  return loc;
+}
+
+int64_t asm_read_mov64_patchable(uint8_t const *loc) {
+  assert(loc);
+  assert((loc[0] & 0xfe) == 0x48);
+  assert((loc[1] & 0xf8) == 0xb8);
+  int64_t imm = 0;
+  memcpy(&imm, loc + 2, sizeof(imm));
+  return imm;
+}
+
+void asm_patch_mov64_patchable(emit_state *s, uint8_t *loc, int64_t imm) {
+  (void)s;
+  assert(loc);
+  assert((loc[0] & 0xfe) == 0x48);
+  assert((loc[1] & 0xf8) == 0xb8);
+  memcpy(loc + 2, &imm, sizeof(imm));
+}
+
 void emit_mov64(emit_state *s, uint8_t r, int64_t imm) {
   assert(r < FPR_REG_START);
   // Note that 'imm' isn't necessarily a number here,

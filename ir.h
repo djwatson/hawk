@@ -117,6 +117,7 @@ typedef struct trace {
   ir_ins *ins;
   gc_obj *consts;
   snap *snaps;
+  uint8_t **gc_const_locs;
   trace_fn fn;
   uint16_t num;
   snap *parent_snap;
@@ -125,6 +126,8 @@ typedef struct trace {
   label trace_start;
   label snap_entry_label;
   bc start_pc;
+  uint8_t *code_start;
+  uint8_t *code_end;
   trace *next; // Chained polymorphic traces.
 } trace;
 

@@ -98,6 +98,7 @@ static void free_trace(trace *trace) {
   arrfree(trace->ins);
   arrfree(trace->consts);
   arrfree(trace->snaps);
+  arrfree(trace->gc_const_locs);
   free(trace);
 }
 static inline trace_state *record_trace_state(vm_state *state) {
@@ -160,6 +161,33 @@ static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
   arr_for_each(record->traces, trace_obj) {
     if (trace_obj && arrlen(trace_obj->consts) > 0) {
       add_root((uint64_t *)trace_obj->consts, arrlen(trace_obj->consts));
+    }
+    if (!trace_obj || arrlen(trace_obj->gc_const_locs) == 0) {
+      continue;
+    }
+
+    bool patched = false;
+    arr_for_each(trace_obj->gc_const_locs, loc) {
+      gc_obj obj = {.value = asm_read_mov64_patchable(loc)};
+      if (!is_heap_object(obj)) {
+        continue;
+      }
+
+      gc_obj updated = obj;
+      add_root((uint64_t *)&updated, 1);
+      if (updated.value == obj.value) {
+        continue;
+      }
+      if (!patched) {
+        emit_writable_begin(&record->emit_state);
+        patched = true;
+      }
+      asm_patch_mov64_patchable(&record->emit_state, loc, updated.value);
+    }
+    if (patched) {
+      emit_writable_end(&record->emit_state);
+      __builtin___clear_cache((char *)trace_obj->code_start,
+                              (char *)trace_obj->code_end);
     }
   }
 }

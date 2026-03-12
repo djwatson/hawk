@@ -24,6 +24,9 @@ void asm_emit_jcc32_resolved(emit_state *s, enum jcc_cond cond,
                              uint8_t const *target);
 uint8_t *asm_emit_jcc32_placeholder(emit_state *s, enum jcc_cond cond);
 void asm_write_jmp32_at(emit_state *s, uint8_t *loc, uint8_t const *target);
+uint8_t *asm_emit_mov64_patchable(emit_state *s, uint8_t r, int64_t imm);
+int64_t asm_read_mov64_patchable(uint8_t const *loc);
+void asm_patch_mov64_patchable(emit_state *s, uint8_t *loc, int64_t imm);
 
 void restore_callee_regs(emit_state *s);
 void save_callee_regs(emit_state *s);
