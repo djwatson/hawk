@@ -27,11 +27,10 @@ NOINLINE void *gc_alloc_slow(uint64_t sz);
 
 static inline void *gc_alloc(uint64_t sz) {
   assert((sz & 0x7) == 0);
-  uintptr_t addr = gc_hp;
-  uintptr_t new_hp = addr + sz;
-  if (likely(new_hp <= gc_limit)) {
+  uintptr_t new_hp = gc_hp - sz;
+  if (likely(new_hp >= gc_limit)) {
     gc_hp = new_hp;
-    return (void *)addr;
+    return (void *)gc_hp;
   }
   MUSTTAIL return gc_alloc_slow(sz);
 }

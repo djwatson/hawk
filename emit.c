@@ -309,7 +309,7 @@ static void emit_restore_live_reg(emit_state *s, uint8_t reg) {
 }
 
 static bool alloc_fastpath_clobbers_reg(uint8_t reg) {
-  return reg == RET_REG || reg == RET_REG2;
+  return reg == RET_REG;
 }
 
 static void emit_rooted_alloc(emit_state *s, bool live_regs[MAX_REG],
@@ -348,15 +348,13 @@ static void emit_rooted_alloc(emit_state *s, bool live_regs[MAX_REG],
     emit_mov(s, RET_REG, size_reg);
   }
 
-  emit_mov(s, RET_REG2, RALLOC);
   emit_sar_constant(s, RET_REG, RET_REG, FIXNUM_SHIFT);
-  emit_add(s, RET_REG, RALLOC, RET_REG);
+  emit_sub(s, RALLOC, RALLOC, RET_REG);
   emit_mov64(s, RTMP, (intptr_t)&gc_limit);
   emit_mem_load(s, 0, RTMP, RTMP);
-  emit_cmp(s, RET_REG, RTMP);
-  emit_jcc32(s, JA, &alloc_fail);
-  emit_mov(s, RALLOC, RET_REG);
-  emit_mov(s, RTMP, RET_REG2);
+  emit_cmp(s, RALLOC, RTMP);
+  emit_jcc32(s, JB, &alloc_fail);
+  emit_mov(s, RTMP, RALLOC);
   if (need_frame) {
     for (uint8_t reg = 0; reg < MAX_REG; reg++) {
       if (live_regs[reg] && alloc_fastpath_clobbers_reg(reg)) {
@@ -367,6 +365,7 @@ static void emit_rooted_alloc(emit_state *s, bool live_regs[MAX_REG],
   }
   emit_jmp32(s, &alloc_done);
   emit_label(s, &alloc_fail);
+  emit_add(s, RALLOC, RALLOC, RET_REG);
   if (!need_frame) {
     emit_sub_constant(s, SP, SP, alloc_slowpath_frame_size);
   }

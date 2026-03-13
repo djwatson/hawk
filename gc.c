@@ -88,13 +88,14 @@ static void visit_field(gc_obj *slot, void *ctx) {
     return;
   }
   size_t sz = align_size(heap_object_size(obj));
-  if (gc_hp + sz > gc_limit) {
+  uintptr_t new_hp = gc_hp - sz;
+  if (new_hp < gc_limit) {
     fprintf(stderr, "out of memory during collection, increate GC_SPACE\n");
     abort();
   }
+  gc_hp = new_hp;
   gc_header *copy = (gc_header *)gc_hp;
   memcpy(copy, obj, sz);
-  gc_hp += sz;
   forward_obj(obj, copy);
   *slot = tag_header(copy, get_tag(*slot));
   arrput(worklist, copy);
@@ -115,10 +116,11 @@ static void gc_add_mark_root(const uint64_t *rootp, size_t len) {
 
 static void flip_spaces(void) {
   // memset((void *)heap.from_space, 0, space_size());
-  gc_hp = heap.from_space;
+  uintptr_t new_space = heap.from_space;
   heap.from_space = heap.to_space;
-  heap.to_space = gc_hp;
-  gc_limit = gc_hp + space_size();
+  heap.to_space = new_space;
+  gc_hp = heap.to_space + space_size();
+  gc_limit = heap.to_space;
 }
 
 static void scan_object(gc_header *obj) {
@@ -160,8 +162,8 @@ void gc_init(void) {
   heap.mem = (uintptr_t)mem;
   heap.to_space = (uintptr_t)mem;
   heap.from_space = (uintptr_t)mem + heap_size;
-  gc_hp = (uintptr_t)mem;
-  gc_limit = (uintptr_t)mem + heap_size;
+  gc_hp = (uintptr_t)mem + heap_size;
+  gc_limit = (uintptr_t)mem;
   heap.size = heap_size * 2;
 }
 
@@ -217,12 +219,11 @@ void gc_free(void) {
 
 NOINLINE void *gc_alloc_slow(uint64_t sz) {
   gc_collect();
-  uintptr_t addr = gc_hp;
-  uintptr_t new_hp = align_size(addr + sz);
-  if (new_hp > gc_limit) {
+  uintptr_t new_hp = gc_hp - align_size(sz);
+  if (new_hp < gc_limit) {
     fprintf(stderr, "out of memory %" PRIu64 "\n", sz);
     abort();
   }
   gc_hp = new_hp;
-  return (void *)addr;
+  return (void *)gc_hp;
 }
