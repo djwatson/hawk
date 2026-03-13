@@ -90,6 +90,7 @@
       `#(primcall ,(cdr (assq name primcalls)) ,(map simple-pass args) ,ann))
     (,else (cont-pass ir simple-pass))))
 
+;; TODO: more performant boxing: remember we must store/zero all fields before another alloc.
 (define (assignment-conversion ir)
   (let ((counter 0))
     (define (fresh-box var)
@@ -122,31 +123,32 @@
           (let* ((arg-list (to-proper args))
                  (boxed-args (filter variable-assigned? arg-list))
                  (new-boxes (map (lambda (v) (cons v (fresh-box v))) boxed-args))
-                 (allocs
-                    (map (lambda (b)
-                           `(,(cdr b) #(primcall ALLOC (#(quote 24 ,ann) #(quote 3 ,ann)) ,ann)))
-                         new-boxes))
-                 (stores
-                    (append-map
-                      (lambda (b)
-                        (list
-                          `#(primcall STORE
-                                      (#(ref ,(cdr b) #f #t #f)
-                                       #(ref ,(car b) #f #t #f)
-                                       #(quote 0 ,ann))
-                                      ,ann)
-                          `#(primcall STORE
-                                      (#(ref ,(cdr b) #f #t #f)
-                                       #(quote 0 ,ann)
-                                       #(quote 1 ,ann))
-                                      ,ann)))
-                         new-boxes))
                  (new-body (convert body (append new-boxes boxes)))
                  (body*
-                    (if (null? stores) new-body `#(begin ,(append stores (list new-body)) ,ann))))
+                    (fold-right (lambda (b body)
+                                  `#(let ((,(cdr b)
+                                             #(primcall ALLOC
+                                                        (#(quote 24 ,ann) #(quote 3 ,ann))
+                                                        ,ann)))
+                                      #(begin
+                                         (#(primcall STORE
+                                                     (#(ref ,(cdr b) #f #t #f)
+                                                      #(ref ,(car b) #f #t #f)
+                                                      #(quote 0 ,ann))
+                                                     ,ann)
+                                          #(primcall STORE
+                                                     (#(ref ,(cdr b) #f #t #f)
+                                                      #(quote 0 ,ann)
+                                                      #(quote 1 ,ann))
+                                                     ,ann)
+                                          ,body)
+                                         ,ann)
+                                      ,ann))
+                                new-body
+                                new-boxes)))
             (if (null? new-boxes)
                 `#(lambda ,args ,new-body ,ann)
-                `#(lambda ,args #(let ,allocs ,body* ,ann) ,ann))))
+                `#(lambda ,args ,body* ,ann))))
 
         (,else (cont-pass expr (lambda (child) (convert child boxes))))))
 
@@ -502,16 +504,14 @@
       (let* ((offset (length (fun-code fun))) (brop (list 'JMP top 0)))
         (add-op fun brop)
         (let ((then-res (compile then fun env top tail)))
-          (unless (or tail (= then-res top))
-            (add-op fun `(MOV ,top ,then-res))))
+          (unless (or tail (= then-res top)) (add-op fun `(MOV ,top ,then-res))))
         ;; If not in tail position, an extra JMP is inserted before the else
         ;; path. Account for that so the false branch lands on else code.
         (set-car! (cddr brop) (+ (- (length (fun-code fun)) offset) (if tail 0 1))))
       (let ((offset (length (fun-code fun))) (jop (list 'JMP top 0)))
         (unless tail (add-op fun jop))
         (let ((res (compile else fun env top tail)))
-          (unless (or tail (= res top))
-            (add-op fun `(MOV ,top ,res)))
+          (unless (or tail (= res top)) (add-op fun `(MOV ,top ,res)))
           (set-car! (cddr jop) (- (length (fun-code fun)) offset))
           (if tail res top))))
     (#(app ,func ,args ,ann)
@@ -731,3 +731,4 @@
 ;; closure convert - just ensure no free.
 ;; DONE inline simple prims.
 ;; output BC.
+

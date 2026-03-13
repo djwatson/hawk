@@ -7,9 +7,9 @@
 
 #include "array.h"
 
-// * bug: storing an unboxed flonum to a closure can result in GC
-//   seeing a partially initialized closure, since we box in the
-//   middle of closure conversion
+// * bug: storing an unboxed flonum to a closure/cons can result in GC
+//   seeing a partially initialized object, since we box in the middle
+//   of object initialization
 
 static slot remap_slot(slot s, int32_t *old_to_new) {
   if (s.constant) {
@@ -34,14 +34,17 @@ static void remap_ins(ir_ins *ins, int32_t *old_to_new) {
   }
 }
 
-static bool is_closure_alloc(trace *trace, uint16_t idx) {
+static bool is_hoist_alloc(trace *trace, uint16_t idx) {
   auto ins = &trace->ins[idx];
-  return ins->op == IR_ALLOC && ins->op2.constant &&
-         is_fixnum(trace->consts[ins->op2.loc]) &&
-         to_fixnum(trace->consts[ins->op2.loc]) == CLOSURE_TAG;
+  if (ins->op != IR_ALLOC || !ins->op2.constant ||
+      !is_fixnum(trace->consts[ins->op2.loc])) {
+    return false;
+  }
+  auto tag = to_fixnum(trace->consts[ins->op2.loc]);
+  return tag == CLOSURE_TAG || tag == CONS_TAG;
 }
 
-static bool is_closure_store(trace *trace, uint16_t idx, uint16_t alloc_idx) {
+static bool is_hoist_store(trace *trace, uint16_t idx, uint16_t alloc_idx) {
   auto store = &trace->ins[idx];
   if (store->op != IR_STORE || store->op1.constant || store->op2.constant) {
     return false;
@@ -119,9 +122,9 @@ void box_closure_flonums(trace *trace) {
 
   ir_ins *new_ins = nullptr;
   for (uint16_t i = 0; i < ins_len; i++) {
-    if (is_closure_alloc(trace, i)) {
+    if (is_hoist_alloc(trace, i)) {
       for (size_t j = i + 1; j < ins_len; j++) {
-        if (!is_closure_store(trace, (uint16_t)j, i)) {
+        if (!is_hoist_store(trace, (uint16_t)j, i)) {
           continue;
         }
         auto src = hoist_before_alloc(trace, trace->ins[j].op2, i, &new_ins,
