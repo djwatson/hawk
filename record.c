@@ -5,6 +5,7 @@
 
 #include "array.h"
 #include "bc.h"
+#include "box_closure_flonums.h"
 #include "emit.h"
 #include "fold.h"
 #include "gc.h"
@@ -483,6 +484,7 @@ static void record_finish(bc *pc, vm_state *state) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   vm_add_snap(state, pc);
+  box_closure_flonums(cur_trace);
   dce(cur_trace);
   cur_trace->fn =
       emit(cur_trace, &state->emit, &state->record, cur_trace->link_entry_snap);

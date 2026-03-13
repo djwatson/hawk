@@ -95,6 +95,7 @@ set(
   parallel_copy.c
   profiler.c
   util/array.c
+  box_closure_flonums.c
   fold.c
   opt_dce.c
   bc.c

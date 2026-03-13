@@ -1300,6 +1300,23 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       emit_add_constant(s, dst_reg, RTMP, tag_bits);
       break;
     }
+    case IR_BOX_FLONUM: {
+      assert(arg0_reg != REG_NONE);
+      assert(is_fpr_reg(arg0_reg));
+      assert(dst_reg != REG_NONE);
+      assert(!is_fpr_reg(dst_reg));
+      bool live_regs[MAX_REG];
+      uint64_t live_gpr_mask;
+      uint64_t spill_mask[4];
+      collect_live_roots_for_ir(t, ra_state, op_cnt_idx, live_regs,
+                                &live_gpr_mask, spill_mask);
+      emit_box_flonum(s, 0, arg0_reg, false, live_regs, live_gpr_mask,
+                      spill_mask);
+      if (dst_reg != RTMP) {
+        emit_mov(s, dst_reg, RTMP);
+      }
+      break;
+    }
     case IR_REF:
     case IR_ARG:
     case IR_NOP:
