@@ -10,7 +10,7 @@
   X(RAX, false, false)                                                         \
   X(RCX, false, false)                                                         \
   X(RDX, false, false)                                                         \
-  X(RBX, false, true)                                                          \
+  X(RBX, true, true)                                                           \
   X(RSP, true, false)                                                          \
   X(RBP, false, true)                                                          \
   X(RSI, false, false)                                                         \
@@ -44,7 +44,7 @@
 
 #define ASM_REGISTER_LIST(X) ASM_X64_REGISTER_LIST(X)
 #define ASM_FREGISTER_LIST(X) ASM_X64_FREGISTER_LIST(X)
-#define GPR_ALLOCATABLE 11
+#define GPR_ALLOCATABLE 10
 #define FPR_ALLOCATABLE 15
 
 enum registers : uint8_t {
@@ -66,6 +66,7 @@ enum registers : uint8_t {
   RARG5 = R9,
   SP = RSP,
 
+  RALLOC = RBX,
   RTMP2 = R14,
   RTMP = R15,
   // Must be callee-save.

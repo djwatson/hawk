@@ -34,7 +34,7 @@
   X(X24, false, true)                                                          \
   X(X25, true, true)                                                           \
   X(X26, true, true)                                                           \
-  X(X27, false, true)                                                          \
+  X(X27, true, true)                                                           \
   X(X28, false, true)                                                          \
   X(X29, true, true)                                                           \
   X(X30, true, true)                                                           \
@@ -76,7 +76,7 @@
 
 #define ASM_REGISTER_LIST(X) ASM_AARCH64_REGISTER_LIST(X)
 #define ASM_FREGISTER_LIST(X) ASM_AARCH64_FREGISTER_LIST(X)
-#define GPR_ALLOCATABLE 23
+#define GPR_ALLOCATABLE 21
 #define FPR_ALLOCATABLE 31
 
 enum registers : uint8_t {
@@ -108,6 +108,7 @@ enum registers : uint8_t {
   // to represent register 31.
   SP = XZR,
   // Must be callee-save
+  RALLOC = X27,
   RSTACK = X25,
   RSTATE = X26,
 };
