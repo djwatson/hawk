@@ -1,18 +1,11 @@
 # Currently working on:
 
-* instead of the weird box_clsoure_flonums pass, let's just calculate
-  maximum needed allocation space at the *start* of each trace
-  (including snapshots!) and reserve it up front.  Then we can never
-  fail to allocate, and we only have to worry about IR_ARG or IR_PMOV
-  (or IR_TYPECHECK) being resident.
+* cleanup/improve the (flonum) gc slowpath
 
 * figure out why deriv is slow
-  * really need a tracing nursury
   * downrec abort not working (start of trace is failing?)
-  * GC start_ptr cache is essential (for cons cells).  Maybe need a small copying nursury
   * GC next_collect is 10x too big.
   * deriv.scm needs better closure conversion.
-  * need to remove push/pop of GC regs.
 
 * downrec traces don't ensure_args_match and link without boxing/typecheck
 
@@ -21,7 +14,6 @@
   STORE: could alloc a reg in IR_REF to 
   GSET: needs a tmp reg
   SLOAD: would need separate IR_TYPECHECK or tmp reg
-  ALLOC: cleanup fastpath
 
 ## tests:
 

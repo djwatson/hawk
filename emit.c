@@ -308,81 +308,33 @@ static void emit_restore_live_reg(emit_state *s, uint8_t reg) {
   }
 }
 
-static bool alloc_fastpath_clobbers_reg(uint8_t reg) {
-  return reg == RET_REG;
-}
-
 static void emit_rooted_alloc(emit_state *s, bool live_regs[MAX_REG],
                               uint64_t live_gpr_mask, uint64_t spill_mask[4],
                               int64_t tagged_size, uint8_t size_reg) {
-  label alloc_fail = {};
   label alloc_done = {};
-  bool need_size_save = size_reg != REG_NONE &&
-                        alloc_fastpath_clobbers_reg(size_reg) &&
-                        !live_regs[size_reg];
-  bool need_fastpath_save = false;
-  bool need_frame = need_size_save;
-
-  for (uint8_t reg = 0; reg < MAX_REG; reg++) {
-    if (!live_regs[reg] || !alloc_fastpath_clobbers_reg(reg)) {
-      continue;
-    }
-    need_fastpath_save = true;
-    need_frame = true;
-  }
-  if (need_frame) {
-    emit_sub_constant(s, SP, SP, alloc_slowpath_frame_size);
-    for (uint8_t reg = 0; reg < MAX_REG; reg++) {
-      if (live_regs[reg] && alloc_fastpath_clobbers_reg(reg)) {
-        emit_save_live_reg(s, reg);
-      }
-    }
-    if (need_size_save) {
-      emit_save_live_reg(s, size_reg);
-    }
-  }
-
   if (size_reg == REG_NONE) {
-    emit_mov64(s, RET_REG, tagged_size);
+    emit_sub_constant(s, RALLOC, RALLOC, tagged_size >> FIXNUM_SHIFT);
   } else {
-    emit_mov(s, RET_REG, size_reg);
+    emit_sar_constant(s, RTMP2, size_reg, FIXNUM_SHIFT);
+    emit_sub(s, RALLOC, RALLOC, RTMP2);
   }
 
-  emit_sar_constant(s, RET_REG, RET_REG, FIXNUM_SHIFT);
-  emit_sub(s, RALLOC, RALLOC, RET_REG);
-  emit_mov64(s, RTMP, (intptr_t)&gc_limit);
-  emit_mem_load(s, 0, RTMP, RTMP);
-  emit_cmp(s, RALLOC, RTMP);
-  emit_jcc32(s, JB, &alloc_fail);
   emit_mov(s, RTMP, RALLOC);
-  if (need_frame) {
-    for (uint8_t reg = 0; reg < MAX_REG; reg++) {
-      if (live_regs[reg] && alloc_fastpath_clobbers_reg(reg)) {
-        emit_restore_live_reg(s, reg);
-      }
-    }
-    emit_add_constant(s, SP, SP, alloc_slowpath_frame_size);
-  }
-  emit_jmp32(s, &alloc_done);
-  emit_label(s, &alloc_fail);
-  emit_add(s, RALLOC, RALLOC, RET_REG);
-  if (!need_frame) {
-    emit_sub_constant(s, SP, SP, alloc_slowpath_frame_size);
-  }
-  if (size_reg == REG_NONE) {
-    emit_mov64(s, RET_REG, tagged_size);
-  } else if (alloc_fastpath_clobbers_reg(size_reg)) {
-    emit_mem_load(s, alloc_reg_save_offset(size_reg), SP, RET_REG);
-  } else {
-    emit_mov(s, RET_REG, size_reg);
-  }
+  emit_mov64(s, RTMP2, (intptr_t)&gc_limit);
+  emit_mem_load(s, 0, RTMP2, RTMP2);
+  emit_cmp(s, RALLOC, RTMP2);
+  emit_jcc32(s, JAE, &alloc_done);
+
+  emit_sub_constant(s, SP, SP, alloc_slowpath_frame_size);
   for (uint8_t reg = 0; reg < MAX_REG; reg++) {
     if (live_regs[reg]) {
-      if (need_frame && alloc_fastpath_clobbers_reg(reg)) {
-        continue;
-      }
       emit_save_live_reg(s, reg);
     }
+  }
+  if (size_reg == REG_NONE) {
+    emit_mov64(s, RET_REG, tagged_size);
+  } else {
+    emit_mov(s, RET_REG, size_reg);
   }
   for (uint8_t word = 0; word < 4; word++) {
     emit_store_constant(s, alloc_slowpath_spill_mask_offset + word * 8, SP,
