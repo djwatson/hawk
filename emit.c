@@ -296,21 +296,27 @@ static void emit_restore_live_reg(emit_state *s, uint8_t reg) {
   }
 }
 
+static bool alloc_fastpath_clobbers_reg(uint8_t reg) {
+  return reg == RET_REG || reg == RET_REG2 || reg == RTMP || reg == RTMP2;
+}
+
 static void emit_rooted_alloc(emit_state *s, bool live_regs[MAX_REG],
                               uint64_t live_gpr_mask,
                               uint64_t spill_mask[4], int64_t tagged_size,
                               uint8_t size_reg) {
   label alloc_fail = {};
-  label alloc_commit = {};
-  emit_sub_constant(s, SP, SP, alloc_slowpath_frame_size);
+  label alloc_done = {};
+  bool need_fastpath_save = false;
+
   for (uint8_t reg = 0; reg < MAX_REG; reg++) {
-    if (live_regs[reg]) {
-      emit_save_live_reg(s, reg);
+    if (!live_regs[reg] || !alloc_fastpath_clobbers_reg(reg)) {
+      continue;
     }
-  }
-  for (uint8_t word = 0; word < 4; word++) {
-    emit_store_constant(s, alloc_slowpath_spill_mask_offset + word * 8, SP,
-                        (int64_t)spill_mask[word]);
+    if (!need_fastpath_save) {
+      emit_sub_constant(s, SP, SP, alloc_slowpath_frame_size);
+      need_fastpath_save = true;
+    }
+    emit_save_live_reg(s, reg);
   }
 
   if (size_reg == REG_NONE) {
@@ -329,10 +335,32 @@ static void emit_rooted_alloc(emit_state *s, bool live_regs[MAX_REG],
   emit_jcc32(s, JA, &alloc_fail);
   emit_mov64(s, RTMP, (intptr_t)&gc_hp);
   emit_store(s, 0, RTMP, RTMP2);
-  emit_mov(s, RET_REG, RET_REG2);
-  emit_store(s, alloc_slowpath_result_offset, SP, RET_REG);
-  emit_jmp32(s, &alloc_commit);
+  emit_mov(s, RTMP, RET_REG2);
+  if (need_fastpath_save) {
+    for (uint8_t reg = 0; reg < MAX_REG; reg++) {
+      if (live_regs[reg] && alloc_fastpath_clobbers_reg(reg)) {
+        emit_restore_live_reg(s, reg);
+      }
+    }
+    emit_add_constant(s, SP, SP, alloc_slowpath_frame_size);
+  }
+  emit_jmp32(s, &alloc_done);
   emit_label(s, &alloc_fail);
+  if (!need_fastpath_save) {
+    emit_sub_constant(s, SP, SP, alloc_slowpath_frame_size);
+  }
+  for (uint8_t reg = 0; reg < MAX_REG; reg++) {
+    if (live_regs[reg]) {
+      if (need_fastpath_save && alloc_fastpath_clobbers_reg(reg)) {
+        continue;
+      }
+      emit_save_live_reg(s, reg);
+    }
+  }
+  for (uint8_t word = 0; word < 4; word++) {
+    emit_store_constant(s, alloc_slowpath_spill_mask_offset + word * 8, SP,
+                        (int64_t)spill_mask[word]);
+  }
   emit_mov(s, RARG0, RET_REG);
   emit_add_constant(s, RARG1, SP, alloc_slowpath_reg_save_offset);
   emit_mov64(s, RARG2, (int64_t)live_gpr_mask);
@@ -340,7 +368,6 @@ static void emit_rooted_alloc(emit_state *s, bool live_regs[MAX_REG],
   emit_mov64(s, RTMP, (intptr_t)&gc_alloc_ir_slowpath);
   emit_call_reg(s, RTMP);
   emit_store(s, alloc_slowpath_result_offset, SP, RET_REG);
-  emit_label(s, &alloc_commit);
   for (uint8_t reg = 0; reg < MAX_REG; reg++) {
     if (live_regs[reg]) {
       emit_restore_live_reg(s, reg);
@@ -348,6 +375,7 @@ static void emit_rooted_alloc(emit_state *s, bool live_regs[MAX_REG],
   }
   emit_mem_load(s, alloc_slowpath_result_offset, SP, RTMP);
   emit_add_constant(s, SP, SP, alloc_slowpath_frame_size);
+  emit_label(s, &alloc_done);
 }
 
 static value_loc snap_entry_loc(trace const *t, uint16_t snap_idx,
