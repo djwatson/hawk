@@ -114,6 +114,7 @@ static void gc_add_mark_root(const uint64_t *rootp, size_t len) {
 }
 
 static void flip_spaces(void) {
+  // memset((void *)heap.from_space, 0, space_size());
   gc_hp = heap.from_space;
   heap.from_space = heap.to_space;
   heap.to_space = gc_hp;

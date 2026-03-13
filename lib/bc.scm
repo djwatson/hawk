@@ -127,12 +127,19 @@
                            `(,(cdr b) #(primcall ALLOC (#(quote 24 ,ann) #(quote 3 ,ann)) ,ann)))
                          new-boxes))
                  (stores
-                    (map (lambda (b)
-                           `#(primcall STORE
-                                       (#(ref ,(cdr b) #f #t #f)
-                                        #(ref ,(car b) #f #t #f)
-                                        #(quote 0 ,ann))
-                                       ,ann))
+                    (append-map
+                      (lambda (b)
+                        (list
+                          `#(primcall STORE
+                                      (#(ref ,(cdr b) #f #t #f)
+                                       #(ref ,(car b) #f #t #f)
+                                       #(quote 0 ,ann))
+                                      ,ann)
+                          `#(primcall STORE
+                                      (#(ref ,(cdr b) #f #t #f)
+                                       #(quote 0 ,ann)
+                                       #(quote 1 ,ann))
+                                      ,ann)))
                          new-boxes))
                  (new-body (convert body (append new-boxes boxes)))
                  (body*
