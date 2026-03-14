@@ -1,9 +1,5 @@
 # Currently working on:
 
-* cleanup/improve the (flonum) gc slowpath
-  * split spill slots to gc_obj and flonum: ALWAYS walk gc_obj, no need for mask!
-  
-
 * figure out why deriv is slow
   * downrec abort not working (start of trace is failing?)
   * GC next_collect is 10x too big.
