@@ -236,13 +236,6 @@ static inline int32_t spill_offset(uint8_t spill) {
   return (int32_t)spill * 8;
 }
 
-static void clear_live_roots(bool live_regs[MAX_REG], uint64_t *live_gpr_mask,
-                             uint64_t spill_mask[4]) {
-  memset(live_regs, 0, sizeof(bool) * MAX_REG);
-  *live_gpr_mask = 0;
-  memset(spill_mask, 0, sizeof(uint64_t) * 4);
-}
-
 static void mark_live_reg(bool live_regs[MAX_REG], uint64_t *live_gpr_mask,
                           uint8_t reg) {
   if (reg == REG_NONE || live_regs[reg]) {
@@ -254,12 +247,36 @@ static void mark_live_reg(bool live_regs[MAX_REG], uint64_t *live_gpr_mask,
   }
 }
 
-static void collect_live_roots_for_ir(trace *t, regalloc_state *ra_state,
-                                      uint16_t op_cnt_idx,
-                                      bool live_regs[MAX_REG],
-                                      uint64_t *live_gpr_mask,
-                                      uint64_t spill_mask[4]) {
-  clear_live_roots(live_regs, live_gpr_mask, spill_mask);
+// Collect roots live for one IR point (snap_idx < 0) or one snapshot.
+static void collect_live_roots(trace *t, regalloc_state *ra_state,
+                               uint16_t op_cnt_idx, int32_t snap_idx,
+                               bool live_regs[MAX_REG],
+                               uint64_t *live_gpr_mask,
+                               uint64_t spill_mask[4]) {
+  memset(live_regs, 0, sizeof(bool) * MAX_REG);
+  *live_gpr_mask = 0;
+  memset(spill_mask, 0, sizeof(uint64_t) * 4);
+
+  if (snap_idx >= 0) {
+    auto snap = &t->snaps[snap_idx];
+    arr_for_each_idx(snap->slots, i) {
+      auto entry = &snap->slots[i];
+      if (entry->val.constant) {
+        continue;
+      }
+      auto ins = &t->ins[entry->val.loc];
+      auto loc = snap_entry_loc(t, (uint16_t)snap_idx, i);
+      if (loc.spilled) {
+        if (ins->type != FLONUM_TAG) {
+          spill_mask[loc.spill >> 6] |= 1ULL << (loc.spill & 63);
+        }
+        continue;
+      }
+      mark_live_reg(live_regs, live_gpr_mask, loc.reg);
+    }
+    return;
+  }
+
   size_t ins_len = arrlen(t->ins);
   for (uint8_t reg = 0; reg < MAX_REG; reg++) {
     uint16_t value_id = ra_state->regs[reg];
@@ -276,29 +293,6 @@ static void collect_live_roots_for_ir(trace *t, regalloc_state *ra_state,
       continue;
     }
     spill_mask[live->spill >> 6] |= 1ULL << (live->spill & 63);
-  }
-}
-
-static void collect_live_roots_for_snap(trace *t, uint16_t snap_idx,
-                                        bool live_regs[MAX_REG],
-                                        uint64_t *live_gpr_mask,
-                                        uint64_t spill_mask[4]) {
-  clear_live_roots(live_regs, live_gpr_mask, spill_mask);
-  auto snap = &t->snaps[snap_idx];
-  arr_for_each_idx(snap->slots, i) {
-    auto entry = &snap->slots[i];
-    if (entry->val.constant) {
-      continue;
-    }
-    auto ins = &t->ins[entry->val.loc];
-    auto loc = snap_entry_loc(t, snap_idx, i);
-    if (loc.spilled) {
-      if (ins->type != FLONUM_TAG) {
-        spill_mask[loc.spill >> 6] |= 1ULL << (loc.spill & 63);
-      }
-      continue;
-    }
-    mark_live_reg(live_regs, live_gpr_mask, loc.reg);
   }
 }
 
@@ -794,8 +788,8 @@ static void emit_snap(emit_state *s, trace *t, uint16_t snap_idx, bool exit) {
   bool live_regs[MAX_REG];
   uint64_t live_gpr_mask;
   uint64_t spill_mask[4];
-  collect_live_roots_for_snap(t, snap_idx, live_regs, &live_gpr_mask,
-                              spill_mask);
+  collect_live_roots(t, nullptr, 0, snap_idx, live_regs, &live_gpr_mask,
+                     spill_mask);
 
   arr_for_each_idx(snap->slots, j) {
     emit_snap_store_entry(s, t, snap_idx, j, &snap->slots[j], live_regs,
@@ -848,8 +842,8 @@ static void link_to_next_trace(emit_state *s, trace *t,
   bool live_regs[MAX_REG];
   uint64_t live_gpr_mask;
   uint64_t spill_mask[4];
-  collect_live_roots_for_snap(t, cur_snap, live_regs, &live_gpr_mask,
-                              spill_mask);
+  collect_live_roots(t, nullptr, 0, cur_snap, live_regs, &live_gpr_mask,
+                     spill_mask);
   collect_link_actions(t, cur_snap, linked_trace, entry_snap_idx, &actions);
   auto snap = &t->snaps[cur_snap];
   arr_for_each_idx(snap->slots, j) {
@@ -1070,8 +1064,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         bool live_regs[MAX_REG];
         uint64_t live_gpr_mask;
         uint64_t spill_mask[4];
-        collect_live_roots_for_ir(t, ra_state, op_cnt_idx, live_regs,
-                                  &live_gpr_mask, spill_mask);
+        collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs,
+                           &live_gpr_mask, spill_mask);
         emit_box_flonum(s, 0, val_reg, false, live_regs, live_gpr_mask,
                         spill_mask);
         val_reg = RTMP;
@@ -1244,8 +1238,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       bool live_regs[MAX_REG];
       uint64_t live_gpr_mask;
       uint64_t spill_mask[4];
-      collect_live_roots_for_ir(t, ra_state, op_cnt_idx, live_regs,
-                                &live_gpr_mask, spill_mask);
+      collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs,
+                         &live_gpr_mask, spill_mask);
 
       int64_t tagged_size = 0;
       uint8_t size_reg = REG_NONE;
@@ -1269,8 +1263,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       bool live_regs[MAX_REG];
       uint64_t live_gpr_mask;
       uint64_t spill_mask[4];
-      collect_live_roots_for_ir(t, ra_state, op_cnt_idx, live_regs,
-                                &live_gpr_mask, spill_mask);
+      collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs,
+                         &live_gpr_mask, spill_mask);
       emit_box_flonum(s, 0, arg0_reg, false, live_regs, live_gpr_mask,
                       spill_mask);
       if (dst_reg != RTMP) {
