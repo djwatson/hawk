@@ -31,9 +31,9 @@ static gc_obj spills[256];
 enum : uint16_t { spill_slot_count = 256 };
 
 enum : int32_t {
-  alloc_metadata_result_offset = 0,
-  alloc_metadata_live_gpr_mask_offset = 8,
-  alloc_metadata_spill_mask_offset = 16,
+  alloc_metadata_live_gpr_mask_offset = 0,
+  alloc_metadata_spill_mask_offset = 8,
+  alloc_metadata_result_offset = 40,
   alloc_metadata_frame_size = 48,
   alloc_reg_save_stride = 16,
   alloc_stub_frame_size = MAX_REG * alloc_reg_save_stride,
@@ -101,37 +101,7 @@ static void emit_store_ralloc(emit_state *s) {
   emit_store(s, 0, RTMP, RALLOC);
 }
 
-static size_t collect_non_callee_saved_regs(uint8_t regs[64],
-                                            bool include_ret_reg) {
-  size_t reg_cnt = 0;
-  for (int i = 0; i < FPR_REG_END; i++) {
-    if (i == SP) {
-      continue;
-    }
-    if (!include_ret_reg && i == RET_REG) {
-      continue;
-    }
-    if (asm_is_callee_saved(i)) {
-      continue;
-    }
-    regs[reg_cnt++] = (uint8_t)i;
-  }
-  return reg_cnt;
-}
-
-void emit_init_slowpath(emit_state *s) {
-  if (s->alloc_slowpath) {
-    return;
-  }
-  uint8_t slowpath_regs[64];
-  size_t reg_cnt;
-
-  auto alloc_start = (uint8_t *)emit_offset(s);
-
-  // Slowpath ABI: RTMP is tagged size, RTMP2 is caller metadata base.
-  emit_writable_begin(s);
-
-  emit_sub_constant(s, SP, SP, alloc_stub_frame_size);
+static void emit_save_slowpath_regs(emit_state *s) {
   for (uint8_t reg = 0; reg < FPR_REG_END; reg++) {
     if (reg == SP) {
       continue;
@@ -142,17 +112,11 @@ void emit_init_slowpath(emit_state *s) {
       emit_store(s, alloc_reg_save_slot_offset(reg), SP, reg);
     }
   }
+}
 
-  emit_mov(s, RARG0, RTMP);
-  emit_mov(s, RARG1, SP);
-  emit_mem_load(s, alloc_metadata_live_gpr_mask_offset, RTMP2, RARG2);
-  emit_add_constant(s, RARG3, RTMP2, alloc_metadata_spill_mask_offset);
-  emit_store_ralloc(s);
-  emit_mov64(s, RTMP, (int64_t)&gc_alloc_ir_slowpath);
-  emit_call_reg(s, RTMP);
-  emit_mov(s, RTMP2, RET_REG);
+static void emit_restore_slowpath_regs(emit_state *s) {
   for (uint8_t reg = 0; reg < FPR_REG_END; reg++) {
-    if (reg == SP || reg == RTMP || reg == RTMP2) {
+    if (reg == SP) {
       continue;
     }
     if (reg >= FPR_REG_START) {
@@ -161,9 +125,37 @@ void emit_init_slowpath(emit_state *s) {
       emit_mem_load(s, alloc_reg_save_slot_offset(reg), SP, reg);
     }
   }
+}
+
+void emit_init_slowpath(emit_state *s) {
+  if (s->alloc_slowpath) {
+    return;
+  }
+  enum : int32_t {
+    expand_stack_saved_rstack_offset = alloc_stub_frame_size,
+    expand_stack_frame_size = alloc_stub_frame_size + 16,
+  };
+
+  auto alloc_start = (uint8_t *)emit_offset(s);
+
+  // Slowpath ABI: RTMP is tagged size, RTMP2 is caller metadata base.
+  emit_writable_begin(s);
+
+  emit_sub_constant(s, SP, SP, alloc_stub_frame_size);
+  emit_save_slowpath_regs(s);
+
+  emit_mov(s, RARG0, RTMP);
+  emit_mov(s, RARG1, SP);
+  emit_mem_load(s, alloc_metadata_live_gpr_mask_offset, RTMP2, RARG2);
+  emit_add_constant(s, RARG3, RTMP2, alloc_metadata_spill_mask_offset);
+  emit_store_ralloc(s);
+  emit_mov64(s, RTMP, (int64_t)&gc_alloc_ir_slowpath);
+  emit_call_reg(s, RTMP);
+  emit_store(s, alloc_metadata_result_offset, RTMP2, RET_REG);
+  emit_restore_slowpath_regs(s);
   emit_add_constant(s, SP, SP, alloc_stub_frame_size);
   emit_load_ralloc(s); // clobbers RTMP
-  emit_mov(s, RTMP, RTMP2);
+  emit_mem_load(s, alloc_metadata_result_offset, RTMP2, RTMP);
   emit_ret(s);
 
   auto alloc_end = emit_offset(s);
@@ -174,21 +166,20 @@ void emit_init_slowpath(emit_state *s) {
                       "GCslowpath");
 
   // Slowpath for expanding stack size.
-  reg_cnt = collect_non_callee_saved_regs(slowpath_regs, true);
   auto expand_start = (uint8_t *)emit_offset(s);
 
   emit_writable_begin(s);
 
-  emit_push_regs(s, slowpath_regs, reg_cnt, true);
-  emit_sub_constant(s, SP, SP, 16);
-  emit_store(s, 0, SP, RSTACK);
+  emit_sub_constant(s, SP, SP, expand_stack_frame_size);
+  emit_save_slowpath_regs(s);
+  emit_store(s, expand_stack_saved_rstack_offset, SP, RSTACK);
   emit_mov(s, RARG0, RSTATE);
-  emit_add_constant(s, RARG1, SP, 0);
+  emit_add_constant(s, RARG1, SP, expand_stack_saved_rstack_offset);
   emit_mov64(s, RTMP, (intptr_t)&expand_stack);
   emit_call_reg(s, RTMP);
-  emit_mem_load(s, 0, SP, RSTACK);
-  emit_add_constant(s, SP, SP, 16);
-  emit_pop_regs(s, slowpath_regs, reg_cnt, true);
+  emit_restore_slowpath_regs(s);
+  emit_mem_load(s, expand_stack_saved_rstack_offset, SP, RSTACK);
+  emit_add_constant(s, SP, SP, expand_stack_frame_size);
   emit_ret(s);
 
   auto expand_end = emit_offset(s);
