@@ -151,11 +151,12 @@ void emit_init_slowpath(emit_state *s) {
   emit_store_ralloc(s);
   emit_mov64(s, RTMP, (int64_t)&gc_alloc_ir_slowpath);
   emit_call_reg(s, RTMP);
+  emit_add_constant(s, RTMP2, SP, alloc_stub_frame_size);
   emit_store(s, alloc_metadata_result_offset, RTMP2, RET_REG);
   emit_restore_slowpath_regs(s);
   emit_add_constant(s, SP, SP, alloc_stub_frame_size);
   emit_load_ralloc(s); // clobbers RTMP
-  emit_mem_load(s, alloc_metadata_result_offset, RTMP2, RTMP);
+  emit_mem_load(s, alloc_metadata_result_offset, SP, RTMP);
   emit_ret(s);
 
   auto alloc_end = emit_offset(s);
@@ -316,14 +317,14 @@ static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
   emit_sub_constant(s, SP, SP, alloc_metadata_frame_size);
   emit_store_constant(s, alloc_metadata_live_gpr_mask_offset, SP,
                       (int64_t)live_gpr_mask);
+  for (uint8_t word = 0; word < 4; word++) {
+    emit_store_constant(s, alloc_metadata_spill_mask_offset + word * 8, SP,
+                        (int64_t)spill_mask[word]);
+  }
   if (size_reg == REG_NONE) {
     emit_mov64(s, RTMP, tagged_size);
   } else {
     emit_mov(s, RTMP, size_reg);
-  }
-  for (uint8_t word = 0; word < 4; word++) {
-    emit_store_constant(s, alloc_metadata_spill_mask_offset + word * 8, SP,
-                        (int64_t)spill_mask[word]);
   }
   emit_mov(s, RTMP2, SP);
   assert(s->alloc_slowpath);

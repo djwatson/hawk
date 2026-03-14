@@ -536,8 +536,9 @@ void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
     emit_op(s, opcode);
     return;
   }
-  emit_mov64(s, RTMP, imm);
-  emit_cmp(s, reg, RTMP);
+  uint8_t tmp = reg == RTMP ? RTMP2 : RTMP;
+  emit_mov64(s, tmp, imm);
+  emit_cmp(s, reg, tmp);
 }
 
 void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm) {
@@ -925,6 +926,12 @@ void emit_mov(emit_state *s, uint8_t dst, uint8_t src) {
   }
   assert(dst < MAX_REG);
   assert(src < MAX_REG);
+  if (dst == SP || src == SP) {
+    uint32_t opcode =
+        0x91000000U | ((uint32_t)src << 5) | (uint32_t)dst; // ADD Xd, Xn, #0
+    emit_op(s, opcode);
+    return;
+  }
   uint32_t opcode =
       0xAA0003E0U | ((uint32_t)src << 16) | (uint32_t)dst; // ORR Xd, XZR, Xm
   emit_op(s, opcode);
@@ -1004,8 +1011,9 @@ void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value) {
   assert(base < MAX_REG);
-  emit_mov64(s, RTMP, value);
-  emit_store(s, offset, base, RTMP);
+  uint8_t tmp = base == RTMP ? RTMP2 : RTMP;
+  emit_mov64(s, tmp, value);
+  emit_store(s, offset, base, tmp);
 }
 
 void asm_load_constant(emit_state *s, int idx, uint8_t dst) {
