@@ -31,23 +31,21 @@ static gc_obj spills[256];
 enum : uint16_t { spill_slot_count = 256 };
 
 enum : int32_t {
-  alloc_slowpath_result_offset = 0,
-  alloc_slowpath_spill_mask_offset = 16,
-  alloc_slowpath_reg_save_offset = 48,
-  alloc_slowpath_reg_save_stride = 16,
-  alloc_slowpath_frame_size =
-      alloc_slowpath_reg_save_offset + MAX_REG * alloc_slowpath_reg_save_stride,
+  alloc_metadata_result_offset = 0,
+  alloc_metadata_live_gpr_mask_offset = 8,
+  alloc_metadata_spill_mask_offset = 16,
+  alloc_metadata_frame_size = 48,
+  alloc_reg_save_stride = 16,
+  alloc_stub_frame_size = MAX_REG * alloc_reg_save_stride,
 };
 
-static_assert((alloc_slowpath_frame_size & 15) == 0,
+static_assert((alloc_metadata_frame_size & 15) == 0,
+              "alloc metadata frame must stay aligned");
+static_assert((alloc_stub_frame_size & 15) == 0,
               "alloc slowpath frame must stay aligned");
 
-static inline int32_t alloc_reg_save_offset(uint8_t reg) {
-  return alloc_slowpath_reg_save_offset + reg * alloc_slowpath_reg_save_stride;
-}
-
 static inline int32_t alloc_reg_save_slot_offset(uint8_t reg) {
-  return reg * alloc_slowpath_reg_save_stride;
+  return reg * alloc_reg_save_stride;
 }
 
 static void *gc_alloc_ir_slowpath(uint64_t tagged_sz, uint8_t *reg_save,
@@ -93,10 +91,6 @@ static void register_jit_symbol(uint8_t *start, uint8_t *entry, uint8_t *end,
   }
 }
 
-static inline void *gc_alloc_tagged(uint64_t tagged_sz) {
-  return gc_alloc((uint64_t)(tagged_sz >> FIXNUM_SHIFT));
-}
-
 static void emit_load_ralloc(emit_state *s) {
   emit_mov64(s, RTMP, (intptr_t)&gc_hp);
   emit_mem_load(s, 0, RTMP, RALLOC);
@@ -130,21 +124,46 @@ void emit_init_slowpath(emit_state *s) {
     return;
   }
   uint8_t slowpath_regs[64];
-  size_t reg_cnt = collect_non_callee_saved_regs(slowpath_regs, false);
+  size_t reg_cnt;
 
   auto alloc_start = (uint8_t *)emit_offset(s);
 
-  // Slowpath: RET_REG is tagged size on entry, allocation result on return.
+  // Slowpath ABI: RTMP is tagged size, RTMP2 is caller metadata base.
   emit_writable_begin(s);
 
-  emit_push_regs(s, slowpath_regs, reg_cnt, true);
-  emit_mov(s, RARG0, RET_REG);
-  emit_store_ralloc(s);
-  emit_mov64(s, RTMP, (int64_t)&gc_alloc_tagged);
-  emit_call_reg(s, RTMP);
-  emit_load_ralloc(s);
+  emit_sub_constant(s, SP, SP, alloc_stub_frame_size);
+  for (uint8_t reg = 0; reg < FPR_REG_END; reg++) {
+    if (reg == SP) {
+      continue;
+    }
+    if (reg >= FPR_REG_START) {
+      emit_fstore(s, alloc_reg_save_slot_offset(reg), SP, reg);
+    } else {
+      emit_store(s, alloc_reg_save_slot_offset(reg), SP, reg);
+    }
+  }
 
-  emit_pop_regs(s, slowpath_regs, reg_cnt, true);
+  emit_mov(s, RARG0, RTMP);
+  emit_mov(s, RARG1, SP);
+  emit_mem_load(s, alloc_metadata_live_gpr_mask_offset, RTMP2, RARG2);
+  emit_add_constant(s, RARG3, RTMP2, alloc_metadata_spill_mask_offset);
+  emit_store_ralloc(s);
+  emit_mov64(s, RTMP, (int64_t)&gc_alloc_ir_slowpath);
+  emit_call_reg(s, RTMP);
+  emit_mov(s, RTMP2, RET_REG);
+  for (uint8_t reg = 0; reg < FPR_REG_END; reg++) {
+    if (reg == SP || reg == RTMP || reg == RTMP2) {
+      continue;
+    }
+    if (reg >= FPR_REG_START) {
+      emit_fmem_load(s, alloc_reg_save_slot_offset(reg), SP, reg);
+    } else {
+      emit_mem_load(s, alloc_reg_save_slot_offset(reg), SP, reg);
+    }
+  }
+  emit_add_constant(s, SP, SP, alloc_stub_frame_size);
+  emit_load_ralloc(s); // clobbers RTMP
+  emit_mov(s, RTMP, RTMP2);
   emit_ret(s);
 
   auto alloc_end = emit_offset(s);
@@ -292,25 +311,9 @@ static void collect_live_roots_for_snap(trace *t, uint16_t snap_idx,
   }
 }
 
-static void emit_save_live_reg(emit_state *s, uint8_t reg) {
-  if (is_fpr_reg(reg)) {
-    emit_fstore(s, alloc_reg_save_offset(reg), SP, reg);
-  } else {
-    emit_store(s, alloc_reg_save_offset(reg), SP, reg);
-  }
-}
-
-static void emit_restore_live_reg(emit_state *s, uint8_t reg) {
-  if (is_fpr_reg(reg)) {
-    emit_fmem_load(s, alloc_reg_save_offset(reg), SP, reg);
-  } else {
-    emit_mem_load(s, alloc_reg_save_offset(reg), SP, reg);
-  }
-}
-
-static void emit_rooted_alloc(emit_state *s, bool live_regs[MAX_REG],
-                              uint64_t live_gpr_mask, uint64_t spill_mask[4],
-                              int64_t tagged_size, uint8_t size_reg) {
+static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
+                              uint64_t spill_mask[4], int64_t tagged_size,
+                              uint8_t size_reg) {
   label alloc_done = {};
   if (size_reg == REG_NONE) {
     emit_sub_constant(s, RALLOC, RALLOC, tagged_size >> FIXNUM_SHIFT);
@@ -325,37 +328,22 @@ static void emit_rooted_alloc(emit_state *s, bool live_regs[MAX_REG],
   emit_cmp(s, RALLOC, RTMP2);
   emit_jcc32(s, JAE, &alloc_done);
 
-  emit_sub_constant(s, SP, SP, alloc_slowpath_frame_size);
-  for (uint8_t reg = 0; reg < MAX_REG; reg++) {
-    if (live_regs[reg]) {
-      emit_save_live_reg(s, reg);
-    }
-  }
+  emit_sub_constant(s, SP, SP, alloc_metadata_frame_size);
+  emit_store_constant(s, alloc_metadata_live_gpr_mask_offset, SP,
+                      (int64_t)live_gpr_mask);
   if (size_reg == REG_NONE) {
-    emit_mov64(s, RET_REG, tagged_size);
+    emit_mov64(s, RTMP, tagged_size);
   } else {
-    emit_mov(s, RET_REG, size_reg);
+    emit_mov(s, RTMP, size_reg);
   }
   for (uint8_t word = 0; word < 4; word++) {
-    emit_store_constant(s, alloc_slowpath_spill_mask_offset + word * 8, SP,
+    emit_store_constant(s, alloc_metadata_spill_mask_offset + word * 8, SP,
                         (int64_t)spill_mask[word]);
   }
-  emit_mov(s, RARG0, RET_REG);
-  emit_add_constant(s, RARG1, SP, alloc_slowpath_reg_save_offset);
-  emit_mov64(s, RARG2, (int64_t)live_gpr_mask);
-  emit_add_constant(s, RARG3, SP, alloc_slowpath_spill_mask_offset);
-  emit_store_ralloc(s);
-  emit_mov64(s, RTMP, (intptr_t)&gc_alloc_ir_slowpath);
-  emit_call_reg(s, RTMP);
-  emit_store(s, alloc_slowpath_result_offset, SP, RET_REG);
-  emit_load_ralloc(s);
-  for (uint8_t reg = 0; reg < MAX_REG; reg++) {
-    if (live_regs[reg]) {
-      emit_restore_live_reg(s, reg);
-    }
-  }
-  emit_mem_load(s, alloc_slowpath_result_offset, SP, RTMP);
-  emit_add_constant(s, SP, SP, alloc_slowpath_frame_size);
+  emit_mov(s, RTMP2, SP);
+  assert(s->alloc_slowpath);
+  emit_call32(s, (int64_t)s->alloc_slowpath);
+  emit_add_constant(s, SP, SP, alloc_metadata_frame_size);
   emit_label(s, &alloc_done);
 }
 
@@ -531,7 +519,7 @@ static void emit_box_flonum(emit_state *s, int32_t stack_offset,
   assert(is_fpr_reg(fpr_reg));
 
   live_regs[fpr_reg] = true;
-  emit_rooted_alloc(s, live_regs, live_gpr_mask, spill_mask,
+  emit_rooted_alloc(s, live_gpr_mask, spill_mask,
                     TAG_FIXNUM_VALUE(sizeof(flonum_s)), REG_NONE);
 
   emit_store_constant(s, 0, RTMP, FLONUM_TAG);
@@ -1277,8 +1265,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         size_reg = arg0_reg;
       }
 
-      emit_rooted_alloc(s, live_regs, live_gpr_mask, spill_mask, tagged_size,
-                        size_reg);
+      emit_rooted_alloc(s, live_gpr_mask, spill_mask, tagged_size, size_reg);
       emit_store_constant(s, 0, RTMP, (int64_t)type_val);
       emit_add_constant(s, dst_reg, RTMP, tag_bits);
       break;
