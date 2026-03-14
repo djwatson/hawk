@@ -24,7 +24,6 @@
 #include "regalloc.h"
 #include "vm.h"
 
-static_assert((sizeof(flonum_s) & 7) == 0, "flonum_s must be 8-byte aligned");
 static const int32_t flonum_payload_offset = (int32_t)offsetof(flonum_s, x);
 
 static gc_obj gpr_spills[256];
@@ -32,15 +31,10 @@ static uint64_t fpr_spills[256];
 enum : uint16_t { spill_slot_count = 256 };
 
 enum : int32_t {
-  alloc_metadata_live_gpr_mask_offset = 0,
-  alloc_metadata_result_offset = 8,
-  alloc_metadata_frame_size = 16,
-  alloc_reg_save_stride = 16,
+  alloc_reg_save_stride = 8,
   alloc_stub_frame_size = MAX_REG * alloc_reg_save_stride,
 };
 
-static_assert((alloc_metadata_frame_size & 15) == 0,
-              "alloc metadata frame must stay aligned");
 static_assert((alloc_stub_frame_size & 15) == 0,
               "alloc slowpath frame must stay aligned");
 
@@ -91,6 +85,7 @@ static void emit_store_ralloc(emit_state *s) {
 }
 
 static void emit_save_slowpath_regs(emit_state *s) {
+  emit_sub_constant(s, SP, SP, alloc_stub_frame_size);
   for (uint8_t reg = 0; reg < FPR_REG_END; reg++) {
     if (reg == SP) {
       continue;
@@ -105,7 +100,7 @@ static void emit_save_slowpath_regs(emit_state *s) {
 
 static void emit_restore_slowpath_regs(emit_state *s) {
   for (uint8_t reg = 0; reg < FPR_REG_END; reg++) {
-    if (reg == SP) {
+    if (reg == SP || reg == RTMP || reg == RTMP2) {
       continue;
     }
     if (reg >= FPR_REG_START) {
@@ -114,37 +109,33 @@ static void emit_restore_slowpath_regs(emit_state *s) {
       emit_mem_load(s, alloc_reg_save_slot_offset(reg), SP, reg);
     }
   }
+  emit_add_constant(s, SP, SP, alloc_stub_frame_size);
 }
 
 void emit_init_slowpath(emit_state *s) {
   if (s->alloc_slowpath) {
     return;
   }
-  enum : int32_t {
-    expand_stack_saved_rstack_offset = alloc_stub_frame_size,
-    expand_stack_frame_size = alloc_stub_frame_size + 16,
-  };
-
   auto alloc_start = (uint8_t *)emit_offset(s);
 
-  // Slowpath ABI: RTMP is tagged size, RTMP2 is caller metadata base.
+  // Slowpath ABI: RTMP is tagged size, RTMP2 is live_gpr_mask.
   emit_writable_begin(s);
 
-  emit_sub_constant(s, SP, SP, alloc_stub_frame_size);
   emit_save_slowpath_regs(s);
 
   emit_mov(s, RARG0, RTMP);
   emit_mov(s, RARG1, SP);
-  emit_mem_load(s, alloc_metadata_live_gpr_mask_offset, RTMP2, RARG2);
+  emit_mov(s, RARG2, RTMP2);
   emit_store_ralloc(s);
+  emit_push_regs(s, nullptr, 0, true);
   emit_mov64(s, RTMP, (int64_t)&gc_alloc_ir_slowpath);
   emit_call_reg(s, RTMP);
-  emit_add_constant(s, RTMP2, SP, alloc_stub_frame_size);
-  emit_store(s, alloc_metadata_result_offset, RTMP2, RET_REG);
+  emit_pop_regs(s, nullptr, 0, true);
+  emit_mov(s, RTMP2, RET_REG);
+
   emit_restore_slowpath_regs(s);
-  emit_add_constant(s, SP, SP, alloc_stub_frame_size);
   emit_load_ralloc(s); // clobbers RTMP
-  emit_mem_load(s, alloc_metadata_result_offset, SP, RTMP);
+  emit_mov(s, RTMP, RTMP2);
   emit_ret(s);
 
   auto alloc_end = emit_offset(s);
@@ -159,16 +150,16 @@ void emit_init_slowpath(emit_state *s) {
 
   emit_writable_begin(s);
 
-  emit_sub_constant(s, SP, SP, expand_stack_frame_size);
   emit_save_slowpath_regs(s);
-  emit_store(s, expand_stack_saved_rstack_offset, SP, RSTACK);
   emit_mov(s, RARG0, RSTATE);
-  emit_add_constant(s, RARG1, SP, expand_stack_saved_rstack_offset);
+  emit_mov(s, RARG1, RSTACK);
+  emit_push_regs(s, nullptr, 0, true);
   emit_mov64(s, RTMP, (intptr_t)&expand_stack);
   emit_call_reg(s, RTMP);
+  emit_pop_regs(s, nullptr, 0, true);
+  emit_mov(s, RTMP2, RET_REG);
   emit_restore_slowpath_regs(s);
-  emit_mem_load(s, expand_stack_saved_rstack_offset, SP, RSTACK);
-  emit_add_constant(s, SP, SP, expand_stack_frame_size);
+  emit_mov(s, RSTACK, RTMP2);
   emit_ret(s);
 
   auto expand_end = emit_offset(s);
@@ -292,18 +283,14 @@ static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
   emit_cmp(s, RALLOC, RTMP2);
   emit_jcc32(s, JAE, &alloc_done);
 
-  emit_sub_constant(s, SP, SP, alloc_metadata_frame_size);
-  emit_store_constant(s, alloc_metadata_live_gpr_mask_offset, SP,
-                      (int64_t)live_gpr_mask);
   if (size_reg == REG_NONE) {
     emit_mov64(s, RTMP, tagged_size);
   } else {
     emit_mov(s, RTMP, size_reg);
   }
-  emit_mov(s, RTMP2, SP);
-  assert(s->alloc_slowpath);
+  emit_mov64(s, RTMP2, (int64_t)live_gpr_mask);
+
   emit_call32(s, (int64_t)s->alloc_slowpath);
-  emit_add_constant(s, SP, SP, alloc_metadata_frame_size);
   emit_label(s, &alloc_done);
 }
 

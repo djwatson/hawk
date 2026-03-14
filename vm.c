@@ -318,7 +318,7 @@ static inline void sym_store(vm_state *state, gc_obj sym, gc_obj val) {
 static inline void obj_write(vm_state *state, gc_obj val, void **op_table) {
   print_obj(val, stdout);
 }
-void expand_stack(vm_state *state, gc_obj **stack) {
+gc_obj *expand_stack(vm_state *state, gc_obj *stack) {
   // TODO: this should really be a stack *cache*
   size_t oldsz = (size_t)(state->stack_top - state->stack_bottom);
   size_t newsz = oldsz + (oldsz / 3);
@@ -326,7 +326,7 @@ void expand_stack(vm_state *state, gc_obj **stack) {
     newsz = oldsz + 1;
   }
   gc_obj *old_bottom = state->stack_bottom;
-  auto offset = *stack - state->stack_bottom;
+  auto offset = stack - state->stack_bottom;
   if (verbose) {
     printf("MUST EXPAND STACK now %li\n", newsz);
   }
@@ -345,12 +345,12 @@ void expand_stack(vm_state *state, gc_obj **stack) {
   // (or rather, stack + 256 redzone).
   // If the stack grew large but then stayed small, GC time would be improved.
   gc_add_root((const uint64_t *)state->stack_bottom, newsz);
-  *stack = &newstack[offset];
+  return &newstack[offset];
 }
 
 static inline void check_expand_stack(vm_state *state, gc_obj **stack) {
   if (*stack >= state->stack_limit) {
-    expand_stack(state, stack);
+    *stack = expand_stack(state, *stack);
   }
 }
 static inline void check_arity(int expected, uint8_t args) {

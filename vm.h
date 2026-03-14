@@ -28,4 +28,4 @@ typedef struct vm_state {
 } vm_state;
 
 gc_obj vm(bc *pc);
-void expand_stack(vm_state *state, gc_obj **stack);
+gc_obj *expand_stack(vm_state *state, gc_obj *stack);
