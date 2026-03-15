@@ -47,36 +47,7 @@
 ;        P_{n-1}
 ;     end
 ;
-(import (except (scheme base)
-                pair?
-                cdr
-                cons
-                length
-                null?
-                car
-                cddr
-                append
-                length
-                not
-                zero?
-                list-tail
-                list) (scheme write) (prefix (hawk sys) sys:))
-
-(define (length a)
-  (let loop ((len 0) (a a)) (if (pair? a) (loop (+ len 1) (cdr a)) len)))
-(define (cons a b)
-  (let ((cell (sys:ALLOC 24 3))) (sys:STORE cell a 0) (sys:STORE cell b 1) cell))
-(define (not a) (if a #f #t))
-(define (null? a) (sys:GUARD a 20))
-(define (pair? a) (sys:GUARD a 3))
-(define (cdr a) (sys:LOAD a 1))
-(define (car a) (sys:LOAD a 0))
-(define (append a b) (if (null? a) b (cons (car a) (append (cdr a) b))))
-(define (zero? z) (= z 0))
-
-(define (list-tail lst k)
-  (let loop ((lst lst) (k k)) (if (> k 0) (loop (cdr lst) (- k 1)) lst)))
-(define (list x) (cons x '()))
+(import (scheme r5rs))
 
 (define (permutations x)
   (let ((x x) (perms (list x)))
@@ -88,7 +59,8 @@
       (set! perms (cons x perms)))
     (define (revloop x n y)
       (if (zero? n) y (revloop (cdr x) (- n 1) (cons (car x) y))))
-    (define (list-tail x n) (if (zero? n) x (list-tail (cdr x) (- n 1))))
+    ;; TODO this should be okay???
+    ;;(define (list-tail x n) (if (zero? n) x (list-tail (cdr x) (- n 1))))
     (P (length x))
     perms))
 

@@ -673,14 +673,19 @@
 
 (define (compile-file file)
   (define (debug-print item) (display (ir->sexp item)) (newline) item)
-  (define (run-expansion forms) `#(begin ,(expand-toplevel forms) #f))
+  (define empty-library-name (string->symbol ""))
+  (define (read-forms path)
+    (let ((port (open-input-file path)))
+      (let ((forms (read-file port))) (close-input-port port) forms)))
   (parameterize ((funs (make-funs-list)))
-    (define port (open-input-file file))
     (define out (open-output-file (string-append file ".bc")))
+    (define runtime-forms (read-forms "runtime.scm"))
+    (define input-forms (read-forms file))
     (define lowered
-      (-> port
-          read-file
-          run-expansion
+      (-> `#(begin
+              ,(append (expand-program runtime-forms empty-library-name #f)
+                       (expand-program input-forms 'REPL #t))
+              #f)
           simple-pass
           fix-letrec
           assignment-conversion
@@ -695,7 +700,6 @@
     (define consts (make-hash-table equal?)) ;; de-duplication table.
     (define const-table (make-hash-table eq?)) ;; Result ordering.  ALSO sorts out recursive structures.
     (define const-order (make-const-order))
-    (close-input-port port)
     ;; Actual compilation step.
     (compile lowered main '() 0 #f)
     (add-op main `(HALT 0))

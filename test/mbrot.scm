@@ -1,12 +1,6 @@
 ;;; MBROT -- Generation of Mandelbrot set fractal.
-(import (except (scheme base) vector-length make-vector vector-ref vector-set!)
-        (only (scheme r5rs) exact->inexact) (scheme write) (prefix (hawk sys) sys:))
 
-(define (vector-length vec) (sys:LOAD vec 0))
-(define (make-vector len)
-  (let ((vec (sys:ALLOC (+ 16 (* len 8)) 7))) (sys:STORE vec len 0) vec))
-(define (vector-ref vec idx) (sys:LOAD vec (+ 1 idx)))
-(define (vector-set! vec idx val) (sys:STORE vec val (+ 1 idx)))
+(import (scheme r5rs))
 
 (define (count r i step x y)
 
@@ -35,15 +29,13 @@
               (loop1 (- y 1)))))))
 
 (define (test n)
-  (let ((matrix (make-vector n)))
+  (let ((matrix (make-vector n 0)))
     (let loop ((i (- n 1)))
-      (if (>= i 0) (begin (vector-set! matrix i (make-vector n)) (loop (- i 1)))))
+      (if (>= i 0) (begin (vector-set! matrix i (make-vector n 0)) (loop (- i 1)))))
     (mbrot matrix -1.0 -0.5 0.005 n)
     (vector-ref (vector-ref matrix 0) 0)))
 
-(define (run n out)
-  (if (= n 0) out
-      (run (- n 1) (test 75))))
+(define (run n out) (if (= n 0) out (run (- n 1) (test 75))))
 (display (run 1000 0))
 
 ;5

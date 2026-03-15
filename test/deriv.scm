@@ -2,32 +2,7 @@
 
 ;;; Returns the wrong answer for quotients.
 ;;; Fortunately these aren't used in the benchmark.
-
-(import (except (scheme base)
-                map
-                pair?
-                cdr
-                cons
-                length
-                null?
-                car
-                cadr
-                caddr
-                cddr
-                append
-                not) (scheme write) (prefix (hawk sys) sys:))
-
-(define (cons a b)
-  (let ((cell (sys:ALLOC 24 3))) (sys:STORE cell a 0) (sys:STORE cell b 1) cell))
-(define (not a) (if a #f #t))
-(define (null? a) (sys:GUARD a 20))
-(define (pair? a) (sys:GUARD a 3))
-(define (cdr a) (sys:LOAD a 1))
-(define (car a) (sys:LOAD a 0))
-(define (cadr a) (car (cdr a)))
-(define (caddr a) (car (cdr (cdr a))))
-(define (append a b) (if (null? a) b (cons (car a) (append (cdr a) b))))
-(define (map f a) (if (null? a) '() (cons (f (car a)) (map f (cdr a)))))
+(import (scheme r5rs) (scheme base))
 
 (define (deriv a)
   (cond

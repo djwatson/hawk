@@ -1,16 +1,7 @@
 ;;; PRIMES -- Compute primes less than 100, written by Eric Mohr.
 
 ;;; LC NOTE : Can't compute more primes because of heap/stack overflow
-(import (except (scheme base) pair? cdr cons length null? car cddr append not) (scheme write)
-        (prefix (hawk sys) sys:))
-
-(define (cons a b)
-  (let ((cell (sys:ALLOC 24 3))) (sys:STORE cell a 0) (sys:STORE cell b 1) cell))
-(define (not a) (if a #f #t))
-(define (null? a) (sys:GUARD a 20))
-(define (pair? a) (sys:GUARD a 3))
-(define (cdr a) (sys:LOAD a 1))
-(define (car a) (sys:LOAD a 0))
+(import (scheme r5rs))
 
 (define (interval-list m n)
   (if (> m n) '() (cons m (interval-list (+ 1 m) n))))

@@ -1,45 +1,4 @@
-(import (except (scheme base)
-                vector-length
-                make-vector
-                vector-ref
-                vector-set!
-                list->vector
-                length
-                vector->list
-                cons
-                car
-                cdr
-                pair?
-                not) (only (scheme r5rs) exact->inexact) (scheme write) (prefix (hawk sys) sys:))
-
-(define (cons a b)
-  (let ((cell (sys:ALLOC 24 3))) (sys:STORE cell a 0) (sys:STORE cell b 1) cell))
-
-(define (cdr a) (sys:LOAD a 1))
-(define (car a) (sys:LOAD a 0))
-
-(define (not a) (if a #f #t))
-(define (pair? a) (sys:GUARD a 3))
-(define (vector-length vec) (sys:LOAD vec 0))
-(define (vector-init vec init pos left)
-  (if (= left 0)
-      vec
-      (begin (vector-set! vec pos init) (vector-init vec init (+ pos 1) (- left 1)))))
-(define (make-vector len)
-  (let ((vec (sys:ALLOC (+ 16 (* len 8)) 7)))
-    (sys:STORE vec len 0)
-    ;(do ((i 0 (+ i 1))) ((= i len) vec) (vector-set! vec i init))
-    (vector-init vec 0 0 len)))
-(define (vector-ref vec idx) (sys:LOAD vec (+ 1 idx)))
-(define (vector-set! vec idx val) (sys:STORE vec val (+ 1 idx)))
-(define (list->vector lst)
-  (let* ((len (length lst)) (v (make-vector len)))
-    (do ((i 0 (+ i 1)) (p lst (cdr p))) ((= i len) v) (vector-set! v i (car p)))))
-(define (length a)
-  (let loop ((len 0) (a a)) (if (pair? a) (loop (+ len 1) (cdr a)) len)))
-(define (vector->list vec)
-  (let loop ((i (vector-length vec)) (l '()))
-    (if (= i 0) l (loop (- i 1) (cons (vector-ref vec (- i 1)) l)))))
+(import (scheme r5rs))
 
 (define (pt-in-poly2 xp yp x y)
   (let loop ((c #f) (i (- (vector-length xp) 1)) (j 0))
