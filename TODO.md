@@ -1,5 +1,13 @@
 # Currently working on:
 
+## tests:
+
+* probably need to fix closure conversion at some point
+* need to get a real runtime/bootstrap file
+* get r5rs scm working
+
+## JIT impl
+
 * figure out why deriv is slow
   * downrec abort not working (start of trace is failing?)
   * GC next_collect is 10x too big.
@@ -12,14 +20,8 @@
   STORE: could alloc a reg in IR_REF to 
   GSET: needs a tmp reg
   SLOAD: would need separate IR_TYPECHECK or tmp reg
-
-## tests:
-
-* probably need to fix closure conversion at some point
-* need to get a real runtime/bootstrap file
-* get r5rs scm working
-
-## other
+  
+* We can probably push RSTATE on the stack instead of keeping a register.
 
 * currently (cons) calls IR_STORE, but this forces a snapshot-  many more snapshots than really necessary (because we're only storing to NEW memory, we shouldn't need to snapshot).
 
@@ -31,7 +33,6 @@
 * update stack overflow, just allocate a new section (linked stack segments, much faster callcc handling)
 
 # cleanup
-* we could improve emit_snap_store_flonum to use fewer registers / optimistic check for free
 * we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!
 * need a 'box' type so assignment-conversion doesn't need to set more than one thing
 * be careful around vector init, ugh.
