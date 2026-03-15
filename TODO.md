@@ -3,12 +3,12 @@
 ## tests:
 
 * probably need to fix closure conversion at some point
-* need to get a real runtime/bootstrap file
 * get r5rs scm working
 
 ## JIT impl
 
 * figure out why deriv is slow
+  * heurstics can't catch single-looping trace
   * downrec abort not working (start of trace is failing?)
   * GC next_collect is 10x too big.
   * deriv.scm needs better closure conversion.
@@ -40,15 +40,11 @@
 # scheme cleanup
 * builders needs to be in with the rest of the IR passes. Use builders instead of backtick to build stuff.
 * matchers kinda suck with annotations and unused fields, ugh???
-* ir->sexp is used for debugging, we need a pretty-print IR I guess?
 * move passes to separate file?
 
 # simple VM
 
 * debug info serialized - hmm maybe keep in scheme format?
-* use conservative collector on stack, but precise on heap, allowing dumping.
-  * this would be 'hard' if there are any saved continuations?  
-     * actually maybe not, since it's just VM stuff on the stack (i.e. walk ret chain).
 * Hmmm maybe allow toplevel and module - DON'T inline modules?  Or track which are inlined? ugh.
   * make this optional, I guess.
 * Ugh, same with ARG: we can't know to drop it. Don't know if unused based on only trace, need
@@ -76,15 +72,8 @@ X dce - implicit.  Only useful with LOOP
 
 # passes
 * loops
-* lift complex / bignums?
 * count uses 
 * advanced closure conversion (with subpasses)
-
-## maybe?  probably unnecesary with jit:
-* scev
-* cp0
-* type inference
-  * storage use analsis?
 
 # notes:
 

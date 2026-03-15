@@ -88,6 +88,19 @@ static void visit_field(gc_obj *slot, void *ctx) {
     return;
   }
   size_t sz = align_size(heap_object_size(obj));
+  if (obj->type == FUNC_TAG) {
+    bcfunc *stable_func = malloc(sz);
+    if (!stable_func) {
+      fprintf(stderr, "out of memory during collection, increate GC_SPACE\n");
+      abort();
+    }
+    memcpy(stable_func, obj, sz);
+    forward_obj(obj, &stable_func->header);
+    *slot = tag_header(stable_func, get_tag(*slot));
+    gc_register_bcfunc(stable_func);
+    arrput(worklist, &stable_func->header);
+    return;
+  }
   uintptr_t new_hp = gc_hp - sz;
   if (new_hp < gc_limit) {
     fprintf(stderr, "out of memory during collection, increate GC_SPACE\n");
@@ -215,6 +228,119 @@ void gc_free(void) {
   arr_for_each(pinned_funcs, entry) { free(entry.ptr); }
   arrfree(pinned_funcs);
   munmap((void *)heap.mem, heap.size);
+}
+
+typedef struct {
+  uintptr_t base;
+  size_t len;
+  char const *path;
+} image_ctx;
+
+static void read_image_fail(char const *path, char const *msg) {
+  fprintf(stderr, "Failed to read image %s: %s\n", path, msg);
+  abort();
+}
+
+static void rebase_image_field(gc_obj *slot, void *ctx) {
+  if (!is_heap_object(*slot)) {
+    return;
+  }
+  image_ctx const *image = ctx;
+  uintptr_t offset = (uintptr_t)to_raw_ptr(*slot);
+  if (offset >= image->len) {
+    read_image_fail(image->path, "pointer offset out of bounds");
+  }
+  *slot = tag_header((gc_header *)(image->base + offset), get_tag(*slot));
+}
+
+gc_obj gc_read_image(char const *path) {
+  FILE *fp = fopen(path, "rb");
+  if (!fp) {
+    perror("fopen");
+    abort();
+  }
+  if (fseek(fp, 0, SEEK_END) != 0) {
+    perror("fseek");
+    abort();
+  }
+  long fsize = ftell(fp);
+  if (fsize < 0) {
+    perror("ftell");
+    abort();
+  }
+  if (fseek(fp, 0, SEEK_SET) != 0) {
+    perror("fseek");
+    abort();
+  }
+  if (fsize < 28) {
+    read_image_fail(path, "file too short");
+  }
+
+  uint8_t *data = malloc((size_t)fsize);
+  if (!data) {
+    fprintf(stderr, "Failed to allocate %li bytes\n", fsize);
+    abort();
+  }
+  if (fread(data, 1, (size_t)fsize, fp) != (size_t)fsize) {
+    read_image_fail(path, "short read");
+  }
+  fclose(fp);
+
+  if (memcmp(data, "HAWK", 4) != 0) {
+    read_image_fail(path, "invalid magic");
+  }
+
+  uint64_t version;
+  uint64_t image_len_u64;
+  uint64_t start_u64;
+  memcpy(&version, &data[4], sizeof(version));
+  memcpy(&image_len_u64, &data[12], sizeof(image_len_u64));
+  memcpy(&start_u64, &data[20], sizeof(start_u64));
+  if (version != 0) {
+    read_image_fail(path, "unsupported version");
+  }
+  if (image_len_u64 > SIZE_MAX) {
+    read_image_fail(path, "image too large");
+  }
+  size_t image_len = (size_t)image_len_u64;
+  if ((size_t)fsize != 28 + image_len) {
+    read_image_fail(path, "length mismatch");
+  }
+
+  if (image_len > space_size()) {
+    read_image_fail(path, "image larger than GC semispace");
+  }
+  uintptr_t image_base = heap.from_space;
+  memcpy((void *)image_base, data + 28, image_len);
+  free(data);
+
+  image_ctx image = {.base = image_base, .len = image_len, .path = path};
+  uintptr_t scan = image_base;
+  uintptr_t end = image_base + image_len;
+
+  while (scan < end) {
+    gc_header *obj = (gc_header *)scan;
+    size_t size = align_size(heap_object_size(obj));
+    if (scan + size > end) {
+      read_image_fail(path, "object extends beyond image");
+    }
+    trace_heap_object(obj, rebase_image_field, &image);
+    scan += size;
+  }
+  if (scan != end) {
+    read_image_fail(path, "image object walk did not end at boundary");
+  }
+
+  gc_obj start = {.value = (int64_t)start_u64};
+  rebase_image_field(&start, &image);
+  arrlen_set(worklist, 0);
+  visit_field(&start, nullptr);
+  while (arrlen(worklist) > 0) {
+    gc_header *obj = *arrlast(worklist);
+    arrpop(worklist);
+    scan_object(obj);
+  }
+  return start;
 }
 
 NOINLINE void *gc_alloc_slow(uint64_t sz) {

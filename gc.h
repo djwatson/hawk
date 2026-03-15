@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "hawk.h"
+#include "types.h"
 #include "util/util.h"
 
 typedef void (*gc_scan_root_cb)(const uint64_t *rootp, size_t len);
@@ -17,6 +18,7 @@ void gc_remove_root(uint64_t const *rootp);
 void gc_set_scan_callback(gc_scan_callback cb, void *data);
 void gc_register_bcfunc(struct bcfunc *func);
 void *gc_base_ptr(void *p);
+gc_obj gc_read_image(char const *path);
 void gc_log(uint64_t a);
 void gc_free(void);
 

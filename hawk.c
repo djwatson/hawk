@@ -9,7 +9,6 @@
 #include "bc.h"
 #include "gc.h"
 #include "hawk.h"
-#include "readbc.h"
 #include "types.h"
 #include "vm.h"
 
@@ -107,7 +106,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  auto start = heap_deserialize_from_file(filename);
+  auto start = gc_read_image(filename);
   if (!is_func(start)) {
     printf("Error loading %s\n", filename);
     exit(-1);

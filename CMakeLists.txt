@@ -76,7 +76,6 @@ endif()
 set(
   hawk_sources
   hawk.c
-  readbc.c
   ftoa.c
   vm.c
   types.c

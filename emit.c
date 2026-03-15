@@ -1306,6 +1306,9 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
 
   // Allocate registers, print the IR in verbose mode.
   regalloc_state reg_state;
+  if (verbose) {
+    print_ir(t);
+  }
   regalloc_state_init(&reg_state, t);
   if (verbose) {
     print_ir(t);
