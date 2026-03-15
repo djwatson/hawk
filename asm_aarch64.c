@@ -104,6 +104,24 @@ static uint32_t ldp_post(uint8_t rt, uint8_t rt2, uint8_t rn, int32_t offset) {
          ((uint32_t)rn << 5) | (uint32_t)rt;
 }
 
+static uint32_t stp_off(uint8_t rt, uint8_t rt2, uint8_t rn, int32_t offset) {
+  assert((offset % 8) == 0);
+  int32_t imm = offset / 8;
+  assert(imm >= -64 && imm <= 63);
+  uint32_t imm7 = (uint32_t)(imm & 0x7f);
+  return 0xA9000000U | (imm7 << 15) | ((uint32_t)rt2 << 10) |
+         ((uint32_t)rn << 5) | (uint32_t)rt;
+}
+
+static uint32_t ldp_off(uint8_t rt, uint8_t rt2, uint8_t rn, int32_t offset) {
+  assert((offset % 8) == 0);
+  int32_t imm = offset / 8;
+  assert(imm >= -64 && imm <= 63);
+  uint32_t imm7 = (uint32_t)(imm & 0x7f);
+  return 0xA9400000U | (imm7 << 15) | ((uint32_t)rt2 << 10) |
+         ((uint32_t)rn << 5) | (uint32_t)rt;
+}
+
 static const struct {
   uint8_t r1, r2;
 } callee_saved_pairs[] = {
@@ -833,90 +851,66 @@ void emit_pop(emit_state *s, uint8_t r) {
 
 void emit_debugtrap(emit_state *s) { emit_op(s, UINT32_C(0xD4200000)); }
 
-typedef struct {
-  uint8_t r1;
-  uint8_t r2;
-  bool fpr;
-  bool pair;
-} reg_op;
-
-static size_t build_reg_ops(uint8_t const *regs, size_t count, reg_op *ops,
-                            size_t max_ops) {
-  size_t op_count = 0;
-  size_t i = 0;
-  while (i < count) {
-    assert(op_count < max_ops);
-    uint8_t r1 = regs[i];
-    bool r1_is_fpr = (r1 >= FPR_REG_START);
-    if (i + 1 < count) {
-      uint8_t r2 = regs[i + 1];
-      bool r2_is_fpr = (r2 >= FPR_REG_START);
-      bool fpr_pair = r1_is_fpr && r2_is_fpr;
-      bool gpr_pair = !r1_is_fpr && !r2_is_fpr;
-      if (fpr_pair || gpr_pair) {
-        ops[op_count++] =
-            (reg_op){.r1 = r1, .r2 = r2, .fpr = r1_is_fpr, .pair = true};
-        i += 2;
+void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count,
+                    bool abi) {
+  if (abi) {
+    emit_op(s, stp_pre(FP, LR, SP, -16));
+  }
+  size_t pad = count & 1;
+  size_t frame_slots = count + pad;
+  if (frame_slots != 0) {
+    emit_sub_constant(s, SP, SP, (int64_t)(frame_slots * 8));
+  }
+  for (size_t i = 0; i < count; i++) {
+    uint8_t reg = regs[i];
+    if (reg == REG_NONE) {
+      continue;
+    }
+    if (reg < FPR_REG_START && i + 1 < count) {
+      uint8_t reg2 = regs[i + 1];
+      if (reg2 != REG_NONE && reg2 < FPR_REG_START) {
+        emit_op(s, stp_off(reg, reg2, SP, (int32_t)(i * 8)));
+        i++;
         continue;
       }
     }
-    ops[op_count++] =
-        (reg_op){.r1 = r1, .r2 = XZR, .fpr = r1_is_fpr, .pair = false};
-    i += 1;
-  }
-  return op_count;
-}
-
-void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count,
-                    bool abi) {
-  reg_op ops[MAX_REG];
-  size_t op_count = build_reg_ops(regs, count, ops, MAX_REG);
-
-  for (size_t i = 0; i < op_count; i++) {
-    reg_op *op = &ops[i];
-    if (op->pair) {
-      if (op->fpr) {
-        emit_op(s, stp_pre_q(op->r1, op->r2, SP, -32));
-      } else {
-        emit_op(s, stp_pre(op->r1, op->r2, SP, -16));
-      }
-      continue;
-    }
-    if (op->fpr) {
-      emit_sub_constant(s, SP, SP, 16);
-      emit_fstore(s, 0, SP, op->r1);
+    int32_t offset = (int32_t)(i * 8);
+    if (reg >= FPR_REG_START) {
+      emit_fstore(s, offset, SP, reg);
     } else {
-      emit_op(s, stp_pre(op->r1, XZR, SP, -16));
+      emit_store(s, offset, SP, reg);
     }
-  }
-  if (abi) {
-    emit_op(s, stp_pre(FP, LR, SP, -16));
   }
 }
 
 void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi) {
-  reg_op ops[MAX_REG];
-  size_t op_count = build_reg_ops(regs, count, ops, MAX_REG);
-
-  if (abi) {
-    emit_op(s, ldp_post(FP, LR, SP, 16));
-  }
-  for (size_t i = op_count; i > 0; i--) {
-    reg_op *op = &ops[i - 1];
-    if (op->pair) {
-      if (op->fpr) {
-        emit_op(s, ldp_post_q(op->r1, op->r2, SP, 32));
-      } else {
-        emit_op(s, ldp_post(op->r1, op->r2, SP, 16));
-      }
+  for (size_t i = 0; i < count; i++) {
+    uint8_t reg = regs[i];
+    if (reg == REG_NONE) {
       continue;
     }
-    if (op->fpr) {
-      emit_fmem_load(s, 0, SP, op->r1);
-      emit_add_constant(s, SP, SP, 16);
-    } else {
-      emit_op(s, ldp_post(op->r1, XZR, SP, 16));
+    if (reg < FPR_REG_START && i + 1 < count) {
+      uint8_t reg2 = regs[i + 1];
+      if (reg2 != REG_NONE && reg2 < FPR_REG_START) {
+        emit_op(s, ldp_off(reg, reg2, SP, (int32_t)(i * 8)));
+        i++;
+        continue;
+      }
     }
+    int32_t offset = (int32_t)(i * 8);
+    if (reg >= FPR_REG_START) {
+      emit_fmem_load(s, offset, SP, reg);
+    } else {
+      emit_mem_load(s, offset, SP, reg);
+    }
+  }
+  size_t pad = count & 1;
+  size_t frame_slots = count + pad;
+  if (frame_slots != 0) {
+    emit_add_constant(s, SP, SP, (int64_t)(frame_slots * 8));
+  }
+  if (abi) {
+    emit_op(s, ldp_post(FP, LR, SP, 16));
   }
 }
 

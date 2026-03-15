@@ -40,6 +40,10 @@ typedef struct emit_state {
   uint8_t *expand_stack_slowpath;
 } emit_state;
 
+enum : uint8_t {
+  REG_NONE = 0xff,
+};
+
 #if defined(__aarch64__)
 #include "asm_aarch64.h"
 #elif defined(__x86_64__)

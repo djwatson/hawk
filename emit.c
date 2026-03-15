@@ -84,32 +84,28 @@ static void emit_store_ralloc(emit_state *s) {
   emit_store(s, 0, RTMP, RALLOC);
 }
 
-static void emit_save_slowpath_regs(emit_state *s) {
-  emit_sub_constant(s, SP, SP, alloc_stub_frame_size);
+static void build_slowpath_reg_frame(uint8_t regs[FPR_REG_END],
+                                     bool for_restore) {
   for (uint8_t reg = 0; reg < FPR_REG_END; reg++) {
-    if (reg == SP) {
-      continue;
-    }
-    if (reg >= FPR_REG_START) {
-      emit_fstore(s, alloc_reg_save_slot_offset(reg), SP, reg);
-    } else {
-      emit_store(s, alloc_reg_save_slot_offset(reg), SP, reg);
-    }
+    regs[reg] = reg;
+  }
+  regs[SP] = REG_NONE;
+  if (for_restore) {
+    regs[RTMP] = REG_NONE;
+    regs[RTMP2] = REG_NONE;
   }
 }
 
+static void emit_save_slowpath_regs(emit_state *s) {
+  uint8_t regs[FPR_REG_END];
+  build_slowpath_reg_frame(regs, false);
+  emit_push_regs(s, regs, FPR_REG_END, true);
+}
+
 static void emit_restore_slowpath_regs(emit_state *s) {
-  for (uint8_t reg = 0; reg < FPR_REG_END; reg++) {
-    if (reg == SP || reg == RTMP || reg == RTMP2) {
-      continue;
-    }
-    if (reg >= FPR_REG_START) {
-      emit_fmem_load(s, alloc_reg_save_slot_offset(reg), SP, reg);
-    } else {
-      emit_mem_load(s, alloc_reg_save_slot_offset(reg), SP, reg);
-    }
-  }
-  emit_add_constant(s, SP, SP, alloc_stub_frame_size);
+  uint8_t regs[FPR_REG_END];
+  build_slowpath_reg_frame(regs, true);
+  emit_pop_regs(s, regs, FPR_REG_END, true);
 }
 
 void emit_init_slowpath(emit_state *s) {
@@ -127,10 +123,8 @@ void emit_init_slowpath(emit_state *s) {
   emit_mov(s, RARG1, SP);
   emit_mov(s, RARG2, RTMP2);
   emit_store_ralloc(s);
-  emit_push_regs(s, nullptr, 0, true);
   emit_mov64(s, RTMP, (int64_t)&gc_alloc_ir_slowpath);
   emit_call_reg(s, RTMP);
-  emit_pop_regs(s, nullptr, 0, true);
   emit_mov(s, RTMP2, RET_REG);
 
   emit_restore_slowpath_regs(s);
@@ -153,10 +147,8 @@ void emit_init_slowpath(emit_state *s) {
   emit_save_slowpath_regs(s);
   emit_mov(s, RARG0, RSTATE);
   emit_mov(s, RARG1, RSTACK);
-  emit_push_regs(s, nullptr, 0, true);
   emit_mov64(s, RTMP, (intptr_t)&expand_stack);
   emit_call_reg(s, RTMP);
-  emit_pop_regs(s, nullptr, 0, true);
   emit_mov(s, RTMP2, RET_REG);
   emit_restore_slowpath_regs(s);
   emit_mov(s, RSTACK, RTMP2);

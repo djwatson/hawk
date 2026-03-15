@@ -140,7 +140,6 @@ typedef struct trace {
 } trace;
 
 enum : uint8_t {
-  REG_NONE = 0xff,
   SPILL_NONE = 0xff,
 };
 

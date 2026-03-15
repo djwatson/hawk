@@ -390,34 +390,43 @@ void emit_debugtrap(emit_state *s) { emit_byte(s, 0xcc); }
 
 void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count,
                     bool abi) {
-  bool odd = (count + abi) & 1;
-  if (odd) {
-    emit_sub_constant(s, RSP, RSP, 8);
+  size_t pad = ((count + (size_t)abi) & 1) ? 1 : 0;
+  size_t frame_slots = count + pad;
+  if (frame_slots == 0) {
+    return;
   }
+  emit_sub_constant(s, RSP, RSP, (int64_t)(frame_slots * 8));
   for (size_t i = 0; i < count; i++) {
     uint8_t reg = regs[i];
+    if (reg == REG_NONE) {
+      continue;
+    }
+    int32_t offset = (int32_t)(i * 8);
     if (reg >= FPR_REG_START) {
-      emit_sub_constant(s, RSP, RSP, 16);
-      emit_fstore(s, 0, RSP, reg);
+      emit_fstore(s, offset, RSP, reg);
     } else {
-      emit_push(s, reg);
+      emit_store(s, offset, RSP, reg);
     }
   }
 }
 
 void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi) {
-  bool odd = (count + abi) & 1;
+  size_t pad = ((count + (size_t)abi) & 1) ? 1 : 0;
   for (size_t i = count; i > 0; i--) {
     uint8_t reg = regs[i - 1];
+    if (reg == REG_NONE) {
+      continue;
+    }
+    int32_t offset = (int32_t)((i - 1) * 8);
     if (reg >= FPR_REG_START) {
-      emit_fmem_load(s, 0, RSP, reg);
-      emit_add_constant(s, RSP, RSP, 16);
+      emit_fmem_load(s, offset, RSP, reg);
     } else {
-      emit_pop(s, reg);
+      emit_mem_load(s, offset, RSP, reg);
     }
   }
-  if (odd) {
-    emit_add_constant(s, RSP, RSP, 8);
+  size_t frame_slots = count + pad;
+  if (frame_slots != 0) {
+    emit_add_constant(s, RSP, RSP, (int64_t)(frame_slots * 8));
   }
 }
 
