@@ -37,20 +37,17 @@
     (#(ref ,var ,global ,mutable ,ann) #t)
     (#(set! ,var ,exp ,global? ,ann) (vector-set! ir 2 (c exp)))
     (#(lambda ,cases ,ann)
-      (vector-set! ir 1
-                   (map (lambda (clause)
-                          (list (car clause) (c (cadr clause))))
-                        cases)))
+      (vector-set! ir
+                   1
+                   (map (lambda (clause) (list (car clause) (c (cadr clause)))) cases)))
     (#(nlambda ,name ,cases ,ann)
-      (vector-set! ir 2
-                   (map (lambda (clause)
-                          (list (car clause) (c (cadr clause))))
-                        cases)))
+      (vector-set! ir
+                   2
+                   (map (lambda (clause) (list (car clause) (c (cadr clause)))) cases)))
     (#(nlambda ,name (free ,free ___) ,cases ,ann)
-      (vector-set! ir 3
-                   (map (lambda (clause)
-                          (list (car clause) (c (cadr clause))))
-                        cases)))
+      (vector-set! ir
+                   3
+                   (map (lambda (clause) (list (car clause) (c (cadr clause)))) cases)))
     (#(letrec* ,bindings ,body ,ann)
       (for val bindings (set-car! (cdr val) (c (second val))))
       (vector-set! ir 2 (c body))
@@ -134,38 +131,38 @@
 
         (#(lambda ,cases ,ann)
           (let ((new-cases
-                  (map (lambda (clause)
-                         (let* ((args (car clause))
-                                (body (cadr clause))
-                                (arg-list (to-proper args))
-                                (boxed-args (filter variable-assigned? arg-list))
-                                (new-boxes (map (lambda (v) (cons v (fresh-box v))) boxed-args))
-                                (new-body (convert body (append new-boxes boxes)))
-                                (body*
-                                   (fold-right
-                                     (lambda (b body)
-                                       `#(let ((,(cdr b)
-                                                  #(primcall ALLOC
-                                                             (#(quote 24 ,ann) #(quote 3 ,ann))
-                                                             ,ann)))
-                                           #(begin
-                                              (#(primcall STORE
-                                                          (#(ref ,(cdr b) #f #t #f)
-                                                           #(ref ,(car b) #f #t #f)
-                                                           #(quote 0 ,ann))
-                                                          ,ann)
-                                               #(primcall STORE
-                                                          (#(ref ,(cdr b) #f #t #f)
-                                                           #(quote 0 ,ann)
-                                                           #(quote 1 ,ann))
-                                                          ,ann)
-                                               ,body)
-                                              ,ann)
-                                           ,ann))
-                                     new-body
-                                     new-boxes)))
-                           (list args (if (null? new-boxes) new-body body*))))
-                       cases)))
+                   (map (lambda (clause)
+                          (let* ((args (car clause))
+                                 (body (cadr clause))
+                                 (arg-list (to-proper args))
+                                 (boxed-args (filter variable-assigned? arg-list))
+                                 (new-boxes (map (lambda (v) (cons v (fresh-box v))) boxed-args))
+                                 (new-body (convert body (append new-boxes boxes)))
+                                 (body*
+                                    (fold-right (lambda (b body)
+                                                  `#(let ((,(cdr b)
+                                                             #(primcall ALLOC
+                                                                        (#(quote 24 ,ann)
+                                                                         #(quote 3 ,ann))
+                                                                        ,ann)))
+                                                      #(begin
+                                                         (#(primcall STORE
+                                                                     (#(ref ,(cdr b) #f #t #f)
+                                                                      #(ref ,(car b) #f #t #f)
+                                                                      #(quote 0 ,ann))
+                                                                     ,ann)
+                                                          #(primcall STORE
+                                                                     (#(ref ,(cdr b) #f #t #f)
+                                                                      #(quote 0 ,ann)
+                                                                      #(quote 1 ,ann))
+                                                                     ,ann)
+                                                          ,body)
+                                                         ,ann)
+                                                      ,ann))
+                                                new-body
+                                                new-boxes)))
+                            (list args (if (null? new-boxes) new-body body*))))
+                        cases)))
             `#(lambda ,new-cases ,ann)))
 
         (,else (cont-pass expr (lambda (child) (convert child boxes))))))
@@ -201,16 +198,13 @@
 (define (name-lambdas ir)
   (define (name-lambdas-int ir cur)
     (define (name-cases cases name)
-      (map (lambda (clause)
-             (list (car clause) (name-lambdas-int (cadr clause) name)))
+      (map (lambda (clause) (list (car clause) (name-lambdas-int (cadr clause) name)))
            cases))
     (define (name-lambdas ir)
       (match ir
         (#(define ,var #(lambda ,cases ,lam-ann) ,define-ann)
           (let ((name (symbol->string (vector-ref var 1))))
-            `#(define ,var
-                #(nlambda ,name ,(name-cases cases name) ,lam-ann)
-                ,define-ann)))
+            `#(define ,var #(nlambda ,name ,(name-cases cases name) ,lam-ann) ,define-ann)))
         (#(lambda ,cases ,lam-ann)
           (let ((name (string-append cur "-anon")))
             `#(nlambda ,name ,(name-cases cases name) ,lam-ann)))
@@ -238,20 +232,15 @@
                (omap (var name cases lam-ann unused-ann)
                      (vars name cases lam-ann unused-ann)
                      (let ((new-cases
-                             (map (lambda (clause)
-                                    (list (car clause) (fix-all (cadr clause))))
-                                  cases)))
+                              (map (lambda (clause) (list (car clause) (fix-all (cadr clause))))
+                                   cases)))
                        `(,var #(nlambda ,name ,new-cases ,lam-ann) ,unused-ann)))))
         `#(letrec* ,bindings ,(fix-all letrec-body) ,letrec-ann)))
     (#(nlambda ,name ,cases ,ann)
       (let ((tmp (vector 'var (string->symbol name) #f #f)))
         (let ((new-cases
-                (map (lambda (clause)
-                       (list (car clause) (fix-all (cadr clause))))
-                     cases)))
-          `#(letrec* ((,tmp #(nlambda ,name ,new-cases ,ann) #f))
-            #(ref ,tmp #f #f #f)
-            #f))))
+                 (map (lambda (clause) (list (car clause) (fix-all (cadr clause)))) cases)))
+          `#(letrec* ((,tmp #(nlambda ,name ,new-cases ,ann) #f)) #(ref ,tmp #f #f #f) #f))))
     (,else (cont-pass ir fix-all))))
 
 (define (uncover-free ir)
@@ -277,20 +266,16 @@
                     (omap (cases info)
                           (cases infos)
                           (map (lambda (clause)
-                                 (let ((args (car clause))
-                                       (lbody (cadr clause)))
+                                 (let ((args (car clause)) (lbody (cadr clause)))
                                    (list args
-                                         (uncover-free lbody
-                                                       (append (to-proper args) new-env)
-                                                       info))))
+                                         (uncover-free lbody (append (to-proper args) new-env) info))))
                                cases)))
                  (new-body (uncover-free body new-env fv-info))
                  (free-vars
                     (omap (cases table)
                           (cases infos) ;; for each lambda
                           (for clause cases
-                            (for key (to-proper (car clause))
-                              (hash-table-delete! table key)))
+                            (for key (to-proper (car clause)) (hash-table-delete! table key)))
                           (hash-table-keys table))))
 
             (for table infos (hash-table-merge! fv-info table))
@@ -312,40 +297,40 @@
         (#(letrec* ((,vars #(nlambda ,name (free ,free ___) ,cases ,lann) ,lrann) ___)
             ,(convert body)
             ,ann)
-         (let* ((var-labels
-                  (map (lambda (n)
-                          (string->symbol (string-append (symbol->string (vector-ref n 1))
-                                                         "-label")))
-                        vars))
+          (let* ((var-labels
+                    (map (lambda (n)
+                           (string->symbol (string-append (symbol->string (vector-ref n 1))
+                                                          "-label")))
+                         vars))
                  (closure-vars (omap _ vars `#(var clo #f #f)))
                  (new-cases
-                  (omap (clo free cases)
-                        (closure-vars free cases) ;; for each lambda
-                        (map (lambda (clause)
-                               (let ((case-args (car clause))
-                                     (body (cadr clause)))
-                                 (list
-                                  (cons clo case-args)
-                                  (convert-closures
-                                   body
-                                   (omap (fv num)
-                                         (free (iota (length free) 1))
-                                         `(,fv .
-                                               #(primcall closure-ref
-                                                          (#(ref ,clo #f #t #f)
-                                                           #(quote ,num #f))
-                                                          #f)))))))
+                    (omap (clo free cases)
+                          (closure-vars free cases) ;; for each lambda
+                          (map (lambda (clause)
+                                 (let ((case-args (car clause)) (body (cadr clause)))
+                                   (list (cons clo case-args)
+                                         (convert-closures body
+                                                           (omap (fv num)
+                                                                 (free (iota (length free) 1))
+                                                                 `(,fv .
+                                                                       #(primcall closure-ref
+                                                                                  (#(ref ,clo
+                                                                                         #f
+                                                                                         #t
+                                                                                         #f)
+                                                                                   #(quote ,num #f))
+                                                                                  #f)))))))
                                cases)))
-                  (fvars-cnt (map length free))
-                  (new-label-bindings
-                   (omap (label name cases lann lrann)
-                         (var-labels name new-cases lann lrann)
-                         `(,label #(nlambda ,name ,cases ,lann) ,lrann)))
-                  (new-closure-bindings
-                   (omap (var fvar-cnt label)
-                         (vars fvars-cnt var-labels)
-                         `(,var #(closure ,fvar-cnt #(label ,label))))))
-           `#(letrec* ,new-label-bindings
+                 (fvars-cnt (map length free))
+                 (new-label-bindings
+                    (omap (label name cases lann lrann)
+                          (var-labels name new-cases lann lrann)
+                          `(,label #(nlambda ,name ,cases ,lann) ,lrann)))
+                 (new-closure-bindings
+                    (omap (var fvar-cnt label)
+                          (vars fvars-cnt var-labels)
+                          `(,var #(closure ,fvar-cnt #(label ,label))))))
+            `#(letrec* ,new-label-bindings
                 #(let
                   ,new-closure-bindings
                   #(begin
@@ -452,14 +437,25 @@
                     (match init
                       (#(nlambda ,name ,cases ,lann)
                         (add-fun func)
-                        (for case cases
-                          (let* ((args (car case))
-                                 (lbody (cadr case))
-                                 (arg-list (to-proper args))
-                                 (arg-env (map cons arg-list (iota (length arg-list) 0)))
-                                 (new-env (append arg-env label-env env)))
-                            (add-op func `(FUNC ,(length arg-list)))
-                            (compile lbody func new-env (length arg-list) #t))))
+                        (let loop ((rest cases))
+                          (unless (null? rest)
+                            (let* ((case (car rest))
+                                   (args (car case))
+                                   (lbody (cadr case))
+                                   (arg-list (to-proper args))
+                                   (arg-env (map cons arg-list (iota (length arg-list) 0)))
+                                   (new-env (append arg-env label-env env))
+                                   (last? (null? (cdr rest)))
+                                   (arg-cnt (length arg-list)))
+                              (add-op func `(FUNC ,arg-cnt))
+                              (if last? (add-op func `(ARGCNT_ERROR ,arg-cnt)))
+                              (if last?
+                                  (compile lbody func new-env arg-cnt #t)
+                                  (let* ((offset (length (fun-code func))) (jop (list 'JMP 0 0)))
+                                    (add-op func jop)
+                                    (compile lbody func new-env arg-cnt #t)
+                                    (set-car! (cddr jop) (- (length (fun-code func)) offset))))
+                              (loop (cdr rest))))))
                       (,else (error "Invalid letrec* init in compile:" init))))
                   label-funs
                   inits
@@ -591,11 +587,22 @@
 (define (fixnum? c) (and (integer? c) (exact? c) (fits-in-int64 c)))
 (define (flonum? c) (and (inexact? c) (real? c)))
 (define (heap-obj? c)
-  (or (string? c) (symbol? c) (flonum? c) (pair? c) (vector? c) (fun? c) (const-closure? c)))
+  (or (string? c)
+     (symbol? c)
+     (flonum? c)
+     (pair? c)
+     (vector? c)
+     (fun? c)
+     (const-closure? c)))
 
 (define (obj-tag o)
-  (cond ((flonum? o) flonum-tag) ((symbol? o) symbol-tag) ((pair? o) cons-tag)
-        ((vector? o) vector-tag) ((const-closure? o) closure-tag) (else ptr-tag)))
+  (cond
+    ((flonum? o) flonum-tag)
+    ((symbol? o) symbol-tag)
+    ((pair? o) cons-tag)
+    ((vector? o) vector-tag)
+    ((const-closure? o) closure-tag)
+    (else ptr-tag)))
 
 (define (encode-immediate o)
   (cond
@@ -614,34 +621,53 @@
   (cond
     ((flonum? o) (w32 flonum-tag) (w32 0) (writer 'double o))
     ((string? o)
-     (w32 string-tag) (w32 0) (w64 (* 8 (string-length o)))
-     (string-for-each (lambda (c) (writer 'u8 (char->integer c))) o)
-     (writer 'u8 0) (writer 'align 8))
+      (w32 string-tag)
+      (w32 0)
+      (w64 (* 8 (string-length o)))
+      (string-for-each (lambda (c) (writer 'u8 (char->integer c))) o)
+      (writer 'u8 0)
+      (writer 'align 8))
     ((symbol? o)
-     (w32 symbol-tag) (w32 0) (word (symbol->string o)) (w64 dead-tag) (w64 0) (w64 0))
+      (w32 symbol-tag)
+      (w32 0)
+      (word (symbol->string o))
+      (w64 dead-tag)
+      (w64 0)
+      (w64 0))
     ((pair? o) (w32 cons-tag) (w32 0) (word (car o)) (word (cdr o)))
     ((vector? o)
-     (w32 vector-tag) (w32 0) (w64 (* 8 (vector-length o)))
-     (vector-for-each word o))
-    ((const-closure? o) (w32 closure-tag) (w32 0) (w64 8) (word (const-closure-fun o)))
+      (w32 vector-tag)
+      (w32 0)
+      (w64 (* 8 (vector-length o)))
+      (vector-for-each word o))
+    ((const-closure? o)
+      (w32 closure-tag)
+      (w32 0)
+      (w64 8)
+      (word (const-closure-fun o)))
     ((fun? o)
-     (let* ((code (reverse (fun-code o)))
-            (consts (reverse (fun-consts-list o)))
-            (const-cnt (length consts)))
-       (w32 func-tag) (w32 0) (word (fun-name o)) (w64 const-cnt) (w64 (length code))
-       (for-each word consts)
-       (for-each (lambda (ins idx)
-                   (let ((op (car ins)))
-                     (writer 'u8 (cdr (assq op opcodes)))
-                     (writer 'u8 (second ins))
-                     (cond
-                       ((memq op '(LOOKUP CONST DEFINE))
-                        (writer 'u16 (+ idx (* 2 (- const-cnt (third ins))))))
-                       ((memq op ops_abc) (writer 'u8 (third ins)) (writer 'u8 (fourth ins)))
-                       ((memq op ops_ad) (writer 'u16 (third ins)))
-                       (else (writer 'u16 0)))))
-                 code (iota (length code)))
-       (writer 'align 8)))))
+      (let* ((code (reverse (fun-code o)))
+             (consts (reverse (fun-consts-list o)))
+             (const-cnt (length consts)))
+        (w32 func-tag)
+        (w32 0)
+        (word (fun-name o))
+        (w64 const-cnt)
+        (w64 (length code))
+        (for-each word consts)
+        (for-each (lambda (ins idx)
+                    (let ((op (car ins)))
+                      (writer 'u8 (cdr (assq op opcodes)))
+                      (writer 'u8 (second ins))
+                      (cond
+                        ((memq op '(LOOKUP CONST DEFINE))
+                          (writer 'u16 (+ idx (* 2 (- const-cnt (third ins))))))
+                        ((memq op ops_abc) (writer 'u8 (third ins)) (writer 'u8 (fourth ins)))
+                        ((memq op ops_ad) (writer 'u16 (third ins)))
+                        (else (writer 'u16 0)))))
+                  code
+                  (iota (length code)))
+        (writer 'align 8)))))
 
 (define (collect-objects roots)
   (define canon (make-hash-table equal?))
@@ -659,9 +685,7 @@
             ((pair? k) (mark! (car k)) (mark! (cdr k)))
             ((vector? k) (vector-for-each mark! k))
             ((const-closure? k) (mark! (const-closure-fun k)))
-            ((fun? k)
-              (mark! (fun-name k))
-              (for-each mark! (reverse (fun-consts-list k))))
+            ((fun? k) (mark! (fun-name k)) (for-each mark! (reverse (fun-consts-list k))))
             (else #f))))))
   (for-each mark! roots)
   (values (reverse order) canon))
@@ -675,9 +699,11 @@
       ((u16) (set! pos (+ pos 2)))
       ((u32) (set! pos (+ pos 4)))
       ((u64 double word) (set! pos (+ pos 8)))
-      ((align) (let ((m (modulo pos val))) (unless (= m 0) (set! pos (+ pos (- val m))))))))
+      ((align)
+        (let ((m (modulo pos val))) (unless (= m 0) (set! pos (+ pos (- val m))))))))
 
-  (for-each (lambda (o) (hash-table-set! offs o pos) (serialize-object o pass1)) objects)
+  (for-each (lambda (o) (hash-table-set! offs o pos) (serialize-object o pass1))
+            objects)
 
   (let ((p (open-output-bytevector)))
     (define (w8 v) (write-u8 v p) (set! pos (+ pos 1)))
@@ -688,12 +714,13 @@
         ((u32) (write-uint val 4 p) (set! pos (+ pos 4)))
         ((u64) (write-uint val 8 p) (set! pos (+ pos 8)))
         ((double) (write-double val p) (set! pos (+ pos 8)))
-        ((word) (let ((imm (encode-immediate val)))
-                  (if imm
-                      (write-uint imm 8 p)
-                      (let ((o (hash-table-ref canon val)))
-                        (write-uint (+ (hash-table-ref offs o) (obj-tag o)) 8 p)))
-                  (set! pos (+ pos 8))))
+        ((word)
+          (let ((imm (encode-immediate val)))
+            (if imm
+                (write-uint imm 8 p)
+                (let ((o (hash-table-ref canon val)))
+                  (write-uint (+ (hash-table-ref offs o) (obj-tag o)) 8 p)))
+            (set! pos (+ pos 8))))
         ((align) (let loop () (unless (= 0 (modulo pos val)) (w8 0) (loop))))))
     (set! pos 0)
     (for-each (lambda (o) (serialize-object o pass2)) objects)
@@ -708,27 +735,10 @@
     (let ((port (open-input-string str)))
       (let ((forms (read-file port))) (close-input-port port) forms)))
   (define default-import-forms
-    (read-forms-from-string
-      "(import (scheme base)
-               (scheme case-lambda)
-               (scheme char)
-               (scheme complex)
-               (scheme cxr)
-               (scheme eval)
-               (scheme file)
-               (scheme inexact)
-               (scheme lazy)
-               (scheme load)
-               (scheme process-context)
-               (scheme read)
-               (scheme repl)
-               (scheme time)
-               (scheme write)
-               (scheme r5rs))"))
+    (read-forms-from-string "(import (scheme base)\n               (scheme case-lambda)\n               (scheme char)\n               (scheme complex)\n               (scheme cxr)\n               (scheme eval)\n               (scheme file)\n               (scheme inexact)\n               (scheme lazy)\n               (scheme load)\n               (scheme process-context)\n               (scheme read)\n               (scheme repl)\n               (scheme time)\n               (scheme write)\n               (scheme r5rs))"))
   (define (form-sexp form) (if (annotation? form) (annotation-sexp form) form))
   (define (import-form? form)
-    (let ((sexp (form-sexp form)))
-      (and (pair? sexp) (eq? (car sexp) 'import))))
+    (let ((sexp (form-sexp form))) (and (pair? sexp) (eq? (car sexp) 'import))))
   (define (ensure-leading-import forms)
     (if (and (pair? forms) (import-form? (car forms)))
         forms
@@ -738,33 +748,34 @@
           (runtime-forms (read-forms "runtime.scm"))
           (input-forms (ensure-leading-import (read-forms file))))
       (let* ((lowered
-               (-> `#(begin
-                       ,(append (expand-program runtime-forms empty-library-name #f)
-                                (expand-program input-forms 'REPL #t))
-                       #f)
-                   simple-pass
-                   fix-letrec
-                   assignment-conversion
-                   lower-comparisons
-                   recover-let
-                   name-lambdas
-                   fix-all
-                   uncover-free
-                   convert-closures))
+                (-> `#(begin
+                        ,(append (expand-program runtime-forms empty-library-name #f)
+                                 (expand-program input-forms 'REPL #t))
+                        #f)
+                    simple-pass
+                    fix-letrec
+                    assignment-conversion
+                    lower-comparisons
+                    recover-let
+                    name-lambdas
+                    fix-all
+                    uncover-free
+                    convert-closures))
              (main (make-fun "main")))
         (compile lowered main '() 0 #f)
         (add-op main `(HALT 0))
         (add-fun main)
 
-        (let* ((all-funs (get-funs))
-               (roots (cons main all-funs)))
-	  (let*-values (((objects canon) (collect-objects roots))
-			((image offs) (emit-image objects canon)))
+        (let* ((all-funs (get-funs)) (roots (cons main all-funs)))
+          (let*-values (((objects canon) (collect-objects roots))
+                        ((image offs) (emit-image objects canon)))
             (for-each print-bc all-funs)
             (string-for-each (lambda (c) (write-u8 (char->integer c) out)) "HAWK")
             (write-uint 0 8 out)
             (write-uint (bytevector-length image) 8 out)
-            (write-uint (+ (hash-table-ref offs (hash-table-ref canon main)) ptr-tag) 8 out)
+            (write-uint (+ (hash-table-ref offs (hash-table-ref canon main)) ptr-tag)
+                        8
+                        out)
             (write-bytevector image out)))
         (close-output-port out)))))
 

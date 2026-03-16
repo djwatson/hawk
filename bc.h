@@ -6,9 +6,8 @@
 // Things that deal with types or the stack
 // Things that are hardware instructions
 
-// FUNCV - actually all CFUNC
+// FUNCV - conditional arity match function entry.
 // IFUNC, IFUNCV
-// CFUNC, CFUNCV
 // CALLCC/CALLCC_RESUME
 // LOAD_CHAR
 // STORE_CHAR
@@ -59,6 +58,7 @@
   X(STORE, ABC)                                                                \
   X(LOAD, ABC)                                                                 \
   X(FUNC, A)                                                                   \
+  X(ARGCNT_ERROR, A)                                                           \
   X(JFUNC, AD)                                                                 \
   X(JLT, ABC)                                                                  \
   X(JGT, ABC)                                                                  \

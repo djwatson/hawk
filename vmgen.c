@@ -159,11 +159,12 @@ END OP_BEGIN(WRITE) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(FUNC) {
-  // TODO argcnt check
   auto expect_argcnt = instr.reg;
-  check_arity(expect_argcnt, argcnt);
+  if (argcnt != expect_argcnt) {
+    pc = next_op(pc);
+    dispatch_next(pc, stack);
+  }
 
-  // TODO merge with arity check?
   check_expand_stack(state, &stack);
   auto old_ops = op_table;
   op_table = check_record_start(pc, stack, state, op_table);
@@ -171,6 +172,12 @@ END OP_BEGIN(FUNC) {
     instr = *pc;
   }
 
+  auto next = next_op(pc);
+  pc = next_op(next);
+  dispatch_next(pc, stack);
+}
+END OP_BEGIN(ARGCNT_ERROR) {
+  check_arity(instr.reg, argcnt);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
