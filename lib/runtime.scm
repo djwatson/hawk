@@ -15,7 +15,7 @@
               begin
               quote
               do
-              when) (prefix (hawk sys) sys:))
+              when) (scheme case-lambda) (prefix (hawk sys) sys:))
 
 (define (cons a b)
   (let ((cell (sys:ALLOC 24 3))) (sys:STORE cell a 0) (sys:STORE cell b 1) cell))
@@ -36,14 +36,19 @@
 (define (map f a) (if (null? a) '() (cons (f (car a)) (map f (cdr a)))))
 (define (append a b) (if (null? a) b (cons (car a) (append (cdr a) b))))
 (define (vector-length vec) (sys:LOAD vec 0))
+;; Be careful here, we need to initialize vec before ANY other allocations
+;; (including closures)
 (define (vector-init vec init pos left)
   (if (= left 0)
       vec
       (begin (vector-set! vec pos init) (vector-init vec init (+ pos 1) (- left 1)))))
-(define (make-vector len init)
-  (let ((vec (sys:ALLOC (+ 16 (* len 8)) 7)))
-    (sys:STORE vec len 0)
-    (vector-init vec init 0 len)))
+(define make-vector
+  (case-lambda
+    ((len) (make-vector len 0))
+    ((len init)
+      (let ((vec (sys:ALLOC (+ 16 (* len 8)) 7)))
+        (sys:STORE vec len 0)
+        (vector-init vec init 0 len)))))
 (define (vector-ref vec idx) (sys:LOAD vec (+ 1 idx)))
 (define (vector-set! vec idx val) (sys:STORE vec val (+ 1 idx)))
 (define (length a)
