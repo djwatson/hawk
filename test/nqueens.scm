@@ -1,7 +1,4 @@
 ;;; NQUEENS -- Compute number of solutions to 8-queens problem.
-(import (scheme r5rs))
-
-;;;;;;;;;;;;;;;;;
 
 (define trace? #f)
 

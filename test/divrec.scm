@@ -1,4 +1,3 @@
-(import (scheme r5rs))
 
 (define (create-n n) (do ((n n (- n 1)) (a '() (cons '() a))) ((= n 0) a)))
 

@@ -1,5 +1,4 @@
 ;;; TRIANGL -- Board game benchmark.
-(import (scheme r5rs))
 
 (define *board* (list->vector '(1 1 1 1 1 0 1 1 1 1 1 1 1 1 1 1)))
 

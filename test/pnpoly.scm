@@ -1,5 +1,3 @@
-(import (scheme r5rs))
-
 (define (pt-in-poly2 xp yp x y)
   (let loop ((c #f) (i (- (vector-length xp) 1)) (j 0))
     (if (< i 0)

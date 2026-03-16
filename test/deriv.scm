@@ -2,7 +2,7 @@
 
 ;;; Returns the wrong answer for quotients.
 ;;; Fortunately these aren't used in the benchmark.
-(import (scheme r5rs) (scheme base))
+
 
 (define (deriv a)
   (cond

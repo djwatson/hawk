@@ -1,5 +1,5 @@
 ;;; FFT - Fast Fourier Transform, translated from "Numerical Recipes in C"
-(import (scheme r5rs))
+
 
 (define (four1 data)
   (let ((n (vector-length data)) (pi*2 6.28319)) ; to compute the inverse, negate this value

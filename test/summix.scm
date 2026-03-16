@@ -1,5 +1,3 @@
-(import (scheme r5rs))
-;(import (scheme r5rs))
 (define (loop n sum)
   (if (< n 0)
       sum

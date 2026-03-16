@@ -1,5 +1,3 @@
-(import (scheme r5rs) (scheme write))
-
 ;;; SUMLOOP -- One of the Kernighan and Van Wyk benchmarks.
 
 ;;; LC NOTE : Can't compute more because of heap/stack overflow

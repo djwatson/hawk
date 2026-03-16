@@ -47,8 +47,6 @@
 ;        P_{n-1}
 ;     end
 ;
-(import (scheme r5rs))
-
 (define (permutations x)
   (let ((x x) (perms (list x)))
     (define (P n)

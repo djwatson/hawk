@@ -1,6 +1,6 @@
 ;;; MBROT -- Generation of Mandelbrot set fractal.
 
-(import (scheme r5rs))
+
 
 (define (count r i step x y)
 

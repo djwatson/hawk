@@ -1,5 +1,3 @@
-(import (scheme r5rs) (scheme base))
-
 ;;; SIMPLEX -- Simplex algorithm.
 
 (define (matrix-rows a) (vector-length a))

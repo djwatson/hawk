@@ -1,7 +1,6 @@
 ;;; PRIMES -- Compute primes less than 100, written by Eric Mohr.
 
 ;;; LC NOTE : Can't compute more primes because of heap/stack overflow
-(import (scheme r5rs))
 
 (define (interval-list m n)
   (if (> m n) '() (cons m (interval-list (+ 1 m) n))))

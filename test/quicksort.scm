@@ -1,5 +1,3 @@
-(import (scheme r5rs) (scheme base))
-
 (define (quick-1 v less?)
 
   (define (helper left right)

@@ -1,5 +1,5 @@
 
-(import (scheme r5rs))
+
 (define (fib n)
   (if (< n 2) n
       (+

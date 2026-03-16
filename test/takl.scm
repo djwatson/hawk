@@ -1,5 +1,3 @@
-(import (scheme r5rs))
-
 (define (listn n) (if (= n 0) '() (cons n (listn (- n 1)))))
 
 (define l18 (listn 18))

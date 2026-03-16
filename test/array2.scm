@@ -1,6 +1,4 @@
-(import (scheme r5rs))
 
-;;;;
 (define (create-x-loop result i n)
   (if (>= i n)
       result
