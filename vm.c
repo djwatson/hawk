@@ -27,6 +27,7 @@ enum : uint8_t {
   hotmap_mask = (hotmap_sz - 1),
   hotmap_rec = 1,
   hotmap_cnt = 200,
+  func_flag_rest = 1,
 };
 static bool should_jit() {
   static uint8_t next = 0;
@@ -353,11 +354,44 @@ static inline void check_expand_stack(vm_state *state, gc_obj **stack) {
     *stack = expand_stack(state, *stack);
   }
 }
-static inline void check_arity(int expected, uint8_t args) {
-  if (args != expected) {
-    printf("Bad argcnt expected %i got %i\n", expected, args);
-    abort();
+static void build_list(uint8_t start, uint8_t len, gc_obj *stack) {
+  gc_obj lst = NIL;
+  gc_add_root((const uint64_t *)&lst, 1);
+  for (int i = (int)start + (int)len - 1; i >= (int)start; i--) {
+    cons_s *c = gc_alloc(sizeof(cons_s));
+    c->header.type = CONS_TAG;
+    c->a = stack[i];
+    c->b = lst;
+    lst = tag_cons(c);
   }
+  gc_remove_root((const uint64_t *)&lst);
+  stack[start] = lst;
+}
+static inline bool check_arity(vm_state *state, gc_obj *stack, bc instr,
+                               uint8_t args, bool abort_on_fail) {
+  (void)state;
+  bool has_rest = (instr.v1 & func_flag_rest) != 0;
+  if (!has_rest) {
+    if (args == instr.reg) {
+      return true;
+    }
+    if (abort_on_fail) {
+      printf("Bad argcnt expected %i got %i\n", instr.reg, args);
+      abort();
+    }
+    return false;
+  }
+
+  uint8_t fixed_cnt = instr.reg - 1;
+  if (args < fixed_cnt) {
+    if (abort_on_fail) {
+      printf("Bad argcnt expected %i+ got %i\n", fixed_cnt, args);
+      abort();
+    }
+    return false;
+  }
+  build_list(fixed_cnt, args - fixed_cnt, stack);
+  return true;
 }
 static inline bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
                                gc_obj b) {

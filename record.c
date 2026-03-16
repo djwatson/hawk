@@ -45,6 +45,7 @@ static bool is_downrec_trace(trace_state *ts) { return ts->start_is_ret; }
 
 enum {
   BLACKLIST_MAX = 64,
+  func_flag_rest = 1,
 };
 
 static const char *func_name_from_pc(bc *pc) {
@@ -730,8 +731,54 @@ static inline void check_expand_stack(vm_state *state, gc_obj **stack) {}
 static inline void fail_if_not_closure(slot sym) {
   // TODO?
 }
-static void check_arity(int fun, uint8_t args) {
-  // TODO
+static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
+                            uint8_t len) {
+  slot tail = add_const(state, NIL);
+  for (int pos = (int)start + (int)len - 1; pos >= (int)start; pos--) {
+    auto item = stack_load(state, stack, (uint8_t)pos, true);
+    auto sz = add_const(state, tag_fixnum(sizeof(cons_s)));
+    auto type = add_const(state, tag_fixnum(CONS_TAG));
+    auto cell =
+        add_inst(state, IR(.op = IR_ALLOC, .op1 = sz, .op2 = type, .type = CONS_TAG));
+
+    auto car_ref =
+        add_inst(state, IR(.op = IR_REF, .op1 = cell,
+                           .op2 = add_const(state, tag_fixnum(0)), .type = CONS_TAG));
+    add_inst(state,
+             IR(.op = IR_STORE, .op1 = car_ref, .op2 = item, .type = CONS_TAG));
+
+    auto cdr_ref =
+        add_inst(state, IR(.op = IR_REF, .op1 = cell,
+                           .op2 = add_const(state, tag_fixnum(1)), .type = CONS_TAG));
+    add_inst(state,
+             IR(.op = IR_STORE, .op1 = cdr_ref, .op2 = tail, .type = CONS_TAG));
+    tail = cell;
+  }
+  return tail;
+}
+static bool check_arity(vm_state *state, gc_obj *stack, bc instr, uint8_t args,
+                        bool abort_on_fail) {
+  bool has_rest = (instr.v1 & func_flag_rest) != 0;
+  if (!has_rest) {
+    if (args == instr.reg) {
+      return true;
+    }
+    if (abort_on_fail) {
+      abort();
+    }
+    return false;
+  }
+
+  uint8_t fixed_cnt = instr.reg - 1;
+  if (args < fixed_cnt) {
+    if (abort_on_fail) {
+      abort();
+    }
+    return false;
+  }
+
+  set_stack(state, fixed_cnt, build_rest_list(state, stack, fixed_cnt, args - fixed_cnt));
+  return true;
 }
 static branch_result emit_if_branch(vm_state *state, bc *pc, gc_obj *stack,
                                     slot cond) {

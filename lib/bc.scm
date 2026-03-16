@@ -388,6 +388,8 @@
 
 (define (add-op fun op) (set-fun-code! fun (cons op (fun-code fun))))
 
+(define func-flag-rest 1)
+
 ;; Function list as a parameter (mutable)
 (define funs (make-parameter #f))
 (define (add-fun fun)
@@ -420,6 +422,9 @@
     (set-fun-consts-list! fun (cons normalized (fun-consts-list fun))))
   (hash-table-ref consts normalized))
 
+(define (arg-flags args)
+  (if (list? args) 0 func-flag-rest))
+
 (define-record-type const-closure (make-const-closure fun) const-closure?
   (fun const-closure-fun))
 
@@ -448,8 +453,9 @@
                                    (arg-env (map cons arg-list (iota (length arg-list) 0)))
                                    (new-env (append arg-env label-env env))
                                    (last? (null? (cdr rest)))
-                                   (arg-cnt (length arg-list)))
-                              (add-op func `(FUNC ,arg-cnt))
+                                   (arg-cnt (length arg-list))
+                                   (flags (arg-flags args)))
+                              (add-op func `(FUNC ,arg-cnt ,flags))
                               (if last? (add-op func `(ARGCNT_ERROR ,arg-cnt)))
                               (if last?
                                   (compile lbody func new-env arg-cnt #t)
@@ -667,7 +673,7 @@
                           (writer 'u16 (+ idx (* 2 (- const-cnt (third ins))))))
                         ((memq op ops_abc) (writer 'u8 (third ins)) (writer 'u8 (fourth ins)))
                         ((memq op ops_ad) (writer 'u16 (third ins)))
-                        (else (writer 'u16 0)))))
+                        (else (writer 'u16 (if (pair? (cddr ins)) (third ins) 0))))))
                   code
                   (iota (length code)))
         (writer 'align 8)))))

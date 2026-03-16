@@ -40,7 +40,7 @@
 (define (positive? a) (> a 0))
 (define (list-tail lst k)
   (let loop ((lst lst) (k k)) (if (> k 0) (loop (cdr lst) (- k 1)) lst)))
-(define (list x) (cons x '()))
+(define (list . x) x)
 (define (cdr a) (sys:LOAD a 1))
 (define (car a) (sys:LOAD a 0))
 (define (cadr a) (car (cdr a)))

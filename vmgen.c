@@ -159,8 +159,7 @@ END OP_BEGIN(WRITE) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(FUNC) {
-  auto expect_argcnt = instr.reg;
-  if (argcnt != expect_argcnt) {
+  if (!check_arity(state, stack, instr, argcnt, false)) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
@@ -177,13 +176,12 @@ END OP_BEGIN(FUNC) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(ARGCNT_ERROR) {
-  check_arity(instr.reg, argcnt);
+  check_arity(state, stack, instr, argcnt, true);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(IFUNC) {
-  auto expect_argcnt = instr.reg;
-  check_arity(expect_argcnt, argcnt);
+  check_arity(state, stack, instr, argcnt, true);
   check_expand_stack(state, &stack);
 
   pc = next_op(pc);
