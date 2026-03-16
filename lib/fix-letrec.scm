@@ -19,13 +19,12 @@
         `#(letrec* ,binds ,body #f))))
 
 (define (build-set! vars inits body)
-  (display "Build-set!==========================================\n")
-  (display vars)
-  (newline)
   (if (null? vars)
       body
-      (let ((setters (map (lambda (var init) `#(set! ,var ,init #f #f)) vars inits)))
-        `#(begin (,@setters ,body) #f))))
+      (begin
+        (for var vars (vector-set! var 2 #t))
+        (let ((setters (map (lambda (var init) `#(set! ,var ,init #f #f)) vars inits)))
+        `#(begin (,@setters ,body) #f)))))
 
 (define (to-proper lst)
   (if (null? lst)
@@ -223,4 +222,3 @@
     ;; (display (ir->sexp expr))
     ;; (newline)
     expr))
-

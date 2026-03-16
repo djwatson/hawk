@@ -3,6 +3,7 @@
 (import (scheme base)
         (scheme write)
         (read)
+        (syntax)
         (expand)
         (scheme process-context)
         (scheme file)
@@ -395,16 +396,17 @@
 (define (get-funs) (car (funs)))
 
 (define (fits-in-int16 value)
-  (and (exact? value) (integer? value) (<= -32768 (* 8 value) 32767)))
+  (and (integer? value) (exact? value) (<= -32768 (* 8 value) 32767)))
 
 (define (fits-in-int64 value)
-  (and (exact? value)
-       (integer? value)
+  (and (integer? value)
+       (exact? value)
        (<= (- (expt 2 63)) value (- (expt 2 63) 1))))
 
 (define (normalize-const datum)
   (cond
     ((annotation? datum) (normalize-const (annotation-sexp datum)))
+    ((syntax? datum) (normalize-const (syntax->datum datum)))
     ((pair? datum)
       (cons (normalize-const (car datum)) (normalize-const (cdr datum))))
     ((vector? datum) (list->vector (map normalize-const (vector->list datum))))
@@ -473,7 +475,7 @@
       (let ((regs (iota (length vars) top)))
         (for (init reg) (inits regs)
           (let ((res (compile init fun env reg #f)))
-            (unless (= res reg) (add-op fun `(MOV ,reg ,res)))))
+            (when (and (integer? res) (not (= res reg))) (add-op fun `(MOV ,reg ,res)))))
         (compile body
                  fun
                  (append (map cons vars regs) env)
@@ -503,14 +505,15 @@
       (let* ((offset (length (fun-code fun))) (brop (list 'JMP top 0)))
         (add-op fun brop)
         (let ((then-res (compile then fun env top tail)))
-          (unless (or tail (= then-res top)) (add-op fun `(MOV ,top ,then-res))))
+          (when (and (not tail) (integer? then-res) (not (= then-res top)))
+            (add-op fun `(MOV ,top ,then-res))))
         ;; If not in tail position, an extra JMP is inserted before the else
         ;; path. Account for that so the false branch lands on else code.
         (set-car! (cddr brop) (+ (- (length (fun-code fun)) offset) (if tail 0 1))))
       (let ((offset (length (fun-code fun))) (jop (list 'JMP top 0)))
         (unless tail (add-op fun jop))
         (let ((res (compile else fun env top tail)))
-          (unless (or tail (= res top)) (add-op fun `(MOV ,top ,res)))
+          (when (and (not tail) (integer? res) (not (= res top))) (add-op fun `(MOV ,top ,res)))
           (set-car! (cddr jop) (- (length (fun-code fun)) offset))
           (if tail res top))))
     (#(app ,func ,args ,ann)
@@ -518,7 +521,7 @@
       (let loop ((top (+ top 1)) (args (cons func args)))
         (unless (null? args)
           (let* ((arg (car args)) (res (compile arg fun env top #f)))
-            (unless (= res top) (add-op fun `(MOV ,top ,res)))
+            (when (and (integer? res) (not (= res top))) (add-op fun `(MOV ,top ,res)))
             (loop (+ top 1) (cdr args)))))
       (add-op fun `(CLOSURE_GET ,top ,(+ top 1) 0))
       (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(+ 2 (length args))))
@@ -547,7 +550,7 @@
               (add-op fun `(,op ,@(if (eq? op 'STORE) '() (list top)) ,@argres)))
             (let* ((arg (car args))
                    (res (compile arg fun env atop #f))
-                   (next (if (= res atop) (+ atop 1) atop)))
+                   (next (if (and (integer? res) (= res atop)) (+ atop 1) atop)))
               (loop next (cdr args) (cons res argres)))))
       (finish top))
     (#(define ,var ,(compile-cont exp) ,ann)

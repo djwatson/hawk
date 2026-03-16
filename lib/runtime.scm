@@ -1,4 +1,5 @@
 (import (only (scheme base)
+              or
               define
               let
               let*
@@ -22,6 +23,18 @@
 (define (not a) (if a #f #t))
 (define (null? a) (sys:GUARD a 20))
 (define (pair? a) (sys:GUARD a 3))
+(define (boolean? a) (sys:GUARD a 4))
+(define (char? a) (sys:GUARD a 12))
+(define (fixnum? a) (sys:GUARD a 0))
+(define (flonum? a) (sys:GUARD a 2))
+(define (number? x)
+  (or (fixnum? x)
+     (flonum? x) ;(bignum? x) (ratnum? x) (compnum? x)
+  ))
+(define (procedure? a) (sys:GUARD a 5))
+(define (string? a) (sys:GUARD a 9))
+(define (symbol? a) (sys:GUARD a 6))
+(define (vector? a) (sys:GUARD a 7))
 (define (zero? z) (= z 0))
 (define (negative? a) (< a 0))
 (define (positive? a) (> a 0))
