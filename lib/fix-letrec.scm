@@ -10,7 +10,7 @@
      ((_ x xs body ...) (for-each (lambda (x) body ...) xs))))
 
 (define (build-let vars inits body)
-  (if (null? vars) body `#(app #(lambda ,vars ,body #f) ,inits #f)))
+  (if (null? vars) body `#(app #(lambda ((,vars ,body)) #f) ,inits #f)))
 
 (define (build-fix vars inits body)
   (if (null? vars)
@@ -186,16 +186,13 @@
                 (or (or* init-complex) body-complex)
                 new-body
                 assigned)))
-    ;; ((lambda (case ,args ,(%fix-letrec free complex expr2 assigned)) ___)
-    ;;   (values (set-union* (omap (args free) (args free) (lset-difference eq? free (to-proper args))))
-    ;;           #f
-    ;;           `(lambda (case ,args ,expr2) ___)
-    ;;           (set-union* assigned)))
-    (#(lambda ,args ,(%fix-letrec free complex expr2 assigned) ,ann)
-      (values (lset-difference eq? free (to-proper args))
+    (#(lambda ((,args ,(%fix-letrec free complex expr2 assigned)) ___) ,ann)
+      (values (set-union* (omap (args free)
+                                (args free)
+                                (lset-difference eq? free (to-proper args))))
               #f
-              `#(lambda ,args ,expr2 ,ann)
-              assigned))
+              `#(lambda ,(omap (args expr2) (args expr2) `(,args ,expr2)) ,ann)
+              (set-union* assigned)))
     (#(quote ,x ,ann) (values '() #f expr '()))
     (#(void ,ann) (values '() #f expr '()))
 
@@ -226,5 +223,4 @@
     ;; (display (ir->sexp expr))
     ;; (newline)
     expr))
-
 
