@@ -756,8 +756,9 @@ static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
   }
   return tail;
 }
-static bool check_arity(vm_state *state, gc_obj *stack, bc instr, uint8_t args,
-                        bool abort_on_fail) {
+static bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
+                        uint8_t args, bool abort_on_fail) {
+  (void)pc;
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
   if (!has_rest) {
     if (args == instr.reg) {

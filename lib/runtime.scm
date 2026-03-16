@@ -1,6 +1,8 @@
 (import (only (scheme base)
               or
+	      and
               define
+	      unless
               let
               let*
               if
@@ -16,7 +18,47 @@
               begin
               quote
               do
-              when) (scheme case-lambda) (prefix (hawk sys) sys:))
+              when
+	      ) (scheme case-lambda)
+		(only (scheme write) display) (prefix (hawk sys) sys:))
+(define (write x) (display x))
+(define (newline) (display "\n"))
+
+(define for-each
+  (case-lambda
+   ((proc lst)
+    ;(unless (list? lst) (error "circular for-each"))
+    (let loop ((proc proc) (lst lst))
+      (unless (null? lst)
+	(proc (car lst))
+	(loop proc (cdr lst)))))
+   ((proc lst1 lst2)
+    ;(unless (or (list? lst1) (list? lst2)) (error "circular for-each"))
+    (let loop ((proc proc) (lst1 lst1) (lst2 lst2))
+      (if (and  (not (null? lst1)) (not (null? lst2)))
+	  (begin
+	    (proc (car lst1) (car lst2))
+	    (loop proc (cdr lst1) (cdr lst2))))))
+   ((proc . lsts)
+    ;(unless (any list? lsts) (error "circular for-each"))
+    (display "ABORT apply unimplemend")
+    (/ 1 0)
+    ;; (let loop ((lsts lsts))
+    ;;   (let ((hds (let loop2 ((lsts lsts))
+    ;; 		   (if (null? lsts)
+    ;; 		       '()
+    ;; 		       (let ((x (car lsts)))
+    ;; 			 (and (not (null? x))
+    ;; 			      (let ((r (loop2 (cdr lsts))))
+    ;; 				(and r (cons (car x) r)))))))))
+    ;; 	(if hds (begin
+    ;; 		  (apply proc hds)
+    ;; 		  (loop
+    ;; 		   (let loop3 ((lsts lsts))
+    ;; 		     (if (null? lsts)
+    ;; 			 '()
+    ;; 			 (cons (cdr (car lsts)) (loop3 (cdr lsts))))))))))
+    )))
 
 (define (cons a b)
   (let ((cell (sys:ALLOC 24 3))) (sys:STORE cell a 0) (sys:STORE cell b 1) cell))

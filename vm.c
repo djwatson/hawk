@@ -367,7 +367,15 @@ static void build_list(uint8_t start, uint8_t len, gc_obj *stack) {
   gc_remove_root((const uint64_t *)&lst);
   stack[start] = lst;
 }
-static inline bool check_arity(vm_state *state, gc_obj *stack, bc instr,
+static inline char const *func_name_for_pc(bc *pc) {
+  bcfunc *func = gc_base_ptr(pc);
+  if (!func || !is_ptr(func->name) || get_ptr_tag(func->name) != STRING_TAG) {
+    return "(unknown func)";
+  }
+  return to_string(func->name)->str;
+}
+
+static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
                                uint8_t args, bool abort_on_fail) {
   (void)state;
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
@@ -376,7 +384,8 @@ static inline bool check_arity(vm_state *state, gc_obj *stack, bc instr,
       return true;
     }
     if (abort_on_fail) {
-      printf("Bad argcnt expected %i got %i\n", instr.reg, args);
+      printf("Bad argcnt in %s expected %i got %i\n", func_name_for_pc(pc),
+             instr.reg, args);
       abort();
     }
     return false;
@@ -385,7 +394,8 @@ static inline bool check_arity(vm_state *state, gc_obj *stack, bc instr,
   uint8_t fixed_cnt = instr.reg - 1;
   if (args < fixed_cnt) {
     if (abort_on_fail) {
-      printf("Bad argcnt expected %i+ got %i\n", fixed_cnt, args);
+      printf("Bad argcnt in %s expected %i+ got %i\n", func_name_for_pc(pc),
+             fixed_cnt, args);
       abort();
     }
     return false;

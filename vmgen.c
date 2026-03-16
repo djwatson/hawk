@@ -159,7 +159,7 @@ END OP_BEGIN(WRITE) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(FUNC) {
-  if (!check_arity(state, stack, instr, argcnt, false)) {
+  if (!check_arity(state, stack, pc, instr, argcnt, false)) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
@@ -176,12 +176,12 @@ END OP_BEGIN(FUNC) {
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(ARGCNT_ERROR) {
-  check_arity(state, stack, instr, argcnt, true);
+  check_arity(state, stack, pc, instr, argcnt, true);
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
 END OP_BEGIN(IFUNC) {
-  check_arity(state, stack, instr, argcnt, true);
+  check_arity(state, stack, pc, instr, argcnt, true);
   check_expand_stack(state, &stack);
 
   pc = next_op(pc);
