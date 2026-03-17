@@ -124,7 +124,8 @@
                               (alist-cons (binding-var binding) depend* deps)
                               (if (binding-complex binding) (binding-var binding) last-complex)))
                       deps)))
-             (bind-map (map cons vars bindings))
+             ;; Preserve later bindings for duplicate vars (e.g. internal define rewriting).
+             (bind-map (map cons (reverse vars) (reverse bindings)))
              (scc (tarjan-scc deps))
              (not-assigned-lambda?
                 (lambda (bind)
