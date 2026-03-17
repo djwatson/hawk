@@ -29,13 +29,14 @@
 
 * track stack-top
 * half finished - all the typcheck types - (need more ptr types)
-* rest of ops: cfunc, cfuncv, callcc/callcc_resume, load_char, STore-char, integer->char/char->integer, apply.  That's it.
+* rest of ops: callcc/callcc_resume, integer->char/char->integer, apply.  That's it.
 * update stack overflow, just allocate a new section (linked stack segments, much faster callcc handling)
 
 # cleanup
 * we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!
 * need a 'box' type so assignment-conversion doesn't need to set more than one thing
 * be careful around vector init, ugh.
+* Probably faster to just AND-align8 all allocs instead of requiring ALLOC to be sz aligned already.
 
 # scheme cleanup
 * builders needs to be in with the rest of the IR passes. Use builders instead of backtick to build stuff.

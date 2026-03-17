@@ -553,7 +553,7 @@
       (let loop ((atop top) (args args) (argres '()))
         (if (null? args)
             (let ((argres (reverse argres)))
-              (add-op fun `(,op ,@(if (eq? op 'STORE) '() (list top)) ,@argres)))
+              (add-op fun `(,op ,@(if (memq op '(STORE_CHAR STORE)) '() (list top)) ,@argres)))
             (let* ((arg (car args))
                    (res (compile arg fun env atop #f))
                    (next (if (and (integer? res) (= res atop)) (+ atop 1) atop)))

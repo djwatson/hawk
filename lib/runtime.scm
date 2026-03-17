@@ -3,15 +3,16 @@
 	      and
               define
 	      unless
+	      cond
               let
               let*
               if
+	      eq?
               >
               <
               >=
               <=
               +
-              *
               -
               /
               =
@@ -19,7 +20,10 @@
               quote
               do
               when
-	      ) (scheme case-lambda)
+	      else
+	      )
+	(prefix (scheme base) base:)
+	(scheme case-lambda)
 		(only (scheme write) display) (prefix (hawk sys) sys:))
 (define (write x) (display x))
 (define (newline) (display "\n"))
@@ -60,8 +64,47 @@
     ;; 			 (cons (cdr (car lsts)) (loop3 (cdr lsts))))))))))
     )))
 
+(define (eqv? a b)
+  (or (eq? a b) (and (flonum? a) (flonum? b) (= a b))))
+(define (equal? a b)
+  (cond
+   ((eqv? a b) #t)
+   ((and (null? a) (null? b)) #t)
+   ((and (string? a) (string? b)) (string=? a b))
+   ((and (bytevector? a) (bytevector? b)) (bytevector=? a b))
+   ((and (symbol? a) (symbol? b)) (string=? (symbol->string a) (symbol->string b)))
+   ((and (vector? a) (vector? b)) (equal? (vector->list a) (vector->list b)))
+   ((and (pair? a) (pair? b)
+	 (equal? (car a) (car b))
+	 (equal? (cdr a) (cdr b))) #t)
+   (else #f)))
+
 (define (string-ref str idx) (sys:LOAD_CHAR str idx))
 (define (string-set! str idx c) (sys:STORE_CHAR str c idx))
+(define (string=? a b)
+  (let ((len-a (sys:LOAD a 0)) (len-b (sys:LOAD b 0)))
+    (and (= len-a len-b)
+         (let loop ((i 0))
+           (if (= i len-a)
+               #t
+               (and (= (string-ref a i) (string-ref b i))
+                    (loop (+ i 1))))))))
+(define make-string
+  (case-lambda
+   ((len) (make-string len #f))
+   ((len c)
+    (let* ((size (+ len 17))
+           (alloc_size
+            (let loop ((n 8))
+              (if (>= n size) n (loop (+ n 8)))))
+           (str (sys:ALLOC alloc_size 9)))
+    (sys:STORE str len 0)
+    (string-set! str len #\x00)
+    (when c
+      (do ((i 0 (+ i 1)))
+	  ((= i len))
+	(string-set! str i c)))
+    str))))
 
 (define (cons a b)
   (let ((cell (sys:ALLOC 24 3))) (sys:STORE cell a 0) (sys:STORE cell b 1) cell))
@@ -76,9 +119,12 @@
   (or (fixnum? x)
      (flonum? x) ;(bignum? x) (ratnum? x) (compnum? x)
   ))
+(define (bytevector=? a b) #f)
 (define (procedure? a) (sys:GUARD a 5))
 (define (string? a) (sys:GUARD a 9))
+(define (bytevector? a) (sys:GUARD a #x39))
 (define (symbol? a) (sys:GUARD a 6))
+(define (symbol->string sym) (sys:LOAD sym 0))
 (define (vector? a) (sys:GUARD a 7))
 (define (zero? z) (= z 0))
 (define (negative? a) (< a 0))
@@ -104,7 +150,7 @@
   (case-lambda
     ((len) (make-vector len 0))
     ((len init)
-      (let ((vec (sys:ALLOC (+ 16 (* len 8)) 7)))
+      (let ((vec (sys:ALLOC (+ 16 (base:* len 8)) 7)))
         (sys:STORE vec len 0)
         (vector-init vec init 0 len)))))
 (define (vector-ref vec idx) (sys:LOAD vec (+ 1 idx)))
@@ -121,17 +167,17 @@
 ;; SIN
 (define two-pi 6.28319)
 (define pi (/ two-pi 2.0))
-(define neg-pi (* -1.0 pi))
+(define neg-pi (base:* -1.0 pi))
 (define half-pi (/ pi 2.0))
-(define neg-half-pi (* -1.0 half-pi))
+(define neg-half-pi (base:* -1.0 half-pi))
 
 (define (sin-poly x)
   ;; 9th-order odd polynomial around 0:
   ;; x - x^3/6 + x^5/120 - x^7/5040 + x^9/362880
-  (let* ((x2 (* x x)) (x3 (* x2 x)) (x5 (* x3 x2)) (x7 (* x5 x2)) (x9 (* x7 x2)))
+  (let* ((x2 (base:* x x)) (x3 (base:* x2 x)) (x5 (base:* x3 x2)) (x7 (base:* x5 x2)) (x9 (base:* x7 x2)))
     (+ x
-       (+ (* -0.166667 x3)
-          (+ (* 0.00833333 x5) (+ (* -0.000198413 x7) (* 2.75573e-06 x9)))))))
+       (+ (base:* -0.166667 x3)
+          (+ (base:* 0.00833333 x5) (+ (base:* -0.000198413 x7) (base:* 2.75573e-06 x9)))))))
 
 (define (reduce-angle y)
   (if (> y pi)
@@ -141,6 +187,6 @@
   (let ((y (reduce-angle x)))
     (if (> y half-pi)
         (sin-poly (- pi y))
-        (if (< y neg-half-pi) (* -1.0 (sin-poly (+ pi y))) (sin-poly y)))))
+        (if (< y neg-half-pi) (base:* -1.0 (sin-poly (+ pi y))) (sin-poly y)))))
 
-
+(define (* a b) (base:* a b))

@@ -445,7 +445,8 @@ static inline void store_char(vm_state *state, gc_obj *stack, bc *pc) {
   auto str = to_string(dest);
   auto idx = to_fixnum(off);
   auto len = to_fixnum(str->len);
-  assert(idx >= 0 && idx < len);
+  // TODO <= so we can store NULL-terminator.
+  assert(idx >= 0 && idx <= len);
   str->str[idx] = (char)to_char(val);
 }
 static inline gc_obj load_obj(vm_state *state, gc_obj *stack, bc *pc) {
