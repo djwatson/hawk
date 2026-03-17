@@ -7,7 +7,6 @@
               let
               let*
               if
-	      eq?
               >
               <
               >=
@@ -28,6 +27,19 @@
 (define (+ a b) (sys:ADD a b))
 (define (- a b) (sys:SUB a b))
 (define (/ a b) (sys:DIV a b))
+(define (eq? a b) (sys:EQ a b))
+
+(define (list? x)
+  (let loop ((fast x) (slow x))
+    (or (null? fast)
+	(and (pair? fast)
+	     (let ((fast (cdr fast)))
+	       (or (null? fast)
+		   (and (pair? fast)
+			(let ((fast (cdr fast))
+			      (slow (cdr slow)))
+			  (and (not (eq? fast slow))
+			       (loop fast slow))))))))))
 
 (define for-each
   (case-lambda
@@ -135,12 +147,44 @@
 (define (list . x) x)
 (define (cdr a) (sys:LOAD a 1))
 (define (car a) (sys:LOAD a 0))
+(define (set-car! a b) (sys:STORE a b 0))
+(define (set-cdr! a b) (sys:STORE a b 1))
+(define (car a) (sys:LOAD a 0))
 (define (cadr a) (car (cdr a)))
 (define (caar a) (car (car a)))
 (define (caddr a) (car (cdr (cdr a))))
 (define (cddr a) (cdr (cdr a)))
 (define (map f a) (if (null? a) '() (cons (f (car a)) (map f (cdr a)))))
-(define (append a b) (if (null? a) b (cons (car a) (append (cdr a) b))))
+(define (append2 a b)
+  (let loop ((a a) (b b))
+    (if (null? a)
+	b
+	(cons (car a) (loop (cdr a) b)))))
+
+(define append
+  (case-lambda
+    ((a b)
+     (append2 a b))
+    ((a b c) (append a (append b c)))
+    ((a b c d) (append a (append b (append c d))))
+   (lsts (if (null? lsts) '()
+      (let loop ((lsts lsts))
+	(if (null? (cdr lsts))
+	    (car lsts)
+	    (let copy ((node (car lsts)))
+	      (if (pair? node)
+		  (cons (car node) (copy (cdr node)))
+		  (loop (cdr lsts))))))))))
+(define (reverse lst)
+  (let loop ((lst lst) (res '()))
+    (if (pair? lst)
+	(loop (cdr lst) (cons (car lst) res))
+	res)))
+(define (list-ref lst n)
+  (let loop ((lst lst) (n n))
+    (if (zero? n)
+	(car lst)
+	(loop (cdr lst) (- n 1)))))
 (define (vector-length vec) (sys:LOAD vec 0))
 ;; Be careful here, we need to initialize vec before ANY other allocations
 ;; (including closures)
