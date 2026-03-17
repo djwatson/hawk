@@ -536,6 +536,24 @@ static inline bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack,
   auto bfunc = to_func(func);
   return (bc *)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
 }
+static inline bc *apply_call(vm_state *state, gc_obj *stack, bc *pc,
+                             void **op_table, uint8_t *argcnt) {
+  (void)op_table;
+  auto fun = stack_load(state, stack, pc->v1, true);
+  auto args = stack_load(state, stack, pc->v2, false);
+  fail_if_not_closure(fun);
+  auto callee = to_func(to_closure(fun)->v[0]);
+
+  uint8_t a = 1;
+  for (; is_cons(args); a++) {
+    auto cons = to_cons(args);
+    stack[a] = cons->a;
+    args = cons->b;
+  }
+  stack[0] = fun;
+  *argcnt = a;
+  return (bc *)(&callee->data[callee->const_cnt * sizeof(gc_obj)]);
+}
 static inline gc_obj constify_data(vm_state *state, uint16_t data) {
   (void)state;
   return (gc_obj){.value = data};

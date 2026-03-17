@@ -340,8 +340,20 @@ static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   return add_const(state, c);
 }
 static inline bc *vmgen_jmp_advance(bc *pc) { return pc; }
+static void record_abort(vm_state *state);
 static slot convert_to_flonum(vm_state *state, slot v1);
 static slot convert_to_fixnum(vm_state *state, slot v1);
+static inline bc *apply_call(vm_state *state, gc_obj *stack, bc *pc,
+                             void **op_table, uint8_t *argcnt) {
+  (void)stack;
+  (void)argcnt;
+  if (verbose) {
+    printf("Record abort: can't record APPLY\n");
+  }
+  record_abort(state);
+  *op_table = state->impls;
+  return pc;
+}
 DEFINE_RECORD_NUMERIC_BINOP_COERCED(add, IR_ADD)
 static slot convert_to_flonum(vm_state *state, slot v1) {
   auto t = record_current_trace(state);

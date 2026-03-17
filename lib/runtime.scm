@@ -12,9 +12,6 @@
               <
               >=
               <=
-              +
-              -
-              /
               =
               begin
               quote
@@ -22,29 +19,33 @@
               when
 	      else
 	      )
-	(prefix (scheme base) base:)
 	(scheme case-lambda)
 		(only (scheme write) display) (prefix (hawk sys) sys:))
 (define (write x) (display x))
 (define (newline) (display "\n"))
 
+(define (* a b) (sys:MUL a b))
+(define (+ a b) (sys:ADD a b))
+(define (- a b) (sys:SUB a b))
+(define (/ a b) (sys:DIV a b))
+
 (define for-each
   (case-lambda
    ((proc lst)
-    ;(unless (list? lst) (error "circular for-each"))
+					;(unless (list? lst) (error "circular for-each"))
     (let loop ((proc proc) (lst lst))
       (unless (null? lst)
 	(proc (car lst))
 	(loop proc (cdr lst)))))
    ((proc lst1 lst2)
-    ;(unless (or (list? lst1) (list? lst2)) (error "circular for-each"))
+					;(unless (or (list? lst1) (list? lst2)) (error "circular for-each"))
     (let loop ((proc proc) (lst1 lst1) (lst2 lst2))
       (if (and  (not (null? lst1)) (not (null? lst2)))
 	  (begin
 	    (proc (car lst1) (car lst2))
 	    (loop proc (cdr lst1) (cdr lst2))))))
    ((proc . lsts)
-    ;(unless (any list? lsts) (error "circular for-each"))
+					;(unless (any list? lsts) (error "circular for-each"))
     (display "ABORT apply unimplemend")
     (/ 1 0)
     ;; (let loop ((lsts lsts))
@@ -135,6 +136,7 @@
 (define (cdr a) (sys:LOAD a 1))
 (define (car a) (sys:LOAD a 0))
 (define (cadr a) (car (cdr a)))
+(define (caar a) (car (car a)))
 (define (caddr a) (car (cdr (cdr a))))
 (define (cddr a) (cdr (cdr a)))
 (define (map f a) (if (null? a) '() (cons (f (car a)) (map f (cdr a)))))
@@ -150,7 +152,7 @@
   (case-lambda
     ((len) (make-vector len 0))
     ((len init)
-      (let ((vec (sys:ALLOC (+ 16 (base:* len 8)) 7)))
+      (let ((vec (sys:ALLOC (+ 16 (sys:MUL len 8)) 7)))
         (sys:STORE vec len 0)
         (vector-init vec init 0 len)))))
 (define (vector-ref vec idx) (sys:LOAD vec (+ 1 idx)))
@@ -167,17 +169,17 @@
 ;; SIN
 (define two-pi 6.28319)
 (define pi (/ two-pi 2.0))
-(define neg-pi (base:* -1.0 pi))
+(define neg-pi (sys:MUL -1.0 pi))
 (define half-pi (/ pi 2.0))
-(define neg-half-pi (base:* -1.0 half-pi))
+(define neg-half-pi (sys:MUL -1.0 half-pi))
 
 (define (sin-poly x)
   ;; 9th-order odd polynomial around 0:
   ;; x - x^3/6 + x^5/120 - x^7/5040 + x^9/362880
-  (let* ((x2 (base:* x x)) (x3 (base:* x2 x)) (x5 (base:* x3 x2)) (x7 (base:* x5 x2)) (x9 (base:* x7 x2)))
+  (let* ((x2 (sys:MUL x x)) (x3 (sys:MUL x2 x)) (x5 (sys:MUL x3 x2)) (x7 (sys:MUL x5 x2)) (x9 (sys:MUL x7 x2)))
     (+ x
-       (+ (base:* -0.166667 x3)
-          (+ (base:* 0.00833333 x5) (+ (base:* -0.000198413 x7) (base:* 2.75573e-06 x9)))))))
+       (+ (sys:MUL -0.166667 x3)
+          (+ (sys:MUL 0.00833333 x5) (+ (sys:MUL -0.000198413 x7) (sys:MUL 2.75573e-06 x9)))))))
 
 (define (reduce-angle y)
   (if (> y pi)
@@ -187,6 +189,52 @@
   (let ((y (reduce-angle x)))
     (if (> y half-pi)
         (sin-poly (- pi y))
-        (if (< y neg-half-pi) (base:* -1.0 (sin-poly (+ pi y))) (sin-poly y)))))
+        (if (< y neg-half-pi) (sys:MUL -1.0 (sin-poly (+ pi y))) (sin-poly y)))))
 
-(define (* a b) (base:* a b))
+(define (apply fun args)
+  (sys:APPLY fun args))
+
+(define (assq obj1 alist1)
+  (let loop ((obj obj1) (alist alist1))
+    (if (null? alist) #f
+	(begin
+	  (if (eq? (caar alist) obj) 
+	      (car alist)
+	      (loop obj (cdr alist)))))))
+(define (assv obj1 alist1)
+  (let loop ((obj obj1) (alist alist1))
+    (if (null? alist) #f
+	(begin
+	  (if (eqv? (caar alist) obj) 
+	      (car alist)
+	      (loop obj (cdr alist)))))))
+(define assoc 
+  (case-lambda
+    ((obj1 alist1 compare)
+     (let loop ((obj obj1) (alist alist1))
+       (if (null? alist) #f
+	   (begin
+	     (if (compare (caar alist) obj) 
+		 (car alist)
+		 (loop obj (cdr alist)))))))
+    ((obj alist)
+     (assoc obj alist equal?))))
+
+(define (memv obj list)
+  (let loop ((list list))
+    (if (null? list) #f
+	(if (eq? obj (car list)) 
+	    list
+	    (loop (cdr list))))))
+(define (memq obj list)
+  (let loop ((list list))
+    (if (null? list) #f
+	(if (eqv? obj (car list)) 
+	    list
+	    (loop (cdr list))))))
+(define (member obj list)
+  (let loop ((list list))
+    (if (null? list) #f
+	(if (equal? obj (car list)) 
+	    list
+	    (loop (cdr list))))))

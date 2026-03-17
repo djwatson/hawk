@@ -263,6 +263,10 @@ END OP_BEGIN(LCALLT) {
   pc = set_new_pc(state, pc, stack, func);
   dispatch_next(pc, stack);
 }
+END OP_BEGIN(APPLY) {
+  pc = apply_call(state, stack, pc, &op_table, &argcnt);
+  dispatch_next(pc, stack);
+}
 END OP_BEGIN(ALLOC) {
   auto obj = alloc_obj(state, stack, pc, &op_table);
   stack_save(state, stack, instr.reg, obj);
