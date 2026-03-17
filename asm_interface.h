@@ -44,8 +44,10 @@ void emit_fmov(emit_state *s, uint8_t dst, uint8_t src);
 void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi);
 void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi);
 void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
+void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
 void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
 void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
+void emit_store_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
 void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value);
@@ -75,6 +77,7 @@ void asm_emit_fixnum_mul_constant_guard_overflow(emit_state *s, uint8_t dst,
                                                  uint8_t lhs, int64_t imm,
                                                  label *overflow_target);
 void emit_sar_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm);
+void emit_shl_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm);
 void emit_quotient(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_quotient_constant(emit_state *s, uint8_t dst, uint8_t lhs,
                             int64_t imm);

@@ -433,6 +433,21 @@ static inline void store_obj(vm_state *state, gc_obj *stack, bc *pc) {
   auto base = (gc_obj *)((uint8_t *)to_raw_ptr(dest) + sizeof(gc_header));
   base[to_fixnum(off)] = val;
 }
+static inline void store_char(vm_state *state, gc_obj *stack, bc *pc) {
+  (void)state;
+  auto dest = stack_load(state, stack, pc->reg, true);
+  auto val = stack_load(state, stack, pc->v1, true);
+  auto off = stack_load(state, stack, pc->v2, true);
+  assert(is_string(dest));
+  assert(is_char(val));
+  assert(is_fixnum(off));
+
+  auto str = to_string(dest);
+  auto idx = to_fixnum(off);
+  auto len = to_fixnum(str->len);
+  assert(idx >= 0 && idx < len);
+  str->str[idx] = (char)to_char(val);
+}
 static inline gc_obj load_obj(vm_state *state, gc_obj *stack, bc *pc) {
   (void)state;
   auto src = stack_load(state, stack, pc->v1, true);
@@ -442,6 +457,19 @@ static inline gc_obj load_obj(vm_state *state, gc_obj *stack, bc *pc) {
 
   auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
   return base[to_fixnum(off)];
+}
+static inline gc_obj load_char(vm_state *state, gc_obj *stack, bc *pc) {
+  (void)state;
+  auto src = stack_load(state, stack, pc->v1, true);
+  auto off = stack_load(state, stack, pc->v2, true);
+  assert(is_string(src));
+  assert(is_fixnum(off));
+
+  auto str = to_string(src);
+  auto idx = to_fixnum(off);
+  auto len = to_fixnum(str->len);
+  assert(idx >= 0 && idx < len);
+  return tag_char((uint8_t)str->str[idx]);
 }
 static inline gc_obj alloc_obj(vm_state *state, gc_obj *stack, bc *pc,
                                void **op_table) {

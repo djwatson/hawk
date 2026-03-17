@@ -67,7 +67,9 @@ typedef enum : uint8_t {
   X(ARG, ARG_REG, false)                                                       \
   X(REF, ARG_IR_IR, false)                                                     \
   X(LOAD, ARG_IR_IR, false)                                                    \
+  X(LOAD_CHAR, ARG_IR_IR, false)                                               \
   X(STORE, ARG_IR_IR, true)                                                    \
+  X(STORE_CHAR, ARG_IR_IR, true)                                               \
   X(ALLOC, ARG_IR_IR, false)                                                   \
   X(BOX_FLONUM, ARG_IR_NONE, false)                                            \
   X(EXACT, ARG_IR_NONE, false)                                                 \

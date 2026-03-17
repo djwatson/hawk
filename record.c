@@ -671,6 +671,16 @@ static void store_obj(vm_state *state, gc_obj *stack, bc *pc) {
                      .type = get_slot_type(record_current_trace(state), obj)));
   vm_add_snap(state, pc + 1);
 }
+static void store_char(vm_state *state, gc_obj *stack, bc *pc) {
+  auto obj = stack_load(state, stack, pc->reg, true);
+  auto val = stack_load(state, stack, pc->v1, true);
+  auto offset = stack_load(state, stack, pc->v2, true);
+
+  auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
+  add_inst(state, IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val,
+                     .type = STRING_TAG));
+  vm_add_snap(state, pc + 1);
+}
 static slot load_obj(vm_state *state, gc_obj *stack, bc *pc) {
   auto obj = stack_load(state, stack, pc->v1, true);
   auto offset = stack_load(state, stack, pc->v2, true);
@@ -681,6 +691,21 @@ static slot load_obj(vm_state *state, gc_obj *stack, bc *pc) {
   auto type = get_type_tag(base[to_fixnum(off)]);
 
   ir_ins ins = IR(.op = IR_LOAD, .op1 = obj, .op2 = offset, .type = type);
+  return add_inst(state, ins);
+}
+static slot load_char(vm_state *state, gc_obj *stack, bc *pc) {
+  auto obj = stack_load(state, stack, pc->v1, true);
+  auto offset = stack_load(state, stack, pc->v2, true);
+  auto src = stack[pc->v1];
+  auto off = stack[pc->v2];
+  assert(is_string(src));
+  assert(is_fixnum(off));
+  auto str = to_string(src);
+  auto idx = to_fixnum(off);
+  assert(idx >= 0 && idx < to_fixnum(str->len));
+
+  ir_ins ins = IR(.op = IR_LOAD_CHAR, .op1 = obj, .op2 = offset,
+                  .type = CHAR_TAG);
   return add_inst(state, ins);
 }
 static slot guard_obj(vm_state *state, gc_obj *stack, bc *pc) {

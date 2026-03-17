@@ -287,6 +287,50 @@ static void emit_mem_reg(emit_state *s, uint8_t opcode, int32_t offset,
   }
 }
 
+static void emit_mem_reg8(emit_state *s, uint8_t opcode, int32_t offset,
+                          uint8_t base, uint8_t src) {
+  if (low3bits(base) == RSP) {
+    bool disp8 = (int32_t)((int8_t)offset) == offset;
+    uint8_t mod;
+    if (offset == 0) {
+      mod = 0x0;
+    } else if (disp8) {
+      mod = 0x1;
+    } else {
+      mod = 0x2;
+    }
+    emit_rex_optional(s, 0, src >> 3, 0, base >> 3);
+    emit_byte(s, opcode);
+    emit_modrm(s, mod, 0x7 & src, 0x4);
+    emit_sib(s, 0, RSP, base);
+    if (mod == 0x1) {
+      emit_byte(s, (uint8_t)offset);
+    } else if (mod == 0x2) {
+      emit_imm32(s, (uint32_t)offset);
+    }
+    return;
+  }
+
+  bool disp8 = (int32_t)((int8_t)offset) == offset;
+  uint8_t mod;
+  if (offset == 0 && low3bits(base) != RBP) {
+    mod = 0x0;
+  } else if (disp8) {
+    mod = 0x1;
+  } else {
+    mod = 0x2;
+  }
+
+  emit_rex_optional(s, 0, src >> 3, 0, base >> 3);
+  emit_byte(s, opcode);
+  emit_modrm(s, mod, 0x7 & src, 0x7 & base);
+  if (mod == 0x1) {
+    emit_byte(s, (uint8_t)offset);
+  } else if (mod == 0x2) {
+    emit_imm32(s, (uint32_t)offset);
+  }
+}
+
 static void emit_sse_mem(emit_state *s, uint8_t prefix, uint8_t opcode,
                          int32_t offset, uint8_t base, uint8_t freg) {
   bool disp8 = (int32_t)((int8_t)offset) == offset;
@@ -323,6 +367,52 @@ static void emit_sse_mem(emit_state *s, uint8_t prefix, uint8_t opcode,
 void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   assert(dst < MAX_REG);
   emit_mem_reg(s, ASM_MOV_MR, offset, base, dst);
+}
+
+void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
+  assert(base < FPR_REG_START);
+  assert(dst < FPR_REG_START);
+  if (low3bits(base) == RSP) {
+    bool disp8 = (int32_t)((int8_t)offset) == offset;
+    uint8_t mod;
+    if (offset == 0) {
+      mod = 0x0;
+    } else if (disp8) {
+      mod = 0x1;
+    } else {
+      mod = 0x2;
+    }
+    emit_rex(s, 1, dst >> 3, 0, base >> 3);
+    emit_byte(s, 0x0f);
+    emit_byte(s, ASM_MOVZX8);
+    emit_modrm(s, mod, 0x7 & dst, 0x4);
+    emit_sib(s, 0, RSP, base);
+    if (mod == 0x1) {
+      emit_byte(s, (uint8_t)offset);
+    } else if (mod == 0x2) {
+      emit_imm32(s, (uint32_t)offset);
+    }
+    return;
+  }
+
+  bool disp8 = (int32_t)((int8_t)offset) == offset;
+  uint8_t mod;
+  if (offset == 0 && low3bits(base) != RBP) {
+    mod = 0x0;
+  } else if (disp8) {
+    mod = 0x1;
+  } else {
+    mod = 0x2;
+  }
+  emit_rex(s, 1, dst >> 3, 0, base >> 3);
+  emit_byte(s, 0x0f);
+  emit_byte(s, ASM_MOVZX8);
+  emit_modrm(s, mod, 0x7 & dst, 0x7 & base);
+  if (mod == 0x1) {
+    emit_byte(s, (uint8_t)offset);
+  } else if (mod == 0x2) {
+    emit_imm32(s, (uint32_t)offset);
+  }
 }
 
 void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
@@ -647,6 +737,18 @@ void emit_sar_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm) {
   emit_byte(s, imm);
 }
 
+void emit_shl_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm) {
+  assert(dst < FPR_REG_START);
+  assert(src < FPR_REG_START);
+  if (dst != src) {
+    emit_mov(s, dst, src);
+  }
+  emit_rex(s, 1, 0, 0, dst >> 3);
+  emit_byte(s, ASM_SHL_CONST);
+  emit_modrm(s, 0x3, 0x4, 0x7 & dst);
+  emit_byte(s, imm);
+}
+
 void emit_mod(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   assert(dst < FPR_REG_START);
   assert(lhs < FPR_REG_START);
@@ -797,6 +899,12 @@ void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
 }
 void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
   emit_mem_reg(s, ASM_MOV_RM, offset, base, src);
+}
+
+void emit_store_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
+  assert(base < FPR_REG_START);
+  assert(src < FPR_REG_START);
+  emit_mem_reg8(s, ASM_MOV8, offset, base, src);
 }
 
 void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {

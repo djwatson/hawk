@@ -995,6 +995,27 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
       break;
     }
+    case IR_LOAD_CHAR: {
+      uint8_t base_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
+      if (op->op1.constant) {
+        base_reg = RTMP;
+        emit_heap_constant(s, t, base_reg, slot_gc_obj(t, op->op1));
+      }
+      int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
+      if (op->op2.constant) {
+        int64_t idx = slot_const(t, op->op2) >> FIXNUM_SHIFT;
+        assert((int32_t)idx == idx);
+        emit_mem_load_u8(s, (int32_t)idx + base_offset, base_reg, dst_reg);
+      } else {
+        uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+        emit_sar_constant(s, RTMP, offset_reg, FIXNUM_SHIFT);
+        emit_add(s, RTMP, RTMP, base_reg);
+        emit_mem_load_u8(s, base_offset, RTMP, dst_reg);
+      }
+      emit_shl_constant(s, dst_reg, dst_reg, 8);
+      emit_add_constant(s, dst_reg, dst_reg, CHAR_TAG);
+      break;
+    }
     case IR_STORE: {
       ir_ins *ref = slot_ins(t, op->op1);
       auto val_reg = arg0_reg;
@@ -1046,6 +1067,34 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         emit_store(s, 8 - op->type, addr_reg, val_reg);
       }
 
+      break;
+    }
+    case IR_STORE_CHAR: {
+      ir_ins *ref = slot_ins(t, op->op1);
+      if (op->op2.constant) {
+        auto ch = (uint8_t)to_char(slot_gc_obj(t, op->op2));
+        emit_mov64(s, RTMP, ch);
+      } else {
+        uint8_t val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+        emit_sar_constant(s, RTMP, val_reg, 8);
+      }
+
+      auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
+      if (ref->op1.constant) {
+        base_reg = RTMP2;
+        emit_heap_constant(s, t, base_reg, slot_gc_obj(t, ref->op1));
+      }
+      int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
+      if (ref->op2.constant) {
+        int64_t idx = slot_const(t, ref->op2) >> FIXNUM_SHIFT;
+        assert((int32_t)idx == idx);
+        emit_store_u8(s, (int32_t)idx + base_offset, base_reg, RTMP);
+      } else {
+        auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
+        emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
+        emit_add(s, RTMP2, RTMP2, base_reg);
+        emit_store_u8(s, base_offset, RTMP2, RTMP);
+      }
       break;
     }
       EMIT_CMP_CASE(IR_LT, JAE, JGE)
@@ -1247,11 +1296,11 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     // TODO: maybe move emit_typecheck here, instead of each individual one.
     if (op->guard &&
         !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
-          op->op == IR_LOAD || op->op == IR_ALLOC || op->op == IR_TYPECHECK ||
-          op->op == IR_SUB || op->op == IR_ADD || op->op == IR_MUL ||
-          op->op == IR_DIV || op->op == IR_QUOTIENT || op->op == IR_MOD ||
-          op->op == IR_GGET || op->op == IR_INEXACT || op->op == IR_EXACT ||
-          op->op == IR_TRUNCATE)) {
+          op->op == IR_LOAD || op->op == IR_LOAD_CHAR || op->op == IR_ALLOC ||
+          op->op == IR_TYPECHECK || op->op == IR_SUB || op->op == IR_ADD ||
+          op->op == IR_MUL || op->op == IR_DIV || op->op == IR_QUOTIENT ||
+          op->op == IR_MOD || op->op == IR_GGET || op->op == IR_INEXACT ||
+          op->op == IR_EXACT || op->op == IR_TRUNCATE)) {
       abort();
     }
   }

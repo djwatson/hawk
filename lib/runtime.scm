@@ -60,6 +60,9 @@
     ;; 			 (cons (cdr (car lsts)) (loop3 (cdr lsts))))))))))
     )))
 
+(define (string-ref str idx) (sys:LOAD_CHAR str idx))
+(define (string-set! str idx c) (sys:STORE_CHAR str c idx))
+
 (define (cons a b)
   (let ((cell (sys:ALLOC 24 3))) (sys:STORE cell a 0) (sys:STORE cell b 1) cell))
 (define (not a) (if a #f #t))

@@ -56,7 +56,9 @@
   X(WRITE, AD)                                                                 \
   X(ALLOC, ABC)                                                                \
   X(STORE, ABC)                                                                \
+  X(STORE_CHAR, ABC)                                                           \
   X(LOAD, ABC)                                                                 \
+  X(LOAD_CHAR, ABC)                                                            \
   X(FUNC, A)                                                                   \
   X(ARGCNT_ERROR, A)                                                           \
   X(JFUNC, AD)                                                                 \

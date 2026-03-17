@@ -745,6 +745,23 @@ void emit_sar_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm) {
   emit_op(s, opcode);
 }
 
+void emit_shl_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm) {
+  assert(dst < FPR_REG_START);
+  assert(src < FPR_REG_START);
+  assert(imm < 64);
+  if (imm == 0) {
+    if (dst != src) {
+      emit_mov(s, dst, src);
+    }
+    return;
+  }
+  uint32_t immr = (64U - (uint32_t)imm) & 63U;
+  uint32_t imms = 63U - (uint32_t)imm;
+  uint32_t opcode = 0xD3400000U | (immr << 16) | (imms << 10) |
+                    ((uint32_t)src << 5) | (uint32_t)dst;
+  emit_op(s, opcode);
+}
+
 void emit_mod(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   assert(dst < FPR_REG_START);
   assert(lhs < FPR_REG_START);
@@ -948,6 +965,22 @@ void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   emit_op(s, opcode);
 }
 
+void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
+  assert(base < MAX_REG);
+  assert(dst < MAX_REG);
+  if (offset >= 0 && offset < 4096) {
+    uint32_t opcode = 0x39400000U | ((uint32_t)offset << 10) |
+                      ((uint32_t)base << 5) | (uint32_t)dst;
+    emit_op(s, opcode);
+    return;
+  }
+  assert(offset >= -256 && offset <= 255);
+  uint32_t imm9 = (uint32_t)(offset & 0x1ff);
+  uint32_t opcode =
+      0x38400000U | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)dst;
+  emit_op(s, opcode);
+}
+
 void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   assert(base < FPR_REG_START);
   assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
@@ -981,6 +1014,22 @@ void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
   uint32_t imm9 = (uint32_t)(offset & 0x1ff);
   uint32_t opcode =
       0xF8000000U | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)src;
+  emit_op(s, opcode);
+}
+
+void emit_store_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
+  assert(base < MAX_REG);
+  assert(src < MAX_REG);
+  if (offset >= 0 && offset < 4096) {
+    uint32_t opcode = 0x39000000U | ((uint32_t)offset << 10) |
+                      ((uint32_t)base << 5) | (uint32_t)src;
+    emit_op(s, opcode);
+    return;
+  }
+  assert(offset >= -256 && offset <= 255);
+  uint32_t imm9 = (uint32_t)(offset & 0x1ff);
+  uint32_t opcode =
+      0x38000000U | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)src;
   emit_op(s, opcode);
 }
 

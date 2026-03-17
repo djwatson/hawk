@@ -274,6 +274,11 @@ END OP_BEGIN(STORE) {
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
+END OP_BEGIN(STORE_CHAR) {
+  store_char(state, stack, pc);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
 END OP_BEGIN(GUARD) {
   auto res = guard_obj(state, stack, pc);
   stack_save(state, stack, instr.reg, res);
@@ -282,6 +287,12 @@ END OP_BEGIN(GUARD) {
 }
 END OP_BEGIN(LOAD) {
   auto res = load_obj(state, stack, pc);
+  stack_save(state, stack, instr.reg, res);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
+END OP_BEGIN(LOAD_CHAR) {
+  auto res = load_char(state, stack, pc);
   stack_save(state, stack, instr.reg, res);
   pc = next_op(pc);
   dispatch_next(pc, stack);
