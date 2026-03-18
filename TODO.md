@@ -29,7 +29,7 @@
 
 * track stack-top
 * half finished - all the typcheck types - (need more ptr types)
-* rest of ops: callcc/callcc_resume, integer->char/char->integer, apply.  That's it.
+* rest of ops: callcc/callcc_resume. That's it.
 * update stack overflow, just allocate a new section (linked stack segments, much faster callcc handling)
 
 # cleanup

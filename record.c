@@ -689,8 +689,8 @@ static void store_char(vm_state *state, gc_obj *stack, bc *pc) {
   auto offset = stack_load(state, stack, pc->v2, true);
 
   auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
-  add_inst(state, IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val,
-                     .type = STRING_TAG));
+  add_inst(state,
+           IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val, .type = STRING_TAG));
   vm_add_snap(state, pc + 1);
 }
 static slot load_obj(vm_state *state, gc_obj *stack, bc *pc) {
@@ -716,8 +716,8 @@ static slot load_char(vm_state *state, gc_obj *stack, bc *pc) {
   auto idx = to_fixnum(off);
   assert(idx >= 0 && idx < to_fixnum(str->len));
 
-  ir_ins ins = IR(.op = IR_LOAD_CHAR, .op1 = obj, .op2 = offset,
-                  .type = CHAR_TAG);
+  ir_ins ins =
+      IR(.op = IR_LOAD_CHAR, .op1 = obj, .op2 = offset, .type = CHAR_TAG);
   return add_inst(state, ins);
 }
 static slot guard_obj(vm_state *state, gc_obj *stack, bc *pc) {
@@ -775,18 +775,18 @@ static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
     auto item = stack_load(state, stack, (uint8_t)pos, true);
     auto sz = add_const(state, tag_fixnum(sizeof(cons_s)));
     auto type = add_const(state, tag_fixnum(CONS_TAG));
-    auto cell =
-        add_inst(state, IR(.op = IR_ALLOC, .op1 = sz, .op2 = type, .type = CONS_TAG));
+    auto cell = add_inst(
+        state, IR(.op = IR_ALLOC, .op1 = sz, .op2 = type, .type = CONS_TAG));
 
-    auto car_ref =
-        add_inst(state, IR(.op = IR_REF, .op1 = cell,
-                           .op2 = add_const(state, tag_fixnum(0)), .type = CONS_TAG));
+    auto car_ref = add_inst(state, IR(.op = IR_REF, .op1 = cell,
+                                      .op2 = add_const(state, tag_fixnum(0)),
+                                      .type = CONS_TAG));
     add_inst(state,
              IR(.op = IR_STORE, .op1 = car_ref, .op2 = item, .type = CONS_TAG));
 
-    auto cdr_ref =
-        add_inst(state, IR(.op = IR_REF, .op1 = cell,
-                           .op2 = add_const(state, tag_fixnum(1)), .type = CONS_TAG));
+    auto cdr_ref = add_inst(state, IR(.op = IR_REF, .op1 = cell,
+                                      .op2 = add_const(state, tag_fixnum(1)),
+                                      .type = CONS_TAG));
     add_inst(state,
              IR(.op = IR_STORE, .op1 = cdr_ref, .op2 = tail, .type = CONS_TAG));
     tail = cell;
@@ -815,7 +815,8 @@ static bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
     return false;
   }
 
-  set_stack(state, fixed_cnt, build_rest_list(state, stack, fixed_cnt, args - fixed_cnt));
+  set_stack(state, fixed_cnt,
+            build_rest_list(state, stack, fixed_cnt, args - fixed_cnt));
   return true;
 }
 static branch_result emit_if_branch(vm_state *state, bc *pc, gc_obj *stack,
@@ -869,6 +870,8 @@ static slot closure_get(vm_state *state, gc_obj *stack, slot clo, uint8_t pos,
                   .type = (uint8_t)get_type_tag(loaded));
   return add_inst(state, ins);
 }
+static inline slot char_integer(vm_state *state, slot s) { abort(); }
+static inline slot integer_char(vm_state *state, slot s) { abort(); }
 static slot return_address(vm_state *state, bc *ra) {
   return add_const(state, tag_return_address(ra));
 }

@@ -516,6 +516,16 @@ static inline void closure_set(vm_state *state, gc_obj clo, uint8_t slot,
   (void)op_table;
   to_closure(clo)->v[slot] = val;
 }
+static inline gc_obj char_integer(vm_state *state, gc_obj s) {
+  assert(is_char(s));
+  auto c = to_char(s);
+  return tag_fixnum(c);
+}
+static inline gc_obj integer_char(vm_state *state, gc_obj s) {
+  assert(is_fixnum(s));
+  auto fix = to_fixnum(s);
+  return tag_char(fix);
+}
 static inline gc_obj return_address(vm_state *state, bc *ra) {
   (void)state;
   return tag_return_address(ra);

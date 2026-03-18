@@ -77,6 +77,8 @@
   X(LCALL, AD)                                                                 \
   X(LCALLT, AD)                                                                \
   X(APPLY, ABC)                                                                \
+  X(CHAR_INTEGER, AD)                                                          \
+  X(INTEGER_CHAR, AD)                                                          \
   X(HALT, A)                                                                   \
   X(IFUNC, A)
 typedef enum : uint8_t {

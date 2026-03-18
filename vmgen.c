@@ -301,5 +301,19 @@ END OP_BEGIN(LOAD_CHAR) {
   pc = next_op(pc);
   dispatch_next(pc, stack);
 }
+END OP_BEGIN(CHAR_INTEGER) {
+  auto v1 = stack_load(state, stack, instr.v1, true);
+  auto res = char_integer(state, v1);
+  stack_save(state, stack, instr.reg, res);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
+END OP_BEGIN(INTEGER_CHAR) {
+  auto v1 = stack_load(state, stack, instr.v1, true);
+  auto res = integer_char(state, v1);
+  stack_save(state, stack, instr.reg, res);
+  pc = next_op(pc);
+  dispatch_next(pc, stack);
+}
 END OP_BEGIN(HALT) { return halt(state, stack); }
 END

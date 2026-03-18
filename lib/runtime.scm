@@ -1,96 +1,145 @@
 (import (only (scheme base)
               or
-	      and
+              and
               define
-	      unless
-	      cond
+              unless
+              inexact
+              cond
+              include
               let
               let*
               if
-              >
-              <
-              >=
-              <=
-              =
               begin
               quote
               do
               when
-	      else
-	      )
-	(scheme case-lambda)
-		(only (scheme write) display) (prefix (hawk sys) sys:))
+              else
+              =>
+              char->integer
+              integer->char
+              set!
+              lambda
+              define-syntax
+              syntax-rules
+              case) (scheme case-lambda) (only (scheme write) display) (prefix (hawk sys) sys:))
 (define (write x) (display x))
 (define (newline) (display "\n"))
 
-(define (* a b) (sys:MUL a b))
-(define (+ a b) (sys:ADD a b))
-(define (- a b) (sys:SUB a b))
-(define (/ a b) (sys:DIV a b))
+(define (reducer f init args)
+  (let loop ((init init) (args args))
+    (if (pair? args) (loop (f init (car args)) (cdr args)) init)))
+
+(define (quotient a b) (sys:QUOTIENT a b))
+(define (modulo a b) (sys:MOD a b))
+(define (remainder a b) (sys:MOD a b))
+(define +
+  (case-lambda
+    (() 0)
+    ((a) a)
+    ((a b) (sys:ADD a b))
+    ((a b c) (sys:ADD (sys:ADD a b) c))
+    (rest (reducer (lambda (a b) (sys:ADD a b)) 0 rest))))
+
+(define -
+  (case-lambda
+    ((a) (sys:MUL -1 a))
+    ((a b) (sys:SUB a b))
+    ((a . rest) (reducer (lambda (a b) (sys:SUB a b)) a rest))))
+
+(define *
+  (case-lambda
+    (() 1)
+    ((a) a)
+    ((a b) (sys:MUL a b))
+    ((a b c) (* (* a b) c))
+    (rest (reducer (lambda (a b) (sys:MUL a b)) 1 rest))))
+
+(define / (case-lambda ((a) (sys:DIV 1.0 a)) ((a b) (sys:DIV a b))))
+
+(define (comparer f args)
+  (let loop ((args args))
+    (if (and (pair? args) (pair? (cdr args)))
+        (if (f (car args) (cadr args)) (loop (cdr args)) #f)
+        #t)))
+
+(define <
+  (case-lambda
+    ((a b) (sys:LT a b))
+    (rest (comparer (lambda (a b) (sys:LT a b)) rest))))
+(define >
+  (case-lambda
+    ((a b) (sys:GT a b))
+    (rest (comparer (lambda (a b) (sys:GT a b)) rest))))
+(define <=
+  (case-lambda
+    ((a b) (sys:LTE a b))
+    (rest (comparer (lambda (a b) (sys:LTE a b)) rest))))
+(define >=
+  (case-lambda
+    ((a b) (sys:GTE a b))
+    (rest (comparer (lambda (a b) (sys:GTE a b)) rest))))
+(define =
+  (case-lambda
+    ((a b) (sys:EQV a b))
+    (rest (comparer (lambda (a b) (sys:EQV a b)) rest))))
+
 (define (eq? a b) (sys:EQ a b))
 
 (define (list? x)
   (let loop ((fast x) (slow x))
     (or (null? fast)
-	(and (pair? fast)
-	     (let ((fast (cdr fast)))
-	       (or (null? fast)
-		   (and (pair? fast)
-			(let ((fast (cdr fast))
-			      (slow (cdr slow)))
-			  (and (not (eq? fast slow))
-			       (loop fast slow))))))))))
+       (and (pair? fast)
+            (let ((fast (cdr fast)))
+              (or (null? fast)
+                 (and (pair? fast)
+                      (let ((fast (cdr fast)) (slow (cdr slow)))
+                        (and (not (eq? fast slow)) (loop fast slow))))))))))
 
 (define for-each
   (case-lambda
-   ((proc lst)
-					;(unless (list? lst) (error "circular for-each"))
-    (let loop ((proc proc) (lst lst))
-      (unless (null? lst)
-	(proc (car lst))
-	(loop proc (cdr lst)))))
-   ((proc lst1 lst2)
-					;(unless (or (list? lst1) (list? lst2)) (error "circular for-each"))
-    (let loop ((proc proc) (lst1 lst1) (lst2 lst2))
-      (if (and  (not (null? lst1)) (not (null? lst2)))
-	  (begin
-	    (proc (car lst1) (car lst2))
-	    (loop proc (cdr lst1) (cdr lst2))))))
-   ((proc . lsts)
-					;(unless (any list? lsts) (error "circular for-each"))
-    (display "ABORT apply unimplemend")
-    (/ 1 0)
-    ;; (let loop ((lsts lsts))
-    ;;   (let ((hds (let loop2 ((lsts lsts))
-    ;; 		   (if (null? lsts)
-    ;; 		       '()
-    ;; 		       (let ((x (car lsts)))
-    ;; 			 (and (not (null? x))
-    ;; 			      (let ((r (loop2 (cdr lsts))))
-    ;; 				(and r (cons (car x) r)))))))))
-    ;; 	(if hds (begin
-    ;; 		  (apply proc hds)
-    ;; 		  (loop
-    ;; 		   (let loop3 ((lsts lsts))
-    ;; 		     (if (null? lsts)
-    ;; 			 '()
-    ;; 			 (cons (cdr (car lsts)) (loop3 (cdr lsts))))))))))
+    ((proc lst)
+      ;(unless (list? lst) (error "circular for-each"))
+      (let loop ((proc proc) (lst lst))
+        (unless (null? lst) (proc (car lst)) (loop proc (cdr lst)))))
+    ((proc lst1 lst2)
+      ;(unless (or (list? lst1) (list? lst2)) (error "circular for-each"))
+      (let loop ((proc proc) (lst1 lst1) (lst2 lst2))
+        (if (and (not (null? lst1)) (not (null? lst2)))
+            (begin (proc (car lst1) (car lst2)) (loop proc (cdr lst1) (cdr lst2))))))
+    ((proc . lsts)
+      ;(unless (any list? lsts) (error "circular for-each"))
+      (display "ABORT apply unimplemend")
+      (/ 1 0)
+      ;; (let loop ((lsts lsts))
+      ;;   (let ((hds (let loop2 ((lsts lsts))
+      ;; 		   (if (null? lsts)
+      ;; 		       '()
+      ;; 		       (let ((x (car lsts)))
+      ;; 			 (and (not (null? x))
+      ;; 			      (let ((r (loop2 (cdr lsts))))
+      ;; 				(and r (cons (car x) r)))))))))
+      ;; 	(if hds (begin
+      ;; 		  (apply proc hds)
+      ;; 		  (loop
+      ;; 		   (let loop3 ((lsts lsts))
+      ;; 		     (if (null? lsts)
+      ;; 			 '()
+      ;; 			 (cons (cdr (car lsts)) (loop3 (cdr lsts))))))))))
     )))
 
-(define (eqv? a b)
-  (or (eq? a b) (and (flonum? a) (flonum? b) (= a b))))
+(define (eqv? a b) (or (eq? a b) (and (flonum? a) (flonum? b) (= a b))))
 (define (equal? a b)
   (cond
-   ((eqv? a b) #t)
-   ((and (null? a) (null? b)) #t)
-   ((and (string? a) (string? b)) (string=? a b))
-   ((and (bytevector? a) (bytevector? b)) (bytevector=? a b))
-   ((and (symbol? a) (symbol? b)) (string=? (symbol->string a) (symbol->string b)))
-   ((and (vector? a) (vector? b)) (equal? (vector->list a) (vector->list b)))
-   ((and (pair? a) (pair? b)
-	 (equal? (car a) (car b))
-	 (equal? (cdr a) (cdr b))) #t)
-   (else #f)))
+    ((eqv? a b) #t)
+    ((and (null? a) (null? b)) #t)
+    ((and (string? a) (string? b)) (string=? a b))
+    ((and (bytevector? a) (bytevector? b)) (bytevector=? a b))
+    ((and (symbol? a) (symbol? b))
+      (string=? (symbol->string a) (symbol->string b)))
+    ((and (vector? a) (vector? b)) (equal? (vector->list a) (vector->list b)))
+    ((and (pair? a) (pair? b) (equal? (car a) (car b)) (equal? (cdr a) (cdr b)))
+      #t)
+    (else #f)))
 
 (define (string-ref str idx) (sys:LOAD_CHAR str idx))
 (define (string-set! str idx c) (sys:STORE_CHAR str c idx))
@@ -98,29 +147,24 @@
   (let ((len-a (sys:LOAD a 0)) (len-b (sys:LOAD b 0)))
     (and (= len-a len-b)
          (let loop ((i 0))
-           (if (= i len-a)
-               #t
-               (and (= (string-ref a i) (string-ref b i))
-                    (loop (+ i 1))))))))
+           (if (= i len-a) #t (and (= (string-ref a i) (string-ref b i)) (loop (+ i 1))))))))
 (define make-string
   (case-lambda
-   ((len) (make-string len #f))
-   ((len c)
-    (let* ((size (+ len 17))
-           (alloc_size
-            (let loop ((n 8))
-              (if (>= n size) n (loop (+ n 8)))))
-           (str (sys:ALLOC alloc_size 9)))
-    (sys:STORE str len 0)
-    (string-set! str len #\x00)
-    (when c
-      (do ((i 0 (+ i 1)))
-	  ((= i len))
-	(string-set! str i c)))
-    str))))
+    ((len) (make-string len #f))
+    ((len c)
+      (let* ((size (+ len 17))
+             (alloc_size (let loop ((n 8)) (if (>= n size) n (loop (+ n 8)))))
+             (str (sys:ALLOC alloc_size 9)))
+        (sys:STORE str len 0)
+        (string-set! str len #\null)
+        (when c (do ((i 0 (+ i 1))) ((= i len)) (string-set! str i c)))
+        str))))
 
 (define (cons a b)
   (let ((cell (sys:ALLOC 24 3))) (sys:STORE cell a 0) (sys:STORE cell b 1) cell))
+(define (cons* first . rest)
+  (let recur ((x first) (rest rest))
+    (if (pair? rest) (cons x (recur (car rest) (cdr rest))) x)))
 (define (not a) (if a #f #t))
 (define (null? a) (sys:GUARD a 20))
 (define (pair? a) (sys:GUARD a 3))
@@ -132,16 +176,24 @@
   (or (fixnum? x)
      (flonum? x) ;(bignum? x) (ratnum? x) (compnum? x)
   ))
+(define complex? number?)
+(define real? number?)
+(define rational? number?)
+(define integer? fixnum?)
+(define exact? fixnum?)
+(define inexact? flonum?)
+(define exact-integer? fixnum?)
 (define (bytevector=? a b) #f)
 (define (procedure? a) (sys:GUARD a 5))
 (define (string? a) (sys:GUARD a 9))
-(define (bytevector? a) (sys:GUARD a #x39))
+(define (bytevector? a) (sys:GUARD a 57))
 (define (symbol? a) (sys:GUARD a 6))
 (define (symbol->string sym) (sys:LOAD sym 0))
 (define (vector? a) (sys:GUARD a 7))
 (define (zero? z) (= z 0))
 (define (negative? a) (< a 0))
 (define (positive? a) (> a 0))
+(define (abs p) (if (negative? p) (- p) p))
 (define (list-tail lst k)
   (let loop ((lst lst) (k k)) (if (> k 0) (loop (cdr lst) (- k 1)) lst)))
 (define (list . x) x)
@@ -149,6 +201,7 @@
 (define (car a) (sys:LOAD a 0))
 (define (set-car! a b) (sys:STORE a b 0))
 (define (set-cdr! a b) (sys:STORE a b 1))
+(define (string-length a) (sys:LOAD a 0))
 (define (car a) (sys:LOAD a 0))
 (define (cadr a) (car (cdr a)))
 (define (caar a) (car (car a)))
@@ -156,35 +209,26 @@
 (define (cddr a) (cdr (cdr a)))
 (define (map f a) (if (null? a) '() (cons (f (car a)) (map f (cdr a)))))
 (define (append2 a b)
-  (let loop ((a a) (b b))
-    (if (null? a)
-	b
-	(cons (car a) (loop (cdr a) b)))))
+  (let loop ((a a) (b b)) (if (null? a) b (cons (car a) (loop (cdr a) b)))))
 
 (define append
   (case-lambda
-    ((a b)
-     (append2 a b))
+    ((a b) (append2 a b))
     ((a b c) (append a (append b c)))
     ((a b c d) (append a (append b (append c d))))
-   (lsts (if (null? lsts) '()
-      (let loop ((lsts lsts))
-	(if (null? (cdr lsts))
-	    (car lsts)
-	    (let copy ((node (car lsts)))
-	      (if (pair? node)
-		  (cons (car node) (copy (cdr node)))
-		  (loop (cdr lsts))))))))))
+    (lsts
+      (if (null? lsts)
+          '()
+          (let loop ((lsts lsts))
+            (if (null? (cdr lsts))
+                (car lsts)
+                (let copy ((node (car lsts)))
+                  (if (pair? node) (cons (car node) (copy (cdr node))) (loop (cdr lsts))))))))))
 (define (reverse lst)
   (let loop ((lst lst) (res '()))
-    (if (pair? lst)
-	(loop (cdr lst) (cons (car lst) res))
-	res)))
+    (if (pair? lst) (loop (cdr lst) (cons (car lst) res)) res)))
 (define (list-ref lst n)
-  (let loop ((lst lst) (n n))
-    (if (zero? n)
-	(car lst)
-	(loop (cdr lst) (- n 1)))))
+  (let loop ((lst lst) (n n)) (if (zero? n) (car lst) (loop (cdr lst) (- n 1)))))
 (define (vector-length vec) (sys:LOAD vec 0))
 ;; Be careful here, we need to initialize vec before ANY other allocations
 ;; (including closures)
@@ -220,10 +264,15 @@
 (define (sin-poly x)
   ;; 9th-order odd polynomial around 0:
   ;; x - x^3/6 + x^5/120 - x^7/5040 + x^9/362880
-  (let* ((x2 (sys:MUL x x)) (x3 (sys:MUL x2 x)) (x5 (sys:MUL x3 x2)) (x7 (sys:MUL x5 x2)) (x9 (sys:MUL x7 x2)))
+  (let* ((x2 (sys:MUL x x))
+         (x3 (sys:MUL x2 x))
+         (x5 (sys:MUL x3 x2))
+         (x7 (sys:MUL x5 x2))
+         (x9 (sys:MUL x7 x2)))
     (+ x
        (+ (sys:MUL -0.166667 x3)
-          (+ (sys:MUL 0.00833333 x5) (+ (sys:MUL -0.000198413 x7) (sys:MUL 2.75573e-06 x9)))))))
+          (+ (sys:MUL 0.00833333 x5)
+             (+ (sys:MUL -0.000198413 x7) (sys:MUL 2.75573e-06 x9)))))))
 
 (define (reduce-angle y)
   (if (> y pi)
@@ -235,50 +284,192 @@
         (sin-poly (- pi y))
         (if (< y neg-half-pi) (sys:MUL -1.0 (sin-poly (+ pi y))) (sin-poly y)))))
 
-(define (apply fun args)
-  (sys:APPLY fun args))
+(define (apply fun args) (sys:APPLY fun args))
 
 (define (assq obj1 alist1)
   (let loop ((obj obj1) (alist alist1))
-    (if (null? alist) #f
-	(begin
-	  (if (eq? (caar alist) obj) 
-	      (car alist)
-	      (loop obj (cdr alist)))))))
+    (if (null? alist)
+        #f
+        (begin (if (eq? (caar alist) obj) (car alist) (loop obj (cdr alist)))))))
 (define (assv obj1 alist1)
   (let loop ((obj obj1) (alist alist1))
-    (if (null? alist) #f
-	(begin
-	  (if (eqv? (caar alist) obj) 
-	      (car alist)
-	      (loop obj (cdr alist)))))))
-(define assoc 
+    (if (null? alist)
+        #f
+        (begin (if (eqv? (caar alist) obj) (car alist) (loop obj (cdr alist)))))))
+(define assoc
   (case-lambda
     ((obj1 alist1 compare)
-     (let loop ((obj obj1) (alist alist1))
-       (if (null? alist) #f
-	   (begin
-	     (if (compare (caar alist) obj) 
-		 (car alist)
-		 (loop obj (cdr alist)))))))
-    ((obj alist)
-     (assoc obj alist equal?))))
+      (let loop ((obj obj1) (alist alist1))
+        (if (null? alist)
+            #f
+            (begin (if (compare (caar alist) obj) (car alist) (loop obj (cdr alist)))))))
+    ((obj alist) (assoc obj alist equal?))))
 
 (define (memv obj list)
   (let loop ((list list))
-    (if (null? list) #f
-	(if (eq? obj (car list)) 
-	    list
-	    (loop (cdr list))))))
+    (if (null? list) #f (if (eq? obj (car list)) list (loop (cdr list))))))
 (define (memq obj list)
   (let loop ((list list))
-    (if (null? list) #f
-	(if (eqv? obj (car list)) 
-	    list
-	    (loop (cdr list))))))
+    (if (null? list) #f (if (eqv? obj (car list)) list (loop (cdr list))))))
 (define (member obj list)
   (let loop ((list list))
-    (if (null? list) #f
-	(if (equal? obj (car list)) 
-	    list
-	    (loop (cdr list))))))
+    (if (null? list) #f (if (equal? obj (car list)) list (loop (cdr list))))))
+;;; char
+(define (char-downcase c)
+  (let ((n (char->integer c)))
+    (if (or (< n 65) ; A
+           (> n 90)) ; Z
+        (integer->char n)
+        (integer->char (+ n 32)))))
+
+(define (char-upcase c)
+  (let ((n (char->integer c)))
+    (if (or (< n 97) ; a
+           (> n 122)) ; z
+        (integer->char n)
+        (integer->char (- n 32)))))
+(define (char-alphabetic? c)
+  (let ((n (char->integer c)))
+    (cond
+      ((< n 65) #f) ; A
+      ((> n 122) #f) ; z
+      ((> n 96)) ; a-1
+      ((< n 91)) ; Z+1
+      (else #f))))
+(define (char-numeric? c)
+  (let ((n (char->integer c)))
+    (cond
+      ((< n 48) #f) ; 0
+      ((> n 57) #f) ; 9
+      (else #t))))
+(define (char-upper-case? c)
+  (let ((n (char->integer c)))
+    (cond
+      ((< n 65) #f) ; A
+      ((> n 90) #f) ; Z
+      (else #t))))
+
+(define (char-lower-case? c)
+  (let ((n (char->integer c)))
+    (cond
+      ((< n 97) #f) ; a
+      ((> n 122) #f) ; z
+      (else #t))))
+;;; symbol table
+(define symbol-table '())
+(define (string->symbol string)
+  (cond
+    ((assoc string symbol-table) => cdr)
+    (else
+      (let* ((new-name (string-copy string)) (cell (sys:ALLOC (* 8 5) 6)))
+        (sys:STORE cell new-name 0)
+        (sys:STORE cell 36 1)
+        (sys:STORE cell #f 2)
+        (sys:STORE cell #f 3)
+        (set! symbol-table (cons (cons new-name cell) symbol-table))
+        cell))))
+;; strings
+(define string-copy
+  (case-lambda
+    ((string) (substring string 0 (string-length string)))
+    ((string start) (substring string start (string-length string)))
+    ((string start end) (substring string start end))))
+(define (substring s start end)
+  (define (str-copy tostr tostart fromstr fromstart fromend)
+    (let loop ((frompos fromstart) (topos tostart))
+      (if (< frompos fromend)
+          (begin
+            (string-set! tostr topos (string-ref fromstr frompos))
+            (loop (+ frompos 1) (+ topos 1))))))
+  (let ((new (make-string (- end start)))) (str-copy new 0 s start end) new))
+(define (string . chars) (list->string chars))
+(define (list->string chars)
+  (let* ((len (length chars)) (c (make-string len)))
+    (let loop ((i 0) (chars chars))
+      (if (< i len)
+          (begin (string-set! c i (car chars)) (loop (+ i 1) (cdr chars)))))
+    c))
+
+;; math
+(define (odd? x) (= 1 (modulo x 2)))
+
+(define (even? x) (= 0 (modulo x 2)))
+(define min
+  (case-lambda
+    ((a b)
+      (let ((res (if (< a b) a b)))
+        (if (or (inexact? a) (inexact? b)) (inexact res) res)))
+    (args
+      (let loop ((args args))
+        (if (eq? (length args) 1)
+            (car args)
+            (let* ((a (car args))
+                   (b (cadr args))
+                   (m (if (> a b) b a))
+                   (i (if (or (inexact? a) (inexact? b)) (inexact m) m)))
+              (loop (cons i (cddr args)))))))))
+(define max
+  (case-lambda
+    ((a b)
+      (let ((res (if (> a b) a b)))
+        (if (or (inexact? a) (inexact? b)) (inexact res) res)))
+    (args
+      (let loop ((args args))
+        (if (eq? (length args) 1)
+            (car args)
+            (let* ((a (car args))
+                   (b (cadr args))
+                   (m (if (< a b) b a))
+                   (i (if (or (inexact? a) (inexact? b)) (inexact m) m)))
+              (loop (cons i (cddr args)))))))))
+
+(define gcd
+  (case-lambda
+    (() 0)
+    ((a) a)
+    ((a b) (if (= b 0) (abs a) (gcd b (remainder a b))))
+    (args
+      (let lp ((x (car args)) (ls (cdr args)))
+        (if (null? ls) x (lp (gcd x (car ls)) (cdr ls)))))))
+
+(define lcm
+  (case-lambda
+    (() 1)
+    ((a) a)
+    ((a b) (abs (quotient (* a b) (gcd a b))))
+    (args
+      (let lp ((x (car args)) (ls (cdr args)))
+        (if (null? ls) x (lp (lcm x (car ls)) (cdr ls)))))))
+
+;;;;;;;;;;;;;;;;;;; number->string
+(define number->string
+  (case-lambda
+    ((num) (number->string num 10))
+    ((num base)
+      ;;(unless (and (number? num) (fixnum? base) (<= 1 base 16)) (error "bad number->string" num))
+      (let* ((buflen 100) (buffer (make-string buflen)))
+        (cond
+          ((flonum? num) (display "Error flonum->string") (/ 1 0))
+          ;; ((bignum? num) (error "big-str" num))
+          ;; ((ratnum? num) (error "numbratnum->str" num))
+          ;; ((compnum? num) (string-append
+          ;; 		     (number->string (real-part num))
+          ;; 		     (if (not (or (negative? (imag-part num))
+          ;; 				  (nan? (imag-part num))
+          ;; 				  (infinite? (imag-part num))))
+          ;; 			 "+" "")
+          ;; 		     (number->string (imag-part num)) "i"))
+          ((eq? num 0) "0")
+          (else
+            (let ((neg (negative? num)))
+              (let loop ((p buflen) (n (if neg (- 0 num) num)))
+                (cond
+                  ((eq? n 0)
+                    (if neg (begin (set! p (- p 1)) (string-set! buffer p #\-)))
+                    (substring buffer p buflen))
+                  (else
+                    (let ((q (quotient n base)) (r (modulo n base)) (p (- p 1)))
+                      (string-set! buffer p (integer->char (+ r (if (>= r 10) 55 48))))
+                      (loop p q))))))))))))
+
+(include "str2num.scm")

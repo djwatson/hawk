@@ -80,6 +80,8 @@
     (inexact . INEXACT)
     (exact->inexact . INEXACT)
     (inexact->exact . EXACT)
+    (char->integer . CHAR_INTEGER)
+    (integer->char . INTEGER_CHAR)
     (< . LT)
     (> . GT)
     (eq? . EQ)
@@ -422,8 +424,7 @@
     (set-fun-consts-list! fun (cons normalized (fun-consts-list fun))))
   (hash-table-ref consts normalized))
 
-(define (arg-flags args)
-  (if (list? args) 0 func-flag-rest))
+(define (arg-flags args) (if (list? args) 0 func-flag-rest))
 
 (define-record-type const-closure (make-const-closure fun) const-closure?
   (fun const-closure-fun))
@@ -519,7 +520,8 @@
       (let ((offset (length (fun-code fun))) (jop (list 'JMP top 0)))
         (unless tail (add-op fun jop))
         (let ((res (compile else fun env top tail)))
-          (when (and (not tail) (integer? res) (not (= res top))) (add-op fun `(MOV ,top ,res)))
+          (when (and (not tail) (integer? res) (not (= res top)))
+            (add-op fun `(MOV ,top ,res)))
           (set-car! (cddr jop) (- (length (fun-code fun)) offset))
           (if tail res top))))
     (#(app ,func ,args ,ann)
@@ -553,7 +555,8 @@
       (let loop ((atop top) (args args) (argres '()))
         (if (null? args)
             (let ((argres (reverse argres)))
-              (add-op fun `(,op ,@(if (memq op '(STORE_CHAR STORE)) '() (list top)) ,@argres)))
+              (add-op fun
+                      `(,op ,@(if (memq op '(STORE_CHAR STORE)) '() (list top)) ,@argres)))
             (let* ((arg (car args))
                    (res (compile arg fun env atop #f))
                    (next (if (and (integer? res) (= res atop)) (+ atop 1) atop)))
@@ -734,6 +737,8 @@
     (set! pos 0)
     (for-each (lambda (o) (serialize-object o pass2)) objects)
     (values (get-output-bytevector p) offs)))
+
+(define (debug-print ir) (display (ir->sexp ir)) (newline) ir)
 
 (define (compile-file file)
   (define empty-library-name (string->symbol ""))
