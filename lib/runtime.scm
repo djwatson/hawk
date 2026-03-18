@@ -3,7 +3,6 @@
               and
               define
               unless
-              inexact
               cond
               include
               let
@@ -15,22 +14,35 @@
               when
               else
               =>
-              char->integer
-              integer->char
               set!
               lambda
               define-syntax
               syntax-rules
-              case) (scheme case-lambda) (only (scheme write) display) (prefix (hawk sys) sys:))
+              case
+              ...
+              ;; TODO
+              exact
+              expt)
+        ;; TODO
+        (scheme complex)
+        (scheme case-lambda)
+        (only (scheme write) display)
+        (prefix (hawk sys) sys:))
 (define (write x) (display x))
 (define (newline) (display "\n"))
+
+(define (inexact x) (sys:INEXACT x))
+(define (char->integer x) (sys:CHAR_INTEGER x))
+(define (integer->char x) (sys:INTEGER_CHAR x))
 
 (define (reducer f init args)
   (let loop ((init init) (args args))
     (if (pair? args) (loop (f init (car args)) (cdr args)) init)))
 
 (define (quotient a b) (sys:QUOTIENT a b))
-(define (modulo a b) (sys:MOD a b))
+(define (modulo x y)
+  (let ((z (remainder x y)))
+    (if (negative? y) (if (positive? z) (+ z y) z) (if (negative? z) (+ z y) z))))
 (define (remainder a b) (sys:MOD a b))
 (define +
   (case-lambda
@@ -207,7 +219,30 @@
 (define (caar a) (car (car a)))
 (define (caddr a) (car (cdr (cdr a))))
 (define (cddr a) (cdr (cdr a)))
-(define (map f a) (if (null? a) '() (cons (f (car a)) (map f (cdr a)))))
+(define map
+  (case-lambda
+    ((f lst)
+      (let loop ((f f) (lst lst))
+        (if (null? lst) '() (cons (f (car lst)) (loop f (cdr lst))))))
+    ((f lst1 lst2)
+      (let loop ((f f) (lst1 lst1) (lst2 lst2))
+        (if (or (null? lst2) (null? lst1))
+            '()
+            (cons (f (car lst1) (car lst2)) (loop f (cdr lst1) (cdr lst2))))))
+    (lst
+      (let loop ((lsts (cons (cadr lst) (cddr lst))))
+        (let ((hds
+                 (let loop2 ((lsts lsts))
+                   (if (null? lsts)
+                       '()
+                       (let ((x (car lsts)))
+                         (and (not (null? x))
+                              (let ((r (loop2 (cdr lsts)))) (and r (cons (car x) r)))))))))
+          (if hds
+              (cons (apply (car lst) hds)
+                    (loop (let loop3 ((lsts lsts))
+                            (if (null? lsts) '() (cons (cdr (car lsts)) (loop3 (cdr lsts)))))))
+              '()))))))
 (define (append2 a b)
   (let loop ((a a) (b b)) (if (null? a) b (cons (car a) (loop (cdr a) b)))))
 
@@ -284,7 +319,20 @@
         (sin-poly (- pi y))
         (if (< y neg-half-pi) (sys:MUL -1.0 (sin-poly (+ pi y))) (sin-poly y)))))
 
-(define (apply fun args) (sys:APPLY fun args))
+(define apply
+  (case-lambda
+    ((fun args)
+      (let* ((len (length args)))
+        (unless (procedure? fun) (error "Applying to not a procedure:" fun))
+        (unless (list? args) (error "Apply to non-list" args))
+        ;; sys:APPLY must always be in tail position.
+        (sys:APPLY fun args)))
+    ((fun . lst)
+      (let* ((rlst (reverse lst))
+             (unused (unless (list? (car rlst)) (error "Apply to non-list" (car rlst))))
+             (firstargs (reverse (cdr rlst)))
+             (args (append2 firstargs (car rlst))))
+        (apply fun args)))))
 
 (define (assq obj1 alist1)
   (let loop ((obj obj1) (alist alist1))
@@ -328,6 +376,33 @@
            (> n 122)) ; z
         (integer->char n)
         (integer->char (- n 32)))))
+
+(define (char-whitespace? c)
+  (let ((n (char->integer c)))
+    (or (eq? n 32) (eq? n 9) (eq? n 12) (eq? n 10) (eq? n 13))))
+
+(define char=? (case-lambda ((a b) (eq? a b)) (rest (comparer eq? rest))))
+(define char>?
+  (case-lambda
+    ((a b) (> (char->integer a) (char->integer b)))
+    (rest (comparer char>? rest))))
+(define char<?
+  (case-lambda
+    ((a b) (< (char->integer a) (char->integer b)))
+    (rest (comparer (lambda (a b) (char<? a b)) rest))))
+(define char>=?
+  (case-lambda
+    ((a b) (>= (char->integer a) (char->integer b)))
+    (rest (comparer (lambda (a b) (char>=? a b)) rest))))
+(define char<=?
+  (case-lambda
+    ((a b) (<= (char->integer a) (char->integer b)))
+    (rest (comparer (lambda (a b) (char<=? a b)) rest))))
+(define (char-ci=? x y) (char=? (char-downcase x) (char-downcase y)))
+(define (char-ci>? x y) (char>? (char-downcase x) (char-downcase y)))
+(define (char-ci<? x y) (char<? (char-downcase x) (char-downcase y)))
+(define (char-ci>=? x y) (char>=? (char-downcase x) (char-downcase y)))
+(define (char-ci<=? x y) (char<=? (char-downcase x) (char-downcase y)))
 (define (char-alphabetic? c)
   (let ((n (char->integer c)))
     (cond
@@ -374,14 +449,16 @@
     ((string) (substring string 0 (string-length string)))
     ((string start) (substring string start (string-length string)))
     ((string start end) (substring string start end))))
+(define (str-copy-internal tostr tostart fromstr fromstart fromend)
+  (let loop ((frompos fromstart) (topos tostart))
+    (if (< frompos fromend)
+        (begin
+          (string-set! tostr topos (string-ref fromstr frompos))
+          (loop (+ frompos 1) (+ topos 1))))))
 (define (substring s start end)
-  (define (str-copy tostr tostart fromstr fromstart fromend)
-    (let loop ((frompos fromstart) (topos tostart))
-      (if (< frompos fromend)
-          (begin
-            (string-set! tostr topos (string-ref fromstr frompos))
-            (loop (+ frompos 1) (+ topos 1))))))
-  (let ((new (make-string (- end start)))) (str-copy new 0 s start end) new))
+  (let ((new (make-string (- end start))))
+    (str-copy-internal new 0 s start end)
+    new))
 (define (string . chars) (list->string chars))
 (define (list->string chars)
   (let* ((len (length chars)) (c (make-string len)))
@@ -389,6 +466,73 @@
       (if (< i len)
           (begin (string-set! c i (car chars)) (loop (+ i 1) (cdr chars)))))
     c))
+
+(define (string-append2 a b)
+  (let* ((lena (string-length a))
+         (lenb (string-length b))
+         (newstr (make-string (+ lena lenb))))
+    (str-copy-internal newstr 0 a 0 lena)
+    (str-copy-internal newstr lena b 0 lenb)
+    newstr))
+
+(define string-append
+  (case-lambda
+    ((a b) (string-append2 a b))
+    ((a b c d e)
+      (string-append2 a (string-append2 b (string-append2 c (string-append2 d e)))))
+    (strs
+      (let* ((totallen (apply + (map string-length strs)))
+             (newstr (make-string totallen)))
+        (let loop ((strs strs) (place 0))
+          (if (not (null? strs))
+              (let* ((cur_str (car strs)) (cur_len (string-length cur_str)))
+                (str-copy-internal newstr place (car strs) 0 cur_len)
+                (loop (cdr strs) (+ place cur_len)))))
+        newstr))))
+(define (strcmp eq? f a b eq lt gt)
+  (let loop ((pos 0) (rema (string-length a)) (remb (string-length b)))
+    (cond
+      ((and (= rema 0) (= remb 0)) eq)
+      ((= rema 0) lt)
+      ((= remb 0) gt)
+      ((eq? (string-ref a pos) (string-ref b pos))
+        (loop (+ pos 1) (- rema 1) (- remb 1)))
+      (else (f (string-ref a pos) (string-ref b pos))))))
+
+(define (string<? a b) (strcmp char=? char<? a b #f #t #f))
+(define (string>? a b) (strcmp char=? char>? a b #f #f #f))
+(define (string<=? a b) (strcmp char=? char<=? a b #t #t #f))
+(define (string>=? a b) (strcmp char=? char>=? a b #t #f #f))
+(define (string-ci<? a b) (strcmp char-ci=? char-ci<? a b #f #t #f))
+(define (string-ci>? a b) (strcmp char-ci=? char-ci>? a b #f #f #f))
+(define (string-ci<=? a b) (strcmp char-ci=? char-ci<=? a b #t #t #f))
+(define (string-ci>=? a b) (strcmp char-ci=? char-ci>=? a b #t #f #f))
+(define (string-ci=? a b) (strcmp char-ci=? char-ci=? a b #t #f #f))
+(define (string=? a b) (strcmp char=? char=? a b #t #f #f))
+
+;; VECTOR
+(define vector
+  (case-lambda
+    ((a) (let ((v (make-vector 1))) (vector-set! v 0 a) v))
+    ((a b) (let ((v (make-vector 2))) (vector-set! v 0 a) (vector-set! v 1 b) v))
+    ((a b c)
+      (let ((v (make-vector 3)))
+        (vector-set! v 0 a)
+        (vector-set! v 1 b)
+        (vector-set! v 2 c)
+        v))
+    ((a b c d)
+      (let ((v (make-vector 4)))
+        (vector-set! v 0 a)
+        (vector-set! v 1 b)
+        (vector-set! v 2 c)
+        (vector-set! v 3 d)
+        v))
+    (vals (list->vector vals))))
+
+(define (list->vector lst)
+  (let* ((len (length lst)) (v (make-vector len)))
+    (do ((i 0 (+ i 1)) (p lst (cdr p))) ((= i len) v) (vector-set! v i (car p)))))
 
 ;; math
 (define (odd? x) (= 1 (modulo x 2)))
@@ -473,3 +617,8 @@
                       (loop p q))))))))))))
 
 (include "str2num.scm")
+;;; call/cc
+
+(define (call-with-current-continuation proc) (error "ERROR call/cc"))
+
+(define (error msg) (display "ERROR:") (display msg) (newline) (/ 1 0))

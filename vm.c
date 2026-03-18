@@ -564,7 +564,7 @@ static inline bc *apply_call(vm_state *state, gc_obj *stack, bc *pc,
   *argcnt = a;
   return (bc *)(&callee->data[callee->const_cnt * sizeof(gc_obj)]);
 }
-static inline gc_obj constify_data(vm_state *state, uint16_t data) {
+static inline gc_obj constify_data(vm_state *state, int16_t data) {
   (void)state;
   return (gc_obj){.value = data};
 }

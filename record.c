@@ -476,7 +476,7 @@ static branch_result emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
   };
   return br;
 }
-static slot constify_data(vm_state *state, uint16_t data) {
+static slot constify_data(vm_state *state, int16_t data) {
   gc_obj c = (gc_obj){.value = data};
   return add_const(state, c);
 }
