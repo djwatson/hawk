@@ -74,7 +74,6 @@
     (/ . DIV)
     (quotient . QUOTIENT)
     (truncate-quotient . QUOTIENT)
-    (modulo . MOD)
     (exact . EXACT)
     (truncate . TRUNCATE)
     (inexact . INEXACT)
