@@ -216,8 +216,11 @@
 (define (string-length a) (sys:LOAD a 0))
 (define (car a) (sys:LOAD a 0))
 (define (cadr a) (car (cdr a)))
+(define (cdar a) (cdr (car a)))
 (define (caar a) (car (car a)))
 (define (caddr a) (car (cdr (cdr a))))
+(define (cadddr a) (car (cdr (cdr (cdr a)))))
+(define (cdddr a) (cdr (cdr (cdr a))))
 (define (cddr a) (cdr (cdr a)))
 (define map
   (case-lambda
@@ -618,6 +621,7 @@
 (include "str2num.scm")
 ;;; call/cc
 
-(define (call-with-current-continuation proc) (error "ERROR call/cc"))
+(define (call-with-current-continuation proc)
+  (proc (lambda args (error "ERROR call/cc"))))
 
 (define (error msg) (display "ERROR:") (display msg) (newline) (/ 1 0))
