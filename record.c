@@ -877,7 +877,8 @@ static inline slot char_integer(vm_state *state, slot s) {
     if (s.constant) {
       return add_const(state, tag_fixnum(to_char(t->consts[s.loc])));
     }
-    return add_inst(state, IR(.op = IR_CHAR_INTEGER, .op1 = s, .type = FIXNUM_TAG));
+    return add_inst(state,
+                    IR(.op = IR_CHAR_INTEGER, .op1 = s, .type = FIXNUM_TAG));
   }
   abort();
 }
@@ -888,7 +889,8 @@ static inline slot integer_char(vm_state *state, slot s) {
     if (s.constant) {
       return add_const(state, tag_char(to_fixnum(t->consts[s.loc])));
     }
-    return add_inst(state, IR(.op = IR_INTEGER_CHAR, .op1 = s, .type = CHAR_TAG));
+    return add_inst(state,
+                    IR(.op = IR_INTEGER_CHAR, .op1 = s, .type = CHAR_TAG));
   }
   abort();
 }

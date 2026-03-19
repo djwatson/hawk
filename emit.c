@@ -26,6 +26,10 @@
 
 static const int32_t flonum_payload_offset = (int32_t)offsetof(flonum_s, x);
 
+static inline uint8_t ref_base_tag(uint8_t type_tag) {
+  return (uint8_t)((type_tag & TAG_MASK) == PTR_TAG ? PTR_TAG : type_tag);
+}
+
 static gc_obj gpr_spills[256];
 static uint64_t fpr_spills[256];
 enum : uint16_t { spill_slot_count = 256 };
@@ -572,7 +576,9 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
       // func loads ONLY happen from closure loads, no need to typecheck.
       return;
     }
-    emit_test_constant(s, reg, TAG_MASK);
+    emit_mov(s, RTMP, reg);
+    emit_and_constant(s, RTMP, RTMP, TAG_MASK);
+    emit_cmp_constant(s, RTMP, PTR_TAG);
     emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
     if (op->type == PTR_TAG) {
       return;
@@ -978,6 +984,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
       uint8_t base_type = op->op1.constant ? get_tag(t->consts[op->op1.loc])
                                            : slot_ins(t, op->op1)->type;
+      base_type = ref_base_tag(base_type);
       int32_t typed_offset = (int32_t)((int64_t)sizeof(gc_header) - base_type);
       if (op->type == FLONUM_TAG) {
         // Slot contains a tagged flonum gc_obj; load object first, then
@@ -1054,7 +1061,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
       if (ref->op2.constant) {
         // Offset is a constant.
-        auto offset = slot_const(t, ref->op2) + (int64_t)(8 - op->type);
+        auto offset =
+            slot_const(t, ref->op2) + (int64_t)(8 - ref_base_tag(op->type));
         assert((int32_t)offset == offset);
         emit_store(s, (int32_t)offset, base_reg, val_reg);
       } else {
@@ -1074,7 +1082,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
           emit_mov(s, addr_reg, offset_reg);
           emit_add(s, addr_reg, addr_reg, base_reg);
         }
-        emit_store(s, 8 - op->type, addr_reg, val_reg);
+        emit_store(s, 8 - ref_base_tag(op->type), addr_reg, val_reg);
       }
 
       break;
@@ -1323,7 +1331,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
           op->op == IR_TYPECHECK || op->op == IR_SUB || op->op == IR_ADD ||
           op->op == IR_MUL || op->op == IR_DIV || op->op == IR_QUOTIENT ||
           op->op == IR_MOD || op->op == IR_GGET || op->op == IR_INEXACT ||
-          op->op == IR_EXACT || op->op == IR_TRUNCATE)) {
+          op->op == IR_EXACT || op->op == IR_TRUNCATE ||
+          op->op == IR_INTEGER_CHAR)) {
       abort();
     }
   }
@@ -1378,9 +1387,6 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
 
   // Allocate registers, print the IR in verbose mode.
   regalloc_state reg_state;
-  if (verbose) {
-    print_ir(t);
-  }
   regalloc_state_init(&reg_state, t);
   if (verbose) {
     print_ir(t);
@@ -1415,6 +1421,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // Exist stubs for all but the loopback (last). These restore the scheme
   // stack state, putting any in-register values back on the stack, and boxing
   // flonums.
+  auto end_no_snapshots = emit_offset(s);
   emit_snapshot_exits(s, t, t->snaps, &exit_label);
 
   emit_label(s, &exit_label);
@@ -1428,7 +1435,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   auto sz = end - start;
   if (verbose) {
     printf("Disassembly: %" PRId64 "\n", sz);
-    disassemble((uint8_t *)start, sz, s->comments);
+    disassemble((uint8_t *)start, end_no_snapshots - start, s->comments);
   }
 
   // Cleanup
