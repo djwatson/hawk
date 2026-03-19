@@ -270,6 +270,29 @@ uint8_t regalloc_materialize_arg_or_ensure_loc(regalloc_state *s,
   (void)cur_idx;
   auto in = &s->t->ins[value_id];
   uint8_t reg = regalloc_find_current_reg_for_value(s, value_id);
+  if (reg == REG_NONE && in->op == IR_TYPECHECK && in->type != FLONUM_TAG &&
+      !in->op1.constant) {
+    uint16_t src_id = in->op1.loc;
+    reg = regalloc_find_current_reg_for_value(s, src_id);
+    if (reg != REG_NONE) {
+      s->regs[reg] = value_id;
+      return reg;
+    }
+  }
+  if (reg == REG_NONE && in->type != FLONUM_TAG) {
+    for (uint16_t r = 0; r < FPR_REG_START; r++) {
+      uint16_t cur = s->regs[r];
+      if (cur == ALLOC_NONE || cur == ALLOC_UNALLOCATABLE) {
+        continue;
+      }
+      auto cur_ins = &s->t->ins[cur];
+      if (cur_ins->op == IR_TYPECHECK && cur_ins->type != FLONUM_TAG &&
+          !cur_ins->op1.constant && cur_ins->op1.loc == value_id) {
+        s->regs[r] = value_id;
+        return (uint8_t)r;
+      }
+    }
+  }
   if (reg == REG_NONE) {
     assert(in->spill != SPILL_NONE);
     reg = regalloc_find_free_reg(s, in->type == FLONUM_TAG, ins);
@@ -283,6 +306,16 @@ void regalloc_assign_output(regalloc_state *s, uint16_t ir_idx, ir_ins *ins) {
     if (ins->reg != REG_NONE && s->uses[ir_idx]) {
       s->regs[ins->prev_reg] = ir_idx;
     }
+    return;
+  }
+  if (ins->op == IR_TYPECHECK && ins->type != FLONUM_TAG && !ins->op1.constant &&
+      s->uses[ir_idx]) {
+    uint8_t in_reg = regalloc_find_current_reg_for_value(s, ins->op1.loc);
+    if (in_reg == REG_NONE) {
+      abort();
+    }
+    ins->reg = in_reg;
+    s->regs[in_reg] = ir_idx;
     return;
   }
   if (ins->op == IR_REF || !s->uses[ir_idx]) {
