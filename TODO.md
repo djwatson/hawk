@@ -8,6 +8,8 @@
 * simplex is breaking argcnt somehow
 * simplex is slower??? bad tracing
 
+* browse has broken loopback linking - spilled somehow??
+
 ## JIT impl
 
 * figure out why deriv is slow

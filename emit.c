@@ -1332,7 +1332,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
           op->op == IR_MUL || op->op == IR_DIV || op->op == IR_QUOTIENT ||
           op->op == IR_MOD || op->op == IR_GGET || op->op == IR_INEXACT ||
           op->op == IR_EXACT || op->op == IR_TRUNCATE ||
-          op->op == IR_INTEGER_CHAR)) {
+          op->op == IR_INTEGER_CHAR || op->op == IR_CHAR_INTEGER)) {
       abort();
     }
   }
@@ -1388,9 +1388,6 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // Allocate registers, print the IR in verbose mode.
   regalloc_state reg_state;
   regalloc_state_init(&reg_state, t);
-  if (verbose) {
-    print_ir(t);
-  }
 
   // Remember, we're emitting backwards? This makes the register
   // allocator much simpler to write, no state needs to be preserved.
@@ -1436,6 +1433,10 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   if (verbose) {
     printf("Disassembly: %" PRId64 "\n", sz);
     disassemble((uint8_t *)start, end_no_snapshots - start, s->comments);
+  }
+
+  if (verbose) {
+    print_ir(t);
   }
 
   // Cleanup
