@@ -45,10 +45,6 @@ static bool should_jit() {
 static inline uint32_t hotmap_hash(void *pc) {
   return (((uint64_t)pc) >> 3) & hotmap_mask;
 }
-#define OP(code)                                                               \
-  PRESERVE_NONE gc_obj impl_##code(bc instr, bc *pc, gc_obj *stack,            \
-                                   vm_state *state, void *op_table,            \
-                                   uint8_t argcnt)
 
 static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                        void *op_table) {
@@ -75,11 +71,6 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   return op_table;
 }
 
-static inline gc_obj stack_load(vm_state *state, gc_obj *stack, uint8_t slot,
-                                bool typecheck) {
-  (void)state;
-  return stack[slot];
-}
 static inline void abort_if_zero_divisor(gc_obj v) {
   if (is_fixnum(v) && to_fixnum(v) == 0) {
     abort();
@@ -88,36 +79,13 @@ static inline void abort_if_zero_divisor(gc_obj v) {
     abort();
   }
 }
-static inline void stack_save(vm_state *state, gc_obj *stack, uint8_t slot,
-                              gc_obj res) {
-  (void)state;
-  stack[slot] = res;
-}
-static inline void set_stack_top(vm_state *state, uint8_t top) {
-  (void)state;
-  (void)top;
-}
-static inline gc_obj const_load(vm_state *state, bc *pc, uint16_t offset) {
-  (void)state;
+static inline gc_obj const_load(bc *pc, uint16_t offset) {
   return *(gc_obj *)(pc - pc->data);
 }
-static inline bc *vmgen_jmp_advance(bc *pc) { return pc + pc->data; }
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     add, return tag_fixnum(to_fixnum(v1) + to_fixnum(v2));
     , return root2_box_flonum(&v1, &v2,
                               numeric_to_double(v1) + numeric_to_double(v2));)
-static gc_obj scm_inexact(vm_state *state, gc_obj v1) {
-  (void)state;
-  return numeric_inexact_value(v1);
-}
-static gc_obj scm_exact(vm_state *state, gc_obj v1) {
-  (void)state;
-  return numeric_exact_value(v1);
-}
-static gc_obj scm_truncate(vm_state *state, gc_obj v1) {
-  (void)state;
-  return numeric_truncate_value(v1);
-}
 DEFINE_VM_RUNTIME_NUMERIC_BINOP(
     sub, return tag_fixnum(to_fixnum(v1) - to_fixnum(v2));
     , return root2_box_flonum(&v1, &v2,
@@ -219,10 +187,6 @@ static inline gc_obj emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
   (void)stack;
   return obj_jeqv(v1, v2) ? TRUE_REP : FALSE_REP;
 }
-static inline gc_obj emit_if_branch(vm_state *state, bc *pc, gc_obj *stack,
-                                    gc_obj obj) {
-  return obj;
-}
 static inline void return_frame(vm_state *state, bc instr, bc **pc,
                                 gc_obj **stack, void **op_table) {
   (void)state;
@@ -290,34 +254,6 @@ static inline void fail_if_not_closure(gc_obj clo) {
     printf("\n");
     abort();
   }
-}
-static inline gc_obj sym_load(vm_state *state, gc_obj sym) {
-  (void)state;
-  auto s = to_symbol(sym);
-  auto res = s->val;
-  if (res.value == DEAD.value) {
-    auto name = get_sym_name(s);
-    printf("Symbol not defined: %.*s\n", (int)to_fixnum(name->len), name->str);
-    abort();
-  }
-  return res;
-}
-static inline void sym_store(vm_state *state, gc_obj sym, gc_obj val) {
-  (void)state;
-  auto s = to_symbol(sym);
-  if (s->opt > 0) {
-    // TODO clear all traces
-    printf("Muist abort optimistic globals\n");
-    abort();
-  }
-  if (s->val.value != DEAD.value) {
-    // If we've set this more than once, mark it as non-inlinable.
-    s->opt = -1;
-  }
-  s->val = val;
-}
-static inline void obj_write(vm_state *state, gc_obj val, void **op_table) {
-  print_obj(val, stdout);
 }
 gc_obj *expand_stack(vm_state *state, gc_obj *stack) {
   // TODO: this should really be a stack *cache*
@@ -415,158 +351,11 @@ static inline bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
   // skip jmp.
   return pc + 1;
 }
-static inline gc_obj closure_get(vm_state *state, gc_obj *stack, gc_obj clo,
-                                 uint8_t slot, uint8_t clo_idx) {
-  (void)state;
-  (void)stack;
-  (void)clo_idx;
-  return to_closure(clo)->v[slot];
-}
-static inline void store_obj(vm_state *state, gc_obj *stack, bc *pc) {
-  (void)state;
-  auto dest = stack_load(state, stack, pc->reg, true);
-  auto val = stack_load(state, stack, pc->v1, false);
-  auto off = stack_load(state, stack, pc->v2, true);
-  assert(is_heap_object(dest));
-  assert(is_fixnum(off));
-
-  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(dest) + sizeof(gc_header));
-  base[to_fixnum(off)] = val;
-}
-static inline void store_char(vm_state *state, gc_obj *stack, bc *pc) {
-  (void)state;
-  auto dest = stack_load(state, stack, pc->reg, true);
-  auto val = stack_load(state, stack, pc->v1, true);
-  auto off = stack_load(state, stack, pc->v2, true);
-  assert(is_string(dest));
-  assert(is_char(val));
-  assert(is_fixnum(off));
-
-  auto str = to_string(dest);
-  auto idx = to_fixnum(off);
-  auto len = to_fixnum(str->len);
-  // TODO <= so we can store NULL-terminator.
-  assert(idx >= 0 && idx <= len);
-  str->str[idx] = (char)to_char(val);
-}
-static inline gc_obj load_obj(vm_state *state, gc_obj *stack, bc *pc) {
-  (void)state;
-  auto src = stack_load(state, stack, pc->v1, true);
-  auto off = stack_load(state, stack, pc->v2, true);
-  assert(is_heap_object(src));
-  assert(is_fixnum(off));
-
-  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
-  return base[to_fixnum(off)];
-}
-static inline gc_obj load_char(vm_state *state, gc_obj *stack, bc *pc) {
-  (void)state;
-  auto src = stack_load(state, stack, pc->v1, true);
-  auto off = stack_load(state, stack, pc->v2, true);
-  assert(is_string(src));
-  assert(is_fixnum(off));
-
-  auto str = to_string(src);
-  auto idx = to_fixnum(off);
-  auto len = to_fixnum(str->len);
-  assert(idx >= 0 && idx < len);
-  return tag_char((uint8_t)str->str[idx]);
-}
-static inline gc_obj alloc_obj(vm_state *state, gc_obj *stack, bc *pc,
-                               void **op_table) {
-  (void)state;
-  (void)op_table;
-  auto sz_obj = stack_load(state, stack, pc->v1, true);
-  auto type_obj = stack_load(state, stack, pc->v2, true);
-  assert(is_fixnum(sz_obj));
-  assert(is_fixnum(type_obj));
-  uint64_t sz = (uint64_t)to_fixnum(sz_obj);
-  uint64_t type = (uint64_t)to_fixnum(type_obj);
-  assert((sz & 0x7) == 0);
-
-  auto obj = (gc_header *)gc_alloc(sz);
-  memset(obj, 0, (size_t)sz);
-  obj->type = type;
-  return type < 8 ? tag_header(obj, (uint8_t)type) : tag_header(obj, PTR_TAG);
-}
-static inline gc_obj guard_obj(vm_state *state, gc_obj *stack, bc *pc) {
-  (void)state;
-  auto val = stack_load(state, stack, pc->v1, false);
-  auto want_tag_obj = stack_load(state, stack, pc->v2, true);
-
-  return guard_obj_matches(val, want_tag_obj) ? TRUE_REP : FALSE_REP;
-}
-static inline gc_obj closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
-  (void)state;
-  uint64_t sz = (uint64_t)pc->data + 1;
-  uint8_t start = pc->reg;
-  size_t bytes = sizeof(closure_s) + (sizeof(gc_obj) * sz);
-  closure_s *clo = gc_alloc(bytes);
-  memset(clo, 0, bytes);
-  clo->header.type = CLOSURE_TAG;
-  clo->len = tag_fixnum((int64_t)sz);
-  // Only seed slot 0 with the function label; closure captures are
-  // initialized via explicit CLOSURE_SET bytecodes.
-  clo->v[0] = stack[start];
-  return tag_closure(clo);
-}
-static inline void closure_set(vm_state *state, gc_obj clo, uint8_t slot,
-                               gc_obj val, void **op_table) {
-  (void)state;
-  (void)op_table;
-  to_closure(clo)->v[slot] = val;
-}
-static inline gc_obj char_integer(vm_state *state, gc_obj s) {
-  assert(is_char(s));
-  auto c = to_char(s);
-  return tag_fixnum(c);
-}
-static inline gc_obj integer_char(vm_state *state, gc_obj s) {
-  assert(is_fixnum(s));
-  auto fix = to_fixnum(s);
-  return tag_char(fix);
-}
-static inline gc_obj return_address(vm_state *state, bc *ra) {
-  (void)state;
-  return tag_return_address(ra);
-}
-static inline gc_obj *adjust_stack_depth(vm_state *state, gc_obj *stack,
-                                         int depth) {
-  (void)state;
-  // TODO check stack depth?
-  return stack + depth;
-}
-static inline void stack_memmov(vm_state *state, gc_obj *stack, uint16_t from,
-                                uint16_t cnt) {
-  memmove(&stack[0], &stack[from], cnt * sizeof(gc_obj));
-}
 static inline bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack,
                              gc_obj func) {
   (void)state;
   auto bfunc = to_func(func);
   return (bc *)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
-}
-static inline bc *apply_call(vm_state *state, gc_obj *stack, bc *pc,
-                             void **op_table, uint8_t *argcnt) {
-  (void)op_table;
-  auto fun = stack_load(state, stack, pc->v1, true);
-  auto args = stack_load(state, stack, pc->v2, false);
-  fail_if_not_closure(fun);
-  auto callee = to_func(to_closure(fun)->v[0]);
-
-  uint8_t a = 1;
-  for (; is_cons(args); a++) {
-    auto cons = to_cons(args);
-    stack[a] = cons->a;
-    args = cons->b;
-  }
-  stack[0] = fun;
-  *argcnt = a;
-  return (bc *)(&callee->data[callee->const_cnt * sizeof(gc_obj)]);
-}
-static inline gc_obj constify_data(vm_state *state, int16_t data) {
-  (void)state;
-  return (gc_obj){.value = data};
 }
 
 static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
@@ -638,9 +427,372 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   op_func impl = ((op_func *)op_table)[(pc)->op];                              \
   MUSTTAIL return impl(*(pc), (pc), (stack), state, op_table, argcnt);
 
-// NOLINTNEXTLINE(bugprone-suspicious-include)
-#include "vmgen.c" // NOLINT(build/include)
+#define OP(code)                                                               \
+  PRESERVE_NONE gc_obj impl_##code(bc instr, bc *pc, gc_obj *stack,            \
+                                   vm_state *state, void *op_table,            \
+                                   uint8_t argcnt) {
+#define END }
+#define OP_ABC(code)                                                           \
+  OP(code)                                                                     \
+  auto v1 = stack[instr.v1];                                                   \
+  auto v2 = stack[instr.v2];
+#define OP_AD(code)                                                            \
+  OP(code)                                                                     \
+  auto v1 = stack[instr.data];
+#define END_ABC_NEXT                                                           \
+  stack[instr.reg] = res;                                                      \
+  pc = next_op(pc);                                                            \
+  dispatch_next(pc, stack);                                                    \
+  END
+#define END_NEXT                                                               \
+  pc = next_op(pc);                                                            \
+  dispatch_next(pc, stack);                                                    \
+  END
 
+// Begin opcode handlers.
+OP_ABC(ADD) {
+  auto res = emit_ov_math_add(state, v1, v2);
+  END_ABC_NEXT
+}
+OP_ABC(SUB) {
+  auto res = emit_ov_math_sub(state, v1, v2);
+  END_ABC_NEXT
+}
+OP_ABC(MUL) {
+  auto res = emit_ov_math_mul(state, v1, v2);
+  END_ABC_NEXT
+}
+OP_ABC(DIV) {
+  auto res = emit_ov_math_div(state, v1, v2);
+  END_ABC_NEXT
+}
+OP_ABC(QUOTIENT) {
+  auto res = emit_ov_math_quotient(state, v1, v2);
+  END_ABC_NEXT
+}
+OP_ABC(MOD) {
+  auto res = emit_ov_math_mod(state, v1, v2);
+  END_ABC_NEXT
+}
+OP_AD(INEXACT) {
+  auto res = numeric_inexact_value(v1);
+  END_ABC_NEXT
+}
+OP_AD(EXACT) {
+  auto res = numeric_exact_value(v1);
+  END_ABC_NEXT
+}
+OP_AD(TRUNCATE) {
+  auto res = numeric_truncate_value(v1);
+  END_ABC_NEXT
+}
+OP(CONST) {
+  auto res = const_load(pc, instr.data);
+  END_ABC_NEXT
+}
+OP(KSHORT) {
+  auto res = (gc_obj){.value = (int16_t)instr.data};
+  END_ABC_NEXT
+}
+OP_AD(MOV) {
+  auto res = v1;
+  END_ABC_NEXT
+}
+OP(RET) {
+  auto c = stack[instr.reg];
+  // TODO: re-enable.  This needs to be a MUCH lower priority, so we
+  // don't record down-rec before up-rec.  Or alternatively, maybe
+  // ONLY enable down-rec recording if the function has an up-rec trace already.
+
+  /* auto res = check_record_start(pc, stack, state, op_table); */
+  /* if (res != op_table) { */
+  /*   op_table = res; */
+  /*   instr = *pc; */
+  /*   dispatch_next(pc, stack); */
+  /* } */
+
+  auto old_op_table = op_table;
+  return_frame(state, instr, &pc, &stack, &op_table);
+  if (old_op_table != op_table) {
+    instr = *pc;
+  }
+  dispatch_next(pc, stack);
+  END
+}
+OP(LOOKUP) {
+  auto sym = const_load(pc, instr.data);
+  // No need to check if c is a symbol, the compiler guarantees it
+  auto s = to_symbol(sym);
+  auto res = s->val;
+  if (res.value == DEAD.value) {
+    auto name = get_sym_name(s);
+    printf("Symbol not defined: %.*s\n", (int)to_fixnum(name->len), name->str);
+    abort();
+  }
+  END_ABC_NEXT
+}
+
+OP(DEFINE) {
+  auto sym = const_load(pc, instr.data);
+  auto val = stack[instr.reg];
+  auto s = to_symbol(sym);
+  if (s->opt > 0) {
+    // TODO clear all traces
+    printf("Muist abort optimistic globals\n");
+    abort();
+  }
+  if (s->val.value != DEAD.value) {
+    // If we've set this more than once, mark it as non-inlinable.
+    s->opt = -1;
+  }
+  s->val = val;
+  END_NEXT
+}
+
+OP(WRITE) {
+  auto val = stack[instr.v1];
+  print_obj(val, stdout);
+  END_NEXT
+}
+
+OP(FUNC) {
+  if (!check_arity(state, stack, pc, instr, argcnt, false)) {
+    pc = next_op(pc);
+    dispatch_next(pc, stack);
+  }
+
+  check_expand_stack(state, &stack);
+  auto old_ops = op_table;
+  op_table = check_record_start(pc, stack, state, op_table);
+  if (op_table != old_ops) {
+    instr = *pc;
+  }
+
+  auto next = next_op(pc);
+  pc = next_op(next);
+  dispatch_next(pc, stack);
+  END
+}
+
+OP(ARGCNT_ERROR) {
+  check_arity(state, stack, pc, instr, argcnt, true);
+  END_NEXT
+}
+
+OP(IFUNC) {
+  check_arity(state, stack, pc, instr, argcnt, true);
+  check_expand_stack(state, &stack);
+  END_NEXT
+}
+
+OP(JFUNC) {
+  // TODO argcnt check - no, will be put in trace itself!
+  auto f = instr.data;
+  op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
+
+  /* if ((*pc).op != instr.op) { */
+  /*   abort(); */
+  /* } */
+  op_func impl = ((op_func *)op_table)[instr.op];
+  MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
+  END
+}
+#define CMP_BRANCH(OPNAME, EMIT_FN)                                            \
+  OP_ABC(OPNAME) {                                                             \
+    auto res = EMIT_FN(state, pc, stack, v1, v2);                              \
+    pc = branch_if_op(state, pc, stack, res);                                  \
+    dispatch_next(pc, stack);                                                  \
+    END                                                                        \
+  }
+
+CMP_BRANCH(JLT, emit_math_cmp_lt)
+CMP_BRANCH(JGT, emit_math_cmp_gt)
+CMP_BRANCH(JLTE, emit_math_cmp_lte)
+CMP_BRANCH(JGTE, emit_math_cmp_gte)
+CMP_BRANCH(JEQ, emit_math_cmp_jeq)
+CMP_BRANCH(JEQV, emit_math_cmp_jeqv)
+OP(IF) {
+  auto v = stack[instr.data];
+  pc = branch_if_op(state, pc, stack, v);
+  dispatch_next(pc, stack);
+  END
+}
+OP(JMP) {
+  pc += pc->data;
+  dispatch_next(pc, stack);
+  END
+}
+
+OP_ABC(CLOSURE_GET) {
+  fail_if_not_closure(v1);
+  auto slot = instr.v2;
+  auto res = to_closure(v1)->v[slot];
+  END_ABC_NEXT
+}
+
+OP(CLOSURE_SET) {
+  auto val = stack[instr.reg];
+  auto clo = stack[instr.v1];
+  auto slot = instr.v2;
+  to_closure(clo)->v[slot] = val;
+  END_NEXT
+}
+
+OP(CLOSURE) {
+  uint64_t sz = (uint64_t)pc->data + 1;
+  uint8_t start = pc->reg;
+  size_t bytes = sizeof(closure_s) + (sizeof(gc_obj) * sz);
+  closure_s *clo = gc_alloc(bytes);
+  memset(clo, 0, bytes);
+  clo->header.type = CLOSURE_TAG;
+  clo->len = tag_fixnum((int64_t)sz);
+  // Only seed slot 0 with the function label; closure captures are
+  // initialized via explicit CLOSURE_SET bytecodes.
+  clo->v[0] = stack[start];
+  auto alloced = tag_closure(clo);
+  stack[instr.reg] = alloced;
+  END_NEXT
+}
+
+OP(LCALL) {
+  argcnt = instr.data - 1;
+  auto func = stack[instr.reg];
+  auto frame_top = instr.reg;
+  stack[instr.reg] = tag_return_address(pc + 1);
+  stack += frame_top + 1;
+  pc = set_new_pc(state, pc, stack, func);
+  dispatch_next(pc, stack);
+  END
+}
+OP(LCALLT) {
+  argcnt = instr.data - 1;
+  auto func = stack[instr.reg];
+  auto frame_top = instr.reg;
+  memmove(&stack[0], &stack[frame_top + 1], argcnt * sizeof(gc_obj));
+  pc = set_new_pc(state, pc, stack, func);
+  dispatch_next(pc, stack);
+  END
+}
+OP(APPLY) {
+  auto fun = stack[pc->v1];
+  auto args = stack[pc->v2];
+  fail_if_not_closure(fun);
+  auto callee = to_func(to_closure(fun)->v[0]);
+
+  uint8_t a = 1;
+  for (; is_cons(args); a++) {
+    auto cons = to_cons(args);
+    stack[a] = cons->a;
+    args = cons->b;
+  }
+  stack[0] = fun;
+  argcnt = a;
+  pc = (bc *)(&callee->data[callee->const_cnt * sizeof(gc_obj)]);
+  dispatch_next(pc, stack);
+  END
+}
+OP(ALLOC) {
+  auto sz_obj = stack[pc->v1];
+  auto type_obj = stack[pc->v2];
+  assert(is_fixnum(sz_obj));
+  assert(is_fixnum(type_obj));
+  uint64_t sz = (uint64_t)to_fixnum(sz_obj);
+  uint64_t type = (uint64_t)to_fixnum(type_obj);
+  assert((sz & 0x7) == 0);
+
+  auto obj = (gc_header *)gc_alloc(sz);
+  memset(obj, 0, (size_t)sz);
+  obj->type = type;
+  auto ptr =
+      type < 8 ? tag_header(obj, (uint8_t)type) : tag_header(obj, PTR_TAG);
+  stack[instr.reg] = ptr;
+  END_NEXT
+}
+
+OP(STORE) {
+  auto dest = stack[pc->reg];
+  auto val = stack[pc->v1];
+  auto off = stack[pc->v2];
+  assert(is_heap_object(dest));
+  assert(is_fixnum(off));
+
+  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(dest) + sizeof(gc_header));
+  base[to_fixnum(off)] = val;
+  END_NEXT
+}
+OP(STORE_CHAR) {
+  auto dest = stack[pc->reg];
+  auto val = stack[pc->v1];
+  auto off = stack[pc->v2];
+  assert(is_string(dest));
+  assert(is_char(val));
+  assert(is_fixnum(off));
+
+  auto str = to_string(dest);
+  auto idx = to_fixnum(off);
+  auto len = to_fixnum(str->len);
+  // TODO <= so we can store NULL-terminator.
+  assert(idx >= 0 && idx <= len);
+  str->str[idx] = to_char(val);
+  END_NEXT
+}
+
+OP(GUARD) {
+  auto val = stack[pc->v1];
+  auto want_tag_obj = stack[pc->v2];
+
+  auto res = guard_obj_matches(val, want_tag_obj) ? TRUE_REP : FALSE_REP;
+  stack[instr.reg] = res;
+  END_NEXT
+}
+
+OP(LOAD) {
+  auto src = stack[pc->v1];
+  auto off = stack[pc->v2];
+  assert(is_heap_object(src));
+  assert(is_fixnum(off));
+
+  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
+  auto res = base[to_fixnum(off)];
+  stack[instr.reg] = res;
+  END_NEXT
+}
+
+OP(LOAD_CHAR) {
+  auto src = stack[pc->v1];
+  auto off = stack[pc->v2];
+  assert(is_string(src));
+  assert(is_fixnum(off));
+
+  auto str = to_string(src);
+  auto idx = to_fixnum(off);
+  auto len = to_fixnum(str->len);
+  assert(idx >= 0 && idx < len);
+  auto res = tag_char((uint8_t)str->str[idx]);
+  stack[instr.reg] = res;
+  END_NEXT
+}
+
+OP_AD(CHAR_INTEGER) {
+  assert(is_char(v1));
+  auto c = to_char(v1);
+  auto res = tag_fixnum(c);
+  END_ABC_NEXT
+}
+
+OP_AD(INTEGER_CHAR) {
+  assert(is_fixnum(v1));
+  auto fix = to_fixnum(v1);
+  auto res = tag_char(fix);
+  END_ABC_NEXT
+}
+
+OP(HALT) {
+  return halt(state, stack);
+  END
+}
+
+// End opcode handlers.
 #define X(name, type)                                                          \
   PRESERVE_NONE gc_obj record_##name(bc instr, bc *pc, gc_obj *stack,          \
                                      vm_state *state, void *op_table,          \
