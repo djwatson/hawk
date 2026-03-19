@@ -1187,6 +1187,19 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       emit_mul_constant(s, dst_reg, RTMP, (1LL << FIXNUM_SHIFT));
       break;
     }
+    case IR_INTEGER_CHAR: {
+      assert(op->type == CHAR_TAG);
+      assert(!is_fpr_reg(dst_reg));
+      emit_shl_constant(s, dst_reg, arg0_reg, 8 - FIXNUM_SHIFT);
+      emit_add_constant(s, dst_reg, dst_reg, CHAR_TAG);
+      break;
+    }
+    case IR_CHAR_INTEGER: {
+      assert(op->type == FIXNUM_TAG);
+      assert(!is_fpr_reg(dst_reg));
+      emit_sar_constant(s, dst_reg, arg0_reg, 8 - FIXNUM_SHIFT);
+      break;
+    }
     case IR_TRUNCATE: {
       assert(op->type == FLONUM_TAG);
       assert(!op->op1.constant);

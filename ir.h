@@ -73,6 +73,8 @@ typedef enum : uint8_t {
   X(ALLOC, ARG_IR_IR, false)                                                   \
   X(BOX_FLONUM, ARG_IR_NONE, false)                                            \
   X(EXACT, ARG_IR_NONE, false)                                                 \
+  X(INTEGER_CHAR, ARG_IR_NONE, false)                                          \
+  X(CHAR_INTEGER, ARG_IR_NONE, false)                                          \
   X(TRUNCATE, ARG_IR_NONE, false)                                              \
   X(INEXACT, ARG_IR_NONE, false)
 typedef enum : uint8_t {

@@ -870,8 +870,28 @@ static slot closure_get(vm_state *state, gc_obj *stack, slot clo, uint8_t pos,
                   .type = (uint8_t)get_type_tag(loaded));
   return add_inst(state, ins);
 }
-static inline slot char_integer(vm_state *state, slot s) { abort(); }
-static inline slot integer_char(vm_state *state, slot s) { abort(); }
+static inline slot char_integer(vm_state *state, slot s) {
+  auto t = record_current_trace(state);
+  auto ty = get_slot_type(t, s);
+  if (ty == CHAR_TAG) {
+    if (s.constant) {
+      return add_const(state, tag_fixnum(to_char(t->consts[s.loc])));
+    }
+    return add_inst(state, IR(.op = IR_CHAR_INTEGER, .op1 = s, .type = FIXNUM_TAG));
+  }
+  abort();
+}
+static inline slot integer_char(vm_state *state, slot s) {
+  auto t = record_current_trace(state);
+  auto ty = get_slot_type(t, s);
+  if (ty == FIXNUM_TAG) {
+    if (s.constant) {
+      return add_const(state, tag_char(to_fixnum(t->consts[s.loc])));
+    }
+    return add_inst(state, IR(.op = IR_INTEGER_CHAR, .op1 = s, .type = CHAR_TAG));
+  }
+  abort();
+}
 static slot return_address(vm_state *state, bc *ra) {
   return add_const(state, tag_return_address(ra));
 }
