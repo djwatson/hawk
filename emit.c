@@ -572,7 +572,17 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
       // func loads ONLY happen from closure loads, no need to typecheck.
       return;
     }
-    abort();
+    emit_test_constant(s, reg, TAG_MASK);
+    emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
+    if (op->type == PTR_TAG) {
+      return;
+    }
+    emit_mov(s, RTMP, reg);
+    emit_sub_constant(s, RTMP, RTMP, PTR_TAG);
+    emit_mem_load(s, 0, RTMP, RTMP);
+    emit_cmp_constant(s, RTMP, op->type);
+    emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
+    return;
   default:
     break;
   }

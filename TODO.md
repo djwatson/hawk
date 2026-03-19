@@ -4,6 +4,9 @@
 
 * probably need to fix closure conversion at some point
 * get r5rs scm working
+   * mostly works, reader/ports need to get working.
+* simplex is breaking argcnt somehow
+* simplex is slower??? bad tracing
 
 ## JIT impl
 

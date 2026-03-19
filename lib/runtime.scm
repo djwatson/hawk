@@ -243,8 +243,7 @@
                     (loop (let loop3 ((lsts lsts))
                             (if (null? lsts) '() (cons (cdr (car lsts)) (loop3 (cdr lsts)))))))
               '()))))))
-(define (append2 a b)
-  (let loop ((a a) (b b)) (if (null? a) b (cons (car a) (loop (cdr a) b)))))
+(define (append2 a b) (if (null? a) b (cons (car a) (append2 (cdr a) b))))
 
 (define append
   (case-lambda
@@ -331,7 +330,7 @@
       (let* ((rlst (reverse lst))
              (unused (unless (list? (car rlst)) (error "Apply to non-list" (car rlst))))
              (firstargs (reverse (cdr rlst)))
-             (args (append2 firstargs (car rlst))))
+             (args (append firstargs (car rlst))))
         (apply fun args)))))
 
 (define (assq obj1 alist1)
