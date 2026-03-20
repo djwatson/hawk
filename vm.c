@@ -190,6 +190,19 @@ static inline gc_obj emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
   (void)stack;
   return obj_jeqv(v1, v2) ? TRUE_REP : FALSE_REP;
 }
+static void trace_reset(vm_state *state) {
+  arr_for_each(state->record.traces, trace) {
+    if (!trace->parent_snap && trace->start_ins &&
+        trace->start_ins->op == OP_JFUNC) {
+      *trace->start_ins = trace->start_pc;
+    }
+  }
+  free_traces(state);
+  emit_cleanup(&state->emit);
+  emit_init(&state->emit);
+  record_init(&state->record);
+  memset(state->hotmap, hotmap_cnt, sizeof(state->hotmap));
+}
 static inline void return_frame(vm_state *state, bc instr, bc **pc,
                                 gc_obj **stack, void **op_table) {
   (void)state;
@@ -528,9 +541,11 @@ OP(DEFINE) {
   auto val = stack[instr.reg];
   auto s = to_symbol(sym);
   if (s->opt > 0) {
-    // TODO clear all traces
-    printf("Muist abort optimistic globals\n");
-    abort();
+    if (verbose) {
+      printf("Clearing trace cache due to optimistic global\n");
+    }
+    trace_reset(state);
+    op_table = state->impls;
   }
   if (s->val.value != DEAD.value) {
     // If we've set this more than once, mark it as non-inlinable.

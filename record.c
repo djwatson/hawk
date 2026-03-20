@@ -64,7 +64,7 @@ static void penalty_pc(record_state *record, bc *pc) {
 static void clear_trace_state(trace_state *ts) {
   arrfree(ts->stack);
   arrfree(ts->downrec);
-  ts->poly_entry = nullptr;
+  *ts = (trace_state){0};
 }
 static void free_snap(snap *snap) { arrfree(snap->slots); }
 static void free_trace(trace *trace) {
@@ -469,7 +469,7 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
       emit(cur_trace, &state->emit, &state->record, cur_trace->link_entry_snap);
   state->max_trace--;
   if (!cur_trace->parent_snap) {
-    *ts->start_ins = (bc){
+    *cur_trace->start_ins = (bc){
         .op = OP_JFUNC,
         .data = record_trace_count(state),
     };
@@ -871,6 +871,12 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_DEFINE: {
     auto c = const_load(state, pc, instr.data);
+    auto trace = record_current_trace(state);
+    auto s = to_symbol(trace->consts[c.loc]);
+    if (s->opt > 0) {
+      record_abort(state, &op_table, "optimistic global");
+      break;
+    }
     auto val = stack_load(state, stack, instr.reg, false);
     ir_ins ins = IR(.op = IR_GSET, .op1 = c, .op2 = val);
     add_inst(state, ins);
@@ -1152,6 +1158,7 @@ done:
 static trace *record_begin_trace(vm_state *state, bc *pc, bc instr) {
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   trace *cur_trace = record_current_trace(state);
+  cur_trace->start_ins = pc;
   cur_trace->start_pc = instr;
   cur_trace->num = record_trace_count(state);
   trace_state *ts = record_trace_state(state);
@@ -1331,8 +1338,11 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
 void free_traces(struct vm_state *state) {
   auto rs = &state->record;
   arr_for_each(rs->traces, trace) { free_trace(trace); }
-  arrfree(rs->trace_state.stack);
   arrfree(rs->traces);
+  if (rs->cur_trace) {
+    free_trace(rs->cur_trace);
+  }
+  clear_trace_state(&rs->trace_state);
   hm_free(rs->blacklist);
   rs->cur_trace = nullptr;
 }

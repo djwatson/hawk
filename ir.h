@@ -133,6 +133,7 @@ typedef struct trace {
   trace_fn fn;
   uint16_t num;
   trace_kind kind;
+  bc *start_ins;
   snap *parent_snap;
   uint8_t link_entry_snap;
   trace *link;
