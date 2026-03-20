@@ -492,19 +492,6 @@ static bool check_arity(vm_state *state, gc_obj *stack, bc instr,
             build_rest_list(state, stack, fixed_cnt, args - fixed_cnt));
   return true;
 }
-static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
-  if (!func.constant) {
-    // Func isn't a constant, we need a runtime check.
-    // Peek at destination
-    slot must_be = add_const(state, stack[pc->reg]);
-
-    ir_ins ins = IR(.op = IR_EQ, .op1 = func, .op2 = must_be);
-    add_inst(state, ins);
-  }
-
-  return pc;
-}
-
 typedef struct {
   trace *trace;
   bool matched;
@@ -998,34 +985,33 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     stack_save(state, stack, instr.reg, clo);
     break;
   }
-  case OP_LCALL: {
-    argcnt = instr.data - 1;
-    auto func = stack_load(state, stack, instr.reg, true);
-    auto frame_top = instr.reg;
-    auto ra = add_const(state, tag_return_address(pc + 1));
-    stack_save(state, stack, instr.reg, ra);
-    trace_state *ts = record_trace_state(state);
-    ts->stack_off += frame_top + 1;
-    ts->depth++;
-    pc = set_new_pc(state, pc, stack, func);
-    break;
-  }
+  case OP_LCALL:
   case OP_LCALLT: {
     argcnt = instr.data - 1;
     auto func = stack_load(state, stack, instr.reg, true);
-    auto from = (uint16_t)(instr.reg + 1);
-    auto cnt = (uint16_t)argcnt;
-    trace_state *ts = record_trace_state(state);
-    // The same as the VM:
-    // memmove(&stack[0], &stack[from], argcnt * sizeof(gc_obj));
-    uint16_t to = 0;
-    while (cnt-- > 0) {
-      auto entry = stack_load(state, stack, from++, false);
-      set_stack(state, to++, entry);
+    if (instr.op == OP_LCALL) {
+      auto frame_top = instr.reg;
+      auto ra = add_const(state, tag_return_address(pc + 1));
+      stack_save(state, stack, instr.reg, ra);
+      ts->stack_off += frame_top + 1;
+      ts->depth++;
+    } else {
+      auto from = (uint16_t)(instr.reg + 1);
+      auto cnt = (uint16_t)argcnt;
+      // The same as the VM:
+      // memmove(&stack[0], &stack[from], argcnt * sizeof(gc_obj));
+      uint16_t to = 0;
+      while (cnt-- > 0) {
+        auto entry = stack_load(state, stack, from++, false);
+        set_stack(state, to++, entry);
+      }
+      set_stack_len(ts, to);
     }
-    // Shrink stack to current stack top.
-    set_stack_len(ts, to);
-    pc = set_new_pc(state, pc, stack, func);
+    if (!func.constant) {
+      slot must_be = add_const(state, stack[pc->reg]);
+      ir_ins ins = IR(.op = IR_EQ, .op1 = func, .op2 = must_be);
+      add_inst(state, ins);
+    }
     break;
   }
   case OP_APPLY: {
