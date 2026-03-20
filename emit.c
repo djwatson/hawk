@@ -925,19 +925,15 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       uint8_t arg_reg = regalloc_materialize_arg_or_ensure_loc(
           ra_state, (uint16_t)op_cnt_idx, op, args[arg].loc);
       arg_regs[arg] = arg_reg;
-      if (old_reg == REG_NONE && t->ins[args[arg].loc].spill != SPILL_NONE) {
+      if (old_reg == REG_NONE) {
         emit_reload_arg(s, t, args[arg].loc, arg_reg);
       }
     }
     for (uint8_t arg = 0; arg < arg_count; arg++) {
-      if (args[arg].constant) {
-        continue;
+      if (!args[arg].constant) {
+        regalloc_maybe_free_reg(ra_state, (uint16_t)op_cnt_idx, args[arg].loc,
+                                false);
       }
-      bool keep_current_before =
-          op->op == IR_TYPECHECK && op->type != FLONUM_TAG &&
-          !op->op1.constant && args[arg].loc == op->op1.loc;
-      regalloc_maybe_free_reg(ra_state, (uint16_t)op_cnt_idx, args[arg].loc,
-                              keep_current_before);
     }
 
     regalloc_assign_output(ra_state, op_cnt_idx, op);
