@@ -32,14 +32,6 @@ static const char *func_name_from_pc(bc *pc) {
   return to_string(func->name)->str;
 }
 
-static uint32_t find_penalty_pc(record_state *record, const bc *pc) {
-  auto idx = hm_geti(record->blacklist, (bc *)pc);
-  if (idx >= 0) {
-    return record->blacklist[idx].value;
-  }
-  return 0;
-}
-
 static void penalty_pc(record_state *record, bc *pc) {
   if (!pc) {
     return;
@@ -342,12 +334,6 @@ static slot convert_to_fixnum(vm_state *state, slot v1) {
   }
   abort();
 }
-static slot scm_inexact(vm_state *state, slot v1) {
-  return convert_to_flonum(state, v1);
-}
-static slot scm_exact(vm_state *state, slot v1) {
-  return convert_to_fixnum(state, v1);
-}
 static slot scm_truncate(vm_state *state, slot v1) {
   auto t = record_current_trace(state);
   auto t1 = get_slot_type(t, v1);
@@ -432,10 +418,6 @@ static branch_result emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
                   .type = RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs)),
   };
   return br;
-}
-static slot constify_data(vm_state *state, int16_t data) {
-  gc_obj c = (gc_obj){.value = data};
-  return add_const(state, c);
 }
 static void record_abort(vm_state *state) {
   trace_state *ts = record_trace_state(state);
@@ -595,131 +577,7 @@ static void return_frame(vm_state *state, bc instr, bc **pc, gc_obj **stack,
   }
 }
 static bc *next_op(bc *pc) { return pc; }
-gc_obj halt(vm_state *state, gc_obj *stack);
 
-static slot sym_load(vm_state *state, slot sym) {
-  auto trace = record_current_trace(state);
-  auto s = to_symbol(trace->consts[sym.loc]);
-  if (s->opt >= 0) {
-    s->opt = 1;
-    return add_const(state, s->val);
-  }
-  ir_ins ins = IR(.op = IR_GGET, .op1 = sym, .type = get_type_tag(s->val));
-
-  return add_inst(state, ins);
-}
-static void sym_store(vm_state *state, slot sym, slot val) {
-  ir_ins ins = IR(.op = IR_GSET, .op1 = sym, .op2 = val);
-  add_inst(state, ins);
-}
-static void obj_write(vm_state *state, slot val, void **op_table) {
-  if (verbose) {
-    printf("Record abort: can't record WRITE\n");
-  }
-  record_abort(state);
-  *op_table = state->impls;
-}
-static slot alloc_obj(vm_state *state, gc_obj *stack, bc *pc, void **op_table) {
-  auto sz = stack_load(state, stack, pc->v1, true);
-  auto type = stack_load(state, stack, pc->v2, true);
-  assert(type.constant);
-  (void)op_table;
-
-  auto t = record_current_trace(state);
-  auto type_const = t->consts[type.loc];
-  ir_ins ins = IR(.op = IR_ALLOC, .op1 = sz, .op2 = type,
-                  .type = (uint8_t)to_fixnum(type_const));
-  return add_inst(state, ins);
-}
-static void store_obj(vm_state *state, gc_obj *stack, bc *pc) {
-  auto obj = stack_load(state, stack, pc->reg, true);
-  auto val = stack_load(state, stack, pc->v1, false);
-  auto offset = stack_load(state, stack, pc->v2, true);
-
-  auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
-  add_inst(state, IR(.op = IR_STORE, .op1 = ref, .op2 = val,
-                     .type = get_slot_type(record_current_trace(state), obj)));
-  vm_add_snap(state, pc + 1);
-}
-static void store_char(vm_state *state, gc_obj *stack, bc *pc) {
-  auto obj = stack_load(state, stack, pc->reg, true);
-  auto val = stack_load(state, stack, pc->v1, true);
-  auto offset = stack_load(state, stack, pc->v2, true);
-
-  auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
-  add_inst(state,
-           IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val, .type = STRING_TAG));
-  vm_add_snap(state, pc + 1);
-}
-static slot load_obj(vm_state *state, gc_obj *stack, bc *pc) {
-  auto obj = stack_load(state, stack, pc->v1, true);
-  auto offset = stack_load(state, stack, pc->v2, true);
-  // Peek at leaded type
-  auto src = stack[pc->v1];
-  auto off = stack[pc->v2];
-  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
-  auto type = get_type_tag(base[to_fixnum(off)]);
-
-  ir_ins ins = IR(.op = IR_LOAD, .op1 = obj, .op2 = offset, .type = type);
-  return add_inst(state, ins);
-}
-static slot load_char(vm_state *state, gc_obj *stack, bc *pc) {
-  auto obj = stack_load(state, stack, pc->v1, true);
-  auto offset = stack_load(state, stack, pc->v2, true);
-  auto src = stack[pc->v1];
-  auto off = stack[pc->v2];
-  assert(is_string(src));
-  assert(is_fixnum(off));
-  auto str = to_string(src);
-  auto idx = to_fixnum(off);
-  assert(idx >= 0 && idx < to_fixnum(str->len));
-
-  ir_ins ins =
-      IR(.op = IR_LOAD_CHAR, .op1 = obj, .op2 = offset, .type = CHAR_TAG);
-  return add_inst(state, ins);
-}
-static slot guard_obj(vm_state *state, gc_obj *stack, bc *pc) {
-  // Typecheck the object slot; SLOAD will emit the guard for us.
-  stack_load(state, stack, pc->v1, true);
-  auto want_tag = stack_load(state, stack, pc->v2, true);
-  assert(want_tag.constant);
-  bool matches = guard_obj_matches(stack[pc->v1], stack[pc->v2]);
-  return add_const(state, matches ? TRUE_REP : FALSE_REP);
-}
-static void closure_set(vm_state *state, slot clo, uint8_t pos, slot val,
-                        void **op_table) {
-  (void)op_table;
-
-  slot c_pos = add_const(state, tag_fixnum(pos + 1));
-  auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
-  add_inst(state,
-           IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = CLOSURE_TAG));
-}
-static slot closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
-  uint64_t capture_cnt = (uint64_t)pc->data + 1;
-  uint8_t start = pc->reg;
-  int64_t size_bytes =
-      (int64_t)(sizeof(closure_s) + (capture_cnt * sizeof(gc_obj)));
-
-  auto sz = add_const(state, tag_fixnum(size_bytes));
-  auto type = add_const(state, tag_fixnum(CLOSURE_TAG));
-  ir_ins ins = IR(.op = IR_ALLOC, .op1 = sz, .op2 = type, .type = CLOSURE_TAG);
-  auto clo = add_inst(state, ins);
-
-  // Initialize closure length.
-  slot len_off = add_const(state, tag_fixnum(0));
-  slot len_val = add_const(state, tag_fixnum((int64_t)capture_cnt));
-  auto len_ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = len_off));
-  add_inst(state, IR(.op = IR_STORE, .op1 = len_ref, .op2 = len_val,
-                     .type = CLOSURE_TAG));
-
-  // Only seed slot 0 with the function label; closure captures are
-  // initialized via explicit CLOSURE_SET bytecodes.
-  auto label = stack_load(state, stack, start, false);
-  closure_set(state, clo, 0, label, nullptr);
-
-  return clo;
-}
 // Nothing necessary for record - we will check in emit_snapshot - checks will
 // be elided if we never hit a snapshot!
 static inline void check_expand_stack(vm_state *state, gc_obj **stack) {}
@@ -774,17 +632,6 @@ static bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
             build_rest_list(state, stack, fixed_cnt, args - fixed_cnt));
   return true;
 }
-static branch_result emit_if_branch(vm_state *state, bc *pc, gc_obj *stack,
-                                    slot cond) {
-  auto val = stack[pc->data];
-  bool taken = val.value != FALSE_REP.value;
-  slot false_val = add_const(state, FALSE_REP);
-  branch_result br = {
-      .taken = taken,
-      .guard = IR(.op = taken ? IR_NE : IR_EQ, .op1 = cond, .op2 = false_val),
-  };
-  return br;
-}
 static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
                         branch_result br) {
   trace_state *ts = record_trace_state(state);
@@ -806,47 +653,6 @@ static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
   add_inst(state, br.guard);
   vm_add_snap(state, next_pc);
   return pc;
-}
-static slot closure_get(vm_state *state, gc_obj *stack, slot clo, uint8_t pos,
-                       uint8_t clo_idx) {
-  if (clo.constant) {
-    auto trace = record_current_trace(state);
-    auto c = to_closure(trace->consts[clo.loc]);
-    auto res = c->v[pos];
-    return add_const(state, res);
-  }
-  // IR_LOAD now applies header/tag adjustment in emit; keep this as slot index.
-  slot c_pos = add_const(state, tag_fixnum(pos + 1));
-
-  gc_obj clo_obj = stack[clo_idx];
-  gc_obj loaded = to_closure(clo_obj)->v[pos];
-
-  ir_ins ins = IR(.op = IR_LOAD, .op1 = clo, .op2 = c_pos,
-                  .type = (uint8_t)get_type_tag(loaded));
-  return add_inst(state, ins);
-}
-static slot return_address(vm_state *state, bc *ra) {
-  return add_const(state, tag_return_address(ra));
-}
-static gc_obj *adjust_stack_depth(vm_state *state, gc_obj *stack, int depth) {
-  trace_state *ts = record_trace_state(state);
-  ts->stack_off += depth;
-  ts->depth++;
-  return stack;
-}
-static void stack_memmov(vm_state *state, gc_obj *stack, uint16_t from,
-                         uint16_t cnt) {
-  trace_state *ts = record_trace_state(state);
-  // The same as the VM:
-  // memmove(&stack[0], &stack[from], cnt * sizeof(gc_obj));
-  uint16_t to = 0;
-  while (cnt-- > 0) {
-    auto entry = stack_load(state, stack, from++, false);
-    set_stack(state, to++, entry);
-  }
-
-  // Shrink stack to current stack top.
-  set_stack_len(ts, to);
 }
 static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
   if (!func.constant) {
@@ -1081,25 +887,35 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     RECORD_BIN_ARITH(QUOTIENT, emit_ov_math_quotient)
     RECORD_BIN_ARITH(MOD, emit_ov_math_mod)
 #undef RECORD_BIN_ARITH
-#define RECORD_UNARY_MATH(OP_CODE, EMIT_FN)                                    \
-  case OP_##OP_CODE: {                                                         \
-    auto v1 = stack_load(state, stack, instr.data, true);                      \
-    auto res = EMIT_FN(state, v1);                                             \
-    set_stack_top(state, instr.reg + 1);                                       \
-    stack_save(state, stack, instr.reg, res);                                  \
-    pc = next_op(pc);                                                          \
-    break;                                                                     \
+  case OP_INEXACT: {
+    auto v1 = stack_load(state, stack, instr.data, true);
+    auto res = convert_to_flonum(state, v1);
+    set_stack_top(state, instr.reg + 1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
   }
-
-    RECORD_UNARY_MATH(INEXACT, scm_inexact)
-    RECORD_UNARY_MATH(EXACT, scm_exact)
-    RECORD_UNARY_MATH(TRUNCATE, scm_truncate)
-#undef RECORD_UNARY_MATH
-  #define RECORD_BIN_CMP(OP_CODE, EMIT_FN)                                    \
+  case OP_EXACT: {
+    auto v1 = stack_load(state, stack, instr.data, true);
+    auto res = convert_to_fixnum(state, v1);
+    set_stack_top(state, instr.reg + 1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_TRUNCATE: {
+    auto v1 = stack_load(state, stack, instr.data, true);
+    auto res = scm_truncate(state, v1);
+    set_stack_top(state, instr.reg + 1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+#define RECORD_BIN_CMP(OP_CODE, EMIT_FN)                                       \
   case OP_##OP_CODE: {                                                         \
     auto v1 = stack_load(state, stack, instr.v1, true);                        \
     auto v2 = stack_load(state, stack, instr.v2, true);                        \
-    auto res = EMIT_FN(state, pc, stack, v1, v2);                             \
+    auto res = EMIT_FN(state, pc, stack, v1, v2);                              \
     pc = branch_if_op(state, pc, stack, res);                                  \
     break;                                                                     \
   }
@@ -1118,8 +934,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_KSHORT: {
-    auto c = constify_data(state, instr.data);
-    stack_save(state, stack, instr.reg, c);
+    gc_obj c = (gc_obj){.value = instr.data};
+    auto c_slot = add_const(state, c);
+    stack_save(state, stack, instr.reg, c_slot);
     pc = next_op(pc);
     break;
   }
@@ -1153,7 +970,18 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_LOOKUP: {
     auto c = const_load(state, pc, instr.data);
     // No need to check if c is a symbol, the compiler guarantees it
-    auto v1 = sym_load(state, c);
+    slot v1;
+    {
+      auto trace = record_current_trace(state);
+      auto s = to_symbol(trace->consts[c.loc]);
+      if (s->opt >= 0) {
+        s->opt = 1;
+        v1 = add_const(state, s->val);
+      } else {
+        ir_ins ins = IR(.op = IR_GGET, .op1 = c, .type = get_type_tag(s->val));
+        v1 = add_inst(state, ins);
+      }
+    }
     stack_save(state, stack, instr.reg, v1);
     pc = next_op(pc);
     break;
@@ -1161,13 +989,18 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_DEFINE: {
     auto c = const_load(state, pc, instr.data);
     auto val = stack_load(state, stack, instr.reg, false);
-    sym_store(state, c, val);
+    ir_ins ins = IR(.op = IR_GSET, .op1 = c, .op2 = val);
+    add_inst(state, ins);
     pc = next_op(pc);
     break;
   }
   case OP_WRITE: {
     auto val = stack_load(state, stack, instr.v1, false);
-    obj_write(state, val, &op_table);
+    if (verbose) {
+      printf("Record abort: can't record WRITE\n");
+    }
+    record_abort(state);
+    op_table = state->impls;
     pc = next_op(pc);
     break;
   }
@@ -1213,7 +1046,13 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_IF: {
     auto v = stack_load(state, stack, instr.data, false);
-    auto res = emit_if_branch(state, pc, stack, v);
+    auto val = stack[instr.data];
+    bool taken = val.value != FALSE_REP.value;
+    slot false_val = add_const(state, FALSE_REP);
+    branch_result res = {
+        .taken = taken,
+        .guard = IR(.op = taken ? IR_NE : IR_EQ, .op1 = v, .op2 = false_val),
+    };
     pc = branch_if_op(state, pc, stack, res);
     break;
   }
@@ -1223,8 +1062,22 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_CLOSURE_GET: {
     auto clo = stack_load(state, stack, instr.v1, false);
-    auto slot = instr.v2;
-    auto res = closure_get(state, stack, clo, slot, instr.v1);
+    auto clo_slot = instr.v2;
+    slot res;
+    if (clo.constant) {
+      auto trace = record_current_trace(state);
+      auto c = to_closure(trace->consts[clo.loc]);
+      auto c_res = c->v[clo_slot];
+      res = add_const(state, c_res);
+    } else {
+      slot c_pos = add_const(state, tag_fixnum(clo_slot + 1));
+      gc_obj clo_obj = stack[instr.v1];
+      gc_obj loaded = to_closure(clo_obj)->v[clo_slot];
+
+      ir_ins ins = IR(.op = IR_LOAD, .op1 = clo, .op2 = c_pos,
+                      .type = (uint8_t)get_type_tag(loaded));
+      res = add_inst(state, ins);
+    }
     stack_save(state, stack, instr.reg, res);
     pc = next_op(pc);
     break;
@@ -1232,13 +1085,42 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_CLOSURE_SET: {
     auto val = stack_load(state, stack, instr.reg, false);
     auto clo = stack_load(state, stack, instr.v1, false);
-    auto slot = instr.v2;
-    closure_set(state, clo, slot, val, &op_table);
+    auto clo_slot = instr.v2;
+    slot c_pos = add_const(state, tag_fixnum(clo_slot + 1));
+    auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
+    add_inst(state,
+             IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = CLOSURE_TAG));
     pc = next_op(pc);
     break;
   }
   case OP_CLOSURE: {
-    auto clo = closure_alloc(state, stack, pc);
+    uint64_t capture_cnt = (uint64_t)pc->data + 1;
+    uint8_t start = pc->reg;
+    int64_t size_bytes =
+        (int64_t)(sizeof(closure_s) + (capture_cnt * sizeof(gc_obj)));
+
+    auto sz = add_const(state, tag_fixnum(size_bytes));
+    auto type = add_const(state, tag_fixnum(CLOSURE_TAG));
+    ir_ins ins =
+        IR(.op = IR_ALLOC, .op1 = sz, .op2 = type, .type = CLOSURE_TAG);
+    auto clo = add_inst(state, ins);
+
+    // Initialize closure length.
+    slot len_off = add_const(state, tag_fixnum(0));
+    slot len_val = add_const(state, tag_fixnum((int64_t)capture_cnt));
+    auto len_ref =
+        add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = len_off));
+    add_inst(state, IR(.op = IR_STORE, .op1 = len_ref, .op2 = len_val,
+                       .type = CLOSURE_TAG));
+
+    // Only seed slot 0 with the function label; closure captures are
+    // initialized via explicit CLOSURE_SET bytecodes.
+    auto label = stack_load(state, stack, start, false);
+    slot c_pos = add_const(state, tag_fixnum(0 + 1));
+    auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
+    add_inst(state,
+             IR(.op = IR_STORE, .op1 = ref, .op2 = label, .type = CLOSURE_TAG));
+
     stack_save(state, stack, instr.reg, clo);
     pc = next_op(pc);
     break;
@@ -1247,16 +1129,29 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     argcnt = instr.data - 1;
     auto func = stack_load(state, stack, instr.reg, true);
     auto frame_top = instr.reg;
-    stack_save(state, stack, instr.reg, return_address(state, pc + 1));
-    stack = adjust_stack_depth(state, stack, frame_top + 1);
+    auto ra = add_const(state, tag_return_address(pc + 1));
+    stack_save(state, stack, instr.reg, ra);
+    trace_state *ts = record_trace_state(state);
+    ts->stack_off += frame_top + 1;
+    ts->depth++;
     pc = set_new_pc(state, pc, stack, func);
     break;
   }
   case OP_LCALLT: {
     argcnt = instr.data - 1;
     auto func = stack_load(state, stack, instr.reg, true);
-    auto frame_top = instr.reg;
-    stack_memmov(state, stack, frame_top + 1, argcnt);
+    auto from = (uint16_t)(instr.reg + 1);
+    auto cnt = (uint16_t)argcnt;
+    trace_state *ts = record_trace_state(state);
+    // The same as the VM:
+    // memmove(&stack[0], &stack[from], argcnt * sizeof(gc_obj));
+    uint16_t to = 0;
+    while (cnt-- > 0) {
+      auto entry = stack_load(state, stack, from++, false);
+      set_stack(state, to++, entry);
+    }
+    // Shrink stack to current stack top.
+    set_stack_len(ts, to);
     pc = set_new_pc(state, pc, stack, func);
     break;
   }
@@ -1267,39 +1162,88 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       printf("Record abort: can't record APPLY\n");
     }
     record_abort(state);
-    *op_table = state->impls;
+    op_table = state->impls;
     break;
   }
   case OP_ALLOC: {
-    auto obj = alloc_obj(state, stack, pc, &op_table);
+    auto sz = stack_load(state, stack, pc->v1, true);
+    auto type = stack_load(state, stack, pc->v2, true);
+    assert(type.constant);
+
+    auto t = record_current_trace(state);
+    auto type_const = t->consts[type.loc];
+    ir_ins ins = IR(.op = IR_ALLOC, .op1 = sz, .op2 = type,
+                    .type = (uint8_t)to_fixnum(type_const));
+    auto obj = add_inst(state, ins);
     stack_save(state, stack, instr.reg, obj);
     pc = next_op(pc);
     break;
   }
   case OP_STORE: {
-    store_obj(state, stack, pc);
+    auto obj = stack_load(state, stack, pc->reg, true);
+    auto val = stack_load(state, stack, pc->v1, false);
+    auto offset = stack_load(state, stack, pc->v2, true);
+
+    auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
+    add_inst(state,
+             IR(.op = IR_STORE, .op1 = ref, .op2 = val,
+                .type = get_slot_type(record_current_trace(state), obj)));
+    vm_add_snap(state, pc + 1);
     pc = next_op(pc);
     break;
   }
   case OP_STORE_CHAR: {
-    store_char(state, stack, pc);
+    auto obj = stack_load(state, stack, pc->reg, true);
+    auto val = stack_load(state, stack, pc->v1, true);
+    auto offset = stack_load(state, stack, pc->v2, true);
+
+    auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
+    add_inst(state, IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val,
+                       .type = STRING_TAG));
+    vm_add_snap(state, pc + 1);
     pc = next_op(pc);
     break;
   }
   case OP_GUARD: {
-    auto res = guard_obj(state, stack, pc);
+    // Typecheck the object slot; SLOAD will emit the guard for us.
+    stack_load(state, stack, pc->v1, true);
+    auto want_tag = stack_load(state, stack, pc->v2, true);
+    assert(want_tag.constant);
+    bool matches = guard_obj_matches(stack[pc->v1], stack[pc->v2]);
+    auto res = add_const(state, matches ? TRUE_REP : FALSE_REP);
     stack_save(state, stack, instr.reg, res);
     pc = next_op(pc);
     break;
   }
   case OP_LOAD: {
-    auto res = load_obj(state, stack, pc);
+    auto obj = stack_load(state, stack, pc->v1, true);
+    auto offset = stack_load(state, stack, pc->v2, true);
+    // Peek at leaded type
+    auto src = stack[pc->v1];
+    auto off = stack[pc->v2];
+    auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
+    auto type = get_type_tag(base[to_fixnum(off)]);
+
+    ir_ins ins = IR(.op = IR_LOAD, .op1 = obj, .op2 = offset, .type = type);
+    auto res = add_inst(state, ins);
     stack_save(state, stack, instr.reg, res);
     pc = next_op(pc);
     break;
   }
   case OP_LOAD_CHAR: {
-    auto res = load_char(state, stack, pc);
+    auto obj = stack_load(state, stack, pc->v1, true);
+    auto offset = stack_load(state, stack, pc->v2, true);
+    auto src = stack[pc->v1];
+    auto off = stack[pc->v2];
+    assert(is_string(src));
+    assert(is_fixnum(off));
+    auto str = to_string(src);
+    auto idx = to_fixnum(off);
+    assert(idx >= 0 && idx < to_fixnum(str->len));
+
+    ir_ins ins =
+        IR(.op = IR_LOAD_CHAR, .op1 = obj, .op2 = offset, .type = CHAR_TAG);
+    auto res = add_inst(state, ins);
     stack_save(state, stack, instr.reg, res);
     pc = next_op(pc);
     break;
@@ -1313,8 +1257,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       if (v1.constant) {
         res = add_const(state, tag_fixnum(to_char(t->consts[v1.loc])));
       } else {
-        res = add_inst(state, IR(.op = IR_CHAR_INTEGER, .op1 = v1,
-                                 .type = FIXNUM_TAG));
+        res = add_inst(
+            state, IR(.op = IR_CHAR_INTEGER, .op1 = v1, .type = FIXNUM_TAG));
       }
       stack_save(state, stack, instr.reg, res);
     } else {
@@ -1332,8 +1276,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       if (v1.constant) {
         res = add_const(state, tag_char(to_fixnum(t->consts[v1.loc])));
       } else {
-        res = add_inst(state, IR(.op = IR_INTEGER_CHAR, .op1 = v1,
-                                 .type = CHAR_TAG));
+        res = add_inst(state,
+                       IR(.op = IR_INTEGER_CHAR, .op1 = v1, .type = CHAR_TAG));
       }
       stack_save(state, stack, instr.reg, res);
     } else {
@@ -1343,7 +1287,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_HALT:
-    return halt(state, stack);
+    break;
   default:
     abort();
     break;
