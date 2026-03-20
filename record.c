@@ -464,118 +464,6 @@ static int downrec_hits(trace_state *ts, bc *pc) {
   }
   return cnt;
 }
-static void return_frame(vm_state *state, bc instr, bc **pc, gc_obj **stack,
-                         void **op_table) {
-  // add downrec array
-  // cases:
-  // depth > 0:
-  //   reduce depth and keep tracing.
-  // depth == 0
-  //   side/downrec trace:
-  //     count downrec to this pc. If nonzero, abort and
-  //     restart as downrec.
-  //     downrec trace: capture!
-  //   parent trace:
-  //     if we're not yet at 'desperate' levels, abort and retry.
-  //     if we're desperate, capture the trace, but mark as a 'desperate'
-  //        future traces can trace through desperate instead of linking.
-  trace_state *ts = record_trace_state(state);
-  trace *cur_trace = record_current_trace(state);
-  bool downrec_trace = is_downrec_trace(ts);
-  bool at_trace_start = (*pc == ts->start_ins);
-
-  // for RET specifically: set stack top to pc->reg
-  set_stack_len(ts, instr.reg + 1);
-
-  if (ts->depth == 0) {
-    // Root traces cannot return
-    if (!cur_trace->parent_snap && !downrec_trace) {
-      if (verbose) {
-        printf("Record abort: return\n");
-      }
-      record_abort(state);
-      *op_table = state->impls;
-      return;
-    }
-
-    // count returns NOTE that we're not checking against the
-    // destination address, but the 'ret' address.  Otherwise we get
-    // endless chains where there are two different return locations,
-    // but the second one fails - and we don't save the downrec array
-    // between traces, so the next side trace only also has two
-    // downrec to two locations (although the first matches the first
-    // in the parent trace).
-    //
-    // This may mean this ISN'T a downrecursive case, but if so, it
-    // will eventually be blacklisted. Better to catch down-rec with
-    // slight penalty for weird cases that look like downrec but aren't.
-    int cnt = downrec_hits(ts, *pc);
-    bool seen_downrec = cnt > 0;
-
-    // If this is a side trace, we've detected potential downrecursion.
-    // Abort and start a downrec trace.
-    if (cur_trace->parent_snap && seen_downrec) {
-      if (verbose) {
-        printf("Record abort: potential downrec detected\n");
-      }
-      clear_trace_state(ts);
-      free_trace(cur_trace);
-      record_start(state, *pc, **pc, *stack);
-      if (verbose) {
-        print_record_debug(*pc, bc_names[(*pc)->op], state);
-      }
-      return_frame(state, **pc, pc, stack, op_table);
-      return;
-    }
-    if (downrec_trace && seen_downrec && at_trace_start) {
-      cur_trace->link = cur_trace;
-      if (verbose) {
-        printf("Record stop: downrec\n");
-      }
-      record_finish(*pc, state);
-      *op_table = state->impls;
-      return;
-    }
-
-    // Side traces *may* go down the stack.
-    // 1) record load for result
-    auto res = stack_load(state, *stack, instr.reg, false);
-    // 2) get the frame offset
-    auto ra = to_return_address((*stack)[-1]);
-    auto old_pc = ra - 1;
-    auto offset = old_pc->reg + 1;
-
-    // 3) Clear regs / set result in new regs
-    // assert(ts->stack_off == 0);
-    set_stack_len(ts, 0);
-    // 4) Const-ify the current return address
-
-    auto const_ra = add_const(state, (*stack)[-1]);
-    auto const_offset = add_const(state, tag_fixnum(offset));
-    // 5) add a new IR: IR_RET that checks ret and does a ret.
-    ir_ins ins = IR(.op = IR_RET, .op1 = const_offset, .op2 = const_ra,
-                    // RET only manipulates the return address/stack pointer;
-                    // keep it in a GPR regardless of value type.
-                    .type = FIXNUM_TAG);
-    add_inst(state, ins);
-    // 6) set new stack top.
-    set_stack(state, old_pc->reg, res);
-    // 7) Add a snap, since we changed the stack / RA, we can't go back.
-    vm_add_snap(state, ra);
-    arrput(ts->downrec, *pc);
-  } else {
-    ts->depth--;
-    assert(ts->depth >= 0);
-
-    auto ret = stack_load(state, *stack, instr.reg, false);
-    auto new_pc = to_return_address((*stack)[-1]);
-    auto old_pc = new_pc - 1;
-    ts->stack_off -= (old_pc->reg + 1);
-    // Trim traced stack to caller frame and store return value in caller slot.
-    set_stack_len(ts, old_pc->reg + 1);
-    stack_save(state, *stack, old_pc->reg, ret);
-  }
-}
 // Nothing necessary for record - we will check in emit_snapshot - checks will
 // be elided if we never hit a snapshot!
 static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
@@ -904,10 +792,70 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     /*   break; */
     /* } */
 
-    auto old_op_table = op_table;
-    return_frame(state, instr, &pc, &stack, &op_table);
-    if (old_op_table != op_table) {
-      instr = *pc;
+    bool downrec_trace = is_downrec_trace(ts);
+    bool at_trace_start = (pc == ts->start_ins);
+
+    set_stack_len(ts, instr.reg + 1);
+
+    if (ts->depth == 0) {
+      if (!cur_trace->parent_snap && !downrec_trace) {
+        if (verbose) {
+          printf("Record abort: return\n");
+        }
+        record_abort(state);
+        op_table = state->impls;
+        instr = *pc;
+        break;
+      }
+
+      int cnt = downrec_hits(ts, pc);
+      bool seen_downrec = cnt > 0;
+
+      if (cur_trace->parent_snap && seen_downrec) {
+        if (verbose) {
+          printf("Record abort: potential downrec detected\n");
+        }
+        clear_trace_state(ts);
+        free_trace(cur_trace);
+        record_start(state, pc, *pc, stack);
+        return record(*pc, pc, stack, state, op_table, argcnt);
+      }
+      if (downrec_trace && seen_downrec && at_trace_start) {
+        cur_trace->link = cur_trace;
+        if (verbose) {
+          printf("Record stop: downrec\n");
+        }
+        record_finish(pc, state);
+        op_table = state->impls;
+        instr = *pc;
+        break;
+      }
+
+      auto res = c;
+      auto ra = to_return_address(stack[-1]);
+      auto old_pc = ra - 1;
+      auto offset = old_pc->reg + 1;
+
+      set_stack_len(ts, 0);
+
+      auto const_ra = add_const(state, stack[-1]);
+      auto const_offset = add_const(state, tag_fixnum(offset));
+      ir_ins ins = IR(.op = IR_RET, .op1 = const_offset, .op2 = const_ra,
+                      .type = FIXNUM_TAG);
+      add_inst(state, ins);
+      set_stack(state, old_pc->reg, res);
+      vm_add_snap(state, ra);
+      arrput(ts->downrec, pc);
+    } else {
+      ts->depth--;
+      assert(ts->depth >= 0);
+
+      auto ret = c;
+      auto new_pc = to_return_address(stack[-1]);
+      auto old_pc = new_pc - 1;
+      ts->stack_off -= (old_pc->reg + 1);
+      set_stack_len(ts, old_pc->reg + 1);
+      stack_save(state, stack, old_pc->reg, ret);
     }
     break;
   }
