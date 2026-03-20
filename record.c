@@ -382,26 +382,16 @@ DEFINE_BRANCH_CMP(lt, IR_LT, IR_GTE, <)
 DEFINE_BRANCH_CMP(gt, IR_GT, IR_LTE, >)
 DEFINE_BRANCH_CMP(lte, IR_LTE, IR_GT, <=)
 DEFINE_BRANCH_CMP(gte, IR_GTE, IR_LT, >=)
-static ir_ins emit_math_cmp_jeq(vm_state *state, bc *pc, gc_obj *stack, slot v1,
-                                slot v2, bool *taken) {
-  auto lhs = stack[pc->v1];
-  auto rhs = stack[pc->v2];
-  bool res = lhs.value == rhs.value;
-
-  auto t = record_current_trace(state);
-  *taken = res;
-  return IR(.op = res ? IR_EQ : IR_NE, .op1 = v1, .op2 = v2,
-            .type = get_slot_type(t, v1));
-}
-static ir_ins emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
-                                 slot v1, slot v2, bool *taken) {
+static ir_ins emit_math_cmp_eq(vm_state *state, bc *pc, gc_obj *stack, slot v1,
+                               slot v2, bool *taken, bool eqv) {
   auto lhs = stack[pc->v1];
   auto rhs = stack[pc->v2];
   auto t = record_current_trace(state);
-  bool res = obj_jeqv(lhs, rhs);
+  bool res = eqv ? obj_jeqv(lhs, rhs) : lhs.value == rhs.value;
   *taken = res;
   return IR(.op = res ? IR_EQ : IR_NE, .op1 = v1, .op2 = v2,
-            .type = RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs));
+            .type = eqv ? RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs)
+                        : get_slot_type(t, v1));
 }
 static void record_abort(vm_state *state, void **op_table, const char *msg) {
   if (verbose) {
@@ -717,8 +707,16 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     RECORD_BIN_CMP(JGT, emit_math_cmp_gt)
     RECORD_BIN_CMP(JLTE, emit_math_cmp_lte)
     RECORD_BIN_CMP(JGTE, emit_math_cmp_gte)
-    RECORD_BIN_CMP(JEQ, emit_math_cmp_jeq)
-    RECORD_BIN_CMP(JEQV, emit_math_cmp_jeqv)
+  case OP_JEQ:
+  case OP_JEQV: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto v2 = stack_load(state, stack, instr.v2, true);
+    bool taken;
+    auto guard =
+        emit_math_cmp_eq(state, pc, stack, v1, v2, &taken, instr.op == OP_JEQV);
+    RECORD_BRANCH(taken, guard);
+    break;
+  }
 #undef RECORD_BIN_CMP
   case OP_CONST: {
     auto c = const_load(state, pc, instr.data);
@@ -998,26 +996,20 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     stack_save(state, stack, instr.reg, obj);
     break;
   }
-  case OP_STORE: {
+  case OP_STORE:
+  case OP_STORE_CHAR: {
     auto obj = stack_load(state, stack, pc->reg, true);
     auto val = stack_load(state, stack, pc->v1, false);
     auto offset = stack_load(state, stack, pc->v2, true);
-
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
-    add_inst(state,
-             IR(.op = IR_STORE, .op1 = ref, .op2 = val,
-                .type = get_slot_type(record_current_trace(state), obj)));
-    vm_add_snap(state, pc + 1);
-    break;
-  }
-  case OP_STORE_CHAR: {
-    auto obj = stack_load(state, stack, pc->reg, true);
-    auto val = stack_load(state, stack, pc->v1, true);
-    auto offset = stack_load(state, stack, pc->v2, true);
-
-    auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
-    add_inst(state, IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val,
-                       .type = STRING_TAG));
+    if (instr.op == OP_STORE) {
+      add_inst(state,
+               IR(.op = IR_STORE, .op1 = ref, .op2 = val,
+                  .type = get_slot_type(record_current_trace(state), obj)));
+    } else {
+      add_inst(state, IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val,
+                         .type = STRING_TAG));
+    }
     vm_add_snap(state, pc + 1);
     break;
   }
@@ -1031,33 +1023,25 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     stack_save(state, stack, instr.reg, res);
     break;
   }
-  case OP_LOAD: {
-    auto obj = stack_load(state, stack, pc->v1, true);
-    auto offset = stack_load(state, stack, pc->v2, true);
-    // Peek at leaded type
-    auto src = stack[pc->v1];
-    auto off = stack[pc->v2];
-    auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
-    auto type = get_type_tag(base[to_fixnum(off)]);
-
-    ir_ins ins = IR(.op = IR_LOAD, .op1 = obj, .op2 = offset, .type = type);
-    auto res = add_inst(state, ins);
-    stack_save(state, stack, instr.reg, res);
-    break;
-  }
+  case OP_LOAD:
   case OP_LOAD_CHAR: {
     auto obj = stack_load(state, stack, pc->v1, true);
     auto offset = stack_load(state, stack, pc->v2, true);
     auto src = stack[pc->v1];
     auto off = stack[pc->v2];
-    assert(is_string(src));
-    assert(is_fixnum(off));
-    auto str = to_string(src);
-    auto idx = to_fixnum(off);
-    assert(idx >= 0 && idx < to_fixnum(str->len));
-
-    ir_ins ins =
-        IR(.op = IR_LOAD_CHAR, .op1 = obj, .op2 = offset, .type = CHAR_TAG);
+    ir_ins ins;
+    if (instr.op == OP_LOAD) {
+      auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
+      auto type = get_type_tag(base[to_fixnum(off)]);
+      ins = IR(.op = IR_LOAD, .op1 = obj, .op2 = offset, .type = type);
+    } else {
+      assert(is_string(src));
+      assert(is_fixnum(off));
+      auto str = to_string(src);
+      auto idx = to_fixnum(off);
+      assert(idx >= 0 && idx < to_fixnum(str->len));
+      ins = IR(.op = IR_LOAD_CHAR, .op1 = obj, .op2 = offset, .type = CHAR_TAG);
+    }
     auto res = add_inst(state, ins);
     stack_save(state, stack, instr.reg, res);
     break;
