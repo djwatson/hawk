@@ -295,7 +295,6 @@ static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   auto c = *(gc_obj *)(pc - pc->data);
   return add_const(state, c);
 }
-static void record_abort(vm_state *state);
 static slot convert_to_flonum(vm_state *state, slot v1);
 static slot convert_to_fixnum(vm_state *state, slot v1);
 DEFINE_RECORD_NUMERIC_BINOP_COERCED(add, IR_ADD)
@@ -375,7 +374,7 @@ DEFINE_RECORD_NUMERIC_BINOP_COERCED(mod, IR_MOD)
     }                                                                          \
                                                                                \
     *taken = res;                                                              \
-    return IR(.op = res ? taken_op : not_taken_op, .op1 = v1, .op2 = v2,      \
+    return IR(.op = res ? taken_op : not_taken_op, .op1 = v1, .op2 = v2,       \
               .type = get_slot_type(record_current_trace(state), v1));         \
   }
 
@@ -404,7 +403,11 @@ static ir_ins emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
   return IR(.op = res ? IR_EQ : IR_NE, .op1 = v1, .op2 = v2,
             .type = RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs));
 }
-static void record_abort(vm_state *state) {
+static void record_abort(vm_state *state, void **op_table, const char *msg) {
+  if (verbose) {
+    printf("Record abort: %s\n", msg);
+  }
+  *op_table = state->impls;
   trace_state *ts = record_trace_state(state);
   penalty_pc(&state->record, ts->start_ins);
   trace *cur_trace = record_current_trace(state);
@@ -417,7 +420,12 @@ static void record_abort(vm_state *state) {
   record_set_current_trace(state, nullptr);
   clear_trace_state(ts);
 }
-static void record_finish(bc *pc, vm_state *state) {
+static void record_finish(bc *pc, vm_state *state, void **op_table,
+                          const char *msg) {
+  if (verbose) {
+    printf("Record stop: %s\n", msg);
+  }
+  *op_table = state->impls;
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   vm_add_snap(state, pc);
@@ -618,22 +626,12 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
         ensure_args_match_trace(state, stack, cur_trace, cur_trace);
     cur_trace->link = match.trace;
     cur_trace->link_entry_snap = match.matched ? 1 : 0;
-    if (verbose) {
-      if (ts->depth != 0) {
-        printf("Record stop: up-recursion\n");
-      } else {
-        printf("Record stop: root loop\n");
-      }
-    }
-    record_finish(pc, state);
-    return state->impls;
+    record_finish(pc, state, &op_table,
+                  ts->depth != 0 ? "up-recursion" : "root loop");
+    return op_table;
   }
   if (pc != ts->start_ins && cnt >= 10) {
-    if (verbose) {
-      printf("Record abort: uprec detected, restart\n");
-    }
-    record_abort(state);
-    return state->impls;
+    record_abort(state, &op_table, "uprec detected, restart");
   }
   return op_table;
 }
@@ -650,11 +648,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   if (ts->depth >= 20 || arrlen(cur_trace->ins) >= 500) {
-    if (verbose) {
-      printf("Record abort: too long or too deep\n");
-    }
-    record_abort(state);
-    op_table = state->impls;
+    record_abort(state, &op_table, "too long or too deep");
     goto done;
   }
 
@@ -763,11 +757,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
     if (ts->depth == 0) {
       if (!cur_trace->parent_snap && !downrec_trace) {
-        if (verbose) {
-          printf("Record abort: return\n");
-        }
-        record_abort(state);
-        op_table = state->impls;
+        record_abort(state, &op_table, "return");
         instr = *pc;
         break;
       }
@@ -776,9 +766,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       bool seen_downrec = cnt > 0;
 
       if (cur_trace->parent_snap && seen_downrec) {
-        if (verbose) {
-          printf("Record abort: potential downrec detected\n");
-        }
         clear_trace_state(ts);
         free_trace(cur_trace);
         record_start(state, pc, *pc, stack);
@@ -786,11 +773,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       }
       if (downrec_trace && seen_downrec && at_trace_start) {
         cur_trace->link = cur_trace;
-        if (verbose) {
-          printf("Record stop: downrec\n");
-        }
-        record_finish(pc, state);
-        op_table = state->impls;
+        record_finish(pc, state, &op_table, "downrec");
         instr = *pc;
         break;
       }
@@ -850,11 +833,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_WRITE: {
     auto val = stack_load(state, stack, instr.v1, false);
-    if (verbose) {
-      printf("Record abort: can't record WRITE\n");
-    }
-    record_abort(state);
-    op_table = state->impls;
+    record_abort(state, &op_table, "can't record WRITE");
     break;
   }
   case OP_FUNC:
@@ -882,11 +861,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     // aren't downrec traces!
     if (is_downrec_trace(record_trace_state(state)) &&
         !cur_trace->parent_snap) {
-      if (verbose) {
-        printf("Record abort: can't downrec to JFUNC\n");
-      }
-      record_abort(state);
-      op_table = state->impls;
+      record_abort(state, &op_table, "can't downrec to JFUNC");
       break;
     }
 
@@ -896,19 +871,11 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     if (cur_trace->parent_snap) {
       cur_trace->link = match.trace;
       cur_trace->link_entry_snap = match.matched ? 1 : 0;
-      if (verbose) {
-        printf("Record stop: side trace linked to root trace\n");
-      }
-      record_finish(pc, state);
-      op_table = state->impls;
+      record_finish(pc, state, &op_table, "side trace linked to root trace");
       break;
     }
-    // TODO
-    record_abort(state);
-    if (verbose) {
-      printf("Record abort: Root trace to JFUNC\n");
-    }
-    op_table = state->impls;
+
+    record_abort(state, &op_table, "Root trace to JFUNC");
 
     break;
   }
@@ -916,8 +883,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto v = stack_load(state, stack, instr.data, false);
     bool taken = stack[instr.data].value != FALSE_REP.value;
     slot false_val = add_const(state, FALSE_REP);
-    RECORD_BRANCH(
-        taken, IR(.op = taken ? IR_NE : IR_EQ, .op1 = v, .op2 = false_val));
+    RECORD_BRANCH(taken,
+                  IR(.op = taken ? IR_NE : IR_EQ, .op1 = v, .op2 = false_val));
     break;
   }
   case OP_JMP: {
@@ -1015,11 +982,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_APPLY: {
-    if (verbose) {
-      printf("Record abort: can't record APPLY\n");
-    }
-    record_abort(state);
-    op_table = state->impls;
+    record_abort(state, &op_table, "can't record APPLY");
     break;
   }
   case OP_ALLOC: {
