@@ -1086,9 +1086,6 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 
 // Tailcall to the non-recording version, which will then tailcall the
 // next *recording* opcode
-#define dispatch_next(pc, stack)                                               \
-  op_func impl = state->impls[instr.op];                                       \
-  MUSTTAIL return impl(instr, (pc), (stack), state, op_table, argcnt);
 
 PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                             void *op_table, uint8_t argcnt) {
@@ -1108,312 +1105,336 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
 
   switch (instr.op) {
-#ifndef OP_BEGIN
-#define OP(code) case OP_##code
-#define OP_BEGIN(code) OP(code): {
-#define END                                                                    \
-  break;                                                                       \
+  // Begin opcodes
+  case OP_ADD: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto v2 = stack_load(state, stack, instr.v2, true);
+    auto res = emit_ov_math_add(state, v1, v2);
+    set_stack_top(state, instr.reg + 1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
   }
-#endif
-
-    // Begin opcodes
-    OP_BEGIN(ADD) {
-      auto v1 = stack_load(state, stack, instr.v1, true);
-      auto v2 = stack_load(state, stack, instr.v2, true);
-      auto res = emit_ov_math_add(state, v1, v2);
-      set_stack_top(state, instr.reg + 1);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(SUB) {
-      auto v1 = stack_load(state, stack, instr.v1, true);
-      auto v2 = stack_load(state, stack, instr.v2, true);
-      auto res = emit_ov_math_sub(state, v1, v2);
-      set_stack_top(state, instr.reg + 1);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(MUL) {
-      auto v1 = stack_load(state, stack, instr.v1, true);
-      auto v2 = stack_load(state, stack, instr.v2, true);
-      auto res = emit_ov_math_mul(state, v1, v2);
-      set_stack_top(state, instr.reg + 1);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(DIV) {
-      auto v1 = stack_load(state, stack, instr.v1, true);
-      auto v2 = stack_load(state, stack, instr.v2, true);
-      auto res = emit_ov_math_div(state, v1, v2);
-      set_stack_top(state, instr.reg + 1);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(QUOTIENT) {
-      auto v1 = stack_load(state, stack, instr.v1, true);
-      auto v2 = stack_load(state, stack, instr.v2, true);
-      auto res = emit_ov_math_quotient(state, v1, v2);
-      set_stack_top(state, instr.reg + 1);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(MOD) {
-      auto v1 = stack_load(state, stack, instr.v1, true);
-      auto v2 = stack_load(state, stack, instr.v2, true);
-      auto res = emit_ov_math_mod(state, v1, v2);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(INEXACT) {
-      auto v1 = stack_load(state, stack, instr.data, true);
-      auto res = scm_inexact(state, v1);
-      set_stack_top(state, instr.reg + 1);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(EXACT) {
-      auto v1 = stack_load(state, stack, instr.data, true);
-      auto res = scm_exact(state, v1);
-      set_stack_top(state, instr.reg + 1);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(TRUNCATE) {
-      auto v1 = stack_load(state, stack, instr.data, true);
-      auto res = scm_truncate(state, v1);
-      set_stack_top(state, instr.reg + 1);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(CONST) {
-      auto c = const_load(state, pc, instr.data);
-      stack_save(state, stack, instr.reg, c);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(KSHORT) {
-      auto c = constify_data(state, instr.data);
-      stack_save(state, stack, instr.reg, c);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(MOV) {
-      auto c = stack_load(state, stack, instr.data, false);
-      stack_save(state, stack, instr.reg, c);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(RET) {
-      auto c = stack_load(state, stack, instr.reg, false);
-      // TODO: re-enable.  This needs to be a MUCH lower priority, so we
-      // don't record down-rec before up-rec.  Or alternatively, maybe
-      // ONLY enable down-rec recording if the function has an up-rec trace
-      // already.
-
-      /* auto res = check_record_start(pc, stack, state, op_table); */
-      /* if (res != op_table) { */
-      /*   op_table = res; */
-      /*   instr = *pc; */
-      /*   dispatch_next(pc, stack); */
-      /* } */
-
-      auto old_op_table = op_table;
-      return_frame(state, instr, &pc, &stack, &op_table);
-      if (old_op_table != op_table) {
-        instr = *pc;
-      }
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(LOOKUP) {
-      auto c = const_load(state, pc, instr.data);
-      // No need to check if c is a symbol, the compiler guarantees it
-      auto v1 = sym_load(state, c);
-      stack_save(state, stack, instr.reg, v1);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(DEFINE) {
-      auto c = const_load(state, pc, instr.data);
-      auto val = stack_load(state, stack, instr.reg, false);
-      sym_store(state, c, val);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(WRITE) {
-      auto val = stack_load(state, stack, instr.v1, false);
-      obj_write(state, val, &op_table);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(FUNC) {
-      if (!check_arity(state, stack, pc, instr, argcnt, false)) {
-        pc = next_op(pc);
-        dispatch_next(pc, stack);
-      }
-
-      check_expand_stack(state, &stack);
-      auto old_ops = op_table;
-      op_table = check_record_start(pc, stack, state, op_table);
-      if (op_table != old_ops) {
-        instr = *pc;
-      }
-
-      auto next = next_op(pc);
-      pc = next_op(next);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(ARGCNT_ERROR) {
-      check_arity(state, stack, pc, instr, argcnt, true);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(IFUNC) {
-      check_arity(state, stack, pc, instr, argcnt, true);
-      check_expand_stack(state, &stack);
-
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(JFUNC) {
-      // TODO argcnt check - no, will be put in trace itself!
-      auto f = instr.data;
-      op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
-
-      /* if ((*pc).op != instr.op) { */
-      /*   abort(); */
-      /* } */
-      op_func impl = ((op_func *)op_table)[instr.op];
-      MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
-    }
-#define CMP_BRANCH(OPNAME, EMIT_FN)                                            \
-  END OP_BEGIN(OPNAME) {                                                       \
-    auto v1 = stack_load(state, stack, instr.v1, true);                        \
-    auto v2 = stack_load(state, stack, instr.v2, true);                        \
-    auto res = EMIT_FN(state, pc, stack, v1, v2);                              \
-    pc = branch_if_op(state, pc, stack, res);                                  \
-    dispatch_next(pc, stack);                                                  \
+  case OP_SUB: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto v2 = stack_load(state, stack, instr.v2, true);
+    auto res = emit_ov_math_sub(state, v1, v2);
+    set_stack_top(state, instr.reg + 1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
   }
-
-    CMP_BRANCH(JLT, emit_math_cmp_lt)
-    CMP_BRANCH(JGT, emit_math_cmp_gt)
-    CMP_BRANCH(JLTE, emit_math_cmp_lte)
-    CMP_BRANCH(JGTE, emit_math_cmp_gte)
-    CMP_BRANCH(JEQ, emit_math_cmp_jeq)
-    CMP_BRANCH(JEQV, emit_math_cmp_jeqv)
-    END OP_BEGIN(IF) {
-      auto v = stack_load(state, stack, instr.data, false);
-      auto res = emit_if_branch(state, pc, stack, v);
-      pc = branch_if_op(state, pc, stack, res);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(JMP) {
-      pc = vmgen_jmp_advance(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(CLOSURE_GET) {
-      auto clo = stack_load(state, stack, instr.v1, false);
-      fail_if_not_closure(clo);
-      auto slot = instr.v2;
-      auto res = closure_get(state, stack, clo, slot, instr.v1);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(CLOSURE_SET) {
-      auto val = stack_load(state, stack, instr.reg, false);
-      auto clo = stack_load(state, stack, instr.v1, false);
-      auto slot = instr.v2;
-      closure_set(state, clo, slot, val, &op_table);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(CLOSURE) {
-      auto clo = closure_alloc(state, stack, pc);
-      stack_save(state, stack, instr.reg, clo);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(LCALL) {
-      argcnt = instr.data - 1;
-      auto func = stack_load(state, stack, instr.reg, true);
-      auto frame_top = instr.reg;
-      stack_save(state, stack, instr.reg, return_address(state, pc + 1));
-      stack = adjust_stack_depth(state, stack, frame_top + 1);
-      pc = set_new_pc(state, pc, stack, func);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(LCALLT) {
-      argcnt = instr.data - 1;
-      auto func = stack_load(state, stack, instr.reg, true);
-      auto frame_top = instr.reg;
-      stack_memmov(state, stack, frame_top + 1, argcnt);
-      pc = set_new_pc(state, pc, stack, func);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(APPLY) {
-      pc = apply_call(state, stack, pc, &op_table, &argcnt);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(ALLOC) {
-      auto obj = alloc_obj(state, stack, pc, &op_table);
-      stack_save(state, stack, instr.reg, obj);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(STORE) {
-      store_obj(state, stack, pc);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(STORE_CHAR) {
-      store_char(state, stack, pc);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(GUARD) {
-      auto res = guard_obj(state, stack, pc);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(LOAD) {
-      auto res = load_obj(state, stack, pc);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(LOAD_CHAR) {
-      auto res = load_char(state, stack, pc);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(CHAR_INTEGER) {
-      auto v1 = stack_load(state, stack, instr.v1, true);
-      auto res = char_integer(state, v1);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(INTEGER_CHAR) {
-      auto v1 = stack_load(state, stack, instr.v1, true);
-      auto res = integer_char(state, v1);
-      stack_save(state, stack, instr.reg, res);
-      pc = next_op(pc);
-      dispatch_next(pc, stack);
-    }
-    END OP_BEGIN(HALT) { return halt(state, stack); }
-    END default : abort();
+  case OP_MUL: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto v2 = stack_load(state, stack, instr.v2, true);
+    auto res = emit_ov_math_mul(state, v1, v2);
+    set_stack_top(state, instr.reg + 1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
   }
+  case OP_DIV: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto v2 = stack_load(state, stack, instr.v2, true);
+    auto res = emit_ov_math_div(state, v1, v2);
+    set_stack_top(state, instr.reg + 1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_QUOTIENT: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto v2 = stack_load(state, stack, instr.v2, true);
+    auto res = emit_ov_math_quotient(state, v1, v2);
+    set_stack_top(state, instr.reg + 1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_MOD: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto v2 = stack_load(state, stack, instr.v2, true);
+    auto res = emit_ov_math_mod(state, v1, v2);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_INEXACT: {
+    auto v1 = stack_load(state, stack, instr.data, true);
+    auto res = scm_inexact(state, v1);
+    set_stack_top(state, instr.reg + 1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_EXACT: {
+    auto v1 = stack_load(state, stack, instr.data, true);
+    auto res = scm_exact(state, v1);
+    set_stack_top(state, instr.reg + 1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_TRUNCATE: {
+    auto v1 = stack_load(state, stack, instr.data, true);
+    auto res = scm_truncate(state, v1);
+    set_stack_top(state, instr.reg + 1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_CONST: {
+    auto c = const_load(state, pc, instr.data);
+    stack_save(state, stack, instr.reg, c);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_KSHORT: {
+    auto c = constify_data(state, instr.data);
+    stack_save(state, stack, instr.reg, c);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_MOV: {
+    auto c = stack_load(state, stack, instr.data, false);
+    stack_save(state, stack, instr.reg, c);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_RET: {
+    auto c = stack_load(state, stack, instr.reg, false);
+    // TODO: re-enable.  This needs to be a MUCH lower priority, so we
+    // don't record down-rec before up-rec.  Or alternatively, maybe
+    // ONLY enable down-rec recording if the function has an up-rec trace
+    // already.
+
+    /* auto res = check_record_start(pc, stack, state, op_table); */
+    /* if (res != op_table) { */
+    /*   op_table = res; */
+    /*   instr = *pc; */
+    /*   break; */
+    /* } */
+
+    auto old_op_table = op_table;
+    return_frame(state, instr, &pc, &stack, &op_table);
+    if (old_op_table != op_table) {
+      instr = *pc;
+    }
+    break;
+  }
+  case OP_LOOKUP: {
+    auto c = const_load(state, pc, instr.data);
+    // No need to check if c is a symbol, the compiler guarantees it
+    auto v1 = sym_load(state, c);
+    stack_save(state, stack, instr.reg, v1);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_DEFINE: {
+    auto c = const_load(state, pc, instr.data);
+    auto val = stack_load(state, stack, instr.reg, false);
+    sym_store(state, c, val);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_WRITE: {
+    auto val = stack_load(state, stack, instr.v1, false);
+    obj_write(state, val, &op_table);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_FUNC: {
+    if (!check_arity(state, stack, pc, instr, argcnt, false)) {
+      pc = next_op(pc);
+      break;
+    }
+
+    check_expand_stack(state, &stack);
+    auto old_ops = op_table;
+    op_table = check_record_start(pc, stack, state, op_table);
+    if (op_table != old_ops) {
+      instr = *pc;
+    }
+
+    auto next = next_op(pc);
+    pc = next_op(next);
+    break;
+  }
+  case OP_ARGCNT_ERROR: {
+    check_arity(state, stack, pc, instr, argcnt, true);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_IFUNC: {
+    check_arity(state, stack, pc, instr, argcnt, true);
+    check_expand_stack(state, &stack);
+
+    pc = next_op(pc);
+    break;
+  }
+  case OP_JFUNC: {
+    // TODO argcnt check - no, will be put in trace itself!
+    auto f = instr.data;
+    op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
+
+    /* if ((*pc).op != instr.op) { */
+    /*   abort(); */
+    /* } */
+    op_func impl = ((op_func *)op_table)[instr.op];
+    MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
+  }
+  case OP_JLT: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto v2 = stack_load(state, stack, instr.v2, true);
+    auto res = emit_math_cmp_lt(state, pc, stack, v1, v2);
+    pc = branch_if_op(state, pc, stack, res);
+    break;
+  }
+  case OP_JGT: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto v2 = stack_load(state, stack, instr.v2, true);
+    auto res = emit_math_cmp_gt(state, pc, stack, v1, v2);
+    pc = branch_if_op(state, pc, stack, res);
+    break;
+  }
+  case OP_JLTE: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto v2 = stack_load(state, stack, instr.v2, true);
+    auto res = emit_math_cmp_lte(state, pc, stack, v1, v2);
+    pc = branch_if_op(state, pc, stack, res);
+    break;
+  }
+  case OP_JGTE: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto v2 = stack_load(state, stack, instr.v2, true);
+    auto res = emit_math_cmp_gte(state, pc, stack, v1, v2);
+    pc = branch_if_op(state, pc, stack, res);
+    break;
+  }
+  case OP_JEQ: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto v2 = stack_load(state, stack, instr.v2, true);
+    auto res = emit_math_cmp_jeq(state, pc, stack, v1, v2);
+    pc = branch_if_op(state, pc, stack, res);
+    break;
+  }
+  case OP_JEQV: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto v2 = stack_load(state, stack, instr.v2, true);
+    auto res = emit_math_cmp_jeqv(state, pc, stack, v1, v2);
+    pc = branch_if_op(state, pc, stack, res);
+    break;
+  }
+  case OP_IF: {
+    auto v = stack_load(state, stack, instr.data, false);
+    auto res = emit_if_branch(state, pc, stack, v);
+    pc = branch_if_op(state, pc, stack, res);
+    break;
+  }
+  case OP_JMP: {
+    pc = vmgen_jmp_advance(pc);
+    break;
+  }
+  case OP_CLOSURE_GET: {
+    auto clo = stack_load(state, stack, instr.v1, false);
+    fail_if_not_closure(clo);
+    auto slot = instr.v2;
+    auto res = closure_get(state, stack, clo, slot, instr.v1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_CLOSURE_SET: {
+    auto val = stack_load(state, stack, instr.reg, false);
+    auto clo = stack_load(state, stack, instr.v1, false);
+    auto slot = instr.v2;
+    closure_set(state, clo, slot, val, &op_table);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_CLOSURE: {
+    auto clo = closure_alloc(state, stack, pc);
+    stack_save(state, stack, instr.reg, clo);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_LCALL: {
+    argcnt = instr.data - 1;
+    auto func = stack_load(state, stack, instr.reg, true);
+    auto frame_top = instr.reg;
+    stack_save(state, stack, instr.reg, return_address(state, pc + 1));
+    stack = adjust_stack_depth(state, stack, frame_top + 1);
+    pc = set_new_pc(state, pc, stack, func);
+    break;
+  }
+  case OP_LCALLT: {
+    argcnt = instr.data - 1;
+    auto func = stack_load(state, stack, instr.reg, true);
+    auto frame_top = instr.reg;
+    stack_memmov(state, stack, frame_top + 1, argcnt);
+    pc = set_new_pc(state, pc, stack, func);
+    break;
+  }
+  case OP_APPLY: {
+    pc = apply_call(state, stack, pc, &op_table, &argcnt);
+    break;
+  }
+  case OP_ALLOC: {
+    auto obj = alloc_obj(state, stack, pc, &op_table);
+    stack_save(state, stack, instr.reg, obj);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_STORE: {
+    store_obj(state, stack, pc);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_STORE_CHAR: {
+    store_char(state, stack, pc);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_GUARD: {
+    auto res = guard_obj(state, stack, pc);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_LOAD: {
+    auto res = load_obj(state, stack, pc);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_LOAD_CHAR: {
+    auto res = load_char(state, stack, pc);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_CHAR_INTEGER: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto res = char_integer(state, v1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_INTEGER_CHAR: {
+    auto v1 = stack_load(state, stack, instr.v1, true);
+    auto res = integer_char(state, v1);
+    stack_save(state, stack, instr.reg, res);
+    pc = next_op(pc);
+    break;
+  }
+  case OP_HALT:
+    return halt(state, stack);
+  default:
+      abort();
+      break;
+  }
+  op_func impl = state->impls[instr.op];
+  MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
 }
 
 // End opcodes

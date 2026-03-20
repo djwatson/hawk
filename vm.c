@@ -810,9 +810,9 @@ static void vm_state_init(vm_state *state) {
 #define X(name, type) state->impls[OP_##name] = impl_##name;
   OPS
 #undef X
-#define X(name, type) state->record_impls[OP_##name] = record;
-  OPS
-#undef X
+  for (int i = 0; i < OP_INS_MAX; i++) {
+    state->record_impls[i] = record;
+  }
 }
 
 gc_obj vm(bc *pc) {
