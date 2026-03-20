@@ -793,12 +793,6 @@ OP(HALT) {
 }
 
 // End opcode handlers.
-#define X(name, type)                                                          \
-  PRESERVE_NONE gc_obj record_##name(bc instr, bc *pc, gc_obj *stack,          \
-                                     vm_state *state, void *op_table,          \
-                                     uint8_t argcnt);
-OPS;
-#undef X
 
 static void vm_state_init(vm_state *state) {
   memset(state, 0, sizeof(*state));
@@ -816,8 +810,8 @@ static void vm_state_init(vm_state *state) {
 #define X(name, type) state->impls[OP_##name] = impl_##name;
   OPS
 #undef X
-#define X(name, type) state->record_impls[OP_##name] = record_##name;
-      OPS
+#define X(name, type) state->record_impls[OP_##name] = record;
+  OPS
 #undef X
 }
 

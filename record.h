@@ -2,6 +2,7 @@
 
 #include "bc.h"
 #include "emit.h"
+#include "hawk.h"
 #include "hashtable.h"
 #include "ir.h"
 #include "types.h"
@@ -37,6 +38,9 @@ typedef struct record_state {
 } record_state;
 
 struct vm_state;
+PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack,
+                            struct vm_state *state, void *op_table,
+                            uint8_t argcnt);
 void record_init(record_state *record);
 void record_start(struct vm_state *state, bc *pc, bc instr, gc_obj *stack);
 void record_start_poly(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
