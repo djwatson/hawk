@@ -110,11 +110,6 @@ static void snapshot_live_slots(trace_state *ts, snap *snap) {
   }
 }
 
-typedef struct {
-  bool taken;
-  ir_ins guard;
-} branch_result;
-
 static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
   record_state *record = data;
   trace *cur_trace = record->cur_trace;
@@ -355,8 +350,8 @@ DEFINE_RECORD_NUMERIC_BINOP_FORCE_FLONUM(div, IR_DIV)
 DEFINE_RECORD_NUMERIC_BINOP_COERCED(quotient, IR_QUOTIENT)
 DEFINE_RECORD_NUMERIC_BINOP_COERCED(mod, IR_MOD)
 #define DEFINE_BRANCH_CMP(name, taken_op, not_taken_op, cmp_op)                \
-  static branch_result emit_math_cmp_##name(vm_state *state, bc *pc,           \
-                                            gc_obj *stack, slot v1, slot v2) { \
+  static ir_ins emit_math_cmp_##name(vm_state *state, bc *pc, gc_obj *stack,   \
+                                     slot v1, slot v2, bool *taken) {          \
     auto lhs = stack[pc->v1];                                                  \
     auto rhs = stack[pc->v2];                                                  \
     bool res;                                                                  \
@@ -379,45 +374,35 @@ DEFINE_RECORD_NUMERIC_BINOP_COERCED(mod, IR_MOD)
       abort();                                                                 \
     }                                                                          \
                                                                                \
-    branch_result br = {                                                       \
-        .taken = res,                                                          \
-        .guard = IR(.op = (res) ? (taken_op) : (not_taken_op), .op1 = v1,      \
-                    .op2 = v2,                                                 \
-                    .type = get_slot_type(record_current_trace(state), v1)),   \
-    };                                                                         \
-    return br;                                                                 \
+    *taken = res;                                                              \
+    return IR(.op = res ? taken_op : not_taken_op, .op1 = v1, .op2 = v2,      \
+              .type = get_slot_type(record_current_trace(state), v1));         \
   }
 
 DEFINE_BRANCH_CMP(lt, IR_LT, IR_GTE, <)
 DEFINE_BRANCH_CMP(gt, IR_GT, IR_LTE, >)
 DEFINE_BRANCH_CMP(lte, IR_LTE, IR_GT, <=)
 DEFINE_BRANCH_CMP(gte, IR_GTE, IR_LT, >=)
-static branch_result emit_math_cmp_jeq(vm_state *state, bc *pc, gc_obj *stack,
-                                       slot v1, slot v2) {
+static ir_ins emit_math_cmp_jeq(vm_state *state, bc *pc, gc_obj *stack, slot v1,
+                                slot v2, bool *taken) {
   auto lhs = stack[pc->v1];
   auto rhs = stack[pc->v2];
   bool res = lhs.value == rhs.value;
 
   auto t = record_current_trace(state);
-  branch_result br = {
-      .taken = res,
-      .guard = IR(.op = res ? IR_EQ : IR_NE, .op1 = v1, .op2 = v2,
-                  .type = get_slot_type(t, v1)),
-  };
-  return br;
+  *taken = res;
+  return IR(.op = res ? IR_EQ : IR_NE, .op1 = v1, .op2 = v2,
+            .type = get_slot_type(t, v1));
 }
-static branch_result emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
-                                        slot v1, slot v2) {
+static ir_ins emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
+                                 slot v1, slot v2, bool *taken) {
   auto lhs = stack[pc->v1];
   auto rhs = stack[pc->v2];
   auto t = record_current_trace(state);
   bool res = obj_jeqv(lhs, rhs);
-  branch_result br = {
-      .taken = res,
-      .guard = IR(.op = res ? IR_EQ : IR_NE, .op1 = v1, .op2 = v2,
-                  .type = RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs)),
-  };
-  return br;
+  *taken = res;
+  return IR(.op = res ? IR_EQ : IR_NE, .op1 = v1, .op2 = v2,
+            .type = RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs));
 }
 static void record_abort(vm_state *state) {
   trace_state *ts = record_trace_state(state);
@@ -506,26 +491,6 @@ static bool check_arity(vm_state *state, gc_obj *stack, bc instr,
   set_stack(state, fixed_cnt,
             build_rest_list(state, stack, fixed_cnt, args - fixed_cnt));
   return true;
-}
-static bc *branch_if_op(vm_state *state, bc *pc, branch_result br) {
-  trace_state *ts = record_trace_state(state);
-  // pc->reg is the new top of stack.  Clear out anything above before
-  // snapshotting.
-  set_stack_len(ts, pc->reg);
-
-  auto jmp_pc = pc + 1;
-  bc *next_pc;
-  if (!br.taken) {
-    next_pc = jmp_pc + jmp_pc->data;
-    vm_add_snap(state, jmp_pc + 1);
-  } else {
-    next_pc = jmp_pc + 1;
-    vm_add_snap(state, jmp_pc + jmp_pc->data);
-  }
-
-  add_inst(state, br.guard);
-  vm_add_snap(state, next_pc);
-  return pc;
 }
 static bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack, slot func) {
   if (!func.constant) {
@@ -708,6 +673,17 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
   switch (instr.op) {
     // Begin opcodes
+#define RECORD_BRANCH(TAKEN, GUARD)                                            \
+  do {                                                                         \
+    set_stack_len(ts, pc->reg);                                                \
+    auto jmp_pc = pc + 1;                                                      \
+    bool taken_ = (TAKEN);                                                     \
+    bc *next_pc = taken_ ? jmp_pc + 1 : jmp_pc + jmp_pc->data;                 \
+    vm_add_snap(state, taken_ ? jmp_pc + jmp_pc->data : jmp_pc + 1);           \
+    add_inst(state, (GUARD));                                                  \
+    vm_add_snap(state, next_pc);                                               \
+  } while (0)
+
 #define RECORD_BIN_ARITH(OP_CODE, EMIT_FN)                                     \
   case OP_##OP_CODE: {                                                         \
     auto v1 = stack_load(state, stack, instr.v1, true);                        \
@@ -750,8 +726,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_##OP_CODE: {                                                         \
     auto v1 = stack_load(state, stack, instr.v1, true);                        \
     auto v2 = stack_load(state, stack, instr.v2, true);                        \
-    auto res = EMIT_FN(state, pc, stack, v1, v2);                              \
-    pc = branch_if_op(state, pc, res);                                         \
+    bool taken;                                                                \
+    auto guard = EMIT_FN(state, pc, stack, v1, v2, &taken);                    \
+    RECORD_BRANCH(taken, guard);                                               \
     break;                                                                     \
   }
 
@@ -950,14 +927,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_IF: {
     auto v = stack_load(state, stack, instr.data, false);
-    auto val = stack[instr.data];
-    bool taken = val.value != FALSE_REP.value;
+    bool taken = stack[instr.data].value != FALSE_REP.value;
     slot false_val = add_const(state, FALSE_REP);
-    branch_result res = {
-        .taken = taken,
-        .guard = IR(.op = taken ? IR_NE : IR_EQ, .op1 = v, .op2 = false_val),
-    };
-    pc = branch_if_op(state, pc, res);
+    RECORD_BRANCH(
+        taken, IR(.op = taken ? IR_NE : IR_EQ, .op1 = v, .op2 = false_val));
     break;
   }
   case OP_JMP: {
@@ -1184,6 +1157,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     abort();
     break;
   }
+#undef RECORD_BIN_CMP
+#undef RECORD_BIN_ARITH
+#undef RECORD_BRANCH
 done:
   op_func impl = state->impls[instr.op];
   MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);

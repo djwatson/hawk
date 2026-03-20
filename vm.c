@@ -339,18 +339,6 @@ static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
   build_list(fixed_cnt, args - fixed_cnt, stack);
   return true;
 }
-static inline bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
-                               gc_obj b) {
-  (void)state;
-  (void)stack;
-  pc++; // Next opcode must be JMP.
-  if (b.value == FALSE_REP.value) {
-    // follow jmp.
-    return pc + pc->data;
-  }
-  // skip jmp.
-  return pc + 1;
-}
 static inline bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack,
                              gc_obj func) {
   (void)state;
@@ -597,10 +585,16 @@ OP(JFUNC) {
   MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
   END
 }
+#define BRANCH_NEXT(COND)                                                      \
+  do {                                                                         \
+    auto jmp_pc = pc + 1;                                                      \
+    pc = (COND) ? jmp_pc + 1 : jmp_pc + jmp_pc->data;                          \
+  } while (0)
+
 #define CMP_BRANCH(OPNAME, EMIT_FN)                                            \
   OP_ABC(OPNAME) {                                                             \
     auto res = EMIT_FN(state, pc, stack, v1, v2);                              \
-    pc = branch_if_op(state, pc, stack, res);                                  \
+    BRANCH_NEXT(res.value != FALSE_REP.value);                                 \
     dispatch_next(pc, stack);                                                  \
     END                                                                        \
   }
@@ -613,7 +607,7 @@ CMP_BRANCH(JEQ, emit_math_cmp_jeq)
 CMP_BRANCH(JEQV, emit_math_cmp_jeqv)
 OP(IF) {
   auto v = stack[instr.data];
-  pc = branch_if_op(state, pc, stack, v);
+  BRANCH_NEXT(v.value != FALSE_REP.value);
   dispatch_next(pc, stack);
   END
 }
