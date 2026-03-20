@@ -576,8 +576,6 @@ static void return_frame(vm_state *state, bc instr, bc **pc, gc_obj **stack,
     stack_save(state, *stack, old_pc->reg, ret);
   }
 }
-static bc *next_op(bc *pc) { return pc; }
-
 // Nothing necessary for record - we will check in emit_snapshot - checks will
 // be elided if we never hit a snapshot!
 static inline void check_expand_stack(vm_state *state, gc_obj **stack) {}
@@ -606,25 +604,15 @@ static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
   }
   return tail;
 }
-static bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
-                        uint8_t args, bool abort_on_fail) {
-  (void)pc;
+static bool check_arity(vm_state *state, gc_obj *stack, bc instr,
+                        uint8_t args) {
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
   if (!has_rest) {
-    if (args == instr.reg) {
-      return true;
-    }
-    if (abort_on_fail) {
-      abort();
-    }
-    return false;
+    return args == instr.reg;
   }
 
   uint8_t fixed_cnt = instr.reg - 1;
   if (args < fixed_cnt) {
-    if (abort_on_fail) {
-      abort();
-    }
     return false;
   }
 
@@ -632,10 +620,8 @@ static bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
             build_rest_list(state, stack, fixed_cnt, args - fixed_cnt));
   return true;
 }
-static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
-                        branch_result br) {
+static bc *branch_if_op(vm_state *state, bc *pc, branch_result br) {
   trace_state *ts = record_trace_state(state);
-  (void)stack;
   // pc->reg is the new top of stack.  Clear out anything above before
   // snapshotting.
   set_stack_len(ts, pc->reg);
@@ -876,7 +862,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto res = EMIT_FN(state, v1, v2);                                         \
     set_stack_top(state, instr.reg + 1);                                       \
     stack_save(state, stack, instr.reg, res);                                  \
-    pc = next_op(pc);                                                          \
     break;                                                                     \
   }
 
@@ -892,7 +877,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto res = convert_to_flonum(state, v1);
     set_stack_top(state, instr.reg + 1);
     stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
     break;
   }
   case OP_EXACT: {
@@ -900,7 +884,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto res = convert_to_fixnum(state, v1);
     set_stack_top(state, instr.reg + 1);
     stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
     break;
   }
   case OP_TRUNCATE: {
@@ -908,7 +891,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto res = scm_truncate(state, v1);
     set_stack_top(state, instr.reg + 1);
     stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
     break;
   }
 #define RECORD_BIN_CMP(OP_CODE, EMIT_FN)                                       \
@@ -916,7 +898,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto v1 = stack_load(state, stack, instr.v1, true);                        \
     auto v2 = stack_load(state, stack, instr.v2, true);                        \
     auto res = EMIT_FN(state, pc, stack, v1, v2);                              \
-    pc = branch_if_op(state, pc, stack, res);                                  \
+    pc = branch_if_op(state, pc, res);                                         \
     break;                                                                     \
   }
 
@@ -930,20 +912,17 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_CONST: {
     auto c = const_load(state, pc, instr.data);
     stack_save(state, stack, instr.reg, c);
-    pc = next_op(pc);
     break;
   }
   case OP_KSHORT: {
     gc_obj c = (gc_obj){.value = instr.data};
     auto c_slot = add_const(state, c);
     stack_save(state, stack, instr.reg, c_slot);
-    pc = next_op(pc);
     break;
   }
   case OP_MOV: {
     auto c = stack_load(state, stack, instr.data, false);
     stack_save(state, stack, instr.reg, c);
-    pc = next_op(pc);
     break;
   }
   case OP_RET: {
@@ -983,7 +962,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       }
     }
     stack_save(state, stack, instr.reg, v1);
-    pc = next_op(pc);
     break;
   }
   case OP_DEFINE: {
@@ -991,7 +969,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto val = stack_load(state, stack, instr.reg, false);
     ir_ins ins = IR(.op = IR_GSET, .op1 = c, .op2 = val);
     add_inst(state, ins);
-    pc = next_op(pc);
     break;
   }
   case OP_WRITE: {
@@ -1001,12 +978,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
     record_abort(state);
     op_table = state->impls;
-    pc = next_op(pc);
     break;
   }
   case OP_FUNC: {
-    if (!check_arity(state, stack, pc, instr, argcnt, false)) {
-      pc = next_op(pc);
+    if (!check_arity(state, stack, instr, argcnt)) {
       break;
     }
 
@@ -1017,25 +992,22 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       instr = *pc;
     }
 
-    auto next = next_op(pc);
-    pc = next_op(next);
     break;
   }
   case OP_ARGCNT_ERROR: {
-    check_arity(state, stack, pc, instr, argcnt, true);
-    pc = next_op(pc);
+    check_arity(state, stack, instr, argcnt);
     break;
   }
   case OP_IFUNC: {
-    check_arity(state, stack, pc, instr, argcnt, true);
+    check_arity(state, stack, instr, argcnt);
     check_expand_stack(state, &stack);
 
-    pc = next_op(pc);
     break;
   }
   case OP_JFUNC: {
     // TODO argcnt check - no, will be put in trace itself!
     auto f = instr.data;
+    (void)f;
     op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
 
     /* if ((*pc).op != instr.op) { */
@@ -1053,11 +1025,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         .taken = taken,
         .guard = IR(.op = taken ? IR_NE : IR_EQ, .op1 = v, .op2 = false_val),
     };
-    pc = branch_if_op(state, pc, stack, res);
+    pc = branch_if_op(state, pc, res);
     break;
   }
   case OP_JMP: {
-    pc = pc;
     break;
   }
   case OP_CLOSURE_GET: {
@@ -1079,7 +1050,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       res = add_inst(state, ins);
     }
     stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
     break;
   }
   case OP_CLOSURE_SET: {
@@ -1090,7 +1060,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
     add_inst(state,
              IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = CLOSURE_TAG));
-    pc = next_op(pc);
     break;
   }
   case OP_CLOSURE: {
@@ -1122,7 +1091,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
              IR(.op = IR_STORE, .op1 = ref, .op2 = label, .type = CLOSURE_TAG));
 
     stack_save(state, stack, instr.reg, clo);
-    pc = next_op(pc);
     break;
   }
   case OP_LCALL: {
@@ -1156,8 +1124,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_APPLY: {
-    (void)stack;
-    (void)argcnt;
     if (verbose) {
       printf("Record abort: can't record APPLY\n");
     }
@@ -1176,7 +1142,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                     .type = (uint8_t)to_fixnum(type_const));
     auto obj = add_inst(state, ins);
     stack_save(state, stack, instr.reg, obj);
-    pc = next_op(pc);
     break;
   }
   case OP_STORE: {
@@ -1189,7 +1154,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
              IR(.op = IR_STORE, .op1 = ref, .op2 = val,
                 .type = get_slot_type(record_current_trace(state), obj)));
     vm_add_snap(state, pc + 1);
-    pc = next_op(pc);
     break;
   }
   case OP_STORE_CHAR: {
@@ -1201,7 +1165,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     add_inst(state, IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val,
                        .type = STRING_TAG));
     vm_add_snap(state, pc + 1);
-    pc = next_op(pc);
     break;
   }
   case OP_GUARD: {
@@ -1212,7 +1175,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     bool matches = guard_obj_matches(stack[pc->v1], stack[pc->v2]);
     auto res = add_const(state, matches ? TRUE_REP : FALSE_REP);
     stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
     break;
   }
   case OP_LOAD: {
@@ -1227,7 +1189,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     ir_ins ins = IR(.op = IR_LOAD, .op1 = obj, .op2 = offset, .type = type);
     auto res = add_inst(state, ins);
     stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
     break;
   }
   case OP_LOAD_CHAR: {
@@ -1245,7 +1206,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         IR(.op = IR_LOAD_CHAR, .op1 = obj, .op2 = offset, .type = CHAR_TAG);
     auto res = add_inst(state, ins);
     stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
     break;
   }
   case OP_CHAR_INTEGER: {
@@ -1264,7 +1224,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     } else {
       abort();
     }
-    pc = next_op(pc);
     break;
   }
   case OP_INTEGER_CHAR: {
@@ -1283,7 +1242,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     } else {
       abort();
     }
-    pc = next_op(pc);
     break;
   }
   case OP_HALT:
