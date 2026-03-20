@@ -19,28 +19,6 @@
 #include "types.h"
 #include "vm.h"
 
-#define VMGEN_TRACE_OP_NOABORT(pc, code, state, argcnt)                        \
-  do {                                                                         \
-    if (verbose) {                                                             \
-      print_record_debug((pc), #code, (state));                                \
-    }                                                                          \
-  } while (0)
-#define VMGEN_TRACE_OP(pc, code, state, argcnt)                                \
-  do {                                                                         \
-    VMGEN_TRACE_OP_NOABORT(pc, code, state, argcnt);                           \
-    trace_state *ts = record_trace_state((state));                             \
-    trace *cur_trace = record_current_trace((state));                          \
-    if (ts->depth >= 20 || arrlen(cur_trace->ins) >= 500) {                    \
-      if (verbose) {                                                           \
-        printf("Record abort: too long or too deep\n");                        \
-      }                                                                        \
-      record_abort((state));                                                   \
-      op_table = (state)->impls;                                               \
-      op_func impl = ((op_func *)op_table)[(pc)->op];                          \
-      MUSTTAIL return impl(*(pc), (pc), stack, (state), (state)->impls,        \
-                           (argcnt));                                          \
-    }                                                                          \
-  } while (0)
 static bool is_downrec_trace(trace_state *ts) { return ts->start_is_ret; }
 
 enum {
@@ -106,7 +84,7 @@ static void free_trace(trace *trace) {
 static inline trace_state *record_trace_state(vm_state *state) {
   return &state->record.trace_state;
 }
-static void print_record_debug(bc *pc, char *code, vm_state *state) {
+static void print_record_debug(bc *pc, const char *code, vm_state *state) {
   trace_state *ts = record_trace_state(state);
   for (int i = 0; i < ts->depth; i++) {
     printf(" . ");
@@ -577,8 +555,9 @@ static void return_frame(vm_state *state, bc instr, bc **pc, gc_obj **stack,
       clear_trace_state(ts);
       free_trace(cur_trace);
       record_start(state, *pc, **pc, *stack);
-      // UGH there must be a better way?
-      VMGEN_TRACE_OP_NOABORT(*pc, RET, state, 0);
+      if (verbose) {
+        print_record_debug(*pc, bc_names[(*pc)->op], state);
+      }
       return_frame(state, **pc, pc, stack, op_table);
       return;
     }
@@ -1113,13 +1092,25 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 
 PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                             void *op_table, uint8_t argcnt) {
+  if (verbose) {
+    print_record_debug(pc, bc_names[instr.op], state);
+  }
+
+  trace_state *ts = record_trace_state(state);
+  trace *cur_trace = record_current_trace(state);
+  if (ts->depth >= 20 || arrlen(cur_trace->ins) >= 500) {
+    if (verbose) {
+      printf("Record abort: too long or too deep\n");
+    }
+    record_abort(state);
+    op_func impl = state->impls[pc->op];
+    MUSTTAIL return impl(*pc, pc, stack, state, state->impls, argcnt);
+  }
 
   switch (instr.op) {
 #ifndef OP_BEGIN
 #define OP(code) case OP_##code
-#define OP_BEGIN(code)                                                         \
-  OP(code) : {                                                                 \
-    VMGEN_TRACE_OP(pc, code, state, argcnt);
+#define OP_BEGIN(code) OP(code): {
 #define END                                                                    \
   break;                                                                       \
   }
