@@ -32,6 +32,11 @@ static const char *func_name_from_pc(bc *pc) {
   return to_string(func->name)->str;
 }
 
+bool record_pc_blacklisted(record_state *record, bc *pc) {
+  auto idx = hm_geti(record->blacklist, pc);
+  return idx >= 0 && record->blacklist[idx].value >= BLACKLIST_MAX;
+}
+
 static void penalty_pc(record_state *record, bc *pc) {
   if (!pc) {
     return;
@@ -39,19 +44,16 @@ static void penalty_pc(record_state *record, bc *pc) {
 
   auto idx = hm_geti(record->blacklist, pc);
   if (idx >= 0) {
+    if (record->blacklist[idx].value >= BLACKLIST_MAX) {
+      return;
+    }
     auto cnt = ++record->blacklist[idx].value;
     if (cnt >= BLACKLIST_MAX) {
       if (verbose) {
         const char *fname = func_name_from_pc(pc);
         printf("Blacklist pc %p %s\n", pc, fname);
       }
-      if (pc->op == OP_FUNC) {
-        pc->op = OP_IFUNC;
-      } else if (verbose) {
-        const char *fname = func_name_from_pc(pc);
-        printf("Could not blacklist %s %s\n", bc_names[pc->op], fname);
-      }
-      hm_del(record->blacklist, pc);
+      record->blacklist[idx].value = BLACKLIST_MAX;
     }
     return;
   }
@@ -173,13 +175,14 @@ static slot add_const(vm_state *state, gc_obj value) {
                              __VA_ARGS__})                                     \
   IR_PRAGMA_RESTORE
 
-static void vm_add_snap(vm_state *state, bc *pc) {
+static void vm_add_snap(vm_state *state, bc *pc, uint8_t argcnt) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   snap sn = {
       .pc = pc,
       .offset = ts->stack_off,
       .ir = arrlen(cur_trace->ins),
+      .argcnt = argcnt,
       .depth = ts->depth,
       .exits = 0,
       .trace = cur_trace,
@@ -452,14 +455,14 @@ static void record_abort(vm_state *state, void **op_table, const char *msg) {
   clear_trace_state(ts);
 }
 static void record_finish(bc *pc, vm_state *state, void **op_table,
-                          const char *msg) {
+                          const char *msg, uint8_t argcnt) {
   if (verbose) {
     printf("Record stop: %s\n", msg);
   }
   *op_table = state->impls;
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
-  vm_add_snap(state, pc);
+  vm_add_snap(state, pc, argcnt);
   box_closure_flonums(cur_trace);
   dce(cur_trace);
   cur_trace->fn =
@@ -623,11 +626,14 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
   return res;
 }
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
-                                void *op_table);
+                                void *op_table, uint8_t argcnt);
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
-                                void *op_table) {
+                                void *op_table, uint8_t argcnt) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
+  if (record_pc_blacklisted(&state->record, pc)) {
+    return op_table;
+  }
   if (arrlen(cur_trace->ins) <= ts->start_record_size) {
     return op_table;
   }
@@ -658,7 +664,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
     cur_trace->link = match.trace;
     cur_trace->link_entry_snap = match.matched ? 1 : 0;
     record_finish(pc, state, &op_table,
-                  ts->depth != 0 ? "up-recursion" : "root loop");
+                  ts->depth != 0 ? "up-recursion" : "root loop", argcnt);
     return op_table;
   }
   if (pc != ts->start_ins && cnt >= 10) {
@@ -691,9 +697,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto jmp_pc = pc + 1;                                                      \
     bool taken_ = (TAKEN);                                                     \
     bc *next_pc = taken_ ? jmp_pc + 1 : jmp_pc + jmp_pc->data;                 \
-    vm_add_snap(state, taken_ ? jmp_pc + jmp_pc->data : jmp_pc + 1);           \
+    vm_add_snap(state, taken_ ? jmp_pc + jmp_pc->data : jmp_pc + 1, argcnt);  \
     add_inst(state, (GUARD));                                                  \
-    vm_add_snap(state, next_pc);                                               \
+    vm_add_snap(state, next_pc, argcnt);                                       \
   } while (0)
 
 #define RECORD_BIN_ARITH(OP_CODE, EMIT_FN)                                     \
@@ -807,12 +813,12 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       if (cur_trace->parent_snap && seen_downrec) {
         clear_trace_state(ts);
         free_trace(cur_trace);
-        record_start(state, pc, *pc, stack);
+        record_start(state, pc, *pc, stack, argcnt);
         return record(*pc, pc, stack, state, op_table, argcnt);
       }
       if (downrec_trace && seen_downrec && at_trace_start) {
         cur_trace->link = cur_trace;
-        record_finish(pc, state, &op_table, "downrec");
+        record_finish(pc, state, &op_table, "downrec", argcnt);
         instr = *pc;
         break;
       }
@@ -830,7 +836,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                       .type = FIXNUM_TAG);
       add_inst(state, ins);
       set_stack(state, old_pc->reg, res);
-      vm_add_snap(state, ra);
+      vm_add_snap(state, ra, argcnt);
       arrput(ts->downrec, pc);
     } else {
       ts->depth--;
@@ -883,7 +889,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
     if (instr.op == OP_FUNC) {
       auto old_ops = op_table;
-      op_table = check_record_start(pc, stack, state, op_table);
+      op_table = check_record_start(pc, stack, state, op_table, argcnt);
       if (op_table != old_ops) {
         instr = *pc;
       }
@@ -910,11 +916,13 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     if (cur_trace->parent_snap) {
       cur_trace->link = match.trace;
       cur_trace->link_entry_snap = match.matched ? 1 : 0;
-      record_finish(pc, state, &op_table, "side trace linked to root trace");
+      record_finish(pc, state, &op_table, "side trace linked to root trace",
+                    argcnt);
       break;
     }
 
     record_abort(state, &op_table, "Root trace to JFUNC");
+    instr = target->start_pc;
 
     break;
   }
@@ -1051,7 +1059,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       add_inst(state, IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val,
                          .type = STRING_TAG));
     }
-    vm_add_snap(state, pc + 1);
+    vm_add_snap(state, pc + 1, argcnt);
     break;
   }
   case OP_GUARD: {
@@ -1154,7 +1162,7 @@ static trace *record_begin_trace(vm_state *state, bc *pc, bc instr) {
 }
 
 static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
-                                   gc_obj *stack) {
+                                   gc_obj *stack, uint8_t argcnt) {
   trace_state *ts = record_trace_state(state);
   // OK! Let's put function arguments in registers.
   // Note these *must* be marked as 'changed', since ARGS aren't saved between
@@ -1182,7 +1190,7 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
   default:
     abort();
   }
-  vm_add_snap(state, pc);
+  vm_add_snap(state, pc, argcnt);
   // Typecheck entry arguments up-front so flonums can target the checked
   // value.
   switch (instr.op) {
@@ -1210,11 +1218,12 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
   default:
     abort();
   }
-  vm_add_snap(state, pc);
+  vm_add_snap(state, pc, argcnt);
   ts->start_record_size = arrlen(record_current_trace(state)->ins);
 }
 
-void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack) {
+void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
+                  uint8_t argcnt) {
 
   if (verbose) {
     const char *fname = func_name_from_pc(pc);
@@ -1225,11 +1234,11 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack) {
   trace_state *ts = record_trace_state(state);
   record_current_trace(state)->kind = TRACE_ROOT;
   ts->poly_entry = nullptr;
-  record_seed_entry_args(state, pc, instr, stack);
+  record_seed_entry_args(state, pc, instr, stack, argcnt);
 }
 
 void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                       snap *side_snap) {
+                       snap *side_snap, uint8_t argcnt) {
   if (verbose) {
     printf("Record start poly %i\n", record_trace_count(state));
   }
@@ -1241,11 +1250,11 @@ void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   cur_trace->parent_snap = side_snap;
   ts->depth = side_snap->depth;
   ts->poly_entry = side_snap;
-  record_seed_entry_args(state, pc, instr, stack);
+  record_seed_entry_args(state, pc, instr, stack, argcnt);
 }
 
 void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                       snap *side_snap) {
+                       snap *side_snap, uint8_t argcnt) {
   if (verbose) {
     printf("Record start side %i\n", record_trace_count(state));
   }
@@ -1293,7 +1302,7 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   // We set this last, since snapshots have absolute indexs, and set_stack is
   // relative to stack_off.
   ts->stack_off = side_snap->offset;
-  vm_add_snap(state, pc);
+  vm_add_snap(state, pc, argcnt);
 
   // Insert initial typechecks for replayed values.
   arr_for_each_idx(side_snap->slots, j) {
@@ -1315,7 +1324,7 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
       set_stack_abs(state, entry->slot, checked);
     }
   }
-  vm_add_snap(state, pc);
+  vm_add_snap(state, pc, argcnt);
   ts->start_record_size = arrlen(record_current_trace(state)->ins);
 }
 

@@ -60,7 +60,8 @@ static bool ir_has_side_effects[] = {
 
 static void print_snap(snap *snap, trace *t, size_t snap_idx) {
   (void)snap_idx;
-  printf("SNAP[ir=%i pc=%p off=%i", snap->ir, snap->pc, snap->offset);
+  printf("SNAP[ir=%i pc=%p off=%i argcnt=%i", snap->ir, snap->pc, snap->offset,
+         snap->argcnt);
   uint64_t frame = snap->offset - 1;
 
   for (uint64_t j = arrlen(snap->slots); j != 0; j--) {

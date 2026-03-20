@@ -47,7 +47,10 @@ static inline uint32_t hotmap_hash(void *pc) {
 }
 
 static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
-                                       void *op_table) {
+                                       void *op_table, uint8_t argcnt) {
+  if (record_pc_blacklisted(&state->record, pc)) {
+    return op_table;
+  }
   uint8_t *hot_loc = &state->hotmap[hotmap_hash(pc)];
   uint8_t prev_hot = *hot_loc;
   *hot_loc -= 1;
@@ -65,7 +68,7 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
     }
 
     *hot_loc = hotmap_cnt;
-    record_start(state, pc, *pc, stack);
+    record_start(state, pc, *pc, stack, argcnt);
     return state->record_impls;
   }
   return op_table;
@@ -342,6 +345,8 @@ static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
 static inline bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack,
                              gc_obj func) {
   (void)state;
+  (void)pc;
+  (void)stack;
   auto bfunc = to_func(func);
   return (bc *)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
 }
@@ -358,6 +363,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   *pc = res.snap->pc;
   *instr = **pc;
   *stack = res.stack;
+  *argcnt = res.snap->argcnt;
   // printf("Exit trace %i snap ir %i\n", res.snap->trace->num, res.snap->ir);
 
   // If we're exiting to a JFUNC, it means we've failed some check at
@@ -367,9 +373,6 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
     auto trace = traces[(*pc)->data];
     *instr = trace->start_pc;
     assert(instr->op != OP_JFUNC);
-    if (instr->op == OP_FUNC) {
-      *argcnt = instr->reg;
-    }
   }
   // Check for side trace start.
   if (res.snap->exits < 255) {
@@ -400,9 +403,9 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
         printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
       }
       if (is_poly_trace) {
-        record_start_poly(state, *pc, *instr, *stack, res.snap);
+        record_start_poly(state, *pc, *instr, *stack, res.snap, *argcnt);
       } else {
-        record_start_side(state, *pc, *instr, *stack, res.snap);
+        record_start_side(state, *pc, *instr, *stack, res.snap, *argcnt);
       }
       return state->record_impls;
     }
@@ -551,7 +554,7 @@ OP(FUNC) {
 
   check_expand_stack(state, &stack);
   auto old_ops = op_table;
-  op_table = check_record_start(pc, stack, state, op_table);
+  op_table = check_record_start(pc, stack, state, op_table, argcnt);
   if (op_table != old_ops) {
     instr = *pc;
   }
@@ -574,8 +577,16 @@ OP(IFUNC) {
 }
 
 OP(JFUNC) {
-  // TODO argcnt check - no, will be put in trace itself!
-  auto f = instr.data;
+  auto trace = state->record.traces[instr.data];
+  auto start = trace->start_pc;
+  if (start.op == OP_FUNC && !check_arity(state, stack, pc, start, argcnt,
+                                          false)) {
+    pc = next_op(pc);
+    dispatch_next(pc, stack);
+  }
+  if (start.op == OP_IFUNC) {
+    check_arity(state, stack, pc, start, argcnt, true);
+  }
   op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
 
   /* if ((*pc).op != instr.op) { */

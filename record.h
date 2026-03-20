@@ -42,9 +42,11 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack,
                             struct vm_state *state, void *op_table,
                             uint8_t argcnt);
 void record_init(record_state *record);
-void record_start(struct vm_state *state, bc *pc, bc instr, gc_obj *stack);
+void record_start(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
+                  uint8_t argcnt);
 void record_start_poly(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                       snap *side_snap);
+                       snap *side_snap, uint8_t argcnt);
 void record_start_side(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                       snap *side_snap);
+                       snap *side_snap, uint8_t argcnt);
+bool record_pc_blacklisted(record_state *record, bc *pc);
 void free_traces(struct vm_state *state);
