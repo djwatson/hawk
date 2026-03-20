@@ -170,7 +170,9 @@ static inline bool ins_uses_freg(ir_ins const *ins) {
   return ins->type == FLONUM_TAG;
 }
 
-static inline bool is_fpr_reg(uint8_t reg) { return reg >= FPR_REG_START; }
+static inline bool is_fpr_reg(uint8_t reg) {
+  return reg >= FPR_REG_START && reg != REG_NONE;
+}
 typedef struct {
   bool spilled;
   uint8_t reg;
@@ -1295,16 +1297,12 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     case IR_REF:
     case IR_ARG:
     case IR_NOP:
-      break;
     case IR_PMOV:
       break;
     case IR_TYPECHECK: {
       emit_typecheck(s, t, op, cur_snap, arg0_reg);
-      if (out_reg == REG_NONE) {
-      } else if (is_fpr_reg(out_reg)) {
+      if (is_fpr_reg(out_reg)) {
         emit_unbox_flonum(s, arg0_reg, out_reg);
-      } else {
-        emit_mov(s, out_reg, arg0_reg);
       }
       break;
     }

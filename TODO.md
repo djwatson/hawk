@@ -8,8 +8,7 @@
 * simplex is slower??? bad tracing
 
 * browse has broken loopback linking - spilled somehow??
-   * need to refactor IR_TYPECHECK
-* need to refactor vm & recorder
+
 * ugh need to put back faster VM - things like browse too slow.
   * this is just inlining stuff I think.
 
