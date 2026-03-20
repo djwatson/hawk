@@ -4,15 +4,15 @@
 
 * get r5rs scm working
    * mostly works, reader/ports need to get working.
-* simplex is breaking argcnt somehow
 * simplex is slower??? bad tracing
-
-* browse has broken loopback linking - spilled somehow??
 
 * ugh need to put back faster VM - things like browse too slow.
   * this is just inlining stuff I think.
 
 * probably need to fix closure conversion at some point
+
+* ugh typechecking - currently IR_PMOV and IR_ARG need auto-update types?
+  lazy typechecking makes this tough??? maybe we just need to set it for IR_PMOV, NOT copying the previous type?
 
 ## JIT impl
 

@@ -277,6 +277,9 @@ static void set_typecheck_guard(trace *t, uint16_t typecheck_loc) {
   auto src = &t->ins[ins->op1.loc];
   if (src->op == IR_ARG || src->op == IR_PMOV) {
     src->guard = true;
+    if (ins->type != FLONUM_TAG) {
+      src->type = ins->type;
+    }
   }
 }
 
