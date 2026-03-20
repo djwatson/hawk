@@ -1100,89 +1100,44 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       printf("Record abort: too long or too deep\n");
     }
     record_abort(state);
-    op_func impl = state->impls[pc->op];
-    MUSTTAIL return impl(*pc, pc, stack, state, state->impls, argcnt);
+    op_table = state->impls;
+    goto done;
   }
 
   switch (instr.op) {
-  // Begin opcodes
-  case OP_ADD: {
-    auto v1 = stack_load(state, stack, instr.v1, true);
-    auto v2 = stack_load(state, stack, instr.v2, true);
-    auto res = emit_ov_math_add(state, v1, v2);
-    set_stack_top(state, instr.reg + 1);
-    stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
-    break;
+    // Begin opcodes
+#define RECORD_BIN_ARITH(OP_CODE, EMIT_FN)                                     \
+  case OP_##OP_CODE: {                                                         \
+    auto v1 = stack_load(state, stack, instr.v1, true);                        \
+    auto v2 = stack_load(state, stack, instr.v2, true);                        \
+    auto res = EMIT_FN(state, v1, v2);                                         \
+    set_stack_top(state, instr.reg + 1);                                       \
+    stack_save(state, stack, instr.reg, res);                                  \
+    pc = next_op(pc);                                                          \
+    break;                                                                     \
   }
-  case OP_SUB: {
-    auto v1 = stack_load(state, stack, instr.v1, true);
-    auto v2 = stack_load(state, stack, instr.v2, true);
-    auto res = emit_ov_math_sub(state, v1, v2);
-    set_stack_top(state, instr.reg + 1);
-    stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
-    break;
+
+    RECORD_BIN_ARITH(ADD, emit_ov_math_add)
+    RECORD_BIN_ARITH(SUB, emit_ov_math_sub)
+    RECORD_BIN_ARITH(MUL, emit_ov_math_mul)
+    RECORD_BIN_ARITH(DIV, emit_ov_math_div)
+    RECORD_BIN_ARITH(QUOTIENT, emit_ov_math_quotient)
+    RECORD_BIN_ARITH(MOD, emit_ov_math_mod)
+#undef RECORD_BIN_ARITH
+#define RECORD_UNARY_MATH(OP_CODE, EMIT_FN)                                    \
+  case OP_##OP_CODE: {                                                         \
+    auto v1 = stack_load(state, stack, instr.data, true);                      \
+    auto res = EMIT_FN(state, v1);                                             \
+    set_stack_top(state, instr.reg + 1);                                       \
+    stack_save(state, stack, instr.reg, res);                                  \
+    pc = next_op(pc);                                                          \
+    break;                                                                     \
   }
-  case OP_MUL: {
-    auto v1 = stack_load(state, stack, instr.v1, true);
-    auto v2 = stack_load(state, stack, instr.v2, true);
-    auto res = emit_ov_math_mul(state, v1, v2);
-    set_stack_top(state, instr.reg + 1);
-    stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
-    break;
-  }
-  case OP_DIV: {
-    auto v1 = stack_load(state, stack, instr.v1, true);
-    auto v2 = stack_load(state, stack, instr.v2, true);
-    auto res = emit_ov_math_div(state, v1, v2);
-    set_stack_top(state, instr.reg + 1);
-    stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
-    break;
-  }
-  case OP_QUOTIENT: {
-    auto v1 = stack_load(state, stack, instr.v1, true);
-    auto v2 = stack_load(state, stack, instr.v2, true);
-    auto res = emit_ov_math_quotient(state, v1, v2);
-    set_stack_top(state, instr.reg + 1);
-    stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
-    break;
-  }
-  case OP_MOD: {
-    auto v1 = stack_load(state, stack, instr.v1, true);
-    auto v2 = stack_load(state, stack, instr.v2, true);
-    auto res = emit_ov_math_mod(state, v1, v2);
-    stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
-    break;
-  }
-  case OP_INEXACT: {
-    auto v1 = stack_load(state, stack, instr.data, true);
-    auto res = scm_inexact(state, v1);
-    set_stack_top(state, instr.reg + 1);
-    stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
-    break;
-  }
-  case OP_EXACT: {
-    auto v1 = stack_load(state, stack, instr.data, true);
-    auto res = scm_exact(state, v1);
-    set_stack_top(state, instr.reg + 1);
-    stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
-    break;
-  }
-  case OP_TRUNCATE: {
-    auto v1 = stack_load(state, stack, instr.data, true);
-    auto res = scm_truncate(state, v1);
-    set_stack_top(state, instr.reg + 1);
-    stack_save(state, stack, instr.reg, res);
-    pc = next_op(pc);
-    break;
-  }
+
+    RECORD_UNARY_MATH(INEXACT, scm_inexact)
+    RECORD_UNARY_MATH(EXACT, scm_exact)
+    RECORD_UNARY_MATH(TRUNCATE, scm_truncate)
+#undef RECORD_UNARY_MATH
   case OP_CONST: {
     auto c = const_load(state, pc, instr.data);
     stack_save(state, stack, instr.reg, c);
@@ -1430,9 +1385,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_HALT:
     return halt(state, stack);
   default:
-      abort();
-      break;
+    abort();
+    break;
   }
+done:
   op_func impl = state->impls[instr.op];
   MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
 }
