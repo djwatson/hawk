@@ -108,10 +108,6 @@ static inline uint32_t record_trace_count(vm_state *state) {
   return arrlen(state->record.traces);
 }
 
-static inline void record_append_trace(vm_state *state, trace *trace) {
-  arrput(state->record.traces, trace);
-}
-
 static void snapshot_live_slots(trace_state *ts, snap *snap) {
   arr_for_each_idx(ts->stack, i) {
     sentry entry = ts->stack[i];
@@ -312,21 +308,9 @@ static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   auto c = *(gc_obj *)(pc - pc->data);
   return add_const(state, c);
 }
-static inline bc *vmgen_jmp_advance(bc *pc) { return pc; }
 static void record_abort(vm_state *state);
 static slot convert_to_flonum(vm_state *state, slot v1);
 static slot convert_to_fixnum(vm_state *state, slot v1);
-static inline bc *apply_call(vm_state *state, gc_obj *stack, bc *pc,
-                             void **op_table, uint8_t *argcnt) {
-  (void)stack;
-  (void)argcnt;
-  if (verbose) {
-    printf("Record abort: can't record APPLY\n");
-  }
-  record_abort(state);
-  *op_table = state->impls;
-  return pc;
-}
 DEFINE_RECORD_NUMERIC_BINOP_COERCED(add, IR_ADD)
 static slot convert_to_flonum(vm_state *state, slot v1) {
   auto t = record_current_trace(state);
@@ -485,7 +469,7 @@ static void record_finish(bc *pc, vm_state *state) {
     // Only install polymorphic chaining after successful recording.
     ts->poly_entry->trace->next = cur_trace;
   }
-  record_append_trace(state, cur_trace);
+  arrput(state->record.traces, cur_trace);
   clear_trace_state(ts);
   record_set_current_trace(state, nullptr);
 }
@@ -739,9 +723,6 @@ static slot closure_alloc(vm_state *state, gc_obj *stack, bc *pc) {
 // Nothing necessary for record - we will check in emit_snapshot - checks will
 // be elided if we never hit a snapshot!
 static inline void check_expand_stack(vm_state *state, gc_obj **stack) {}
-static inline void fail_if_not_closure(slot sym) {
-  // TODO?
-}
 static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
                             uint8_t len) {
   slot tail = add_const(state, NIL);
@@ -827,7 +808,7 @@ static bc *branch_if_op(vm_state *state, bc *pc, gc_obj *stack,
   return pc;
 }
 static slot closure_get(vm_state *state, gc_obj *stack, slot clo, uint8_t pos,
-                        uint8_t clo_idx) {
+                       uint8_t clo_idx) {
   if (clo.constant) {
     auto trace = record_current_trace(state);
     auto c = to_closure(trace->consts[clo.loc]);
@@ -843,30 +824,6 @@ static slot closure_get(vm_state *state, gc_obj *stack, slot clo, uint8_t pos,
   ir_ins ins = IR(.op = IR_LOAD, .op1 = clo, .op2 = c_pos,
                   .type = (uint8_t)get_type_tag(loaded));
   return add_inst(state, ins);
-}
-static inline slot char_integer(vm_state *state, slot s) {
-  auto t = record_current_trace(state);
-  auto ty = get_slot_type(t, s);
-  if (ty == CHAR_TAG) {
-    if (s.constant) {
-      return add_const(state, tag_fixnum(to_char(t->consts[s.loc])));
-    }
-    return add_inst(state,
-                    IR(.op = IR_CHAR_INTEGER, .op1 = s, .type = FIXNUM_TAG));
-  }
-  abort();
-}
-static inline slot integer_char(vm_state *state, slot s) {
-  auto t = record_current_trace(state);
-  auto ty = get_slot_type(t, s);
-  if (ty == FIXNUM_TAG) {
-    if (s.constant) {
-      return add_const(state, tag_char(to_fixnum(t->consts[s.loc])));
-    }
-    return add_inst(state,
-                    IR(.op = IR_INTEGER_CHAR, .op1 = s, .type = CHAR_TAG));
-  }
-  abort();
 }
 static slot return_address(vm_state *state, bc *ra) {
   return add_const(state, tag_return_address(ra));
@@ -1138,6 +1095,22 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     RECORD_UNARY_MATH(EXACT, scm_exact)
     RECORD_UNARY_MATH(TRUNCATE, scm_truncate)
 #undef RECORD_UNARY_MATH
+  #define RECORD_BIN_CMP(OP_CODE, EMIT_FN)                                    \
+  case OP_##OP_CODE: {                                                         \
+    auto v1 = stack_load(state, stack, instr.v1, true);                        \
+    auto v2 = stack_load(state, stack, instr.v2, true);                        \
+    auto res = EMIT_FN(state, pc, stack, v1, v2);                             \
+    pc = branch_if_op(state, pc, stack, res);                                  \
+    break;                                                                     \
+  }
+
+    RECORD_BIN_CMP(JLT, emit_math_cmp_lt)
+    RECORD_BIN_CMP(JGT, emit_math_cmp_gt)
+    RECORD_BIN_CMP(JLTE, emit_math_cmp_lte)
+    RECORD_BIN_CMP(JGTE, emit_math_cmp_gte)
+    RECORD_BIN_CMP(JEQ, emit_math_cmp_jeq)
+    RECORD_BIN_CMP(JEQV, emit_math_cmp_jeqv)
+#undef RECORD_BIN_CMP
   case OP_CONST: {
     auto c = const_load(state, pc, instr.data);
     stack_save(state, stack, instr.reg, c);
@@ -1238,48 +1211,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     op_func impl = ((op_func *)op_table)[instr.op];
     MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
   }
-  case OP_JLT: {
-    auto v1 = stack_load(state, stack, instr.v1, true);
-    auto v2 = stack_load(state, stack, instr.v2, true);
-    auto res = emit_math_cmp_lt(state, pc, stack, v1, v2);
-    pc = branch_if_op(state, pc, stack, res);
-    break;
-  }
-  case OP_JGT: {
-    auto v1 = stack_load(state, stack, instr.v1, true);
-    auto v2 = stack_load(state, stack, instr.v2, true);
-    auto res = emit_math_cmp_gt(state, pc, stack, v1, v2);
-    pc = branch_if_op(state, pc, stack, res);
-    break;
-  }
-  case OP_JLTE: {
-    auto v1 = stack_load(state, stack, instr.v1, true);
-    auto v2 = stack_load(state, stack, instr.v2, true);
-    auto res = emit_math_cmp_lte(state, pc, stack, v1, v2);
-    pc = branch_if_op(state, pc, stack, res);
-    break;
-  }
-  case OP_JGTE: {
-    auto v1 = stack_load(state, stack, instr.v1, true);
-    auto v2 = stack_load(state, stack, instr.v2, true);
-    auto res = emit_math_cmp_gte(state, pc, stack, v1, v2);
-    pc = branch_if_op(state, pc, stack, res);
-    break;
-  }
-  case OP_JEQ: {
-    auto v1 = stack_load(state, stack, instr.v1, true);
-    auto v2 = stack_load(state, stack, instr.v2, true);
-    auto res = emit_math_cmp_jeq(state, pc, stack, v1, v2);
-    pc = branch_if_op(state, pc, stack, res);
-    break;
-  }
-  case OP_JEQV: {
-    auto v1 = stack_load(state, stack, instr.v1, true);
-    auto v2 = stack_load(state, stack, instr.v2, true);
-    auto res = emit_math_cmp_jeqv(state, pc, stack, v1, v2);
-    pc = branch_if_op(state, pc, stack, res);
-    break;
-  }
   case OP_IF: {
     auto v = stack_load(state, stack, instr.data, false);
     auto res = emit_if_branch(state, pc, stack, v);
@@ -1287,12 +1218,11 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_JMP: {
-    pc = vmgen_jmp_advance(pc);
+    pc = pc;
     break;
   }
   case OP_CLOSURE_GET: {
     auto clo = stack_load(state, stack, instr.v1, false);
-    fail_if_not_closure(clo);
     auto slot = instr.v2;
     auto res = closure_get(state, stack, clo, slot, instr.v1);
     stack_save(state, stack, instr.reg, res);
@@ -1331,7 +1261,13 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_APPLY: {
-    pc = apply_call(state, stack, pc, &op_table, &argcnt);
+    (void)stack;
+    (void)argcnt;
+    if (verbose) {
+      printf("Record abort: can't record APPLY\n");
+    }
+    record_abort(state);
+    *op_table = state->impls;
     break;
   }
   case OP_ALLOC: {
@@ -1370,15 +1306,39 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_CHAR_INTEGER: {
     auto v1 = stack_load(state, stack, instr.v1, true);
-    auto res = char_integer(state, v1);
-    stack_save(state, stack, instr.reg, res);
+    auto t = record_current_trace(state);
+    auto ty = get_slot_type(t, v1);
+    if (ty == CHAR_TAG) {
+      slot res;
+      if (v1.constant) {
+        res = add_const(state, tag_fixnum(to_char(t->consts[v1.loc])));
+      } else {
+        res = add_inst(state, IR(.op = IR_CHAR_INTEGER, .op1 = v1,
+                                 .type = FIXNUM_TAG));
+      }
+      stack_save(state, stack, instr.reg, res);
+    } else {
+      abort();
+    }
     pc = next_op(pc);
     break;
   }
   case OP_INTEGER_CHAR: {
     auto v1 = stack_load(state, stack, instr.v1, true);
-    auto res = integer_char(state, v1);
-    stack_save(state, stack, instr.reg, res);
+    auto t = record_current_trace(state);
+    auto ty = get_slot_type(t, v1);
+    if (ty == FIXNUM_TAG) {
+      slot res;
+      if (v1.constant) {
+        res = add_const(state, tag_char(to_fixnum(t->consts[v1.loc])));
+      } else {
+        res = add_inst(state, IR(.op = IR_INTEGER_CHAR, .op1 = v1,
+                                 .type = CHAR_TAG));
+      }
+      stack_save(state, stack, instr.reg, res);
+    } else {
+      abort();
+    }
     pc = next_op(pc);
     break;
   }
