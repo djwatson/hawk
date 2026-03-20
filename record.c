@@ -73,7 +73,7 @@ static void free_trace(trace *trace) {
   arrfree(trace->gc_const_locs);
   free(trace);
 }
-static inline trace_state *record_trace_state(vm_state *state) {
+static trace_state *record_trace_state(vm_state *state) {
   return &state->record.trace_state;
 }
 static void print_record_debug(bc *pc, const char *code, vm_state *state) {
@@ -88,15 +88,15 @@ static void print_record_debug(bc *pc, const char *code, vm_state *state) {
   printf("\n");
 }
 
-static inline trace *record_current_trace(vm_state *state) {
+static trace *record_current_trace(vm_state *state) {
   return state->record.cur_trace;
 }
 
-static inline void record_set_current_trace(vm_state *state, trace *trace) {
+static void record_set_current_trace(vm_state *state, trace *trace) {
   state->record.cur_trace = trace;
 }
 
-static inline uint32_t record_trace_count(vm_state *state) {
+static uint32_t record_trace_count(vm_state *state) {
   return arrlen(state->record.traces);
 }
 
@@ -231,7 +231,7 @@ static void set_stack_abs(vm_state *state, uint16_t abs_slot, slot val) {
   };
 }
 
-static inline void set_stack_len(trace_state *ts, uint32_t len) {
+static void set_stack_len(trace_state *ts, uint32_t len) {
   ensure_stack_len(ts, ts->stack_off + len);
   arrlen_set(ts->stack, ts->stack_off + len);
 }
@@ -291,7 +291,7 @@ static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos,
 static void stack_save(vm_state *state, gc_obj *stack, uint8_t pos, slot res) {
   set_stack(state, pos, res);
 }
-static inline void set_stack_top(vm_state *state, uint8_t top) {
+static void set_stack_top(vm_state *state, uint8_t top) {
   trace_state *ts = record_trace_state(state);
   set_stack_len(ts, (uint32_t)top);
 }
@@ -578,7 +578,6 @@ static void return_frame(vm_state *state, bc instr, bc **pc, gc_obj **stack,
 }
 // Nothing necessary for record - we will check in emit_snapshot - checks will
 // be elided if we never hit a snapshot!
-static inline void check_expand_stack(vm_state *state, gc_obj **stack) {}
 static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
                             uint8_t len) {
   slot tail = add_const(state, NIL);
@@ -746,40 +745,6 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
 }
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table);
-static void *jit_func(bc *instr, bc **pc, gc_obj **stack, vm_state *state,
-                      void *op_table, uint8_t *argcnt) {
-  // LINK IT!
-  *instr = **pc;
-  auto cur_trace = record_current_trace(state);
-  // TODO can we clean this up?  side traces spawned from downrec traces aren't
-  // downrec traces!
-  if (is_downrec_trace(record_trace_state(state)) && !cur_trace->parent_snap) {
-    if (verbose) {
-      printf("Record abort: can't downrec to JFUNC\n");
-    }
-    record_abort(state);
-    return state->impls;
-  }
-
-  trace *target = state->record.traces[(*pc)->data];
-  trace_match match = ensure_args_match_trace(state, *stack, target, cur_trace);
-
-  if (cur_trace->parent_snap) {
-    cur_trace->link = match.trace;
-    cur_trace->link_entry_snap = match.matched ? 1 : 0;
-    if (verbose) {
-      printf("Record stop: side trace linked to root trace\n");
-    }
-    record_finish(*pc, state);
-    return state->impls;
-  }
-  // TODO
-  record_abort(state);
-  if (verbose) {
-    printf("Record abort: Root trace to JFUNC\n");
-  }
-  return state->impls;
-}
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table) {
   trace_state *ts = record_trace_state(state);
@@ -980,41 +945,60 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     op_table = state->impls;
     break;
   }
-  case OP_FUNC: {
+  case OP_FUNC:
+  case OP_IFUNC: {
     if (!check_arity(state, stack, instr, argcnt)) {
       break;
     }
 
-    check_expand_stack(state, &stack);
-    auto old_ops = op_table;
-    op_table = check_record_start(pc, stack, state, op_table);
-    if (op_table != old_ops) {
-      instr = *pc;
+    if (instr.op == OP_FUNC) {
+      auto old_ops = op_table;
+      op_table = check_record_start(pc, stack, state, op_table);
+      if (op_table != old_ops) {
+        instr = *pc;
+      }
     }
-
-    break;
-  }
-  case OP_ARGCNT_ERROR: {
-    check_arity(state, stack, instr, argcnt);
-    break;
-  }
-  case OP_IFUNC: {
-    check_arity(state, stack, instr, argcnt);
-    check_expand_stack(state, &stack);
 
     break;
   }
   case OP_JFUNC: {
     // TODO argcnt check - no, will be put in trace itself!
-    auto f = instr.data;
-    (void)f;
-    op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
+    // LINK IT!
+    instr = *pc;
+    auto cur_trace = record_current_trace(state);
+    // TODO can we clean this up?  side traces spawned from downrec traces
+    // aren't downrec traces!
+    if (is_downrec_trace(record_trace_state(state)) &&
+        !cur_trace->parent_snap) {
+      if (verbose) {
+        printf("Record abort: can't downrec to JFUNC\n");
+      }
+      record_abort(state);
+      op_table = state->impls;
+      break;
+    }
 
-    /* if ((*pc).op != instr.op) { */
-    /*   abort(); */
-    /* } */
-    op_func impl = ((op_func *)op_table)[instr.op];
-    MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
+    trace *target = state->record.traces[pc->data];
+    trace_match match =
+        ensure_args_match_trace(state, stack, target, cur_trace);
+    if (cur_trace->parent_snap) {
+      cur_trace->link = match.trace;
+      cur_trace->link_entry_snap = match.matched ? 1 : 0;
+      if (verbose) {
+        printf("Record stop: side trace linked to root trace\n");
+      }
+      record_finish(pc, state);
+      op_table = state->impls;
+      break;
+    }
+    // TODO
+    record_abort(state);
+    if (verbose) {
+      printf("Record abort: Root trace to JFUNC\n");
+    }
+    op_table = state->impls;
+
+    break;
   }
   case OP_IF: {
     auto v = stack_load(state, stack, instr.data, false);
@@ -1244,6 +1228,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
     break;
   }
+    // Nothing to record.
+  case OP_ARGCNT_ERROR:
   case OP_HALT:
     break;
   default:
