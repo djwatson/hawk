@@ -2,7 +2,8 @@
 
 ## tests:
 
-* probably need to fix closure conversion at some point
+* un-vmgenning.  Need more cleanup and record.c
+
 * get r5rs scm working
    * mostly works, reader/ports need to get working.
 * simplex is breaking argcnt somehow
@@ -12,6 +13,9 @@
    * need to refactor IR_TYPECHECK
 * need to refactor vm & recorder
 * ugh need to put back faster VM - things like browse too slow.
+  * this is just inlining stuff I think.
+
+* probably need to fix closure conversion at some point
 
 ## JIT impl
 

@@ -88,6 +88,11 @@
     (>= . GTE)
     (<= . LTE)
     (display . WRITE)))
+(define (primcall-arity name)
+  (cond
+    ((memq name '(+ * < > = >= <= quotient truncate-quotient remainder modulo)) 2)
+    ((memq name '(exact->inexact inexact->exact char->integer integer->char display)) 1)
+    (else #f)))
 (define (variable-assigned? var) (vector-ref var 2))
 (define (variable-name var) (vector-ref var 1))
 ;; Inlines primitives, verifies no assigned vars (TODO)
@@ -98,7 +103,7 @@
     (#(app #(ref #(var / #f (core primitive)) #t #f ,ann) (,arg) ,ann2)
       `#(primcall DIV (#(quote 1 ,ann) ,(simple-pass arg)) ,ann))
     (#(app #(ref #(var ,name #f (core primitive)) #t #f ,ann) ,args ,ann2)
-      (guard (assq name primcalls))
+      (guard (and (assq name primcalls) (equal? (length args) (primcall-arity name))))
       `#(primcall ,(cdr (assq name primcalls)) ,(map simple-pass args) ,ann))
     (,else (cont-pass ir simple-pass))))
 
