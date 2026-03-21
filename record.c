@@ -883,6 +883,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto val = stack_load(state, stack, instr.reg, false);
     ir_ins ins = IR(.op = IR_GSET, .op1 = c, .op2 = val);
     add_inst(state, ins);
+    vm_add_snap(state, pc + 1, argcnt);
     break;
   }
   case OP_WRITE: {
