@@ -33,6 +33,7 @@ static inline uint8_t ref_base_tag(uint8_t type_tag) {
 static gc_obj gpr_spills[256];
 static uint64_t fpr_spills[256];
 enum : uint16_t { spill_slot_count = 256 };
+static bool spill_roots_registered;
 
 enum : int32_t {
   alloc_reg_save_stride = 8,
@@ -54,11 +55,9 @@ static void *gc_alloc_ir_slowpath(uint64_t tagged_sz, uint8_t *reg_save,
           (uint64_t const *)(reg_save + alloc_reg_save_slot_offset(reg)), 1);
     }
   }
-  gc_add_root((uint64_t const *)gpr_spills, spill_slot_count);
 
   void *ptr = gc_alloc((uint64_t)(tagged_sz >> FIXNUM_SHIFT));
 
-  gc_remove_root((uint64_t const *)gpr_spills);
   for (uint8_t reg = 0; reg < FPR_REG_START; reg++) {
     if (gpr_mask & (1ULL << reg)) {
       gc_remove_root(
@@ -115,6 +114,10 @@ static void emit_restore_slowpath_regs(emit_state *s) {
 void emit_init_slowpath(emit_state *s) {
   if (s->alloc_slowpath) {
     return;
+  }
+  if (!spill_roots_registered) {
+    gc_add_root((uint64_t const *)gpr_spills, spill_slot_count);
+    spill_roots_registered = true;
   }
   auto alloc_start = (uint8_t *)emit_offset(s);
 
