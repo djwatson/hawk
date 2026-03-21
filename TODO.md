@@ -38,6 +38,9 @@
 
 * currently (cons) calls IR_STORE, but this forces a snapshot-  many more snapshots than really necessary (because we're only storing to NEW memory, we shouldn't need to snapshot).
 
+* we could add a GC_ENSURE.  It wouldn't work for variably sizxed ALLOC, but it would save having to register save/restore for snapshots *at all*, and we could merge all fixed-size allocs to fastpaths!
+  * basically split the *do we have enough memory?* path from the *bump the pointer and allocate* path
+
 # VM impl
 
 * track stack-top

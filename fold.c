@@ -88,6 +88,7 @@ IRFOLDF(fold_cmp_const_lhs) {
 
 IRFOLD(SUB CONST _)
 IRFOLD(DIV CONST _)
+IRFOLD(QUOTIENT CONST _)
 IRFOLD(MOD CONST _)
 IRFOLDF(fold_noncommutative_const_lhs) {
   // Materialize lhs constant to a register so emit can handle lhs as non-const.

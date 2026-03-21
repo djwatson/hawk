@@ -774,7 +774,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_KSHORT: {
-    gc_obj c = (gc_obj){.value = instr.data};
+    gc_obj c = (gc_obj){.value = (int16_t)instr.data};
     auto c_slot = add_const(state, c);
     stack_save(state, stack, instr.reg, c_slot);
     break;
