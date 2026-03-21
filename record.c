@@ -1263,6 +1263,13 @@ void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   record_seed_entry_args(state, pc, instr, stack, argcnt);
 }
 
+static bool replay_parent_guard(snap *side_snap, ir_ins const *old_ins) {
+  bool use_prev_guard =
+      side_snap == &side_snap->trace->snaps[0] &&
+      side_snap->trace->kind == TRACE_SIDE;
+  return use_prev_guard ? old_ins->prev_guard : old_ins->guard;
+}
+
 void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
                        snap *side_snap, uint8_t argcnt) {
   if (verbose) {
@@ -1294,9 +1301,10 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
       slot pmov = pmov_by_parent_id[parent_id];
       if (pmov.constant) {
         auto old_ins = &side_snap->trace->ins[parent_id];
+        bool old_guard = replay_parent_guard(side_snap, old_ins);
         ir_ins pmov_ins = IR(.op = IR_PMOV, .prev_reg = old_ins->reg,
-                             .prev_guard = old_ins->guard,
-                             .guard = old_ins->guard, .type = old_ins->type);
+                             .prev_guard = old_guard, .guard = old_guard,
+                             .type = old_ins->type);
         if (old_ins->spill != SPILL_NONE) {
           pmov_ins.spill = old_ins->spill;
         } else {
@@ -1323,7 +1331,8 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
     auto s = get_sentry_abs(state, entry->slot);
     auto old_ins = &side_snap->trace->ins[entry->val.loc];
     int64_t rel_slot = (int64_t)entry->slot - (int64_t)ts->stack_off;
-    if (old_ins->guard || old_ins->type == FLONUM_TAG) {
+    if (replay_parent_guard(side_snap, old_ins) ||
+        old_ins->type == FLONUM_TAG) {
       // Already typechecked.
       continue;
     }

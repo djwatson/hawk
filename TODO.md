@@ -32,6 +32,10 @@
   
 * We can probably push RSTATE on the stack instead of keeping a register.
 
+* Currently to patch up IR_TYPECHECK we do a forward scan from IR_ARG, 
+  but that's silly, we can just check when we emit if the parent IR_ARG or IR_PMOV needs it
+  when processing IR_TYPECHECK
+
 * currently (cons) calls IR_STORE, but this forces a snapshot-  many more snapshots than really necessary (because we're only storing to NEW memory, we shouldn't need to snapshot).
 
 # VM impl
