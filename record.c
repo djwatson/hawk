@@ -459,12 +459,12 @@ static void record_abort(vm_state *state, void **op_table, const char *msg) {
 }
 static void record_finish(bc *pc, vm_state *state, void **op_table,
                           const char *msg, uint8_t argcnt) {
-  if (verbose) {
-    printf("Record stop: %s\n", msg);
-  }
   *op_table = state->impls;
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
+  if (verbose) {
+    printf("Record stop %i: %s\n", cur_trace->num, msg);
+  }
   vm_add_snap(state, pc, argcnt);
   box_closure_flonums(cur_trace);
   dce(cur_trace);
@@ -554,6 +554,9 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
     bool match = true;
     size_t entry_ir_start = candidate->snaps[0].ir;
     size_t entry_ir_end = candidate->snaps[1].ir;
+    if (arrlast(cur_trace->snaps)->argcnt != candidate->snaps[1].argcnt) {
+      continue;
+    }
 
     for (size_t i = entry_ir_start; i < entry_ir_end; i++) {
       ir_ins *ins = &candidate->ins[i];
