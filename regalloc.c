@@ -124,13 +124,13 @@ void regalloc_collect_next_uses(regalloc_state *s) {
         // This is so snapshots don't affect 'find next use' spilling heuristic.
         if (!val.constant && !s->uses[val.loc]) {
           add_next_use(s, val.loc, cur_snap_end_ir, false, true);
-          auto value_lru =
-              s->t->ins[val.loc].type == FLONUM_TAG ? &fpr_live : &gpr_live;
+          bool flonum = s->t->ins[val.loc].type == FLONUM_TAG;
+          auto value_lru = flonum ? &fpr_live : &gpr_live;
           lru_add(value_lru, val.loc);
+          limit_live_values(s, value_lru,
+                            flonum ? FPR_ALLOCATABLE : GPR_ALLOCATABLE);
         }
       }
-      limit_live_values(s, &gpr_live, GPR_ALLOCATABLE);
-      limit_live_values(s, &fpr_live, FPR_ALLOCATABLE);
       cur_snap_end_ir = cur->ir;
     }
 
