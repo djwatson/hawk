@@ -14,7 +14,7 @@
 #include <pthread.h>
 #endif
 
-static const size_t page_cnt = 1000;
+static const size_t page_cnt = 5000;
 static const size_t msize = page_cnt * 4096;
 
 const char *const reg_names[FPR_REG_END] = {

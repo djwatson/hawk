@@ -721,7 +721,7 @@ OP(ALLOC) {
   assert((sz & 0x7) == 0);
 
   auto obj = (gc_header *)gc_alloc(sz);
-  memset(obj, 0, (size_t)sz);
+  // memset(obj, 0, (size_t)sz);
   obj->type = type;
   auto ptr =
       type < 8 ? tag_header(obj, (uint8_t)type) : tag_header(obj, PTR_TAG);

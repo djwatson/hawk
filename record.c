@@ -994,20 +994,27 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto clo = add_inst(state, ins);
 
     // Initialize closure length.
-    slot len_off = add_const(state, tag_fixnum(0));
+    slot zero = add_const(state, tag_fixnum(0));
+    slot len_off = zero;
     slot len_val = add_const(state, tag_fixnum((int64_t)capture_cnt));
     auto len_ref =
         add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = len_off));
     add_inst(state, IR(.op = IR_STORE, .op1 = len_ref, .op2 = len_val,
                        .type = CLOSURE_TAG));
 
-    // Only seed slot 0 with the function label; closure captures are
-    // initialized via explicit CLOSURE_SET bytecodes.
+    // Seed slot 0 with the function label and zero-fill the remaining slots.
     auto label = stack_load(state, stack, start, false);
     slot c_pos = add_const(state, tag_fixnum(0 + 1));
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
     add_inst(state,
              IR(.op = IR_STORE, .op1 = ref, .op2 = label, .type = CLOSURE_TAG));
+    for (uint64_t i = 1; i < capture_cnt; i++) {
+      slot capture_pos = add_const(state, tag_fixnum((int64_t)(i + 1)));
+      auto capture_ref =
+          add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = capture_pos));
+      add_inst(state, IR(.op = IR_STORE, .op1 = capture_ref, .op2 = zero,
+                         .type = CLOSURE_TAG));
+    }
 
     stack_save(state, stack, instr.reg, clo);
     break;
