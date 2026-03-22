@@ -14,6 +14,7 @@
 #include "asm.h"
 #include "comments.h"
 #include "disassemble.h"
+#include "foreign.h"
 #include "gc.h"
 #include "hawk.h"
 #include "ir.h"
@@ -222,6 +223,11 @@ static inline intptr_t spill_base(uint8_t type) {
                                        : (void *)gpr_spills);
 }
 
+static bool slot_is_zero(trace *t, slot s) {
+  return s.constant && is_fixnum(t->consts[s.loc]) &&
+         to_fixnum(t->consts[s.loc]) == 0;
+}
+
 static void mark_live_reg(bool live_regs[MAX_REG], uint64_t *live_gpr_mask,
                           uint8_t reg) {
   if (reg == REG_NONE || live_regs[reg]) {
@@ -310,6 +316,152 @@ static value_loc snap_entry_loc(trace const *t, uint16_t snap_idx,
 
 static uint8_t ir_output_reg(trace const *t, uint16_t ir_idx) {
   return t->ins[ir_idx].reg;
+}
+
+static inline uint8_t emit_arg_reg(slot *args, uint8_t *arg_regs,
+                                   uint8_t arg_count, slot target);
+static double slot_flonum_constant(trace *t, slot v);
+
+typedef struct {
+  slot value;
+  foreign_type type;
+} ccall_arg;
+
+static uint8_t emit_collect_ccall_args(trace *t, slot chain,
+                                       foreign_sig const *sig,
+                                       ccall_arg *args) {
+  uint8_t count = 0;
+  while (!slot_is_zero(t, chain)) {
+    if (count >= sig->argcnt || chain.constant) {
+      abort();
+    }
+    auto carg = &t->ins[chain.loc];
+    if (carg->op != IR_CARG) {
+      abort();
+    }
+    args[count] =
+        (ccall_arg){.value = carg->op1, .type = sig->arg_types[count]};
+    chain = carg->op2;
+    count++;
+  }
+  if (count != sig->argcnt) {
+    abort();
+  }
+  return count;
+}
+
+static size_t collect_live_caller_saved_regs(trace *t, regalloc_state *ra_state,
+                                             uint16_t op_cnt_idx,
+                                             uint8_t *regs) {
+  bool live_regs[MAX_REG];
+  uint64_t live_gpr_mask;
+  collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs, &live_gpr_mask);
+  size_t count = 0;
+  for (uint8_t reg = 0; reg < FPR_REG_END; reg++) {
+    if (live_regs[reg] && !asm_is_callee_saved(reg)) {
+      regs[count++] = reg;
+    }
+  }
+  return count;
+}
+
+static void emit_ccall_arg_value(emit_state *s, trace *t, ccall_arg const *arg,
+                                 uint8_t src_reg, uint8_t dst_reg) {
+  switch (arg->type) {
+  case FOREIGN_TYPE_DOUBLE:
+    if (arg->value.constant) {
+      emit_fmov_constant(s, dst_reg, slot_flonum_constant(t, arg->value));
+    } else {
+      emit_fmov(s, dst_reg, src_reg);
+    }
+    return;
+  case FOREIGN_TYPE_STRING: {
+    int64_t str_offset = (int64_t)offsetof(string_s, str) - PTR_TAG;
+    if (arg->value.constant) {
+      emit_heap_constant(s, t, dst_reg, slot_gc_obj(t, arg->value));
+      emit_add_constant(s, dst_reg, dst_reg, str_offset);
+    } else {
+      emit_add_constant(s, dst_reg, src_reg, str_offset);
+    }
+    return;
+  }
+  case FOREIGN_TYPE_UINT8:
+  case FOREIGN_TYPE_INT32:
+  case FOREIGN_TYPE_INT64:
+  case FOREIGN_TYPE_UINT64:
+    if (arg->value.constant) {
+      emit_mov64(s, dst_reg, to_fixnum(slot_gc_obj(t, arg->value)));
+    } else {
+      emit_sar_constant(s, dst_reg, src_reg, FIXNUM_SHIFT);
+    }
+    return;
+  default:
+    abort();
+  }
+}
+
+static void emit_ccall_result(emit_state *s, uint8_t dst_reg, foreign_type type) {
+  switch (type) {
+  case FOREIGN_TYPE_DOUBLE:
+    if (dst_reg != asm_foreign_call_ret_fpr()) {
+      emit_fmov(s, dst_reg, asm_foreign_call_ret_fpr());
+    }
+    return;
+  case FOREIGN_TYPE_UINT8:
+    emit_and_constant(s, dst_reg, RET_REG, 0xff);
+    emit_shl_constant(s, dst_reg, dst_reg, FIXNUM_SHIFT);
+    return;
+  case FOREIGN_TYPE_INT32:
+    emit_shl_constant(s, dst_reg, RET_REG, 32);
+    emit_sar_constant(s, dst_reg, dst_reg, 32);
+    emit_shl_constant(s, dst_reg, dst_reg, FIXNUM_SHIFT);
+    return;
+  case FOREIGN_TYPE_INT64:
+  case FOREIGN_TYPE_UINT64:
+    if (dst_reg != RET_REG) {
+      emit_mov(s, dst_reg, RET_REG);
+    }
+    emit_shl_constant(s, dst_reg, dst_reg, FIXNUM_SHIFT);
+    return;
+  default:
+    abort();
+  }
+}
+
+static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
+                       uint16_t op_cnt_idx, ir_ins const *op, slot *args,
+                       uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg) {
+  foreign_sig sig;
+  foreign_parse_sig(slot_gc_obj(t, op->op1), &sig);
+  ccall_arg call_args[UINT8_MAX];
+  uint8_t call_arg_count = emit_collect_ccall_args(t, op->op2, &sig, call_args);
+  uint8_t save_regs[FPR_REG_END];
+  size_t save_count =
+      collect_live_caller_saved_regs(t, ra_state, op_cnt_idx, save_regs);
+  emit_push_regs(s, save_regs, save_count, true);
+
+  uint8_t next_gpr = 0;
+  uint8_t next_fpr = 0;
+  for (uint8_t i = 0; i < call_arg_count; i++) {
+    auto *arg = &call_args[i];
+    uint8_t src_reg = emit_arg_reg(args, arg_regs, arg_count, arg->value);
+    if (!arg->value.constant && src_reg == REG_NONE) {
+      abort();
+    }
+    uint8_t dst = arg->type == FOREIGN_TYPE_DOUBLE
+                      ? asm_foreign_call_arg_fpr(next_fpr++)
+                      : asm_foreign_call_arg_gpr(next_gpr++);
+    emit_ccall_arg_value(s, t, arg, src_reg, dst);
+  }
+  if (next_gpr > asm_foreign_call_max_gpr_args() ||
+      next_fpr > asm_foreign_call_max_fpr_args()) {
+    abort();
+  }
+
+  emit_mov64(s, RTMP, (intptr_t)sig.sym);
+  emit_call_reg(s, RTMP);
+  emit_ccall_result(s, dst_reg, sig.ret_type);
+  emit_pop_regs(s, save_regs, save_count, true);
 }
 
 static void emit_cmp_regs(emit_state *s, trace *t, uint8_t lhs_reg, slot rhs,
@@ -884,7 +1036,7 @@ static void emit_reload_arg(emit_state *s, trace *t, uint16_t value_id,
   }
 }
 
-static inline uint8_t emit_arg_reg(slot args[3], uint8_t arg_regs[3],
+static inline uint8_t emit_arg_reg(slot *args, uint8_t *arg_regs,
                                    uint8_t arg_count, slot target) {
   if (target.constant) {
     return REG_NONE;
@@ -919,9 +1071,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     COMMENT("%i %s", op_cnt_idx, ir_names[op->op]);
     // Begin regalloc
     // TODO: cleanup arg0_reg etc
-    slot args[3];
+    slot args[UINT8_MAX];
     uint8_t arg_count = regalloc_collect_ir_args(t, op, args);
-    uint8_t arg_regs[3] = {REG_NONE, REG_NONE, REG_NONE};
+    uint8_t arg_regs[UINT8_MAX];
+    memset(arg_regs, REG_NONE, sizeof(arg_regs));
     for (uint8_t arg = 0; arg < arg_count; arg++) {
       if (args[arg].constant) {
         continue;
@@ -1306,7 +1459,13 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
       break;
     }
+    case IR_CCALL: {
+      emit_ccall(s, t, ra_state, op_cnt_idx, op, args, arg_regs, arg_count,
+                 dst_reg);
+      break;
+    }
     case IR_REF:
+    case IR_CARG:
     case IR_ARG:
     case IR_NOP:
     case IR_PMOV:

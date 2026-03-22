@@ -22,6 +22,79 @@ static const char *foreign_type_name(gc_obj type_obj) {
   return name->str;
 }
 
+static void *foreign_dlsym(const char *name) {
+  static void *foreign_handle;
+  if (!foreign_handle) {
+    foreign_handle = dlopen(nullptr, RTLD_LAZY);
+    if (!foreign_handle) {
+      abort();
+    }
+  }
+
+  auto sym = dlsym(foreign_handle, name);
+  if (!sym) {
+    printf("Can't find foreign symbol: %s\n", name);
+    abort();
+  }
+  return sym;
+}
+
+foreign_type foreign_parse_type(gc_obj type_obj) {
+  auto name = foreign_type_name(type_obj);
+  if (strcmp(name, "uint8") == 0) {
+    return FOREIGN_TYPE_UINT8;
+  }
+  if (strcmp(name, "int32") == 0) {
+    return FOREIGN_TYPE_INT32;
+  }
+  if (strcmp(name, "int64") == 0) {
+    return FOREIGN_TYPE_INT64;
+  }
+  if (strcmp(name, "uint64") == 0) {
+    return FOREIGN_TYPE_UINT64;
+  }
+  if (strcmp(name, "double") == 0) {
+    return FOREIGN_TYPE_DOUBLE;
+  }
+  if (strcmp(name, "string") == 0) {
+    return FOREIGN_TYPE_STRING;
+  }
+  abort();
+}
+
+void foreign_parse_sig(gc_obj sig_obj, foreign_sig *sig) {
+  if (!is_cons(sig_obj)) {
+    abort();
+  }
+
+  memset(sig, 0, sizeof(*sig));
+
+  auto sig_cons = to_cons(sig_obj);
+  sig->ret_type = foreign_parse_type(sig_cons->a);
+  auto sig_tail = sig_cons->b;
+  if (!is_cons(sig_tail)) {
+    abort();
+  }
+  auto name_and_args = to_cons(sig_tail);
+  gc_obj sym_obj = name_and_args->a;
+  gc_obj arg_types_list = name_and_args->b;
+  if (!is_string(sym_obj) || !is_cons(arg_types_list)) {
+    abort();
+  }
+  sig->name = to_string(sym_obj)->str;
+  sig->sym = foreign_dlsym(sig->name);
+  arg_types_list = to_cons(arg_types_list)->a;
+
+  while (arg_types_list.value != NIL_TAG) {
+    if (sig->argcnt == UINT8_MAX || !is_cons(arg_types_list)) {
+      abort();
+    }
+    auto entry = to_cons(arg_types_list);
+    sig->arg_types[sig->argcnt++] = foreign_parse_type(entry->a);
+    arg_types_list = entry->b;
+  }
+}
+
 typedef union foreign_tmp {
   uint8_t u8;
   int32_t i32;
@@ -47,8 +120,8 @@ static gc_obj foreign_owned_string(char *raw) {
 
 static ffi_type *foreign_prep_type(gc_obj type_obj, gc_obj value,
                                    foreign_tmp *tmp) {
-  auto name = foreign_type_name(type_obj);
-  if (strcmp(name, "uint8") == 0) {
+  switch (foreign_parse_type(type_obj)) {
+  case FOREIGN_TYPE_UINT8:
     if (tmp && !is_fixnum(value)) {
       abort();
     }
@@ -56,8 +129,7 @@ static ffi_type *foreign_prep_type(gc_obj type_obj, gc_obj value,
       tmp->u8 = (uint8_t)to_fixnum(value);
     }
     return &ffi_type_uint8;
-  }
-  if (strcmp(name, "int32") == 0) {
+  case FOREIGN_TYPE_INT32:
     if (tmp && !is_fixnum(value)) {
       abort();
     }
@@ -65,8 +137,7 @@ static ffi_type *foreign_prep_type(gc_obj type_obj, gc_obj value,
       tmp->i32 = (int32_t)to_fixnum(value);
     }
     return &ffi_type_sint32;
-  }
-  if (strcmp(name, "int64") == 0) {
+  case FOREIGN_TYPE_INT64:
     if (tmp && !is_fixnum(value)) {
       abort();
     }
@@ -74,8 +145,7 @@ static ffi_type *foreign_prep_type(gc_obj type_obj, gc_obj value,
       tmp->i64 = to_fixnum(value);
     }
     return &ffi_type_sint64;
-  }
-  if (strcmp(name, "uint64") == 0) {
+  case FOREIGN_TYPE_UINT64:
     if (tmp && !is_fixnum(value)) {
       abort();
     }
@@ -83,8 +153,7 @@ static ffi_type *foreign_prep_type(gc_obj type_obj, gc_obj value,
       tmp->u64 = (uint64_t)to_fixnum(value);
     }
     return &ffi_type_uint64;
-  }
-  if (strcmp(name, "double") == 0) {
+  case FOREIGN_TYPE_DOUBLE:
     if (tmp && !is_fixnum(value) && !is_flonum(value)) {
       abort();
     }
@@ -92,8 +161,7 @@ static ffi_type *foreign_prep_type(gc_obj type_obj, gc_obj value,
       tmp->f64 = numeric_to_double(value);
     }
     return &ffi_type_double;
-  }
-  if (strcmp(name, "string") == 0) {
+  case FOREIGN_TYPE_STRING:
     if (tmp && !is_string(value)) {
       abort();
     }
@@ -101,90 +169,58 @@ static ffi_type *foreign_prep_type(gc_obj type_obj, gc_obj value,
       tmp->ptr = to_string(value)->str;
     }
     return &ffi_type_pointer;
+  default:
+    abort();
   }
-  abort();
 }
 
 static gc_obj foreign_return_value(gc_obj type_obj, foreign_tmp raw) {
-  auto name = foreign_type_name(type_obj);
-  if (strcmp(name, "uint8") == 0) {
+  switch (foreign_parse_type(type_obj)) {
+  case FOREIGN_TYPE_UINT8:
     return tag_fixnum(raw.u8);
-  }
-  if (strcmp(name, "int32") == 0) {
+  case FOREIGN_TYPE_INT32:
     return tag_fixnum(raw.i32);
-  }
-  if (strcmp(name, "int64") == 0) {
+  case FOREIGN_TYPE_INT64:
     return tag_fixnum(raw.i64);
-  }
-  if (strcmp(name, "uint64") == 0) {
+  case FOREIGN_TYPE_UINT64:
     return tag_fixnum((int64_t)raw.u64);
-  }
-  if (strcmp(name, "double") == 0) {
+  case FOREIGN_TYPE_DOUBLE:
     return vm_box_flonum(raw.f64);
-  }
-  if (strcmp(name, "string") == 0) {
+  case FOREIGN_TYPE_STRING:
     return foreign_owned_string(raw.ptr);
+  default:
+    abort();
   }
-  abort();
 }
 
 gc_obj do_foreign_call(gc_obj sig_obj, gc_obj const *args, uint8_t argcnt) {
-  if (!is_cons(sig_obj)) {
+  foreign_sig sig;
+  foreign_parse_sig(sig_obj, &sig);
+  if (sig.argcnt != argcnt) {
     abort();
   }
-
-  auto sig = to_cons(sig_obj);
-  gc_obj ret_type = sig->a;
-  gc_obj sig_tail = sig->b;
-  if (!is_cons(sig_tail)) {
-    abort();
-  }
-  auto name_and_args = to_cons(sig_tail);
-  gc_obj sym_obj = name_and_args->a;
-  gc_obj arg_types_list = name_and_args->b;
-  if (!is_string(sym_obj) || !is_cons(arg_types_list)) {
-    abort();
-  }
-  arg_types_list = to_cons(arg_types_list)->a;
 
   ffi_cif cif;
   ffi_type *arg_types[UINT8_MAX] = {0};
   void *arg_values[UINT8_MAX] = {0};
   foreign_tmp arg_tmps[UINT8_MAX] = {0};
+  gc_obj ret_type = to_cons(sig_obj)->a;
   ffi_type *ret_ffi_type = foreign_prep_type(ret_type, UNDEFINED, nullptr);
   foreign_tmp ret_tmp = {0};
 
-  for (uint8_t i = 0; i < argcnt; i++) {
-    if (!is_cons(arg_types_list)) {
-      abort();
-    }
+  gc_obj arg_types_list = to_cons(to_cons(to_cons(sig_obj)->b)->b)->a;
+  for (uint8_t i = 0; i < sig.argcnt; i++) {
     auto entry = to_cons(arg_types_list);
     arg_types[i] = foreign_prep_type(entry->a, args[i], &arg_tmps[i]);
     arg_values[i] = &arg_tmps[i];
     arg_types_list = entry->b;
   }
-  if (arg_types_list.value != NIL_TAG) {
-    abort();
-  }
 
-  static void *foreign_handle;
-  if (!foreign_handle) {
-    foreign_handle = dlopen(nullptr, RTLD_LAZY);
-    if (!foreign_handle) {
-      abort();
-    }
-  }
-
-  auto sym = dlsym(foreign_handle, to_string(sym_obj)->str);
-  if (!sym) {
-    printf("Can't find foreign symbol: %s\n", to_string(sym_obj)->str);
-    abort();
-  }
-
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, argcnt, ret_ffi_type, arg_types) !=
+  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, sig.argcnt, ret_ffi_type,
+                   arg_types) !=
       FFI_OK) {
     abort();
   }
-  ffi_call(&cif, FFI_FN(sym), &ret_tmp, arg_values);
+  ffi_call(&cif, FFI_FN(sig.sym), &ret_tmp, arg_values);
   return foreign_return_value(ret_type, ret_tmp);
 }

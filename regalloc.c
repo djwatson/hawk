@@ -46,6 +46,63 @@ static void limit_live_values(regalloc_state *s, lru *lru, uint16_t max) {
   }
 }
 
+static bool slot_is_zero(trace const *t, slot s) {
+  return s.constant && is_fixnum(t->consts[s.loc]) &&
+         to_fixnum(t->consts[s.loc]) == 0;
+}
+
+static uint8_t regalloc_collect_carg_args(trace const *t, slot chain, slot *args) {
+  if (slot_is_zero(t, chain)) {
+    return 0;
+  }
+  assert(!chain.constant);
+  auto carg = &t->ins[chain.loc];
+  assert(carg->op == IR_CARG);
+  uint8_t count = 0;
+  if (!carg->op1.constant) {
+    args[count++] = carg->op1;
+  }
+  return (uint8_t)(count + regalloc_collect_carg_args(t, carg->op2, args + count));
+}
+
+static const char *regalloc_foreign_type_name(gc_obj type_obj) {
+  if (!is_symbol(type_obj)) {
+    abort();
+  }
+  auto name = get_sym_name(to_symbol(type_obj));
+  if (!name) {
+    abort();
+  }
+  return name->str;
+}
+
+static void regalloc_ccall_limits(trace const *t, ir_ins const *ins,
+                                  uint16_t *gpr_limit, uint16_t *fpr_limit) {
+  uint16_t gpr = 0;
+  uint16_t fpr = 0;
+  gc_obj sig_obj = t->consts[ins->op1.loc];
+  gc_obj arg_types = to_cons(to_cons(to_cons(sig_obj)->b)->b)->a;
+  while (arg_types.value != NIL_TAG) {
+    if (!is_cons(arg_types)) {
+      abort();
+    }
+    auto entry = to_cons(arg_types);
+    if (strcmp(regalloc_foreign_type_name(entry->a), "double") == 0) {
+      fpr++;
+    } else {
+      gpr++;
+    }
+    arg_types = entry->b;
+  }
+  if (ins->type == FLONUM_TAG) {
+    fpr++;
+  } else {
+    gpr++;
+  }
+  *gpr_limit = gpr;
+  *fpr_limit = fpr;
+}
+
 uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins,
                                  slot *args) {
   uint8_t count = 0;
@@ -58,6 +115,12 @@ uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins,
       args[count++] = op2;
     }
     return count;
+  }
+  if (ins->op == IR_CARG) {
+    return 0;
+  }
+  if (ins->op == IR_CCALL) {
+    return regalloc_collect_carg_args(t, op2, args);
   }
   switch (ir_ins_types[ins->op]) {
   case IR_ARG_IR_IR:
@@ -139,7 +202,7 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     lru_remove(value_lru, value_id);
 
     auto ins = &s->t->ins[value_id];
-    slot args[3];
+    slot args[UINT8_MAX];
     uint8_t arg_count = regalloc_collect_ir_args(s->t, ins, args);
     for (uint8_t arg = 0; arg < arg_count; arg++) {
       add_next_use(s, args[arg].loc, value_id, true, false);
@@ -151,9 +214,11 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     // at the same time as the input registers.
     uint16_t gpr_limit = GPR_ALLOCATABLE;
     uint16_t fpr_limit = FPR_ALLOCATABLE;
-    if (s->t->ins[value_id].type == FLONUM_TAG) {
+    if (ins->op == IR_CCALL) {
+      regalloc_ccall_limits(s->t, ins, &gpr_limit, &fpr_limit);
+    } else if (s->t->ins[value_id].type == FLONUM_TAG) {
       fpr_limit--;
-    } else {
+    } else if (ins->op != IR_REF && ins->op != IR_CARG) {
       gpr_limit--;
     }
     // RET requires a tmp reg.
@@ -180,7 +245,7 @@ uint8_t regalloc_find_current_reg_for_value(regalloc_state *s,
 
 static bool value_used_by_ir_ins(trace const *t, ir_ins const *ins,
                                  uint16_t value_id) {
-  slot args[3];
+  slot args[UINT8_MAX];
   uint8_t arg_count = regalloc_collect_ir_args(t, ins, args);
   for (uint8_t arg = 0; arg < arg_count; arg++) {
     if (args[arg].loc == value_id) {
@@ -285,7 +350,7 @@ void regalloc_assign_output(regalloc_state *s, uint16_t ir_idx, ir_ins *ins) {
     }
     return;
   }
-  if (ins->op == IR_REF || !s->uses[ir_idx]) {
+  if (ins->op == IR_REF || ins->op == IR_CARG || !s->uses[ir_idx]) {
     return;
   }
   if (ins->reg == REG_NONE) {

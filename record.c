@@ -8,6 +8,7 @@
 #include "box_closure_flonums.h"
 #include "emit.h"
 #include "fold.h"
+#include "foreign.h"
 #include "gc.h"
 #include "hashtable.h"
 #include "hawk.h"
@@ -390,6 +391,64 @@ DEFINE_RECORD_NUMERIC_BINOP_COERCED(mul, IR_MUL)
 DEFINE_RECORD_NUMERIC_BINOP_FORCE_FLONUM(div, IR_DIV)
 DEFINE_RECORD_NUMERIC_BINOP_COERCED(quotient, IR_QUOTIENT)
 DEFINE_RECORD_NUMERIC_BINOP_COERCED(mod, IR_MOD)
+
+static uint8_t foreign_ir_result_type(foreign_type type) {
+  switch (type) {
+  case FOREIGN_TYPE_DOUBLE:
+    return FLONUM_TAG;
+  case FOREIGN_TYPE_UINT8:
+  case FOREIGN_TYPE_INT32:
+  case FOREIGN_TYPE_INT64:
+  case FOREIGN_TYPE_UINT64:
+    return FIXNUM_TAG;
+  case FOREIGN_TYPE_STRING:
+  default:
+    abort();
+  }
+}
+
+static void ensure_recordable_foreign_sig(foreign_sig const *sig) {
+  uint8_t gpr_args = 0;
+  uint8_t fpr_args = 0;
+  for (uint8_t i = 0; i < sig->argcnt; i++) {
+    if (sig->arg_types[i] == FOREIGN_TYPE_DOUBLE) {
+      fpr_args++;
+    } else {
+      gpr_args++;
+    }
+  }
+  if (sig->ret_type == FOREIGN_TYPE_STRING ||
+      gpr_args > asm_foreign_call_max_gpr_args() ||
+      fpr_args > asm_foreign_call_max_fpr_args()) {
+    abort();
+  }
+}
+
+static slot record_foreign_arg(vm_state *state, gc_obj *stack, uint8_t pos,
+                               foreign_type type) {
+  auto t = record_current_trace(state);
+  auto arg = stack_load(state, stack, pos, true);
+  switch (type) {
+  case FOREIGN_TYPE_DOUBLE:
+    return convert_to_flonum(state, arg);
+  case FOREIGN_TYPE_UINT8:
+  case FOREIGN_TYPE_INT32:
+  case FOREIGN_TYPE_INT64:
+  case FOREIGN_TYPE_UINT64:
+    if (get_slot_type(t, arg) != FIXNUM_TAG) {
+      abort();
+    }
+    return arg;
+  case FOREIGN_TYPE_STRING:
+    if (get_slot_type(t, arg) != STRING_TAG) {
+      abort();
+    }
+    return arg;
+  default:
+    abort();
+  }
+}
+
 #define DEFINE_BRANCH_CMP(name, taken_op, not_taken_op, cmp_op)                \
   static ir_ins emit_math_cmp_##name(vm_state *state, bc *pc, gc_obj *stack,   \
                                      slot v1, slot v2, bool *taken) {          \
@@ -1046,7 +1105,32 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_FOREIGN_CALL: {
-    record_abort(state, &op_table, "can't record FOREIGN_CALL");
+    auto sig = stack_load(state, stack, pc->v1, false);
+    auto sig_const = add_const(state, stack[pc->v1]);
+    foreign_sig foreign;
+    foreign_parse_sig(stack[pc->v1], &foreign);
+    ensure_recordable_foreign_sig(&foreign);
+    auto call_argcnt = (uint8_t)(pc->v2 - 1);
+    if (call_argcnt != foreign.argcnt) {
+      abort();
+    }
+    if (!sig.constant) {
+      add_inst(state, IR(.op = IR_EQ, .op1 = sig, .op2 = sig_const));
+    }
+    slot carg = add_const(state, tag_fixnum(0));
+    for (uint8_t i = call_argcnt; i > 0; i--) {
+      auto arg =
+          record_foreign_arg(state, stack, (uint8_t)(pc->v1 + i),
+                             foreign.arg_types[i - 1]);
+      carg = add_inst(
+          state, IR(.op = IR_CARG, .op1 = arg, .op2 = carg,
+                    .type = get_slot_type(record_current_trace(state), arg)));
+    }
+    auto res =
+        add_inst(state, IR(.op = IR_CCALL, .op1 = sig_const, .op2 = carg,
+                           .type = foreign_ir_result_type(foreign.ret_type)));
+    stack_save(state, stack, instr.reg, res);
+    vm_add_snap(state, pc + 1, argcnt);
     break;
   }
   case OP_ALLOC: {

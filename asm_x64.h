@@ -4,6 +4,7 @@
 
 #include "asm_interface.h"
 #include <stddef.h>
+#include <stdlib.h>
 #include <stdint.h>
 
 #define ASM_X64_REGISTER_LIST(X)                                               \
@@ -158,3 +159,24 @@ enum jcc_cond {
 };
 
 extern const char *const reg_names[FPR_REG_END];
+
+static inline uint8_t asm_foreign_call_max_gpr_args(void) { return 6; }
+static inline uint8_t asm_foreign_call_max_fpr_args(void) { return 8; }
+
+static inline uint8_t asm_foreign_call_arg_gpr(uint8_t idx) {
+  static const uint8_t regs[] = {RARG0, RARG1, RARG2, RARG3, RARG4, RARG5};
+  if (idx >= sizeof(regs)) {
+    abort();
+  }
+  return regs[idx];
+}
+
+static inline uint8_t asm_foreign_call_arg_fpr(uint8_t idx) {
+  uint8_t reg = (uint8_t)(FPR_REG_START + idx);
+  if (reg > XMM7) {
+    abort();
+  }
+  return reg;
+}
+
+static inline uint8_t asm_foreign_call_ret_fpr(void) { return XMM0; }
