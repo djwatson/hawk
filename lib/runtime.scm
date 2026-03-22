@@ -20,16 +20,17 @@
               syntax-rules
               case
               ...
+              define-record-type
               ;; TODO
               exact
               expt)
         ;; TODO
         (scheme complex)
         (scheme case-lambda)
-        (only (scheme write) display)
         (prefix (hawk sys) sys:))
-(define (write x) (display x))
-(define (newline) (display "\n"))
+
+(define display (case-lambda ((x) (sys:WRITE x)) ((x port) (sys:WRITE x))))
+(define newline (case-lambda (() (sys:WRITE "\n")) ((port) (sys:WRITE "\n"))))
 
 (define (inexact x) (sys:INEXACT x))
 (define (char->integer x) (sys:CHAR_INTEGER x))
@@ -623,3 +624,357 @@
   (proc (lambda args (error "ERROR call/cc"))))
 
 (define (error . msg) (display "ERROR:") (display msg) (newline) (/ 1 0))
+
+;;;;;; Records
+(define (record-set! record index value)
+  (unless (record? record) (error "record-set!: not a record" record))
+  (sys:STORE record value (+ index 1)))
+(define (record-ref record index)
+  (unless (record? record) (error "record-ref: not a record" record))
+  (sys:LOAD record (+ index 1)))
+(define (make-record sz)
+  (let ((rec (sys:ALLOC (+ (* 8 (+ 1 sz)) 16) 49)))
+    (sys:STORE rec (+ sz 1) 0)
+    (do ((i 0 (+ i 1))) ((= i sz) rec) (record-set! rec i #f))))
+(define (record? p) (sys:GUARD p 49))
+
+(define :record-type (make-record 3))
+(record-set! :record-type 0 :record-type) ; Its type is itself.
+(record-set! :record-type 1 ':record-type)
+(record-set! :record-type 2 '(name field-tags))
+
+(define (make-record-type name field-tags)
+  (let ((rec (make-record 3)))
+    (record-set! rec 0 :record-type)
+    (record-set! rec 1 name)
+    (record-set! rec 2 field-tags)
+    rec))
+
+(define (record-type-name record-type) (record-ref record-type 1))
+
+(define (record-type-field-tags record-type) (record-ref record-type 2))
+
+(define (field-index type tag)
+  (let loop ((i 1) (tags (record-type-field-tags type)))
+    (cond
+      ((null? tags) (error "record type has no such field" type tag))
+      ((eq? tag (car tags)) i)
+      (else (loop (+ i 1) (cdr tags))))))
+(define (record-constructor type tags)
+  (let ((size (length (record-type-field-tags type)))
+        (arg-count (length tags))
+        (indexes (map (lambda (tag) (field-index type tag)) tags)))
+    (lambda args
+      (if (= (length args) arg-count)
+          (let ((new (make-record (+ size 1))))
+            (record-set! new 0 type)
+            (for-each (lambda (arg i) (record-set! new i arg)) args indexes)
+            new)
+          (error "wrong number of arguments to constructor" type args)))))
+
+;;;;;; Port ops
+(define-record-type port (make-port fd peek buf) port?
+  (fd port-fd)
+  (peek port-peek port-peek-set!)
+  (buf port-buf port-buf-set!))
+
+(define input-port? port?)
+(define output-port? port?)
+
+(define *current-input-port* (make-port 0 #f #f))
+(define (current-input-port) *current-input-port*)
+(define *current-output-port* (make-port 1 #f #f))
+(define (current-output-port) *current-output-port*)
+(define *current-error-port* (make-port 2 #f #f))
+(define (current-error-port) *current-error-port*)
+
+(define (c-open pathname read)
+  (sys:FOREIGN_CALL "scm_open" '(int32 (string uint8)) pathname read))
+
+(define (c-close fd) (sys:FOREIGN_CALL "close" '(int32 (int32)) fd))
+
+(define (c-write fd data len)
+  (sys:FOREIGN_CALL "write" '(int64 (int32 string uint64)) fd data len))
+
+(define (c-read fd buf cnt)
+  (sys:FOREIGN_CALL "read" '(int64 (int32 string uint64)) fd buf cnt))
+
+(define (open-input-file file)
+  (let ((fd (c-open file 1)))
+    (when (< fd 0) (error "open-input-file error:" file))
+    (make-port fd #f #f)))
+(define (open-output-file file)
+  (let ((fd (c-open file 0)))
+    (when (< fd 0) (error "open-output-file error:" file))
+    (make-port fd #f #f)))
+(define (close-port port) (c-close (port-fd port)))
+(define close-output-port close-port)
+(define close-input-port close-port)
+(define-record-type eof-object (make-eof-object) eof-object?)
+(define peek-char
+  (case-lambda
+    (() (peek-char (current-input-port)))
+    ((port)
+      (cond
+        ((port-peek port))
+        (else
+          (let* ((buf (make-string 1)) (cnt (c-read (port-fd port) buf 1)))
+            (if (= cnt 1)
+                (let ((peek (string-ref buf 0))) (port-peek-set! port peek) peek)
+                (make-eof-object))))))))
+
+(define read-char
+  (case-lambda
+    (() (read-char (current-input-port)))
+    ((port)
+      (cond
+        ((port-peek port) => (lambda (x) (port-peek-set! port #f) x))
+        (else
+          (let* ((buf (make-string 1)) (cnt (c-read (port-fd port) buf 1)))
+            (if (= cnt 1) (string-ref buf 0) (make-eof-object))))))))
+(define (write-char char port)
+  (if (port-buf port)
+      (port-buf-set! port (string-append (port-buf port) (make-string 1 char)))
+      (let* ((buf (make-string 1 char)) (cnt (c-write (port-fd port) buf 1)))
+        (if (= cnt 1) #t (error "write-char error")))))
+
+(define (string->list str)
+  (let ((n (string-length str)))
+    (let loop ((i (- n 1)) (lst '()))
+      (if (< i 0) lst (loop (- i 1) (cons (string-ref str i) lst))))))
+(define write
+  (case-lambda
+    ((arg) (write arg (current-output-port)))
+    ((arg port)
+      (cond
+        ((null? arg) (display "()" port))
+        ((pair? arg)
+          (display "(" port)
+          (let loop ((arg arg))
+            (if (not (pair? arg))
+                (begin (display ". " port) (write arg port))
+                (begin
+                  (write (car arg) port)
+                  (if (not (null? (cdr arg))) (begin (display " " port) (loop (cdr arg)))))))
+          (display ")" port))
+        ((vector? arg) (display "#" port) (write (vector->list arg) port))
+        ((char? arg)
+          (cond
+            ((char=? #\newline arg) (display "#\\newline" port))
+            ((char=? #\tab arg) (display "#\\tab" port))
+            ((char=? #\space arg) (display "#\\space" port))
+            ((char=? #\return arg) (display "#\\return" port))
+            (else (display "#\\" port) (display arg port))))
+        ((string? arg)
+          (display "\"" port)
+          (for-each (lambda (chr)
+                      (cond
+                        ((char=? #\" chr) (display "\\\"" port))
+                        ((char=? #\\ chr) (display "\\\\" port))
+                        (else (display chr port))))
+                    (string->list arg))
+          (display "\"" port))
+        (else (display arg port))))))
+
+(define (open-output-string) (make-port 0 #f ""))
+(define (get-output-string port) (port-buf port))
+
+(define (call-with-input-file file l)
+  (let* ((p (open-input-file file)) (res (l p))) (close-input-port p) res))
+
+(define (call-with-output-file file l)
+  (let* ((p (open-output-file file)) (res (l p))) (close-output-port p) res))
+
+(define (flush-output-port port) #f)
+
+;; TIME
+
+(define (jiffies-per-second)
+  1000000000 ;; returns 1 on my Bones, which is wrong. this number should work for ?many? linuxen
+)
+
+(define (current-jiffy)
+  (call-with-input-file "/proc/uptime" (lambda (port) (read port))))
+(define (current-second)
+  (call-with-input-file "/proc/uptime" (lambda (port) (read port))))
+
+(define read-buf (make-string 1000))
+(define read
+  (case-lambda
+    (() (read (current-input-port)))
+    ((port)
+      (define line 1)
+      (define (read2 port)
+        (define (read-to-delimited)
+          (let loop ((res 0) (c (peek-char port)))
+            (if (eof-object? c)
+                (if (not (= 0 res)) (substring read-buf 0 res) c)
+                (case c
+                  ((#\( #\) #\" #\| #\newline #\return #\space #\tab #\;)
+                    (substring read-buf 0 res))
+                  (else
+                    (string-set! read-buf res (read-char port))
+                    (loop (+ res 1) (peek-char port)))))))
+        (define (skip-whitespace)
+          (let loop ()
+            (let ((c (peek-char port)))
+              (cond
+                ((eof-object? c) c)
+                ((char=? #\newline c) (set! line (+ 1 line)) (read-char port) (loop))
+                ((char-whitespace? c) (read-char port) (loop))))))
+        (define (skip-whitespace-and-comments)
+          (let loop ()
+            (let ((c (peek-char port)))
+              (cond
+                ((eof-object? c) c)
+                ((char=? #\newline c) (set! line (+ 1 line)) (read-char port) (loop))
+                ((char-whitespace? c) (read-char port) (loop))
+                ((char=? #\; c) (skip-line) (loop))))))
+        (define (skip-line)
+          (let loop ()
+            (let ((c (read-char port)))
+              (if (eof-object? c) c (if (char=? c #\newline) (set! line (+ 1 line)) (loop))))))
+        (define (read-escape)
+          (let ((c (read-char port)))
+            (if (eof-object? c) (error "Incomplete escape sequence"))
+            (case c
+              ((#\a) #\alarm)
+              ((#\n) #\newline)
+              ((#\r) #\return)
+              ((#\t) #\tab)
+              ((#\b) #\backspace)
+              ((#\tab #\space) (skip-line) (skip-whitespace) #f)
+              ((#\newline) (skip-whitespace) #f)
+              ((#\x #\X)
+                (let* ((delim (read-to-delimited))
+                       (ch (string->number delim 16))
+                       (next (read-char port)))
+                  (if (not (eq? #\; next))
+                      (error "Invalid hex string escape")
+                      (integer->char ch))))
+              (else c))))
+        (define (read-delimited term)
+          (let loop ((res 0) (c (read-char port)))
+            (cond
+              ((eof-object? c)
+                (error "incomplete object:" (substring read-buf 0 res) "line: " line))
+              ((char=? #\\ c)
+                (let ((es (read-escape)))
+                  (if es
+                      (begin (string-set! read-buf res es) (loop (+ 1 res) (read-char port)))
+                      (loop res (read-char port)))))
+              ((char=? term c) (substring read-buf 0 res))
+              (else (string-set! read-buf res c) (loop (+ 1 res) (read-char port))))))
+        (define (lower-case string)
+          (do ((i 0 (+ i 1)))
+               ((= i (string-length string)) string)
+               (string-set! string i (char-downcase (string-ref string i)))))
+        (define (read-list)
+          (define line-start line)
+          (let loop ((res '()))
+            (skip-whitespace-and-comments)
+            (let ((c (peek-char port)))
+              (cond
+                ((eof-object? c)
+                  (error "EOF found while parsing list starting on line "
+                         line-start
+                         " and ending "
+                         line))
+                ((char=? c #\)) (read-char port) (reverse res))
+                ((char=? c #\.)
+                  (let ((token (read-to-delimited)))
+                    (if (= 1 (string-length token))
+                        (let ((fin (read-one)))
+                          (skip-whitespace-and-comments)
+                          (if (not (eq? #\) (read-char port)))
+                              (error "Invalid dotted list")
+                              (append (reverse res) fin)))
+                        (loop (cons (cond
+                                      ((string->number token) => (lambda (num) num))
+                                      (else (string->symbol (lower-case token))))
+                                    res)))))
+                (else (loop (cons (read-one) res)))))))
+        (define named-chars
+          '(("tab" . #\tab)
+            ("space" . #\space)
+            ("return" . #\return)
+            ("newline" . #\newline)
+            ("alarm" . #\alarm)
+            ("backspace" . #\backspace)
+            ("delete" . #\delete)
+            ;("escape" . #\escape)
+            ;		      ("null" . #\null)
+          ))
+        (define delims '(#\( #\) #\; #\| #\" #\space))
+        (define (do-read-char)
+          (let ((ch (peek-char port)))
+            (if (memv ch delims)
+                (read-char port)
+                (let ((token (read-to-delimited)))
+                  (cond
+                    ((= 1 (string-length token)) (string-ref token 0))
+                    ((assoc token named-chars) => cdr)
+                    (else (error "Error invalid char: " token)))))))
+        (define (skip-comment)
+          (let loop ((depth 0))
+            (case (read-char port)
+              ((#\#) (loop (if (char=? #\| (peek-char port)) (+ 1 depth) depth)))
+              ((#\|)
+                (if (char=? #\# (peek-char port))
+                    (if (= 0 depth) (read-char port) (loop (- depth 1)))
+                    (loop depth)))
+              ((#\newline) (set! line (+ 1 line)) (loop depth))
+              (else
+                (if (eof-object? (peek-char port))
+                    (error "unterminated comment")
+                    (loop depth))))))
+        (define (read-hash)
+          (let ((c (peek-char port)))
+            (case c
+              ((#\|) (skip-comment))
+              ((#\;) (read-char port) (read-one) (read-one))
+              ((#\() (read-char port) (list->vector (read-list)))
+              ((#\\) (read-char port) (do-read-char))
+              ((#\t #\T #\f #\F)
+                (let ((v (lower-case (read-to-delimited))))
+                  (cond
+                    ((equal? "f" v) #f)
+                    ((equal? "t" v) #t)
+                    ((equal? "true" v) #t)
+                    ((equal? "false" v) #f)
+                    (else (error "Can't parse hash token:" v)))))
+              ((#\b #\B #\o #\O #\d #\D #\x #\X #\i #\I #\e #\E)
+                (string->number (string-append "#" (read-to-delimited))))
+              ((#\u)
+                (read-char port)
+                (if (not (char=? #\8 (peek-char port)))
+                    (error "Not a bytevector:" (peek-char port))
+                    (read-char port))
+                (let ((ls (read-one)))
+                  (if (not (list? ls)) (error "Not a bytevector list:" ls) ls)))
+              (else (error "Unknown hash: " c)))))
+        (define (read-one)
+          (skip-whitespace)
+          (let ((c (peek-char port)))
+            (case (peek-char port)
+              ((#\#) (read-char port) (read-hash))
+              ((#\() (read-char port) (read-list))
+              ((#\)) (read-char port) (error "Extra list terminator found"))
+              ((#\") (read-char port) (read-delimited #\"))
+              ((#\;) (read-char port) (skip-line) (read-one))
+              ((#\|) (read-char port) (string->symbol (read-delimited #\|)))
+              ((#\') (read-char port) (list 'quote (read-one)))
+              ((#\`) (read-char port) (list 'quasiquote (read-one)))
+              ((#\,)
+                (read-char port)
+                (case (peek-char port)
+                  ((#\@) (read-char port) (list 'unquote-splicing (read-one)))
+                  (else (list 'unquote (read-one)))))
+              (else
+                (let ((token (read-to-delimited)))
+                  (cond
+                    ((eof-object? token) token)
+                    ((string->number token) => (lambda (num) num))
+                    (else (string->symbol (lower-case token)))))))))
+        (read-one))
+      (read2 port))))

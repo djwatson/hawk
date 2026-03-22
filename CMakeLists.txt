@@ -102,6 +102,24 @@ set(
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
+set(libffi_search_dirs)
+if(DEFINED ENV{HOMEBREW_PREFIX})
+  list(APPEND libffi_search_dirs $ENV{HOMEBREW_PREFIX}/include $ENV{HOMEBREW_PREFIX}/lib)
+  list(APPEND libffi_search_dirs $ENV{HOMEBREW_PREFIX}/opt/libffi/include $ENV{HOMEBREW_PREFIX}/opt/libffi/lib)
+endif()
+list(APPEND libffi_search_dirs /opt/homebrew/include /opt/homebrew/lib /opt/homebrew/opt/libffi/include /opt/homebrew/opt/libffi/lib /usr/local/include /usr/local/lib /usr/local/opt/libffi/include /usr/local/opt/libffi/lib)
+
+find_path(LIBFFI_INCLUDE_DIR NAMES ffi.h PATHS ${libffi_search_dirs})
+find_library(LIBFFI_LIBRARY NAMES ffi libffi PATHS ${libffi_search_dirs})
+
+if(NOT LIBFFI_INCLUDE_DIR)
+  message(FATAL_ERROR "ffi.h not found. Install libffi or set LIBFFI_INCLUDE_DIR.")
+endif()
+
+if(NOT LIBFFI_LIBRARY)
+  message(FATAL_ERROR "libffi not found. Install libffi or set LIBFFI_LIBRARY.")
+endif()
+
 set(OPCODES_SCHEME ${CMAKE_CURRENT_SOURCE_DIR}/lib/opcodes.scm)
 add_custom_command(
   OUTPUT ${OPCODES_SCHEME}
@@ -189,7 +207,7 @@ add_custom_command(
   VERBATIM)
 add_custom_target(fold_gen DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/fold_gen.h)
 add_dependencies(hawk fold_gen)
-#set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 if(ENABLE_COVERAGE)
   if(CMAKE_C_COMPILER_ID MATCHES "Clang")
@@ -243,9 +261,16 @@ if(NOT CAPSTONE_LIBRARY)
   message(FATAL_ERROR "libcapstone not found. Install capstone or set CAPSTONE_LIBRARY.")
 endif()
 
-target_link_libraries(hawk PRIVATE ${CAPSTONE_LIBRARY} m)
+target_link_libraries(hawk PRIVATE ${CAPSTONE_LIBRARY} ${LIBFFI_LIBRARY} m)
 
-#set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(hawk PRIVATE ${CMAKE_DL_LIBS})
+  target_link_options(hawk PRIVATE -rdynamic)
+elseif(APPLE)
+  target_link_options(hawk PRIVATE -Wl,-export_dynamic)
+endif()
+
+set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 if(USE_RANDOM_SCHEDULE)
     target_compile_definitions(hawk PRIVATE RANDOM_SCHEDULE)
@@ -257,6 +282,7 @@ target_include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/util
   ${CMAKE_CURRENT_BINARY_DIR}
   ${CAPSTONE_INCLUDE_DIR}
+  ${LIBFFI_INCLUDE_DIR}
 )
 
 if(BUILD_TESTING)

@@ -1045,6 +1045,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     record_abort(state, &op_table, "can't record APPLY");
     break;
   }
+  case OP_FOREIGN_CALL: {
+    record_abort(state, &op_table, "can't record FOREIGN_CALL");
+    break;
+  }
   case OP_ALLOC: {
     auto sz = stack_load(state, stack, pc->v1, true);
     auto type = stack_load(state, stack, pc->v2, true);

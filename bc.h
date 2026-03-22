@@ -77,6 +77,7 @@
   X(LCALL, AD)                                                                 \
   X(LCALLT, AD)                                                                \
   X(APPLY, ABC)                                                                \
+  X(FOREIGN_CALL, ABC)                                                         \
   X(CHAR_INTEGER, AD)                                                          \
   X(INTEGER_CHAR, AD)                                                          \
   X(HALT, A)                                                                   \

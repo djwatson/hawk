@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 
+#include <fcntl.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,6 +80,10 @@ static char *parse_args(int argc, char *argv[]) {
   }
 
   return argv[optind];
+}
+
+EXPORT int32_t scm_open(char *name, uint8_t readonly) {
+  return open(name, readonly ? O_RDONLY : O_WRONLY | O_CREAT | O_TRUNC, 0777);
 }
 
 int main(int argc, char *argv[]) {
