@@ -900,8 +900,9 @@ static inline uint8_t emit_arg_reg(slot args[3], uint8_t arg_regs[3],
 static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
   int32_t cur_snap = -1;
   size_t snap_idx = 0;
+  uint16_t op_cnt_idx = 0;
 
-  for (uint16_t op_cnt_idx = 0; op_cnt_idx < arrlen(t->ins); op_cnt_idx++) {
+  for (; op_cnt_idx < arrlen(t->ins); op_cnt_idx++) {
     while (snap_idx < arrlen(t->snaps) && t->snaps[snap_idx].ir == op_cnt_idx) {
       if (snap_idx == 1) {
         emit_label(s, &t->snap_entry_label);
@@ -1336,6 +1337,20 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
           op->op == IR_INTEGER_CHAR || op->op == IR_CHAR_INTEGER)) {
       abort();
     }
+  }
+
+  // Some traces place entry/exit snapshots immediately after the final IR.
+  // Those still need labels and snapshot lifetime updates for linked entry.
+  while (snap_idx < arrlen(t->snaps) && t->snaps[snap_idx].ir == op_cnt_idx) {
+    if (snap_idx == 1) {
+      emit_label(s, &t->snap_entry_label);
+    }
+    if (snap_idx > 0) {
+      regalloc_maybe_free_snapshot(ra_state, op_cnt_idx,
+                                   &t->snaps[snap_idx - 1]);
+    }
+    cur_snap = (int32_t)snap_idx;
+    snap_idx++;
   }
 }
 

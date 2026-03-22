@@ -663,6 +663,9 @@ OP(CLOSURE) {
   uint8_t start = pc->reg;
   size_t bytes = sizeof(closure_s) + (sizeof(gc_obj) * sz);
   closure_s *clo = gc_alloc(bytes);
+  // Current closure algorithm requires zero-initilizing the whole
+  // closure: since letrec* groups may reference each other,
+  // we need to allocate all closures before assigning pointers.
   memset(clo, 0, bytes);
   clo->header.type = CLOSURE_TAG;
   clo->len = tag_fixnum((int64_t)sz);

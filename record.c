@@ -820,7 +820,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         clear_trace_state(ts);
         free_trace(cur_trace);
         record_start(state, pc, *pc, stack, argcnt);
-        return record(*pc, pc, stack, state, op_table, argcnt);
+        MUSTTAIL return record(*pc, pc, stack, state, op_table, argcnt);
       }
       if (downrec_trace && seen_downrec && at_trace_start) {
         cur_trace->link = cur_trace;
