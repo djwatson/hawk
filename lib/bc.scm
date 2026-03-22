@@ -799,7 +799,7 @@
         (let* ((all-funs (get-funs)) (roots (cons main all-funs)))
           (let*-values (((objects canon) (collect-objects roots))
                         ((image offs) (emit-image objects canon)))
-            (for-each print-bc all-funs)
+            ;;(for-each print-bc all-funs)
             (string-for-each (lambda (c) (write-u8 (char->integer c) out)) "HAWK")
             (write-uint 0 8 out)
             (write-uint (bytevector-length image) 8 out)

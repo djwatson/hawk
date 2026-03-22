@@ -22,8 +22,7 @@
               ...
               define-record-type
               ;; TODO
-              exact
-              expt)
+              exact)
         ;; TODO
         (scheme complex)
         (scheme case-lambda)
@@ -213,8 +212,10 @@
 (define (cdr a) (unless (pair? a) (error "CDR: bad load:" a)) (sys:LOAD a 1))
 (define (cadr a) (car (cdr a)))
 (define (cdar a) (cdr (car a)))
+(define (cadar a) (car (cdr (car a))))
 (define (caar a) (car (car a)))
 (define (caddr a) (car (cdr (cdr a))))
+(define (caddar a) (car (cdr (cdr (car a)))))
 (define (cadddr a) (car (cdr (cdr (cdr a)))))
 (define (cdddr a) (cdr (cdr (cdr a))))
 (define (cddr a) (cdr (cdr a)))
@@ -533,6 +534,11 @@
     (do ((i 0 (+ i 1)) (p lst (cdr p))) ((= i len) v) (vector-set! v i (car p)))))
 
 ;; math
+(define (expt num exp)
+  (if (> exp 0)
+      (let loop ((n 1) (cnt exp)) (if (= cnt 0) n (loop (* num n) (- cnt 1))))
+      (let loop ((n 1) (cnt exp)) (if (= cnt 0) n (loop (/ n num) (+ cnt 1))))))
+
 (define (odd? x) (= 1 (modulo x 2)))
 
 (define (even? x) (= 0 (modulo x 2)))
