@@ -687,7 +687,7 @@
     ((x port)
       (cond
         ((flonum? x)
-          (display (sys:FOREIGN_CALL "flonum_string" '(string (double)) x) port))
+          (display (sys:FOREIGN_CALL '(string "flonum_string" (double)) x) port))
         ((number? x) (display (number->string x) port))
         ((char? x) (write-char x port))
         ((vector? x)
@@ -740,15 +740,15 @@
 (define (current-error-port) *current-error-port*)
 
 (define (c-open pathname read)
-  (sys:FOREIGN_CALL "scm_open" '(int32 (string uint8)) pathname read))
+  (sys:FOREIGN_CALL '(int32 "scm_open" (string uint8)) pathname read))
 
-(define (c-close fd) (sys:FOREIGN_CALL "close" '(int32 (int32)) fd))
+(define (c-close fd) (sys:FOREIGN_CALL '(int32 "close" (int32)) fd))
 
 (define (c-write fd data len)
-  (sys:FOREIGN_CALL "write" '(int64 (int32 string uint64)) fd data len))
+  (sys:FOREIGN_CALL '(int64 "write" (int32 string uint64)) fd data len))
 
 (define (c-read fd buf cnt)
-  (sys:FOREIGN_CALL "read" '(int64 (int32 string uint64)) fd buf cnt))
+  (sys:FOREIGN_CALL '(int64 "read" (int32 string uint64)) fd buf cnt))
 
 (define (open-input-file file)
   (let ((fd (c-open file 1)))
@@ -1031,16 +1031,19 @@
       (read2 port))))
 ;; flonum
 ;;;;;;;;;
-(define (sin d) (sys:FOREIGN_CALL "sin" '(double (double)) (inexact d)))
-(define (cos d) (sys:FOREIGN_CALL "cos" '(double (double)) (inexact d)))
-(define (sqrt d) (sys:FOREIGN_CALL "sqrt" '(double (double)) (inexact d)))
-(define (atan d) (sys:FOREIGN_CALL "atan" '(double (double)) (inexact d)))
+(define (sin d) (sys:FOREIGN_CALL '(double "sin" (double)) (inexact d)))
+(define (cos d) (sys:FOREIGN_CALL '(double "cos" (double)) (inexact d)))
+(define (sqrt d) (sys:FOREIGN_CALL '(double "sqrt" (double)) (inexact d)))
+(define (atan d) (sys:FOREIGN_CALL '(double "atan" (double)) (inexact d)))
 (define (round d)
-  (let* ((d (inexact d)) (rounded (sys:FOREIGN_CALL "round" '(double (double)) d)))
+  (let* ((d (inexact d))
+         (rounded (sys:FOREIGN_CALL '(double "round" (double)) d)))
     ;; Round to even, towards zero.
-    (if (and (= 0.5 (sys:FOREIGN_CALL "fabs" '(double (double)) (- d rounded)))
-             (not (= 0.0 (sys:FOREIGN_CALL "fmod" '(double (double double)) rounded 2.0))))
+    (if (and (= 0.5 (sys:FOREIGN_CALL '(double "fabs" (double)) (- d rounded)))
+             (not (= 0.0
+                     (sys:FOREIGN_CALL '(double "fmod" (double double))
+                                       rounded 2.0))))
         (+ rounded (if (> d 0) -1 1))
         rounded)))
-(define (ceiling x) (sys:FOREIGN_CALL "ceil" '(double (double)) (inexact x)))
-(define (log x) (sys:FOREIGN_CALL "log" '(double (double)) (inexact x)))
+(define (ceiling x) (sys:FOREIGN_CALL '(double "ceil" (double)) (inexact x)))
+(define (log x) (sys:FOREIGN_CALL '(double "log" (double)) (inexact x)))

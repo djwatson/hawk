@@ -716,11 +716,11 @@ OP(APPLY) {
 OP(FOREIGN_CALL) {
   auto base = instr.v1;
   auto count = instr.v2;
-  if (count < 2) {
+  if (count < 1) {
     abort();
   }
-  auto res = do_foreign_call(stack[base], stack[base + 1], &stack[base + 2],
-                             (uint8_t)(count - 2));
+  auto res =
+      do_foreign_call(stack[base], &stack[base + 1], (uint8_t)(count - 1));
   stack[instr.reg] = res;
   END_NEXT
 }

@@ -128,9 +128,8 @@ static gc_obj foreign_return_value(gc_obj type_obj, foreign_tmp raw) {
   abort();
 }
 
-gc_obj do_foreign_call(gc_obj sym_obj, gc_obj sig_obj, gc_obj const *args,
-                       uint8_t argcnt) {
-  if (!is_string(sym_obj) || !is_cons(sig_obj)) {
+gc_obj do_foreign_call(gc_obj sig_obj, gc_obj const *args, uint8_t argcnt) {
+  if (!is_cons(sig_obj)) {
     abort();
   }
 
@@ -140,7 +139,13 @@ gc_obj do_foreign_call(gc_obj sym_obj, gc_obj sig_obj, gc_obj const *args,
   if (!is_cons(sig_tail)) {
     abort();
   }
-  auto arg_types_list = to_cons(sig_tail)->a;
+  auto name_and_args = to_cons(sig_tail);
+  gc_obj sym_obj = name_and_args->a;
+  gc_obj arg_types_list = name_and_args->b;
+  if (!is_string(sym_obj) || !is_cons(arg_types_list)) {
+    abort();
+  }
+  arg_types_list = to_cons(arg_types_list)->a;
 
   ffi_cif cif;
   ffi_type *arg_types[UINT8_MAX] = {0};

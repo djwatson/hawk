@@ -559,6 +559,7 @@
           (add-op fun `(CLOSURE_SET ,val-res ,clo-res ,slot-num))
           (finish top))))
     (#(primcall FOREIGN_CALL ,args ,ann)
+      ;; args = combined signature object followed by runtime call arguments.
       (let loop ((atop top) (args args))
         (unless (null? args)
           (let ((res (compile (car args) fun env atop #f)))
