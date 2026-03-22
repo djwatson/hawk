@@ -78,6 +78,7 @@ set(
   hawk.c
   ftoa.c
   vm.c
+  foreign.c
   types.c
   record.c
   gc.c
