@@ -1095,6 +1095,30 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     }
     case IR_STORE_CHAR: {
       ir_ins *ref = slot_ins(t, op->op1);
+      auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
+      if (ref->op1.constant) {
+        base_reg = RTMP2;
+        emit_heap_constant(s, t, base_reg, slot_gc_obj(t, ref->op1));
+      }
+      int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
+      int32_t store_offset = base_offset;
+      if (ref->op2.constant) {
+        int64_t idx = slot_const(t, ref->op2) >> FIXNUM_SHIFT;
+        assert((int32_t)idx == idx);
+        store_offset += (int32_t)idx;
+      } else {
+        auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
+        uint8_t addr_reg = RTMP2;
+        if (ref->op1.constant) {
+          emit_sar_constant(s, RTMP, offset_reg, FIXNUM_SHIFT);
+          emit_add(s, addr_reg, addr_reg, RTMP);
+        } else {
+          emit_sar_constant(s, addr_reg, offset_reg, FIXNUM_SHIFT);
+          emit_add(s, addr_reg, addr_reg, base_reg);
+        }
+        base_reg = addr_reg;
+      }
+
       if (op->op2.constant) {
         auto ch = (uint8_t)to_char(slot_gc_obj(t, op->op2));
         emit_mov64(s, RTMP, ch);
@@ -1102,23 +1126,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         uint8_t val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
         emit_sar_constant(s, RTMP, val_reg, 8);
       }
-
-      auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
-      if (ref->op1.constant) {
-        base_reg = RTMP2;
-        emit_heap_constant(s, t, base_reg, slot_gc_obj(t, ref->op1));
-      }
-      int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
-      if (ref->op2.constant) {
-        int64_t idx = slot_const(t, ref->op2) >> FIXNUM_SHIFT;
-        assert((int32_t)idx == idx);
-        emit_store_u8(s, (int32_t)idx + base_offset, base_reg, RTMP);
-      } else {
-        auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
-        emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
-        emit_add(s, RTMP2, RTMP2, base_reg);
-        emit_store_u8(s, base_offset, RTMP2, RTMP);
-      }
+      emit_store_u8(s, store_offset, base_reg, RTMP);
       break;
     }
       EMIT_CMP_CASE(IR_LT, JAE, JGE)
