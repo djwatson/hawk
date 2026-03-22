@@ -680,7 +680,8 @@
     ((x) (display x (current-output-port)))
     ((x port)
       (cond
-        ((flonum? x) (sys:WRITE x (port-fd port)))
+        ((flonum? x)
+          (display (sys:FOREIGN_CALL "flonum_string" '(string (double)) x) port))
         ((number? x) (display (number->string x) port))
         ((char? x) (write-char x port))
         ((vector? x)
@@ -701,7 +702,10 @@
           (write-char #\) port))
         ((symbol? x) (display (symbol->string x) port))
         ;; TODO lookup name
-        ((procedure? x) (display "#<procedure>" port))
+        ((procedure? x)
+          (display "#<procedure " port)
+          (display (sys:LOAD (sys:LOAD x 1) 0) port)
+          (display ">" port))
         ((eq? x #t) (display "#t" port))
         ((eq? x #f) (display "#f" port))
         ((eq? x '()) (display "()" port))
@@ -1019,3 +1023,18 @@
                     (else (string->symbol (lower-case token)))))))))
         (read-one))
       (read2 port))))
+;; flonum
+;;;;;;;;;
+(define (sin d) (sys:FOREIGN_CALL "sin" '(double (double)) (inexact d)))
+(define (cos d) (sys:FOREIGN_CALL "cos" '(double (double)) (inexact d)))
+(define (sqrt d) (sys:FOREIGN_CALL "sqrt" '(double (double)) (inexact d)))
+(define (atan d) (sys:FOREIGN_CALL "atan" '(double (double)) (inexact d)))
+(define (round d)
+  (let* ((d (inexact d)) (rounded (sys:FOREIGN_CALL "round" '(double (double)) d)))
+    ;; Round to even, towards zero.
+    (if (and (= 0.5 (sys:FOREIGN_CALL "fabs" '(double (double)) (- d rounded)))
+             (not (= 0.0 (sys:FOREIGN_CALL "fmod" '(double (double double)) rounded 2.0))))
+        (+ rounded (if (> d 0) -1 1))
+        rounded)))
+(define (ceiling x) (sys:FOREIGN_CALL "ceil" '(double (double)) (inexact x)))
+(define (log x) (sys:FOREIGN_CALL "log" '(double (double)) (inexact x)))

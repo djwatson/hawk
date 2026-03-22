@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "bc.h"
+#include "ftoa.h"
 #include "gc.h"
 #include "hawk.h"
 #include "types.h"
@@ -85,6 +86,8 @@ static char *parse_args(int argc, char *argv[]) {
 EXPORT int32_t scm_open(char *name, uint8_t readonly) {
   return open(name, readonly ? O_RDONLY : O_WRONLY | O_CREAT | O_TRUNC, 0777);
 }
+// TODO free?
+EXPORT char *flonum_string(double d) { return ftoa_fast(d); }
 
 int main(int argc, char *argv[]) {
   gc_init();
