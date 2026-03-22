@@ -29,9 +29,6 @@
         (scheme case-lambda)
         (prefix (hawk sys) sys:))
 
-(define display (case-lambda ((x) (sys:WRITE x)) ((x port) (sys:WRITE x))))
-(define newline (case-lambda (() (sys:WRITE "\n")) ((port) (sys:WRITE "\n"))))
-
 (define (inexact x) (sys:INEXACT x))
 (define (char->integer x) (sys:CHAR_INTEGER x))
 (define (integer->char x) (sys:INTEGER_CHAR x))
@@ -677,6 +674,50 @@
   (fd port-fd)
   (peek port-peek port-peek-set!)
   (buf port-buf port-buf-set!))
+
+(define display
+  (case-lambda
+    ((x) (display x (current-output-port)))
+    ((x port)
+      (cond
+        ((flonum? x) (sys:WRITE x (port-fd port)))
+        ((number? x) (display (number->string x) port))
+        ((char? x) (write-char x port))
+        ((vector? x)
+          (display "#(" port)
+          (do ((i 0 (+ i 1)))
+               ((= i (vector-length x)))
+               (unless (= i 0) (write-char #\space port))
+               (display (vector-ref x i) port))
+          (write-char #\) port))
+        ((pair? x)
+          (write-char #\( port)
+          (let loop ((cur x))
+            (if (pair? (cdr cur))
+                (begin (display (car cur) port) (write-char #\space port) (loop (cdr cur)))
+                (begin
+                  (display (car cur) port)
+                  (unless (eq? '() (cdr cur)) (display " . " port) (display (cdr cur) port)))))
+          (write-char #\) port))
+        ((symbol? x) (display (symbol->string x) port))
+        ;; TODO lookup name
+        ((procedure? x) (display "#<procedure>" port))
+        ((eq? x #t) (display "#t" port))
+        ((eq? x #f) (display "#f" port))
+        ((eq? x '()) (display "()" port))
+        ((eof-object? x) (display "#<eof>" port))
+        ((port? x) (display "#<port>" port))
+        ((record? x) (display "#<record>" port))
+        ((string? x)
+          (do ((i 0 (+ i 1)))
+               ((= i (string-length x)))
+               (write-char (string-ref x i) port)))
+        (else (error "Bad type in display: " x))))))
+
+(define newline
+  (case-lambda
+    (() (newline (current-output-port)))
+    ((port) (display #\newline port))))
 
 (define input-port? port?)
 (define output-port? port?)

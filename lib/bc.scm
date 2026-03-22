@@ -87,11 +87,14 @@
     (= . EQV)
     (>= . GTE)
     (<= . LTE)
-    (display . WRITE)))
+    ;(display . WRITE)
+  ))
 (define (primcall-arity name)
   (cond
     ((memq name '(+ * < > = >= <= quotient truncate-quotient remainder modulo)) 2)
-    ((memq name '(exact->inexact inexact->exact char->integer integer->char display)) 1)
+    ((memq name
+           '(exact->inexact inexact->exact char->integer integer->char display))
+      1)
     (else #f)))
 (define (variable-assigned? var) (vector-ref var 2))
 (define (variable-name var) (vector-ref var 1))
