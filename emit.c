@@ -400,7 +400,8 @@ static void emit_ccall_arg_value(emit_state *s, trace *t, ccall_arg const *arg,
   }
 }
 
-static void emit_ccall_result(emit_state *s, uint8_t dst_reg, foreign_type type) {
+static void emit_ccall_result(emit_state *s, uint8_t dst_reg,
+                              foreign_type type) {
   switch (type) {
   case FOREIGN_TYPE_DOUBLE:
     if (dst_reg != asm_foreign_call_ret_fpr()) {
@@ -1494,16 +1495,6 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
     }
     // TODO: maybe move emit_typecheck here, instead of each individual one.
-    if (op->guard &&
-        !(op->op == IR_ARG || op->op == IR_PMOV || op->op == IR_SLOAD ||
-          op->op == IR_LOAD || op->op == IR_LOAD_CHAR || op->op == IR_ALLOC ||
-          op->op == IR_TYPECHECK || op->op == IR_SUB || op->op == IR_ADD ||
-          op->op == IR_MUL || op->op == IR_DIV || op->op == IR_QUOTIENT ||
-          op->op == IR_MOD || op->op == IR_GGET || op->op == IR_INEXACT ||
-          op->op == IR_EXACT || op->op == IR_TRUNCATE ||
-          op->op == IR_INTEGER_CHAR || op->op == IR_CHAR_INTEGER)) {
-      abort();
-    }
   }
 
   // Some traces place entry/exit snapshots immediately after the final IR.
