@@ -22,7 +22,7 @@
 static bool is_downrec_trace(trace_state *ts) { return ts->start_is_ret; }
 
 enum {
-  BLACKLIST_MAX = 64,
+  BLACKLIST_MAX = 32,
   func_flag_rest = 1,
 };
 
@@ -30,11 +30,6 @@ static const char *func_name_from_pc(bc *pc) {
   assert(pc);
   bcfunc *func = gc_base_ptr(pc);
   return to_string(func->name)->str;
-}
-
-bool record_pc_blacklisted(record_state *record, bc *pc) {
-  auto idx = hm_geti(record->blacklist, pc);
-  return idx >= 0 && record->blacklist[idx].value >= BLACKLIST_MAX;
 }
 
 static void penalty_pc(record_state *record, bc *pc) {
@@ -637,9 +632,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table, uint8_t argcnt) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
-  if (record_pc_blacklisted(&state->record, pc)) {
-    return op_table;
-  }
+
   if (arrlen(cur_trace->ins) <= ts->start_record_size) {
     return op_table;
   }
@@ -703,7 +696,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto jmp_pc = pc + 1;                                                      \
     bool taken_ = (TAKEN);                                                     \
     bc *next_pc = taken_ ? jmp_pc + 1 : jmp_pc + jmp_pc->data;                 \
-    vm_add_snap(state, taken_ ? jmp_pc + jmp_pc->data : jmp_pc + 1, argcnt);  \
+    vm_add_snap(state, taken_ ? jmp_pc + jmp_pc->data : jmp_pc + 1, argcnt);   \
     add_inst(state, (GUARD));                                                  \
     vm_add_snap(state, next_pc, argcnt);                                       \
   } while (0)
@@ -1193,19 +1186,18 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
   case OP_FUNC:
     for (int i = 0; i < MIN(instr.reg, REG_ARG_CNT); i++) {
       uint8_t type = get_type_tag(stack[i]);
-      set_stack(
-          state, i,
-          add_inst(state, IR(.op = IR_ARG, .data = i,
-                             .type = type == FLONUM_TAG ? UNDEFINED_TAG
-                                                        : type)));
+      set_stack(state, i,
+                add_inst(state, IR(.op = IR_ARG, .data = i,
+                                   .type = type == FLONUM_TAG ? UNDEFINED_TAG
+                                                              : type)));
     }
     break;
   case OP_RET:
     uint8_t type = get_type_tag(stack[instr.reg]);
-    set_stack(state, instr.reg,
-              add_inst(state, IR(.op = IR_ARG, .data = instr.reg,
-                                 .type = type == FLONUM_TAG ? UNDEFINED_TAG
-                                                            : type)));
+    set_stack(
+        state, instr.reg,
+        add_inst(state, IR(.op = IR_ARG, .data = instr.reg,
+                           .type = type == FLONUM_TAG ? UNDEFINED_TAG : type)));
 
     break;
   default:
@@ -1275,9 +1267,8 @@ void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
 }
 
 static bool replay_parent_guard(snap *side_snap, ir_ins const *old_ins) {
-  bool use_prev_guard =
-      side_snap == &side_snap->trace->snaps[0] &&
-      side_snap->trace->kind == TRACE_SIDE;
+  bool use_prev_guard = side_snap == &side_snap->trace->snaps[0] &&
+                        side_snap->trace->kind == TRACE_SIDE;
   return use_prev_guard ? old_ins->prev_guard : old_ins->guard;
 }
 
@@ -1313,9 +1304,9 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
       if (pmov.constant) {
         auto old_ins = &side_snap->trace->ins[parent_id];
         bool old_guard = replay_parent_guard(side_snap, old_ins);
-        ir_ins pmov_ins = IR(.op = IR_PMOV, .prev_reg = old_ins->reg,
-                             .prev_guard = old_guard, .guard = old_guard,
-                             .type = old_ins->type);
+        ir_ins pmov_ins =
+            IR(.op = IR_PMOV, .prev_reg = old_ins->reg, .prev_guard = old_guard,
+               .guard = old_guard, .type = old_ins->type);
         if (old_ins->spill != SPILL_NONE) {
           pmov_ins.spill = old_ins->spill;
         } else {

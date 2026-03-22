@@ -2,8 +2,8 @@
 
 #include "bc.h"
 #include "emit.h"
-#include "hawk.h"
 #include "hashtable.h"
+#include "hawk.h"
 #include "ir.h"
 #include "types.h"
 
@@ -48,5 +48,4 @@ void record_start_poly(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
                        snap *side_snap, uint8_t argcnt);
 void record_start_side(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
                        snap *side_snap, uint8_t argcnt);
-bool record_pc_blacklisted(record_state *record, bc *pc);
 void free_traces(struct vm_state *state);

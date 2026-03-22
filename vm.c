@@ -48,9 +48,6 @@ static inline uint32_t hotmap_hash(void *pc) {
 
 static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                        void *op_table, uint8_t argcnt) {
-  if (record_pc_blacklisted(&state->record, pc)) {
-    return op_table;
-  }
   uint8_t *hot_loc = &state->hotmap[hotmap_hash(pc)];
   uint8_t prev_hot = *hot_loc;
   *hot_loc -= 1;
@@ -594,8 +591,8 @@ OP(IFUNC) {
 OP(JFUNC) {
   auto trace = state->record.traces[instr.data];
   auto start = trace->start_pc;
-  if (start.op == OP_FUNC && !check_arity(state, stack, pc, start, argcnt,
-                                          false)) {
+  if (start.op == OP_FUNC &&
+      !check_arity(state, stack, pc, start, argcnt, false)) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
