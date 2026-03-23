@@ -20,15 +20,15 @@
               syntax-rules
               case
               ...
-              define-record-type
-              ;; TODO
-              exact)
+              define-record-type)
         ;; TODO
         (scheme complex)
         (scheme case-lambda)
         (prefix (hawk sys) sys:))
 
+(define (truncate x) (sys:TRUNCATE x))
 (define (inexact x) (sys:INEXACT x))
+(define (exact x) (sys:EXACT x))
 (define (char->integer x) (sys:CHAR_INTEGER x))
 (define (integer->char x) (sys:INTEGER_CHAR x))
 
@@ -1036,13 +1036,10 @@
 (define (sqrt d) (sys:FOREIGN_CALL '(double "sqrt" (double)) (inexact d)))
 (define (atan d) (sys:FOREIGN_CALL '(double "atan" (double)) (inexact d)))
 (define (round d)
-  (let* ((d (inexact d))
-         (rounded (sys:FOREIGN_CALL '(double "round" (double)) d)))
+  (let* ((d (inexact d)) (rounded (sys:FOREIGN_CALL '(double "round" (double)) d)))
     ;; Round to even, towards zero.
     (if (and (= 0.5 (sys:FOREIGN_CALL '(double "fabs" (double)) (- d rounded)))
-             (not (= 0.0
-                     (sys:FOREIGN_CALL '(double "fmod" (double double))
-                                       rounded 2.0))))
+             (not (= 0.0 (sys:FOREIGN_CALL '(double "fmod" (double double)) rounded 2.0))))
         (+ rounded (if (> d 0) -1 1))
         rounded)))
 (define (ceiling x) (sys:FOREIGN_CALL '(double "ceil" (double)) (inexact x)))
