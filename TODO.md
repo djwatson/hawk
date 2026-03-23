@@ -12,6 +12,10 @@
 
 ## JIT impl
 
+* cleanup tmp /tmp2 reg shit.  it's getting sloppy
+
+* need to memset(0) records I think? ugh.
+
 * figure out why deriv is slow
   * heurstics can't catch single-looping trace
   * downrec abort not working (start of trace is failing?)

@@ -626,7 +626,11 @@
 (define (call-with-current-continuation proc)
   (proc (lambda args (error "ERROR call/cc"))))
 
-(define (error . msg) (sys:WRITE "ERROR:") (sys:WRITE msg) (sys:WRITE "\n") (/ 1 0))
+(define (error . msg)
+  (sys:WRITE "ERROR:")
+  (sys:WRITE msg)
+  (sys:WRITE "\n")
+  (/ 1 0))
 
 ;;;;;; Records
 (define (record-set! record index value)
@@ -1044,3 +1048,20 @@
         rounded)))
 (define (ceiling x) (sys:FOREIGN_CALL '(double "ceil" (double)) (inexact x)))
 (define (log x) (sys:FOREIGN_CALL '(double "log" (double)) (inexact x)))
+
+;; values
+
+(define (call-with-values producer consumer) (apply consumer (producer)))
+
+(define values
+  (case-lambda
+    ((a) a)
+    ((a b) (cons a (cons b '())))
+    ((a b c) (cons a (cons b (cons c '()))))
+    (rest rest)))
+;; bytevectors
+
+(define make-bytevector make-string)
+(define (bytevector-u8-set! bv i val) (string-set! bv i (integer->char val)))
+(define (utf8->string v) v)
+(define (string->utf8 v) v)
