@@ -23,4 +23,5 @@ typedef struct {
 
 foreign_type foreign_parse_type(gc_obj type_obj);
 void foreign_parse_sig(gc_obj sig_obj, foreign_sig *sig);
+gc_obj foreign_owned_string(char *raw);
 gc_obj do_foreign_call(gc_obj sig_obj, gc_obj const *args, uint8_t argcnt);

@@ -550,7 +550,18 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
 
   emit_mov64(s, RTMP, (intptr_t)sig.sym);
   emit_call_reg(s, RTMP);
-  emit_ccall_result(s, dst_reg, sig.ret_type);
+  if (sig.ret_type == FOREIGN_TYPE_STRING) {
+    if (RARG0 != RET_REG) {
+      emit_mov(s, RARG0, RET_REG);
+    }
+    emit_mov64(s, RTMP, (intptr_t)&foreign_owned_string);
+    emit_call_reg(s, RTMP);
+    if (dst_reg != RET_REG) {
+      emit_mov(s, dst_reg, RET_REG);
+    }
+  } else {
+    emit_ccall_result(s, dst_reg, sig.ret_type);
+  }
   invalidate_live_regs_for_ccall(t, ra_state, dst_reg);
   emit_pop_regs(s, save_regs, 0, true);
 }

@@ -104,7 +104,7 @@ typedef union foreign_tmp {
   void *ptr;
 } foreign_tmp;
 
-static gc_obj foreign_owned_string(char *raw) {
+gc_obj foreign_owned_string(char *raw) {
   if (!raw) {
     abort();
   }

@@ -402,6 +402,7 @@ static uint8_t foreign_ir_result_type(foreign_type type) {
   case FOREIGN_TYPE_UINT64:
     return FIXNUM_TAG;
   case FOREIGN_TYPE_STRING:
+    return STRING_TAG;
   default:
     abort();
   }
@@ -417,8 +418,7 @@ static void ensure_recordable_foreign_sig(foreign_sig const *sig) {
       gpr_args++;
     }
   }
-  if (sig->ret_type == FOREIGN_TYPE_STRING ||
-      gpr_args > asm_foreign_call_max_gpr_args() ||
+  if (gpr_args > asm_foreign_call_max_gpr_args() ||
       fpr_args > asm_foreign_call_max_fpr_args()) {
     abort();
   }
