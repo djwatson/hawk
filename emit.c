@@ -548,6 +548,7 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
     emit_ccall_arg_value(s, t, &arg->arg, REG_NONE, arg->dst_reg);
   }
 
+  emit_store_ralloc(s);
   emit_mov64(s, RTMP, (intptr_t)sig.sym);
   emit_call_reg(s, RTMP);
   if (sig.ret_type == FOREIGN_TYPE_STRING) {
@@ -562,6 +563,7 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
   } else {
     emit_ccall_result(s, dst_reg, sig.ret_type);
   }
+  emit_load_ralloc(s);
   invalidate_live_regs_for_ccall(t, ra_state, dst_reg);
   emit_pop_regs(s, save_regs, 0, true);
 }
@@ -811,6 +813,7 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
   }
 
   uint8_t low_tag = op->type & TAG_MASK;
+  uint8_t tmp = reg == RTMP ? RTMP2 : RTMP;
   int64_t mask = TAG_MASK;
   int64_t want = op->type;
   COMMENT("  typecheck %s", low_tag_names[low_tag]);
@@ -828,26 +831,26 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
       // func loads ONLY happen from closure loads, no need to typecheck.
       return;
     }
-    emit_mov(s, RTMP, reg);
-    emit_and_constant(s, RTMP, RTMP, TAG_MASK);
-    emit_cmp_constant(s, RTMP, PTR_TAG);
+    emit_mov(s, tmp, reg);
+    emit_and_constant(s, tmp, tmp, TAG_MASK);
+    emit_cmp_constant(s, tmp, PTR_TAG);
     emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
     if (op->type == PTR_TAG) {
       return;
     }
-    emit_mov(s, RTMP, reg);
-    emit_sub_constant(s, RTMP, RTMP, PTR_TAG);
-    emit_mem_load(s, 0, RTMP, RTMP);
-    emit_cmp_constant(s, RTMP, op->type);
+    emit_mov(s, tmp, reg);
+    emit_sub_constant(s, tmp, tmp, PTR_TAG);
+    emit_mem_load(s, 0, tmp, tmp);
+    emit_cmp_constant(s, tmp, op->type);
     emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
     return;
   default:
     break;
   }
 
-  emit_mov(s, RTMP, reg);
-  emit_and_constant(s, RTMP, RTMP, mask);
-  emit_cmp_constant(s, RTMP, want);
+  emit_mov(s, tmp, reg);
+  emit_and_constant(s, tmp, tmp, mask);
+  emit_cmp_constant(s, tmp, want);
   emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
 }
 

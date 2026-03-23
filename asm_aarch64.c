@@ -690,6 +690,10 @@ static inline void emit_fixnum_mul_guard_overflow_reg(emit_state *s,
                                                       uint8_t dst, uint8_t lhs,
                                                       uint8_t rhs,
                                                       label *overflow_target) {
+  if (rhs == RTMP) {
+    emit_mov(s, RTMP2, rhs);
+    rhs = RTMP2;
+  }
   emit_smulh(s, RTMP, lhs, rhs);
   emit_mul(s, dst, lhs, rhs);
   emit_sar_constant(s, RTMP2, dst, 63);
