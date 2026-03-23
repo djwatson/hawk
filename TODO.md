@@ -11,7 +11,7 @@
 * probably need to fix closure conversion at some point
 
 ## broken bench2:
-* cat, ray, slatex, tail: file-exsts? delete-file
+* tail: read-line
 * chudnovsky, pi: bignum
 * compiler: fixme
 * ctak, fibc, maze, puzzle: call/cc
@@ -21,10 +21,8 @@
 * matrix?? hangs
 * equal - need equal with loop checking
 * mbrotZ: imaginary
-* quicksort: vector-map
-* read1, sum1: object something???? heap failure
 * scheme: caaar
-* 
+* cat, ray, read1, sum1, slatex: input/output needs buffering, too slow to finish.
 
 
 ## JIT impl

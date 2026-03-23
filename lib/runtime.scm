@@ -287,7 +287,11 @@
 (define (list->vector lst)
   (let* ((len (length lst)) (v (make-vector len 0)))
     (do ((i 0 (+ i 1)) (p lst (cdr p))) ((= i len) v) (vector-set! v i (car p)))))
-
+(define (vector-map fun vec)
+  (let ((res (make-vector (vector-length vec))))
+    (do ((i 0 (+ i 1)))
+         ((= i (vector-length res)) res)
+         (vector-set! res i (fun (vector-ref vec i))))))
 ;; SIN
 (define two-pi 6.28319)
 (define pi (/ two-pi 2.0))
