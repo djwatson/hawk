@@ -189,6 +189,13 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
                            int32_t cur_snap, uint8_t reg);
 static const uint8_t PAR_MOVE_MARKER = UINT8_MAX;
 
+static uint8_t resolve_tmp_reg(uint8_t peer) {
+  if (peer != PAR_MOVE_MARKER && is_fpr_reg(peer)) {
+    return FRTMP;
+  }
+  return RTMP;
+}
+
 static inline ir_ins *slot_ins(trace *t, slot v) {
   assert(!v.constant);
   return &t->ins[v.loc];
@@ -441,6 +448,14 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
       collect_live_caller_saved_regs(t, ra_state, op_cnt_idx, save_regs);
   emit_push_regs(s, save_regs, save_count, true);
 
+  typedef struct {
+    ccall_arg arg;
+    uint8_t src_reg;
+    uint8_t dst_reg;
+  } pending_ccall_arg;
+
+  pending_ccall_arg pending[UINT8_MAX] = {0};
+  par_copy *cpy = nullptr;
   uint8_t next_gpr = 0;
   uint8_t next_fpr = 0;
   for (uint8_t i = 0; i < call_arg_count; i++) {
@@ -452,11 +467,59 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
     uint8_t dst = arg->type == FOREIGN_TYPE_DOUBLE
                       ? asm_foreign_call_arg_fpr(next_fpr++)
                       : asm_foreign_call_arg_gpr(next_gpr++);
-    emit_ccall_arg_value(s, t, arg, src_reg, dst);
+    pending[i] = (pending_ccall_arg){
+        .arg = *arg, .src_reg = src_reg, .dst_reg = dst};
+    if (!arg->value.constant) {
+      arrput(cpy, ((par_copy){.from = src_reg, .to = dst}));
+    }
   }
   if (next_gpr > asm_foreign_call_max_gpr_args() ||
       next_fpr > asm_foreign_call_max_fpr_args()) {
     abort();
+  }
+
+  par_copy *moves = serialize_parallel_copy(cpy, PAR_MOVE_MARKER);
+  arr_for_each_idx(moves, i) {
+    auto mov = moves[i];
+    uint64_t from_u64 = mov.from;
+    uint64_t to_u64 = mov.to;
+    uint8_t from = (uint8_t)from_u64;
+    uint8_t to = (uint8_t)to_u64;
+    if (from_u64 == PAR_MOVE_MARKER) {
+      from = resolve_tmp_reg(to);
+    }
+    if (to_u64 == PAR_MOVE_MARKER) {
+      to = resolve_tmp_reg(from);
+      if (is_fpr_reg(from)) {
+        emit_fmov(s, to, from);
+      } else {
+        emit_mov(s, to, from);
+      }
+      continue;
+    }
+
+    bool found = false;
+    for (uint8_t j = 0; j < call_arg_count; j++) {
+      auto *arg = &pending[j];
+      if (arg->arg.value.constant || arg->dst_reg != to) {
+        continue;
+      }
+      emit_ccall_arg_value(s, t, &arg->arg, from, to);
+      found = true;
+      break;
+    }
+    if (!found) {
+      abort();
+    }
+  }
+  arrfree(moves);
+
+  for (uint8_t i = 0; i < call_arg_count; i++) {
+    auto *arg = &pending[i];
+    if (!arg->arg.value.constant) {
+      continue;
+    }
+    emit_ccall_arg_value(s, t, &arg->arg, REG_NONE, arg->dst_reg);
   }
 
   emit_mov64(s, RTMP, (intptr_t)sig.sym);
@@ -637,13 +700,6 @@ static void emit_unbox_flonum(emit_state *s, uint8_t gpr_reg, uint8_t fpr_reg) {
   assert(!is_fpr_reg(gpr_reg));
   assert(is_fpr_reg(fpr_reg));
   emit_fmem_load(s, flonum_payload_offset - FLONUM_TAG, gpr_reg, fpr_reg);
-}
-
-static uint8_t resolve_tmp_reg(uint8_t peer) {
-  if (peer != PAR_MOVE_MARKER && is_fpr_reg(peer)) {
-    return FRTMP;
-  }
-  return RTMP;
 }
 
 static void emit_serialized_moves(emit_state *s, par_copy *cpy,

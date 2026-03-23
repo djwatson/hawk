@@ -626,7 +626,7 @@
 (define (call-with-current-continuation proc)
   (proc (lambda args (error "ERROR call/cc"))))
 
-(define (error . msg) (display "ERROR:") (display msg) (newline) (/ 1 0))
+(define (error . msg) (sys:WRITE "ERROR:") (sys:WRITE msg) (sys:WRITE "\n") (/ 1 0))
 
 ;;;;;; Records
 (define (record-set! record index value)
@@ -787,7 +787,7 @@
   (if (port-buf port)
       (port-buf-set! port (string-append (port-buf port) (make-string 1 char)))
       (let* ((buf (make-string 1 char)) (cnt (c-write (port-fd port) buf 1)))
-        (if (= cnt 1) #t (error "write-char error")))))
+        (if (= cnt 1) #t (error "write-char error" cnt)))))
 
 (define (string->list str)
   (let ((n (string-length str)))
