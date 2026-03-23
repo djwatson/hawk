@@ -40,9 +40,6 @@ static void penalty_pc(record_state *record, bc *pc) {
 
   auto idx = hm_geti(record->blacklist, pc);
   if (idx >= 0) {
-    if (record->blacklist[idx].value >= BLACKLIST_MAX) {
-      return;
-    }
     auto cnt = ++record->blacklist[idx].value;
     if (cnt >= BLACKLIST_MAX) {
       if (verbose) {
@@ -50,6 +47,9 @@ static void penalty_pc(record_state *record, bc *pc) {
         printf("Blacklist pc %p %s\n", pc, fname);
       }
       record->blacklist[idx].value = BLACKLIST_MAX;
+      if (pc->op == OP_FUNC) {
+        pc->op = OP_IFUNC;
+      }
     }
     return;
   }
@@ -686,8 +686,6 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
   return res;
 }
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
-                                void *op_table, uint8_t argcnt);
-static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
                                 void *op_table, uint8_t argcnt) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
@@ -1119,9 +1117,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
     slot carg = add_const(state, tag_fixnum(0));
     for (uint8_t i = call_argcnt; i > 0; i--) {
-      auto arg =
-          record_foreign_arg(state, stack, (uint8_t)(pc->v1 + i),
-                             foreign.arg_types[i - 1]);
+      auto arg = record_foreign_arg(state, stack, (uint8_t)(pc->v1 + i),
+                                    foreign.arg_types[i - 1]);
       carg = add_inst(
           state, IR(.op = IR_CARG, .op1 = arg, .op2 = carg,
                     .type = get_slot_type(record_current_trace(state), arg)));

@@ -585,9 +585,16 @@ OP(ARGCNT_ERROR) {
 }
 
 OP(IFUNC) {
-  check_arity(state, stack, pc, instr, argcnt, true);
+  if (!check_arity(state, stack, pc, instr, argcnt, false)) {
+    pc = next_op(pc);
+    dispatch_next(pc, stack);
+  }
+
   check_expand_stack(state, &stack);
-  END_NEXT
+  auto next = next_op(pc);
+  pc = next_op(next);
+  dispatch_next(pc, stack);
+  END
 }
 
 OP(JFUNC) {
