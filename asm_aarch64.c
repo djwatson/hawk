@@ -86,6 +86,22 @@ static uint8_t *emit_op(emit_state *s, uint32_t code) {
   return emit_imm32(s, code);
 }
 
+static uint8_t pick_addr_tmp(uint8_t reg0, uint8_t reg1) {
+  if (RTMP != reg0 && RTMP != reg1) {
+    return RTMP;
+  }
+  if (RTMP2 != reg0 && RTMP2 != reg1) {
+    return RTMP2;
+  }
+  if (X16 != reg0 && X16 != reg1) {
+    return X16;
+  }
+  if (X17 != reg0 && X17 != reg1) {
+    return X17;
+  }
+  abort();
+}
+
 static uint32_t stp_pre(uint8_t rt, uint8_t rt2, uint8_t rn, int32_t offset) {
   assert((offset % 8) == 0);
   int32_t imm = offset / 8;
@@ -962,11 +978,16 @@ void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
     emit_op(s, opcode);
     return;
   }
-  assert(offset >= -256 && offset <= 255);
-  uint32_t imm9 = (uint32_t)(offset & 0x1ff);
-  uint32_t opcode =
-      0xF8400000U | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)dst;
-  emit_op(s, opcode);
+  if (offset >= -256 && offset <= 255) {
+    uint32_t imm9 = (uint32_t)(offset & 0x1ff);
+    uint32_t opcode =
+        0xF8400000U | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)dst;
+    emit_op(s, opcode);
+    return;
+  }
+  uint8_t addr = pick_addr_tmp(base, dst);
+  emit_add_constant(s, addr, base, offset);
+  emit_mem_load(s, 0, addr, dst);
 }
 
 void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
@@ -978,11 +999,16 @@ void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) 
     emit_op(s, opcode);
     return;
   }
-  assert(offset >= -256 && offset <= 255);
-  uint32_t imm9 = (uint32_t)(offset & 0x1ff);
-  uint32_t opcode =
-      0x38400000U | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)dst;
-  emit_op(s, opcode);
+  if (offset >= -256 && offset <= 255) {
+    uint32_t imm9 = (uint32_t)(offset & 0x1ff);
+    uint32_t opcode =
+        0x38400000U | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)dst;
+    emit_op(s, opcode);
+    return;
+  }
+  uint8_t addr = pick_addr_tmp(base, dst);
+  emit_add_constant(s, addr, base, offset);
+  emit_mem_load_u8(s, 0, addr, dst);
 }
 
 void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
@@ -996,11 +1022,16 @@ void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
     emit_op(s, opcode);
     return;
   }
-  assert(offset >= -256 && offset <= 255);
-  uint32_t imm9 = (uint32_t)(offset & 0x1ff);
-  uint32_t opcode = 0xFC400000U | (imm9 << 12) | ((uint32_t)base << 5) |
-                    (uint32_t)hw_fpr(dst);
-  emit_op(s, opcode);
+  if (offset >= -256 && offset <= 255) {
+    uint32_t imm9 = (uint32_t)(offset & 0x1ff);
+    uint32_t opcode = 0xFC400000U | (imm9 << 12) | ((uint32_t)base << 5) |
+                      (uint32_t)hw_fpr(dst);
+    emit_op(s, opcode);
+    return;
+  }
+  uint8_t addr = pick_addr_tmp(base, REG_NONE);
+  emit_add_constant(s, addr, base, offset);
+  emit_fmem_load(s, 0, addr, dst);
 }
 
 void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
@@ -1014,11 +1045,16 @@ void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
     emit_op(s, opcode);
     return;
   }
-  assert(offset >= -256 && offset <= 255);
-  uint32_t imm9 = (uint32_t)(offset & 0x1ff);
-  uint32_t opcode =
-      0xF8000000U | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)src;
-  emit_op(s, opcode);
+  if (offset >= -256 && offset <= 255) {
+    uint32_t imm9 = (uint32_t)(offset & 0x1ff);
+    uint32_t opcode =
+        0xF8000000U | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)src;
+    emit_op(s, opcode);
+    return;
+  }
+  uint8_t addr = pick_addr_tmp(base, src);
+  emit_add_constant(s, addr, base, offset);
+  emit_store(s, 0, addr, src);
 }
 
 void emit_store_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
@@ -1030,11 +1066,16 @@ void emit_store_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
     emit_op(s, opcode);
     return;
   }
-  assert(offset >= -256 && offset <= 255);
-  uint32_t imm9 = (uint32_t)(offset & 0x1ff);
-  uint32_t opcode =
-      0x38000000U | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)src;
-  emit_op(s, opcode);
+  if (offset >= -256 && offset <= 255) {
+    uint32_t imm9 = (uint32_t)(offset & 0x1ff);
+    uint32_t opcode =
+        0x38000000U | (imm9 << 12) | ((uint32_t)base << 5) | (uint32_t)src;
+    emit_op(s, opcode);
+    return;
+  }
+  uint8_t addr = pick_addr_tmp(base, src);
+  emit_add_constant(s, addr, base, offset);
+  emit_store_u8(s, 0, addr, src);
 }
 
 void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
@@ -1048,11 +1089,16 @@ void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
     emit_op(s, opcode);
     return;
   }
-  assert(offset >= -256 && offset <= 255);
-  uint32_t imm9 = (uint32_t)(offset & 0x1ff);
-  uint32_t opcode = 0xFC000000U | (imm9 << 12) | ((uint32_t)base << 5) |
-                    (uint32_t)hw_fpr(src);
-  emit_op(s, opcode);
+  if (offset >= -256 && offset <= 255) {
+    uint32_t imm9 = (uint32_t)(offset & 0x1ff);
+    uint32_t opcode = 0xFC000000U | (imm9 << 12) | ((uint32_t)base << 5) |
+                      (uint32_t)hw_fpr(src);
+    emit_op(s, opcode);
+    return;
+  }
+  uint8_t addr = pick_addr_tmp(base, REG_NONE);
+  emit_add_constant(s, addr, base, offset);
+  emit_fstore(s, 0, addr, src);
 }
 
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
