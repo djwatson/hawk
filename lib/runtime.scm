@@ -754,6 +754,13 @@
 (define (c-read fd buf cnt)
   (sys:FOREIGN_CALL '(int64 "read" (int32 string uint64)) fd buf cnt))
 
+(define (delete-file filename)
+  (let ((res (sys:FOREIGN_CALL '(int32 "unlink" (string)) filename)))
+    (unless (= 0 res) (error "Bad unlink:" filename res))))
+
+(define (file-exists? filename)
+  (= 0 (sys:FOREIGN_CALL '(int32 "access" (string int32)) filename 0)))
+
 (define (open-input-file file)
   (let ((fd (c-open file 1)))
     (when (< fd 0) (error "open-input-file error:" file))

@@ -29,6 +29,8 @@
 
 ## JIT impl
 
+* lots of ccall cleanup - regalloc, live register save/restore, etc
+
 * cleanup tmp /tmp2 reg shit.  it's getting sloppy
 
 * need to memset(0) records I think? ugh.

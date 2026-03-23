@@ -76,6 +76,7 @@ endif()
 set(
   hawk_sources
   hawk.c
+  runtime.c
   ftoa.c
   vm.c
   foreign.c

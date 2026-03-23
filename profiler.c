@@ -54,7 +54,7 @@ void profiler_register_jit_symbol(void *start, void *end, const char *name) {
   (void)name;
 }
 
-EXPORT void profiler_start(void) {
+void profiler_start(void) {
   if (profiler_running) {
     return;
   }
@@ -67,7 +67,7 @@ EXPORT void profiler_start(void) {
   profiler_running = true;
 }
 
-EXPORT void profiler_stop(void) {
+void profiler_stop(void) {
   if (!profiler_running) {
     return;
   }
