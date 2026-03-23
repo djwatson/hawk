@@ -73,6 +73,10 @@
 * we could keep boxed/unboxed flonum pairs around? we might be
   re-boxing in some cases instead of re-using the unchanged old box
   (only in cases of IR_STORE or taking a snapshot)
+* currently we're flushing everyting live-across a CCALL to spill
+  slot - we don't use callee saved.  The reason is to make it easy for
+  gc to work across CCALL.  This assumes CCALLs are rare, maybe
+  experiment with this if they're not.
 
 ### opts
 

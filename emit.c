@@ -372,6 +372,32 @@ static size_t collect_live_caller_saved_regs(trace *t, regalloc_state *ra_state,
   return count;
 }
 
+static void invalidate_live_regs_for_ccall(trace *t, regalloc_state *ra_state,
+                                           uint8_t dst_reg) {
+  enum : uint16_t {
+    ALLOC_NONE_LOCAL = UINT16_MAX,
+    ALLOC_UNALLOCATABLE_LOCAL = UINT16_MAX - 1,
+  };
+  size_t ins_len = arrlen(t->ins);
+  for (size_t i = 0; i < MAX_REG; i++) {
+    uint8_t reg = (uint8_t)i;
+    if (reg == dst_reg) {
+      continue;
+    }
+    uint16_t value_id = ra_state->regs[reg];
+    if (value_id == ALLOC_UNALLOCATABLE_LOCAL) {
+      continue;
+    }
+    if (value_id == ALLOC_NONE_LOCAL) {
+      continue;
+    }
+    if (value_id >= ins_len) {
+      continue;
+    }
+    ra_state->regs[reg] = ALLOC_NONE_LOCAL;
+  }
+}
+
 static void emit_ccall_arg_value(emit_state *s, trace *t, ccall_arg const *arg,
                                  uint8_t src_reg, uint8_t dst_reg) {
   switch (arg->type) {
@@ -446,7 +472,7 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
   uint8_t save_regs[FPR_REG_END];
   size_t save_count =
       collect_live_caller_saved_regs(t, ra_state, op_cnt_idx, save_regs);
-  emit_push_regs(s, save_regs, save_count, true);
+  emit_push_regs(s, save_regs, 0, true);
 
   typedef struct {
     ccall_arg arg;
@@ -467,8 +493,8 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
     uint8_t dst = arg->type == FOREIGN_TYPE_DOUBLE
                       ? asm_foreign_call_arg_fpr(next_fpr++)
                       : asm_foreign_call_arg_gpr(next_gpr++);
-    pending[i] = (pending_ccall_arg){
-        .arg = *arg, .src_reg = src_reg, .dst_reg = dst};
+    pending[i] =
+        (pending_ccall_arg){.arg = *arg, .src_reg = src_reg, .dst_reg = dst};
     if (!arg->value.constant) {
       arrput(cpy, ((par_copy){.from = src_reg, .to = dst}));
     }
@@ -525,7 +551,8 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
   emit_mov64(s, RTMP, (intptr_t)sig.sym);
   emit_call_reg(s, RTMP);
   emit_ccall_result(s, dst_reg, sig.ret_type);
-  emit_pop_regs(s, save_regs, save_count, true);
+  invalidate_live_regs_for_ccall(t, ra_state, dst_reg);
+  emit_pop_regs(s, save_regs, 0, true);
 }
 
 static void emit_cmp_regs(emit_state *s, trace *t, uint8_t lhs_reg, slot rhs,

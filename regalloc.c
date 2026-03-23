@@ -202,6 +202,11 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     lru_remove(value_lru, value_id);
 
     auto ins = &s->t->ins[value_id];
+    if (ins->op == IR_CCALL) {
+      limit_live_values(s, &gpr_live, 0);
+      limit_live_values(s, &fpr_live, 0);
+    }
+
     slot args[UINT8_MAX];
     uint8_t arg_count = regalloc_collect_ir_args(s->t, ins, args);
     for (uint8_t arg = 0; arg < arg_count; arg++) {
@@ -214,9 +219,7 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     // at the same time as the input registers.
     uint16_t gpr_limit = GPR_ALLOCATABLE;
     uint16_t fpr_limit = FPR_ALLOCATABLE;
-    if (ins->op == IR_CCALL) {
-      regalloc_ccall_limits(s->t, ins, &gpr_limit, &fpr_limit);
-    } else if (s->t->ins[value_id].type == FLONUM_TAG) {
+    if (s->t->ins[value_id].type == FLONUM_TAG) {
       fpr_limit--;
     } else if (ins->op != IR_REF && ins->op != IR_CARG) {
       gpr_limit--;
