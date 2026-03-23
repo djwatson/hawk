@@ -209,7 +209,6 @@ add_custom_command(
   VERBATIM)
 add_custom_target(fold_gen DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/fold_gen.h)
 add_dependencies(hawk fold_gen)
-set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 if(ENABLE_COVERAGE)
   if(CMAKE_C_COMPILER_ID MATCHES "Clang")
@@ -272,7 +271,7 @@ elseif(APPLE)
   target_link_options(hawk PRIVATE -Wl,-export_dynamic)
 endif()
 
-set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+#set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 if(USE_RANDOM_SCHEDULE)
     target_compile_definitions(hawk PRIVATE RANDOM_SCHEDULE)
