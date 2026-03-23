@@ -40,10 +40,9 @@
 # VM impl
 
 * track stack-top
-* half finished - all the typcheck types - (need more ptr types)
 * rest of ops: callcc/callcc_resume. That's it.
 * update stack overflow, just allocate a new section (linked stack segments, much faster callcc handling)
-* math and cmp ops have lots of spills in generated code.
+* math and cmp ops have lots of spills in generated code.???
 
 # cleanup
 * we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!

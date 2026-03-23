@@ -11,6 +11,7 @@
 #include "array.h"
 #include "gc.h"
 #include "hawk.h"
+#include "profiler.h"
 #include "types.h"
 
 typedef struct {
@@ -141,6 +142,7 @@ static void scan_object(gc_header *obj) {
 }
 
 static void gc_collect(void) {
+  profiler_set_in_gc(true);
   if (verbose) {
     fprintf(stderr, "gc_collect()\n");
   }
@@ -158,6 +160,7 @@ static void gc_collect(void) {
     arrpop(worklist);
     scan_object(obj);
   }
+  profiler_set_in_gc(false);
 }
 
 void gc_init(void) {
