@@ -10,6 +10,23 @@
 
 * probably need to fix closure conversion at some point
 
+## broken bench2:
+* cat, ray, slatex, tail: file-exsts? delete-file
+* chudnovsky, pi: bignum
+* compiler: fixme
+* ctak, fibc, maze, puzzle: call/cc
+* dynamic: ???
+* earley, mperm, paraffins: out of mem
+* fibfp: incorrect result
+* matrix?? hangs
+* equal - need equal with loop checking
+* mbrotZ: imaginary
+* quicksort: vector-map
+* read1, sum1: object something???? heap failure
+* scheme: caaar
+* 
+
+
 ## JIT impl
 
 * cleanup tmp /tmp2 reg shit.  it's getting sloppy
