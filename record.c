@@ -941,7 +941,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_WRITE: {
     auto val = stack_load(state, stack, instr.v1, false);
-    printf("Abort: can't record WRITE");
     record_abort(state, &op_table, "can't record WRITE\n");
     break;
   }
@@ -1100,7 +1099,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_APPLY: {
-    printf("Abort: can't record APPLY\n");
     record_abort(state, &op_table, "can't record APPLY");
     break;
   }

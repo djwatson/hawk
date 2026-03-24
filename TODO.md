@@ -13,18 +13,16 @@
 ## broken bench2:
 * tail: read-line
 * chudnovsky, pi: bignum
-* compiler: various bugs
 * ctak, fibc, maze, puzzle: call/cc
-* dynamic: ???
 * fibfp: incorrect result - "read"ing
-* matrix?? hangs
 * equal - need equal with loop checking
 * mbrotZ: imaginary
-* scheme: caaar
+
 * cat, ray, read1, sum1, slatex: input/output needs buffering, too slow to finish.
 
-
 ## JIT impl
+
+* get APPLY recording
 
 * lots of ccall cleanup - regalloc, live register save/restore, etc
 
