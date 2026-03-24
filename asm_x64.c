@@ -797,23 +797,21 @@ void emit_quotient(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
     emit_push(s, RDX);
   }
 
-  // Inputs are tagged fixnums. Untag copies, divide, then retag the quotient.
-  // Never SAR an input register directly unless it has been saved.
-  bool lhs_saved = (lhs != RAX) || save_rax;
-  if (lhs_saved) {
-    emit_mov(s, RAX, lhs);
-    emit_sar_constant(s, RAX, RAX, 3);
+  // Preserve operands in dedicated scratch regs to avoid register overlap:
+  //   RTMP2 = lhs, RTMP = rhs
+  if (rhs == RTMP2) {
+    emit_mov(s, RTMP, rhs);
+    emit_mov(s, RTMP2, lhs);
   } else {
     emit_mov(s, RTMP2, lhs);
-    emit_sar_constant(s, RTMP2, RTMP2, 3);
-    emit_mov(s, RAX, RTMP2);
+    emit_mov(s, RTMP, rhs);
   }
+  emit_sar_constant(s, RTMP2, RTMP2, 3);
+  emit_sar_constant(s, RTMP, RTMP, 3);
 
-  uint8_t divisor = (rhs == RTMP) ? RTMP2 : RTMP;
-  emit_mov(s, divisor, rhs);
-  emit_sar_constant(s, divisor, divisor, 3);
+  emit_mov(s, RAX, RTMP2);
   emit_cqo(s);
-  emit_idiv_signed(s, divisor);
+  emit_idiv_signed(s, RTMP);
 
   if (dst != RAX) {
     emit_mov(s, dst, RAX);
