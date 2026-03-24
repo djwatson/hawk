@@ -751,7 +751,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
-  if (ts->depth >= 20 || arrlen(cur_trace->ins) >= 500) {
+  if (ts->depth >= 40 || arrlen(cur_trace->ins) >= 5000) {
     record_abort(state, &op_table, "too long or too deep");
     goto done;
   }
