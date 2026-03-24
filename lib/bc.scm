@@ -409,10 +409,20 @@
 (define (fits-in-int16 value)
   (and (integer? value) (exact? value) (<= -32768 (* 8 value) 32767)))
 
+(define fixnum-max (- (expt 2 60) 1))
+(define fixnum-min (- (expt 2 60)))
+
 (define (fits-in-int64 value)
-  (and (integer? value)
-       (exact? value)
-       (<= (- (expt 2 63)) value (- (expt 2 63) 1))))
+  (and (integer? value) (exact? value) (<= fixnum-min value fixnum-max)))
+
+(define (clamp-fixnum value)
+  (display "warning: truncating bignum literal " (current-error-port))
+  (write value (current-error-port))
+  (newline (current-error-port))
+  (cond
+    ((< value fixnum-min) fixnum-min)
+    ((> value fixnum-max) fixnum-max)
+    (else (error "Invalid bignum"))))
 
 (define (normalize-const datum)
   (cond
@@ -636,6 +646,7 @@
 (define (encode-immediate o)
   (cond
     ((fixnum? o) (* 8 o))
+    ((and (integer? o) (exact? o)) (* 8 (clamp-fixnum o)))
     ((eq? o #t) true-rep)
     ((eq? o #f) false-rep)
     ((null? o) nil-tag)
