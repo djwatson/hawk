@@ -408,6 +408,26 @@ static uint8_t foreign_ir_result_type(foreign_type type) {
   }
 }
 
+static bool normalize_numeric_cmp_inputs(vm_state *state, slot *v1, slot *v2,
+                                         bool require_numeric) {
+  auto t = record_current_trace(state);
+  auto t1 = get_slot_type(t, *v1);
+  auto t2 = get_slot_type(t, *v2);
+  bool n1 = (t1 == FLONUM_TAG || t1 == FIXNUM_TAG);
+  bool n2 = (t2 == FLONUM_TAG || t2 == FIXNUM_TAG);
+  if (!n1 || !n2) {
+    if (require_numeric) {
+      abort();
+    }
+    return false;
+  }
+  if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
+    *v1 = convert_to_flonum(state, *v1);
+    *v2 = convert_to_flonum(state, *v2);
+  }
+  return true;
+}
+
 static void ensure_recordable_foreign_sig(foreign_sig const *sig) {
   uint8_t gpr_args = 0;
   uint8_t fpr_args = 0;
@@ -462,17 +482,7 @@ static slot record_foreign_arg(vm_state *state, gc_obj *stack, uint8_t pos,
     } else {                                                                   \
       abort();                                                                 \
     }                                                                          \
-    auto t = record_current_trace(state);                                      \
-    auto t1 = get_slot_type(t, v1);                                            \
-    auto t2 = get_slot_type(t, v2);                                            \
-    if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {                                \
-      v1 = convert_to_flonum(state, v1);                                       \
-      v2 = convert_to_flonum(state, v2);                                       \
-    } else if (t1 == FIXNUM_TAG && t2 == FIXNUM_TAG) {                         \
-      /* OK. */                                                                \
-    } else {                                                                   \
-      abort();                                                                 \
-    }                                                                          \
+    normalize_numeric_cmp_inputs(state, &v1, &v2, true);                       \
                                                                                \
     *taken = res;                                                              \
     return IR(.op = res ? taken_op : not_taken_op, .op1 = v1, .op2 = v2,       \
@@ -489,6 +499,7 @@ static ir_ins emit_math_cmp_eq(vm_state *state, bc *pc, gc_obj *stack, slot v1,
   auto rhs = stack[pc->v2];
   auto t = record_current_trace(state);
   bool res = eqv ? obj_jeqv(lhs, rhs) : lhs.value == rhs.value;
+  normalize_numeric_cmp_inputs(state, &v1, &v2, false);
   *taken = res;
   return IR(.op = res ? IR_EQ : IR_NE, .op1 = v1, .op2 = v2,
             .type = eqv ? RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs)

@@ -2,7 +2,6 @@
 
 ## tests:
 
-* get tests running again: exact, FFI for string returns? printing flonums
 * simplex is slower??? bad tracing
 
 * ugh need to put back faster VM - things like browse too slow.
@@ -12,9 +11,10 @@
 
 ## broken bench2:
 * tail: read-line
-* chudnovsky, pi: bignum
 * ctak, fibc, maze, puzzle: call/cc
 * equal - need equal with loop checking
+
+* chudnovsky, pi: bignum
 * mbrotZ: imaginary
 
 * cat, ray, read1, sum1, slatex: input/output needs buffering, too slow to finish.
@@ -26,8 +26,6 @@
 * lots of ccall cleanup - regalloc, live register save/restore, etc
 
 * cleanup tmp /tmp2 reg shit.  it's getting sloppy
-
-* need to memset(0) records I think? ugh.
 
 * figure out why deriv is slow
   * heurstics can't catch single-looping trace
