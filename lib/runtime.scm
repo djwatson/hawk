@@ -434,7 +434,11 @@
       ((> n 122) #f) ; z
       (else #t))))
 ;;; symbol table
-(define symbol-table '())
+
+;; This is a bit of a hack: the bitcode compiler will generate a correct
+;; symbol table for us consisting of all symbols.  The expander needs to know
+;; the symbol, but don't set to '(), so set it to itself.
+(define symbol-table symbol-table)
 (define (string->symbol string)
   (cond
     ((assoc string symbol-table) => cdr)

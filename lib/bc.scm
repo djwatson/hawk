@@ -671,7 +671,10 @@
       (w32 symbol-tag)
       (w32 0)
       (word (symbol->string o))
-      (w64 dead-tag)
+      (if (eq? o 'symbol-table)
+          (word (writer 'symbol-table-value #f))
+          ;(w64 undefined-tag)
+          (w64 dead-tag))
       (w64 0)
       (w64 0))
     ((pair? o) (w32 cons-tag) (w32 0) (word (car o)) (word (cdr o)))
@@ -730,7 +733,7 @@
   (for-each mark! roots)
   (values (reverse order) canon))
 
-(define (emit-image objects canon)
+(define (emit-image objects canon symbol-table-value)
   (define offs (make-hash-table eq?))
   (define pos 0)
   (define (pass1 type val)
@@ -739,6 +742,7 @@
       ((u16) (set! pos (+ pos 2)))
       ((u32) (set! pos (+ pos 4)))
       ((u64 double word) (set! pos (+ pos 8)))
+      ((symbol-table-value) #f)
       ((align)
         (let ((m (modulo pos val))) (unless (= m 0) (set! pos (+ pos (- val m))))))))
 
@@ -754,6 +758,7 @@
         ((u32) (write-uint val 4 p) (set! pos (+ pos 4)))
         ((u64) (write-uint val 8 p) (set! pos (+ pos 8)))
         ((double) (write-double val p) (set! pos (+ pos 8)))
+        ((symbol-table-value) symbol-table-value)
         ((word)
           (let ((imm (encode-immediate val)))
             (if imm
@@ -765,6 +770,11 @@
     (set! pos 0)
     (for-each (lambda (o) (serialize-object o pass2)) objects)
     (values (get-output-bytevector p) offs)))
+
+(define (build-symbol-table objects)
+  (fold-right (lambda (o res) (if (symbol? o) (cons (cons (symbol->string o) o) res) res))
+              '()
+              objects))
 
 (define (debug-print ir) (display (ir->sexp ir)) (newline) ir)
 
@@ -810,7 +820,9 @@
 
         (let* ((all-funs (get-funs)) (roots (cons main all-funs)))
           (let*-values (((objects canon) (collect-objects roots))
-                        ((image offs) (emit-image objects canon)))
+                        ((symbol-table) (build-symbol-table objects))
+                        ((objects canon) (collect-objects (cons symbol-table roots)))
+                        ((image offs) (emit-image objects canon symbol-table)))
             ;;(for-each print-bc all-funs)
             (string-for-each (lambda (c) (write-u8 (char->integer c) out)) "HAWK")
             (write-uint 0 8 out)
