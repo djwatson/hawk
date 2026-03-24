@@ -819,7 +819,7 @@ void emit_quotient(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   emit_sar_constant(s, RTMP2, RTMP2, 3);
   emit_sar_constant(s, RTMP, RTMP, 3);
   emit_sdiv(s, dst, RTMP2, RTMP);
-  emit_mul_constant(s, dst, dst, 8);
+  emit_shl_constant(s, dst, dst, 3);
 }
 
 void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
@@ -990,7 +990,8 @@ void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   emit_mem_load(s, 0, addr, dst);
 }
 
-void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
+void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base,
+                      uint8_t dst) {
   assert(base < MAX_REG);
   assert(dst < MAX_REG);
   if (offset >= 0 && offset < 4096) {

@@ -1,8 +1,6 @@
 (define (this-scheme-implementation-name) (string-append "boom-" "0.1"))
 
 ;;; Needed for R7RS.
-(define exact-integer? exact?)
-
 (define (bitwise-not n) (- (- n) 1))
 
 (define (div x y)

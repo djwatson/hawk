@@ -369,7 +369,8 @@ void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   emit_mem_reg(s, ASM_MOV_MR, offset, base, dst);
 }
 
-void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
+void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base,
+                      uint8_t dst) {
   assert(base < FPR_REG_START);
   assert(dst < FPR_REG_START);
   if (low3bits(base) == RSP) {
@@ -796,14 +797,20 @@ void emit_quotient(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
     emit_push(s, RDX);
   }
 
-  uint8_t divisor = rhs;
-  if (rhs == RAX || rhs == RDX) {
-    emit_mov(s, RTMP, rhs);
-    divisor = RTMP;
+  // Inputs are tagged fixnums. Untag copies, divide, then retag the quotient.
+  // Never SAR an input register directly unless it has been saved.
+  bool lhs_saved = (lhs != RAX) || save_rax;
+  if (lhs_saved) {
+    emit_mov(s, RAX, lhs);
+    emit_sar_constant(s, RAX, RAX, 3);
+  } else {
+    emit_mov(s, RTMP2, lhs);
+    emit_sar_constant(s, RTMP2, RTMP2, 3);
+    emit_mov(s, RAX, RTMP2);
   }
 
-  // Inputs are tagged fixnums. Untag both, divide, then retag the quotient.
-  emit_sar_constant(s, RAX, lhs, 3);
+  uint8_t divisor = (rhs == RTMP) ? RTMP2 : RTMP;
+  emit_mov(s, divisor, rhs);
   emit_sar_constant(s, divisor, divisor, 3);
   emit_cqo(s);
   emit_idiv_signed(s, divisor);
@@ -811,9 +818,7 @@ void emit_quotient(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   if (dst != RAX) {
     emit_mov(s, dst, RAX);
   }
-  emit_add(s, dst, dst, dst);
-  emit_add(s, dst, dst, dst);
-  emit_add(s, dst, dst, dst);
+  emit_shl_constant(s, dst, dst, 3);
 
   if (save_rdx) {
     emit_pop(s, RDX);

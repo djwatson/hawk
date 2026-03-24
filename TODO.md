@@ -13,7 +13,7 @@
 ## broken bench2:
 * tail: read-line
 * chudnovsky, pi: bignum
-* compiler: fixme
+* compiler: various bugs
 * ctak, fibc, maze, puzzle: call/cc
 * dynamic: ???
 * fibfp: incorrect result - "read"ing
