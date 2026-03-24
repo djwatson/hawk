@@ -10,7 +10,6 @@
 * probably need to fix closure conversion at some point
 
 ## broken bench2:
-* tail: read-line
 * ctak, fibc, maze, puzzle: call/cc
 * equal - need equal with loop checking
 

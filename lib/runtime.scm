@@ -822,11 +822,35 @@
         (else
           (let* ((buf (make-string 1)) (cnt (c-read (port-fd port) buf 1)))
             (if (= cnt 1) (string-ref buf 0) (make-eof-object))))))))
+(define read-line
+  (case-lambda
+    (() (read-line (current-input-port)))
+    ((port)
+      (let loop ((chars '()))
+        (let ((c (read-char port)))
+          (cond
+            ((eof-object? c) (if (null? chars) c (list->string (reverse chars))))
+            ((char=? c #\newline) (list->string (reverse chars)))
+            ((char=? c #\return)
+              (let ((next (peek-char port)))
+                (if (and (char? next) (char=? #\newline next)) (read-char port)))
+              (list->string (reverse chars)))
+            (else (loop (cons c chars)))))))))
 (define (write-char char port)
   (if (port-buf port)
       (port-buf-set! port (string-append (port-buf port) (make-string 1 char)))
       (let* ((buf (make-string 1 char)) (cnt (c-write (port-fd port) buf 1)))
         (if (= cnt 1) #t (error "write-char error" cnt)))))
+(define write-string
+  (case-lambda
+    ((str) (write-string str (current-output-port)))
+    ((str port) (write-string str port 0 (string-length str)))
+    ((str port start) (write-string str port start (string-length str)))
+    ((str port start end)
+      (let loop ((i start))
+        (if (< i end)
+            (begin (write-char (string-ref str i) port) (loop (+ i 1)))
+            #t)))))
 
 (define (string->list str)
   (let ((n (string-length str)))
