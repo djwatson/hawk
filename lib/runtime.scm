@@ -708,10 +708,21 @@
           (error "wrong number of arguments to constructor" type args)))))
 
 ;;;;;; Port ops
-(define-record-type port (make-port fd peek buf) port?
+(define-record-type port (make-port fd peek input buf pos len sbuf) port?
   (fd port-fd)
   (peek port-peek port-peek-set!)
-  (buf port-buf port-buf-set!))
+  (input port-input?)
+  (buf port-buf port-buf-set!)
+  (pos port-pos port-pos-set!)
+  (len port-len port-len-set!)
+  (sbuf port-sbuf port-sbuf-set!))
+
+(define port-buffer-size 4096)
+(define (make-input-port fd)
+  (make-port fd #f #t (make-string port-buffer-size) 0 0 #f))
+(define (make-output-port fd)
+  (make-port fd #f #f (make-string port-buffer-size) 0 0 #f))
+(define (make-string-output-port) (make-port -1 #f #f #f 0 0 ""))
 
 (define display
   (case-lambda
@@ -761,14 +772,14 @@
     (() (newline (current-output-port)))
     ((port) (display #\newline port))))
 
-(define input-port? port?)
-(define output-port? port?)
+(define input-port? port-input?)
+(define (output-port? port) (and (port? port) (not (port-input? port))))
 
-(define *current-input-port* (make-port 0 #f #f))
+(define *current-input-port* (make-input-port 0))
 (define (current-input-port) *current-input-port*)
-(define *current-output-port* (make-port 1 #f #f))
+(define *current-output-port* (make-output-port 1))
 (define (current-output-port) *current-output-port*)
-(define *current-error-port* (make-port 2 #f #f))
+(define *current-error-port* (make-output-port 2))
 (define (current-error-port) *current-error-port*)
 
 (define (c-open pathname read)
@@ -792,15 +803,45 @@
 (define (open-input-file file)
   (let ((fd (c-open file 1)))
     (when (< fd 0) (error "open-input-file error:" file))
-    (make-port fd #f #f)))
+    (make-input-port fd)))
 (define (open-output-file file)
   (let ((fd (c-open file 0)))
     (when (< fd 0) (error "open-output-file error:" file))
-    (make-port fd #f #f)))
-(define (close-port port) (c-close (port-fd port)))
+    (make-output-port fd)))
+(define (write-all fd data len)
+  (let loop ((off 0))
+    (if (< off len)
+        (let* ((buf (if (= off 0) data (substring data off len)))
+               (cnt (c-write fd buf (- len off))))
+          (if (<= cnt 0) (error "write error" cnt) (loop (+ off cnt))))
+        #t)))
+(define (flush-port-write-buffer port)
+  (let ((len (port-len port)))
+    (if (> len 0)
+        (begin
+          (write-all (port-fd port) (port-buf port) len)
+          (port-len-set! port 0)
+          #t)
+        #t)))
+(define (close-port port)
+  (if (>= (port-fd port) 0)
+      (begin
+        (if (not (port-input? port)) (flush-port-write-buffer port))
+        (c-close (port-fd port)))
+      #t))
 (define close-output-port close-port)
 (define close-input-port close-port)
 (define-record-type eof-object (make-eof-object) eof-object?)
+(define (read-from-port-buffer port)
+  (if (not (port-input? port))
+      (error "read-char: not an input port" port)
+      (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
+        (if (< pos len)
+            (let ((c (string-ref buf pos))) (port-pos-set! port (+ pos 1)) c)
+            (let ((cnt (c-read (port-fd port) buf port-buffer-size)))
+              (if (> cnt 0)
+                  (begin (port-pos-set! port 1) (port-len-set! port cnt) (string-ref buf 0))
+                  (make-eof-object)))))))
 (define peek-char
   (case-lambda
     (() (peek-char (current-input-port)))
@@ -808,10 +849,8 @@
       (cond
         ((port-peek port))
         (else
-          (let* ((buf (make-string 1)) (cnt (c-read (port-fd port) buf 1)))
-            (if (= cnt 1)
-                (let ((peek (string-ref buf 0))) (port-peek-set! port peek) peek)
-                (make-eof-object))))))))
+          (let ((c (read-from-port-buffer port)))
+            (if (eof-object? c) c (begin (port-peek-set! port c) c))))))))
 
 (define read-char
   (case-lambda
@@ -819,9 +858,7 @@
     ((port)
       (cond
         ((port-peek port) => (lambda (x) (port-peek-set! port #f) x))
-        (else
-          (let* ((buf (make-string 1)) (cnt (c-read (port-fd port) buf 1)))
-            (if (= cnt 1) (string-ref buf 0) (make-eof-object))))))))
+        (else (read-from-port-buffer port))))))
 (define read-line
   (case-lambda
     (() (read-line (current-input-port)))
@@ -837,10 +874,23 @@
               (list->string (reverse chars)))
             (else (loop (cons c chars)))))))))
 (define (write-char char port)
-  (if (port-buf port)
-      (port-buf-set! port (string-append (port-buf port) (make-string 1 char)))
-      (let* ((buf (make-string 1 char)) (cnt (c-write (port-fd port) buf 1)))
-        (if (= cnt 1) #t (error "write-char error" cnt)))))
+  (cond
+    ((port-sbuf port)
+      (port-sbuf-set! port (string-append (port-sbuf port) (make-string 1 char)))
+      #t)
+    ((not (port-input? port))
+      (let ((len (port-len port)))
+        (if (= len port-buffer-size)
+            (begin
+              (flush-port-write-buffer port)
+              (string-set! (port-buf port) 0 char)
+              (port-len-set! port 1)
+              #t)
+            (begin
+              (string-set! (port-buf port) len char)
+              (port-len-set! port (+ len 1))
+              #t))))
+    (else (error "write-char: not an output port" port))))
 (define write-string
   (case-lambda
     ((str) (write-string str (current-output-port)))
@@ -848,9 +898,7 @@
     ((str port start) (write-string str port start (string-length str)))
     ((str port start end)
       (let loop ((i start))
-        (if (< i end)
-            (begin (write-char (string-ref str i) port) (loop (+ i 1)))
-            #t)))))
+        (if (< i end) (begin (write-char (string-ref str i) port) (loop (+ i 1))) #t)))))
 
 (define (string->list str)
   (let ((n (string-length str)))
@@ -890,8 +938,8 @@
           (display "\"" port))
         (else (display arg port))))))
 
-(define (open-output-string) (make-port 0 #f ""))
-(define (get-output-string port) (port-buf port))
+(define (open-output-string) (make-string-output-port))
+(define (get-output-string port) (port-sbuf port))
 
 (define (call-with-input-file file l)
   (let* ((p (open-input-file file)) (res (l p))) (close-input-port p) res))
@@ -899,7 +947,11 @@
 (define (call-with-output-file file l)
   (let* ((p (open-output-file file)) (res (l p))) (close-output-port p) res))
 
-(define (flush-output-port port) #f)
+(define (flush-output-port port)
+  (cond
+    ((port-sbuf port) #t)
+    ((not (port-input? port)) (flush-port-write-buffer port))
+    (else #t)))
 
 ;; TIME
 

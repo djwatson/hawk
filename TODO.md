@@ -2,7 +2,8 @@
 
 ## tests:
 
-* simplex is slower??? bad tracing
+* crash in slatex, haven't tracked it down
+* simplex is slower??? bad tracing - need multi-ops to be binops
 
 * ugh need to put back faster VM - things like browse too slow.
   * this is just inlining stuff I think.
@@ -15,8 +16,6 @@
 
 * chudnovsky, pi: bignum
 * mbrotZ: imaginary
-
-* cat, ray, read1, sum1, slatex: input/output needs buffering, too slow to finish.
 
 ## JIT impl
 

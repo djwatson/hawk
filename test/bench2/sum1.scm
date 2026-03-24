@@ -13,7 +13,7 @@
 (define (main)
   (let* ((count 25)
          (input1 "inputs/sum1.data")
-         (output 15795.0)
+         (output (string->number "15794.975"))
          (s2 (number->string count))
          (s1 input1)
          (name "sum1"))
