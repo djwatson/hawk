@@ -7,7 +7,7 @@
 (define (main)
   (let* ((count 10)
          (input 35.0)
-         (output 9.22746e+06)
+         (output (string->number "9227465.0"))
          ;(s2 (number->string count))
          ;(s1 (number->string input))
          (name "fibfp"))

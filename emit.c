@@ -659,7 +659,6 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
 static double slot_flonum_constant(trace *t, slot v) {
   assert(v.constant);
   gc_obj obj = t->consts[v.loc];
-  // assert(is_flonum(obj));
   if (is_flonum(obj)) {
     return to_flonum(obj)->x;
   }

@@ -34,9 +34,9 @@
 
 (define (floor x)
   (cond
-   ((flonum? x) (sys:FOREIGN_CALL '(double "floor" (double)) x))
-   ;((ratnum? x) (floor-quotient (numerator x) (denominator x)))
-   (else x)))
+    ((flonum? x) (sys:FOREIGN_CALL '(double "floor" (double)) x))
+    ;((ratnum? x) (floor-quotient (numerator x) (denominator x)))
+    (else x)))
 (define (exp num) (sys:FOREIGN_CALL '(double "exp" (double)) (inexact num)))
 
 (define (reducer f init args)
@@ -158,11 +158,6 @@
 
 (define (string-ref str idx) (sys:LOAD_CHAR str idx))
 (define (string-set! str idx c) (sys:STORE_CHAR str c idx))
-(define (string=? a b)
-  (let ((len-a (sys:LOAD a 0)) (len-b (sys:LOAD b 0)))
-    (and (= len-a len-b)
-         (let loop ((i 0))
-           (if (= i len-a) #t (and (= (string-ref a i) (string-ref b i)) (loop (+ i 1))))))))
 (define make-string
   (case-lambda
     ((len) (make-string len #f))
@@ -222,8 +217,8 @@
 (define (caar a) (car (car a)))
 (define (cddr a) (cdr (cdr a)))
 
-(define (caddr e) (car (cddr e))) 
-(define (cdddr e) (cdr (cddr e))) 
+(define (caddr e) (car (cddr e)))
+(define (cdddr e) (cdr (cddr e)))
 (define (caaar e) (car (caar e)))
 (define (cdaar e) (cdr (caar e)))
 (define (caadr e) (car (cadr e)))
@@ -231,10 +226,10 @@
 (define (cadar e) (car (cdar e)))
 (define (cddar e) (cdr (cdar e)))
 
-(define (caaddr e) (car (caddr e))) 
-(define (cdaddr e) (cdr (caddr e))) 
-(define (cadddr e) (car (cdddr e))) 
-(define (cddddr e) (cdr (cdddr e))) 
+(define (caaddr e) (car (caddr e)))
+(define (cdaddr e) (cdr (caddr e)))
+(define (cadddr e) (car (cdddr e)))
+(define (cddddr e) (cdr (cdddr e)))
 (define (caaaar e) (car (caaar e)))
 (define (cdaaar e) (cdr (caaar e)))
 (define (cadaar e) (car (cdaar e)))
@@ -250,28 +245,28 @@
 
 (define map
   (case-lambda
-   ((f lst)
-    (let loop ((f f) (lst lst))
-      (if (null? lst) '() (cons (f (car lst)) (loop f (cdr lst))))))
-   ((f lst1 lst2)
-    (let loop ((f f) (lst1 lst1) (lst2 lst2))
-      (if (or (null? lst2) (null? lst1))
-          '()
-          (cons (f (car lst1) (car lst2)) (loop f (cdr lst1) (cdr lst2))))))
-   (lst
-    (let loop ((lsts (cons (cadr lst) (cddr lst))))
-      (let ((hds
-             (let loop2 ((lsts lsts))
-               (if (null? lsts)
-                   '()
-                   (let ((x (car lsts)))
-                     (and (not (null? x))
-                          (let ((r (loop2 (cdr lsts)))) (and r (cons (car x) r)))))))))
-        (if hds
-            (cons (apply (car lst) hds)
-                  (loop (let loop3 ((lsts lsts))
-                          (if (null? lsts) '() (cons (cdr (car lsts)) (loop3 (cdr lsts)))))))
-            '()))))))
+    ((f lst)
+      (let loop ((f f) (lst lst))
+        (if (null? lst) '() (cons (f (car lst)) (loop f (cdr lst))))))
+    ((f lst1 lst2)
+      (let loop ((f f) (lst1 lst1) (lst2 lst2))
+        (if (or (null? lst2) (null? lst1))
+            '()
+            (cons (f (car lst1) (car lst2)) (loop f (cdr lst1) (cdr lst2))))))
+    (lst
+      (let loop ((lsts (cons (cadr lst) (cddr lst))))
+        (let ((hds
+                 (let loop2 ((lsts lsts))
+                   (if (null? lsts)
+                       '()
+                       (let ((x (car lsts)))
+                         (and (not (null? x))
+                              (let ((r (loop2 (cdr lsts)))) (and r (cons (car x) r)))))))))
+          (if hds
+              (cons (apply (car lst) hds)
+                    (loop (let loop3 ((lsts lsts))
+                            (if (null? lsts) '() (cons (cdr (car lsts)) (loop3 (cdr lsts)))))))
+              '()))))))
 (define (append2 a b) (if (null? a) b (cons (car a) (append2 (cdr a) b))))
 
 (define append
@@ -565,10 +560,6 @@
         (vector-set! v 3 d)
         v))
     (vals (list->vector vals))))
-
-(define (list->vector lst)
-  (let* ((len (length lst)) (v (make-vector len)))
-    (do ((i 0 (+ i 1)) (p lst (cdr p))) ((= i len) v) (vector-set! v i (car p)))))
 
 ;; math
 (define (expt num exp)

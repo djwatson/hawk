@@ -26,6 +26,7 @@ static const char *type_tag_names[256] = {
     [EOF_TAG] = "eof",    [STRING_TAG] = "str",  [FUNC_TAG] = "func",
     [VECTOR_TAG] = "vec", [CONT_TAG] = "cont",   [PTR_TAG] = "ptr",
     [CHAR_TAG] = "char",  [CLOSURE_TAG] = "clo", [UNDEFINED_TAG] = "",
+    [RECORD_TAG] = "rec",
 };
 
 const char *type_tag_name(uint8_t tag) {

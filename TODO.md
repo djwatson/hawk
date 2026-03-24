@@ -14,7 +14,6 @@
 * tail: read-line
 * chudnovsky, pi: bignum
 * ctak, fibc, maze, puzzle: call/cc
-* fibfp: incorrect result - "read"ing
 * equal - need equal with loop checking
 * mbrotZ: imaginary
 
