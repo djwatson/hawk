@@ -54,7 +54,7 @@ string_s *get_sym_name(symbol *s) {
 
 // This is mostly a debug aid: The scheme-level printer is defined in
 // scheme base code itself.
-void print_obj(gc_obj obj, FILE *file) { //!OCLINT
+void print_obj(gc_obj obj, FILE *file) {
   auto type = get_tag(obj);
   switch (type) {
   case FIXNUM_TAG: {

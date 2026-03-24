@@ -303,7 +303,7 @@ enum {
   DW_CFA_offset = 0x80
 };
 
-static void build_elf(uint64_t code, int code_sz, GDBElfImage *image, //!OCLINT
+static void build_elf(uint64_t code, int code_sz, GDBElfImage *image,
                       int32_t num, const char *name) {
   assert(name);
   memset(image, 0, sizeof(GDBElfImage));

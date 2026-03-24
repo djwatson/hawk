@@ -16,8 +16,7 @@
 * compiler: fixme
 * ctak, fibc, maze, puzzle: call/cc
 * dynamic: ???
-* earley, mperm, paraffins: out of mem
-* fibfp: incorrect result
+* fibfp: incorrect result - "read"ing
 * matrix?? hangs
 * equal - need equal with loop checking
 * mbrotZ: imaginary

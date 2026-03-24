@@ -16,7 +16,7 @@
 bool verbose = false;
 bool profile = false;
 bool jit_dump_flag = false;
-int64_t max_trace = INT64_MAX; //!OCLINT
+int64_t max_trace = INT64_MAX;
 
 static struct option long_options[] = {
     {"verbose", no_argument, nullptr, 'v'},

@@ -763,11 +763,8 @@ void emit_mod(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
     emit_push(s, RDX);
   }
 
-  uint8_t divisor = rhs;
-  if (rhs == RAX || rhs == RDX) {
-    emit_mov(s, RTMP, rhs);
-    divisor = RTMP;
-  }
+  uint8_t divisor = RTMP;
+  emit_mov(s, divisor, rhs);
 
   emit_mov(s, RAX, lhs);
   emit_cqo(s);
