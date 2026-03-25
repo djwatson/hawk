@@ -11,7 +11,6 @@
 
 ## broken bench2:
 * ctak, fibc, maze, puzzle: call/cc
-* equal - need equal with loop checking
 
 * chudnovsky, pi: bignum
 * mbrotZ: imaginary

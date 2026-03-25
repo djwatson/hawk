@@ -144,17 +144,7 @@
 
 (define (eqv? a b) (or (eq? a b) (and (flonum? a) (flonum? b) (= a b))))
 (define (equal? a b)
-  (cond
-    ((eqv? a b) #t)
-    ((and (null? a) (null? b)) #t)
-    ((and (string? a) (string? b)) (string=? a b))
-    ((and (bytevector? a) (bytevector? b)) (bytevector=? a b))
-    ((and (symbol? a) (symbol? b))
-      (string=? (symbol->string a) (symbol->string b)))
-    ((and (vector? a) (vector? b)) (equal? (vector->list a) (vector->list b)))
-    ((and (pair? a) (pair? b) (equal? (car a) (car b)) (equal? (cdr a) (cdr b)))
-      #t)
-    (else #f)))
+  (sys:FOREIGN_CALL '(gc_obj "SCM_EQUAL" (gc_obj gc_obj)) a b))
 
 (define (string-ref str idx) (sys:LOAD_CHAR str idx))
 (define (string-set! str idx c) (sys:STORE_CHAR str c idx))

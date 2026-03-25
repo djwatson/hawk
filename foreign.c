@@ -207,6 +207,7 @@ gc_obj do_foreign_call(gc_obj sig_obj, gc_obj const *args, uint8_t argcnt) {
   foreign_sig sig;
   foreign_parse_sig(sig_obj, &sig);
   if (sig.argcnt != argcnt) {
+    printf("Invalid foreign call, bad argcnt\n");
     abort();
   }
 
@@ -227,8 +228,7 @@ gc_obj do_foreign_call(gc_obj sig_obj, gc_obj const *args, uint8_t argcnt) {
   }
 
   if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, sig.argcnt, ret_ffi_type,
-                   arg_types) !=
-      FFI_OK) {
+                   arg_types) != FFI_OK) {
     abort();
   }
   ffi_call(&cif, FFI_FN(sig.sym), &ret_tmp, arg_values);
