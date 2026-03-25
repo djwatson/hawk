@@ -430,7 +430,7 @@ static bool normalize_numeric_cmp_inputs(vm_state *state, slot *v1, slot *v2,
   return true;
 }
 
-static void ensure_recordable_foreign_sig(foreign_sig const *sig) {
+static bool ensure_recordable_foreign_sig(foreign_sig const *sig) {
   uint8_t gpr_args = 0;
   uint8_t fpr_args = 0;
   for (uint8_t i = 0; i < sig->argcnt; i++) {
@@ -442,37 +442,68 @@ static void ensure_recordable_foreign_sig(foreign_sig const *sig) {
   }
   if (gpr_args > asm_foreign_call_max_gpr_args() ||
       fpr_args > asm_foreign_call_max_fpr_args()) {
-    abort();
+    fprintf(stderr,
+            "Warning: can't record FOREIGN_CALL: arg register pressure "
+            "(gpr=%u fpr=%u)\n",
+            gpr_args, fpr_args);
+    return false;
   }
+  return true;
 }
 
 static slot record_foreign_arg(vm_state *state, gc_obj *stack, uint8_t pos,
-                               foreign_type type) {
+                               foreign_type type, bool *ok) {
   auto t = record_current_trace(state);
   auto arg = stack_load(state, stack, pos, true);
+  auto ty = get_slot_type(t, arg);
   switch (type) {
-  case FOREIGN_TYPE_DOUBLE:
+  case FOREIGN_TYPE_DOUBLE: {
+    if (ty != FIXNUM_TAG && ty != FLONUM_TAG) {
+      fprintf(stderr,
+              "Warning: can't record FOREIGN_CALL: arg %u expected number\n",
+              pos);
+      *ok = false;
+      return (slot){0};
+    }
     return convert_to_flonum(state, arg);
+  }
   case FOREIGN_TYPE_UINT8:
   case FOREIGN_TYPE_INT32:
   case FOREIGN_TYPE_INT64:
   case FOREIGN_TYPE_UINT64:
-    if (get_slot_type(t, arg) != FIXNUM_TAG) {
-      abort();
+    if (ty != FIXNUM_TAG) {
+      fprintf(stderr,
+              "Warning: can't record FOREIGN_CALL: arg %u expected fixnum\n",
+              pos);
+      *ok = false;
+      return (slot){0};
     }
     return arg;
   case FOREIGN_TYPE_STRING:
-    if (get_slot_type(t, arg) != STRING_TAG) {
-      abort();
+    if (ty != STRING_TAG) {
+      fprintf(stderr,
+              "Warning: can't record FOREIGN_CALL: arg %u expected string\n",
+              pos);
+      *ok = false;
+      return (slot){0};
     }
     return arg;
   case FOREIGN_TYPE_GC_OBJ:
-    if (get_slot_type(t, arg) == FLONUM_TAG) {
-      abort();
+    if (ty == FLONUM_TAG) {
+      fprintf(stderr,
+              "Warning: can't record FOREIGN_CALL: arg %u gc-obj can't be "
+              "flonum\n",
+              pos);
+      *ok = false;
+      return (slot){0};
     }
     return arg;
   default:
-    abort();
+    fprintf(stderr,
+            "Warning: can't record FOREIGN_CALL: unsupported foreign arg "
+            "type\n");
+    *ok = false;
+    return (slot){0};
   }
 }
 
@@ -1129,21 +1160,37 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto sig_const = add_const(state, stack[pc->v1]);
     foreign_sig foreign;
     foreign_parse_sig(stack[pc->v1], &foreign);
-    ensure_recordable_foreign_sig(&foreign);
+    if (!ensure_recordable_foreign_sig(&foreign)) {
+      record_abort(state, &op_table, "can't record FOREIGN_CALL signature");
+      break;
+    }
     auto call_argcnt = (uint8_t)(pc->v2 - 1);
     if (call_argcnt != foreign.argcnt) {
-      abort();
+      fprintf(stderr,
+              "Warning: can't record FOREIGN_CALL: arg count mismatch "
+              "(bytecode=%u sig=%u)\n",
+              call_argcnt, foreign.argcnt);
+      record_abort(state, &op_table, "can't record FOREIGN_CALL argcnt");
+      break;
     }
     if (!sig.constant) {
       add_inst(state, IR(.op = IR_EQ, .op1 = sig, .op2 = sig_const));
     }
+    bool ok = true;
     slot carg = add_const(state, tag_fixnum(0));
     for (uint8_t i = call_argcnt; i > 0; i--) {
       auto arg = record_foreign_arg(state, stack, (uint8_t)(pc->v1 + i),
-                                    foreign.arg_types[i - 1]);
+                                    foreign.arg_types[i - 1], &ok);
+      if (!ok) {
+        record_abort(state, &op_table, "can't record FOREIGN_CALL arg");
+        break;
+      }
       carg = add_inst(
           state, IR(.op = IR_CARG, .op1 = arg, .op2 = carg,
                     .type = get_slot_type(record_current_trace(state), arg)));
+    }
+    if (!ok) {
+      break;
     }
     auto res =
         add_inst(state, IR(.op = IR_CCALL, .op1 = sig_const, .op2 = carg,
@@ -1254,6 +1301,12 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     // Nothing to record.
   case OP_ARGCNT_ERROR:
   case OP_HALT:
+    break;
+  case OP_CALLCC:
+    record_abort(state, &op_table, "can't record CALLCC");
+    break;
+  case OP_CALLCC_RESUME:
+    record_abort(state, &op_table, "can't record CALLCC_RESUME");
     break;
   default:
     abort();
