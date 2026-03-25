@@ -428,6 +428,13 @@ static void emit_ccall_arg_value(emit_state *s, trace *t, ccall_arg const *arg,
       emit_sar_constant(s, dst_reg, src_reg, FIXNUM_SHIFT);
     }
     return;
+  case FOREIGN_TYPE_GC_OBJ:
+    if (arg->value.constant) {
+      emit_mov64(s, dst_reg, slot_gc_obj(t, arg->value).value);
+    } else if (src_reg != dst_reg) {
+      emit_mov(s, dst_reg, src_reg);
+    }
+    return;
   default:
     abort();
   }
@@ -456,6 +463,11 @@ static void emit_ccall_result(emit_state *s, uint8_t dst_reg,
       emit_mov(s, dst_reg, RET_REG);
     }
     emit_shl_constant(s, dst_reg, dst_reg, FIXNUM_SHIFT);
+    return;
+  case FOREIGN_TYPE_GC_OBJ:
+    if (dst_reg != RET_REG) {
+      emit_mov(s, dst_reg, RET_REG);
+    }
     return;
   default:
     abort();

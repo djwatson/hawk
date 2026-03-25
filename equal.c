@@ -283,7 +283,7 @@ static ep_result ep(uf *ht, bool unused, gc_obj a, gc_obj b, int64_t k) {
   }
 }
 
-gc_obj SCM_EQUAL(gc_obj a, gc_obj b) {
+EXPORT gc_obj SCM_EQUAL(gc_obj a, gc_obj b) {
   uf ht;
   uf_init(&ht);
   int64_t k = k0;

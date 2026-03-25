@@ -59,6 +59,9 @@ foreign_type foreign_parse_type(gc_obj type_obj) {
   if (strcmp(name, "string") == 0) {
     return FOREIGN_TYPE_STRING;
   }
+  if (strcmp(name, "gc_obj") == 0) {
+    return FOREIGN_TYPE_GC_OBJ;
+  }
   abort();
 }
 
@@ -169,6 +172,11 @@ static ffi_type *foreign_prep_type(gc_obj type_obj, gc_obj value,
       tmp->ptr = to_string(value)->str;
     }
     return &ffi_type_pointer;
+  case FOREIGN_TYPE_GC_OBJ:
+    if (tmp) {
+      tmp->u64 = (uint64_t)value.value;
+    }
+    return &ffi_type_uint64;
   default:
     abort();
   }
@@ -188,6 +196,8 @@ static gc_obj foreign_return_value(gc_obj type_obj, foreign_tmp raw) {
     return vm_box_flonum(raw.f64);
   case FOREIGN_TYPE_STRING:
     return foreign_owned_string(raw.ptr);
+  case FOREIGN_TYPE_GC_OBJ:
+    return (gc_obj){.value = (int64_t)raw.u64};
   default:
     abort();
   }

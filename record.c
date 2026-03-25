@@ -403,6 +403,8 @@ static uint8_t foreign_ir_result_type(foreign_type type) {
     return FIXNUM_TAG;
   case FOREIGN_TYPE_STRING:
     return STRING_TAG;
+  case FOREIGN_TYPE_GC_OBJ:
+    return UNDEFINED_TAG;
   default:
     abort();
   }
@@ -461,6 +463,11 @@ static slot record_foreign_arg(vm_state *state, gc_obj *stack, uint8_t pos,
     return arg;
   case FOREIGN_TYPE_STRING:
     if (get_slot_type(t, arg) != STRING_TAG) {
+      abort();
+    }
+    return arg;
+  case FOREIGN_TYPE_GC_OBJ:
+    if (get_slot_type(t, arg) == FLONUM_TAG) {
       abort();
     }
     return arg;
