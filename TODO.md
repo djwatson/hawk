@@ -2,8 +2,6 @@
 
 ## tests:
 
-gc_obj boxing?
-record call/cc?
 
 * simplex is slower??? bad tracing - need multi-ops to be binops
 
@@ -13,7 +11,6 @@ record call/cc?
 * probably need to fix closure conversion at some point
 
 ## broken bench2:
-* ctak, fibc, maze, puzzle: call/cc
 
 * chudnovsky, pi: bignum
 * mbrotZ: imaginary
@@ -21,6 +18,8 @@ record call/cc?
 ## JIT impl
 
 * get APPLY recording
+* gc_obj boxing recording?
+* record call/cc?
 
 * lots of ccall cleanup - regalloc, live register save/restore, etc
 
