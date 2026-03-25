@@ -902,7 +902,34 @@ OP_AD(CALLCC) {
 }
 
 OP(CALLCC_RESUME) {
-  abort();
+  auto captured = stack[0];
+  auto result = stack[1];
+  if (!is_closure(captured)) {
+    abort();
+  }
+  auto clo = to_closure(captured);
+  auto len = to_fixnum(clo->len);
+  if (len < 1) {
+    abort();
+  }
+  if (clo->v[0].value != callcc_resume_func_obj().value) {
+    abort();
+  }
+
+  size_t saved_words = (size_t)(len - 1);
+  gc_obj *restored_top = state->stack_bottom + saved_words;
+  while (restored_top >= state->stack_limit) {
+    restored_top = expand_stack(state, restored_top);
+  }
+  memcpy(state->stack_bottom, &clo->v[1], sizeof(gc_obj) * saved_words);
+
+  auto new_pc = to_return_address(restored_top[-1]);
+  auto old_pc = new_pc - 1;
+  auto new_stack = restored_top - old_pc->reg - 1;
+  new_stack[old_pc->reg] = result;
+  pc = new_pc;
+  stack = new_stack;
+  dispatch_next(pc, stack);
   END
 }
 
