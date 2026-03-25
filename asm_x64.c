@@ -481,7 +481,7 @@ void emit_debugtrap(emit_state *s) { emit_byte(s, 0xcc); }
 
 void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count,
                     bool abi) {
-  size_t pad = ((count + (size_t)abi) & 1) ? 1 : 0;
+  size_t pad = ((count + (size_t)abi) & 1) ? 0 : 1;
   size_t frame_slots = count + pad;
   if (frame_slots == 0) {
     return;
@@ -502,7 +502,7 @@ void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count,
 }
 
 void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi) {
-  size_t pad = ((count + (size_t)abi) & 1) ? 1 : 0;
+  size_t pad = ((count + (size_t)abi) & 1) ? 0 : 1;
   for (size_t i = count; i > 0; i--) {
     uint8_t reg = regs[i - 1];
     if (reg == REG_NONE) {

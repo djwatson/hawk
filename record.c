@@ -755,6 +755,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     record_abort(state, &op_table, "too long or too deep");
     goto done;
   }
+  if (arrlen(cur_trace->consts) >= 5000) {
+    record_abort(state, &op_table, "Too many consts");
+    goto done;
+  }
 
   switch (instr.op) {
     // Begin opcodes

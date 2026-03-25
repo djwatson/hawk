@@ -1184,4 +1184,5 @@
 ;; process-context
 (define (exit int)
   (flush-output-port)
-  (flush-output-port (current-error-port)))
+  (flush-output-port (current-error-port))
+  (sys:HALT))
