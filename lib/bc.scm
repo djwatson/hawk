@@ -787,7 +787,9 @@
     (let ((port (open-input-string str)))
       (let ((forms (read-file port))) (close-input-port port) forms)))
   (define default-import-forms
-    (read-forms-from-string "(import (scheme base)\n               (scheme case-lambda)\n               (scheme char)\n               (scheme complex)\n               (scheme cxr)\n               (scheme eval)\n               (scheme file)\n               (scheme inexact)\n               (scheme lazy)\n               (scheme load)\n               (scheme process-context)\n               (scheme read)\n               (scheme repl)\n               (scheme time)\n               (scheme write)\n               (scheme r5rs))"))
+    (read-forms-from-string "(import (scheme base)(scheme case-lambda)(scheme char)(scheme complex)(scheme cxr)(scheme eval)(scheme file)(scheme inexact)(scheme lazy)(scheme load)(scheme process-context)(scheme read)(scheme repl)(scheme time)(scheme write)(scheme r5rs))"))
+  (define default-ending-forms
+    (read-forms-from-string "(import (only (scheme process-context) exit))(exit 0)"))
   (define (form-sexp form) (if (annotation? form) (annotation-sexp form) form))
   (define (import-form? form)
     (let ((sexp (form-sexp form))) (and (pair? sexp) (eq? (car sexp) 'import))))
@@ -798,7 +800,8 @@
   (parameterize ((funs (make-funs-list)))
     (let ((out (open-binary-output-file (string-append file ".bc")))
           (runtime-forms (read-forms "runtime.scm"))
-          (input-forms (ensure-leading-import (read-forms file))))
+          (input-forms
+             (append (ensure-leading-import (read-forms file)) default-ending-forms)))
       (let* ((lowered
                 (-> `#(begin
                         ,(append (expand-program runtime-forms empty-library-name #f)

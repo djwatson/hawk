@@ -947,17 +947,18 @@
 (define (call-with-output-file file l)
   (let* ((p (open-output-file file)) (res (l p))) (close-output-port p) res))
 
-(define (flush-output-port port)
-  (cond
-    ((port-sbuf port) #t)
-    ((not (port-input? port)) (flush-port-write-buffer port))
-    (else #t)))
+(define flush-output-port
+  (case-lambda
+    (() (flush-output-port (current-output-port)))
+    ((port)
+      (cond
+        ((port-sbuf port) #t)
+        ((not (port-input? port)) (flush-port-write-buffer port))
+        (else #t)))))
 
 ;; TIME
 
-(define (jiffies-per-second)
-  1000000000 ;; returns 1 on my Bones, which is wrong. this number should work for ?many? linuxen
-)
+(define (jiffies-per-second) 1000000000)
 
 (define (current-jiffy)
   (call-with-input-file "/proc/uptime" (lambda (port) (read port))))
@@ -1179,3 +1180,8 @@
 (define (bytevector-u8-set! bv i val) (string-set! bv i (integer->char val)))
 (define (utf8->string v) v)
 (define (string->utf8 v) v)
+
+;; process-context
+(define (exit int)
+  (flush-output-port)
+  (flush-output-port (current-error-port)))
