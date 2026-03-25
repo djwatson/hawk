@@ -77,6 +77,7 @@ set(
   hawk_sources
   hawk.c
   runtime.c
+  equal.c
   ftoa.c
   vm.c
   foreign.c

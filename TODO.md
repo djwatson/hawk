@@ -2,7 +2,6 @@
 
 ## tests:
 
-* crash in slatex, haven't tracked it down
 * simplex is slower??? bad tracing - need multi-ops to be binops
 
 * ugh need to put back faster VM - things like browse too slow.
