@@ -430,7 +430,7 @@ static void emit_ccall_arg_value(emit_state *s, trace *t, ccall_arg const *arg,
     return;
   case FOREIGN_TYPE_GC_OBJ:
     if (arg->value.constant) {
-      emit_mov64(s, dst_reg, slot_gc_obj(t, arg->value).value);
+      emit_heap_constant(s, t, dst_reg, slot_gc_obj(t, arg->value));
     } else if (src_reg != dst_reg) {
       emit_mov(s, dst_reg, src_reg);
     }
