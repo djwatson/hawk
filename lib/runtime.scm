@@ -641,8 +641,9 @@
 (include "str2num.scm")
 ;;; call/cc
 
-(define (call-with-current-continuation proc)
-  (proc (lambda args (error "ERROR call/cc"))))
+(define (call-with-current-continuation thunk) (sys:CALLCC thunk))
+
+(define (call/cc thunk) (call-with-current-continuation thunk))
 
 (define (error . msg)
   (sys:WRITE "ERROR:")

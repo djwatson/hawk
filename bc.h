@@ -80,6 +80,8 @@
   X(FOREIGN_CALL, ABC)                                                         \
   X(CHAR_INTEGER, AD)                                                          \
   X(INTEGER_CHAR, AD)                                                          \
+  X(CALLCC, AD)                                                                \
+  X(CALLCC_RESUME, A)                                                          \
   X(HALT, A)                                                                   \
   X(IFUNC, A)
 typedef enum : uint8_t {

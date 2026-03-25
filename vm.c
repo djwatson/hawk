@@ -215,6 +215,70 @@ static inline void return_frame(vm_state *state, bc instr, bc **pc,
   *stack = new_stack;
 }
 static inline bc *next_op(bc *pc) { return pc + 1; }
+
+static bc callcc_resume_stub[] = {
+    {.op = OP_LCALL, .reg = 1, .data = 3},
+    {.op = OP_CALLCC_RESUME, .reg = 0},
+};
+
+static struct {
+  gc_header header;
+  gc_obj name;
+  uint64_t const_cnt;
+  uint64_t bc_cnt;
+  bc code[1];
+} callcc_resume_func = {
+    .header = {.type = FUNC_TAG},
+    .name = UNDEFINED,
+    .const_cnt = 0,
+    .bc_cnt = 1,
+    .code = {{.op = OP_CALLCC_RESUME, .reg = 0}},
+};
+
+static inline gc_obj callcc_resume_func_obj() {
+  return tag_func((bcfunc *)&callcc_resume_func);
+}
+
+static inline gc_obj capture_stack_closure(vm_state *state, gc_obj *stack) {
+  ptrdiff_t saved_len = stack - state->stack_bottom;
+  if (saved_len < 0) {
+    abort();
+  }
+  size_t words = (size_t)saved_len;
+  size_t payload_words = words + 1;
+  size_t bytes = sizeof(closure_s) + (sizeof(gc_obj) * payload_words);
+  closure_s *captured = gc_alloc(bytes);
+  captured->header.type = CLOSURE_TAG;
+  captured->len = tag_fixnum((int64_t)payload_words);
+  captured->v[0] = callcc_resume_func_obj();
+  memcpy(&captured->v[1], state->stack_bottom, sizeof(gc_obj) * words);
+  return tag_closure(captured);
+}
+
+static inline void call_with_captured_stack(bc **pc, gc_obj **stack,
+                                            gc_obj callcc_arg,
+                                            gc_obj captured_stack,
+                                            uint8_t *argcnt) {
+  if (!is_closure(callcc_arg)) {
+    abort();
+  }
+  auto clo = to_closure(callcc_arg);
+  auto func = clo->v[0];
+  if (!is_func(func)) {
+    abort();
+  }
+  gc_obj *base = *stack;
+  base[0] = captured_stack;
+  base[1] = tag_return_address(&callcc_resume_stub[1]);
+  gc_obj *callee_stack = base + 2;
+  callee_stack[0] = callcc_arg;
+  callee_stack[1] = captured_stack;
+  *argcnt = 2;
+  *stack = callee_stack;
+  auto bfunc = to_func(func);
+  *pc = (bc *)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
+}
+
 gc_obj halt(vm_state *state, gc_obj *stack) {
   profiler_stop();
   jit_dump_close();
@@ -826,6 +890,20 @@ OP_AD(INTEGER_CHAR) {
   auto fix = to_fixnum(v1);
   auto res = tag_char(fix);
   END_ABC_NEXT
+}
+
+OP_AD(CALLCC) {
+  auto captured_stack = capture_stack_closure(state, stack);
+  stack[instr.reg] = captured_stack;
+  stack = state->stack_bottom;
+  call_with_captured_stack(&pc, &stack, v1, captured_stack, &argcnt);
+  dispatch_next(pc, stack);
+  END
+}
+
+OP(CALLCC_RESUME) {
+  abort();
+  END
 }
 
 OP(HALT) {
