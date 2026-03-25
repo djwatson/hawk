@@ -524,28 +524,24 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
       continue;
     }
 
-    bool found = false;
-    for (uint8_t j = 0; j < call_arg_count; j++) {
-      auto *arg = &pending[j];
-      if (arg->arg.value.constant || arg->dst_reg != to) {
-        continue;
-      }
-      emit_ccall_arg_value(s, t, &arg->arg, from, to);
-      found = true;
-      break;
-    }
-    if (!found) {
+    if (is_fpr_reg(from) != is_fpr_reg(to)) {
       abort();
+    }
+    if (is_fpr_reg(from)) {
+      emit_fmov(s, to, from);
+    } else {
+      emit_mov(s, to, from);
     }
   }
   arrfree(moves);
 
   for (uint8_t i = 0; i < call_arg_count; i++) {
     auto *arg = &pending[i];
-    if (!arg->arg.value.constant) {
-      continue;
+    if (arg->arg.value.constant) {
+      emit_ccall_arg_value(s, t, &arg->arg, REG_NONE, arg->dst_reg);
+    } else {
+      emit_ccall_arg_value(s, t, &arg->arg, arg->dst_reg, arg->dst_reg);
     }
-    emit_ccall_arg_value(s, t, &arg->arg, REG_NONE, arg->dst_reg);
   }
 
   emit_store_ralloc(s);

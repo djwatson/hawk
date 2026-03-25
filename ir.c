@@ -42,6 +42,30 @@ static void print_slot(slot s, trace *t) {
   }
 }
 
+static void print_ccall_sig(slot sig_slot, trace *t) {
+  if (!sig_slot.constant) {
+    print_slot(sig_slot, t);
+    return;
+  }
+
+  auto sig_obj = t->consts[sig_slot.loc];
+  if (!is_cons(sig_obj)) {
+    print_slot(sig_slot, t);
+    return;
+  }
+  auto sig_tail = to_cons(sig_obj)->b;
+  if (!is_cons(sig_tail)) {
+    print_slot(sig_slot, t);
+    return;
+  }
+  auto name_obj = to_cons(sig_tail)->a;
+  if (!is_string(name_obj)) {
+    print_slot(sig_slot, t);
+    return;
+  }
+  printf("\e[1;35m%s\e[m", to_string(name_obj)->str);
+}
+
 char *ir_names[] = {
 #define X(name, type, sideeff) #name,
     IR_OPS
@@ -131,7 +155,11 @@ void print_ir(trace *t) {
       break;
     case IR_ARG_IR_IR:
       printf(" ");
-      print_slot(ins->op1, t);
+      if (ins->op == IR_CCALL) {
+        print_ccall_sig(ins->op1, t);
+      } else {
+        print_slot(ins->op1, t);
+      }
       printf(", ");
       print_slot(ins->op2, t);
       break;

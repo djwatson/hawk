@@ -541,7 +541,8 @@ OP(DEFINE) {
   auto s = to_symbol(sym);
   if (s->opt > 0) {
     if (verbose) {
-      printf("Clearing trace cache due to optimistic global\n");
+      printf("Clearing trace cache due to optimistic global: %s\n",
+             to_string(s->name)->str);
     }
     trace_reset(state);
     op_table = state->impls;
