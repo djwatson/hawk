@@ -84,10 +84,12 @@ typedef struct bcfunc {
   X(UNUSED1, 0x1)                                                              \
   X(STRING, 0x9)                                                               \
   X(FUNC, 0x11)                                                                \
-  X(UNUSED2, 0x19)                                                             \
+  X(RATNUM, 0x19)                                                              \
   X(BOX, 0x21)                                                                 \
   X(CONT, 0x29)                                                                \
-  X(RECORD, 0x31)
+  X(RECORD, 0x31)                                                              \
+  X(BIGNUM, 0x39)                                                              \
+  X(COMPNUM, 0x41)
 
 // Immediates.  Bottom three bits must be LITERAL_TAG.
 // Uses bottom byte, and other 7 bytes used for storing literal.
@@ -127,6 +129,23 @@ typedef struct flonum_s {
   gc_header header;
   double x;
 } flonum_s;
+
+typedef struct bignum_s {
+  gc_header header;
+  uint64_t placeholder;
+} bignum_s;
+
+typedef struct ratnum_s {
+  gc_header header;
+  gc_obj num;
+  gc_obj denom;
+} ratnum_s;
+
+typedef struct compnum_s {
+  gc_header header;
+  gc_obj real;
+  gc_obj imag;
+} compnum_s;
 
 typedef struct string_s {
   gc_header header;

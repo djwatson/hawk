@@ -21,12 +21,13 @@ bcfunc const *closure_code_ptr(closure_s const *clo) {
 }
 
 static const char *type_tag_names[256] = {
-    [FIXNUM_TAG] = "fix", [CONS_TAG] = "cons",   [FLONUM_TAG] = "flo",
-    [SYMBOL_TAG] = "sym", [BOOL_TAG] = "bool",   [NIL_TAG] = "nil",
-    [EOF_TAG] = "eof",    [STRING_TAG] = "str",  [FUNC_TAG] = "func",
-    [VECTOR_TAG] = "vec", [CONT_TAG] = "cont",   [PTR_TAG] = "ptr",
-    [CHAR_TAG] = "char",  [CLOSURE_TAG] = "clo", [UNDEFINED_TAG] = "",
-    [RECORD_TAG] = "rec",
+    [FIXNUM_TAG] = "fix",   [CONS_TAG] = "cons",  [FLONUM_TAG] = "flo",
+    [SYMBOL_TAG] = "sym",   [BOOL_TAG] = "bool",  [NIL_TAG] = "nil",
+    [EOF_TAG] = "eof",      [STRING_TAG] = "str", [FUNC_TAG] = "func",
+    [VECTOR_TAG] = "vec",   [CONT_TAG] = "cont",  [PTR_TAG] = "ptr",
+    [CHAR_TAG] = "char",    [CLOSURE_TAG] = "clo", [UNDEFINED_TAG] = "",
+    [RECORD_TAG] = "rec",   [BIGNUM_TAG] = "big", [RATNUM_TAG] = "rat",
+    [COMPNUM_TAG] = "cmp",
 };
 
 const char *type_tag_name(uint8_t tag) {
@@ -161,6 +162,12 @@ size_t heap_object_size(void *obj) {
   switch (type) {
   case FLONUM_TAG:
     return sizeof(flonum_s);
+  case BIGNUM_TAG:
+    return sizeof(bignum_s);
+  case RATNUM_TAG:
+    return sizeof(ratnum_s);
+  case COMPNUM_TAG:
+    return sizeof(compnum_s);
   case STRING_TAG: {
     auto str = (string_s *)obj;
     return heap_align(sizeof(string_s) + (size_t)to_fixnum(str->len) + 1);
@@ -202,8 +209,21 @@ void trace_heap_object(gc_header *obj, trace_callback visit, void *ctx) {
   auto type = obj->type;
   switch (type) {
   case FLONUM_TAG:
+  case BIGNUM_TAG:
   case STRING_TAG:
     return;
+  case RATNUM_TAG: {
+    auto rat = (ratnum_s *)obj;
+    visit(&rat->num, ctx);
+    visit(&rat->denom, ctx);
+    return;
+  }
+  case COMPNUM_TAG: {
+    auto cmp = (compnum_s *)obj;
+    visit(&cmp->real, ctx);
+    visit(&cmp->imag, ctx);
+    return;
+  }
   case SYMBOL_TAG: {
     auto sym = (symbol *)obj;
     visit(&sym->name, ctx);
