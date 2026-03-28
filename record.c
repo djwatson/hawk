@@ -246,10 +246,11 @@ static slot add_inst(vm_state *state, ir_ins ins) {
 }
 
 static uint8_t get_slot_type(trace *t, slot v) {
-  if (v.constant) {
-    return get_type_tag(t->consts[v.loc]);
+  uint8_t ty = v.constant ? get_type_tag(t->consts[v.loc]) : t->ins[v.loc].type;
+  if (ty == BIGNUM_TAG) {
+    abort();
   }
-  return t->ins[v.loc].type;
+  return ty;
 }
 
 static ir_ins *find_input_typecheck(trace *t, uint16_t input_loc) {

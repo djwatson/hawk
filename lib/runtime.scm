@@ -172,9 +172,11 @@
 (define (char? a) (sys:GUARD a 12))
 (define (fixnum? a) (sys:GUARD a 0))
 (define (flonum? a) (sys:GUARD a 2))
+(define (bignum? a) (sys:GUARD a 57))
 (define (number? x)
   (or (fixnum? x)
-     (flonum? x) ;(bignum? x) (ratnum? x) (compnum? x)
+     (flonum? x)
+     (bignum? x) ;(ratnum? x) (compnum? x)
   ))
 (define complex? number?)
 (define real? number?)
@@ -616,7 +618,7 @@
       (let* ((buflen 100) (buffer (make-string buflen)))
         (cond
           ((flonum? num) (display "Error flonum->string") (/ 1 0))
-          ;; ((bignum? num) (error "big-str" num))
+          ((bignum? num) (sys:FOREIGN_CALL '(string "bignum_string" (gc_obj)) num))
           ;; ((ratnum? num) (error "numbratnum->str" num))
           ;; ((compnum? num) (string-append
           ;; 		     (number->string (real-part num))

@@ -17,6 +17,9 @@
 #include "runtime.h"
 #include "vm.h"
 
+static inline char const *func_name_for_pc(bc *pc);
+static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack);
+
 #define VMGEN_TRACE_OP(pc, code, state, argcnt)                                \
   do {                                                                         \
     if (verbose) {                                                             \
@@ -84,21 +87,127 @@ static inline gc_obj const_load(bc *pc, uint16_t offset) {
   return *(gc_obj *)(pc - pc->data);
 }
 
-DEFINE_VM_RUNTIME_NUMERIC_BINOP(
-    add, return tag_fixnum(to_fixnum(v1) + to_fixnum(v2));
-    , return root2_box_flonum(&v1, &v2,
-                              numeric_to_double(v1) + numeric_to_double(v2));)
-DEFINE_VM_RUNTIME_NUMERIC_BINOP(
-    sub, return tag_fixnum(to_fixnum(v1) - to_fixnum(v2));
-    , return root2_box_flonum(&v1, &v2,
-                              numeric_to_double(v1) - numeric_to_double(v2));)
-DEFINE_VM_RUNTIME_NUMERIC_BINOP(
-    mul, gc_obj res;
+static inline gc_obj numeric_to_bignum_obj(gc_obj v) {
+  if (is_bignum(v)) {
+    return v;
+  }
+  if (is_fixnum(v)) {
+    return tag_bignum(bn_from_i64(to_fixnum(v)));
+  }
+  abort();
+}
+
+static NOINLINE gc_obj emit_ov_math_add_slowpath(vm_state *state, bc *pc,
+                                                 gc_obj *stack, gc_obj v1,
+                                                 gc_obj v2) {
+  (void)state;
+  (void)pc;
+  (void)stack;
+  if (is_flonum(v1) || is_flonum(v2)) {
+    return root2_box_flonum(&v1, &v2,
+                            numeric_to_double(v1) + numeric_to_double(v2));
+  }
+  if (is_fixnum(v1) && is_fixnum(v2)) {
+    gc_obj res;
+    if (!__builtin_add_overflow(v1.value, v2.value, &res.value)) {
+      return res;
+    }
+  }
+  gc_obj b1 = numeric_to_bignum_obj(v1);
+  gc_obj b2 = numeric_to_bignum_obj(v2);
+  gc_add_root((const void *)&b1, 1, 0);
+  gc_add_root((const void *)&b2, 1, 0);
+  gc_obj res = tag_bignum(bn_add(to_bignum(b1), to_bignum(b2)));
+  gc_remove_root((const void *)&b2, 0);
+  gc_remove_root((const void *)&b1, 0);
+  return res;
+}
+
+static inline gc_obj emit_ov_math_add(vm_state *state, bc *pc, gc_obj *stack,
+                                      gc_obj v1, gc_obj v2) {
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    gc_obj res;
+    if (likely(!__builtin_add_overflow(v1.value, v2.value, &res.value))) {
+      return res;
+    }
+  }
+  MUSTTAIL return emit_ov_math_add_slowpath(state, pc, stack, v1, v2);
+}
+
+static NOINLINE gc_obj emit_ov_math_sub_slowpath(vm_state *state, bc *pc,
+                                                 gc_obj *stack, gc_obj v1,
+                                                 gc_obj v2) {
+  (void)state;
+  (void)pc;
+  (void)stack;
+  if (is_flonum(v1) || is_flonum(v2)) {
+    return root2_box_flonum(&v1, &v2,
+                            numeric_to_double(v1) - numeric_to_double(v2));
+  }
+  if (is_fixnum(v1) && is_fixnum(v2)) {
+    gc_obj res;
+    if (!__builtin_sub_overflow(v1.value, v2.value, &res.value)) {
+      return res;
+    }
+  }
+  gc_obj b1 = numeric_to_bignum_obj(v1);
+  gc_obj b2 = numeric_to_bignum_obj(v2);
+  gc_add_root((const void *)&b1, 1, 0);
+  gc_add_root((const void *)&b2, 1, 0);
+  gc_obj res = tag_bignum(bn_sub(to_bignum(b1), to_bignum(b2)));
+  gc_remove_root((const void *)&b2, 0);
+  gc_remove_root((const void *)&b1, 0);
+  return res;
+}
+
+static inline gc_obj emit_ov_math_sub(vm_state *state, bc *pc, gc_obj *stack,
+                                      gc_obj v1, gc_obj v2) {
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    gc_obj res;
+    if (likely(!__builtin_sub_overflow(v1.value, v2.value, &res.value))) {
+      return res;
+    }
+  }
+  MUSTTAIL return emit_ov_math_sub_slowpath(state, pc, stack, v1, v2);
+}
+
+static NOINLINE gc_obj emit_ov_math_mul_slowpath(vm_state *state, bc *pc,
+                                                 gc_obj *stack, gc_obj v1,
+                                                 gc_obj v2) {
+  (void)state;
+  (void)pc;
+  (void)stack;
+  if (is_flonum(v1) || is_flonum(v2)) {
+    return root2_box_flonum(&v1, &v2,
+                            numeric_to_double(v1) * numeric_to_double(v2));
+  }
+  if (is_fixnum(v1) && is_fixnum(v2)) {
+    gc_obj res;
     if (!__builtin_mul_overflow(v1.value, to_fixnum(v2), &res.value)) {
       return res;
-    } abort();
-    , return root2_box_flonum(&v1, &v2,
-                              numeric_to_double(v1) * numeric_to_double(v2));)
+    }
+  }
+  gc_obj b1 = numeric_to_bignum_obj(v1);
+  gc_obj b2 = numeric_to_bignum_obj(v2);
+  gc_add_root((const void *)&b1, 1, 0);
+  gc_add_root((const void *)&b2, 1, 0);
+  gc_obj res = tag_bignum(bn_mul(to_bignum(b1), to_bignum(b2)));
+  gc_remove_root((const void *)&b2, 0);
+  gc_remove_root((const void *)&b1, 0);
+  return res;
+}
+
+static inline gc_obj emit_ov_math_mul(vm_state *state, bc *pc, gc_obj *stack,
+                                      gc_obj v1, gc_obj v2) {
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    gc_obj res;
+    if (likely(!__builtin_mul_overflow(v1.value, to_fixnum(v2), &res.value))) {
+      return res;
+    }
+  }
+  MUSTTAIL return emit_ov_math_mul_slowpath(state, pc, stack, v1, v2);
+}
+
 static inline gc_obj emit_ov_math_div(vm_state *state, gc_obj v1, gc_obj v2) {
   (void)state;
   abort_if_zero_divisor(v2);
@@ -119,9 +228,12 @@ DEFINE_VM_RUNTIME_NUMERIC_BINOP(
 static NOINLINE gc_obj emit_math_cmp_lt_slowpath(vm_state *state, bc *pc,
                                                  gc_obj *stack, gc_obj v1,
                                                  gc_obj v2) {
-  (void)state;
-  (void)pc;
-  (void)stack;
+  if ((!is_fixnum(v1) && !is_flonum(v1)) ||
+      (!is_fixnum(v2) && !is_flonum(v2))) {
+    printf("Bad < arg types in %s\n", func_name_for_pc(pc));
+    debug_print_vm_backtrace(state, pc, stack);
+    abort();
+  }
   /* if (is_compnum(a) || is_compnum(b)) { */
   /*   res = COMPCMP(a, b); */
   VM_NUMERIC_DISPATCH_VALUES(
@@ -390,6 +502,31 @@ static inline char const *func_name_for_pc(bc *pc) {
   return to_string(func->name)->str;
 }
 
+static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack) {
+  printf("VM backtrace:\n");
+  for (int depth = 0; depth < 256; depth++) {
+    printf("  #%d %s\n", depth, func_name_for_pc(pc));
+    if (stack <= state->stack_bottom) {
+      return;
+    }
+
+    auto ret_pc = to_return_address(stack[-1]);
+    if (!ret_pc) {
+      return;
+    }
+
+    auto call_pc = ret_pc - 1;
+    auto caller_stack = stack - call_pc->reg - 1;
+    if (caller_stack < state->stack_bottom || caller_stack >= stack) {
+      return;
+    }
+
+    pc = ret_pc;
+    stack = caller_stack;
+  }
+  printf("  ... (truncated)\n");
+}
+
 static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
                                uint8_t args, bool abort_on_fail) {
   (void)state;
@@ -401,6 +538,7 @@ static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
     if (abort_on_fail) {
       printf("Bad argcnt in %s expected %i got %i\n", func_name_for_pc(pc),
              instr.reg, args);
+      debug_print_vm_backtrace(state, pc, stack);
       abort();
     }
     return false;
@@ -411,6 +549,7 @@ static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
     if (abort_on_fail) {
       printf("Bad argcnt in %s expected %i+ got %i\n", func_name_for_pc(pc),
              fixed_cnt, args);
+      debug_print_vm_backtrace(state, pc, stack);
       abort();
     }
     return false;
@@ -518,15 +657,15 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
 
 // Begin opcode handlers.
 OP_ABC(ADD) {
-  auto res = emit_ov_math_add(state, v1, v2);
+  auto res = emit_ov_math_add(state, pc, stack, v1, v2);
   END_ABC_NEXT
 }
 OP_ABC(SUB) {
-  auto res = emit_ov_math_sub(state, v1, v2);
+  auto res = emit_ov_math_sub(state, pc, stack, v1, v2);
   END_ABC_NEXT
 }
 OP_ABC(MUL) {
-  auto res = emit_ov_math_mul(state, v1, v2);
+  auto res = emit_ov_math_mul(state, pc, stack, v1, v2);
   END_ABC_NEXT
 }
 OP_ABC(DIV) {
@@ -956,7 +1095,7 @@ static void vm_state_init(vm_state *state) {
 #define X(name, type) state->impls[OP_##name] = impl_##name;
   OPS
 #undef X
-  for (int i = 0; i < OP_INS_MAX; i++) {
+      for (int i = 0; i < OP_INS_MAX; i++) {
     state->record_impls[i] = record;
   }
 }

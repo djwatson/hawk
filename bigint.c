@@ -35,7 +35,6 @@ static bn_t *bn_new(uint32_t alloc) {
   assert(alloc >= 1);
   assert(g_bn_api_alloc_fn != nullptr);
   bn_t *bn = (bn_t *)g_bn_api_alloc_fn(bn_size_for_limbs(alloc));
-  bn->gc_hdr = 0;
   bn->used = 1;
   bn->negative = false;
   bn->limb[0] = 0;

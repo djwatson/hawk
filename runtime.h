@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "bigint.h"
 #include "gc.h"
 #include "types.h"
 
@@ -31,12 +32,31 @@ static inline gc_obj root2_box_flonum(gc_obj *lhs, gc_obj *rhs, double x) {
   return res;
 }
 
+static inline double bignum_to_double(gc_obj v) {
+  assert(is_bignum(v));
+  bn_t *bn = to_bignum(v);
+  bn_i64_result_t i64 = bn_to_i64(bn);
+  if (i64.ok) {
+    return (double)i64.value;
+  }
+  char *str = bn_to_string(bn, 10);
+  if (!str) {
+    abort();
+  }
+  double d = strtod(str, nullptr);
+  free(str);
+  return d;
+}
+
 static inline double numeric_to_double(gc_obj v) {
   if (is_flonum(v)) {
     return to_flonum(v)->x;
   }
   if (is_fixnum(v)) {
     return (double)to_fixnum(v);
+  }
+  if (is_bignum(v)) {
+    return bignum_to_double(v);
   }
   abort();
 }
@@ -48,11 +68,17 @@ static inline gc_obj numeric_inexact_value(gc_obj v) {
   if (is_flonum(v)) {
     return v;
   }
+  if (is_bignum(v)) {
+    return root1_box_flonum(&v, bignum_to_double(v));
+  }
   abort();
 }
 
 static inline gc_obj numeric_exact_value(gc_obj v) {
   if (is_fixnum(v)) {
+    return v;
+  }
+  if (is_bignum(v)) {
     return v;
   }
   if (is_flonum(v)) {
@@ -67,6 +93,9 @@ static inline gc_obj numeric_exact_value(gc_obj v) {
 
 static inline gc_obj numeric_truncate_value(gc_obj v) {
   if (is_fixnum(v)) {
+    return v;
+  }
+  if (is_bignum(v)) {
     return v;
   }
   if (is_flonum(v)) {
