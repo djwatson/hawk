@@ -16,18 +16,18 @@ static inline gc_obj vm_box_flonum(double x) {
 }
 
 static inline gc_obj root1_box_flonum(gc_obj *v, double x) {
-  gc_add_root((const uint64_t *)v, 1);
+  gc_add_root((const void *)v, 1, 0);
   gc_obj res = vm_box_flonum(x);
-  gc_remove_root((const uint64_t *)v);
+  gc_remove_root((const void *)v, 0);
   return res;
 }
 
 static inline gc_obj root2_box_flonum(gc_obj *lhs, gc_obj *rhs, double x) {
-  gc_add_root((const uint64_t *)lhs, 1);
-  gc_add_root((const uint64_t *)rhs, 1);
+  gc_add_root((const void *)lhs, 1, 0);
+  gc_add_root((const void *)rhs, 1, 0);
   gc_obj res = vm_box_flonum(x);
-  gc_remove_root((const uint64_t *)rhs);
-  gc_remove_root((const uint64_t *)lhs);
+  gc_remove_root((const void *)rhs, 0);
+  gc_remove_root((const void *)lhs, 0);
   return res;
 }
 

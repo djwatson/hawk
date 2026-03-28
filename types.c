@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #include "bc.h"
+#include "bigint.h"
 #include "ftoa.h"
 #include "types.h"
 
@@ -162,8 +163,10 @@ size_t heap_object_size(void *obj) {
   switch (type) {
   case FLONUM_TAG:
     return sizeof(flonum_s);
-  case BIGNUM_TAG:
-    return sizeof(bignum_s);
+  case BIGNUM_TAG: {
+    auto bn = (bn_t *)obj;
+    return heap_align(sizeof(bn_t) + (size_t)bn->used * sizeof(uint64_t));
+  }
   case RATNUM_TAG:
     return sizeof(ratnum_s);
   case COMPNUM_TAG:

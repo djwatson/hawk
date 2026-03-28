@@ -78,6 +78,7 @@ set(
   hawk.c
   runtime.c
   equal.c
+  bigint.c
   ftoa.c
   vm.c
   foreign.c

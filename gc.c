@@ -22,8 +22,9 @@ typedef struct {
 } gc_heap;
 
 typedef struct {
-  const uint64_t *ptr;
+  const void *ptr;
   size_t len;
+  uint8_t tag;
 } root_range;
 
 static gc_heap heap;
@@ -122,6 +123,19 @@ static void scan_root_range(const uint64_t *start, const uint64_t *end) {
   }
 }
 
+/* Some embedders store raw pointers in root slots (not gc_obj values).
+ * Those slots cannot be passed directly to visit_field because the GC expects
+ * tagged words. We temporarily add the tag, visit, then write back the raw
+ * pointer so moved objects are reflected in the original slot. */
+static void scan_ptr_root_range(const void *rootp, size_t len, uint8_t tag) {
+  uintptr_t *slots = (uintptr_t *)rootp;
+  for (size_t i = 0; i < len; i++) {
+    gc_obj tagged = tag_header((gc_header *)slots[i], tag);
+    visit_field(&tagged, nullptr);
+    slots[i] = (uintptr_t)to_raw_ptr(tagged);
+  }
+}
+
 static void gc_add_mark_root(const uint64_t *rootp, size_t len) {
   assert(rootp);
   assert(len != 0);
@@ -149,7 +163,13 @@ static void gc_collect(void) {
   flip_spaces();
   arrlen_set(worklist, 0);
 
-  arr_for_each(roots, root) { gc_add_mark_root(root.ptr, root.len); }
+  arr_for_each(roots, root) {
+    if (root.tag != 0) {
+      scan_ptr_root_range(root.ptr, root.len, root.tag);
+    } else {
+      gc_add_mark_root((const uint64_t *)root.ptr, root.len);
+    }
+  }
   if (scan_callback) {
     scan_callback(scan_data, gc_add_mark_root);
   }
@@ -183,11 +203,15 @@ void gc_init(void) {
   heap.size = heap_size * 2;
 }
 
-void gc_add_root(const uint64_t *rootp, size_t len) {
-  arrput(roots, ((root_range){.ptr = rootp, .len = len}));
+void gc_add_root(const void *rootp, size_t len, uint8_t tag) {
+  arrput(roots, ((root_range){
+                    .ptr = rootp,
+                    .len = len,
+                    .tag = tag,
+                }));
 }
 
-void gc_remove_root(uint64_t const *rootp) {
+void gc_remove_root(const void *rootp, uint8_t tag) {
   for (size_t i = arrlen(roots); i > 0; i--) {
     size_t idx = i - 1;
     if (roots[idx].ptr == rootp) {

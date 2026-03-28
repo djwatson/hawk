@@ -53,7 +53,7 @@ static void *gc_alloc_ir_slowpath(uint64_t tagged_sz, uint8_t *reg_save,
   for (uint8_t reg = 0; reg < FPR_REG_START; reg++) {
     if (gpr_mask & (1ULL << reg)) {
       gc_add_root(
-          (uint64_t const *)(reg_save + alloc_reg_save_slot_offset(reg)), 1);
+          (const void *)(reg_save + alloc_reg_save_slot_offset(reg)), 1, 0);
     }
   }
 
@@ -62,7 +62,7 @@ static void *gc_alloc_ir_slowpath(uint64_t tagged_sz, uint8_t *reg_save,
   for (uint8_t reg = 0; reg < FPR_REG_START; reg++) {
     if (gpr_mask & (1ULL << reg)) {
       gc_remove_root(
-          (uint64_t const *)(reg_save + alloc_reg_save_slot_offset(reg)));
+          (const void *)(reg_save + alloc_reg_save_slot_offset(reg)), 0);
     }
   }
   return ptr;
@@ -117,7 +117,7 @@ void emit_init_slowpath(emit_state *s) {
     return;
   }
   if (!spill_roots_registered) {
-    gc_add_root((uint64_t const *)gpr_spills, spill_slot_count);
+    gc_add_root((const void *)gpr_spills, spill_slot_count, 0);
     spill_roots_registered = true;
   }
   auto alloc_start = (uint8_t *)emit_offset(s);

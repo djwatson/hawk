@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "bc.h"
+#include "bigint.h"
 #include "gc.h"
 #include "hawk.h"
 #include "types.h"
@@ -82,8 +83,29 @@ static char *parse_args(int argc, char *argv[]) {
   return argv[optind];
 }
 
+static void *gc_alloc_bigint(size_t sz) {
+  uint64_t aligned = (uint64_t)((sz + 7) & ~((size_t)7));
+  bn_t *bn = gc_alloc(aligned);
+  bn->gc_hdr = BIGNUM_TAG;
+  return bn;
+}
+
+static void gc_root_bigint_slot(bn_t **slot) {
+  gc_add_root((const void *)slot, 1, PTR_TAG);
+}
+
+static void gc_unroot_bigint_slot(bn_t **slot) {
+  gc_remove_root((const void *)slot, PTR_TAG);
+}
+
+static void init_bigint_hooks(void) {
+  bn_set_alloc_hooks(gc_alloc_bigint, nullptr, gc_root_bigint_slot,
+                     gc_unroot_bigint_slot);
+}
+
 int main(int argc, char *argv[]) {
   gc_init();
+  init_bigint_hooks();
 
   auto filename = parse_args(argc, argv);
   char *filename_alloc = nullptr;

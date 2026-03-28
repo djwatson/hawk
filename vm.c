@@ -319,7 +319,7 @@ gc_obj halt(vm_state *state, gc_obj *stack) {
   }
   auto res = stack[0];
   free_traces(state);
-  gc_remove_root((uint64_t *)state->stack_bottom);
+  gc_remove_root((const void *)state->stack_bottom, 0);
   emit_cleanup(&state->emit);
   gc_free();
   free(state->stack_bottom);
@@ -346,7 +346,7 @@ gc_obj *expand_stack(vm_state *state, gc_obj *stack) {
   if (verbose) {
     printf("MUST EXPAND STACK now %li\n", newsz);
   }
-  gc_remove_root((const uint64_t *)old_bottom);
+  gc_remove_root((const void *)old_bottom, 0);
   gc_obj *newstack = realloc(state->stack_bottom, sizeof(gc_obj) * newsz);
   if (!newstack) {
     fprintf(stderr, "Failed to realloc stack\n");
@@ -360,7 +360,7 @@ gc_obj *expand_stack(vm_state *state, gc_obj *stack) {
   // Potential improvement: the GC could callback to get the current stack size.
   // (or rather, stack + 256 redzone).
   // If the stack grew large but then stayed small, GC time would be improved.
-  gc_add_root((const uint64_t *)state->stack_bottom, newsz);
+  gc_add_root((const void *)state->stack_bottom, newsz, 0);
   return &newstack[offset];
 }
 
@@ -371,7 +371,7 @@ static inline void check_expand_stack(vm_state *state, gc_obj **stack) {
 }
 static void build_list(uint8_t start, uint8_t len, gc_obj *stack) {
   gc_obj lst = NIL;
-  gc_add_root((const uint64_t *)&lst, 1);
+  gc_add_root((const void *)&lst, 1, 0);
   for (int i = (int)start + (int)len - 1; i >= (int)start; i--) {
     cons_s *c = gc_alloc(sizeof(cons_s));
     c->header.type = CONS_TAG;
@@ -379,7 +379,7 @@ static void build_list(uint8_t start, uint8_t len, gc_obj *stack) {
     c->b = lst;
     lst = tag_cons(c);
   }
-  gc_remove_root((const uint64_t *)&lst);
+  gc_remove_root((const void *)&lst, 0);
   stack[start] = lst;
 }
 static inline char const *func_name_for_pc(bc *pc) {
@@ -974,7 +974,7 @@ gc_obj vm(bc *pc) {
   state->stack_bottom = stack;
   state->stack_top = stack + default_size;
   state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
-  gc_add_root((const uint64_t *)state->stack_bottom, default_size);
+  gc_add_root((const void *)state->stack_bottom, default_size, 0);
   if (profile) {
     profiler_start();
   }
