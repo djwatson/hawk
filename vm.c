@@ -76,10 +76,7 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 }
 
 static inline void abort_if_zero_divisor(gc_obj v) {
-  if (is_fixnum(v) && to_fixnum(v) == 0) {
-    abort();
-  }
-  if (is_flonum(v) && to_flonum(v)->x == 0.0) {
+  if (numeric_is_zero(v)) {
     abort();
   }
 }
@@ -139,16 +136,46 @@ static inline gc_obj emit_ov_math_div(vm_state *state, gc_obj v1, gc_obj v2) {
   return root2_box_flonum(&v1, &v2,
                           numeric_to_double(v1) / numeric_to_double(v2));
 }
-DEFINE_VM_RUNTIME_NUMERIC_BINOP(
-    quotient, abort_if_zero_divisor(v2);
+
+static NOINLINE gc_obj emit_ov_math_quotient_slowpath(vm_state *state, bc *pc,
+                                                      gc_obj *stack, gc_obj v1,
+                                                      gc_obj v2) {
+  (void)state;
+  (void)pc;
+  (void)stack;
+  return vm_runtime_math_quotient_slow(v1, v2);
+}
+
+static NOINLINE gc_obj emit_ov_math_mod_slowpath(vm_state *state, bc *pc,
+                                                 gc_obj *stack, gc_obj v1,
+                                                 gc_obj v2) {
+  (void)state;
+  (void)pc;
+  (void)stack;
+  return vm_runtime_math_mod_slow(v1, v2);
+}
+
+static inline gc_obj emit_ov_math_quotient(vm_state *state, bc *pc,
+                                           gc_obj *stack, gc_obj v1, gc_obj v2) {
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    if (unlikely(to_fixnum(v2) == 0)) {
+      abort();
+    }
     return tag_fixnum(to_fixnum(v1) / to_fixnum(v2));
-    , abort_if_zero_divisor(v2); return root2_box_flonum(
-        &v1, &v2, trunc(numeric_to_double(v1) / numeric_to_double(v2)));)
-DEFINE_VM_RUNTIME_NUMERIC_BINOP(
-    mod, abort_if_zero_divisor(v2);
+  }
+  MUSTTAIL return emit_ov_math_quotient_slowpath(state, pc, stack, v1, v2);
+}
+
+static inline gc_obj emit_ov_math_mod(vm_state *state, bc *pc, gc_obj *stack,
+                                      gc_obj v1, gc_obj v2) {
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    if (unlikely(to_fixnum(v2) == 0)) {
+      abort();
+    }
     return tag_fixnum(to_fixnum(v1) % to_fixnum(v2));
-    , abort_if_zero_divisor(v2); return root2_box_flonum(
-        &v1, &v2, fmod(numeric_to_double(v1), numeric_to_double(v2)));)
+  }
+  MUSTTAIL return emit_ov_math_mod_slowpath(state, pc, stack, v1, v2);
+}
 
 static NOINLINE gc_obj emit_math_cmp_lt_slowpath(vm_state *state, bc *pc,
                                                  gc_obj *stack, gc_obj v1,
@@ -598,11 +625,11 @@ OP_ABC(DIV) {
   END_ABC_NEXT
 }
 OP_ABC(QUOTIENT) {
-  auto res = emit_ov_math_quotient(state, v1, v2);
+  auto res = emit_ov_math_quotient(state, pc, stack, v1, v2);
   END_ABC_NEXT
 }
 OP_ABC(MOD) {
-  auto res = emit_ov_math_mod(state, v1, v2);
+  auto res = emit_ov_math_mod(state, pc, stack, v1, v2);
   END_ABC_NEXT
 }
 OP_AD(INEXACT) {

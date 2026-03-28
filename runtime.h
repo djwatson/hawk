@@ -7,7 +7,6 @@
 
 #include "bigint.h"
 #include "gc.h"
-#include "hawk.h"
 #include "types.h"
 
 static inline gc_obj vm_box_flonum(double x) {
@@ -55,6 +54,19 @@ static inline gc_obj numeric_to_bignum_obj(gc_obj v) {
   }
   if (is_fixnum(v)) {
     return tag_bignum(bn_from_i64(to_fixnum(v)));
+  }
+  abort();
+}
+
+static inline bool numeric_is_zero(gc_obj v) {
+  if (is_fixnum(v)) {
+    return to_fixnum(v) == 0;
+  }
+  if (is_flonum(v)) {
+    return to_flonum(v)->x == 0.0;
+  }
+  if (is_bignum(v)) {
+    return bn_is_zero(to_bignum(v));
   }
   abort();
 }
@@ -154,6 +166,41 @@ DEFINE_VM_RUNTIME_OVERFLOW_SLOW(mul, mul, VM_MATH_MUL, VM_MATH_SHIFT)
 
 #undef DEFINE_VM_RUNTIME_OVERFLOW_SLOW
 
+#define DEFINE_VM_RUNTIME_DIVMOD_SLOW(name, fixnum_body, flonum_body, field)  \
+  static inline gc_obj vm_runtime_math_##name##_slow(gc_obj v1, gc_obj v2) {  \
+    if (numeric_is_zero(v2)) {                                                 \
+      abort();                                                                 \
+    }                                                                          \
+    if (is_flonum(v1) || is_flonum(v2)) {                                      \
+      return root2_box_flonum(&v1, &v2, (flonum_body));                        \
+    }                                                                          \
+    if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
+      return tag_fixnum((fixnum_body));                                        \
+    }                                                                          \
+    gc_add_root((const void *)&v1, 1, 0);                                      \
+    gc_add_root((const void *)&v2, 1, 0);                                      \
+    gc_obj b1 = numeric_to_bignum_obj(v1);                                     \
+    gc_add_root((const void *)&b1, 1, 0);                                      \
+    gc_obj b2 = numeric_to_bignum_obj(v2);                                     \
+    gc_add_root((const void *)&b2, 1, 0);                                      \
+    bn_divmod_result_t qr = bn_divmod(to_bignum(b1), to_bignum(b2));           \
+    gc_obj res = tag_bignum(qr.field);                                         \
+    gc_remove_root((const void *)&b2, 0);                                      \
+    gc_remove_root((const void *)&b1, 0);                                      \
+    gc_remove_root((const void *)&v2, 0);                                      \
+    gc_remove_root((const void *)&v1, 0);                                      \
+    return res;                                                                \
+  }
+
+DEFINE_VM_RUNTIME_DIVMOD_SLOW(
+    quotient, to_fixnum(v1) / to_fixnum(v2),
+    trunc(numeric_to_double(v1) / numeric_to_double(v2)), q)
+DEFINE_VM_RUNTIME_DIVMOD_SLOW(
+    mod, to_fixnum(v1) % to_fixnum(v2),
+    fmod(numeric_to_double(v1), numeric_to_double(v2)), r)
+
+#undef DEFINE_VM_RUNTIME_DIVMOD_SLOW
+
 static inline uint8_t numeric_result_type(uint8_t t1, uint8_t t2) {
   if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
     return FLONUM_TAG;
@@ -193,21 +240,6 @@ static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
   }
   return lhs.value == rhs.value;
 }
-
-#define DEFINE_VM_RUNTIME_NUMERIC_BINOP(name, fixnum_body, flonum_body)        \
-  static inline gc_obj emit_ov_math_##name(vm_state *state, gc_obj v1,         \
-                                           gc_obj v2) {                        \
-    (void)state;                                                               \
-    VM_NUMERIC_DISPATCH_VALUES(v1, v2, fixnum_body, flonum_body);              \
-  }
-
-#define VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, fixnum_body, flonum_body)        \
-  do {                                                                         \
-    if (numeric_obj_result_type((lhs), (rhs)) == FLONUM_TAG) {                 \
-      return fold_const(root2_box_flonum(&(lhs), &(rhs), (flonum_body)));      \
-    }                                                                          \
-    return fold_const(tag_fixnum(fixnum_body));                                \
-  } while (0)
 
 static inline bool guard_obj_matches(gc_obj val, gc_obj want_tag_obj) {
   assert(is_fixnum(want_tag_obj));
