@@ -7,6 +7,7 @@
 
 #include "bigint.h"
 #include "gc.h"
+#include "hawk.h"
 #include "types.h"
 
 static inline gc_obj vm_box_flonum(double x) {
@@ -47,6 +48,49 @@ static inline double bignum_to_double(gc_obj v) {
   free(str);
   return d;
 }
+
+static inline gc_obj numeric_to_bignum_obj(gc_obj v) {
+  if (is_bignum(v)) {
+    return v;
+  }
+  if (is_fixnum(v)) {
+    return tag_bignum(bn_from_i64(to_fixnum(v)));
+  }
+  abort();
+}
+
+#define VM_MATH_ADD(a, b) ((a) + (b))
+#define VM_MATH_SUB(a, b) ((a) - (b))
+#define VM_MATH_MUL(a, b) ((a) * (b))
+#define VM_MATH_NOSHIFT(a) (a)
+#define VM_MATH_SHIFT(a) ((a) >> FIXNUM_SHIFT)
+
+#define DEFINE_VM_RUNTIME_OVERFLOW_SLOW(name, oplcname, op, shift)            \
+  static inline gc_obj vm_runtime_math_##name##_slow(gc_obj v1, gc_obj v2) {  \
+    if (is_flonum(v1) || is_flonum(v2)) {                                      \
+      return root2_box_flonum(&v1, &v2,                                        \
+                              op(numeric_to_double(v1), numeric_to_double(v2))); \
+    }                                                                          \
+    if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
+      gc_obj res;                                                              \
+      if (!__builtin_##oplcname##_overflow(v1.value, shift(v2.value),          \
+                                           &res.value)) {                      \
+        return res;                                                            \
+      }                                                                        \
+    }                                                                          \
+    gc_add_root((const void *)&v1, 1, 0);                                      \
+    gc_add_root((const void *)&v2, 1, 0);                                      \
+    gc_obj b1 = numeric_to_bignum_obj(v1);                                     \
+    gc_add_root((const void *)&b1, 1, 0);                                      \
+    gc_obj b2 = numeric_to_bignum_obj(v2);                                     \
+    gc_add_root((const void *)&b2, 1, 0);                                      \
+    gc_obj res = tag_bignum(bn_##oplcname(to_bignum(b1), to_bignum(b2)));      \
+    gc_remove_root((const void *)&b2, 0);                                      \
+    gc_remove_root((const void *)&b1, 0);                                      \
+    gc_remove_root((const void *)&v2, 0);                                      \
+    gc_remove_root((const void *)&v1, 0);                                      \
+    return res;                                                                \
+  }
 
 static inline double numeric_to_double(gc_obj v) {
   if (is_flonum(v)) {
@@ -104,6 +148,12 @@ static inline gc_obj numeric_truncate_value(gc_obj v) {
   abort();
 }
 
+DEFINE_VM_RUNTIME_OVERFLOW_SLOW(add, add, VM_MATH_ADD, VM_MATH_NOSHIFT)
+DEFINE_VM_RUNTIME_OVERFLOW_SLOW(sub, sub, VM_MATH_SUB, VM_MATH_NOSHIFT)
+DEFINE_VM_RUNTIME_OVERFLOW_SLOW(mul, mul, VM_MATH_MUL, VM_MATH_SHIFT)
+
+#undef DEFINE_VM_RUNTIME_OVERFLOW_SLOW
+
 static inline uint8_t numeric_result_type(uint8_t t1, uint8_t t2) {
   if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
     return FLONUM_TAG;
@@ -150,34 +200,6 @@ static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
     (void)state;                                                               \
     VM_NUMERIC_DISPATCH_VALUES(v1, v2, fixnum_body, flonum_body);              \
   }
-
-#define DEFINE_RECORD_NUMERIC_BINOP_COERCED(name, ir_op)                       \
-  static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2) {         \
-    auto t = record_current_trace(state);                                      \
-    uint8_t type =                                                             \
-        numeric_result_type(get_slot_type(t, v1), get_slot_type(t, v2));       \
-    if (type == FLONUM_TAG) {                                                  \
-      v1 = convert_to_flonum(state, v1);                                       \
-      v2 = convert_to_flonum(state, v2);                                       \
-    }                                                                          \
-    ir_ins ins = IR(.op = ir_op, .op1 = v1, .op2 = v2, .type = type);          \
-    return add_inst(state, ins);                                               \
-  }
-
-#define DEFINE_RECORD_NUMERIC_BINOP_FORCE_FLONUM(name, ir_op)                  \
-  static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2) {         \
-    v1 = convert_to_flonum(state, v1);                                         \
-    v2 = convert_to_flonum(state, v2);                                         \
-    ir_ins ins = IR(.op = ir_op, .op1 = v1, .op2 = v2, .type = FLONUM_TAG);    \
-    return add_inst(state, ins);                                               \
-  }
-
-#define RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs)                            \
-  (((is_fixnum((lhs)) || is_flonum((lhs))) &&                                  \
-    (is_fixnum((rhs)) || is_flonum((rhs))))                                    \
-       ? numeric_result_type(get_slot_type((t), (v1)),                         \
-                             get_slot_type((t), (v2)))                         \
-       : get_slot_type((t), (v1)))
 
 #define VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, fixnum_body, flonum_body)        \
   do {                                                                         \

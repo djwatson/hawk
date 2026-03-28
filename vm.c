@@ -87,51 +87,13 @@ static inline gc_obj const_load(bc *pc, uint16_t offset) {
   return *(gc_obj *)(pc - pc->data);
 }
 
-static inline gc_obj numeric_to_bignum_obj(gc_obj v) {
-  if (is_bignum(v)) {
-    return v;
-  }
-  if (is_fixnum(v)) {
-    return tag_bignum(bn_from_i64(to_fixnum(v)));
-  }
-  abort();
-}
-
 static NOINLINE gc_obj emit_ov_math_add_slowpath(vm_state *state, bc *pc,
                                                  gc_obj *stack, gc_obj v1,
                                                  gc_obj v2) {
   (void)state;
   (void)pc;
   (void)stack;
-  if (is_flonum(v1) || is_flonum(v2)) {
-    return root2_box_flonum(&v1, &v2,
-                            numeric_to_double(v1) + numeric_to_double(v2));
-  }
-  if (is_fixnum(v1) && is_fixnum(v2)) {
-    gc_obj res;
-    if (!__builtin_add_overflow(v1.value, v2.value, &res.value)) {
-      return res;
-    }
-  }
-  gc_obj b1 = numeric_to_bignum_obj(v1);
-  gc_obj b2 = numeric_to_bignum_obj(v2);
-  gc_add_root((const void *)&b1, 1, 0);
-  gc_add_root((const void *)&b2, 1, 0);
-  gc_obj res = tag_bignum(bn_add(to_bignum(b1), to_bignum(b2)));
-  gc_remove_root((const void *)&b2, 0);
-  gc_remove_root((const void *)&b1, 0);
-  return res;
-}
-
-static inline gc_obj emit_ov_math_add(vm_state *state, bc *pc, gc_obj *stack,
-                                      gc_obj v1, gc_obj v2) {
-  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
-    gc_obj res;
-    if (likely(!__builtin_add_overflow(v1.value, v2.value, &res.value))) {
-      return res;
-    }
-  }
-  MUSTTAIL return emit_ov_math_add_slowpath(state, pc, stack, v1, v2);
+  return vm_runtime_math_add_slow(v1, v2);
 }
 
 static NOINLINE gc_obj emit_ov_math_sub_slowpath(vm_state *state, bc *pc,
@@ -140,35 +102,7 @@ static NOINLINE gc_obj emit_ov_math_sub_slowpath(vm_state *state, bc *pc,
   (void)state;
   (void)pc;
   (void)stack;
-  if (is_flonum(v1) || is_flonum(v2)) {
-    return root2_box_flonum(&v1, &v2,
-                            numeric_to_double(v1) - numeric_to_double(v2));
-  }
-  if (is_fixnum(v1) && is_fixnum(v2)) {
-    gc_obj res;
-    if (!__builtin_sub_overflow(v1.value, v2.value, &res.value)) {
-      return res;
-    }
-  }
-  gc_obj b1 = numeric_to_bignum_obj(v1);
-  gc_obj b2 = numeric_to_bignum_obj(v2);
-  gc_add_root((const void *)&b1, 1, 0);
-  gc_add_root((const void *)&b2, 1, 0);
-  gc_obj res = tag_bignum(bn_sub(to_bignum(b1), to_bignum(b2)));
-  gc_remove_root((const void *)&b2, 0);
-  gc_remove_root((const void *)&b1, 0);
-  return res;
-}
-
-static inline gc_obj emit_ov_math_sub(vm_state *state, bc *pc, gc_obj *stack,
-                                      gc_obj v1, gc_obj v2) {
-  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
-    gc_obj res;
-    if (likely(!__builtin_sub_overflow(v1.value, v2.value, &res.value))) {
-      return res;
-    }
-  }
-  MUSTTAIL return emit_ov_math_sub_slowpath(state, pc, stack, v1, v2);
+  return vm_runtime_math_sub_slow(v1, v2);
 }
 
 static NOINLINE gc_obj emit_ov_math_mul_slowpath(vm_state *state, bc *pc,
@@ -177,36 +111,27 @@ static NOINLINE gc_obj emit_ov_math_mul_slowpath(vm_state *state, bc *pc,
   (void)state;
   (void)pc;
   (void)stack;
-  if (is_flonum(v1) || is_flonum(v2)) {
-    return root2_box_flonum(&v1, &v2,
-                            numeric_to_double(v1) * numeric_to_double(v2));
-  }
-  if (is_fixnum(v1) && is_fixnum(v2)) {
-    gc_obj res;
-    if (!__builtin_mul_overflow(v1.value, to_fixnum(v2), &res.value)) {
-      return res;
-    }
-  }
-  gc_obj b1 = numeric_to_bignum_obj(v1);
-  gc_obj b2 = numeric_to_bignum_obj(v2);
-  gc_add_root((const void *)&b1, 1, 0);
-  gc_add_root((const void *)&b2, 1, 0);
-  gc_obj res = tag_bignum(bn_mul(to_bignum(b1), to_bignum(b2)));
-  gc_remove_root((const void *)&b2, 0);
-  gc_remove_root((const void *)&b1, 0);
-  return res;
+  return vm_runtime_math_mul_slow(v1, v2);
 }
 
-static inline gc_obj emit_ov_math_mul(vm_state *state, bc *pc, gc_obj *stack,
-                                      gc_obj v1, gc_obj v2) {
-  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
-    gc_obj res;
-    if (likely(!__builtin_mul_overflow(v1.value, to_fixnum(v2), &res.value))) {
-      return res;
-    }
+#define DEFINE_VM_FAST_OVERFLOW_MATH(name, oplcname, shift, slowpath)         \
+  static inline gc_obj emit_ov_math_##name(vm_state *state, bc *pc,            \
+                                           gc_obj *stack, gc_obj v1, gc_obj v2) { \
+    if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {                       \
+      gc_obj res;                                                              \
+      if (likely(!__builtin_##oplcname##_overflow(v1.value, shift(v2.value),   \
+                                                  &res.value))) {              \
+        return res;                                                            \
+      }                                                                        \
+    }                                                                          \
+    MUSTTAIL return slowpath(state, pc, stack, v1, v2);                       \
   }
-  MUSTTAIL return emit_ov_math_mul_slowpath(state, pc, stack, v1, v2);
-}
+
+DEFINE_VM_FAST_OVERFLOW_MATH(add, add, VM_MATH_NOSHIFT, emit_ov_math_add_slowpath)
+DEFINE_VM_FAST_OVERFLOW_MATH(sub, sub, VM_MATH_NOSHIFT, emit_ov_math_sub_slowpath)
+DEFINE_VM_FAST_OVERFLOW_MATH(mul, mul, VM_MATH_SHIFT, emit_ov_math_mul_slowpath)
+
+#undef DEFINE_VM_FAST_OVERFLOW_MATH
 
 static inline gc_obj emit_ov_math_div(vm_state *state, gc_obj v1, gc_obj v2) {
   (void)state;

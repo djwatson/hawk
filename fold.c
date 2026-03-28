@@ -144,24 +144,21 @@ IRFOLD(SUB CONST CONST)
 IRFOLDF(fold_sub_const_const) {
   auto lhs = t->consts[in->op1.loc];
   auto rhs = t->consts[in->op2.loc];
-  VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, to_fixnum(lhs) - to_fixnum(rhs),
-                              numeric_to_double(lhs) - numeric_to_double(rhs));
+  return fold_const(vm_runtime_math_sub_slow(lhs, rhs));
 }
 
 IRFOLD(ADD CONST CONST)
 IRFOLDF(fold_add_const_const) {
   auto lhs = t->consts[in->op1.loc];
   auto rhs = t->consts[in->op2.loc];
-  VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, to_fixnum(lhs) + to_fixnum(rhs),
-                              numeric_to_double(lhs) + numeric_to_double(rhs));
+  return fold_const(vm_runtime_math_add_slow(lhs, rhs));
 }
 
 IRFOLD(MUL CONST CONST)
 IRFOLDF(fold_mul_const_const) {
   auto lhs = t->consts[in->op1.loc];
   auto rhs = t->consts[in->op2.loc];
-  VM_FOLD_NUMERIC_CONST_BINOP(lhs, rhs, to_fixnum(lhs) * to_fixnum(rhs),
-                              numeric_to_double(lhs) * numeric_to_double(rhs));
+  return fold_const(vm_runtime_math_mul_slow(lhs, rhs));
 }
 
 IRFOLD(QUOTIENT CONST CONST)

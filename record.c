@@ -171,6 +171,34 @@ static slot add_const(vm_state *state, gc_obj value) {
                              __VA_ARGS__})                                     \
   IR_PRAGMA_RESTORE
 
+#define DEFINE_RECORD_NUMERIC_BINOP_COERCED(name, ir_op)                       \
+  static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2) {         \
+    auto t = record_current_trace(state);                                      \
+    uint8_t type =                                                             \
+        numeric_result_type(get_slot_type(t, v1), get_slot_type(t, v2));       \
+    if (type == FLONUM_TAG) {                                                  \
+      v1 = convert_to_flonum(state, v1);                                       \
+      v2 = convert_to_flonum(state, v2);                                       \
+    }                                                                          \
+    ir_ins ins = IR(.op = ir_op, .op1 = v1, .op2 = v2, .type = type);          \
+    return add_inst(state, ins);                                               \
+  }
+
+#define DEFINE_RECORD_NUMERIC_BINOP_FORCE_FLONUM(name, ir_op)                  \
+  static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2) {         \
+    v1 = convert_to_flonum(state, v1);                                         \
+    v2 = convert_to_flonum(state, v2);                                         \
+    ir_ins ins = IR(.op = ir_op, .op1 = v1, .op2 = v2, .type = FLONUM_TAG);    \
+    return add_inst(state, ins);                                               \
+  }
+
+#define RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs)                            \
+  (((is_fixnum((lhs)) || is_flonum((lhs))) &&                                  \
+    (is_fixnum((rhs)) || is_flonum((rhs))))                                    \
+       ? numeric_result_type(get_slot_type((t), (v1)),                         \
+                             get_slot_type((t), (v2)))                         \
+       : get_slot_type((t), (v1)))
+
 static void vm_add_snap(vm_state *state, bc *pc, uint8_t argcnt) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
