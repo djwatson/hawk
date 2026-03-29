@@ -68,6 +68,9 @@ static inline bool numeric_is_zero(gc_obj v) {
   if (is_bignum(v)) {
     return bn_is_zero(to_bignum(v));
   }
+  if (is_ratnum(v)) {
+    return numeric_is_zero(to_ratnum(v)->num);
+  }
   abort();
 }
 
@@ -102,6 +105,10 @@ static inline double numeric_to_double(gc_obj v) {
   if (is_bignum(v)) {
     return bignum_to_double(v);
   }
+  if (is_ratnum(v)) {
+    ratnum_s *r = to_ratnum(v);
+    return numeric_to_double(r->num) / numeric_to_double(r->denom);
+  }
   abort();
 }
 
@@ -115,6 +122,11 @@ static inline gc_obj numeric_inexact_value(gc_obj v) {
   if (is_bignum(v)) {
     return root1_box_flonum(&v, bignum_to_double(v));
   }
+  if (is_ratnum(v)) {
+    ratnum_s *r = to_ratnum(v);
+    return root1_box_flonum(&v, numeric_to_double(r->num) /
+                                    numeric_to_double(r->denom));
+  }
   abort();
 }
 
@@ -123,6 +135,9 @@ static inline gc_obj numeric_exact_value(gc_obj v) {
     return v;
   }
   if (is_bignum(v)) {
+    return v;
+  }
+  if (is_ratnum(v)) {
     return v;
   }
   if (is_flonum(v)) {
@@ -190,6 +205,25 @@ static inline bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
   if (is_flonum(lhs) || is_flonum(rhs)) {
     return numeric_to_double(lhs) == numeric_to_double(rhs);
   }
+  if (is_ratnum(lhs) || is_ratnum(rhs)) {
+    if (is_ratnum(lhs) && is_ratnum(rhs)) {
+      ratnum_s *l = to_ratnum(lhs);
+      ratnum_s *r = to_ratnum(rhs);
+      return numeric_exact_compare(l->num, r->num) == 0 &&
+             numeric_exact_compare(l->denom, r->denom) == 0;
+    }
+    if (is_ratnum(lhs) && (is_fixnum(rhs) || is_bignum(rhs))) {
+      ratnum_s *l = to_ratnum(lhs);
+      return numeric_exact_compare(l->denom, tag_fixnum(1)) == 0 &&
+             numeric_exact_compare(l->num, rhs) == 0;
+    }
+    if (is_ratnum(rhs) && (is_fixnum(lhs) || is_bignum(lhs))) {
+      ratnum_s *r = to_ratnum(rhs);
+      return numeric_exact_compare(r->denom, tag_fixnum(1)) == 0 &&
+             numeric_exact_compare(r->num, lhs) == 0;
+    }
+    abort();
+  }
   if (is_fixnum(lhs) && is_fixnum(rhs)) {
     return to_fixnum(lhs) == to_fixnum(rhs);
   }
@@ -201,8 +235,8 @@ static inline bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
 }
 
 static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
-  if ((is_fixnum(lhs) || is_flonum(lhs) || is_bignum(lhs)) &&
-      (is_fixnum(rhs) || is_flonum(rhs) || is_bignum(rhs))) {
+  if ((is_fixnum(lhs) || is_flonum(lhs) || is_bignum(lhs) || is_ratnum(lhs)) &&
+      (is_fixnum(rhs) || is_flonum(rhs) || is_bignum(rhs) || is_ratnum(rhs))) {
     return numeric_eqv(lhs, rhs);
   }
   return lhs.value == rhs.value;

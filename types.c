@@ -69,6 +69,11 @@ void print_obj(gc_obj obj, FILE *file) {
     if (ptrtype == STRING_TAG) {
       auto str = to_string(obj);
       fputs(str->str, file);
+    } else if (ptrtype == RATNUM_TAG) {
+      auto rat = to_ratnum(obj);
+      print_obj(rat->num, file);
+      fputc('/', file);
+      print_obj(rat->denom, file);
     } else if (ptrtype == RECORD_TAG) {
       fputs("#<record>", file);
     } else {

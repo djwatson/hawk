@@ -222,6 +222,9 @@ static inline bcfunc *to_func(gc_obj obj) {
 static inline bn_t *to_bignum(gc_obj obj) {
   return (bn_t *)(obj.value - PTR_TAG);
 }
+static inline ratnum_s *to_ratnum(gc_obj obj) {
+  return (ratnum_s *)(obj.value - PTR_TAG);
+}
 
 static inline uint8_t get_tag(gc_obj obj) {
   return (uint8_t)(obj.value & TAG_MASK);
@@ -261,6 +264,9 @@ static inline bool is_func(gc_obj obj) {
 }
 static inline bool is_bignum(gc_obj obj) {
   return is_ptr(obj) && get_ptr_tag(obj) == BIGNUM_TAG;
+}
+static inline bool is_ratnum(gc_obj obj) {
+  return is_ptr(obj) && get_ptr_tag(obj) == RATNUM_TAG;
 }
 static inline gc_obj tag_bignum(bn_t *bn) {
   return (gc_obj){.value = (int64_t)(intptr_t)bn + PTR_TAG};

@@ -47,6 +47,204 @@ static gc_obj make_cons(gc_obj a, gc_obj b) {
   return tag_cons(cell);
 }
 
+static bool exact_is_negative(gc_obj v) {
+  if (is_fixnum(v)) {
+    return to_fixnum(v) < 0;
+  }
+  if (is_bignum(v)) {
+    return bn_is_negative(to_bignum(v));
+  }
+  abort();
+}
+
+static gc_obj exact_abs(gc_obj v) {
+  if (!exact_is_negative(v)) {
+    return v;
+  }
+  gc_add_root((const void *)&v, 1, 0);
+  gc_obj res = vm_runtime_math_mul_slow(v, tag_fixnum(-1));
+  gc_remove_root((const void *)&v, 0);
+  return res;
+}
+
+static gc_obj exact_gcd(gc_obj a, gc_obj b) {
+  while (!numeric_is_zero(b)) {
+    gc_add_root((const void *)&a, 1, 0);
+    gc_add_root((const void *)&b, 1, 0);
+    gc_obj r = vm_runtime_math_mod_slow(a, b);
+    gc_remove_root((const void *)&b, 0);
+    gc_remove_root((const void *)&a, 0);
+    a = b;
+    b = r;
+  }
+  return exact_abs(a);
+}
+
+static ratnum_s get_ratnum(gc_obj v) {
+  if (is_ratnum(v)) {
+    return *to_ratnum(v);
+  }
+  if (is_fixnum(v) || is_bignum(v)) {
+    return (ratnum_s){
+        .header.type = RATNUM_TAG,
+        .num = v,
+        .denom = tag_fixnum(1),
+    };
+  }
+  abort();
+}
+
+static gc_obj tag_ratnum(ratnum_s r) {
+  gc_obj a = r.num;
+  gc_obj b = r.denom;
+  gc_add_root((const void *)&a, 1, 0);
+  gc_add_root((const void *)&b, 1, 0);
+  if (numeric_is_zero(b)) {
+    gc_remove_root((const void *)&b, 0);
+    gc_remove_root((const void *)&a, 0);
+    abort();
+  }
+  bool neg = exact_is_negative(a) ^ exact_is_negative(b);
+  a = exact_abs(a);
+  b = exact_abs(b);
+  if (numeric_is_zero(a)) {
+    gc_remove_root((const void *)&b, 0);
+    gc_remove_root((const void *)&a, 0);
+    return a;
+  }
+  gc_obj g = exact_gcd(a, b);
+  if (!(is_fixnum(g) && to_fixnum(g) == 1)) {
+    gc_add_root((const void *)&g, 1, 0);
+    a = vm_runtime_math_quotient_slow(a, g);
+    b = vm_runtime_math_quotient_slow(b, g);
+    gc_remove_root((const void *)&g, 0);
+  }
+  if (is_fixnum(b) && to_fixnum(b) == 1) {
+    gc_obj res = a;
+    if (neg) {
+      res = vm_runtime_math_mul_slow(tag_fixnum(-1), a);
+    }
+    gc_remove_root((const void *)&b, 0);
+    gc_remove_root((const void *)&a, 0);
+    return res;
+  }
+  if (neg) {
+    a = vm_runtime_math_mul_slow(tag_fixnum(-1), a);
+  }
+  ratnum_s *res = gc_alloc(sizeof(ratnum_s));
+  res->header.type = RATNUM_TAG;
+  res->num = a;
+  res->denom = b;
+  gc_remove_root((const void *)&b, 0);
+  gc_remove_root((const void *)&a, 0);
+  return tag_header(res, PTR_TAG);
+}
+
+static ratnum_s ratnum_add(ratnum_s a, ratnum_s b) {
+  gc_add_root((const void *)&a.num, 1, 0);
+  gc_add_root((const void *)&a.denom, 1, 0);
+  gc_add_root((const void *)&b.num, 1, 0);
+  gc_add_root((const void *)&b.denom, 1, 0);
+  gc_obj p1 = vm_runtime_math_mul_slow(a.num, b.denom);
+  gc_add_root((const void *)&p1, 1, 0);
+  gc_obj p2 = vm_runtime_math_mul_slow(b.num, a.denom);
+  gc_obj num = vm_runtime_math_add_slow(p1, p2);
+  gc_add_root((const void *)&num, 1, 0);
+  gc_obj denom = vm_runtime_math_mul_slow(a.denom, b.denom);
+  gc_remove_root((const void *)&num, 0);
+  gc_remove_root((const void *)&p1, 0);
+  gc_remove_root((const void *)&b.denom, 0);
+  gc_remove_root((const void *)&b.num, 0);
+  gc_remove_root((const void *)&a.denom, 0);
+  gc_remove_root((const void *)&a.num, 0);
+  return (ratnum_s){
+      .header.type = RATNUM_TAG,
+      .num = num,
+      .denom = denom,
+  };
+}
+
+static ratnum_s ratnum_sub(ratnum_s a, ratnum_s b) {
+  gc_add_root((const void *)&a.num, 1, 0);
+  gc_add_root((const void *)&a.denom, 1, 0);
+  gc_add_root((const void *)&b.num, 1, 0);
+  gc_add_root((const void *)&b.denom, 1, 0);
+  gc_obj p1 = vm_runtime_math_mul_slow(a.num, b.denom);
+  gc_add_root((const void *)&p1, 1, 0);
+  gc_obj p2 = vm_runtime_math_mul_slow(b.num, a.denom);
+  gc_obj num = vm_runtime_math_sub_slow(p1, p2);
+  gc_add_root((const void *)&num, 1, 0);
+  gc_obj denom = vm_runtime_math_mul_slow(a.denom, b.denom);
+  gc_remove_root((const void *)&num, 0);
+  gc_remove_root((const void *)&p1, 0);
+  gc_remove_root((const void *)&b.denom, 0);
+  gc_remove_root((const void *)&b.num, 0);
+  gc_remove_root((const void *)&a.denom, 0);
+  gc_remove_root((const void *)&a.num, 0);
+  return (ratnum_s){
+      .header.type = RATNUM_TAG,
+      .num = num,
+      .denom = denom,
+  };
+}
+
+static ratnum_s ratnum_mul(ratnum_s a, ratnum_s b) {
+  gc_add_root((const void *)&a.num, 1, 0);
+  gc_add_root((const void *)&a.denom, 1, 0);
+  gc_add_root((const void *)&b.num, 1, 0);
+  gc_add_root((const void *)&b.denom, 1, 0);
+  gc_obj num = vm_runtime_math_mul_slow(a.num, b.num);
+  gc_add_root((const void *)&num, 1, 0);
+  gc_obj denom = vm_runtime_math_mul_slow(a.denom, b.denom);
+  gc_remove_root((const void *)&num, 0);
+  gc_remove_root((const void *)&b.denom, 0);
+  gc_remove_root((const void *)&b.num, 0);
+  gc_remove_root((const void *)&a.denom, 0);
+  gc_remove_root((const void *)&a.num, 0);
+  return (ratnum_s){
+      .header.type = RATNUM_TAG,
+      .num = num,
+      .denom = denom,
+  };
+}
+
+static ratnum_s ratnum_div(ratnum_s a, ratnum_s b) {
+  gc_add_root((const void *)&a.num, 1, 0);
+  gc_add_root((const void *)&a.denom, 1, 0);
+  gc_add_root((const void *)&b.num, 1, 0);
+  gc_add_root((const void *)&b.denom, 1, 0);
+  gc_obj num = vm_runtime_math_mul_slow(a.num, b.denom);
+  gc_add_root((const void *)&num, 1, 0);
+  gc_obj denom = vm_runtime_math_mul_slow(a.denom, b.num);
+  gc_remove_root((const void *)&num, 0);
+  gc_remove_root((const void *)&b.denom, 0);
+  gc_remove_root((const void *)&b.num, 0);
+  gc_remove_root((const void *)&a.denom, 0);
+  gc_remove_root((const void *)&a.num, 0);
+  return (ratnum_s){
+      .header.type = RATNUM_TAG,
+      .num = num,
+      .denom = denom,
+  };
+}
+
+static int ratnum_cmp(ratnum_s a, ratnum_s b) {
+  gc_add_root((const void *)&a.num, 1, 0);
+  gc_add_root((const void *)&a.denom, 1, 0);
+  gc_add_root((const void *)&b.num, 1, 0);
+  gc_add_root((const void *)&b.denom, 1, 0);
+  gc_obj left = vm_runtime_math_mul_slow(a.num, b.denom);
+  gc_add_root((const void *)&left, 1, 0);
+  gc_obj right = vm_runtime_math_mul_slow(b.num, a.denom);
+  int cmp = numeric_exact_compare(left, right);
+  gc_remove_root((const void *)&left, 0);
+  gc_remove_root((const void *)&b.denom, 0);
+  gc_remove_root((const void *)&b.num, 0);
+  gc_remove_root((const void *)&a.denom, 0);
+  gc_remove_root((const void *)&a.num, 0);
+  return cmp;
+}
+
 EXPORT int32_t scm_open(char *name, uint8_t readonly) {
   return open(name, readonly ? O_RDONLY : O_WRONLY | O_CREAT | O_TRUNC, 0777);
 }
@@ -69,6 +267,11 @@ EXPORT gc_obj bignum_exact_integer_sqrt(gc_obj g) {
     if (is_flonum(v1) || is_flonum(v2)) {                                      \
       return root2_box_flonum(&v1, &v2,                                        \
                               op(numeric_to_double(v1), numeric_to_double(v2))); \
+    }                                                                          \
+    if (is_ratnum(v1) || is_ratnum(v2)) {                                      \
+      ratnum_s r1 = get_ratnum(v1);                                            \
+      ratnum_s r2 = get_ratnum(v2);                                            \
+      return tag_ratnum(ratnum_##oplcname(r1, r2));                            \
     }                                                                          \
     if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
       gc_obj res;                                                              \
@@ -102,8 +305,13 @@ gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
   if (numeric_is_zero(v2)) {
     abort();
   }
-  return root2_box_flonum(&v1, &v2,
-                          numeric_to_double(v1) / numeric_to_double(v2));
+  if (is_flonum(v1) || is_flonum(v2)) {
+    return root2_box_flonum(&v1, &v2,
+                            numeric_to_double(v1) / numeric_to_double(v2));
+  }
+  ratnum_s r1 = get_ratnum(v1);
+  ratnum_s r2 = get_ratnum(v2);
+  return tag_ratnum(ratnum_div(r1, r2));
 }
 
 #define DEFINE_VM_RUNTIME_DIVMOD_SLOW(name, fixnum_body, flonum_body, field)  \
@@ -146,6 +354,11 @@ DEFINE_VM_RUNTIME_DIVMOD_SLOW(
     if (is_flonum(v1) || is_flonum(v2)) {                                      \
       return (numeric_to_double(v1) op numeric_to_double(v2)) ? TRUE_REP       \
                                                               : FALSE_REP;      \
+    }                                                                          \
+    if (is_ratnum(v1) || is_ratnum(v2)) {                                      \
+      ratnum_s r1 = get_ratnum(v1);                                            \
+      ratnum_s r2 = get_ratnum(v2);                                            \
+      return (ratnum_cmp(r1, r2) op 0) ? TRUE_REP : FALSE_REP;                 \
     }                                                                          \
     if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
       return (to_fixnum(v1) op to_fixnum(v2)) ? TRUE_REP : FALSE_REP;          \
