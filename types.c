@@ -165,7 +165,7 @@ size_t heap_object_size(void *obj) {
     return sizeof(flonum_s);
   case BIGNUM_TAG: {
     auto bn = (bn_t *)obj;
-    return heap_align(sizeof(bn_t) + (size_t)bn->used * sizeof(uint64_t));
+    return heap_align(sizeof(bn_t) + (size_t)bn->alloc * sizeof(uint64_t));
   }
   case RATNUM_TAG:
     return sizeof(ratnum_s);

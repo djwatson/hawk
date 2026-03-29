@@ -35,6 +35,7 @@ static bn_t *bn_new(uint32_t alloc) {
   assert(alloc >= 1);
   assert(g_bn_api_alloc_fn != nullptr);
   bn_t *bn = (bn_t *)g_bn_api_alloc_fn(bn_size_for_limbs(alloc));
+  bn->alloc = alloc;
   bn->used = 1;
   bn->negative = false;
   bn->limb[0] = 0;
@@ -86,6 +87,7 @@ bn_t *bn_copy(const bn_t *a) {
 
 bool bn_is_zero(const bn_t *bn) {
   assert(bn != nullptr);
+  assert(bn->used <= bn->alloc);
   assert(bn->used >= 1);
   return (bn->used == 1) && (bn->limb[0] == 0);
 }
@@ -103,6 +105,7 @@ bool bn_is_odd(const bn_t *bn) {
 
 static void bn_normalize(bn_t *bn) {
   assert(bn != nullptr);
+  assert(bn->used <= bn->alloc);
   if (bn->used == 0) {
     bn->used = 1;
   }

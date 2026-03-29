@@ -676,7 +676,7 @@
   (sys:LOAD record (+ index 1)))
 (define (make-record sz)
   (let ((rec (sys:ALLOC (+ (* 8 (+ 1 sz)) 8) 49)))
-    (sys:STORE rec (+ sz 1) 0)
+    (sys:STORE rec sz 0)
     (do ((i 0 (+ i 1))) ((= i sz) rec) (record-set! rec i #f))))
 (define (record? p) (sys:GUARD p 49))
 

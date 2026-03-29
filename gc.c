@@ -83,6 +83,9 @@ static void visit_field(gc_obj *slot, void *ctx) {
   }
   gc_header *obj = to_gc_header(*slot);
   if (!in_space((uintptr_t)obj, heap.from_space)) {
+    if (!is_func(*slot)) {
+      abort();
+    }
     return;
   }
   if (is_forwarded(obj)) {
@@ -130,6 +133,9 @@ static void scan_root_range(const uint64_t *start, const uint64_t *end) {
 static void scan_ptr_root_range(const void *rootp, size_t len, uint8_t tag) {
   uintptr_t *slots = (uintptr_t *)rootp;
   for (size_t i = 0; i < len; i++) {
+    if (slots[i] == 0) {
+      continue;
+    }
     gc_obj tagged = tag_header((gc_header *)slots[i], tag);
     visit_field(&tagged, nullptr);
     slots[i] = (uintptr_t)to_raw_ptr(tagged);
@@ -214,7 +220,7 @@ void gc_add_root(const void *rootp, size_t len, uint8_t tag) {
 void gc_remove_root(const void *rootp, uint8_t tag) {
   for (size_t i = arrlen(roots); i > 0; i--) {
     size_t idx = i - 1;
-    if (roots[idx].ptr == rootp) {
+    if (roots[idx].ptr == rootp && roots[idx].tag == tag) {
       roots[idx] = *arrlast(roots);
       arrpop(roots);
       return;

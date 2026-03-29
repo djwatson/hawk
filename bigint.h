@@ -7,6 +7,7 @@
 
 typedef struct bn {
   uintptr_t gc_hdr; /* GC-owned header word; must be first. */
+  uint32_t alloc;   /* Allocated limb capacity. */
   uint32_t used;    /* In-use limbs, normalized to >= 1. */
   bool negative;    /* Sign bit. */
   uint64_t limb[];  /* Little-endian limbs (limb[0] = least-significant). */
