@@ -3,6 +3,7 @@
 ## tests:
 
 
+
 * simplex is slower??? bad tracing - need multi-ops to be binops
 
 * ugh need to put back faster VM - things like browse too slow.
@@ -12,7 +13,6 @@
 
 ## broken bench2:
 
-* chudnovsky, pi: bignum
 * mbrotZ: imaginary
 
 ## JIT impl

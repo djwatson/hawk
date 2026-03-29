@@ -1,4 +1,6 @@
 #include "bigint.h"
+#include "gc.h"
+#include "types.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -6,13 +8,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void bn_root_noop(bn_t **slot) { (void)slot; }
-static void bn_free_noop(void *p) { (void)p; }
+#define BN_ALLOC(sz) gc_alloc((uint64_t)(((sz) + 7) & ~((size_t)7)))
+#define BN_FREE(ptr) ((void)(ptr))
+#define BN_ROOT(slot) gc_add_root((const void *)(slot), 1, PTR_TAG)
+#define BN_UNROOT(slot) gc_remove_root((const void *)(slot), PTR_TAG)
 
-static bn_alloc_fn_t g_bn_api_alloc_fn = malloc;
-static bn_free_fn_t g_bn_api_free_fn = free;
-static bn_root_fn_t g_bn_api_root_fn = bn_root_noop;
-static bn_root_fn_t g_bn_api_unroot_fn = bn_root_noop;
 typedef struct bn_root_guard {
   bn_t **slot;
 } bn_root_guard_t;
@@ -23,19 +23,19 @@ static size_t bn_size_for_limbs(uint32_t alloc) {
 
 static bn_root_guard_t bn_root_slot(bn_t **slot) {
   bn_root_guard_t g = {.slot = nullptr};
-  g_bn_api_root_fn(slot);
+  BN_ROOT(slot);
   g.slot = slot;
   return g;
 }
 
 static void bn_root_guard_cleanup(bn_root_guard_t *g) {
-  g_bn_api_unroot_fn(g->slot);
+  BN_UNROOT(g->slot);
 }
 
 static bn_t *bn_new(uint32_t alloc) {
   assert(alloc >= 1);
-  assert(g_bn_api_alloc_fn != nullptr);
-  bn_t *bn = (bn_t *)g_bn_api_alloc_fn(bn_size_for_limbs(alloc));
+  bn_t *bn = (bn_t *)BN_ALLOC(bn_size_for_limbs(alloc));
+  bn->gc_hdr = BIGNUM_TAG;
   bn->alloc = alloc;
   bn->used = 1;
   bn->negative = false;
@@ -45,14 +45,10 @@ static bn_t *bn_new(uint32_t alloc) {
 
 void bn_set_alloc_hooks(bn_alloc_fn_t alloc_fn, bn_free_fn_t free_fn,
                         bn_root_fn_t root_fn, bn_root_fn_t unroot_fn) {
-  bn_alloc_fn_t afn = (alloc_fn == nullptr) ? malloc : alloc_fn;
-  bn_free_fn_t ffn = (free_fn == nullptr) ? free : free_fn;
-  g_bn_api_alloc_fn = afn;
-  g_bn_api_free_fn = (afn == malloc) ? ffn : bn_free_noop;
-  if (root_fn && unroot_fn) {
-    g_bn_api_root_fn = root_fn;
-    g_bn_api_unroot_fn = unroot_fn;
-  }
+  (void)alloc_fn;
+  (void)free_fn;
+  (void)root_fn;
+  (void)unroot_fn;
 }
 
 bn_t *bn_from_i64(int64_t value) {
@@ -900,7 +896,7 @@ bn_t *bn_div(const bn_t *a, const bn_t *b) {
   assert(!bn_is_zero(b));
 
   bn_divmod_result_t qr = bn_divmod_impl(a, b);
-  g_bn_api_free_fn(qr.r);
+  BN_FREE(qr.r);
   return qr.q;
 }
 

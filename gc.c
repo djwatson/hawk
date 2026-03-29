@@ -21,16 +21,10 @@ typedef struct {
   size_t size;
 } gc_heap;
 
-typedef struct {
-  const void *ptr;
-  size_t len;
-  uint8_t tag;
-} root_range;
-
 static gc_heap heap;
 uintptr_t gc_hp;
 uintptr_t gc_limit;
-static root_range *roots;
+gc_root_range *gc_roots;
 static gc_scan_callback scan_callback;
 static void *scan_data;
 static gc_header **worklist;
@@ -169,7 +163,7 @@ static void gc_collect(void) {
   flip_spaces();
   arrlen_set(worklist, 0);
 
-  arr_for_each(roots, root) {
+  arr_for_each(gc_roots, root) {
     if (root.tag != 0) {
       scan_ptr_root_range(root.ptr, root.len, root.tag);
     } else {
@@ -209,20 +203,20 @@ void gc_init(void) {
   heap.size = heap_size * 2;
 }
 
-void gc_add_root(const void *rootp, size_t len, uint8_t tag) {
-  arrput(roots, ((root_range){
-                    .ptr = rootp,
-                    .len = len,
-                    .tag = tag,
-                }));
+NOINLINE void gc_add_root_slow(const void *rootp, size_t len, uint8_t tag) {
+  arrput(gc_roots, ((gc_root_range){
+                       .ptr = rootp,
+                       .len = len,
+                       .tag = tag,
+                   }));
 }
 
-void gc_remove_root(const void *rootp, uint8_t tag) {
-  for (size_t i = arrlen(roots); i > 0; i--) {
+NOINLINE void gc_remove_root_slow(const void *rootp, uint8_t tag) {
+  for (size_t i = arrlen(gc_roots); i > 0; i--) {
     size_t idx = i - 1;
-    if (roots[idx].ptr == rootp && roots[idx].tag == tag) {
-      roots[idx] = *arrlast(roots);
-      arrpop(roots);
+    if (gc_roots[idx].ptr == rootp && gc_roots[idx].tag == tag) {
+      gc_roots[idx] = *arrlast(gc_roots);
+      arrpop(gc_roots);
       return;
     }
   }
@@ -256,7 +250,7 @@ void gc_log(uint64_t a) {
 }
 
 void gc_free(void) {
-  arrfree(roots);
+  arrfree(gc_roots);
   arrfree(worklist);
   arr_for_each(pinned_funcs, entry) { free(entry.ptr); }
   arrfree(pinned_funcs);
