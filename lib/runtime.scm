@@ -22,7 +22,7 @@
               ...
               define-record-type)
         ;; TODO
-        (scheme complex)
+        (except (scheme complex) make-rectangular real-part imag-part)
         (scheme case-lambda)
         (prefix (hawk sys) sys:))
 
@@ -48,6 +48,13 @@
   (let ((z (remainder x y)))
     (if (negative? y) (if (positive? z) (+ z y) z) (if (negative? z) (+ z y) z))))
 (define (remainder a b) (sys:MOD a b))
+(define (make-rectangular real imag)
+  (let ((cmp (sys:ALLOC 24 #x41)))
+    (sys:STORE cmp real 0)
+    (sys:STORE cmp imag 1)
+    cmp))
+(define (real-part z) (if (compnum? z) (sys:LOAD z 0) z))
+(define (imag-part z) (if (compnum? z) (sys:LOAD z 1) 0))
 (define (square x) (* x x))
 (define +
   (case-lambda
@@ -181,7 +188,7 @@
 (define (number? x)
   (or (fixnum? x)
      (flonum? x)
-     (bignum? x) (ratnum? x); (compnum? x)
+     (bignum? x) (ratnum? x) (compnum? x)
   ))
 (define complex? number?)
 (define real? number?)
@@ -641,13 +648,14 @@
           ((flonum? num) (display "Error flonum->string") (/ 1 0))
           ((bignum? num) (sys:FOREIGN_CALL '(string "bignum_string" (gc_obj)) num))
           ((ratnum? num) (string-append (number->string (numerator num)) "/" (number->string (denominator num))))
-          ;; ((compnum? num) (string-append
-          ;; 		     (number->string (real-part num))
-          ;; 		     (if (not (or (negative? (imag-part num))
-          ;; 				  (nan? (imag-part num))
-          ;; 				  (infinite? (imag-part num))))
-          ;; 			 "+" "")
-          ;; 		     (number->string (imag-part num)) "i"))
+          ((compnum? num) (string-append
+        		     (number->string (real-part num))
+        		     (if (not (or (negative? (imag-part num))
+        				  ;(nan? (imag-part num))
+        				  ;(infinite? (imag-part num))
+					  ))
+        			 "+" "")
+        		     (number->string (imag-part num)) "i"))
           ((eq? num 0) "0")
           (else
             (let ((neg (negative? num)))

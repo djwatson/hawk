@@ -9,6 +9,10 @@
 #include "gc.h"
 #include "types.h"
 
+gc_obj SCM_MAKE_RECTANGULAR(gc_obj real, gc_obj imag);
+gc_obj SCM_REAL_PART(gc_obj comp);
+gc_obj SCM_IMAG_PART(gc_obj comp);
+
 static inline gc_obj vm_box_flonum(double x) {
   flonum_s *res = gc_alloc(sizeof(flonum_s));
   res->header.type = FLONUM_TAG;
@@ -127,6 +131,11 @@ static inline gc_obj numeric_inexact_value(gc_obj v) {
     return root1_box_flonum(&v, numeric_to_double(r->num) /
                                     numeric_to_double(r->denom));
   }
+  if (is_compnum(v)) {
+    compnum_s *c = to_compnum(v);
+    return SCM_MAKE_RECTANGULAR(numeric_inexact_value(c->real),
+                                numeric_inexact_value(c->imag));
+  }
   abort();
 }
 
@@ -139,6 +148,11 @@ static inline gc_obj numeric_exact_value(gc_obj v) {
   }
   if (is_ratnum(v)) {
     return v;
+  }
+  if (is_compnum(v)) {
+    compnum_s *c = to_compnum(v);
+    return SCM_MAKE_RECTANGULAR(numeric_exact_value(c->real),
+                                numeric_exact_value(c->imag));
   }
   if (is_flonum(v)) {
     double x = to_flonum(v)->x;
@@ -223,6 +237,15 @@ static inline bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
              numeric_exact_compare(r->num, lhs) == 0;
     }
     abort();
+  }
+  if (is_compnum(lhs) || is_compnum(rhs)) {
+    compnum_s *l = is_compnum(lhs) ? to_compnum(lhs) : nullptr;
+    compnum_s *r = is_compnum(rhs) ? to_compnum(rhs) : nullptr;
+    gc_obj lreal = l ? l->real : lhs;
+    gc_obj limag = l ? l->imag : tag_fixnum(0);
+    gc_obj rreal = r ? r->real : rhs;
+    gc_obj rimag = r ? r->imag : tag_fixnum(0);
+    return numeric_eqv(lreal, rreal) && numeric_eqv(limag, rimag);
   }
   if (is_fixnum(lhs) && is_fixnum(rhs)) {
     return to_fixnum(lhs) == to_fixnum(rhs);

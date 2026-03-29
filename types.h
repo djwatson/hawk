@@ -225,6 +225,9 @@ static inline bn_t *to_bignum(gc_obj obj) {
 static inline ratnum_s *to_ratnum(gc_obj obj) {
   return (ratnum_s *)(obj.value - PTR_TAG);
 }
+static inline compnum_s *to_compnum(gc_obj obj) {
+  return (compnum_s *)(obj.value - PTR_TAG);
+}
 
 static inline uint8_t get_tag(gc_obj obj) {
   return (uint8_t)(obj.value & TAG_MASK);
@@ -267,6 +270,9 @@ static inline bool is_bignum(gc_obj obj) {
 }
 static inline bool is_ratnum(gc_obj obj) {
   return is_ptr(obj) && get_ptr_tag(obj) == RATNUM_TAG;
+}
+static inline bool is_compnum(gc_obj obj) {
+  return is_ptr(obj) && get_ptr_tag(obj) == COMPNUM_TAG;
 }
 static inline gc_obj tag_bignum(bn_t *bn) {
   return (gc_obj){.value = (int64_t)(intptr_t)bn + PTR_TAG};

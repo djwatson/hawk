@@ -245,6 +245,100 @@ static int ratnum_cmp(ratnum_s a, ratnum_s b) {
   return cmp;
 }
 
+EXPORT gc_obj SCM_MAKE_RECTANGULAR(gc_obj real, gc_obj imag) {
+  gc_add_root((const void *)&real, 1, 0);
+  gc_add_root((const void *)&imag, 1, 0);
+  compnum_s *c = gc_alloc(sizeof(compnum_s));
+  c->header.type = COMPNUM_TAG;
+  c->real = real;
+  c->imag = imag;
+  gc_remove_root((const void *)&imag, 0);
+  gc_remove_root((const void *)&real, 0);
+  return tag_header(c, PTR_TAG);
+}
+
+static gc_obj get_compnum(gc_obj v) {
+  if (is_compnum(v)) {
+    return v;
+  }
+  return SCM_MAKE_RECTANGULAR(v, tag_fixnum(0));
+}
+
+EXPORT gc_obj SCM_REAL_PART(gc_obj comp) {
+  return to_compnum(get_compnum(comp))->real;
+}
+
+EXPORT gc_obj SCM_IMAG_PART(gc_obj comp) {
+  return to_compnum(get_compnum(comp))->imag;
+}
+
+static gc_obj compnum_add(gc_obj a, gc_obj b) {
+  gc_obj ca_obj = get_compnum(a);
+  gc_add_root((const void *)&ca_obj, 1, 0);
+  gc_obj cb_obj = get_compnum(b);
+  gc_add_root((const void *)&cb_obj, 1, 0);
+  compnum_s *ca = to_compnum(ca_obj);
+  compnum_s *cb = to_compnum(cb_obj);
+  gc_obj real = vm_runtime_math_add_slow(ca->real, cb->real);
+  gc_add_root((const void *)&real, 1, 0);
+  gc_obj imag = vm_runtime_math_add_slow(ca->imag, cb->imag);
+  gc_add_root((const void *)&imag, 1, 0);
+  gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
+  gc_remove_root((const void *)&imag, 0);
+  gc_remove_root((const void *)&real, 0);
+  gc_remove_root((const void *)&cb_obj, 0);
+  gc_remove_root((const void *)&ca_obj, 0);
+  return out;
+}
+
+static gc_obj compnum_sub(gc_obj a, gc_obj b) {
+  gc_obj ca_obj = get_compnum(a);
+  gc_add_root((const void *)&ca_obj, 1, 0);
+  gc_obj cb_obj = get_compnum(b);
+  gc_add_root((const void *)&cb_obj, 1, 0);
+  compnum_s *ca = to_compnum(ca_obj);
+  compnum_s *cb = to_compnum(cb_obj);
+  gc_obj real = vm_runtime_math_sub_slow(ca->real, cb->real);
+  gc_add_root((const void *)&real, 1, 0);
+  gc_obj imag = vm_runtime_math_sub_slow(ca->imag, cb->imag);
+  gc_add_root((const void *)&imag, 1, 0);
+  gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
+  gc_remove_root((const void *)&imag, 0);
+  gc_remove_root((const void *)&real, 0);
+  gc_remove_root((const void *)&cb_obj, 0);
+  gc_remove_root((const void *)&ca_obj, 0);
+  return out;
+}
+
+static gc_obj compnum_mul(gc_obj a, gc_obj b) {
+  gc_obj ca_obj = get_compnum(a);
+  gc_add_root((const void *)&ca_obj, 1, 0);
+  gc_obj cb_obj = get_compnum(b);
+  gc_add_root((const void *)&cb_obj, 1, 0);
+  compnum_s *ca = to_compnum(ca_obj);
+  compnum_s *cb = to_compnum(cb_obj);
+  gc_obj ac = vm_runtime_math_mul_slow(ca->real, cb->real);
+  gc_add_root((const void *)&ac, 1, 0);
+  gc_obj bd = vm_runtime_math_mul_slow(ca->imag, cb->imag);
+  gc_add_root((const void *)&bd, 1, 0);
+  gc_obj ad = vm_runtime_math_mul_slow(ca->real, cb->imag);
+  gc_add_root((const void *)&ad, 1, 0);
+  gc_obj bc = vm_runtime_math_mul_slow(ca->imag, cb->real);
+  gc_obj real = vm_runtime_math_sub_slow(ac, bd);
+  gc_add_root((const void *)&real, 1, 0);
+  gc_obj imag = vm_runtime_math_add_slow(ad, bc);
+  gc_add_root((const void *)&imag, 1, 0);
+  gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
+  gc_remove_root((const void *)&imag, 0);
+  gc_remove_root((const void *)&real, 0);
+  gc_remove_root((const void *)&ad, 0);
+  gc_remove_root((const void *)&bd, 0);
+  gc_remove_root((const void *)&ac, 0);
+  gc_remove_root((const void *)&cb_obj, 0);
+  gc_remove_root((const void *)&ca_obj, 0);
+  return out;
+}
+
 EXPORT int32_t scm_open(char *name, uint8_t readonly) {
   return open(name, readonly ? O_RDONLY : O_WRONLY | O_CREAT | O_TRUNC, 0777);
 }
@@ -264,6 +358,9 @@ EXPORT gc_obj bignum_exact_integer_sqrt(gc_obj g) {
 
 #define DEFINE_VM_RUNTIME_OVERFLOW_SLOW(name, oplcname, op, shift)            \
   gc_obj vm_runtime_math_##name##_slow(gc_obj v1, gc_obj v2) {                \
+    if (is_compnum(v1) || is_compnum(v2)) {                                    \
+      return compnum_##oplcname(v1, v2);                                       \
+    }                                                                          \
     if (is_flonum(v1) || is_flonum(v2)) {                                      \
       return root2_box_flonum(&v1, &v2,                                        \
                               op(numeric_to_double(v1), numeric_to_double(v2))); \
@@ -302,6 +399,9 @@ DEFINE_VM_RUNTIME_OVERFLOW_SLOW(mul, mul, VM_MATH_MUL, VM_MATH_SHIFT)
 #undef DEFINE_VM_RUNTIME_OVERFLOW_SLOW
 
 gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
+  if (is_compnum(v1) || is_compnum(v2)) {
+    abort();
+  }
   if (numeric_is_zero(v2)) {
     abort();
   }
@@ -351,6 +451,9 @@ DEFINE_VM_RUNTIME_DIVMOD_SLOW(
 
 #define DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(name, op)                           \
   gc_obj vm_runtime_cmp_##name##_slow(gc_obj v1, gc_obj v2) {                 \
+    if (is_compnum(v1) || is_compnum(v2)) {                                    \
+      abort();                                                                  \
+    }                                                                          \
     if (is_flonum(v1) || is_flonum(v2)) {                                      \
       return (numeric_to_double(v1) op numeric_to_double(v2)) ? TRUE_REP       \
                                                               : FALSE_REP;      \

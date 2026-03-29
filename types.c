@@ -74,6 +74,12 @@ void print_obj(gc_obj obj, FILE *file) {
       print_obj(rat->num, file);
       fputc('/', file);
       print_obj(rat->denom, file);
+    } else if (ptrtype == COMPNUM_TAG) {
+      auto cmp = to_compnum(obj);
+      print_obj(cmp->real, file);
+      fputc('+', file);
+      print_obj(cmp->imag, file);
+      fputc('i', file);
     } else if (ptrtype == RECORD_TAG) {
       fputs("#<record>", file);
     } else {
