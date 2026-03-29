@@ -53,8 +53,8 @@ static void *gc_alloc_ir_slowpath(uint64_t tagged_sz, uint8_t *reg_save,
                                   uint64_t gpr_mask) {
   for (uint8_t reg = 0; reg < FPR_REG_START; reg++) {
     if (gpr_mask & (1ULL << reg)) {
-      gc_add_root(
-          (const void *)(reg_save + alloc_reg_save_slot_offset(reg)), 1, 0);
+      gc_add_root((const void *)(reg_save + alloc_reg_save_slot_offset(reg)), 1,
+                  0);
     }
   }
 
@@ -62,8 +62,8 @@ static void *gc_alloc_ir_slowpath(uint64_t tagged_sz, uint8_t *reg_save,
 
   for (uint8_t reg = 0; reg < FPR_REG_START; reg++) {
     if (gpr_mask & (1ULL << reg)) {
-      gc_remove_root(
-          (const void *)(reg_save + alloc_reg_save_slot_offset(reg)), 0);
+      gc_remove_root((const void *)(reg_save + alloc_reg_save_slot_offset(reg)),
+                     0);
     }
   }
   return ptr;
@@ -689,8 +689,11 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
 
   if (vm_call_is_cmp(op->op)) {
     assert(cur_snap >= 0);
-    emit_cmp_constant(s, RET_REG, FALSE_REP.value);
+    // Restore caller-saved regs before branching, but preserve VM compare
+    // result in a scratch reg so stack pointer fixups cannot affect cmp/jcc.
+    emit_mov(s, RTMP, RET_REG);
     emit_pop_regs(s, save_regs, save_count, true);
+    emit_cmp_constant(s, RTMP, FALSE_REP.value);
     emit_jcc32(s, vm_call_expects_false(op->op) ? JNE : JE,
                &t->snaps[cur_snap].patch_point);
   } else {
@@ -1761,6 +1764,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       // exit(-1);
     }
     }
+    /* if (t->num == 7 && op_cnt_idx == 26) { */
+    /*   COMMENT("DEBUG JUMP"); */
+    /*   emit_jmp32(s, &t->snaps[cur_snap].patch_point); */
+    /* } */
     if (op->spill != SPILL_NONE && (op->op != IR_PMOV || op->reg != REG_NONE)) {
       assert(out_reg != REG_NONE);
       COMMENT("SPILL op %u to S%u", op_cnt_idx, op->spill);

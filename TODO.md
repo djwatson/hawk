@@ -1,7 +1,7 @@
 # Currently working on:
 
 * cleanup new recording infra
-* need to normalize after *all* bignum ops - possibly convert back to fixnum.
+
 
 ## tests:
 
@@ -15,13 +15,15 @@
 
 ## broken bench2:
 
-* mbrotZ: imaginary
+* mbrotZ: imaginary - THE LAST ONE
+* pi, chudnovsky- we can't read const bignums, so changed to string->number call
 
 ## JIT impl
 
 * get APPLY recording
 * gc_obj boxing recording?
 * record call/cc?
+* fixup GC rooting for slowpaths for bignums.
 
 * lots of ccall cleanup - regalloc, live register save/restore, etc
 

@@ -1,4 +1,4 @@
 #!/bin/bash
 
-sudo perf record -e cycles -g -k1 ./build/hawk --dump $@
+sudo --preserve-env=GC_SPACE perf record -e cycles -g -k1 ./build/hawk --dump $@
 

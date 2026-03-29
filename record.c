@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "array.h"
@@ -217,17 +218,16 @@ static uint8_t vm_runtime_unary_result_type(ir_ins_op op, gc_obj v) {
   return get_type_tag(res);
 }
 
-#define DEFINE_RECORD_NUMERIC_BINOP_COERCED(name, ir_fast_op, ir_vm_op)       \
+#define DEFINE_RECORD_NUMERIC_BINOP_COERCED(name, ir_fast_op, ir_vm_op)        \
   static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2,           \
                                   gc_obj raw_v1, gc_obj raw_v2) {              \
     auto t = record_current_trace(state);                                      \
-    uint8_t result_type = vm_runtime_binary_result_type(ir_vm_op, raw_v1, raw_v2); \
-    if (slot_numeric_needs_vm(t, v1) || slot_numeric_needs_vm(t, v2) ||       \
-        (result_type != FIXNUM_TAG && result_type != FLONUM_TAG)) {           \
-      return add_inst(                                                          \
-          state,                                                                \
-          IR(.op = ir_vm_op, .op1 = v1, .op2 = v2, .guard = true,              \
-             .type = result_type));                                             \
+    uint8_t result_type =                                                      \
+        vm_runtime_binary_result_type(ir_vm_op, raw_v1, raw_v2);               \
+    if (slot_numeric_needs_vm(t, v1) || slot_numeric_needs_vm(t, v2) ||        \
+        (result_type != FIXNUM_TAG && result_type != FLONUM_TAG)) {            \
+      return add_inst(state, IR(.op = ir_vm_op, .op1 = v1, .op2 = v2,          \
+                                .guard = true, .type = result_type));          \
     }                                                                          \
     if (result_type == FLONUM_TAG) {                                           \
       v1 = convert_to_flonum(state, v1);                                       \
@@ -237,17 +237,16 @@ static uint8_t vm_runtime_unary_result_type(ir_ins_op op, gc_obj v) {
                               .type = result_type));                           \
   }
 
-#define DEFINE_RECORD_NUMERIC_BINOP_FORCE_FLONUM(name, ir_fast_op, ir_vm_op)  \
+#define DEFINE_RECORD_NUMERIC_BINOP_FORCE_FLONUM(name, ir_fast_op, ir_vm_op)   \
   static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2,           \
                                   gc_obj raw_v1, gc_obj raw_v2) {              \
     auto t = record_current_trace(state);                                      \
-    uint8_t result_type = vm_runtime_binary_result_type(ir_vm_op, raw_v1, raw_v2); \
-    if (slot_numeric_needs_vm(t, v1) || slot_numeric_needs_vm(t, v2) ||       \
+    uint8_t result_type =                                                      \
+        vm_runtime_binary_result_type(ir_vm_op, raw_v1, raw_v2);               \
+    if (slot_numeric_needs_vm(t, v1) || slot_numeric_needs_vm(t, v2) ||        \
         result_type != FLONUM_TAG) {                                           \
-      return add_inst(                                                          \
-          state,                                                                \
-          IR(.op = ir_vm_op, .op1 = v1, .op2 = v2, .guard = true,              \
-             .type = result_type));                                             \
+      return add_inst(state, IR(.op = ir_vm_op, .op1 = v1, .op2 = v2,          \
+                                .guard = true, .type = result_type));          \
     }                                                                          \
     v1 = convert_to_flonum(state, v1);                                         \
     v2 = convert_to_flonum(state, v2);                                         \
@@ -451,8 +450,8 @@ static slot convert_to_flonum(vm_state *state, slot v1) {
     ir_ins ins = IR(.op = IR_INEXACT, .op1 = v1, .type = FLONUM_TAG);
     return add_inst(state, ins);
   }
-  return add_inst(
-      state, IR(.op = IR_VMINEXACT, .op1 = v1, .guard = true, .type = FLONUM_TAG));
+  return add_inst(state, IR(.op = IR_VMINEXACT, .op1 = v1, .guard = true,
+                            .type = FLONUM_TAG));
 }
 static slot convert_to_fixnum(vm_state *state, slot v1, gc_obj raw_v1) {
   auto t = record_current_trace(state);
@@ -622,11 +621,11 @@ static slot record_foreign_arg(vm_state *state, gc_obj *stack, uint8_t pos,
       res = to_fixnum(lhs) cmp_op to_fixnum(rhs);                              \
     } else if ((is_fixnum(lhs) || is_bignum(lhs)) &&                           \
                (is_fixnum(rhs) || is_bignum(rhs))) {                           \
-      res = numeric_exact_compare(lhs, rhs) cmp_op 0;                         \
+      res = numeric_exact_compare(lhs, rhs) cmp_op 0;                          \
     } else {                                                                   \
       abort();                                                                 \
     }                                                                          \
-    bool fast_numeric = normalize_numeric_cmp_inputs(state, &v1, &v2, false); \
+    bool fast_numeric = normalize_numeric_cmp_inputs(state, &v1, &v2, false);  \
                                                                                \
     *taken = res;                                                              \
     if (fast_numeric) {                                                        \
@@ -1268,7 +1267,24 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_APPLY: {
-    record_abort(state, &op_table, "can't record APPLY");
+    auto fun = stack[pc->v1];
+    const char *fname = "<non-closure>";
+    if (is_closure(fun)) {
+      auto code = to_closure(fun)->v[0];
+      if (is_func(code)) {
+        auto func = to_func(code);
+        if (is_string(func->name)) {
+          fname = to_string(func->name)->str;
+        } else {
+          fname = "<unnamed>";
+        }
+      } else {
+        fname = "<invalid-closure-code>";
+      }
+    }
+    char msg[256];
+    snprintf(msg, sizeof(msg), "can't record APPLY (fn=%s)", fname);
+    record_abort(state, &op_table, msg);
     break;
   }
   case OP_FOREIGN_CALL: {
