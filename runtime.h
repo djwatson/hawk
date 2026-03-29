@@ -266,17 +266,29 @@ static inline uint8_t numeric_obj_result_type(gc_obj lhs, gc_obj rhs) {
   } while (0)
 
 static inline bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
-  VM_NUMERIC_DISPATCH_VALUES(lhs, rhs, return to_fixnum(lhs) == to_fixnum(rhs);
-                             , return numeric_to_double(lhs) ==
-                                      numeric_to_double(rhs););
+  if (is_flonum(lhs) || is_flonum(rhs)) {
+    return numeric_to_double(lhs) == numeric_to_double(rhs);
+  }
+  if (is_fixnum(lhs) && is_fixnum(rhs)) {
+    return to_fixnum(lhs) == to_fixnum(rhs);
+  }
+  if ((is_fixnum(lhs) || is_bignum(lhs)) &&
+      (is_fixnum(rhs) || is_bignum(rhs))) {
+    return numeric_exact_compare(lhs, rhs) == 0;
+  }
+  abort();
 }
 
 static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
-  if ((is_fixnum(lhs) || is_flonum(lhs)) &&
-      (is_fixnum(rhs) || is_flonum(rhs))) {
+  if ((is_fixnum(lhs) || is_flonum(lhs) || is_bignum(lhs)) &&
+      (is_fixnum(rhs) || is_flonum(rhs) || is_bignum(rhs))) {
     return numeric_eqv(lhs, rhs);
   }
   return lhs.value == rhs.value;
+}
+
+static inline gc_obj vm_runtime_cmp_jeqv_slow(gc_obj v1, gc_obj v2) {
+  return obj_jeqv(v1, v2) ? TRUE_REP : FALSE_REP;
 }
 
 static inline bool guard_obj_matches(gc_obj val, gc_obj want_tag_obj) {

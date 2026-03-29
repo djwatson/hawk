@@ -215,12 +215,21 @@ static inline gc_obj emit_math_cmp_jeq(vm_state *state, bc *pc, gc_obj *stack,
   (void)stack;
   return v1.value == v2.value ? TRUE_REP : FALSE_REP;
 }
-static inline gc_obj emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
-                                        gc_obj v1, gc_obj v2) {
+static NOINLINE gc_obj emit_math_cmp_jeqv_slowpath(vm_state *state, bc *pc,
+                                                   gc_obj *stack, gc_obj v1,
+                                                   gc_obj v2) {
   (void)state;
   (void)pc;
   (void)stack;
-  return obj_jeqv(v1, v2) ? TRUE_REP : FALSE_REP;
+  return vm_runtime_cmp_jeqv_slow(v1, v2);
+}
+
+static inline gc_obj emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
+                                        gc_obj v1, gc_obj v2) {
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    return to_fixnum(v1) == to_fixnum(v2) ? TRUE_REP : FALSE_REP;
+  }
+  MUSTTAIL return emit_math_cmp_jeqv_slowpath(state, pc, stack, v1, v2);
 }
 static void trace_reset(vm_state *state) {
   arr_for_each(state->record.traces, trace) {

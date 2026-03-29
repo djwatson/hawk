@@ -182,7 +182,7 @@
 (define real? number?)
 (define rational? number?)
 (define integer? fixnum?)
-(define exact? fixnum?)
+(define (exact? x) (or (fixnum? x) (bignum? x)))
 (define inexact? flonum?)
 (define exact-integer? fixnum?)
 (define (bytevector=? a b) #f)
