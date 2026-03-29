@@ -71,6 +71,21 @@ static inline bool numeric_is_zero(gc_obj v) {
   abort();
 }
 
+static inline int numeric_exact_compare(gc_obj v1, gc_obj v2) {
+  gc_add_root((const void *)&v1, 1, 0);
+  gc_add_root((const void *)&v2, 1, 0);
+  gc_obj b1 = numeric_to_bignum_obj(v1);
+  gc_add_root((const void *)&b1, 1, 0);
+  gc_obj b2 = numeric_to_bignum_obj(v2);
+  gc_add_root((const void *)&b2, 1, 0);
+  int cmp = bn_cmp(to_bignum(b1), to_bignum(b2));
+  gc_remove_root((const void *)&b2, 0);
+  gc_remove_root((const void *)&b1, 0);
+  gc_remove_root((const void *)&v2, 0);
+  gc_remove_root((const void *)&v1, 0);
+  return cmp;
+}
+
 #define VM_MATH_ADD(a, b) ((a) + (b))
 #define VM_MATH_SUB(a, b) ((a) - (b))
 #define VM_MATH_MUL(a, b) ((a) * (b))
@@ -200,6 +215,29 @@ DEFINE_VM_RUNTIME_DIVMOD_SLOW(
     fmod(numeric_to_double(v1), numeric_to_double(v2)), r)
 
 #undef DEFINE_VM_RUNTIME_DIVMOD_SLOW
+
+#define DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(name, op)                           \
+  static inline gc_obj vm_runtime_cmp_##name##_slow(gc_obj v1, gc_obj v2) {    \
+    if (is_flonum(v1) || is_flonum(v2)) {                                      \
+      return (numeric_to_double(v1) op numeric_to_double(v2)) ? TRUE_REP       \
+                                                              : FALSE_REP;      \
+    }                                                                          \
+    if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
+      return (to_fixnum(v1) op to_fixnum(v2)) ? TRUE_REP : FALSE_REP;          \
+    }                                                                          \
+    if ((is_fixnum(v1) || is_bignum(v1)) &&                                    \
+        (is_fixnum(v2) || is_bignum(v2))) {                                    \
+      return (numeric_exact_compare(v1, v2) op 0) ? TRUE_REP : FALSE_REP;      \
+    }                                                                          \
+    abort();                                                                   \
+  }
+
+DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(lt, <)
+DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(gt, >)
+DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(lte, <=)
+DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(gte, >=)
+
+#undef DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW
 
 static inline uint8_t numeric_result_type(uint8_t t1, uint8_t t2) {
   if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {

@@ -177,67 +177,36 @@ static inline gc_obj emit_ov_math_mod(vm_state *state, bc *pc, gc_obj *stack,
   MUSTTAIL return emit_ov_math_mod_slowpath(state, pc, stack, v1, v2);
 }
 
-static NOINLINE gc_obj emit_math_cmp_lt_slowpath(vm_state *state, bc *pc,
-                                                 gc_obj *stack, gc_obj v1,
-                                                 gc_obj v2) {
-  if ((!is_fixnum(v1) && !is_flonum(v1)) ||
-      (!is_fixnum(v2) && !is_flonum(v2))) {
-    printf("Bad < arg types in %s\n", func_name_for_pc(pc));
-    debug_print_vm_backtrace(state, pc, stack);
-    abort();
+#define DEFINE_VM_CMP_SLOW_STUB(name)                                          \
+  static NOINLINE gc_obj emit_math_cmp_##name##_slowpath(                      \
+      vm_state *state, bc *pc, gc_obj *stack, gc_obj v1, gc_obj v2) {          \
+    (void)state;                                                               \
+    (void)pc;                                                                  \
+    (void)stack;                                                               \
+    return vm_runtime_cmp_##name##_slow(v1, v2);                              \
   }
-  /* if (is_compnum(a) || is_compnum(b)) { */
-  /*   res = COMPCMP(a, b); */
-  VM_NUMERIC_DISPATCH_VALUES(
-      v1, v2, return to_fixnum(v1) < to_fixnum(v2) ? TRUE_REP : FALSE_REP;
-      , return numeric_to_double(v1) < numeric_to_double(v2) ? TRUE_REP
-                                                             : FALSE_REP;);
-  /* } else if (is_ratnum(a) || is_ratnum(b)) { */
-  /*   ratnum_s ba = get_ratnum(a); */
-  /*   ratnum_s bb = get_ratnum(b); */
-  /*   res = OP(ratnum_cmp(ba, bb), 0); */
-  /* } else if (is_bignum(a) || is_bignum(b)) { */
-  /*   mpz_t ba; */
-  /*   mpz_t bb; */
-  /*   get_bignum(a, &ba); */
-  /*   get_bignum(b, &bb); */
-  /*   res = OP(mpz_cmp(ba, bb), 0); */
-}
-static inline gc_obj emit_math_cmp_lt(vm_state *state, bc *pc, gc_obj *stack,
-                                      gc_obj v1, gc_obj v2) {
-  (void)state;
-  (void)pc;
-  (void)stack;
-  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
-    return to_fixnum(v1) < to_fixnum(v2) ? TRUE_REP : FALSE_REP;
-  }
-  if (likely((is_flonum(v1) & is_flonum(v2)) == 1)) {
-    auto f1 = to_flonum(v1);
-    auto f2 = to_flonum(v2);
-    return f1->x < f2->x ? TRUE_REP : FALSE_REP;
-  }
-  // TODO other math types!
-  MUSTTAIL return emit_math_cmp_lt_slowpath(state, pc, stack, v1, v2);
-}
-#define DEFINE_VM_RUNTIME_CMP_SWAP(name, cmp_fn)                               \
+
+#define DEFINE_VM_FAST_CMP(name, op)                                           \
   static inline gc_obj emit_math_cmp_##name(                                   \
       vm_state *state, bc *pc, gc_obj *stack, gc_obj v1, gc_obj v2) {          \
-    MUSTTAIL return cmp_fn(state, pc, stack, v2, v1);                          \
+    if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {                       \
+      return to_fixnum(v1) op to_fixnum(v2) ? TRUE_REP : FALSE_REP;           \
+    }                                                                          \
+    MUSTTAIL return emit_math_cmp_##name##_slowpath(state, pc, stack, v1, v2); \
   }
 
-#define DEFINE_VM_RUNTIME_CMP_NEGATE(name, cmp_fn)                             \
-  static inline gc_obj emit_math_cmp_##name(                                   \
-      vm_state *state, bc *pc, gc_obj *stack, gc_obj v1, gc_obj v2) {          \
-    auto cmp_res = cmp_fn(state, pc, stack, v1, v2);                           \
-    return cmp_res.value == TRUE_REP.value ? FALSE_REP : TRUE_REP;             \
-  }
+DEFINE_VM_CMP_SLOW_STUB(lt)
+DEFINE_VM_CMP_SLOW_STUB(gt)
+DEFINE_VM_CMP_SLOW_STUB(lte)
+DEFINE_VM_CMP_SLOW_STUB(gte)
 
-DEFINE_VM_RUNTIME_CMP_SWAP(gt, emit_math_cmp_lt)
-DEFINE_VM_RUNTIME_CMP_NEGATE(gte, emit_math_cmp_lt)
-DEFINE_VM_RUNTIME_CMP_NEGATE(lte, emit_math_cmp_gt)
+DEFINE_VM_FAST_CMP(lt, <)
+DEFINE_VM_FAST_CMP(gt, >)
+DEFINE_VM_FAST_CMP(lte, <=)
+DEFINE_VM_FAST_CMP(gte, >=)
 
-#undef DEFINE_VM_RUNTIME_CMP_NEGATE
-#undef DEFINE_VM_RUNTIME_CMP_SWAP
+#undef DEFINE_VM_FAST_CMP
+#undef DEFINE_VM_CMP_SLOW_STUB
 
 static inline gc_obj emit_math_cmp_jeq(vm_state *state, bc *pc, gc_obj *stack,
                                        gc_obj v1, gc_obj v2) {
