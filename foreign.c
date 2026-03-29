@@ -169,6 +169,8 @@ static ffi_type *foreign_prep_type(gc_obj type_obj, gc_obj value,
       abort();
     }
     if (tmp) {
+      /* This raw char* is not GC-stable if the foreign callee can reenter
+       * Scheme or otherwise trigger collection. */
       tmp->ptr = to_string(value)->str;
     }
     return &ffi_type_pointer;
@@ -204,6 +206,7 @@ static gc_obj foreign_return_value(gc_obj type_obj, foreign_tmp raw) {
 }
 
 gc_obj do_foreign_call(gc_obj sig_obj, gc_obj const *args, uint8_t argcnt) {
+  gc_add_root((const void *)&sig_obj, 1, 0);
   foreign_sig sig;
   foreign_parse_sig(sig_obj, &sig);
   if (sig.argcnt != argcnt) {
@@ -232,5 +235,7 @@ gc_obj do_foreign_call(gc_obj sig_obj, gc_obj const *args, uint8_t argcnt) {
     abort();
   }
   ffi_call(&cif, FFI_FN(sig.sym), &ret_tmp, arg_values);
-  return foreign_return_value(ret_type, ret_tmp);
+  gc_obj out = foreign_return_value(to_cons(sig_obj)->a, ret_tmp);
+  gc_remove_root((const void *)&sig_obj, 0);
+  return out;
 }
