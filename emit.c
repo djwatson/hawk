@@ -23,6 +23,7 @@
 #include "profiler.h"
 #include "record.h"
 #include "regalloc.h"
+#include "runtime.h"
 #include "vm.h"
 
 static const int32_t flonum_payload_offset = (int32_t)offsetof(flonum_s, x);
@@ -372,8 +373,8 @@ static size_t collect_live_caller_saved_regs(trace *t, regalloc_state *ra_state,
   return count;
 }
 
-static void invalidate_live_regs_for_ccall(trace *t, regalloc_state *ra_state,
-                                           uint8_t dst_reg) {
+static void invalidate_live_regs_for_call(trace *t, regalloc_state *ra_state,
+                                          uint8_t dst_reg) {
   enum : uint16_t {
     ALLOC_NONE_LOCAL = UINT16_MAX,
     ALLOC_UNALLOCATABLE_LOCAL = UINT16_MAX - 1,
@@ -474,6 +475,50 @@ static void emit_ccall_result(emit_state *s, uint8_t dst_reg,
   }
 }
 
+static void emit_gcobj_arg(emit_state *s, trace *t, slot value, uint8_t src_reg,
+                           uint8_t dst_reg) {
+  if (value.constant) {
+    emit_heap_constant(s, t, dst_reg, slot_gc_obj(t, value));
+    return;
+  }
+  if (src_reg != dst_reg) {
+    emit_mov(s, dst_reg, src_reg);
+  }
+}
+
+static void emit_move_pairs(emit_state *s, par_copy *cpy) {
+  par_copy *moves = serialize_parallel_copy(cpy, PAR_MOVE_MARKER);
+  arr_for_each_idx(moves, i) {
+    auto mov = moves[i];
+    uint64_t from_u64 = mov.from;
+    uint64_t to_u64 = mov.to;
+    uint8_t from = (uint8_t)from_u64;
+    uint8_t to = (uint8_t)to_u64;
+    if (from_u64 == PAR_MOVE_MARKER) {
+      from = resolve_tmp_reg(to);
+    }
+    if (to_u64 == PAR_MOVE_MARKER) {
+      to = resolve_tmp_reg(from);
+      if (is_fpr_reg(from)) {
+        emit_fmov(s, to, from);
+      } else {
+        emit_mov(s, to, from);
+      }
+      continue;
+    }
+    if (is_fpr_reg(from) != is_fpr_reg(to)) {
+      abort();
+    }
+    if (is_fpr_reg(from)) {
+      emit_fmov(s, to, from);
+    } else {
+      emit_mov(s, to, from);
+    }
+  }
+  arrfree(cpy);
+  arrfree(moves);
+}
+
 static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
                        uint16_t op_cnt_idx, ir_ins const *op, slot *args,
                        uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg) {
@@ -484,7 +529,7 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
   uint8_t save_regs[FPR_REG_END];
   size_t save_count =
       collect_live_caller_saved_regs(t, ra_state, op_cnt_idx, save_regs);
-  emit_push_regs(s, save_regs, 0, true);
+  emit_push_regs(s, save_regs, save_count, true);
 
   typedef struct {
     ccall_arg arg;
@@ -516,36 +561,7 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
     abort();
   }
 
-  par_copy *moves = serialize_parallel_copy(cpy, PAR_MOVE_MARKER);
-  arr_for_each_idx(moves, i) {
-    auto mov = moves[i];
-    uint64_t from_u64 = mov.from;
-    uint64_t to_u64 = mov.to;
-    uint8_t from = (uint8_t)from_u64;
-    uint8_t to = (uint8_t)to_u64;
-    if (from_u64 == PAR_MOVE_MARKER) {
-      from = resolve_tmp_reg(to);
-    }
-    if (to_u64 == PAR_MOVE_MARKER) {
-      to = resolve_tmp_reg(from);
-      if (is_fpr_reg(from)) {
-        emit_fmov(s, to, from);
-      } else {
-        emit_mov(s, to, from);
-      }
-      continue;
-    }
-
-    if (is_fpr_reg(from) != is_fpr_reg(to)) {
-      abort();
-    }
-    if (is_fpr_reg(from)) {
-      emit_fmov(s, to, from);
-    } else {
-      emit_mov(s, to, from);
-    }
-  }
-  arrfree(moves);
+  emit_move_pairs(s, cpy);
 
   for (uint8_t i = 0; i < call_arg_count; i++) {
     auto *arg = &pending[i];
@@ -572,8 +588,118 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
     emit_ccall_result(s, dst_reg, sig.ret_type);
   }
   emit_load_ralloc(s);
-  invalidate_live_regs_for_ccall(t, ra_state, dst_reg);
-  emit_pop_regs(s, save_regs, 0, true);
+  invalidate_live_regs_for_call(t, ra_state, dst_reg);
+  emit_pop_regs(s, save_regs, save_count, true);
+}
+
+static intptr_t vm_call_target(ir_ins_op op) {
+  switch (op) {
+  case IR_VMADD:
+    return (intptr_t)&vm_runtime_math_add_slow;
+  case IR_VMSUB:
+    return (intptr_t)&vm_runtime_math_sub_slow;
+  case IR_VMMUL:
+    return (intptr_t)&vm_runtime_math_mul_slow;
+  case IR_VMDIV:
+    return (intptr_t)&vm_runtime_math_div_slow;
+  case IR_VMQUOTIENT:
+    return (intptr_t)&vm_runtime_math_quotient_slow;
+  case IR_VMMOD:
+    return (intptr_t)&vm_runtime_math_mod_slow;
+  case IR_VMLT:
+    return (intptr_t)&vm_runtime_cmp_lt_slow;
+  case IR_VMGT:
+    return (intptr_t)&vm_runtime_cmp_gt_slow;
+  case IR_VMLTE:
+    return (intptr_t)&vm_runtime_cmp_lte_slow;
+  case IR_VMGTE:
+    return (intptr_t)&vm_runtime_cmp_gte_slow;
+  case IR_VMJEQV:
+  case IR_VMJNEQV:
+    return (intptr_t)&vm_runtime_cmp_jeqv_slow;
+  case IR_VMINEXACT:
+    return (intptr_t)&numeric_inexact_value;
+  case IR_VMEXACT:
+    return (intptr_t)&numeric_exact_value;
+  case IR_VMTRUNCATE:
+    return (intptr_t)&numeric_truncate_value;
+  default:
+    abort();
+  }
+}
+
+static bool vm_call_is_cmp(ir_ins_op op) {
+  switch (op) {
+  case IR_VMLT:
+  case IR_VMGT:
+  case IR_VMLTE:
+  case IR_VMGTE:
+  case IR_VMJEQV:
+  case IR_VMJNEQV:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static bool vm_call_expects_false(ir_ins_op op) { return op == IR_VMJNEQV; }
+
+static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
+                        uint16_t op_cnt_idx, ir_ins const *op, slot *args,
+                        uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg,
+                        int32_t cur_snap) {
+  uint8_t save_regs[FPR_REG_END];
+  size_t save_count =
+      collect_live_caller_saved_regs(t, ra_state, op_cnt_idx, save_regs);
+  emit_push_regs(s, save_regs, save_count, true);
+
+  slot a0 = op->op1;
+  uint8_t a0_src = emit_arg_reg(args, arg_regs, arg_count, a0);
+  if (!a0.constant && a0_src == REG_NONE) {
+    abort();
+  }
+  bool unary = (op->op == IR_VMINEXACT || op->op == IR_VMEXACT ||
+                op->op == IR_VMTRUNCATE);
+  slot a1 = op->op2;
+  uint8_t a1_src = REG_NONE;
+  if (!unary) {
+    a1_src = emit_arg_reg(args, arg_regs, arg_count, a1);
+    if (!a1.constant && a1_src == REG_NONE) {
+      abort();
+    }
+  }
+
+  par_copy *cpy = nullptr;
+  if (!a0.constant) {
+    arrput(cpy, ((par_copy){.from = a0_src, .to = RARG0}));
+  }
+  if (!unary && !a1.constant) {
+    arrput(cpy, ((par_copy){.from = a1_src, .to = RARG1}));
+  }
+  emit_move_pairs(s, cpy);
+  emit_gcobj_arg(s, t, a0, RARG0, RARG0);
+  if (!unary) {
+    emit_gcobj_arg(s, t, a1, RARG1, RARG1);
+  }
+
+  emit_store_ralloc(s);
+  emit_mov64(s, RTMP, vm_call_target(op->op));
+  emit_call_reg(s, RTMP);
+  emit_load_ralloc(s);
+
+  if (vm_call_is_cmp(op->op)) {
+    assert(cur_snap >= 0);
+    emit_cmp_constant(s, RET_REG, FALSE_REP.value);
+    emit_pop_regs(s, save_regs, save_count, true);
+    emit_jcc32(s, vm_call_expects_false(op->op) ? JNE : JE,
+               &t->snaps[cur_snap].patch_point);
+  } else if (dst_reg != RET_REG && dst_reg != REG_NONE) {
+    emit_mov(s, dst_reg, RET_REG);
+    emit_pop_regs(s, save_regs, save_count, true);
+  } else {
+    emit_pop_regs(s, save_regs, save_count, true);
+  }
+  invalidate_live_regs_for_call(t, ra_state, dst_reg);
 }
 
 static void emit_cmp_regs(emit_state *s, trace *t, uint8_t lhs_reg, slot rhs,
@@ -1248,6 +1374,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
       uint8_t base_type = op->op1.constant ? get_tag(t->consts[op->op1.loc])
                                            : slot_ins(t, op->op1)->type;
+      bool unknown_base = base_type == UNDEFINED_TAG;
       base_type = ref_base_tag(base_type);
       int32_t typed_offset = (int32_t)((int64_t)sizeof(gc_header) - base_type);
       if (op->type == FLONUM_TAG) {
@@ -1255,7 +1382,17 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         // payload. Prefer the dedicated secondary scratch register when
         // available.
         uint8_t obj_reg = RTMP2;
-        if (op->op2.constant) {
+        if (unknown_base) {
+          emit_and_constant(s, obj_reg, base_reg, ~(int64_t)TAG_MASK);
+          if (op->op2.constant) {
+            int64_t offset_bytes =
+                t->consts[op->op2.loc].value + (int64_t)sizeof(gc_header);
+            emit_mem_load(s, (int32_t)offset_bytes, obj_reg, obj_reg);
+          } else {
+            emit_add(s, obj_reg, offset_reg, obj_reg);
+            emit_mem_load(s, (int32_t)sizeof(gc_header), obj_reg, obj_reg);
+          }
+        } else if (op->op2.constant) {
           int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
           emit_mem_load(s, (int32_t)offset_bytes, base_reg, obj_reg);
         } else {
@@ -1265,7 +1402,17 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         emit_typecheck(s, t, op, cur_snap, obj_reg);
         emit_fmem_load(s, 8 - FLONUM_TAG, obj_reg, dst_reg);
       } else {
-        if (op->op2.constant) {
+        if (unknown_base) {
+          emit_and_constant(s, RTMP, base_reg, ~(int64_t)TAG_MASK);
+          if (op->op2.constant) {
+            int64_t offset_bytes =
+                t->consts[op->op2.loc].value + (int64_t)sizeof(gc_header);
+            emit_mem_load(s, (int32_t)offset_bytes, RTMP, dst_reg);
+          } else {
+            emit_add(s, RTMP, offset_reg, RTMP);
+            emit_mem_load(s, (int32_t)sizeof(gc_header), RTMP, dst_reg);
+          }
+        } else if (op->op2.constant) {
           int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
           emit_mem_load(s, (int32_t)offset_bytes, base_reg, dst_reg);
         } else {
@@ -1567,6 +1714,25 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     case IR_CCALL: {
       emit_ccall(s, t, ra_state, op_cnt_idx, op, args, arg_regs, arg_count,
                  dst_reg);
+      break;
+    }
+    case IR_VMADD:
+    case IR_VMSUB:
+    case IR_VMMUL:
+    case IR_VMDIV:
+    case IR_VMQUOTIENT:
+    case IR_VMMOD:
+    case IR_VMLT:
+    case IR_VMGT:
+    case IR_VMLTE:
+    case IR_VMGTE:
+    case IR_VMJEQV:
+    case IR_VMJNEQV:
+    case IR_VMINEXACT:
+    case IR_VMEXACT:
+    case IR_VMTRUNCATE: {
+      emit_vmcall(s, t, ra_state, op_cnt_idx, op, args, arg_regs, arg_count,
+                  dst_reg, cur_snap);
       break;
     }
     case IR_REF:

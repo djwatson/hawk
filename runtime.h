@@ -92,33 +92,6 @@ static inline int numeric_exact_compare(gc_obj v1, gc_obj v2) {
 #define VM_MATH_NOSHIFT(a) (a)
 #define VM_MATH_SHIFT(a) ((a) >> FIXNUM_SHIFT)
 
-#define DEFINE_VM_RUNTIME_OVERFLOW_SLOW(name, oplcname, op, shift)            \
-  static inline gc_obj vm_runtime_math_##name##_slow(gc_obj v1, gc_obj v2) {  \
-    if (is_flonum(v1) || is_flonum(v2)) {                                      \
-      return root2_box_flonum(&v1, &v2,                                        \
-                              op(numeric_to_double(v1), numeric_to_double(v2))); \
-    }                                                                          \
-    if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
-      gc_obj res;                                                              \
-      if (!__builtin_##oplcname##_overflow(v1.value, shift(v2.value),          \
-                                           &res.value)) {                      \
-        return res;                                                            \
-      }                                                                        \
-    }                                                                          \
-    gc_add_root((const void *)&v1, 1, 0);                                      \
-    gc_add_root((const void *)&v2, 1, 0);                                      \
-    gc_obj b1 = numeric_to_bignum_obj(v1);                                     \
-    gc_add_root((const void *)&b1, 1, 0);                                      \
-    gc_obj b2 = numeric_to_bignum_obj(v2);                                     \
-    gc_add_root((const void *)&b2, 1, 0);                                      \
-    gc_obj res = tag_bignum(bn_##oplcname(to_bignum(b1), to_bignum(b2)));      \
-    gc_remove_root((const void *)&b2, 0);                                      \
-    gc_remove_root((const void *)&b1, 0);                                      \
-    gc_remove_root((const void *)&v2, 0);                                      \
-    gc_remove_root((const void *)&v1, 0);                                      \
-    return res;                                                                \
-  }
-
 static inline double numeric_to_double(gc_obj v) {
   if (is_flonum(v)) {
     return to_flonum(v)->x;
@@ -175,69 +148,17 @@ static inline gc_obj numeric_truncate_value(gc_obj v) {
   abort();
 }
 
-DEFINE_VM_RUNTIME_OVERFLOW_SLOW(add, add, VM_MATH_ADD, VM_MATH_NOSHIFT)
-DEFINE_VM_RUNTIME_OVERFLOW_SLOW(sub, sub, VM_MATH_SUB, VM_MATH_NOSHIFT)
-DEFINE_VM_RUNTIME_OVERFLOW_SLOW(mul, mul, VM_MATH_MUL, VM_MATH_SHIFT)
-
-#undef DEFINE_VM_RUNTIME_OVERFLOW_SLOW
-
-#define DEFINE_VM_RUNTIME_DIVMOD_SLOW(name, fixnum_body, flonum_body, field)  \
-  static inline gc_obj vm_runtime_math_##name##_slow(gc_obj v1, gc_obj v2) {  \
-    if (numeric_is_zero(v2)) {                                                 \
-      abort();                                                                 \
-    }                                                                          \
-    if (is_flonum(v1) || is_flonum(v2)) {                                      \
-      return root2_box_flonum(&v1, &v2, (flonum_body));                        \
-    }                                                                          \
-    if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
-      return tag_fixnum((fixnum_body));                                        \
-    }                                                                          \
-    gc_add_root((const void *)&v1, 1, 0);                                      \
-    gc_add_root((const void *)&v2, 1, 0);                                      \
-    gc_obj b1 = numeric_to_bignum_obj(v1);                                     \
-    gc_add_root((const void *)&b1, 1, 0);                                      \
-    gc_obj b2 = numeric_to_bignum_obj(v2);                                     \
-    gc_add_root((const void *)&b2, 1, 0);                                      \
-    bn_divmod_result_t qr = bn_divmod(to_bignum(b1), to_bignum(b2));           \
-    gc_obj res = tag_bignum(qr.field);                                         \
-    gc_remove_root((const void *)&b2, 0);                                      \
-    gc_remove_root((const void *)&b1, 0);                                      \
-    gc_remove_root((const void *)&v2, 0);                                      \
-    gc_remove_root((const void *)&v1, 0);                                      \
-    return res;                                                                \
-  }
-
-DEFINE_VM_RUNTIME_DIVMOD_SLOW(
-    quotient, to_fixnum(v1) / to_fixnum(v2),
-    trunc(numeric_to_double(v1) / numeric_to_double(v2)), q)
-DEFINE_VM_RUNTIME_DIVMOD_SLOW(
-    mod, to_fixnum(v1) % to_fixnum(v2),
-    fmod(numeric_to_double(v1), numeric_to_double(v2)), r)
-
-#undef DEFINE_VM_RUNTIME_DIVMOD_SLOW
-
-#define DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(name, op)                           \
-  static inline gc_obj vm_runtime_cmp_##name##_slow(gc_obj v1, gc_obj v2) {    \
-    if (is_flonum(v1) || is_flonum(v2)) {                                      \
-      return (numeric_to_double(v1) op numeric_to_double(v2)) ? TRUE_REP       \
-                                                              : FALSE_REP;      \
-    }                                                                          \
-    if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
-      return (to_fixnum(v1) op to_fixnum(v2)) ? TRUE_REP : FALSE_REP;          \
-    }                                                                          \
-    if ((is_fixnum(v1) || is_bignum(v1)) &&                                    \
-        (is_fixnum(v2) || is_bignum(v2))) {                                    \
-      return (numeric_exact_compare(v1, v2) op 0) ? TRUE_REP : FALSE_REP;      \
-    }                                                                          \
-    abort();                                                                   \
-  }
-
-DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(lt, <)
-DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(gt, >)
-DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(lte, <=)
-DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(gte, >=)
-
-#undef DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW
+gc_obj vm_runtime_math_add_slow(gc_obj v1, gc_obj v2);
+gc_obj vm_runtime_math_sub_slow(gc_obj v1, gc_obj v2);
+gc_obj vm_runtime_math_mul_slow(gc_obj v1, gc_obj v2);
+gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2);
+gc_obj vm_runtime_math_quotient_slow(gc_obj v1, gc_obj v2);
+gc_obj vm_runtime_math_mod_slow(gc_obj v1, gc_obj v2);
+gc_obj vm_runtime_cmp_lt_slow(gc_obj v1, gc_obj v2);
+gc_obj vm_runtime_cmp_gt_slow(gc_obj v1, gc_obj v2);
+gc_obj vm_runtime_cmp_lte_slow(gc_obj v1, gc_obj v2);
+gc_obj vm_runtime_cmp_gte_slow(gc_obj v1, gc_obj v2);
+gc_obj vm_runtime_cmp_jeqv_slow(gc_obj v1, gc_obj v2);
 
 static inline uint8_t numeric_result_type(uint8_t t1, uint8_t t2) {
   if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
@@ -285,10 +206,6 @@ static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
     return numeric_eqv(lhs, rhs);
   }
   return lhs.value == rhs.value;
-}
-
-static inline gc_obj vm_runtime_cmp_jeqv_slow(gc_obj v1, gc_obj v2) {
-  return obj_jeqv(v1, v2) ? TRUE_REP : FALSE_REP;
 }
 
 static inline bool guard_obj_matches(gc_obj val, gc_obj want_tag_obj) {

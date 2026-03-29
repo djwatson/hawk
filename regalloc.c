@@ -51,6 +51,29 @@ static bool slot_is_zero(trace const *t, slot s) {
          to_fixnum(t->consts[s.loc]) == 0;
 }
 
+static bool ir_is_vm_call(ir_ins_op op) {
+  switch (op) {
+  case IR_VMADD:
+  case IR_VMSUB:
+  case IR_VMMUL:
+  case IR_VMDIV:
+  case IR_VMQUOTIENT:
+  case IR_VMMOD:
+  case IR_VMLT:
+  case IR_VMGT:
+  case IR_VMLTE:
+  case IR_VMGTE:
+  case IR_VMJEQV:
+  case IR_VMJNEQV:
+  case IR_VMINEXACT:
+  case IR_VMEXACT:
+  case IR_VMTRUNCATE:
+    return true;
+  default:
+    return false;
+  }
+}
+
 static uint8_t regalloc_collect_carg_args(trace const *t, slot chain, slot *args) {
   if (slot_is_zero(t, chain)) {
     return 0;
@@ -202,7 +225,7 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     lru_remove(value_lru, value_id);
 
     auto ins = &s->t->ins[value_id];
-    if (ins->op == IR_CCALL) {
+    if (ins->op == IR_CCALL || ir_is_vm_call(ins->op)) {
       limit_live_values(s, &gpr_live, 0);
       limit_live_values(s, &fpr_live, 0);
     }

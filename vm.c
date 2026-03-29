@@ -75,11 +75,6 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   return op_table;
 }
 
-static inline void abort_if_zero_divisor(gc_obj v) {
-  if (numeric_is_zero(v)) {
-    abort();
-  }
-}
 static inline gc_obj const_load(bc *pc, uint16_t offset) {
   return *(gc_obj *)(pc - pc->data);
 }
@@ -132,9 +127,7 @@ DEFINE_VM_FAST_OVERFLOW_MATH(mul, mul, VM_MATH_SHIFT, emit_ov_math_mul_slowpath)
 
 static inline gc_obj emit_ov_math_div(vm_state *state, gc_obj v1, gc_obj v2) {
   (void)state;
-  abort_if_zero_divisor(v2);
-  return root2_box_flonum(&v1, &v2,
-                          numeric_to_double(v1) / numeric_to_double(v2));
+  return vm_runtime_math_div_slow(v1, v2);
 }
 
 static NOINLINE gc_obj emit_ov_math_quotient_slowpath(vm_state *state, bc *pc,

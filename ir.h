@@ -69,6 +69,21 @@ typedef enum : uint8_t {
   X(REF, ARG_IR_IR, false)                                                     \
   X(CARG, ARG_IR_IR, false)                                                    \
   X(CCALL, ARG_IR_IR, true)                                                    \
+  X(VMADD, ARG_IR_IR, true)                                                    \
+  X(VMSUB, ARG_IR_IR, true)                                                    \
+  X(VMMUL, ARG_IR_IR, true)                                                    \
+  X(VMDIV, ARG_IR_IR, true)                                                    \
+  X(VMQUOTIENT, ARG_IR_IR, true)                                               \
+  X(VMMOD, ARG_IR_IR, true)                                                    \
+  X(VMLT, ARG_IR_IR, true)                                                     \
+  X(VMGT, ARG_IR_IR, true)                                                     \
+  X(VMLTE, ARG_IR_IR, true)                                                    \
+  X(VMGTE, ARG_IR_IR, true)                                                    \
+  X(VMJEQV, ARG_IR_IR, true)                                                   \
+  X(VMJNEQV, ARG_IR_IR, true)                                                  \
+  X(VMINEXACT, ARG_IR_NONE, true)                                              \
+  X(VMEXACT, ARG_IR_NONE, true)                                                \
+  X(VMTRUNCATE, ARG_IR_NONE, true)                                             \
   X(LOAD, ARG_IR_IR, false)                                                    \
   X(LOAD_CHAR, ARG_IR_IR, false)                                               \
   X(STORE, ARG_IR_IR, true)                                                    \

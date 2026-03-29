@@ -601,6 +601,9 @@ void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm) {
   if (!fits_in_32(imm)) {
     abort();
   }
+  if (dst != src) {
+    emit_mov(s, dst, src);
+  }
   int32_t imm32 = (int32_t)imm;
   if ((int32_t)((int8_t)imm32) == imm32) {
     emit_reg_reg(s, ASM_AND, 4, dst);
@@ -608,9 +611,6 @@ void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm) {
   } else {
     emit_reg_reg(s, ASM_AND_IMM, 4, dst);
     emit_imm32(s, (uint32_t)imm32);
-  }
-  if (dst != src) {
-    emit_mov(s, dst, src);
   }
 }
 
