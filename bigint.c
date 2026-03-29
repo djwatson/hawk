@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -361,8 +362,40 @@ static bn_t *bn_mul_unsigned(const bn_t *a, const bn_t *b) {
 
 static bn_divmod_result_t bn_divmod_knuth_unsigned(const bn_t *num,
                                                    const bn_t *denom);
+static uint32_t bn_bit_length_unsigned(const bn_t *a);
 
 static bn_t *bn_zero_unsigned(void) { return bn_new(1); }
+
+static bn_t *bn_low_bits_unsigned(const bn_t *a, uint32_t bits) {
+  bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot((bn_t **)&a);
+  if (bits == 0) {
+    return bn_zero_unsigned();
+  }
+
+  uint32_t bit_len = bn_bit_length_unsigned(a);
+  if (bits >= bit_len) {
+    return bn_clone_unsigned(a);
+  }
+
+  uint32_t words = bits / 64u;
+  uint32_t off = bits % 64u;
+  uint32_t new_used = words + (off != 0);
+  if (new_used == 0) {
+    return bn_zero_unsigned();
+  }
+
+  bn_t *res = bn_new(new_used);
+  res->used = new_used;
+  if (words != 0) {
+    memcpy(res->limb, a->limb, (size_t)words * sizeof(uint64_t));
+  }
+  if (off != 0) {
+    res->limb[words] = a->limb[words] & ((UINT64_C(1) << off) - 1);
+  }
+  bn_normalize(res);
+  return res;
+}
 
 static uint32_t bn_word_length_unsigned(const bn_t *a) {
   uint32_t used = a->used;
@@ -626,6 +659,127 @@ static uint32_t limbs_divmod_small(uint64_t *limb, uint32_t *used,
   return (uint32_t)rem;
 }
 
+static bn_sqrt_result_t bn_sqrt_u64(uint64_t n) {
+  bn_sqrt_result_t out = {.q = nullptr, .r = nullptr};
+  uint64_t q = (uint64_t)sqrt((double)n);
+  while ((__uint128_t)(q + 1) * (__uint128_t)(q + 1) <= n) {
+    q++;
+  }
+  while ((__uint128_t)q * (__uint128_t)q > n) {
+    q--;
+  }
+
+  bn_t *q_bn = bn_from_i64((int64_t)q);
+  bn_root_guard_t rg_q __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&q_bn);
+  bn_t *r_bn = bn_from_i64((int64_t)(n - ((__uint128_t)q * (__uint128_t)q)));
+  out.q = q_bn;
+  out.r = r_bn;
+  return out;
+}
+
+static bn_sqrt_result_t bn_sqrt_unsigned(const bn_t *a) {
+  bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot((bn_t **)&a);
+  bn_sqrt_result_t out = {.q = nullptr, .r = nullptr};
+
+  if (bn_is_zero(a)) {
+    bn_t *q = bn_new(1);
+    bn_root_guard_t rg_q __attribute__((cleanup(bn_root_guard_cleanup))) =
+        bn_root_slot(&q);
+    bn_t *r = bn_new(1);
+    out.q = q;
+    out.r = r;
+    return out;
+  }
+
+  if (bn_bit_length_unsigned(a) <= 64u) {
+    return bn_sqrt_u64(a->limb[0]);
+  }
+
+  uint32_t b = (bn_bit_length_unsigned(a) + 1u) / 4u;
+
+  bn_t *hi = bn_shr_bits_unsigned(a, b + b);
+  bn_root_guard_t rg_hi __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&hi);
+  bn_sqrt_result_t hi_qr = bn_sqrt_unsigned(hi);
+  bn_t *s0 = hi_qr.q;
+  bn_root_guard_t rg_s0 __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&s0);
+  bn_t *r0 = hi_qr.r;
+  bn_root_guard_t rg_r0 __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&r0);
+
+  bn_t *r0_shift = bn_shl_bits_unsigned(r0, b);
+  bn_root_guard_t rg_r0_shift __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&r0_shift);
+  bn_t *mid = bn_shr_bits_unsigned(a, b);
+  bn_root_guard_t rg_mid __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&mid);
+  bn_t *mid_bits = bn_low_bits_unsigned(mid, b);
+  bn_root_guard_t rg_mid_bits __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&mid_bits);
+  bn_t *num = bn_add_unsigned(r0_shift, mid_bits);
+  bn_root_guard_t rg_num __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&num);
+  bn_t *den = bn_shl_bits_unsigned(s0, 1);
+  bn_root_guard_t rg_den __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&den);
+
+  bn_divmod_result_t qu = bn_divmod_knuth_unsigned(num, den);
+  bn_t *q = qu.q;
+  bn_root_guard_t rg_q __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&q);
+  bn_t *u = qu.r;
+  bn_root_guard_t rg_u __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&u);
+
+  bn_t *s0_shift = bn_shl_bits_unsigned(s0, b);
+  bn_root_guard_t rg_s0_shift __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&s0_shift);
+  bn_t *s = bn_add_unsigned(s0_shift, q);
+  bn_root_guard_t rg_s __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&s);
+  bn_t *u_shift = bn_shl_bits_unsigned(u, b);
+  bn_root_guard_t rg_u_shift __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&u_shift);
+  bn_t *lo = bn_low_bits_unsigned(a, b);
+  bn_root_guard_t rg_lo __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&lo);
+  bn_t *lhs = bn_add_unsigned(u_shift, lo);
+  bn_root_guard_t rg_lhs __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&lhs);
+  bn_t *qq = bn_mul_unsigned(q, q);
+  bn_root_guard_t rg_qq __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&qq);
+  bn_t *r = bn_sub(lhs, qq);
+  bn_root_guard_t rg_r __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&r);
+
+  if (!bn_is_negative(r)) {
+    out.q = s;
+    out.r = r;
+    return out;
+  }
+
+  bn_t *one = bn_from_i64(1);
+  bn_root_guard_t rg_one __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&one);
+  bn_t *q_adj = bn_sub_unsigned(s, one);
+  bn_root_guard_t rg_q_adj __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&q_adj);
+  bn_t *twice_s = bn_shl_bits_unsigned(s, 1);
+  bn_root_guard_t rg_twice_s __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&twice_s);
+  bn_t *corr = bn_sub_unsigned(twice_s, one);
+  bn_root_guard_t rg_corr __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot(&corr);
+  bn_t *r_adj = bn_add(r, corr);
+  out.q = q_adj;
+  out.r = r_adj;
+  return out;
+}
+
 bn_t *bn_add(const bn_t *a, const bn_t *b) {
   bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
       bn_root_slot((bn_t **)&a);
@@ -834,4 +988,12 @@ char *bn_to_string(const bn_t *a, uint32_t radix) {
 bn_divmod_result_t bn_divmod(const bn_t *a, const bn_t *b) {
   bn_divmod_result_t tmp = bn_divmod_impl(a, b);
   return tmp;
+}
+
+bn_sqrt_result_t bn_sqrt(const bn_t *a) {
+  bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
+      bn_root_slot((bn_t **)&a);
+  assert(a != nullptr);
+  assert(!bn_is_negative(a));
+  return bn_sqrt_unsigned(a);
 }

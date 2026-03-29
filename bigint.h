@@ -51,7 +51,13 @@ typedef struct bn_divmod_result {
   bn_t *r;
 } bn_divmod_result_t;
 
+typedef struct bn_sqrt_result {
+  bn_t *q;
+  bn_t *r;
+} bn_sqrt_result_t;
+
 bn_divmod_result_t bn_divmod(const bn_t *a, const bn_t *b);
+bn_sqrt_result_t bn_sqrt(const bn_t *a);
 uint32_t bn_bit_length(const bn_t *a);
 bn_t *bn_shr_bits(const bn_t *a, uint32_t bits);
 bn_t *bn_shl_bits(const bn_t *a, uint32_t bits);
