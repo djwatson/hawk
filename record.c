@@ -171,37 +171,88 @@ static slot add_const(vm_state *state, gc_obj value) {
                              __VA_ARGS__})                                     \
   IR_PRAGMA_RESTORE
 
+static uint8_t vm_runtime_binary_result_type(ir_ins_op op, gc_obj v1,
+                                             gc_obj v2) {
+  gc_obj res;
+  switch (op) {
+  case IR_VMADD:
+    res = vm_runtime_math_add_slow(v1, v2);
+    break;
+  case IR_VMSUB:
+    res = vm_runtime_math_sub_slow(v1, v2);
+    break;
+  case IR_VMMUL:
+    res = vm_runtime_math_mul_slow(v1, v2);
+    break;
+  case IR_VMDIV:
+    res = vm_runtime_math_div_slow(v1, v2);
+    break;
+  case IR_VMQUOTIENT:
+    res = vm_runtime_math_quotient_slow(v1, v2);
+    break;
+  case IR_VMMOD:
+    res = vm_runtime_math_mod_slow(v1, v2);
+    break;
+  default:
+    abort();
+  }
+  return get_type_tag(res);
+}
+
+static uint8_t vm_runtime_unary_result_type(ir_ins_op op, gc_obj v) {
+  gc_obj res;
+  switch (op) {
+  case IR_VMINEXACT:
+    res = numeric_inexact_value(v);
+    break;
+  case IR_VMEXACT:
+    res = numeric_exact_value(v);
+    break;
+  case IR_VMTRUNCATE:
+    res = numeric_truncate_value(v);
+    break;
+  default:
+    abort();
+  }
+  return get_type_tag(res);
+}
+
 #define DEFINE_RECORD_NUMERIC_BINOP_COERCED(name, ir_fast_op, ir_vm_op)       \
-  static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2) {        \
+  static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2,           \
+                                  gc_obj raw_v1, gc_obj raw_v2) {              \
     auto t = record_current_trace(state);                                      \
-    if (slot_numeric_needs_vm(t, v1) || slot_numeric_needs_vm(t, v2)) {       \
-      return add_inst(state,                                                    \
-                      IR(.op = ir_vm_op, .op1 = v1, .op2 = v2,                 \
-                         .type = UNDEFINED_TAG));                              \
+    uint8_t result_type = vm_runtime_binary_result_type(ir_vm_op, raw_v1, raw_v2); \
+    if (slot_numeric_needs_vm(t, v1) || slot_numeric_needs_vm(t, v2) ||       \
+        (result_type != FIXNUM_TAG && result_type != FLONUM_TAG)) {           \
+      return add_inst(                                                          \
+          state,                                                                \
+          IR(.op = ir_vm_op, .op1 = v1, .op2 = v2, .guard = true,              \
+             .type = result_type));                                             \
     }                                                                          \
-    uint8_t type =                                                             \
-        numeric_result_type(get_slot_type(t, v1), get_slot_type(t, v2));      \
-    if (type == FLONUM_TAG) {                                                  \
+    if (result_type == FLONUM_TAG) {                                           \
       v1 = convert_to_flonum(state, v1);                                       \
       v2 = convert_to_flonum(state, v2);                                       \
     }                                                                          \
-    return add_inst(state,                                                     \
-                    IR(.op = ir_fast_op, .op1 = v1, .op2 = v2, .type = type)); \
+    return add_inst(state, IR(.op = ir_fast_op, .op1 = v1, .op2 = v2,          \
+                              .type = result_type));                           \
   }
 
 #define DEFINE_RECORD_NUMERIC_BINOP_FORCE_FLONUM(name, ir_fast_op, ir_vm_op)  \
-  static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2) {        \
+  static slot emit_ov_math_##name(vm_state *state, slot v1, slot v2,           \
+                                  gc_obj raw_v1, gc_obj raw_v2) {              \
     auto t = record_current_trace(state);                                      \
-    if (slot_numeric_needs_vm(t, v1) || slot_numeric_needs_vm(t, v2)) {       \
-      return add_inst(state,                                                    \
-                      IR(.op = ir_vm_op, .op1 = v1, .op2 = v2,                 \
-                         .type = UNDEFINED_TAG));                              \
+    uint8_t result_type = vm_runtime_binary_result_type(ir_vm_op, raw_v1, raw_v2); \
+    if (slot_numeric_needs_vm(t, v1) || slot_numeric_needs_vm(t, v2) ||       \
+        result_type != FLONUM_TAG) {                                           \
+      return add_inst(                                                          \
+          state,                                                                \
+          IR(.op = ir_vm_op, .op1 = v1, .op2 = v2, .guard = true,              \
+             .type = result_type));                                             \
     }                                                                          \
     v1 = convert_to_flonum(state, v1);                                         \
     v2 = convert_to_flonum(state, v2);                                         \
-    return add_inst(state,                                                     \
-                    IR(.op = ir_fast_op, .op1 = v1, .op2 = v2,                 \
-                       .type = FLONUM_TAG));                                   \
+    return add_inst(state, IR(.op = ir_fast_op, .op1 = v1, .op2 = v2,          \
+                              .type = result_type));                           \
   }
 
 #define RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs)                            \
@@ -385,7 +436,7 @@ static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   return add_const(state, c);
 }
 static slot convert_to_flonum(vm_state *state, slot v1);
-static slot convert_to_fixnum(vm_state *state, slot v1);
+static slot convert_to_fixnum(vm_state *state, slot v1, gc_obj raw_v1);
 DEFINE_RECORD_NUMERIC_BINOP_COERCED(add, IR_ADD, IR_VMADD)
 static slot convert_to_flonum(vm_state *state, slot v1) {
   auto t = record_current_trace(state);
@@ -400,10 +451,10 @@ static slot convert_to_flonum(vm_state *state, slot v1) {
     ir_ins ins = IR(.op = IR_INEXACT, .op1 = v1, .type = FLONUM_TAG);
     return add_inst(state, ins);
   }
-  return add_inst(state,
-                  IR(.op = IR_VMINEXACT, .op1 = v1, .type = UNDEFINED_TAG));
+  return add_inst(
+      state, IR(.op = IR_VMINEXACT, .op1 = v1, .guard = true, .type = FLONUM_TAG));
 }
-static slot convert_to_fixnum(vm_state *state, slot v1) {
+static slot convert_to_fixnum(vm_state *state, slot v1, gc_obj raw_v1) {
   auto t = record_current_trace(state);
   auto t1 = get_slot_type(t, v1);
   if (t1 == FIXNUM_TAG) {
@@ -416,9 +467,11 @@ static slot convert_to_fixnum(vm_state *state, slot v1) {
     ir_ins ins = IR(.op = IR_EXACT, .op1 = v1, .type = FIXNUM_TAG);
     return add_inst(state, ins);
   }
-  return add_inst(state, IR(.op = IR_VMEXACT, .op1 = v1, .type = UNDEFINED_TAG));
+  return add_inst(state,
+                  IR(.op = IR_VMEXACT, .op1 = v1, .guard = true,
+                     .type = vm_runtime_unary_result_type(IR_VMEXACT, raw_v1)));
 }
-static slot scm_truncate(vm_state *state, slot v1) {
+static slot scm_truncate(vm_state *state, slot v1, gc_obj raw_v1) {
   auto t = record_current_trace(state);
   auto t1 = get_slot_type(t, v1);
   if (t1 == FIXNUM_TAG) {
@@ -431,8 +484,9 @@ static slot scm_truncate(vm_state *state, slot v1) {
     ir_ins ins = IR(.op = IR_TRUNCATE, .op1 = v1, .type = FLONUM_TAG);
     return add_inst(state, ins);
   }
-  return add_inst(state,
-                  IR(.op = IR_VMTRUNCATE, .op1 = v1, .type = UNDEFINED_TAG));
+  return add_inst(
+      state, IR(.op = IR_VMTRUNCATE, .op1 = v1, .guard = true,
+                .type = vm_runtime_unary_result_type(IR_VMTRUNCATE, raw_v1)));
 }
 DEFINE_RECORD_NUMERIC_BINOP_COERCED(sub, IR_SUB, IR_VMSUB)
 DEFINE_RECORD_NUMERIC_BINOP_COERCED(mul, IR_MUL, IR_VMMUL)
@@ -877,7 +931,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_##OP_CODE: {                                                         \
     auto v1 = stack_load(state, stack, instr.v1, true);                        \
     auto v2 = stack_load(state, stack, instr.v2, true);                        \
-    auto res = EMIT_FN(state, v1, v2);                                         \
+    auto res = EMIT_FN(state, v1, v2, stack[instr.v1], stack[instr.v2]);       \
     set_stack_top(state, instr.reg + 1);                                       \
     stack_save(state, stack, instr.reg, res);                                  \
     break;                                                                     \
@@ -899,14 +953,14 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_EXACT: {
     auto v1 = stack_load(state, stack, instr.data, true);
-    auto res = convert_to_fixnum(state, v1);
+    auto res = convert_to_fixnum(state, v1, stack[instr.data]);
     set_stack_top(state, instr.reg + 1);
     stack_save(state, stack, instr.reg, res);
     break;
   }
   case OP_TRUNCATE: {
     auto v1 = stack_load(state, stack, instr.data, true);
-    auto res = scm_truncate(state, v1);
+    auto res = scm_truncate(state, v1, stack[instr.data]);
     set_stack_top(state, instr.reg + 1);
     stack_save(state, stack, instr.reg, res);
     break;

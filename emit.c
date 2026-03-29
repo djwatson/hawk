@@ -693,11 +693,18 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
     emit_pop_regs(s, save_regs, save_count, true);
     emit_jcc32(s, vm_call_expects_false(op->op) ? JNE : JE,
                &t->snaps[cur_snap].patch_point);
-  } else if (dst_reg != RET_REG && dst_reg != REG_NONE) {
-    emit_mov(s, dst_reg, RET_REG);
-    emit_pop_regs(s, save_regs, save_count, true);
   } else {
+    uint8_t out_reg = RET_REG;
+    if (dst_reg != RET_REG && dst_reg != REG_NONE) {
+      emit_mov(s, dst_reg, RET_REG);
+      out_reg = dst_reg;
+    } else if (dst_reg != REG_NONE) {
+      out_reg = dst_reg;
+    }
     emit_pop_regs(s, save_regs, save_count, true);
+    if (cur_snap >= 0) {
+      emit_typecheck(s, t, op, cur_snap, out_reg);
+    }
   }
   invalidate_live_regs_for_call(t, ra_state, dst_reg);
 }
