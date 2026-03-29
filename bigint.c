@@ -28,9 +28,7 @@ static bn_root_guard_t bn_root_slot(bn_t **slot) {
   return g;
 }
 
-static void bn_root_guard_cleanup(bn_root_guard_t *g) {
-  BN_UNROOT(g->slot);
-}
+static void bn_root_guard_cleanup(bn_root_guard_t *g) { BN_UNROOT(g->slot); }
 
 static bn_t *bn_new(uint32_t alloc) {
   assert(alloc >= 1);

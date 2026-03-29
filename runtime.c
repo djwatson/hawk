@@ -16,12 +16,20 @@ static bool fits_fixnum_i64(int64_t value) {
   return value >= FIXNUM_MIN_VALUE && value <= FIXNUM_MAX_VALUE;
 }
 
+static bool can_tag_fixnum_i64(int64_t value) {
+  if (!fits_fixnum_i64(value)) {
+    return false;
+  }
+  gc_obj tagged = tag_fixnum(value);
+  return is_fixnum(tagged) && to_fixnum(tagged) == value;
+}
+
 static gc_obj normalize_exact_integer(gc_obj value) {
   if (!is_bignum(value)) {
     return value;
   }
   bn_i64_result_t i64 = bn_to_i64(to_bignum(value));
-  if (i64.ok && fits_fixnum_i64(i64.value)) {
+  if (i64.ok && can_tag_fixnum_i64(i64.value)) {
     return tag_fixnum(i64.value);
   }
   return value;
@@ -75,7 +83,8 @@ EXPORT gc_obj bignum_exact_integer_sqrt(gc_obj g) {
     gc_add_root((const void *)&b1, 1, 0);                                      \
     gc_obj b2 = numeric_to_bignum_obj(v2);                                     \
     gc_add_root((const void *)&b2, 1, 0);                                      \
-    gc_obj res = tag_bignum(bn_##oplcname(to_bignum(b1), to_bignum(b2)));      \
+    gc_obj res = normalize_exact_integer(                                       \
+        tag_bignum(bn_##oplcname(to_bignum(b1), to_bignum(b2))));              \
     gc_remove_root((const void *)&b2, 0);                                      \
     gc_remove_root((const void *)&b1, 0);                                      \
     gc_remove_root((const void *)&v2, 0);                                      \
@@ -115,7 +124,7 @@ gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
     gc_obj b2 = numeric_to_bignum_obj(v2);                                     \
     gc_add_root((const void *)&b2, 1, 0);                                      \
     bn_divmod_result_t qr = bn_divmod(to_bignum(b1), to_bignum(b2));           \
-    gc_obj res = tag_bignum(qr.field);                                         \
+    gc_obj res = normalize_exact_integer(tag_bignum(qr.field));                \
     gc_remove_root((const void *)&b2, 0);                                      \
     gc_remove_root((const void *)&b1, 0);                                      \
     gc_remove_root((const void *)&v2, 0);                                      \

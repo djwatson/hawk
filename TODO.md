@@ -1,7 +1,9 @@
 # Currently working on:
 
-## tests:
+* cleanup new recording infra
+* need to normalize after *all* bignum ops - possibly convert back to fixnum.
 
+## tests:
 
 
 * simplex is slower??? bad tracing - need multi-ops to be binops
