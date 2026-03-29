@@ -48,6 +48,7 @@
   (let ((z (remainder x y)))
     (if (negative? y) (if (positive? z) (+ z y) z) (if (negative? z) (+ z y) z))))
 (define (remainder a b) (sys:MOD a b))
+(define (square x) (* x x))
 (define +
   (case-lambda
     (() 0)
@@ -554,6 +555,19 @@
     (vals (list->vector vals))))
 
 ;; math
+(define (exact-integer-sqrt s)
+  (unless (and (exact? s)
+	       (positive? s))
+    (error "not exact" s))
+  (if (<= s 1)
+      (values s s)
+      (let* ((x0 (quotient s 2))
+	     (x1 (quotient (+ x0 (quotient s x0)) 2)))
+	(let loop ((x0 x0) (x1 x1))
+	  (if (< x1 x0)
+	      (loop x1 (quotient (+ x1 (quotient s x1)) 2))
+	      (values x0 (- s (* x0 x0))))))))
+
 (define (expt num exp)
   (if (> exp 0)
       (let loop ((n 1) (cnt exp)) (if (= cnt 0) n (loop (* num n) (- cnt 1))))

@@ -792,7 +792,7 @@
     (read-forms-from-string "(import (only (scheme process-context) exit))(exit 0)"))
   (define (form-sexp form) (if (annotation? form) (annotation-sexp form) form))
   (define (import-form? form)
-    (let ((sexp (form-sexp form))) (and (pair? sexp) (eq? (car sexp) 'import))))
+    (let ((sexp (form-sexp form))) (and (pair? sexp) (eq? (form-sexp (car sexp)) 'import))))
   (define (ensure-leading-import forms)
     (if (and (pair? forms) (import-form? (car forms)))
         forms
