@@ -5,7 +5,6 @@
 
 ## tests:
 
-
 * simplex is slower??? bad tracing - need multi-ops to be binops
 
 * ugh need to put back faster VM - things like browse too slow.
@@ -15,15 +14,13 @@
 
 ## broken bench2:
 
-* mbrotZ: imaginary - THE LAST ONE
-* pi, chudnovsky- we can't read const bignums, so changed to string->number call
+* mbrozZ, pi, chudnovsky- we can't read const bignums, so changed to string->number call
 
 ## JIT impl
 
 * get APPLY recording
 * gc_obj boxing recording?
 * record call/cc?
-* fixup GC rooting for slowpaths for bignums.
 
 * lots of ccall cleanup - regalloc, live register save/restore, etc
 

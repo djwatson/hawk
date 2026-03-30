@@ -775,10 +775,6 @@ static bn_sqrt_result_t bn_sqrt_unsigned(const bn_t *a) {
 }
 
 bn_t *bn_add(const bn_t *a, const bn_t *b) {
-  bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&a);
-  bn_root_guard_t rg_b __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&b);
   assert(a != nullptr);
   assert(b != nullptr);
 
@@ -813,10 +809,6 @@ bn_t *bn_add(const bn_t *a, const bn_t *b) {
 }
 
 bn_t *bn_sub(const bn_t *a, const bn_t *b) {
-  bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&a);
-  bn_root_guard_t rg_b __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&b);
   assert(a != nullptr);
   assert(b != nullptr);
 
@@ -851,10 +843,6 @@ bn_t *bn_sub(const bn_t *a, const bn_t *b) {
 }
 
 bn_t *bn_mul(const bn_t *a, const bn_t *b) {
-  bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&a);
-  bn_root_guard_t rg_b __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&b);
   assert(a != nullptr);
   assert(b != nullptr);
 
@@ -866,29 +854,23 @@ bn_t *bn_mul(const bn_t *a, const bn_t *b) {
 }
 
 static bn_divmod_result_t bn_divmod_impl(const bn_t *a, const bn_t *b) {
-  bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&a);
-  bn_root_guard_t rg_b __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&b);
   assert(a != nullptr);
   assert(b != nullptr);
   assert(!bn_is_zero(b));
 
+  bool q_neg = bn_is_negative(a) ^ bn_is_negative(b);
+  bool r_neg = bn_is_negative(a);
   bn_divmod_result_t out = bn_divmod_knuth_unsigned(a, b);
-  if ((bn_is_negative(a) ^ bn_is_negative(b)) && !bn_is_zero(out.q)) {
+  if (q_neg && !bn_is_zero(out.q)) {
     out.q->negative = true;
   }
-  if (bn_is_negative(a) && !bn_is_zero(out.r)) {
+  if (r_neg && !bn_is_zero(out.r)) {
     out.r->negative = true;
   }
   return out;
 }
 
 bn_t *bn_div(const bn_t *a, const bn_t *b) {
-  bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&a);
-  bn_root_guard_t rg_b __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&b);
   assert(a != nullptr);
   assert(b != nullptr);
   assert(!bn_is_zero(b));
@@ -904,22 +886,20 @@ uint32_t bn_bit_length(const bn_t *a) {
 }
 
 bn_t *bn_shr_bits(const bn_t *a, uint32_t bits) {
-  bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&a);
   assert(a != nullptr);
+  bool neg = bn_is_negative(a);
   bn_t *res = bn_shr_bits_unsigned(a, bits);
-  if (bn_is_negative(a) && !bn_is_zero(res)) {
+  if (neg && !bn_is_zero(res)) {
     res->negative = true;
   }
   return res;
 }
 
 bn_t *bn_shl_bits(const bn_t *a, uint32_t bits) {
-  bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&a);
   assert(a != nullptr);
+  bool neg = bn_is_negative(a);
   bn_t *res = bn_shl_bits_unsigned(a, bits);
-  if (bn_is_negative(a) && !bn_is_zero(res)) {
+  if (neg && !bn_is_zero(res)) {
     res->negative = true;
   }
   return res;
@@ -985,8 +965,6 @@ bn_divmod_result_t bn_divmod(const bn_t *a, const bn_t *b) {
 }
 
 bn_sqrt_result_t bn_sqrt(const bn_t *a) {
-  bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&a);
   assert(a != nullptr);
   assert(!bn_is_negative(a));
   return bn_sqrt_unsigned(a);
