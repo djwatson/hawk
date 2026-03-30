@@ -1,7 +1,5 @@
 # Currently working on:
 
-* cleanup new recording infra
-
 
 ## tests:
 
@@ -24,6 +22,7 @@
 
 * lots of ccall cleanup - regalloc, live register save/restore, etc
 
+* cleanup new recording infra
 * cleanup tmp /tmp2 reg shit.  it's getting sloppy
 
 * figure out why deriv is slow
