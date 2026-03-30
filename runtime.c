@@ -245,6 +245,10 @@ static int ratnum_cmp(ratnum_s a, ratnum_s b) {
   return cmp;
 }
 
+static gc_obj normalize_compnum(gc_obj real, gc_obj imag) {
+  return numeric_is_zero(imag) ? real : SCM_MAKE_RECTANGULAR(real, imag);
+}
+
 static gc_obj compnum_add(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&a, 1, 0);
   gc_add_root((const void *)&b, 1, 0);
@@ -258,7 +262,7 @@ static gc_obj compnum_add(gc_obj a, gc_obj b) {
   gc_obj imag =
       vm_runtime_math_add_slow(to_compnum(ca_obj)->imag, to_compnum(cb_obj)->imag);
   gc_add_root((const void *)&imag, 1, 0);
-  gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
+  gc_obj out = normalize_compnum(real, imag);
   gc_remove_root((const void *)&imag, 0);
   gc_remove_root((const void *)&real, 0);
   gc_remove_root((const void *)&cb_obj, 0);
@@ -281,7 +285,7 @@ static gc_obj compnum_sub(gc_obj a, gc_obj b) {
   gc_obj imag =
       vm_runtime_math_sub_slow(to_compnum(ca_obj)->imag, to_compnum(cb_obj)->imag);
   gc_add_root((const void *)&imag, 1, 0);
-  gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
+  gc_obj out = normalize_compnum(real, imag);
   gc_remove_root((const void *)&imag, 0);
   gc_remove_root((const void *)&real, 0);
   gc_remove_root((const void *)&cb_obj, 0);
@@ -314,13 +318,99 @@ static gc_obj compnum_mul(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&real, 1, 0);
   gc_obj imag = vm_runtime_math_add_slow(ad, bc);
   gc_add_root((const void *)&imag, 1, 0);
-  gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
+  gc_obj out = normalize_compnum(real, imag);
   gc_remove_root((const void *)&imag, 0);
   gc_remove_root((const void *)&real, 0);
   gc_remove_root((const void *)&bc, 0);
   gc_remove_root((const void *)&ad, 0);
   gc_remove_root((const void *)&bd, 0);
   gc_remove_root((const void *)&ac, 0);
+  gc_remove_root((const void *)&cb_obj, 0);
+  gc_remove_root((const void *)&ca_obj, 0);
+  gc_remove_root((const void *)&b, 0);
+  gc_remove_root((const void *)&a, 0);
+  return out;
+}
+
+static gc_obj compnum_div(gc_obj a, gc_obj b) {
+  gc_add_root((const void *)&a, 1, 0);
+  gc_add_root((const void *)&b, 1, 0);
+  gc_obj ca_obj = get_compnum(a);
+  gc_add_root((const void *)&ca_obj, 1, 0);
+  gc_obj cb_obj = get_compnum(b);
+  gc_add_root((const void *)&cb_obj, 1, 0);
+  gc_obj cb_imag = to_compnum(cb_obj)->imag;
+  gc_add_root((const void *)&cb_imag, 1, 0);
+
+  if (numeric_is_zero(cb_imag)) {
+    gc_obj cb_real = to_compnum(cb_obj)->real;
+    gc_add_root((const void *)&cb_real, 1, 0);
+    if (numeric_is_zero(cb_real)) {
+      abort();
+    }
+    gc_obj real = vm_runtime_math_div_slow(to_compnum(ca_obj)->real, cb_real);
+    gc_add_root((const void *)&real, 1, 0);
+    gc_obj imag = vm_runtime_math_div_slow(to_compnum(ca_obj)->imag, cb_real);
+    gc_add_root((const void *)&imag, 1, 0);
+    gc_obj out = normalize_compnum(real, imag);
+    gc_remove_root((const void *)&imag, 0);
+    gc_remove_root((const void *)&real, 0);
+    gc_remove_root((const void *)&cb_real, 0);
+    gc_remove_root((const void *)&cb_imag, 0);
+    gc_remove_root((const void *)&cb_obj, 0);
+    gc_remove_root((const void *)&ca_obj, 0);
+    gc_remove_root((const void *)&b, 0);
+    gc_remove_root((const void *)&a, 0);
+    return out;
+  }
+
+  gc_obj ac =
+      vm_runtime_math_mul_slow(to_compnum(ca_obj)->real, to_compnum(cb_obj)->real);
+  gc_add_root((const void *)&ac, 1, 0);
+  gc_obj bd =
+      vm_runtime_math_mul_slow(to_compnum(ca_obj)->imag, to_compnum(cb_obj)->imag);
+  gc_add_root((const void *)&bd, 1, 0);
+  gc_obj bc =
+      vm_runtime_math_mul_slow(to_compnum(ca_obj)->imag, to_compnum(cb_obj)->real);
+  gc_add_root((const void *)&bc, 1, 0);
+  gc_obj ad =
+      vm_runtime_math_mul_slow(to_compnum(ca_obj)->real, to_compnum(cb_obj)->imag);
+  gc_add_root((const void *)&ad, 1, 0);
+  gc_obj c2 = vm_runtime_math_mul_slow(to_compnum(cb_obj)->real,
+                                       to_compnum(cb_obj)->real);
+  gc_add_root((const void *)&c2, 1, 0);
+  gc_obj d2 = vm_runtime_math_mul_slow(to_compnum(cb_obj)->imag,
+                                       to_compnum(cb_obj)->imag);
+  gc_add_root((const void *)&d2, 1, 0);
+
+  gc_obj denom = vm_runtime_math_add_slow(c2, d2);
+  gc_add_root((const void *)&denom, 1, 0);
+  if (numeric_is_zero(denom)) {
+    abort();
+  }
+
+  gc_obj real_num = vm_runtime_math_add_slow(ac, bd);
+  gc_add_root((const void *)&real_num, 1, 0);
+  gc_obj imag_num = vm_runtime_math_sub_slow(bc, ad);
+  gc_add_root((const void *)&imag_num, 1, 0);
+  gc_obj real = vm_runtime_math_div_slow(real_num, denom);
+  gc_add_root((const void *)&real, 1, 0);
+  gc_obj imag = vm_runtime_math_div_slow(imag_num, denom);
+  gc_add_root((const void *)&imag, 1, 0);
+  gc_obj out = normalize_compnum(real, imag);
+
+  gc_remove_root((const void *)&imag, 0);
+  gc_remove_root((const void *)&real, 0);
+  gc_remove_root((const void *)&imag_num, 0);
+  gc_remove_root((const void *)&real_num, 0);
+  gc_remove_root((const void *)&denom, 0);
+  gc_remove_root((const void *)&d2, 0);
+  gc_remove_root((const void *)&c2, 0);
+  gc_remove_root((const void *)&ad, 0);
+  gc_remove_root((const void *)&bc, 0);
+  gc_remove_root((const void *)&bd, 0);
+  gc_remove_root((const void *)&ac, 0);
+  gc_remove_root((const void *)&cb_imag, 0);
   gc_remove_root((const void *)&cb_obj, 0);
   gc_remove_root((const void *)&ca_obj, 0);
   gc_remove_root((const void *)&b, 0);
@@ -389,7 +479,7 @@ DEFINE_VM_RUNTIME_OVERFLOW_SLOW(mul, mul, VM_MATH_MUL, VM_MATH_SHIFT)
 
 gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
   if (is_compnum(v1) || is_compnum(v2)) {
-    abort();
+    return compnum_div(v1, v2);
   }
   if (numeric_is_zero(v2)) {
     abort();
