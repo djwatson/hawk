@@ -373,8 +373,10 @@ gc_obj *expand_stack(vm_state *state, gc_obj *stack) {
   // TODO: this should really be a stack *cache*
   size_t oldsz = (size_t)(state->stack_top - state->stack_bottom);
   size_t newsz = oldsz + (oldsz / 3);
+  size_t grow = newsz - oldsz;
   if (newsz <= oldsz) {
     newsz = oldsz + 1;
+    grow = 1;
   }
   gc_obj *old_bottom = state->stack_bottom;
   auto offset = stack - state->stack_bottom;
@@ -387,8 +389,7 @@ gc_obj *expand_stack(vm_state *state, gc_obj *stack) {
     fprintf(stderr, "Failed to realloc stack\n");
     abort();
   }
-  // Since we're a conservative GC, no need to zero.
-  /* memset(&newstack[oldsz], 0, grow * sizeof(gc_obj)); */
+  memset(&newstack[oldsz], 0, grow * sizeof(gc_obj));
   state->stack_bottom = newstack;
   state->stack_top = newstack + newsz;
   state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
