@@ -95,9 +95,7 @@ static inline int numeric_exact_compare(gc_obj v1, gc_obj v2) {
   gc_obj b1 = numeric_to_bignum_obj(v1);
   gc_add_root((const void *)&b1, 1, 0);
   gc_obj b2 = numeric_to_bignum_obj(v2);
-  gc_add_root((const void *)&b2, 1, 0);
   int cmp = bn_cmp(to_bignum(b1), to_bignum(b2));
-  gc_remove_root((const void *)&b2, 0);
   gc_remove_root((const void *)&b1, 0);
   gc_remove_root((const void *)&v2, 0);
   return cmp;
