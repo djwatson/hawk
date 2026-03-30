@@ -1764,10 +1764,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       // exit(-1);
     }
     }
-    /* if (t->num == 7 && op_cnt_idx == 26) { */
-    /*   COMMENT("DEBUG JUMP"); */
-    /*   emit_jmp32(s, &t->snaps[cur_snap].patch_point); */
-    /* } */
+
     if (op->spill != SPILL_NONE && (op->op != IR_PMOV || op->reg != REG_NONE)) {
       assert(out_reg != REG_NONE);
       COMMENT("SPILL op %u to S%u", op_cnt_idx, op->spill);

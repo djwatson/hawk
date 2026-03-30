@@ -245,33 +245,6 @@ static int ratnum_cmp(ratnum_s a, ratnum_s b) {
   return cmp;
 }
 
-EXPORT gc_obj SCM_MAKE_RECTANGULAR(gc_obj real, gc_obj imag) {
-  gc_add_root((const void *)&real, 1, 0);
-  gc_add_root((const void *)&imag, 1, 0);
-  compnum_s *c = gc_alloc(sizeof(compnum_s));
-  c->header.type = COMPNUM_TAG;
-  c->real = real;
-  c->imag = imag;
-  gc_remove_root((const void *)&imag, 0);
-  gc_remove_root((const void *)&real, 0);
-  return tag_header(c, PTR_TAG);
-}
-
-static gc_obj get_compnum(gc_obj v) {
-  if (is_compnum(v)) {
-    return v;
-  }
-  return SCM_MAKE_RECTANGULAR(v, tag_fixnum(0));
-}
-
-EXPORT gc_obj SCM_REAL_PART(gc_obj comp) {
-  return to_compnum(get_compnum(comp))->real;
-}
-
-EXPORT gc_obj SCM_IMAG_PART(gc_obj comp) {
-  return to_compnum(get_compnum(comp))->imag;
-}
-
 static gc_obj compnum_add(gc_obj a, gc_obj b) {
   gc_obj ca_obj = get_compnum(a);
   gc_add_root((const void *)&ca_obj, 1, 0);
@@ -356,14 +329,14 @@ EXPORT gc_obj bignum_exact_integer_sqrt(gc_obj g) {
                    normalize_exact_integer(tag_bignum(qr.r)));
 }
 
-#define DEFINE_VM_RUNTIME_OVERFLOW_SLOW(name, oplcname, op, shift)            \
-  gc_obj vm_runtime_math_##name##_slow(gc_obj v1, gc_obj v2) {                \
+#define DEFINE_VM_RUNTIME_OVERFLOW_SLOW(name, oplcname, op, shift)             \
+  gc_obj vm_runtime_math_##name##_slow(gc_obj v1, gc_obj v2) {                 \
     if (is_compnum(v1) || is_compnum(v2)) {                                    \
       return compnum_##oplcname(v1, v2);                                       \
     }                                                                          \
     if (is_flonum(v1) || is_flonum(v2)) {                                      \
-      return root2_box_flonum(&v1, &v2,                                        \
-                              op(numeric_to_double(v1), numeric_to_double(v2))); \
+      return root2_box_flonum(                                                 \
+          &v1, &v2, op(numeric_to_double(v1), numeric_to_double(v2)));         \
     }                                                                          \
     if (is_ratnum(v1) || is_ratnum(v2)) {                                      \
       ratnum_s r1 = get_ratnum(v1);                                            \
@@ -383,7 +356,7 @@ EXPORT gc_obj bignum_exact_integer_sqrt(gc_obj g) {
     gc_add_root((const void *)&b1, 1, 0);                                      \
     gc_obj b2 = numeric_to_bignum_obj(v2);                                     \
     gc_add_root((const void *)&b2, 1, 0);                                      \
-    gc_obj res = normalize_exact_integer(                                       \
+    gc_obj res = normalize_exact_integer(                                      \
         tag_bignum(bn_##oplcname(to_bignum(b1), to_bignum(b2))));              \
     gc_remove_root((const void *)&b2, 0);                                      \
     gc_remove_root((const void *)&b1, 0);                                      \
@@ -414,8 +387,8 @@ gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
   return tag_ratnum(ratnum_div(r1, r2));
 }
 
-#define DEFINE_VM_RUNTIME_DIVMOD_SLOW(name, fixnum_body, flonum_body, field)  \
-  gc_obj vm_runtime_math_##name##_slow(gc_obj v1, gc_obj v2) {                \
+#define DEFINE_VM_RUNTIME_DIVMOD_SLOW(name, fixnum_body, flonum_body, field)   \
+  gc_obj vm_runtime_math_##name##_slow(gc_obj v1, gc_obj v2) {                 \
     if (numeric_is_zero(v2)) {                                                 \
       abort();                                                                 \
     }                                                                          \
@@ -440,23 +413,25 @@ gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
     return res;                                                                \
   }
 
-DEFINE_VM_RUNTIME_DIVMOD_SLOW(
-    quotient, to_fixnum(v1) / to_fixnum(v2),
-    trunc(numeric_to_double(v1) / numeric_to_double(v2)), q)
-DEFINE_VM_RUNTIME_DIVMOD_SLOW(
-    mod, to_fixnum(v1) % to_fixnum(v2),
-    fmod(numeric_to_double(v1), numeric_to_double(v2)), r)
+DEFINE_VM_RUNTIME_DIVMOD_SLOW(quotient, to_fixnum(v1) / to_fixnum(v2),
+                              trunc(numeric_to_double(v1) /
+                                    numeric_to_double(v2)),
+                              q)
+DEFINE_VM_RUNTIME_DIVMOD_SLOW(mod, to_fixnum(v1) % to_fixnum(v2),
+                              fmod(numeric_to_double(v1),
+                                   numeric_to_double(v2)),
+                              r)
 
 #undef DEFINE_VM_RUNTIME_DIVMOD_SLOW
 
 #define DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(name, op)                           \
-  gc_obj vm_runtime_cmp_##name##_slow(gc_obj v1, gc_obj v2) {                 \
+  gc_obj vm_runtime_cmp_##name##_slow(gc_obj v1, gc_obj v2) {                  \
     if (is_compnum(v1) || is_compnum(v2)) {                                    \
-      abort();                                                                  \
+      abort();                                                                 \
     }                                                                          \
     if (is_flonum(v1) || is_flonum(v2)) {                                      \
       return (numeric_to_double(v1) op numeric_to_double(v2)) ? TRUE_REP       \
-                                                              : FALSE_REP;      \
+                                                              : FALSE_REP;     \
     }                                                                          \
     if (is_ratnum(v1) || is_ratnum(v2)) {                                      \
       ratnum_s r1 = get_ratnum(v1);                                            \

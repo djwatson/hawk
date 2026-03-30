@@ -273,9 +273,9 @@ elseif(APPLE)
   target_link_options(hawk PRIVATE -Wl,-export_dynamic)
 endif()
 
-set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-target_compile_options(hawk PRIVATE -march=native)
-target_compile_options(hawk PRIVATE -O3)
+# set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+# target_compile_options(hawk PRIVATE -march=native)
+# target_compile_options(hawk PRIVATE -O3)
 
 if(USE_RANDOM_SCHEDULE)
     target_compile_definitions(hawk PRIVATE RANDOM_SCHEDULE)

@@ -9,9 +9,32 @@
 #include "gc.h"
 #include "types.h"
 
-gc_obj SCM_MAKE_RECTANGULAR(gc_obj real, gc_obj imag);
-gc_obj SCM_REAL_PART(gc_obj comp);
-gc_obj SCM_IMAG_PART(gc_obj comp);
+static inline gc_obj SCM_MAKE_RECTANGULAR(gc_obj real, gc_obj imag) {
+  gc_add_root((const void *)&real, 1, 0);
+  gc_add_root((const void *)&imag, 1, 0);
+  compnum_s *c = gc_alloc(sizeof(compnum_s));
+  c->header.type = COMPNUM_TAG;
+  c->real = real;
+  c->imag = imag;
+  gc_remove_root((const void *)&imag, 0);
+  gc_remove_root((const void *)&real, 0);
+  return tag_header(c, PTR_TAG);
+}
+
+static inline gc_obj get_compnum(gc_obj v) {
+  if (is_compnum(v)) {
+    return v;
+  }
+  return SCM_MAKE_RECTANGULAR(v, tag_fixnum(0));
+}
+
+static inline gc_obj SCM_REAL_PART(gc_obj comp) {
+  return to_compnum(get_compnum(comp))->real;
+}
+
+static inline gc_obj SCM_IMAG_PART(gc_obj comp) {
+  return to_compnum(get_compnum(comp))->imag;
+}
 
 static inline gc_obj vm_box_flonum(double x) {
   flonum_s *res = gc_alloc(sizeof(flonum_s));
@@ -270,7 +293,8 @@ static inline bool guard_obj_matches(gc_obj val, gc_obj want_tag_obj) {
   uint64_t want_tag = (uint64_t)to_fixnum(want_tag_obj);
 
   if ((want_tag & TAG_MASK) == PTR_TAG) {
-    return is_ptr(val) && ((want_tag == PTR_TAG) || get_type_tag(val) == want_tag);
+    return is_ptr(val) &&
+           ((want_tag == PTR_TAG) || get_type_tag(val) == want_tag);
   }
 
   uint64_t got_tag = (uint64_t)get_type_tag(val);
