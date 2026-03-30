@@ -35,6 +35,7 @@ static gc_obj normalize_exact_integer(gc_obj value) {
   return value;
 }
 
+// GC: may allocate via gc_alloc.
 static gc_obj make_cons(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&a, 1, 0);
   gc_add_root((const void *)&b, 1, 0);
@@ -57,23 +58,20 @@ static bool exact_is_negative(gc_obj v) {
   abort();
 }
 
+// GC: may allocate via gc_alloc through vm_runtime_math_mul_slow.
 static gc_obj exact_abs(gc_obj v) {
   if (!exact_is_negative(v)) {
     return v;
   }
-  gc_add_root((const void *)&v, 1, 0);
-  gc_obj res = vm_runtime_math_mul_slow(v, tag_fixnum(-1));
-  gc_remove_root((const void *)&v, 0);
-  return res;
+  return vm_runtime_math_mul_slow(v, tag_fixnum(-1));
 }
 
+// GC: may allocate via gc_alloc through vm_runtime_math_mod_slow and exact_abs.
 static gc_obj exact_gcd(gc_obj a, gc_obj b) {
   while (!numeric_is_zero(b)) {
-    gc_add_root((const void *)&a, 1, 0);
     gc_add_root((const void *)&b, 1, 0);
     gc_obj r = vm_runtime_math_mod_slow(a, b);
     gc_remove_root((const void *)&b, 0);
-    gc_remove_root((const void *)&a, 0);
     a = b;
     b = r;
   }
@@ -94,6 +92,7 @@ static ratnum_s get_ratnum(gc_obj v) {
   abort();
 }
 
+// GC: may allocate via gc_alloc.
 static gc_obj tag_ratnum(ratnum_s r) {
   gc_obj a = r.num;
   gc_obj b = r.denom;
@@ -140,10 +139,9 @@ static gc_obj tag_ratnum(ratnum_s r) {
   return tag_header(res, PTR_TAG);
 }
 
+// GC: may allocate via gc_alloc through vm_runtime_math_*_slow.
 static ratnum_s ratnum_add(ratnum_s a, ratnum_s b) {
-  gc_add_root((const void *)&a.num, 1, 0);
   gc_add_root((const void *)&a.denom, 1, 0);
-  gc_add_root((const void *)&b.num, 1, 0);
   gc_add_root((const void *)&b.denom, 1, 0);
   gc_obj p1 = vm_runtime_math_mul_slow(a.num, b.denom);
   gc_add_root((const void *)&p1, 1, 0);
@@ -154,9 +152,7 @@ static ratnum_s ratnum_add(ratnum_s a, ratnum_s b) {
   gc_remove_root((const void *)&num, 0);
   gc_remove_root((const void *)&p1, 0);
   gc_remove_root((const void *)&b.denom, 0);
-  gc_remove_root((const void *)&b.num, 0);
   gc_remove_root((const void *)&a.denom, 0);
-  gc_remove_root((const void *)&a.num, 0);
   return (ratnum_s){
       .header.type = RATNUM_TAG,
       .num = num,
@@ -164,10 +160,9 @@ static ratnum_s ratnum_add(ratnum_s a, ratnum_s b) {
   };
 }
 
+// GC: may allocate via gc_alloc through vm_runtime_math_*_slow.
 static ratnum_s ratnum_sub(ratnum_s a, ratnum_s b) {
-  gc_add_root((const void *)&a.num, 1, 0);
   gc_add_root((const void *)&a.denom, 1, 0);
-  gc_add_root((const void *)&b.num, 1, 0);
   gc_add_root((const void *)&b.denom, 1, 0);
   gc_obj p1 = vm_runtime_math_mul_slow(a.num, b.denom);
   gc_add_root((const void *)&p1, 1, 0);
@@ -178,9 +173,7 @@ static ratnum_s ratnum_sub(ratnum_s a, ratnum_s b) {
   gc_remove_root((const void *)&num, 0);
   gc_remove_root((const void *)&p1, 0);
   gc_remove_root((const void *)&b.denom, 0);
-  gc_remove_root((const void *)&b.num, 0);
   gc_remove_root((const void *)&a.denom, 0);
-  gc_remove_root((const void *)&a.num, 0);
   return (ratnum_s){
       .header.type = RATNUM_TAG,
       .num = num,
@@ -188,19 +181,16 @@ static ratnum_s ratnum_sub(ratnum_s a, ratnum_s b) {
   };
 }
 
+// GC: may allocate via gc_alloc through vm_runtime_math_*_slow.
 static ratnum_s ratnum_mul(ratnum_s a, ratnum_s b) {
-  gc_add_root((const void *)&a.num, 1, 0);
   gc_add_root((const void *)&a.denom, 1, 0);
-  gc_add_root((const void *)&b.num, 1, 0);
   gc_add_root((const void *)&b.denom, 1, 0);
   gc_obj num = vm_runtime_math_mul_slow(a.num, b.num);
   gc_add_root((const void *)&num, 1, 0);
   gc_obj denom = vm_runtime_math_mul_slow(a.denom, b.denom);
   gc_remove_root((const void *)&num, 0);
   gc_remove_root((const void *)&b.denom, 0);
-  gc_remove_root((const void *)&b.num, 0);
   gc_remove_root((const void *)&a.denom, 0);
-  gc_remove_root((const void *)&a.num, 0);
   return (ratnum_s){
       .header.type = RATNUM_TAG,
       .num = num,
@@ -208,19 +198,16 @@ static ratnum_s ratnum_mul(ratnum_s a, ratnum_s b) {
   };
 }
 
+// GC: may allocate via gc_alloc through vm_runtime_math_*_slow.
 static ratnum_s ratnum_div(ratnum_s a, ratnum_s b) {
-  gc_add_root((const void *)&a.num, 1, 0);
   gc_add_root((const void *)&a.denom, 1, 0);
   gc_add_root((const void *)&b.num, 1, 0);
-  gc_add_root((const void *)&b.denom, 1, 0);
   gc_obj num = vm_runtime_math_mul_slow(a.num, b.denom);
   gc_add_root((const void *)&num, 1, 0);
   gc_obj denom = vm_runtime_math_mul_slow(a.denom, b.num);
   gc_remove_root((const void *)&num, 0);
-  gc_remove_root((const void *)&b.denom, 0);
   gc_remove_root((const void *)&b.num, 0);
   gc_remove_root((const void *)&a.denom, 0);
-  gc_remove_root((const void *)&a.num, 0);
   return (ratnum_s){
       .header.type = RATNUM_TAG,
       .num = num,
@@ -228,27 +215,27 @@ static ratnum_s ratnum_div(ratnum_s a, ratnum_s b) {
   };
 }
 
+// GC: may allocate via gc_alloc through vm_runtime_math_mul_slow.
 static int ratnum_cmp(ratnum_s a, ratnum_s b) {
-  gc_add_root((const void *)&a.num, 1, 0);
   gc_add_root((const void *)&a.denom, 1, 0);
   gc_add_root((const void *)&b.num, 1, 0);
-  gc_add_root((const void *)&b.denom, 1, 0);
   gc_obj left = vm_runtime_math_mul_slow(a.num, b.denom);
   gc_add_root((const void *)&left, 1, 0);
   gc_obj right = vm_runtime_math_mul_slow(b.num, a.denom);
   int cmp = numeric_exact_compare(left, right);
   gc_remove_root((const void *)&left, 0);
-  gc_remove_root((const void *)&b.denom, 0);
   gc_remove_root((const void *)&b.num, 0);
   gc_remove_root((const void *)&a.denom, 0);
-  gc_remove_root((const void *)&a.num, 0);
   return cmp;
 }
 
+// GC: may allocate via gc_alloc through SCM_MAKE_RECTANGULAR.
 static gc_obj normalize_compnum(gc_obj real, gc_obj imag) {
   return numeric_is_zero(imag) ? real : SCM_MAKE_RECTANGULAR(real, imag);
 }
 
+// GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_add_slow,
+// and normalize_compnum.
 static gc_obj compnum_add(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&a, 1, 0);
   gc_add_root((const void *)&b, 1, 0);
@@ -272,6 +259,8 @@ static gc_obj compnum_add(gc_obj a, gc_obj b) {
   return out;
 }
 
+// GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_sub_slow,
+// and normalize_compnum.
 static gc_obj compnum_sub(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&a, 1, 0);
   gc_add_root((const void *)&b, 1, 0);
@@ -295,6 +284,8 @@ static gc_obj compnum_sub(gc_obj a, gc_obj b) {
   return out;
 }
 
+// GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_*_slow,
+// and normalize_compnum.
 static gc_obj compnum_mul(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&a, 1, 0);
   gc_add_root((const void *)&b, 1, 0);
@@ -332,6 +323,8 @@ static gc_obj compnum_mul(gc_obj a, gc_obj b) {
   return out;
 }
 
+// GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_*_slow,
+// and normalize_compnum.
 static gc_obj compnum_div(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&a, 1, 0);
   gc_add_root((const void *)&b, 1, 0);
@@ -428,6 +421,7 @@ EXPORT char *bignum_string(gc_obj g) {
   return bn_to_string(to_bignum(g), 10);
 }
 
+// GC: may allocate via gc_alloc through make_cons.
 EXPORT gc_obj bignum_exact_integer_sqrt(gc_obj g) {
   assert(is_bignum(g));
   bn_sqrt_result_t qr = bn_sqrt(to_bignum(g));
@@ -435,14 +429,15 @@ EXPORT gc_obj bignum_exact_integer_sqrt(gc_obj g) {
                    normalize_exact_integer(tag_bignum(qr.r)));
 }
 
+// GC: may allocate via gc_alloc through vm_box_flonum, tag_ratnum, and
+// compnum_* helpers.
 #define DEFINE_VM_RUNTIME_OVERFLOW_SLOW(name, oplcname, op, shift)             \
   gc_obj vm_runtime_math_##name##_slow(gc_obj v1, gc_obj v2) {                 \
     if (is_compnum(v1) || is_compnum(v2)) {                                    \
       return compnum_##oplcname(v1, v2);                                       \
     }                                                                          \
     if (is_flonum(v1) || is_flonum(v2)) {                                      \
-      return root2_box_flonum(                                                 \
-          &v1, &v2, op(numeric_to_double(v1), numeric_to_double(v2)));         \
+      return vm_box_flonum(op(numeric_to_double(v1), numeric_to_double(v2)));  \
     }                                                                          \
     if (is_ratnum(v1) || is_ratnum(v2)) {                                      \
       ratnum_s r1 = get_ratnum(v1);                                            \
@@ -477,6 +472,8 @@ DEFINE_VM_RUNTIME_OVERFLOW_SLOW(mul, mul, VM_MATH_MUL, VM_MATH_SHIFT)
 
 #undef DEFINE_VM_RUNTIME_OVERFLOW_SLOW
 
+// GC: may allocate via gc_alloc through vm_box_flonum, compnum_div, and
+// tag_ratnum.
 gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
   if (is_compnum(v1) || is_compnum(v2)) {
     return compnum_div(v1, v2);
@@ -485,21 +482,21 @@ gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
     abort();
   }
   if (is_flonum(v1) || is_flonum(v2)) {
-    return root2_box_flonum(&v1, &v2,
-                            numeric_to_double(v1) / numeric_to_double(v2));
+    return vm_box_flonum(numeric_to_double(v1) / numeric_to_double(v2));
   }
   ratnum_s r1 = get_ratnum(v1);
   ratnum_s r2 = get_ratnum(v2);
   return tag_ratnum(ratnum_div(r1, r2));
 }
 
+// GC: may allocate via gc_alloc through vm_box_flonum.
 #define DEFINE_VM_RUNTIME_DIVMOD_SLOW(name, fixnum_body, flonum_body, field)   \
   gc_obj vm_runtime_math_##name##_slow(gc_obj v1, gc_obj v2) {                 \
     if (numeric_is_zero(v2)) {                                                 \
       abort();                                                                 \
     }                                                                          \
     if (is_flonum(v1) || is_flonum(v2)) {                                      \
-      return root2_box_flonum(&v1, &v2, (flonum_body));                        \
+      return vm_box_flonum((flonum_body));                                     \
     }                                                                          \
     if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
       return tag_fixnum((fixnum_body));                                        \
@@ -530,6 +527,7 @@ DEFINE_VM_RUNTIME_DIVMOD_SLOW(mod, to_fixnum(v1) % to_fixnum(v2),
 
 #undef DEFINE_VM_RUNTIME_DIVMOD_SLOW
 
+// GC: may allocate via gc_alloc through ratnum_cmp.
 #define DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(name, op)                           \
   gc_obj vm_runtime_cmp_##name##_slow(gc_obj v1, gc_obj v2) {                  \
     if (is_compnum(v1) || is_compnum(v2)) {                                    \

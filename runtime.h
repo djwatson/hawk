@@ -9,6 +9,7 @@
 #include "gc.h"
 #include "types.h"
 
+// GC: may allocate via gc_alloc.
 static inline gc_obj SCM_MAKE_RECTANGULAR(gc_obj real, gc_obj imag) {
   gc_add_root((const void *)&real, 1, 0);
   gc_add_root((const void *)&imag, 1, 0);
@@ -21,6 +22,7 @@ static inline gc_obj SCM_MAKE_RECTANGULAR(gc_obj real, gc_obj imag) {
   return tag_header(c, PTR_TAG);
 }
 
+// GC: may allocate via gc_alloc through SCM_MAKE_RECTANGULAR.
 static inline gc_obj get_compnum(gc_obj v) {
   if (is_compnum(v)) {
     return v;
@@ -28,35 +30,22 @@ static inline gc_obj get_compnum(gc_obj v) {
   return SCM_MAKE_RECTANGULAR(v, tag_fixnum(0));
 }
 
+// GC: may allocate via gc_alloc through get_compnum.
 static inline gc_obj SCM_REAL_PART(gc_obj comp) {
   return to_compnum(get_compnum(comp))->real;
 }
 
+// GC: may allocate via gc_alloc through get_compnum.
 static inline gc_obj SCM_IMAG_PART(gc_obj comp) {
   return to_compnum(get_compnum(comp))->imag;
 }
 
+// GC: may allocate via gc_alloc.
 static inline gc_obj vm_box_flonum(double x) {
   flonum_s *res = gc_alloc(sizeof(flonum_s));
   res->header.type = FLONUM_TAG;
   res->x = x;
   return tag_flonum(res);
-}
-
-static inline gc_obj root1_box_flonum(gc_obj *v, double x) {
-  gc_add_root((const void *)v, 1, 0);
-  gc_obj res = vm_box_flonum(x);
-  gc_remove_root((const void *)v, 0);
-  return res;
-}
-
-static inline gc_obj root2_box_flonum(gc_obj *lhs, gc_obj *rhs, double x) {
-  gc_add_root((const void *)lhs, 1, 0);
-  gc_add_root((const void *)rhs, 1, 0);
-  gc_obj res = vm_box_flonum(x);
-  gc_remove_root((const void *)rhs, 0);
-  gc_remove_root((const void *)lhs, 0);
-  return res;
 }
 
 static inline double bignum_to_double(gc_obj v) {
@@ -102,7 +91,6 @@ static inline bool numeric_is_zero(gc_obj v) {
 }
 
 static inline int numeric_exact_compare(gc_obj v1, gc_obj v2) {
-  gc_add_root((const void *)&v1, 1, 0);
   gc_add_root((const void *)&v2, 1, 0);
   gc_obj b1 = numeric_to_bignum_obj(v1);
   gc_add_root((const void *)&b1, 1, 0);
@@ -112,7 +100,6 @@ static inline int numeric_exact_compare(gc_obj v1, gc_obj v2) {
   gc_remove_root((const void *)&b2, 0);
   gc_remove_root((const void *)&b1, 0);
   gc_remove_root((const void *)&v2, 0);
-  gc_remove_root((const void *)&v1, 0);
   return cmp;
 }
 
@@ -139,20 +126,20 @@ static inline double numeric_to_double(gc_obj v) {
   abort();
 }
 
+// GC: may allocate via gc_alloc through vm_box_flonum and SCM_MAKE_RECTANGULAR.
 static inline gc_obj numeric_inexact_value(gc_obj v) {
   if (is_fixnum(v)) {
-    return root1_box_flonum(&v, (double)to_fixnum(v));
+    return vm_box_flonum((double)to_fixnum(v));
   }
   if (is_flonum(v)) {
     return v;
   }
   if (is_bignum(v)) {
-    return root1_box_flonum(&v, bignum_to_double(v));
+    return vm_box_flonum(bignum_to_double(v));
   }
   if (is_ratnum(v)) {
     ratnum_s *r = to_ratnum(v);
-    return root1_box_flonum(&v, numeric_to_double(r->num) /
-                                    numeric_to_double(r->denom));
+    return vm_box_flonum(numeric_to_double(r->num) / numeric_to_double(r->denom));
   }
   if (is_compnum(v)) {
     compnum_s *c = to_compnum(v);
@@ -162,6 +149,7 @@ static inline gc_obj numeric_inexact_value(gc_obj v) {
   abort();
 }
 
+// GC: may allocate via gc_alloc through SCM_MAKE_RECTANGULAR.
 static inline gc_obj numeric_exact_value(gc_obj v) {
   if (is_fixnum(v)) {
     return v;
@@ -187,6 +175,7 @@ static inline gc_obj numeric_exact_value(gc_obj v) {
   abort();
 }
 
+// GC: may allocate via gc_alloc through vm_box_flonum.
 static inline gc_obj numeric_truncate_value(gc_obj v) {
   if (is_fixnum(v)) {
     return v;
@@ -195,7 +184,7 @@ static inline gc_obj numeric_truncate_value(gc_obj v) {
     return v;
   }
   if (is_flonum(v)) {
-    return root1_box_flonum(&v, trunc(to_flonum(v)->x));
+    return vm_box_flonum(trunc(to_flonum(v)->x));
   }
   abort();
 }
