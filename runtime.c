@@ -237,7 +237,6 @@ static gc_obj normalize_compnum(gc_obj real, gc_obj imag) {
 // GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_add_slow,
 // and normalize_compnum.
 static gc_obj compnum_add(gc_obj a, gc_obj b) {
-  gc_add_root((const void *)&a, 1, 0);
   gc_add_root((const void *)&b, 1, 0);
   gc_obj ca_obj = get_compnum(a);
   gc_add_root((const void *)&ca_obj, 1, 0);
@@ -248,21 +247,17 @@ static gc_obj compnum_add(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&real, 1, 0);
   gc_obj imag =
       vm_runtime_math_add_slow(to_compnum(ca_obj)->imag, to_compnum(cb_obj)->imag);
-  gc_add_root((const void *)&imag, 1, 0);
   gc_obj out = normalize_compnum(real, imag);
-  gc_remove_root((const void *)&imag, 0);
   gc_remove_root((const void *)&real, 0);
   gc_remove_root((const void *)&cb_obj, 0);
   gc_remove_root((const void *)&ca_obj, 0);
   gc_remove_root((const void *)&b, 0);
-  gc_remove_root((const void *)&a, 0);
   return out;
 }
 
 // GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_sub_slow,
 // and normalize_compnum.
 static gc_obj compnum_sub(gc_obj a, gc_obj b) {
-  gc_add_root((const void *)&a, 1, 0);
   gc_add_root((const void *)&b, 1, 0);
   gc_obj ca_obj = get_compnum(a);
   gc_add_root((const void *)&ca_obj, 1, 0);
@@ -273,21 +268,17 @@ static gc_obj compnum_sub(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&real, 1, 0);
   gc_obj imag =
       vm_runtime_math_sub_slow(to_compnum(ca_obj)->imag, to_compnum(cb_obj)->imag);
-  gc_add_root((const void *)&imag, 1, 0);
   gc_obj out = normalize_compnum(real, imag);
-  gc_remove_root((const void *)&imag, 0);
   gc_remove_root((const void *)&real, 0);
   gc_remove_root((const void *)&cb_obj, 0);
   gc_remove_root((const void *)&ca_obj, 0);
   gc_remove_root((const void *)&b, 0);
-  gc_remove_root((const void *)&a, 0);
   return out;
 }
 
 // GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_*_slow,
 // and normalize_compnum.
 static gc_obj compnum_mul(gc_obj a, gc_obj b) {
-  gc_add_root((const void *)&a, 1, 0);
   gc_add_root((const void *)&b, 1, 0);
   gc_obj ca_obj = get_compnum(a);
   gc_add_root((const void *)&ca_obj, 1, 0);
@@ -308,9 +299,7 @@ static gc_obj compnum_mul(gc_obj a, gc_obj b) {
   gc_obj real = vm_runtime_math_sub_slow(ac, bd);
   gc_add_root((const void *)&real, 1, 0);
   gc_obj imag = vm_runtime_math_add_slow(ad, bc);
-  gc_add_root((const void *)&imag, 1, 0);
   gc_obj out = normalize_compnum(real, imag);
-  gc_remove_root((const void *)&imag, 0);
   gc_remove_root((const void *)&real, 0);
   gc_remove_root((const void *)&bc, 0);
   gc_remove_root((const void *)&ad, 0);
@@ -319,14 +308,12 @@ static gc_obj compnum_mul(gc_obj a, gc_obj b) {
   gc_remove_root((const void *)&cb_obj, 0);
   gc_remove_root((const void *)&ca_obj, 0);
   gc_remove_root((const void *)&b, 0);
-  gc_remove_root((const void *)&a, 0);
   return out;
 }
 
 // GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_*_slow,
 // and normalize_compnum.
 static gc_obj compnum_div(gc_obj a, gc_obj b) {
-  gc_add_root((const void *)&a, 1, 0);
   gc_add_root((const void *)&b, 1, 0);
   gc_obj ca_obj = get_compnum(a);
   gc_add_root((const void *)&ca_obj, 1, 0);
@@ -344,16 +331,13 @@ static gc_obj compnum_div(gc_obj a, gc_obj b) {
     gc_obj real = vm_runtime_math_div_slow(to_compnum(ca_obj)->real, cb_real);
     gc_add_root((const void *)&real, 1, 0);
     gc_obj imag = vm_runtime_math_div_slow(to_compnum(ca_obj)->imag, cb_real);
-    gc_add_root((const void *)&imag, 1, 0);
     gc_obj out = normalize_compnum(real, imag);
-    gc_remove_root((const void *)&imag, 0);
     gc_remove_root((const void *)&real, 0);
     gc_remove_root((const void *)&cb_real, 0);
     gc_remove_root((const void *)&cb_imag, 0);
     gc_remove_root((const void *)&cb_obj, 0);
     gc_remove_root((const void *)&ca_obj, 0);
     gc_remove_root((const void *)&b, 0);
-    gc_remove_root((const void *)&a, 0);
     return out;
   }
 
@@ -389,10 +373,8 @@ static gc_obj compnum_div(gc_obj a, gc_obj b) {
   gc_obj real = vm_runtime_math_div_slow(real_num, denom);
   gc_add_root((const void *)&real, 1, 0);
   gc_obj imag = vm_runtime_math_div_slow(imag_num, denom);
-  gc_add_root((const void *)&imag, 1, 0);
   gc_obj out = normalize_compnum(real, imag);
 
-  gc_remove_root((const void *)&imag, 0);
   gc_remove_root((const void *)&real, 0);
   gc_remove_root((const void *)&imag_num, 0);
   gc_remove_root((const void *)&real_num, 0);
@@ -407,7 +389,6 @@ static gc_obj compnum_div(gc_obj a, gc_obj b) {
   gc_remove_root((const void *)&cb_obj, 0);
   gc_remove_root((const void *)&ca_obj, 0);
   gc_remove_root((const void *)&b, 0);
-  gc_remove_root((const void *)&a, 0);
   return out;
 }
 
@@ -451,7 +432,6 @@ EXPORT gc_obj bignum_exact_integer_sqrt(gc_obj g) {
         return res;                                                            \
       }                                                                        \
     }                                                                          \
-    gc_add_root((const void *)&v1, 1, 0);                                      \
     gc_add_root((const void *)&v2, 1, 0);                                      \
     gc_obj b1 = numeric_to_bignum_obj(v1);                                     \
     gc_add_root((const void *)&b1, 1, 0);                                      \
@@ -462,7 +442,6 @@ EXPORT gc_obj bignum_exact_integer_sqrt(gc_obj g) {
     gc_remove_root((const void *)&b2, 0);                                      \
     gc_remove_root((const void *)&b1, 0);                                      \
     gc_remove_root((const void *)&v2, 0);                                      \
-    gc_remove_root((const void *)&v1, 0);                                      \
     return res;                                                                \
   }
 
@@ -501,7 +480,6 @@ gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
     if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
       return tag_fixnum((fixnum_body));                                        \
     }                                                                          \
-    gc_add_root((const void *)&v1, 1, 0);                                      \
     gc_add_root((const void *)&v2, 1, 0);                                      \
     gc_obj b1 = numeric_to_bignum_obj(v1);                                     \
     gc_add_root((const void *)&b1, 1, 0);                                      \
@@ -512,7 +490,6 @@ gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
     gc_remove_root((const void *)&b2, 0);                                      \
     gc_remove_root((const void *)&b1, 0);                                      \
     gc_remove_root((const void *)&v2, 0);                                      \
-    gc_remove_root((const void *)&v1, 0);                                      \
     return res;                                                                \
   }
 
