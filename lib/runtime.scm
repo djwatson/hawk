@@ -211,6 +211,11 @@
 (define (set-car! a b) (sys:STORE a b 0))
 (define (set-cdr! a b) (sys:STORE a b 1))
 (define (string-length a) (sys:LOAD a 0))
+(define (string-map proc . strs)
+  (let* ((len (apply min (map string-length strs))) (str (make-string len)))
+    (do ((i 0 (+ i 1)))
+         ((= i len) str)
+         (string-set! str i (apply proc (map (lambda (x) (string-ref x i)) strs))))))
 (define (car a) (unless (pair? a) (error "CAR: bad load:" a)) (sys:LOAD a 0))
 (define (cdr a) (unless (pair? a) (error "CDR: bad load:" a)) (sys:LOAD a 1))
 (define (cadr a) (car (cdr a)))
@@ -671,7 +676,11 @@
 (include "str2num.scm")
 ;;; call/cc
 
-(define (call-with-current-continuation thunk) (sys:CALLCC thunk))
+(define *here* (list #f))
+(define (call-with-current-continuation thunk)
+  (let* ((winds *here*) (res (sys:CALLCC thunk)))
+    (unless (eq? *here* winds) (reroot! winds))
+    res))
 
 (define (call/cc thunk) (call-with-current-continuation thunk))
 
@@ -743,6 +752,8 @@
   (make-port fd #f #t (make-string port-buffer-size) 0 0 #f))
 (define (make-output-port fd)
   (make-port fd #f #f (make-string port-buffer-size) 0 0 #f))
+(define (make-string-input-port str)
+  (make-port -1 #f #t str 0 (string-length str) #f))
 (define (make-string-output-port) (make-port -1 #f #f #f 0 0 ""))
 
 (define display
@@ -829,6 +840,7 @@
   (let ((fd (c-open file 0)))
     (when (< fd 0) (error "open-output-file error:" file))
     (make-output-port fd)))
+(define open-binary-output-file open-output-file)
 (define (write-all fd data len)
   (let loop ((off 0))
     (if (< off len)
@@ -852,17 +864,20 @@
       #t))
 (define close-output-port close-port)
 (define close-input-port close-port)
-(define-record-type eof-object (make-eof-object) eof-object?)
+(define-record-type eof-object-record (make-eof-object) eof-object?)
+(define (eof-object) (make-eof-object))
 (define (read-from-port-buffer port)
   (if (not (port-input? port))
       (error "read-char: not an input port" port)
       (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
         (if (< pos len)
             (let ((c (string-ref buf pos))) (port-pos-set! port (+ pos 1)) c)
-            (let ((cnt (c-read (port-fd port) buf port-buffer-size)))
-              (if (> cnt 0)
-                  (begin (port-pos-set! port 1) (port-len-set! port cnt) (string-ref buf 0))
-                  (make-eof-object)))))))
+            (if (< (port-fd port) 0)
+                (make-eof-object)
+                (let ((cnt (c-read (port-fd port) buf port-buffer-size)))
+                  (if (> cnt 0)
+                      (begin (port-pos-set! port 1) (port-len-set! port cnt) (string-ref buf 0))
+                      (make-eof-object))))))))
 (define peek-char
   (case-lambda
     (() (peek-char (current-input-port)))
@@ -959,6 +974,8 @@
           (display "\"" port))
         (else (display arg port))))))
 
+(define (open-input-string str) (make-string-input-port str))
+(define (get-input-string port) (port-buf port))
 (define (open-output-string) (make-string-output-port))
 (define (get-output-string port) (port-sbuf port))
 
@@ -1207,3 +1224,34 @@
   (flush-output-port)
   (flush-output-port (current-error-port))
   (sys:HALT))
+
+;;; parameters
+
+(define make-parameter
+  (case-lambda
+    ((init) (let ((cell init)) (case-lambda (() cell) ((new) (set! cell new)))))
+    ((init converter)
+      (let ((cell (converter init)))
+        (case-lambda (() cell) ((new) (set! cell (converter new))))))))
+
+(define (command-line) '(hawk "test.scm"))
+(define (environment . args) '())
+
+(define (dynamic-wind before during after)
+  (unless (and (procedure? before) (procedure? during) (procedure? after))
+    (error "bad dynamic wind proc:" before during after))
+  (let ((here *here*))
+    (reroot! (cons (cons before after) here))
+    (call-with-values during
+                      (lambda results (reroot! here) (apply values results)))))
+
+(define (reroot! there)
+  (unless (eq? *here* there)
+    (reroot! (cdr there))
+    (let ((before (caar there)) (after (cdar there)))
+      (set-car! *here* (cons after before))
+      (set-cdr! *here* there)
+      (set-car! there #f)
+      (set-cdr! there '())
+      (set! *here* there)
+      (before))))

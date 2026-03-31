@@ -17,9 +17,7 @@
     ((> k 0) (* x (expt 2 k)))
     (else
       (let ((d (expt 2 (- k))))
-        (if (>= x 0)
-            (quotient x d)
-            (- (quotient (+ (- x) (- d 1)) d)))))))
+        (if (>= x 0) (quotient x d) (- (quotient (+ (- x) (- d 1)) d)))))))
 
 (define (cont-pass ir c)
   ;; (display "Cont pass:")
@@ -297,6 +295,13 @@
     (pass ir)))
 
 (define (convert-closures ir)
+  (define clo-counter 0)
+  (define (fresh-clo)
+    (set! clo-counter (+ clo-counter 1))
+    (vector 'var
+            (string->symbol (string-append "clo." (number->string clo-counter)))
+            #f
+            #f))
   (let convert-closures ((ir ir) (replace '()))
     (define (convert ir)
       (match ir
@@ -310,7 +315,7 @@
                            (string->symbol (string-append (symbol->string (vector-ref n 1))
                                                           "-label")))
                          vars))
-                 (closure-vars (omap _ vars `#(var clo #f #f)))
+                 (closure-vars (map (lambda (_) (fresh-clo)) vars))
                  (new-cases
                     (omap (clo free cases)
                           (closure-vars free cases) ;; for each lambda
