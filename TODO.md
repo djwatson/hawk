@@ -3,11 +3,6 @@
 
 ## tests:
 
-* simplex is slower??? bad tracing - need multi-ops to be binops
-
-* ugh need to put back faster VM - things like browse too slow.
-  * this is just inlining stuff I think.
-
 * probably need to fix closure conversion at some point
 
 ## broken bench2:
@@ -15,6 +10,11 @@
 * mbrozZ, pi, chudnovsky- we can't read const bignums, so changed to string->number call
 
 ## JIT impl
+
+* simplex is slower??? bad tracing - need multi-ops to be binops
+
+* ugh need to put back faster VM - things like browse too slow.
+  * this is just inlining stuff I think.
 
 * get APPLY recording
 * gc_obj boxing recording?
@@ -53,9 +53,8 @@
 # VM impl
 
 * track stack-top
-* rest of ops: callcc/callcc_resume. That's it.
 * update stack overflow, just allocate a new section (linked stack segments, much faster callcc handling)
-* math and cmp ops have lots of spills in generated code.???
+
 
 # cleanup
 * we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!

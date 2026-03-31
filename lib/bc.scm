@@ -10,7 +10,6 @@
         (match)
         (srfi 69)
         (srfi 1)
-        (srfi 151)
         ;; gauche
         (rename (only (binary io) write-f64) (write-f64 write-double)))
 (include "opcodes.scm")
@@ -22,6 +21,17 @@
      ((_ arg (command args ...) rest ...) (-> (command arg args ...) rest ...))
      ((_ arg command rest ...) (-> (command arg) rest ...))
      ((_ arg) arg)))
+
+;; Integer-only arithmetic-shift replacement for bootstrap.
+(define (arithmetic-shift x k)
+  (cond
+    ((= k 0) x)
+    ((> k 0) (* x (expt 2 k)))
+    (else
+      (let ((d (expt 2 (- k))))
+        (if (>= x 0)
+            (quotient x d)
+            (- (quotient (+ (- x) (- d 1)) d)))))))
 
 (define (cont-pass ir c)
   ;; (display "Cont pass:")

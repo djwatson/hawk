@@ -96,10 +96,10 @@
               #t
               `#(define ,var ,expr ,ann)
               assigned))
-    (#(letrec* ((,vars ,(%fix-letrec init-free init-complex init-expr init-assigned) ,ann)
+    (#(letrec* ((,vars ,(%fix-letrec init-free init-complex init-expr init-assigned) ,bind-ann)
                 ___)
         ,(%fix-letrec body-free body-complex body-expr body-assigned)
-        ,ann)
+        ,letrec-ann)
       (let* ((assigned (set-union* `(,body-assigned ,@init-assigned)))
              (bindings
                 (omap (free complex expr var)
@@ -148,7 +148,7 @@
                                                    expr))
                                       (else
                                         (build-let (list (binding-var bind))
-                                                   (list #(void #f))
+                                                   (list '#(void #f))
                                                    (build-set! (list (binding-var bind))
                                                                (list (binding-init bind))
                                                                expr)))))
@@ -171,7 +171,7 @@
                                       ;; 						   #f)) deps))
                                       ;; (newline)
                                       (build-let (map binding-var seto)
-                                                 (make-list (length seto) #(void #f))
+                                                 (make-list (length seto) '#(void #f))
                                                  (build-fix (map binding-var unset)
                                                             (map binding-init unset)
                                                             (build-set! (map binding-var seto)
