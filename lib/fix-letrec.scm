@@ -1,4 +1,4 @@
-(define-record-type binding (make-binding free complex init var) binding?
+(define-record-type binding (make-fix-binding free complex init var) binding?
   (free binding-free)
   (complex binding-complex)
   (init binding-init)
@@ -104,7 +104,7 @@
              (bindings
                 (omap (free complex expr var)
                       (init-free init-complex init-expr vars)
-                      (make-binding free complex expr var)))
+                      (make-fix-binding free complex expr var)))
              (deps
                 (let loop ((bindings bindings) (deps '()) (last-complex #f))
                   (if (pair? bindings)
