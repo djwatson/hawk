@@ -626,7 +626,7 @@
 
 (define (align8 x) (if (= 0 (modulo x 8)) x (+ x (- 8 (modulo x 8)))))
 
-(define (fixnum? c) (and (integer? c) (exact? c) (fits-in-int64 c)))
+(define (bc-fixnum? c) (and (integer? c) (exact? c) (fits-in-int64 c)))
 (define (flonum? c) (and (inexact? c) (real? c)))
 (define (heap-obj? c)
   (or (string? c)
@@ -648,7 +648,7 @@
 
 (define (encode-immediate o)
   (cond
-    ((fixnum? o) (* 8 o))
+    ((bc-fixnum? o) (* 8 o))
     ((and (integer? o) (exact? o)) (* 8 (clamp-fixnum o)))
     ((eq? o #t) true-rep)
     ((eq? o #f) false-rep)
@@ -781,65 +781,123 @@
 
 (define (debug-print ir) (display (ir->sexp ir)) (newline) ir)
 
-(define (compile-file file)
-  (define empty-library-name (string->symbol ""))
-  (define (read-forms path)
-    (let ((port (open-input-file path)))
-      (let ((forms (read-file port))) (close-input-port port) forms)))
-  (define (read-forms-from-string str)
-    (let ((port (open-input-string str)))
-      (let ((forms (read-file port))) (close-input-port port) forms)))
-  (define default-import-forms
-    (read-forms-from-string "(import (scheme base)(scheme case-lambda)(scheme char)(scheme complex)(scheme cxr)(scheme eval)(scheme file)(scheme inexact)(scheme lazy)(scheme load)(scheme process-context)(scheme read)(scheme repl)(scheme time)(scheme write)(scheme r5rs))"))
-  (define default-ending-forms
-    (read-forms-from-string "(import (only (scheme process-context) exit))(exit 0)"))
-  (define (form-sexp form) (if (annotation? form) (annotation-sexp form) form))
-  (define (import-form? form)
-    (let ((sexp (form-sexp form))) (and (pair? sexp) (eq? (form-sexp (car sexp)) 'import))))
-  (define (ensure-leading-import forms)
-    (if (and (pair? forms) (import-form? (car forms)))
-        forms
-        (append default-import-forms forms)))
+(define empty-library-name (string->symbol ""))
+
+(define (read-forms path)
+  (let ((port (open-input-file path)))
+    (let ((forms (read-file port))) (close-input-port port) forms)))
+
+(define (read-forms-from-string str)
+  (let ((port (open-input-string str)))
+    (let ((forms (read-file port))) (close-input-port port) forms)))
+
+(define default-import-forms
+  (read-forms-from-string "(import (scheme base)(scheme case-lambda)(scheme char)(scheme complex)(scheme cxr)(scheme eval)(scheme file)(scheme inexact)(scheme lazy)(scheme load)(scheme process-context)(scheme read)(scheme repl)(scheme time)(scheme write)(scheme r5rs))"))
+
+(define default-ending-forms
+  (read-forms-from-string "(import (only (scheme process-context) exit))(exit 0)"))
+
+(define (form-sexp form) (if (annotation? form) (annotation-sexp form) form))
+
+(define (import-form? form)
+  (let ((sexp (form-sexp form)))
+    (and (pair? sexp) (eq? (form-sexp (car sexp)) 'import))))
+
+(define (ensure-leading-import forms)
+  (if (and (pair? forms) (import-form? (car forms)))
+      forms
+      (append default-import-forms forms)))
+
+(define (read-ir-from-file file)
+  (let ((runtime-forms (read-forms "runtime.scm"))
+        (eval-forms (read-forms "eval.scm"))
+        (input-forms
+           (append (ensure-leading-import (read-forms file)) default-ending-forms)))
+    `#(begin
+        ,(append (expand-program runtime-forms empty-library-name #f)
+                 (expand-program eval-forms empty-library-name #f)
+                 (expand-program input-forms 'REPL #t))
+        #f)))
+
+(define (compile-ir-to-bitcode ir)
   (parameterize ((funs (make-funs-list)))
-    (let ((out (open-binary-output-file (string-append file ".bc")))
-          (runtime-forms (read-forms "runtime.scm"))
-          (input-forms
-             (append (ensure-leading-import (read-forms file)) default-ending-forms)))
-      (let* ((lowered
-                (-> `#(begin
-                        ,(append (expand-program runtime-forms empty-library-name #f)
-                                 (expand-program input-forms 'REPL #t))
-                        #f)
-                    simple-pass
-                    fix-letrec
-                    assignment-conversion
-                    lower-comparisons
-                    recover-let
-                    name-lambdas
-                    fix-all
-                    uncover-free
-                    convert-closures))
-             (main (make-fun "main")))
-        (compile lowered main '() 0 #f)
-        (add-op main `(HALT 0))
-        (add-fun main)
+    (let* ((lowered
+              (-> ir
+                  simple-pass
+                  fix-letrec
+                  assignment-conversion
+                  lower-comparisons
+                  recover-let
+                  name-lambdas
+                  fix-all
+                  uncover-free
+                  convert-closures))
+           (main (make-fun "main")))
+      (compile lowered main '() 0 #f)
+      (add-op main `(RET 0))
+      (add-fun main)
+      (get-funs))))
 
-        (let* ((all-funs (get-funs)) (roots (cons main all-funs)))
-          (let*-values (((objects canon) (collect-objects roots))
-                        ((symbol-table) (build-symbol-table objects))
-                        ((objects canon) (collect-objects (cons symbol-table roots)))
-                        ((image offs) (emit-image objects canon symbol-table)))
-            ;;(for-each print-bc all-funs)
-            (string-for-each (lambda (c) (write-u8 (char->integer c) out)) "HAWK")
-            (write-uint 0 8 out)
-            (write-uint (bytevector-length image) 8 out)
-            (write-uint (+ (hash-table-ref offs (hash-table-ref canon main)) ptr-tag)
-                        8
-                        out)
-            (write-bytevector image out)))
-        (close-output-port out)))))
+(define (normalize-u8 v) (modulo v 256))
+(define (normalize-u16 v) (modulo v 65536))
 
-(display "Compiling:")
-(display (cdr (command-line)))
-(newline)
-(for-each compile-file (cdr (command-line)))
+(define (ins->word ins idx const-cnt)
+  (let* ((op (car ins))
+         (opc
+            (cond
+              ((assq op opcodes) => cdr)
+              (else (error "Unknown opcode in ins->word:" op))))
+         (reg (second ins))
+         (data
+            (cond
+              ((memq op '(LOOKUP CONST DEFINE)) (+ idx (* 2 (- const-cnt (third ins)))))
+              ((memq op ops_abc) (+ (third ins) (* 256 (fourth ins))))
+              ((memq op ops_ad) (third ins))
+              (else (if (pair? (cddr ins)) (third ins) 0)))))
+    (+ (normalize-u8 opc)
+       (* 256 (normalize-u8 reg))
+       (* 65536 (normalize-u16 data)))))
+
+(define (roots->runtime-payload roots)
+  (let ((ids (make-hash-table eq?)))
+    (letrec ((const->runtime
+                (lambda (c)
+                  (cond
+                    ((fun? c) (vector 'fun-ref (hash-table-ref ids c)))
+                    ((const-closure? c)
+                      (vector 'fun-ref (hash-table-ref ids (const-closure-fun c))))
+                    (else c))))
+             (fun->runtime
+                (lambda (fun)
+                  (let* ((consts (reverse (fun-consts-list fun)))
+                         (code (reverse (fun-code fun)))
+                         (const-cnt (length consts)))
+                    (vector (hash-table-ref ids fun)
+                            (fun-name fun)
+                            (map const->runtime consts)
+                            (map (lambda (ins idx) (ins->word ins idx const-cnt))
+                                 code
+                                 (iota (length code))))))))
+      (for-each (lambda (fun i) (hash-table-set! ids fun i))
+                roots
+                (iota (length roots)))
+      (vector (hash-table-ref ids (car roots)) (map fun->runtime roots)))))
+
+(define (serialize-bitcode roots)
+  (let ((main (car roots)))
+    (let*-values (((objects canon) (collect-objects roots))
+                  ((symbol-table) (build-symbol-table objects))
+                  ((objects canon) (collect-objects (cons symbol-table roots)))
+                  ((image offs) (emit-image objects canon symbol-table)))
+      (values image (+ (hash-table-ref offs (hash-table-ref canon main)) ptr-tag)))))
+
+(define (compile-file file)
+  (let ((out (open-binary-output-file (string-append file ".bc")))
+        (roots (compile-ir-to-bitcode (read-ir-from-file file))))
+    (let-values (((image entry) (serialize-bitcode roots)))
+      (string-for-each (lambda (c) (write-u8 (char->integer c) out)) "HAWK")
+      (write-uint 0 8 out)
+      (write-uint (bytevector-length image) 8 out)
+      (write-uint entry 8 out)
+      (write-bytevector image out))
+    (close-output-port out)))

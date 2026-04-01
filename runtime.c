@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <string.h>
 
 #include "bigint.h"
 #include "ftoa.h"
@@ -33,6 +34,154 @@ static gc_obj normalize_exact_integer(gc_obj value) {
     return tag_fixnum(i64.value);
   }
   return value;
+}
+
+static size_t runtime_align_words(size_t bytes) {
+  return (bytes + sizeof(gc_obj) - 1) & ~(sizeof(gc_obj) - 1);
+}
+
+static uint64_t runtime_list_length(gc_obj list) {
+  uint64_t len = 0;
+  while (list.value != NIL_TAG) {
+    if (!is_cons(list)) {
+      abort();
+    }
+    len++;
+    list = to_cons(list)->b;
+  }
+  return len;
+}
+
+static int64_t runtime_expect_fixnum(gc_obj obj) {
+  if (!is_fixnum(obj)) {
+    abort();
+  }
+  return to_fixnum(obj);
+}
+
+static vector_s *runtime_expect_vector(gc_obj obj, int64_t len) {
+  if (!is_vector(obj)) {
+    abort();
+  }
+  vector_s *vec = to_vector(obj);
+  if (to_fixnum(vec->len) != len) {
+    abort();
+  }
+  return vec;
+}
+
+static bool runtime_symbol_eq(gc_obj obj, const char *name) {
+  if (!is_symbol(obj)) {
+    return false;
+  }
+  string_s const *sym_name = get_sym_name(to_symbol(obj));
+  return sym_name && strcmp(sym_name->str, name) == 0;
+}
+
+static bool runtime_decode_fun_ref(gc_obj obj, uint64_t fun_count,
+                                   uint64_t *out_id) {
+  if (!is_vector(obj)) {
+    return false;
+  }
+  vector_s *vec = to_vector(obj);
+  if (to_fixnum(vec->len) != 2 || !runtime_symbol_eq(vec->v[0], "fun-ref")) {
+    return false;
+  }
+  int64_t id = runtime_expect_fixnum(vec->v[1]);
+  if (id < 0 || (uint64_t)id >= fun_count) {
+    abort();
+  }
+  *out_id = (uint64_t)id;
+  return true;
+}
+
+gc_obj scm_emit_bitcode_closure(gc_obj payload) {
+  gc_add_root((const void *)&payload, 1, 0);
+  vector_s *root = runtime_expect_vector(payload, 2);
+  gc_obj entry_id_obj = root->v[0];
+  gc_obj funs_list = root->v[1];
+  uint64_t fun_count = runtime_list_length(funs_list);
+  int64_t entry_id_i64 = runtime_expect_fixnum(entry_id_obj);
+  if (entry_id_i64 < 0 || (uint64_t)entry_id_i64 >= fun_count) {
+    abort();
+  }
+  uint64_t entry_id = (uint64_t)entry_id_i64;
+
+  bcfunc **funcs = calloc(fun_count, sizeof(*funcs));
+  if (!funcs) {
+    abort();
+  }
+
+  for (gc_obj cur = funs_list; cur.value != NIL_TAG; cur = to_cons(cur)->b) {
+    vector_s *desc = runtime_expect_vector(to_cons(cur)->a, 4);
+    int64_t id_i64 = runtime_expect_fixnum(desc->v[0]);
+    if (id_i64 < 0 || (uint64_t)id_i64 >= fun_count) {
+      abort();
+    }
+    uint64_t id = (uint64_t)id_i64;
+    if (funcs[id]) {
+      abort();
+    }
+    uint64_t const_cnt = runtime_list_length(desc->v[2]);
+    uint64_t bc_cnt = runtime_list_length(desc->v[3]);
+    size_t bytes = runtime_align_words(sizeof(bcfunc) +
+                                       const_cnt * sizeof(gc_obj) +
+                                       bc_cnt * sizeof(bc));
+    bcfunc *func = malloc(bytes);
+    if (!func) {
+      abort();
+    }
+    memset(func, 0, bytes);
+    func->header.type = FUNC_TAG;
+    func->const_cnt = const_cnt;
+    func->bc_cnt = bc_cnt;
+    gc_register_bcfunc(func);
+    funcs[id] = func;
+  }
+  for (uint64_t i = 0; i < fun_count; i++) {
+    if (!funcs[i]) {
+      abort();
+    }
+  }
+
+  for (gc_obj cur = funs_list; cur.value != NIL_TAG; cur = to_cons(cur)->b) {
+    vector_s *desc = runtime_expect_vector(to_cons(cur)->a, 4);
+    uint64_t id = (uint64_t)runtime_expect_fixnum(desc->v[0]);
+    bcfunc *func = funcs[id];
+    func->name = desc->v[1];
+
+    gc_obj *consts = (gc_obj *)func->data;
+    uint64_t const_idx = 0;
+    for (gc_obj c = desc->v[2]; c.value != NIL_TAG; c = to_cons(c)->b) {
+      gc_obj raw = to_cons(c)->a;
+      uint64_t ref_id;
+      if (runtime_decode_fun_ref(raw, fun_count, &ref_id)) {
+        consts[const_idx++] = tag_func(funcs[ref_id]);
+      } else {
+        consts[const_idx++] = raw;
+      }
+    }
+
+    bc *code = (bc *)(func->data + func->const_cnt * sizeof(gc_obj));
+    uint64_t code_idx = 0;
+    for (gc_obj w = desc->v[3]; w.value != NIL_TAG; w = to_cons(w)->b) {
+      int64_t word = runtime_expect_fixnum(to_cons(w)->a);
+      if (word < 0 || (uint64_t)word > UINT32_MAX) {
+        abort();
+      }
+      code[code_idx++].full_data = (uint32_t)word;
+    }
+  }
+
+  closure_s *clo = gc_alloc(sizeof(closure_s) + sizeof(gc_obj));
+  clo->header.type = CLOSURE_TAG;
+  clo->len = tag_fixnum(1);
+  clo->v[0] = tag_func(funcs[entry_id]);
+  gc_obj out = tag_closure(clo);
+
+  free(funcs);
+  gc_remove_root((const void *)&payload, 0);
+  return out;
 }
 
 // GC: may allocate via gc_alloc.

@@ -657,6 +657,7 @@ OP(LOOKUP) {
   if (res.value == DEAD.value) {
     auto name = get_sym_name(s);
     printf("Symbol not defined: %.*s\n", (int)to_fixnum(name->len), name->str);
+    debug_print_vm_backtrace(state, pc, stack);
     abort();
   }
   END_ABC_NEXT

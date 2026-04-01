@@ -10,6 +10,8 @@
               if
               begin
               quote
+              quasiquote
+              unquote
               do
               when
               else
@@ -132,23 +134,20 @@
             (begin (proc (car lst1) (car lst2)) (loop proc (cdr lst1) (cdr lst2))))))
     ((proc . lsts)
       ;(unless (any list? lsts) (error "circular for-each"))
-      (error "ABORT apply unimplemend")
-      ;; (let loop ((lsts lsts))
-      ;;   (let ((hds (let loop2 ((lsts lsts))
-      ;; 		   (if (null? lsts)
-      ;; 		       '()
-      ;; 		       (let ((x (car lsts)))
-      ;; 			 (and (not (null? x))
-      ;; 			      (let ((r (loop2 (cdr lsts))))
-      ;; 				(and r (cons (car x) r)))))))))
-      ;; 	(if hds (begin
-      ;; 		  (apply proc hds)
-      ;; 		  (loop
-      ;; 		   (let loop3 ((lsts lsts))
-      ;; 		     (if (null? lsts)
-      ;; 			 '()
-      ;; 			 (cons (cdr (car lsts)) (loop3 (cdr lsts))))))))))
-    )))
+
+      (let loop ((lsts lsts))
+        (let ((hds
+                 (let loop2 ((lsts lsts))
+                   (if (null? lsts)
+                       '()
+                       (let ((x (car lsts)))
+                         (and (not (null? x))
+                              (let ((r (loop2 (cdr lsts)))) (and r (cons (car x) r)))))))))
+          (if hds
+              (begin
+                (apply proc hds)
+                (loop (let loop3 ((lsts lsts))
+                        (if (null? lsts) '() (cons (cdr (car lsts)) (loop3 (cdr lsts)))))))))))))
 
 (define (eqv? a b) (or (eq? a b) (and (flonum? a) (flonum? b) (= a b))))
 (define (equal? a b)
@@ -357,7 +356,7 @@
     ((fun args)
       (let* ((len (length args)))
         (unless (procedure? fun) (error "Applying to not a procedure:" fun))
-        (unless (list? args) (error "Apply to non-list" args))
+        (unless (list? args) (error "Apply to non-list" fun args))
         ;; sys:APPLY must always be in tail position.
         (sys:APPLY fun args)))
     ((fun . lst)
@@ -392,9 +391,12 @@
 (define (memq obj list)
   (let loop ((list list))
     (if (null? list) #f (if (eqv? obj (car list)) list (loop (cdr list))))))
-(define (member obj list)
-  (let loop ((list list))
-    (if (null? list) #f (if (equal? obj (car list)) list (loop (cdr list))))))
+(define member
+  (case-lambda
+    ((obj list) (member obj list equal?))
+    ((obj list cmp)
+      (and (not (null? list))
+           (if (cmp obj (car list)) list (member obj (cdr list) cmp))))))
 ;;; char
 (define (char-downcase c)
   (let ((n (char->integer c)))
@@ -688,7 +690,7 @@
   (sys:WRITE "ERROR:")
   (sys:WRITE msg)
   (sys:WRITE "\n")
-  (/ 1 0))
+  (0))
 
 ;;;;;; Records
 (define (record-set! record index value)
@@ -1204,14 +1206,26 @@
 
 ;; values
 
-(define (call-with-values producer consumer) (apply consumer (producer)))
+(define (call-with-values producer consumer)
+  (unless (and (procedure? producer) (procedure? consumer))
+    (error "Bad call-with-values" producer consumer))
+  (let ((res (producer)))
+    (if (and (pair? res) (eq? *values-tag* (car res)))
+        (apply consumer (cdr res))
+        (consumer res))))
+
+(define *values-tag* (list 'values))
+
+(define (%values ls)
+  (if (and (pair? ls) (null? (cdr ls))) (car ls) (cons *values-tag* ls)))
 
 (define values
   (case-lambda
+    (() (list *values-tag*))
     ((a) a)
-    ((a b) (cons a (cons b '())))
-    ((a b c) (cons a (cons b (cons c '()))))
-    (rest rest)))
+    ((a b) `(,*values-tag* ,a ,b))
+    (ls (%values ls))))
+
 ;; bytevectors
 
 (define make-bytevector make-string)
@@ -1255,3 +1269,5 @@
       (set-cdr! there '())
       (set! *here* there)
       (before))))
+
+

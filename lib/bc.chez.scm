@@ -163,16 +163,6 @@
     (bytevector-ieee-double-set! bv 0 d (endianness little))
     (put-bytevector p bv)))
 
-;; Some Chez loads end up with a 4-arg make-binding; normalize it for expand.scm.
-(define make-binding
-  (case-lambda
-    ((type value) (vector 'binding type value #f '() #f #f))
-    ((type value phase) (vector 'binding type value phase '() #f #f))
-    ((type value phase library-name)
-     (vector 'binding type value phase '() library-name #f))
-    ((type value phase library-name global)
-     (vector 'binding type value phase '() library-name global))))
-
 (include "../../scheme-format/read.scm")
 (include "../../ariadne/ariadne.scm")
 (include "../../expand/syntax-match.scm")
@@ -184,3 +174,8 @@
 
 (include "match.scm")
 (include "bc.scm")
+
+(display "Compiling:")
+(display (cdr (command-line)))
+(newline)
+(for-each compile-file (cdr (command-line)))
