@@ -19,6 +19,7 @@
 
 static inline char const *func_name_for_pc(bc *pc);
 static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack);
+static vm_state *current_vm_state;
 
 #define VMGEN_TRACE_OP(pc, code, state, argcnt)                                \
   do {                                                                         \
@@ -239,6 +240,13 @@ static void trace_reset(vm_state *state) {
   emit_init(&state->emit);
   record_init(&state->record);
   memset(state->hotmap, hotmap_cnt, sizeof(state->hotmap));
+}
+
+void vm_trace_reset(void) {
+  if (!current_vm_state) {
+    abort();
+  }
+  trace_reset(current_vm_state);
 }
 static inline void return_frame(vm_state *state, bc instr, bc **pc,
                                 gc_obj **stack, void **op_table) {
@@ -1037,6 +1045,7 @@ gc_obj vm(bc *pc) {
   size_t default_size = 1024;
   vm_state *state = calloc(1, sizeof(vm_state));
   vm_state_init(state);
+  current_vm_state = state;
 
   gc_obj *stack = calloc(default_size, sizeof(gc_obj));
   if (!stack) {
@@ -1051,5 +1060,5 @@ gc_obj vm(bc *pc) {
     profiler_start();
   }
 
-  return state->impls[pc->op](*pc, pc, stack, state, state->impls, 0);
+  return state->impls[pc->op](*pc, pc, stack, state, state->impls, 1);
 }

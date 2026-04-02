@@ -29,3 +29,4 @@ typedef struct vm_state {
 
 gc_obj vm(bc *pc);
 gc_obj *expand_stack(vm_state *state, gc_obj *stack);
+void vm_trace_reset(void);

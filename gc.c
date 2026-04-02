@@ -13,6 +13,7 @@
 #include "hawk.h"
 #include "profiler.h"
 #include "types.h"
+#include "vm.h"
 
 typedef struct {
   uintptr_t mem;
@@ -263,9 +264,63 @@ typedef struct {
   char const *path;
 } image_ctx;
 
+typedef struct {
+  uint8_t *base;
+  size_t len;
+  char const *path;
+  gc_header **worklist;
+} dump_image_ctx;
+
 static void read_image_fail(char const *path, char const *msg) {
   fprintf(stderr, "Failed to read image %s: %s\n", path, msg);
   abort();
+}
+
+static void dump_image_fail(char const *path, char const *msg) {
+  fprintf(stderr, "Failed to write image %s: %s\n", path, msg);
+  abort();
+}
+
+static gc_header *dump_copy_object(gc_header *obj, dump_image_ctx *ctx) {
+  if (is_forwarded(obj)) {
+    return forwarded(obj);
+  }
+  size_t sz = align_size(heap_object_size(obj));
+  if (ctx->len + sz > space_size()) {
+    dump_image_fail(ctx->path, "image larger than GC semispace");
+  }
+  gc_header *copy = (gc_header *)(ctx->base + ctx->len);
+  memcpy(copy, obj, sz);
+  ctx->len += sz;
+  forward_obj(obj, copy);
+  arrput(ctx->worklist, copy);
+  return copy;
+}
+
+static void dump_visit_field(gc_obj *slot, void *ctx) {
+  if (!is_heap_object(*slot)) {
+    return;
+  }
+  dump_image_ctx *image = ctx;
+  gc_header *obj = to_gc_header(*slot);
+  if (is_forwarded(obj)) {
+    *slot = tag_header(forwarded(obj), get_tag(*slot));
+    return;
+  }
+  if (!in_space((uintptr_t)obj, heap.to_space) && !is_func(*slot)) {
+    abort();
+  }
+  gc_header *copy = dump_copy_object(obj, image);
+  *slot = tag_header(copy, get_tag(*slot));
+}
+
+static void dump_rebase_field(gc_obj *slot, void *ctx) {
+  if (!is_heap_object(*slot)) {
+    return;
+  }
+  uint8_t *base = ctx;
+  uintptr_t offset = (uintptr_t)to_raw_ptr(*slot) - (uintptr_t)base;
+  *slot = (gc_obj){.value = (int64_t)offset + get_tag(*slot)};
 }
 
 static void rebase_image_field(gc_obj *slot, void *ctx) {
@@ -368,6 +423,75 @@ gc_obj gc_read_image(char const *path) {
     scan_object(obj);
   }
   return start;
+}
+
+EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path) {
+  vm_trace_reset();
+  if (!is_closure(clo)) {
+    abort();
+  }
+  if (!is_string(path)) {
+    abort();
+  }
+  char const *filename = to_string(path)->str;
+  uint8_t *data = malloc(space_size());
+  if (!data) {
+    dump_image_fail(filename, "out of memory");
+  }
+
+  dump_image_ctx image = {
+      .base = data,
+      .len = 0,
+      .path = filename,
+      .worklist = nullptr,
+  };
+  gc_obj root = clo;
+  gc_obj start = to_closure(clo)->v[0];
+  dump_visit_field(&root, &image);
+  dump_visit_field(&start, &image);
+
+  while (arrlen(image.worklist) > 0) {
+    gc_header *obj = *arrlast(image.worklist);
+    arrpop(image.worklist);
+    trace_heap_object(obj, dump_visit_field, &image);
+  }
+
+  arr_for_each(pinned_funcs, entry) {
+    if (is_forwarded(&entry.ptr->header)) {
+      continue;
+    }
+    fprintf(stderr, "undumped pinned func: %s %p\n",
+            to_string(entry.ptr->name)->str, (void *)entry.ptr);
+  }
+
+  uintptr_t scan = (uintptr_t)data;
+  uintptr_t end = scan + image.len;
+  while (scan < end) {
+    gc_header *obj = (gc_header *)scan;
+    trace_heap_object(obj, dump_rebase_field, data);
+    scan += align_size(heap_object_size(obj));
+  }
+  dump_rebase_field(&root, data);
+  dump_rebase_field(&start, data);
+
+  FILE *fp = fopen(filename, "wb");
+  if (!fp) {
+    perror("fopen");
+    abort();
+  }
+  uint64_t version = 0;
+  uint64_t image_len = image.len;
+  uint64_t start_u64 = (uint64_t)start.value;
+  if (fwrite("HAWK", 1, 4, fp) != 4 ||
+      fwrite(&version, sizeof(version), 1, fp) != 1 ||
+      fwrite(&image_len, sizeof(image_len), 1, fp) != 1 ||
+      fwrite(&start_u64, sizeof(start_u64), 1, fp) != 1 ||
+      fwrite(data, 1, image.len, fp) != image.len || fclose(fp) != 0) {
+    dump_image_fail(filename, "short write");
+  }
+  arrfree(image.worklist);
+  free(data);
+  exit(EXIT_SUCCESS);
 }
 
 NOINLINE void *gc_alloc_slow(uint64_t sz) {

@@ -687,10 +687,10 @@
 (define (call/cc thunk) (call-with-current-continuation thunk))
 
 (define (error . msg)
-  (sys:WRITE "ERROR:")
-  (sys:WRITE msg)
-  (sys:WRITE "\n")
-  ;;(flush-output-port)
+  (display "ERROR:")
+  (display msg)
+  (display "\n")
+  (flush-output-port)
   (0))
 
 ;;;;;; Records
@@ -763,7 +763,7 @@
   (case-lambda
     ((x) (display x (current-output-port)))
     ((x port)
-     (cond
+      (cond
         ((flonum? x)
           (display (sys:FOREIGN_CALL '(string "flonum_string" (double)) x) port))
         ((number? x) (display (number->string x) port))
@@ -805,7 +805,7 @@
                ((= i (string-length x)))
                (write-char (string-ref x i) port)))
         (else (error "Bad type in display: " x)))
-     x)))
+      x)))
 
 (define newline
   (case-lambda
@@ -1188,7 +1188,7 @@
                   (cond
                     ((eof-object? token) token)
                     ((string->number token) => (lambda (num) num))
-                    (else (string->symbol (lower-case token)))))))))
+                    (else (string->symbol token))))))))
         (read-one))
       (read2 port))))
 ;; flonum
