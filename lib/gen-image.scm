@@ -20,6 +20,6 @@
                (scheme process-context) (scheme read) (scheme repl) (scheme time) (scheme write)
                (scheme r5rs))
       (environment))
-(save-and-die repl "img.scm.bc" #f)
+(save-and-die repl "img.scm.bc" #t)
 
 
