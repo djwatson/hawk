@@ -868,12 +868,20 @@
           (port-len-set! port 0)
           #t)
         #t)))
+(define (clear-port-buffers! port)
+  (port-peek-set! port #f)
+  (port-buf-set! port "")
+  (port-pos-set! port 0)
+  (port-len-set! port 0)
+  (port-sbuf-set! port ""))
 (define (close-port port)
   (if (>= (port-fd port) 0)
       (begin
         (if (not (port-input? port)) (flush-port-write-buffer port))
-        (c-close (port-fd port)))
-      #t))
+        (c-close (port-fd port))
+        (record-set! port 1 -2)
+        (clear-port-buffers! port))
+      (clear-port-buffers! port)))
 (define close-output-port close-port)
 (define close-input-port close-port)
 (define-record-type eof-object-record (make-eof-object) eof-object?)
@@ -1272,5 +1280,4 @@
       (set-cdr! there '())
       (set! *here* there)
       (before))))
-
 
