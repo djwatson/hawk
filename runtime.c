@@ -95,6 +95,23 @@ static bool runtime_decode_fun_ref(gc_obj obj, uint64_t fun_count,
   return true;
 }
 
+static bool runtime_decode_closure_ref(gc_obj obj, uint64_t fun_count,
+                                       uint64_t *out_id) {
+  if (!is_vector(obj)) {
+    return false;
+  }
+  vector_s *vec = to_vector(obj);
+  if (to_fixnum(vec->len) != 2 || !runtime_symbol_eq(vec->v[0], "closure-ref")) {
+    return false;
+  }
+  int64_t id = runtime_expect_fixnum(vec->v[1]);
+  if (id < 0 || (uint64_t)id >= fun_count) {
+    abort();
+  }
+  *out_id = (uint64_t)id;
+  return true;
+}
+
 gc_obj scm_emit_bitcode_closure(gc_obj payload) {
   gc_add_root((const void *)&payload, 1, 0);
   vector_s *root = runtime_expect_vector(payload, 2);
@@ -157,6 +174,12 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
       uint64_t ref_id;
       if (runtime_decode_fun_ref(raw, fun_count, &ref_id)) {
         consts[const_idx++] = tag_func(funcs[ref_id]);
+      } else if (runtime_decode_closure_ref(raw, fun_count, &ref_id)) {
+        closure_s *clo = gc_alloc(sizeof(closure_s) + sizeof(gc_obj));
+        clo->header.type = CLOSURE_TAG;
+        clo->len = tag_fixnum(1);
+        clo->v[0] = tag_func(funcs[ref_id]);
+        consts[const_idx++] = tag_closure(clo);
       } else {
         consts[const_idx++] = raw;
       }

@@ -690,6 +690,7 @@
   (sys:WRITE "ERROR:")
   (sys:WRITE msg)
   (sys:WRITE "\n")
+  ;;(flush-output-port)
   (0))
 
 ;;;;;; Records
@@ -762,7 +763,7 @@
   (case-lambda
     ((x) (display x (current-output-port)))
     ((x port)
-      (cond
+     (cond
         ((flonum? x)
           (display (sys:FOREIGN_CALL '(string "flonum_string" (double)) x) port))
         ((number? x) (display (number->string x) port))
@@ -794,12 +795,17 @@
         ((eq? x '()) (display "()" port))
         ((eof-object? x) (display "#<eof>" port))
         ((port? x) (display "#<port>" port))
-        ((record? x) (display "#<record>" port))
+        ((record? x)
+          (display "#<record" port)
+          (let ((typ (record-ref x 0)))
+            (when (record? typ) (display " " port) (display (record-type-name typ) port)))
+          (display ">" port))
         ((string? x)
           (do ((i 0 (+ i 1)))
                ((= i (string-length x)))
                (write-char (string-ref x i) port)))
-        (else (error "Bad type in display: " x))))))
+        (else (error "Bad type in display: " x)))
+     x)))
 
 (define newline
   (case-lambda

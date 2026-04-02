@@ -427,14 +427,17 @@
     ((> value fixnum-max) fixnum-max)
     (else (error "Invalid bignum"))))
 
+(define SYNTAX_OK #f)
 (define (normalize-const datum)
   (cond
-    ((annotation? datum) (normalize-const (annotation-sexp datum)))
-    ((syntax? datum) (normalize-const (syntax->datum datum)))
-    ((pair? datum)
-      (cons (normalize-const (car datum)) (normalize-const (cdr datum))))
-    ((vector? datum) (list->vector (map normalize-const (vector->list datum))))
-    (else datum)))
+   ((annotation? datum) (normalize-const (annotation-sexp datum)))
+   ;; Syntax constants need to keep their wrap information intact in the
+   ;; eval/VM path; stripping to datum loses hygiene and breaks macro output.
+   ((syntax? datum) (if SYNTAX_OK datum (syntax->datum datum)))
+   ((pair? datum)
+    (cons (normalize-const (car datum)) (normalize-const (cdr datum))))
+   ((vector? datum) (list->vector (map normalize-const (vector->list datum))))
+   (else datum)))
 
 (define (add-const fun datum)
   (define normalized (normalize-const datum))
@@ -859,13 +862,34 @@
        (* 65536 (normalize-u16 data)))))
 
 (define (roots->runtime-payload roots)
-  (let ((ids (make-hash-table eq?)))
+  (let ((ids (make-hash-table eq?)) (seen (make-hash-table eq?)))
     (letrec ((const->runtime
                 (lambda (c)
                   (cond
                     ((fun? c) (vector 'fun-ref (hash-table-ref ids c)))
                     ((const-closure? c)
-                      (vector 'fun-ref (hash-table-ref ids (const-closure-fun c))))
+                      (vector 'closure-ref (hash-table-ref ids (const-closure-fun c))))
+                    ((pair? c)
+                      (cond
+                        ((hash-table-exists? seen c) (hash-table-ref seen c))
+                        (else
+                          (let ((cell (cons #f #f)))
+                            (hash-table-set! seen c cell)
+                            (set-car! cell (const->runtime (car c)))
+                            (set-cdr! cell (const->runtime (cdr c)))
+                            cell))))
+                    ((vector? c)
+                      (cond
+                        ((hash-table-exists? seen c) (hash-table-ref seen c))
+                        (else
+                          (let* ((len (vector-length c)) (res (make-vector len)))
+                            (hash-table-set! seen c res)
+                            (do ((i 0 (+ i 1)))
+                                 ((= i len) res)
+                                 (vector-set! res i (const->runtime (vector-ref c i))))))))
+                    ;; The eval path can reuse existing runtime record objects
+                    ;; directly as constants.
+                    ((sys:GUARD c 49) c)
                     (else c))))
              (fun->runtime
                 (lambda (fun)

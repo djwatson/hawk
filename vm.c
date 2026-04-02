@@ -361,11 +361,13 @@ gc_obj halt(vm_state *state, gc_obj *stack) {
   free(state);
   return res;
 }
-static inline void fail_if_not_closure(gc_obj clo) {
+static inline void fail_if_not_closure(vm_state *state, bc *pc, gc_obj *stack,
+                                       gc_obj clo) {
   if (!is_closure(clo)) {
     printf("Attempting to call a non-closure:");
     print_obj(clo, stdout);
     printf("\n");
+    debug_print_vm_backtrace(state, pc, stack);
     abort();
   }
 }
@@ -779,7 +781,7 @@ OP(JMP) {
 }
 
 OP_ABC(CLOSURE_GET) {
-  fail_if_not_closure(v1);
+  fail_if_not_closure(state, pc, stack, v1);
   auto slot = instr.v2;
   auto res = to_closure(v1)->v[slot];
   END_ABC_NEXT
@@ -834,7 +836,7 @@ OP(LCALLT) {
 OP(APPLY) {
   auto fun = stack[pc->v1];
   auto args = stack[pc->v2];
-  fail_if_not_closure(fun);
+  fail_if_not_closure(state, pc, stack, fun);
   auto callee = to_func(to_closure(fun)->v[0]);
 
   uint8_t a = 1;
