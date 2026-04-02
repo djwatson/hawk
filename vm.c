@@ -106,21 +106,23 @@ static NOINLINE gc_obj emit_ov_math_mul_slowpath(vm_state *state, bc *pc,
   return vm_runtime_math_mul_slow(v1, v2);
 }
 
-#define DEFINE_VM_FAST_OVERFLOW_MATH(name, oplcname, shift, slowpath)         \
-  static inline gc_obj emit_ov_math_##name(vm_state *state, bc *pc,            \
-                                           gc_obj *stack, gc_obj v1, gc_obj v2) { \
-    if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {                       \
+#define DEFINE_VM_FAST_OVERFLOW_MATH(name, oplcname, shift, slowpath)          \
+  static inline gc_obj emit_ov_math_##name(                                    \
+      vm_state *state, bc *pc, gc_obj *stack, gc_obj v1, gc_obj v2) {          \
+    if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {                        \
       gc_obj res;                                                              \
       if (likely(!__builtin_##oplcname##_overflow(v1.value, shift(v2.value),   \
                                                   &res.value))) {              \
         return res;                                                            \
       }                                                                        \
     }                                                                          \
-    MUSTTAIL return slowpath(state, pc, stack, v1, v2);                       \
+    MUSTTAIL return slowpath(state, pc, stack, v1, v2);                        \
   }
 
-DEFINE_VM_FAST_OVERFLOW_MATH(add, add, VM_MATH_NOSHIFT, emit_ov_math_add_slowpath)
-DEFINE_VM_FAST_OVERFLOW_MATH(sub, sub, VM_MATH_NOSHIFT, emit_ov_math_sub_slowpath)
+DEFINE_VM_FAST_OVERFLOW_MATH(add, add, VM_MATH_NOSHIFT,
+                             emit_ov_math_add_slowpath)
+DEFINE_VM_FAST_OVERFLOW_MATH(sub, sub, VM_MATH_NOSHIFT,
+                             emit_ov_math_sub_slowpath)
 DEFINE_VM_FAST_OVERFLOW_MATH(mul, mul, VM_MATH_SHIFT, emit_ov_math_mul_slowpath)
 
 #undef DEFINE_VM_FAST_OVERFLOW_MATH
@@ -149,7 +151,8 @@ static NOINLINE gc_obj emit_ov_math_mod_slowpath(vm_state *state, bc *pc,
 }
 
 static inline gc_obj emit_ov_math_quotient(vm_state *state, bc *pc,
-                                           gc_obj *stack, gc_obj v1, gc_obj v2) {
+                                           gc_obj *stack, gc_obj v1,
+                                           gc_obj v2) {
   if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
     if (unlikely(to_fixnum(v2) == 0)) {
       abort();
@@ -176,14 +179,14 @@ static inline gc_obj emit_ov_math_mod(vm_state *state, bc *pc, gc_obj *stack,
     (void)state;                                                               \
     (void)pc;                                                                  \
     (void)stack;                                                               \
-    return vm_runtime_cmp_##name##_slow(v1, v2);                              \
+    return vm_runtime_cmp_##name##_slow(v1, v2);                               \
   }
 
 #define DEFINE_VM_FAST_CMP(name, op)                                           \
   static inline gc_obj emit_math_cmp_##name(                                   \
       vm_state *state, bc *pc, gc_obj *stack, gc_obj v1, gc_obj v2) {          \
-    if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {                       \
-      return to_fixnum(v1) op to_fixnum(v2) ? TRUE_REP : FALSE_REP;           \
+    if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {                        \
+      return to_fixnum(v1) op to_fixnum(v2) ? TRUE_REP : FALSE_REP;            \
     }                                                                          \
     MUSTTAIL return emit_math_cmp_##name##_slowpath(state, pc, stack, v1, v2); \
   }
@@ -670,7 +673,7 @@ OP(DEFINE) {
   auto val = stack[instr.reg];
   auto s = to_symbol(sym);
   if (s->opt > 0) {
-    if (verbose) {
+    if (true || verbose) {
       printf("Clearing trace cache due to optimistic global: %s\n",
              to_string(s->name)->str);
     }
@@ -921,6 +924,9 @@ OP(LOAD) {
   auto src = stack[pc->v1];
   auto off = stack[pc->v2];
   assert(is_heap_object(src));
+  if (!is_fixnum(off)) {
+    debug_print_vm_backtrace(state, pc, stack);
+  }
   assert(is_fixnum(off));
 
   auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));

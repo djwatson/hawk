@@ -630,11 +630,11 @@
 (define (align8 x) (if (= 0 (modulo x 8)) x (+ x (- 8 (modulo x 8)))))
 
 (define (bc-fixnum? c) (and (integer? c) (exact? c) (fits-in-int64 c)))
-(define (flonum? c) (and (inexact? c) (real? c)))
+(define (bc-flonum? c) (and (inexact? c) (real? c)))
 (define (heap-obj? c)
   (or (string? c)
      (symbol? c)
-     (flonum? c)
+     (bc-flonum? c)
      (pair? c)
      (vector? c)
      (fun? c)
@@ -642,7 +642,7 @@
 
 (define (obj-tag o)
   (cond
-    ((flonum? o) flonum-tag)
+    ((bc-flonum? o) flonum-tag)
     ((symbol? o) symbol-tag)
     ((pair? o) cons-tag)
     ((vector? o) vector-tag)
@@ -665,7 +665,7 @@
   (define (w64 v) (writer 'u64 v))
   (define (word v) (writer 'word v))
   (cond
-    ((flonum? o) (w32 flonum-tag) (w32 0) (writer 'double o))
+    ((bc-flonum? o) (w32 flonum-tag) (w32 0) (writer 'double o))
     ((string? o)
       (w32 string-tag)
       (w32 0)
