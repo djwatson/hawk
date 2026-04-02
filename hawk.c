@@ -30,8 +30,12 @@ static struct option long_options[] = {
     {nullptr, no_argument, nullptr, 0},
 };
 
+static const uint8_t embedded_image[] = {
+#embed "img.scm.bc"
+};
+
 void print_help() {
-  printf("Usage: hawk [OPTION] <script>.scm\n");
+  printf("Usage: hawk [OPTION] [<script>.scm]\n");
   printf("Available options are:\n");
   printf("      --joff     \tTurn off jit\n");
   printf("  -m, --max-trace\tStop JITting after # trace\n");
@@ -75,11 +79,6 @@ static char *parse_args(int argc, char *argv[]) {
     }
   }
 
-  if (!argv[optind]) {
-    print_help();
-    exit(-1);
-  }
-
   return argv[optind];
 }
 
@@ -89,26 +88,31 @@ int main(int argc, char *argv[]) {
   auto filename = parse_args(argc, argv);
   char *filename_alloc = nullptr;
 
-  auto ext = strrchr(filename, '.');
-  if (!ext || strcmp(ext, ".bc") != 0) {
-    size_t len = strlen(filename);
-    size_t path_len = len + 3 + 1;
-    filename_alloc = malloc(path_len);
-    if (!filename_alloc) {
-      printf("Must manually compile bitcode file for %s\n", filename);
-      exit(-1);
+  gc_obj start;
+  if (filename) {
+    auto ext = strrchr(filename, '.');
+    if (!ext || strcmp(ext, ".bc") != 0) {
+      size_t len = strlen(filename);
+      size_t path_len = len + 3 + 1;
+      filename_alloc = malloc(path_len);
+      if (!filename_alloc) {
+        printf("Must manually compile bitcode file for %s\n", filename);
+        exit(-1);
+      }
+      snprintf(filename_alloc, path_len, "%s.bc", filename);
+      if (access(filename_alloc, F_OK) == 0) {
+        filename = filename_alloc;
+      } else {
+        printf("Must manually compile bitcode file for %s\n", filename_alloc);
+        free(filename_alloc);
+        exit(-1);
+      }
     }
-    snprintf(filename_alloc, path_len, "%s.bc", filename);
-    if (access(filename_alloc, F_OK) == 0) {
-      filename = filename_alloc;
-    } else {
-      printf("Must manually compile bitcode file for %s\n", filename_alloc);
-      free(filename_alloc);
-      exit(-1);
-    }
+    start = gc_read_image_file(filename);
+  } else {
+    filename = "img.scm.bc";
+    start = gc_read_image(embedded_image, sizeof(embedded_image), filename);
   }
-
-  auto start = gc_read_image(filename);
   if (!is_func(start)) {
     printf("Error loading %s\n", filename);
     exit(-1);

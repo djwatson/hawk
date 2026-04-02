@@ -335,38 +335,10 @@ static void rebase_image_field(gc_obj *slot, void *ctx) {
   *slot = tag_header((gc_header *)(image->base + offset), get_tag(*slot));
 }
 
-gc_obj gc_read_image(char const *path) {
-  FILE *fp = fopen(path, "rb");
-  if (!fp) {
-    perror("fopen");
-    abort();
-  }
-  if (fseek(fp, 0, SEEK_END) != 0) {
-    perror("fseek");
-    abort();
-  }
-  long fsize = ftell(fp);
-  if (fsize < 0) {
-    perror("ftell");
-    abort();
-  }
-  if (fseek(fp, 0, SEEK_SET) != 0) {
-    perror("fseek");
-    abort();
-  }
-  if (fsize < 28) {
+gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path) {
+  if (data_len < 28) {
     read_image_fail(path, "file too short");
   }
-
-  uint8_t *data = malloc((size_t)fsize);
-  if (!data) {
-    fprintf(stderr, "Failed to allocate %li bytes\n", fsize);
-    abort();
-  }
-  if (fread(data, 1, (size_t)fsize, fp) != (size_t)fsize) {
-    read_image_fail(path, "short read");
-  }
-  fclose(fp);
 
   if (memcmp(data, "HAWK", 4) != 0) {
     read_image_fail(path, "invalid magic");
@@ -385,7 +357,7 @@ gc_obj gc_read_image(char const *path) {
     read_image_fail(path, "image too large");
   }
   size_t image_len = (size_t)image_len_u64;
-  if ((size_t)fsize != 28 + image_len) {
+  if (data_len != 28 + image_len) {
     read_image_fail(path, "length mismatch");
   }
 
@@ -394,7 +366,6 @@ gc_obj gc_read_image(char const *path) {
   }
   uintptr_t image_base = heap.from_space;
   memcpy((void *)image_base, data + 28, image_len);
-  free(data);
 
   image_ctx image = {.base = image_base, .len = image_len, .path = path};
   uintptr_t scan = image_base;
@@ -422,6 +393,40 @@ gc_obj gc_read_image(char const *path) {
     arrpop(worklist);
     scan_object(obj);
   }
+  return start;
+}
+
+gc_obj gc_read_image_file(char const *path) {
+  FILE *fp = fopen(path, "rb");
+  if (!fp) {
+    perror("fopen");
+    abort();
+  }
+  if (fseek(fp, 0, SEEK_END) != 0) {
+    perror("fseek");
+    abort();
+  }
+  long fsize = ftell(fp);
+  if (fsize < 0) {
+    perror("ftell");
+    abort();
+  }
+  if (fseek(fp, 0, SEEK_SET) != 0) {
+    perror("fseek");
+    abort();
+  }
+
+  uint8_t *data = malloc((size_t)fsize);
+  if (!data) {
+    fprintf(stderr, "Failed to allocate %li bytes\n", fsize);
+    abort();
+  }
+  if (fread(data, 1, (size_t)fsize, fp) != (size_t)fsize) {
+    read_image_fail(path, "short read");
+  }
+  fclose(fp);
+  gc_obj start = gc_read_image(data, (size_t)fsize, path);
+  free(data);
   return start;
 }
 
