@@ -75,6 +75,7 @@
 (define inited #f)
 
 (define (eval foo env)
+  (display (loaded-library-names))
   (display "EVAL:")
   (display foo)
   (display "\n")

@@ -740,6 +740,13 @@
             new)
           (error "wrong number of arguments to constructor" type args)))))
 
+(define make-parameter
+  (case-lambda
+    ((init) (let ((cell init)) (case-lambda (() cell) ((new) (set! cell new)))))
+    ((init converter)
+      (let ((cell (converter init)))
+        (case-lambda (() cell) ((new) (set! cell (converter new))))))))
+
 ;;;;;; Port ops
 (define-record-type port (make-port fd peek input buf pos len sbuf) port?
   (fd port-fd)
@@ -815,12 +822,9 @@
 (define input-port? port-input?)
 (define (output-port? port) (and (port? port) (not (port-input? port))))
 
-(define *current-input-port* (make-input-port 0))
-(define (current-input-port) *current-input-port*)
-(define *current-output-port* (make-output-port 1))
-(define (current-output-port) *current-output-port*)
-(define *current-error-port* (make-output-port 2))
-(define (current-error-port) *current-error-port*)
+(define current-input-port (make-parameter (make-input-port 0)))
+(define current-output-port (make-parameter (make-output-port 1)))
+(define current-error-port (make-parameter (make-output-port 2)))
 
 (define (c-open pathname read)
   (sys:FOREIGN_CALL '(int32 "scm_open" (string uint8)) pathname read))
@@ -1246,13 +1250,6 @@
   (sys:HALT))
 
 ;;; parameters
-
-(define make-parameter
-  (case-lambda
-    ((init) (let ((cell init)) (case-lambda (() cell) ((new) (set! cell new)))))
-    ((init converter)
-      (let ((cell (converter init)))
-        (case-lambda (() cell) ((new) (set! cell (converter new))))))))
 
 (define (command-line) '(hawk "test.scm"))
 (define (environment . args) '())

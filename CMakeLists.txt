@@ -124,6 +124,24 @@ if(NOT LIBFFI_LIBRARY)
   message(FATAL_ERROR "libffi not found. Install libffi or set LIBFFI_LIBRARY.")
 endif()
 
+set(zstd_search_dirs)
+if(DEFINED ENV{HOMEBREW_PREFIX})
+  list(APPEND zstd_search_dirs $ENV{HOMEBREW_PREFIX}/include $ENV{HOMEBREW_PREFIX}/lib)
+  list(APPEND zstd_search_dirs $ENV{HOMEBREW_PREFIX}/opt/zstd/include $ENV{HOMEBREW_PREFIX}/opt/zstd/lib)
+endif()
+list(APPEND zstd_search_dirs /opt/homebrew/include /opt/homebrew/lib /usr/local/include /usr/local/lib /usr/include /usr/lib /usr/lib/x86_64-linux-gnu /usr/lib/aarch64-linux-gnu)
+
+find_path(ZSTD_INCLUDE_DIR NAMES zstd.h PATHS ${zstd_search_dirs})
+find_library(ZSTD_LIBRARY NAMES zstd PATHS ${zstd_search_dirs})
+
+if(NOT ZSTD_INCLUDE_DIR)
+  message(FATAL_ERROR "zstd.h not found. Install zstd or set ZSTD_INCLUDE_DIR.")
+endif()
+
+if(NOT ZSTD_LIBRARY)
+  message(FATAL_ERROR "libzstd not found. Install zstd or set ZSTD_LIBRARY.")
+endif()
+
 set(OPCODES_SCHEME ${CMAKE_CURRENT_SOURCE_DIR}/lib/opcodes.scm)
 add_custom_command(
   OUTPUT ${OPCODES_SCHEME}
@@ -264,7 +282,7 @@ if(NOT CAPSTONE_LIBRARY)
   message(FATAL_ERROR "libcapstone not found. Install capstone or set CAPSTONE_LIBRARY.")
 endif()
 
-target_link_libraries(hawk PRIVATE ${CAPSTONE_LIBRARY} ${LIBFFI_LIBRARY} m)
+target_link_libraries(hawk PRIVATE ${CAPSTONE_LIBRARY} ${LIBFFI_LIBRARY} ${ZSTD_LIBRARY} m)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(hawk PRIVATE ${CMAKE_DL_LIBS})
@@ -288,6 +306,7 @@ target_include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}
   ${CAPSTONE_INCLUDE_DIR}
   ${LIBFFI_INCLUDE_DIR}
+  ${ZSTD_INCLUDE_DIR}
 )
 
 if(BUILD_TESTING)
