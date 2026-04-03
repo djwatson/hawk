@@ -206,6 +206,10 @@
 (define (abs p) (if (negative? p) (- p) p))
 (define (list-tail lst k)
   (let loop ((lst lst) (k k)) (if (> k 0) (loop (cdr lst) (- k 1)) lst)))
+(define make-list
+  (case-lambda
+    ((k) (make-list k '()))
+    ((k fill) (if (= k 0) '() (cons fill (make-list (- k 1) fill))))))
 (define (list . x) x)
 (define (set-car! a b) (sys:STORE a b 0))
 (define (set-cdr! a b) (sys:STORE a b 1))
