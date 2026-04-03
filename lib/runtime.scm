@@ -704,10 +704,12 @@
 (define (record-ref record index)
   (unless (record? record) (error "record-ref: not a record" record))
   (sys:LOAD record (+ index 1)))
+(define (record-clear rec sz i)
+  (if (= i sz) rec (begin (record-set! rec i #f) (record-clear rec sz (+ i 1)))))
 (define (make-record sz)
   (let ((rec (sys:ALLOC (+ (* 8 (+ 1 sz)) 8) 49)))
     (sys:STORE rec sz 0)
-    (do ((i 0 (+ i 1))) ((= i sz) rec) (record-set! rec i #f))))
+    (record-clear rec sz 0)))
 (define (record? p) (sys:GUARD p 49))
 
 (define :record-type (make-record 3))
