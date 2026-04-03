@@ -611,15 +611,7 @@ static slot record_foreign_arg(vm_state *state, gc_obj *stack, uint8_t pos,
     }
     return arg;
   case FOREIGN_TYPE_GC_OBJ:
-    if (ty == FLONUM_TAG) {
-      fprintf(stderr,
-              "Warning: can't record FOREIGN_CALL: arg %u gc-obj can't be "
-              "flonum\n",
-              pos);
-      *ok = false;
-      return (slot){0};
-    }
-    return arg;
+    return ty == FLONUM_TAG ? box_vmcall_arg(state, arg) : arg;
   default:
     fprintf(stderr,
             "Warning: can't record FOREIGN_CALL: unsupported foreign arg "
