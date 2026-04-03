@@ -1597,7 +1597,16 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     }
     case IR_MOD: {
       if (op->type == FLONUM_TAG) {
-        abort();
+        assert(!op->op1.constant);
+        uint8_t rhs_reg = arg1_reg;
+        if (op->op2.constant) {
+          rhs_reg = FRTMP;
+          emit_fmov_constant(s, rhs_reg, slot_flonum_constant(t, op->op2));
+        }
+        emit_fdiv(s, dst_reg, arg0_reg, rhs_reg);
+        emit_ftruncate(s, dst_reg, dst_reg);
+        emit_fmul(s, dst_reg, dst_reg, rhs_reg);
+        emit_fsub(s, dst_reg, arg0_reg, dst_reg);
       } else {
         emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
                                 emit_mod, emit_mod_constant);
