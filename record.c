@@ -31,6 +31,12 @@ enum {
 static const char *func_name_from_pc(bc *pc) {
   assert(pc);
   bcfunc *func = gc_base_ptr(pc);
+  if (!func) {
+    return pc->op == OP_CALLCC_RESUME ? "callcc_resume_stub" : "(unknown func)";
+  }
+  if (!is_ptr(func->name) || get_ptr_tag(func->name) != STRING_TAG) {
+    return "(unknown func)";
+  }
   return to_string(func->name)->str;
 }
 
@@ -228,8 +234,8 @@ static slot box_vmcall_arg(vm_state *state, slot v);
         vm_runtime_binary_result_type(ir_vm_op, raw_v1, raw_v2);               \
     if (slot_numeric_needs_vm(t, v1) || slot_numeric_needs_vm(t, v2) ||        \
         (result_type != FIXNUM_TAG && result_type != FLONUM_TAG)) {            \
-      v1 = box_vmcall_arg(state, v1);                                           \
-      v2 = box_vmcall_arg(state, v2);                                           \
+      v1 = box_vmcall_arg(state, v1);                                          \
+      v2 = box_vmcall_arg(state, v2);                                          \
       return add_inst(state, IR(.op = ir_vm_op, .op1 = v1, .op2 = v2,          \
                                 .guard = true, .type = result_type));          \
     }                                                                          \
@@ -249,8 +255,8 @@ static slot box_vmcall_arg(vm_state *state, slot v);
         vm_runtime_binary_result_type(ir_vm_op, raw_v1, raw_v2);               \
     if (slot_numeric_needs_vm(t, v1) || slot_numeric_needs_vm(t, v2) ||        \
         result_type != FLONUM_TAG) {                                           \
-      v1 = box_vmcall_arg(state, v1);                                           \
-      v2 = box_vmcall_arg(state, v2);                                           \
+      v1 = box_vmcall_arg(state, v1);                                          \
+      v2 = box_vmcall_arg(state, v2);                                          \
       return add_inst(state, IR(.op = ir_vm_op, .op1 = v1, .op2 = v2,          \
                                 .guard = true, .type = result_type));          \
     }                                                                          \
@@ -359,8 +365,8 @@ static slot box_vmcall_arg(vm_state *state, slot v) {
   if (v.constant || get_slot_type(t, v) != FLONUM_TAG) {
     return v;
   }
-  return add_inst(
-      state, IR(.op = IR_BOX_FLONUM, .op1 = v, .type = UNDEFINED_TAG));
+  return add_inst(state,
+                  IR(.op = IR_BOX_FLONUM, .op1 = v, .type = UNDEFINED_TAG));
 }
 
 static ir_ins *find_input_typecheck(trace *t, uint16_t input_loc) {

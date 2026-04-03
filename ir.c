@@ -173,8 +173,11 @@ void print_ir(trace *t) {
       printf(" \e[1;33m%i\e[m", ins->data);
       break;
     case IR_ARG_PMOV:
-      printf(" %i %s (%s)", ins->prev_reg, ins->prev_guard ? "(GUARD)" : "",
-             reg_names[ins->prev_reg]);
+      if (ins->prev_guard) {
+        printf(" (GUARD)");
+      } else {
+        printf(" %i (%s)", ins->prev_reg, reg_names[ins->prev_reg]);
+      }
       break;
     case IR_ARG_OFFSET:
       printf(" +%i", ins->data);

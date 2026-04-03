@@ -57,6 +57,7 @@
 
 
 # cleanup
+* we store state VM, the only place it is used is to flush traces in the FOREIGN_CALL to dump image and die. ugh.
 * we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!
 * need a 'box' type so assignment-conversion doesn't need to set more than one thing
 * be careful around vector init, ugh.
