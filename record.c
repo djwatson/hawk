@@ -56,6 +56,9 @@ static void penalty_pc(record_state *record, bc *pc) {
       record->blacklist[idx].value = BLACKLIST_MAX;
       if (pc->op == OP_FUNC) {
         pc->op = OP_IFUNC;
+      } else {
+        printf("Can't blacklist %s: not OP_FUNC %s\n", func_name_from_pc(pc),
+               bc_names[pc->op]);
       }
     }
     return;

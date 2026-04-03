@@ -242,7 +242,7 @@ static void trace_reset(vm_state *state) {
   memset(state->hotmap, hotmap_cnt, sizeof(state->hotmap));
 }
 
-void vm_trace_reset(void) {
+EXPORT void vm_trace_reset(void) {
   if (!current_vm_state) {
     abort();
   }
