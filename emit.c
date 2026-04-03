@@ -1602,6 +1602,11 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         if (op->op2.constant) {
           rhs_reg = FRTMP;
           emit_fmov_constant(s, rhs_reg, slot_flonum_constant(t, op->op2));
+        } else if (rhs_reg == dst_reg) {
+          // Preserve the divisor across the quotient calculation when the
+          // allocator reuses the RHS register for the result.
+          rhs_reg = FRTMP;
+          emit_fmov(s, rhs_reg, arg1_reg);
         }
         emit_fdiv(s, dst_reg, arg0_reg, rhs_reg);
         emit_ftruncate(s, dst_reg, dst_reg);
