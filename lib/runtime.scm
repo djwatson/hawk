@@ -477,9 +477,9 @@
     (else
       (let* ((new-name (string-copy string)) (cell (sys:ALLOC (* 8 5) 6)))
         (sys:STORE cell new-name 0)
-        (sys:STORE cell 36 1)
-        (sys:STORE cell #f 2)
-        (sys:STORE cell #f 3)
+        ;(sys:STORE cell undefined-tag 1) ;; THIS IS DONE IN VM/JIT NOW since we can't write tags (it's not an int
+        (sys:STORE cell 0 2)
+        (sys:STORE cell 0 3)
         (set! symbol-table (cons (cons new-name cell) symbol-table))
         cell))))
 ;; strings

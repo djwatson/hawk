@@ -888,6 +888,9 @@ OP(ALLOC) {
   auto obj = (gc_header *)gc_alloc(sz);
   // memset(obj, 0, (size_t)sz);
   obj->type = type;
+  if (type == SYMBOL_TAG) {
+    ((symbol *)obj)->val = DEAD;
+  }
   auto ptr =
       type < 8 ? tag_header(obj, (uint8_t)type) : tag_header(obj, PTR_TAG);
   stack[instr.reg] = ptr;

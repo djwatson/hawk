@@ -27,6 +27,7 @@
 #include "vm.h"
 
 static const int32_t flonum_payload_offset = (int32_t)offsetof(flonum_s, x);
+static const int32_t symbol_val_offset = (int32_t)offsetof(symbol, val);
 
 static inline uint8_t ref_base_tag(uint8_t type_tag) {
   return (uint8_t)((type_tag & TAG_MASK) == PTR_TAG ? PTR_TAG : type_tag);
@@ -1717,6 +1718,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
 
       emit_rooted_alloc(s, live_gpr_mask, tagged_size, size_reg);
       emit_store_constant(s, 0, RTMP, (int64_t)type_val);
+      if (type_val == SYMBOL_TAG) {
+        emit_store_constant(s, symbol_val_offset, RTMP, DEAD.value);
+      }
       emit_add_constant(s, dst_reg, RTMP, tag_bits);
       break;
     }
