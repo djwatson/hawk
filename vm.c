@@ -418,6 +418,10 @@ static inline void check_expand_stack(vm_state *state, gc_obj **stack) {
     *stack = expand_stack(state, *stack);
   }
 }
+static inline bc *func_body_pc(bc *pc) {
+  auto next = next_op(pc);
+  return next_op(next);
+}
 static void build_list(uint8_t start, uint8_t len, gc_obj *stack) {
   gc_obj lst = NIL;
   gc_add_root((const void *)&lst, 1, 0);
@@ -465,16 +469,16 @@ static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack) {
 }
 
 static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
-                               uint8_t args, bool abort_on_fail) {
+                               uint8_t *args, bool abort_on_fail) {
   (void)state;
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
   if (!has_rest) {
-    if (args == instr.reg) {
+    if (*args == instr.reg) {
       return true;
     }
     if (abort_on_fail) {
       printf("Bad argcnt in %s expected %i got %i\n", func_name_for_pc(pc),
-             instr.reg, args);
+             instr.reg, *args);
       debug_print_vm_backtrace(state, pc, stack);
       abort();
     }
@@ -482,16 +486,17 @@ static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
   }
 
   uint8_t fixed_cnt = instr.reg - 1;
-  if (args < fixed_cnt) {
+  if (*args < fixed_cnt) {
     if (abort_on_fail) {
       printf("Bad argcnt in %s expected %i+ got %i\n", func_name_for_pc(pc),
-             fixed_cnt, args);
+             fixed_cnt, *args);
       debug_print_vm_backtrace(state, pc, stack);
       abort();
     }
     return false;
   }
-  build_list(fixed_cnt, args - fixed_cnt, stack);
+  build_list(fixed_cnt, *args - fixed_cnt, stack);
+  *args = instr.reg;
   return true;
 }
 static inline bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack,
@@ -703,7 +708,7 @@ OP(WRITE) {
 }
 
 OP(FUNC) {
-  if (!check_arity(state, stack, pc, instr, argcnt, false)) {
+  if (!check_arity(state, stack, pc, instr, &argcnt, false)) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
@@ -715,26 +720,24 @@ OP(FUNC) {
     instr = *pc;
   }
 
-  auto next = next_op(pc);
-  pc = next_op(next);
+  pc = func_body_pc(pc);
   dispatch_next(pc, stack);
   END
 }
 
 OP(ARGCNT_ERROR) {
-  check_arity(state, stack, pc, instr, argcnt, true);
+  check_arity(state, stack, pc, instr, &argcnt, true);
   END_NEXT
 }
 
 OP(IFUNC) {
-  if (!check_arity(state, stack, pc, instr, argcnt, false)) {
+  if (!check_arity(state, stack, pc, instr, &argcnt, false)) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
 
   check_expand_stack(state, &stack);
-  auto next = next_op(pc);
-  pc = next_op(next);
+  pc = func_body_pc(pc);
   dispatch_next(pc, stack);
   END
 }
@@ -743,12 +746,12 @@ OP(JFUNC) {
   auto trace = state->record.traces[instr.data];
   auto start = trace->start_pc;
   if (start.op == OP_FUNC &&
-      !check_arity(state, stack, pc, start, argcnt, false)) {
+      !check_arity(state, stack, pc, start, &argcnt, false)) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
   if (start.op == OP_IFUNC) {
-    check_arity(state, stack, pc, start, argcnt, true);
+    check_arity(state, stack, pc, start, &argcnt, true);
   }
   op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
 

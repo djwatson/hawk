@@ -737,6 +737,10 @@ static int downrec_hits(trace_state *ts, bc *pc) {
   }
   return cnt;
 }
+static inline bc *func_body_pc(bc *pc) {
+  auto next = pc + 1;
+  return next + 1;
+}
 // Nothing necessary for record - we will check in emit_snapshot - checks will
 // be elided if we never hit a snapshot!
 static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
@@ -764,20 +768,27 @@ static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
   }
   return tail;
 }
-static bool check_arity(vm_state *state, gc_obj *stack, bc instr,
-                        uint8_t args) {
+static bool prepare_entry_state(vm_state *state, gc_obj *stack, bc instr,
+                                uint8_t actual_args, uint8_t *entry_argcnt) {
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
   if (!has_rest) {
-    return args == instr.reg;
+    if (actual_args != instr.reg) {
+      return false;
+    }
+    set_stack_top(state, instr.reg);
+    *entry_argcnt = instr.reg;
+    return true;
   }
 
   uint8_t fixed_cnt = instr.reg - 1;
-  if (args < fixed_cnt) {
+  if (actual_args < fixed_cnt) {
     return false;
   }
 
   set_stack(state, fixed_cnt,
-            build_rest_list(state, stack, fixed_cnt, args - fixed_cnt));
+            build_rest_list(state, stack, fixed_cnt, actual_args - fixed_cnt));
+  set_stack_top(state, instr.reg);
+  *entry_argcnt = instr.reg;
   return true;
 }
 typedef struct {
@@ -1139,13 +1150,14 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_FUNC:
   case OP_IFUNC: {
-    if (!check_arity(state, stack, instr, argcnt)) {
+    uint8_t entry_argcnt = argcnt;
+    if (!prepare_entry_state(state, stack, instr, argcnt, &entry_argcnt)) {
       break;
     }
 
     if (instr.op == OP_FUNC) {
       auto old_ops = op_table;
-      op_table = check_record_start(pc, stack, state, op_table, argcnt);
+      op_table = check_record_start(pc, stack, state, op_table, entry_argcnt);
       if (op_table != old_ops) {
         instr = *pc;
       }
@@ -1154,8 +1166,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_JFUNC: {
-    // TODO argcnt check - no, will be put in trace itself!
-    // LINK IT!
     instr = *pc;
     auto cur_trace = record_current_trace(state);
     // TODO can we clean this up?  side traces spawned from downrec traces
@@ -1167,13 +1177,20 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
 
     trace *target = state->record.traces[pc->data];
+    bc target_start = target->start_pc;
+    uint8_t entry_argcnt = argcnt;
+    if ((target_start.op == OP_FUNC || target_start.op == OP_IFUNC) &&
+        !prepare_entry_state(state, stack, target_start, argcnt,
+                             &entry_argcnt)) {
+      break;
+    }
     trace_match match =
         ensure_args_match_trace(state, stack, target, cur_trace);
     if (cur_trace->parent_snap) {
       cur_trace->link = match.trace;
       cur_trace->link_entry_snap = match.matched ? 1 : 0;
       record_finish(pc, state, &op_table, "side trace linked to root trace",
-                    argcnt);
+                    entry_argcnt);
       break;
     }
 
@@ -1492,15 +1509,29 @@ static trace *record_begin_trace(vm_state *state, bc *pc, bc instr) {
   return cur_trace;
 }
 
+static bc *record_entry_resume_pc(bc *pc, bc instr) {
+  switch (instr.op) {
+  case OP_FUNC:
+  case OP_IFUNC:
+    return func_body_pc(pc);
+  case OP_RET:
+    return pc;
+  default:
+    abort();
+  }
+}
+
 static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
                                    gc_obj *stack, uint8_t argcnt) {
   trace_state *ts = record_trace_state(state);
+  bc *resume_pc = record_entry_resume_pc(pc, instr);
   // OK! Let's put function arguments in registers.
   // Note these *must* be marked as 'changed', since ARGS aren't saved between
   // trace loops at all.
-  assert(instr.op == OP_FUNC || instr.op == OP_RET);
+  assert(instr.op == OP_FUNC || instr.op == OP_IFUNC || instr.op == OP_RET);
   switch (instr.op) {
   case OP_FUNC:
+  case OP_IFUNC:
     for (int i = 0; i < MIN(instr.reg, REG_ARG_CNT); i++) {
       uint8_t type = get_type_tag(stack[i]);
       set_stack(state, i,
@@ -1509,7 +1540,7 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
                                                               : type)));
     }
     break;
-  case OP_RET:
+  case OP_RET: {
     uint8_t type = get_type_tag(stack[instr.reg]);
     set_stack(
         state, instr.reg,
@@ -1517,14 +1548,16 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
                            .type = type == FLONUM_TAG ? UNDEFINED_TAG : type)));
 
     break;
+  }
   default:
     abort();
   }
-  vm_add_snap(state, pc, argcnt);
+  vm_add_snap(state, resume_pc, argcnt);
   // Typecheck entry arguments up-front so flonums can target the checked
   // value.
   switch (instr.op) {
   case OP_FUNC:
+  case OP_IFUNC:
     for (int i = 0; i < MIN(instr.reg, REG_ARG_CNT); i++) {
       auto s = get_sentry(state, i);
       uint8_t type = get_type_tag(stack[i]);
@@ -1548,7 +1581,7 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
   default:
     abort();
   }
-  vm_add_snap(state, pc, argcnt);
+  vm_add_snap(state, resume_pc, argcnt);
   ts->start_record_size = arrlen(record_current_trace(state)->ins);
 }
 
@@ -1572,15 +1605,19 @@ void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   if (verbose) {
     printf("Record start poly %i\n", record_trace_count(state));
   }
-  assert(instr.op != OP_JFUNC);
-  record_begin_trace(state, pc, instr);
+  (void)pc;
+  (void)instr;
+  bc *start_pc = side_snap->trace->start_ins;
+  bc start_ins = side_snap->trace->start_pc;
+  assert(start_ins.op != OP_JFUNC);
+  record_begin_trace(state, start_pc, start_ins);
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   cur_trace->kind = TRACE_POLY;
   cur_trace->parent_snap = side_snap;
   ts->depth = side_snap->depth;
   ts->poly_entry = side_snap;
-  record_seed_entry_args(state, pc, instr, stack, argcnt);
+  record_seed_entry_args(state, start_pc, start_ins, stack, argcnt);
 }
 
 static bool replay_parent_guard(snap *side_snap, ir_ins const *old_ins) {
