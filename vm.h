@@ -10,7 +10,7 @@ struct vm_state;
 
 typedef gc_obj PRESERVE_NONE (*op_func)(bc instr, bc *pc, gc_obj *stack,
                                         struct vm_state *state, void *op_table,
-                                        uint8_t argcnt);
+                                        uint64_t argcnt);
 
 enum { VM_HOTMAP_SZ = 64 };
 enum { STACK_GUARD_SLOTS = 256 };

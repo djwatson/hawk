@@ -22,7 +22,7 @@ typedef struct {
   bc *pc;
   uint16_t ir;
   uint16_t offset;
-  uint8_t argcnt;
+  uint32_t argcnt;
   snap_entry *slots;
 
   // Side trace info

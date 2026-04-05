@@ -52,7 +52,7 @@ static inline uint32_t hotmap_hash(void *pc) {
 }
 
 static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
-                                       void *op_table, uint8_t argcnt) {
+                                       void *op_table, uint64_t argcnt) {
   uint8_t *hot_loc = &state->hotmap[hotmap_hash(pc)];
   uint8_t prev_hot = *hot_loc;
   *hot_loc -= 1;
@@ -304,7 +304,7 @@ static inline gc_obj capture_stack_closure(vm_state *state, gc_obj *stack) {
 static inline void call_with_captured_stack(bc **pc, gc_obj **stack,
                                             gc_obj callcc_arg,
                                             gc_obj captured_stack,
-                                            uint8_t *argcnt) {
+                                            uint64_t *argcnt) {
   if (!is_closure(callcc_arg)) {
     abort();
   }
@@ -469,7 +469,7 @@ static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack) {
 }
 
 static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
-                               uint8_t *args, bool abort_on_fail) {
+                               uint64_t *args, bool abort_on_fail) {
   (void)state;
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
   if (!has_rest) {
@@ -477,7 +477,7 @@ static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
       return true;
     }
     if (abort_on_fail) {
-      printf("Bad argcnt in %s expected %i got %i\n", func_name_for_pc(pc),
+      printf("Bad argcnt in %s expected %i got %lu\n", func_name_for_pc(pc),
              instr.reg, *args);
       debug_print_vm_backtrace(state, pc, stack);
       abort();
@@ -488,7 +488,7 @@ static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
   uint8_t fixed_cnt = instr.reg - 1;
   if (*args < fixed_cnt) {
     if (abort_on_fail) {
-      printf("Bad argcnt in %s expected %i+ got %i\n", func_name_for_pc(pc),
+      printf("Bad argcnt in %s expected %i+ got %lu\n", func_name_for_pc(pc),
              fixed_cnt, *args);
       debug_print_vm_backtrace(state, pc, stack);
       abort();
@@ -509,7 +509,8 @@ static inline bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack,
 }
 
 static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
-                             vm_state *state, void *op_table, uint8_t *argcnt) {
+                             vm_state *state, void *op_table,
+                             uint64_t *argcnt) {
   auto jfunc = (*pc)->data;
   auto traces = state->record.traces;
   auto trace = traces[jfunc];
@@ -578,7 +579,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
 #define OP(code)                                                               \
   PRESERVE_NONE gc_obj impl_##code(bc instr, bc *pc, gc_obj *stack,            \
                                    vm_state *state, void *op_table,            \
-                                   uint8_t argcnt) {
+                                   uint64_t argcnt) {
 #define END }
 #define OP_ABC(code)                                                           \
   OP(code)                                                                     \
@@ -853,7 +854,7 @@ OP(APPLY) {
   fail_if_not_closure(state, pc, stack, fun);
   auto callee = to_func(to_closure(fun)->v[0]);
 
-  uint8_t a = 1;
+  uint64_t a = 1;
   for (; is_cons(args); a++) {
     auto cons = to_cons(args);
     stack[a] = cons->a;

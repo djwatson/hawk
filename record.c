@@ -276,7 +276,7 @@ static slot box_vmcall_arg(vm_state *state, slot v);
                              get_slot_type((t), (v2)))                         \
        : get_slot_type((t), (v1)))
 
-static void vm_add_snap(vm_state *state, bc *pc, uint8_t argcnt) {
+static void vm_add_snap(vm_state *state, bc *pc, uint64_t argcnt) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
   snap sn = {
@@ -696,7 +696,7 @@ static void record_abort(vm_state *state, void **op_table, const char *msg) {
   clear_trace_state(ts);
 }
 static void record_finish(bc *pc, vm_state *state, void **op_table,
-                          const char *msg, uint8_t argcnt) {
+                          const char *msg, uint64_t argcnt) {
   *op_table = state->impls;
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
@@ -764,7 +764,7 @@ static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
   return tail;
 }
 static bool prepare_entry_state(vm_state *state, gc_obj *stack, bc instr,
-                                uint8_t actual_args, uint8_t *entry_argcnt) {
+                                uint8_t actual_args, uint64_t *entry_argcnt) {
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
   if (!has_rest) {
     if (actual_args != instr.reg) {
@@ -881,7 +881,7 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
   return res;
 }
 static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
-                                void *op_table, uint8_t argcnt) {
+                                void *op_table, uint64_t argcnt) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
 
@@ -928,7 +928,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 // next *recording* opcode
 
 PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
-                            void *op_table, uint8_t argcnt) {
+                            void *op_table, uint64_t argcnt) {
   if (verbose) {
     print_record_debug(pc, bc_names[instr.op], state);
   }
@@ -1145,7 +1145,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_FUNC:
   case OP_IFUNC: {
-    uint8_t entry_argcnt = argcnt;
+    uint64_t entry_argcnt = argcnt;
     if (!prepare_entry_state(state, stack, instr, argcnt, &entry_argcnt)) {
       break;
     }
@@ -1173,7 +1173,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
     trace *target = state->record.traces[pc->data];
     bc target_start = target->start_pc;
-    uint8_t entry_argcnt = argcnt;
+    uint64_t entry_argcnt = argcnt;
     if ((target_start.op == OP_FUNC || target_start.op == OP_IFUNC) &&
         !prepare_entry_state(state, stack, target_start, argcnt,
                              &entry_argcnt)) {
@@ -1286,7 +1286,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       ts->depth++;
     } else {
       auto from = (uint16_t)(instr.reg + 1);
-      auto cnt = (uint16_t)argcnt;
+      auto cnt = argcnt;
       // The same as the VM:
       // memmove(&stack[0], &stack[from], argcnt * sizeof(gc_obj));
       uint16_t to = 0;
@@ -1517,7 +1517,7 @@ static bc *record_entry_resume_pc(bc *pc, bc instr) {
 }
 
 static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
-                                   gc_obj *stack, uint8_t argcnt) {
+                                   gc_obj *stack, uint64_t argcnt) {
   trace_state *ts = record_trace_state(state);
   bc *resume_pc = record_entry_resume_pc(pc, instr);
   // OK! Let's put function arguments in registers.
@@ -1581,7 +1581,7 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
 }
 
 void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                  uint8_t argcnt) {
+                  uint64_t argcnt) {
 
   if (verbose) {
     const char *fname = func_name_from_pc(pc);
@@ -1596,7 +1596,7 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
 }
 
 void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                       snap *side_snap, uint8_t argcnt) {
+                       snap *side_snap, uint64_t argcnt) {
   if (verbose) {
     printf("Record start poly %i\n", record_trace_count(state));
   }
@@ -1622,7 +1622,7 @@ static bool replay_parent_guard(snap *side_snap, ir_ins const *old_ins) {
 }
 
 void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                       snap *side_snap, uint8_t argcnt) {
+                       snap *side_snap, uint64_t argcnt) {
   if (verbose) {
     printf("Record start side %i\n", record_trace_count(state));
   }
