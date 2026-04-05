@@ -200,6 +200,7 @@
 (define (symbol? a) (sys:GUARD a 6))
 (define (symbol->string sym) (sys:LOAD sym 0))
 (define (vector? a) (sys:GUARD a 7))
+(define (undefined? a) (sys:GUARD a 36))
 (define (zero? z) (= z 0))
 (define (negative? a) (< a 0))
 (define (positive? a) (> a 0))
@@ -691,9 +692,9 @@
 (define (call/cc thunk) (call-with-current-continuation thunk))
 
 (define (error . msg)
-  (display "ERROR:")
-  (display msg)
-  (display "\n")
+  (sys:WRITE "ERROR:")
+  (sys:WRITE msg)
+  (sys:WRITE "\n")
   (flush-output-port)
   (0))
 
@@ -807,6 +808,7 @@
         ((eq? x #f) (display "#f" port))
         ((eq? x '()) (display "()" port))
         ((eof-object? x) (display "#<eof>" port))
+        ((undefined? x) (display "#<undefined>" port))
         ((port? x) (display "#<port>" port))
         ((record? x)
           (display "#<record" port)
@@ -1287,3 +1289,4 @@
       (set! *here* there)
       (before))))
 
+(define (features) '(hawk))

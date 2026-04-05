@@ -3,6 +3,8 @@
 (import (srfi :9))
 (import (srfi :69))
 
+(define (features) '(chez))
+
 ;; Portable record API expected by headers/expand/all.sld
 ;; rtd format: #(expand-rtd <name-symbol> <field-list>)
 (define (make-record-type name fields)

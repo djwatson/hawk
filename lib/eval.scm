@@ -63,6 +63,7 @@
 
 (define (eval-expanded-ir ir)
   (let* ((roots (compile-ir-to-bitcode `#(begin (,ir) #f)))
+         ;(_ (for-each print-bc roots))
          (payload (roots->runtime-payload roots)))
     ((sys:FOREIGN_CALL '(gc_obj "scm_emit_bitcode_closure" (gc_obj)) payload))))
 
@@ -88,8 +89,18 @@
     (if (null? ir)
         #f
         (let* ((program `#(begin ,ir #f))
+               (_
+                  (begin
+                    (display "Expand done\n" (current-error-port))
+                    (flush-output-port (current-error-port))))
                (roots (compile-ir-to-bitcode program))
+               (_
+                  (begin
+                    (display "Compile done\n" (current-error-port))
+                    (flush-output-port (current-error-port))))
                (payload (roots->runtime-payload roots))
                (clo (sys:FOREIGN_CALL '(gc_obj "scm_emit_bitcode_closure" (gc_obj)) payload)))
+          (display "runtime init done\n" (current-error-port))
+          (flush-output-port (current-error-port))
           (sys:FOREIGN_CALL '(int32 "vm_trace_reset" ()))
           (clo)))))

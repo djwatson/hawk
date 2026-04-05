@@ -1,13 +1,12 @@
 # Currently working on:
 
-* 'compiler' crashes with a GC bug.
-* fft crashes
 * lots of blacklisting issues - RET< but also other shit
 * r4rs fails to self-compile
 
 ## tests:
 
 * probably need to fix closure conversion at some point
+* and REAL loops
 
 ## broken bench2:
 

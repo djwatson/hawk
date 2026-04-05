@@ -388,8 +388,8 @@ gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path) {
     }
     memcpy((void *)image_base, payload, image_len);
   } else {
-    size_t res = ZSTD_decompress((void *)image_base, image_len, payload,
-                                 payload_len);
+    size_t res =
+        ZSTD_decompress((void *)image_base, image_len, payload, payload_len);
     if (ZSTD_isError(res)) {
       read_image_zstd_fail(path, res);
     }
@@ -527,7 +527,7 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
       dump_image_fail(filename, "out of memory");
     }
     size_t compressed_len =
-        ZSTD_compress(compressed, compressed_cap, data, image.len, 19);
+        ZSTD_compress(compressed, compressed_cap, data, image.len, 10);
     if (ZSTD_isError(compressed_len)) {
       dump_image_zstd_fail(filename, compressed_len);
     }
@@ -547,8 +547,7 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
       fwrite(&version, sizeof(version), 1, fp) != 1 ||
       fwrite(&image_len, sizeof(image_len), 1, fp) != 1 ||
       fwrite(&start_u64, sizeof(start_u64), 1, fp) != 1 ||
-      fwrite(payload, 1, payload_len, fp) != payload_len ||
-      fclose(fp) != 0) {
+      fwrite(payload, 1, payload_len, fp) != payload_len || fclose(fp) != 0) {
     dump_image_fail(filename, "short write");
   }
   arrfree(image.worklist);
