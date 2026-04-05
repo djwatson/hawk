@@ -4,7 +4,7 @@
 
 ;; See http://mathworld.wolfram.com/Pi.html for the various algorithms.
 
-(define (square x) (* x x))
+;(define (square x) (* x x))
 
 (define (square-root x)
   (call-with-values (lambda () (exact-integer-sqrt x)) (lambda (q r) q)))

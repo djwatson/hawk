@@ -33,6 +33,8 @@
     (define (hash obj . maybe-bound)
       (let ((bound (if (null? maybe-bound) *default-bound* (car maybe-bound))))
         (cond
+          ((and (complex? obj) (not (= 0 (imag-part obj))))
+            (exact (modulo (+ (hash (real-part obj) bound) (hash (imag-part obj) bound)) bound)))
           ((integer? obj) (modulo obj bound))
           ((string? obj) (string-hash obj bound))
           ((symbol? obj) (symbol-hash obj bound))
