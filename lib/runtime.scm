@@ -33,6 +33,8 @@
 (define (exact x) (sys:EXACT x))
 (define (char->integer x) (sys:CHAR_INTEGER x))
 (define (integer->char x) (sys:INTEGER_CHAR x))
+(define (exact->inexact x) (sys:INEXACT x))
+(define (inexact->exact x) (sys:EXACT x))
 
 (define (floor x)
   (cond

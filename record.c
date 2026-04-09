@@ -164,6 +164,7 @@ static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
 void record_init(record_state *record) {
   gc_set_scan_callback(record_scan_roots, record);
   record->blacklist = nullptr;
+  record->reset_pending = false;
 }
 
 static slot add_const(vm_state *state, gc_obj value) {
@@ -933,8 +934,20 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     print_record_debug(pc, bc_names[instr.op], state);
   }
 
+  if (state->record.reset_pending) {
+    record_abort(state, &op_table, "trace reset requested while recording");
+    state->record.reset_pending = false;
+    vm_trace_reset();
+    op_table = state->impls;
+    goto done;
+  }
+
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
+  if (!cur_trace) {
+    op_table = state->impls;
+    goto done;
+  }
   if (ts->depth >= 20 || arrlen(cur_trace->ins) >= 1000) {
     record_abort(state, &op_table, "too long or too deep");
     goto done;

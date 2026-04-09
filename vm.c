@@ -246,6 +246,10 @@ EXPORT void vm_trace_reset(void) {
   if (!current_vm_state) {
     abort();
   }
+  if (current_vm_state->record.cur_trace) {
+    current_vm_state->record.reset_pending = true;
+    return;
+  }
   trace_reset(current_vm_state);
 }
 static inline void return_frame(vm_state *state, bc instr, bc **pc,

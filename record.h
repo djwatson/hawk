@@ -35,6 +35,7 @@ typedef struct record_state {
   trace **traces;
   emit_state emit_state;
   blacklist_entry *blacklist;
+  bool reset_pending;
 } record_state;
 
 struct vm_state;
