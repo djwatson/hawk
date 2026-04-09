@@ -15,7 +15,13 @@
 
 (include "bc.scm")
 
+
+(define args (cdr (command-line)))
+(define dump-bc (not (not (member "--dump" args))))
+(define files (filter (lambda (arg) (not (string=? arg "--dump"))) args))
+
 (display "Compiling:")
-(display (cdr (command-line)))
+(display files)
 (newline)
-(for-each compile-file (cdr (command-line)))
+
+(for-each (compile-file dump-bc) files)
