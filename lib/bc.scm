@@ -10,6 +10,9 @@
      ((_ arg command rest ...) (-> (command arg) rest ...))
      ((_ arg) arg)))
 
+;; Temporary fallback until the new expander exposes annotation records.
+(define (annotation? _) #f)
+
 ;; Integer-only arithmetic-shift replacement for bootstrap.
 (define (arithmetic-shift x k)
   (cond
@@ -87,7 +90,8 @@
   ))
 (define (primcall-arity name)
   (cond
-    ((memq name '(+ * < > = >= <= quotient truncate-quotient remainder modulo)) 2)
+    ((memq name '(- / + * < > = >= <= quotient truncate-quotient remainder modulo))
+      2)
     ((memq name
            '(exact->inexact inexact->exact char->integer integer->char display))
       1)
@@ -430,14 +434,14 @@
 (define SYNTAX_OK #f)
 (define (normalize-const datum)
   (cond
-   ((annotation? datum) (normalize-const (annotation-sexp datum)))
-   ;; Syntax constants need to keep their wrap information intact in the
-   ;; eval/VM path; stripping to datum loses hygiene and breaks macro output.
-   ((syntax? datum) (if SYNTAX_OK datum (syntax->datum datum)))
-   ((pair? datum)
-    (cons (normalize-const (car datum)) (normalize-const (cdr datum))))
-   ((vector? datum) (list->vector (map normalize-const (vector->list datum))))
-   (else datum)))
+    ((annotation? datum) (normalize-const (annotation-sexp datum)))
+    ;; Syntax constants need to keep their wrap information intact in the
+    ;; eval/VM path; stripping to datum loses hygiene and breaks macro output.
+    ;((syntax? datum) (if SYNTAX_OK datum (syntax->datum datum)))
+    ((pair? datum)
+      (cons (normalize-const (car datum)) (normalize-const (cdr datum))))
+    ((vector? datum) (list->vector (map normalize-const (vector->list datum))))
+    (else datum)))
 
 (define (add-const fun datum)
   (define normalized (normalize-const datum))
@@ -786,13 +790,25 @@
 
 (define empty-library-name (string->symbol ""))
 
+(define current-expander-setup (make-parameter (lambda () #t)))
+(define expander-setup-done #f)
+
+(define (expander-setup)
+  (unless expander-setup-done
+    ((current-expander-setup))
+    (set! expander-setup-done #t)))
+
+(define (read-all-forms port)
+  (let loop ((form (read port)) (acc '()))
+    (if (eof-object? form) (reverse acc) (loop (read port) (cons form acc)))))
+
 (define (read-forms path)
   (let ((port (open-input-file path)))
-    (let ((forms (read-file port))) (close-input-port port) forms)))
+    (let ((forms (read-all-forms port))) (close-input-port port) forms)))
 
 (define (read-forms-from-string str)
   (let ((port (open-input-string str)))
-    (let ((forms (read-file port))) (close-input-port port) forms)))
+    (let ((forms (read-all-forms port))) (close-input-port port) forms)))
 
 (define default-import-forms
   (read-forms-from-string "(import (scheme base)(scheme case-lambda)(scheme char)(scheme complex)(scheme cxr)(scheme eval)(scheme file)(scheme inexact)(scheme lazy)(scheme load)(scheme process-context)(scheme read)(scheme repl)(scheme time)(scheme write)(scheme r5rs))"))
@@ -809,14 +825,10 @@
       (append default-import-forms forms)))
 
 (define (read-ir-from-file file)
+  (expander-setup)
   (let ((runtime-forms (read-forms "runtime.scm"))
-        (eval-forms (read-forms "eval.scm"))
         (input-forms (ensure-leading-import (read-forms file))))
-    `#(begin
-        ,(append (expand-program runtime-forms empty-library-name #f)
-                 (expand-program eval-forms empty-library-name #f)
-                 (expand-program input-forms 'REPL #t))
-        #f)))
+    (expand-program runtime-forms)))
 
 (define (compile-ir-to-bitcode ir)
   (parameterize ((funs (make-funs-list)))
