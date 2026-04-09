@@ -27,6 +27,6 @@ typedef struct vm_state {
   emit_state emit;
 } vm_state;
 
-gc_obj vm(bc *pc);
+gc_obj vm(bcfunc *func);
 gc_obj *expand_stack(vm_state *state, gc_obj *stack);
 void vm_trace_reset(void);

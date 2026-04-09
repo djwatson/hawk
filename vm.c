@@ -267,6 +267,11 @@ static bc callcc_resume_stub[] = {
     {.op = OP_CALLCC_RESUME, .reg = 0},
 };
 
+static bc vm_entry_stub[] = {
+    {.op = OP_LCALL, .reg = 0, .data = 2},
+    {.op = OP_HALT, .reg = 0},
+};
+
 static struct {
   gc_header header;
   gc_obj name;
@@ -1048,7 +1053,7 @@ static void vm_state_init(vm_state *state) {
   }
 }
 
-gc_obj vm(bc *pc) {
+gc_obj vm(bcfunc *func) {
   size_t default_size = 1024;
   vm_state *state = calloc(1, sizeof(vm_state));
   vm_state_init(state);
@@ -1067,5 +1072,7 @@ gc_obj vm(bc *pc) {
     profiler_start();
   }
 
+  stack[0] = tag_func(func);
+  bc *pc = vm_entry_stub;
   return state->impls[pc->op](*pc, pc, stack, state, state->impls, 1);
 }

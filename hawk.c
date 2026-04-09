@@ -118,8 +118,7 @@ int main(int argc, char *argv[]) {
     exit(-1);
   }
   auto f = to_func(start);
-  auto code_start = (bc *)&f->data[f->const_cnt * sizeof(gc_obj)];
 
   free(filename_alloc);
-  (void)vm(code_start);
+  (void)vm(f);
 }
