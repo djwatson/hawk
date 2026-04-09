@@ -797,9 +797,6 @@
 (define default-import-forms
   (read-forms-from-string "(import (scheme base)(scheme case-lambda)(scheme char)(scheme complex)(scheme cxr)(scheme eval)(scheme file)(scheme inexact)(scheme lazy)(scheme load)(scheme process-context)(scheme read)(scheme repl)(scheme time)(scheme write)(scheme r5rs))"))
 
-(define default-ending-forms
-  (read-forms-from-string "(import (only (scheme process-context) exit))(exit 0)"))
-
 (define (form-sexp form) (if (annotation? form) (annotation-sexp form) form))
 
 (define (import-form? form)
@@ -814,8 +811,7 @@
 (define (read-ir-from-file file)
   (let ((runtime-forms (read-forms "runtime.scm"))
         (eval-forms (read-forms "eval.scm"))
-        (input-forms
-           (append (ensure-leading-import (read-forms file)) default-ending-forms)))
+        (input-forms (ensure-leading-import (read-forms file))))
     `#(begin
         ,(append (expand-program runtime-forms empty-library-name #f)
                  (expand-program eval-forms empty-library-name #f)
