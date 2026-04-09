@@ -174,10 +174,12 @@
 (include "../../expand/expand.scm")
 
 
+(define (expander-setup) #t)
+
 (include "match.scm")
 (include "bc.scm")
 
 (display "Compiling:")
 (display (cdr (command-line)))
 (newline)
-(for-each compile-file (cdr (command-line)))
+(for-each (compile-file #f) (cdr (command-line)))

@@ -1,8 +1,11 @@
 (import (scheme base)
         (scheme write)
-        (read)
-        (syntax)
-        (expand)
+        (scheme read)
+        (r7expand)
+        (library)
+        (builders)
+        (expander)
+        (scheme cxr)
         (scheme process-context)
         (scheme file)
         (match)
@@ -11,10 +14,9 @@
         ;; gauche
         (rename (only (binary io) write-f64) (write-f64 write-double)))
 
-
-
 (include "bc.scm")
 
+(expander-setup)
 
 (define args (cdr (command-line)))
 (define dump-bc (not (not (member "--dump" args))))

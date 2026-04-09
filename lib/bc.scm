@@ -790,14 +790,6 @@
 
 (define empty-library-name (string->symbol ""))
 
-(define current-expander-setup (make-parameter (lambda () #t)))
-(define expander-setup-done #f)
-
-(define (expander-setup)
-  (unless expander-setup-done
-    ((current-expander-setup))
-    (set! expander-setup-done #t)))
-
 (define (read-all-forms port)
   (let loop ((form (read port)) (acc '()))
     (if (eof-object? form) (reverse acc) (loop (read port) (cons form acc)))))
@@ -827,8 +819,13 @@
 (define (read-ir-from-file file)
   (expander-setup)
   (let ((runtime-forms (read-forms "runtime.scm"))
+        (eval-forms (read-forms "eval.scm"))
         (input-forms (ensure-leading-import (read-forms file))))
-    (expand-program runtime-forms)))
+    (let ((input-ir (expand-program runtime-forms)))
+      ;; Keep these around for the next step when runtime/eval are reintroduced.
+      ;(expand-program runtime-forms empty-library-name #f)
+      ;(expand-program eval-forms empty-library-name #f)
+      (build-begin (list input-ir (expand-program input-forms))))))
 
 (define (compile-ir-to-bitcode ir)
   (parameterize ((funs (make-funs-list)))
