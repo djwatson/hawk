@@ -9,14 +9,11 @@
   (flush-output-port)
   (let ((datum (read)))
     (when (eof-object? datum) (exit 0))
-    (display (eval datum #f)))
+    (write (eval datum #f)))
   (newline)
   (flush-output-port)
   (repl))
 
-;; Bootstrap the expander
-(eval '1
-      #f)
 (save-and-die repl "img.scm.bc" #t)
 
 

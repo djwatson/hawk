@@ -900,14 +900,17 @@
   (if (not (port-input? port))
       (error "read-char: not an input port" port)
       (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
-        (if (< pos len)
-            (let ((c (string-ref buf pos))) (port-pos-set! port (+ pos 1)) c)
+        (cond
+          ((< len 0) (make-eof-object))
+          ((< pos len)
+            (let ((c (string-ref buf pos))) (port-pos-set! port (+ pos 1)) c))
+          (else
             (if (< (port-fd port) 0)
-                (make-eof-object)
+                (begin (port-len-set! port -1) (make-eof-object))
                 (let ((cnt (c-read (port-fd port) buf port-buffer-size)))
                   (if (> cnt 0)
                       (begin (port-pos-set! port 1) (port-len-set! port cnt) (string-ref buf 0))
-                      (make-eof-object))))))))
+                      (begin (port-pos-set! port 0) (port-len-set! port -1) (make-eof-object))))))))))
 (define peek-char
   (case-lambda
     (() (peek-char (current-input-port)))
@@ -1270,7 +1273,6 @@
 ;;; parameters
 
 (define (command-line) '("hawk"))
-
 
 (define (dynamic-wind before during after)
   (unless (and (procedure? before) (procedure? during) (procedure? after))
