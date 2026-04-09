@@ -168,8 +168,20 @@ if(NOT HAVE_ELF_H)
   message(STATUS "elf.h not found; using local ELF compat header for jitdump")
 endif()
 
-add_executable(hawk ${hawk_sources})
-add_dependencies(hawk opcodes_scm)
+add_library(hawk_core STATIC ${hawk_sources})
+add_library(hawk_image_bootstrap OBJECT hawk_image.c)
+target_compile_definitions(hawk_image_bootstrap PRIVATE BOOTSTRAP=1)
+add_library(hawk_image_embedded OBJECT hawk_image.c)
+target_compile_definitions(hawk_image_embedded PRIVATE BOOTSTRAP=0)
+
+add_executable(hawk_bootstrap $<TARGET_OBJECTS:hawk_image_bootstrap>)
+add_dependencies(hawk_bootstrap opcodes_scm)
+
+set(LIB_IMAGE_BC ${CMAKE_CURRENT_SOURCE_DIR}/lib/img.scm.bc)
+if(NOT EXISTS "${LIB_IMAGE_BC}")
+  execute_process(COMMAND ${CMAKE_COMMAND} -E touch "${LIB_IMAGE_BC}")
+endif()
+set(LIB_IMAGE_STAMP ${CMAKE_CURRENT_BINARY_DIR}/lib_image.stamp)
 # fold generator
 set(gen_fold_target gen_fold)
 set(
@@ -228,7 +240,40 @@ add_custom_command(
   COMMENT "Generating fold lookup table"
   VERBATIM)
 add_custom_target(fold_gen DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/fold_gen.h)
-add_dependencies(hawk fold_gen)
+add_dependencies(hawk_core fold_gen)
+
+find_program(GOSH_EXECUTABLE NAMES gosh REQUIRED)
+file(
+  GLOB LIB_IMAGE_SCHEME_INPUTS CONFIGURE_DEPENDS
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/*.scm
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/*.sld
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/srfi2/srfi/*.sld
+)
+add_custom_command(
+  OUTPUT ${LIB_IMAGE_STAMP}
+  COMMAND ${GOSH_EXECUTABLE} -I . -I ../../r7expand/ bc.gosh.scm gen-image.scm
+  COMMAND $<TARGET_FILE:hawk_bootstrap> gen-image.scm
+  COMMAND ${CMAKE_COMMAND} -E touch ${LIB_IMAGE_STAMP}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib
+  DEPENDS
+    ${LIB_IMAGE_SCHEME_INPUTS}
+  COMMENT "Bootstrapping lib/img.scm.bc"
+  VERBATIM
+)
+add_custom_target(bootstrap_image ALL DEPENDS ${LIB_IMAGE_STAMP})
+add_dependencies(bootstrap_image hawk_bootstrap)
+add_dependencies(hawk_image_embedded bootstrap_image)
+
+add_executable(hawk $<TARGET_OBJECTS:hawk_image_embedded>)
+add_dependencies(hawk opcodes_scm)
+
+if(APPLE)
+  target_link_libraries(hawk_bootstrap PRIVATE -Wl,-force_load $<TARGET_FILE:hawk_core>)
+  target_link_libraries(hawk PRIVATE -Wl,-force_load $<TARGET_FILE:hawk_core>)
+else()
+  target_link_libraries(hawk_bootstrap PRIVATE -Wl,--whole-archive hawk_core -Wl,--no-whole-archive)
+  target_link_libraries(hawk PRIVATE -Wl,--whole-archive hawk_core -Wl,--no-whole-archive)
+endif()
 
 if(ENABLE_COVERAGE)
   if(CMAKE_C_COMPILER_ID MATCHES "Clang")
@@ -241,6 +286,11 @@ if(ENABLE_COVERAGE)
     message(FATAL_ERROR "Coverage is only supported with Clang or GCC compilers.")
   endif()
 
+  target_compile_options(hawk_core PRIVATE ${coverage_compile_flags})
+  target_compile_options(hawk_image_bootstrap PRIVATE ${coverage_compile_flags})
+  target_compile_options(hawk_image_embedded PRIVATE ${coverage_compile_flags})
+  target_compile_options(hawk_bootstrap PRIVATE ${coverage_compile_flags})
+  target_link_options(hawk_bootstrap PRIVATE ${coverage_link_flags})
   target_compile_options(hawk PRIVATE ${coverage_compile_flags})
   target_link_options(hawk PRIVATE ${coverage_link_flags})
 
@@ -282,12 +332,16 @@ if(NOT CAPSTONE_LIBRARY)
   message(FATAL_ERROR "libcapstone not found. Install capstone or set CAPSTONE_LIBRARY.")
 endif()
 
+target_link_libraries(hawk_bootstrap PRIVATE ${CAPSTONE_LIBRARY} ${LIBFFI_LIBRARY} ${ZSTD_LIBRARY} m)
 target_link_libraries(hawk PRIVATE ${CAPSTONE_LIBRARY} ${LIBFFI_LIBRARY} ${ZSTD_LIBRARY} m)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(hawk_bootstrap PRIVATE ${CMAKE_DL_LIBS})
+  target_link_options(hawk_bootstrap PRIVATE -rdynamic)
   target_link_libraries(hawk PRIVATE ${CMAKE_DL_LIBS})
   target_link_options(hawk PRIVATE -rdynamic)
 elseif(APPLE)
+  target_link_options(hawk_bootstrap PRIVATE -Wl,-export_dynamic)
   target_link_options(hawk PRIVATE -Wl,-export_dynamic)
 endif()
 
@@ -296,11 +350,11 @@ endif()
 # target_compile_options(hawk PRIVATE -O3)
 
 if(USE_RANDOM_SCHEDULE)
-    target_compile_definitions(hawk PRIVATE RANDOM_SCHEDULE)
+    target_compile_definitions(hawk_core PRIVATE RANDOM_SCHEDULE)
 endif()
 
 target_include_directories(
-  hawk PRIVATE
+  hawk_core PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/util
   ${CMAKE_CURRENT_BINARY_DIR}

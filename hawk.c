@@ -30,9 +30,8 @@ static struct option long_options[] = {
     {nullptr, no_argument, nullptr, 0},
 };
 
-static const uint8_t embedded_image[] = {
-#embed "img.scm.bc"
-};
+extern const uint8_t embedded_image[];
+extern const size_t embedded_image_size;
 
 void print_help() {
   printf("Usage: hawk [OPTION] [<script>.scm]\n");
@@ -110,8 +109,12 @@ int main(int argc, char *argv[]) {
     }
     start = gc_read_image_file(filename);
   } else {
-    filename = "img.scm.bc";
-    start = gc_read_image(embedded_image, sizeof(embedded_image), filename);
+    filename = "lib/img.scm.bc";
+    if (embedded_image_size > 0) {
+      start = gc_read_image(embedded_image, embedded_image_size, filename);
+    } else {
+      start = gc_read_image_file(filename);
+    }
   }
   if (!is_func(start)) {
     printf("Error loading %s\n", filename);
