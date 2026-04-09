@@ -825,7 +825,7 @@
       ;; Keep these around for the next step when runtime/eval are reintroduced.
       ;(expand-program runtime-forms empty-library-name #f)
       ;(expand-program eval-forms empty-library-name #f)
-      (build-begin (list input-ir (expand-program input-forms))))))
+      (build-begin (list input-ir (expand-program eval-forms) (expand-program input-forms))))))
 
 (define (compile-ir-to-bitcode ir)
   (parameterize ((funs (make-funs-list)))

@@ -9,17 +9,14 @@
   (flush-output-port)
   (let ((datum (read)))
     (when (eof-object? datum) (exit 0))
-    (display (eval datum (environment))))
+    (display (eval datum #f)))
   (newline)
   (flush-output-port)
   (repl))
 
 ;; Bootstrap the expander
-(eval '(import (scheme base) (scheme case-lambda) (scheme char) (scheme complex) (scheme cxr)
-               (scheme eval) (scheme file) (scheme inexact) (scheme lazy) (scheme load)
-               (scheme process-context) (scheme read) (scheme repl) (scheme time) (scheme write)
-               (scheme r5rs))
-      (environment))
+(eval '1
+      #f)
 (save-and-die repl "img.scm.bc" #t)
 
 

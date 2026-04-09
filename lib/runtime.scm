@@ -1267,8 +1267,8 @@
 
 ;;; parameters
 
-(define (command-line) '(hawk "test.scm"))
-(define (environment . args) '())
+(define (command-line) '("hawk"))
+
 
 (define (dynamic-wind before during after)
   (unless (and (procedure? before) (procedure? during) (procedure? after))

@@ -15,8 +15,8 @@
         (rename (only (binary io) write-f64) (write-f64 write-double)))
 
 (include "bc.scm")
-
 (expander-setup)
+(library-paths (append '("." "srfi2" "../../r7expand") (library-paths)))
 
 (define args (cdr (command-line)))
 (define dump-bc (not (not (member "--dump" args))))
