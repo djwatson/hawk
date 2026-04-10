@@ -56,8 +56,10 @@ static void penalty_pc(record_state *record, bc *pc, bool downrec) {
       record->blacklist[idx].value = BLACKLIST_MAX;
       if (pc->op == OP_FUNC) {
         pc->op = OP_IFUNC;
+        arrput(record->penalty_pcs, pc);
       } else if (downrec && pc->op == OP_RET) {
         pc->op = OP_IRET;
+        arrput(record->penalty_pcs, pc);
       } else {
         printf("Can't blacklist %s: not OP_FUNC %s\n", func_name_from_pc(pc),
                bc_names[pc->op]);
@@ -166,6 +168,7 @@ static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
 void record_init(record_state *record) {
   gc_set_scan_callback(record_scan_roots, record);
   record->blacklist = nullptr;
+  record->penalty_pcs = nullptr;
   record->reset_pending = false;
 }
 
@@ -1725,5 +1728,6 @@ void free_traces(struct vm_state *state) {
   }
   clear_trace_state(&rs->trace_state);
   hm_free(rs->blacklist);
+  arrfree(rs->penalty_pcs);
   rs->cur_trace = nullptr;
 }

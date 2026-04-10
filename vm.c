@@ -235,6 +235,13 @@ static void trace_reset(vm_state *state) {
       *trace->start_ins = trace->start_pc;
     }
   }
+  arr_for_each(state->record.penalty_pcs, pc) {
+    if (pc->op == OP_IFUNC) {
+      pc->op = OP_FUNC;
+    } else if (pc->op == OP_IRET) {
+      pc->op = OP_RET;
+    }
+  }
   free_traces(state);
   emit_cleanup(&state->emit);
   emit_init(&state->emit);

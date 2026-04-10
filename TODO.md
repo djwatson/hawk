@@ -1,7 +1,6 @@
 # Currently working on:
 
 * bug save-and-die WHILE in a trace! ugh
-* clearing the trace cache needs to clear IFUNC/IRET also
 
 
 ## tests:
