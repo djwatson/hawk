@@ -34,6 +34,10 @@ static void print_slot(slot s, trace *t) {
       printf("\e[1;31mFUNC\e[m");
     } else if (gc.value == NIL.value) {
       printf("\e[1;35m()\e[m");
+    } else if (is_undefined(gc)) {
+      printf("\e[1;35m#<undefined>\e[m");
+    } else if (gc.value == EOF_OBJ.value) {
+      printf("\e[1;35m#<eof>\e[m");
     } else {
       printf("\e[1;31mUNKNOWN %" PRIx64 "\e[m", (uint64_t)gc.value);
     }

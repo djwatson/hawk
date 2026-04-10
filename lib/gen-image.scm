@@ -1,5 +1,6 @@
 (import (scheme base) (scheme eval) (scheme write) (scheme read) (prefix (hawk sys) sys:)
-        (scheme case-lambda))
+        (scheme file) (scheme case-lambda) (scheme process-context))
+
 (define (save-and-die restart name compress)
   (sys:FOREIGN_CALL '(int32 "gc_dump_image_and_die" (gc_obj gc_obj gc_obj))
                     restart
@@ -10,10 +11,16 @@
   (flush-output-port)
   (let ((datum (read)))
     (when (eof-object? datum) (exit 0))
-    (write (eval datum #f)))
+    (write (eval datum #t)))
   (newline)
   (flush-output-port)
   (repl))
+
+(define (read-file-forms filename)
+  (call-with-input-file filename
+    (lambda (port)
+      (let loop ((form (read port)) (acc '()))
+        (if (eof-object? form) (reverse acc) (loop (read port) (cons form acc)))))))
 
 (define main-entry
   (case-lambda
@@ -30,7 +37,7 @@
                     forms
                     (cons prepend forms))))
 
-        (eval-program final-forms)
+        (eval final-forms #f)
         (flush-output-port)))))
 
 (save-and-die main-entry "img.scm.bc" #t)

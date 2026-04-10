@@ -7,11 +7,12 @@
 
 (expander-setup)
 (define repl-env (make-toplevel-environment 'r7expander.repl))
-;; (expand-repl '(import (scheme base) (scheme case-lambda) (scheme char) (scheme complex) (scheme cxr)
-;;                       (scheme eval) (scheme file) (scheme inexact) (scheme lazy) (scheme load)
-;;                       (scheme process-context) (scheme read) (scheme repl) (scheme time)
-;;                       (scheme write) (scheme r5rs))
-;;              repl-env)
+(expand-repl '(import (scheme base) (scheme case-lambda) (scheme char) (scheme complex) (scheme cxr)
+                      (scheme eval) (scheme file) (scheme inexact) (scheme lazy) (scheme load)
+                      (scheme process-context) (scheme read) (scheme repl) (scheme time)
+                      (scheme write) (scheme r5rs))
+             repl-env)
+(library-paths '("."))
 
 (define (eval foo env)
   ;; (display "EVAL:")
@@ -19,7 +20,8 @@
   ;; (display "\n")
   ;; (flush-output-port)
 
-  (let* ((ir (build-begin (list (expand-repl foo repl-env))))
+  (let* ((ir
+            (build-begin (list (if env (expand-repl foo repl-env) (expand-program foo "PROGRAM")))))
          ;; (_
          ;;    (begin
          ;;      (display "Expand done\n" (current-error-port))
@@ -34,29 +36,8 @@
          (clo (sys:FOREIGN_CALL '(gc_obj "scm_emit_bitcode_closure" (gc_obj)) payload)))
     ;; (display "runtime init done\n" (current-error-port))
     ;; (flush-output-port (current-error-port))
-    (sys:FOREIGN_CALL '(int32 "vm_trace_reset" ()))
-    (clo)))
 
-(define (eval-program foo)
-  ;; (display "EVAL:")
-  ;; (display foo)
-  ;; (display "\n")
-  ;; (flush-output-port)
-
-  (let* ((ir (build-begin (list (expand-program foo))))
-         ;; (_
-         ;;    (begin
-         ;;      (display "Expand done\n" (current-error-port))
-         ;;      (display ir (current-error-port))
-         ;;      (flush-output-port (current-error-port))))
-         (roots (compile-ir-to-bitcode ir))
-         ;; (_
-         ;;    (begin
-         ;;      (display "Compile done\n" (current-error-port))
-         ;;      (flush-output-port (current-error-port))))
-         (payload (roots->runtime-payload roots))
-         (clo (sys:FOREIGN_CALL '(gc_obj "scm_emit_bitcode_closure" (gc_obj)) payload)))
-    ;; (display "runtime init done\n" (current-error-port))
-    ;; (flush-output-port (current-error-port))
-    (sys:FOREIGN_CALL '(int32 "vm_trace_reset" ()))
+    ;; Flush trace cache when in program mode:
+    ;; Restart the whole program from fresh trace state.
+    (unless env (sys:FOREIGN_CALL '(int32 "vm_trace_reset" ())))
     (clo)))
