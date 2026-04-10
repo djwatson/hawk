@@ -990,6 +990,8 @@ OP_AD(INTEGER_CHAR) {
 
 OP_AD(CALLCC) {
   auto captured_stack = capture_stack_closure(state, stack);
+  // capture_stack_closure may relocate v1.
+  v1 = stack[instr.data];
   stack[instr.reg] = captured_stack;
   stack = state->stack_bottom;
   call_with_captured_stack(&pc, &stack, v1, captured_stack, &argcnt);
