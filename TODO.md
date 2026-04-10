@@ -1,7 +1,8 @@
 # Currently working on:
 
-* lots of blacklisting issues - RET< but also other shit
-* r4rs fails to self-compile
+* bug save-and-die WHILE in a trace! ugh
+* clearing the trace cache needs to clear IFUNC/IRET also
+
 
 ## tests:
 

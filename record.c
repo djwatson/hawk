@@ -40,7 +40,7 @@ static const char *func_name_from_pc(bc *pc) {
   return to_string(func->name)->str;
 }
 
-static void penalty_pc(record_state *record, bc *pc) {
+static void penalty_pc(record_state *record, bc *pc, bool downrec) {
   if (!pc) {
     return;
   }
@@ -56,6 +56,8 @@ static void penalty_pc(record_state *record, bc *pc) {
       record->blacklist[idx].value = BLACKLIST_MAX;
       if (pc->op == OP_FUNC) {
         pc->op = OP_IFUNC;
+      } else if (downrec && pc->op == OP_RET) {
+        pc->op = OP_IRET;
       } else {
         printf("Can't blacklist %s: not OP_FUNC %s\n", func_name_from_pc(pc),
                bc_names[pc->op]);
@@ -685,8 +687,10 @@ static void record_abort(vm_state *state, void **op_table, const char *msg) {
   }
   *op_table = state->impls;
   trace_state *ts = record_trace_state(state);
-  penalty_pc(&state->record, ts->start_ins);
   trace *cur_trace = record_current_trace(state);
+  if (cur_trace->kind == TRACE_ROOT) {
+    penalty_pc(&state->record, ts->start_ins, is_downrec_trace(ts));
+  }
   if (ts->poly_entry) {
     ts->poly_entry = nullptr;
   }
@@ -1049,7 +1053,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     stack_save(state, stack, instr.reg, c);
     break;
   }
-  case OP_RET: {
+  case OP_RET:
+  case OP_IRET: {
     auto c = stack_load(state, stack, instr.reg, false);
     // TODO: re-enable.  This needs to be a MUCH lower priority, so we
     // don't record down-rec before up-rec.  Or alternatively, maybe
@@ -1078,7 +1083,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       int cnt = downrec_hits(ts, pc);
       bool seen_downrec = cnt > 0;
 
-      if (cur_trace->parent_snap && seen_downrec) {
+      if (instr.op == OP_RET && cur_trace->parent_snap && seen_downrec) {
         clear_trace_state(ts);
         free_trace(cur_trace);
         record_start(state, pc, *pc, stack, argcnt);

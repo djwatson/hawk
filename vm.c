@@ -677,6 +677,16 @@ OP(RET) {
   dispatch_next(pc, stack);
   END
 }
+OP(IRET) {
+  auto c = stack[instr.reg];
+  auto old_op_table = op_table;
+  return_frame(state, instr, &pc, &stack, &op_table);
+  if (old_op_table != op_table) {
+    instr = *pc;
+  }
+  dispatch_next(pc, stack);
+  END
+}
 OP(LOOKUP) {
   auto sym = const_load(pc, instr.data);
   // No need to check if c is a symbol, the compiler guarantees it
