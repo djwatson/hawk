@@ -221,7 +221,7 @@ static gc_obj make_cons(gc_obj a, gc_obj b) {
 }
 
 // GC: may allocate via gc_alloc.
-static gc_obj make_string(const char *str) {
+gc_obj make_string(const char *str) {
   size_t len = strlen(str);
   size_t bytes = (sizeof(string_s) + len + 1 + 7) & ~(size_t)7;
   string_s *out = gc_alloc((uint64_t)bytes);
@@ -240,10 +240,10 @@ EXPORT gc_obj SCM_COMMAND_LINE() {
     head = make_cons(arg, head);
   }
 
-  // Prepend command line program name at front.
-  // (we've stripped off VM-specific args in between).
-  gc_obj prog = make_string(command_line_program_name);
-  head = make_cons(prog, head);
+  if (command_line_program_name) {
+    gc_obj prog = make_string(command_line_program_name);
+    head = make_cons(prog, head);
+  }
 
   gc_remove_root((const void *)&head, 0);
   return head;

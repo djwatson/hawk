@@ -252,7 +252,7 @@ file(
 add_custom_command(
   OUTPUT ${LIB_IMAGE_STAMP}
   COMMAND ${GOSH_EXECUTABLE} -I . -I ../../r7expand/ bc.gosh.scm gen-image.scm
-  COMMAND $<TARGET_FILE:hawk_bootstrap> gen-image.scm
+  COMMAND $<TARGET_FILE:hawk_bootstrap> --image gen-image.scm.bc
   COMMAND ${CMAKE_COMMAND} -E touch ${LIB_IMAGE_STAMP}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib
   DEPENDS
@@ -366,7 +366,7 @@ target_include_directories(
 if(BUILD_TESTING)
   add_test(
     NAME hawk_sum
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sum.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sum.scm
   )
   set_tests_properties(
     hawk_sum PROPERTIES PASS_REGULAR_EXPRESSION "500000000500000000"
@@ -374,7 +374,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_sumfp
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sumfp.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sumfp.scm
   )
   set_tests_properties(
     hawk_sumfp PROPERTIES PASS_REGULAR_EXPRESSION "2.5000025e\\+14"
@@ -382,7 +382,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_summix
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/summix.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/summix.scm
   )
   set_tests_properties(
     hawk_summix PROPERTIES PASS_REGULAR_EXPRESSION "50000000500000005.00000005e\\+155000000050000000"
@@ -390,19 +390,19 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_sum1
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sum1.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sum1.scm
   )
   set_tests_properties(hawk_sum1 PROPERTIES PASS_REGULAR_EXPRESSION "500001500001")
 
   add_test(
     NAME hawk_sumloop
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sumloop.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/sumloop.scm
   )
   set_tests_properties(hawk_sumloop PROPERTIES PASS_REGULAR_EXPRESSION "1000000000")
 
   add_test(
     NAME hawk_tak
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/tak.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/tak.scm
   )
   set_tests_properties(hawk_tak PROPERTIES PASS_REGULAR_EXPRESSION "12")
 
@@ -417,7 +417,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_cpstak
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/cpstak.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/cpstak.scm
   )
   set_tests_properties(
     hawk_cpstak PROPERTIES PASS_REGULAR_EXPRESSION "RESULT: 9"
@@ -425,7 +425,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_ack
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/ack.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/ack.scm
   )
   set_tests_properties(
     hawk_ack PROPERTIES PASS_REGULAR_EXPRESSION "32765"
@@ -433,7 +433,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_fib
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/fib.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/fib.scm
   )
   set_tests_properties(
     hawk_fib PROPERTIES PASS_REGULAR_EXPRESSION "102334155"
@@ -441,7 +441,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_fibfp
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/fibfp.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/fibfp.scm
   )
   set_tests_properties(
     hawk_fibfp PROPERTIES PASS_REGULAR_EXPRESSION "9227465.0"
@@ -449,7 +449,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_diviter
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/diviter.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/diviter.scm
   )
   set_tests_properties(
     hawk_diviter PROPERTIES PASS_REGULAR_EXPRESSION "500"
@@ -457,7 +457,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_divrec
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/divrec.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/divrec.scm
   )
   set_tests_properties(
     hawk_divrec PROPERTIES PASS_REGULAR_EXPRESSION "500"
@@ -465,7 +465,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_nqueens
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/nqueens.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/nqueens.scm
   )
   set_tests_properties(
     hawk_nqueens PROPERTIES PASS_REGULAR_EXPRESSION "73712"
@@ -489,7 +489,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_deriv
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/deriv.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/deriv.scm
   )
   set_tests_properties(
     hawk_deriv PROPERTIES PASS_REGULAR_EXPRESSION "\\(\\+ \\(\\* \\(\\* 3 x x\\)"
@@ -497,12 +497,12 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_quicksort
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/quicksort.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/quicksort.scm
   )
 
   add_test(
     NAME hawk_pnpoly
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/pnpoly.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/pnpoly.scm
   )
   set_tests_properties(
     hawk_pnpoly PROPERTIES PASS_REGULAR_EXPRESSION "6"
@@ -510,7 +510,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_triangl
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/triangl.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/triangl.scm
   )
   set_tests_properties(
     hawk_triangl PROPERTIES PASS_REGULAR_EXPRESSION "\\(22 34 31 15 7 1 20 17 25 6 5 13 32\\)"
@@ -518,7 +518,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_simplex
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/simplex.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/simplex.scm
   )
   set_tests_properties(
     hawk_simplex PROPERTIES PASS_REGULAR_EXPRESSION "\\(#\\(4 1 3 2\\) #\\(0 5 7 6\\)\\)"
@@ -526,7 +526,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_perm9
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/perm9.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/perm9.scm
   )
   set_tests_properties(
     hawk_perm9 PROPERTIES PASS_REGULAR_EXPRESSION "16329600"
@@ -534,7 +534,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_fft
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/fft.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/fft.scm
   )
   set_tests_properties(
     hawk_fft PROPERTIES PASS_REGULAR_EXPRESSION "0\\.0"
@@ -542,7 +542,7 @@ if(BUILD_TESTING)
 
   add_test(
     NAME hawk_mbrot
-    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/mbrot.scm.bc
+    COMMAND $<TARGET_FILE:hawk> ${CMAKE_CURRENT_SOURCE_DIR}/test/mbrot.scm
   )
   set_tests_properties(
     hawk_mbrot PROPERTIES PASS_REGULAR_EXPRESSION "5"

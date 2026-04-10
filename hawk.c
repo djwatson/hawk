@@ -11,6 +11,7 @@
 #include "bigint.h"
 #include "gc.h"
 #include "hawk.h"
+#include "runtime.h"
 #include "types.h"
 #include "vm.h"
 
@@ -28,6 +29,7 @@ static struct option long_options[] = {
     {"profile", no_argument, nullptr, 'p'},
     {"joff", no_argument, nullptr, 'o'},
     {"dump", no_argument, nullptr, 'd'},
+    {"image", required_argument, nullptr, 'i'},
     {"help", no_argument, nullptr, 'h'},
     {"max-trace", required_argument, nullptr, 'm'},
     {nullptr, no_argument, nullptr, 0},
@@ -37,12 +39,13 @@ extern const uint8_t embedded_image[];
 extern const size_t embedded_image_size;
 
 void print_help() {
-  printf("Usage: hawk [OPTION] [<script>.scm]\n");
+  printf("Usage: hawk [OPTION] [<script> [arg ...]]\n");
   printf("Available options are:\n");
   printf("      --joff     \tTurn off jit\n");
   printf("  -m, --max-trace\tStop JITting after # trace\n");
   printf("  -p, --profile  \tTurn on samplnig profiler\n");
   printf("      --dump     \tDump linux perf jit info\n");
+  printf("      --image    \tLoad explicit .bc image file\n");
   printf("      --version  \tPrint version\n");
   printf("  -s,            \tRandom schedule seed\n");
   printf("  -v, --verbose  \tTurn on verbose jit mode\n");
@@ -51,14 +54,16 @@ void print_help() {
 }
 
 typedef struct {
-  char *filename;
+  char *image;
+  char *script;
   int command_arg_idx;
 } parse_result;
 
 static parse_result parse_args(int argc, char *argv[]) {
   int c;
+  parse_result out = {0};
   int option_index = 0;
-  while ((c = getopt_long(argc, argv, "+pvdhm:z:s:", long_options,
+  while ((c = getopt_long(argc, argv, "+pvdhom:s:i:", long_options,
                           &option_index)) !=
          -1) {
     switch (c) {
@@ -81,6 +86,9 @@ static parse_result parse_args(int argc, char *argv[]) {
     case 'p':
       profile = true;
       break;
+    case 'i':
+      out.image = optarg;
+      break;
     case 0:
       if (strcmp(long_options[option_index].name, "version") == 0) {
         printf("hawk\n");
@@ -97,18 +105,14 @@ static parse_result parse_args(int argc, char *argv[]) {
   bool after_separator =
       optind > 1 && strcmp(argv[optind - 1], "--") == 0;
   int command_arg_idx = optind;
-  char *filename = nullptr;
   if (!after_separator && optind < argc) {
-    filename = argv[optind];
+    out.script = argv[optind];
     command_arg_idx = optind + 1;
   }
   if (command_arg_idx < argc && strcmp(argv[command_arg_idx], "--") == 0) {
     command_arg_idx++;
   }
-  parse_result out = {
-      .filename = filename,
-      .command_arg_idx = command_arg_idx,
-  };
+  out.command_arg_idx = command_arg_idx;
   return out;
 }
 
@@ -117,52 +121,40 @@ int main(int argc, char *argv[]) {
   command_line_program_name = argv[0];
 
   parse_result args = parse_args(argc, argv);
-  auto filename = args.filename;
-  char *filename_alloc = nullptr;
+  auto image = args.image;
+  auto script = args.script;
   if (args.command_arg_idx < argc) {
     command_line_argc = argc - args.command_arg_idx;
     command_line_argv = &argv[args.command_arg_idx];
   }
-  if (filename) {
+  if (script) {
     command_line_argc++;
     command_line_argv = &argv[args.command_arg_idx - 1];
   }
 
   gc_obj start;
-  if (filename) {
-    auto ext = strrchr(filename, '.');
-    if (!ext || strcmp(ext, ".bc") != 0) {
-      size_t len = strlen(filename);
-      size_t path_len = len + 3 + 1;
-      filename_alloc = malloc(path_len);
-      if (!filename_alloc) {
-        printf("Must manually compile bitcode file for %s\n", filename);
-        exit(-1);
-      }
-      snprintf(filename_alloc, path_len, "%s.bc", filename);
-      if (access(filename_alloc, F_OK) == 0) {
-        filename = filename_alloc;
-      } else {
-        printf("Must manually compile bitcode file for %s\n", filename_alloc);
-        free(filename_alloc);
-        exit(-1);
-      }
-    }
-    start = gc_read_image_file(filename);
+  const char *image_name = image ? image : "lib/img.scm.bc";
+  if (image) {
+    start = gc_read_image_file(image);
   } else {
-    filename = "lib/img.scm.bc";
     if (embedded_image_size > 0) {
-      start = gc_read_image(embedded_image, embedded_image_size, filename);
+      start = gc_read_image(embedded_image, embedded_image_size, image_name);
     } else {
-      start = gc_read_image_file(filename);
+      start = gc_read_image_file(image_name);
     }
   }
   if (!is_func(start)) {
-    printf("Error loading %s\n", filename);
+    printf("Error loading %s\n", image_name);
     exit(-1);
   }
-  auto f = to_func(start);
 
-  free(filename_alloc);
-  (void)vm(f);
+  gc_obj script_arg = UNDEFINED;
+  if (script) {
+    gc_add_root((const void *)&start, 1, 0);
+    script_arg = make_string(script);
+    gc_remove_root((const void *)&start, 0);
+  }
+
+  auto f = to_func(start);
+  (void)vm(f, script_arg);
 }
