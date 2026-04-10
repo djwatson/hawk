@@ -918,6 +918,7 @@ static void emit_serialized_moves(emit_state *s, par_copy *cpy,
       }
     } else {
       emit_mov(s, to, from);
+      mark_live_reg(live_regs, &live_gpr_mask, to);
     }
   }
   arrfree(cpy);
