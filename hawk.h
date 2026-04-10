@@ -48,3 +48,6 @@ extern bool verbose;
 extern bool profile;
 extern bool jit_dump_flag;
 extern int64_t max_trace;
+extern char *command_line_program_name;
+extern int command_line_argc;
+extern char **command_line_argv;

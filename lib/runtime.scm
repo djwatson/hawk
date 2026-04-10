@@ -1272,7 +1272,8 @@
 
 ;;; parameters
 
-(define (command-line) '("hawk"))
+(define (command-line)
+  (sys:FOREIGN_CALL '(gc_obj "SCM_COMMAND_LINE" ())))
 
 (define (dynamic-wind before during after)
   (unless (and (procedure? before) (procedure? during) (procedure? after))

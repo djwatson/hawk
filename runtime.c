@@ -101,7 +101,8 @@ static bool runtime_decode_closure_ref(gc_obj obj, uint64_t fun_count,
     return false;
   }
   vector_s *vec = to_vector(obj);
-  if (to_fixnum(vec->len) != 2 || !runtime_symbol_eq(vec->v[0], "closure-ref")) {
+  if (to_fixnum(vec->len) != 2 ||
+      !runtime_symbol_eq(vec->v[0], "closure-ref")) {
     return false;
   }
   int64_t id = runtime_expect_fixnum(vec->v[1]);
@@ -141,9 +142,8 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
     }
     uint64_t const_cnt = runtime_list_length(desc->v[2]);
     uint64_t bc_cnt = runtime_list_length(desc->v[3]);
-    size_t bytes = runtime_align_words(sizeof(bcfunc) +
-                                       const_cnt * sizeof(gc_obj) +
-                                       bc_cnt * sizeof(bc));
+    size_t bytes = runtime_align_words(
+        sizeof(bcfunc) + const_cnt * sizeof(gc_obj) + bc_cnt * sizeof(bc));
     bcfunc *func = malloc(bytes);
     if (!func) {
       abort();
@@ -218,6 +218,35 @@ static gc_obj make_cons(gc_obj a, gc_obj b) {
   gc_remove_root((const void *)&b, 0);
   gc_remove_root((const void *)&a, 0);
   return tag_cons(cell);
+}
+
+// GC: may allocate via gc_alloc.
+static gc_obj make_string(const char *str) {
+  size_t len = strlen(str);
+  size_t bytes = (sizeof(string_s) + len + 1 + 7) & ~(size_t)7;
+  string_s *out = gc_alloc((uint64_t)bytes);
+  out->header.type = STRING_TAG;
+  out->len = tag_fixnum((int64_t)len);
+  memcpy(out->str, str, len + 1);
+  return tag_string(out);
+}
+
+// GC: may allocate via gc_alloc.
+EXPORT gc_obj SCM_COMMAND_LINE() {
+  gc_obj head = NIL;
+  gc_add_root((const void *)&head, 1, 0);
+  for (int i = command_line_argc - 1; i >= 0; i--) {
+    gc_obj arg = make_string(command_line_argv[i]);
+    head = make_cons(arg, head);
+  }
+
+  // Prepend command line program name at front.
+  // (we've stripped off VM-specific args in between).
+  gc_obj prog = make_string(command_line_program_name);
+  head = make_cons(prog, head);
+
+  gc_remove_root((const void *)&head, 0);
+  return head;
 }
 
 static bool exact_is_negative(gc_obj v) {
@@ -406,11 +435,11 @@ static gc_obj compnum_add(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&ca_obj, 1, 0);
   gc_obj cb_obj = get_compnum(b);
   gc_add_root((const void *)&cb_obj, 1, 0);
-  gc_obj real =
-      vm_runtime_math_add_slow(to_compnum(ca_obj)->real, to_compnum(cb_obj)->real);
+  gc_obj real = vm_runtime_math_add_slow(to_compnum(ca_obj)->real,
+                                         to_compnum(cb_obj)->real);
   gc_add_root((const void *)&real, 1, 0);
-  gc_obj imag =
-      vm_runtime_math_add_slow(to_compnum(ca_obj)->imag, to_compnum(cb_obj)->imag);
+  gc_obj imag = vm_runtime_math_add_slow(to_compnum(ca_obj)->imag,
+                                         to_compnum(cb_obj)->imag);
   gc_obj out = normalize_compnum(real, imag);
   gc_remove_root((const void *)&real, 0);
   gc_remove_root((const void *)&cb_obj, 0);
@@ -427,11 +456,11 @@ static gc_obj compnum_sub(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&ca_obj, 1, 0);
   gc_obj cb_obj = get_compnum(b);
   gc_add_root((const void *)&cb_obj, 1, 0);
-  gc_obj real =
-      vm_runtime_math_sub_slow(to_compnum(ca_obj)->real, to_compnum(cb_obj)->real);
+  gc_obj real = vm_runtime_math_sub_slow(to_compnum(ca_obj)->real,
+                                         to_compnum(cb_obj)->real);
   gc_add_root((const void *)&real, 1, 0);
-  gc_obj imag =
-      vm_runtime_math_sub_slow(to_compnum(ca_obj)->imag, to_compnum(cb_obj)->imag);
+  gc_obj imag = vm_runtime_math_sub_slow(to_compnum(ca_obj)->imag,
+                                         to_compnum(cb_obj)->imag);
   gc_obj out = normalize_compnum(real, imag);
   gc_remove_root((const void *)&real, 0);
   gc_remove_root((const void *)&cb_obj, 0);
@@ -448,18 +477,20 @@ static gc_obj compnum_mul(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&ca_obj, 1, 0);
   gc_obj cb_obj = get_compnum(b);
   gc_add_root((const void *)&cb_obj, 1, 0);
-  gc_obj left =
-      vm_runtime_math_mul_slow(to_compnum(ca_obj)->real, to_compnum(cb_obj)->real);
+  gc_obj left = vm_runtime_math_mul_slow(to_compnum(ca_obj)->real,
+                                         to_compnum(cb_obj)->real);
   gc_add_root((const void *)&left, 1, 0);
-  gc_obj right =
-      vm_runtime_math_mul_slow(to_compnum(ca_obj)->imag, to_compnum(cb_obj)->imag);
+  gc_obj right = vm_runtime_math_mul_slow(to_compnum(ca_obj)->imag,
+                                          to_compnum(cb_obj)->imag);
   gc_obj real = vm_runtime_math_sub_slow(left, right);
   gc_add_root((const void *)&real, 1, 0);
   gc_remove_root((const void *)&left, 0);
 
-  left = vm_runtime_math_mul_slow(to_compnum(ca_obj)->real, to_compnum(cb_obj)->imag);
+  left = vm_runtime_math_mul_slow(to_compnum(ca_obj)->real,
+                                  to_compnum(cb_obj)->imag);
   gc_add_root((const void *)&left, 1, 0);
-  right = vm_runtime_math_mul_slow(to_compnum(ca_obj)->imag, to_compnum(cb_obj)->real);
+  right = vm_runtime_math_mul_slow(to_compnum(ca_obj)->imag,
+                                   to_compnum(cb_obj)->real);
   gc_obj imag = vm_runtime_math_add_slow(left, right);
   gc_remove_root((const void *)&left, 0);
 
@@ -510,19 +541,21 @@ static gc_obj compnum_div(gc_obj a, gc_obj b) {
     abort();
   }
 
-  gc_obj left =
-      vm_runtime_math_mul_slow(to_compnum(ca_obj)->real, to_compnum(cb_obj)->real);
+  gc_obj left = vm_runtime_math_mul_slow(to_compnum(ca_obj)->real,
+                                         to_compnum(cb_obj)->real);
   gc_add_root((const void *)&left, 1, 0);
-  gc_obj right =
-      vm_runtime_math_mul_slow(to_compnum(ca_obj)->imag, to_compnum(cb_obj)->imag);
+  gc_obj right = vm_runtime_math_mul_slow(to_compnum(ca_obj)->imag,
+                                          to_compnum(cb_obj)->imag);
   gc_obj real_num = vm_runtime_math_add_slow(left, right);
   gc_remove_root((const void *)&left, 0);
   gc_obj real = vm_runtime_math_div_slow(real_num, denom);
   gc_add_root((const void *)&real, 1, 0);
 
-  left = vm_runtime_math_mul_slow(to_compnum(ca_obj)->imag, to_compnum(cb_obj)->real);
+  left = vm_runtime_math_mul_slow(to_compnum(ca_obj)->imag,
+                                  to_compnum(cb_obj)->real);
   gc_add_root((const void *)&left, 1, 0);
-  right = vm_runtime_math_mul_slow(to_compnum(ca_obj)->real, to_compnum(cb_obj)->imag);
+  right = vm_runtime_math_mul_slow(to_compnum(ca_obj)->real,
+                                   to_compnum(cb_obj)->imag);
   gc_obj imag_num = vm_runtime_math_sub_slow(left, right);
   gc_remove_root((const void *)&left, 0);
   gc_obj imag = vm_runtime_math_div_slow(imag_num, denom);

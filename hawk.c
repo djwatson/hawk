@@ -18,6 +18,9 @@ bool verbose = false;
 bool profile = false;
 bool jit_dump_flag = false;
 int64_t max_trace = INT64_MAX;
+char *command_line_program_name = nullptr;
+int command_line_argc = 0;
+char **command_line_argv = nullptr;
 
 static struct option long_options[] = {
     {"verbose", no_argument, nullptr, 'v'},
@@ -47,9 +50,16 @@ void print_help() {
   // TODO(davejwatson): -I, -A, -D, --exe?, -s
 }
 
-static char *parse_args(int argc, char *argv[]) {
+typedef struct {
+  char *filename;
+  int command_arg_idx;
+} parse_result;
+
+static parse_result parse_args(int argc, char *argv[]) {
   int c;
-  while ((c = getopt_long(argc, argv, "pvdhm:z:s:", long_options, nullptr)) !=
+  int option_index = 0;
+  while ((c = getopt_long(argc, argv, "+pvdhm:z:s:", long_options,
+                          &option_index)) !=
          -1) {
     switch (c) {
     case 'v':
@@ -71,6 +81,12 @@ static char *parse_args(int argc, char *argv[]) {
     case 'p':
       profile = true;
       break;
+    case 0:
+      if (strcmp(long_options[option_index].name, "version") == 0) {
+        printf("hawk\n");
+        exit(0);
+      }
+      break;
     default:
       print_help();
       exit(-1);
@@ -78,14 +94,39 @@ static char *parse_args(int argc, char *argv[]) {
     }
   }
 
-  return argv[optind];
+  bool after_separator =
+      optind > 1 && strcmp(argv[optind - 1], "--") == 0;
+  int command_arg_idx = optind;
+  char *filename = nullptr;
+  if (!after_separator && optind < argc) {
+    filename = argv[optind];
+    command_arg_idx = optind + 1;
+  }
+  if (command_arg_idx < argc && strcmp(argv[command_arg_idx], "--") == 0) {
+    command_arg_idx++;
+  }
+  parse_result out = {
+      .filename = filename,
+      .command_arg_idx = command_arg_idx,
+  };
+  return out;
 }
 
 int main(int argc, char *argv[]) {
   gc_init();
+  command_line_program_name = argv[0];
 
-  auto filename = parse_args(argc, argv);
+  parse_result args = parse_args(argc, argv);
+  auto filename = args.filename;
   char *filename_alloc = nullptr;
+  if (args.command_arg_idx < argc) {
+    command_line_argc = argc - args.command_arg_idx;
+    command_line_argv = &argv[args.command_arg_idx];
+  }
+  if (filename) {
+    command_line_argc++;
+    command_line_argv = &argv[args.command_arg_idx - 1];
+  }
 
   gc_obj start;
   if (filename) {
