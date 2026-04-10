@@ -162,7 +162,9 @@
     ((len) (make-string len #f))
     ((len c)
       (let* ((size (+ len 17))
-             (alloc_size (let loop ((n 8)) (if (>= n size) n (loop (+ n 8)))))
+             (q (quotient size 8))
+             (r (modulo size 8))
+             (alloc_size (if (= r 0) (* q 8) (* (+ q 1) 8)))
              (str (sys:ALLOC alloc_size 9)))
         (sys:STORE str len 0)
         (string-set! str len #\null)
@@ -478,17 +480,107 @@
 ;; symbol table for us consisting of all symbols.  The expander needs to know
 ;; the symbol, but don't set to '(), so set it to itself.
 (define symbol-table symbol-table)
+(define symbol-hash-table-tag (cons #f #f))
+(define (make-symbol-hash-table bucket-count)
+  (let ((table (make-vector 4 0)))
+    (vector-set! table 0 symbol-hash-table-tag)
+    (vector-set! table 1 (make-vector bucket-count '()))
+    (vector-set! table 2 0)
+    (vector-set! table 3 (symbol-hash-threshold bucket-count))
+    table))
+(define (symbol-hash-table? table)
+  (and (vector? table)
+       (= (vector-length table) 4)
+       (eq? (vector-ref table 0) symbol-hash-table-tag)))
+(define (symbol-hash-table-buckets table) (vector-ref table 1))
+(define (symbol-hash-table-size table) (vector-ref table 2))
+(define (symbol-hash-table-threshold table) (vector-ref table 3))
+(define (symbol-hash-table-buckets-set! table buckets) (vector-set! table 1 buckets))
+(define (symbol-hash-table-size-set! table size) (vector-set! table 2 size))
+(define (symbol-hash-table-threshold-set! table threshold) (vector-set! table 3 threshold))
+
+(define (symbol-hash-threshold bucket-count)
+  (let ((n (quotient (sys:MUL bucket-count 3) 4)))
+    (if (= n 0) 1 n)))
+
+(define (string-hash-index string bucket-count)
+  (let loop ((i 0) (h 0))
+    (if (= i (string-length string))
+        h
+        (loop (+ i 1)
+              (modulo (+ (sys:MUL h 33) (char->integer (string-ref string i)))
+                      bucket-count)))))
+
+(define (alist->symbol-hash-table alist)
+  (let* ((entry-count (length alist))
+         (bucket-count (let ((n (+ entry-count entry-count))) (if (< n 32) 32 n)))
+         (table (make-symbol-hash-table bucket-count))
+         (buckets (symbol-hash-table-buckets table)))
+    (let loop ((entries alist))
+      (if (pair? entries)
+          (let* ((entry (car entries))
+                 (name (car entry))
+                 (idx (string-hash-index name bucket-count)))
+            (vector-set! buckets idx (cons entry (vector-ref buckets idx)))
+            (loop (cdr entries)))))
+    (symbol-hash-table-size-set! table entry-count)
+    table))
+
+(define (symbol-hash-table-grow! table)
+  (let* ((old-buckets (symbol-hash-table-buckets table))
+         (old-count (vector-length old-buckets))
+         (new-count (+ old-count old-count))
+         (new-buckets (make-vector new-count '())))
+    (let loopi ((i 0))
+      (if (< i old-count)
+          (begin
+            (let loopb ((bucket (vector-ref old-buckets i)))
+              (if (pair? bucket)
+                  (let* ((entry (car bucket))
+                         (idx (string-hash-index (car entry) new-count)))
+                    (vector-set! new-buckets idx (cons entry (vector-ref new-buckets idx)))
+                    (loopb (cdr bucket)))))
+            (loopi (+ i 1)))))
+    (symbol-hash-table-buckets-set! table new-buckets)
+    (symbol-hash-table-threshold-set! table (symbol-hash-threshold new-count))))
+
+(define (symbol-hash-table-ref table name)
+  (let* ((buckets (symbol-hash-table-buckets table))
+         (idx (string-hash-index name (vector-length buckets))))
+    (let loop ((bucket (vector-ref buckets idx)))
+      (if (null? bucket)
+          #f
+          (if (string=? (caar bucket) name) (cdar bucket) (loop (cdr bucket)))))))
+
+(define (symbol-hash-table-set! table name cell)
+  (let* ((buckets (symbol-hash-table-buckets table))
+         (idx (string-hash-index name (vector-length buckets))))
+    (vector-set! buckets idx (cons (cons name cell) (vector-ref buckets idx)))
+    (let ((size (+ (symbol-hash-table-size table) 1)))
+      (symbol-hash-table-size-set! table size)
+      (if (> size (symbol-hash-table-threshold table)) (symbol-hash-table-grow! table)))))
+
+(define (ensure-symbol-hash-table!)
+  (if (symbol-hash-table? symbol-table)
+      symbol-table
+      (let ((table (if (list? symbol-table)
+                       (alist->symbol-hash-table symbol-table)
+                       (error "Bad symbol table:" symbol-table))))
+        (set! symbol-table table)
+        table)))
+
 (define (string->symbol string)
-  (cond
-    ((assoc string symbol-table string=?) => cdr)
-    (else
-      (let* ((new-name (string-copy string)) (cell (sys:ALLOC (* 8 5) 6)))
-        (sys:STORE cell new-name 0)
-        ;(sys:STORE cell undefined-tag 1) ;; THIS IS DONE IN VM/JIT NOW since we can't write tags (it's not an int
-        (sys:STORE cell 0 2)
-        (sys:STORE cell 0 3)
-        (set! symbol-table (cons (cons new-name cell) symbol-table))
-        cell))))
+  (let* ((table (ensure-symbol-hash-table!))
+         (existing (symbol-hash-table-ref table string)))
+    (if existing
+        existing
+        (let* ((new-name (string-copy string)) (cell (sys:ALLOC (* 8 5) 6)))
+          (sys:STORE cell new-name 0)
+          ;(sys:STORE cell undefined-tag 1) ;; THIS IS DONE IN VM/JIT NOW since we can't write tags (it's not an int
+          (sys:STORE cell 0 2)
+          (sys:STORE cell 0 3)
+          (symbol-hash-table-set! table new-name cell)
+          cell))))
 ;; strings
 (define string-copy
   (case-lambda
@@ -1272,8 +1364,7 @@
 
 ;;; parameters
 
-(define (command-line)
-  (sys:FOREIGN_CALL '(gc_obj "SCM_COMMAND_LINE" ())))
+(define (command-line) (sys:FOREIGN_CALL '(gc_obj "SCM_COMMAND_LINE" ())))
 
 (define (dynamic-wind before during after)
   (unless (and (procedure? before) (procedure? during) (procedure? after))

@@ -527,7 +527,7 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
       dump_image_fail(filename, "out of memory");
     }
     size_t compressed_len =
-        ZSTD_compress(compressed, compressed_cap, data, image.len, 10);
+        ZSTD_compress(compressed, compressed_cap, data, image.len, 19);
     if (ZSTD_isError(compressed_len)) {
       dump_image_zstd_fail(filename, compressed_len);
     }
