@@ -4,8 +4,7 @@
 
 (define (write-double d) (error "No write-double"))
 (include "bc.scm")
-
-(expander-setup)
+(include "expander-init.scm")
 (define repl-env (make-toplevel-environment 'r7expander.repl))
 (expand-repl '(import (scheme base) (scheme case-lambda) (scheme char) (scheme complex) (scheme cxr)
                       (scheme eval) (scheme file) (scheme inexact) (scheme lazy) (scheme load)

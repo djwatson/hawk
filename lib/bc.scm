@@ -127,9 +127,12 @@
     (if (empty-library-name? lib)
         name
         (string->symbol (string-append (library-name->string lib) ":" (symbol->string name))))))
-;; Inlines primitives, verifies no assigned vars (TODO)
+;; Inlines primitives
 (define (simple-pass ir)
   (match ir
+    (#(app #(ref #(var ,name ,assigned ,lib) #t ,mutable ,ann) ,args ,ann2)
+      (guard (equal? lib '(hawk sys)))
+      `#(primcall ,name ,(map simple-pass args) ,ann))
     (#(app #(ref #(var - #f "") #t #f ,ann) (,arg) ,ann2)
       `#(primcall SUB (#(quote 0 ,ann) ,(simple-pass arg)) ,ann))
     (#(app #(ref #(var / #f "") #t #f ,ann) (,arg) ,ann2)

@@ -19,6 +19,9 @@
   * GCALL GCALLT (global call)
   * Math ops like ROUND SIN SQRT ATAN COS TRUNCATE FLOOR CEILING EXP LOG TAN ASIN ACOS
   
+  * The JIT could dro pthe box_closure_flonum pass if we have
+    * RATNUM, COMPNUM, CONS, since it could auto-convert the inputs.
+  
 Optional: 
 * GC old generation
 
