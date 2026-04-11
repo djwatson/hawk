@@ -9,7 +9,7 @@
      ((_ (x ...) (xs ...) body ...) (for-each (lambda (x ...) body ...) xs ...))
      ((_ x xs body ...) (for-each (lambda (x) body ...) xs))))
 
-(define (build-let vars inits body)
+(define (build-let-internal vars inits body)
   (if (null? vars) body `#(app #(lambda ((,vars ,body)) #f) ,inits #f)))
 
 (define (build-fix vars inits body)
@@ -24,7 +24,7 @@
       (begin
         (for var vars (vector-set! var 2 #t))
         (let ((setters (map (lambda (var init) `#(set! ,var ,init #f #f)) vars inits)))
-        `#(begin (,@setters ,body) #f)))))
+          `#(begin (,@setters ,body) #f)))))
 
 (define (to-proper lst)
   (if (null? lst)
@@ -96,7 +96,9 @@
               #t
               `#(define ,var ,expr ,ann)
               assigned))
-    (#(letrec* ((,vars ,(%fix-letrec init-free init-complex init-expr init-assigned) ,bind-ann)
+    (#(letrec* ((,vars
+                   ,(%fix-letrec init-free init-complex init-expr init-assigned)
+                  ,bind-ann)
                 ___)
         ,(%fix-letrec body-free body-complex body-expr body-assigned)
         ,letrec-ann)
@@ -143,15 +145,15 @@
                                                    (list (binding-init bind))
                                                    expr))
                                       ((not (memq (binding-var bind) (binding-free bind)))
-                                        (build-let (list (binding-var bind))
-                                                   (list (binding-init bind))
-                                                   expr))
+                                        (build-let-internal (list (binding-var bind))
+                                                            (list (binding-init bind))
+                                                            expr))
                                       (else
-                                        (build-let (list (binding-var bind))
-                                                   (list '#(void #f))
-                                                   (build-set! (list (binding-var bind))
-                                                               (list (binding-init bind))
-                                                               expr)))))
+                                        (build-let-internal (list (binding-var bind))
+                                                            (list '#(void #f))
+                                                            (build-set! (list (binding-var bind))
+                                                                        (list (binding-init bind))
+                                                                        expr)))))
                                   ;; Multi-scc case
                                   (let-values (((unset set)
                                                   (partition not-assigned-lambda?
@@ -170,13 +172,15 @@
                                       ;; 						   (filter (lambda (x) (memq x scc)) x)
                                       ;; 						   #f)) deps))
                                       ;; (newline)
-                                      (build-let (map binding-var seto)
-                                                 (make-list (length seto) '#(void #f))
-                                                 (build-fix (map binding-var unset)
-                                                            (map binding-init unset)
-                                                            (build-set! (map binding-var seto)
-                                                                        (map binding-init seto)
-                                                                        expr)))))))
+                                      (build-let-internal (map binding-var seto)
+                                                          (make-list (length seto) '#(void #f))
+                                                          (build-fix (map binding-var unset)
+                                                                     (map binding-init unset)
+                                                                     (build-set! (map binding-var
+                                                                                      seto)
+                                                                                 (map binding-init
+                                                                                      seto)
+                                                                                 expr)))))))
                             body-expr
                             (reverse scc))))
         ;; (when (> (length deps) 1)
@@ -187,9 +191,7 @@
                 new-body
                 assigned)))
     (#(lambda ((,args ,(%fix-letrec free complex expr2 assigned)) ___) ,ann)
-      (values (set-union* (omap (args free)
-                                (args free)
-                                (lset-difference eq? free (to-proper args))))
+      (values (set-union* (omap (args free) (args free) (lset-difference eq? free (to-proper args))))
               #f
               `#(lambda ,(omap (args expr2) (args expr2) `(,args ,expr2)) ,ann)
               (set-union* assigned)))

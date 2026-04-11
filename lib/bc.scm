@@ -100,12 +100,11 @@
   (let ((name (variable-name var)) (lib (variable-library-name var)))
     (if (or (eq? lib #f) (equal? lib ""))
         name
-        (string->symbol
-          (string-append (if (pair? lib)
-                             (library-spec->normalized-string lib)
-                             (if (symbol? lib) (symbol->string lib) lib))
-                         ":"
-                         (symbol->string name))))))
+        (string->symbol (string-append (if (pair? lib)
+                                           (library-spec->normalized-string lib)
+                                           (if (symbol? lib) (symbol->string lib) lib))
+                                       ":"
+                                       (symbol->string name))))))
 ;; Inlines primitives
 (define (simple-pass ir)
   (cond
@@ -119,20 +118,14 @@
              (args (ir-application-args ir))
              (ann (ir-reference-ann fun)))
         (cond
-          ((equal? lib '(hawk sys))
-            (build-primcall name (map simple-pass args) ann))
+          ((equal? lib '(hawk sys)) (build-primcall name (map simple-pass args) ann))
           ((and (equal? lib "") (eq? name '-) (= (length args) 1))
-            (build-primcall 'SUB
-                            (list (build-quote 0 ann) (simple-pass (car args)))
-                            ann))
+            (build-primcall 'SUB (list (build-quote 0 ann) (simple-pass (car args))) ann))
           ((and (equal? lib "") (eq? name '/) (= (length args) 1))
-            (build-primcall 'DIV
-                            (list (build-quote 1 ann) (simple-pass (car args)))
-                            ann))
+            (build-primcall 'DIV (list (build-quote 1 ann) (simple-pass (car args))) ann))
           ((and (equal? lib "")
                 (assq name primcalls)
-                (let ((arity (primcall-arity name))
-                      (nargs (length args)))
+                (let ((arity (primcall-arity name)) (nargs (length args)))
                   (and arity (= nargs arity))))
             (build-primcall (cdr (assq name primcalls)) (map simple-pass args) ann))
           (else (cont-pass ir simple-pass)))))
@@ -140,72 +133,98 @@
 
 ;; TODO: more performant boxing: remember we must store/zero all fields before another alloc.
 (define (assignment-conversion ir)
-  (let ((counter 0))
-    (define (fresh-box var)
-      (set! counter (+ counter 1))
-      (vector 'var
-              (string->symbol (string-append (symbol->string (variable-full-name var))
-                                             "-box"
-                                             (number->string counter)))
-              #f
-              #f))
+  (define (boxed-load box ann)
+    (build-primcall 'LOAD
+                    `(,(build-lexical-reference (cdr box) #t #f)
+                      ,(build-quote 0 ann))
+                    ann))
 
-    (define (convert expr boxes)
-      (match expr
-        (#(ref ,var ,global ,mutable ,ann)
+  (define (boxed-store box value ann)
+    (build-primcall 'STORE
+                    `(,(build-lexical-reference (cdr box) #t #f)
+                      ,value
+                      ,(build-quote 0 ann))
+                    ann))
+
+  (define (alloc-box ann)
+    (build-primcall 'ALLOC
+                    `(,(build-quote 24 ann)
+                      ,(build-quote 3 ann))
+                    ann))
+
+  (define (init-box-body box body ann)
+    (build-begin
+      `(,(build-primcall
+           'STORE
+           `(,(build-lexical-reference (cdr box) #t #f)
+             ,(build-lexical-reference (car box) #t #f)
+             ,(build-quote 0 ann))
+           ann)
+        ,(build-primcall
+           'STORE
+           `(,(build-lexical-reference (cdr box) #t #f)
+             ,(build-quote 0 ann)
+             ,(build-quote 1 ann))
+           ann)
+        ,body)
+      ann))
+
+  (define (wrap-boxes new-boxes body ann)
+    (fold-right (lambda (box acc)
+                  (build-let `((,(cdr box) ,(alloc-box ann)))
+                             (init-box-body box acc ann)
+                             ann))
+                body
+                new-boxes))
+
+  (define (convert expr boxes)
+    (cond
+      ((ir-reference? expr)
+        (let ((var (ir-reference-var expr)) (ann (ir-reference-ann expr)))
           (cond
             ((assq var boxes) =>
-               (lambda (box)
-                 `#(primcall LOAD (#(ref ,(cdr box) #f #t #f) #(quote 0 ,ann)) ,ann)))
-            (else expr)))
+               (lambda (box) (boxed-load box ann)))
+            (else expr))))
 
-        (#(set! ,var ,exp ,global? ,ann)
-          (let ((new-exp (convert exp boxes)))
-            (cond
-              ((assq var boxes) =>
-                 (lambda (box)
-                   `#(primcall STORE (#(ref ,(cdr box) #f #t #f) ,new-exp #(quote 0 ,ann)) ,ann)))
-              (else `#(set! ,var ,new-exp ,global? ,ann)))))
+      ((ir-assignment? expr)
+        (let* ((var (ir-assignment-var expr))
+               (exp (ir-assignment-exp expr))
+               (global? (ir-assignment-global? expr))
+               (ann (ir-assignment-ann expr))
+               (new-exp (convert exp boxes)))
+          (cond
+            ((assq var boxes) =>
+               (lambda (box) (boxed-store box new-exp ann)))
+            (else (build-set var new-exp global? ann)))))
 
-        (#(lambda ,cases ,ann)
-          (let ((new-cases
-                   (map (lambda (clause)
-                          (let* ((args (car clause))
-                                 (body (cadr clause))
-                                 (arg-list (to-proper args))
-                                 (boxed-args (filter variable-assigned arg-list))
-                                 (new-boxes (map (lambda (v) (cons v (fresh-box v))) boxed-args))
-                                 (new-body (convert body (append new-boxes boxes)))
-                                 (body*
-                                    (fold-right (lambda (b body)
-                                                  `#(let ((,(cdr b)
-                                                             #(primcall ALLOC
-                                                                        (#(quote 24 ,ann)
-                                                                         #(quote 3 ,ann))
-                                                                        ,ann)))
-                                                      #(begin
-                                                         (#(primcall STORE
-                                                                     (#(ref ,(cdr b) #f #t #f)
-                                                                      #(ref ,(car b) #f #t #f)
-                                                                      #(quote 0 ,ann))
-                                                                     ,ann)
-                                                          #(primcall STORE
-                                                                     (#(ref ,(cdr b) #f #t #f)
-                                                                      #(quote 0 ,ann)
-                                                                      #(quote 1 ,ann))
-                                                                     ,ann)
-                                                          ,body)
-                                                         ,ann)
-                                                      ,ann))
-                                                new-body
-                                                new-boxes)))
-                            (list args (if (null? new-boxes) new-body body*))))
-                        cases)))
-            `#(lambda ,new-cases ,ann)))
+      ((ir-lambda? expr)
+        (let* ((cases (ir-lambda-cases expr))
+               (ann (ir-lambda-ann expr))
+               (new-cases
+                  (map (lambda (clause)
+                         (let* ((args (car clause))
+                                (body (cadr clause))
+                                (arg-list (to-proper args))
+                                (boxed-args (filter variable-assigned arg-list))
+                                (new-boxes
+                                   (map (lambda (v)
+                                          (cons v
+                                                (build-variable (string->symbol (string-append "boxed-"
+                                                                                               (symbol->string (variable-name v))))
+                                                                #f)))
+                                        boxed-args))
+                                (new-body (convert body (append new-boxes boxes)))
+                                (boxed-body
+                                  (if (null? new-boxes)
+                                      new-body
+                                      (wrap-boxes new-boxes new-body ann))))
+                           `(,args ,boxed-body)))
+                       cases)))
+          (build-lambda new-cases ann)))
 
-        (,else (cont-pass expr (lambda (child) (convert child boxes))))))
+      (else (cont-pass expr (lambda (child) (convert child boxes))))))
 
-    (convert ir '())))
+  (convert ir '()))
 
 (define (recover-let ir)
   (match ir
@@ -547,7 +566,9 @@
       (let ((in-env (assq var env)))
         (finish (if in-env
                     (cdr in-env)
-                    (begin (add-op fun `(LOOKUP ,top ,(add-const fun (variable-full-name var)))) top))))
+                    (begin
+                      (add-op fun `(LOOKUP ,top ,(add-const fun (variable-full-name var))))
+                      top))))
       ;; TODO possibly needs mov?
     )
     (#(quote ,datum ,ann)
