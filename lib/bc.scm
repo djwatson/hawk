@@ -99,34 +99,16 @@
 (define (variable-assigned? var) (vector-ref var 2))
 (define (variable-raw-name var) (vector-ref var 1))
 (define (variable-library-name var) (vector-ref var 3))
-(define (library-name->string lib)
-  (cond
-    ((symbol? lib) (symbol->string lib))
-    ((string? lib) lib)
-    ((pair? lib)
-      (let loop ((parts lib) (acc ""))
-        (if (null? parts)
-            acc
-            (let* ((part (car parts))
-                   (part-str
-                      (cond
-                        ((symbol? part) (symbol->string part))
-                        ((string? part) part)
-                        ((number? part) (number->string part))
-                        (else (error "Invalid library-name part:" part))))
-                   (next (if (string=? acc "") part-str (string-append acc "." part-str))))
-              (loop (cdr parts) next)))))
-    (else (error "Invalid library-name:" lib))))
-(define (empty-library-name? lib)
-  (or (eq? lib #f)
-     (and (string? lib) (string=? lib ""))
-     (and (symbol? lib) (string=? (symbol->string lib) ""))
-     (and (list? lib) (null? lib))))
 (define (variable-name var)
   (let ((name (variable-raw-name var)) (lib (variable-library-name var)))
-    (if (empty-library-name? lib)
+    (if (or (eq? lib #f) (equal? lib ""))
         name
-        (string->symbol (string-append (library-name->string lib) ":" (symbol->string name))))))
+        (string->symbol
+          (string-append (if (pair? lib)
+                             (library-spec->normalized-string lib)
+                             (if (symbol? lib) (symbol->string lib) lib))
+                         ":"
+                         (symbol->string name))))))
 ;; Inlines primitives
 (define (simple-pass ir)
   (match ir
