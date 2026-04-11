@@ -10,6 +10,19 @@
      ((_ arg command rest ...) (-> (command arg) rest ...))
      ((_ arg) arg)))
 
+(define-syntax and-let
+   (syntax-rules ()
+     ((_ ()) #t)
+     ((and-let () form form* ...) (begin form form* ...))
+     ((_ ((id expr))) expr)
+     ((_ ((expr))) expr)
+     ((_ (id)) id)
+     ((_ ((id expr) . claw*) . body)
+      (let ((id expr)) (and id (and-let claw* . body))))
+     ((_ ((expr) . claw*) . body) (and expr (and-let claw* . body)))
+     ((_ (id . claw*) . body) (and id (and-let claw* . body)))
+     ((_ . _) (syntax-error "ill-formed and-let form"))))
+
 ;; Temporary fallback until the new expander exposes annotation records.
 (define (annotation? _) #f)
 
@@ -135,45 +148,34 @@
 (define (assignment-conversion ir)
   (define (boxed-load box ann)
     (build-primcall 'LOAD
-                    `(,(build-lexical-reference (cdr box) #t #f)
-                      ,(build-quote 0 ann))
+                    `(,(build-lexical-reference (cdr box) #t #f) ,(build-quote 0 ann))
                     ann))
 
   (define (boxed-store box value ann)
     (build-primcall 'STORE
-                    `(,(build-lexical-reference (cdr box) #t #f)
-                      ,value
-                      ,(build-quote 0 ann))
+                    `(,(build-lexical-reference (cdr box) #t #f) ,value ,(build-quote 0 ann))
                     ann))
 
   (define (alloc-box ann)
-    (build-primcall 'ALLOC
-                    `(,(build-quote 24 ann)
-                      ,(build-quote 3 ann))
-                    ann))
+    (build-primcall 'ALLOC `(,(build-quote 24 ann) ,(build-quote 3 ann)) ann))
 
   (define (init-box-body box body ann)
-    (build-begin
-      `(,(build-primcall
-           'STORE
-           `(,(build-lexical-reference (cdr box) #t #f)
-             ,(build-lexical-reference (car box) #t #f)
-             ,(build-quote 0 ann))
-           ann)
-        ,(build-primcall
-           'STORE
-           `(,(build-lexical-reference (cdr box) #t #f)
-             ,(build-quote 0 ann)
-             ,(build-quote 1 ann))
-           ann)
-        ,body)
-      ann))
+    (build-begin `(,(build-primcall 'STORE
+                                    `(,(build-lexical-reference (cdr box) #t #f)
+                                      ,(build-lexical-reference (car box) #t #f)
+                                      ,(build-quote 0 ann))
+                                    ann)
+                   ,(build-primcall 'STORE
+                                    `(,(build-lexical-reference (cdr box) #t #f)
+                                      ,(build-quote 0 ann)
+                                      ,(build-quote 1 ann))
+                                    ann)
+                   ,body)
+                 ann))
 
   (define (wrap-boxes new-boxes body ann)
     (fold-right (lambda (box acc)
-                  (build-let `((,(cdr box) ,(alloc-box ann)))
-                             (init-box-body box acc ann)
-                             ann))
+                  (build-let `((,(cdr box) ,(alloc-box ann))) (init-box-body box acc ann) ann))
                 body
                 new-boxes))
 
@@ -181,10 +183,7 @@
     (cond
       ((ir-reference? expr)
         (let ((var (ir-reference-var expr)) (ann (ir-reference-ann expr)))
-          (cond
-            ((assq var boxes) =>
-               (lambda (box) (boxed-load box ann)))
-            (else expr))))
+          (cond ((assq var boxes) => (lambda (box) (boxed-load box ann))) (else expr))))
 
       ((ir-assignment? expr)
         (let* ((var (ir-assignment-var expr))
@@ -193,8 +192,7 @@
                (ann (ir-assignment-ann expr))
                (new-exp (convert exp boxes)))
           (cond
-            ((assq var boxes) =>
-               (lambda (box) (boxed-store box new-exp ann)))
+            ((assq var boxes) => (lambda (box) (boxed-store box new-exp ann)))
             (else (build-set var new-exp global? ann)))))
 
       ((ir-lambda? expr)
@@ -215,9 +213,9 @@
                                         boxed-args))
                                 (new-body (convert body (append new-boxes boxes)))
                                 (boxed-body
-                                  (if (null? new-boxes)
-                                      new-body
-                                      (wrap-boxes new-boxes new-body ann))))
+                                   (if (null? new-boxes)
+                                       new-body
+                                       (wrap-boxes new-boxes new-body ann))))
                            `(,args ,boxed-body)))
                        cases)))
           (build-lambda new-cases ann)))
@@ -227,29 +225,21 @@
   (convert ir '()))
 
 (define (recover-let ir)
-  (match ir
-    (#(app #(lambda ((,args ,body)) ,lambda-ann) (,params ___) ,app-ann)
-      (guard (list? args) (= (length args) (length params)))
-      (if (null? params)
-          (recover-let body)
-          `#(let
-             ,(map list args (map recover-let params))
-             ,(recover-let body)
-             ,lambda-ann)))
-    ;; TODO: the rest-args cases
-    ;; ((call (lambda (case (,first ___ . ,rest) ,body)) ,params ___)
-    ;;   (guard (not (null? rest)) (<= (length first) (length params)))
-    ;;   (let ((params (recover-let params))
-    ;;         (first-params (take params (length first)))
-    ;;         (rest-params (drop params (length first))))
-    ;;     `(let
-    ;;       (,@(map list first first-params) (,rest (call (lookup list) ,@rest-params)))
-    ;;       ,(recover-let body))))
-    ;; ((call (lambda (case ,arg ,body)) ,params ___)
-    ;;   (guard (symbol? arg))
-    ;;   `(let ((,arg (call (lookup list) ,@(map recover-let params))))
-    ;;      ,(recover-let body)))
-    (,else (cont-pass ir recover-let))))
+  (or (and-let ((fun (and (ir-application? ir) (ir-application-fun ir)))
+                (cases (and (ir-lambda? fun) (ir-lambda-cases fun)))
+                ((= (length cases) 1))
+                (clause (car cases))
+                (args (car clause))
+                (body (cadr clause))
+                (params (ir-application-args ir))
+                (lambda-ann (ir-lambda-ann fun))
+                ((list? params)) ;; TODO: the rest-args cases
+                ((list? args))
+                ((= (length args) (length params))))
+               (build-let (map list args (map recover-let params))
+                          (recover-let body)
+                          lambda-ann))
+     (cont-pass ir recover-let)))
 
 ;; adds name field to lambdas.
 (define (name-lambdas ir)
