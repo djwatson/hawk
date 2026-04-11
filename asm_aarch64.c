@@ -744,8 +744,9 @@ void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
     emit_sub(s, dst, XZR, lhs);
     return;
   }
-  emit_mov64(s, RTMP, imm);
-  emit_mul(s, dst, lhs, RTMP);
+  uint8_t tmp = lhs == RTMP ? RTMP2 : RTMP;
+  emit_mov64(s, tmp, imm);
+  emit_mul(s, dst, lhs, tmp);
 }
 
 void asm_emit_fixnum_mul_constant_guard_overflow(emit_state *s, uint8_t dst,

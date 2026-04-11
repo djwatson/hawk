@@ -8,10 +8,6 @@
 * probably need to fix closure conversion at some point
 * and REAL loops
 
-## broken bench2:
-
-* mbrozZ, pi, chudnovsky- we can't read const bignums, so changed to string->number call
-
 ## JIT impl
 
 * simplex is slower??? bad tracing - need multi-ops to be binops
@@ -41,6 +37,8 @@
   STORE: could alloc a reg in IR_REF to 
   GSET: needs a tmp reg
   SLOAD: would need separate IR_TYPECHECK or tmp reg
+
+* We could drop LRU, and just keep a list of last-used for EVERY op, probably cheaper.
   
 * We can probably push RSTATE on the stack instead of keeping a register.
 
