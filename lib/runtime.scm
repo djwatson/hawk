@@ -330,35 +330,6 @@
     (do ((i 0 (+ i 1)))
          ((= i (vector-length res)) res)
          (vector-set! res i (fun (vector-ref vec i))))))
-;; SIN
-(define two-pi 6.28319)
-(define pi (/ two-pi 2.0))
-(define neg-pi (sys:MUL -1.0 pi))
-(define half-pi (/ pi 2.0))
-(define neg-half-pi (sys:MUL -1.0 half-pi))
-
-(define (sin-poly x)
-  ;; 9th-order odd polynomial around 0:
-  ;; x - x^3/6 + x^5/120 - x^7/5040 + x^9/362880
-  (let* ((x2 (sys:MUL x x))
-         (x3 (sys:MUL x2 x))
-         (x5 (sys:MUL x3 x2))
-         (x7 (sys:MUL x5 x2))
-         (x9 (sys:MUL x7 x2)))
-    (+ x
-       (+ (sys:MUL -0.166667 x3)
-          (+ (sys:MUL 0.00833333 x5)
-             (+ (sys:MUL -0.000198413 x7) (sys:MUL 2.75573e-06 x9)))))))
-
-(define (reduce-angle y)
-  (if (> y pi)
-      (reduce-angle (- y two-pi))
-      (if (< y neg-pi) (reduce-angle (+ y two-pi)) y)))
-(define (sin x)
-  (let ((y (reduce-angle x)))
-    (if (> y half-pi)
-        (sin-poly (- pi y))
-        (if (< y neg-half-pi) (sys:MUL -1.0 (sin-poly (+ pi y))) (sin-poly y)))))
 
 (define apply
   (case-lambda
@@ -495,21 +466,21 @@
 (define (symbol-hash-table-buckets table) (vector-ref table 1))
 (define (symbol-hash-table-size table) (vector-ref table 2))
 (define (symbol-hash-table-threshold table) (vector-ref table 3))
-(define (symbol-hash-table-buckets-set! table buckets) (vector-set! table 1 buckets))
+(define (symbol-hash-table-buckets-set! table buckets)
+  (vector-set! table 1 buckets))
 (define (symbol-hash-table-size-set! table size) (vector-set! table 2 size))
-(define (symbol-hash-table-threshold-set! table threshold) (vector-set! table 3 threshold))
+(define (symbol-hash-table-threshold-set! table threshold)
+  (vector-set! table 3 threshold))
 
 (define (symbol-hash-threshold bucket-count)
-  (let ((n (quotient (sys:MUL bucket-count 3) 4)))
-    (if (= n 0) 1 n)))
+  (let ((n (quotient (sys:MUL bucket-count 3) 4))) (if (= n 0) 1 n)))
 
 (define (string-hash-index string bucket-count)
   (let loop ((i 0) (h 0))
     (if (= i (string-length string))
         h
         (loop (+ i 1)
-              (modulo (+ (sys:MUL h 33) (char->integer (string-ref string i)))
-                      bucket-count)))))
+              (modulo (+ (sys:MUL h 33) (char->integer (string-ref string i))) bucket-count)))))
 
 (define (alist->symbol-hash-table alist)
   (let* ((entry-count (length alist))
@@ -536,8 +507,7 @@
           (begin
             (let loopb ((bucket (vector-ref old-buckets i)))
               (if (pair? bucket)
-                  (let* ((entry (car bucket))
-                         (idx (string-hash-index (car entry) new-count)))
+                  (let* ((entry (car bucket)) (idx (string-hash-index (car entry) new-count)))
                     (vector-set! new-buckets idx (cons entry (vector-ref new-buckets idx)))
                     (loopb (cdr bucket)))))
             (loopi (+ i 1)))))
@@ -558,14 +528,16 @@
     (vector-set! buckets idx (cons (cons name cell) (vector-ref buckets idx)))
     (let ((size (+ (symbol-hash-table-size table) 1)))
       (symbol-hash-table-size-set! table size)
-      (if (> size (symbol-hash-table-threshold table)) (symbol-hash-table-grow! table)))))
+      (if (> size (symbol-hash-table-threshold table))
+          (symbol-hash-table-grow! table)))))
 
 (define (ensure-symbol-hash-table!)
   (if (symbol-hash-table? symbol-table)
       symbol-table
-      (let ((table (if (list? symbol-table)
-                       (alist->symbol-hash-table symbol-table)
-                       (error "Bad symbol table:" symbol-table))))
+      (let ((table
+               (if (list? symbol-table)
+                   (alist->symbol-hash-table symbol-table)
+                   (error "Bad symbol table:" symbol-table))))
         (set! symbol-table table)
         table)))
 
@@ -800,9 +772,7 @@
   (unless (record? record) (error "record-ref: not a record" record))
   (sys:LOAD record (+ index 1)))
 (define (make-record sz)
-  (let ((rec (sys:ALLOC (+ (* 8 (+ 1 sz)) 8) 49)))
-    (sys:STORE rec sz 0)
-    rec))
+  (let ((rec (sys:ALLOC (+ (* 8 (+ 1 sz)) 8) 49))) (sys:STORE rec sz 0) rec))
 (define (record? p) (sys:GUARD p 49))
 
 (define :record-type (make-record 3))
