@@ -1,23 +1,28 @@
-# Currently working on:
+# Known bugs
 
-* bug save-and-die WHILE in a trace! ugh
+* bug save-and-die WHILE in a trace fails - because currently vm_trace_reset is lazy
 
+# Release checklist
 
-## tests:
-
-* probably need to fix closure conversion at some point
-* and REAL loops
+* Closure conversion from O(0) closure paper
+* Loops, and loop tracing.
+* Record every OPcode:
+  * APPLY (+ the resulting call FUNC or IFUNC)
+  * CALLCC & CALLCCRESUME
+  * boxing in FFI
+* Better inlining of existing, like change 3+ args to binops for +,-, etc
+* Inline a bunch of VM primitives to opcodes to make things faster
+  * CONS, CAR, CDR
+  * VECTOR MAKE_VECTOR VECTOR_REF VECTOR_SET VECTOR_LENGTH
+  * STRING_LENGTH STRING_REF MAKE_STRING
+  * MEMQ ASSV ASSQ
+  * GCALL GCALLT (global call)
+  * Math ops like ROUND SIN SQRT ATAN COS TRUNCATE FLOOR CEILING EXP LOG TAN ASIN ACOS
+  
+Optional: 
+* GC old generation
 
 ## JIT impl
-
-* simplex is slower??? bad tracing - need multi-ops to be binops
-
-* ugh need to put back faster VM - things like browse too slow.
-  * this is just inlining stuff I think.
-
-* get APPLY recording
-* gc_obj boxing recording?
-* record call/cc?
 
 * lots of ccall cleanup - regalloc, live register save/restore, etc
 
@@ -29,6 +34,7 @@
   * downrec abort not working (start of trace is failing?)
   * GC next_collect is 10x too big.
   * deriv.scm needs better closure conversion.
+  * It's because APPLY doesn't record doh :(
 
 * downrec traces don't ensure_args_match and link without boxing/typecheck
 
@@ -54,8 +60,6 @@
 # VM impl
 
 * track stack-top
-* update stack overflow, just allocate a new section (linked stack segments, much faster callcc handling)
-
 
 # cleanup
 * we store state VM, the only place it is used is to flush traces in the FOREIGN_CALL to dump image and die. ugh.
@@ -100,11 +104,6 @@ X fold
 * sinking
 * loop? never really found useful, because reg-args covers most cases.
 X dce - implicit.  Only useful with LOOP
-
-# passes
-* loops
-* count uses 
-* advanced closure conversion (with subpasses)
 
 # notes:
 
