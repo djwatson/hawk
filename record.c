@@ -1278,19 +1278,12 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     add_inst(state, IR(.op = IR_STORE, .op1 = len_ref, .op2 = len_val,
                        .type = CLOSURE_TAG));
 
-    // Seed slot 0 with the function label and zero-fill the remaining slots.
+    // Seed slot 0 with the function label; IR_ALLOC now zeroes the payload.
     auto label = stack_load(state, stack, start, false);
     slot c_pos = add_const(state, tag_fixnum(0 + 1));
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
     add_inst(state,
              IR(.op = IR_STORE, .op1 = ref, .op2 = label, .type = CLOSURE_TAG));
-    for (uint64_t i = 1; i < capture_cnt; i++) {
-      slot capture_pos = add_const(state, tag_fixnum((int64_t)(i + 1)));
-      auto capture_ref =
-          add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = capture_pos));
-      add_inst(state, IR(.op = IR_STORE, .op1 = capture_ref, .op2 = zero,
-                         .type = CLOSURE_TAG));
-    }
 
     stack_save(state, stack, instr.reg, clo);
     break;

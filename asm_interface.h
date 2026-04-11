@@ -51,6 +51,7 @@ void emit_store_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
 void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value);
+void asm_zero_alloc_payload(emit_state *s, int64_t tagged_size, uint8_t size_reg);
 void emit_jcc32(emit_state *s, enum jcc_cond cond, label *target);
 void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs);
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm);

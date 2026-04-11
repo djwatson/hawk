@@ -13,6 +13,7 @@
 #include "array.h"
 #include "asm.h"
 #include "hawk.h"
+#include "types.h"
 
 static void emit_reg_reg(emit_state *s, uint8_t opcode, uint8_t src,
                          uint8_t dst);
@@ -923,6 +924,42 @@ void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
   }
   emit_mov64(s, RTMP, value);
   emit_store(s, offset, base, RTMP);
+}
+
+void asm_zero_alloc_payload(emit_state *s, int64_t tagged_size, uint8_t size_reg) {
+  assert(size_reg == REG_NONE || (size_reg != RTMP && size_reg != RTMP2));
+  int64_t payload_bytes = 0;
+
+  label loop = {};
+  label done = {};
+
+  emit_add_constant(s, RTMP, RTMP, 8);
+  if (size_reg == REG_NONE) {
+    payload_bytes = (tagged_size >> FIXNUM_SHIFT) - 8;
+    assert(payload_bytes >= 0 && (payload_bytes % 8) == 0);
+    emit_mov64(s, RTMP2, payload_bytes);
+  } else {
+    emit_sub_constant(s, RTMP2, size_reg, TAG_FIXNUM_VALUE(8));
+    emit_sar_constant(s, RTMP2, RTMP2, FIXNUM_SHIFT);
+  }
+  emit_cmp_constant(s, RTMP2, 0);
+  emit_jcc32(s, JE, &done);
+
+  emit_label(s, &loop);
+  emit_store_constant(s, 0, RTMP, 0);
+  emit_add_constant(s, RTMP, RTMP, 8);
+  emit_sub_constant(s, RTMP2, RTMP2, 8);
+  emit_jcc32(s, JNE, &loop);
+
+  emit_label(s, &done);
+  if (size_reg == REG_NONE) {
+    emit_mov64(s, RTMP2, payload_bytes + 8);
+  } else {
+    emit_sub_constant(s, RTMP2, size_reg, TAG_FIXNUM_VALUE(8));
+    emit_sar_constant(s, RTMP2, RTMP2, FIXNUM_SHIFT);
+    emit_add_constant(s, RTMP2, RTMP2, 8);
+  }
+  emit_sub(s, RTMP, RTMP, RTMP2);
 }
 
 /////////////////// memory
