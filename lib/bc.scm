@@ -290,46 +290,59 @@
 (define (uncover-free ir)
   (let uncover-free ((ir ir) (bindings '()) (fv-info (make-hash-table eq?)))
     (define (pass ir)
-      (match ir
-        (#(ref ,var ,unused ,unused2 ,unused3)
-          (when (memq var bindings) (hash-table-set! fv-info var #t))
-          ir)
-        (#(let ((,vars ,(pass inits)) ___) ,body ,ann)
-          (let ((new-body (uncover-free body (append vars bindings) fv-info)))
+      (cond
+        ((ir-reference? ir)
+          (let ((var (ir-reference-var ir)))
+            (when (memq var bindings) (hash-table-set! fv-info var #t))
+            ir))
+        ((ir-let? ir)
+          (let* ((old-bindings (ir-let-bindings ir))
+                 (vars (map car old-bindings))
+                 (new-bindings (map (lambda (b) `(,(car b) ,(pass (cadr b)))) old-bindings))
+                 (new-body (uncover-free (ir-let-body ir) (append vars bindings) fv-info)))
             (for key vars (hash-table-delete! fv-info key))
-            `#(let ,(omap (vars inits) (vars inits) `(,vars ,inits)) ,new-body ,ann)))
-        ;; TODO the same as let?
-        ;; ((loop ,vars ,name ,body ,(pass args) ___)
-        ;;   (let ((new-body (uncover-free body (append vars bindings) fv-info)))
-        ;;     (for key vars (hash-table-delete! fv-info key))
-        ;;     `(loop ,vars ,name ,new-body ,args ___)))
-        (#(letrec* ((,vars #(nlambda ,name ,cases ,lann) ,lrann) ___) ,body ,ann)
-          (let* ((new-env (append vars bindings))
-                 (infos (omap _ vars (make-hash-table eq?)))
+            (build-let new-bindings new-body (ir-let-ann ir))))
+        ((ir-letrec*? ir)
+          (let* ((old-bindings (ir-letrec*-bindings ir))
+                 (vars (map car old-bindings))
+                 (inits (map cadr old-bindings))
+                 (lranns (map caddr old-bindings))
+                 (names (map ir-nlambda-name inits))
+                 (cases-list (map ir-nlambda-cases inits))
+                 (lanns (map ir-nlambda-ann inits))
+                 (new-env (append vars bindings))
+                 (infos (map (lambda (_) (make-hash-table eq?)) vars))
                  (new-cases
-                    (omap (cases info)
-                          (cases infos)
-                          (map (lambda (clause)
-                                 (let ((args (car clause)) (lbody (cadr clause)))
-                                   (list args
-                                         (uncover-free lbody (append (to-proper args) new-env) info))))
-                               cases)))
-                 (new-body (uncover-free body new-env fv-info))
+                    (map (lambda (cases info)
+                           (map (lambda (clause)
+                                  (let ((args (car clause)) (lbody (cadr clause)))
+                                    `(,args ,(uncover-free lbody
+                                                           (append (to-proper args) new-env)
+                                                           info))))
+                                cases))
+                         cases-list
+                         infos))
+                 (new-body (uncover-free (ir-letrec*-body ir) new-env fv-info))
                  (free-vars
-                    (omap (cases table)
-                          (cases infos) ;; for each lambda
-                          (for clause cases
-                            (for key (to-proper (car clause)) (hash-table-delete! table key)))
-                          (hash-table-keys table))))
-
+                    (map (lambda (cases table)
+                           (for clause cases
+                             (for key (to-proper (car clause)) (hash-table-delete! table key)))
+                           (hash-table-keys table))
+                         new-cases
+                         infos))
+                 (new-bindings
+                    (map (lambda (var name fvs cases lann lrann)
+                           `(,var #(nlambda ,name (free ,@fvs) ,cases ,lann) ,lrann))
+                         vars
+                         names
+                         free-vars
+                         new-cases
+                         lanns
+                         lranns)))
             (for table infos (hash-table-merge! fv-info table))
             (for key vars (hash-table-delete! fv-info key))
-            (let ((bindings
-                     (omap (var name free-vars cases lann lrann)
-                           (vars name free-vars new-cases lann lrann)
-                           `(,var #(nlambda ,name (free ,@free-vars) ,cases ,lann) ,lrann))))
-              `#(letrec* ,bindings ,new-body ,ann))))
-        (,else (cont-pass ir pass))))
+            (build-letrec* new-bindings new-body (ir-letrec*-ann ir))))
+        (else (cont-pass ir pass))))
     (pass ir)))
 
 (define (convert-closures ir)
