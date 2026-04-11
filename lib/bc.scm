@@ -435,22 +435,29 @@
 (define jcmp
   '((LT . JLT) (GT . JGT) (LTE . JLTE) (GTE . JGTE) (EQ . JEQ) (EQV . JEQV)))
 (define (lower-comparisons ir)
-  (match ir
+  (cond
     ;; If it's already behind a if test, it's okay
-    (#(if #(primcall ,test ,args ,ann1) ,then ,else ,ann2)
-      (guard (assq test jcmp))
-      `#(if #(primcall ,test ,(map lower-comparisons args) ,ann1)
-            ,(lower-comparisons then)
-            ,(lower-comparisons else)
-            ,ann1))
+    ((and (ir-conditional? ir)
+          (ir-primcall? (ir-conditional-test ir))
+          (assq (ir-primcall-name (ir-conditional-test ir)) jcmp))
+      (let* ((test-ir (ir-conditional-test ir))
+             (test (ir-primcall-name test-ir))
+             (args (ir-primcall-args test-ir))
+             (ann (ir-primcall-ann test-ir)))
+        (vector-set! test-ir 2 (map lower-comparisons args))
+        (vector-set! ir 2 (lower-comparisons (ir-conditional-then ir)))
+        (vector-set! ir 3 (lower-comparisons (ir-conditional-else ir)))
+        ir))
     ;; Otherwise wrap it in if branch.
-    (#(primcall ,test ,args ,ann1)
-      (guard (assq test jcmp))
-      `#(if #(primcall ,test ,(map lower-comparisons args) ,ann1)
-            #(quote #t ,ann1)
-            #(quote #f ,ann1)
-            ,ann1))
-    (,else (cont-pass ir lower-comparisons))))
+    ((and (ir-primcall? ir) (assq (ir-primcall-name ir) jcmp))
+      (let ((test (ir-primcall-name ir))
+            (args (ir-primcall-args ir))
+            (ann (ir-primcall-ann ir)))
+        (build-conditional (build-primcall test (map lower-comparisons args) ann)
+                           (build-quote #t ann)
+                           (build-quote #f ann)
+                           ann)))
+    (else (cont-pass ir lower-comparisons))))
 
 ;; Functions.
 (define-record-type fun (make-fun-record code name consts const-list) fun?
