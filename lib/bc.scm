@@ -96,11 +96,8 @@
            '(exact->inexact inexact->exact char->integer integer->char display))
       1)
     (else #f)))
-(define (variable-assigned? var) (vector-ref var 2))
-(define (variable-raw-name var) (vector-ref var 1))
-(define (variable-library-name var) (vector-ref var 3))
-(define (variable-name var)
-  (let ((name (variable-raw-name var)) (lib (variable-library-name var)))
+(define (variable-full-name var)
+  (let ((name (variable-name var)) (lib (variable-library-name var)))
     (if (or (eq? lib #f) (equal? lib ""))
         name
         (string->symbol
@@ -111,18 +108,35 @@
                          (symbol->string name))))))
 ;; Inlines primitives
 (define (simple-pass ir)
-  (match ir
-    (#(app #(ref #(var ,name ,assigned ,lib) #t ,mutable ,ann) ,args ,ann2)
-      (guard (equal? lib '(hawk sys)))
-      `#(primcall ,name ,(map simple-pass args) ,ann))
-    (#(app #(ref #(var - #f "") #t #f ,ann) (,arg) ,ann2)
-      `#(primcall SUB (#(quote 0 ,ann) ,(simple-pass arg)) ,ann))
-    (#(app #(ref #(var / #f "") #t #f ,ann) (,arg) ,ann2)
-      `#(primcall DIV (#(quote 1 ,ann) ,(simple-pass arg)) ,ann))
-    (#(app #(ref #(var ,name #f "") #t #f ,ann) ,args ,ann2)
-      (guard (and (assq name primcalls) (equal? (length args) (primcall-arity name))))
-      `#(primcall ,(cdr (assq name primcalls)) ,(map simple-pass args) ,ann))
-    (,else (cont-pass ir simple-pass))))
+  (cond
+    ((and (ir-application? ir)
+          (ir-reference? (ir-application-fun ir))
+          (variable? (ir-reference-var (ir-application-fun ir))))
+      (let* ((fun (ir-application-fun ir))
+             (var (ir-reference-var fun))
+             (name (variable-name var))
+             (lib (variable-library-name var))
+             (args (ir-application-args ir))
+             (ann (ir-reference-ann fun)))
+        (cond
+          ((equal? lib '(hawk sys))
+            (build-primcall name (map simple-pass args) ann))
+          ((and (equal? lib "") (eq? name '-) (= (length args) 1))
+            (build-primcall 'SUB
+                            (list (build-quote 0 ann) (simple-pass (car args)))
+                            ann))
+          ((and (equal? lib "") (eq? name '/) (= (length args) 1))
+            (build-primcall 'DIV
+                            (list (build-quote 1 ann) (simple-pass (car args)))
+                            ann))
+          ((and (equal? lib "")
+                (assq name primcalls)
+                (let ((arity (primcall-arity name))
+                      (nargs (length args)))
+                  (and arity (= nargs arity))))
+            (build-primcall (cdr (assq name primcalls)) (map simple-pass args) ann))
+          (else (cont-pass ir simple-pass)))))
+    (else (cont-pass ir simple-pass))))
 
 ;; TODO: more performant boxing: remember we must store/zero all fields before another alloc.
 (define (assignment-conversion ir)
@@ -130,7 +144,7 @@
     (define (fresh-box var)
       (set! counter (+ counter 1))
       (vector 'var
-              (string->symbol (string-append (symbol->string (variable-name var))
+              (string->symbol (string-append (symbol->string (variable-full-name var))
                                              "-box"
                                              (number->string counter)))
               #f
@@ -159,7 +173,7 @@
                           (let* ((args (car clause))
                                  (body (cadr clause))
                                  (arg-list (to-proper args))
-                                 (boxed-args (filter variable-assigned? arg-list))
+                                 (boxed-args (filter variable-assigned arg-list))
                                  (new-boxes (map (lambda (v) (cons v (fresh-box v))) boxed-args))
                                  (new-body (convert body (append new-boxes boxes)))
                                  (body*
@@ -533,7 +547,7 @@
       (let ((in-env (assq var env)))
         (finish (if in-env
                     (cdr in-env)
-                    (begin (add-op fun `(LOOKUP ,top ,(add-const fun (variable-name var)))) top))))
+                    (begin (add-op fun `(LOOKUP ,top ,(add-const fun (variable-full-name var)))) top))))
       ;; TODO possibly needs mov?
     )
     (#(quote ,datum ,ann)
@@ -614,10 +628,10 @@
               (loop next (cdr args) (cons res argres)))))
       (finish top))
     (#(define ,var ,(compile-cont exp) ,ann)
-      (add-op fun `(DEFINE ,exp ,(add-const fun (variable-name var))))
+      (add-op fun `(DEFINE ,exp ,(add-const fun (variable-full-name var))))
       (finish exp))
     (#(set! ,var ,(compile-cont exp) #t ,ann)
-      (add-op fun `(DEFINE ,exp ,(add-const fun (variable-name var))))
+      (add-op fun `(DEFINE ,exp ,(add-const fun (variable-full-name var))))
       (finish exp))
     (#(begin (,sexps ___ ,tail-sexp) ,ann)
       (map compile-cont sexps)

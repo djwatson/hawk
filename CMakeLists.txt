@@ -252,7 +252,7 @@ file(
 add_custom_command(
   OUTPUT ${LIB_IMAGE_STAMP}
   COMMAND ${GOSH_EXECUTABLE} -I . -I ../../r7expand/ bc.gosh.scm gen-image.scm
-  COMMAND $<TARGET_FILE:hawk_bootstrap> --image gen-image.scm.bc
+  COMMAND $<TARGET_FILE:hawk_bootstrap> --joff --image gen-image.scm.bc
   COMMAND ${CMAKE_COMMAND} -E touch ${LIB_IMAGE_STAMP}
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib
   DEPENDS
