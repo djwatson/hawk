@@ -346,73 +346,86 @@
     (pass ir)))
 
 (define (convert-closures ir)
-  (define clo-counter 0)
-  (define (fresh-clo)
-    (set! clo-counter (+ clo-counter 1))
-    (vector 'var
-            (string->symbol (string-append "clo." (number->string clo-counter)))
-            #f
-            #f))
+  (define (free-nlambda-free-vars init) (cdr (vector-ref init 2)))
+  (define (free-nlambda-cases init) (vector-ref init 3))
+  (define (free-nlambda-ann init) (vector-ref init 4))
+  (define (closure-ref-expr clo num)
+    (build-primcall 'closure-ref
+                    `(,(build-lexical-reference clo #t #f) ,(build-quote num #f))
+                    #f))
+  (define (closure-set-expr clo num value)
+    (build-primcall 'closure-set!
+                    `(,(build-lexical-reference clo #t #f) ,(build-quote num #f) ,value)
+                    #f))
   (let convert-closures ((ir ir) (replace '()))
     (define (convert ir)
-      (match ir
-        (#(ref ,var ,unused ,unused2 ,unused3)
-          (cond ((assq var replace) => (lambda (newvar) (cdr newvar))) (else ir)))
-        (#(letrec* ((,vars #(nlambda ,name (free ,free ___) ,cases ,lann) ,lrann) ___)
-            ,(convert body)
-            ,ann)
-          (let* ((var-labels
-                    (map (lambda (n)
-                           (string->symbol (string-append (symbol->string (vector-ref n 1))
+      (cond
+        ((ir-reference? ir)
+          (let ((var (ir-reference-var ir)))
+            (cond ((assq var replace) => cdr) (else ir))))
+        ((ir-letrec*? ir)
+          (let* ((bindings (ir-letrec*-bindings ir))
+                 (vars (map car bindings))
+                 (inits (map cadr bindings))
+                 (lranns (map caddr bindings))
+                 (body (convert (ir-letrec*-body ir)))
+                 (ann (ir-letrec*-ann ir))
+                 (names (map ir-nlambda-name inits))
+                 (free-lists (map free-nlambda-free-vars inits))
+                 (cases-list (map free-nlambda-cases inits))
+                 (lanns (map free-nlambda-ann inits))
+                 (var-labels
+                    (map (lambda (v)
+                           (string->symbol (string-append (symbol->string (variable-name v))
                                                           "-label")))
                          vars))
-                 (closure-vars (map (lambda (_) (fresh-clo)) vars))
+                 (closure-vars (map (lambda (_) (build-variable 'closure #f)) vars))
                  (new-cases
-                    (omap (clo free cases)
-                          (closure-vars free cases) ;; for each lambda
-                          (map (lambda (clause)
-                                 (let ((case-args (car clause)) (body (cadr clause)))
-                                   (list (cons clo case-args)
-                                         (convert-closures body
-                                                           (omap (fv num)
-                                                                 (free (iota (length free) 1))
-                                                                 `(,fv .
-                                                                       #(primcall closure-ref
-                                                                                  (#(ref ,clo
-                                                                                         #f
-                                                                                         #t
-                                                                                         #f)
-                                                                                   #(quote ,num #f))
-                                                                                  #f)))))))
-                               cases)))
-                 (fvars-cnt (map length free))
+                    (map (lambda (clo free-vars cases)
+                           (map (lambda (clause)
+                                  (let ((case-args (car clause)) (case-body (cadr clause)))
+                                    (list (cons clo case-args)
+                                          (convert-closures case-body
+                                                            (map (lambda (fv num)
+                                                                   `(,fv .
+                                                                         ,(closure-ref-expr clo num)))
+                                                                 free-vars
+                                                                 (iota (length free-vars) 1))))))
+                                cases))
+                         closure-vars
+                         free-lists
+                         cases-list))
+                 (fvars-cnt (map length free-lists))
                  (new-label-bindings
-                    (omap (label name cases lann lrann)
-                          (var-labels name new-cases lann lrann)
-                          `(,label #(nlambda ,name ,cases ,lann) ,lrann)))
+                    (map (lambda (label name cases lann lrann)
+                           `(,label ,(build-nlambda name cases lann) ,lrann))
+                         var-labels
+                         names
+                         new-cases
+                         lanns
+                         lranns))
                  (new-closure-bindings
-                    (omap (var fvar-cnt label)
-                          (vars fvars-cnt var-labels)
-                          `(,var #(closure ,fvar-cnt #(label ,label))))))
-            `#(letrec* ,new-label-bindings
-                #(let
-                  ,new-closure-bindings
-                  #(begin
-                     (,@(apply append
-                               (omap (clo fvars)
-                                     (vars free)
-                                     (omap (fv num)
-                                           (fvars (iota (length fvars) 1))
-                                           `#(primcall closure-set!
-                                                       (#(ref ,clo #f #t #f)
-                                                        #(quote ,num #f)
-                                                        ,(convert `#(ref ,fv #f #t #f)))
-                                                       #f))))
-                      ,body)
-                     #f)
-                  #f)
-                #f)))
-        (,else (cont-pass ir convert))))
+                    (map (lambda (var fvar-cnt label) `(,var #(closure ,fvar-cnt #(label ,label))))
+                         vars
+                         fvars-cnt
+                         var-labels))
+                 (init-sets
+                    (apply append
+                           (map (lambda (clo free-vars)
+                                  (map (lambda (fv num)
+                                         (closure-set-expr clo
+                                                           num
+                                                           (convert (build-lexical-reference fv
+                                                                                             #t
+                                                                                             #f))))
+                                       free-vars
+                                       (iota (length free-vars) 1)))
+                                vars
+                                free-lists))))
+            (build-letrec* new-label-bindings
+                           (build-let new-closure-bindings (build-begin `(,@init-sets ,body) #f) #f)
+                           ann)))
+        (else (cont-pass ir convert))))
     (convert ir)))
 
 ;; The bytecode does not support raw comparison operators, only
