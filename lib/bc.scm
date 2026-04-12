@@ -308,13 +308,149 @@
                             (when (and (ir-lambda? init) (not (hash-table-ref escapes var)))
                               (set-ir-lambda-well-known! init #t))))
                         bindings)
-              (when (any (lambda (group) (> (length group) 1)) groups)
-                (print-combining-bindings groups))
               (set-ir-letrec*-bindings! ir groups))
             (for-each (lambda (var) (hash-table-delete! bound var)) vars)
             ir))
         (else (walk-ir ir pass))))
     (pass ir)))
+
+(define (required-free-vars ir)
+  (define (grouped-bindings? bindings)
+    (and (pair? bindings) (pair? (car bindings)) (pair? (caar bindings))))
+
+  (define (binding-groups bindings)
+    (cond
+      ((null? bindings) '())
+      ((grouped-bindings? bindings) bindings)
+      (else (list bindings))))
+
+  (define (flatten-binding-groups groups)
+    (if (null? groups) '() (apply append groups)))
+
+  (define (ordered-add item items)
+    (if (memq item items) items (append items (list item))))
+
+  (define (all-empty? lists)
+    (or (null? lists) (and (null? (car lists)) (all-empty? (cdr lists)))))
+
+  (define (rho-ref rho var) (cond ((assq var rho) => cdr) (else var)))
+
+  (define (canonicalize rho value)
+    (let loop ((value value) (seen '()))
+      (cond
+        ((not (variable? value)) value)
+        ((memq value seen) value)
+        (else
+          (let ((next (rho-ref rho value)))
+            (if (eq? next value) value (loop next (cons value seen))))))))
+
+  (define (extend-rho rho bindings) (append bindings rho))
+
+  (define (extend-rho-self rho vars)
+    (extend-rho rho (map (lambda (var) (cons var var)) vars)))
+
+  (define (binding-alias-value binding rho)
+    (let ((init (cadr binding)))
+      (cond
+        ((and (ir-reference? init) (not (ir-reference-global? init)))
+          (canonicalize rho (ir-reference-var init)))
+        ((ir-quote? init) (ir-quote-datum init))
+        (else (car binding)))))
+
+  (define (let-body-rho bindings rho)
+    (extend-rho rho
+                (map (lambda (binding) (cons (car binding) (binding-alias-value binding rho)))
+                     bindings)))
+
+  (define (group-rep group) (car (car group)))
+
+  (define (group-local-refs group letrec-vars)
+    (let loop-groups ((bindings group) (acc '()))
+      (if (null? bindings)
+          acc
+          (let loop-fvs ((fvs (ir-lambda-freevars (cadr (car bindings)))) (acc acc))
+            (if (null? fvs)
+                (loop-groups (cdr bindings) acc)
+                (loop-fvs (cdr fvs)
+                          (if (memq (car fvs) letrec-vars) (ordered-add (car fvs) acc) acc)))))))
+
+  (define (group-initial-required group letrec-vars rho)
+    (let loop-groups ((bindings group) (acc '()))
+      (if (null? bindings)
+          acc
+          (let loop-fvs ((fvs (ir-lambda-freevars (cadr (car bindings)))) (acc acc))
+            (if (null? fvs)
+                (loop-groups (cdr bindings) acc)
+                (let ((fv (car fvs)))
+                  (loop-fvs (cdr fvs)
+                            (if (memq fv letrec-vars)
+                                acc
+                                (let ((value (canonicalize rho fv)))
+                                  (if (variable? value) (ordered-add value acc) acc))))))))))
+
+  (define (final-required-sets groups initial-sets local-refs)
+    (if (all-empty? initial-sets)
+        (map (lambda (_) '()) groups)
+        (map (lambda (group init refs)
+               (let ((self-rep (group-rep group)))
+                 (let loop ((rest-groups groups) (rest-inits initial-sets) (acc init))
+                   (if (null? rest-groups)
+                       acc
+                       (let ((rep (group-rep (car rest-groups))) (initial (car rest-inits)))
+                         (loop (cdr rest-groups)
+                               (cdr rest-inits)
+                               (if (or (eq? rep self-rep) (null? initial) (not (memq rep refs)))
+                                   acc
+                                   (ordered-add rep acc))))))))
+             groups
+             initial-sets
+             local-refs)))
+
+  (define (letrec-body-rho rho groups)
+    (extend-rho rho
+                (apply append
+                       (map (lambda (group)
+                              (let ((rep (group-rep group)))
+                                (map (lambda (binding) (cons (car binding) rep)) group)))
+                            groups))))
+
+  (define (pass ir rho)
+    (cond
+      ((ir-let? ir)
+        (let* ((bindings (ir-let-bindings ir)) (body-rho (let-body-rho bindings rho)))
+          (for-each (lambda (binding) (set-car! (cdr binding) (pass (cadr binding) rho)))
+                    bindings)
+          (vector-set! ir 2 (pass (ir-let-body ir) body-rho))
+          ir))
+      ((ir-lambda? ir)
+        (set-ir-lambda-cases! ir
+                              (map (lambda (clause)
+                                     (let ((args (to-proper (car clause))) (body (cadr clause)))
+                                       `(,(car clause) ,(pass body (extend-rho-self rho args)))))
+                                   (ir-lambda-cases ir)))
+        ir)
+      ((ir-letrec*? ir)
+        (let* ((groups (ir-letrec*-bindings ir))
+               (bindings (apply append groups)) ;; flatten groups, all bindings.
+               (vars (map car bindings)) ;; variables bound by this letrec.
+               (initial-sets ;; Just all freevars after canonicalization (removing alias+constants)
+                  (map (lambda (group) (group-initial-required group vars rho)) groups))
+               (local-refs (map (lambda (group) (group-local-refs group vars)) groups))
+               (final-sets (final-required-sets groups initial-sets local-refs))
+               (body-rho (letrec-body-rho rho groups)))
+          (for-each (lambda (group final-set)
+                      (for-each (lambda (binding)
+                                  (let ((init (cadr binding)))
+                                    (when (ir-lambda? init)
+                                      (set-ir-lambda-freevars! init final-set))
+                                    (set-car! (cdr binding) (pass init body-rho))))
+                                group))
+                    groups
+                    final-sets)
+          (set-ir-letrec*-body! ir (pass (ir-letrec*-body ir) body-rho))
+          ir))
+      (else (walk-ir ir (lambda (child) (pass child rho) child)))))
+  (pass ir '()))
 
 (define (uncover-free ir)
   (let uncover-free ((ir ir) (bindings '()) (fv-info (make-hash-table eq?)))
@@ -900,7 +1036,8 @@
               '()
               objects))
 
-(define (debug-print ir) (display (ir->sexp ir)) (newline) ir)
+(include "pp.scm")
+(define (debug-print ir) (pretty-print (ir-pp ir)) (newline) ir)
 
 (define empty-library-name (string->symbol ""))
 
@@ -950,10 +1087,14 @@
                   recover-let
                   name-lambdas
                   fix-all
-                  escape-analyze
                   uncover-free
-                  convert-closures))
+                  escape-analyze
+                  required-free-vars
+                  ;debug-print
+                  ;convert-closures
+             ))
            (main (make-fun "main")))
+      (exit 0)
       (compile lowered main '() 0 #f)
       (add-op main `(RET 0))
       (add-fun main)
