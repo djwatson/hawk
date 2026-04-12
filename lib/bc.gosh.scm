@@ -8,7 +8,6 @@
         (scheme cxr)
         (scheme process-context)
         (scheme file)
-        (match)
         (srfi 69)
         (srfi 1)
         ;; gauche

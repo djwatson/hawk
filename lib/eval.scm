@@ -1,4 +1,4 @@
-(import (except (scheme base) syntax-error) (scheme write) (srfi 1) (scheme file) (match)
+(import (except (scheme base) syntax-error) (scheme write) (srfi 1) (scheme file)
         (scheme process-context) (scheme read) (r7expand) (library) (builders) (expander)
         (prefix (hawk sys) sys:) (srfi 69))
 
