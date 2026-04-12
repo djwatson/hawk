@@ -267,6 +267,52 @@
         (build-letrec* `((,tmp ,ir #f)) (build-lexical-reference tmp #f #f) #f)))
     (else (walk-ir ir fix-all))))
 
+(define (print-combining-bindings groups)
+  (display "combining-bindings ")
+  (write (map (lambda (group) (map variable-name group)) groups))
+  (newline))
+
+(define (escape-analyze ir)
+  (let ((bound (make-hash-table eq?)))
+    (define (mark-escaped! var)
+      (when (hash-table-exists? bound var)
+        (let ((escapes (hash-table-ref bound var))) (hash-table-set! escapes var #t))))
+    (define (pass ir)
+      (cond
+        ((ir-reference? ir) (mark-escaped! (ir-reference-var ir)) ir)
+        ((ir-application? ir)
+          (let ((fun (ir-application-fun ir)))
+            ;; Direct calls are where we'll later rewrite to label-calls.
+            (unless (and (ir-reference? fun) (hash-table-exists? bound (ir-reference-var fun)))
+              (pass fun))
+            (for-each pass (ir-application-args ir))
+            ir))
+        ((ir-letrec*? ir)
+          (let* ((bindings (ir-letrec*-bindings ir))
+                 (vars (map car bindings))
+                 (escapes (make-hash-table eq?)))
+            (for-each (lambda (var)
+                        (hash-table-set! escapes var #f)
+                        (hash-table-set! bound var escapes))
+                      vars)
+            (for-each (lambda (binding) (pass (cadr binding))) bindings)
+            (pass (ir-letrec*-body ir))
+            (let* ((not-well-known
+                     (filter (lambda (var) (hash-table-ref escapes var)) vars))
+                   (well-known
+                     (filter (lambda (var) (not (hash-table-ref escapes var))) vars))
+                   (groups
+                     (if (null? not-well-known)
+                         (list vars)
+                         (cons (append (list (car not-well-known)) well-known)
+                               (map list (cdr not-well-known))))))
+              (when (any (lambda (group) (> (length group) 1)) groups)
+                (print-combining-bindings groups)))
+            (for-each (lambda (var) (hash-table-delete! bound var)) vars)
+            ir))
+        (else (walk-ir ir pass))))
+    (pass ir)))
+
 (define (uncover-free ir)
   (let uncover-free ((ir ir) (bindings '()) (fv-info (make-hash-table eq?)))
     (define (pass ir)
@@ -901,6 +947,7 @@
                   recover-let
                   name-lambdas
                   fix-all
+                  escape-analyze
                   uncover-free
                   convert-closures))
            (main (make-fun "main")))
