@@ -35,47 +35,6 @@
       (let ((d (expt 2 (- k))))
         (if (>= x 0) (quotient x d) (- (quotient (+ (- x) (- d 1)) d)))))))
 
-(define (cont-pass ir c)
-  ;; (display "Cont pass:")
-  ;; (display (ir->sexp ir))
-  ;; (newline)
-  (define (c-cases cases)
-    (map (lambda (clause) (list (car clause) (c (cadr clause)))) cases))
-  (define (free-nlambda? ir)
-    (and (vector? ir)
-         (>= (vector-length ir) 5)
-         (eq? (vector-ref ir 0) 'nlambda)
-         (pair? (vector-ref ir 2))
-         (eq? (car (vector-ref ir 2)) 'free)))
-  (cond
-    ((ir-application? ir)
-      (vector-set! ir 1 (c (ir-application-fun ir)))
-      (vector-set! ir 2 (map c (ir-application-args ir))))
-    ((ir-conditional? ir)
-      (vector-set! ir 1 (c (ir-conditional-test ir)))
-      (vector-set! ir 2 (c (ir-conditional-then ir)))
-      (vector-set! ir 3 (c (ir-conditional-else ir))))
-    ((ir-reference? ir) #t)
-    ((ir-assignment? ir) (vector-set! ir 2 (c (ir-assignment-exp ir))))
-    ((ir-lambda? ir) (vector-set! ir 1 (c-cases (ir-lambda-cases ir))))
-    ((ir-nlambda? ir) (vector-set! ir 2 (c-cases (ir-nlambda-cases ir))))
-    ((free-nlambda? ir) (vector-set! ir 3 (c-cases (vector-ref ir 3))))
-    ((ir-letrec*? ir)
-      (for val (ir-letrec*-bindings ir) (set-car! (cdr val) (c (cadr val))))
-      (vector-set! ir 2 (c (ir-letrec*-body ir)))
-      ir)
-    ((ir-let? ir)
-      (for val (ir-let-bindings ir) (set-car! (cdr val) (c (cadr val))))
-      (vector-set! ir 2 (c (ir-let-body ir)))
-      ir)
-    ((ir-quote? ir) #t)
-    ((ir-begin? ir) (vector-set! ir 1 (map c (ir-begin-exps ir))))
-    ((ir-void? ir) #t)
-    ((ir-define? ir) (vector-set! ir 2 (c (ir-define-exp ir))))
-    ((ir-primcall? ir) (vector-set! ir 2 (map c (ir-primcall-args ir))))
-    (else (error "Invalid IR:" ir)))
-  ir)
-
 (define primcalls
   '((+ . ADD)
     (- . SUB)
@@ -138,8 +97,8 @@
                 (let ((arity (primcall-arity name)) (nargs (length args)))
                   (and arity (= nargs arity))))
             (build-primcall (cdr (assq name primcalls)) (map simple-pass args) ann))
-          (else (cont-pass ir simple-pass)))))
-    (else (cont-pass ir simple-pass))))
+          (else (walk-ir ir simple-pass)))))
+    (else (walk-ir ir simple-pass))))
 
 ;; TODO: more performant boxing: remember we must store/zero all fields before another alloc.
 (define (assignment-conversion ir)
@@ -217,7 +176,7 @@
                        cases)))
           (build-lambda new-cases ann)))
 
-      (else (cont-pass expr (lambda (child) (convert child boxes))))))
+      (else (walk-ir expr (lambda (child) (convert child boxes))))))
 
   (convert ir '()))
 
@@ -236,7 +195,7 @@
                  (build-let (map list args (map recover-let params))
                             (recover-let body)
                             lambda-ann)))
-     (cont-pass ir recover-let)))
+     (walk-ir ir recover-let)))
 
 ;; adds name field to lambdas.
 (define (name-lambdas ir)
@@ -245,7 +204,7 @@
       (map (lambda (clause) `(,(car clause) ,(name-lambdas-int (cadr clause) name)))
            cases))
     (define (named-lambda cases name ann)
-      (build-nlambda name (name-cases cases name) ann))
+      (build-lambda (name-cases cases name) name '() ann))
     (define (rewrite-define ir)
       (and-let ((var (and (ir-define? ir) (ir-define-var ir)))
                 (exp (ir-define-exp ir))
@@ -259,7 +218,7 @@
                (let ((lam-ann (ir-lambda-ann ir)))
                  (named-lambda cases (string-append cur "-anon") lam-ann))))
     (define (name-pass ir)
-      (or (rewrite-define ir) (rewrite-lambda ir) (cont-pass ir name-pass)))
+      (or (rewrite-define ir) (rewrite-lambda ir) (walk-ir ir name-pass)))
     (name-pass ir))
   (name-lambdas-int ir "REPL"))
 
@@ -272,17 +231,16 @@
       (let ((bindings (ir-letrec*-bindings ir)))
         (for binding bindings
           (let ((init (cadr binding)))
-            ;; TODO add a setter once we've normalized nlambda
-            (vector-set! init 2 (rewrite-cases (ir-nlambda-cases init)))))
-        (vector-set! ir 2 (fix-all (ir-letrec*-body ir)))
+            (set-ir-lambda-cases! init (rewrite-cases (ir-lambda-cases init)))))
+        (set-ir-letrec*-body! ir (fix-all (ir-letrec*-body ir)))
         ir))
-    ((ir-nlambda? ir)
-      (let* ((name (ir-nlambda-name ir))
-             (ann (ir-nlambda-ann ir))
+    ((and (ir-lambda? ir) (ir-lambda-name ir))
+      (let* ((name (ir-lambda-name ir))
+             (ann (ir-lambda-ann ir))
              (tmp (build-variable (string->symbol name) #f)))
-        (vector-set! ir 2 (rewrite-cases (ir-nlambda-cases ir)))
+        (set-ir-lambda-cases! ir (rewrite-cases (ir-lambda-cases ir)))
         (build-letrec* `((,tmp ,ir #f)) (build-lexical-reference tmp #f #f) #f)))
-    (else (cont-pass ir fix-all))))
+    (else (walk-ir ir fix-all))))
 
 (define (uncover-free ir)
   (let uncover-free ((ir ir) (bindings '()) (fv-info (make-hash-table eq?)))
@@ -304,9 +262,9 @@
                  (vars (map car old-bindings))
                  (inits (map cadr old-bindings))
                  (lranns (map caddr old-bindings))
-                 (names (map ir-nlambda-name inits))
-                 (cases-list (map ir-nlambda-cases inits))
-                 (lanns (map ir-nlambda-ann inits))
+                 (names (map ir-lambda-name inits))
+                 (cases-list (map ir-lambda-cases inits))
+                 (lanns (map ir-lambda-ann inits))
                  (new-env (append vars bindings))
                  (infos (map (lambda (_) (make-hash-table eq?)) vars))
                  (new-cases
@@ -329,7 +287,7 @@
                          infos))
                  (new-bindings
                     (map (lambda (var name fvs cases lann lrann)
-                           `(,var #(nlambda ,name (free ,@fvs) ,cases ,lann) ,lrann))
+                           `(,var ,(build-lambda cases name fvs lann) ,lrann))
                          vars
                          names
                          free-vars
@@ -339,13 +297,13 @@
             (for table infos (hash-table-merge! fv-info table))
             (for key vars (hash-table-delete! fv-info key))
             (build-letrec* new-bindings new-body (ir-letrec*-ann ir))))
-        (else (cont-pass ir pass))))
+        (else (walk-ir ir pass))))
     (pass ir)))
 
 (define (convert-closures ir)
-  (define (free-nlambda-free-vars init) (cdr (vector-ref init 2)))
-  (define (free-nlambda-cases init) (vector-ref init 3))
-  (define (free-nlambda-ann init) (vector-ref init 4))
+  (define (free-lambda-freevars init) (ir-lambda-freevars init))
+  (define (free-lambda-cases init) (ir-lambda-cases init))
+  (define (free-lambda-ann init) (ir-lambda-ann init))
   (define (closure-ref-expr clo num)
     (build-primcall 'closure-ref
                     `(,(build-lexical-reference clo #t #f) ,(build-quote num #f))
@@ -367,10 +325,10 @@
                  (lranns (map caddr bindings))
                  (body (convert (ir-letrec*-body ir)))
                  (ann (ir-letrec*-ann ir))
-                 (names (map ir-nlambda-name inits))
-                 (free-lists (map free-nlambda-free-vars inits))
-                 (cases-list (map free-nlambda-cases inits))
-                 (lanns (map free-nlambda-ann inits))
+                 (names (map ir-lambda-name inits))
+                 (free-lists (map free-lambda-freevars inits))
+                 (cases-list (map free-lambda-cases inits))
+                 (lanns (map free-lambda-ann inits))
                  (var-labels
                     (map (lambda (v)
                            (string->symbol (string-append (symbol->string (variable-name v))
@@ -395,7 +353,7 @@
                  (fvars-cnt (map length free-lists))
                  (new-label-bindings
                     (map (lambda (label name cases lann lrann)
-                           `(,label ,(build-nlambda name cases lann) ,lrann))
+                           `(,label ,(build-lambda cases name '() lann) ,lrann))
                          var-labels
                          names
                          new-cases
@@ -426,7 +384,7 @@
             (build-letrec* new-label-bindings
                            (build-let new-closure-bindings (build-begin `(,@init-sets ,body) #f) #f)
                            ann)))
-        (else (cont-pass ir convert))))
+        (else (walk-ir ir convert))))
     (convert ir)))
 
 ;; The bytecode does not support raw comparison operators, only
@@ -445,9 +403,9 @@
              (test (ir-primcall-name test-ir))
              (args (ir-primcall-args test-ir))
              (ann (ir-primcall-ann test-ir)))
-        (vector-set! test-ir 2 (map lower-comparisons args))
-        (vector-set! ir 2 (lower-comparisons (ir-conditional-then ir)))
-        (vector-set! ir 3 (lower-comparisons (ir-conditional-else ir)))
+        (set-ir-primcall-args! test-ir (map lower-comparisons args))
+        (set-ir-conditional-then! ir (lower-comparisons (ir-conditional-then ir)))
+        (set-ir-conditional-else! ir (lower-comparisons (ir-conditional-else ir)))
         ir))
     ;; Otherwise wrap it in if branch.
     ((and (ir-primcall? ir) (assq (ir-primcall-name ir) jcmp))
@@ -458,7 +416,7 @@
                            (build-quote #t ann)
                            (build-quote #f ann)
                            ann)))
-    (else (cont-pass ir lower-comparisons))))
+    (else (walk-ir ir lower-comparisons))))
 
 ;; Functions.
 (define-record-type fun (make-fun-record code name consts const-list) fun?
@@ -532,11 +490,11 @@
       (let* ((bindings (ir-letrec*-bindings ir))
              (vars (map car bindings))
              (inits (map cadr bindings))
-             (label-funs (map (lambda (init) (make-fun (ir-nlambda-name init))) inits))
+             (label-funs (map (lambda (init) (make-fun (ir-lambda-name init))) inits))
              (label-env (map cons vars label-funs)))
         (for-each (lambda (func init _var)
                     (add-fun func)
-                    (let loop ((rest (ir-nlambda-cases init)))
+                    (let loop ((rest (ir-lambda-cases init)))
                       (unless (null? rest)
                         (let* ((case (car rest))
                                (args (car case))
@@ -972,9 +930,6 @@
                             (do ((i 0 (+ i 1)))
                                  ((= i len) res)
                                  (vector-set! res i (const->runtime (vector-ref c i))))))))
-                    ;; The eval path can reuse existing runtime record objects
-                    ;; directly as constants.
-                    ((sys:GUARD c 49) c)
                     (else c))))
              (fun->runtime
                 (lambda (fun)
