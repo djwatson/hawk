@@ -6,6 +6,7 @@
 
 * Closure conversion from O(0) closure paper
 * Loops, and loop tracing.
+* values / call-with-values / multi-value returns in opcodes!
 * Record every OPcode:
   * APPLY (+ the resulting call FUNC or IFUNC)
   * CALLCC & CALLCCRESUME
