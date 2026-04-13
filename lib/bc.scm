@@ -364,6 +364,20 @@
 
   (define (group-rep group) (car (car group)))
 
+  (define (group-first-lambda group) (cadr (car group)))
+
+  (define (choose-representation group final-set)
+    (let ((first (group-first-lambda group))
+          (rep (group-rep group)))
+      (cond
+        ((ir-lambda-well-known first)
+          (cond
+            ((null? final-set) #f)
+            ((null? (cdr final-set)) (car final-set))
+            (else rep)))
+        ((null? final-set) `(const-closure ,rep))
+        (else rep))))
+
   (define (group-local-refs group letrec-vars)
     (let loop-groups ((bindings group) (acc '()))
       (if (null? bindings)
@@ -406,13 +420,14 @@
              initial-sets
              local-refs)))
 
-  (define (letrec-body-rho rho groups)
+  (define (letrec-body-rho rho groups final-sets)
     (extend-rho rho
                 (apply append
-                       (map (lambda (group)
-                              (let ((rep (group-rep group)))
-                                (map (lambda (binding) (cons (car binding) rep)) group)))
-                            groups))))
+                       (map (lambda (group final-set)
+                              (let ((value (choose-representation group final-set)))
+                                (map (lambda (binding) (cons (car binding) value)) group)))
+                            groups
+                            final-sets))))
 
   (define (pass ir rho)
     (cond
@@ -437,7 +452,7 @@
                   (map (lambda (group) (group-initial-required group vars rho)) groups))
                (local-refs (map (lambda (group) (group-local-refs group vars)) groups))
                (final-sets (final-required-sets groups initial-sets local-refs))
-               (body-rho (letrec-body-rho rho groups)))
+               (body-rho (letrec-body-rho rho groups final-sets)))
           (for-each (lambda (group final-set)
                       (for-each (lambda (binding)
                                   (let ((init (cadr binding)))
