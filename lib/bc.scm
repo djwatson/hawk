@@ -707,6 +707,13 @@
 (define-record-type const-closure (make-const-closure fun) const-closure?
   (fun const-closure-fun))
 
+(define (compile-call-args fun env start callee args)
+  (let loop ((atop start) (rest (cons callee args)))
+    (unless (null? rest)
+      (let* ((arg (car rest)) (res (compile arg fun env atop #f)))
+        (when (and (integer? res) (not (= res atop))) (add-op fun `(MOV ,atop ,res)))
+        (loop (+ atop 1) (cdr rest))))))
+
 (define (compile ir fun env top tail)
   (define (compile-cont ir) (compile ir fun env top #f))
   (define (finish res) (if tail (begin (add-op fun `(RET ,res))) res))
@@ -803,13 +810,11 @@
             (if tail res top)))))
     ((ir-application? ir)
       (let ((func (ir-application-fun ir)) (args (ir-application-args ir)))
-        ;; Leave room for func + pointer.
-        (let loop ((atop (+ top 1)) (rest (cons func args)))
-          (unless (null? rest)
-            (let* ((arg (car rest)) (res (compile arg fun env atop #f)))
-              (when (and (integer? res) (not (= res atop))) (add-op fun `(MOV ,atop ,res)))
-              (loop (+ atop 1) (cdr rest)))))
-        (add-op fun `(CLOSURE_GET ,top ,(+ top 1) 0))
+        (if (ir-application-well-known ir)
+            (compile-call-args fun env top func args)
+            (begin
+              (compile-call-args fun env (+ top 1) func args)
+              (add-op fun `(CLOSURE_GET ,top ,(+ top 1) 0))))
         (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(+ 2 (length args))))
         (if tail #f top)))
     ((ir-primcall? ir)
