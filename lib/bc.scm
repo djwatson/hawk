@@ -367,8 +367,7 @@
   (define (group-first-lambda group) (cadr (car group)))
 
   (define (choose-representation group final-set)
-    (let ((first (group-first-lambda group))
-          (rep (group-rep group)))
+    (let ((first (group-first-lambda group)) (rep (group-rep group)))
       (cond
         ((ir-lambda-well-known first)
           (cond
@@ -438,11 +437,17 @@
           (vector-set! ir 2 (pass (ir-let-body ir) body-rho))
           ir))
       ((ir-lambda? ir)
-        (set-ir-lambda-cases! ir
-                              (map (lambda (clause)
-                                     (let ((args (to-proper (car clause))) (body (cadr clause)))
-                                       `(,(car clause) ,(pass body (extend-rho-self rho args)))))
-                                   (ir-lambda-cases ir)))
+        (let* ((needs-cp
+                  (or (not (ir-lambda-well-known ir)) (not (null? (ir-lambda-freevars ir)))))
+               (cp (and needs-cp (build-variable 'cp #f))))
+          (set-ir-lambda-cases! ir
+                                (map (lambda (clause)
+                                       (let* ((args (car clause))
+                                              (body (cadr clause))
+                                              (args* (if needs-cp (cons cp args) args)))
+                                         `(,args* ,(pass body
+                                                         (extend-rho-self rho (to-proper args*))))))
+                                     (ir-lambda-cases ir))))
         ir)
       ((ir-letrec*? ir)
         (let* ((groups (ir-letrec*-bindings ir))
