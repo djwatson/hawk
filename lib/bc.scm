@@ -349,6 +349,11 @@
   (define (extend-rho-self rho vars)
     (extend-rho rho (map (lambda (var) (cons var var)) vars)))
 
+  (define (closure-ref-expr clo num)
+    (build-primcall 'closure-ref
+                    `(,(build-lexical-reference clo #t #f) ,(build-quote num #f))
+                    #f))
+
   (define (binding-alias-value binding rho)
     (let ((init (cadr binding)))
       (cond
@@ -374,7 +379,7 @@
             ((null? final-set) #f)
             ((null? (cdr final-set)) (car final-set))
             (else rep)))
-        ((null? final-set) `(const-closure ,rep))
+        ((null? final-set) (make-const-closure rep))
         (else rep))))
 
   (define (group-local-refs group letrec-vars)
@@ -430,6 +435,20 @@
 
   (define (pass ir rho)
     (cond
+      ((ir-reference? ir)
+        (if (ir-reference-global? ir)
+            ir
+            (let ((var (ir-reference-var ir))
+                  (ann (ir-reference-ann ir))
+                  (mutable? (ir-reference-mutable? ir)))
+              (let ((value (canonicalize rho var)))
+                (cond
+                  ((eq? value var) ir)
+                  ((variable? value) (build-lexical-reference value mutable? ann))
+                  ((and (ir-primcall? value)
+                        (eq? (ir-primcall-name value) 'closure-ref))
+                   value)
+                  (else (build-quote value ann)))))))
       ((ir-let? ir)
         (let* ((bindings (ir-let-bindings ir)) (body-rho (let-body-rho bindings rho)))
           (for-each (lambda (binding) (set-car! (cdr binding) (pass (cadr binding) rho)))
@@ -439,14 +458,27 @@
       ((ir-lambda? ir)
         (let* ((needs-cp
                   (or (not (ir-lambda-well-known ir)) (not (null? (ir-lambda-freevars ir)))))
-               (cp (and needs-cp (build-variable 'cp #f))))
+               (cp (and needs-cp (build-variable 'cp #f)))
+               (self (ir-lambda-name ir))
+               (freevars (ir-lambda-freevars ir))
+               (lambda-rho
+                  (extend-rho
+                    (append (if (and cp self) (list (cons self cp)) '())
+                            (if cp
+                                (map (lambda (fv num)
+                                       (cons fv (closure-ref-expr cp num)))
+                                     freevars
+                                     (iota (length freevars) 1))
+                                '()))
+                    rho)))
           (set-ir-lambda-cases! ir
                                 (map (lambda (clause)
                                        (let* ((args (car clause))
                                               (body (cadr clause))
                                               (args* (if needs-cp (cons cp args) args)))
                                          `(,args* ,(pass body
-                                                         (extend-rho-self rho (to-proper args*))))))
+                                                         (extend-rho-self lambda-rho
+                                                                          (to-proper args*))))))
                                      (ir-lambda-cases ir))))
         ir)
       ((ir-letrec*? ir)
@@ -1097,9 +1129,9 @@
   (let ((runtime-forms (read-forms "runtime.scm"))
         (eval-forms (read-forms "eval.scm"))
         (input-forms (ensure-leading-import (read-forms file))))
-    (build-begin (list (expand-program runtime-forms "")
-                       (expand-program eval-forms "")
-                       (expand-program input-forms "BOOTSTRAP")))))
+    (build-begin (list ;(expand-program runtime-forms "")
+                  ;(expand-program eval-forms "")
+                  (expand-program input-forms "BOOTSTRAP")))))
 
 (define (compile-ir-to-bitcode ir)
   (parameterize ((funs (make-funs-list)))
@@ -1114,8 +1146,9 @@
                   fix-all
                   uncover-free
                   escape-analyze
+                  debug-print
                   required-free-vars
-                  ;debug-print
+                  debug-print
                   ;convert-closures
              ))
            (main (make-fun "main")))
