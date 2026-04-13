@@ -399,6 +399,13 @@
         ((null? final-set) (make-const-closure (label-var rep)))
         (else rep))))
 
+  (define (group-needs-closure? group final-set)
+    (let ((first (group-first-lambda group)))
+      (cond
+        ((null? final-set) (not (ir-lambda-well-known first)))
+        ((ir-lambda-well-known first) (not (null? (cdr final-set))))
+        (else #t))))
+
   (define (group-local-refs group letrec-vars)
     (let loop-groups ((bindings group) (acc '()))
       (if (null? bindings)
@@ -538,7 +545,8 @@
                          final-sets))
                  (closure-bindings
                     (filter-map (lambda (group value final-set)
-                                  (and (variable? value)
+                                  (and (group-needs-closure? group final-set)
+                                       (variable? value)
                                        `(,value ,(build-primcall 'closure
                                                                  (list (build-quote (length final-set)
                                                                                     #f)
@@ -551,7 +559,7 @@
                  (init-sets
                     (apply append
                            (map (lambda (group value final-set)
-                                  (if (variable? value)
+                                  (if (and (group-needs-closure? group final-set) (variable? value))
                                       (map (lambda (fv num)
                                              (closure-set-expr value
                                                                num
