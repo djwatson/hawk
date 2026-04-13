@@ -362,12 +362,12 @@
   (define label-cache (make-hash-table eq?))
   (define (label-var var)
     (or (hash-table-ref/default label-cache var #f)
-        (let ((label
-                (build-variable
-                  (string->symbol (string-append (symbol->string (variable-name var)) "-label"))
-                  #f)))
-          (hash-table-set! label-cache var label)
-          label)))
+       (let ((label
+                (build-variable (string->symbol (string-append (symbol->string (variable-name var))
+                                                               "-label"))
+                                #f)))
+         (hash-table-set! label-cache var label)
+         label)))
 
   (define (label-name var) (variable-name (label-var var)))
 
@@ -462,9 +462,7 @@
                 (cond
                   ((eq? value var) ir)
                   ((variable? value) (build-lexical-reference value mutable? ann))
-                  ((and (ir-primcall? value)
-                        (eq? (ir-primcall-name value) 'closure-ref))
-                   value)
+                  ((and (ir-primcall? value) (eq? (ir-primcall-name value) 'closure-ref)) value)
                   (else (build-quote value ann)))))))
       ((ir-let? ir)
         (let* ((bindings (ir-let-bindings ir)) (body-rho (let-body-rho bindings rho)))
@@ -478,11 +476,11 @@
                (args* (map (lambda (arg) (pass arg rho)) (ir-application-args ir)))
                (ann (ir-application-ann ir)))
           (when (and (ir-application-well-known ir)
-                     (ir-quote? fun*)
-                     (eq? (ir-quote-datum fun*) #f)
                      (ir-reference? fun)
                      (not (ir-reference-global? fun)))
-            (set! fun* (build-lexical-reference (label-var (ir-reference-var fun)) #f ann)))
+            (set! args* (cons fun* args*))
+            (set! fun*
+              (build-lexical-reference (label-var (ir-reference-var fun)) #f ann)))
           (set-ir-application-fun! ir fun*)
           (set-ir-application-args! ir args*)
           ir))
@@ -493,15 +491,13 @@
                (self (ir-lambda-name ir))
                (freevars (ir-lambda-freevars ir))
                (lambda-rho
-                  (extend-rho
-                    (append (if (and cp self) (list (cons self cp)) '())
-                            (if cp
-                                (map (lambda (fv num)
-                                       (cons fv (closure-ref-expr cp num)))
-                                     freevars
-                                     (iota (length freevars) 1))
-                                '()))
-                    rho)))
+                  (extend-rho (append (if (and cp self) (list (cons self cp)) '())
+                                      (if cp
+                                          (map (lambda (fv num) (cons fv (closure-ref-expr cp num)))
+                                               freevars
+                                               (iota (length freevars) 1))
+                                          '()))
+                              rho)))
           (set-ir-lambda-cases! ir
                                 (map (lambda (clause)
                                        (let* ((args (car clause))
@@ -531,48 +527,52 @@
                     groups
                     final-sets)
           (let* ((label-bindings
-                   (map (lambda (binding)
-                          (let ((var (car binding))
-                                (init (cadr binding))
-                                (lrann (caddr binding)))
-                            `(,(label-var var) ,init ,lrann)))
-                        bindings))
-                 (group-values (map (lambda (group final-set)
-                                      (choose-representation group final-set))
-                                    groups
-                                    final-sets))
+                    (map (lambda (binding)
+                           (let ((var (car binding)) (init (cadr binding)) (lrann (caddr binding)))
+                             `(,(label-var var) ,init ,lrann)))
+                         bindings))
+                 (group-values
+                    (map (lambda (group final-set) (choose-representation group final-set))
+                         groups
+                         final-sets))
                  (closure-bindings
-                   (filter-map (lambda (group value final-set)
-                                 (and (variable? value)
-                                      `(,value ,(build-primcall 'closure
-                                                                (list (build-quote (length final-set) #f)
-                                                                      (build-quote (label-name (car (car group))) #f))
-                                                                #f))))
-                               groups
-                               group-values
-                               final-sets))
+                    (filter-map (lambda (group value final-set)
+                                  (and (variable? value)
+                                       `(,value ,(build-primcall 'closure
+                                                                 (list (build-quote (length final-set)
+                                                                                    #f)
+                                                                       (build-quote (label-name (car (car group)))
+                                                                                    #f))
+                                                                 #f))))
+                                groups
+                                group-values
+                                final-sets))
                  (init-sets
-                   (apply append
-                          (map (lambda (group value final-set)
-                                 (if (variable? value)
-                                     (map (lambda (fv num)
-                                            (closure-set-expr value
-                                                              num
-                                                              (pass (build-lexical-reference fv #t #f) body-rho)))
-                                          final-set
-                                          (iota (length final-set) 1))
-                                     '()))
-                               groups
-                               group-values
-                               final-sets)))
+                    (apply append
+                           (map (lambda (group value final-set)
+                                  (if (variable? value)
+                                      (map (lambda (fv num)
+                                             (closure-set-expr value
+                                                               num
+                                                               (pass (build-lexical-reference fv
+                                                                                              #t
+                                                                                              #f)
+                                                                     body-rho)))
+                                           final-set
+                                           (iota (length final-set) 1))
+                                      '()))
+                                groups
+                                group-values
+                                final-sets)))
                  (body (pass (ir-letrec*-body ir) body-rho))
-                 (body* (if (null? closure-bindings)
-                            body
-                            (build-let closure-bindings
-                                       (build-begin `(,@init-sets ,body) #f)
-                                       (ir-letrec*-ann ir)))))
+                 (body*
+                    (if (null? closure-bindings)
+                        body
+                        (build-let closure-bindings
+                                   (build-begin `(,@init-sets ,body) #f)
+                                   (ir-letrec*-ann ir)))))
             (build-letrec* label-bindings body* (ir-letrec*-ann ir)))))
-      (else (walk-ir ir (lambda (child) (pass child rho) child)))))
+      (else (walk-ir ir (lambda (child) (pass child rho))))))
   (pass ir '()))
 
 (define (uncover-free ir)
@@ -919,11 +919,13 @@
     ((ir-application? ir)
       (let ((func (ir-application-fun ir)) (args (ir-application-args ir)))
         (if (ir-application-well-known ir)
-            (compile-call-args fun env top func args)
+            (let ((label (car args)) (call-args (cdr args)))
+              (compile-call-args fun env top label call-args)
+              (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(+ 2 (length call-args)))))
             (begin
               (compile-call-args fun env (+ top 1) func args)
-              (add-op fun `(CLOSURE_GET ,top ,(+ top 1) 0))))
-        (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(+ 2 (length args))))
+              (add-op fun `(CLOSURE_GET ,top ,(+ top 1) 0))
+              (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(+ 2 (length args))))))
         (if tail #f top)))
     ((ir-primcall? ir)
       (let ((op (ir-primcall-name ir)) (args (ir-primcall-args ir)))
@@ -1223,7 +1225,7 @@
                   ;convert-closures
              ))
            (main (make-fun "main")))
-      (exit 0)
+      ;(exit 0)
       (compile lowered main '() 0 #f)
       (add-op main `(RET 0))
       (add-fun main)
