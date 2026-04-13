@@ -396,7 +396,7 @@
             ((null? final-set) #f)
             ((null? (cdr final-set)) (car final-set))
             (else rep)))
-        ((null? final-set) (make-const-closure rep))
+        ((null? final-set) (make-const-closure (label-var rep)))
         (else rep))))
 
   (define (group-local-refs group letrec-vars)
@@ -478,7 +478,8 @@
           (when (and (ir-application-well-known ir)
                      (ir-reference? fun)
                      (not (ir-reference-global? fun)))
-            (set! args* (cons fun* args*))
+            (unless (and (ir-quote? fun*) (eq? (ir-quote-datum fun*) #f))
+              (set! args* (cons fun* args*)))
             (set! fun*
               (build-lexical-reference (label-var (ir-reference-var fun)) #f ann)))
           (set-ir-application-fun! ir fun*)
@@ -825,13 +826,19 @@
 (define (compile ir fun env top tail)
   (define (compile-cont ir) (compile ir fun env top #f))
   (define (finish res) (if tail (begin (add-op fun `(RET ,res))) res))
+  (define (resolve-const-closure datum)
+    (if (and (const-closure? datum) (variable? (const-closure-fun datum)))
+        (let ((in-env (assq (const-closure-fun datum) env)))
+          (if in-env (make-const-closure (cdr in-env)) datum))
+        datum))
   (cond
     ((ir-letrec*? ir)
       (let* ((bindings (ir-letrec*-bindings ir))
              (vars (map car bindings))
              (inits (map cadr bindings))
              (label-funs (map (lambda (init) (make-fun (ir-lambda-name init))) inits))
-             (label-env (map cons vars label-funs)))
+             (label-env (map cons vars label-funs))
+             (label-name-env (map cons (map variable-name vars) label-funs)))
         (for-each (lambda (func init _var)
                     (add-fun func)
                     (let loop ((rest (ir-lambda-cases init)))
@@ -841,7 +848,7 @@
                                (lbody (cadr case))
                                (arg-list (to-proper args))
                                (arg-env (map cons arg-list (iota (length arg-list) 0)))
-                               (new-env (append arg-env label-env env))
+                               (new-env (append arg-env label-name-env label-env env))
                                (last? (null? (cdr rest)))
                                (arg-cnt (length arg-list))
                                (flags (arg-flags args)))
@@ -857,7 +864,11 @@
                   label-funs
                   inits
                   vars)
-        (compile (ir-letrec*-body ir) fun (append label-env env) top tail)))
+        (compile (ir-letrec*-body ir)
+                 fun
+                 (append label-name-env label-env env)
+                 top
+                 tail)))
     ((ir-let? ir)
       (let* ((bindings (ir-let-bindings ir))
              (vars (map car bindings))
@@ -872,16 +883,20 @@
                  (+ top (length vars))
                  tail)))
     ((ir-reference? ir)
-      (let ((in-env (assq (ir-reference-var ir) env)))
-        (finish (if in-env
-                    (cdr in-env)
-                    (begin
-                      (add-op fun
-                              `(LOOKUP ,top
-                                       ,(add-const fun (variable-full-name (ir-reference-var ir)))))
-                      top)))))
+      (let* ((var (ir-reference-var ir))
+             (in-env (or (assq var env) (assq (variable-name var) env))))
+        (cond
+          (in-env
+            (let ((res (cdr in-env)))
+              (if (integer? res)
+                  (finish res)
+                  (begin (add-op fun `(CONST ,top ,(add-const fun res))) (finish top)))))
+          (else
+            (add-op fun
+                    `(LOOKUP ,top ,(add-const fun (variable-full-name (ir-reference-var ir)))))
+            (finish top)))))
     ((ir-quote? ir)
-      (let ((datum (ir-quote-datum ir)))
+      (let ((datum (resolve-const-closure (ir-quote-datum ir))))
         (if (fits-in-int16 datum)
             (add-op fun `(KSHORT ,top ,(* 8 datum)))
             (add-op fun `(CONST ,top ,(add-const fun datum))))
@@ -919,9 +934,15 @@
     ((ir-application? ir)
       (let ((func (ir-application-fun ir)) (args (ir-application-args ir)))
         (if (ir-application-well-known ir)
-            (let ((label (car args)) (call-args (cdr args)))
-              (compile-call-args fun env top label call-args)
-              (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(+ 2 (length call-args)))))
+            (begin
+              (compile func fun env top #f)
+              (for-each (lambda (arg reg)
+                          (let ((res (compile arg fun env reg #f)))
+                            (when (and (integer? res) (not (= res reg)))
+                              (add-op fun `(MOV ,reg ,res)))))
+                        args
+                        (iota (length args) (+ top 1)))
+              (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(+ 1 (length args)))))
             (begin
               (compile-call-args fun env (+ top 1) func args)
               (add-op fun `(CLOSURE_GET ,top ,(+ top 1) 0))
