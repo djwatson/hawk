@@ -359,10 +359,15 @@
                     `(,(build-lexical-reference clo #t #f) ,(build-quote num #f) ,value)
                     #f))
 
+  (define label-cache (make-hash-table eq?))
   (define (label-var var)
-    (build-variable
-      (string->symbol (string-append (symbol->string (variable-name var)) "-label"))
-      #f))
+    (or (hash-table-ref/default label-cache var #f)
+        (let ((label
+                (build-variable
+                  (string->symbol (string-append (symbol->string (variable-name var)) "-label"))
+                  #f)))
+          (hash-table-set! label-cache var label)
+          label)))
 
   (define (label-name var) (variable-name (label-var var)))
 
@@ -466,6 +471,20 @@
           (for-each (lambda (binding) (set-car! (cdr binding) (pass (cadr binding) rho)))
                     bindings)
           (vector-set! ir 2 (pass (ir-let-body ir) body-rho))
+          ir))
+      ((ir-application? ir)
+        (let* ((fun (ir-application-fun ir))
+               (fun* (pass fun rho))
+               (args* (map (lambda (arg) (pass arg rho)) (ir-application-args ir)))
+               (ann (ir-application-ann ir)))
+          (when (and (ir-application-well-known ir)
+                     (ir-quote? fun*)
+                     (eq? (ir-quote-datum fun*) #f)
+                     (ir-reference? fun)
+                     (not (ir-reference-global? fun)))
+            (set! fun* (build-lexical-reference (label-var (ir-reference-var fun)) #f ann)))
+          (set-ir-application-fun! ir fun*)
+          (set-ir-application-args! ir args*)
           ir))
       ((ir-lambda? ir)
         (let* ((needs-cp
