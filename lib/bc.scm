@@ -360,6 +360,8 @@
                     #f))
 
   (define label-cache (make-hash-table eq?))
+  (define lambda-self-vars (make-hash-table eq?))
+  (define lambda-rep-vars (make-hash-table eq?))
   (define (label-var var)
     (or (hash-table-ref/default label-cache var #f)
        (let ((label
@@ -438,7 +440,12 @@
                             (if (memq fv letrec-vars)
                                 acc
                                 (let ((value (canonicalize rho fv)))
-                                  (if (variable? value) (ordered-add value acc) acc))))))))))
+                                  (cond
+                                    ((variable? value) (ordered-add value acc))
+                                    ((and (ir-primcall? value)
+                                          (eq? (ir-primcall-name value) 'closure-ref))
+                                      (ordered-add fv acc))
+                                    (else acc)))))))))))
 
   (define (final-required-sets groups initial-sets local-refs)
     (if (all-empty? initial-sets)
@@ -506,11 +513,15 @@
         (let* ((needs-cp
                   (or (not (ir-lambda-well-known ir)) (not (null? (ir-lambda-freevars ir)))))
                (cp (and needs-cp (build-variable 'cp #f)))
-               (self (ir-lambda-name ir))
+               (self (hash-table-ref/default lambda-self-vars ir #f))
+               (rep (hash-table-ref/default lambda-rep-vars ir #f))
                (freevars (ir-lambda-freevars ir))
                (lambda-rho
                   (extend-rho rho
                               (append (if (and cp self) (list (cons self cp)) '())
+                                      (if (and cp rep (not (eq? rep self)))
+                                          (list (cons rep cp))
+                                          '())
                                       (lambda-freevar-rho ir cp freevars)))))
           (set-ir-lambda-cases! ir
                                 (map (lambda (clause)
@@ -530,11 +541,19 @@
                   (map (lambda (group) (group-initial-required group vars rho)) groups))
                (local-refs (map (lambda (group) (group-local-refs group vars)) groups))
                (final-sets (final-required-sets groups initial-sets local-refs))
+               (group-values
+                  (map (lambda (group final-set) (choose-representation group final-set))
+                       groups
+                       final-sets))
                (body-rho (letrec-body-rho rho groups final-sets)))
           (for-each (lambda (group final-set)
                       (for-each (lambda (binding)
                                   (let ((init (cadr binding)))
                                     (when (ir-lambda? init)
+                                      (hash-table-set! lambda-self-vars init (car binding))
+                                      (let ((rep (group-rep group)))
+                                        (when (variable? rep)
+                                          (hash-table-set! lambda-rep-vars init rep)))
                                       (set-ir-lambda-freevars! init final-set))
                                     (set-car! (cdr binding) (pass init body-rho))))
                                 group))
@@ -545,10 +564,6 @@
                            (let ((var (car binding)) (init (cadr binding)) (lrann (caddr binding)))
                              `(,(label-var var) ,init ,lrann)))
                          bindings))
-                 (group-values
-                    (map (lambda (group final-set) (choose-representation group final-set))
-                         groups
-                         final-sets))
                  (closure-bindings
                     (filter-map (lambda (group value final-set)
                                   (and (group-needs-closure? group final-set)
@@ -1237,9 +1252,9 @@
   (let ((runtime-forms (read-forms "runtime.scm"))
         (eval-forms (read-forms "eval.scm"))
         (input-forms (ensure-leading-import (read-forms file))))
-    (build-begin (list ;(expand-program runtime-forms "")
-                  ;(expand-program eval-forms "")
-                  (expand-program input-forms "BOOTSTRAP")))))
+    (build-begin (list (expand-program runtime-forms "")
+                       (expand-program eval-forms "")
+                       (expand-program input-forms "BOOTSTRAP")))))
 
 (define (compile-ir-to-bitcode ir)
   (parameterize ((funs (make-funs-list)))
