@@ -371,6 +371,16 @@
 
   (define (label-name var) (variable-name (label-var var)))
 
+  (define (lambda-freevar-rho ir cp freevars)
+    (cond
+      ((not cp) '())
+      ((and (ir-lambda-well-known ir) (pair? freevars) (null? (cdr freevars)))
+        (list (cons (car freevars) cp)))
+      (else
+        (map (lambda (fv num) (cons fv (closure-ref-expr cp num)))
+             freevars
+             (iota (length freevars) 1)))))
+
   (define (binding-alias-value binding rho)
     (let ((init (cadr binding)))
       (cond
@@ -499,13 +509,9 @@
                (self (ir-lambda-name ir))
                (freevars (ir-lambda-freevars ir))
                (lambda-rho
-                  (extend-rho (append (if (and cp self) (list (cons self cp)) '())
-                                      (if cp
-                                          (map (lambda (fv num) (cons fv (closure-ref-expr cp num)))
-                                               freevars
-                                               (iota (length freevars) 1))
-                                          '()))
-                              rho)))
+                  (extend-rho rho
+                              (append (if (and cp self) (list (cons self cp)) '())
+                                      (lambda-freevar-rho ir cp freevars)))))
           (set-ir-lambda-cases! ir
                                 (map (lambda (clause)
                                        (let* ((args (car clause))
