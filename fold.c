@@ -106,17 +106,21 @@ IRFOLDF(fold_noncommutative_const_lhs) {
   return fold_retry();
 }
 
-IRFOLD(NE _ CONST)
+IRFOLD(NE _ _)
 IRFOLDF(fold_guard_neq_any_const) {
-  auto rhs = t->consts[in->op2.loc];
-  bool rhs_bool = get_type_tag(rhs) == BOOL_TAG;
+  bool rhs_flonum = false;
+  if (in->op2.constant) {
+    rhs_flonum = is_flonum(t->consts[in->op2.loc]);
+  } else {
+    rhs_flonum = t->ins[in->op2.loc].type == FLONUM_TAG;
+  }
   bool lhs_flonum = false;
   if (in->op1.constant) {
     lhs_flonum = is_flonum(t->consts[in->op1.loc]);
   } else {
     lhs_flonum = t->ins[in->op1.loc].type == FLONUM_TAG;
   }
-  if (rhs_bool && lhs_flonum) {
+  if (rhs_flonum != lhs_flonum) {
     return fold_drop();
   }
   return fold_next();
