@@ -428,6 +428,11 @@
                 (loop-fvs (cdr fvs)
                           (if (memq (car fvs) letrec-vars) (ordered-add (car fvs) acc) acc)))))))
 
+  (define (group-mentioned? group refs)
+    (let loop ((bindings group))
+      (and (pair? bindings)
+           (or (memq (car (car bindings)) refs) (loop (cdr bindings))))))
+
   (define (group-initial-required group letrec-vars rho)
     (let loop-groups ((bindings group) (acc '()))
       (if (null? bindings)
@@ -458,7 +463,9 @@
                        (let ((rep (group-rep (car rest-groups))) (initial (car rest-inits)))
                          (loop (cdr rest-groups)
                                (cdr rest-inits)
-                               (if (or (eq? rep self-rep) (null? initial) (not (memq rep refs)))
+                               (if (or (eq? rep self-rep)
+                                      (null? initial)
+                                      (not (group-mentioned? (car rest-groups) refs)))
                                    acc
                                    (ordered-add rep acc))))))))
              groups
@@ -1269,9 +1276,9 @@
                   fix-all
                   uncover-free
                   escape-analyze
-                  debug-print
+                  ;debug-print
                   required-free-vars
-                  debug-print
+                  ;debug-print
                   ;convert-closures
              ))
            (main (make-fun "main")))
