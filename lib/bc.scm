@@ -1311,9 +1311,9 @@
                   fix-all
                   uncover-free
                   escape-analyze
-                  debug-print
+                  ;debug-print
                   required-free-vars
-                  debug-print
+                  ;debug-print
                   ;convert-closures
              ))
            (main (make-fun "main")))
