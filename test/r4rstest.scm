@@ -43,6 +43,9 @@
 
 (define cur-section '())
 (define errs '())
+
+#!fold-case
+
 (define SECTION
   (lambda args
     (display "SECTION")

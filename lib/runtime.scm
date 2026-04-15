@@ -818,10 +818,11 @@
         (case-lambda (() cell) ((new) (set! cell (converter new))))))))
 
 ;;;;;; Port ops
-(define-record-type port (make-port fd peek input buf pos len sbuf) port?
+(define-record-type port (make-port fd peek input fold-case buf pos len sbuf) port?
   (fd port-fd)
   (peek port-peek port-peek-set!)
   (input port-input?)
+  (fold-case port-fold-case port-fold-case-set!)
   (buf port-buf port-buf-set!)
   (pos port-pos port-pos-set!)
   (len port-len port-len-set!)
@@ -829,12 +830,12 @@
 
 (define port-buffer-size 4096)
 (define (make-input-port fd)
-  (make-port fd #f #t (make-string port-buffer-size) 0 0 #f))
+  (make-port fd #f #t #f (make-string port-buffer-size) 0 0 #f))
 (define (make-output-port fd)
-  (make-port fd #f #f (make-string port-buffer-size) 0 0 #f))
+  (make-port fd #f #f #f (make-string port-buffer-size) 0 0 #f))
 (define (make-string-input-port str)
-  (make-port -1 #f #t str 0 (string-length str) #f))
-(define (make-string-output-port) (make-port -1 #f #f #f 0 0 ""))
+  (make-port -1 #f #t #f str 0 (string-length str) #f))
+(define (make-string-output-port) (make-port -1 #f #f #f #f 0 0 ""))
 
 (define display
   (case-lambda
@@ -1098,6 +1099,13 @@
   (call-with-input-file "/proc/uptime" (lambda (port) (read port))))
 
 (define read-buf (make-string 1000))
+(define (maybe-lower-case port s)
+  (if (port-fold-case port)
+      (let ((s (string-copy s)))
+        (do ((i 0 (+ i 1)))
+            ((= i (string-length s)) s)
+          (string-set! s i (char-downcase (string-ref s i)))))
+      s))
 (define read
   (case-lambda
     (() (read (current-input-port)))
@@ -1270,6 +1278,13 @@
         (define (read-hash)
           (let ((c (peek-char port)))
             (case c
+              ((#\!) (read-char port)
+                (let ((bang (read-to-delimited)))
+                  (port-fold-case-set! port
+                                       (cond
+                                         ((string=? bang "no-fold-case") #f)
+                                         ((string=? bang "fold-case") #t)
+                                         (else (error "Invalid #!:" bang))))))
               ((#\|) (skip-comment))
               ((#\;) (read-char port) (read-one) (read-one))
               ((#\() (read-char port) (list->vector (read-list)))
@@ -1314,7 +1329,7 @@
                   (cond
                     ((eof-object? token) token)
                     ((string->number token) => (lambda (num) num))
-                    ((identifier? token) (string->symbol token))
+                    ((identifier? token) (string->symbol (maybe-lower-case port token)))
                     (else (error "Invalid symbol" token))))))))
         (read-one))
       (read2 port))))
