@@ -491,14 +491,12 @@
         (map (lambda (_) '()) groups)
         (map (lambda (group init refs)
                (let ((self-rep (group-rep group)))
-                 (let loop ((rest-groups groups) (rest-inits initial-sets) (acc init))
+                 (let loop ((rest-groups groups) (acc init))
                    (if (null? rest-groups)
                        acc
-                       (let ((rep (group-rep (car rest-groups))) (initial (car rest-inits)))
+                       (let ((rep (group-rep (car rest-groups))))
                          (loop (cdr rest-groups)
-                               (cdr rest-inits)
                                (if (or (eq? rep self-rep)
-                                      (null? initial)
                                       (not (group-mentioned? (car rest-groups) refs)))
                                    acc
                                    (ordered-add rep acc))))))))
