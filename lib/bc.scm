@@ -394,6 +394,7 @@
                     #f))
 
   (define label-cache (make_custom_hash_table))
+  (define lambda-bindings (make_custom_hash_table))
   (define lambda-self-vars (make_custom_hash_table))
   (define lambda-rep-vars (make_custom_hash_table))
   (define (label-var var)
@@ -451,6 +452,9 @@
         ((null? final-set) (not (ir-lambda-well-known first)))
         ((ir-lambda-well-known first) (not (null? (cdr final-set))))
         (else #t))))
+
+  (define (lambda-needs-cp? ir)
+    (or (not (ir-lambda-well-known ir)) (not (null? (ir-lambda-freevars ir)))))
 
   (define (group-local-refs group letrec-vars)
     (let loop-groups ((bindings group) (acc '()))
@@ -541,16 +545,18 @@
           (when (and (ir-application-well-known ir)
                      (ir-reference? fun)
                      (not (ir-reference-global? fun)))
-            (unless (and (ir-quote? fun*) (eq? (ir-quote-datum fun*) #f))
-              (set! args* (cons fun* args*)))
+            (let ((target
+                     (custom_hash_table_ref/default lambda-bindings (ir-reference-var fun) #f)))
+              (when (or (not target) (lambda-needs-cp? target))
+                (unless (and (ir-quote? fun*) (eq? (ir-quote-datum fun*) #f))
+                  (set! args* (cons fun* args*)))))
             (set! fun*
               (build-lexical-reference (label-var (ir-reference-var fun)) #f ann)))
           (set-ir-application-fun! ir fun*)
           (set-ir-application-args! ir args*)
           ir))
       ((ir-lambda? ir)
-        (let* ((needs-cp
-                  (or (not (ir-lambda-well-known ir)) (not (null? (ir-lambda-freevars ir)))))
+        (let* ((needs-cp (lambda-needs-cp? ir))
                (cp (and needs-cp (build-variable 'cp #f)))
                (self (custom_hash_table_ref/default lambda-self-vars ir #f))
                (rep (custom_hash_table_ref/default lambda-rep-vars ir #f))
@@ -589,15 +595,20 @@
                       (for-each (lambda (binding)
                                   (let ((init (cadr binding)))
                                     (when (ir-lambda? init)
+                                      (custom_hash_table_set! lambda-bindings (car binding) init)
                                       (custom_hash_table_set! lambda-self-vars init (car binding))
                                       (let ((rep (group-rep group)))
                                         (when (variable? rep)
                                           (custom_hash_table_set! lambda-rep-vars init rep)))
-                                      (set-ir-lambda-freevars! init final-set))
-                                    (set-car! (cdr binding) (pass init body-rho))))
+                                      (set-ir-lambda-freevars! init final-set))))
                                 group))
                     groups
                     final-sets)
+          (for-each (lambda (group)
+                      (for-each (lambda (binding)
+                                  (set-car! (cdr binding) (pass (cadr binding) body-rho)))
+                                group))
+                    groups)
           (let* ((label-bindings
                     (map (lambda (binding)
                            (let ((var (car binding)) (init (cadr binding)) (lrann (caddr binding)))
@@ -640,6 +651,7 @@
                         (build-let closure-bindings
                                    (build-begin `(,@init-sets ,body) #f)
                                    (ir-letrec*-ann ir)))))
+            (for-each (lambda (var) (custom_hash_table_delete! lambda-bindings var)) vars)
             (build-letrec* label-bindings body* (ir-letrec*-ann ir)))))
       (else (walk-ir ir (lambda (child) (pass child rho))))))
   (pass ir '()))
@@ -1256,8 +1268,12 @@
               '()
               objects))
 
-(include "pp.scm")
-(define (debug-print ir) (pretty-print (ir-pp ir)) (newline) ir)
+;(include "pp.scm")
+(define (debug-print ir)
+  (display (ir-pp ir))
+  (newline)
+  (flush-output-port)
+  ir)
 
 (define empty-library-name (string->symbol ""))
 

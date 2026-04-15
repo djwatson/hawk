@@ -22,7 +22,8 @@
               syntax-rules
               case
               ...
-              define-record-type)
+              define-record-type
+              parameterize)
         ;; TODO
         (except (scheme complex) make-rectangular real-part imag-part)
         (scheme case-lambda)
@@ -889,7 +890,7 @@
     (() (newline (current-output-port)))
     ((port) (display #\newline port))))
 
-(define input-port? port-input?)
+(define (input-port? port) (and (port? port) (port-input? port)))
 (define (output-port? port) (and (port? port) (not (port-input? port))))
 
 (define current-input-port (make-parameter (make-input-port 0)))
@@ -1354,3 +1355,36 @@
       (before))))
 
 (define (features) '(hawk))
+
+;; Exceptions
+
+(define (with-exception-handler handler thunk)
+  (parameterize ((*exception-handlers* (cons handler (*exception-handlers*))))
+    (thunk)))
+(define (raise-continuable obj)
+  (let ((handlers (*exception-handlers*)))
+    (parameterize ((*exception-handlers* (cdr handlers))) ((car handlers) obj))))
+
+(define-record-type error-object (make-error-object type msg irritants) error-object?
+  (type error-object-type)
+  (msg error-object-message)
+  (irritants error-object-irritants))
+
+(define (raise obj)
+  (let ((handlers (*exception-handlers*)))
+    (parameterize ((*exception-handlers* (cdr handlers)))
+      ((car handlers) obj)
+      (raise (make-error-object 'default-error
+                                "Continuing from non-continuable handler"
+                                '())))))
+
+(define (default-exception-handler e)
+  (let ((eport (current-error-port)))
+    (display "ERROR:" eport)
+    (write (error-object-type e) eport)
+    (newline eport)
+    (display (error-object-message e) eport)
+    (for-each (lambda (x) (write x eport)) (error-object-irritants e))
+    (newline eport)
+    (exit -1)))
+(define *exception-handlers* (make-parameter `(,default-exception-handler)))
