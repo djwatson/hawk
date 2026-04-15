@@ -952,6 +952,7 @@
 (test #\; peek-char this-file)
 (test #\; read-char this-file)
 (test '(define cur-section '()) read this-file)
+(test #\newline read-char this-file)
 (test #\( peek-char this-file)
 (test '(define errs '()) read this-file)
 (close-input-port this-file)
