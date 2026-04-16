@@ -50,6 +50,7 @@
     (char->integer . CHAR_INTEGER)
     (integer->char . INTEGER_CHAR)
     (values . VALUES)
+    (call-with-values . CALL_WITH_VALUES)
     (< . LT)
     (> . GT)
     (eq? . EQ)
@@ -61,6 +62,7 @@
 (define (primcall-arity name)
   (cond
     ((eq? name 'values) 'any)
+    ((eq? name 'call-with-values) 2)
     ((memq name '(- / + * < > = >= <= quotient truncate-quotient remainder modulo))
       2)
     ((memq name
@@ -76,6 +78,13 @@
                                            (if (symbol? lib) (symbol->string lib) lib))
                                        ":"
                                        (symbol->string name))))))
+
+(define empty-library-name (string->symbol ""))
+
+(define (global-values-var? var)
+  (let ((lib (variable-library-name var)))
+    (and (eq? (variable-name var) 'values)
+         (or (eq? lib #f) (equal? lib "") (eq? lib empty-library-name)))))
 
 ;; List-backed eq? table for bootstrap/runtime gaps.
 (define custom_hash_table_tag (cons #f #f))
@@ -851,10 +860,36 @@
 
 ;; Function list as a parameter (mutable)
 (define funs (make-parameter #f))
+(define values-entry-fun (make-parameter #f))
 (define (add-fun fun)
   (let ((funs (funs))) (set-car! funs (cons fun (car funs)))))
 (define (make-funs-list) (cons '() #f))
 (define (get-funs) (car (funs)))
+
+(define values-entry-max-argc 255)
+
+;; `(apply values ...)` needs a first-class closure that re-returns its args.
+(define (make-values-entry-fun)
+  (let ((fun (make-fun "values")))
+    (let loop ((argc 1))
+      (add-op fun `(IFUNC ,argc 0))
+      (if (= argc values-entry-max-argc)
+          (begin
+            (add-op fun `(ARGCNT_ERROR ,argc))
+            (add-op fun `(RETN 1 ,(- argc 1))))
+          (let* ((offset (length (fun-code fun))) (jop (list 'JMP 0 0)))
+            (add-op fun jop)
+            (add-op fun `(RETN 1 ,(- argc 1)))
+            (set-car! (cddr jop) (- (length (fun-code fun)) offset))
+            (loop (+ argc 1)))))
+    fun))
+
+(define (ensure-values-entry-fun)
+  (or (values-entry-fun)
+      (let ((fun (make-values-entry-fun)))
+        (add-fun fun)
+        (values-entry-fun fun)
+        fun)))
 
 (define (fits-in-int16 value)
   (and (integer? value) (exact? value) (<= -32768 (* 8 value) 32767)))
@@ -1077,6 +1112,28 @@
                 (if tail
                     (add-op fun `(RETN ,top ,(length args)))
                     (finish top)))))
+          ((eq? op 'CALL_WITH_VALUES)
+            (let* ((producer (car args))
+                   (consumer (cadr args))
+                   (consumer-clo (+ top 1))
+                   (producer-fn (+ top 2))
+                   (producer-clo (+ top 3))
+                   (consumer-res (compile consumer fun env consumer-clo #f))
+                   (producer-res (compile producer fun env producer-clo #f)))
+              (when (and (integer? consumer-res) (not (= consumer-res consumer-clo)))
+                (add-op fun `(MOV ,consumer-clo ,consumer-res)))
+              (when (and (integer? producer-res) (not (= producer-res producer-clo)))
+                (add-op fun `(MOV ,producer-clo ,producer-res)))
+              ;; Arrange the same frame shape as a normal closure call:
+              ;; [fn][closure][arg...]. That lets LCALL_N reuse argcnt from
+              ;; RETN without moving anything.
+              (add-op fun `(CLOSURE_GET ,top ,consumer-clo 0))
+              (add-op fun `(CLOSURE_GET ,producer-fn ,producer-clo 0))
+              ;; Producer is a thunk, so it uses the VM's zero-arg call
+              ;; convention.
+              (add-op fun `(LCALL ,producer-fn 2))
+              (add-op fun `(,(if tail 'LCALLT_N 'LCALL_N) ,top 0))
+              (if tail #f top)))
           ((eq? op 'FOREIGN_CALL)
             ;; args = combined signature object followed by runtime call arguments.
             (let loop ((atop top) (rest args))
@@ -1099,9 +1156,15 @@
                     (loop next (cdr rest) (cons res argres)))))
             (finish top)))))
     ((ir-define? ir)
-      (let* ((var (ir-define-var ir)) (exp (compile-cont (ir-define-exp ir))))
-        (add-op fun `(DEFINE ,exp ,(add-const fun (variable-full-name var))))
-        (finish exp)))
+      (let ((var (ir-define-var ir)))
+        (if (global-values-var? var)
+            (let ((values-clo (make-const-closure (ensure-values-entry-fun))))
+              (add-op fun `(CONST ,top ,(add-const fun values-clo)))
+              (add-op fun `(DEFINE ,top ,(add-const fun (variable-full-name var))))
+              (finish top))
+            (let ((exp (compile-cont (ir-define-exp ir))))
+              (add-op fun `(DEFINE ,exp ,(add-const fun (variable-full-name var))))
+              (finish exp)))))
     ((and (ir-assignment? ir) (ir-assignment-global? ir))
       (let* ((var (ir-assignment-var ir)) (exp (compile-cont (ir-assignment-exp ir))))
         (add-op fun `(DEFINE ,exp ,(add-const fun (variable-full-name var))))
@@ -1288,14 +1351,12 @@
               '()
               objects))
 
-;(include "pp.scm")
+(include "pp.scm")
 (define (debug-print ir)
-  (display (ir-pp ir))
+  (pretty-print (ir-pp ir))
   (newline)
   (flush-output-port)
   ir)
-
-(define empty-library-name (string->symbol ""))
 
 (define (read-all-forms port)
   (let loop ((form (read port)) (acc '()))
@@ -1328,8 +1389,8 @@
   (let ((runtime-forms (read-forms "runtime.scm"))
         (eval-forms (read-forms "eval.scm"))
         (input-forms (ensure-leading-import (read-forms file))))
-    (build-begin (list ;(expand-program runtime-forms "")
-                       ;(expand-program eval-forms "")
+    (build-begin (list (expand-program runtime-forms "")
+                       (expand-program eval-forms "")
                        (expand-program input-forms "BOOTSTRAP")))))
 
 (define (compile-ir-to-bitcode ir)
@@ -1341,6 +1402,7 @@
                   assignment-conversion
                   lower-comparisons
                   recover-let
+		  ;debug-print
                   name-lambdas
                   fix-all
                   uncover-free

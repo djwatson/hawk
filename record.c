@@ -1060,6 +1060,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_RETN:
   case OP_IRET: {
     uint16_t count = (instr.op == OP_RETN) ? instr.data : 1;
+    argcnt = count;
     // TODO: re-enable.  This needs to be a MUCH lower priority, so we
     // don't record down-rec before up-rec.  Or alternatively, maybe
     // ONLY enable down-rec recording if the function has an up-rec trace
@@ -1316,6 +1317,32 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       }
       set_stack_len(ts, to);
     }
+    if (!func.constant) {
+      slot must_be = add_const(state, stack[pc->reg]);
+      ir_ins ins = IR(.op = IR_EQ, .op1 = func, .op2 = must_be);
+      add_inst(state, ins);
+    }
+    break;
+  }
+  case OP_LCALL_N:
+  case OP_LCALLT_N: {
+    auto func = stack_load(state, stack, instr.reg, true);
+    if (instr.op == OP_LCALL_N) {
+      auto ra = add_const(state, tag_return_address(pc + 1));
+      stack_save(state, stack, instr.reg, ra);
+      ts->stack_off += instr.reg + 1;
+      ts->depth++;
+    } else {
+      auto from = (uint16_t)(instr.reg + 1);
+      auto cnt = (uint16_t)(argcnt + 1);
+      uint16_t to = 0;
+      while (cnt-- > 0) {
+        auto entry = stack_load(state, stack, from++, false);
+        set_stack(state, to++, entry);
+      }
+      set_stack_len(ts, to);
+    }
+    argcnt += 1;
     if (!func.constant) {
       slot must_be = add_const(state, stack[pc->reg]);
       ir_ins ins = IR(.op = IR_EQ, .op1 = func, .op2 = must_be);

@@ -78,6 +78,8 @@
   X(CLOSURE, AD)                                                               \
   X(LCALL, AD)                                                                 \
   X(LCALLT, AD)                                                                \
+  X(LCALL_N, AD)                                                               \
+  X(LCALLT_N, AD)                                                              \
   X(APPLY, ABC)                                                                \
   X(FOREIGN_CALL, ABC)                                                         \
   X(CHAR_INTEGER, AD)                                                          \

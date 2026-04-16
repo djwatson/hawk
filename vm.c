@@ -522,6 +522,9 @@ static inline bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack,
   (void)state;
   (void)pc;
   (void)stack;
+  if (is_closure(func)) {
+    func = to_closure(func)->v[0];
+  }
   auto bfunc = to_func(func);
   return (bc *)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
 }
@@ -666,6 +669,7 @@ OP_AD(MOV) {
   END_ABC_NEXT
 }
 OP(RET) {
+  argcnt = 1;
   // TODO: re-enable.  This needs to be a MUCH lower priority, so we
   // don't record down-rec before up-rec.  Or alternatively, maybe
   // ONLY enable down-rec recording if the function has an up-rec trace already.
@@ -686,6 +690,7 @@ OP(RET) {
   END
 }
 OP(IRET) {
+  argcnt = 1;
   auto old_op_table = op_table;
   return_frame(state, instr, 1, &pc, &stack, &op_table);
   if (old_op_table != op_table) {
@@ -880,6 +885,25 @@ OP(LCALLT) {
   auto func = stack[instr.reg];
   auto frame_top = instr.reg;
   memmove(&stack[0], &stack[frame_top + 1], argcnt * sizeof(gc_obj));
+  pc = set_new_pc(state, pc, stack, func);
+  dispatch_next(pc, stack);
+  END
+}
+OP(LCALL_N) {
+  auto func = stack[instr.reg];
+  stack[instr.reg] = tag_return_address(pc + 1);
+  stack += instr.reg + 1;
+  argcnt += 1;
+  pc = set_new_pc(state, pc, stack, func);
+  dispatch_next(pc, stack);
+  END
+}
+OP(LCALLT_N) {
+  auto func = stack[instr.reg];
+  auto frame_top = instr.reg;
+  memmove(&stack[0], &stack[frame_top + 1],
+          (size_t)(argcnt + 1) * sizeof(gc_obj));
+  argcnt += 1;
   pc = set_new_pc(state, pc, stack, func);
   dispatch_next(pc, stack);
   END

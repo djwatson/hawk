@@ -1354,25 +1354,8 @@
 
 ;; values
 
-(define (call-with-values producer consumer)
-  (unless (and (procedure? producer) (procedure? consumer))
-    (error "Bad call-with-values" producer consumer))
-  (let ((res (producer)))
-    (if (and (pair? res) (eq? *values-tag* (car res)))
-        (apply consumer (cdr res))
-        (consumer res))))
-
-(define *values-tag* (list 'values))
-
-(define (%values ls)
-  (if (and (pair? ls) (null? (cdr ls))) (car ls) (cons *values-tag* ls)))
-
-(define values
-  (case-lambda
-    (() (list *values-tag*))
-    ((a) a)
-    ((a b) `(,*values-tag* ,a ,b))
-    (ls (%values ls))))
+;; This has a custom lowering in bc.scm.
+(define (values . vals) (error "BAD VALUES LOWERING"))
 
 ;; bytevectors
 
