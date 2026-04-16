@@ -1057,8 +1057,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_RET:
+  case OP_RETN:
   case OP_IRET: {
-    auto c = stack_load(state, stack, instr.reg, false);
+    uint16_t count = (instr.op == OP_RETN) ? instr.data : 1;
     // TODO: re-enable.  This needs to be a MUCH lower priority, so we
     // don't record down-rec before up-rec.  Or alternatively, maybe
     // ONLY enable down-rec recording if the function has an up-rec trace
@@ -1074,7 +1075,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     bool downrec_trace = is_downrec_trace(ts);
     bool at_trace_start = (pc == ts->start_ins);
 
-    set_stack_len(ts, instr.reg + 1);
+    set_stack_len(ts, instr.reg + count);
 
     if (ts->depth == 0) {
       if (!cur_trace->parent_snap && !downrec_trace) {
@@ -1086,7 +1087,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       int cnt = downrec_hits(ts, pc);
       bool seen_downrec = cnt > 0;
 
-      if (instr.op == OP_RET && cur_trace->parent_snap && seen_downrec) {
+      if ((instr.op == OP_RET || instr.op == OP_RETN) && cur_trace->parent_snap &&
+          seen_downrec) {
         clear_trace_state(ts);
         free_trace(cur_trace);
         record_start(state, pc, *pc, stack, argcnt);
@@ -1099,11 +1101,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         break;
       }
 
-      auto res = c;
       auto ra = to_return_address(stack[-1]);
       auto old_pc = ra - 1;
       auto offset = old_pc->reg + 1;
-
       set_stack_len(ts, 0);
 
       auto const_ra = add_const(state, stack[-1]);
@@ -1111,20 +1111,26 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       ir_ins ins = IR(.op = IR_RET, .op1 = const_offset, .op2 = const_ra,
                       .type = FIXNUM_TAG);
       add_inst(state, ins);
-      set_stack(state, old_pc->reg, res);
+      for (uint16_t i = 0; i < count; i++) {
+        auto res = stack_load(state, stack, (uint8_t)(instr.reg + i), false);
+        set_stack(state, (uint8_t)(old_pc->reg + i), res);
+      }
       vm_add_snap(state, ra, argcnt);
       arrput(ts->downrec, pc);
     } else {
       ts->depth--;
       assert(ts->depth >= 0);
 
-      auto ret = c;
       auto new_pc = to_return_address(stack[-1]);
       auto old_pc = new_pc - 1;
       ts->stack_off -= (old_pc->reg + 1);
-      set_stack_len(ts, old_pc->reg + 1);
-      stack_save(state, stack, old_pc->reg, ret);
+      set_stack_len(ts, old_pc->reg + count);
+      for (uint16_t i = 0; i < count; i++) {
+        auto ret = stack_load(state, stack, (uint8_t)(instr.reg + i), false);
+        stack_save(state, stack, (uint8_t)(old_pc->reg + i), ret);
+      }
     }
+    argcnt = count;
     break;
   }
   case OP_LOOKUP: {
@@ -1514,7 +1520,7 @@ static trace *record_begin_trace(vm_state *state, bc *pc, bc instr) {
   trace_state *ts = record_trace_state(state);
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
-  ts->start_is_ret = (instr.op == OP_RET);
+  ts->start_is_ret = (instr.op == OP_RET || instr.op == OP_RETN);
   return cur_trace;
 }
 
@@ -1524,6 +1530,7 @@ static bc *record_entry_resume_pc(bc *pc, bc instr) {
   case OP_IFUNC:
     return func_body_pc(pc);
   case OP_RET:
+  case OP_RETN:
     return pc;
   default:
     abort();
@@ -1537,7 +1544,8 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
   // OK! Let's put function arguments in registers.
   // Note these *must* be marked as 'changed', since ARGS aren't saved between
   // trace loops at all.
-  assert(instr.op == OP_FUNC || instr.op == OP_IFUNC || instr.op == OP_RET);
+  assert(instr.op == OP_FUNC || instr.op == OP_IFUNC || instr.op == OP_RET ||
+         instr.op == OP_RETN);
   switch (instr.op) {
   case OP_FUNC:
   case OP_IFUNC:
@@ -1556,6 +1564,16 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
         add_inst(state, IR(.op = IR_ARG, .data = instr.reg,
                            .type = type == FLONUM_TAG ? UNDEFINED_TAG : type)));
 
+    break;
+  }
+  case OP_RETN: {
+    for (uint16_t i = 0; i < instr.data; i++) {
+      uint8_t type = get_type_tag(stack[instr.reg + i]);
+      set_stack(state, (uint8_t)(instr.reg + i),
+                add_inst(state,
+                         IR(.op = IR_ARG, .data = instr.reg + i,
+                            .type = type == FLONUM_TAG ? UNDEFINED_TAG : type)));
+    }
     break;
   }
   default:
@@ -1587,6 +1605,18 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
     }
     break;
   }
+  case OP_RETN: {
+    for (uint16_t i = 0; i < instr.data; i++) {
+      auto s = get_sentry(state, (uint8_t)(instr.reg + i));
+      uint8_t type = get_type_tag(stack[instr.reg + i]);
+      auto checked =
+          add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc, .type = type));
+      if (type == FLONUM_TAG) {
+        set_stack(state, (uint8_t)(instr.reg + i), checked);
+      }
+    }
+    break;
+  }
   default:
     abort();
   }
@@ -1600,7 +1630,7 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   if (verbose) {
     const char *fname = func_name_from_pc(pc);
     printf("Record start %p %i %s %s\n", pc, record_trace_count(state), fname,
-           instr.op == OP_RET ? "DOWNREC" : "");
+           (instr.op == OP_RET || instr.op == OP_RETN) ? "DOWNREC" : "");
   }
   record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);

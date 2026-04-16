@@ -52,6 +52,7 @@
   X(MOV, AD)                                                                   \
   X(RET, A)                                                                    \
   X(IRET, A)                                                                   \
+  X(RETN, AD)                                                                  \
   X(LOOKUP, AD)                                                                \
   X(DEFINE, AD)                                                                \
   X(WRITE, AD)                                                                 \

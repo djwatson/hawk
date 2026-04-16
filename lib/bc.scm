@@ -49,6 +49,7 @@
     (inexact->exact . EXACT)
     (char->integer . CHAR_INTEGER)
     (integer->char . INTEGER_CHAR)
+    (values . VALUES)
     (< . LT)
     (> . GT)
     (eq? . EQ)
@@ -59,6 +60,7 @@
   ))
 (define (primcall-arity name)
   (cond
+    ((eq? name 'values) 'any)
     ((memq name '(- / + * < > = >= <= quotient truncate-quotient remainder modulo))
       2)
     ((memq name
@@ -126,7 +128,7 @@
           ((and (equal? lib "")
                 (assq name primcalls)
                 (let ((arity (primcall-arity name)) (nargs (length args)))
-                  (and arity (= nargs arity))))
+                  (or (eq? arity 'any) (and arity (= nargs arity)))))
             (build-primcall (cdr (assq name primcalls)) (map simple-pass args) ann))
           (else (walk-ir ir simple-pass)))))
     (else (walk-ir ir simple-pass))))
@@ -1057,6 +1059,24 @@
                    (clo-res (compile clo fun env (+ top 1) #f)))
               (add-op fun `(CLOSURE_SET ,val-res ,clo-res ,slot-num))
               (finish top)))
+          ((eq? op 'VALUES)
+            (cond
+              ((null? args)
+                (if tail
+                    (add-op fun `(RETN ,top 0))
+                    (begin
+                      (add-op fun `(KSHORT ,top ,undefined-tag))
+                      (finish top))))
+              (else
+                (let loop ((atop top) (rest args))
+                  (unless (null? rest)
+                    (let ((res (compile (car rest) fun env atop #f)))
+                      (when (and (integer? res) (not (= res atop)))
+                        (add-op fun `(MOV ,atop ,res)))
+                      (loop (+ atop 1) (cdr rest)))))
+                (if tail
+                    (add-op fun `(RETN ,top ,(length args)))
+                    (finish top)))))
           ((eq? op 'FOREIGN_CALL)
             ;; args = combined signature object followed by runtime call arguments.
             (let loop ((atop top) (rest args))
@@ -1308,8 +1328,8 @@
   (let ((runtime-forms (read-forms "runtime.scm"))
         (eval-forms (read-forms "eval.scm"))
         (input-forms (ensure-leading-import (read-forms file))))
-    (build-begin (list (expand-program runtime-forms "")
-                       (expand-program eval-forms "")
+    (build-begin (list ;(expand-program runtime-forms "")
+                       ;(expand-program eval-forms "")
                        (expand-program input-forms "BOOTSTRAP")))))
 
 (define (compile-ir-to-bitcode ir)

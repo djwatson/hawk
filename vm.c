@@ -63,7 +63,7 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
       prev_hot < *hot_loc &&
 #endif
       op_table == state->impls && state->record.cur_trace == nullptr &&
-      (pc->op == OP_FUNC || pc->op == OP_RET)) {
+      (pc->op == OP_FUNC || pc->op == OP_RET || pc->op == OP_RETN)) {
     if (state->record.cur_trace != nullptr) {
       printf("Record while recording???\n");
       abort();
@@ -259,15 +259,17 @@ EXPORT void vm_trace_reset(void) {
   }
   trace_reset(current_vm_state);
 }
-static inline void return_frame(vm_state *state, bc instr, bc **pc,
-                                gc_obj **stack, void **op_table) {
+static inline void return_frame(vm_state *state, bc instr, uint16_t count,
+                                bc **pc, gc_obj **stack, void **op_table) {
   (void)state;
   (void)op_table;
-  auto ret = (*stack)[instr.reg];
   auto new_pc = to_return_address((*stack)[-1]);
   auto old_pc = new_pc - 1;
   auto new_stack = *stack - old_pc->reg - 1;
-  new_stack[old_pc->reg] = ret;
+  if (count > 0) {
+    memmove(&new_stack[old_pc->reg], &(*stack)[instr.reg],
+            (size_t)count * sizeof(gc_obj));
+  }
   *pc = new_pc;
   *stack = new_stack;
 }
@@ -664,7 +666,6 @@ OP_AD(MOV) {
   END_ABC_NEXT
 }
 OP(RET) {
-  auto c = stack[instr.reg];
   // TODO: re-enable.  This needs to be a MUCH lower priority, so we
   // don't record down-rec before up-rec.  Or alternatively, maybe
   // ONLY enable down-rec recording if the function has an up-rec trace already.
@@ -677,7 +678,7 @@ OP(RET) {
   /* } */
 
   auto old_op_table = op_table;
-  return_frame(state, instr, &pc, &stack, &op_table);
+  return_frame(state, instr, 1, &pc, &stack, &op_table);
   if (old_op_table != op_table) {
     instr = *pc;
   }
@@ -685,9 +686,18 @@ OP(RET) {
   END
 }
 OP(IRET) {
-  auto c = stack[instr.reg];
   auto old_op_table = op_table;
-  return_frame(state, instr, &pc, &stack, &op_table);
+  return_frame(state, instr, 1, &pc, &stack, &op_table);
+  if (old_op_table != op_table) {
+    instr = *pc;
+  }
+  dispatch_next(pc, stack);
+  END
+}
+OP(RETN) {
+  argcnt = instr.data;
+  auto old_op_table = op_table;
+  return_frame(state, instr, instr.data, &pc, &stack, &op_table);
   if (old_op_table != op_table) {
     instr = *pc;
   }
