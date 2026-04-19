@@ -4,6 +4,7 @@
 
 #include <assert.h>
 #include <inttypes.h>
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1996,6 +1997,17 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       assert(is_fpr_reg(dst_reg));
       assert(is_fpr_reg(arg0_reg));
       emit_ftruncate(s, dst_reg, arg0_reg);
+      break;
+    }
+    case IR_SQRT: {
+      assert(op->type == FLONUM_TAG);
+      assert(is_fpr_reg(dst_reg));
+      if (op->op1.constant) {
+        emit_fmov_constant(s, dst_reg, sqrt(slot_flonum_constant(t, op->op1)));
+      } else {
+        assert(is_fpr_reg(arg0_reg));
+        emit_fsqrt(s, dst_reg, arg0_reg);
+      }
       break;
     }
     case IR_SLOAD: {

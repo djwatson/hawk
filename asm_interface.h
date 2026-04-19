@@ -100,6 +100,7 @@ void emit_fsub_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm);
 void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs);
 void emit_fcmp_constant(emit_state *s, uint8_t reg, double imm);
 void emit_fmov_constant(emit_state *s, uint8_t dst, double imm);
+void emit_fsqrt(emit_state *s, uint8_t dst, uint8_t src);
 void emit_double_to_int64_trunc(emit_state *s, uint8_t dst, uint8_t src);
 void emit_int64_to_double(emit_state *s, uint8_t dst, uint8_t src);
 void emit_debugtrap(emit_state *s);

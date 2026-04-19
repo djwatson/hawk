@@ -382,6 +382,12 @@ IRFOLDF(fold_truncate_const) {
   return fold_const(numeric_truncate_value(value));
 }
 
+IRFOLD(SQRT CONST _)
+IRFOLDF(fold_sqrt_const) {
+  auto value = t->consts[in->op1.loc];
+  return fold_const(vm_box_flonum(sqrt(numeric_to_double(value))));
+}
+
 IRFOLD(SUB CONST CONST)
 IRFOLDF(fold_sub_const_const) {
   auto lhs = t->consts[in->op1.loc];

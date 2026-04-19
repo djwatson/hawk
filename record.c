@@ -592,6 +592,12 @@ static uint8_t foreign_ir_result_type(foreign_type type) {
   }
 }
 
+static bool foreign_is_sqrt(foreign_sig const *sig) {
+  return sig->ret_type == FOREIGN_TYPE_DOUBLE && sig->argcnt == 1 &&
+         sig->arg_types[0] == FOREIGN_TYPE_DOUBLE && sig->name &&
+         strcmp(sig->name, "sqrt") == 0;
+}
+
 static bool normalize_numeric_cmp_inputs(vm_state *state, slot *v1, slot *v2,
                                          gc_obj raw_v1, gc_obj raw_v2,
                                          bool require_numeric) {
@@ -1650,6 +1656,21 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     if (!sig.constant) {
       add_inst(state, IR(.op = IR_EQ, .op1 = sig, .op2 = sig_const));
     }
+#if defined(__x86_64__) || defined(__aarch64__)
+    if (foreign_is_sqrt(&foreign)) {
+      bool ok = true;
+      auto arg = record_foreign_arg(state, stack, (uint8_t)(pc->v1 + 1),
+                                    FOREIGN_TYPE_DOUBLE, &ok);
+      if (!ok) {
+        record_abort(state, &op_table, "can't record FOREIGN_CALL arg");
+        break;
+      }
+      auto res =
+          add_inst(state, IR(.op = IR_SQRT, .op1 = arg, .type = FLONUM_TAG));
+      stack_save(state, stack, instr.reg, res);
+      break;
+    }
+#endif
     bool ok = true;
     slot carg = add_const(state, tag_fixnum(0));
     for (uint8_t i = call_argcnt; i > 0; i--) {

@@ -532,7 +532,18 @@ void emit_fmov_constant(emit_state *s, uint8_t dst, double imm) {
   load_constant(s, idx, dst);
 }
 void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
-  emit_sse_reg_reg(s, 0xF2, 0x10, hw_fpr(dst), hw_fpr(src));
+  if (dst == src) {
+    return;
+  }
+  emit_sse_reg_reg(s, 0x66, 0x28, hw_fpr(dst), hw_fpr(src));
+}
+void emit_fsqrt(emit_state *s, uint8_t dst, uint8_t src) {
+  assert(dst >= FPR_REG_START && dst < X64_MAX_REG);
+  assert(src >= FPR_REG_START && src < X64_MAX_REG);
+  /* if (dst != src) { */
+  /*   emit_fmov(s, dst, src); */
+  /* } */
+  emit_sse_reg_reg(s, 0xF2, 0x51, hw_fpr(dst), hw_fpr(src));
 }
 void emit_int64_to_double(emit_state *s, uint8_t dst, uint8_t src) {
   assert(dst >= FPR_REG_START && dst < X64_MAX_REG);

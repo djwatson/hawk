@@ -574,6 +574,14 @@ void emit_ftruncate(emit_state *s, uint8_t dst, uint8_t src) {
   emit_op(s, opcode);
 }
 
+void emit_fsqrt(emit_state *s, uint8_t dst, uint8_t src) {
+  assert(dst >= FPR_REG_START && dst < AARCH64_MAX_REG);
+  assert(src >= FPR_REG_START && src < AARCH64_MAX_REG);
+  uint32_t opcode =
+      0x1E61C000U | ((uint32_t)hw_fpr(src) << 5) | (uint32_t)hw_fpr(dst);
+  emit_op(s, opcode);
+}
+
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   assert(reg < FPR_REG_START);
   uint32_t shift = 0;

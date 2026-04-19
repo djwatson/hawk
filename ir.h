@@ -112,7 +112,8 @@ typedef enum : uint8_t {
   X(VMJNNUMEQ, ARG_IR_IR, true)                                                \
   X(VMINEXACT, ARG_IR_NONE, true)                                              \
   X(VMEXACT, ARG_IR_NONE, true)                                                \
-  X(VMTRUNCATE, ARG_IR_NONE, true)
+  X(VMTRUNCATE, ARG_IR_NONE, true)                                             \
+  X(SQRT, ARG_IR_NONE, false)
 typedef enum : uint8_t {
 #define X(name, type, sideeff) IR_##name,
   IR_OPS
