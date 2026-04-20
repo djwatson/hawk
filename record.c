@@ -1060,6 +1060,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_RETN:
   case OP_IRET: {
     uint16_t count = (instr.op == OP_RETN) ? instr.data : 1;
+    argcnt = count;
     //  TODO: re-enable.  This needs to be a MUCH lower priority, so we
     //  don't record down-rec before up-rec.  Or alternatively, maybe
     //  ONLY enable down-rec recording if the function has an up-rec trace
@@ -1101,6 +1102,18 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         break;
       }
 
+      slot ret0 = {0};
+      slot *rets = nullptr;
+      if (count == 1) {
+        ret0 = stack_load(state, stack, instr.reg, false);
+      } else {
+        rets = malloc(sizeof(slot) * count);
+        assert(rets != nullptr);
+        for (uint16_t i = 0; i < count; i++) {
+          rets[i] = stack_load(state, stack, (uint8_t)(instr.reg + i), false);
+        }
+      }
+
       auto ra = to_return_address(stack[-1]);
       auto old_pc = ra - 1;
       auto offset = old_pc->reg + 1;
@@ -1112,9 +1125,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                       .type = FIXNUM_TAG);
       add_inst(state, ins);
       for (uint16_t i = 0; i < count; i++) {
-        auto res = stack_load(state, stack, (uint8_t)(instr.reg + i), false);
+        auto res = count == 1 ? ret0 : rets[i];
         set_stack(state, (uint8_t)(old_pc->reg + i), res);
       }
+      free(rets);
       vm_add_snap(state, ra, argcnt);
       arrput(ts->downrec, pc);
     } else {
@@ -1123,14 +1137,13 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
       auto new_pc = to_return_address(stack[-1]);
       auto old_pc = new_pc - 1;
-      ts->stack_off -= (old_pc->reg + 1);
-      set_stack_len(ts, old_pc->reg + count);
       for (uint16_t i = 0; i < count; i++) {
         auto ret = stack_load(state, stack, (uint8_t)(instr.reg + i), false);
-        stack_save(state, stack, (uint8_t)(old_pc->reg + i), ret);
+        set_stack_abs(state, (uint16_t)(ts->stack_off - 1 + i), ret);
       }
+      ts->stack_off -= (old_pc->reg + 1);
+      set_stack_len(ts, old_pc->reg + count);
     }
-    argcnt = count;
     break;
   }
   case OP_LOOKUP: {
@@ -1341,7 +1354,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       }
       set_stack_len(ts, to);
     }
-    argcnt += 1;
     if (!func.constant) {
       slot must_be = add_const(state, stack[pc->reg]);
       ir_ins ins = IR(.op = IR_EQ, .op1 = func, .op2 = must_be);
