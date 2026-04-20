@@ -20,8 +20,77 @@ static fold_result fold_drop(void) {
 static fold_result fold_const(gc_obj constant) {
   return (fold_result){.action = FOLD_CONST, .constant = constant};
 }
+static fold_result fold_ref(slot ref) {
+  return (fold_result){.action = FOLD_REF, .ref = ref};
+}
 static fold_result fold_retry(void) {
   return (fold_result){.action = FOLD_RETRY};
+}
+
+static bool same_slot(trace *t, slot a, slot b) {
+  if (a.constant != b.constant) {
+    return false;
+  }
+  if (!a.constant) {
+    return a.loc == b.loc;
+  }
+  return t->consts[a.loc].value == t->consts[b.loc].value;
+}
+
+static uint8_t slot_type(trace *t, slot v) {
+  return v.constant ? get_type_tag(t->consts[v.loc]) : t->ins[v.loc].type;
+}
+
+static bool fold_cse_allowed(trace *t, ir_ins *in) {
+  switch (in->op) {
+  case IR_EQ:
+  case IR_NE:
+  case IR_LT:
+  case IR_GT:
+  case IR_LTE:
+  case IR_GTE:
+  case IR_ADD:
+  case IR_SUB:
+  case IR_MUL:
+  case IR_DIV:
+  case IR_QUOTIENT:
+  case IR_MOD:
+  case IR_BOX_FLONUM:
+  case IR_EXACT:
+  case IR_INTEGER_CHAR:
+  case IR_CHAR_INTEGER:
+  case IR_TRUNCATE:
+  case IR_INEXACT:
+  case IR_VMINEXACT:
+  case IR_VMEXACT:
+  case IR_VMTRUNCATE:
+    return true;
+  case IR_LOAD:
+    return slot_type(t, in->op1) == CLOSURE_TAG;
+  default:
+    return false;
+  }
+}
+
+static bool same_cse_operands(trace *t, ir_ins *a, ir_ins *b) {
+  if (a->type != b->type) {
+    return false;
+  }
+  switch (ir_ins_types[a->op]) {
+  case IR_ARG_NONE_NONE:
+    return true;
+  case IR_ARG_STACK:
+  case IR_ARG_REG:
+  case IR_ARG_PMOV:
+  case IR_ARG_OFFSET:
+    return a->data == b->data;
+  case IR_ARG_IR_NONE:
+  case IR_ARG_IR_ADDR:
+    return same_slot(t, a->op1, b->op1);
+  case IR_ARG_IR_IR:
+    return same_slot(t, a->op1, b->op1) && same_slot(t, a->op2, b->op2);
+  }
+  abort();
 }
 
 static inline ir_ins_op swap_cmp_op(ir_ins_op op) {
@@ -101,6 +170,7 @@ IRFOLDF(fold_noncommutative_const_lhs) {
       .op1 = in->op1,
   };
   uint16_t idx = arrlen(t->ins);
+  arrput(t->cse_prev, UINT16_MAX);
   arrput(t->ins, const_op);
   in->op1 = (slot){.constant = false, .loc = idx};
   return fold_retry();
@@ -222,6 +292,20 @@ fold_result fold_instr(trace *trace, ir_ins *in) {
     fold_result res = fold_one(trace, in);
     if (res.action == FOLD_RETRY) {
       continue;
+    }
+    if (res.action != FOLD_NEXT) {
+      return res;
+    }
+    if (!fold_cse_allowed(trace, in)) {
+      return res;
+    }
+    uint16_t ref = trace->cse_head[in->op];
+    while (ref != UINT16_MAX) {
+      ir_ins *prev = &trace->ins[ref];
+      if (same_cse_operands(trace, in, prev)) {
+        return fold_ref((slot){.constant = false, .loc = ref});
+      }
+      ref = trace->cse_prev[ref];
     }
     return res;
   }

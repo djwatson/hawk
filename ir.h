@@ -153,6 +153,8 @@ typedef struct trace {
   gc_obj *consts;
   snap *snaps;
   uint8_t **gc_const_locs;
+  uint16_t cse_head[IR_INS_MAX];
+  uint16_t *cse_prev;
   trace_fn fn;
   uint16_t num;
   trace_kind kind;

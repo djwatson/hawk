@@ -92,6 +92,7 @@ static void free_snap(snap *snap) { arrfree(snap->slots); }
 static void free_trace(trace *trace) {
   arr_for_each(trace->snaps, snap) { free_snap(&snap); }
   arrfree(trace->ins);
+  arrfree(trace->cse_prev);
   arrfree(trace->consts);
   arrfree(trace->snaps);
   arrfree(trace->gc_const_locs);
@@ -362,8 +363,13 @@ static slot add_inst(vm_state *state, ir_ins ins) {
   if (fold_res.action == FOLD_CONST) {
     return add_const(state, fold_res.constant);
   }
+  if (fold_res.action == FOLD_REF) {
+    return fold_res.ref;
+  }
 
   auto idx = arrlen(trace_obj->ins);
+  arrput(trace_obj->cse_prev, trace_obj->cse_head[ins.op]);
+  trace_obj->cse_head[ins.op] = idx;
   arrput(trace_obj->ins, ins);
   return (slot){.constant = false, .loc = idx};
 }
@@ -1745,6 +1751,7 @@ done:
 static trace *record_begin_trace(vm_state *state, bc *pc, bc instr) {
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   trace *cur_trace = record_current_trace(state);
+  memset(cur_trace->cse_head, 0xff, sizeof(cur_trace->cse_head));
   cur_trace->start_ins = pc;
   cur_trace->start_pc = instr;
   cur_trace->num = record_trace_count(state);
