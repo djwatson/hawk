@@ -6,15 +6,15 @@
 
 [x] Closure conversion from O(0) closure paper 
    DONE! needs cleanup. remove old closure, simplify find free, make the constant/alias pass separate.
-* remove custom hashtable after we have a real eq? hashtable
-* Loops, and loop tracing.
-* values / call-with-values / multi-value returns in opcodes!
-* Record every OPcode:
+[ ] values / call-with-values / multi-value returns in opcodes!
+[ ] Loops, and loop tracing.
+[ ] remove custom hashtable after we have a real eq? hashtable
+[ ] Record every OPcode:
   * APPLY (+ the resulting call FUNC or IFUNC)
   * CALLCC & CALLCCRESUME
   * boxing in FFI
-* Better inlining of existing, like change 3+ args to binops for +,-, etc
-* Inline a bunch of VM primitives to opcodes to make things faster
+[ ] Better inlining of existing, like change 3+ args to binops for +,-, etc
+[ ] Inline a bunch of VM primitives to opcodes to make things faster
   * CONS, CAR, CDR
   * VECTOR MAKE_VECTOR VECTOR_REF VECTOR_SET VECTOR_LENGTH
   * STRING_LENGTH STRING_REF MAKE_STRING
@@ -26,7 +26,11 @@
     * RATNUM, COMPNUM, CONS, since it could auto-convert the inputs.
   
 Optional: 
-* GC old generation
+[ ] GC old generation
+[ ] flvector
+[ ] opt_loop pass
+[ ] CSE
+[ ] sinking to snaps
 
 ## JIT impl
 
@@ -105,10 +109,10 @@ Optional:
 ### opts
 
 X fold 
-   * gvn
+   * cse
 * mem opts
 * sinking
-* loop? never really found useful, because reg-args covers most cases.
+* loop
 X dce - implicit.  Only useful with LOOP
 
 # notes:
