@@ -714,14 +714,12 @@
     ;;; Return (map cdr lists).
     ;;; However, if any element of LISTS is empty, just abort and return '().
     (define (%cdrs lists)
-      (call-with-current-continuation
-        (lambda (abort)
-          (let recur-cdrs ((lists lists))
-            (if (pair? lists)
-              (let ((lis (car lists)))
-                (if (null-list? lis) (abort '())
-                  (cons (cdr lis) (recur-cdrs (cdr lists)))))
-              '())))))
+      (let recur-cdrs ((lists lists))
+        (if (pair? lists)
+          (let ((lis (car lists)))
+            (if (null-list? lis) '()
+              (cons (cdr lis) (recur-cdrs (cdr lists)))))
+          '())))
 
     (define (%cars+ lists last-elt)	; (append! (map car lists) (list last-elt))
       (let recur-cars ((lists lists))
@@ -732,30 +730,32 @@
     ;;; However, if any of the lists is empty, just abort and return [() ()].
 
     (define (%cars+cdrs lists)
-      (call-with-current-continuation
-        (lambda (abort)
-          (let recur-carcdrs ((lists lists))
-            (if (pair? lists)
-              (receive (list other-lists) (car+cdr lists)
-                       (if (null-list? list) (abort '() '()) ; LIST is empty -- bail out
-                         (receive (a d) (car+cdr list)
-                                  (receive (cars cdrs) (recur-carcdrs other-lists)
-                                           (values (cons a cars) (cons d cdrs))))))
-              (values '() '()))))))
+      (define (recur-carcdrs lists)
+        (if (pair? lists)
+          (receive (list other-lists) (car+cdr lists)
+                   (if (null-list? list)
+                     #f
+                     (receive (a d) (car+cdr list)
+                              (let ((rest (recur-carcdrs other-lists)))
+                                (and rest (cons (cons a (car rest)) (cons d (cdr rest))))))))
+          (cons '() '())))
+      (let ((res (recur-carcdrs lists)))
+        (if res (values (car res) (cdr res)) (values '() '()))))
 
     ;;; Like %CARS+CDRS, but we pass in a final elt tacked onto the end of the
     ;;; cars list. What a hack.
     (define (%cars+cdrs+ lists cars-final)
-      (call-with-current-continuation
-        (lambda (abort)
-          (let recur-carcdrs+ ((lists lists))
-            (if (pair? lists)
-              (receive (list other-lists) (car+cdr lists)
-                       (if (null-list? list) (abort '() '()) ; LIST is empty -- bail out
-                         (receive (a d) (car+cdr list)
-                                  (receive (cars cdrs) (recur-carcdrs+ other-lists)
-                                           (values (cons a cars) (cons d cdrs))))))
-              (values (list cars-final) '()))))))
+      (define (recur-carcdrs+ lists)
+        (if (pair? lists)
+          (receive (list other-lists) (car+cdr lists)
+                   (if (null-list? list)
+                     #f
+                     (receive (a d) (car+cdr list)
+                              (let ((rest (recur-carcdrs+ other-lists)))
+                                (and rest (cons (cons a (car rest)) (cons d (cdr rest))))))))
+          (cons (list cars-final) '())))
+      (let ((res (recur-carcdrs+ lists)))
+        (if res (values (car res) (cdr res)) (values '() '()))))
 
     ;;; Like %CARS+CDRS, but blow up if any list is empty.
     (define (%cars+cdrs/no-test lists)

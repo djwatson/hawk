@@ -874,9 +874,7 @@
     (let loop ((argc 1))
       (add-op fun `(IFUNC ,argc 0))
       (if (= argc values-entry-max-argc)
-          (begin
-            (add-op fun `(ARGCNT_ERROR ,argc))
-            (add-op fun `(RETN 1 ,(- argc 1))))
+          (begin (add-op fun `(ARGCNT_ERROR ,argc)) (add-op fun `(RETN 1 ,(- argc 1))))
           (let* ((offset (length (fun-code fun))) (jop (list 'JMP 0 0)))
             (add-op fun jop)
             (add-op fun `(RETN 1 ,(- argc 1)))
@@ -886,10 +884,7 @@
 
 (define (ensure-values-entry-fun)
   (or (values-entry-fun)
-      (let ((fun (make-values-entry-fun)))
-        (add-fun fun)
-        (values-entry-fun fun)
-        fun)))
+     (let ((fun (make-values-entry-fun))) (add-fun fun) (values-entry-fun fun) fun)))
 
 (define (fits-in-int16 value)
   (and (integer? value) (exact? value) (<= -32768 (* 8 value) 32767)))
@@ -1099,19 +1094,14 @@
               ((null? args)
                 (if tail
                     (add-op fun `(RETN ,top 0))
-                    (begin
-                      (add-op fun `(KSHORT ,top ,undefined-tag))
-                      (finish top))))
+                    (begin (add-op fun `(KSHORT ,top ,undefined-tag)) (finish top))))
               (else
                 (let loop ((atop top) (rest args))
                   (unless (null? rest)
                     (let ((res (compile (car rest) fun env atop #f)))
-                      (when (and (integer? res) (not (= res atop)))
-                        (add-op fun `(MOV ,atop ,res)))
+                      (when (and (integer? res) (not (= res atop))) (add-op fun `(MOV ,atop ,res)))
                       (loop (+ atop 1) (cdr rest)))))
-                (if tail
-                    (add-op fun `(RETN ,top ,(length args)))
-                    (finish top)))))
+                (if tail (add-op fun `(RETN ,top ,(length args))) (finish top)))))
           ((eq? op 'CALL_WITH_VALUES)
             (let* ((producer (car args))
                    (consumer (cadr args))
@@ -1402,7 +1392,7 @@
                   assignment-conversion
                   lower-comparisons
                   recover-let
-		  ;debug-print
+                  ;debug-print
                   name-lambdas
                   fix-all
                   uncover-free

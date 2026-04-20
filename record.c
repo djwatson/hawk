@@ -1060,11 +1060,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_RETN:
   case OP_IRET: {
     uint16_t count = (instr.op == OP_RETN) ? instr.data : 1;
-    argcnt = count;
-    // TODO: re-enable.  This needs to be a MUCH lower priority, so we
-    // don't record down-rec before up-rec.  Or alternatively, maybe
-    // ONLY enable down-rec recording if the function has an up-rec trace
-    // already.
+    //  TODO: re-enable.  This needs to be a MUCH lower priority, so we
+    //  don't record down-rec before up-rec.  Or alternatively, maybe
+    //  ONLY enable down-rec recording if the function has an up-rec trace
+    //  already.
 
     /* auto res = check_record_start(pc, stack, state, op_table); */
     /* if (res != op_table) { */
@@ -1088,8 +1087,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       int cnt = downrec_hits(ts, pc);
       bool seen_downrec = cnt > 0;
 
-      if ((instr.op == OP_RET || instr.op == OP_RETN) && cur_trace->parent_snap &&
-          seen_downrec) {
+      if ((instr.op == OP_RET || instr.op == OP_RETN) &&
+          cur_trace->parent_snap && seen_downrec) {
         clear_trace_state(ts);
         free_trace(cur_trace);
         record_start(state, pc, *pc, stack, argcnt);
@@ -1597,9 +1596,9 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
     for (uint16_t i = 0; i < instr.data; i++) {
       uint8_t type = get_type_tag(stack[instr.reg + i]);
       set_stack(state, (uint8_t)(instr.reg + i),
-                add_inst(state,
-                         IR(.op = IR_ARG, .data = instr.reg + i,
-                            .type = type == FLONUM_TAG ? UNDEFINED_TAG : type)));
+                add_inst(state, IR(.op = IR_ARG, .data = instr.reg + i,
+                                   .type = type == FLONUM_TAG ? UNDEFINED_TAG
+                                                              : type)));
     }
     break;
   }
