@@ -359,6 +359,114 @@
         (else (walk-ir ir pass))))
     (pass ir)))
 
+(define (lower-loops ir)
+  (define (grouped-bindings? bindings)
+    (and (pair? bindings) (pair? (car bindings)) (pair? (caar bindings))))
+
+  (define (binding-groups bindings)
+    (cond
+      ((null? bindings) '())
+      ((grouped-bindings? bindings) bindings)
+      (else (list bindings))))
+
+  (define (flatten-binding-groups groups)
+    (if (null? groups) '() (apply append groups)))
+
+  (define (single-letrec-binding bindings)
+    (let ((flat (flatten-binding-groups (binding-groups bindings))))
+      (and (= (length flat) 1) (car flat))))
+
+  (define (tailcall? ir var)
+    (and (ir-application? ir)
+         (ir-reference? (ir-application-fun ir))
+         (eq? var (ir-reference-var (ir-application-fun ir)))))
+
+  (define (only-tailcalls? var ir)
+    (define loop-ok? #t)
+    (define (walk-letrec ir body-walk)
+      (for-each (lambda (group)
+                  (for-each (lambda (binding) (walk-nontail (cadr binding))) group))
+                (binding-groups (ir-letrec*-bindings ir)))
+      (body-walk (ir-letrec*-body ir))
+      ir)
+    (define (walk-nontail ir)
+      (cond
+        ((ir-reference? ir)
+          (when (eq? var (ir-reference-var ir)) (set! loop-ok? #f))
+          ir)
+        ((tailcall? ir var)
+          (set! loop-ok? #f)
+          (for-each walk-nontail (ir-application-args ir))
+          ir)
+        ((ir-letrec*? ir) (walk-letrec ir walk-nontail))
+        (else (walk-ir ir walk-nontail))))
+    (define (walk-tail ir)
+      (cond
+        ((ir-conditional? ir)
+          (walk-nontail (ir-conditional-test ir))
+          (walk-tail (ir-conditional-then ir))
+          (walk-tail (ir-conditional-else ir))
+          ir)
+        ((ir-let? ir)
+          (for-each (lambda (binding) (walk-nontail (cadr binding)))
+                    (ir-let-bindings ir))
+          (walk-tail (ir-let-body ir))
+          ir)
+        ((ir-letrec*? ir) (walk-letrec ir walk-tail))
+        ((ir-begin? ir)
+          (let ((exps (ir-begin-exps ir)))
+            (unless (null? exps)
+              (for-each walk-nontail (reverse (cdr (reverse exps))))
+              (walk-tail (car (reverse exps)))))
+          ir)
+        ((tailcall? ir var)
+          (for-each walk-nontail (ir-application-args ir))
+          ir)
+        (else (walk-nontail ir))))
+    (walk-tail ir)
+    loop-ok?)
+
+  (define (loop-bindings vars args) (map list (to-proper vars) args))
+
+  (define (pass ir)
+    (cond
+      ((ir-letrec*? ir)
+        (let* ((bindings (ir-letrec*-bindings ir))
+               (binding (single-letrec-binding bindings))
+               (body (ir-letrec*-body ir)))
+          (or (and binding
+                   (let ((var (car binding))
+                         (init (cadr binding))
+                         (ann (or (caddr binding) (ir-letrec*-ann ir))))
+                     (and (ir-lambda? init)
+                          (= (length (ir-lambda-cases init)) 1)
+                          (ir-lambda-well-known init)
+                          (ir-application? body)
+                          (ir-reference? (ir-application-fun body))
+                          (eq? var (ir-reference-var (ir-application-fun body)))
+                          (let* ((clause (car (ir-lambda-cases init)))
+                                 (vars (car clause))
+                                 (lam-body (cadr clause))
+                                 (args (ir-application-args body)))
+                            (and (list? vars)
+                                 (list? args)
+                                 (= (length vars) (length args))
+                                 (only-tailcalls? var lam-body)
+                                 (build-loop (loop-bindings vars (map pass args))
+                                             (pass lam-body)
+                                             var
+                                             ann))))))
+             (begin
+               (for-each (lambda (group)
+                           (for-each (lambda (binding)
+                                       (set-car! (cdr binding) (pass (cadr binding))))
+                                     group))
+                         (binding-groups bindings))
+               (set-ir-letrec*-body! ir (pass body))
+               ir))))
+      (else (walk-ir ir pass))))
+  (pass ir))
+
 (define (required-free-vars ir)
   (define (grouped-bindings? bindings)
     (and (pair? bindings) (pair? (car bindings)) (pair? (caar bindings))))
@@ -542,6 +650,14 @@
                   ((variable? value) (build-lexical-reference value mutable? ann))
                   ((and (ir-primcall? value) (eq? (ir-primcall-name value) 'closure-ref)) value)
                   (else (build-quote value ann)))))))
+      ((ir-loop? ir)
+        (let* ((bindings (ir-loop-args ir))
+               (vars (map car bindings))
+               (body-rho (extend-rho-self rho (cons (ir-loop-name ir) vars))))
+          (for-each (lambda (binding) (set-car! (cdr binding) (pass (cadr binding) rho)))
+                    bindings)
+          (set-ir-loop-body! ir (pass (ir-loop-body ir) body-rho))
+          ir))
       ((ir-let? ir)
         (let* ((bindings (ir-let-bindings ir)) (body-rho (let-body-rho bindings rho)))
           (for-each (lambda (binding) (set-car! (cdr binding) (pass (cadr binding) rho)))
@@ -558,11 +674,12 @@
                      (not (ir-reference-global? fun)))
             (let ((target
                      (custom_hash_table_ref/default lambda-bindings (ir-reference-var fun) #f)))
-              (when (or (not target) (lambda-needs-cp? target))
-                (unless (and (ir-quote? fun*) (eq? (ir-quote-datum fun*) #f))
-                  (set! args* (cons fun* args*)))))
-            (set! fun*
-              (build-lexical-reference (label-var (ir-reference-var fun)) #f ann)))
+              (when target
+                (when (lambda-needs-cp? target)
+                  (unless (and (ir-quote? fun*) (eq? (ir-quote-datum fun*) #f))
+                    (set! args* (cons fun* args*))))
+                (set! fun*
+                  (build-lexical-reference (label-var (ir-reference-var fun)) #f ann)))))
           (set-ir-application-fun! ir fun*)
           (set-ir-application-args! ir args*)
           ir))
@@ -929,6 +1046,8 @@
 (define-record-type const-closure (make-const-closure fun) const-closure?
   (fun const-closure-fun))
 
+(define (loop-info? value) (and (pair? value) (integer? (car value))))
+
 (define (compile-call-args fun env start callee args)
   (let loop ((atop start) (rest (cons callee args)))
     (unless (null? rest)
@@ -1046,7 +1165,24 @@
             (if tail res top)))))
     ((ir-application? ir)
       (let ((func (ir-application-fun ir)) (args (ir-application-args ir)))
-        (if (ir-application-well-known ir)
+        (cond
+          ((and (ir-reference? func)
+                (assq (ir-reference-var func) env)
+                (loop-info? (cdr (assq (ir-reference-var func) env))))
+            (let* ((loop-info (cdr (assq (ir-reference-var func) env)))
+                   (base (car loop-info))
+                   (offset (- top base)))
+              (let loop ((rest (reverse args)) (reg (+ top (length args) -1)))
+                (unless (null? rest)
+                  (let ((res (compile (car rest) fun env reg #f)))
+                    (when (and (integer? res) (not (= res reg))) (add-op fun `(MOV ,reg ,res)))
+                    (add-op fun `(MOV ,(- reg offset) ,reg))
+                    (loop (cdr rest) (- reg 1)))))
+              (let ((jop (list 'JMP 0 (length (fun-code fun)))))
+                (add-op fun jop)
+                (set-cdr! loop-info (cons jop (cdr loop-info))))
+              #f))
+          ((ir-application-well-known ir)
             (begin
               (compile func fun env top #f)
               (for-each (lambda (arg reg)
@@ -1055,12 +1191,35 @@
                               (add-op fun `(MOV ,reg ,res)))))
                         args
                         (iota (length args) (+ top 1)))
-              (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(+ 1 (length args)))))
+              (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(+ 1 (length args))))))
+          (else
             (begin
               (compile-call-args fun env (+ top 1) func args)
               (add-op fun `(CLOSURE_GET ,top ,(+ top 1) 0))
-              (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(+ 2 (length args))))))
+              (add-op fun `(,(if tail 'LCALLT 'LCALL) ,top ,(+ 2 (length args)))))))
         (if tail #f top)))
+    ((ir-loop? ir)
+      (let* ((bindings (ir-loop-args ir))
+             (vars (map car bindings))
+             (inits (map cadr bindings))
+             (next-top (+ top (length vars)))
+             (loop-info (cons top '()))
+             (loop-env
+                (append (map cons vars (iota (length vars) top))
+                        (list (cons (ir-loop-name ir) loop-info))
+                        env)))
+        (for-each (lambda (init reg)
+                    (let ((res (compile init fun env reg #f)))
+                      (when (and (integer? res) (not (= res reg))) (add-op fun `(MOV ,reg ,res)))))
+                  (reverse inits)
+                  (reverse (iota (length vars) top)))
+        (let ((loop-pc (length (fun-code fun))))
+          (add-op fun `(LOOP ,top ,(length vars)))
+          (let ((body-res (compile (ir-loop-body ir) fun loop-env next-top tail)))
+            (for-each (lambda (jop)
+                        (set-car! (cddr jop) (- loop-pc (caddr jop))))
+                      (cdr loop-info))
+            body-res))))
     ((ir-primcall? ir)
       (let ((op (ir-primcall-name ir)) (args (ir-primcall-args ir)))
         (cond
@@ -1379,9 +1538,9 @@
   (let ((runtime-forms (read-forms "runtime.scm"))
         (eval-forms (read-forms "eval.scm"))
         (input-forms (ensure-leading-import (read-forms file))))
-    (build-begin (list (expand-program runtime-forms "")
-                       (expand-program eval-forms "")
-                       (expand-program input-forms "BOOTSTRAP")))))
+    (build-begin (list ;(expand-program runtime-forms "")
+                  ;(expand-program eval-forms "")
+                  (expand-program input-forms "BOOTSTRAP")))))
 
 (define (compile-ir-to-bitcode ir)
   (parameterize ((funs (make-funs-list)))
@@ -1397,7 +1556,9 @@
                   fix-all
                   uncover-free
                   escape-analyze
-                  ;debug-print
+                  debug-print
+                  lower-loops
+                  debug-print
                   required-free-vars
                   ;debug-print
                   ;convert-closures

@@ -6,7 +6,8 @@
 
 [x] Closure conversion from O(0) closure paper 
    DONE! needs cleanup. remove old closure, simplify find free, make the constant/alias pass separate.
-[ ] values / call-with-values / multi-value returns in opcodes!
+[x] values / call-with-values / multi-value returns in opcodes!
+   [ ] fix call/cc multi-value returns
 [ ] Loops, and loop tracing.
 [ ] remove custom hashtable after we have a real eq? hashtable
 [ ] Record every OPcode:

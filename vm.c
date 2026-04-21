@@ -870,6 +870,11 @@ OP(CLOSURE) {
   END_NEXT
 }
 
+OP(LOOP) {
+  abort();
+  END
+}
+
 OP(LCALL) {
   argcnt = instr.data - 1;
   auto func = stack[instr.reg];

@@ -1307,6 +1307,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     stack_save(state, stack, instr.reg, clo);
     break;
   }
+  case OP_LOOP: {
+    abort();
+  }
   case OP_LCALL:
   case OP_LCALLT: {
     argcnt = instr.data - 1;

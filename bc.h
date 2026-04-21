@@ -76,6 +76,7 @@
   X(CLOSURE_GET, ABC)                                                          \
   X(CLOSURE_SET, ABC)                                                          \
   X(CLOSURE, AD)                                                               \
+  X(LOOP, AD)                                                                  \
   X(LCALL, AD)                                                                 \
   X(LCALLT, AD)                                                                \
   X(LCALL_N, AD)                                                               \
