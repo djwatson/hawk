@@ -8,7 +8,9 @@
    DONE! needs cleanup. remove old closure, simplify find free, make the constant/alias pass separate.
 [x] values / call-with-values / multi-value returns in opcodes!
    [ ] fix call/cc multi-value returns
-[ ] Loops, and loop tracing.
+[x] Loops 
+   [ ] loop tracing.
+    
 [ ] remove custom hashtable after we have a real eq? hashtable
 [ ] Record every OPcode:
   * APPLY (+ the resulting call FUNC or IFUNC)
@@ -73,6 +75,7 @@ Optional:
 * track stack-top
 
 # cleanup
+* LOOP could just do a memmov instead?
 * we store state VM, the only place it is used is to flush traces in the FOREIGN_CALL to dump image and die. ugh.
 * we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!
 * need a 'box' type so assignment-conversion doesn't need to set more than one thing
