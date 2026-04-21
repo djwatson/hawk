@@ -589,6 +589,10 @@
 (define string-append
   (case-lambda
     ((a b) (string-append2 a b))
+    ((a b c)
+      (string-append2 a (string-append2 b c)))
+    ((a b c d)
+      (string-append2 a (string-append2 b (string-append2 c d))))
     ((a b c d e)
       (string-append2 a (string-append2 b (string-append2 c (string-append2 d e)))))
     (strs
@@ -1380,7 +1384,8 @@
   (let ((here *here*))
     (reroot! (cons (cons before after) here))
     (call-with-values during
-                      (lambda results (reroot! here) (apply values results)))))
+      (case-lambda ((value) (reroot! here) value)
+		   (values (reroot! here) (apply values results))))))
 
 (define (reroot! there)
   (unless (eq? *here* there)
