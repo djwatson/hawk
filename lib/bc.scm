@@ -1565,8 +1565,7 @@
              ))
            (main (make-fun "main")))
       ;(exit 0)
-      (compile lowered main '() 0 #f)
-      (add-op main `(RET 0))
+      (compile lowered main '() 0 #t)
       (add-fun main)
       (get-funs))))
 
