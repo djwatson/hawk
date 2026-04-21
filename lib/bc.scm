@@ -419,9 +419,7 @@
               (for-each walk-nontail (reverse (cdr (reverse exps))))
               (walk-tail (car (reverse exps)))))
           ir)
-        ((tailcall? ir var)
-          (for-each walk-nontail (ir-application-args ir))
-          ir)
+        ((tailcall? ir var) (for-each walk-nontail (ir-application-args ir)) ir)
         (else (walk-nontail ir))))
     (walk-tail ir)
     loop-ok?)
@@ -1216,8 +1214,7 @@
         (let ((loop-pc (length (fun-code fun))))
           (add-op fun `(LOOP ,top ,(length vars)))
           (let ((body-res (compile (ir-loop-body ir) fun loop-env next-top tail)))
-            (for-each (lambda (jop)
-                        (set-car! (cddr jop) (- loop-pc (caddr jop))))
+            (for-each (lambda (jop) (set-car! (cddr jop) (- loop-pc (caddr jop))))
                       (cdr loop-info))
             body-res))))
     ((ir-primcall? ir)
@@ -1331,12 +1328,39 @@
     (if (eof-object? ann) (reverse res) (loop (read r) (cons ann res)))))
 
 (define (print-bc fun)
+  (define consts (reverse (fun-consts-list fun)))
+  (define code (reverse (fun-code fun)))
+  (define jmp-dst '())
+  (define (str-op op)
+    (define ops (symbol->string op))
+    (string-append ops (make-string (- 15 (string-length ops)) #\space)))
   (display "Compiled fun ")
   (display (fun-name fun))
   (display "\nConsts:\n")
-  (for-each (lambda (c) (write c) (newline)) (reverse (fun-consts-list fun)))
-  (display "\nBC:\n")
-  (for-each (lambda (bc) (display bc) (newline)) (reverse (fun-code fun)))
+  (fold (lambda (a b) (display b) (display ": ") (write a) (newline) (+ b 1))
+        0
+        consts)
+  (display "\nCode:\n")
+  (fold (lambda (a b)
+          (display b)
+          (display ": ")
+          (display (if (or (eq? (first a) 'LOOP) (memv b jmp-dst)) "==>\t" "\t"))
+          (display (str-op (first a)))
+          (display (second a))
+          (if (> (length a) 2) (begin (display "\t") (display (third a))))
+          (if (> (length a) 3) (begin (display "\t") (display (fourth a))))
+          (when (memq (first a) '(DEFINE LOOKUP CONST))
+            (display "\t ;; ")
+            (write (list-ref consts (third a))))
+          (when (eq? (first a) 'JMP)
+            (let ((dst (+ b (third a))))
+              (when (> dst b) (set! jmp-dst (cons dst jmp-dst)))
+              (display "\t ==> ")
+              (display dst)))
+          (newline)
+          (+ b 1))
+        0
+        code)
   (newline))
 
 (define (write-uint v n p)
@@ -1538,9 +1562,9 @@
   (let ((runtime-forms (read-forms "runtime.scm"))
         (eval-forms (read-forms "eval.scm"))
         (input-forms (ensure-leading-import (read-forms file))))
-    (build-begin (list ;(expand-program runtime-forms "")
-                  ;(expand-program eval-forms "")
-                  (expand-program input-forms "BOOTSTRAP")))))
+    (build-begin (list (expand-program runtime-forms "")
+                       (expand-program eval-forms "")
+                       (expand-program input-forms "BOOTSTRAP")))))
 
 (define (compile-ir-to-bitcode ir)
   (parameterize ((funs (make-funs-list)))
@@ -1556,9 +1580,9 @@
                   fix-all
                   uncover-free
                   escape-analyze
-                  debug-print
+                  ;debug-print
                   lower-loops
-                  debug-print
+                  ;debug-print
                   required-free-vars
                   ;debug-print
                   ;convert-closures

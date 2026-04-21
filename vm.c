@@ -807,7 +807,7 @@ OP(JFUNC) {
 #define BRANCH_NEXT(COND)                                                      \
   do {                                                                         \
     auto jmp_pc = pc + 1;                                                      \
-    pc = (COND) ? jmp_pc + 1 : jmp_pc + jmp_pc->data;                          \
+    pc = (COND) ? jmp_pc + 1 : jmp_pc + (int16_t)jmp_pc->data;                 \
   } while (0)
 
 #define CMP_BRANCH(OPNAME, EMIT_FN)                                            \
@@ -831,7 +831,7 @@ OP(IF) {
   END
 }
 OP(JMP) {
-  pc += pc->data;
+  pc += (int16_t)pc->data;
   dispatch_next(pc, stack);
   END
 }
@@ -871,8 +871,7 @@ OP(CLOSURE) {
 }
 
 OP(LOOP) {
-  abort();
-  END
+  END_NEXT
 }
 
 OP(LCALL) {
