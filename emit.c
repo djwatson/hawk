@@ -1750,12 +1750,11 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       break;
     }
     case IR_FLUSH: {
-      assert(op->reg != REG_NONE);
-      assert(cur_snap != -1);
-      emit_snap((uint16_t)cur_snap, trace, NULL);
-      emit_arith_imm(OP_ARITH_ADD, op->reg,
-                     (trace->snaps[cur_snap].offset) << 3);
-      emit_reg_reg(OP_MOV, RDI, op->reg);
+      assert(cur_snap >= 0);
+      emit_snap(s, t, (uint16_t)cur_snap, false);
+      if (dst_reg != RSTACK) {
+        emit_mov(s, dst_reg, RSTACK);
+      }
       break;
     }
     case IR_VMADD:

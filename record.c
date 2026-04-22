@@ -1593,16 +1593,33 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_HALT:
     break;
   case OP_CALLCC:
-    // load v1 = stack[instr.data]
-    // TODO do we need to guard that v1 is the same as recorded????
-    vm_add_snap(); // only for IR_FLUSH use
-    // TODO emit IR_FLUSH
+    auto v1 = stack_load(state, stack, instr.data, true);
+    if (!v1.constant) {
+      slot must_be = add_const(state, stack[instr.data]);
+      add_inst(state, IR(.op = IR_EQ, .op1 = v1, .op2 = must_be));
+    }
+    vm_add_snap(state, pc, argcnt); // only for IR_FLUSH use
+    add_inst(state, IR(.op = IR_FLUSH, .type = PTR_TAG));
     // TODO emit VMCALL to vm_callcc stub, save result.  vm_callcc will have to do
     //        BOTH capture_stack_closure, but ALSO call_with_captured_stack stack setup
     //         with base and callee_stack frames.
-    // TODO clear ALL shadow stack, reset to same offset as call_with_captured_stack
     // TODO does VMCALL reload RSTACK?  We will have to for our VMCALL_CALLCC
-    vm_add_snap(); // checkpoint since vm_callcc stub changed RSTACK
+
+    arrfree(ts->stack);
+    ts->stack = nullptr;
+    ts->stack_off = 2;
+    ts->depth = 1;
+    set_stack(state, 0, v1);
+    set_stack_len(ts, 2);
+
+    // Setup the correct resume stub.
+    auto callcc_arg = stack[instr.data];
+    assert(is_closure(callcc_arg));
+    auto func = to_closure(callcc_arg)->v[0];
+    assert(is_func(func));
+    vm_add_snap(state, (bc *)(&to_func(func)->data[to_func(func)->const_cnt *
+                                                   sizeof(gc_obj)]),
+                argcnt); // checkpoint since vm_callcc stub changed RSTACK
     break;
   case OP_CALLCC_RESUME:
     record_abort(state, &op_table, "can't record CALLCC_RESUME");
