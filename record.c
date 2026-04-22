@@ -1588,12 +1588,21 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
     break;
   }
-    // Nothing to record.
+    // Nothing to record, will error out in VM.
   case OP_ARGCNT_ERROR:
   case OP_HALT:
     break;
   case OP_CALLCC:
-    record_abort(state, &op_table, "can't record CALLCC");
+    // load v1 = stack[instr.data]
+    // TODO do we need to guard that v1 is the same as recorded????
+    vm_add_snap(); // only for IR_FLUSH use
+    // TODO emit IR_FLUSH
+    // TODO emit VMCALL to vm_callcc stub, save result.  vm_callcc will have to do
+    //        BOTH capture_stack_closure, but ALSO call_with_captured_stack stack setup
+    //         with base and callee_stack frames.
+    // TODO clear ALL shadow stack, reset to same offset as call_with_captured_stack
+    // TODO does VMCALL reload RSTACK?  We will have to for our VMCALL_CALLCC
+    vm_add_snap(); // checkpoint since vm_callcc stub changed RSTACK
     break;
   case OP_CALLCC_RESUME:
     record_abort(state, &op_table, "can't record CALLCC_RESUME");
