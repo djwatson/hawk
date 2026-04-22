@@ -9,8 +9,8 @@
 [x] values / call-with-values / multi-value returns in opcodes!
    [ ] fix call/cc multi-value returns
 [x] Loops 
-   [ ] loop tracing.
-    
+   [x] loop tracing.
+   [ ]  more optimization of tracing interaction??
 [ ] remove custom hashtable after we have a real eq? hashtable
 [ ] Record every OPcode:
   * APPLY (+ the resulting call FUNC or IFUNC)

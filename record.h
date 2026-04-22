@@ -24,6 +24,7 @@ typedef struct trace_state {
   bc *start_ins;
   bool start_is_ret;
   uint8_t depth;
+  uint8_t loop_unroll;
   bc **downrec;
   const snap *poly_entry;
   uint32_t start_record_size;

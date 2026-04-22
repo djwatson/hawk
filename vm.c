@@ -63,7 +63,8 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
       prev_hot < *hot_loc &&
 #endif
       op_table == state->impls && state->record.cur_trace == nullptr &&
-      (pc->op == OP_FUNC || pc->op == OP_RET || pc->op == OP_RETN)) {
+      (pc->op == OP_FUNC || pc->op == OP_LOOP || pc->op == OP_RET ||
+       pc->op == OP_RETN)) {
     if (state->record.cur_trace != nullptr) {
       printf("Record while recording???\n");
       abort();
@@ -231,13 +232,16 @@ static inline gc_obj emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
 static void trace_reset(vm_state *state) {
   arr_for_each(state->record.traces, trace) {
     if (!trace->parent_snap && trace->start_ins &&
-        trace->start_ins->op == OP_JFUNC) {
+        (trace->start_ins->op == OP_JFUNC ||
+         trace->start_ins->op == OP_JLOOP)) {
       *trace->start_ins = trace->start_pc;
     }
   }
   arr_for_each(state->record.penalty_pcs, pc) {
     if (pc->op == OP_IFUNC) {
       pc->op = OP_FUNC;
+    } else if (pc->op == OP_ILOOP) {
+      pc->op = OP_LOOP;
     } else if (pc->op == OP_IRET) {
       pc->op = OP_RET;
     }
@@ -358,11 +362,11 @@ gc_obj halt(vm_state *state, gc_obj *stack) {
         side_traces++;
         continue;
       }
-      if (t->start_pc.op == OP_RET) {
+      if (t->start_pc.op == OP_RET || t->start_pc.op == OP_IRET) {
         ret_traces++;
         continue;
       }
-      if (t->start_pc.op == OP_FUNC) {
+      if (t->start_pc.op == OP_FUNC || t->start_pc.op == OP_IFUNC) {
         bool last_snap_has_offset = false;
         if (arrlen(t->snaps) > 0) {
           auto last_snap = &t->snaps[arrlen(t->snaps) - 1];
@@ -373,6 +377,10 @@ gc_obj halt(vm_state *state, gc_obj *stack) {
         } else {
           normal_loop_traces++;
         }
+        continue;
+      }
+      if (t->start_pc.op == OP_LOOP || t->start_pc.op == OP_ILOOP) {
+        normal_loop_traces++;
       }
     }
     printf("Trace counts (%li total):\n", (long)arrlen(traces));
@@ -548,10 +556,10 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   // If we're exiting to a JFUNC, it means we've failed some check at
   // the start of a trace (otherwise we would have linked to it). Run
   // the code in the VM instead.
-  if ((*pc)->op == OP_JFUNC) {
+  if ((*pc)->op == OP_JFUNC || (*pc)->op == OP_JLOOP) {
     auto trace = traces[(*pc)->data];
     *instr = trace->start_pc;
-    assert(instr->op != OP_JFUNC);
+    assert(instr->op != OP_JFUNC && instr->op != OP_JLOOP);
   }
   // Check for side trace start.
   if (res.snap->exits < 255) {
@@ -784,6 +792,10 @@ OP(IFUNC) {
   END
 }
 
+OP(ILOOP) {
+  END_NEXT
+}
+
 OP(JFUNC) {
   auto trace = state->record.traces[instr.data];
   auto start = trace->start_pc;
@@ -800,6 +812,13 @@ OP(JFUNC) {
   /* if ((*pc).op != instr.op) { */
   /*   abort(); */
   /* } */
+  op_func impl = ((op_func *)op_table)[instr.op];
+  MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
+  END
+}
+
+OP(JLOOP) {
+  op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
   op_func impl = ((op_func *)op_table)[instr.op];
   MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
   END
@@ -871,6 +890,11 @@ OP(CLOSURE) {
 }
 
 OP(LOOP) {
+  auto old_ops = op_table;
+  op_table = check_record_start(pc, stack, state, op_table, argcnt);
+  if (op_table == old_ops) {
+    state->hotmap[hotmap_hash(pc)] -= (hotmap_loop - 1);
+  }
   END_NEXT
 }
 

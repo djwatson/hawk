@@ -23,6 +23,14 @@
 
 static bool is_downrec_trace(trace_state *ts) { return ts->start_is_ret; }
 
+static bool is_loop_entry_op(ops op) {
+  return op == OP_LOOP || op == OP_ILOOP;
+}
+
+static bool is_func_entry_op(ops op) {
+  return op == OP_FUNC || op == OP_IFUNC;
+}
+
 enum {
   BLACKLIST_MAX = 32,
   func_flag_rest = 1,
@@ -57,11 +65,20 @@ static void penalty_pc(record_state *record, bc *pc, bool downrec) {
       if (pc->op == OP_FUNC) {
         pc->op = OP_IFUNC;
         arrput(record->penalty_pcs, pc);
+      } else if (pc->op == OP_LOOP) {
+        pc->op = OP_ILOOP;
+        arrput(record->penalty_pcs, pc);
+      } else if (pc->op == OP_JLOOP) {
+        trace *linked = record->traces[pc->data];
+        if (is_loop_entry_op(linked->start_pc.op)) {
+          linked->start_pc.op = OP_ILOOP;
+        }
       } else if (downrec && pc->op == OP_RET) {
         pc->op = OP_IRET;
         arrput(record->penalty_pcs, pc);
       } else {
-        printf("Can't blacklist %s: not OP_FUNC %s\n", func_name_from_pc(pc),
+        printf("Can't blacklist %s: unsupported root op %s\n",
+               func_name_from_pc(pc),
                bc_names[pc->op]);
       }
     }
@@ -719,7 +736,7 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
   state->max_trace--;
   if (!cur_trace->parent_snap) {
     *cur_trace->start_ins = (bc){
-        .op = OP_JFUNC,
+        .op = is_loop_entry_op(cur_trace->start_pc.op) ? OP_JLOOP : OP_JFUNC,
         .data = record_trace_count(state),
     };
   }
@@ -744,6 +761,8 @@ static inline bc *func_body_pc(bc *pc) {
   auto next = pc + 1;
   return next + 1;
 }
+
+static inline bc *loop_body_pc(bc *pc) { return pc + 1; }
 // Nothing necessary for record - we will check in emit_snapshot - checks will
 // be elided if we never hit a snapshot!
 static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
@@ -807,7 +826,8 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
     if (verbose) {
       printf("Arg match? trace %i\n", candidate->num);
     }
-    bool needs_guard[REG_ARG_CNT] = {0};
+    bool needs_guard[UINT8_MAX + 1] = {0};
+    uint8_t max_guard_slot = 0;
     bool match = true;
     size_t entry_ir_start = candidate->snaps[0].ir;
     size_t entry_ir_end = candidate->snaps[1].ir;
@@ -822,6 +842,9 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
       }
       auto arg_idx = candidate->ins[ins->op1.loc].data;
       needs_guard[arg_idx] = true;
+      if (arg_idx > max_guard_slot) {
+        max_guard_slot = arg_idx;
+      }
       if (get_type_tag(stack[arg_idx]) != ins->type) {
         match = false;
         break;
@@ -832,7 +855,7 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
     // re-applied from the side trace's outgoing state. If an arg isn't in the
     // outgoing snapshot (not live/changed), linking here would skip a
     // required type guard on re-entry.
-    for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
+    for (uint16_t arg_idx = 0; arg_idx <= max_guard_slot; arg_idx++) {
       if (!needs_guard[arg_idx]) {
         continue;
       }
@@ -852,7 +875,7 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
       printf("  matched trace %i\n", candidate->num);
       printf("  needs_guard:");
       bool any_needs_guard = false;
-      for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
+      for (uint16_t arg_idx = 0; arg_idx <= max_guard_slot; arg_idx++) {
         if (needs_guard[arg_idx]) {
           printf(" %d", arg_idx);
           any_needs_guard = true;
@@ -865,7 +888,7 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
     }
 
     if (cur_trace) {
-      for (int arg_idx = 0; arg_idx < REG_ARG_CNT; arg_idx++) {
+      for (uint16_t arg_idx = 0; arg_idx <= max_guard_slot; arg_idx++) {
         if (!needs_guard[arg_idx]) {
           continue;
         }
@@ -1200,6 +1223,17 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
     break;
   }
+  case OP_JLOOP: {
+    instr = *pc;
+    trace *target = state->record.traces[pc->data];
+    trace_match match =
+        ensure_args_match_trace(state, stack, target, cur_trace);
+    cur_trace->link = match.trace;
+    cur_trace->link_entry_snap = match.matched ? 1 : 0;
+    record_finish(pc, state, &op_table, "linked to loop trace", argcnt);
+    instr = *pc;
+    break;
+  }
   case OP_JFUNC: {
     instr = *pc;
     auto cur_trace = record_current_trace(state);
@@ -1232,6 +1266,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     record_abort(state, &op_table, "Root trace to JFUNC");
     instr = target->start_pc;
 
+    break;
+  }
+  case OP_ILOOP: {
+    set_stack_len(ts, instr.reg + instr.data);
     break;
   }
   case OP_IF: {
@@ -1308,7 +1346,29 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_LOOP: {
-    abort();
+    set_stack_len(ts, instr.reg + instr.data);
+    auto old_ops = op_table;
+    op_table = check_record_start(pc, stack, state, op_table, argcnt);
+    if (op_table != old_ops) {
+      instr = *pc;
+      break;
+    }
+    if (pc == ts->start_ins) {
+      break;
+    }
+    const char *msg = nullptr;
+    if (!cur_trace->parent_snap) {
+      msg = "root trace hit untraced loop";
+    } else if (ts->loop_unroll++ >= 3) {
+      msg = "unroll limit reached in loop for side trace";
+    }
+    if (msg) {
+      record_abort(state, &op_table, msg);
+      record_start(state, pc, *pc, stack, argcnt);
+      MUSTTAIL return record(*pc, pc, stack, state, state->record_impls,
+                             argcnt);
+    }
+    break;
   }
   case OP_LCALL:
   case OP_LCALLT: {
@@ -1570,6 +1630,9 @@ static bc *record_entry_resume_pc(bc *pc, bc instr) {
   case OP_FUNC:
   case OP_IFUNC:
     return func_body_pc(pc);
+  case OP_LOOP:
+  case OP_ILOOP:
+    return loop_body_pc(pc);
   case OP_RET:
   case OP_RETN:
     return pc;
@@ -1585,8 +1648,8 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
   // OK! Let's put function arguments in registers.
   // Note these *must* be marked as 'changed', since ARGS aren't saved between
   // trace loops at all.
-  assert(instr.op == OP_FUNC || instr.op == OP_IFUNC || instr.op == OP_RET ||
-         instr.op == OP_RETN);
+  assert(is_func_entry_op(instr.op) || is_loop_entry_op(instr.op) ||
+         instr.op == OP_RET || instr.op == OP_RETN);
   switch (instr.op) {
   case OP_FUNC:
   case OP_IFUNC:
@@ -1617,6 +1680,17 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
     }
     break;
   }
+  case OP_LOOP:
+  case OP_ILOOP:
+    for (int i = 0; i < MIN(instr.data, REG_ARG_CNT); i++) {
+      uint8_t slot = (uint8_t)(instr.reg + i);
+      uint8_t type = get_type_tag(stack[slot]);
+      set_stack(state, slot,
+                add_inst(state, IR(.op = IR_ARG, .data = slot,
+                                   .type = type == FLONUM_TAG ? UNDEFINED_TAG
+                                                              : type)));
+    }
+    break;
   default:
     abort();
   }
@@ -1658,6 +1732,19 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
     }
     break;
   }
+  case OP_LOOP:
+  case OP_ILOOP:
+    for (int i = 0; i < MIN(instr.data, REG_ARG_CNT); i++) {
+      uint8_t slot = (uint8_t)(instr.reg + i);
+      auto s = get_sentry(state, slot);
+      uint8_t type = get_type_tag(stack[slot]);
+      auto checked =
+          add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc, .type = type));
+      if (type == FLONUM_TAG) {
+        set_stack(state, slot, checked);
+      }
+    }
+    break;
   default:
     abort();
   }
@@ -1689,7 +1776,7 @@ void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   (void)instr;
   bc *start_pc = side_snap->trace->start_ins;
   bc start_ins = side_snap->trace->start_pc;
-  assert(start_ins.op != OP_JFUNC);
+  assert(start_ins.op != OP_JFUNC && start_ins.op != OP_JLOOP);
   record_begin_trace(state, start_pc, start_ins);
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
@@ -1711,7 +1798,7 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   if (verbose) {
     printf("Record start side %i\n", record_trace_count(state));
   }
-  assert(instr.op != OP_JFUNC);
+  assert(instr.op != OP_JFUNC && instr.op != OP_JLOOP);
   record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
