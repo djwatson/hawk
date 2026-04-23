@@ -670,7 +670,9 @@ static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
   emit_mov64(s, RTMP, (intptr_t)&vm_callcc_slow);
   emit_call_reg(s, RTMP);
   emit_load_ralloc(s);
-  emit_mov(s, RSTACK, RET_REG2);
+  // vm_callcc_slow returns the callee frame, but the recorder resets
+  // stack_off to 2 and keeps subsequent stack slots relative to stack_bottom.
+  emit_sub_constant(s, RSTACK, RET_REG2, (int64_t)(sizeof(gc_obj) * 2));
 
   if (dst_reg != RET_REG && dst_reg != REG_NONE) {
     emit_mov(s, dst_reg, RET_REG);
