@@ -648,11 +648,6 @@ static bool vm_call_expects_false(ir_ins_op op) { return op == IR_VMJNEQV; }
 static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
                         uint16_t op_cnt_idx, ir_ins const *op, slot *args,
                         uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg) {
-  uint8_t save_regs[FPR_REG_END];
-  size_t save_count =
-      collect_live_caller_saved_regs(t, ra_state, op_cnt_idx, save_regs);
-  emit_push_regs(s, save_regs, save_count, true);
-
   slot callcc_arg = op->op1;
   uint8_t arg_src = emit_arg_reg(args, arg_regs, arg_count, callcc_arg);
   if (!callcc_arg.constant && arg_src == REG_NONE) {
@@ -670,6 +665,10 @@ static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
   emit_mov64(s, RTMP, (intptr_t)&vm_callcc_slow);
   emit_call_reg(s, RTMP);
   emit_load_ralloc(s);
+  // IR_CALLCC is treated as a VM call by regalloc, so any live values after
+  // this point already have spill slots. Do not preserve caller-saved regs on
+  // the host stack here: vm_callcc_slow may GC, which would leave those saved
+  // copies stale while the spill/VM stack roots are updated.
   // vm_callcc_slow returns the callee frame, but the recorder resets
   // stack_off to 2 and keeps subsequent stack slots relative to stack_bottom.
   emit_sub_constant(s, RSTACK, RET_REG2, (int64_t)(sizeof(gc_obj) * 2));
@@ -677,7 +676,6 @@ static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
   if (dst_reg != RET_REG && dst_reg != REG_NONE) {
     emit_mov(s, dst_reg, RET_REG);
   }
-  emit_pop_regs(s, save_regs, save_count, true);
   invalidate_live_regs_for_call(t, ra_state, dst_reg);
 }
 

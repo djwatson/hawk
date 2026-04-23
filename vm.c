@@ -349,7 +349,9 @@ static inline void call_with_captured_stack(bc **pc, gc_obj **stack,
 
 vm_callcc_result vm_callcc_slow(vm_state *state, gc_obj *stack,
                                 gc_obj callcc_arg) {
+  gc_add_root((const void *)&callcc_arg, 1, 0);
   gc_obj captured_stack = capture_stack_closure(state, stack);
+  gc_remove_root((const void *)&callcc_arg, 0);
   bc *pc = nullptr;
   uint64_t argcnt = 0;
   stack = state->stack_bottom;
