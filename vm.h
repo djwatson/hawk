@@ -8,6 +8,11 @@
 
 struct vm_state;
 
+typedef struct {
+  gc_obj value;
+  gc_obj *stack;
+} vm_callcc_result;
+
 typedef gc_obj PRESERVE_NONE (*op_func)(bc instr, bc *pc, gc_obj *stack,
                                         struct vm_state *state, void *op_table,
                                         uint64_t argcnt);
@@ -29,4 +34,6 @@ typedef struct vm_state {
 
 gc_obj vm(bcfunc *func, gc_obj arg1);
 gc_obj *expand_stack(vm_state *state, gc_obj *stack);
+vm_callcc_result vm_callcc_slow(vm_state *state, gc_obj *stack,
+                                gc_obj callcc_arg);
 void vm_trace_reset(void);

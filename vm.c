@@ -347,6 +347,16 @@ static inline void call_with_captured_stack(bc **pc, gc_obj **stack,
   *pc = (bc *)(&bfunc->data[bfunc->const_cnt * sizeof(gc_obj)]);
 }
 
+vm_callcc_result vm_callcc_slow(vm_state *state, gc_obj *stack,
+                                gc_obj callcc_arg) {
+  gc_obj captured_stack = capture_stack_closure(state, stack);
+  bc *pc = nullptr;
+  uint64_t argcnt = 0;
+  stack = state->stack_bottom;
+  call_with_captured_stack(&pc, &stack, callcc_arg, captured_stack, &argcnt);
+  return (vm_callcc_result){.value = captured_stack, .stack = stack};
+}
+
 gc_obj halt(vm_state *state, gc_obj *stack) {
   profiler_stop();
   jit_dump_close();

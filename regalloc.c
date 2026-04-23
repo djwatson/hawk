@@ -68,6 +68,7 @@ static bool ir_is_vm_call(ir_ins_op op) {
   case IR_VMINEXACT:
   case IR_VMEXACT:
   case IR_VMTRUNCATE:
+  case IR_CALLCC:
     return true;
   default:
     return false;

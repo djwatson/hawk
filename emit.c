@@ -645,6 +645,40 @@ static bool vm_call_is_cmp(ir_ins_op op) {
 
 static bool vm_call_expects_false(ir_ins_op op) { return op == IR_VMJNEQV; }
 
+static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
+                        uint16_t op_cnt_idx, ir_ins const *op, slot *args,
+                        uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg) {
+  uint8_t save_regs[FPR_REG_END];
+  size_t save_count =
+      collect_live_caller_saved_regs(t, ra_state, op_cnt_idx, save_regs);
+  emit_push_regs(s, save_regs, save_count, true);
+
+  slot callcc_arg = op->op1;
+  uint8_t arg_src = emit_arg_reg(args, arg_regs, arg_count, callcc_arg);
+  if (!callcc_arg.constant && arg_src == REG_NONE) {
+    abort();
+  }
+
+  emit_mov(s, RARG0, RSTATE);
+  emit_mov(s, RARG1, RSTACK);
+  if (!callcc_arg.constant && arg_src != RARG2) {
+    emit_mov(s, RARG2, arg_src);
+  }
+  emit_gcobj_arg(s, t, callcc_arg, RARG2, RARG2);
+
+  emit_store_ralloc(s);
+  emit_mov64(s, RTMP, (intptr_t)&vm_callcc_slow);
+  emit_call_reg(s, RTMP);
+  emit_load_ralloc(s);
+  emit_mov(s, RSTACK, RET_REG2);
+
+  if (dst_reg != RET_REG && dst_reg != REG_NONE) {
+    emit_mov(s, dst_reg, RET_REG);
+  }
+  emit_pop_regs(s, save_regs, save_count, true);
+  invalidate_live_regs_for_call(t, ra_state, dst_reg);
+}
+
 static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
                         uint16_t op_cnt_idx, ir_ins const *op, slot *args,
                         uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg,
@@ -1755,6 +1789,11 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       if (dst_reg != RSTACK) {
         emit_mov(s, dst_reg, RSTACK);
       }
+      break;
+    }
+    case IR_CALLCC: {
+      emit_callcc(s, t, ra_state, op_cnt_idx, op, args, arg_regs, arg_count,
+                  dst_reg);
       break;
     }
     case IR_VMADD:
