@@ -23,13 +23,9 @@
 
 static bool is_downrec_trace(trace_state *ts) { return ts->start_is_ret; }
 
-static bool is_loop_entry_op(ops op) {
-  return op == OP_LOOP || op == OP_ILOOP;
-}
+static bool is_loop_entry_op(ops op) { return op == OP_LOOP || op == OP_ILOOP; }
 
-static bool is_func_entry_op(ops op) {
-  return op == OP_FUNC || op == OP_IFUNC;
-}
+static bool is_func_entry_op(ops op) { return op == OP_FUNC || op == OP_IFUNC; }
 
 enum {
   BLACKLIST_MAX = 32,
@@ -78,8 +74,7 @@ static void penalty_pc(record_state *record, bc *pc, bool downrec) {
         arrput(record->penalty_pcs, pc);
       } else {
         printf("Can't blacklist %s: unsupported root op %s\n",
-               func_name_from_pc(pc),
-               bc_names[pc->op]);
+               func_name_from_pc(pc), bc_names[pc->op]);
       }
     }
     return;
@@ -1313,6 +1308,16 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       auto c_res = c->v[clo_slot];
       res = add_const(state, c_res);
     } else {
+      if (!clo.constant) {
+        // TODO this is fucking broken:
+        // we're lazily typechecking things, it may not have been marked as
+        // 'closure'
+        // ????.  Maybe the original trace had a memv lookup or something
+        // where the type was variable.
+        // We MIGHT need a typecheck here, I think the compiler actually DOES
+        // emit CLOSURE_GET sometimes when we NEED to typecheck as a closure????
+        record_current_trace(state)->ins[clo.loc].type = CLOSURE_TAG;
+      }
       slot c_pos = add_const(state, tag_fixnum(clo_slot + 1));
       gc_obj clo_obj = stack[instr.v1];
       gc_obj loaded = to_closure(clo_obj)->v[clo_slot];
@@ -1616,8 +1621,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto v1 = stack_load(state, stack, instr.data, true);
     if (!v1.constant) {
       slot code_slot = add_const(state, tag_fixnum(1));
-      slot func = add_inst(
-          state, IR(.op = IR_LOAD, .op1 = v1, .op2 = code_slot, .type = FUNC_TAG));
+      slot func = add_inst(state, IR(.op = IR_LOAD, .op1 = v1, .op2 = code_slot,
+                                     .type = FUNC_TAG));
       slot must_be = add_const(state, to_closure(stack[instr.data])->v[0]);
       add_inst(state, IR(.op = IR_EQ, .op1 = func, .op2 = must_be));
     }
@@ -1639,9 +1644,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     assert(is_closure(callcc_arg));
     auto func = to_closure(callcc_arg)->v[0];
     assert(is_func(func));
-    vm_add_snap(state, (bc *)(&to_func(func)->data[to_func(func)->const_cnt *
-                                                   sizeof(gc_obj)]),
-                2); // checkpoint since vm_callcc stub changed RSTACK
+    vm_add_snap(
+        state,
+        (bc *)(&to_func(func)->data[to_func(func)->const_cnt * sizeof(gc_obj)]),
+        2); // checkpoint since vm_callcc stub changed RSTACK
     break;
   case OP_CALLCC_RESUME: {
     auto captured = stack_load(state, stack, 0, true);
@@ -1653,8 +1659,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
     auto clo = to_closure(stack[0]);
     int64_t len = to_fixnum(clo->len);
-    if (len < 1 ||
-        clo->v[0].value != vm_callcc_resume_func_obj().value) {
+    if (len < 1 || clo->v[0].value != vm_callcc_resume_func_obj().value) {
       record_abort(state, &op_table, "CALLCC_RESUME invalid continuation");
       instr = *pc;
       break;
@@ -1675,8 +1680,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto expected_ra = add_const(state, resume_ra);
     add_inst(state, IR(.op = IR_EQ, .op1 = dest, .op2 = expected_ra));
 
-    add_inst(state, IR(.op = IR_CALLCC_RESUME, .op1 = captured,
-                       .type = PTR_TAG));
+    add_inst(state,
+             IR(.op = IR_CALLCC_RESUME, .op1 = captured, .type = PTR_TAG));
 
     auto new_pc = to_return_address(resume_ra);
     auto old_pc = new_pc - 1;
