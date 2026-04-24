@@ -710,10 +710,10 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
                         uint16_t op_cnt_idx, ir_ins const *op, slot *args,
                         uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg,
                         int32_t cur_snap) {
-  uint8_t save_regs[FPR_REG_END];
-  size_t save_count =
-      collect_live_caller_saved_regs(t, ra_state, op_cnt_idx, save_regs);
-  emit_push_regs(s, save_regs, save_count, true);
+  /* uint8_t save_regs[FPR_REG_END]; */
+  /* size_t save_count = */
+  /*     collect_live_caller_saved_regs(t, ra_state, op_cnt_idx, save_regs); */
+  /* emit_push_regs(s, save_regs, save_count, true); */
 
   slot a0 = op->op1;
   uint8_t a0_src = emit_arg_reg(args, arg_regs, arg_count, a0);
@@ -754,7 +754,7 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
     // Restore caller-saved regs before branching, but preserve VM compare
     // result in a scratch reg so stack pointer fixups cannot affect cmp/jcc.
     emit_mov(s, RTMP, RET_REG);
-    emit_pop_regs(s, save_regs, save_count, true);
+    // emit_pop_regs(s, save_regs, save_count, true);
     emit_cmp_constant(s, RTMP, FALSE_REP.value);
     emit_jcc32(s, vm_call_expects_false(op->op) ? JNE : JE,
                &t->snaps[cur_snap].patch_point);
@@ -766,7 +766,7 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
     } else if (dst_reg != REG_NONE) {
       out_reg = dst_reg;
     }
-    emit_pop_regs(s, save_regs, save_count, true);
+    // emit_pop_regs(s, save_regs, save_count, true);
     if (cur_snap >= 0) {
       emit_typecheck(s, t, op, cur_snap, out_reg);
     }

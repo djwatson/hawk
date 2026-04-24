@@ -1019,7 +1019,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     set_stack_top(state, instr.reg + 1);
     stack_save(state, stack, instr.reg,
                add_inst(state, IR(.op = IR_VMMEMQ, .op1 = v1, .op2 = v2,
-                                  .type = get_type_tag(res))));
+                                  .guard = false, .type = get_type_tag(res))));
     break;
   }
   case OP_MEMV: {
@@ -1029,7 +1029,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     set_stack_top(state, instr.reg + 1);
     stack_save(state, stack, instr.reg,
                add_inst(state, IR(.op = IR_VMMEMV, .op1 = v1, .op2 = v2,
-                                  .type = get_type_tag(res))));
+                                  .guard = false, .type = get_type_tag(res))));
     break;
   }
   case OP_INEXACT: {
