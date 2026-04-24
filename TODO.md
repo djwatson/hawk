@@ -14,7 +14,7 @@
 [ ] remove custom hashtable after we have a real eq? hashtable
 [ ] Record every OPcode:
   * APPLY (+ the resulting call FUNC or IFUNC)
-  * CALLCC & CALLCCRESUME
+  [X] CALLCC & CALLCCRESUME
   * boxing in FFI
 [ ] Better inlining of existing, like change 3+ args to binops for +,-, etc
 [ ] Inline a bunch of VM primitives to opcodes to make things faster

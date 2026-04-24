@@ -36,4 +36,6 @@ gc_obj vm(bcfunc *func, gc_obj arg1);
 gc_obj *expand_stack(vm_state *state, gc_obj *stack);
 vm_callcc_result vm_callcc_slow(vm_state *state, gc_obj *stack,
                                 gc_obj callcc_arg);
+gc_obj vm_callcc_resume_func_obj(void);
+gc_obj *vm_callcc_resume_slow(vm_state *state, gc_obj captured);
 void vm_trace_reset(void);

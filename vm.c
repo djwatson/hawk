@@ -303,7 +303,7 @@ static struct {
     .code = {{.op = OP_CALLCC_RESUME, .reg = 0}},
 };
 
-static inline gc_obj callcc_resume_func_obj() {
+gc_obj vm_callcc_resume_func_obj(void) {
   return tag_func((bcfunc *)&callcc_resume_func);
 }
 
@@ -318,7 +318,7 @@ static inline gc_obj capture_stack_closure(vm_state *state, gc_obj *stack) {
   closure_s *captured = gc_alloc(bytes);
   captured->header.type = CLOSURE_TAG;
   captured->len = tag_fixnum((int64_t)payload_words);
-  captured->v[0] = callcc_resume_func_obj();
+  captured->v[0] = vm_callcc_resume_func_obj();
   memcpy(&captured->v[1], state->stack_bottom, sizeof(gc_obj) * words);
   return tag_closure(captured);
 }
@@ -357,6 +357,17 @@ vm_callcc_result vm_callcc_slow(vm_state *state, gc_obj *stack,
   stack = state->stack_bottom;
   call_with_captured_stack(&pc, &stack, callcc_arg, captured_stack, &argcnt);
   return (vm_callcc_result){.value = captured_stack, .stack = stack};
+}
+
+gc_obj *vm_callcc_resume_slow(vm_state *state, gc_obj captured) {
+  auto clo = to_closure(captured);
+  size_t saved_words = (size_t)(to_fixnum(clo->len) - 1);
+  gc_obj *restored_top = state->stack_bottom + saved_words;
+  while (restored_top >= state->stack_limit) {
+    restored_top = expand_stack(state, restored_top);
+  }
+  memcpy(state->stack_bottom, &clo->v[1], sizeof(gc_obj) * saved_words);
+  return restored_top;
 }
 
 gc_obj halt(vm_state *state, gc_obj *stack) {
@@ -1103,16 +1114,11 @@ OP(CALLCC_RESUME) {
   if (len < 1) {
     abort();
   }
-  if (clo->v[0].value != callcc_resume_func_obj().value) {
+  if (clo->v[0].value != vm_callcc_resume_func_obj().value) {
     abort();
   }
 
-  size_t saved_words = (size_t)(len - 1);
-  gc_obj *restored_top = state->stack_bottom + saved_words;
-  while (restored_top >= state->stack_limit) {
-    restored_top = expand_stack(state, restored_top);
-  }
-  memcpy(state->stack_bottom, &clo->v[1], sizeof(gc_obj) * saved_words);
+  gc_obj *restored_top = vm_callcc_resume_slow(state, captured);
 
   auto new_pc = to_return_address(restored_top[-1]);
   auto old_pc = new_pc - 1;

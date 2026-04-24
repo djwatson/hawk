@@ -654,11 +654,11 @@ static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
     abort();
   }
 
-  emit_mov(s, RARG0, RSTATE);
   emit_mov(s, RARG1, RSTACK);
   if (!callcc_arg.constant && arg_src != RARG2) {
     emit_mov(s, RARG2, arg_src);
   }
+  emit_mov(s, RARG0, RSTATE);
   emit_gcobj_arg(s, t, callcc_arg, RARG2, RARG2);
 
   emit_store_ralloc(s);
@@ -677,6 +677,29 @@ static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
     emit_mov(s, dst_reg, RET_REG);
   }
   invalidate_live_regs_for_call(t, ra_state, dst_reg);
+}
+
+static void emit_callcc_resume(emit_state *s, trace *t,
+                               regalloc_state *ra_state, uint16_t op_cnt_idx,
+                               ir_ins const *op, slot *args, uint8_t *arg_regs,
+                               uint8_t arg_count) {
+  (void)op_cnt_idx;
+  slot captured = op->op1;
+  uint8_t captured_src = emit_arg_reg(args, arg_regs, arg_count, captured);
+  if (!captured.constant && captured_src == REG_NONE) {
+    abort();
+  }
+
+  if (!captured.constant) {
+    emit_mov(s, RARG1, captured_src);
+  }
+  emit_mov(s, RARG0, RSTATE);
+  emit_gcobj_arg(s, t, captured, RARG1, RARG1);
+
+  emit_mov64(s, RTMP, (intptr_t)&vm_callcc_resume_slow);
+  emit_call_reg(s, RTMP);
+  emit_mov(s, RSTACK, RET_REG);
+  invalidate_live_regs_for_call(t, ra_state, REG_NONE);
 }
 
 static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
@@ -1733,6 +1756,28 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
 
       break;
     }
+    case IR_STACK_STORE: {
+      assert(op->op2.constant);
+      uint8_t val_reg = arg0_reg;
+      if (op->op1.constant) {
+        val_reg = RTMP;
+        emit_heap_constant(s, t, val_reg, slot_gc_obj(t, op->op1));
+      } else {
+        assert(val_reg != REG_NONE);
+      }
+      if (is_fpr_reg(val_reg)) {
+        bool live_regs[MAX_REG];
+        uint64_t live_gpr_mask;
+        collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs,
+                           &live_gpr_mask);
+        emit_box_flonum(s, 0, val_reg, false, live_regs, live_gpr_mask);
+        val_reg = RTMP;
+      }
+      int64_t stack_off = slot_const(t, op->op2);
+      assert((int32_t)stack_off == stack_off);
+      emit_store(s, (int32_t)stack_off, RSTACK, val_reg);
+      break;
+    }
     case IR_ALLOC: {
       assert(op->op2.constant);
       uint64_t type_val = (uint64_t)(slot_const(t, op->op2) >> FIXNUM_SHIFT);
@@ -1794,6 +1839,11 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     case IR_CALLCC: {
       emit_callcc(s, t, ra_state, op_cnt_idx, op, args, arg_regs, arg_count,
                   dst_reg);
+      break;
+    }
+    case IR_CALLCC_RESUME: {
+      emit_callcc_resume(s, t, ra_state, op_cnt_idx, op, args, arg_regs,
+                         arg_count);
       break;
     }
     case IR_VMADD:

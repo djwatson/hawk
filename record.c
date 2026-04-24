@@ -1609,7 +1609,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     arrfree(ts->stack);
     ts->stack = nullptr;
     ts->stack_off = 2;
-    ts->depth = 0;
+    ts->depth = 1;
     set_stack(state, 0, v1);
     set_stack(state, 1, captured_stack);
     set_stack_len(ts, 2);
@@ -1623,9 +1623,57 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                                                    sizeof(gc_obj)]),
                 2); // checkpoint since vm_callcc stub changed RSTACK
     break;
-  case OP_CALLCC_RESUME:
-    record_abort(state, &op_table, "can't record CALLCC_RESUME");
+  case OP_CALLCC_RESUME: {
+    auto captured = stack_load(state, stack, 0, true);
+    auto result = stack_load(state, stack, 1, false);
+    if (!is_closure(stack[0])) {
+      record_abort(state, &op_table, "CALLCC_RESUME non-closure");
+      instr = *pc;
+      break;
+    }
+    auto clo = to_closure(stack[0]);
+    int64_t len = to_fixnum(clo->len);
+    if (len < 1 ||
+        clo->v[0].value != vm_callcc_resume_func_obj().value) {
+      record_abort(state, &op_table, "CALLCC_RESUME invalid continuation");
+      instr = *pc;
+      break;
+    }
+
+    slot func_off = add_const(state, tag_fixnum(1));
+    auto func = add_inst(state, IR(.op = IR_LOAD, .op1 = captured,
+                                   .op2 = func_off, .type = FUNC_TAG));
+    auto must_be = add_const(state, vm_callcc_resume_func_obj());
+    add_inst(state, IR(.op = IR_EQ, .op1 = func, .op2 = must_be));
+
+    slot len_off = add_const(state, tag_fixnum(0));
+    auto dyn_len = add_inst(state, IR(.op = IR_LOAD, .op1 = captured,
+                                      .op2 = len_off, .type = FIXNUM_TAG));
+    auto dest = add_inst(state, IR(.op = IR_LOAD, .op1 = captured,
+                                   .op2 = dyn_len, .type = UNDEFINED_TAG));
+    gc_obj resume_ra = clo->v[len - 1];
+    auto expected_ra = add_const(state, resume_ra);
+    add_inst(state, IR(.op = IR_EQ, .op1 = dest, .op2 = expected_ra));
+
+    add_inst(state, IR(.op = IR_CALLCC_RESUME, .op1 = captured,
+                       .type = PTR_TAG));
+
+    auto new_pc = to_return_address(resume_ra);
+    auto old_pc = new_pc - 1;
+    auto offset = old_pc->reg + 1;
+    ts->depth = 0;
+    ts->stack_off = 0;
+    set_stack_len(ts, 0);
+    auto const_ra = add_const(state, resume_ra);
+    auto const_offset = add_const(state, tag_fixnum(offset));
+    add_inst(state, IR(.op = IR_RET, .op1 = const_offset, .op2 = const_ra,
+                       .type = FIXNUM_TAG));
+    auto ret_slot = add_const(state, tag_fixnum(old_pc->reg));
+    add_inst(state, IR(.op = IR_STACK_STORE, .op1 = result, .op2 = ret_slot));
+    set_stack(state, old_pc->reg, result);
+    vm_add_snap(state, new_pc, argcnt);
     break;
+  }
   default:
     abort();
     break;

@@ -62,6 +62,7 @@ typedef enum : uint8_t {
   X(GGET, ARG_IR_NONE, false)                                                  \
   X(GSET, ARG_IR_IR, true)                                                     \
   X(RET, ARG_IR_ADDR, true)                                                    \
+  X(STACK_STORE, ARG_IR_IR, true)                                              \
   X(SLOAD, ARG_STACK, false)                                                   \
   X(TYPECHECK, ARG_IR_NONE, true)                                              \
   X(PMOV, ARG_PMOV, false)                                                     \
@@ -91,6 +92,7 @@ typedef enum : uint8_t {
   X(ALLOC, ARG_IR_IR, false)                                                   \
   X(FLUSH, ARG_NONE_NONE, true)                                                \
   X(CALLCC, ARG_IR_NONE, true)                                                 \
+  X(CALLCC_RESUME, ARG_IR_NONE, true)                                          \
   X(BOX_FLONUM, ARG_IR_NONE, false)                                            \
   X(EXACT, ARG_IR_NONE, false)                                                 \
   X(INTEGER_CHAR, ARG_IR_NONE, false)                                          \
