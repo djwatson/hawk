@@ -54,6 +54,7 @@
     (< . LT)
     (> . GT)
     (eq? . EQ)
+    (eqv? . EQV)
     (= . EQV)
     (>= . GTE)
     (<= . LTE)
@@ -70,7 +71,7 @@
       1)
     (else #f)))
 
-(define nestable-primcalls '(+ - *))
+(define nestable-primcalls '(+ - * < > = >= <=))
 
 (define (nest-primcall opname args ann)
   (let loop ((rest (cdr args)) (acc (car args)))
@@ -78,6 +79,16 @@
         acc
         (loop (cdr rest)
               (build-primcall opname `(,acc ,(car rest)) ann)))))
+
+(define (nest-compare opname args ann)
+  (cond
+    ((= (length args) 2)
+      (build-primcall opname args ann))
+    (else
+      (let* ((test (build-primcall opname `(,(car args) ,(cadr args)) ann))
+             (rest-args (cons (cadr args) (cddr args)))
+             (then (nest-compare opname rest-args ann)))
+        (build-conditional test then (build-quote #f ann) ann)))))
 (define (variable-full-name var)
   (let ((name (variable-name var)) (lib (variable-library-name var)))
     (if (or (eq? lib #f) (equal? lib ""))
@@ -126,6 +137,8 @@
   table)
 
 ;; Inlines primitives
+;; TODO: not flipping, also not itself inlined
+;; TODO: types/guards
 (define (simple-pass ir)
   (cond
     ((and (ir-application? ir)
@@ -146,7 +159,10 @@
          ((and (equal? lib "")
                 (memq name nestable-primcalls)
                 (>= (length args) 2))
-             (nest-primcall (cdr (assq name primcalls)) (map simple-pass args) ann))
+             (let ((passargs (map simple-pass args)))
+               (if (memq name '(< > = >= <=))
+                   (nest-compare (cdr (assq name primcalls)) passargs ann)
+                   (nest-primcall (cdr (assq name primcalls)) passargs ann))))
            ((and (equal? lib "")
                  (assq name primcalls)
                  (let ((arity (primcall-arity name)) (nargs (length args)))
