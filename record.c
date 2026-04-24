@@ -1021,11 +1021,20 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto v1 = stack_load(state, stack, instr.v1, false);
     auto v2 = stack_load(state, stack, instr.v2, false);
     auto res = vm_memq(stack[instr.v1], stack[instr.v2]);
-    auto typ = get_type_tag(res);
     set_stack_top(state, instr.reg + 1);
     stack_save(state, stack, instr.reg,
                add_inst(state, IR(.op = IR_VMMEMQ, .op1 = v1, .op2 = v2,
-                                  .type = typ, .guard = true)));
+                                  .type = get_type_tag(res))));
+    break;
+  }
+  case OP_MEMV: {
+    auto v1 = stack_load(state, stack, instr.v1, false);
+    auto v2 = stack_load(state, stack, instr.v2, false);
+    auto res = vm_memv(stack[instr.v1], stack[instr.v2]);
+    set_stack_top(state, instr.reg + 1);
+    stack_save(state, stack, instr.reg,
+               add_inst(state, IR(.op = IR_VMMEMV, .op1 = v1, .op2 = v2,
+                                  .type = get_type_tag(res))));
     break;
   }
   case OP_INEXACT: {

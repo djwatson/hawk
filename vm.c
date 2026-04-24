@@ -239,6 +239,15 @@ gc_obj vm_memq(gc_obj obj, gc_obj list) {
   return FALSE_REP;
 }
 
+gc_obj vm_memv(gc_obj obj, gc_obj list) {
+  for (auto cur = list; is_cons(cur); cur = to_cons(cur)->b) {
+    if (obj_jeqv(obj, to_cons(cur)->a)) {
+      return cur;
+    }
+  }
+  return FALSE_REP;
+}
+
 static void trace_reset(vm_state *state) {
   arr_for_each(state->record.traces, trace) {
     if (!trace->parent_snap && trace->start_ins &&
@@ -687,6 +696,10 @@ OP_ABC(MOD) {
 }
 OP_ABC(MEMQ) {
   auto res = vm_memq(v1, v2);
+  END_ABC_NEXT
+}
+OP_ABC(MEMV) {
+  auto res = vm_memv(v1, v2);
   END_ABC_NEXT
 }
 OP_AD(INEXACT) {

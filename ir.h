@@ -77,6 +77,7 @@ typedef enum : uint8_t {
   X(VMQUOTIENT, ARG_IR_IR, true)                                               \
   X(VMMOD, ARG_IR_IR, true)                                                    \
   X(VMMEMQ, ARG_IR_IR, true)                                                   \
+  X(VMMEMV, ARG_IR_IR, true)                                                   \
   X(VMLT, ARG_IR_IR, true)                                                     \
   X(VMGT, ARG_IR_IR, true)                                                     \
   X(VMLTE, ARG_IR_IR, true)                                                    \

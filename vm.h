@@ -34,6 +34,7 @@ typedef struct vm_state {
 
 gc_obj vm(bcfunc *func, gc_obj arg1);
 gc_obj vm_memq(gc_obj obj, gc_obj list);
+gc_obj vm_memv(gc_obj obj, gc_obj list);
 gc_obj *expand_stack(vm_state *state, gc_obj *stack);
 vm_callcc_result vm_callcc_slow(vm_state *state, gc_obj *stack,
                                 gc_obj callcc_arg);

@@ -368,10 +368,10 @@
 
 (define (memv obj list)
   (let loop ((list list))
-    (if (null? list) #f (if (eq? obj (car list)) list (loop (cdr list))))))
+    (if (null? list) #f (if (eqv? obj (car list)) list (loop (cdr list))))))
 (define (memq obj list)
   (let loop ((list list))
-    (if (null? list) #f (if (eqv? obj (car list)) list (loop (cdr list))))))
+    (if (null? list) #f (if (eq? obj (car list)) list (loop (cdr list))))))
 (define member
   (case-lambda
     ((obj list) (member obj list equal?))
