@@ -63,12 +63,21 @@
   (cond
     ((eq? name 'values) 'any)
     ((eq? name 'call-with-values) 2)
-    ((memq name '(- / + * < > = >= <= quotient truncate-quotient remainder modulo))
+    ((memq name '(/ < > = >= <= quotient truncate-quotient remainder modulo))
       2)
     ((memq name
            '(exact->inexact inexact->exact char->integer integer->char display))
       1)
     (else #f)))
+
+(define nestable-primcalls '(+ - *))
+
+(define (nest-primcall opname args ann)
+  (let loop ((rest (cdr args)) (acc (car args)))
+    (if (null? rest)
+        acc
+        (loop (cdr rest)
+              (build-primcall opname `(,acc ,(car rest)) ann)))))
 (define (variable-full-name var)
   (let ((name (variable-name var)) (lib (variable-library-name var)))
     (if (or (eq? lib #f) (equal? lib ""))
@@ -134,11 +143,15 @@
             (build-primcall 'SUB (list (build-quote 0 ann) (simple-pass (car args))) ann))
           ((and (equal? lib "") (eq? name '/) (= (length args) 1))
             (build-primcall 'DIV (list (build-quote 1 ann) (simple-pass (car args))) ann))
-          ((and (equal? lib "")
-                (assq name primcalls)
-                (let ((arity (primcall-arity name)) (nargs (length args)))
-                  (or (eq? arity 'any) (and arity (= nargs arity)))))
-            (build-primcall (cdr (assq name primcalls)) (map simple-pass args) ann))
+         ((and (equal? lib "")
+                (memq name nestable-primcalls)
+                (>= (length args) 2))
+             (nest-primcall (cdr (assq name primcalls)) (map simple-pass args) ann))
+           ((and (equal? lib "")
+                 (assq name primcalls)
+                 (let ((arity (primcall-arity name)) (nargs (length args)))
+                   (or (eq? arity 'any) (and arity (= nargs arity)))))
+             (build-primcall (cdr (assq name primcalls)) (map simple-pass args) ann))
           (else (walk-ir ir simple-pass)))))
     (else (walk-ir ir simple-pass))))
 
