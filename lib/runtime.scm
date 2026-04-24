@@ -561,11 +561,18 @@
     ((string start) (substring string start (string-length string)))
     ((string start end) (substring string start end))))
 (define (str-copy-internal tostr tostart fromstr fromstart fromend)
-  (let loop ((frompos fromstart) (topos tostart))
-    (if (< frompos fromend)
-        (begin
-          (string-set! tostr topos (string-ref fromstr frompos))
-          (loop (+ frompos 1) (+ topos 1))))))
+  (sys:FOREIGN_CALL '(gc_obj "SCM_STR_COPY" (gc_obj int32 gc_obj int32 int32))
+                    tostr
+                    tostart
+                    fromstr
+                    fromstart
+                    fromend)
+  ;; (let loop ((frompos fromstart) (topos tostart))
+  ;;   (if (< frompos fromend)
+  ;;       (begin
+  ;;         (string-set! tostr topos (string-ref fromstr frompos))
+  ;;         (loop (+ frompos 1) (+ topos 1)))))
+)
 (define (substring s start end)
   (let ((new (make-string (- end start))))
     (str-copy-internal new 0 s start end)
@@ -589,10 +596,8 @@
 (define string-append
   (case-lambda
     ((a b) (string-append2 a b))
-    ((a b c)
-      (string-append2 a (string-append2 b c)))
-    ((a b c d)
-      (string-append2 a (string-append2 b (string-append2 c d))))
+    ((a b c) (string-append2 a (string-append2 b c)))
+    ((a b c d) (string-append2 a (string-append2 b (string-append2 c d))))
     ((a b c d e)
       (string-append2 a (string-append2 b (string-append2 c (string-append2 d e)))))
     (strs
@@ -1107,8 +1112,8 @@
   (if (port-fold-case port)
       (let ((s (string-copy s)))
         (do ((i 0 (+ i 1)))
-            ((= i (string-length s)) s)
-          (string-set! s i (char-downcase (string-ref s i)))))
+             ((= i (string-length s)) s)
+             (string-set! s i (char-downcase (string-ref s i)))))
       s))
 (define read
   (case-lambda
@@ -1214,9 +1219,7 @@
                           (all-subsequent? 3))
                         (else #f)))
                     ((eqv? c0 #\.)
-                      (if (> n 1) (and (dot-subsequent? (string-ref s 1))
-                                       (all-subsequent? 2))
-                          #f))
+                      (if (> n 1) (and (dot-subsequent? (string-ref s 1)) (all-subsequent? 2)) #f))
                     (else #f))))))
         (define (read-list)
           (define line-start line)
@@ -1240,8 +1243,7 @@
                               (append (reverse res) fin)))
                         (loop (cons (cond
                                       ((string->number token) => (lambda (num) num))
-                                      ((identifier? token)
-                                        (string->symbol (lower-case token)))
+                                      ((identifier? token) (string->symbol (lower-case token)))
                                       (else (error "Invalid symbol" token)))
                                     res)))))
                 (else (loop (cons (read-one) res)))))))
@@ -1282,7 +1284,8 @@
         (define (read-hash)
           (let ((c (peek-char port)))
             (case c
-              ((#\!) (read-char port)
+              ((#\!)
+                (read-char port)
                 (let ((bang (read-to-delimited)))
                   (port-fold-case-set! port
                                        (cond
@@ -1384,8 +1387,9 @@
   (let ((here *here*))
     (reroot! (cons (cons before after) here))
     (call-with-values during
-      (case-lambda ((value) (reroot! here) value)
-		   (values (reroot! here) (apply values results))))))
+                      (case-lambda
+                        ((value) (reroot! here) value)
+                        (values (reroot! here) (apply values results))))))
 
 (define (reroot! there)
   (unless (eq? *here* there)

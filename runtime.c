@@ -712,3 +712,11 @@ DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(gte, >=)
 gc_obj vm_runtime_cmp_jeqv_slow(gc_obj v1, gc_obj v2) {
   return obj_jeqv(v1, v2) ? TRUE_REP : FALSE_REP;
 }
+
+gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,
+                    int fromend) {
+  auto tostr = to_string(to);
+  auto fromstr = to_string(from);
+  memcpy(&tostr->str[start], &fromstr->str[fromstart], fromend - fromstart);
+  return to;
+}
