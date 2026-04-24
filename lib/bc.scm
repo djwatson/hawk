@@ -141,7 +141,23 @@
 ;; TODO: not flipping, also not itself inlined
 ;; TODO: types/guards
 (define (simple-pass ir)
+  (define (not-application? ir)
+    (and (ir-application? ir)
+         (ir-reference? (ir-application-fun ir))
+         (variable? (ir-reference-var (ir-application-fun ir)))
+         (= (length (ir-application-args ir)) 1)
+         (let ((var (ir-reference-var (ir-application-fun ir))))
+           (and (equal? (variable-library-name var) "")
+                (eq? (variable-name var) 'not)))))
   (cond
+    ((and (ir-conditional? ir) (not-application? (ir-conditional-test ir)))
+      (let ((test (ir-conditional-test ir))
+            (then (ir-conditional-then ir))
+            (else (ir-conditional-else ir)))
+        (set-ir-conditional-test! ir (simple-pass (car (ir-application-args test))))
+        (set-ir-conditional-then! ir (simple-pass else))
+        (set-ir-conditional-else! ir (simple-pass then))
+        ir))
     ((and (ir-application? ir)
           (ir-reference? (ir-application-fun ir))
           (variable? (ir-reference-var (ir-application-fun ir))))
