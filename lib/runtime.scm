@@ -1037,8 +1037,22 @@
     ((str port) (write-string str port 0 (string-length str)))
     ((str port start) (write-string str port start (string-length str)))
     ((str port start end)
-      (let loop ((i start))
-        (if (< i end) (begin (write-char (string-ref str i) port) (loop (+ i 1))) #t)))))
+      (let* ((len (- end start)) (str_len (string-length str)))
+        (cond
+          ((port-sbuf port)
+            (port-sbuf-set! port
+                            (string-append (port-sbuf port) (substring str start end))))
+          ((not (port-input? port))
+            (let loop ((pos start) (left len))
+              (if (> left 0)
+                  (begin
+                    (let ((avail (- port-buffer-size (port-len port))))
+                      (let ((copy (if (< left avail) left avail)))
+                        (str-copy-internal (port-buf port) (port-len port) str pos (+ pos copy))
+                        (port-len-set! port (+ (port-len port) copy))
+                        (loop (+ pos copy) (- left copy)))))))
+            (flush-port-write-buffer port))
+          (else (error "write-string: not an output port" port)))))))
 
 (define (string->list str)
   (let ((n (string-length str)))
