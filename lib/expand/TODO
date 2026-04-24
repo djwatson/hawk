@@ -1,0 +1,2 @@
+cleanup:
+* library stuff needs hardening, like (export (foobar)) should fail

@@ -15,7 +15,7 @@
 
 (include "bc.scm")
 (include "expander-init.scm")
-(library-paths (append '("." "srfi2" "../../r7expand") (library-paths)))
+(library-paths (append '("." "srfi2" "./expand") (library-paths)))
 
 (define args (cdr (command-line)))
 (define dump-bc (not (not (member "--dump" args))))

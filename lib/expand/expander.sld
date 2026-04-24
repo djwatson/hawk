@@ -1,0 +1,52 @@
+(define-library (expander)
+  (export file->list load-library-from-file load-program-from-file expander-setup)
+  (import (scheme base)
+          (scheme cxr)
+          (scheme read)
+          (scheme file)
+          (scheme process-context)
+          (r7expand)
+          (builders)
+          (srfi 1)
+          (library))
+  (begin
+    (define (file->list filename)
+      (call-with-input-file filename
+        (lambda (port)
+          (let loop ((form (read port)) (acc '()))
+            (if (eof-object? form) (reverse acc) (loop (read port) (cons form acc)))))))
+
+    (define (load-library-from-file filename)
+      (with-current-directory-from-file filename
+        (lambda (resolved)
+          (let ((forms (file->list resolved)))
+            (unless (and (= (length forms) 1)
+                         (list? (car forms))
+                         (>= (length (car forms)) 2)
+                         (eq? (caar forms) 'define-library))
+              (error "malformed library file"))
+            (expand-library (car forms))))))
+
+    (define (load-program-from-file filename)
+      (with-current-directory-from-file filename
+        (lambda (resolved) (expand-program (file->list resolved) "PROGRAM"))))
+
+    (define (resolve-r7expand-root)
+      (with-current-directory-from-file (car (command-line))
+        (lambda (_)
+          (let ((candidates '("." "./expand" "../lib/expand")))
+            (let loop ((paths candidates))
+              (if (null? paths)
+                  (error "could not locate r7expand root")
+                  (let ((root (resolve-path (car paths))))
+                    (if (file-exists? (string-append root "/init.scm"))
+                        root
+                        (loop (cdr paths))))))))))
+
+
+    (define (expander-setup)
+      (define r7expand-root (resolve-r7expand-root))
+      (define saved-current-directory (current-directory))
+      (current-directory r7expand-root)
+      (include "init.scm")
+      (current-directory saved-current-directory))))
