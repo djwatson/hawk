@@ -524,16 +524,34 @@
     (define-syntax case
        (syntax-rules ()
          ((case key0 clause0 ...)
-          (letrec-syntax ((case-aux
+          (letrec-syntax ((case-test
+                             (syntax-rules :::
+                               ()
+                               ((_ key (atom)) (eqv? key 'atom))
+                               ((_ key (atom1 atom2))
+                                (or (eqv? key 'atom1) (eqv? key 'atom2)))
+                               ((_ key (atom1 atom2 atom3))
+                                (or (eqv? key 'atom1)
+                                    (eqv? key 'atom2)
+                                    (eqv? key 'atom3)))
+                               ((_ key (atom1 atom2 atom3 atom4))
+                                (or (eqv? key 'atom1)
+                                    (eqv? key 'atom2)
+                                    (eqv? key 'atom3)
+                                    (eqv? key 'atom4)))
+                               ((_ key (atoms :::)) (memv key '(atoms :::)))))
+                          (case-aux
                              (syntax-rules :::
                                (else =>)
                                ((_ key) (if #f #f))
                                ((_ key (else expr :::)) (begin expr :::))
                                ((_ key (else => proc)) (proc key))
                                ((_ key ((atoms :::) => proc) clause :::)
-                                (if (memv key '(atoms :::)) (proc key) (case-aux key clause :::)))
+                                (if (case-test key (atoms :::))
+                                    (proc key)
+                                    (case-aux key clause :::)))
                                ((_ key ((atoms :::) expr :::) clause :::)
-                                (if (memv key '(atoms :::))
+                                (if (case-test key (atoms :::))
                                     (begin expr :::)
                                     (case-aux key clause :::))))))
             (let ((tmp key0)) (case-aux tmp clause0 ...))))))
