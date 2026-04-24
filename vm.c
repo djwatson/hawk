@@ -229,6 +229,16 @@ static inline gc_obj emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
   }
   MUSTTAIL return emit_math_cmp_jeqv_slowpath(state, pc, stack, v1, v2);
 }
+
+gc_obj vm_memq(gc_obj obj, gc_obj list) {
+  for (auto cur = list; is_cons(cur); cur = to_cons(cur)->b) {
+    if (obj.value == to_cons(cur)->a.value) {
+      return cur;
+    }
+  }
+  return FALSE_REP;
+}
+
 static void trace_reset(vm_state *state) {
   arr_for_each(state->record.traces, trace) {
     if (!trace->parent_snap && trace->start_ins &&
@@ -673,6 +683,10 @@ OP_ABC(QUOTIENT) {
 }
 OP_ABC(MOD) {
   auto res = emit_ov_math_mod(state, pc, stack, v1, v2);
+  END_ABC_NEXT
+}
+OP_ABC(MEMQ) {
+  auto res = vm_memq(v1, v2);
   END_ABC_NEXT
 }
 OP_AD(INEXACT) {

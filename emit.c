@@ -607,6 +607,8 @@ static intptr_t vm_call_target(ir_ins_op op) {
     return (intptr_t)&vm_runtime_math_quotient_slow;
   case IR_VMMOD:
     return (intptr_t)&vm_runtime_math_mod_slow;
+  case IR_VMMEMQ:
+    return (intptr_t)&vm_memq;
   case IR_VMLT:
     return (intptr_t)&vm_runtime_cmp_lt_slow;
   case IR_VMGT:
@@ -1852,6 +1854,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     case IR_VMDIV:
     case IR_VMQUOTIENT:
     case IR_VMMOD:
+    case IR_VMMEMQ:
     case IR_VMLT:
     case IR_VMGT:
     case IR_VMLTE:

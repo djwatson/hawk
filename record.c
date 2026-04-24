@@ -1017,6 +1017,17 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     RECORD_BIN_ARITH(QUOTIENT, emit_ov_math_quotient)
     RECORD_BIN_ARITH(MOD, emit_ov_math_mod)
 #undef RECORD_BIN_ARITH
+  case OP_MEMQ: {
+    auto v1 = stack_load(state, stack, instr.v1, false);
+    auto v2 = stack_load(state, stack, instr.v2, false);
+    auto res = vm_memq(stack[instr.v1], stack[instr.v2]);
+    auto typ = get_type_tag(res);
+    set_stack_top(state, instr.reg + 1);
+    stack_save(state, stack, instr.reg,
+               add_inst(state, IR(.op = IR_VMMEMQ, .op1 = v1, .op2 = v2,
+                                  .type = typ, .guard = true)));
+    break;
+  }
   case OP_INEXACT: {
     auto v1 = stack_load(state, stack, instr.data, true);
     auto res = convert_to_flonum(state, v1);

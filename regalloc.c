@@ -59,6 +59,7 @@ static bool ir_is_vm_call(ir_ins_op op) {
   case IR_VMDIV:
   case IR_VMQUOTIENT:
   case IR_VMMOD:
+  case IR_VMMEMQ:
   case IR_VMLT:
   case IR_VMGT:
   case IR_VMLTE:

@@ -44,6 +44,7 @@
   X(DIV, ABC)                                                                  \
   X(QUOTIENT, ABC)                                                             \
   X(MOD, ABC)                                                                  \
+  X(MEMQ, ABC)                                                                 \
   X(EXACT, AD)                                                                 \
   X(TRUNCATE, AD)                                                              \
   X(INEXACT, AD)                                                               \

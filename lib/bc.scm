@@ -42,6 +42,7 @@
     (/ . DIV)
     (quotient . QUOTIENT)
     (truncate-quotient . QUOTIENT)
+    (memq . MEMQ)
     (exact . EXACT)
     (truncate . TRUNCATE)
     (inexact . INEXACT)
@@ -64,7 +65,8 @@
   (cond
     ((eq? name 'values) 'any)
     ((eq? name 'call-with-values) 2)
-    ((memq name '(/ < > = >= <= quotient truncate-quotient remainder modulo))
+    ((memq name
+           '(/ < > = >= <= quotient truncate-quotient remainder modulo memq))
       2)
     ((memq name
            '(exact->inexact inexact->exact char->integer integer->char display))
