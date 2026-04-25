@@ -310,12 +310,14 @@ static bc vm_entry_stub[] = {
 
 static struct {
   gc_header header;
+  uint64_t poly_cnt;
   gc_obj name;
   uint64_t const_cnt;
   uint64_t bc_cnt;
   bc code[1];
 } callcc_resume_func = {
     .header = {.type = FUNC_TAG},
+    .poly_cnt = 4,
     .name = UNDEFINED,
     .const_cnt = 0,
     .bc_cnt = 1,
@@ -842,9 +844,7 @@ OP(IFUNC) {
   END
 }
 
-OP(ILOOP) {
-  END_NEXT
-}
+OP(ILOOP){END_NEXT}
 
 OP(JFUNC) {
   auto trace = state->record.traces[instr.data];
@@ -934,6 +934,18 @@ OP(CLOSURE) {
   // Only seed slot 0 with the function label; closure captures are
   // initialized via explicit CLOSURE_SET bytecodes.
   clo->v[0] = stack[start];
+  assert(is_func(clo->v[0]));
+  auto func = to_func(clo->v[0]);
+  if ((func->poly_cnt & 1) == 1) {
+    if (verbose) {
+      printf("POLY RESET: %s\n", to_string(func->name)->str);
+    }
+    func->poly_cnt = 4;
+    trace_reset(state);
+  }
+  if (func->poly_cnt < 50) {
+    func->poly_cnt += 2;
+  }
   auto alloced = tag_closure(clo);
   stack[instr.reg] = alloced;
   END_NEXT
@@ -1026,7 +1038,8 @@ OP(ALLOC) {
 
   auto obj = (gc_header *)gc_alloc(sz);
   if (type == VECTOR_TAG || type == RECORD_TAG) {
-    memset((uint8_t *)obj + sizeof(gc_header), 0, (size_t)sz - sizeof(gc_header));
+    memset((uint8_t *)obj + sizeof(gc_header), 0,
+           (size_t)sz - sizeof(gc_header));
   }
   obj->type = type;
   if (type == SYMBOL_TAG) {

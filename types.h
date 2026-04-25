@@ -55,6 +55,7 @@ static_assert(sizeof(gc_header) == 8, "gc header is 8 bytes");
 
 typedef struct bcfunc {
   gc_header header;
+  uint64_t poly_cnt;
   gc_obj name;
   uint64_t const_cnt;
   uint64_t bc_cnt;

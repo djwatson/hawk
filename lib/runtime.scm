@@ -875,7 +875,7 @@
         ;; TODO lookup name
         ((procedure? x)
           (display "#<procedure " port)
-          (display (sys:LOAD (sys:LOAD x 1) 0) port)
+          (display (sys:LOAD (sys:LOAD x 1) 1) port)
           (display ">" port))
         ((eq? x #t) (display "#t" port))
         ((eq? x #f) (display "#f" port))

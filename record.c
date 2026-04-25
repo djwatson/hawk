@@ -1195,6 +1195,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         s->opt = 1;
         v1 = add_const(state, s->val);
       } else {
+        // printf("SLOW gget for %s\n", to_string(s->name)->str);
         ir_ins ins = IR(.op = IR_GGET, .op1 = c, .type = get_type_tag(s->val));
         v1 = add_inst(state, ins);
       }
@@ -1308,23 +1309,43 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       auto c_res = c->v[clo_slot];
       res = add_const(state, c_res);
     } else {
-      if (!clo.constant) {
-        // TODO this is fucking broken:
-        // we're lazily typechecking things, it may not have been marked as
-        // 'closure'
-        // ????.  Maybe the original trace had a memv lookup or something
-        // where the type was variable.
-        // We MIGHT need a typecheck here, I think the compiler actually DOES
-        // emit CLOSURE_GET sometimes when we NEED to typecheck as a closure????
-        record_current_trace(state)->ins[clo.loc].type = CLOSURE_TAG;
-      }
-      slot c_pos = add_const(state, tag_fixnum(clo_slot + 1));
-      gc_obj clo_obj = stack[instr.v1];
-      gc_obj loaded = to_closure(clo_obj)->v[clo_slot];
+      auto trace = record_current_trace(state);
+      auto c = to_closure(stack[instr.v1]);
+      auto code = c->v[0];
+      assert(is_closure(stack[instr.v1]));
+      assert(is_func(code));
+      auto func = to_func(code);
+      if (func->poly_cnt < 4) {
+        char *fname = "<unknown>";
+        if (is_string(func->name)) {
+          fname = to_string(func->name)->str;
+        }
+        // printf("Could Poly: %i %s\n", func->poly_cnt, fname);
+        func->poly_cnt |= 1;
+        auto clo_c = add_const(state, stack[instr.v1]);
+        add_inst(state, IR(.op = IR_EQ, .op1 = clo, .op2 = clo_c));
+        stack_save(state, stack, instr.v1, clo_c);
+        res = add_const(state, c->v[clo_slot]);
+      } else {
+        if (!clo.constant) {
+          // TODO this is fucking broken:
+          // we're lazily typechecking things, it may not have been marked as
+          // 'closure'
+          // ????.  Maybe the original trace had a memv lookup or something
+          // where the type was variable.
+          // We MIGHT need a typecheck here, I think the compiler actually DOES
+          // emit CLOSURE_GET sometimes when we NEED to typecheck as a
+          // closure????
+          record_current_trace(state)->ins[clo.loc].type = CLOSURE_TAG;
+        }
+        slot c_pos = add_const(state, tag_fixnum(clo_slot + 1));
+        gc_obj clo_obj = stack[instr.v1];
+        gc_obj loaded = to_closure(clo_obj)->v[clo_slot];
 
-      ir_ins ins = IR(.op = IR_LOAD, .op1 = clo, .op2 = c_pos,
-                      .type = (uint8_t)get_type_tag(loaded));
-      res = add_inst(state, ins);
+        ir_ins ins = IR(.op = IR_LOAD, .op1 = clo, .op2 = c_pos,
+                        .type = (uint8_t)get_type_tag(loaded));
+        res = add_inst(state, ins);
+      }
     }
     stack_save(state, stack, instr.reg, res);
     break;
@@ -1342,6 +1363,14 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_CLOSURE: {
     uint64_t capture_cnt = (uint64_t)pc->data + 1;
     uint8_t start = pc->reg;
+
+    assert(is_func(stack[start]));
+    auto func = to_func(stack[start]);
+    if (func->poly_cnt < 4) {
+      record_abort(state, &op_table, "Poly cnt abort");
+      break;
+    }
+
     int64_t size_bytes =
         (int64_t)(sizeof(closure_s) + (capture_cnt * sizeof(gc_obj)));
 

@@ -1495,6 +1495,7 @@
              (const-cnt (length consts)))
         (w32 func-tag)
         (w32 0)
+        (w64 0) ;; poly_cnt
         (word (fun-name o))
         (w64 const-cnt)
         (w64 (length code))
