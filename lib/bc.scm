@@ -1578,9 +1578,8 @@
               '()
               objects))
 
-(include "pp.scm")
 (define (debug-print ir)
-  (pretty-print (ir-pp ir))
+  (display (ir-pp ir))
   (newline)
   (flush-output-port)
   ir)

@@ -1509,8 +1509,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         emit_mem_load_u8(s, (int32_t)idx + base_offset, base_reg, dst_reg);
       } else {
         uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
-        emit_sar_constant(s, RTMP, offset_reg, FIXNUM_SHIFT);
-        emit_add(s, RTMP, RTMP, base_reg);
+        emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
+        emit_add(s, RTMP, RTMP2, base_reg);
         emit_mem_load_u8(s, base_offset, RTMP, dst_reg);
       }
       emit_shl_constant(s, dst_reg, dst_reg, 8);
