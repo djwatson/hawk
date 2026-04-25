@@ -658,11 +658,11 @@ static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
     abort();
   }
 
-  emit_mov(s, RARG1, RSTACK);
   if (!callcc_arg.constant && arg_src != RARG2) {
     emit_mov(s, RARG2, arg_src);
   }
   emit_mov(s, RARG0, RSTATE);
+  emit_mov(s, RARG1, RSTACK);
   emit_gcobj_arg(s, t, callcc_arg, RARG2, RARG2);
 
   emit_store_ralloc(s);
