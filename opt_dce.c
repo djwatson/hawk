@@ -30,9 +30,6 @@ static void propagate(trace *trace, bool *marks) {
       marks[i - 1] = true;
     }
     if (!marks[i - 1]) {
-      if (verbose) {
-        printf("IR_DEAD: %" PRIu64 " %s\n", i - 1, ir_names[ins->op]);
-      }
       // We could have dropped something like a function closure,
       // where we've optimistically guarded the whole trace.
       ins->op = IR_NOP;

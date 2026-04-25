@@ -1,4 +1,4 @@
-for file in bench2/*.scm; do echo $file;GC_SPACE=4000000000 /usr/bin/time -f "%e" hawk -p $file > /dev/null ; done
+# for file in bench2/*.scm; do echo $file;GC_SPACE=4000000000 /usr/bin/time -f "%e" hawk -p $file > /dev/null ; done
 bench2/ack.scm
 1.87
 bench2/array1.scm

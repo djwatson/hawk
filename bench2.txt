@@ -1,4 +1,4 @@
-for file in bench2/*.scm; do echo $file;GC_SPACE=4000000000 ../build/hawk $file | grep -oP '\(\K[0-9.]+(?=\))' ; done
+# for file in bench2/*.scm; do echo $file;GC_SPACE=4000000000 ../build/hawk $file | grep -oP '\(\K[0-9.]+(?=\))' ; done
 bench2/ack.scm
 1.41
 bench2/array1.scm

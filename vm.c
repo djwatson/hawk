@@ -21,11 +21,6 @@ static inline char const *func_name_for_pc(bc *pc);
 static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack);
 static vm_state *current_vm_state;
 
-#define VMGEN_TRACE_OP(pc, code, state, argcnt)                                \
-  do {                                                                         \
-    if (verbose) {                                                             \
-    }                                                                          \
-  } while (0)
 enum : uint8_t {
   hotmap_sz = VM_HOTMAP_SZ,
   hotmap_loop = 3,
