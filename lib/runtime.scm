@@ -1117,9 +1117,10 @@
 (define (jiffies-per-second) 1000000000)
 
 (define (current-jiffy)
-  (call-with-input-file "/proc/uptime" (lambda (port) (read port))))
+  (sys:FOREIGN_CALL '(int64 "scm_current_jiffy" ())))
+
 (define (current-second)
-  (call-with-input-file "/proc/uptime" (lambda (port) (read port))))
+  (sys:FOREIGN_CALL '(double "scm_current_second" ())))
 
 (define read-buf (make-string 1000))
 (define (maybe-lower-case port s)

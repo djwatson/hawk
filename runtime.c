@@ -1,7 +1,10 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <assert.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <string.h>
+#include <time.h>
 
 #include "bigint.h"
 #include "ftoa.h"
@@ -38,6 +41,26 @@ static gc_obj normalize_exact_integer(gc_obj value) {
 
 static size_t runtime_align_words(size_t bytes) {
   return (bytes + sizeof(gc_obj) - 1) & ~(sizeof(gc_obj) - 1);
+}
+
+static int64_t runtime_timespec_nsecs(struct timespec ts) {
+  return ts.tv_sec * INT64_C(1000000000) + ts.tv_nsec;
+}
+
+EXPORT int64_t scm_current_jiffy(void) {
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+    abort();
+  }
+  return runtime_timespec_nsecs(ts);
+}
+
+EXPORT double scm_current_second(void) {
+  struct timespec ts;
+  if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+    abort();
+  }
+  return (double)ts.tv_sec + (double)ts.tv_nsec / 1000000000.0;
 }
 
 static uint64_t runtime_list_length(gc_obj list) {
