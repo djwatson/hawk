@@ -78,6 +78,24 @@ static void forward_obj(gc_header *obj, gc_header *new_obj) {
 
 static void scan_object(gc_header *obj);
 
+static void gc_insert_pinned_func(bcfunc *func) {
+  uintptr_t target = (uintptr_t)func;
+  size_t lo = 0;
+  size_t hi = arrlen(pinned_funcs);
+  while (lo < hi) {
+    size_t mid = lo + ((hi - lo) >> 1);
+    if ((uintptr_t)pinned_funcs[mid].ptr < target) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  arrput(pinned_funcs, ((pinned_func_entry){.ptr = func}));
+  memmove(&pinned_funcs[lo + 1], &pinned_funcs[lo],
+          (arrlen(pinned_funcs) - lo - 1) * sizeof(*pinned_funcs));
+  pinned_funcs[lo].ptr = func;
+}
+
 static void visit_field(gc_obj *slot, void *ctx) {
   (void)ctx;
   if (!is_heap_object(*slot)) {
@@ -237,17 +255,29 @@ void gc_set_scan_callback(gc_scan_callback cb, void *data) {
 }
 
 void gc_register_bcfunc(bcfunc *func) {
-  arrput(pinned_funcs, ((pinned_func_entry){.ptr = func}));
+  gc_insert_pinned_func(func);
 }
 
 void *gc_base_ptr(void *p) {
-  arr_for_each(pinned_funcs, entry) {
-    uintptr_t start = (uintptr_t)entry.ptr;
-    uintptr_t end = start + heap_object_size(entry.ptr);
-    uintptr_t target = (uintptr_t)p;
-    if (start <= target && target < end) {
-      return entry.ptr;
+  uintptr_t target = (uintptr_t)p;
+  size_t lo = 0;
+  size_t hi = arrlen(pinned_funcs);
+  while (lo < hi) {
+    size_t mid = lo + ((hi - lo) >> 1);
+    if ((uintptr_t)pinned_funcs[mid].ptr <= target) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
     }
+  }
+  if (lo == 0) {
+    return nullptr;
+  }
+  bcfunc *func = pinned_funcs[lo - 1].ptr;
+  uintptr_t start = (uintptr_t)func;
+  uintptr_t end = start + heap_object_size(func);
+  if (start <= target && target < end) {
+    return func;
   }
   return nullptr;
 }
