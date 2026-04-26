@@ -26,6 +26,7 @@ static bool is_downrec_trace(trace_state *ts) { return ts->start_is_ret; }
 static bool is_loop_entry_op(ops op) { return op == OP_LOOP || op == OP_ILOOP; }
 
 static bool is_func_entry_op(ops op) { return op == OP_FUNC || op == OP_IFUNC; }
+static uint64_t trace_cnt = 0;
 
 enum {
   BLACKLIST_MAX = 32,
@@ -402,6 +403,17 @@ static uint8_t get_slot_type(trace *t, slot v) {
   return v.constant ? get_type_tag(t->consts[v.loc]) : t->ins[v.loc].type;
 }
 
+static void record_resolve_pending_ccall(vm_state *state, gc_obj *stack) {
+  trace_state *ts = record_trace_state(state);
+  if (!ts->pending_ccall_type) {
+    return;
+  }
+  trace *t = record_current_trace(state);
+  assert(t->ins[ts->pending_ccall].op == IR_CCALL);
+  t->ins[ts->pending_ccall].type = get_type_tag(stack[ts->pending_ccall_reg]);
+  ts->pending_ccall_type = false;
+}
+
 static bool ir_type_is_fix_or_flonum(uint8_t t) {
   return t == FIXNUM_TAG || t == FLONUM_TAG;
 }
@@ -765,6 +777,39 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
   dce(cur_trace);
   cur_trace->fn =
       emit(cur_trace, &state->emit, &state->record, cur_trace->link_entry_snap);
+  if (0) {
+    int parent_trace_num = -1;
+    int parent_snap_num = -1;
+    if (cur_trace->parent_snap) {
+      trace *parent = cur_trace->parent_snap->trace;
+      parent_trace_num = parent->num;
+      parent_snap_num = cur_trace->parent_snap - parent->snaps;
+    }
+    int linked_trace_num = cur_trace->link->num;
+
+    const char *fname = func_name_from_pc(pc);
+
+    if (linked_trace_num == cur_trace->num) {
+      printf("TOOL TRACE FINISH %i %i %i %s %s %i \n", cur_trace->num,
+             parent_trace_num, parent_snap_num,
+             (arrlast(cur_trace->snaps)->offset != 0)
+                 ? "UPREC"
+                 : (is_downrec_trace(ts) ? "DOWNREC" : "LOOP"),
+             fname, linked_trace_num);
+    } else if (cur_trace->kind == TRACE_POLY) {
+      printf("TOOL TRACE FINISH %i %i %i %s %s %i \n", cur_trace->num,
+             parent_trace_num, parent_snap_num,
+             (arrlast(cur_trace->snaps)->offset != 0)
+                 ? "POLY-UPREC"
+                 : (is_downrec_trace(ts) ? "POLY-DOWNREC" : "POLY-LOOP"),
+             fname, linked_trace_num);
+    } else {
+      printf("TOOL TRACE FINISH %i %i %i %s %s %i \n", cur_trace->num,
+             parent_trace_num, parent_snap_num, "SIDE", fname,
+             linked_trace_num);
+    }
+  }
+
   state->max_trace--;
   if (!cur_trace->parent_snap) {
     *cur_trace->start_ins = (bc){
@@ -779,6 +824,7 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
   arrput(state->record.traces, cur_trace);
   clear_trace_state(ts);
   record_set_current_trace(state, nullptr);
+  trace_cnt++;
 }
 static int downrec_hits(trace_state *ts, bc *pc) {
   int cnt = 0;
@@ -972,7 +1018,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   //  check for up-recursion and abort, restart trying to capture an
   //  up-recursive trace.
   if (pc == ts->start_ins && !is_downrec_trace(ts) &&
-      (ts->depth == 0 || cnt >= 4)) {
+      (ts->depth == 0 || cnt >= 0)) {
     trace_match match =
         ensure_args_match_trace(state, stack, cur_trace, cur_trace);
     cur_trace->link = match.trace;
@@ -1008,11 +1054,18 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     op_table = state->impls;
     goto done;
   }
-  if (ts->depth >= 20 || arrlen(cur_trace->ins) >= 1000) {
-    record_abort(state, &op_table, "too long or too deep");
+  record_resolve_pending_ccall(state, stack);
+  if (ts->depth >= 250) {
+    record_abort(state, &op_table, "too deep");
     goto done;
   }
-  if (arrlen(cur_trace->consts) >= 5000) {
+  if (arrlen(cur_trace->ins) >= 30000) {
+    record_abort(state, &op_table, "too long");
+    goto done;
+  }
+  if (arrlen(cur_trace->consts) >= 30000) {
+    printf("Record abort len %li consts %li depth %i\n", arrlen(cur_trace->ins),
+           arrlen(cur_trace->consts), ts->depth);
     record_abort(state, &op_table, "Too many consts");
     goto done;
   }
@@ -1580,6 +1633,11 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto res =
         add_inst(state, IR(.op = IR_CCALL, .op1 = sig_const, .op2 = carg,
                            .type = foreign_ir_result_type(foreign.ret_type)));
+    if (!res.constant) {
+      ts->pending_ccall = res.loc;
+      ts->pending_ccall_reg = instr.reg;
+      ts->pending_ccall_type = true;
+    }
     stack_save(state, stack, instr.reg, res);
     vm_add_snap(state, pc + 1, argcnt);
     break;
@@ -1789,7 +1847,7 @@ static trace *record_begin_trace(vm_state *state, bc *pc, bc instr) {
   memset(cur_trace->cse_head, 0xff, sizeof(cur_trace->cse_head));
   cur_trace->start_ins = pc;
   cur_trace->start_pc = instr;
-  cur_trace->num = record_trace_count(state);
+  cur_trace->num = trace_cnt;
   trace_state *ts = record_trace_state(state);
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;

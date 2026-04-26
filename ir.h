@@ -116,7 +116,7 @@ typedef struct {
     uint16_t prev;
     struct {
       uint8_t reg;
-      uint8_t spill; // spill slot.
+      uint16_t spill; // spill slot.
     };
   };
   union {
@@ -133,7 +133,7 @@ typedef struct {
   };
 } ir_ins;
 
-static_assert(sizeof(ir_ins) == 8, "ir_ins instructions must be 8 bytes");
+static_assert(sizeof(ir_ins) == 12, "ir_ins instructions must be 12 bytes");
 
 struct trace_result {
   gc_obj *stack;
@@ -170,8 +170,8 @@ typedef struct trace {
   trace *next; // Chained polymorphic traces.
 } trace;
 
-enum : uint8_t {
-  SPILL_NONE = 0xff,
+enum : uint16_t {
+  SPILL_NONE = UINT16_MAX,
 };
 
 void print_ir(trace *t);

@@ -58,13 +58,16 @@ void profiler_start(void) {
   if (profiler_running) {
     return;
   }
-  profiler_clock = CLOCK_MONOTONIC;
+  profiler_reset();
+  profiler_running = true;
+}
 
+void profiler_reset(void) {
+  profiler_clock = CLOCK_MONOTONIC;
   memset(bucket_time_ns, 0, sizeof(bucket_time_ns));
   current_bucket = BUCKET_VM;
   pre_gc_bucket = BUCKET_VM;
   last_timestamp_ns = now_ns();
-  profiler_running = true;
 }
 
 void profiler_stop(void) {

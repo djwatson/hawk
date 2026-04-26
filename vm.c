@@ -21,7 +21,60 @@ static inline char const *func_name_for_pc(bc *pc);
 static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack);
 static vm_state *current_vm_state;
 
-enum : uint8_t {
+typedef struct trace_exit_count {
+  uint16_t trace_num;
+  uint16_t snap_ir;
+  uint64_t count;
+} trace_exit_count;
+
+static trace_exit_count *trace_exit_counts;
+
+static trace_exit_count *get_trace_exit_count(uint16_t trace_num,
+                                              uint16_t snap_ir) {
+  arr_for_each_idx(trace_exit_counts, i) {
+    auto entry = &trace_exit_counts[i];
+    if (entry->trace_num == trace_num && entry->snap_ir == snap_ir) {
+      return entry;
+    }
+  }
+  arrput(trace_exit_counts, ((trace_exit_count){
+                                .trace_num = trace_num,
+                                .snap_ir = snap_ir,
+                                .count = 0,
+                            }));
+  return arrlast(trace_exit_counts);
+}
+
+static void record_trace_exit(snap *sn) {
+  uint16_t trace_num = sn->trace->num;
+  get_trace_exit_count(trace_num, sn->ir)->count++;
+}
+
+static int compare_trace_exit_count(void const *a, void const *b) {
+  auto lhs = (trace_exit_count const *)a;
+  auto rhs = (trace_exit_count const *)b;
+  if (lhs->count < rhs->count) {
+    return 1;
+  }
+  if (lhs->count > rhs->count) {
+    return -1;
+  }
+  if (lhs->trace_num < rhs->trace_num) {
+    return -1;
+  }
+  if (lhs->trace_num > rhs->trace_num) {
+    return 1;
+  }
+  if (lhs->snap_ir < rhs->snap_ir) {
+    return -1;
+  }
+  if (lhs->snap_ir > rhs->snap_ir) {
+    return 1;
+  }
+  return 0;
+}
+
+enum : uint16_t {
   hotmap_sz = VM_HOTMAP_SZ,
   hotmap_loop = 3,
   hotmap_mask = (hotmap_sz - 1),
@@ -244,6 +297,9 @@ gc_obj vm_memv(gc_obj obj, gc_obj list) {
 }
 
 static void trace_reset(vm_state *state) {
+  // printf("TRACE RESET=============================\n");
+  arrfree(trace_exit_counts);
+  profiler_reset();
   arr_for_each(state->record.traces, trace) {
     if (!trace->parent_snap && trace->start_ins &&
         (trace->start_ins->op == OP_JFUNC ||
@@ -390,6 +446,20 @@ gc_obj *vm_callcc_resume_slow(vm_state *state, gc_obj captured) {
 gc_obj halt(vm_state *state, gc_obj *stack) {
   profiler_stop();
   jit_dump_close();
+  if (0) {
+    if (arrlen(trace_exit_counts) > 0) {
+      qsort(trace_exit_counts, arrlen(trace_exit_counts),
+            sizeof(trace_exit_counts[0]), compare_trace_exit_count);
+      printf("Trace exits:\n");
+      arr_for_each_idx(trace_exit_counts, i) {
+        auto entry = &trace_exit_counts[i];
+        if (entry->count > 100) {
+          printf("  trace %u snap_ir %u exits %llu\n", entry->trace_num,
+                 entry->snap_ir, (unsigned long long)entry->count);
+        }
+      }
+    }
+  }
   if (verbose) {
     size_t up_recursive_traces = 0;
     size_t ret_traces = 0;
@@ -587,6 +657,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   profiler_set_in_jit(true);
   auto res = fn(state, *stack);
   profiler_set_in_jit(false);
+  // record_trace_exit(res.snap);
   *pc = res.snap->pc;
   *instr = **pc;
   *stack = res.stack;
@@ -604,18 +675,18 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   // Check for side trace start.
   if (res.snap->exits < 255) {
     bool should_try_side = false;
-#ifdef RANDOM_SCHEDULE
-    if (should_jit() && state->max_trace > 0) {
-      should_try_side = true;
-      res.snap->exits++;
-    }
-#else
+    /* #ifdef RANDOM_SCHEDULE */
+    /*     if (should_jit() && state->max_trace > 0) { */
+    /*       should_try_side = true; */
+    /*       res.snap->exits++; */
+    /*     } */
+    /* #else */
     res.snap->exits++;
     if (res.snap->exits >= 10 && res.snap->exits % 10 == 0 &&
         state->max_trace > 0) {
       should_try_side = true;
     }
-#endif
+    /* #endif */
     if (res.snap->exits == 255) {
       if (verbose) {
         printf("Blacklist side trace %i snap %i \n", res.snap->trace->num,

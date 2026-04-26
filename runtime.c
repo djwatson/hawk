@@ -274,6 +274,69 @@ EXPORT gc_obj SCM_COMMAND_LINE() {
   return head;
 }
 
+EXPORT gc_obj SCM_LISTP(gc_obj x) {
+  gc_obj fast = x;
+  gc_obj slow = x;
+
+  while (true) {
+    if (fast.value == NIL_TAG) {
+      return TRUE_REP;
+    }
+    if (!is_cons(fast)) {
+      return FALSE_REP;
+    }
+    fast = to_cons(fast)->b;
+
+    if (fast.value == NIL_TAG) {
+      return TRUE_REP;
+    }
+    if (!is_cons(fast)) {
+      return FALSE_REP;
+    }
+    fast = to_cons(fast)->b;
+    slow = to_cons(slow)->b;
+    if (fast.value == slow.value) {
+      return FALSE_REP;
+    }
+  }
+}
+
+EXPORT gc_obj SCM_LENGTH(gc_obj list) {
+  uint64_t len = runtime_list_length(list);
+  if (len > (uint64_t)FIXNUM_MAX_VALUE) {
+    abort();
+  }
+  return tag_fixnum((int64_t)len);
+}
+
+static gc_obj runtime_assoc(gc_obj obj, gc_obj alist, bool eqv) {
+  while (alist.value != NIL_TAG) {
+    if (!is_cons(alist)) {
+      abort();
+    }
+    auto list = to_cons(alist);
+    gc_obj entry = list->a;
+    if (!is_cons(entry)) {
+      abort();
+    }
+    gc_obj key = to_cons(entry)->a;
+    bool match = eqv ? obj_jeqv(key, obj) : key.value == obj.value;
+    if (match) {
+      return entry;
+    }
+    alist = list->b;
+  }
+  return FALSE_REP;
+}
+
+EXPORT gc_obj SCM_ASSQ(gc_obj obj, gc_obj alist) {
+  return runtime_assoc(obj, alist, false);
+}
+
+EXPORT gc_obj SCM_ASSV(gc_obj obj, gc_obj alist) {
+  return runtime_assoc(obj, alist, true);
+}
+
 static bool exact_is_negative(gc_obj v) {
   if (is_fixnum(v)) {
     return to_fixnum(v) < 0;

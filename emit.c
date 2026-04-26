@@ -33,9 +33,9 @@ static inline uint8_t ref_base_tag(uint8_t type_tag) {
   return (uint8_t)((type_tag & TAG_MASK) == PTR_TAG ? PTR_TAG : type_tag);
 }
 
-static gc_obj gpr_spills[256];
-static uint64_t fpr_spills[256];
-enum : uint16_t { spill_slot_count = 256 };
+enum : uint16_t { spill_slot_count = SPILL_NONE };
+static gc_obj gpr_spills[spill_slot_count];
+static uint64_t fpr_spills[spill_slot_count];
 static bool spill_roots_registered;
 
 enum : int32_t {
@@ -182,7 +182,7 @@ static inline bool is_fpr_reg(uint8_t reg) {
 typedef struct {
   bool spilled;
   uint8_t reg;
-  uint8_t spill;
+  uint16_t spill;
 } value_loc;
 
 static value_loc snap_entry_loc(trace const *t, uint16_t snap_idx,
@@ -222,7 +222,7 @@ static void emit_heap_constant(emit_state *s, trace *t, uint8_t reg,
   emit_mov64(s, reg, value.value);
 }
 
-static inline int32_t spill_offset(uint8_t spill) {
+static inline int32_t spill_offset(uint16_t spill) {
   assert(spill != SPILL_NONE);
   return (int32_t)spill * 8;
 }

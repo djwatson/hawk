@@ -14,7 +14,7 @@ typedef struct regalloc_state {
   uint32_t *uses;
   next_use *next_uses;
   uint16_t regs[MAX_REG];
-  uint8_t next_spill;
+  uint16_t next_spill;
 } regalloc_state;
 
 void regalloc_state_init(regalloc_state *s, trace *t);

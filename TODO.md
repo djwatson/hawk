@@ -2,6 +2,8 @@
 
 * bug save-and-die WHILE in a trace fails - because currently vm_trace_reset is lazy
 
+TRACING - fix APPLY, that's whats causing compiler slowness
+
 # Release checklist
 
 [x] Closure conversion from O(0) closure paper 

@@ -114,15 +114,14 @@
 
 (define (eq? a b) (sys:EQ a b))
 
-(define (list? x)
-  (let loop ((fast x) (slow x))
-    (or (null? fast)
-       (and (pair? fast)
-            (let ((fast (cdr fast)))
-              (or (null? fast)
-                 (and (pair? fast)
-                      (let ((fast (cdr fast)) (slow (cdr slow)))
-                        (and (not (eq? fast slow)) (loop fast slow))))))))))
+(define (list? x) (sys:FOREIGN_CALL '(gc_obj "SCM_LISTP" (gc_obj)) x))
+
+(define (length a) (sys:FOREIGN_CALL '(gc_obj "SCM_LENGTH" (gc_obj)) a))
+
+(define (assq obj1 alist1)
+  (sys:FOREIGN_CALL '(gc_obj "SCM_ASSQ" (gc_obj gc_obj)) obj1 alist1))
+(define (assv obj1 alist1)
+  (sys:FOREIGN_CALL '(gc_obj "SCM_ASSV" (gc_obj gc_obj)) obj1 alist1))
 
 (define for-each
   (case-lambda
@@ -318,8 +317,6 @@
         (if (eq? init 0) vec (vector-init vec init 0 len))))))
 (define (vector-ref vec idx) (sys:LOAD vec (+ 1 idx)))
 (define (vector-set! vec idx val) (sys:STORE vec val (+ 1 idx)))
-(define (length a)
-  (let loop ((a a) (num 0)) (if (pair? a) (loop (cdr a) (+ num 1)) num)))
 (define (vector->list vec)
   (let loop ((i (vector-length vec)) (l '()))
     (if (= i 0) l (loop (- i 1) (cons (vector-ref vec (- i 1)) l)))))
@@ -347,16 +344,16 @@
              (args (append firstargs (car rlst))))
         (apply fun args)))))
 
-(define (assq obj1 alist1)
-  (let loop ((obj obj1) (alist alist1))
-    (if (null? alist)
-        #f
-        (begin (if (eq? (caar alist) obj) (car alist) (loop obj (cdr alist)))))))
-(define (assv obj1 alist1)
-  (let loop ((obj obj1) (alist alist1))
-    (if (null? alist)
-        #f
-        (begin (if (eqv? (caar alist) obj) (car alist) (loop obj (cdr alist)))))))
+;; (define (assq obj1 alist1)
+;;   (let loop ((obj obj1) (alist alist1))
+;;     (if (null? alist)
+;;         #f
+;;         (begin (if (eq? (caar alist) obj) (car alist) (loop obj (cdr alist)))))))
+;; (define (assv obj1 alist1)
+;;   (let loop ((obj obj1) (alist alist1))
+;;     (if (null? alist)
+;;         #f
+;;         (begin (if (eqv? (caar alist) obj) (car alist) (loop obj (cdr alist)))))))
 (define assoc
   (case-lambda
     ((obj1 alist1 compare)
@@ -1116,11 +1113,9 @@
 
 (define (jiffies-per-second) 1000000000)
 
-(define (current-jiffy)
-  (sys:FOREIGN_CALL '(int64 "scm_current_jiffy" ())))
+(define (current-jiffy) (sys:FOREIGN_CALL '(int64 "scm_current_jiffy" ())))
 
-(define (current-second)
-  (sys:FOREIGN_CALL '(double "scm_current_second" ())))
+(define (current-second) (sys:FOREIGN_CALL '(double "scm_current_second" ())))
 
 (define read-buf (make-string 1000))
 (define (maybe-lower-case port s)

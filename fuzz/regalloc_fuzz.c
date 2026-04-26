@@ -29,7 +29,7 @@ typedef enum : uint8_t {
 typedef struct {
   loc_kind kind;
   uint8_t reg;
-  uint8_t spill;
+  uint16_t spill;
   uint16_t value_id;
 } dense_loc_entry;
 
@@ -234,7 +234,7 @@ static uint8_t random_alloc_reg(fuzz_rng *r, bool is_float,
   return pool[rng_next(r) % pool_len];
 }
 
-static uint8_t random_unique_spill(fuzz_rng *r, bool used_spills[10]) {
+static uint16_t random_unique_spill(fuzz_rng *r, bool used_spills[10]) {
   uint8_t pool[10];
   uint8_t pool_len = 0;
   for (uint8_t i = 0; i < 10; i++) {
@@ -263,7 +263,7 @@ static void fill_leading_pmov_instruction(fuzz_rng *r, trace *t,
   // Leading PMOVs model side-trace replay with unique precolored locations.
   bool try_spill = rng_bool(r);
   if (try_spill) {
-    uint8_t spill = random_unique_spill(r, used_spills);
+    uint16_t spill = random_unique_spill(r, used_spills);
     if (spill != SPILL_NONE) {
       ins.spill = spill;
       used_spills[spill] = true;
@@ -278,7 +278,7 @@ static void fill_leading_pmov_instruction(fuzz_rng *r, trace *t,
     ins.type = UNDEFINED_TAG;
     reg = random_alloc_reg(r, false, used_regs);
     if (reg == REG_NONE) {
-      uint8_t spill = random_unique_spill(r, used_spills);
+      uint16_t spill = random_unique_spill(r, used_spills);
       assert(spill != SPILL_NONE);
       ins.spill = spill;
       used_spills[spill] = true;
@@ -498,7 +498,7 @@ static void verify_regalloc(trace const *t, regalloc_result const *r) {
       if (e.reg >= MAX_REG || e.value_id >= arrlen(t->ins)) {
         abort();
       }
-      uint8_t spill = t->ins[e.value_id].spill;
+      uint16_t spill = t->ins[e.value_id].spill;
       if (spill >= MAX_SPILL || spills[spill] != e.value_id) {
         abort();
       }
@@ -563,7 +563,7 @@ static void verify_regalloc(trace const *t, regalloc_result const *r) {
       regs[reg] = ir;
     }
     if (t->ins[ir].spill != SPILL_NONE) {
-      uint8_t spill = t->ins[ir].spill;
+      uint16_t spill = t->ins[ir].spill;
       if (spill >= MAX_SPILL) {
         abort();
       }

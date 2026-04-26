@@ -31,6 +31,9 @@ typedef struct trace_state {
   record_debug_entry *debug_ops;
   const snap *poly_entry;
   uint32_t start_record_size;
+  uint16_t pending_ccall;
+  uint8_t pending_ccall_reg;
+  bool pending_ccall_type;
 } trace_state;
 
 typedef struct record_debug_entry {

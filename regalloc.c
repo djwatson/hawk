@@ -38,7 +38,7 @@ static void limit_live_values(regalloc_state *s, lru *lru, uint16_t max) {
     uint16_t spill_value = lru_pop_oldest(lru);
     auto ins = &s->t->ins[spill_value];
     if (ins->spill == SPILL_NONE) {
-      if (s->next_spill == 255) {
+      if (s->next_spill == SPILL_NONE) {
         abort();
       }
       ins->spill = s->next_spill++;
@@ -395,7 +395,7 @@ void regalloc_state_init(regalloc_state *s, trace *t) {
   s->next_spill = 0;
   arr_for_each_idx(t->ins, i) {
     if (t->ins[i].spill != SPILL_NONE && t->ins[i].spill >= s->next_spill) {
-      s->next_spill = (uint8_t)(t->ins[i].spill + 1);
+      s->next_spill = (uint16_t)(t->ins[i].spill + 1);
     }
   }
   memset(s->regs, 0xff, sizeof(s->regs));
