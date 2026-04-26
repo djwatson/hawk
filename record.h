@@ -18,6 +18,8 @@ typedef struct blacklist_entry {
   uint32_t value;
 } blacklist_entry;
 
+typedef struct record_debug_entry record_debug_entry;
+
 typedef struct trace_state {
   sentry *stack;
   uint16_t stack_off;
@@ -26,9 +28,16 @@ typedef struct trace_state {
   uint8_t depth;
   uint8_t loop_unroll;
   bc **downrec;
+  record_debug_entry *debug_ops;
   const snap *poly_entry;
   uint32_t start_record_size;
 } trace_state;
+
+typedef struct record_debug_entry {
+  uint8_t depth;
+  bc *pc;
+  bc instr;
+} record_debug_entry;
 
 typedef struct record_state {
   trace *cur_trace;

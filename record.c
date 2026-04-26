@@ -86,6 +86,7 @@ static void penalty_pc(record_state *record, bc *pc, bool downrec) {
 static void clear_trace_state(trace_state *ts) {
   arrfree(ts->stack);
   arrfree(ts->downrec);
+  arrfree(ts->debug_ops);
   *ts = (trace_state){0};
 }
 static void free_snap(snap *snap) { arrfree(snap->slots); }
@@ -101,14 +102,25 @@ static void free_trace(trace *trace) {
 static trace_state *record_trace_state(vm_state *state) {
   return &state->record.trace_state;
 }
-static void print_record_debug(bc *pc, const char *code, vm_state *state) {
-  trace_state *ts = record_trace_state(state);
-  for (int i = 0; i < ts->depth; i++) {
+
+static void record_debug_op(trace_state *ts, bc *pc, bc instr) {
+  if (!verbose) {
+    return;
+  }
+  arrput(ts->debug_ops, ((record_debug_entry){
+                            .depth = ts->depth,
+                            .pc = pc,
+                            .instr = instr,
+                        }));
+}
+
+static void print_record_debug_entry(record_debug_entry entry) {
+  for (uint8_t i = 0; i < entry.depth; i++) {
     printf(" . ");
   }
-  printf("record op: %p %s reg:%i, v1:%i v2:%i", pc, code, pc->reg, pc->v1,
-         pc->v2);
-  const char *fname = func_name_from_pc(pc);
+  printf("record op: %p %s reg:%i, v1:%i v2:%i", entry.pc,
+         bc_names[entry.instr.op], entry.pc->reg, entry.pc->v1, entry.pc->v2);
+  const char *fname = func_name_from_pc(entry.pc);
   printf(" %s", fname);
   printf("\n");
 }
@@ -180,6 +192,7 @@ static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
 
 void record_init(record_state *record) {
   gc_set_scan_callback(record_scan_roots, record);
+  record->trace_state = (trace_state){0};
   record->blacklist = nullptr;
   record->penalty_pcs = nullptr;
   record->reset_pending = false;
@@ -726,6 +739,9 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
   *op_table = state->impls;
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
+  for (size_t i = 0; i < arrlen(ts->debug_ops); i++) {
+    print_record_debug_entry(ts->debug_ops[i]);
+  }
   if (verbose) {
     printf("Record stop %i: %s\n", cur_trace->num, msg);
   }
@@ -961,9 +977,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
 
 PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                             void *op_table, uint64_t argcnt) {
-  if (verbose) {
-    print_record_debug(pc, bc_names[instr.op], state);
-  }
+  record_debug_op(record_trace_state(state), pc, instr);
 
   if (state->record.reset_pending) {
     record_abort(state, &op_table, "trace reset requested while recording");
