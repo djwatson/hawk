@@ -305,7 +305,8 @@ static bc vm_entry_stub[] = {
 
 static struct {
   gc_header header;
-  uint64_t poly_cnt;
+  uint32_t poly_cnt;
+  uint32_t downrec_ok;
   gc_obj name;
   uint64_t const_cnt;
   uint64_t bc_cnt;

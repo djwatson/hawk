@@ -44,6 +44,17 @@ static const char *func_name_from_pc(bc *pc) {
   return to_string(func->name)->str;
 }
 
+static void mark_downrec_ok(trace *trace) {
+  if (!trace || arrlen(trace->snaps) == 0 ||
+      arrlast(trace->snaps)->offset == 0) {
+    return;
+  }
+  bcfunc *func = gc_base_ptr(trace->start_ins);
+  if (func) {
+    func->downrec_ok = 1;
+  }
+}
+
 static void penalty_pc(record_state *record, bc *pc, bool downrec) {
   if (!pc) {
     return;
@@ -746,6 +757,10 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
     printf("Record stop %i: %s\n", cur_trace->num, msg);
   }
   vm_add_snap(state, pc, argcnt);
+  if (arrlast(cur_trace->snaps)->offset == 0) {
+    mark_downrec_ok(cur_trace);
+  }
+
   box_closure_flonums(cur_trace);
   dce(cur_trace);
   cur_trace->fn =
@@ -1133,6 +1148,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
     bool downrec_trace = is_downrec_trace(ts);
     bool at_trace_start = (pc == ts->start_ins);
+    bcfunc *pc_func = gc_base_ptr(pc);
+    bool downrec_ok = pc_func && pc_func->downrec_ok;
 
     set_stack_len(ts, instr.reg + count);
 
@@ -1146,11 +1163,15 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       int cnt = downrec_hits(ts, pc);
       bool seen_downrec = cnt > 0;
 
-      if ((instr.op == OP_RET || instr.op == OP_RETN) &&
+      // TODO this conditional: check that the bcfunc this pc is in WAS an uprec
+      //
+      if ((instr.op == OP_RET || instr.op == OP_RETN) && downrec_ok &&
           cur_trace->parent_snap && seen_downrec) {
         clear_trace_state(ts);
         free_trace(cur_trace);
         record_start(state, pc, *pc, stack, argcnt);
+        trace_state *ts = record_trace_state(state);
+        ts->start_is_ret = true;
         MUSTTAIL return record(*pc, pc, stack, state, op_table, argcnt);
       }
       if (downrec_trace && seen_downrec && at_trace_start) {
@@ -1772,7 +1793,8 @@ static trace *record_begin_trace(vm_state *state, bc *pc, bc instr) {
   trace_state *ts = record_trace_state(state);
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
-  ts->start_is_ret = (instr.op == OP_RET || instr.op == OP_RETN);
+  // ts->start_is_ret = (instr.op == OP_RET || instr.op == OP_RETN);
+  ts->start_is_ret = false;
   return cur_trace;
 }
 

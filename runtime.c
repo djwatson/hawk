@@ -174,6 +174,7 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
     memset(func, 0, bytes);
     func->header.type = FUNC_TAG;
     func->poly_cnt = 0;
+    func->downrec_ok = 0;
     func->const_cnt = const_cnt;
     func->bc_cnt = bc_cnt;
     gc_register_bcfunc(func);
