@@ -178,7 +178,7 @@ void print_ir(trace *t) {
       break;
     case IR_ARG_PMOV:
       printf(" %i %s (%s)", ins->prev_reg, ins->prev_guard ? "(GUARD)" : "",
-             reg_names[ins->prev_reg]);
+             ins->prev_reg < MAX_REG ? reg_names[ins->prev_reg] : "");
       break;
     case IR_ARG_OFFSET:
       printf(" +%i", ins->data);

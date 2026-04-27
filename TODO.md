@@ -2,7 +2,7 @@
 
 * bug save-and-die WHILE in a trace fails - because currently vm_trace_reset is lazy
 
-TRACING - fix APPLY, that's whats causing compiler slowness
+dynamic,simplex on aarch64 - box_closure_flonums borken
 
 # Release checklist
 
@@ -103,7 +103,6 @@ Optional:
 ## tracer
 * dead/kills - no idea.  We could analyze bytecode, or just do
   top-of-stack tracking like previous.
-* multiple return values from the start
 * punt on: more than 256 refs.
 * Do check for side-trace tail-call should be root loop abort
    * have code, need to see if useful on more tests
