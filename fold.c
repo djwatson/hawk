@@ -66,7 +66,13 @@ static bool fold_cse_allowed(trace *t, ir_ins *in) {
   case IR_VMTRUNCATE:
     return true;
   case IR_LOAD:
-    return slot_type(t, in->op1) == CLOSURE_TAG;
+    // Closures are constant and can be folded.
+    if (slot_type(t, in->op1) == CLOSURE_TAG) {
+      return true;
+    }
+    // The record's 'type' field is constant and can be folded
+    return slot_type(t, in->op1) == RECORD_TAG && in->op2.constant &&
+           t->consts[in->op2.loc].value == tag_fixnum(1).value;
   default:
     return false;
   }

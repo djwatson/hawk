@@ -16,14 +16,17 @@ TRACING - fix APPLY, that's whats causing compiler slowness
 [ ] remove custom hashtable after we have a real eq? hashtable
 [ ] Record every OPcode:
   * APPLY (+ the resulting call FUNC or IFUNC)
+    * I didn't do this, but extended APPLY fastpath to length 8, and it never hits sys:APPLY in any benchmark now
+	* I tried doing it, but it means 'argcnt' is no longer constant in snapshots, which is a pain.
+	  We would have to length check BEFORE doing APPLY, which is ok I guess.  Never got it completely working
   [X] CALLCC & CALLCCRESUME
   * boxing in FFI
-[ ] Better inlining of existing, like change 3+ args to binops for +,-, etc
+[x] Better inlining of existing, like change 3+ args to binops for +,-, etc
 [ ] Inline a bunch of VM primitives to opcodes to make things faster
   * CONS, CAR, CDR
   * VECTOR MAKE_VECTOR VECTOR_REF VECTOR_SET VECTOR_LENGTH
   * STRING_LENGTH STRING_REF MAKE_STRING
-  * MEMQ ASSV ASSQ
+  [x] MEMQ ASSV ASSQ
   * GCALL GCALLT (global call)
   * Math ops like ROUND SIN SQRT ATAN COS TRUNCATE FLOOR CEILING EXP LOG TAN ASIN ACOS
   
@@ -34,7 +37,7 @@ Optional:
 [ ] GC old generation
 [ ] flvector
 [ ] opt_loop pass
-[ ] CSE
+[x] CSE
 [ ] sinking to snaps
 
 ## JIT impl
