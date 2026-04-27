@@ -86,6 +86,8 @@
   X(LCALL_N, AD)                                                               \
   X(LCALLT_N, AD)                                                              \
   X(APPLY, ABC)                                                                \
+  X(CONS, ABC)                                                                 \
+  X(RECT, ABC)                                                                 \
   X(FOREIGN_CALL, ABC)                                                         \
   X(CHAR_INTEGER, AD)                                                          \
   X(INTEGER_CHAR, AD)                                                          \

@@ -855,7 +855,7 @@ OP(DEFINE) {
   auto val = stack[instr.reg];
   auto s = to_symbol(sym);
   if (s->opt > 0) {
-    if (true || verbose) {
+    if (verbose) {
       printf("Clearing trace cache due to optimistic global: %s\n",
              to_string(s->name)->str);
     }
@@ -1115,6 +1115,22 @@ OP(ALLOC) {
   auto ptr =
       type < 8 ? tag_header(obj, (uint8_t)type) : tag_header(obj, PTR_TAG);
   stack[instr.reg] = ptr;
+  END_NEXT
+}
+OP(CONS) {
+  auto *c = (cons_s *)gc_alloc(sizeof(cons_s));
+  c->header.type = CONS_TAG;
+  c->a = stack[pc->v1];
+  c->b = stack[pc->v2];
+  stack[instr.reg] = tag_cons(c);
+  END_NEXT
+}
+OP(RECT) {
+  auto *c = (compnum_s *)gc_alloc(sizeof(compnum_s));
+  c->header.type = COMPNUM_TAG;
+  c->real = stack[pc->v1];
+  c->imag = stack[pc->v2];
+  stack[instr.reg] = tag_header(c, PTR_TAG);
   END_NEXT
 }
 

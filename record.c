@@ -773,7 +773,7 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
     mark_downrec_ok(cur_trace);
   }
 
-  box_closure_flonums(cur_trace);
+  // box_closure_flonums(cur_trace);
   dce(cur_trace);
   cur_trace->fn =
       emit(cur_trace, &state->emit, &state->record, cur_trace->link_entry_snap);
@@ -1064,8 +1064,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     goto done;
   }
   if (arrlen(cur_trace->consts) >= 30000) {
-    printf("Record abort len %li consts %li depth %i\n", arrlen(cur_trace->ins),
-           arrlen(cur_trace->consts), ts->depth);
     record_abort(state, &op_table, "Too many consts");
     goto done;
   }
@@ -1653,6 +1651,54 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                     .type = (uint8_t)to_fixnum(type_const));
     auto obj = add_inst(state, ins);
     stack_save(state, stack, instr.reg, obj);
+    break;
+  }
+  case OP_CONS: {
+    auto car = stack_load(state, stack, instr.v1, true);
+    auto cdr = stack_load(state, stack, instr.v2, true);
+    // Box flonums before alloc so boxed values are available for stores
+    car = box_vmcall_arg(state, car);
+    cdr = box_vmcall_arg(state, cdr);
+    auto cons_size = add_const(state, tag_fixnum(sizeof(cons_s)));
+    auto cons_type = add_const(state, tag_fixnum(CONS_TAG));
+    auto cell = add_inst(state, IR(.op = IR_ALLOC, .op1 = cons_size,
+                                   .op2 = cons_type, .type = CONS_TAG));
+    // No zero-init needed for CONS
+    auto a_off = add_const(state, tag_fixnum(0));
+    auto a_ref = add_inst(
+        state, IR(.op = IR_REF, .op1 = cell, .op2 = a_off, .type = CONS_TAG));
+    add_inst(state,
+             IR(.op = IR_STORE, .op1 = a_ref, .op2 = car, .type = CONS_TAG));
+    auto b_off = add_const(state, tag_fixnum(1));
+    auto b_ref = add_inst(
+        state, IR(.op = IR_REF, .op1 = cell, .op2 = b_off, .type = CONS_TAG));
+    add_inst(state,
+             IR(.op = IR_STORE, .op1 = b_ref, .op2 = cdr, .type = CONS_TAG));
+    stack_save(state, stack, instr.reg, cell);
+    break;
+  }
+  case OP_RECT: {
+    auto real = stack_load(state, stack, instr.v1, true);
+    auto imag = stack_load(state, stack, instr.v2, true);
+    // Box flonums before alloc so boxed values are available for stores
+    real = box_vmcall_arg(state, real);
+    imag = box_vmcall_arg(state, imag);
+    auto rect_size = add_const(state, tag_fixnum(sizeof(compnum_s)));
+    auto rect_type = add_const(state, tag_fixnum(COMPNUM_TAG));
+    auto cell = add_inst(state, IR(.op = IR_ALLOC, .op1 = rect_size,
+                                   .op2 = rect_type, .type = COMPNUM_TAG));
+    // No zero-init needed for COMPNUM
+    auto a_off = add_const(state, tag_fixnum(0));
+    auto a_ref = add_inst(state, IR(.op = IR_REF, .op1 = cell, .op2 = a_off,
+                                    .type = COMPNUM_TAG));
+    add_inst(state, IR(.op = IR_STORE, .op1 = a_ref, .op2 = real,
+                       .type = COMPNUM_TAG));
+    auto b_off = add_const(state, tag_fixnum(1));
+    auto b_ref = add_inst(state, IR(.op = IR_REF, .op1 = cell, .op2 = b_off,
+                                    .type = COMPNUM_TAG));
+    add_inst(state, IR(.op = IR_STORE, .op1 = b_ref, .op2 = imag,
+                       .type = COMPNUM_TAG));
+    stack_save(state, stack, instr.reg, cell);
     break;
   }
   case OP_STORE:

@@ -44,8 +44,7 @@ static bool is_hoist_alloc(trace *trace, uint16_t idx) {
   // Vectors are always zero-initialized,
   // symbols are always fully initialized.
   // TODO actually closures are usually zero-inited in JIT too? hmm.
-  return tag == CLOSURE_TAG || tag == CONS_TAG || tag == RATNUM_TAG ||
-         tag == COMPNUM_TAG || tag == RECORD_TAG;
+  return tag == RATNUM_TAG || tag == COMPNUM_TAG;
 }
 
 static bool is_hoist_store(trace *trace, uint16_t idx, uint16_t alloc_idx) {
