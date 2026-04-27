@@ -332,11 +332,37 @@
 (define apply
   (case-lambda
     ((fun args)
+      (define-syntax apply-list
+         (syntax-rules ()
+           ((apply-list fun args (arg ...))
+            (let ((p args)) (apply-list-step fun p () (arg ...))))))
+
+      (define-syntax apply-list-step
+         (syntax-rules ()
+           ((apply-list-step fun p (arg ...) ()) (fun arg ...))
+           ((apply-list-step fun p (arg ...) (next rest ...))
+            (let ((next (car p)) (tail (cdr p)))
+              (apply-list-step fun tail (arg ... next) (rest ...))))))
+
+      (unless (procedure? fun) (error "Applying to not a procedure:" fun))
+      (unless (list? args) (error "Apply to non-list" fun args))
       (let* ((len (length args)))
-        (unless (procedure? fun) (error "Applying to not a procedure:" fun))
-        (unless (list? args) (error "Apply to non-list" fun args))
-        ;; sys:APPLY must always be in tail position.
-        (sys:APPLY fun args)))
+        (case len
+          ((0) (apply-list fun args ()))
+          ((1) (apply-list fun args (a)))
+          ((2) (apply-list fun args (a b)))
+          ((3) (apply-list fun args (a b c)))
+          ((4) (apply-list fun args (a b c d)))
+          ((5) (apply-list fun args (a b c d e)))
+          ((6) (apply-list fun args (a b c d e f)))
+          ((7) (apply-list fun args (a b c d e f g)))
+          ((8) (apply-list fun args (a b c d e f g h)))
+          ((9) (apply-list fun args (a b c d e f g h i)))
+          ((10) (apply-list fun args (a b c d e f g h i j)))
+          ((11) (apply-list fun args (a b c d e f g h i j k)))
+          ((12) (apply-list fun args (a b c d e f g h i j k l)))
+          ;; sys:APPLY must always be in tail position.
+          (else (sys:APPLY fun args)))))
     ((fun . lst)
       (let* ((rlst (reverse lst))
              (unused (unless (list? (car rlst)) (error "Apply to non-list" (car rlst))))
