@@ -1519,6 +1519,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     }
     case IR_STORE: {
       ir_ins *ref = slot_ins(t, op->op1);
+      auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
       auto val_reg = arg0_reg;
       if (op->op2.constant) {
         emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op2));
@@ -1532,11 +1533,13 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         uint64_t live_gpr_mask;
         collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs,
                            &live_gpr_mask);
+        if (!ref->op1.constant) {
+          mark_live_reg(live_regs, &live_gpr_mask, base_reg);
+        }
         emit_box_flonum(s, 0, val_reg, false, live_regs, live_gpr_mask);
         val_reg = RTMP;
       }
 
-      auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
       if (ref->op1.constant) {
         // REF base can be a constant object (e.g. global vector).
         // Materialize it explicitly since constant args have no input reg.

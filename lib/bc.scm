@@ -186,7 +186,6 @@
           (else (walk-ir ir simple-pass)))))
     (else (walk-ir ir simple-pass))))
 
-;; TODO: more performant boxing: remember we must store/zero all fields before another alloc.
 (define (assignment-conversion ir)
   (define (boxed-load box ann)
     (build-primcall 'LOAD
@@ -198,26 +197,14 @@
                     `(,(build-lexical-reference (cdr box) #t #f) ,value ,(build-quote 0 ann))
                     ann))
 
-  (define (alloc-box ann)
-    (build-primcall 'ALLOC `(,(build-quote 24 ann) ,(build-quote 3 ann)) ann))
-
-  (define (init-box-body box body ann)
-    (build-begin `(,(build-primcall 'STORE
-                                    `(,(build-lexical-reference (cdr box) #t #f)
-                                      ,(build-lexical-reference (car box) #t #f)
-                                      ,(build-quote 0 ann))
-                                    ann)
-                   ,(build-primcall 'STORE
-                                    `(,(build-lexical-reference (cdr box) #t #f)
-                                      ,(build-quote 0 ann)
-                                      ,(build-quote 1 ann))
-                                    ann)
-                   ,body)
-                 ann))
+  (define (alloc-box box ann)
+    (build-primcall 'CONS
+                    `(,(build-lexical-reference (car box) #t #f) ,(build-quote 0 ann))
+                    ann))
 
   (define (wrap-boxes new-boxes body ann)
     (fold-right (lambda (box acc)
-                  (build-let `((,(cdr box) ,(alloc-box ann))) (init-box-body box acc ann) ann))
+                  (build-let `((,(cdr box) ,(alloc-box box ann))) acc ann))
                 body
                 new-boxes))
 
