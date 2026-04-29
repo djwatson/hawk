@@ -848,6 +848,7 @@ static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
   slot tail = add_const(state, NIL);
   for (int pos = (int)start + (int)len - 1; pos >= (int)start; pos--) {
     auto item = stack_load(state, stack, (uint8_t)pos, true);
+    item = box_vmcall_arg(state, item);
     auto sz = add_const(state, tag_fixnum(sizeof(cons_s)));
     auto type = add_const(state, tag_fixnum(CONS_TAG));
     auto cell = add_inst(
