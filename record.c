@@ -1980,8 +1980,9 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
     for (int i = 0; i < MIN(instr.reg, REG_ARG_CNT); i++) {
       auto s = get_sentry(state, i);
       uint8_t type = get_type_tag(stack[i]);
-      auto checked =
-          add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc, .type = type));
+      auto checked = add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc,
+                                        .type = type,
+                                        .guard = type == FLONUM_TAG));
       if (type == FLONUM_TAG) {
         set_stack(state, i, checked);
       }
@@ -1990,8 +1991,9 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
   case OP_RET: {
     auto s = get_sentry(state, instr.reg);
     uint8_t type = get_type_tag(stack[instr.reg]);
-    auto checked =
-        add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc, .type = type));
+    auto checked = add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc,
+                                      .type = type,
+                                      .guard = type == FLONUM_TAG));
     if (type == FLONUM_TAG) {
       set_stack(state, instr.reg, checked);
     }
@@ -2001,8 +2003,9 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
     for (uint16_t i = 0; i < instr.data; i++) {
       auto s = get_sentry(state, (uint8_t)(instr.reg + i));
       uint8_t type = get_type_tag(stack[instr.reg + i]);
-      auto checked =
-          add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc, .type = type));
+      auto checked = add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc,
+                                        .type = type,
+                                        .guard = type == FLONUM_TAG));
       if (type == FLONUM_TAG) {
         set_stack(state, (uint8_t)(instr.reg + i), checked);
       }
@@ -2015,8 +2018,9 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
       uint8_t slot = (uint8_t)(instr.reg + i);
       auto s = get_sentry(state, slot);
       uint8_t type = get_type_tag(stack[slot]);
-      auto checked =
-          add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc, .type = type));
+      auto checked = add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc,
+                                        .type = type,
+                                        .guard = type == FLONUM_TAG));
       if (type == FLONUM_TAG) {
         set_stack(state, slot, checked);
       }
@@ -2137,8 +2141,9 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
       continue;
     }
     uint8_t type = get_type_tag(stack[rel_slot]);
-    auto checked =
-        add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc, .type = type));
+    auto checked = add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc,
+                                      .type = type,
+                                      .guard = type == FLONUM_TAG));
     if (type == FLONUM_TAG) {
       set_stack_abs(state, entry->slot, checked);
     }

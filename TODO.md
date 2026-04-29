@@ -23,15 +23,13 @@ dynamic,simplex on aarch64 - box_closure_flonums borken
   * boxing in FFI
 [x] Better inlining of existing, like change 3+ args to binops for +,-, etc
 [ ] Inline a bunch of VM primitives to opcodes to make things faster
-  * CONS, CAR, CDR
+  [x] CONS
+  * CAR, CDR
   * VECTOR MAKE_VECTOR VECTOR_REF VECTOR_SET VECTOR_LENGTH
   * STRING_LENGTH STRING_REF MAKE_STRING
   [x] MEMQ ASSV ASSQ
   * GCALL GCALLT (global call)
   * Math ops like ROUND SIN SQRT ATAN COS TRUNCATE FLOOR CEILING EXP LOG TAN ASIN ACOS
-  
-  * The JIT could dro pthe box_closure_flonum pass if we have
-    * RATNUM, COMPNUM, CONS, since it could auto-convert the inputs.
   
 Optional: 
 [ ] GC old generation
@@ -47,12 +45,8 @@ Optional:
 * cleanup new recording infra
 * cleanup tmp /tmp2 reg shit.  it's getting sloppy
 
-* figure out why deriv is slow
-  * heurstics can't catch single-looping trace
-  * downrec abort not working (start of trace is failing?)
-  * GC next_collect is 10x too big.
-  * deriv.scm needs better closure conversion.
-  * It's because APPLY doesn't record doh :(
+* TYPECHECK does different things for flonum vs. GPRs. ugh.
+  * flonums must be eagerly typechecked, since we need to know if we need FPR vs GPR
 
 * downrec traces don't ensure_args_match and link without boxing/typecheck
 
