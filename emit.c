@@ -105,13 +105,13 @@ static void build_slowpath_reg_frame(uint8_t regs[FPR_REG_END],
 static void emit_save_slowpath_regs(emit_state *s) {
   uint8_t regs[FPR_REG_END];
   build_slowpath_reg_frame(regs, false);
-  emit_push_regs(s, regs, FPR_REG_END, true);
+  emit_push_regs(s, regs, FPR_REG_END, false);
 }
 
 static void emit_restore_slowpath_regs(emit_state *s) {
   uint8_t regs[FPR_REG_END];
   build_slowpath_reg_frame(regs, true);
-  emit_pop_regs(s, regs, FPR_REG_END, true);
+  emit_pop_regs(s, regs, FPR_REG_END, false);
 }
 
 void emit_init_slowpath(emit_state *s) {
