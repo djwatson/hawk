@@ -845,7 +845,7 @@ static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
                             uint8_t len) {
   slot tail = add_const(state, NIL);
   for (int pos = (int)start + (int)len - 1; pos >= (int)start; pos--) {
-    auto item = stack_load(state, stack, (uint8_t)pos, true);
+    auto item = stack_load(state, stack, (uint8_t)pos, false);
     item = box_vmcall_arg(state, item);
     auto sz = add_const(state, tag_fixnum(sizeof(cons_s)));
     auto type = add_const(state, tag_fixnum(CONS_TAG));
@@ -1154,8 +1154,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     RECORD_BIN_CMP(JGTE, emit_math_cmp_gte)
   case OP_JEQ:
   case OP_JEQV: {
-    auto v1 = stack_load(state, stack, instr.v1, true);
-    auto v2 = stack_load(state, stack, instr.v2, true);
+    auto v1 = stack_load(state, stack, instr.v1, instr.op == OP_JEQV);
+    auto v2 = stack_load(state, stack, instr.v2, instr.op == OP_JEQV);
     bool taken;
     auto guard =
         emit_math_cmp_eq(state, pc, stack, v1, v2, &taken, instr.op == OP_JEQV);
@@ -1677,8 +1677,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_RECT: {
-    auto real = stack_load(state, stack, instr.v1, true);
-    auto imag = stack_load(state, stack, instr.v2, true);
+    auto real = stack_load(state, stack, instr.v1, false);
+    auto imag = stack_load(state, stack, instr.v2, false);
     // Box flonums before alloc so boxed values are available for stores
     real = box_vmcall_arg(state, real);
     imag = box_vmcall_arg(state, imag);
