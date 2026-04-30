@@ -869,6 +869,7 @@ OP(DEFINE) {
     s->opt = -1;
   }
   s->val = val;
+  gc_log(&s->val);
   END_NEXT
 }
 
@@ -999,6 +1000,7 @@ OP(CLOSURE_SET) {
   auto clo = stack[instr.v1];
   auto slot = instr.v2;
   to_closure(clo)->v[slot] = val;
+  gc_log(&to_closure(clo)->v[slot]);
   END_NEXT
 }
 
@@ -1166,6 +1168,7 @@ OP(STORE) {
 
   auto base = (gc_obj *)((uint8_t *)to_raw_ptr(dest) + sizeof(gc_header));
   base[to_fixnum(off)] = val;
+  gc_log(&base[to_fixnum(off)]);
   END_NEXT
 }
 OP(STORE_CHAR) {

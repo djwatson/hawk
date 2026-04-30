@@ -29,7 +29,11 @@ void *gc_base_ptr(void *p);
 gc_obj gc_read_image(uint8_t const *data, size_t len, char const *path);
 gc_obj gc_read_image_file(char const *path);
 void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress);
-void gc_log(uint64_t a);
+NOINLINE void gc_log_slow(gc_obj *field);
+
+static inline void gc_log(gc_obj *field) {
+  MUSTTAIL return gc_log_slow(field);
+}
 void gc_free(void);
 
 extern uintptr_t gc_hp;

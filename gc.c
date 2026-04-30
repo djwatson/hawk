@@ -33,6 +33,7 @@ size_t gc_roots_len;
 static gc_scan_callback scan_callback;
 static void *scan_data;
 static gc_header **worklist;
+static gc_obj *remembered_set;
 
 typedef struct {
   bcfunc *ptr;
@@ -206,6 +207,9 @@ static void gc_collect(void) {
       gc_add_mark_root((const uint64_t *)root.ptr, root.len);
     }
   }
+  arr_for_each(remembered_set, field) { visit_field(&field, nullptr); }
+  arrlen_set(remembered_set, 0);
+
   if (scan_callback) {
     scan_callback(scan_data, gc_add_mark_root);
   }
@@ -250,6 +254,10 @@ void gc_init(void) {
   heap.size = heap_size * 2;
 }
 
+NOINLINE void gc_log_slow(gc_obj *field) {
+  arrput(remembered_set, *field);
+}
+
 void gc_set_scan_callback(gc_scan_callback cb, void *data) {
   scan_callback = cb;
   scan_data = data;
@@ -281,12 +289,8 @@ void *gc_base_ptr(void *p) {
   return nullptr;
 }
 
-void gc_log(uint64_t a) {
-  (void)a;
-  abort();
-}
-
 void gc_free(void) {
+  arrfree(remembered_set);
   arrfree(worklist);
   arr_for_each(pinned_funcs, entry) { free(entry.ptr); }
   arrfree(pinned_funcs);
