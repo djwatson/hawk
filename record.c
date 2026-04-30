@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <math.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1354,6 +1355,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto val = stack_load(state, stack, instr.reg, false);
     ir_ins ins = IR(.op = IR_GSET, .op1 = c, .op2 = val);
     add_inst(state, ins);
+    auto off = add_const(state, tag_fixnum((offsetof(symbol, val) -
+                                            sizeof(gc_header)) /
+                                           sizeof(gc_obj)));
+    add_inst(state, IR(.op = IR_GCLOG, .op1 = c, .op2 = off));
     vm_add_snap(state, pc + 1, argcnt);
     break;
   }
@@ -1511,6 +1516,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
     add_inst(state,
              IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = CLOSURE_TAG));
+    add_inst(state, IR(.op = IR_GCLOG, .op1 = clo, .op2 = c_pos));
     break;
   }
   case OP_CLOSURE: {
@@ -1795,6 +1801,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       add_inst(state,
                IR(.op = IR_STORE, .op1 = ref, .op2 = val,
                   .type = get_slot_type(record_current_trace(state), obj)));
+      add_inst(state, IR(.op = IR_GCLOG, .op1 = obj, .op2 = offset));
     } else {
       add_inst(state, IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val,
                          .type = STRING_TAG));

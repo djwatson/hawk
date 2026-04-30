@@ -92,6 +92,7 @@ typedef enum : uint8_t {
   X(LOAD_CHAR, ARG_IR_IR, false)                                               \
   X(STORE, ARG_IR_IR, true)                                                    \
   X(STORE_CHAR, ARG_IR_IR, true)                                               \
+  X(GCLOG, ARG_IR_IR, true)                                                    \
   X(ALLOC, ARG_IR_IR, false)                                                   \
   X(FLUSH, ARG_NONE_NONE, true)                                                \
   X(CALLCC, ARG_IR_NONE, true)                                                 \

@@ -170,6 +170,35 @@ void emit_init_slowpath(emit_state *s) {
   emit_writable_end(s);
   register_jit_symbol(expand_start, s->expand_stack_slowpath,
                       (uint8_t *)expand_end, "ExpandStackSlowpath");
+
+  // Slowpath for gc_log: RTMP = obj (tagged gc_obj*), RTMP2 = offset (in units of 8).
+  auto gclog_start = (uint8_t *)emit_offset(s);
+
+  emit_writable_begin(s);
+
+  emit_save_slowpath_regs(s);
+
+  // Untag obj: RTMP = RTMP & ~TAG_MASK
+  emit_and_constant(s, RTMP, RTMP, ~(int64_t)TAG_MASK);
+  // Add offset to obj: RTMP = RTMP + RTMP2 (offset already in bytes via fixnum tag)
+  emit_add(s, RTMP, RTMP, RTMP2);
+  // Skip gc_header: RTMP = RTMP + 8
+  emit_add_constant(s, RTMP, RTMP, 8);
+  // Move field pointer to RARG0
+  emit_mov(s, RARG0, RTMP);
+  // Call gc_log_slow
+  emit_mov64(s, RTMP, (intptr_t)&gc_log_slow);
+  emit_call_reg(s, RTMP);
+
+  emit_restore_slowpath_regs(s);
+  emit_ret(s);
+
+  auto gclog_end = emit_offset(s);
+  s->gclog_slowpath = gclog_start;
+
+  emit_writable_end(s);
+  register_jit_symbol(gclog_start, s->gclog_slowpath, (uint8_t *)gclog_end,
+                      "GCLogSlowpath");
 }
 
 static inline bool ins_uses_freg(ir_ins const *ins) {
@@ -1783,6 +1812,25 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       int64_t stack_off = slot_const(t, op->op2);
       assert((int32_t)stack_off == stack_off);
       emit_store(s, (int32_t)stack_off, RSTACK, val_reg);
+      break;
+    }
+    case IR_GCLOG: {
+      // Load obj (op1) into RTMP
+      if (op->op1.constant) {
+        emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op1));
+      } else {
+        uint8_t obj_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
+        emit_mov(s, RTMP, obj_reg);
+      }
+      // Load offset (op2) into RTMP2
+      if (op->op2.constant) {
+        emit_mov64(s, RTMP2, slot_const(t, op->op2));
+      } else {
+        uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+        emit_mov(s, RTMP2, offset_reg);
+      }
+      // Call gclog slowpath
+      emit_call32(s, (int64_t)s->gclog_slowpath);
       break;
     }
     case IR_ALLOC: {
