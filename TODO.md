@@ -2,8 +2,6 @@
 
 * bug save-and-die WHILE in a trace fails - because currently vm_trace_reset is lazy
 
-dynamic,simplex on aarch64 - box_closure_flonums borken
-
 # Release checklist
 
 [x] Closure conversion from O(0) closure paper 
