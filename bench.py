@@ -61,15 +61,15 @@ def main():
     print(f'Slower (>5% degradation): {len(bad)} tests, avg {sum(p for _,p,_ in bad)/len(bad):.1f}% ({sum(a for _,_,a in bad):+.2f})' if bad else 'No significantly slower tests')
     print(f'Total comparable: {len(changes)} tests')
 
-    changes.sort(key=lambda x: x[1])
+    changes.sort(key=lambda x: x[2])
     print()
-    print('Better than 2x:')
+    print('Better:')
     for t, p, a in changes:
-        if p < -50:
+        if a < -.2:
             print(f'  {t}: {p:+.1f}% ({a:+.2f})')
-    print('Worse by 2x:')
+    print('Worse:')
     for t, p, a in reversed(changes):
-        if p > 50:
+        if a > .2:
             print(f'  {t}: {p:+.1f}% ({a:+.2f})')
 
     total_old = sum(old[t] for t, _, _ in changes)

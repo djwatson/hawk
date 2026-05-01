@@ -36,6 +36,18 @@ Optional:
 [x] CSE
 [ ] sinking to snaps
 
+## Known jit perf work
+
+* closure creation should not zero fill, ONLY zero-fill slots where we need 
+  to allocate a closure group and the closures have to be allocated first
+* new GC is non-generational, leading to some small perf loss in cpstak, dynamic, etc:
+  only tiny benchmarks really.
+* register allocation needs to reserve fewer registers.
+
+* cpstak: gen-gc+ reg pressure, zero-fill
+* graphs: gen-gc
+* dynamic: zero-fill +gen-gc
+
 ## JIT impl
 
 * lots of ccall cleanup - regalloc, live register save/restore, etc
