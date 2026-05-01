@@ -28,7 +28,8 @@ uintptr_t gc_hp;
 uintptr_t gc_limit;
 size_t soft_limit = 32UL << 20;
 uintptr_t gc_soft_limit;
-gc_root_range *gc_roots;
+gc_root_range gc_roots[GC_MAX_ROOTS];
+size_t gc_roots_len;
 static gc_scan_callback scan_callback;
 static void *scan_data;
 static gc_header **worklist;
@@ -197,7 +198,8 @@ static void gc_collect(void) {
   flip_spaces();
   arrlen_set(worklist, 0);
 
-  arr_for_each(gc_roots, root) {
+  for (size_t i = 0; i < gc_roots_len; i++) {
+    gc_root_range root = gc_roots[i];
     if (root.tag != 0) {
       scan_ptr_root_range(root.ptr, root.len, root.tag);
     } else {
@@ -248,26 +250,6 @@ void gc_init(void) {
   heap.size = heap_size * 2;
 }
 
-NOINLINE void gc_add_root_slow(const void *rootp, size_t len, uint8_t tag) {
-  arrput(gc_roots, ((gc_root_range){
-                       .ptr = rootp,
-                       .len = len,
-                       .tag = tag,
-                   }));
-}
-
-NOINLINE void gc_remove_root_slow(const void *rootp, uint8_t tag) {
-  for (size_t i = arrlen(gc_roots); i > 0; i--) {
-    size_t idx = i - 1;
-    if (gc_roots[idx].ptr == rootp && gc_roots[idx].tag == tag) {
-      gc_roots[idx] = *arrlast(gc_roots);
-      arrpop(gc_roots);
-      return;
-    }
-  }
-  assert(!"Attempted to remove unknown GC root");
-}
-
 void gc_set_scan_callback(gc_scan_callback cb, void *data) {
   scan_callback = cb;
   scan_data = data;
@@ -305,7 +287,6 @@ void gc_log(uint64_t a) {
 }
 
 void gc_free(void) {
-  arrfree(gc_roots);
   arrfree(worklist);
   arr_for_each(pinned_funcs, entry) { free(entry.ptr); }
   arrfree(pinned_funcs);

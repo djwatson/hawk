@@ -61,7 +61,7 @@ static void *gc_alloc_ir_slowpath(uint64_t tagged_sz, uint8_t *reg_save,
 
   void *ptr = gc_alloc((uint64_t)(tagged_sz >> FIXNUM_SHIFT));
 
-  for (uint8_t reg = 0; reg < FPR_REG_START; reg++) {
+  for (int8_t reg = FPR_REG_START - 1; reg >= 0; reg--) {
     if (gpr_mask & (1ULL << reg)) {
       gc_remove_root((const void *)(reg_save + alloc_reg_save_slot_offset(reg)),
                      0);

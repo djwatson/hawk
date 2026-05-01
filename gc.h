@@ -19,9 +19,10 @@ typedef struct {
 } gc_root_range;
 
 void gc_init(void);
-extern gc_root_range *gc_roots;
-NOINLINE void gc_add_root_slow(const void *rootp, size_t len, uint8_t tag);
-NOINLINE void gc_remove_root_slow(const void *rootp, uint8_t tag);
+enum { GC_MAX_ROOTS = 64 };
+
+extern gc_root_range gc_roots[GC_MAX_ROOTS];
+extern size_t gc_roots_len;
 void gc_set_scan_callback(gc_scan_callback cb, void *data);
 void gc_register_bcfunc(struct bcfunc *func);
 void *gc_base_ptr(void *p);
@@ -38,29 +39,20 @@ extern uintptr_t gc_soft_limit;
 NOINLINE void *gc_alloc_slow(uint64_t sz);
 
 static inline void gc_add_root(const void *rootp, size_t len, uint8_t tag) {
-  if (likely(gc_roots != nullptr &&
-             arr_header(gc_roots)->length < arr_header(gc_roots)->capacity)) {
-    size_t idx = arr_header(gc_roots)->length++;
-    gc_roots[idx] = (gc_root_range){
-        .ptr = rootp,
-        .len = len,
-        .tag = tag,
-    };
-    return;
-  }
-  MUSTTAIL return gc_add_root_slow(rootp, len, tag);
+  assert(gc_roots_len < GC_MAX_ROOTS);
+  gc_roots[gc_roots_len++] = (gc_root_range){
+      .ptr = rootp,
+      .len = len,
+      .tag = tag,
+  };
 }
 
 static inline void gc_remove_root(const void *rootp, uint8_t tag) {
-  if (likely(gc_roots != nullptr && arr_header(gc_roots)->length > 0)) {
-    size_t idx = arr_header(gc_roots)->length - 1;
-    gc_root_range root = gc_roots[idx];
-    if (likely(root.ptr == rootp && root.tag == tag)) {
-      arrpop(gc_roots);
-      return;
-    }
-  }
-  MUSTTAIL return gc_remove_root_slow(rootp, tag);
+  assert(gc_roots_len > 0);
+  size_t idx = gc_roots_len - 1;
+  gc_root_range root = gc_roots[idx];
+  assert(root.ptr == rootp && root.tag == tag);
+  gc_roots_len = idx;
 }
 
 static inline void *gc_alloc(uint64_t sz) {
