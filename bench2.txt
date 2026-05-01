@@ -104,7 +104,7 @@ bench2/sumfp.scm
 bench2/sum.scm
 0.424
 bench2/tail.scm
-2.023
+0.764
 bench2/takl.scm
 1.582
 bench2/tak.scm
