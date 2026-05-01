@@ -1805,9 +1805,16 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
 
       emit_rooted_alloc(s, live_gpr_mask, tagged_size, size_reg);
       emit_store_constant(s, 0, RTMP, (int64_t)type_val);
-      if (type_val == VECTOR_TAG || type_val == RECORD_TAG ||
-          type_val == CLOSURE_TAG) {
-        asm_zero_alloc_payload(s, tagged_size, size_reg);
+      if (type_val == CLOSURE_TAG || type_val == VECTOR_TAG ||
+          type_val == RECORD_TAG) {
+        if (size_reg == REG_NONE && tagged_size < TAG_FIXNUM_VALUE(64)) {
+          int64_t payload_bytes = (tagged_size >> FIXNUM_SHIFT) - 8;
+          for (int64_t off = 0; off < payload_bytes; off += 8) {
+            emit_store_constant(s, 8 + off, RTMP, 0);
+          }
+        } else {
+          asm_zero_alloc_payload(s, tagged_size, size_reg);
+        }
       }
       if (type_val == SYMBOL_TAG) {
         emit_store_constant(s, symbol_val_offset, RTMP, DEAD.value);
