@@ -1103,13 +1103,13 @@
           ((not (port-input? port))
             (let loop ((pos start) (left len))
               (if (> left 0)
-                  (begin
-                    (let ((avail (- port-buffer-size (port-len port))))
-                      (let ((copy (if (< left avail) left avail)))
+                  (let ((avail (- port-buffer-size (port-len port))))
+                    (if (= avail 0)
+                        (begin (flush-port-write-buffer port) (loop pos left))
+                        (let ((copy (if (< left avail) left avail)))
                         (str-copy-internal (port-buf port) (port-len port) str pos (+ pos copy))
                         (port-len-set! port (+ (port-len port) copy))
-                        (loop (+ pos copy) (- left copy)))))))
-            (flush-port-write-buffer port))
+                          (loop (+ pos copy) (- left copy))))))))
           (else (error "write-string: not an output port" port)))))))
 
 (define (string->list str)
