@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
 #include "bc.h"
@@ -38,6 +39,23 @@ static struct option long_options[] = {
 extern const uint8_t embedded_image[];
 extern const size_t embedded_image_size;
 
+// On OSX, dynamic.scm test fails because of open file limits (as low
+// as 256 open files)
+static void raise_fd_limit() {
+  struct rlimit lim;
+  if (getrlimit(RLIMIT_NOFILE, &lim) != 0) {
+    return;
+  }
+  rlim_t target = 4096;
+  if (lim.rlim_max != RLIM_INFINITY && target > lim.rlim_max) {
+    target = lim.rlim_max;
+  }
+  if (lim.rlim_cur < target) {
+    lim.rlim_cur = target;
+    (void)setrlimit(RLIMIT_NOFILE, &lim);
+  }
+}
+
 void print_help() {
   printf("Usage: hawk [OPTION] [<script> [arg ...]]\n");
   printf("Available options are:\n");
@@ -64,8 +82,7 @@ static parse_result parse_args(int argc, char *argv[]) {
   parse_result out = {0};
   int option_index = 0;
   while ((c = getopt_long(argc, argv, "+pvdhom:s:i:", long_options,
-                          &option_index)) !=
-         -1) {
+                          &option_index)) != -1) {
     switch (c) {
     case 'v':
       verbose = true;
@@ -102,8 +119,7 @@ static parse_result parse_args(int argc, char *argv[]) {
     }
   }
 
-  bool after_separator =
-      optind > 1 && strcmp(argv[optind - 1], "--") == 0;
+  bool after_separator = optind > 1 && strcmp(argv[optind - 1], "--") == 0;
   int command_arg_idx = optind;
   if (!after_separator && optind < argc) {
     out.script = argv[optind];
@@ -117,6 +133,7 @@ static parse_result parse_args(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
+  raise_fd_limit();
   gc_init();
   command_line_program_name = argv[0];
 

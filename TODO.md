@@ -50,6 +50,9 @@ Optional:
 
 ## JIT impl
 
+* downrec handling - currently this ONLY starts based on side exits, so for example test/sum1.scm never traces
+  a downrec, resulting in HUGE vm time.
+
 * lots of ccall cleanup - regalloc, live register save/restore, etc
 
 * cleanup new recording infra
