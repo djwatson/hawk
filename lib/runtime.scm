@@ -852,9 +852,8 @@
         (case-lambda (() cell) ((new) (set! cell (converter new))))))))
 
 ;;;;;; Port ops
-(define-record-type port (make-port fd peek input fold-case buf pos len sbuf) port?
+(define-record-type port (make-port fd input fold-case buf pos len sbuf) port?
   (fd port-fd)
-  (peek port-peek port-peek-set!)
   (input port-input?)
   (fold-case port-fold-case port-fold-case-set!)
   (buf port-buf port-buf-set!)
@@ -864,12 +863,12 @@
 
 (define port-buffer-size 4096)
 (define (make-input-port fd)
-  (make-port fd #f #t #f (make-string port-buffer-size) 0 0 #f))
+  (make-port fd #t #f (make-string port-buffer-size) 0 0 #f))
 (define (make-output-port fd)
-  (make-port fd #f #f #f (make-string port-buffer-size) 0 0 #f))
+  (make-port fd #f #f (make-string port-buffer-size) 0 0 #f))
 (define (make-string-input-port str)
-  (make-port -1 #f #t #f str 0 (string-length str) #f))
-(define (make-string-output-port) (make-port -1 #f #f #f #f 0 0 ""))
+  (make-port -1 #t #f str 0 (string-length str) #f))
+(define (make-string-output-port) (make-port -1 #f #f #f 0 0 ""))
 
 (define display
   (case-lambda
@@ -975,7 +974,6 @@
           #t)
         #t)))
 (define (clear-port-buffers! port)
-  (port-peek-set! port #f)
   (port-buf-set! port "")
   (port-pos-set! port 0)
   (port-len-set! port 0)
@@ -992,6 +990,11 @@
 (define close-input-port close-port)
 (define-record-type eof-object-record (make-eof-object) eof-object?)
 (define (eof-object) (make-eof-object))
+(define (fill-input-port-buffer port)
+  (let ((cnt (c-read (port-fd port) (port-buf port) port-buffer-size)))
+    (if (> cnt 0)
+        (begin (port-pos-set! port 0) (port-len-set! port cnt) #t)
+        (begin (port-pos-set! port 0) (port-len-set! port -1) #f))))
 (define (read-from-port-buffer port)
   (if (not (port-input? port))
       (error "read-char: not an input port" port)
@@ -1003,27 +1006,27 @@
           (else
             (if (< (port-fd port) 0)
                 (begin (port-len-set! port -1) (make-eof-object))
-                (let ((cnt (c-read (port-fd port) buf port-buffer-size)))
-                  (if (> cnt 0)
-                      (begin (port-pos-set! port 1) (port-len-set! port cnt) (string-ref buf 0))
-                      (begin (port-pos-set! port 0) (port-len-set! port -1) (make-eof-object))))))))))
+                (if (fill-input-port-buffer port)
+                    (read-from-port-buffer port)
+                    (make-eof-object))))))))
 (define peek-char
   (case-lambda
     (() (peek-char (current-input-port)))
     ((port)
-      (cond
-        ((port-peek port))
-        (else
-          (let ((c (read-from-port-buffer port)))
-            (if (eof-object? c) c (begin (port-peek-set! port c) c))))))))
+      (if (not (port-input? port))
+          (error "peek-char: not an input port" port)
+          (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
+            (cond
+              ((< len 0) (make-eof-object))
+              ((< pos len) (string-ref buf pos))
+              ((< (port-fd port) 0) (port-len-set! port -1) (make-eof-object))
+              ((fill-input-port-buffer port) (string-ref buf 0))
+              (else (make-eof-object))))))))
 
 (define read-char
   (case-lambda
     (() (read-char (current-input-port)))
-    ((port)
-      (cond
-        ((port-peek port) => (lambda (x) (port-peek-set! port #f) x))
-        (else (read-from-port-buffer port))))))
+    ((port) (read-from-port-buffer port))))
 (define read-line
   (case-lambda
     (() (read-line (current-input-port)))
