@@ -74,7 +74,6 @@ Optional:
   but that's silly, we can just check when we emit if the parent IR_ARG or IR_PMOV needs it
   when processing IR_TYPECHECK
 
-* currently (cons) calls IR_STORE, but this forces a snapshot-  many more snapshots than really necessary (because we're only storing to NEW memory, we shouldn't need to snapshot).
 
 * we could add a GC_ENSURE.  It wouldn't work for variably sizxed ALLOC, but it would save having to register save/restore for snapshots *at all*, and we could merge all fixed-size allocs to fastpaths!
   * basically split the *do we have enough memory?* path from the *bump the pointer and allocate* path
@@ -88,8 +87,6 @@ Optional:
 * we store state VM, the only place it is used is to flush traces in the FOREIGN_CALL to dump image and die. ugh.
 * we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!
 * need a 'box' type so assignment-conversion doesn't need to set more than one thing
-* be careful around vector init, ugh.
-* Probably faster to just AND-align8 all allocs instead of requiring ALLOC to be sz aligned already.
 
 # scheme cleanup
 * builders needs to be in with the rest of the IR passes. Use builders instead of backtick to build stuff.

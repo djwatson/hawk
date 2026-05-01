@@ -143,6 +143,15 @@ void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t const *target) {
   memcpy(loc, &delta, sizeof(int32_t));
 }
 
+bool asm_jcc32_can_reach(uint8_t *loc, uint8_t const *target) {
+  int64_t delta = (int64_t)target - (int64_t)(loc + 4);
+  return fits_in_32(delta);
+}
+
+uint8_t *asm_jcc32_start(uint8_t *loc) { return loc - 2; }
+
+uint8_t *asm_jcc32_end(uint8_t *loc) { return loc + 4; }
+
 void asm_write_jmp32_at(emit_state *s, uint8_t *loc, uint8_t const *target) {
   (void)s;
   assert(loc);

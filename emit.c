@@ -1967,8 +1967,17 @@ static void emit_side_trace_entry(emit_state *s, trace *t,
   (void)ra_state;
   // Install the side trace.
   uint8_t *patch_loc = t->parent_snap->patch_point.addr;
-  asm_write_jmp32_at(s, patch_loc, (uint8_t *)emit_offset(s));
+  uint8_t *entry = (uint8_t *)emit_offset(s);
+  asm_write_jmp32_at(s, patch_loc, entry);
   __builtin___clear_cache((char *)patch_loc, (char *)patch_loc + 16);
+  arr_for_each(t->parent_snap->side_exit_jcc_locs, loc) {
+    if (!asm_jcc32_can_reach(loc, entry)) {
+      continue;
+    }
+    asm_patch_jcc32(s, loc, entry);
+    __builtin___clear_cache((char *)asm_jcc32_start(loc),
+                            (char *)asm_jcc32_end(loc));
+  }
 }
 
 trace_fn emit(trace *t, emit_state *s, record_state *record,
@@ -1993,6 +2002,10 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
     emit_root_trace_entry(s, t, &reg_state);
   } else {
     emit_side_trace_entry(s, t, &reg_state);
+  }
+
+  arr_for_each_idx(t->snaps, i) {
+    t->snaps[i].patch_point.jcc32_locs = &t->snaps[i].side_exit_jcc_locs;
   }
 
   // This is where the trace will start when other traces are linked to it.

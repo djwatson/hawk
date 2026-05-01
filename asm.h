@@ -21,6 +21,7 @@ typedef struct label_patch {
 typedef struct label {
   uint8_t *addr;
   label_patch *patches;
+  uint8_t ***jcc32_locs;
   bool emitted;
 } label;
 

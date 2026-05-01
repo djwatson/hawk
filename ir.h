@@ -29,6 +29,7 @@ typedef struct {
   uint8_t depth;
   uint8_t exits;
   label patch_point;
+  uint8_t **side_exit_jcc_locs;
   trace *trace;
 } snap;
 

@@ -81,6 +81,9 @@ void label_add_patch(emit_state *s, label *label, enum label_patch_kind kind,
   label_patch patch = {.kind = kind, .loc = loc};
   // Use heap-backed arrays so we can free after patching.
   arrput(label->patches, patch);
+  if (kind == LABEL_PATCH_JCC32 && label->jcc32_locs) {
+    arrput(*label->jcc32_locs, loc);
+  }
 }
 
 void emit_label(emit_state *s, label *label) {

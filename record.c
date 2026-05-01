@@ -100,7 +100,10 @@ static void clear_trace_state(trace_state *ts) {
   arrfree(ts->debug_ops);
   *ts = (trace_state){0};
 }
-static void free_snap(snap *snap) { arrfree(snap->slots); }
+static void free_snap(snap *snap) {
+  arrfree(snap->slots);
+  arrfree(snap->side_exit_jcc_locs);
+}
 static void free_trace(trace *trace) {
   arr_for_each(trace->snaps, snap) { free_snap(&snap); }
   arrfree(trace->ins);
