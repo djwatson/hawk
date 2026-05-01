@@ -99,7 +99,7 @@ static void gc_insert_pinned_func(bcfunc *func) {
   pinned_funcs[lo].ptr = func;
 }
 
-static void visit_field(gc_obj *slot, void *ctx) {
+INLINE static void visit_field(gc_obj *slot, void *ctx) {
   (void)ctx;
   if (!is_heap_object(*slot)) {
     return;

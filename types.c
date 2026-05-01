@@ -22,12 +22,12 @@ bcfunc const *closure_code_ptr(closure_s const *clo) {
 }
 
 static const char *type_tag_names[256] = {
-    [FIXNUM_TAG] = "fix",   [CONS_TAG] = "cons",  [FLONUM_TAG] = "flo",
-    [SYMBOL_TAG] = "sym",   [BOOL_TAG] = "bool",  [NIL_TAG] = "nil",
-    [EOF_TAG] = "eof",      [STRING_TAG] = "str", [FUNC_TAG] = "func",
-    [VECTOR_TAG] = "vec",   [CONT_TAG] = "cont",  [PTR_TAG] = "ptr",
-    [CHAR_TAG] = "char",    [CLOSURE_TAG] = "clo", [UNDEFINED_TAG] = "",
-    [RECORD_TAG] = "rec",   [BIGNUM_TAG] = "big", [RATNUM_TAG] = "rat",
+    [FIXNUM_TAG] = "fix",  [CONS_TAG] = "cons",   [FLONUM_TAG] = "flo",
+    [SYMBOL_TAG] = "sym",  [BOOL_TAG] = "bool",   [NIL_TAG] = "nil",
+    [EOF_TAG] = "eof",     [STRING_TAG] = "str",  [FUNC_TAG] = "func",
+    [VECTOR_TAG] = "vec",  [CONT_TAG] = "cont",   [PTR_TAG] = "ptr",
+    [CHAR_TAG] = "char",   [CLOSURE_TAG] = "clo", [UNDEFINED_TAG] = "",
+    [RECORD_TAG] = "rec",  [BIGNUM_TAG] = "big",  [RATNUM_TAG] = "rat",
     [COMPNUM_TAG] = "cmp",
 };
 
@@ -169,7 +169,7 @@ static inline size_t heap_align(size_t size) {
   return (size + sizeof(gc_obj) - 1) & ~(sizeof(gc_obj) - 1);
 }
 
-size_t heap_object_size(void *obj) {
+INLINE size_t heap_object_size(void *obj) {
   auto type = *(uint64_t *)obj;
   switch (type) {
   case FLONUM_TAG:
@@ -219,7 +219,7 @@ static void trace_gc_obj_array(gc_obj *objs, uint64_t len, trace_callback visit,
   }
 }
 
-void trace_heap_object(gc_header *obj, trace_callback visit, void *ctx) {
+INLINE void trace_heap_object(gc_header *obj, trace_callback visit, void *ctx) {
   auto type = obj->type;
   switch (type) {
   case FLONUM_TAG:
