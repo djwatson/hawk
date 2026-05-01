@@ -26,6 +26,8 @@ typedef struct {
 static gc_heap heap;
 uintptr_t gc_hp;
 uintptr_t gc_limit;
+size_t soft_limit = 32UL << 20;
+uintptr_t gc_soft_limit;
 gc_root_range *gc_roots;
 static gc_scan_callback scan_callback;
 static void *scan_data;
@@ -177,15 +179,21 @@ static void flip_spaces(void) {
   gc_limit = heap.to_space;
 }
 
+static size_t soft_bytes_copied(void) {
+  return (heap.to_space + space_size()) - gc_hp;
+}
+
+static void update_soft_limit(void) {
+  gc_soft_limit = gc_hp - gc_limit > soft_limit ? gc_hp - soft_limit : gc_limit;
+}
+
 static void scan_object(gc_header *obj) {
   trace_heap_object(obj, visit_field, nullptr);
 }
 
 static void gc_collect(void) {
   profiler_set_in_gc(true);
-  if (verbose) {
-    fprintf(stderr, "gc_collect()\n");
-  }
+  size_t old_soft = soft_limit;
   flip_spaces();
   arrlen_set(worklist, 0);
 
@@ -206,11 +214,21 @@ static void gc_collect(void) {
     arrpop(worklist);
     scan_object(obj);
   }
+
+  size_t copied = soft_bytes_copied();
+  if (old_soft <= SIZE_MAX / 2 && copied > old_soft / 3) {
+    soft_limit *= 3;
+  }
+  if (verbose) {
+    fprintf(stderr, "gc_collect(copied: %li, new soft:%li)\n", copied,
+            soft_limit);
+  }
   profiler_set_in_gc(false);
+  update_soft_limit();
 }
 
 void gc_init(void) {
-  size_t heap_size = 512UL << 20;
+  size_t heap_size = 4ULL << 30;
   char *heap_env = getenv("GC_SPACE");
   if (heap_env) {
     heap_size = (size_t)atoll(heap_env);
@@ -226,6 +244,7 @@ void gc_init(void) {
   heap.from_space = (uintptr_t)mem + heap_size;
   gc_hp = (uintptr_t)mem + heap_size;
   gc_limit = (uintptr_t)mem;
+  update_soft_limit();
   heap.size = heap_size * 2;
 }
 
@@ -254,9 +273,7 @@ void gc_set_scan_callback(gc_scan_callback cb, void *data) {
   scan_data = data;
 }
 
-void gc_register_bcfunc(bcfunc *func) {
-  gc_insert_pinned_func(func);
-}
+void gc_register_bcfunc(bcfunc *func) { gc_insert_pinned_func(func); }
 
 void *gc_base_ptr(void *p) {
   uintptr_t target = (uintptr_t)p;

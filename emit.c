@@ -294,7 +294,7 @@ static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
   }
 
   emit_mov(s, RTMP, RALLOC);
-  emit_mov64(s, RTMP2, (intptr_t)&gc_limit);
+  emit_mov64(s, RTMP2, (intptr_t)&gc_soft_limit);
   emit_mem_load(s, 0, RTMP2, RTMP2);
   emit_cmp(s, RALLOC, RTMP2);
   emit_jcc32(s, JAE, &alloc_done);

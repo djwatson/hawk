@@ -33,6 +33,7 @@ void gc_free(void);
 
 extern uintptr_t gc_hp;
 extern uintptr_t gc_limit;
+extern uintptr_t gc_soft_limit;
 
 NOINLINE void *gc_alloc_slow(uint64_t sz);
 
@@ -65,7 +66,7 @@ static inline void gc_remove_root(const void *rootp, uint8_t tag) {
 static inline void *gc_alloc(uint64_t sz) {
   assert((sz & 0x7) == 0);
   uintptr_t new_hp = gc_hp - sz;
-  if (likely(new_hp >= gc_limit)) {
+  if (likely(new_hp >= gc_soft_limit)) {
     gc_hp = new_hp;
     return (void *)gc_hp;
   }
