@@ -56,7 +56,7 @@ bench2/maze.scm
 bench2/mbrot.scm
 0.512
 bench2/mbrotZ.scm
-13.171
+4.599
 bench2/mperm.scm
 2.619
 bench2/nboyer.scm

@@ -515,9 +515,52 @@ static gc_obj normalize_compnum(gc_obj real, gc_obj imag) {
   return numeric_is_zero(imag) ? real : SCM_MAKE_RECTANGULAR(real, imag);
 }
 
+static bool double_part(gc_obj v, double *out, bool *inexact) {
+  if (is_flonum(v)) {
+    *out = to_flonum(v)->x;
+    *inexact = true;
+    return true;
+  }
+  if (is_fixnum(v)) {
+    *out = (double)to_fixnum(v);
+    return true;
+  }
+  return false;
+}
+
+static bool compnum_double_parts(gc_obj v, double *real, double *imag,
+                                 bool *inexact) {
+  if (is_compnum(v)) {
+    compnum_s *c = to_compnum(v);
+    return double_part(c->real, real, inexact) &&
+           double_part(c->imag, imag, inexact);
+  }
+  *imag = 0.0;
+  return double_part(v, real, inexact);
+}
+
+// GC: may allocate via gc_alloc through vm_box_flonum and SCM_MAKE_RECTANGULAR.
+static gc_obj make_inexact_compnum(double real, double imag) {
+  gc_obj real_obj = vm_box_flonum(real);
+  if (imag == 0.0) {
+    return real_obj;
+  }
+  gc_add_root((const void *)&real_obj, 1, 0);
+  gc_obj imag_obj = vm_box_flonum(imag);
+  gc_obj out = SCM_MAKE_RECTANGULAR(real_obj, imag_obj);
+  gc_remove_root((const void *)&real_obj, 0);
+  return out;
+}
+
 // GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_add_slow,
 // and normalize_compnum.
 static gc_obj compnum_add(gc_obj a, gc_obj b) {
+  double ar, ai, br, bi;
+  bool inexact = false;
+  if (compnum_double_parts(a, &ar, &ai, &inexact) &&
+      compnum_double_parts(b, &br, &bi, &inexact) && inexact) {
+    return make_inexact_compnum(ar + br, ai + bi);
+  }
   gc_add_root((const void *)&b, 1, 0);
   gc_obj ca_obj = get_compnum(a);
   gc_add_root((const void *)&ca_obj, 1, 0);
@@ -539,6 +582,12 @@ static gc_obj compnum_add(gc_obj a, gc_obj b) {
 // GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_sub_slow,
 // and normalize_compnum.
 static gc_obj compnum_sub(gc_obj a, gc_obj b) {
+  double ar, ai, br, bi;
+  bool inexact = false;
+  if (compnum_double_parts(a, &ar, &ai, &inexact) &&
+      compnum_double_parts(b, &br, &bi, &inexact) && inexact) {
+    return make_inexact_compnum(ar - br, ai - bi);
+  }
   gc_add_root((const void *)&b, 1, 0);
   gc_obj ca_obj = get_compnum(a);
   gc_add_root((const void *)&ca_obj, 1, 0);
@@ -560,6 +609,12 @@ static gc_obj compnum_sub(gc_obj a, gc_obj b) {
 // GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_*_slow,
 // and normalize_compnum.
 static gc_obj compnum_mul(gc_obj a, gc_obj b) {
+  double ar, ai, br, bi;
+  bool inexact = false;
+  if (compnum_double_parts(a, &ar, &ai, &inexact) &&
+      compnum_double_parts(b, &br, &bi, &inexact) && inexact) {
+    return make_inexact_compnum(ar * br - ai * bi, ar * bi + ai * br);
+  }
   gc_add_root((const void *)&b, 1, 0);
   gc_obj ca_obj = get_compnum(a);
   gc_add_root((const void *)&ca_obj, 1, 0);
