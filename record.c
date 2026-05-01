@@ -771,9 +771,7 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
     printf("Record stop %i: %s\n", cur_trace->num, msg);
   }
   vm_add_snap(state, pc, argcnt);
-  if (arrlast(cur_trace->snaps)->offset == 0) {
-    mark_downrec_ok(cur_trace);
-  }
+  mark_downrec_ok(cur_trace);
 
   dce(cur_trace);
   cur_trace->fn =

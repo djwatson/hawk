@@ -44,6 +44,7 @@ Optional:
   only tiny benchmarks really.
 * register allocation needs to reserve fewer registers.
 
+* downrec seems to not really help at all!!!!!!!!!!!!!!!!!!!!!! we can just remove.
 * cpstak: gen-gc+ reg pressure, zero-fill
 * graphs: gen-gc
 * dynamic: zero-fill +gen-gc
