@@ -1455,12 +1455,18 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_CLOSURE: {
     uint64_t capture_cnt = (uint64_t)pc->data + 1;
     uint8_t start = pc->reg;
+    slot captures[capture_cnt];
 
     assert(is_func(stack[start]));
     auto func = to_func(stack[start]);
     if (func->poly_cnt < 4) {
       record_abort(state, &op_table, "Poly cnt abort");
       break;
+    }
+
+    for (uint64_t i = 0; i < capture_cnt; i++) {
+      auto val = stack_load(state, stack, start + i, false);
+      captures[i] = box_vmcall_arg(state, val);
     }
 
     int64_t size_bytes =
@@ -1481,12 +1487,12 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     add_inst(state, IR(.op = IR_STORE, .op1 = len_ref, .op2 = len_val,
                        .type = CLOSURE_TAG));
 
-    // Seed slot 0 with the function label; IR_ALLOC now zeroes the payload.
-    auto label = stack_load(state, stack, start, false);
-    slot c_pos = add_const(state, tag_fixnum(0 + 1));
-    auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
-    add_inst(state,
-             IR(.op = IR_STORE, .op1 = ref, .op2 = label, .type = CLOSURE_TAG));
+    for (uint64_t i = 0; i < capture_cnt; i++) {
+      slot c_pos = add_const(state, tag_fixnum((int64_t)i + 1));
+      auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
+      add_inst(state, IR(.op = IR_STORE, .op1 = ref, .op2 = captures[i],
+                         .type = CLOSURE_TAG));
+    }
 
     stack_save(state, stack, instr.reg, clo);
     break;

@@ -992,15 +992,11 @@ OP(CLOSURE) {
   uint8_t start = pc->reg;
   size_t bytes = sizeof(closure_s) + (sizeof(gc_obj) * sz);
   closure_s *clo = gc_alloc(bytes);
-  // Current closure algorithm requires zero-initilizing the whole
-  // closure: since letrec* groups may reference each other,
-  // we need to allocate all closures before assigning pointers.
-  memset(clo, 0, bytes);
   clo->header.type = CLOSURE_TAG;
   clo->len = tag_fixnum((int64_t)sz);
-  // Only seed slot 0 with the function label; closure captures are
-  // initialized via explicit CLOSURE_SET bytecodes.
-  clo->v[0] = stack[start];
+  for (uint64_t i = 0; i < sz; i++) {
+    clo->v[i] = stack[start + i];
+  }
   assert(is_func(clo->v[0]));
   auto func = to_func(clo->v[0]);
   if ((func->poly_cnt & 1) == 1) {

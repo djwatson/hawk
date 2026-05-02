@@ -548,6 +548,11 @@
                     `(,(build-lexical-reference clo #t #f) ,(build-quote num #f) ,value)
                     #f))
 
+  (define (closure-init-expr fv letrec-vars body-rho)
+    (if (memq fv letrec-vars)
+        (build-quote 0 #f)
+        (pass (build-lexical-reference fv #t #f) body-rho)))
+
   (define label-cache (make_custom_hash_table))
   (define lambda-bindings (make_custom_hash_table))
   (define lambda-self-vars (make_custom_hash_table))
@@ -783,10 +788,16 @@
                                   (and (group-needs-closure? group final-set)
                                        (variable? value)
                                        `(,value ,(build-primcall 'closure
-                                                                 (list (build-quote (length final-set)
-                                                                                    #f)
-                                                                       (build-quote (label-name (car (car group)))
-                                                                                    #f))
+                                                                 `(,(build-quote (length final-set) #f)
+                                                                   ,(build-quote
+                                                                      (label-name (car (car group)))
+                                                                      #f)
+                                                                   ,@(map (lambda (fv)
+                                                                            (closure-init-expr
+                                                                              fv
+                                                                              vars
+                                                                              body-rho))
+                                                                          final-set))
                                                                  #f))))
                                 groups
                                 group-values
@@ -795,15 +806,17 @@
                     (apply append
                            (map (lambda (group value final-set)
                                   (if (and (group-needs-closure? group final-set) (variable? value))
-                                      (map (lambda (fv num)
-                                             (closure-set-expr value
-                                                               num
-                                                               (pass (build-lexical-reference fv
-                                                                                              #t
-                                                                                              #f)
-                                                                     body-rho)))
-                                           final-set
-                                           (iota (length final-set) 1))
+                                      (filter-map (lambda (fv num)
+                                                    (and (memq fv vars)
+                                                         (closure-set-expr
+                                                           value
+                                                           num
+                                                           (pass (build-lexical-reference fv
+                                                                                          #t
+                                                                                          #f)
+                                                                 body-rho))))
+                                                  final-set
+                                                  (iota (length final-set) 1))
                                       '()))
                                 groups
                                 group-values
@@ -1266,6 +1279,13 @@
                 ((assq label env) =>
                    (lambda (entry)
                      (add-op fun `(CONST ,top ,(add-const fun (cdr entry))))
+                     (for-each
+                       (lambda (init reg)
+                         (let ((res (compile init fun env reg #f)))
+                           (when (and (integer? res) (not (= res reg)))
+                             (add-op fun `(MOV ,reg ,res)))))
+                       (cddr args)
+                       (iota (length (cddr args)) (+ top 1)))
                      (add-op fun `(CLOSURE ,top ,cnt))
                      (finish top)))
                 (else (error "Unknown label in closure:" label)))))
