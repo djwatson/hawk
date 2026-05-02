@@ -67,14 +67,32 @@
     ((eq? name 'values) 'any)
     ((eq? name 'call-with-values) 2)
     ((memq name
-           '(/ < > = >= <= quotient truncate-quotient remainder modulo memq memv))
+           '(/ < > = >= <= quotient truncate-quotient remainder modulo memq memvcons))
       2)
     ((memq name
-           '(exact->inexact inexact->exact char->integer integer->char display))
+           '(exact->inexact inexact->exact char->integer integer->char display car cdr))
       1)
     (else #f)))
 
 (define nestable-primcalls '(+ - * < > = >= <=))
+
+(define guard-primcalls
+  '((null? . 20)
+    (pair? . 3)
+    (boolean? . 4)
+    (char? . 12)
+    (fixnum? . 0)
+    (flonum? . 2)
+    (bignum? . 57)
+    (ratnum? . 25)
+    (compnum? . 65)
+    (procedure? . 5)
+    (string? . 9)
+    (bytevector? . 57)
+    (symbol? . 6)
+    (vector? . 7)
+    (undefined? . 36)
+    (record? . 49)))
 
 (define (nest-primcall opname args ann)
   (let loop ((rest (cdr args)) (acc (car args)))
@@ -178,6 +196,11 @@
               (if (memq name '(< > = >= <=))
                   (nest-compare (cdr (assq name primcalls)) passargs ann)
                   (nest-primcall (cdr (assq name primcalls)) passargs ann))))
+          ((and (equal? lib "") (assq name guard-primcalls) (= (length args) 1))
+            (build-primcall 'GUARD
+                            (list (simple-pass (car args))
+                                  (build-quote (cdr (assq name guard-primcalls)) ann))
+                            ann))
           ((and (equal? lib "")
                 (assq name primcalls)
                 (let ((arity (primcall-arity name)) (nargs (length args)))
