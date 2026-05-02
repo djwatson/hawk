@@ -1128,6 +1128,18 @@ OP(ALLOC) {
   stack[instr.reg] = ptr;
   END_NEXT
 }
+OP(CAR) {
+  if (!is_cons(stack[pc->v1])) abort();
+  auto *c = to_cons(stack[pc->v1]);
+  stack[instr.reg] = c->a;
+  END_NEXT
+}
+OP(CDR) {
+  if (!is_cons(stack[pc->v1])) abort();
+  auto *c = to_cons(stack[pc->v1]);
+  stack[instr.reg] = c->b;
+  END_NEXT
+}
 OP(CONS) {
   auto *c = (cons_s *)gc_alloc(sizeof(cons_s));
   c->header.type = CONS_TAG;

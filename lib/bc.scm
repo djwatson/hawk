@@ -60,6 +60,8 @@
     (= . EQV)
     (>= . GTE)
     (<= . LTE)
+    (car . CAR)
+    (cdr . CDR)
     (cons . CONS)
     ;(display . WRITE)
   ))
@@ -166,8 +168,7 @@
          (variable? (ir-reference-var (ir-application-fun ir)))
          (= (length (ir-application-args ir)) 1)
          (let ((var (ir-reference-var (ir-application-fun ir))))
-           (and (equal? (variable-library-name var) "")
-                (eq? (variable-name var) 'not)))))
+           (and (equal? (variable-library-name var) "") (eq? (variable-name var) 'not)))))
   (cond
     ((and (ir-conditional? ir) (not-application? (ir-conditional-test ir)))
       (let ((test (ir-conditional-test ir))
@@ -227,8 +228,7 @@
                     ann))
 
   (define (wrap-boxes new-boxes body ann)
-    (fold-right (lambda (box acc)
-                  (build-let `((,(cdr box) ,(alloc-box box ann))) acc ann))
+    (fold-right (lambda (box acc) (build-let `((,(cdr box) ,(alloc-box box ann))) acc ann))
                 body
                 new-boxes))
 

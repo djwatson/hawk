@@ -87,6 +87,8 @@
   X(LCALL_N, AD)                                                               \
   X(LCALLT_N, AD)                                                              \
   X(APPLY, ABC)                                                                \
+  X(CAR, AB)                                                                   \
+  X(CDR, AB)                                                                   \
   X(CONS, ABC)                                                                 \
   X(RECT, ABC)                                                                 \
   X(FOREIGN_CALL, ABC)                                                         \

@@ -1718,6 +1718,24 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     stack_save(state, stack, instr.reg, obj);
     break;
   }
+  case OP_CAR: {
+    auto obj = stack_load(state, stack, pc->v1, true);
+    auto src = stack[pc->v1];
+    auto car_off = add_const(state, tag_fixnum(0));
+    auto res = add_inst(state, IR(.op = IR_LOAD, .op1 = obj, .op2 = car_off,
+                                  .type = get_type_tag(to_cons(src)->a)));
+    stack_save(state, stack, instr.reg, res);
+    break;
+  }
+  case OP_CDR: {
+    auto obj = stack_load(state, stack, pc->v1, true);
+    auto src = stack[pc->v1];
+    auto cdr_off = add_const(state, tag_fixnum(1));
+    auto res = add_inst(state, IR(.op = IR_LOAD, .op1 = obj, .op2 = cdr_off,
+                                  .type = get_type_tag(to_cons(src)->b)));
+    stack_save(state, stack, instr.reg, res);
+    break;
+  }
   case OP_CONS: {
     auto car = stack_load(state, stack, instr.v1, true);
     auto cdr = stack_load(state, stack, instr.v2, true);

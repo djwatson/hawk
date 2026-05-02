@@ -29,6 +29,8 @@
         WRITE
         HALT
         ;; These are kinda combined symbols
+        CAR
+        CDR
         CONS
         RECT))
 

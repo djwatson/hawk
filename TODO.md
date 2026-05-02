@@ -93,11 +93,6 @@ Optional:
 * we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!
 * need a 'box' type so assignment-conversion doesn't need to set more than one thing
 
-# scheme cleanup
-* builders needs to be in with the rest of the IR passes. Use builders instead of backtick to build stuff.
-* matchers kinda suck with annotations and unused fields, ugh???
-* move passes to separate file?
-
 # simple VM
 
 * debug info serialized - hmm maybe keep in scheme format?
