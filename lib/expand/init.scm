@@ -173,6 +173,7 @@
                             call-with-values
                             dynamic-wind
                             ;; record runtime helpers
+                            make-record
                             make-record-type
                             record-constructor
                             record?
@@ -525,10 +526,25 @@
                                              (predicate (list-ref form 3))
                                              (field-specs (list-tail form 4))
                                              (field-tags (map car field-specs))
+                                             (field-names (map unwrap-syntax field-tags))
                                              (thing 'thing)
                                              (value 'value))
                                         (define (native-id sym)
                                           (make-identifier sym native-env))
+                                        (define (field-index tag)
+                                          (let loop ((i 1) (field-names field-names))
+                                            (cond
+                                              ((null? field-names)
+                                                (error "constructor field not found" tag))
+                                              ((eq? (unwrap-syntax tag) (car field-names)) i)
+                                              (else (loop (+ i 1) (cdr field-names))))))
+                                        (define (constructor-setters record tags)
+                                          (map (lambda (tag)
+                                                 `(,(native-id 'record-set!)
+                                                   ,record
+                                                   ,(field-index tag)
+                                                   ,tag))
+                                               tags))
                                         (define (expand-field-specs specs index)
                                           (if (null? specs)
                                               '()
@@ -563,18 +579,27 @@
                                                                  (,(rename 'error) "Invalid modifier"))))
                                                           (expand-field-specs
                                                             (cdr specs)
-                                                            (+ index 1)))))))))
+                                                    (+ index 1)))))))))
+                                        (let ((record (rename 'record))
+                                              (rtd (rename 'rtd)))
                                         `(,(rename 'begin)
                                            (,(rename 'define)
                                              ,type
                                              (,(native-id 'make-record-type)
                                                ',(unwrap-syntax type)
-                                               ',(map unwrap-syntax field-tags)))
-                                           (,(rename 'define)
-                                             ,constructor
-                                             (,(native-id 'record-constructor)
-                                               ,type
-                                               ',(map unwrap-syntax constructor-tags)))
+                                               ',field-names))
+                                           (,(rename 'define) ,constructor
+                                             ((,(rename 'lambda) (,rtd)
+                                                (,(rename 'lambda) ,constructor-tags
+                                                  ((,(rename 'lambda) (,record)
+                                                   (,(native-id 'record-set!) ,record 0 ,rtd)
+                                                   ,@(constructor-setters
+                                                       record
+                                                       constructor-tags)
+                                                   ,record)
+                                                   (,(native-id 'make-record)
+                                                     ,(+ (length field-tags) 1)))))
+                                              ,type))
                                            (,(rename 'define) ,predicate
                                              (,(rename 'lambda) (,thing)
                                                (,(rename 'if)
@@ -583,7 +608,7 @@
                                                    (,(native-id 'record-ref) ,thing 0)
                                                    ,type)
                                                  #f)))
-                                           ,@(expand-field-specs field-specs 1))))))
+                                           ,@(expand-field-specs field-specs 1)))))))
                 (for-each library-export '(syntax-rules _ ...))
                 (install-builtin! 'define
                                   (lambda (form env)

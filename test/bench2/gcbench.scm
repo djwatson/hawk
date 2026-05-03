@@ -68,18 +68,16 @@
     ;; They're just to take up space, so this will be comparable
     ;; to the Java original.
 
-    ;; (define-record-type classNode
-    ;;   (make-node-raw left right i j)
-    ;;   classNode?
-    ;;   (left  node.left  node.left-set!)
-    ;;   (right node.right node.right-set!)
-    ;;   (i     node.i     node.i-set!)
-    ;;   (j     node.j     node.j-set!))
-    (define (make-node-raw a b c d) (vector a b c d))
-    (define (node.left v) (vector-ref v 0))
-    (define (node.right v) (vector-ref v 1))
-    (define (node.left-set! v obj) (vector-set! v 0 obj))
-    (define (node.right-set! v obj) (vector-set! v 1 obj))
+    (define-record-type classNode (make-node-raw left right i j) classNode?
+      (left node.left node.left-set!)
+      (right node.right node.right-set!)
+      (i node.i node.i-set!)
+      (j node.j node.j-set!))
+    ;; (define (make-node-raw a b c d) (vector a b c d))
+    ;; (define (node.left v) (vector-ref v 0))
+    ;; (define (node.right v) (vector-ref v 1))
+    ;; (define (node.left-set! v obj) (vector-set! v 0 obj))
+    ;; (define (node.right-set! v obj) (vector-set! v 1 obj))
 
     (let ((make-empty-node (lambda () (make-node-raw 0 0 0 0)))
           (make-node (lambda (l r) (make-node-raw l r 0 0))))
