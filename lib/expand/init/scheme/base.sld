@@ -528,18 +528,8 @@
                              (syntax-rules :::
                                ()
                                ((_ key (atom)) (eqv? key 'atom))
-                               ((_ key (atom1 atom2))
-                                (or (eqv? key 'atom1) (eqv? key 'atom2)))
-                               ((_ key (atom1 atom2 atom3))
-                                (or (eqv? key 'atom1)
-                                    (eqv? key 'atom2)
-                                    (eqv? key 'atom3)))
-                               ((_ key (atom1 atom2 atom3 atom4))
-                                (or (eqv? key 'atom1)
-                                    (eqv? key 'atom2)
-                                    (eqv? key 'atom3)
-                                    (eqv? key 'atom4)))
-                               ((_ key (atoms :::)) (memv key '(atoms :::)))))
+                               ((_ key (atom atoms :::))
+                                (or (eqv? key 'atom) (case-test key (atoms :::))))))
                           (case-aux
                              (syntax-rules :::
                                (else =>)

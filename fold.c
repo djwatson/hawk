@@ -37,11 +37,7 @@ static bool same_slot(trace *t, slot a, slot b) {
   return t->consts[a.loc].value == t->consts[b.loc].value;
 }
 
-static uint8_t slot_type(trace *t, slot v) {
-  return v.constant ? get_type_tag(t->consts[v.loc]) : t->ins[v.loc].type;
-}
-
-static bool fold_cse_allowed(trace *t, ir_ins *in) {
+static bool fold_cse_allowed(trace *t __attribute__((unused)), ir_ins *in) {
   switch (in->op) {
   case IR_EQ:
   case IR_NE:
@@ -64,18 +60,42 @@ static bool fold_cse_allowed(trace *t, ir_ins *in) {
   case IR_VMINEXACT:
   case IR_VMEXACT:
   case IR_VMTRUNCATE:
-    return true;
   case IR_LOAD:
-    // Closures are constant and can be folded.
-    if (slot_type(t, in->op1) == CLOSURE_TAG) {
-      return true;
-    }
-    // The record's 'type' field is constant and can be folded
-    return slot_type(t, in->op1) == RECORD_TAG && in->op2.constant &&
-           t->consts[in->op2.loc].value == tag_fixnum(1).value;
+    return true;
   default:
     return false;
   }
+}
+
+static bool const_slot_eq(trace *t, slot a, slot b) {
+  assert(a.constant && b.constant);
+  return t->consts[a.loc].value == t->consts[b.loc].value;
+}
+
+static bool store_invalidates_load(trace *t, ir_ins *load, ir_ins *store) {
+  assert(store->op == IR_STORE);
+  if (!load->op2.constant || store->op1.constant) {
+    return true;
+  }
+
+  ir_ins *store_ref = &t->ins[store->op1.loc];
+  if (store_ref->op != IR_REF || !store_ref->op2.constant) {
+    return true;
+  }
+  return const_slot_eq(t, load->op2, store_ref->op2);
+}
+
+static bool load_cse_allowed(trace *t, uint16_t load_ref) {
+  ir_ins *load = &t->ins[load_ref];
+  uint16_t store_ref = t->cse_head[IR_STORE];
+  while (store_ref != UINT16_MAX) {
+    if (store_ref > load_ref &&
+        store_invalidates_load(t, load, &t->ins[store_ref])) {
+      return false;
+    }
+    store_ref = t->cse_prev[store_ref];
+  }
+  return true;
 }
 
 static bool same_cse_operands(trace *t, ir_ins *a, ir_ins *b) {
@@ -308,7 +328,8 @@ fold_result fold_instr(trace *trace, ir_ins *in) {
     uint16_t ref = trace->cse_head[in->op];
     while (ref != UINT16_MAX) {
       ir_ins *prev = &trace->ins[ref];
-      if (same_cse_operands(trace, in, prev)) {
+      if (same_cse_operands(trace, in, prev) &&
+          (in->op != IR_LOAD || load_cse_allowed(trace, ref))) {
         return fold_ref((slot){.constant = false, .loc = ref});
       }
       ref = trace->cse_prev[ref];
