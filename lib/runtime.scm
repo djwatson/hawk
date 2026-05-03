@@ -752,7 +752,7 @@
       ;;(unless (and (number? num) (fixnum? base) (<= 1 base 16)) (error "bad number->string" num))
       (let* ((buflen 100) (buffer (make-string buflen)))
         (cond
-          ((flonum? num) (display "Error flonum->string") (/ 1 0))
+          ((flonum? num) (sys:FOREIGN_CALL '(string "ftoa_fast" (double)) num))
           ((bignum? num) (sys:FOREIGN_CALL '(string "bignum_string" (gc_obj)) num))
           ((ratnum? num)
             (string-append (number->string (numerator num))

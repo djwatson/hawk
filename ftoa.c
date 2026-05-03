@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "hawk.h"
+
 // Simple shortest-ftoa.
 // This will in some cases add a single extra digit, when rounding would provide
 // the incorrect result:
@@ -44,7 +46,7 @@ static bool append_decimal_if_needed(char *buf, int n, size_t size) {
 }
 
 // Returns malloc'd string; caller frees.
-char *ftoa_fast(double v) {
+EXPORT char *ftoa_fast(double v) {
   if (isnan(v)) {
     return strdup("nan");
   }
