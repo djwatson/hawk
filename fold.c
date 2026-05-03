@@ -61,6 +61,7 @@ static bool fold_cse_allowed(trace *t __attribute__((unused)), ir_ins *in) {
   case IR_VMEXACT:
   case IR_VMTRUNCATE:
   case IR_LOAD:
+  case IR_GGET:
     return true;
   default:
     return false;
@@ -94,6 +95,27 @@ static bool load_cse_allowed(trace *t, uint16_t load_ref) {
       return false;
     }
     store_ref = t->cse_prev[store_ref];
+  }
+  return true;
+}
+
+static bool gset_invalidates_gget(trace *t, ir_ins *gget, ir_ins *gset) {
+  assert(gset->op == IR_GSET);
+  if (!gget->op1.constant || !gset->op1.constant) {
+    return true;
+  }
+  return const_slot_eq(t, gget->op1, gset->op1);
+}
+
+static bool gget_cse_allowed(trace *t, uint16_t gget_ref) {
+  ir_ins *gget = &t->ins[gget_ref];
+  uint16_t gset_ref = t->cse_head[IR_GSET];
+  while (gset_ref != UINT16_MAX) {
+    if (gset_ref > gget_ref &&
+        gset_invalidates_gget(t, gget, &t->ins[gset_ref])) {
+      return false;
+    }
+    gset_ref = t->cse_prev[gset_ref];
   }
   return true;
 }
@@ -329,7 +351,8 @@ fold_result fold_instr(trace *trace, ir_ins *in) {
     while (ref != UINT16_MAX) {
       ir_ins *prev = &trace->ins[ref];
       if (same_cse_operands(trace, in, prev) &&
-          (in->op != IR_LOAD || load_cse_allowed(trace, ref))) {
+          (in->op != IR_LOAD || load_cse_allowed(trace, ref)) &&
+          (in->op != IR_GGET || gget_cse_allowed(trace, ref))) {
         return fold_ref((slot){.constant = false, .loc = ref});
       }
       ref = trace->cse_prev[ref];
