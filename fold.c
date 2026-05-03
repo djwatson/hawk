@@ -61,6 +61,7 @@ static bool fold_cse_allowed(trace *t __attribute__((unused)), ir_ins *in) {
   case IR_VMEXACT:
   case IR_VMTRUNCATE:
   case IR_LOAD:
+  case IR_LOAD_CHAR:
   case IR_GGET:
     return true;
   default:
@@ -73,8 +74,9 @@ static bool const_slot_eq(trace *t, slot a, slot b) {
   return t->consts[a.loc].value == t->consts[b.loc].value;
 }
 
-static bool store_invalidates_load(trace *t, ir_ins *load, ir_ins *store) {
-  assert(store->op == IR_STORE);
+static bool store_invalidates_load(trace *t, ir_ins *load, ir_ins *store,
+                                   ir_ins_op store_op) {
+  assert(store->op == store_op);
   if (!load->op2.constant || store->op1.constant) {
     return true;
   }
@@ -86,17 +88,46 @@ static bool store_invalidates_load(trace *t, ir_ins *load, ir_ins *store) {
   return const_slot_eq(t, load->op2, store_ref->op2);
 }
 
-static bool load_cse_allowed(trace *t, uint16_t load_ref) {
+static bool load_cse_allowed(trace *t, uint16_t load_ref, ir_ins_op store_op) {
   ir_ins *load = &t->ins[load_ref];
-  uint16_t store_ref = t->cse_head[IR_STORE];
+  uint16_t store_ref = t->cse_head[store_op];
   while (store_ref != UINT16_MAX) {
     if (store_ref > load_ref &&
-        store_invalidates_load(t, load, &t->ins[store_ref])) {
+        store_invalidates_load(t, load, &t->ins[store_ref], store_op)) {
       return false;
     }
     store_ref = t->cse_prev[store_ref];
   }
   return true;
+}
+
+static fold_result fold_forward_load(trace *t, ir_ins *load,
+                                     ir_ins_op store_op) {
+  if (!load->op2.constant) {
+    return fold_next();
+  }
+
+  uint16_t store_ref = t->cse_head[store_op];
+  while (store_ref != UINT16_MAX) {
+    ir_ins *store = &t->ins[store_ref];
+    if (store->op1.constant) {
+      return fold_next();
+    }
+
+    ir_ins *ref = &t->ins[store->op1.loc];
+    if (ref->op != IR_REF || !ref->op2.constant) {
+      return fold_next();
+    }
+    if (!const_slot_eq(t, load->op2, ref->op2)) {
+      store_ref = t->cse_prev[store_ref];
+      continue;
+    }
+    if (same_slot(t, load->op1, ref->op1)) {
+      return fold_ref(store->op2);
+    }
+    return fold_next();
+  }
+  return fold_next();
 }
 
 static bool gset_invalidates_gget(trace *t, ir_ins *gget, ir_ins *gset) {
@@ -118,6 +149,21 @@ static bool gget_cse_allowed(trace *t, uint16_t gget_ref) {
     gset_ref = t->cse_prev[gset_ref];
   }
   return true;
+}
+
+static fold_result fold_forward_gget(trace *t, ir_ins *gget) {
+  uint16_t gset_ref = t->cse_head[IR_GSET];
+  while (gset_ref != UINT16_MAX) {
+    ir_ins *gset = &t->ins[gset_ref];
+    if (!gget->op1.constant || !gset->op1.constant) {
+      return fold_next();
+    }
+    if (const_slot_eq(t, gget->op1, gset->op1)) {
+      return fold_ref(gset->op2);
+    }
+    gset_ref = t->cse_prev[gset_ref];
+  }
+  return fold_next();
 }
 
 static bool same_cse_operands(trace *t, ir_ins *a, ir_ins *b) {
@@ -347,11 +393,27 @@ fold_result fold_instr(trace *trace, ir_ins *in) {
     if (!fold_cse_allowed(trace, in)) {
       return res;
     }
+    if (in->op == IR_LOAD || in->op == IR_LOAD_CHAR) {
+      ir_ins_op store_op = in->op == IR_LOAD ? IR_STORE : IR_STORE_CHAR;
+      res = fold_forward_load(trace, in, store_op);
+      if (res.action != FOLD_NEXT) {
+        return res;
+      }
+    }
+    if (in->op == IR_GGET) {
+      res = fold_forward_gget(trace, in);
+      if (res.action != FOLD_NEXT) {
+        return res;
+      }
+    }
     uint16_t ref = trace->cse_head[in->op];
     while (ref != UINT16_MAX) {
       ir_ins *prev = &trace->ins[ref];
+      bool load_op = in->op == IR_LOAD || in->op == IR_LOAD_CHAR;
       if (same_cse_operands(trace, in, prev) &&
-          (in->op != IR_LOAD || load_cse_allowed(trace, ref)) &&
+          (!load_op ||
+           load_cse_allowed(trace, ref,
+                            in->op == IR_LOAD ? IR_STORE : IR_STORE_CHAR)) &&
           (in->op != IR_GGET || gget_cse_allowed(trace, ref))) {
         return fold_ref((slot){.constant = false, .loc = ref});
       }
