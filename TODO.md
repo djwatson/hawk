@@ -1,6 +1,7 @@
 # Known bugs
 
 * bug save-and-die WHILE in a trace fails - because currently vm_trace_reset is lazy
+* ugh downrec is broken!
 
 # Release checklist
 

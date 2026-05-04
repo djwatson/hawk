@@ -304,8 +304,6 @@
 (define (list-ref lst n)
   (let loop ((lst lst) (n n)) (if (zero? n) (car lst) (loop (cdr lst) (- n 1)))))
 (define (vector-length vec) (sys:LOAD vec 0))
-;; Be careful here, we need to initialize vec before ANY other allocations
-;; (including closures)
 (define (vector-init vec init pos left)
   (if (= left 0)
       vec
@@ -1070,7 +1068,8 @@
                   (port-len-set! port -1)
                   (if (= total 0) (make-eof-object) (read-line-build chunks total "" 0 0)))
                 ((fill-input-port-buffer port) (loop chunks total))
-                (else (if (= total 0) (make-eof-object) (read-line-build chunks total "" 0 0))))))))))
+                (else
+                  (if (= total 0) (make-eof-object) (read-line-build chunks total "" 0 0))))))))))
 (define (write-char char port)
   (cond
     ((port-sbuf port)
@@ -1107,8 +1106,8 @@
                     (if (= avail 0)
                         (begin (flush-port-write-buffer port) (loop pos left))
                         (let ((copy (if (< left avail) left avail)))
-                        (str-copy-internal (port-buf port) (port-len port) str pos (+ pos copy))
-                        (port-len-set! port (+ (port-len port) copy))
+                          (str-copy-internal (port-buf port) (port-len port) str pos (+ pos copy))
+                          (port-len-set! port (+ (port-len port) copy))
                           (loop (+ pos copy) (- left copy))))))))
           (else (error "write-string: not an output port" port)))))))
 

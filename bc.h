@@ -66,6 +66,7 @@
   X(FUNC, A)                                                                   \
   X(ARGCNT_ERROR, A)                                                           \
   X(JFUNC, AD)                                                                 \
+  X(JRET, AD)                                                                  \
   X(JLT, ABC)                                                                  \
   X(JGT, ABC)                                                                  \
   X(JLTE, ABC)                                                                 \

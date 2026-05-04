@@ -24,6 +24,14 @@ static bool is_downrec_trace(trace_state *ts) { return ts->start_is_ret; }
 
 static bool is_loop_entry_op(ops op) { return op == OP_LOOP || op == OP_ILOOP; }
 
+static bool is_ret_entry_op(ops op) {
+  return op == OP_RET || op == OP_RETN || op == OP_IRET;
+}
+
+static bool is_trace_jump_op(ops op) {
+  return op == OP_JFUNC || op == OP_JLOOP || op == OP_JRET;
+}
+
 static bool is_func_entry_op(ops op) { return op == OP_FUNC || op == OP_IFUNC; }
 static uint64_t trace_cnt = 0;
 
@@ -80,6 +88,11 @@ static void penalty_pc(record_state *record, bc *pc, bool downrec) {
         if (is_loop_entry_op(linked->start_pc.op)) {
           linked->start_pc.op = OP_ILOOP;
         }
+      } else if (pc->op == OP_JRET) {
+        trace *linked = record->traces[pc->data];
+        if (linked->start_pc.op == OP_RET) {
+          linked->start_pc.op = OP_IRET;
+        }
       } else if (downrec && pc->op == OP_RET) {
         pc->op = OP_IRET;
         arrput(record->penalty_pcs, pc);
@@ -117,15 +130,17 @@ static trace_state *record_trace_state(vm_state *state) {
   return &state->record.trace_state;
 }
 
+static void print_record_debug_entry(record_debug_entry entry);
 static void record_debug_op(trace_state *ts, bc *pc, bc instr) {
   if (!verbose) {
     return;
   }
-  arrput(ts->debug_ops, ((record_debug_entry){
-                            .depth = ts->depth,
-                            .pc = pc,
-                            .instr = instr,
-                        }));
+  record_debug_entry entry = {.depth = ts->depth, .pc = pc, .instr = instr};
+  if (1) {
+    print_record_debug_entry(entry);
+  } else {
+    arrput(ts->debug_ops, entry);
+  }
 }
 
 static void print_record_debug_entry(record_debug_entry entry) {
@@ -133,7 +148,8 @@ static void print_record_debug_entry(record_debug_entry entry) {
     printf(" . ");
   }
   printf("record op: %p %s reg:%i, v1:%i v2:%i", entry.pc,
-         bc_names[entry.instr.op], entry.pc->reg, entry.pc->v1, entry.pc->v2);
+         bc_names[entry.instr.op], entry.instr.reg, entry.instr.v1,
+         entry.instr.v2);
   const char *fname = func_name_from_pc(entry.pc);
   printf(" %s", fname);
   printf("\n");
@@ -517,7 +533,7 @@ static void set_stack_top(vm_state *state, uint8_t top) {
 }
 static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   // We use a non-moving gc, so this is just a runtime constant, always.
-  auto c = *(gc_obj *)(pc - pc->data);
+  auto c = *(gc_obj *)(pc - offset);
   return add_const(state, c);
 }
 static slot convert_to_flonum(vm_state *state, slot v1);
@@ -688,10 +704,10 @@ static slot record_foreign_arg(vm_state *state, gc_obj *stack, uint8_t pos,
 
 #define DEFINE_BRANCH_CMP(name, taken_op, not_taken_op, vm_taken_op,           \
                           vm_not_taken_op, cmp_op)                             \
-  static ir_ins emit_math_cmp_##name(vm_state *state, bc *pc, gc_obj *stack,   \
+  static ir_ins emit_math_cmp_##name(vm_state *state, bc instr, gc_obj *stack, \
                                      slot v1, slot v2, bool *taken) {          \
-    auto lhs = stack[pc->v1];                                                  \
-    auto rhs = stack[pc->v2];                                                  \
+    auto lhs = stack[instr.v1];                                                \
+    auto rhs = stack[instr.v2];                                                \
     bool res;                                                                  \
     if (is_flonum(lhs) || is_flonum(rhs)) {                                    \
       res = numeric_to_double(lhs) cmp_op numeric_to_double(rhs);              \
@@ -720,10 +736,10 @@ DEFINE_BRANCH_CMP(lt, IR_LT, IR_GTE, IR_VMLT, IR_VMGTE, <)
 DEFINE_BRANCH_CMP(gt, IR_GT, IR_LTE, IR_VMGT, IR_VMLTE, >)
 DEFINE_BRANCH_CMP(lte, IR_LTE, IR_GT, IR_VMLTE, IR_VMGT, <=)
 DEFINE_BRANCH_CMP(gte, IR_GTE, IR_LT, IR_VMGTE, IR_VMLT, >=)
-static ir_ins emit_math_cmp_eq(vm_state *state, bc *pc, gc_obj *stack, slot v1,
-                               slot v2, bool *taken, bool eqv) {
-  auto lhs = stack[pc->v1];
-  auto rhs = stack[pc->v2];
+static ir_ins emit_math_cmp_eq(vm_state *state, bc instr, gc_obj *stack,
+                               slot v1, slot v2, bool *taken, bool eqv) {
+  auto lhs = stack[instr.v1];
+  auto rhs = stack[instr.v2];
   auto t = record_current_trace(state);
   bool res = eqv ? obj_jeqv(lhs, rhs) : lhs.value == rhs.value;
   bool fast_numeric = normalize_numeric_cmp_inputs(state, &v1, &v2, false);
@@ -810,9 +826,15 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
   }
 
   state->max_trace--;
-  if (!cur_trace->parent_snap) {
+  if (cur_trace->kind == TRACE_ROOT) {
+    ops jump_op = OP_JFUNC;
+    if (is_loop_entry_op(cur_trace->start_pc.op)) {
+      jump_op = OP_JLOOP;
+    } else if (is_ret_entry_op(cur_trace->start_pc.op)) {
+      jump_op = OP_JRET;
+    }
     *cur_trace->start_ins = (bc){
-        .op = is_loop_entry_op(cur_trace->start_pc.op) ? OP_JLOOP : OP_JFUNC,
+        .op = jump_op,
         .data = record_trace_count(state),
     };
   }
@@ -989,8 +1011,9 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
 
   return res;
 }
-static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
-                                void *op_table, uint64_t argcnt) {
+static void *check_record_start(bc *pc, bc instr, gc_obj *stack,
+                                vm_state *state, void *op_table,
+                                uint64_t argcnt) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
 
@@ -998,7 +1021,7 @@ static void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
     return op_table;
   }
   int64_t cnt = 0;
-  if (pc->op == OP_FUNC) {
+  if (instr.op == OP_FUNC) {
     auto p_pc = to_return_address(stack[-1]);
     auto ret_pc = p_pc;
     auto pstack = stack;
@@ -1072,7 +1095,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     // Begin opcodes
 #define RECORD_BRANCH(TAKEN, GUARD)                                            \
   do {                                                                         \
-    set_stack_len(ts, pc->reg);                                                \
+    set_stack_len(ts, instr.reg);                                              \
     auto jmp_pc = pc + 1;                                                      \
     bool taken_ = (TAKEN);                                                     \
     bc *next_pc = taken_ ? jmp_pc + 1 : jmp_pc + jmp_pc->data;                 \
@@ -1144,7 +1167,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto v1 = stack_load(state, stack, instr.v1, true);                        \
     auto v2 = stack_load(state, stack, instr.v2, true);                        \
     bool taken;                                                                \
-    auto guard = EMIT_FN(state, pc, stack, v1, v2, &taken);                    \
+    auto guard = EMIT_FN(state, instr, stack, v1, v2, &taken);                 \
     RECORD_BRANCH(taken, guard);                                               \
     break;                                                                     \
   }
@@ -1158,8 +1181,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto v1 = stack_load(state, stack, instr.v1, instr.op == OP_JEQV);
     auto v2 = stack_load(state, stack, instr.v2, instr.op == OP_JEQV);
     bool taken;
-    auto guard =
-        emit_math_cmp_eq(state, pc, stack, v1, v2, &taken, instr.op == OP_JEQV);
+    auto guard = emit_math_cmp_eq(state, instr, stack, v1, v2, &taken,
+                                  instr.op == OP_JEQV);
     RECORD_BRANCH(taken, guard);
     break;
   }
@@ -1200,14 +1223,13 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     bool downrec_trace = is_downrec_trace(ts);
     bool at_trace_start = (pc == ts->start_ins);
     bcfunc *pc_func = gc_base_ptr(pc);
-    bool downrec_ok = pc_func && pc_func->downrec_ok;
+    bool downrec_ok = true; // pc_func && pc_func->downrec_ok;
 
     set_stack_len(ts, instr.reg + count);
 
     if (ts->depth == 0) {
-      if (!cur_trace->parent_snap && !downrec_trace) {
+      if ((cur_trace->kind != TRACE_SIDE) && !downrec_trace) {
         record_abort(state, &op_table, "return");
-        instr = *pc;
         break;
       }
 
@@ -1217,18 +1239,20 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       // TODO this conditional: check that the bcfunc this pc is in WAS an uprec
       //
       if ((instr.op == OP_RET || instr.op == OP_RETN) && downrec_ok &&
-          cur_trace->parent_snap && seen_downrec) {
+          cur_trace->kind == TRACE_SIDE && seen_downrec) {
+        if (verbose) {
+          printf("Potential downrec, restarting\n");
+        }
         clear_trace_state(ts);
         free_trace(cur_trace);
-        record_start(state, pc, *pc, stack, argcnt);
+        record_start(state, pc, instr, stack, argcnt);
         trace_state *ts = record_trace_state(state);
         ts->start_is_ret = true;
-        MUSTTAIL return record(*pc, pc, stack, state, op_table, argcnt);
+        MUSTTAIL return record(instr, pc, stack, state, op_table, argcnt);
       }
       if (downrec_trace && seen_downrec && at_trace_start) {
         cur_trace->link = cur_trace;
         record_finish(pc, state, &op_table, "downrec", argcnt);
-        instr = *pc;
         break;
       }
 
@@ -1322,33 +1346,33 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
 
     if (instr.op == OP_FUNC) {
-      auto old_ops = op_table;
-      op_table = check_record_start(pc, stack, state, op_table, entry_argcnt);
-      if (op_table != old_ops) {
-        instr = *pc;
-      }
+      op_table =
+          check_record_start(pc, instr, stack, state, op_table, entry_argcnt);
     }
 
     break;
   }
   case OP_JLOOP: {
-    instr = *pc;
     trace *target = state->record.traces[pc->data];
     trace_match match =
         ensure_args_match_trace(state, stack, target, cur_trace);
     cur_trace->link = match.trace;
     cur_trace->link_entry_snap = match.matched ? 1 : 0;
     record_finish(pc, state, &op_table, "linked to loop trace", argcnt);
-    instr = *pc;
+    break;
+  }
+  case OP_JRET: {
+    trace *target = state->record.traces[pc->data];
+    trace_match match =
+        ensure_args_match_trace(state, stack, target, cur_trace);
+    cur_trace->link = match.trace;
+    cur_trace->link_entry_snap = match.matched ? 1 : 0;
+    record_finish(pc, state, &op_table, "linked to return trace", argcnt);
     break;
   }
   case OP_JFUNC: {
-    instr = *pc;
     auto cur_trace = record_current_trace(state);
-    // TODO can we clean this up?  side traces spawned from downrec traces
-    // aren't downrec traces!
-    if (is_downrec_trace(record_trace_state(state)) &&
-        !cur_trace->parent_snap) {
+    if (is_downrec_trace(record_trace_state(state))) {
       record_abort(state, &op_table, "can't downrec to JFUNC");
       break;
     }
@@ -1363,11 +1387,21 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
     trace_match match =
         ensure_args_match_trace(state, stack, target, cur_trace);
-    if (cur_trace->parent_snap) {
-      cur_trace->link = match.trace;
-      cur_trace->link_entry_snap = match.matched ? 1 : 0;
-      record_finish(pc, state, &op_table, "side trace linked to root trace",
-                    entry_argcnt);
+    if (cur_trace->kind == TRACE_SIDE) {
+      if (match.matched) {
+        cur_trace->link = match.trace;
+        cur_trace->link_entry_snap = match.matched ? 1 : 0;
+        record_finish(pc, state, &op_table, "side trace linked to root trace",
+                      entry_argcnt);
+        break;
+      }
+      // Trace through
+      if (verbose) {
+        printf("Tracing through JFUNC\n");
+      }
+
+      MUSTTAIL return record(target->start_pc, pc, stack, state, op_table,
+                             argcnt);
       break;
     }
 
@@ -1453,8 +1487,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_CLOSURE: {
-    uint64_t capture_cnt = (uint64_t)pc->data + 1;
-    uint8_t start = pc->reg;
+    uint64_t capture_cnt = (uint64_t)instr.data + 1;
+    uint8_t start = instr.reg;
     slot captures[capture_cnt];
 
     assert(is_func(stack[start]));
@@ -1500,24 +1534,23 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_LOOP: {
     set_stack_len(ts, instr.reg + instr.data);
     auto old_ops = op_table;
-    op_table = check_record_start(pc, stack, state, op_table, argcnt);
+    op_table = check_record_start(pc, instr, stack, state, op_table, argcnt);
     if (op_table != old_ops) {
-      instr = *pc;
       break;
     }
     if (pc == ts->start_ins) {
       break;
     }
     const char *msg = nullptr;
-    if (!cur_trace->parent_snap) {
+    if (cur_trace->kind != TRACE_SIDE) {
       msg = "root trace hit untraced loop";
     } else if (ts->loop_unroll++ >= 3) {
       msg = "unroll limit reached in loop for side trace";
     }
     if (msg) {
       record_abort(state, &op_table, msg);
-      record_start(state, pc, *pc, stack, argcnt);
-      MUSTTAIL return record(*pc, pc, stack, state, state->record_impls,
+      record_start(state, pc, instr, stack, argcnt);
+      MUSTTAIL return record(instr, pc, stack, state, state->record_impls,
                              argcnt);
     }
     break;
@@ -1545,7 +1578,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       set_stack_len(ts, to);
     }
     if (!func.constant) {
-      slot must_be = add_const(state, stack[pc->reg]);
+      slot must_be = add_const(state, stack[instr.reg]);
       ir_ins ins = IR(.op = IR_EQ, .op1 = func, .op2 = must_be);
       add_inst(state, ins);
     }
@@ -1570,14 +1603,14 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       set_stack_len(ts, to);
     }
     if (!func.constant) {
-      slot must_be = add_const(state, stack[pc->reg]);
+      slot must_be = add_const(state, stack[instr.reg]);
       ir_ins ins = IR(.op = IR_EQ, .op1 = func, .op2 = must_be);
       add_inst(state, ins);
     }
     break;
   }
   case OP_APPLY: {
-    auto fun = stack[pc->v1];
+    auto fun = stack[instr.v1];
     const char *fname = "<non-closure>";
     if (is_closure(fun)) {
       auto code = to_closure(fun)->v[0];
@@ -1598,15 +1631,15 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_FOREIGN_CALL: {
-    auto sig = stack_load(state, stack, pc->v1, false);
-    auto sig_const = add_const(state, stack[pc->v1]);
+    auto sig = stack_load(state, stack, instr.v1, false);
+    auto sig_const = add_const(state, stack[instr.v1]);
     foreign_sig foreign;
-    foreign_parse_sig(stack[pc->v1], &foreign);
+    foreign_parse_sig(stack[instr.v1], &foreign);
     if (!ensure_recordable_foreign_sig(&foreign)) {
       record_abort(state, &op_table, "can't record FOREIGN_CALL signature");
       break;
     }
-    auto call_argcnt = (uint8_t)(pc->v2 - 1);
+    auto call_argcnt = (uint8_t)(instr.v2 - 1);
     if (call_argcnt != foreign.argcnt) {
       fprintf(stderr,
               "Warning: can't record FOREIGN_CALL: arg count mismatch "
@@ -1621,7 +1654,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     bool ok = true;
     slot carg = add_const(state, tag_fixnum(0));
     for (uint8_t i = call_argcnt; i > 0; i--) {
-      auto arg = record_foreign_arg(state, stack, (uint8_t)(pc->v1 + i),
+      auto arg = record_foreign_arg(state, stack, (uint8_t)(instr.v1 + i),
                                     foreign.arg_types[i - 1], &ok);
       if (!ok) {
         record_abort(state, &op_table, "can't record FOREIGN_CALL arg");
@@ -1647,8 +1680,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_ALLOC: {
-    auto sz = stack_load(state, stack, pc->v1, true);
-    auto type = stack_load(state, stack, pc->v2, true);
+    auto sz = stack_load(state, stack, instr.v1, true);
+    auto type = stack_load(state, stack, instr.v2, true);
     assert(type.constant);
 
     auto t = record_current_trace(state);
@@ -1709,9 +1742,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_STORE:
   case OP_STORE_CHAR: {
-    auto obj = stack_load(state, stack, pc->reg, true);
-    auto val = stack_load(state, stack, pc->v1, false);
-    auto offset = stack_load(state, stack, pc->v2, true);
+    auto obj = stack_load(state, stack, instr.reg, true);
+    auto val = stack_load(state, stack, instr.v1, false);
+    auto offset = stack_load(state, stack, instr.v2, true);
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
     if (instr.op == OP_STORE) {
       add_inst(state,
@@ -1726,20 +1759,20 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_GUARD: {
     // Typecheck the object slot; SLOAD will emit the guard for us.
-    stack_load(state, stack, pc->v1, true);
-    auto want_tag = stack_load(state, stack, pc->v2, true);
+    stack_load(state, stack, instr.v1, true);
+    auto want_tag = stack_load(state, stack, instr.v2, true);
     assert(want_tag.constant);
-    bool matches = guard_obj_matches(stack[pc->v1], stack[pc->v2]);
+    bool matches = guard_obj_matches(stack[instr.v1], stack[instr.v2]);
     auto res = add_const(state, matches ? TRUE_REP : FALSE_REP);
     stack_save(state, stack, instr.reg, res);
     break;
   }
   case OP_LOAD:
   case OP_LOAD_CHAR: {
-    auto obj = stack_load(state, stack, pc->v1, true);
-    auto offset = stack_load(state, stack, pc->v2, true);
-    auto src = stack[pc->v1];
-    auto off = stack[pc->v2];
+    auto obj = stack_load(state, stack, instr.v1, true);
+    auto offset = stack_load(state, stack, instr.v2, true);
+    auto src = stack[instr.v1];
+    auto off = stack[instr.v2];
     ir_ins ins;
     if (instr.op == OP_LOAD) {
       auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
@@ -1834,14 +1867,12 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto result = stack_load(state, stack, 1, false);
     if (!is_closure(stack[0])) {
       record_abort(state, &op_table, "CALLCC_RESUME non-closure");
-      instr = *pc;
       break;
     }
     auto clo = to_closure(stack[0]);
     int64_t len = to_fixnum(clo->len);
     if (len < 1 || clo->v[0].value != vm_callcc_resume_func_obj().value) {
       record_abort(state, &op_table, "CALLCC_RESUME invalid continuation");
-      instr = *pc;
       break;
     }
 
@@ -2063,7 +2094,7 @@ void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   (void)instr;
   bc *start_pc = side_snap->trace->start_ins;
   bc start_ins = side_snap->trace->start_pc;
-  assert(start_ins.op != OP_JFUNC && start_ins.op != OP_JLOOP);
+  assert(!is_trace_jump_op(start_ins.op));
   record_begin_trace(state, start_pc, start_ins);
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
@@ -2085,7 +2116,7 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   if (verbose) {
     printf("Record start side %i\n", record_trace_count(state));
   }
-  assert(instr.op != OP_JFUNC && instr.op != OP_JLOOP);
+  assert(!is_trace_jump_op(instr.op));
   record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);

@@ -303,7 +303,8 @@ static void trace_reset(vm_state *state) {
   arr_for_each(state->record.traces, trace) {
     if (!trace->parent_snap && trace->start_ins &&
         (trace->start_ins->op == OP_JFUNC ||
-         trace->start_ins->op == OP_JLOOP)) {
+         trace->start_ins->op == OP_JLOOP ||
+         trace->start_ins->op == OP_JRET)) {
       *trace->start_ins = trace->start_pc;
     }
   }
@@ -664,13 +665,15 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   *argcnt = res.snap->argcnt;
   // printf("Exit trace %i snap ir %i\n", res.snap->trace->num, res.snap->ir);
 
-  // If we're exiting to a JFUNC, it means we've failed some check at
+  // If we're exiting to an installed trace, it means we've failed some check at
   // the start of a trace (otherwise we would have linked to it). Run
   // the code in the VM instead.
-  if ((*pc)->op == OP_JFUNC || (*pc)->op == OP_JLOOP) {
+  if ((*pc)->op == OP_JFUNC || (*pc)->op == OP_JLOOP ||
+      (*pc)->op == OP_JRET) {
     auto trace = traces[(*pc)->data];
     *instr = trace->start_pc;
-    assert(instr->op != OP_JFUNC && instr->op != OP_JLOOP);
+    assert(instr->op != OP_JFUNC && instr->op != OP_JLOOP &&
+           instr->op != OP_JRET);
   }
   // Check for side trace start.
   if (res.snap->exits < 255) {
@@ -935,6 +938,19 @@ OP(JFUNC) {
 }
 
 OP(JLOOP) {
+  op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
+  op_func impl = ((op_func *)op_table)[instr.op];
+  MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
+  END
+}
+
+OP(JRET) {
+  auto trace = state->record.traces[instr.data];
+  if (trace->start_pc.op == OP_IRET) {
+    instr = trace->start_pc;
+    op_func impl = ((op_func *)op_table)[instr.op];
+    MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
+  }
   op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
   op_func impl = ((op_func *)op_table)[instr.op];
   MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
