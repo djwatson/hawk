@@ -60,6 +60,7 @@
     (= . EQV)
     (>= . GTE)
     (<= . LTE)
+    (cons . CONS)
     ;(display . WRITE)
   ))
 (define (primcall-arity name)
@@ -67,7 +68,7 @@
     ((eq? name 'values) 'any)
     ((eq? name 'call-with-values) 2)
     ((memq name
-           '(/ < > = >= <= quotient truncate-quotient remainder modulo memq memvcons))
+           '(/ < > = >= <= quotient truncate-quotient remainder modulo memq memv cons))
       2)
     ((memq name
            '(exact->inexact inexact->exact char->integer integer->char display car cdr))
