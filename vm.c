@@ -297,13 +297,12 @@ gc_obj vm_memv(gc_obj obj, gc_obj list) {
 }
 
 static void trace_reset(vm_state *state) {
-  // printf("TRACE RESET=============================\n");
+  printf("TRACE RESET=============================\n");
   arrfree(trace_exit_counts);
   profiler_reset();
   arr_for_each(state->record.traces, trace) {
     if (!trace->parent_snap && trace->start_ins &&
-        (trace->start_ins->op == OP_JFUNC ||
-         trace->start_ins->op == OP_JLOOP ||
+        (trace->start_ins->op == OP_JFUNC || trace->start_ins->op == OP_JLOOP ||
          trace->start_ins->op == OP_JRET)) {
       *trace->start_ins = trace->start_pc;
     }
@@ -668,8 +667,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   // If we're exiting to an installed trace, it means we've failed some check at
   // the start of a trace (otherwise we would have linked to it). Run
   // the code in the VM instead.
-  if ((*pc)->op == OP_JFUNC || (*pc)->op == OP_JLOOP ||
-      (*pc)->op == OP_JRET) {
+  if ((*pc)->op == OP_JFUNC || (*pc)->op == OP_JLOOP || (*pc)->op == OP_JRET) {
     auto trace = traces[(*pc)->data];
     *instr = trace->start_pc;
     assert(instr->op != OP_JFUNC && instr->op != OP_JLOOP &&

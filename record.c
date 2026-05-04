@@ -136,7 +136,7 @@ static void record_debug_op(trace_state *ts, bc *pc, bc instr) {
     return;
   }
   record_debug_entry entry = {.depth = ts->depth, .pc = pc, .instr = instr};
-  if (1) {
+  if (0) {
     print_record_debug_entry(entry);
   } else {
     arrput(ts->debug_ops, entry);
@@ -913,13 +913,22 @@ static bool prepare_entry_state(vm_state *state, gc_obj *stack, bc instr,
   *entry_argcnt = instr.reg;
   return true;
 }
+static bool entry_arity_matches(bc instr, uint8_t actual_args) {
+  bool has_rest = (instr.v1 & func_flag_rest) != 0;
+  if (!has_rest) {
+    return actual_args == instr.reg;
+  }
+
+  return actual_args >= instr.reg - 1;
+}
 typedef struct {
   trace *trace;
   bool matched;
 } trace_match;
 
 static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
-                                           trace *head, trace *cur_trace) {
+                                           trace *head, trace *cur_trace,
+                                           uint64_t argcnt) {
   trace_match res = {.trace = head, .matched = false};
 
   for (trace *candidate = head; candidate; candidate = candidate->next) {
@@ -931,7 +940,11 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
     bool match = true;
     size_t entry_ir_start = candidate->snaps[0].ir;
     size_t entry_ir_end = candidate->snaps[1].ir;
-    if (arrlast(cur_trace->snaps)->argcnt != candidate->snaps[1].argcnt) {
+    if (argcnt != candidate->snaps[1].argcnt) {
+      if (verbose) {
+        printf("  no match: argcnt current=%u candidate=%u\n", (uint32_t)argcnt,
+               candidate->snaps[1].argcnt);
+      }
       continue;
     }
 
@@ -945,7 +958,12 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
       if (arg_idx > max_guard_slot) {
         max_guard_slot = arg_idx;
       }
-      if (get_type_tag(stack[arg_idx]) != ins->type) {
+      uint8_t actual_type = get_type_tag(stack[arg_idx]);
+      if (actual_type != ins->type) {
+        if (verbose) {
+          printf("  no match: arg%u expected %s got %s\n", arg_idx,
+                 type_tag_name(ins->type), type_tag_name(actual_type));
+        }
         match = false;
         break;
       }
@@ -961,6 +979,10 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
       }
       sentry *entry = get_sentry(state, arg_idx);
       if (!entry->live || !entry->changed) {
+        if (verbose) {
+          printf("  no match: arg%u guard unavailable live=%i changed=%i\n",
+                 arg_idx, entry->live, entry->changed);
+        }
         match = false;
         break;
       }
@@ -1043,7 +1065,7 @@ static void *check_record_start(bc *pc, bc instr, gc_obj *stack,
   if (pc == ts->start_ins && !is_downrec_trace(ts) &&
       (ts->depth == 0 || cnt >= 0)) {
     trace_match match =
-        ensure_args_match_trace(state, stack, cur_trace, cur_trace);
+        ensure_args_match_trace(state, stack, cur_trace, cur_trace, argcnt);
     cur_trace->link = match.trace;
     cur_trace->link_entry_snap = match.matched ? 1 : 0;
     record_finish(pc, state, &op_table,
@@ -1355,7 +1377,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_JLOOP: {
     trace *target = state->record.traces[pc->data];
     trace_match match =
-        ensure_args_match_trace(state, stack, target, cur_trace);
+        ensure_args_match_trace(state, stack, target, cur_trace, argcnt);
     cur_trace->link = match.trace;
     cur_trace->link_entry_snap = match.matched ? 1 : 0;
     record_finish(pc, state, &op_table, "linked to loop trace", argcnt);
@@ -1364,7 +1386,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_JRET: {
     trace *target = state->record.traces[pc->data];
     trace_match match =
-        ensure_args_match_trace(state, stack, target, cur_trace);
+        ensure_args_match_trace(state, stack, target, cur_trace, argcnt);
     cur_trace->link = match.trace;
     cur_trace->link_entry_snap = match.matched ? 1 : 0;
     record_finish(pc, state, &op_table, "linked to return trace", argcnt);
@@ -1379,16 +1401,20 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
     trace *target = state->record.traces[pc->data];
     bc target_start = target->start_pc;
-    uint64_t entry_argcnt = argcnt;
-    if ((target_start.op == OP_FUNC || target_start.op == OP_IFUNC) &&
-        !prepare_entry_state(state, stack, target_start, argcnt,
-                             &entry_argcnt)) {
+    bool target_is_func =
+        target_start.op == OP_FUNC || target_start.op == OP_IFUNC;
+    if (target_is_func && !entry_arity_matches(target_start, argcnt)) {
       break;
     }
     trace_match match =
-        ensure_args_match_trace(state, stack, target, cur_trace);
+        ensure_args_match_trace(state, stack, target, cur_trace, argcnt);
     if (cur_trace->kind == TRACE_SIDE) {
       if (match.matched) {
+        uint64_t entry_argcnt = argcnt;
+        if (target_is_func && !prepare_entry_state(state, stack, target_start,
+                                                   argcnt, &entry_argcnt)) {
+          break;
+        }
         cur_trace->link = match.trace;
         cur_trace->link_entry_snap = match.matched ? 1 : 0;
         record_finish(pc, state, &op_table, "side trace linked to root trace",
@@ -1400,9 +1426,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         printf("Tracing through JFUNC\n");
       }
 
-      MUSTTAIL return record(target->start_pc, pc, stack, state, op_table,
-                             argcnt);
-      break;
+      MUSTTAIL return record(target_start, pc, stack, state, op_table, argcnt);
     }
 
     record_abort(state, &op_table, "Root trace to JFUNC");
