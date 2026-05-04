@@ -1492,8 +1492,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         gc_obj clo_obj = stack[instr.v1];
         gc_obj loaded = to_closure(clo_obj)->v[clo_slot];
 
-        ir_ins ins = IR(.op = IR_LOAD, .op1 = clo, .op2 = c_pos,
-                        .type = (uint8_t)get_type_tag(loaded));
+        auto type = (uint8_t)get_type_tag(loaded);
+        ir_ins ins = IR(.op = IR_LOAD, .op1 = clo, .op2 = c_pos, .type = type,
+                        .guard = type == FLONUM_TAG);
         res = add_inst(state, ins);
       }
     }
@@ -1801,7 +1802,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     if (instr.op == OP_LOAD) {
       auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
       auto type = get_type_tag(base[to_fixnum(off)]);
-      ins = IR(.op = IR_LOAD, .op1 = obj, .op2 = offset, .type = type);
+      ins = IR(.op = IR_LOAD, .op1 = obj, .op2 = offset, .type = type,
+               .guard = type == FLONUM_TAG);
     } else {
       assert(is_string(src));
       assert(is_fixnum(off));
