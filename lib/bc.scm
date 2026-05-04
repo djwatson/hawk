@@ -70,7 +70,7 @@
     ((eq? name 'values) 'any)
     ((eq? name 'call-with-values) 2)
     ((memq name
-           '(/ < > = >= <= quotient truncate-quotient remainder modulo memq memv cons))
+           '(/ < > = >= <= quotient truncate-quotient remainder modulo memq memv cons eq?))
       2)
     ((memq name
            '(exact->inexact inexact->exact char->integer integer->char display car cdr))

@@ -297,7 +297,7 @@ gc_obj vm_memv(gc_obj obj, gc_obj list) {
 }
 
 static void trace_reset(vm_state *state) {
-  printf("TRACE RESET=============================\n");
+  // printf("TRACE RESET=============================\n");
   state->max_trace = max_trace;
   arrfree(trace_exit_counts);
   profiler_reset();

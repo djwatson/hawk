@@ -1,7 +1,14 @@
 # Known bugs
 
 * bug save-and-die WHILE in a trace fails - because currently vm_trace_reset is lazy
-* ugh downrec is broken!
+
+# slow tests
+
+* ctak, fibc - slow continuations
+* read1 - reader is slow-ish
+* cpstak, deriv, diviter, divrec, dynamic, matrix, graphs, gcbench - non-generational gc
+* chudnovsky - ??? bignums something something
+* compiler???
 
 # Release checklist
 

@@ -136,7 +136,7 @@ static void record_debug_op(trace_state *ts, bc *pc, bc instr) {
     return;
   }
   record_debug_entry entry = {.depth = ts->depth, .pc = pc, .instr = instr};
-  if (1) {
+  if (0) {
     print_record_debug_entry(entry);
   } else {
     arrput(ts->debug_ops, entry);
@@ -792,7 +792,7 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
   dce(cur_trace);
   cur_trace->fn =
       emit(cur_trace, &state->emit, &state->record, cur_trace->link_entry_snap);
-  if (1) {
+  if (0) {
     int parent_trace_num = -1;
     int parent_snap_num = -1;
     if (cur_trace->parent_snap) {
@@ -1250,7 +1250,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     set_stack_len(ts, instr.reg + count);
 
     if (ts->depth == 0) {
-      if ((cur_trace->kind != TRACE_SIDE) && !downrec_trace) {
+      if ((cur_trace->kind != TRACE_SIDE) && !downrec_trace &&
+          cur_trace->kind != TRACE_POLY) {
         record_abort(state, &op_table, "return");
         break;
       }
@@ -1409,7 +1410,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
     trace_match match =
         ensure_args_match_trace(state, stack, target, cur_trace, argcnt);
-    if (cur_trace->kind == TRACE_SIDE) {
+    if (true || cur_trace->kind == TRACE_SIDE) {
       if (match.matched) {
         uint64_t entry_argcnt = argcnt;
         if (target_is_func && !prepare_entry_state(state, stack, target_start,
@@ -1430,8 +1431,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       MUSTTAIL return record(target_start, pc, stack, state, op_table, argcnt);
     }
 
-    record_abort(state, &op_table, "Root trace to JFUNC");
-    instr = target->start_pc;
+    /* record_abort(state, &op_table, "Root trace to JFUNC"); */
+    /* instr = target->start_pc; */
 
     break;
   }
