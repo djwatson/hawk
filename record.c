@@ -136,7 +136,7 @@ static void record_debug_op(trace_state *ts, bc *pc, bc instr) {
     return;
   }
   record_debug_entry entry = {.depth = ts->depth, .pc = pc, .instr = instr};
-  if (0) {
+  if (1) {
     print_record_debug_entry(entry);
   } else {
     arrput(ts->debug_ops, entry);
@@ -792,7 +792,7 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
   dce(cur_trace);
   cur_trace->fn =
       emit(cur_trace, &state->emit, &state->record, cur_trace->link_entry_snap);
-  if (0) {
+  if (1) {
     int parent_trace_num = -1;
     int parent_snap_num = -1;
     if (cur_trace->parent_snap) {
@@ -1257,11 +1257,12 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
       int cnt = downrec_hits(ts, pc);
       bool seen_downrec = cnt > 0;
+      bool try_downrec = cnt > random() % 3;
 
       // TODO this conditional: check that the bcfunc this pc is in WAS an uprec
       //
       if ((instr.op == OP_RET || instr.op == OP_RETN) && downrec_ok &&
-          cur_trace->kind == TRACE_SIDE && seen_downrec) {
+          cur_trace->kind == TRACE_SIDE && try_downrec) {
         if (verbose) {
           printf("Potential downrec, restarting\n");
         }

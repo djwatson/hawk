@@ -298,6 +298,7 @@ gc_obj vm_memv(gc_obj obj, gc_obj list) {
 
 static void trace_reset(vm_state *state) {
   printf("TRACE RESET=============================\n");
+  state->max_trace = max_trace;
   arrfree(trace_exit_counts);
   profiler_reset();
   arr_for_each(state->record.traces, trace) {
@@ -1275,7 +1276,6 @@ static void vm_state_init(vm_state *state) {
   for (int i = 0; i < VM_HOTMAP_SZ; i++) {
     state->hotmap[i] = hotmap_cnt;
   }
-  state->max_trace = max_trace;
 
   if (jit_dump_flag) {
     jit_dump_init();
