@@ -39,6 +39,8 @@ void gc_free(void);
 extern uintptr_t gc_hp;
 extern uintptr_t gc_limit;
 extern uintptr_t gc_soft_limit;
+extern uintptr_t gc_nursery_start;
+extern size_t gc_nursery_size;
 
 NOINLINE void *gc_alloc_slow(uint64_t sz);
 

@@ -1815,7 +1815,22 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       break;
     }
     case IR_GCLOG: {
+      label done_gclog = {};
       // Load obj (op1) into RTMP
+      if (op->op1.constant) {
+        emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op1));
+      } else {
+        uint8_t obj_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
+        emit_mov(s, RTMP, obj_reg);
+      }
+      emit_mov64(s, RTMP2, (intptr_t)&gc_nursery_start);
+      emit_mem_load(s, 0, RTMP2, RTMP2);
+      emit_sub(s, RTMP, RTMP, RTMP2);
+      emit_mov64(s, RTMP2, (intptr_t)&gc_nursery_size);
+      emit_mem_load(s, 0, RTMP2, RTMP2);
+      emit_cmp(s, RTMP, RTMP2);
+      emit_jcc32(s, JB, &done_gclog);
+
       if (op->op1.constant) {
         emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op1));
       } else {
@@ -1831,6 +1846,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
       // Call gclog slowpath
       emit_call32(s, (int64_t)s->gclog_slowpath);
+      emit_label(s, &done_gclog);
       break;
     }
     case IR_ALLOC: {

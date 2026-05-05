@@ -34,6 +34,8 @@ uintptr_t gc_hp;
 uintptr_t gc_limit;
 size_t soft_limit = 32UL << 20;
 uintptr_t gc_soft_limit;
+uintptr_t gc_nursery_start;
+size_t gc_nursery_size;
 gc_root_range gc_roots[GC_MAX_ROOTS];
 size_t gc_roots_len;
 static gc_scan_callback scan_callback;
@@ -336,6 +338,8 @@ void gc_init(void) {
   old_limit = heap.to_space;
   nursery.mem = (uintptr_t)nursery_mem;
   nursery.size = nursery_size;
+  gc_nursery_start = nursery.mem;
+  gc_nursery_size = nursery.size;
   reset_nursery();
   update_old_soft_limit();
 }
