@@ -2,3 +2,5 @@
 lib/opcodes.scm
 *.bc
 jitted*
+perf*
+jit*dump

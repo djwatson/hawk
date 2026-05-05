@@ -258,6 +258,7 @@ NOINLINE static void gc_collect(void) {
   clock_gettime(CLOCK_MONOTONIC, &start);
   profiler_set_in_gc(true);
   size_t old_soft = soft_limit;
+  size_t old_before = old_bytes_used();
   size_t heap_before = old_bytes_used() + nursery_used();
   bool full = full_collection_next || old_bytes_free() < nursery_used();
   full_collection_next = false;
@@ -283,7 +284,9 @@ NOINLINE static void gc_collect(void) {
   if (scan_callback) {
     scan_callback(scan_data, gc_add_mark_root);
   }
-  arr_for_each(pinned_funcs, entry) { arrput(worklist, &entry.ptr->header); }
+  if (full) {
+    arr_for_each(pinned_funcs, entry) { arrput(worklist, &entry.ptr->header); }
+  }
 
   while (arrlen(worklist) > 0) {
     gc_header *obj = *arrlast(worklist);
@@ -296,15 +299,17 @@ NOINLINE static void gc_collect(void) {
     soft_limit *= 3;
   }
   reset_nursery();
-  size_t heap_after = old_bytes_used() + nursery_used();
-  size_t freed = heap_before > heap_after ? heap_before - heap_after : 0;
+  size_t old_after = old_bytes_used();
+  size_t heap_after = old_after + nursery_used();
+  size_t promoted = old_after > old_before ? old_after - old_before : 0;
+  size_t freed = nursery.size > promoted ? nursery.size - promoted : 0;
   struct timespec end;
   clock_gettime(CLOCK_MONOTONIC, &end);
   double elapsed_ms = (double)(end.tv_sec - start.tv_sec) * 1000.0 +
                       (double)(end.tv_nsec - start.tv_nsec) / 1000000.0;
-  fprintf(stderr, "gc_collect(%s): %.3f ms, heap: %zu, soft: %zu\n",
+  fprintf(stderr, "gc_collect(%s): %.3f ms, heap: %zu, freed: %zu, soft: %zu\n",
           full ? "F" : "N", elapsed_ms, heap_after / 1000000,
-          soft_limit / 1000000);
+          freed / 1000000, soft_limit / 1000000);
   full_collection_next = old_bytes_used() >= soft_limit;
   profiler_set_in_gc(false);
 }
@@ -357,7 +362,14 @@ void gc_set_scan_callback(gc_scan_callback cb, void *data) {
   scan_data = data;
 }
 
-void gc_register_bcfunc(bcfunc *func) { gc_insert_pinned_func(func); }
+void gc_register_bcfunc(bcfunc *func) {
+  gc_insert_pinned_func(func);
+  gc_log_slow(&func->name);
+  gc_obj *consts = (gc_obj *)func->data;
+  for (uint64_t i = 0; i < func->const_cnt; i++) {
+    gc_log_slow(&consts[i]);
+  }
+}
 
 void *gc_base_ptr(void *p) {
   uintptr_t target = (uintptr_t)p;
