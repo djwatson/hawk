@@ -23,7 +23,13 @@ typedef struct {
   size_t size;
 } gc_heap;
 
+typedef struct {
+  uintptr_t mem;
+  size_t size;
+} gc_nursery;
+
 static gc_heap heap;
+static gc_nursery nursery;
 uintptr_t gc_hp;
 uintptr_t gc_limit;
 size_t soft_limit = 32UL << 20;
@@ -33,7 +39,11 @@ size_t gc_roots_len;
 static gc_scan_callback scan_callback;
 static void *scan_data;
 static gc_header **worklist;
-static gc_obj *remembered_set;
+static gc_obj **remembered_set;
+static uintptr_t old_hp;
+static uintptr_t old_limit;
+static uintptr_t old_soft_limit;
+static size_t collection_count;
 
 typedef struct {
   bcfunc *ptr;
@@ -49,6 +59,7 @@ enum : uint64_t {
 
 enum : size_t {
   IMAGE_HEADER_SIZE = 28,
+  DEFAULT_NURSERY_MB = 50,
 };
 
 typedef struct {
@@ -56,14 +67,37 @@ typedef struct {
   gc_header *fwd;
 } gc_forward;
 
+typedef enum {
+  GC_YOUNG,
+  GC_FULL,
+} gc_collect_mode;
+
+static gc_collect_mode collect_mode;
+
 static uintptr_t align_size(uintptr_t size) {
   return (size + sizeof(uintptr_t) - 1) & ~(sizeof(uintptr_t) - 1);
 }
 
-static uintptr_t space_size(void) { return heap.size / 2; }
+static uintptr_t old_space_size(void) { return heap.size / 2; }
 
-static bool in_space(uintptr_t p, uintptr_t base) {
-  return p >= base && p < base + space_size();
+static bool in_range(uintptr_t p, uintptr_t base, size_t size) {
+  return p >= base && p < base + size;
+}
+
+static bool in_old_space(uintptr_t p, uintptr_t base) {
+  return in_range(p, base, old_space_size());
+}
+
+static bool in_old_active(uintptr_t p) {
+  return in_old_space(p, heap.to_space);
+}
+
+static bool in_old_from(uintptr_t p) {
+  return in_old_space(p, heap.from_space);
+}
+
+static bool in_nursery(uintptr_t p) {
+  return in_range(p, nursery.mem, nursery.size);
 }
 
 static bool is_forwarded(gc_header const *obj) {
@@ -81,6 +115,7 @@ static void forward_obj(gc_header *obj, gc_header *new_obj) {
 }
 
 static void scan_object(gc_header *obj);
+static void gc_collect(void);
 
 static void gc_insert_pinned_func(bcfunc *func) {
   uintptr_t target = (uintptr_t)func;
@@ -100,14 +135,55 @@ static void gc_insert_pinned_func(bcfunc *func) {
   pinned_funcs[lo].ptr = func;
 }
 
+static void reset_nursery(void) {
+  gc_hp = nursery.mem + nursery.size;
+  gc_limit = nursery.mem;
+  gc_soft_limit = gc_limit;
+}
+
+static size_t nursery_used(void) {
+  return (nursery.mem + nursery.size) - gc_hp;
+}
+
+static size_t old_bytes_used(void) {
+  return (heap.to_space + old_space_size()) - old_hp;
+}
+
+static size_t old_bytes_free(void) {
+  return old_hp - old_limit;
+}
+
+static void update_old_soft_limit(void) {
+  old_soft_limit =
+      old_hp - old_limit > soft_limit ? old_hp - soft_limit : old_limit;
+}
+
+static void *old_alloc(size_t sz) {
+  sz = align_size(sz);
+  uintptr_t new_hp = old_hp - sz;
+  if (new_hp < old_limit) {
+    fprintf(stderr, "out of old generation memory, increase GC_SPACE\n");
+    abort();
+  }
+  old_hp = new_hp;
+  return (void *)old_hp;
+}
+
 INLINE static void visit_field(gc_obj *slot, void *ctx) {
   (void)ctx;
   if (!is_heap_object(*slot)) {
     return;
   }
   gc_header *obj = to_gc_header(*slot);
-  if (!in_space((uintptr_t)obj, heap.from_space)) {
-    if (!is_func(*slot)) {
+  uintptr_t ptr = (uintptr_t)obj;
+  if (collect_mode == GC_YOUNG && !in_nursery(ptr)) {
+    if (!in_old_active(ptr) && !is_func(*slot)) {
+      abort();
+    }
+    return;
+  }
+  if (collect_mode == GC_FULL && !in_nursery(ptr) && !in_old_from(ptr)) {
+    if (!in_old_active(ptr) && !is_func(*slot)) {
       abort();
     }
     return;
@@ -130,13 +206,7 @@ INLINE static void visit_field(gc_obj *slot, void *ctx) {
     arrput(worklist, &stable_func->header);
     return;
   }
-  uintptr_t new_hp = gc_hp - sz;
-  if (new_hp < gc_limit) {
-    fprintf(stderr, "out of memory during collection, increate GC_SPACE\n");
-    abort();
-  }
-  gc_hp = new_hp;
-  gc_header *copy = (gc_header *)gc_hp;
+  gc_header *copy = old_alloc(sz);
   memcpy(copy, obj, sz);
   forward_obj(obj, copy);
   *slot = tag_header(copy, get_tag(*slot));
@@ -173,20 +243,12 @@ static void gc_add_mark_root(const uint64_t *rootp, size_t len) {
 }
 
 static void flip_spaces(void) {
-  // memset((void *)heap.from_space, 0, space_size());
+  // memset((void *)heap.from_space, 0, old_space_size());
   uintptr_t new_space = heap.from_space;
   heap.from_space = heap.to_space;
   heap.to_space = new_space;
-  gc_hp = heap.to_space + space_size();
-  gc_limit = heap.to_space;
-}
-
-static size_t soft_bytes_copied(void) {
-  return (heap.to_space + space_size()) - gc_hp;
-}
-
-static void update_soft_limit(void) {
-  gc_soft_limit = gc_hp - gc_limit > soft_limit ? gc_hp - soft_limit : gc_limit;
+  old_hp = heap.to_space + old_space_size();
+  old_limit = heap.to_space;
 }
 
 static void scan_object(gc_header *obj) {
@@ -196,7 +258,13 @@ static void scan_object(gc_header *obj) {
 static void gc_collect(void) {
   profiler_set_in_gc(true);
   size_t old_soft = soft_limit;
-  flip_spaces();
+  collection_count++;
+  bool full = collection_count % 4 == 0 || old_hp < old_soft_limit ||
+              old_bytes_free() < nursery_used();
+  collect_mode = full ? GC_FULL : GC_YOUNG;
+  if (full) {
+    flip_spaces();
+  }
   arrlen_set(worklist, 0);
 
   for (size_t i = 0; i < gc_roots_len; i++) {
@@ -207,7 +275,9 @@ static void gc_collect(void) {
       gc_add_mark_root((const uint64_t *)root.ptr, root.len);
     }
   }
-  arr_for_each(remembered_set, field) { visit_field(&field, nullptr); }
+  if (!full) {
+    arr_for_each(remembered_set, field) { visit_field(field, nullptr); }
+  }
   arrlen_set(remembered_set, 0);
 
   if (scan_callback) {
@@ -221,16 +291,17 @@ static void gc_collect(void) {
     scan_object(obj);
   }
 
-  size_t copied = soft_bytes_copied();
-  if (old_soft <= SIZE_MAX / 2 && copied > old_soft / 3) {
+  size_t old_used = old_bytes_used();
+  if (full && old_soft <= SIZE_MAX / 2 && old_used > old_soft / 3) {
     soft_limit *= 3;
   }
   if (verbose) {
-    fprintf(stderr, "gc_collect(copied: %li, new soft:%li)\n", copied,
-            soft_limit);
+    fprintf(stderr, "gc_collect(%s old:%li, nursery:%li, new soft:%li)\n",
+            full ? "full" : "young", old_used, nursery_used(), soft_limit);
   }
+  reset_nursery();
   profiler_set_in_gc(false);
-  update_soft_limit();
+  update_old_soft_limit();
 }
 
 void gc_init(void) {
@@ -239,23 +310,37 @@ void gc_init(void) {
   if (heap_env) {
     heap_size = (size_t)atoll(heap_env);
   }
+  size_t nursery_size = DEFAULT_NURSERY_MB << 20;
+  char *nursery_env = getenv("GC_NURSERY_MB");
+  if (nursery_env) {
+    nursery_size = (size_t)atoll(nursery_env) << 20;
+  }
   auto mem = mmap(nullptr, heap_size * 2, PROT_READ | PROT_WRITE,
                   MAP_PRIVATE | MAP_ANON, -1, 0);
   if (mem == MAP_FAILED) {
     fprintf(stderr, "Heap allocation failed: %zu bytes\n", heap_size * 2);
     abort();
   }
+  auto nursery_mem = mmap(nullptr, nursery_size, PROT_READ | PROT_WRITE,
+                          MAP_PRIVATE | MAP_ANON, -1, 0);
+  if (nursery_mem == MAP_FAILED) {
+    fprintf(stderr, "Nursery allocation failed: %zu bytes\n", nursery_size);
+    abort();
+  }
   heap.mem = (uintptr_t)mem;
   heap.to_space = (uintptr_t)mem;
   heap.from_space = (uintptr_t)mem + heap_size;
-  gc_hp = (uintptr_t)mem + heap_size;
-  gc_limit = (uintptr_t)mem;
-  update_soft_limit();
   heap.size = heap_size * 2;
+  old_hp = heap.to_space + heap_size;
+  old_limit = heap.to_space;
+  nursery.mem = (uintptr_t)nursery_mem;
+  nursery.size = nursery_size;
+  reset_nursery();
+  update_old_soft_limit();
 }
 
 NOINLINE void gc_log_slow(gc_obj *field) {
-  arrput(remembered_set, *field);
+  arrput(remembered_set, field);
 }
 
 void gc_set_scan_callback(gc_scan_callback cb, void *data) {
@@ -295,6 +380,7 @@ void gc_free(void) {
   arr_for_each(pinned_funcs, entry) { free(entry.ptr); }
   arrfree(pinned_funcs);
   munmap((void *)heap.mem, heap.size);
+  munmap((void *)nursery.mem, nursery.size);
 }
 
 typedef struct {
@@ -337,7 +423,7 @@ static gc_header *dump_copy_object(gc_header *obj, dump_image_ctx *ctx) {
     return forwarded(obj);
   }
   size_t sz = align_size(heap_object_size(obj));
-  if (ctx->len + sz > space_size()) {
+  if (ctx->len + sz > old_space_size()) {
     dump_image_fail(ctx->path, "image larger than GC semispace");
   }
   gc_header *copy = (gc_header *)(ctx->base + ctx->len);
@@ -358,7 +444,8 @@ static void dump_visit_field(gc_obj *slot, void *ctx) {
     *slot = tag_header(forwarded(obj), get_tag(*slot));
     return;
   }
-  if (!in_space((uintptr_t)obj, heap.to_space) && !is_func(*slot)) {
+  uintptr_t ptr = (uintptr_t)obj;
+  if (!in_old_active(ptr) && !in_nursery(ptr) && !is_func(*slot)) {
     abort();
   }
   gc_header *copy = dump_copy_object(obj, image);
@@ -408,7 +495,7 @@ gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path) {
     read_image_fail(path, "image too large");
   }
   size_t image_len = (size_t)image_len_u64;
-  if (image_len > space_size()) {
+  if (image_len > old_space_size()) {
     read_image_fail(path, "image larger than GC semispace");
   }
   uintptr_t image_base = heap.from_space;
@@ -450,6 +537,7 @@ gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path) {
   gc_obj start = {.value = (int64_t)start_u64};
   rebase_image_field(&start, &image);
   arrlen_set(worklist, 0);
+  collect_mode = GC_FULL;
   visit_field(&start, nullptr);
   while (arrlen(worklist) > 0) {
     gc_header *obj = *arrlast(worklist);
@@ -508,7 +596,7 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
     abort();
   }
   char const *filename = to_string(path)->str;
-  uint8_t *data = malloc(space_size());
+  uint8_t *data = malloc(old_space_size());
   if (!data) {
     dump_image_fail(filename, "out of memory");
   }
@@ -589,8 +677,14 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
 }
 
 NOINLINE void *gc_alloc_slow(uint64_t sz) {
+  sz = align_size(sz);
+  if (sz > nursery.size) {
+    fprintf(stderr, "allocation %" PRIu64 " exceeds nursery size %zu\n", sz,
+            nursery.size);
+    abort();
+  }
   gc_collect();
-  uintptr_t new_hp = gc_hp - align_size(sz);
+  uintptr_t new_hp = gc_hp - sz;
   if (new_hp < gc_limit) {
     fprintf(stderr, "out of memory %" PRIu64 "\n", sz);
     abort();
