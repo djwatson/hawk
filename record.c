@@ -987,6 +987,20 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
         match = false;
         break;
       }
+      // On a self-link, propagating a guard to an unguarded entry ARG mutates
+      // the candidate's entry assumptions after matching. That can reveal more
+      // required guards, so reject and let recording find a safer link.
+      if (cur_trace == candidate && !entry->loc.constant) {
+        ir_ins *guarded = &cur_trace->ins[entry->loc.loc];
+        if (guarded->op == IR_ARG && !guarded->guard) {
+          if (verbose) {
+            printf("  no match: arg%u same-trace propagation would guard arg\n",
+                   arg_idx);
+          }
+          match = false;
+          break;
+        }
+      }
     }
     if (!match) {
       continue;
