@@ -45,7 +45,6 @@ static gc_header **worklist;
 static gc_obj **remembered_set;
 static uintptr_t old_hp;
 static uintptr_t old_limit;
-static bool full_collection_next;
 
 typedef struct {
   bcfunc *ptr;
@@ -59,10 +58,7 @@ enum : uint64_t {
   IMAGE_VERSION_ZSTD = 1,
 };
 
-enum : size_t {
-  IMAGE_HEADER_SIZE = 28,
-  DEFAULT_NURSERY_MB = 50,
-};
+enum : size_t { IMAGE_HEADER_SIZE = 28 };
 
 typedef struct {
   uint64_t fwdtag;
@@ -140,7 +136,7 @@ static void gc_insert_pinned_func(bcfunc *func) {
 static void reset_nursery(void) {
   gc_hp = nursery.mem + nursery.size;
   gc_limit = nursery.mem;
-  gc_soft_limit = gc_limit;
+  gc_soft_limit = gc_hp - MIN(soft_limit, nursery.size);
 }
 
 static size_t nursery_used(void) {
@@ -260,8 +256,7 @@ NOINLINE static void gc_collect(void) {
   size_t old_soft = soft_limit;
   size_t old_before = old_bytes_used();
   size_t heap_before = old_bytes_used() + nursery_used();
-  bool full = full_collection_next || old_bytes_free() < nursery_used();
-  full_collection_next = false;
+  bool full = old_bytes_free() < nursery_used();
   collect_mode = full ? GC_FULL : GC_YOUNG;
   if (full) {
     flip_spaces();
@@ -295,56 +290,50 @@ NOINLINE static void gc_collect(void) {
   }
 
   size_t old_used = old_bytes_used();
-  if (full && old_soft <= SIZE_MAX / 2 && old_used > old_soft / 3) {
+  if (old_soft <= SIZE_MAX / 2 && old_used > old_soft / 3) {
     soft_limit *= 3;
   }
   reset_nursery();
   size_t old_after = old_bytes_used();
   size_t heap_after = old_after + nursery_used();
   size_t promoted = old_after > old_before ? old_after - old_before : 0;
-  size_t freed = nursery.size > promoted ? nursery.size - promoted : 0;
+  size_t freed = old_soft > promoted ? old_soft - promoted : 0;
   struct timespec end;
   clock_gettime(CLOCK_MONOTONIC, &end);
   double elapsed_ms = (double)(end.tv_sec - start.tv_sec) * 1000.0 +
                       (double)(end.tv_nsec - start.tv_nsec) / 1000000.0;
   fprintf(stderr, "gc_collect(%s): %.3f ms, heap: %zu, freed: %zu, soft: %zu\n",
-          full ? "F" : "N", elapsed_ms, heap_after / 1000000,
-          freed / 1000000, soft_limit / 1000000);
-  full_collection_next = old_bytes_used() >= soft_limit;
+          full ? "F" : "N", elapsed_ms, heap_after / 1000000, freed / 1000000,
+          soft_limit / 1000000);
   profiler_set_in_gc(false);
 }
 
 void gc_init(void) {
-  size_t heap_size = 4ULL << 30;
+  size_t space_size = 4ULL << 30;
   char *heap_env = getenv("GC_SPACE");
   if (heap_env) {
-    heap_size = (size_t)atoll(heap_env);
+    space_size = (size_t)atoll(heap_env);
   }
-  size_t nursery_size = DEFAULT_NURSERY_MB << 20;
-  char *nursery_env = getenv("GC_NURSERY_MB");
-  if (nursery_env) {
-    nursery_size = (size_t)atoll(nursery_env) << 20;
-  }
-  auto mem = mmap(nullptr, heap_size * 2, PROT_READ | PROT_WRITE,
+  auto mem = mmap(nullptr, space_size * 2, PROT_READ | PROT_WRITE,
                   MAP_PRIVATE | MAP_ANON, -1, 0);
   if (mem == MAP_FAILED) {
-    fprintf(stderr, "Heap allocation failed: %zu bytes\n", heap_size * 2);
+    fprintf(stderr, "Heap allocation failed: %zu bytes\n", space_size * 2);
     abort();
   }
-  auto nursery_mem = mmap(nullptr, nursery_size, PROT_READ | PROT_WRITE,
+  auto nursery_mem = mmap(nullptr, space_size, PROT_READ | PROT_WRITE,
                           MAP_PRIVATE | MAP_ANON, -1, 0);
   if (nursery_mem == MAP_FAILED) {
-    fprintf(stderr, "Nursery allocation failed: %zu bytes\n", nursery_size);
+    fprintf(stderr, "Nursery allocation failed: %zu bytes\n", space_size);
     abort();
   }
   heap.mem = (uintptr_t)mem;
   heap.to_space = (uintptr_t)mem;
-  heap.from_space = (uintptr_t)mem + heap_size;
-  heap.size = heap_size * 2;
-  old_hp = heap.to_space + heap_size;
+  heap.from_space = (uintptr_t)mem + space_size;
+  heap.size = space_size * 2;
+  old_hp = heap.to_space + space_size;
   old_limit = heap.to_space;
   nursery.mem = (uintptr_t)nursery_mem;
-  nursery.size = nursery_size;
+  nursery.size = space_size;
   gc_nursery_start = nursery.mem;
   gc_nursery_size = nursery.size;
   reset_nursery();
