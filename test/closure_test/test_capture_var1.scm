@@ -1,0 +1,5 @@
+(import (scheme base) (prefix (hawk sys) sys:))
+(letrec* ((id (lambda (x) x)))
+  (let ((x (id 41)))
+    (letrec* ((foo (lambda () x)))
+      (sys:WRITE (foo)))))
