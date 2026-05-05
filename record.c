@@ -927,12 +927,12 @@ typedef struct {
   bool matched;
 } trace_match;
 
-static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
-                                           trace *head, trace *cur_trace,
-                                           uint64_t argcnt) {
+static trace_match ensure_args_match_trace(vm_state *state, trace *head,
+                                           trace *cur_trace, uint64_t argcnt) {
   trace_match res = {.trace = head, .matched = false};
 
   for (trace *candidate = head; candidate; candidate = candidate->next) {
+    assert(candidate->kind == TRACE_ROOT || candidate->kind == TRACE_POLY);
     if (verbose) {
       printf("Arg match? trace %i\n", candidate->num);
     }
@@ -959,7 +959,16 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
       if (arg_idx > max_guard_slot) {
         max_guard_slot = arg_idx;
       }
-      uint8_t actual_type = get_type_tag(stack[arg_idx]);
+      auto sentry = get_sentry(state, arg_idx);
+      if (!sentry->live || !sentry->changed) {
+        match = false;
+        if (verbose) {
+          printf(" No match arg%i not live\n", arg_idx);
+        }
+        break;
+      }
+      uint8_t actual_type =
+          get_slot_type(cur_trace, get_sentry(state, arg_idx)->loc);
       if (actual_type != ins->type) {
         if (verbose) {
           printf("  no match: arg%u expected %s got %s\n", arg_idx,
@@ -968,30 +977,11 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
         match = false;
         break;
       }
-    }
-
-    // A trace is only safe to match if every required entry-arg guard can be
-    // re-applied from the side trace's outgoing state. If an arg isn't in the
-    // outgoing snapshot (not live/changed), linking here would skip a
-    // required type guard on re-entry.
-    for (uint16_t arg_idx = 0; arg_idx <= max_guard_slot; arg_idx++) {
-      if (!needs_guard[arg_idx]) {
-        continue;
-      }
-      sentry *entry = get_sentry(state, arg_idx);
-      if (!entry->live || !entry->changed) {
-        if (verbose) {
-          printf("  no match: arg%u guard unavailable live=%i changed=%i\n",
-                 arg_idx, entry->live, entry->changed);
-        }
-        match = false;
-        break;
-      }
       // On a self-link, propagating a guard to an unguarded entry ARG mutates
       // the candidate's entry assumptions after matching. That can reveal more
       // required guards, so reject and let recording find a safer link.
-      if (cur_trace == candidate && !entry->loc.constant) {
-        ir_ins *guarded = &cur_trace->ins[entry->loc.loc];
+      if (cur_trace == candidate && !sentry->loc.constant) {
+        ir_ins *guarded = &cur_trace->ins[sentry->loc.loc];
         if (guarded->op == IR_ARG && !guarded->guard) {
           if (verbose) {
             printf("  no match: arg%u same-trace propagation would guard arg\n",
@@ -1002,45 +992,26 @@ static trace_match ensure_args_match_trace(vm_state *state, gc_obj *stack,
         }
       }
     }
+
     if (!match) {
       continue;
     }
 
     res.trace = candidate;
     res.matched = true;
-    if (verbose) {
-      printf("  matched trace %i\n", candidate->num);
-      printf("  needs_guard:");
-      bool any_needs_guard = false;
-      for (uint16_t arg_idx = 0; arg_idx <= max_guard_slot; arg_idx++) {
-        if (needs_guard[arg_idx]) {
-          printf(" %d", arg_idx);
-          any_needs_guard = true;
-        }
-      }
-      if (!any_needs_guard) {
-        printf(" (none)");
-      }
-      printf("\n");
-    }
 
-    if (cur_trace) {
-      for (uint16_t arg_idx = 0; arg_idx <= max_guard_slot; arg_idx++) {
-        if (!needs_guard[arg_idx]) {
-          continue;
-        }
-        if (verbose) {
-          printf("  propagate guard for arg%d\n", arg_idx);
-        }
-        sentry *entry = get_sentry(state, arg_idx);
-        if (!entry->live || !entry->changed || entry->loc.constant) {
-          continue;
-        }
-        guard_input_value(cur_trace, entry->loc);
-        if (verbose) {
-          printf("    set guard on cur_trace ins=%u for arg%d\n",
-                 entry->loc.loc, arg_idx);
-        }
+    for (uint16_t arg_idx = 0; arg_idx <= max_guard_slot; arg_idx++) {
+      if (!needs_guard[arg_idx]) {
+        continue;
+      }
+      if (verbose) {
+        printf("  propagate guard for arg%d\n", arg_idx);
+      }
+      sentry *entry = get_sentry(state, arg_idx);
+      guard_input_value(cur_trace, entry->loc);
+      if (verbose) {
+        printf("    set guard on cur_trace ins=%u for arg%d\n", entry->loc.loc,
+               arg_idx);
       }
     }
     break;
@@ -1080,7 +1051,7 @@ static void *check_record_start(bc *pc, bc instr, gc_obj *stack,
   if (pc == ts->start_ins && !is_downrec_trace(ts) &&
       (ts->depth == 0 || cnt >= 0)) {
     trace_match match =
-        ensure_args_match_trace(state, stack, cur_trace, cur_trace, argcnt);
+        ensure_args_match_trace(state, cur_trace, cur_trace, argcnt);
     cur_trace->link = match.trace;
     cur_trace->link_entry_snap = match.matched ? 1 : 0;
     record_finish(pc, state, &op_table,
@@ -1400,7 +1371,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_JLOOP: {
     trace *target = state->record.traces[pc->data];
     trace_match match =
-        ensure_args_match_trace(state, stack, target, cur_trace, argcnt);
+        ensure_args_match_trace(state, target, cur_trace, argcnt);
     cur_trace->link = match.trace;
     cur_trace->link_entry_snap = match.matched ? 1 : 0;
     record_finish(pc, state, &op_table, "linked to loop trace", argcnt);
@@ -1409,7 +1380,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_JRET: {
     trace *target = state->record.traces[pc->data];
     trace_match match =
-        ensure_args_match_trace(state, stack, target, cur_trace, argcnt);
+        ensure_args_match_trace(state, target, cur_trace, argcnt);
     cur_trace->link = match.trace;
     cur_trace->link_entry_snap = match.matched ? 1 : 0;
     record_finish(pc, state, &op_table, "linked to return trace", argcnt);
@@ -1430,7 +1401,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       break;
     }
     trace_match match =
-        ensure_args_match_trace(state, stack, target, cur_trace, argcnt);
+        ensure_args_match_trace(state, target, cur_trace, argcnt);
     if (true || cur_trace->kind == TRACE_SIDE) {
       if (match.matched) {
         uint64_t entry_argcnt = argcnt;
@@ -2255,6 +2226,12 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
     auto checked =
         add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc, .type = type,
                            .guard = type == FLONUM_TAG));
+    // Ugh fix this: we should update the current trace's
+    // PMOV type, except flonums that weren't unboxed yet.
+    // See also the setting of this in guard_input_value/set_typecheck_guard
+    if (type != FLONUM_TAG) {
+      cur_trace->ins[s->loc.loc].type = type;
+    }
     if (type == FLONUM_TAG) {
       set_stack_abs(state, entry->slot, checked);
     }

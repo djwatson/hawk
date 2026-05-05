@@ -1,8 +1,6 @@
 # Known bugs
 
 * bug save-and-die WHILE in a trace fails - because currently vm_trace_reset is lazy
-* still some bug in ensure_args_match_trace: found in seed testing test/compiler.scm
-  Seems to be related to self-loops.  Why does ensure_args_match_trace use stack[] at all??????
 
 # Release checklist
 
