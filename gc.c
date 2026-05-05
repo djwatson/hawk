@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <zstd.h>
 
 #include "array.h"
@@ -44,8 +45,7 @@ static gc_header **worklist;
 static gc_obj **remembered_set;
 static uintptr_t old_hp;
 static uintptr_t old_limit;
-static uintptr_t old_soft_limit;
-static size_t collection_count;
+static bool full_collection_next;
 
 typedef struct {
   bcfunc *ptr;
@@ -153,11 +153,6 @@ static size_t old_bytes_used(void) {
 
 static size_t old_bytes_free(void) { return old_hp - old_limit; }
 
-static void update_old_soft_limit(void) {
-  old_soft_limit =
-      old_hp - old_limit > soft_limit ? old_hp - soft_limit : old_limit;
-}
-
 static void *old_alloc(size_t sz) {
   sz = align_size(sz);
   uintptr_t new_hp = old_hp - sz;
@@ -259,11 +254,13 @@ static void scan_object(gc_header *obj) {
 }
 
 NOINLINE static void gc_collect(void) {
+  struct timespec start;
+  clock_gettime(CLOCK_MONOTONIC, &start);
   profiler_set_in_gc(true);
   size_t old_soft = soft_limit;
-  collection_count++;
-  bool full = collection_count % 4 == 0 || old_hp < old_soft_limit ||
-              old_bytes_free() < nursery_used();
+  size_t heap_before = old_bytes_used() + nursery_used();
+  bool full = full_collection_next || old_bytes_free() < nursery_used();
+  full_collection_next = false;
   collect_mode = full ? GC_FULL : GC_YOUNG;
   if (full) {
     flip_spaces();
@@ -298,13 +295,18 @@ NOINLINE static void gc_collect(void) {
   if (full && old_soft <= SIZE_MAX / 2 && old_used > old_soft / 3) {
     soft_limit *= 3;
   }
-  if (verbose) {
-    fprintf(stderr, "gc_collect(%s old:%li, nursery:%li, new soft:%li)\n",
-            full ? "full" : "young", old_used, nursery_used(), soft_limit);
-  }
   reset_nursery();
+  size_t heap_after = old_bytes_used() + nursery_used();
+  size_t freed = heap_before > heap_after ? heap_before - heap_after : 0;
+  struct timespec end;
+  clock_gettime(CLOCK_MONOTONIC, &end);
+  double elapsed_ms = (double)(end.tv_sec - start.tv_sec) * 1000.0 +
+                      (double)(end.tv_nsec - start.tv_nsec) / 1000000.0;
+  fprintf(stderr, "gc_collect(%s): %.3f ms, heap: %zu, soft: %zu\n",
+          full ? "F" : "N", elapsed_ms, heap_after / 1000000,
+          soft_limit / 1000000);
+  full_collection_next = old_bytes_used() >= soft_limit;
   profiler_set_in_gc(false);
-  update_old_soft_limit();
 }
 
 void gc_init(void) {
@@ -341,7 +343,6 @@ void gc_init(void) {
   gc_nursery_start = nursery.mem;
   gc_nursery_size = nursery.size;
   reset_nursery();
-  update_old_soft_limit();
 }
 
 NOINLINE void gc_log_slow(gc_obj *field) {
