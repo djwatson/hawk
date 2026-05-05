@@ -2,10 +2,6 @@
 
 * bug save-and-die WHILE in a trace fails - because currently vm_trace_reset is lazy
 
-# Release checklist
-
-[ ] array bounds checking
-  
 ## JIT impl
 
 * record APPLY
@@ -56,17 +52,11 @@
 # simple VM
 
 * debug info serialized - hmm maybe keep in scheme format?
-* Hmmm maybe allow toplevel and module - DON'T inline modules?  Or track which are inlined? ugh.
-  * make this optional, I guess.
-* Ugh, same with ARG: we can't know to drop it. Don't know if unused based on only trace, need
-  usage info from .... something? either a post-pass live in JIT from BC, or pre-pass in compiler.
 
 ## tracer
 * dead/kills - no idea.  We could analyze bytecode, or just do
   top-of-stack tracking like previous.
 * punt on: more than 256 refs.
-* Do check for side-trace tail-call should be root loop abort
-   * have code, need to see if useful on more tests
 * we could keep boxed/unboxed flonum pairs around? we might be
   re-boxing in some cases instead of re-using the unchanged old box
   (only in cases of IR_STORE or taking a snapshot)
@@ -75,14 +65,14 @@
   gc to work across CCALL.  This assumes CCALLs are rare, maybe
   experiment with this if they're not.
 
-### opts
+### Optimization passes
 
 X fold 
-   * cse
+   X cse
 X mem opts (store/load, load/load)
 * sinking
 * loop
-X dce - implicit.  Only useful with LOOP
+X dce
 
 # notes:
 
