@@ -115,7 +115,7 @@ static void forward_obj(gc_header *obj, gc_header *new_obj) {
 }
 
 static void scan_object(gc_header *obj);
-static void gc_collect(void);
+NOINLINE static void gc_collect(void);
 
 static void gc_insert_pinned_func(bcfunc *func) {
   uintptr_t target = (uintptr_t)func;
@@ -149,9 +149,7 @@ static size_t old_bytes_used(void) {
   return (heap.to_space + old_space_size()) - old_hp;
 }
 
-static size_t old_bytes_free(void) {
-  return old_hp - old_limit;
-}
+static size_t old_bytes_free(void) { return old_hp - old_limit; }
 
 static void update_old_soft_limit(void) {
   old_soft_limit =
@@ -176,6 +174,9 @@ INLINE static void visit_field(gc_obj *slot, void *ctx) {
   }
   gc_header *obj = to_gc_header(*slot);
   uintptr_t ptr = (uintptr_t)obj;
+  if (ptr == 0) {
+    return;
+  }
   if (collect_mode == GC_YOUNG && !in_nursery(ptr)) {
     if (!in_old_active(ptr) && !is_func(*slot)) {
       abort();
@@ -255,7 +256,7 @@ static void scan_object(gc_header *obj) {
   trace_heap_object(obj, visit_field, nullptr);
 }
 
-static void gc_collect(void) {
+NOINLINE static void gc_collect(void) {
   profiler_set_in_gc(true);
   size_t old_soft = soft_limit;
   collection_count++;
@@ -340,6 +341,9 @@ void gc_init(void) {
 }
 
 NOINLINE void gc_log_slow(gc_obj *field) {
+  if (in_nursery((uintptr_t)field)) {
+    return;
+  }
   arrput(remembered_set, field);
 }
 
