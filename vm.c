@@ -298,7 +298,6 @@ gc_obj vm_memv(gc_obj obj, gc_obj list) {
 
 static void trace_reset(vm_state *state) {
   // printf("TRACE RESET=============================\n");
-  state->max_trace = max_trace;
   arrfree(trace_exit_counts);
   profiler_reset();
   arr_for_each(state->record.traces, trace) {
@@ -1131,13 +1130,15 @@ OP(ALLOC) {
   END_NEXT
 }
 OP(CAR) {
-  if (!is_cons(stack[pc->v1])) abort();
+  if (!is_cons(stack[pc->v1]))
+    abort();
   auto *c = to_cons(stack[pc->v1]);
   stack[instr.reg] = c->a;
   END_NEXT
 }
 OP(CDR) {
-  if (!is_cons(stack[pc->v1])) abort();
+  if (!is_cons(stack[pc->v1]))
+    abort();
   auto *c = to_cons(stack[pc->v1]);
   stack[instr.reg] = c->b;
   END_NEXT
@@ -1292,6 +1293,7 @@ static void vm_state_init(vm_state *state) {
     state->hotmap[i] = hotmap_cnt;
   }
 
+  state->max_trace = max_trace;
   if (jit_dump_flag) {
     jit_dump_init();
   }

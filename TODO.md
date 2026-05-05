@@ -2,62 +2,14 @@
 
 * bug save-and-die WHILE in a trace fails - because currently vm_trace_reset is lazy
 
-# slow tests
-
-* ctak, fibc - slow continuations
-* read1 - reader is slow-ish
-* cpstak, deriv, diviter, divrec, dynamic, matrix, graphs, gcbench - non-generational gc
-* chudnovsky - ??? bignums something something
-* compiler???
-
 # Release checklist
 
-[x] Closure conversion from O(0) closure paper 
-   DONE! needs cleanup. remove old closure, simplify find free, make the constant/alias pass separate.
-[x] values / call-with-values / multi-value returns in opcodes!
-   [ ] fix call/cc multi-value returns
-[x] Loops 
-   [x] loop tracing.
-   [ ]  more optimization of tracing interaction??
-[ ] remove custom hashtable after we have a real eq? hashtable
-[ ] Record every OPcode:
-  * APPLY (+ the resulting call FUNC or IFUNC)
-    * I didn't do this, but extended APPLY fastpath to length 8, and it never hits sys:APPLY in any benchmark now
-	* I tried doing it, but it means 'argcnt' is no longer constant in snapshots, which is a pain.
-	  We would have to length check BEFORE doing APPLY, which is ok I guess.  Never got it completely working
-  [X] CALLCC & CALLCCRESUME
-  * boxing in FFI
-[x] Better inlining of existing, like change 3+ args to binops for +,-, etc
-[ ] Inline a bunch of VM primitives to opcodes to make things faster
-  [x] CONS
-  * CAR, CDR
-  * VECTOR MAKE_VECTOR VECTOR_REF VECTOR_SET VECTOR_LENGTH
-  * STRING_LENGTH STRING_REF MAKE_STRING
-  [x] MEMQ ASSV ASSQ
-  * GCALL GCALLT (global call)
-  * Math ops like ROUND SIN SQRT ATAN COS TRUNCATE FLOOR CEILING EXP LOG TAN ASIN ACOS
+[ ] compiler bug?? from seed-checker
+[ ] array bounds checking
   
-Optional: 
-[ ] GC old generation
-[ ] flvector
-[ ] opt_loop pass
-[x] CSE
-[ ] sinking to snaps
-
-## Known jit perf work
-
-* closure creation should not zero fill, ONLY zero-fill slots where we need 
-  to allocate a closure group and the closures have to be allocated first
-* new GC is non-generational, leading to some small perf loss in cpstak, dynamic, etc:
-  only tiny benchmarks really.
-* register allocation needs to reserve fewer registers.
-
-* downrec seems to not really help at all!!!!!!!!!!!!!!!!!!!!!! we can just remove.
-* cpstak: gen-gc+ reg pressure, zero-fill
-* graphs: gen-gc
-* dynamic: zero-fill +gen-gc
-
 ## JIT impl
+
+* record APPLY
 
 * downrec handling - currently this ONLY starts based on side exits, so for example test/sum1.scm never traces
   a downrec, resulting in HUGE vm time.
@@ -93,6 +45,8 @@ Optional:
 # VM impl
 
 * track stack-top
+* remove weird custom hashtable, because we're missing eq? support
+* missing multi-value callcc returns I think?
 
 # cleanup
 * LOOP could just do a memmov instead?
@@ -126,7 +80,7 @@ Optional:
 
 X fold 
    * cse
-* mem opts
+X mem opts (store/load, load/load)
 * sinking
 * loop
 X dce - implicit.  Only useful with LOOP
