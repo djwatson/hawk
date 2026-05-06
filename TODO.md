@@ -6,8 +6,8 @@
 
 * record APPLY
 
-* downrec handling - currently this ONLY starts based on side exits, so for example test/sum1.scm never traces
-  a downrec, resulting in HUGE vm time.
+* returning trace handling - currently we allow ANY poly trace to return,
+  while old hawk didn't allow any until blacklist_max/2, then *any* trace could return
 
 * lots of ccall cleanup - regalloc, live register save/restore, etc
 
@@ -25,8 +25,6 @@
   GSET: needs a tmp reg
   SLOAD: would need separate IR_TYPECHECK or tmp reg
 
-* We could drop LRU, and just keep a list of last-used for EVERY op, probably cheaper.
-  
 * We can probably push RSTATE on the stack instead of keeping a register.
 
 * Currently to patch up IR_TYPECHECK we do a forward scan from IR_ARG, 

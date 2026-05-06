@@ -46,7 +46,6 @@ set(
   ir.c
   emit.c
   regalloc.c
-  lru.c
   ${ASM_SOURCE}
   asm.c
   comments.c

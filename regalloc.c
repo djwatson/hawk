@@ -9,7 +9,6 @@
 #include "asm.h"
 #include "hawk.h"
 #include "ir.h"
-#include "lru.h"
 
 #define ALLOC_NONE UINT16_MAX
 #define ALLOC_UNALLOCATABLE (UINT16_MAX - 1)
@@ -33,9 +32,37 @@
 // of a single backwards pass, we're emitting code forward (both for
 // clarity, and to make loopback register parallel copies easier).
 
-static void limit_live_values(regalloc_state *s, lru *lru, uint16_t max) {
-  while (lru->count > max) {
-    uint16_t spill_value = lru_pop_oldest(lru);
+static bool live_remove(uint16_t *live, uint16_t *count, uint16_t value) {
+  for (uint16_t i = 0; i < *count; i++) {
+    if (live[i] == value) {
+      live[i] = live[--(*count)];
+      return true;
+    }
+  }
+  return false;
+}
+
+static void live_add(uint16_t *live, uint16_t *count, uint16_t value) {
+  for (uint16_t i = 0; i < *count; i++) {
+    if (live[i] == value) {
+      return;
+    }
+  }
+  live[(*count)++] = value;
+}
+
+static void limit_live_values(regalloc_state *s, uint16_t *live,
+                              uint16_t *count, uint16_t max,
+                              uint32_t const *use_pos) {
+  while (*count > max) {
+    uint16_t farthest_i = 0;
+    for (uint16_t i = 1; i < *count; i++) {
+      if (use_pos[live[i]] > use_pos[live[farthest_i]]) {
+        farthest_i = i;
+      }
+    }
+    uint16_t spill_value = live[farthest_i];
+    live[farthest_i] = live[--(*count)];
     auto ins = &s->t->ins[spill_value];
     if (ins->spill == SPILL_NONE) {
       if (s->next_spill == SPILL_NONE) {
@@ -90,44 +117,6 @@ static uint8_t regalloc_collect_carg_args(trace const *t, slot chain, slot *args
     args[count++] = carg->op1;
   }
   return (uint8_t)(count + regalloc_collect_carg_args(t, carg->op2, args + count));
-}
-
-static const char *regalloc_foreign_type_name(gc_obj type_obj) {
-  if (!is_symbol(type_obj)) {
-    abort();
-  }
-  auto name = get_sym_name(to_symbol(type_obj));
-  if (!name) {
-    abort();
-  }
-  return name->str;
-}
-
-static void regalloc_ccall_limits(trace const *t, ir_ins const *ins,
-                                  uint16_t *gpr_limit, uint16_t *fpr_limit) {
-  uint16_t gpr = 0;
-  uint16_t fpr = 0;
-  gc_obj sig_obj = t->consts[ins->op1.loc];
-  gc_obj arg_types = to_cons(to_cons(to_cons(sig_obj)->b)->b)->a;
-  while (arg_types.value != NIL_TAG) {
-    if (!is_cons(arg_types)) {
-      abort();
-    }
-    auto entry = to_cons(arg_types);
-    if (strcmp(regalloc_foreign_type_name(entry->a), "double") == 0) {
-      fpr++;
-    } else {
-      gpr++;
-    }
-    arg_types = entry->b;
-  }
-  if (ins->type == FLONUM_TAG) {
-    fpr++;
-  } else {
-    gpr++;
-  }
-  *gpr_limit = gpr;
-  *fpr_limit = fpr;
 }
 
 uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins,
@@ -198,10 +187,17 @@ void regalloc_collect_next_uses(regalloc_state *s) {
   size_t cur_snap = snap_len;
   uint16_t cur_snap_end_ir = ins_len;
 
-  lru gpr_live;
-  lru fpr_live;
-  lru_init(&gpr_live);
-  lru_init(&fpr_live);
+  uint16_t gpr_live[ins_len];
+  uint16_t fpr_live[ins_len];
+  uint16_t gpr_live_count = 0;
+  uint16_t fpr_live_count = 0;
+  uint32_t *use_pos = malloc(sizeof(uint32_t) * ins_len);
+  if (!use_pos) {
+    abort();
+  }
+  for (size_t i = 0; i < ins_len; i++) {
+    use_pos[i] = UINT32_MAX;
+  }
   for (size_t i = ins_len; i > 0; i--) {
     uint16_t value_id = (uint16_t)(i - 1);
     while (cur_snap != 0 &&
@@ -215,32 +211,41 @@ void regalloc_collect_next_uses(regalloc_state *s) {
         if (!val.constant && !s->uses[val.loc]) {
           add_next_use(s, val.loc, cur_snap_end_ir, false, true);
           bool flonum = s->t->ins[val.loc].type == FLONUM_TAG;
-          auto value_lru = flonum ? &fpr_live : &gpr_live;
-          lru_add(value_lru, val.loc);
-          limit_live_values(s, value_lru,
-                            flonum ? FPR_ALLOCATABLE : GPR_ALLOCATABLE);
+          auto live = flonum ? fpr_live : gpr_live;
+          auto live_count = flonum ? &fpr_live_count : &gpr_live_count;
+          live_add(live, live_count, val.loc);
+          if (use_pos[val.loc] == UINT32_MAX) {
+            use_pos[val.loc] = cur_snap_end_ir;
+          }
+          limit_live_values(s, live, live_count,
+                            flonum ? FPR_ALLOCATABLE : GPR_ALLOCATABLE,
+                            use_pos);
         }
       }
       cur_snap_end_ir = cur->ir;
     }
 
-    auto value_lru =
-        s->t->ins[value_id].type == FLONUM_TAG ? &fpr_live : &gpr_live;
-    lru_remove(value_lru, value_id);
+    if (s->t->ins[value_id].type == FLONUM_TAG) {
+      live_remove(fpr_live, &fpr_live_count, value_id);
+    } else {
+      live_remove(gpr_live, &gpr_live_count, value_id);
+    }
 
     auto ins = &s->t->ins[value_id];
     if (ins->op == IR_CCALL || ir_is_vm_call(ins->op)) {
-      limit_live_values(s, &gpr_live, 0);
-      limit_live_values(s, &fpr_live, 0);
+      limit_live_values(s, gpr_live, &gpr_live_count, 0, use_pos);
+      limit_live_values(s, fpr_live, &fpr_live_count, 0, use_pos);
     }
 
     slot args[UINT8_MAX];
     uint8_t arg_count = regalloc_collect_ir_args(s->t, ins, args);
     for (uint8_t arg = 0; arg < arg_count; arg++) {
       add_next_use(s, args[arg].loc, value_id, true, false);
-      auto arg_lru =
-          s->t->ins[args[arg].loc].type == FLONUM_TAG ? &fpr_live : &gpr_live;
-      lru_poke(arg_lru, args[arg].loc);
+      bool flonum = s->t->ins[args[arg].loc].type == FLONUM_TAG;
+      auto live = flonum ? fpr_live : gpr_live;
+      auto live_count = flonum ? &fpr_live_count : &gpr_live_count;
+      live_add(live, live_count, args[arg].loc);
+      use_pos[args[arg].loc] = value_id;
     }
     // In the current regalloc, the output register is live
     // at the same time as the input registers.
@@ -255,9 +260,10 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     if (ins->op == IR_RET) {
       gpr_limit--;
     }
-    limit_live_values(s, &gpr_live, gpr_limit);
-    limit_live_values(s, &fpr_live, fpr_limit);
+    limit_live_values(s, gpr_live, &gpr_live_count, gpr_limit, use_pos);
+    limit_live_values(s, fpr_live, &fpr_live_count, fpr_limit, use_pos);
   }
+  free(use_pos);
 }
 
 uint8_t regalloc_find_current_reg_for_value(regalloc_state *s,

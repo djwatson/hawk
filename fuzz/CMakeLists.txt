@@ -33,7 +33,6 @@ add_executable(
   regalloc_fuzz.c
   ../ftoa.c
   ../regalloc.c
-  ../lru.c
   ../ir.c
   ../types.c
   ../${ASM_SOURCE}
