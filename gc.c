@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#define ZSTD_STATIC_LINKING_ONLY
 #include <zstd.h>
 
 #include "array.h"
@@ -54,8 +55,7 @@ static pinned_func_entry *pinned_funcs;
 
 enum : uint64_t {
   FORWARD_TAG = UINT64_MAX,
-  IMAGE_VERSION_RAW = 0,
-  IMAGE_VERSION_ZSTD = 1,
+  IMAGE_VERSION = 0,
 };
 
 enum : size_t { IMAGE_HEADER_SIZE = 28 };
@@ -486,7 +486,8 @@ static void rebase_image_field(gc_obj *slot, void *ctx) {
   *slot = tag_header((gc_header *)(image->base + offset), get_tag(*slot));
 }
 
-gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path) {
+gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path,
+                     bool compressed) {
   if (data_len < IMAGE_HEADER_SIZE) {
     read_image_fail(path, "file too short");
   }
@@ -501,7 +502,7 @@ gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path) {
   memcpy(&version, &data[4], sizeof(version));
   memcpy(&image_len_u64, &data[12], sizeof(image_len_u64));
   memcpy(&start_u64, &data[20], sizeof(start_u64));
-  if (version != IMAGE_VERSION_RAW && version != IMAGE_VERSION_ZSTD) {
+  if (version != IMAGE_VERSION) {
     read_image_fail(path, "unsupported version");
   }
   if (image_len_u64 > SIZE_MAX) {
@@ -514,7 +515,7 @@ gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path) {
   uintptr_t image_base = heap.from_space;
   uint8_t const *payload = data + IMAGE_HEADER_SIZE;
   size_t payload_len = data_len - IMAGE_HEADER_SIZE;
-  if (version == IMAGE_VERSION_RAW) {
+  if (!compressed) {
     if (payload_len != image_len) {
       read_image_fail(path, "length mismatch");
     }
@@ -592,7 +593,8 @@ gc_obj gc_read_image_file(char const *path) {
     read_image_fail(path, "short read");
   }
   fclose(fp);
-  gc_obj start = gc_read_image(data, (size_t)fsize, path);
+  bool compressed = ZSTD_isFrame(data, (size_t)fsize) != 0;
+  gc_obj start = gc_read_image(data, (size_t)fsize, path, compressed);
   free(data);
   return start;
 }
@@ -605,7 +607,7 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
   if (!is_string(path)) {
     abort();
   }
-  if (!is_bool(compress)) {
+  if (compress.value != FALSE_REP.value && !is_fixnum(compress)) {
     abort();
   }
   char const *filename = to_string(path)->str;
@@ -613,11 +615,17 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
   if (!data) {
     dump_image_fail(filename, "out of memory");
   }
+  bool do_compress = compress.value != FALSE_REP.value;
+  int level = 0;
+  if (do_compress) {
+    level = (int)to_fixnum(compress);
+  }
+  char const *output_filename = filename;
 
   dump_image_ctx image = {
       .base = data,
       .len = 0,
-      .path = filename,
+      .path = output_filename,
       .worklist = nullptr,
   };
   gc_obj root = clo;
@@ -648,40 +656,38 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
   }
   dump_rebase_field(&root, data);
   dump_rebase_field(&start, data);
-  bool do_compress = compress.value == TRUE_REP.value;
   uint8_t *payload = data;
   size_t payload_len = image.len;
-  uint64_t version = IMAGE_VERSION_RAW;
   uint8_t *compressed = nullptr;
   if (do_compress) {
     size_t compressed_cap = ZSTD_compressBound(image.len);
     compressed = malloc(compressed_cap);
     if (!compressed) {
-      dump_image_fail(filename, "out of memory");
+      dump_image_fail(output_filename, "out of memory");
     }
     size_t compressed_len =
-        ZSTD_compress(compressed, compressed_cap, data, image.len, 19);
+        ZSTD_compress(compressed, compressed_cap, data, image.len, level);
     if (ZSTD_isError(compressed_len)) {
-      dump_image_zstd_fail(filename, compressed_len);
+      dump_image_zstd_fail(output_filename, compressed_len);
     }
     payload = compressed;
     payload_len = compressed_len;
-    version = IMAGE_VERSION_ZSTD;
   }
 
-  FILE *fp = fopen(filename, "wb");
+  FILE *fp = fopen(output_filename, "wb");
   if (!fp) {
     perror("fopen");
     abort();
   }
   uint64_t image_len = image.len;
   uint64_t start_u64 = (uint64_t)start.value;
+  uint64_t version = IMAGE_VERSION;
   if (fwrite("HAWK", 1, 4, fp) != 4 ||
       fwrite(&version, sizeof(version), 1, fp) != 1 ||
       fwrite(&image_len, sizeof(image_len), 1, fp) != 1 ||
       fwrite(&start_u64, sizeof(start_u64), 1, fp) != 1 ||
       fwrite(payload, 1, payload_len, fp) != payload_len || fclose(fp) != 0) {
-    dump_image_fail(filename, "short write");
+    dump_image_fail(output_filename, "short write");
   }
   arrfree(image.worklist);
   free(compressed);

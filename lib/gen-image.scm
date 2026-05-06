@@ -1,11 +1,11 @@
 (import (scheme base) (scheme eval) (scheme write) (scheme read) (prefix (hawk sys) sys:)
         (scheme file) (scheme case-lambda) (scheme process-context))
 
-(define (save-and-die restart name compress)
+(define (save-and-die restart name compress-level)
   (sys:FOREIGN_CALL '(int32 "gc_dump_image_and_die" (gc_obj gc_obj gc_obj))
                     restart
                     name
-                    compress))
+                    compress-level))
 (define (repl)
   (display "repl> ")
   (flush-output-port)
@@ -40,6 +40,4 @@
         (eval final-forms #f)
         (flush-output-port)))))
 
-(save-and-die main-entry "img.scm.bc" #t)
-
-
+(save-and-die main-entry "img.scm.bc" 19)

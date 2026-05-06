@@ -26,9 +26,10 @@ extern size_t gc_roots_len;
 void gc_set_scan_callback(gc_scan_callback cb, void *data);
 void gc_register_bcfunc(struct bcfunc *func);
 void *gc_base_ptr(void *p);
-gc_obj gc_read_image(uint8_t const *data, size_t len, char const *path);
+gc_obj gc_read_image(uint8_t const *data, size_t len, char const *path,
+                     bool compressed);
 gc_obj gc_read_image_file(char const *path);
-void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress);
+void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress_level);
 NOINLINE void gc_log_slow(gc_obj *field);
 
 static inline void gc_log(gc_obj *field) {
