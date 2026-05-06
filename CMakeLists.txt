@@ -4,7 +4,7 @@ project(newhawk C)
 
 option(USE_RANDOM_SCHEDULE "Enable random schedule debugging" OFF)
 option(ENABLE_COVERAGE "Enable LLVM source-based coverage instrumentation" OFF)
-option(ENABLE_REGALLOC_FUZZ "Build regalloc libFuzzer target when supported" ON)
+option(ENABLE_FUZZ_TARGETS "Build fuzz targets" OFF)
 
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -25,50 +25,8 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
   set(ASM_SOURCE asm_aarch64.c)
 endif()
 
-if(ENABLE_REGALLOC_FUZZ AND CMAKE_C_COMPILER_ID MATCHES "Clang")
-  if(DEFINED HAVE_LIBFUZZER_RUNTIME)
-    unset(HAVE_LIBFUZZER_RUNTIME CACHE)
-  endif()
-  set(_saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
-  set(_saved_try_compile_target_type "${CMAKE_TRY_COMPILE_TARGET_TYPE}")
-  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -fsanitize=fuzzer,address")
-  set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
-  check_c_source_compiles(
-    "
-      int LLVMFuzzerTestOneInput(const unsigned char *Data, unsigned long Size) {
-        (void)Data;
-        (void)Size;
-        return 0;
-      }
-    "
-    HAVE_LIBFUZZER_RUNTIME)
-  set(CMAKE_REQUIRED_FLAGS "${_saved_required_flags}")
-  set(CMAKE_TRY_COMPILE_TARGET_TYPE "${_saved_try_compile_target_type}")
-
-  if(HAVE_LIBFUZZER_RUNTIME)
-    add_executable(
-      regalloc_fuzz
-      fuzz/regalloc_fuzz.c
-      ftoa.c
-      regalloc.c
-      lru.c
-      ir.c
-      types.c
-      ${ASM_SOURCE}
-      asm.c
-      util/array.c
-    )
-    target_compile_options(regalloc_fuzz PRIVATE -fsanitize=fuzzer,address)
-    target_link_options(regalloc_fuzz PRIVATE -fsanitize=fuzzer,address)
-    target_include_directories(
-      regalloc_fuzz PRIVATE
-      ${CMAKE_CURRENT_SOURCE_DIR}
-      ${CMAKE_CURRENT_SOURCE_DIR}/util
-      ${CMAKE_CURRENT_BINARY_DIR}
-    )
-  else()
-    message(STATUS "Skipping regalloc_fuzz: libFuzzer runtime not available")
-  endif()
+if(ENABLE_FUZZ_TARGETS)
+  add_subdirectory(fuzz)
 endif()
 
 set(
