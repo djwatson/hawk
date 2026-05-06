@@ -416,21 +416,6 @@ static uint8_t emit_collect_ccall_args(trace *t, slot chain,
   return count;
 }
 
-static size_t collect_live_caller_saved_regs(trace *t, regalloc_state *ra_state,
-                                             uint16_t op_cnt_idx,
-                                             uint8_t *regs) {
-  bool live_regs[MAX_REG];
-  uint64_t live_gpr_mask;
-  collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs, &live_gpr_mask);
-  size_t count = 0;
-  for (size_t reg = 0; reg < FPR_REG_END; reg++) {
-    if (live_regs[reg] && !asm_is_callee_saved((uint8_t)reg)) {
-      regs[count++] = (uint8_t)reg;
-    }
-  }
-  return count;
-}
-
 static void invalidate_live_regs_for_call(trace *t, regalloc_state *ra_state,
                                           uint8_t dst_reg) {
   enum : uint16_t {
@@ -584,10 +569,7 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
   foreign_parse_sig(slot_gc_obj(t, op->op1), &sig);
   ccall_arg call_args[UINT8_MAX];
   uint8_t call_arg_count = emit_collect_ccall_args(t, op->op2, &sig, call_args);
-  uint8_t save_regs[FPR_REG_END];
-  size_t save_count =
-      collect_live_caller_saved_regs(t, ra_state, op_cnt_idx, save_regs);
-  emit_push_regs(s, save_regs, save_count, true);
+  emit_push_regs(s, nullptr, 0, true);
 
   typedef struct {
     ccall_arg arg;
@@ -647,7 +629,7 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
   }
   emit_load_ralloc(s);
   invalidate_live_regs_for_call(t, ra_state, dst_reg);
-  emit_pop_regs(s, save_regs, save_count, true);
+  emit_pop_regs(s, nullptr, 0, true);
 }
 
 static intptr_t vm_call_target(ir_ins_op op) {
@@ -769,11 +751,6 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
                         uint16_t op_cnt_idx, ir_ins const *op, slot *args,
                         uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg,
                         int32_t cur_snap) {
-  /* uint8_t save_regs[FPR_REG_END]; */
-  /* size_t save_count = */
-  /*     collect_live_caller_saved_regs(t, ra_state, op_cnt_idx, save_regs); */
-  /* emit_push_regs(s, save_regs, save_count, true); */
-
   slot a0 = op->op1;
   uint8_t a0_src = emit_arg_reg(args, arg_regs, arg_count, a0);
   if (!a0.constant && a0_src == REG_NONE) {
@@ -813,7 +790,6 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
     // Restore caller-saved regs before branching, but preserve VM compare
     // result in a scratch reg so stack pointer fixups cannot affect cmp/jcc.
     emit_mov(s, RTMP, RET_REG);
-    // emit_pop_regs(s, save_regs, save_count, true);
     emit_cmp_constant(s, RTMP, FALSE_REP.value);
     emit_jcc32(s, vm_call_expects_false(op->op) ? JNE : JE,
                &t->snaps[cur_snap].patch_point);
@@ -825,7 +801,6 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
     } else if (dst_reg != REG_NONE) {
       out_reg = dst_reg;
     }
-    // emit_pop_regs(s, save_regs, save_count, true);
     if (cur_snap >= 0) {
       emit_typecheck(s, t, op, cur_snap, out_reg);
     }
@@ -1996,6 +1971,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     }
     }
 
+    // emit a spill.
     if (op->spill != SPILL_NONE && (op->op != IR_PMOV || op->reg != REG_NONE)) {
       assert(out_reg != REG_NONE);
       COMMENT("SPILL op %u to S%u", op_cnt_idx, op->spill);
@@ -2006,7 +1982,6 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         emit_store(s, spill_offset(op->spill), RTMP, out_reg);
       }
     }
-    // TODO: maybe move emit_typecheck here, instead of each individual one.
   }
 
   // Some traces place entry/exit snapshots immediately after the final IR.
