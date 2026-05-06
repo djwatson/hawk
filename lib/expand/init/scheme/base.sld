@@ -587,7 +587,10 @@
        (syntax-rules ()
          ((let ((var init) ...) body ...) ((lambda (var ...) body ...) init ...))
          ((let loop ((var init) ...) body ...)
-          (letrec* ((loop (lambda (var ...) body ...))) (loop init ...)))))
+          ((lambda (var ...)
+             (letrec* ((loop (lambda (var ...) body ...)))
+               (loop var ...)))
+           init ...))))
 
     (define-syntax let*
        (syntax-rules ()
