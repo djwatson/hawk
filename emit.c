@@ -640,61 +640,46 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
   emit_pop_regs(s, nullptr, 0, true);
 }
 
-static intptr_t vm_call_target(ir_ins_op op) {
-  switch (op) {
-  case IR_VMADD:
-    return (intptr_t)&vm_runtime_math_add_slow;
-  case IR_VMSUB:
-    return (intptr_t)&vm_runtime_math_sub_slow;
-  case IR_VMMUL:
-    return (intptr_t)&vm_runtime_math_mul_slow;
-  case IR_VMDIV:
-    return (intptr_t)&vm_runtime_math_div_slow;
-  case IR_VMQUOTIENT:
-    return (intptr_t)&vm_runtime_math_quotient_slow;
-  case IR_VMMOD:
-    return (intptr_t)&vm_runtime_math_mod_slow;
-  case IR_VMMEMQ:
-    return (intptr_t)&vm_memq;
-  case IR_VMMEMV:
-    return (intptr_t)&vm_memv;
-  case IR_VMLT:
-    return (intptr_t)&vm_runtime_cmp_lt_slow;
-  case IR_VMGT:
-    return (intptr_t)&vm_runtime_cmp_gt_slow;
-  case IR_VMLTE:
-    return (intptr_t)&vm_runtime_cmp_lte_slow;
-  case IR_VMGTE:
-    return (intptr_t)&vm_runtime_cmp_gte_slow;
-  case IR_VMJEQV:
-  case IR_VMJNEQV:
-    return (intptr_t)&vm_runtime_cmp_jeqv_slow;
-  case IR_VMINEXACT:
-    return (intptr_t)&numeric_inexact_value;
-  case IR_VMEXACT:
-    return (intptr_t)&numeric_exact_value;
-  case IR_VMTRUNCATE:
-    return (intptr_t)&numeric_truncate_value;
-  default:
-    abort();
-  }
+typedef struct {
+  intptr_t target;
+  bool is_cmp;
+  bool expects_false;
+} vm_call_info;
+
+static vm_call_info vm_call_infos[] = {
+    {(intptr_t)&vm_runtime_math_add_slow, false, false},
+    {(intptr_t)&vm_runtime_math_sub_slow, false, false},
+    {(intptr_t)&vm_runtime_math_mul_slow, false, false},
+    {(intptr_t)&vm_runtime_math_div_slow, false, false},
+    {(intptr_t)&vm_runtime_math_quotient_slow, false, false},
+    {(intptr_t)&vm_runtime_math_mod_slow, false, false},
+    {(intptr_t)&vm_memq, false, false},
+    {(intptr_t)&vm_memv, false, false},
+    {(intptr_t)&vm_runtime_cmp_lt_slow, true, false},
+    {(intptr_t)&vm_runtime_cmp_gt_slow, true, false},
+    {(intptr_t)&vm_runtime_cmp_lte_slow, true, false},
+    {(intptr_t)&vm_runtime_cmp_gte_slow, true, false},
+    {(intptr_t)&vm_runtime_cmp_jeqv_slow, true, false},
+    {(intptr_t)&vm_runtime_cmp_jeqv_slow, true, true},
+    {(intptr_t)&numeric_inexact_value, false, false},
+    {(intptr_t)&numeric_exact_value, false, false},
+    {(intptr_t)&numeric_truncate_value, false, false},
+};
+
+static bool ir_is_vm_call(ir_ins_op op) { return op >= IR_VMADD; }
+
+static vm_call_info vm_call_get(ir_ins_op op) {
+  assert(ir_is_vm_call(op));
+  return vm_call_infos[op - IR_VMADD];
 }
 
-static bool vm_call_is_cmp(ir_ins_op op) {
-  switch (op) {
-  case IR_VMLT:
-  case IR_VMGT:
-  case IR_VMLTE:
-  case IR_VMGTE:
-  case IR_VMJEQV:
-  case IR_VMJNEQV:
-    return true;
-  default:
-    return false;
-  }
-}
+static intptr_t vm_call_target(ir_ins_op op) { return vm_call_get(op).target; }
 
-static bool vm_call_expects_false(ir_ins_op op) { return op == IR_VMJNEQV; }
+static bool vm_call_is_cmp(ir_ins_op op) { return vm_call_get(op).is_cmp; }
+
+static bool vm_call_expects_false(ir_ins_op op) {
+  return vm_call_get(op).expects_false;
+}
 
 static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
                         uint16_t op_cnt_idx, ir_ins const *op, slot *args,
@@ -1898,27 +1883,6 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
                          arg_count);
       break;
     }
-    case IR_VMADD:
-    case IR_VMSUB:
-    case IR_VMMUL:
-    case IR_VMDIV:
-    case IR_VMQUOTIENT:
-    case IR_VMMOD:
-    case IR_VMMEMQ:
-    case IR_VMMEMV:
-    case IR_VMLT:
-    case IR_VMGT:
-    case IR_VMLTE:
-    case IR_VMGTE:
-    case IR_VMJEQV:
-    case IR_VMJNEQV:
-    case IR_VMINEXACT:
-    case IR_VMEXACT:
-    case IR_VMTRUNCATE: {
-      emit_vmcall(s, t, ra_state, op_cnt_idx, op, args, arg_regs, arg_count,
-                  dst_reg, cur_snap);
-      break;
-    }
     case IR_REF:
     case IR_CARG:
     case IR_ARG:
@@ -1934,6 +1898,11 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       break;
     }
     default: {
+      if (ir_is_vm_call(op->op)) {
+        emit_vmcall(s, t, ra_state, op_cnt_idx, op, args, arg_regs, arg_count,
+                    dst_reg, cur_snap);
+        break;
+      }
       printf("Can't jit op: %s\n", ir_names[op->op]);
       abort();
       // exit(-1);

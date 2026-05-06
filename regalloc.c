@@ -79,30 +79,7 @@ static bool slot_is_zero(trace const *t, slot s) {
 }
 
 static bool ir_is_vm_call(ir_ins_op op) {
-  switch (op) {
-  case IR_VMADD:
-  case IR_VMSUB:
-  case IR_VMMUL:
-  case IR_VMDIV:
-  case IR_VMQUOTIENT:
-  case IR_VMMOD:
-  case IR_VMMEMQ:
-  case IR_VMMEMV:
-  case IR_VMLT:
-  case IR_VMGT:
-  case IR_VMLTE:
-  case IR_VMGTE:
-  case IR_VMJEQV:
-  case IR_VMJNEQV:
-  case IR_VMINEXACT:
-  case IR_VMEXACT:
-  case IR_VMTRUNCATE:
-  case IR_CALLCC:
-  case IR_CALLCC_RESUME:
-    return true;
-  default:
-    return false;
-  }
+  return op >= IR_VMADD || op == IR_CALLCC || op == IR_CALLCC_RESUME;
 }
 
 static uint8_t regalloc_collect_carg_args(trace const *t, slot chain,

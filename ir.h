@@ -46,6 +46,8 @@ typedef enum : uint8_t {
 } ir_arg_type;
 
 // Opname, arg types, side effecting
+// VMCALLS *MUST* appear last, for regalloc and indexing.
+// The comparison functions are also ordered! and inverted with ~
 #define IR_OPS                                                                 \
   X(EQ, ARG_IR_IR, true)                                                       \
   X(NE, ARG_IR_IR, true)                                                       \
@@ -72,6 +74,21 @@ typedef enum : uint8_t {
   X(REF, ARG_IR_IR, false)                                                     \
   X(CARG, ARG_IR_IR, false)                                                    \
   X(CCALL, ARG_IR_IR, true)                                                    \
+  X(LOAD, ARG_IR_IR, false)                                                    \
+  X(LOAD_CHAR, ARG_IR_IR, false)                                               \
+  X(STORE, ARG_IR_IR, true)                                                    \
+  X(STORE_CHAR, ARG_IR_IR, true)                                               \
+  X(GCLOG, ARG_IR_IR, true)                                                    \
+  X(ALLOC, ARG_IR_IR, false)                                                   \
+  X(FLUSH, ARG_NONE_NONE, true)                                                \
+  X(CALLCC, ARG_IR_NONE, true)                                                 \
+  X(CALLCC_RESUME, ARG_IR_NONE, true)                                          \
+  X(BOX_FLONUM, ARG_IR_NONE, false)                                            \
+  X(EXACT, ARG_IR_NONE, false)                                                 \
+  X(INTEGER_CHAR, ARG_IR_NONE, false)                                          \
+  X(CHAR_INTEGER, ARG_IR_NONE, false)                                          \
+  X(TRUNCATE, ARG_IR_NONE, false)                                              \
+  X(INEXACT, ARG_IR_NONE, false)                                               \
   X(VMADD, ARG_IR_IR, true)                                                    \
   X(VMSUB, ARG_IR_IR, true)                                                    \
   X(VMMUL, ARG_IR_IR, true)                                                    \
@@ -88,22 +105,7 @@ typedef enum : uint8_t {
   X(VMJNEQV, ARG_IR_IR, true)                                                  \
   X(VMINEXACT, ARG_IR_NONE, true)                                              \
   X(VMEXACT, ARG_IR_NONE, true)                                                \
-  X(VMTRUNCATE, ARG_IR_NONE, true)                                             \
-  X(LOAD, ARG_IR_IR, false)                                                    \
-  X(LOAD_CHAR, ARG_IR_IR, false)                                               \
-  X(STORE, ARG_IR_IR, true)                                                    \
-  X(STORE_CHAR, ARG_IR_IR, true)                                               \
-  X(GCLOG, ARG_IR_IR, true)                                                    \
-  X(ALLOC, ARG_IR_IR, false)                                                   \
-  X(FLUSH, ARG_NONE_NONE, true)                                                \
-  X(CALLCC, ARG_IR_NONE, true)                                                 \
-  X(CALLCC_RESUME, ARG_IR_NONE, true)                                          \
-  X(BOX_FLONUM, ARG_IR_NONE, false)                                            \
-  X(EXACT, ARG_IR_NONE, false)                                                 \
-  X(INTEGER_CHAR, ARG_IR_NONE, false)                                          \
-  X(CHAR_INTEGER, ARG_IR_NONE, false)                                          \
-  X(TRUNCATE, ARG_IR_NONE, false)                                              \
-  X(INEXACT, ARG_IR_NONE, false)
+  X(VMTRUNCATE, ARG_IR_NONE, true)
 typedef enum : uint8_t {
 #define X(name, type, sideeff) IR_##name,
   IR_OPS
