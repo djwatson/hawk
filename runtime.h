@@ -1,78 +1,12 @@
 #pragma once
 
 #include <assert.h>
-#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 
 #include "bigint.h"
 #include "gc.h"
 #include "types.h"
-
-// GC: may allocate via gc_alloc.
-static inline gc_obj SCM_MAKE_RECTANGULAR(gc_obj real, gc_obj imag) {
-  gc_add_root((const void *)&real, 1, 0);
-  gc_add_root((const void *)&imag, 1, 0);
-  compnum_s *c = gc_alloc(sizeof(compnum_s));
-  c->header.type = COMPNUM_TAG;
-  c->real = real;
-  c->imag = imag;
-  gc_remove_root((const void *)&imag, 0);
-  gc_remove_root((const void *)&real, 0);
-  return tag_header(c, PTR_TAG);
-}
-
-// GC: may allocate via gc_alloc through SCM_MAKE_RECTANGULAR.
-static inline gc_obj get_compnum(gc_obj v) {
-  if (is_compnum(v)) {
-    return v;
-  }
-  return SCM_MAKE_RECTANGULAR(v, tag_fixnum(0));
-}
-
-// GC: may allocate via gc_alloc through get_compnum.
-static inline gc_obj SCM_REAL_PART(gc_obj comp) {
-  return to_compnum(get_compnum(comp))->real;
-}
-
-// GC: may allocate via gc_alloc through get_compnum.
-static inline gc_obj SCM_IMAG_PART(gc_obj comp) {
-  return to_compnum(get_compnum(comp))->imag;
-}
-
-// GC: may allocate via gc_alloc.
-static inline gc_obj vm_box_flonum(double x) {
-  flonum_s *res = gc_alloc(sizeof(flonum_s));
-  res->header.type = FLONUM_TAG;
-  res->x = x;
-  return tag_flonum(res);
-}
-
-static inline double bignum_to_double(gc_obj v) {
-  assert(is_bignum(v));
-  bn_t *bn = to_bignum(v);
-  bn_i64_result_t i64 = bn_to_i64(bn);
-  if (i64.ok) {
-    return (double)i64.value;
-  }
-  char *str = bn_to_string(bn, 10);
-  if (!str) {
-    abort();
-  }
-  double d = strtod(str, nullptr);
-  free(str);
-  return d;
-}
-
-static inline gc_obj numeric_to_bignum_obj(gc_obj v) {
-  if (is_bignum(v)) {
-    return v;
-  }
-  if (is_fixnum(v)) {
-    return tag_bignum(bn_from_i64(to_fixnum(v)));
-  }
-  abort();
-}
 
 static inline bool numeric_is_zero(gc_obj v) {
   if (is_fixnum(v)) {
@@ -90,102 +24,24 @@ static inline bool numeric_is_zero(gc_obj v) {
   abort();
 }
 
-static inline int numeric_exact_compare(gc_obj v1, gc_obj v2) {
-  gc_add_root((const void *)&v2, 1, 0);
-  gc_obj b1 = numeric_to_bignum_obj(v1);
-  gc_add_root((const void *)&b1, 1, 0);
-  gc_obj b2 = numeric_to_bignum_obj(v2);
-  int cmp = bn_cmp(to_bignum(b1), to_bignum(b2));
-  gc_remove_root((const void *)&b1, 0);
-  gc_remove_root((const void *)&v2, 0);
-  return cmp;
-}
-
 #define VM_MATH_ADD(a, b) ((a) + (b))
 #define VM_MATH_SUB(a, b) ((a) - (b))
 #define VM_MATH_MUL(a, b) ((a) * (b))
 #define VM_MATH_NOSHIFT(a) (a)
 #define VM_MATH_SHIFT(a) ((a) >> FIXNUM_SHIFT)
 
-static inline double numeric_to_double(gc_obj v) {
-  if (is_flonum(v)) {
-    return to_flonum(v)->x;
-  }
-  if (is_fixnum(v)) {
-    return (double)to_fixnum(v);
-  }
-  if (is_bignum(v)) {
-    return bignum_to_double(v);
-  }
-  if (is_ratnum(v)) {
-    ratnum_s *r = to_ratnum(v);
-    return numeric_to_double(r->num) / numeric_to_double(r->denom);
-  }
-  abort();
-}
-
-// GC: may allocate via gc_alloc through vm_box_flonum and SCM_MAKE_RECTANGULAR.
-static inline gc_obj numeric_inexact_value(gc_obj v) {
-  if (is_fixnum(v)) {
-    return vm_box_flonum((double)to_fixnum(v));
-  }
-  if (is_flonum(v)) {
-    return v;
-  }
-  if (is_bignum(v)) {
-    return vm_box_flonum(bignum_to_double(v));
-  }
-  if (is_ratnum(v)) {
-    ratnum_s *r = to_ratnum(v);
-    return vm_box_flonum(numeric_to_double(r->num) / numeric_to_double(r->denom));
-  }
-  if (is_compnum(v)) {
-    compnum_s *c = to_compnum(v);
-    return SCM_MAKE_RECTANGULAR(numeric_inexact_value(c->real),
-                                numeric_inexact_value(c->imag));
-  }
-  abort();
-}
-
-// GC: may allocate via gc_alloc through SCM_MAKE_RECTANGULAR.
-static inline gc_obj numeric_exact_value(gc_obj v) {
-  if (is_fixnum(v)) {
-    return v;
-  }
-  if (is_bignum(v)) {
-    return v;
-  }
-  if (is_ratnum(v)) {
-    return v;
-  }
-  if (is_compnum(v)) {
-    compnum_s *c = to_compnum(v);
-    return SCM_MAKE_RECTANGULAR(numeric_exact_value(c->real),
-                                numeric_exact_value(c->imag));
-  }
-  if (is_flonum(v)) {
-    double x = to_flonum(v)->x;
-    if (!isfinite(x) || x < (double)INT64_MIN || x > (double)INT64_MAX) {
-      abort();
-    }
-    return tag_fixnum((int64_t)x);
-  }
-  abort();
-}
-
-// GC: may allocate via gc_alloc through vm_box_flonum.
-static inline gc_obj numeric_truncate_value(gc_obj v) {
-  if (is_fixnum(v)) {
-    return v;
-  }
-  if (is_bignum(v)) {
-    return v;
-  }
-  if (is_flonum(v)) {
-    return vm_box_flonum(trunc(to_flonum(v)->x));
-  }
-  abort();
-}
+gc_obj SCM_MAKE_RECTANGULAR(gc_obj real, gc_obj imag);
+gc_obj get_compnum(gc_obj v);
+gc_obj SCM_REAL_PART(gc_obj comp);
+gc_obj SCM_IMAG_PART(gc_obj comp);
+gc_obj vm_box_flonum(double x);
+double bignum_to_double(gc_obj v);
+gc_obj numeric_to_bignum_obj(gc_obj v);
+int numeric_exact_compare(gc_obj v1, gc_obj v2);
+double numeric_to_double(gc_obj v);
+gc_obj numeric_inexact_value(gc_obj v);
+gc_obj numeric_exact_value(gc_obj v);
+gc_obj numeric_truncate_value(gc_obj v);
 
 gc_obj vm_runtime_math_add_slow(gc_obj v1, gc_obj v2);
 gc_obj vm_runtime_math_sub_slow(gc_obj v1, gc_obj v2);
@@ -226,68 +82,6 @@ static inline uint8_t numeric_obj_result_type(gc_obj lhs, gc_obj rhs) {
     flonum_body                                                                \
   } while (0)
 
-static inline bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
-  if (is_flonum(lhs) || is_flonum(rhs)) {
-    return numeric_to_double(lhs) == numeric_to_double(rhs);
-  }
-  if (is_ratnum(lhs) || is_ratnum(rhs)) {
-    if (is_ratnum(lhs) && is_ratnum(rhs)) {
-      ratnum_s *l = to_ratnum(lhs);
-      ratnum_s *r = to_ratnum(rhs);
-      return numeric_exact_compare(l->num, r->num) == 0 &&
-             numeric_exact_compare(l->denom, r->denom) == 0;
-    }
-    if (is_ratnum(lhs) && (is_fixnum(rhs) || is_bignum(rhs))) {
-      ratnum_s *l = to_ratnum(lhs);
-      return numeric_exact_compare(l->denom, tag_fixnum(1)) == 0 &&
-             numeric_exact_compare(l->num, rhs) == 0;
-    }
-    if (is_ratnum(rhs) && (is_fixnum(lhs) || is_bignum(lhs))) {
-      ratnum_s *r = to_ratnum(rhs);
-      return numeric_exact_compare(r->denom, tag_fixnum(1)) == 0 &&
-             numeric_exact_compare(r->num, lhs) == 0;
-    }
-    abort();
-  }
-  if (is_compnum(lhs) || is_compnum(rhs)) {
-    compnum_s *l = is_compnum(lhs) ? to_compnum(lhs) : nullptr;
-    compnum_s *r = is_compnum(rhs) ? to_compnum(rhs) : nullptr;
-    gc_obj lreal = l ? l->real : lhs;
-    gc_obj limag = l ? l->imag : tag_fixnum(0);
-    gc_obj rreal = r ? r->real : rhs;
-    gc_obj rimag = r ? r->imag : tag_fixnum(0);
-    return numeric_eqv(lreal, rreal) && numeric_eqv(limag, rimag);
-  }
-  if (is_fixnum(lhs) && is_fixnum(rhs)) {
-    return to_fixnum(lhs) == to_fixnum(rhs);
-  }
-  if ((is_fixnum(lhs) || is_bignum(lhs)) &&
-      (is_fixnum(rhs) || is_bignum(rhs))) {
-    return numeric_exact_compare(lhs, rhs) == 0;
-  }
-  abort();
-}
-
-static inline bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
-  if ((is_fixnum(lhs) || is_flonum(lhs) || is_bignum(lhs) || is_ratnum(lhs)) &&
-      (is_fixnum(rhs) || is_flonum(rhs) || is_bignum(rhs) || is_ratnum(rhs))) {
-    return numeric_eqv(lhs, rhs);
-  }
-  return lhs.value == rhs.value;
-}
-
-static inline bool guard_obj_matches(gc_obj val, gc_obj want_tag_obj) {
-  assert(is_fixnum(want_tag_obj));
-  uint64_t want_tag = (uint64_t)to_fixnum(want_tag_obj);
-
-  if ((want_tag & TAG_MASK) == PTR_TAG) {
-    return is_ptr(val) &&
-           ((want_tag == PTR_TAG) || get_type_tag(val) == want_tag);
-  }
-
-  uint64_t got_tag = (uint64_t)get_type_tag(val);
-  if (got_tag == LITERAL_TAG) {
-    return (((uint64_t)val.value & IMMEDIATE_MASK) == want_tag);
-  }
-  return got_tag == want_tag;
-}
+bool numeric_eqv(gc_obj lhs, gc_obj rhs);
+bool obj_jeqv(gc_obj lhs, gc_obj rhs);
+bool guard_obj_matches(gc_obj val, gc_obj want_tag_obj);

@@ -17,8 +17,6 @@
 * TYPECHECK does different things for flonum vs. GPRs. ugh.
   * flonums must be eagerly typechecked, since we need to know if we need FPR vs GPR
 
-* downrec traces don't ensure_args_match and link without boxing/typecheck
-
 * regalloc could be improved to not reserve RTMP2 ugh
   LOAD: could use IR_REF to remove RTMP2 usage
   STORE: could alloc a reg in IR_REF to 
