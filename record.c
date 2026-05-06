@@ -472,9 +472,6 @@ static void set_typecheck_guard(trace *t, uint16_t typecheck_loc) {
   auto src = &t->ins[ins->op1.loc];
   if (src->op == IR_ARG || src->op == IR_PMOV) {
     src->guard = true;
-    if (ins->type != FLONUM_TAG) {
-      src->type = ins->type;
-    }
   }
 }
 
@@ -2135,10 +2132,17 @@ void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   record_seed_entry_args(state, start_pc, start_ins, stack, argcnt);
 }
 
-static bool replay_parent_guard(snap *side_snap, ir_ins const *old_ins) {
-  bool use_prev_guard = side_snap == &side_snap->trace->snaps[0] &&
-                        side_snap->trace->kind == TRACE_SIDE;
-  return use_prev_guard ? old_ins->prev_guard : old_ins->guard;
+static bool parent_ins_guard(snap *side_snap, ir_ins const *old_ins) {
+  return side_snap == &side_snap->trace->snaps[0] &&
+                 side_snap->trace->kind == TRACE_SIDE
+             ? old_ins->prev_guard
+             : old_ins->guard;
+}
+
+static uint8_t side_snap_stack_type(snap const *side_snap,
+                                    snap_entry const *entry, gc_obj *stack) {
+  int64_t rel_slot = (int64_t)entry->slot - (int64_t)side_snap->offset;
+  return get_type_tag(stack[rel_slot]);
 }
 
 void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
@@ -2154,6 +2158,7 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   cur_trace->parent_snap = side_snap;
   ts->depth = side_snap->depth;
   ts->poly_entry = nullptr;
+  snap_entry *typechecks = nullptr;
 
   // Replay snapshot loads, so we keep things in register.
   size_t parent_ins_len = arrlen(side_snap->trace->ins);
@@ -2170,13 +2175,17 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
                 add_const(state, side_snap->trace->consts[entry->val.loc]));
     } else {
       uint16_t parent_id = entry->val.loc;
+      auto old_ins = &side_snap->trace->ins[parent_id];
+      bool old_guard = parent_ins_guard(side_snap, old_ins);
+      uint8_t type = side_snap_stack_type(side_snap, entry, stack);
       slot pmov = pmov_by_parent_id[parent_id];
       if (pmov.constant) {
-        auto old_ins = &side_snap->trace->ins[parent_id];
-        bool old_guard = replay_parent_guard(side_snap, old_ins);
         ir_ins pmov_ins =
             IR(.op = IR_PMOV, .prev_reg = old_ins->reg, .prev_guard = old_guard,
-               .guard = old_guard, .type = old_ins->type);
+               .guard = old_guard,
+               .type = type == FLONUM_TAG && old_ins->type != FLONUM_TAG
+                           ? UNDEFINED_TAG
+                           : type);
         if (old_ins->spill != SPILL_NONE) {
           pmov_ins.spill = old_ins->spill;
         } else {
@@ -2186,6 +2195,9 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
         pmov_by_parent_id[parent_id] = pmov;
       }
       set_stack(state, entry->slot, pmov);
+      if (!old_guard && old_ins->type != FLONUM_TAG) {
+        arrput(typechecks, *entry);
+      }
     }
   }
   free(pmov_by_parent_id);
@@ -2195,33 +2207,18 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   vm_add_snap(state, pc, argcnt);
 
   // Insert initial typechecks for replayed values.
-  arr_for_each_idx(side_snap->slots, j) {
-    auto entry = &side_snap->slots[j];
-    if (entry->val.constant) {
-      continue;
-    }
+  arr_for_each_idx(typechecks, j) {
+    auto entry = &typechecks[j];
     auto s = get_sentry_abs(state, entry->slot);
-    auto old_ins = &side_snap->trace->ins[entry->val.loc];
-    int64_t rel_slot = (int64_t)entry->slot - (int64_t)ts->stack_off;
-    if (replay_parent_guard(side_snap, old_ins) ||
-        old_ins->type == FLONUM_TAG) {
-      // Already typechecked.
-      continue;
-    }
-    uint8_t type = get_type_tag(stack[rel_slot]);
+    uint8_t type = side_snap_stack_type(side_snap, entry, stack);
     auto checked =
         add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc, .type = type,
                            .guard = type == FLONUM_TAG));
-    // Ugh fix this: we should update the current trace's
-    // PMOV type, except flonums that weren't unboxed yet.
-    // See also the setting of this in guard_input_value/set_typecheck_guard
-    if (type != FLONUM_TAG) {
-      cur_trace->ins[s->loc.loc].type = type;
-    }
     if (type == FLONUM_TAG) {
       set_stack_abs(state, entry->slot, checked);
     }
   }
+  arrfree(typechecks);
   vm_add_snap(state, pc, argcnt);
   ts->start_record_size = arrlen(record_current_trace(state)->ins);
 }
