@@ -22,12 +22,17 @@
     (define (assq-environment id env)
       (let ((frame (environment-frame env)))
         (or (assq id frame)
-           (if (toplevel-environment? env)
-               (and (symbol? id)
+            (cond
+              ((toplevel-environment? env)
+                (cond
+                  ((%identifier? id)
+                    (assq-environment (identifier-symbol id) (identifier-environment id)))
+                  ((symbol? id)
                     (let ((new-var (generate-variable id (enclosing-environment env))))
                       (set-environment-frame! env (alist-cons id new-var frame))
                       (assq-environment id env)))
-               (assq-environment id (enclosing-environment env))))))
+                  (else #f)))
+              (else (assq-environment id (enclosing-environment env)))))))
 
     (define (install-toplevel-binding! id name top-env)
       (unless (toplevel-environment? top-env) (error "Not toplevel env"))

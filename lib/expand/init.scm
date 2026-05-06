@@ -709,7 +709,10 @@
                                                         (let ((obj tmp)) . const-body))
                                                       ((and (pair? (cdr pat))
                                                             (identifier? (cadr pat))
-                                                            (compare (cadr pat) ellipsis))
+                                                            (identifier=? (cadr pat)
+                                                                          (current-meta-environment)
+                                                                          ellipsis
+                                                                          (current-meta-environment)))
                                                         (let ((rep (car pat)) (succ (cddr pat)))
                                                           .
                                                           ellipsis-body))
