@@ -131,6 +131,7 @@ target_compile_definitions(hawk_image_embedded PRIVATE BOOTSTRAP=0)
 
 add_executable(hawk_bootstrap $<TARGET_OBJECTS:hawk_image_bootstrap>)
 add_dependencies(hawk_bootstrap opcodes_scm)
+add_dependencies(hawk_bootstrap hawk_core)
 
 set(LIB_IMAGE_BC ${CMAKE_CURRENT_SOURCE_DIR}/lib/img.scm.bc)
 if(NOT EXISTS "${LIB_IMAGE_BC}")
@@ -221,6 +222,7 @@ add_dependencies(hawk_image_embedded bootstrap_image)
 
 add_executable(hawk $<TARGET_OBJECTS:hawk_image_embedded>)
 add_dependencies(hawk opcodes_scm)
+add_dependencies(hawk hawk_core)
 
 if(APPLE)
   target_link_libraries(hawk_bootstrap PRIVATE -Wl,-force_load $<TARGET_FILE:hawk_core>)

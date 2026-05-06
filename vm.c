@@ -2,6 +2,7 @@
 #define _DEFAULT_SOURCE
 
 #include <assert.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -613,8 +614,8 @@ static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
       return true;
     }
     if (abort_on_fail) {
-      printf("Bad argcnt in %s expected %i got %lu\n", func_name_for_pc(pc),
-             instr.reg, *args);
+      printf("Bad argcnt in %s expected %i got %" PRIu64 "\n",
+             func_name_for_pc(pc), instr.reg, *args);
       debug_print_vm_backtrace(state, pc, stack);
       abort();
     }
@@ -624,8 +625,8 @@ static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
   uint8_t fixed_cnt = instr.reg - 1;
   if (*args < fixed_cnt) {
     if (abort_on_fail) {
-      printf("Bad argcnt in %s expected %i+ got %lu\n", func_name_for_pc(pc),
-             fixed_cnt, *args);
+      printf("Bad argcnt in %s expected %i+ got %" PRIu64 "\n",
+             func_name_for_pc(pc), fixed_cnt, *args);
       debug_print_vm_backtrace(state, pc, stack);
       abort();
     }
