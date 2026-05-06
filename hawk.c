@@ -166,8 +166,8 @@ int main(int argc, char *argv[]) {
     start = gc_read_image_file(image);
   } else {
     if (embedded_image_size > 0) {
-      start = gc_read_image(embedded_image, embedded_image_size, image_name,
-                            true);
+      start =
+          gc_read_image(embedded_image, embedded_image_size, image_name, true);
     } else {
       start = gc_read_image_file(image_name);
     }

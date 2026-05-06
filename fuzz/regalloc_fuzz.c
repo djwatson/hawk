@@ -84,14 +84,12 @@ static regalloc_result regalloc(trace *t) {
         reg = regalloc_find_free_reg(&s, in->type == FLONUM_TAG, ins);
         s.regs[reg] = value_id;
         arrput(reload_ops,
-               ((reload_op){.ir_idx = (uint16_t)i,
-                            .value_id = value_id,
-                            .reg = reg}));
+               ((reload_op){
+                   .ir_idx = (uint16_t)i, .value_id = value_id, .reg = reg}));
       }
       arrput(dense_locs,
-             ((dense_loc_entry){.kind = LOC_REG,
-                                .reg = reg,
-                                .value_id = value_id}));
+             ((dense_loc_entry){
+                 .kind = LOC_REG, .reg = reg, .value_id = value_id}));
     }
     for (uint8_t arg = 0; arg < arg_count; arg++) {
       regalloc_maybe_free_reg(&s, (uint16_t)i, args[arg].loc, false);
@@ -101,9 +99,8 @@ static regalloc_result regalloc(trace *t) {
     if (ins->op == IR_RET) {
       auto tmp = regalloc_find_free_reg(&s, false, ins);
       arrput(dense_locs,
-             ((dense_loc_entry){.kind = LOC_REG,
-                                .reg = tmp,
-                                .value_id = (uint16_t)i}));
+             ((dense_loc_entry){
+                 .kind = LOC_REG, .reg = tmp, .value_id = (uint16_t)i}));
     }
   }
 

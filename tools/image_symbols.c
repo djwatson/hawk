@@ -166,9 +166,9 @@ static void record_type_stats(gc_header *header) {
   case CONT_TAG:
   case RECORD_TAG: {
     auto vec = (vector_s *)header;
-    type_name = header->type == VECTOR_TAG   ? "vector"
-                : header->type == CONT_TAG   ? "cont"
-                                             : "record";
+    type_name = header->type == VECTOR_TAG ? "vector"
+                : header->type == CONT_TAG ? "cont"
+                                           : "record";
     size = sizeof(vector_s) + (size_t)to_fixnum(vec->len) * sizeof(gc_obj);
     break;
   }
@@ -253,9 +253,9 @@ int main(int argc, char **argv) {
       total_count += type_statistics[i].count;
     }
     for (uint64_t i = 0; i < arrlen(type_statistics); i++) {
-      double pct = grand_total > 0
-                       ? (double)type_statistics[i].total_size / grand_total * 100.0
-                       : 0.0;
+      double pct = grand_total > 0 ? (double)type_statistics[i].total_size /
+                                         grand_total * 100.0
+                                   : 0.0;
       printf("%-12s: count=%-8lu total_size=%-10lu bytes (%5.1f%%)\n",
              type_statistics[i].name, type_statistics[i].count,
              type_statistics[i].total_size, pct);

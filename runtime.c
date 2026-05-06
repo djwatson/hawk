@@ -2,8 +2,8 @@
 
 #include <assert.h>
 #include <fcntl.h>
-#include <math.h>
 #include <limits.h>
+#include <math.h>
 #include <string.h>
 #include <time.h>
 
@@ -140,7 +140,8 @@ gc_obj numeric_inexact_value(gc_obj v) {
   }
   if (is_ratnum(v)) {
     ratnum_s *r = to_ratnum(v);
-    return vm_box_flonum(numeric_to_double(r->num) / numeric_to_double(r->denom));
+    return vm_box_flonum(numeric_to_double(r->num) /
+                         numeric_to_double(r->denom));
   }
   if (is_compnum(v)) {
     compnum_s *c = to_compnum(v);
@@ -381,8 +382,7 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
     uint64_t const_cnt = runtime_list_length(desc->v[2]);
     uint64_t bc_cnt = runtime_list_length(desc->v[3]);
     size_t bytes = runtime_align_words(
-        sizeof(bcfunc) + (const_cnt * sizeof(gc_obj)) +
-        (bc_cnt * sizeof(bc)));
+        sizeof(bcfunc) + (const_cnt * sizeof(gc_obj)) + (bc_cnt * sizeof(bc)));
     bcfunc *func = malloc(bytes);
     if (!func) {
       abort();
@@ -1059,14 +1059,14 @@ DEFINE_VM_RUNTIME_DIVMOD_SLOW(mod, to_fixnum(v1) % to_fixnum(v2),
     if (is_ratnum(v1) || is_ratnum(v2)) {                                      \
       ratnum_s r1 = get_ratnum(v1);                                            \
       ratnum_s r2 = get_ratnum(v2);                                            \
-      return ((ratnum_cmp(r1, r2)) op 0) ? TRUE_REP : FALSE_REP;               \
+      return ((ratnum_cmp(r1, r2))op 0) ? TRUE_REP : FALSE_REP;                \
     }                                                                          \
     if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
       return (to_fixnum(v1) op to_fixnum(v2)) ? TRUE_REP : FALSE_REP;          \
     }                                                                          \
     if ((is_fixnum(v1) || is_bignum(v1)) &&                                    \
         (is_fixnum(v2) || is_bignum(v2))) {                                    \
-      return ((numeric_exact_compare(v1, v2)) op 0) ? TRUE_REP : FALSE_REP;    \
+      return ((numeric_exact_compare(v1, v2))op 0) ? TRUE_REP : FALSE_REP;     \
     }                                                                          \
     abort();                                                                   \
   }

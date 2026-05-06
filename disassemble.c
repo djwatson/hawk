@@ -2,8 +2,8 @@
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
 
 #include <dlfcn.h>
-#include <stdarg.h>
 #include <inttypes.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>

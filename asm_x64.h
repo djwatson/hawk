@@ -4,8 +4,8 @@
 
 #include "asm_interface.h"
 #include <stddef.h>
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #define ASM_X64_REGISTER_LIST(X)                                               \
   X(RAX, false, false)                                                         \
@@ -47,10 +47,10 @@
 #define ASM_FREGISTER_LIST(X) ASM_X64_FREGISTER_LIST(X)
 
 enum {
-#define X(name, unallocatable, callee_saved) + (!(unallocatable))
+#define X(name, unallocatable, callee_saved) +(!(unallocatable))
   GPR_ALLOCATABLE = 0 ASM_X64_REGISTER_LIST(X),
 #undef X
-#define X(name, unallocatable, callee_saved) + (!(unallocatable))
+#define X(name, unallocatable, callee_saved) +(!(unallocatable))
   FPR_ALLOCATABLE = 0 ASM_X64_FREGISTER_LIST(X),
 #undef X
 };

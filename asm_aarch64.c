@@ -1125,7 +1125,8 @@ void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
   emit_store(s, offset, base, tmp);
 }
 
-void asm_zero_alloc_payload(emit_state *s, int64_t tagged_size, uint8_t size_reg) {
+void asm_zero_alloc_payload(emit_state *s, int64_t tagged_size,
+                            uint8_t size_reg) {
   assert(size_reg == REG_NONE || (size_reg != RTMP && size_reg != RTMP2));
   int64_t payload_bytes = 0;
 

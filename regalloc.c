@@ -105,7 +105,8 @@ static bool ir_is_vm_call(ir_ins_op op) {
   }
 }
 
-static uint8_t regalloc_collect_carg_args(trace const *t, slot chain, slot *args) {
+static uint8_t regalloc_collect_carg_args(trace const *t, slot chain,
+                                          slot *args) {
   if (slot_is_zero(t, chain)) {
     return 0;
   }
@@ -116,7 +117,8 @@ static uint8_t regalloc_collect_carg_args(trace const *t, slot chain, slot *args
   if (!carg->op1.constant) {
     args[count++] = carg->op1;
   }
-  return (uint8_t)(count + regalloc_collect_carg_args(t, carg->op2, args + count));
+  return (uint8_t)(count +
+                   regalloc_collect_carg_args(t, carg->op2, args + count));
 }
 
 uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins,

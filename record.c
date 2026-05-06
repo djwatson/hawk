@@ -725,13 +725,14 @@ static slot record_foreign_arg(vm_state *state, gc_obj *stack, uint8_t pos,
                                                                                \
     *taken = res;                                                              \
     if (fast_numeric) {                                                        \
-      return IR(.op = (res ? (taken_op) : (not_taken_op)), .op1 = v1, .op2 = v2, \
+      return IR(.op = (res ? (taken_op) : (not_taken_op)), .op1 = v1,          \
+                .op2 = v2,                                                     \
                 .type = get_slot_type(record_current_trace(state), v1));       \
     }                                                                          \
     v1 = box_vmcall_arg(state, v1);                                            \
     v2 = box_vmcall_arg(state, v2);                                            \
-    return IR(.op = (res ? (vm_taken_op) : (vm_not_taken_op)), .op1 = v1, .op2 = v2, \
-              .type = BOOL_TAG);                                               \
+    return IR(.op = (res ? (vm_taken_op) : (vm_not_taken_op)), .op1 = v1,      \
+              .op2 = v2, .type = BOOL_TAG);                                    \
   }
 
 DEFINE_BRANCH_CMP(lt, IR_LT, IR_GTE, IR_VMLT, IR_VMGTE, <)
@@ -1396,9 +1397,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         ensure_args_match_trace(state, target, cur_trace, argcnt);
     if (match.matched) {
       uint64_t entry_argcnt = argcnt;
-      if (target_is_func &&
-          !prepare_entry_state(state, stack, target_start, argcnt,
-                               &entry_argcnt)) {
+      if (target_is_func && !prepare_entry_state(state, stack, target_start,
+                                                 argcnt, &entry_argcnt)) {
         break;
       }
       cur_trace->link = match.trace;

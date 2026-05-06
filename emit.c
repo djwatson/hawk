@@ -170,7 +170,8 @@ void emit_init_slowpath(emit_state *s) {
   register_jit_symbol(expand_start, s->expand_stack_slowpath,
                       (uint8_t *)expand_end, "ExpandStackSlowpath");
 
-  // Slowpath for gc_log: RTMP = obj (tagged gc_obj*), RTMP2 = offset (in units of 8).
+  // Slowpath for gc_log: RTMP = obj (tagged gc_obj*), RTMP2 = offset (in units
+  // of 8).
   auto gclog_start = (uint8_t *)emit_offset(s);
 
   emit_writable_begin(s);
@@ -179,7 +180,8 @@ void emit_init_slowpath(emit_state *s) {
 
   // Untag obj: RTMP = RTMP & ~TAG_MASK
   emit_and_constant(s, RTMP, RTMP, ~(int64_t)TAG_MASK);
-  // Add offset to obj: RTMP = RTMP + RTMP2 (offset already in bytes via fixnum tag)
+  // Add offset to obj: RTMP = RTMP + RTMP2 (offset already in bytes via fixnum
+  // tag)
   emit_add(s, RTMP, RTMP, RTMP2);
   // Skip gc_header: RTMP = RTMP + 8
   emit_add_constant(s, RTMP, RTMP, 8);
