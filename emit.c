@@ -246,6 +246,10 @@ static value_loc snap_entry_loc(trace const *t, uint16_t snap_idx,
                                 size_t entry_idx);
 static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
                            int32_t cur_snap, uint8_t reg);
+static void emit_box_flonum(emit_state *s, int32_t stack_offset,
+                            uint8_t fpr_reg, bool store_to_stack,
+                            bool live_regs[MAX_REG], uint64_t live_gpr_mask);
+static void emit_unbox_flonum(emit_state *s, uint8_t gpr_reg, uint8_t fpr_reg);
 static const uint8_t PAR_MOVE_MARKER = UINT8_MAX;
 
 static uint8_t resolve_tmp_reg(uint8_t peer) {
@@ -529,33 +533,37 @@ static void emit_gcobj_arg(emit_state *s, trace *t, slot value, uint8_t src_reg,
   }
 }
 
-static void emit_move_pairs(emit_state *s, par_copy *cpy) {
+static void emit_serialized_moves(emit_state *s, par_copy *cpy,
+                                  bool live_regs[MAX_REG],
+                                  uint64_t live_gpr_mask) {
   par_copy *moves = serialize_parallel_copy(cpy, PAR_MOVE_MARKER);
   arr_for_each_idx(moves, i) {
     auto mov = moves[i];
-    uint64_t from_u64 = mov.from;
-    uint64_t to_u64 = mov.to;
-    uint8_t from = (uint8_t)from_u64;
-    uint8_t to = (uint8_t)to_u64;
-    if (from_u64 == PAR_MOVE_MARKER) {
+    uint8_t from = (uint8_t)mov.from;
+    uint8_t to = (uint8_t)mov.to;
+    if (mov.from == PAR_MOVE_MARKER) {
       from = resolve_tmp_reg(to);
     }
-    if (to_u64 == PAR_MOVE_MARKER) {
+    if (mov.to == PAR_MOVE_MARKER) {
       to = resolve_tmp_reg(from);
-      if (is_fpr_reg(from)) {
-        emit_fmov(s, to, from);
-      } else {
-        emit_mov(s, to, from);
-      }
-      continue;
     }
-    if (is_fpr_reg(from) != is_fpr_reg(to)) {
-      abort();
-    }
-    if (is_fpr_reg(from)) {
+    bool dst_fpr = is_fpr_reg(to);
+    bool src_fpr = is_fpr_reg(from);
+    if (dst_fpr && src_fpr) {
       emit_fmov(s, to, from);
-    } else {
+    } else if (!dst_fpr && !src_fpr) {
       emit_mov(s, to, from);
+      if (live_regs) {
+        mark_live_reg(live_regs, &live_gpr_mask, to);
+      }
+    } else if (live_regs && !dst_fpr && src_fpr) {
+      emit_box_flonum(s, 0, from, false, live_regs, live_gpr_mask);
+      emit_mov(s, to, RTMP);
+      mark_live_reg(live_regs, &live_gpr_mask, to);
+    } else if (live_regs && dst_fpr && !src_fpr) {
+      emit_unbox_flonum(s, from, to);
+    } else {
+      abort();
     }
   }
   arrfree(cpy);
@@ -601,7 +609,7 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
     abort();
   }
 
-  emit_move_pairs(s, cpy);
+  emit_serialized_moves(s, cpy, nullptr, 0);
 
   for (uint8_t i = 0; i < call_arg_count; i++) {
     auto arg = &pending[i];
@@ -774,7 +782,7 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
   if (!unary && !a1.constant) {
     arrput(cpy, ((par_copy){.from = a1_src, .to = RARG1}));
   }
-  emit_move_pairs(s, cpy);
+  emit_serialized_moves(s, cpy, nullptr, 0);
   emit_gcobj_arg(s, t, a0, RARG0, RARG0);
   if (!unary) {
     emit_gcobj_arg(s, t, a1, RARG1, RARG1);
@@ -979,45 +987,6 @@ static void emit_unbox_flonum(emit_state *s, uint8_t gpr_reg, uint8_t fpr_reg) {
   assert(!is_fpr_reg(gpr_reg));
   assert(is_fpr_reg(fpr_reg));
   emit_fmem_load(s, flonum_payload_offset - FLONUM_TAG, gpr_reg, fpr_reg);
-}
-
-static void emit_serialized_moves(emit_state *s, par_copy *cpy,
-                                  bool live_regs[MAX_REG],
-                                  uint64_t live_gpr_mask) {
-  par_copy *moves = serialize_parallel_copy(cpy, PAR_MOVE_MARKER);
-  arr_for_each_idx(moves, i) {
-    auto mov = moves[i];
-    uint8_t from = mov.from;
-    uint8_t to = mov.to;
-    if (from == PAR_MOVE_MARKER) {
-      from = resolve_tmp_reg(to);
-    }
-    if (to == PAR_MOVE_MARKER) {
-      to = resolve_tmp_reg(from);
-    }
-    bool dst_fpr = is_fpr_reg(to);
-    bool src_fpr = is_fpr_reg(from);
-    if (dst_fpr || src_fpr) {
-      if (dst_fpr && src_fpr) {
-        emit_fmov(s, to, from);
-      } else if (!dst_fpr && src_fpr) {
-        COMMENT("Box flonum %s to reg %s", reg_names[from], reg_names[to]);
-        emit_box_flonum(s, 0, from, false, live_regs, live_gpr_mask);
-        emit_mov(s, to, RTMP);
-        mark_live_reg(live_regs, &live_gpr_mask, to);
-      } else if (dst_fpr && !src_fpr) {
-        COMMENT("Unbox flonum %s to %s", reg_names[from], reg_names[to]);
-        emit_unbox_flonum(s, from, to);
-      } else {
-        assert(!"Unsupported register move");
-      }
-    } else {
-      emit_mov(s, to, from);
-      mark_live_reg(live_regs, &live_gpr_mask, to);
-    }
-  }
-  arrfree(cpy);
-  arrfree(moves);
 }
 
 static void emit_loopback_entry_spills(emit_state *s, trace *entry_trace,

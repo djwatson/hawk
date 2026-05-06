@@ -5,19 +5,18 @@
 * returning trace handling - currently we allow ANY poly trace to return,
   while old hawk didn't allow any until blacklist_max/2, then *any* trace could return
 
-* lots of ccall cleanup - regalloc, live register save/restore, etc
+* lots of CCALL cleanup - regalloc, live register save/restore, etc
 
-* cleanup new recording infra
-* cleanup tmp /tmp2 reg shit.  it's getting sloppy
+* cleanup RTMP / RTMP2 usage, it's unclear when there is overlap between backends and
+  emit.c.  Maybe a reserve_tmp() with two temps?  At least that could abort() on runtime issues.
+  
+  We COULD reserve tmps in the register allocator, but initial tests
+  don't show an extra free reg really helping on x64 (and we have so many more on aarch64).
 
 * TYPECHECK does different things for flonum vs. GPRs. ugh.
   * flonums must be eagerly typechecked, since we need to know if we need FPR vs GPR
-
-* regalloc could be improved to not reserve RTMP2 ugh
-  LOAD: could use IR_REF to remove RTMP2 usage
-  STORE: could alloc a reg in IR_REF to 
-  GSET: needs a tmp reg
-  SLOAD: would need separate IR_TYPECHECK or tmp reg
+  * but everything else is lazy, since we don't want to typecheck
+    things like IR_LOAD followed by IR_STORE of the same value! If we don't need to know it's type, don't typecheck.
 
 * we could add a GC_ENSURE.  It wouldn't work for variably sizxed ALLOC, but it would save having to register save/restore for snapshots *at all*, and we could merge all fixed-size allocs to fastpaths!
   * basically split the *do we have enough memory?* path from the *bump the pointer and allocate* path
@@ -39,9 +38,6 @@
 * debug info serialized - hmm maybe keep in scheme format?
 
 ## tracer
-* dead/kills - no idea.  We could analyze bytecode, or just do
-  top-of-stack tracking like previous.
-* punt on: more than 256 refs.
 * we could keep boxed/unboxed flonum pairs around? we might be
   re-boxing in some cases instead of re-using the unchanged old box
   (only in cases of IR_STORE or taking a snapshot)
