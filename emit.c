@@ -818,27 +818,6 @@ static void emit_cmp_regs(emit_state *s, trace *t, uint8_t lhs_reg, slot rhs,
   emit_cmp(s, lhs_reg, rhs_reg);
 }
 
-static inline ir_ins *next_leading_op(trace *t, ir_ins_op op, size_t *idx) {
-  size_t len = arrlen(t->ins);
-  while (*idx < len) {
-    ir_ins *ins = &t->ins[(*idx)++];
-    if (ins->op == IR_NOP) {
-      continue;
-    }
-    if (ins->op != op) {
-      *idx = len;
-      return nullptr;
-    }
-    return ins;
-  }
-  return nullptr;
-}
-
-#define for_each_leading_op(trace_ptr, opcode, ins_var)                        \
-  for (size_t _##ins_var##_idx = 0;                                            \
-       ((ins_var) =                                                            \
-            next_leading_op((trace_ptr), (opcode), &_##ins_var##_idx));)
-
 #define COMMENT(...) comment_append(emit_offset(s), &s->comments, __VA_ARGS__)
 
 typedef struct {
@@ -1953,7 +1932,17 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
   emit_mov(s, RSTACK, RARG1);
 
   ir_ins *arg_ins = nullptr;
-  for_each_leading_op(t, IR_ARG, arg_ins) {
+  size_t arg_idx = 0;
+  size_t arg_len = arrlen(t->ins);
+  while (arg_idx < arg_len) {
+    arg_ins = &t->ins[arg_idx++];
+    if (arg_ins->op == IR_NOP) {
+      continue;
+    }
+    if (arg_ins->op != IR_ARG) {
+      break;
+    }
+
     uint16_t ir_idx = (uint16_t)(arg_ins - t->ins);
     regalloc_assign_output(&arg_state, ir_idx, arg_ins);
     uint8_t out_reg = ir_output_reg(t, ir_idx);
