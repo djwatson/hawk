@@ -10,6 +10,7 @@ set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 include(CTest)
+include(GNUInstallDirs)
 
 include(CheckIncludeFile)
 include(CheckCSourceCompiles)
@@ -315,6 +316,9 @@ target_include_directories(
   ${LIBFFI_INCLUDE_DIR}
   ${ZSTD_INCLUDE_DIR}
 )
+
+install(TARGETS hawk RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/hawk.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 
 if(BUILD_TESTING)
   add_test(

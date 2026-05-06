@@ -58,17 +58,20 @@ static void raise_fd_limit() {
 
 void print_help() {
   printf("Usage: hawk [OPTION] [<script> [arg ...]]\n");
-  printf("Available options are:\n");
-  printf("      --joff     \tTurn off jit\n");
-  printf("  -m, --max-trace\tStop JITting after # trace\n");
+  printf("Normal options are:\n");
+  printf("  -o, --joff     \tTurn off jit\n");
+  printf("  -i, --image    \tLoad explicit .bc image file\n");
   printf("  -p, --profile  \tTurn on samplnig profiler\n");
-  printf("      --dump     \tDump linux perf jit info\n");
-  printf("      --image    \tLoad explicit .bc image file\n");
   printf("      --version  \tPrint version\n");
-  printf("  -s,            \tRandom schedule seed\n");
-  printf("  -v, --verbose  \tTurn on verbose jit mode\n");
   printf("  -h, --help     \tPrint this help\n");
-  // TODO(davejwatson): -I, -A, -D, --exe?, -s
+  printf("  -v, --verbose  \tTurn on verbose jit mode\n");
+  printf("Debug options are:\n");
+  printf("  -m, --max-trace\tStop JITting after # trace\n");
+  printf("  -d, --dump     \tDump linux perf jit info\n");
+#ifdef RANDOM_SCHEDULE
+  printf("  -s             \tRandom schedule seed\n");
+#endif
+  // TODO(davejwatson): -I, -A, -D, --exe?
 }
 
 typedef struct {
@@ -81,7 +84,12 @@ static parse_result parse_args(int argc, char *argv[]) {
   int c;
   parse_result out = {0};
   int option_index = 0;
-  while ((c = getopt_long(argc, argv, "+pvdhom:s:i:", long_options,
+#ifdef RANDOM_SCHEDULE
+#define HAWK_SHORT_OPTS "+pvdhom:s:i:"
+#else
+#define HAWK_SHORT_OPTS "+pvdhom:i:"
+#endif
+  while ((c = getopt_long(argc, argv, HAWK_SHORT_OPTS, long_options,
                           &option_index)) != -1) {
     switch (c) {
     case 'v':
@@ -96,10 +104,12 @@ static parse_result parse_args(int argc, char *argv[]) {
     case 'm':
       max_trace = atoi(optarg);
       break;
+#ifdef RANDOM_SCHEDULE
     case 's':
       // printf("Random: %s\n", optarg);
       srandom(atoi(optarg));
       break;
+#endif
     case 'p':
       profile = true;
       break;
@@ -118,6 +128,7 @@ static parse_result parse_args(int argc, char *argv[]) {
       break;
     }
   }
+#undef HAWK_SHORT_OPTS
 
   bool after_separator = optind > 1 && strcmp(argv[optind - 1], "--") == 0;
   int command_arg_idx = optind;

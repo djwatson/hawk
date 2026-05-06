@@ -1,0 +1,52 @@
+.TH HAWK 1 "May 2026" Linux "Hawk Manual"
+
+.SH NAME
+hawk \- Scheme (R7RS) JIT
+
+.SH SYNOPSIS
+.B hawk
+[\fIOPTION\fR] [\fIscript\fR [\fIarg\fR ...]]
+
+.SH DESCRIPTION
+.B hawk
+is a virtual machine and just-in-time compiler for R7RS Scheme.
+It runs a script directly from bytecode or loads an explicit image file.
+
+The first non-option argument is treated as the script name.  Any remaining
+arguments are passed through to the script.
+
+.SH OPTIONS
+.SS Normal options
+.TP
+.BI "\-o, \-\-joff"
+Turn off the JIT compiler and only use the bytecode VM.
+.TP
+.BI "\-i, \-\-image " FILE
+Load an explicit \fB.bc\fR image file instead of the default image.
+.TP
+.BI "\-p, \-\-profile"
+Turn on the sampling profiler, showing VM, GC, and JIT time.
+.TP
+.BI "\-\-version"
+Print the program version string and exit.
+.TP
+.BI "\-h, \-\-help"
+Print the help text and exit.
+.TP
+.BI "\-v, \-\-verbose"
+Turn on verbose JIT mode.
+
+.SS Debug options
+.TP
+.BI "\-m, \-\-max-trace " NUMBER
+Stop JITting after \fINUMBER\fR traces and then interpret.
+.TP
+.BI "\-d, \-\-dump"
+Dump Linux perf JIT information.
+
+.SH COPYRIGHT
+.B hawk
+is open source software, released under the MIT license.
+
+.SH AUTHOR
+Dave Watson <dade.watson@gmail.com>
