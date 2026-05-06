@@ -135,9 +135,6 @@ add_dependencies(hawk_bootstrap opcodes_scm)
 add_dependencies(hawk_bootstrap hawk_core)
 
 set(LIB_IMAGE_BC ${CMAKE_CURRENT_SOURCE_DIR}/lib/img.scm.bc)
-if(NOT EXISTS "${LIB_IMAGE_BC}")
-  execute_process(COMMAND ${CMAKE_COMMAND} -E touch "${LIB_IMAGE_BC}")
-endif()
 set(LIB_IMAGE_STAMP ${CMAKE_CURRENT_BINARY_DIR}/lib_image.stamp)
 # fold generator
 set(gen_fold_target gen_fold)

@@ -643,8 +643,10 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
     if (is_forwarded(&entry.ptr->header)) {
       continue;
     }
-    fprintf(stderr, "undumped pinned func: %s %p\n",
-            to_string(entry.ptr->name)->str, (void *)entry.ptr);
+    if (verbose) {
+      fprintf(stderr, "undumped pinned func: %s %p\n",
+              to_string(entry.ptr->name)->str, (void *)entry.ptr);
+    }
   }
 
   uintptr_t scan = (uintptr_t)data;
