@@ -23,9 +23,6 @@
      ((_ (id . claw*) . body) (and id (and-let claw* . body)))
      ((_ . _) (syntax-error "ill-formed and-let form"))))
 
-;; Temporary fallback until the new expander exposes annotation records.
-(define (annotation? _) #f)
-
 ;; Integer-only arithmetic-shift replacement for bootstrap.
 (define (arithmetic-shift x k)
   (cond
@@ -1097,7 +1094,6 @@
 (define SYNTAX_OK #f)
 (define (normalize-const datum)
   (cond
-    ((annotation? datum) (normalize-const (annotation-sexp datum)))
     ;; Syntax constants need to keep their wrap information intact in the
     ;; eval/VM path; stripping to datum loses hygiene and breaks macro output.
     ;((syntax? datum) (if SYNTAX_OK datum (syntax->datum datum)))
@@ -1631,7 +1627,7 @@
 (define default-import-forms
   (read-forms-from-string "(import (scheme base)(scheme case-lambda)(scheme char)(scheme complex)(scheme cxr)(scheme eval)(scheme file)(scheme inexact)(scheme lazy)(scheme load)(scheme process-context)(scheme read)(scheme repl)(scheme time)(scheme write)(scheme r5rs))"))
 
-(define (form-sexp form) (if (annotation? form) (annotation-sexp form) form))
+(define (form-sexp form) form)
 
 (define (import-form? form)
   (let ((sexp (form-sexp form)))

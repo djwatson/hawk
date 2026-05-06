@@ -24,8 +24,6 @@
               ...
               define-record-type
               parameterize)
-        ;; TODO
-        (except (scheme complex) make-rectangular real-part imag-part)
         (scheme case-lambda)
         (prefix (hawk sys) sys:))
 
@@ -54,11 +52,6 @@
     (if (negative? y) (if (positive? z) (+ z y) z) (if (negative? z) (+ z y) z))))
 (define (remainder a b) (sys:MOD a b))
 (define (make-rectangular real imag) (sys:RECT real imag))
-;; (define (make-rectangular real imag)
-;;   (let ((cmp (sys:ALLOC 24 65)))
-;;     (sys:STORE cmp real 0)
-;;     (sys:STORE cmp imag 1)
-;;     cmp))
 (define (real-part z) (if (compnum? z) (sys:LOAD z 0) z))
 (define (imag-part z) (if (compnum? z) (sys:LOAD z 1) 0))
 (define (square x) (* x x))
@@ -127,17 +120,16 @@
 (define for-each
   (case-lambda
     ((proc lst)
-      ;(unless (list? lst) (error "circular for-each"))
+     (unless (list? lst) (error "circular for-each"))
       (let loop ((proc proc) (lst lst))
         (unless (null? lst) (proc (car lst)) (loop proc (cdr lst)))))
     ((proc lst1 lst2)
-      ;(unless (or (list? lst1) (list? lst2)) (error "circular for-each"))
+     (unless (or (list? lst1) (list? lst2)) (error "circular for-each"))
       (let loop ((proc proc) (lst1 lst1) (lst2 lst2))
         (if (and (not (null? lst1)) (not (null? lst2)))
             (begin (proc (car lst1) (car lst2)) (loop proc (cdr lst1) (cdr lst2))))))
     ((proc . lsts)
-      ;(unless (any list? lsts) (error "circular for-each"))
-
+     (unless (any list? lsts) (error "circular for-each"))
       (let loop ((lsts lsts))
         (let ((hds
                  (let loop2 ((lsts lsts))
@@ -172,8 +164,6 @@
         (when c (do ((i 0 (+ i 1))) ((= i len)) (string-set! str i c)))
         str))))
 
-;; (define (cons a b)
-;;   (let ((cell (sys:ALLOC 24 3))) (sys:STORE cell a 0) (sys:STORE cell b 1) cell))
 (define (cons a b) (sys:CONS a b))
 (define (cons* first . rest)
   (let recur ((x first) (rest rest))
@@ -898,7 +888,6 @@
                   (unless (eq? '() (cdr cur)) (display " . " port) (display (cdr cur) port)))))
           (write-char #\) port))
         ((symbol? x) (display (symbol->string x) port))
-        ;; TODO lookup name
         ((procedure? x)
           (display "#<procedure " port)
           (display (sys:LOAD (sys:LOAD x 1) 1) port)

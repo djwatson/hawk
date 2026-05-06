@@ -1216,17 +1216,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_IRET: {
     uint16_t count = (instr.op == OP_RETN) ? instr.data : 1;
     argcnt = count;
-    //  TODO: re-enable.  This needs to be a MUCH lower priority, so we
-    //  don't record down-rec before up-rec.  Or alternatively, maybe
-    //  ONLY enable down-rec recording if the function has an up-rec trace
-    //  already.
-
-    /* auto res = check_record_start(pc, stack, state, op_table); */
-    /* if (res != op_table) { */
-    /*   op_table = res; */
-    /*   instr = *pc; */
-    /*   break; */
-    /* } */
 
     bool downrec_trace = is_downrec_trace(ts);
     bool at_trace_start = (pc == ts->start_ins);
@@ -1236,6 +1225,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     set_stack_len(ts, instr.reg + count);
 
     if (ts->depth == 0) {
+      // Notice we're explicitly allowing TRACE_POLY to do returns!
       if ((cur_trace->kind != TRACE_SIDE) && !downrec_trace &&
           cur_trace->kind != TRACE_POLY) {
         record_abort(state, &op_table, "return");
@@ -1246,8 +1236,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       bool seen_downrec = cnt > 0;
       bool try_downrec = cnt > random() % 3;
 
-      // TODO this conditional: check that the bcfunc this pc is in WAS an uprec
-      //
       if ((instr.op == OP_RET || instr.op == OP_RETN) && downrec_ok &&
           cur_trace->kind == TRACE_SIDE && try_downrec) {
         if (verbose) {

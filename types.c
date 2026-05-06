@@ -48,11 +48,7 @@ void print_type_tag(FILE *file, uint8_t tag) {
 }
 
 string_s *get_sym_name(symbol *s) {
-  // TODO remove.  must always have name.
-  if (s->name.value) {
-    return (string_s *)(s->name.value - PTR_TAG);
-  }
-  return nullptr;
+  return (string_s *)(s->name.value - PTR_TAG);
 }
 
 // This is mostly a debug aid: The scheme-level printer is defined in

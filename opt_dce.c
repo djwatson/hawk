@@ -25,7 +25,6 @@ static void propagate(trace *trace, bool *marks) {
   for (uint64_t i = arrlen(trace->ins); i > 0; i--) {
     auto ins = &trace->ins[i - 1];
 
-    // TODO need to clean up and verify all ir_sideeff.
     if (ir_sideeff(ins->op) || ins->guard) {
       marks[i - 1] = true;
     }

@@ -385,7 +385,7 @@
     ;; Not an IR record - pass through (for symbols, numbers, etc.)
     (else ir)))
 
-;; Helper to format annotation info - returns list for splicing
+;; Helper to format source-location info - returns list for splicing
 (define (pp-ann ann)
   (if ann
       (list (string->symbol (string-append "@"
