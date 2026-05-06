@@ -1,4 +1,20 @@
-## JIT impl
+## Release checklist
+
+[ ] implement eq? hashtables
+[ ] use new hashtables in bc.scm, string->symbol, srfi 69, maybe symbol lookup in expander
+
+[ ] get macros solid - pass macro tests
+[ ] get r5rs_pitfalls working
+[ ] pass r5rs-tests
+
+[ ] cleanup record.c
+[ ] cleanup vm.c
+
+[ ] work on r7rs-tests
+[ ] Get all the argtype stuff calling error instead
+[ ] merge in the 'fast' VM branch?
+
+## JIT backlog
 
 * record APPLY
 
@@ -21,23 +37,8 @@
 * we could add a GC_ENSURE.  It wouldn't work for variably sizxed ALLOC, but it would save having to register save/restore for snapshots *at all*, and we could merge all fixed-size allocs to fastpaths!
   * basically split the *do we have enough memory?* path from the *bump the pointer and allocate* path
 
-# VM impl
-
-* track stack-top
-* remove weird custom hashtable, because we're missing eq? support
-* missing multi-value callcc returns I think?
-
-# cleanup
-* LOOP could just do a memmov instead?
-* we store state VM, the only place it is used is to flush traces in the FOREIGN_CALL to dump image and die. ugh.
 * we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!
-* need a 'box' type so assignment-conversion doesn't need to set more than one thing
 
-# simple VM
-
-* debug info serialized - hmm maybe keep in scheme format?
-
-## tracer
 * we could keep boxed/unboxed flonum pairs around? we might be
   re-boxing in some cases instead of re-using the unchanged old box
   (only in cases of IR_STORE or taking a snapshot)
@@ -45,6 +46,14 @@
   slot - we don't use callee saved.  The reason is to make it easy for
   gc to work across CCALL.  This assumes CCALLs are rare, maybe
   experiment with this if they're not.
+
+# VM backlog
+
+* track stack-top
+* remove weird custom hashtable, because we're missing eq? support
+* missing multi-value callcc returns I think?
+* we store state VM, the only place it is used is to flush traces in the FOREIGN_CALL to dump image and die. ugh.
+* LOOP could just do a memmov instead?
 
 ### Optimization passes
 
