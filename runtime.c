@@ -259,7 +259,7 @@ static size_t runtime_align_words(size_t bytes) {
 }
 
 static int64_t runtime_timespec_nsecs(struct timespec ts) {
-  return ts.tv_sec * INT64_C(1000000000) + ts.tv_nsec;
+  return (ts.tv_sec * INT64_C(1000000000)) + ts.tv_nsec;
 }
 
 EXPORT int64_t scm_current_jiffy(void) {
@@ -275,7 +275,7 @@ EXPORT double scm_current_second(void) {
   if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
     abort();
   }
-  return (double)ts.tv_sec + (double)ts.tv_nsec / 1000000000.0;
+  return (double)ts.tv_sec + ((double)ts.tv_nsec / 1000000000.0);
 }
 
 static uint64_t runtime_list_length(gc_obj list) {
@@ -381,7 +381,8 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
     uint64_t const_cnt = runtime_list_length(desc->v[2]);
     uint64_t bc_cnt = runtime_list_length(desc->v[3]);
     size_t bytes = runtime_align_words(
-        sizeof(bcfunc) + const_cnt * sizeof(gc_obj) + bc_cnt * sizeof(bc));
+        sizeof(bcfunc) + (const_cnt * sizeof(gc_obj)) +
+        (bc_cnt * sizeof(bc)));
     bcfunc *func = malloc(bytes);
     if (!func) {
       abort();
@@ -425,7 +426,7 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
       }
     }
 
-    bc *code = (bc *)(func->data + func->const_cnt * sizeof(gc_obj));
+    bc *code = (bc *)(func->data + (func->const_cnt * sizeof(gc_obj)));
     uint64_t code_idx = 0;
     for (gc_obj w = desc->v[3]; w.value != NIL_TAG; w = to_cons(w)->b) {
       int64_t word = runtime_expect_fixnum(to_cons(w)->a);
@@ -770,7 +771,10 @@ static gc_obj make_inexact_compnum(double real, double imag) {
 // GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_add_slow,
 // and normalize_compnum.
 static gc_obj compnum_add(gc_obj a, gc_obj b) {
-  double ar, ai, br, bi;
+  double ar;
+  double ai;
+  double br;
+  double bi;
   bool inexact = false;
   if (compnum_double_parts(a, &ar, &ai, &inexact) &&
       compnum_double_parts(b, &br, &bi, &inexact) && inexact) {
@@ -797,7 +801,10 @@ static gc_obj compnum_add(gc_obj a, gc_obj b) {
 // GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_sub_slow,
 // and normalize_compnum.
 static gc_obj compnum_sub(gc_obj a, gc_obj b) {
-  double ar, ai, br, bi;
+  double ar;
+  double ai;
+  double br;
+  double bi;
   bool inexact = false;
   if (compnum_double_parts(a, &ar, &ai, &inexact) &&
       compnum_double_parts(b, &br, &bi, &inexact) && inexact) {
@@ -824,11 +831,14 @@ static gc_obj compnum_sub(gc_obj a, gc_obj b) {
 // GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_*_slow,
 // and normalize_compnum.
 static gc_obj compnum_mul(gc_obj a, gc_obj b) {
-  double ar, ai, br, bi;
+  double ar;
+  double ai;
+  double br;
+  double bi;
   bool inexact = false;
   if (compnum_double_parts(a, &ar, &ai, &inexact) &&
       compnum_double_parts(b, &br, &bi, &inexact) && inexact) {
-    return make_inexact_compnum(ar * br - ai * bi, ar * bi + ai * br);
+    return make_inexact_compnum((ar * br) - (ai * bi), (ar * bi) + (ai * br));
   }
   gc_add_root((const void *)&b, 1, 0);
   gc_obj ca_obj = get_compnum(a);
@@ -1036,6 +1046,7 @@ DEFINE_VM_RUNTIME_DIVMOD_SLOW(mod, to_fixnum(v1) % to_fixnum(v2),
 #undef DEFINE_VM_RUNTIME_DIVMOD_SLOW
 
 // GC: may allocate via gc_alloc through ratnum_cmp.
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(name, op)                           \
   gc_obj vm_runtime_cmp_##name##_slow(gc_obj v1, gc_obj v2) {                  \
     if (is_compnum(v1) || is_compnum(v2)) {                                    \
@@ -1048,14 +1059,14 @@ DEFINE_VM_RUNTIME_DIVMOD_SLOW(mod, to_fixnum(v1) % to_fixnum(v2),
     if (is_ratnum(v1) || is_ratnum(v2)) {                                      \
       ratnum_s r1 = get_ratnum(v1);                                            \
       ratnum_s r2 = get_ratnum(v2);                                            \
-      return (ratnum_cmp(r1, r2) op 0) ? TRUE_REP : FALSE_REP;                 \
+      return ((ratnum_cmp(r1, r2)) op 0) ? TRUE_REP : FALSE_REP;               \
     }                                                                          \
     if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
       return (to_fixnum(v1) op to_fixnum(v2)) ? TRUE_REP : FALSE_REP;          \
     }                                                                          \
     if ((is_fixnum(v1) || is_bignum(v1)) &&                                    \
         (is_fixnum(v2) || is_bignum(v2))) {                                    \
-      return (numeric_exact_compare(v1, v2) op 0) ? TRUE_REP : FALSE_REP;      \
+      return ((numeric_exact_compare(v1, v2)) op 0) ? TRUE_REP : FALSE_REP;    \
     }                                                                          \
     abort();                                                                   \
   }
@@ -1066,6 +1077,7 @@ DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(lte, <=)
 DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(gte, >=)
 
 #undef DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW
+// NOLINTEND(bugprone-macro-parentheses)
 
 gc_obj vm_runtime_cmp_jeqv_slow(gc_obj v1, gc_obj v2) {
   return obj_jeqv(v1, v2) ? TRUE_REP : FALSE_REP;

@@ -45,13 +45,13 @@ enum : int32_t {
 static_assert((alloc_stub_frame_size & 15) == 0,
               "alloc slowpath frame must stay aligned");
 
-static inline int32_t alloc_reg_save_slot_offset(uint8_t reg) {
+static inline int32_t alloc_reg_save_slot_offset(int reg) {
   return reg * alloc_reg_save_stride;
 }
 
 static void *gc_alloc_ir_slowpath(uint64_t tagged_sz, uint8_t *reg_save,
                                   uint64_t gpr_mask) {
-  for (uint8_t reg = 0; reg < FPR_REG_START; reg++) {
+  for (int reg = 0; reg < FPR_REG_START; reg++) {
     if (gpr_mask & (1ULL << reg)) {
       gc_add_root((const void *)(reg_save + alloc_reg_save_slot_offset(reg)), 1,
                   0);
@@ -60,7 +60,7 @@ static void *gc_alloc_ir_slowpath(uint64_t tagged_sz, uint8_t *reg_save,
 
   void *ptr = gc_alloc((uint64_t)(tagged_sz >> FIXNUM_SHIFT));
 
-  for (int8_t reg = FPR_REG_START - 1; reg >= 0; reg--) {
+  for (int reg = FPR_REG_START - 1; reg >= 0; reg--) {
     if (gpr_mask & (1ULL << reg)) {
       gc_remove_root((const void *)(reg_save + alloc_reg_save_slot_offset(reg)),
                      0);
@@ -91,7 +91,7 @@ static void emit_store_ralloc(emit_state *s) {
 
 static void build_slowpath_reg_frame(uint8_t regs[FPR_REG_END],
                                      bool for_restore) {
-  for (uint8_t reg = 0; reg < FPR_REG_END; reg++) {
+  for (int reg = 0; reg < FPR_REG_END; reg++) {
     regs[reg] = reg;
   }
   regs[SP] = REG_NONE;
@@ -394,9 +394,9 @@ static size_t collect_live_caller_saved_regs(trace *t, regalloc_state *ra_state,
   uint64_t live_gpr_mask;
   collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs, &live_gpr_mask);
   size_t count = 0;
-  for (uint8_t reg = 0; reg < FPR_REG_END; reg++) {
-    if (live_regs[reg] && !asm_is_callee_saved(reg)) {
-      regs[count++] = reg;
+  for (size_t reg = 0; reg < FPR_REG_END; reg++) {
+    if (live_regs[reg] && !asm_is_callee_saved((uint8_t)reg)) {
+      regs[count++] = (uint8_t)reg;
     }
   }
   return count;
@@ -1384,7 +1384,7 @@ static inline uint8_t emit_arg_reg(slot *args, uint8_t *arg_regs,
 static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
   int32_t cur_snap = -1;
   size_t snap_idx = 0;
-  uint16_t op_cnt_idx = 0;
+  size_t op_cnt_idx = 0;
 
   for (; op_cnt_idx < arrlen(t->ins); op_cnt_idx++) {
     while (snap_idx < arrlen(t->snaps) && t->snaps[snap_idx].ir == op_cnt_idx) {
@@ -1548,7 +1548,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     case IR_STORE: {
       ir_ins *ref = slot_ins(t, op->op1);
       auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
-      auto val_reg = arg0_reg;
+      uint8_t val_reg;
       if (op->op2.constant) {
         emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op2));
         val_reg = RTMP;
@@ -1872,7 +1872,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         if (size_reg == REG_NONE && tagged_size < TAG_FIXNUM_VALUE(64)) {
           int64_t payload_bytes = (tagged_size >> FIXNUM_SHIFT) - 8;
           for (int64_t off = 0; off < payload_bytes; off += 8) {
-            emit_store_constant(s, 8 + off, RTMP, 0);
+            int32_t store_offset = (int32_t)(8 + off);
+            emit_store_constant(s, store_offset, RTMP, 0);
           }
         } else {
           asm_zero_alloc_payload(s, tagged_size, size_reg);

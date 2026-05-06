@@ -255,7 +255,6 @@ NOINLINE static void gc_collect(void) {
   profiler_set_in_gc(true);
   size_t old_soft = soft_limit;
   size_t old_before = old_bytes_used();
-  size_t heap_before = old_bytes_used() + nursery_used();
   bool full = old_bytes_free() < nursery_used();
   collect_mode = full ? GC_FULL : GC_YOUNG;
   if (full) {
@@ -300,8 +299,8 @@ NOINLINE static void gc_collect(void) {
   size_t freed = old_soft > promoted ? old_soft - promoted : 0;
   struct timespec end;
   clock_gettime(CLOCK_MONOTONIC, &end);
-  double elapsed_ms = (double)(end.tv_sec - start.tv_sec) * 1000.0 +
-                      (double)(end.tv_nsec - start.tv_nsec) / 1000000.0;
+  double elapsed_ms = ((double)(end.tv_sec - start.tv_sec) * 1000.0) +
+                      ((double)(end.tv_nsec - start.tv_nsec) / 1000000.0);
   if (verbose) {
     fprintf(stderr,
             "gc_collect(%s): %.3f ms, heap: %zu, freed: %zu, soft: %zu\n",

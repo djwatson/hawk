@@ -82,7 +82,7 @@ typedef struct {
 
 static parse_result parse_args(int argc, char *argv[]) {
   int c;
-  parse_result out = {0};
+  parse_result out = {nullptr, nullptr, 0};
   int option_index = 0;
 #ifdef RANDOM_SCHEDULE
 #define HAWK_SHORT_OPTS "+pvdhom:s:i:"

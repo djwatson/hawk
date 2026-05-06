@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+// NOLINTBEGIN(clang-analyzer-deadcode.DeadStores)
+
 #define BN_ALLOC(sz) gc_alloc((uint64_t)(((sz) + 7) & ~((size_t)7)))
 #define BN_FREE(ptr) ((void)(ptr))
 #define BN_ROOT(slot) gc_add_root((const void *)(slot), 1, PTR_TAG)
@@ -87,7 +89,7 @@ bool bn_is_negative(const bn_t *bn) {
 bool bn_is_odd(const bn_t *bn) {
   assert(bn != nullptr);
   assert(bn->used >= 1);
-  return (bn->limb[0] & 1u) != 0;
+  return (bn->limb[0] & 1U) != 0;
 }
 
 static void bn_normalize(bn_t *bn) {
@@ -288,7 +290,7 @@ static void bn_mul_schoolbook_limbs(uint64_t *out, const uint64_t *a,
     const uint64_t ai = a[0];
     __uint128_t carry = 0;
     for (uint32_t j = 0; j < bn; j++) {
-      __uint128_t sum = (__uint128_t)ai * (__uint128_t)b[j] + carry;
+      __uint128_t sum = ((__uint128_t)ai * (__uint128_t)b[j]) + carry;
       out[j] = (uint64_t)sum;
       carry = sum >> 64;
     }
@@ -364,8 +366,8 @@ static bn_t *bn_low_bits_unsigned(const bn_t *a, uint32_t bits) {
     return bn_clone_unsigned(a);
   }
 
-  uint32_t words = bits / 64u;
-  uint32_t off = bits % 64u;
+  uint32_t words = bits / 64U;
+  uint32_t off = bits % 64U;
   uint32_t new_used = words + (off != 0);
   if (new_used == 0) {
     return bn_zero_unsigned();
@@ -397,8 +399,8 @@ static uint32_t bn_bit_length_unsigned(const bn_t *a) {
     return 0;
   }
   uint64_t top = a->limb[used - 1];
-  uint32_t top_bits = 64u - (uint32_t)__builtin_clzll(top);
-  return (used - 1) * 64u + top_bits;
+  uint32_t top_bits = 64U - (uint32_t)__builtin_clzll(top);
+  return ((used - 1) * 64U) + top_bits;
 }
 
 static bn_t *bn_shr_bits_unsigned(const bn_t *a, uint32_t bits) {
@@ -407,8 +409,8 @@ static bn_t *bn_shr_bits_unsigned(const bn_t *a, uint32_t bits) {
   if (bits == 0) {
     return bn_clone_unsigned(a);
   }
-  uint32_t word = bits / 64u;
-  uint32_t off = bits % 64u;
+  uint32_t word = bits / 64U;
+  uint32_t off = bits % 64U;
   if (word >= a->used) {
     return bn_zero_unsigned();
   }
@@ -418,7 +420,7 @@ static bn_t *bn_shr_bits_unsigned(const bn_t *a, uint32_t bits) {
   for (uint32_t i = 0; i < new_used; i++) {
     uint64_t low = a->limb[i + word];
     uint64_t high = (i + word + 1 < a->used) ? a->limb[i + word + 1] : 0;
-    res->limb[i] = (off == 0) ? low : ((low >> off) | (high << (64u - off)));
+    res->limb[i] = (off == 0) ? low : ((low >> off) | (high << (64U - off)));
   }
   bn_normalize(res);
   return res;
@@ -434,8 +436,8 @@ static bn_t *bn_shl_bits_unsigned(const bn_t *a, uint32_t bits) {
     return bn_zero_unsigned();
   }
 
-  uint32_t word = bits / 64u;
-  uint32_t off = bits % 64u;
+  uint32_t word = bits / 64U;
+  uint32_t off = bits % 64U;
 
   if (off == 0) {
     uint32_t new_used = a->used + word;
@@ -448,7 +450,7 @@ static bn_t *bn_shl_bits_unsigned(const bn_t *a, uint32_t bits) {
     return res;
   }
 
-  uint32_t new_used = a->used + word + 1u;
+  uint32_t new_used = a->used + word + 1U;
   bn_t *res = bn_new(new_used);
   if (word != 0) {
     memset(res->limb, 0, (size_t)word * sizeof(uint64_t));
@@ -459,7 +461,7 @@ static bn_t *bn_shl_bits_unsigned(const bn_t *a, uint32_t bits) {
     uint32_t d = i + word;
     uint64_t v = a->limb[i];
     res->limb[d] = (v << off) | carry;
-    carry = v >> (64u - off);
+    carry = v >> (64U - off);
   }
   res->limb[word + a->used] = carry;
   res->used = word + a->used + (carry != 0);
@@ -474,7 +476,7 @@ static unsigned long long bn_submul_1_u64(uint64_t *up, const uint64_t *vp,
   int i = 0;
 
   for (; i < n; i++) {
-    __uint128_t prod = (__uint128_t)qdigit * (__uint128_t)vp[i] + mul_carry;
+    __uint128_t prod = ((__uint128_t)qdigit * (__uint128_t)vp[i]) + mul_carry;
     unsigned long long lo = (unsigned long long)prod;
     mul_carry = (unsigned long long)(prod >> 64);
     up[i] = (uint64_t)__builtin_subcll((unsigned long long)up[i], lo,
@@ -590,7 +592,7 @@ static bn_divmod_result_t bn_divmod_knuth_unsigned(const bn_t *num,
   bn_t *q = nullptr;
   bn_t *r = nullptr;
   bn_root_guard_t q_num __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&q);
+      bn_root_slot(&q);
 
   if (cmp < 0) {
     q = bn_new(1);
@@ -679,11 +681,11 @@ static bn_sqrt_result_t bn_sqrt_unsigned(const bn_t *a) {
     return out;
   }
 
-  if (bn_bit_length_unsigned(a) <= 64u) {
+  if (bn_bit_length_unsigned(a) <= 64U) {
     return bn_sqrt_u64(a->limb[0]);
   }
 
-  uint32_t b = (bn_bit_length_unsigned(a) + 1u) / 4u;
+  uint32_t b = (bn_bit_length_unsigned(a) + 1U) / 4U;
 
   bn_t *hi = bn_shr_bits_unsigned(a, b + b);
   bn_root_guard_t rg_hi __attribute__((cleanup(bn_root_guard_cleanup))) =
@@ -961,3 +963,5 @@ bn_sqrt_result_t bn_sqrt(const bn_t *a) {
   assert(!bn_is_negative(a));
   return bn_sqrt_unsigned(a);
 }
+
+// NOLINTEND(clang-analyzer-deadcode.DeadStores)

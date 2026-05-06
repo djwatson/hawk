@@ -215,8 +215,8 @@ gc_obj do_foreign_call(gc_obj sig_obj, gc_obj const *args, uint8_t argcnt) {
   }
 
   ffi_cif cif;
-  ffi_type *arg_types[UINT8_MAX] = {0};
-  void *arg_values[UINT8_MAX] = {0};
+  ffi_type *arg_types[UINT8_MAX] = {nullptr};
+  void *arg_values[UINT8_MAX] = {nullptr};
   foreign_tmp arg_tmps[UINT8_MAX] = {0};
   gc_obj ret_type = to_cons(sig_obj)->a;
   ffi_type *ret_ffi_type = foreign_prep_type(ret_type, UNDEFINED, nullptr);

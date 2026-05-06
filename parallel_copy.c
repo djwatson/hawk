@@ -53,7 +53,10 @@ static void move_one(int i, size_t len, par_copy *moves, status *s,
 
 par_copy *serialize_parallel_copy(par_copy *moves, uint64_t tmp_reg) {
   auto len = arrlen(moves);
-  status *s = calloc(sizeof(status), len);
+  if (len == 0) {
+    return nullptr;
+  }
+  status *s = calloc(len, sizeof(status));
   par_copy *res = nullptr;
 
   for (int i = 0; i < len; i++) {

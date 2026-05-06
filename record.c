@@ -112,7 +112,7 @@ static void clear_trace_state(trace_state *ts) {
   arrfree(ts->stack);
   arrfree(ts->downrec);
   arrfree(ts->debug_ops);
-  *ts = (trace_state){0};
+  *ts = (trace_state){};
 }
 static void free_snap(snap *snap) {
   arrfree(snap->slots);
@@ -223,7 +223,7 @@ static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
 
 void record_init(record_state *record) {
   gc_set_scan_callback(record_scan_roots, record);
-  record->trace_state = (trace_state){0};
+  record->trace_state = (trace_state){};
   record->blacklist = nullptr;
   record->penalty_pcs = nullptr;
   record->reset_pending = false;
@@ -302,14 +302,14 @@ static slot box_vmcall_arg(vm_state *state, slot v);
         (result_type != FIXNUM_TAG && result_type != FLONUM_TAG)) {            \
       v1 = box_vmcall_arg(state, v1);                                          \
       v2 = box_vmcall_arg(state, v2);                                          \
-      return add_inst(state, IR(.op = ir_vm_op, .op1 = v1, .op2 = v2,          \
+      return add_inst(state, IR(.op = (ir_vm_op), .op1 = v1, .op2 = v2,        \
                                 .guard = true, .type = result_type));          \
     }                                                                          \
     if (result_type == FLONUM_TAG) {                                           \
       v1 = convert_to_flonum(state, v1);                                       \
       v2 = convert_to_flonum(state, v2);                                       \
     }                                                                          \
-    return add_inst(state, IR(.op = ir_fast_op, .op1 = v1, .op2 = v2,          \
+    return add_inst(state, IR(.op = (ir_fast_op), .op1 = v1, .op2 = v2,        \
                               .type = result_type));                           \
   }
 
@@ -323,12 +323,12 @@ static slot box_vmcall_arg(vm_state *state, slot v);
         result_type != FLONUM_TAG) {                                           \
       v1 = box_vmcall_arg(state, v1);                                          \
       v2 = box_vmcall_arg(state, v2);                                          \
-      return add_inst(state, IR(.op = ir_vm_op, .op1 = v1, .op2 = v2,          \
+      return add_inst(state, IR(.op = (ir_vm_op), .op1 = v1, .op2 = v2,        \
                                 .guard = true, .type = result_type));          \
     }                                                                          \
     v1 = convert_to_flonum(state, v1);                                         \
     v2 = convert_to_flonum(state, v2);                                         \
-    return add_inst(state, IR(.op = ir_fast_op, .op1 = v1, .op2 = v2,          \
+    return add_inst(state, IR(.op = (ir_fast_op), .op1 = v1, .op2 = v2,        \
                               .type = result_type));                           \
   }
 
@@ -703,6 +703,7 @@ static slot record_foreign_arg(vm_state *state, gc_obj *stack, uint8_t pos,
   }
 }
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define DEFINE_BRANCH_CMP(name, taken_op, not_taken_op, vm_taken_op,           \
                           vm_not_taken_op, cmp_op)                             \
   static ir_ins emit_math_cmp_##name(vm_state *state, bc instr, gc_obj *stack, \
@@ -716,7 +717,7 @@ static slot record_foreign_arg(vm_state *state, gc_obj *stack, uint8_t pos,
       res = to_fixnum(lhs) cmp_op to_fixnum(rhs);                              \
     } else if ((is_fixnum(lhs) || is_bignum(lhs)) &&                           \
                (is_fixnum(rhs) || is_bignum(rhs))) {                           \
-      res = numeric_exact_compare(lhs, rhs) cmp_op 0;                          \
+      res = (numeric_exact_compare(lhs, rhs) cmp_op 0);                        \
     } else {                                                                   \
       abort();                                                                 \
     }                                                                          \
@@ -724,12 +725,12 @@ static slot record_foreign_arg(vm_state *state, gc_obj *stack, uint8_t pos,
                                                                                \
     *taken = res;                                                              \
     if (fast_numeric) {                                                        \
-      return IR(.op = res ? taken_op : not_taken_op, .op1 = v1, .op2 = v2,     \
+      return IR(.op = (res ? (taken_op) : (not_taken_op)), .op1 = v1, .op2 = v2, \
                 .type = get_slot_type(record_current_trace(state), v1));       \
     }                                                                          \
     v1 = box_vmcall_arg(state, v1);                                            \
     v2 = box_vmcall_arg(state, v2);                                            \
-    return IR(.op = res ? vm_taken_op : vm_not_taken_op, .op1 = v1, .op2 = v2, \
+    return IR(.op = (res ? (vm_taken_op) : (vm_not_taken_op)), .op1 = v1, .op2 = v2, \
               .type = BOOL_TAG);                                               \
   }
 
@@ -737,6 +738,7 @@ DEFINE_BRANCH_CMP(lt, IR_LT, IR_GTE, IR_VMLT, IR_VMGTE, <)
 DEFINE_BRANCH_CMP(gt, IR_GT, IR_LTE, IR_VMGT, IR_VMLTE, >)
 DEFINE_BRANCH_CMP(lte, IR_LTE, IR_GT, IR_VMLTE, IR_VMGT, <=)
 DEFINE_BRANCH_CMP(gte, IR_GTE, IR_LT, IR_VMGTE, IR_VMLT, >=)
+// NOLINTEND(bugprone-macro-parentheses)
 static ir_ins emit_math_cmp_eq(vm_state *state, bc instr, gc_obj *stack,
                                slot v1, slot v2, bool *taken, bool eqv) {
   auto lhs = stack[instr.v1];
@@ -799,26 +801,29 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
     if (cur_trace->parent_snap) {
       trace *parent = cur_trace->parent_snap->trace;
       parent_trace_num = parent->num;
-      parent_snap_num = cur_trace->parent_snap - parent->snaps;
+      parent_snap_num = (int)(cur_trace->parent_snap - parent->snaps);
     }
     int linked_trace_num = cur_trace->link->num;
 
     const char *fname = func_name_from_pc(pc);
+    const char *trace_kind = "LOOP";
+    const char *poly_trace_kind = "POLY-LOOP";
+    if (arrlast(cur_trace->snaps)->offset != 0) {
+      trace_kind = "UPREC";
+      poly_trace_kind = "POLY-UPREC";
+    } else if (is_downrec_trace(ts)) {
+      trace_kind = "DOWNREC";
+      poly_trace_kind = "POLY-DOWNREC";
+    }
 
     if (linked_trace_num == cur_trace->num) {
       printf("TOOL TRACE FINISH %i %i %i %s %s %i \n", cur_trace->num,
-             parent_trace_num, parent_snap_num,
-             (arrlast(cur_trace->snaps)->offset != 0)
-                 ? "UPREC"
-                 : (is_downrec_trace(ts) ? "DOWNREC" : "LOOP"),
-             fname, linked_trace_num);
+             parent_trace_num, parent_snap_num, trace_kind, fname,
+             linked_trace_num);
     } else if (cur_trace->kind == TRACE_POLY) {
       printf("TOOL TRACE FINISH %i %i %i %s %s %i \n", cur_trace->num,
-             parent_trace_num, parent_snap_num,
-             (arrlast(cur_trace->snaps)->offset != 0)
-                 ? "POLY-UPREC"
-                 : (is_downrec_trace(ts) ? "POLY-DOWNREC" : "POLY-LOOP"),
-             fname, linked_trace_num);
+             parent_trace_num, parent_snap_num, poly_trace_kind, fname,
+             linked_trace_num);
     } else {
       printf("TOOL TRACE FINISH %i %i %i %s %s %i \n", cur_trace->num,
              parent_trace_num, parent_snap_num, "SIDE", fname,
@@ -1219,8 +1224,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
     bool downrec_trace = is_downrec_trace(ts);
     bool at_trace_start = (pc == ts->start_ins);
-    bcfunc *pc_func = gc_base_ptr(pc);
-    bool downrec_ok = true; // pc_func && pc_func->downrec_ok;
+    bool downrec_ok = true;
 
     set_stack_len(ts, instr.reg + count);
 
@@ -1338,7 +1342,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_WRITE: {
-    auto val = stack_load(state, stack, instr.v1, false);
+    (void)stack_load(state, stack, instr.v1, false);
     record_abort(state, &op_table, "can't record WRITE\n");
     break;
   }
@@ -1390,26 +1394,25 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
     trace_match match =
         ensure_args_match_trace(state, target, cur_trace, argcnt);
-    if (true || cur_trace->kind == TRACE_SIDE) {
-      if (match.matched) {
-        uint64_t entry_argcnt = argcnt;
-        if (target_is_func && !prepare_entry_state(state, stack, target_start,
-                                                   argcnt, &entry_argcnt)) {
-          break;
-        }
-        cur_trace->link = match.trace;
-        cur_trace->link_entry_snap = match.matched ? 1 : 0;
-        record_finish(pc, state, &op_table, "side trace linked to root trace",
-                      entry_argcnt);
+    if (match.matched) {
+      uint64_t entry_argcnt = argcnt;
+      if (target_is_func &&
+          !prepare_entry_state(state, stack, target_start, argcnt,
+                               &entry_argcnt)) {
         break;
       }
-      // Trace through
-      if (verbose) {
-        printf("Tracing through JFUNC\n");
-      }
-
-      MUSTTAIL return record(target_start, pc, stack, state, op_table, argcnt);
+      cur_trace->link = match.trace;
+      cur_trace->link_entry_snap = match.matched ? 1 : 0;
+      record_finish(pc, state, &op_table, "side trace linked to root trace",
+                    entry_argcnt);
+      break;
     }
+    // Trace through
+    if (verbose) {
+      printf("Tracing through JFUNC\n");
+    }
+
+    MUSTTAIL return record(target_start, pc, stack, state, op_table, argcnt);
 
     /* record_abort(state, &op_table, "Root trace to JFUNC"); */
     /* instr = target->start_pc; */
@@ -1447,11 +1450,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       assert(is_func(code));
       auto func = to_func(code);
       if (func->poly_cnt < 4) {
-        char *fname = "<unknown>";
-        if (is_string(func->name)) {
-          fname = to_string(func->name)->str;
-        }
-        // printf("Could Poly: %i %s\n", func->poly_cnt, fname);
         func->poly_cnt |= 1;
         auto clo_c = add_const(state, stack[instr.v1]);
         add_inst(state, IR(.op = IR_EQ, .op1 = clo, .op2 = clo_c));
@@ -1793,8 +1791,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_GUARD: {
     // Typecheck the object slot; SLOAD will emit the guard for us.
     stack_load(state, stack, instr.v1, true);
-    auto want_tag = stack_load(state, stack, instr.v2, true);
-    assert(want_tag.constant);
+    assert(stack_load(state, stack, instr.v2, true).constant);
     bool matches = guard_obj_matches(stack[instr.v1], stack[instr.v2]);
     auto res = add_const(state, matches ? TRUE_REP : FALSE_REP);
     stack_save(state, stack, instr.reg, res);
@@ -1815,9 +1812,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     } else {
       assert(is_string(src));
       assert(is_fixnum(off));
-      auto str = to_string(src);
-      auto idx = to_fixnum(off);
-      assert(idx >= 0 && idx < to_fixnum(str->len));
+      assert(to_fixnum(off) >= 0 &&
+             to_fixnum(off) < to_fixnum(to_string(src)->len));
       ins = IR(.op = IR_LOAD_CHAR, .op1 = obj, .op2 = offset, .type = CHAR_TAG);
     }
     auto res = add_inst(state, ins);
@@ -2161,7 +2157,8 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
 
   // Replay snapshot loads, so we keep things in register.
   size_t parent_ins_len = arrlen(side_snap->trace->ins);
-  slot *pmov_by_parent_id = malloc(parent_ins_len * sizeof(slot));
+  size_t pmov_len = parent_ins_len == 0 ? 1 : parent_ins_len;
+  slot *pmov_by_parent_id = malloc(pmov_len * sizeof(slot));
   assert(pmov_by_parent_id != NULL || parent_ins_len == 0);
   for (size_t i = 0; i < parent_ins_len; i++) {
     pmov_by_parent_id[i] = (slot){.constant = true, .loc = 0};

@@ -810,31 +810,19 @@ OP(RET) {
   /*   dispatch_next(pc, stack); */
   /* } */
 
-  auto old_op_table = op_table;
   return_frame(state, instr, 1, &pc, &stack, &op_table);
-  if (old_op_table != op_table) {
-    instr = *pc;
-  }
   dispatch_next(pc, stack);
   END
 }
 OP(IRET) {
   argcnt = 1;
-  auto old_op_table = op_table;
   return_frame(state, instr, 1, &pc, &stack, &op_table);
-  if (old_op_table != op_table) {
-    instr = *pc;
-  }
   dispatch_next(pc, stack);
   END
 }
 OP(RETN) {
   argcnt = instr.data;
-  auto old_op_table = op_table;
   return_frame(state, instr, instr.data, &pc, &stack, &op_table);
-  if (old_op_table != op_table) {
-    instr = *pc;
-  }
   dispatch_next(pc, stack);
   END
 }
@@ -886,11 +874,7 @@ OP(FUNC) {
   }
 
   check_expand_stack(state, &stack);
-  auto old_ops = op_table;
   op_table = check_record_start(pc, stack, state, op_table, argcnt);
-  if (op_table != old_ops) {
-    instr = *pc;
-  }
 
   pc = func_body_pc(pc);
   dispatch_next(pc, stack);
@@ -1131,15 +1115,17 @@ OP(ALLOC) {
   END_NEXT
 }
 OP(CAR) {
-  if (!is_cons(stack[pc->v1]))
+  if (!is_cons(stack[pc->v1])) {
     abort();
+  }
   auto c = to_cons(stack[pc->v1]);
   stack[instr.reg] = c->a;
   END_NEXT
 }
 OP(CDR) {
-  if (!is_cons(stack[pc->v1]))
+  if (!is_cons(stack[pc->v1])) {
     abort();
+  }
   auto c = to_cons(stack[pc->v1]);
   stack[instr.reg] = c->b;
   END_NEXT
@@ -1183,9 +1169,8 @@ OP(STORE_CHAR) {
 
   auto str = to_string(dest);
   auto idx = to_fixnum(off);
-  auto len = to_fixnum(str->len);
   // TODO <= so we can store NULL-terminator.
-  assert(idx >= 0 && idx <= len);
+  assert(idx >= 0 && idx <= to_fixnum(str->len));
   str->str[idx] = to_char(val);
   END_NEXT
 }
@@ -1222,8 +1207,7 @@ OP(LOAD_CHAR) {
 
   auto str = to_string(src);
   auto idx = to_fixnum(off);
-  auto len = to_fixnum(str->len);
-  assert(idx >= 0 && idx < len);
+  assert(idx >= 0 && idx < to_fixnum(str->len));
   auto res = tag_char((uint8_t)str->str[idx]);
   stack[instr.reg] = res;
   END_NEXT

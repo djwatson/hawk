@@ -18,7 +18,7 @@ void asm_load_constant(emit_state *s, int idx, uint8_t dst);
 void asm_patch_constant_pool(emit_state *s);
 void asm_patch_jmp32(emit_state *s, uint8_t *loc, uint8_t const *target);
 void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t const *target);
-bool asm_jcc32_can_reach(uint8_t *loc, uint8_t const *target);
+bool asm_jcc32_can_reach(uint8_t const *loc, uint8_t const *target);
 uint8_t *asm_jcc32_start(uint8_t *loc);
 uint8_t *asm_jcc32_end(uint8_t *loc);
 void asm_emit_jmp32_resolved(emit_state *s, uint8_t const *target);

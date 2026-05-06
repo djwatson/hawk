@@ -50,12 +50,18 @@ static uint32_t hash(uint32_t key, uint32_t hashval) {
 }
 
 static void find_hash(uint32_t *rules) {
-  uint32_t *used = malloc(arrlen(rules) * 2 * sizeof(uint32_t));
+  size_t rule_len = arrlen(rules);
+  if (rule_len == 0) {
+    printf("FAILURE\n");
+    return;
+  }
+
+  uint32_t *used = malloc(rule_len * 2 * sizeof(uint32_t));
   if (!used) {
     abort();
   }
 
-  for (size_t sz = arrlen(rules); sz <= arrlen(rules) * 2; sz++) {
+  for (size_t sz = rule_len; sz <= rule_len * 2; sz++) {
     printf("//testing sz %li\n", sz);
     for (uint64_t hashcnt = 0; hashcnt < 1000000; hashcnt++) {
       bool success = true;

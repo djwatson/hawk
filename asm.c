@@ -24,6 +24,7 @@ const char *const reg_names[FPR_REG_END] = {
 };
 
 bool asm_is_callee_saved(uint8_t reg) {
+  // NOLINTBEGIN(bugprone-branch-clone)
   switch (reg) {
 #define X(name, unallocatable, callee_saved)                                   \
   case name:                                                                   \
@@ -34,6 +35,7 @@ bool asm_is_callee_saved(uint8_t reg) {
   default:
     return false;
   }
+  // NOLINTEND(bugprone-branch-clone)
 }
 
 static void emit_ensure_space(emit_state *s, size_t bytes) {

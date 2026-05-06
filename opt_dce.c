@@ -47,7 +47,12 @@ static void propagate(trace *trace, bool *marks) {
 }
 
 void dce(trace *trace) {
-  bool *marks = calloc(arrlen(trace->ins), sizeof(bool));
+  size_t ins_len = arrlen(trace->ins);
+  if (ins_len == 0) {
+    return;
+  }
+
+  bool *marks = calloc(ins_len, sizeof(bool));
 
   mark_snaps(trace, marks);
   propagate(trace, marks);
