@@ -300,12 +300,6 @@ elseif(APPLE)
   target_link_options(hawk PRIVATE -Wl,-export_dynamic)
 endif()
 
-set_property(TARGET hawk PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-set_property(TARGET hawk_core PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-set_property(TARGET hawk_bootstrap PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-# target_compile_options(hawk PRIVATE -march=native)
-# target_compile_options(hawk PRIVATE -O3)
-
 if(USE_RANDOM_SCHEDULE)
     target_compile_definitions(hawk_core PRIVATE RANDOM_SCHEDULE)
 endif()

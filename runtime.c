@@ -515,7 +515,7 @@ static gc_obj normalize_compnum(gc_obj real, gc_obj imag) {
   return numeric_is_zero(imag) ? real : SCM_MAKE_RECTANGULAR(real, imag);
 }
 
-static bool double_part(gc_obj v, double *out, bool *inexact) {
+INLINE inline static bool double_part(gc_obj v, double *out, bool *inexact) {
   if (is_flonum(v)) {
     *out = to_flonum(v)->x;
     *inexact = true;
@@ -528,8 +528,8 @@ static bool double_part(gc_obj v, double *out, bool *inexact) {
   return false;
 }
 
-static bool compnum_double_parts(gc_obj v, double *real, double *imag,
-                                 bool *inexact) {
+INLINE inline static bool compnum_double_parts(gc_obj v, double *real,
+                                               double *imag, bool *inexact) {
   if (is_compnum(v)) {
     compnum_s *c = to_compnum(v);
     return double_part(c->real, real, inexact) &&

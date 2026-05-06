@@ -160,7 +160,7 @@ static void *old_alloc(size_t sz) {
   return (void *)old_hp;
 }
 
-INLINE static void visit_field(gc_obj *slot, void *ctx) {
+INLINE inline static void visit_field(gc_obj *slot, void *ctx) {
   (void)ctx;
   if (!is_heap_object(*slot)) {
     return;
