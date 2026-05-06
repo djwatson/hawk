@@ -35,7 +35,7 @@ add_custom_command(
   OUTPUT ${BOOT_IMAGE_BC}
   BYPRODUCTS ${LIB_IMAGE_BC}
   COMMAND ${GOSH_EXECUTABLE} -I . -I ./expand/ bc.gosh.scm gen-image.scm
-  COMMAND $<TARGET_FILE:hawk_bootstrap> --joff --image gen-image.scm.bc
+  COMMAND $<TARGET_FILE:hawk_bootstrap>  --image gen-image.scm.bc
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   DEPENDS
     ${LIB_IMAGE_SCHEME_INPUTS}

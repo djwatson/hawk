@@ -226,7 +226,6 @@ void record_init(record_state *record) {
   record->trace_state = (trace_state){};
   record->blacklist = nullptr;
   record->penalty_pcs = nullptr;
-  record->reset_pending = false;
 }
 
 static slot add_const(vm_state *state, gc_obj value) {
@@ -745,6 +744,13 @@ static void record_abort(vm_state *state, void **op_table, const char *msg) {
   record_set_current_trace(state, nullptr);
   clear_trace_state(ts);
 }
+
+void record_abort_current(vm_state *state, const char *msg) {
+  if (state->record.cur_trace) {
+    void *op_table = state->impls;
+    record_abort(state, &op_table, msg);
+  }
+}
 static void record_finish(bc *pc, vm_state *state, void **op_table,
                           const char *msg, uint64_t argcnt) {
   *op_table = state->impls;
@@ -1042,14 +1048,6 @@ static void *check_record_start(bc *pc, bc instr, gc_obj *stack,
 PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                             void *op_table, uint64_t argcnt) {
   record_debug_op(record_trace_state(state), pc, instr);
-
-  if (state->record.reset_pending) {
-    record_abort(state, &op_table, "trace reset requested while recording");
-    state->record.reset_pending = false;
-    vm_trace_reset();
-    op_table = state->impls;
-    goto done;
-  }
 
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
@@ -1610,6 +1608,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto sig_const = add_const(state, stack[instr.v1]);
     foreign_sig foreign;
     foreign_parse_sig(stack[instr.v1], &foreign);
+    if (foreign.sym == (void *)vm_trace_reset) {
+      record_abort(state, &op_table, "can't record vm_trace_reset");
+      break;
+    }
     if (!ensure_recordable_foreign_sig(&foreign)) {
       record_abort(state, &op_table, "can't record FOREIGN_CALL signature");
       break;

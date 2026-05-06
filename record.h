@@ -49,7 +49,6 @@ typedef struct record_state {
   emit_state emit_state;
   blacklist_entry *blacklist;
   bc **penalty_pcs;
-  bool reset_pending;
 } record_state;
 
 struct vm_state;
@@ -63,4 +62,5 @@ void record_start_poly(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
                        snap *side_snap, uint64_t argcnt);
 void record_start_side(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
                        snap *side_snap, uint64_t argcnt);
+void record_abort_current(struct vm_state *state, const char *msg);
 void free_traces(struct vm_state *state);

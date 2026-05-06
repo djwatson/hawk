@@ -299,6 +299,9 @@ gc_obj vm_memv(gc_obj obj, gc_obj list) {
 
 static void trace_reset(vm_state *state) {
   // printf("TRACE RESET=============================\n");
+  if (state->record.cur_trace) {
+    record_abort_current(state, "trace reset requested while recording");
+  }
   arrfree(trace_exit_counts);
   profiler_reset();
   arr_for_each(state->record.traces, trace) {
@@ -327,10 +330,6 @@ static void trace_reset(vm_state *state) {
 EXPORT void vm_trace_reset(void) {
   if (!current_vm_state) {
     abort();
-  }
-  if (current_vm_state->record.cur_trace) {
-    current_vm_state->record.reset_pending = true;
-    return;
   }
   trace_reset(current_vm_state);
 }
