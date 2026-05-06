@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(newhawk C)
+project(hawk C)
 
 option(USE_RANDOM_SCHEDULE "Enable random schedule debugging" OFF)
 option(ENABLE_COVERAGE "Enable LLVM source-based coverage instrumentation" OFF)
@@ -59,7 +59,7 @@ set(
   bc.c
 )
 
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
+find_program(GOSH_EXECUTABLE NAMES gosh REQUIRED)
 
 set(libffi_search_dirs)
 if(DEFINED ENV{HOMEBREW_PREFIX})
@@ -101,8 +101,8 @@ set(OPCODES_SCHEME ${CMAKE_CURRENT_SOURCE_DIR}/lib/opcodes.scm)
 add_custom_command(
   OUTPUT ${OPCODES_SCHEME}
   COMMAND
-    ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/gen_opcodes.py
+    ${GOSH_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/gen_opcodes.scm
     --header
     ${CMAKE_CURRENT_SOURCE_DIR}/bc.h
     --output
@@ -111,7 +111,7 @@ add_custom_command(
     ${CMAKE_COMMAND} -E touch ${OPCODES_SCHEME}
   DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/bc.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/gen_opcodes.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/gen_opcodes.scm
   COMMENT "Generating Scheme opcode definitions"
   VERBATIM
 )
@@ -497,23 +497,5 @@ if(BUILD_TESTING)
   )
   set_tests_properties(
     hawk_mbrot PROPERTIES PASS_REGULAR_EXPRESSION "5"
-  )
-endif()
-
-file(
-  GLOB
-  extra_clean_files
-  CONFIGURE_DEPENDS
-  "${CMAKE_CURRENT_SOURCE_DIR}/*.dump"
-  "${CMAKE_CURRENT_SOURCE_DIR}/*.so"
-  "${CMAKE_CURRENT_SOURCE_DIR}/perf.*"
-  "${CMAKE_CURRENT_SOURCE_DIR}/*~"
-)
-if(extra_clean_files)
-  set_property(
-    DIRECTORY
-    APPEND
-    PROPERTY ADDITIONAL_MAKE_CLEAN_FILES
-    ${extra_clean_files}
   )
 endif()
