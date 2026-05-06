@@ -2,7 +2,6 @@
 #define BIGINT_H
 
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 
 typedef struct bn {
@@ -13,15 +12,6 @@ typedef struct bn {
   uint64_t limb[];  /* Little-endian limbs (limb[0] = least-significant). */
 } bn_t;
 
-typedef void *(*bn_alloc_fn_t)(size_t size);
-typedef void (*bn_free_fn_t)(void *ptr);
-typedef void (*bn_root_fn_t)(bn_t **slot);
-/* Set allocator/free plus optional root/unroot hooks.
- * Root hooks follow gc-style slot rooting: each callback receives `&ptr_slot`.
- * `root_fn` and `unroot_fn` must be both non-null or both null.
- * Pass null alloc/free to use malloc/free defaults. */
-void bn_set_alloc_hooks(bn_alloc_fn_t alloc_fn, bn_free_fn_t free_fn,
-                        bn_root_fn_t root_fn, bn_root_fn_t unroot_fn);
 bn_t *bn_from_i64(int64_t value);
 bn_t *bn_copy(const bn_t *a);
 

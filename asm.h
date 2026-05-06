@@ -58,8 +58,6 @@ void emit_init(emit_state *s);
 void emit_init_slowpath(emit_state *s);
 void emit_cleanup(emit_state *s);
 int64_t emit_offset(emit_state *s);
-void emit_advance(emit_state *s, int64_t offset);
-void emit_bind(emit_state *s, uint64_t label, uint64_t jmp);
 uint8_t *emit_byte(emit_state *s, uint8_t value);
 uint8_t *emit_imm32(emit_state *s, uint32_t imm);
 uint8_t *emit_imm64(emit_state *s, uint64_t imm);

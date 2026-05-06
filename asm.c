@@ -132,19 +132,6 @@ void emit_jcc32(emit_state *s, enum jcc_cond cond, label *target) {
   label_add_patch(s, target, LABEL_PATCH_JCC32, loc);
 }
 
-void emit_bind(emit_state *s, uint64_t label, uint64_t jmp) {
-  (void)s;
-  assert(jmp);
-  assert(label);
-  auto offset = (int32_t)((int64_t)label - (int64_t)jmp);
-  memcpy((int32_t *)(jmp - 4), &offset, sizeof(int32_t));
-}
-
-void emit_advance(emit_state *s, int64_t offset) {
-  assert(s);
-  s->p += offset;
-}
-
 void emit_cleanup(emit_state *s) {
   assert(s);
   if (!s->mtop) {

@@ -41,14 +41,6 @@ static bn_t *bn_new(uint32_t alloc) {
   return bn;
 }
 
-void bn_set_alloc_hooks(bn_alloc_fn_t alloc_fn, bn_free_fn_t free_fn,
-                        bn_root_fn_t root_fn, bn_root_fn_t unroot_fn) {
-  (void)alloc_fn;
-  (void)free_fn;
-  (void)root_fn;
-  (void)unroot_fn;
-}
-
 bn_t *bn_from_i64(int64_t value) {
   bn_t *bn = bn_new(1);
   bn->used = 1;

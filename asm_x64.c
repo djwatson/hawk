@@ -445,12 +445,6 @@ static void emit_arith_imm(emit_state *s, enum ARITH_CODES op, uint8_t src,
   }
 }
 
-static void emit_neg(emit_state *s, uint8_t r) {
-  emit_rex_optional(s, 0, 0, 0, r >> 3);
-  emit_byte(s, 0xf7);
-  emit_modrm(s, 0x3, 0x3, 0x7 & r);
-}
-
 static void emit_cqo(emit_state *s) {
   emit_rex(s, 1, 0, 0, 0);
   emit_byte(s, ASM_CQO);
@@ -458,23 +452,6 @@ static void emit_cqo(emit_state *s) {
 
 static void emit_idiv_signed(emit_state *s, uint8_t divisor) {
   emit_reg_reg(s, ASM_IDIV, 7, divisor);
-}
-
-static void emit_fneg(emit_state *s, uint8_t r) {
-  assert(r >= FPR_REG_START && r < X64_MAX_REG);
-  uint8_t hw = hw_fpr(r);
-  int idx = add_constant(s, -0.0);
-  constant_entry *entry = &s->const_pool[idx];
-
-  emit_byte(s, 0x66);
-  emit_rex_optional(s, 0, hw >> 3, 0, 0);
-  emit_byte(s, 0x0f);
-  emit_byte(s, 0x57);
-  emit_modrm(s, 0x0, 0x7 & hw, 0x5);
-  uint8_t *disp = emit_imm32(s, 0);
-
-  const_patch patch = {.inst0 = disp, .inst1 = nullptr};
-  arrput(entry->patches, patch);
 }
 
 void emit_push(emit_state *s, uint8_t r) {
@@ -935,7 +912,8 @@ void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
   emit_store(s, offset, base, RTMP);
 }
 
-void asm_zero_alloc_payload(emit_state *s, int64_t tagged_size, uint8_t size_reg) {
+void asm_zero_alloc_payload(emit_state *s, int64_t tagged_size,
+                            uint8_t size_reg) {
   assert(size_reg == REG_NONE || (size_reg != RTMP && size_reg != RTMP2));
   int64_t payload_bytes = 0;
 
