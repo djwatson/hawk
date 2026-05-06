@@ -12,7 +12,6 @@
 
 #include "array.h"
 #include "asm.h"
-#include "comments.h"
 #include "disassemble.h"
 #include "foreign.h"
 #include "gc.h"

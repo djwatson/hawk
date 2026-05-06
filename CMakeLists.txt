@@ -48,7 +48,6 @@ set(
   regalloc.c
   ${ASM_SOURCE}
   asm.c
-  comments.c
   profiler.c
   util/hashtable.c
   disassemble.c

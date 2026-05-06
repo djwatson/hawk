@@ -2,6 +2,7 @@
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
 
 #include <dlfcn.h>
+#include <stdarg.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +28,41 @@ static bool is_control_flow(const cs_insn *i) {
 
 static bool addr_in_range(uint64_t addr, uint64_t start, uint64_t end) {
   return addr >= start && addr < end;
+}
+
+static char *heap_vsprintf(const char *fmt, va_list args) {
+  va_list measure;
+  va_copy(measure, args);
+  int needed = vsnprintf(nullptr, 0, fmt, measure);
+  va_end(measure);
+  if (needed < 0) {
+    abort();
+  }
+
+  size_t bytes = (size_t)needed + 1;
+  char *buf = malloc(bytes);
+  if (!buf) {
+    abort();
+  }
+
+  va_list write_args;
+  va_copy(write_args, args);
+  int written = vsnprintf(buf, bytes, fmt, write_args);
+  va_end(write_args);
+  if (written < 0 || written >= (int)bytes) {
+    abort();
+  }
+  return buf;
+}
+
+void comment_append(int64_t offset, comment_entry **comments, const char *fmt,
+                    ...) {
+  va_list args;
+  va_start(args, fmt);
+  char *msg = heap_vsprintf(fmt, args);
+  va_end(args);
+  comment_entry entry = {.offset = offset, .text = msg};
+  arrput(*comments, entry);
 }
 
 static void maybe_label_insert(label_entry **labels, uint64_t target,
