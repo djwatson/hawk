@@ -25,11 +25,6 @@
 
 * We can probably push RSTATE on the stack instead of keeping a register.
 
-* Currently to patch up IR_TYPECHECK we do a forward scan from IR_ARG, 
-  but that's silly, we can just check when we emit if the parent IR_ARG or IR_PMOV needs it
-  when processing IR_TYPECHECK
-
-
 * we could add a GC_ENSURE.  It wouldn't work for variably sizxed ALLOC, but it would save having to register save/restore for snapshots *at all*, and we could merge all fixed-size allocs to fastpaths!
   * basically split the *do we have enough memory?* path from the *bump the pointer and allocate* path
 

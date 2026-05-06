@@ -451,46 +451,15 @@ static slot box_vmcall_arg(vm_state *state, slot v) {
                   IR(.op = IR_BOX_FLONUM, .op1 = v, .type = UNDEFINED_TAG));
 }
 
-static ir_ins *find_input_typecheck(trace *t, uint16_t input_loc) {
-  for (size_t i = input_loc + 1; i < arrlen(t->ins); i++) {
-    auto ins = &t->ins[i];
-    if (ins->op == IR_TYPECHECK && !ins->op1.constant &&
-        ins->op1.loc == input_loc) {
-      return ins;
-    }
-  }
-  return nullptr;
-}
-
-static void set_typecheck_guard(trace *t, uint16_t typecheck_loc) {
-  auto ins = &t->ins[typecheck_loc];
-  assert(ins->op == IR_TYPECHECK);
-  ins->guard = true;
-  if (ins->op1.constant) {
-    return;
-  }
-  auto src = &t->ins[ins->op1.loc];
-  if (src->op == IR_ARG || src->op == IR_PMOV) {
-    src->guard = true;
-  }
-}
-
 static void guard_input_value(trace *t, slot v) {
   if (v.constant) {
     return;
   }
   auto ins = &t->ins[v.loc];
-  if (ins->op == IR_TYPECHECK) {
-    set_typecheck_guard(t, v.loc);
-    return;
-  }
   ins->guard = true;
-  if (ins->op != IR_ARG && ins->op != IR_PMOV) {
-    return;
-  }
-  auto typecheck = find_input_typecheck(t, v.loc);
-  if (typecheck) {
-    set_typecheck_guard(t, (uint16_t)(typecheck - t->ins));
+  if (ins->op == IR_TYPECHECK) {
+    assert(!ins->op1.constant);
+    t->ins[ins->op1.loc].guard = true;
   }
 }
 
@@ -954,7 +923,7 @@ static trace_match ensure_args_match_trace(vm_state *state, trace *head,
 
     for (size_t i = entry_ir_start; i < entry_ir_end; i++) {
       ir_ins *ins = &candidate->ins[i];
-      if (!ins->guard) {
+      if (!ir_get_guard(candidate, ins)) {
         continue;
       }
       auto arg_idx = candidate->ins[ins->op1.loc].data;

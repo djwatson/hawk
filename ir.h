@@ -2,6 +2,7 @@
 
 #include "array.h"
 #include "asm.h"
+#include "assert.h"
 #include "stdint.h"
 #include "types.h"
 
@@ -171,6 +172,19 @@ typedef struct trace {
   uint8_t *code_end;
   trace *next; // Chained polymorphic traces.
 } trace;
+
+static inline bool ir_get_guard(trace *t, ir_ins *ins) {
+  assert(ins->op == IR_TYPECHECK);
+
+  assert(!ins->op1.constant);
+  ir_ins *src = &t->ins[ins->op1.loc];
+  // TYPECHECK guards mirror their source lazily, so record does not need to
+  // scan forward from ARG/PMOV when an input later becomes guarded.
+  if (src->guard) {
+    ins->guard = true;
+  }
+  return ins->guard;
+}
 
 enum : uint16_t {
   SPILL_NONE = UINT16_MAX,

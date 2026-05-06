@@ -1953,6 +1953,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     case IR_PMOV:
       break;
     case IR_TYPECHECK: {
+      ir_get_guard(t, op);
       emit_typecheck(s, t, op, cur_snap, arg0_reg);
       if (is_fpr_reg(out_reg)) {
         emit_unbox_flonum(s, arg0_reg, out_reg);
