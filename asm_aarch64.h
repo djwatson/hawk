@@ -34,7 +34,7 @@
   X(X23, false, true)                                                          \
   X(X24, false, true)                                                          \
   X(X25, true, true)                                                           \
-  X(X26, true, true)                                                           \
+  X(X26, false, true)                                                          \
   X(X27, true, true)                                                           \
   X(X28, false, true)                                                          \
   X(X29, true, true)                                                           \
@@ -118,7 +118,6 @@ enum registers : uint8_t {
   // Must be callee-save
   RALLOC = X27,
   RSTACK = X25,
-  RSTATE = X26,
 };
 
 enum { FPR_REG_START = V0 };

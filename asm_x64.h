@@ -21,7 +21,7 @@
   X(R10, false, false)                                                         \
   X(R11, false, false)                                                         \
   X(R12, true, true)                                                           \
-  X(R13, true, true)                                                           \
+  X(R13, false, true)                                                          \
   X(R14, true, true)                                                           \
   X(R15, true, true)
 
@@ -79,7 +79,6 @@ enum registers : uint8_t {
   RTMP = R15,
   // Must be callee-save.
   RSTACK = R12,
-  RSTATE = R13,
 };
 
 enum { FPR_REG_START = XMM0 };

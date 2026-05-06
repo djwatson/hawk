@@ -36,6 +36,8 @@ enum : uint16_t { spill_slot_count = SPILL_NONE };
 static gc_obj gpr_spills[spill_slot_count];
 static uint64_t fpr_spills[spill_slot_count];
 static bool spill_roots_registered;
+static vm_state *jit_state;
+static gc_obj *jit_stack_limit;
 
 enum : int32_t {
   alloc_reg_save_stride = 8,
@@ -87,6 +89,29 @@ static void emit_load_ralloc(emit_state *s) {
 static void emit_store_ralloc(emit_state *s) {
   emit_mov64(s, RTMP, (intptr_t)&gc_hp);
   emit_store(s, 0, RTMP, RALLOC);
+}
+
+static void emit_load_jit_state(emit_state *s, uint8_t dst) {
+  emit_mov64(s, RTMP, (intptr_t)&jit_state);
+  emit_mem_load(s, 0, RTMP, dst);
+}
+
+static void emit_store_jit_state(emit_state *s, uint8_t state_reg) {
+  emit_mov64(s, RTMP, (intptr_t)&jit_state);
+  emit_store(s, 0, RTMP, state_reg);
+}
+
+static void emit_update_jit_stack_limit(emit_state *s, uint8_t state_reg,
+                                        uint8_t limit_reg, uint8_t addr_reg) {
+  emit_mem_load(s, (int32_t)offsetof(vm_state, stack_limit), state_reg,
+                limit_reg);
+  emit_mov64(s, addr_reg, (intptr_t)&jit_stack_limit);
+  emit_store(s, 0, addr_reg, limit_reg);
+}
+
+static void emit_load_jit_stack_limit(emit_state *s, uint8_t dst) {
+  emit_mov64(s, RTMP, (intptr_t)&jit_stack_limit);
+  emit_mem_load(s, 0, RTMP, dst);
 }
 
 static void build_slowpath_reg_frame(uint8_t regs[FPR_REG_END],
@@ -154,11 +179,13 @@ void emit_init_slowpath(emit_state *s) {
   emit_writable_begin(s);
 
   emit_save_slowpath_regs(s);
-  emit_mov(s, RARG0, RSTATE);
+  emit_load_jit_state(s, RARG0);
   emit_mov(s, RARG1, RSTACK);
   emit_mov64(s, RTMP, (intptr_t)&expand_stack);
   emit_call_reg(s, RTMP);
   emit_mov(s, RTMP2, RET_REG);
+  emit_load_jit_state(s, RARG0);
+  emit_update_jit_stack_limit(s, RARG0, RTMP, RARG1);
   emit_restore_slowpath_regs(s);
   emit_mov(s, RSTACK, RTMP2);
   emit_ret(s);
@@ -691,7 +718,7 @@ static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
   if (!callcc_arg.constant && arg_src != RARG2) {
     emit_mov(s, RARG2, arg_src);
   }
-  emit_mov(s, RARG0, RSTATE);
+  emit_load_jit_state(s, RARG0);
   emit_mov(s, RARG1, RSTACK);
   emit_gcobj_arg(s, t, callcc_arg, RARG2, RARG2);
 
@@ -727,12 +754,14 @@ static void emit_callcc_resume(emit_state *s, trace *t,
   if (!captured.constant) {
     emit_mov(s, RARG1, captured_src);
   }
-  emit_mov(s, RARG0, RSTATE);
+  emit_load_jit_state(s, RARG0);
   emit_gcobj_arg(s, t, captured, RARG1, RARG1);
 
   emit_mov64(s, RTMP, (intptr_t)&vm_callcc_resume_slow);
   emit_call_reg(s, RTMP);
   emit_mov(s, RSTACK, RET_REG);
+  emit_load_jit_state(s, RARG0);
+  emit_update_jit_stack_limit(s, RARG0, RTMP, RTMP2);
   invalidate_live_regs_for_call(t, ra_state, REG_NONE);
 }
 
@@ -878,7 +907,7 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
 
   COMMENT("Emit stack guard check");
   label done = {};
-  emit_mem_load(s, (int32_t)offsetof(vm_state, stack_limit), RSTATE, RTMP);
+  emit_load_jit_stack_limit(s, RTMP);
   emit_cmp(s, RSTACK, RTMP);
   emit_jcc32(s, JL, &done);
 
@@ -2006,7 +2035,8 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
   COMMENT("CENTRY");
   save_callee_regs(s);
   emit_load_ralloc(s);
-  emit_mov(s, RSTATE, RARG0);
+  emit_store_jit_state(s, RARG0);
+  emit_update_jit_stack_limit(s, RARG0, RTMP2, RTMP);
   emit_mov(s, RSTACK, RARG1);
 
   ir_ins *arg_ins = nullptr;

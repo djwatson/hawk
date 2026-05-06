@@ -19,8 +19,6 @@
   GSET: needs a tmp reg
   SLOAD: would need separate IR_TYPECHECK or tmp reg
 
-* We can probably push RSTATE on the stack instead of keeping a register.
-
 * we could add a GC_ENSURE.  It wouldn't work for variably sizxed ALLOC, but it would save having to register save/restore for snapshots *at all*, and we could merge all fixed-size allocs to fastpaths!
   * basically split the *do we have enough memory?* path from the *bump the pointer and allocate* path
 
