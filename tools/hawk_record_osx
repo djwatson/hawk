@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-root_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-out_dir="$root_dir/osx-trace-out"
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+repo_root="$script_dir/.."
+out_dir="$script_dir/osx-trace-out"
 trace_file="$out_dir/profile.trace"
 samples_xml="$out_dir/samples.xml"
-hawk_bin="$root_dir/build/hawk"
+hawk_bin="$repo_root/build/hawk"
 
 rm -rf "$out_dir"
 mkdir -p "$out_dir"
@@ -24,8 +25,8 @@ xcrun xctrace export \
   --output "$samples_xml" \
   --xpath "/trace-toc/run[@number='1']/data/table[@schema='time-profile']"
 
-merge_tool="$root_dir/tools/jit_instruments_merge.py"
-jit_dump=$(ls -t "$root_dir"/jit-*.dump 2>/dev/null | head -1 || true)
+merge_tool="$script_dir/jit_instruments_merge.py"
+jit_dump=$(ls -t "$repo_root"/jit-*.dump 2>/dev/null | head -1 || true)
 
 if [[ -n "$jit_dump" ]]; then
   echo "Merging -> $out_dir/report.html"

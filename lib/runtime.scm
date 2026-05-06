@@ -129,7 +129,7 @@
         (if (and (not (null? lst1)) (not (null? lst2)))
             (begin (proc (car lst1) (car lst2)) (loop proc (cdr lst1) (cdr lst2))))))
     ((proc . lsts)
-     (unless (any list? lsts) (error "circular for-each"))
+     ;(unless (any list? lsts) (error "circular for-each"))
       (let loop ((lsts lsts))
         (let ((hds
                  (let loop2 ((lsts lsts))

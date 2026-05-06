@@ -11,7 +11,7 @@
 ;; Generate Scheme opcode definitions from bc.h.
 ;;
 ;; Usage:
-;;   gen-opcodes.scm --header bc.h --output lib/opcodes.scm
+;;   gen-opcodes.scm --header bc.h --output opcodes.scm
 
 (define (split-on-chars s delims)
   (let loop ((chars (string->list s))

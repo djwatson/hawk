@@ -5,7 +5,7 @@ add_custom_command(
   OUTPUT ${OPCODES_SCHEME}
   COMMAND
     ${GOSH_EXECUTABLE}
-    ${PROJECT_SOURCE_DIR}/gen_opcodes.scm
+    ${CMAKE_CURRENT_SOURCE_DIR}/gen_opcodes.scm
     --header
     ${PROJECT_SOURCE_DIR}/bc.h
     --output
@@ -14,7 +14,7 @@ add_custom_command(
     ${CMAKE_COMMAND} -E touch ${OPCODES_SCHEME}
   DEPENDS
     ${PROJECT_SOURCE_DIR}/bc.h
-    ${PROJECT_SOURCE_DIR}/gen_opcodes.scm
+    ${CMAKE_CURRENT_SOURCE_DIR}/gen_opcodes.scm
   COMMENT "Generating Scheme opcode definitions"
   VERBATIM
 )
