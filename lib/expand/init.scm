@@ -766,12 +766,11 @@
                                                                              ((variable-pattern var)
                                                                               (if (memq var
                                                                                         literals) ; comparing literal identifiers using eq?
-                                                                                  (unless (or (and (identifier? form)
-                                                                                                   (compare form
-                                                                                                            (rename var)))
-                                                                                              (and (symbol? form)
-                                                                                                   (eq? form
-                                                                                                        (unwrap-syntax var))))
+                                                                                  (unless (identifier=?
+                                                                                             form
+                                                                                             (current-use-environment)
+                                                                                             var
+                                                                                             (current-meta-environment))
                                                                                     (return #f))
                                                                                   (push! `(,var .
                                                                                                 ,form))))

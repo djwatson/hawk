@@ -3,7 +3,8 @@
   (export make-toplevel-environment current-toplevel-environment with-toplevel-environment
           install-toplevel-binding! unwrap-syntax identifier=? extend-environment install-expander!
           expand er-macro-transformer make-expander identifier? extend-environment!
-          toplevel-environment? current-meta-environment make-identifier assq-environment)
+          toplevel-environment? current-meta-environment current-use-environment
+          make-identifier assq-environment)
   (begin
     (define-record-type environment (make-environment base frame) environment?
       (base enclosing-environment) ;; parent scope, or base name
@@ -87,6 +88,7 @@
       (let ((cell (assq-environment keyword env))) (set-cdr! cell expander)))
 
     (define current-meta-environment (make-parameter #f))
+    (define current-use-environment (make-parameter #f))
 
     (define (with-meta-environment meta-env thunk)
       (parameterize ((current-meta-environment meta-env)) (thunk)))
@@ -99,7 +101,11 @@
             (define (expand-macro expander form env)
               (let ((transformer (expander-transformer expander))
                     (meta-env (expander-environment expander)))
-                (with-meta-environment meta-env (lambda () (transformer form env)))))
+                (with-meta-environment
+                  meta-env
+                  (lambda ()
+                    (parameterize ((current-use-environment env))
+                      (transformer form env))))))
 
             (define (expand-identifier id env)
               (define (binding->reference binding)
