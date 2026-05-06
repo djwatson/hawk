@@ -4,13 +4,8 @@
 
 // Just some helper macros
 
-#ifdef __clang__
 #define MUSTTAIL __attribute__((musttail))
 #define PRESERVE_NONE // __attribute__((preserve_none))
-#else
-#define MUSTTAIL
-#define PRESERVE_NONE
-#endif
 
 #define NOINLINE __attribute__((noinline))
 #define INLINE __attribute__((always_inline))

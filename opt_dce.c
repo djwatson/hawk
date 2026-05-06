@@ -11,9 +11,9 @@
 
 static void mark_snaps(trace *trace, bool *marks) {
   for (uint64_t i = 0; i < arrlen(trace->snaps); i++) {
-    auto snap = &trace->snaps[i];
-    for (uint64_t j = 0; j < arrlen(snap->slots); j++) {
-      auto sslot = &snap->slots[j];
+    auto sn = &trace->snaps[i];
+    for (uint64_t j = 0; j < arrlen(sn->slots); j++) {
+      auto sslot = &sn->slots[j];
       if (!sslot->val.constant) {
         marks[sslot->val.loc] = true;
       }

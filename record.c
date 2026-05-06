@@ -959,8 +959,8 @@ static trace_match ensure_args_match_trace(vm_state *state, trace *head,
       if (arg_idx > max_guard_slot) {
         max_guard_slot = arg_idx;
       }
-      auto sentry = get_sentry(state, arg_idx);
-      if (!sentry->live || !sentry->changed) {
+      auto se = get_sentry(state, arg_idx);
+      if (!se->live || !se->changed) {
         match = false;
         if (verbose) {
           printf(" No match arg%i not live\n", arg_idx);
@@ -980,8 +980,8 @@ static trace_match ensure_args_match_trace(vm_state *state, trace *head,
       // On a self-link, propagating a guard to an unguarded entry ARG mutates
       // the candidate's entry assumptions after matching. That can reveal more
       // required guards, so reject and let recording find a safer link.
-      if (cur_trace == candidate && !sentry->loc.constant) {
-        ir_ins *guarded = &cur_trace->ins[sentry->loc.loc];
+      if (cur_trace == candidate && !se->loc.constant) {
+        ir_ins *guarded = &cur_trace->ins[se->loc.loc];
         if (guarded->op == IR_ARG && !guarded->guard) {
           if (verbose) {
             printf("  no match: arg%u same-trace propagation would guard arg\n",
@@ -1315,8 +1315,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     // No need to check if c is a symbol, the compiler guarantees it
     slot v1;
     {
-      auto trace = record_current_trace(state);
-      auto s = to_symbol(trace->consts[c.loc]);
+      auto t = record_current_trace(state);
+      auto s = to_symbol(t->consts[c.loc]);
       if (s->opt >= 0) {
         s->opt = 1;
         v1 = add_const(state, s->val);
@@ -1331,8 +1331,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_DEFINE: {
     auto c = const_load(state, pc, instr.data);
-    auto trace = record_current_trace(state);
-    auto s = to_symbol(trace->consts[c.loc]);
+    auto t = record_current_trace(state);
+    auto s = to_symbol(t->consts[c.loc]);
     if (s->opt > 0) {
       record_abort(state, &op_table, "optimistic global");
       break;
@@ -1448,12 +1448,11 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto clo_slot = instr.v2;
     slot res;
     if (clo.constant) {
-      auto trace = record_current_trace(state);
-      auto c = to_closure(trace->consts[clo.loc]);
+      auto t = record_current_trace(state);
+      auto c = to_closure(t->consts[clo.loc]);
       auto c_res = c->v[clo_slot];
       res = add_const(state, c_res);
     } else {
-      auto trace = record_current_trace(state);
       auto c = to_closure(stack[instr.v1]);
       auto code = c->v[0];
       assert(is_closure(stack[instr.v1]));
@@ -1511,7 +1510,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_CLOSURE: {
     uint64_t capture_cnt = (uint64_t)instr.data + 1;
     uint8_t start = instr.reg;
-    slot captures[capture_cnt];
 
     assert(is_func(stack[start]));
     auto func = to_func(stack[start]);
@@ -1520,6 +1518,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       break;
     }
 
+    slot *captures = malloc(sizeof(slot) * capture_cnt);
+    assert(captures != nullptr);
     for (uint64_t i = 0; i < capture_cnt; i++) {
       auto val = stack_load(state, stack, start + i, false);
       captures[i] = box_vmcall_arg(state, val);
@@ -1549,6 +1549,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       add_inst(state, IR(.op = IR_STORE, .op1 = ref, .op2 = captures[i],
                          .type = CLOSURE_TAG));
     }
+    free(captures);
 
     stack_save(state, stack, instr.reg, clo);
     break;

@@ -286,9 +286,9 @@ static void collect_live_roots(trace *t, regalloc_state *ra_state,
   *live_gpr_mask = 0;
 
   if (snap_idx >= 0) {
-    auto snap = &t->snaps[snap_idx];
-    arr_for_each_idx(snap->slots, i) {
-      auto entry = &snap->slots[i];
+    auto sn = &t->snaps[snap_idx];
+    arr_for_each_idx(sn->slots, i) {
+      auto entry = &sn->slots[i];
       if (entry->val.constant) {
         continue;
       }
@@ -572,7 +572,7 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
   uint8_t next_gpr = 0;
   uint8_t next_fpr = 0;
   for (uint8_t i = 0; i < call_arg_count; i++) {
-    auto *arg = &call_args[i];
+    auto arg = &call_args[i];
     uint8_t src_reg = emit_arg_reg(args, arg_regs, arg_count, arg->value);
     if (!arg->value.constant && src_reg == REG_NONE) {
       abort();
@@ -594,7 +594,7 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
   emit_move_pairs(s, cpy);
 
   for (uint8_t i = 0; i < call_arg_count; i++) {
-    auto *arg = &pending[i];
+    auto arg = &pending[i];
     if (arg->arg.value.constant) {
       emit_ccall_arg_value(s, t, &arg->arg, REG_NONE, arg->dst_reg);
     } else {
@@ -1239,21 +1239,21 @@ static void emit_snap_store_entry(emit_state *s, trace *t, uint16_t snap_idx,
 }
 
 static void emit_snap(emit_state *s, trace *t, uint16_t snap_idx, bool exit) {
-  auto snap = &t->snaps[snap_idx];
+  auto sn = &t->snaps[snap_idx];
   bool live_regs[MAX_REG];
   uint64_t live_gpr_mask;
   collect_live_roots(t, nullptr, 0, snap_idx, live_regs, &live_gpr_mask);
 
-  arr_for_each_idx(snap->slots, j) {
-    emit_snap_store_entry(s, t, snap_idx, j, &snap->slots[j], live_regs,
+  arr_for_each_idx(sn->slots, j) {
+    emit_snap_store_entry(s, t, snap_idx, j, &sn->slots[j], live_regs,
                           live_gpr_mask);
   }
 
-  emit_stack_offset_and_check(s, snap);
+  emit_stack_offset_and_check(s, sn);
   // If this is an exiting snapshot (vs. a loop back)
   // then record exit PC & snapshot.
   if (exit) {
-    emit_mov64(s, RET_REG2, (intptr_t)snap);
+    emit_mov64(s, RET_REG2, (intptr_t)sn);
     emit_mov(s, RET_REG, RSTACK);
   }
 }
@@ -1296,8 +1296,8 @@ static void link_to_next_trace(emit_state *s, trace *t,
   uint64_t live_gpr_mask;
   collect_live_roots(t, nullptr, 0, cur_snap, live_regs, &live_gpr_mask);
   collect_link_actions(t, cur_snap, linked_trace, entry_snap_idx, &actions);
-  auto snap = &t->snaps[cur_snap];
-  arr_for_each_idx(snap->slots, j) {
+  auto sn = &t->snaps[cur_snap];
+  arr_for_each_idx(sn->slots, j) {
     bool skip = false;
     arr_for_each_idx(actions, i) {
       if (actions[i].exit_entry_idx == j) {
@@ -1306,11 +1306,11 @@ static void link_to_next_trace(emit_state *s, trace *t,
       }
     }
     if (!skip) {
-      emit_snap_store_entry(s, t, cur_snap, j, &snap->slots[j], live_regs,
+      emit_snap_store_entry(s, t, cur_snap, j, &sn->slots[j], live_regs,
                             live_gpr_mask);
     }
   }
-  emit_stack_offset_and_check(s, snap);
+  emit_stack_offset_and_check(s, sn);
 
   // Execute reg->reg reconciliation before stack loads so load targets do not
   // clobber move sources from the exit state.

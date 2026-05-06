@@ -652,8 +652,8 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
                              uint64_t *argcnt) {
   auto jfunc = (*pc)->data;
   auto traces = state->record.traces;
-  auto trace = traces[jfunc];
-  auto fn = trace->fn;
+  auto t = traces[jfunc];
+  auto fn = t->fn;
   profiler_set_in_jit(true);
   auto res = fn(state, *stack);
   profiler_set_in_jit(false);
@@ -668,8 +668,8 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   // the start of a trace (otherwise we would have linked to it). Run
   // the code in the VM instead.
   if ((*pc)->op == OP_JFUNC || (*pc)->op == OP_JLOOP || (*pc)->op == OP_JRET) {
-    auto trace = traces[(*pc)->data];
-    *instr = trace->start_pc;
+    auto t = traces[(*pc)->data];
+    *instr = t->start_pc;
     assert(instr->op != OP_JFUNC && instr->op != OP_JLOOP &&
            instr->op != OP_JRET);
   }
@@ -916,8 +916,8 @@ OP(IFUNC) {
 OP(ILOOP){END_NEXT}
 
 OP(JFUNC) {
-  auto trace = state->record.traces[instr.data];
-  auto start = trace->start_pc;
+  auto t = state->record.traces[instr.data];
+  auto start = t->start_pc;
   if (start.op == OP_FUNC &&
       !check_arity(state, stack, pc, start, &argcnt, false)) {
     pc = next_op(pc);
@@ -944,9 +944,9 @@ OP(JLOOP) {
 }
 
 OP(JRET) {
-  auto trace = state->record.traces[instr.data];
-  if (trace->start_pc.op == OP_IRET) {
-    instr = trace->start_pc;
+  auto t = state->record.traces[instr.data];
+  if (t->start_pc.op == OP_IRET) {
+    instr = t->start_pc;
     op_func impl = ((op_func *)op_table)[instr.op];
     MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
   }
@@ -989,17 +989,17 @@ OP(JMP) {
 
 OP_ABC(CLOSURE_GET) {
   fail_if_not_closure(state, pc, stack, v1);
-  auto slot = instr.v2;
-  auto res = to_closure(v1)->v[slot];
+  auto idx = instr.v2;
+  auto res = to_closure(v1)->v[idx];
   END_ABC_NEXT
 }
 
 OP(CLOSURE_SET) {
   auto val = stack[instr.reg];
   auto clo = stack[instr.v1];
-  auto slot = instr.v2;
-  to_closure(clo)->v[slot] = val;
-  gc_log(&to_closure(clo)->v[slot]);
+  auto idx = instr.v2;
+  to_closure(clo)->v[idx] = val;
+  gc_log(&to_closure(clo)->v[idx]);
   END_NEXT
 }
 
@@ -1132,19 +1132,19 @@ OP(ALLOC) {
 OP(CAR) {
   if (!is_cons(stack[pc->v1]))
     abort();
-  auto *c = to_cons(stack[pc->v1]);
+  auto c = to_cons(stack[pc->v1]);
   stack[instr.reg] = c->a;
   END_NEXT
 }
 OP(CDR) {
   if (!is_cons(stack[pc->v1]))
     abort();
-  auto *c = to_cons(stack[pc->v1]);
+  auto c = to_cons(stack[pc->v1]);
   stack[instr.reg] = c->b;
   END_NEXT
 }
 OP(CONS) {
-  auto *c = (cons_s *)gc_alloc(sizeof(cons_s));
+  auto c = (cons_s *)gc_alloc(sizeof(cons_s));
   c->header.type = CONS_TAG;
   c->a = stack[pc->v1];
   c->b = stack[pc->v2];
@@ -1152,7 +1152,7 @@ OP(CONS) {
   END_NEXT
 }
 OP(RECT) {
-  auto *c = (compnum_s *)gc_alloc(sizeof(compnum_s));
+  auto c = (compnum_s *)gc_alloc(sizeof(compnum_s));
   c->header.type = COMPNUM_TAG;
   c->real = stack[pc->v1];
   c->imag = stack[pc->v2];

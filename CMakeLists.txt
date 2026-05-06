@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(CMAKE_C_COMPILER clang CACHE STRING "C compiler")
-
 project(newhawk C)
 
 option(USE_RANDOM_SCHEDULE "Enable random schedule debugging" OFF)
