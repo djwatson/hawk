@@ -1,6 +1,6 @@
 *~
 lib/opcodes.scm
-*.bc
+lib/*bc
 jitted*
 perf*
 jit*dump

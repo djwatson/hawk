@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
   }
 
   gc_obj start;
-  const char *image_name = image ? image : "lib/img.scm.bc";
+  const char *image_name = image ? image : "boot/img.scm.bc";
   if (image) {
     start = gc_read_image_file(image);
   } else {

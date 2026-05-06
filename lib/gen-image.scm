@@ -40,4 +40,4 @@
         (eval final-forms #f)
         (flush-output-port)))))
 
-(save-and-die main-entry "img.scm.bc" 19)
+(save-and-die main-entry "../boot/img.scm.bc" 19)
