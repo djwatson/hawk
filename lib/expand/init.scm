@@ -773,28 +773,61 @@
                                                             .
                                                             pair-body)))))))
 
-                                              (define (pattern-variables pat) ; pattern -> ((var . depth))
-                                                (let go ((pat pat) (depth 0) (acc '()))
-                                                  (case-pattern pat
-                                                                ((variable-pattern var)
-                                                                 (alist-cons var depth acc))
-                                                                ((constant-pattern obj) acc)
-                                                                ((vector-pattern vec-pat)
-                                                                 (go vec-pat depth acc))
-                                                                ((ellipsis-pattern rep-pat succ-pat)
-                                                                 (go rep-pat
-                                                                     (+ depth 1)
-                                                                     (go succ-pat depth acc)))
-                                                                ((pair-pattern car-pat cdr-pat)
-                                                                 (go car-pat
-                                                                     depth
-                                                                     (go cdr-pat depth acc))))))
+                                              (define (ellipsis? obj)
+                                                (and (identifier? obj)
+                                                     (identifier=? obj
+                                                                   spec-env
+                                                                   ellipsis
+                                                                   ellipsis-env)))
+
+                                              (define (ellipsis-escape? obj)
+                                                (and (pair? obj)
+                                                     (ellipsis? (car obj))
+                                                     (pair? (cdr obj))
+                                                     (null? (cddr obj))))
+
+                                              (define (pattern-variables pat . template?) ; pattern -> ((var . depth))
+                                                (let go ((pat pat) (depth 0) (acc '()) (ellipsis-special? #t))
+                                                  (if (and (pair? template?)
+                                                           ellipsis-special?
+                                                           (ellipsis-escape? pat))
+                                                      (go (cadr pat) depth acc #f)
+                                                      (case-pattern pat
+                                                                    ((variable-pattern var)
+                                                                     (alist-cons var depth acc))
+                                                                    ((constant-pattern obj) acc)
+                                                                    ((vector-pattern vec-pat)
+                                                                     (go vec-pat depth acc ellipsis-special?))
+                                                                    ((ellipsis-pattern rep-pat succ-pat)
+                                                                     (if ellipsis-special?
+                                                                         (go rep-pat
+                                                                             (+ depth 1)
+                                                                             (go succ-pat
+                                                                                 depth
+                                                                                 acc
+                                                                                 #t)
+                                                                             #t)
+                                                                         (go rep-pat
+                                                                             depth
+                                                                             (go succ-pat
+                                                                                 depth
+                                                                                 acc
+                                                                                 #f)
+                                                                             #f)))
+                                                                    ((pair-pattern car-pat cdr-pat)
+                                                                     (go car-pat
+                                                                         depth
+                                                                         (go cdr-pat
+                                                                             depth
+                                                                             acc
+                                                                             ellipsis-special?)
+                                                                         ellipsis-special?))))))
 
                                               (define (syntax-check pattern template) ; pattern * template -> undefined
                                                 (let ((pattern-variables
                                                          (pattern-variables (cdr pattern)))
                                                       (template-variables
-                                                         (pattern-variables template)))
+                                                         (pattern-variables template #t)))
                                                   (for-each (lambda (var-depth-in-template)
                                                               (let ((var
                                                                        (car var-depth-in-template)))
@@ -918,69 +951,78 @@
 
                                               (define (rewrite-template template subst
                                                        pattern-variable-depths) ; template * ((var . obj)) -> obj
-                                                (let rewrite ((template template))
-                                                  (case-pattern template
+                                                (let rewrite ((template template) (ellipsis-special? #t))
+                                                  (if (and ellipsis-special?
+                                                           (ellipsis-escape? template))
+                                                      (rewrite (cadr template) #f)
+                                                      (case-pattern template
                                                                 ((variable-pattern var)
                                                                  (cond
                                                                    ((assq var subst) => cdr)
                                                                    (else (rename var))))
                                                                 ((constant-pattern obj) obj)
                                                                 ((vector-pattern vec-templ)
-                                                                 (list->vector (rewrite vec-templ)))
+                                                                 (list->vector (rewrite vec-templ
+                                                                                        ellipsis-special?)))
                                                                 ((ellipsis-pattern rep-templ
                                                                                    succ-templ)
-                                                                 (let ((vars-in-templ
-                                                                          (map car
-                                                                               (pattern-variables rep-templ))))
-                                                                   (let ((vars-to-unroll
-                                                                            (filter (lambda (var)
-                                                                                      (and (assq var
-                                                                                                 subst)
-                                                                                           (cond
-                                                                                             ((assq var
-                                                                                                    pattern-variable-depths) =>
-                                                                                                (lambda (var-depth)
-                                                                                                  (> (cdr var-depth)
-                                                                                                     0)))
-                                                                                             (else
-                                                                                               #f))))
-                                                                                    vars-in-templ)))
-                                                                     (let ((vals-to-unroll
-                                                                              (map (lambda (var)
-                                                                                     (cdr (assq var
-                                                                                                subst)))
-                                                                                   vars-to-unroll)))
-                                                                       (let ((new-substs
-                                                                                (apply map
-                                                                                       (lambda vals
-                                                                                         (map cons
-                                                                                              vars-to-unroll
-                                                                                              vals))
-                                                                                       vals-to-unroll)))
-                                                                         (let ((base-subst
-                                                                                  (filter (lambda (var-obj)
-                                                                                            (not (memq (car var-obj)
-                                                                                                       vars-to-unroll)))
-                                                                                          subst))
-                                                                               (pattern-variable-depths
-                                                                                  (map (lambda (var-depth)
-                                                                                         (if (memq (car var-depth)
-                                                                                                   vars-to-unroll)
-                                                                                             (cons (car var-depth)
-                                                                                                   (- (cdr var-depth)
-                                                                                                      1))
-                                                                                             var-depth))
-                                                                                       pattern-variable-depths)))
-                                                                           (append (map (lambda (subst)
-                                                                                          (rewrite-template rep-templ
-                                                                                                            (append subst
-                                                                                                                    base-subst)
-                                                                                                            pattern-variable-depths))
-                                                                                        new-substs)
-                                                                                   (rewrite succ-templ))))))))
+                                                                 (if ellipsis-special?
+                                                                     (let ((vars-in-templ
+                                                                              (map car
+                                                                                   (pattern-variables rep-templ
+                                                                                                      #t))))
+                                                                       (let ((vars-to-unroll
+                                                                                (filter (lambda (var)
+                                                                                          (and (assq var
+                                                                                                     subst)
+                                                                                               (cond
+                                                                                                 ((assq var
+                                                                                                        pattern-variable-depths) =>
+                                                                                                    (lambda (var-depth)
+                                                                                                      (> (cdr var-depth)
+                                                                                                         0)))
+                                                                                                 (else
+                                                                                                   #f))))
+                                                                                        vars-in-templ)))
+                                                                         (let ((vals-to-unroll
+                                                                                  (map (lambda (var)
+                                                                                         (cdr (assq var
+                                                                                                    subst)))
+                                                                                       vars-to-unroll)))
+                                                                           (let ((new-substs
+                                                                                    (apply map
+                                                                                           (lambda vals
+                                                                                             (map cons
+                                                                                                  vars-to-unroll
+                                                                                                  vals))
+                                                                                           vals-to-unroll)))
+                                                                             (let ((base-subst
+                                                                                      (filter (lambda (var-obj)
+                                                                                                (not (memq (car var-obj)
+                                                                                                           vars-to-unroll)))
+                                                                                              subst))
+                                                                                   (pattern-variable-depths
+                                                                                      (map (lambda (var-depth)
+                                                                                             (if (memq (car var-depth)
+                                                                                                       vars-to-unroll)
+                                                                                                 (cons (car var-depth)
+                                                                                                       (- (cdr var-depth)
+                                                                                                          1))
+                                                                                                 var-depth))
+                                                                                           pattern-variable-depths)))
+                                                                               (append (map (lambda (subst)
+                                                                                              (rewrite-template rep-templ
+                                                                                                                (append subst
+                                                                                                                        base-subst)
+                                                                                                                pattern-variable-depths))
+                                                                                            new-substs)
+                                                                                       (rewrite succ-templ
+                                                                                                #t)))))))
+                                                                     (cons (rewrite rep-templ #f)
+                                                                           (rewrite (cdr template) #f))))
                                                                 ((pair-pattern car-templ cdr-templ)
-                                                                 (cons (rewrite car-templ)
-                                                                       (rewrite cdr-templ))))))
+                                                                 (cons (rewrite car-templ ellipsis-special?)
+                                                                       (rewrite cdr-templ ellipsis-special?)))))))
 
                                               (let loop ((rules rules))
                                                 (if (null? rules)
