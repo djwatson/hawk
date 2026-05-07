@@ -794,7 +794,11 @@
                                                       (go (cadr pat) depth acc #f)
                                                       (case-pattern pat
                                                                     ((variable-pattern var)
-                                                                     (alist-cons var depth acc))
+                                                                     (if (and (null? template?)
+                                                                              (eq? (unwrap-syntax var)
+                                                                                   '_))
+                                                                         acc
+                                                                         (alist-cons var depth acc)))
                                                                     ((constant-pattern obj) acc)
                                                                     ((vector-pattern vec-pat)
                                                                      (go vec-pat depth acc ellipsis-special?))
@@ -860,13 +864,15 @@
                                                 (define (match pat form acc)
                                                   (case-pattern pat
                                                                 ((variable-pattern var)
-                                                                 (if (memq var literals) ; comparing literal identifiers using eq?
-                                                                     (and (identifier=? form
-                                                                                        (current-use-environment )
-                                                                                        var
-                                                                                        (current-meta-environment ))
-                                                                          acc)
-                                                                     (cons `(,var . ,form) acc)))
+                                                                 (cond
+                                                                   ((memq var literals) ; comparing literal identifiers using eq?
+                                                                    (and (identifier=? form
+                                                                                       (current-use-environment )
+                                                                                       var
+                                                                                       (current-meta-environment ))
+                                                                         acc))
+                                                                   ((eq? (unwrap-syntax var) '_) acc)
+                                                                   (else (cons `(,var . ,form) acc))))
                                                                 ((constant-pattern obj)
                                                                  (and (equal? obj form) acc))
                                                                 ((vector-pattern vec-pat)
