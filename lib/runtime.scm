@@ -198,8 +198,17 @@
 (define (bignum? a) (sys:GUARD a 57))
 (define (ratnum? a) (sys:GUARD a 25))
 (define (compnum? a) (sys:GUARD a 65))
-(define (numerator x) (if (ratnum? x) (sys:LOAD x 0) x))
-(define (denominator x) (if (ratnum? x) (sys:LOAD x 1) 1))
+(define (numerator a)
+  (cond
+    ((inexact? a) (inexact (numerator (exact a))))
+    ((ratnum? a) (sys:LOAD a 0))
+    (else a)))
+
+(define (denominator x)
+  (cond
+    ((inexact? x) (inexact (denominator (exact x))))
+    ((ratnum? x) (sys:LOAD x 1))
+    (else 1)))
 (define (number? x)
   (or (fixnum? x) (flonum? x) (bignum? x) (ratnum? x) (compnum? x)))
 (define complex? number?)
