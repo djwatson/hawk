@@ -744,7 +744,7 @@
                                                                    (go cdr-pat depth acc))))))
 
                                             (define (syntax-check pattern template) ; pattern * template -> undefined
-                                              (let ((pattern-variables (pattern-variables pattern))
+                                              (let ((pattern-variables (pattern-variables (cdr pattern)))
                                                     (template-variables
                                                        (pattern-variables template)))
                                                 (for-each (lambda (var-depth-in-template)
@@ -752,8 +752,8 @@
                                                               (let ((var-depth-in-pattern
                                                                        (assq var pattern-variables)))
                                                                 (when var-depth-in-pattern
-                                                                  (unless (= (cdr var-depth-in-template)
-                                                                             (cdr var-depth-in-pattern))
+                                                                  (when (< (cdr var-depth-in-template)
+                                                                           (cdr var-depth-in-pattern))
                                                                     (error "syntax-rules: malformed rule"
                                                                            `(,pattern ,template)
                                                                            (unwrap-syntax (car var-depth-in-template))))))))
@@ -857,7 +857,7 @@
                                                                                     (cdr form)))))
                                                              acc)))))
 
-                                            (define (rewrite-template template subst) ; template * ((var . obj)) -> obj
+                                            (define (rewrite-template template subst pattern-variable-depths) ; template * ((var . obj)) -> obj
                                                 (let rewrite ((template template))
                                                   (case-pattern template
                                                               ((variable-pattern var)
@@ -872,9 +872,15 @@
                                                                (let ((vars-in-templ
                                                                         (map car
                                                                              (pattern-variables rep-templ))))
-                                                                 (let ((vars-to-unroll
+                                                                  (let ((vars-to-unroll
                                                                           (filter (lambda (var)
-                                                                                    (assq var subst))
+                                                                                    (and (assq var subst)
+                                                                                         (cond
+                                                                                           ((assq var pattern-variable-depths)
+                                                                                            =>
+                                                                                            (lambda (var-depth)
+                                                                                              (> (cdr var-depth) 0)))
+                                                                                           (else #f))))
                                                                                   vars-in-templ)))
                                                                    (let ((vals-to-unroll
                                                                             (map (lambda (var)
@@ -888,11 +894,25 @@
                                                                                             vars-to-unroll
                                                                                             vals))
                                                                                      vals-to-unroll)))
+                                                                       (let ((base-subst
+                                                                               (filter (lambda (var-obj)
+                                                                                         (not (memq (car var-obj)
+                                                                                                    vars-to-unroll)))
+                                                                                       subst))
+                                                                             (pattern-variable-depths
+                                                                               (map (lambda (var-depth)
+                                                                                      (if (memq (car var-depth)
+                                                                                                vars-to-unroll)
+                                                                                          (cons (car var-depth)
+                                                                                                (- (cdr var-depth) 1))
+                                                                                          var-depth))
+                                                                                    pattern-variable-depths)))
                                                                        (append (map (lambda (subst)
                                                                                       (rewrite-template rep-templ
-                                                                                                        subst))
+                                                                                                        (append subst base-subst)
+                                                                                                        pattern-variable-depths))
                                                                                     new-substs)
-                                                                               (rewrite succ-templ)))))))
+                                                                               (rewrite succ-templ))))))))
                                                               ((pair-pattern car-templ cdr-templ)
                                                                (cons (rewrite car-templ)
                                                                      (rewrite cdr-templ))))))
@@ -904,9 +924,10 @@
                                                     (let ((pattern (car rule))
                                                           (template (cadr rule)))
                                                       (syntax-check pattern template)
-                                                      (let ((subst (pattern-match pattern form)))
+                                                      (let ((subst (pattern-match (cdr pattern) (cdr form)))
+                                                            (pattern-variables (pattern-variables (cdr pattern))))
                                                         (if subst
-                                                            (rewrite-template template subst)
+                                                            (rewrite-template template subst pattern-variables)
                                                             (loop (cdr rules)))))))))))
 
                   (install-builtin! 'let-syntax
