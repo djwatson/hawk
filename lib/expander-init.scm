@@ -8,7 +8,7 @@
         EQ
         LTE
         GTE
-        NUM_EQ
+        NUMEQ
         EQV
         QUOTIENT
         GUARD

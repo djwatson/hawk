@@ -107,8 +107,8 @@
     (rest (comparer (lambda (a b) (sys:GTE a b)) rest))))
 (define =
   (case-lambda
-    ((a b) (sys:EQV a b))
-    (rest (comparer (lambda (a b) (sys:EQV a b)) rest))))
+    ((a b) (sys:NUMEQ a b))
+    (rest (comparer (lambda (a b) (sys:NUMEQ a b)) rest))))
 
 (define (eq? a b) (sys:EQ a b))
 
