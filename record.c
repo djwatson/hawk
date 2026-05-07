@@ -584,6 +584,7 @@ static uint8_t foreign_ir_result_type(foreign_type type) {
 }
 
 static bool normalize_numeric_cmp_inputs(vm_state *state, slot *v1, slot *v2,
+                                         gc_obj raw_v1, gc_obj raw_v2,
                                          bool require_numeric) {
   auto t = record_current_trace(state);
   auto t1 = get_slot_type(t, *v1);
@@ -596,7 +597,16 @@ static bool normalize_numeric_cmp_inputs(vm_state *state, slot *v1, slot *v2,
     }
     return false;
   }
-  if (t1 == FLONUM_TAG || t2 == FLONUM_TAG) {
+  if (t1 != t2) {
+    if ((t1 == FLONUM_TAG && numeric_fixnum_floatable_wlop(raw_v2)) ||
+        (t2 == FLONUM_TAG && numeric_fixnum_floatable_wlop(raw_v1))) {
+      *v1 = convert_to_flonum(state, *v1);
+      *v2 = convert_to_flonum(state, *v2);
+      return true;
+    }
+    return false;
+  }
+  if (t1 == FLONUM_TAG) {
     *v1 = convert_to_flonum(state, *v1);
     *v2 = convert_to_flonum(state, *v2);
   }
@@ -679,18 +689,11 @@ static slot record_foreign_arg(vm_state *state, gc_obj *stack, uint8_t pos,
                                      slot v1, slot v2, bool *taken) {          \
     auto lhs = stack[instr.v1];                                                \
     auto rhs = stack[instr.v2];                                                \
-    bool res;                                                                  \
-    if (is_flonum(lhs) || is_flonum(rhs)) {                                    \
-      res = numeric_to_double(lhs) cmp_op numeric_to_double(rhs);              \
-    } else if (is_fixnum(lhs) && is_fixnum(rhs)) {                             \
-      res = to_fixnum(lhs) cmp_op to_fixnum(rhs);                              \
-    } else if ((is_fixnum(lhs) || is_bignum(lhs)) &&                           \
-               (is_fixnum(rhs) || is_bignum(rhs))) {                           \
-      res = (numeric_exact_compare(lhs, rhs) cmp_op 0);                        \
-    } else {                                                                   \
-      abort();                                                                 \
-    }                                                                          \
-    bool fast_numeric = normalize_numeric_cmp_inputs(state, &v1, &v2, false);  \
+    bool ordered;                                                              \
+    int cmp = numeric_real_compare(lhs, rhs, &ordered);                        \
+    bool res = ordered && (cmp cmp_op 0);                                      \
+    bool fast_numeric =                                                        \
+        normalize_numeric_cmp_inputs(state, &v1, &v2, lhs, rhs, false);        \
                                                                                \
     *taken = res;                                                              \
     if (fast_numeric) {                                                        \
@@ -717,7 +720,8 @@ static ir_ins emit_math_cmp_eq(vm_state *state, bc instr, gc_obj *stack,
   auto t = record_current_trace(state);
   bool res = numeq ? numeric_eqv(lhs, rhs)
                    : (eqv ? obj_jeqv(lhs, rhs) : lhs.value == rhs.value);
-  bool fast_numeric = normalize_numeric_cmp_inputs(state, &v1, &v2, false);
+  bool fast_numeric =
+      normalize_numeric_cmp_inputs(state, &v1, &v2, lhs, rhs, false);
   *taken = res;
   bool lhs_numeric = is_fixnum(lhs) || is_flonum(lhs) || is_bignum(lhs) ||
                      is_ratnum(lhs) || is_compnum(lhs);

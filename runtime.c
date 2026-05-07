@@ -131,10 +131,14 @@ double numeric_to_double(gc_obj v) {
 static gc_obj pow2(int64_t exponent);
 static gc_obj flonum_ratnum(double x);
 static gc_obj tag_ratnum(ratnum_s r);
+static ratnum_s get_ratnum(gc_obj v);
+static int ratnum_cmp(ratnum_s a, ratnum_s b);
 
 static gc_obj pow2(int64_t exponent) {
   gc_obj result = tag_fixnum(1);
   gc_obj base = tag_fixnum(2);
+  gc_add_root((const void *)&result, 1, 0);
+  gc_add_root((const void *)&base, 1, 0);
   while (exponent > 0) {
     if (exponent % 2 == 1) {
       result = vm_runtime_math_mul_slow(result, base);
@@ -142,6 +146,8 @@ static gc_obj pow2(int64_t exponent) {
     base = vm_runtime_math_mul_slow(base, base);
     exponent /= 2;
   }
+  gc_remove_root((const void *)&base, 0);
+  gc_remove_root((const void *)&result, 0);
   return result;
 }
 
@@ -227,29 +233,72 @@ gc_obj numeric_truncate_value(gc_obj v) {
   abort();
 }
 
-bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
-  if (is_flonum(lhs) || is_flonum(rhs)) {
-    return numeric_to_double(lhs) == numeric_to_double(rhs);
-  }
+bool numeric_fixnum_floatable_wlop(gc_obj v) {
+  return is_fixnum(v) && llabs(to_fixnum(v)) <= (INT64_C(1) << 53);
+}
+
+static int numeric_exact_real_compare(gc_obj lhs, gc_obj rhs) {
   if (is_ratnum(lhs) || is_ratnum(rhs)) {
-    if (is_ratnum(lhs) && is_ratnum(rhs)) {
-      ratnum_s *l = to_ratnum(lhs);
-      ratnum_s *r = to_ratnum(rhs);
-      return numeric_exact_compare(l->num, r->num) == 0 &&
-             numeric_exact_compare(l->denom, r->denom) == 0;
-    }
-    if (is_ratnum(lhs) && (is_fixnum(rhs) || is_bignum(rhs))) {
-      ratnum_s *l = to_ratnum(lhs);
-      return numeric_exact_compare(l->denom, tag_fixnum(1)) == 0 &&
-             numeric_exact_compare(l->num, rhs) == 0;
-    }
-    if (is_ratnum(rhs) && (is_fixnum(lhs) || is_bignum(lhs))) {
-      ratnum_s *r = to_ratnum(rhs);
-      return numeric_exact_compare(r->denom, tag_fixnum(1)) == 0 &&
-             numeric_exact_compare(r->num, lhs) == 0;
-    }
+    ratnum_s l = get_ratnum(lhs);
+    ratnum_s r = get_ratnum(rhs);
+    return ratnum_cmp(l, r);
+  }
+  if ((is_fixnum(lhs) || is_bignum(lhs)) &&
+      (is_fixnum(rhs) || is_bignum(rhs))) {
+    return numeric_exact_compare(lhs, rhs);
+  }
+  abort();
+}
+
+// GC: may allocate via numeric_exact_value.
+int numeric_real_compare(gc_obj lhs, gc_obj rhs, bool *ordered) {
+  *ordered = true;
+  if (is_compnum(lhs) || is_compnum(rhs)) {
     abort();
   }
+
+  if (is_flonum(lhs) || is_flonum(rhs)) {
+    double l = is_flonum(lhs) ? to_flonum(lhs)->x : 0.0;
+    double r = is_flonum(rhs) ? to_flonum(rhs)->x : 0.0;
+    if ((is_flonum(lhs) && isnan(l)) || (is_flonum(rhs) && isnan(r))) {
+      *ordered = false;
+      return 0;
+    }
+    if (is_flonum(lhs) && is_flonum(rhs)) {
+      return (l > r) - (l < r);
+    }
+    // Chez-style fast path: compare inexactly only when the exact fixnum is
+    // represented by a double without loss. Larger exacts must exactify the
+    // flonum to preserve comparison transitivity.
+    if ((is_flonum(lhs) && numeric_fixnum_floatable_wlop(rhs)) ||
+        (is_flonum(rhs) && numeric_fixnum_floatable_wlop(lhs))) {
+      double ld = is_flonum(lhs) ? l : (double)to_fixnum(lhs);
+      double rd = is_flonum(rhs) ? r : (double)to_fixnum(rhs);
+      return (ld > rd) - (ld < rd);
+    }
+    if (is_flonum(lhs) && isinf(l)) {
+      return l < 0.0 ? -1 : 1;
+    }
+    if (is_flonum(rhs) && isinf(r)) {
+      return r < 0.0 ? 1 : -1;
+    }
+
+    gc_add_root((const void *)&rhs, 1, 0);
+    gc_obj exact_lhs = numeric_exact_value(lhs);
+    gc_add_root((const void *)&exact_lhs, 1, 0);
+    gc_obj exact_rhs = numeric_exact_value(rhs);
+    gc_add_root((const void *)&exact_rhs, 1, 0);
+    int cmp = numeric_exact_real_compare(exact_lhs, exact_rhs);
+    gc_remove_root((const void *)&exact_rhs, 0);
+    gc_remove_root((const void *)&exact_lhs, 0);
+    gc_remove_root((const void *)&rhs, 0);
+    return cmp;
+  }
+
+  return numeric_exact_real_compare(lhs, rhs);
+}
+
+bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
   if (is_compnum(lhs) || is_compnum(rhs)) {
     compnum_s *l = is_compnum(lhs) ? to_compnum(lhs) : nullptr;
     compnum_s *r = is_compnum(rhs) ? to_compnum(rhs) : nullptr;
@@ -259,14 +308,8 @@ bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
     gc_obj rimag = r ? r->imag : tag_fixnum(0);
     return numeric_eqv(lreal, rreal) && numeric_eqv(limag, rimag);
   }
-  if (is_fixnum(lhs) && is_fixnum(rhs)) {
-    return to_fixnum(lhs) == to_fixnum(rhs);
-  }
-  if ((is_fixnum(lhs) || is_bignum(lhs)) &&
-      (is_fixnum(rhs) || is_bignum(rhs))) {
-    return numeric_exact_compare(lhs, rhs) == 0;
-  }
-  abort();
+  bool ordered;
+  return numeric_real_compare(lhs, rhs, &ordered) == 0 && ordered;
 }
 
 bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
@@ -1025,8 +1068,10 @@ EXPORT gc_obj bignum_exact_integer_sqrt(gc_obj g) {
     gc_obj b1 = numeric_to_bignum_obj(v1);                                     \
     gc_add_root((const void *)&b1, 1, 0);                                      \
     gc_obj b2 = numeric_to_bignum_obj(v2);                                     \
+    gc_add_root((const void *)&b2, 1, 0);                                      \
     gc_obj res = normalize_exact_integer(                                      \
         tag_bignum(bn_##oplcname(to_bignum(b1), to_bignum(b2))));              \
+    gc_remove_root((const void *)&b2, 0);                                      \
     gc_remove_root((const void *)&b1, 0);                                      \
     gc_remove_root((const void *)&v2, 0);                                      \
     return res;                                                                \
@@ -1071,8 +1116,10 @@ gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
     gc_obj b1 = numeric_to_bignum_obj(v1);                                     \
     gc_add_root((const void *)&b1, 1, 0);                                      \
     gc_obj b2 = numeric_to_bignum_obj(v2);                                     \
+    gc_add_root((const void *)&b2, 1, 0);                                      \
     bn_divmod_result_t qr = bn_divmod(to_bignum(b1), to_bignum(b2));           \
     gc_obj res = normalize_exact_integer(tag_bignum(qr.field));                \
+    gc_remove_root((const void *)&b2, 0);                                      \
     gc_remove_root((const void *)&b1, 0);                                      \
     gc_remove_root((const void *)&v2, 0);                                      \
     return res;                                                                \
@@ -1093,26 +1140,9 @@ DEFINE_VM_RUNTIME_DIVMOD_SLOW(mod, to_fixnum(v1) % to_fixnum(v2),
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(name, op)                           \
   gc_obj vm_runtime_cmp_##name##_slow(gc_obj v1, gc_obj v2) {                  \
-    if (is_compnum(v1) || is_compnum(v2)) {                                    \
-      abort();                                                                 \
-    }                                                                          \
-    if (is_flonum(v1) || is_flonum(v2)) {                                      \
-      return (numeric_to_double(v1) op numeric_to_double(v2)) ? TRUE_REP       \
-                                                              : FALSE_REP;     \
-    }                                                                          \
-    if (is_ratnum(v1) || is_ratnum(v2)) {                                      \
-      ratnum_s r1 = get_ratnum(v1);                                            \
-      ratnum_s r2 = get_ratnum(v2);                                            \
-      return ((ratnum_cmp(r1, r2))op 0) ? TRUE_REP : FALSE_REP;                \
-    }                                                                          \
-    if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
-      return (to_fixnum(v1) op to_fixnum(v2)) ? TRUE_REP : FALSE_REP;          \
-    }                                                                          \
-    if ((is_fixnum(v1) || is_bignum(v1)) &&                                    \
-        (is_fixnum(v2) || is_bignum(v2))) {                                    \
-      return ((numeric_exact_compare(v1, v2))op 0) ? TRUE_REP : FALSE_REP;     \
-    }                                                                          \
-    abort();                                                                   \
+    bool ordered;                                                              \
+    int cmp = numeric_real_compare(v1, v2, &ordered);                          \
+    return (ordered && (cmp op 0)) ? TRUE_REP : FALSE_REP;                     \
   }
 
 DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(lt, <)

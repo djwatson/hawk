@@ -42,6 +42,8 @@ double numeric_to_double(gc_obj v);
 gc_obj numeric_inexact_value(gc_obj v);
 gc_obj numeric_exact_value(gc_obj v);
 gc_obj numeric_truncate_value(gc_obj v);
+bool numeric_fixnum_floatable_wlop(gc_obj v);
+int numeric_real_compare(gc_obj lhs, gc_obj rhs, bool *ordered);
 
 gc_obj vm_runtime_math_add_slow(gc_obj v1, gc_obj v2);
 gc_obj vm_runtime_math_sub_slow(gc_obj v1, gc_obj v2);
