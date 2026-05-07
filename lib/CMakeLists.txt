@@ -28,6 +28,13 @@ file(
   GLOB LIB_IMAGE_SCHEME_INPUTS CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/*.scm
   ${CMAKE_CURRENT_SOURCE_DIR}/*.sld
+  ${CMAKE_CURRENT_SOURCE_DIR}/**/*.scm
+  ${CMAKE_CURRENT_SOURCE_DIR}/**/*.sld
+  ${CMAKE_CURRENT_SOURCE_DIR}/expand/*.scm
+  ${CMAKE_CURRENT_SOURCE_DIR}/expand/*.sld
+  ${CMAKE_CURRENT_SOURCE_DIR}/expand/init/*.scm
+  ${CMAKE_CURRENT_SOURCE_DIR}/expand/init/*.sld
+  ${CMAKE_CURRENT_SOURCE_DIR}/expand/init/scheme/*.sld
   ${CMAKE_CURRENT_SOURCE_DIR}/srfi2/srfi/*.sld
 )
 

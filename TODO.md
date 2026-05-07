@@ -4,12 +4,16 @@
 
 [x] implement eq? hashtables
 [x] use new hashtables in bc.scm, string->symbol, srfi 69, maybe symbol lookup in expander
+  * ugh its broken if we use it in expander code..... so ugh
+    * it's because SCM_GC_CNT isn't preserved across gc image and loading.  Doh.
+   
 
 [x] get macros solid - pass macro tests
 [x] get r5rs_pitfalls working
 [x] pass r5rs-tests
 
 [ ] work on r7rs-tests
+  * about halfway done
 [ ] Get all the argtype stuff calling error instead
 [ ] merge in the 'fast' VM branch?
 
