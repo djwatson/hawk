@@ -1,0 +1,5 @@
+(import (scheme r5rs))
+(display (equal? 2.0 2)) (newline)
+(display (eq? 2.0 2)) (newline)
+(display (eqv? 2.0 2)) (newline)
+(display (= 2.0 2)) (newline)

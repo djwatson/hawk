@@ -36,3 +36,16 @@ add_hawk_test(hawk_simplex simplex.scm "\\(#\\(4 1 3 2\\) #\\(0 5 7 6\\)\\)")
 add_hawk_test(hawk_perm9 perm9.scm "16329600")
 add_hawk_test(hawk_fft fft.scm "0\\.0")
 add_hawk_test(hawk_mbrot mbrot.scm "5")
+add_hawk_test(
+  hawk_r5rs_pitfall
+  r5rs_pitfall.scm
+  "Map is call/cc safe, but probably not tail recursive or inefficient\\."
+)
+set_tests_properties(hawk_r5rs_pitfall PROPERTIES FAIL_REGULAR_EXPRESSION "Failure")
+
+add_hawk_test(
+  hawk_r5rs_tests
+  r5rs-tests.scm
+  "188 out of 188 passed \\(100%\\)"
+)
+set_tests_properties(hawk_r5rs_tests PROPERTIES FAIL_REGULAR_EXPRESSION "Failure")
