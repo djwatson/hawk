@@ -75,7 +75,11 @@
     ((a b c) (* (* a b) c))
     (rest (reducer (lambda (a b) (sys:MUL a b)) 1 rest))))
 
-(define / (case-lambda ((a) (sys:DIV 1 a)) ((a b) (sys:DIV a b))))
+(define /
+  (case-lambda
+    ((a) (sys:DIV 1 a))
+    ((a b) (sys:DIV a b))
+    ((a . rest) (sys:DIV a (apply * rest)))))
 
 (define (comparer f args)
   (let loop ((args args))
@@ -83,6 +87,8 @@
         (if (f (car args) (cadr args)) (loop (cdr args)) #f)
         #t)))
 
+(define boolean=? (case-lambda ((a b) (eq? a b)) (rest (comparer eq? rest))))
+(define symbol=? (case-lambda ((a b) (eq? a b)) (rest (comparer eq? rest))))
 (define <
   (case-lambda
     ((a b) (sys:LT a b))
@@ -291,6 +297,11 @@
     (if (pair? lst) (loop (cdr lst) (cons (car lst) res)) res)))
 (define (list-ref lst n)
   (let loop ((lst lst) (n n)) (if (zero? n) (car lst) (loop (cdr lst) (- n 1)))))
+(define (list-set! list k obj)
+  (do ((list list (cdr list)) (k k (- k 1)) (obj obj))
+       ((= k 0) (set-car! list obj))))
+(define (list-copy lst)
+  (if (pair? lst) (cons (car lst) (list-copy (cdr lst))) lst))
 (define (vector-length vec) (sys:LOAD vec 0))
 (define (vector-init vec init pos left)
   (if (= left 0)
@@ -429,11 +440,36 @@
   (case-lambda
     ((a b) (<= (char->integer a) (char->integer b)))
     (rest (comparer (lambda (a b) (char<=? a b)) rest))))
-(define (char-ci=? x y) (char=? (char-downcase x) (char-downcase y)))
-(define (char-ci>? x y) (char>? (char-downcase x) (char-downcase y)))
-(define (char-ci<? x y) (char<? (char-downcase x) (char-downcase y)))
-(define (char-ci>=? x y) (char>=? (char-downcase x) (char-downcase y)))
-(define (char-ci<=? x y) (char<=? (char-downcase x) (char-downcase y)))
+(define char-ci=?
+  (case-lambda
+    ((a b)
+      (unless (and (char? a) (char? b)) (error "not chars:" a b))
+      (eq? (char-downcase a) (char-downcase b)))
+    (rest (comparer (lambda (a b) (char-ci=? a b)) rest))))
+(define char-ci>?
+  (case-lambda
+    ((a b)
+      (unless (and (char? a) (char? b)) (error "not chars:" a b))
+      (char>? (char-downcase a) (char-downcase b)))
+    (rest (comparer (lambda (a b) (char-ci>? a b)) rest))))
+(define char-ci<?
+  (case-lambda
+    ((a b)
+      (unless (and (char? a) (char? b)) (error "not chars:" a b))
+      (char<? (char-downcase a) (char-downcase b)))
+    (rest (comparer (lambda (a b) (char-ci<? a b)) rest))))
+(define char-ci>=?
+  (case-lambda
+    ((a b)
+      (unless (and (char? a) (char? b)) (error "not chars:" a b))
+      (char>=? (char-downcase a) (char-downcase b)))
+    (rest (comparer (lambda (a b) (char-ci>=? a b)) rest))))
+(define char-ci<=?
+  (case-lambda
+    ((a b)
+      (unless (and (char? a) (char? b)) (error "not chars:" a b))
+      (char<=? (char-downcase a) (char-downcase b)))
+    (rest (comparer (lambda (a b) (char-ci<=? a b)) rest))))
 (define (char-alphabetic? c)
   (let ((n (char->integer c)))
     (cond
@@ -461,6 +497,24 @@
       ((< n 97) #f) ; a
       ((> n 122) #f) ; z
       (else #t))))
+
+(define (digit-value ch)
+  (unless (char? ch) (error "not a char: " ch))
+  (let ((n (char->integer ch)))
+    (let lp ((lo 0) (hi (- (vector-length zeros) 1)))
+      (and (<= lo hi)
+           (let* ((mid (+ lo (quotient (- hi lo) 2)))
+                  (mid-zero (char->integer (vector-ref zeros mid))))
+             (cond
+               ((<= mid-zero n (+ mid-zero 9)) (- n mid-zero))
+               ((< n mid-zero) (lp lo (- mid 1)))
+               (else (lp (+ mid 1) hi))))))))
+;; Zeros taken from chibi
+(define zeros
+  #(#\0 ;DIGIT ZERO
+  ))
+
+(define char-foldcase char-downcase)
 
 ;; strings
 (define string-copy
