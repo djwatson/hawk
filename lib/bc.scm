@@ -1001,16 +1001,19 @@
     (else (walk-ir ir lower-comparisons))))
 
 ;; Functions.
-(define-record-type fun (make-fun-record code name consts const-list) fun?
+(define-record-type fun (make-fun-record code code-len name consts const-list) fun?
   (code fun-code set-fun-code!)
+  (code-len fun-code-len set-fun-code-len!)
   (name fun-name)
   (consts fun-consts)
   (const-list fun-consts-list set-fun-consts-list!))
 
 (define (make-fun name)
-  (make-fun-record '() name (make-hash-table equal?) '()))
+  (make-fun-record '() 0 name (make-hash-table equal?) '()))
 
-(define (add-op fun op) (set-fun-code! fun (cons op (fun-code fun))))
+(define (add-op fun op)
+  (set-fun-code! fun (cons op (fun-code fun)))
+  (set-fun-code-len! fun (+ 1 (fun-code-len fun))))
 
 (define func-flag-rest 1)
 
@@ -1031,10 +1034,10 @@
       (add-op fun `(IFUNC ,argc 0))
       (if (= argc values-entry-max-argc)
           (begin (add-op fun `(ARGCNT_ERROR ,argc)) (add-op fun `(RETN 1 ,(- argc 1))))
-          (let* ((offset (length (fun-code fun))) (jop (list 'JMP 0 0)))
+          (let* ((offset (fun-code-len fun)) (jop (list 'JMP 0 0)))
             (add-op fun jop)
             (add-op fun `(RETN 1 ,(- argc 1)))
-            (set-car! (cddr jop) (- (length (fun-code fun)) offset))
+            (set-car! (cddr jop) (- (fun-code-len fun) offset))
             (loop (+ argc 1)))))
     fun))
 
@@ -1126,10 +1129,11 @@
                           (if last? (add-op func `(ARGCNT_ERROR ,arg-cnt)))
                           (if last?
                               (compile lbody func new-env arg-cnt #t)
-                              (let* ((offset (length (fun-code func))) (jop (list 'JMP 0 0)))
+                              (let* ((offset (fun-code-len func))
+                                     (jop (list 'JMP 0 0)))
                                 (add-op func jop)
                                 (compile lbody func new-env arg-cnt #t)
-                                (set-car! (cddr jop) (- (length (fun-code func)) offset))))
+                                (set-car! (cddr jop) (- (fun-code-len func) offset))))
                           (loop (cdr rest))))))
                   label-funs
                   inits
@@ -1186,20 +1190,20 @@
             (let ((treg (compile test fun env top #f)))
               ;; IF uses reg as stack top metadata and reads test from data.
               (add-op fun `(IF ,top ,treg))))
-        (let* ((offset (length (fun-code fun))) (brop (list 'JMP top 0)))
+        (let* ((offset (fun-code-len fun)) (brop (list 'JMP top 0)))
           (add-op fun brop)
           (let ((then-res (compile then fun env top tail)))
             (when (and (not tail) (integer? then-res) (not (= then-res top)))
               (add-op fun `(MOV ,top ,then-res))))
           ;; If not in tail position, an extra JMP is inserted before the else
           ;; path. Account for that so the false branch lands on else code.
-          (set-car! (cddr brop) (+ (- (length (fun-code fun)) offset) (if tail 0 1))))
-        (let ((offset (length (fun-code fun))) (jop (list 'JMP top 0)))
+          (set-car! (cddr brop) (+ (- (fun-code-len fun) offset) (if tail 0 1))))
+        (let ((offset (fun-code-len fun)) (jop (list 'JMP top 0)))
           (unless tail (add-op fun jop))
           (let ((res (compile else fun env top tail)))
             (when (and (not tail) (integer? res) (not (= res top)))
               (add-op fun `(MOV ,top ,res)))
-            (set-car! (cddr jop) (- (length (fun-code fun)) offset))
+            (set-car! (cddr jop) (- (fun-code-len fun) offset))
             (if tail res top)))))
     ((ir-application? ir)
       (let ((func (ir-application-fun ir)) (args (ir-application-args ir)))
@@ -1218,7 +1222,7 @@
               (for-each (lambda (dst src) (add-op fun `(MOV ,dst ,src)))
                         (iota (length args) base)
                         (iota (length args) top))
-              (let ((jop (list 'JMP 0 (length (fun-code fun)))))
+              (let ((jop (list 'JMP 0 (fun-code-len fun))))
                 (add-op fun jop)
                 (set-cdr! loop-info (cons jop (cdr loop-info))))
               #f))
@@ -1253,7 +1257,7 @@
                       (when (and (integer? res) (not (= res reg))) (add-op fun `(MOV ,reg ,res)))))
                   inits
                   (iota (length vars) top))
-        (let ((loop-pc (length (fun-code fun))))
+        (let ((loop-pc (fun-code-len fun)))
           (add-op fun `(LOOP ,top ,(length vars)))
           (let ((body-res (compile (ir-loop-body ir) fun loop-env next-top tail)))
             (for-each (lambda (jop) (set-car! (cddr jop) (- loop-pc (caddr jop))))
@@ -1315,7 +1319,7 @@
                    (consumer-res (compile consumer fun env consumer-clo #f))
                    (producer-res (compile producer fun env producer-clo #f)))
               (when (and (integer? consumer-res) (not (= consumer-res consumer-clo)))
-                (add-op fun `(MOV ,consumer-clo ,consumer-res)))
+                  (add-op fun `(MOV ,consumer-clo ,consumer-res)))
               (when (and (integer? producer-res) (not (= producer-res producer-clo)))
                 (add-op fun `(MOV ,producer-clo ,producer-res)))
               ;; Arrange the same frame shape as a normal closure call:
