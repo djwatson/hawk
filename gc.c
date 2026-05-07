@@ -249,7 +249,10 @@ static void scan_object(gc_header *obj) {
   trace_heap_object(obj, visit_field, nullptr);
 }
 
+static uint64_t total_gc_cnt = 0;
 NOINLINE static void gc_collect(void) {
+  total_gc_cnt++;
+
   struct timespec start;
   clock_gettime(CLOCK_MONOTONIC, &start);
   profiler_set_in_gc(true);
@@ -597,6 +600,8 @@ gc_obj gc_read_image_file(char const *path) {
   free(data);
   return start;
 }
+
+EXPORT uint64_t SCM_GC_CNT() { return total_gc_cnt; }
 
 EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
   vm_trace_reset();

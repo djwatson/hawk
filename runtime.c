@@ -1100,3 +1100,5 @@ gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,
   memcpy(&tostr->str[start], &fromstr->str[fromstart], fromend - fromstart);
   return to;
 }
+
+EXPORT uint64_t SCM_HASH_OBJ(gc_obj obj) { return hashmix(obj.value); }

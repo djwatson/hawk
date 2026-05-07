@@ -1,5 +1,6 @@
 (define-library (srfi 69)
-  (import (scheme r5rs) (scheme base) (scheme complex) (scheme char))
+  (import (scheme r5rs) (scheme base) (scheme complex) (scheme char)
+          (prefix (hawk sys) sys:))
   (export make-hash-table hash-table? alist->hash-table hash-table-equivalence-function
           hash-table-hash-function hash-table-ref hash-table-ref/default hash-table-set!
           hash-table-delete! hash-table-exists? hash-table-update! hash-table-update!/default
@@ -38,7 +39,7 @@
           ((integer? obj) (modulo obj bound))
           ((string? obj) (string-hash obj bound))
           ((symbol? obj) (symbol-hash obj bound))
-          ((real? obj) (exact (modulo (+ (numerator obj) (denominator obj)) bound)))
+          ((real? obj) (string-hash (number->string obj) bound))
           ((number? obj)
             (exact (modulo (+ (hash (real-part obj)) (* 3 (hash (imag-part obj)))) bound)))
           ((char? obj) (modulo (char->integer obj) bound))
@@ -51,7 +52,11 @@
             ;(error "Unknown object in hash:" obj)
             1))))
 
-    (define hash-by-identity hash)
+    (define (%gc-count) (sys:FOREIGN_CALL '(uint64 "SCM_GC_CNT" ())))
+
+    (define (hash-by-identity obj . maybe-bound)
+      (let ((bound (if (null? maybe-bound) *default-bound* (car maybe-bound))))
+        (modulo (sys:FOREIGN_CALL '(uint64 "SCM_HASH_OBJ" (gc_obj)) obj) bound)))
 
     (define (vector-hash v bound)
       (let ((hashvalue 571) (len (vector-length v)))
@@ -65,12 +70,13 @@
     (define %hash-node-key car)
     (define %hash-node-value cdr)
 
-    (define-record-type <srfi-hash-table> (%make-hash-table size hash compare associate entries) hash-table?
+    (define-record-type <srfi-hash-table> (%make-hash-table size hash compare associate entries last-gc) hash-table?
       (size hash-table-size hash-table-set-size!)
       (hash hash-table-hash-function)
       (compare hash-table-equivalence-function)
       (associate hash-table-association-function)
-      (entries hash-table-entries hash-table-set-entries!))
+      (entries hash-table-entries hash-table-set-entries!)
+      (last-gc hash-table-last-gc hash-table-set-last-gc!))
 
     (define *default-table-size* 64)
 
@@ -101,7 +107,8 @@
                                    ((comparison val (caar alist)) (car alist))
                                    (else (associate val (cdr alist)))))))
                      associate))))
-        (%make-hash-table 0 hash comparison association (make-vector size '()))))
+        (%make-hash-table 0 hash comparison association (make-vector size '())
+                          (and (eq? comparison eq?) (%gc-count)))))
 
     (define (make-hash-table-maker comp hash)
       (lambda args (apply make-hash-table (cons comp (cons hash args)))))
@@ -111,10 +118,13 @@
       (make-hash-table-maker string-ci=? string-ci-hash))
     (define make-integer-hash-table (make-hash-table-maker = modulo))
 
+    (define (%hash-value hash key bound)
+      (exact (modulo (hash key bound) bound)))
+
     (define (%hash-table-hash hash-table key)
-      ((hash-table-hash-function hash-table)
-       key
-       (vector-length (hash-table-entries hash-table))))
+      (%hash-value (hash-table-hash-function hash-table)
+                   key
+                   (vector-length (hash-table-entries hash-table))))
 
     (define (%hash-table-find entries associate hash key)
       (associate key (vector-ref entries hash)))
@@ -123,6 +133,50 @@
       (vector-set! entries
                    hash
                    (cons (%make-hash-node key value) (vector-ref entries hash))))
+
+    (define (%hash-table-rehash! hash-table)
+      (let* ((old-entries (hash-table-entries hash-table))
+             (hash-length (vector-length old-entries))
+             (new-entries (make-vector hash-length '()))
+             (hash (hash-table-hash-function hash-table)))
+        (%hash-table-walk (lambda (node)
+                            (%hash-table-add! new-entries
+                                              (%hash-value hash (%hash-node-key node) hash-length)
+                                              (%hash-node-key node)
+                                              (%hash-node-value node)))
+                          old-entries)
+        (hash-table-set-entries! hash-table new-entries)))
+
+    (define (%eq-hash-table-rehash-if-stale! hash-table retried?)
+      (and (eq? (hash-table-equivalence-function hash-table) eq?)
+           (let ((gc-count (%gc-count)))
+             (and (not (= gc-count (hash-table-last-gc hash-table)))
+                  (if retried?
+                      (error)
+                      (begin
+                        (hash-table-set-last-gc! hash-table gc-count)
+                        (%hash-table-rehash! hash-table)
+                        #t))))))
+
+    (define (%hash-table-find/retry hash-table key retried?)
+      (let* ((entries (hash-table-entries hash-table))
+             (hash (%hash-table-hash hash-table key))
+             (node (%hash-table-find entries
+                                      (hash-table-association-function hash-table)
+                                      hash
+                                      key)))
+        (if node
+            node
+            (and (%eq-hash-table-rehash-if-stale! hash-table retried?)
+                 (%hash-table-find/retry hash-table key #t)))))
+
+    (define (%hash-table-delete/retry! hash-table key retried?)
+      (or (%hash-table-delete! (hash-table-entries hash-table)
+                               (hash-table-equivalence-function hash-table)
+                               (%hash-table-hash hash-table key)
+                               key)
+          (and (%eq-hash-table-rehash-if-stale! hash-table retried?)
+               (%hash-table-delete/retry! hash-table key #t))))
 
     (define (%hash-table-delete! entries compare hash key)
       (let ((entrylist (vector-ref entries hash)))
@@ -150,7 +204,7 @@
                    (hash (hash-table-hash-function hash-table)))
               (%hash-table-walk (lambda (node)
                                   (%hash-table-add! new-entries
-                                                    (hash (%hash-node-key node) new-length)
+                                                    (%hash-value hash (%hash-node-key node) new-length)
                                                     (%hash-node-key node)
                                                     (%hash-node-value node)))
                                 old-entries)
@@ -158,10 +212,7 @@
 
     (define (hash-table-ref hash-table key . maybe-default)
       (cond
-        ((%hash-table-find (hash-table-entries hash-table)
-                           (hash-table-association-function hash-table)
-                           (%hash-table-hash hash-table key)
-                           key) =>
+        ((%hash-table-find/retry hash-table key #f) =>
            %hash-node-value)
         ((null? maybe-default) (error "hash-table-ref: no value associated with" key))
         (else ((car maybe-default)))))
@@ -170,33 +221,28 @@
       (hash-table-ref hash-table key (lambda () default)))
 
     (define (hash-table-set! hash-table key value)
-      (let ((hash (%hash-table-hash hash-table key))
-            (entries (hash-table-entries hash-table)))
+      (let ((node (%hash-table-find/retry hash-table key #f)))
         (cond
-          ((%hash-table-find entries
-                             (hash-table-association-function hash-table)
-                             hash
-                             key) =>
-             (lambda (node) (%hash-node-set-value! node value)))
+          (node (%hash-node-set-value! node value))
           (else
-            (%hash-table-add! entries hash key value)
+            (let ((entries (hash-table-entries hash-table)))
+              (%hash-table-add! entries (%hash-table-hash hash-table key) key value))
             (hash-table-set-size! hash-table (+ 1 (hash-table-size hash-table)))
             (%hash-table-maybe-resize! hash-table)))))
 
     (define (hash-table-update! hash-table key function . maybe-default)
-      (let ((hash (%hash-table-hash hash-table key))
-            (entries (hash-table-entries hash-table)))
+      (let ((node (%hash-table-find/retry hash-table key #f)))
         (cond
-          ((%hash-table-find entries
-                             (hash-table-association-function hash-table)
-                             hash
-                             key) =>
-             (lambda (node)
-               (%hash-node-set-value! node (function (%hash-node-value node)))))
+          (node
+            (%hash-node-set-value! node (function (%hash-node-value node))))
           ((null? maybe-default)
             (error "hash-table-update!: no value exists for key" key))
           (else
-            (%hash-table-add! entries hash key (function ((car maybe-default))))
+            (let ((entries (hash-table-entries hash-table)))
+              (%hash-table-add! entries
+                                (%hash-table-hash hash-table key)
+                                key
+                                (function ((car maybe-default)))))
             (hash-table-set-size! hash-table (+ 1 (hash-table-size hash-table)))
             (%hash-table-maybe-resize! hash-table)))))
 
@@ -204,18 +250,11 @@
       (hash-table-update! hash-table key function (lambda () default)))
 
     (define (hash-table-delete! hash-table key)
-      (if (%hash-table-delete! (hash-table-entries hash-table)
-                               (hash-table-equivalence-function hash-table)
-                               (%hash-table-hash hash-table key)
-                               key)
+      (if (%hash-table-delete/retry! hash-table key #f)
           (hash-table-set-size! hash-table (- (hash-table-size hash-table) 1))))
 
     (define (hash-table-exists? hash-table key)
-      (and (%hash-table-find (hash-table-entries hash-table)
-                             (hash-table-association-function hash-table)
-                             (%hash-table-hash hash-table key)
-                             key)
-           #t))
+      (and (%hash-table-find/retry hash-table key #f) #t))
 
     (define (hash-table-walk hash-table proc)
       (%hash-table-walk (lambda (node) (proc (%hash-node-key node) (%hash-node-value node)))
