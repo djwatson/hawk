@@ -759,11 +759,13 @@
                                                             vector-body))
                                                         ((not (pair? tmp))
                                                           (let ((obj tmp)) . const-body))
-                                                        ((and (pair? (cdr pat))
-                                                              (identifier? (cadr pat))
-                                                              (identifier=? (cadr pat)
-                                                                            spec-env
-                                                                            ellipsis
+	                                                        ((and (pair? (cdr pat))
+	                                                              (identifier? (cadr pat))
+	                                                              (not (memq (cadr pat)
+	                                                                         literals))
+	                                                              (identifier=? (cadr pat)
+	                                                                            spec-env
+	                                                                            ellipsis
                                                                             ellipsis-env))
                                                           (let ((rep (car pat)) (succ (cddr pat)))
                                                             .
@@ -775,6 +777,7 @@
 
                                               (define (ellipsis? obj)
                                                 (and (identifier? obj)
+                                                     (not (memq obj literals))
                                                      (identifier=? obj
                                                                    spec-env
                                                                    ellipsis
