@@ -711,11 +711,14 @@
        (syntax-rules ()
          ((define-values formals init) (define-values-aux formals () () init))))
 
-    (define-syntax define-values-aux ; use define-syntax because letrec-syntax creates an environment
-       (syntax-rules ()
-         ((_ () new-formals ((var tmp) ...) init)
-          (begin
-            (define var (if #f #f))
+	    (define-syntax define-values-aux ; use define-syntax because letrec-syntax creates an environment
+	       (syntax-rules ()
+	         ((_ () () () init)
+	          (define dummy
+	            (call-with-values (lambda () init) (lambda () (if #f #f)))))
+	         ((_ () new-formals ((var tmp) ...) init)
+	          (begin
+	            (define var (if #f #f))
             ...
             (define dummy
               (call-with-values (lambda () init) (lambda new-formals (set! var tmp) ...)))))
