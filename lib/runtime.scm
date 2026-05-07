@@ -75,7 +75,7 @@
     ((a b c) (* (* a b) c))
     (rest (reducer (lambda (a b) (sys:MUL a b)) 1 rest))))
 
-(define / (case-lambda ((a) (sys:DIV 1.0 a)) ((a b) (sys:DIV a b))))
+(define / (case-lambda ((a) (sys:DIV 1 a)) ((a b) (sys:DIV a b))))
 
 (define (comparer f args)
   (let loop ((args args))
