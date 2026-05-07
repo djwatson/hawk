@@ -5,7 +5,7 @@
 [ ] implement eq? hashtables
 [ ] use new hashtables in bc.scm, string->symbol, srfi 69, maybe symbol lookup in expander
 
-[ ] get macros solid - pass macro tests
+[x] get macros solid - pass macro tests
 [x] get r5rs_pitfalls working
 [x] pass r5rs-tests
 
