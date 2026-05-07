@@ -621,8 +621,9 @@
                                         ;; internal definitions can see later bindings.
                                         (build-define
                                           name
-                                          (if (and (variable? name)
-                                                   (not (eq? #f (variable-library-name name))))
+                                          (if (or (toplevel-environment? env)
+                                                  (and (variable? name)
+                                                       (not (eq? #f (variable-library-name name)))))
                                               (expand expr env)
                                               expr))))))
 
