@@ -574,6 +574,8 @@ static uint8_t foreign_ir_result_type(foreign_type type) {
     return STRING_TAG;
   case FOREIGN_TYPE_GC_OBJ:
     return UNDEFINED_TAG;
+  case FOREIGN_TYPE_BOOL:
+    return LITERAL_TAG;
   default:
     abort();
   }

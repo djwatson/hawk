@@ -483,6 +483,14 @@ static void emit_ccall_arg_value(emit_state *s, trace *t, ccall_arg const *arg,
       emit_mov(s, dst_reg, src_reg);
     }
     return;
+  case FOREIGN_TYPE_BOOL:
+    if (arg->value.constant) {
+      gc_obj val = slot_gc_obj(t, arg->value);
+      emit_mov64(s, dst_reg, val.value == TRUE_REP.value ? 1 : 0);
+    } else {
+      emit_sar_constant(s, dst_reg, src_reg, 8);
+    }
+    return;
   default:
     abort();
   }
@@ -516,6 +524,11 @@ static void emit_ccall_result(emit_state *s, uint8_t dst_reg,
     if (dst_reg != RET_REG) {
       emit_mov(s, dst_reg, RET_REG);
     }
+    return;
+  case FOREIGN_TYPE_BOOL:
+    emit_and_constant(s, dst_reg, RET_REG, 0xff);
+    emit_shl_constant(s, dst_reg, dst_reg, 8);
+    emit_add_constant(s, dst_reg, dst_reg, LITERAL_TAG);
     return;
   default:
     abort();

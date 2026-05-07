@@ -12,6 +12,7 @@ typedef enum : uint8_t {
   FOREIGN_TYPE_DOUBLE,
   FOREIGN_TYPE_STRING,
   FOREIGN_TYPE_GC_OBJ,
+  FOREIGN_TYPE_BOOL,
 } foreign_type;
 
 typedef struct {
