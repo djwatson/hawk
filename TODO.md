@@ -2,19 +2,20 @@
 
 [x] fix (= 4.0 4)
 
-[ ] implement eq? hashtables
-[ ] use new hashtables in bc.scm, string->symbol, srfi 69, maybe symbol lookup in expander
+[x] implement eq? hashtables
+[x] use new hashtables in bc.scm, string->symbol, srfi 69, maybe symbol lookup in expander
 
 [x] get macros solid - pass macro tests
 [x] get r5rs_pitfalls working
 [x] pass r5rs-tests
 
-[ ] cleanup record.c
-[ ] cleanup vm.c
-
 [ ] work on r7rs-tests
 [ ] Get all the argtype stuff calling error instead
 [ ] merge in the 'fast' VM branch?
+
+[ ] cleanup record.c
+[ ] cleanup vm.c
+
 
 ## JIT backlog
 

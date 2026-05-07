@@ -11,7 +11,7 @@
                       (scheme process-context) (scheme read) (scheme repl) (scheme time)
                       (scheme write) (scheme r5rs))
              repl-env)
-(library-paths '("."))
+(library-paths '("." "lib/srfi2"))
 
 (define (eval foo env)
   ;; (display "EVAL:")

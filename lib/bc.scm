@@ -125,36 +125,6 @@
     (and (eq? (variable-name var) 'values)
          (or (eq? lib #f) (equal? lib "") (eq? lib empty-library-name)))))
 
-;; List-backed eq? table for bootstrap/runtime gaps.
-(define custom_hash_table_tag (cons #f #f))
-(define (make_custom_hash_table) (cons custom_hash_table_tag '()))
-(define (custom_hash_table? table)
-  (and (pair? table) (eq? (car table) custom_hash_table_tag)))
-(define (custom_hash_table_ref table key)
-  (cond
-    ((assq key (cdr table)) => cdr)
-    (else (error "custom-hash-table-ref: no value associated with" key))))
-(define (custom_hash_table_ref/default table key default)
-  (let ((entry (assq key (cdr table)))) (if entry (cdr entry) default)))
-(define (custom_hash_table_set! table key value)
-  (let ((entry (assq key (cdr table))))
-    (if entry
-        (set-cdr! entry value)
-        (set-cdr! table (cons (cons key value) (cdr table))))))
-(define (custom_hash_table_delete! table key)
-  (let loop ((prev table) (cur (cdr table)))
-    (cond
-      ((null? cur) #f)
-      ((eq? (caar cur) key) (set-cdr! prev (cdr cur)) #t)
-      (else (loop cur (cdr cur))))))
-(define (custom_hash_table_exists? table key) (and (assq key (cdr table)) #t))
-(define (custom_hash_table_size table) (length (cdr table)))
-(define (custom_hash_table_keys table) (map car (cdr table)))
-(define (custom_hash_table_merge! table table2)
-  (for-each (lambda (entry) (custom_hash_table_set! table (car entry) (cdr entry)))
-            (cdr table2))
-  table)
-
 ;; Inlines primitives
 ;; TODO: not flipping, also not itself inlined
 ;; TODO: types/guards
@@ -362,19 +332,17 @@
   (newline))
 
 (define (escape-analyze ir)
-  (let ((bound (make_custom_hash_table)))
+  (let ((bound (make-hash-table eq?)))
     (define (mark-escaped! var)
-      (when (custom_hash_table_exists? bound var)
-        (let ((escapes (custom_hash_table_ref bound var)))
-          (custom_hash_table_set! escapes var #t))))
+      (when (hash-table-exists? bound var)
+        (let ((escapes (hash-table-ref bound var))) (hash-table-set! escapes var #t))))
     (define (pass ir)
       (cond
         ((ir-reference? ir) (mark-escaped! (ir-reference-var ir)) ir)
         ((ir-application? ir)
           (let ((fun (ir-application-fun ir)))
             ;; Direct calls are where we'll later rewrite to label-calls.
-            (if (and (ir-reference? fun)
-                     (custom_hash_table_exists? bound (ir-reference-var fun)))
+            (if (and (ir-reference? fun) (hash-table-exists? bound (ir-reference-var fun)))
                 (set-ir-application-well-known! ir #t)
                 (pass fun))
             (for-each pass (ir-application-args ir))
@@ -382,18 +350,17 @@
         ((ir-letrec*? ir)
           (let* ((bindings (ir-letrec*-bindings ir))
                  (vars (map car bindings))
-                 (escapes (make_custom_hash_table)))
+                 (escapes (make-hash-table eq?)))
             (for-each (lambda (var)
-                        (custom_hash_table_set! escapes var #f)
-                        (custom_hash_table_set! bound var escapes))
+                        (hash-table-set! escapes var #f)
+                        (hash-table-set! bound var escapes))
                       vars)
             (for-each (lambda (binding) (pass (cadr binding))) bindings)
             (pass (ir-letrec*-body ir))
             (let* ((not-well-known
-                      (filter (lambda (binding) (custom_hash_table_ref escapes (car binding)))
-                              bindings))
+                      (filter (lambda (binding) (hash-table-ref escapes (car binding))) bindings))
                    (well-known
-                      (filter (lambda (binding) (not (custom_hash_table_ref escapes (car binding))))
+                      (filter (lambda (binding) (not (hash-table-ref escapes (car binding))))
                               bindings))
                    (groups
                       (if (null? not-well-known)
@@ -402,11 +369,11 @@
                                 (map list (cdr not-well-known))))))
               (for-each (lambda (binding)
                           (let ((var (car binding)) (init (cadr binding)))
-                            (when (and (ir-lambda? init) (not (custom_hash_table_ref escapes var)))
+                            (when (and (ir-lambda? init) (not (hash-table-ref escapes var)))
                               (set-ir-lambda-well-known! init #t))))
                         bindings)
               (set-ir-letrec*-bindings! ir groups))
-            (for-each (lambda (var) (custom_hash_table_delete! bound var)) vars)
+            (for-each (lambda (var) (hash-table-delete! bound var)) vars)
             ir))
         (else (walk-ir ir pass))))
     (pass ir)))
@@ -574,17 +541,17 @@
         (build-quote 0 #f)
         (pass (build-lexical-reference fv #t #f) body-rho)))
 
-  (define label-cache (make_custom_hash_table))
-  (define lambda-bindings (make_custom_hash_table))
-  (define lambda-self-vars (make_custom_hash_table))
-  (define lambda-rep-vars (make_custom_hash_table))
+  (define label-cache (make-hash-table eq?))
+  (define lambda-bindings (make-hash-table eq?))
+  (define lambda-self-vars (make-hash-table eq?))
+  (define lambda-rep-vars (make-hash-table eq?))
   (define (label-var var)
-    (or (custom_hash_table_ref/default label-cache var #f)
+    (or (hash-table-ref/default label-cache var #f)
        (let ((label
                 (build-variable (string->symbol (string-append (symbol->string (variable-name var))
                                                                "-label"))
                                 #f)))
-         (custom_hash_table_set! label-cache var label)
+         (hash-table-set! label-cache var label)
          label)))
 
   (define (label-name var) (variable-name (label-var var)))
@@ -734,8 +701,7 @@
           (when (and (ir-application-well-known ir)
                      (ir-reference? fun)
                      (not (ir-reference-global? fun)))
-            (let ((target
-                     (custom_hash_table_ref/default lambda-bindings (ir-reference-var fun) #f)))
+            (let ((target (hash-table-ref/default lambda-bindings (ir-reference-var fun) #f)))
               (when target
                 (when (lambda-needs-cp? target)
                   (unless (and (ir-quote? fun*) (eq? (ir-quote-datum fun*) #f))
@@ -748,8 +714,8 @@
       ((ir-lambda? ir)
         (let* ((needs-cp (lambda-needs-cp? ir))
                (cp (and needs-cp (build-variable 'cp #f)))
-               (self (custom_hash_table_ref/default lambda-self-vars ir #f))
-               (rep (custom_hash_table_ref/default lambda-rep-vars ir #f))
+               (self (hash-table-ref/default lambda-self-vars ir #f))
+               (rep (hash-table-ref/default lambda-rep-vars ir #f))
                (freevars (ir-lambda-freevars ir))
                (lambda-rho
                   (extend-rho rho
@@ -785,11 +751,11 @@
                       (for-each (lambda (binding)
                                   (let ((init (cadr binding)))
                                     (when (ir-lambda? init)
-                                      (custom_hash_table_set! lambda-bindings (car binding) init)
-                                      (custom_hash_table_set! lambda-self-vars init (car binding))
+                                      (hash-table-set! lambda-bindings (car binding) init)
+                                      (hash-table-set! lambda-self-vars init (car binding))
                                       (let ((rep (group-rep group)))
                                         (when (variable? rep)
-                                          (custom_hash_table_set! lambda-rep-vars init rep)))
+                                          (hash-table-set! lambda-rep-vars init rep)))
                                       (set-ir-lambda-freevars! init final-set))))
                                 group))
                     groups
@@ -809,15 +775,14 @@
                                   (and (group-needs-closure? group final-set)
                                        (variable? value)
                                        `(,value ,(build-primcall 'closure
-                                                                 `(,(build-quote (length final-set) #f)
-                                                                   ,(build-quote
-                                                                      (label-name (car (car group)))
-                                                                      #f)
+                                                                 `(,(build-quote (length final-set)
+                                                                                 #f)
+                                                                   ,(build-quote (label-name (car (car group)))
+                                                                                 #f)
                                                                    ,@(map (lambda (fv)
-                                                                            (closure-init-expr
-                                                                              fv
-                                                                              vars
-                                                                              body-rho))
+                                                                            (closure-init-expr fv
+                                                                                               vars
+                                                                                               body-rho))
                                                                           final-set))
                                                                  #f))))
                                 groups
@@ -829,13 +794,12 @@
                                   (if (and (group-needs-closure? group final-set) (variable? value))
                                       (filter-map (lambda (fv num)
                                                     (and (memq fv vars)
-                                                         (closure-set-expr
-                                                           value
-                                                           num
-                                                           (pass (build-lexical-reference fv
-                                                                                          #t
-                                                                                          #f)
-                                                                 body-rho))))
+                                                         (closure-set-expr value
+                                                                           num
+                                                                           (pass (build-lexical-reference fv
+                                                                                                          #t
+                                                                                                          #f)
+                                                                                 body-rho))))
                                                   final-set
                                                   (iota (length final-set) 1))
                                       '()))
@@ -849,25 +813,25 @@
                         (build-let closure-bindings
                                    (build-begin `(,@init-sets ,body) #f)
                                    (ir-letrec*-ann ir)))))
-            (for-each (lambda (var) (custom_hash_table_delete! lambda-bindings var)) vars)
+            (for-each (lambda (var) (hash-table-delete! lambda-bindings var)) vars)
             (build-letrec* label-bindings body* (ir-letrec*-ann ir)))))
       (else (walk-ir ir (lambda (child) (pass child rho))))))
   (pass ir '()))
 
 (define (uncover-free ir)
-  (let uncover-free ((ir ir) (bindings '()) (fv-info (make_custom_hash_table)))
+  (let uncover-free ((ir ir) (bindings '()) (fv-info (make-hash-table eq?)))
     (define (pass ir)
       (cond
         ((ir-reference? ir)
           (let ((var (ir-reference-var ir)))
-            (when (memq var bindings) (custom_hash_table_set! fv-info var #t))
+            (when (memq var bindings) (hash-table-set! fv-info var #t))
             ir))
         ((ir-let? ir)
           (let* ((old-bindings (ir-let-bindings ir))
                  (vars (map car old-bindings))
                  (new-bindings (map (lambda (b) `(,(car b) ,(pass (cadr b)))) old-bindings))
                  (new-body (uncover-free (ir-let-body ir) (append vars bindings) fv-info)))
-            (for key vars (custom_hash_table_delete! fv-info key))
+            (for key vars (hash-table-delete! fv-info key))
             (build-let new-bindings new-body (ir-let-ann ir))))
         ((ir-letrec*? ir)
           (let* ((old-bindings (ir-letrec*-bindings ir))
@@ -878,7 +842,7 @@
                  (cases-list (map ir-lambda-cases inits))
                  (lanns (map ir-lambda-ann inits))
                  (new-env (append vars bindings))
-                 (infos (map (lambda (_) (make_custom_hash_table)) vars))
+                 (infos (map (lambda (_) (make-hash-table eq?)) vars))
                  (new-cases
                     (map (lambda (cases info)
                            (map (lambda (clause)
@@ -893,9 +857,8 @@
                  (free-vars
                     (map (lambda (cases table)
                            (for clause cases
-                             (for key (to-proper (car clause))
-                               (custom_hash_table_delete! table key)))
-                           (custom_hash_table_keys table))
+                             (for key (to-proper (car clause)) (hash-table-delete! table key)))
+                           (hash-table-keys table))
                          new-cases
                          infos))
                  (new-bindings
@@ -907,8 +870,8 @@
                          new-cases
                          lanns
                          lranns)))
-            (for table infos (custom_hash_table_merge! fv-info table))
-            (for key vars (custom_hash_table_delete! fv-info key))
+            (for table infos (hash-table-merge! fv-info table))
+            (for key vars (hash-table-delete! fv-info key))
             (build-letrec* new-bindings new-body (ir-letrec*-ann ir))))
         (else (walk-ir ir pass))))
     (pass ir)))
@@ -1305,13 +1268,12 @@
                 ((assq label env) =>
                    (lambda (entry)
                      (add-op fun `(CONST ,top ,(add-const fun (cdr entry))))
-                     (for-each
-                       (lambda (init reg)
-                         (let ((res (compile init fun env reg #f)))
-                           (when (and (integer? res) (not (= res reg)))
-                             (add-op fun `(MOV ,reg ,res)))))
-                       (cddr args)
-                       (iota (length (cddr args)) (+ top 1)))
+                     (for-each (lambda (init reg)
+                                 (let ((res (compile init fun env reg #f)))
+                                   (when (and (integer? res) (not (= res reg)))
+                                     (add-op fun `(MOV ,reg ,res)))))
+                               (cddr args)
+                               (iota (length (cddr args)) (+ top 1)))
                      (add-op fun `(CLOSURE ,top ,cnt))
                      (finish top)))
                 (else (error "Unknown label in closure:" label)))))
@@ -1550,14 +1512,14 @@
 
 (define (collect-objects roots)
   (define canon (make-hash-table equal?))
-  (define seen (make_custom_hash_table))
+  (define seen (make-hash-table eq?))
   (define order '())
   (define (mark! c)
     (when (heap-obj? c)
       (unless (hash-table-exists? canon c) (hash-table-set! canon c c))
       (let ((k (hash-table-ref canon c)))
-        (unless (custom_hash_table_exists? seen k)
-          (custom_hash_table_set! seen k #t)
+        (unless (hash-table-exists? seen k)
+          (hash-table-set! seen k #t)
           (set! order (cons k order))
           (cond
             ((symbol? k) (mark! (symbol->string k)))
@@ -1570,7 +1532,7 @@
   (values (reverse order) canon))
 
 (define (emit-image objects canon symbol-table-value)
-  (define offs (make_custom_hash_table))
+  (define offs (make-hash-table eq?))
   (define pos 0)
   (define (pass1 type val)
     (case type
@@ -1582,7 +1544,7 @@
       ((align)
         (let ((m (modulo pos val))) (unless (= m 0) (set! pos (+ pos (- val m))))))))
 
-  (for-each (lambda (o) (custom_hash_table_set! offs o pos) (serialize-object o pass1))
+  (for-each (lambda (o) (hash-table-set! offs o pos) (serialize-object o pass1))
             objects)
 
   (let ((p (open-output-bytevector)))
@@ -1600,7 +1562,7 @@
             (if imm
                 (write-uint imm 8 p)
                 (let ((o (hash-table-ref canon val)))
-                  (write-uint (+ (custom_hash_table_ref offs o) (obj-tag o)) 8 p)))
+                  (write-uint (+ (hash-table-ref offs o) (obj-tag o)) 8 p)))
             (set! pos (+ pos 8))))
         ((align) (let loop () (unless (= 0 (modulo pos val)) (w8 0) (loop))))))
     (set! pos 0)
@@ -1647,9 +1609,11 @@
 (define (read-ir-from-file file)
   (expander-setup)
   (let ((runtime-forms (read-forms "runtime.scm"))
+        (string-symbol-forms (read-forms "string_symbol.scm"))
         (eval-forms (read-forms "eval.scm"))
         (input-forms (ensure-leading-import (read-forms file))))
     (build-begin (list (expand-program runtime-forms "")
+                       (expand-program string-symbol-forms "")
                        (expand-program eval-forms "")
                        (expand-program input-forms "BOOTSTRAP")))))
 
@@ -1701,28 +1665,28 @@
        (* 65536 (normalize-u16 data)))))
 
 (define (roots->runtime-payload roots)
-  (let ((ids (make_custom_hash_table)) (seen (make_custom_hash_table)))
+  (let ((ids (make-hash-table eq?)) (seen (make-hash-table eq?)))
     (letrec ((const->runtime
                 (lambda (c)
                   (cond
-                    ((fun? c) (vector 'fun-ref (custom_hash_table_ref ids c)))
+                    ((fun? c) (vector 'fun-ref (hash-table-ref ids c)))
                     ((const-closure? c)
-                      (vector 'closure-ref (custom_hash_table_ref ids (const-closure-fun c))))
+                      (vector 'closure-ref (hash-table-ref ids (const-closure-fun c))))
                     ((pair? c)
                       (cond
-                        ((custom_hash_table_exists? seen c) (custom_hash_table_ref seen c))
+                        ((hash-table-exists? seen c) (hash-table-ref seen c))
                         (else
                           (let ((cell (cons #f #f)))
-                            (custom_hash_table_set! seen c cell)
+                            (hash-table-set! seen c cell)
                             (set-car! cell (const->runtime (car c)))
                             (set-cdr! cell (const->runtime (cdr c)))
                             cell))))
                     ((vector? c)
                       (cond
-                        ((custom_hash_table_exists? seen c) (custom_hash_table_ref seen c))
+                        ((hash-table-exists? seen c) (hash-table-ref seen c))
                         (else
                           (let* ((len (vector-length c)) (res (make-vector len)))
-                            (custom_hash_table_set! seen c res)
+                            (hash-table-set! seen c res)
                             (do ((i 0 (+ i 1)))
                                  ((= i len) res)
                                  (vector-set! res i (const->runtime (vector-ref c i))))))))
@@ -1732,16 +1696,16 @@
                   (let* ((consts (reverse (fun-consts-list fun)))
                          (code (reverse (fun-code fun)))
                          (const-cnt (length consts)))
-                    (vector (custom_hash_table_ref ids fun)
+                    (vector (hash-table-ref ids fun)
                             (fun-name fun)
                             (map const->runtime consts)
                             (map (lambda (ins idx) (ins->word ins idx const-cnt))
                                  code
                                  (iota (length code))))))))
-      (for-each (lambda (fun i) (custom_hash_table_set! ids fun i))
+      (for-each (lambda (fun i) (hash-table-set! ids fun i))
                 roots
                 (iota (length roots)))
-      (vector (custom_hash_table_ref ids (car roots)) (map fun->runtime roots)))))
+      (vector (hash-table-ref ids (car roots)) (map fun->runtime roots)))))
 
 (define (serialize-bitcode roots)
   (let ((main (car roots)))
@@ -1749,8 +1713,7 @@
                   ((symbol-table) (build-symbol-table objects))
                   ((objects canon) (collect-objects (cons symbol-table roots)))
                   ((image offs) (emit-image objects canon symbol-table)))
-      (values image
-              (+ (custom_hash_table_ref offs (hash-table-ref canon main)) ptr-tag)))))
+      (values image (+ (hash-table-ref offs (hash-table-ref canon main)) ptr-tag)))))
 
 (define (compile-file dump-bc)
   (lambda (file)
