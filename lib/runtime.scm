@@ -777,8 +777,10 @@
 ;;; call/cc
 
 (define *here* (list #f))
+;; Due to the way sys:CALLCC works, sys:CALLCC *must* be in its own function. DOH.
+(define (call-with-current-continuation-internal thunk) (sys:CALLCC thunk))
 (define (call-with-current-continuation thunk)
-  (let* ((winds *here*) (res (sys:CALLCC thunk)))
+  (let* ((winds *here*) (res (call-with-current-continuation-internal thunk)))
     (unless (eq? *here* winds) (reroot! winds))
     res))
 
