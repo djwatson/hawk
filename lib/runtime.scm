@@ -1392,3 +1392,20 @@
     (newline eport)
     (exit -1)))
 (define *exception-handlers* (make-parameter `(,default-exception-handler)))
+
+;;;;;;;;;; delay/promise
+(define-record-type promise (%make-promise done? value) promise?
+  (done? promise-done? promise-done-set!)
+  (value promise-value promise-value-set!))
+
+(define (make-promise obj) (if (promise? obj) obj (%make-promise #t obj)))
+
+(define (force promise)
+  (unless (promise? promise) (error "force: not a promise" promise))
+  (if (promise-done? promise)
+      (promise-value promise)
+      (let ((promise* ((promise-value promise))))
+        (unless (promise-done? promise)
+          (promise-done-set! promise (promise-done? promise*))
+          (promise-value-set! promise (promise-value promise*)))
+        (force promise))))

@@ -534,8 +534,8 @@
                              (syntax-rules :::
                                (else =>)
                                ((_ key) (if #f #f))
-                               ((_ key (else expr :::)) (begin expr :::))
                                ((_ key (else => proc)) (proc key))
+                               ((_ key (else expr :::)) (begin expr :::))
                                ((_ key ((atoms :::) => proc) clause :::)
                                 (if (case-test key (atoms :::))
                                     (proc key)
