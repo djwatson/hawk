@@ -1,24 +1,50 @@
-;(define integer->char ascii->char)
-;(define char->integer char->ascii)
+(define (this-scheme-implementation-name) (string-append "boom-" "0.1"))
+
+;;; Needed for R7RS.
+(define (bitwise-not n) (- (- n) 1))
+
+(define (div x y)
+  (cond
+    ((and (exact-integer? x) (exact-integer? y) (>= x 0)) (quotient x y))
+    ((< y 0)
+      ;; x < 0, y < 0
+      (let* ((q (quotient x y)) (r (- x (* q y)))) (if (= r 0) q (+ q 1))))
+    (else
+      ;; x < 0, y > 0
+      (let* ((q (quotient x y)) (r (- x (* q y)))) (if (= r 0) q (- q 1))))))
+
+(define (mod x y)
+  (cond
+    ((and (exact-integer? x) (exact-integer? y) (>= x 0)) (remainder x y))
+    ((< y 0)
+      ;; x < 0, y < 0
+      (let* ((q (quotient x y)) (r (- x (* q y)))) (if (= r 0) 0 (- r y))))
+    (else
+      ;; x < 0, y > 0
+      (let* ((q (quotient x y)) (r (- x (* q y)))) (if (= r 0) 0 (+ r y))))))
+
+;;; End of R7RS procedures needed by this benchmark.
 
 (define open-input-file* open-input-file)
 (define (pp-expression expr port) (write expr port) (newline port))
 (define (write-returning-len obj port) (write obj port) 1)
 (define (display-returning-len obj port) (display obj port) 1)
 (define (write-word w port)
-  (write-char (integer->char (quotient w 256)) port)
-  (write-char (integer->char (modulo w 256)) port))
+  (write-char (integer->char (div w 256)) port)
+  (write-char (integer->char (mod w 256)) port))
 (define char-nul (integer->char 0))
 (define char-tab (integer->char 9))
 (define char-newline (integer->char 10))
 (define character-encoding char->integer)
 (define max-character-encoding 255)
-(define (fatal-err msg arg) (error msg arg))
+(define (fatal-err msg arg) (error #f msg arg))
 (define (scheme-global-var name) name)
 (define (scheme-global-var-ref var) (scheme-global-eval var fatal-err))
 (define (scheme-global-var-set! var val)
   (scheme-global-eval (list 'set! var (list 'quote val)) fatal-err))
-(define (scheme-global-eval expr err) `(eval ,expr)) ;; eval not needed for test
+(define (scheme-global-eval expr err)
+  ;;(eval expr)
+  (error #f "scheme-global-eval is no more"))
 (define (pinpoint-error filename line char) #t)
 (define file-path-sep #\:)
 (define file-ext-sep #\.)
@@ -176,7 +202,7 @@
   (let ((new-graph
            (set-map (lambda (x)
                       (let ((new-edges (closure (gnode-edges x))))
-                        (if (not (set-equal? new-edges (gnode-edges x))) (set! changed? #t))
+                        (unless (set-equal? new-edges (gnode-edges x)) (set! changed? #t))
                         (make-gnode (gnode-label x) new-edges)))
                     graph)))
     (if changed? (transitive-closure new-graph) new-graph)))
@@ -629,8 +655,7 @@
 (define ret-var-set (set-singleton ret-var))
 (define closure-env-var (make-temp-var 'closure-env))
 (define empty-var (make-temp-var #f))
-(define make-global-environment #f)
-(set! make-global-environment (lambda () (env-frame #f '())))
+(define make-global-environment (lambda () (env-frame #f '())))
 (define (env-frame env vars) (vector (cons vars #f) '() '() env))
 (define (env-new-var! env name source)
   (let* ((glob (not (env-parent-ref env)))
@@ -778,8 +803,10 @@
                   (cadr d)
                   (loop (cdr l))))
             (declaration-value name element default (env-parent-ref decls))))))
-(define namespace-sym (string->canonical-symbol "NAMESPACE"))
-(define-namable-string-decl namespace-sym)
+(define namespace-sym
+  (let ((s (string->canonical-symbol "NAMESPACE")))
+    (define-namable-string-decl s)
+    s))
 (define (node-parent x) (vector-ref x 1))
 (define (node-children x) (vector-ref x 2))
 (define (node-fv x) (vector-ref x 3))
@@ -1082,16 +1109,21 @@
 (define safe-sym (string->canonical-symbol "SAFE"))
 (define interrupts-enabled-sym
   (string->canonical-symbol "INTERRUPTS-ENABLED"))
-(define-flag-decl ieee-scheme-sym 'dialect)
-(define-flag-decl r4rs-scheme-sym 'dialect)
-(define-flag-decl multilisp-sym 'dialect)
-(define-boolean-decl lambda-lift-sym)
-(define-flag-decl block-sym 'compilation-strategy)
-(define-flag-decl separate-sym 'compilation-strategy)
-(define-namable-boolean-decl standard-bindings-sym)
-(define-namable-boolean-decl extended-bindings-sym)
-(define-boolean-decl safe-sym)
-(define-boolean-decl interrupts-enabled-sym)
+
+(define dummy1
+  (begin
+    (define-flag-decl ieee-scheme-sym 'dialect)
+    (define-flag-decl r4rs-scheme-sym 'dialect)
+    (define-flag-decl multilisp-sym 'dialect)
+    (define-boolean-decl lambda-lift-sym)
+    (define-flag-decl block-sym 'compilation-strategy)
+    (define-flag-decl separate-sym 'compilation-strategy)
+    (define-namable-boolean-decl standard-bindings-sym)
+    (define-namable-boolean-decl extended-bindings-sym)
+    (define-boolean-decl safe-sym)
+    (define-boolean-decl interrupts-enabled-sym)
+    #f))
+
 (define (scheme-dialect decl)
   (declaration-value 'dialect #f ieee-scheme-sym decl))
 (define (lambda-lift? decl) (declaration-value lambda-lift-sym #f #t decl))
@@ -1665,8 +1697,7 @@
             (else
               (let ((n (character-encoding c)))
                 (loop (- i 1)
-                      (cons #\_
-                            (cons (hex->char (quotient n 16)) (cons (hex->char (modulo n 16)) l))))))))
+                      (cons #\_ (cons (hex->char (div n 16)) (cons (hex->char (mod n 16)) l))))))))
         (lst->string l))))
 (define (pt-syntax-error source msg . args)
   (apply compiler-user-error
@@ -3024,24 +3055,24 @@
       (or (contains-opnd? opnd (car opnds)) (any-contains-opnd? opnd (cdr opnds)))))
 (define (make-reg num) num)
 (define (reg? x) (< x 10000))
-(define (reg-num x) (modulo x 10000))
+(define (reg-num x) (mod x 10000))
 (define (make-stk num) (+ num 10000))
-(define (stk? x) (= (quotient x 10000) 1))
-(define (stk-num x) (modulo x 10000))
+(define (stk? x) (= (div x 10000) 1))
+(define (stk-num x) (mod x 10000))
 (define (make-glo name) (+ (enter-opnd name #t) 30000))
-(define (glo? x) (= (quotient x 10000) 3))
-(define (glo-name x) (car (vector-ref *opnd-table* (modulo x 10000))))
+(define (glo? x) (= (div x 10000) 3))
+(define (glo-name x) (car (vector-ref *opnd-table* (mod x 10000))))
 (define (make-clo base index) (+ (enter-opnd base index) 40000))
-(define (clo? x) (= (quotient x 10000) 4))
-(define (clo-base x) (car (vector-ref *opnd-table* (modulo x 10000))))
-(define (clo-index x) (cdr (vector-ref *opnd-table* (modulo x 10000))))
+(define (clo? x) (= (div x 10000) 4))
+(define (clo-base x) (car (vector-ref *opnd-table* (mod x 10000))))
+(define (clo-index x) (cdr (vector-ref *opnd-table* (mod x 10000))))
 (define (make-lbl num) (+ num 20000))
-(define (lbl? x) (= (quotient x 10000) 2))
-(define (lbl-num x) (modulo x 10000))
+(define (lbl? x) (= (div x 10000) 2))
+(define (lbl-num x) (mod x 10000))
 (define label-limit 9999)
 (define (make-obj val) (+ (enter-opnd val #f) 50000))
-(define (obj? x) (= (quotient x 10000) 5))
-(define (obj-val x) (car (vector-ref *opnd-table* (modulo x 10000))))
+(define (obj? x) (= (div x 10000) 5))
+(define (obj-val x) (car (vector-ref *opnd-table* (mod x 10000))))
 (define (make-pcontext fs map) (vector fs map))
 (define (pcontext-fs x) (vector-ref x 0))
 (define (pcontext-map x) (vector-ref x 1))
@@ -3336,8 +3367,7 @@
   (for-each remove-cascade! (queue->list (bbs-bb-queue bbs))))
 (define (jump-lbl? branch)
   (let ((opnd (jump-opnd branch))) (if (lbl? opnd) (lbl-num opnd) #f)))
-(define put-poll-on-ifjump? #f)
-(set! put-poll-on-ifjump? #t)
+(define put-poll-on-ifjump? #t)
 (define (bbs-remove-dead-code! bbs)
   (let ((new-bb-queue (queue-empty)) (scan-queue (queue-empty)))
     (define (reachable ref bb)
@@ -3429,22 +3459,21 @@
       (let loop ((l l) (n 0))
         (if (pair? l)
             (loop (cdr l)
-                  (let ((x (car l)))
-                    (if (lbl? x) n (modulo (+ (* n 10000) x) hash-table-length))))
+                  (let ((x (car l))) (if (lbl? x) n (mod (+ (* n 10000) x) hash-table-length))))
             n)))
     (define (hash-bb bb)
       (let ((branch (bb-branch-instr bb)))
-        (modulo (case (gvm-instr-type branch)
-                  ((ifjump)
-                    (+ (hash-opnds (ifjump-opnds branch))
-                       (* 10 (hash-prim (ifjump-test branch)))
-                       (* 100 (frame-size (gvm-instr-frame branch)))))
-                  ((jump)
-                    (+ (hash-opnds (list (jump-opnd branch)))
-                       (* 10 (or (jump-nb-args branch) -1))
-                       (* 100 (frame-size (gvm-instr-frame branch)))))
-                  (else 0))
-                hash-table-length)))
+        (mod (case (gvm-instr-type branch)
+               ((ifjump)
+                 (+ (hash-opnds (ifjump-opnds branch))
+                    (* 10 (hash-prim (ifjump-test branch)))
+                    (* 100 (frame-size (gvm-instr-frame branch)))))
+               ((jump)
+                 (+ (hash-opnds (list (jump-opnd branch)))
+                    (* 10 (or (jump-nb-args branch) -1))
+                    (* 100 (frame-size (gvm-instr-frame branch)))))
+               (else 0))
+             hash-table-length)))
     (define (replacement-lbl-num lbl)
       (let ((x (assv lbl block-map))) (if x (cdr x) lbl)))
     (define (fix-map! bb1 bb2)
@@ -3724,7 +3753,7 @@
               (define (update-bb! bb) (replace-label-references! bb replacement-lbl-num))
               (for-each update-bb! bb-list)
               (bbs-lbl-counter-set! bbs
-                                    (make-counter (* (+ 1 (quotient (bbs-new-lbl! bbs) 1000)) 1000)
+                                    (make-counter (* (+ 1 (div (bbs-new-lbl! bbs) 1000)) 1000)
                                                   label-limit
                                                   bbs-limit-err))))))))
 (define (make-code bb gvm-instr sn) (vector bb gvm-instr sn))
@@ -4007,7 +4036,7 @@
   (let ((x (gvm-instr-comment gvm-instr)))
     (if x
         (let ((y (comment-get x 'text)))
-          (if y (begin (display " ; " port) (display y port)))))))
+          (if y (begin (display ";; " port) (display y port)))))))
 (define (write-frame frame port)
   (define (write-var var opnd sep)
     (display sep port)
@@ -4152,9 +4181,12 @@
 (define generic-sym (string->canonical-symbol "GENERIC"))
 (define fixnum-sym (string->canonical-symbol "FIXNUM"))
 (define flonum-sym (string->canonical-symbol "FLONUM"))
-(define-namable-decl generic-sym 'arith)
-(define-namable-decl fixnum-sym 'arith)
-(define-namable-decl flonum-sym 'arith)
+(define dummy2
+  (begin
+    (define-namable-decl generic-sym 'arith)
+    (define-namable-decl fixnum-sym 'arith)
+    (define-namable-decl flonum-sym 'arith)
+    #f))
 (define (arith-implementation name decls)
   (declaration-value 'arith name generic-sym decls))
 (define (cf source target-name . opts)
@@ -4185,8 +4217,7 @@
     (if (and info-port (not (eq? info-port (current-output-port))))
         (close-output-port info-port))
     result))
-(define wrap-program #f)
-(set! wrap-program (lambda (program) program))
+(define wrap-program (lambda (program) program))
 (define (compile-program2 program target-name opts module-name dest info-port)
   (define (compiler-body)
     (if (not (valid-module-name? module-name))
@@ -4623,12 +4654,9 @@
 (define (poll-merge poll other-poll)
   (make-poll (or (poll-since-entry? poll) (poll-since-entry? other-poll))
              (max (poll-delta poll) (poll-delta other-poll))))
-(define poll-period #f)
-(set! poll-period 90)
-(define poll-head #f)
-(set! poll-head 15)
-(define poll-tail #f)
-(set! poll-tail 15)
+(define poll-period 90)
+(define poll-head 15)
+(define poll-tail 15)
 (define (entry-context proc closed)
   (define (empty-vars-list n)
     (if (> n 0) (cons empty-var (empty-vars-list (- n 1))) '()))
@@ -5505,8 +5533,7 @@
         (let loop ((l (set->list x)) (r 0))
           (if (null? l)
               r
-              (let ((y (cdr (assq (car l) bins))))
-                (loop (cdr l) (+ r (quotient 1000 (* y y)))))))))
+              (let ((y (cdr (assq (car l) bins)))) (loop (cdr l) (+ r (div 1000 (* y y)))))))))
     (define (remove-free-vars! x)
       (let loop ((l (set->list x)))
         (if (not (null? l))
@@ -6126,7 +6153,7 @@
 (define (ofile.begin! filename add-obj)
   (set! ofile-add-obj add-obj)
   (set! ofile-syms (queue-empty))
-  ;  (set! *ofile-port1* (open-output-file (string-append filename ".O")))
+  ;;  (set! *ofile-port1* (open-output-file (string-append filename ".O")))
   (if ofile-asm?
       (begin
         (set! *ofile-port2* (asm-open-output-file (string-append filename ".asm")))
@@ -6136,14 +6163,15 @@
   '())
 (define (ofile.end!)
   (ofile-line "")
-  ;  (close-output-port *ofile-port1*)
+  ;;  (close-output-port *ofile-port1*)
   (if ofile-asm? (asm-close-output-port *ofile-port2*))
   '())
 (define asm-output '())
 (define asm-line '())
 (define (asm-open-output-file filename)
   (set! asm-output '())
-  (set! asm-line '()))
+  (set! asm-line '())
+  1)
 (define (asm-close-output-port asm-port) #f)
 (define (asm-newline asm-port) (asm-display char-newline asm-port))
 (define (asm-display obj asm-port)
@@ -6165,26 +6193,20 @@
 (define ofile-nl char-newline)
 (define ofile-tab char-tab)
 (define ofile-asm? '())
-(set! ofile-asm? '())
-(define ofile-asm-bits? '())
-(set! ofile-asm-bits? #f)
-(define ofile-asm-gvm? '())
-(set! ofile-asm-gvm? #f)
+(define ofile-asm-bits? #f)
+(define ofile-asm-gvm? #f)
 (define ofile-stats? '())
-(set! ofile-stats? '())
 (define ofile-add-obj '())
-(set! ofile-add-obj '())
 (define ofile-syms '())
-(set! ofile-syms '())
 (define (ofile-word n)
-  (let ((n (modulo n 65536)))
+  (let ((n (mod n 65536)))
     (if (and ofile-asm? ofile-asm-bits?)
         (let ()
           (define (ofile-display x)
             (asm-display x *ofile-port2*)
             (cond
               ((eq? x ofile-nl) (set! *ofile-pos* 0))
-              ((eq? x ofile-tab) (set! *ofile-pos* (* (quotient (+ *ofile-pos* 8) 8) 8)))
+              ((eq? x ofile-tab) (set! *ofile-pos* (* (div (+ *ofile-pos* 8) 8) 8)))
               (else (set! *ofile-pos* (+ *ofile-pos* (string-length x))))))
           (if (> *ofile-pos* 64) (ofile-display ofile-nl))
           (if (= *ofile-pos* 0) (ofile-display " .word") (ofile-display ","))
@@ -6194,8 +6216,8 @@
             (let loop ((i 5) (n n))
               (if (> n 0)
                   (begin
-                    (string-set! s i (string-ref "0123456789ABCDEF" (remainder n 16)))
-                    (loop (- i 1) (quotient n 16)))))
+                    (string-set! s i (string-ref "0123456789ABCDEF" (mod n 16)))
+                    (loop (- i 1) (div n 16)))))
             (ofile-display s))))
     '(write-word n *ofile-port1*)))
 (define (ofile-long x) (ofile-word (upper-16bits x)) (ofile-word x))
@@ -6205,7 +6227,7 @@
     (let loop ((i 0))
       (if (< i len)
           (begin (ofile-word (+ (* (ref i) 256) (ref (+ i 1)))) (loop (+ i 2)))))
-    (if (= (remainder len 2) 0) (ofile-word 0))))
+    (if (= (mod len 2) 0) (ofile-word 0))))
 (define (ofile-wsym tag name)
   (let ((n (string-pos-in-list name (queue->list ofile-syms))))
     (if n
@@ -6249,7 +6271,7 @@
     (if (< *ofile-pos* n)
         (begin
           (asm-display ofile-tab *ofile-port2*)
-          (set! *ofile-pos* (* (quotient (+ *ofile-pos* 8) 8) 8))
+          (set! *ofile-pos* (* (div (+ *ofile-pos* 8) 8) 8))
           (loop)))))
 (define (ofile-comment l)
   (if ofile-asm?
@@ -6291,9 +6313,9 @@
   (ofile-string (obj->string stat)))
 (define (upper-16bits x)
   (cond
-    ((>= x 0) (quotient x 65536))
+    ((>= x 0) (div x 65536))
     ((>= x (- 65536)) -1)
-    (else (- (quotient (+ x 65537) 65536) 2))))
+    (else (- (div (+ x 65537) 65536) 2))))
 (define type-fixnum 0)
 (define type-flonum 1)
 (define type-special 7)
@@ -6308,15 +6330,15 @@
 (define subtype-cpxnum 4)
 (define subtype-string 16)
 (define subtype-bignum 17)
-(define data-false (- 0 33686019))
-(define data-null (- 0 67372037))
+(define data-false (- 33686019))
+(define data-null (- 67372037))
 (define data-true -2)
 (define data-undef -3)
 (define data-unass -4)
 (define data-unbound -5)
 (define data-eof -6)
 (define data-max-fixnum 268435455)
-(define data-min-fixnum (- 0 268435456))
+(define data-min-fixnum (- 268435456))
 (define (make-encoding data type) (+ (* data 8) type))
 (define (obj-type obj)
   (cond
@@ -6334,10 +6356,10 @@
               (>= obj data-min-fixnum)
               (<= obj data-max-fixnum))
           'fixnum)
-        (#t
-          ;;                (and (inexact? (real-part obj))
-          ;;                     (zero? (imag-part obj))
-          ;;                     (exact? (imag-part obj)))
+        ((and (inexact? (real-part obj))
+              (zero? (imag-part obj))
+              ;;;; AZIZ: test looks wrong
+              (exact? (imag-part obj)))
           'flonum)
         (else 'subtyped)))
     ((char? obj) 'special)
@@ -6392,7 +6414,7 @@
   '())
 (define asm-code-queue '())
 (define asm-const-queue '())
-(define (asm-word x) (queue-put! asm-code-queue (modulo x 65536)))
+(define (asm-word x) (queue-put! asm-code-queue (mod x 65536)))
 (define (asm-long x) (asm-word (upper-16bits x)) (asm-word x))
 (define (asm-label lbl label-descr)
   (queue-put! asm-code-queue (cons 'label (cons lbl label-descr))))
@@ -6428,7 +6450,7 @@
   (define proc-ref-len 4)
   (define prim-ref-len 4)
   (define stat-len 4)
-  (define (padding loc n offset) (modulo (- offset loc) n))
+  (define (padding loc n offset) (mod (- offset loc) n))
   (queue-put! asm-const-queue debug-info)
   (asm-align 4 0)
   (emit-label const-lbl)
@@ -6483,8 +6505,7 @@
                      (part (cdr first)))
                 (case (car part)
                   ((label)
-                    (if (cddr part)
-                        (vector-set! (cddr part) 0 (quotient (- cur-loc header-offset) 8)))
+                    (if (cddr part) (vector-set! (cddr part) 0 (div (- cur-loc header-offset) 8)))
                     (set-car! (cdr part) cur-loc)
                     (loop rest cur-loc))
                   ((align) (loop rest (+ cur-loc (padding cur-loc (cadr part) (cddr part)))))
@@ -6517,7 +6538,7 @@
                     (compiler-internal-error "branch-tensioning-pass, unknown code list element"
                                              part)))))))
       (define (write-block start-loc end-loc start end)
-        (if (> end-loc start-loc) (ofile-word (quotient (- end-loc start-loc) 2)))
+        (if (> end-loc start-loc) (ofile-word (div (- end-loc start-loc) 2)))
         (let loop ((loc start-loc) (l start))
           (if (not (eq? l end))
               (let ((part (car l)) (rest (cdr l)))
@@ -6530,16 +6551,16 @@
                             (if (< i n) (begin (ofile-word 0) (pad (+ i 2))) (loop (+ loc n) rest)))))
                       ((brab)
                         (let ((dist (- (cadr (cddr part)) (+ loc 2))))
-                          (ofile-word (+ (cadr part) (modulo dist 256)))
+                          (ofile-word (+ (cadr part) (mod dist 256)))
                           (loop (+ loc 2) rest)))
                       ((braw)
                         (let ((dist (- (cadr (cddr part)) (+ loc 2))))
                           (ofile-word (cadr part))
-                          (ofile-word (modulo dist 65536))
+                          (ofile-word (mod dist 65536))
                           (loop (+ loc 4) rest)))
                       ((wrel)
                         (let ((dist (+ (- (cadr (cadr part)) loc) (cddr part))))
-                          (ofile-word (modulo dist 65536))
+                          (ofile-word (mod dist 65536))
                           (loop (+ loc 2) rest)))
                       ((lrel)
                         (let ((dist (+ (- (cadr (cadr part)) loc) (caddr part))))
@@ -6619,34 +6640,31 @@
 (define (make-pdec areg) (+ areg 24))
 (define (pdec? x) (and (integer? x) (>= x 32) (< x 40)))
 (define (pdec-areg x) (- x 24))
-(define (make-disp areg offset) (+ (+ areg 32) (* (modulo offset 65536) 8)))
+(define (make-disp areg offset) (+ (+ areg 32) (* (mod offset 65536) 8)))
 (define (disp? x) (and (integer? x) (>= x 40) (< x 524328)))
-(define (disp-areg x) (+ (remainder x 8) 8))
-(define (disp-offset x)
-  (- (modulo (+ (quotient (- x 40) 8) 32768) 65536) 32768))
+(define (disp-areg x) (+ (mod x 8) 8))
+(define (disp-offset x) (- (mod (+ (div (- x 40) 8) 32768) 65536) 32768))
 (define (make-disp* areg offset)
   (if (= offset 0) (make-ind areg) (make-disp areg offset)))
 (define (disp*? x) (or (ind? x) (disp? x)))
 (define (disp*-areg x) (if (ind? x) (ind-areg x) (disp-areg x)))
 (define (disp*-offset x) (if (ind? x) 0 (disp-offset x)))
 (define (make-inx areg ireg offset)
-  (+ (+ areg 524320) (* ireg 8) (* (modulo offset 256) 128)))
+  (+ (+ areg 524320) (* ireg 8) (* (mod offset 256) 128)))
 (define (inx? x) (and (integer? x) (>= x 524328) (< x 557096)))
-(define (inx-areg x) (+ (remainder (- x 524328) 8) 8))
-(define (inx-ireg x) (quotient (remainder (- x 524328) 128) 8))
-(define (inx-offset x)
-  (- (modulo (+ (quotient (- x 524328) 128) 128) 256) 128))
+(define (inx-areg x) (+ (mod (- x 524328) 8) 8))
+(define (inx-ireg x) (div (mod (- x 524328) 128) 8))
+(define (inx-offset x) (- (mod (+ (div (- x 524328) 128) 128) 256) 128))
 (define (make-freg num) (+ 557096 num))
 (define (freg? x) (and (integer? x) (>= x 557096) (< x 557104)))
 (define (freg-num x) (- x 557096))
-(define (make-pcr lbl offset)
-  (+ 557104 (+ (modulo offset 65536) (* lbl 65536))))
+(define (make-pcr lbl offset) (+ 557104 (+ (mod offset 65536) (* lbl 65536))))
 (define (pcr? x) (and (integer? x) (>= x 557104)))
-(define (pcr-lbl x) (quotient (- x 557104) 65536))
-(define (pcr-offset x) (- (modulo (- x 524336) 65536) 32768))
+(define (pcr-lbl x) (div (- x 557104) 65536))
+(define (pcr-offset x) (- (mod (- x 524336) 65536) 32768))
 (define (make-imm val) (if (< val 0) (* val 2) (- -1 (* val 2))))
 (define (imm? x) (and (integer? x) (< x 0)))
-(define (imm-val x) (if (even? x) (quotient x 2) (- (quotient x 2))))
+(define (imm-val x) (if (even? x) (div x 2) (div (bitwise-not x) 2)))
 (define (make-glob name) name)
 (define (glob? x) (symbol? x))
 (define (glob-name x) x)
@@ -6701,15 +6719,15 @@
     (if ofile-asm?
         (emit-asm "movb" ofile-tab (opnd-str opnd1) "," (opnd-str opnd2)))))
 (define (emit-moveq n opnd)
-  (asm-word (+ 28672 (+ (* (dreg-num opnd) 512) (modulo n 256))))
+  (asm-word (+ 28672 (+ (* (dreg-num opnd) 512) (mod n 256))))
   (if ofile-asm? (emit-asm "moveq" ofile-tab "#" n "," (opnd-str opnd))))
 (define (emit-movem.l opnd1 opnd2)
   (define (reg-mask reg-list flip-bits?)
     (let loop ((i 15) (bit 32768) (mask 0))
       (if (>= i 0)
           (loop (- i 1)
-                (quotient bit 2)
-                (if (memq i reg-list) (+ mask (if flip-bits? (quotient 32768 bit) bit)) mask))
+                (div bit 2)
+                (if (memq i reg-list) (+ mask (if flip-bits? (div 32768 bit) bit)) mask))
           mask)))
   (define (movem op reg-list opnd)
     (asm-word (+ op (opnd->mode/reg opnd)))
@@ -7085,7 +7103,7 @@
 (define (emit-trap2 num args)
   (asm-word (+ 20136 (areg-num table-reg)))
   (asm-word (trap-offset num))
-  (asm-align 8 (modulo (- 4 (* (length args) 2)) 8))
+  (asm-align 8 (mod (- 4 (* (length args) 2)) 8))
   (let loop ((args args))
     (if (not (null? args)) (begin (asm-word (car args)) (loop (cdr args)))))
   (if ofile-asm?
@@ -7184,7 +7202,7 @@
   (asm-word (+ 2048 (* (dreg-num opnd3) 4096) (dreg-num opnd2)))
   (opnd-ext-rd-long opnd1)
   (if ofile-asm?
-      (emit-asm "divsll"
+      (emit-asm "quotientsll"
                 ofile-tab
                 (opnd-str opnd1)
                 ","
@@ -7302,8 +7320,7 @@
     ((freg? opnd) 0)
     (else opnd)))
 (define (opnd->reg/mode opnd)
-  (let ((x (opnd->mode/reg opnd)))
-    (* (+ (* 8 (remainder x 8)) (quotient x 8)) 64)))
+  (let ((x (opnd->mode/reg opnd))) (* (+ (* 8 (mod x 8)) (div x 8)) 64)))
 (define (opnd-ext-rd-long opnd) (opnd-extension opnd #f #f))
 (define (opnd-ext-rd-word opnd) (opnd-extension opnd #f #t))
 (define (opnd-ext-wr-long opnd) (opnd-extension opnd #t #f))
@@ -7312,7 +7329,7 @@
   (cond
     ((disp? opnd) (asm-word (disp-offset opnd)))
     ((inx? opnd)
-      (asm-word (+ (+ (* (inx-ireg opnd) 4096) 2048) (modulo (inx-offset opnd) 256))))
+      (asm-word (+ (+ (* (inx-ireg opnd) 4096) 2048) (mod (inx-offset opnd) 256))))
     ((pcr? opnd) (asm-wrel (pcr-lbl opnd) (pcr-offset opnd)))
     ((imm? opnd) (if word? (asm-word (imm-val opnd)) (asm-long (imm-val opnd))))
     ((glob? opnd) (if write? (asm-set-glob opnd) (asm-ref-glob opnd)))))
@@ -7450,8 +7467,8 @@
       (case (obj-subtype obj)
         ((vector) (dump-vector obj))
         ((symbol) (dump-symbol obj))
-        ;;       ((ratnum) (dump-ratnum obj))
-        ;;       ((cpxnum) (dump-cpxnum obj))
+        ((ratnum) (dump-ratnum obj))
+        ((cpxnum) (dump-cpxnum obj))
         ((string) (dump-string obj))
         ((bignum) (dump-bignum obj))
         (else (compiler-internal-error "dump-object, can't dump object 'obj':" obj))))
@@ -7468,14 +7485,14 @@
       (if (< i len) (begin (ofile-ref (vector-ref v i)) (loop (+ i 1)))))))
 (define (dump-symbol sym)
   (compiler-internal-error "dump-symbol, can't dump SYMBOL type"))
-;;(define (dump-ratnum x)
-;;  (ofile-long (+ (* 2 1024) (* subtype-ratnum 8)))
-;;  (ofile-ref (numerator x))
-;;  (ofile-ref (denominator x)))
-;;(define (dump-cpxnum x)
-;;  (ofile-long (+ (* 2 1024) (* subtype-cpxnum 8)))
-;;  (ofile-ref (real-part x))
-;;  (ofile-ref (imag-part x)))
+(define (dump-ratnum x)
+  (ofile-long (+ (* 2 1024) (* subtype-ratnum 8)))
+  (ofile-ref (numerator x))
+  (ofile-ref (denominator x)))
+(define (dump-cpxnum x)
+  (ofile-long (+ (* 2 1024) (* subtype-cpxnum 8)))
+  (ofile-ref (real-part x))
+  (ofile-ref (imag-part x)))
 (define (dump-string s)
   (ofile-long (+ (* (+ (string-length s) 1) 256) (* subtype-string 8)))
   (let ((len (string-length s)))
@@ -7486,8 +7503,8 @@
 (define (dump-flonum x)
   (let ((bits (flonum->bits x)))
     (ofile-long flonum-prefix)
-    (ofile-long (quotient bits 4294967296))
-    (ofile-long (modulo bits 4294967296))))
+    (ofile-long (div bits 4294967296))
+    (ofile-long (mod bits 4294967296))))
 (define (flonum->inexact-exponential-format x)
   (define (exp-form-pos x y i)
     (let ((i*2 (+ i i)))
@@ -7531,7 +7548,7 @@
         ((not (< inexact--2 y))
           (set-car! z flonum--m-min)
           (set-cdr! z flonum-e-bias-plus-1))
-        (else (set-car! z (truncate (inexact->exact (* (car z) inexact-m-min))))))
+        (else (set-car! z (truncate (exact (* (car z) inexact-m-min))))))
       (set-cdr! z (- (cdr z) flonum-m-bits))
       z)))
 (define (flonum->bits x)
@@ -7545,28 +7562,22 @@
       (if (negative? a) (+ flonum-sign-bit (bits (- 0 a) b)) (bits a b)))))
 (define flonum-m-bits 52)
 (define flonum-e-bits 11)
-;; TODO
-(define flonum-sign-bit 9223372036854775)
-(define flonum-+m-min 4503599627370)
-(define flonum--m-min -4503599627370)
-;; (define flonum-sign-bit 9223372036854775808)
-;; (define flonum-+m-min 4503599627370496)
-;; (define flonum--m-min -4503599627370496)
+(define flonum-sign-bit 9223372036854775808)
+(define flonum-+m-min 4503599627370496)
+(define flonum--m-min -4503599627370496)
 (define flonum-e-bias 1023)
 (define flonum-e-bias-plus-1 1024)
 (define flonum-e-bias-minus-1 1022)
-(define inexact-m-min (exact->inexact flonum-+m-min))
-(define inexact-+2 (exact->inexact 2))
-(define inexact--2 (exact->inexact -2))
-(define inexact-+1 (exact->inexact 1))
-(define inexact-+1/2 (/ (exact->inexact 1) (exact->inexact 2)))
-(define inexact-0 (exact->inexact 0))
+(define inexact-m-min (inexact flonum-+m-min))
+(define inexact-+2 (inexact 2))
+(define inexact--2 (inexact -2))
+(define inexact-+1 (inexact 1))
+(define inexact-+1/2 (inexact (/ 1 2)))
+(define inexact-0 (inexact 0))
 (define (dump-bignum x)
   (define radix 16384)
   (define (integer->digits n)
-    (if (= n 0)
-        '()
-        (cons (remainder n radix) (integer->digits (quotient n radix)))))
+    (if (= n 0) '() (cons (mod n radix) (integer->digits (div n radix)))))
   (let ((l (integer->digits (abs x))))
     (ofile-long (+ (* (+ (length l) 1) 512) (* subtype-bignum 8)))
     (if (< x 0) (ofile-word 0) (ofile-word 1))
@@ -7610,7 +7621,7 @@
     (set! instr-source '())
     (set! entry-frame '())
     (set! exit-frame '())))
-(define label-counter (lambda () 0))
+(define label-counter '())
 (define entry-lbl-num '())
 (define var-descr-queue '())
 (define first-class-label-queue '())
@@ -7746,8 +7757,7 @@
 (define closure-alloc-trap 15)
 (define intr-trap 24)
 (define cache-line-length 16)
-(define polling-intermittency '())
-(set! polling-intermittency 10)
+(define polling-intermittency 10)
 (define (stat-clear!) (set! *stats* (cons 0 '())))
 (define (stat-dump!) (emit-stat (cdr *stats*)))
 (define (stat-add! bin count)
@@ -8294,8 +8304,8 @@
   (if (needed? loc sn) (copy-opnd-to-loc opnd loc sn)))
 (define (gen-close parms sn)
   (define (size->bytes size)
-    (* (quotient (+ (* (+ size 2) pointer-size) (- cache-line-length 1))
-                 cache-line-length)
+    (* (div (+ (* (+ size 2) pointer-size) (- cache-line-length 1))
+            cache-line-length)
        cache-line-length))
   (define (parms->bytes parms)
     (if (null? parms)
@@ -8456,7 +8466,7 @@
         (move-opnd68-to-loc68 (opnd68->true-opnd68 opnd fs) atemp1)
         (shrink-frame fs)
         (emit-move.l atemp1 dtemp1)
-        (emit-addq.w (modulo (- type-pair type-procedure) 8) dtemp1)
+        (emit-addq.w (mod (- type-pair type-procedure) 8) dtemp1)
         (emit-btst dtemp1 pair-reg)
         (emit-beq lbl)
         (move-n-to-loc68 (encode-arg-count nb-args) arg-count-reg)
@@ -8529,7 +8539,7 @@
               (if (odd? pattern)
                   (emit-move.l (make-pdec atemp1) atemp1)
                   (emit-move.l (make-ind atemp1) atemp1))
-              (loop (quotient pattern 2))))))))
+              (loop (div pattern 2))))))))
 (define (gen-set-car! opnds loc sn)
   (let ((sn-loc (if loc (sn-opnd loc sn) sn)))
     (let* ((first-opnd (car opnds))
@@ -8645,7 +8655,7 @@
              (opnd68 (opnd->opnd68 first-opnd (temp-in-opnd68 reg68) sn)))
         (make-top-of-frame-if-stk-opnd68 opnd68 sn-other-opnds)
         (if (imm? opnd68)
-            (mul-n-to-reg68 (quotient (imm-val opnd68) 8) reg68)
+            (mul-n-to-reg68 (div (imm-val opnd68) 8) reg68)
             (begin
               (emit-asr.l (make-imm 3) reg68)
               (emit-muls.l (opnd68->true-opnd68 opnd68 sn-other-opnds) reg68)))
@@ -8681,7 +8691,7 @@
              (opnd68 (opnd->opnd68 first-opnd (temp-in-opnd68 reg68) sn)))
         (make-top-of-frame-if-stk-opnd68 opnd68 sn-other-opnds)
         (if (imm? opnd68)
-            (let ((n (quotient (imm-val opnd68) 8)))
+            (let ((n (div (imm-val opnd68) 8)))
               (div-n-to-reg68 n reg68)
               (if (> (abs n) 1) (emit-and.w (make-imm -8) reg68)))
             (let ((opnd68* (opnd68->true-opnd68 opnd68 sn-other-opnds)))
@@ -8756,7 +8766,7 @@
         (emit-move.l (make-imm bits-false) false-reg)))
     (make-top-of-frame-if-stk-opnd68 opnd68 sn-first-opnd)
     (if (imm? opnd68)
-        (let ((n (quotient (imm-val opnd68) 8)))
+        (let ((n (div (imm-val opnd68) 8)))
           (if (> n 0)
               (let ((shift (power-of-2 n)))
                 (if shift
@@ -8823,7 +8833,7 @@
         (if (imm? o2)
             (let* ((reg68
                       (if (and (reg? loc) (not (eq? loc return-reg))) (reg->reg68 loc) dtemp1))
-                   (n (quotient (imm-val o2) 8))
+                   (n (div (imm-val o2) 8))
                    (emit-shft (if (> n 0) emit-lsl.l right-shift)))
               (move-opnd-to-loc68 opnd1 reg68 sn-loc)
               (let loop ((i (min (abs n) 29)))
@@ -8877,7 +8887,7 @@
       (move-opnd-to-loc68 opnd (make-pdec heap-reg) sn-loc)
       (emit-move.l null-reg (make-pdec heap-reg))
       (move-opnd68-to-loc68 heap-reg atemp2)
-      (emit-addq.l (modulo (- type-placeholder type-pair) 8) atemp2)
+      (emit-addq.l (mod (- type-placeholder type-pair) 8) atemp2)
       (emit-move.l atemp2 (make-pdec heap-reg))
       (move-opnd68-to-loc atemp2 loc sn))))
 (define (gen-subprocedure-id opnds loc sn)
@@ -8966,7 +8976,7 @@
         (move-opnd68-to-loc68 (opnd68->true-opnd68 o1 (sn-opnd68 o2 sn-loc)) reg68)
         (emit-and.w (make-imm -8) reg68)
         (if (imm? o2)
-            (let ((n (quotient (imm-val o2) 8))) (if (> n 0) (emit-addq.w n reg68)))
+            (let ((n (div (imm-val o2) 8))) (if (> n 0) (emit-addq.w n reg68)))
             (begin
               (move-opnd68-to-loc68 (opnd68->true-opnd68 o2 sn-loc) atemp1)
               (emit-exg atemp1 reg68)
@@ -9010,8 +9020,8 @@
              (bytes
                 (+ pointer-size
                    (* (vector-select kind 4 1 1 2) (+ n (if (eq? kind 'string) 1 0)))))
-             (adjust (modulo (- bytes) 8)))
-        (gen-guarantee-space (quotient (* (quotient (+ bytes (- 8 1)) 8) 8) pointer-size))
+             (adjust (mod (- bytes) 8)))
+        (gen-guarantee-space (div (* (div (+ bytes (- 8 1)) 8) 8) pointer-size))
         (if (not (= adjust 0)) (emit-subq.l adjust heap-reg))
         (if (eq? kind 'string) (emit-move.b (make-imm 0) (make-pdec heap-reg)))
         (let loop ((opnds (reverse opnds)))
@@ -9066,8 +9076,7 @@
                         (begin
                           (move-opnd68-to-loc68 (opnd68->true-opnd68 o1 sn-loc) atemp1)
                           (make-disp* atemp1
-                                      (+ (quotient (imm-val o2) (vector-select kind 2 8 8 4))
-                                         offset)))
+                                      (+ (div (imm-val o2) (vector-select kind 2 8 8 4)) offset)))
                         (begin
                           (move-opnd68-to-loc68 (opnd68->true-opnd68 o2 (sn-opnd68 o1 sn-loc))
                                                 dtemp1)
@@ -9107,8 +9116,7 @@
                         (begin
                           (move-opnd68-to-loc68 (opnd68->true-opnd68 o1 sn-third-opnd) atemp1)
                           (make-disp* atemp1
-                                      (+ (quotient (imm-val o2) (vector-select kind 2 8 8 4))
-                                         offset)))
+                                      (+ (div (imm-val o2) (vector-select kind 2 8 8 4)) offset)))
                         (begin
                           (move-opnd68-to-loc68 (opnd68->true-opnd68 o2 (sn-opnd68 o1 sn-loc))
                                                 dtemp1)
@@ -9253,7 +9261,7 @@
                 (emit-move.l (opnd68->true-opnd68 o fs) dtemp1)
                 (emit-and.w (make-imm 7) dtemp1))))
         ((= tag type-placeholder) (mask-test placeholder-reg 0))
-        (else (mask-test pair-reg (modulo (- type-pair tag) 8))))
+        (else (mask-test pair-reg (mod (- type-pair tag) 8))))
       (shrink-frame fs)
       (if not? (emit-bne lbl) (emit-beq lbl)))))
 (define (gen-subtype-test type not? opnds lbl fs)
@@ -9262,7 +9270,7 @@
       (make-top-of-frame-if-stk-opnd68 o fs)
       (if (not (eq? o dtemp1)) (emit-move.l (opnd68->true-opnd68 o fs) dtemp1))
       (emit-move.l dtemp1 atemp1)
-      (emit-addq.w (modulo (- type-pair type-subtyped) 8) dtemp1)
+      (emit-addq.w (mod (- type-pair type-subtyped) 8) dtemp1)
       (emit-btst dtemp1 pair-reg)
       (shrink-frame fs)
       (if not? (emit-bne lbl) (emit-bne cont-lbl))
@@ -9299,1102 +9307,765 @@
             ((eq? arith fixnum-sym) (if (or fix-safe? (not (safe? decls))) fix-spec proc))
             ((eq? arith flonum-sym) (if (not (safe? decls)) flo-spec proc))
             (else proc)))))))
-(define-apply "##TYPE" #f (lambda (opnds loc sn) (gen-type opnds loc sn)))
-(define-apply "##TYPE-CAST"
-              #f
-              (lambda (opnds loc sn) (gen-type-cast opnds loc sn)))
-(define-apply "##SUBTYPE"
-              #f
-              (lambda (opnds loc sn) (gen-subtype opnds loc sn)))
-(define-apply "##SUBTYPE-SET!"
-              #t
-              (lambda (opnds loc sn) (gen-subtype-set! opnds loc sn)))
-(define-ifjump "##NOT"
-               (lambda (not? opnds lbl fs) (gen-eq-test bits-false not? opnds lbl fs)))
-(define-ifjump "##NULL?"
-               (lambda (not? opnds lbl fs) (gen-eq-test bits-null not? opnds lbl fs)))
-(define-ifjump "##UNASSIGNED?"
-               (lambda (not? opnds lbl fs) (gen-eq-test bits-unass not? opnds lbl fs)))
-(define-ifjump "##UNBOUND?"
-               (lambda (not? opnds lbl fs) (gen-eq-test bits-unbound not? opnds lbl fs)))
-(define-ifjump "##EQ?"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares emit-beq emit-bne emit-beq emit-bne not? opnds lbl fs)))
-(define-ifjump "##FIXNUM?"
-               (lambda (not? opnds lbl fs) (gen-type-test type-fixnum not? opnds lbl fs)))
-(define-ifjump "##FLONUM?"
-               (lambda (not? opnds lbl fs) (gen-type-test type-flonum not? opnds lbl fs)))
-(define-ifjump "##SPECIAL?"
-               (lambda (not? opnds lbl fs) (gen-type-test type-special not? opnds lbl fs)))
-(define-ifjump "##PAIR?"
-               (lambda (not? opnds lbl fs) (gen-type-test type-pair not? opnds lbl fs)))
-(define-ifjump "##SUBTYPED?"
-               (lambda (not? opnds lbl fs) (gen-type-test type-subtyped not? opnds lbl fs)))
-(define-ifjump "##PROCEDURE?"
-               (lambda (not? opnds lbl fs) (gen-type-test type-procedure not? opnds lbl fs)))
-(define-ifjump "##PLACEHOLDER?"
-               (lambda (not? opnds lbl fs)
-                 (gen-type-test type-placeholder not? opnds lbl fs)))
-(define-ifjump "##VECTOR?"
-               (lambda (not? opnds lbl fs)
-                 (gen-subtype-test subtype-vector not? opnds lbl fs)))
-(define-ifjump "##SYMBOL?"
-               (lambda (not? opnds lbl fs)
-                 (gen-subtype-test subtype-symbol not? opnds lbl fs)))
-(define-ifjump "##RATNUM?"
-               (lambda (not? opnds lbl fs)
-                 (gen-subtype-test subtype-ratnum not? opnds lbl fs)))
-(define-ifjump "##CPXNUM?"
-               (lambda (not? opnds lbl fs)
-                 (gen-subtype-test subtype-cpxnum not? opnds lbl fs)))
-(define-ifjump "##STRING?"
-               (lambda (not? opnds lbl fs)
-                 (gen-subtype-test subtype-string not? opnds lbl fs)))
-(define-ifjump "##BIGNUM?"
-               (lambda (not? opnds lbl fs)
-                 (gen-subtype-test subtype-bignum not? opnds lbl fs)))
-(define-ifjump "##CHAR?"
-               (lambda (not? opnds lbl fs)
-                 (let ((opnd (car opnds)))
-                   (let ((o (opnd->opnd68 opnd #f fs)) (cont-lbl (new-lbl!)))
-                     (make-top-of-frame-if-stk-opnd68 o fs)
-                     (emit-move.l (opnd68->true-opnd68 o fs) dtemp1)
-                     (if not? (emit-bmi lbl) (emit-bmi cont-lbl))
-                     (emit-addq.w (modulo (- type-pair type-special) 8) dtemp1)
-                     (emit-btst dtemp1 pair-reg)
+(define dummy3
+  (begin
+    (define-apply "##TYPE" #f (lambda (opnds loc sn) (gen-type opnds loc sn)))
+    (define-apply "##TYPE-CAST"
+                  #f
+                  (lambda (opnds loc sn) (gen-type-cast opnds loc sn)))
+    (define-apply "##SUBTYPE"
+                  #f
+                  (lambda (opnds loc sn) (gen-subtype opnds loc sn)))
+    (define-apply "##SUBTYPE-SET!"
+                  #t
+                  (lambda (opnds loc sn) (gen-subtype-set! opnds loc sn)))
+    (define-ifjump "##NOT"
+                   (lambda (not? opnds lbl fs) (gen-eq-test bits-false not? opnds lbl fs)))
+    (define-ifjump "##NULL?"
+                   (lambda (not? opnds lbl fs) (gen-eq-test bits-null not? opnds lbl fs)))
+    (define-ifjump "##UNASSIGNED?"
+                   (lambda (not? opnds lbl fs) (gen-eq-test bits-unass not? opnds lbl fs)))
+    (define-ifjump "##UNBOUND?"
+                   (lambda (not? opnds lbl fs) (gen-eq-test bits-unbound not? opnds lbl fs)))
+    (define-ifjump "##EQ?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares emit-beq emit-bne emit-beq emit-bne not? opnds lbl fs)))
+    (define-ifjump "##FIXNUM?"
+                   (lambda (not? opnds lbl fs) (gen-type-test type-fixnum not? opnds lbl fs)))
+    (define-ifjump "##FLONUM?"
+                   (lambda (not? opnds lbl fs) (gen-type-test type-flonum not? opnds lbl fs)))
+    (define-ifjump "##SPECIAL?"
+                   (lambda (not? opnds lbl fs) (gen-type-test type-special not? opnds lbl fs)))
+    (define-ifjump "##PAIR?"
+                   (lambda (not? opnds lbl fs) (gen-type-test type-pair not? opnds lbl fs)))
+    (define-ifjump "##SUBTYPED?"
+                   (lambda (not? opnds lbl fs) (gen-type-test type-subtyped not? opnds lbl fs)))
+    (define-ifjump "##PROCEDURE?"
+                   (lambda (not? opnds lbl fs) (gen-type-test type-procedure not? opnds lbl fs)))
+    (define-ifjump "##PLACEHOLDER?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-type-test type-placeholder not? opnds lbl fs)))
+    (define-ifjump "##VECTOR?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-subtype-test subtype-vector not? opnds lbl fs)))
+    (define-ifjump "##SYMBOL?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-subtype-test subtype-symbol not? opnds lbl fs)))
+    (define-ifjump "##RATNUM?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-subtype-test subtype-ratnum not? opnds lbl fs)))
+    (define-ifjump "##CPXNUM?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-subtype-test subtype-cpxnum not? opnds lbl fs)))
+    (define-ifjump "##STRING?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-subtype-test subtype-string not? opnds lbl fs)))
+    (define-ifjump "##BIGNUM?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-subtype-test subtype-bignum not? opnds lbl fs)))
+    (define-ifjump "##CHAR?"
+                   (lambda (not? opnds lbl fs)
+                     (let ((opnd (car opnds)))
+                       (let ((o (opnd->opnd68 opnd #f fs)) (cont-lbl (new-lbl!)))
+                         (make-top-of-frame-if-stk-opnd68 o fs)
+                         (emit-move.l (opnd68->true-opnd68 o fs) dtemp1)
+                         (if not? (emit-bmi lbl) (emit-bmi cont-lbl))
+                         (emit-addq.w (mod (- type-pair type-special) 8) dtemp1)
+                         (emit-btst dtemp1 pair-reg)
+                         (shrink-frame fs)
+                         (if not? (emit-bne lbl) (emit-beq lbl))
+                         (emit-label cont-lbl)))))
+    (define-ifjump "##CLOSURE?"
+                   (lambda (not? opnds lbl fs)
+                     (move-opnd-to-loc68 (car opnds) atemp1 fs)
                      (shrink-frame fs)
-                     (if not? (emit-bne lbl) (emit-beq lbl))
-                     (emit-label cont-lbl)))))
-(define-ifjump "##CLOSURE?"
-               (lambda (not? opnds lbl fs)
-                 (move-opnd-to-loc68 (car opnds) atemp1 fs)
-                 (shrink-frame fs)
-                 (emit-cmp.w (make-imm 20153) (make-ind atemp1))
-                 (if not? (emit-bne lbl) (emit-beq lbl))))
-(define-ifjump "##SUBPROCEDURE?"
-               (lambda (not? opnds lbl fs)
-                 (move-opnd-to-loc68 (car opnds) atemp1 fs)
-                 (shrink-frame fs)
-                 (emit-move.w (make-pdec atemp1) dtemp1)
-                 (if not? (emit-bmi lbl) (emit-bpl lbl))))
-(define-ifjump "##RETURN-DYNAMIC-ENV-BIND?"
-               (lambda (not? opnds lbl fs)
-                 (move-opnd-to-loc68 (car opnds) atemp1 fs)
-                 (shrink-frame fs)
-                 (emit-move.w (make-disp* atemp1 -6) dtemp1)
-                 (if not? (emit-bne lbl) (emit-beq lbl))))
-(define-apply "##FIXNUM.+"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn)))
-                  (cond
-                    ((null? opnds) (copy-opnd-to-loc (make-obj '0) loc sn))
-                    ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
-                    ((or (reg? loc) (stk? loc)) (commut-oper gen-add opnds loc sn #f '() '()))
-                    (else (gen-add opnds '() loc sn #f))))))
-(define-apply "##FIXNUM.-"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn)))
-                  (gen-sub (car opnds) (cdr opnds) loc sn (any-contains-opnd? loc (cdr opnds))))))
-(define-apply "##FIXNUM.*"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn)))
-                  (cond
-                    ((null? opnds) (copy-opnd-to-loc (make-obj '1) loc sn))
-                    ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
-                    ((and (reg? loc) (not (eq? loc return-reg)))
-                      (commut-oper gen-mul opnds loc sn #f '() '()))
-                    (else (gen-mul opnds '() loc sn #f))))))
-(define-apply "##FIXNUM.QUOTIENT"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn)))
-                  (gen-div (car opnds) (cdr opnds) loc sn (any-contains-opnd? loc (cdr opnds))))))
-(define-apply "##FIXNUM.REMAINDER"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (gen-rem (car opnds) (cadr opnds) loc sn))))
-(define-apply "##FIXNUM.MODULO"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (gen-mod (car opnds) (cadr opnds) loc sn))))
-(define-apply "##FIXNUM.LOGIOR"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn)))
-                  (cond
-                    ((null? opnds) (copy-opnd-to-loc (make-obj '0) loc sn))
-                    ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
-                    ((or (reg? loc) (stk? loc)) (commut-oper gen-logior opnds loc sn #f '() '()))
-                    (else (gen-logior opnds '() loc sn #f))))))
-(define-apply "##FIXNUM.LOGXOR"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn)))
-                  (cond
-                    ((null? opnds) (copy-opnd-to-loc (make-obj '0) loc sn))
-                    ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
-                    ((or (reg? loc) (stk? loc)) (commut-oper gen-logxor opnds loc sn #f '() '()))
-                    (else (gen-logxor opnds '() loc sn #f))))))
-(define-apply "##FIXNUM.LOGAND"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn)))
-                  (cond
-                    ((null? opnds) (copy-opnd-to-loc (make-obj '-1) loc sn))
-                    ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
-                    ((or (reg? loc) (stk? loc)) (commut-oper gen-logand opnds loc sn #f '() '()))
-                    (else (gen-logand opnds '() loc sn #f))))))
-(define-apply "##FIXNUM.LOGNOT"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn)) (opnd (car opnds)))
-                  (if (and (or (reg? loc) (stk? loc)) (not (eq? loc return-reg)))
-                      (begin
-                        (copy-opnd-to-loc opnd loc sn-loc)
-                        (let ((loc68 (loc->loc68 loc #f sn)))
-                          (make-top-of-frame-if-stk-opnd68 loc68 sn)
-                          (emit-not.l (opnd68->true-opnd68 loc68 sn))
-                          (emit-and.w (make-imm -8) (opnd68->true-opnd68 loc68 sn))))
-                      (begin
-                        (move-opnd-to-loc68 opnd dtemp1 (sn-opnd loc sn))
-                        (emit-not.l dtemp1)
-                        (emit-and.w (make-imm -8) dtemp1)
-                        (move-opnd68-to-loc dtemp1 loc sn))))))
-(define-apply "##FIXNUM.ASH" #f (gen-shift emit-asr.l))
-(define-apply "##FIXNUM.LSH" #f (gen-shift emit-lsr.l))
-(define-ifjump "##FIXNUM.ZERO?"
-               (lambda (not? opnds lbl fs) (gen-eq-test 0 not? opnds lbl fs)))
-(define-ifjump "##FIXNUM.POSITIVE?"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares emit-bgt
-                               emit-ble
-                               emit-blt
-                               emit-bge
-                               not?
-                               (list (car opnds) (make-obj '0))
-                               lbl
-                               fs)))
-(define-ifjump "##FIXNUM.NEGATIVE?"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares emit-blt
-                               emit-bge
-                               emit-bgt
-                               emit-ble
-                               not?
-                               (list (car opnds) (make-obj '0))
-                               lbl
-                               fs)))
-(define-ifjump "##FIXNUM.ODD?"
-               (lambda (not? opnds lbl fs) (gen-even-test (not not?) opnds lbl fs)))
-(define-ifjump "##FIXNUM.EVEN?"
-               (lambda (not? opnds lbl fs) (gen-even-test not? opnds lbl fs)))
-(define-ifjump "##FIXNUM.="
-               (lambda (not? opnds lbl fs)
-                 (gen-compares emit-beq emit-bne emit-beq emit-bne not? opnds lbl fs)))
-(define-ifjump "##FIXNUM.<"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares emit-blt emit-bge emit-bgt emit-ble not? opnds lbl fs)))
-(define-ifjump "##FIXNUM.>"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares emit-bgt emit-ble emit-blt emit-bge not? opnds lbl fs)))
-(define-ifjump "##FIXNUM.<="
-               (lambda (not? opnds lbl fs)
-                 (gen-compares emit-ble emit-bgt emit-bge emit-blt not? opnds lbl fs)))
-(define-ifjump "##FIXNUM.>="
-               (lambda (not? opnds lbl fs)
-                 (gen-compares emit-bge emit-blt emit-ble emit-bgt not? opnds lbl fs)))
-(define-apply "##FLONUM.->FIXNUM"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn)))
-                  (move-opnd-to-loc68 (car opnds) atemp1 sn-loc)
-                  (let ((reg68
-                           (if (and (reg? loc) (not (eq? loc return-reg))) (reg->reg68 loc) dtemp1)))
-                    (emit-fmov.dx (make-disp* atemp1 (- type-flonum)) ftemp1)
-                    (emit-fmov.l ftemp1 reg68)
-                    (emit-asl.l (make-imm 3) reg68)
-                    (if (not (and (reg? loc) (not (eq? loc return-reg))))
-                        (move-opnd68-to-loc reg68 loc sn))))))
-(define-apply "##FLONUM.<-FIXNUM"
-              #f
-              (lambda (opnds loc sn)
-                (gen-guarantee-space 2)
-                (move-opnd-to-loc68 (car opnds)
-                                    dtemp1
-                                    (sn-opnds (cdr opnds) (sn-opnd loc sn)))
-                (emit-asr.l (make-imm 3) dtemp1)
-                (emit-fmov.l dtemp1 ftemp1)
-                (add-n-to-loc68 (* -2 pointer-size) heap-reg)
-                (emit-fmov.dx ftemp1 (make-ind heap-reg))
-                (let ((reg68 (if (reg? loc) (reg->reg68 loc) atemp1)))
-                  (emit-move.l heap-reg reg68)
-                  (emit-addq.l type-flonum reg68))
-                (if (not (reg? loc)) (move-opnd68-to-loc atemp1 loc sn))))
-(define-apply "##FLONUM.+"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn)))
-                  (cond
-                    ((null? opnds) (copy-opnd-to-loc (make-obj inexact-0) loc sn))
-                    ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
-                    (else (flo-oper emit-fmov.dx emit-fadd.dx opnds loc sn))))))
-(define-apply "##FLONUM.*"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn)))
-                  (cond
-                    ((null? opnds) (copy-opnd-to-loc (make-obj inexact-+1) loc sn))
-                    ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
-                    (else (flo-oper emit-fmov.dx emit-fmul.dx opnds loc sn))))))
-(define-apply "##FLONUM.-"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn)))
-                  (if (null? (cdr opnds))
-                      (flo-oper emit-fneg.dx #f opnds loc sn)
-                      (flo-oper emit-fmov.dx emit-fsub.dx opnds loc sn)))))
-(define-apply "##FLONUM./"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn)))
-                  (if (null? (cdr opnds))
-                      (flo-oper emit-fmov.dx emit-fdiv.dx (cons (make-obj inexact-+1) opnds) loc sn)
-                      (flo-oper emit-fmov.dx emit-fdiv.dx opnds loc sn)))))
-(define-apply "##FLONUM.ABS"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fabs.dx #f opnds loc sn))))
-(define-apply "##FLONUM.TRUNCATE"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fintrz.dx #f opnds loc sn))))
-(define-apply "##FLONUM.ROUND"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fint.dx #f opnds loc sn))))
-(define-apply "##FLONUM.EXP"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fetox.dx #f opnds loc sn))))
-(define-apply "##FLONUM.LOG"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-flogn.dx #f opnds loc sn))))
-(define-apply "##FLONUM.SIN"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fsin.dx #f opnds loc sn))))
-(define-apply "##FLONUM.COS"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fcos.dx #f opnds loc sn))))
-(define-apply "##FLONUM.TAN"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-ftan.dx #f opnds loc sn))))
-(define-apply "##FLONUM.ASIN"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fasin.dx #f opnds loc sn))))
-(define-apply "##FLONUM.ACOS"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-facos.dx #f opnds loc sn))))
-(define-apply "##FLONUM.ATAN"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fatan.dx #f opnds loc sn))))
-(define-apply "##FLONUM.SQRT"
-              #f
-              (lambda (opnds loc sn)
-                (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fsqrt.dx #f opnds loc sn))))
-(define-ifjump "##FLONUM.ZERO?"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares-flo emit-fbeq
-                                   emit-fbne
-                                   emit-fbeq
-                                   emit-fbne
+                     (emit-cmp.w (make-imm 20153) (make-ind atemp1))
+                     (if not? (emit-bne lbl) (emit-beq lbl))))
+    (define-ifjump "##SUBPROCEDURE?"
+                   (lambda (not? opnds lbl fs)
+                     (move-opnd-to-loc68 (car opnds) atemp1 fs)
+                     (shrink-frame fs)
+                     (emit-move.w (make-pdec atemp1) dtemp1)
+                     (if not? (emit-bmi lbl) (emit-bpl lbl))))
+    (define-ifjump "##RETURN-DYNAMIC-ENV-BIND?"
+                   (lambda (not? opnds lbl fs)
+                     (move-opnd-to-loc68 (car opnds) atemp1 fs)
+                     (shrink-frame fs)
+                     (emit-move.w (make-disp* atemp1 -6) dtemp1)
+                     (if not? (emit-bne lbl) (emit-beq lbl))))
+    (define-apply "##FIXNUM.+"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn)))
+                      (cond
+                        ((null? opnds) (copy-opnd-to-loc (make-obj '0) loc sn))
+                        ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
+                        ((or (reg? loc) (stk? loc)) (commut-oper gen-add opnds loc sn #f '() '()))
+                        (else (gen-add opnds '() loc sn #f))))))
+    (define-apply "##FIXNUM.-"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn)))
+                      (gen-sub (car opnds) (cdr opnds) loc sn (any-contains-opnd? loc (cdr opnds))))))
+    (define-apply "##FIXNUM.*"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn)))
+                      (cond
+                        ((null? opnds) (copy-opnd-to-loc (make-obj '1) loc sn))
+                        ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
+                        ((and (reg? loc) (not (eq? loc return-reg)))
+                          (commut-oper gen-mul opnds loc sn #f '() '()))
+                        (else (gen-mul opnds '() loc sn #f))))))
+    (define-apply "##FIXNUM.QUOTIENT"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn)))
+                      (gen-div (car opnds) (cdr opnds) loc sn (any-contains-opnd? loc (cdr opnds))))))
+    (define-apply "##FIXNUM.REMAINDER"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (gen-rem (car opnds) (cadr opnds) loc sn))))
+    (define-apply "##FIXNUM.MODULO"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (gen-mod (car opnds) (cadr opnds) loc sn))))
+    (define-apply "##FIXNUM.LOGIOR"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn)))
+                      (cond
+                        ((null? opnds) (copy-opnd-to-loc (make-obj '0) loc sn))
+                        ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
+                        ((or (reg? loc) (stk? loc))
+                          (commut-oper gen-logior opnds loc sn #f '() '()))
+                        (else (gen-logior opnds '() loc sn #f))))))
+    (define-apply "##FIXNUM.LOGXOR"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn)))
+                      (cond
+                        ((null? opnds) (copy-opnd-to-loc (make-obj '0) loc sn))
+                        ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
+                        ((or (reg? loc) (stk? loc))
+                          (commut-oper gen-logxor opnds loc sn #f '() '()))
+                        (else (gen-logxor opnds '() loc sn #f))))))
+    (define-apply "##FIXNUM.LOGAND"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn)))
+                      (cond
+                        ((null? opnds) (copy-opnd-to-loc (make-obj '-1) loc sn))
+                        ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
+                        ((or (reg? loc) (stk? loc))
+                          (commut-oper gen-logand opnds loc sn #f '() '()))
+                        (else (gen-logand opnds '() loc sn #f))))))
+    (define-apply "##FIXNUM.LOGNOT"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn)) (opnd (car opnds)))
+                      (if (and (or (reg? loc) (stk? loc)) (not (eq? loc return-reg)))
+                          (begin
+                            (copy-opnd-to-loc opnd loc sn-loc)
+                            (let ((loc68 (loc->loc68 loc #f sn)))
+                              (make-top-of-frame-if-stk-opnd68 loc68 sn)
+                              (emit-not.l (opnd68->true-opnd68 loc68 sn))
+                              (emit-and.w (make-imm -8) (opnd68->true-opnd68 loc68 sn))))
+                          (begin
+                            (move-opnd-to-loc68 opnd dtemp1 (sn-opnd loc sn))
+                            (emit-not.l dtemp1)
+                            (emit-and.w (make-imm -8) dtemp1)
+                            (move-opnd68-to-loc dtemp1 loc sn))))))
+    (define-apply "##FIXNUM.ASH" #f (gen-shift emit-asr.l))
+    (define-apply "##FIXNUM.LSH" #f (gen-shift emit-lsr.l))
+    (define-ifjump "##FIXNUM.ZERO?"
+                   (lambda (not? opnds lbl fs) (gen-eq-test 0 not? opnds lbl fs)))
+    (define-ifjump "##FIXNUM.POSITIVE?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares emit-bgt
+                                   emit-ble
+                                   emit-blt
+                                   emit-bge
                                    not?
-                                   (list (car opnds) (make-obj inexact-0))
+                                   (list (car opnds) (make-obj '0))
                                    lbl
                                    fs)))
-(define-ifjump "##FLONUM.NEGATIVE?"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares-flo emit-fblt
-                                   emit-fbge
-                                   emit-fbgt
-                                   emit-fble
+    (define-ifjump "##FIXNUM.NEGATIVE?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares emit-blt
+                                   emit-bge
+                                   emit-bgt
+                                   emit-ble
                                    not?
-                                   (list (car opnds) (make-obj inexact-0))
+                                   (list (car opnds) (make-obj '0))
                                    lbl
                                    fs)))
-(define-ifjump "##FLONUM.POSITIVE?"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares-flo emit-fbgt
-                                   emit-fble
-                                   emit-fblt
-                                   emit-fbge
-                                   not?
-                                   (list (car opnds) (make-obj inexact-0))
-                                   lbl
-                                   fs)))
-(define-ifjump "##FLONUM.="
-               (lambda (not? opnds lbl fs)
-                 (gen-compares-flo emit-fbeq emit-fbne emit-fbeq emit-fbne not? opnds lbl fs)))
-(define-ifjump "##FLONUM.<"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares-flo emit-fblt emit-fbge emit-fbgt emit-fble not? opnds lbl fs)))
-(define-ifjump "##FLONUM.>"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares-flo emit-fbgt emit-fble emit-fblt emit-fbge not? opnds lbl fs)))
-(define-ifjump "##FLONUM.<="
-               (lambda (not? opnds lbl fs)
-                 (gen-compares-flo emit-fble emit-fbgt emit-fbge emit-fblt not? opnds lbl fs)))
-(define-ifjump "##FLONUM.>="
-               (lambda (not? opnds lbl fs)
-                 (gen-compares-flo emit-fbge emit-fblt emit-fble emit-fbgt not? opnds lbl fs)))
-(define-ifjump "##CHAR=?"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares emit-beq emit-bne emit-beq emit-bne not? opnds lbl fs)))
-(define-ifjump "##CHAR<?"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares emit-blt emit-bge emit-bgt emit-ble not? opnds lbl fs)))
-(define-ifjump "##CHAR>?"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares emit-bgt emit-ble emit-blt emit-bge not? opnds lbl fs)))
-(define-ifjump "##CHAR<=?"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares emit-ble emit-bgt emit-bge emit-blt not? opnds lbl fs)))
-(define-ifjump "##CHAR>=?"
-               (lambda (not? opnds lbl fs)
-                 (gen-compares emit-bge emit-blt emit-ble emit-bgt not? opnds lbl fs)))
-(define-apply "##CONS" #f (lambda (opnds loc sn) (gen-cons opnds loc sn)))
-(define-apply "##SET-CAR!"
-              #t
-              (lambda (opnds loc sn) (gen-set-car! opnds loc sn)))
-(define-apply "##SET-CDR!"
-              #t
-              (lambda (opnds loc sn) (gen-set-cdr! opnds loc sn)))
-(define-apply "##CAR" #f (make-gen-apply-c...r 2))
-(define-apply "##CDR" #f (make-gen-apply-c...r 3))
-(define-apply "##CAAR" #f (make-gen-apply-c...r 4))
-(define-apply "##CADR" #f (make-gen-apply-c...r 5))
-(define-apply "##CDAR" #f (make-gen-apply-c...r 6))
-(define-apply "##CDDR" #f (make-gen-apply-c...r 7))
-(define-apply "##CAAAR" #f (make-gen-apply-c...r 8))
-(define-apply "##CAADR" #f (make-gen-apply-c...r 9))
-(define-apply "##CADAR" #f (make-gen-apply-c...r 10))
-(define-apply "##CADDR" #f (make-gen-apply-c...r 11))
-(define-apply "##CDAAR" #f (make-gen-apply-c...r 12))
-(define-apply "##CDADR" #f (make-gen-apply-c...r 13))
-(define-apply "##CDDAR" #f (make-gen-apply-c...r 14))
-(define-apply "##CDDDR" #f (make-gen-apply-c...r 15))
-(define-apply "##CAAAAR" #f (make-gen-apply-c...r 16))
-(define-apply "##CAAADR" #f (make-gen-apply-c...r 17))
-(define-apply "##CAADAR" #f (make-gen-apply-c...r 18))
-(define-apply "##CAADDR" #f (make-gen-apply-c...r 19))
-(define-apply "##CADAAR" #f (make-gen-apply-c...r 20))
-(define-apply "##CADADR" #f (make-gen-apply-c...r 21))
-(define-apply "##CADDAR" #f (make-gen-apply-c...r 22))
-(define-apply "##CADDDR" #f (make-gen-apply-c...r 23))
-(define-apply "##CDAAAR" #f (make-gen-apply-c...r 24))
-(define-apply "##CDAADR" #f (make-gen-apply-c...r 25))
-(define-apply "##CDADAR" #f (make-gen-apply-c...r 26))
-(define-apply "##CDADDR" #f (make-gen-apply-c...r 27))
-(define-apply "##CDDAAR" #f (make-gen-apply-c...r 28))
-(define-apply "##CDDADR" #f (make-gen-apply-c...r 29))
-(define-apply "##CDDDAR" #f (make-gen-apply-c...r 30))
-(define-apply "##CDDDDR" #f (make-gen-apply-c...r 31))
-(define-apply "##MAKE-CELL"
-              #f
-              (lambda (opnds loc sn) (gen-cons (list (car opnds) (make-obj '())) loc sn)))
-(define-apply "##CELL-REF" #f (make-gen-apply-c...r 2))
-(define-apply "##CELL-SET!"
-              #t
-              (lambda (opnds loc sn) (gen-set-car! opnds loc sn)))
-(define-apply "##VECTOR" #f (make-gen-vector 'vector))
-(define-apply "##VECTOR-LENGTH" #f (make-gen-vector-length 'vector))
-(define-apply "##VECTOR-REF" #f (make-gen-vector-ref 'vector))
-(define-apply "##VECTOR-SET!" #t (make-gen-vector-set! 'vector))
-(define-apply "##VECTOR-SHRINK!" #t (make-gen-vector-shrink! 'vector))
-(define-apply "##STRING" #f (make-gen-vector 'string))
-(define-apply "##STRING-LENGTH" #f (make-gen-vector-length 'string))
-(define-apply "##STRING-REF" #f (make-gen-vector-ref 'string))
-(define-apply "##STRING-SET!" #t (make-gen-vector-set! 'string))
-(define-apply "##STRING-SHRINK!" #t (make-gen-vector-shrink! 'string))
-(define-apply "##VECTOR8" #f (make-gen-vector 'vector8))
-(define-apply "##VECTOR8-LENGTH" #f (make-gen-vector-length 'vector8))
-(define-apply "##VECTOR8-REF" #f (make-gen-vector-ref 'vector8))
-(define-apply "##VECTOR8-SET!" #t (make-gen-vector-set! 'vector8))
-(define-apply "##VECTOR8-SHRINK!" #t (make-gen-vector-shrink! 'vector8))
-(define-apply "##VECTOR16" #f (make-gen-vector 'vector16))
-(define-apply "##VECTOR16-LENGTH" #f (make-gen-vector-length 'vector16))
-(define-apply "##VECTOR16-REF" #f (make-gen-vector-ref 'vector16))
-(define-apply "##VECTOR16-SET!" #t (make-gen-vector-set! 'vector16))
-(define-apply "##VECTOR16-SHRINK!" #t (make-gen-vector-shrink! 'vector16))
-(define-apply "##CLOSURE-CODE" #f (make-gen-slot-ref 1 type-procedure))
-(define-apply "##CLOSURE-REF" #f (make-gen-vector-ref 'closure))
-(define-apply "##CLOSURE-SET!" #t (make-gen-vector-set! 'closure))
-(define-apply "##SUBPROCEDURE-ID"
-              #f
-              (lambda (opnds loc sn) (gen-subprocedure-id opnds loc sn)))
-(define-apply "##SUBPROCEDURE-PARENT"
-              #f
-              (lambda (opnds loc sn) (gen-subprocedure-parent opnds loc sn)))
-(define-apply "##RETURN-FS"
-              #f
-              (lambda (opnds loc sn) (gen-return-fs opnds loc sn)))
-(define-apply "##RETURN-LINK"
-              #f
-              (lambda (opnds loc sn) (gen-return-link opnds loc sn)))
-(define-apply "##PROCEDURE-INFO"
-              #f
-              (lambda (opnds loc sn) (gen-procedure-info opnds loc sn)))
-(define-apply "##PSTATE"
-              #f
-              (lambda (opnds loc sn) (move-opnd68-to-loc pstate-reg loc sn)))
-(define-apply "##MAKE-PLACEHOLDER"
-              #f
-              (lambda (opnds loc sn) (gen-make-placeholder opnds loc sn)))
-(define-apply "##TOUCH"
-              #t
-              (lambda (opnds loc sn)
-                (let ((opnd (car opnds)))
-                  (if loc (touch-opnd-to-loc opnd loc sn) (touch-opnd-to-any-reg68 opnd sn)))))
-(def-spec "NOT" (safe "##NOT"))
-(def-spec "NULL?" (safe "##NULL?"))
-(def-spec "EQ?" (safe "##EQ?"))
-(def-spec "PAIR?" (safe "##PAIR?"))
-(def-spec "PROCEDURE?" (safe "##PROCEDURE?"))
-(def-spec "VECTOR?" (safe "##VECTOR?"))
-(def-spec "SYMBOL?" (safe "##SYMBOL?"))
-(def-spec "STRING?" (safe "##STRING?"))
-(def-spec "CHAR?" (safe "##CHAR?"))
-(def-spec "ZERO?" (safe-arith "##FIXNUM.ZERO?" "##FLONUM.ZERO?"))
-(def-spec "POSITIVE?" (safe-arith "##FIXNUM.POSITIVE?" "##FLONUM.POSITIVE?"))
-(def-spec "NEGATIVE?" (safe-arith "##FIXNUM.NEGATIVE?" "##FLONUM.NEGATIVE?"))
-(def-spec "ODD?" (safe-arith "##FIXNUM.ODD?" #f))
-(def-spec "EVEN?" (safe-arith "##FIXNUM.EVEN?" #f))
-(def-spec "+" (unsafe-arith "##FIXNUM.+" "##FLONUM.+"))
-(def-spec "*" (unsafe-arith "##FIXNUM.*" "##FLONUM.*"))
-(def-spec "-" (unsafe-arith "##FIXNUM.-" "##FLONUM.-"))
-(def-spec "/" (unsafe-arith #f "##FLONUM./"))
-(def-spec "QUOTIENT" (unsafe-arith "##FIXNUM.QUOTIENT" #f))
-(def-spec "REMAINDER" (unsafe-arith "##FIXNUM.REMAINDER" #f))
-(def-spec "MODULO" (unsafe-arith "##FIXNUM.MODULO" #f))
-(def-spec "=" (safe-arith "##FIXNUM.=" "##FLONUM.="))
-(def-spec "<" (safe-arith "##FIXNUM.<" "##FLONUM.<"))
-(def-spec ">" (safe-arith "##FIXNUM.>" "##FLONUM.>"))
-(def-spec "<=" (safe-arith "##FIXNUM.<=" "##FLONUM.<="))
-(def-spec ">=" (safe-arith "##FIXNUM.>=" "##FLONUM.>="))
-(def-spec "ABS" (unsafe-arith #f "##FLONUM.ABS"))
-(def-spec "TRUNCATE" (unsafe-arith #f "##FLONUM.TRUNCATE"))
-(def-spec "EXP" (unsafe-arith #f "##FLONUM.EXP"))
-(def-spec "LOG" (unsafe-arith #f "##FLONUM.LOG"))
-(def-spec "SIN" (unsafe-arith #f "##FLONUM.SIN"))
-(def-spec "COS" (unsafe-arith #f "##FLONUM.COS"))
-(def-spec "TAN" (unsafe-arith #f "##FLONUM.TAN"))
-(def-spec "ASIN" (unsafe-arith #f "##FLONUM.ASIN"))
-(def-spec "ACOS" (unsafe-arith #f "##FLONUM.ACOS"))
-(def-spec "ATAN" (unsafe-arith #f "##FLONUM.ATAN"))
-(def-spec "SQRT" (unsafe-arith #f "##FLONUM.SQRT"))
-(def-spec "CHAR=?" (safe "##CHAR=?"))
-(def-spec "CHAR<?" (safe "##CHAR<?"))
-(def-spec "CHAR>?" (safe "##CHAR>?"))
-(def-spec "CHAR<=?" (safe "##CHAR<=?"))
-(def-spec "CHAR>=?" (safe "##CHAR>=?"))
-(def-spec "CONS" (safe "##CONS"))
-(def-spec "SET-CAR!" (unsafe "##SET-CAR!"))
-(def-spec "SET-CDR!" (unsafe "##SET-CDR!"))
-(def-spec "CAR" (unsafe "##CAR"))
-(def-spec "CDR" (unsafe "##CDR"))
-(def-spec "CAAR" (unsafe "##CAAR"))
-(def-spec "CADR" (unsafe "##CADR"))
-(def-spec "CDAR" (unsafe "##CDAR"))
-(def-spec "CDDR" (unsafe "##CDDR"))
-(def-spec "CAAAR" (unsafe "##CAAAR"))
-(def-spec "CAADR" (unsafe "##CAADR"))
-(def-spec "CADAR" (unsafe "##CADAR"))
-(def-spec "CADDR" (unsafe "##CADDR"))
-(def-spec "CDAAR" (unsafe "##CDAAR"))
-(def-spec "CDADR" (unsafe "##CDADR"))
-(def-spec "CDDAR" (unsafe "##CDDAR"))
-(def-spec "CDDDR" (unsafe "##CDDDR"))
-(def-spec "CAAAAR" (unsafe "##CAAAAR"))
-(def-spec "CAAADR" (unsafe "##CAAADR"))
-(def-spec "CAADAR" (unsafe "##CAADAR"))
-(def-spec "CAADDR" (unsafe "##CAADDR"))
-(def-spec "CADAAR" (unsafe "##CADAAR"))
-(def-spec "CADADR" (unsafe "##CADADR"))
-(def-spec "CADDAR" (unsafe "##CADDAR"))
-(def-spec "CADDDR" (unsafe "##CADDDR"))
-(def-spec "CDAAAR" (unsafe "##CDAAAR"))
-(def-spec "CDAADR" (unsafe "##CDAADR"))
-(def-spec "CDADAR" (unsafe "##CDADAR"))
-(def-spec "CDADDR" (unsafe "##CDADDR"))
-(def-spec "CDDAAR" (unsafe "##CDDAAR"))
-(def-spec "CDDADR" (unsafe "##CDDADR"))
-(def-spec "CDDDAR" (unsafe "##CDDDAR"))
-(def-spec "CDDDDR" (unsafe "##CDDDDR"))
-(def-spec "VECTOR" (safe "##VECTOR"))
-(def-spec "VECTOR-LENGTH" (unsafe "##VECTOR-LENGTH"))
-(def-spec "VECTOR-REF" (unsafe "##VECTOR-REF"))
-(def-spec "VECTOR-SET!" (unsafe "##VECTOR-SET!"))
-(def-spec "STRING" (safe "##STRING"))
-(def-spec "STRING-LENGTH" (unsafe "##STRING-LENGTH"))
-(def-spec "STRING-REF" (unsafe "##STRING-REF"))
-(def-spec "STRING-SET!" (unsafe "##STRING-SET!"))
-(def-spec "TOUCH" (safe "##TOUCH"))
-(let ((targ (make-target 4 'm68000)))
-  (target-begin!-set! targ (lambda (info-port) (begin! info-port targ)))
-  (put-target targ))
+    (define-ifjump "##FIXNUM.ODD?"
+                   (lambda (not? opnds lbl fs) (gen-even-test (not not?) opnds lbl fs)))
+    (define-ifjump "##FIXNUM.EVEN?"
+                   (lambda (not? opnds lbl fs) (gen-even-test not? opnds lbl fs)))
+    (define-ifjump "##FIXNUM.="
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares emit-beq emit-bne emit-beq emit-bne not? opnds lbl fs)))
+    (define-ifjump "##FIXNUM.<"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares emit-blt emit-bge emit-bgt emit-ble not? opnds lbl fs)))
+    (define-ifjump "##FIXNUM.>"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares emit-bgt emit-ble emit-blt emit-bge not? opnds lbl fs)))
+    (define-ifjump "##FIXNUM.<="
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares emit-ble emit-bgt emit-bge emit-blt not? opnds lbl fs)))
+    (define-ifjump "##FIXNUM.>="
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares emit-bge emit-blt emit-ble emit-bgt not? opnds lbl fs)))
+    (define-apply "##FLONUM.->FIXNUM"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn)))
+                      (move-opnd-to-loc68 (car opnds) atemp1 sn-loc)
+                      (let ((reg68
+                               (if (and (reg? loc) (not (eq? loc return-reg)))
+                                   (reg->reg68 loc)
+                                   dtemp1)))
+                        (emit-fmov.dx (make-disp* atemp1 (- type-flonum)) ftemp1)
+                        (emit-fmov.l ftemp1 reg68)
+                        (emit-asl.l (make-imm 3) reg68)
+                        (if (not (and (reg? loc) (not (eq? loc return-reg))))
+                            (move-opnd68-to-loc reg68 loc sn))))))
+    (define-apply "##FLONUM.<-FIXNUM"
+                  #f
+                  (lambda (opnds loc sn)
+                    (gen-guarantee-space 2)
+                    (move-opnd-to-loc68 (car opnds)
+                                        dtemp1
+                                        (sn-opnds (cdr opnds) (sn-opnd loc sn)))
+                    (emit-asr.l (make-imm 3) dtemp1)
+                    (emit-fmov.l dtemp1 ftemp1)
+                    (add-n-to-loc68 (* -2 pointer-size) heap-reg)
+                    (emit-fmov.dx ftemp1 (make-ind heap-reg))
+                    (let ((reg68 (if (reg? loc) (reg->reg68 loc) atemp1)))
+                      (emit-move.l heap-reg reg68)
+                      (emit-addq.l type-flonum reg68))
+                    (if (not (reg? loc)) (move-opnd68-to-loc atemp1 loc sn))))
+    (define-apply "##FLONUM.+"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn)))
+                      (cond
+                        ((null? opnds) (copy-opnd-to-loc (make-obj inexact-0) loc sn))
+                        ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
+                        (else (flo-oper emit-fmov.dx emit-fadd.dx opnds loc sn))))))
+    (define-apply "##FLONUM.*"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn)))
+                      (cond
+                        ((null? opnds) (copy-opnd-to-loc (make-obj inexact-+1) loc sn))
+                        ((null? (cdr opnds)) (copy-opnd-to-loc (car opnds) loc sn))
+                        (else (flo-oper emit-fmov.dx emit-fmul.dx opnds loc sn))))))
+    (define-apply "##FLONUM.-"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn)))
+                      (if (null? (cdr opnds))
+                          (flo-oper emit-fneg.dx #f opnds loc sn)
+                          (flo-oper emit-fmov.dx emit-fsub.dx opnds loc sn)))))
+    (define-apply "##FLONUM./"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn)))
+                      (if (null? (cdr opnds))
+                          (flo-oper emit-fmov.dx
+                                    emit-fdiv.dx
+                                    (cons (make-obj inexact-+1) opnds)
+                                    loc
+                                    sn)
+                          (flo-oper emit-fmov.dx emit-fdiv.dx opnds loc sn)))))
+    (define-apply "##FLONUM.ABS"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fabs.dx #f opnds loc sn))))
+    (define-apply "##FLONUM.TRUNCATE"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fintrz.dx #f opnds loc sn))))
+    (define-apply "##FLONUM.ROUND"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fint.dx #f opnds loc sn))))
+    (define-apply "##FLONUM.EXP"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fetox.dx #f opnds loc sn))))
+    (define-apply "##FLONUM.LOG"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-flogn.dx #f opnds loc sn))))
+    (define-apply "##FLONUM.SIN"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fsin.dx #f opnds loc sn))))
+    (define-apply "##FLONUM.COS"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fcos.dx #f opnds loc sn))))
+    (define-apply "##FLONUM.TAN"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-ftan.dx #f opnds loc sn))))
+    (define-apply "##FLONUM.ASIN"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fasin.dx #f opnds loc sn))))
+    (define-apply "##FLONUM.ACOS"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-facos.dx #f opnds loc sn))))
+    (define-apply "##FLONUM.ATAN"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fatan.dx #f opnds loc sn))))
+    (define-apply "##FLONUM.SQRT"
+                  #f
+                  (lambda (opnds loc sn)
+                    (let ((sn-loc (sn-opnd loc sn))) (flo-oper emit-fsqrt.dx #f opnds loc sn))))
+    (define-ifjump "##FLONUM.ZERO?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares-flo emit-fbeq
+                                       emit-fbne
+                                       emit-fbeq
+                                       emit-fbne
+                                       not?
+                                       (list (car opnds) (make-obj inexact-0))
+                                       lbl
+                                       fs)))
+    (define-ifjump "##FLONUM.NEGATIVE?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares-flo emit-fblt
+                                       emit-fbge
+                                       emit-fbgt
+                                       emit-fble
+                                       not?
+                                       (list (car opnds) (make-obj inexact-0))
+                                       lbl
+                                       fs)))
+    (define-ifjump "##FLONUM.POSITIVE?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares-flo emit-fbgt
+                                       emit-fble
+                                       emit-fblt
+                                       emit-fbge
+                                       not?
+                                       (list (car opnds) (make-obj inexact-0))
+                                       lbl
+                                       fs)))
+    (define-ifjump "##FLONUM.="
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares-flo emit-fbeq emit-fbne emit-fbeq emit-fbne not? opnds lbl fs)))
+    (define-ifjump "##FLONUM.<"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares-flo emit-fblt emit-fbge emit-fbgt emit-fble not? opnds lbl fs)))
+    (define-ifjump "##FLONUM.>"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares-flo emit-fbgt emit-fble emit-fblt emit-fbge not? opnds lbl fs)))
+    (define-ifjump "##FLONUM.<="
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares-flo emit-fble emit-fbgt emit-fbge emit-fblt not? opnds lbl fs)))
+    (define-ifjump "##FLONUM.>="
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares-flo emit-fbge emit-fblt emit-fble emit-fbgt not? opnds lbl fs)))
+    (define-ifjump "##CHAR=?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares emit-beq emit-bne emit-beq emit-bne not? opnds lbl fs)))
+    (define-ifjump "##CHAR<?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares emit-blt emit-bge emit-bgt emit-ble not? opnds lbl fs)))
+    (define-ifjump "##CHAR>?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares emit-bgt emit-ble emit-blt emit-bge not? opnds lbl fs)))
+    (define-ifjump "##CHAR<=?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares emit-ble emit-bgt emit-bge emit-blt not? opnds lbl fs)))
+    (define-ifjump "##CHAR>=?"
+                   (lambda (not? opnds lbl fs)
+                     (gen-compares emit-bge emit-blt emit-ble emit-bgt not? opnds lbl fs)))
+    (define-apply "##CONS" #f (lambda (opnds loc sn) (gen-cons opnds loc sn)))
+    (define-apply "##SET-CAR!"
+                  #t
+                  (lambda (opnds loc sn) (gen-set-car! opnds loc sn)))
+    (define-apply "##SET-CDR!"
+                  #t
+                  (lambda (opnds loc sn) (gen-set-cdr! opnds loc sn)))
+    (define-apply "##CAR" #f (make-gen-apply-c...r 2))
+    (define-apply "##CDR" #f (make-gen-apply-c...r 3))
+    (define-apply "##CAAR" #f (make-gen-apply-c...r 4))
+    (define-apply "##CADR" #f (make-gen-apply-c...r 5))
+    (define-apply "##CDAR" #f (make-gen-apply-c...r 6))
+    (define-apply "##CDDR" #f (make-gen-apply-c...r 7))
+    (define-apply "##CAAAR" #f (make-gen-apply-c...r 8))
+    (define-apply "##CAADR" #f (make-gen-apply-c...r 9))
+    (define-apply "##CADAR" #f (make-gen-apply-c...r 10))
+    (define-apply "##CADDR" #f (make-gen-apply-c...r 11))
+    (define-apply "##CDAAR" #f (make-gen-apply-c...r 12))
+    (define-apply "##CDADR" #f (make-gen-apply-c...r 13))
+    (define-apply "##CDDAR" #f (make-gen-apply-c...r 14))
+    (define-apply "##CDDDR" #f (make-gen-apply-c...r 15))
+    (define-apply "##CAAAAR" #f (make-gen-apply-c...r 16))
+    (define-apply "##CAAADR" #f (make-gen-apply-c...r 17))
+    (define-apply "##CAADAR" #f (make-gen-apply-c...r 18))
+    (define-apply "##CAADDR" #f (make-gen-apply-c...r 19))
+    (define-apply "##CADAAR" #f (make-gen-apply-c...r 20))
+    (define-apply "##CADADR" #f (make-gen-apply-c...r 21))
+    (define-apply "##CADDAR" #f (make-gen-apply-c...r 22))
+    (define-apply "##CADDDR" #f (make-gen-apply-c...r 23))
+    (define-apply "##CDAAAR" #f (make-gen-apply-c...r 24))
+    (define-apply "##CDAADR" #f (make-gen-apply-c...r 25))
+    (define-apply "##CDADAR" #f (make-gen-apply-c...r 26))
+    (define-apply "##CDADDR" #f (make-gen-apply-c...r 27))
+    (define-apply "##CDDAAR" #f (make-gen-apply-c...r 28))
+    (define-apply "##CDDADR" #f (make-gen-apply-c...r 29))
+    (define-apply "##CDDDAR" #f (make-gen-apply-c...r 30))
+    (define-apply "##CDDDDR" #f (make-gen-apply-c...r 31))
+    (define-apply "##MAKE-CELL"
+                  #f
+                  (lambda (opnds loc sn) (gen-cons (list (car opnds) (make-obj '())) loc sn)))
+    (define-apply "##CELL-REF" #f (make-gen-apply-c...r 2))
+    (define-apply "##CELL-SET!"
+                  #t
+                  (lambda (opnds loc sn) (gen-set-car! opnds loc sn)))
+    (define-apply "##VECTOR" #f (make-gen-vector 'vector))
+    (define-apply "##VECTOR-LENGTH" #f (make-gen-vector-length 'vector))
+    (define-apply "##VECTOR-REF" #f (make-gen-vector-ref 'vector))
+    (define-apply "##VECTOR-SET!" #t (make-gen-vector-set! 'vector))
+    (define-apply "##VECTOR-SHRINK!" #t (make-gen-vector-shrink! 'vector))
+    (define-apply "##STRING" #f (make-gen-vector 'string))
+    (define-apply "##STRING-LENGTH" #f (make-gen-vector-length 'string))
+    (define-apply "##STRING-REF" #f (make-gen-vector-ref 'string))
+    (define-apply "##STRING-SET!" #t (make-gen-vector-set! 'string))
+    (define-apply "##STRING-SHRINK!" #t (make-gen-vector-shrink! 'string))
+    (define-apply "##VECTOR8" #f (make-gen-vector 'vector8))
+    (define-apply "##VECTOR8-LENGTH" #f (make-gen-vector-length 'vector8))
+    (define-apply "##VECTOR8-REF" #f (make-gen-vector-ref 'vector8))
+    (define-apply "##VECTOR8-SET!" #t (make-gen-vector-set! 'vector8))
+    (define-apply "##VECTOR8-SHRINK!" #t (make-gen-vector-shrink! 'vector8))
+    (define-apply "##VECTOR16" #f (make-gen-vector 'vector16))
+    (define-apply "##VECTOR16-LENGTH" #f (make-gen-vector-length 'vector16))
+    (define-apply "##VECTOR16-REF" #f (make-gen-vector-ref 'vector16))
+    (define-apply "##VECTOR16-SET!" #t (make-gen-vector-set! 'vector16))
+    (define-apply "##VECTOR16-SHRINK!" #t (make-gen-vector-shrink! 'vector16))
+    (define-apply "##CLOSURE-CODE" #f (make-gen-slot-ref 1 type-procedure))
+    (define-apply "##CLOSURE-REF" #f (make-gen-vector-ref 'closure))
+    (define-apply "##CLOSURE-SET!" #t (make-gen-vector-set! 'closure))
+    (define-apply "##SUBPROCEDURE-ID"
+                  #f
+                  (lambda (opnds loc sn) (gen-subprocedure-id opnds loc sn)))
+    (define-apply "##SUBPROCEDURE-PARENT"
+                  #f
+                  (lambda (opnds loc sn) (gen-subprocedure-parent opnds loc sn)))
+    (define-apply "##RETURN-FS"
+                  #f
+                  (lambda (opnds loc sn) (gen-return-fs opnds loc sn)))
+    (define-apply "##RETURN-LINK"
+                  #f
+                  (lambda (opnds loc sn) (gen-return-link opnds loc sn)))
+    (define-apply "##PROCEDURE-INFO"
+                  #f
+                  (lambda (opnds loc sn) (gen-procedure-info opnds loc sn)))
+    (define-apply "##PSTATE"
+                  #f
+                  (lambda (opnds loc sn) (move-opnd68-to-loc pstate-reg loc sn)))
+    (define-apply "##MAKE-PLACEHOLDER"
+                  #f
+                  (lambda (opnds loc sn) (gen-make-placeholder opnds loc sn)))
+    (define-apply "##TOUCH"
+                  #t
+                  (lambda (opnds loc sn)
+                    (let ((opnd (car opnds)))
+                      (if loc (touch-opnd-to-loc opnd loc sn) (touch-opnd-to-any-reg68 opnd sn)))))
+    (def-spec "NOT" (safe "##NOT"))
+    (def-spec "NULL?" (safe "##NULL?"))
+    (def-spec "EQ?" (safe "##EQ?"))
+    (def-spec "PAIR?" (safe "##PAIR?"))
+    (def-spec "PROCEDURE?" (safe "##PROCEDURE?"))
+    (def-spec "VECTOR?" (safe "##VECTOR?"))
+    (def-spec "SYMBOL?" (safe "##SYMBOL?"))
+    (def-spec "STRING?" (safe "##STRING?"))
+    (def-spec "CHAR?" (safe "##CHAR?"))
+    (def-spec "ZERO?" (safe-arith "##FIXNUM.ZERO?" "##FLONUM.ZERO?"))
+    (def-spec "POSITIVE?" (safe-arith "##FIXNUM.POSITIVE?" "##FLONUM.POSITIVE?"))
+    (def-spec "NEGATIVE?" (safe-arith "##FIXNUM.NEGATIVE?" "##FLONUM.NEGATIVE?"))
+    (def-spec "ODD?" (safe-arith "##FIXNUM.ODD?" #f))
+    (def-spec "EVEN?" (safe-arith "##FIXNUM.EVEN?" #f))
+    (def-spec "+" (unsafe-arith "##FIXNUM.+" "##FLONUM.+"))
+    (def-spec "*" (unsafe-arith "##FIXNUM.*" "##FLONUM.*"))
+    (def-spec "-" (unsafe-arith "##FIXNUM.-" "##FLONUM.-"))
+    (def-spec "/" (unsafe-arith #f "##FLONUM./"))
+    (def-spec "QUOTIENT" (unsafe-arith "##FIXNUM.QUOTIENT" #f))
+    (def-spec "REMAINDER" (unsafe-arith "##FIXNUM.REMAINDER" #f))
+    (def-spec "MODULO" (unsafe-arith "##FIXNUM.MODULO" #f))
+    (def-spec "=" (safe-arith "##FIXNUM.=" "##FLONUM.="))
+    (def-spec "<" (safe-arith "##FIXNUM.<" "##FLONUM.<"))
+    (def-spec ">" (safe-arith "##FIXNUM.>" "##FLONUM.>"))
+    (def-spec "<=" (safe-arith "##FIXNUM.<=" "##FLONUM.<="))
+    (def-spec ">=" (safe-arith "##FIXNUM.>=" "##FLONUM.>="))
+    (def-spec "ABS" (unsafe-arith #f "##FLONUM.ABS"))
+    (def-spec "TRUNCATE" (unsafe-arith #f "##FLONUM.TRUNCATE"))
+    (def-spec "EXP" (unsafe-arith #f "##FLONUM.EXP"))
+    (def-spec "LOG" (unsafe-arith #f "##FLONUM.LOG"))
+    (def-spec "SIN" (unsafe-arith #f "##FLONUM.SIN"))
+    (def-spec "COS" (unsafe-arith #f "##FLONUM.COS"))
+    (def-spec "TAN" (unsafe-arith #f "##FLONUM.TAN"))
+    (def-spec "ASIN" (unsafe-arith #f "##FLONUM.ASIN"))
+    (def-spec "ACOS" (unsafe-arith #f "##FLONUM.ACOS"))
+    (def-spec "ATAN" (unsafe-arith #f "##FLONUM.ATAN"))
+    (def-spec "SQRT" (unsafe-arith #f "##FLONUM.SQRT"))
+    (def-spec "CHAR=?" (safe "##CHAR=?"))
+    (def-spec "CHAR<?" (safe "##CHAR<?"))
+    (def-spec "CHAR>?" (safe "##CHAR>?"))
+    (def-spec "CHAR<=?" (safe "##CHAR<=?"))
+    (def-spec "CHAR>=?" (safe "##CHAR>=?"))
+    (def-spec "CONS" (safe "##CONS"))
+    (def-spec "SET-CAR!" (unsafe "##SET-CAR!"))
+    (def-spec "SET-CDR!" (unsafe "##SET-CDR!"))
+    (def-spec "CAR" (unsafe "##CAR"))
+    (def-spec "CDR" (unsafe "##CDR"))
+    (def-spec "CAAR" (unsafe "##CAAR"))
+    (def-spec "CADR" (unsafe "##CADR"))
+    (def-spec "CDAR" (unsafe "##CDAR"))
+    (def-spec "CDDR" (unsafe "##CDDR"))
+    (def-spec "CAAAR" (unsafe "##CAAAR"))
+    (def-spec "CAADR" (unsafe "##CAADR"))
+    (def-spec "CADAR" (unsafe "##CADAR"))
+    (def-spec "CADDR" (unsafe "##CADDR"))
+    (def-spec "CDAAR" (unsafe "##CDAAR"))
+    (def-spec "CDADR" (unsafe "##CDADR"))
+    (def-spec "CDDAR" (unsafe "##CDDAR"))
+    (def-spec "CDDDR" (unsafe "##CDDDR"))
+    (def-spec "CAAAAR" (unsafe "##CAAAAR"))
+    (def-spec "CAAADR" (unsafe "##CAAADR"))
+    (def-spec "CAADAR" (unsafe "##CAADAR"))
+    (def-spec "CAADDR" (unsafe "##CAADDR"))
+    (def-spec "CADAAR" (unsafe "##CADAAR"))
+    (def-spec "CADADR" (unsafe "##CADADR"))
+    (def-spec "CADDAR" (unsafe "##CADDAR"))
+    (def-spec "CADDDR" (unsafe "##CADDDR"))
+    (def-spec "CDAAAR" (unsafe "##CDAAAR"))
+    (def-spec "CDAADR" (unsafe "##CDAADR"))
+    (def-spec "CDADAR" (unsafe "##CDADAR"))
+    (def-spec "CDADDR" (unsafe "##CDADDR"))
+    (def-spec "CDDAAR" (unsafe "##CDDAAR"))
+    (def-spec "CDDADR" (unsafe "##CDDADR"))
+    (def-spec "CDDDAR" (unsafe "##CDDDAR"))
+    (def-spec "CDDDDR" (unsafe "##CDDDDR"))
+    (def-spec "VECTOR" (safe "##VECTOR"))
+    (def-spec "VECTOR-LENGTH" (unsafe "##VECTOR-LENGTH"))
+    (def-spec "VECTOR-REF" (unsafe "##VECTOR-REF"))
+    (def-spec "VECTOR-SET!" (unsafe "##VECTOR-SET!"))
+    (def-spec "STRING" (safe "##STRING"))
+    (def-spec "STRING-LENGTH" (unsafe "##STRING-LENGTH"))
+    (def-spec "STRING-REF" (unsafe "##STRING-REF"))
+    (def-spec "STRING-SET!" (unsafe "##STRING-SET!"))
+    (def-spec "TOUCH" (safe "##TOUCH"))
+    (let ((targ (make-target 4 'm68000)))
+      (target-begin!-set! targ (lambda (info-port) (begin! info-port targ)))
+      (put-target targ)))) ;; dummy3
 
-(define input-source-code
-  '(begin
-     (declare (standard-bindings) (fixnum) (not safe) (block))
+(define (main)
+  (let* ((count 2000)
+         (input1
+            '(begin
+               (declare (standard-bindings) (fixnum) (not safe) (block))
+               (define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))
 
-     (define (fib n) (if (< n 2) n (+ (fib (- n 1)) (fib (- n 2)))))
+               (define (tak x y z)
+                 (if (not (< y x))
+                     z
+                     (tak (tak (- x 1) y z) (tak (- y 1) z x) (tak (- z 1) x y))))
 
-     (define (tak x y z)
-       (if (not (< y x))
-           z
-           (tak (tak (- x 1) y z) (tak (- y 1) z x) (tak (- z 1) x y))))
+               (define (ack m n)
+                 (cond
+                   ((= m 0) (+ n 1))
+                   ((= n 0) (ack (- m 1) 1))
+                   (else (ack (- m 1) (ack m (- n 1))))))
 
-     (define (ack m n)
-       (cond
-         ((= m 0) (+ n 1))
-         ((= n 0) (ack (- m 1) 1))
-         (else (ack (- m 1) (ack m (- n 1))))))
+               (define (create-x n)
+                 (define result (make-vector n))
+                 (do ((i 0 (+ i 1))) ((>= i n) result) (vector-set! result i i)))
 
-     (define (create-x n)
-       (define result (make-vector n))
-       (do ((i 0 (+ i 1))) ((>= i n) result) (vector-set! result i i)))
+               (define (create-y x)
+                 (let* ((n (vector-length x)) (result (make-vector n)))
+                   (do ((i (- n 1) (- i 1)))
+                        ((< i 0) result)
+                        (vector-set! result i (vector-ref x i)))))
 
-     (define (create-y x)
-       (let* ((n (vector-length x)) (result (make-vector n)))
-         (do ((i (- n 1) (- i 1)))
-              ((< i 0) result)
-              (vector-set! result i (vector-ref x i)))))
+               (define (my-try n) (vector-length (create-y (create-x n))))
 
-     (define (my-try n) (vector-length (create-y (create-x n))))
+               (define (go n)
+                 (let loop ((repeat 100) (result 0))
+                   (if (> repeat 0) (loop (- repeat 1) (my-try n)) result)))
 
-     (define (go n)
-       (let loop ((repeat 100) (result 0))
-         (if (> repeat 0) (loop (- repeat 1) (my-try n)) result)))
+               (+ (fib 20) (tak 18 12 6) (ack 3 9) (go 200000))))
+         (input2 'm68000)
+         (input3 'asm)
+         (output
+            '("|------------------------------------------------------" "| #[primitive #!program] ="
+              "L1:" " cmpw #1,d0" " beq L1000" " TRAP1(9,0)" " LBL_PTR(L1)" "L1000:"
+              " MOVE_PROC(1,a1)" " movl a1,GLOB(fib)" " MOVE_PROC(2,a1)" " movl a1,GLOB(tak)"
+              " MOVE_PROC(3,a1)" " movl a1,GLOB(ack)" " MOVE_PROC(4,a1)" " movl a1,GLOB(create-x)"
+              " MOVE_PROC(5,a1)" " movl a1,GLOB(create-y)" " MOVE_PROC(6,a1)"
+              " movl a1,GLOB(my-try)" " MOVE_PROC(7,a1)" " movl a1,GLOB(go)" " movl a0,sp@-"
+              " movl #160,d1" " lea L2,a0" " dbra d5,L1001" " moveq #9,d5" " cmpl a5@,sp"
+              " bcc L1001" " TRAP2(24)" " RETURN(L1,1,1)" "L1002:" "L1001:" " JMP_PROC(1,10)"
+              " RETURN(L1,1,1)" "L2:" " movl d1,sp@-" " moveq #48,d3" " moveq #96,d2"
+              " movl #144,d1" " lea L3,a0" " JMP_PROC(2,14)" " RETURN(L1,2,1)" "L3:" " movl d1,sp@-"
+              " moveq #72,d2" " moveq #24,d1" " lea L4,a0" " JMP_PROC(3,10)" " RETURN(L1,3,1)" "L4:"
+              " movl d1,sp@-" " movl #1600000,d1" " lea L5,a0" " JMP_PROC(7,10)" " RETURN(L1,4,1)"
+              "L5:" " dbra d5,L1003" " moveq #9,d5" " cmpl a5@,sp" " bcc L1003" " TRAP2(24)"
+              " RETURN(L1,4,1)" "L1004:" "L1003:" "L6:" " addl sp@(8),d1" " addl sp@(4),d1"
+              " addl sp@+,d1" " addql #8,sp" " rts" "L0:"
+              "|------------------------------------------------------" "| #[primitive fib] =" "L1:"
+              " bmi L1000" " TRAP1(9,1)" " LBL_PTR(L1)" "L1000:" " moveq #16,d0" " cmpl d1,d0"
+              " ble L3" " bra L4" " RETURN(L1,2,1)" "L2:" " movl d1,sp@-" " movl sp@(4),d1"
+              " moveq #-16,d0" " addl d0,d1" " lea L5,a0" " moveq #16,d0" " cmpl d1,d0" " bgt L4"
+              "L3:" " movl a0,sp@-" " movl d1,sp@-" " subql #8,d1" " lea L2,a0" " dbra d5,L1001"
+              " moveq #9,d5" " cmpl a5@,sp" " bcc L1001" " TRAP2(24)" " RETURN(L1,2,1)" "L1002:"
+              "L1001:" " moveq #16,d0" " cmpl d1,d0" " ble L3" "L4:" " jmp a0@" " RETURN(L1,3,1)"
+              "L5:" " addl sp@+,d1" " dbra d5,L1003" " moveq #9,d5" " cmpl a5@,sp" " bcc L1003"
+              " TRAP2(24)" " RETURN(L1,2,1)" "L1004:" "L1003:" " addql #4,sp" " rts" "L0:"
+              "|------------------------------------------------------" "| #[primitive tak] =" "L1:"
+              " cmpw #4,d0" " beq L1000" " TRAP1(9,3)" " LBL_PTR(L1)" "L1000:" " cmpl d1,d2"
+              " bge L4" " bra L3" " RETURN(L1,6,1)" "L2:" " movl d1,d3" " movl sp@(20),a0"
+              " movl sp@+,d2" " movl sp@+,d1" " dbra d5,L1001" " moveq #9,d5" " cmpl a5@,sp"
+              " bcc L1001" " movl a0,sp@(12)" " TRAP2(24)" " RETURN(L1,4,1)" "L1002:"
+              " movl sp@(12),a0" "L1001:" " cmpl d1,d2" " lea sp@(16),sp" " bge L4" "L3:"
+              " movl a0,sp@-" " movl d1,sp@-" " movl d2,sp@-" " movl d3,sp@-" " subql #8,d1"
+              " lea L5,a0" " dbra d5,L1003" " moveq #9,d5" " cmpl a5@,sp" " bcc L1003" " TRAP2(24)"
+              " RETURN(L1,4,1)" "L1004:" "L1003:" " cmpl d1,d2" " blt L3" "L4:" " movl d3,d1"
+              " jmp a0@" " RETURN(L1,4,1)" "L5:" " movl d1,sp@-" " movl sp@(12),d3"
+              " movl sp@(4),d2" " movl sp@(8),d1" " subql #8,d1" " lea L6,a0" " cmpl d1,d2"
+              " bge L4" " bra L3" " RETURN(L1,5,1)" "L6:" " movl d1,sp@-" " movl sp@(12),d3"
+              " movl sp@(16),d2" " movl sp@(8),d1" " subql #8,d1" " lea L2,a0" " cmpl d1,d2"
+              " bge L4" " bra L3" "L0:" "|------------------------------------------------------"
+              "| #[primitive ack] =" "L1:" " beq L1000" " TRAP1(9,2)" " LBL_PTR(L1)" "L1000:"
+              " movl d1,d0" " bne L3" " bra L5" " RETURN(L1,2,1)" "L2:" " movl d1,d2"
+              " movl sp@+,d1" " subql #8,d1" " movl sp@+,a0" " dbra d5,L1001" " moveq #9,d5"
+              " cmpl a5@,sp" " bcc L1001" " movl a0,sp@-" " TRAP2(24)" " RETURN(L1,1,1)" "L1002:"
+              " movl sp@+,a0" "L1001:" " movl d1,d0" " beq L5" "L3:" " movl d2,d0" " bne L6" "L4:"
+              " subql #8,d1" " moveq #8,d2" " dbra d5,L1003" " moveq #9,d5" " cmpl a5@,sp"
+              " bcc L1003" " movl a0,sp@-" " TRAP2(24)" " RETURN(L1,1,1)" "L1004:" " movl sp@+,a0"
+              "L1003:" " movl d1,d0" " bne L3" "L5:" " movl d2,d1" " addql #8,d1" " jmp a0@" "L6:"
+              " movl a0,sp@-" " movl d1,sp@-" " movl d2,d1" " subql #8,d1" " movl d1,d2"
+              " movl sp@,d1" " lea L2,a0" " dbra d5,L1005" " moveq #9,d5" " cmpl a5@,sp"
+              " bcc L1005" " TRAP2(24)" " RETURN(L1,2,1)" "L1006:" "L1005:" " movl d1,d0" " bne L3"
+              " bra L5" "L0:" "|------------------------------------------------------"
+              "| #[primitive create-x] =" "L1:" " bmi L1000" " TRAP1(9,1)" " LBL_PTR(L1)" "L1000:"
+              " movl a0,sp@-" " movl d1,sp@-" " lea L2,a0" " dbra d5,L1001" " moveq #9,d5"
+              " cmpl a5@,sp" " bcc L1001" " TRAP2(24)" " RETURN(L1,2,1)" "L1002:" "L1001:"
+              " moveq #-1,d0" " JMP_PRIM(make-vector,0)" " RETURN(L1,2,1)" "L2:" " movl d1,d2"
+              " movl sp@+,d1" " moveq #0,d3" " movl sp@+,a0" " dbra d5,L1003" " moveq #9,d5"
+              " cmpl a5@,sp" " bcc L1003" " movl a0,sp@-" " TRAP2(24)" " RETURN(L1,1,1)" "L1004:"
+              " movl sp@+,a0" "L1003:" " cmpl d1,d3" " bge L4" "L3:" " movl d3,d0" " asrl #1,d0"
+              " movl d2,a1" " movl d3,a1@(1,d0:l)" " addql #8,d3" " dbra d5,L1005" " moveq #9,d5"
+              " cmpl a5@,sp" " bcc L1005" " movl a0,sp@-" " TRAP2(24)" " RETURN(L1,1,1)" "L1006:"
+              " movl sp@+,a0" "L1005:" " cmpl d1,d3" " blt L3" "L4:" " movl d2,d1" " jmp a0@" "L0:"
+              "|------------------------------------------------------" "| #[primitive create-y] ="
+              "L1:" " bmi L1000" " TRAP1(9,1)" " LBL_PTR(L1)" "L1000:" " movl d1,a1"
+              " movl a1@(-3),d2" " lsrl #7,d2" " movl a0,sp@-" " movl d1,sp@-" " movl d2,sp@-"
+              " movl d2,d1" " lea L2,a0" " dbra d5,L1001" " moveq #9,d5" " cmpl a5@,sp" " bcc L1001"
+              " TRAP2(24)" " RETURN(L1,3,1)" "L1002:" "L1001:" " moveq #-1,d0"
+              " JMP_PRIM(make-vector,0)" " RETURN(L1,3,1)" "L2:" " movl sp@+,d2" " subql #8,d2"
+              " movl d2,d3" " movl d1,d2" " movl sp@+,d1" " movl sp@+,a0" " dbra d5,L1003"
+              " moveq #9,d5" " cmpl a5@,sp" " bcc L1003" " movl a0,sp@-" " TRAP2(24)"
+              " RETURN(L1,1,1)" "L1004:" " movl sp@+,a0" "L1003:" " movl d3,d0" " blt L4" "L3:"
+              " movl d3,d0" " asrl #1,d0" " movl d1,a1" " movl a1@(1,d0:l),d4" " movl d3,d0"
+              " asrl #1,d0" " movl d2,a1" " movl d4,a1@(1,d0:l)" " subql #8,d3" " dbra d5,L1005"
+              " moveq #9,d5" " cmpl a5@,sp" " bcc L1005" " movl a0,sp@-" " TRAP2(24)"
+              " RETURN(L1,1,1)" "L1006:" " movl sp@+,a0" "L1005:" " movl d3,d0" " bge L3" "L4:"
+              " movl d2,d1" " jmp a0@" "L0:"
+              "|------------------------------------------------------" "| #[primitive my-try] ="
+              "L1:" " bmi L1000" " TRAP1(9,1)" " LBL_PTR(L1)" "L1000:" " movl a0,sp@-" " lea L2,a0"
+              " dbra d5,L1001" " moveq #9,d5" " cmpl a5@,sp" " bcc L1001" " TRAP2(24)"
+              " RETURN(L1,1,1)" "L1002:" "L1001:" " JMP_PROC(4,10)" " RETURN(L1,1,1)" "L2:"
+              " lea L3,a0" " JMP_PROC(5,10)" " RETURN(L1,1,1)" "L3:" " movl d1,a1"
+              " movl a1@(-3),d1" " lsrl #7,d1" " dbra d5,L1003" " moveq #9,d5" " cmpl a5@,sp"
+              " bcc L1003" " TRAP2(24)" " RETURN(L1,1,1)" "L1004:" "L1003:" " rts" "L0:"
+              "|------------------------------------------------------" "| #[primitive go] =" "L1:"
+              " bmi L1000" " TRAP1(9,1)" " LBL_PTR(L1)" "L1000:" " moveq #0,d3" " movl #800,d2"
+              " dbra d5,L1001" " moveq #9,d5" " cmpl a5@,sp" " bcc L1001" " movl a0,sp@-"
+              " TRAP2(24)" " RETURN(L1,1,1)" "L1002:" " movl sp@+,a0" "L1001:" " movl d2,d0"
+              " ble L4" " bra L3" " RETURN(L1,3,1)" "L2:" " movl d1,d3" " movl sp@+,d1"
+              " subql #8,d1" " movl d1,d2" " movl sp@+,d1" " movl sp@+,a0" " dbra d5,L1003"
+              " moveq #9,d5" " cmpl a5@,sp" " bcc L1003" " movl a0,sp@-" " TRAP2(24)"
+              " RETURN(L1,1,1)" "L1004:" " movl sp@+,a0" "L1003:" " movl d2,d0" " ble L4" "L3:"
+              " movl a0,sp@-" " movl d1,sp@-" " movl d2,sp@-" " lea L2,a0" " dbra d5,L1005"
+              " moveq #9,d5" " cmpl a5@,sp" " bcc L1005" " TRAP2(24)" " RETURN(L1,3,1)" "L1006:"
+              "L1005:" " JMP_PROC(6,10)" "L4:" " movl d3,d1" " jmp a0@" "L0:" ""))
+         (s (number->string count))
+         (name "compiler"))
+    (run-r7rs-benchmark (string-append name ":" s)
+                        count
+                        (lambda ()
+                          (ce (hide count input1) (hide count input2) (hide count input3))
+                          (asm-output-get))
+                        (lambda (result) (equal? result output)))))
 
-     (+ (fib 20) (tak 18 12 6) (ack 3 9) (go 200000))))
+;;; The following code is appended to all benchmarks.
 
-;-----
+;;; Given an integer and an object, returns the object
+;;; without making it too easy for compilers to tell
+;;; the object will be returned.
 
-;(define flonum--m-min -4503599627370496)
+(define (hide r x)
+  (call-with-values (lambda () (values (vector values (lambda (x) x)) (if (< r 100) 0 1)))
+                    (lambda (v i) ((vector-ref v i) x))))
 
-(define (pp-asm asm)
-  (if (not (null? asm))
-      (begin (display (car asm)) (newline) (pp-asm (cdr asm)))))
+;;; Given the name of a benchmark,
+;;; the number of times it should be executed,
+;;; a thunk that runs the benchmark once,
+;;; and a unary predicate that is true of the
+;;; correct results the thunk may return,
+;;; runs the benchmark for the number of specified iterations.
 
-(ce input-source-code 'm68000 'asm)
+(define (run-r7rs-benchmark name count thunk ok?)
 
-(pp-asm (asm-output-get))
+  ;; Rounds to thousandths.
+  (define (rounded x) (/ (round (* 1000 x)) 1000))
 
-;"|------------------------------------------------------"
-;"| #[primitive #!program] ="
-;"L1:"
-;" cmpw #1,d0"
-;" beq L1000"
-;" TRAP1(9,0)"
-;" LBL_PTR(L1)"
-;"L1000:"
-;" MOVE_PROC(1,a1)"
-;" movl a1,GLOB(fib)"
-;" MOVE_PROC(2,a1)"
-;" movl a1,GLOB(tak)"
-;" MOVE_PROC(3,a1)"
-;" movl a1,GLOB(ack)"
-;" MOVE_PROC(4,a1)"
-;" movl a1,GLOB(create-x)"
-;" MOVE_PROC(5,a1)"
-;" movl a1,GLOB(create-y)"
-;" MOVE_PROC(6,a1)"
-;" movl a1,GLOB(my-try)"
-;" MOVE_PROC(7,a1)"
-;" movl a1,GLOB(go)"
-;" movl a0,sp@-"
-;" movl #160,d1"
-;" lea L2,a0"
-;" dbra d5,L1001"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1001"
-;" TRAP2(24)"
-;" RETURN(L1,1,1)"
-;"L1002:"
-;"L1001:"
-;" JMP_PROC(1,10)"
-;" RETURN(L1,1,1)"
-;"L2:"
-;" movl d1,sp@-"
-;" moveq #48,d3"
-;" moveq #96,d2"
-;" movl #144,d1"
-;" lea L3,a0"
-;" JMP_PROC(2,14)"
-;" RETURN(L1,2,1)"
-;"L3:"
-;" movl d1,sp@-"
-;" moveq #72,d2"
-;" moveq #24,d1"
-;" lea L4,a0"
-;" JMP_PROC(3,10)"
-;" RETURN(L1,3,1)"
-;"L4:"
-;" movl d1,sp@-"
-;" movl #1600000,d1"
-;" lea L5,a0"
-;" JMP_PROC(7,10)"
-;" RETURN(L1,4,1)"
-;"L5:"
-;" dbra d5,L1003"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1003"
-;" TRAP2(24)"
-;" RETURN(L1,4,1)"
-;"L1004:"
-;"L1003:"
-;"L6:"
-;" addl sp@(8),d1"
-;" addl sp@(4),d1"
-;" addl sp@+,d1"
-;" addql #8,sp"
-;" rts"
-;"L0:"
-;"|------------------------------------------------------"
-;"| #[primitive fib] ="
-;"L1:"
-;" bmi L1000"
-;" TRAP1(9,1)"
-;" LBL_PTR(L1)"
-;"L1000:"
-;" moveq #16,d0"
-;" cmpl d1,d0"
-;" ble L3"
-;" bra L4"
-;" RETURN(L1,2,1)"
-;"L2:"
-;" movl d1,sp@-"
-;" movl sp@(4),d1"
-;" moveq #-16,d0"
-;" addl d0,d1"
-;" lea L5,a0"
-;" moveq #16,d0"
-;" cmpl d1,d0"
-;" bgt L4"
-;"L3:"
-;" movl a0,sp@-"
-;" movl d1,sp@-"
-;" subql #8,d1"
-;" lea L2,a0"
-;" dbra d5,L1001"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1001"
-;" TRAP2(24)"
-;" RETURN(L1,2,1)"
-;"L1002:"
-;"L1001:"
-;" moveq #16,d0"
-;" cmpl d1,d0"
-;" ble L3"
-;"L4:"
-;" jmp a0@"
-;" RETURN(L1,3,1)"
-;"L5:"
-;" addl sp@+,d1"
-;" dbra d5,L1003"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1003"
-;" TRAP2(24)"
-;" RETURN(L1,2,1)"
-;"L1004:"
-;"L1003:"
-;" addql #4,sp"
-;" rts"
-;"L0:"
-;"|------------------------------------------------------"
-;"| #[primitive tak] ="
-;"L1:"
-;" cmpw #4,d0"
-;" beq L1000"
-;" TRAP1(9,3)"
-;" LBL_PTR(L1)"
-;"L1000:"
-;" cmpl d1,d2"
-;" bge L4"
-;" bra L3"
-;" RETURN(L1,6,1)"
-;"L2:"
-;" movl d1,d3"
-;" movl sp@(20),a0"
-;" movl sp@+,d2"
-;" movl sp@+,d1"
-;" dbra d5,L1001"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1001"
-;" movl a0,sp@(12)"
-;" TRAP2(24)"
-;" RETURN(L1,4,1)"
-;"L1002:"
-;" movl sp@(12),a0"
-;"L1001:"
-;" cmpl d1,d2"
-;" lea sp@(16),sp"
-;" bge L4"
-;"L3:"
-;" movl a0,sp@-"
-;" movl d1,sp@-"
-;" movl d2,sp@-"
-;" movl d3,sp@-"
-;" subql #8,d1"
-;" lea L5,a0"
-;" dbra d5,L1003"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1003"
-;" TRAP2(24)"
-;" RETURN(L1,4,1)"
-;"L1004:"
-;"L1003:"
-;" cmpl d1,d2"
-;" blt L3"
-;"L4:"
-;" movl d3,d1"
-;" jmp a0@"
-;" RETURN(L1,4,1)"
-;"L5:"
-;" movl d1,sp@-"
-;" movl sp@(12),d3"
-;" movl sp@(4),d2"
-;" movl sp@(8),d1"
-;" subql #8,d1"
-;" lea L6,a0"
-;" cmpl d1,d2"
-;" bge L4"
-;" bra L3"
-;" RETURN(L1,5,1)"
-;"L6:"
-;" movl d1,sp@-"
-;" movl sp@(12),d3"
-;" movl sp@(16),d2"
-;" movl sp@(8),d1"
-;" subql #8,d1"
-;" lea L2,a0"
-;" cmpl d1,d2"
-;" bge L4"
-;" bra L3"
-;"L0:"
-;"|------------------------------------------------------"
-;"| #[primitive ack] ="
-;"L1:"
-;" beq L1000"
-;" TRAP1(9,2)"
-;" LBL_PTR(L1)"
-;"L1000:"
-;" movl d1,d0"
-;" bne L3"
-;" bra L5"
-;" RETURN(L1,2,1)"
-;"L2:"
-;" movl d1,d2"
-;" movl sp@+,d1"
-;" subql #8,d1"
-;" movl sp@+,a0"
-;" dbra d5,L1001"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1001"
-;" movl a0,sp@-"
-;" TRAP2(24)"
-;" RETURN(L1,1,1)"
-;"L1002:"
-;" movl sp@+,a0"
-;"L1001:"
-;" movl d1,d0"
-;" beq L5"
-;"L3:"
-;" movl d2,d0"
-;" bne L6"
-;"L4:"
-;" subql #8,d1"
-;" moveq #8,d2"
-;" dbra d5,L1003"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1003"
-;" movl a0,sp@-"
-;" TRAP2(24)"
-;" RETURN(L1,1,1)"
-;"L1004:"
-;" movl sp@+,a0"
-;"L1003:"
-;" movl d1,d0"
-;" bne L3"
-;"L5:"
-;" movl d2,d1"
-;" addql #8,d1"
-;" jmp a0@"
-;"L6:"
-;" movl a0,sp@-"
-;" movl d1,sp@-"
-;" movl d2,d1"
-;" subql #8,d1"
-;" movl d1,d2"
-;" movl sp@,d1"
-;" lea L2,a0"
-;" dbra d5,L1005"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1005"
-;" TRAP2(24)"
-;" RETURN(L1,2,1)"
-;"L1006:"
-;"L1005:"
-;" movl d1,d0"
-;" bne L3"
-;" bra L5"
-;"L0:"
-;"|------------------------------------------------------"
-;"| #[primitive create-x] ="
-;"L1:"
-;" bmi L1000"
-;" TRAP1(9,1)"
-;" LBL_PTR(L1)"
-;"L1000:"
-;" movl a0,sp@-"
-;" movl d1,sp@-"
-;" lea L2,a0"
-;" dbra d5,L1001"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1001"
-;" TRAP2(24)"
-;" RETURN(L1,2,1)"
-;"L1002:"
-;"L1001:"
-;" moveq #-1,d0"
-;" JMP_PRIM(make-vector,0)"
-;" RETURN(L1,2,1)"
-;"L2:"
-;" movl d1,d2"
-;" movl sp@+,d1"
-;" moveq #0,d3"
-;" movl sp@+,a0"
-;" dbra d5,L1003"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1003"
-;" movl a0,sp@-"
-;" TRAP2(24)"
-;" RETURN(L1,1,1)"
-;"L1004:"
-;" movl sp@+,a0"
-;"L1003:"
-;" cmpl d1,d3"
-;" bge L4"
-;"L3:"
-;" movl d3,d0"
-;" asrl #1,d0"
-;" movl d2,a1"
-;" movl d3,a1@(1,d0:l)"
-;" addql #8,d3"
-;" dbra d5,L1005"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1005"
-;" movl a0,sp@-"
-;" TRAP2(24)"
-;" RETURN(L1,1,1)"
-;"L1006:"
-;" movl sp@+,a0"
-;"L1005:"
-;" cmpl d1,d3"
-;" blt L3"
-;"L4:"
-;" movl d2,d1"
-;" jmp a0@"
-;"L0:"
-;"|------------------------------------------------------"
-;"| #[primitive create-y] ="
-;"L1:"
-;" bmi L1000"
-;" TRAP1(9,1)"
-;" LBL_PTR(L1)"
-;"L1000:"
-;" movl d1,a1"
-;" movl a1@(-3),d2"
-;" lsrl #7,d2"
-;" movl a0,sp@-"
-;" movl d1,sp@-"
-;" movl d2,sp@-"
-;" movl d2,d1"
-;" lea L2,a0"
-;" dbra d5,L1001"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1001"
-;" TRAP2(24)"
-;" RETURN(L1,3,1)"
-;"L1002:"
-;"L1001:"
-;" moveq #-1,d0"
-;" JMP_PRIM(make-vector,0)"
-;" RETURN(L1,3,1)"
-;"L2:"
-;" movl sp@+,d2"
-;" subql #8,d2"
-;" movl d2,d3"
-;" movl d1,d2"
-;" movl sp@+,d1"
-;" movl sp@+,a0"
-;" dbra d5,L1003"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1003"
-;" movl a0,sp@-"
-;" TRAP2(24)"
-;" RETURN(L1,1,1)"
-;"L1004:"
-;" movl sp@+,a0"
-;"L1003:"
-;" movl d3,d0"
-;" blt L4"
-;"L3:"
-;" movl d3,d0"
-;" asrl #1,d0"
-;" movl d1,a1"
-;" movl a1@(1,d0:l),d4"
-;" movl d3,d0"
-;" asrl #1,d0"
-;" movl d2,a1"
-;" movl d4,a1@(1,d0:l)"
-;" subql #8,d3"
-;" dbra d5,L1005"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1005"
-;" movl a0,sp@-"
-;" TRAP2(24)"
-;" RETURN(L1,1,1)"
-;"L1006:"
-;" movl sp@+,a0"
-;"L1005:"
-;" movl d3,d0"
-;" bge L3"
-;"L4:"
-;" movl d2,d1"
-;" jmp a0@"
-;"L0:"
-;"|------------------------------------------------------"
-;"| #[primitive my-try] ="
-;"L1:"
-;" bmi L1000"
-;" TRAP1(9,1)"
-;" LBL_PTR(L1)"
-;"L1000:"
-;" movl a0,sp@-"
-;" lea L2,a0"
-;" dbra d5,L1001"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1001"
-;" TRAP2(24)"
-;" RETURN(L1,1,1)"
-;"L1002:"
-;"L1001:"
-;" JMP_PROC(4,10)"
-;" RETURN(L1,1,1)"
-;"L2:"
-;" lea L3,a0"
-;" JMP_PROC(5,10)"
-;" RETURN(L1,1,1)"
-;"L3:"
-;" movl d1,a1"
-;" movl a1@(-3),d1"
-;" lsrl #7,d1"
-;" dbra d5,L1003"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1003"
-;" TRAP2(24)"
-;" RETURN(L1,1,1)"
-;"L1004:"
-;"L1003:"
-;" rts"
-;"L0:"
-;"|------------------------------------------------------"
-;"| #[primitive go] ="
-;"L1:"
-;" bmi L1000"
-;" TRAP1(9,1)"
-;" LBL_PTR(L1)"
-;"L1000:"
-;" moveq #0,d3"
-;" movl #800,d2"
-;" dbra d5,L1001"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1001"
-;" movl a0,sp@-"
-;" TRAP2(24)"
-;" RETURN(L1,1,1)"
-;"L1002:"
-;" movl sp@+,a0"
-;"L1001:"
-;" movl d2,d0"
-;" ble L4"
-;" bra L3"
-;" RETURN(L1,3,1)"
-;"L2:"
-;" movl d1,d3"
-;" movl sp@+,d1"
-;" subql #8,d1"
-;" movl d1,d2"
-;" movl sp@+,d1"
-;" movl sp@+,a0"
-;" dbra d5,L1003"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1003"
-;" movl a0,sp@-"
-;" TRAP2(24)"
-;" RETURN(L1,1,1)"
-;"L1004:"
-;" movl sp@+,a0"
-;"L1003:"
-;" movl d2,d0"
-;" ble L4"
-;"L3:"
-;" movl a0,sp@-"
-;" movl d1,sp@-"
-;" movl d2,sp@-"
-;" lea L2,a0"
-;" dbra d5,L1005"
-;" moveq #9,d5"
-;" cmpl a5@,sp"
-;" bcc L1005"
-;" TRAP2(24)"
-;" RETURN(L1,3,1)"
-;"L1006:"
-;"L1005:"
-;" JMP_PROC(6,10)"
-;"L4:"
-;" movl d3,d1"
-;" jmp a0@"
-;"L0:"
-;""
-
-
+  (display "Running ")
+  (display name)
+  (newline)
+  (flush-output-port (current-output-port))
+  (let* ((j/s (jiffies-per-second)) (t0 (current-second)) (j0 (current-jiffy)))
+    (let loop ((i 0) (result #f))
+      (cond
+        ((< i count) (loop (+ i 1) (thunk)))
+        ((ok? result)
+          (let* ((j1 (current-jiffy))
+                 (t1 (current-second))
+                 (jifs (- j1 j0))
+                 (secs (inexact (/ jifs j/s)))
+                 (secs2 (rounded (- t1 t0))))
+            (display "Elapsed time: ")
+            (write secs)
+            (display " seconds (")
+            (write secs2)
+            (display ") for ")
+            (display name)
+            (newline)
+            (display "+!CSVLINE!+")
+            (display (this-scheme-implementation-name))
+            (display ",")
+            (display name)
+            (display ",")
+            (display secs)
+            (newline)
+            (flush-output-port (current-output-port)))
+          result)
+        (else
+          (display "ERROR: returned incorrect result: ")
+          (write result)
+          (newline)
+          (flush-output-port (current-output-port))
+          result)))))
+(main)
