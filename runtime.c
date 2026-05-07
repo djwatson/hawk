@@ -128,6 +128,48 @@ double numeric_to_double(gc_obj v) {
   abort();
 }
 
+static gc_obj pow2(int64_t exponent);
+static gc_obj flonum_ratnum(double x);
+static gc_obj tag_ratnum(ratnum_s r);
+
+static gc_obj pow2(int64_t exponent) {
+  gc_obj result = tag_fixnum(1);
+  gc_obj base = tag_fixnum(2);
+  while (exponent > 0) {
+    if (exponent % 2 == 1) {
+      result = vm_runtime_math_mul_slow(result, base);
+    }
+    base = vm_runtime_math_mul_slow(base, base);
+    exponent /= 2;
+  }
+  return result;
+}
+
+static gc_obj flonum_ratnum(double x) {
+  uint64_t bits;
+  memcpy(&bits, &x, sizeof(bits));
+  bool sign = bits >> 63;
+  int64_t exponent = (int64_t)(bits >> 52 & 0x7ff);
+  int64_t mantissa = (int64_t)(bits & 0xFFFFFFFFFFFFF);
+  if (exponent != 0) {
+    mantissa += 0x10000000000000;
+  }
+  gc_obj denom = tag_fixnum(0x10000000000000);
+  exponent -= 1023;
+  if (sign) {
+    mantissa *= -1;
+  }
+  gc_obj numerator = tag_fixnum(mantissa);
+  if (exponent < 0) {
+    exponent *= -1;
+    denom = vm_runtime_math_mul_slow(denom, pow2(exponent));
+  } else {
+    numerator = vm_runtime_math_mul_slow(numerator, pow2(exponent));
+  }
+
+  return tag_ratnum((ratnum_s){RATNUM_TAG, numerator, denom});
+}
+
 gc_obj numeric_inexact_value(gc_obj v) {
   if (is_fixnum(v)) {
     return vm_box_flonum((double)to_fixnum(v));
@@ -167,11 +209,7 @@ gc_obj numeric_exact_value(gc_obj v) {
                                 numeric_exact_value(c->imag));
   }
   if (is_flonum(v)) {
-    double x = to_flonum(v)->x;
-    if (!isfinite(x) || x < (double)INT64_MIN || x > (double)INT64_MAX) {
-      abort();
-    }
-    return tag_fixnum((int64_t)x);
+    return flonum_ratnum(to_flonum(v)->x);
   }
   abort();
 }
