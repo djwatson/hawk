@@ -760,102 +760,106 @@
                                                           template-variables)))
 
                                             (define (pattern-match pat form) ; pattern * obj -> ((var . obj))
-                                              (call/cc (lambda (return)
-                                                         (let match ((pat pat) (form form))
-                                                           (let* ((acc '())
-                                                                  (push!
-                                                                     (lambda (x)
-                                                                       (set! acc (cons x acc)))))
-                                                             (let walk ((pat pat) (form form))
-                                                               (case-pattern pat
-                                                                             ((variable-pattern var)
-                                                                              (if (memq var
-                                                                                        literals) ; comparing literal identifiers using eq?
-                                                                                  (unless (identifier=?
-                                                                                             form
-                                                                                             (current-use-environment)
-                                                                                             var
-                                                                                             (current-meta-environment))
-                                                                                    (return #f))
-                                                                                  (push! `(,var .
-                                                                                                ,form))))
-                                                                             ((constant-pattern obj)
-                                                                              (unless (equal? pat
-                                                                                              form)
-                                                                                (return #f)))
-                                                                             ((vector-pattern vec-pat)
-                                                                              (unless (vector? form)
-                                                                                (return #f))
-                                                                              (walk vec-pat
-                                                                                    (vector->list form)))
-                                                                             ((ellipsis-pattern rep-pat
-                                                                                                succ-pat)
-                                                                              (let ()
-                                                                                (define (reverse* x)
-                                                                                  (let loop ((x x)
-                                                                                             (acc
-                                                                                                '()))
-                                                                                    (if (pair? x)
-                                                                                        (loop (cdr x)
-                                                                                              (cons (car x)
-                                                                                                    acc))
-                                                                                        (values acc
-                                                                                                x))))
-                                                                                (let-values (((rev-pat
-                                                                                               last-pat)
-                                                                                                (reverse* succ-pat))
-                                                                                             ((rev-form
-                                                                                               last-form)
-                                                                                                (reverse* form)))
-                                                                                  (walk last-pat
-                                                                                        last-form)
-                                                                                  (let ((rep-form
-                                                                                           (let loop ((rev-pat
-                                                                                                         rev-pat)
-                                                                                                      (rev-form
-                                                                                                         rev-form))
-                                                                                             (cond
-                                                                                               ((null? rev-pat)
-                                                                                                 (reverse rev-form))
-                                                                                               ((null? rev-form)
-                                                                                                 (return #f))
-                                                                                               (else
-                                                                                                 (walk (car rev-pat)
-                                                                                                       (car rev-form))
-                                                                                                 (loop (cdr rev-pat)
-                                                                                                       (cdr rev-form)))))))
-                                                                                    (if (null? rep-form)
-                                                                                        (let ((variables
-                                                                                                 (map car
-                                                                                                      (pattern-variables rep-pat))))
-                                                                                          (for-each (lambda (var)
-                                                                                                      (push! `(,var .
-                                                                                                                    ())))
-                                                                                                    variables))
-                                                                                        (let ((substs
-                                                                                                 (map (lambda (obj)
-                                                                                                        (match rep-pat
-                                                                                                          obj))
-                                                                                                      rep-form)))
-                                                                                          (let ((variables
-                                                                                                   (map car
-                                                                                                        (car substs))))
-                                                                                            (for-each (lambda (var)
-                                                                                                        (push! `(,var .
-                                                                                                                      ,(map (lambda (subst)
-                                                                                                                              (cdr (assq var
-                                                                                                                                         subst)))
-                                                                                                                            substs))))
-                                                                                                      variables))))))))
-                                                                             ((pair-pattern car-pat
-                                                                                            cdr-pat)
-                                                                              (unless (pair? form)
-                                                                                (return #f))
-                                                                              (walk car-pat
-                                                                                    (car form))
-                                                                              (walk cdr-pat
-                                                                                    (cdr form)))))
-                                                             acc)))))
+                                              (define (reverse* x)
+                                                (let loop ((x x) (acc '()))
+                                                  (if (pair? x)
+                                                      (loop (cdr x) (cons (car x) acc))
+                                                      (values acc x))))
+                                              (define (match-repeat rep-pat rep-form)
+                                                (let loop ((rep-form rep-form) (substs '()))
+                                                  (if (null? rep-form)
+                                                      (reverse substs)
+                                                      (let ((subst (match rep-pat
+                                                                          (car rep-form)
+                                                                          '())))
+                                                        (and subst
+                                                             (loop (cdr rep-form)
+                                                                   (cons subst substs)))))))
+                                              (define (match pat form acc)
+                                                (case-pattern pat
+                                                              ((variable-pattern var)
+                                                               (if (memq var
+                                                                         literals) ; comparing literal identifiers using eq?
+                                                                   (and (identifier=?
+                                                                          form
+                                                                          (current-use-environment)
+                                                                          var
+                                                                          (current-meta-environment))
+                                                                        acc)
+                                                                   (cons `(,var . ,form) acc)))
+                                                              ((constant-pattern obj)
+                                                               (and (equal? obj form) acc))
+                                                              ((vector-pattern vec-pat)
+                                                               (and (vector? form)
+                                                                    (match vec-pat
+                                                                           (vector->list form)
+                                                                           acc)))
+                                                              ((ellipsis-pattern rep-pat
+                                                                                 succ-pat)
+                                                               (let-values (((rev-pat last-pat)
+                                                                             (reverse* succ-pat))
+                                                                            ((rev-form last-form)
+                                                                             (reverse* form)))
+                                                                 (let ((acc (match last-pat
+                                                                                   last-form
+                                                                                   acc)))
+                                                                   (and acc
+                                                                        (let loop ((rev-pat rev-pat)
+                                                                                   (rev-form rev-form)
+                                                                                   (acc acc))
+                                                                          (cond
+                                                                            ((null? rev-pat)
+                                                                              (let ((rep-form
+                                                                                       (reverse rev-form)))
+                                                                                (if (null? rep-form)
+                                                                                    (let loop ((variables
+                                                                                                  (map car
+                                                                                                       (pattern-variables rep-pat)))
+                                                                                               (acc acc))
+                                                                                      (if (null? variables)
+                                                                                          acc
+                                                                                          (loop (cdr variables)
+                                                                                                (cons `(,(car variables) . ())
+                                                                                                      acc))))
+                                                                                    (let ((substs
+                                                                                             (match-repeat rep-pat
+                                                                                                           rep-form)))
+                                                                                      (and substs
+                                                                                           (let loop ((variables
+                                                                                                         (map car
+                                                                                                              (car substs)))
+                                                                                                      (acc acc))
+                                                                                             (if (null? variables)
+                                                                                                 acc
+                                                                                                 (let ((var
+                                                                                                         (car variables)))
+                                                                                                   (loop (cdr variables)
+                                                                                                         (cons `(,var .
+                                                                                                                     ,(map (lambda (subst)
+                                                                                                                             (cdr (assq var
+                                                                                                                                        subst)))
+                                                                                                                           substs))
+                                                                                                               acc))))))))))
+                                                                            ((null? rev-form) #f)
+                                                                            (else
+                                                                              (let ((acc (match (car rev-pat)
+                                                                                                (car rev-form)
+                                                                                                acc)))
+                                                                                (and acc
+                                                                                     (loop (cdr rev-pat)
+                                                                                           (cdr rev-form)
+                                                                                           acc))))))))))
+                                                              ((pair-pattern car-pat
+                                                                             cdr-pat)
+                                                               (and (pair? form)
+                                                                    (let ((acc (match car-pat
+                                                                                      (car form)
+                                                                                      acc)))
+                                                                      (and acc
+                                                                           (match cdr-pat
+                                                                                  (cdr form)
+                                                                                  acc)))))))
+                                              (match pat form '()))
 
                                             (define (rewrite-template template subst pattern-variable-depths) ; template * ((var . obj)) -> obj
                                                 (let rewrite ((template template))
