@@ -715,23 +715,20 @@ static ir_ins emit_math_cmp_eq(vm_state *state, bc instr, gc_obj *stack,
                    : (eqv ? obj_jeqv(lhs, rhs) : lhs.value == rhs.value);
   bool fast_numeric = normalize_numeric_cmp_inputs(state, &v1, &v2, false);
   *taken = res;
-  bool lhs_numeric =
-      is_fixnum(lhs) || is_flonum(lhs) || is_bignum(lhs) || is_ratnum(lhs) ||
-      is_compnum(lhs);
-  bool rhs_numeric =
-      is_fixnum(rhs) || is_flonum(rhs) || is_bignum(rhs) || is_ratnum(rhs) ||
-      is_compnum(rhs);
+  bool lhs_numeric = is_fixnum(lhs) || is_flonum(lhs) || is_bignum(lhs) ||
+                     is_ratnum(lhs) || is_compnum(lhs);
+  bool rhs_numeric = is_fixnum(rhs) || is_flonum(rhs) || is_bignum(rhs) ||
+                     is_ratnum(rhs) || is_compnum(rhs);
   if ((eqv || numeq) && !fast_numeric && lhs_numeric && rhs_numeric) {
     v1 = box_vmcall_arg(state, v1);
     v2 = box_vmcall_arg(state, v2);
     auto op = numeq ? (res ? IR_VMJNUMEQ : IR_VMJNNUMEQ)
                     : (res ? IR_VMJEQV : IR_VMJNEQV);
-    return IR(.op = op, .op1 = v1, .op2 = v2,
-              .type = BOOL_TAG);
+    return IR(.op = op, .op1 = v1, .op2 = v2, .type = BOOL_TAG);
   }
   return IR(.op = res ? IR_EQ : IR_NE, .op1 = v1, .op2 = v2,
             .type = eqv || numeq ? RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs)
-                        : get_slot_type(t, v1));
+                                 : get_slot_type(t, v1));
 }
 static void record_abort(vm_state *state, void **op_table, const char *msg) {
   if (verbose) {
