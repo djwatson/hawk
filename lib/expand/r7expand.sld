@@ -66,7 +66,7 @@
       (build-variable (unwrap-syntax id) library-name))
 
     (define (extend-environment! id env)
-      (unless (and (toplevel-environment? env) (symbol? id))
+      (unless (toplevel-environment? env)
         (let ((frame (environment-frame env)))
           (cond
             ((assq id frame) (error "duplicate binding" id))
