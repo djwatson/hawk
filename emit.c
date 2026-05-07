@@ -820,7 +820,9 @@ static void emit_cmp_regs(emit_state *s, trace *t, uint8_t lhs_reg, slot rhs,
   emit_cmp(s, lhs_reg, rhs_reg);
 }
 
-#define COMMENT(...) comment_append(emit_offset(s), &s->comments, __VA_ARGS__)
+#define COMMENT(...)                                                           \
+  if (verbose)                                                                 \
+  comment_append(emit_offset(s), &s->comments, __VA_ARGS__)
 
 typedef struct {
   uint16_t slot;
