@@ -670,23 +670,27 @@
                   (define (interpret-transformer-spec spec env)
                     (cond
                       ((eq? (unwrap-syntax (car spec)) 'syntax-rules)
-                        (make-expander (interpret-syntax-rules spec) env))
+                        (make-expander (interpret-syntax-rules spec env) env))
                       (else (error "unknown transformer spec" spec))))
 
-                  (define (interpret-syntax-rules spec)
+                  (define (interpret-syntax-rules spec spec-env)
                     (er-macro-transformer (lambda (form rename compare)
 
                                             ;; missing features:
                                             ;; - placeholder
                                             ;; - more syntax check (e.g. non-linearity of pattern variables)
 
-                                            (define-values (ellipsis literals rules)
+                                            (define-values (ellipsis ellipsis-env literals rules)
                                               (if (list? (cadr spec))
                                                   (values (make-identifier '...
-                                                                           (current-meta-environment ))
+                                                                           builtin-env)
+                                                          builtin-env
                                                           (cadr spec)
                                                           (cddr spec))
-                                                  (values (cadr spec) (caddr spec) (cdddr spec))))
+                                                  (values (cadr spec)
+                                                          spec-env
+                                                          (caddr spec)
+                                                          (cdddr spec))))
 
                                             ;; p ::= var | constant | #(p ...) | (p <ellipsis> . p) | (p . p)
 
@@ -710,9 +714,9 @@
                                                       ((and (pair? (cdr pat))
                                                             (identifier? (cadr pat))
                                                             (identifier=? (cadr pat)
-                                                                          (current-meta-environment)
+                                                                          spec-env
                                                                           ellipsis
-                                                                          (current-meta-environment)))
+                                                                          ellipsis-env))
                                                         (let ((rep (car pat)) (succ (cddr pat)))
                                                           .
                                                           ellipsis-body))
