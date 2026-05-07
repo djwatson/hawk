@@ -7,6 +7,7 @@
               include
               let
               let*
+              let-values
               if
               begin
               quote
@@ -1655,16 +1656,33 @@
 (define (cos d) (sys:FOREIGN_CALL '(double "cos" (double)) (inexact d)))
 (define (asin d) (sys:FOREIGN_CALL '(double "asin" (double)) (inexact d)))
 (define (acos d) (sys:FOREIGN_CALL '(double "acos" (double)) (inexact d)))
-(define (sqrt d) (sys:FOREIGN_CALL '(double "sqrt" (double)) (inexact d)))
+(define (sqrt x)
+  (cond
+    ((compnum? x) (make-polar (sqrt (magnitude x)) (/ (angle x) 2)))
+    ((negative? x) (make-rectangular 0.0 (sqrt (abs x))))
+    (else (sys:FOREIGN_CALL '(double "sqrt" (double)) (inexact x)))))
 (define (atan d) (sys:FOREIGN_CALL '(double "atan" (double)) (inexact d)))
 (define (tan d) (sys:FOREIGN_CALL '(double "tan" (double)) (inexact d)))
+(define (floor-quotient a b)
+  (let ((q (/ a b)) (qq (quotient a b)))
+    ;; TODO don't use / and quotient both
+    (if (and (< q 0) (not (integer? q))) (- qq 1) qq)))
+(define (floor/ a b)
+  (let* ((div (floor-quotient a b)) (rem (- a (* b div)))) (values div rem)))
 (define (round d)
-  (let* ((d (inexact d)) (rounded (sys:FOREIGN_CALL '(double "round" (double)) d)))
-    ;; Round to even, towards zero.
-    (if (and (= 0.5 (sys:FOREIGN_CALL '(double "fabs" (double)) (- d rounded)))
-             (not (= 0.0 (sys:FOREIGN_CALL '(double "fmod" (double double)) rounded 2.0))))
-        (+ rounded (if (> d 0) -1 1))
-        rounded)))
+  (cond
+    ((flonum? d)
+      (let* ((d (inexact d)) (rounded (sys:FOREIGN_CALL '(double "round" (double)) d)))
+        ;; Round to even, towards zero.
+        (if (and (= 0.5 (sys:FOREIGN_CALL '(double "fabs" (double)) (- d rounded)))
+                 (not (= 0.0 (sys:FOREIGN_CALL '(double "fmod" (double double)) rounded 2.0))))
+            (+ rounded (if (> d 0) -1 1))
+            rounded)))
+    ((ratnum? d)
+      (let-values (((q r) (floor/ (numerator d) (denominator d))))
+        (let ((half (/ (denominator d) 2)))
+          (cond ((> r half) (+ q 1)) ((not (= r half)) q) ((odd? q) (+ 1 q)) (else q)))))
+    (else d)))
 (define (ceiling x) (sys:FOREIGN_CALL '(double "ceil" (double)) (inexact x)))
 (define (log x) (sys:FOREIGN_CALL '(double "log" (double)) (inexact x)))
 
