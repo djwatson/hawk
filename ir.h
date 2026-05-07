@@ -103,6 +103,8 @@ typedef enum : uint8_t {
   X(VMGTE, ARG_IR_IR, true)                                                    \
   X(VMJEQV, ARG_IR_IR, true)                                                   \
   X(VMJNEQV, ARG_IR_IR, true)                                                  \
+  X(VMJNUMEQ, ARG_IR_IR, true)                                                 \
+  X(VMJNNUMEQ, ARG_IR_IR, true)                                                \
   X(VMINEXACT, ARG_IR_NONE, true)                                              \
   X(VMEXACT, ARG_IR_NONE, true)                                                \
   X(VMTRUNCATE, ARG_IR_NONE, true)

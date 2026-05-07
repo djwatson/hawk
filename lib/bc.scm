@@ -54,7 +54,7 @@
     (> . GT)
     (eq? . EQ)
     (eqv? . EQV)
-    (= . EQV)
+    (= . NUMEQ)
     (>= . GTE)
     (<= . LTE)
     (car . CAR)
@@ -1005,7 +1005,13 @@
 ;; comparison if in an 'if' test position, otherwise replace with a
 ;; branch + true/false constant result.
 (define jcmp
-  '((LT . JLT) (GT . JGT) (LTE . JLTE) (GTE . JGTE) (EQ . JEQ) (EQV . JEQV)))
+  '((LT . JLT)
+    (GT . JGT)
+    (LTE . JLTE)
+    (GTE . JGTE)
+    (EQ . JEQ)
+    (EQV . JEQV)
+    (NUMEQ . JNUMEQ)))
 (define (lower-comparisons ir)
   (cond
     ;; If it's already behind a if test, it's okay

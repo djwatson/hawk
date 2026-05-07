@@ -54,6 +54,7 @@ gc_obj vm_runtime_cmp_gt_slow(gc_obj v1, gc_obj v2);
 gc_obj vm_runtime_cmp_lte_slow(gc_obj v1, gc_obj v2);
 gc_obj vm_runtime_cmp_gte_slow(gc_obj v1, gc_obj v2);
 gc_obj vm_runtime_cmp_jeqv_slow(gc_obj v1, gc_obj v2);
+gc_obj vm_runtime_cmp_numeq_slow(gc_obj v1, gc_obj v2);
 gc_obj make_string(const char *str);
 
 static inline uint8_t numeric_result_type(uint8_t t1, uint8_t t2) {

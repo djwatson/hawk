@@ -73,6 +73,7 @@
   X(JGTE, ABC)                                                                 \
   X(JEQ, ABC)                                                                  \
   X(JEQV, ABC)                                                                 \
+  X(JNUMEQ, ABC)                                                               \
   X(GUARD, ABC)                                                                \
   X(IF, AD)                                                                    \
   X(JMP, AD)                                                                   \

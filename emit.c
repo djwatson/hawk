@@ -661,6 +661,8 @@ static vm_call_info vm_call_infos[] = {
     {(intptr_t)&vm_runtime_cmp_gte_slow, true, false},
     {(intptr_t)&vm_runtime_cmp_jeqv_slow, true, false},
     {(intptr_t)&vm_runtime_cmp_jeqv_slow, true, true},
+    {(intptr_t)&vm_runtime_cmp_numeq_slow, true, false},
+    {(intptr_t)&vm_runtime_cmp_numeq_slow, true, true},
     {(intptr_t)&numeric_inexact_value, false, false},
     {(intptr_t)&numeric_exact_value, false, false},
     {(intptr_t)&numeric_truncate_value, false, false},

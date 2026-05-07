@@ -271,12 +271,29 @@ static NOINLINE gc_obj emit_math_cmp_jeqv_slowpath(vm_state *state, bc *pc,
   return vm_runtime_cmp_jeqv_slow(v1, v2);
 }
 
+static NOINLINE gc_obj emit_math_cmp_numeq_slowpath(vm_state *state, bc *pc,
+                                                    gc_obj *stack, gc_obj v1,
+                                                    gc_obj v2) {
+  (void)state;
+  (void)pc;
+  (void)stack;
+  return vm_runtime_cmp_numeq_slow(v1, v2);
+}
+
 static inline gc_obj emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
                                         gc_obj v1, gc_obj v2) {
   if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
     return to_fixnum(v1) == to_fixnum(v2) ? TRUE_REP : FALSE_REP;
   }
   MUSTTAIL return emit_math_cmp_jeqv_slowpath(state, pc, stack, v1, v2);
+}
+
+static inline gc_obj emit_math_cmp_numeq(vm_state *state, bc *pc, gc_obj *stack,
+                                         gc_obj v1, gc_obj v2) {
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    return to_fixnum(v1) == to_fixnum(v2) ? TRUE_REP : FALSE_REP;
+  }
+  MUSTTAIL return emit_math_cmp_numeq_slowpath(state, pc, stack, v1, v2);
 }
 
 gc_obj vm_memq(gc_obj obj, gc_obj list) {
@@ -959,6 +976,7 @@ CMP_BRANCH(JLTE, emit_math_cmp_lte)
 CMP_BRANCH(JGTE, emit_math_cmp_gte)
 CMP_BRANCH(JEQ, emit_math_cmp_jeq)
 CMP_BRANCH(JEQV, emit_math_cmp_jeqv)
+CMP_BRANCH(JNUMEQ, emit_math_cmp_numeq)
 OP(IF) {
   auto v = stack[instr.data];
   BRANCH_NEXT(v.value != FALSE_REP.value);

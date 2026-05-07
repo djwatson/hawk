@@ -706,23 +706,31 @@ DEFINE_BRANCH_CMP(lte, IR_LTE, IR_GT, IR_VMLTE, IR_VMGT, <=)
 DEFINE_BRANCH_CMP(gte, IR_GTE, IR_LT, IR_VMGTE, IR_VMLT, >=)
 // NOLINTEND(bugprone-macro-parentheses)
 static ir_ins emit_math_cmp_eq(vm_state *state, bc instr, gc_obj *stack,
-                               slot v1, slot v2, bool *taken, bool eqv) {
+                               slot v1, slot v2, bool *taken, bool eqv,
+                               bool numeq) {
   auto lhs = stack[instr.v1];
   auto rhs = stack[instr.v2];
   auto t = record_current_trace(state);
-  bool res = eqv ? obj_jeqv(lhs, rhs) : lhs.value == rhs.value;
+  bool res = numeq ? numeric_eqv(lhs, rhs)
+                   : (eqv ? obj_jeqv(lhs, rhs) : lhs.value == rhs.value);
   bool fast_numeric = normalize_numeric_cmp_inputs(state, &v1, &v2, false);
   *taken = res;
-  bool lhs_numeric = is_fixnum(lhs) || is_flonum(lhs) || is_bignum(lhs);
-  bool rhs_numeric = is_fixnum(rhs) || is_flonum(rhs) || is_bignum(rhs);
-  if (eqv && !fast_numeric && lhs_numeric && rhs_numeric) {
+  bool lhs_numeric =
+      is_fixnum(lhs) || is_flonum(lhs) || is_bignum(lhs) || is_ratnum(lhs) ||
+      is_compnum(lhs);
+  bool rhs_numeric =
+      is_fixnum(rhs) || is_flonum(rhs) || is_bignum(rhs) || is_ratnum(rhs) ||
+      is_compnum(rhs);
+  if ((eqv || numeq) && !fast_numeric && lhs_numeric && rhs_numeric) {
     v1 = box_vmcall_arg(state, v1);
     v2 = box_vmcall_arg(state, v2);
-    return IR(.op = res ? IR_VMJEQV : IR_VMJNEQV, .op1 = v1, .op2 = v2,
+    auto op = numeq ? (res ? IR_VMJNUMEQ : IR_VMJNNUMEQ)
+                    : (res ? IR_VMJEQV : IR_VMJNEQV);
+    return IR(.op = op, .op1 = v1, .op2 = v2,
               .type = BOOL_TAG);
   }
   return IR(.op = res ? IR_EQ : IR_NE, .op1 = v1, .op2 = v2,
-            .type = eqv ? RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs)
+            .type = eqv || numeq ? RECORD_JEQV_GUARD_TYPE(t, v1, v2, lhs, rhs)
                         : get_slot_type(t, v1));
 }
 static void record_abort(vm_state *state, void **op_table, const char *msg) {
@@ -1155,12 +1163,14 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     RECORD_BIN_CMP(JLTE, emit_math_cmp_lte)
     RECORD_BIN_CMP(JGTE, emit_math_cmp_gte)
   case OP_JEQ:
-  case OP_JEQV: {
-    auto v1 = stack_load(state, stack, instr.v1, instr.op == OP_JEQV);
-    auto v2 = stack_load(state, stack, instr.v2, instr.op == OP_JEQV);
+  case OP_JEQV:
+  case OP_JNUMEQ: {
+    bool boxed_cmp = instr.op == OP_JEQV || instr.op == OP_JNUMEQ;
+    auto v1 = stack_load(state, stack, instr.v1, boxed_cmp);
+    auto v2 = stack_load(state, stack, instr.v2, boxed_cmp);
     bool taken;
     auto guard = emit_math_cmp_eq(state, instr, stack, v1, v2, &taken,
-                                  instr.op == OP_JEQV);
+                                  instr.op == OP_JEQV, instr.op == OP_JNUMEQ);
     RECORD_BRANCH(taken, guard);
     break;
   }

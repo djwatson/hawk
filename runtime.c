@@ -232,6 +232,12 @@ bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
 }
 
 bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
+  if (lhs.value == rhs.value) {
+    return true;
+  }
+  if (get_type_tag(lhs) != get_type_tag(rhs)) {
+    return false;
+  }
   if ((is_fixnum(lhs) || is_flonum(lhs) || is_bignum(lhs) || is_ratnum(lhs)) &&
       (is_fixnum(rhs) || is_flonum(rhs) || is_bignum(rhs) || is_ratnum(rhs))) {
     return numeric_eqv(lhs, rhs);
@@ -1081,6 +1087,10 @@ DEFINE_VM_RUNTIME_NUMERIC_CMP_SLOW(gte, >=)
 
 gc_obj vm_runtime_cmp_jeqv_slow(gc_obj v1, gc_obj v2) {
   return obj_jeqv(v1, v2) ? TRUE_REP : FALSE_REP;
+}
+
+gc_obj vm_runtime_cmp_numeq_slow(gc_obj v1, gc_obj v2) {
+  return numeric_eqv(v1, v2) ? TRUE_REP : FALSE_REP;
 }
 
 gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,

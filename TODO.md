@@ -1,11 +1,13 @@
 ## Release checklist
 
+[x] fix (= 4.0 4)
+
 [ ] implement eq? hashtables
 [ ] use new hashtables in bc.scm, string->symbol, srfi 69, maybe symbol lookup in expander
 
 [ ] get macros solid - pass macro tests
-[ ] get r5rs_pitfalls working
-[ ] pass r5rs-tests
+[x] get r5rs_pitfalls working
+[x] pass r5rs-tests
 
 [ ] cleanup record.c
 [ ] cleanup vm.c
@@ -50,7 +52,6 @@
 # VM backlog
 
 * track stack-top
-* remove weird custom hashtable, because we're missing eq? support
 * missing multi-value callcc returns I think?
 * we store state VM, the only place it is used is to flush traces in the FOREIGN_CALL to dump image and die. ugh.
 * LOOP could just do a memmov instead?
