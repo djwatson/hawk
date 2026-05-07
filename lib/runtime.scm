@@ -148,6 +148,22 @@
                 (loop (let loop3 ((lsts lsts))
                         (if (null? lsts) '() (cons (cdr (car lsts)) (loop3 (cdr lsts)))))))))))))
 
+(define string-for-each
+  (case-lambda
+    ((proc str)
+      (do ((len (string-length str)) (i 0 (+ i 1)) (pos 0 (+ pos 1)))
+           ((= i len))
+           (proc (string-ref str pos))))
+    ((proc . strs)
+      (do ((len (apply min (map string-length strs))) (i 0 (+ i 1)))
+           ((= i len))
+           (apply proc (map (lambda (x) (string-ref x i)) strs))))))
+
+(define (vector-for-each proc . vecs)
+  (do ((len (apply min (map vector-length vecs))) (i 0 (+ i 1)))
+       ((= i len))
+       (apply proc (map (lambda (x) (vector-ref x i)) vecs))))
+
 (define (eqv? a b) (or (eq? a b) (and (flonum? a) (flonum? b) (= a b))))
 (define (equal? a b)
   (sys:FOREIGN_CALL '(gc_obj "SCM_EQUAL" (gc_obj gc_obj)) a b))
@@ -416,11 +432,11 @@
 (define (list->vector lst)
   (let* ((len (length lst)) (v (make-vector len 0)))
     (do ((i 0 (+ i 1)) (p lst (cdr p))) ((= i len) v) (vector-set! v i (car p)))))
-(define (vector-map fun vec)
-  (let ((res (make-vector (vector-length vec))))
+(define (vector-map proc . vecs)
+  (let* ((len (apply min (map vector-length vecs))) (vec (make-vector len)))
     (do ((i 0 (+ i 1)))
-         ((= i (vector-length res)) res)
-         (vector-set! res i (fun (vector-ref vec i))))))
+         ((= i len) vec)
+         (vector-set! vec i (apply proc (map (lambda (x) (vector-ref x i)) vecs))))))
 
 (define apply
   (case-lambda
