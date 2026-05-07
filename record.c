@@ -527,11 +527,13 @@ static slot convert_to_fixnum(vm_state *state, slot v1, gc_obj raw_v1) {
   if (t1 == FIXNUM_TAG) {
     return v1;
   }
-  if (t1 == FLONUM_TAG) {
+if (t1 == FLONUM_TAG) {
     if (v1.constant) {
-      return add_const(state, numeric_exact_value(t->consts[v1.loc]));
+      gc_obj exact = numeric_exact_value(t->consts[v1.loc]);
+      return add_const(state, exact);
     }
-    ir_ins ins = IR(.op = IR_EXACT, .op1 = v1, .type = FIXNUM_TAG);
+    ir_ins ins = IR(.op = IR_VMEXACT, .op1 = v1,
+                   .type = vm_runtime_unary_result_type(IR_VMEXACT, raw_v1));
     return add_inst(state, ins);
   }
   return add_inst(state,
