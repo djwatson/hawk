@@ -570,6 +570,16 @@ static void emit_serialized_moves(emit_state *s, par_copy *cpy,
   arrfree(moves);
 }
 
+static void collect_move_source_roots(par_copy *cpy, bool live_regs[MAX_REG],
+                                      uint64_t *live_gpr_mask) {
+  arr_for_each_idx(cpy, i) {
+    uint8_t from = (uint8_t)cpy[i].from;
+    if (!is_fpr_reg(from)) {
+      mark_live_reg(live_regs, live_gpr_mask, from);
+    }
+  }
+}
+
 static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
                        uint16_t op_cnt_idx, ir_ins const *op, slot *args,
                        uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg) {
@@ -763,13 +773,17 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
   }
 
   par_copy *cpy = nullptr;
+  bool live_regs[MAX_REG];
+  uint64_t live_gpr_mask;
+  collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs, &live_gpr_mask);
   if (!a0.constant) {
     arrput(cpy, ((par_copy){.from = a0_src, .to = RARG0}));
   }
   if (!unary && !a1.constant) {
     arrput(cpy, ((par_copy){.from = a1_src, .to = RARG1}));
   }
-  emit_serialized_moves(s, cpy, nullptr, 0);
+  collect_move_source_roots(cpy, live_regs, &live_gpr_mask);
+  emit_serialized_moves(s, cpy, live_regs, live_gpr_mask);
   emit_gcobj_arg(s, t, a0, RARG0, RARG0);
   if (!unary) {
     emit_gcobj_arg(s, t, a1, RARG1, RARG1);
