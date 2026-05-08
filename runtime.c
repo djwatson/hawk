@@ -299,6 +299,7 @@ int numeric_real_compare(gc_obj lhs, gc_obj rhs, bool *ordered) {
 }
 
 bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
+  // Numeric = semantics: NaNs are unordered and never equal here.
   if (is_compnum(lhs) || is_compnum(rhs)) {
     compnum_s *l = is_compnum(lhs) ? to_compnum(lhs) : nullptr;
     compnum_s *r = is_compnum(rhs) ? to_compnum(rhs) : nullptr;
@@ -313,14 +314,35 @@ bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
 }
 
 bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
+  // Object eqv?: identity first, then Chez-style numeric eqv? for numbers.
   if (lhs.value == rhs.value) {
     return true;
   }
   if (get_type_tag(lhs) != get_type_tag(rhs)) {
     return false;
   }
-  if ((is_fixnum(lhs) || is_flonum(lhs) || is_bignum(lhs) || is_ratnum(lhs)) &&
-      (is_fixnum(rhs) || is_flonum(rhs) || is_bignum(rhs) || is_ratnum(rhs))) {
+  if (is_compnum(lhs) || is_compnum(rhs)) {
+    compnum_s *l = is_compnum(lhs) ? to_compnum(lhs) : nullptr;
+    compnum_s *r = is_compnum(rhs) ? to_compnum(rhs) : nullptr;
+    gc_obj lreal = l ? l->real : lhs;
+    gc_obj limag = l ? l->imag : tag_fixnum(0);
+    gc_obj rreal = r ? r->real : rhs;
+    gc_obj rimag = r ? r->imag : tag_fixnum(0);
+    return obj_jeqv(lreal, rreal) && obj_jeqv(limag, rimag);
+  }
+  if (is_flonum(lhs) && is_flonum(rhs)) {
+    // Scheme eqv? semantics, matching Chez: NaNs are eqv?, otherwise bits.
+    double l = to_flonum(lhs)->x;
+    double r = to_flonum(rhs)->x;
+    if (isnan(l) || isnan(r)) {
+      return isnan(l) && isnan(r);
+    }
+    return memcmp(&l, &r, sizeof(l)) == 0;
+  }
+  if ((is_fixnum(lhs) || is_flonum(lhs) || is_bignum(lhs) || is_ratnum(lhs) ||
+       is_compnum(lhs)) &&
+      (is_fixnum(rhs) || is_flonum(rhs) || is_bignum(rhs) || is_ratnum(rhs) ||
+       is_compnum(rhs))) {
     return numeric_eqv(lhs, rhs);
   }
   return lhs.value == rhs.value;

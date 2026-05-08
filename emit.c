@@ -1979,12 +1979,10 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
     uint8_t out_reg = ir_output_reg(t, ir_idx);
     if (out_reg != REG_NONE) {
       auto offset = (int32_t)arg_ins->data * 8;
-      if (is_fpr_reg(out_reg)) {
-        emit_mem_load(s, offset, RSTACK, RTMP);
-        emit_unbox_flonum(s, RTMP, out_reg);
-      } else {
-        emit_mem_load(s, offset, RSTACK, out_reg);
-      }
+      // IR_ARG can NEVER be FPR out, we use additional IR_TYPECHECK
+      // for that.
+      assert(!is_fpr_reg(out_reg));
+      emit_mem_load(s, offset, RSTACK, out_reg);
     }
   }
   regalloc_state_free(&arg_state);
