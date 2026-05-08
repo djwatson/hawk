@@ -234,6 +234,7 @@
 (define (infinite? x)
   (or (and (flonum? x) (sys:FOREIGN_CALL '(bool "SCM_ISINF" (double)) x))
      (and (compnum? x) (or (infinite? (real-part x)) (infinite? (imag-part x))))))
+(define (finite? num) (or (not (number? num)) (not (infinite? num))))
 (define (exact? x) (or (fixnum? x) (bignum? x)))
 (define inexact? flonum?)
 (define exact-integer? fixnum?)
