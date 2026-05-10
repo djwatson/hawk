@@ -31,6 +31,7 @@
          ;;    (begin
          ;;      (display "Compile done\n" (current-error-port))
          ;;      (flush-output-port (current-error-port))))
+         ;;(unused (begin (for-each print-bc roots) (flush-output-port)))
          (payload (roots->runtime-payload roots))
          (clo (sys:FOREIGN_CALL '(gc_obj "scm_emit_bitcode_closure" (gc_obj)) payload)))
     ;; (display "runtime init done\n" (current-error-port))

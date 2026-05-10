@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,10 +43,6 @@ typedef struct {
 } type_stats;
 
 static type_stats *type_statistics;
-
-static inline size_t heap_align(size_t size) {
-  return (size + sizeof(gc_obj) - 1) & ~(sizeof(gc_obj) - 1);
-}
 
 static void image_error(char const *path, char const *msg) {
   fprintf(stderr, "%s: %s\n", path, msg);

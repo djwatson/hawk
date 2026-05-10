@@ -74,10 +74,6 @@ static uint64_t *scc_size;
 static uint64_t *scc_retained_bytes;
 static uint64_t *scc_reachable;
 
-static inline size_t heap_align(size_t size) {
-  return (size + sizeof(gc_obj) - 1) & ~(sizeof(gc_obj) - 1);
-}
-
 static size_t object_size(gc_header *header) {
   switch (header->type) {
   case FLONUM_TAG:

@@ -1,11 +1,20 @@
+# Known bugs
+
+[ ] r7rs-tests LOOKUPs are too long & overflowing because main is too long. 
+    Extend to 32-bit LOOKUP/CONST/DEFINE.  Also add checks for JMP and IF, make sure
+	they don't exceed distance
+
+[ ] eq? hash tables fail in saved heap image: need to also serialize
+    heap collect() counter probably
+    * it's because SCM_GC_CNT isn't preserved across gc image and loading.  Doh.
+
 ## Release checklist
 
 [x] fix (= 4.0 4)
 
 [x] implement eq? hashtables
 [x] use new hashtables in bc.scm, string->symbol, srfi 69, maybe symbol lookup in expander
-  * ugh its broken if we use it in expander code..... so ugh
-    * it's because SCM_GC_CNT isn't preserved across gc image and loading.  Doh.
+  [ ] use in expander frames
    
 
 [x] get macros solid - pass macro tests
@@ -15,7 +24,6 @@
 [ ] work on r7rs-tests
   * about halfway done
 [ ] Get all the argtype stuff calling error instead
-[ ] merge in the 'fast' VM branch?
 
 [ ] cleanup record.c
 [ ] cleanup vm.c

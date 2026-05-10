@@ -462,6 +462,7 @@ static bool runtime_decode_closure_ref(gc_obj obj, uint64_t fun_count,
 }
 
 gc_obj scm_emit_bitcode_closure(gc_obj payload) {
+  printf("scm_emit_bitcode_closure\n");
   gc_add_root((const void *)&payload, 1, 0);
   vector_s *root = runtime_expect_vector(payload, 2);
   gc_obj entry_id_obj = root->v[0];
@@ -511,30 +512,43 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
     }
   }
 
-  for (gc_obj cur = funs_list; cur.value != NIL_TAG; cur = to_cons(cur)->b) {
-    vector_s *desc = runtime_expect_vector(to_cons(cur)->a, 4);
+  gc_obj cur = funs_list;
+  gc_add_root((const void *)&cur, 1, 0);
+  while (cur.value != NIL_TAG) {
+    gc_obj desc_obj = to_cons(cur)->a;
+    gc_add_root((const void *)&desc_obj, 1, 0);
+    vector_s *desc = runtime_expect_vector(desc_obj, 4);
     uint64_t id = (uint64_t)runtime_expect_fixnum(desc->v[0]);
     bcfunc *func = funcs[id];
     func->name = desc->v[1];
+    gc_log(&func->name);
 
     gc_obj *consts = (gc_obj *)func->data;
     uint64_t const_idx = 0;
-    for (gc_obj c = desc->v[2]; c.value != NIL_TAG; c = to_cons(c)->b) {
+    gc_obj c = desc->v[2];
+    gc_add_root((const void *)&c, 1, 0);
+    while (c.value != NIL_TAG) {
       gc_obj raw = to_cons(c)->a;
       uint64_t ref_id;
+      gc_obj val;
       if (runtime_decode_fun_ref(raw, fun_count, &ref_id)) {
-        consts[const_idx++] = tag_func(funcs[ref_id]);
+        val = tag_func(funcs[ref_id]);
       } else if (runtime_decode_closure_ref(raw, fun_count, &ref_id)) {
         closure_s *clo = gc_alloc(sizeof(closure_s) + sizeof(gc_obj));
         clo->header.type = CLOSURE_TAG;
         clo->len = tag_fixnum(1);
         clo->v[0] = tag_func(funcs[ref_id]);
-        consts[const_idx++] = tag_closure(clo);
+        val = tag_closure(clo);
       } else {
-        consts[const_idx++] = raw;
+        val = raw;
       }
+      consts[const_idx] = val;
+      gc_log(&consts[const_idx++]);
+      c = to_cons(c)->b;
     }
+    gc_remove_root((const void *)&c, 0);
 
+    desc = runtime_expect_vector(to_cons(cur)->a, 4);
     bc *code = (bc *)(func->data + (func->const_cnt * sizeof(gc_obj)));
     uint64_t code_idx = 0;
     for (gc_obj w = desc->v[3]; w.value != NIL_TAG; w = to_cons(w)->b) {
@@ -544,7 +558,10 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
       }
       code[code_idx++].full_data = (uint32_t)word;
     }
+    gc_remove_root((const void *)&desc_obj, 0);
+    cur = to_cons(cur)->b;
   }
+  gc_remove_root((const void *)&cur, 0);
 
   closure_s *clo = gc_alloc(sizeof(closure_s) + sizeof(gc_obj));
   clo->header.type = CLOSURE_TAG;
@@ -554,6 +571,7 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
 
   free(funcs);
   gc_remove_root((const void *)&payload, 0);
+  printf("\\scm_emit_bitcode_closure\n");
   return out;
 }
 
