@@ -2,16 +2,33 @@
         (scheme process-context) (scheme read) (r7expand) (library) (builders) (expander)
         (prefix (hawk sys) sys:) (srfi 69))
 
-(define (write-double d) (error "No write-double"))
+(define (environment . lst)
+  (define env (make-toplevel-environment 'env))
+  (expand-repl `(import ,@lst) env)
+  env)
 (include "bc.scm")
 (include "expander-init.scm")
-(define repl-env (make-toplevel-environment 'repl))
-(expand-repl '(import (scheme base) (scheme case-lambda) (scheme char) (scheme complex) (scheme cxr)
-                      (scheme eval) (scheme file) (scheme inexact) (scheme lazy) (scheme load)
-                      (scheme process-context) (scheme read) (scheme repl) (scheme time)
-                      (scheme write) (scheme r5rs))
-             repl-env)
+
+(define interaction-environment
+  (let ((env #f))
+    (lambda ()
+      (unless env
+	(set! env (environment '(scheme base) '(scheme case-lambda) '(scheme char) '(scheme complex) '(scheme cxr)
+			       '(scheme eval) '(scheme file) '(scheme inexact) '(scheme lazy) '(scheme load)
+			       '(scheme process-context) '(scheme read) '(scheme repl) '(scheme time)
+			       '(scheme write) '(scheme r5rs))))
+      env)))
 (library-paths '("." "lib/srfi2"))
+
+(define (scheme-report-environment version)
+  (unless (= 5 version) (error "scheme-report-environment supports only version 5" version))
+  (environment '(scheme r5rs)))
+
+(define (null-environment version)
+  (unless (= 5 version) (error "null-environment supports only version 5" version))
+  (environment '(only (scheme r5rs) syntax-rules define quasiquote let let* letrec letrec-syntax
+		      do case cond and or delay force
+		      lambda begin if quote define-syntax let-syntax set!)))
 
 (define (eval foo env)
   ;; (display "EVAL:")
@@ -20,7 +37,7 @@
   ;; (flush-output-port)
 
   (let* ((ir
-            (build-begin (list (if env (expand-repl foo repl-env) (expand-program foo "PROGRAM")))))
+          (build-begin (list (if env (expand-repl foo (interaction-environment)) (expand-program foo "PROGRAM")))))
          ;; (_
          ;;    (begin
          ;;      (display "Expand done\n" (current-error-port))
