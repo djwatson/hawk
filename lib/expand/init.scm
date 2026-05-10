@@ -338,7 +338,10 @@
                               jiffies-per-second
                               ;; (scheme r5rs) not elsewhere
                               null-environment
-                              scheme-report-environment))))
+                              scheme-report-environment
+			      ;; 6.14
+			      features
+			      ))))
 
   (make-library '(r7expander builtin))
   (with-library '(r7expander builtin)

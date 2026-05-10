@@ -269,7 +269,10 @@
     write-string
     write-u8
     write-bytevector
-    flush-output-port)
+    flush-output-port
+    ;; 6.14
+    features
+    )
 
   (import (rename (only (r7expander builtin)
                         lambda
@@ -500,7 +503,10 @@
                 write-string
                 write-u8
                 write-bytevector
-                flush-output-port))
+                flush-output-port
+		;; 6.14 system interface
+		features
+		))
   (import (rename (only (r7expander native)
                         call-with-current-continuation)
                   (call-with-current-continuation call/cc)))

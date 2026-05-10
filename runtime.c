@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 
 #include <assert.h>
 #include <fcntl.h>
@@ -6,6 +7,7 @@
 #include <math.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "bigint.h"
 #include "ftoa.h"
@@ -1212,3 +1214,30 @@ gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,
 EXPORT uint64_t SCM_HASH_OBJ(gc_obj obj) { return hashmix(obj.value); }
 EXPORT bool SCM_ISNAN(double d) { return isnan(d); }
 EXPORT bool SCM_ISINF(double d) { return isinf(d); }
+EXPORT gc_obj SCM_GET_ENV_VARS() {
+  gc_obj tail = NIL;
+  gc_add_root((const void *)&tail, 1, 0);
+
+  char **p = environ;
+  while (*p) {
+    char *split = strchr(*p, '=');
+    if (split) {
+      int64_t len = split - *p;
+      size_t bytes = (sizeof(string_s) + len + 1 + 7) & ~(size_t)7;
+      string_s *s = gc_alloc((uint64_t)bytes);
+      s->header.type = STRING_TAG;
+      s->len = tag_fixnum(len);
+      memcpy(s->str, *p, len);
+      s->str[len] = '\0';
+      gc_obj var = tag_string(s);
+
+      gc_obj val = make_string(split + 1);
+      gc_obj pair = make_cons(var, val);
+      tail = make_cons(pair, tail);
+      p++;
+    }
+  }
+
+  gc_remove_root((const void *)&tail, 0);
+  return tail;
+}

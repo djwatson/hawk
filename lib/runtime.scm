@@ -1135,9 +1135,12 @@
 (define (c-read fd buf cnt)
   (sys:FOREIGN_CALL '(int64 "read" (int32 string uint64)) fd buf cnt))
 
+(define (file-error msg . irritants)
+  (raise (make-error-object 'file msg irritants)))
+
 (define (delete-file filename)
   (let ((res (sys:FOREIGN_CALL '(int32 "unlink" (string)) filename)))
-    (unless (= 0 res) (error "Bad unlink:" filename res))))
+    (unless (= 0 res) (file-error "Bad unlink:" filename res))))
 
 (define (file-exists? filename)
   (= 0 (sys:FOREIGN_CALL '(int32 "access" (string int32)) filename 0)))
@@ -1149,7 +1152,7 @@
     (make-input-port fd)))
 (define (open-output-file file)
   (let ((fd (c-open file 0)))
-    (when (< fd 0) (error "open-output-file error:" file))
+    (when (< fd 0) (file-error "open-output-file error:" file))
     (make-output-port fd)))
 (define open-binary-output-file open-output-file)
 (define (write-all fd data len)
@@ -1756,14 +1759,29 @@
 (define (string->utf8 v) v)
 
 ;; process-context
-(define (exit int)
-  (flush-output-port)
-  (flush-output-port (current-error-port))
-  (sys:HALT))
+(define (get-environment-variables) (sys:FOREIGN_CALL '(gc_obj "SCM_GET_ENV_VARS" ())))
+(define (get-environment-variable var)
+  (cond ((assoc var (get-environment-variables)) => cdr) (else #f)))
 
-;;; parameters
+(define exit
+  (case-lambda
+    (() (exit 0))
+    ((code)
+      ;; Flush the ports.
+      (close-output-port (current-output-port))
+      (close-output-port (current-error-port))
+      (sys:HALT code))))
+(define emergency-exit exit)
 
 (define (command-line) (sys:FOREIGN_CALL '(gc_obj "SCM_COMMAND_LINE" ())))
+
+(define (features) '(r7rs exact-closed exact-complex ieee-float ;;full-unicode
+			  ratios
+			  posix
+			  hawk
+			  ))
+
+;;; parameters
 
 (define (dynamic-wind before during after)
   (unless (and (procedure? before) (procedure? during) (procedure? after))
@@ -1785,8 +1803,6 @@
       (set-cdr! there '())
       (set! *here* there)
       (before))))
-
-(define (features) '(hawk))
 
 ;; Exceptions
 
