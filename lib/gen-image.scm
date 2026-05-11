@@ -11,10 +11,17 @@
   (flush-output-port)
   (let ((datum (read)))
     (when (eof-object? datum) (exit 0))
-    (write (eval datum #t)))
-  (newline)
-  (flush-output-port)
-  (repl))
+    (guard (obj (else
+                  (display "Caught error:")
+                  (display (error-object-message obj))
+                  (newline)
+                  (display (error-object-irritants obj))
+                  (newline)
+                  #f))
+      (write (eval datum #t)))
+    (newline)
+    (flush-output-port)
+    (repl)))
 
 (define (read-file-forms filename)
   (call-with-input-file filename

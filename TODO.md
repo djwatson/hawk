@@ -3,6 +3,10 @@
 [ ] r7rs-tests LOOKUPs are too long & overflowing because main is too long. 
     Extend to 32-bit LOOKUP/CONST/DEFINE.  Also add checks for JMP and IF, make sure
 	they don't exceed distance
+	We check for overflow, but the main issue still exists.	
+	Probably also need to check all the JMP cases. 
+	In fact, the whole thing needs a rewrite for JMP using labels, and a separate pass
+	to reduce WIDE opcodes or something.
 
 [x] eq? hash tables fail in saved heap image: need to also serialize
     heap collect() counter probably

@@ -973,8 +973,8 @@
                   (imag-str (number->string (imag-part num))))
               (string-append real-str
                              (if (or (negative? (imag-part num))
-                                     (char=? (string-ref imag-str 0) #\+)
-                                     (char=? (string-ref imag-str 0) #\-))
+                                    (char=? (string-ref imag-str 0) #\+)
+                                    (char=? (string-ref imag-str 0) #\-))
                                  ""
                                  "+")
                              imag-str
@@ -1868,7 +1868,7 @@
       ;; Flush the ports.
       (close-output-port (current-output-port))
       (close-output-port (current-error-port))
-      (sys:HALT code))))
+      (sys:FOREIGN_CALL '(int32 "exit" (int32)) code))))
 (define emergency-exit exit)
 
 (define (command-line) (sys:FOREIGN_CALL '(gc_obj "SCM_COMMAND_LINE" ())))
@@ -1979,6 +1979,7 @@
                                 '())))))
 
 (define (error msg . rest)
+  (sys:WRITE "error:")
   (raise (make-error-object 'default-error msg rest)))
 
 (define (file-error? e)

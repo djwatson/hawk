@@ -21,6 +21,13 @@
 static inline char const *func_name_for_pc(bc *pc);
 static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack);
 static vm_state *current_vm_state;
+static INLINE inline gc_obj handle_error(vm_state *state, bc *pc, gc_obj *stack,
+                                         void *op_table, uint64_t argcnt,
+                                         char const *msg);
+static INLINE inline gc_obj handle_arity_error(vm_state *state, bc *pc,
+                                               gc_obj *stack, void *op_table,
+                                               uint64_t argcnt, bc instr,
+                                               uint64_t got);
 
 typedef struct trace_exit_count {
   uint16_t trace_num;
@@ -621,31 +628,17 @@ static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack) {
   printf("  ... (truncated)\n");
 }
 
-static inline bool check_arity(vm_state *state, gc_obj *stack, bc *pc, bc instr,
-                               uint64_t *args, bool abort_on_fail) {
-  (void)state;
+static inline bool check_arity(gc_obj *stack, bc instr, uint64_t *args) {
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
   if (!has_rest) {
     if (*args == instr.reg) {
       return true;
-    }
-    if (abort_on_fail) {
-      printf("Bad argcnt in %s expected %i got %" PRIu64 "\n",
-             func_name_for_pc(pc), instr.reg, *args);
-      debug_print_vm_backtrace(state, pc, stack);
-      abort();
     }
     return false;
   }
 
   uint8_t fixed_cnt = instr.reg - 1;
   if (*args < fixed_cnt) {
-    if (abort_on_fail) {
-      printf("Bad argcnt in %s expected %i+ got %" PRIu64 "\n",
-             func_name_for_pc(pc), fixed_cnt, *args);
-      debug_print_vm_backtrace(state, pc, stack);
-      abort();
-    }
     return false;
   }
   build_list(fixed_cnt, *args - fixed_cnt, stack);
@@ -756,6 +749,53 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   dispatch_next(pc, stack);                                                    \
   END
 
+#define DISPATCH_ERROR_MESSAGE(error_msg, fallback_msg)                        \
+  do {                                                                         \
+    gc_obj error_sym = gc_error_symbol();                                      \
+    if (error_sym.value == 0) {                                                \
+      fprintf(stderr, "%s\n", (fallback_msg));                                \
+      abort();                                                                \
+    }                                                                          \
+    gc_add_root((const void *)&error_sym, 1, 0);                               \
+    gc_obj error_clo = to_symbol(error_sym)->val;                              \
+    if (!is_closure(error_clo)) {                                              \
+      gc_remove_root((const void *)&error_sym, 0);                             \
+      fprintf(stderr, "%s\n", (fallback_msg));                                \
+      abort();                                                                \
+    }                                                                          \
+    stack[0] = to_closure(error_clo)->v[0];                                    \
+    stack[1] = error_clo;                                                      \
+    stack[2] = (error_msg);                                                    \
+    gc_remove_root((const void *)&error_sym, 0);                               \
+    argcnt = 2;                                                               \
+    pc = set_new_pc(state, pc, stack, error_clo);                              \
+    dispatch_next(pc, stack);                                                  \
+  } while (0)
+
+static INLINE inline gc_obj handle_error(vm_state *state, bc *pc, gc_obj *stack,
+                                         void *op_table, uint64_t argcnt,
+                                         char const *msg) {
+  gc_obj error_msg = make_string(msg);
+  DISPATCH_ERROR_MESSAGE(error_msg, msg);
+}
+
+static INLINE inline gc_obj handle_arity_error(vm_state *state, bc *pc,
+                                               gc_obj *stack, void *op_table,
+                                               uint64_t argcnt, bc instr,
+                                               uint64_t got) {
+  char msg[256];
+  bool has_rest = (instr.v1 & func_flag_rest) != 0;
+  if (has_rest) {
+    snprintf(msg, sizeof(msg), "Bad argcnt in %s expected %i+ got %" PRIu64,
+             func_name_for_pc(pc), instr.reg - 1, got);
+  } else {
+    snprintf(msg, sizeof(msg), "Bad argcnt in %s expected %i got %" PRIu64,
+             func_name_for_pc(pc), instr.reg, got);
+  }
+  gc_obj error_msg = make_string(msg);
+  DISPATCH_ERROR_MESSAGE(error_msg, msg);
+}
+
 // Begin opcode handlers.
 OP_ABC(ADD) {
   auto res = emit_ov_math_add(state, pc, stack, v1, v2);
@@ -817,7 +857,8 @@ OP(RET) {
   argcnt = 1;
   // TODO: re-enable.  This needs to be a MUCH lower priority, so we
   // don't record down-rec before up-rec.  Or alternatively, maybe
-  // ONLY enable down-rec recording if the function has an up-rec trace already.
+  // ONLY enable down-rec recording if the function has an up-rec trace
+  // already.
 
   /* auto res = check_record_start(pc, stack, state, op_table); */
   /* if (res != op_table) { */
@@ -884,7 +925,7 @@ OP(WRITE) {
 }
 
 OP(FUNC) {
-  if (!check_arity(state, stack, pc, instr, &argcnt, false)) {
+  if (!check_arity(stack, instr, &argcnt)) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
@@ -898,12 +939,13 @@ OP(FUNC) {
 }
 
 OP(ARGCNT_ERROR) {
-  check_arity(state, stack, pc, instr, &argcnt, true);
-  END_NEXT
+  MUSTTAIL return handle_arity_error(state, pc, stack, op_table, argcnt, instr,
+                                     argcnt);
+  END
 }
 
 OP(IFUNC) {
-  if (!check_arity(state, stack, pc, instr, &argcnt, false)) {
+  if (!check_arity(stack, instr, &argcnt)) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
@@ -920,12 +962,15 @@ OP(JFUNC) {
   auto t = state->record.traces[instr.data];
   auto start = t->start_pc;
   if (start.op == OP_FUNC &&
-      !check_arity(state, stack, pc, start, &argcnt, false)) {
+      !check_arity(stack, start, &argcnt)) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
   if (start.op == OP_IFUNC) {
-    check_arity(state, stack, pc, start, &argcnt, true);
+    if (!check_arity(stack, start, &argcnt)) {
+      MUSTTAIL return handle_arity_error(state, pc, stack, op_table, argcnt,
+                                         start, argcnt);
+    }
   }
   op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
 
@@ -1280,6 +1325,7 @@ OP(CALLCC_RESUME) {
 
 OP(HALT) {
   return halt(state, stack);
+  exit(0);
   END
 }
 

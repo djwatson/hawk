@@ -25,6 +25,7 @@ extern gc_root_range gc_roots[GC_MAX_ROOTS];
 extern size_t gc_roots_len;
 void gc_set_scan_callback(gc_scan_callback cb, void *data);
 void gc_register_bcfunc(struct bcfunc *func);
+gc_obj gc_error_symbol(void);
 void *gc_base_ptr(void *p);
 gc_obj gc_read_image(uint8_t const *data, size_t len, char const *path,
                      bool compressed);

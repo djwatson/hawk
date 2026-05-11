@@ -57,8 +57,8 @@
     (= . NUMEQ)
     (>= . GTE)
     (<= . LTE)
-    (car . CAR)
-    (cdr . CDR)
+    ;    (car . CAR)
+    ;    (cdr . CDR)
     (cons . CONS)
     ;(display . WRITE)
   ))
@@ -1129,8 +1129,7 @@
                           (if last? (add-op func `(ARGCNT_ERROR ,arg-cnt)))
                           (if last?
                               (compile lbody func new-env arg-cnt #t)
-                              (let* ((offset (fun-code-len func))
-                                     (jop (list 'JMP 0 0)))
+                              (let* ((offset (fun-code-len func)) (jop (list 'JMP 0 0)))
                                 (add-op func jop)
                                 (compile lbody func new-env arg-cnt #t)
                                 (set-car! (cddr jop) (- (fun-code-len func) offset))))
@@ -1319,7 +1318,7 @@
                    (consumer-res (compile consumer fun env consumer-clo #f))
                    (producer-res (compile producer fun env producer-clo #f)))
               (when (and (integer? consumer-res) (not (= consumer-res consumer-clo)))
-                  (add-op fun `(MOV ,consumer-clo ,consumer-res)))
+                (add-op fun `(MOV ,consumer-clo ,consumer-res)))
               (when (and (integer? producer-res) (not (= producer-res producer-clo)))
                 (add-op fun `(MOV ,producer-clo ,producer-res)))
               ;; Arrange the same frame shape as a normal closure call:
@@ -1425,7 +1424,8 @@
 
 (define (bc-fixnum? c) (and (integer? c) (exact? c) (fits-in-int64 c)))
 (define (bc-flonum? c) (and (inexact? c) (real? c)))
-(define (bc-ratnum? c) (and (number? c) (real? c) (not (inexact? c)) (not (integer? c))))
+(define (bc-ratnum? c)
+  (and (number? c) (real? c) (not (inexact? c)) (not (integer? c))))
 (define (bc-compnum? c) (and (number? c) (not (real? c))))
 (define (heap-obj? c)
   (or (string? c)
@@ -1673,9 +1673,7 @@
 (define (normalize-u16 v) (modulo v 65536))
 
 (define (checked-u16 v)
-  (if (and (integer? v) (exact? v) (<= 0 v 65535))
-      v
-      (error "u16 overflow:" v)))
+  (if (and (integer? v) (exact? v) (<= 0 v 65535)) v (error "u16 overflow:" v)))
 
 (define (ins->word ins idx const-cnt)
   (let* ((op (car ins))
@@ -1683,8 +1681,8 @@
             (cond
               ((assq op opcodes) => cdr)
               (else (error "Unknown opcode in ins->word:" op))))
-        (reg (second ins))
-        (data
+         (reg (second ins))
+         (data
             (cond
               ((memq op '(LOOKUP CONST DEFINE))
                 (checked-u16 (+ idx (* 2 (- const-cnt (third ins))))))
@@ -1744,18 +1742,25 @@
                   ((symbol-table) (build-symbol-table objects))
                   ((objects canon) (collect-objects (cons symbol-table roots)))
                   ((image offs) (emit-image objects canon symbol-table)))
-      (values image (+ (hash-table-ref offs (hash-table-ref canon main)) ptr-tag)))))
+      (let ((error-root
+               (if (hash-table-exists? canon 'error)
+                   (+ (hash-table-ref offs (hash-table-ref canon 'error)) symbol-tag)
+                   0)))
+        (values image
+                (+ (hash-table-ref offs (hash-table-ref canon main)) ptr-tag)
+                error-root)))))
 
 (define (compile-file dump-bc)
   (lambda (file)
     (let ((out (open-binary-output-file (string-append file ".bc")))
           (roots (compile-ir-to-bitcode (read-ir-from-file file))))
-      (let-values (((image entry) (serialize-bitcode roots)))
+      (let-values (((image entry error) (serialize-bitcode roots)))
         (string-for-each (lambda (c) (write-u8 (char->integer c) out)) "HAWK")
-        (write-uint 1 8 out)
+        (write-uint 2 8 out)
         (write-uint 0 8 out)
         (write-uint (bytevector-length image) 8 out)
         (write-uint entry 8 out)
+        (write-uint error 8 out)
         (write-bytevector image out))
       (close-output-port out)
       (when dump-bc (for-each print-bc roots)))))

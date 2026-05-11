@@ -32,6 +32,7 @@ typedef struct {
 
 static gc_heap heap;
 static gc_nursery nursery;
+static gc_obj error;
 uintptr_t gc_hp;
 uintptr_t gc_limit;
 size_t soft_limit = 32UL << 20;
@@ -55,10 +56,10 @@ static pinned_func_entry *pinned_funcs;
 
 enum : uint64_t {
   FORWARD_TAG = UINT64_MAX,
-  IMAGE_VERSION = 1,
+  IMAGE_VERSION = 2,
 };
 
-enum : size_t { IMAGE_HEADER_SIZE = 36 };
+enum : size_t { IMAGE_HEADER_SIZE = 44 };
 
 typedef struct {
   uint64_t fwdtag;
@@ -341,6 +342,8 @@ void gc_init(void) {
   nursery.size = space_size;
   gc_nursery_start = nursery.mem;
   gc_nursery_size = nursery.size;
+  error = UNDEFINED;
+  gc_add_root((const void *)&error, 1, 0);
   reset_nursery();
 }
 
@@ -364,6 +367,8 @@ void gc_register_bcfunc(bcfunc *func) {
     gc_log_slow(&consts[i]);
   }
 }
+
+gc_obj gc_error_symbol(void) { return error; }
 
 void *gc_base_ptr(void *p) {
   uintptr_t target = (uintptr_t)p;
@@ -502,12 +507,17 @@ gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path,
   uint64_t gc_cnt_u64;
   uint64_t image_len_u64;
   uint64_t start_u64;
+  uint64_t error_u64 = 0;
   memcpy(&version, &data[4], sizeof(version));
   memcpy(&gc_cnt_u64, &data[12], sizeof(gc_cnt_u64));
   memcpy(&image_len_u64, &data[20], sizeof(image_len_u64));
   memcpy(&start_u64, &data[28], sizeof(start_u64));
   if (version != IMAGE_VERSION) {
     read_image_fail(path, "unsupported version");
+  }
+  memcpy(&error_u64, &data[36], sizeof(error_u64));
+  if (data_len < IMAGE_HEADER_SIZE) {
+    read_image_fail(path, "file too short");
   }
   total_gc_cnt = gc_cnt_u64 + 1;
   if (image_len_u64 > SIZE_MAX) {
@@ -555,9 +565,12 @@ gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path,
 
   gc_obj start = {.value = (int64_t)start_u64};
   rebase_image_field(&start, &image);
+  error = (gc_obj){.value = (int64_t)error_u64};
+  rebase_image_field(&error, &image);
   arrlen_set(worklist, 0);
   collect_mode = GC_FULL;
   visit_field(&start, nullptr);
+  visit_field(&error, nullptr);
   while (arrlen(worklist) > 0) {
     gc_header *obj = *arrlast(worklist);
     arrpop(worklist);
@@ -639,6 +652,7 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
   gc_obj start = to_closure(clo)->v[0];
   dump_visit_field(&root, &image);
   dump_visit_field(&start, &image);
+  dump_visit_field(&error, &image);
 
   while (arrlen(image.worklist) > 0) {
     gc_header *obj = *arrlast(image.worklist);
@@ -665,6 +679,7 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
   }
   dump_rebase_field(&root, data);
   dump_rebase_field(&start, data);
+  dump_rebase_field(&error, data);
   uint8_t *payload = data;
   size_t payload_len = image.len;
   uint8_t *compressed = nullptr;
@@ -691,12 +706,14 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
   uint64_t image_len = image.len;
   uint64_t gc_cnt = total_gc_cnt;
   uint64_t start_u64 = (uint64_t)start.value;
+  uint64_t error_u64 = (uint64_t)error.value;
   uint64_t version = IMAGE_VERSION;
   if (fwrite("HAWK", 1, 4, fp) != 4 ||
       fwrite(&version, sizeof(version), 1, fp) != 1 ||
       fwrite(&gc_cnt, sizeof(gc_cnt), 1, fp) != 1 ||
       fwrite(&image_len, sizeof(image_len), 1, fp) != 1 ||
       fwrite(&start_u64, sizeof(start_u64), 1, fp) != 1 ||
+      fwrite(&error_u64, sizeof(error_u64), 1, fp) != 1 ||
       fwrite(payload, 1, payload_len, fp) != payload_len || fclose(fp) != 0) {
     dump_image_fail(output_filename, "short write");
   }
