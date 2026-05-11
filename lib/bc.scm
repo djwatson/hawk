@@ -1462,6 +1462,7 @@
 (define (serialize-object o writer)
   (define (w32 v) (writer 'u32 v))
   (define (w64 v) (writer 'u64 v))
+  (define (w16 v) (writer 'u16 (checked-u16 v)))
   (define (word v) (writer 'word v))
   (cond
     ((bc-flonum? o) (w32 flonum-tag) (w32 0) (writer 'double o))
@@ -1521,7 +1522,7 @@
                       (writer 'u8 (second ins))
                       (cond
                         ((memq op '(LOOKUP CONST DEFINE))
-                          (writer 'u16 (+ idx (* 2 (- const-cnt (third ins))))))
+                          (w16 (+ idx (* 2 (- const-cnt (third ins))))))
                         ((memq op ops_abc) (writer 'u8 (third ins)) (writer 'u8 (fourth ins)))
                         ((memq op ops_ad) (writer 'u16 (third ins)))
                         (else (writer 'u16 (if (pair? (cddr ins)) (third ins) 0))))))
@@ -1668,7 +1669,13 @@
       (get-funs))))
 
 (define (normalize-u8 v) (modulo v 256))
+
 (define (normalize-u16 v) (modulo v 65536))
+
+(define (checked-u16 v)
+  (if (and (integer? v) (exact? v) (<= 0 v 65535))
+      v
+      (error "u16 overflow:" v)))
 
 (define (ins->word ins idx const-cnt)
   (let* ((op (car ins))
@@ -1676,10 +1683,11 @@
             (cond
               ((assq op opcodes) => cdr)
               (else (error "Unknown opcode in ins->word:" op))))
-         (reg (second ins))
-         (data
+        (reg (second ins))
+        (data
             (cond
-              ((memq op '(LOOKUP CONST DEFINE)) (+ idx (* 2 (- const-cnt (third ins)))))
+              ((memq op '(LOOKUP CONST DEFINE))
+                (checked-u16 (+ idx (* 2 (- const-cnt (third ins))))))
               ((memq op ops_abc) (+ (third ins) (* 256 (fourth ins))))
               ((memq op ops_ad) (third ins))
               (else (if (pair? (cddr ins)) (third ins) 0)))))
