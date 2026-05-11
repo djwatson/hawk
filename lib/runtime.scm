@@ -887,9 +887,19 @@
                   (values x0 (- s (* x0 x0)))))))))
 
 (define (expt num exp)
-  (if (> exp 0)
-      (let loop ((n 1) (cnt exp)) (if (= cnt 0) n (loop (* num n) (- cnt 1))))
-      (let loop ((n 1) (cnt exp)) (if (= cnt 0) n (loop (/ n num) (+ cnt 1))))))
+  (let* ((fl (or (inexact? num) (inexact? exp)))
+         (num (if fl (inexact num) num))
+         (exp (if fl (inexact exp) exp))
+         (start (if fl 1.0 1)))
+    (if (> exp 0)
+        (let loop ((ret start) (num num) (exp exp))
+          (if (= exp 0)
+              ret
+              (loop (if (odd? exp) (* ret num) ret)
+                    (* num num)
+                    (quotient exp 2))))
+        (do ((n start (/ n num)) (cnt exp (+ cnt 1)))
+            ((= cnt 0) n)))))
 
 (define (odd? x) (= 1 (modulo x 2)))
 
@@ -1672,10 +1682,15 @@
 (define (asin f)
   (cond
     ((flonum? f) (sys:FOREIGN_CALL '(double "asin" (double)) (inexact f)))
+    ((and (compnum? f)
+          (zero? (real-part f))
+          (zero? (imag-part f)))
+      (make-rectangular 0.0 -0.0))
     ((compnum? f)
-      (let* ((z (inexact f))) (* 0-1i (log (+ (* 0+1i z) (sqrt (- 1 (expt z 2))))))))
+      (let* ((z (inexact f)))
+        (* 0-1i (log (+ (* 0+1i z) (sqrt (- 1 (expt z 2))))))))
     (else (sys:FOREIGN_CALL '(double "asin" (double)) (inexact f)))))
-(define pi/2 1.5708)
+(define pi/2 1.5707963267948966)
 (define (acos f)
   (cond
     ((compnum? f) (- pi/2 (asin f)))
@@ -1689,17 +1704,9 @@
   (case-lambda
     ((num) (sys:FOREIGN_CALL '(double "atan" (double)) (inexact num)))
     ((num1 num2)
-      (if (= num2 0)
-          (/ 3.14159 2)
-          (let ((res
-                   (sys:FOREIGN_CALL '(double "atan" (double)) (/ (inexact num1) (inexact num2)))))
-            res
-            ;; (if (< num2 0)
-            ;;     (if (or (negative? num1) (eqv? -inf.0 (/ 1.0 num1))) ;; hack to check for -0.0
-            ;;         (- res 3.14159)
-            ;;         (+ res 3.14159))
-            ;;     res)
-          )))))
+      (sys:FOREIGN_CALL '(double "atan2" (double double))
+                         (inexact num1)
+                         (inexact num2)))))
 (define (tan d) (sys:FOREIGN_CALL '(double "tan" (double)) (inexact d)))
 (define (floor-quotient a b)
   (let ((q (/ a b)) (qq (quotient a b)))
@@ -1753,11 +1760,7 @@
   (case-lambda
     ((num)
       (cond
-        ;; TODO fix bc.scm
-        ((compnum? num)
-          (error "log complex")
-          ;;(+ (log (magnitude num)) (* 0+1i (angle num)))
-        )
+        ((compnum? num) (+ (log (magnitude num)) (* 0+1i (angle num))))
         (else (sys:FOREIGN_CALL '(double "log" (double)) (inexact num)))))
     ((num base) (/ (log num) (log base)))))
 
@@ -2009,5 +2012,3 @@
     (exit -1)))
 
 (define *exception-handlers* (make-parameter `(,default-exception-handler)))
-
-

@@ -43,9 +43,6 @@ static gc_obj normalize_exact_integer(gc_obj value) {
 }
 
 gc_obj SCM_MAKE_RECTANGULAR(gc_obj real, gc_obj imag) {
-  if (numeric_is_zero(imag)) {
-    return real;
-  }
   gc_add_root((const void *)&real, 1, 0);
   gc_add_root((const void *)&imag, 1, 0);
   compnum_s *c = gc_alloc(sizeof(compnum_s));
@@ -856,11 +853,6 @@ static int ratnum_cmp(ratnum_s a, ratnum_s b) {
   return cmp;
 }
 
-// GC: may allocate via gc_alloc through SCM_MAKE_RECTANGULAR.
-static gc_obj normalize_compnum(gc_obj real, gc_obj imag) {
-  return SCM_MAKE_RECTANGULAR(real, imag);
-}
-
 INLINE inline static bool double_part(gc_obj v, double *out, bool *inexact) {
   if (is_flonum(v)) {
     *out = to_flonum(v)->x;
@@ -888,9 +880,6 @@ INLINE inline static bool compnum_double_parts(gc_obj v, double *real,
 // GC: may allocate via gc_alloc through vm_box_flonum and SCM_MAKE_RECTANGULAR.
 static gc_obj make_inexact_compnum(double real, double imag) {
   gc_obj real_obj = vm_box_flonum(real);
-  if (imag == 0.0) {
-    return real_obj;
-  }
   gc_add_root((const void *)&real_obj, 1, 0);
   gc_obj imag_obj = vm_box_flonum(imag);
   gc_obj out = SCM_MAKE_RECTANGULAR(real_obj, imag_obj);
@@ -920,7 +909,7 @@ static gc_obj compnum_add(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&real, 1, 0);
   gc_obj imag = vm_runtime_math_add_slow(to_compnum(ca_obj)->imag,
                                          to_compnum(cb_obj)->imag);
-  gc_obj out = normalize_compnum(real, imag);
+  gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
   gc_remove_root((const void *)&real, 0);
   gc_remove_root((const void *)&cb_obj, 0);
   gc_remove_root((const void *)&ca_obj, 0);
@@ -950,7 +939,7 @@ static gc_obj compnum_sub(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&real, 1, 0);
   gc_obj imag = vm_runtime_math_sub_slow(to_compnum(ca_obj)->imag,
                                          to_compnum(cb_obj)->imag);
-  gc_obj out = normalize_compnum(real, imag);
+  gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
   gc_remove_root((const void *)&real, 0);
   gc_remove_root((const void *)&cb_obj, 0);
   gc_remove_root((const void *)&ca_obj, 0);
@@ -958,8 +947,7 @@ static gc_obj compnum_sub(gc_obj a, gc_obj b) {
   return out;
 }
 
-// GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_*_slow,
-// and normalize_compnum.
+// GC: may allocate via gc_alloc through get_compnum and vm_runtime_math_*_slow.
 static gc_obj compnum_mul(gc_obj a, gc_obj b) {
   double ar;
   double ai;
@@ -992,7 +980,7 @@ static gc_obj compnum_mul(gc_obj a, gc_obj b) {
   gc_obj imag = vm_runtime_math_add_slow(left, right);
   gc_remove_root((const void *)&left, 0);
 
-  gc_obj out = normalize_compnum(real, imag);
+  gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
   gc_remove_root((const void *)&real, 0);
   gc_remove_root((const void *)&cb_obj, 0);
   gc_remove_root((const void *)&ca_obj, 0);
@@ -1000,8 +988,7 @@ static gc_obj compnum_mul(gc_obj a, gc_obj b) {
   return out;
 }
 
-// GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_*_slow,
-// and normalize_compnum.
+// GC: may allocate via gc_alloc through get_compnum and vm_runtime_math_*_slow.
 static gc_obj compnum_div(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&b, 1, 0);
   gc_obj ca_obj = get_compnum(a);
@@ -1018,7 +1005,7 @@ static gc_obj compnum_div(gc_obj a, gc_obj b) {
     gc_add_root((const void *)&real, 1, 0);
     gc_obj imag = vm_runtime_math_div_slow(to_compnum(ca_obj)->imag,
                                            to_compnum(cb_obj)->real);
-    gc_obj out = normalize_compnum(real, imag);
+    gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
     gc_remove_root((const void *)&real, 0);
     gc_remove_root((const void *)&cb_obj, 0);
     gc_remove_root((const void *)&ca_obj, 0);
@@ -1057,7 +1044,7 @@ static gc_obj compnum_div(gc_obj a, gc_obj b) {
   gc_obj imag_num = vm_runtime_math_sub_slow(left, right);
   gc_remove_root((const void *)&left, 0);
   gc_obj imag = vm_runtime_math_div_slow(imag_num, denom);
-  gc_obj out = normalize_compnum(real, imag);
+  gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
 
   gc_remove_root((const void *)&real, 0);
   gc_remove_root((const void *)&denom, 0);
