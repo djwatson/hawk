@@ -36,6 +36,43 @@
       res)))
 
 (define (write-all arg port type)
+  (define (write-symbol sym port)
+    (let ((s (symbol->string sym)))
+      ;; We need to detect symbols that need to be wrapped in ||
+      ;; A pile of stuff just copied from chibi's implementation.
+      (let* ((bars
+                (or (= 0 (string-length s))
+                   (equal? "." s)
+                   (char-numeric? (string-ref s 0))
+                   (and (> (string-length s) 1)
+                        (and (or (eq? #\+ (string-ref s 0)) (eq? #\- (string-ref s 0)))
+                             (or (char-numeric? (string-ref s 1))
+                                (eq? #\. (string-ref s 1))
+                                (eq? #\i (string-ref s 1))
+                                (and (> (string-length s) 3)
+                                     (eq? #\n (char-downcase (string-ref s 1)))
+                                     (eq? #\a (char-downcase (string-ref s 2)))
+                                     (eq? #\n (char-downcase (string-ref s 3)))))))))
+             (valid
+                (let loop ((i 0))
+                  (cond
+                    ((= i (string-length s)) #t)
+                    ((<= (char->integer (string-ref s i)) (char->integer #\space)) #f)
+                    ((memq (string-ref s i)
+                           '(#\( #\) #\" #\| #\newline #\return #\space #\tab #\; #\\ #\# #\,))
+                      #f)
+                    (else (loop (+ i 1)))))))
+        (if (and (not bars) valid)
+            (display s port)
+            (begin
+              (display "|" port)
+              (do ((i 0 (+ i 1)))
+                   ((= i (string-length s)))
+                   (let ((c (string-ref s i)))
+                     (case c
+                       ((#\\ #\|) (display "\\" port) (display c port))
+                       (else (display c port)))))
+              (display "|" port))))))
   (let ((shared (cons 0 (extract-shared-objects arg (not (eq? type 'shared))))))
     (let write ((arg arg) (port port))
       (cond
@@ -85,6 +122,7 @@
                         (else (display chr port))))
                     (string->list arg))
           (display "\"" port))
+        ((symbol? arg) (write-symbol arg port))
         (else (display arg port))))))
 
 (define write
