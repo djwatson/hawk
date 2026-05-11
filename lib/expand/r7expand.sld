@@ -1,5 +1,5 @@
 (define-library (r7expand)
-  (import (scheme base) (scheme case-lambda) (scheme write) (srfi 1) (builders))
+  (import (scheme base) (scheme case-lambda) (scheme write) (srfi 1) (srfi 69) (builders))
   (export make-toplevel-environment current-toplevel-environment with-toplevel-environment
           install-toplevel-binding! unwrap-syntax identifier=? extend-environment install-expander!
           expand er-macro-transformer make-expander identifier? extend-environment!
@@ -10,7 +10,9 @@
       (base enclosing-environment) ;; parent scope, or base name
       (frame environment-frame set-environment-frame!)) ;; ids defined here
 
-    (define (make-toplevel-environment name) (make-environment name '()))
+    (define no-binding (list 'no-binding))
+
+    (define (make-toplevel-environment name) (make-environment name (make-hash-table eq?)))
 
     (define (toplevel-environment? env)
       (not (environment? (enclosing-environment env))))
@@ -22,7 +24,8 @@
 
     (define (assq-environment id env)
       (let ((frame (environment-frame env)))
-        (or (assq id frame)
+        (let ((binding (hash-table-ref/default frame id no-binding)))
+          (if (eq? binding no-binding)
             (cond
               ((toplevel-environment? env)
                 (cond
@@ -30,15 +33,15 @@
                     (assq-environment (identifier-symbol id) (identifier-environment id)))
                   ((symbol? id)
                     (let ((new-var (generate-variable id (enclosing-environment env))))
-                      (set-environment-frame! env (alist-cons id new-var frame))
+                      (hash-table-set! frame id new-var)
                       (assq-environment id env)))
                   (else #f)))
-              (else (assq-environment id (enclosing-environment env)))))))
+              (else (assq-environment id (enclosing-environment env))))
+            (cons id binding)))))
 
     (define (install-toplevel-binding! id name top-env)
       (unless (toplevel-environment? top-env) (error "Not toplevel env"))
-      (let ((frame (environment-frame top-env)))
-        (set-environment-frame! top-env (alist-cons id name frame))))
+      (hash-table-set! (environment-frame top-env) id name))
 
     (define-record-type identifier (make-identifier sym env) %identifier?
       (env identifier-environment)
@@ -68,14 +71,12 @@
     (define (extend-environment! id env)
       (unless (toplevel-environment? env)
         (let ((frame (environment-frame env)))
-          (cond
-            ((assq id frame) (error "duplicate binding" id))
-            (else
-              (let ((var (generate-variable id #f)))
-                (set-environment-frame! env (alist-cons id var frame))))))))
+          (if (hash-table-exists? frame id)
+              (error "duplicate binding" id)
+              (hash-table-set! frame id (generate-variable id #f))))))
 
     (define (extend-environment ids env)
-      (let ((new-env (make-environment env '())))
+      (let ((new-env (make-environment env (make-hash-table eq?))))
         (for-each (lambda (id) (extend-environment! id new-env)) ids)
         new-env))
 
@@ -85,7 +86,7 @@
 
     (define (install-expander! keyword expander env)
       (extend-environment! keyword env)
-      (let ((cell (assq-environment keyword env))) (set-cdr! cell expander)))
+      (hash-table-set! (environment-frame env) keyword expander))
 
     (define current-meta-environment (make-parameter #f))
     (define current-use-environment (make-parameter #f))

@@ -14,7 +14,7 @@
 
 [x] implement eq? hashtables
 [x] use new hashtables in bc.scm, string->symbol, srfi 69, maybe symbol lookup in expander
-  [ ] use in expander frames
+  [x] use in expander frames
    
 
 [x] get macros solid - pass macro tests
