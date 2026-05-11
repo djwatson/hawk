@@ -1661,8 +1661,18 @@
 
 ;; flonum
 ;;;;;;;;;
-(define (sin d) (sys:FOREIGN_CALL '(double "sin" (double)) (inexact d)))
-(define (cos d) (sys:FOREIGN_CALL '(double "cos" (double)) (inexact d)))
+(define (sinh x) (/ (- (exp x) (exp (- x))) 2))
+(define (cosh x) (/ (+ (exp x) (exp (- x))) 2))
+(define (sin d)
+  (if (compnum? d)
+      (let ((a (real-part d)) (b (imag-part d)))
+        (make-rectangular (* (sin a) (cosh b)) (* (cos a) (sinh b))))
+      (sys:FOREIGN_CALL '(double "sin" (double)) (inexact d))))
+(define (cos d)
+  (if (compnum? d)
+      (let ((a (real-part d)) (b (imag-part d)))
+        (make-rectangular (* (cos a) (cosh b)) (- (* (sin a) (sinh b)))))
+      (sys:FOREIGN_CALL '(double "cos" (double)) (inexact d))))
 (define (asin f)
   (cond
     ((flonum? f) (sys:FOREIGN_CALL '(double "asin" (double)) (inexact f)))
