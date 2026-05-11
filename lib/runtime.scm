@@ -1259,7 +1259,7 @@
     (when (< fd 0) (file-error "open-output-file error:" file))
     (make-output-port fd)))
 (define open-binary-output-file open-output-file)
-(define (write-all fd data len)
+(define (port-write-all fd data len)
   (let loop ((off 0))
     (if (< off len)
         (let* ((buf (if (= off 0) data (substring data off len)))
@@ -1270,7 +1270,7 @@
   (let ((len (port-len port)))
     (if (> len 0)
         (begin
-          (write-all (port-fd port) (port-buf port) len)
+          (port-write-all (port-fd port) (port-buf port) len)
           (port-len-set! port 0)
           #t)
         #t)))
@@ -1613,40 +1613,6 @@
         (unless (and (or (< -1 at to-len) (= start end)) (<= (+ at (- end start)) to-len))
           (error "bad string-copy! at" at start end))
         (str-copy-internal to at from start end)))))
-
-(define write
-  (case-lambda
-    ((arg) (write arg (current-output-port)))
-    ((arg port)
-      (cond
-        ((null? arg) (display "()" port))
-        ((pair? arg)
-          (display "(" port)
-          (let loop ((arg arg))
-            (if (not (pair? arg))
-                (begin (display ". " port) (write arg port))
-                (begin
-                  (write (car arg) port)
-                  (if (not (null? (cdr arg))) (begin (display " " port) (loop (cdr arg)))))))
-          (display ")" port))
-        ((vector? arg) (display "#" port) (write (vector->list arg) port))
-        ((char? arg)
-          (cond
-            ((char=? #\newline arg) (display "#\\newline" port))
-            ((char=? #\tab arg) (display "#\\tab" port))
-            ((char=? #\space arg) (display "#\\space" port))
-            ((char=? #\return arg) (display "#\\return" port))
-            (else (display "#\\" port) (display arg port))))
-        ((string? arg)
-          (display "\"" port)
-          (for-each (lambda (chr)
-                      (cond
-                        ((char=? #\" chr) (display "\\\"" port))
-                        ((char=? #\\ chr) (display "\\\\" port))
-                        (else (display chr port))))
-                    (string->list arg))
-          (display "\"" port))
-        (else (display arg port))))))
 
 (define (open-input-string str) (make-string-input-port str))
 (define (get-input-string port)
