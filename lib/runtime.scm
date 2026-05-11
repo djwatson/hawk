@@ -969,15 +969,16 @@
                            "/"
                            (number->string (denominator num))))
           ((compnum? num)
-            (string-append (number->string (real-part num))
-                           (if (not (or (negative? (imag-part num))
-                                       ;(nan? (imag-part num))
-                                       ;(infinite? (imag-part num))
-                                    ))
-                               "+"
-                               "")
-                           (number->string (imag-part num))
-                           "i"))
+            (let ((real-str (number->string (real-part num)))
+                  (imag-str (number->string (imag-part num))))
+              (string-append real-str
+                             (if (or (negative? (imag-part num))
+                                     (char=? (string-ref imag-str 0) #\+)
+                                     (char=? (string-ref imag-str 0) #\-))
+                                 ""
+                                 "+")
+                             imag-str
+                             "i")))
           ((eq? num 0) "0")
           (else
             (let ((neg (negative? num)))
