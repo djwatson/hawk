@@ -141,36 +141,9 @@ static inline bool is_number(gc_obj v) {
          is_compnum(v);
 }
 
-#define DEFINE_VM_CMP_SLOW_STUB(name)                                          \
-  static NOINLINE gc_obj emit_math_cmp_##name##_slowpath(                      \
-      vm_state *state, bc *pc, gc_obj *stack, gc_obj v1, gc_obj v2) {          \
-    (void)state;                                                               \
-    (void)pc;                                                                  \
-    (void)stack;                                                               \
-    return vm_runtime_cmp_##name##_slow(v1, v2);                               \
-  }
-
-#define DEFINE_VM_FAST_CMP(name, op)                                           \
-  static inline gc_obj emit_math_cmp_##name(                                   \
-      vm_state *state, bc *pc, gc_obj *stack, gc_obj v1, gc_obj v2) {          \
-    if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {                        \
-      return to_fixnum(v1) op to_fixnum(v2) ? TRUE_REP : FALSE_REP;            \
-    }                                                                          \
-    MUSTTAIL return emit_math_cmp_##name##_slowpath(state, pc, stack, v1, v2); \
-  }
-
-DEFINE_VM_CMP_SLOW_STUB(lt)
-DEFINE_VM_CMP_SLOW_STUB(gt)
-DEFINE_VM_CMP_SLOW_STUB(lte)
-DEFINE_VM_CMP_SLOW_STUB(gte)
-
-DEFINE_VM_FAST_CMP(lt, <)
-DEFINE_VM_FAST_CMP(gt, >)
-DEFINE_VM_FAST_CMP(lte, <=)
-DEFINE_VM_FAST_CMP(gte, >=)
-
-#undef DEFINE_VM_FAST_CMP
-#undef DEFINE_VM_CMP_SLOW_STUB
+static inline bool is_real(gc_obj v) {
+  return is_fixnum(v) || is_flonum(v) || is_bignum(v) || is_ratnum(v);
+}
 
 static inline gc_obj emit_math_cmp_jeq(vm_state *state, bc *pc, gc_obj *stack,
                                        gc_obj v1, gc_obj v2) {
@@ -658,6 +631,11 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   pc = next_op(pc);                                                            \
   dispatch_next(pc, stack);                                                    \
   END
+#define BRANCH_NEXT(COND)                                                      \
+  do {                                                                         \
+    auto jmp_pc = pc + 1;                                                      \
+    pc = (COND) ? jmp_pc + 1 : jmp_pc + (int16_t)jmp_pc->data;                 \
+  } while (0)
 
 #define DISPATCH_ERROR_MESSAGE(error_msg, fallback_msg)                        \
   do {                                                                         \
@@ -738,6 +716,27 @@ DEFINE_MATH_SLOW_CONT(quotient, "quotient", vm_runtime_math_quotient_slow)
 DEFINE_MATH_SLOW_CONT(mod, "mod", vm_runtime_math_mod_slow)
 
 #undef DEFINE_MATH_SLOW_CONT
+
+#define DEFINE_CMP_SLOW_CONT(name, op, runtime_fn)                             \
+  static INLINE inline gc_obj handle_cmp_##name##_slow(                        \
+      bc instr, bc *pc, gc_obj *stack, vm_state *state, void *op_table,        \
+      uint64_t argcnt) {                                                       \
+    auto v1 = stack[instr.v1];                                                 \
+    auto v2 = stack[instr.v2];                                                 \
+    if (unlikely(!is_real(v1) || !is_real(v2))) {                              \
+      MATH_TYPE_ERROR(op);                                                     \
+    }                                                                          \
+    gc_obj res = runtime_fn(v1, v2);                                           \
+    BRANCH_NEXT(res.value != FALSE_REP.value);                                 \
+    dispatch_next(pc, stack);                                                  \
+  }
+
+DEFINE_CMP_SLOW_CONT(lt, "<", vm_runtime_cmp_lt_slow)
+DEFINE_CMP_SLOW_CONT(gt, ">", vm_runtime_cmp_gt_slow)
+DEFINE_CMP_SLOW_CONT(lte, "<=", vm_runtime_cmp_lte_slow)
+DEFINE_CMP_SLOW_CONT(gte, ">=", vm_runtime_cmp_gte_slow)
+
+#undef DEFINE_CMP_SLOW_CONT
 
 #define OP_FAST_OVERFLOW_MATH(code, oplcname, shift, slow)                    \
   OP_ABC(code) {                                                               \
@@ -971,12 +970,6 @@ OP(JRET) {
   MUSTTAIL return impl(instr, pc, stack, state, op_table, argcnt);
   END
 }
-#define BRANCH_NEXT(COND)                                                      \
-  do {                                                                         \
-    auto jmp_pc = pc + 1;                                                      \
-    pc = (COND) ? jmp_pc + 1 : jmp_pc + (int16_t)jmp_pc->data;                 \
-  } while (0)
-
 #define CMP_BRANCH(OPNAME, EMIT_FN)                                            \
   OP_ABC(OPNAME) {                                                             \
     auto res = EMIT_FN(state, pc, stack, v1, v2);                              \
@@ -985,10 +978,23 @@ OP(JRET) {
     END                                                                        \
   }
 
-CMP_BRANCH(JLT, emit_math_cmp_lt)
-CMP_BRANCH(JGT, emit_math_cmp_gt)
-CMP_BRANCH(JLTE, emit_math_cmp_lte)
-CMP_BRANCH(JGTE, emit_math_cmp_gte)
+#define CMP_BRANCH_FAST_FIXNUM(OPNAME, op, slow)                               \
+  OP_ABC(OPNAME) {                                                             \
+    if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {                        \
+      BRANCH_NEXT(to_fixnum(v1) op to_fixnum(v2));                             \
+      dispatch_next(pc, stack);                                                \
+    }                                                                          \
+    MUSTTAIL return slow(instr, pc, stack, state, op_table, argcnt);           \
+    END                                                                        \
+  }
+
+CMP_BRANCH_FAST_FIXNUM(JLT, <, handle_cmp_lt_slow)
+CMP_BRANCH_FAST_FIXNUM(JGT, >, handle_cmp_gt_slow)
+CMP_BRANCH_FAST_FIXNUM(JLTE, <=, handle_cmp_lte_slow)
+CMP_BRANCH_FAST_FIXNUM(JGTE, >=, handle_cmp_gte_slow)
+
+#undef CMP_BRANCH_FAST_FIXNUM
+
 CMP_BRANCH(JEQ, emit_math_cmp_jeq)
 CMP_BRANCH(JEQV, emit_math_cmp_jeqv)
 CMP_BRANCH(JNUMEQ, emit_math_cmp_numeq)
