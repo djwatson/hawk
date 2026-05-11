@@ -1,6 +1,7 @@
 (import (scheme base)
         (scheme write)
         (scheme read)
+        (scheme complex)
         (r7expand)
         (library)
         (builders)

@@ -37,7 +37,7 @@
 (define (floor x)
   (cond
     ((flonum? x) (sys:FOREIGN_CALL '(double "floor" (double)) x))
-    ;((ratnum? x) (floor-quotient (numerator x) (denominator x)))
+    ((ratnum? x) (floor-quotient (numerator x) (denominator x)))
     (else x)))
 (define (exp num) (sys:FOREIGN_CALL '(double "exp" (double)) (inexact num)))
 
@@ -1673,11 +1673,13 @@
   (cond
     ((flonum? f) (sys:FOREIGN_CALL '(double "asin" (double)) (inexact f)))
     ((compnum? f)
-      (error "asin complex")
-      ;(let* ((z (inexact f))) (* 0-1i (log (+ (* 0+1i z) (sqrt (- 1 (expt z 2)))))))
-    )
+      (let* ((z (inexact f))) (* 0-1i (log (+ (* 0+1i z) (sqrt (- 1 (expt z 2))))))))
     (else (sys:FOREIGN_CALL '(double "asin" (double)) (inexact f)))))
-(define (acos d) (sys:FOREIGN_CALL '(double "acos" (double)) (inexact d)))
+(define pi/2 1.5708)
+(define (acos f)
+  (cond
+    ((compnum? f) (- pi/2 (asin f)))
+    (else (sys:FOREIGN_CALL '(double "acos" (double)) (inexact f)))))
 (define (sqrt x)
   (cond
     ((compnum? x) (make-polar (sqrt (magnitude x)) (/ (angle x) 2)))

@@ -20,6 +20,8 @@
 (define box-tag #x21)
 (define cont-tag #x29)
 (define record-tag #x31)
+(define ratnum-tag #x19)
+(define compnum-tag #x41)
 
 ;; literals, using literal-tag (bottom three bits = #b100)
 (define bool-tag #x04)
