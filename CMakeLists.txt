@@ -12,10 +12,21 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 include(CTest)
 include(GNUInstallDirs)
+include(CheckIPOSupported)
 
 include(CheckIncludeFile)
 include(CheckCSourceCompiles)
 check_include_file("elf.h" HAVE_ELF_H)
+
+check_ipo_supported(RESULT lto_supported OUTPUT lto_error)
+if(lto_supported)
+  if(CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON)
+  elseif(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+  endif()
+endif()
 
 #add_compile_options(-fsanitize=address)
 #add_link_options(-fsanitize=address)
