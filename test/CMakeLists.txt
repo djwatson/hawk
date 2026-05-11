@@ -49,3 +49,9 @@ add_hawk_test(
   "188 out of 188 passed \\(100%\\)"
 )
 set_tests_properties(hawk_r5rs_tests PROPERTIES FAIL_REGULAR_EXPRESSION "Failure")
+
+add_hawk_test(hawk_r7rs_tests r7rs-tests.scm "")
+set_tests_properties(hawk_r7rs_tests PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
+
+add_hawk_test(hawk_r7rs_tests2 r7rs-tests2.scm "")
+set_tests_properties(hawk_r7rs_tests2 PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
