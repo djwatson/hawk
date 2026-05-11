@@ -21,13 +21,12 @@
 static inline char const *func_name_for_pc(bc *pc);
 static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack);
 static vm_state *current_vm_state;
-static INLINE inline gc_obj handle_error(vm_state *state, bc *pc, gc_obj *stack,
-                                         void *op_table, uint64_t argcnt,
-                                         char const *msg);
-static INLINE inline gc_obj handle_arity_error(vm_state *state, bc *pc,
-                                               gc_obj *stack, void *op_table,
-                                               uint64_t argcnt, bc instr,
-                                               uint64_t got);
+static NOINLINE gc_obj handle_error(bc instr, bc *pc, gc_obj *stack,
+                                    vm_state *state, void *op_table,
+                                    uint64_t argcnt);
+static INLINE inline gc_obj handle_arity_error(bc instr, bc *pc, gc_obj *stack,
+                                               vm_state *state, void *op_table,
+                                               uint64_t argcnt);
 
 typedef struct trace_exit_count {
   uint16_t trace_num;
@@ -137,98 +136,9 @@ static inline gc_obj const_load(bc *pc, uint16_t offset) {
   return *(gc_obj *)(pc - pc->data);
 }
 
-static NOINLINE gc_obj emit_ov_math_add_slowpath(vm_state *state, bc *pc,
-                                                 gc_obj *stack, gc_obj v1,
-                                                 gc_obj v2) {
-  (void)state;
-  (void)pc;
-  (void)stack;
-  return vm_runtime_math_add_slow(v1, v2);
-}
-
-static NOINLINE gc_obj emit_ov_math_sub_slowpath(vm_state *state, bc *pc,
-                                                 gc_obj *stack, gc_obj v1,
-                                                 gc_obj v2) {
-  (void)state;
-  (void)pc;
-  (void)stack;
-  return vm_runtime_math_sub_slow(v1, v2);
-}
-
-static NOINLINE gc_obj emit_ov_math_mul_slowpath(vm_state *state, bc *pc,
-                                                 gc_obj *stack, gc_obj v1,
-                                                 gc_obj v2) {
-  (void)state;
-  (void)pc;
-  (void)stack;
-  return vm_runtime_math_mul_slow(v1, v2);
-}
-
-#define DEFINE_VM_FAST_OVERFLOW_MATH(name, oplcname, shift, slowpath)          \
-  static inline gc_obj emit_ov_math_##name(                                    \
-      vm_state *state, bc *pc, gc_obj *stack, gc_obj v1, gc_obj v2) {          \
-    if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {                        \
-      gc_obj res;                                                              \
-      if (likely(!__builtin_##oplcname##_overflow(v1.value, shift(v2.value),   \
-                                                  &res.value))) {              \
-        return res;                                                            \
-      }                                                                        \
-    }                                                                          \
-    MUSTTAIL return slowpath(state, pc, stack, v1, v2);                        \
-  }
-
-DEFINE_VM_FAST_OVERFLOW_MATH(add, add, VM_MATH_NOSHIFT,
-                             emit_ov_math_add_slowpath)
-DEFINE_VM_FAST_OVERFLOW_MATH(sub, sub, VM_MATH_NOSHIFT,
-                             emit_ov_math_sub_slowpath)
-DEFINE_VM_FAST_OVERFLOW_MATH(mul, mul, VM_MATH_SHIFT, emit_ov_math_mul_slowpath)
-
-#undef DEFINE_VM_FAST_OVERFLOW_MATH
-
-static inline gc_obj emit_ov_math_div(vm_state *state, gc_obj v1, gc_obj v2) {
-  (void)state;
-  return vm_runtime_math_div_slow(v1, v2);
-}
-
-static NOINLINE gc_obj emit_ov_math_quotient_slowpath(vm_state *state, bc *pc,
-                                                      gc_obj *stack, gc_obj v1,
-                                                      gc_obj v2) {
-  (void)state;
-  (void)pc;
-  (void)stack;
-  return vm_runtime_math_quotient_slow(v1, v2);
-}
-
-static NOINLINE gc_obj emit_ov_math_mod_slowpath(vm_state *state, bc *pc,
-                                                 gc_obj *stack, gc_obj v1,
-                                                 gc_obj v2) {
-  (void)state;
-  (void)pc;
-  (void)stack;
-  return vm_runtime_math_mod_slow(v1, v2);
-}
-
-static inline gc_obj emit_ov_math_quotient(vm_state *state, bc *pc,
-                                           gc_obj *stack, gc_obj v1,
-                                           gc_obj v2) {
-  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
-    if (unlikely(to_fixnum(v2) == 0)) {
-      abort();
-    }
-    return tag_fixnum(to_fixnum(v1) / to_fixnum(v2));
-  }
-  MUSTTAIL return emit_ov_math_quotient_slowpath(state, pc, stack, v1, v2);
-}
-
-static inline gc_obj emit_ov_math_mod(vm_state *state, bc *pc, gc_obj *stack,
-                                      gc_obj v1, gc_obj v2) {
-  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
-    if (unlikely(to_fixnum(v2) == 0)) {
-      abort();
-    }
-    return tag_fixnum(to_fixnum(v1) % to_fixnum(v2));
-  }
-  MUSTTAIL return emit_ov_math_mod_slowpath(state, pc, stack, v1, v2);
+static inline bool is_number(gc_obj v) {
+  return is_fixnum(v) || is_flonum(v) || is_bignum(v) || is_ratnum(v) ||
+         is_compnum(v);
 }
 
 #define DEFINE_VM_CMP_SLOW_STUB(name)                                          \
@@ -772,54 +682,115 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
     dispatch_next(pc, stack);                                                  \
   } while (0)
 
-static INLINE inline gc_obj handle_error(vm_state *state, bc *pc, gc_obj *stack,
-                                         void *op_table, uint64_t argcnt,
-                                         char const *msg) {
-  gc_obj error_msg = make_string(msg);
-  DISPATCH_ERROR_MESSAGE(error_msg, msg);
+static NOINLINE gc_obj handle_error(bc instr, bc *pc, gc_obj *stack,
+                                    vm_state *state, void *op_table,
+                                    uint64_t argcnt) {
+  (void)instr;
+  gc_obj error_msg = stack[2];
+  char const *fallback_msg = is_string(error_msg) ? to_string(error_msg)->str
+                                                  : "Unhandled VM error";
+  DISPATCH_ERROR_MESSAGE(error_msg, fallback_msg);
 }
 
-static INLINE inline gc_obj handle_arity_error(vm_state *state, bc *pc,
-                                               gc_obj *stack, void *op_table,
-                                               uint64_t argcnt, bc instr,
-                                               uint64_t got) {
+static INLINE inline gc_obj handle_arity_error(bc instr, bc *pc, gc_obj *stack,
+                                               vm_state *state, void *op_table,
+                                               uint64_t argcnt) {
   char msg[256];
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
   if (has_rest) {
     snprintf(msg, sizeof(msg), "Bad argcnt in %s expected %i+ got %" PRIu64,
-             func_name_for_pc(pc), instr.reg - 1, got);
+             func_name_for_pc(pc), instr.reg - 1, argcnt);
   } else {
     snprintf(msg, sizeof(msg), "Bad argcnt in %s expected %i got %" PRIu64,
-             func_name_for_pc(pc), instr.reg, got);
+             func_name_for_pc(pc), instr.reg, argcnt);
   }
-  gc_obj error_msg = make_string(msg);
-  DISPATCH_ERROR_MESSAGE(error_msg, msg);
+  stack[2] = make_string(msg);
+  MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
 }
 
+#define MATH_TYPE_ERROR(op)                                                    \
+  do {                                                                         \
+    char msg[128];                                                             \
+    snprintf(msg, sizeof(msg), "Non-number argument to %s", (op));             \
+    stack[2] = make_string(msg);                                               \
+    MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);   \
+  } while (0)
+
+#define DEFINE_MATH_SLOW_CONT(name, op, runtime_fn)                            \
+  static INLINE inline gc_obj handle_math_##name##_slow(                       \
+      bc instr, bc *pc, gc_obj *stack, vm_state *state, void *op_table,        \
+      uint64_t argcnt) {                                                       \
+    auto v1 = stack[instr.v1];                                                 \
+    auto v2 = stack[instr.v2];                                                 \
+    if (unlikely(!is_number(v1) || !is_number(v2))) {                          \
+      MATH_TYPE_ERROR(op);                                                     \
+    }                                                                          \
+    stack[instr.reg] = runtime_fn(v1, v2);                                     \
+    pc = next_op(pc);                                                          \
+    dispatch_next(pc, stack);                                                  \
+  }
+
+DEFINE_MATH_SLOW_CONT(add, "+", vm_runtime_math_add_slow)
+DEFINE_MATH_SLOW_CONT(sub, "-", vm_runtime_math_sub_slow)
+DEFINE_MATH_SLOW_CONT(mul, "*", vm_runtime_math_mul_slow)
+DEFINE_MATH_SLOW_CONT(div, "/", vm_runtime_math_div_slow)
+DEFINE_MATH_SLOW_CONT(quotient, "quotient", vm_runtime_math_quotient_slow)
+DEFINE_MATH_SLOW_CONT(mod, "mod", vm_runtime_math_mod_slow)
+
+#undef DEFINE_MATH_SLOW_CONT
+
+#define OP_FAST_OVERFLOW_MATH(code, oplcname, shift, slow)                    \
+  OP_ABC(code) {                                                               \
+    if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {                        \
+      gc_obj res;                                                              \
+      if (likely(!__builtin_##oplcname##_overflow(v1.value, shift(v2.value),   \
+                                                  &res.value))) {              \
+        stack[instr.reg] = res;                                                \
+        pc = next_op(pc);                                                      \
+        dispatch_next(pc, stack);                                              \
+      }                                                                        \
+    }                                                                          \
+    MUSTTAIL return slow(instr, pc, stack, state, op_table, argcnt);           \
+    END                                                                        \
+  }
+
 // Begin opcode handlers.
-OP_ABC(ADD) {
-  auto res = emit_ov_math_add(state, pc, stack, v1, v2);
-  END_ABC_NEXT
-}
-OP_ABC(SUB) {
-  auto res = emit_ov_math_sub(state, pc, stack, v1, v2);
-  END_ABC_NEXT
-}
-OP_ABC(MUL) {
-  auto res = emit_ov_math_mul(state, pc, stack, v1, v2);
-  END_ABC_NEXT
-}
+OP_FAST_OVERFLOW_MATH(ADD, add, VM_MATH_NOSHIFT, handle_math_add_slow)
+OP_FAST_OVERFLOW_MATH(SUB, sub, VM_MATH_NOSHIFT, handle_math_sub_slow)
+OP_FAST_OVERFLOW_MATH(MUL, mul, VM_MATH_SHIFT, handle_math_mul_slow)
+
+#undef OP_FAST_OVERFLOW_MATH
+
 OP_ABC(DIV) {
-  auto res = emit_ov_math_div(state, v1, v2);
-  END_ABC_NEXT
+  MUSTTAIL return handle_math_div_slow(instr, pc, stack, state, op_table,
+                                       argcnt);
+  END
 }
 OP_ABC(QUOTIENT) {
-  auto res = emit_ov_math_quotient(state, pc, stack, v1, v2);
-  END_ABC_NEXT
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    if (unlikely(to_fixnum(v2) == 0)) {
+      abort();
+    }
+    stack[instr.reg] = tag_fixnum(to_fixnum(v1) / to_fixnum(v2));
+    pc = next_op(pc);
+    dispatch_next(pc, stack);
+  }
+  MUSTTAIL return handle_math_quotient_slow(instr, pc, stack, state, op_table,
+                                            argcnt);
+  END
 }
 OP_ABC(MOD) {
-  auto res = emit_ov_math_mod(state, pc, stack, v1, v2);
-  END_ABC_NEXT
+  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
+    if (unlikely(to_fixnum(v2) == 0)) {
+      abort();
+    }
+    stack[instr.reg] = tag_fixnum(to_fixnum(v1) % to_fixnum(v2));
+    pc = next_op(pc);
+    dispatch_next(pc, stack);
+  }
+  MUSTTAIL return handle_math_mod_slow(instr, pc, stack, state, op_table,
+                                       argcnt);
+  END
 }
 OP_ABC(MEMQ) {
   auto res = vm_memq(v1, v2);
@@ -939,8 +910,7 @@ OP(FUNC) {
 }
 
 OP(ARGCNT_ERROR) {
-  MUSTTAIL return handle_arity_error(state, pc, stack, op_table, argcnt, instr,
-                                     argcnt);
+  MUSTTAIL return handle_arity_error(instr, pc, stack, state, op_table, argcnt);
   END
 }
 
@@ -968,8 +938,8 @@ OP(JFUNC) {
   }
   if (start.op == OP_IFUNC) {
     if (!check_arity(stack, start, &argcnt)) {
-      MUSTTAIL return handle_arity_error(state, pc, stack, op_table, argcnt,
-                                         start, argcnt);
+      MUSTTAIL return handle_arity_error(start, pc, stack, state, op_table,
+                                         argcnt);
     }
   }
   op_table = jit_func(&instr, &pc, &stack, state, op_table, &argcnt);
