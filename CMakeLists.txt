@@ -63,7 +63,6 @@ set(
   util/hashtable.c
   disassemble.c
   parallel_copy.c
-  profiler.c
   util/array.c
   fold.c
   opt_dce.c
@@ -188,19 +187,6 @@ if(BOOTSTRAP)
   add_subdirectory(lib)
 endif()
 
-if(BOOTSTRAP)
-  if(APPLE)
-    target_link_libraries(hawk_bootstrap PRIVATE -Wl,-force_load $<TARGET_FILE:hawk_core>)
-  else()
-    target_link_libraries(hawk_bootstrap PRIVATE -Wl,--whole-archive hawk_core -Wl,--no-whole-archive)
-  endif()
-endif()
-if(APPLE)
-  target_link_libraries(hawk PRIVATE -Wl,-force_load $<TARGET_FILE:hawk_core>)
-else()
-  target_link_libraries(hawk PRIVATE -Wl,--whole-archive hawk_core -Wl,--no-whole-archive)
-endif()
-
 if(ENABLE_COVERAGE)
   if(CMAKE_C_COMPILER_ID MATCHES "Clang")
     set(coverage_compile_flags -O0 -g -fprofile-instr-generate -fcoverage-mapping)
@@ -211,22 +197,35 @@ if(ENABLE_COVERAGE)
   else()
     message(FATAL_ERROR "Coverage is only supported with Clang or GCC compilers.")
   endif()
-
   target_compile_options(hawk_core PRIVATE ${coverage_compile_flags})
   target_compile_options(hawk_image_embedded PRIVATE ${coverage_compile_flags})
-  target_compile_options(hawk PRIVATE ${coverage_compile_flags})
-  target_link_options(hawk PRIVATE ${coverage_link_flags})
   if(BOOTSTRAP)
     target_compile_options(hawk_image_bootstrap PRIVATE ${coverage_compile_flags})
-    target_compile_options(hawk_bootstrap PRIVATE ${coverage_compile_flags})
-    target_link_options(hawk_bootstrap PRIVATE ${coverage_link_flags})
   endif()
-
   if(TARGET gen_fold)
     target_compile_options(gen_fold PRIVATE ${coverage_compile_flags})
     target_link_options(gen_fold PRIVATE ${coverage_link_flags})
   endif()
 endif()
+
+function(configure_hawk_target TARGET)
+  if(APPLE)
+    target_link_libraries(${TARGET} PRIVATE -Wl,-force_load $<TARGET_FILE:hawk_core>)
+  else()
+    target_link_libraries(${TARGET} PRIVATE -Wl,--whole-archive hawk_core -Wl,--no-whole-archive)
+  endif()
+  target_link_libraries(${TARGET} PRIVATE ${CAPSTONE_LIBRARY} ${LIBFFI_LIBRARY} ${ZSTD_LIBRARY} m)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(${TARGET} PRIVATE ${CMAKE_DL_LIBS})
+    target_link_options(${TARGET} PRIVATE -rdynamic)
+  elseif(APPLE)
+    target_link_options(${TARGET} PRIVATE -Wl,-export_dynamic)
+  endif()
+  if(ENABLE_COVERAGE)
+    target_compile_options(${TARGET} PRIVATE ${coverage_compile_flags})
+    target_link_options(${TARGET} PRIVATE ${coverage_link_flags})
+  endif()
+endfunction()
 
 set(capstone_search_dirs)
 if(DEFINED ENV{HOMEBREW_PREFIX})
@@ -260,27 +259,13 @@ if(NOT CAPSTONE_LIBRARY)
   message(FATAL_ERROR "libcapstone not found. Install capstone or set CAPSTONE_LIBRARY.")
 endif()
 
-target_link_libraries(hawk PRIVATE ${CAPSTONE_LIBRARY} ${LIBFFI_LIBRARY} ${ZSTD_LIBRARY} m)
-if(BOOTSTRAP)
-  target_link_libraries(hawk_bootstrap PRIVATE ${CAPSTONE_LIBRARY} ${LIBFFI_LIBRARY} ${ZSTD_LIBRARY} m)
-endif()
-
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  target_link_libraries(hawk PRIVATE ${CMAKE_DL_LIBS})
-  target_link_options(hawk PRIVATE -rdynamic)
-  if(BOOTSTRAP)
-    target_link_libraries(hawk_bootstrap PRIVATE ${CMAKE_DL_LIBS})
-    target_link_options(hawk_bootstrap PRIVATE -rdynamic)
-  endif()
-elseif(APPLE)
-  target_link_options(hawk PRIVATE -Wl,-export_dynamic)
-  if(BOOTSTRAP)
-    target_link_options(hawk_bootstrap PRIVATE -Wl,-export_dynamic)
-  endif()
-endif()
-
 if(USE_RANDOM_SCHEDULE)
     target_compile_definitions(hawk_core PRIVATE RANDOM_SCHEDULE)
+endif()
+
+configure_hawk_target(hawk)
+if(BOOTSTRAP)
+  configure_hawk_target(hawk_bootstrap)
 endif()
 
 target_include_directories(
