@@ -1156,11 +1156,7 @@ OP(CONS) {
   END_NEXT
 }
 OP(RECT) {
-  auto c = (compnum_s *)gc_alloc(sizeof(compnum_s));
-  c->header.type = COMPNUM_TAG;
-  c->real = stack[pc->v1];
-  c->imag = stack[pc->v2];
-  stack[instr.reg] = tag_header(c, PTR_TAG);
+  stack[instr.reg] = SCM_MAKE_RECTANGULAR(stack[pc->v1], stack[pc->v2]);
   END_NEXT
 }
 

@@ -43,6 +43,9 @@ static gc_obj normalize_exact_integer(gc_obj value) {
 }
 
 gc_obj SCM_MAKE_RECTANGULAR(gc_obj real, gc_obj imag) {
+  if (numeric_is_zero(imag)) {
+    return real;
+  }
   gc_add_root((const void *)&real, 1, 0);
   gc_add_root((const void *)&imag, 1, 0);
   compnum_s *c = gc_alloc(sizeof(compnum_s));
@@ -855,7 +858,7 @@ static int ratnum_cmp(ratnum_s a, ratnum_s b) {
 
 // GC: may allocate via gc_alloc through SCM_MAKE_RECTANGULAR.
 static gc_obj normalize_compnum(gc_obj real, gc_obj imag) {
-  return numeric_is_zero(imag) ? real : SCM_MAKE_RECTANGULAR(real, imag);
+  return SCM_MAKE_RECTANGULAR(real, imag);
 }
 
 INLINE inline static bool double_part(gc_obj v, double *out, bool *inexact) {
