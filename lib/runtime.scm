@@ -237,13 +237,12 @@
 (define (finite? num) (or (not (number? num)) (not (infinite? num))))
 (define (exact? x)
   (or (fixnum? x)
-      (bignum? x)
-      (ratnum? x)
-      (and (compnum? x) (exact? (real-part x)) (exact? (imag-part x)))))
+     (bignum? x)
+     (ratnum? x)
+     (and (compnum? x) (exact? (real-part x)) (exact? (imag-part x)))))
 (define (inexact? x)
   (or (flonum? x)
-      (and (compnum? x)
-           (or (inexact? (real-part x)) (inexact? (imag-part x))))))
+     (and (compnum? x) (or (inexact? (real-part x)) (inexact? (imag-part x))))))
 (define exact-integer? fixnum?)
 (define (procedure? a) (sys:GUARD a 5))
 (define (string? a) (sys:GUARD a 9))
@@ -902,11 +901,8 @@
         (let loop ((ret start) (num num) (exp exp))
           (if (= exp 0)
               ret
-              (loop (if (odd? exp) (* ret num) ret)
-                    (* num num)
-                    (quotient exp 2))))
-        (do ((n start (/ n num)) (cnt exp (+ cnt 1)))
-            ((= cnt 0) n)))))
+              (loop (if (odd? exp) (* ret num) ret) (* num num) (quotient exp 2))))
+        (do ((n start (/ n num)) (cnt exp (+ cnt 1))) ((= cnt 0) n)))))
 
 (define (odd? x) (= 1 (modulo x 2)))
 
@@ -1061,8 +1057,9 @@
         (case-lambda (() cell) ((new) (set! cell (converter new))))))))
 
 ;;;;;; Port ops
-(define-record-type port (make-port fd input fold-case buf pos len sbuf) port?
-  (fd port-fd)
+(define-record-type port (make-port fd open input fold-case buf pos len sbuf) port?
+  (fd port-fd port-fd-set!)
+  (open port-open? port-open-set!)
   (input port-input?)
   (fold-case port-fold-case port-fold-case-set!)
   (buf port-buf port-buf-set!)
@@ -1070,14 +1067,97 @@
   (len port-len port-len-set!)
   (sbuf port-sbuf port-sbuf-set!))
 
+(define (empty-buffer-like buf)
+  (cond ((string? buf) "") ((bytevector? buf) (make-bytevector 0)) (else #f)))
+
+(define (buffer-ref-char buf i)
+  (cond
+    ((string? buf) (string-ref buf i))
+    ((bytevector? buf) (integer->char (bytevector-u8-ref buf i)))
+    (else (error "Invalid port buffer" buf))))
+
+(define (buffer-ref-u8 buf i)
+  (cond
+    ((string? buf) (char->integer (string-ref buf i)))
+    ((bytevector? buf) (bytevector-u8-ref buf i))
+    (else (error "Invalid port buffer" buf))))
+
+(define (buffer-set-char! buf i ch)
+  (cond
+    ((string? buf) (string-set! buf i ch))
+    ((bytevector? buf) (bytevector-u8-set! buf i (char->integer ch)))
+    (else (error "Invalid port buffer" buf))))
+
+(define (buffer-set-u8! buf i u8)
+  (cond
+    ((string? buf) (string-set! buf i (integer->char u8)))
+    ((bytevector? buf) (bytevector-u8-set! buf i u8))
+    (else (error "Invalid port buffer" buf))))
+
+(define (buffer-copy-string! buf dst src start end)
+  (cond
+    ((string? buf) (str-copy-internal buf dst src start end))
+    ((bytevector? buf)
+      (do ((i start (+ i 1)) (j dst (+ j 1)))
+           ((= i end))
+           (bytevector-u8-set! buf j (char->integer (string-ref src i)))))
+    (else (error "Invalid port buffer" buf))))
+
+(define (buffer-copy-bytevector! buf dst src start end)
+  (cond
+    ((string? buf)
+      (do ((i start (+ i 1)) (j dst (+ j 1)))
+           ((= i end))
+           (string-set! buf j (integer->char (bytevector-u8-ref src i)))))
+    ((bytevector? buf) (bytevector-copy! buf dst src start end))
+    (else (error "Invalid port buffer" buf))))
+
+(define (buffer->string buf start end)
+  (cond
+    ((string? buf) (substring buf start end))
+    ((bytevector? buf)
+      (let ((res (make-string (- end start))))
+        (do ((i start (+ i 1)) (j 0 (+ j 1)))
+             ((= i end) res)
+             (string-set! res j (integer->char (bytevector-u8-ref buf i))))))
+    (else (error "Invalid port buffer" buf))))
+
+(define (buffer->bytevector buf start end)
+  (cond
+    ((bytevector? buf) (bytevector-copy buf start end))
+    ((string? buf)
+      (let ((res (make-bytevector (- end start))))
+        (do ((i start (+ i 1)) (j 0 (+ j 1)))
+             ((= i end) res)
+             (bytevector-u8-set! res j (char->integer (string-ref buf i))))))
+    (else (error "Invalid port buffer" buf))))
+
+(define (port-grow-sbuf! port)
+  (let* ((buf (port-sbuf port))
+         (new-buf
+            (cond
+              ((string? buf) (make-string (* 2 (string-length buf))))
+              ((bytevector? buf) (make-bytevector (* 2 (bytevector-length buf))))
+              (else (error "Invalid output port buffer" port)))))
+    (cond
+      ((string? buf) (str-copy-internal new-buf 0 buf 0 (port-pos port)))
+      ((bytevector? buf) (bytevector-copy! new-buf 0 buf 0 (port-pos port))))
+    (port-sbuf-set! port new-buf)
+    (port-len-set! port
+                   (if (string? new-buf) (string-length new-buf) (bytevector-length new-buf)))))
+
+(define (ensure-port-open port)
+  (unless (and (port? port) (port-open? port)) (error "Port not open")))
+
 (define port-buffer-size 4096)
 (define (make-input-port fd)
-  (make-port fd #t #f (make-string port-buffer-size) 0 0 #f))
+  (make-port fd #t #t #f (make-string port-buffer-size) 0 0 #f))
 (define (make-output-port fd)
-  (make-port fd #f #f (make-string port-buffer-size) 0 0 #f))
+  (make-port fd #t #f #f (make-string port-buffer-size) 0 0 #f))
 (define (make-string-input-port str)
-  (make-port -1 #t #f str 0 (string-length str) #f))
-(define (make-string-output-port) (make-port -1 #f #f #f 0 0 ""))
+  (make-port -1 #t #t #f str 0 (string-length str) #f))
+(define (make-string-output-port)
+  (make-port -1 #t #f #f #f 0 port-buffer-size (make-string port-buffer-size)))
 
 (define display
   (case-lambda
@@ -1195,20 +1275,24 @@
           #t)
         #t)))
 (define (clear-port-buffers! port)
-  (port-buf-set! port "")
+  (port-buf-set! port (empty-buffer-like (port-buf port)))
   (port-pos-set! port 0)
   (port-len-set! port 0)
-  (port-sbuf-set! port ""))
+  (port-sbuf-set! port (empty-buffer-like (port-sbuf port))))
 (define (close-port port)
-  (if (>= (port-fd port) 0)
+  (if (and (fixnum? (port-fd port)) (>= (port-fd port) 0))
       (begin
         (if (not (port-input? port)) (flush-port-write-buffer port))
         (c-close (port-fd port))
-        (record-set! port 1 -2)
-        (clear-port-buffers! port))
-      (clear-port-buffers! port)))
+        (port-fd-set! port -1)))
+  (port-open-set! port #f)
+  (clear-port-buffers! port))
 (define close-output-port close-port)
 (define close-input-port close-port)
+(define (input-port-open? port)
+  (and (port? port) (port-open? port) (port-input? port)))
+(define (output-port-open? port)
+  (and (port? port) (port-open? port) (not (port-input? port))))
 (define-record-type eof-object-record (make-eof-object) eof-object?)
 (define (eof-object) (make-eof-object))
 (define (fill-input-port-buffer port)
@@ -1217,13 +1301,14 @@
         (begin (port-pos-set! port 0) (port-len-set! port cnt) #t)
         (begin (port-pos-set! port 0) (port-len-set! port -1) #f))))
 (define (read-from-port-buffer port)
+  (ensure-port-open port)
   (if (not (port-input? port))
       (error "read-char: not an input port" port)
       (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
         (cond
           ((< len 0) (make-eof-object))
           ((< pos len)
-            (let ((c (string-ref buf pos))) (port-pos-set! port (+ pos 1)) c))
+            (let ((c (buffer-ref-char buf pos))) (port-pos-set! port (+ pos 1)) c))
           (else
             (if (< (port-fd port) 0)
                 (begin (port-len-set! port -1) (make-eof-object))
@@ -1234,20 +1319,30 @@
   (case-lambda
     (() (peek-char (current-input-port)))
     ((port)
+      (ensure-port-open port)
       (if (not (port-input? port))
           (error "peek-char: not an input port" port)
           (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
             (cond
               ((< len 0) (make-eof-object))
-              ((< pos len) (string-ref buf pos))
+              ((< pos len) (buffer-ref-char buf pos))
               ((< (port-fd port) 0) (port-len-set! port -1) (make-eof-object))
-              ((fill-input-port-buffer port) (string-ref buf 0))
+              ((fill-input-port-buffer port) (buffer-ref-char buf 0))
               (else (make-eof-object))))))))
 
 (define read-char
   (case-lambda
     (() (read-char (current-input-port)))
     ((port) (read-from-port-buffer port))))
+
+(define char-ready?
+  (case-lambda
+    (() (char-ready? (current-input-port)))
+    ((port)
+      (ensure-port-open port)
+      (unless (port-input? port) (error "char-ready?: not an input port" port))
+      (< (port-pos port) (port-len port)))))
+
 (define (read-line-build chunks total buf start end)
   (let ((len (+ total (- end start))))
     (if (null? chunks)
@@ -1294,20 +1389,23 @@
                 (else
                   (if (= total 0) (make-eof-object) (read-line-build chunks total "" 0 0))))))))))
 (define (write-char char port)
+  (ensure-port-open port)
   (cond
     ((port-sbuf port)
-      (port-sbuf-set! port (string-append (port-sbuf port) (make-string 1 char)))
+      (when (= (port-pos port) (port-len port)) (port-grow-sbuf! port))
+      (buffer-set-char! (port-sbuf port) (port-pos port) char)
+      (port-pos-set! port (+ (port-pos port) 1))
       #t)
     ((not (port-input? port))
       (let ((len (port-len port)))
         (if (= len port-buffer-size)
             (begin
               (flush-port-write-buffer port)
-              (string-set! (port-buf port) 0 char)
+              (buffer-set-char! (port-buf port) 0 char)
               (port-len-set! port 1)
               #t)
             (begin
-              (string-set! (port-buf port) len char)
+              (buffer-set-char! (port-buf port) len char)
               (port-len-set! port (+ len 1))
               #t))))
     (else (error "write-char: not an output port" port))))
@@ -1317,11 +1415,23 @@
     ((str port) (write-string str port 0 (string-length str)))
     ((str port start) (write-string str port start (string-length str)))
     ((str port start end)
+      (ensure-port-open port)
       (let* ((len (- end start)) (str_len (string-length str)))
         (cond
           ((port-sbuf port)
-            (port-sbuf-set! port
-                            (string-append (port-sbuf port) (substring str start end))))
+            (let loop ((pos start) (left len))
+              (if (> left 0)
+                  (let ((avail (- (port-len port) (port-pos port))))
+                    (if (= avail 0)
+                        (begin (port-grow-sbuf! port) (loop pos left))
+                        (let ((copy (if (< left avail) left avail)))
+                          (buffer-copy-string! (port-sbuf port)
+                                               (port-pos port)
+                                               str
+                                               pos
+                                               (+ pos copy))
+                          (port-pos-set! port (+ (port-pos port) copy))
+                          (loop (+ pos copy) (- left copy))))))))
           ((not (port-input? port))
             (let loop ((pos start) (left len))
               (if (> left 0)
@@ -1329,10 +1439,136 @@
                     (if (= avail 0)
                         (begin (flush-port-write-buffer port) (loop pos left))
                         (let ((copy (if (< left avail) left avail)))
-                          (str-copy-internal (port-buf port) (port-len port) str pos (+ pos copy))
+                          (buffer-copy-string! (port-buf port) (port-len port) str pos (+ pos copy))
                           (port-len-set! port (+ (port-len port) copy))
                           (loop (+ pos copy) (- left copy))))))))
           (else (error "write-string: not an output port" port)))))))
+
+(define read-u8
+  (case-lambda
+    (() (read-u8 (current-input-port)))
+    ((port)
+      (ensure-port-open port)
+      (unless (port-input? port) (error "read-u8: not an input port" port))
+      (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
+        (cond
+          ((< len 0) (eof-object))
+          ((< pos len)
+            (let ((c (buffer-ref-u8 buf pos))) (port-pos-set! port (+ pos 1)) c))
+          (else
+            (if (< (port-fd port) 0)
+                (begin (port-len-set! port -1) (eof-object))
+                (if (fill-input-port-buffer port) (read-u8 port) (eof-object)))))))))
+
+(define peek-u8
+  (case-lambda
+    (() (peek-u8 (current-input-port)))
+    ((port)
+      (ensure-port-open port)
+      (unless (port-input? port) (error "peek-u8: not an input port" port))
+      (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
+        (cond
+          ((< len 0) (eof-object))
+          ((< pos len) (buffer-ref-u8 buf pos))
+          ((< (port-fd port) 0) (port-len-set! port -1) (eof-object))
+          ((fill-input-port-buffer port) (buffer-ref-u8 buf 0))
+          (else (eof-object)))))))
+
+(define (u8-ready? port)
+  (ensure-port-open port)
+  (unless (port-input? port) (error "u8-ready?: not an input port" port))
+  (< (port-pos port) (port-len port)))
+
+(define read-string
+  (case-lambda
+    ((k) (read-string k (current-input-port)))
+    ((k port)
+      (let ((p (open-output-string)))
+        (unless (fixnum? k) (error "read-string not a fixnum" k))
+        (let loop ((k k))
+          (if (= k 0)
+              (get-output-string p)
+              (let ((c (read-char port)))
+                (if (eof-object? c)
+                    (let ((res (get-output-string p))) (if (= 0 (string-length res)) c res))
+                    (begin (write-char c p) (loop (- k 1)))))))))))
+
+(define read-bytevector
+  (case-lambda
+    ((k) (read-bytevector k (current-input-port)))
+    ((k port)
+      (let ((p (open-output-bytevector)))
+        (unless (fixnum? k) (error "read-bytevector not a fixnum" k))
+        (let loop ((k k))
+          (if (= k 0)
+              (get-output-bytevector p)
+              (let ((c (read-u8 port)))
+                (if (eof-object? c)
+                    (let ((res (get-output-bytevector p)))
+                      (if (= 0 (bytevector-length res)) c res))
+                    (begin (write-u8 c p) (loop (- k 1)))))))))))
+
+(define read-bytevector!
+  (case-lambda
+    ((bv) (read-bytevector! bv (current-input-port) 0 (bytevector-length bv)))
+    ((bv port) (read-bytevector! bv port 0 (bytevector-length bv)))
+    ((bv port start) (read-bytevector! bv port start (bytevector-length bv)))
+    ((bv port start end)
+      (unless (and (fixnum? start) (fixnum? end))
+        (error "bad start read-bytevector!" start))
+      (unless (or (< -1 start (bytevector-length bv)) (= start end))
+        (error "bad start len read-bytevector!" start))
+      (unless (<= 0 end (bytevector-length bv))
+        (error "bad end read-bytevector!" end))
+      (when (> start end) (error "bad end start read-bytevector!" end))
+      (let loop ((pos start) (read 0))
+        (if (= pos end)
+            read
+            (let ((c (read-u8 port)))
+              (if (eof-object? c)
+                  (if (= 0 read) c read)
+                  (begin (bytevector-u8-set! bv pos c) (loop (+ pos 1) (+ read 1))))))))))
+
+(define write-u8
+  (case-lambda
+    ((ch) (write-u8 ch (current-output-port)))
+    ((ch port)
+      (ensure-port-open port)
+      (cond
+        ((port-sbuf port)
+          (when (= (port-pos port) (port-len port)) (port-grow-sbuf! port))
+          (buffer-set-u8! (port-sbuf port) (port-pos port) ch)
+          (port-pos-set! port (+ (port-pos port) 1))
+          #t)
+        ((not (port-input? port))
+          (let ((len (port-len port)))
+            (if (= len port-buffer-size)
+                (begin
+                  (flush-port-write-buffer port)
+                  (buffer-set-u8! (port-buf port) 0 ch)
+                  (port-len-set! port 1)
+                  #t)
+                (begin
+                  (buffer-set-u8! (port-buf port) len ch)
+                  (port-len-set! port (+ len 1))
+                  #t))))
+        (else (error "write-u8: not an output port" port))))))
+
+(define write-bytevector
+  (case-lambda
+    ((bv) (write-bytevector bv (current-output-port) 0 (bytevector-length bv)))
+    ((bv port) (write-bytevector bv port 0 (bytevector-length bv)))
+    ((bv port start) (write-bytevector bv port start (bytevector-length bv)))
+    ((bv port start end)
+      (ensure-port-open port)
+      (unless (and (fixnum? start) (fixnum? end))
+        (error "bad start write-bytevector" start))
+      (unless (or (< -1 start (bytevector-length bv)) (= start end))
+        (error "bad start len write-bytevector" start))
+      (unless (<= 0 end (bytevector-length bv))
+        (error "bad end write-bytevector" end))
+      (when (> start end) (error "bad end start write-bytevector" end))
+      (do ((i start (+ i 1))) ((= end i)) (write-u8 (bytevector-u8-ref bv i) port)))))
 
 (define string->list
   (case-lambda
@@ -1413,9 +1649,25 @@
         (else (display arg port))))))
 
 (define (open-input-string str) (make-string-input-port str))
-(define (get-input-string port) (port-buf port))
-(define (open-output-string) (make-string-output-port))
-(define (get-output-string port) (port-sbuf port))
+(define (get-input-string port)
+  (buffer->string (port-buf port) 0 (port-len port)))
+(define (open-output-string)
+  (make-port -1 #t #f #f #f 0 port-buffer-size (make-string port-buffer-size)))
+(define (get-output-string port)
+  (buffer->string (port-sbuf port) 0 (port-pos port)))
+(define (open-input-bytevector bv)
+  (make-port -1 #t #t #f bv 0 (bytevector-length bv) #f))
+(define (open-output-bytevector)
+  (make-port -1
+             #t
+             #f
+             #f
+             #f
+             0
+             port-buffer-size
+             (make-bytevector port-buffer-size)))
+(define (get-output-bytevector port)
+  (buffer->bytevector (port-sbuf port) 0 (port-pos port)))
 
 (define (call-with-input-file file l)
   (let* ((p (open-input-file file)) (res (l p))) (close-input-port p) res))
@@ -1689,15 +1941,12 @@
 (define (asin f)
   (cond
     ((flonum? f) (sys:FOREIGN_CALL '(double "asin" (double)) (inexact f)))
-    ((and (compnum? f)
-          (zero? (real-part f))
-          (zero? (imag-part f)))
+    ((and (compnum? f) (zero? (real-part f)) (zero? (imag-part f)))
       (make-rectangular 0.0 -0.0))
     ((compnum? f)
-      (let* ((z (inexact f)))
-        (* 0-1i (log (+ (* 0+1i z) (sqrt (- 1 (expt z 2))))))))
+      (let* ((z (inexact f))) (* 0-1i (log (+ (* 0+1i z) (sqrt (- 1 (expt z 2))))))))
     (else (sys:FOREIGN_CALL '(double "asin" (double)) (inexact f)))))
-(define pi/2 1.5707963267948966)
+(define pi/2 1.5708)
 (define (acos f)
   (cond
     ((compnum? f) (- pi/2 (asin f)))
@@ -1720,8 +1969,8 @@
     ((num) (sys:FOREIGN_CALL '(double "atan" (double)) (inexact num)))
     ((num1 num2)
       (sys:FOREIGN_CALL '(double "atan2" (double double))
-                         (inexact num1)
-                         (inexact num2)))))
+                        (inexact num1)
+                        (inexact num2)))))
 (define (tan d) (sys:FOREIGN_CALL '(double "tan" (double)) (inexact d)))
 (define (floor-quotient a b)
   (let ((q (/ a b)) (qq (quotient a b)))
@@ -2005,9 +2254,6 @@
                                 '())))))
 
 (define (error msg . rest)
-  (sys:WRITE msg)
-  (sys:WRITE rest)
-  (0)
   (raise (make-error-object 'default-error msg rest)))
 
 (define (file-error? e)
