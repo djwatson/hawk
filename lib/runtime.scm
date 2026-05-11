@@ -235,8 +235,15 @@
   (or (and (flonum? x) (sys:FOREIGN_CALL '(bool "SCM_ISINF" (double)) x))
      (and (compnum? x) (or (infinite? (real-part x)) (infinite? (imag-part x))))))
 (define (finite? num) (or (not (number? num)) (not (infinite? num))))
-(define (exact? x) (or (fixnum? x) (bignum? x)))
-(define inexact? flonum?)
+(define (exact? x)
+  (or (fixnum? x)
+      (bignum? x)
+      (ratnum? x)
+      (and (compnum? x) (exact? (real-part x)) (exact? (imag-part x)))))
+(define (inexact? x)
+  (or (flonum? x)
+      (and (compnum? x)
+           (or (inexact? (real-part x)) (inexact? (imag-part x))))))
 (define exact-integer? fixnum?)
 (define (procedure? a) (sys:GUARD a 5))
 (define (string? a) (sys:GUARD a 9))
@@ -1695,6 +1702,14 @@
   (cond
     ((compnum? f) (- pi/2 (asin f)))
     (else (sys:FOREIGN_CALL '(double "acos" (double)) (inexact f)))))
+
+;; complex
+(define (make-polar r angle)
+  (make-rectangular (* r (cos angle)) (* r (sin angle))))
+(define (magnitude z)
+  (sqrt (+ (square (real-part z)) (square (imag-part z)))))
+(define (angle z) (atan (imag-part z) (real-part z)))
+
 (define (sqrt x)
   (cond
     ((compnum? x) (make-polar (sqrt (magnitude x)) (/ (angle x) 2)))
