@@ -55,10 +55,10 @@ static pinned_func_entry *pinned_funcs;
 
 enum : uint64_t {
   FORWARD_TAG = UINT64_MAX,
-  IMAGE_VERSION = 0,
+  IMAGE_VERSION = 1,
 };
 
-enum : size_t { IMAGE_HEADER_SIZE = 28 };
+enum : size_t { IMAGE_HEADER_SIZE = 36 };
 
 typedef struct {
   uint64_t fwdtag;
@@ -499,14 +499,17 @@ gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path,
   }
 
   uint64_t version;
+  uint64_t gc_cnt_u64;
   uint64_t image_len_u64;
   uint64_t start_u64;
   memcpy(&version, &data[4], sizeof(version));
-  memcpy(&image_len_u64, &data[12], sizeof(image_len_u64));
-  memcpy(&start_u64, &data[20], sizeof(start_u64));
+  memcpy(&gc_cnt_u64, &data[12], sizeof(gc_cnt_u64));
+  memcpy(&image_len_u64, &data[20], sizeof(image_len_u64));
+  memcpy(&start_u64, &data[28], sizeof(start_u64));
   if (version != IMAGE_VERSION) {
     read_image_fail(path, "unsupported version");
   }
+  total_gc_cnt = gc_cnt_u64 + 1;
   if (image_len_u64 > SIZE_MAX) {
     read_image_fail(path, "image too large");
   }
@@ -686,10 +689,12 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
     abort();
   }
   uint64_t image_len = image.len;
+  uint64_t gc_cnt = total_gc_cnt;
   uint64_t start_u64 = (uint64_t)start.value;
   uint64_t version = IMAGE_VERSION;
   if (fwrite("HAWK", 1, 4, fp) != 4 ||
       fwrite(&version, sizeof(version), 1, fp) != 1 ||
+      fwrite(&gc_cnt, sizeof(gc_cnt), 1, fp) != 1 ||
       fwrite(&image_len, sizeof(image_len), 1, fp) != 1 ||
       fwrite(&start_u64, sizeof(start_u64), 1, fp) != 1 ||
       fwrite(payload, 1, payload_len, fp) != payload_len || fclose(fp) != 0) {

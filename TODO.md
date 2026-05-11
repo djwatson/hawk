@@ -4,7 +4,7 @@
     Extend to 32-bit LOOKUP/CONST/DEFINE.  Also add checks for JMP and IF, make sure
 	they don't exceed distance
 
-[ ] eq? hash tables fail in saved heap image: need to also serialize
+[x] eq? hash tables fail in saved heap image: need to also serialize
     heap collect() counter probably
     * it's because SCM_GC_CNT isn't preserved across gc image and loading.  Doh.
 
@@ -21,8 +21,7 @@
 [x] get r5rs_pitfalls working
 [x] pass r5rs-tests
 
-[ ] work on r7rs-tests
-  * about halfway done
+[x] work on r7rs-tests
 [ ] Get all the argtype stuff calling error instead
 
 [ ] cleanup record.c

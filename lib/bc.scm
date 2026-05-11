@@ -1744,6 +1744,7 @@
           (roots (compile-ir-to-bitcode (read-ir-from-file file))))
       (let-values (((image entry) (serialize-bitcode roots)))
         (string-for-each (lambda (c) (write-u8 (char->integer c) out)) "HAWK")
+        (write-uint 1 8 out)
         (write-uint 0 8 out)
         (write-uint (bytevector-length image) 8 out)
         (write-uint entry 8 out)
