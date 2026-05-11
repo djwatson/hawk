@@ -88,7 +88,7 @@
     (compnum? . 65)
     (procedure? . 5)
     (string? . 9)
-    (bytevector? . 57)
+    (bytevector? . 73)
     (symbol? . 6)
     (vector? . 7)
     (undefined? . 36)

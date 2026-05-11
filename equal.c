@@ -251,19 +251,19 @@ static ep_result equalp_interleave(uf *ht, bool fast, gc_obj a, gc_obj b,
     return (ep_result){false, k};
   }
   // bytevector=?
-  /* if (is_bytevector(a)) { */
-  /*   if (is_bytevector(b)) { */
-  /*     auto bva = to_bytevector(a); */
-  /*     auto bvb = to_bytevector(b); */
-  /*     if (bva->len.value != bvb->len.value) { */
-  /*       return (ep_result){false, k}; */
-  /*     } */
-  /*     if (memcmp(bva->v, bvb->v, to_fixnum(bva->len)) == 0) { */
-  /*       return (ep_result){true, k}; */
-  /*     } */
-  /*   } */
-  /*   return (ep_result){false, k}; */
-  /* } */
+  if (is_bytevector(a)) {
+    if (is_bytevector(b)) {
+      auto bva = to_bytevector(a);
+      auto bvb = to_bytevector(b);
+      if (to_fixnum(bva->len) != to_fixnum(bvb->len)) {
+        return (ep_result){false, k};
+      }
+      if (memcmp(bva->str, bvb->str, (size_t)to_fixnum(bva->len)) == 0) {
+        return (ep_result){true, k};
+      }
+    }
+    return (ep_result){false, k};
+  }
   // eqvp?
   if (obj_jeqv(a, b)) {
     return (ep_result){true, k};

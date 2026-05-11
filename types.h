@@ -96,7 +96,8 @@ typedef struct bcfunc {
   X(CONT, 0x29)                                                                \
   X(RECORD, 0x31)                                                              \
   X(BIGNUM, 0x39)                                                              \
-  X(COMPNUM, 0x41)
+  X(COMPNUM, 0x41)							\
+  X(BYTEVECTOR, 0x49)
 
 // Immediates.  Bottom three bits must be LITERAL_TAG.
 // Uses bottom byte, and other 7 bytes used for storing literal.
@@ -257,6 +258,12 @@ static inline bool is_bool(gc_obj obj) { return get_imm_tag(obj) == BOOL_TAG; }
 static inline bool is_string(gc_obj obj) {
   return is_ptr(obj) && get_ptr_tag(obj) == STRING_TAG;
 }
+static inline bool is_bytevector(gc_obj obj) {
+  return is_ptr(obj) && get_ptr_tag(obj) == BYTEVECTOR_TAG;
+}
+static inline string_s *to_bytevector(gc_obj obj) {
+  return (string_s *)(obj.value - PTR_TAG);
+}
 static inline bool is_record(gc_obj obj) {
   return is_ptr(obj) && get_ptr_tag(obj) == RECORD_TAG;
 }
@@ -325,7 +332,8 @@ static inline size_t heap_object_size(void *obj) {
     return sizeof(ratnum_s);
   case COMPNUM_TAG:
     return sizeof(compnum_s);
-  case STRING_TAG: {
+  case STRING_TAG: 
+  case BYTEVECTOR_TAG: {
     auto str = (string_s *)obj;
     return heap_align(sizeof(string_s) + (size_t)to_fixnum(str->len) + 1);
   }
@@ -369,6 +377,7 @@ static inline void trace_heap_object(gc_header *obj, trace_callback visit,
   case FLONUM_TAG:
   case BIGNUM_TAG:
   case STRING_TAG:
+  case BYTEVECTOR_TAG:
     return;
   case RATNUM_TAG: {
     auto rat = (ratnum_s *)obj;

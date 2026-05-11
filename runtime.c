@@ -464,7 +464,6 @@ static bool runtime_decode_closure_ref(gc_obj obj, uint64_t fun_count,
 }
 
 gc_obj scm_emit_bitcode_closure(gc_obj payload) {
-  printf("scm_emit_bitcode_closure\n");
   gc_add_root((const void *)&payload, 1, 0);
   vector_s *root = runtime_expect_vector(payload, 2);
   gc_obj entry_id_obj = root->v[0];
@@ -573,7 +572,6 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
 
   free(funcs);
   gc_remove_root((const void *)&payload, 0);
-  printf("\\scm_emit_bitcode_closure\n");
   return out;
 }
 

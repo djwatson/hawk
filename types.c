@@ -78,6 +78,14 @@ void print_obj(gc_obj obj, FILE *file) {
       fputc('i', file);
     } else if (ptrtype == RECORD_TAG) {
       fputs("#<record>", file);
+    } else if (ptrtype == BYTEVECTOR_TAG) {
+      auto bv = (string_s *)(obj.value - PTR_TAG);
+      fputs("#u8(", file);
+      for (uint64_t i = 0; i < to_fixnum(bv->len); i++) {
+        if (i != 0) fputc(' ', file);
+        fprintf(file, "%" PRIu8, (uint8_t)bv->str[i]);
+      }
+      fputc(')', file);
     } else {
       fprintf(file, "PTR:%x", ptrtype);
     }
