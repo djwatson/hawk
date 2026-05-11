@@ -800,10 +800,16 @@ OP_ABC(MEMV) {
   END_ABC_NEXT
 }
 OP_AD(INEXACT) {
+  if (unlikely(!is_number(v1))) {
+    MATH_TYPE_ERROR("inexact");
+  }
   auto res = numeric_inexact_value(v1);
   END_ABC_NEXT
 }
 OP_AD(EXACT) {
+  if (unlikely(!is_number(v1))) {
+    MATH_TYPE_ERROR("exact");
+  }
   auto res = numeric_exact_value(v1);
   END_ABC_NEXT
 }
