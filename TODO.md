@@ -27,6 +27,8 @@
 
 [x] work on r7rs-tests
 [ ] Get all the argtype stuff calling error instead
+   [x] vm
+   [ ] record
 
 [ ] cleanup record.c
 [ ] cleanup vm.c

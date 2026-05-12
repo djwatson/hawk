@@ -436,6 +436,15 @@ static bool ir_type_is_fix_or_flonum(uint8_t t) {
   return t == FIXNUM_TAG || t == FLONUM_TAG;
 }
 
+static inline bool is_number(gc_obj v) {
+  return is_fixnum(v) || is_flonum(v) || is_bignum(v) || is_ratnum(v) ||
+         is_compnum(v);
+}
+
+static inline bool is_real(gc_obj v) {
+  return is_fixnum(v) || is_flonum(v) || is_bignum(v) || is_ratnum(v);
+}
+
 static bool slot_numeric_needs_vm(trace *t, slot v) {
   uint8_t ty = get_slot_type(t, v);
   return !ir_type_is_fix_or_flonum(ty);
@@ -1095,8 +1104,12 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     vm_add_snap(state, next_pc, argcnt);                                       \
   } while (0)
 
-#define RECORD_BIN_ARITH(OP_CODE, EMIT_FN)                                     \
+#define RECORD_BIN_ARITH(OP_CODE, EMIT_FN, OP_NAME)                            \
   case OP_##OP_CODE: {                                                         \
+    if (!is_number(stack[instr.v1]) || !is_number(stack[instr.v2])) {          \
+      record_abort(state, &op_table, "Non-number argument to " OP_NAME);       \
+      break;                                                                   \
+    }                                                                          \
     auto v1 = stack_load(state, stack, instr.v1, true);                        \
     auto v2 = stack_load(state, stack, instr.v2, true);                        \
     auto res = EMIT_FN(state, v1, v2, stack[instr.v1], stack[instr.v2]);       \
@@ -1105,12 +1118,12 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;                                                                     \
   }
 
-    RECORD_BIN_ARITH(ADD, emit_ov_math_add)
-    RECORD_BIN_ARITH(SUB, emit_ov_math_sub)
-    RECORD_BIN_ARITH(MUL, emit_ov_math_mul)
-    RECORD_BIN_ARITH(DIV, emit_ov_math_div)
-    RECORD_BIN_ARITH(QUOTIENT, emit_ov_math_quotient)
-    RECORD_BIN_ARITH(MOD, emit_ov_math_mod)
+    RECORD_BIN_ARITH(ADD, emit_ov_math_add, "+")
+    RECORD_BIN_ARITH(SUB, emit_ov_math_sub, "-")
+    RECORD_BIN_ARITH(MUL, emit_ov_math_mul, "*")
+    RECORD_BIN_ARITH(DIV, emit_ov_math_div, "/")
+    RECORD_BIN_ARITH(QUOTIENT, emit_ov_math_quotient, "quotient")
+    RECORD_BIN_ARITH(MOD, emit_ov_math_mod, "mod")
 #undef RECORD_BIN_ARITH
   case OP_MEMQ: {
     auto v1 = stack_load(state, stack, instr.v1, false);
@@ -1133,6 +1146,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_INEXACT: {
+    if (!is_number(stack[instr.data])) {
+      record_abort(state, &op_table, "Non-number argument to inexact");
+      break;
+    }
     auto v1 = stack_load(state, stack, instr.data, true);
     auto res = convert_to_flonum(state, v1);
     set_stack_top(state, instr.reg + 1);
@@ -1140,6 +1157,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_EXACT: {
+    if (!is_number(stack[instr.data])) {
+      record_abort(state, &op_table, "Non-number argument to exact");
+      break;
+    }
     auto v1 = stack_load(state, stack, instr.data, true);
     auto res = convert_to_fixnum(state, v1, stack[instr.data]);
     set_stack_top(state, instr.reg + 1);
@@ -1147,14 +1168,22 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_TRUNCATE: {
+    if (!is_real(stack[instr.data])) {
+      record_abort(state, &op_table, "Non-number argument to truncate");
+      break;
+    }
     auto v1 = stack_load(state, stack, instr.data, true);
     auto res = scm_truncate(state, v1, stack[instr.data]);
     set_stack_top(state, instr.reg + 1);
     stack_save(state, stack, instr.reg, res);
     break;
   }
-#define RECORD_BIN_CMP(OP_CODE, EMIT_FN)                                       \
+#define RECORD_BIN_CMP(OP_CODE, EMIT_FN, OP_NAME)                              \
   case OP_##OP_CODE: {                                                         \
+    if (!is_real(stack[instr.v1]) || !is_real(stack[instr.v2])) {              \
+      record_abort(state, &op_table, "Non-number argument to " OP_NAME);       \
+      break;                                                                   \
+    }                                                                          \
     auto v1 = stack_load(state, stack, instr.v1, true);                        \
     auto v2 = stack_load(state, stack, instr.v2, true);                        \
     bool taken;                                                                \
@@ -1163,13 +1192,18 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;                                                                     \
   }
 
-    RECORD_BIN_CMP(JLT, emit_math_cmp_lt)
-    RECORD_BIN_CMP(JGT, emit_math_cmp_gt)
-    RECORD_BIN_CMP(JLTE, emit_math_cmp_lte)
-    RECORD_BIN_CMP(JGTE, emit_math_cmp_gte)
+    RECORD_BIN_CMP(JLT, emit_math_cmp_lt, "<")
+    RECORD_BIN_CMP(JGT, emit_math_cmp_gt, ">")
+    RECORD_BIN_CMP(JLTE, emit_math_cmp_lte, "<=")
+    RECORD_BIN_CMP(JGTE, emit_math_cmp_gte, ">=")
   case OP_JEQ:
   case OP_JEQV:
   case OP_JNUMEQ: {
+    if (instr.op == OP_JNUMEQ &&
+        (!is_number(stack[instr.v1]) || !is_number(stack[instr.v2]))) {
+      record_abort(state, &op_table, "Non-number argument to =");
+      break;
+    }
     bool boxed_cmp = instr.op == OP_JEQV || instr.op == OP_JNUMEQ;
     auto v1 = stack_load(state, stack, instr.v1, boxed_cmp);
     auto v2 = stack_load(state, stack, instr.v2, boxed_cmp);
@@ -1415,6 +1449,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_CLOSURE_GET: {
     auto clo = stack_load(state, stack, instr.v1, false);
+    if (!is_closure(stack[instr.v1])) {
+      record_abort(state, &op_table, "Attempting to call a non-closure");
+      break;
+    }
     auto clo_slot = instr.v2;
     slot res;
     if (clo.constant) {
@@ -1855,7 +1893,11 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_ARGCNT_ERROR:
   case OP_HALT:
     break;
-  case OP_CALLCC:
+  case OP_CALLCC: {
+    if (!is_closure(stack[instr.data])) {
+      record_abort(state, &op_table, "call/cc expected a procedure");
+      break;
+    }
     auto v1 = stack_load(state, stack, instr.data, true);
     if (!v1.constant) {
       slot code_slot = add_const(state, tag_fixnum(1));
@@ -1887,6 +1929,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         (bc *)(&to_func(func)->data[to_func(func)->const_cnt * sizeof(gc_obj)]),
         2); // checkpoint since vm_callcc stub changed RSTACK
     break;
+  }
   case OP_CALLCC_RESUME: {
     auto captured = stack_load(state, stack, 0, true);
     auto result = stack_load(state, stack, 1, false);
