@@ -39,7 +39,12 @@
     ((flonum? x) (sys:FOREIGN_CALL '(double "floor" (double)) x))
     ((ratnum? x) (floor-quotient (numerator x) (denominator x)))
     (else x)))
-(define (exp num) (sys:FOREIGN_CALL '(double "exp" (double)) (inexact num)))
+(define (exp num)
+  (cond
+    ((compnum? num)
+      (let* ((z (inexact num)) (a (real-part z)) (b (imag-part z)) (ea (exp a)))
+        (make-rectangular (* ea (cos b)) (* ea (sin b)))))
+    (else (sys:FOREIGN_CALL '(double "exp" (double)) (inexact num)))))
 
 (define (reducer f init args)
   (let loop ((init init) (args args))
@@ -262,8 +267,12 @@
     ((k) (make-list k '()))
     ((k fill) (if (= k 0) '() (cons fill (make-list (- k 1) fill))))))
 (define (list . x) x)
-(define (set-car! a b) (sys:STORE a b 0))
-(define (set-cdr! a b) (sys:STORE a b 1))
+(define (set-car! a b)
+  (unless (pair? a) (error "set-car!: bad store:" a))
+  (sys:STORE a b 0))
+(define (set-cdr! a b)
+  (unless (pair? a) (error "set-cdr!: bad store:" a))
+  (sys:STORE a b 1))
 (define (string-length a) (sys:LOAD a 0))
 (define (string-map proc . strs)
   (let* ((len (apply min (map string-length strs))) (str (make-string len)))
@@ -959,6 +968,8 @@
   (case-lambda
     ((num) (number->string num 10))
     ((num base)
+      (unless (and (number? num) (fixnum? base) (<= 1 base 16))
+        (error "bad number->string" num))
       ;;(unless (and (number? num) (fixnum? base) (<= 1 base 16)) (error "bad number->string" num))
       (let* ((buflen 100) (buffer (make-string buflen)))
         (cond
@@ -1701,7 +1712,12 @@
     (else (sys:FOREIGN_CALL '(double "sqrt" (double)) (inexact x)))))
 (define atan
   (case-lambda
-    ((num) (sys:FOREIGN_CALL '(double "atan" (double)) (inexact num)))
+    ((num)
+      (cond
+        ((compnum? num)
+          (let* ((z (inexact num)) (iz (* 0+1i z)))
+            (* 0-0.5i (- (log (+ 1 iz)) (log (- 1 iz))))))
+        (else (sys:FOREIGN_CALL '(double "atan" (double)) (inexact num)))))
     ((num1 num2)
       (sys:FOREIGN_CALL '(double "atan2" (double double))
                         (inexact num1)
@@ -1989,7 +2005,6 @@
                                 '())))))
 
 (define (error msg . rest)
-  (sys:WRITE "error:")
   (raise (make-error-object 'default-error msg rest)))
 
 (define (file-error? e)
