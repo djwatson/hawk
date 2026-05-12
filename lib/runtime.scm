@@ -150,8 +150,11 @@
       (else (err)))))
 ;(define (length a) (sys:FOREIGN_CALL '(gc_obj "SCM_LENGTH" (gc_obj)) a))
 
-(define (assq obj1 alist1)
-  (sys:FOREIGN_CALL '(gc_obj "SCM_ASSQ" (gc_obj gc_obj)) obj1 alist1))
+(define (assq obj alist)
+  (and (not (null? alist))
+       (if (eq? (caar alist) obj) (car alist) (assq obj (cdr alist)))))
+;; (define (assq obj1 alist1)
+;;   (sys:FOREIGN_CALL '(gc_obj "SCM_ASSQ" (gc_obj gc_obj)) obj1 alist1))
 (define (assv obj1 alist1)
   (sys:FOREIGN_CALL '(gc_obj "SCM_ASSV" (gc_obj gc_obj)) obj1 alist1))
 
@@ -391,7 +394,9 @@
        ((= k 0) (set-car! list obj))))
 (define (list-copy lst)
   (if (pair? lst) (cons (car lst) (list-copy (cdr lst))) lst))
-(define (vector-length vec) (sys:LOAD vec 0))
+(define (vector-length vec)
+  (unless (vector? vec) (error "vector-length: not a vector " vec))
+  (sys:LOAD vec 0))
 (define (vector-init vec init pos left)
   (if (= left 0)
       vec
@@ -581,8 +586,9 @@
   (case-lambda
     ((obj list) (member obj list equal?))
     ((obj list cmp)
-      (and (not (null? list))
-           (if (cmp obj (car list)) list (member obj (cdr list) cmp))))))
+      (let member ((obj obj) (list list) (cmp cmp))
+        (and (not (null? list))
+             (if (cmp obj (car list)) list (member obj (cdr list) cmp)))))))
 ;;; char
 (define (char-downcase c)
   (let ((n (char->integer c)))
