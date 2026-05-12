@@ -1319,22 +1319,27 @@
   (raise (make-error-object 'file msg irritants)))
 
 (define (delete-file filename)
+  (unless (string? filename) (error "invalid delete-file"))
   (let ((res (sys:FOREIGN_CALL '(int32 "unlink" (string)) filename)))
     (unless (= 0 res) (file-error "Bad unlink:" filename res))))
 
 (define (file-exists? filename)
+  (unless (string? filename) (error "invalid delete-file"))
   (= 0 (sys:FOREIGN_CALL '(int32 "access" (string int32)) filename 0)))
 
 (define (open-input-file file)
+  (unless (string? file) (error "invalid file" file))
   (let ((fd (c-open file 1)))
     (when (< fd 0)
       (raise-continuable (make-error-object 'file "No such file:" (list file))))
     (make-input-port fd)))
 (define (open-output-file file)
+  (unless (string? file) (error "invalid file" file))
   (let ((fd (c-open file 0)))
     (when (< fd 0) (file-error "open-output-file error:" file))
     (make-output-port fd)))
 (define open-binary-output-file open-output-file)
+(define open-binary-input-file open-input-file)
 (define (port-write-all fd data len)
   (let loop ((off 0))
     (if (< off len)
@@ -1630,6 +1635,15 @@
                   #t))))
         (else (error "write-u8: not an output port" port))))))
 
+(define (with-input-from-file file thunk)
+  (let ((p (open-input-file file)))
+    (parameterize ((current-input-port p))
+      (let ((res (thunk))) (close-input-port p) res))))
+
+(define (with-output-to-file name thunk)
+  (let ((file (open-output-file name)))
+    (parameterize ((current-output-port file)) (thunk) (close-output-port file))))
+
 (define write-bytevector
   (case-lambda
     ((bv) (write-bytevector bv (current-output-port) 0 (bytevector-length bv)))
@@ -1713,9 +1727,13 @@
   (buffer->bytevector (port-sbuf port) 0 (port-pos port)))
 
 (define (call-with-input-file file l)
+  (unless (and (string? file) (procedure? l))
+    (error "invalid call-with-input-file"))
   (let* ((p (open-input-file file)) (res (l p))) (close-input-port p) res))
 
 (define (call-with-output-file file l)
+  (unless (and (string? file) (procedure? l))
+    (error "invalid call-with-input-file"))
   (let* ((p (open-output-file file)) (res (l p))) (close-output-port p) res))
 
 (define flush-output-port
