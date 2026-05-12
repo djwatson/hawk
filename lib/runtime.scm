@@ -38,6 +38,10 @@
 (define (exact->inexact x) (sys:INEXACT x))
 (define (inexact->exact x) (sys:EXACT x))
 
+(define (floor-remainder a b) (- a (* b (floor (quotient a b)))))
+(define (truncate-quotient a b) (truncate (quotient a b)))
+(define (truncate-remainder a b)
+  (let ((div (truncate (quotient a b)))) (- a (* b div))))
 (define (floor x)
   (cond
     ((flonum? x) (sys:FOREIGN_CALL '(double "floor" (double)) x))
@@ -1850,9 +1854,17 @@
 ;; bytevectors
 
 ;; bytevector
-(define (bytevector-u8-ref bv i) (sys:LOAD_BYTE bv i))
-(define (bytevector-length bv) (sys:LOAD bv 0))
-(define (bytevector-u8-set! bv i val) (sys:STORE_BYTE bv val i))
+(define (bytevector-u8-ref bv idx)
+  (unless (and (bytevector? bv) (fixnum? idx) (< idx (bytevector-length bv)) (>= idx 0))
+    (error "Invalid bytevector index"))
+  (sys:LOAD_BYTE bv idx))
+(define (bytevector-length bv)
+  (unless (bytevector? bv) (error "Not a bytevector"))
+  (sys:LOAD bv 0))
+(define (bytevector-u8-set! bv idx val)
+  (unless (and (bytevector? bv) (fixnum? idx) (< idx (bytevector-length bv)) (>= idx 0))
+    (error "Invalid bytevector index"))
+  (sys:STORE_BYTE bv val idx))
 (define make-bytevector
   (case-lambda
     ((len) (make-bytevector len #f))
