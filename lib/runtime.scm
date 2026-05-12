@@ -412,7 +412,8 @@
   (unless (< idx (vector-length vec)) (error "Invalid vector index"))
   (sys:LOAD vec (+ 1 idx)))
 (define (vector-set! vec idx val)
-  (unless (< idx (vector-length vec)) (error "Invalid vector index"))
+  (unless (and (fixnum? idx) (< idx (vector-length vec)))
+    (error "Invalid vector index"))
   (sys:STORE vec val (+ 1 idx)))
 (define vector->list
   (case-lambda
@@ -1638,6 +1639,7 @@
     ((string fill) (string-fill! string fill 0 (string-length string)))
     ((string fill start) (string-fill! string fill start (string-length string)))
     ((string fill start end)
+      (unless (char? fill) (error "string-fill! not a char" fill))
       (unless (fixnum? start) (error "string->fill!" start))
       (unless (or (< -1 start (string-length string)) (= start end))
         (error "Bad start string->fill!" start))

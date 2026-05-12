@@ -398,15 +398,34 @@ gc_obj halt(vm_state *state, gc_obj *stack) {
   free(state);
   return res;
 }
-static inline void fail_if_not_closure(vm_state *state, bc *pc, gc_obj *stack,
-                                       gc_obj clo) {
+static INLINE inline gc_obj handle_closure_type_error(
+    bc instr, bc *pc, gc_obj *stack, vm_state *state, void *op_table,
+    uint64_t argcnt) {
+  auto clo = stack[instr.v1];
   if (!is_closure(clo)) {
-    printf("Attempting to call a non-closure:");
-    print_obj(clo, stdout);
-    printf("\n");
-    debug_print_vm_backtrace(state, pc, stack);
-    abort();
+    char *msg_buf = nullptr;
+    size_t msg_len = 0;
+    FILE *msg = open_memstream(&msg_buf, &msg_len);
+    if (!msg) {
+      abort();
+    }
+    fputs("Attempting to call a non-closure:", msg);
+    print_obj(clo, msg);
+    fclose(msg);
+
+    char msg_text[1024];
+    size_t copy_len = msg_len;
+    if (copy_len >= sizeof(msg_text)) {
+      copy_len = sizeof(msg_text) - 1;
+    }
+    memcpy(msg_text, msg_buf, copy_len);
+    msg_text[copy_len] = '\0';
+    free(msg_buf);
+
+    stack[2] = make_string(msg_text);
+    return handle_error(instr, pc, stack, state, op_table, argcnt);
   }
+  return (gc_obj){0};
 }
 gc_obj *expand_stack(vm_state *state, gc_obj *stack) {
   // TODO: this should really be a stack *cache*
@@ -1012,7 +1031,10 @@ OP(JMP) {
 }
 
 OP_ABC(CLOSURE_GET) {
-  fail_if_not_closure(state, pc, stack, v1);
+  if (!is_closure(v1)) {
+    MUSTTAIL return handle_closure_type_error(instr, pc, stack, state, op_table,
+                                              argcnt);
+  }
   auto idx = instr.v2;
   auto res = to_closure(v1)->v[idx];
   END_ABC_NEXT
@@ -1104,7 +1126,6 @@ OP(LCALLT_N) {
 OP(APPLY) {
   auto fun = stack[pc->v1];
   auto args = stack[pc->v2];
-  fail_if_not_closure(state, pc, stack, fun);
   auto callee = to_func(to_closure(fun)->v[0]);
 
   uint64_t a = 1;
