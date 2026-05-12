@@ -8,31 +8,14 @@
 	In fact, the whole thing needs a rewrite for JMP using labels, and a separate pass
 	to reduce WIDE opcodes or something.
 
-[x] eq? hash tables fail in saved heap image: need to also serialize
-    heap collect() counter probably
-    * it's because SCM_GC_CNT isn't preserved across gc image and loading.  Doh.
-
 ## Release checklist
-
-[x] fix (= 4.0 4)
-
-[x] implement eq? hashtables
-[x] use new hashtables in bc.scm, string->symbol, srfi 69, maybe symbol lookup in expander
-  [x] use in expander frames
-   
-
-[x] get macros solid - pass macro tests
-[x] get r5rs_pitfalls working
-[x] pass r5rs-tests
-
-[x] work on r7rs-tests
-[ ] Get all the argtype stuff calling error instead
-   [x] vm
-   [ ] record
 
 [ ] cleanup record.c
 [ ] cleanup vm.c
 
+[ ] maybe try and regain some of the perf lost when adding typechecks,
+    starting around ce94e8a to 0a1e85a. Probably 5-10%, by pushing it
+    in to VM checks, we can probably regain most of it.
 
 ## JIT backlog
 

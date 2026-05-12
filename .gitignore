@@ -4,3 +4,4 @@ lib/*bc
 jitted*
 perf*
 jit*dump
+boot/*

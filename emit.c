@@ -1718,6 +1718,13 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     case IR_MOD: {
       if (op->type == FLONUM_TAG) {
         assert(!op->op1.constant);
+        bool save_lhs = dst_reg == arg0_reg;
+        if (save_lhs) {
+          // The quotient/product calculation overwrites dst; preserve lhs for
+          // the final lhs - trunc(lhs / rhs) * rhs step when they alias.
+          emit_sub_constant(s, SP, SP, 16);
+          emit_fstore(s, 0, SP, arg0_reg);
+        }
         uint8_t rhs_reg = arg1_reg;
         if (op->op2.constant) {
           rhs_reg = FRTMP;
@@ -1731,7 +1738,13 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         emit_fdiv(s, dst_reg, arg0_reg, rhs_reg);
         emit_ftruncate(s, dst_reg, dst_reg);
         emit_fmul(s, dst_reg, dst_reg, rhs_reg);
-        emit_fsub(s, dst_reg, arg0_reg, dst_reg);
+        if (save_lhs) {
+          emit_fmem_load(s, 0, SP, FRTMP);
+          emit_fsub(s, dst_reg, FRTMP, dst_reg);
+          emit_add_constant(s, SP, SP, 16);
+        } else {
+          emit_fsub(s, dst_reg, arg0_reg, dst_reg);
+        }
       } else {
         emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
                                 emit_mod, emit_mod_constant);
