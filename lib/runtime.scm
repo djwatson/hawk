@@ -1831,7 +1831,9 @@
         (let ((half (/ (denominator d) 2)))
           (cond ((> r half) (+ q 1)) ((not (= r half)) q) ((odd? q) (+ 1 q)) (else q)))))
     (else d)))
-(define (ceiling x) (sys:FOREIGN_CALL '(double "ceil" (double)) (inexact x)))
+(define (ceiling x)
+  (unless (real? x) (error "Not a real number" x))
+  (sys:FOREIGN_CALL '(double "ceil" (double)) (inexact x)))
 (define log
   (case-lambda
     ((num)

@@ -229,6 +229,17 @@ gc_obj numeric_truncate_value(gc_obj v) {
   if (is_bignum(v)) {
     return v;
   }
+  if (is_ratnum(v)) {
+    ratnum_s *r = to_ratnum(v);
+    gc_obj num = r->num;
+    gc_obj denom = r->denom;
+    gc_add_root((const void *)&num, 1, 0);
+    gc_add_root((const void *)&denom, 1, 0);
+    gc_obj res = vm_runtime_math_quotient_slow(num, denom);
+    gc_remove_root((const void *)&denom, 0);
+    gc_remove_root((const void *)&num, 0);
+    return res;
+  }
   if (is_flonum(v)) {
     return vm_box_flonum(trunc(to_flonum(v)->x));
   }

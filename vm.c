@@ -829,6 +829,9 @@ OP_AD(EXACT) {
   END_ABC_NEXT
 }
 OP_AD(TRUNCATE) {
+  if (unlikely(!is_real(v1))) {
+    MATH_TYPE_ERROR("truncate");
+  }
   auto res = numeric_truncate_value(v1);
   END_ABC_NEXT
 }
