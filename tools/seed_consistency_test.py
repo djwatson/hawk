@@ -124,9 +124,7 @@ def main() -> int:
     print(f"error: hawk binary is not executable: {hawk}", file=sys.stderr)
     return 2
 
-  tests = sorted(
-      t for t in Path(".").glob(args.test_glob) if not t.name.endswith("2.scm")
-  )
+  tests = sorted(Path(".").glob(args.test_glob))
   if not tests:
     print(f"error: no tests matched glob: {args.test_glob}", file=sys.stderr)
     return 2
