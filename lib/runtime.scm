@@ -223,7 +223,7 @@
              (alloc_size (if (= r 0) (* q 8) (* (+ q 1) 8)))
              (str (sys:ALLOC alloc_size 9)))
         (sys:STORE str len 0)
-        (string-set! str len #\null)
+        (sys:STORE_CHAR str #\null len)
         (when c (do ((i 0 (+ i 1))) ((= i len)) (string-set! str i c)))
         str))))
 
@@ -290,7 +290,9 @@
 (define (string? a) (sys:GUARD a 9))
 (define (bytevector? a) (sys:GUARD a 73))
 (define (symbol? a) (sys:GUARD a 6))
-(define (symbol->string sym) (sys:LOAD sym 0))
+(define (symbol->string sym)
+  (unless (symbol? sym) (error "Not a symbol: " sym))
+  (sys:LOAD sym 0))
 (define (vector? a) (sys:GUARD a 7))
 (define (undefined? a) (sys:GUARD a 36))
 (define (zero? z) (= z 0))
@@ -1832,10 +1834,9 @@
 ;; bytevectors
 
 ;; bytevector
-(define (bytevector-u8-ref bv i) (char->integer (sys:LOAD_CHAR bv i)))
+(define (bytevector-u8-ref bv i) (sys:LOAD_BYTE bv i))
 (define (bytevector-length bv) (sys:LOAD bv 0))
-(define (bytevector-u8-set! bv i val)
-  (sys:STORE_CHAR bv (integer->char val) i))
+(define (bytevector-u8-set! bv i val) (sys:STORE_BYTE bv val i))
 (define make-bytevector
   (case-lambda
     ((len) (make-bytevector len #f))

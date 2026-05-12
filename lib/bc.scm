@@ -1346,7 +1346,7 @@
               (if (null? rest)
                   (let ((argres (reverse argres)))
                     (add-op fun
-                            `(,op ,@(if (memq op '(STORE_CHAR STORE)) '() (list top)) ,@argres)))
+                            `(,op ,@(if (memq op '(STORE_CHAR STORE_BYTE STORE)) '() (list top)) ,@argres)))
                   (let* ((arg (car rest))
                          (res (compile arg fun env atop #f))
                          (next (if (and (integer? res) (= res atop)) (+ atop 1) atop)))

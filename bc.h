@@ -11,6 +11,8 @@
 // CALLCC/CALLCC_RESUME
 // LOAD_CHAR
 // STORE_CHAR
+// LOAD_BYTE
+// STORE_BYTE
 // INTEGER->CHAR, CHAR->INTEGER
 // APPLY
 // more comparisons - GT,LT,GE,LE,EQ,EQV,EQUAL?
@@ -61,8 +63,10 @@
   X(ALLOC, ABC)                                                                \
   X(STORE, ABC)                                                                \
   X(STORE_CHAR, ABC)                                                           \
+  X(STORE_BYTE, ABC)                                                           \
   X(LOAD, ABC)                                                                 \
   X(LOAD_CHAR, ABC)                                                            \
+  X(LOAD_BYTE, ABC)                                                            \
   X(FUNC, A)                                                                   \
   X(ARGCNT_ERROR, A)                                                           \
   X(JFUNC, AD)                                                                 \

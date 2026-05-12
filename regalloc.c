@@ -103,7 +103,8 @@ uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins,
   uint8_t count = 0;
   slot op1 = ins->op1;
   slot op2 = ins->op2;
-  if (ins->op == IR_STORE || ins->op == IR_STORE_CHAR) {
+  if (ins->op == IR_STORE || ins->op == IR_STORE_CHAR ||
+      ins->op == IR_STORE_BYTE) {
     auto ptr_ins = &t->ins[op1.loc];
     count = regalloc_collect_ir_args(t, ptr_ins, args);
     if (!op2.constant) {

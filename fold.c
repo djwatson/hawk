@@ -62,6 +62,7 @@ static bool fold_cse_allowed(trace *t __attribute__((unused)), ir_ins *in) {
   case IR_VMTRUNCATE:
   case IR_LOAD:
   case IR_LOAD_CHAR:
+  case IR_LOAD_BYTE:
   case IR_GGET:
     return true;
   default:
@@ -357,6 +358,20 @@ IRFOLDF(fold_load_const_const) {
   return fold_const(base[to_fixnum(off)]);
 }
 
+IRFOLD(LOAD_BYTE CONST CONST)
+IRFOLDF(fold_load_byte_const_const) {
+  auto src = t->consts[in->op1.loc];
+  auto off = t->consts[in->op2.loc];
+  if (get_type_tag(src) != BYTEVECTOR_TAG) {
+    return fold_next();
+  }
+  assert(is_bytevector(src));
+  assert(is_fixnum(off));
+  auto base = (string_s *)to_bytevector(src);
+  assert(to_fixnum(off) >= 0 && to_fixnum(off) < to_fixnum(base->len));
+  return fold_const(tag_fixnum((uint8_t)base->str[to_fixnum(off)]));
+}
+
 #undef cur_ins
 
 #include "fold_gen.h"
@@ -393,8 +408,13 @@ fold_result fold_instr(trace *trace, ir_ins *in) {
     if (!fold_cse_allowed(trace, in)) {
       return res;
     }
-    if (in->op == IR_LOAD || in->op == IR_LOAD_CHAR) {
-      ir_ins_op store_op = in->op == IR_LOAD ? IR_STORE : IR_STORE_CHAR;
+    if (in->op == IR_LOAD || in->op == IR_LOAD_CHAR || in->op == IR_LOAD_BYTE) {
+      ir_ins_op store_op = IR_STORE;
+      if (in->op == IR_LOAD_CHAR) {
+        store_op = IR_STORE_CHAR;
+      } else if (in->op == IR_LOAD_BYTE) {
+        store_op = IR_STORE_BYTE;
+      }
       res = fold_forward_load(trace, in, store_op);
       if (res.action != FOLD_NEXT) {
         return res;
@@ -409,11 +429,15 @@ fold_result fold_instr(trace *trace, ir_ins *in) {
     uint16_t ref = trace->cse_head[in->op];
     while (ref != UINT16_MAX) {
       ir_ins *prev = &trace->ins[ref];
-      bool load_op = in->op == IR_LOAD || in->op == IR_LOAD_CHAR;
+      bool load_op = in->op == IR_LOAD || in->op == IR_LOAD_CHAR ||
+                     in->op == IR_LOAD_BYTE;
       if (same_cse_operands(trace, in, prev) &&
           (!load_op ||
            load_cse_allowed(trace, ref,
-                            in->op == IR_LOAD ? IR_STORE : IR_STORE_CHAR)) &&
+                            in->op == IR_LOAD
+                                ? IR_STORE
+                                : in->op == IR_LOAD_CHAR ? IR_STORE_CHAR
+                                                         : IR_STORE_BYTE)) &&
           (in->op != IR_GGET || gget_cse_allowed(trace, ref))) {
         return fold_ref((slot){.constant = false, .loc = ref});
       }

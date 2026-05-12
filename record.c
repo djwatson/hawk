@@ -1751,7 +1751,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_STORE:
-  case OP_STORE_CHAR: {
+  case OP_STORE_CHAR:
+  case OP_STORE_BYTE: {
     auto obj = stack_load(state, stack, pc->reg, true);
     auto val = stack_load(state, stack, pc->v1, true);
     auto offset = stack_load(state, stack, pc->v2, true);
@@ -1764,9 +1765,12 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       if (is_heap_tag(get_slot_type(cur_trace, val))) {
         add_inst(state, IR(.op = IR_GCLOG, .op1 = obj, .op2 = offset));
       }
-    } else {
+    } else if (instr.op == OP_STORE_CHAR) {
       add_inst(state, IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val,
                          .type = STRING_TAG));
+    } else {
+      add_inst(state, IR(.op = IR_STORE_BYTE, .op1 = ref, .op2 = val,
+                         .type = BYTEVECTOR_TAG));
     }
     vm_add_snap(state, pc + 1, argcnt);
     break;
@@ -1781,7 +1785,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_LOAD:
-  case OP_LOAD_CHAR: {
+  case OP_LOAD_CHAR:
+  case OP_LOAD_BYTE: {
     auto obj = stack_load(state, stack, instr.v1, true);
     auto offset = stack_load(state, stack, instr.v2, true);
     auto src = stack[instr.v1];
@@ -1792,12 +1797,19 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       auto type = get_type_tag(base[to_fixnum(off)]);
       ins = IR(.op = IR_LOAD, .op1 = obj, .op2 = offset, .type = type,
                .guard = type == FLONUM_TAG);
-    } else {
+    } else if (instr.op == OP_LOAD_CHAR) {
       assert(is_string(src));
       assert(is_fixnum(off));
       assert(to_fixnum(off) >= 0 &&
              to_fixnum(off) < to_fixnum(to_string(src)->len));
       ins = IR(.op = IR_LOAD_CHAR, .op1 = obj, .op2 = offset, .type = CHAR_TAG);
+    } else {
+      assert(is_bytevector(src));
+      assert(is_fixnum(off));
+      assert(to_fixnum(off) >= 0 &&
+             to_fixnum(off) < to_fixnum(to_bytevector(src)->len));
+      ins = IR(.op = IR_LOAD_BYTE, .op1 = obj, .op2 = offset,
+               .type = FIXNUM_TAG);
     }
     auto res = add_inst(state, ins);
     stack_save(state, stack, instr.reg, res);

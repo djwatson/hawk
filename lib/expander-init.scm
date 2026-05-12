@@ -16,6 +16,8 @@
         STORE
         LOAD_CHAR
         STORE_CHAR
+        LOAD_BYTE
+        STORE_BYTE
         ALLOC
         INTEGER_CHAR
         CHAR_INTEGER

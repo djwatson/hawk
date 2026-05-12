@@ -1231,6 +1231,21 @@ OP(STORE_CHAR) {
   END_NEXT
 }
 
+OP(STORE_BYTE) {
+  auto dest = stack[pc->reg];
+  auto val = stack[pc->v1];
+  auto off = stack[pc->v2];
+  assert(is_bytevector(dest));
+  assert(is_fixnum(val));
+  assert(is_fixnum(off));
+
+  auto bv = to_bytevector(dest);
+  auto idx = to_fixnum(off);
+  assert(idx >= 0 && idx < to_fixnum(bv->len));
+  bv->str[idx] = (char)(uint8_t)to_fixnum(val);
+  END_NEXT
+}
+
 OP(GUARD) {
   auto val = stack[pc->v1];
   auto want_tag_obj = stack[pc->v2];
@@ -1265,6 +1280,20 @@ OP(LOAD_CHAR) {
   auto idx = to_fixnum(off);
   assert(idx >= 0 && idx < to_fixnum(str->len));
   auto res = tag_char((uint8_t)str->str[idx]);
+  stack[instr.reg] = res;
+  END_NEXT
+}
+
+OP(LOAD_BYTE) {
+  auto src = stack[pc->v1];
+  auto off = stack[pc->v2];
+  assert(is_bytevector(src));
+  assert(is_fixnum(off));
+
+  auto bv = to_bytevector(src);
+  auto idx = to_fixnum(off);
+  assert(idx >= 0 && idx < to_fixnum(bv->len));
+  auto res = tag_fixnum((uint8_t)bv->str[idx]);
   stack[instr.reg] = res;
   END_NEXT
 }
