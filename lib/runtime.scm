@@ -409,10 +409,11 @@
         (sys:STORE vec len 0)
         (if (eq? init 0) vec (vector-init vec init 0 len))))))
 (define (vector-ref vec idx)
-  (unless (< idx (vector-length vec)) (error "Invalid vector index"))
+  (unless (and (fixnum? idx) (< idx (vector-length vec)) (>= idx 0))
+    (error "Invalid vector index"))
   (sys:LOAD vec (+ 1 idx)))
 (define (vector-set! vec idx val)
-  (unless (and (fixnum? idx) (< idx (vector-length vec)))
+  (unless (and (fixnum? idx) (< idx (vector-length vec)) (>= idx 0))
     (error "Invalid vector index"))
   (sys:STORE vec val (+ 1 idx)))
 (define vector->list
