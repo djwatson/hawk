@@ -120,7 +120,29 @@
 
 (define (list? x) (sys:FOREIGN_CALL '(gc_obj "SCM_LISTP" (gc_obj)) x))
 
-(define (length a) (sys:FOREIGN_CALL '(gc_obj "SCM_LENGTH" (gc_obj)) a))
+(define (length x)
+  (define (err) (error "Not a list"))
+  (let fast ((cnt 0) (lst x))
+    (cond
+      ((= cnt 4000)
+        ;; Run slow check, rabbit+hare
+        (let loop ((fast x) (slow x) (cnt 0))
+          (if (null? fast)
+              cnt
+              (if (pair? fast)
+                  (let ((fast (cdr fast)))
+                    (if (null? fast)
+                        (+ cnt 1)
+                        (if (pair? fast)
+                            (let ((fast (cdr fast)) (slow (cdr slow)))
+                              (when (eq? fast slow) (err))
+                              (loop fast slow (+ cnt 2)))
+                            (err))))
+                  (err)))))
+      ((null? lst) cnt)
+      ((pair? lst) (fast (+ cnt 1) (cdr lst)))
+      (else (err)))))
+;(define (length a) (sys:FOREIGN_CALL '(gc_obj "SCM_LENGTH" (gc_obj)) a))
 
 (define (assq obj1 alist1)
   (sys:FOREIGN_CALL '(gc_obj "SCM_ASSQ" (gc_obj gc_obj)) obj1 alist1))
