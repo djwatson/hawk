@@ -1802,10 +1802,15 @@
             (* 0-0.5i (- (log (+ 1 iz)) (log (- 1 iz))))))
         (else (sys:FOREIGN_CALL '(double "atan" (double)) (inexact num)))))
     ((num1 num2)
-      (sys:FOREIGN_CALL '(double "atan2" (double double))
-                        (inexact num1)
-                        (inexact num2)))))
-(define (tan d) (sys:FOREIGN_CALL '(double "tan" (double)) (inexact d)))
+      (if (or (compnum? num1) (compnum? num2))
+          (error "atan: not a real")
+          (sys:FOREIGN_CALL '(double "atan2" (double double))
+                            (inexact num1)
+                            (inexact num2))))))
+(define (tan d)
+  (if (compnum? d)
+      (/ (sin d) (cos d))
+      (sys:FOREIGN_CALL '(double "tan" (double)) (inexact d))))
 (define (floor-quotient a b)
   (let ((q (/ a b)) (qq (quotient a b)))
     ;; TODO don't use / and quotient both
@@ -1859,10 +1864,16 @@
 (define log
   (case-lambda
     ((num)
+      (unless (number? num) (error "log not a number:" log))
       (cond
         ((compnum? num) (+ (log (magnitude num)) (* 0+1i (angle num))))
         (else (sys:FOREIGN_CALL '(double "log" (double)) (inexact num)))))
-    ((num base) (/ (log num) (log base)))))
+    ((num base)
+      (unless (and (number? base) (number? num))
+        (error "log not a number:" log base))
+      (let ((logbase (log base)))
+        (when (= logbase 0) (error "log of 0 undefined"))
+        (/ (log num) logbase)))))
 
 ;; values
 
