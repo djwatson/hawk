@@ -169,6 +169,18 @@ static inline gc_obj emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
   MUSTTAIL return emit_math_cmp_jeqv_slowpath(state, pc, stack, v1, v2);
 }
 
+static NOINLINE gc_obj lookup_error_slowpath(bc instr, bc *pc, gc_obj *stack,
+                                             vm_state *state, void *op_table,
+                                             uint64_t argcnt) {
+  auto sym = const_load(pc, instr.data);
+  auto name = get_sym_name(to_symbol(sym));
+  char msg[256];
+  snprintf(msg, sizeof(msg), "Symbol not defined: %.*s",
+           (int)to_fixnum(name->len), name->str);
+  stack[2] = make_string(msg);
+  MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
+}
+
 gc_obj vm_memq(gc_obj obj, gc_obj list) {
   for (auto cur = list; is_cons(cur); cur = to_cons(cur)->b) {
     if (obj.value == to_cons(cur)->a.value) {
@@ -653,9 +665,8 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
       fprintf(stderr, "%s\n", (fallback_msg));                                 \
       abort();                                                                 \
     }                                                                          \
-    stack[0] = to_closure(error_clo)->v[0];                                    \
-    stack[1] = error_clo;                                                      \
-    stack[2] = (error_msg);                                                    \
+    stack[0] = error_clo;                                                      \
+    stack[1] = (error_msg);                                                    \
     gc_remove_root((const void *)&error_sym, 0);                               \
     argcnt = 2;                                                                \
     pc = set_new_pc(state, pc, stack, error_clo);                              \
@@ -883,10 +894,8 @@ OP(LOOKUP) {
   auto s = to_symbol(sym);
   auto res = s->val;
   if (res.value == DEAD.value) {
-    auto name = get_sym_name(s);
-    printf("Symbol not defined: %.*s\n", (int)to_fixnum(name->len), name->str);
-    debug_print_vm_backtrace(state, pc, stack);
-    abort();
+    MUSTTAIL return lookup_error_slowpath(instr, pc, stack, state, op_table,
+                                          argcnt);
   }
   END_ABC_NEXT
 }
