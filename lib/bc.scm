@@ -46,8 +46,6 @@
     (inexact . INEXACT)
     (exact->inexact . INEXACT)
     (inexact->exact . EXACT)
-    (char->integer . CHAR_INTEGER)
-    (integer->char . INTEGER_CHAR)
     (values . VALUES)
     (call-with-values . CALL_WITH_VALUES)
     (< . LT)

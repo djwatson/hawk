@@ -29,8 +29,12 @@
 (define (truncate x) (sys:TRUNCATE x))
 (define (inexact x) (sys:INEXACT x))
 (define (exact x) (sys:EXACT x))
-(define (char->integer x) (sys:CHAR_INTEGER x))
-(define (integer->char x) (sys:INTEGER_CHAR x))
+(define (char->integer x)
+  (unless (char? x) (error "not a char"))
+  (sys:CHAR_INTEGER x))
+(define (integer->char x)
+  (unless (and (fixnum? x) (>= x 0) (< x 256)) (error "bad integer->char"))
+  (sys:INTEGER_CHAR x))
 (define (exact->inexact x) (sys:INEXACT x))
 (define (inexact->exact x) (sys:EXACT x))
 
@@ -210,13 +214,18 @@
     (error "Invalid string index"))
   (sys:LOAD_CHAR str idx))
 (define (string-set! str idx c)
-  (unless (and (string? str) (fixnum? idx) (< idx (string-length str)) (>= idx 0))
+  (unless (and (char? c)
+               (string? str)
+               (fixnum? idx)
+               (< idx (string-length str))
+               (>= idx 0))
     (error "Invalid string index"))
   (sys:STORE_CHAR str c idx))
 (define make-string
   (case-lambda
     ((len) (make-string len #f))
     ((len c)
+      (unless (and (fixnum? len) (>= len 0)) (error "bad make-string len"))
       (let* ((size (+ len 17))
              (q (quotient size 8))
              (r (modulo size 8))
@@ -730,9 +739,14 @@
   ;;         (string-set! tostr topos (string-ref fromstr frompos))
   ;;         (loop (+ frompos 1) (+ topos 1)))))
 )
-(define (substring s start end)
+(define (substring str start end)
+  (unless (and (fixnum? start) (fixnum? end)) (error "substring" start))
+  (unless (or (< -1 start (string-length str)) (= start end))
+    (error "substring" start))
+  (unless (<= 0 end (string-length str)) (error "substring" end))
+  (when (> start end) (error "substring" end))
   (let ((new (make-string (- end start))))
-    (str-copy-internal new 0 s start end)
+    (str-copy-internal new 0 str start end)
     new))
 (define (string . chars) (list->string chars))
 (define (list->string chars)
@@ -1954,6 +1968,12 @@
          hawk))
 
 ;;; parameters
+
+(define (call-with-values producer consumer)
+  ;; Direct calls are replaced by the compiler, but we need a real
+  ;; function definition incase someone uses it as a first-class
+  ;; function.
+  (call-with-values producer consumer))
 
 (define (dynamic-wind before during after)
   (unless (and (procedure? before) (procedure? during) (procedure? after))
