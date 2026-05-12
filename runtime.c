@@ -969,8 +969,8 @@ static gc_obj compnum_mul(gc_obj a, gc_obj b) {
   gc_obj right = vm_runtime_math_mul_slow(to_compnum(ca_obj)->imag,
                                           to_compnum(cb_obj)->imag);
   gc_obj real = vm_runtime_math_sub_slow(left, right);
-  gc_add_root((const void *)&real, 1, 0);
   gc_remove_root((const void *)&left, 0);
+  gc_add_root((const void *)&real, 1, 0);
 
   left = vm_runtime_math_mul_slow(to_compnum(ca_obj)->real,
                                   to_compnum(cb_obj)->imag);
@@ -1020,8 +1020,8 @@ static gc_obj compnum_div(gc_obj a, gc_obj b) {
                                        to_compnum(cb_obj)->imag);
 
   gc_obj denom = vm_runtime_math_add_slow(c2, d2);
-  gc_add_root((const void *)&denom, 1, 0);
   gc_remove_root((const void *)&c2, 0);
+  gc_add_root((const void *)&denom, 1, 0);
   if (numeric_is_zero(denom)) {
     abort();
   }
