@@ -641,21 +641,21 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   do {                                                                         \
     gc_obj error_sym = gc_error_symbol();                                      \
     if (error_sym.value == 0) {                                                \
-      fprintf(stderr, "%s\n", (fallback_msg));                                \
-      abort();                                                                \
+      fprintf(stderr, "%s\n", (fallback_msg));                                 \
+      abort();                                                                 \
     }                                                                          \
     gc_add_root((const void *)&error_sym, 1, 0);                               \
     gc_obj error_clo = to_symbol(error_sym)->val;                              \
     if (!is_closure(error_clo)) {                                              \
       gc_remove_root((const void *)&error_sym, 0);                             \
-      fprintf(stderr, "%s\n", (fallback_msg));                                \
-      abort();                                                                \
+      fprintf(stderr, "%s\n", (fallback_msg));                                 \
+      abort();                                                                 \
     }                                                                          \
     stack[0] = to_closure(error_clo)->v[0];                                    \
     stack[1] = error_clo;                                                      \
     stack[2] = (error_msg);                                                    \
     gc_remove_root((const void *)&error_sym, 0);                               \
-    argcnt = 2;                                                               \
+    argcnt = 2;                                                                \
     pc = set_new_pc(state, pc, stack, error_clo);                              \
     dispatch_next(pc, stack);                                                  \
   } while (0)
@@ -738,7 +738,7 @@ DEFINE_CMP_SLOW_CONT(gte, ">=", vm_runtime_cmp_gte_slow)
 
 #undef DEFINE_CMP_SLOW_CONT
 
-#define OP_FAST_OVERFLOW_MATH(code, oplcname, shift, slow)                    \
+#define OP_FAST_OVERFLOW_MATH(code, oplcname, shift, slow)                     \
   OP_ABC(code) {                                                               \
     if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {                        \
       gc_obj res;                                                              \
@@ -936,8 +936,7 @@ OP(ILOOP){END_NEXT}
 OP(JFUNC) {
   auto t = state->record.traces[instr.data];
   auto start = t->start_pc;
-  if (start.op == OP_FUNC &&
-      !check_arity(stack, start, &argcnt)) {
+  if (start.op == OP_FUNC && !check_arity(stack, start, &argcnt)) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
@@ -1271,6 +1270,10 @@ OP_AD(CALLCC) {
   auto captured_stack = capture_stack_closure(state, stack);
   // capture_stack_closure may relocate v1.
   v1 = stack[instr.data];
+  if (!is_closure(v1)) {
+    stack[2] = make_string("call/cc expected a procedure");
+    MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
+  }
   stack[instr.reg] = captured_stack;
   stack = state->stack_bottom;
   call_with_captured_stack(&pc, &stack, v1, captured_stack, &argcnt);
@@ -1282,15 +1285,18 @@ OP(CALLCC_RESUME) {
   auto captured = stack[0];
   auto result = stack[1];
   if (!is_closure(captured)) {
-    abort();
+    stack[2] = make_string("call/cc expected a continuation");
+    MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
   }
   auto clo = to_closure(captured);
   auto len = to_fixnum(clo->len);
   if (len < 1) {
-    abort();
+    stack[2] = make_string("call/cc expected a continuation");
+    MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
   }
   if (clo->v[0].value != vm_callcc_resume_func_obj().value) {
-    abort();
+    stack[2] = make_string("call/cc expected a continuation");
+    MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
   }
 
   gc_obj *restored_top = vm_callcc_resume_slow(state, captured);
