@@ -205,8 +205,14 @@
 (define (equal? a b)
   (sys:FOREIGN_CALL '(gc_obj "SCM_EQUAL" (gc_obj gc_obj)) a b))
 
-(define (string-ref str idx) (sys:LOAD_CHAR str idx))
-(define (string-set! str idx c) (sys:STORE_CHAR str c idx))
+(define (string-ref str idx)
+  (unless (and (string? str) (fixnum? idx) (< idx (string-length str)) (>= idx 0))
+    (error "Invalid string index"))
+  (sys:LOAD_CHAR str idx))
+(define (string-set! str idx c)
+  (unless (and (string? str) (fixnum? idx) (< idx (string-length str)) (>= idx 0))
+    (error "Invalid string index"))
+  (sys:STORE_CHAR str c idx))
 (define make-string
   (case-lambda
     ((len) (make-string len #f))
@@ -409,11 +415,11 @@
         (sys:STORE vec len 0)
         (if (eq? init 0) vec (vector-init vec init 0 len))))))
 (define (vector-ref vec idx)
-  (unless (and (fixnum? idx) (< idx (vector-length vec)) (>= idx 0))
+  (unless (and (vector? vec) (fixnum? idx) (< idx (vector-length vec)) (>= idx 0))
     (error "Invalid vector index"))
   (sys:LOAD vec (+ 1 idx)))
 (define (vector-set! vec idx val)
-  (unless (and (fixnum? idx) (< idx (vector-length vec)) (>= idx 0))
+  (unless (and (vector? vec) (fixnum? idx) (< idx (vector-length vec)) (>= idx 0))
     (error "Invalid vector index"))
   (sys:STORE vec val (+ 1 idx)))
 (define vector->list
