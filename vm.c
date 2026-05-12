@@ -161,29 +161,12 @@ static NOINLINE gc_obj emit_math_cmp_jeqv_slowpath(vm_state *state, bc *pc,
   return vm_runtime_cmp_jeqv_slow(v1, v2);
 }
 
-static NOINLINE gc_obj emit_math_cmp_numeq_slowpath(vm_state *state, bc *pc,
-                                                    gc_obj *stack, gc_obj v1,
-                                                    gc_obj v2) {
-  (void)state;
-  (void)pc;
-  (void)stack;
-  return vm_runtime_cmp_numeq_slow(v1, v2);
-}
-
 static inline gc_obj emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
                                         gc_obj v1, gc_obj v2) {
   if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
     return to_fixnum(v1) == to_fixnum(v2) ? TRUE_REP : FALSE_REP;
   }
   MUSTTAIL return emit_math_cmp_jeqv_slowpath(state, pc, stack, v1, v2);
-}
-
-static inline gc_obj emit_math_cmp_numeq(vm_state *state, bc *pc, gc_obj *stack,
-                                         gc_obj v1, gc_obj v2) {
-  if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
-    return to_fixnum(v1) == to_fixnum(v2) ? TRUE_REP : FALSE_REP;
-  }
-  MUSTTAIL return emit_math_cmp_numeq_slowpath(state, pc, stack, v1, v2);
 }
 
 gc_obj vm_memq(gc_obj obj, gc_obj list) {
@@ -738,6 +721,19 @@ DEFINE_CMP_SLOW_CONT(gte, ">=", vm_runtime_cmp_gte_slow)
 
 #undef DEFINE_CMP_SLOW_CONT
 
+static INLINE inline gc_obj handle_cmp_numeq_slow(
+    bc instr, bc *pc, gc_obj *stack, vm_state *state, void *op_table,
+    uint64_t argcnt) {
+  auto v1 = stack[instr.v1];
+  auto v2 = stack[instr.v2];
+  if (unlikely(!is_number(v1) || !is_number(v2))) {
+    MATH_TYPE_ERROR("=");
+  }
+  gc_obj res = vm_runtime_cmp_numeq_slow(v1, v2);
+  BRANCH_NEXT(res.value != FALSE_REP.value);
+  dispatch_next(pc, stack);
+}
+
 #define OP_FAST_OVERFLOW_MATH(code, oplcname, shift, slow)                     \
   OP_ABC(code) {                                                               \
     if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {                        \
@@ -997,12 +993,12 @@ CMP_BRANCH_FAST_FIXNUM(JLT, <, handle_cmp_lt_slow)
 CMP_BRANCH_FAST_FIXNUM(JGT, >, handle_cmp_gt_slow)
 CMP_BRANCH_FAST_FIXNUM(JLTE, <=, handle_cmp_lte_slow)
 CMP_BRANCH_FAST_FIXNUM(JGTE, >=, handle_cmp_gte_slow)
+CMP_BRANCH_FAST_FIXNUM(JNUMEQ, ==, handle_cmp_numeq_slow)
 
 #undef CMP_BRANCH_FAST_FIXNUM
 
 CMP_BRANCH(JEQ, emit_math_cmp_jeq)
 CMP_BRANCH(JEQV, emit_math_cmp_jeqv)
-CMP_BRANCH(JNUMEQ, emit_math_cmp_numeq)
 OP(IF) {
   auto v = stack[instr.data];
   BRANCH_NEXT(v.value != FALSE_REP.value);
