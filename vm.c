@@ -24,9 +24,9 @@ static vm_state *current_vm_state;
 static NOINLINE gc_obj handle_error(bc instr, bc *pc, gc_obj *stack,
                                     vm_state *state, void *op_table,
                                     uint64_t argcnt);
-static INLINE inline gc_obj handle_arity_error(bc instr, bc *pc, gc_obj *stack,
-                                               vm_state *state, void *op_table,
-                                               uint64_t argcnt);
+static NOINLINE gc_obj handle_arity_error(bc instr, bc *pc, gc_obj *stack,
+                                          vm_state *state, void *op_table,
+                                          uint64_t argcnt);
 
 typedef struct trace_exit_count {
   uint16_t trace_num;
@@ -410,9 +410,10 @@ gc_obj halt(vm_state *state, gc_obj *stack) {
   free(state);
   return res;
 }
-static INLINE inline gc_obj handle_closure_type_error(
-    bc instr, bc *pc, gc_obj *stack, vm_state *state, void *op_table,
-    uint64_t argcnt) {
+static NOINLINE gc_obj handle_closure_type_error(bc instr, bc *pc,
+                                                 gc_obj *stack, vm_state *state,
+                                                 void *op_table,
+                                                 uint64_t argcnt) {
   auto clo = stack[instr.v1];
   if (!is_closure(clo)) {
     char *msg_buf = nullptr;
@@ -678,14 +679,14 @@ static NOINLINE gc_obj handle_error(bc instr, bc *pc, gc_obj *stack,
                                     uint64_t argcnt) {
   (void)instr;
   gc_obj error_msg = stack[2];
-  char const *fallback_msg = is_string(error_msg) ? to_string(error_msg)->str
-                                                  : "Unhandled VM error";
+  char const *fallback_msg =
+      is_string(error_msg) ? to_string(error_msg)->str : "Unhandled VM error";
   DISPATCH_ERROR_MESSAGE(error_msg, fallback_msg);
 }
 
-static INLINE inline gc_obj handle_arity_error(bc instr, bc *pc, gc_obj *stack,
-                                               vm_state *state, void *op_table,
-                                               uint64_t argcnt) {
+static NOINLINE gc_obj handle_arity_error(bc instr, bc *pc, gc_obj *stack,
+                                          vm_state *state, void *op_table,
+                                          uint64_t argcnt) {
   char msg[256];
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
   if (has_rest) {
@@ -708,7 +709,7 @@ static INLINE inline gc_obj handle_arity_error(bc instr, bc *pc, gc_obj *stack,
   } while (0)
 
 #define DEFINE_MATH_SLOW_CONT(name, op, runtime_fn)                            \
-  static INLINE inline gc_obj handle_math_##name##_slow(                       \
+  static NOINLINE gc_obj handle_math_##name##_slow(                            \
       bc instr, bc *pc, gc_obj *stack, vm_state *state, void *op_table,        \
       uint64_t argcnt) {                                                       \
     auto v1 = stack[instr.v1];                                                 \
@@ -731,7 +732,7 @@ DEFINE_MATH_SLOW_CONT(mod, "mod", vm_runtime_math_mod_slow)
 #undef DEFINE_MATH_SLOW_CONT
 
 #define DEFINE_CMP_SLOW_CONT(name, op, runtime_fn)                             \
-  static INLINE inline gc_obj handle_cmp_##name##_slow(                        \
+  static NOINLINE inline gc_obj handle_cmp_##name##_slow(                      \
       bc instr, bc *pc, gc_obj *stack, vm_state *state, void *op_table,        \
       uint64_t argcnt) {                                                       \
     auto v1 = stack[instr.v1];                                                 \
@@ -751,9 +752,9 @@ DEFINE_CMP_SLOW_CONT(gte, ">=", vm_runtime_cmp_gte_slow)
 
 #undef DEFINE_CMP_SLOW_CONT
 
-static INLINE inline gc_obj handle_cmp_numeq_slow(
-    bc instr, bc *pc, gc_obj *stack, vm_state *state, void *op_table,
-    uint64_t argcnt) {
+static NOINLINE gc_obj handle_cmp_numeq_slow(bc instr, bc *pc, gc_obj *stack,
+                                             vm_state *state, void *op_table,
+                                             uint64_t argcnt) {
   auto v1 = stack[instr.v1];
   auto v2 = stack[instr.v2];
   if (unlikely(!is_number(v1) || !is_number(v2))) {
