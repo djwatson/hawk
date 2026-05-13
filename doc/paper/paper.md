@@ -1,53 +1,44 @@
-# dave's notes
+---
+title: "Tracing Tail Calls: A Scheme-Specific Tracing JIT"
+author: "David Watson"
+date: "\\today"
+bibliography: references.bib
+link-citations: true
+abstract: |
+  TODO: Write this last.
 
-* first args in reg, INCLUDING side trace->loop header.
-* after a single loop, can return anywhere
-* globals and closures can be 'promoted' to constants
-* flonums in jit important, most stay in reg
-* 'lazy' typecheck
-* various with/without feature like loops, eager typecheck, glogals/closures in reg, no IR_ARG, etc etc
-   uprec/downrec? POLYmorphic traces!!!
-* callcc in traces is EASY
-* apply a little less so (finish this!)
+  Possible draft:
 
+  This paper presents a tracing just-in-time compiler for Scheme that adapts trace formation to Scheme's execution model, where loops are commonly expressed as tail calls rather than backward branches. The system detects hot tail-call cycles, records traces through stable Scheme control paths, and specializes those traces using Scheme-level facts including procedure identity, closure layout, global binding stability, arity, and numeric representation. On the standard R7RS benchmark suite, the JIT provides large speedups on flonum-heavy benchmarks while remaining near break-even on most non-numeric workloads. These results suggest that a compact tracing JIT can significantly accelerate numeric Scheme programs, but that broader gains require additional optimization of allocation, higher-order calls, and symbolic workloads.
 
-# Tracing Tail Calls: A Scheme-Specific Tracing JIT
-
-> **Status:** Working outline / draft skeleton  
-> **Author:** TODO  
-> **Implementation:** TODO: Hawk Scheme / repository URL / commit hash  
-> **Target:** TODO: master's-level technical paper, thesis chapter, or implementation report  
-> **Note:** This is intentionally Markdown-first. LaTeX formatting can come later after the structure and claims settle.
-
+  TODO: Replace vague phrases with actual measurements. State the benchmark suite precisely. State the baseline precisely. Avoid claiming more novelty than the evidence supports.
 ---
 
-## Abstract
+<!--
+dave's notes
 
-TODO: Write this last.
+- first args in reg, INCLUDING side trace->loop header.
+- after a single loop, can return anywhere
+- globals and closures can be 'promoted' to constants
+- flonums in jit important, most stay in reg
+- 'lazy' typecheck
+- various with/without feature like loops, eager typecheck, glogals/closures in reg, no IR_ARG, etc etc
+  uprec/downrec? POLYmorphic traces!!!
+- callcc in traces is EASY
+- apply a little less so (finish this!)
+-->
 
-Possible draft:
+## Introduction
 
-> This paper presents a tracing just-in-time compiler for Scheme that adapts trace formation to Scheme's execution model, where loops are commonly expressed as tail calls rather than backward branches. The system detects hot tail-call cycles, records traces through stable Scheme control paths, and specializes those traces using Scheme-level facts including procedure identity, closure layout, global binding stability, arity, and numeric representation. On the standard R7RS benchmark suite, the JIT provides large speedups on flonum-heavy benchmarks while remaining near break-even on most non-numeric workloads. These results suggest that a compact tracing JIT can significantly accelerate numeric Scheme programs, but that broader gains require additional optimization of allocation, higher-order calls, and symbolic workloads.
+Scheme implementations face a difficult performance tradeoff. The language encourages small procedures, higher-order programming, closures, proper tail calls, generic arithmetic, dynamic binding environments, and interactive redefinition [@sussman1998scheme; @r7rs; @dybvig2009scheme]. These features are attractive to programmers but complicate traditional ahead-of-time compilation and conventional loop detection.
 
-TODO:
-- Replace vague phrases with actual measurements.
-- State the benchmark suite precisely.
-- State the baseline precisely.
-- Avoid claiming more novelty than the evidence supports.
-
----
-
-## 1. Introduction
-
-Scheme implementations face a difficult performance tradeoff. The language encourages small procedures, higher-order programming, closures, proper tail calls, generic arithmetic, dynamic binding environments, and interactive redefinition. These features are attractive to programmers but complicate traditional ahead-of-time compilation and conventional loop detection.
-
-Tracing JIT compilers can be a good fit for dynamic languages because they optimize hot execution paths rather than entire programs. However, many tracing systems identify loops using syntactic or bytecode-level backward branches. In Scheme, many loops are not represented as explicit backward branches at all. They are tail calls: self-recursive procedures, named `let` loops, or mutually recursive functions.
+Tracing JIT compilers can be a good fit for dynamic languages because they optimize hot execution paths rather than entire programs [@gal2009tracemonkey; @bolz2009pypy; @pallluajit]. However, many tracing systems identify loops using syntactic or bytecode-level backward branches. In Scheme, many loops are not represented as explicit backward branches at all. They are tail calls: self-recursive procedures, named `let` loops, or mutually recursive functions.
 
 This paper presents TODO: system name, a tracing JIT for TODO: Scheme implementation. The system adapts tracing to Scheme by treating hot tail-call recurrence as a loop-discovery mechanism. It records traces across stable tail-call paths and specializes those traces using runtime facts about closures, global bindings, procedure entrypoints, arity, and numeric representations.
 
 The implementation is evaluated using the standard R7RS benchmark suite. The main result is TODO: summary of benchmark result, for example: "large speedups on flonum-heavy programs, up to TODO×, while most other benchmarks remain within TODO% of the interpreter baseline."
 
-### 1.1 Contributions
+### Contributions
 
 This paper makes the following contributions:
 
@@ -70,9 +61,9 @@ TODO:
 
 ---
 
-## 2. Background
+## Background
 
-### 2.1 Scheme Execution Model
+### Scheme Execution Model
 
 TODO: Explain only the Scheme features needed for this paper. Avoid writing a full Scheme tutorial.
 
@@ -106,7 +97,7 @@ TODO:
 - Show a bytecode snippet if useful.
 - Explain whether named `let` becomes an actual procedure/closure in Hawk or whether some cases are compiled specially.
 
-### 2.2 Tracing JIT Compilation
+### Tracing JIT Compilation
 
 A tracing JIT observes program execution, identifies hot paths, records operations along those paths, and compiles the resulting trace into machine code. Guards protect assumptions made during recording. If a guard fails, execution exits the trace and resumes in the interpreter or another compiled trace.
 
@@ -124,7 +115,7 @@ TODO:
 - Keep this section conceptual.
 - Save detailed comparisons to LuaJIT, PyPy, TraceMonkey, etc. for Related Work.
 
-### 2.3 Why Scheme Is Awkward for Conventional Tracing
+### Why Scheme Is Awkward for Conventional Tracing
 
 Conventional tracing systems often start traces at hot loop headers identified by backward branches. Scheme complicates this in several ways:
 
@@ -141,7 +132,7 @@ TODO:
 
 ---
 
-## 3. System Overview
+## System Overview
 
 TODO: This is the map of the machine.
 
@@ -159,24 +150,21 @@ The implementation consists of:
 Possible diagram:
 
 ```text
-Scheme source
-    |
-    v
-expander / compiler
-    |
-    v
-bytecode + constants + closure metadata
-    |
-    +--> interpreter
-    |
-    +--> tracing recorder --> trace IR --> optimizer --> machine code
+source -> compiler -> bytecode
+                       |
+                       +-> interpreter
+                       |
+                       +-> recorder
+                           -> IR
+                           -> optimizer
+                           -> machine code
 ```
 
 TODO:
 - Replace with a better diagram later.
 - Include a table of important bytecodes if useful.
 
-### 3.1 Baseline VM
+### Baseline VM
 
 TODO:
 - Describe the VM architecture.
@@ -187,7 +175,7 @@ TODO:
 - How are globals represented?
 - What bytecodes matter most for tracing?
 
-### 3.2 Value Representation
+### Value Representation
 
 TODO: Fill in the exact representation.
 
@@ -209,7 +197,7 @@ TODO:
 - Explain overflow handling for fixnums.
 - Explain flonum allocation or unboxing policy.
 
-### 3.3 JIT Pipeline
+### JIT Pipeline
 
 TODO: Describe the pipeline concretely.
 
@@ -232,11 +220,11 @@ TODO:
 
 ---
 
-## 4. Tail-Call Loop Discovery
+## Tail-Call Loop Discovery
 
 This is probably the paper's central technical section.
 
-### 4.1 Problem
+### Problem
 
 In many bytecode systems, a loop can be detected by a backward branch. In Scheme, the most important loop idiom is often a tail call. A compiler may represent a named `let` or recursive function as a procedure call whose target is the current procedure or a mutually recursive procedure.
 
@@ -245,7 +233,7 @@ TODO:
 - State what runtime event increments the hotness counter.
 - State whether hotness is associated with the caller, callee, call site, bytecode PC, closure entrypoint, or some combination.
 
-### 4.2 Self Tail Calls
+### Self Tail Calls
 
 TODO: Explain the easy case.
 
@@ -266,7 +254,7 @@ TODO:
 - Explain where recording stops.
 - Explain how arguments become loop-carried variables.
 
-### 4.3 Named `let`
+### Named `let`
 
 TODO: Explain whether named `let` is just a special case of self tail calls or has a distinct representation.
 
@@ -283,7 +271,7 @@ TODO:
 - Show source-to-bytecode lowering if it helps.
 - Explain whether the JIT sees this as a procedure loop.
 
-### 4.4 Mutual Tail Calls
+### Mutual Tail Calls
 
 TODO: Decide whether this is supported, partially supported, or future work.
 
@@ -304,7 +292,7 @@ Questions to answer:
 - Does trace recording stop at a different entrypoint?
 - Are targets guarded by procedure identity or entrypoint identity?
 
-### 4.5 Trace Start and Stop Rules
+### Trace Start and Stop Rules
 
 TODO: This needs to be crisp and maybe include pseudocode.
 
@@ -345,9 +333,9 @@ TODO:
 
 ---
 
-## 5. Trace Recording and IR
+## Trace Recording and IR
 
-### 5.1 Trace IR
+### Trace IR
 
 TODO:
 - Describe the IR.
@@ -371,7 +359,7 @@ Possible table:
 | `guard_global_version` | TODO | TODO |
 | `side_exit` | TODO | TODO |
 
-### 5.2 Guards
+### Guards
 
 TODO: Explain the guard model.
 
@@ -393,7 +381,7 @@ TODO:
 - How expensive is a guard?
 - Where does a guard exit to?
 
-### 5.3 Snapshots
+### Snapshots
 
 TODO: This is important for credibility.
 
@@ -411,7 +399,7 @@ Explain:
 TODO:
 - Include a small example trace and its snapshot.
 
-### 5.4 Side Exits and Trace Linking
+### Side Exits and Trace Linking
 
 TODO:
 - What happens when a guard fails?
@@ -422,11 +410,11 @@ TODO:
 
 ---
 
-## 6. Scheme-Specific Specialization
+## Scheme-Specific Specialization
 
 This is the other major technical section.
 
-### 6.1 Global Binding Promotion
+### Global Binding Promotion
 
 Scheme global lookup can be expensive if every access must consult a dynamic environment or binding cell. If a global binding is stable during trace recording, the JIT can promote it into a guarded assumption.
 
@@ -444,7 +432,7 @@ Possible claim:
 TODO:
 - Make this precise. Do not claim primitive names that do not exist.
 
-### 6.2 Closure and Procedure Promotion
+### Closure and Procedure Promotion
 
 Higher-order calls are common in Scheme. During tracing, a call site may repeatedly target the same closure or procedure. The JIT can specialize the call path by guarding the observed closure identity or entrypoint.
 
@@ -455,7 +443,7 @@ TODO:
 - Are closure-free procedures called without a closure argument?
 - How does this interact with your closure-sharing policy?
 
-### 6.3 Arity Specialization
+### Arity Specialization
 
 TODO:
 - Explain fixed arity checks.
@@ -467,7 +455,7 @@ Important question:
 
 > Is arity checked before entering a trace, inside the trace, or both?
 
-### 6.4 Numeric Specialization
+### Numeric Specialization
 
 Numeric specialization is the most visible performance win.
 
@@ -488,7 +476,7 @@ TODO:
 - If flonums are boxed at loop boundaries only, say that.
 - If flonums are still boxed internally, do not claim otherwise.
 
-### 6.5 Tail Calls and Proper Tail Recursion
+### Tail Calls and Proper Tail Recursion
 
 TODO:
 - Explain how compiled traces preserve proper tail calls.
@@ -498,9 +486,9 @@ TODO:
 
 ---
 
-## 7. Optimization and Code Generation
+## Optimization and Code Generation
 
-### 7.1 Optimization Passes
+### Optimization Passes
 
 TODO: List implemented optimizations only.
 
@@ -520,7 +508,7 @@ Possible optimizations:
 TODO:
 - Mark unimplemented ideas as future work, not as existing features.
 
-### 7.2 Register Allocation
+### Register Allocation
 
 TODO:
 - Describe the register allocator.
@@ -529,7 +517,7 @@ TODO:
 - How are values spilled?
 - How are snapshots related to spills?
 
-### 7.3 Machine Code Backend
+### Machine Code Backend
 
 TODO:
 - Target architecture: x86-64, AArch64, both?
@@ -542,11 +530,11 @@ TODO:
 
 ---
 
-## 8. Evaluation
+## Evaluation
 
 This section should be empirical and conservative.
 
-### 8.1 Methodology
+### Methodology
 
 TODO:
 - Machine specs.
@@ -568,25 +556,23 @@ Recommended reporting:
 - report speedup relative to Hawk interpreter;
 - separately report comparison against other Scheme implementations.
 
-### 8.2 Benchmarks
+### Benchmarks
 
 TODO: List the exact R7RS benchmarks used.
 
-Suggested classification:
+Suggested classifications:
 
-| Category | Benchmarks | Expected result |
-|---|---|---|
-| Flonum-heavy numeric | TODO | Large JIT win |
-| Fixnum-heavy numeric | TODO | Moderate to large win |
-| Allocation-heavy symbolic | TODO | Break-even or slight loss |
-| Higher-order/control-heavy | TODO | Mixed |
-| Short-running/startup-heavy | TODO | Compile overhead dominates |
+- Flonum-heavy numeric: large JIT win.
+- Fixnum-heavy numeric: moderate to large win.
+- Allocation-heavy symbolic: break-even or slight loss.
+- Higher-order/control-heavy: mixed.
+- Short-running/startup-heavy: compile overhead dominates.
 
 TODO:
 - Classify actual benchmarks after measuring.
 - Do not force the classification if the data disagrees.
 
-### 8.3 Baselines
+### Baselines
 
 Suggested baselines:
 
@@ -604,22 +590,42 @@ TODO:
 - Be clear that mature compilers are context, not necessarily direct apples-to-apples baselines.
 - Explain interpreter vs native compiler differences.
 
-### 8.4 Overall Results
+### Overall Results
 
 TODO: Insert main results table.
 
-Example table shape:
+<!-- BENCHMARK_CHART -->
 
-| Benchmark | Hawk interp | Hawk JIT | Speedup | Category |
-|---|---:|---:|---:|---|
-| TODO | TODO | TODO | TODO | TODO |
+\begin{figure*}
+\centering
+\includegraphics[width=\textwidth]{generated/benchmark_percent_x64.pdf}
+\caption{x64 Hawk runtime change relative to Chez. Negative values indicate that Hawk is faster; positive values indicate that Hawk is slower.}
+\Description{Bar chart of x64 benchmark runtime changes relative to Chez.}
+\end{figure*}
+
+\begin{figure*}
+\centering
+\includegraphics[width=\textwidth]{generated/benchmark_percent_aarch64.pdf}
+\caption{aarch64 Hawk runtime change relative to Chez. Negative values indicate that Hawk is faster; positive values indicate that Hawk is slower.}
+\Description{Bar chart of aarch64 benchmark runtime changes relative to Chez.}
+\end{figure*}
+
+<!-- /BENCHMARK_CHART -->
+
+Example result fields:
+
+- benchmark;
+- Hawk interpreter time;
+- Hawk JIT time;
+- speedup;
+- category.
 
 TODO:
 - Use seconds or milliseconds consistently.
 - Report speedup as baseline / JIT.
 - Highlight geometric mean only if meaningful.
 
-### 8.5 Flonum-Heavy Results
+### Flonum-Heavy Results
 
 TODO: This is likely the strongest results subsection.
 
@@ -638,7 +644,7 @@ Possible paragraph:
 TODO:
 - Replace with concrete evidence.
 
-### 8.6 Non-Numeric Results
+### Non-Numeric Results
 
 TODO: Be honest.
 
@@ -651,7 +657,7 @@ TODO:
 - Identify slowdowns honestly.
 - Explain whether compile overhead, guard exits, GC, or unsupported operations are the cause.
 
-### 8.7 Ablation Study
+### Ablation Study
 
 TODO: Add if feasible. This would strengthen the paper a lot.
 
@@ -663,19 +669,17 @@ Possible ablations:
 - JIT without side-exit linking.
 - JIT with higher/lower hotness threshold.
 
-Table shape:
+Example ablation fields:
 
-| Configuration | Flonum speedup | Overall speedup | Notes |
-|---|---:|---:|---|
-| Interpreter | 1.0× | 1.0× | baseline |
-| JIT, no numeric specialization | TODO | TODO | TODO |
-| JIT, no global promotion | TODO | TODO | TODO |
-| Full JIT | TODO | TODO | TODO |
+- configuration;
+- flonum speedup;
+- overall speedup;
+- notes.
 
 TODO:
 - Even one or two ablations are useful.
 
-### 8.8 Trace Behavior
+### Trace Behavior
 
 TODO: Add instrumentation if possible.
 
@@ -694,9 +698,9 @@ This can explain why some benchmarks win and others do not.
 
 ---
 
-## 9. Discussion
+## Discussion
 
-### 9.1 Why Flonum Code Wins
+### Why Flonum Code Wins
 
 TODO: Explain the result in implementation terms.
 
@@ -709,7 +713,7 @@ Likely reasons:
 - branch behavior stable;
 - few side exits.
 
-### 9.2 Why General Code Breaks Even
+### Why General Code Breaks Even
 
 TODO: Explain without sounding defensive.
 
@@ -722,7 +726,7 @@ Likely reasons:
 - short benchmarks do not amortize compilation;
 - current optimizer is intentionally small.
 
-### 9.3 Correctness and Dynamic Semantics
+### Correctness and Dynamic Semantics
 
 TODO:
 - Explain how guards preserve dynamic behavior.
@@ -730,7 +734,7 @@ TODO:
 - Explain fallback to interpreter.
 - Explain unsupported features.
 
-### 9.4 Limitations
+### Limitations
 
 TODO: Be blunt. This helps credibility.
 
@@ -745,7 +749,7 @@ Possible limitations:
 - no mature GC integration for JIT metadata, if true;
 - benchmark suite may not represent interactive Scheme workloads.
 
-### 9.5 Future Work
+### Future Work
 
 Possible future work:
 
@@ -762,11 +766,13 @@ Possible future work:
 
 ---
 
-## 10. Related Work
+## Related Work
 
 TODO: This section needs citations later.
 
-### 10.1 Tracing JITs
+### Tracing JITs
+
+Tracing JITs have been used successfully in production and research dynamic-language systems [@gal2009tracemonkey; @bolz2009pypy; @pallluajit].
 
 Discuss:
 
@@ -783,7 +789,9 @@ Focus comparison:
 - guards and side exits;
 - snapshots/deoptimization.
 
-### 10.2 Scheme Implementations
+### Scheme Implementations
+
+Chez Scheme and Gambit provide mature points of comparison for native-code Scheme implementation strategies [@dybvigchez; @feeley2007gambit].
 
 Discuss:
 
@@ -803,7 +811,7 @@ Focus comparison:
 - numeric performance;
 - dynamic compilation, if any.
 
-### 10.3 Dynamic Language Optimization
+### Dynamic Language Optimization
 
 Possible topics:
 
@@ -819,7 +827,7 @@ TODO:
 
 ---
 
-## 11. Conclusion
+## Conclusion
 
 TODO: Write after evaluation.
 
@@ -865,13 +873,11 @@ TODO:
 - Include benchmark runner script.
 - Include raw data format.
 
-Example command placeholder:
+Command placeholders:
 
-```sh
-TODO: command used to run R7RS benchmarks with Hawk interpreter
-TODO: command used to run R7RS benchmarks with Hawk JIT
-TODO: command used to run other implementations
-```
+- Hawk interpreter command.
+- Hawk JIT command.
+- Other implementation commands.
 
 ---
 
@@ -905,19 +911,7 @@ TODO:
 
 ---
 
-## Bibliography TODO
+## References {.unnumbered}
 
-TODO: Convert to BibTeX later.
-
-Potential citations to collect:
-
-- LuaJIT papers or documentation.
-- TraceMonkey paper.
-- PyPy tracing JIT papers.
-- Dynamo paper.
-- SELF / type feedback papers.
-- Chez Scheme implementation papers.
-- Gambit implementation papers.
-- R7RS standard.
-- R7RS benchmark suite source.
-- Any prior Scheme JIT or tracing Scheme work.
+::: {#refs}
+:::
