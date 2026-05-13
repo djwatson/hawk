@@ -10,12 +10,21 @@
 
 ## Release checklist
 
+[ ] paper
+[ ] website
+[ ] benchmark numbers vs chez, x64 & aarch64, maybe VM.
+
 [ ] cleanup record.c
 [ ] cleanup vm.c
 
-[ ] maybe try and regain some of the perf lost when adding typechecks,
-    starting around ce94e8a to 0a1e85a. Probably 5-10%, by pushing it
-    in to VM checks, we can probably regain most of it.
+## Perf fixes 
+
+[ ] Make sure hotpaths are working in vm ( not extra push/pops)
+[ ] CLOSURE GET doesn't need typecheck EXCEPT for getting bcfunc ptr, 
+    so make that a separate opcode.
+[ ] IR_ABC for faster bounds checking, especially vectors
+[ ] bytecode ops: string ref/set, vector ref/set, car/cdr, record ref/set
+[ ] convert to bytecode: assq, length, listp, equal, stringcopy
 
 ## JIT backlog
 

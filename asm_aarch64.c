@@ -244,7 +244,7 @@ void asm_patch_jcc32(emit_state *s, uint8_t *loc, uint8_t const *target) {
   memcpy(loc, &opcode, sizeof(opcode));
 }
 
-bool asm_jcc32_can_reach(uint8_t *loc, uint8_t const *target) {
+bool asm_jcc32_can_reach(uint8_t const *loc, uint8_t const *target) {
   int64_t delta = (int64_t)target - (int64_t)loc;
   if (delta & 0x3) {
     return false;

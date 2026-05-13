@@ -2,6 +2,9 @@
 #define _GNU_SOURCE
 
 #include <assert.h>
+#ifdef __APPLE__
+#include <crt_externs.h>
+#endif
 #include <fcntl.h>
 #include <limits.h>
 #include <math.h>
@@ -1217,7 +1220,11 @@ EXPORT gc_obj SCM_GET_ENV_VARS() {
   gc_obj tail = NIL;
   gc_add_root((const void *)&tail, 1, 0);
 
+#ifdef __APPLE__
+  char **p = *_NSGetEnviron();
+#else
   char **p = environ;
+#endif
   while (*p) {
     char *split = strchr(*p, '=');
     if (split) {
