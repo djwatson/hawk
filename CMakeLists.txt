@@ -10,6 +10,7 @@ option(USE_RANDOM_SCHEDULE "Enable random schedule debugging" OFF)
 option(ENABLE_COVERAGE "Enable LLVM source-based coverage instrumentation" OFF)
 option(ENABLE_FUZZ_TARGETS "Build fuzz targets" OFF)
 option(BOOTSTRAP "Self-host the bootstrap image" OFF)
+set(HAWK_DIST_VERSION "" CACHE STRING "Version suffix for the dist tarball")
 
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -286,3 +287,26 @@ install(TARGETS hawk RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/hawk.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 
 add_subdirectory(test)
+
+set(dist_bootstrap_build ON)
+set(dist_dependencies)
+if(BOOTSTRAP)
+  set(dist_bootstrap_build OFF)
+  list(APPEND dist_dependencies bootstrap_image)
+endif()
+
+add_custom_target(
+  dist
+  COMMAND
+    ${CMAKE_COMMAND}
+    -DHAWK_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+    -DHAWK_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+    -DHAWK_DIST_VERSION=${HAWK_DIST_VERSION}
+    -DHAWK_DIST_BOOTSTRAP_BUILD=${dist_bootstrap_build}
+    -DHAWK_DIST_CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+    -DHAWK_DIST_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/Dist.cmake
+  DEPENDS ${dist_dependencies}
+  COMMENT "Building source release tarball"
+  VERBATIM
+)
