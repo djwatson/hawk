@@ -149,6 +149,7 @@ static void add_next_use(regalloc_state *s, uint16_t loc, uint16_t ir_idx,
   arrput(s->next_uses, next);
 }
 
+// This is the backwards pass, collecting next use info, and spilling.
 void regalloc_collect_next_uses(regalloc_state *s) {
   size_t ins_len = arrlen(s->t->ins);
   if (ins_len == 0) {

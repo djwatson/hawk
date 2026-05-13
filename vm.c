@@ -21,12 +21,16 @@
 static inline char const *func_name_for_pc(bc *pc);
 static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack);
 static vm_state *current_vm_state;
-static NOINLINE gc_obj handle_error(bc instr, bc *pc, gc_obj *stack,
-                                    vm_state *state, void *op_table,
-                                    uint64_t argcnt);
-static NOINLINE gc_obj handle_arity_error(bc instr, bc *pc, gc_obj *stack,
-                                          vm_state *state, void *op_table,
-                                          uint64_t argcnt);
+static PRESERVE_NONE NOINLINE gc_obj handle_error(bc instr, bc *pc,
+                                                  gc_obj *stack,
+                                                  vm_state *state,
+                                                  void *op_table,
+                                                  uint64_t argcnt);
+static PRESERVE_NONE NOINLINE gc_obj handle_arity_error(bc instr, bc *pc,
+                                                        gc_obj *stack,
+                                                        vm_state *state,
+                                                        void *op_table,
+                                                        uint64_t argcnt);
 
 typedef struct trace_exit_count {
   uint16_t trace_num;
@@ -148,26 +152,28 @@ static inline gc_obj emit_math_cmp_jeq(vm_state *state, bc *pc, gc_obj *stack,
   (void)stack;
   return v1.value == v2.value ? TRUE_REP : FALSE_REP;
 }
-static NOINLINE gc_obj emit_math_cmp_jeqv_slowpath(vm_state *state, bc *pc,
-                                                   gc_obj *stack, gc_obj v1,
-                                                   gc_obj v2) {
+static PRESERVE_NONE NOINLINE gc_obj emit_math_cmp_jeqv_slowpath(
+    vm_state *state, bc *pc, gc_obj *stack, gc_obj v1, gc_obj v2) {
   (void)state;
   (void)pc;
   (void)stack;
   return vm_runtime_cmp_jeqv_slow(v1, v2);
 }
 
-static inline gc_obj emit_math_cmp_jeqv(vm_state *state, bc *pc, gc_obj *stack,
-                                        gc_obj v1, gc_obj v2) {
+static PRESERVE_NONE inline gc_obj emit_math_cmp_jeqv(vm_state *state, bc *pc,
+                                                      gc_obj *stack, gc_obj v1,
+                                                      gc_obj v2) {
   if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
     return to_fixnum(v1) == to_fixnum(v2) ? TRUE_REP : FALSE_REP;
   }
   MUSTTAIL return emit_math_cmp_jeqv_slowpath(state, pc, stack, v1, v2);
 }
 
-static NOINLINE gc_obj lookup_error_slowpath(bc instr, bc *pc, gc_obj *stack,
-                                             vm_state *state, void *op_table,
-                                             uint64_t argcnt) {
+static PRESERVE_NONE NOINLINE gc_obj lookup_error_slowpath(bc instr, bc *pc,
+                                                           gc_obj *stack,
+                                                           vm_state *state,
+                                                           void *op_table,
+                                                           uint64_t argcnt) {
   auto sym = const_load(pc, instr.data);
   auto name = get_sym_name(to_symbol(sym));
   char msg[256];
@@ -196,7 +202,9 @@ gc_obj vm_memv(gc_obj obj, gc_obj list) {
 }
 
 static void trace_reset(vm_state *state) {
-  // printf("TRACE RESET=============================\n");
+  if (verbose) {
+    printf("TRACE RESET=============================\n");
+  }
   if (state->record.cur_trace) {
     record_abort_current(state, "trace reset requested while recording");
   }
@@ -406,10 +414,9 @@ gc_obj halt(vm_state *state, gc_obj *stack) {
   free(state);
   return res;
 }
-static NOINLINE gc_obj handle_closure_type_error(bc instr, bc *pc,
-                                                 gc_obj *stack, vm_state *state,
-                                                 void *op_table,
-                                                 uint64_t argcnt) {
+static PRESERVE_NONE NOINLINE gc_obj
+handle_closure_type_error(bc instr, bc *pc, gc_obj *stack, vm_state *state,
+                          void *op_table, uint64_t argcnt) {
   auto clo = stack[instr.v1];
   if (!is_closure(clo)) {
     char *msg_buf = nullptr;
@@ -577,18 +584,12 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   // Check for side trace start.
   if (res.snap->exits < 255) {
     bool should_try_side = false;
-    /* #ifdef RANDOM_SCHEDULE */
-    /*     if (should_jit() && state->max_trace > 0) { */
-    /*       should_try_side = true; */
-    /*       res.snap->exits++; */
-    /*     } */
-    /* #else */
     res.snap->exits++;
     if (res.snap->exits >= 10 && res.snap->exits % 10 == 0 &&
         state->max_trace > 0) {
       should_try_side = true;
     }
-    /* #endif */
+
     if (res.snap->exits == 255) {
       if (verbose) {
         printf("Blacklist side trace %i snap %i \n", res.snap->trace->num,
@@ -614,6 +615,13 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   // printf("RUN DONE jit %i\n", jfunc);
   return op_table;
 }
+
+// The main VM opcodes.  The opcodes are set up so that the main
+// fastpath shouldn't make any calls, slowpaths TAILCALL to an
+// explicit slowpath.  This means the register allocator shouldn't be
+// spilling much if anything on the fastpath, and things like ADD end
+// up as a tiny handful of instructions.
+
 #define dispatch_next(pc, stack)                                               \
   op_func impl = ((op_func *)op_table)[(pc)->op];                              \
   MUSTTAIL return impl(*(pc), (pc), (stack), state, op_table, argcnt);
@@ -667,9 +675,11 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
     dispatch_next(pc, stack);                                                  \
   } while (0)
 
-static NOINLINE gc_obj handle_error(bc instr, bc *pc, gc_obj *stack,
-                                    vm_state *state, void *op_table,
-                                    uint64_t argcnt) {
+static PRESERVE_NONE NOINLINE gc_obj handle_error(bc instr, bc *pc,
+                                                  gc_obj *stack,
+                                                  vm_state *state,
+                                                  void *op_table,
+                                                  uint64_t argcnt) {
   (void)instr;
   gc_obj error_msg = stack[2];
   char const *fallback_msg =
@@ -677,9 +687,11 @@ static NOINLINE gc_obj handle_error(bc instr, bc *pc, gc_obj *stack,
   DISPATCH_ERROR_MESSAGE(error_msg, fallback_msg);
 }
 
-static NOINLINE gc_obj handle_arity_error(bc instr, bc *pc, gc_obj *stack,
-                                          vm_state *state, void *op_table,
-                                          uint64_t argcnt) {
+static PRESERVE_NONE NOINLINE gc_obj handle_arity_error(bc instr, bc *pc,
+                                                        gc_obj *stack,
+                                                        vm_state *state,
+                                                        void *op_table,
+                                                        uint64_t argcnt) {
   char msg[256];
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
   if (has_rest) {
@@ -702,7 +714,7 @@ static NOINLINE gc_obj handle_arity_error(bc instr, bc *pc, gc_obj *stack,
   } while (0)
 
 #define DEFINE_MATH_SLOW_CONT(name, op, runtime_fn)                            \
-  static NOINLINE gc_obj handle_math_##name##_slow(                            \
+  static PRESERVE_NONE NOINLINE gc_obj handle_math_##name##_slow(              \
       bc instr, bc *pc, gc_obj *stack, vm_state *state, void *op_table,        \
       uint64_t argcnt) {                                                       \
     auto v1 = stack[instr.v1];                                                 \
@@ -725,7 +737,7 @@ DEFINE_MATH_SLOW_CONT(mod, "mod", vm_runtime_math_mod_slow)
 #undef DEFINE_MATH_SLOW_CONT
 
 #define DEFINE_CMP_SLOW_CONT(name, op, runtime_fn)                             \
-  static NOINLINE gc_obj handle_cmp_##name##_slow(                             \
+  static PRESERVE_NONE NOINLINE gc_obj handle_cmp_##name##_slow(               \
       bc instr, bc *pc, gc_obj *stack, vm_state *state, void *op_table,        \
       uint64_t argcnt) {                                                       \
     auto v1 = stack[instr.v1];                                                 \
@@ -745,9 +757,11 @@ DEFINE_CMP_SLOW_CONT(gte, ">=", vm_runtime_cmp_gte_slow)
 
 #undef DEFINE_CMP_SLOW_CONT
 
-static NOINLINE gc_obj handle_cmp_numeq_slow(bc instr, bc *pc, gc_obj *stack,
-                                             vm_state *state, void *op_table,
-                                             uint64_t argcnt) {
+static PRESERVE_NONE NOINLINE gc_obj handle_cmp_numeq_slow(bc instr, bc *pc,
+                                                           gc_obj *stack,
+                                                           vm_state *state,
+                                                           void *op_table,
+                                                           uint64_t argcnt) {
   auto v1 = stack[instr.v1];
   auto v2 = stack[instr.v2];
   if (unlikely(!is_number(v1) || !is_number(v2))) {

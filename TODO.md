@@ -14,21 +14,25 @@
 [ ] website
 [ ] benchmark numbers vs chez, x64 & aarch64, maybe VM.
 
+[ ] package for release
+[ ] some github actions to test build for ubuntu, osx, arch? gcc, clang?
+
 [ ] cleanup record.c
 [ ] cleanup vm.c
 
+[ ] other tests like port tests, looping tests, copyish, division
+
 ## Perf fixes 
 
-[ ] Make sure hotpaths are working in vm ( not extra push/pops)
 [ ] CLOSURE GET doesn't need typecheck EXCEPT for getting bcfunc ptr, 
     so make that a separate opcode.
-[ ] IR_ABC for faster bounds checking, especially vectors
 [ ] bytecode ops: string ref/set, vector ref/set, car/cdr, record ref/set
+[ ] IR_ABC for faster bounds checking, especially vectors
 [ ] convert to bytecode: assq, length, listp, equal, stringcopy
 
 ## JIT backlog
 
-* record APPLY
+* record APPLY (currently we have fastpaths up to 8 length)
 
 * returning trace handling - currently we allow ANY poly trace to return,
   while old hawk didn't allow any until blacklist_max/2, then *any* trace could return
@@ -58,6 +62,9 @@
   slot - we don't use callee saved.  The reason is to make it easy for
   gc to work across CCALL.  This assumes CCALLs are rare, maybe
   experiment with this if they're not.
+  
+* add some point the ir struct was expanded to support more than >256
+  spill slots, this is probably unnecessary.
 
 # VM backlog
 
@@ -65,6 +72,8 @@
 * missing multi-value callcc returns I think?
 * we store state VM, the only place it is used is to flush traces in the FOREIGN_CALL to dump image and die. ugh.
 * LOOP could just do a memmov instead?
+
+* unicode support is unimplemented.
 
 ### Optimization passes
 
