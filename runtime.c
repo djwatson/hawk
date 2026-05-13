@@ -364,22 +364,6 @@ bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
   return lhs.value == rhs.value;
 }
 
-bool guard_obj_matches(gc_obj val, gc_obj want_tag_obj) {
-  assert(is_fixnum(want_tag_obj));
-  uint64_t want_tag = (uint64_t)to_fixnum(want_tag_obj);
-
-  if ((want_tag & TAG_MASK) == PTR_TAG) {
-    return is_ptr(val) &&
-           ((want_tag == PTR_TAG) || get_type_tag(val) == want_tag);
-  }
-
-  uint64_t got_tag = (uint64_t)get_type_tag(val);
-  if (got_tag == LITERAL_TAG) {
-    return (((uint64_t)val.value & IMMEDIATE_MASK) == want_tag);
-  }
-  return got_tag == want_tag;
-}
-
 static size_t runtime_align_words(size_t bytes) {
   return (bytes + sizeof(gc_obj) - 1) & ~(sizeof(gc_obj) - 1);
 }

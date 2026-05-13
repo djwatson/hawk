@@ -111,19 +111,15 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   uint8_t *hot_loc = &state->hotmap[hotmap_hash(pc)];
   uint8_t prev_hot = *hot_loc;
   *hot_loc -= 1;
-  if ((state->max_trace > 0) &&
+  if (unlikely((state->max_trace > 0) &&
 #ifdef RANDOM_SCHEDULE
-      should_jit() &&
+               should_jit() &&
 #else
-      prev_hot < *hot_loc &&
+               unlikely(prev_hot < *hot_loc) &&
 #endif
-      op_table == state->impls && state->record.cur_trace == nullptr &&
-      (pc->op == OP_FUNC || pc->op == OP_LOOP || pc->op == OP_RET ||
-       pc->op == OP_RETN)) {
-    if (state->record.cur_trace != nullptr) {
-      printf("Record while recording???\n");
-      abort();
-    }
+               op_table == state->impls && state->record.cur_trace == nullptr &&
+               (pc->op == OP_FUNC || pc->op == OP_LOOP || pc->op == OP_RET ||
+                pc->op == OP_RETN))) {
 
     *hot_loc = hotmap_cnt;
     record_start(state, pc, *pc, stack, argcnt);
@@ -249,7 +245,7 @@ static inline void return_frame(vm_state *state, bc instr, uint16_t count,
   *pc = new_pc;
   *stack = new_stack;
 }
-static inline bc *next_op(bc *pc) { return pc + 1; }
+static INLINE inline bc *next_op(bc *pc) { return pc + 1; }
 
 static bc callcc_resume_stub[] = {
     {.op = OP_LCALL, .reg = 1, .data = 3},
@@ -472,7 +468,7 @@ gc_obj *expand_stack(vm_state *state, gc_obj *stack) {
 }
 
 static inline void check_expand_stack(vm_state *state, gc_obj **stack) {
-  if (*stack >= state->stack_limit) {
+  if (unlikely(*stack >= state->stack_limit)) {
     *stack = expand_stack(state, *stack);
   }
 }
@@ -528,11 +524,8 @@ static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack) {
 
 static inline bool check_arity(gc_obj *stack, bc instr, uint64_t *args) {
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
-  if (!has_rest) {
-    if (*args == instr.reg) {
-      return true;
-    }
-    return false;
+  if (likely(!has_rest)) {
+    return *args == instr.reg;
   }
 
   uint8_t fixed_cnt = instr.reg - 1;
@@ -732,7 +725,7 @@ DEFINE_MATH_SLOW_CONT(mod, "mod", vm_runtime_math_mod_slow)
 #undef DEFINE_MATH_SLOW_CONT
 
 #define DEFINE_CMP_SLOW_CONT(name, op, runtime_fn)                             \
-  static NOINLINE inline gc_obj handle_cmp_##name##_slow(                      \
+  static NOINLINE gc_obj handle_cmp_##name##_slow(                             \
       bc instr, bc *pc, gc_obj *stack, vm_state *state, void *op_table,        \
       uint64_t argcnt) {                                                       \
     auto v1 = stack[instr.v1];                                                 \
@@ -861,17 +854,6 @@ OP_AD(MOV) {
 }
 OP(RET) {
   argcnt = 1;
-  // TODO: re-enable.  This needs to be a MUCH lower priority, so we
-  // don't record down-rec before up-rec.  Or alternatively, maybe
-  // ONLY enable down-rec recording if the function has an up-rec trace
-  // already.
-
-  /* auto res = check_record_start(pc, stack, state, op_table); */
-  /* if (res != op_table) { */
-  /*   op_table = res; */
-  /*   instr = *pc; */
-  /*   dispatch_next(pc, stack); */
-  /* } */
 
   return_frame(state, instr, 1, &pc, &stack, &op_table);
   dispatch_next(pc, stack);
@@ -929,7 +911,7 @@ OP(WRITE) {
 }
 
 OP(FUNC) {
-  if (!check_arity(stack, instr, &argcnt)) {
+  if (unlikely(!check_arity(stack, instr, &argcnt))) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
