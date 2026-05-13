@@ -5,3 +5,5 @@ jitted*
 perf*
 jit*dump
 boot/*
+site/_site/
+__pycache__/

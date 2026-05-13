@@ -1,0 +1,835 @@
+
+****************************
+Benchmarking Chez on Wed May 13 09:33:04 PDT 2026 under Linux davejwatson-B450-I-AORUS-PRO-WIFI 6.17.0-23-generic #23-Ubuntu SMP PREEMPT_DYNAMIC Sat Apr 11 23:29:57 UTC 2026 x86_64 GNU/Linux
+
+Testing browse under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/browse.scm /tmp/r7rs-benchmarks/Chez/browse.scm
+Running...
+Running browse:2000
+Elapsed time: 0.914850945 seconds (1.0) for browse:2000
++!CSVLINE!+chez-10.0.0+r7rs,browse:2000,0.914850945
+
+real	0m0.961s
+user	0m0.941s
+sys	0m0.017s
+
+Testing deriv under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/deriv.scm /tmp/r7rs-benchmarks/Chez/deriv.scm
+Running...
+Running deriv:10000000
+Elapsed time: 0.881313181 seconds (1.0) for deriv:10000000
++!CSVLINE!+chez-10.0.0+r7rs,deriv:10000000,0.881313181
+
+real	0m0.926s
+user	0m0.905s
+sys	0m0.013s
+
+Testing destruc under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/destruc.scm /tmp/r7rs-benchmarks/Chez/destruc.scm
+Running...
+Running destruc:600:50:4000
+Elapsed time: 1.220172513 seconds (1.0) for destruc:600:50:4000
++!CSVLINE!+chez-10.0.0+r7rs,destruc:600:50:4000,1.220172513
+
+real	0m1.257s
+user	0m1.244s
+sys	0m0.013s
+
+Testing diviter under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/diviter.scm /tmp/r7rs-benchmarks/Chez/diviter.scm
+Running...
+Running diviter:1000:1000000
+Elapsed time: 0.973539835 seconds (1.0) for diviter:1000:1000000
++!CSVLINE!+chez-10.0.0+r7rs,diviter:1000:1000000,0.973539835
+
+real	0m1.010s
+user	0m0.998s
+sys	0m0.011s
+
+Testing divrec under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/divrec.scm /tmp/r7rs-benchmarks/Chez/divrec.scm
+Running...
+Running divrec:1000:1000000
+Elapsed time: 1.511732339 seconds (2.0) for divrec:1000:1000000
++!CSVLINE!+chez-10.0.0+r7rs,divrec:1000:1000000,1.511732339
+
+real	0m1.550s
+user	0m1.535s
+sys	0m0.014s
+
+Testing puzzle under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/puzzle.scm /tmp/r7rs-benchmarks/Chez/puzzle.scm
+Running...
+Running puzzle:1000
+Elapsed time: 1.486129128 seconds (1.0) for puzzle:1000
++!CSVLINE!+chez-10.0.0+r7rs,puzzle:1000,1.486129128
+
+real	0m1.531s
+user	0m1.514s
+sys	0m0.016s
+
+Testing triangl under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/triangl.scm /tmp/r7rs-benchmarks/Chez/triangl.scm
+Running...
+Running triangl:22:1:50
+Elapsed time: 1.361009755 seconds (2.0) for triangl:22:1:50
++!CSVLINE!+chez-10.0.0+r7rs,triangl:22:1:50,1.361009755
+
+real	0m1.398s
+user	0m1.385s
+sys	0m0.012s
+
+Testing tak under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/tak.scm /tmp/r7rs-benchmarks/Chez/tak.scm
+Running...
+Running tak:40:20:11:1
+Elapsed time: 1.136434232 seconds (1.0) for tak:40:20:11:1
++!CSVLINE!+chez-10.0.0+r7rs,tak:40:20:11:1,1.136434232
+
+real	0m1.172s
+user	0m1.165s
+sys	0m0.007s
+
+Testing takl under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/takl.scm /tmp/r7rs-benchmarks/Chez/takl.scm
+Running...
+Running takl:40:20:12:1
+Elapsed time: 2.563299699 seconds (3.0) for takl:40:20:12:1
++!CSVLINE!+chez-10.0.0+r7rs,takl:40:20:12:1,2.563299699
+
+real	0m2.601s
+user	0m2.589s
+sys	0m0.011s
+
+Testing ntakl under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/ntakl.scm /tmp/r7rs-benchmarks/Chez/ntakl.scm
+Running...
+Running ntakl:40:20:12:1
+Elapsed time: 2.556874856 seconds (2.0) for ntakl:40:20:12:1
++!CSVLINE!+chez-10.0.0+r7rs,ntakl:40:20:12:1,2.556874856
+
+real	0m2.595s
+user	0m2.585s
+sys	0m0.010s
+
+Testing cpstak under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/cpstak.scm /tmp/r7rs-benchmarks/Chez/cpstak.scm
+Running...
+Running cpstak:40:20:11:1
+Elapsed time: 2.025503348 seconds (2.0) for cpstak:40:20:11:1
++!CSVLINE!+chez-10.0.0+r7rs,cpstak:40:20:11:1,2.025503348
+
+real	0m2.063s
+user	0m2.047s
+sys	0m0.016s
+
+Testing ctak under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/ctak.scm /tmp/r7rs-benchmarks/Chez/ctak.scm
+Running...
+Running ctak:32:16:8:1
+Elapsed time: 0.447677688 seconds (1.0) for ctak:32:16:8:1
++!CSVLINE!+chez-10.0.0+r7rs,ctak:32:16:8:1,0.447677688
+
+real	0m0.487s
+user	0m0.474s
+sys	0m0.012s
+
+Testing fib under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/fib.scm /tmp/r7rs-benchmarks/Chez/fib.scm
+Running...
+Running fib:40:5
+Elapsed time: 2.560172867 seconds (2.0) for fib:40:5
++!CSVLINE!+chez-10.0.0+r7rs,fib:40:5,2.560172867
+
+real	0m2.595s
+user	0m2.581s
+sys	0m0.014s
+
+Testing fibc under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/fibc.scm /tmp/r7rs-benchmarks/Chez/fibc.scm
+Running...
+Running fibc:30:10
+Elapsed time: 0.31258391 seconds (1.0) for fibc:30:10
++!CSVLINE!+chez-10.0.0+r7rs,fibc:30:10,0.31258391
+
+real	0m0.349s
+user	0m0.340s
+sys	0m0.009s
+
+Testing fibfp under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/fibfp.scm /tmp/r7rs-benchmarks/Chez/fibfp.scm
+Running...
+Running fibfp:35.0:10
+Elapsed time: 1.99829769 seconds (2.0) for fibfp:35.0:10
++!CSVLINE!+chez-10.0.0+r7rs,fibfp:35.0:10,1.99829769
+
+real	0m2.037s
+user	0m2.023s
+sys	0m0.013s
+
+Testing sum under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/sum.scm /tmp/r7rs-benchmarks/Chez/sum.scm
+Running...
+Running sum:10000:200000
+Elapsed time: 1.582031595 seconds (1.0) for sum:10000:200000
++!CSVLINE!+chez-10.0.0+r7rs,sum:10000:200000,1.582031595
+
+real	0m1.619s
+user	0m1.605s
+sys	0m0.014s
+
+Testing sumfp under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/sumfp.scm /tmp/r7rs-benchmarks/Chez/sumfp.scm
+Running...
+Running sumfp:1000000.0:500
+Elapsed time: 3.685671849 seconds (4.0) for sumfp:1000000.0:500
++!CSVLINE!+chez-10.0.0+r7rs,sumfp:1000000.0:500,3.685671849
+
+real	0m3.723s
+user	0m3.706s
+sys	0m0.016s
+
+Testing fft under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/fft.scm /tmp/r7rs-benchmarks/Chez/fft.scm
+Running...
+Running fft:65536:100
+Elapsed time: 1.407422732 seconds (1.0) for fft:65536:100
++!CSVLINE!+chez-10.0.0+r7rs,fft:65536:100,1.407422732
+
+real	0m1.462s
+user	0m1.433s
+sys	0m0.020s
+
+Testing mbrot under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/mbrot.scm /tmp/r7rs-benchmarks/Chez/mbrot.scm
+Running...
+Running mbrot:75:1000
+Elapsed time: 4.397281743 seconds (4.0) for mbrot:75:1000
++!CSVLINE!+chez-10.0.0+r7rs,mbrot:75:1000,4.397281743
+
+real	0m4.438s
+user	0m4.422s
+sys	0m0.015s
+
+Testing mbrotZ under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/mbrotZ.scm /tmp/r7rs-benchmarks/Chez/mbrotZ.scm
+Running...
+Running mbrotZ:75:1000
+Elapsed time: 3.867873927 seconds (4.0) for mbrotZ:75:1000
++!CSVLINE!+chez-10.0.0+r7rs,mbrotZ:75:1000,3.867873927
+
+real	0m3.915s
+user	0m3.890s
+sys	0m0.016s
+
+Testing nucleic under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/nucleic.scm /tmp/r7rs-benchmarks/Chez/nucleic.scm
+Running...
+Running nucleic:50
+Elapsed time: 1.474723162 seconds (1.0) for nucleic:50
++!CSVLINE!+chez-10.0.0+r7rs,nucleic:50,1.474723162
+
+real	0m1.538s
+user	0m1.522s
+sys	0m0.016s
+
+Testing pi under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/pi.scm /tmp/r7rs-benchmarks/Chez/pi.scm
+Running...
+Running pi:50:500:50:100
+Elapsed time: 0.275846996 seconds (1.0) for pi:50:500:50:100
++!CSVLINE!+chez-10.0.0+r7rs,pi:50:500:50:100,0.275846996
+
+real	0m0.320s
+user	0m0.293s
+sys	0m0.027s
+
+Testing pnpoly under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/pnpoly.scm /tmp/r7rs-benchmarks/Chez/pnpoly.scm
+Running...
+Running pnpoly:1000000
+Elapsed time: 3.031776702 seconds (3.0) for pnpoly:1000000
++!CSVLINE!+chez-10.0.0+r7rs,pnpoly:1000000,3.031776702
+
+real	0m3.074s
+user	0m3.058s
+sys	0m0.015s
+
+Testing ray under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/ray.scm /tmp/r7rs-benchmarks/Chez/ray.scm
+Running...
+Running ray:50
+Elapsed time: 1.594903166 seconds (1.0) for ray:50
++!CSVLINE!+chez-10.0.0+r7rs,ray:50,1.594903166
+
+real	0m1.648s
+user	0m1.623s
+sys	0m0.017s
+
+Testing simplex under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/simplex.scm /tmp/r7rs-benchmarks/Chez/simplex.scm
+Running...
+Running simplex:1000000
+Elapsed time: 1.513116799 seconds (1.0) for simplex:1000000
++!CSVLINE!+chez-10.0.0+r7rs,simplex:1000000,1.513116799
+
+real	0m1.568s
+user	0m1.559s
+sys	0m0.009s
+
+Testing ack under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/ack.scm /tmp/r7rs-benchmarks/Chez/ack.scm
+Running...
+Running ack:3:12:2
+Elapsed time: 1.76571053 seconds (2.0) for ack:3:12:2
++!CSVLINE!+chez-10.0.0+r7rs,ack:3:12:2,1.76571053
+
+real	0m1.804s
+user	0m1.794s
+sys	0m0.010s
+
+Testing array1 under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/array1.scm /tmp/r7rs-benchmarks/Chez/array1.scm
+Running...
+Running array1:1000000:500
+Elapsed time: 3.769856051 seconds (4.0) for array1:1000000:500
++!CSVLINE!+chez-10.0.0+r7rs,array1:1000000:500,3.769856051
+
+real	0m3.811s
+user	0m1.998s
+sys	0m1.812s
+
+Testing string under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/string.scm /tmp/r7rs-benchmarks/Chez/string.scm
+Running...
+Running string:500000:100
+Elapsed time: 1.521572956 seconds (1.0) for string:500000:100
++!CSVLINE!+chez-10.0.0+r7rs,string:500000:100,1.521572956
+
+real	0m1.564s
+user	0m1.039s
+sys	0m0.524s
+
+Testing sum1 under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/sum1.scm /tmp/r7rs-benchmarks/Chez/sum1.scm
+Running...
+Running sum1:25
+Elapsed time: 0.646291154 seconds (1.0) for sum1:25
++!CSVLINE!+chez-10.0.0+r7rs,sum1:25,0.646291154
+
+real	0m0.683s
+user	0m0.663s
+sys	0m0.020s
+
+Testing cat under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/cat.scm /tmp/r7rs-benchmarks/Chez/cat.scm
+Running...
+Running cat:50
+Elapsed time: 1.20289231 seconds (1.0) for cat:50
++!CSVLINE!+chez-10.0.0+r7rs,cat:50,1.20289231
+
+real	0m1.241s
+user	0m1.100s
+sys	0m0.140s
+
+Testing tail under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/tail.scm /tmp/r7rs-benchmarks/Chez/tail.scm
+Running...
+Running tail:50
+Elapsed time: 1.473391258 seconds (2.0) for tail:50
++!CSVLINE!+chez-10.0.0+r7rs,tail:50,1.473391258
+
+real	0m1.515s
+user	0m1.341s
+sys	0m0.174s
+
+Testing wc under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/wc.scm /tmp/r7rs-benchmarks/Chez/wc.scm
+Running...
+Running wc:inputs/bib:50
+Elapsed time: 0.88735275 seconds (1.0) for wc:inputs/bib:50
++!CSVLINE!+chez-10.0.0+r7rs,wc:inputs/bib:50,0.88735275
+
+real	0m0.924s
+user	0m0.872s
+sys	0m0.052s
+
+Testing read1 under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/read1.scm /tmp/r7rs-benchmarks/Chez/read1.scm
+Running...
+Running read1:2500
+Elapsed time: 0.511137027 seconds (0.0) for read1:2500
++!CSVLINE!+chez-10.0.0+r7rs,read1:2500,0.511137027
+
+real	0m0.547s
+user	0m0.515s
+sys	0m0.032s
+
+Testing compiler under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/compiler.scm /tmp/r7rs-benchmarks/Chez/compiler.scm
+Running...
+Running compiler:2000
+Elapsed time: 1.36382231 seconds (2.0) for compiler:2000
++!CSVLINE!+chez-10.0.0+r7rs,compiler:2000,1.36382231
+
+real	0m2.615s
+user	0m2.565s
+sys	0m0.041s
+
+Testing conform under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/conform.scm /tmp/r7rs-benchmarks/Chez/conform.scm
+Running...
+Running conform:500
+Elapsed time: 1.361131176 seconds (1.0) for conform:500
++!CSVLINE!+chez-10.0.0+r7rs,conform:500,1.361131176
+
+real	0m1.412s
+user	0m1.394s
+sys	0m0.017s
+
+Testing dynamic under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/dynamic.scm /tmp/r7rs-benchmarks/Chez/dynamic.scm
+Running...
+Running dynamic:500
+Elapsed time: 1.279264232 seconds (2.0) for dynamic:500
++!CSVLINE!+chez-10.0.0+r7rs,dynamic:500,1.279264232
+
+real	0m1.401s
+user	0m1.373s
+sys	0m0.028s
+
+Testing earley under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/earley.scm /tmp/r7rs-benchmarks/Chez/earley.scm
+Running...
+Running earley:1
+Elapsed time: 2.746608545 seconds (2.0) for earley:1
++!CSVLINE!+chez-10.0.0+r7rs,earley:1,2.746608545
+
+real	0m2.828s
+user	0m2.590s
+sys	0m0.237s
+
+Testing graphs under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/graphs.scm /tmp/r7rs-benchmarks/Chez/graphs.scm
+Running...
+Running graphs:7:3
+Elapsed time: 1.351949122 seconds (1.0) for graphs:7:3
++!CSVLINE!+chez-10.0.0+r7rs,graphs:7:3,1.351949122
+
+real	0m1.399s
+user	0m1.381s
+sys	0m0.018s
+
+Testing lattice under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/lattice.scm /tmp/r7rs-benchmarks/Chez/lattice.scm
+Running...
+Running lattice:44:10
+Elapsed time: 2.608524843 seconds (3.0) for lattice:44:10
++!CSVLINE!+chez-10.0.0+r7rs,lattice:44:10,2.608524843
+
+real	0m2.648s
+user	0m2.637s
+sys	0m0.011s
+
+Testing matrix under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/matrix.scm /tmp/r7rs-benchmarks/Chez/matrix.scm
+Running...
+Running matrix:5:5:2500
+Elapsed time: 0.807256157 seconds (0.0) for matrix:5:5:2500
++!CSVLINE!+chez-10.0.0+r7rs,matrix:5:5:2500,0.807256157
+
+real	0m0.854s
+user	0m0.842s
+sys	0m0.012s
+
+Testing maze under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/maze.scm /tmp/r7rs-benchmarks/Chez/maze.scm
+Running...
+Running maze:20:7:10000
+Elapsed time: 0.524546968 seconds (1.0) for maze:20:7:10000
++!CSVLINE!+chez-10.0.0+r7rs,maze:20:7:10000,0.524546968
+
+real	0m0.582s
+user	0m0.566s
+sys	0m0.016s
+
+Testing mazefun under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/mazefun.scm /tmp/r7rs-benchmarks/Chez/mazefun.scm
+Running...
+Running mazefun:11:11:10000
+Elapsed time: 1.521354937 seconds (2.0) for mazefun:11:11:10000
++!CSVLINE!+chez-10.0.0+r7rs,mazefun:11:11:10000,1.521354937
+
+real	0m1.563s
+user	0m1.550s
+sys	0m0.013s
+
+Testing nqueens under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/nqueens.scm /tmp/r7rs-benchmarks/Chez/nqueens.scm
+Running...
+Running nqueens:13:10
+Elapsed time: 3.294455864 seconds (3.0) for nqueens:13:10
++!CSVLINE!+chez-10.0.0+r7rs,nqueens:13:10,3.294455864
+
+real	0m3.332s
+user	0m3.318s
+sys	0m0.014s
+
+Testing paraffins under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/paraffins.scm /tmp/r7rs-benchmarks/Chez/paraffins.scm
+Running...
+Running paraffins:23:10
+Elapsed time: 3.682876829 seconds (4.0) for paraffins:23:10
++!CSVLINE!+chez-10.0.0+r7rs,paraffins:23:10,3.682876829
+
+real	0m3.749s
+user	0m3.468s
+sys	0m0.280s
+
+Testing parsing under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/parsing.scm /tmp/r7rs-benchmarks/Chez/parsing.scm
+Running...
+Running parsing:2500
+Elapsed time: 2.102754026 seconds (2.0) for parsing:2500
++!CSVLINE!+chez-10.0.0+r7rs,parsing:2500,2.102754026
+
+real	0m2.155s
+user	0m2.143s
+sys	0m0.012s
+
+Testing peval under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/peval.scm /tmp/r7rs-benchmarks/Chez/peval.scm
+Running...
+Running peval:2000
+Elapsed time: 1.358464476 seconds (1.0) for peval:2000
++!CSVLINE!+chez-10.0.0+r7rs,peval:2000,1.358464476
+
+real	0m1.412s
+user	0m1.401s
+sys	0m0.010s
+
+Testing primes under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/primes.scm /tmp/r7rs-benchmarks/Chez/primes.scm
+Running...
+Running primes:1000:10000
+Elapsed time: 0.620980156 seconds (1.0) for primes:1000:10000
++!CSVLINE!+chez-10.0.0+r7rs,primes:1000:10000,0.620980156
+
+real	0m0.659s
+user	0m0.641s
+sys	0m0.017s
+
+Testing quicksort under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/quicksort.scm /tmp/r7rs-benchmarks/Chez/quicksort.scm
+Running...
+Running quicksort:10000:2500
+Elapsed time: 2.616142792 seconds (3.0) for quicksort:10000:2500
++!CSVLINE!+chez-10.0.0+r7rs,quicksort:10000:2500,2.616142792
+
+real	0m2.659s
+user	0m2.641s
+sys	0m0.018s
+
+Testing scheme under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/scheme.scm /tmp/r7rs-benchmarks/Chez/scheme.scm
+Running...
+Running scheme:100000
+Elapsed time: 2.191670264 seconds (2.0) for scheme:100000
++!CSVLINE!+chez-10.0.0+r7rs,scheme:100000,2.191670264
+
+real	0m2.272s
+user	0m2.251s
+sys	0m0.020s
+
+Testing slatex under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/slatex.scm /tmp/r7rs-benchmarks/Chez/slatex.scm
+Running...
+Running slatex:500
+Elapsed time: 1.908843033 seconds (2.0) for slatex:500
++!CSVLINE!+chez-10.0.0+r7rs,slatex:500,1.908843033
+
+real	0m2.013s
+user	0m0.916s
+sys	0m1.079s
+
+Testing chudnovsky under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/chudnovsky.scm /tmp/r7rs-benchmarks/Chez/chudnovsky.scm
+Running...
+Running chudnovsky:50:500:50:1000
+Elapsed time: 0.131357366 seconds (0.0) for chudnovsky:50:500:50:1000
++!CSVLINE!+chez-10.0.0+r7rs,chudnovsky:50:500:50:1000,0.131357366
+
+real	0m0.171s
+user	0m0.159s
+sys	0m0.011s
+
+Testing nboyer under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/nboyer.scm /tmp/r7rs-benchmarks/Chez/nboyer.scm
+Running...
+Running nboyer:5:1
+Elapsed time: 1.413153516 seconds (1.0) for nboyer:5:1
++!CSVLINE!+chez-10.0.0+r7rs,nboyer:5:1,1.413153516
+
+real	0m1.467s
+user	0m1.369s
+sys	0m0.097s
+
+Testing sboyer under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/sboyer.scm /tmp/r7rs-benchmarks/Chez/sboyer.scm
+Running...
+Running sboyer:5:1
+Elapsed time: 0.676894765 seconds (0.0) for sboyer:5:1
++!CSVLINE!+chez-10.0.0+r7rs,sboyer:5:1,0.676894765
+
+real	0m0.722s
+user	0m0.681s
+sys	0m0.041s
+
+Testing gcbench under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/gcbench.scm /tmp/r7rs-benchmarks/Chez/gcbench.scm
+Running...
+The garbage collector should touch about 128 megabytes of heap storage.
+The use of more or less memory will skew the results.
+Running gcbench:20:1
+Garbage Collector Test
+ Stretching memory with a binary tree of depth 20
+ Total memory available= ???????? bytes  Free memory= ???????? bytes
+GCBench: Main
+ Creating a long-lived binary tree of depth 18
+ Creating a long-lived array of 2097148 inexact reals
+ Total memory available= ???????? bytes  Free memory= ???????? bytes
+Creating 135300 trees of depth 4
+GCBench: Top down construction
+GCBench: Bottom up construction
+Creating 33026 trees of depth 6
+GCBench: Top down construction
+GCBench: Bottom up construction
+Creating 8208 trees of depth 8
+GCBench: Top down construction
+GCBench: Bottom up construction
+Creating 2048 trees of depth 10
+GCBench: Top down construction
+GCBench: Bottom up construction
+Creating 512 trees of depth 12
+GCBench: Top down construction
+GCBench: Bottom up construction
+Creating 128 trees of depth 14
+GCBench: Top down construction
+GCBench: Bottom up construction
+Creating 32 trees of depth 16
+GCBench: Top down construction
+GCBench: Bottom up construction
+Creating 8 trees of depth 18
+GCBench: Top down construction
+GCBench: Bottom up construction
+ Total memory available= ???????? bytes  Free memory= ???????? bytes
+Elapsed time: 0.504556407 seconds (1.0) for gcbench:20:1
++!CSVLINE!+chez-10.0.0+r7rs,gcbench:20:1,0.504556407
+
+real	0m0.549s
+user	0m0.489s
+sys	0m0.059s
+
+Testing mperm under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/mperm.scm /tmp/r7rs-benchmarks/Chez/mperm.scm
+Running...
+Running mperm:20:10:2:1
+Elapsed time: 6.264482434 seconds (6.0) for mperm:20:10:2:1
++!CSVLINE!+chez-10.0.0+r7rs,mperm:20:10:2:1,6.264482434
+
+real	0m6.545s
+user	0m5.980s
+sys	0m0.563s
+
+Testing equal under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/equal.scm /tmp/r7rs-benchmarks/Chez/equal.scm
+Running...
+Running equal:100:100:8:1000:2000:5000
+Elapsed time: 0.394413259 seconds (1.0) for equal:100:100:8:1000:2000:5000
++!CSVLINE!+chez-10.0.0+r7rs,equal:100:100:8:1000:2000:5000,0.394413259
+
+real	0m0.436s
+user	0m0.419s
+sys	0m0.017s
+
+Testing bv2string under Chez
+Including prelude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-prelude.scm
+Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Chez-postlude.scm
+Compiling...
+chez_comp /tmp/r7rs-benchmarks/Chez/bv2string.scm /tmp/r7rs-benchmarks/Chez/bv2string.scm
+Running...
+Running bv2string:1000:1000:100
+Elapsed time: 0.568774386 seconds (0.0) for bv2string:1000:1000:100
++!CSVLINE!+chez-10.0.0+r7rs,bv2string:1000:1000:100,0.568774386
+
+real	0m0.609s
+user	0m0.596s
+sys	0m0.013s

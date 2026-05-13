@@ -75,6 +75,8 @@
 
 * unicode support is unimplemented.
 
+* there's a VM only sampling profiler in git commit f4ba0ff, maybe port it and make it permanent?
+
 ### Optimization passes
 
 X fold 

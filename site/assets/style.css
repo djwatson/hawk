@@ -1,0 +1,269 @@
+:root {
+  --paper: #fff;
+  --ink: #000;
+  --muted: #555;
+  --line: #b7b9ed;
+  --accent: #3e45e8;
+  --accent-visited: #8f70dd;
+  --accent-2: #9ea1e8;
+  --tab: #eee;
+  --tab-hover: #e3e4ff;
+  --tab-active: #dedede;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 18px/1.55 Georgia, "Times New Roman", serif;
+}
+
+header,
+main {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding-top: 24px;
+  padding-bottom: 48px;
+}
+
+.brand-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 52px;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.brand img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+
+.brand-tagline {
+  margin: -0.15rem 0 0 84px;
+  color: var(--muted);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  flex: 0 0 auto;
+  align-self: end;
+  margin-left: 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--tab);
+  overflow: hidden;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 21px;
+}
+
+a {
+  color: var(--accent);
+}
+
+a:visited {
+  color: var(--accent-visited);
+}
+
+nav a {
+  display: inline-block;
+  min-width: 96px;
+  margin-left: 0;
+  padding: 10px 22px 12px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--tab);
+  box-shadow: none;
+  color: var(--accent);
+  text-align: center;
+  text-decoration: none;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+nav a:first-child {
+  margin-left: 0;
+}
+
+nav a:not(:first-child):not(:last-child) {
+  border-radius: 0;
+}
+
+nav a:last-child {
+  border-right: 1px solid var(--line);
+}
+
+nav a.active,
+nav a:hover {
+  position: relative;
+  z-index: 1;
+  background: var(--tab-active);
+  color: var(--accent);
+}
+
+nav a:visited {
+  color: var(--accent-visited);
+}
+
+nav a.active,
+nav a.active:visited {
+  background: var(--tab-active);
+  color: var(--accent);
+}
+
+nav a:hover:visited {
+  color: var(--accent);
+}
+
+main {
+  padding-bottom: 72px;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.15;
+  margin: 2rem 0 0.8rem;
+}
+
+h1 {
+  max-width: 720px;
+  font-size: clamp(2.4rem, 7vw, 5rem);
+  letter-spacing: -0.06em;
+}
+
+.tagline {
+  margin: -0.35rem 0 1.5rem;
+  color: var(--muted);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.92rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h2 {
+  border-top: 1px solid var(--line);
+  padding-top: 1.2rem;
+  font-size: 1.55rem;
+}
+
+p,
+ul,
+pre,
+table {
+  max-width: 760px;
+}
+
+.lede {
+  color: var(--muted);
+  font-size: 1.25rem;
+}
+
+code {
+  background: #e9edf2;
+  border-radius: 3px;
+  padding: 0.05rem 0.22rem;
+  font-size: 0.9em;
+}
+
+pre {
+  overflow-x: auto;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  background: #eef2f6;
+}
+
+pre code {
+  background: transparent;
+  padding: 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0 2.5rem;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+th {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.bench-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  max-width: none;
+}
+
+.chart {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.chart img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.date {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.post-list article {
+  border-top: 1px solid var(--line);
+  padding: 1rem 0;
+}
+
+@media (max-width: 680px) {
+  header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  body {
+    font-size: 16px;
+  }
+}
