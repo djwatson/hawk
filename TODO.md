@@ -10,17 +10,14 @@
 
 ## Release checklist
 
-[ ] paper
-[ ] website
-[ ] benchmark numbers vs chez, x64 & aarch64, maybe VM.
+[x] paper
+[x] website
+[x] benchmark numbers vs chez, x64 & aarch64, maybe VM.
 
-[ ] package for release
+[x] package for release
 [ ] some github actions to test build for ubuntu, osx, arch? gcc, clang?
 
-[ ] cleanup record.c
-[ ] cleanup vm.c
-
-[ ] other tests like port tests, looping tests, copyish, division
+[ ] other tests like port tests, looping tests, copyish, division from callcc
 
 ## Perf fixes 
 
@@ -29,6 +26,18 @@
 [ ] bytecode ops: string ref/set, vector ref/set, car/cdr, record ref/set
 [ ] IR_ABC for faster bounds checking, especially vectors
 [ ] convert to bytecode: assq, length, listp, equal, stringcopy
+
+
+# Missing features
+
+Would be super nice to have:
+
+* set (features) via command line
+* add library paths via command line
+* add an --exe option to build a new image and link it (static or dynamic), so we get a real exe
+* a --dump flag to list compiled bytecode without actually running
+* in fact a whole 'hawk' library with options to control the expander, dump bitcode, dump traces, reset traces, 
+  save-image-and-die, etc etc.  These can all be pieced together for testing but not implemented yet as reusable library.
 
 ## JIT backlog
 
