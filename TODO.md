@@ -21,12 +21,9 @@
 
 ## Perf fixes 
 
-[ ] CLOSURE GET doesn't need typecheck EXCEPT for getting bcfunc ptr, 
-    so make that a separate opcode.
 [ ] bytecode ops: string ref/set, vector ref/set, car/cdr, record ref/set
 [ ] IR_ABC for faster bounds checking, especially vectors
 [ ] convert to bytecode: assq, length, listp, equal, stringcopy
-
 
 # Missing features
 
