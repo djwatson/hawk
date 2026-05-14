@@ -59,3 +59,6 @@ set_tests_properties(hawk_r7rs_tests2 PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
 
 add_hawk_test(hawk_ports ports.scm "")
 set_tests_properties(hawk_ports PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
+
+add_hawk_test(hawk_copyish copyish.scm "")
+set_tests_properties(hawk_copyish PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
