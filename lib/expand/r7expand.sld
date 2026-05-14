@@ -4,7 +4,7 @@
           install-toplevel-binding! unwrap-syntax identifier=? extend-environment install-expander!
           expand er-macro-transformer make-expander identifier? extend-environment!
           toplevel-environment? current-meta-environment current-use-environment
-          make-identifier assq-environment)
+          make-identifier assq-environment install-definition-binding! imported-binding?)
   (begin
     (define-record-type environment (make-environment base frame) environment?
       (base enclosing-environment) ;; parent scope, or base name
@@ -42,6 +42,27 @@
     (define (install-toplevel-binding! id name top-env)
       (unless (toplevel-environment? top-env) (error "Not toplevel env"))
       (hash-table-set! (environment-frame top-env) id name))
+
+    (define (install-definition-binding! id env)
+      (if (toplevel-environment? env)
+          (let* ((sym (unwrap-syntax id))
+                 (name (generate-variable sym (enclosing-environment env))))
+            (hash-table-set! (environment-frame env) sym name)
+            name)
+          (begin
+            (extend-environment! id env)
+            (cdr (assq-environment id env)))))
+
+    (define (environment-library-name env)
+      (if (toplevel-environment? env)
+          (enclosing-environment env)
+          (environment-library-name (enclosing-environment env))))
+
+    (define (imported-binding? binding env)
+      (and (variable? binding)
+           (let ((library-name (variable-library-name binding)))
+             (and library-name
+                  (not (equal? library-name (environment-library-name env)))))))
 
     (define-record-type identifier (make-identifier sym env) %identifier?
       (env identifier-environment)

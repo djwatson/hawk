@@ -12,7 +12,7 @@
   (export expand-library expand-program expand-repl expand-toplevel make-library with-library
           current-library current-directory with-current-directory-from-file resolve-path
           read-file-forms library-paths library-exists? library-import library-export
-          feature-list library-spec->normalized-string)
+          feature-list add-feature! library-spec->normalized-string)
   (import (scheme base) (scheme cxr) (scheme read) (scheme file) (r7expand) (builders)
           (scheme write) (srfi 1))
   (begin
@@ -183,6 +183,9 @@
             (set-library-object-exports! obj (alist-cons nickname id exports))))))
 
     (define feature-list '())
+
+    (define (add-feature! feature)
+      (set! feature-list (cons feature feature-list)))
 
     (define (interpret-cond-expand clauses) ; follows srfi-0 semantics
       (let loop ((clauses clauses))

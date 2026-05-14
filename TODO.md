@@ -8,10 +8,6 @@
 	In fact, the whole thing needs a rewrite for JMP using labels, and a separate pass
 	to reduce WIDE opcodes or something.
 	
-[ ] If we import a symbol in the expander, and 'define' a new one, what actually happens is
-    more like 'set!' of the imported symbol, not define of the new one in the current package.
-	Should error when we set! imported symbols, also.
-
 ## Release checklist
 
 [x] paper

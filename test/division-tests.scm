@@ -1,4 +1,4 @@
-(import (except (scheme base) floor-quotient floor-remainder truncate-quotient truncate-remainder round-quotient round-remainder ceiling-quotient ceiling-remainder) (scheme write))
+(import (scheme base) (scheme write))
 (define *tests-run* 0)
 (define *tests-passed* 0)
 

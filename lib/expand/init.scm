@@ -667,8 +667,7 @@
                                       (unless (and (= (length form) 3) (identifier? (cadr form)))
                                         (error "malformed define" form))
                                       (let ((formal (cadr form)) (expr (caddr form)))
-                                        (extend-environment! formal env)
-                                        (let ((name (cdr (assq-environment formal env))))
+                                        (let ((name (install-definition-binding! formal env)))
                                           ;; Delay expansion for non-toplevel defines so
                                           ;; internal definitions can see later bindings.
                                           (build-define name
@@ -705,6 +704,8 @@
                                         (error "malformed set!" form))
                                       (let ((name (cdr (assq-environment (cadr form) env)))
                                             (value (expand (caddr form) env)))
+                                        (when (imported-binding? name env)
+                                          (error "set!: imported binding is immutable" (cadr form)))
                                         (if (and (variable? name)
                                                  (not (eq? #f (variable-library-name name))))
                                             (build-global-assignment name value)
@@ -1114,7 +1115,7 @@
                                         (apply error (cdr form)))))))
 
   (load-library-from-file "init/scheme/base.sld")
-  (set! feature-list (cons 'r7rs feature-list))
+  (add-feature! 'r7rs)
   (load-library-from-file "init/scheme/case-lambda.sld")
   (load-library-from-file "init/scheme/char.sld")
   (load-library-from-file "init/scheme/complex.sld")
