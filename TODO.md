@@ -7,6 +7,10 @@
 	Probably also need to check all the JMP cases. 
 	In fact, the whole thing needs a rewrite for JMP using labels, and a separate pass
 	to reduce WIDE opcodes or something.
+	
+[ ] If we import a symbol in the expander, and 'define' a new one, what actually happens is
+    more like 'set!' of the imported symbol, not define of the new one in the current package.
+	Should error when we set! imported symbols, also.
 
 ## Release checklist
 
@@ -17,7 +21,7 @@
 [x] package for release
 [ ] some github actions to test build for ubuntu, osx, arch? gcc, clang?
 
-[ ] other tests like port tests, copyish, division from callcc
+[x] other tests like port tests, copyish, division from callcc
 
 ## Perf fixes 
 

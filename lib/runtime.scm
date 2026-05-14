@@ -1881,7 +1881,12 @@
     (else d)))
 (define (ceiling x)
   (unless (real? x) (error "Not a real number" x))
-  (sys:FOREIGN_CALL '(double "ceil" (double)) (inexact x)))
+  (cond
+    ((flonum? x) (sys:FOREIGN_CALL '(double "ceil" (double)) x))
+    ((ratnum? x)
+      (let-values (((q r) (floor/ (numerator x) (denominator x))))
+        (if (zero? r) q (+ q 1))))
+    (else x)))
 (define log
   (case-lambda
     ((num)
