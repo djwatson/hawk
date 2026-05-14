@@ -22,11 +22,26 @@
 ## slow vs Chez
 
 * fibc, ctak: we copy twice on continuations, so it is unsurprising ctak is 2x slower.
-* read1: our reader is slower for some reason?
-* graphs: ???
-* dynamic: ??
+* read1, dynamic: our reader is slower for some reason, mostly ports, a tiny bit searching for delimiters.
+                  hashtables are slow for string keys, presumably this is string->symbol.  a C string hasher would be faster.
+* graphs: needs an inliner, many things are called once and require inlining to prevent GC hits.
 
 Every other test is within noise.
+
+
+## slow VM
+For the VM specifically, we could speed up these, but it wouldn't really affect JIT.
+
+* bytecode ops: string ref/set, vector ref/set, car/cdr, record ref/set
+    * this will only speed up the VM, and nothing for JIT (since the jit is 
+	  already able to inline through all these)
+* IR_ABC for faster bounds checking, especially vectors
+    * would improve array1, puzzle, triangl, but that's it.  Rolling
+      the checks in to specific opcodes above would speed up VM
+* convert to bytecode: assq, length, listp, equal, stringcopy
+     * tested, didn't find perf improvement in JIT, but would speed up VM
+	 
+
 
 # Missing features
 
@@ -80,15 +95,6 @@ Would be super nice to have:
 
 # VM backlog
 
-* bytecode ops: string ref/set, vector ref/set, car/cdr, record ref/set
-    * this will only speed up the VM, and nothing for JIT (since the jit is 
-	  already able to inline through all these)
-* IR_ABC for faster bounds checking, especially vectors
-    * would improve array1, puzzle, triangl, but that's it.  Rolling
-      the checks in to specific opcodes above would speed up VM
-* convert to bytecode: assq, length, listp, equal, stringcopy
-     * tested, didn't find perf improvement in JIT, but would speed up VM
-	 
 
 * track stack-top
 * missing multi-value callcc returns I think?
