@@ -56,3 +56,6 @@ set_tests_properties(hawk_r7rs_tests PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
 
 add_hawk_test(hawk_r7rs_tests2 r7rs-tests2.scm "")
 set_tests_properties(hawk_r7rs_tests2 PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
+
+add_hawk_test(hawk_ports ports.scm "")
+set_tests_properties(hawk_ports PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")

@@ -1142,10 +1142,10 @@
         (case-lambda (() cell) ((new) (set! cell (converter new))))))))
 
 ;;;;;; Port ops
-(define-record-type port (make-port fd open input fold-case buf pos len sbuf) port?
+(define-record-type port (make-port fd open kind fold-case buf pos len sbuf) port?
   (fd port-fd port-fd-set!)
   (open port-open? port-open-set!)
-  (input port-input?)
+  (kind port-kind port-kind-set!)
   (fold-case port-fold-case port-fold-case-set!)
   (buf port-buf port-buf-set!)
   (pos port-pos port-pos-set!)
@@ -1234,25 +1234,67 @@
 (define (ensure-port-open port)
   (unless (and (port? port) (port-open? port)) (error "Port not open")))
 
+(define port-text-input 'text-input)
+(define port-text-output 'text-output)
+(define port-binary-input 'binary-input)
+(define port-binary-output 'binary-output)
+
 (define port-buffer-size 4096)
 (define (make-input-port fd)
-  (make-port fd #t #t #f (make-string port-buffer-size) 0 0 #f))
+  (make-port fd #t port-text-input #f (make-string port-buffer-size) 0 0 #f))
 (define (make-output-port fd)
-  (make-port fd #t #f #f (make-string port-buffer-size) 0 0 #f))
+  (make-port fd #t port-text-output #f (make-string port-buffer-size) 0 0 #f))
+(define (make-binary-input-port fd)
+  (make-port fd #t port-binary-input #f (make-string port-buffer-size) 0 0 #f))
+(define (make-binary-output-port fd)
+  (make-port fd
+             #t
+             port-binary-output
+             #f
+             (make-string port-buffer-size)
+             0
+             0
+             #f))
 (define (make-string-input-port str)
-  (make-port -1 #t #t #f str 0 (string-length str) #f))
+  (make-port -1 #t port-text-input #f str 0 (string-length str) #f))
 (define (make-string-output-port)
-  (make-port -1 #t #f #f #f 0 port-buffer-size (make-string port-buffer-size)))
+  (make-port -1 #t port-text-output #f #f 0 port-buffer-size (make-string port-buffer-size)))
 
 (define newline
   (case-lambda
     (() (newline (current-output-port)))
     ((port) (display #\newline port))))
 
-(define (input-port? port) (and (port? port) (port-input? port)))
-(define (output-port? port) (and (port? port) (not (port-input? port))))
-(define (textual-port? port) (port? port))
-(define (binary-port? port) (port? port))
+(define (port-input? port)
+  (and (port? port)
+       (case (port-kind port)
+         ((text-input binary-input) #t)
+         (else #f))))
+(define (port-binary? port)
+  (and (port? port)
+       (case (port-kind port)
+         ((binary-input binary-output) #t)
+         (else #f))))
+(define (textual-input-port? port)
+  (and (port? port) (eq? (port-kind port) port-text-input)))
+(define (textual-output-port? port)
+  (and (port? port) (eq? (port-kind port) port-text-output)))
+(define (binary-input-port? port)
+  (and (port? port) (eq? (port-kind port) port-binary-input)))
+(define (binary-output-port? port)
+  (and (port? port) (eq? (port-kind port) port-binary-output)))
+(define (input-port? port) (port-input? port))
+(define (output-port? port)
+  (and (port? port)
+       (case (port-kind port)
+         ((text-output binary-output) #t)
+         (else #f))))
+(define (textual-port? port)
+  (and (port? port)
+       (case (port-kind port)
+         ((text-input text-output) #t)
+         (else #f))))
+(define (binary-port? port) (port-binary? port))
 
 (define current-input-port (make-parameter (make-input-port 0)))
 (define current-output-port (make-parameter (make-output-port 1)))
@@ -1292,12 +1334,21 @@
   (let ((fd (c-open file 0)))
     (when (< fd 0) (file-error "open-output-file error:" file))
     (make-output-port fd)))
-(define open-binary-output-file open-output-file)
-(define open-binary-input-file open-input-file)
+(define (open-binary-output-file file)
+  (unless (string? file) (error "invalid file" file))
+  (let ((fd (c-open file 0)))
+    (when (< fd 0) (file-error "open-output-file error:" file))
+    (make-binary-output-port fd)))
+(define (open-binary-input-file file)
+  (unless (string? file) (error "invalid file" file))
+  (let ((fd (c-open file 1)))
+    (when (< fd 0)
+      (raise-continuable (make-error-object 'file "No such file:" (list file))))
+    (make-binary-input-port fd)))
 (define (port-write-all fd data len)
   (let loop ((off 0))
     (if (< off len)
-        (let* ((buf (if (= off 0) data (substring data off len)))
+        (let* ((buf (if (= off 0) data (buffer->string data off len)))
                (cnt (c-write fd buf (- len off))))
           (if (<= cnt 0) (error "write error" cnt) (loop (+ off cnt))))
         #t)))
@@ -1337,7 +1388,7 @@
         (begin (port-pos-set! port 0) (port-len-set! port -1) #f))))
 (define (read-from-port-buffer port)
   (ensure-port-open port)
-  (if (not (port-input? port))
+  (if (not (textual-input-port? port))
       (error "read-char: not an input port" port)
       (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
         (cond
@@ -1355,7 +1406,7 @@
     (() (peek-char (current-input-port)))
     ((port)
       (ensure-port-open port)
-      (if (not (port-input? port))
+      (if (not (textual-input-port? port))
           (error "peek-char: not an input port" port)
           (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
             (cond
@@ -1375,7 +1426,8 @@
     (() (char-ready? (current-input-port)))
     ((port)
       (ensure-port-open port)
-      (unless (port-input? port) (error "char-ready?: not an input port" port))
+      (unless (textual-input-port? port)
+        (error "char-ready?: not an input port" port))
       (< (port-pos port) (port-len port)))))
 
 (define (read-line-build chunks total buf start end)
@@ -1394,7 +1446,7 @@
   (case-lambda
     (() (read-line (current-input-port)))
     ((port)
-      (if (not (port-input? port))
+      (if (not (textual-input-port? port))
           (error "read-line: not an input port" port)
           (let loop ((chunks '()) (total 0))
             (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
@@ -1426,6 +1478,7 @@
 (define (write-char char port)
   (ensure-port-open port)
   (cond
+    ((not (textual-output-port? port)) (error "write-char: not an output port" port))
     ((port-sbuf port)
       (when (= (port-pos port) (port-len port)) (port-grow-sbuf! port))
       (buffer-set-char! (port-sbuf port) (port-pos port) char)
@@ -1453,6 +1506,7 @@
       (ensure-port-open port)
       (let* ((len (- end start)) (str_len (string-length str)))
         (cond
+          ((not (textual-output-port? port)) (error "write-string: not an output port" port))
           ((port-sbuf port)
             (let loop ((pos start) (left len))
               (if (> left 0)
@@ -1484,7 +1538,8 @@
     (() (read-u8 (current-input-port)))
     ((port)
       (ensure-port-open port)
-      (unless (port-input? port) (error "read-u8: not an input port" port))
+      (unless (binary-input-port? port)
+        (error "read-u8: not an input port" port))
       (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
         (cond
           ((< len 0) (eof-object))
@@ -1500,7 +1555,8 @@
     (() (peek-u8 (current-input-port)))
     ((port)
       (ensure-port-open port)
-      (unless (port-input? port) (error "peek-u8: not an input port" port))
+      (unless (binary-input-port? port)
+        (error "peek-u8: not an input port" port))
       (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
         (cond
           ((< len 0) (eof-object))
@@ -1511,7 +1567,8 @@
 
 (define (u8-ready? port)
   (ensure-port-open port)
-  (unless (port-input? port) (error "u8-ready?: not an input port" port))
+  (unless (binary-input-port? port)
+    (error "u8-ready?: not an input port" port))
   (< (port-pos port) (port-len port)))
 
 (define read-string
@@ -1570,6 +1627,7 @@
     ((ch port)
       (ensure-port-open port)
       (cond
+        ((not (binary-output-port? port)) (error "write-u8: not an output port" port))
         ((port-sbuf port)
           (when (= (port-pos port) (port-len port)) (port-grow-sbuf! port))
           (buffer-set-u8! (port-sbuf port) (port-pos port) ch)
@@ -1598,6 +1656,11 @@
   (let ((file (open-output-file name)))
     (parameterize ((current-output-port file)) (thunk) (close-output-port file))))
 
+(define (call-with-port port proc)
+  (dynamic-wind (lambda () #f)
+                (lambda () (proc port))
+                (lambda () (close-port port))))
+
 (define write-bytevector
   (case-lambda
     ((bv) (write-bytevector bv (current-output-port) 0 (bytevector-length bv)))
@@ -1605,6 +1668,8 @@
     ((bv port start) (write-bytevector bv port start (bytevector-length bv)))
     ((bv port start end)
       (ensure-port-open port)
+      (unless (binary-output-port? port)
+        (error "write-bytevector: not an output port" port))
       (unless (and (fixnum? start) (fixnum? end))
         (error "bad start write-bytevector" start))
       (unless (or (< -1 start (bytevector-length bv)) (= start end))
@@ -1663,20 +1728,13 @@
 (define (get-input-string port)
   (buffer->string (port-buf port) 0 (port-len port)))
 (define (open-output-string)
-  (make-port -1 #t #f #f #f 0 port-buffer-size (make-string port-buffer-size)))
+  (make-port -1 #t port-text-output #f #f 0 port-buffer-size (make-string port-buffer-size)))
 (define (get-output-string port)
   (buffer->string (port-sbuf port) 0 (port-pos port)))
 (define (open-input-bytevector bv)
-  (make-port -1 #t #t #f bv 0 (bytevector-length bv) #f))
+  (make-port -1 #t port-binary-input #f bv 0 (bytevector-length bv) #f))
 (define (open-output-bytevector)
-  (make-port -1
-             #t
-             #f
-             #f
-             #f
-             0
-             port-buffer-size
-             (make-bytevector port-buffer-size)))
+  (make-port -1 #t port-binary-output #f #f 0 port-buffer-size (make-bytevector port-buffer-size)))
 (define (get-output-bytevector port)
   (buffer->bytevector (port-sbuf port) 0 (port-pos port)))
 
@@ -2093,11 +2151,6 @@
 (define (raise-continuable obj)
   (let ((handlers (*exception-handlers*)))
     (parameterize ((*exception-handlers* (cdr handlers))) ((car handlers) obj))))
-
-(define-record-type error-object (make-error-object type msg irritants) error-object?
-  (type error-object-type)
-  (msg error-object-message)
-  (irritants error-object-irritants))
 
 (define (raise obj)
   (let ((handlers (*exception-handlers*)))
