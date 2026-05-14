@@ -22,8 +22,22 @@
 ## Perf fixes 
 
 [ ] bytecode ops: string ref/set, vector ref/set, car/cdr, record ref/set
+    * this will only speed up the VM, and nothing for JIT (since the jit is 
+	  already able to inline through all these)
 [ ] IR_ABC for faster bounds checking, especially vectors
+    * would improve array1, puzzle, triangl, but that's it.  Rolling
+	  the checks in to specific opcodes above would speed up VM
 [ ] convert to bytecode: assq, length, listp, equal, stringcopy
+     * tested, didn't find perf improvement in JIT, but would speed up VM
+	 
+## slow vs Chez
+
+* fibc, ctak: we copy twice on continuations, so it is unsurprising ctak is 2x slower.
+* read1: our reader is slower for some reason?
+* graphs: ???
+* dynamic: ??
+
+Every other test is within noise.
 
 # Missing features
 
