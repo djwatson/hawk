@@ -19,17 +19,6 @@
 
 [x] other tests like port tests, copyish, division from callcc
 
-## Perf fixes 
-
-[ ] bytecode ops: string ref/set, vector ref/set, car/cdr, record ref/set
-    * this will only speed up the VM, and nothing for JIT (since the jit is 
-	  already able to inline through all these)
-[ ] IR_ABC for faster bounds checking, especially vectors
-    * would improve array1, puzzle, triangl, but that's it.  Rolling
-	  the checks in to specific opcodes above would speed up VM
-[ ] convert to bytecode: assq, length, listp, equal, stringcopy
-     * tested, didn't find perf improvement in JIT, but would speed up VM
-	 
 ## slow vs Chez
 
 * fibc, ctak: we copy twice on continuations, so it is unsurprising ctak is 2x slower.
@@ -51,6 +40,9 @@ Would be super nice to have:
   save-image-and-die, etc etc.  These can all be pieced together for testing but not implemented yet as reusable library.
 
 ## JIT backlog
+
+* we cold fold more EQ NEQ ops - case in particular does a lot of NEQ in a row, followed by a single EQ
+  * or lower case more effectively somehow?
 
 * record APPLY (currently we have fastpaths up to 8 length)
 
@@ -87,6 +79,16 @@ Would be super nice to have:
   spill slots, this is probably unnecessary.
 
 # VM backlog
+
+* bytecode ops: string ref/set, vector ref/set, car/cdr, record ref/set
+    * this will only speed up the VM, and nothing for JIT (since the jit is 
+	  already able to inline through all these)
+* IR_ABC for faster bounds checking, especially vectors
+    * would improve array1, puzzle, triangl, but that's it.  Rolling
+      the checks in to specific opcodes above would speed up VM
+* convert to bytecode: assq, length, listp, equal, stringcopy
+     * tested, didn't find perf improvement in JIT, but would speed up VM
+	 
 
 * track stack-top
 * missing multi-value callcc returns I think?
