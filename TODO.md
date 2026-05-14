@@ -17,7 +17,7 @@
 [x] package for release
 [ ] some github actions to test build for ubuntu, osx, arch? gcc, clang?
 
-[ ] other tests like port tests, looping tests, copyish, division from callcc
+[ ] other tests like port tests, copyish, division from callcc
 
 ## Perf fixes 
 

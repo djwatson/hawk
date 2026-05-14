@@ -178,7 +178,7 @@
         (if (and (not (null? lst1)) (not (null? lst2)))
             (begin (proc (car lst1) (car lst2)) (loop proc (cdr lst1) (cdr lst2))))))
     ((proc . lsts)
-      ;(unless (any list? lsts) (error "circular for-each"))
+      (unless (any list? lsts) (error "circular for-each"))
       (let loop ((lsts lsts))
         (let ((hds
                  (let loop2 ((lsts lsts))
@@ -366,17 +366,23 @@
 (define (caddar e) (car (cddar e)))
 (define (cdddar e) (cdr (cddar e)))
 
+(define (any pred lst)
+  (and (pair? lst) (or (pred (car lst)) (any pred (cdr lst)))))
+
 (define map
   (case-lambda
     ((f lst)
+      (unless (list? lst) (error "circular map list"))
       (let loop ((f f) (lst lst))
         (if (null? lst) '() (cons (f (car lst)) (loop f (cdr lst))))))
     ((f lst1 lst2)
+      (unless (or (list? lst1) (list? lst2)) (error "circular map lists"))
       (let loop ((f f) (lst1 lst1) (lst2 lst2))
         (if (or (null? lst2) (null? lst1))
             '()
             (cons (f (car lst1) (car lst2)) (loop f (cdr lst1) (cdr lst2))))))
     (lst
+      (unless (any list? lst) (error "circular map lists"))
       (let loop ((lsts (cons (cadr lst) (cddr lst))))
         (let ((hds
                  (let loop2 ((lsts lsts))
@@ -394,7 +400,7 @@
 
 (define append
   (case-lambda
-    ((a b) (append2 a b))
+    ((a b) (unless (list? a) (error "Append: not a list")) (append2 a b))
     ((a b c) (append a (append b c)))
     ((a b c d) (append a (append b (append c d))))
     (lsts
@@ -403,9 +409,12 @@
           (let loop ((lsts lsts))
             (if (null? (cdr lsts))
                 (car lsts)
-                (let copy ((node (car lsts)))
-                  (if (pair? node) (cons (car node) (copy (cdr node))) (loop (cdr lsts))))))))))
+                (begin
+                  (unless (list? (car lsts)) (error "Append: not a list"))
+                  (let copy ((node (car lsts)))
+                    (if (pair? node) (cons (car node) (copy (cdr node))) (loop (cdr lsts)))))))))))
 (define (reverse lst)
+  (unless (list? lst) (error "reverse:circular list"))
   (let loop ((lst lst) (res '()))
     (if (pair? lst) (loop (cdr lst) (cons (car lst) res)) res)))
 (define (list-ref lst n)
@@ -1944,8 +1953,7 @@
         (error "bad start utf8->string" start))
       (unless (or (< -1 start (bytevector-length v)) (= start end))
         (error "bad start len utf8->string" start))
-      (unless (<= 0 end (bytevector-length v))
-        (error "bad end utf8->string" end))
+      (unless (<= 0 end (bytevector-length v)) (error "bad end utf8->string" end))
       (when (> start end) (error "bad end start utf8->string" start end))
       (buffer->string v start end))))
 (define string->utf8
@@ -1966,8 +1974,7 @@
         (error "bad start string->utf8" start))
       (unless (or (< -1 start (string-length v)) (= start end))
         (error "bad start len string->utf8" start))
-      (unless (<= 0 end (string-length v))
-        (error "bad end string->utf8" end))
+      (unless (<= 0 end (string-length v)) (error "bad end string->utf8" end))
       (when (> start end) (error "bad end start string->utf8" start end))
       (buffer->bytevector v start end))))
 
