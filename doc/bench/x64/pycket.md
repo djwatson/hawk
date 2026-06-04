@@ -1,0 +1,62 @@
+# Benchmark Results: Hawk vs Pycket
+
+| Benchmark | Hawk (ms) | Pycket (ms) |
+|-----------|-----------|-------------|
+| fft       | 11413.0   | 1183.0      |
+| fft       | 11277.0   | 1192.0      |
+| fibc      | 6860.0    | 3454.0      |
+| string    | 2821.0    | 366.0       |
+| sumloop   | 3834.0    | 1796.0      |
+| sumfp     | 2910.0    | 1789.0      |
+| sum       | 1579.0    | 898.0       |
+| array1    | 1078.0    | 431.0       |
+| ctak      | 608.0     | 123.0       |
+| mbrot     | 1740.0    | 1467.0      |
+| triangl   | 1571.0    | 1433.0      |
+| diviter   | 1894.0    | 1941.0      |
+| simplex   | 897.0     | 972.0       |
+| primes    | 490.0     | 900.0       |
+| divrec    | 897.0     | 1308.0      |
+| ack       | 906.0     | 1267.0      |
+| pnpoly    | 1793.0    | 2058.0      |
+| fibfp     | 1253.0    | 1858.0      |
+| nqueens   | 490.0     | 1123.0      |
+| boyer     | 889.0     | 1556.0      |
+| fib       | 1046.0    | 1904.0      |
+| paraffins | 1406.0    | 2408.0      |
+| gcbench   | 520.0     | 1780.0      |
+| takl      | 941.0     | 2239.0      |
+| perm9     | 484.0     | 1921.0      |
+| cpstak    | 1254.0    | 3289.0      |
+| tak       | 1246.0    | 3722.0      |
+| tak       | 1290.0    | 3853.0      |
+| slatex    | 118.0     | FAILED      |
+| wc        | 160.0     | 7904        |
+| cat       | 172.0     | 16243       |
+| peval     | 263.0     | FAILED      |
+| dynamic   | 201.0     | FAILED      |
+| graphs    | 514.0     | 1665        |
+| matrix    | 313.0     | FAILED      |
+| lattice   | 445.0     | FAILED      |
+| deriv     | 1164.0    | 1953        |
+| dderiv    | 746.0     | FAILED      |
+| gcold     | 1544.0    | FAILED      |
+| sum1      | 718.0     | 44912       |
+| earley    | 345.0     | 1737        |
+| destruc   | 1009.0    | FAILED      |
+| browse    | 752.0     | FAILED      |
+| conform   | 278.0     | FAILED      |
+| nucleic   | 1796.0    | FAILED      |
+| ray       | 3721.0    | FAILED      |
+| puzzle    | 1806.0    | 1704        |
+| sboyer    | 690.0     | 1356        |
+| scheme    | 395.0     | FAILED      |
+| tail      | 823.0     | 11102       |
+| trav1     | FAILED    | 2340.0      |
+| trav2     | FAILED    | 1343.0      |
+| pi        | 1155.0    | 1258.0      |
+| tfib      | FAILED    | FAILED      |
+| maze      | 448       | FAILED      |
+| mazefun   | 496.0     | 1596        |
+| nboyer    | 610.0     | 1787        |
+

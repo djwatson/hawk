@@ -1341,6 +1341,9 @@
         (when (and (integer? res) (not (= res atop))) (add-op fun `(MOV ,atop ,res)))
         (loop (+ atop 1) (cdr rest))))))
 
+(define (next-top atop res)
+  (if (integer? res) (max atop (+ res 1)) atop))
+
 (define (compile ir fun env top tail)
   (define (compile-cont ir) (compile ir fun env top #f))
   (define (finish res) (if tail (begin (add-op fun `(RET ,res))) res))
@@ -1594,7 +1597,7 @@
                             `(,op ,@(if (memq op '(STORE_CHAR STORE_BYTE STORE)) '() (list top)) ,@argres)))
                   (let* ((arg (car rest))
                          (res (compile arg fun env atop #f))
-                         (next (if (and (integer? res) (= res atop)) (+ atop 1) atop)))
+                         (next (next-top atop res)))
                     (loop next (cdr rest) (cons res argres)))))
             (finish top)))))
     ((ir-define? ir)
