@@ -2,8 +2,11 @@
 
 Hawk2 improvements:
 [x] Figure out why pi and maze pycket tests fail in hawk
-[ ] Reverse regalloc, copy per ir so we still emit to temp buffer forward
+[n] Reverse regalloc, copy per ir so we still emit to temp buffer forward
 	Temps then alloced as needed, with spills before as required
+	Decided not to do - *hints* for IR_ARG and IR_PMOV are much harder and slower,
+	and re-arranging all the code segments to the right place is harder, too, unless we fully commit to 
+	going backwards for *everything*.  Instead, let's simplify regalloc
 [x] Finish pycket analysis 
 [ ] ☄️Auto flvector 
 [ ] ☄️ Make real port type

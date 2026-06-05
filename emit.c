@@ -384,10 +384,6 @@ static value_loc snap_entry_loc(trace const *t, uint16_t snap_idx,
   return (value_loc){.spilled = false, .reg = ins->reg, .spill = SPILL_NONE};
 }
 
-static uint8_t ir_output_reg(trace const *t, uint16_t ir_idx) {
-  return t->ins[ir_idx].reg;
-}
-
 static inline uint8_t emit_arg_reg(slot *args, uint8_t *arg_regs,
                                    uint8_t arg_count, slot target);
 static double slot_flonum_constant(trace *t, slot v);
@@ -2031,11 +2027,8 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
   emit_update_jit_stack_limit(s, RARG0, RTMP2, RTMP);
   emit_mov(s, RSTACK, RARG1);
 
-  ir_ins *arg_ins = nullptr;
-  size_t arg_idx = 0;
-  size_t arg_len = arrlen(t->ins);
-  while (arg_idx < arg_len) {
-    arg_ins = &t->ins[arg_idx++];
+  ir_ins *arg_end = t->ins + arrlen(t->ins);
+  for (ir_ins *arg_ins = t->ins; arg_ins < arg_end; arg_ins++) {
     if (arg_ins->op == IR_NOP) {
       continue;
     }
@@ -2043,15 +2036,11 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
       break;
     }
 
-    uint16_t ir_idx = (uint16_t)(arg_ins - t->ins);
-    regalloc_assign_output(&arg_state, ir_idx, arg_ins);
-    uint8_t out_reg = ir_output_reg(t, ir_idx);
-    if (out_reg != REG_NONE) {
+    regalloc_assign_output(&arg_state, (uint16_t)(arg_ins - t->ins), arg_ins);
+    if (arg_ins->reg != REG_NONE) {
       auto offset = (int32_t)arg_ins->data * 8;
-      // IR_ARG can NEVER be FPR out, we use additional IR_TYPECHECK
-      // for that.
-      assert(!is_fpr_reg(out_reg));
-      emit_mem_load(s, offset, RSTACK, out_reg);
+      assert(!is_fpr_reg(arg_ins->reg));
+      emit_mem_load(s, offset, RSTACK, arg_ins->reg);
     }
   }
   regalloc_state_free(&arg_state);
