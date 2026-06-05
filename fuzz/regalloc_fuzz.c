@@ -71,7 +71,7 @@ static regalloc_result regalloc(trace *t) {
     }
 
     auto ins = &t->ins[i];
-    slot args[3];
+    slot args[UINT8_MAX];
     uint8_t arg_count = regalloc_collect_ir_args(t, ins, args);
 
     ir_id_to_dense_map[i] = (uint16_t)arrlen(dense_locs);
@@ -170,7 +170,7 @@ static bool random_non_ref_loc(fuzz_rng *r, trace const *t, uint16_t max_ir_loc,
   uint16_t pool[FUZZ_INS_COUNT];
   uint16_t pool_len = 0;
   for (uint16_t i = 0; i <= max_ir_loc; i++) {
-    if (t->ins[i].op == IR_REF) {
+    if (t->ins[i].op == IR_REF || t->ins[i].op == IR_CARG) {
       continue;
     }
     pool[pool_len++] = i;
@@ -374,6 +374,18 @@ static uint16_t fill_instruction(fuzz_rng *r, trace *t, uint16_t max_const_loc,
     break;
   }
 
+  if (ins.op == IR_CCALL) {
+    ins.op2 = (slot){.constant = true, .loc = 0};
+  }
+  if (ins.op == IR_STORE_CHAR || ins.op == IR_STORE_BYTE) {
+    if (i == 0) {
+      ins.op = IR_NOP;
+    } else if (ins.op1.constant) {
+      ins.op1.constant = false;
+      ins.op1.loc = 0;
+    }
+  }
+
   arrput(t->ins, ins);
   return 1;
 }
@@ -513,9 +525,36 @@ static void verify_regalloc(trace const *t, regalloc_result const *r) {
       if (ref->op != IR_REF) {
         abort();
       }
-      verify_dense_arg(t, r, regs, spills, &cur, ir, ref->op1, "store-ref-op1");
-      verify_dense_arg(t, r, regs, spills, &cur, ir, ref->op2, "store-ref-op2");
-      verify_dense_arg(t, r, regs, spills, &cur, ir, ins->op2, "store-val");
+      slot check_args[UINT8_MAX];
+      uint8_t n = regalloc_collect_ir_args(t, ins, check_args);
+      for (uint8_t i = 0; i < n; i++) {
+        verify_dense_arg(t, r, regs, spills, &cur, ir, check_args[i],
+                         "store");
+      }
+      goto verify_cursor_done;
+    }
+    if (ins->op == IR_STORE_CHAR || ins->op == IR_STORE_BYTE) {
+      if (ins->op1.constant || ins->op1.loc >= arrlen(t->ins)) {
+        abort();
+      }
+      slot check_args[UINT8_MAX];
+      uint8_t n = regalloc_collect_ir_args(t, ins, check_args);
+      for (uint8_t i = 0; i < n; i++) {
+        verify_dense_arg(t, r, regs, spills, &cur, ir, check_args[i],
+                         "store");
+      }
+      goto verify_cursor_done;
+    }
+    if (ins->op == IR_CCALL) {
+      slot check_args[UINT8_MAX];
+      uint8_t n = regalloc_collect_ir_args(t, ins, check_args);
+      for (uint8_t i = 0; i < n; i++) {
+        verify_dense_arg(t, r, regs, spills, &cur, ir, check_args[i],
+                         "ccall");
+      }
+      goto verify_cursor_done;
+    }
+    if (ins->op == IR_CARG) {
       goto verify_cursor_done;
     }
 
