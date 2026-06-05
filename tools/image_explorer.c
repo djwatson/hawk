@@ -10,7 +10,6 @@
 #include "util/array.h"
 #include "util/hashtable.h"
 
-bool verbose = false;
 bool profile = false;
 bool jit_dump_flag = false;
 int64_t max_trace = 0;

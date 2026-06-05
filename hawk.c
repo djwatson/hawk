@@ -16,7 +16,7 @@
 #include "types.h"
 #include "vm.h"
 
-bool verbose = false;
+uint32_t hlog_mask = HLOG_NONE;
 bool profile = false;
 bool jit_dump_flag = false;
 int64_t max_trace = INT64_MAX;
@@ -25,7 +25,7 @@ int command_line_argc = 0;
 char **command_line_argv = nullptr;
 
 static struct option long_options[] = {
-    {"verbose", no_argument, nullptr, 'v'},
+    {"verbose", optional_argument, nullptr, 'v'},
     {"version", no_argument, nullptr, 0},
     {"profile", no_argument, nullptr, 'p'},
     {"joff", no_argument, nullptr, 'o'},
@@ -64,7 +64,7 @@ void print_help() {
   printf("  -p, --profile  \tTurn on samplnig profiler\n");
   printf("      --version  \tPrint version\n");
   printf("  -h, --help     \tPrint this help\n");
-  printf("  -v, --verbose  \tTurn on verbose jit mode\n");
+  printf("  -v, --verbose[=cats]\tVerbose logging: gc,trace,record,jit,regalloc,asm,ir\n");
   printf("Debug options are:\n");
   printf("  -m, --max-trace\tStop JITting after # trace\n");
   printf("  -d, --dump     \tDump linux perf jit info\n");
@@ -85,15 +85,22 @@ static parse_result parse_args(int argc, char *argv[]) {
   parse_result out = {nullptr, nullptr, 0};
   int option_index = 0;
 #ifdef RANDOM_SCHEDULE
-#define HAWK_SHORT_OPTS "+pvdhom:s:i:"
+#define HAWK_SHORT_OPTS "+pv::dhom:s:i:"
 #else
-#define HAWK_SHORT_OPTS "+pvdhom:i:"
+#define HAWK_SHORT_OPTS "+pv::dhom:i:"
 #endif
   while ((c = getopt_long(argc, argv, HAWK_SHORT_OPTS, long_options,
                           &option_index)) != -1) {
     switch (c) {
     case 'v':
-      verbose = true;
+      if (optarg) {
+        if (!hlog_parse(optarg)) {
+          fprintf(stderr, "Invalid verbose category: %s\n", optarg);
+          exit(-1);
+        }
+      } else {
+        hlog_mask = HLOG_ALL;
+      }
       break;
     case 'o':
       max_trace = 0;

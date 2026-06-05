@@ -73,10 +73,7 @@ static void penalty_pc(record_state *record, bc *pc, bool downrec) {
   if (idx >= 0) {
     auto cnt = ++record->blacklist[idx].value;
     if (cnt >= BLACKLIST_MAX) {
-      if (verbose) {
-        const char *fname = func_name_from_pc(pc);
-        printf("Blacklist pc %p %s\n", pc, fname);
-      }
+      LOG(record, "Blacklist pc %p %s", pc, func_name_from_pc(pc));
       record->blacklist[idx].value = BLACKLIST_MAX;
       if (pc->op == OP_FUNC) {
         pc->op = OP_IFUNC;
@@ -133,7 +130,7 @@ static trace_state *record_trace_state(vm_state *state) {
 
 static void print_record_debug_entry(record_debug_entry entry);
 static void record_debug_op(trace_state *ts, bc *pc, bc instr) {
-  if (!verbose) {
+  if (!(hlog_mask & HLOG_trace)) {
     return;
   }
   record_debug_entry entry = {.depth = ts->depth, .pc = pc, .instr = instr};
@@ -748,9 +745,7 @@ static ir_ins emit_math_cmp_eq(vm_state *state, bc instr, gc_obj *stack,
                                  : get_slot_type(t, v1));
 }
 static void record_abort(vm_state *state, void **op_table, const char *msg) {
-  if (verbose) {
-    printf("Record abort: %s\n", msg);
-  }
+  LOG(record, "Record abort: %s", msg);
   *op_table = state->impls;
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
@@ -778,12 +773,12 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
   *op_table = state->impls;
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
-  for (size_t i = 0; i < arrlen(ts->debug_ops); i++) {
-    print_record_debug_entry(ts->debug_ops[i]);
+  if (hlog_mask & HLOG_trace) {
+    for (size_t i = 0; i < arrlen(ts->debug_ops); i++) {
+      print_record_debug_entry(ts->debug_ops[i]);
+    }
   }
-  if (verbose) {
-    printf("Record stop %i: %s\n", cur_trace->num, msg);
-  }
+  LOG(record, "Record stop %i: %s", cur_trace->num, msg);
   vm_add_snap(state, pc, argcnt);
   mark_downrec_ok(cur_trace);
 
@@ -933,19 +928,15 @@ static trace_match ensure_args_match_trace(vm_state *state, trace *head,
 
   for (trace *candidate = head; candidate; candidate = candidate->next) {
     assert(candidate->kind == TRACE_ROOT || candidate->kind == TRACE_POLY);
-    if (verbose) {
-      printf("Arg match? trace %i\n", candidate->num);
-    }
+    LOG(trace, "Arg match? trace %i", candidate->num);
     bool needs_guard[UINT8_MAX + 1] = {0};
     uint8_t max_guard_slot = 0;
     bool match = true;
     size_t entry_ir_start = candidate->snaps[0].ir;
     size_t entry_ir_end = candidate->snaps[1].ir;
     if (argcnt != candidate->snaps[1].argcnt) {
-      if (verbose) {
-        printf("  no match: argcnt current=%u candidate=%u\n", (uint32_t)argcnt,
-               candidate->snaps[1].argcnt);
-      }
+      LOG(trace, "  no match: argcnt current=%u candidate=%u",
+          (uint32_t)argcnt, candidate->snaps[1].argcnt);
       continue;
     }
 
@@ -962,18 +953,14 @@ static trace_match ensure_args_match_trace(vm_state *state, trace *head,
       auto se = get_sentry(state, arg_idx);
       if (!se->live || !se->changed) {
         match = false;
-        if (verbose) {
-          printf(" No match arg%i not live\n", arg_idx);
-        }
+        LOG(trace, " No match arg%i not live", arg_idx);
         break;
       }
       uint8_t actual_type =
           get_slot_type(cur_trace, get_sentry(state, arg_idx)->loc);
       if (actual_type != ins->type) {
-        if (verbose) {
-          printf("  no match: arg%u expected %s got %s\n", arg_idx,
-                 type_tag_name(ins->type), type_tag_name(actual_type));
-        }
+        LOG(trace, "  no match: arg%u expected %s got %s", arg_idx,
+            type_tag_name(ins->type), type_tag_name(actual_type));
         match = false;
         break;
       }
@@ -983,10 +970,9 @@ static trace_match ensure_args_match_trace(vm_state *state, trace *head,
       if (cur_trace == candidate && !se->loc.constant) {
         ir_ins *guarded = &cur_trace->ins[se->loc.loc];
         if (guarded->op == IR_ARG && !guarded->guard) {
-          if (verbose) {
-            printf("  no match: arg%u same-trace propagation would guard arg\n",
-                   arg_idx);
-          }
+          LOG(trace,
+              "  no match: arg%u same-trace propagation would guard arg",
+              arg_idx);
           match = false;
           break;
         }
@@ -1004,15 +990,11 @@ static trace_match ensure_args_match_trace(vm_state *state, trace *head,
       if (!needs_guard[arg_idx]) {
         continue;
       }
-      if (verbose) {
-        printf("  propagate guard for arg%d\n", arg_idx);
-      }
+      LOG(trace, "  propagate guard for arg%d", arg_idx);
       sentry *entry = get_sentry(state, arg_idx);
       guard_input_value(cur_trace, entry->loc);
-      if (verbose) {
-        printf("    set guard on cur_trace ins=%u for arg%d\n", entry->loc.loc,
-               arg_idx);
-      }
+      LOG(trace, "    set guard on cur_trace ins=%u for arg%d",
+          entry->loc.loc, arg_idx);
     }
     break;
   }
@@ -1256,9 +1238,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
       if ((instr.op == OP_RET || instr.op == OP_RETN) && downrec_ok &&
           cur_trace->kind == TRACE_SIDE && try_downrec) {
-        if (verbose) {
-          printf("Potential downrec, restarting\n");
-        }
+        LOG(record, "Potential downrec, restarting");
         clear_trace_state(ts);
         free_trace(cur_trace);
         record_start(state, pc, instr, stack, argcnt);
@@ -1421,9 +1401,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       break;
     }
     // Trace through
-    if (verbose) {
-      printf("Tracing through JFUNC\n");
-    }
+    LOG(record, "Tracing through JFUNC");
 
     MUSTTAIL return record(target_start, pc, stack, state, op_table, argcnt);
 
@@ -2132,11 +2110,9 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
 void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
                   uint64_t argcnt) {
 
-  if (verbose) {
-    const char *fname = func_name_from_pc(pc);
-    printf("Record start %p %i %s %s\n", pc, record_trace_count(state), fname,
-           (instr.op == OP_RET || instr.op == OP_RETN) ? "DOWNREC" : "");
-  }
+  LOG(record, "Record start %p %i %s %s", pc, record_trace_count(state),
+      func_name_from_pc(pc),
+      (instr.op == OP_RET || instr.op == OP_RETN) ? "DOWNREC" : "");
   record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);
   record_current_trace(state)->kind = TRACE_ROOT;
@@ -2146,9 +2122,7 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
 
 void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
                        snap *side_snap, uint64_t argcnt) {
-  if (verbose) {
-    printf("Record start poly %i\n", record_trace_count(state));
-  }
+  LOG(record, "Record start poly %i", record_trace_count(state));
   (void)pc;
   (void)instr;
   bc *start_pc = side_snap->trace->start_ins;
@@ -2179,9 +2153,7 @@ static uint8_t side_snap_stack_type(snap const *side_snap,
 
 void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
                        snap *side_snap, uint64_t argcnt) {
-  if (verbose) {
-    printf("Record start side %i\n", record_trace_count(state));
-  }
+  LOG(record, "Record start side %i", record_trace_count(state));
   assert(!is_trace_jump_op(instr.op));
   record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);

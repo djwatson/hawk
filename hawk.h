@@ -1,5 +1,7 @@
 #pragma once
 
+#include "log.h"
+
 #include <stdint.h>
 
 // Just some helper macros
@@ -43,7 +45,6 @@
 #define BCFUNC_FLEXARRAY_DIAG_POP _Pragma("clang diagnostic pop")
 
 // global flags
-extern bool verbose;
 extern bool profile;
 extern bool jit_dump_flag;
 extern int64_t max_trace;

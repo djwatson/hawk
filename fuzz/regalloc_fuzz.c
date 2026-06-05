@@ -10,7 +10,7 @@
 #include "ir.h"
 #include "regalloc.h"
 
-bool verbose = false;
+uint32_t hlog_mask = HLOG_NONE;
 bool profile = false;
 bool jit_dump_flag = false;
 int64_t max_trace = 0;
@@ -83,6 +83,9 @@ static regalloc_result regalloc(trace *t) {
         assert(in->spill != SPILL_NONE);
         reg = regalloc_find_free_reg(&s, in->type == FLONUM_TAG, ins);
         s.regs[reg] = value_id;
+
+        LOG(regalloc, "LOAD reg=%u value=%u from_spill=%u ir_idx=%zu", reg,
+            value_id, in->spill, i);
         arrput(reload_ops,
                ((reload_op){
                    .ir_idx = (uint16_t)i, .value_id = value_id, .reg = reg}));
@@ -528,8 +531,7 @@ static void verify_regalloc(trace const *t, regalloc_result const *r) {
       slot check_args[UINT8_MAX];
       uint8_t n = regalloc_collect_ir_args(t, ins, check_args);
       for (uint8_t i = 0; i < n; i++) {
-        verify_dense_arg(t, r, regs, spills, &cur, ir, check_args[i],
-                         "store");
+        verify_dense_arg(t, r, regs, spills, &cur, ir, check_args[i], "store");
       }
       goto verify_cursor_done;
     }
@@ -540,8 +542,7 @@ static void verify_regalloc(trace const *t, regalloc_result const *r) {
       slot check_args[UINT8_MAX];
       uint8_t n = regalloc_collect_ir_args(t, ins, check_args);
       for (uint8_t i = 0; i < n; i++) {
-        verify_dense_arg(t, r, regs, spills, &cur, ir, check_args[i],
-                         "store");
+        verify_dense_arg(t, r, regs, spills, &cur, ir, check_args[i], "store");
       }
       goto verify_cursor_done;
     }
@@ -549,8 +550,7 @@ static void verify_regalloc(trace const *t, regalloc_result const *r) {
       slot check_args[UINT8_MAX];
       uint8_t n = regalloc_collect_ir_args(t, ins, check_args);
       for (uint8_t i = 0; i < n; i++) {
-        verify_dense_arg(t, r, regs, spills, &cur, ir, check_args[i],
-                         "ccall");
+        verify_dense_arg(t, r, regs, spills, &cur, ir, check_args[i], "ccall");
       }
       goto verify_cursor_done;
     }

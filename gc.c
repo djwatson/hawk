@@ -305,12 +305,9 @@ NOINLINE static void gc_collect(void) {
   clock_gettime(CLOCK_MONOTONIC, &end);
   double elapsed_ms = ((double)(end.tv_sec - start.tv_sec) * 1000.0) +
                       ((double)(end.tv_nsec - start.tv_nsec) / 1000000.0);
-  if (verbose) {
-    fprintf(stderr,
-            "gc_collect(%s): %.3f ms, heap: %zu, freed: %zu, soft: %zu\n",
-            full ? "F" : "N", elapsed_ms, heap_after / 1000000, freed / 1000000,
-            soft_limit / 1000000);
-  }
+  LOG(gc, "gc_collect(%s): %.3f ms, heap: %zu, freed: %zu, soft: %zu",
+      full ? "F" : "N", elapsed_ms, heap_after / 1000000, freed / 1000000,
+      soft_limit / 1000000);
   profiler_set_in_gc(false);
 }
 
@@ -664,10 +661,8 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress) {
     if (is_forwarded(&entry.ptr->header)) {
       continue;
     }
-    if (verbose) {
-      fprintf(stderr, "undumped pinned func: %s %p\n",
-              to_string(entry.ptr->name)->str, (void *)entry.ptr);
-    }
+    LOG(gc, "undumped pinned func: %s %p", to_string(entry.ptr->name)->str,
+        (void *)entry.ptr);
   }
 
   uintptr_t scan = (uintptr_t)data;

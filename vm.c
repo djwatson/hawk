@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "hawk.h"
+
 #include "foreign.h"
 #include "gc.h"
 #include "ir.h"
@@ -202,9 +204,7 @@ gc_obj vm_memv(gc_obj obj, gc_obj list) {
 }
 
 static void trace_reset(vm_state *state) {
-  if (verbose) {
-    printf("TRACE RESET=============================\n");
-  }
+  LOG(jit, "TRACE RESET=============================");
   if (state->record.cur_trace) {
     record_abort_current(state, "trace reset requested while recording");
   }
@@ -366,7 +366,7 @@ gc_obj halt(vm_state *state, gc_obj *stack) {
       }
     }
   }
-  if (verbose) {
+  if (hlog_mask & HLOG_jit) {
     size_t up_recursive_traces = 0;
     size_t ret_traces = 0;
     size_t side_traces = 0;
@@ -454,9 +454,7 @@ gc_obj *expand_stack(vm_state *state, gc_obj *stack) {
   }
   gc_obj *old_bottom = state->stack_bottom;
   auto offset = stack - state->stack_bottom;
-  if (verbose) {
-    printf("MUST EXPAND STACK now %li\n", newsz);
-  }
+  LOG(jit, "MUST EXPAND STACK now %li", newsz);
   gc_remove_root((const void *)old_bottom, 0);
   gc_obj *newstack = realloc(state->stack_bottom, sizeof(gc_obj) * newsz);
   if (!newstack) {
@@ -591,18 +589,14 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
     }
 
     if (res.snap->exits == 255) {
-      if (verbose) {
-        printf("Blacklist side trace %i snap %i \n", res.snap->trace->num,
-               res.snap->ir);
-      }
+      LOG(record, "Blacklist side trace %i snap %i", res.snap->trace->num,
+          res.snap->ir);
     }
     if (should_try_side) {
       auto parent = res.snap->trace;
       bool is_poly_trace =
           res.snap == &parent->snaps[0] && parent->kind != TRACE_SIDE;
-      if (verbose) {
-        printf("Try side trace %i %i\n", res.snap->trace->num, res.snap->ir);
-      }
+      LOG(record, "Try side trace %i %i", res.snap->trace->num, res.snap->ir);
       if (is_poly_trace) {
         record_start_poly(state, *pc, *instr, *stack, res.snap, *argcnt);
       } else {
@@ -902,10 +896,8 @@ OP(DEFINE) {
   auto val = stack[instr.reg];
   auto s = to_symbol(sym);
   if (s->opt > 0) {
-    if (verbose) {
-      printf("Clearing trace cache due to optimistic global: %s\n",
-             to_string(s->name)->str);
-    }
+    LOG(jit, "Clearing trace cache due to optimistic global: %s",
+        to_string(s->name)->str);
     trace_reset(state);
     op_table = state->impls;
   }
@@ -1071,9 +1063,7 @@ OP(CLOSURE) {
   assert(is_func(clo->v[0]));
   auto func = to_func(clo->v[0]);
   if ((func->poly_cnt & 1) == 1) {
-    if (verbose) {
-      printf("POLY RESET: %s\n", to_string(func->name)->str);
-    }
+    LOG(jit, "POLY RESET: %s", to_string(func->name)->str);
     func->poly_cnt = 4;
     trace_reset(state);
   }

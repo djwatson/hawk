@@ -844,7 +844,7 @@ static void emit_cmp_regs(emit_state *s, trace *t, uint8_t lhs_reg, slot rhs,
 }
 
 #define COMMENT(...)                                                           \
-  if (verbose)                                                                 \
+  if (hlog_mask & HLOG_asm)                                                    \
   comment_append(emit_offset(s), &s->comments, __VA_ARGS__)
 
 typedef struct {
@@ -2119,12 +2119,12 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   emit_writable_end(s);
 
   auto sz = end - start;
-  if (verbose) {
+  if (hlog_mask & HLOG_asm) {
     printf("Disassembly: %" PRId64 "\n", sz);
     disassemble((uint8_t *)start, end_no_snapshots - start, s->comments);
   }
 
-  if (verbose) {
+  if (hlog_mask & HLOG_ir) {
     print_ir(t);
   }
 

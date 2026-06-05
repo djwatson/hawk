@@ -323,6 +323,7 @@ void regalloc_maybe_free_reg(regalloc_state *s, uint16_t cur_idx, uint16_t idx,
       next_idx = cur_use.next;
       continue;
     }
+
     break;
   }
   s->uses[idx] = next_idx;
@@ -356,6 +357,9 @@ uint8_t regalloc_materialize_arg_or_ensure_loc(regalloc_state *s,
     assert(in->spill != SPILL_NONE);
     reg = regalloc_find_free_reg(s, in->type == FLONUM_TAG, ins);
     s->regs[reg] = value_id;
+
+    LOG(regalloc, "LOAD reg=%u value=%u from_spill=%u ir_idx=%u", reg, value_id,
+        in->spill, cur_idx);
   }
   return reg;
 }
