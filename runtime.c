@@ -1198,6 +1198,13 @@ gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,
 }
 
 EXPORT uint64_t SCM_HASH_OBJ(gc_obj obj) { return hashmix(obj.value); }
+EXPORT uint64_t SCM_STRING_HASH(const char *s, int32_t bound) {
+  uint64_t hash = 5381;
+  int c;
+  while ((c = *s++))
+    hash = ((hash << 5) + hash) + (unsigned char)c;
+  return hash % (uint64_t)bound;
+}
 EXPORT bool SCM_ISNAN(double d) { return isnan(d); }
 EXPORT bool SCM_ISINF(double d) { return isinf(d); }
 EXPORT gc_obj SCM_GET_ENV_VARS() {

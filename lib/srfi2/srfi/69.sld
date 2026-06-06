@@ -21,7 +21,7 @@
 
     (define (string-hash s . maybe-bound)
       (let ((bound (if (null? maybe-bound) *default-bound* (car maybe-bound))))
-        (%string-hash s (lambda (x) x) bound)))
+        (sys:FOREIGN_CALL '(uint64 "SCM_STRING_HASH" (string int32)) s bound)))
 
     (define (string-ci-hash s . maybe-bound)
       (let ((bound (if (null? maybe-bound) *default-bound* (car maybe-bound))))
@@ -29,7 +29,7 @@
 
     (define (symbol-hash s . maybe-bound)
       (let ((bound (if (null? maybe-bound) *default-bound* (car maybe-bound))))
-        (%string-hash (symbol->string s) (lambda (x) x) bound)))
+        (sys:FOREIGN_CALL '(uint64 "SCM_STRING_HASH" (string int32)) (symbol->string s) bound)))
 
     (define (hash obj . maybe-bound)
       (let ((bound (if (null? maybe-bound) *default-bound* (car maybe-bound))))
