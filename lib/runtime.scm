@@ -1206,10 +1206,23 @@
     ((bytevector? buf) (integer->char (bytevector-u8-ref buf i)))
     (else (error "Invalid port buffer" buf))))
 
+;; TODO: range analysis might make this unnecessary?
+(define (unchecked-buffer-ref-char buf i)
+  (cond
+    ((string? buf) (sys:LOAD_CHAR buf i))
+    ((bytevector? buf) (integer->char (sys:LOAD_BYTE buf i)))
+    (else (error "Invalid port buffer" buf))))
+
 (define (buffer-ref-u8 buf i)
   (cond
     ((string? buf) (char->integer (string-ref buf i)))
     ((bytevector? buf) (bytevector-u8-ref buf i))
+    (else (error "Invalid port buffer" buf))))
+
+(define (unchecked-buffer-ref-u8 buf i)
+  (cond
+    ((bytevector? buf) (sys:LOAD_BYTE buf i))
+    ((string? buf) (char->integer (sys:LOAD_CHAR buf i)))
     (else (error "Invalid port buffer" buf))))
 
 (define (buffer-set-char! buf i ch)
@@ -1436,7 +1449,7 @@
         (cond
           ((< len 0) (make-eof-object))
           ((< pos len)
-            (let ((c (buffer-ref-char buf pos))) (port-pos-set! port (+ pos 1)) c))
+            (let ((c (unchecked-buffer-ref-char buf pos))) (port-pos-set! port (+ pos 1)) c))
           (else
             (if (< (port-fd port) 0)
                 (begin (port-len-set! port -1) (make-eof-object))
@@ -1453,9 +1466,9 @@
           (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
             (cond
               ((< len 0) (make-eof-object))
-              ((< pos len) (buffer-ref-char buf pos))
+              ((< pos len) (unchecked-buffer-ref-char buf pos))
               ((< (port-fd port) 0) (port-len-set! port -1) (make-eof-object))
-              ((fill-input-port-buffer port) (buffer-ref-char buf 0))
+              ((fill-input-port-buffer port) (unchecked-buffer-ref-char buf 0))
               (else (make-eof-object))))))))
 
 (define read-char
@@ -1501,10 +1514,10 @@
                       ((= i len)
                         (port-pos-set! port len)
                         (loop (cons (substring buf pos len) chunks) (+ total (- len pos))))
-                      ((char=? (string-ref buf i) #\newline)
+                      ((char=? (unchecked-buffer-ref-char buf i) #\newline)
                         (port-pos-set! port (+ i 1))
                         (read-line-build chunks total buf pos i))
-                      ((char=? (string-ref buf i) #\return)
+                      ((char=? (unchecked-buffer-ref-char buf i) #\return)
                         (port-pos-set! port (+ i 1))
                         (let ((res (read-line-build chunks total buf pos i)))
                           (let ((next (peek-char port)))
@@ -1595,7 +1608,7 @@
         (cond
           ((< len 0) (eof-object))
           ((< pos len)
-            (let ((c (buffer-ref-u8 buf pos))) (port-pos-set! port (+ pos 1)) c))
+            (let ((c (unchecked-buffer-ref-u8 buf pos))) (port-pos-set! port (+ pos 1)) c))
           (else
             (if (< (port-fd port) 0)
                 (begin (port-len-set! port -1) (eof-object))
@@ -1611,9 +1624,9 @@
       (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
         (cond
           ((< len 0) (eof-object))
-          ((< pos len) (buffer-ref-u8 buf pos))
+          ((< pos len) (unchecked-buffer-ref-u8 buf pos))
           ((< (port-fd port) 0) (port-len-set! port -1) (eof-object))
-          ((fill-input-port-buffer port) (buffer-ref-u8 buf 0))
+          ((fill-input-port-buffer port) (unchecked-buffer-ref-u8 buf 0))
           (else (eof-object)))))))
 
 (define (u8-ready? port)
