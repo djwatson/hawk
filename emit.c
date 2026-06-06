@@ -29,6 +29,9 @@ static const int32_t flonum_payload_offset = (int32_t)offsetof(flonum_s, x);
 static const int32_t symbol_val_offset = (int32_t)offsetof(symbol, val);
 
 static inline uint8_t ref_base_tag(uint8_t type_tag) {
+  if ((type_tag & PORT_IDENTITY) == PORT_IDENTITY) {
+    return PTR_TAG;
+  }
   return (uint8_t)((type_tag & TAG_MASK) == PTR_TAG ? PTR_TAG : type_tag);
 }
 
@@ -1012,11 +1015,12 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
     return;
   }
 
-  uint8_t low_tag = op->type & TAG_MASK;
+  bool port_type = (op->type & PORT_IDENTITY) == PORT_IDENTITY;
+  uint8_t low_tag = port_type ? PTR_TAG : op->type & TAG_MASK;
   uint8_t tmp = reg == RTMP ? RTMP2 : RTMP;
   int64_t mask = TAG_MASK;
   int64_t want = op->type;
-  COMMENT("  typecheck %s", low_tag_names[low_tag]);
+  COMMENT("  typecheck %s", type_tag_name(op->type));
   switch (low_tag) {
   case LITERAL_TAG:
     mask = IMMEDIATE_MASK;
@@ -1886,7 +1890,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     case IR_ALLOC: {
       assert(op->op2.constant);
       uint64_t type_val = (uint64_t)(slot_const(t, op->op2) >> FIXNUM_SHIFT);
-      uint8_t tag_bits = (uint8_t)(type_val & TAG_MASK);
+      uint8_t tag_bits = (uint8_t)(type_val < 8 ? type_val : PTR_TAG);
       bool live_regs[MAX_REG];
       uint64_t live_gpr_mask;
       collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs,

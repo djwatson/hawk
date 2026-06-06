@@ -28,10 +28,13 @@ static const char *type_tag_names[256] = {
     [VECTOR_TAG] = "vec",  [CONT_TAG] = "cont",   [PTR_TAG] = "ptr",
     [CHAR_TAG] = "char",   [CLOSURE_TAG] = "clo", [UNDEFINED_TAG] = "",
     [RECORD_TAG] = "rec",  [BIGNUM_TAG] = "big",  [RATNUM_TAG] = "rat",
-    [COMPNUM_TAG] = "cmp",
+    [COMPNUM_TAG] = "cmp", [PORT_TAG] = "port",   [FLVECTOR_TAG] = "flv",
 };
 
 const char *type_tag_name(uint8_t tag) {
+  if ((tag & PORT_IDENTITY) == PORT_IDENTITY) {
+    return "port";
+  }
   auto name = type_tag_names[tag];
   return name ? name : "?";
 }
@@ -82,7 +85,8 @@ void print_obj(gc_obj obj, FILE *file) {
       auto bv = (string_s *)(obj.value - PTR_TAG);
       fputs("#u8(", file);
       for (uint64_t i = 0; i < to_fixnum(bv->len); i++) {
-        if (i != 0) fputc(' ', file);
+        if (i != 0)
+          fputc(' ', file);
         fprintf(file, "%" PRIu8, (uint8_t)bv->str[i]);
       }
       fputc(')', file);
@@ -92,15 +96,24 @@ void print_obj(gc_obj obj, FILE *file) {
     break;
   }
   case VECTOR_TAG: {
-    auto v = to_vector(obj);
-    fputs("#(", file);
-    for (uint64_t i = 0; i < to_fixnum(v->len); i++) {
-      if (i != 0) {
+    if ((get_header_type(obj) & 0xFF) == FLVECTOR_TAG) {
+      auto v = to_flvector(obj);
+      fputs("#(fl", file);
+      for (uint64_t i = 0; i < to_fixnum(v->len); i++) {
         fputc(' ', file);
+        fprintf(file, "%g", v->v[i]);
       }
-      print_obj(v->v[i], file);
+      fputc(')', file);
+    } else {
+      auto v = to_vector(obj);
+      fputs("#(", file);
+      for (uint64_t i = 0; i < to_fixnum(v->len); i++) {
+        if (i != 0)
+          fputc(' ', file);
+        print_obj(v->v[i], file);
+      }
+      fputc(')', file);
     }
-    fputc(')', file);
     break;
   }
   case FLONUM_TAG: {

@@ -239,6 +239,9 @@ static bool supported_header(gc_header *header) {
   if (!header) {
     return false;
   }
+  if ((header->type & PORT_IDENTITY) == PORT_IDENTITY) {
+    return true;
+  }
   switch (header->type) {
   case FLONUM_TAG:
   case BIGNUM_TAG:
@@ -247,6 +250,8 @@ static bool supported_header(gc_header *header) {
   case STRING_TAG:
   case SYMBOL_TAG:
   case BOX_TAG:
+  case PORT_TAG:
+  case FLVECTOR_TAG:
   case VECTOR_TAG:
   case CONT_TAG:
   case RECORD_TAG:
@@ -533,6 +538,9 @@ static int compare_symbol_scores(const void *a, const void *b) {
 }
 
 static char const *object_type_name(gc_header *header) {
+  if ((header->type & PORT_IDENTITY) == PORT_IDENTITY) {
+    return "port";
+  }
   switch (header->type) {
   case FLONUM_TAG:
     return "flonum";
@@ -550,6 +558,10 @@ static char const *object_type_name(gc_header *header) {
     return "box";
   case VECTOR_TAG:
     return "vector";
+  case FLVECTOR_TAG:
+    return "flvector";
+  case PORT_TAG:
+    return "port";
   case CONT_TAG:
     return "cont";
   case RECORD_TAG:
@@ -625,6 +637,12 @@ static bool describe_small_list(gc_obj obj, char *buf, size_t buf_size) {
 
 static void describe_header_depth(gc_header *header, char *buf, size_t buf_size,
                                   int depth) {
+  if ((header->type & PORT_IDENTITY) == PORT_IDENTITY) {
+    auto p = (port_s *)header;
+    snprintf(buf, buf_size, "port fd=%ld pos=%ld len=%ld",
+             to_fixnum(p->fd), to_fixnum(p->pos), to_fixnum(p->len));
+    return;
+  }
   switch (header->type) {
   case STRING_TAG: {
     auto str = (string_s *)header;
@@ -642,6 +660,17 @@ static void describe_header_depth(gc_header *header, char *buf, size_t buf_size,
   case VECTOR_TAG: {
     auto vec = (vector_s *)header;
     snprintf(buf, buf_size, "vector len=%ld", to_fixnum(vec->len));
+    return;
+  }
+  case FLVECTOR_TAG: {
+    auto vec = (flvector_s *)header;
+    snprintf(buf, buf_size, "flvector len=%ld", to_fixnum(vec->len));
+    return;
+  }
+  case PORT_TAG: {
+    auto p = (port_s *)header;
+    snprintf(buf, buf_size, "port fd=%ld pos=%ld len=%ld",
+             to_fixnum(p->fd), to_fixnum(p->pos), to_fixnum(p->len));
     return;
   }
   case RECORD_TAG: {

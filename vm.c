@@ -1254,6 +1254,18 @@ OP(GUARD) {
   END_NEXT
 }
 
+OP(GUARDMASK) {
+  auto val = stack[pc->v1];
+  auto packed_obj = stack[pc->v2];
+  assert(is_fixnum(packed_obj));
+  uint64_t packed = (uint64_t)to_fixnum(packed_obj);
+  uint64_t mask = packed >> 16;
+  uint64_t expected = packed & 0xFFFF;
+  auto res = guardmask_obj_matches(val, mask, expected) ? TRUE_REP : FALSE_REP;
+  stack[instr.reg] = res;
+  END_NEXT
+}
+
 OP(LOAD) {
   auto src = stack[pc->v1];
   auto off = stack[pc->v2];

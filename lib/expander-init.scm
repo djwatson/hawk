@@ -12,6 +12,7 @@
         EQV
         QUOTIENT
         GUARD
+        GUARDMASK
         LOAD
         STORE
         LOAD_CHAR

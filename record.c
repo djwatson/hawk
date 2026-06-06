@@ -533,13 +533,13 @@ static slot convert_to_fixnum(vm_state *state, slot v1, gc_obj raw_v1) {
   if (t1 == FIXNUM_TAG) {
     return v1;
   }
-if (t1 == FLONUM_TAG) {
+  if (t1 == FLONUM_TAG) {
     if (v1.constant) {
       gc_obj exact = numeric_exact_value(t->consts[v1.loc]);
       return add_const(state, exact);
     }
     ir_ins ins = IR(.op = IR_VMEXACT, .op1 = v1,
-                   .type = vm_runtime_unary_result_type(IR_VMEXACT, raw_v1));
+                    .type = vm_runtime_unary_result_type(IR_VMEXACT, raw_v1));
     return add_inst(state, ins);
   }
   return add_inst(state,
@@ -935,8 +935,8 @@ static trace_match ensure_args_match_trace(vm_state *state, trace *head,
     size_t entry_ir_start = candidate->snaps[0].ir;
     size_t entry_ir_end = candidate->snaps[1].ir;
     if (argcnt != candidate->snaps[1].argcnt) {
-      LOG(trace, "  no match: argcnt current=%u candidate=%u",
-          (uint32_t)argcnt, candidate->snaps[1].argcnt);
+      LOG(trace, "  no match: argcnt current=%u candidate=%u", (uint32_t)argcnt,
+          candidate->snaps[1].argcnt);
       continue;
     }
 
@@ -970,8 +970,7 @@ static trace_match ensure_args_match_trace(vm_state *state, trace *head,
       if (cur_trace == candidate && !se->loc.constant) {
         ir_ins *guarded = &cur_trace->ins[se->loc.loc];
         if (guarded->op == IR_ARG && !guarded->guard) {
-          LOG(trace,
-              "  no match: arg%u same-trace propagation would guard arg",
+          LOG(trace, "  no match: arg%u same-trace propagation would guard arg",
               arg_idx);
           match = false;
           break;
@@ -993,8 +992,8 @@ static trace_match ensure_args_match_trace(vm_state *state, trace *head,
       LOG(trace, "  propagate guard for arg%d", arg_idx);
       sentry *entry = get_sentry(state, arg_idx);
       guard_input_value(cur_trace, entry->loc);
-      LOG(trace, "    set guard on cur_trace ins=%u for arg%d",
-          entry->loc.loc, arg_idx);
+      LOG(trace, "    set guard on cur_trace ins=%u for arg%d", entry->loc.loc,
+          arg_idx);
     }
     break;
   }
@@ -1791,6 +1790,17 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     stack_save(state, stack, instr.reg, res);
     break;
   }
+  case OP_GUARDMASK: {
+    stack_load(state, stack, instr.v1, true);
+    auto packed_obj = stack[instr.v2];
+    assert(is_fixnum(packed_obj));
+    uint64_t packed = (uint64_t)to_fixnum(packed_obj);
+    bool matches =
+        guardmask_obj_matches(stack[instr.v1], packed >> 16, packed & 0xFFFF);
+    auto res = add_const(state, matches ? TRUE_REP : FALSE_REP);
+    stack_save(state, stack, instr.reg, res);
+    break;
+  }
   case OP_LOAD:
   case OP_LOAD_CHAR:
   case OP_LOAD_BYTE: {
@@ -1815,8 +1825,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       assert(is_fixnum(off));
       assert(to_fixnum(off) >= 0 &&
              to_fixnum(off) < to_fixnum(to_bytevector(src)->len));
-      ins = IR(.op = IR_LOAD_BYTE, .op1 = obj, .op2 = offset,
-               .type = FIXNUM_TAG);
+      ins =
+          IR(.op = IR_LOAD_BYTE, .op1 = obj, .op2 = offset, .type = FIXNUM_TAG);
     }
     auto res = add_inst(state, ins);
     stack_save(state, stack, instr.reg, res);

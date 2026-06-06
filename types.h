@@ -96,8 +96,9 @@ typedef struct bcfunc {
   X(CONT, 0x29)                                                                \
   X(RECORD, 0x31)                                                              \
   X(BIGNUM, 0x39)                                                              \
-  X(COMPNUM, 0x41)							\
-  X(BYTEVECTOR, 0x49)
+  X(COMPNUM, 0x41)                                                             \
+  X(BYTEVECTOR, 0x49)                                                          \
+  X(PORT, 0x51)
 
 // Immediates.  Bottom three bits must be LITERAL_TAG.
 // Uses bottom byte, and other 7 bytes used for storing literal.
@@ -116,11 +117,28 @@ extern char *immediate_tag_names[];
 
 enum : uint8_t {
 #define X(name, num) name##_TAG = (num),
-  LOW_TAGS IMMEDIATE_TAGS PTR_TAGS
+  LOW_TAGS IMMEDIATE_TAGS PTR_TAGS X(FLVECTOR, 0x17)
 #undef X
       TAG_MASK = 0x7,
   IMMEDIATE_MASK = 0xff,
 };
+
+// PORT_TAG = 0x51 = 0101 0001 (bits 0,4,6)
+// Available flag bits in lower byte: 1,2,3,5
+// All PORT_TAG|flag combos fit in 7-bit ir_ins.type field (0-127)
+typedef enum : uint32_t {
+  PORT_INPUT = 1u << 1,  // bit 1
+  PORT_OUTPUT = 1u << 2, // bit 2
+  PORT_BINARY = 1u << 3, // bit 3
+  PORT_CLOSED = 1u << 5, // bit 5
+} port_flags;
+
+// helper: bits that identify a PORT vs other PTR tags (bits 0,4,6)
+#define PORT_IDENTITY ((uint32_t)PORT_TAG)
+
+// Port flag bits that go in the header (INPUT|OUTPUT|BINARY|CLOSED).
+// PORT_EOF, PORT_FILE, PORT_FOLD_CASE, PORT_NO_FOLD are stored in port_s
+// fields.
 
 #define NIL                                                                    \
   (gc_obj) { .value = NIL_TAG }
@@ -175,6 +193,24 @@ typedef struct vector_s {
   gc_obj v[];
 } vector_s;
 
+typedef struct flvector_s {
+  gc_header header;
+  gc_obj len;
+  double v[];
+} flvector_s;
+
+typedef struct port_s {
+  gc_header header;
+  gc_obj fd;
+  gc_obj open;
+  gc_obj fold_case;
+  gc_obj pos;
+  gc_obj len;
+  gc_obj cap;
+  gc_obj buf;
+  gc_obj sbuf;
+} port_s;
+
 typedef struct cons_s {
   gc_header header;
   gc_obj a;
@@ -219,6 +255,12 @@ static inline cons_s *to_cons(gc_obj obj) {
 }
 static inline vector_s *to_vector(gc_obj obj) {
   return (vector_s *)(obj.value - VECTOR_TAG);
+}
+static inline flvector_s *to_flvector(gc_obj obj) {
+  return (flvector_s *)(obj.value - VECTOR_TAG);
+}
+static inline port_s *to_port(gc_obj obj) {
+  return (port_s *)(obj.value - PTR_TAG);
 }
 static inline char to_char(gc_obj obj) { return (char)(obj.value >> 8); }
 static inline bc *to_return_address(gc_obj obj) { return obj.raddress; }
@@ -271,7 +313,16 @@ static inline bool is_symbol(gc_obj obj) { return get_tag(obj) == SYMBOL_TAG; }
 static inline bool is_undefined(gc_obj obj) {
   return get_imm_tag(obj) == UNDEFINED_TAG;
 }
+static inline uint32_t get_header_type(gc_obj obj) {
+  return *(uint32_t *)(obj.value & ~(int64_t)TAG_MASK);
+}
 static inline bool is_vector(gc_obj obj) { return get_tag(obj) == VECTOR_TAG; }
+static inline bool is_flvector(gc_obj obj) {
+  return is_vector(obj) && (get_header_type(obj) & 0xFF) == FLVECTOR_TAG;
+}
+static inline bool is_port(gc_obj obj) {
+  return is_ptr(obj) && (get_ptr_tag(obj) & PORT_IDENTITY) == PORT_IDENTITY;
+}
 static inline bool is_flonum(gc_obj obj) { return get_tag(obj) == FLONUM_TAG; }
 static inline bool is_fixnum(gc_obj obj) { return get_tag(obj) == FIXNUM_TAG; }
 static inline bool is_func(gc_obj obj) {
@@ -321,6 +372,9 @@ void print_obj(gc_obj obj, FILE *file);
 
 static inline size_t heap_object_size(void *obj) {
   auto type = *(uint64_t *)obj;
+  if ((type & PORT_IDENTITY) == PORT_IDENTITY) {
+    return sizeof(port_s);
+  }
   switch (type) {
   case FLONUM_TAG:
     return sizeof(flonum_s);
@@ -332,10 +386,14 @@ static inline size_t heap_object_size(void *obj) {
     return sizeof(ratnum_s);
   case COMPNUM_TAG:
     return sizeof(compnum_s);
-  case STRING_TAG: 
+  case STRING_TAG:
   case BYTEVECTOR_TAG: {
     auto str = (string_s *)obj;
     return heap_align(sizeof(string_s) + (size_t)to_fixnum(str->len) + 1);
+  }
+  case FLVECTOR_TAG: {
+    auto vec = (flvector_s *)obj;
+    return sizeof(flvector_s) + (size_t)to_fixnum(vec->len) * sizeof(double);
   }
   case SYMBOL_TAG:
     return sizeof(symbol);
@@ -373,11 +431,18 @@ static inline void trace_gc_obj_array(gc_obj *objs, uint64_t len,
 static inline void trace_heap_object(gc_header *obj, trace_callback visit,
                                      void *ctx) {
   auto type = obj->type;
+  if ((type & PORT_IDENTITY) == PORT_IDENTITY) {
+    auto p = (port_s *)obj;
+    trace_gc_obj_array(&p->fd, 8, visit, ctx);
+    return;
+  }
   switch (type) {
   case FLONUM_TAG:
   case BIGNUM_TAG:
   case STRING_TAG:
   case BYTEVECTOR_TAG:
+    return;
+  case FLVECTOR_TAG:
     return;
   case RATNUM_TAG: {
     auto rat = (ratnum_s *)obj;

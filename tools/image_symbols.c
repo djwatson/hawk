@@ -129,7 +129,10 @@ static void record_type_stats(gc_header *header) {
   char const *type_name = nullptr;
   uint64_t size = 0;
 
-  switch (header->type) {
+  if ((header->type & PORT_IDENTITY) == PORT_IDENTITY) {
+    type_name = "port";
+    size = sizeof(port_s);
+  } else switch (header->type) {
   case FLONUM_TAG:
     type_name = "flonum";
     size = sizeof(flonum_s);
@@ -158,6 +161,12 @@ static void record_type_stats(gc_header *header) {
     type_name = "symbol";
     size = sizeof(symbol);
     break;
+  case FLVECTOR_TAG: {
+    type_name = "flvector";
+    auto vec = (flvector_s *)header;
+    size = sizeof(flvector_s) + (size_t)to_fixnum(vec->len) * sizeof(double);
+    break;
+  }
   case VECTOR_TAG:
   case CONT_TAG:
   case RECORD_TAG: {

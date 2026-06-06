@@ -40,6 +40,17 @@ static INLINE inline bool guard_obj_matches(gc_obj val, gc_obj want_tag_obj) {
   return got_tag == want_tag;
 }
 
+static INLINE inline bool guardmask_obj_matches(gc_obj val, uint64_t mask,
+                                                uint64_t expected) {
+  if (!is_fixnum(val) && !is_literal(val)) {
+    auto hdr = *(uint32_t *)(val.value & ~(int64_t)TAG_MASK);
+    return ((hdr & mask) == expected);
+  }
+  if (is_fixnum(val))
+    return ((FIXNUM_TAG & mask) == expected);
+  return (((uint64_t)val.value & IMMEDIATE_MASK & mask) == expected);
+}
+
 #define VM_MATH_ADD(a, b) ((a) + (b))
 #define VM_MATH_SUB(a, b) ((a) - (b))
 #define VM_MATH_MUL(a, b) ((a) * (b))

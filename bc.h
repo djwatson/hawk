@@ -102,7 +102,8 @@
   X(CALLCC, AD)                                                                \
   X(CALLCC_RESUME, A)                                                          \
   X(HALT, A)                                                                   \
-  X(IFUNC, A)
+  X(IFUNC, A)                                                                  \
+  X(GUARDMASK, ABC)
 typedef enum : uint8_t {
 #define X(name, type) OP_##name,
   OPS
