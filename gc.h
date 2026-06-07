@@ -24,23 +24,20 @@ enum { GC_MAX_ROOTS = 64 };
 extern gc_root_range gc_roots[GC_MAX_ROOTS];
 extern size_t gc_roots_len;
 void gc_set_scan_callback(gc_scan_callback cb, void *data);
-void gc_register_bcfunc(struct bcfunc *func);
 gc_obj gc_error_symbol(void);
 void *gc_base_ptr(void *p);
+void gc_register_bcfunc(struct bcfunc *func);
 gc_obj gc_read_image(uint8_t const *data, size_t len, char const *path,
                      bool compressed);
 gc_obj gc_read_image_file(char const *path);
 void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress_level);
-NOINLINE void gc_log_slow(gc_obj *field);
+NOINLINE void gc_log_slow(gc_obj obj);
 
-static inline void gc_log(gc_obj *field) { MUSTTAIL return gc_log_slow(field); }
+static inline void gc_log(gc_obj obj) { MUSTTAIL return gc_log_slow(obj); }
 void gc_free(void);
 
 extern uintptr_t gc_hp;
-extern uintptr_t gc_limit;
-extern uintptr_t gc_soft_limit;
-extern uintptr_t gc_nursery_start;
-extern size_t gc_nursery_size;
+extern uintptr_t gc_hp_end;
 
 NOINLINE void *gc_alloc_slow(uint64_t sz);
 
@@ -64,8 +61,9 @@ static inline void gc_remove_root(const void *rootp, uint8_t tag) {
 static inline void *gc_alloc(uint64_t sz) {
   assert((sz & 0x7) == 0);
   uintptr_t new_hp = gc_hp - sz;
-  if (likely(new_hp >= gc_soft_limit)) {
+  if (likely(new_hp >= gc_hp_end)) {
     gc_hp = new_hp;
+    *(uint64_t *)gc_hp = 0;
     return (void *)gc_hp;
   }
   MUSTTAIL return gc_alloc_slow(sz);

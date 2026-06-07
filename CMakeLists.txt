@@ -58,7 +58,7 @@ set(
   foreign.c
   types.c
   record.c
-  gc.c
+  rcgc.c
   ir.c
   emit.c
   regalloc.c
@@ -69,6 +69,7 @@ set(
   disassemble.c
   parallel_copy.c
   util/array.c
+  util/list.c
   fold.c
   opt_dce.c
   bc.c

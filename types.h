@@ -49,10 +49,10 @@ static inline gc_obj tag_fixnum(int64_t n) {
   ((gc_obj){.value = ((intptr_t)(ptrval) | ((uint8_t)(t) & TAG_MASK))})
 
 typedef struct gc_header {
-  union {
-    uint64_t type;
-    uint64_t fwdtag;
-  };
+  uint8_t type;
+  uint8_t flags;
+  uint16_t aux;
+  uint32_t rc;
 } gc_header;
 static_assert(sizeof(gc_header) == 8, "gc header is 8 bytes");
 
@@ -283,8 +283,8 @@ static inline uint8_t get_tag(gc_obj obj) {
 static inline uint8_t get_imm_tag(gc_obj obj) {
   return (uint8_t)(obj.value & IMMEDIATE_MASK);
 }
-static inline uint32_t get_ptr_tag(gc_obj obj) {
-  return ((uint32_t *)(obj.value - PTR_TAG))[0];
+static inline uint8_t get_ptr_tag(gc_obj obj) {
+  return *(uint8_t *)(obj.value - PTR_TAG);
 }
 
 static inline bool is_char(gc_obj obj) { return get_imm_tag(obj) == CHAR_TAG; }
@@ -313,8 +313,8 @@ static inline bool is_symbol(gc_obj obj) { return get_tag(obj) == SYMBOL_TAG; }
 static inline bool is_undefined(gc_obj obj) {
   return get_imm_tag(obj) == UNDEFINED_TAG;
 }
-static inline uint32_t get_header_type(gc_obj obj) {
-  return *(uint32_t *)(obj.value & ~(int64_t)TAG_MASK);
+static inline uint8_t get_header_type(gc_obj obj) {
+  return *(uint8_t *)(obj.value & ~(int64_t)TAG_MASK);
 }
 static inline bool is_vector(gc_obj obj) { return get_tag(obj) == VECTOR_TAG; }
 static inline bool is_flvector(gc_obj obj) {
@@ -340,9 +340,9 @@ static inline bool is_compnum(gc_obj obj) {
 static inline gc_obj tag_bignum(bn_t *bn) {
   return (gc_obj){.value = (int64_t)(intptr_t)bn + PTR_TAG};
 }
-static inline uint32_t get_type_tag(gc_obj obj) {
+static inline uint8_t get_type_tag(gc_obj obj) {
   if (is_ptr(obj)) {
-    return ((uint32_t *)(obj.value - PTR_TAG))[0];
+    return *(uint8_t *)(obj.value - PTR_TAG);
   }
   if (is_literal(obj)) {
     return get_imm_tag(obj);
@@ -370,8 +370,8 @@ void print_obj(gc_obj obj, FILE *file);
 // Unfortunately, these somewhat large functions are pretty essential to inline
 // in the GC.
 
-static inline size_t heap_object_size(void *obj) {
-  auto type = *(uint64_t *)obj;
+INLINE static inline size_t heap_object_size(void *obj) {
+  auto type = *(uint8_t *)obj;
   if ((type & PORT_IDENTITY) == PORT_IDENTITY) {
     return sizeof(port_s);
   }
@@ -415,8 +415,7 @@ static inline size_t heap_object_size(void *obj) {
                       (func->bc_cnt * sizeof(bc)));
   }
   default:
-    printf("Unknown heap object size: %" PRIu64 " (0x%" PRIx64 ")\n", type,
-           type);
+    printf("Unknown heap object size: %" PRIu8 " (0x%" PRIx8 ")\n", type, type);
     abort();
   }
 }
@@ -428,8 +427,8 @@ static inline void trace_gc_obj_array(gc_obj *objs, uint64_t len,
   }
 }
 
-static inline void trace_heap_object(gc_header *obj, trace_callback visit,
-                                     void *ctx) {
+INLINE static inline void trace_heap_object(gc_header *obj,
+                                            trace_callback visit, void *ctx) {
   auto type = obj->type;
   if ((type & PORT_IDENTITY) == PORT_IDENTITY) {
     auto p = (port_s *)obj;
@@ -487,7 +486,7 @@ static inline void trace_heap_object(gc_header *obj, trace_callback visit,
     return;
   }
   default:
-    printf("Unknown heap object: %" PRIu64 " (0x%" PRIx64 ")\n", type, type);
+    printf("Unknown heap object: %" PRIu8 " (0x%" PRIx8 ")\n", type, type);
     abort();
   }
 }

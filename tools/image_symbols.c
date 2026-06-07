@@ -132,75 +132,76 @@ static void record_type_stats(gc_header *header) {
   if ((header->type & PORT_IDENTITY) == PORT_IDENTITY) {
     type_name = "port";
     size = sizeof(port_s);
-  } else switch (header->type) {
-  case FLONUM_TAG:
-    type_name = "flonum";
-    size = sizeof(flonum_s);
-    break;
-  case BIGNUM_TAG: {
-    type_name = "bignum";
-    auto bn = (bn_t *)header;
-    size = heap_align(sizeof(bn_t) + (size_t)bn->alloc * sizeof(uint64_t));
-    break;
-  }
-  case RATNUM_TAG:
-    type_name = "ratnum";
-    size = sizeof(ratnum_s);
-    break;
-  case COMPNUM_TAG:
-    type_name = "compnum";
-    size = sizeof(compnum_s);
-    break;
-  case STRING_TAG: {
-    type_name = "string";
-    auto str = (string_s *)header;
-    size = heap_align(sizeof(string_s) + (size_t)to_fixnum(str->len) + 1);
-    break;
-  }
-  case SYMBOL_TAG:
-    type_name = "symbol";
-    size = sizeof(symbol);
-    break;
-  case FLVECTOR_TAG: {
-    type_name = "flvector";
-    auto vec = (flvector_s *)header;
-    size = sizeof(flvector_s) + (size_t)to_fixnum(vec->len) * sizeof(double);
-    break;
-  }
-  case VECTOR_TAG:
-  case CONT_TAG:
-  case RECORD_TAG: {
-    auto vec = (vector_s *)header;
-    type_name = header->type == VECTOR_TAG ? "vector"
-                : header->type == CONT_TAG ? "cont"
-                                           : "record";
-    size = sizeof(vector_s) + (size_t)to_fixnum(vec->len) * sizeof(gc_obj);
-    break;
-  }
-  case CONS_TAG:
-    type_name = "cons";
-    size = sizeof(cons_s);
-    break;
-  case CLOSURE_TAG: {
-    type_name = "closure";
-    auto clo = (closure_s *)header;
-    size = sizeof(closure_s) + (size_t)to_fixnum(clo->len) * sizeof(gc_obj);
-    break;
-  }
-  case FUNC_TAG: {
-    type_name = "function";
-    auto func = (bcfunc *)header;
-    size = heap_align(sizeof(bcfunc) + (func->const_cnt * sizeof(gc_obj)) +
-                      (func->bc_cnt * sizeof(bc)));
-    break;
-  }
-  case BOX_TAG:
-    type_name = "box";
-    size = sizeof(gc_obj);
-    break;
-  default:
-    return;
-  }
+  } else
+    switch (header->type) {
+    case FLONUM_TAG:
+      type_name = "flonum";
+      size = sizeof(flonum_s);
+      break;
+    case BIGNUM_TAG: {
+      type_name = "bignum";
+      auto bn = (bn_t *)header;
+      size = heap_align(sizeof(bn_t) + (size_t)bn->alloc * sizeof(uint64_t));
+      break;
+    }
+    case RATNUM_TAG:
+      type_name = "ratnum";
+      size = sizeof(ratnum_s);
+      break;
+    case COMPNUM_TAG:
+      type_name = "compnum";
+      size = sizeof(compnum_s);
+      break;
+    case STRING_TAG: {
+      type_name = "string";
+      auto str = (string_s *)header;
+      size = heap_align(sizeof(string_s) + (size_t)to_fixnum(str->len) + 1);
+      break;
+    }
+    case SYMBOL_TAG:
+      type_name = "symbol";
+      size = sizeof(symbol);
+      break;
+    case FLVECTOR_TAG: {
+      type_name = "flvector";
+      auto vec = (flvector_s *)header;
+      size = sizeof(flvector_s) + (size_t)to_fixnum(vec->len) * sizeof(double);
+      break;
+    }
+    case VECTOR_TAG:
+    case CONT_TAG:
+    case RECORD_TAG: {
+      auto vec = (vector_s *)header;
+      type_name = header->type == VECTOR_TAG ? "vector"
+                  : header->type == CONT_TAG ? "cont"
+                                             : "record";
+      size = sizeof(vector_s) + (size_t)to_fixnum(vec->len) * sizeof(gc_obj);
+      break;
+    }
+    case CONS_TAG:
+      type_name = "cons";
+      size = sizeof(cons_s);
+      break;
+    case CLOSURE_TAG: {
+      type_name = "closure";
+      auto clo = (closure_s *)header;
+      size = sizeof(closure_s) + (size_t)to_fixnum(clo->len) * sizeof(gc_obj);
+      break;
+    }
+    case FUNC_TAG: {
+      type_name = "function";
+      auto func = (bcfunc *)header;
+      size = heap_align(sizeof(bcfunc) + (func->const_cnt * sizeof(gc_obj)) +
+                        (func->bc_cnt * sizeof(bc)));
+      break;
+    }
+    case BOX_TAG:
+      type_name = "box";
+      size = sizeof(gc_obj);
+      break;
+    default:
+      return;
+    }
 
   // Find or create entry
   for (uint64_t i = 0; i < arrlen(type_statistics); i++) {
@@ -244,8 +245,7 @@ int main(int argc, char **argv) {
   gc_obj start = gc_read_image_file(path);
   enqueue_obj(start);
   while (arrlen(worklist) > 0) {
-    gc_header *obj = *arrlast(worklist);
-    arrpop(worklist);
+    gc_header *obj = arrpop_last(worklist);
     trace_heap_object(obj, trace_field, nullptr);
   }
 

@@ -38,6 +38,7 @@ static inline size_t arrlen(void const *a) {
 #define arrput(a, v) (arrmaybegrow(a, 1), (a)[arr_header(a)->length++] = (v))
 
 #define arrpop(a) (--arr_header(a)->length)
+#define arrpop_last(a) ((a)[--arr_header(a)->length])
 
 void arrlen_set(void const *arr, size_t len);
 

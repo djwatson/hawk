@@ -1323,14 +1323,12 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       break;
     }
     auto val = stack_load(state, stack, instr.reg, true);
-    ir_ins ins = IR(.op = IR_GSET, .op1 = c, .op2 = val);
-    add_inst(state, ins);
     auto off = add_const(
         state, tag_fixnum((offsetof(symbol, val) - sizeof(gc_header)) /
                           sizeof(gc_obj)));
-    if (is_heap_tag(get_slot_type(cur_trace, val))) {
-      add_inst(state, IR(.op = IR_GCLOG, .op1 = c, .op2 = off));
-    }
+    add_inst(state, IR(.op = IR_GCLOG, .op1 = c, .op2 = off));
+    ir_ins ins = IR(.op = IR_GSET, .op1 = c, .op2 = val);
+    add_inst(state, ins);
     vm_add_snap(state, pc + 1, argcnt);
     break;
   }
@@ -1471,11 +1469,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto clo_slot = instr.v2;
     slot c_pos = add_const(state, tag_fixnum(clo_slot + 1));
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
+    add_inst(state, IR(.op = IR_GCLOG, .op1 = clo, .op2 = c_pos));
     add_inst(state,
              IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = CLOSURE_TAG));
-    if (is_heap_tag(get_slot_type(cur_trace, val))) {
-      add_inst(state, IR(.op = IR_GCLOG, .op1 = clo, .op2 = c_pos));
-    }
     break;
   }
   case OP_CLOSURE: {
@@ -1765,12 +1761,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
     if (instr.op == OP_STORE) {
+      uint8_t obj_type = get_slot_type(record_current_trace(state), obj);
+      add_inst(state, IR(.op = IR_GCLOG, .op1 = obj, .op2 = offset));
       add_inst(state,
-               IR(.op = IR_STORE, .op1 = ref, .op2 = val,
-                  .type = get_slot_type(record_current_trace(state), obj)));
-      if (is_heap_tag(get_slot_type(cur_trace, val))) {
-        add_inst(state, IR(.op = IR_GCLOG, .op1 = obj, .op2 = offset));
-      }
+               IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = obj_type));
     } else if (instr.op == OP_STORE_CHAR) {
       add_inst(state, IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val,
                          .type = STRING_TAG));

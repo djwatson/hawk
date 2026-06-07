@@ -41,9 +41,9 @@ IR_ABC
 ## slow vs Chez
 
 * fibc, ctak: we copy twice on continuations, so it is unsurprising ctak is 2x slower.
-* read1, dynamic: our reader is slower for some reason, mostly ports, a tiny bit searching for delimiters.
+* [x] read1, dynamic: our reader is slower for some reason, mostly ports, a tiny bit searching for delimiters.
                   hashtables are slow for string keys, presumably this is string->symbol.  a C string hasher would be faster.
-* graphs: needs an inliner, many things are called once and require inlining to prevent GC hits.
+* [x] graphs: needs an inliner, many things are called once and require inlining to prevent GC hits.
 
 Every other test is within noise.
 

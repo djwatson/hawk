@@ -200,22 +200,14 @@ void emit_init_slowpath(emit_state *s) {
   register_jit_symbol(expand_start, s->expand_stack_slowpath,
                       (uint8_t *)expand_end, "ExpandStackSlowpath");
 
-  // Slowpath for gc_log: RTMP = obj (tagged gc_obj*), RTMP2 = offset (in units
-  // of 8).
+  // Slowpath for gc_log: RTMP = obj (tagged gc_obj)
   auto gclog_start = (uint8_t *)emit_offset(s);
 
   emit_writable_begin(s);
 
   emit_save_slowpath_regs(s);
 
-  // Untag obj: RTMP = RTMP & ~TAG_MASK
-  emit_and_constant(s, RTMP, RTMP, ~(int64_t)TAG_MASK);
-  // Add offset to obj: RTMP = RTMP + RTMP2 (offset already in bytes via fixnum
-  // tag)
-  emit_add(s, RTMP, RTMP, RTMP2);
-  // Skip gc_header: RTMP = RTMP + 8
-  emit_add_constant(s, RTMP, RTMP, 8);
-  // Move field pointer to RARG0
+  // Pass the whole object as the argument
   emit_mov(s, RARG0, RTMP);
   // Call gc_log_slow
   emit_mov64(s, RTMP, (intptr_t)&gc_log_slow);
@@ -358,7 +350,7 @@ static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
   }
 
   emit_mov(s, RTMP, RALLOC);
-  emit_mov64(s, RTMP2, (intptr_t)&gc_soft_limit);
+  emit_mov64(s, RTMP2, (intptr_t)&gc_hp_end);
   emit_mem_load(s, 0, RTMP2, RTMP2);
   emit_cmp(s, RALLOC, RTMP2);
   emit_jcc32(s, JAE, &alloc_done);
@@ -966,7 +958,8 @@ static void emit_box_flonum(emit_state *s, int32_t stack_offset,
   emit_rooted_alloc(s, live_gpr_mask, TAG_FIXNUM_VALUE(sizeof(flonum_s)),
                     REG_NONE);
 
-  emit_store_constant(s, 0, RTMP, FLONUM_TAG);
+  emit_mov64(s, RTMP2, FLONUM_TAG);
+  emit_store_u8(s, 0, RTMP, RTMP2);
   emit_fstore(s, flonum_payload_offset, RTMP, fpr_reg);
   emit_add_constant(s, RTMP, RTMP, FLONUM_TAG);
 
@@ -1044,7 +1037,7 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
     }
     emit_mov(s, tmp, reg);
     emit_sub_constant(s, tmp, tmp, PTR_TAG);
-    emit_mem_load(s, 0, tmp, tmp);
+    emit_mem_load_u8(s, 0, tmp, tmp);
     emit_cmp_constant(s, tmp, op->type);
     emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
     return;
@@ -1861,28 +1854,16 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         uint8_t obj_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
         emit_mov(s, RTMP, obj_reg);
       }
-      emit_mov64(s, RTMP2, (intptr_t)&gc_nursery_start);
-      emit_mem_load(s, 0, RTMP2, RTMP2);
-      emit_sub(s, RTMP, RTMP, RTMP2);
-      emit_mov64(s, RTMP2, (intptr_t)&gc_nursery_size);
-      emit_mem_load(s, 0, RTMP2, RTMP2);
-      emit_cmp(s, RTMP, RTMP2);
-      emit_jcc32(s, JB, &done_gclog);
+      // Fast path: if rc == 0 the object is nursery, no write barrier needed
+      emit_mov(s, RTMP2, RTMP);
+      emit_and_constant(s, RTMP, RTMP, ~TAG_MASK);
+      emit_mem_load(s, 0, RTMP, RTMP);
+      emit_sar_constant(s, RTMP, RTMP, 32);
+      emit_cmp_constant(s, RTMP, 0);
+      emit_jcc32(s, JE, &done_gclog);
 
-      if (op->op1.constant) {
-        emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op1));
-      } else {
-        uint8_t obj_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
-        emit_mov(s, RTMP, obj_reg);
-      }
-      // Load offset (op2) into RTMP2
-      if (op->op2.constant) {
-        emit_mov64(s, RTMP2, slot_const(t, op->op2));
-      } else {
-        uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
-        emit_mov(s, RTMP2, offset_reg);
-      }
-      // Call gclog slowpath
+      // Slowpath: restore tagged ptr and call gc_log_slow
+      emit_mov(s, RTMP, RTMP2);
       emit_call32(s, (int64_t)s->gclog_slowpath);
       emit_label(s, &done_gclog);
       break;

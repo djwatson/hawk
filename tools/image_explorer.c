@@ -164,8 +164,7 @@ static symbol *collect_objects(gc_obj start) {
   }
 
   while (arrlen(worklist) > 0) {
-    auto header = *arrlast(worklist);
-    arrpop(worklist);
+    gc_header *header = arrpop_last(worklist);
     arrput(obj_list, header);
 
     if (header->type == SYMBOL_TAG && !symbol_table) {
@@ -639,8 +638,8 @@ static void describe_header_depth(gc_header *header, char *buf, size_t buf_size,
                                   int depth) {
   if ((header->type & PORT_IDENTITY) == PORT_IDENTITY) {
     auto p = (port_s *)header;
-    snprintf(buf, buf_size, "port fd=%ld pos=%ld len=%ld",
-             to_fixnum(p->fd), to_fixnum(p->pos), to_fixnum(p->len));
+    snprintf(buf, buf_size, "port fd=%ld pos=%ld len=%ld", to_fixnum(p->fd),
+             to_fixnum(p->pos), to_fixnum(p->len));
     return;
   }
   switch (header->type) {
@@ -669,8 +668,8 @@ static void describe_header_depth(gc_header *header, char *buf, size_t buf_size,
   }
   case PORT_TAG: {
     auto p = (port_s *)header;
-    snprintf(buf, buf_size, "port fd=%ld pos=%ld len=%ld",
-             to_fixnum(p->fd), to_fixnum(p->pos), to_fixnum(p->len));
+    snprintf(buf, buf_size, "port fd=%ld pos=%ld len=%ld", to_fixnum(p->fd),
+             to_fixnum(p->pos), to_fixnum(p->len));
     return;
   }
   case RECORD_TAG: {

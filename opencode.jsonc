@@ -1,0 +1,44 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "provider": {
+    "zen": {
+      "options": {
+        "headerTimeout": 60000,
+        "timeout": 600000,
+        "chunkTimeout": 60000
+      }
+    },
+    "llama-local": {
+      "name": "Llama.cpp (RTX3060)",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://127.0.0.1:8080/v1"
+      },
+      "models": {
+        "unsloth/Qwen3.6-35B-A3B-GGUF": {
+          "name": "Qwen3.6-35B-A3B-GGUF"
+        }
+      }
+    }
+  },
+
+  "lsp": {
+    "clangd": {
+      "command": [
+        "clangd",
+        "--compile-commands-dir=build",
+        "--background-index",
+        "--clang-tidy"
+      ],
+      "extensions": [".c", ".h"]
+    }
+  },
+
+  "formatter": {
+    "clang-format": {
+      "command": ["clang-format", "-i", "$FILE"],
+      "extensions": [".c", ".h"]
+    }
+  }
+}
