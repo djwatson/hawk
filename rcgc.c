@@ -238,6 +238,7 @@ static void *gc_large_alloc(uint64_t sz) {
   init_list_head(&la->list);
   list_add_tail(&la->list, &large_allocs);
   arrput(large_nursery, (gc_header *)(la + 1));
+  *(uint64_t *)(la + 1) = 0;
   return la + 1;
 }
 
@@ -302,7 +303,7 @@ INLINE inline static void inc_visit(gc_obj *field) {
     return;
   }
 
-  if (hdr->type != FUNC_TAG && !is_large_alloc(field)) {
+  if (hdr->type != FUNC_TAG && !is_large_alloc(hdr)) {
     size_t sz = heap_align(heap_object_size(hdr));
     gc_header *copy = copy_alloc(sz);
     memcpy(copy, hdr, sz);
@@ -438,10 +439,11 @@ static void gc_collect(void) {
     cur = log_buf[i];
     while (cur.offset != LOG_OBJ_HEADER) {
       gc_obj *field = (gc_obj *)((uint8_t *)obj + cur.offset);
-      gc_obj current = *field;
       arrput(cur_increments, field);
       gc_obj old_val = {.value = (int64_t)cur.val};
-      arrput(cur_decrements, old_val);
+      if (is_heap_object(old_val) && to_gc_header(old_val)->rc != 0) {
+        arrput(cur_decrements, old_val);
+      }
       i++;
       if (i >= arrlen(log_buf)) {
         break;

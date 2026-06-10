@@ -154,8 +154,8 @@
                   (if retried?
                       (error)
                       (begin
-                        (hash-table-set-last-gc! hash-table gc-count)
                         (%hash-table-rehash! hash-table)
+                        (hash-table-set-last-gc! hash-table (%gc-count))
                         #t))))))
 
     (define (%hash-table-find/retry hash-table key retried?)

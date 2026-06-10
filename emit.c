@@ -958,8 +958,8 @@ static void emit_box_flonum(emit_state *s, int32_t stack_offset,
   emit_rooted_alloc(s, live_gpr_mask, TAG_FIXNUM_VALUE(sizeof(flonum_s)),
                     REG_NONE);
 
-  emit_mov64(s, RTMP2, FLONUM_TAG);
-  emit_store_u8(s, 0, RTMP, RTMP2);
+  // Store set rc = 0, flags = 0 also.
+  emit_store_constant(s, 0, RTMP, FLONUM_TAG);
   emit_fstore(s, flonum_payload_offset, RTMP, fpr_reg);
   emit_add_constant(s, RTMP, RTMP, FLONUM_TAG);
 
