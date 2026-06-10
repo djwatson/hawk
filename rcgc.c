@@ -38,7 +38,7 @@ static log_item *log_buf;
 enum : size_t {
   BLOCK_SIZE = 262144,
   BLOCK_DATA_SIZE = BLOCK_SIZE - sizeof(uint32_t),
-  GC_COLLECT_AFTER = 32 * 1024 * 1024,
+  GC_COLLECT_AFTER = 64 * 1024 * 1024,
 };
 
 typedef struct gc_block {
@@ -59,9 +59,6 @@ static uintptr_t gc_base_cur;
 static gc_block **free_blocks;
 static gc_scan_callback scan_callback;
 static void *scan_data;
-static gc_obj **cur_increments;
-static gc_obj *cur_decrements;
-static gc_obj *next_decrements;
 static uint64_t total_gc_cnt;
 static LIST_HEAD(large_allocs);
 static gc_block **all_blocks;
@@ -70,6 +67,22 @@ static gc_header **large_nursery;
 static size_t collect_after;
 static size_t next_collect;
 static gc_obj *bcfunc_list;
+
+typedef struct {
+  gc_obj **data;
+  size_t len;
+  size_t cap;
+} gc_field_stack;
+
+typedef struct {
+  gc_obj *data;
+  size_t len;
+  size_t cap;
+} gc_obj_stack;
+
+static gc_field_stack cur_increments;
+static gc_obj_stack cur_decrements;
+static gc_obj_stack next_decrements;
 
 struct large_alloc {
   list_head list;
@@ -131,6 +144,40 @@ static gc_block *block_alloc(void) {
 static void block_free(gc_block *block) { arrput(free_blocks, block); }
 static bool is_large_alloc(void *p);
 
+NOINLINE static void *gc_stack_grow(void *data, size_t elem_size, size_t *cap) {
+  size_t new_cap = *cap ? *cap * 2 : 256;
+  void *new_data = realloc(data, elem_size * new_cap);
+  if (!new_data) {
+    fprintf(stderr, "gc_stack_grow: out of memory\n");
+    abort();
+  }
+  *cap = new_cap;
+  return new_data;
+}
+
+INLINE inline static void gc_field_stack_push(gc_field_stack *stack,
+                                              gc_obj *field) {
+  if (unlikely(stack->len == stack->cap)) {
+    stack->data = gc_stack_grow(stack->data, sizeof(*stack->data), &stack->cap);
+  }
+  stack->data[stack->len++] = field;
+}
+
+INLINE inline static gc_obj *gc_field_stack_pop(gc_field_stack *stack) {
+  return stack->data[--stack->len];
+}
+
+INLINE inline static void gc_obj_stack_push(gc_obj_stack *stack, gc_obj obj) {
+  if (unlikely(stack->len == stack->cap)) {
+    stack->data = gc_stack_grow(stack->data, sizeof(*stack->data), &stack->cap);
+  }
+  stack->data[stack->len++] = obj;
+}
+
+INLINE inline static gc_obj gc_obj_stack_pop(gc_obj_stack *stack) {
+  return stack->data[--stack->len];
+}
+
 static void mark_object_block(gc_header *hdr) {
   if (is_large_alloc(hdr)) {
     return;
@@ -157,9 +204,9 @@ void gc_free(void) {
   arrfree(bcfunc_list);
   arrfree(free_blocks);
   arrfree(log_buf);
-  arrfree(cur_increments);
-  arrfree(cur_decrements);
-  arrfree(next_decrements);
+  free(cur_increments.data);
+  free(cur_decrements.data);
+  free(next_decrements.data);
   while (!list_empty(&large_allocs)) {
     list_head *pos = large_allocs.next;
     list_del(pos);
@@ -270,19 +317,18 @@ INLINE inline static gc_header *copy_alloc(uint64_t sz) {
   return (gc_header *)copy_hp;
 }
 
-INLINE inline static void inc_visit(gc_obj *field);
+INLINE inline static void inc_visit(gc_obj *field, gc_field_stack *increments);
 
-INLINE inline static void visit_root(gc_obj *root) {
-  inc_visit(root);
-  arrput(next_decrements, *root);
+INLINE inline static void visit_root(gc_obj *root, gc_field_stack *increments) {
+  inc_visit(root, increments);
+  gc_obj_stack_push(&next_decrements, *root);
 }
 
 INLINE inline static void inc_trace_field(gc_obj *field, void *ctx) {
-  (void)ctx;
-  arrput(cur_increments, field);
+  gc_field_stack_push(ctx, field);
 }
 
-INLINE inline static void inc_visit(gc_obj *field) {
+INLINE inline static void inc_visit(gc_obj *field, gc_field_stack *increments) {
   gc_obj obj = *field;
   if (!is_heap_object(obj)) {
     return;
@@ -315,24 +361,24 @@ INLINE inline static void inc_visit(gc_obj *field) {
   }
   hdr->rc = 1;
   mark_object_block(hdr);
-  trace_heap_object(hdr, inc_trace_field, nullptr);
+  trace_heap_object(hdr, inc_trace_field, increments);
 }
 
-INLINE inline static void process_increments(void) {
-  while (arrlen(cur_increments)) {
-    gc_obj *field = arrpop_last(cur_increments);
-    inc_visit(field);
+INLINE inline static void process_increments(gc_field_stack *increments) {
+  while (increments->len) {
+    gc_obj *field = gc_field_stack_pop(increments);
+    inc_visit(field, increments);
   }
 }
 
 INLINE inline static void dec_trace_field(gc_obj *field, void *ctx) {
-  (void)ctx;
-  arrput(cur_decrements, *field);
+  gc_obj_stack_push(ctx, *field);
 }
 
 INLINE inline static void process_decrements(void) {
-  while (arrlen(cur_decrements)) {
-    gc_obj obj = arrpop_last(cur_decrements);
+  gc_obj_stack *decrements = &cur_decrements;
+  while (decrements->len) {
+    gc_obj obj = gc_obj_stack_pop(decrements);
     gc_header *hdr = to_gc_header(obj);
     if (!is_heap_object(obj)) {
       continue;
@@ -342,7 +388,7 @@ INLINE inline static void process_decrements(void) {
       continue;
     }
 
-    trace_heap_object(hdr, dec_trace_field, nullptr);
+    trace_heap_object(hdr, dec_trace_field, decrements);
     if (is_large_alloc(hdr)) {
       struct large_alloc *la = (struct large_alloc *)hdr - 1;
       list_del(&la->list);
@@ -354,10 +400,11 @@ INLINE inline static void process_decrements(void) {
 }
 
 static void gc_add_mark_root(const uint64_t *rootp, size_t len) {
+  gc_field_stack *increments = &cur_increments;
   uint64_t *slots = (uint64_t *)rootp;
   for (size_t i = 0; i < len; i++) {
     gc_obj v = {.value = (int64_t)slots[i]};
-    visit_root(&v);
+    visit_root(&v, increments);
     slots[i] = (uint64_t)v.value;
   }
 }
@@ -374,7 +421,7 @@ static void gc_collect(void) {
     auto tmp = cur_decrements;
     cur_decrements = next_decrements;
     next_decrements = tmp;
-    arrlen_set(next_decrements, 0);
+    next_decrements.len = 0;
   }
 
   static struct timespec prev_gc_end;
@@ -386,6 +433,7 @@ static void gc_collect(void) {
   auto buflen = arrlen(log_buf);
   copy_hp = 0;
   copy_hp_end = 0;
+  gc_field_stack *increments = &cur_increments;
 
   // 1) walk roots — eagerly drain increments after each batch so
   //    cur_increments never grows large, matching old per-root visit()
@@ -399,30 +447,30 @@ static void gc_collect(void) {
           continue;
         }
         gc_obj v = tag_header((gc_header *)slots[j], root.tag);
-        visit_root(&v);
+        visit_root(&v, increments);
         slots[j] = (uintptr_t)to_raw_ptr(v);
       }
     } else {
       uint64_t *base = (uint64_t *)root.ptr;
       for (size_t j = 0; j < root.len; j++) {
         gc_obj v = {.value = (int64_t)base[j]};
-        visit_root(&v);
+        visit_root(&v, increments);
         base[j] = (uint64_t)v.value;
       }
     }
-    process_increments();
+    process_increments(increments);
   }
 
   for (size_t i = 0; i < arrlen(bcfunc_list); i++) {
-    arrput(cur_increments, &bcfunc_list[i]);
+    gc_field_stack_push(increments, &bcfunc_list[i]);
   }
   arrlen_set(bcfunc_list, 0);
-  process_increments();
+  process_increments(increments);
 
   if (scan_callback) {
     scan_callback(scan_data, gc_add_mark_root);
   }
-  process_increments();
+  process_increments(increments);
 
   // Handle write barrier log
   for (size_t i = 0; i < arrlen(log_buf);) {
@@ -439,10 +487,10 @@ static void gc_collect(void) {
     cur = log_buf[i];
     while (cur.offset != LOG_OBJ_HEADER) {
       gc_obj *field = (gc_obj *)((uint8_t *)obj + cur.offset);
-      arrput(cur_increments, field);
+      gc_field_stack_push(increments, field);
       gc_obj old_val = {.value = (int64_t)cur.val};
       if (is_heap_object(old_val) && to_gc_header(old_val)->rc != 0) {
-        arrput(cur_decrements, old_val);
+        gc_obj_stack_push(&cur_decrements, old_val);
       }
       i++;
       if (i >= arrlen(log_buf)) {
@@ -450,13 +498,13 @@ static void gc_collect(void) {
       }
       cur = log_buf[i];
     }
-    process_increments();
+    process_increments(increments);
   }
   arrlen_set(log_buf, 0);
   clock_gettime(CLOCK_MONOTONIC, &t1);
 
   // 2) Drain any remaining increments
-  process_increments();
+  process_increments(increments);
   clock_gettime(CLOCK_MONOTONIC, &t2);
 
   // 3) Process *previous* decrements (could be in background thread)
