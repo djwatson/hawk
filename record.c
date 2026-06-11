@@ -1039,7 +1039,7 @@ static void *check_record_start(bc *pc, bc instr, gc_obj *stack,
                   ts->depth != 0 ? "up-recursion" : "root loop", argcnt);
     return op_table;
   }
-  if (pc != ts->start_ins && cnt >= 10) {
+  if (pc != ts->start_ins && cnt >= 3) {
     record_abort(state, &op_table, "uprec detected, restart");
   }
   return op_table;
