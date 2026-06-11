@@ -656,6 +656,8 @@ EXPORT gc_obj SCM_LENGTH(gc_obj list) {
 }
 
 static gc_obj runtime_assoc(gc_obj obj, gc_obj alist, bool eqv) {
+  gc_add_root((const void *)&obj, 1, 0);
+  gc_add_root((const void *)&alist, 1, 0);
   while (alist.value != NIL_TAG) {
     if (!is_cons(alist)) {
       abort();
@@ -666,12 +668,23 @@ static gc_obj runtime_assoc(gc_obj obj, gc_obj alist, bool eqv) {
       abort();
     }
     gc_obj key = to_cons(entry)->a;
-    bool match = eqv ? obj_jeqv(key, obj) : key.value == obj.value;
+    bool match;
+    if (eqv) {
+      gc_add_root((const void *)&entry, 1, 0);
+      match = obj_jeqv(key, obj);
+      gc_remove_root((const void *)&entry, 0);
+    } else {
+      match = key.value == obj.value;
+    }
     if (match) {
+      gc_remove_root((const void *)&alist, 0);
+      gc_remove_root((const void *)&obj, 0);
       return entry;
     }
-    alist = list->b;
+    alist = to_cons(alist)->b;
   }
+  gc_remove_root((const void *)&alist, 0);
+  gc_remove_root((const void *)&obj, 0);
   return FALSE_REP;
 }
 
