@@ -61,6 +61,7 @@ static gc_header **large_nursery;
 static size_t collect_after;
 static size_t next_collect;
 static gc_obj *bcfunc_list;
+static gc_obj *bcfunc_roots;
 
 typedef struct {
   gc_obj **data;
@@ -196,6 +197,7 @@ void gc_free(void) {
   arrfree(nursery_blocks);
   arrfree(large_nursery);
   arrfree(bcfunc_list);
+  arrfree(bcfunc_roots);
   arrfree(free_blocks);
   arrfree(log_buf);
   free(cur_increments.data);
@@ -208,14 +210,43 @@ void gc_free(void) {
   }
 }
 
-void gc_register_bcfunc(bcfunc *func) { arrput(bcfunc_list, tag_func(func)); }
+static int cmp_bcfunc(const void *ap, const void *bp) {
+  uintptr_t a = (uintptr_t)to_raw_ptr(*(const gc_obj *)ap);
+  uintptr_t b = (uintptr_t)to_raw_ptr(*(const gc_obj *)bp);
+  return (a > b) - (a < b);
+}
+
+static int cmp_bcfunc_range(const void *kp, const void *ep) {
+  uintptr_t p = *(const uintptr_t *)kp;
+  bcfunc *func = (bcfunc *)to_raw_ptr(*(const gc_obj *)ep);
+  uintptr_t base = (uintptr_t)func;
+  if (p < base)
+    return -1;
+  size_t sz = heap_object_size(func);
+  if (p >= base + sz)
+    return 1;
+  return 0;
+}
+
+void gc_register_bcfunc(bcfunc *func) {
+  gc_obj tagged = tag_func(func);
+  arrput(bcfunc_list, tagged);
+  arrput(bcfunc_roots, tagged);
+  qsort(bcfunc_list, arrlen(bcfunc_list), sizeof(gc_obj), cmp_bcfunc);
+}
 
 void gc_set_scan_callback(gc_scan_callback cb, void *data) {
   scan_callback = cb;
   scan_data = data;
 }
 
-void *gc_base_ptr(void *p) { return nullptr; }
+void *gc_base_ptr(void *p) {
+  if (arrlen(bcfunc_list) == 0)
+    return nullptr;
+  gc_obj *result = bsearch(&p, bcfunc_list, arrlen(bcfunc_list), sizeof(gc_obj),
+                           cmp_bcfunc_range);
+  return result ? to_raw_ptr(*result) : nullptr;
+}
 
 static void snapshot_field(gc_obj *field, void *ctx) {
   gc_obj v = *field;
@@ -455,10 +486,10 @@ static void gc_collect(void) {
     process_increments(increments);
   }
 
-  for (size_t i = 0; i < arrlen(bcfunc_list); i++) {
-    gc_field_stack_push(increments, &bcfunc_list[i]);
+  for (size_t i = 0; i < arrlen(bcfunc_roots); i++) {
+    gc_field_stack_push(increments, &bcfunc_roots[i]);
   }
-  arrlen_set(bcfunc_list, 0);
+  arrlen_set(bcfunc_roots, 0);
   process_increments(increments);
 
   if (scan_callback) {
