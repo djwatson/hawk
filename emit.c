@@ -1854,10 +1854,14 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         uint8_t obj_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
         emit_mov(s, RTMP, obj_reg);
       }
-      // Fast path: if rc == 0 the object is nursery, no write barrier needed
+      // Fast path: if already logged or rc == 0, no write barrier needed.
       emit_mov(s, RTMP2, RTMP);
       emit_and_constant(s, RTMP, RTMP, ~TAG_MASK);
       emit_mem_load(s, 0, RTMP, RTMP);
+      emit_test_constant(s, RTMP,
+                         (int64_t)GC_LOGGED
+                             << (8 * offsetof(gc_header, flags)));
+      emit_jcc32(s, JNE, &done_gclog);
       emit_sar_constant(s, RTMP, RTMP, 32);
       emit_cmp_constant(s, RTMP, 0);
       emit_jcc32(s, JE, &done_gclog);

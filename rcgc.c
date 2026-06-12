@@ -21,12 +21,6 @@
 #include "util/list.h"
 #include "vm.h"
 
-enum : uint8_t {
-  GC_LOGGED = 1 << 0,
-  GC_MARK = 1 << 1,
-  GC_FWD_TAG = 1 << 2,
-};
-
 #define LOG_OBJ_HEADER UINT64_MAX
 
 typedef struct {

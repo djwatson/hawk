@@ -21,6 +21,12 @@ typedef struct {
 void gc_init(void);
 enum { GC_MAX_ROOTS = 64 };
 
+enum : uint8_t {
+  GC_LOGGED = 1 << 0,
+  GC_MARK = 1 << 1,
+  GC_FWD_TAG = 1 << 2,
+};
+
 extern gc_root_range gc_roots[GC_MAX_ROOTS];
 extern size_t gc_roots_len;
 void gc_set_scan_callback(gc_scan_callback cb, void *data);
