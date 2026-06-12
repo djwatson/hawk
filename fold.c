@@ -291,6 +291,14 @@ IRFOLDF(fold_guard_neq_any_const) {
   return fold_next();
 }
 
+IRFOLD(GCLOG _ _)
+IRFOLDF(fold_gclog_alloc) {
+  if (!in->op1.constant && t->ins[in->op1.loc].op == IR_ALLOC) {
+    *in = (ir_ins){.op = IR_NOP, .reg = REG_NONE, .spill = SPILL_NONE};
+  }
+  return fold_next();
+}
+
 IRFOLD(INEXACT CONST _)
 IRFOLDF(fold_inexact_const) {
   auto value = t->consts[in->op1.loc];
