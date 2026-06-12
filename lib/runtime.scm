@@ -214,16 +214,13 @@
   (sys:FOREIGN_CALL '(gc_obj "SCM_EQUAL" (gc_obj gc_obj)) a b))
 
 (define (string-ref str idx)
-  (unless (and (string? str) (fixnum? idx) (< idx (string-length str)) (>= idx 0))
-    (error "Invalid string index"))
+  (unless (string? str) (error "Invalid string index"))
+  (sys:ABC str idx)
   (sys:LOAD_CHAR str idx))
 (define (string-set! str idx c)
-  (unless (and (char? c)
-               (string? str)
-               (fixnum? idx)
-               (< idx (string-length str))
-               (>= idx 0))
-    (error "Invalid string index"))
+  (unless (char? c) (error "Invalid string index"))
+  (unless (string? str) (error "Invalid string index"))
+  (sys:ABC str idx)
   (sys:STORE_CHAR str c idx))
 (define make-string
   (case-lambda
@@ -439,12 +436,12 @@
         (sys:STORE vec len 0)
         (if (eq? init 0) vec (vector-init vec init 0 len))))))
 (define (vector-ref vec idx)
-  (unless (and (vector? vec) (fixnum? idx) (< idx (vector-length vec)) (>= idx 0))
-    (error "Invalid vector index"))
+  (unless (vector? vec) (error "Invalid vector index"))
+  (sys:ABC vec idx)
   (sys:LOAD vec (+ 1 idx)))
 (define (vector-set! vec idx val)
-  (unless (and (vector? vec) (fixnum? idx) (< idx (vector-length vec)) (>= idx 0))
-    (error "Invalid vector index"))
+  (unless (vector? vec) (error "Invalid vector index"))
+  (sys:ABC vec idx)
   (sys:STORE vec val (+ 1 idx)))
 (define vector->list
   (case-lambda
@@ -1965,15 +1962,15 @@
 
 ;; bytevector
 (define (bytevector-u8-ref bv idx)
-  (unless (and (bytevector? bv) (fixnum? idx) (< idx (bytevector-length bv)) (>= idx 0))
-    (error "Invalid bytevector index"))
+  (unless (bytevector? bv) (error "Invalid bytevector index"))
+  (sys:ABC bv idx)
   (sys:LOAD_BYTE bv idx))
 (define (bytevector-length bv)
   (unless (bytevector? bv) (error "Not a bytevector"))
   (sys:LOAD bv 0))
 (define (bytevector-u8-set! bv idx val)
-  (unless (and (bytevector? bv) (fixnum? idx) (< idx (bytevector-length bv)) (>= idx 0))
-    (error "Invalid bytevector index"))
+  (unless (bytevector? bv) (error "Invalid bytevector index"))
+  (sys:ABC bv idx)
   (sys:STORE_BYTE bv val idx))
 (define make-bytevector
   (case-lambda

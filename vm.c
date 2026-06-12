@@ -1201,6 +1201,23 @@ OP(RECT) {
   END_NEXT
 }
 
+OP(ABC) {
+  auto container = stack[pc->v1];
+  auto idx = stack[pc->v2];
+  if (!is_fixnum(idx)) {
+    stack[2] = make_string("Invalid index");
+    MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
+  }
+  uint8_t tag = (uint8_t)(container.value & TAG_MASK);
+  gc_obj len = *(gc_obj *)((intptr_t)(container.value) +
+                           (int32_t)(sizeof(gc_header) - tag));
+  if ((uint64_t)idx.value >= (uint64_t)len.value) {
+    stack[2] = make_string("Invalid index");
+    MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
+  }
+  END_NEXT
+}
+
 OP(STORE) {
   auto dest = stack[pc->reg];
   auto val = stack[pc->v1];

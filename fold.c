@@ -45,6 +45,7 @@ static bool fold_cse_allowed(trace *t __attribute__((unused)), ir_ins *in) {
   case IR_GT:
   case IR_LTE:
   case IR_GTE:
+  case IR_ABC:
   case IR_ADD:
   case IR_SUB:
   case IR_MUL:

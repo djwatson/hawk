@@ -1752,6 +1752,13 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     stack_save(state, stack, instr.reg, cell);
     break;
   }
+  case OP_ABC: {
+    auto obj = stack_load(state, stack, pc->v1, true);
+    auto idx = stack_load(state, stack, pc->v2, true);
+    add_inst(state, IR(.op = IR_ABC, .op1 = obj, .op2 = idx,
+                       .type = get_tag(stack[pc->v1])));
+    break;
+  }
   case OP_STORE:
   case OP_STORE_CHAR:
   case OP_STORE_BYTE: {

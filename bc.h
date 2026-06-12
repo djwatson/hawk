@@ -61,6 +61,7 @@
   X(DEFINE, AD)                                                                \
   X(WRITE, AD)                                                                 \
   X(ALLOC, ABC)                                                                \
+  X(ABC, ABC)                                                                  \
   X(STORE, ABC)                                                                \
   X(STORE_CHAR, ABC)                                                           \
   X(STORE_BYTE, ABC)                                                           \
