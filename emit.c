@@ -50,6 +50,14 @@ enum : int32_t {
 static_assert((alloc_stub_frame_size & 15) == 0,
               "alloc slowpath frame must stay aligned");
 
+typedef struct {
+  gc_obj gpr[MAX_REG];
+  uint64_t fpr[MAX_REG];
+  snap *snap;
+} jit_exit_state;
+
+static struct trace_result restore_snap(jit_exit_state *state);
+
 static inline int32_t alloc_reg_save_slot_offset(int reg) {
   return reg * alloc_reg_save_stride;
 }
@@ -222,6 +230,49 @@ void emit_init_slowpath(emit_state *s) {
   emit_writable_end(s);
   register_jit_symbol(gclog_start, s->gclog_slowpath, (uint8_t *)gclog_end,
                       "GCLogSlowpath");
+
+  // Shared JIT exit stub.
+  enum : int32_t {
+    exit_state_size = (int32_t)((sizeof(jit_exit_state) + 15) & ~15),
+  };
+  auto exit_start = (uint8_t *)emit_offset(s);
+
+  emit_writable_begin(s);
+
+  emit_label(s, &s->jit_exit_stub);
+  emit_sub_constant(s, SP, SP, exit_state_size);
+
+  for (int reg = 0; reg < FPR_REG_START; reg++) {
+    if (reg == SP)
+      continue;
+    emit_store(s, (int32_t)(reg * (int32_t)sizeof(gc_obj)), SP, reg);
+  }
+  for (int reg = FPR_REG_START; reg < FPR_REG_END; reg++) {
+    emit_fstore(
+        s, offsetof(jit_exit_state, fpr) + (int32_t)(reg * sizeof(uint64_t)),
+        SP, reg);
+  }
+
+  emit_mem_load(s, (int32_t)(RTMP * (int32_t)sizeof(gc_obj)), SP, RTMP);
+  emit_store(s, (int32_t)offsetof(jit_exit_state, snap), SP, RTMP);
+
+  emit_add_constant(s, RARG0, SP, 0);
+  emit_store_ralloc(s);
+  emit_mov64(s, RTMP, (int64_t)&restore_snap);
+  emit_call_reg(s, RTMP);
+  emit_load_ralloc(s);
+
+  emit_add_constant(s, SP, SP, exit_state_size);
+
+  emit_store_ralloc(s);
+  restore_callee_regs(s);
+  emit_ret(s);
+
+  auto exit_end = emit_offset(s);
+
+  emit_writable_end(s);
+  register_jit_symbol(exit_start, s->jit_exit_stub.addr, (uint8_t *)exit_end,
+                      "JitExitStub");
 }
 
 static inline bool ins_uses_freg(ir_ins const *ins) {
@@ -336,6 +387,17 @@ static void collect_live_roots(trace *t, regalloc_state *ra_state,
       continue;
     }
     mark_live_reg(live_regs, live_gpr_mask, reg);
+  }
+}
+
+static void collect_alloc_roots(trace *t, regalloc_state *ra_state,
+                                uint16_t op_cnt_idx, int32_t cur_snap,
+                                bool live_regs[MAX_REG],
+                                uint64_t *live_gpr_mask) {
+  if (cur_snap >= 0) {
+    collect_live_roots(t, nullptr, 0, cur_snap, live_regs, live_gpr_mask);
+  } else {
+    collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs, live_gpr_mask);
   }
 }
 
@@ -1200,7 +1262,7 @@ static void emit_snap_store_entry(emit_state *s, trace *t, uint16_t snap_idx,
   }
 }
 
-static void emit_snap(emit_state *s, trace *t, uint16_t snap_idx, bool exit) {
+static void emit_snap(emit_state *s, trace *t, uint16_t snap_idx) {
   auto sn = &t->snaps[snap_idx];
   bool live_regs[MAX_REG];
   uint64_t live_gpr_mask;
@@ -1212,12 +1274,6 @@ static void emit_snap(emit_state *s, trace *t, uint16_t snap_idx, bool exit) {
   }
 
   emit_stack_offset_and_check(s, sn);
-  // If this is an exiting snapshot (vs. a loop back)
-  // then record exit PC & snapshot.
-  if (exit) {
-    emit_mov64(s, RET_REG2, (intptr_t)sn);
-    emit_mov(s, RET_REG, RSTACK);
-  }
 }
 // NOLINTEND(clang-analyzer-core.NullDereference)
 
@@ -1228,6 +1284,78 @@ static void emit_exit_to_c(emit_state *s) {
   emit_ret(s);
 }
 
+static struct trace_result restore_snap(jit_exit_state *state) {
+  snap *s = state->snap;
+  trace *t = s->trace;
+  gc_obj *stack = (gc_obj *)state->gpr[RSTACK].value;
+  gc_obj *new_stack = stack + s->offset;
+  bool rooted[FPR_REG_START] = {};
+
+  arr_for_each_idx(s->slots, i) {
+    auto entry = &s->slots[i];
+    if (entry->val.constant) {
+      continue;
+    }
+    auto loc = snap_entry_loc(t, (uint16_t)(s - t->snaps), i);
+    if (loc.spilled || is_fpr_reg(loc.reg)) {
+      continue;
+    }
+    if (rooted[loc.reg]) {
+      continue;
+    }
+    rooted[loc.reg] = true;
+  }
+
+  if ((uint8_t *)new_stack >= (uint8_t *)jit_stack_limit) {
+    new_stack = expand_stack(jit_state, new_stack);
+    jit_stack_limit = jit_state->stack_limit;
+    stack = new_stack - s->offset;
+  }
+
+  for (int reg = 0; reg < FPR_REG_START; reg++) {
+    if (rooted[reg]) {
+      gc_add_root(&state->gpr[reg], 1, 0);
+    }
+  }
+
+  arr_for_each_idx(s->slots, i) {
+    auto entry = &s->slots[i];
+    gc_obj *slot_ptr = stack + entry->slot;
+
+    if (entry->val.constant) {
+      *slot_ptr = slot_gc_obj(t, entry->val);
+    } else {
+      auto ins = &t->ins[entry->val.loc];
+      if (ins->type == FLONUM_TAG) {
+        double d;
+        if (ins->spill != SPILL_NONE) {
+          memcpy(&d, &fpr_spills[ins->spill], sizeof(d));
+        } else {
+          memcpy(&d, &state->fpr[ins->reg], sizeof(d));
+        }
+        *slot_ptr = vm_box_flonum(d);
+        continue;
+      } else {
+        gc_obj v;
+        if (ins->spill != SPILL_NONE) {
+          v = gpr_spills[ins->spill];
+        } else {
+          v = state->gpr[ins->reg];
+        }
+        *slot_ptr = v;
+      }
+    }
+  }
+
+  for (int reg = FPR_REG_START - 1; reg >= 0; reg--) {
+    if (rooted[reg]) {
+      gc_remove_root(&state->gpr[reg], 0);
+    }
+  }
+
+  return (struct trace_result){.stack = new_stack, .snap = s};
+}
+
 static void emit_snapshot_exits(emit_state *s, trace *t, snap *snaps,
                                 label *exit_label) {
   // There will always be at least two snapshots.  Don't write the last, it's
@@ -1236,8 +1364,8 @@ static void emit_snapshot_exits(emit_state *s, trace *t, snap *snaps,
     COMMENT("Snap exit #%i", i);
     snap *snap = &snaps[i];
     emit_label(s, &snap->patch_point);
-    emit_snap(s, t, (uint16_t)i, true);
-    emit_jmp32(s, exit_label);
+    emit_mov64(s, RTMP, (intptr_t)snap);
+    emit_jmp32(s, &s->jit_exit_stub);
   }
 }
 
@@ -1564,8 +1692,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       if (is_fpr_reg(val_reg)) {
         bool live_regs[MAX_REG];
         uint64_t live_gpr_mask;
-        collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs,
-                           &live_gpr_mask);
+        collect_alloc_roots(t, ra_state, op_cnt_idx, cur_snap, live_regs,
+                            &live_gpr_mask);
         if (!ref->op1.constant) {
           mark_live_reg(live_regs, &live_gpr_mask, base_reg);
         }
@@ -1857,8 +1985,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       if (is_fpr_reg(val_reg)) {
         bool live_regs[MAX_REG];
         uint64_t live_gpr_mask;
-        collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs,
-                           &live_gpr_mask);
+        collect_alloc_roots(t, ra_state, op_cnt_idx, cur_snap, live_regs,
+                            &live_gpr_mask);
         emit_box_flonum(s, 0, val_reg, false, live_regs, live_gpr_mask);
         val_reg = RTMP;
       }
@@ -1880,9 +2008,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       emit_mov(s, RTMP2, RTMP);
       emit_and_constant(s, RTMP, RTMP, ~TAG_MASK);
       emit_mem_load(s, 0, RTMP, RTMP);
-      emit_test_constant(s, RTMP,
-                         (int64_t)GC_LOGGED
-                             << (8 * offsetof(gc_header, flags)));
+      emit_test_constant(
+          s, RTMP, (int64_t)GC_LOGGED << (8 * offsetof(gc_header, flags)));
       emit_jcc32(s, JNE, &done_gclog);
       emit_sar_constant(s, RTMP, RTMP, 32);
       emit_cmp_constant(s, RTMP, 0);
@@ -1938,8 +2065,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       assert(!is_fpr_reg(dst_reg));
       bool live_regs[MAX_REG];
       uint64_t live_gpr_mask;
-      collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs,
-                         &live_gpr_mask);
+      collect_alloc_roots(t, ra_state, op_cnt_idx, cur_snap, live_regs,
+                          &live_gpr_mask);
       emit_box_flonum(s, 0, arg0_reg, false, live_regs, live_gpr_mask);
       if (dst_reg != RTMP) {
         emit_mov(s, dst_reg, RTMP);
@@ -1953,7 +2080,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     }
     case IR_FLUSH: {
       assert(cur_snap >= 0);
-      emit_snap(s, t, (uint16_t)cur_snap, false);
+      emit_snap(s, t, (uint16_t)cur_snap);
       if (dst_reg != RSTACK) {
         emit_mov(s, dst_reg, RSTACK);
       }

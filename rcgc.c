@@ -408,7 +408,11 @@ INLINE inline static void process_decrements(void) {
     if (!is_heap_object(obj)) {
       continue;
     }
-    assert(hdr->rc != 0);
+    // Deferred duplicate decrements can target an object already reclaimed or
+    // forwarded by an earlier decrement in this batch.
+    if (hdr->rc == 0) {
+      continue;
+    }
     if (--hdr->rc > 0) {
       continue;
     }

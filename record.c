@@ -182,6 +182,9 @@ static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
     add_root((uint64_t *)cur_trace->consts, arrlen(cur_trace->consts));
   }
   arr_for_each(record->traces, trace_obj) {
+    if (trace_obj == cur_trace) {
+      continue;
+    }
     if (trace_obj && arrlen(trace_obj->consts) > 0) {
       add_root((uint64_t *)trace_obj->consts, arrlen(trace_obj->consts));
     }

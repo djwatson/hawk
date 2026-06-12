@@ -40,6 +40,7 @@ typedef struct emit_state {
   uint8_t *alloc_slowpath;
   uint8_t *expand_stack_slowpath;
   uint8_t *gclog_slowpath;
+  label jit_exit_stub;
 } emit_state;
 
 enum : uint8_t {
