@@ -209,7 +209,6 @@ static void trace_reset(vm_state *state) {
     record_abort_current(state, "trace reset requested while recording");
   }
   arrfree(trace_exit_counts);
-  profiler_reset();
   arr_for_each(state->record.traces, trace) {
     if (!trace->parent_snap && trace->start_ins &&
         (trace->start_ins->op == OP_JFUNC || trace->start_ins->op == OP_JLOOP ||
