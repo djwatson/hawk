@@ -5,8 +5,9 @@ Hawk2 improvements:
 [x] Simplify regalloc
 [x] Finish pycket analysis 
 [ ] ☄️Auto flvector 
-[ ] ☄️ Make real port type
-[ ] Rc gc - probably no speed bump but will reduce memory usage by 3x
+[x] ☄️ Make real port type
+[x] Rc gc - probably no speed bump but will reduce memory usage by 3x
+[ ] IR ABC array bounds check
 [ ] Deopt in interpreter instead of code (required for alloc sinking)
 [ ] ☄️ Alloc sinking (after reverse regalloc)
 [ ] ☄️ Loop analysis, getting phis right is hard, based on current loopback algo. Phi all implicit stack load/stores based on snapshots, emit explicit loads, emit explicit type checks probably. Only do for offset =0. Then several loops / passes to remove unnecessary phis. 

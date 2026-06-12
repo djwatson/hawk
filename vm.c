@@ -109,7 +109,7 @@ static bool should_jit() {
   return false;
 }
 static inline uint32_t hotmap_hash(void *pc) {
-  return (((uint64_t)pc) >> 3) & hotmap_mask;
+  return hashmix((uint64_t)pc) & hotmap_mask;
 }
 
 static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,

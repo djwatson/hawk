@@ -32,7 +32,7 @@ static log_item *log_buf;
 enum : size_t {
   BLOCK_SIZE = 262144,
   BLOCK_DATA_SIZE = BLOCK_SIZE - sizeof(uint32_t),
-  GC_COLLECT_AFTER = 64 * 1024 * 1024,
+  GC_COLLECT_AFTER = 32 * 1024 * 1024,
 };
 
 typedef struct gc_block {
