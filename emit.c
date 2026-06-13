@@ -428,6 +428,34 @@ static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
   emit_label(s, &alloc_done);
 }
 
+static void emit_gclog_obj_reg(emit_state *s, uint8_t obj_reg,
+                               bool preserve_rtmp) {
+  label done_gclog = {};
+  if (preserve_rtmp) {
+    emit_sub_constant(s, SP, SP, 16);
+    emit_store(s, 0, SP, RTMP);
+  }
+
+  emit_mov(s, RTMP, obj_reg);
+  emit_mov(s, RTMP2, RTMP);
+  emit_and_constant(s, RTMP2, RTMP2, ~TAG_MASK);
+  emit_mem_load(s, 0, RTMP2, RTMP2);
+  emit_test_constant(s, RTMP2,
+                     (int64_t)GC_LOGGED << (8 * offsetof(gc_header, flags)));
+  emit_jcc32(s, JNE, &done_gclog);
+  emit_sar_constant(s, RTMP2, RTMP2, 32);
+  emit_cmp_constant(s, RTMP2, 0);
+  emit_jcc32(s, JE, &done_gclog);
+
+  emit_call32(s, (int64_t)s->gclog_slowpath);
+  emit_label(s, &done_gclog);
+
+  if (preserve_rtmp) {
+    emit_mem_load(s, 0, SP, RTMP);
+    emit_add_constant(s, SP, SP, 16);
+  }
+}
+
 static value_loc snap_entry_loc(trace const *t, uint16_t snap_idx,
                                 size_t entry_idx) {
   auto sn = &t->snaps[snap_idx];
@@ -1689,17 +1717,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
       }
       assert(val_reg != REG_NONE || op->op2.constant);
-      if (is_fpr_reg(val_reg)) {
-        bool live_regs[MAX_REG];
-        uint64_t live_gpr_mask;
-        collect_alloc_roots(t, ra_state, op_cnt_idx, cur_snap, live_regs,
-                            &live_gpr_mask);
-        if (!ref->op1.constant) {
-          mark_live_reg(live_regs, &live_gpr_mask, base_reg);
-        }
-        emit_box_flonum(s, 0, val_reg, false, live_regs, live_gpr_mask);
-        val_reg = RTMP;
-      }
+      assert(!is_fpr_reg(val_reg));
 
       if (ref->op1.constant) {
         // REF base can be a constant object (e.g. global vector).
@@ -1982,43 +2000,21 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       } else {
         assert(val_reg != REG_NONE);
       }
-      if (is_fpr_reg(val_reg)) {
-        bool live_regs[MAX_REG];
-        uint64_t live_gpr_mask;
-        collect_alloc_roots(t, ra_state, op_cnt_idx, cur_snap, live_regs,
-                            &live_gpr_mask);
-        emit_box_flonum(s, 0, val_reg, false, live_regs, live_gpr_mask);
-        val_reg = RTMP;
-      }
+      assert(!is_fpr_reg(val_reg));
       int64_t stack_off = slot_const(t, op->op2);
       assert((int32_t)stack_off == stack_off);
       emit_store(s, (int32_t)stack_off, RSTACK, val_reg);
       break;
     }
     case IR_GCLOG: {
-      label done_gclog = {};
       // Load obj (op1) into RTMP
       if (op->op1.constant) {
         emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op1));
+        emit_gclog_obj_reg(s, RTMP, false);
       } else {
         uint8_t obj_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
-        emit_mov(s, RTMP, obj_reg);
+        emit_gclog_obj_reg(s, obj_reg, false);
       }
-      // Fast path: if already logged or rc == 0, no write barrier needed.
-      emit_mov(s, RTMP2, RTMP);
-      emit_and_constant(s, RTMP, RTMP, ~TAG_MASK);
-      emit_mem_load(s, 0, RTMP, RTMP);
-      emit_test_constant(
-          s, RTMP, (int64_t)GC_LOGGED << (8 * offsetof(gc_header, flags)));
-      emit_jcc32(s, JNE, &done_gclog);
-      emit_sar_constant(s, RTMP, RTMP, 32);
-      emit_cmp_constant(s, RTMP, 0);
-      emit_jcc32(s, JE, &done_gclog);
-
-      // Slowpath: restore tagged ptr and call gc_log_slow
-      emit_mov(s, RTMP, RTMP2);
-      emit_call32(s, (int64_t)s->gclog_slowpath);
-      emit_label(s, &done_gclog);
       break;
     }
     case IR_ALLOC: {

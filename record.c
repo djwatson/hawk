@@ -1326,6 +1326,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       break;
     }
     auto val = stack_load(state, stack, instr.reg, true);
+    val = box_vmcall_arg(state, val);
     auto off = add_const(
         state, tag_fixnum((offsetof(symbol, val) - sizeof(gc_header)) /
                           sizeof(gc_obj)));
@@ -1471,6 +1472,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto clo = stack_load(state, stack, instr.v1, false);
     auto clo_slot = instr.v2;
     slot c_pos = add_const(state, tag_fixnum(clo_slot + 1));
+    val = box_vmcall_arg(state, val);
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
     add_inst(state, IR(.op = IR_GCLOG, .op1 = clo, .op2 = c_pos));
     add_inst(state,
@@ -1769,6 +1771,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto val = stack_load(state, stack, pc->v1, true);
     auto offset = stack_load(state, stack, pc->v2, true);
 
+    val = box_vmcall_arg(state, val);
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
     if (instr.op == OP_STORE) {
       uint8_t obj_type = get_slot_type(record_current_trace(state), obj);
@@ -1916,6 +1919,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_CALLCC_RESUME: {
     auto captured = stack_load(state, stack, 0, true);
     auto result = stack_load(state, stack, 1, false);
+    result = box_vmcall_arg(state, result);
     if (!is_closure(stack[0])) {
       record_abort(state, &op_table, "CALLCC_RESUME non-closure");
       break;

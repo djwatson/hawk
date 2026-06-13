@@ -295,7 +295,12 @@ IRFOLDF(fold_guard_neq_any_const) {
 IRFOLD(GCLOG _ _)
 IRFOLDF(fold_gclog_alloc) {
   if (!in->op1.constant && t->ins[in->op1.loc].op == IR_ALLOC) {
-    *in = (ir_ins){.op = IR_NOP, .reg = REG_NONE, .spill = SPILL_NONE};
+    uint16_t alloc_ref = t->cse_head[IR_ALLOC];
+    uint16_t box_ref = t->cse_head[IR_BOX_FLONUM];
+    if ((alloc_ref == UINT16_MAX || alloc_ref <= in->op1.loc) &&
+        (box_ref == UINT16_MAX || box_ref <= in->op1.loc)) {
+      *in = (ir_ins){.op = IR_NOP, .reg = REG_NONE, .spill = SPILL_NONE};
+    }
   }
   return fold_next();
 }
@@ -438,15 +443,14 @@ fold_result fold_instr(trace *trace, ir_ins *in) {
     uint16_t ref = trace->cse_head[in->op];
     while (ref != UINT16_MAX) {
       ir_ins *prev = &trace->ins[ref];
-      bool load_op = in->op == IR_LOAD || in->op == IR_LOAD_CHAR ||
-                     in->op == IR_LOAD_BYTE;
+      bool load_op =
+          in->op == IR_LOAD || in->op == IR_LOAD_CHAR || in->op == IR_LOAD_BYTE;
       if (same_cse_operands(trace, in, prev) &&
           (!load_op ||
            load_cse_allowed(trace, ref,
-                            in->op == IR_LOAD
-                                ? IR_STORE
-                                : in->op == IR_LOAD_CHAR ? IR_STORE_CHAR
-                                                         : IR_STORE_BYTE)) &&
+                            in->op == IR_LOAD        ? IR_STORE
+                            : in->op == IR_LOAD_CHAR ? IR_STORE_CHAR
+                                                     : IR_STORE_BYTE)) &&
           (in->op != IR_GGET || gget_cse_allowed(trace, ref))) {
         return fold_ref((slot){.constant = false, .loc = ref});
       }
