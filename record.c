@@ -1236,7 +1236,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
       int cnt = downrec_hits(ts, pc);
       bool seen_downrec = cnt > 0;
-      bool try_downrec = cnt > random() % 3;
+      bool try_downrec = cnt > (1 + (random() % 3));
 
       if ((instr.op == OP_RET || instr.op == OP_RETN) && downrec_ok &&
           cur_trace->kind == TRACE_SIDE && try_downrec) {
@@ -2140,11 +2140,12 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
 
 void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
                        snap *side_snap, uint64_t argcnt) {
-  LOG(record, "Record start poly %i", record_trace_count(state));
   (void)pc;
   (void)instr;
   bc *start_pc = side_snap->trace->start_ins;
   bc start_ins = side_snap->trace->start_pc;
+  LOG(record, "Record start poly %i %s", record_trace_count(state),
+      func_name_from_pc(start_pc));
   assert(!is_trace_jump_op(start_ins.op));
   record_begin_trace(state, start_pc, start_ins);
   trace_state *ts = record_trace_state(state);
@@ -2171,7 +2172,8 @@ static uint8_t side_snap_stack_type(snap const *side_snap,
 
 void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
                        snap *side_snap, uint64_t argcnt) {
-  LOG(record, "Record start side %i", record_trace_count(state));
+  LOG(record, "Record start side %i %s", record_trace_count(state),
+      func_name_from_pc(pc));
   assert(!is_trace_jump_op(instr.op));
   record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);
