@@ -487,6 +487,41 @@ IRFOLDF(fold_char_integer_const) {
   return fold_const(tag_fixnum(to_char(c)));
 }
 
+IRFOLD(EQ INTEGER_CHAR CONST)
+IRFOLD(NE INTEGER_CHAR CONST)
+IRFOLDF(fold_cmp_integer_char_const) {
+  if (in->op1.constant || !in->op2.constant)
+    return fold_next();
+  gc_obj c = t->consts[in->op2.loc];
+  if (!is_char(c))
+    return fold_next();
+  ir_ins *conv = &t->ins[in->op1.loc];
+  if (conv->op != IR_INTEGER_CHAR)
+    return fold_next();
+  uint16_t const_idx = arrlen(t->consts);
+  arrput(t->consts, tag_fixnum(to_char(c)));
+  in->op1 = conv->op1;
+  in->op2 = (slot){.constant = true, .loc = const_idx};
+  return fold_retry();
+}
+
+IRFOLD(EQ SUB CONST)
+IRFOLD(NE SUB CONST)
+IRFOLDF(fold_cmp_sub_zero) {
+  if (in->type != FIXNUM_TAG || in->op2.constant == false)
+    return fold_next();
+  if (!numeric_is_zero(t->consts[in->op2.loc]))
+    return fold_next();
+  if (in->op1.constant)
+    return fold_next();
+  ir_ins *sub = &t->ins[in->op1.loc];
+  if (sub->op != IR_SUB)
+    return fold_next();
+  in->op1 = sub->op1;
+  in->op2 = sub->op2;
+  return fold_retry();
+}
+
 // Self-comparison elimination for EQ/NE/order comparisons.
 IRFOLD(EQ _ _)
 IRFOLD(LT _ _)
@@ -633,8 +668,17 @@ IRFOLD(DIV _ CONST)
 IRFOLDF(fold_div_const) {
   if (!in->op2.constant)
     return fold_next();
-  if (numeric_is_one(t->consts[in->op2.loc]))
+  gc_obj k = t->consts[in->op2.loc];
+  if (numeric_is_one(k))
     return fold_ref(in->op1);
+  if (in->type == FIXNUM_TAG && is_fixnum(k) && to_fixnum(k) == -1) {
+    slot zero = make_fixnum_inst(t, 0);
+    slot x = in->op1;
+    in->op = IR_SUB;
+    in->op1 = zero;
+    in->op2 = x;
+    return fold_retry();
+  }
   return fold_next();
 }
 
@@ -642,8 +686,17 @@ IRFOLD(QUOTIENT _ CONST)
 IRFOLDF(fold_quotient_const) {
   if (!in->op2.constant)
     return fold_next();
-  if (numeric_is_one(t->consts[in->op2.loc]))
+  gc_obj k = t->consts[in->op2.loc];
+  if (numeric_is_one(k))
     return fold_ref(in->op1);
+  if (in->type == FIXNUM_TAG && is_fixnum(k) && to_fixnum(k) == -1) {
+    slot zero = make_fixnum_inst(t, 0);
+    slot x = in->op1;
+    in->op = IR_SUB;
+    in->op1 = zero;
+    in->op2 = x;
+    return fold_retry();
+  }
   return fold_next();
 }
 
@@ -862,7 +915,7 @@ IRFOLDF(fold_mod_one_rhs) {
 IRFOLD(ABC _ CONST)
 IRFOLDF(fold_abc_k) {
   gc_obj k2 = t->consts[in->op2.loc];
-  if (!is_fixnum(k2))
+  if (!is_fixnum(k2) || to_fixnum(k2) < 0)
     return fold_next();
   uint16_t ref = t->cse_head[IR_ABC];
   while (ref != UINT16_MAX) {
@@ -870,7 +923,7 @@ IRFOLDF(fold_abc_k) {
     if (prev->op != IR_NOP && same_slot(t, prev->op1, in->op1) &&
         prev->op2.constant) {
       gc_obj k1 = t->consts[prev->op2.loc];
-      if (is_fixnum(k1) && to_fixnum(k1) >= to_fixnum(k2))
+      if (is_fixnum(k1) && to_fixnum(k1) >= 0 && to_fixnum(k1) >= to_fixnum(k2))
         return fold_drop();
     }
     ref = t->cse_prev[ref];
