@@ -7,9 +7,9 @@ Hawk2 improvements:
 [ ] ☄️Auto flvector 
 [x] ☄️ Make real port type
 [x] Rc gc - probably no speed bump but will reduce memory usage by 3x
-[ ] IR ABC array bounds check
-[ ] Deopt in interpreter instead of code (required for alloc sinking)
-[ ] ☄️ Alloc sinking (after reverse regalloc)
+[x] IR ABC array bounds check
+[x] Deopt in interpreter instead of code (required for alloc sinking)
+[x] ☄️ Alloc sinking (after reverse regalloc) (tried and not helpful)
 [ ] ☄️ Loop analysis, getting phis right is hard, based on current loopback algo. Phi all implicit stack load/stores based on snapshots, emit explicit loads, emit explicit type checks probably. Only do for offset =0. Then several loops / passes to remove unnecessary phis. 
 IR_ABC
 [ ] ☄️ int range analysis for loops and add/sub/mul overflow (requires abc & loop opt)
@@ -17,7 +17,7 @@ IR_ABC
 [ ] Optimize vm - set/get type opcodes, builtins. Even farther - gcall, vn math and cmp ops
 
 [ ] Reify code generator tester!!!! So good. Generate ast. Choose a path. Generate symbolic and send to z3, then use z3 solution! To print a complete program. Can force a loop with at least X , so we can even ensure jit runs!
-[ ] Port over all the fold rules from luajit, pypy, dstrogov ir, or use z3 to prove new ones 
+[x] Port over all the fold rules from luajit, pypy, dstrogov ir, or use z3 to prove new ones 
 
 [ ] Merge constants on traces, linear scan
 [ ] When trace cache full, flush it automatically. 

@@ -1,5 +1,5 @@
 (define-library (srfi 69)
-  (import (scheme r5rs) (scheme base) (scheme complex) (scheme char)
+  (import (scheme r5rs) (scheme base) (scheme case-lambda) (scheme complex) (scheme char)
           (prefix (hawk sys) sys:))
   (export make-hash-table hash-table? alist->hash-table hash-table-equivalence-function
           hash-table-hash-function hash-table-ref hash-table-ref/default hash-table-set!
@@ -19,44 +19,59 @@
                (modulo (+ (* 37 hash) (char->integer (ch-conv (string-ref s index))))
                        *default-bound*)))))
 
-    (define (string-hash s . maybe-bound)
-      (let ((bound (if (null? maybe-bound) *default-bound* (car maybe-bound))))
-        (sys:FOREIGN_CALL '(uint64 "SCM_STRING_HASH" (string int32)) s bound)))
+    (define string-hash
+      (case-lambda
+        ((s)
+          (string-hash s *default-bound*))
+        ((s bound)
+          (sys:FOREIGN_CALL '(uint64 "SCM_STRING_HASH" (string int32)) s bound))))
 
-    (define (string-ci-hash s . maybe-bound)
-      (let ((bound (if (null? maybe-bound) *default-bound* (car maybe-bound))))
-        (%string-hash s char-downcase bound)))
+    (define string-ci-hash
+      (case-lambda
+        ((s)
+          (string-ci-hash s *default-bound*))
+        ((s bound)
+          (%string-hash s char-downcase bound))))
 
-    (define (symbol-hash s . maybe-bound)
-      (let ((bound (if (null? maybe-bound) *default-bound* (car maybe-bound))))
-        (sys:FOREIGN_CALL '(uint64 "SCM_STRING_HASH" (string int32)) (symbol->string s) bound)))
+    (define symbol-hash
+      (case-lambda
+        ((s)
+          (symbol-hash s *default-bound*))
+        ((s bound)
+          (sys:FOREIGN_CALL '(uint64 "SCM_STRING_HASH" (string int32)) (symbol->string s) bound))))
 
-    (define (hash obj . maybe-bound)
-      (let ((bound (if (null? maybe-bound) *default-bound* (car maybe-bound))))
-        (cond
-          ((and (complex? obj) (not (= 0 (imag-part obj))))
-            (exact (modulo (+ (hash (real-part obj) bound) (hash (imag-part obj) bound)) bound)))
-          ((integer? obj) (modulo obj bound))
-          ((string? obj) (string-hash obj bound))
-          ((symbol? obj) (symbol-hash obj bound))
-          ((real? obj) (string-hash (number->string obj) bound))
-          ((number? obj)
-            (exact (modulo (+ (hash (real-part obj)) (* 3 (hash (imag-part obj)))) bound)))
-          ((char? obj) (modulo (char->integer obj) bound))
-          ((vector? obj) (vector-hash obj bound))
-          ((pair? obj) (modulo (+ (hash (car obj)) (* 3 (hash (cdr obj)))) bound))
-          ((null? obj) 0)
-          ((not obj) 0)
-          ((procedure? obj) (error "hash: procedures cannot be hashed" obj))
-          (else
-            ;(error "Unknown object in hash:" obj)
-            1))))
+    (define hash
+      (case-lambda
+        ((obj)
+          (hash obj *default-bound*))
+        ((obj bound)
+          (cond
+            ((and (complex? obj) (not (= 0 (imag-part obj))))
+              (exact (modulo (+ (hash (real-part obj) bound) (hash (imag-part obj) bound)) bound)))
+            ((integer? obj) (modulo obj bound))
+            ((string? obj) (string-hash obj bound))
+            ((symbol? obj) (symbol-hash obj bound))
+            ((real? obj) (string-hash (number->string obj) bound))
+            ((number? obj)
+              (exact (modulo (+ (hash (real-part obj)) (* 3 (hash (imag-part obj)))) bound)))
+            ((char? obj) (modulo (char->integer obj) bound))
+            ((vector? obj) (vector-hash obj bound))
+            ((pair? obj) (modulo (+ (hash (car obj)) (* 3 (hash (cdr obj)))) bound))
+            ((null? obj) 0)
+            ((not obj) 0)
+            ((procedure? obj) (error "hash: procedures cannot be hashed" obj))
+            (else
+              ;(error "Unknown object in hash:" obj)
+              1)))))
 
     (define (%gc-count) (sys:FOREIGN_CALL '(uint64 "SCM_GC_CNT" ())))
 
-    (define (hash-by-identity obj . maybe-bound)
-      (let ((bound (if (null? maybe-bound) *default-bound* (car maybe-bound))))
-        (modulo (sys:FOREIGN_CALL '(uint64 "SCM_HASH_OBJ" (gc_obj)) obj) bound)))
+    (define hash-by-identity
+      (case-lambda
+        ((obj)
+          (hash-by-identity obj *default-bound*))
+        ((obj bound)
+          (modulo (sys:FOREIGN_CALL '(uint64 "SCM_HASH_OBJ" (gc_obj)) obj) bound))))
 
     (define (vector-hash v bound)
       (let ((hashvalue 571) (len (vector-length v)))
@@ -86,29 +101,28 @@
          (and (eq? comparison string-ci=?) string-ci-hash)
          hash))
 
-    (define (make-hash-table . args)
-      (let* ((comparison (if (null? args) equal? (car args)))
-             (hash
-                (if (or (null? args) (null? (cdr args)))
-                    (appropriate-hash-function-for comparison)
-                    (cadr args)))
-             (size
-                (if (or (null? args) (null? (cdr args)) (null? (cddr args)))
-                    *default-table-size*
-                    (caddr args)))
-             (association
-                (or (and (eq? comparison eq?) assq)
-                   (and (eq? comparison eqv?) assv)
-                   (and (eq? comparison equal?) assoc)
-                   (letrec ((associate
-                               (lambda (val alist)
-                                 (cond
-                                   ((null? alist) #f)
-                                   ((comparison val (caar alist)) (car alist))
-                                   (else (associate val (cdr alist)))))))
-                     associate))))
-        (%make-hash-table 0 hash comparison association (make-vector size '())
-                          (and (eq? comparison eq?) (%gc-count)))))
+    (define make-hash-table
+      (case-lambda
+        (()
+          (make-hash-table equal?))
+        ((comparison)
+          (make-hash-table comparison (appropriate-hash-function-for comparison)))
+        ((comparison hash)
+          (make-hash-table comparison hash *default-table-size*))
+        ((comparison hash size)
+          (let ((association
+                  (or (and (eq? comparison eq?) assq)
+                     (and (eq? comparison eqv?) assv)
+                     (and (eq? comparison equal?) assoc)
+                     (letrec ((associate
+                                 (lambda (val alist)
+                                   (cond
+                                     ((null? alist) #f)
+                                     ((comparison val (caar alist)) (car alist))
+                                     (else (associate val (cdr alist)))))))
+                       associate))))
+            (%make-hash-table 0 hash comparison association (make-vector size '())
+                              (and (eq? comparison eq?) (%gc-count)))))))
 
     (define (make-hash-table-maker comp hash)
       (lambda args (apply make-hash-table (cons comp (cons hash args)))))
@@ -210,12 +224,20 @@
                                 old-entries)
               (hash-table-set-entries! hash-table new-entries)))))
 
-    (define (hash-table-ref hash-table key . maybe-default)
-      (cond
-        ((%hash-table-find/retry hash-table key #f) =>
-           %hash-node-value)
-        ((null? maybe-default) (error "hash-table-ref: no value associated with" key))
-        (else ((car maybe-default)))))
+    (define hash-table-ref
+      (case-lambda
+        ((hash-table key)
+          (cond
+            ((%hash-table-find/retry hash-table key #f) =>
+               %hash-node-value)
+            (else
+              (error "hash-table-ref: no value associated with" key))))
+        ((hash-table key default)
+          (cond
+            ((%hash-table-find/retry hash-table key #f) =>
+               %hash-node-value)
+            (else
+              (default))))))
 
     (define (hash-table-ref/default hash-table key default)
       (hash-table-ref hash-table key (lambda () default)))
@@ -230,21 +252,28 @@
             (hash-table-set-size! hash-table (+ 1 (hash-table-size hash-table)))
             (%hash-table-maybe-resize! hash-table)))))
 
-    (define (hash-table-update! hash-table key function . maybe-default)
-      (let ((node (%hash-table-find/retry hash-table key #f)))
-        (cond
-          (node
-            (%hash-node-set-value! node (function (%hash-node-value node))))
-          ((null? maybe-default)
-            (error "hash-table-update!: no value exists for key" key))
-          (else
-            (let ((entries (hash-table-entries hash-table)))
-              (%hash-table-add! entries
-                                (%hash-table-hash hash-table key)
-                                key
-                                (function ((car maybe-default)))))
-            (hash-table-set-size! hash-table (+ 1 (hash-table-size hash-table)))
-            (%hash-table-maybe-resize! hash-table)))))
+    (define hash-table-update!
+      (case-lambda
+        ((hash-table key function)
+          (let ((node (%hash-table-find/retry hash-table key #f)))
+            (cond
+              (node
+                (%hash-node-set-value! node (function (%hash-node-value node))))
+              (else
+                (error "hash-table-update!: no value exists for key" key)))))
+        ((hash-table key function default)
+          (let ((node (%hash-table-find/retry hash-table key #f)))
+            (cond
+              (node
+                (%hash-node-set-value! node (function (%hash-node-value node))))
+              (else
+                (let ((entries (hash-table-entries hash-table)))
+                  (%hash-table-add! entries
+                                    (%hash-table-hash hash-table key)
+                                    key
+                                    (function (default))))
+                (hash-table-set-size! hash-table (+ 1 (hash-table-size hash-table)))
+                (%hash-table-maybe-resize! hash-table)))))))
 
     (define (hash-table-update!/default hash-table key function default)
       (hash-table-update! hash-table key function (lambda () default)))
@@ -264,21 +293,21 @@
       (hash-table-walk hash-table (lambda (key value) (set! acc (f key value acc))))
       acc)
 
-    (define (alist->hash-table alist . args)
-      (let* ((comparison (if (null? args) equal? (car args)))
-             (hash
-                (if (or (null? args) (null? (cdr args)))
-                    (appropriate-hash-function-for comparison)
-                    (cadr args)))
-             (size
-                (if (or (null? args) (null? (cdr args)) (null? (cddr args)))
-                    (max *default-table-size* (* 2 (length alist)))
-                    (caddr args)))
-             (hash-table (make-hash-table comparison hash size)))
-        (for-each (lambda (elem)
-                    (hash-table-update!/default hash-table (car elem) (lambda (x) x) (cdr elem)))
-                  alist)
-        hash-table))
+    (define alist->hash-table
+      (case-lambda
+        ((alist)
+          (alist->hash-table alist equal?))
+        ((alist comparison)
+          (alist->hash-table alist comparison (appropriate-hash-function-for comparison)))
+        ((alist comparison hash)
+          (alist->hash-table alist comparison hash
+                             (max *default-table-size* (* 2 (length alist)))))
+        ((alist comparison hash size)
+          (let ((hash-table (make-hash-table comparison hash size)))
+            (for-each (lambda (elem)
+                        (hash-table-update!/default hash-table (car elem) (lambda (x) x) (cdr elem)))
+                      alist)
+            hash-table))))
 
     (define (hash-table->alist hash-table)
       (hash-table-fold hash-table
