@@ -208,6 +208,19 @@ static fold_result fold_forward_gget(trace *t, ir_ins *gget) {
   return fold_next();
 }
 
+static bool has_prior_abc(trace *t, slot obj, slot idx) {
+  uint16_t ref = t->cse_head[IR_ABC];
+  while (ref != UINT16_MAX) {
+    ir_ins *prev = &t->ins[ref];
+    if (prev->op != IR_NOP && same_slot(t, prev->op1, obj) &&
+        same_slot(t, prev->op2, idx)) {
+      return true;
+    }
+    ref = t->cse_prev[ref];
+  }
+  return false;
+}
+
 static bool same_cse_operands(trace *t, ir_ins *a, ir_ins *b) {
   if (a->type != b->type) {
     return false;
@@ -329,6 +342,12 @@ IRFOLDF(fold_guard_neq_any_const) {
   if (rhs_flonum != lhs_flonum) {
     return fold_drop();
   }
+  if (!in->op1.constant && !in->op2.constant && in->op1.loc > in->op2.loc) {
+    slot tmp = in->op1;
+    in->op1 = in->op2;
+    in->op2 = tmp;
+    return fold_retry();
+  }
   return fold_next();
 }
 
@@ -384,6 +403,13 @@ IRFOLDF(fold_mul_const_const) {
   return fold_const(vm_runtime_math_mul_slow(lhs, rhs));
 }
 
+IRFOLD(DIV CONST CONST)
+IRFOLDF(fold_div_const_const) {
+  auto lhs = t->consts[in->op1.loc];
+  auto rhs = t->consts[in->op2.loc];
+  return fold_const(vm_runtime_math_div_slow(lhs, rhs));
+}
+
 IRFOLD(QUOTIENT CONST CONST)
 IRFOLDF(fold_quotient_const_const) {
   auto lhs = t->consts[in->op1.loc];
@@ -426,6 +452,20 @@ IRFOLDF(fold_load_byte_const_const) {
   return fold_const(tag_fixnum((uint8_t)base->str[to_fixnum(off)]));
 }
 
+IRFOLD(LOAD_CHAR CONST CONST)
+IRFOLDF(fold_load_char_const_const) {
+  auto src = t->consts[in->op1.loc];
+  auto off = t->consts[in->op2.loc];
+  if (get_type_tag(src) != STRING_TAG) {
+    return fold_next();
+  }
+  assert(is_string(src));
+  assert(is_fixnum(off));
+  auto base = to_string(src);
+  assert(to_fixnum(off) >= 0 && to_fixnum(off) < to_fixnum(base->len));
+  return fold_const(tag_char((uint8_t)base->str[to_fixnum(off)]));
+}
+
 IRFOLD(INTEGER_CHAR CONST _)
 IRFOLDF(fold_integer_char_const) {
   if (!in->op1.constant)
@@ -454,6 +494,15 @@ IRFOLD(GT _ _)
 IRFOLD(LTE _ _)
 IRFOLD(GTE _ _)
 IRFOLDF(fold_self_cmp) {
+  if (!in->op1.constant && !in->op2.constant && in->op1.loc > in->op2.loc) {
+    slot tmp = in->op1;
+    in->op1 = in->op2;
+    in->op2 = tmp;
+    if (in->op != IR_EQ) {
+      in->op = swap_cmp_op(in->op);
+    }
+    return fold_retry();
+  }
   bool same = in->op1.constant == in->op2.constant &&
               (!in->op1.constant ||
                t->consts[in->op1.loc].value == t->consts[in->op2.loc].value) &&
@@ -808,30 +857,45 @@ IRFOLDF(fold_mod_one_rhs) {
   return fold_const(tag_fixnum(0));
 }
 
-/* // ABC any CONST -> fold constant k into ABC type */
-/* IRFOLD(ABC _ CONST) */
-/* IRFOLDF(fold_abc_k) { */
-/*   if (!in->op2.constant) */
-/*     return fold_next(); */
-/*   gc_obj k = t->consts[in->op2.loc]; */
-/*   if (!is_fixnum(k)) */
-/*     return fold_next(); */
-/*   in->op1 = (slot){.constant = true, .loc = in->op2.loc}; */
-/*   return fold_retry(); */
-/* } */
+// ABC obj, CONST(k2) is redundant if we already checked obj, CONST(k1) with
+// k1 >= k2.
+IRFOLD(ABC _ CONST)
+IRFOLDF(fold_abc_k) {
+  gc_obj k2 = t->consts[in->op2.loc];
+  if (!is_fixnum(k2))
+    return fold_next();
+  uint16_t ref = t->cse_head[IR_ABC];
+  while (ref != UINT16_MAX) {
+    ir_ins *prev = &t->ins[ref];
+    if (prev->op != IR_NOP && same_slot(t, prev->op1, in->op1) &&
+        prev->op2.constant) {
+      gc_obj k1 = t->consts[prev->op2.loc];
+      if (is_fixnum(k1) && to_fixnum(k1) >= to_fixnum(k2))
+        return fold_drop();
+    }
+    ref = t->cse_prev[ref];
+  }
+  return fold_next();
+}
 
-/* // ABC any ADD -> prepare for ADD-folding */
-/* IRFOLD(ABC _ ADD) */
-/* IRFOLDF(fold_abc_fwd) { */
-/*   if (in->op2.constant) */
-/*     return fold_next(); */
-/*   ir_ins *add = &t->ins[in->op2.loc]; */
-/*   if (add->op != IR_ADD) */
-/*     return fold_next(); */
-/*   if (in->op1.constant != add->op2.constant) */
-/*     return fold_next(); */
-/*   return fold_next(); */
-/* } */
+// ABC obj, ((i + k1) + k2) with k1 + k2 == 0 is redundant if ABC obj, i
+// already exists.
+IRFOLD(ABC _ ADD)
+IRFOLDF(fold_abc_fwd) {
+  if (in->op2.constant)
+    return fold_next();
+  ir_ins *add1 = &t->ins[in->op2.loc];
+  if (add1->op != IR_ADD || add1->op1.constant || !add1->op2.constant)
+    return fold_next();
+  ir_ins *add0 = &t->ins[add1->op1.loc];
+  if (add0->op != IR_ADD || add0->op1.constant || !add0->op2.constant)
+    return fold_next();
+  gc_obj k1 = t->consts[add0->op2.loc];
+  gc_obj k2 = t->consts[add1->op2.loc];
+  if (!is_fixnum(k1) || !is_fixnum(k2) || to_fixnum(k1) + to_fixnum(k2) != 0)
+    return fold_next();
+  return has_prior_abc(t, in->op1, add0->op1) ? fold_drop() : fold_next();
+}
 
 // ========== Category H: Commutative Canonicalization ==========
 
