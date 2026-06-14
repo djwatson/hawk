@@ -438,7 +438,7 @@
            (clause (car (ir-lambda-cases init)))
            (vars (car clause))
            (body (cadr clause)))
-      (dbg "inline-once-called: inline " (variable-full-name var))
+      ;;(dbg "inline-once-called: inline " (variable-full-name var))
       (build-let (map list vars args)
                  (rewrite (copy-ir body) defs (cons var active))
                  ann)))
