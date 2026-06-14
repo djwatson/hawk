@@ -1305,13 +1305,6 @@ static void emit_snap(emit_state *s, trace *t, uint16_t snap_idx) {
 }
 // NOLINTEND(clang-analyzer-core.NullDereference)
 
-static void emit_exit_to_c(emit_state *s) {
-  COMMENT("CEXIT");
-  emit_store_ralloc(s);
-  restore_callee_regs(s);
-  emit_ret(s);
-}
-
 static struct trace_result restore_snap(jit_exit_state *state) {
   snap *s = state->snap;
   trace *t = s->trace;
@@ -1384,8 +1377,7 @@ static struct trace_result restore_snap(jit_exit_state *state) {
   return (struct trace_result){.stack = new_stack, .snap = s};
 }
 
-static void emit_snapshot_exits(emit_state *s, trace *t, snap *snaps,
-                                label *exit_label) {
+static void emit_snapshot_exits(emit_state *s, trace *t, snap *snaps) {
   // There will always be at least two snapshots.  Don't write the last, it's
   // the loopback snap.
   for (uint64_t i = 0; i < arrlen(snaps) - 1; i++) {
@@ -2237,29 +2229,25 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // trace), or another trace (if a side trace).
   link_to_next_trace(s, t, link_entry_snap);
 
-  label exit_label = {};
   // Exist stubs for all but the loopback (last). These restore the scheme
   // stack state, putting any in-register values back on the stack, and boxing
   // flonums.
   auto end_no_snapshots = emit_offset(s);
-  emit_snapshot_exits(s, t, t->snaps, &exit_label);
+  emit_snapshot_exits(s, t, t->snaps);
 
-  emit_label(s, &exit_label);
-  emit_exit_to_c(s);
   auto end = emit_offset(s);
   t->code_end = (uint8_t *)end;
 
   emit_constant_pool(s);
   emit_writable_end(s);
 
+  if (hlog_mask & HLOG_ir) {
+    print_ir(t);
+  }
   auto sz = end - start;
   if (hlog_mask & HLOG_asm) {
     printf("Disassembly: %" PRId64 "\n", sz);
     disassemble((uint8_t *)start, end_no_snapshots - start, s->comments);
-  }
-
-  if (hlog_mask & HLOG_ir) {
-    print_ir(t);
   }
 
   // Cleanup

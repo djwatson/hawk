@@ -64,6 +64,7 @@ uint8_t *emit_imm32(emit_state *s, uint32_t imm);
 uint8_t *emit_imm64(emit_state *s, uint64_t imm);
 void emit_writable_begin(emit_state *s);
 void emit_writable_end(emit_state *s);
+size_t jit_space_used(emit_state *s);
 int add_constant(emit_state *s, double value);
 void load_constant(emit_state *s, int idx, uint8_t dst);
 void emit_constant_pool(emit_state *s);

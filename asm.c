@@ -14,7 +14,7 @@
 #include <pthread.h>
 #endif
 
-static const size_t page_cnt = 100000;
+static const size_t page_cnt = 1024; // about 4MB
 static const size_t msize = page_cnt * 4096;
 
 const char *const reg_names[FPR_REG_END] = {
@@ -204,6 +204,13 @@ void emit_writable_end(emit_state *s) {
 #if defined(__APPLE__) && defined(__aarch64__)
   pthread_jit_write_protect_np(1);
 #endif
+}
+
+size_t jit_space_used(emit_state *s) {
+  if (!s->mtop) {
+    return 0;
+  }
+  return (size_t)(s->p - s->mtop);
 }
 
 int add_constant(emit_state *s, double value) {

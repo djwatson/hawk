@@ -12,6 +12,7 @@
 
 #include "hawk.h"
 
+#include "asm.h"
 #include "foreign.h"
 #include "gc.h"
 #include "ir.h"
@@ -351,26 +352,18 @@ gc_obj *vm_callcc_resume_slow(vm_state *state, gc_obj captured) {
 gc_obj halt(vm_state *state, gc_obj *stack) {
   profiler_stop();
   jit_dump_close();
-  if (0) {
-    if (arrlen(trace_exit_counts) > 0) {
-      qsort(trace_exit_counts, arrlen(trace_exit_counts),
-            sizeof(trace_exit_counts[0]), compare_trace_exit_count);
-      printf("Trace exits:\n");
-      arr_for_each_idx(trace_exit_counts, i) {
-        auto entry = &trace_exit_counts[i];
-        if (entry->count > 100) {
-          printf("  trace %u snap_ir %u exits %llu\n", entry->trace_num,
-                 entry->snap_ir, (unsigned long long)entry->count);
-        }
-      }
-    }
-  }
-  if (hlog_mask & HLOG_jit) {
+
+  if (profile) {
     size_t up_recursive_traces = 0;
     size_t ret_traces = 0;
     size_t side_traces = 0;
     size_t normal_loop_traces = 0;
     auto traces = state->record.traces;
+    if (arrlen(traces)) {
+      printf("JIT space: %.2f KB %.2f B/trace\n",
+             (double)jit_space_used(&state->emit) / 1024.0,
+             (double)jit_space_used(&state->emit) / arrlen(traces));
+    }
     arr_for_each_idx(traces, i) {
       auto t = traces[i];
       if (t->parent_snap != nullptr) {
