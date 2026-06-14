@@ -6,8 +6,8 @@
 #include "ir.h"
 
 #include "array.h"
-#include "hashtable.h"
 #include "fold.h"
+#include "hashtable.h"
 
 char *ir_names[] = {
 #define X(name, type, sideeff) #name,
@@ -49,58 +49,74 @@ static uint32_t hash(uint32_t key, uint32_t hashval) {
   return key;
 }
 
+static bool try_hash(uint32_t *used, uint32_t *rules, size_t sz, uint32_t r) {
+  memset(used, 0xff, sizeof(uint32_t) * (sz + 1));
+  arr_for_each(rules, rule) {
+    uint32_t key = rule & 0xffffff;
+    uint32_t h = hash(key, r) % sz;
+    if (used[h] == 0xffffffff) {
+      used[h] = rule;
+      continue;
+    }
+    if (used[h + 1] != 0xffffffff) {
+      if (h >= sz - 1 || used[h + 2] != 0xffffffff) {
+        return false;
+      }
+      uint32_t h2 = hash(used[h + 1] & 0xffffff, r) % sz;
+      if (h2 != h + 1) {
+        return false;
+      }
+      used[h + 2] = used[h + 1];
+    }
+    used[h + 1] = rule;
+  }
+  return true;
+}
+
+static void emit_hash(size_t sz, uint32_t *used, uint32_t r) {
+  printf("static const uint32_t fold_hash[%zu] = {\n", sz + 1);
+  for (size_t i = 0; i <= sz; i++) {
+    printf("0x%08x,\n", used[i]);
+  }
+  printf("};\n\n");
+  printf("static uint32_t hashkey(uint32_t key) {\n");
+  printf("  key ^= key >> 16;\n");
+  printf("  key *= %u;\n", r);
+  printf("  key ^= key >> 16;\n");
+  printf("  key %%= %lu;\n", sz);
+  printf("  return key;\n");
+  printf("}\n");
+}
+
 static void find_hash(uint32_t *rules) {
   size_t rule_len = arrlen(rules);
   if (rule_len == 0) {
-    printf("FAILURE\n");
-    return;
+    fprintf(stderr, "Error: no fold rules found\n");
+    abort();
   }
 
-  uint32_t *used = malloc(rule_len * 2 * sizeof(uint32_t));
+  uint32_t *used = malloc((rule_len * 2 + 1) * sizeof(uint32_t));
   if (!used) {
     abort();
   }
 
-  for (size_t sz = rule_len; sz <= rule_len * 2; sz++) {
-    printf("//testing sz %li\n", sz);
-    for (uint64_t hashcnt = 0; hashcnt < 1000000; hashcnt++) {
-      bool success = true;
-      memset(used, 0xff, sizeof(uint32_t) * sz);
-      uint32_t hashval = rand();
-      arr_for_each(rules, rule) {
-        auto h = hash(rule & 0xffffff, hashval) % sz;
-        if (used[h] != 0xffffffff) {
-          success = false;
-          break;
-        }
-        used[h] = rule;
-      }
-      if (success) {
-        printf("static const uint32_t fold_hash[%li] = {\n", sz);
-        for (uint64_t i = 0; i < sz; i++) {
-          printf("0x%x,\n", used[i]);
-        }
-        printf("};\n\n");
-        printf("static uint32_t hashkey(uint32_t key) {\n");
-        printf("  key ^= key >> 16;\n");
-        printf("  key *= 0x%x;\n", hashval);
-        printf("  key ^= key >> 16;\n");
-        printf("  key %%= %li;\n", sz);
-        printf("  return key;\n");
-        printf("}\n");
+  for (size_t sz = rule_len | 1; sz < rule_len * 2; sz += 2) {
+    for (uint32_t r = 0; r < 32 * 32; r++) {
+      if (try_hash(used, rules, sz, r)) {
+        emit_hash(sz, used, r);
         free(used);
         return;
       }
     }
   }
+
   free(used);
-  printf("FAILURE\n");
+  fprintf(stderr, "Error: search for fold hash failed\n");
+  abort();
 }
 
 int main(int argc, char *argv[]) {
   uint64_t cur_func = 0;
-
-  srand(0);
 
   if (argc != 2) {
     abort();

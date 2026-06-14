@@ -27,6 +27,46 @@ static fold_result fold_retry(void) {
   return (fold_result){.action = FOLD_RETRY};
 }
 
+static bool numeric_is_one(gc_obj v) {
+  if (is_fixnum(v))
+    return to_fixnum(v) == 1;
+  if (is_flonum(v))
+    return to_flonum(v)->x == 1.0;
+  return false;
+}
+
+static bool is_neg_zero(trace *t, slot s, slot *out) {
+  if (s.constant)
+    return false;
+  ir_ins *ir = &t->ins[s.loc];
+  if (ir->op != IR_SUB)
+    return false;
+  if (!ir->op1.constant)
+    return false;
+  if (!numeric_is_zero(t->consts[ir->op1.loc]))
+    return false;
+  *out = ir->op2;
+  return true;
+}
+
+static slot make_fixnum_inst(trace *t, int64_t val) {
+  gc_obj const_val = tag_fixnum(val);
+  uint16_t const_idx = arrlen(t->consts);
+  arrput(t->consts, const_val);
+  auto ins = (ir_ins){
+      .op = IR_CONST,
+      .type = FIXNUM_TAG,
+      .guard = false,
+      .reg = REG_NONE,
+      .spill = SPILL_NONE,
+      .op1 = {.constant = true, .loc = const_idx},
+  };
+  uint16_t idx = arrlen(t->ins);
+  arrput(t->cse_prev, UINT16_MAX);
+  arrput(t->ins, ins);
+  return (slot){.constant = false, .loc = idx};
+}
+
 static bool same_slot(trace *t, slot a, slot b) {
   if (a.constant != b.constant) {
     return false;
@@ -386,6 +426,467 @@ IRFOLDF(fold_load_byte_const_const) {
   return fold_const(tag_fixnum((uint8_t)base->str[to_fixnum(off)]));
 }
 
+IRFOLD(INTEGER_CHAR CONST _)
+IRFOLDF(fold_integer_char_const) {
+  if (!in->op1.constant)
+    return fold_next();
+  gc_obj k = t->consts[in->op1.loc];
+  if (!is_fixnum(k))
+    return fold_next();
+  char c = (char)to_fixnum(k);
+  return fold_const(tag_char(c));
+}
+
+IRFOLD(CHAR_INTEGER CONST _)
+IRFOLDF(fold_char_integer_const) {
+  if (!in->op1.constant)
+    return fold_next();
+  gc_obj c = t->consts[in->op1.loc];
+  if (!is_char(c))
+    return fold_next();
+  return fold_const(tag_fixnum(to_char(c)));
+}
+
+// Self-comparison elimination for EQ/NE/order comparisons.
+IRFOLD(EQ _ _)
+IRFOLD(LT _ _)
+IRFOLD(GT _ _)
+IRFOLD(LTE _ _)
+IRFOLD(GTE _ _)
+IRFOLDF(fold_self_cmp) {
+  bool same = in->op1.constant == in->op2.constant &&
+              (!in->op1.constant ||
+               t->consts[in->op1.loc].value == t->consts[in->op2.loc].value) &&
+              (in->op1.constant || in->op1.loc == in->op2.loc);
+  if (!same)
+    return fold_next();
+  switch (in->op) {
+  case IR_EQ:
+    return fold_drop();
+  case IR_LT:
+    return fold_next();
+  case IR_GT:
+    return fold_next();
+  case IR_LTE:
+    return fold_drop();
+  case IR_GTE:
+    return fold_drop();
+  default:
+    return fold_next();
+  }
+}
+
+// ========== Category E-G: Algebraic Simplifications ==========
+
+// Double-negation elimination: SUB(0, SUB(0, x)) -> x
+IRFOLD(SUB CONST SUB)
+IRFOLDF(fold_double_neg) {
+  if (!in->op1.constant)
+    return fold_next();
+  if (!numeric_is_zero(t->consts[in->op1.loc]))
+    return fold_next();
+  slot inner;
+  if (!is_neg_zero(t, in->op2, &inner))
+    return fold_next();
+  return fold_ref(inner);
+}
+
+// (-a) + b -> b - a
+IRFOLD(ADD SUB _)
+IRFOLDF(fold_add_neg_lhs) {
+  slot a;
+  if (!is_neg_zero(t, in->op1, &a))
+    return fold_next();
+  in->op = IR_SUB;
+  in->op1 = in->op2;
+  in->op2 = a;
+  return fold_retry();
+}
+
+// a + (-b) -> a - b
+IRFOLD(ADD _ SUB)
+IRFOLDF(fold_add_neg_rhs) {
+  slot b;
+  if (!is_neg_zero(t, in->op2, &b))
+    return fold_next();
+  in->op = IR_SUB;
+  in->op2 = b;
+  return fold_retry();
+}
+
+// SUB x, CONST(0) -> x
+IRFOLD(SUB _ CONST)
+IRFOLDF(fold_sub_zero) {
+  if (!in->op2.constant)
+    return fold_next();
+  if (!numeric_is_zero(t->consts[in->op2.loc]))
+    return fold_next();
+  return fold_ref(in->op1);
+}
+
+// a - (-b) -> a + b
+IRFOLD(SUB _ SUB)
+IRFOLDF(fold_sub_neg_rhs) {
+  slot b;
+  if (!is_neg_zero(t, in->op2, &b))
+    return fold_next();
+  in->op = IR_ADD;
+  in->op2 = b;
+  return fold_retry();
+}
+
+// (-x) - k -> (-k) - x  (fixnum only)
+IRFOLD(SUB SUB CONST)
+IRFOLDF(fold_sub_neg_lhs_const) {
+  if (!in->op2.constant)
+    return fold_next();
+  slot x;
+  if (!is_neg_zero(t, in->op1, &x))
+    return fold_next();
+  gc_obj k = t->consts[in->op2.loc];
+  if (!is_fixnum(k))
+    return fold_next();
+  slot neg_k = make_fixnum_inst(t, -to_fixnum(k));
+  in->op1 = neg_k;
+  in->op2 = x;
+  return fold_retry();
+}
+
+// MUL x, CONST -> identity, *(-1), *2, *0
+IRFOLD(MUL _ CONST)
+IRFOLDF(fold_mul_const) {
+  if (!in->op2.constant)
+    return fold_next();
+  gc_obj k = t->consts[in->op2.loc];
+  if (numeric_is_one(k))
+    return fold_ref(in->op1);
+  if (numeric_is_zero(k) && in->type == FIXNUM_TAG)
+    return fold_const(tag_fixnum(0));
+  if (is_fixnum(k) && to_fixnum(k) == -1) {
+    slot zero = make_fixnum_inst(t, 0);
+    slot x = in->op1;
+    in->op = IR_SUB;
+    in->op1 = zero;
+    in->op2 = x;
+    return fold_retry();
+  }
+  if ((is_fixnum(k) && to_fixnum(k) == 2) ||
+      (is_flonum(k) && to_flonum(k)->x == 2.0)) {
+    in->op = IR_ADD;
+    in->op2 = in->op1;
+    return fold_retry();
+  }
+  return fold_next();
+}
+
+// DIV/QUOTIENT x, CONST(1) -> x
+IRFOLD(DIV _ CONST)
+IRFOLDF(fold_div_const) {
+  if (!in->op2.constant)
+    return fold_next();
+  if (numeric_is_one(t->consts[in->op2.loc]))
+    return fold_ref(in->op1);
+  return fold_next();
+}
+
+IRFOLD(QUOTIENT _ CONST)
+IRFOLDF(fold_quotient_const) {
+  if (!in->op2.constant)
+    return fold_next();
+  if (numeric_is_one(t->consts[in->op2.loc]))
+    return fold_ref(in->op1);
+  return fold_next();
+}
+
+// (-a) * k -> a * (-k)  (fixnum only)
+IRFOLD(MUL SUB _)
+IRFOLDF(fold_mul_neg_lhs) {
+  slot a;
+  if (!is_neg_zero(t, in->op1, &a))
+    return fold_next();
+  if (!in->op2.constant)
+    return fold_next();
+  gc_obj k = t->consts[in->op2.loc];
+  if (!is_fixnum(k))
+    return fold_next();
+  slot neg_k = make_fixnum_inst(t, -to_fixnum(k));
+  in->op1 = a;
+  in->op2 = neg_k;
+  return fold_retry();
+}
+
+// (-a) / k -> a / (-k)  (fixnum only)
+IRFOLD(DIV SUB _)
+IRFOLD(QUOTIENT SUB _)
+IRFOLDF(fold_div_neg_lhs) {
+  slot a;
+  if (!is_neg_zero(t, in->op1, &a))
+    return fold_next();
+  if (!in->op2.constant)
+    return fold_next();
+  gc_obj k = t->consts[in->op2.loc];
+  if (!is_fixnum(k))
+    return fold_next();
+  slot neg_k = make_fixnum_inst(t, -to_fixnum(k));
+  in->op1 = a;
+  in->op2 = neg_k;
+  return fold_retry();
+}
+
+// (-a) * (-b) -> a * b, (-a) / (-b) -> a / b
+IRFOLD(MUL SUB SUB)
+IRFOLD(DIV SUB SUB)
+IRFOLDF(fold_mul_div_neg_both) {
+  slot a, b;
+  if (!is_neg_zero(t, in->op1, &a))
+    return fold_next();
+  if (!is_neg_zero(t, in->op2, &b))
+    return fold_next();
+  in->op1 = a;
+  in->op2 = b;
+  return fold_retry();
+}
+
+// ADD x, CONST(0) -> x  (fixnum only)
+IRFOLD(ADD _ CONST)
+IRFOLDF(fold_add_const) {
+  if (!in->op2.constant)
+    return fold_next();
+  if (in->type != FIXNUM_TAG)
+    return fold_next();
+  if (!numeric_is_zero(t->consts[in->op2.loc]))
+    return fold_next();
+  return fold_ref(in->op1);
+}
+
+// SUB x, x -> CONST(0)  (fixnum only)
+IRFOLD(SUB _ _)
+IRFOLDF(fold_sub_self) {
+  if (in->type != FIXNUM_TAG)
+    return fold_next();
+  if (!same_slot(t, in->op1, in->op2))
+    return fold_next();
+  return fold_const(tag_fixnum(0));
+}
+
+// (i + j) - i -> j, (i + j) - j -> i  (fixnum only)
+IRFOLD(SUB ADD _)
+IRFOLDF(fold_sub_cancel_add) {
+  if (in->type != FIXNUM_TAG)
+    return fold_next();
+  if (in->op1.constant)
+    return fold_next();
+  ir_ins *add = &t->ins[in->op1.loc];
+  if (add->op != IR_ADD)
+    return fold_next();
+  if (!in->op2.constant) {
+    if (in->op2.loc == add->op1.loc)
+      return fold_ref(add->op2);
+    if (in->op2.loc == add->op2.loc)
+      return fold_ref(add->op1);
+  }
+  return fold_next();
+}
+
+// (i - j) - i -> 0 - j  (fixnum only)
+IRFOLD(SUB SUB _)
+IRFOLDF(fold_sub_cancel_sub_left) {
+  if (in->type != FIXNUM_TAG)
+    return fold_next();
+  if (in->op1.constant)
+    return fold_next();
+  ir_ins *sub = &t->ins[in->op1.loc];
+  if (sub->op != IR_SUB)
+    return fold_next();
+  if (!in->op2.constant && in->op2.loc == sub->op1.loc) {
+    slot zero = make_fixnum_inst(t, 0);
+    in->op1 = zero;
+    in->op2 = sub->op2;
+    return fold_retry();
+  }
+  return fold_next();
+}
+
+// i - (i - j) -> j  (fixnum only)
+IRFOLD(SUB _ SUB)
+IRFOLDF(fold_sub_cancel_sub_right) {
+  if (in->type != FIXNUM_TAG)
+    return fold_next();
+  if (in->op2.constant)
+    return fold_next();
+  ir_ins *sub = &t->ins[in->op2.loc];
+  if (sub->op != IR_SUB)
+    return fold_next();
+  if (!in->op1.constant && in->op1.loc == sub->op1.loc)
+    return fold_ref(sub->op2);
+  return fold_next();
+}
+
+// i - (i + j) -> 0 - j, i - (j + i) -> 0 - j  (fixnum only)
+IRFOLD(SUB _ ADD)
+IRFOLDF(fold_sub_cancel_add_right) {
+  if (in->type != FIXNUM_TAG)
+    return fold_next();
+  if (in->op2.constant)
+    return fold_next();
+  ir_ins *add = &t->ins[in->op2.loc];
+  if (add->op != IR_ADD)
+    return fold_next();
+  if (!in->op1.constant) {
+    if (in->op1.loc == add->op1.loc) {
+      slot zero = make_fixnum_inst(t, 0);
+      in->op1 = zero;
+      in->op2 = add->op2;
+      return fold_retry();
+    }
+    if (in->op1.loc == add->op2.loc) {
+      slot zero = make_fixnum_inst(t, 0);
+      in->op1 = zero;
+      in->op2 = add->op1;
+      return fold_retry();
+    }
+  }
+  return fold_next();
+}
+
+// (i + j) - (i + k) -> j - k, etc.  (fixnum only)
+IRFOLD(SUB ADD ADD)
+IRFOLDF(fold_sub_cancel_add_add) {
+  if (in->type != FIXNUM_TAG)
+    return fold_next();
+  if (in->op1.constant || in->op2.constant)
+    return fold_next();
+  ir_ins *l = &t->ins[in->op1.loc];
+  ir_ins *r = &t->ins[in->op2.loc];
+  if (l->op != IR_ADD || r->op != IR_ADD)
+    return fold_next();
+  if (l->op1.loc == r->op1.loc) {
+    in->op1 = l->op2;
+    in->op2 = r->op2;
+    return fold_retry();
+  }
+  if (l->op2.loc == r->op1.loc) {
+    in->op1 = l->op1;
+    in->op2 = r->op2;
+    return fold_retry();
+  }
+  if (l->op1.loc == r->op2.loc) {
+    in->op1 = l->op2;
+    in->op2 = r->op1;
+    return fold_retry();
+  }
+  if (l->op2.loc == r->op2.loc) {
+    in->op1 = l->op1;
+    in->op2 = r->op1;
+    return fold_retry();
+  }
+  return fold_next();
+}
+
+// MOD CONST(0), any -> CONST(0)  (fixnum only)
+IRFOLD(MOD CONST _)
+IRFOLDF(fold_mod_zero_lhs) {
+  if (!in->op1.constant)
+    return fold_next();
+  if (in->type != FIXNUM_TAG)
+    return fold_next();
+  if (!numeric_is_zero(t->consts[in->op1.loc]))
+    return fold_next();
+  return fold_const(tag_fixnum(0));
+}
+
+// MOD any, CONST(1) -> CONST(0)  (fixnum only)
+IRFOLD(MOD _ CONST)
+IRFOLDF(fold_mod_one_rhs) {
+  if (!in->op2.constant)
+    return fold_next();
+  if (in->type != FIXNUM_TAG)
+    return fold_next();
+  gc_obj k = t->consts[in->op2.loc];
+  if (!is_fixnum(k) || !numeric_is_one(k))
+    return fold_next();
+  return fold_const(tag_fixnum(0));
+}
+
+/* // ABC any CONST -> fold constant k into ABC type */
+/* IRFOLD(ABC _ CONST) */
+/* IRFOLDF(fold_abc_k) { */
+/*   if (!in->op2.constant) */
+/*     return fold_next(); */
+/*   gc_obj k = t->consts[in->op2.loc]; */
+/*   if (!is_fixnum(k)) */
+/*     return fold_next(); */
+/*   in->op1 = (slot){.constant = true, .loc = in->op2.loc}; */
+/*   return fold_retry(); */
+/* } */
+
+/* // ABC any ADD -> prepare for ADD-folding */
+/* IRFOLD(ABC _ ADD) */
+/* IRFOLDF(fold_abc_fwd) { */
+/*   if (in->op2.constant) */
+/*     return fold_next(); */
+/*   ir_ins *add = &t->ins[in->op2.loc]; */
+/*   if (add->op != IR_ADD) */
+/*     return fold_next(); */
+/*   if (in->op1.constant != add->op2.constant) */
+/*     return fold_next(); */
+/*   return fold_next(); */
+/* } */
+
+// ========== Category H: Commutative Canonicalization ==========
+
+// H2: ADD/MUL any, any -> swap so lower ref is on the right (for CSE)
+IRFOLD(ADD _ _)
+IRFOLD(MUL _ _)
+IRFOLDF(fold_comm_swap) {
+  if (!in->op1.constant && !in->op2.constant && in->op1.loc > in->op2.loc) {
+    slot tmp = in->op1;
+    in->op1 = in->op2;
+    in->op2 = tmp;
+    return fold_retry();
+  }
+  return fold_next();
+}
+
+// ========== Category I: Dead Store Elimination ==========
+
+IRFOLD(STORE _ _)
+IRFOLD(STORE_CHAR _ _)
+IRFOLD(STORE_BYTE _ _)
+IRFOLDF(fold_dse) {
+  uint16_t store_ref = t->cse_head[in->op];
+  slot store_op1 = in->op1;
+  while (store_ref != UINT16_MAX) {
+    ir_ins *prev = &t->ins[store_ref];
+    if (prev->op == IR_NOP) {
+      store_ref = t->cse_prev[store_ref];
+      continue;
+    }
+    if (same_slot(t, prev->op1, store_op1)) {
+      *prev = (ir_ins){.op = IR_NOP, .reg = REG_NONE, .spill = SPILL_NONE};
+      break;
+    }
+    store_ref = t->cse_prev[store_ref];
+  }
+  return fold_next();
+}
+
+// ========== Category J: Identity folds for INEXACT/EXACT/TRUNCATE ==========
+IRFOLD(INEXACT INEXACT _)
+IRFOLDF(fold_inexact_inexact) { return fold_ref(in->op1); }
+IRFOLD(EXACT EXACT _)
+IRFOLDF(fold_exact_exact) { return fold_ref(in->op1); }
+IRFOLD(TRUNCATE TRUNCATE _)
+IRFOLDF(fold_truncate_truncate) { return fold_ref(in->op1); }
+
+// INEXACT(EXACT(x)) -> x for flonum x
+IRFOLD(INEXACT EXACT _)
+IRFOLDF(fold_inexact_exact) {
+  if (!in->op1.constant && t->ins[in->op1.loc].type == FLONUM_TAG)
+    return fold_ref(t->ins[in->op1.loc].op1);
+  return fold_next();
+}
+
 #undef cur_ins
 
 #include "fold_gen.h"
@@ -397,6 +898,9 @@ static fold_result fold_one(trace *t, ir_ins *in) {
     uint32_t k = key | any;
     uint32_t h = hashkey(k);
     uint32_t fh = fold_hash[h];
+    if ((fh & 0xffffff) != k) {
+      fh = fold_hash[h + 1];
+    }
     if ((fh & 0xffffff) == k) {
       auto res = fold_func_table[fh >> 24](t, in);
       if (res.action != FOLD_NEXT) {
