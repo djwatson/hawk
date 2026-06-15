@@ -4,7 +4,8 @@ Hawk2 improvements:
 [x] Figure out why pi and maze pycket tests fail in hawk
 [x] Simplify regalloc
 [x] Finish pycket analysis 
-[ ] ☄️Auto flvector 
+[x] ☄️Auto flvector 
+   * missing fallback conversion
 [x] ☄️ Make real port type
 [x] Rc gc - probably no speed bump but will reduce memory usage by 3x
 [x] IR ABC array bounds check
@@ -42,12 +43,9 @@ IR_ABC
 ## slow vs Chez
 
 * fibc, ctak: we copy twice on continuations, so it is unsurprising ctak is 2x slower.
-* [x] read1, dynamic: our reader is slower for some reason, mostly ports, a tiny bit searching for delimiters.
-                  hashtables are slow for string keys, presumably this is string->symbol.  a C string hasher would be faster.
-* [x] graphs: needs an inliner, many things are called once and require inlining to prevent GC hits.
+* compiler, dynamic - super branchy?  something else?
 
 Every other test is within noise.
-
 
 ## slow VM
 For the VM specifically, we could speed up these, but it wouldn't really affect JIT.
