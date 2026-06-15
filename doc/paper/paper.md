@@ -1,17 +1,14 @@
 ---
-title: "Tracing Tail Calls: A Scheme-Specific Tracing JIT"
-author: "David Watson"
+title: "Tracing Tail Calls: A Tracing JIT for Scheme"
+author: "Dave Watson"
 date: "\\today"
 bibliography: references.bib
 link-citations: true
+header-includes: |
+  \usepackage[outputdir=build]{minted2}
+  \usemintedstyle{trac}
 abstract: |
-  TODO: Write this last.
-
-  Possible draft:
-
-  This paper presents a tracing just-in-time compiler for Scheme that adapts trace formation to Scheme's execution model, where loops are commonly expressed as tail calls rather than backward branches. The system detects hot tail-call cycles, records traces through stable Scheme control paths, and specializes those traces using Scheme-level facts including procedure identity, closure layout, global binding stability, arity, and numeric representation. On the standard R7RS benchmark suite, the JIT provides large speedups on flonum-heavy benchmarks while remaining near break-even on most non-numeric workloads. These results suggest that a compact tracing JIT can significantly accelerate numeric Scheme programs, but that broader gains require additional optimization of allocation, higher-order calls, and symbolic workloads.
-
-  TODO: Replace vague phrases with actual measurements. State the benchmark suite precisely. State the baseline precisely. Avoid claiming more novelty than the evidence supports.
+	Tracing JITs are an easy way to implement a JIT for dynamic languages.  They are often quicker than a full method JIT, while allowing incremental implementation.  They trace starting from inner loops, and add side traces to connect loops.  Scheme, however, does not contain loops: loops are implemented as recursion.  In this paper we explore implementing a tracing JIT for scheme, and in particular how we detect loops, up recursion, down recursion. We also implement polymorphic traces, and inlining of global assumptions to increase the performance of the JIT.   We show large speedups on flonum-heavy benchmarks due to unboxing flonums in the JIT, while non-flonum benchmarks are similar to other best-in-class scheme compilers.
 ---
 
 <!--
@@ -26,573 +23,165 @@ dave's notes
   uprec/downrec? POLYmorphic traces!!!
 - callcc in traces is EASY
 - apply a little less so (finish this!)
+- 
+- TODO optimizations to add:
+- integer range opt, helps sum not need overflow checks
+- auto flvector, fft and nbody 
+- sinking / alloc removal (probably dynamic, graphs)
+- explicit type for ports (dynamic, read1, parsing, etc)
+- opt_loop.  Not really sure 
 -->
 
-## Introduction
+## Trace types
 
-Scheme implementations face a difficult performance tradeoff. The language encourages small procedures, higher-order programming, closures, proper tail calls, generic arithmetic, dynamic binding environments, and interactive redefinition [@sussman1998scheme; @r7rs; @dybvig2009scheme]. These features are attractive to programmers but complicate traditional ahead-of-time compilation and conventional loop detection.
+Traces are split in to several types: Root traces, which are always loops. They begin either at function headers or loop headers, when loop analysis is enabled.  Up-recursive traces are also loops, and are found nearly identically to root loops: They begin at the start of functions, with the only difference being the stack is not even when they end.  
 
-Tracing JIT compilers can be a good fit for dynamic languages because they optimize hot execution paths rather than entire programs [@gal2009tracemonkey; @bolz2009pypy; @pallluajit]. However, many tracing systems identify loops using syntactic or bytecode-level backward branches. In Scheme, many loops are not represented as explicit backward branches at all. They are tail calls: self-recursive procedures, named `let` loops, or mutually recursive functions.
+### Finding root loops
 
-This paper presents TODO: system name, a tracing JIT for TODO: Scheme implementation. The system adapts tracing to Scheme by treating hot tail-call recurrence as a loop-discovery mechanism. It records traces across stable tail-call paths and specializes those traces using runtime facts about closures, global bindings, procedure entrypoints, arity, and numeric representations.
+Root loops start at function headers, or loop headers, and continue tracing until we end at the SAME instruction header.  However, a naive trace may not capture a full loop.  For example:
 
-The implementation is evaluated using the standard R7RS benchmark suite. The main result is TODO: summary of benchmark result, for example: "large speedups on flonum-heavy programs, up to TODO×, while most other benchmarks remain within TODO% of the interpreter baseline."
+``` scheme
+(define (x a b) 
+  (g a b) 
+  (g a b) 
+  (x a b))
+```
 
-### Contributions
+If we started a trace at the start of g at the first call, the second call to g would result in running the same instruction, and hence end the loop.  Additional heuristics are needed to cause a trace to cover the full x loop, and not just the part between g.  For root and up-recursive traces, we count the call-depth, and if the call depth were ever to fall below 0, the trace is aborted.  For example, if a trace started at a call to g above, when g returned, the call depth would be below 0, and immediately abort.  If we start a trace at x, the call-depth during g would be 1, and return to 0 (twice for two calls to g), then call x.  Since in this example x is in tail position, we would NOT increment the call depth, so we would have a full loop.   If x was not in tail position, the depth at the end of the loop would be 1, resulting in an up-recursive trace. 
 
-This paper makes the following contributions:
+Luajit calls this ‘Natural Loop First’ (NLF) [@pallluajit]
 
-1. **Tail-call loop discovery for tracing Scheme.**  
-   The JIT identifies hot loops through repeated tail calls rather than relying only on bytecode backward branches.
+### Side traces
 
-2. **Scheme-specific trace boundaries.**  
-   The system starts, stops, and links traces according to Scheme control-flow events such as procedure entry, tail calls, arity checks, and unknown calls.
+Side traces may begin at any snapshot exit.  Side traces do NOT have the restriction that the depth cannot go below 0.  Once the depth is below 0, since the trace did not record where the call was from, we must guard that the return address is the same as when we recorded the trace.  This is done with the IR_RET instruction. 
 
-3. **Runtime promotion of Scheme-level facts.**  
-   The JIT promotes stable globals, closure identities, closure layouts, procedure entrypoints, arity, and numeric representations into guarded assumptions.
+Side traces are not restricted to ending at the same root trace - they end when they encounter *any* matching root trace (matching explained in X.X section).  
 
-4. **Empirical evaluation on R7RS benchmarks.**  
-   The evaluation shows that the JIT gives large improvements for flonum-heavy code while generally breaking even on non-numeric workloads.
+### Down recursive traces
 
-TODO:
-- Decide whether "order of magnitude" is supported by the final data.
-- Mention whether speedups are against the interpreter, against JIT-disabled Hawk, or against other Scheme implementations.
-- Add one sentence about limitations.
+Down recursive traces start and return at a returning bytecode op.  Since we don’t generally want to record a down-recursive trace without a matching up-recursive trace, down recursion is ONLY detected and started while on a side trace.  While side trace recording, we count how many RET instructions we’ve passed, and where they lead.  If we determine this may be down-recursion, we stop at the RET instruction, abort the current trace, and start recording a down recursive trace, which MUST end at the same RET instruction.  
 
----
+Similarly to how downrecursive traces are detected and tracing restarted, if we detect up-recursion in a side trace, we also abort the current trace and restart as an up-recursive traces.
 
-## Background
+### Trace arguments in register
 
-### Scheme Execution Model
+The trace infrastructure described so far is very similar to how LuaJit functions [@pallluajit], but now we trod new ground. 
 
-TODO: Explain only the Scheme features needed for this paper. Avoid writing a full Scheme tutorial.
+Since traces begin at only function start, loop start, or return statements, we know the arguments to each of these.  We put in register the first X arguments given in each case (we currently match X to the calling convention of the target arch: 6 for x64, 8 for aarch64).  This means for loops or side traces connecting back to a root loop, most arguments stay in register the whole time, even without any additional loop optimization.  
 
-Relevant features:
+LuaJit used ‘lj_opt_loop’ for the same purpose [@pallluajit] - it will automatically peel the first iteration of every loop, and figure out which stack loads need to be phis.  For root loops, this actually works even better, however, it does not work for side traces.  In testing on scheme code, it was found very important to get recursive calls and side traces to maintain register arguments as well. 
 
-- proper tail calls;
-- first-class procedures;
-- closures and captured variables;
-- generic arithmetic;
-- dynamic procedure calls;
-- top-level and library bindings;
-- possible global redefinition or mutation;
-- fixnums and flonums;
-- optional: multiple values, `apply`, rest arguments, continuations, if relevant.
+### Polymorphic traces
 
-Important point:
+Root traces record the types of arguments on entry.   When we try to link back to this root trace (either from the same trace as a root loop, or from a side trace back too a root loop), we check if the incoming arguments match the previously recorded ones.  If so, we can push the typechecking back to the incoming trace, since many of the arguments are ALREADY typechecked there.  In addition, we maintain a linked-list of root traces all starting in the same location, but with different starting arguments.  This polymorphic splitting allows specialized traces to maintain entirely different traces, which is important for traces that use different types of registers, e.g. fixnum vs. flonum.  
 
-> In Scheme, loops are often procedure calls. A named `let`, for example, is naturally compiled as a recursive procedure whose recursive edge is a tail call.
-
-Example:
+As an example:
 
 ```scheme
-(let loop ((i 0) (sum 0.0))
-  (if (= i n)
-      sum
-      (loop (+ i 1) (+ sum x))))
+(define (fib a) 
+  (if (< a 2) 
+    a 
+    (+ (fib (- a 1) 
+	   (fib (- a 2))))))
 ```
 
-TODO:
-- Describe how this is represented in Hawk bytecode or VM internals.
-- Show a bytecode snippet if useful.
-- Explain whether named `let` becomes an actual procedure/closure in Hawk or whether some cases are compiled specially.
+If we call (fib 40), we will eventually trace fib with a fixnum argument.  If later we call (fib 40.0), we will make an entirely new trace, with all flonum arguments.  This is different than inlining both flonum/fixnum fast paths , since we will never typecheck flonum or fixnum at all.  TODO better example, maybe sum, since this will box and put on stack anyway.  Show example traces.  Some schemes will only insert fast paths based on the numbers used, i.e. (< a 2.0) will assume flonums, while (< a 2) will assume fixnums.
 
-### Tracing JIT Compilation
-
-A tracing JIT observes program execution, identifies hot paths, records operations along those paths, and compiles the resulting trace into machine code. Guards protect assumptions made during recording. If a guard fails, execution exits the trace and resumes in the interpreter or another compiled trace.
-
-Terms used in this paper:
-
-- **Trace:** TODO: define in Hawk terms.
-- **Guard:** TODO.
-- **Side exit:** TODO.
-- **Snapshot:** TODO.
-- **Promotion:** TODO.
-- **Trace root:** TODO.
-- **Tail-call loop:** TODO.
-
-TODO:
-- Keep this section conceptual.
-- Save detailed comparisons to LuaJIT, PyPy, TraceMonkey, etc. for Related Work.
-
-### Why Scheme Is Awkward for Conventional Tracing
-
-Conventional tracing systems often start traces at hot loop headers identified by backward branches. Scheme complicates this in several ways:
-
-1. Many loops are compiled as tail calls.
-2. Tail calls may target closures rather than fixed bytecode labels.
-3. Higher-order calls obscure the callee until runtime.
-4. Generic arithmetic and global variable lookup introduce dispatch overhead.
-5. Proper tail calls require stack behavior different from ordinary calls.
-6. Short symbolic benchmarks may not run long enough to amortize compilation.
-
-TODO:
-- Add a concrete example where a bytecode-backward-branch detector would miss a Scheme loop.
-- Add a contrasting example where a normal branch inside a function is not itself a loop.
-
----
-
-## System Overview
-
-TODO: This is the map of the machine.
-
-The implementation consists of:
-
-- bytecode interpreter;
-- hotness counters;
-- trace recorder;
-- intermediate representation;
-- optimizer;
-- machine-code backend;
-- side-exit mechanism;
-- runtime support for guards and fallback.
-
-Possible diagram:
-
-```text
-source -> compiler -> bytecode
-                       |
-                       +-> interpreter
-                       |
-                       +-> recorder
-                           -> IR
-                           -> optimizer
-                           -> machine code
-```
-
-TODO:
-- Replace with a better diagram later.
-- Include a table of important bytecodes if useful.
-
-### Baseline VM
-
-TODO:
-- Describe the VM architecture.
-- Stack-based or register-based?
-- How are calls represented?
-- How are tail calls represented?
-- How are closures represented?
-- How are globals represented?
-- What bytecodes matter most for tracing?
-
-### Value Representation
-
-TODO: Fill in the exact representation.
-
-Suggested subsections:
-
-- fixnums;
-- flonums;
-- pairs, vectors, strings;
-- closures;
-- booleans, null, EOF, undefined;
-- global binding cells.
-
-Important point to explain:
-
-> Numeric fast paths rely on guarding that values have stable numeric representations and then using unboxed machine operations within the trace.
-
-TODO:
-- Explain boxing/unboxing points.
-- Explain overflow handling for fixnums.
-- Explain flonum allocation or unboxing policy.
-
-### JIT Pipeline
-
-TODO: Describe the pipeline concretely.
-
-Possible pipeline:
-
-1. interpreter counts hot execution events;
-2. hot tail-call target becomes a trace candidate;
-3. recorder observes one execution path;
-4. trace IR is emitted;
-5. guards and snapshots are attached;
-6. trace is optimized;
-7. machine code is emitted;
-8. future execution enters compiled trace;
-9. guard failure exits to interpreter or another trace.
-
-TODO:
-- Add actual details from Hawk.
-- Mention whether the JIT is method-based, trace-based, or hybrid.
-- Mention whether traces are single-entry/single-exit, multi-exit, linked, etc.
-
----
-
-## Tail-Call Loop Discovery
-
-This is probably the paper's central technical section.
-
-### Problem
-
-In many bytecode systems, a loop can be detected by a backward branch. In Scheme, the most important loop idiom is often a tail call. A compiler may represent a named `let` or recursive function as a procedure call whose target is the current procedure or a mutually recursive procedure.
-
-TODO:
-- State exactly how Hawk observes tail calls.
-- State what runtime event increments the hotness counter.
-- State whether hotness is associated with the caller, callee, call site, bytecode PC, closure entrypoint, or some combination.
-
-### Self Tail Calls
-
-TODO: Explain the easy case.
-
-Example:
+After we discover an initial root loop however, additional polymorphic traces are NOT required to be loops, and function similarly to side traces, which may return and link to other root loops.  For example, a simplified list? Function:
 
 ```scheme
-(define (sum-loop i acc n)
-  (if (= i n)
-      acc
-      (sum-loop (+ i 1) (+ acc i) n)))
+(define (list? a) 
+  (or (and (pair? a) (list? (cdr a)))
+      (null? a)))
 ```
 
-A self tail call creates a dynamic recurrence: control returns to the same procedure entrypoint with new arguments and no additional continuation frame.
+The initial trace of list?  MUST be a pair type, otherwise it will never form a loop.  After the initial traces, additional polymorphic traces of type nil, or anything non-pair or non-nil, will start as additional polymorphic traces, however, they will never form a loop, so a root-loop-only restriction would be too narrow, and instead we allow them to return, and link to other root loops.
 
-TODO:
-- Explain how this becomes a trace root.
-- Explain where recording starts.
-- Explain where recording stops.
-- Explain how arguments become loop-carried variables.
+### Tracing through
 
-### Named `let`
+In addition to polymorphic traces, we also allow side traces to ‘trace through’ an already-recorded trace instead of linking to it, if the trace arguments do not match.  Again, the list? example is informative: If a side traces called list? With an actual list, we WANT to link to the root trace, however if it is calling list? With nil, it will result in a SINGLE guard of type nil, so inlining the call in the existing side trace makes more sense.  This also allows unrolling of a small number of iterations of the loop before aborting (and eventually try tracing again)
 
-TODO: Explain whether named `let` is just a special case of self tail calls or has a distinct representation.
 
-Example:
+### Lazy typechecking
+
+The trace recorder records all types seen, but only lazily typechecks those that actually need a known type.  For example, taken from either divrec or diviter benchmarks, loading a cons cell does NOT automatically typecheck the value, or does storing it:
 
 ```scheme
-(let loop ((i 0) (acc 0))
-  (if (= i n)
-      acc
-      (loop (+ i 1) (+ acc i))))
+(cons (car a) (cddr a))
 ```
 
-TODO:
-- Show source-to-bytecode lowering if it helps.
-- Explain whether the JIT sees this as a procedure loop.
+`a` is typechecked to be a cons type, but the car of a is never typechecked, even though it is loaded to register, and stored back to a new cons cell.
 
-### Mutual Tail Calls
+## Promotion to constants
 
-TODO: Decide whether this is supported, partially supported, or future work.
+Several types are important to promote to constants in scheme: global variables are often constant, as are some closures.
 
-Example:
+### Constant globals
+
+Globals in scheme are either top level global variables, or top level library variables.  Unlike other schemes, we do not enforce that top level library variables are immutable.  Globals are assumed to be immutable, and the value is inlined in any traces recorded as a constant.  If we later call set! On any global variable, all traces that made assumptions about that global are invalidated (the current system flushes *all* traces).  On all tests and the benchmark suite, this happens only very rarely, since usually a mutable global is discovered before we ever record a trace to it (and instead of a constant, we emit a normal global load in any traces involving that global).
+
+### Constant closures
+
+There are many cases where a closure is required, however, that closure is essentially a singleton, and only ever created once.  We track this on a per-function bases: if a function only has one closure created for it, we assume it is constant with the same mechanism as above, and all closure loads are also constant for it.
+
+## Tracing call/cc
+
+Currently all opcodes except APPLY are traced, including call-with-current-continuation.  At first glance it may seem hard to trace through a call/cc, but actually turns out to be quite easy: A call/cc entry makes an intrinsic call to the same C runtime function as the VM to save the current stack and package it as a closure, but otherwise is just a function call the same as any other.  
+
+On call/cc return, or calling the captured closure, we currently insert a RET check, the same as a side trace, since we don’t statically know which continuation we’re returning to.  Additionally, an intrinsic call is inserted to replace the current continuation with the given continuation (exactly the same as the VM).  Then, we are able to continue tracing just as if there was no call/cc at all.
+
+## Tracing case-lambda
+
+Tracing case-lambda is quite simple in this system: Since function calls know the number of arguments they are making, and at the entry to each function, we check the argument count, we don’t even need to know the argument count after recording the trace: it is either on trace, or it takes a side exit.  We can package up rest-arguments on trace as well. 
+
+The only exception is the APPLY opcode: we need to record apply, and then record which of the case-lambda cases we took.  We don’t want to overly constrain to the exact argument count, we only constrain to the number of fixed args, and call an intrinsic to package the rest list.  This means as long as the fixed args still match, we can handle any-length rest argument list.
+
+## Analysis of trace types and trace stability
+
+Currently <TODO insert table> our profiler shows >95% on-trace for all benchmarks, however, most of the scheme benchmarks are quite long.
+
+During testing, a mode was implemented where a deterministic tracing schedule was used - normally traces are recorded when they are discovered to be hot with a (lossy) hotness counter.  When instead we record via deterministic schedule, we decide, in advance, that the X’th FUNC or LOOP will be recorded.  By using different starting seeds, we are able to trace in many different orders. This was initially used to shake out bugs in the trace emitter (i.e. bad register allocations).
+
+It was found that using different seeds, the tracing was remarkably stable - the same number and location of root traces were found, and similar numbers of side traces, even though the traces were initially recorded in different orders.  <TODO insert table with stddev bars for trace counts and types>.  
+
+
+## Tracing complications
+
+The initial tracing infrastructure did NOT use or require LOOP analysis, and converting of some tail calls back in to loops.  However it was discovered that this analysis was important for removing ALLOCATIONS, not for helping the tracing infrastructure.  For example:
 
 ```scheme
-(define (even? n)
-  (if (= n 0) #t (odd? (- n 1))))
-
-(define (odd? n)
-  (if (= n 0) #f (even? (- n 1))))
+(define (foo a) 
+  (let loop ()
+    (bar a)
+	(loop a)))
 ```
 
-Questions to answer:
+If loop was de structured to a function call, it would have to create a closure to hold a, while a LOOP bytecode will instead be able to load it from the stack.  
 
-- Can a trace span multiple procedure entrypoints?
-- Are mutually recursive tail calls treated as one loop or multiple traces?
-- Does trace recording stop at a different entrypoint?
-- Are targets guarded by procedure identity or entrypoint identity?
+For a root loop ONLY this is not particularly important, since closures are constant, it will be able to constant-ify the closure load.  But if foo itself is in a loop, the closure will still have to be created every time, resulting in many more allocations than if we are able to stack-allocate a.  
 
-### Trace Start and Stop Rules
+This is the main downside of tracing that we’ve discovered so far: Since tracing functions inside-out, loops-within-loops result in worse behavior than if we were able to trace the whole double-loop together.   Allocations created in the innermost loop are able to be removed with allocation sinking, but if an allocation in the outer loop is passed to the inner loop, we are not able to remove it, since we never re-record the inner loop with new knowledge from the outer loop.
 
-TODO: This needs to be crisp and maybe include pseudocode.
 
-Possible rules:
+## Related work
 
-- start recording when a tail-call target exceeds a hotness threshold;
-- stop when execution returns to the same trace root;
-- stop at unsupported bytecodes;
-- stop at unstable call targets;
-- stop at non-tail calls, or record through known non-tail calls if supported;
-- abort recording on excessive trace length;
-- abort recording on too many side exits.
+### Pycket
 
-TODO: Replace with actual rules.
+Pycket is a tracing jit for racket, based on the pypy / rpython meta-tracing framework [@bauman2015pycket].  It implements a CEK virtual machine, which rpython is then able to JIT.  Using a generic meta-tracing framework has advantages and disadvantages: Pycket uses a much more complicated scheme to detect root traces: Either a combination of previous-PC and current PC (i.e. specific call locations), or a whole-program graph flow analysis.  This is probably due to restrictions in how rpython works.  
 
-Possible pseudocode:
+Rpython had already broken much ground on specific representation analysis, so auto-flvector support (and even unboxing of things like cons cells and boxes for assignment conversion) was easy to add.
 
-```text
-on_tail_call(target, args):
-    key = trace_key(target)
-    count[key] += 1
-    if count[key] == HOT_THRESHOLD:
-        begin_recording(key, target, args)
+Pycket’s choice of CEK machine also makes the usual tradeoff: continuation benchmarks like fibc or ctak are quite fast, to the detriment of any benchmark that is heavy on function calls but does not use continueations much.
 
-while recording:
-    record_next_bytecode()
-    if unsupported_operation:
-        abort_trace()
-    if tail_call_to_root:
-        close_trace()
-    if trace_too_long:
-        abort_or_compile_partial_trace()
-```
+### Nash
 
-TODO:
-- Make this pseudocode match the implementation.
-- Explain what `trace_key` contains.
+Nash is another tracing jit, based on guile’s VM [@hoshino2016nash]. Guile’s VM is very close to ours, and hence many of the benchmarks are quite similar.  However, guile is a mature system with many opcodes to implement, and Nash never did cover them all, so many traces abort with unimplemented opcodes
 
----
+### Guile
 
-## Trace Recording and IR
-
-### Trace IR
-
-TODO:
-- Describe the IR.
-- Is it SSA-like?
-- Is it linear?
-- Does it distinguish boxed Scheme values from unboxed machine values?
-- How are guards represented?
-- How are runtime calls represented?
-- How are allocations represented?
-
-Possible table:
-
-| IR operation | Meaning | Notes |
-|---|---|---|
-| `guard_fixnum` | TODO | TODO |
-| `guard_flonum` | TODO | TODO |
-| `add_fixnum` | TODO | TODO |
-| `add_flonum` | TODO | TODO |
-| `guard_proc` | TODO | TODO |
-| `load_global` | TODO | TODO |
-| `guard_global_version` | TODO | TODO |
-| `side_exit` | TODO | TODO |
-
-### Guards
-
-TODO: Explain the guard model.
-
-Likely guards:
-
-- value is fixnum;
-- value is flonum;
-- fixnum operation does not overflow;
-- global binding cell has expected value or version;
-- closure has expected entrypoint;
-- closure has expected layout;
-- procedure has expected arity;
-- branch condition follows recorded path;
-- vector/string/pair has expected type.
-
-TODO:
-- Which of these are implemented?
-- Which are future work?
-- How expensive is a guard?
-- Where does a guard exit to?
-
-### Snapshots
-
-TODO: This is important for credibility.
-
-A snapshot records enough state to resume execution outside the trace when a guard fails.
-
-Explain:
-
-- what values are saved;
-- how interpreter stack state is reconstructed;
-- how live locals are mapped;
-- how loop-carried values are represented;
-- whether snapshots are compressed;
-- whether snapshots store boxed values, unboxed values, or recipes for reconstruction.
-
-TODO:
-- Include a small example trace and its snapshot.
-
-### Side Exits and Trace Linking
-
-TODO:
-- What happens when a guard fails?
-- Does the system always return to the interpreter?
-- Can side exits become hot and compile new traces?
-- Can side exits be patched to compiled traces?
-- How is correctness preserved?
-
----
-
-## Scheme-Specific Specialization
-
-This is the other major technical section.
-
-### Global Binding Promotion
-
-Scheme global lookup can be expensive if every access must consult a dynamic environment or binding cell. If a global binding is stable during trace recording, the JIT can promote it into a guarded assumption.
-
-TODO:
-- Describe Hawk's global representation.
-- Are globals binding cells?
-- Is there a version counter?
-- Does mutation invalidate traces or cause guard failure?
-- How are imported library bindings handled?
-
-Possible claim:
-
-> Global promotion allows calls to primitives such as `+`, `<`, `fl+`, or vector operations to avoid repeated dynamic lookup inside hot traces.
-
-TODO:
-- Make this precise. Do not claim primitive names that do not exist.
-
-### Closure and Procedure Promotion
-
-Higher-order calls are common in Scheme. During tracing, a call site may repeatedly target the same closure or procedure. The JIT can specialize the call path by guarding the observed closure identity or entrypoint.
-
-TODO:
-- Which fact is promoted: object identity, entrypoint, code pointer, arity, closure layout, or all of these?
-- Can two closures with the same entrypoint but different free variables share compiled paths?
-- Are free variables loaded directly from the closure?
-- Are closure-free procedures called without a closure argument?
-- How does this interact with your closure-sharing policy?
-
-### Arity Specialization
-
-TODO:
-- Explain fixed arity checks.
-- Explain rest arguments if supported.
-- Explain `apply` if supported.
-- Explain what happens on wrong arity.
-
-Important question:
-
-> Is arity checked before entering a trace, inside the trace, or both?
-
-### Numeric Specialization
-
-Numeric specialization is the most visible performance win.
-
-TODO:
-- Explain generic arithmetic baseline.
-- Explain fixnum fast paths.
-- Explain overflow guards.
-- Explain flonum fast paths.
-- Explain boxing/unboxing.
-- Explain fallback to generic arithmetic.
-
-Possible benchmark-oriented paragraph:
-
-> Flonum-heavy benchmarks benefit because traces remove repeated generic arithmetic dispatch and keep intermediate values in unboxed machine registers. This turns a loop that would otherwise allocate or dispatch on each arithmetic operation into a small sequence of floating-point machine instructions plus guards.
-
-TODO:
-- Verify against actual implementation.
-- If flonums are boxed at loop boundaries only, say that.
-- If flonums are still boxed internally, do not claim otherwise.
-
-### Tail Calls and Proper Tail Recursion
-
-TODO:
-- Explain how compiled traces preserve proper tail calls.
-- Does entering a trace allocate a call frame?
-- Does a tail call inside a trace reuse the current frame?
-- How are interpreter and compiled stack states reconciled?
-
----
-
-## Optimization and Code Generation
-
-### Optimization Passes
-
-TODO: List implemented optimizations only.
-
-Possible optimizations:
-
-- constant folding;
-- guard simplification;
-- redundant type-check elimination;
-- common subexpression elimination;
-- dead code elimination;
-- numeric unboxing;
-- branch folding;
-- bounds-check elimination;
-- allocation sinking;
-- trace stitching.
-
-TODO:
-- Mark unimplemented ideas as future work, not as existing features.
-
-### Register Allocation
-
-TODO:
-- Describe the register allocator.
-- Linear scan? Reverse linear scan? Simple fixed-register lowering?
-- How are live values at guards handled?
-- How are values spilled?
-- How are snapshots related to spills?
-
-### Machine Code Backend
-
-TODO:
-- Target architecture: x86-64, AArch64, both?
-- Calling convention.
-- Runtime calls.
-- Guard failure stubs.
-- Code memory allocation.
-- Trace entry protocol.
-- Trace exit protocol.
-
----
-
-## Evaluation
-
-This section should be empirical and conservative.
-
-### Methodology
-
-TODO:
-- Machine specs.
-- OS and compiler.
-- Hawk commit hash.
-- Build flags.
-- Benchmark suite version.
-- Number of runs.
-- Warmup policy.
-- Timing method.
-- Whether GC time is included.
-- Whether compile time is included.
-- Statistical reporting: median, min, mean, standard deviation.
-
-Recommended reporting:
-
-- use median of N runs;
-- include compile time unless clearly separated;
-- report speedup relative to Hawk interpreter;
-- separately report comparison against other Scheme implementations.
-
-### Benchmarks
-
-TODO: List the exact R7RS benchmarks used.
-
-Suggested classifications:
-
-- Flonum-heavy numeric: large JIT win.
-- Fixnum-heavy numeric: moderate to large win.
-- Allocation-heavy symbolic: break-even or slight loss.
-- Higher-order/control-heavy: mixed.
-- Short-running/startup-heavy: compile overhead dominates.
-
-TODO:
-- Classify actual benchmarks after measuring.
-- Do not force the classification if the data disagrees.
-
-### Baselines
-
-Suggested baselines:
-
-1. Hawk interpreter, JIT disabled.
-2. Hawk JIT enabled.
-3. Optional: Hawk JIT with selected optimizations disabled.
-4. Other Scheme implementations for context:
-   - Chibi;
-   - Gambit;
-   - Guile;
-   - Chez;
-   - Larceny or Loko if easy and fair.
-
-TODO:
-- Be clear that mature compilers are context, not necessarily direct apples-to-apples baselines.
-- Explain interpreter vs native compiler differences.
+Guile has acquired a JIT in recent versions, however, it is only a template JIT, so it does not do many optimizations, other than a tiny bit of register allocation [@guilejit].  For example, it does not do inlining at all.
 
 ### Overall Results
-
-TODO: Insert main results table.
 
 <!-- BENCHMARK_CHART -->
 
@@ -603,241 +192,36 @@ TODO: Insert main results table.
 \Description{Bar chart of x64 benchmark runtime changes relative to Chez.}
 \end{figure*}
 
-\begin{figure*}
-\centering
-\includegraphics[width=\textwidth]{generated/benchmark_percent_aarch64.pdf}
-\caption{aarch64 Hawk runtime change relative to Chez. Negative values indicate that Hawk is faster; positive values indicate that Hawk is slower.}
-\Description{Bar chart of aarch64 benchmark runtime changes relative to Chez.}
-\end{figure*}
-
 <!-- /BENCHMARK_CHART -->
-
-Example result fields:
-
-- benchmark;
-- Hawk interpreter time;
-- Hawk JIT time;
-- speedup;
-- category.
-
-TODO:
-- Use seconds or milliseconds consistently.
-- Report speedup as baseline / JIT.
-- Highlight geometric mean only if meaningful.
 
 ### Flonum-Heavy Results
 
-TODO: This is likely the strongest results subsection.
-
-Questions to answer:
-
-- Which benchmarks improve the most?
-- Are gains caused by unboxed flonum arithmetic?
-- Are generic arithmetic dispatches removed?
-- How much trace compilation occurs?
-- How many exits occur?
-
-Possible paragraph:
-
-> The largest speedups occur in flonum-heavy benchmarks. These programs execute long-running numeric loops with stable operand types, allowing the recorder to produce traces with few side exits. Once compiled, the traces avoid repeated generic arithmetic dispatch and execute mostly floating-point machine operations.
-
-TODO:
-- Replace with concrete evidence.
-
 ### Non-Numeric Results
-
-TODO: Be honest.
-
-Possible paragraph:
-
-> On most non-numeric benchmarks, the JIT is approximately break-even with the interpreter. These benchmarks spend more time in allocation, symbolic dispatch, list traversal, or runtime calls, and they expose fewer long stable numeric traces. This suggests that the current tracing strategy successfully avoids major slowdowns on general workloads, but does not yet optimize enough of Scheme's symbolic execution model to produce broad speedups.
-
-TODO:
-- Add actual data.
-- Identify slowdowns honestly.
-- Explain whether compile overhead, guard exits, GC, or unsupported operations are the cause.
 
 ### Ablation Study
 
-TODO: Add if feasible. This would strengthen the paper a lot.
-
-Possible ablations:
-
-- JIT without flonum specialization.
-- JIT without global promotion.
-- JIT without closure promotion.
-- JIT without side-exit linking.
-- JIT with higher/lower hotness threshold.
-
-Example ablation fields:
-
-- configuration;
-- flonum speedup;
-- overall speedup;
-- notes.
-
-TODO:
-- Even one or two ablations are useful.
-
 ### Trace Behavior
 
-TODO: Add instrumentation if possible.
-
-Useful metrics:
-
-- number of traces compiled;
-- number of trace aborts;
-- number of side exits;
-- average trace length;
-- compile time;
-- time spent in compiled code vs interpreter;
-- number of guard failures;
-- number of global/closure promotions.
-
-This can explain why some benchmarks win and others do not.
+Trace behavior
 
 ---
 
 ## Discussion
 
-### Why Flonum Code Wins
-
-TODO: Explain the result in implementation terms.
-
-Likely reasons:
-
-- long stable loops;
-- predictable operand types;
-- arithmetic maps directly to machine instructions;
-- generic arithmetic dispatch removed;
-- branch behavior stable;
-- few side exits.
-
-### Why General Code Breaks Even
-
-TODO: Explain without sounding defensive.
-
-Likely reasons:
-
-- allocation and GC dominate;
-- list/pair-heavy code still calls runtime helpers;
-- symbolic code has less stable type information;
-- higher-order calls need better inlining;
-- short benchmarks do not amortize compilation;
-- current optimizer is intentionally small.
-
-### Correctness and Dynamic Semantics
-
-TODO:
-- Explain how guards preserve dynamic behavior.
-- Explain global mutation/redefinition handling.
-- Explain fallback to interpreter.
-- Explain unsupported features.
 
 ### Limitations
 
-TODO: Be blunt. This helps credibility.
-
-Possible limitations:
-
-- only one architecture currently supported;
-- limited optimization pipeline;
-- limited support for continuations, if true;
-- limited inlining;
-- no allocation sinking, if true;
-- no advanced trace scheduling;
-- no mature GC integration for JIT metadata, if true;
-- benchmark suite may not represent interactive Scheme workloads.
 
 ### Future Work
-
-Possible future work:
-
-- better higher-order call specialization;
-- inlining through known closures;
-- allocation sinking;
-- escape analysis;
-- improved side-exit trace linking;
-- continuation support;
-- better flonum unboxing across calls;
-- typed arrays or specialized numeric vectors;
-- method JIT fallback for code that traces poorly;
-- improved profiler and trace visualizer.
 
 ---
 
 ## Related Work
 
-TODO: This section needs citations later.
-
-### Tracing JITs
-
-Tracing JITs have been used successfully in production and research dynamic-language systems [@gal2009tracemonkey; @bolz2009pypy; @pallluajit].
-
-Discuss:
-
-- Dynamo;
-- TraceMonkey;
-- LuaJIT;
-- PyPy tracing JIT;
-- SELF / type feedback if relevant.
-
-Focus comparison:
-
-- conventional loop-header detection vs tail-call loop discovery;
-- type specialization;
-- guards and side exits;
-- snapshots/deoptimization.
-
-### Scheme Implementations
-
-Chez Scheme and Gambit provide mature points of comparison for native-code Scheme implementation strategies [@dybvigchez; @feeley2007gambit].
-
-Discuss:
-
-- Chez Scheme;
-- Gambit;
-- Guile;
-- Chibi;
-- Larceny;
-- Loko;
-- Bigloo / Stalin if relevant.
-
-Focus comparison:
-
-- ahead-of-time or method compilation;
-- native code generation;
-- treatment of tail calls;
-- numeric performance;
-- dynamic compilation, if any.
-
-### Dynamic Language Optimization
-
-Possible topics:
-
-- inline caches;
-- type feedback;
-- global/binding invalidation;
-- closure optimization;
-- unboxed numeric paths.
-
-TODO:
-- Keep related work tied to your claims.
-- Do not write an encyclopedia.
 
 ---
 
 ## Conclusion
-
-TODO: Write after evaluation.
-
-Possible draft:
-
-> This paper presented a tracing JIT for Scheme centered on tail-call loop discovery. By treating repeated tail calls as traceable loops and promoting stable Scheme-level facts such as global bindings, closure entrypoints, arity, and numeric representation, the system can generate efficient code for hot Scheme paths without requiring whole-program compilation. Evaluation on the R7RS benchmark suite shows that this approach is especially effective for flonum-heavy numeric programs, where speedups reach TODO, while most non-numeric programs remain near interpreter performance. These results suggest that tracing is a viable strategy for compact Scheme implementations, but that broader performance gains require deeper optimization of allocation-heavy and higher-order symbolic workloads.
-
-TODO:
-- Replace TODO with actual numbers.
-- Keep claims modest and clear.
 
 ---
 
@@ -845,54 +229,9 @@ TODO:
 
 TODO: Include one complete small example.
 
-Suggested example:
-
-```scheme
-(let loop ((i 0) (x 0.0))
-  (if (= i n)
-      x
-      (loop (+ i 1) (+ x 1.5))))
-```
-
-Show:
-
-1. source;
-2. bytecode;
-3. recorded trace IR;
-4. optimized trace IR;
-5. rough machine-code shape;
-6. guards and snapshots.
 
 ---
 
-## Appendix B: Benchmark Harness
-
-TODO:
-- Include exact commands.
-- Include build flags.
-- Include benchmark runner script.
-- Include raw data format.
-
-Command placeholders:
-
-- Hawk interpreter command.
-- Hawk JIT command.
-- Other implementation commands.
-
----
-
-## Appendix C: Threats to Validity
-
-TODO:
-- Benchmark representativeness.
-- Warmup choices.
-- Hardware dependence.
-- Comparison fairness across Scheme implementations.
-- Implementation maturity.
-- Compile time accounting.
-- GC behavior.
-
----
 
 ## Scratch Notes / Claims to Verify
 

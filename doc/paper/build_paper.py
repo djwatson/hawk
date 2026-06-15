@@ -12,6 +12,106 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
+
+# Patched trac.pygstyle: Name.Builtin (nb) uses same bold-red as Name.Function (nf)
+TRAC_PYGSTYLE_PATCHED = r"""
+\makeatletter
+\def\PYG@reset{\let\PYG@it=\relax \let\PYG@bf=\relax%
+    \let\PYG@ul=\relax \let\PYG@tc=\relax%
+    \let\PYG@bc=\relax \let\PYG@ff=\relax}
+\def\PYG@tok#1{\csname PYG@tok@#1\endcsname}
+\def\PYG@toks#1+{\ifx\relax#1\empty\else%
+    \PYG@tok{#1}\expandafter\PYG@toks\fi}
+\def\PYG@do#1{\PYG@bc{\PYG@tc{\PYG@ul{%
+    \PYG@it{\PYG@bf{\PYG@ff{#1}}}}}}}
+\def\PYG#1#2{\PYG@reset\PYG@toks#1+\relax+\PYG@do{#2}}
+
+\@namedef{PYG@tok@w}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.73,0.73}{##1}}}
+\@namedef{PYG@tok@c}{\let\PYG@it=\textit\def\PYG@tc##1{\textcolor[rgb]{0.60,0.60,0.53}{##1}}}
+\@namedef{PYG@tok@cp}{\let\PYG@bf=\textbf\def\PYG@tc##1{\textcolor[rgb]{0.60,0.60,0.60}{##1}}}
+\@namedef{PYG@tok@cs}{\let\PYG@bf=\textbf\let\PYG@it=\textit\def\PYG@tc##1{\textcolor[rgb]{0.60,0.60,0.60}{##1}}}
+\@namedef{PYG@tok@o}{\let\PYG@bf=\textbf}
+\@namedef{PYG@tok@s}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.53,0.27}{##1}}}
+\@namedef{PYG@tok@sr}{\def\PYG@tc##1{\textcolor[rgb]{0.50,0.50,0.00}{##1}}}
+\@namedef{PYG@tok@m}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.60,0.60}{##1}}}
+\@namedef{PYG@tok@k}{\let\PYG@bf=\textbf}
+\@namedef{PYG@tok@kt}{\let\PYG@bf=\textbf\def\PYG@tc##1{\textcolor[rgb]{0.27,0.33,0.53}{##1}}}
+\@namedef{PYG@tok@nb}{\let\PYG@bf=\textbf\def\PYG@tc##1{\textcolor[rgb]{0.60,0.00,0.00}{##1}}}
+\@namedef{PYG@tok@nf}{\let\PYG@bf=\textbf\def\PYG@tc##1{\textcolor[rgb]{0.60,0.00,0.00}{##1}}}
+\@namedef{PYG@tok@nc}{\let\PYG@bf=\textbf\def\PYG@tc##1{\textcolor[rgb]{0.27,0.33,0.53}{##1}}}
+\@namedef{PYG@tok@ne}{\let\PYG@bf=\textbf\def\PYG@tc##1{\textcolor[rgb]{0.60,0.00,0.00}{##1}}}
+\@namedef{PYG@tok@nn}{\def\PYG@tc##1{\textcolor[rgb]{0.33,0.33,0.33}{##1}}}
+\@namedef{PYG@tok@nv}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.50,0.50}{##1}}}
+\@namedef{PYG@tok@no}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.50,0.50}{##1}}}
+\@namedef{PYG@tok@nt}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.00,0.50}{##1}}}
+\@namedef{PYG@tok@na}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.50,0.50}{##1}}}
+\@namedef{PYG@tok@ni}{\def\PYG@tc##1{\textcolor[rgb]{0.50,0.00,0.50}{##1}}}
+\@namedef{PYG@tok@gh}{\def\PYG@tc##1{\textcolor[rgb]{0.60,0.60,0.60}{##1}}}
+\@namedef{PYG@tok@gu}{\def\PYG@tc##1{\textcolor[rgb]{0.67,0.67,0.67}{##1}}}
+\@namedef{PYG@tok@gd}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.00,0.00}{##1}}\def\PYG@bc##1{{\setlength{\fboxsep}{0pt}\colorbox[rgb]{1.00,0.87,0.87}{\strut ##1}}}}
+\@namedef{PYG@tok@gi}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.00,0.00}{##1}}\def\PYG@bc##1{{\setlength{\fboxsep}{0pt}\colorbox[rgb]{0.87,1.00,0.87}{\strut ##1}}}}
+\@namedef{PYG@tok@gr}{\def\PYG@tc##1{\textcolor[rgb]{0.67,0.00,0.00}{##1}}}
+\@namedef{PYG@tok@ge}{\let\PYG@it=\textit}
+\@namedef{PYG@tok@gs}{\let\PYG@bf=\textbf}
+\@namedef{PYG@tok@ges}{\let\PYG@bf=\textbf\let\PYG@it=\textit}
+\@namedef{PYG@tok@gp}{\def\PYG@tc##1{\textcolor[rgb]{0.33,0.33,0.33}{##1}}}
+\@namedef{PYG@tok@go}{\def\PYG@tc##1{\textcolor[rgb]{0.53,0.53,0.53}{##1}}}
+\@namedef{PYG@tok@gt}{\def\PYG@tc##1{\textcolor[rgb]{0.67,0.00,0.00}{##1}}}
+\@namedef{PYG@tok@err}{\def\PYG@tc##1{\textcolor[rgb]{0.65,0.09,0.09}{##1}}\def\PYG@bc##1{{\setlength{\fboxsep}{0pt}\colorbox[rgb]{0.89,0.82,0.82}{\strut ##1}}}}
+\@namedef{PYG@tok@kc}{\let\PYG@bf=\textbf}
+\@namedef{PYG@tok@kd}{\let\PYG@bf=\textbf}
+\@namedef{PYG@tok@kn}{\let\PYG@bf=\textbf}
+\@namedef{PYG@tok@kp}{\let\PYG@bf=\textbf}
+\@namedef{PYG@tok@kr}{\let\PYG@bf=\textbf}
+\@namedef{PYG@tok@bp}{\def\PYG@tc##1{\textcolor[rgb]{0.60,0.60,0.60}{##1}}}
+\@namedef{PYG@tok@fm}{\let\PYG@bf=\textbf\def\PYG@tc##1{\textcolor[rgb]{0.60,0.00,0.00}{##1}}}
+\@namedef{PYG@tok@vc}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.50,0.50}{##1}}}
+\@namedef{PYG@tok@vg}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.50,0.50}{##1}}}
+\@namedef{PYG@tok@vi}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.50,0.50}{##1}}}
+\@namedef{PYG@tok@vm}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.50,0.50}{##1}}}
+\@namedef{PYG@tok@sa}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.53,0.27}{##1}}}
+\@namedef{PYG@tok@sb}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.53,0.27}{##1}}}
+\@namedef{PYG@tok@sc}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.53,0.27}{##1}}}
+\@namedef{PYG@tok@dl}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.53,0.27}{##1}}}
+\@namedef{PYG@tok@sd}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.53,0.27}{##1}}}
+\@namedef{PYG@tok@s2}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.53,0.27}{##1}}}
+\@namedef{PYG@tok@se}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.53,0.27}{##1}}}
+\@namedef{PYG@tok@sh}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.53,0.27}{##1}}}
+\@namedef{PYG@tok@si}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.53,0.27}{##1}}}
+\@namedef{PYG@tok@sx}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.53,0.27}{##1}}}
+\@namedef{PYG@tok@s1}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.53,0.27}{##1}}}
+\@namedef{PYG@tok@ss}{\def\PYG@tc##1{\textcolor[rgb]{0.73,0.53,0.27}{##1}}}
+\@namedef{PYG@tok@mb}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.60,0.60}{##1}}}
+\@namedef{PYG@tok@mf}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.60,0.60}{##1}}}
+\@namedef{PYG@tok@mh}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.60,0.60}{##1}}}
+\@namedef{PYG@tok@mi}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.60,0.60}{##1}}}
+\@namedef{PYG@tok@il}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.60,0.60}{##1}}}
+\@namedef{PYG@tok@mo}{\def\PYG@tc##1{\textcolor[rgb]{0.00,0.60,0.60}{##1}}}
+\@namedef{PYG@tok@ow}{\let\PYG@bf=\textbf}
+\@namedef{PYG@tok@ch}{\let\PYG@it=\textit\def\PYG@tc##1{\textcolor[rgb]{0.60,0.60,0.53}{##1}}}
+\@namedef{PYG@tok@cm}{\let\PYG@it=\textit\def\PYG@tc##1{\textcolor[rgb]{0.60,0.60,0.53}{##1}}}
+\@namedef{PYG@tok@cpf}{\let\PYG@it=\textit\def\PYG@tc##1{\textcolor[rgb]{0.60,0.60,0.53}{##1}}}
+\@namedef{PYG@tok@c1}{\let\PYG@it=\textit\def\PYG@tc##1{\textcolor[rgb]{0.60,0.60,0.53}{##1}}}
+\def\PYGZbs{\char`\\}
+\def\PYGZus{\char`\_}
+\def\PYGZob{\char`\{}
+\def\PYGZcb{\char`\}}
+\def\PYGZca{\char`\^}
+\def\PYGZam{\char`\&}
+\def\PYGZlt{\char`\<}
+\def\PYGZgt{\char`\>}
+\def\PYGZsh{\char`\#}
+\def\PYGZpc{\char`\%}
+\def\PYGZdl{\char`\$}
+\def\PYGZhy{\char`\-}
+\def\PYGZsq{\char`\'}
+\def\PYGZdq{\char`\"}
+\def\PYGZti{\char`\~}
+\def\PYGZat{@}
+\def\PYGZlb{[}
+\def\PYGZrb{]}
+\makeatother
+"""
 BENCH = ROOT / "doc" / "bench"
 GENERATED = HERE / "generated"
 BUILD = HERE / "build"
@@ -88,10 +188,17 @@ def write_chart(arch, rows):
   plt.close(fig)
 
 
-def build_pdf(review):
+def build_pdf(review, no_acm=False):
   out = BUILD / "hawk-paper.pdf"
   tex = BUILD / "hawk-paper.tex"
   BUILD.mkdir(parents=True, exist_ok=True)
+  # Pre-create pygstyle so minted doesn't generate it: make Name.Builtin
+  # (used by pygments for scheme builtins like list?, pair?, cdr, etc.)
+  # use the same color as Name.Function (bold red) instead of grey.
+  (BUILD / "_minted-hawk-paper").mkdir(parents=True, exist_ok=True)
+  style = (BUILD / "_minted-hawk-paper" / "trac.pygstyle")
+  if not style.exists():
+    style.write_text(TRAC_PYGSTYLE_PATCHED, encoding="utf-8")
   env = os.environ.copy()
   tex_path = str(HERE / "tex") + os.pathsep
   env["TEXINPUTS"] = tex_path + env.get("TEXINPUTS", "")
@@ -100,26 +207,43 @@ def build_pdf(review):
   class_options = ["sigplan"]
   if review:
     class_options += ["anonymous", "review"]
+  if no_acm:
+    class_options += ["nonacm"]
+
+  paper_text = PAPER.read_text(encoding="utf-8")
+  if no_acm:
+    paper_text = paper_text.replace(
+      "header-includes: |",
+      "header-includes: |\n"
+      "  \\settopmatter{printccs=false}\n"
+      "  \\setcopyright{none}\n"
+    )
+
+  paper_input = BUILD / "paper.md"
+  paper_input.write_text(paper_text, encoding="utf-8")
   cmd = [
     "pandoc",
-    str(PAPER.relative_to(HERE)),
+    str(paper_input.relative_to(HERE)),
     "--from", "markdown+raw_tex",
     "--standalone",
     "--number-sections",
     "--shift-heading-level-by=-1",
     "--natbib",
+    "--lua-filter", str((HERE / "minted.lua").relative_to(HERE)),
     "-V", "documentclass=acmart",
     "-V", "biblio-style=ACM-Reference-Format",
     "-V", "indent=true",
   ]
   for option in class_options:
-    cmd.extend(["-V", f"classoption={option}"])
-  cmd.extend(["-o", str(tex.relative_to(HERE))])
+    cmd += ["-V", f"classoption={option}"]
+  cmd += ["-o", str(tex.relative_to(HERE))]
   subprocess.run(cmd, check=True, cwd=HERE, env=env)
   text = tex.read_text(encoding="utf-8")
   match = re.search(r"\n\\maketitle\n+(\\begin\{abstract\}.*?\\end\{abstract\}\n)", text, re.S)
   if match:
     text = text[:match.start()] + "\n" + match.group(1) + "\\maketitle\n" + text[match.end():]
+  if no_acm:
+    text = text.replace("\\date{\\today}", "\\date{}")
   def table(match):
     spec, body = match.group(1), match.group(2)
     body = re.sub(r"\\endhead\n\\bottomrule\\noalign\{\}\n\\endlastfoot\n", "", body)
@@ -129,7 +253,7 @@ def build_pdf(review):
   text = re.sub(r"\\begin\{longtable\}\[\]\{(.*?)\}\n(.*?)\\end\{longtable\}", table, text, flags=re.S)
   tex.write_text(text, encoding="utf-8")
   stem = str(tex.relative_to(HERE).with_suffix(""))
-  latex = ["pdflatex", "-interaction=nonstopmode", "-halt-on-error", "-output-directory", "build", str(tex.relative_to(HERE))]
+  latex = ["pdflatex", "-interaction=nonstopmode", "-halt-on-error", "-shell-escape", "-output-directory", "build", str(tex.relative_to(HERE))]
   subprocess.run(latex, check=True, cwd=HERE, env=env)
   subprocess.run(["bibtex", stem], check=True, cwd=HERE, env=env)
   subprocess.run(latex, check=True, cwd=HERE, env=env)
@@ -142,7 +266,7 @@ def parse_args():
   parser.add_argument(
     "--mode",
     choices=("review", "camera-ready"),
-    default="review",
+    default="camera-ready",
     help="review uses acmart anonymous+review options; camera-ready omits them",
   )
   parser.add_argument(
@@ -159,6 +283,13 @@ def parse_args():
     dest="mode",
     help="build without anonymous review options",
   )
+  parser.add_argument(
+    "--acm",
+    action="store_false",
+    dest="no_acm",
+    help="include ACM boilerplate (copyright, reference format, conference header)",
+  )
+  parser.set_defaults(no_acm=True)
   return parser.parse_args()
 
 
@@ -171,7 +302,7 @@ def main():
     return 1
   for arch, rows in rows_by_arch.items():
     write_chart(arch, rows)
-  out = build_pdf(args.mode == "review")
+  out = build_pdf(review=args.mode == "review", no_acm=args.no_acm)
   print(f"wrote {out.relative_to(ROOT)} ({args.mode})")
   return 0
 

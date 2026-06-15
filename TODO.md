@@ -1,6 +1,13 @@
 ## Release checklist
 
 Hawk2 improvements:
+[ ] figure out why dynamic is so much slower than oldhawk
+    * assq vs. assv, inlining in C?
+	* gc too aggressive? roots take too long? ???
+	* maybe stack too big?
+[ ] compiler.scm is slower
+    * seems to mostly be JIT perf - too much array.h use, especially snapshots and labels
+	* port over snapshot compression
 [x] Figure out why pi and maze pycket tests fail in hawk
 [x] Simplify regalloc
 [x] Finish pycket analysis 
@@ -16,6 +23,8 @@ IR_ABC
 [ ] ☄️ int range analysis for loops and add/sub/mul overflow (requires abc & loop opt)
 
 [ ] Optimize vm - set/get type opcodes, builtins. Even farther - gcall, vn math and cmp ops
+
+[ ] GC: missing lines, missing backup SATB cycle collector.  background thread for decrements?
 
 [ ] Reify code generator tester!!!! So good. Generate ast. Choose a path. Generate symbolic and send to z3, then use z3 solution! To print a complete program. Can force a loop with at least X , so we can even ensure jit runs!
 [x] Port over all the fold rules from luajit, pypy, dstrogov ir, or use z3 to prove new ones 
