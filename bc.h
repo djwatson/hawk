@@ -65,9 +65,11 @@
   X(STORE, ABC)                                                                \
   X(STORE_CHAR, ABC)                                                           \
   X(STORE_BYTE, ABC)                                                           \
+  X(FLVECTOR_SET, ABC)                                                         \
   X(LOAD, ABC)                                                                 \
   X(LOAD_CHAR, ABC)                                                            \
   X(LOAD_BYTE, ABC)                                                            \
+  X(FLVECTOR_REF, ABC)                                                         \
   X(FUNC, A)                                                                   \
   X(ARGCNT_ERROR, A)                                                           \
   X(JFUNC, AD)                                                                 \

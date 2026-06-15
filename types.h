@@ -98,7 +98,8 @@ typedef struct bcfunc {
   X(BIGNUM, 0x39)                                                              \
   X(COMPNUM, 0x41)                                                             \
   X(BYTEVECTOR, 0x49)                                                          \
-  X(PORT, 0x51)
+  X(PORT, 0x51)                                                                \
+  X(FLVECTOR, 0x61)
 
 // Immediates.  Bottom three bits must be LITERAL_TAG.
 // Uses bottom byte, and other 7 bytes used for storing literal.
@@ -117,7 +118,7 @@ extern char *immediate_tag_names[];
 
 enum : uint8_t {
 #define X(name, num) name##_TAG = (num),
-  LOW_TAGS IMMEDIATE_TAGS PTR_TAGS X(FLVECTOR, 0x17)
+  LOW_TAGS IMMEDIATE_TAGS PTR_TAGS
 #undef X
       TAG_MASK = 0x7,
   IMMEDIATE_MASK = 0xff,
@@ -257,7 +258,7 @@ static inline vector_s *to_vector(gc_obj obj) {
   return (vector_s *)(obj.value - VECTOR_TAG);
 }
 static inline flvector_s *to_flvector(gc_obj obj) {
-  return (flvector_s *)(obj.value - VECTOR_TAG);
+  return (flvector_s *)(obj.value - PTR_TAG);
 }
 static inline port_s *to_port(gc_obj obj) {
   return (port_s *)(obj.value - PTR_TAG);
@@ -318,7 +319,7 @@ static inline uint8_t get_header_type(gc_obj obj) {
 }
 static inline bool is_vector(gc_obj obj) { return get_tag(obj) == VECTOR_TAG; }
 static inline bool is_flvector(gc_obj obj) {
-  return is_vector(obj) && (get_header_type(obj) & 0xFF) == FLVECTOR_TAG;
+  return is_ptr(obj) && get_ptr_tag(obj) == FLVECTOR_TAG;
 }
 static inline bool is_port(gc_obj obj) {
   return is_ptr(obj) && (get_ptr_tag(obj) & PORT_IDENTITY) == PORT_IDENTITY;

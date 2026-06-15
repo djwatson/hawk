@@ -16,7 +16,9 @@
         ABC
         LOAD
         STORE
+        FLVECTOR_SET
         LOAD_CHAR
+        FLVECTOR_REF
         STORE_CHAR
         LOAD_BYTE
         STORE_BYTE

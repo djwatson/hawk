@@ -1152,7 +1152,7 @@ OP(ALLOC) {
   assert((sz & 0x7) == 0);
 
   auto obj = (gc_header *)gc_alloc(sz);
-  if (type == VECTOR_TAG || type == RECORD_TAG) {
+  if (type == VECTOR_TAG || type == RECORD_TAG || type == FLVECTOR_TAG) {
     memset((uint8_t *)obj + sizeof(gc_header), 0,
            (size_t)sz - sizeof(gc_header));
   }
@@ -1254,6 +1254,19 @@ OP(STORE_BYTE) {
   END_NEXT
 }
 
+OP(FLVECTOR_SET) {
+  auto dest = stack[pc->reg];
+  auto val = stack[pc->v1];
+  auto off = stack[pc->v2];
+  assert(is_flvector(dest));
+  assert(is_flonum(val));
+  assert(is_fixnum(off));
+
+  auto vec = to_flvector(dest);
+  vec->v[to_fixnum(off)] = to_flonum(val)->x;
+  END_NEXT
+}
+
 OP(GUARD) {
   auto val = stack[pc->v1];
   auto want_tag_obj = stack[pc->v2];
@@ -1315,6 +1328,17 @@ OP(LOAD_BYTE) {
   assert(idx >= 0 && idx < to_fixnum(bv->len));
   auto res = tag_fixnum((uint8_t)bv->str[idx]);
   stack[instr.reg] = res;
+  END_NEXT
+}
+
+OP(FLVECTOR_REF) {
+  auto src = stack[pc->v1];
+  auto off = stack[pc->v2];
+  assert(is_flvector(src));
+  assert(is_fixnum(off));
+
+  auto vec = to_flvector(src);
+  stack[instr.reg] = vm_box_flonum(vec->v[to_fixnum(off)]);
   END_NEXT
 }
 

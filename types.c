@@ -28,7 +28,7 @@ static const char *type_tag_names[256] = {
     [VECTOR_TAG] = "vec",  [CONT_TAG] = "cont",   [PTR_TAG] = "ptr",
     [CHAR_TAG] = "char",   [CLOSURE_TAG] = "clo", [UNDEFINED_TAG] = "",
     [RECORD_TAG] = "rec",  [BIGNUM_TAG] = "big",  [RATNUM_TAG] = "rat",
-    [COMPNUM_TAG] = "cmp", [PORT_TAG] = "port",   [FLVECTOR_TAG] = "flv",
+    [COMPNUM_TAG] = "cmp", [PORT_TAG] = "port",   [FLVECTOR_TAG] = "flvec",
 };
 
 const char *type_tag_name(uint8_t tag) {
@@ -79,6 +79,18 @@ void print_obj(gc_obj obj, FILE *file) {
       fputc('+', file);
       print_obj(cmp->imag, file);
       fputc('i', file);
+    } else if (ptrtype == FLVECTOR_TAG) {
+      auto v = to_flvector(obj);
+      fputs("#(", file);
+      for (uint64_t i = 0; i < to_fixnum(v->len); i++) {
+        if (i != 0) {
+          fputc(' ', file);
+        }
+        char *buffer = ftoa_fast(v->v[i]);
+        fputs(buffer, file);
+        free(buffer);
+      }
+      fputc(')', file);
     } else if (ptrtype == RECORD_TAG) {
       fputs("#<record>", file);
     } else if (ptrtype == BYTEVECTOR_TAG) {
@@ -96,24 +108,14 @@ void print_obj(gc_obj obj, FILE *file) {
     break;
   }
   case VECTOR_TAG: {
-    if ((get_header_type(obj) & 0xFF) == FLVECTOR_TAG) {
-      auto v = to_flvector(obj);
-      fputs("#(fl", file);
-      for (uint64_t i = 0; i < to_fixnum(v->len); i++) {
+    auto v = to_vector(obj);
+    fputs("#(", file);
+    for (uint64_t i = 0; i < to_fixnum(v->len); i++) {
+      if (i != 0)
         fputc(' ', file);
-        fprintf(file, "%g", v->v[i]);
-      }
-      fputc(')', file);
-    } else {
-      auto v = to_vector(obj);
-      fputs("#(", file);
-      for (uint64_t i = 0; i < to_fixnum(v->len); i++) {
-        if (i != 0)
-          fputc(' ', file);
-        print_obj(v->v[i], file);
-      }
-      fputc(')', file);
+      print_obj(v->v[i], file);
     }
+    fputc(')', file);
     break;
   }
   case FLONUM_TAG: {

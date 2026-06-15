@@ -1698,6 +1698,25 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       emit_shl_constant(s, dst_reg, dst_reg, FIXNUM_SHIFT);
       break;
     }
+    case IR_FLVECTOR_REF: {
+      uint8_t base_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
+      if (op->op1.constant) {
+        base_reg = RTMP;
+        emit_heap_constant(s, t, base_reg, slot_gc_obj(t, op->op1));
+      }
+      int32_t base_offset = (int32_t)offsetof(flvector_s, v) - PTR_TAG;
+      if (op->op2.constant) {
+        int64_t offset = slot_const(t, op->op2) + (int64_t)base_offset;
+        assert((int32_t)offset == offset);
+        emit_fmem_load(s, (int32_t)offset, base_reg, dst_reg);
+      } else {
+        uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+        emit_mov(s, RTMP2, offset_reg);
+        emit_add(s, RTMP2, RTMP2, base_reg);
+        emit_fmem_load(s, base_offset, RTMP2, dst_reg);
+      }
+      break;
+    }
     case IR_STORE: {
       ir_ins *ref = slot_ins(t, op->op1);
       auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
@@ -1815,6 +1834,40 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         emit_sar_constant(s, RTMP, val_reg, FIXNUM_SHIFT);
       }
       emit_store_u8(s, store_offset, base_reg, RTMP);
+      break;
+    }
+    case IR_FLVECTOR_SET: {
+      ir_ins *ref = slot_ins(t, op->op1);
+      uint8_t val_reg = REG_NONE;
+      if (op->op2.constant) {
+        emit_fmov_constant(s, FRTMP, slot_flonum_constant(t, op->op2));
+        val_reg = FRTMP;
+      } else {
+        val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+      }
+      assert(val_reg != REG_NONE || op->op2.constant);
+
+      auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
+      if (ref->op1.constant) {
+        base_reg = RTMP2;
+        emit_heap_constant(s, t, base_reg, slot_gc_obj(t, ref->op1));
+      }
+      int32_t base_offset = (int32_t)offsetof(flvector_s, v) - PTR_TAG;
+      if (ref->op2.constant) {
+        int64_t offset = slot_const(t, ref->op2) + (int64_t)base_offset;
+        assert((int32_t)offset == offset);
+        emit_fstore(s, (int32_t)offset, base_reg, val_reg);
+      } else {
+        auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
+        uint8_t addr_reg = RTMP2;
+        if (ref->op1.constant) {
+          emit_add(s, addr_reg, addr_reg, offset_reg);
+        } else {
+          emit_mov(s, addr_reg, offset_reg);
+          emit_add(s, addr_reg, addr_reg, base_reg);
+        }
+        emit_fstore(s, base_offset, addr_reg, val_reg);
+      }
       break;
     }
       EMIT_CMP_CASE(IR_LT, JAE, JGE)

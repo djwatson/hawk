@@ -88,7 +88,7 @@
     (string? . 9)
     (bytevector? . 73)
     (symbol? . 6)
-    (vector? . 7)
+    ;(vector? . 7)
     (undefined? . 36)
     (record? . 49)))
 
@@ -1594,7 +1594,11 @@
               (if (null? rest)
                   (let ((argres (reverse argres)))
                     (add-op fun
-                            `(,op ,@(if (memq op '(STORE_CHAR STORE_BYTE STORE)) '() (list top)) ,@argres)))
+                            `(,op
+                               ,@(if (memq op '(STORE_CHAR STORE_BYTE STORE FLVECTOR_SET))
+                                     '()
+                                     (list top))
+                               ,@argres)))
                   (let* ((arg (car rest))
                          (res (compile arg fun env atop #f))
                          (next (next-top atop res)))
@@ -1686,13 +1690,20 @@
      (fun? c)
      (const-closure? c)))
 
+(define (all-flonum-vector? v)
+  (let ((len (vector-length v)))
+    (if (= 0 len)
+        #f
+        (let loop ((i 0))
+          (or (= i len) (and (bc-flonum? (vector-ref v i)) (loop (+ i 1))))))))
+
 (define (obj-tag o)
   (cond
     ((bc-flonum? o) flonum-tag)
     ((or (bc-ratnum? o) (bc-compnum? o)) ptr-tag)
     ((symbol? o) symbol-tag)
     ((pair? o) cons-tag)
-    ((vector? o) vector-tag)
+    ((vector? o) (if (all-flonum-vector? o) flvector-tag vector-tag))
     ((const-closure? o) closure-tag)
     (else ptr-tag)))
 
@@ -1743,10 +1754,17 @@
       (w64 0))
     ((pair? o) (w32 cons-tag) (w32 0) (word (car o)) (word (cdr o)))
     ((vector? o)
-      (w32 vector-tag)
-      (w32 0)
-      (w64 (* 8 (vector-length o)))
-      (vector-for-each word o))
+      (if (all-flonum-vector? o)
+          (begin
+            (w32 flvector-tag)
+            (w32 0)
+            (w64 (* 8 (vector-length o)))
+            (vector-for-each (lambda (x) (writer 'double x)) o))
+          (begin
+            (w32 vector-tag)
+            (w32 0)
+            (w64 (* 8 (vector-length o)))
+            (vector-for-each word o))))
     ((const-closure? o)
       (w32 closure-tag)
       (w32 0)

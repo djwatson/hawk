@@ -22,6 +22,7 @@
 (define record-tag #x31)
 (define ratnum-tag #x19)
 (define compnum-tag #x41)
+(define flvector-tag #x61)
 
 ;; literals, using literal-tag (bottom three bits = #b100)
 (define bool-tag #x04)

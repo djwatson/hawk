@@ -1788,6 +1788,21 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     vm_add_snap(state, pc + 1, argcnt);
     break;
   }
+  case OP_FLVECTOR_SET: {
+    auto obj = stack_load(state, stack, pc->reg, true);
+    auto val = stack_load(state, stack, pc->v1, true);
+    auto offset = stack_load(state, stack, pc->v2, true);
+    auto t = record_current_trace(state);
+    if (get_slot_type(t, val) != FLONUM_TAG) {
+      record_abort(state, &op_table, "FLVECTOR_SET needs flonum");
+      break;
+    }
+    auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
+    add_inst(state, IR(.op = IR_FLVECTOR_SET, .op1 = ref, .op2 = val,
+                       .type = FLVECTOR_TAG));
+    vm_add_snap(state, pc + 1, argcnt);
+    break;
+  }
   case OP_GUARD: {
     // Typecheck the object slot; SLOAD will emit the guard for us.
     stack_load(state, stack, instr.v1, true);
@@ -1836,6 +1851,14 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
           IR(.op = IR_LOAD_BYTE, .op1 = obj, .op2 = offset, .type = FIXNUM_TAG);
     }
     auto res = add_inst(state, ins);
+    stack_save(state, stack, instr.reg, res);
+    break;
+  }
+  case OP_FLVECTOR_REF: {
+    auto obj = stack_load(state, stack, pc->v1, true);
+    auto offset = stack_load(state, stack, pc->v2, true);
+    auto res = add_inst(state, IR(.op = IR_FLVECTOR_REF, .op1 = obj,
+                                  .op2 = offset, .type = FLONUM_TAG));
     stack_save(state, stack, instr.reg, res);
     break;
   }
