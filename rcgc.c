@@ -62,6 +62,7 @@ static size_t collect_after;
 static size_t next_collect;
 static gc_obj *bcfunc_list;
 static gc_obj *bcfunc_roots;
+static bool bcfunc_list_unsorted;
 
 typedef struct {
   gc_obj **data;
@@ -232,7 +233,7 @@ void gc_register_bcfunc(bcfunc *func) {
   gc_obj tagged = tag_func(func);
   arrput(bcfunc_list, tagged);
   arrput(bcfunc_roots, tagged);
-  qsort(bcfunc_list, arrlen(bcfunc_list), sizeof(gc_obj), cmp_bcfunc);
+  bcfunc_list_unsorted = true;
 }
 
 void gc_set_scan_callback(gc_scan_callback cb, void *data) {
@@ -243,6 +244,10 @@ void gc_set_scan_callback(gc_scan_callback cb, void *data) {
 void *gc_base_ptr(void *p) {
   if (arrlen(bcfunc_list) == 0)
     return nullptr;
+  if (bcfunc_list_unsorted) {
+    qsort(bcfunc_list, arrlen(bcfunc_list), sizeof(gc_obj), cmp_bcfunc);
+    bcfunc_list_unsorted = false;
+  }
   gc_obj *result = bsearch(&p, bcfunc_list, arrlen(bcfunc_list), sizeof(gc_obj),
                            cmp_bcfunc_range);
   return result ? to_raw_ptr(*result) : nullptr;
