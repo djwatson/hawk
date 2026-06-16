@@ -19,7 +19,7 @@ dave's notes
 - globals and closures can be 'promoted' to constants
 - flonums in jit important, most stay in reg
 - 'lazy' typecheck
-- various with/without feature like loops, eager typecheck, glogals/closures in reg, no IR_ARG, etc etc
+- various with/without feature like loops, eager typecheck, globals/closures in reg, no IR_ARG, etc etc
   uprec/downrec? POLYmorphic traces!!!
 - callcc in traces is EASY
 - apply a little less so (finish this!)
@@ -61,7 +61,11 @@ Side traces are not restricted to ending at the same root trace - they end when 
 
 Down recursive traces start and return at a returning bytecode op.  Since we don’t generally want to record a down-recursive trace without a matching up-recursive trace, down recursion is ONLY detected and started while on a side trace.  While side trace recording, we count how many RET instructions we’ve passed, and where they lead.  If we determine this may be down-recursion, we stop at the RET instruction, abort the current trace, and start recording a down recursive trace, which MUST end at the same RET instruction.  
 
-Similarly to how downrecursive traces are detected and tracing restarted, if we detect up-recursion in a side trace, we also abort the current trace and restart as an up-recursive traces.
+Similarly to how down recursive traces are detected and tracing restarted, if we detect up-recursion in a side trace, we also abort the current trace and restart as an up-recursive traces.
+
+Deciding exactly when to attempt a down-recursive trace is tricky.  We found empirically that restarting a side trace and restarting as down-recursive too early resulted in bad trace trees.  Currently we wait until we've seen at least two iterations of down-recursion, *before* even attempting a down-recursive trace.  Then, we will wait up to a random three *additional* iterations before starting the trace: It was found some programs attempt traces with an exact number of down-recursions, and then never actually succeed in capturing a down-recursive trace due to iteration count.  With some randomness in the process, down-recursion works across a wide range of programs. 
+
+When an actual down-recursive trace is started, we only capture a *single* loop from RET to RET.  We do not currently unroll any loops, down-recursive or otherwise.
 
 ### Trace arguments in register
 
@@ -101,6 +105,9 @@ The initial trace of list?  MUST be a pair type, otherwise it will never form a 
 
 In addition to polymorphic traces, we also allow side traces to ‘trace through’ an already-recorded trace instead of linking to it, if the trace arguments do not match.  Again, the list? example is informative: If a side traces called list? With an actual list, we WANT to link to the root trace, however if it is calling list? With nil, it will result in a SINGLE guard of type nil, so inlining the call in the existing side trace makes more sense.  This also allows unrolling of a small number of iterations of the loop before aborting (and eventually try tracing again)
 
+### LOOP analysis
+
+While we do not require any pre-analysis for loops to successfully trace, there is still a valid reason to turn any statically detectable recursion to a real LOOP opcode:  allocations.  LOOPs do not allocate at all, while looping by recursion may have to generate a closure.  We've found almost no bearing on tracing of LOOP vs FUNC (recursive) tracing, only allocations are affected.
 
 ### Lazy typechecking
 
@@ -156,7 +163,7 @@ The initial tracing infrastructure did NOT use or require LOOP analysis, and con
 	(loop a)))
 ```
 
-If loop was de structured to a function call, it would have to create a closure to hold a, while a LOOP bytecode will instead be able to load it from the stack.  
+If loop was de-structured to a function call, it would have to create a closure to hold a, while a LOOP bytecode will instead be able to load it from the stack.  
 
 For a root loop ONLY this is not particularly important, since closures are constant, it will be able to constant-ify the closure load.  But if foo itself is in a loop, the closure will still have to be created every time, resulting in many more allocations than if we are able to stack-allocate a.  
 
@@ -171,7 +178,7 @@ Pycket is a tracing jit for racket, based on the pypy / rpython meta-tracing fra
 
 Rpython had already broken much ground on specific representation analysis, so auto-flvector support (and even unboxing of things like cons cells and boxes for assignment conversion) was easy to add.
 
-Pycket’s choice of CEK machine also makes the usual tradeoff: continuation benchmarks like fibc or ctak are quite fast, to the detriment of any benchmark that is heavy on function calls but does not use continueations much.
+Pycket’s choice of CEK machine also makes the usual trade off: continuation benchmarks like fibc or ctak are quite fast, to the detriment of any benchmark that is heavy on function calls but does not use continuations much.
 
 ### Nash
 
@@ -235,11 +242,9 @@ TODO: Include one complete small example.
 
 ## Scratch Notes / Claims to Verify
 
-- [ ] Tail-call cycle detection is implemented as described.
-- [ ] Named `let` loops are visible to the JIT as tail calls.
 - [ ] Mutual tail-call loops are supported / unsupported / partially supported.
 - [ ] Global promotion has correct invalidation or guard behavior.
-- [ ] Closure promotion is by identity / entrypoint / layout.
+- [ ] Closure promotion is by identity / entry point / layout.
 - [ ] Arity specialization is guarded correctly.
 - [ ] Fixnum overflow exits correctly.
 - [ ] Flonum fast path avoids generic dispatch.
@@ -254,3 +259,22 @@ TODO: Include one complete small example.
 
 ::: {#refs}
 :::
+
+<!--  LocalWords:  JIT JITs inlining flonum flonums dave's args jit
+<!--  LocalWords:  globals typecheck ARG uprec downrec POLYmorphic lj
+<!--  LocalWords:  callcc TODO flvector fft nbody alloc Luajit NLF VM
+<!--  LocalWords:  RET bytecode LuaJit aarch typechecking typechecked
+<!--  LocalWords:  fixnum fixnums cdr pre LOOPs FUNC typechecks cddr
+<!--  LocalWords:  divrec diviter inlined profiler lossy X’th stddev
+<!--  LocalWords:  de ify Pycket pypy rpython CEK Pycket’s fibc ctak
+<!--  LocalWords:  includegraphics textwidth Chez Arity usepackage
+<!--  LocalWords:  outputdir usemintedstyle trac
+ -->
+ -->
+ -->
+ -->
+ -->
+ -->
+ -->
+ -->
+ -->
