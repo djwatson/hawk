@@ -6,6 +6,7 @@ import subprocess
 import sys
 import math
 import argparse
+import statistics
 from collections import defaultdict
 from pathlib import Path
 
@@ -133,6 +134,18 @@ def parse_benchmarks():
   return data
 
 
+def parse_hawk_runtimes(path):
+  runtimes = {}
+  for line in path.read_text(encoding="utf-8").splitlines():
+    match = re.search(r"\+!CSVLINE!\+([^,]+),([^,]+),([0-9.]+)", line)
+    if not match:
+      continue
+    implementation, invocation, seconds = match.group(1), match.group(2), float(match.group(3))
+    if implementation.lower() == "hawk":
+      runtimes[invocation] = seconds
+  return runtimes
+
+
 def comparison_rows_by_arch(data):
   rows_by_arch = defaultdict(list)
   for arch, benches in sorted(data.items()):
@@ -219,6 +232,51 @@ def parse_trace_counts():
         if name is not None and total is not None and up is not None and down is not None and normal is not None:
           data[arch].append((name, total, up, down, normal, side))
   return data
+
+
+def parse_ablation_runtimes():
+  data = defaultdict(list)
+  for arch_dir in sorted(p for p in BENCH.iterdir() if p.is_dir()):
+    arch = arch_dir.name
+    baseline_path = arch_dir / "results.Hawk"
+    if not baseline_path.exists():
+      continue
+    baseline = parse_hawk_runtimes(baseline_path)
+    for result in sorted(arch_dir.glob("results.Hawk.*")):
+      if result.name == "results.Hawk":
+        continue
+      ablation = result.name.removeprefix("results.Hawk.")
+      runtimes = parse_hawk_runtimes(result)
+      common = sorted(set(baseline) & set(runtimes))
+      if not common:
+        continue
+      percents = [(runtimes[name] / baseline[name]) * 100.0 for name in common if baseline[name] > 0]
+      if not percents:
+        continue
+      mean = statistics.fmean(percents)
+      data[arch].append((
+        ablation,
+        mean,
+        statistics.pstdev(percents),
+        percentile(percents, 16.0),
+        percentile(percents, 84.0),
+        len(percents),
+      ))
+  return data
+
+
+def percentile(values, p):
+  values = sorted(values)
+  if not values:
+    raise ValueError("percentile of empty sequence")
+  if len(values) == 1:
+    return values[0]
+  rank = (len(values) - 1) * (p / 100.0)
+  lo = math.floor(rank)
+  hi = math.ceil(rank)
+  if lo == hi:
+    return values[int(rank)]
+  return values[lo] * (hi - rank) + values[hi] * (rank - lo)
 
 
 def write_chart(arch, rows):
@@ -344,6 +402,54 @@ def write_trace_counts_chart(arch, rows):
   plt.close(fig)
 
 
+def write_ablation_chart(arch, rows):
+  import matplotlib
+  matplotlib.use("Agg")
+  import matplotlib.pyplot as plt
+
+  GENERATED.mkdir(parents=True, exist_ok=True)
+  rows = sorted(rows, key=lambda row: (row[1], row[0]))
+  labels = [name.replace("_", "-") for name, _, _, _, _, _ in rows]
+  means = [row[1] for row in rows]
+  lower = [max(0.0, row[1] - row[3]) for row in rows]
+  upper = [max(0.0, row[4] - row[1]) for row in rows]
+  x = range(len(rows))
+
+  plt.rcParams.update({
+    "font.family": "serif",
+    "font.size": 7,
+    "axes.titlesize": 9,
+    "axes.labelsize": 8,
+  })
+  fig, ax = plt.subplots(figsize=(3.35, 2.6))
+  ax.bar(
+    x,
+    means,
+    yerr=[lower, upper],
+    capsize=3,
+    color="#6a8fbf",
+    width=0.72,
+    ecolor="#333333",
+  )
+  ax.axhline(100, color="black", linewidth=0.8, linestyle="--")
+  ax.set_title(f"{arch}: Ablations vs Baseline")
+  ax.set_ylabel("Runtime vs baseline (%)")
+  ax.set_xlabel("Ablation")
+  ax.grid(axis="y", color="#dddddd", linewidth=0.5)
+  ax.set_axisbelow(True)
+  ax.set_xticks(list(x))
+  ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=6)
+  ymin = min(100.0, min(mean - lo for mean, lo in zip(means, lower)))
+  ymax = max(100.0, max(mean + hi for mean, hi in zip(means, upper)))
+  ax.set_ylim(max(0.0, ymin * 0.97), ymax * 1.03)
+  ax.tick_params(axis="y", labelsize=6)
+  for spine in ["top", "right"]:
+    ax.spines[spine].set_visible(False)
+  fig.tight_layout()
+  fig.savefig(GENERATED / f"ablation_runtime_{arch}.pdf")
+  plt.close(fig)
+
+
 def build_pdf(review, no_acm=False):
   out = BUILD / "hawk-paper.pdf"
   tex = BUILD / "hawk-paper.tex"
@@ -455,6 +561,7 @@ def main():
   rows_by_arch = comparison_rows_by_arch(parse_benchmarks())
   time_rows_by_arch = parse_time_breakdown()
   trace_rows_by_arch = parse_trace_counts()
+  ablation_rows_by_arch = parse_ablation_runtimes()
   if not rows_by_arch:
     print("no matched Hawk/Chez benchmark results found", file=sys.stderr)
     return 1
@@ -464,6 +571,8 @@ def main():
     write_time_breakdown_chart(arch, rows)
   for arch, rows in trace_rows_by_arch.items():
     write_trace_counts_chart(arch, rows)
+  for arch, rows in ablation_rows_by_arch.items():
+    write_ablation_chart(arch, rows)
   out = build_pdf(review=args.mode == "review", no_acm=args.no_acm)
   print(f"wrote {out.relative_to(ROOT)} ({args.mode})")
   return 0

@@ -21,12 +21,18 @@ Outputs:
 - `doc/paper/generated/time_breakdown_aarch64.pdf`
 - `doc/paper/generated/trace_counts_x64.pdf`
 - `doc/paper/generated/trace_counts_aarch64.pdf`
+- `doc/paper/generated/ablation_runtime_x64.pdf`
 - `doc/paper/build/hawk-paper.pdf`
 
 The benchmark charts are generated from `doc/bench/*/results.*`. Repeated
 `CSVLINE` records keep the last numeric result for each benchmark and
 implementation. Each chart uses Chez as the baseline and includes a `TOTAL` bar
 computed from the geometric mean of Hawk/Chez runtime ratios.
+
+The ablation chart compares each `results.Hawk.*` variant against the matching
+`results.Hawk` baseline and plots the mean runtime as a percentage of the
+baseline, with asymmetric error bars showing the 16th to 84th percentile range
+across the shared benchmarks.
 
 The PDF is built with ACM's `acmart` class using the two-column `sigplan`
 subformat. Review mode adds the `anonymous,review` options; camera-ready mode

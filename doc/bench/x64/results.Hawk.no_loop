@@ -1,6 +1,6 @@
 
 ****************************
-Benchmarking Hawk on Wed Jun 17 01:59:07 PM PDT 2026 under Linux davejwatson-B450-I-AORUS-PRO-WIFI 7.0.0-22-generic #22-Ubuntu SMP PREEMPT_DYNAMIC Mon May 25 15:54:34 UTC 2026 x86_64 GNU/Linux
+Benchmarking Hawk on Wed Jun 17 01:55:16 PM PDT 2026 under Linux davejwatson-B450-I-AORUS-PRO-WIFI 7.0.0-22-generic #22-Ubuntu SMP PREEMPT_DYNAMIC Mon May 25 15:54:34 UTC 2026 x86_64 GNU/Linux
 
 Testing browse under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -8,17 +8,17 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/browse.scm /tmp/r7rs-benchmarks/Hawk/browse.scm
 Running...
 Running browse:2000
-Elapsed time: 0.692521715 seconds (0.693) for browse:2000
-+!CSVLINE!+hawk,browse:2000,0.692521715
+Elapsed time: 0.723361518 seconds (0.723) for browse:2000
++!CSVLINE!+hawk,browse:2000,0.723361518
 
-On-trace: 97.40% (677.491 ms)
-In-gc: 2.10% (14.586 ms)
-VM: 0.51% (3.532 ms)
-JIT space: 53.41 KB 437.50 B/trace
-Trace counts (125 total):
+On-trace: 96.60% (703.392 ms)
+In-gc: 2.69% (19.562 ms)
+VM: 0.72% (5.219 ms)
+JIT space: 112.51 KB 1010.59 B/trace
+Trace counts (114 total):
   up-recursive: 2
   down-recursive: 2
-  normal-loop: 23
+  normal-loop: 12
   side: 98
 
 Testing deriv under Hawk
@@ -27,18 +27,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/deriv.scm /tmp/r7rs-benchmarks/Hawk/deriv.scm
 Running...
 Running deriv:10000000
-Elapsed time: 0.809145296 seconds (0.809) for deriv:10000000
-+!CSVLINE!+hawk,deriv:10000000,0.809145296
+Elapsed time: 0.755891164 seconds (0.756) for deriv:10000000
++!CSVLINE!+hawk,deriv:10000000,0.755891164
 
-On-trace: 95.43% (772.922 ms)
-In-gc: 4.45% (36.036 ms)
-VM: 0.12% (0.948 ms)
-JIT space: 8.39 KB 661.15 B/trace
-Trace counts (13 total):
+On-trace: 95.38% (721.732 ms)
+In-gc: 4.49% (33.984 ms)
+VM: 0.13% (1.003 ms)
+JIT space: 7.85 KB 893.56 B/trace
+Trace counts (9 total):
   up-recursive: 1
-  down-recursive: 1
-  normal-loop: 3
-  side: 8
+  down-recursive: 0
+  normal-loop: 1
+  side: 7
 
 Testing destruc under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -46,18 +46,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/destruc.scm /tmp/r7rs-benchmarks/Hawk/destruc.scm
 Running...
 Running destruc:600:50:4000
-Elapsed time: 1.322873043 seconds (1.323) for destruc:600:50:4000
-+!CSVLINE!+hawk,destruc:600:50:4000,1.322873043
+Elapsed time: 1.066884648 seconds (1.067) for destruc:600:50:4000
++!CSVLINE!+hawk,destruc:600:50:4000,1.066884648
 
-On-trace: 98.77% (1307.196 ms)
-In-gc: 1.16% (15.329 ms)
-VM: 0.08% (0.993 ms)
-JIT space: 10.70 KB 353.29 B/trace
-Trace counts (31 total):
+On-trace: 98.56% (1052.554 ms)
+In-gc: 1.25% (13.372 ms)
+VM: 0.19% (2.058 ms)
+JIT space: 18.37 KB 553.18 B/trace
+Trace counts (34 total):
   up-recursive: 0
   down-recursive: 0
-  normal-loop: 10
-  side: 21
+  normal-loop: 6
+  side: 28
 
 Testing diviter under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -65,18 +65,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/diviter.scm /tmp/r7rs-benchmarks/Hawk/diviter.scm
 Running...
 Running diviter:1000:1000000
-Elapsed time: 1.026674275 seconds (1.027) for diviter:1000:1000000
-+!CSVLINE!+hawk,diviter:1000:1000000,1.026674275
+Elapsed time: 0.990684564 seconds (0.991) for diviter:1000:1000000
++!CSVLINE!+hawk,diviter:1000:1000000,0.990684564
 
-On-trace: 96.57% (991.744 ms)
-In-gc: 3.39% (34.815 ms)
-VM: 0.04% (0.388 ms)
-JIT space: 4.51 KB 513.00 B/trace
-Trace counts (9 total):
+On-trace: 96.59% (957.272 ms)
+In-gc: 3.36% (33.313 ms)
+VM: 0.05% (0.466 ms)
+JIT space: 3.65 KB 623.17 B/trace
+Trace counts (6 total):
   up-recursive: 0
   down-recursive: 0
-  normal-loop: 6
-  side: 3
+  normal-loop: 4
+  side: 2
 
 Testing divrec under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -84,13 +84,13 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/divrec.scm /tmp/r7rs-benchmarks/Hawk/divrec.scm
 Running...
 Running divrec:1000:1000000
-Elapsed time: 1.48477261 seconds (1.485) for divrec:1000:1000000
-+!CSVLINE!+hawk,divrec:1000:1000000,1.48477261
+Elapsed time: 1.42285565 seconds (1.423) for divrec:1000:1000000
++!CSVLINE!+hawk,divrec:1000:1000000,1.42285565
 
-On-trace: 97.56% (1448.801 ms)
-In-gc: 2.41% (35.836 ms)
-VM: 0.03% (0.388 ms)
-JIT space: 3.79 KB 484.50 B/trace
+On-trace: 97.61% (1389.139 ms)
+In-gc: 2.36% (33.576 ms)
+VM: 0.03% (0.486 ms)
+JIT space: 3.82 KB 489.50 B/trace
 Trace counts (8 total):
   up-recursive: 1
   down-recursive: 1
@@ -103,18 +103,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/puzzle.scm /tmp/r7rs-benchmarks/Hawk/puzzle.scm
 Running...
 Running puzzle:1000
-Elapsed time: 1.294464253 seconds (1.294) for puzzle:1000
-+!CSVLINE!+hawk,puzzle:1000,1.294464253
+Elapsed time: 1.190688001 seconds (1.191) for puzzle:1000
++!CSVLINE!+hawk,puzzle:1000,1.190688001
 
-On-trace: 99.74% (1291.344 ms)
-In-gc: 0.19% (2.450 ms)
-VM: 0.07% (0.926 ms)
-JIT space: 19.77 KB 389.35 B/trace
-Trace counts (52 total):
+On-trace: 99.42% (1184.087 ms)
+In-gc: 0.47% (5.572 ms)
+VM: 0.12% (1.380 ms)
+JIT space: 36.25 KB 629.14 B/trace
+Trace counts (59 total):
   up-recursive: 1
   down-recursive: 1
-  normal-loop: 12
-  side: 38
+  normal-loop: 10
+  side: 47
 
 Testing triangl under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -122,18 +122,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/triangl.scm /tmp/r7rs-benchmarks/Hawk/triangl.scm
 Running...
 Running triangl:22:1:50
-Elapsed time: 0.547463733 seconds (0.547) for triangl:22:1:50
-+!CSVLINE!+hawk,triangl:22:1:50,0.547463733
+Elapsed time: 0.518085863 seconds (0.518) for triangl:22:1:50
++!CSVLINE!+hawk,triangl:22:1:50,0.518085863
 
-On-trace: 99.87% (547.099 ms)
+On-trace: 99.78% (517.641 ms)
 In-gc: 0.00% (0.000 ms)
-VM: 0.13% (0.706 ms)
-JIT space: 10.62 KB 836.54 B/trace
-Trace counts (13 total):
-  up-recursive: 0
+VM: 0.22% (1.138 ms)
+JIT space: 17.77 KB 1516.50 B/trace
+Trace counts (12 total):
+  up-recursive: 1
   down-recursive: 0
-  normal-loop: 4
-  side: 9
+  normal-loop: 3
+  side: 8
 
 Testing tak under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -141,12 +141,12 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/tak.scm /tmp/r7rs-benchmarks/Hawk/tak.scm
 Running...
 Running tak:40:20:11:1
-Elapsed time: 1.162010654 seconds (1.162) for tak:40:20:11:1
-+!CSVLINE!+hawk,tak:40:20:11:1,1.162010654
+Elapsed time: 1.137691508 seconds (1.138) for tak:40:20:11:1
++!CSVLINE!+hawk,tak:40:20:11:1,1.137691508
 
-On-trace: 99.97% (1161.944 ms)
+On-trace: 99.96% (1137.630 ms)
 In-gc: 0.00% (0.000 ms)
-VM: 0.03% (0.313 ms)
+VM: 0.04% (0.420 ms)
 JIT space: 2.97 KB 608.20 B/trace
 Trace counts (5 total):
   up-recursive: 1
@@ -160,18 +160,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/takl.scm /tmp/r7rs-benchmarks/Hawk/takl.scm
 Running...
 Running takl:40:20:12:1
-Elapsed time: 1.479750008 seconds (1.48) for takl:40:20:12:1
-+!CSVLINE!+hawk,takl:40:20:12:1,1.479750008
+Elapsed time: 1.737475246 seconds (1.737) for takl:40:20:12:1
++!CSVLINE!+hawk,takl:40:20:12:1,1.737475246
 
-On-trace: 99.94% (1479.675 ms)
+On-trace: 99.94% (1737.432 ms)
 In-gc: 0.00% (0.000 ms)
-VM: 0.06% (0.907 ms)
-JIT space: 4.62 KB 525.33 B/trace
-Trace counts (9 total):
+VM: 0.06% (1.047 ms)
+JIT space: 8.77 KB 897.60 B/trace
+Trace counts (10 total):
   up-recursive: 0
   down-recursive: 0
   normal-loop: 3
-  side: 6
+  side: 7
 
 Testing ntakl under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -179,18 +179,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/ntakl.scm /tmp/r7rs-benchmarks/Hawk/ntakl.scm
 Running...
 Running ntakl:40:20:12:1
-Elapsed time: 1.505465736 seconds (1.505) for ntakl:40:20:12:1
-+!CSVLINE!+hawk,ntakl:40:20:12:1,1.505465736
+Elapsed time: 1.746685061 seconds (1.747) for ntakl:40:20:12:1
++!CSVLINE!+hawk,ntakl:40:20:12:1,1.746685061
 
-On-trace: 99.94% (1505.382 ms)
+On-trace: 99.93% (1746.634 ms)
 In-gc: 0.00% (0.000 ms)
-VM: 0.06% (0.919 ms)
-JIT space: 4.62 KB 525.33 B/trace
-Trace counts (9 total):
+VM: 0.07% (1.140 ms)
+JIT space: 8.77 KB 897.60 B/trace
+Trace counts (10 total):
   up-recursive: 0
   down-recursive: 0
   normal-loop: 3
-  side: 6
+  side: 7
 
 Testing cpstak under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -198,12 +198,12 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/cpstak.scm /tmp/r7rs-benchmarks/Hawk/cpstak.scm
 Running...
 Running cpstak:40:20:11:1
-Elapsed time: 1.773119414 seconds (1.773) for cpstak:40:20:11:1
-+!CSVLINE!+hawk,cpstak:40:20:11:1,1.773119414
+Elapsed time: 1.654590112 seconds (1.655) for cpstak:40:20:11:1
++!CSVLINE!+hawk,cpstak:40:20:11:1,1.654590112
 
-On-trace: 94.90% (1682.888 ms)
-In-gc: 5.09% (90.188 ms)
-VM: 0.02% (0.311 ms)
+On-trace: 94.71% (1567.402 ms)
+In-gc: 5.27% (87.141 ms)
+VM: 0.03% (0.419 ms)
 JIT space: 2.99 KB 611.60 B/trace
 Trace counts (5 total):
   up-recursive: 0
@@ -217,18 +217,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/ctak.scm /tmp/r7rs-benchmarks/Hawk/ctak.scm
 Running...
 Running ctak:32:16:8:1
-Elapsed time: 0.925123392 seconds (0.925) for ctak:32:16:8:1
-+!CSVLINE!+hawk,ctak:32:16:8:1,0.925123392
+Elapsed time: 0.915523607 seconds (0.916) for ctak:32:16:8:1
++!CSVLINE!+hawk,ctak:32:16:8:1,0.915523607
 
-On-trace: 97.21% (899.576 ms)
-In-gc: 2.74% (25.356 ms)
-VM: 0.05% (0.441 ms)
-JIT space: 11.20 KB 716.62 B/trace
-Trace counts (16 total):
-  up-recursive: 1
+On-trace: 97.09% (889.240 ms)
+In-gc: 2.85% (26.099 ms)
+VM: 0.06% (0.548 ms)
+JIT space: 8.59 KB 676.85 B/trace
+Trace counts (13 total):
+  up-recursive: 2
   down-recursive: 0
   normal-loop: 1
-  side: 14
+  side: 10
 
 Testing fib under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -236,18 +236,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/fib.scm /tmp/r7rs-benchmarks/Hawk/fib.scm
 Running...
 Running fib:40:5
-Elapsed time: 2.231140908 seconds (2.231) for fib:40:5
-+!CSVLINE!+hawk,fib:40:5,2.231140908
+Elapsed time: 1.997920345 seconds (1.998) for fib:40:5
++!CSVLINE!+hawk,fib:40:5,1.997920345
 
-On-trace: 99.99% (2231.051 ms)
+On-trace: 99.96% (1997.793 ms)
 In-gc: 0.00% (0.000 ms)
-VM: 0.01% (0.323 ms)
-JIT space: 3.17 KB 464.00 B/trace
-Trace counts (7 total):
+VM: 0.04% (0.742 ms)
+JIT space: 7.17 KB 349.86 B/trace
+Trace counts (21 total):
   up-recursive: 1
-  down-recursive: 1
+  down-recursive: 0
   normal-loop: 1
-  side: 4
+  side: 19
 
 Testing fibc under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -255,17 +255,17 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/fibc.scm /tmp/r7rs-benchmarks/Hawk/fibc.scm
 Running...
 Running fibc:30:10
-Elapsed time: 0.521469988 seconds (0.521) for fibc:30:10
-+!CSVLINE!+hawk,fibc:30:10,0.521469988
+Elapsed time: 0.498878147 seconds (0.499) for fibc:30:10
++!CSVLINE!+hawk,fibc:30:10,0.498878147
 
-On-trace: 97.54% (508.899 ms)
-In-gc: 2.37% (12.376 ms)
-VM: 0.09% (0.473 ms)
-JIT space: 6.86 KB 702.00 B/trace
-Trace counts (10 total):
-  up-recursive: 1
+On-trace: 97.51% (487.090 ms)
+In-gc: 2.32% (11.604 ms)
+VM: 0.16% (0.822 ms)
+JIT space: 6.33 KB 589.00 B/trace
+Trace counts (11 total):
+  up-recursive: 3
   down-recursive: 0
-  normal-loop: 3
+  normal-loop: 2
   side: 6
 
 Testing fibfp under Hawk
@@ -274,18 +274,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/fibfp.scm /tmp/r7rs-benchmarks/Hawk/fibfp.scm
 Running...
 Running fibfp:35.0:10
-Elapsed time: 0.57226733 seconds (0.572) for fibfp:35.0:10
-+!CSVLINE!+hawk,fibfp:35.0:10,0.57226733
+Elapsed time: 0.557802074 seconds (0.558) for fibfp:35.0:10
++!CSVLINE!+hawk,fibfp:35.0:10,0.557802074
 
-On-trace: 97.49% (558.200 ms)
-In-gc: 2.43% (13.886 ms)
-VM: 0.08% (0.475 ms)
-JIT space: 7.23 KB 462.62 B/trace
-Trace counts (16 total):
+On-trace: 97.50% (544.517 ms)
+In-gc: 2.34% (13.084 ms)
+VM: 0.15% (0.856 ms)
+JIT space: 7.53 KB 428.22 B/trace
+Trace counts (18 total):
   up-recursive: 1
   down-recursive: 1
-  normal-loop: 2
-  side: 12
+  normal-loop: 1
+  side: 15
 
 Testing sum under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -293,13 +293,13 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/sum.scm /tmp/r7rs-benchmarks/Hawk/sum.scm
 Running...
 Running sum:10000:200000
-Elapsed time: 0.846601671 seconds (0.847) for sum:10000:200000
-+!CSVLINE!+hawk,sum:10000:200000,0.846601671
+Elapsed time: 0.82498552 seconds (0.825) for sum:10000:200000
++!CSVLINE!+hawk,sum:10000:200000,0.82498552
 
-On-trace: 99.96% (846.537 ms)
+On-trace: 99.95% (824.907 ms)
 In-gc: 0.00% (0.000 ms)
-VM: 0.04% (0.311 ms)
-JIT space: 3.14 KB 1072.67 B/trace
+VM: 0.05% (0.432 ms)
+JIT space: 3.14 KB 1071.33 B/trace
 Trace counts (3 total):
   up-recursive: 0
   down-recursive: 0
@@ -312,13 +312,13 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/sumfp.scm /tmp/r7rs-benchmarks/Hawk/sumfp.scm
 Running...
 Running sumfp:1000000.0:500
-Elapsed time: 0.365549434 seconds (0.366) for sumfp:1000000.0:500
-+!CSVLINE!+hawk,sumfp:1000000.0:500,0.365549434
+Elapsed time: 0.371377987 seconds (0.371) for sumfp:1000000.0:500
++!CSVLINE!+hawk,sumfp:1000000.0:500,0.371377987
 
-On-trace: 99.91% (365.479 ms)
+On-trace: 99.88% (371.289 ms)
 In-gc: 0.00% (0.000 ms)
-VM: 0.09% (0.329 ms)
-JIT space: 3.40 KB 1161.33 B/trace
+VM: 0.12% (0.453 ms)
+JIT space: 3.27 KB 1116.00 B/trace
 Trace counts (3 total):
   up-recursive: 0
   down-recursive: 0
@@ -331,13 +331,13 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/fft.scm /tmp/r7rs-benchmarks/Hawk/fft.scm
 Running...
 Running fft:65536:100
-Elapsed time: 0.16340915 seconds (0.163) for fft:65536:100
-+!CSVLINE!+hawk,fft:65536:100,0.16340915
+Elapsed time: 0.169983951 seconds (0.17) for fft:65536:100
++!CSVLINE!+hawk,fft:65536:100,0.169983951
 
-On-trace: 97.79% (160.034 ms)
-In-gc: 1.10% (1.800 ms)
-VM: 1.11% (1.819 ms)
-JIT space: 6.99 KB 795.78 B/trace
+On-trace: 96.72% (164.726 ms)
+In-gc: 1.77% (3.016 ms)
+VM: 1.51% (2.579 ms)
+JIT space: 8.97 KB 1020.89 B/trace
 Trace counts (9 total):
   up-recursive: 0
   down-recursive: 0
@@ -350,13 +350,13 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/mbrot.scm /tmp/r7rs-benchmarks/Hawk/mbrot.scm
 Running...
 Running mbrot:75:1000
-Elapsed time: 0.395079957 seconds (0.395) for mbrot:75:1000
-+!CSVLINE!+hawk,mbrot:75:1000,0.395079957
+Elapsed time: 0.402540432 seconds (0.403) for mbrot:75:1000
++!CSVLINE!+hawk,mbrot:75:1000,0.402540432
 
-On-trace: 99.29% (392.524 ms)
-In-gc: 0.59% (2.334 ms)
-VM: 0.12% (0.458 ms)
-JIT space: 8.26 KB 940.00 B/trace
+On-trace: 98.89% (398.427 ms)
+In-gc: 0.91% (3.661 ms)
+VM: 0.20% (0.812 ms)
+JIT space: 10.24 KB 1164.89 B/trace
 Trace counts (9 total):
   up-recursive: 0
   down-recursive: 0
@@ -369,13 +369,13 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/mbrotZ.scm /tmp/r7rs-benchmarks/Hawk/mbrotZ.scm
 Running...
 Running mbrotZ:75:1000
-Elapsed time: 3.092395956 seconds (3.092) for mbrotZ:75:1000
-+!CSVLINE!+hawk,mbrotZ:75:1000,3.092395956
+Elapsed time: 3.175907495 seconds (3.176) for mbrotZ:75:1000
++!CSVLINE!+hawk,mbrotZ:75:1000,3.175907495
 
-On-trace: 97.73% (3022.356 ms)
-In-gc: 2.26% (69.758 ms)
-VM: 0.02% (0.520 ms)
-JIT space: 9.46 KB 1075.78 B/trace
+On-trace: 97.86% (3108.143 ms)
+In-gc: 2.12% (67.243 ms)
+VM: 0.03% (0.861 ms)
+JIT space: 11.17 KB 1270.67 B/trace
 Trace counts (9 total):
   up-recursive: 0
   down-recursive: 0
@@ -388,18 +388,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/nucleic.scm /tmp/r7rs-benchmarks/Hawk/nucleic.scm
 Running...
 Running nucleic:50
-Elapsed time: 0.551763969 seconds (0.552) for nucleic:50
-+!CSVLINE!+hawk,nucleic:50,0.551763969
+Elapsed time: 0.492886247 seconds (0.493) for nucleic:50
++!CSVLINE!+hawk,nucleic:50,0.492886247
 
-On-trace: 88.71% (489.700 ms)
-In-gc: 6.64% (36.666 ms)
-VM: 4.65% (25.647 ms)
-JIT space: 391.25 KB 2342.95 B/trace
-Trace counts (171 total):
-  up-recursive: 4
-  down-recursive: 2
-  normal-loop: 6
-  side: 159
+On-trace: 88.45% (443.482 ms)
+In-gc: 6.49% (32.533 ms)
+VM: 5.07% (25.398 ms)
+JIT space: 389.82 KB 2205.41 B/trace
+Trace counts (181 total):
+  up-recursive: 3
+  down-recursive: 3
+  normal-loop: 9
+  side: 166
 
 Testing pi under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -407,18 +407,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/pi.scm /tmp/r7rs-benchmarks/Hawk/pi.scm
 Running...
 Running pi:50:500:50:100
-Elapsed time: 0.117297603 seconds (0.117) for pi:50:500:50:100
-+!CSVLINE!+hawk,pi:50:500:50:100,0.117297603
+Elapsed time: 0.116310615 seconds (0.116) for pi:50:500:50:100
++!CSVLINE!+hawk,pi:50:500:50:100,0.116310615
 
-On-trace: 94.65% (112.133 ms)
-In-gc: 1.49% (1.762 ms)
-VM: 3.86% (4.579 ms)
-JIT space: 37.36 KB 1062.81 B/trace
-Trace counts (36 total):
+On-trace: 92.60% (109.076 ms)
+In-gc: 1.55% (1.823 ms)
+VM: 5.85% (6.893 ms)
+JIT space: 99.09 KB 2899.06 B/trace
+Trace counts (35 total):
   up-recursive: 0
   down-recursive: 1
-  normal-loop: 8
-  side: 27
+  normal-loop: 5
+  side: 29
 
 Testing pnpoly under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -426,18 +426,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/pnpoly.scm /tmp/r7rs-benchmarks/Hawk/pnpoly.scm
 Running...
 Running pnpoly:1000000
-Elapsed time: 0.821555255 seconds (0.822) for pnpoly:1000000
-+!CSVLINE!+hawk,pnpoly:1000000,0.821555255
+Elapsed time: 0.819250305 seconds (0.819) for pnpoly:1000000
++!CSVLINE!+hawk,pnpoly:1000000,0.819250305
 
-On-trace: 98.57% (810.375 ms)
-In-gc: 1.30% (10.718 ms)
-VM: 0.13% (1.064 ms)
-JIT space: 15.10 KB 429.42 B/trace
-Trace counts (36 total):
+On-trace: 98.37% (806.586 ms)
+In-gc: 1.48% (12.166 ms)
+VM: 0.14% (1.165 ms)
+JIT space: 14.41 KB 476.06 B/trace
+Trace counts (31 total):
   up-recursive: 0
   down-recursive: 0
-  normal-loop: 7
-  side: 29
+  normal-loop: 6
+  side: 25
 
 Testing ray under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -445,18 +445,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/ray.scm /tmp/r7rs-benchmarks/Hawk/ray.scm
 Running...
 Running ray:50
-Elapsed time: 0.427118816 seconds (0.427) for ray:50
-+!CSVLINE!+hawk,ray:50,0.427118816
+Elapsed time: 0.419758779 seconds (0.42) for ray:50
++!CSVLINE!+hawk,ray:50,0.419758779
 
-On-trace: 97.15% (415.093 ms)
-In-gc: 1.29% (5.513 ms)
-VM: 1.56% (6.653 ms)
-JIT space: 33.11 KB 1027.45 B/trace
-Trace counts (33 total):
+On-trace: 96.85% (406.806 ms)
+In-gc: 1.44% (6.038 ms)
+VM: 1.71% (7.196 ms)
+JIT space: 55.45 KB 2027.75 B/trace
+Trace counts (28 total):
   up-recursive: 0
   down-recursive: 0
-  normal-loop: 8
-  side: 25
+  normal-loop: 4
+  side: 24
 
 Testing simplex under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -464,18 +464,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/simplex.scm /tmp/r7rs-benchmarks/Hawk/simplex.scm
 Running...
 Running simplex:1000000
-Elapsed time: 0.92526412 seconds (0.925) for simplex:1000000
-+!CSVLINE!+hawk,simplex:1000000,0.92526412
+Elapsed time: 1.072327769 seconds (1.072) for simplex:1000000
++!CSVLINE!+hawk,simplex:1000000,1.072327769
 
-On-trace: 98.33% (910.121 ms)
-In-gc: 1.44% (13.352 ms)
-VM: 0.23% (2.100 ms)
-JIT space: 32.84 KB 560.48 B/trace
-Trace counts (60 total):
+On-trace: 97.38% (1044.614 ms)
+In-gc: 2.36% (25.360 ms)
+VM: 0.26% (2.783 ms)
+JIT space: 56.27 KB 2304.80 B/trace
+Trace counts (25 total):
   up-recursive: 0
   down-recursive: 0
-  normal-loop: 16
-  side: 44
+  normal-loop: 5
+  side: 20
 
 Testing ack under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -483,12 +483,12 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/ack.scm /tmp/r7rs-benchmarks/Hawk/ack.scm
 Running...
 Running ack:3:12:2
-Elapsed time: 1.387973486 seconds (1.388) for ack:3:12:2
-+!CSVLINE!+hawk,ack:3:12:2,1.387973486
+Elapsed time: 1.353423696 seconds (1.353) for ack:3:12:2
++!CSVLINE!+hawk,ack:3:12:2,1.353423696
 
-On-trace: 99.98% (1387.914 ms)
+On-trace: 99.97% (1353.367 ms)
 In-gc: 0.00% (0.000 ms)
-VM: 0.02% (0.288 ms)
+VM: 0.03% (0.393 ms)
 JIT space: 2.67 KB 684.50 B/trace
 Trace counts (4 total):
   up-recursive: 1
@@ -502,13 +502,13 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/array1.scm /tmp/r7rs-benchmarks/Hawk/array1.scm
 Running...
 Running array1:1000000:500
-Elapsed time: 2.222065494 seconds (2.222) for array1:1000000:500
-+!CSVLINE!+hawk,array1:1000000:500,2.222065494
+Elapsed time: 2.720618899 seconds (2.721) for array1:1000000:500
++!CSVLINE!+hawk,array1:1000000:500,2.720618899
 
-On-trace: 69.84% (1551.987 ms)
-In-gc: 29.24% (649.721 ms)
-VM: 0.93% (20.620 ms)
-JIT space: 3.58 KB 733.80 B/trace
+On-trace: 72.65% (1976.877 ms)
+In-gc: 26.60% (723.658 ms)
+VM: 0.75% (20.436 ms)
+JIT space: 4.00 KB 819.40 B/trace
 Trace counts (5 total):
   up-recursive: 0
   down-recursive: 0
@@ -521,13 +521,13 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/string.scm /tmp/r7rs-benchmarks/Hawk/string.scm
 Running...
 Running string:500000:100
-Elapsed time: 0.315308402 seconds (0.315) for string:500000:100
-+!CSVLINE!+hawk,string:500000:100,0.315308402
+Elapsed time: 0.308535464 seconds (0.309) for string:500000:100
++!CSVLINE!+hawk,string:500000:100,0.308535464
 
-On-trace: 85.03% (268.324 ms)
-In-gc: 11.97% (37.770 ms)
-VM: 3.00% (9.458 ms)
-JIT space: 9.25 KB 2368.75 B/trace
+On-trace: 83.40% (257.624 ms)
+In-gc: 12.47% (38.518 ms)
+VM: 4.13% (12.746 ms)
+JIT space: 9.46 KB 2421.00 B/trace
 Trace counts (4 total):
   up-recursive: 0
   down-recursive: 0
@@ -540,18 +540,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/sum1.scm /tmp/r7rs-benchmarks/Hawk/sum1.scm
 Running...
 Running sum1:25
-Elapsed time: 0.207218682 seconds (0.207) for sum1:25
-+!CSVLINE!+hawk,sum1:25,0.207218682
+Elapsed time: 0.217889821 seconds (0.218) for sum1:25
++!CSVLINE!+hawk,sum1:25,0.217889821
 
-On-trace: 96.60% (200.416 ms)
-In-gc: 2.24% (4.643 ms)
-VM: 1.17% (2.420 ms)
-JIT space: 27.19 KB 1265.41 B/trace
-Trace counts (22 total):
+On-trace: 88.60% (193.400 ms)
+In-gc: 2.63% (5.732 ms)
+VM: 8.77% (19.152 ms)
+JIT space: 36.69 KB 1252.47 B/trace
+Trace counts (30 total):
   up-recursive: 0
   down-recursive: 0
-  normal-loop: 7
-  side: 15
+  normal-loop: 5
+  side: 25
 
 Testing cat under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -559,13 +559,13 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/cat.scm /tmp/r7rs-benchmarks/Hawk/cat.scm
 Running...
 Running cat:50
-Elapsed time: 0.732279088 seconds (0.732) for cat:50
-+!CSVLINE!+hawk,cat:50,0.732279088
+Elapsed time: 0.765337193 seconds (0.765) for cat:50
++!CSVLINE!+hawk,cat:50,0.765337193
 
-On-trace: 99.53% (729.105 ms)
+On-trace: 99.52% (762.002 ms)
 In-gc: 0.00% (0.000 ms)
-VM: 0.47% (3.424 ms)
-JIT space: 10.05 KB 2058.80 B/trace
+VM: 0.48% (3.711 ms)
+JIT space: 10.27 KB 2103.80 B/trace
 Trace counts (5 total):
   up-recursive: 0
   down-recursive: 0
@@ -578,18 +578,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/tail.scm /tmp/r7rs-benchmarks/Hawk/tail.scm
 Running...
 Running tail:50
-Elapsed time: 0.410135067 seconds (0.41) for tail:50
-+!CSVLINE!+hawk,tail:50,0.410135067
+Elapsed time: 0.420334907 seconds (0.42) for tail:50
++!CSVLINE!+hawk,tail:50,0.420334907
 
-On-trace: 94.32% (387.081 ms)
-In-gc: 4.16% (17.073 ms)
-VM: 1.52% (6.248 ms)
-JIT space: 23.88 KB 978.12 B/trace
-Trace counts (25 total):
+On-trace: 94.04% (395.624 ms)
+In-gc: 3.57% (15.013 ms)
+VM: 2.39% (10.040 ms)
+JIT space: 25.00 KB 1505.88 B/trace
+Trace counts (17 total):
   up-recursive: 0
   down-recursive: 0
-  normal-loop: 8
-  side: 17
+  normal-loop: 3
+  side: 14
 
 Testing wc under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -597,13 +597,13 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/wc.scm /tmp/r7rs-benchmarks/Hawk/wc.scm
 Running...
 Running wc:inputs/bib:50
-Elapsed time: 0.761806692 seconds (0.762) for wc:inputs/bib:50
-+!CSVLINE!+hawk,wc:inputs/bib:50,0.761806692
+Elapsed time: 0.676214513 seconds (0.676) for wc:inputs/bib:50
++!CSVLINE!+hawk,wc:inputs/bib:50,0.676214513
 
-On-trace: 99.93% (761.491 ms)
+On-trace: 99.87% (675.707 ms)
 In-gc: 0.00% (0.000 ms)
-VM: 0.07% (0.566 ms)
-JIT space: 7.33 KB 750.20 B/trace
+VM: 0.13% (0.876 ms)
+JIT space: 7.14 KB 730.70 B/trace
 Trace counts (10 total):
   up-recursive: 0
   down-recursive: 0
@@ -616,18 +616,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/read1.scm /tmp/r7rs-benchmarks/Hawk/read1.scm
 Running...
 Running read1:2500
-Elapsed time: 0.65003222 seconds (0.65) for read1:2500
-+!CSVLINE!+hawk,read1:2500,0.65003222
+Elapsed time: 0.684935493 seconds (0.685) for read1:2500
++!CSVLINE!+hawk,read1:2500,0.684935493
 
-On-trace: 97.85% (636.358 ms)
-In-gc: 0.76% (4.944 ms)
-VM: 1.39% (9.064 ms)
-JIT space: 76.09 KB 581.46 B/trace
-Trace counts (134 total):
-  up-recursive: 0
+On-trace: 96.85% (663.747 ms)
+In-gc: 2.15% (14.740 ms)
+VM: 1.00% (6.870 ms)
+JIT space: 134.52 KB 765.29 B/trace
+Trace counts (180 total):
+  up-recursive: 6
   down-recursive: 0
-  normal-loop: 16
-  side: 118
+  normal-loop: 10
+  side: 164
 
 Testing compiler under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -635,18 +635,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/compiler.scm /tmp/r7rs-benchmarks/Hawk/compiler.scm
 Running...
 Running compiler:2000
-Elapsed time: 1.59867903 seconds (1.599) for compiler:2000
-+!CSVLINE!+hawk,compiler:2000,1.59867903
+Elapsed time: 1.791854097 seconds (1.792) for compiler:2000
++!CSVLINE!+hawk,compiler:2000,1.791854097
 
-On-trace: 84.14% (1348.847 ms)
-In-gc: 10.85% (173.897 ms)
-VM: 5.01% (80.347 ms)
-JIT space: 1343.89 KB 737.88 B/trace
-Trace counts (1865 total):
-  up-recursive: 31
+On-trace: 80.59% (1457.295 ms)
+In-gc: 12.77% (230.979 ms)
+VM: 6.64% (120.108 ms)
+JIT space: 1583.60 KB 781.87 B/trace
+Trace counts (2074 total):
+  up-recursive: 45
   down-recursive: 10
-  normal-loop: 83
-  side: 1741
+  normal-loop: 56
+  side: 1963
 
 Testing conform under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -654,18 +654,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/conform.scm /tmp/r7rs-benchmarks/Hawk/conform.scm
 Running...
 Running conform:500
-Elapsed time: 1.20838452 seconds (1.208) for conform:500
-+!CSVLINE!+hawk,conform:500,1.20838452
+Elapsed time: 1.14940087 seconds (1.149) for conform:500
++!CSVLINE!+hawk,conform:500,1.14940087
 
-On-trace: 94.17% (1138.552 ms)
-In-gc: 4.92% (59.445 ms)
-VM: 0.91% (10.984 ms)
-JIT space: 150.02 KB 540.91 B/trace
-Trace counts (284 total):
-  up-recursive: 3
+On-trace: 93.27% (1072.805 ms)
+In-gc: 5.41% (62.274 ms)
+VM: 1.32% (15.156 ms)
+JIT space: 234.20 KB 691.14 B/trace
+Trace counts (347 total):
+  up-recursive: 5
   down-recursive: 4
-  normal-loop: 13
-  side: 264
+  normal-loop: 11
+  side: 327
 
 Testing dynamic under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -673,18 +673,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/dynamic.scm /tmp/r7rs-benchmarks/Hawk/dynamic.scm
 Running...
 Running dynamic:500
-Elapsed time: 2.145506291 seconds (2.146) for dynamic:500
-+!CSVLINE!+hawk,dynamic:500,2.145506291
+Elapsed time: 2.33428653 seconds (2.334) for dynamic:500
++!CSVLINE!+hawk,dynamic:500,2.33428653
 
-On-trace: 75.74% (1625.311 ms)
-In-gc: 22.79% (489.126 ms)
-VM: 1.46% (31.394 ms)
-JIT space: 856.44 KB 785.14 B/trace
-Trace counts (1117 total):
-  up-recursive: 15
+On-trace: 69.20% (1621.219 ms)
+In-gc: 28.99% (679.167 ms)
+VM: 1.81% (42.492 ms)
+JIT space: 833.86 KB 682.01 B/trace
+Trace counts (1252 total):
+  up-recursive: 14
   down-recursive: 7
-  normal-loop: 23
-  side: 1072
+  normal-loop: 28
+  side: 1203
 
 Testing earley under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -692,18 +692,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/earley.scm /tmp/r7rs-benchmarks/Hawk/earley.scm
 Running...
 Running earley:1
-Elapsed time: 1.85316774 seconds (1.853) for earley:1
-+!CSVLINE!+hawk,earley:1,1.85316774
+Elapsed time: 2.003688816 seconds (2.004) for earley:1
++!CSVLINE!+hawk,earley:1,2.003688816
 
-On-trace: 25.49% (472.447 ms)
-In-gc: 72.89% (1350.886 ms)
-VM: 1.62% (30.073 ms)
-JIT space: 39.87 KB 609.42 B/trace
-Trace counts (67 total):
-  up-recursive: 1
+On-trace: 29.59% (593.119 ms)
+In-gc: 69.02% (1383.196 ms)
+VM: 1.39% (27.807 ms)
+JIT space: 40.54 KB 902.57 B/trace
+Trace counts (46 total):
+  up-recursive: 2
   down-recursive: 0
-  normal-loop: 14
-  side: 52
+  normal-loop: 7
+  side: 37
 
 Testing graphs under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -711,18 +711,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/graphs.scm /tmp/r7rs-benchmarks/Hawk/graphs.scm
 Running...
 Running graphs:7:3
-Elapsed time: 1.367275054 seconds (1.367) for graphs:7:3
-+!CSVLINE!+hawk,graphs:7:3,1.367275054
+Elapsed time: 1.510245088 seconds (1.51) for graphs:7:3
++!CSVLINE!+hawk,graphs:7:3,1.510245088
 
-On-trace: 85.19% (1164.965 ms)
-In-gc: 12.16% (166.227 ms)
-VM: 2.66% (36.316 ms)
-JIT space: 591.96 KB 899.35 B/trace
-Trace counts (674 total):
-  up-recursive: 2
+On-trace: 82.79% (1250.550 ms)
+In-gc: 14.41% (217.631 ms)
+VM: 2.81% (42.396 ms)
+JIT space: 599.38 KB 880.58 B/trace
+Trace counts (697 total):
+  up-recursive: 4
   down-recursive: 1
-  normal-loop: 12
-  side: 659
+  normal-loop: 11
+  side: 681
 
 Testing lattice under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -730,18 +730,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/lattice.scm /tmp/r7rs-benchmarks/Hawk/lattice.scm
 Running...
 Running lattice:44:10
-Elapsed time: 1.721215238 seconds (1.721) for lattice:44:10
-+!CSVLINE!+hawk,lattice:44:10,1.721215238
+Elapsed time: 2.057114708 seconds (2.057) for lattice:44:10
++!CSVLINE!+hawk,lattice:44:10,2.057114708
 
-On-trace: 99.39% (1710.998 ms)
-In-gc: 0.45% (7.817 ms)
-VM: 0.15% (2.661 ms)
-JIT space: 56.88 KB 368.63 B/trace
-Trace counts (158 total):
-  up-recursive: 4
-  down-recursive: 2
-  normal-loop: 7
-  side: 145
+On-trace: 98.27% (2022.115 ms)
+In-gc: 1.57% (32.344 ms)
+VM: 0.16% (3.299 ms)
+JIT space: 64.96 KB 403.16 B/trace
+Trace counts (165 total):
+  up-recursive: 7
+  down-recursive: 1
+  normal-loop: 5
+  side: 152
 
 Testing matrix under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -749,18 +749,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/matrix.scm /tmp/r7rs-benchmarks/Hawk/matrix.scm
 Running...
 Running matrix:5:5:2500
-Elapsed time: 0.867931262 seconds (0.868) for matrix:5:5:2500
-+!CSVLINE!+hawk,matrix:5:5:2500,0.867931262
+Elapsed time: 0.980322998 seconds (0.98) for matrix:5:5:2500
++!CSVLINE!+hawk,matrix:5:5:2500,0.980322998
 
-On-trace: 95.95% (834.378 ms)
-In-gc: 3.10% (26.940 ms)
-VM: 0.95% (8.262 ms)
-JIT space: 116.21 KB 459.44 B/trace
-Trace counts (259 total):
-  up-recursive: 4
-  down-recursive: 4
-  normal-loop: 20
-  side: 231
+On-trace: 92.73% (911.110 ms)
+In-gc: 5.72% (56.246 ms)
+VM: 1.55% (15.226 ms)
+JIT space: 180.72 KB 545.88 B/trace
+Trace counts (339 total):
+  up-recursive: 10
+  down-recursive: 1
+  normal-loop: 14
+  side: 314
 
 Testing maze under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -768,18 +768,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/maze.scm /tmp/r7rs-benchmarks/Hawk/maze.scm
 Running...
 Running maze:20:7:10000
-Elapsed time: 0.404704803 seconds (0.405) for maze:20:7:10000
-+!CSVLINE!+hawk,maze:20:7:10000,0.404704803
+Elapsed time: 0.371494744 seconds (0.371) for maze:20:7:10000
++!CSVLINE!+hawk,maze:20:7:10000,0.371494744
 
-On-trace: 94.96% (385.347 ms)
-In-gc: 2.39% (9.718 ms)
-VM: 2.65% (10.750 ms)
-JIT space: 153.71 KB 675.54 B/trace
-Trace counts (233 total):
+On-trace: 91.36% (349.155 ms)
+In-gc: 2.76% (10.562 ms)
+VM: 5.87% (22.440 ms)
+JIT space: 178.38 KB 787.33 B/trace
+Trace counts (232 total):
   up-recursive: 4
   down-recursive: 0
-  normal-loop: 19
-  side: 210
+  normal-loop: 11
+  side: 217
 
 Testing mazefun under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -787,18 +787,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/mazefun.scm /tmp/r7rs-benchmarks/Hawk/mazefun.scm
 Running...
 Running mazefun:11:11:10000
-Elapsed time: 1.402999917 seconds (1.403) for mazefun:11:11:10000
-+!CSVLINE!+hawk,mazefun:11:11:10000,1.402999917
+Elapsed time: 1.368370918 seconds (1.368) for mazefun:11:11:10000
++!CSVLINE!+hawk,mazefun:11:11:10000,1.368370918
 
-On-trace: 98.08% (1377.547 ms)
-In-gc: 1.69% (23.684 ms)
-VM: 0.23% (3.266 ms)
-JIT space: 51.72 KB 375.60 B/trace
-Trace counts (141 total):
-  up-recursive: 7
+On-trace: 98.17% (1345.027 ms)
+In-gc: 1.56% (21.318 ms)
+VM: 0.27% (3.738 ms)
+JIT space: 55.83 KB 373.64 B/trace
+Trace counts (153 total):
+  up-recursive: 8
   down-recursive: 6
-  normal-loop: 5
-  side: 123
+  normal-loop: 4
+  side: 135
 
 Testing nqueens under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -806,18 +806,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/nqueens.scm /tmp/r7rs-benchmarks/Hawk/nqueens.scm
 Running...
 Running nqueens:13:10
-Elapsed time: 2.730697812 seconds (2.731) for nqueens:13:10
-+!CSVLINE!+hawk,nqueens:13:10,2.730697812
+Elapsed time: 2.663847737 seconds (2.664) for nqueens:13:10
++!CSVLINE!+hawk,nqueens:13:10,2.663847737
 
-On-trace: 99.10% (2706.469 ms)
-In-gc: 0.87% (23.705 ms)
-VM: 0.03% (0.800 ms)
-JIT space: 14.70 KB 342.02 B/trace
-Trace counts (44 total):
+On-trace: 99.14% (2641.651 ms)
+In-gc: 0.81% (21.698 ms)
+VM: 0.04% (1.152 ms)
+JIT space: 13.57 KB 330.93 B/trace
+Trace counts (42 total):
   up-recursive: 2
   down-recursive: 2
-  normal-loop: 3
-  side: 37
+  normal-loop: 2
+  side: 36
 
 Testing paraffins under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -825,18 +825,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/paraffins.scm /tmp/r7rs-benchmarks/Hawk/paraffins.scm
 Running...
 Running paraffins:23:10
-Elapsed time: 3.65975221 seconds (3.66) for paraffins:23:10
-+!CSVLINE!+hawk,paraffins:23:10,3.65975221
+Elapsed time: 3.731394854 seconds (3.731) for paraffins:23:10
++!CSVLINE!+hawk,paraffins:23:10,3.731394854
 
-On-trace: 40.12% (1468.217 ms)
-In-gc: 59.80% (2188.746 ms)
-VM: 0.08% (3.034 ms)
-JIT space: 33.53 KB 381.49 B/trace
-Trace counts (90 total):
+On-trace: 35.59% (1328.180 ms)
+In-gc: 64.32% (2400.291 ms)
+VM: 0.09% (3.286 ms)
+JIT space: 25.38 KB 376.64 B/trace
+Trace counts (69 total):
   up-recursive: 8
   down-recursive: 2
-  normal-loop: 7
-  side: 73
+  normal-loop: 6
+  side: 53
 
 Testing parsing under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -844,18 +844,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/parsing.scm /tmp/r7rs-benchmarks/Hawk/parsing.scm
 Running...
 Running parsing:2500
-Elapsed time: 1.517925068 seconds (1.518) for parsing:2500
-+!CSVLINE!+hawk,parsing:2500,1.517925068
+Elapsed time: 1.535425624 seconds (1.535) for parsing:2500
++!CSVLINE!+hawk,parsing:2500,1.535425624
 
-On-trace: 98.66% (1497.885 ms)
-In-gc: 0.54% (8.141 ms)
-VM: 0.81% (12.236 ms)
-JIT space: 194.15 KB 730.90 B/trace
-Trace counts (272 total):
+On-trace: 97.72% (1510.767 ms)
+In-gc: 0.88% (13.622 ms)
+VM: 1.40% (21.626 ms)
+JIT space: 186.67 KB 574.02 B/trace
+Trace counts (333 total):
   up-recursive: 4
   down-recursive: 2
   normal-loop: 4
-  side: 262
+  side: 323
 
 Testing peval under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -863,18 +863,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/peval.scm /tmp/r7rs-benchmarks/Hawk/peval.scm
 Running...
 Running peval:2000
-Elapsed time: 1.377443287 seconds (1.377) for peval:2000
-+!CSVLINE!+hawk,peval:2000,1.377443287
+Elapsed time: 1.284241988 seconds (1.284) for peval:2000
++!CSVLINE!+hawk,peval:2000,1.284241988
 
-On-trace: 94.99% (1309.648 ms)
-In-gc: 4.11% (56.729 ms)
-VM: 0.90% (12.405 ms)
-JIT space: 329.96 KB 506.57 B/trace
-Trace counts (667 total):
-  up-recursive: 11
-  down-recursive: 6
-  normal-loop: 15
-  side: 635
+On-trace: 95.08% (1222.282 ms)
+In-gc: 3.76% (48.302 ms)
+VM: 1.17% (15.000 ms)
+JIT space: 352.66 KB 531.85 B/trace
+Trace counts (679 total):
+  up-recursive: 10
+  down-recursive: 5
+  normal-loop: 18
+  side: 646
 
 Testing primes under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -882,18 +882,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/primes.scm /tmp/r7rs-benchmarks/Hawk/primes.scm
 Running...
 Running primes:1000:10000
-Elapsed time: 0.468466369 seconds (0.468) for primes:1000:10000
-+!CSVLINE!+hawk,primes:1000:10000,0.468466369
+Elapsed time: 0.44438791 seconds (0.444) for primes:1000:10000
++!CSVLINE!+hawk,primes:1000:10000,0.44438791
 
-On-trace: 94.06% (441.707 ms)
-In-gc: 5.54% (25.992 ms)
-VM: 0.40% (1.889 ms)
-JIT space: 51.49 KB 288.10 B/trace
-Trace counts (183 total):
-  up-recursive: 3
+On-trace: 94.24% (419.700 ms)
+In-gc: 5.37% (23.926 ms)
+VM: 0.39% (1.731 ms)
+JIT space: 52.08 KB 297.96 B/trace
+Trace counts (179 total):
+  up-recursive: 2
   down-recursive: 3
-  normal-loop: 5
-  side: 172
+  normal-loop: 4
+  side: 170
 
 Testing quicksort under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -901,18 +901,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/quicksort.scm /tmp/r7rs-benchmarks/Hawk/quicksort.scm
 Running...
 Running quicksort:10000:2500
-Elapsed time: 1.960634143 seconds (1.961) for quicksort:10000:2500
-+!CSVLINE!+hawk,quicksort:10000:2500,1.960634143
+Elapsed time: 2.22059848 seconds (2.221) for quicksort:10000:2500
++!CSVLINE!+hawk,quicksort:10000:2500,2.22059848
 
-On-trace: 98.43% (1932.336 ms)
-In-gc: 1.25% (24.535 ms)
-VM: 0.32% (6.331 ms)
-JIT space: 89.58 KB 504.04 B/trace
-Trace counts (182 total):
-  up-recursive: 1
+On-trace: 98.19% (2182.937 ms)
+In-gc: 1.42% (31.582 ms)
+VM: 0.39% (8.720 ms)
+JIT space: 167.53 KB 670.14 B/trace
+Trace counts (256 total):
+  up-recursive: 2
   down-recursive: 0
-  normal-loop: 8
-  side: 173
+  normal-loop: 6
+  side: 248
 
 Testing scheme under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -920,18 +920,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/scheme.scm /tmp/r7rs-benchmarks/Hawk/scheme.scm
 Running...
 Running scheme:100000
-Elapsed time: 1.354437968 seconds (1.354) for scheme:100000
-+!CSVLINE!+hawk,scheme:100000,1.354437968
+Elapsed time: 1.306915818 seconds (1.307) for scheme:100000
++!CSVLINE!+hawk,scheme:100000,1.306915818
 
-On-trace: 98.40% (1334.734 ms)
-In-gc: 1.24% (16.785 ms)
-VM: 0.36% (4.865 ms)
-JIT space: 62.38 KB 506.98 B/trace
-Trace counts (126 total):
+On-trace: 98.33% (1287.122 ms)
+In-gc: 1.29% (16.951 ms)
+VM: 0.38% (4.934 ms)
+JIT space: 67.56 KB 544.73 B/trace
+Trace counts (127 total):
   up-recursive: 4
   down-recursive: 1
-  normal-loop: 9
-  side: 112
+  normal-loop: 6
+  side: 116
 
 Testing slatex under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -939,18 +939,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/slatex.scm /tmp/r7rs-benchmarks/Hawk/slatex.scm
 Running...
 Running slatex:500
-Elapsed time: 1.361871675 seconds (1.362) for slatex:500
-+!CSVLINE!+hawk,slatex:500,1.361871675
+Elapsed time: 1.573814932 seconds (1.574) for slatex:500
++!CSVLINE!+hawk,slatex:500,1.573814932
 
-On-trace: 96.54% (1315.060 ms)
-In-gc: 0.86% (11.768 ms)
-VM: 2.59% (35.325 ms)
-JIT space: 254.60 KB 569.24 B/trace
-Trace counts (458 total):
-  up-recursive: 2
+On-trace: 93.05% (1472.391 ms)
+In-gc: 2.01% (31.802 ms)
+VM: 4.95% (78.256 ms)
+JIT space: 538.86 KB 1029.46 B/trace
+Trace counts (536 total):
+  up-recursive: 3
   down-recursive: 2
-  normal-loop: 38
-  side: 416
+  normal-loop: 33
+  side: 498
 
 Testing chudnovsky under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -958,18 +958,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/chudnovsky.scm /tmp/r7rs-benchmarks/Hawk/chudnovsky.scm
 Running...
 Running chudnovsky:50:500:50:1000
-Elapsed time: 0.084105846 seconds (0.084) for chudnovsky:50:500:50:1000
-+!CSVLINE!+hawk,chudnovsky:50:500:50:1000,0.084105846
+Elapsed time: 0.091751622 seconds (0.092) for chudnovsky:50:500:50:1000
++!CSVLINE!+hawk,chudnovsky:50:500:50:1000,0.091751622
 
-On-trace: 95.65% (81.574 ms)
-In-gc: 2.19% (1.864 ms)
-VM: 2.16% (1.845 ms)
-JIT space: 30.52 KB 781.38 B/trace
-Trace counts (40 total):
+On-trace: 94.95% (87.996 ms)
+In-gc: 1.85% (1.715 ms)
+VM: 3.20% (2.964 ms)
+JIT space: 84.93 KB 1640.92 B/trace
+Trace counts (53 total):
   up-recursive: 1
-  down-recursive: 2
+  down-recursive: 1
   normal-loop: 5
-  side: 32
+  side: 46
 
 Testing nboyer under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -977,18 +977,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/nboyer.scm /tmp/r7rs-benchmarks/Hawk/nboyer.scm
 Running...
 Running nboyer:5:1
-Elapsed time: 1.306916753 seconds (1.307) for nboyer:5:1
-+!CSVLINE!+hawk,nboyer:5:1,1.306916753
+Elapsed time: 1.355405441 seconds (1.355) for nboyer:5:1
++!CSVLINE!+hawk,nboyer:5:1,1.355405441
 
-On-trace: 32.80% (428.759 ms)
-In-gc: 67.06% (876.597 ms)
-VM: 0.14% (1.874 ms)
-JIT space: 52.13 KB 518.23 B/trace
-Trace counts (103 total):
-  up-recursive: 3
+On-trace: 34.79% (471.611 ms)
+In-gc: 65.10% (882.573 ms)
+VM: 0.12% (1.564 ms)
+JIT space: 40.41 KB 390.33 B/trace
+Trace counts (106 total):
+  up-recursive: 5
   down-recursive: 2
   normal-loop: 4
-  side: 94
+  side: 95
 
 Testing sboyer under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -996,18 +996,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/sboyer.scm /tmp/r7rs-benchmarks/Hawk/sboyer.scm
 Running...
 Running sboyer:5:1
-Elapsed time: 0.583356734 seconds (0.583) for sboyer:5:1
-+!CSVLINE!+hawk,sboyer:5:1,0.583356734
+Elapsed time: 0.493099844 seconds (0.493) for sboyer:5:1
++!CSVLINE!+hawk,sboyer:5:1,0.493099844
 
-On-trace: 80.60% (470.392 ms)
-In-gc: 19.09% (111.400 ms)
-VM: 0.31% (1.804 ms)
-JIT space: 52.75 KB 473.79 B/trace
-Trace counts (114 total):
+On-trace: 78.61% (387.889 ms)
+In-gc: 20.99% (103.549 ms)
+VM: 0.41% (2.002 ms)
+JIT space: 50.53 KB 474.71 B/trace
+Trace counts (109 total):
   up-recursive: 5
   down-recursive: 2
   normal-loop: 4
-  side: 103
+  side: 98
 
 Testing gcbench under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -1049,17 +1049,17 @@ Creating 8 trees of depth 18
 GCBench: Top down construction
 GCBench: Bottom up construction
  Total memory available= ???????? bytes  Free memory= ???????? bytes
-Elapsed time: 0.598579403 seconds (0.599) for gcbench:20:1
-+!CSVLINE!+hawk,gcbench:20:1,0.598579403
+Elapsed time: 0.565621046 seconds (0.566) for gcbench:20:1
++!CSVLINE!+hawk,gcbench:20:1,0.565621046
 
-On-trace: 42.68% (255.604 ms)
-In-gc: 56.29% (337.112 ms)
-VM: 1.02% (6.133 ms)
-JIT space: 16.60 KB 515.15 B/trace
-Trace counts (33 total):
+On-trace: 42.35% (239.710 ms)
+In-gc: 56.74% (321.131 ms)
+VM: 0.91% (5.171 ms)
+JIT space: 17.62 KB 563.88 B/trace
+Trace counts (32 total):
   up-recursive: 2
   down-recursive: 0
-  normal-loop: 3
+  normal-loop: 2
   side: 28
 
 Testing mperm under Hawk
@@ -1068,18 +1068,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/mperm.scm /tmp/r7rs-benchmarks/Hawk/mperm.scm
 Running...
 Running mperm:20:10:2:1
-Elapsed time: 4.340514955 seconds (4.341) for mperm:20:10:2:1
-+!CSVLINE!+hawk,mperm:20:10:2:1,4.340514955
+Elapsed time: 4.550143884 seconds (4.55) for mperm:20:10:2:1
++!CSVLINE!+hawk,mperm:20:10:2:1,4.550143884
 
-On-trace: 18.20% (827.454 ms)
-In-gc: 81.77% (3718.155 ms)
-VM: 0.03% (1.281 ms)
-JIT space: 8.34 KB 355.92 B/trace
-Trace counts (24 total):
-  up-recursive: 0
+On-trace: 18.61% (889.579 ms)
+In-gc: 81.36% (3890.237 ms)
+VM: 0.03% (1.406 ms)
+JIT space: 11.35 KB 581.00 B/trace
+Trace counts (20 total):
+  up-recursive: 1
   down-recursive: 0
-  normal-loop: 8
-  side: 16
+  normal-loop: 4
+  side: 15
 
 Testing equal under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -1087,18 +1087,18 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/equal.scm /tmp/r7rs-benchmarks/Hawk/equal.scm
 Running...
 Running equal:100:100:8:1000:2000:5000
-Elapsed time: 0.212195439 seconds (0.212) for equal:100:100:8:1000:2000:5000
-+!CSVLINE!+hawk,equal:100:100:8:1000:2000:5000,0.212195439
+Elapsed time: 0.215516138 seconds (0.216) for equal:100:100:8:1000:2000:5000
++!CSVLINE!+hawk,equal:100:100:8:1000:2000:5000,0.215516138
 
-On-trace: 90.29% (191.851 ms)
+On-trace: 86.10% (185.883 ms)
 In-gc: 0.00% (0.000 ms)
-VM: 9.71% (20.631 ms)
-JIT space: 8.03 KB 391.43 B/trace
-Trace counts (21 total):
-  up-recursive: 4
-  down-recursive: 2
-  normal-loop: 4
-  side: 11
+VM: 13.90% (30.019 ms)
+JIT space: 3.42 KB 699.80 B/trace
+Trace counts (5 total):
+  up-recursive: 1
+  down-recursive: 0
+  normal-loop: 3
+  side: 1
 
 Testing bv2string under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -1106,13 +1106,13 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/bv2string.scm /tmp/r7rs-benchmarks/Hawk/bv2string.scm
 Running...
 Running bv2string:1000:1000:100
-Elapsed time: 0.604432027 seconds (0.604) for bv2string:1000:1000:100
-+!CSVLINE!+hawk,bv2string:1000:1000:100,0.604432027
+Elapsed time: 0.628499308 seconds (0.628) for bv2string:1000:1000:100
++!CSVLINE!+hawk,bv2string:1000:1000:100,0.628499308
 
-On-trace: 99.54% (601.982 ms)
-In-gc: 0.28% (1.679 ms)
-VM: 0.18% (1.073 ms)
-JIT space: 12.30 KB 741.12 B/trace
+On-trace: 99.44% (625.367 ms)
+In-gc: 0.34% (2.169 ms)
+VM: 0.22% (1.359 ms)
+JIT space: 13.36 KB 804.47 B/trace
 Trace counts (17 total):
   up-recursive: 0
   down-recursive: 0

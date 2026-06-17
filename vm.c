@@ -237,6 +237,7 @@ EXPORT void vm_trace_reset(void) {
   if (!current_vm_state) {
     abort();
   }
+  profiler_reset();
   trace_reset(current_vm_state);
 }
 static inline void return_frame(vm_state *state, bc instr, uint16_t count,

@@ -188,7 +188,7 @@ Guile has acquired a JIT in recent versions, however, it is only a template JIT,
 
 ## Results
 
-The standard r7rs-benchmarks suite, originally from the Larceny benchmark suite, is used [@r7rsbenchmarks]. Two architectures were benchmarked: x64 on AMD Ryzen 9 5900X (ubuntu 25.10) and aarch64 on Apple M1 MacBook air (macOS 25.2.0).  Chez version was 10.0.0.  Chez scheme pre-compiled each program with:
+The standard r7rs-benchmarks suite [@r7rsbenchmarks], originally derived from the Larceny benchmark suite [@larcenists], is used. Two architectures were benchmarked: x64 on AMD Ryzen 9 5900X (ubuntu 25.10) and aarch64 on Apple M1 MacBook air (macOS 25.2.0).  Chez version was 10.0.0.  Chez scheme pre-compiled each program with:
 
 ```scheme
 (parameterize ((optimize-level 3))
@@ -243,11 +243,22 @@ TODO possibly split out GC-heavy benchmarks, vs. TRACE heavy benchmarks?
 
 ### Ablation Study
 
-TODO: 
-* no-const-promotion (globals & closures)
+The ablation study compares each Hawk variant against the baseline
+`results.Hawk` run. Each bar shows the mean runtime as a percentage of the
+original benchmark time, with asymmetric error bars showing the 16th to 84th
+percentile range across the benchmarks included in the comparison.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.96\columnwidth]{generated/ablation_runtime_x64.pdf}
+\caption{x64 Hawk ablation runtime relative to the baseline. Bars show mean runtime as a percentage of the original `results.Hawk` time, with asymmetric error bars showing the 16th to 84th percentile range.}
+\Description{Bar chart of x64 Hawk ablation runtime as a percent of baseline, with asymmetric error bars.}
+\end{figure}
+
+* no-const-promotion (globals \& closures)
 * eager-typechecking
 * no-polymorphic
-* no-loop-analysis
+* no-loop
 * no-register-args
 
 ## Discussion
@@ -286,7 +297,3 @@ TODO: Include one complete small example.
   LocalWords:  includegraphics textwidth Chez Arity usepackage
   LocalWords:  outputdir usemintedstyle trac
 -->
-
-
-
-
