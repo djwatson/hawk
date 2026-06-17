@@ -8,27 +8,23 @@ header-includes: |
   \usepackage[outputdir=build]{minted2}
   \usemintedstyle{trac}
 abstract: |
-	Tracing JITs are an easy way to implement a JIT for dynamic languages.  They are often quicker than a full method JIT, while allowing incremental implementation.  They trace starting from inner loops, and add side traces to connect loops.  Scheme, however, does not contain loops: loops are implemented as recursion.  In this paper we explore implementing a tracing JIT for scheme, and in particular how we detect loops, up recursion, down recursion. We also implement polymorphic traces, and inlining of global assumptions to increase the performance of the JIT.   We show large speedups on flonum-heavy benchmarks due to unboxing flonums in the JIT, while non-flonum benchmarks are similar to other best-in-class scheme compilers.
+  In Scheme, iteration, mutual recursion, higher-order calls, and continuations all appear as control flow through function entries and returns, rather than as loops.  This paper presents Hawk, a tracing JIT specialized to control flow around tail recursion and function parameters.  Instead of treating Scheme programs as a special case of loop tracing, Hawk records and links traces at function call boundaries, categorizing traces as root loops, polymorphic, up-recursive, down-recursive, and links these traces together with additional side traces.
+
+  The main payoff of this design is the ability to specialize functions to their types.  Hawk uses polymorphic trace entries to record distinct traces for calls with distinct entry types. The same scheme procedure can be specialized for flonums AND fixnums, and producing JIT code that is more efficient on current hardware.  Flonums remain unboxed and in register for hot loops.  Lazy type checks further reduce overhead by only guarding types that are known to be required for the trace.  Hawk also passes trace arguments in register, optimistically promotes globals and singleton closures to constants, yielding a dynamic yet fast JIT architecture without requiring whole-program analysis.  On the R7RS benchmark suite, Hawk reduces geometric-mean runtime relative to Chez scheme by 25%.
 ---
 
 <!--
 dave's notes
 
-- first args in reg, INCLUDING side trace->loop header.
-- after a single loop, can return anywhere
-- globals and closures can be 'promoted' to constants
-- flonums in jit important, most stay in reg
-- 'lazy' typecheck
-- various with/without feature like loops, eager typecheck, globals/closures in reg, no IR_ARG, etc etc
-  uprec/downrec? POLYmorphic traces!!!
-- callcc in traces is EASY
-- apply a little less so (finish this!)
-- 
+- [ ] Results are reproducible from a clean checkout.
+- apply tracing unfinished
+
 - TODO optimizations to add:
+- alloc sinking - I tried this, there are almost no
+  allocs to sink in hot loops! Mostly case-lambda and 
+  multiple value returns solves this.
+  
 - integer range opt, helps sum not need overflow checks
-- auto flvector, fft and nbody 
-- sinking / alloc removal (probably dynamic, graphs)
-- explicit type for ports (dynamic, read1, parsing, etc)
 - opt_loop.  Not really sure 
 -->
 
@@ -131,19 +127,21 @@ Globals in scheme are either top level global variables, or top level library va
 
 There are many cases where a closure is required, however, that closure is essentially a singleton, and only ever created once.  We track this on a per-function bases: if a function only has one closure created for it, we assume it is constant with the same mechanism as above, and all closure loads are also constant for it.
 
-## Tracing call/cc
+## Additional scheme tracing issues
+
+### Tracing call/cc
 
 Currently all opcodes except APPLY are traced, including call-with-current-continuation.  At first glance it may seem hard to trace through a call/cc, but actually turns out to be quite easy: A call/cc entry makes an intrinsic call to the same C runtime function as the VM to save the current stack and package it as a closure, but otherwise is just a function call the same as any other.  
 
 On call/cc return, or calling the captured closure, we currently insert a RET check, the same as a side trace, since we don’t statically know which continuation we’re returning to.  Additionally, an intrinsic call is inserted to replace the current continuation with the given continuation (exactly the same as the VM).  Then, we are able to continue tracing just as if there was no call/cc at all.
 
-## Tracing case-lambda
+### Tracing case-lambda
 
 Tracing case-lambda is quite simple in this system: Since function calls know the number of arguments they are making, and at the entry to each function, we check the argument count, we don’t even need to know the argument count after recording the trace: it is either on trace, or it takes a side exit.  We can package up rest-arguments on trace as well. 
 
 The only exception is the APPLY opcode: we need to record apply, and then record which of the case-lambda cases we took.  We don’t want to overly constrain to the exact argument count, we only constrain to the number of fixed args, and call an intrinsic to package the rest list.  This means as long as the fixed args still match, we can handle any-length rest argument list.
 
-## Analysis of trace types and trace stability
+### Analysis of trace types and trace stability
 
 Currently <TODO insert table> our profiler shows >95% on-trace for all benchmarks, however, most of the scheme benchmarks are quite long.
 
@@ -152,15 +150,15 @@ During testing, a mode was implemented where a deterministic tracing schedule wa
 It was found that using different seeds, the tracing was remarkably stable - the same number and location of root traces were found, and similar numbers of side traces, even though the traces were initially recorded in different orders.  <TODO insert table with stddev bars for trace counts and types>.  
 
 
-## Tracing complications
+### Tracing complications
 
 The initial tracing infrastructure did NOT use or require LOOP analysis, and converting of some tail calls back in to loops.  However it was discovered that this analysis was important for removing ALLOCATIONS, not for helping the tracing infrastructure.  For example:
 
 ```scheme
-(define (foo a) 
+(define (foo a)
   (let loop ()
     (bar a)
-	(loop a)))
+    (loop)))
 ```
 
 If loop was de-structured to a function call, it would have to create a closure to hold a, while a LOOP bytecode will instead be able to load it from the stack.  
@@ -186,9 +184,18 @@ Nash is another tracing jit, based on guile’s VM [@hoshino2016nash]. Guile’s
 
 ### Guile
 
-Guile has acquired a JIT in recent versions, however, it is only a template JIT, so it does not do many optimizations, other than a tiny bit of register allocation [@guilejit].  For example, it does not do inlining at all.
+Guile has acquired a JIT in recent versions, however, it is only a template JIT, so it does not do many optimizations, other than a tiny bit of register allocation [@guilejit].  For example, it does not do inlining at all, although the bytecode itself has been through a fairly strong inliner.  No type specialization is attempted.
 
-### Overall Results
+## Results
+
+The standard r7rs-benchmarks suite, originally from the Larceny benchmark suite, is used [@r7rsbenchmarks]. Two architectures were benchmarked: x64 on AMD Ryzen 9 5900X (ubuntu 25.10) and aarch64 on Apple M1 MacBook air (macOS 25.2.0).  Chez version was 10.0.0.  Chez scheme pre-compiled each program with:
+
+```scheme
+(parameterize ((optimize-level 3))
+  (compile-program "%s"))
+```
+
+Neither chez nor hawk times include compile time.  Hawk DOES include JIT time.  There is no jit warmup period.
 
 <!-- BENCHMARK_CHART -->
 
@@ -201,30 +208,56 @@ Guile has acquired a JIT in recent versions, however, it is only a template JIT,
 
 <!-- /BENCHMARK_CHART -->
 
+The next figure breaks total Hawk time into VM, GC, and JIT contributions on
+the x64 run.
+
+\begin{figure*}
+\centering
+\includegraphics[width=\textwidth]{generated/time_breakdown_x64.pdf}
+\caption{x64 Hawk runtime breakdown by benchmark. Stacked bars show VM, GC, and JIT time as percentages of total runtime.}
+\Description{Stacked bar chart of x64 benchmark time broken into VM, GC, and JIT percentages.}
+\end{figure*}
+
+The next figure shows the trace mix per benchmark, sorted by total trace count.
+
+\begin{figure*}
+\centering
+\includegraphics[width=\textwidth]{generated/trace_counts_x64.pdf}
+\caption{x64 Hawk trace counts by benchmark. Stacked bars show normal-loop, side, up-recursive, and down-recursive trace counts.}
+\Description{Stacked bar chart of x64 benchmark trace counts by type.}
+\end{figure*}
+
+TODO: chart showing variability of each given deterministic schedule.
+
+## Discussion
+
 ### Flonum-Heavy Results
+
+sum1, sumfp, simplex, ray, pnpoly, fibfp, fft, nucleic, sumfp, quicksort, mbrot
 
 ### Non-Numeric Results
 
+compiler, dynamic, fibc, ctak
+
+TODO possibly split out GC-heavy benchmarks, vs. TRACE heavy benchmarks?
+
 ### Ablation Study
 
-### Trace Behavior
-
-Trace behavior
-
----
+TODO: 
+* no-const-promotion (globals & closures)
+* eager-typechecking
+* no-polymorphic
+* no-loop-analysis
+* no-register-args
 
 ## Discussion
 
 
 ### Limitations
 
+Hawk currently only supports ascii strings.  Only the bv2string benchmark would significantly change performance if unicode support were added.
 
 ### Future Work
-
----
-
-## Related Work
-
 
 ---
 
@@ -240,41 +273,20 @@ TODO: Include one complete small example.
 ---
 
 
-## Scratch Notes / Claims to Verify
-
-- [ ] Mutual tail-call loops are supported / unsupported / partially supported.
-- [ ] Global promotion has correct invalidation or guard behavior.
-- [ ] Closure promotion is by identity / entry point / layout.
-- [ ] Arity specialization is guarded correctly.
-- [ ] Fixnum overflow exits correctly.
-- [ ] Flonum fast path avoids generic dispatch.
-- [ ] Side exits reconstruct interpreter state correctly.
-- [ ] Compile time is included or separately reported.
-- [ ] R7RS benchmark suite version is pinned.
-- [ ] Results are reproducible from a clean checkout.
-
----
-
-## References {.unnumbered}
-
 ::: {#refs}
 :::
 
 <!--  LocalWords:  JIT JITs inlining flonum flonums dave's args jit
-<!--  LocalWords:  globals typecheck ARG uprec downrec POLYmorphic lj
-<!--  LocalWords:  callcc TODO flvector fft nbody alloc Luajit NLF VM
-<!--  LocalWords:  RET bytecode LuaJit aarch typechecking typechecked
-<!--  LocalWords:  fixnum fixnums cdr pre LOOPs FUNC typechecks cddr
-<!--  LocalWords:  divrec diviter inlined profiler lossy X’th stddev
-<!--  LocalWords:  de ify Pycket pypy rpython CEK Pycket’s fibc ctak
-<!--  LocalWords:  includegraphics textwidth Chez Arity usepackage
-<!--  LocalWords:  outputdir usemintedstyle trac
- -->
- -->
- -->
- -->
- -->
- -->
- -->
- -->
- -->
+  LocalWords:  globals typecheck ARG uprec downrec POLYmorphic lj
+  LocalWords:  callcc TODO flvector fft nbody alloc Luajit NLF VM
+  LocalWords:  RET bytecode LuaJit aarch typechecking typechecked
+  LocalWords:  fixnum fixnums cdr pre LOOPs FUNC typechecks cddr
+  LocalWords:  divrec diviter inlined profiler lossy X’th stddev
+  LocalWords:  de ify Pycket pypy rpython CEK Pycket’s fibc ctak
+  LocalWords:  includegraphics textwidth Chez Arity usepackage
+  LocalWords:  outputdir usemintedstyle trac
+-->
+
+
+
+

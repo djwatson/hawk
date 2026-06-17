@@ -17,6 +17,10 @@ Outputs:
 
 - `doc/paper/generated/benchmark_percent_x64.pdf`
 - `doc/paper/generated/benchmark_percent_aarch64.pdf`
+- `doc/paper/generated/time_breakdown_x64.pdf`
+- `doc/paper/generated/time_breakdown_aarch64.pdf`
+- `doc/paper/generated/trace_counts_x64.pdf`
+- `doc/paper/generated/trace_counts_aarch64.pdf`
 - `doc/paper/build/hawk-paper.pdf`
 
 The benchmark charts are generated from `doc/bench/*/results.*`. Repeated

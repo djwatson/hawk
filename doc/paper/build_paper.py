@@ -153,6 +153,74 @@ def geomean_percent(rows):
   return (ratio - 1.0) * 100.0
 
 
+def parse_time_breakdown():
+  data = defaultdict(list)
+  for arch_dir in sorted(p for p in BENCH.iterdir() if p.is_dir()):
+    arch = arch_dir.name
+    result = arch_dir / "results.Hawk"
+    if not result.exists():
+      continue
+    name = on_trace = in_gc = vm = None
+    for line in result.read_text(encoding="utf-8").splitlines():
+      match = re.match(r"Testing (.+) under Hawk$", line)
+      if match:
+        name = match.group(1)
+        on_trace = in_gc = vm = None
+        continue
+      match = re.match(r"On-trace: ([0-9.]+)% \(([0-9.]+) ms\)", line)
+      if match:
+        on_trace = float(match.group(1))
+        continue
+      match = re.match(r"In-gc: ([0-9.]+)% \(([0-9.]+) ms\)", line)
+      if match:
+        in_gc = float(match.group(1))
+        continue
+      match = re.match(r"VM: ([0-9.]+)% \(([0-9.]+) ms\)", line)
+      if match:
+        vm = float(match.group(1))
+        if name is not None and on_trace is not None and in_gc is not None:
+          data[arch].append((name, vm, in_gc, on_trace))
+  return data
+
+
+def parse_trace_counts():
+  data = defaultdict(list)
+  for arch_dir in sorted(p for p in BENCH.iterdir() if p.is_dir()):
+    arch = arch_dir.name
+    result = arch_dir / "results.Hawk"
+    if not result.exists():
+      continue
+    name = total = up = down = normal = side = None
+    for line in result.read_text(encoding="utf-8").splitlines():
+      match = re.match(r"Testing (.+) under Hawk$", line)
+      if match:
+        name = match.group(1)
+        total = up = down = normal = side = None
+        continue
+      match = re.match(r"Trace counts \(([0-9]+) total\):$", line)
+      if match:
+        total = int(match.group(1))
+        continue
+      match = re.match(r"\s+up-recursive: ([0-9]+)$", line)
+      if match:
+        up = int(match.group(1))
+        continue
+      match = re.match(r"\s+down-recursive: ([0-9]+)$", line)
+      if match:
+        down = int(match.group(1))
+        continue
+      match = re.match(r"\s+normal-loop: ([0-9]+)$", line)
+      if match:
+        normal = int(match.group(1))
+        continue
+      match = re.match(r"\s+side: ([0-9]+)$", line)
+      if match:
+        side = int(match.group(1))
+        if name is not None and total is not None and up is not None and down is not None and normal is not None:
+          data[arch].append((name, total, up, down, normal, side))
+  return data
+
+
 def write_chart(arch, rows):
   import matplotlib
   matplotlib.use("Agg")
@@ -185,6 +253,94 @@ def write_chart(arch, rows):
     ax.spines[spine].set_visible(False)
   fig.tight_layout()
   fig.savefig(GENERATED / f"benchmark_percent_{arch}.pdf")
+  plt.close(fig)
+
+
+def write_time_breakdown_chart(arch, rows):
+  import matplotlib
+  matplotlib.use("Agg")
+  import matplotlib.pyplot as plt
+
+  GENERATED.mkdir(parents=True, exist_ok=True)
+  rows = sorted(rows, key=lambda row: (-row[3], -row[2], -row[1], row[0]))
+  labels = [name for name, _, _, _ in rows]
+  vm = [row[1] for row in rows]
+  gc = [row[2] for row in rows]
+  jit = [row[3] for row in rows]
+  x = range(len(rows))
+
+  plt.rcParams.update({
+    "font.family": "serif",
+    "font.size": 7,
+    "axes.titlesize": 11,
+    "axes.labelsize": 8,
+  })
+  fig, ax = plt.subplots(figsize=(14.5, 4.8))
+  ax.bar(x, vm, color="#6a8fbf", width=0.78, label="VM")
+  ax.bar(x, gc, bottom=vm, color="#d08c60", width=0.78, label="GC")
+  top = [a + b for a, b in zip(vm, gc)]
+  ax.bar(x, jit, bottom=top, color="#4f7d5b", width=0.78, label="JIT")
+  ax.set_title(f"{arch}: Hawk Time Breakdown")
+  ax.set_ylabel("Time share (%)")
+  ax.set_xlabel("Benchmark")
+  ax.set_ylim(0, 100)
+  ax.grid(axis="y", color="#dddddd", linewidth=0.5)
+  ax.set_axisbelow(True)
+  ax.set_xticks(list(x))
+  ax.set_xticklabels(labels, rotation=90, fontsize=5)
+  ax.legend(frameon=False, ncol=3, loc="upper right")
+  for spine in ["top", "right"]:
+    ax.spines[spine].set_visible(False)
+  fig.tight_layout()
+  fig.savefig(GENERATED / f"time_breakdown_{arch}.pdf")
+  plt.close(fig)
+
+
+def write_trace_counts_chart(arch, rows):
+  import matplotlib
+  matplotlib.use("Agg")
+  import matplotlib.pyplot as plt
+  from matplotlib.ticker import ScalarFormatter
+
+  GENERATED.mkdir(parents=True, exist_ok=True)
+  rows = sorted(rows, key=lambda row: (-row[1], row[0]))
+  labels = [name for name, _, _, _, _, _ in rows]
+  normal = [row[4] for row in rows]
+  up = [row[2] for row in rows]
+  down = [row[3] for row in rows]
+  side = [row[5] for row in rows]
+  x = range(len(rows))
+
+  plt.rcParams.update({
+    "font.family": "serif",
+    "font.size": 7,
+    "axes.titlesize": 11,
+    "axes.labelsize": 8,
+  })
+  fig, ax = plt.subplots(figsize=(14.5, 4.8))
+  ax.bar(x, normal, color="#6a8fbf", width=0.78, label="normal-loop")
+  bottom = normal
+  ax.bar(x, up, bottom=bottom, color="#4f7d5b", width=0.78, label="up-recursive")
+  bottom = [a + b for a, b in zip(bottom, up)]
+  ax.bar(x, down, bottom=bottom, color="#b56d8a", width=0.78, label="down-recursive")
+  bottom = [a + b for a, b in zip(bottom, down)]
+  ax.bar(x, side, bottom=bottom, color="#d08c60", width=0.78, label="side")
+  ax.set_title(f"{arch}: Hawk Trace Counts")
+  ax.set_ylabel("Trace count")
+  ax.set_xlabel("Benchmark")
+  ax.set_yscale("log")
+  ax.set_ylim(1, max(row[1] for row in rows) * 1.25)
+  ax.yaxis.set_major_formatter(ScalarFormatter())
+  ax.ticklabel_format(axis="y", style="plain")
+  ax.grid(axis="y", color="#dddddd", linewidth=0.5)
+  ax.set_axisbelow(True)
+  ax.set_xticks(list(x))
+  ax.set_xticklabels(labels, rotation=90, fontsize=5)
+  ax.legend(frameon=False, ncol=4, loc="upper right")
+  for spine in ["top", "right"]:
+    ax.spines[spine].set_visible(False)
+  fig.tight_layout()
+  fig.savefig(GENERATED / f"trace_counts_{arch}.pdf")
   plt.close(fig)
 
 
@@ -297,11 +453,17 @@ def main():
   args = parse_args()
   os.environ.setdefault("MPLCONFIGDIR", str(BUILD / "matplotlib"))
   rows_by_arch = comparison_rows_by_arch(parse_benchmarks())
+  time_rows_by_arch = parse_time_breakdown()
+  trace_rows_by_arch = parse_trace_counts()
   if not rows_by_arch:
     print("no matched Hawk/Chez benchmark results found", file=sys.stderr)
     return 1
   for arch, rows in rows_by_arch.items():
     write_chart(arch, rows)
+  for arch, rows in time_rows_by_arch.items():
+    write_time_breakdown_chart(arch, rows)
+  for arch, rows in trace_rows_by_arch.items():
+    write_trace_counts_chart(arch, rows)
   out = build_pdf(review=args.mode == "review", no_acm=args.no_acm)
   print(f"wrote {out.relative_to(ROOT)} ({args.mode})")
   return 0
