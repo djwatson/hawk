@@ -161,6 +161,11 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     abort();
   }
 
+  size_t snap_entry_count = 0;
+  arr_for_each_idx(s->t->snaps, i) { snap_entry_count += s->t->snaps[i].nent; }
+  size_t next_use_cap = 1 + ins_len * 3 + snap_entry_count;
+  arr_arrgrow(s->next_uses, next_use_cap, next_use_cap);
+
   // Use 0 as the null index in use chains.
   arrput(s->next_uses, ((next_use){0}));
 

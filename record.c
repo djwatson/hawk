@@ -2029,6 +2029,18 @@ done:
 static trace *record_begin_trace(vm_state *state, bc *pc, bc instr) {
   record_set_current_trace(state, calloc(1, sizeof(trace)));
   trace *cur_trace = record_current_trace(state);
+  enum : size_t {
+    TRACE_INIT_INS_CAP = 128,
+    TRACE_INIT_CONST_CAP = 64,
+    TRACE_INIT_SNAP_CAP = 32,
+    TRACE_INIT_SNAPMAP_CAP = 256,
+  };
+  arr_arrgrow(cur_trace->ins, TRACE_INIT_INS_CAP, TRACE_INIT_INS_CAP);
+  arr_arrgrow(cur_trace->cse_prev, TRACE_INIT_INS_CAP, TRACE_INIT_INS_CAP);
+  arr_arrgrow(cur_trace->consts, TRACE_INIT_CONST_CAP, TRACE_INIT_CONST_CAP);
+  arr_arrgrow(cur_trace->snaps, TRACE_INIT_SNAP_CAP, TRACE_INIT_SNAP_CAP);
+  arr_arrgrow(cur_trace->snapmap, TRACE_INIT_SNAPMAP_CAP,
+              TRACE_INIT_SNAPMAP_CAP);
   memset(cur_trace->cse_head, 0xff, sizeof(cur_trace->cse_head));
   cur_trace->start_ins = pc;
   cur_trace->start_pc = instr;
