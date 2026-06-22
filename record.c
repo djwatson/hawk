@@ -231,8 +231,7 @@ void record_init(record_state *record) {
   record->penalty_pcs = nullptr;
 }
 
-static slot add_const(vm_state *state, gc_obj value) {
-  trace *trace_obj = record_current_trace(state);
+slot trace_add_const(trace *trace_obj, gc_obj value) {
   arr_for_each_idx(trace_obj->consts, i) {
     if (trace_obj->consts[i].value == value.value) {
       return (slot){.constant = true, .loc = (uint16_t)i};
@@ -241,6 +240,10 @@ static slot add_const(vm_state *state, gc_obj value) {
   auto idx = arrlen(trace_obj->consts);
   arrput(trace_obj->consts, value);
   return (slot){.constant = true, .loc = idx};
+}
+
+static slot add_const(vm_state *state, gc_obj value) {
+  return trace_add_const(record_current_trace(state), value);
 }
 
 #define IR(...)                                                                \

@@ -7,6 +7,7 @@
 
 #include "array.h"
 #include "gc.h"
+#include "record.h"
 #include "runtime.h"
 
 typedef fold_result (*fold_func_type)(trace *t, ir_ins *in);
@@ -50,16 +51,14 @@ static bool is_neg_zero(trace *t, slot s, slot *out) {
 }
 
 static slot make_fixnum_inst(trace *t, int64_t val) {
-  gc_obj const_val = tag_fixnum(val);
-  uint16_t const_idx = arrlen(t->consts);
-  arrput(t->consts, const_val);
+  slot k = trace_add_const(t, tag_fixnum(val));
   auto ins = (ir_ins){
       .op = IR_CONST,
       .type = FIXNUM_TAG,
       .guard = false,
       .reg = REG_NONE,
       .spill = SPILL_NONE,
-      .op1 = {.constant = true, .loc = const_idx},
+      .op1 = k,
   };
   uint16_t idx = arrlen(t->ins);
   arrput(t->cse_prev, UINT16_MAX);
@@ -68,13 +67,8 @@ static slot make_fixnum_inst(trace *t, int64_t val) {
 }
 
 static bool same_slot(trace *t, slot a, slot b) {
-  if (a.constant != b.constant) {
-    return false;
-  }
-  if (!a.constant) {
-    return a.loc == b.loc;
-  }
-  return t->consts[a.loc].value == t->consts[b.loc].value;
+  (void)t;
+  return memcmp(&a, &b, sizeof(slot)) == 0;
 }
 
 static bool fold_cse_allowed(trace *t __attribute__((unused)), ir_ins *in) {
@@ -112,8 +106,7 @@ static bool fold_cse_allowed(trace *t __attribute__((unused)), ir_ins *in) {
 }
 
 static bool const_slot_eq(trace *t, slot a, slot b) {
-  assert(a.constant && b.constant);
-  return t->consts[a.loc].value == t->consts[b.loc].value;
+  return same_slot(t, a, b);
 }
 
 static bool store_invalidates_load(trace *t, ir_ins *load, ir_ins *store,
@@ -504,10 +497,8 @@ IRFOLDF(fold_cmp_integer_char_const) {
   ir_ins *conv = &t->ins[in->op1.loc];
   if (conv->op != IR_INTEGER_CHAR)
     return fold_next();
-  uint16_t const_idx = arrlen(t->consts);
-  arrput(t->consts, tag_fixnum(to_char(c)));
   in->op1 = conv->op1;
-  in->op2 = (slot){.constant = true, .loc = const_idx};
+  in->op2 = trace_add_const(t, tag_fixnum(to_char(c)));
   return fold_retry();
 }
 
@@ -544,11 +535,7 @@ IRFOLDF(fold_self_cmp) {
     }
     return fold_retry();
   }
-  bool same = in->op1.constant == in->op2.constant &&
-              (!in->op1.constant ||
-               t->consts[in->op1.loc].value == t->consts[in->op2.loc].value) &&
-              (in->op1.constant || in->op1.loc == in->op2.loc);
-  if (!same)
+  if (!same_slot(t, in->op1, in->op2))
     return fold_next();
   switch (in->op) {
   case IR_EQ:

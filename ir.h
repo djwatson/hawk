@@ -229,3 +229,4 @@ extern char *ir_names[];
 extern ir_arg_type ir_ins_types[];
 
 bool ir_sideeff(ir_ins_op op);
+slot trace_add_const(trace *t, gc_obj value);
