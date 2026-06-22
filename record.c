@@ -233,6 +233,11 @@ void record_init(record_state *record) {
 
 static slot add_const(vm_state *state, gc_obj value) {
   trace *trace_obj = record_current_trace(state);
+  arr_for_each_idx(trace_obj->consts, i) {
+    if (trace_obj->consts[i].value == value.value) {
+      return (slot){.constant = true, .loc = (uint16_t)i};
+    }
+  }
   auto idx = arrlen(trace_obj->consts);
   arrput(trace_obj->consts, value);
   return (slot){.constant = true, .loc = idx};

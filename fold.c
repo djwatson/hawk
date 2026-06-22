@@ -788,9 +788,9 @@ IRFOLDF(fold_sub_cancel_add) {
   if (add->op != IR_ADD)
     return fold_next();
   if (!in->op2.constant) {
-    if (in->op2.loc == add->op1.loc)
+    if (same_slot(t, in->op2, add->op1))
       return fold_ref(add->op2);
-    if (in->op2.loc == add->op2.loc)
+    if (same_slot(t, in->op2, add->op2))
       return fold_ref(add->op1);
   }
   return fold_next();
@@ -806,7 +806,7 @@ IRFOLDF(fold_sub_cancel_sub_left) {
   ir_ins *sub = &t->ins[in->op1.loc];
   if (sub->op != IR_SUB)
     return fold_next();
-  if (!in->op2.constant && in->op2.loc == sub->op1.loc) {
+  if (!in->op2.constant && same_slot(t, in->op2, sub->op1)) {
     slot zero = make_fixnum_inst(t, 0);
     in->op1 = zero;
     in->op2 = sub->op2;
@@ -825,7 +825,7 @@ IRFOLDF(fold_sub_cancel_sub_right) {
   ir_ins *sub = &t->ins[in->op2.loc];
   if (sub->op != IR_SUB)
     return fold_next();
-  if (!in->op1.constant && in->op1.loc == sub->op1.loc)
+  if (!in->op1.constant && same_slot(t, in->op1, sub->op1))
     return fold_ref(sub->op2);
   return fold_next();
 }
@@ -841,13 +841,13 @@ IRFOLDF(fold_sub_cancel_add_right) {
   if (add->op != IR_ADD)
     return fold_next();
   if (!in->op1.constant) {
-    if (in->op1.loc == add->op1.loc) {
+    if (same_slot(t, in->op1, add->op1)) {
       slot zero = make_fixnum_inst(t, 0);
       in->op1 = zero;
       in->op2 = add->op2;
       return fold_retry();
     }
-    if (in->op1.loc == add->op2.loc) {
+    if (same_slot(t, in->op1, add->op2)) {
       slot zero = make_fixnum_inst(t, 0);
       in->op1 = zero;
       in->op2 = add->op1;
@@ -868,22 +868,22 @@ IRFOLDF(fold_sub_cancel_add_add) {
   ir_ins *r = &t->ins[in->op2.loc];
   if (l->op != IR_ADD || r->op != IR_ADD)
     return fold_next();
-  if (l->op1.loc == r->op1.loc) {
+  if (same_slot(t, l->op1, r->op1)) {
     in->op1 = l->op2;
     in->op2 = r->op2;
     return fold_retry();
   }
-  if (l->op2.loc == r->op1.loc) {
+  if (same_slot(t, l->op2, r->op1)) {
     in->op1 = l->op1;
     in->op2 = r->op2;
     return fold_retry();
   }
-  if (l->op1.loc == r->op2.loc) {
+  if (same_slot(t, l->op1, r->op2)) {
     in->op1 = l->op2;
     in->op2 = r->op1;
     return fold_retry();
   }
-  if (l->op2.loc == r->op2.loc) {
+  if (same_slot(t, l->op2, r->op2)) {
     in->op1 = l->op1;
     in->op2 = r->op1;
     return fold_retry();
