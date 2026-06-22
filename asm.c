@@ -76,13 +76,40 @@ int64_t emit_offset(emit_state *s) {
   return (int64_t)s->p;
 }
 
+static label_patch *label_patch_storage(label *label) {
+  return label->patches ? label->patches : label->inline_patches;
+}
+
+static void label_grow_patches(label *label) {
+  size_t old_cap =
+      label->patch_cap ? label->patch_cap : (size_t)LABEL_INLINE_PATCH_CAP;
+  size_t new_cap = old_cap * 2;
+  label_patch *new_patches = malloc(new_cap * sizeof(*new_patches));
+  if (!new_patches) {
+    abort();
+  }
+  memcpy(new_patches, label_patch_storage(label),
+         label->patch_len * sizeof(*new_patches));
+  if (label->patches) {
+    free(label->patches);
+  }
+  label->patches = new_patches;
+  label->patch_cap = (uint16_t)new_cap;
+}
+
 void label_add_patch(emit_state *s, label *label, enum label_patch_kind kind,
                      uint8_t *loc) {
   assert(s);
   assert(label);
   label_patch patch = {.kind = kind, .loc = loc};
-  // Use heap-backed arrays so we can free after patching.
-  arrput(label->patches, patch);
+  if (label->patch_len == label->patch_cap) {
+    if (!label->patches && label->patch_cap == 0) {
+      label->patch_cap = LABEL_INLINE_PATCH_CAP;
+    } else {
+      label_grow_patches(label);
+    }
+  }
+  label_patch_storage(label)[label->patch_len++] = patch;
   if (kind == LABEL_PATCH_JCC32 && label->jcc32_locs) {
     arrput(*label->jcc32_locs, loc);
   }
@@ -94,7 +121,9 @@ void emit_label(emit_state *s, label *label) {
   assert(!label->emitted);
   label->emitted = true;
   label->addr = (uint8_t *)emit_offset(s);
-  arr_for_each(label->patches, patch) {
+  label_patch *patches = label_patch_storage(label);
+  for (size_t i = 0; i < label->patch_len; i++) {
+    label_patch patch = patches[i];
     switch (patch.kind) {
     case LABEL_PATCH_JMP32:
       asm_patch_jmp32(s, patch.loc, label->addr);
@@ -107,9 +136,11 @@ void emit_label(emit_state *s, label *label) {
     }
   }
   if (label->patches) {
-    arrfree(label->patches);
+    free(label->patches);
     label->patches = nullptr;
   }
+  label->patch_len = 0;
+  label->patch_cap = 0;
 }
 
 void emit_jmp32(emit_state *s, label *target) {

@@ -18,9 +18,16 @@ typedef struct label_patch {
   uint8_t *loc;
 } label_patch;
 
+enum : uint8_t {
+  LABEL_INLINE_PATCH_CAP = 4,
+};
+
 typedef struct label {
   uint8_t *addr;
   label_patch *patches;
+  uint16_t patch_len;
+  uint16_t patch_cap;
+  label_patch inline_patches[LABEL_INLINE_PATCH_CAP];
   uint8_t ***jcc32_locs;
   bool emitted;
 } label;
