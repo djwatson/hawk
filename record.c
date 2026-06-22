@@ -112,7 +112,6 @@ static void clear_trace_state(trace_state *ts) {
   *ts = (trace_state){};
 }
 static void free_snap(snap *snap) {
-  arrfree(snap->slots);
   arrfree(snap->side_exit_jcc_locs);
 }
 static void free_trace(trace *trace) {
@@ -121,6 +120,7 @@ static void free_trace(trace *trace) {
   arrfree(trace->cse_prev);
   arrfree(trace->consts);
   arrfree(trace->snaps);
+  arrfree(trace->snapmap);
   arrfree(trace->gc_const_locs);
   free(trace);
 }
@@ -165,14 +165,17 @@ static uint32_t record_trace_count(vm_state *state) {
   return arrlen(state->record.traces);
 }
 
-static void snapshot_live_slots(trace_state *ts, snap *snap) {
+static void snapshot_live_slots(trace_state *ts, trace *cur_trace, snap *snap) {
+  uint16_t nent = 0;
   arr_for_each_idx(ts->stack, i) {
     sentry entry = ts->stack[i];
     if (entry.changed && entry.live) {
       snap_entry slot = {.slot = (uint16_t)i, .val = entry.loc};
-      arrput(snap->slots, slot);
+      arrput(cur_trace->snapmap, slot);
+      nent++;
     }
   }
+  snap->nent = nent;
 }
 
 static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
@@ -341,24 +344,24 @@ static slot box_vmcall_arg(vm_state *state, slot v);
 static void vm_add_snap(vm_state *state, bc *pc, uint64_t argcnt) {
   trace_state *ts = record_trace_state(state);
   trace *cur_trace = record_current_trace(state);
+  if (arrlen(cur_trace->snaps) > 2 &&
+      arrlast(cur_trace->snaps)->ir == arrlen(cur_trace->ins)) {
+    auto old = arrlast(cur_trace->snaps);
+    arrpop(cur_trace->snaps);
+    arrlen_set(cur_trace->snapmap, old->mapofs);
+    free_snap(old);
+  }
   snap sn = {
       .pc = pc,
       .offset = ts->stack_off,
       .ir = arrlen(cur_trace->ins),
       .argcnt = argcnt,
+      .mapofs = arrlen(cur_trace->snapmap),
       .depth = ts->depth,
       .exits = 0,
       .trace = cur_trace,
   };
-  snapshot_live_slots(ts, &sn);
-  // No need for duplicate snaps at the same IR.  use the newest.
-  // TODO: watch out for removing first snap??? since that one is special and
-  // means 'arg types don't match'.
-  if (arrlen(cur_trace->snaps) > 2 && arrlast(cur_trace->snaps)->ir == sn.ir) {
-    auto old = arrlast(cur_trace->snaps);
-    arrpop(cur_trace->snaps);
-    free_snap(old);
-  }
+  snapshot_live_slots(ts, cur_trace, &sn);
   arrput(cur_trace->snaps, sn);
 }
 
@@ -2236,8 +2239,9 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   for (size_t i = 0; i < parent_ins_len; i++) {
     pmov_by_parent_id[i] = (slot){.constant = true, .loc = 0};
   }
-  arr_for_each_idx(side_snap->slots, j) {
-    auto entry = &side_snap->slots[j];
+  auto side_entries = snap_entries_const(side_snap->trace, side_snap);
+  for (size_t j = 0; j < snap_nent(side_snap); j++) {
+    auto entry = &side_entries[j];
     if (entry->val.constant) {
       set_stack(state, entry->slot,
                 add_const(state, side_snap->trace->consts[entry->val.loc]));

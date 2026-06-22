@@ -24,7 +24,8 @@ typedef struct {
   uint16_t ir;
   uint16_t offset;
   uint32_t argcnt;
-  snap_entry *slots;
+  uint32_t mapofs;
+  uint16_t nent;
 
   // Side trace info
   uint8_t depth;
@@ -165,6 +166,7 @@ typedef struct trace {
   ir_ins *ins;
   gc_obj *consts;
   snap *snaps;
+  snap_entry *snapmap;
   uint8_t **gc_const_locs;
   uint16_t cse_head[IR_INS_MAX];
   uint16_t *cse_prev;
@@ -182,6 +184,27 @@ typedef struct trace {
   uint8_t *code_end;
   trace *next; // Chained polymorphic traces.
 } trace;
+
+static inline size_t snap_nent(snap const *sn) { return sn->nent; }
+
+static inline snap_entry *snap_entries(trace *t, snap *sn) {
+  assert(sn->mapofs + sn->nent <= arrlen(t->snapmap));
+  if (!t->snapmap) {
+    assert(sn->mapofs == 0 && sn->nent == 0);
+    return nullptr;
+  }
+  return t->snapmap + sn->mapofs;
+}
+
+static inline snap_entry const *snap_entries_const(trace const *t,
+                                                   snap const *sn) {
+  assert(sn->mapofs + sn->nent <= arrlen(t->snapmap));
+  if (!t->snapmap) {
+    assert(sn->mapofs == 0 && sn->nent == 0);
+    return nullptr;
+  }
+  return t->snapmap + sn->mapofs;
+}
 
 static inline bool ir_get_guard(trace *t, ir_ins *ins) {
   assert(ins->op == IR_TYPECHECK);

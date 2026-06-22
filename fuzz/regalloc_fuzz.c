@@ -401,6 +401,7 @@ static void fill_snapshots(fuzz_rng *r, trace *t) {
     snap sn = {0};
     sn.ir = ir;
     sn.offset = 0;
+    sn.mapofs = arrlen(t->snapmap);
 
     uint16_t slot_count = (uint16_t)(rng_next(r) % 7U);
     for (uint16_t s = 0; s < slot_count; s++) {
@@ -418,7 +419,8 @@ static void fill_snapshots(fuzz_rng *r, trace *t) {
           e.val.loc = loc;
         }
       }
-      arrput(sn.slots, e);
+      arrput(t->snapmap, e);
+      sn.nent++;
     }
     arrput(t->snaps, sn);
   }
@@ -431,8 +433,8 @@ static void fill_consts(trace *t) {
 }
 
 static void free_trace(trace *t) {
-  arr_for_each_idx(t->snaps, i) { arrfree(t->snaps[i].slots); }
   arrfree(t->snaps);
+  arrfree(t->snapmap);
   arrfree(t->ins);
   arrfree(t->consts);
 }
@@ -610,8 +612,9 @@ static void verify_regalloc(trace const *t, regalloc_result const *r) {
            t->snaps[snap_cursor].ir <= (uint16_t)(ir + 1)) {
       uint16_t snap_idx = (uint16_t)snap_cursor;
       auto sn = &t->snaps[snap_idx];
-      arr_for_each_idx(sn->slots, k) {
-        auto v = sn->slots[k].val;
+      auto entries = snap_entries_const(t, sn);
+      for (size_t k = 0; k < snap_nent(sn); k++) {
+        auto v = entries[k].val;
         if (v.constant) {
           continue;
         }

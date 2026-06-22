@@ -91,9 +91,10 @@ static void print_snap(snap *snap, trace *t, size_t snap_idx) {
   printf("SNAP[ir=%i pc=%p off=%i argcnt=%i", snap->ir, snap->pc, snap->offset,
          snap->argcnt);
   uint64_t frame = snap->offset - 1;
+  auto entries = snap_entries(t, snap);
 
-  for (uint64_t j = arrlen(snap->slots); j != 0; j--) {
-    auto entry = &snap->slots[j - 1];
+  for (uint64_t j = snap_nent(snap); j != 0; j--) {
+    auto entry = &entries[j - 1];
     printf(" %02i=", entry->slot);
     if (entry->slot == frame) {
       printf("\e[1;34mframe\e[m");

@@ -366,8 +366,9 @@ static void collect_live_roots(trace *t, regalloc_state *ra_state,
 
   if (snap_idx >= 0) {
     auto sn = &t->snaps[snap_idx];
-    arr_for_each_idx(sn->slots, i) {
-      auto entry = &sn->slots[i];
+    auto entries = snap_entries_const(t, sn);
+    for (size_t i = 0; i < snap_nent(sn); i++) {
+      auto entry = &entries[i];
       if (entry->val.constant) {
         continue;
       }
@@ -460,7 +461,7 @@ static void emit_gclog_obj_reg(emit_state *s, uint8_t obj_reg,
 static value_loc snap_entry_loc(trace const *t, uint16_t snap_idx,
                                 size_t entry_idx) {
   auto sn = &t->snaps[snap_idx];
-  auto entry = &sn->slots[entry_idx];
+  auto entry = &snap_entries_const(t, sn)[entry_idx];
   assert(!entry->val.constant);
   auto ins = &t->ins[entry->val.loc];
   if (ins->spill != SPILL_NONE) {
@@ -1070,8 +1071,9 @@ static void emit_unbox_flonum(emit_state *s, uint8_t gpr_reg, uint8_t fpr_reg) {
 static void emit_loopback_entry_spills(emit_state *s, trace *entry_trace,
                                        uint16_t entry_snap_idx) {
   auto entry_snap = &entry_trace->snaps[entry_snap_idx];
-  arr_for_each_idx(entry_snap->slots, i) {
-    auto entry = &entry_snap->slots[i];
+  auto entries = snap_entries_const(entry_trace, entry_snap);
+  for (size_t i = 0; i < snap_nent(entry_snap); i++) {
+    auto entry = &entries[i];
     if (entry->val.constant) {
       continue;
     }
@@ -1148,15 +1150,17 @@ static void collect_link_actions(trace *exit_trace, uint16_t exit_snap_idx,
   link_action *actions = nullptr;
   auto exit_snap = &exit_trace->snaps[exit_snap_idx];
   auto entry_snap = &entry_trace->snaps[entry_snap_idx];
-  size_t exit_len = arrlen(exit_snap->slots);
-  size_t entry_len = arrlen(entry_snap->slots);
+  auto exit_entries = snap_entries_const(exit_trace, exit_snap);
+  auto entry_entries = snap_entries_const(entry_trace, entry_snap);
+  size_t exit_len = snap_nent(exit_snap);
+  size_t entry_len = snap_nent(entry_snap);
   size_t i = 0;
   size_t j = 0;
   while (i < exit_len && j < entry_len) {
-    auto exit_entry = &exit_snap->slots[i];
+    auto exit_entry = &exit_entries[i];
     int32_t exit_logical =
         (int32_t)exit_entry->slot - (int32_t)exit_snap->offset;
-    auto entry = &entry_snap->slots[j];
+    auto entry = &entry_entries[j];
     uint16_t entry_slot = entry->slot;
 
     if (exit_logical == (int32_t)entry_slot) {
@@ -1232,7 +1236,7 @@ static void collect_link_actions(trace *exit_trace, uint16_t exit_snap_idx,
 
   // Remaining unmatched entry slots.
   while (j < entry_len) {
-    auto entry = &entry_snap->slots[j];
+    auto entry = &entry_entries[j];
     if (!entry->val.constant) {
       uint8_t target_reg = entry_trace->ins[entry->val.loc].reg;
       if (target_reg != REG_NONE) {
@@ -1296,9 +1300,9 @@ static void emit_snap(emit_state *s, trace *t, uint16_t snap_idx) {
   bool live_regs[MAX_REG];
   uint64_t live_gpr_mask;
   collect_live_roots(t, nullptr, 0, snap_idx, live_regs, &live_gpr_mask);
-
-  arr_for_each_idx(sn->slots, j) {
-    emit_snap_store_entry(s, t, snap_idx, j, &sn->slots[j], live_regs,
+  auto entries = snap_entries_const(t, sn);
+  for (size_t j = 0; j < snap_nent(sn); j++) {
+    emit_snap_store_entry(s, t, snap_idx, j, &entries[j], live_regs,
                           live_gpr_mask);
   }
 
@@ -1312,9 +1316,9 @@ static struct trace_result restore_snap(jit_exit_state *state) {
   gc_obj *stack = (gc_obj *)state->gpr[RSTACK].value;
   gc_obj *new_stack = stack + s->offset;
   bool rooted[FPR_REG_START] = {};
-
-  arr_for_each_idx(s->slots, i) {
-    auto entry = &s->slots[i];
+  auto entries = snap_entries_const(t, s);
+  for (size_t i = 0; i < snap_nent(s); i++) {
+    auto entry = &entries[i];
     if (entry->val.constant) {
       continue;
     }
@@ -1339,9 +1343,8 @@ static struct trace_result restore_snap(jit_exit_state *state) {
       gc_add_root(&state->gpr[reg], 1, 0);
     }
   }
-
-  arr_for_each_idx(s->slots, i) {
-    auto entry = &s->slots[i];
+  for (size_t i = 0; i < snap_nent(s); i++) {
+    auto entry = &entries[i];
     gc_obj *slot_ptr = stack + entry->slot;
 
     if (entry->val.constant) {
@@ -1408,7 +1411,8 @@ static void link_to_next_trace(emit_state *s, trace *t,
   collect_live_roots(t, nullptr, 0, cur_snap, live_regs, &live_gpr_mask);
   collect_link_actions(t, cur_snap, linked_trace, entry_snap_idx, &actions);
   auto sn = &t->snaps[cur_snap];
-  arr_for_each_idx(sn->slots, j) {
+  auto entries = snap_entries_const(t, sn);
+  for (size_t j = 0; j < snap_nent(sn); j++) {
     bool skip = false;
     arr_for_each_idx(actions, i) {
       if (actions[i].exit_entry_idx == j) {
@@ -1417,7 +1421,7 @@ static void link_to_next_trace(emit_state *s, trace *t,
       }
     }
     if (!skip) {
-      emit_snap_store_entry(s, t, cur_snap, j, &sn->slots[j], live_regs,
+      emit_snap_store_entry(s, t, cur_snap, j, &entries[j], live_regs,
                             live_gpr_mask);
     }
   }

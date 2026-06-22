@@ -185,8 +185,9 @@ void regalloc_collect_next_uses(regalloc_state *s) {
            (cur_snap == snap_len || s->t->snaps[cur_snap].ir >= (i - 1))) {
       cur_snap--;
       auto cur = &s->t->snaps[cur_snap];
-      arr_for_each_idx(cur->slots, slot_i) {
-        auto val = cur->slots[slot_i].val;
+      auto entries = snap_entries_const(s->t, cur);
+      for (size_t slot_i = 0; slot_i < snap_nent(cur); slot_i++) {
+        auto val = entries[slot_i].val;
         // We ONLY add snapshots as a 'use' if it doesn't already exist:
         // This is so snapshots don't affect 'find next use' spilling heuristic.
         if (!val.constant && !s->uses[val.loc]) {
@@ -338,8 +339,9 @@ void regalloc_maybe_free_reg(regalloc_state *s, uint16_t cur_idx, uint16_t idx,
 
 void regalloc_maybe_free_snapshot(regalloc_state *s, uint16_t cur_idx,
                                   snap const *sn) {
-  arr_for_each_idx(sn->slots, i) {
-    auto val = sn->slots[i].val;
+  auto entries = snap_entries_const(s->t, sn);
+  for (size_t i = 0; i < snap_nent(sn); i++) {
+    auto val = entries[i].val;
     if (!val.constant) {
       regalloc_maybe_free_reg(s, cur_idx, val.loc, true);
     }
