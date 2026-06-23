@@ -2,12 +2,14 @@
 
 Hawk2 improvements:
 [ ] figure out why dynamic is so much slower than oldhawk
-    * assq vs. assv, inlining in C?
-	* gc too aggressive? roots take too long? ???
-	* maybe stack too big?
+    * again compilation helps, so probably inling
+	* NO NEED TO TYPECHECK for EQ/NE, eq? vs. EQV? in traces.  ugh
 [ ] compiler.scm is slower
-    * seems to mostly be JIT perf - too much array.h use, especially snapshots and labels
-	* port over snapshot compression
+    * GC_ALLOC helps, but hurts other benchmarks
+	* somehow compilation in chez helps - so it's likely tons of inlining
+[ ] optimize recording EQ EQV NUMEQ based on type if one is constant.  Or typecheck 
+     just one side, and if it's a non-heap or symbol, no need to typecheck the other side.
+   [ ] move memq, memv, assq, assv back to scheme.  Our tracer is good enough, but we do need the opt above
 [x] Figure out why pi and maze pycket tests fail in hawk
 [x] Simplify regalloc
 [x] Finish pycket analysis 
@@ -18,8 +20,10 @@ Hawk2 improvements:
 [x] IR ABC array bounds check
 [x] Deopt in interpreter instead of code (required for alloc sinking)
 [x] ☄️ Alloc sinking (after reverse regalloc) (tried and not helpful)
-[ ] ☄️ Loop analysis, getting phis right is hard, based on current loopback algo. Phi all implicit stack load/stores based on snapshots, emit explicit loads, emit explicit type checks probably. Only do for offset =0. Then several loops / passes to remove unnecessary phis. 
-IR_ABC
+[ ] ☄️ Loop analysis, getting phis right is hard, based on current loopback algo. Phi all implicit stack load/stores based on snapshots, emit explicit loads, emit explicit type checks probably. Only do for offset =0. Then several loops / passes to remove unnecessary phis.  
+     YES this definitely helps on shit like puzzle
+
+[x] IR_ABC
 [ ] ☄️ int range analysis for loops and add/sub/mul overflow (requires abc & loop opt)
 
 [ ] Optimize vm - set/get type opcodes, builtins. Even farther - gcall, vn math and cmp ops
@@ -29,7 +33,7 @@ IR_ABC
 [ ] Reify code generator tester!!!! So good. Generate ast. Choose a path. Generate symbolic and send to z3, then use z3 solution! To print a complete program. Can force a loop with at least X , so we can even ensure jit runs!
 [x] Port over all the fold rules from luajit, pypy, dstrogov ir, or use z3 to prove new ones 
 
-[ ] Merge constants on traces, linear scan
+[x] Merge constants on traces, linear scan
 [ ] When trace cache full, flush it automatically. 
 [ ] Exe builder. 
 [ ] Various trace interfaces, like dump image and flush trace cache
@@ -53,6 +57,9 @@ IR_ABC
 
 * fibc, ctak: we copy twice on continuations, so it is unsurprising ctak is 2x slower.
 * compiler, dynamic - super branchy?  something else?
+  * at least part of it is both have 1000+ traces, and at least dynamic 
+    is showing walking traces as roots is somewhat slow.  traces I guess need to be part of GC
+	and part of the RC space to make this faster.
 
 Every other test is within noise.
 
