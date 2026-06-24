@@ -4,6 +4,8 @@ Hawk2 improvements:
 [ ] figure out why dynamic is so much slower than oldhawk
     * again compilation helps, so probably inling
 	* NO NEED TO TYPECHECK for EQ/NE, eq? vs. EQV? in traces.  ugh
+	* loop detect
+	* 50MB nursury vs 32mb
 [ ] compiler.scm is slower
     * GC_ALLOC helps, but hurts other benchmarks
 	* somehow compilation in chez helps - so it's likely tons of inlining

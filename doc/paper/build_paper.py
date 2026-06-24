@@ -119,17 +119,38 @@ BUILD = HERE / "build"
 PAPER = HERE / "paper.md"
 
 
+def parse_csv_line(line):
+  marker = "+!CSVLINE!+"
+  if marker not in line:
+    return None
+  idx = line.index(marker) + len(marker)
+  fields = [f.strip() for f in line[idx:].split(",")]
+  if len(fields) < 3:
+    return None
+  value = fields[-1]
+  try:
+    seconds = float(value)
+  except ValueError:
+    return None
+  spec = fields[-2]
+  implementation = fields[0]
+  return implementation, spec, seconds
+
+
 def parse_benchmarks():
   data = {}
   for arch_dir in sorted(p for p in BENCH.iterdir() if p.is_dir()):
     arch = arch_dir.name
     data[arch] = {}
-    for result in sorted(p for p in arch_dir.iterdir() if p.is_file()):
+    for fname in ("results.Hawk", "results.Chez"):
+      result = arch_dir / fname
+      if not result.exists():
+        continue
       for line in result.read_text(encoding="utf-8").splitlines():
-        match = re.search(r"\+!CSVLINE!\+([^,]+),([^,]+),([0-9.]+)", line)
-        if not match:
+        parsed = parse_csv_line(line)
+        if parsed is None:
           continue
-        implementation, invocation, seconds = match.group(1), match.group(2), float(match.group(3))
+        implementation, invocation, seconds = parsed
         data[arch].setdefault(invocation, {})[implementation] = seconds
   return data
 
@@ -137,10 +158,10 @@ def parse_benchmarks():
 def parse_hawk_runtimes(path):
   runtimes = {}
   for line in path.read_text(encoding="utf-8").splitlines():
-    match = re.search(r"\+!CSVLINE!\+([^,]+),([^,]+),([0-9.]+)", line)
-    if not match:
+    parsed = parse_csv_line(line)
+    if parsed is None:
       continue
-    implementation, invocation, seconds = match.group(1), match.group(2), float(match.group(3))
+    implementation, invocation, seconds = parsed
     if implementation.lower() == "hawk":
       runtimes[invocation] = seconds
   return runtimes

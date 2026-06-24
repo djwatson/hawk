@@ -1,5 +1,5 @@
 ---
-title: "Tracing Tail Calls: A Tracing JIT for Scheme"
+title: "Tracing Tail Calls: A JIT for Scheme"
 author: "Dave Watson"
 date: "\\today"
 bibliography: references.bib
@@ -17,16 +17,46 @@ abstract: |
 dave's notes
 
 - [ ] Results are reproducible from a clean checkout.
-- apply tracing unfinished
 
-- TODO optimizations to add:
-- alloc sinking - I tried this, there are almost no
-  allocs to sink in hot loops! Mostly case-lambda and 
-  multiple value returns solves this.
-  
-- integer range opt, helps sum not need overflow checks
-- opt_loop.  Not really sure 
 -->
+
+## Introduction
+
+The scheme language has a very small core language, and requires tail-call optimization for all functions.  Many schemes do not even have a loop construct in their AST or compiler pipeline: all loops are represented directly as tailcalls.   Tracing JITs have often focused on loops as the location to start tracing.  We propose that any function call can become the start of a trace, and that this is enough to make a performant tracing JIT.
+
+We also investigate specializing traces, so that both flonum and fixnum heavy benchmarks can be optimized.  Scheme has somewhat standardized on 61-63 bit fixnums, and double flonums.  Double flonums mean that flonums need to be boxed, since there is no space to differentiate a flonum from other things.   By recording distinct traces, we can unbox flonums to register, and keep them in register for the majority of hot loops.
+
+## Background
+
+TODO
+
+## System overview
+
+### Compilation pipeline
+
+Hawk uses a simplified scheme pipeline.  The r7rs expander is first, expanding libraries and macros.  Currently we only support syntax-rules macros, but this is not a hard limitation.
+
+Several passes follow, such as fixing-letrec [@ghuloum2009letrec], assignment conversion, let-recovery, closure conversion [@keep2012closures], and loop recovery.  Currently we do inline a few base VM primitives, but there is no generalized inlining pass.
+
+### VM bytecode
+
+The VM is a tail-calling interpreter written in C.  Using tailcalls allows us greater control over VM state, allowing us to keep most variables in register.  Each VM bytecode decodes and tail-calls the next bytecode handler.   Opcodes are high-level: the ADD opcode can handle all scheme types, so all arithmetic is handled in C.  This keeps the VM quite fast.
+
+### JIT recording & emission
+
+FUNC opcode is used to do argument count checking, but also used as an indicator to check hotness and potentially start a trace.  When the hotness counter is exceeded, all opcode handlers are re-directed to first all the record() function, then the original handler.  The JIT recorder translates recorded bytecode ops to a lower-level IR format, closer to machine code.  The JIT IR only handles fixnums, flonums, and generic gc_obj boxed values: other arithmetic types call slowpaths, and call the same routines as the VM does, calling out of the trace to do so. In this way, the JIT can be thought of more as a 'inline as much as makes sense to do', but we can keep generic slowpaths the same as the VM for anything else.
+
+The assembly emission uses a generic layer that abstracts the x64 and aarch64 backends: Things like memory addressing, constant emission, and math+ constants are all supported in the generic layer, and individual backends reserve a few registers to normalize for their individual needs.  For example, aarch64 needs everything to be in register first, so most constants require emitting the constant to a temp register, then adding, while for 32-bit constants, x64 can add directly.  Conversely, aarch64 supports fixnum div with any registers, while x64 requires explicit registers to be used, potentially requiring us to shuffle things around.  While some performance is lost in this process, it keeps the emission path quite clean and straightforward, without an additional lowering from the IR to an additional arch-specific IR later.
+
+Register allocation is a generic backwards-liveness and spilling pass, and then a forward pass that runs during emission, that just chooses a register at random.  Since the backends already abstract over which exact registers are needed, we don't even do a full linear scan allocation.
+
+### GC
+
+We use a simplified variant of LXR [@zhao2022lxr].  We currently only support blocks, and have not yet implemented a backup tracing collector.  All heap objects also currently require an 8-byte header, meaning cons cells are 24 bytes.   With lookaside mark bits, this could be improved in the future.  However, even with these limitations, our GC is quite performant.  Here's a small selection of GC-heavy benchmarks, including peak RSS and exection time:
+
+TODO chart
+
+The GC supports image dumping & reload, and this is how bootstrapping the expander works: A host scheme is used to generate an initial heap image.  Then using a bootstrap hawk, we run the image, re-initialize the expander (the expander does not support serializing its current state).  Then we dump a final heap image, and build it in to the final executable. The heap image is compressed using ZSTD [@collet2021zstd], and the final binary is around half a MB for a full r7rs system.
 
 ## Trace types
 
@@ -65,7 +95,7 @@ When an actual down-recursive trace is started, we only capture a *single* loop 
 
 ### Trace arguments in register
 
-The trace infrastructure described so far is very similar to how LuaJit functions [@pallluajit], but now we trod new ground. 
+The trace infrastructure described so far is very similar to how LuaJit functions [@pallluajit], but now we tred new ground. 
 
 Since traces begin at only function start, loop start, or return statements, we know the arguments to each of these.  We put in register the first X arguments given in each case (we currently match X to the calling convention of the target arch: 6 for x64, 8 for aarch64).  This means for loops or side traces connecting back to a root loop, most arguments stay in register the whole time, even without any additional loop optimization.  
 
@@ -125,7 +155,7 @@ Globals in scheme are either top level global variables, or top level library va
 
 ### Constant closures
 
-There are many cases where a closure is required, however, that closure is essentially a singleton, and only ever created once.  We track this on a per-function bases: if a function only has one closure created for it, we assume it is constant with the same mechanism as above, and all closure loads are also constant for it.
+There are many cases where a closure is required, however, that closure is essentially a singleton, and only ever created once.  We track this on a per-function basis: if a function only has one closure created for it, we assume it is constant with the same mechanism as above, and all closure loads are also constant for it.
 
 ## Additional scheme tracing issues
 
@@ -143,7 +173,7 @@ The only exception is the APPLY opcode: we need to record apply, and then record
 
 ### Analysis of trace types and trace stability
 
-Currently <TODO insert table> our profiler shows >95% on-trace for all benchmarks, however, most of the scheme benchmarks are quite long.
+Currently <TODO mention table> our profiler shows >95% on-trace for all benchmarks, however, most of the scheme benchmarks are quite long.
 
 During testing, a mode was implemented where a deterministic tracing schedule was used - normally traces are recorded when they are discovered to be hot with a (lossy) hotness counter.  When instead we record via deterministic schedule, we decide, in advance, that the X’th FUNC or LOOP will be recorded.  By using different starting seeds, we are able to trace in many different orders. This was initially used to shake out bugs in the trace emitter (i.e. bad register allocations).
 
@@ -186,14 +216,13 @@ Nash is another tracing jit, based on guile’s VM [@hoshino2016nash]. Guile’s
 
 Guile has acquired a JIT in recent versions, however, it is only a template JIT, so it does not do many optimizations, other than a tiny bit of register allocation [@guilejit].  For example, it does not do inlining at all, although the bytecode itself has been through a fairly strong inliner.  No type specialization is attempted.
 
+### LuaJIT
+
+TODO
+
 ## Results
 
-The standard r7rs-benchmarks suite [@r7rsbenchmarks], originally derived from the Larceny benchmark suite [@larcenists], is used. Two architectures were benchmarked: x64 on AMD Ryzen 9 5900X (ubuntu 25.10) and aarch64 on Apple M1 MacBook air (macOS 25.2.0).  Chez version was 10.0.0.  Chez scheme pre-compiled each program with:
-
-```scheme
-(parameterize ((optimize-level 3))
-  (compile-program "%s"))
-```
+The standard r7rs-benchmarks suite [@r7rsbenchmarks], originally derived from the Larceny benchmark suite [@larcenists], is used. Two architectures were benchmarked: x64 on AMD Ryzen 9 5900X (ubuntu 25.10) and aarch64 on Apple M1 MacBook air (macOS 25.2.0).  Chez version was 10.0.0.
 
 Neither chez nor hawk times include compile time.  Hawk DOES include JIT time.  There is no jit warmup period.
 
@@ -233,13 +262,17 @@ TODO: chart showing variability of each given deterministic schedule.
 
 ### Flonum-Heavy Results
 
-sum1, sumfp, simplex, ray, pnpoly, fibfp, fft, nucleic, sumfp, quicksort, mbrot
+The flonum heavy benchmarks are sum1, sumfp, simplex, ray, pnpoly, fibfp, fft, nucleic, sumfp, quicksort, mbrot.  These average more than 2x faster than the chez implementations.  While it is possible to explicitly optimize these in chez using fl- prefixed procedures and removing checks using optimize-level=3, Hawk is able to do this on generic benchmark code usable in any scheme.
 
 ### Non-Numeric Results
 
-compiler, dynamic, fibc, ctak
+Only a handful of non-numeric benchmarks stand out.  
 
-TODO possibly split out GC-heavy benchmarks, vs. TRACE heavy benchmarks?
+Closure capture is not very optimized: `fibc` and `ctak` are almost twice as slow. However, benchmarks that use call-with-current-continuation, such as puzzle, don't show meaningful slowdown.
+
+The `dynamic` benchmark is slower, mostly due to the GC: a tracing GC is much faster than an RC gc for this, since dynamic creates many cycles. 
+
+Other benchmarks show minor regressions.  Since Hawk is quite new, there is still plenty of generic optimization opportunities to be had.
 
 ### Ablation Study
 
@@ -255,14 +288,13 @@ percentile range across the benchmarks included in the comparison.
 \Description{Bar chart of x64 Hawk ablation runtime as a percent of baseline, with asymmetric error bars.}
 \end{figure}
 
-* no-const-promotion (globals \& closures)
-* eager-typechecking
-* no-polymorphic
-* no-loop
-* no-register-args
+Promotion of globals and closures to constants has the greatest effect. Currently the bytecode generator does NOT assume ANY globals (including in r7rs libraries) are constant, so this is entirely left up to the JIT to optimize.  One large benefit is that the user can still redefine library procedures at runtime, unlike most r7rs compilers.
 
-## Discussion
+Eager typechecking appears to only contribute a small amount to overall runtime.  The opportunites to drop typechecking are generally small (values don't need to be checked for some loads and stores, eq? and some eqv? can drop typechecking as well).
 
+As predicted, dropping the LOOP analysis in the bytecode compiler only has a tiny effect - tracing works just as will with or without explicit static loop discovery.  Almost all of this performance is from additional closure allocations.
+
+Enregistering the first X (currently 6) arguments, and making traces polymorphic, lends a large speedup (it was hard to disentangle these two things in the code to disable only one, and polymorphic currently requires register arguments).  Clearly keeping everything in registers is a large advantage, as it is with normal method-based compilers.
 
 ### Limitations
 
@@ -270,16 +302,37 @@ Hawk currently only supports ascii strings.  Only the bv2string benchmark would 
 
 ### Future Work
 
+There are many optimizations that haven't been added to Hawk yet, or showed only middling results: 
+
+* loop peeling 
+  
+  Both luajit and pypy have a 'loop peeling' optimization, where root loops can be unrolled once, and then the normal CSE/fold pass applied.  We attempted this with Hawk, but it added much register allocation complexity, and only the 'puzzle' benchmark showed clear wins.  The issue is root loops that have SLOADs in them: the LOOP did not include them in registers, so they get reloaded each iteraton
+  
+  TODO benchmark
+  
+* allocation sinking
+
+  No benefit was found when applying this to Hawk and the benchmark suite: this is probably much less useful in scheme, due to multiple value returns (which all can stay in stack/register already) and case-lambda calls (so even calls with varying argument count stay in register).  Only a few infrequently called side-traces seemed to hit the optimization path.  We've left this out for now, again due to the large complexity it adds.
+  
+* The GC could still use much improvement
+
+  Currently the root set is large, including all traces.  Suboptimal block / line sizes are used, and there is currently no backup SATB tracer, as mentioned in the LXR [@zhao2022lxr] paper.  Some things, like decrements and SATB cycle tracing, could be done in a background thread.  Currently none of the GC is thread-safe, which is the main item preventing Hawk from supporting threads.
+  
+* Integer range analysis
+
+  Pypy has this, and would help on some of the sum benchmarks: Currently all fixnum ADD/SUB/MUL operations are checked for overflow in the JIT, while with range analysis we could drop some of overflow checking.  Range analysis could also be used to drop some of the bounds checking, if it can be proven that we can't exceed bounds.  LuaJIT combines this with a loop peeling optimization, so it only happens in loops.
+  
+* Other flonum representations
+
+Currently Hawk unboxes flonums to registers where possible, including passing them between traces.  However, if placed in the heap, they are still boxed.  Other flonum representations include Nan-tagging (or nun-tagging), and 'Float self-tagging' [@melancon2025float].   Nan-tagging does not seem to work for the existing scheme code: for example, the current 'sum' benchmark requires large 60+bit fixnums, if we limited fixnums to only 32 bits, the sum benchmark would overflow to a bignum, significantly slowing it down.  We are not aware of a single scheme implementation using Nan-tagging for this reason. 
+
+Float self-tagging would work as a replacement for boxing on the stack.  However, combined with auto fl-vector support, almost no benchmarks hit perf issues due to boxing flonums anyway, so this has not yet been tried.   It would also likely slow down other benchmarks, due to using ~3 of the available 8 low bit tags, vs. the 1 used now.  Likely string or symbol checks would have to be moved to header checks instead.
+
 ---
 
 ## Conclusion
 
----
-
-## Appendix A: Example Trace
-
-TODO: Include one complete small example.
-
+The results for Hawk seem to support the theory that no static loop analysis is needed for languages without explicit loops: a tracing JIT can recover enough loop information only from recursive function calls.   
 
 ---
 
