@@ -471,7 +471,7 @@
       (unless (and (fixnum? len) (>= len 0)) (error "bad make-flvector len"))
       (let ((vec (sys:ALLOC (+ 16 (sys:MUL len 8)) 97)))
         (sys:STORE vec len 0)
-        (if (= init 0.0) vec (flvector-init vec init 0 len))))))
+        (flvector-init vec init 0 len)))))
 (define (flvector-ref vec idx)
   (unless (flvector? vec) (error "Invalid flvector index"))
   (sys:ABC vec idx)

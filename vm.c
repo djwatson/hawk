@@ -1153,7 +1153,7 @@ OP(ALLOC) {
   assert((sz & 0x7) == 0);
 
   auto obj = (gc_header *)gc_alloc(sz);
-  if (type == VECTOR_TAG || type == RECORD_TAG || type == FLVECTOR_TAG) {
+  if (type == VECTOR_TAG || type == RECORD_TAG) {
     memset((uint8_t *)obj + sizeof(gc_header), 0,
            (size_t)sz - sizeof(gc_header));
   }
