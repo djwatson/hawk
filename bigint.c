@@ -314,6 +314,161 @@ static void bn_mul_schoolbook_limbs(uint64_t *out, const uint64_t *a,
   }
 }
 
+/* Karatsuba divide-and-conquer: O(n^1.585) vs schoolbook O(n^2).
+   Threshold 32 limbs (~2048 bits) — below that schoolbook is faster. */
+static void bn_mul_karatsuba_limbs(uint64_t *out, const uint64_t *a,
+                                   uint32_t an, const uint64_t *b,
+                                   uint32_t bn) {
+  uint32_t n = an > bn ? an : bn;
+  if (n <= 32) {
+    bn_mul_schoolbook_limbs(out, a, an, b, bn);
+    return;
+  }
+  if (n > (an < bn ? an : bn) * 2) {
+    bn_mul_schoolbook_limbs(out, a, an, b, bn);
+    return;
+  }
+
+  uint32_t m = n / 2;
+  uint32_t a_lo_len = an < m ? an : m;
+  uint32_t a_hi_len = an > m ? an - m : 0;
+  uint32_t b_lo_len = bn < m ? bn : m;
+  uint32_t b_hi_len = bn > m ? bn - m : 0;
+
+  uint32_t sum_a_sz = (m > a_hi_len ? m : a_hi_len) + 1;
+  uint32_t sum_b_sz = (m > b_hi_len ? m : b_hi_len) + 1;
+  uint32_t z0_sz = a_lo_len + b_lo_len;
+  uint32_t z2_sz = a_hi_len + b_hi_len;
+  uint32_t z1p_sz = sum_a_sz + sum_b_sz;
+
+  uint64_t *temp = (uint64_t *)malloc(
+      (size_t)(sum_a_sz + sum_b_sz + z0_sz + z2_sz + z1p_sz) *
+      sizeof(uint64_t));
+  assert(temp != nullptr);
+  uint64_t *sum_a = temp;
+  uint64_t *sum_b = sum_a + sum_a_sz;
+  uint64_t *z0 = sum_b + sum_b_sz;
+  uint64_t *z2 = z0 + z0_sz;
+  uint64_t *z1_part = z2 + z2_sz;
+
+  /* sum_a = a_lo + a_hi */
+  unsigned long long carry = 0;
+  uint32_t i;
+  for (i = 0; i < m && i < a_hi_len; i++) {
+    sum_a[i] = (uint64_t)__builtin_addcll(a[i], a[m + i], carry, &carry);
+  }
+  for (; i < m; i++) {
+    sum_a[i] = (uint64_t)__builtin_addcll(a[i], 0, carry, &carry);
+  }
+  for (; i < a_hi_len; i++) {
+    sum_a[i] = (uint64_t)__builtin_addcll(a[m + i], 0, carry, &carry);
+  }
+  if (carry)
+    sum_a[i++] = 1;
+  uint32_t sum_a_len = i;
+
+  /* sum_b = b_lo + b_hi */
+  carry = 0;
+  for (i = 0; i < m && i < b_hi_len; i++) {
+    sum_b[i] = (uint64_t)__builtin_addcll(b[i], b[m + i], carry, &carry);
+  }
+  for (; i < m; i++) {
+    sum_b[i] = (uint64_t)__builtin_addcll(b[i], 0, carry, &carry);
+  }
+  for (; i < b_hi_len; i++) {
+    sum_b[i] = (uint64_t)__builtin_addcll(b[m + i], 0, carry, &carry);
+  }
+  if (carry)
+    sum_b[i++] = 1;
+  uint32_t sum_b_len = i;
+
+  /* z0 = a_lo * b_lo */
+  bn_mul_karatsuba_limbs(z0, a, a_lo_len, b, b_lo_len);
+  uint32_t z0_len = z0_sz;
+  while (z0_len > 0 && z0[z0_len - 1] == 0)
+    z0_len--;
+
+  /* z2 = a_hi * b_hi */
+  uint32_t z2_len = 0;
+  if (a_hi_len > 0 && b_hi_len > 0) {
+    bn_mul_karatsuba_limbs(z2, a + m, a_hi_len, b + m, b_hi_len);
+    z2_len = z2_sz;
+    while (z2_len > 0 && z2[z2_len - 1] == 0)
+      z2_len--;
+  }
+
+  /* z1_part = sum_a * sum_b */
+  bn_mul_karatsuba_limbs(z1_part, sum_a, sum_a_len, sum_b, sum_b_len);
+  uint32_t z1p_len = sum_a_len + sum_b_len;
+  while (z1p_len > 0 && z1_part[z1p_len - 1] == 0)
+    z1p_len--;
+
+  /* z1 = z1_part - z0 - z2 (in-place) */
+  unsigned long long borrow = 0;
+  for (i = 0; i < z0_len; i++) {
+    unsigned long long b1, b2;
+    uint64_t t = (uint64_t)__builtin_subcll(z1_part[i], z0[i], 0, &b1);
+    t = (uint64_t)__builtin_subcll(t, 0, borrow, &b2);
+    z1_part[i] = t;
+    borrow = b1 | b2;
+  }
+  for (; borrow && i < z1p_len; i++) {
+    unsigned long long b;
+    z1_part[i] = (uint64_t)__builtin_subcll(z1_part[i], 0, borrow, &b);
+    borrow = b;
+  }
+
+  borrow = 0;
+  for (i = 0; i < z2_len; i++) {
+    unsigned long long b1, b2;
+    uint64_t t = (uint64_t)__builtin_subcll(z1_part[i], z2[i], 0, &b1);
+    t = (uint64_t)__builtin_subcll(t, 0, borrow, &b2);
+    z1_part[i] = t;
+    borrow = b1 | b2;
+  }
+  for (; borrow && i < z1p_len; i++) {
+    unsigned long long b;
+    z1_part[i] = (uint64_t)__builtin_subcll(z1_part[i], 0, borrow, &b);
+    borrow = b;
+  }
+
+  uint32_t z1_len = z1p_len;
+  while (z1_len > 0 && z1_part[z1_len - 1] == 0)
+    z1_len--;
+
+  /* Assemble: out = z0 + z1*B^m + z2*B^(2m) */
+  memset(out, 0, (size_t)(an + bn) * sizeof(uint64_t));
+  memcpy(out, z0, (size_t)z0_len * sizeof(uint64_t));
+
+  carry = 0;
+  for (i = 0; i < z1_len; i++) {
+    out[m + i] =
+        (uint64_t)__builtin_addcll(out[m + i], z1_part[i], carry, &carry);
+  }
+  i = m + z1_len;
+  while (carry && i < an + bn) {
+    unsigned long long c;
+    out[i] = (uint64_t)__builtin_addcll(out[i], 0, carry, &c);
+    carry = c;
+    i++;
+  }
+
+  carry = 0;
+  for (i = 0; i < z2_len; i++) {
+    out[2 * m + i] =
+        (uint64_t)__builtin_addcll(out[2 * m + i], z2[i], carry, &carry);
+  }
+  i = 2 * m + z2_len;
+  while (carry && i < an + bn) {
+    unsigned long long c;
+    out[i] = (uint64_t)__builtin_addcll(out[i], 0, carry, &c);
+    carry = c;
+    i++;
+  }
+
+  free(temp);
+}
+
 static bn_t *bn_clone_unsigned(const bn_t *a) {
   bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
       bn_root_slot((bn_t **)&a);
@@ -330,6 +485,7 @@ static bn_t *bn_mul_unsigned(const bn_t *a, const bn_t *b) {
       bn_root_slot((bn_t **)&b);
   assert(a != nullptr);
   assert(b != nullptr);
+
   uint32_t an = bn_trim_limb_len(a->limb, a->used);
   uint32_t bn = bn_trim_limb_len(b->limb, b->used);
   if (an == 0 || bn == 0) {
@@ -342,7 +498,7 @@ static bn_t *bn_mul_unsigned(const bn_t *a, const bn_t *b) {
   uint32_t outn = an + bn;
   bn_t *res = bn_new(outn);
   res->used = outn;
-  bn_mul_schoolbook_limbs(res->limb, a->limb, an, b->limb, bn);
+  bn_mul_karatsuba_limbs(res->limb, a->limb, an, b->limb, bn);
   uint32_t used = bn_trim_limb_len(res->limb, outn);
   res->used = (used == 0) ? 1 : used;
   return res;
