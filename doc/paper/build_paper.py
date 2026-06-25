@@ -550,6 +550,63 @@ def write_ablation_chart(arch, rows):
   plt.close(fig)
 
 
+def parse_sd_results():
+  """Read doc/bench/*/sd_results.md and return {arch: [(name, sd_pct)]}."""
+  data = {}
+  for f in BENCH.glob("*/sd_results.md"):
+    arch = f.parent.name
+    rows = []
+    for line in f.read_text(encoding="utf-8").splitlines():
+      line = line.strip()
+      if not line or line.startswith("|") is False:
+        continue
+      parts = [p.strip() for p in line.split("|")]
+      if len(parts) < 3:
+        continue
+      name = parts[1]
+      sd_str = parts[2].rstrip("%").strip()
+      try:
+        sd_pct = float(sd_str)
+      except ValueError:
+        continue
+      rows.append((name, sd_pct))
+    if rows:
+      data[arch] = rows
+  return data
+
+
+def write_variability_chart(arch, rows):
+  import matplotlib
+  matplotlib.use("Agg")
+  import matplotlib.pyplot as plt
+
+  GENERATED.mkdir(parents=True, exist_ok=True)
+  rows = sorted(rows, key=lambda r: r[1])
+  labels = [r[0] for r in rows]
+  values = [r[1] for r in rows]
+
+  plt.rcParams.update({
+    "font.family": "serif",
+    "font.size": 7,
+    "axes.titlesize": 11,
+    "axes.labelsize": 8,
+  })
+  fig, ax = plt.subplots(figsize=(14.5, 3.5))
+  ax.bar(labels, values, color="#6a8fbf", width=0.78)
+  ax.set_title(f"{arch}: Hawk Runtime Variability by Seed (SD as % of mean)")
+  ax.set_ylabel("SD (% of mean)")
+  ax.set_xlabel("Benchmark")
+  ax.grid(axis="y", color="#dddddd", linewidth=0.5)
+  ax.set_axisbelow(True)
+  ax.tick_params(axis="x", labelrotation=90, labelsize=5)
+  ax.tick_params(axis="y", labelsize=7)
+  for spine in ["top", "right"]:
+    ax.spines[spine].set_visible(False)
+  fig.tight_layout()
+  fig.savefig(GENERATED / f"sd_variability_{arch}.pdf")
+  plt.close(fig)
+
+
 def build_pdf(review, no_acm=False):
   out = BUILD / "hawk-paper.pdf"
   tex = BUILD / "hawk-paper.tex"
@@ -676,6 +733,9 @@ def main():
     write_ablation_chart(arch, rows)
   for arch, rows in peak_memory_by_arch.items():
     write_memory_chart(arch, rows)
+  sd_rows_by_arch = parse_sd_results()
+  for arch, rows in sd_rows_by_arch.items():
+    write_variability_chart(arch, rows)
   out = build_pdf(review=args.mode == "review", no_acm=args.no_acm)
   print(f"wrote {out.relative_to(ROOT)} ({args.mode})")
   return 0

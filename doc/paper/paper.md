@@ -62,6 +62,12 @@ Register allocation is a generic backwards-liveness and spilling pass, and then 
 
 We use a simplified variant of LXR [@zhao2022lxr].  We currently only support blocks, and have not yet implemented a backup tracing collector.  All heap objects also currently require an 8-byte header, meaning cons cells are 24 bytes.   With lookaside mark bits, this could be improved in the future.  However, even with these limitations, our GC is quite performant.  Here's a small selection of GC-heavy benchmarks, including peak RSS and exection time:
 
+The GC supports image dumping & reload, and this is how bootstrapping the expander works: A host scheme is used to generate an initial heap image.  Then using a bootstrap hawk, we run the image, re-initialize the expander (the expander does not support serializing its current state).  Then we dump a final heap image, and build it in to the final executable. The heap image is compressed using ZSTD [@collet2021zstd], and the final binary is around half a MB for a full r7rs system.
+
+## Trace types
+
+Traces are split in to several types: Root traces, which are always loops. They begin either at function headers or loop headers, when loop analysis is enabled.  Up-recursive traces are also loops, and are found nearly identically to root loops: They begin at the start of functions, with the only difference being the stack is not even when they end.  
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.96\columnwidth]{generated/peak_memory_x64.pdf}
@@ -69,12 +75,6 @@ We use a simplified variant of LXR [@zhao2022lxr].  We currently only support bl
 \Description{Grouped bar chart of x64 peak memory usage for Hawk and Chez across GC-heavy benchmarks.}
 \label{fig:peak_memory}
 \end{figure}
-
-The GC supports image dumping & reload, and this is how bootstrapping the expander works: A host scheme is used to generate an initial heap image.  Then using a bootstrap hawk, we run the image, re-initialize the expander (the expander does not support serializing its current state).  Then we dump a final heap image, and build it in to the final executable. The heap image is compressed using ZSTD [@collet2021zstd], and the final binary is around half a MB for a full r7rs system.
-
-## Trace types
-
-Traces are split in to several types: Root traces, which are always loops. They begin either at function headers or loop headers, when loop analysis is enabled.  Up-recursive traces are also loops, and are found nearly identically to root loops: They begin at the start of functions, with the only difference being the stack is not even when they end.  
 
 ### Finding root loops
 
@@ -187,11 +187,11 @@ The only exception is the APPLY opcode: we need to record apply, and then record
 
 ### Analysis of trace types and trace stability
 
-Currently Figure~\ref{fig:trace_counts} shows our profiler shows >95% on-trace for all benchmarks, however, most of the scheme benchmarks are quite long.
+Currently Figure \ref{fig:trace_counts} shows our profiler shows >95% on-trace for all benchmarks, however, most of the scheme benchmarks are quite long.
 
 During testing, a mode was implemented where a deterministic tracing schedule was used - normally traces are recorded when they are discovered to be hot with a (lossy) hotness counter.  When instead we record via deterministic schedule, we decide, in advance, that the X’th FUNC or LOOP will be recorded.  By using different starting seeds, we are able to trace in many different orders. This was initially used to shake out bugs in the trace emitter (i.e. bad register allocations).
 
-It was found that using different seeds, the tracing was remarkably stable - the same number and location of root traces were found, and similar numbers of side traces, even though the traces were initially recorded in different orders.  <TODO insert table with stddev bars for trace counts and types>.
+It was found that using different seeds, the tracing was remarkably stable - the same number and location of root traces were found, and similar numbers of side traces, even though the traces were initially recorded in different orders.  Figure \ref{fig:sd_variability} shows that runtime variability is also low across seeds.
 
 ### Tracing complications
 
@@ -255,10 +255,18 @@ The standard r7rs-benchmarks suite [@r7rsbenchmarks], originally derived from th
 
 Neither chez nor hawk times include compile time.  Hawk DOES include JIT time.  There is no jit warmup period.
 
-The next figure breaks total Hawk time into VM, GC, and JIT contributions on
+Figure \ref{fig:time_breakdown} breaks total Hawk time into VM, GC, and JIT contributions on
 the x64 run.
 
-TODO: chart showing variability of each given deterministic schedule.
+Figure \ref{fig:sd_variability} shows the runtime variability (standard deviation as a percentage of mean) across 30 random seeds for each benchmark on x64.  While the scheduler is randomized, the tracing and optimization decisions are remarkably stable.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{generated/sd_variability_x64.pdf}
+\caption{x64 Hawk runtime variability by benchmark (SD\% of mean over 30 seeds).}
+\Description{Bar chart of runtime standard deviation as a percent of mean for each benchmark across 30 random seeds.}
+\label{fig:sd_variability}
+\end{figure*}
 
 ## Discussion
 
@@ -310,8 +318,6 @@ There are many optimizations that haven't been added to Hawk yet, or showed only
 * loop peeling 
   
   Both luajit and pypy have a 'loop peeling' optimization, where root loops can be unrolled once, and then the normal CSE/fold pass applied.  We attempted this with Hawk, but it added much register allocation complexity, and only the 'puzzle' benchmark showed clear wins.  The issue is root loops that have SLOADs in them: the LOOP did not include them in registers, so they get reloaded each iteraton
-  
-  TODO benchmark
   
 * allocation sinking
 
