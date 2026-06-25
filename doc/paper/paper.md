@@ -26,6 +26,14 @@ The scheme language has a very small core language, and requires tail-call optim
 
 We also investigate specializing traces, so that both flonum and fixnum heavy benchmarks can be optimized.  Scheme has somewhat standardized on 61-63 bit fixnums, and double flonums.  Double flonums mean that flonums need to be boxed, since there is no space to differentiate a flonum from other things.   By recording distinct traces, we can unbox flonums to register, and keep them in register for the majority of hot loops.
 
+\begin{figure*}
+\centering
+\includegraphics[width=\textwidth]{generated/trace_counts_x64.pdf}
+\caption{x64 Hawk trace counts by benchmark. Stacked bars show normal-loop, side, up-recursive, and down-recursive trace counts.}
+\Description{Stacked bar chart of x64 benchmark trace counts by type.}
+\label{fig:trace_counts}
+\end{figure*}
+
 ## Background
 
 TODO
@@ -54,7 +62,13 @@ Register allocation is a generic backwards-liveness and spilling pass, and then 
 
 We use a simplified variant of LXR [@zhao2022lxr].  We currently only support blocks, and have not yet implemented a backup tracing collector.  All heap objects also currently require an 8-byte header, meaning cons cells are 24 bytes.   With lookaside mark bits, this could be improved in the future.  However, even with these limitations, our GC is quite performant.  Here's a small selection of GC-heavy benchmarks, including peak RSS and exection time:
 
-TODO chart
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.96\columnwidth]{generated/peak_memory_x64.pdf}
+\caption{x64 peak memory usage of Hawk and Chez for GC-heavy benchmarks. Runtime labels (seconds) are shown on each bar.}
+\Description{Grouped bar chart of x64 peak memory usage for Hawk and Chez across GC-heavy benchmarks.}
+\label{fig:peak_memory}
+\end{figure}
 
 The GC supports image dumping & reload, and this is how bootstrapping the expander works: A host scheme is used to generate an initial heap image.  Then using a bootstrap hawk, we run the image, re-initialize the expander (the expander does not support serializing its current state).  Then we dump a final heap image, and build it in to the final executable. The heap image is compressed using ZSTD [@collet2021zstd], and the final binary is around half a MB for a full r7rs system.
 
@@ -173,12 +187,11 @@ The only exception is the APPLY opcode: we need to record apply, and then record
 
 ### Analysis of trace types and trace stability
 
-Currently <TODO mention table> our profiler shows >95% on-trace for all benchmarks, however, most of the scheme benchmarks are quite long.
+Currently Figure~\ref{fig:trace_counts} shows our profiler shows >95% on-trace for all benchmarks, however, most of the scheme benchmarks are quite long.
 
 During testing, a mode was implemented where a deterministic tracing schedule was used - normally traces are recorded when they are discovered to be hot with a (lossy) hotness counter.  When instead we record via deterministic schedule, we decide, in advance, that the X’th FUNC or LOOP will be recorded.  By using different starting seeds, we are able to trace in many different orders. This was initially used to shake out bugs in the trace emitter (i.e. bad register allocations).
 
-It was found that using different seeds, the tracing was remarkably stable - the same number and location of root traces were found, and similar numbers of side traces, even though the traces were initially recorded in different orders.  <TODO insert table with stddev bars for trace counts and types>.  
-
+It was found that using different seeds, the tracing was remarkably stable - the same number and location of root traces were found, and similar numbers of side traces, even though the traces were initially recorded in different orders.  <TODO insert table with stddev bars for trace counts and types>.
 
 ### Tracing complications
 
@@ -197,6 +210,22 @@ For a root loop ONLY this is not particularly important, since closures are cons
 
 This is the main downside of tracing that we’ve discovered so far: Since tracing functions inside-out, loops-within-loops result in worse behavior than if we were able to trace the whole double-loop together.   Allocations created in the innermost loop are able to be removed with allocation sinking, but if an allocation in the outer loop is passed to the inner loop, we are not able to remove it, since we never re-record the inner loop with new knowledge from the outer loop.
 
+
+\begin{figure*}
+\centering
+\includegraphics[width=\textwidth]{generated/benchmark_percent_x64.pdf}
+\caption{x64 Hawk runtime change relative to Chez. Negative values indicate that Hawk is faster; positive values indicate that Hawk is slower.}
+\Description{Bar chart of x64 benchmark runtime changes relative to Chez.}
+\label{fig:benchmark_percent}
+\end{figure*}
+
+\begin{figure*}
+\centering
+\includegraphics[width=\textwidth]{generated/time_breakdown_x64.pdf}
+\caption{x64 Hawk runtime breakdown by benchmark. Stacked bars show VM, GC, and JIT time as percentages of total runtime.}
+\Description{Stacked bar chart of x64 benchmark time broken into VM, GC, and JIT percentages.}
+\label{fig:time_breakdown}
+\end{figure*}
 
 ## Related work
 
@@ -226,35 +255,8 @@ The standard r7rs-benchmarks suite [@r7rsbenchmarks], originally derived from th
 
 Neither chez nor hawk times include compile time.  Hawk DOES include JIT time.  There is no jit warmup period.
 
-<!-- BENCHMARK_CHART -->
-
-\begin{figure*}
-\centering
-\includegraphics[width=\textwidth]{generated/benchmark_percent_x64.pdf}
-\caption{x64 Hawk runtime change relative to Chez. Negative values indicate that Hawk is faster; positive values indicate that Hawk is slower.}
-\Description{Bar chart of x64 benchmark runtime changes relative to Chez.}
-\end{figure*}
-
-<!-- /BENCHMARK_CHART -->
-
 The next figure breaks total Hawk time into VM, GC, and JIT contributions on
 the x64 run.
-
-\begin{figure*}
-\centering
-\includegraphics[width=\textwidth]{generated/time_breakdown_x64.pdf}
-\caption{x64 Hawk runtime breakdown by benchmark. Stacked bars show VM, GC, and JIT time as percentages of total runtime.}
-\Description{Stacked bar chart of x64 benchmark time broken into VM, GC, and JIT percentages.}
-\end{figure*}
-
-The next figure shows the trace mix per benchmark, sorted by total trace count.
-
-\begin{figure*}
-\centering
-\includegraphics[width=\textwidth]{generated/trace_counts_x64.pdf}
-\caption{x64 Hawk trace counts by benchmark. Stacked bars show normal-loop, side, up-recursive, and down-recursive trace counts.}
-\Description{Stacked bar chart of x64 benchmark trace counts by type.}
-\end{figure*}
 
 TODO: chart showing variability of each given deterministic schedule.
 
@@ -286,6 +288,7 @@ percentile range across the benchmarks included in the comparison.
 \includegraphics[width=0.96\columnwidth]{generated/ablation_runtime_x64.pdf}
 \caption{x64 Hawk ablation runtime relative to the baseline. Bars show mean runtime as a percentage of the original `results.Hawk` time, with asymmetric error bars showing the 16th to 84th percentile range.}
 \Description{Bar chart of x64 Hawk ablation runtime as a percent of baseline, with asymmetric error bars.}
+\label{fig:ablation_runtime}
 \end{figure}
 
 Promotion of globals and closures to constants has the greatest effect. Currently the bytecode generator does NOT assume ANY globals (including in r7rs libraries) are constant, so this is entirely left up to the JIT to optimize.  One large benefit is that the user can still redefine library procedures at runtime, unlike most r7rs compilers.
