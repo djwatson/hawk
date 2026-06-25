@@ -473,6 +473,7 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
   vector_s *root = runtime_expect_vector(payload, 2);
   gc_obj entry_id_obj = root->v[0];
   gc_obj funs_list = root->v[1];
+  gc_add_root((const void *)&funs_list, 1, 0);
   uint64_t fun_count = runtime_list_length(funs_list);
   int64_t entry_id_i64 = runtime_expect_fixnum(entry_id_obj);
   if (entry_id_i64 < 0 || (uint64_t)entry_id_i64 >= fun_count) {
@@ -486,7 +487,10 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
   }
   gc_add_root((const void *)funcs, fun_count, 0);
 
-  for (gc_obj cur = funs_list; cur.value != NIL_TAG; cur = to_cons(cur)->b) {
+  gc_obj first_cur = funs_list;
+  gc_add_root((const void *)&first_cur, 1, 0);
+  while (first_cur.value != NIL_TAG) {
+    gc_obj cur = first_cur;
     vector_s *desc = runtime_expect_vector(to_cons(cur)->a, 4);
     int64_t id_i64 = runtime_expect_fixnum(desc->v[0]);
     if (id_i64 < 0 || (uint64_t)id_i64 >= fun_count) {
@@ -501,13 +505,17 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
     size_t bytes = runtime_align_words(
         sizeof(bcfunc) + (const_cnt * sizeof(gc_obj)) + (bc_cnt * sizeof(bc)));
     bcfunc *func = gc_alloc(bytes);
-    func->header.type = FUNC_TAG;
     func->poly_cnt = 0;
     func->downrec_ok = 0;
+    func->name = NIL;
     func->const_cnt = const_cnt;
     func->bc_cnt = bc_cnt;
+    memset(func->data, 0, const_cnt * sizeof(gc_obj));
+    func->header.type = FUNC_TAG;
     funcs[id] = tag_func(func);
+    first_cur = to_cons(first_cur)->b;
   }
+  gc_remove_root((const void *)&first_cur, 0);
   for (uint64_t i = 0; i < fun_count; i++) {
     if (funcs[i].value == 0) {
       abort();
@@ -573,6 +581,7 @@ gc_obj scm_emit_bitcode_closure(gc_obj payload) {
 
   gc_remove_root((const void *)funcs, 0);
   free(funcs);
+  gc_remove_root((const void *)&funs_list, 0);
   gc_remove_root((const void *)&payload, 0);
   LOG(gc, "scm_emit_bitcode_closure done");
   return out;
