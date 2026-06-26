@@ -9,8 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#define ZSTD_STATIC_LINKING_ONLY
-#include <zstd.h>
 
 #include "array.h"
 #include "gc.h"
@@ -20,7 +18,6 @@
 #include "types.h"
 #include "util/list.h"
 #include "util/stack.h"
-#include "vm.h"
 
 #define LOG_OBJ_HEADER UINT64_MAX
 
@@ -101,8 +98,6 @@ void gc_init(void) {
   gc_hp = gc_hp_end;
 }
 
-void gc_collect(void);
-
 static gc_block *block_alloc_raw(void) {
   gc_block *block;
   if (arrlen(free_blocks) > 0) {
@@ -179,11 +174,13 @@ static int cmp_bcfunc_range(const void *kp, const void *ep) {
   uintptr_t p = *(const uintptr_t *)kp;
   bcfunc *func = (bcfunc *)to_raw_ptr(*(const gc_obj *)ep);
   uintptr_t base = (uintptr_t)func;
-  if (p < base)
+  if (p < base) {
     return -1;
+  }
   size_t sz = heap_object_size(func);
-  if (p >= base + sz)
+  if (p >= base + sz) {
     return 1;
+  }
   return 0;
 }
 
@@ -200,8 +197,9 @@ void gc_set_scan_callback(gc_scan_callback cb, void *data) {
 }
 
 void *gc_base_ptr(void *p) {
-  if (arrlen(bcfunc_list) == 0)
+  if (arrlen(bcfunc_list) == 0) {
     return nullptr;
+  }
   if (bcfunc_list_unsorted) {
     qsort(bcfunc_list, arrlen(bcfunc_list), sizeof(gc_obj), cmp_bcfunc);
     bcfunc_list_unsorted = false;
@@ -395,8 +393,8 @@ static void gc_add_mark_root(const uint64_t *rootp, size_t len) {
 }
 
 static inline double elapsed_ms(struct timespec s, struct timespec e) {
-  return (double)(e.tv_sec - s.tv_sec) * 1000.0 +
-         (double)(e.tv_nsec - s.tv_nsec) / 1000000.0;
+  return ((double)(e.tv_sec - s.tv_sec) * 1000.0) +
+         ((double)(e.tv_nsec - s.tv_nsec) / 1000000.0);
 }
 
 void gc_collect(void) {
@@ -410,7 +408,11 @@ void gc_collect(void) {
   }
 
   static struct timespec prev_gc_end;
-  struct timespec t0, t1, t2, t3, t4;
+  struct timespec t0;
+  struct timespec t1;
+  struct timespec t2;
+  struct timespec t3;
+  struct timespec t4;
   clock_gettime(CLOCK_MONOTONIC, &t0);
   double mutator_ms = prev_gc_end.tv_sec ? elapsed_ms(prev_gc_end, t0) : 0.0;
   size_t free_before = arrlen(free_blocks);
@@ -498,9 +500,11 @@ void gc_collect(void) {
 
   // 4) Sweep nursery: free empty blocks and dead large allocs,
   //    leave live ones for decrements
-  for (size_t i = 0; i < arrlen(nursery_blocks); i++)
-    if (nursery_blocks[i]->live_objects == 0)
+  for (size_t i = 0; i < arrlen(nursery_blocks); i++) {
+    if (nursery_blocks[i]->live_objects == 0) {
       block_free(nursery_blocks[i]);
+    }
+  }
   arrlen_set(nursery_blocks, 0);
 
   for (size_t i = 0; i < arrlen(large_nursery); i++) {
@@ -522,8 +526,8 @@ void gc_collect(void) {
   clock_gettime(CLOCK_MONOTONIC, &t4);
 
   size_t freed_mb =
-      (arrlen(free_blocks) - free_before) * BLOCK_SIZE / (1024 * 1024);
-  size_t nursery_mb = copy_alloc_bytes / (1024 * 1024);
+      (arrlen(free_blocks) - free_before) * BLOCK_SIZE / (size_t)(1024 * 1024);
+  size_t nursery_mb = copy_alloc_bytes / (size_t)(1024 * 1024);
   copy_alloc_bytes = 0;
 
   LOG(gc,
