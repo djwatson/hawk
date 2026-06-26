@@ -44,6 +44,18 @@ void gc_free(void);
 
 extern uintptr_t gc_hp;
 extern uintptr_t gc_hp_end;
+extern size_t gc_size;
+extern uint64_t total_gc_cnt;
+void gc_collect(void);
+
+static inline void set_forward(gc_header *hdr, void *ptr) {
+  hdr->flags |= GC_FWD_TAG;
+  *(void **)(hdr + 1) = ptr;
+}
+static inline bool is_forwarded(gc_header *hdr) {
+  return hdr->flags & GC_FWD_TAG;
+}
+static inline void *forward_ptr(gc_header *hdr) { return *(void **)(hdr + 1); }
 
 NOINLINE void *gc_alloc_slow(uint64_t sz);
 

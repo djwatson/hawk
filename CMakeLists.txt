@@ -59,6 +59,7 @@ set(
   types.c
   record.c
   rcgc.c
+  rcgc_image.c
   ir.c
   emit.c
   regalloc.c
