@@ -17,7 +17,76 @@ abstract: |
 dave's notes
 
 - [ ] Results are reproducible from a clean checkout.
+ swap example for summix
+ something something background: 
+   1) scheme loops -> tail calls
+   2) tracing types
+   3) trace arguments
+   4) polymorphism?
+ remove comparisons to luajit ugh
+ add luajit section
+ more benchmark details:
+  number of runs per benchmark;
+whether numbers are min/median/mean;
+whether CPU governor/turbo was controlled;
+whether Chez was run with default options or optimize-level settings;
+whether Hawk includes image startup time;
+whether GC settings are default or tuned;
+how geometric mean was computed;
+whether benchmarks with failed/unsupported cases were excluded.
 
+move GC section to maybe appendix? talking about all benchmarks?
+Split ablation as much as possible, different const types,
+try again to split reg. vs. poly
+
+explain scheme loop construct btter
+
+LLM suggested ordering:
+Introduction
+Problem: Scheme control flow is call/return/tail-call shaped.
+Claim: trace at function boundaries.
+Contributions list.
+Headline results.
+Background
+Scheme tail calls, fixnums/flonums, tracing JIT basics.
+Why normal loop tracing is awkward.
+Hawk Overview
+VM, bytecode, recorder, IR, trace ABI.
+Tiny running example.
+Trace Formation for Tail Calls
+Root traces.
+NLF/call-depth.
+Side traces.
+Up/down-recursive traces.
+Trace linking.
+Specialization
+Register trace arguments.
+Polymorphic root traces.
+Lazy typechecking.
+Constant globals/closures.
+Scheme Features
+call/cc.
+case-lambda/apply.
+closures and LOOP recovery.
+Implementation
+Backend/register allocation.
+GC, image dumping, platform support.
+Evaluation
+Methodology.
+Runtime vs Chez.
+Flonum-heavy results.
+Non-numeric results.
+Trace counts/stability.
+Memory/GC.
+Ablation.
+Related Work
+LuaJIT.
+PyPy/RPython.
+Pycket.
+Nash.
+Guile.
+Limitations and Future Work
+Conclusion
 -->
 
 ## Introduction
