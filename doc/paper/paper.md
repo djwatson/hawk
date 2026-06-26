@@ -105,7 +105,21 @@ We also investigate specializing traces, so that both flonum and fixnum heavy be
 
 ## Background
 
-TODO
+In Scheme, most loops are represented as tailcalls. In the r7rs report, even constructs such as `do` loops or `named let` loops are lowered to recursion.  This makes implementing a tracing JIT less straightforward at discovering loops.
+
+Scheme supports a full numeric tower, however, many functions work on only fixnums or flonums at runtime (TODO: cite feely's inlining fixnum/flonum paper). Ideally a JIT would be able to use FPR hardware registers to hold flonums as long as possible instead of boxing them on the stack.
+
+Standard scheme code also makes extensive use of uprecrusive and downrecursive traces, and often assumes stack space is not limited. For example, a somewhat standard `append` function might look like:
+
+```scheme
+(define (append2 a b) 
+  (if (null? a) 
+      b 
+	  (cons (car a) 
+	        (append2 (cdr a) b))))
+```
+
+The 'cons' is left on the stack as we build up the appended list.  Our JIT should still be able to generate efficient code for these, even though there is no obvious loop.
 
 ## System overview
 
@@ -316,7 +330,7 @@ Guile has acquired a JIT in recent versions, however, it is only a template JIT,
 
 ### LuaJIT
 
-TODO
+LuaJIT [@pallluajit] is built around a similar bytecode interpreter & linear trace recorder.  Lua has explicit looping constructs, although LuaJIT does support uprec and downrec traces as well.  Its numeric types are NAN-boxed rather than doubles boxed in the heap.  All numeric types are represented as flonums in LUA, however, luajit has a pass to convert some of them back to fixnums.  LuaJIT contains other optimizations around tables that Scheme does not support, and its GC design is much different.
 
 ## Results
 
