@@ -19,6 +19,7 @@
 #include "profiler.h"
 #include "types.h"
 #include "util/list.h"
+#include "util/stack.h"
 #include "vm.h"
 
 #define LOG_OBJ_HEADER UINT64_MAX
@@ -64,17 +65,8 @@ static gc_obj *bcfunc_list;
 static gc_obj *bcfunc_roots;
 static bool bcfunc_list_unsorted;
 
-typedef struct {
-  gc_obj **data;
-  size_t len;
-  size_t cap;
-} gc_field_stack;
-
-typedef struct {
-  gc_obj *data;
-  size_t len;
-  size_t cap;
-} gc_obj_stack;
+STACK(gc_field_stack, gc_obj *)
+STACK(gc_obj_stack, gc_obj)
 
 static gc_field_stack cur_increments;
 static gc_obj_stack cur_decrements;
@@ -139,40 +131,6 @@ static gc_block *block_alloc(void) {
 
 static void block_free(gc_block *block) { arrput(free_blocks, block); }
 static bool is_large_alloc(void *p);
-
-NOINLINE static void *gc_stack_grow(void *data, size_t elem_size, size_t *cap) {
-  size_t new_cap = *cap ? *cap * 2 : 256;
-  void *new_data = realloc(data, elem_size * new_cap);
-  if (!new_data) {
-    fprintf(stderr, "gc_stack_grow: out of memory\n");
-    abort();
-  }
-  *cap = new_cap;
-  return new_data;
-}
-
-INLINE inline static void gc_field_stack_push(gc_field_stack *stack,
-                                              gc_obj *field) {
-  if (unlikely(stack->len == stack->cap)) {
-    stack->data = gc_stack_grow(stack->data, sizeof(*stack->data), &stack->cap);
-  }
-  stack->data[stack->len++] = field;
-}
-
-INLINE inline static gc_obj *gc_field_stack_pop(gc_field_stack *stack) {
-  return stack->data[--stack->len];
-}
-
-INLINE inline static void gc_obj_stack_push(gc_obj_stack *stack, gc_obj obj) {
-  if (unlikely(stack->len == stack->cap)) {
-    stack->data = gc_stack_grow(stack->data, sizeof(*stack->data), &stack->cap);
-  }
-  stack->data[stack->len++] = obj;
-}
-
-INLINE inline static gc_obj gc_obj_stack_pop(gc_obj_stack *stack) {
-  return stack->data[--stack->len];
-}
 
 static void mark_object_block(gc_header *hdr) {
   if (is_large_alloc(hdr)) {
