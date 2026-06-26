@@ -29,12 +29,19 @@ static log_item *log_buf;
 
 enum : size_t {
   BLOCK_SIZE = 262144,
-  BLOCK_DATA_SIZE = BLOCK_SIZE - sizeof(uint32_t),
+  BLOCK_MARK_BYTES = BLOCK_SIZE / 64,
+  BLOCK_OVERHEAD = sizeof(uint32_t) + 2 + BLOCK_MARK_BYTES,
+  BLOCK_DATA_SIZE = BLOCK_SIZE - BLOCK_OVERHEAD,
   GC_COLLECT_AFTER = 32 * 1024 * 1024,
 };
 
+enum { BLOCK_FREE, BLOCK_USED };
+
 typedef struct gc_block {
   uint32_t live_objects;
+  uint8_t satb_marked;
+  uint8_t state;
+  uint8_t marks[BLOCK_MARK_BYTES];
   uint8_t data[BLOCK_DATA_SIZE];
 } gc_block;
 
@@ -68,12 +75,134 @@ STACK(gc_obj_stack, gc_obj)
 static gc_field_stack cur_increments;
 static gc_obj_stack cur_decrements;
 static gc_obj_stack next_decrements;
+static gc_obj_stack satb_stack;
 
 struct large_alloc {
   list_head list;
+  uint8_t satb_marked;
 };
 
 _Static_assert(sizeof(gc_block) <= BLOCK_SIZE);
+
+static inline gc_block *object_block(gc_header *hdr) {
+  return (gc_block *)((uintptr_t)hdr & ~(uintptr_t)(BLOCK_SIZE - 1));
+}
+
+static void block_mark_all(gc_block *block) {
+  memset(block->marks, 0xff, sizeof(block->marks));
+  block->satb_marked = 1;
+}
+
+static void block_mark_clear(gc_block *block) {
+  memset(block->marks, 0, sizeof(block->marks));
+  block->satb_marked = 0;
+}
+
+static bool mark_small_object(gc_header *hdr) {
+  gc_block *block = object_block(hdr);
+  uintptr_t off = (uintptr_t)hdr - (uintptr_t)block->data;
+  size_t bit = off / sizeof(gc_obj);
+  size_t idx = bit / 8;
+  uint8_t mask = (uint8_t)(1u << (bit % 8));
+  bool marked = block->marks[idx] & mask;
+  block->marks[idx] |= mask;
+  block->satb_marked = 1;
+  return marked;
+}
+
+static bool mark_large_object(gc_header *hdr) {
+  struct large_alloc *la = (struct large_alloc *)hdr - 1;
+  bool marked = la->satb_marked;
+  la->satb_marked = 1;
+  return marked;
+}
+
+static void clear_all_marks(void) {
+  for (size_t i = 0; i < arrlen(all_blocks); i++) {
+    block_mark_clear(all_blocks[i]);
+  }
+  list_head *pos;
+  list_for_each(pos, &large_allocs) {
+    struct large_alloc *la = container_of(pos, struct large_alloc, list);
+    la->satb_marked = 0;
+  }
+}
+
+static bool satb_enabled = true;
+static bool satb_active;
+static size_t satb_waste_threshold = 20;
+static size_t satb_pred_live_blocks = 64;
+static const char *satb_start_reason;
+
+static size_t mature_block_count(void) {
+  return arrlen(all_blocks) - arrlen(free_blocks) - arrlen(nursery_blocks);
+}
+
+static bool satb_should_start(void) {
+  if (!satb_enabled || satb_active) {
+    return false;
+  }
+  if (satb_waste_threshold == 0) {
+    satb_start_reason = "forced";
+    return true;
+  }
+  size_t mature = mature_block_count();
+  if (mature > satb_pred_live_blocks) {
+    size_t waste = mature - satb_pred_live_blocks;
+    size_t threshold = arrlen(all_blocks) * satb_waste_threshold / 100;
+    if (waste >= threshold) {
+      satb_start_reason = "waste";
+      return true;
+    }
+  }
+  return false;
+}
+
+static void satb_update_prediction(size_t observed) {
+  if (observed > satb_pred_live_blocks) {
+    satb_pred_live_blocks = observed;
+  } else {
+    satb_pred_live_blocks = (observed + 3 * satb_pred_live_blocks) / 4;
+  }
+}
+
+static void satb_push(gc_obj v) {
+  if (is_heap_object(v)) {
+    gc_obj_stack_push(&satb_stack, v);
+  }
+}
+
+static void satb_add_root(const uint64_t *rootp, size_t len) {
+  uint64_t *slots = (uint64_t *)rootp;
+  for (size_t i = 0; i < len; i++) {
+    satb_push((gc_obj){.value = (int64_t)slots[i]});
+  }
+}
+
+static void satb_push_roots(void) {
+  for (size_t i = 0; i < gc_roots_len; i++) {
+    gc_root_range root = gc_roots[i];
+    if (root.tag != 0) {
+      uintptr_t *slots = (uintptr_t *)root.ptr;
+      for (size_t j = 0; j < root.len; j++) {
+        if (slots[j] == 0)
+          continue;
+        satb_push(tag_header((gc_header *)slots[j], root.tag));
+      }
+    } else {
+      uint64_t *base = (uint64_t *)root.ptr;
+      for (size_t j = 0; j < root.len; j++) {
+        satb_push((gc_obj){.value = (int64_t)base[j]});
+      }
+    }
+  }
+  for (size_t i = 0; i < arrlen(bcfunc_roots); i++) {
+    satb_push(bcfunc_roots[i]);
+  }
+  if (scan_callback) {
+    scan_callback(scan_data, satb_add_root);
+  }
+}
 
 void gc_init(void) {
   char *env = getenv("GC_SPACE");
@@ -82,6 +211,15 @@ void gc_init(void) {
   env = getenv("GC_COLLECT");
   collect_after = env ? (size_t)atol(env) * 1024 * 1024 : GC_COLLECT_AFTER;
   next_collect = collect_after;
+  env = getenv("GC_SATB");
+  if (env && strcmp(env, "0") == 0) {
+    satb_enabled = false;
+  }
+  env = getenv("GC_SATB_WASTE");
+  if (env) {
+    satb_enabled = true;
+    satb_waste_threshold = (size_t)atol(env);
+  }
   gc_mmap_size = gc_size + BLOCK_SIZE;
   gc_mmap_base = mmap(nullptr, gc_mmap_size, PROT_READ | PROT_WRITE,
                       MAP_PRIVATE | MAP_ANON, -1, 0);
@@ -102,6 +240,7 @@ static gc_block *block_alloc_raw(void) {
   gc_block *block;
   if (arrlen(free_blocks) > 0) {
     block = arrpop_last(free_blocks);
+    block->state = BLOCK_USED;
   } else {
     if (gc_base_cur + BLOCK_SIZE > (uintptr_t)gc_base + gc_size) {
       fprintf(stderr, "block_alloc: out of GC space\n");
@@ -109,6 +248,7 @@ static gc_block *block_alloc_raw(void) {
     }
     block = (gc_block *)gc_base_cur;
     gc_base_cur += BLOCK_SIZE;
+    block->state = BLOCK_USED;
     arrput(all_blocks, block);
   }
   return block;
@@ -120,12 +260,82 @@ static gc_block *block_alloc(void) {
   }
   next_collect -= BLOCK_SIZE;
   gc_block *block = block_alloc_raw();
+  if (unlikely(satb_active)) {
+    block_mark_all(block);
+  }
   arrput(nursery_blocks, block);
   return block;
 }
 
-static void block_free(gc_block *block) { arrput(free_blocks, block); }
-static bool is_large_alloc(void *p);
+static void block_free(gc_block *block) {
+  block->state = BLOCK_FREE;
+  block->live_objects = 0;
+  arrput(free_blocks, block);
+}
+static bool is_large_alloc(void *p) {
+  return (uintptr_t)p - (uintptr_t)gc_base >= gc_size;
+}
+
+static void satb_trace_field(gc_obj *field, void *ctx) {
+  gc_obj v = *field;
+  if (is_heap_object(v)) {
+    gc_obj_stack_push((gc_obj_stack *)ctx, v);
+  }
+}
+
+static void satb_process(gc_obj obj) {
+  if (!is_heap_object(obj)) {
+    return;
+  }
+  gc_header *hdr = to_gc_header(obj);
+  if (is_large_alloc(hdr)) {
+    if (mark_large_object(hdr)) {
+      return;
+    }
+  } else {
+    if (mark_small_object(hdr)) {
+      return;
+    }
+  }
+  trace_heap_object(hdr, satb_trace_field, &satb_stack);
+}
+
+enum { SATB_PROCESS_BATCH = 1000000 };
+
+static void satb_process_some(void) {
+  for (size_t i = 0; i < SATB_PROCESS_BATCH && satb_stack.len; i++) {
+    satb_process(gc_obj_stack_pop(&satb_stack));
+  }
+}
+
+static void satb_sweep(void) {
+  size_t live = 0, freed_blocks = 0, freed_large = 0;
+  for (size_t i = 0; i < arrlen(all_blocks); i++) {
+    gc_block *block = all_blocks[i];
+    // Note nursury may have already freed.
+    if (block->satb_marked) {
+      live++;
+    } else if (block->state != BLOCK_FREE) {
+      block_free(block);
+      freed_blocks++;
+    }
+  }
+  list_head *pos = large_allocs.next;
+  while (pos != &large_allocs) {
+    struct large_alloc *la = container_of(pos, struct large_alloc, list);
+    pos = pos->next;
+    if (la->satb_marked) {
+      la->satb_marked = 0;
+    } else {
+      list_del(&la->list);
+      free(la);
+      freed_large++;
+    }
+  }
+  satb_update_prediction(live);
+  LOG(gc, "satb finish: %zu blocks freed, %zu large freed", freed_blocks,
+      freed_large);
+}
 
 static void mark_object_block(gc_header *hdr) {
   if (is_large_alloc(hdr)) {
@@ -157,6 +367,7 @@ void gc_free(void) {
   free(cur_increments.data);
   free(cur_decrements.data);
   free(next_decrements.data);
+  free(satb_stack.data);
   while (!list_empty(&large_allocs)) {
     list_head *pos = large_allocs.next;
     list_del(pos);
@@ -251,12 +462,6 @@ NOINLINE void *gc_alloc_slow(uint64_t sz) {
   MUSTTAIL return gc_alloc_slow(sz);
 }
 
-static bool is_large_alloc(void *p) {
-  // This checks, using unsigned wraparound, that it is *not* in the
-  // small object space.
-  return (uintptr_t)p - (uintptr_t)gc_base >= gc_size;
-}
-
 static void *gc_large_alloc(uint64_t sz) {
   if (next_collect < sz) {
     next_collect = -1;
@@ -272,6 +477,9 @@ static void *gc_large_alloc(uint64_t sz) {
   list_add_tail(&la->list, &large_allocs);
   arrput(large_nursery, (gc_header *)(la + 1));
   *(uint64_t *)(la + 1) = 0;
+  if (unlikely(satb_active)) {
+    la->satb_marked = 1;
+  }
   return la + 1;
 }
 
@@ -287,6 +495,9 @@ INLINE inline static gc_header *copy_alloc(uint64_t sz) {
   if (copy_hp == 0 || new_hp < copy_hp_end) {
     gc_block *block = block_alloc_raw();
     assert(block);
+    if (unlikely(satb_active)) {
+      block_mark_all(block);
+    }
     copy_hp_end = (uintptr_t)block->data;
     copy_hp = (uintptr_t)block->data + BLOCK_DATA_SIZE;
     new_hp = copy_hp - sz;
@@ -371,6 +582,9 @@ INLINE inline static void process_decrements(void) {
       continue;
     }
 
+    if (unlikely(satb_active)) {
+      satb_process(obj);
+    }
     trace_heap_object(hdr, dec_trace_field, decrements);
     if (is_large_alloc(hdr)) {
       struct large_alloc *la = (struct large_alloc *)hdr - 1;
@@ -412,6 +626,8 @@ void gc_collect(void) {
   struct timespec t1;
   struct timespec t2;
   struct timespec t3;
+  struct timespec t_satb;
+  struct timespec t_satb_end;
   struct timespec t4;
   clock_gettime(CLOCK_MONOTONIC, &t0);
   double mutator_ms = prev_gc_end.tv_sec ? elapsed_ms(prev_gc_end, t0) : 0.0;
@@ -478,6 +694,9 @@ void gc_collect(void) {
       gc_obj old_val = {.value = (int64_t)cur.val};
       if (is_heap_object(old_val) && to_gc_header(old_val)->rc != 0) {
         gc_obj_stack_push(&cur_decrements, old_val);
+        if (unlikely(satb_active)) {
+          satb_push(old_val);
+        }
       }
       i++;
       if (i >= arrlen(log_buf)) {
@@ -517,6 +736,33 @@ void gc_collect(void) {
   }
   arrlen_set(large_nursery, 0);
 
+  clock_gettime(CLOCK_MONOTONIC, &t_satb);
+
+  if (unlikely(satb_active)) {
+    satb_process_some();
+    LOG(gc, "satb queue: %zu", satb_stack.len);
+    // Must check for finish *after* the write log is processed:
+    // we HAVE to process current write log before SATB can be done.
+    if (satb_stack.len == 0) {
+      // Must sweep satb *after* nursury.
+      // nursury doesn't check for double-free of blocks
+      // currently.
+      satb_sweep();
+      satb_active = false;
+    }
+  }
+  clock_gettime(CLOCK_MONOTONIC, &t_satb_end);
+
+  // MUST start satb *before* allocing a new block,
+  // so new blocks start marked.
+  if (satb_should_start()) {
+    LOG(gc, "satb start: %s", satb_start_reason);
+    clear_all_marks();
+    satb_stack.len = 0;
+    satb_push_roots();
+    satb_active = true;
+  }
+
   next_collect = collect_after;
 
   // 5) Get a fresh block for allocation
@@ -531,12 +777,13 @@ void gc_collect(void) {
   copy_alloc_bytes = 0;
 
   LOG(gc,
-      "gc_collect: %.3f/+%.3f ms (roots %.3f, inc %.3f, dec %.3f, sweep %.3f), "
+      "gc_collect: %.3f/+%.3f ms (roots %.3f, dec %.3f, sweep %.3f, "
+      "satb %.3f), "
       "blocks: %zu total, %zu free (+%zu MB), nursery copy: %zu MB, "
       "buflen %li",
-      elapsed_ms(t0, t4), mutator_ms, elapsed_ms(t0, t1), elapsed_ms(t1, t2),
-      elapsed_ms(t2, t3), elapsed_ms(t3, t4), arrlen(all_blocks),
-      arrlen(free_blocks), freed_mb, nursery_mb, buflen);
+      elapsed_ms(t0, t4), mutator_ms, elapsed_ms(t0, t1), elapsed_ms(t2, t3),
+      elapsed_ms(t3, t_satb), elapsed_ms(t_satb, t_satb_end),
+      arrlen(all_blocks), arrlen(free_blocks), freed_mb, nursery_mb, buflen);
   prev_gc_end = t4;
   profiler_set_in_gc(false);
 }
