@@ -1,45 +1,20 @@
 ## Release checklist
 
-Hawk2 improvements:
-[ ] optimize recording EQ EQV NUMEQ based on type if one is constant.  Or typecheck 
-     just one side, and if it's a non-heap or symbol, no need to typecheck the other side.
-   [ ] move memq, memv, assq, assv back to scheme.  Our tracer is good enough, but we do need the opt above
-[x] ☄️Auto flvector 
-   * missing fallback conversion
-
-[ ] Optimize vm - set/get type opcodes, builtins. Even farther - gcall, vn math and cmp ops
-
-[ ] Reify code generator tester!!!! So good. Generate ast. Choose a path. Generate symbolic and send to z3, then use z3 solution! To print a complete program. Can force a loop with at least X , so we can even ensure jit runs!
-
-[ ] When trace cache full, flush it automatically. 
-[ ] Exe builder. 
-[ ] Various trace interfaces, like dump image and flush trace cache
-[ ] Fix (number?) Type rep to be tower of numbers like ports will be
-[ ] Replace libffi with a tiny faster version, merge code with jit, map to (foreign c) interface
-[ ] Luajit style double ended ir ins / constants???
-[ ] Cleanup backends based on luajit. See chatgpt chat
-[ ] Clean folding and memory optimizations in fold.c to use fold engine, same as luajit
-
-[ ] Adding special math case-lambda type can remove need to inline bc at all
-
-### other:
-
-[ ] some github actions to test build for ubuntu, osx, arch? gcc, clang?
-[ ] paper
-[ ] easily reproducable paper results
+* some github actions to test build for ubuntu, osx, arch? gcc, clang?
+* paper
+* easily reproducible paper results (the benchmark results should have script to generate them)
 
 ## slow vs Chez
 
-[ ] figure out why dynamic is so much slower than oldhawk
-    * again compilation helps, so probably inling
+* figure out why dynamic is so much slower than oldhawk
+    * again compilation helps, so probably inlining
 	* assv in C vs scheme?
 	* NO NEED TO TYPECHECK for EQ/NE, eq? vs. EQV? in traces.  ugh
-	* loop detect??
-	* 50MB nursury vs 32mb
-[ ] compiler.scm is slower
+	* 50MB nursery vs 32mb
+* compiler.scm is slower
     * GC_ALLOC helps, but hurts other benchmarks
 	* somehow compilation in chez helps - so it's likely tons of inlining
-[ ] fibc, ctak: we copy twice on continuations, so it is unsurprising ctak is 2x slower.
+* fibc, ctak: we copy twice on continuations, so it is unsurprising that ctak is 2x slower.
 
 Every other test is within noise.
 
@@ -51,10 +26,13 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 	  already able to inline through all these)
 * convert to bytecode: assq, length, listp, equal, stringcopy
      * tested, didn't find perf improvement in JIT, but would speed up VM
+* optimize recording EQ EQV NUMEQ based on type if one is constant.  Or typecheck 
+     just one side, and if it's a non-heap or symbol, no need to typecheck the other side.
+   * move memq, memv, assq, assv back to scheme.  Our tracer is good enough, but we do need the opt above
 	 
-# Known bugs
+# Known issues
 
-[ ] r7rs-tests LOOKUPs are too long & overflowing because main is too long. 
+* r7rs-tests LOOKUPs are too long & overflowing because main is too long. 
     Extend to 32-bit LOOKUP/CONST/DEFINE.  Also add checks for JMP and IF, make sure
 	they don't exceed distance
 	We check for overflow, but the main issue still exists.	
@@ -62,6 +40,9 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 	In fact, the whole thing needs a rewrite for JMP using labels, and a separate pass
 	to reduce WIDE opcodes or something.
 	
+* Auto flvector 
+   * missing fallback conversion. Watch out for GC issues, probably need special gc_log.
+
 # Missing features
 
 Would be super nice to have:
@@ -72,8 +53,16 @@ Would be super nice to have:
 * a --dump flag to list compiled bytecode without actually running
 * in fact a whole 'hawk' library with options to control the expander, dump bitcode, dump traces, reset traces, 
   save-image-and-die, etc etc.  These can all be pieced together for testing but not implemented yet as reusable library.
+* When trace cache full, flush it automatically. 
+* Various trace interfaces, like dump image and flush trace cache
 
 ## JIT backlog
+
+* fold.c: Clean folding and memory optimizations in fold.c to use fold engine, same as luajit
+
+* backends could be cleaned up similar to luajit
+
+* Luajit style double ended ir ins / constants???
 
 * we cold fold more EQ NEQ ops - case in particular does a lot of NEQ in a row, followed by a single EQ
   * or lower case more effectively somehow?
@@ -98,10 +87,10 @@ Would be super nice to have:
   * but everything else is lazy, since we don't want to typecheck
     things like IR_LOAD followed by IR_STORE of the same value! If we don't need to know it's type, don't typecheck.
 
-* we could add a GC_ENSURE.  It wouldn't work for variably sizxed ALLOC, but it would save having to register save/restore for snapshots *at all*, and we could merge all fixed-size allocs to fastpaths!
+* we could add a GC_ENSURE.  It wouldn't work for variably sized ALLOC, but it would save having to register save/restore for snapshots *at all*, and we could merge all fixed-size allocs to fastpaths!
   * basically split the *do we have enough memory?* path from the *bump the pointer and allocate* path
 
-* we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the orgiinal registers!
+* we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the original registers!
 
 * we could keep boxed/unboxed flonum pairs around? we might be
   re-boxing in some cases instead of re-using the unchanged old box
@@ -113,18 +102,28 @@ Would be super nice to have:
   
 * add some point the ir struct was expanded to support more than >256
   spill slots, this is probably unnecessary.
+  
+* better stack-top tracking: I tried and didn't find much improvment
+* allocation sinking: I tried and didn't find much improvment.  Only happened in small side traces
+* opt_loop: Tried it, it only really saw a huge win in puzzle: where an inner loop has repeated SLOADS.
+            we could do a static pre-pass to improve this.
 
 # VM backlog
 
+* Replace libffi with a tiny faster version, merge code with jit, map to (foreign c) interface
+* Fix (number?) Type rep to be tower of numbers like ports will be
+* Adding special math case-lambda type can remove need to inline bc at all
 * use destination-driven as in previous??
 * track stack-top
 * missing multi-value callcc returns I think?
 * we store state VM, the only place it is used is to flush traces in the FOREIGN_CALL to dump image and die. ugh.
-* LOOP could just do a memmov instead?
+* LOOP could just do a memmove instead?
 
 * unicode support is unimplemented.
 
 * there's a VM only sampling profiler in git commit f4ba0ff, maybe port it and make it permanent?
+
+* bigint could have faster fastpath for div, number->string, etc
 
 # GC improvements:
 
@@ -135,6 +134,11 @@ Would be super nice to have:
 * fix large object cycle collector - currently freeing large objects
   can make SATB walk walk to invalid mem.
   (gc_blocks are ok since they are never freed).
+  
+# testing
+
+* Reify code generator tester!!!! So good. Generate ast. Choose a path. Generate symbolic and send to z3, then use z3 solution! To print a complete program. Can force a loop with at least X , so we can even ensure jit runs!
+
 
 # notes:
 
