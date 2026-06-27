@@ -1,0 +1,11 @@
+(do ((i 6000 (- i 1)))
+     ((< i 0))
+     (guard (ex (#t (display 'ok))) (quotient 1 i)))
+(newline)
+(display (if (= (do ((i -5000 (+ i 1))
+                     (last #f (guard (ex (#t 'ok)) (quotient (- -1152921504606846975 1) i))))
+                     ((>= i 0) last))
+                1152921504606846976)
+             'ok
+             'fail))
+(newline)

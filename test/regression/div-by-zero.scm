@@ -1,0 +1,17 @@
+(display (guard (ex (#t 'ok)) (/ 1 0)))
+(newline)
+(display (guard (ex (#t 'ok)) (quotient 1 0)))
+(newline)
+(display (guard (ex (#t 'ok)) (mod 1 0)))
+(newline)
+(display (guard (ex (#t 'ok)) (/ 1.0 0)))
+(newline)
+(let ((z (/ 1 (make-rectangular 1 0))))
+  (display (if (and (= (real-part z) 1) (= (imag-part z) 0))
+               'ok
+               'fail)))
+(newline)
+(display (if (= (quotient (- -1152921504606846975 1) -1) 1152921504606846976)
+             'ok
+             'fail))
+(newline)

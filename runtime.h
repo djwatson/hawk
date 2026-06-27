@@ -8,6 +8,13 @@
 #include "gc.h"
 #include "types.h"
 
+#define FIXNUM_MAX_VALUE ((INT64_C(1) << (63 - FIXNUM_SHIFT)) - 1)
+#define FIXNUM_MIN_VALUE (-(INT64_C(1) << (63 - FIXNUM_SHIFT)))
+
+static inline bool fixnum_quotient_overflows(int64_t a, int64_t b) {
+  return a == FIXNUM_MIN_VALUE && b == -1;
+}
+
 static inline bool numeric_is_zero(gc_obj v) {
   if (is_fixnum(v)) {
     return to_fixnum(v) == 0;
@@ -20,6 +27,10 @@ static inline bool numeric_is_zero(gc_obj v) {
   }
   if (is_ratnum(v)) {
     return numeric_is_zero(to_ratnum(v)->num);
+  }
+  if (is_compnum(v)) {
+    compnum_s *c = to_compnum(v);
+    return numeric_is_zero(c->real) && numeric_is_zero(c->imag);
   }
   abort();
 }

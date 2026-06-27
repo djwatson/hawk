@@ -700,7 +700,24 @@ static PRESERVE_NONE NOINLINE gc_obj handle_arity_error(bc instr, bc *pc,
     MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);   \
   } while (0)
 
-#define DEFINE_MATH_SLOW_CONT(name, op, runtime_fn)                            \
+#define MATH_ZERO_ERROR()                                                      \
+  do {                                                                         \
+    stack[2] = make_string("Division by zero");                                \
+    MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);   \
+  } while (0)
+
+#define MATH_NO_ZERO_CHECK()                                                   \
+  do {                                                                         \
+  } while (0)
+
+#define MATH_ZERO_CHECK()                                                      \
+  do {                                                                         \
+    if (unlikely(numeric_is_zero(v2))) {                                       \
+      MATH_ZERO_ERROR();                                                       \
+    }                                                                          \
+  } while (0)
+
+#define DEFINE_MATH_SLOW_CONT(name, op, runtime_fn, zero_check)                \
   static PRESERVE_NONE NOINLINE gc_obj handle_math_##name##_slow(              \
       bc instr, bc *pc, gc_obj *stack, vm_state *state, void *op_table,        \
       uint64_t argcnt) {                                                       \
@@ -709,18 +726,22 @@ static PRESERVE_NONE NOINLINE gc_obj handle_arity_error(bc instr, bc *pc,
     if (unlikely(!is_number(v1) || !is_number(v2))) {                          \
       MATH_TYPE_ERROR(op);                                                     \
     }                                                                          \
+    zero_check();                                                              \
     stack[instr.reg] = runtime_fn(v1, v2);                                     \
     pc = next_op(pc);                                                          \
     dispatch_next(pc, stack);                                                  \
   }
 
-DEFINE_MATH_SLOW_CONT(add, "+", vm_runtime_math_add_slow)
-DEFINE_MATH_SLOW_CONT(sub, "-", vm_runtime_math_sub_slow)
-DEFINE_MATH_SLOW_CONT(mul, "*", vm_runtime_math_mul_slow)
-DEFINE_MATH_SLOW_CONT(div, "/", vm_runtime_math_div_slow)
-DEFINE_MATH_SLOW_CONT(quotient, "quotient", vm_runtime_math_quotient_slow)
-DEFINE_MATH_SLOW_CONT(mod, "mod", vm_runtime_math_mod_slow)
+DEFINE_MATH_SLOW_CONT(add, "+", vm_runtime_math_add_slow, MATH_NO_ZERO_CHECK)
+DEFINE_MATH_SLOW_CONT(sub, "-", vm_runtime_math_sub_slow, MATH_NO_ZERO_CHECK)
+DEFINE_MATH_SLOW_CONT(mul, "*", vm_runtime_math_mul_slow, MATH_NO_ZERO_CHECK)
+DEFINE_MATH_SLOW_CONT(div, "/", vm_runtime_math_div_slow, MATH_ZERO_CHECK)
+DEFINE_MATH_SLOW_CONT(quotient, "quotient", vm_runtime_math_quotient_slow,
+                      MATH_ZERO_CHECK)
+DEFINE_MATH_SLOW_CONT(mod, "mod", vm_runtime_math_mod_slow, MATH_ZERO_CHECK)
 
+#undef MATH_ZERO_CHECK
+#undef MATH_NO_ZERO_CHECK
 #undef DEFINE_MATH_SLOW_CONT
 
 #define DEFINE_CMP_SLOW_CONT(name, op, runtime_fn)                             \
@@ -789,11 +810,15 @@ OP_ABC(DIV) {
 OP_ABC(QUOTIENT) {
   if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
     if (unlikely(to_fixnum(v2) == 0)) {
-      abort();
+      MATH_ZERO_ERROR();
     }
-    stack[instr.reg] = tag_fixnum(to_fixnum(v1) / to_fixnum(v2));
-    pc = next_op(pc);
-    dispatch_next(pc, stack);
+    int64_t a = to_fixnum(v1);
+    int64_t b = to_fixnum(v2);
+    if (likely(!fixnum_quotient_overflows(a, b))) {
+      stack[instr.reg] = tag_fixnum(a / b);
+      pc = next_op(pc);
+      dispatch_next(pc, stack);
+    }
   }
   MUSTTAIL return handle_math_quotient_slow(instr, pc, stack, state, op_table,
                                             argcnt);
@@ -802,7 +827,7 @@ OP_ABC(QUOTIENT) {
 OP_ABC(MOD) {
   if (likely((is_fixnum(v1) & is_fixnum(v2)) == 1)) {
     if (unlikely(to_fixnum(v2) == 0)) {
-      abort();
+      MATH_ZERO_ERROR();
     }
     stack[instr.reg] = tag_fixnum(to_fixnum(v1) % to_fixnum(v2));
     pc = next_op(pc);
@@ -812,6 +837,7 @@ OP_ABC(MOD) {
                                        argcnt);
   END
 }
+#undef MATH_ZERO_ERROR
 OP_ABC(MEMQ) {
   auto res = vm_memq(v1, v2);
   END_ABC_NEXT

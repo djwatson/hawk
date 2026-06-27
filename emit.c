@@ -1028,6 +1028,33 @@ emit_fixnum_binop_const(emit_state *s, trace *t, ir_ins const *op,
   emit_typecheck(s, t, op, cur_snap, dst_reg);
 }
 
+static void emit_fixnum_div_guard(emit_state *s, trace *t, ir_ins const *op,
+                                  uint8_t lhs_reg, uint8_t rhs_reg,
+                                  int32_t cur_snap, bool quotient) {
+  label done = {};
+  int64_t rhs = op->op2.constant ? slot_const(t, op->op2) : 0;
+  if (op->op2.constant) {
+    // TODO we could catch this in record instead?
+    if (rhs == 0) {
+      emit_jmp32(s, &t->snaps[cur_snap].patch_point);
+    } else if (quotient && rhs == TAG_FIXNUM_VALUE(-1)) {
+      emit_cmp_constant(s, lhs_reg, INT64_MIN);
+      emit_jcc32(s, JE, &t->snaps[cur_snap].patch_point);
+    }
+    return;
+  }
+
+  emit_cmp_constant(s, rhs_reg, 0);
+  emit_jcc32(s, JE, &t->snaps[cur_snap].patch_point);
+  if (quotient) {
+    emit_cmp_constant(s, rhs_reg, TAG_FIXNUM_VALUE(-1));
+    emit_jcc32(s, JNE, &done);
+    emit_cmp_constant(s, lhs_reg, INT64_MIN);
+    emit_jcc32(s, JE, &t->snaps[cur_snap].patch_point);
+    emit_label(s, &done);
+  }
+}
+
 static void emit_flonum_binop(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
                               typeof(&emit_fadd) binop, uint8_t lhs_reg,
                               uint8_t rhs_reg) {
@@ -1921,6 +1948,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         emit_flonum_binop(s, t, dst_reg, op, emit_fdiv, arg0_reg, arg1_reg);
         emit_ftruncate(s, dst_reg, dst_reg);
       } else {
+        emit_fixnum_div_guard(s, t, op, arg0_reg, arg1_reg, cur_snap, true);
         emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
                                 emit_quotient, emit_quotient_constant);
       }
@@ -1957,6 +1985,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
           emit_fsub(s, dst_reg, arg0_reg, dst_reg);
         }
       } else {
+        emit_fixnum_div_guard(s, t, op, arg0_reg, arg1_reg, cur_snap, false);
         emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
                                 emit_mod, emit_mod_constant);
       }

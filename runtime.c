@@ -19,9 +19,6 @@
 #include "runtime.h"
 #include "types.h"
 
-#define FIXNUM_MAX_VALUE ((INT64_C(1) << (63 - FIXNUM_SHIFT)) - 1)
-#define FIXNUM_MIN_VALUE (-(INT64_C(1) << (63 - FIXNUM_SHIFT)))
-
 static bool fits_fixnum_i64(int64_t value) {
   return value >= FIXNUM_MIN_VALUE && value <= FIXNUM_MAX_VALUE;
 }
@@ -1156,7 +1153,8 @@ gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
 }
 
 // GC: may allocate via gc_alloc through vm_box_flonum.
-#define DEFINE_VM_RUNTIME_DIVMOD_SLOW(name, fixnum_body, flonum_body, field)   \
+#define DEFINE_VM_RUNTIME_DIVMOD_SLOW(name, fixnum_safe, fixnum_body,          \
+                                      flonum_body, field)                      \
   gc_obj vm_runtime_math_##name##_slow(gc_obj v1, gc_obj v2) {                 \
     if (numeric_is_zero(v2)) {                                                 \
       abort();                                                                 \
@@ -1164,7 +1162,7 @@ gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
     if (is_flonum(v1) || is_flonum(v2)) {                                      \
       return vm_box_flonum((flonum_body));                                     \
     }                                                                          \
-    if (is_fixnum(v1) && is_fixnum(v2)) {                                      \
+    if (is_fixnum(v1) && is_fixnum(v2) && (fixnum_safe)) {                     \
       return tag_fixnum((fixnum_body));                                        \
     }                                                                          \
     gc_add_root((const void *)&v2, 1, 0);                                      \
@@ -1180,11 +1178,14 @@ gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
     return res;                                                                \
   }
 
-DEFINE_VM_RUNTIME_DIVMOD_SLOW(quotient, to_fixnum(v1) / to_fixnum(v2),
+DEFINE_VM_RUNTIME_DIVMOD_SLOW(quotient,
+                              !fixnum_quotient_overflows(to_fixnum(v1),
+                                                         to_fixnum(v2)),
+                              to_fixnum(v1) / to_fixnum(v2),
                               trunc(numeric_to_double(v1) /
                                     numeric_to_double(v2)),
                               q)
-DEFINE_VM_RUNTIME_DIVMOD_SLOW(mod, to_fixnum(v1) % to_fixnum(v2),
+DEFINE_VM_RUNTIME_DIVMOD_SLOW(mod, true, to_fixnum(v1) % to_fixnum(v2),
                               fmod(numeric_to_double(v1),
                                    numeric_to_double(v2)),
                               r)
