@@ -1,41 +1,16 @@
 ## Release checklist
 
 Hawk2 improvements:
-[ ] figure out why dynamic is so much slower than oldhawk
-    * again compilation helps, so probably inling
-	* NO NEED TO TYPECHECK for EQ/NE, eq? vs. EQV? in traces.  ugh
-	* loop detect
-	* 50MB nursury vs 32mb
-[ ] compiler.scm is slower
-    * GC_ALLOC helps, but hurts other benchmarks
-	* somehow compilation in chez helps - so it's likely tons of inlining
 [ ] optimize recording EQ EQV NUMEQ based on type if one is constant.  Or typecheck 
      just one side, and if it's a non-heap or symbol, no need to typecheck the other side.
    [ ] move memq, memv, assq, assv back to scheme.  Our tracer is good enough, but we do need the opt above
-[x] Figure out why pi and maze pycket tests fail in hawk
-[x] Simplify regalloc
-[x] Finish pycket analysis 
 [x] ☄️Auto flvector 
    * missing fallback conversion
-[x] ☄️ Make real port type
-[x] Rc gc - probably no speed bump but will reduce memory usage by 3x
-[x] IR ABC array bounds check
-[x] Deopt in interpreter instead of code (required for alloc sinking)
-[x] ☄️ Alloc sinking (after reverse regalloc) (tried and not helpful)
-[ ] ☄️ Loop analysis, getting phis right is hard, based on current loopback algo. Phi all implicit stack load/stores based on snapshots, emit explicit loads, emit explicit type checks probably. Only do for offset =0. Then several loops / passes to remove unnecessary phis.  
-     YES this definitely helps on shit like puzzle
-
-[x] IR_ABC
-[ ] ☄️ int range analysis for loops and add/sub/mul overflow (requires abc & loop opt)
 
 [ ] Optimize vm - set/get type opcodes, builtins. Even farther - gcall, vn math and cmp ops
 
-[ ] GC: missing lines, missing backup SATB cycle collector.  background thread for decrements?
-
 [ ] Reify code generator tester!!!! So good. Generate ast. Choose a path. Generate symbolic and send to z3, then use z3 solution! To print a complete program. Can force a loop with at least X , so we can even ensure jit runs!
-[x] Port over all the fold rules from luajit, pypy, dstrogov ir, or use z3 to prove new ones 
 
-[x] Merge constants on traces, linear scan
 [ ] When trace cache full, flush it automatically. 
 [ ] Exe builder. 
 [ ] Various trace interfaces, like dump image and flush trace cache
@@ -46,22 +21,25 @@ Hawk2 improvements:
 [ ] Clean folding and memory optimizations in fold.c to use fold engine, same as luajit
 
 [ ] Adding special math case-lambda type can remove need to inline bc at all
-### Bugs:
-[ ] Fixnummax/ -1 is probably broken. Div has two special cases. 
-[ ] / 0 check aborts, not error
 
 ### other:
 
 [ ] some github actions to test build for ubuntu, osx, arch? gcc, clang?
 [ ] paper
+[ ] easily reproducable paper results
 
 ## slow vs Chez
 
-* fibc, ctak: we copy twice on continuations, so it is unsurprising ctak is 2x slower.
-* compiler, dynamic - super branchy?  something else?
-  * at least part of it is both have 1000+ traces, and at least dynamic 
-    is showing walking traces as roots is somewhat slow.  traces I guess need to be part of GC
-	and part of the RC space to make this faster.
+[ ] figure out why dynamic is so much slower than oldhawk
+    * again compilation helps, so probably inling
+	* assv in C vs scheme?
+	* NO NEED TO TYPECHECK for EQ/NE, eq? vs. EQV? in traces.  ugh
+	* loop detect??
+	* 50MB nursury vs 32mb
+[ ] compiler.scm is slower
+    * GC_ALLOC helps, but hurts other benchmarks
+	* somehow compilation in chez helps - so it's likely tons of inlining
+[ ] fibc, ctak: we copy twice on continuations, so it is unsurprising ctak is 2x slower.
 
 Every other test is within noise.
 
@@ -71,14 +49,9 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 * bytecode ops: string ref/set, vector ref/set, car/cdr, record ref/set
     * this will only speed up the VM, and nothing for JIT (since the jit is 
 	  already able to inline through all these)
-* IR_ABC for faster bounds checking, especially vectors
-    * would improve array1, puzzle, triangl, but that's it.  Rolling
-      the checks in to specific opcodes above would speed up VM
 * convert to bytecode: assq, length, listp, equal, stringcopy
      * tested, didn't find perf improvement in JIT, but would speed up VM
 	 
-
-
 # Known bugs
 
 [ ] r7rs-tests LOOKUPs are too long & overflowing because main is too long. 
@@ -104,6 +77,8 @@ Would be super nice to have:
 
 * we cold fold more EQ NEQ ops - case in particular does a lot of NEQ in a row, followed by a single EQ
   * or lower case more effectively somehow?
+
+* int range analysis for loops and add/sub/mul overflow (requires abc & loop opt)
 
 * record APPLY (currently we have fastpaths up to 8 length)
 
@@ -151,14 +126,15 @@ Would be super nice to have:
 
 * there's a VM only sampling profiler in git commit f4ba0ff, maybe port it and make it permanent?
 
-### Optimization passes
+# GC improvements:
 
-X fold 
-   X cse
-X mem opts (store/load, load/load)
-* sinking
-* loop
-X dce
+* Add lines to blocks
+* background decrements
+* background SATB
+* fully multi-threaded
+* fix large object cycle collector - currently freeing large objects
+  can make SATB walk walk to invalid mem.
+  (gc_blocks are ok since they are never freed).
 
 # notes:
 
