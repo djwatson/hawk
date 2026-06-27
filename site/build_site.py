@@ -171,7 +171,10 @@ def parse_benchmarks():
   for arch_dir in sorted(p for p in bench_dir.iterdir() if p.is_dir()):
     arch = arch_dir.name
     data[arch] = {}
-    for result_file in sorted(p for p in arch_dir.iterdir() if p.is_file()):
+    for fname in ("results.Hawk", "results.Chez"):
+      result_file = arch_dir / fname
+      if not result_file.exists():
+        continue
       for line in read(result_file).splitlines():
         match = re.search(r"\+!CSVLINE!\+([^,]+),([^,]+),([0-9.]+)", line)
         if not match:
