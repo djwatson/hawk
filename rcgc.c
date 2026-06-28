@@ -179,6 +179,8 @@ static void satb_add_root(const uint64_t *rootp, size_t len) {
   }
 }
 
+INLINE inline static bool visit_root(gc_obj *root, gc_field_stack *increments);
+
 static void satb_push_roots(void) {
   for (size_t i = 0; i < gc_roots_len; i++) {
     gc_root_range root = gc_roots[i];
@@ -507,26 +509,29 @@ INLINE inline static gc_header *copy_alloc(uint64_t sz) {
   return (gc_header *)copy_hp;
 }
 
-INLINE inline static void inc_visit(gc_obj *field, gc_field_stack *increments);
+INLINE inline static bool inc_visit(gc_obj *field, gc_field_stack *increments);
 
-INLINE inline static void visit_root(gc_obj *root, gc_field_stack *increments) {
-  inc_visit(root, increments);
-  gc_obj_stack_push(&next_decrements, *root);
+INLINE inline static bool visit_root(gc_obj *root, gc_field_stack *increments) {
+  bool changed = inc_visit(root, increments);
+  if (is_heap_object(*root)) {
+    gc_obj_stack_push(&next_decrements, *root);
+  }
+  return changed;
 }
 
 INLINE inline static void inc_trace_field(gc_obj *field, void *ctx) {
   gc_field_stack_push(ctx, field);
 }
 
-INLINE inline static void inc_visit(gc_obj *field, gc_field_stack *increments) {
+INLINE inline static bool inc_visit(gc_obj *field, gc_field_stack *increments) {
   gc_obj obj = *field;
   if (!is_heap_object(obj)) {
-    return;
+    return false;
   }
   gc_header *hdr = to_gc_header(obj);
   if (hdr->rc != 0) {
     hdr->rc++;
-    return;
+    return false;
   }
 
   // rc == 0: object may need copying. Check forwarding first in case
@@ -536,9 +541,10 @@ INLINE inline static void inc_visit(gc_obj *field, gc_field_stack *increments) {
     hdr = forward_ptr(hdr);
     *field = tag_header(hdr, tag);
     hdr->rc++;
-    return;
+    return true;
   }
 
+  bool changed = false;
   if (hdr->type != FUNC_TAG && !is_large_alloc(hdr)) {
     size_t sz = heap_align(heap_object_size(hdr));
     gc_header *copy = copy_alloc(sz);
@@ -548,16 +554,18 @@ INLINE inline static void inc_visit(gc_obj *field, gc_field_stack *increments) {
     set_forward(hdr, copy);
     hdr = copy;
     *field = tag_header(hdr, tag);
+    changed = true;
   }
   hdr->rc = 1;
   mark_object_block(hdr);
   trace_heap_object(hdr, inc_trace_field, increments);
+  return changed;
 }
 
 INLINE inline static void process_increments(gc_field_stack *increments) {
   while (increments->len) {
     gc_obj *field = gc_field_stack_pop(increments);
-    inc_visit(field, increments);
+    (void)inc_visit(field, increments);
   }
 }
 
@@ -601,8 +609,9 @@ static void gc_add_mark_root(const uint64_t *rootp, size_t len) {
   uint64_t *slots = (uint64_t *)rootp;
   for (size_t i = 0; i < len; i++) {
     gc_obj v = {.value = (int64_t)slots[i]};
-    visit_root(&v, increments);
-    slots[i] = (uint64_t)v.value;
+    if (visit_root(&v, increments)) {
+      slots[i] = (uint64_t)v.value;
+    }
   }
 }
 
@@ -650,15 +659,17 @@ void gc_collect(void) {
           continue;
         }
         gc_obj v = tag_header((gc_header *)slots[j], root.tag);
-        visit_root(&v, increments);
-        slots[j] = (uintptr_t)to_raw_ptr(v);
+        if (visit_root(&v, increments)) {
+          slots[j] = (uintptr_t)to_raw_ptr(v);
+        }
       }
     } else {
       uint64_t *base = (uint64_t *)root.ptr;
       for (size_t j = 0; j < root.len; j++) {
         gc_obj v = {.value = (int64_t)base[j]};
-        visit_root(&v, increments);
-        base[j] = (uint64_t)v.value;
+        if (visit_root(&v, increments)) {
+          base[j] = (uint64_t)v.value;
+        }
       }
     }
     process_increments(increments);
@@ -775,7 +786,6 @@ void gc_collect(void) {
       (arrlen(free_blocks) - free_before) * BLOCK_SIZE / (size_t)(1024 * 1024);
   size_t nursery_mb = copy_alloc_bytes / (size_t)(1024 * 1024);
   copy_alloc_bytes = 0;
-
   LOG(gc,
       "gc_collect: %.3f/+%.3f ms (roots %.3f, dec %.3f, sweep %.3f, "
       "satb %.3f), "
