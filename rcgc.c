@@ -548,7 +548,9 @@ INLINE inline static bool inc_visit_heap(gc_obj *field, gc_field_stack *incremen
   if (hdr->type != FUNC_TAG && !is_large_alloc(hdr)) {
     size_t sz = heap_align(heap_object_size(hdr));
     gc_header *copy = copy_alloc(sz);
-    memcpy(copy, hdr, sz);
+    uint64_t *d = (uint64_t *)copy, *s = (uint64_t *)hdr;
+    for (size_t n = sz / 8; n; n--)
+      *d++ = *s++;
     copy->flags &= (uint8_t)~(GC_LOGGED | GC_FWD_TAG);
     copy->rc = 0;
     set_forward(hdr, copy);
