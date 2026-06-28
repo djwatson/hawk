@@ -350,9 +350,7 @@ static inline uint8_t get_type_tag(gc_obj obj) {
   }
   return get_tag(obj);
 }
-static inline bool is_heap_object(gc_obj obj) {
-  return !is_fixnum(obj) && !is_literal(obj);
-}
+static inline bool is_heap_object(gc_obj obj) { return (obj.value & 3) != 0; }
 static inline bool is_heap_tag(uint8_t tag) {
   return tag != FIXNUM_TAG && tag != LITERAL_TAG;
 }
