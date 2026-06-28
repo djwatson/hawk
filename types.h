@@ -432,17 +432,31 @@ static inline void trace_gc_obj_array(gc_obj *objs, uint64_t len,
 
 INLINE static inline void trace_heap_object(gc_header *obj, uint8_t type,
                                             trace_callback visit, void *ctx) {
-  if ((type & PORT_IDENTITY) == PORT_IDENTITY) {
+  switch (type) {
+  case PORT_TAG:
+  case PORT_TAG | PORT_INPUT:
+  case PORT_TAG | PORT_OUTPUT:
+  case PORT_TAG | PORT_BINARY:
+  case PORT_TAG | PORT_CLOSED:
+  case PORT_TAG | PORT_INPUT | PORT_OUTPUT:
+  case PORT_TAG | PORT_INPUT | PORT_BINARY:
+  case PORT_TAG | PORT_INPUT | PORT_CLOSED:
+  case PORT_TAG | PORT_OUTPUT | PORT_BINARY:
+  case PORT_TAG | PORT_OUTPUT | PORT_CLOSED:
+  case PORT_TAG | PORT_BINARY | PORT_CLOSED:
+  case PORT_TAG | PORT_INPUT | PORT_OUTPUT | PORT_BINARY:
+  case PORT_TAG | PORT_INPUT | PORT_OUTPUT | PORT_CLOSED:
+  case PORT_TAG | PORT_INPUT | PORT_BINARY | PORT_CLOSED:
+  case PORT_TAG | PORT_OUTPUT | PORT_BINARY | PORT_CLOSED:
+  case PORT_TAG | PORT_INPUT | PORT_OUTPUT | PORT_BINARY | PORT_CLOSED: {
     auto p = (port_s *)obj;
     trace_gc_obj_array(&p->fd, 8, visit, ctx);
     return;
   }
-  switch (type) {
   case FLONUM_TAG:
   case BIGNUM_TAG:
   case STRING_TAG:
   case BYTEVECTOR_TAG:
-    return;
   case FLVECTOR_TAG:
     return;
   case RATNUM_TAG: {

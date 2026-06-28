@@ -1,5 +1,7 @@
 ## Release checklist
 
+*********** change flag bits for ports to be in next byte for faster gc checks
+
 * some github actions to test build for ubuntu, osx, arch? gcc, clang?
 * paper
 * easily reproducible paper results (the benchmark results should have script to generate them)
