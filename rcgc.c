@@ -509,25 +509,25 @@ INLINE inline static gc_header *copy_alloc(uint64_t sz) {
   return (gc_header *)copy_hp;
 }
 
-INLINE inline static bool inc_visit(gc_obj *field, gc_field_stack *increments);
+INLINE inline static bool inc_visit_heap(gc_obj *field, gc_field_stack *increments);
 
 INLINE inline static bool visit_root(gc_obj *root, gc_field_stack *increments) {
-  bool changed = inc_visit(root, increments);
-  if (is_heap_object(*root)) {
-    gc_obj_stack_push(&next_decrements, *root);
+  if (!is_heap_object(*root)) {
+    return false;
   }
+  bool changed = inc_visit_heap(root, increments);
+  gc_obj_stack_push(&next_decrements, *root);
   return changed;
 }
 
 INLINE inline static void inc_trace_field(gc_obj *field, void *ctx) {
-  gc_field_stack_push(ctx, field);
+  if (is_heap_object(*field)) {
+    gc_field_stack_push(ctx, field);
+  }
 }
 
-INLINE inline static bool inc_visit(gc_obj *field, gc_field_stack *increments) {
+INLINE inline static bool inc_visit_heap(gc_obj *field, gc_field_stack *increments) {
   gc_obj obj = *field;
-  if (!is_heap_object(obj)) {
-    return false;
-  }
   gc_header *hdr = to_gc_header(obj);
   if (hdr->rc != 0) {
     hdr->rc++;
@@ -565,12 +565,15 @@ INLINE inline static bool inc_visit(gc_obj *field, gc_field_stack *increments) {
 INLINE inline static void process_increments(gc_field_stack *increments) {
   while (increments->len) {
     gc_obj *field = gc_field_stack_pop(increments);
-    (void)inc_visit(field, increments);
+    (void)inc_visit_heap(field, increments);
   }
 }
 
 INLINE inline static void dec_trace_field(gc_obj *field, void *ctx) {
-  gc_obj_stack_push(ctx, *field);
+  gc_obj obj = *field;
+  if (is_heap_object(obj)) {
+    gc_obj_stack_push(ctx, obj);
+  }
 }
 
 INLINE inline static void process_decrements(void) {
@@ -578,9 +581,6 @@ INLINE inline static void process_decrements(void) {
   while (decrements->len) {
     gc_obj obj = gc_obj_stack_pop(decrements);
     gc_header *hdr = to_gc_header(obj);
-    if (!is_heap_object(obj)) {
-      continue;
-    }
     // Deferred duplicate decrements can target an object already reclaimed or
     // forwarded by an earlier decrement in this batch.
     if (hdr->rc == 0) {
@@ -701,7 +701,9 @@ void gc_collect(void) {
     cur = log_buf[i];
     while (cur.offset != LOG_OBJ_HEADER) {
       gc_obj *field = (gc_obj *)((uint8_t *)obj + cur.offset);
-      gc_field_stack_push(increments, field);
+      if (is_heap_object(*field)) {
+        gc_field_stack_push(increments, field);
+      }
       gc_obj old_val = {.value = (int64_t)cur.val};
       if (is_heap_object(old_val) && to_gc_header(old_val)->rc != 0) {
         gc_obj_stack_push(&cur_decrements, old_val);
