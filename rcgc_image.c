@@ -49,14 +49,15 @@ static gc_header *copy_image_obj(gc_header *obj, image_ctx const *image) {
     abort();
   }
   gc_header *copy = (gc_header *)gc_alloc_slow(sz);
+  uint8_t alloc_flags = copy->flags;
   memcpy(copy, obj, sz);
   copy->rc = 0;
-  copy->flags = 0;
+  copy->flags = alloc_flags & GC_LARGE;
   set_forward(obj, copy);
   if (copy->type == FUNC_TAG) {
     gc_register_bcfunc((bcfunc *)copy);
   }
-  trace_heap_object(copy, fixup_image_field, (void *)image);
+  trace_heap_object(copy, copy->type, fixup_image_field, (void *)image);
   return copy;
 }
 
@@ -258,7 +259,7 @@ void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress_level) {
 
   while (arrlen(dc.worklist) > 0) {
     gc_header *obj = arrpop_last(dc.worklist);
-    trace_heap_object(obj, dump_visit_field, &dc);
+    trace_heap_object(obj, obj->type, dump_visit_field, &dc);
   }
 
   // rebase to offsets
@@ -266,7 +267,7 @@ void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress_level) {
   uintptr_t end = scan + dc.len;
   while (scan < end) {
     gc_header *obj = (gc_header *)scan;
-    trace_heap_object(obj, dump_rebase_field, data);
+    trace_heap_object(obj, obj->type, dump_rebase_field, data);
     scan += heap_align(heap_object_size(obj));
   }
   dump_rebase_field(&root, data);

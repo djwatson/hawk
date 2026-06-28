@@ -414,8 +414,12 @@ INLINE static inline size_t heap_object_size(void *obj) {
                       (func->bc_cnt * sizeof(bc)));
   }
   default:
+#ifndef NDEBUG
     printf("Unknown heap object size: %" PRIu8 " (0x%" PRIx8 ")\n", type, type);
     abort();
+#else
+    __builtin_unreachable();
+#endif
   }
 }
 
@@ -426,9 +430,8 @@ static inline void trace_gc_obj_array(gc_obj *objs, uint64_t len,
   }
 }
 
-INLINE static inline void trace_heap_object(gc_header *obj,
+INLINE static inline void trace_heap_object(gc_header *obj, uint8_t type,
                                             trace_callback visit, void *ctx) {
-  auto type = obj->type;
   if ((type & PORT_IDENTITY) == PORT_IDENTITY) {
     auto p = (port_s *)obj;
     trace_gc_obj_array(&p->fd, 8, visit, ctx);
@@ -485,7 +488,11 @@ INLINE static inline void trace_heap_object(gc_header *obj,
     return;
   }
   default:
+#ifndef NDEBUG
     printf("Unknown heap object: %" PRIu8 " (0x%" PRIx8 ")\n", type, type);
     abort();
+#else
+    __builtin_unreachable();
+#endif
   }
 }

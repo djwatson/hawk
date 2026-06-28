@@ -246,7 +246,7 @@ int main(int argc, char **argv) {
   enqueue_obj(start);
   while (arrlen(worklist) > 0) {
     gc_header *obj = arrpop_last(worklist);
-    trace_heap_object(obj, trace_field, nullptr);
+    trace_heap_object(obj, obj->type, trace_field, nullptr);
   }
 
   if (options.dump_sizes) {

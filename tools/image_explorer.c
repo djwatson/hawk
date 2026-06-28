@@ -175,7 +175,7 @@ static symbol *collect_objects(gc_obj start) {
     }
 
     collect_ctx ctx = {.seen = seen, .worklist = worklist};
-    trace_heap_object(header, collect_trace_cb, &ctx);
+    trace_heap_object(header, header->type, collect_trace_cb, &ctx);
     seen = ctx.seen;
     worklist = ctx.worklist;
   }
@@ -213,7 +213,8 @@ static void build_graph(symbol *symbol_table) {
 
   for (uint64_t i = 0; i < arrlen(obj_nodes); i++) {
     edge_ctx ctx = {.node = &obj_nodes[i], .symbol_table = symbol_table};
-    trace_heap_object(obj_nodes[i].header, build_edges_trace_cb, &ctx);
+    trace_heap_object(obj_nodes[i].header, obj_nodes[i].header->type,
+                      build_edges_trace_cb, &ctx);
   }
 }
 
@@ -230,7 +231,7 @@ static void collect_child_trace_cb(gc_obj *slot, void *ctx) {
 
 static gc_header **collect_immediate_children(gc_header *header) {
   child_list_ctx ctx = {.children = nullptr};
-  trace_heap_object(header, collect_child_trace_cb, &ctx);
+  trace_heap_object(header, header->type, collect_child_trace_cb, &ctx);
   return ctx.children;
 }
 

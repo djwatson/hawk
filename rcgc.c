@@ -274,8 +274,8 @@ static void block_free(gc_block *block) {
   block->live_objects = 0;
   arrput(free_blocks, block);
 }
-static bool is_large_alloc(void *p) {
-  return (uintptr_t)p - (uintptr_t)gc_base >= gc_size;
+static inline bool is_large_alloc(gc_header *hdr) {
+  return hdr->flags & GC_LARGE;
 }
 
 static void satb_trace_field(gc_obj *field, void *ctx) {
@@ -299,7 +299,7 @@ static void satb_process(gc_obj obj) {
       return;
     }
   }
-  trace_heap_object(hdr, satb_trace_field, &satb_stack);
+  trace_heap_object(hdr, hdr->type, satb_trace_field, &satb_stack);
 }
 
 enum { SATB_PROCESS_BATCH = 1000000 };
@@ -424,6 +424,9 @@ void *gc_base_ptr(void *p) {
 
 static void snapshot_field(gc_obj *field, void *ctx) {
   gc_obj v = *field;
+  if (!is_heap_object(v)) {
+    return;
+  }
   uintptr_t base = (uintptr_t)ctx;
   arrput(log_buf, ((log_item){(uintptr_t)field - base, v.value}));
 }
@@ -438,7 +441,7 @@ NOINLINE void gc_log_slow(gc_obj obj) {
   }
   hdr->flags |= GC_LOGGED;
   arrput(log_buf, ((log_item){LOG_OBJ_HEADER, (uint64_t)hdr}));
-  trace_heap_object(hdr, snapshot_field, hdr);
+  trace_heap_object(hdr, hdr->type, snapshot_field, hdr);
 }
 
 static void *gc_large_alloc(uint64_t sz);
@@ -479,6 +482,7 @@ static void *gc_large_alloc(uint64_t sz) {
   list_add_tail(&la->list, &large_allocs);
   arrput(large_nursery, (gc_header *)(la + 1));
   *(uint64_t *)(la + 1) = 0;
+  ((gc_header *)(la + 1))->flags |= GC_LARGE;
   if (unlikely(satb_active)) {
     la->satb_marked = 1;
   }
@@ -509,7 +513,8 @@ INLINE inline static gc_header *copy_alloc(uint64_t sz) {
   return (gc_header *)copy_hp;
 }
 
-INLINE inline static bool inc_visit_heap(gc_obj *field, gc_field_stack *increments);
+INLINE inline static bool inc_visit_heap(gc_obj *field,
+                                         gc_field_stack *increments);
 
 INLINE inline static bool visit_root(gc_obj *root, gc_field_stack *increments) {
   if (!is_heap_object(*root)) {
@@ -526,7 +531,8 @@ INLINE inline static void inc_trace_field(gc_obj *field, void *ctx) {
   }
 }
 
-INLINE inline static bool inc_visit_heap(gc_obj *field, gc_field_stack *increments) {
+INLINE inline static bool inc_visit_heap(gc_obj *field,
+                                         gc_field_stack *increments) {
   gc_obj obj = *field;
   gc_header *hdr = to_gc_header(obj);
   if (hdr->rc != 0) {
@@ -560,7 +566,7 @@ INLINE inline static bool inc_visit_heap(gc_obj *field, gc_field_stack *incremen
   }
   hdr->rc = 1;
   mark_object_block(hdr);
-  trace_heap_object(hdr, inc_trace_field, increments);
+  trace_heap_object(hdr, hdr->type, inc_trace_field, increments);
   return changed;
 }
 
@@ -595,7 +601,7 @@ INLINE inline static void process_decrements(void) {
     if (unlikely(satb_active)) {
       satb_process(obj);
     }
-    trace_heap_object(hdr, dec_trace_field, decrements);
+    trace_heap_object(hdr, hdr->type, dec_trace_field, decrements);
     if (is_large_alloc(hdr)) {
       struct large_alloc *la = (struct large_alloc *)hdr - 1;
       list_del(&la->list);
@@ -696,16 +702,15 @@ void gc_collect(void) {
     ((gc_header *)obj)->flags &= (uint8_t)~GC_LOGGED;
     assert(((gc_header *)obj)->rc != 0);
 
+    trace_heap_object((gc_header *)obj, ((gc_header *)obj)->type,
+                      inc_trace_field, increments);
+
     i++;
     if (i >= arrlen(log_buf)) {
       break;
     }
     cur = log_buf[i];
     while (cur.offset != LOG_OBJ_HEADER) {
-      gc_obj *field = (gc_obj *)((uint8_t *)obj + cur.offset);
-      if (is_heap_object(*field)) {
-        gc_field_stack_push(increments, field);
-      }
       gc_obj old_val = {.value = (int64_t)cur.val};
       if (is_heap_object(old_val) && to_gc_header(old_val)->rc != 0) {
         gc_obj_stack_push(&cur_decrements, old_val);

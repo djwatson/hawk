@@ -406,6 +406,7 @@ static void collect_alloc_roots(trace *t, regalloc_state *ra_state,
 static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
                               int64_t tagged_size, uint8_t size_reg) {
   label alloc_done = {};
+  label after_alloc = {};
   if (size_reg == REG_NONE) {
     emit_sub_constant(s, RALLOC, RALLOC, tagged_size >> FIXNUM_SHIFT);
   } else {
@@ -427,7 +428,10 @@ static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
   emit_mov64(s, RTMP2, (int64_t)live_gpr_mask);
 
   emit_call32(s, (int64_t)s->alloc_slowpath);
+  emit_jmp32(s, &after_alloc);
   emit_label(s, &alloc_done);
+  emit_store_constant(s, 0, RTMP, 0);
+  emit_label(s, &after_alloc);
 }
 
 static void emit_gclog_obj_reg(emit_state *s, uint8_t obj_reg,
@@ -1077,8 +1081,8 @@ static void emit_box_flonum(emit_state *s, int32_t stack_offset,
   emit_rooted_alloc(s, live_gpr_mask, TAG_FIXNUM_VALUE(sizeof(flonum_s)),
                     REG_NONE);
 
-  // Store set rc = 0, flags = 0 also.
-  emit_store_constant(s, 0, RTMP, FLONUM_TAG);
+  emit_mov64(s, RTMP2, FLONUM_TAG);
+  emit_store_u8(s, offsetof(gc_header, type), RTMP, RTMP2);
   emit_fstore(s, flonum_payload_offset, RTMP, fpr_reg);
   emit_add_constant(s, RTMP, RTMP, FLONUM_TAG);
 
@@ -2126,7 +2130,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
 
       emit_rooted_alloc(s, live_gpr_mask, tagged_size, size_reg);
-      emit_store_constant(s, 0, RTMP, (int64_t)type_val);
+      emit_mov64(s, RTMP2, (int64_t)type_val);
+      emit_store_u8(s, offsetof(gc_header, type), RTMP, RTMP2);
       if (type_val == VECTOR_TAG || type_val == RECORD_TAG) {
         if (size_reg == REG_NONE && tagged_size < TAG_FIXNUM_VALUE(64)) {
           int64_t payload_bytes = (tagged_size >> FIXNUM_SHIFT) - 8;

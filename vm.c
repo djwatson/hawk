@@ -275,7 +275,7 @@ static struct {
   uint64_t bc_cnt;
   bc code[1];
 } callcc_resume_func = {
-    .header = {.type = FUNC_TAG},
+    .header = {.type = FUNC_TAG, .flags = GC_LARGE},
     .poly_cnt = 4,
     .name = UNDEFINED,
     .const_cnt = 0,

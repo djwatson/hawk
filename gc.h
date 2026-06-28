@@ -25,6 +25,7 @@ enum : uint8_t {
   GC_LOGGED = 1 << 0,
   GC_MARK = 1 << 1,
   GC_FWD_TAG = 1 << 2,
+  GC_LARGE = 1 << 3,
 };
 
 extern gc_root_range gc_roots[GC_MAX_ROOTS];
