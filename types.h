@@ -362,6 +362,7 @@ static inline size_t heap_align(size_t size) {
 bcfunc const *closure_code_ptr(closure_s const *clo);
 string_s *get_sym_name(symbol *s);
 typedef void (*trace_callback)(gc_obj *obj, void *ctx);
+typedef void (*trace_reserve_callback)(void *ctx, size_t len);
 const char *type_tag_name(uint8_t tag);
 void print_type_tag(FILE *file, uint8_t tag);
 void print_obj(gc_obj obj, FILE *file);
@@ -430,8 +431,18 @@ static inline void trace_gc_obj_array(gc_obj *objs, uint64_t len,
   }
 }
 
-INLINE static inline void trace_heap_object(gc_header *obj, uint8_t type,
-                                            trace_callback visit, void *ctx) {
+static inline void trace_gc_obj_array_reserved(gc_obj *objs, uint64_t len,
+                                               trace_reserve_callback reserve,
+                                               trace_callback visit,
+                                               void *ctx) {
+  reserve(ctx, (size_t)len);
+  trace_gc_obj_array(objs, len, visit, ctx);
+}
+
+INLINE static inline void
+trace_heap_object_reserved(gc_header *obj, uint8_t type,
+                           trace_reserve_callback reserve, trace_callback visit,
+                           void *ctx) {
   switch (type) {
   case PORT_TAG:
   case PORT_TAG | PORT_INPUT:
@@ -450,7 +461,7 @@ INLINE static inline void trace_heap_object(gc_header *obj, uint8_t type,
   case PORT_TAG | PORT_OUTPUT | PORT_BINARY | PORT_CLOSED:
   case PORT_TAG | PORT_INPUT | PORT_OUTPUT | PORT_BINARY | PORT_CLOSED: {
     auto p = (port_s *)obj;
-    trace_gc_obj_array(&p->fd, 8, visit, ctx);
+    trace_gc_obj_array_reserved(&p->fd, 8, reserve, visit, ctx);
     return;
   }
   case FLONUM_TAG:
@@ -461,18 +472,21 @@ INLINE static inline void trace_heap_object(gc_header *obj, uint8_t type,
     return;
   case RATNUM_TAG: {
     auto rat = (ratnum_s *)obj;
+    reserve(ctx, 2);
     visit(&rat->num, ctx);
     visit(&rat->denom, ctx);
     return;
   }
   case COMPNUM_TAG: {
     auto cmp = (compnum_s *)obj;
+    reserve(ctx, 2);
     visit(&cmp->real, ctx);
     visit(&cmp->imag, ctx);
     return;
   }
   case SYMBOL_TAG: {
     auto sym = (symbol *)obj;
+    reserve(ctx, 2);
     visit(&sym->name, ctx);
     visit(&sym->val, ctx);
     return;
@@ -481,22 +495,26 @@ INLINE static inline void trace_heap_object(gc_header *obj, uint8_t type,
   case RECORD_TAG:
   case VECTOR_TAG: {
     auto vec = (vector_s *)obj;
-    trace_gc_obj_array(vec->v, (uint64_t)to_fixnum(vec->len), visit, ctx);
+    trace_gc_obj_array_reserved(vec->v, (uint64_t)to_fixnum(vec->len), reserve,
+                                visit, ctx);
     return;
   }
   case CONS_TAG: {
     auto cons = (cons_s *)obj;
+    reserve(ctx, 2);
     visit(&cons->b, ctx);
     visit(&cons->a, ctx);
     return;
   }
   case CLOSURE_TAG: {
     auto clo = (closure_s *)obj;
-    trace_gc_obj_array(clo->v, (uint64_t)to_fixnum(clo->len), visit, ctx);
+    trace_gc_obj_array_reserved(clo->v, (uint64_t)to_fixnum(clo->len), reserve,
+                                visit, ctx);
     return;
   }
   case FUNC_TAG: {
     auto func = (bcfunc *)obj;
+    reserve(ctx, 1 + (size_t)func->const_cnt);
     visit(&func->name, ctx);
     trace_gc_obj_array((gc_obj *)func->data, func->const_cnt, visit, ctx);
     return;
@@ -509,4 +527,14 @@ INLINE static inline void trace_heap_object(gc_header *obj, uint8_t type,
     __builtin_unreachable();
 #endif
   }
+}
+
+static inline void trace_no_reserve(void *ctx, size_t len) {
+  (void)ctx;
+  (void)len;
+}
+
+INLINE static inline void trace_heap_object(gc_header *obj, uint8_t type,
+                                            trace_callback visit, void *ctx) {
+  trace_heap_object_reserved(obj, type, trace_no_reserve, visit, ctx);
 }

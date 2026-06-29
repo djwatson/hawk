@@ -72,6 +72,21 @@ static bool bcfunc_list_unsorted;
 STACK(gc_field_stack, gc_obj *)
 STACK(gc_obj_stack, gc_obj)
 
+static inline void gc_field_stack_reserve(gc_field_stack *s, size_t n) {
+  assert(n <= SIZE_MAX - s->len);
+  while (s->len + n > s->cap) {
+    s->data = stack_grow(s->data, sizeof(gc_obj *), &s->cap);
+  }
+}
+
+static inline void gc_field_stack_push_unchecked(gc_field_stack *s, gc_obj *v) {
+  s->data[s->len++] = v;
+}
+
+static inline void inc_reserve_fields(void *ctx, size_t n) {
+  gc_field_stack_reserve(ctx, n);
+}
+
 static gc_field_stack cur_increments;
 static gc_obj_stack cur_decrements;
 static gc_obj_stack next_decrements;
@@ -527,7 +542,7 @@ INLINE inline static bool visit_root(gc_obj *root, gc_field_stack *increments) {
 
 INLINE inline static void inc_trace_field(gc_obj *field, void *ctx) {
   if (is_heap_object(*field)) {
-    gc_field_stack_push(ctx, field);
+    gc_field_stack_push_unchecked(ctx, field);
   }
 }
 
@@ -555,8 +570,20 @@ INLINE inline static bool inc_visit_heap(gc_obj *field,
     size_t sz = heap_align(heap_object_size(hdr));
     gc_header *copy = copy_alloc(sz);
     uint64_t *d = (uint64_t *)copy, *s = (uint64_t *)hdr;
-    for (size_t n = sz / 8; n; n--)
-      *d++ = *s++;
+    size_t n = sz / 8;
+    switch (n) {
+    case 3:
+      d[2] = s[2];
+    case 2:
+      d[1] = s[1];
+    case 1:
+      d[0] = s[0];
+      break;
+    default:
+      for (size_t i = 0; i < n; i++)
+        d[i] = s[i];
+      break;
+    }
     copy->flags &= (uint8_t)~(GC_LOGGED | GC_FWD_TAG);
     copy->rc = 0;
     set_forward(hdr, copy);
@@ -566,7 +593,8 @@ INLINE inline static bool inc_visit_heap(gc_obj *field,
   }
   hdr->rc = 1;
   mark_object_block(hdr);
-  trace_heap_object(hdr, hdr->type, inc_trace_field, increments);
+  trace_heap_object_reserved(hdr, hdr->type, inc_reserve_fields,
+                             inc_trace_field, increments);
   return changed;
 }
 
@@ -702,8 +730,9 @@ void gc_collect(void) {
     ((gc_header *)obj)->flags &= (uint8_t)~GC_LOGGED;
     assert(((gc_header *)obj)->rc != 0);
 
-    trace_heap_object((gc_header *)obj, ((gc_header *)obj)->type,
-                      inc_trace_field, increments);
+    trace_heap_object_reserved((gc_header *)obj, ((gc_header *)obj)->type,
+                               inc_reserve_fields, inc_trace_field,
+                               increments);
 
     i++;
     if (i >= arrlen(log_buf)) {
