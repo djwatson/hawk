@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <threads.h>
 #include <time.h>
 
 #include "array.h"
@@ -68,6 +69,10 @@ static size_t next_collect;
 static gc_obj *bcfunc_list;
 static gc_obj *bcfunc_roots;
 static bool bcfunc_list_unsorted;
+static mtx_t free_blocks_lock;
+static mtx_t large_allocs_lock;
+static mtx_t decrement_lock;
+static cnd_t decrement_cond;
 
 STACK(gc_field_stack, gc_obj *)
 STACK(gc_obj_stack, gc_obj)
@@ -91,6 +96,11 @@ static gc_field_stack cur_increments;
 static gc_obj_stack cur_decrements;
 static gc_obj_stack next_decrements;
 static gc_obj_stack satb_stack;
+static thrd_t decrement_thread;
+static bool decrement_thread_started;
+static bool decrement_work_ready;
+static bool decrement_busy;
+static bool decrement_stop;
 
 struct large_alloc {
   list_head list;
@@ -143,7 +153,7 @@ static void clear_all_marks(void) {
   }
 }
 
-static bool satb_enabled = true;
+static bool satb_enabled = false;
 static bool satb_active;
 static size_t satb_waste_threshold = 20;
 static size_t satb_pred_live_blocks = 64;
@@ -195,6 +205,8 @@ static void satb_add_root(const uint64_t *rootp, size_t len) {
 }
 
 INLINE inline static bool visit_root(gc_obj *root, gc_field_stack *increments);
+static int decrement_thread_main(void *arg);
+static void wait_for_decrements(void);
 
 static void satb_push_roots(void) {
   for (size_t i = 0; i < gc_roots_len; i++) {
@@ -228,6 +240,13 @@ void gc_init(void) {
   env = getenv("GC_COLLECT");
   collect_after = env ? (size_t)atol(env) * 1024 * 1024 : GC_COLLECT_AFTER;
   next_collect = collect_after;
+  mtx_init(&free_blocks_lock, mtx_plain);
+  mtx_init(&large_allocs_lock, mtx_plain);
+  mtx_init(&decrement_lock, mtx_plain);
+  cnd_init(&decrement_cond);
+  decrement_thread_started =
+      thrd_create(&decrement_thread, decrement_thread_main, nullptr) ==
+      thrd_success;
   env = getenv("GC_SATB");
   if (env && strcmp(env, "0") == 0) {
     satb_enabled = false;
@@ -237,6 +256,7 @@ void gc_init(void) {
     satb_enabled = true;
     satb_waste_threshold = (size_t)atol(env);
   }
+  satb_enabled = false;
   gc_mmap_size = gc_size + BLOCK_SIZE;
   gc_mmap_base = mmap(nullptr, gc_mmap_size, PROT_READ | PROT_WRITE,
                       MAP_PRIVATE | MAP_ANON, -1, 0);
@@ -255,10 +275,13 @@ void gc_init(void) {
 
 static gc_block *block_alloc_raw(void) {
   gc_block *block;
+  mtx_lock(&free_blocks_lock);
   if (arrlen(free_blocks) > 0) {
     block = arrpop_last(free_blocks);
+    mtx_unlock(&free_blocks_lock);
     block->state = BLOCK_USED;
   } else {
+    mtx_unlock(&free_blocks_lock);
     if (gc_base_cur + BLOCK_SIZE > (uintptr_t)gc_base + gc_size) {
       fprintf(stderr, "block_alloc: out of GC space\n");
       abort();
@@ -287,8 +310,18 @@ static gc_block *block_alloc(void) {
 static void block_free(gc_block *block) {
   block->state = BLOCK_FREE;
   block->live_objects = 0;
+  mtx_lock(&free_blocks_lock);
   arrput(free_blocks, block);
+  mtx_unlock(&free_blocks_lock);
 }
+
+static size_t free_block_count(void) {
+  mtx_lock(&free_blocks_lock);
+  size_t len = arrlen(free_blocks);
+  mtx_unlock(&free_blocks_lock);
+  return len;
+}
+
 static inline bool is_large_alloc(gc_header *hdr) {
   return hdr->flags & GC_LARGE;
 }
@@ -371,6 +404,15 @@ static void clear_object_block(gc_header *hdr) {
 }
 
 void gc_free(void) {
+  wait_for_decrements();
+  if (decrement_thread_started) {
+    mtx_lock(&decrement_lock);
+    decrement_stop = true;
+    cnd_signal(&decrement_cond);
+    mtx_unlock(&decrement_lock);
+    thrd_join(decrement_thread, nullptr);
+    decrement_thread_started = false;
+  }
   if (gc_mmap_base && gc_mmap_base != MAP_FAILED) {
     munmap(gc_mmap_base, gc_mmap_size);
   }
@@ -390,6 +432,10 @@ void gc_free(void) {
     list_del(pos);
     free(container_of(pos, struct large_alloc, list));
   }
+  cnd_destroy(&decrement_cond);
+  mtx_destroy(&decrement_lock);
+  mtx_destroy(&large_allocs_lock);
+  mtx_destroy(&free_blocks_lock);
 }
 
 static int cmp_bcfunc(const void *ap, const void *bp) {
@@ -494,7 +540,9 @@ static void *gc_large_alloc(uint64_t sz) {
     abort();
   }
   init_list_head(&la->list);
+  mtx_lock(&large_allocs_lock);
   list_add_tail(&la->list, &large_allocs);
+  mtx_unlock(&large_allocs_lock);
   arrput(large_nursery, (gc_header *)(la + 1));
   *(uint64_t *)(la + 1) = 0;
   ((gc_header *)(la + 1))->flags |= GC_LARGE;
@@ -612,8 +660,7 @@ INLINE inline static void dec_trace_field(gc_obj *field, void *ctx) {
   }
 }
 
-INLINE inline static void process_decrements(void) {
-  gc_obj_stack *decrements = &cur_decrements;
+INLINE inline static void process_decrements(gc_obj_stack *decrements) {
   while (decrements->len) {
     gc_obj obj = gc_obj_stack_pop(decrements);
     gc_header *hdr = to_gc_header(obj);
@@ -632,12 +679,62 @@ INLINE inline static void process_decrements(void) {
     trace_heap_object(hdr, hdr->type, dec_trace_field, decrements);
     if (is_large_alloc(hdr)) {
       struct large_alloc *la = (struct large_alloc *)hdr - 1;
+      mtx_lock(&large_allocs_lock);
       list_del(&la->list);
+      mtx_unlock(&large_allocs_lock);
       free(la);
     } else {
       clear_object_block(hdr);
     }
   }
+}
+
+static int decrement_thread_main(void *arg) {
+  (void)arg;
+  mtx_lock(&decrement_lock);
+  for (;;) {
+    while (!decrement_work_ready && !decrement_stop) {
+      cnd_wait(&decrement_cond, &decrement_lock);
+    }
+    if (decrement_stop) {
+      break;
+    }
+    decrement_work_ready = false;
+    mtx_unlock(&decrement_lock);
+    process_decrements(&cur_decrements);
+    mtx_lock(&decrement_lock);
+    decrement_busy = false;
+    cnd_broadcast(&decrement_cond);
+  }
+  mtx_unlock(&decrement_lock);
+  return 0;
+}
+
+static void wait_for_decrements(void) {
+  if (!decrement_thread_started) {
+    return;
+  }
+  mtx_lock(&decrement_lock);
+  while (decrement_busy) {
+    cnd_wait(&decrement_cond, &decrement_lock);
+  }
+  mtx_unlock(&decrement_lock);
+}
+
+static void start_decrements(void) {
+  if (cur_decrements.len == 0) {
+    return;
+  }
+  if (!decrement_thread_started) {
+    process_decrements(&cur_decrements);
+    return;
+  }
+  mtx_lock(&decrement_lock);
+  assert(!decrement_busy);
+  decrement_busy = true;
+  decrement_work_ready = true;
+  cnd_signal(&decrement_cond);
+  mtx_unlock(&decrement_lock);
 }
 
 static void gc_add_mark_root(const uint64_t *rootp, size_t len) {
@@ -658,6 +755,7 @@ static inline double elapsed_ms(struct timespec s, struct timespec e) {
 
 void gc_collect(void) {
   total_gc_cnt++;
+  wait_for_decrements();
 
   {
     auto tmp = cur_decrements;
@@ -676,7 +774,7 @@ void gc_collect(void) {
   struct timespec t4;
   clock_gettime(CLOCK_MONOTONIC, &t0);
   double mutator_ms = prev_gc_end.tv_sec ? elapsed_ms(prev_gc_end, t0) : 0.0;
-  size_t free_before = arrlen(free_blocks);
+  size_t free_before = free_block_count();
   profiler_set_in_gc(true);
   auto buflen = arrlen(log_buf);
   copy_hp = 0;
@@ -762,8 +860,7 @@ void gc_collect(void) {
   process_increments(increments);
   clock_gettime(CLOCK_MONOTONIC, &t2);
 
-  // 3) Process *previous* decrements (could be in background thread)
-  process_decrements();
+  // 3) Decrements are queued to a background thread after nursery sweep.
   clock_gettime(CLOCK_MONOTONIC, &t3);
 
   // 4) Sweep nursery: free empty blocks and dead large allocs,
@@ -779,11 +876,14 @@ void gc_collect(void) {
     gc_header *hdr = large_nursery[i];
     if (hdr->rc == 0) {
       struct large_alloc *la = (struct large_alloc *)hdr - 1;
+      mtx_lock(&large_allocs_lock);
       list_del(&la->list);
+      mtx_unlock(&large_allocs_lock);
       free(la);
     }
   }
   arrlen_set(large_nursery, 0);
+  start_decrements();
 
   clock_gettime(CLOCK_MONOTONIC, &t_satb);
 
@@ -821,7 +921,7 @@ void gc_collect(void) {
   clock_gettime(CLOCK_MONOTONIC, &t4);
 
   size_t freed_mb =
-      (arrlen(free_blocks) - free_before) * BLOCK_SIZE / (size_t)(1024 * 1024);
+      (free_block_count() - free_before) * BLOCK_SIZE / (size_t)(1024 * 1024);
   size_t nursery_mb = copy_alloc_bytes / (size_t)(1024 * 1024);
   copy_alloc_bytes = 0;
   LOG(gc,
@@ -831,7 +931,7 @@ void gc_collect(void) {
       "buflen %li",
       elapsed_ms(t0, t4), mutator_ms, elapsed_ms(t0, t1), elapsed_ms(t2, t3),
       elapsed_ms(t3, t_satb), elapsed_ms(t_satb, t_satb_end),
-      arrlen(all_blocks), arrlen(free_blocks), freed_mb, nursery_mb, buflen);
+      arrlen(all_blocks), free_block_count(), freed_mb, nursery_mb, buflen);
   prev_gc_end = t4;
   profiler_set_in_gc(false);
 }
