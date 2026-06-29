@@ -3,13 +3,13 @@
 #include <sys/mman.h>
 
 #include <inttypes.h>
+#include <pthread.h>
+#include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
-#include <threads.h>
 #include <time.h>
 
 #include "array.h"
@@ -70,10 +70,10 @@ static size_t next_collect;
 static gc_obj *bcfunc_list;
 static gc_obj *bcfunc_roots;
 static bool bcfunc_list_unsorted;
-static mtx_t free_blocks_lock;
-static mtx_t large_allocs_lock;
-static mtx_t decrement_lock;
-static cnd_t decrement_cond;
+static pthread_mutex_t free_blocks_lock;
+static pthread_mutex_t large_allocs_lock;
+static pthread_mutex_t decrement_lock;
+static pthread_cond_t decrement_cond;
 
 STACK(gc_field_stack, gc_obj *)
 STACK(gc_obj_stack, gc_obj)
@@ -99,7 +99,7 @@ static gc_obj_stack cur_decrements;
 static gc_obj_stack next_decrements;
 static gc_obj_stack_stack decrement_batches;
 static gc_obj_stack satb_stack;
-static thrd_t decrement_thread;
+static pthread_t decrement_thread;
 static bool decrement_thread_started;
 static bool decrement_busy;
 static bool decrement_stop;
@@ -207,7 +207,7 @@ static void satb_add_root(const uint64_t *rootp, size_t len) {
 }
 
 INLINE inline static bool visit_root(gc_obj *root, gc_field_stack *increments);
-static int decrement_thread_main(void *arg);
+static void *decrement_thread_main(void *arg);
 static void wait_for_decrements(void);
 
 static void satb_push_roots(void) {
@@ -242,13 +242,13 @@ void gc_init(void) {
   env = getenv("GC_COLLECT");
   collect_after = env ? (size_t)atol(env) * 1024 * 1024 : GC_COLLECT_AFTER;
   next_collect = collect_after;
-  mtx_init(&free_blocks_lock, mtx_plain);
-  mtx_init(&large_allocs_lock, mtx_plain);
-  mtx_init(&decrement_lock, mtx_plain);
-  cnd_init(&decrement_cond);
+  pthread_mutex_init(&free_blocks_lock, NULL);
+  pthread_mutex_init(&large_allocs_lock, NULL);
+  pthread_mutex_init(&decrement_lock, NULL);
+  pthread_cond_init(&decrement_cond, NULL);
   decrement_thread_started =
-      thrd_create(&decrement_thread, decrement_thread_main, nullptr) ==
-      thrd_success;
+      pthread_create(&decrement_thread, NULL, decrement_thread_main, nullptr) ==
+      0;
   env = getenv("GC_SATB");
   if (env && strcmp(env, "0") == 0) {
     satb_enabled = false;
@@ -277,13 +277,13 @@ void gc_init(void) {
 
 static gc_block *block_alloc_raw(void) {
   gc_block *block;
-  mtx_lock(&free_blocks_lock);
+  pthread_mutex_lock(&free_blocks_lock);
   if (arrlen(free_blocks) > 0) {
     block = arrpop_last(free_blocks);
-    mtx_unlock(&free_blocks_lock);
+    pthread_mutex_unlock(&free_blocks_lock);
     block->state = BLOCK_USED;
   } else {
-    mtx_unlock(&free_blocks_lock);
+    pthread_mutex_unlock(&free_blocks_lock);
     if (gc_base_cur + BLOCK_SIZE > (uintptr_t)gc_base + gc_size) {
       fprintf(stderr, "block_alloc: out of GC space\n");
       abort();
@@ -312,15 +312,15 @@ static gc_block *block_alloc(void) {
 static void block_free(gc_block *block) {
   block->state = BLOCK_FREE;
   atomic_store_explicit(&block->live_objects, 0, memory_order_relaxed);
-  mtx_lock(&free_blocks_lock);
+  pthread_mutex_lock(&free_blocks_lock);
   arrput(free_blocks, block);
-  mtx_unlock(&free_blocks_lock);
+  pthread_mutex_unlock(&free_blocks_lock);
 }
 
 static size_t free_block_count(void) {
-  mtx_lock(&free_blocks_lock);
+  pthread_mutex_lock(&free_blocks_lock);
   size_t len = arrlen(free_blocks);
-  mtx_unlock(&free_blocks_lock);
+  pthread_mutex_unlock(&free_blocks_lock);
   return len;
 }
 
@@ -410,11 +410,11 @@ static void clear_object_block(gc_header *hdr) {
 void gc_free(void) {
   wait_for_decrements();
   if (decrement_thread_started) {
-    mtx_lock(&decrement_lock);
+    pthread_mutex_lock(&decrement_lock);
     decrement_stop = true;
-    cnd_signal(&decrement_cond);
-    mtx_unlock(&decrement_lock);
-    thrd_join(decrement_thread, nullptr);
+    pthread_cond_signal(&decrement_cond);
+    pthread_mutex_unlock(&decrement_lock);
+    pthread_join(decrement_thread, NULL);
     decrement_thread_started = false;
   }
   if (gc_mmap_base && gc_mmap_base != MAP_FAILED) {
@@ -436,10 +436,10 @@ void gc_free(void) {
     list_del(pos);
     free(container_of(pos, struct large_alloc, list));
   }
-  cnd_destroy(&decrement_cond);
-  mtx_destroy(&decrement_lock);
-  mtx_destroy(&large_allocs_lock);
-  mtx_destroy(&free_blocks_lock);
+  pthread_cond_destroy(&decrement_cond);
+  pthread_mutex_destroy(&decrement_lock);
+  pthread_mutex_destroy(&large_allocs_lock);
+  pthread_mutex_destroy(&free_blocks_lock);
 }
 
 static int cmp_bcfunc(const void *ap, const void *bp) {
@@ -544,9 +544,9 @@ static void *gc_large_alloc(uint64_t sz) {
     abort();
   }
   init_list_head(&la->list);
-  mtx_lock(&large_allocs_lock);
+  pthread_mutex_lock(&large_allocs_lock);
   list_add_tail(&la->list, &large_allocs);
-  mtx_unlock(&large_allocs_lock);
+  pthread_mutex_unlock(&large_allocs_lock);
   arrput(large_nursery, (gc_header *)(la + 1));
   *(uint64_t *)(la + 1) = 0;
   ((gc_header *)(la + 1))->flags |= GC_LARGE;
@@ -673,8 +673,7 @@ INLINE inline static void process_decrements(gc_obj_stack *decrements) {
     if (atomic_load_explicit(&hdr->rc, memory_order_relaxed) == 0) {
       continue;
     }
-    uint32_t old =
-        atomic_fetch_sub_explicit(&hdr->rc, 1, memory_order_relaxed);
+    uint32_t old = atomic_fetch_sub_explicit(&hdr->rc, 1, memory_order_relaxed);
     assert(old > 0);
     if (old > 1) {
       continue;
@@ -686,9 +685,9 @@ INLINE inline static void process_decrements(gc_obj_stack *decrements) {
     trace_heap_object(hdr, hdr->type, dec_trace_field, decrements);
     if (is_large_alloc(hdr)) {
       struct large_alloc *la = (struct large_alloc *)hdr - 1;
-      mtx_lock(&large_allocs_lock);
+      pthread_mutex_lock(&large_allocs_lock);
       list_del(&la->list);
-      mtx_unlock(&large_allocs_lock);
+      pthread_mutex_unlock(&large_allocs_lock);
       free(la);
     } else {
       clear_object_block(hdr);
@@ -696,38 +695,38 @@ INLINE inline static void process_decrements(gc_obj_stack *decrements) {
   }
 }
 
-static int decrement_thread_main(void *arg) {
+static void *decrement_thread_main(void *arg) {
   (void)arg;
-  mtx_lock(&decrement_lock);
+  pthread_mutex_lock(&decrement_lock);
   for (;;) {
     while (decrement_batches.len == 0 && !decrement_stop) {
-      cnd_wait(&decrement_cond, &decrement_lock);
+      pthread_cond_wait(&decrement_cond, &decrement_lock);
     }
     if (decrement_stop && decrement_batches.len == 0) {
       break;
     }
     gc_obj_stack batch = gc_obj_stack_stack_pop(&decrement_batches);
     decrement_busy = true;
-    mtx_unlock(&decrement_lock);
+    pthread_mutex_unlock(&decrement_lock);
     process_decrements(&batch);
     free(batch.data);
-    mtx_lock(&decrement_lock);
+    pthread_mutex_lock(&decrement_lock);
     decrement_busy = false;
-    cnd_broadcast(&decrement_cond);
+    pthread_cond_broadcast(&decrement_cond);
   }
-  mtx_unlock(&decrement_lock);
-  return 0;
+  pthread_mutex_unlock(&decrement_lock);
+  return NULL;
 }
 
 static void wait_for_decrements(void) {
   if (!decrement_thread_started) {
     return;
   }
-  mtx_lock(&decrement_lock);
+  pthread_mutex_lock(&decrement_lock);
   while (decrement_busy || decrement_batches.len != 0) {
-    cnd_wait(&decrement_cond, &decrement_lock);
+    pthread_cond_wait(&decrement_cond, &decrement_lock);
   }
-  mtx_unlock(&decrement_lock);
+  pthread_mutex_unlock(&decrement_lock);
 }
 
 static void start_decrements(void) {
@@ -738,11 +737,11 @@ static void start_decrements(void) {
     process_decrements(&cur_decrements);
     return;
   }
-  mtx_lock(&decrement_lock);
+  pthread_mutex_lock(&decrement_lock);
   gc_obj_stack_stack_push(&decrement_batches, cur_decrements);
   cur_decrements = (gc_obj_stack){0};
-  cnd_signal(&decrement_cond);
-  mtx_unlock(&decrement_lock);
+  pthread_cond_signal(&decrement_cond);
+  pthread_mutex_unlock(&decrement_lock);
 }
 
 static void gc_add_mark_root(const uint64_t *rootp, size_t len) {
@@ -774,8 +773,7 @@ void gc_collect(void) {
   static struct timespec prev_gc_end;
   struct timespec t0;
   struct timespec t1;
-  struct timespec t2;
-  struct timespec t3;
+  struct timespec t_sweep;
   struct timespec t_satb;
   struct timespec t_satb_end;
   struct timespec t4;
@@ -837,8 +835,7 @@ void gc_collect(void) {
                                 memory_order_relaxed) != 0);
 
     trace_heap_object_reserved((gc_header *)obj, ((gc_header *)obj)->type,
-                               inc_reserve_fields, inc_trace_field,
-                               increments);
+                               inc_reserve_fields, inc_trace_field, increments);
 
     i++;
     if (i >= arrlen(log_buf)) {
@@ -868,10 +865,9 @@ void gc_collect(void) {
 
   // 2) Drain any remaining increments
   process_increments(increments);
-  clock_gettime(CLOCK_MONOTONIC, &t2);
+  clock_gettime(CLOCK_MONOTONIC, &t_sweep);
 
   // 3) Decrements are queued to a background thread after nursery sweep.
-  clock_gettime(CLOCK_MONOTONIC, &t3);
 
   // 4) Sweep nursery: free empty blocks and dead large allocs,
   //    leave live ones for decrements
@@ -887,9 +883,9 @@ void gc_collect(void) {
     gc_header *hdr = large_nursery[i];
     if (atomic_load_explicit(&hdr->rc, memory_order_relaxed) == 0) {
       struct large_alloc *la = (struct large_alloc *)hdr - 1;
-      mtx_lock(&large_allocs_lock);
+      pthread_mutex_lock(&large_allocs_lock);
       list_del(&la->list);
-      mtx_unlock(&large_allocs_lock);
+      pthread_mutex_unlock(&large_allocs_lock);
       free(la);
     }
   }
@@ -936,12 +932,12 @@ void gc_collect(void) {
   size_t nursery_mb = copy_alloc_bytes / (size_t)(1024 * 1024);
   copy_alloc_bytes = 0;
   LOG(gc,
-      "gc_collect: %.3f/+%.3f ms (roots %.3f, dec %.3f, sweep %.3f, "
+      "gc_collect: %.3f/+%.3f ms (roots %.3f, sweep %.3f, "
       "satb %.3f), "
       "blocks: %zu total, %zu free (+%zu MB), nursery copy: %zu MB, "
       "buflen %li",
-      elapsed_ms(t0, t4), mutator_ms, elapsed_ms(t0, t1), elapsed_ms(t2, t3),
-      elapsed_ms(t3, t_satb), elapsed_ms(t_satb, t_satb_end),
+      elapsed_ms(t0, t4), mutator_ms, elapsed_ms(t0, t1),
+      elapsed_ms(t_sweep, t_satb), elapsed_ms(t_satb, t_satb_end),
       arrlen(all_blocks), free_block_count(), freed_mb, nursery_mb, buflen);
   prev_gc_end = t4;
   profiler_set_in_gc(false);
