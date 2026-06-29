@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdatomic.h>
 
 #include "bc.h"
 #include "bigint.h"
@@ -52,7 +53,7 @@ typedef struct gc_header {
   uint8_t type;
   uint8_t flags;
   uint16_t aux;
-  uint32_t rc;
+  _Atomic uint32_t rc;
 } gc_header;
 static_assert(sizeof(gc_header) == 8, "gc header is 8 bytes");
 

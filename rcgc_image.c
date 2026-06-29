@@ -51,7 +51,7 @@ static gc_header *copy_image_obj(gc_header *obj, image_ctx const *image) {
   gc_header *copy = (gc_header *)gc_alloc_slow(sz);
   uint8_t alloc_flags = copy->flags;
   memcpy(copy, obj, sz);
-  copy->rc = 0;
+  atomic_store_explicit(&copy->rc, 0, memory_order_relaxed);
   copy->flags = alloc_flags & GC_LARGE;
   set_forward(obj, copy);
   if (copy->type == FUNC_TAG) {
@@ -197,7 +197,7 @@ static gc_header *dump_copy_object(gc_header *obj, dump_ctx *ctx) {
   memcpy(copy, obj, sz);
   copy->flags = 0;
   copy->aux = 0;
-  copy->rc = 0;
+  atomic_store_explicit(&copy->rc, 0, memory_order_relaxed);
   ctx->len += sz;
   set_forward(obj, copy);
   arrput(ctx->worklist, copy);

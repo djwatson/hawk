@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <threads.h>
@@ -39,7 +40,7 @@ enum : size_t {
 enum { BLOCK_FREE, BLOCK_USED };
 
 typedef struct gc_block {
-  uint32_t live_objects;
+  _Atomic uint32_t live_objects;
   uint8_t satb_marked;
   uint8_t state;
   uint8_t marks[BLOCK_MARK_BYTES];
@@ -76,6 +77,7 @@ static cnd_t decrement_cond;
 
 STACK(gc_field_stack, gc_obj *)
 STACK(gc_obj_stack, gc_obj)
+STACK(gc_obj_stack_stack, gc_obj_stack)
 
 static inline void gc_field_stack_reserve(gc_field_stack *s, size_t n) {
   assert(n <= SIZE_MAX - s->len);
@@ -95,10 +97,10 @@ static inline void inc_reserve_fields(void *ctx, size_t n) {
 static gc_field_stack cur_increments;
 static gc_obj_stack cur_decrements;
 static gc_obj_stack next_decrements;
+static gc_obj_stack_stack decrement_batches;
 static gc_obj_stack satb_stack;
 static thrd_t decrement_thread;
 static bool decrement_thread_started;
-static bool decrement_work_ready;
 static bool decrement_busy;
 static bool decrement_stop;
 
@@ -309,7 +311,7 @@ static gc_block *block_alloc(void) {
 
 static void block_free(gc_block *block) {
   block->state = BLOCK_FREE;
-  block->live_objects = 0;
+  atomic_store_explicit(&block->live_objects, 0, memory_order_relaxed);
   mtx_lock(&free_blocks_lock);
   arrput(free_blocks, block);
   mtx_unlock(&free_blocks_lock);
@@ -392,13 +394,15 @@ static void mark_object_block(gc_header *hdr) {
     return;
   }
   gc_block *block = (gc_block *)((uintptr_t)hdr & ~(uintptr_t)(BLOCK_SIZE - 1));
-  block->live_objects++;
+  atomic_fetch_add_explicit(&block->live_objects, 1, memory_order_relaxed);
 }
 
 static void clear_object_block(gc_header *hdr) {
   gc_block *block = (gc_block *)((uintptr_t)hdr & ~(uintptr_t)(BLOCK_SIZE - 1));
-  assert(block->live_objects > 0);
-  if (--block->live_objects == 0) {
+  uint32_t old =
+      atomic_fetch_sub_explicit(&block->live_objects, 1, memory_order_relaxed);
+  assert(old > 0);
+  if (old == 1) {
     block_free(block);
   }
 }
@@ -494,7 +498,7 @@ static void snapshot_field(gc_obj *field, void *ctx) {
 
 NOINLINE void gc_log_slow(gc_obj obj) {
   gc_header *hdr = to_gc_header(obj);
-  if (hdr->rc == 0) {
+  if (atomic_load_explicit(&hdr->rc, memory_order_relaxed) == 0) {
     return;
   }
   if (hdr->flags & GC_LOGGED) {
@@ -598,8 +602,8 @@ INLINE inline static bool inc_visit_heap(gc_obj *field,
                                          gc_field_stack *increments) {
   gc_obj obj = *field;
   gc_header *hdr = to_gc_header(obj);
-  if (hdr->rc != 0) {
-    hdr->rc++;
+  if (atomic_load_explicit(&hdr->rc, memory_order_relaxed) != 0) {
+    atomic_fetch_add_explicit(&hdr->rc, 1, memory_order_relaxed);
     return false;
   }
 
@@ -609,7 +613,7 @@ INLINE inline static bool inc_visit_heap(gc_obj *field,
   if (is_forwarded(hdr)) {
     hdr = forward_ptr(hdr);
     *field = tag_header(hdr, tag);
-    hdr->rc++;
+    atomic_fetch_add_explicit(&hdr->rc, 1, memory_order_relaxed);
     return true;
   }
 
@@ -633,13 +637,13 @@ INLINE inline static bool inc_visit_heap(gc_obj *field,
       break;
     }
     copy->flags &= (uint8_t)~(GC_LOGGED | GC_FWD_TAG);
-    copy->rc = 0;
+    atomic_store_explicit(&copy->rc, 0, memory_order_relaxed);
     set_forward(hdr, copy);
     hdr = copy;
     *field = tag_header(hdr, tag);
     changed = true;
   }
-  hdr->rc = 1;
+  atomic_store_explicit(&hdr->rc, 1, memory_order_relaxed);
   mark_object_block(hdr);
   trace_heap_object_reserved(hdr, hdr->type, inc_reserve_fields,
                              inc_trace_field, increments);
@@ -666,10 +670,13 @@ INLINE inline static void process_decrements(gc_obj_stack *decrements) {
     gc_header *hdr = to_gc_header(obj);
     // Deferred duplicate decrements can target an object already reclaimed or
     // forwarded by an earlier decrement in this batch.
-    if (hdr->rc == 0) {
+    if (atomic_load_explicit(&hdr->rc, memory_order_relaxed) == 0) {
       continue;
     }
-    if (--hdr->rc > 0) {
+    uint32_t old =
+        atomic_fetch_sub_explicit(&hdr->rc, 1, memory_order_relaxed);
+    assert(old > 0);
+    if (old > 1) {
       continue;
     }
 
@@ -693,15 +700,17 @@ static int decrement_thread_main(void *arg) {
   (void)arg;
   mtx_lock(&decrement_lock);
   for (;;) {
-    while (!decrement_work_ready && !decrement_stop) {
+    while (decrement_batches.len == 0 && !decrement_stop) {
       cnd_wait(&decrement_cond, &decrement_lock);
     }
-    if (decrement_stop) {
+    if (decrement_stop && decrement_batches.len == 0) {
       break;
     }
-    decrement_work_ready = false;
+    gc_obj_stack batch = gc_obj_stack_stack_pop(&decrement_batches);
+    decrement_busy = true;
     mtx_unlock(&decrement_lock);
-    process_decrements(&cur_decrements);
+    process_decrements(&batch);
+    free(batch.data);
     mtx_lock(&decrement_lock);
     decrement_busy = false;
     cnd_broadcast(&decrement_cond);
@@ -715,7 +724,7 @@ static void wait_for_decrements(void) {
     return;
   }
   mtx_lock(&decrement_lock);
-  while (decrement_busy) {
+  while (decrement_busy || decrement_batches.len != 0) {
     cnd_wait(&decrement_cond, &decrement_lock);
   }
   mtx_unlock(&decrement_lock);
@@ -730,9 +739,8 @@ static void start_decrements(void) {
     return;
   }
   mtx_lock(&decrement_lock);
-  assert(!decrement_busy);
-  decrement_busy = true;
-  decrement_work_ready = true;
+  gc_obj_stack_stack_push(&decrement_batches, cur_decrements);
+  cur_decrements = (gc_obj_stack){0};
   cnd_signal(&decrement_cond);
   mtx_unlock(&decrement_lock);
 }
@@ -755,7 +763,6 @@ static inline double elapsed_ms(struct timespec s, struct timespec e) {
 
 void gc_collect(void) {
   total_gc_cnt++;
-  wait_for_decrements();
 
   {
     auto tmp = cur_decrements;
@@ -826,7 +833,8 @@ void gc_collect(void) {
     assert(cur.offset == LOG_OBJ_HEADER);
     void *obj = (void *)cur.val;
     ((gc_header *)obj)->flags &= (uint8_t)~GC_LOGGED;
-    assert(((gc_header *)obj)->rc != 0);
+    assert(atomic_load_explicit(&((gc_header *)obj)->rc,
+                                memory_order_relaxed) != 0);
 
     trace_heap_object_reserved((gc_header *)obj, ((gc_header *)obj)->type,
                                inc_reserve_fields, inc_trace_field,
@@ -839,7 +847,9 @@ void gc_collect(void) {
     cur = log_buf[i];
     while (cur.offset != LOG_OBJ_HEADER) {
       gc_obj old_val = {.value = (int64_t)cur.val};
-      if (is_heap_object(old_val) && to_gc_header(old_val)->rc != 0) {
+      if (is_heap_object(old_val) &&
+          atomic_load_explicit(&to_gc_header(old_val)->rc,
+                               memory_order_relaxed) != 0) {
         gc_obj_stack_push(&cur_decrements, old_val);
         if (unlikely(satb_active)) {
           satb_push(old_val);
@@ -866,7 +876,8 @@ void gc_collect(void) {
   // 4) Sweep nursery: free empty blocks and dead large allocs,
   //    leave live ones for decrements
   for (size_t i = 0; i < arrlen(nursery_blocks); i++) {
-    if (nursery_blocks[i]->live_objects == 0) {
+    if (atomic_load_explicit(&nursery_blocks[i]->live_objects,
+                             memory_order_relaxed) == 0) {
       block_free(nursery_blocks[i]);
     }
   }
@@ -874,7 +885,7 @@ void gc_collect(void) {
 
   for (size_t i = 0; i < arrlen(large_nursery); i++) {
     gc_header *hdr = large_nursery[i];
-    if (hdr->rc == 0) {
+    if (atomic_load_explicit(&hdr->rc, memory_order_relaxed) == 0) {
       struct large_alloc *la = (struct large_alloc *)hdr - 1;
       mtx_lock(&large_allocs_lock);
       list_del(&la->list);
