@@ -102,7 +102,7 @@ static gc_obj_stack satb_stack;
 static gc_obj_stack_stack satb_batches;
 static pthread_t decrement_thread;
 static bool decrement_thread_started;
-static bool decrement_stop;
+static _Atomic bool decrement_stop;
 static bool satb_finish_pending;
 
 struct large_alloc {
@@ -274,6 +274,7 @@ void gc_init(void) {
   pthread_mutex_init(&large_allocs_lock, NULL);
   pthread_mutex_init(&decrement_lock, NULL);
   pthread_cond_init(&decrement_cond, NULL);
+  atomic_store_explicit(&decrement_stop, false, memory_order_relaxed);
   decrement_thread_started =
       pthread_create(&decrement_thread, NULL, decrement_thread_main, nullptr) ==
       0;
@@ -381,6 +382,9 @@ static void satb_process(gc_obj obj, gc_obj_stack *work) {
 
 static void satb_process_batch(gc_obj_stack *batch) {
   while (batch->len) {
+    if (atomic_load_explicit(&decrement_stop, memory_order_relaxed)) {
+      break;
+    }
     satb_process(gc_obj_stack_pop(batch), batch);
   }
 }
@@ -448,8 +452,8 @@ static void clear_object_block(gc_header *hdr) {
 void gc_free(void) {
   if (decrement_thread_started) {
     pthread_mutex_lock(&decrement_lock);
-    decrement_stop = true;
-    pthread_cond_signal(&decrement_cond);
+    atomic_store_explicit(&decrement_stop, true, memory_order_relaxed);
+    pthread_cond_broadcast(&decrement_cond);
     pthread_mutex_unlock(&decrement_lock);
     pthread_join(decrement_thread, NULL);
     decrement_thread_started = false;
@@ -467,6 +471,11 @@ void gc_free(void) {
   free(cur_increments.data);
   free(cur_decrements.data);
   free(next_decrements.data);
+  while (decrement_batches.len) {
+    gc_obj_stack batch = gc_obj_stack_stack_pop(&decrement_batches);
+    free(batch.data);
+  }
+  free(decrement_batches.data);
   free(satb_stack.data);
   while (satb_batches.len) {
     gc_obj_stack batch = gc_obj_stack_stack_pop(&satb_batches);
@@ -708,6 +717,9 @@ INLINE inline static void dec_trace_field(gc_obj *field, void *ctx) {
 
 INLINE inline static void process_decrements(gc_obj_stack *decrements) {
   while (decrements->len) {
+    if (atomic_load_explicit(&decrement_stop, memory_order_relaxed)) {
+      break;
+    }
     gc_obj obj = gc_obj_stack_pop(decrements);
     gc_header *hdr = to_gc_header(obj);
     // Deferred duplicate decrements can target an object already reclaimed or
@@ -745,14 +757,14 @@ static void *decrement_thread_main(void *arg) {
   pthread_mutex_lock(&decrement_lock);
   for (;;) {
     while (decrement_batches.len == 0 && satb_batches.len == 0 &&
-           !decrement_stop) {
+           !atomic_load_explicit(&decrement_stop, memory_order_relaxed)) {
       if (!satb_finish_pending) {
         satb_finish_pending = true;
         pthread_cond_broadcast(&decrement_cond);
       }
       pthread_cond_wait(&decrement_cond, &decrement_lock);
     }
-    if (decrement_stop && decrement_batches.len == 0 && satb_batches.len == 0) {
+    if (atomic_load_explicit(&decrement_stop, memory_order_relaxed)) {
       break;
     }
     if (decrement_batches.len != 0) {
