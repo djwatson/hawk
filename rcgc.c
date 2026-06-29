@@ -99,10 +99,11 @@ static gc_obj_stack cur_decrements;
 static gc_obj_stack next_decrements;
 static gc_obj_stack_stack decrement_batches;
 static gc_obj_stack satb_stack;
+static gc_obj_stack_stack satb_batches;
 static pthread_t decrement_thread;
 static bool decrement_thread_started;
-static bool decrement_busy;
 static bool decrement_stop;
+static bool satb_finish_pending;
 
 struct large_alloc {
   list_head list;
@@ -148,25 +149,29 @@ static void clear_all_marks(void) {
   for (size_t i = 0; i < arrlen(all_blocks); i++) {
     block_mark_clear(all_blocks[i]);
   }
+  pthread_mutex_lock(&large_allocs_lock);
   list_head *pos;
   list_for_each(pos, &large_allocs) {
     struct large_alloc *la = container_of(pos, struct large_alloc, list);
     la->satb_marked = 0;
   }
+  pthread_mutex_unlock(&large_allocs_lock);
 }
 
-static bool satb_enabled = false;
+static bool satb_enabled = true;
 static bool satb_active;
 static size_t satb_waste_threshold = 20;
 static size_t satb_pred_live_blocks = 64;
 static const char *satb_start_reason;
+static size_t free_block_count(void);
+static bool satb_is_active(void);
 
 static size_t mature_block_count(void) {
-  return arrlen(all_blocks) - arrlen(free_blocks) - arrlen(nursery_blocks);
+  return arrlen(all_blocks) - free_block_count() - arrlen(nursery_blocks);
 }
 
 static bool satb_should_start(void) {
-  if (!satb_enabled || satb_active) {
+  if (!satb_enabled || satb_is_active()) {
     return false;
   }
   if (satb_waste_threshold == 0) {
@@ -193,10 +198,34 @@ static void satb_update_prediction(size_t observed) {
   }
 }
 
+static void satb_process_batch(gc_obj_stack *batch);
+
+static bool satb_is_active(void) { return satb_active; }
+
+static void satb_set_active(bool active) {
+  satb_active = active;
+}
+
 static void satb_push(gc_obj v) {
   if (is_heap_object(v)) {
     gc_obj_stack_push(&satb_stack, v);
   }
+}
+
+static void satb_enqueue(void) {
+  if (satb_stack.len == 0) {
+    return;
+  }
+  if (!decrement_thread_started) {
+    satb_process_batch(&satb_stack);
+    return;
+  }
+  pthread_mutex_lock(&decrement_lock);
+  satb_finish_pending = false;
+  gc_obj_stack_stack_push(&satb_batches, satb_stack);
+  satb_stack = (gc_obj_stack){0};
+  pthread_cond_signal(&decrement_cond);
+  pthread_mutex_unlock(&decrement_lock);
 }
 
 static void satb_add_root(const uint64_t *rootp, size_t len) {
@@ -208,7 +237,6 @@ static void satb_add_root(const uint64_t *rootp, size_t len) {
 
 INLINE inline static bool visit_root(gc_obj *root, gc_field_stack *increments);
 static void *decrement_thread_main(void *arg);
-static void wait_for_decrements(void);
 
 static void satb_push_roots(void) {
   for (size_t i = 0; i < gc_roots_len; i++) {
@@ -258,7 +286,6 @@ void gc_init(void) {
     satb_enabled = true;
     satb_waste_threshold = (size_t)atol(env);
   }
-  satb_enabled = false;
   gc_mmap_size = gc_size + BLOCK_SIZE;
   gc_mmap_base = mmap(nullptr, gc_mmap_size, PROT_READ | PROT_WRITE,
                       MAP_PRIVATE | MAP_ANON, -1, 0);
@@ -302,7 +329,7 @@ static gc_block *block_alloc(void) {
   }
   next_collect -= BLOCK_SIZE;
   gc_block *block = block_alloc_raw();
-  if (unlikely(satb_active)) {
+  if (unlikely(satb_is_active())) {
     block_mark_all(block);
   }
   arrput(nursery_blocks, block);
@@ -331,11 +358,11 @@ static inline bool is_large_alloc(gc_header *hdr) {
 static void satb_trace_field(gc_obj *field, void *ctx) {
   gc_obj v = *field;
   if (is_heap_object(v)) {
-    gc_obj_stack_push((gc_obj_stack *)ctx, v);
+    gc_obj_stack_push(ctx, v);
   }
 }
 
-static void satb_process(gc_obj obj) {
+static void satb_process(gc_obj obj, gc_obj_stack *work) {
   if (!is_heap_object(obj)) {
     return;
   }
@@ -349,15 +376,24 @@ static void satb_process(gc_obj obj) {
       return;
     }
   }
-  trace_heap_object(hdr, hdr->type, satb_trace_field, &satb_stack);
+  trace_heap_object(hdr, hdr->type, satb_trace_field, work);
 }
 
-enum { SATB_PROCESS_BATCH = 1000000 };
-
-static void satb_process_some(void) {
-  for (size_t i = 0; i < SATB_PROCESS_BATCH && satb_stack.len; i++) {
-    satb_process(gc_obj_stack_pop(&satb_stack));
+static void satb_process_batch(gc_obj_stack *batch) {
+  while (batch->len) {
+    satb_process(gc_obj_stack_pop(batch), batch);
   }
+}
+
+static void satb_drain(void) {
+  if (!decrement_thread_started) {
+    return;
+  }
+  pthread_mutex_lock(&decrement_lock);
+  while (!satb_finish_pending) {
+    pthread_cond_wait(&decrement_cond, &decrement_lock);
+  }
+  pthread_mutex_unlock(&decrement_lock);
 }
 
 static void satb_sweep(void) {
@@ -372,6 +408,7 @@ static void satb_sweep(void) {
       freed_blocks++;
     }
   }
+  pthread_mutex_lock(&large_allocs_lock);
   list_head *pos = large_allocs.next;
   while (pos != &large_allocs) {
     struct large_alloc *la = container_of(pos, struct large_alloc, list);
@@ -384,6 +421,7 @@ static void satb_sweep(void) {
       freed_large++;
     }
   }
+  pthread_mutex_unlock(&large_allocs_lock);
   satb_update_prediction(live);
   LOG(gc, "satb finish: %zu blocks freed, %zu large freed", freed_blocks,
       freed_large);
@@ -408,7 +446,6 @@ static void clear_object_block(gc_header *hdr) {
 }
 
 void gc_free(void) {
-  wait_for_decrements();
   if (decrement_thread_started) {
     pthread_mutex_lock(&decrement_lock);
     decrement_stop = true;
@@ -431,6 +468,11 @@ void gc_free(void) {
   free(cur_decrements.data);
   free(next_decrements.data);
   free(satb_stack.data);
+  while (satb_batches.len) {
+    gc_obj_stack batch = gc_obj_stack_stack_pop(&satb_batches);
+    free(batch.data);
+  }
+  free(satb_batches.data);
   while (!list_empty(&large_allocs)) {
     list_head *pos = large_allocs.next;
     list_del(pos);
@@ -550,7 +592,7 @@ static void *gc_large_alloc(uint64_t sz) {
   arrput(large_nursery, (gc_header *)(la + 1));
   *(uint64_t *)(la + 1) = 0;
   ((gc_header *)(la + 1))->flags |= GC_LARGE;
-  if (unlikely(satb_active)) {
+  if (unlikely(satb_is_active())) {
     la->satb_marked = 1;
   }
   return la + 1;
@@ -568,7 +610,7 @@ INLINE inline static gc_header *copy_alloc(uint64_t sz) {
   if (copy_hp == 0 || new_hp < copy_hp_end) {
     gc_block *block = block_alloc_raw();
     assert(block);
-    if (unlikely(satb_active)) {
+    if (unlikely(satb_is_active())) {
       block_mark_all(block);
     }
     copy_hp_end = (uintptr_t)block->data;
@@ -679,8 +721,11 @@ INLINE inline static void process_decrements(gc_obj_stack *decrements) {
       continue;
     }
 
-    if (unlikely(satb_active)) {
-      satb_process(obj);
+    if (unlikely(satb_is_active())) {
+      gc_obj_stack satb = {0};
+      gc_obj_stack_push(&satb, obj);
+      satb_process_batch(&satb);
+      free(satb.data);
     }
     trace_heap_object(hdr, hdr->type, dec_trace_field, decrements);
     if (is_large_alloc(hdr)) {
@@ -699,34 +744,35 @@ static void *decrement_thread_main(void *arg) {
   (void)arg;
   pthread_mutex_lock(&decrement_lock);
   for (;;) {
-    while (decrement_batches.len == 0 && !decrement_stop) {
+    while (decrement_batches.len == 0 && satb_batches.len == 0 &&
+           !decrement_stop) {
+      if (!satb_finish_pending) {
+        satb_finish_pending = true;
+        pthread_cond_broadcast(&decrement_cond);
+      }
       pthread_cond_wait(&decrement_cond, &decrement_lock);
     }
-    if (decrement_stop && decrement_batches.len == 0) {
+    if (decrement_stop && decrement_batches.len == 0 && satb_batches.len == 0) {
       break;
     }
-    gc_obj_stack batch = gc_obj_stack_stack_pop(&decrement_batches);
-    decrement_busy = true;
-    pthread_mutex_unlock(&decrement_lock);
-    process_decrements(&batch);
-    free(batch.data);
-    pthread_mutex_lock(&decrement_lock);
-    decrement_busy = false;
-    pthread_cond_broadcast(&decrement_cond);
+    if (decrement_batches.len != 0) {
+      gc_obj_stack batch = gc_obj_stack_stack_pop(&decrement_batches);
+      pthread_mutex_unlock(&decrement_lock);
+      process_decrements(&batch);
+      free(batch.data);
+      pthread_mutex_lock(&decrement_lock);
+      pthread_cond_broadcast(&decrement_cond);
+    } else {
+      gc_obj_stack batch = gc_obj_stack_stack_pop(&satb_batches);
+      pthread_mutex_unlock(&decrement_lock);
+      satb_process_batch(&batch);
+      free(batch.data);
+      pthread_mutex_lock(&decrement_lock);
+      pthread_cond_broadcast(&decrement_cond);
+    }
   }
   pthread_mutex_unlock(&decrement_lock);
   return NULL;
-}
-
-static void wait_for_decrements(void) {
-  if (!decrement_thread_started) {
-    return;
-  }
-  pthread_mutex_lock(&decrement_lock);
-  while (decrement_busy || decrement_batches.len != 0) {
-    pthread_cond_wait(&decrement_cond, &decrement_lock);
-  }
-  pthread_mutex_unlock(&decrement_lock);
 }
 
 static void start_decrements(void) {
@@ -738,6 +784,7 @@ static void start_decrements(void) {
     return;
   }
   pthread_mutex_lock(&decrement_lock);
+  satb_finish_pending = false;
   gc_obj_stack_stack_push(&decrement_batches, cur_decrements);
   cur_decrements = (gc_obj_stack){0};
   pthread_cond_signal(&decrement_cond);
@@ -762,6 +809,13 @@ static inline double elapsed_ms(struct timespec s, struct timespec e) {
 
 void gc_collect(void) {
   total_gc_cnt++;
+
+  bool finish_satb = false;
+  pthread_mutex_lock(&decrement_lock);
+  if (satb_active && satb_finish_pending) {
+    finish_satb = true;
+  }
+  pthread_mutex_unlock(&decrement_lock);
 
   {
     auto tmp = cur_decrements;
@@ -848,7 +902,7 @@ void gc_collect(void) {
           atomic_load_explicit(&to_gc_header(old_val)->rc,
                                memory_order_relaxed) != 0) {
         gc_obj_stack_push(&cur_decrements, old_val);
-        if (unlikely(satb_active)) {
+        if (unlikely(satb_is_active())) {
           satb_push(old_val);
         }
       }
@@ -861,6 +915,13 @@ void gc_collect(void) {
     process_increments(increments);
   }
   arrlen_set(log_buf, 0);
+  if (unlikely(satb_is_active())) {
+    if (finish_satb) {
+      satb_process_batch(&satb_stack);
+    } else {
+      satb_enqueue();
+    }
+  }
   clock_gettime(CLOCK_MONOTONIC, &t1);
 
   // 2) Drain any remaining increments
@@ -892,32 +953,27 @@ void gc_collect(void) {
   arrlen_set(large_nursery, 0);
   start_decrements();
 
-  clock_gettime(CLOCK_MONOTONIC, &t_satb);
-
-  if (unlikely(satb_active)) {
-    satb_process_some();
-    LOG(gc, "satb queue: %zu", satb_stack.len);
-    // Must check for finish *after* the write log is processed:
-    // we HAVE to process current write log before SATB can be done.
-    if (satb_stack.len == 0) {
-      // Must sweep satb *after* nursury.
-      // nursury doesn't check for double-free of blocks
-      // currently.
-      satb_sweep();
-      satb_active = false;
-    }
-  }
-  clock_gettime(CLOCK_MONOTONIC, &t_satb_end);
-
   // MUST start satb *before* allocing a new block,
   // so new blocks start marked.
+  clock_gettime(CLOCK_MONOTONIC, &t_satb);
+  if (unlikely(finish_satb)) {
+    LOG(gc, "satb finish pending");
+    // Must sweep satb *after* nursury. Nursury doesn't check for
+    // double-free of blocks currently.
+    satb_sweep();
+    satb_set_active(false);
+  }
   if (satb_should_start()) {
+    // Drain any decs, so we start *completely* fresh
+    satb_drain();
     LOG(gc, "satb start: %s", satb_start_reason);
     clear_all_marks();
     satb_stack.len = 0;
+    satb_set_active(true);
     satb_push_roots();
-    satb_active = true;
+    satb_enqueue();
   }
+  clock_gettime(CLOCK_MONOTONIC, &t_satb_end);
 
   next_collect = collect_after;
 
