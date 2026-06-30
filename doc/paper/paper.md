@@ -334,7 +334,7 @@ LuaJIT [@pallluajit] is built around a similar bytecode interpreter & linear tra
 
 ## Results
 
-The standard r7rs-benchmarks suite [@r7rsbenchmarks], originally derived from the Larceny benchmark suite [@larcenists], is used. Two architectures were benchmarked: x64 on AMD Ryzen 9 5900X (ubuntu 25.10) and aarch64 on Apple M1 MacBook air (macOS 25.2.0).  Chez version was 10.0.0.
+The standard r7rs-benchmarks suite [@r7rsbenchmarks], originally derived from the Larceny benchmark suite [@larcenists], is used. The x64 architecture was benchmarked on AMD Ryzen 9 5900X (ubuntu 25.10).  Chez version was 10.0.0.
 
 Neither chez nor hawk times include compile time.  Hawk DOES include JIT time.  There is no jit warmup period.
 

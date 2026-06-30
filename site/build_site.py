@@ -168,23 +168,21 @@ def parse_benchmarks():
   if not bench_dir.exists():
     return data, warnings
 
-  for arch_dir in sorted(p for p in bench_dir.iterdir() if p.is_dir()):
-    arch = arch_dir.name
-    data[arch] = {}
-    for fname in ("results.Hawk", "results.Chez"):
-      result_file = arch_dir / fname
-      if not result_file.exists():
+  arch = "x64"
+  data[arch] = {}
+  for fname in ("results.Hawk", "results.Chez"):
+    result_file = bench_dir / fname
+    if not result_file.exists():
+      continue
+    for line in read(result_file).splitlines():
+      match = re.search(r"\+!CSVLINE!\+([^,]+),([^,]+),([0-9.]+)", line)
+      if not match:
         continue
-      for line in read(result_file).splitlines():
-        match = re.search(r"\+!CSVLINE!\+([^,]+),([^,]+),([0-9.]+)", line)
-        if not match:
-          continue
-        implementation, invocation, seconds = match.group(1), match.group(2), float(match.group(3))
-        name, sep, args = invocation.partition(":")
-        key = f"{name}:{args}" if sep else name
-        data[arch].setdefault(key, {"name": name, "args": args, "results": {}})
-        # Later rows overwrite earlier rows, so repeated runs keep the final result.
-        data[arch][key]["results"][implementation] = seconds
+      implementation, invocation, seconds = match.group(1), match.group(2), float(match.group(3))
+      name, sep, args = invocation.partition(":")
+      key = f"{name}:{args}" if sep else name
+      data[arch].setdefault(key, {"name": name, "args": args, "results": {}})
+      data[arch][key]["results"][implementation] = seconds
 
   for arch, benches in data.items():
     impls = {impl for bench in benches.values() for impl in bench["results"]}

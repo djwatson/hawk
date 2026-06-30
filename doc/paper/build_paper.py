@@ -141,19 +141,18 @@ def parse_csv_line(line):
 
 def parse_benchmarks():
   data = {}
-  for arch_dir in sorted(p for p in BENCH.iterdir() if p.is_dir()):
-    arch = arch_dir.name
-    data[arch] = {}
-    for fname in ("results.Hawk", "results.Chez"):
-      result = arch_dir / fname
-      if not result.exists():
+  arch = "x64"
+  data[arch] = {}
+  for fname in ("results.Hawk", "results.Chez"):
+    result = BENCH / fname
+    if not result.exists():
+      continue
+    for line in result.read_text(encoding="utf-8").splitlines():
+      parsed = parse_csv_line(line)
+      if parsed is None:
         continue
-      for line in result.read_text(encoding="utf-8").splitlines():
-        parsed = parse_csv_line(line)
-        if parsed is None:
-          continue
-        implementation, invocation, seconds = parsed
-        data[arch].setdefault(invocation, {})[implementation] = seconds
+      implementation, invocation, seconds = parsed
+      data[arch].setdefault(invocation, {})[implementation] = seconds
   return data
 
 
@@ -191,100 +190,97 @@ def geomean_percent(rows):
 
 def parse_time_breakdown():
   data = defaultdict(list)
-  for arch_dir in sorted(p for p in BENCH.iterdir() if p.is_dir()):
-    arch = arch_dir.name
-    result = arch_dir / "results.Hawk"
-    if not result.exists():
+  arch = "x64"
+  result = BENCH / "results.Hawk"
+  if not result.exists():
+    return data
+  name = on_trace = in_gc = vm = None
+  for line in result.read_text(encoding="utf-8").splitlines():
+    match = re.match(r"Testing (.+) under Hawk$", line)
+    if match:
+      name = match.group(1)
+      on_trace = in_gc = vm = None
       continue
-    name = on_trace = in_gc = vm = None
-    for line in result.read_text(encoding="utf-8").splitlines():
-      match = re.match(r"Testing (.+) under Hawk$", line)
-      if match:
-        name = match.group(1)
-        on_trace = in_gc = vm = None
-        continue
-      match = re.match(r"On-trace: ([0-9.]+)% \(([0-9.]+) ms\)", line)
-      if match:
-        on_trace = float(match.group(1))
-        continue
-      match = re.match(r"In-gc: ([0-9.]+)% \(([0-9.]+) ms\)", line)
-      if match:
-        in_gc = float(match.group(1))
-        continue
-      match = re.match(r"VM: ([0-9.]+)% \(([0-9.]+) ms\)", line)
-      if match:
-        vm = float(match.group(1))
-        if name is not None and on_trace is not None and in_gc is not None:
-          data[arch].append((name, vm, in_gc, on_trace))
+    match = re.match(r"On-trace: ([0-9.]+)% \(([0-9.]+) ms\)", line)
+    if match:
+      on_trace = float(match.group(1))
+      continue
+    match = re.match(r"In-gc: ([0-9.]+)% \(([0-9.]+) ms\)", line)
+    if match:
+      in_gc = float(match.group(1))
+      continue
+    match = re.match(r"VM: ([0-9.]+)% \(([0-9.]+) ms\)", line)
+    if match:
+      vm = float(match.group(1))
+      if name is not None and on_trace is not None and in_gc is not None:
+        data[arch].append((name, vm, in_gc, on_trace))
   return data
 
 
 def parse_trace_counts():
   data = defaultdict(list)
-  for arch_dir in sorted(p for p in BENCH.iterdir() if p.is_dir()):
-    arch = arch_dir.name
-    result = arch_dir / "results.Hawk"
-    if not result.exists():
+  arch = "x64"
+  result = BENCH / "results.Hawk"
+  if not result.exists():
+    return data
+  name = total = up = down = normal = side = None
+  for line in result.read_text(encoding="utf-8").splitlines():
+    match = re.match(r"Testing (.+) under Hawk$", line)
+    if match:
+      name = match.group(1)
+      total = up = down = normal = side = None
       continue
-    name = total = up = down = normal = side = None
-    for line in result.read_text(encoding="utf-8").splitlines():
-      match = re.match(r"Testing (.+) under Hawk$", line)
-      if match:
-        name = match.group(1)
-        total = up = down = normal = side = None
-        continue
-      match = re.match(r"Trace counts \(([0-9]+) total\):$", line)
-      if match:
-        total = int(match.group(1))
-        continue
-      match = re.match(r"\s+up-recursive: ([0-9]+)$", line)
-      if match:
-        up = int(match.group(1))
-        continue
-      match = re.match(r"\s+down-recursive: ([0-9]+)$", line)
-      if match:
-        down = int(match.group(1))
-        continue
-      match = re.match(r"\s+normal-loop: ([0-9]+)$", line)
-      if match:
-        normal = int(match.group(1))
-        continue
-      match = re.match(r"\s+side: ([0-9]+)$", line)
-      if match:
-        side = int(match.group(1))
-        if name is not None and total is not None and up is not None and down is not None and normal is not None:
-          data[arch].append((name, total, up, down, normal, side))
+    match = re.match(r"Trace counts \(([0-9]+) total\):$", line)
+    if match:
+      total = int(match.group(1))
+      continue
+    match = re.match(r"\s+up-recursive: ([0-9]+)$", line)
+    if match:
+      up = int(match.group(1))
+      continue
+    match = re.match(r"\s+down-recursive: ([0-9]+)$", line)
+    if match:
+      down = int(match.group(1))
+      continue
+    match = re.match(r"\s+normal-loop: ([0-9]+)$", line)
+    if match:
+      normal = int(match.group(1))
+      continue
+    match = re.match(r"\s+side: ([0-9]+)$", line)
+    if match:
+      side = int(match.group(1))
+      if name is not None and total is not None and up is not None and down is not None and normal is not None:
+        data[arch].append((name, total, up, down, normal, side))
   return data
 
 
 def parse_ablation_runtimes():
   data = defaultdict(list)
-  for arch_dir in sorted(p for p in BENCH.iterdir() if p.is_dir()):
-    arch = arch_dir.name
-    baseline_path = arch_dir / "results.Hawk"
-    if not baseline_path.exists():
+  arch = "x64"
+  baseline_path = BENCH / "results.Hawk"
+  if not baseline_path.exists():
+    return data
+  baseline = parse_hawk_runtimes(baseline_path)
+  for result in sorted(BENCH.glob("results.Hawk.*")):
+    if result.name == "results.Hawk":
       continue
-    baseline = parse_hawk_runtimes(baseline_path)
-    for result in sorted(arch_dir.glob("results.Hawk.*")):
-      if result.name == "results.Hawk":
-        continue
-      ablation = result.name.removeprefix("results.Hawk.")
-      runtimes = parse_hawk_runtimes(result)
-      common = sorted(set(baseline) & set(runtimes))
-      if not common:
-        continue
-      percents = [(runtimes[name] / baseline[name]) * 100.0 for name in common if baseline[name] > 0]
-      if not percents:
-        continue
-      mean = statistics.fmean(percents)
-      data[arch].append((
-        ablation,
-        mean,
-        statistics.pstdev(percents),
-        percentile(percents, 16.0),
-        percentile(percents, 84.0),
-        len(percents),
-      ))
+    ablation = result.name.removeprefix("results.Hawk.")
+    runtimes = parse_hawk_runtimes(result)
+    common = sorted(set(baseline) & set(runtimes))
+    if not common:
+      continue
+    percents = [(runtimes[name] / baseline[name]) * 100.0 for name in common if baseline[name] > 0]
+    if not percents:
+      continue
+    mean = statistics.fmean(percents)
+    data[arch].append((
+      ablation,
+      mean,
+      statistics.pstdev(percents),
+      percentile(percents, 16.0),
+      percentile(percents, 84.0),
+      len(percents),
+    ))
   return data
 
 
@@ -427,32 +423,31 @@ def write_trace_counts_chart(arch, rows):
 
 def parse_peak_memory():
   data = {}
-  for arch_dir in sorted(p for p in BENCH.iterdir() if p.is_dir()):
-    arch = arch_dir.name
-    data[arch] = {}
-    for impl_key, fname in [("Hawk", "results.Hawk"), ("Chez", "results.Chez")]:
-      result = arch_dir / fname
-      if not result.exists():
+  arch = "x64"
+  data[arch] = {}
+  for impl_key, fname in [("Hawk", "results.Hawk"), ("Chez", "results.Chez")]:
+    result = BENCH / fname
+    if not result.exists():
+      continue
+    current_name = None
+    current_runtime = None
+    for line in result.read_text(encoding="utf-8").splitlines():
+      match = re.match(r"Testing (\w+) under \w+$", line)
+      if match:
+        current_name = match.group(1)
+        current_runtime = None
         continue
-      current_name = None
-      current_runtime = None
-      for line in result.read_text(encoding="utf-8").splitlines():
-        match = re.match(r"Testing (\w+) under \w+$", line)
-        if match:
-          current_name = match.group(1)
+      parsed = parse_csv_line(line)
+      if parsed and current_name in TARGET_PEAK_BENCHMARKS:
+        current_runtime = parsed[2]
+        continue
+      if current_name and current_runtime and current_name in TARGET_PEAK_BENCHMARKS:
+        peak_match = re.match(r"PEAK (\d+) KB", line)
+        if peak_match:
+          peak_kb = int(peak_match.group(1))
+          data[arch].setdefault(current_name, {})[impl_key] = (peak_kb, current_runtime)
+          current_name = None
           current_runtime = None
-          continue
-        parsed = parse_csv_line(line)
-        if parsed and current_name in TARGET_PEAK_BENCHMARKS:
-          current_runtime = parsed[2]
-          continue
-        if current_name and current_runtime and current_name in TARGET_PEAK_BENCHMARKS:
-          peak_match = re.match(r"PEAK (\d+) KB", line)
-          if peak_match:
-            peak_kb = int(peak_match.group(1))
-            data[arch].setdefault(current_name, {})[impl_key] = (peak_kb, current_runtime)
-            current_name = None
-            current_runtime = None
   return data
 
 
@@ -551,10 +546,11 @@ def write_ablation_chart(arch, rows):
 
 
 def parse_sd_results():
-  """Read doc/bench/*/sd_results.md and return {arch: [(name, sd_pct)]}."""
+  """Read doc/bench/sd_results.md and return {arch: [(name, sd_pct)]}."""
   data = {}
-  for f in BENCH.glob("*/sd_results.md"):
-    arch = f.parent.name
+  f = BENCH / "sd_results.md"
+  if f.exists():
+    arch = "x64"
     rows = []
     for line in f.read_text(encoding="utf-8").splitlines():
       line = line.strip()
