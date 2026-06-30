@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(hawk C)
+project(hawk C ASM)
 
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
@@ -42,7 +42,6 @@ set(ASM_SOURCE asm_x64.c)
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
   set(ASM_SOURCE asm_aarch64.c)
 endif()
-
 if(ENABLE_FUZZ_TARGETS)
   add_subdirectory(fuzz)
 endif()
@@ -56,6 +55,7 @@ set(
   ftoa.c
   vm.c
   foreign.c
+  ffi.c
   types.c
   record.c
   rcgc.c
@@ -76,23 +76,10 @@ set(
   bc.c
 )
 
-set(libffi_search_dirs)
-if(DEFINED ENV{HOMEBREW_PREFIX})
-  list(APPEND libffi_search_dirs $ENV{HOMEBREW_PREFIX}/include $ENV{HOMEBREW_PREFIX}/lib)
-  list(APPEND libffi_search_dirs $ENV{HOMEBREW_PREFIX}/opt/libffi/include $ENV{HOMEBREW_PREFIX}/opt/libffi/lib)
+if(CMAKE_C_COMPILER_TARGET)
+  set(CMAKE_ASM_COMPILER_TARGET ${CMAKE_C_COMPILER_TARGET})
 endif()
-list(APPEND libffi_search_dirs /opt/homebrew/include /opt/homebrew/lib /opt/homebrew/opt/libffi/include /opt/homebrew/opt/libffi/lib /usr/local/include /usr/local/lib /usr/local/opt/libffi/include /usr/local/opt/libffi/lib)
-
-find_path(LIBFFI_INCLUDE_DIR NAMES ffi.h PATHS ${libffi_search_dirs})
-find_library(LIBFFI_LIBRARY NAMES ffi libffi PATHS ${libffi_search_dirs})
-
-if(NOT LIBFFI_INCLUDE_DIR)
-  message(FATAL_ERROR "ffi.h not found. Install libffi or set LIBFFI_INCLUDE_DIR.")
-endif()
-
-if(NOT LIBFFI_LIBRARY)
-  message(FATAL_ERROR "libffi not found. Install libffi or set LIBFFI_LIBRARY.")
-endif()
+list(APPEND hawk_sources ffi.S)
 
 set(zstd_search_dirs)
 if(DEFINED ENV{HOMEBREW_PREFIX})
@@ -221,7 +208,7 @@ function(configure_hawk_target TARGET)
   else()
     target_link_libraries(${TARGET} PRIVATE -Wl,--whole-archive hawk_core -Wl,--no-whole-archive)
   endif()
-  target_link_libraries(${TARGET} PRIVATE ${CAPSTONE_LIBRARY} ${LIBFFI_LIBRARY} ${ZSTD_LIBRARY} m)
+  target_link_libraries(${TARGET} PRIVATE ${CAPSTONE_LIBRARY} ${ZSTD_LIBRARY} m)
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(${TARGET} PRIVATE ${CMAKE_DL_LIBS})
     target_link_options(${TARGET} PRIVATE -rdynamic)
@@ -281,7 +268,6 @@ target_include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/util
   ${CMAKE_CURRENT_BINARY_DIR}
   ${CAPSTONE_INCLUDE_DIR}
-  ${LIBFFI_INCLUDE_DIR}
   ${ZSTD_INCLUDE_DIR}
 )
 
@@ -312,3 +298,4 @@ add_custom_target(
   COMMENT "Building source release tarball"
   VERBATIM
 )
+

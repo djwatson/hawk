@@ -2,8 +2,9 @@
 #define _DEFAULT_SOURCE
 
 #include <dlfcn.h>
-#include <ffi.h>
 #include <stdint.h>
+
+#include "ffi.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,69 +125,53 @@ gc_obj foreign_owned_string(char *raw) {
   return tag_string(str);
 }
 
-static ffi_type *foreign_prep_type(gc_obj type_obj, gc_obj value,
-                                   foreign_tmp *tmp) {
-  switch (foreign_parse_type(type_obj)) {
+static void foreign_fill_arg(foreign_type type, gc_obj value,
+                             foreign_tmp *tmp) {
+  switch (type) {
   case FOREIGN_TYPE_UINT8:
-    if (tmp && !is_fixnum(value)) {
+    if (!is_fixnum(value)) {
       abort();
     }
-    if (tmp) {
-      tmp->u8 = (uint8_t)to_fixnum(value);
-    }
-    return &ffi_type_uint8;
+    tmp->u8 = (uint8_t)to_fixnum(value);
+    return;
   case FOREIGN_TYPE_INT32:
-    if (tmp && !is_fixnum(value)) {
+    if (!is_fixnum(value)) {
       abort();
     }
-    if (tmp) {
-      tmp->i32 = (int32_t)to_fixnum(value);
-    }
-    return &ffi_type_sint32;
+    tmp->i32 = (int32_t)to_fixnum(value);
+    return;
   case FOREIGN_TYPE_INT64:
-    if (tmp && !is_fixnum(value)) {
+    if (!is_fixnum(value)) {
       abort();
     }
-    if (tmp) {
-      tmp->i64 = to_fixnum(value);
-    }
-    return &ffi_type_sint64;
+    tmp->i64 = to_fixnum(value);
+    return;
   case FOREIGN_TYPE_UINT64:
-    if (tmp && !is_fixnum(value)) {
+    if (!is_fixnum(value)) {
       abort();
     }
-    if (tmp) {
-      tmp->u64 = (uint64_t)to_fixnum(value);
-    }
-    return &ffi_type_uint64;
+    tmp->u64 = (uint64_t)to_fixnum(value);
+    return;
   case FOREIGN_TYPE_DOUBLE:
-    if (tmp && !is_fixnum(value) && !is_flonum(value)) {
+    if (!is_fixnum(value) && !is_flonum(value)) {
       abort();
     }
-    if (tmp) {
-      tmp->f64 = numeric_to_double(value);
-    }
-    return &ffi_type_double;
+    tmp->f64 = numeric_to_double(value);
+    return;
   case FOREIGN_TYPE_STRING:
-    if (tmp && !is_string(value)) {
+    if (!is_string(value)) {
       abort();
     }
-    if (tmp) {
-      /* This raw char* is not GC-stable if the foreign callee can reenter
-       * Scheme or otherwise trigger collection. */
-      tmp->ptr = to_string(value)->str;
-    }
-    return &ffi_type_pointer;
+    /* This raw char* is not GC-stable if the foreign callee can reenter
+     * Scheme or otherwise trigger collection. */
+    tmp->ptr = to_string(value)->str;
+    return;
   case FOREIGN_TYPE_GC_OBJ:
-    if (tmp) {
-      tmp->u64 = (uint64_t)value.value;
-    }
-    return &ffi_type_uint64;
+    tmp->u64 = (uint64_t)value.value;
+    return;
   case FOREIGN_TYPE_BOOL:
-    if (tmp) {
-      tmp->u8 = value.value == TRUE_REP.value ? 1 : 0;
-    }
-    return &ffi_type_uint8;
+    tmp->u8 = value.value == TRUE_REP.value ? 1 : 0;
+    return;
   default:
     abort();
   }
@@ -224,27 +209,23 @@ gc_obj do_foreign_call(gc_obj sig_obj, gc_obj const *args, uint8_t argcnt) {
     abort();
   }
 
-  ffi_cif cif;
-  ffi_type *arg_types[UINT8_MAX] = {nullptr};
-  void *arg_values[UINT8_MAX] = {nullptr};
+  foreign_type arg_types[UINT8_MAX];
+  void *arg_values[UINT8_MAX];
   foreign_tmp arg_tmps[UINT8_MAX] = {0};
-  gc_obj ret_type = to_cons(sig_obj)->a;
-  ffi_type *ret_ffi_type = foreign_prep_type(ret_type, UNDEFINED, nullptr);
   foreign_tmp ret_tmp = {0};
 
   gc_obj arg_types_list = to_cons(to_cons(to_cons(sig_obj)->b)->b)->a;
   for (uint8_t i = 0; i < sig.argcnt; i++) {
     auto entry = to_cons(arg_types_list);
-    arg_types[i] = foreign_prep_type(entry->a, args[i], &arg_tmps[i]);
+    foreign_type t = foreign_parse_type(entry->a);
+    foreign_fill_arg(t, args[i], &arg_tmps[i]);
+    arg_types[i] = t;
     arg_values[i] = &arg_tmps[i];
     arg_types_list = entry->b;
   }
 
-  if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, sig.argcnt, ret_ffi_type,
-                   arg_types) != FFI_OK) {
-    abort();
-  }
-  ffi_call(&cif, FFI_FN(sig.sym), &ret_tmp, arg_values);
+  ffi_call_foreign(sig.sym, &ret_tmp, sig.ret_type, arg_values, arg_types,
+                   sig.argcnt);
   gc_obj out = foreign_return_value(to_cons(sig_obj)->a, ret_tmp);
   gc_remove_root((const void *)&sig_obj, 0);
   return out;

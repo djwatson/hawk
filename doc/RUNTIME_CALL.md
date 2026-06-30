@@ -4,7 +4,7 @@
 
 Replace the per-primitive opcode expansion from `5f06315` with one generic
 fast-call opcode, e.g. `RUNTIME_CALL`. The compiler lowers selected literal
-`sys:FOREIGN_CALL` signatures to this opcode, avoiding libffi/signature parsing
+`sys:FOREIGN_CALL` signatures to this opcode, avoiding ffi/signature parsing
 in the VM without adding `ASSQ`, `EQUAL`, `LENGTH`, `LISTP`, `STRING_COPY`, etc.
 as separate bytecodes and JIT IR ops.
 
@@ -55,7 +55,7 @@ as separate bytecodes and JIT IR ops.
 
 - The main performance issue is `do_foreign_call`: repeated signature parsing,
   `dlsym`, `ffi_prep_cif`, and `ffi_call`.
-- A single extra descriptor lookup/switch is acceptable compared with libffi
+- A single extra descriptor lookup/switch is acceptable compared with the old ffi
   overhead.
 - Public Scheme API should stay unchanged; this is a compiler/VM lowering
   optimization, not a new user-visible primitive set.

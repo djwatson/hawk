@@ -23,6 +23,7 @@ list(GET GCC_CROSS_DIRS 0 GCC_TOOLCHAIN_DIR)
 # Tell Clang which target to build for.
 set(CMAKE_C_COMPILER_TARGET   ${TARGET_TRIPLE})
 set(CMAKE_CXX_COMPILER_TARGET ${TARGET_TRIPLE})
+set(CMAKE_ASM_COMPILER_TARGET ${TARGET_TRIPLE})
 
 # Clang needs help finding the GCC-provided startup files and libgcc.
 set(COMMON_TARGET_FLAGS "--target=${TARGET_TRIPLE} --sysroot=${SYSROOT} -B${GCC_TOOLCHAIN_DIR}")
@@ -30,6 +31,7 @@ set(COMMON_TARGET_FLAGS "--target=${TARGET_TRIPLE} --sysroot=${SYSROOT} -B${GCC_
 # Propagate flags to all build types.
 set(CMAKE_C_FLAGS_INIT   "${COMMON_TARGET_FLAGS}")
 set(CMAKE_CXX_FLAGS_INIT "${COMMON_TARGET_FLAGS}")
+set(CMAKE_ASM_FLAGS_INIT "${COMMON_TARGET_FLAGS}")
 
 # Linker flags (use lld, surface libgcc, and undo the sysroot override for absolute GNU ld scripts).
 set(COMMON_LINK_FLAGS "-fuse-ld=lld -L${GCC_TOOLCHAIN_DIR} -Wl,--sysroot=/")

@@ -109,7 +109,6 @@ Would be super nice to have:
 
 # VM backlog
 
-* Replace libffi with a tiny faster version, merge code with jit, map to (foreign c) interface
 * Fix (number?) Type rep to be tower of numbers like ports will be
 * Adding special math case-lambda type can remove need to inline bc at all
 * use destination-driven as in previous??
