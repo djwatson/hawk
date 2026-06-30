@@ -25,7 +25,7 @@ typedef struct {
 #define tag_header(ptr, tag) TAG_HEADER(ptr, tag)
 
 #define FIXNUM_SHIFT 3
-#define TAG_FIXNUM_VALUE(n) ((int64_t)(n) << FIXNUM_SHIFT)
+#define TAG_FIXNUM_VALUE(n) ((int64_t)((uint64_t)(n) << FIXNUM_SHIFT))
 #define TAG_FIXNUM_LITERAL(n) ((gc_obj){.value = TAG_FIXNUM_VALUE(n)})
 static inline gc_obj tag_fixnum(int64_t n) {
   return (gc_obj){.value = TAG_FIXNUM_VALUE(n)};
