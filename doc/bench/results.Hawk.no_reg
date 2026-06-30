@@ -1,6 +1,6 @@
 
 ****************************
-Benchmarking Hawk on Tue Jun 30 10:04:50 AM PDT 2026 under Linux davejwatson-B450-I-AORUS-PRO-WIFI 7.0.0-22-generic #22-Ubuntu SMP PREEMPT_DYNAMIC Mon May 25 15:54:34 UTC 2026 x86_64 GNU/Linux
+Benchmarking Hawk on Tue Jun 30 10:18:54 AM PDT 2026 under Linux davejwatson-B450-I-AORUS-PRO-WIFI 7.0.0-22-generic #22-Ubuntu SMP PREEMPT_DYNAMIC Mon May 25 15:54:34 UTC 2026 x86_64 GNU/Linux
 
 Testing browse under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -8,9 +8,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/browse.scm /tmp/r7rs-benchmarks/Hawk/browse.scm
 Running...
 Running browse:2000
-Elapsed time: 0.726195265 seconds (0.726) for browse:2000
-+!CSVLINE!+hawk,browse:2000,0.726195265
-PEAK 49896 KB
+Elapsed time: 0.897078267 seconds (0.897) for browse:2000
++!CSVLINE!+hawk,browse:2000,0.897078267
+PEAK 49640 KB
 
 Testing deriv under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -18,9 +18,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/deriv.scm /tmp/r7rs-benchmarks/Hawk/deriv.scm
 Running...
 Running deriv:10000000
-Elapsed time: 0.850041969 seconds (0.85) for deriv:10000000
-+!CSVLINE!+hawk,deriv:10000000,0.850041969
-PEAK 45336 KB
+Elapsed time: 0.912365848 seconds (0.912) for deriv:10000000
++!CSVLINE!+hawk,deriv:10000000,0.912365848
+PEAK 46568 KB
 
 Testing destruc under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -28,9 +28,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/destruc.scm /tmp/r7rs-benchmarks/Hawk/destruc.scm
 Running...
 Running destruc:600:50:4000
-Elapsed time: 1.333827474 seconds (1.334) for destruc:600:50:4000
-+!CSVLINE!+hawk,destruc:600:50:4000,1.333827474
-PEAK 52688 KB
+Elapsed time: 1.725187289 seconds (1.725) for destruc:600:50:4000
++!CSVLINE!+hawk,destruc:600:50:4000,1.725187289
+PEAK 48332 KB
 
 Testing diviter under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -38,9 +38,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/diviter.scm /tmp/r7rs-benchmarks/Hawk/diviter.scm
 Running...
 Running diviter:1000:1000000
-Elapsed time: 1.027430101 seconds (1.027) for diviter:1000:1000000
-+!CSVLINE!+hawk,diviter:1000:1000000,1.027430101
-PEAK 45420 KB
+Elapsed time: 1.14040344 seconds (1.14) for diviter:1000:1000000
++!CSVLINE!+hawk,diviter:1000:1000000,1.14040344
+PEAK 45336 KB
 
 Testing divrec under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -48,9 +48,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/divrec.scm /tmp/r7rs-benchmarks/Hawk/divrec.scm
 Running...
 Running divrec:1000:1000000
-Elapsed time: 1.594350932 seconds (1.594) for divrec:1000:1000000
-+!CSVLINE!+hawk,divrec:1000:1000000,1.594350932
-PEAK 47268 KB
+Elapsed time: 1.716110636 seconds (1.716) for divrec:1000:1000000
++!CSVLINE!+hawk,divrec:1000:1000000,1.716110636
+PEAK 45308 KB
 
 Testing puzzle under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -58,9 +58,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/puzzle.scm /tmp/r7rs-benchmarks/Hawk/puzzle.scm
 Running...
 Running puzzle:1000
-Elapsed time: 1.349980851 seconds (1.35) for puzzle:1000
-+!CSVLINE!+hawk,puzzle:1000,1.349980851
-PEAK 50060 KB
+Elapsed time: 1.565175904 seconds (1.565) for puzzle:1000
++!CSVLINE!+hawk,puzzle:1000,1.565175904
+PEAK 48672 KB
 
 Testing triangl under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -68,9 +68,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/triangl.scm /tmp/r7rs-benchmarks/Hawk/triangl.scm
 Running...
 Running triangl:22:1:50
-Elapsed time: 0.560681996 seconds (0.561) for triangl:22:1:50
-+!CSVLINE!+hawk,triangl:22:1:50,0.560681996
-PEAK 29412 KB
+Elapsed time: 0.83666454 seconds (0.837) for triangl:22:1:50
++!CSVLINE!+hawk,triangl:22:1:50,0.83666454
+PEAK 28100 KB
 
 Testing tak under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -78,9 +78,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/tak.scm /tmp/r7rs-benchmarks/Hawk/tak.scm
 Running...
 Running tak:40:20:11:1
-Elapsed time: 1.236277074 seconds (1.236) for tak:40:20:11:1
-+!CSVLINE!+hawk,tak:40:20:11:1,1.236277074
-PEAK 14856 KB
+Elapsed time: 1.699019891 seconds (1.699) for tak:40:20:11:1
++!CSVLINE!+hawk,tak:40:20:11:1,1.699019891
+PEAK 13772 KB
 
 Testing takl under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -88,9 +88,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/takl.scm /tmp/r7rs-benchmarks/Hawk/takl.scm
 Running...
 Running takl:40:20:12:1
-Elapsed time: 1.560457406 seconds (1.56) for takl:40:20:12:1
-+!CSVLINE!+hawk,takl:40:20:12:1,1.560457406
-PEAK 15452 KB
+Elapsed time: 3.029308343 seconds (3.029) for takl:40:20:12:1
++!CSVLINE!+hawk,takl:40:20:12:1,3.029308343
+PEAK 16088 KB
 
 Testing ntakl under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -98,9 +98,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/ntakl.scm /tmp/r7rs-benchmarks/Hawk/ntakl.scm
 Running...
 Running ntakl:40:20:12:1
-Elapsed time: 1.540953325 seconds (1.541) for ntakl:40:20:12:1
-+!CSVLINE!+hawk,ntakl:40:20:12:1,1.540953325
-PEAK 16272 KB
+Elapsed time: 3.076183621 seconds (3.076) for ntakl:40:20:12:1
++!CSVLINE!+hawk,ntakl:40:20:12:1,3.076183621
+PEAK 15348 KB
 
 Testing cpstak under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -108,9 +108,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/cpstak.scm /tmp/r7rs-benchmarks/Hawk/cpstak.scm
 Running...
 Running cpstak:40:20:11:1
-Elapsed time: 1.733326938 seconds (1.733) for cpstak:40:20:11:1
-+!CSVLINE!+hawk,cpstak:40:20:11:1,1.733326938
-PEAK 46652 KB
+Elapsed time: 2.770317306 seconds (2.77) for cpstak:40:20:11:1
++!CSVLINE!+hawk,cpstak:40:20:11:1,2.770317306
+PEAK 48740 KB
 
 Testing ctak under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -118,9 +118,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/ctak.scm /tmp/r7rs-benchmarks/Hawk/ctak.scm
 Running...
 Running ctak:32:16:8:1
-Elapsed time: 0.956625755 seconds (0.957) for ctak:32:16:8:1
-+!CSVLINE!+hawk,ctak:32:16:8:1,0.956625755
-PEAK 48152 KB
+Elapsed time: 1.013885914 seconds (1.014) for ctak:32:16:8:1
++!CSVLINE!+hawk,ctak:32:16:8:1,1.013885914
+PEAK 46672 KB
 
 Testing fib under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -128,9 +128,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/fib.scm /tmp/r7rs-benchmarks/Hawk/fib.scm
 Running...
 Running fib:40:5
-Elapsed time: 2.211701182 seconds (2.212) for fib:40:5
-+!CSVLINE!+hawk,fib:40:5,2.211701182
-PEAK 12424 KB
+Elapsed time: 2.750206372 seconds (2.75) for fib:40:5
++!CSVLINE!+hawk,fib:40:5,2.750206372
+PEAK 14260 KB
 
 Testing fibc under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -138,9 +138,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/fibc.scm /tmp/r7rs-benchmarks/Hawk/fibc.scm
 Running...
 Running fibc:30:10
-Elapsed time: 0.700359682 seconds (0.7) for fibc:30:10
-+!CSVLINE!+hawk,fibc:30:10,0.700359682
-PEAK 46384 KB
+Elapsed time: 0.607045844 seconds (0.607) for fibc:30:10
++!CSVLINE!+hawk,fibc:30:10,0.607045844
+PEAK 45368 KB
 
 Testing fibfp under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -148,9 +148,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/fibfp.scm /tmp/r7rs-benchmarks/Hawk/fibfp.scm
 Running...
 Running fibfp:35.0:10
-Elapsed time: 0.619720279 seconds (0.62) for fibfp:35.0:10
-+!CSVLINE!+hawk,fibfp:35.0:10,0.619720279
-PEAK 46592 KB
+Elapsed time: 0.923885285 seconds (0.924) for fibfp:35.0:10
++!CSVLINE!+hawk,fibfp:35.0:10,0.923885285
+PEAK 46712 KB
 
 Testing sum under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -158,9 +158,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/sum.scm /tmp/r7rs-benchmarks/Hawk/sum.scm
 Running...
 Running sum:10000:200000
-Elapsed time: 0.858252047 seconds (0.858) for sum:10000:200000
-+!CSVLINE!+hawk,sum:10000:200000,0.858252047
-PEAK 33952 KB
+Elapsed time: 1.364744362 seconds (1.365) for sum:10000:200000
++!CSVLINE!+hawk,sum:10000:200000,1.364744362
+PEAK 33220 KB
 
 Testing sumfp under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -168,9 +168,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/sumfp.scm /tmp/r7rs-benchmarks/Hawk/sumfp.scm
 Running...
 Running sumfp:1000000.0:500
-Elapsed time: 0.376159227 seconds (0.376) for sumfp:1000000.0:500
-+!CSVLINE!+hawk,sumfp:1000000.0:500,0.376159227
-PEAK 14996 KB
+Elapsed time: 1.444839697 seconds (1.445) for sumfp:1000000.0:500
++!CSVLINE!+hawk,sumfp:1000000.0:500,1.444839697
+PEAK 45944 KB
 
 Testing fft under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -178,9 +178,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/fft.scm /tmp/r7rs-benchmarks/Hawk/fft.scm
 Running...
 Running fft:65536:100
-Elapsed time: 0.174361561 seconds (0.174) for fft:65536:100
-+!CSVLINE!+hawk,fft:65536:100,0.174361561
-PEAK 48828 KB
+Elapsed time: 0.19365536 seconds (0.194) for fft:65536:100
++!CSVLINE!+hawk,fft:65536:100,0.19365536
+PEAK 48600 KB
 
 Testing mbrot under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -188,9 +188,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/mbrot.scm /tmp/r7rs-benchmarks/Hawk/mbrot.scm
 Running...
 Running mbrot:75:1000
-Elapsed time: 0.405994196 seconds (0.406) for mbrot:75:1000
-+!CSVLINE!+hawk,mbrot:75:1000,0.405994196
-PEAK 46840 KB
+Elapsed time: 0.812399369 seconds (0.812) for mbrot:75:1000
++!CSVLINE!+hawk,mbrot:75:1000,0.812399369
+PEAK 47508 KB
 
 Testing mbrotZ under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -198,9 +198,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/mbrotZ.scm /tmp/r7rs-benchmarks/Hawk/mbrotZ.scm
 Running...
 Running mbrotZ:75:1000
-Elapsed time: 3.972950729 seconds (3.973) for mbrotZ:75:1000
-+!CSVLINE!+hawk,mbrotZ:75:1000,3.972950729
-PEAK 46152 KB
+Elapsed time: 4.486045315 seconds (4.486) for mbrotZ:75:1000
++!CSVLINE!+hawk,mbrotZ:75:1000,4.486045315
+PEAK 46932 KB
 
 Testing nucleic under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -208,9 +208,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/nucleic.scm /tmp/r7rs-benchmarks/Hawk/nucleic.scm
 Running...
 Running nucleic:50
-Elapsed time: 0.647617595 seconds (0.648) for nucleic:50
-+!CSVLINE!+hawk,nucleic:50,0.647617595
-PEAK 55176 KB
+Elapsed time: 0.906479294 seconds (0.906) for nucleic:50
++!CSVLINE!+hawk,nucleic:50,0.906479294
+PEAK 53788 KB
 
 Testing pi under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -218,9 +218,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/pi.scm /tmp/r7rs-benchmarks/Hawk/pi.scm
 Running...
 Running pi:50:500:50:100
-Elapsed time: 0.112798354 seconds (0.113) for pi:50:500:50:100
-+!CSVLINE!+hawk,pi:50:500:50:100,0.112798354
-PEAK 50432 KB
+Elapsed time: 0.112175107 seconds (0.112) for pi:50:500:50:100
++!CSVLINE!+hawk,pi:50:500:50:100,0.112175107
+PEAK 48544 KB
 
 Testing pnpoly under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -228,9 +228,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/pnpoly.scm /tmp/r7rs-benchmarks/Hawk/pnpoly.scm
 Running...
 Running pnpoly:1000000
-Elapsed time: 0.881566305 seconds (0.882) for pnpoly:1000000
-+!CSVLINE!+hawk,pnpoly:1000000,0.881566305
-PEAK 46612 KB
+Elapsed time: 1.306953306 seconds (1.307) for pnpoly:1000000
++!CSVLINE!+hawk,pnpoly:1000000,1.306953306
+PEAK 46092 KB
 
 Testing ray under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -238,9 +238,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/ray.scm /tmp/r7rs-benchmarks/Hawk/ray.scm
 Running...
 Running ray:50
-Elapsed time: 0.443104183 seconds (0.443) for ray:50
-+!CSVLINE!+hawk,ray:50,0.443104183
-PEAK 49828 KB
+Elapsed time: 0.54741043 seconds (0.547) for ray:50
++!CSVLINE!+hawk,ray:50,0.54741043
+PEAK 48688 KB
 
 Testing simplex under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -248,9 +248,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/simplex.scm /tmp/r7rs-benchmarks/Hawk/simplex.scm
 Running...
 Running simplex:1000000
-Elapsed time: 0.989617698 seconds (0.99) for simplex:1000000
-+!CSVLINE!+hawk,simplex:1000000,0.989617698
-PEAK 52120 KB
+Elapsed time: 1.108080118 seconds (1.108) for simplex:1000000
++!CSVLINE!+hawk,simplex:1000000,1.108080118
+PEAK 53600 KB
 
 Testing ack under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -258,9 +258,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/ack.scm /tmp/r7rs-benchmarks/Hawk/ack.scm
 Running...
 Running ack:3:12:2
-Elapsed time: 1.457836512 seconds (1.458) for ack:3:12:2
-+!CSVLINE!+hawk,ack:3:12:2,1.457836512
-PEAK 15908 KB
+Elapsed time: 1.857620963 seconds (1.858) for ack:3:12:2
++!CSVLINE!+hawk,ack:3:12:2,1.857620963
+PEAK 16092 KB
 
 Testing array1 under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -268,9 +268,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/array1.scm /tmp/r7rs-benchmarks/Hawk/array1.scm
 Running...
 Running array1:1000000:500
-Elapsed time: 1.782970022 seconds (1.783) for array1:1000000:500
-+!CSVLINE!+hawk,array1:1000000:500,1.782970022
-PEAK 80004 KB
+Elapsed time: 1.969135854 seconds (1.969) for array1:1000000:500
++!CSVLINE!+hawk,array1:1000000:500,1.969135854
+PEAK 80504 KB
 
 Testing string under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -278,9 +278,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/string.scm /tmp/r7rs-benchmarks/Hawk/string.scm
 Running...
 Running string:500000:100
-Elapsed time: 0.196078467 seconds (0.196) for string:500000:100
-+!CSVLINE!+hawk,string:500000:100,0.196078467
-PEAK 46544 KB
+Elapsed time: 0.352924561 seconds (0.353) for string:500000:100
++!CSVLINE!+hawk,string:500000:100,0.352924561
+PEAK 47212 KB
 
 Testing sum1 under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -288,9 +288,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/sum1.scm /tmp/r7rs-benchmarks/Hawk/sum1.scm
 Running...
 Running sum1:25
-Elapsed time: 0.214860393 seconds (0.215) for sum1:25
-+!CSVLINE!+hawk,sum1:25,0.214860393
-PEAK 45176 KB
+Elapsed time: 0.229926865 seconds (0.23) for sum1:25
++!CSVLINE!+hawk,sum1:25,0.229926865
+PEAK 46384 KB
 
 Testing cat under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -298,9 +298,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/cat.scm /tmp/r7rs-benchmarks/Hawk/cat.scm
 Running...
 Running cat:50
-Elapsed time: 0.772104039 seconds (0.772) for cat:50
-+!CSVLINE!+hawk,cat:50,0.772104039
-PEAK 15844 KB
+Elapsed time: 0.946005803 seconds (0.946) for cat:50
++!CSVLINE!+hawk,cat:50,0.946005803
+PEAK 15072 KB
 
 Testing tail under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -308,9 +308,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/tail.scm /tmp/r7rs-benchmarks/Hawk/tail.scm
 Running...
 Running tail:50
-Elapsed time: 0.420318227 seconds (0.42) for tail:50
-+!CSVLINE!+hawk,tail:50,0.420318227
-PEAK 68200 KB
+Elapsed time: 0.439307596 seconds (0.439) for tail:50
++!CSVLINE!+hawk,tail:50,0.439307596
+PEAK 66628 KB
 
 Testing wc under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -318,9 +318,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/wc.scm /tmp/r7rs-benchmarks/Hawk/wc.scm
 Running...
 Running wc:inputs/bib:50
-Elapsed time: 0.794193189 seconds (0.794) for wc:inputs/bib:50
-+!CSVLINE!+hawk,wc:inputs/bib:50,0.794193189
-PEAK 14964 KB
+Elapsed time: 0.892019417 seconds (0.892) for wc:inputs/bib:50
++!CSVLINE!+hawk,wc:inputs/bib:50,0.892019417
+PEAK 14984 KB
 
 Testing read1 under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -328,9 +328,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/read1.scm /tmp/r7rs-benchmarks/Hawk/read1.scm
 Running...
 Running read1:2500
-Elapsed time: 0.640331739 seconds (0.64) for read1:2500
-+!CSVLINE!+hawk,read1:2500,0.640331739
-PEAK 45180 KB
+Elapsed time: 0.71163938 seconds (0.712) for read1:2500
++!CSVLINE!+hawk,read1:2500,0.71163938
+PEAK 44936 KB
 
 Testing compiler under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -338,9 +338,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/compiler.scm /tmp/r7rs-benchmarks/Hawk/compiler.scm
 Running...
 Running compiler:2000
-Elapsed time: 1.566547104 seconds (1.567) for compiler:2000
-+!CSVLINE!+hawk,compiler:2000,1.566547104
-PEAK 125180 KB
+Elapsed time: 1.780256505 seconds (1.78) for compiler:2000
++!CSVLINE!+hawk,compiler:2000,1.780256505
+PEAK 121396 KB
 
 Testing conform under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -348,9 +348,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/conform.scm /tmp/r7rs-benchmarks/Hawk/conform.scm
 Running...
 Running conform:500
-Elapsed time: 1.19202686 seconds (1.192) for conform:500
-+!CSVLINE!+hawk,conform:500,1.19202686
-PEAK 76024 KB
+Elapsed time: 1.3042156 seconds (1.304) for conform:500
++!CSVLINE!+hawk,conform:500,1.3042156
+PEAK 75648 KB
 
 Testing dynamic under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -358,9 +358,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/dynamic.scm /tmp/r7rs-benchmarks/Hawk/dynamic.scm
 Running...
 Running dynamic:500
-Elapsed time: 1.817626759 seconds (1.818) for dynamic:500
-+!CSVLINE!+hawk,dynamic:500,1.817626759
-PEAK 135172 KB
+Elapsed time: 1.886505821 seconds (1.887) for dynamic:500
++!CSVLINE!+hawk,dynamic:500,1.886505821
+PEAK 133252 KB
 
 Testing earley under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -368,9 +368,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/earley.scm /tmp/r7rs-benchmarks/Hawk/earley.scm
 Running...
 Running earley:1
-Elapsed time: 1.880938439 seconds (1.881) for earley:1
-+!CSVLINE!+hawk,earley:1,1.880938439
-PEAK 1709680 KB
+Elapsed time: 1.896351233 seconds (1.896) for earley:1
++!CSVLINE!+hawk,earley:1,1.896351233
+PEAK 1719736 KB
 
 Testing graphs under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -378,9 +378,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/graphs.scm /tmp/r7rs-benchmarks/Hawk/graphs.scm
 Running...
 Running graphs:7:3
-Elapsed time: 1.357532305 seconds (1.358) for graphs:7:3
-+!CSVLINE!+hawk,graphs:7:3,1.357532305
-PEAK 120540 KB
+Elapsed time: 1.521217809 seconds (1.521) for graphs:7:3
++!CSVLINE!+hawk,graphs:7:3,1.521217809
+PEAK 120628 KB
 
 Testing lattice under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -388,9 +388,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/lattice.scm /tmp/r7rs-benchmarks/Hawk/lattice.scm
 Running...
 Running lattice:44:10
-Elapsed time: 1.819586118 seconds (1.82) for lattice:44:10
-+!CSVLINE!+hawk,lattice:44:10,1.819586118
-PEAK 50792 KB
+Elapsed time: 2.245351967 seconds (2.245) for lattice:44:10
++!CSVLINE!+hawk,lattice:44:10,2.245351967
+PEAK 49448 KB
 
 Testing matrix under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -398,9 +398,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/matrix.scm /tmp/r7rs-benchmarks/Hawk/matrix.scm
 Running...
 Running matrix:5:5:2500
-Elapsed time: 0.904163848 seconds (0.904) for matrix:5:5:2500
-+!CSVLINE!+hawk,matrix:5:5:2500,0.904163848
-PEAK 51424 KB
+Elapsed time: 0.995781582 seconds (0.996) for matrix:5:5:2500
++!CSVLINE!+hawk,matrix:5:5:2500,0.995781582
+PEAK 51040 KB
 
 Testing maze under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -408,9 +408,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/maze.scm /tmp/r7rs-benchmarks/Hawk/maze.scm
 Running...
 Running maze:20:7:10000
-Elapsed time: 0.407394937 seconds (0.407) for maze:20:7:10000
-+!CSVLINE!+hawk,maze:20:7:10000,0.407394937
-PEAK 54420 KB
+Elapsed time: 0.488201086 seconds (0.488) for maze:20:7:10000
++!CSVLINE!+hawk,maze:20:7:10000,0.488201086
+PEAK 51516 KB
 
 Testing mazefun under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -418,9 +418,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/mazefun.scm /tmp/r7rs-benchmarks/Hawk/mazefun.scm
 Running...
 Running mazefun:11:11:10000
-Elapsed time: 1.465941708 seconds (1.466) for mazefun:11:11:10000
-+!CSVLINE!+hawk,mazefun:11:11:10000,1.465941708
-PEAK 47568 KB
+Elapsed time: 2.333000519 seconds (2.333) for mazefun:11:11:10000
++!CSVLINE!+hawk,mazefun:11:11:10000,2.333000519
+PEAK 48932 KB
 
 Testing nqueens under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -428,9 +428,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/nqueens.scm /tmp/r7rs-benchmarks/Hawk/nqueens.scm
 Running...
 Running nqueens:13:10
-Elapsed time: 2.779725997 seconds (2.78) for nqueens:13:10
-+!CSVLINE!+hawk,nqueens:13:10,2.779725997
-PEAK 51420 KB
+Elapsed time: 3.671379759 seconds (3.671) for nqueens:13:10
++!CSVLINE!+hawk,nqueens:13:10,3.671379759
+PEAK 50004 KB
 
 Testing paraffins under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -438,9 +438,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/paraffins.scm /tmp/r7rs-benchmarks/Hawk/paraffins.scm
 Running...
 Running paraffins:23:10
-Elapsed time: 3.794796795 seconds (3.795) for paraffins:23:10
-+!CSVLINE!+hawk,paraffins:23:10,3.794796795
-PEAK 531028 KB
+Elapsed time: 4.291066877 seconds (4.291) for paraffins:23:10
++!CSVLINE!+hawk,paraffins:23:10,4.291066877
+PEAK 531112 KB
 
 Testing parsing under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -448,9 +448,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/parsing.scm /tmp/r7rs-benchmarks/Hawk/parsing.scm
 Running...
 Running parsing:2500
-Elapsed time: 1.556208866 seconds (1.556) for parsing:2500
-+!CSVLINE!+hawk,parsing:2500,1.556208866
-PEAK 56984 KB
+Elapsed time: 1.676579859 seconds (1.677) for parsing:2500
++!CSVLINE!+hawk,parsing:2500,1.676579859
+PEAK 60516 KB
 
 Testing peval under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -458,9 +458,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/peval.scm /tmp/r7rs-benchmarks/Hawk/peval.scm
 Running...
 Running peval:2000
-Elapsed time: 1.462178113 seconds (1.462) for peval:2000
-+!CSVLINE!+hawk,peval:2000,1.462178113
-PEAK 53420 KB
+Elapsed time: 1.54740213 seconds (1.547) for peval:2000
++!CSVLINE!+hawk,peval:2000,1.54740213
+PEAK 51964 KB
 
 Testing primes under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -468,9 +468,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/primes.scm /tmp/r7rs-benchmarks/Hawk/primes.scm
 Running...
 Running primes:1000:10000
-Elapsed time: 0.505673789 seconds (0.506) for primes:1000:10000
-+!CSVLINE!+hawk,primes:1000:10000,0.505673789
-PEAK 48176 KB
+Elapsed time: 0.51109356 seconds (0.511) for primes:1000:10000
++!CSVLINE!+hawk,primes:1000:10000,0.51109356
+PEAK 46356 KB
 
 Testing quicksort under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -478,9 +478,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/quicksort.scm /tmp/r7rs-benchmarks/Hawk/quicksort.scm
 Running...
 Running quicksort:10000:2500
-Elapsed time: 2.01979035 seconds (2.02) for quicksort:10000:2500
-+!CSVLINE!+hawk,quicksort:10000:2500,2.01979035
-PEAK 48068 KB
+Elapsed time: 2.113019402 seconds (2.113) for quicksort:10000:2500
++!CSVLINE!+hawk,quicksort:10000:2500,2.113019402
+PEAK 47640 KB
 
 Testing scheme under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -488,9 +488,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/scheme.scm /tmp/r7rs-benchmarks/Hawk/scheme.scm
 Running...
 Running scheme:100000
-Elapsed time: 1.380013064 seconds (1.38) for scheme:100000
-+!CSVLINE!+hawk,scheme:100000,1.380013064
-PEAK 53816 KB
+Elapsed time: 1.66476742 seconds (1.665) for scheme:100000
++!CSVLINE!+hawk,scheme:100000,1.66476742
+PEAK 52256 KB
 
 Testing slatex under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -498,9 +498,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/slatex.scm /tmp/r7rs-benchmarks/Hawk/slatex.scm
 Running...
 Running slatex:500
-Elapsed time: 1.377063651 seconds (1.377) for slatex:500
-+!CSVLINE!+hawk,slatex:500,1.377063651
-PEAK 57484 KB
+Elapsed time: 1.411372276 seconds (1.411) for slatex:500
++!CSVLINE!+hawk,slatex:500,1.411372276
+PEAK 56500 KB
 
 Testing chudnovsky under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -508,9 +508,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/chudnovsky.scm /tmp/r7rs-benchmarks/Hawk/chudnovsky.scm
 Running...
 Running chudnovsky:50:500:50:1000
-Elapsed time: 0.08357355 seconds (0.084) for chudnovsky:50:500:50:1000
-+!CSVLINE!+hawk,chudnovsky:50:500:50:1000,0.08357355
-PEAK 46252 KB
+Elapsed time: 0.095108465 seconds (0.095) for chudnovsky:50:500:50:1000
++!CSVLINE!+hawk,chudnovsky:50:500:50:1000,0.095108465
+PEAK 46812 KB
 
 Testing nboyer under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -518,9 +518,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/nboyer.scm /tmp/r7rs-benchmarks/Hawk/nboyer.scm
 Running...
 Running nboyer:5:1
-Elapsed time: 1.564399694 seconds (1.564) for nboyer:5:1
-+!CSVLINE!+hawk,nboyer:5:1,1.564399694
-PEAK 454416 KB
+Elapsed time: 1.57254165 seconds (1.573) for nboyer:5:1
++!CSVLINE!+hawk,nboyer:5:1,1.57254165
+PEAK 432604 KB
 
 Testing sboyer under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -528,9 +528,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/sboyer.scm /tmp/r7rs-benchmarks/Hawk/sboyer.scm
 Running...
 Running sboyer:5:1
-Elapsed time: 0.539296677 seconds (0.539) for sboyer:5:1
-+!CSVLINE!+hawk,sboyer:5:1,0.539296677
-PEAK 162536 KB
+Elapsed time: 0.62220123 seconds (0.622) for sboyer:5:1
++!CSVLINE!+hawk,sboyer:5:1,0.62220123
+PEAK 158868 KB
 
 Testing gcbench under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -572,9 +572,9 @@ Creating 8 trees of depth 18
 GCBench: Top down construction
 GCBench: Bottom up construction
  Total memory available= ???????? bytes  Free memory= ???????? bytes
-Elapsed time: 0.512745001 seconds (0.513) for gcbench:20:1
-+!CSVLINE!+hawk,gcbench:20:1,0.512745001
-PEAK 162288 KB
+Elapsed time: 0.496470785 seconds (0.496) for gcbench:20:1
++!CSVLINE!+hawk,gcbench:20:1,0.496470785
+PEAK 161660 KB
 
 Testing mperm under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -582,9 +582,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/mperm.scm /tmp/r7rs-benchmarks/Hawk/mperm.scm
 Running...
 Running mperm:20:10:2:1
-Elapsed time: 3.120959831 seconds (3.121) for mperm:20:10:2:1
-+!CSVLINE!+hawk,mperm:20:10:2:1,3.120959831
-PEAK 722520 KB
+Elapsed time: 3.39142876 seconds (3.391) for mperm:20:10:2:1
++!CSVLINE!+hawk,mperm:20:10:2:1,3.39142876
+PEAK 724364 KB
 
 Testing equal under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -592,9 +592,9 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/equal.scm /tmp/r7rs-benchmarks/Hawk/equal.scm
 Running...
 Running equal:100:100:8:1000:2000:5000
-Elapsed time: 0.243045993 seconds (0.243) for equal:100:100:8:1000:2000:5000
-+!CSVLINE!+hawk,equal:100:100:8:1000:2000:5000,0.243045993
-PEAK 29216 KB
+Elapsed time: 0.242636185 seconds (0.243) for equal:100:100:8:1000:2000:5000
++!CSVLINE!+hawk,equal:100:100:8:1000:2000:5000,0.242636185
+PEAK 28836 KB
 
 Testing bv2string under Hawk
 Including postlude /home/davejwatson/projects/r7rs-benchmarks/src/Hawk-postlude.scm
@@ -602,6 +602,6 @@ Compiling...
 hawk_comp /tmp/r7rs-benchmarks/Hawk/bv2string.scm /tmp/r7rs-benchmarks/Hawk/bv2string.scm
 Running...
 Running bv2string:1000:1000:100
-Elapsed time: 0.626206282 seconds (0.626) for bv2string:1000:1000:100
-+!CSVLINE!+hawk,bv2string:1000:1000:100,0.626206282
-PEAK 53952 KB
+Elapsed time: 0.67879454 seconds (0.679) for bv2string:1000:1000:100
++!CSVLINE!+hawk,bv2string:1000:1000:100,0.67879454
+PEAK 48172 KB

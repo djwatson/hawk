@@ -13,81 +13,6 @@ abstract: |
   The main payoff of this design is the ability to specialize functions to their types.  Hawk uses polymorphic trace entries to record distinct traces for calls with distinct entry types. The same scheme procedure can be specialized for flonums AND fixnums, and producing JIT code that is more efficient on current hardware.  Flonums remain unboxed and in register for hot loops.  Lazy type checks further reduce overhead by only guarding types that are known to be required for the trace.  Hawk also passes trace arguments in register, optimistically promotes globals and singleton closures to constants, yielding a dynamic yet fast JIT architecture without requiring whole-program analysis.  On the R7RS benchmark suite, Hawk reduces geometric-mean runtime relative to Chez scheme by 25%.
 ---
 
-<!--
-dave's notes
-
-- [ ] Results are reproducible from a clean checkout.
- swap example for summix
- something something background: 
-   1) scheme loops -> tail calls
-   2) tracing types
-   3) trace arguments
-   4) polymorphism?
- remove comparisons to luajit ugh
- add luajit section
- more benchmark details:
-  number of runs per benchmark;
-whether numbers are min/median/mean;
-whether CPU governor/turbo was controlled;
-whether Chez was run with default options or optimize-level settings;
-whether Hawk includes image startup time;
-whether GC settings are default or tuned;
-how geometric mean was computed;
-whether benchmarks with failed/unsupported cases were excluded.
-
-move GC section to maybe appendix? talking about all benchmarks?
-Split ablation as much as possible, different const types,
-try again to split reg. vs. poly
-
-explain scheme loop construct btter
-
-LLM suggested ordering:
-Introduction
-Problem: Scheme control flow is call/return/tail-call shaped.
-Claim: trace at function boundaries.
-Contributions list.
-Headline results.
-Background
-Scheme tail calls, fixnums/flonums, tracing JIT basics.
-Why normal loop tracing is awkward.
-Hawk Overview
-VM, bytecode, recorder, IR, trace ABI.
-Tiny running example.
-Trace Formation for Tail Calls
-Root traces.
-NLF/call-depth.
-Side traces.
-Up/down-recursive traces.
-Trace linking.
-Specialization
-Register trace arguments.
-Polymorphic root traces.
-Lazy typechecking.
-Constant globals/closures.
-Scheme Features
-call/cc.
-case-lambda/apply.
-closures and LOOP recovery.
-Implementation
-Backend/register allocation.
-GC, image dumping, platform support.
-Evaluation
-Methodology.
-Runtime vs Chez.
-Flonum-heavy results.
-Non-numeric results.
-Trace counts/stability.
-Memory/GC.
-Ablation.
-Related Work
-LuaJIT.
-PyPy/RPython.
-Pycket.
-Nash.
-Guile.
-Limitations and Future Work
-Conclusion
--->
 
 ## Introduction
 
@@ -107,7 +32,7 @@ We also investigate specializing traces, so that both flonum and fixnum heavy be
 
 In Scheme, most loops are represented as tailcalls. In the r7rs report, even constructs such as `do` loops or `named let` loops are lowered to recursion.  This makes implementing a tracing JIT less straightforward at discovering loops.
 
-Scheme supports a full numeric tower, however, many functions work on only fixnums or flonums at runtime (TODO: cite feely's inlining fixnum/flonum paper). Ideally a JIT would be able to use FPR hardware registers to hold flonums as long as possible instead of boxing them on the stack.
+Scheme supports a full numeric tower, however, many functions work on only fixnums or flonums at runtime [@feeley2007speculative]. Ideally a JIT would be able to use FPR hardware registers to hold flonums as long as possible instead of boxing them on the stack.
 
 Standard scheme code also makes extensive use of uprecrusive and downrecursive traces, and often assumes stack space is not limited. For example, a somewhat standard `append` function might look like:
 
@@ -141,23 +66,9 @@ The assembly emission uses a generic layer that abstracts the x64 and aarch64 ba
 
 Register allocation is a generic backwards-liveness and spilling pass, and then a forward pass that runs during emission, that just chooses a register at random.  Since the backends already abstract over which exact registers are needed, we don't even do a full linear scan allocation.
 
-### GC
-
-We use a simplified variant of LXR [@zhao2022lxr].  We currently only support blocks, and have not yet implemented a backup tracing collector.  All heap objects also currently require an 8-byte header, meaning cons cells are 24 bytes.   With lookaside mark bits, this could be improved in the future.  However, even with these limitations, our GC is quite performant.  Here's a small selection of GC-heavy benchmarks, including peak RSS and exection time:
-
-The GC supports image dumping & reload, and this is how bootstrapping the expander works: A host scheme is used to generate an initial heap image.  Then using a bootstrap hawk, we run the image, re-initialize the expander (the expander does not support serializing its current state).  Then we dump a final heap image, and build it in to the final executable. The heap image is compressed using ZSTD [@collet2021zstd], and the final binary is around half a MB for a full r7rs system.
-
 ## Trace types
 
 Traces are split in to several types: Root traces, which are always loops. They begin either at function headers or loop headers, when loop analysis is enabled.  Up-recursive traces are also loops, and are found nearly identically to root loops: They begin at the start of functions, with the only difference being the stack is not even when they end.  
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.96\columnwidth]{generated/peak_memory_x64.pdf}
-\caption{x64 peak memory usage of Hawk and Chez for GC-heavy benchmarks. Runtime labels (seconds) are shown on each bar.}
-\Description{Grouped bar chart of x64 peak memory usage for Hawk and Chez across GC-heavy benchmarks.}
-\label{fig:peak_memory}
-\end{figure}
 
 ### Finding root loops
 
@@ -192,8 +103,6 @@ When an actual down-recursive trace is started, we only capture a *single* loop 
 
 ### Trace arguments in register
 
-The trace infrastructure described so far is very similar to how LuaJit functions [@pallluajit], but now we tred new ground. 
-
 Since traces begin at only function start, loop start, or return statements, we know the arguments to each of these.  We put in register the first X arguments given in each case (we currently match X to the calling convention of the target arch: 6 for x64, 8 for aarch64).  This means for loops or side traces connecting back to a root loop, most arguments stay in register the whole time, even without any additional loop optimization.  
 
 LuaJit used ‘lj_opt_loop’ for the same purpose [@pallluajit] - it will automatically peel the first iteration of every loop, and figure out which stack loads need to be phis.  For root loops, this actually works even better, however, it does not work for side traces.  In testing on scheme code, it was found very important to get recursive calls and side traces to maintain register arguments as well. 
@@ -202,17 +111,16 @@ LuaJit used ‘lj_opt_loop’ for the same purpose [@pallluajit] - it will autom
 
 Root traces record the types of arguments on entry.   When we try to link back to this root trace (either from the same trace as a root loop, or from a side trace back too a root loop), we check if the incoming arguments match the previously recorded ones.  If so, we can push the typechecking back to the incoming trace, since many of the arguments are ALREADY typechecked there.  In addition, we maintain a linked-list of root traces all starting in the same location, but with different starting arguments.  This polymorphic splitting allows specialized traces to maintain entirely different traces, which is important for traces that use different types of registers, e.g. fixnum vs. flonum.  
 
-As an example:
+As an example, consider a simple summing loop:
 
 ```scheme
-(define (fib a) 
-  (if (< a 2) 
-    a 
-    (+ (fib (- a 1) 
-	   (fib (- a 2))))))
+(define (sum n total)
+  (if (< n 0)
+      total
+      (sum (- n 1) (+ n total))))
 ```
 
-If we call (fib 40), we will eventually trace fib with a fixnum argument.  If later we call (fib 40.0), we will make an entirely new trace, with all flonum arguments.  This is different than inlining both flonum/fixnum fast paths , since we will never typecheck flonum or fixnum at all.  TODO better example, maybe sum, since this will box and put on stack anyway.  Show example traces.  Some schemes will only insert fast paths based on the numbers used, i.e. (< a 2.0) will assume flonums, while (< a 2) will assume fixnums.
+If we call `(sum 100000000 0)`, Hawk will trace `sum` with fixnum arguments for both `n` and `total`.  When we later call `(sum 100000000.0 0.0)`, a new trace is recorded with flonum arguments.  Both traces use the appropriate register types (GPR for fixnums, FPR for flonums) without any type dispatch within the hot loop.  For most ahead-of-time schemes, even if they speculatively inline fixnum AND flonum fastpaths, they generally do NOT inline mixed flonum/fixnum fastpaths.  Calling sum above with flonum arguments, will result in mixed comparisons and addition/subtractions, resulting in much lower performance without a JIT. 
 
 After we discover an initial root loop however, additional polymorphic traces are NOT required to be loops, and function similarly to side traces, which may return and link to other root loops.  For example, a simplified list? Function:
 
@@ -267,6 +175,12 @@ On call/cc return, or calling the captured closure, we currently insert a RET ch
 Tracing case-lambda is quite simple in this system: Since function calls know the number of arguments they are making, and at the entry to each function, we check the argument count, we don’t even need to know the argument count after recording the trace: it is either on trace, or it takes a side exit.  We can package up rest-arguments on trace as well. 
 
 The only exception is the APPLY opcode: we need to record apply, and then record which of the case-lambda cases we took.  We don’t want to overly constrain to the exact argument count, we only constrain to the number of fixed args, and call an intrinsic to package the rest list.  This means as long as the fixed args still match, we can handle any-length rest argument list.
+
+### Auto promotion of types 
+
+Many schemes support SRFI 4/160, `flvector` support, where vectors containing only flonums can be implemented more efficiently by keeping the flonums in the vector directly without boxing.  Most schemes will require special annotations to do this, however, since our JIT already has the types of most objects, we can automatically fl-vector vectors we detect contain only flonums.   This optimization doubles the performance of the `fft` benchmark.
+
+While hawk does not currently support unicode, a similar trick could be used for ascii-only strings, and in fact many schemes already do implement fastpaths for ascii-only strings.
 
 ### Analysis of trace types and trace stability
 
@@ -336,7 +250,7 @@ LuaJIT [@pallluajit] is built around a similar bytecode interpreter & linear tra
 
 The standard r7rs-benchmarks suite [@r7rsbenchmarks], originally derived from the Larceny benchmark suite [@larcenists], is used. The x64 architecture was benchmarked on AMD Ryzen 9 5900X (ubuntu 25.10).  Chez version was 10.0.0.
 
-Neither chez nor hawk times include compile time.  Hawk DOES include JIT time.  There is no jit warmup period.
+Neither chez nor hawk times include compile time, nor startup time.  Hawk DOES include JIT time.  There is no jit warmup period.  Both are 'full safeties-on', i.e. all typechecking / runtime checks are left enabled.  All GC and other settings are left in their default state.  All tests passed for both schemes.
 
 Figure \ref{fig:time_breakdown} breaks total Hawk time into VM, GC, and JIT contributions on
 the x64 run.
@@ -382,17 +296,17 @@ percentile range across the benchmarks included in the comparison.
 \label{fig:ablation_runtime}
 \end{figure}
 
-Promotion of globals and closures to constants has the greatest effect. Currently the bytecode generator does NOT assume ANY globals (including in r7rs libraries) are constant, so this is entirely left up to the JIT to optimize.  One large benefit is that the user can still redefine library procedures at runtime, unlike most r7rs compilers.
+Promotion of globals to constants has the greatest effect. Currently the bytecode generator does NOT assume ANY globals (including in r7rs libraries) are constant, so this is entirely left up to the JIT to optimize.  One large benefit is that the user can still redefine library procedures at runtime, unlike most ahead-of-time r7rs compilers.
 
 Eager typechecking appears to only contribute a small amount to overall runtime.  The opportunites to drop typechecking are generally small (values don't need to be checked for some loads and stores, eq? and some eqv? can drop typechecking as well).
 
 As predicted, dropping the LOOP analysis in the bytecode compiler only has a tiny effect - tracing works just as will with or without explicit static loop discovery.  Almost all of this performance is from additional closure allocations.
 
-Enregistering the first X (currently 6) arguments, and making traces polymorphic, lends a large speedup (it was hard to disentangle these two things in the code to disable only one, and polymorphic currently requires register arguments).  Clearly keeping everything in registers is a large advantage, as it is with normal method-based compilers.
+Making traces polymorphic, and therefore keeping most flonum results in register across traces (of all trace types), has a large effect on performance.  The `no-reg` test *also* disables polymorphic tracing (due to the way polymorphic traces are implemented, we typecheck the argument registers directly), so registers by themselves contribute roughly 10%.  
 
 ### Limitations
 
-Hawk currently only supports ascii strings.  Only the bv2string benchmark would significantly change performance if unicode support were added.
+Hawk currently only supports ascii strings.  Likely only the bv2string benchmark would significantly change performance if unicode support were added. `strings` does heavily benchmark strings, but we would implement a fastpath for ascii-only strings.
 
 ### Future Work
 
@@ -416,9 +330,9 @@ There are many optimizations that haven't been added to Hawk yet, or showed only
   
 * Other flonum representations
 
-Currently Hawk unboxes flonums to registers where possible, including passing them between traces.  However, if placed in the heap, they are still boxed.  Other flonum representations include Nan-tagging (or nun-tagging), and 'Float self-tagging' [@melancon2025float].   Nan-tagging does not seem to work for the existing scheme code: for example, the current 'sum' benchmark requires large 60+bit fixnums, if we limited fixnums to only 32 bits, the sum benchmark would overflow to a bignum, significantly slowing it down.  We are not aware of a single scheme implementation using Nan-tagging for this reason. 
+  Currently Hawk unboxes flonums to registers where possible, including passing them between traces.  However, if placed in the heap, they are still boxed.  Other flonum representations include Nan-tagging (or nun-tagging), and 'Float self-tagging' [@melancon2025float].   Nan-tagging does not seem to work for the existing scheme code: for example, the current 'sum' benchmark requires large 60+bit fixnums, if we limited fixnums to only 32 bits, the sum benchmark would overflow to a bignum, significantly slowing it down.  We are not aware of a single scheme implementation using Nan-tagging for this reason. 
 
-Float self-tagging would work as a replacement for boxing on the stack.  However, combined with auto fl-vector support, almost no benchmarks hit perf issues due to boxing flonums anyway, so this has not yet been tried.   It would also likely slow down other benchmarks, due to using ~3 of the available 8 low bit tags, vs. the 1 used now.  Likely string or symbol checks would have to be moved to header checks instead.
+  Float self-tagging would work as a replacement for boxing on the stack.  However, combined with auto fl-vector support, almost no benchmarks hit perf issues due to boxing flonums anyway, so this has not yet been tried.   It would also likely slow down other benchmarks, due to using ~3 of the available 8 low bit tags, vs. the 1 used now.  Likely string or symbol checks would have to be moved to header checks instead.
 
 ---
 
@@ -429,12 +343,32 @@ The results for Hawk seem to support the theory that no static loop analysis is 
 ---
 
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.96\columnwidth]{generated/peak_memory_x64.pdf}
+\caption{x64 peak memory usage of Hawk and Chez for GC-heavy benchmarks. Runtime labels (seconds) are shown on each bar.}
+\Description{Grouped bar chart of x64 peak memory usage for Hawk and Chez across GC-heavy benchmarks.}
+\label{fig:peak_memory}
+\end{figure}
+
+## Appendix
+
+### GC
+
+We use a simplified variant of LXR [@zhao2022lxr].  We currently only support blocks, not lines.  All heap objects also currently require an 8-byte header, meaning cons cells are 24 bytes.   With lookaside mark bits, this could be improved in the future.  A single background thread does lazy decrements, and does backup snapshot-at-the-beginning tracing based on a cycle-waste predictor.  However, even with these limitations, our GC is quite performant.  Figure \ref{fig:peak_memory} a small selection of GC-heavy benchmarks, including peak RSS and exection time.
+
+The GC design has significant performance implications across various schemes for the GC heavy benchmarks.  A cheney-style scan breadth-first is better for some benchmarks, and worse than a LIFO depth-first stack for others.   RC significantly outperforms for memory in many benchmarks, but for some, like `earley` the extra 8-byte cons cell header adds overhead.  GC design is hard, and no one design dominates.  particularly for mperm & paraffins, GC design dominates over any JIT or VM design.
+
+The GC supports image dumping & reload, and this is how bootstrapping the expander works: A host scheme is used to generate an initial heap image.  Then using a bootstrap hawk, we run the image, re-initialize the expander (the expander does not support serializing its current state).  Then we dump a final heap image, and build it in to the final executable. The heap image is compressed using ZSTD [@collet2021zstd], and the final binary is around half a MB for a full r7rs system.
+
+
+
 ::: {#refs}
 :::
 
 <!--  LocalWords:  JIT JITs inlining flonum flonums dave's args jit
   LocalWords:  globals typecheck ARG uprec downrec POLYmorphic lj
-  LocalWords:  callcc TODO flvector fft nbody alloc Luajit NLF VM
+  LocalWords:  callcc flvector fft nbody alloc Luajit NLF VM
   LocalWords:  RET bytecode LuaJit aarch typechecking typechecked
   LocalWords:  fixnum fixnums cdr pre LOOPs FUNC typechecks cddr
   LocalWords:  divrec diviter inlined profiler lossy X’th stddev
