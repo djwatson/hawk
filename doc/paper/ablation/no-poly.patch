@@ -1,0 +1,40 @@
+diff --git a/record.c b/record.c
+index 4afdf00..101f926 100644
+--- a/record.c
++++ b/record.c
+@@ -1054,7 +1054,7 @@ static void *check_record_start(bc *pc, bc instr, gc_obj *stack,
+     trace_match match =
+         ensure_args_match_trace(state, cur_trace, cur_trace, argcnt);
+     cur_trace->link = match.trace;
+-    cur_trace->link_entry_snap = match.matched ? 1 : 0;
++    cur_trace->link_entry_snap = 0;
+     record_finish(pc, state, &op_table,
+                   ts->depth != 0 ? "up-recursion" : "root loop", argcnt);
+     return op_table;
+@@ -1377,7 +1377,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
+     trace_match match =
+         ensure_args_match_trace(state, target, cur_trace, argcnt);
+     cur_trace->link = match.trace;
+-    cur_trace->link_entry_snap = match.matched ? 1 : 0;
++    cur_trace->link_entry_snap = 0;
+     record_finish(pc, state, &op_table, "linked to loop trace", argcnt);
+     break;
+   }
+@@ -1386,7 +1386,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
+     trace_match match =
+         ensure_args_match_trace(state, target, cur_trace, argcnt);
+     cur_trace->link = match.trace;
+-    cur_trace->link_entry_snap = match.matched ? 1 : 0;
++    cur_trace->link_entry_snap = 0;
+     record_finish(pc, state, &op_table, "linked to return trace", argcnt);
+     break;
+   }
+@@ -1413,7 +1413,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
+         break;
+       }
+       cur_trace->link = match.trace;
+-      cur_trace->link_entry_snap = match.matched ? 1 : 0;
++      cur_trace->link_entry_snap = 0;
+       record_finish(pc, state, &op_table, "side trace linked to root trace",
+                     entry_argcnt);
+       break;
