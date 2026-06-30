@@ -1,10 +1,7 @@
 ## Release checklist
 
-*********** change flag bits for ports to be in next byte for faster gc checks
-
 * some github actions to test build for ubuntu, osx, arch? gcc, clang?
 * paper
-* easily reproducible paper results (the benchmark results should have script to generate them)
 
 ## slow vs Chez
 
@@ -130,18 +127,10 @@ Would be super nice to have:
 # GC improvements:
 
 * Add lines to blocks
-* background decrements
-* background SATB
-* fully multi-threaded
 * fix large object cycle collector - currently freeing large objects
   can make SATB walk walk to invalid mem.
   (gc_blocks are ok since they are never freed).
   
-# testing
-
-* Reify code generator tester!!!! So good. Generate ast. Choose a path. Generate symbolic and send to z3, then use z3 solution! To print a complete program. Can force a loop with at least X , so we can even ensure jit runs!
-
-
 # notes:
 
 * using a VM forces us to reserve stack space for args, unlike a compiler. For large stack usage this results in higher memory use.  See sum1.scm
