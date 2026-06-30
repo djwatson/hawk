@@ -10,6 +10,7 @@ option(USE_RANDOM_SCHEDULE "Enable random schedule debugging" OFF)
 option(ENABLE_COVERAGE "Enable LLVM source-based coverage instrumentation" OFF)
 option(ENABLE_FUZZ_TARGETS "Build fuzz targets" OFF)
 option(BOOTSTRAP "Self-host the bootstrap image" OFF)
+option(DISASSEMBLE "Use libcapstone for disassembly" ON)
 set(HAWK_DIST_VERSION "" CACHE STRING "Version suffix for the dist tarball")
 
 set(CMAKE_C_STANDARD 23)
@@ -97,6 +98,28 @@ endif()
 
 if(NOT ZSTD_LIBRARY)
   message(FATAL_ERROR "libzstd not found. Install zstd or set ZSTD_LIBRARY.")
+endif()
+
+# Capstone (optional, for HLOG_asm disassembly output)
+set(HAVE_CAPSTONE 0)
+if(DISASSEMBLE)
+  set(capstone_search_dirs)
+  if(DEFINED ENV{HOMEBREW_PREFIX})
+    list(APPEND capstone_search_dirs $ENV{HOMEBREW_PREFIX}/include)
+  endif()
+  list(APPEND capstone_search_dirs /opt/homebrew/include /usr/local/include)
+  find_path(CAPSTONE_INCLUDE_DIR NAMES capstone/capstone.h PATHS ${capstone_search_dirs})
+  set(capstone_library_dirs)
+  if(DEFINED ENV{HOMEBREW_PREFIX})
+    list(APPEND capstone_library_dirs $ENV{HOMEBREW_PREFIX}/lib)
+  endif()
+  list(APPEND capstone_library_dirs /opt/homebrew/lib /usr/local/lib)
+  find_library(CAPSTONE_LIBRARY NAMES capstone PATHS ${capstone_library_dirs})
+  if(CAPSTONE_INCLUDE_DIR AND CAPSTONE_LIBRARY)
+    set(HAVE_CAPSTONE 1)
+  else()
+    message(STATUS "libcapstone not found - disassembly support disabled")
+  endif()
 endif()
 
 list(APPEND hawk_sources jitdump.c)
@@ -208,7 +231,10 @@ function(configure_hawk_target TARGET)
   else()
     target_link_libraries(${TARGET} PRIVATE -Wl,--whole-archive hawk_core -Wl,--no-whole-archive)
   endif()
-  target_link_libraries(${TARGET} PRIVATE ${CAPSTONE_LIBRARY} ${ZSTD_LIBRARY} m)
+  target_link_libraries(${TARGET} PRIVATE ${ZSTD_LIBRARY} m)
+  if(HAVE_CAPSTONE)
+    target_link_libraries(${TARGET} PRIVATE ${CAPSTONE_LIBRARY})
+  endif()
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(${TARGET} PRIVATE ${CMAKE_DL_LIBS})
     target_link_options(${TARGET} PRIVATE -rdynamic)
@@ -221,36 +247,8 @@ function(configure_hawk_target TARGET)
   endif()
 endfunction()
 
-set(capstone_search_dirs)
-if(DEFINED ENV{HOMEBREW_PREFIX})
-  list(APPEND capstone_search_dirs $ENV{HOMEBREW_PREFIX}/include)
-endif()
-list(APPEND capstone_search_dirs /opt/homebrew/include /usr/local/include)
-
-find_path(
-  CAPSTONE_INCLUDE_DIR
-  NAMES capstone/capstone.h
-  PATHS ${capstone_search_dirs}
-)
-
-if(NOT CAPSTONE_INCLUDE_DIR)
-  message(FATAL_ERROR "capstone/capstone.h not found. Install capstone or set CAPSTONE_INCLUDE_DIR.")
-endif()
-
-set(capstone_library_dirs)
-if(DEFINED ENV{HOMEBREW_PREFIX})
-  list(APPEND capstone_library_dirs $ENV{HOMEBREW_PREFIX}/lib)
-endif()
-list(APPEND capstone_library_dirs /opt/homebrew/lib /usr/local/lib)
-
-find_library(
-  CAPSTONE_LIBRARY
-  NAMES capstone
-  PATHS ${capstone_library_dirs}
-)
-
-if(NOT CAPSTONE_LIBRARY)
-  message(FATAL_ERROR "libcapstone not found. Install capstone or set CAPSTONE_LIBRARY.")
+if(HAVE_CAPSTONE)
+  target_compile_definitions(hawk_core PRIVATE HAVE_CAPSTONE)
 endif()
 
 if(USE_RANDOM_SCHEDULE)
@@ -267,9 +265,11 @@ target_include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/util
   ${CMAKE_CURRENT_BINARY_DIR}
-  ${CAPSTONE_INCLUDE_DIR}
   ${ZSTD_INCLUDE_DIR}
 )
+if(HAVE_CAPSTONE)
+  target_include_directories(hawk_core PRIVATE ${CAPSTONE_INCLUDE_DIR})
+endif()
 
 install(TARGETS hawk RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/hawk.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)

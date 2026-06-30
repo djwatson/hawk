@@ -1,3 +1,4 @@
+#ifdef HAVE_CAPSTONE
 #define _GNU_SOURCE
 #include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
 
@@ -242,3 +243,4 @@ void disassemble(const uint8_t *code, size_t len,
   cs_free(insn, count);
   cs_close(&handle);
 }
+#endif

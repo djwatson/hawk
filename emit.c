@@ -1,5 +1,3 @@
-#include <capstone/capstone.h> // for cs_insn, cs_close, cs_disasm, cs_free
-
 #include "emit.h"
 
 #include <assert.h>
@@ -934,9 +932,13 @@ static void emit_cmp_regs(emit_state *s, trace *t, uint8_t lhs_reg, slot rhs,
   emit_cmp(s, lhs_reg, rhs_reg);
 }
 
+#ifdef HAVE_CAPSTONE
 #define COMMENT(...)                                                           \
   if (hlog_mask & HLOG_asm)                                                    \
   comment_append(emit_offset(s), &s->comments, __VA_ARGS__)
+#else
+#define COMMENT(...)
+#endif
 
 typedef struct {
   uint16_t slot;
@@ -2349,8 +2351,10 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   }
   auto sz = end - start;
   if (hlog_mask & HLOG_asm) {
+#ifdef HAVE_CAPSTONE
     printf("Disassembly: %" PRId64 "\n", sz);
     disassemble((uint8_t *)start, end_no_snapshots - start, s->comments);
+#endif
   }
 
   // Cleanup
