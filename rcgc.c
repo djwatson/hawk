@@ -1,3 +1,34 @@
+/*
+  This is a GC based on the LXR work
+  "Low-Latency, High-Throughput Garbage Collection" Zhao, Blackburn, McKinley
+
+  It's quite simplified though, since we only have a single mutator.
+
+  * It doesn't support lines, only blocks! in practice this has not
+  been an issue yet, since nursury is copied and compacted.
+
+  * There is no background defrag yet.
+
+  * There is a single background worker that does decrements, and SATB
+  tracing for cycle cleanup
+
+  Decrements might actually be a bit more advanced than the paper -
+  decrements *never* block the main thread (well, they do when SATB
+  starts, but that might not even be necessary).  This was because
+  there are several tests that allocate heavily, but then unlink all
+  at once, resulting in only ~4ms mutator time, but every once in a
+  while >100ms decrement time.  We can put ALL of this decrement work
+  on a background thread.  See for example mperm test.
+
+  I think there is still a bug in SATB tracing large objects: since
+  the memory backing large objects can be free()d, I think the mark
+  bit needs to be in some lookaside memory that can never be freed.
+  (note that, per the paper, we CAN rc-free memory while doing a SATB
+  trace, it just needs to be satb-walked before freeing, and it will
+  show up again as new memory already marked.  Basically SATB *only*
+  collects dead cycles.)
+ */
+
 #define _DEFAULT_SOURCE
 
 #include <sys/mman.h>
