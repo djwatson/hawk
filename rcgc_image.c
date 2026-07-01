@@ -8,8 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define ZSTD_STATIC_LINKING_ONLY
+#ifdef HAVE_ZSTD
 #include <zstd.h>
+#endif
 
 #include "gc.h"
 #include "types.h"
@@ -66,9 +67,43 @@ static bool loaded_error_symbol_rooted;
 
 gc_obj gc_error_symbol(void) { return loaded_error_symbol; }
 
+static bool has_zstd_suffix(char const *path) {
+  size_t len = strlen(path);
+  return len >= 5 && memcmp(path + len - 5, ".zstd", 5) == 0;
+}
+
 gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path,
                      bool compressed) {
   LOG(gc, "image load");
+  if (compressed) {
+#ifdef HAVE_ZSTD
+    unsigned long long len = ZSTD_getFrameContentSize(data, data_len);
+    if (len == ZSTD_CONTENTSIZE_ERROR || len == ZSTD_CONTENTSIZE_UNKNOWN) {
+      fprintf(stderr, "read_image: invalid zstd frame size\n");
+      abort();
+    }
+    uint8_t *buf = malloc((size_t)len);
+    if (!buf) {
+      fprintf(stderr, "read_image: out of memory\n");
+      abort();
+    }
+    size_t res = ZSTD_decompress(buf, (size_t)len, data, data_len);
+    if (ZSTD_isError(res)) {
+      fprintf(stderr, "read_image: zstd: %s\n", ZSTD_getErrorName(res));
+      abort();
+    }
+    if (res != (size_t)len) {
+      fprintf(stderr, "read_image: decompressed length mismatch\n");
+      abort();
+    }
+    gc_obj result = gc_read_image(buf, res, path, false);
+    free(buf);
+    return result;
+#else
+    fprintf(stderr, "read_image: zstd support not compiled in\n");
+    abort();
+#endif
+  }
   if (data_len < IMAGE_HEADER_SIZE) {
     fprintf(stderr, "read_image: file too short\n");
     abort();
@@ -100,24 +135,11 @@ gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path,
 
   uint8_t const *payload = data + IMAGE_HEADER_SIZE;
   size_t payload_len = data_len - IMAGE_HEADER_SIZE;
-  if (!compressed) {
-    if (payload_len != image_len) {
-      fprintf(stderr, "read_image: length mismatch\n");
-      abort();
-    }
-    memcpy((void *)image_base, payload, image_len);
-  } else {
-    size_t res =
-        ZSTD_decompress((void *)image_base, image_len, payload, payload_len);
-    if (ZSTD_isError(res)) {
-      fprintf(stderr, "read_image: zstd: %s\n", ZSTD_getErrorName(res));
-      abort();
-    }
-    if (res != image_len) {
-      fprintf(stderr, "read_image: decompressed length mismatch\n");
-      abort();
-    }
+  if (payload_len != image_len) {
+    fprintf(stderr, "read_image: length mismatch\n");
+    abort();
   }
+  memcpy((void *)image_base, payload, image_len);
 
   image_ctx image = {.base = image_base, .len = image_len};
 
@@ -159,7 +181,8 @@ gc_obj gc_read_image_file(char const *path) {
     perror("fseek");
     abort();
   }
-  if (fsize < (long)IMAGE_HEADER_SIZE) {
+  bool compressed = has_zstd_suffix(path);
+  if (!compressed && fsize < (long)IMAGE_HEADER_SIZE) {
     fprintf(stderr, "read_image_file: file too short\n");
     abort();
   }
@@ -174,9 +197,6 @@ gc_obj gc_read_image_file(char const *path) {
     abort();
   }
   fclose(fp);
-  bool compressed = (size_t)fsize > IMAGE_HEADER_SIZE &&
-                    ZSTD_isFrame(buf + IMAGE_HEADER_SIZE,
-                                 (size_t)fsize - IMAGE_HEADER_SIZE) != 0;
   gc_obj result = gc_read_image(buf, (size_t)fsize, path, compressed);
   free(buf);
   return result;
@@ -238,6 +258,9 @@ void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress_level) {
 
   char const *filename = to_string(path)->str;
   bool do_compress = compress_level.value != FALSE_REP.value;
+#ifndef HAVE_ZSTD
+  do_compress = false;
+#endif
   int level = 0;
   if (do_compress) {
     level = (int)to_fixnum(compress_level);
@@ -274,30 +297,10 @@ void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress_level) {
   dump_rebase_field(&start, data);
   dump_rebase_field(&loaded_error_symbol, data);
 
-  uint8_t *payload = data;
-  size_t payload_len = dc.len;
-  uint8_t *compressed = nullptr;
-  if (do_compress) {
-    size_t compressed_cap = ZSTD_compressBound(dc.len);
-    compressed = malloc(compressed_cap);
-    if (!compressed) {
-      fprintf(stderr, "gc_dump_image: out of memory\n");
-      abort();
-    }
-    size_t compressed_len =
-        ZSTD_compress(compressed, compressed_cap, data, dc.len, level);
-    if (ZSTD_isError(compressed_len)) {
-      fprintf(stderr, "gc_dump_image: zstd: %s\n",
-              ZSTD_getErrorName(compressed_len));
-      abort();
-    }
-    payload = compressed;
-    payload_len = compressed_len;
-  }
-
-  FILE *fp = fopen(filename, "wb");
-  if (!fp) {
-    perror("fopen");
+  size_t file_len = IMAGE_HEADER_SIZE + dc.len;
+  uint8_t *file = malloc(file_len);
+  if (!file) {
+    fprintf(stderr, "gc_dump_image: out of memory\n");
     abort();
   }
   uint64_t image_len = dc.len;
@@ -305,19 +308,62 @@ void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress_level) {
   uint64_t start_u64 = (uint64_t)start.value;
   uint64_t error_u64 = (uint64_t)loaded_error_symbol.value;
   uint64_t version = IMAGE_VERSION;
-  if (fwrite("HAWK", 1, 4, fp) != 4 ||
-      fwrite(&version, sizeof(version), 1, fp) != 1 ||
-      fwrite(&gc_cnt, sizeof(gc_cnt), 1, fp) != 1 ||
-      fwrite(&image_len, sizeof(image_len), 1, fp) != 1 ||
-      fwrite(&start_u64, sizeof(start_u64), 1, fp) != 1 ||
-      fwrite(&error_u64, sizeof(error_u64), 1, fp) != 1 ||
-      fwrite(payload, 1, payload_len, fp) != payload_len || fclose(fp) != 0) {
+  memcpy(file, "HAWK", 4);
+  memcpy(&file[4], &version, sizeof(version));
+  memcpy(&file[12], &gc_cnt, sizeof(gc_cnt));
+  memcpy(&file[20], &image_len, sizeof(image_len));
+  memcpy(&file[28], &start_u64, sizeof(start_u64));
+  memcpy(&file[36], &error_u64, sizeof(error_u64));
+  memcpy(file + IMAGE_HEADER_SIZE, data, dc.len);
+
+  char *out_filename = nullptr;
+  char const *write_filename = filename;
+  uint8_t *payload = file;
+  size_t payload_len = file_len;
+  uint8_t *compressed = nullptr;
+  if (do_compress) {
+#ifdef HAVE_ZSTD
+    size_t filename_len = strlen(filename);
+    out_filename = malloc(filename_len + 6);
+    if (!out_filename) {
+      fprintf(stderr, "gc_dump_image: out of memory\n");
+      abort();
+    }
+    memcpy(out_filename, filename, filename_len);
+    memcpy(out_filename + filename_len, ".zstd", 6);
+    write_filename = out_filename;
+    size_t compressed_cap = ZSTD_compressBound(file_len);
+    compressed = malloc(compressed_cap);
+    if (!compressed) {
+      fprintf(stderr, "gc_dump_image: out of memory\n");
+      abort();
+    }
+    size_t compressed_len =
+        ZSTD_compress(compressed, compressed_cap, file, file_len, level);
+    if (ZSTD_isError(compressed_len)) {
+      fprintf(stderr, "gc_dump_image: zstd: %s\n",
+              ZSTD_getErrorName(compressed_len));
+      abort();
+    }
+    payload = compressed;
+    payload_len = compressed_len;
+#endif
+  }
+
+  FILE *fp = fopen(write_filename, "wb");
+  if (!fp) {
+    perror("fopen");
+    abort();
+  }
+  if (fwrite(payload, 1, payload_len, fp) != payload_len || fclose(fp) != 0) {
     fprintf(stderr, "gc_dump_image: write error\n");
     abort();
   }
 
   arrfree(dc.worklist);
+  free(out_filename);
   free(compressed);
+  free(file);
   free(data);
   exit(EXIT_SUCCESS);
 }

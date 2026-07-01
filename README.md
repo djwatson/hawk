@@ -13,7 +13,7 @@ To build Hawk from a release tarball:
 
 - CMake 3.20 or newer
 - a C23 compiler
-- zstd
+- zstd (optional, for compressed heap images)
 - capstone (optional, for disassembly output)
 - normal build tools such as `make` or `ninja`
 

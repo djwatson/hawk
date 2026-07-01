@@ -22,7 +22,7 @@ add_custom_command(
 add_custom_target(opcodes_scm ALL DEPENDS ${OPCODES_SCHEME})
 
 set(LIB_IMAGE_BC ${CMAKE_CURRENT_SOURCE_DIR}/gen-image.scm.bc)
-set(BOOT_IMAGE_BC ${PROJECT_SOURCE_DIR}/boot/img.scm.bc)
+set(BOOT_IMAGE_BC ${PROJECT_SOURCE_DIR}/boot/img.scm.bc${BOOT_IMAGE_EXT})
 
 file(
   GLOB LIB_IMAGE_SCHEME_INPUTS CONFIGURE_DEPENDS
@@ -47,7 +47,7 @@ add_custom_command(
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   DEPENDS
     ${LIB_IMAGE_SCHEME_INPUTS}
-  COMMENT "Bootstrapping boot/img.scm.bc"
+  COMMENT "Bootstrapping boot/img.scm.bc${BOOT_IMAGE_EXT}"
   VERBATIM
 )
 

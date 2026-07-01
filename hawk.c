@@ -168,13 +168,23 @@ int main(int argc, char *argv[]) {
   }
 
   gc_obj start;
-  const char *image_name = image ? image : "boot/img.scm.bc";
+  const char *image_name = image ? image :
+#ifdef HAVE_ZSTD
+      "boot/img.scm.bc.zstd";
+#else
+      "boot/img.scm.bc";
+#endif
   if (image) {
     start = gc_read_image_file(image);
   } else {
     if (embedded_image_size > 0) {
-      start =
-          gc_read_image(embedded_image, embedded_image_size, image_name, true);
+      start = gc_read_image(embedded_image, embedded_image_size, image_name,
+#ifdef HAVE_ZSTD
+                            true
+#else
+                            false
+#endif
+      );
     } else {
       start = gc_read_image_file(image_name);
     }
