@@ -2,6 +2,7 @@
 
 .text
 .globl  ffi_call_asm
+.hidden ffi_call_asm
 ffi_call_asm:
   stp x19, x30, [sp, #-16]!
   mov x19, x0
@@ -33,6 +34,7 @@ ffi_call_asm:
 
 .text
 .globl  ffi_call_asm
+.hidden ffi_call_asm
 ffi_call_asm:
   pushq %rbx
   movq  %rdi, %rbx

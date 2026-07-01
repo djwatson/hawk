@@ -150,7 +150,7 @@ static parse_result parse_args(int argc, char *argv[]) {
   return out;
 }
 
-int main(int argc, char *argv[]) {
+EXPORT int main(int argc, char *argv[]) {
   raise_fd_limit();
   gc_init();
   command_line_program_name = argv[0];

@@ -464,7 +464,7 @@ static bool runtime_decode_closure_ref(gc_obj obj, uint64_t fun_count,
   return true;
 }
 
-gc_obj scm_emit_bitcode_closure(gc_obj payload) {
+EXPORT gc_obj scm_emit_bitcode_closure(gc_obj payload) {
   LOG(gc, "scm_emit_bitcode_closure");
   gc_add_root((const void *)&payload, 1, 0);
   vector_s *root = runtime_expect_vector(payload, 2);
@@ -1217,8 +1217,8 @@ gc_obj vm_runtime_cmp_numeq_slow(gc_obj v1, gc_obj v2) {
   return numeric_eqv(v1, v2) ? TRUE_REP : FALSE_REP;
 }
 
-gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,
-                    int fromend) {
+EXPORT gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,
+                           int fromend) {
   auto tostr = to_string(to);
   auto fromstr = to_string(from);
   memcpy(&tostr->str[start], &fromstr->str[fromstart], fromend - fromstart);
