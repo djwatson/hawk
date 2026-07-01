@@ -1,4 +1,4 @@
-.TH HAWK 1 "May 2026" Linux "Hawk Manual"
+.TH HAWK 1 "July 2026" Linux "Hawk Manual"
 
 .SH NAME
 hawk \- Scheme (R7RS) JIT
@@ -23,6 +23,21 @@ Turn off the JIT compiler and only use the bytecode VM.
 .TP
 .BI "\-i, \-\-image " FILE
 Load an explicit \fB.bc\fR image file instead of the default image.
+.TP
+.BI "\-D " NAME
+Add \fINAME\fR to the Scheme feature list before loading a script.
+May be specified more than once.
+.TP
+.BI "\-I " DIRECTORY
+Prepend \fIDIRECTORY\fR to the Scheme library search path before loading a script.
+May be specified more than once.
+.TP
+.BI "\-A " DIRECTORY
+Append \fIDIRECTORY\fR to the Scheme library search path before loading a script.
+May be specified more than once.
+.TP
+.BI "\-\-list"
+Compile the script and list its bytecode without running it.
 .TP
 .BI "\-p, \-\-profile"
 Turn on the sampling profiler, showing VM, GC, and JIT time.

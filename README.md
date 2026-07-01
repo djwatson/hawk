@@ -142,6 +142,10 @@ Useful options include:
 
 - `--joff`: run only the bytecode VM
 - `-i, --image PATH`: load an explicit `.bc` image file
+- `-D NAME`: add a Scheme feature before loading a script
+- `-I DIRECTORY`: prepend a directory to the Scheme library search path
+- `-A DIRECTORY`: append a directory to the Scheme library search path
+- `--list`: compile the script and list bytecode without running it
 - `-m, --max-trace NUMBER`: stop JIT compilation after a trace count
 - `-d, --dump`: emit debugging information for tools such as gdb and perf
 - `-p, --profile`: turn on the sampling profiler

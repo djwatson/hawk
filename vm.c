@@ -24,6 +24,7 @@
 static inline char const *func_name_for_pc(bc *pc);
 static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack);
 static vm_state *current_vm_state;
+static bool jit_enabled = true;
 static PRESERVE_NONE NOINLINE gc_obj handle_error(bc instr, bc *pc,
                                                   gc_obj *stack,
                                                   vm_state *state,
@@ -118,7 +119,7 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   uint8_t *hot_loc = &state->hotmap[hotmap_hash(pc)];
   uint8_t prev_hot = *hot_loc;
   *hot_loc -= 1;
-  if (unlikely((state->max_trace > 0) &&
+  if (unlikely(jit_enabled && (state->max_trace > 0) &&
 #ifdef RANDOM_SCHEDULE
                should_jit() &&
 #else
@@ -239,6 +240,17 @@ EXPORT void vm_trace_reset(void) {
   }
   profiler_reset();
   trace_reset(current_vm_state);
+}
+
+EXPORT bool vm_jit_enabled(void) { return jit_enabled; }
+
+EXPORT bool vm_jit_set_enabled(bool enabled) {
+  if (jit_enabled && !enabled && current_vm_state) {
+    profiler_reset();
+    trace_reset(current_vm_state);
+  }
+  jit_enabled = enabled;
+  return jit_enabled;
 }
 static inline void return_frame(vm_state *state, bc instr, uint16_t count,
                                 bc **pc, gc_obj **stack, void **op_table) {

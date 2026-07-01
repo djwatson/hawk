@@ -1,5 +1,5 @@
 (import (scheme base) (scheme eval) (scheme write) (scheme read) (scheme file) (scheme case-lambda)
-        (scheme process-context) (hawk))
+        (scheme process-context) (prefix (hawk sys) sys:) (hawk))
 
 ;; This file contains the main image file.  It is compiled to an image
 ;; by a host scheme, then dumped out as a GC image after
@@ -18,7 +18,7 @@
                 #f))
     (let ((datum (read)))
       (when (eof-object? datum) (exit 0))
-      (write (eval datum #t))
+      (write (eval datum (interaction-environment)))
       (newline)
       (flush-output-port)))
   (repl))
@@ -29,10 +29,19 @@
       (let loop ((form (read port)) (acc '()))
         (if (eof-object? form) (reverse acc) (loop (read port) (cons form acc)))))))
 
+(define (apply-command-line-flags)
+  (for-each (lambda (feat-string) (add-feature (string->symbol feat-string)))
+            (sys:FOREIGN_CALL '(gc_obj "hawk_command_line_features" ())))
+  (library-paths-set!
+    (append (sys:FOREIGN_CALL '(gc_obj "hawk_command_line_prepend_paths" ()))
+            (library-paths)
+            (sys:FOREIGN_CALL '(gc_obj "hawk_command_line_append_paths" ())))))
+
 (define main-entry
   (case-lambda
     (() (repl))
     ((program)
+      (apply-command-line-flags)
       (let* ((forms (read-file-forms program))
              (prepend
                 '(import (scheme base) (scheme case-lambda) (scheme char) (scheme complex)
@@ -42,9 +51,14 @@
              (final-forms
                 (if (and (pair? forms) (pair? (car forms)) (eq? 'import (caar forms)))
                     forms
-                    (cons prepend forms))))
-
-        (eval final-forms #f)
+                    (cons prepend forms)))
+             (list? (sys:FOREIGN_CALL '(gc_obj "hawk_command_line_list" ())))
+             (code (compile final-forms #f list?)))
+        (unless list?
+          ;; Flush trace cache when in program mode:
+          ;; Restart the whole program from fresh trace state.
+          (flush-trace-cache)
+          (code))
         (flush-output-port)))))
 
 (save-image-and-die main-entry "../boot/img.scm.bc" 19)

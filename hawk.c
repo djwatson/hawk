@@ -14,6 +14,7 @@
 #include "hawk.h"
 #include "runtime.h"
 #include "types.h"
+#include "util/array.h"
 #include "vm.h"
 
 uint32_t hlog_mask = HLOG_NONE;
@@ -23,6 +24,10 @@ int64_t max_trace = INT64_MAX;
 char *command_line_program_name = nullptr;
 int command_line_argc = 0;
 char **command_line_argv = nullptr;
+static char **command_line_features;
+static char **command_line_prepend_paths;
+static char **command_line_append_paths;
+static bool command_line_list;
 
 static struct option long_options[] = {
     {"verbose", optional_argument, nullptr, 'v'},
@@ -30,6 +35,7 @@ static struct option long_options[] = {
     {"profile", no_argument, nullptr, 'p'},
     {"joff", no_argument, nullptr, 'o'},
     {"dump", no_argument, nullptr, 'd'},
+    {"list", no_argument, nullptr, 0},
     {"image", required_argument, nullptr, 'i'},
     {"help", no_argument, nullptr, 'h'},
     {"max-trace", required_argument, nullptr, 'm'},
@@ -61,8 +67,12 @@ void print_help() {
   printf("Normal options are:\n");
   printf("  -o, --joff     \tTurn off jit\n");
   printf("  -i, --image    \tLoad explicit .bc image file\n");
+  printf("  -D name        \tAdd feature identifier\n");
+  printf("  -I directory   \tPrepend library search directory\n");
+  printf("  -A directory   \tAppend library search directory\n");
   printf("  -p, --profile  \tTurn on samplnig profiler\n");
   printf("      --version  \tPrint version\n");
+  printf("      --list     \tCompile script without running it\n");
   printf("  -h, --help     \tPrint this help\n");
   printf("  -v, --verbose[=cats]\tVerbose logging: gc,trace,record,jit,regalloc,asm,ir\n");
   printf("Debug options are:\n");
@@ -71,23 +81,27 @@ void print_help() {
 #ifdef RANDOM_SCHEDULE
   printf("  -s             \tRandom schedule seed\n");
 #endif
-  // TODO(davejwatson): -I, -A, -D, --exe?
+  // TODO(davejwatson): --exe?
 }
 
 typedef struct {
   char *image;
   char *script;
+  char **features;
+  char **prepend_paths;
+  char **append_paths;
   int command_arg_idx;
+  bool list;
 } parse_result;
 
 static parse_result parse_args(int argc, char *argv[]) {
   int c;
-  parse_result out = {nullptr, nullptr, 0};
+  parse_result out = {0};
   int option_index = 0;
 #ifdef RANDOM_SCHEDULE
-#define HAWK_SHORT_OPTS "+pv::dhom:s:i:"
+#define HAWK_SHORT_OPTS "+pv::dhoD:I:A:m:s:i:"
 #else
-#define HAWK_SHORT_OPTS "+pv::dhom:i:"
+#define HAWK_SHORT_OPTS "+pv::dhoD:I:A:m:i:"
 #endif
   while ((c = getopt_long(argc, argv, HAWK_SHORT_OPTS, long_options,
                           &option_index)) != -1) {
@@ -123,10 +137,21 @@ static parse_result parse_args(int argc, char *argv[]) {
     case 'i':
       out.image = optarg;
       break;
+    case 'D':
+      arrput(out.features, optarg);
+      break;
+    case 'I':
+      arrput(out.prepend_paths, optarg);
+      break;
+    case 'A':
+      arrput(out.append_paths, optarg);
+      break;
     case 0:
       if (strcmp(long_options[option_index].name, "version") == 0) {
         printf("hawk\n");
         exit(0);
+      } else if (strcmp(long_options[option_index].name, "list") == 0) {
+        out.list = true;
       }
       break;
     default:
@@ -158,6 +183,10 @@ EXPORT int main(int argc, char *argv[]) {
   parse_result args = parse_args(argc, argv);
   auto image = args.image;
   auto script = args.script;
+  command_line_features = args.features;
+  command_line_prepend_paths = args.prepend_paths;
+  command_line_append_paths = args.append_paths;
+  command_line_list = args.list;
   if (args.command_arg_idx < argc) {
     command_line_argc = argc - args.command_arg_idx;
     command_line_argv = &argv[args.command_arg_idx];
@@ -203,4 +232,22 @@ EXPORT int main(int argc, char *argv[]) {
 
   auto f = to_func(start);
   (void)vm(f, script_arg);
+}
+
+EXPORT gc_obj hawk_command_line_features(void) {
+  return make_string_list(command_line_features, arrlen(command_line_features));
+}
+
+EXPORT gc_obj hawk_command_line_prepend_paths(void) {
+  return make_string_list(command_line_prepend_paths,
+                          arrlen(command_line_prepend_paths));
+}
+
+EXPORT gc_obj hawk_command_line_append_paths(void) {
+  return make_string_list(command_line_append_paths,
+                          arrlen(command_line_append_paths));
+}
+
+EXPORT gc_obj hawk_command_line_list(void) {
+  return command_line_list ? TRUE_REP : FALSE_REP;
 }

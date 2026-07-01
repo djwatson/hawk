@@ -41,3 +41,5 @@ vm_callcc_result vm_callcc_slow(vm_state *state, gc_obj *stack,
 gc_obj vm_callcc_resume_func_obj(void);
 gc_obj *vm_callcc_resume_slow(vm_state *state, gc_obj captured);
 void vm_trace_reset(void);
+bool vm_jit_enabled(void);
+bool vm_jit_set_enabled(bool enabled);

@@ -1,17 +1,11 @@
 (import (except (scheme base) syntax-error) (scheme write) (srfi 1) (scheme file)
-        (scheme process-context) (scheme read) (r7expand)
+        (scheme process-context) (scheme read) (r7expand) (scheme case-lambda)
         (rename (library) (library-paths lib:library-paths)) (builders) (expander)
         (prefix (hawk sys) sys:) (srfi 69))
 
 (define (features) feature-list) ;; grab from library
 
 (define (add-feature feat) (add-feature! feat))
-
-(define (save-image-and-die restart name compress-level)
-  (sys:FOREIGN_CALL '(int32 "gc_dump_image_and_die" (gc_obj gc_obj gc_obj))
-                    restart
-                    name
-                    compress-level))
 
 (define (environment . lst)
   (define env (make-toplevel-environment 'env))
@@ -87,22 +81,23 @@
 
 (define (flush-trace-cache) (sys:FOREIGN_CALL '(int32 "vm_trace_reset" ())))
 
-(define (compile foo env)
+(define (compile foo env dump)
   (let* ((ir
-            (build-begin (list (if env
-                                   (expand-repl foo (interaction-environment))
-                                   (expand-program foo "PROGRAM")))))
+            (build-begin (list (if env (expand-repl foo env) (expand-program foo "PROGRAM")))))
          (roots (compile-ir-to-bitcode ir))
          (payload (roots->runtime-payload roots))
          (clo (sys:FOREIGN_CALL '(gc_obj "scm_emit_bitcode_closure" (gc_obj)) payload)))
-    ;; Flush trace cache when in program mode:
-    ;; Restart the whole program from fresh trace state.
-    (values clo roots)))
+    (when dump (for-each print-bc roots))
+    clo))
 
-(define (eval sexp env)
-  (define-values (code ir) (compile sexp env))
-  (unless env (flush-trace-cache))
-  (code))
+(define (eval sexp env) ((compile sexp env #f)))
+
+(define jit
+  (case-lambda
+    (() (if (sys:FOREIGN_CALL '(bool "vm_jit_enabled" ())) 'enabled 'disabled))
+    ((val)
+      (sys:FOREIGN_CALL '(bool "vm_jit_set_enabled" (bool)) (not (not val)))
+      (jit))))
 
 (define (load file)
   (define (read-file)
@@ -111,3 +106,10 @@
       (if (eof-object? next) (reverse sexps) (read-file-rec (cons next sexps)))))
   (define input (with-input-from-file file read-file))
   (eval input (interaction-environment)))
+
+(define (save-image-and-die restart name compress-level)
+  (sys:FOREIGN_CALL '(int32 "gc_dump_image_and_die" (gc_obj gc_obj gc_obj))
+                    restart
+                    name
+                    compress-level))
+

@@ -19,8 +19,8 @@
 (library-paths (append '("." "srfi2" "./expand") (library-paths)))
 
 (define args (cdr (command-line)))
-(define dump-bc (not (not (member "--dump" args))))
-(define files (filter (lambda (arg) (not (string=? arg "--dump"))) args))
+(define dump-bc (not (not (member "--list" args))))
+(define files (filter (lambda (arg) (not (string=? arg "--list"))) args))
 
 (display "Compiling:")
 (display files)

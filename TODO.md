@@ -46,14 +46,9 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 
 Would be super nice to have:
 
-* set (features) via command line
-* add library paths via command line
 * add an --exe option to build a new image and link it (static or dynamic), so we get a real exe
-* a --dump flag to list compiled bytecode without actually running
-* in fact a whole 'hawk' library with options to control the expander, dump bitcode, dump traces, reset traces, 
-  save-image-and-die, etc etc.  These can all be pieced together for testing but not implemented yet as reusable library.
 * When trace cache full, flush it automatically. 
-* Various trace interfaces, like dump image and flush trace cache
+* Various trace interfaces, jit enable/disable
 
 ## JIT backlog
 

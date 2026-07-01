@@ -609,6 +609,18 @@ gc_obj make_string(const char *str) {
 }
 
 // GC: may allocate via gc_alloc.
+gc_obj make_string_list(char **strs, size_t len) {
+  gc_obj head = NIL;
+  gc_add_root((const void *)&head, 1, 0);
+  for (size_t i = len; i > 0; i--) {
+    gc_obj str = make_string(strs[i - 1]);
+    head = make_cons(str, head);
+  }
+  gc_remove_root((const void *)&head, 0);
+  return head;
+}
+
+// GC: may allocate via gc_alloc.
 EXPORT gc_obj SCM_COMMAND_LINE() {
   gc_obj head = NIL;
   gc_add_root((const void *)&head, 1, 0);
