@@ -629,11 +629,6 @@ EXPORT gc_obj SCM_COMMAND_LINE() {
     head = make_cons(arg, head);
   }
 
-  if (command_line_program_name) {
-    gc_obj prog = make_string(command_line_program_name);
-    head = make_cons(prog, head);
-  }
-
   gc_remove_root((const void *)&head, 0);
   return head;
 }

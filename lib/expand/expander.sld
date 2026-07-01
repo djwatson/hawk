@@ -32,17 +32,12 @@
         (lambda (resolved) (expand-program (file->list resolved) "PROGRAM"))))
 
     (define (resolve-r7expand-root)
-      (with-current-directory-from-file (car (command-line))
-        (lambda (_)
-          (let ((candidates '("." "./expand" "../lib/expand")))
-            (let loop ((paths candidates))
-              (if (null? paths)
-                  (error "could not locate r7expand root")
-                  (let ((root (resolve-path (car paths))))
-                    (if (file-exists? (string-append root "/init.scm"))
-                        root
-                        (loop (cdr paths))))))))))
-
+      (let ((candidates '("." "./expand" "../lib/expand")))
+        (let loop ((paths candidates))
+          (if (null? paths)
+              (error "could not locate r7expand root")
+              (let ((root (resolve-path (car paths))))
+                (if (file-exists? (string-append root "/init.scm")) root (loop (cdr paths))))))))
 
     (define (expander-setup)
       (define r7expand-root (resolve-r7expand-root))

@@ -21,7 +21,6 @@ uint32_t hlog_mask = HLOG_NONE;
 bool profile = false;
 bool jit_dump_flag = false;
 int64_t max_trace = INT64_MAX;
-char *command_line_program_name = nullptr;
 int command_line_argc = 0;
 char **command_line_argv = nullptr;
 static char **command_line_features;
@@ -178,7 +177,6 @@ static parse_result parse_args(int argc, char *argv[]) {
 EXPORT int main(int argc, char *argv[]) {
   raise_fd_limit();
   gc_init();
-  command_line_program_name = argv[0];
 
   parse_result args = parse_args(argc, argv);
   auto image = args.image;
