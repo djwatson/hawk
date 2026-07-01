@@ -1393,18 +1393,18 @@
 (define (make-binary-input-port fd)
   (make-port fd #t port-binary-input #f (make-string port-buffer-size) 0 0 #f))
 (define (make-binary-output-port fd)
-  (make-port fd
-             #t
-             port-binary-output
-             #f
-             (make-string port-buffer-size)
-             0
-             0
-             #f))
+  (make-port fd #t port-binary-output #f (make-string port-buffer-size) 0 0 #f))
 (define (make-string-input-port str)
   (make-port -1 #t port-text-input #f str 0 (string-length str) #f))
 (define (make-string-output-port)
-  (make-port -1 #t port-text-output #f #f 0 port-buffer-size (make-string port-buffer-size)))
+  (make-port -1
+             #t
+             port-text-output
+             #f
+             #f
+             0
+             port-buffer-size
+             (make-string port-buffer-size)))
 
 (define newline
   (case-lambda
@@ -1412,9 +1412,13 @@
     ((port) (display #\newline port))))
 
 (define (port-input? port)
-  (port-guardmask port (+ port-identity-mask port-input-flag) port-text-input-type))
+  (port-guardmask port
+                  (+ port-identity-mask port-input-flag)
+                  port-text-input-type))
 (define (port-binary? port)
-  (port-guardmask port (+ port-identity-mask port-binary-flag) (+ port-tag port-binary-flag)))
+  (port-guardmask port
+                  (+ port-identity-mask port-binary-flag)
+                  (+ port-tag port-binary-flag)))
 (define (textual-input-port? port)
   (port-guardmask port
                   (+ port-identity-mask port-input-flag port-binary-flag)
@@ -1433,7 +1437,9 @@
                   port-binary-output-type))
 (define (input-port? port) (port-input? port))
 (define (output-port? port)
-  (port-guardmask port (+ port-identity-mask port-output-flag) port-text-output-type))
+  (port-guardmask port
+                  (+ port-identity-mask port-output-flag)
+                  port-text-output-type))
 (define (textual-port? port)
   (port-guardmask port (+ port-identity-mask port-binary-flag) port-tag))
 (define (binary-port? port) (port-binary? port))
@@ -1536,7 +1542,9 @@
         (cond
           ((< len 0) (make-eof-object))
           ((< pos len)
-            (let ((c (unchecked-buffer-ref-char buf pos))) (port-pos-set! port (+ pos 1)) c))
+            (let ((c (unchecked-buffer-ref-char buf pos)))
+              (port-pos-set! port (+ pos 1))
+              c))
           (else
             (if (< (port-fd port) 0)
                 (begin (port-len-set! port -1) (make-eof-object))
@@ -1620,7 +1628,8 @@
 (define (write-char char port)
   (ensure-port-open port)
   (cond
-    ((not (textual-output-port? port)) (error "write-char: not an output port" port))
+    ((not (textual-output-port? port))
+      (error "write-char: not an output port" port))
     ((port-sbuf port)
       (when (= (port-pos port) (port-len port)) (port-grow-sbuf! port))
       (buffer-set-char! (port-sbuf port) (port-pos port) char)
@@ -1652,12 +1661,11 @@
       (let* ((len (- end start)) (str_len (string-length str)))
         (unless (or (< -1 start str_len) (= start end))
           (error "bad start len write-string" start))
-        (unless (<= 0 end str_len)
-          (error "bad end write-string" end))
-        (when (> start end)
-          (error "bad end start write-string" start end))
+        (unless (<= 0 end str_len) (error "bad end write-string" end))
+        (when (> start end) (error "bad end start write-string" start end))
         (cond
-          ((not (textual-output-port? port)) (error "write-string: not an output port" port))
+          ((not (textual-output-port? port))
+            (error "write-string: not an output port" port))
           ((port-sbuf port)
             (let loop ((pos start) (left len))
               (if (> left 0)
@@ -1689,8 +1697,7 @@
     (() (read-u8 (current-input-port)))
     ((port)
       (ensure-port-open port)
-      (unless (binary-input-port? port)
-        (error "read-u8: not an input port" port))
+      (unless (binary-input-port? port) (error "read-u8: not an input port" port))
       (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
         (cond
           ((< len 0) (eof-object))
@@ -1706,8 +1713,7 @@
     (() (peek-u8 (current-input-port)))
     ((port)
       (ensure-port-open port)
-      (unless (binary-input-port? port)
-        (error "peek-u8: not an input port" port))
+      (unless (binary-input-port? port) (error "peek-u8: not an input port" port))
       (let ((pos (port-pos port)) (len (port-len port)) (buf (port-buf port)))
         (cond
           ((< len 0) (eof-object))
@@ -1718,8 +1724,7 @@
 
 (define (u8-ready? port)
   (ensure-port-open port)
-  (unless (binary-input-port? port)
-    (error "u8-ready?: not an input port" port))
+  (unless (binary-input-port? port) (error "u8-ready?: not an input port" port))
   (< (port-pos port) (port-len port)))
 
 (define read-string
@@ -1879,13 +1884,27 @@
 (define (get-input-string port)
   (buffer->string (port-buf port) 0 (port-len port)))
 (define (open-output-string)
-  (make-port -1 #t port-text-output #f #f 0 port-buffer-size (make-string port-buffer-size)))
+  (make-port -1
+             #t
+             port-text-output
+             #f
+             #f
+             0
+             port-buffer-size
+             (make-string port-buffer-size)))
 (define (get-output-string port)
   (buffer->string (port-sbuf port) 0 (port-pos port)))
 (define (open-input-bytevector bv)
   (make-port -1 #t port-binary-input #f bv 0 (bytevector-length bv) #f))
 (define (open-output-bytevector)
-  (make-port -1 #t port-binary-output #f #f 0 port-buffer-size (make-bytevector port-buffer-size)))
+  (make-port -1
+             #t
+             port-binary-output
+             #f
+             #f
+             0
+             port-buffer-size
+             (make-bytevector port-buffer-size)))
 (define (get-output-bytevector port)
   (buffer->bytevector (port-sbuf port) 0 (port-pos port)))
 
@@ -2209,14 +2228,6 @@
 (define emergency-exit exit)
 
 (define (command-line) (sys:FOREIGN_CALL '(gc_obj "SCM_COMMAND_LINE" ())))
-
-(define (features)
-  '(r7rs exact-closed
-         exact-complex
-         ieee-float ;;full-unicode
-         ratios
-         posix
-         hawk))
 
 ;;; parameters
 

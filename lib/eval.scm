@@ -1,6 +1,17 @@
 (import (except (scheme base) syntax-error) (scheme write) (srfi 1) (scheme file)
-        (scheme process-context) (scheme read) (r7expand) (library) (builders) (expander)
+        (scheme process-context) (scheme read) (r7expand)
+        (rename (library) (library-paths lib:library-paths)) (builders) (expander)
         (prefix (hawk sys) sys:) (srfi 69))
+
+(define (features) feature-list) ;; grab from library
+
+(define (add-feature feat) (add-feature! feat))
+
+(define (save-image-and-die restart name compress-level)
+  (sys:FOREIGN_CALL '(int32 "gc_dump_image_and_die" (gc_obj gc_obj gc_obj))
+                    restart
+                    name
+                    compress-level))
 
 (define (environment . lst)
   (define env (make-toplevel-environment 'env))
@@ -31,8 +42,18 @@
                        '(scheme write)
                        '(scheme r5rs))))
       env)))
-(library-paths '("." "lib/srfi2"))
 
+(lib:library-paths '("." "lib/srfi2"))
+(define (library-paths) (lib:library-paths))
+(define (library-paths-set! paths) (lib:library-paths paths))
+
+(for-each add-feature
+          '(r7rs exact-closed
+                 exact-complex
+                 ieee-float ;;full-unicode
+                 ratios
+                 posix
+                 hawk))
 (define (scheme-report-environment version)
   (unless (= 5 version)
     (error "scheme-report-environment supports only version 5" version))
@@ -64,36 +85,24 @@
                       let-syntax
                       set!)))
 
-(define (eval foo env)
-  ;; (display "EVAL:")
-  ;; (display foo)
-  ;; (display "\n")
-  ;; (flush-output-port)
+(define (flush-trace-cache) (sys:FOREIGN_CALL '(int32 "vm_trace_reset" ())))
 
+(define (compile foo env)
   (let* ((ir
             (build-begin (list (if env
                                    (expand-repl foo (interaction-environment))
                                    (expand-program foo "PROGRAM")))))
-         ;; (_
-         ;;    (begin
-         ;;      (display "Expand done\n" (current-error-port))
-         ;;      (display ir (current-error-port))
-         ;;      (flush-output-port (current-error-port))))
          (roots (compile-ir-to-bitcode ir))
-         ;; (_
-         ;;    (begin
-         ;;      (display "Compile done\n" (current-error-port))
-         ;;      (flush-output-port (current-error-port))))
-         ;;(unused (begin (for-each print-bc roots) (flush-output-port)))
          (payload (roots->runtime-payload roots))
          (clo (sys:FOREIGN_CALL '(gc_obj "scm_emit_bitcode_closure" (gc_obj)) payload)))
-    ;; (display "runtime init done\n" (current-error-port))
-    ;; (flush-output-port (current-error-port))
-
     ;; Flush trace cache when in program mode:
     ;; Restart the whole program from fresh trace state.
-    (unless env (sys:FOREIGN_CALL '(int32 "vm_trace_reset" ())))
-    (clo)))
+    (values clo roots)))
+
+(define (eval sexp env)
+  (define-values (code ir) (compile sexp env))
+  (unless env (flush-trace-cache))
+  (code))
 
 (define (load file)
   (define (read-file)

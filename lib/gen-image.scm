@@ -1,11 +1,11 @@
-(import (scheme base) (scheme eval) (scheme write) (scheme read) (prefix (hawk sys) sys:)
-        (scheme file) (scheme case-lambda) (scheme process-context))
+(import (scheme base) (scheme eval) (scheme write) (scheme read) (scheme file) (scheme case-lambda)
+        (scheme process-context) (hawk))
 
-(define (save-and-die restart name compress-level)
-  (sys:FOREIGN_CALL '(int32 "gc_dump_image_and_die" (gc_obj gc_obj gc_obj))
-                    restart
-                    name
-                    compress-level))
+;; This file contains the main image file.  It is compiled to an image
+;; by a host scheme, then dumped out as a GC image after
+;; re-initializing the expander (because the expander does not support
+;; serializing its own state, it's much simpler that way).
+
 (define (repl)
   (display "repl> ")
   (flush-output-port)
@@ -47,4 +47,4 @@
         (eval final-forms #f)
         (flush-output-port)))))
 
-(save-and-die main-entry "../boot/img.scm.bc" 19)
+(save-image-and-die main-entry "../boot/img.scm.bc" 19)

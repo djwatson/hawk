@@ -40,15 +40,27 @@
         CONS
         RECT))
 
-(define (install-hawk-sys!)
-  (unless (library-exists? '(hawk sys))
-    (make-library '(hawk sys))
-    (with-library '(hawk sys)
+(define hawk-lib-symbols
+  '(add-feature library-paths
+                library-paths-set!
+                compile
+                flush-trace-cache
+                jit
+                save-image-and-die))
+
+(define (install-hawk-library! name symbols variable-library-name)
+  (unless (library-exists? name)
+    (make-library name)
+    (with-library name
                   (lambda ()
                     (define (install-native! keyword)
-                      (let ((env (current-toplevel-environment))) (extend-environment! keyword env))
+                      (let ((env (current-toplevel-environment)))
+                        (install-toplevel-binding! keyword
+                                                   (build-variable keyword variable-library-name)
+                                                   env))
                       (library-export keyword))
-                    (for-each install-native! hawk-sys-symbols)))))
+                    (for-each install-native! symbols)))))
 
 (expander-setup)
-(install-hawk-sys!)
+(install-hawk-library! '(hawk sys) hawk-sys-symbols '(hawk sys))
+(install-hawk-library! '(hawk) hawk-lib-symbols "")
