@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdatomic.h>
+#include <stdlib.h>
 
 #include "bc.h"
 #include "bigint.h"

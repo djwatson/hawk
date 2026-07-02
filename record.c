@@ -1973,8 +1973,17 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_CALLCC_RESUME: {
     auto captured = stack_load(state, stack, 0, true);
-    auto result = stack_load(state, stack, 1, false);
-    result = box_vmcall_arg(state, result);
+    uint64_t result_count =
+        vm_is_callcc_resume_stub_pc(pc) ? argcnt : argcnt - 1;
+    if (result_count > REG_ARG_CNT) {
+      record_abort(state, &op_table, "CALLCC_RESUME too many values");
+      break;
+    }
+    slot results[REG_ARG_CNT];
+    for (uint64_t i = 0; i < result_count; i++) {
+      results[i] =
+          box_vmcall_arg(state, stack_load(state, stack, i + 1, false));
+    }
     if (!is_closure(stack[0])) {
       record_abort(state, &op_table, "CALLCC_RESUME non-closure");
       break;
@@ -2014,10 +2023,14 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto const_offset = add_const(state, tag_fixnum(offset));
     add_inst(state, IR(.op = IR_RET, .op1 = const_offset, .op2 = const_ra,
                        .type = FIXNUM_TAG));
-    auto ret_slot = add_const(state, tag_fixnum(old_pc->reg));
-    add_inst(state, IR(.op = IR_STACK_STORE, .op1 = result, .op2 = ret_slot));
-    set_stack(state, old_pc->reg, result);
-    vm_add_snap(state, new_pc, argcnt);
+    for (uint64_t i = 0; i < result_count; i++) {
+      uint8_t slot_idx = (uint8_t)(old_pc->reg + i);
+      auto ret_slot = add_const(state, tag_fixnum(slot_idx));
+      add_inst(state,
+               IR(.op = IR_STACK_STORE, .op1 = results[i], .op2 = ret_slot));
+      set_stack(state, slot_idx, results[i]);
+    }
+    vm_add_snap(state, new_pc, result_count);
     break;
   }
   default:

@@ -299,6 +299,10 @@ gc_obj vm_callcc_resume_func_obj(void) {
   return tag_func((bcfunc *)&callcc_resume_func);
 }
 
+bool vm_is_callcc_resume_stub_pc(bc *pc) {
+  return pc == &callcc_resume_stub[1];
+}
+
 static inline gc_obj capture_stack_closure(vm_state *state, gc_obj *stack) {
   ptrdiff_t saved_len = stack - state->stack_bottom;
   if (saved_len < 0) {
@@ -508,9 +512,9 @@ static inline char const *func_name_for_pc(bc *pc) {
 }
 
 static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack) {
-  printf("VM backtrace:\n");
-  for (int depth = 0; depth < 256; depth++) {
-    printf("  #%d %s\n", depth, func_name_for_pc(pc));
+  fprintf(stderr, "VM backtrace:\n");
+  for (int depth = 0;; depth++) {
+    fprintf(stderr, "  #%d %s\n", depth, func_name_for_pc(pc));
     if (stack <= state->stack_bottom) {
       return;
     }
@@ -529,7 +533,6 @@ static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack) {
     pc = ret_pc;
     stack = caller_stack;
   }
-  printf("  ... (truncated)\n");
 }
 
 static inline bool check_arity(gc_obj *stack, bc instr, uint64_t *args) {
@@ -700,6 +703,8 @@ static PRESERVE_NONE NOINLINE gc_obj handle_arity_error(bc instr, bc *pc,
     snprintf(msg, sizeof(msg), "Bad argcnt in %s expected %i got %" PRIu64,
              func_name_for_pc(pc), instr.reg, argcnt);
   }
+  fprintf(stderr, "%s\n", msg);
+  debug_print_vm_backtrace(state, pc, stack);
   stack[2] = make_string(msg);
   MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
 }
@@ -1412,7 +1417,13 @@ OP_AD(CALLCC) {
 
 OP(CALLCC_RESUME) {
   auto captured = stack[0];
-  auto result = stack[1];
+  uint64_t result_start = 1;
+  uint64_t result_count =
+      vm_is_callcc_resume_stub_pc(pc) ? argcnt : argcnt - result_start;
+  gc_obj results[UINT8_MAX];
+  for (uint64_t i = 0; i < result_count; i++) {
+    results[i] = stack[result_start + i];
+  }
   if (!is_closure(captured)) {
     stack[2] = make_string("call/cc expected a continuation");
     MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
@@ -1433,7 +1444,10 @@ OP(CALLCC_RESUME) {
   auto new_pc = to_return_address(restored_top[-1]);
   auto old_pc = new_pc - 1;
   auto new_stack = restored_top - old_pc->reg - 1;
-  new_stack[old_pc->reg] = result;
+  if (result_count > 0) {
+    memcpy(&new_stack[old_pc->reg], results, (size_t)result_count * sizeof(gc_obj));
+  }
+  argcnt = result_count;
   pc = new_pc;
   stack = new_stack;
   dispatch_next(pc, stack);
@@ -1449,7 +1463,12 @@ OP(HALT) {
 // End opcode handlers.
 
 static void vm_state_init(vm_state *state) {
+  static bool callcc_resume_func_registered;
   memset(state, 0, sizeof(*state));
+  if (!callcc_resume_func_registered) {
+    gc_register_bcfunc((bcfunc *)&callcc_resume_func);
+    callcc_resume_func_registered = true;
+  }
   for (int i = 0; i < VM_HOTMAP_SZ; i++) {
     state->hotmap[i] = hotmap_cnt;
   }

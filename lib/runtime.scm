@@ -1170,9 +1170,11 @@
 ;; Due to the way sys:CALLCC works, sys:CALLCC *must* be in its own function. DOH.
 (define (call-with-current-continuation-internal thunk) (sys:CALLCC thunk))
 (define (call-with-current-continuation thunk)
-  (let* ((winds *here*) (res (call-with-current-continuation-internal thunk)))
-    (unless (eq? *here* winds) (reroot! winds))
-    res))
+  (define winds *here*)
+  (call-with-values (lambda () (call-with-current-continuation-internal thunk))
+                    (lambda results
+                      (unless (eq? *here* winds) (reroot! winds))
+                      (apply values results))))
 
 (define (call/cc thunk) (call-with-current-continuation thunk))
 
