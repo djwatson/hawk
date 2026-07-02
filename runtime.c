@@ -621,6 +621,15 @@ gc_obj make_string_list(char **strs, size_t len) {
 }
 
 // GC: may allocate via gc_alloc.
+EXPORT gc_obj scm_double_bytes(double value) {
+  string_s *out = gc_alloc((sizeof(string_s) + sizeof(double) + 7) & ~(size_t)7);
+  out->header.type = BYTEVECTOR_TAG;
+  out->len = tag_fixnum(sizeof(double));
+  memcpy(out->str, &value, sizeof(double));
+  return tag_string(out);
+}
+
+// GC: may allocate via gc_alloc.
 EXPORT gc_obj SCM_COMMAND_LINE() {
   gc_obj head = NIL;
   gc_add_root((const void *)&head, 1, 0);
