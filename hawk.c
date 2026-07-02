@@ -93,6 +93,25 @@ typedef struct {
   bool list;
 } parse_result;
 
+static char *absolute_path_arg(char const *path) {
+  if (path[0] == '/') {
+    return strdup(path);
+  }
+  char *cwd = getcwd(nullptr, 0);
+  if (!cwd) {
+    perror("getcwd");
+    exit(-1);
+  }
+  size_t len = strlen(cwd) + 1 + strlen(path) + 1;
+  char *out = malloc(len);
+  if (!out) {
+    abort();
+  }
+  snprintf(out, len, "%s/%s", cwd, path);
+  free(cwd);
+  return out;
+}
+
 static parse_result parse_args(int argc, char *argv[]) {
   int c;
   parse_result out = {0};
@@ -140,10 +159,10 @@ static parse_result parse_args(int argc, char *argv[]) {
       arrput(out.features, optarg);
       break;
     case 'I':
-      arrput(out.prepend_paths, optarg);
+      arrput(out.prepend_paths, absolute_path_arg(optarg));
       break;
     case 'A':
-      arrput(out.append_paths, optarg);
+      arrput(out.append_paths, absolute_path_arg(optarg));
       break;
     case 0:
       if (strcmp(long_options[option_index].name, "version") == 0) {

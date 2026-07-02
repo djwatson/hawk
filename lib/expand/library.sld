@@ -93,7 +93,8 @@
       (let* ((rel (library-spec->relative-file spec))
              (filename
                (find (lambda (candidate) (file-exists? candidate))
-                     (map (lambda (dir) (join-directory dir rel)) (library-paths)))))
+                     (map (lambda (dir) (resolve-path (join-directory dir rel)))
+                          (library-paths)))))
         (and filename
              (let ((library-body (load-library-from-file filename)))
                (autoloaded-library-bodies
