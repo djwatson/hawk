@@ -1689,6 +1689,13 @@
      (fun? c)
      (const-closure? c)))
 
+(define (bc-object-key=? a b)
+  (cond
+    ((and (number? a) (number? b)) (or (= a b) (and (not (= a a)) (not (= b b)))))
+    (else (eq? a b))))
+
+(define (make-bc-object-table) (make-hash-table bc-object-key=?))
+
 (define (all-flonum-vector? v)
   (let ((len (vector-length v)))
     (if (= 0 len)
@@ -1797,7 +1804,7 @@
 
 (define (collect-objects roots)
   (define canon (make-hash-table equal?))
-  (define seen (make-hash-table eq?))
+  (define seen (make-bc-object-table))
   (define order '())
   (define (mark! c)
     (when (heap-obj? c)
@@ -1819,7 +1826,7 @@
   (values (reverse order) canon))
 
 (define (emit-image objects canon symbol-table-value)
-  (define offs (make-hash-table eq?))
+  (define offs (make-bc-object-table))
   (define pos 0)
   (define (pass1 type val)
     (case type
