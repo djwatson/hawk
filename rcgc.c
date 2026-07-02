@@ -9,16 +9,10 @@
 
   * There is no background defrag yet.
 
-  * There is a single background worker that does decrements, and SATB
-  tracing for cycle cleanup
-
-  Decrements might actually be a bit more advanced than the paper -
-  decrements *never* block the main thread (well, they do when SATB
-  starts, but that might not even be necessary).  This was because
-  there are several tests that allocate heavily, but then unlink all
-  at once, resulting in only ~4ms mutator time, but every once in a
-  while >100ms decrement time.  We can put ALL of this decrement work
-  on a background thread.  See for example mperm test.
+  * There is a background worker that does decrements, and a
+  background SATB tracing for cycle cleanup.  Currently we always wait
+  for background decs to finish, so almost nothing needs to be atomic
+  (rc counts and block counts are not atomic).
 
   I think there is still a bug in SATB tracing large objects: since
   the memory backing large objects can be free()d, I think the mark
@@ -71,7 +65,7 @@ enum : size_t {
 enum { BLOCK_FREE, BLOCK_USED };
 
 typedef struct gc_block {
-  _Atomic uint32_t live_objects;
+  uint32_t live_objects;
   uint8_t satb_marked;
   uint8_t state;
   uint8_t marks[BLOCK_MARK_BYTES];
@@ -104,7 +98,9 @@ static bool bcfunc_list_unsorted;
 static pthread_mutex_t free_blocks_lock;
 static pthread_mutex_t large_allocs_lock;
 static pthread_mutex_t decrement_lock;
+static pthread_mutex_t satb_lock;
 static pthread_cond_t decrement_cond;
+static pthread_cond_t satb_cond;
 
 STACK(gc_field_stack, gc_obj *)
 STACK(gc_obj_stack, gc_obj)
@@ -132,8 +128,11 @@ static gc_obj_stack_stack decrement_batches;
 static gc_obj_stack satb_stack;
 static gc_obj_stack_stack satb_batches;
 static pthread_t decrement_thread;
+static pthread_t satb_thread;
 static bool decrement_thread_started;
+static bool satb_thread_started;
 static _Atomic bool decrement_stop;
+static bool decrement_busy;
 static bool satb_finish_pending;
 
 struct large_alloc {
@@ -233,9 +232,7 @@ static void satb_process_batch(gc_obj_stack *batch);
 
 static bool satb_is_active(void) { return satb_active; }
 
-static void satb_set_active(bool active) {
-  satb_active = active;
-}
+static void satb_set_active(bool active) { satb_active = active; }
 
 static void satb_push(gc_obj v) {
   if (is_heap_object(v)) {
@@ -247,16 +244,16 @@ static void satb_enqueue(void) {
   if (satb_stack.len == 0) {
     return;
   }
-  if (!decrement_thread_started) {
+  if (!satb_thread_started) {
     satb_process_batch(&satb_stack);
     return;
   }
-  pthread_mutex_lock(&decrement_lock);
+  pthread_mutex_lock(&satb_lock);
   satb_finish_pending = false;
   gc_obj_stack_stack_push(&satb_batches, satb_stack);
   satb_stack = (gc_obj_stack){0};
-  pthread_cond_signal(&decrement_cond);
-  pthread_mutex_unlock(&decrement_lock);
+  pthread_cond_signal(&satb_cond);
+  pthread_mutex_unlock(&satb_lock);
 }
 
 static void satb_add_root(const uint64_t *rootp, size_t len) {
@@ -268,6 +265,7 @@ static void satb_add_root(const uint64_t *rootp, size_t len) {
 
 INLINE inline static bool visit_root(gc_obj *root, gc_field_stack *increments);
 static void *decrement_thread_main(void *arg);
+static void *satb_thread_main(void *arg);
 
 static void satb_push_roots(void) {
   for (size_t i = 0; i < gc_roots_len; i++) {
@@ -304,11 +302,15 @@ void gc_init(void) {
   pthread_mutex_init(&free_blocks_lock, NULL);
   pthread_mutex_init(&large_allocs_lock, NULL);
   pthread_mutex_init(&decrement_lock, NULL);
+  pthread_mutex_init(&satb_lock, NULL);
   pthread_cond_init(&decrement_cond, NULL);
+  pthread_cond_init(&satb_cond, NULL);
   atomic_store_explicit(&decrement_stop, false, memory_order_relaxed);
   decrement_thread_started =
       pthread_create(&decrement_thread, NULL, decrement_thread_main, nullptr) ==
       0;
+  satb_thread_started =
+      pthread_create(&satb_thread, NULL, satb_thread_main, nullptr) == 0;
   env = getenv("GC_SATB");
   if (env && strcmp(env, "0") == 0) {
     satb_enabled = false;
@@ -370,7 +372,7 @@ static gc_block *block_alloc(void) {
 
 static void block_free(gc_block *block) {
   block->state = BLOCK_FREE;
-  atomic_store_explicit(&block->live_objects, 0, memory_order_relaxed);
+  block->live_objects = 0;
   pthread_mutex_lock(&free_blocks_lock);
   arrput(free_blocks, block);
   pthread_mutex_unlock(&free_blocks_lock);
@@ -421,14 +423,14 @@ static void satb_process_batch(gc_obj_stack *batch) {
 }
 
 static void satb_drain(void) {
-  if (!decrement_thread_started) {
+  if (!satb_thread_started) {
     return;
   }
-  pthread_mutex_lock(&decrement_lock);
+  pthread_mutex_lock(&satb_lock);
   while (!satb_finish_pending) {
-    pthread_cond_wait(&decrement_cond, &decrement_lock);
+    pthread_cond_wait(&satb_cond, &satb_lock);
   }
-  pthread_mutex_unlock(&decrement_lock);
+  pthread_mutex_unlock(&satb_lock);
 }
 
 static void satb_sweep(void) {
@@ -467,27 +469,34 @@ static void mark_object_block(gc_header *hdr) {
     return;
   }
   gc_block *block = (gc_block *)((uintptr_t)hdr & ~(uintptr_t)(BLOCK_SIZE - 1));
-  atomic_fetch_add_explicit(&block->live_objects, 1, memory_order_relaxed);
+  block->live_objects++;
 }
 
 static void clear_object_block(gc_header *hdr) {
   gc_block *block = (gc_block *)((uintptr_t)hdr & ~(uintptr_t)(BLOCK_SIZE - 1));
-  uint32_t old =
-      atomic_fetch_sub_explicit(&block->live_objects, 1, memory_order_relaxed);
-  assert(old > 0);
-  if (old == 1) {
+  assert(block->live_objects > 0);
+  if (--block->live_objects == 0) {
     block_free(block);
   }
 }
 
 void gc_free(void) {
-  if (decrement_thread_started) {
+  if (decrement_thread_started || satb_thread_started) {
     pthread_mutex_lock(&decrement_lock);
     atomic_store_explicit(&decrement_stop, true, memory_order_relaxed);
     pthread_cond_broadcast(&decrement_cond);
     pthread_mutex_unlock(&decrement_lock);
+    pthread_mutex_lock(&satb_lock);
+    pthread_cond_broadcast(&satb_cond);
+    pthread_mutex_unlock(&satb_lock);
+  }
+  if (decrement_thread_started) {
     pthread_join(decrement_thread, NULL);
     decrement_thread_started = false;
+  }
+  if (satb_thread_started) {
+    pthread_join(satb_thread, NULL);
+    satb_thread_started = false;
   }
   if (gc_mmap_base && gc_mmap_base != MAP_FAILED) {
     munmap(gc_mmap_base, gc_mmap_size);
@@ -519,7 +528,9 @@ void gc_free(void) {
     free(container_of(pos, struct large_alloc, list));
   }
   pthread_cond_destroy(&decrement_cond);
+  pthread_cond_destroy(&satb_cond);
   pthread_mutex_destroy(&decrement_lock);
+  pthread_mutex_destroy(&satb_lock);
   pthread_mutex_destroy(&large_allocs_lock);
   pthread_mutex_destroy(&free_blocks_lock);
 }
@@ -580,7 +591,7 @@ static void snapshot_field(gc_obj *field, void *ctx) {
 
 NOINLINE void gc_log_slow(gc_obj obj) {
   gc_header *hdr = to_gc_header(obj);
-  if (atomic_load_explicit(&hdr->rc, memory_order_relaxed) == 0) {
+  if (hdr->rc == 0) {
     return;
   }
   if (hdr->flags & GC_LOGGED) {
@@ -684,8 +695,8 @@ INLINE inline static bool inc_visit_heap(gc_obj *field,
                                          gc_field_stack *increments) {
   gc_obj obj = *field;
   gc_header *hdr = to_gc_header(obj);
-  if (atomic_load_explicit(&hdr->rc, memory_order_relaxed) != 0) {
-    atomic_fetch_add_explicit(&hdr->rc, 1, memory_order_relaxed);
+  if (hdr->rc != 0) {
+    hdr->rc++;
     return false;
   }
 
@@ -695,7 +706,7 @@ INLINE inline static bool inc_visit_heap(gc_obj *field,
   if (is_forwarded(hdr)) {
     hdr = forward_ptr(hdr);
     *field = tag_header(hdr, tag);
-    atomic_fetch_add_explicit(&hdr->rc, 1, memory_order_relaxed);
+    hdr->rc++;
     return true;
   }
 
@@ -719,13 +730,13 @@ INLINE inline static bool inc_visit_heap(gc_obj *field,
       break;
     }
     copy->flags &= (uint8_t)~(GC_LOGGED | GC_FWD_TAG);
-    atomic_store_explicit(&copy->rc, 0, memory_order_relaxed);
+    copy->rc = 0;
     set_forward(hdr, copy);
     hdr = copy;
     *field = tag_header(hdr, tag);
     changed = true;
   }
-  atomic_store_explicit(&hdr->rc, 1, memory_order_relaxed);
+  hdr->rc = 1;
   mark_object_block(hdr);
   trace_heap_object_reserved(hdr, hdr->type, inc_reserve_fields,
                              inc_trace_field, increments);
@@ -755,12 +766,10 @@ INLINE inline static void process_decrements(gc_obj_stack *decrements) {
     gc_header *hdr = to_gc_header(obj);
     // Deferred duplicate decrements can target an object already reclaimed or
     // forwarded by an earlier decrement in this batch.
-    if (atomic_load_explicit(&hdr->rc, memory_order_relaxed) == 0) {
+    if (hdr->rc == 0) {
       continue;
     }
-    uint32_t old = atomic_fetch_sub_explicit(&hdr->rc, 1, memory_order_relaxed);
-    assert(old > 0);
-    if (old > 1) {
+    if (--hdr->rc > 0) {
       continue;
     }
 
@@ -787,35 +796,61 @@ static void *decrement_thread_main(void *arg) {
   (void)arg;
   pthread_mutex_lock(&decrement_lock);
   for (;;) {
-    while (decrement_batches.len == 0 && satb_batches.len == 0 &&
+    while (decrement_batches.len == 0 &&
            !atomic_load_explicit(&decrement_stop, memory_order_relaxed)) {
-      if (!satb_finish_pending) {
-        satb_finish_pending = true;
-        pthread_cond_broadcast(&decrement_cond);
-      }
       pthread_cond_wait(&decrement_cond, &decrement_lock);
     }
     if (atomic_load_explicit(&decrement_stop, memory_order_relaxed)) {
       break;
     }
-    if (decrement_batches.len != 0) {
-      gc_obj_stack batch = gc_obj_stack_stack_pop(&decrement_batches);
-      pthread_mutex_unlock(&decrement_lock);
-      process_decrements(&batch);
-      free(batch.data);
-      pthread_mutex_lock(&decrement_lock);
-      pthread_cond_broadcast(&decrement_cond);
-    } else {
-      gc_obj_stack batch = gc_obj_stack_stack_pop(&satb_batches);
-      pthread_mutex_unlock(&decrement_lock);
-      satb_process_batch(&batch);
-      free(batch.data);
-      pthread_mutex_lock(&decrement_lock);
-      pthread_cond_broadcast(&decrement_cond);
-    }
+    gc_obj_stack batch = gc_obj_stack_stack_pop(&decrement_batches);
+    decrement_busy = true;
+    pthread_mutex_unlock(&decrement_lock);
+    process_decrements(&batch);
+    free(batch.data);
+    pthread_mutex_lock(&decrement_lock);
+    decrement_busy = false;
+    pthread_cond_broadcast(&decrement_cond);
   }
   pthread_mutex_unlock(&decrement_lock);
   return NULL;
+}
+
+static void *satb_thread_main(void *arg) {
+  (void)arg;
+  pthread_mutex_lock(&satb_lock);
+  for (;;) {
+    while (satb_batches.len == 0 &&
+           !atomic_load_explicit(&decrement_stop, memory_order_relaxed)) {
+      if (!satb_finish_pending) {
+        satb_finish_pending = true;
+        pthread_cond_broadcast(&satb_cond);
+      }
+      pthread_cond_wait(&satb_cond, &satb_lock);
+    }
+    if (atomic_load_explicit(&decrement_stop, memory_order_relaxed)) {
+      break;
+    }
+    gc_obj_stack batch = gc_obj_stack_stack_pop(&satb_batches);
+    pthread_mutex_unlock(&satb_lock);
+    satb_process_batch(&batch);
+    free(batch.data);
+    pthread_mutex_lock(&satb_lock);
+    pthread_cond_broadcast(&satb_cond);
+  }
+  pthread_mutex_unlock(&satb_lock);
+  return NULL;
+}
+
+static void wait_for_decrements(void) {
+  if (!decrement_thread_started) {
+    return;
+  }
+  pthread_mutex_lock(&decrement_lock);
+  while (decrement_busy || decrement_batches.len != 0) {
+    pthread_cond_wait(&decrement_cond, &decrement_lock);
+  }
+  pthread_mutex_unlock(&decrement_lock);
 }
 
 static void start_decrements(void) {
@@ -827,7 +862,6 @@ static void start_decrements(void) {
     return;
   }
   pthread_mutex_lock(&decrement_lock);
-  satb_finish_pending = false;
   gc_obj_stack_stack_push(&decrement_batches, cur_decrements);
   cur_decrements = (gc_obj_stack){0};
   pthread_cond_signal(&decrement_cond);
@@ -852,13 +886,24 @@ static inline double elapsed_ms(struct timespec s, struct timespec e) {
 
 void gc_collect(void) {
   total_gc_cnt++;
+  static struct timespec prev_gc_end;
+  struct timespec t0;
+  struct timespec t_bg_dec;
+  struct timespec t1;
+  struct timespec t_sweep;
+  struct timespec t_satb;
+  struct timespec t_satb_end;
+  struct timespec t4;
+  clock_gettime(CLOCK_MONOTONIC, &t0);
+  wait_for_decrements();
+  clock_gettime(CLOCK_MONOTONIC, &t_bg_dec);
 
   bool finish_satb = false;
-  pthread_mutex_lock(&decrement_lock);
+  pthread_mutex_lock(&satb_lock);
   if (satb_active && satb_finish_pending) {
     finish_satb = true;
   }
-  pthread_mutex_unlock(&decrement_lock);
+  pthread_mutex_unlock(&satb_lock);
 
   {
     auto tmp = cur_decrements;
@@ -867,14 +912,6 @@ void gc_collect(void) {
     next_decrements.len = 0;
   }
 
-  static struct timespec prev_gc_end;
-  struct timespec t0;
-  struct timespec t1;
-  struct timespec t_sweep;
-  struct timespec t_satb;
-  struct timespec t_satb_end;
-  struct timespec t4;
-  clock_gettime(CLOCK_MONOTONIC, &t0);
   double mutator_ms = prev_gc_end.tv_sec ? elapsed_ms(prev_gc_end, t0) : 0.0;
   size_t free_before = free_block_count();
   profiler_set_in_gc(true);
@@ -928,8 +965,7 @@ void gc_collect(void) {
     assert(cur.offset == LOG_OBJ_HEADER);
     void *obj = (void *)cur.val;
     ((gc_header *)obj)->flags &= (uint8_t)~GC_LOGGED;
-    assert(atomic_load_explicit(&((gc_header *)obj)->rc,
-                                memory_order_relaxed) != 0);
+    assert(((gc_header *)obj)->rc != 0);
 
     trace_heap_object_reserved((gc_header *)obj, ((gc_header *)obj)->type,
                                inc_reserve_fields, inc_trace_field, increments);
@@ -941,9 +977,7 @@ void gc_collect(void) {
     cur = log_buf[i];
     while (cur.offset != LOG_OBJ_HEADER) {
       gc_obj old_val = {.value = (int64_t)cur.val};
-      if (is_heap_object(old_val) &&
-          atomic_load_explicit(&to_gc_header(old_val)->rc,
-                               memory_order_relaxed) != 0) {
+      if (is_heap_object(old_val) && to_gc_header(old_val)->rc != 0) {
         gc_obj_stack_push(&cur_decrements, old_val);
         if (unlikely(satb_is_active())) {
           satb_push(old_val);
@@ -976,8 +1010,7 @@ void gc_collect(void) {
   // 4) Sweep nursery: free empty blocks and dead large allocs,
   //    leave live ones for decrements
   for (size_t i = 0; i < arrlen(nursery_blocks); i++) {
-    if (atomic_load_explicit(&nursery_blocks[i]->live_objects,
-                             memory_order_relaxed) == 0) {
+    if (nursery_blocks[i]->live_objects == 0) {
       block_free(nursery_blocks[i]);
     }
   }
@@ -985,7 +1018,7 @@ void gc_collect(void) {
 
   for (size_t i = 0; i < arrlen(large_nursery); i++) {
     gc_header *hdr = large_nursery[i];
-    if (atomic_load_explicit(&hdr->rc, memory_order_relaxed) == 0) {
+    if (hdr->rc == 0) {
       struct large_alloc *la = (struct large_alloc *)hdr - 1;
       pthread_mutex_lock(&large_allocs_lock);
       list_del(&la->list);
@@ -1031,13 +1064,14 @@ void gc_collect(void) {
   size_t nursery_mb = copy_alloc_bytes / (size_t)(1024 * 1024);
   copy_alloc_bytes = 0;
   LOG(gc,
-      "gc_collect: %.3f/+%.3f ms (roots %.3f, sweep %.3f, "
+      "gc_collect: %.3f/+%.3f ms (bgdec %.3f, roots %.3f, sweep %.3f, "
       "satb %.3f), "
       "blocks: %zu total, %zu free (+%zu MB), nursery copy: %zu MB, "
       "buflen %li",
-      elapsed_ms(t0, t4), mutator_ms, elapsed_ms(t0, t1),
-      elapsed_ms(t_sweep, t_satb), elapsed_ms(t_satb, t_satb_end),
-      arrlen(all_blocks), free_block_count(), freed_mb, nursery_mb, buflen);
+      elapsed_ms(t0, t4), mutator_ms, elapsed_ms(t0, t_bg_dec),
+      elapsed_ms(t_bg_dec, t1), elapsed_ms(t_sweep, t_satb),
+      elapsed_ms(t_satb, t_satb_end), arrlen(all_blocks), free_block_count(),
+      freed_mb, nursery_mb, buflen);
   prev_gc_end = t4;
   profiler_set_in_gc(false);
 }
