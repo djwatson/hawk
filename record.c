@@ -1070,6 +1070,9 @@ static void *check_record_start(bc *pc, bc instr, gc_obj *stack,
 
 PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                             void *op_table, uint64_t argcnt) {
+  state->jit_oom_pc = pc;
+  state->jit_oom_stack = stack;
+  state->jit_oom_argcnt = argcnt;
   record_debug_op(record_trace_state(state), pc, instr);
 
   trace_state *ts = record_trace_state(state);

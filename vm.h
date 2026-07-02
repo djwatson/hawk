@@ -4,6 +4,7 @@
 #include "bc.h"
 #include "hawk.h"
 #include "record.h"
+#include <setjmp.h>
 #include "types.h"
 
 struct vm_state;
@@ -30,6 +31,10 @@ typedef struct vm_state {
   op_func impls[OP_INS_MAX];
   record_state record;
   emit_state emit;
+  jmp_buf jit_oom_jmp;
+  bc *jit_oom_pc;
+  gc_obj *jit_oom_stack;
+  uint64_t jit_oom_argcnt;
 } vm_state;
 
 gc_obj vm(gc_obj clo, gc_obj arg1, gc_obj arg2);

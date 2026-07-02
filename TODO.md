@@ -42,14 +42,6 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 * Auto flvector 
    * missing fallback conversion. Watch out for GC issues, probably need special gc_log.
 
-# Missing features
-
-Would be super nice to have:
-
-* add an --exe option to build a new image and link it (static or dynamic), so we get a real exe
-* When trace cache full, flush it automatically. 
-* Various trace interfaces, jit enable/disable
-
 ## JIT backlog
 
 * fold.c: Clean folding and memory optimizations in fold.c to use fold engine, same as luajit
@@ -123,7 +115,8 @@ Would be super nice to have:
 * Add lines to blocks
 * fix large object cycle collector - currently freeing large objects
   can make SATB walk walk to invalid mem.
-  (gc_blocks are ok since they are never freed).
+  (gc_blocks are ok since they are never freed).  
+  Probably want to delay frees until satb is done?
   
 # notes:
 

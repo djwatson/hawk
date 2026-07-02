@@ -14,8 +14,18 @@
 #include <pthread.h>
 #endif
 
-static const size_t page_cnt = 1024; // about 4MB
-static const size_t msize = page_cnt * 4096;
+static size_t jit_cache_size(void) {
+  size_t mb = 4;
+  char const *env = getenv("JIT_CACHE_SZ");
+  if (env && *env) {
+    char *end = nullptr;
+    unsigned long long parsed = strtoull(env, &end, 10);
+    if (end != env && *end == '\0' && parsed > 0) {
+      mb = (size_t)parsed;
+    }
+  }
+  return mb * 1024 * 1024;
+}
 
 const char *const reg_names[FPR_REG_END] = {
 #define X(name, unallocatable, callee_saved) #name,
@@ -42,6 +52,9 @@ static void emit_ensure_space(emit_state *s, size_t bytes) {
   assert(s);
   size_t available = (size_t)(s->mend - s->p);
   if (available < bytes) {
+    if (s->overflow_jmp) {
+      longjmp(*s->overflow_jmp, 1);
+    }
     printf("Fail: Out of jit memory\n");
     exit(EXIT_FAILURE);
   }
@@ -182,10 +195,11 @@ void emit_cleanup(emit_state *s) {
   arrfree(s->comments);
   s->comments = nullptr;
 
-  munmap(s->mtop, msize);
+  munmap(s->mtop, s->msize);
   s->mtop = nullptr;
   s->mend = nullptr;
   s->p = nullptr;
+  s->msize = 0;
 }
 
 void emit_init(emit_state *s) {
@@ -206,6 +220,7 @@ void emit_init(emit_state *s) {
   flags |= MAP_JIT;
 #endif
 
+  size_t msize = jit_cache_size();
   auto mem = mmap(nullptr, msize, prot, flags, -1, 0);
   if (mem == MAP_FAILED) {
     fprintf(stderr, "Fail: mmap(%zu bytes) for JIT arena: %s\n", msize,
@@ -216,6 +231,7 @@ void emit_init(emit_state *s) {
   s->mtop = (uint8_t *)mem;
   s->mend = s->mtop + msize;
   s->p = s->mtop;
+  s->msize = msize;
 
   // Valgrind requires some readahead space.
   s->p += 4;

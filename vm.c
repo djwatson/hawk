@@ -1480,6 +1480,7 @@ static void vm_state_init(vm_state *state) {
   }
 
   record_init(&state->record);
+  state->emit.overflow_jmp = &state->jit_oom_jmp;
   emit_init(&state->emit);
 #define X(name, type) state->impls[OP_##name] = impl_##name;
   OPS
@@ -1522,5 +1523,12 @@ gc_obj vm(gc_obj clo, gc_obj arg1, gc_obj arg2) {
     }
   }
 
-  return state->impls[pc->op](*pc, pc, stack, state, state->impls, 1);
+  if (setjmp(state->jit_oom_jmp)) {
+    pc = state->jit_oom_pc;
+    stack = state->jit_oom_stack;
+    argcnt = state->jit_oom_argcnt;
+    trace_reset(state);
+  }
+
+  return state->impls[pc->op](*pc, pc, stack, state, state->impls, argcnt);
 }

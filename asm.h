@@ -1,7 +1,9 @@
 #pragma once
 
 #include "disassemble.h"
+#include <setjmp.h>
 #include <stdbool.h> // For bool type
+#include <stddef.h>
 #include <stdint.h>
 
 #define MAX_REG 64
@@ -42,11 +44,13 @@ typedef struct emit_state {
   uint8_t *mtop;
   uint8_t *mend;
   uint8_t *p;
+  size_t msize;
   comment_entry *comments;
   constant_entry *const_pool;
   uint8_t *alloc_slowpath;
   uint8_t *expand_stack_slowpath;
   uint8_t *gclog_slowpath;
+  jmp_buf *overflow_jmp;
   label jit_exit_stub;
 } emit_state;
 
