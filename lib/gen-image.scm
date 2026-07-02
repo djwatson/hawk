@@ -1,5 +1,5 @@
 (import (scheme base) (scheme eval) (scheme write) (scheme read) (scheme file) (scheme case-lambda)
-        (scheme process-context) (prefix (hawk sys) sys:) (hawk))
+        (scheme process-context) (prefix (hawk sys) sys:) (hawk) (scheme repl))
 
 ;; This file contains the main image file.  It is compiled to an image
 ;; by a host scheme, then dumped out as a GC image after
@@ -32,16 +32,16 @@
 (define (apply-command-line-flags)
   (for-each (lambda (feat-string) (add-feature (string->symbol feat-string)))
             (sys:FOREIGN_CALL '(gc_obj "hawk_command_line_features" ())))
-  (library-paths-set!
-    (append (sys:FOREIGN_CALL '(gc_obj "hawk_command_line_prepend_paths" ()))
-            (library-paths)
-            (sys:FOREIGN_CALL '(gc_obj "hawk_command_line_append_paths" ())))))
+  (library-paths-set! (append (sys:FOREIGN_CALL '(gc_obj "hawk_command_line_prepend_paths" ()))
+                              (library-paths)
+                              (sys:FOREIGN_CALL '(gc_obj "hawk_default_library_paths" ()))
+                              (sys:FOREIGN_CALL '(gc_obj "hawk_command_line_append_paths" ())))))
 
 (define default-import
-  '(import (scheme base) (scheme case-lambda) (scheme char) (scheme complex)
-           (scheme cxr) (scheme eval) (scheme file) (scheme inexact) (scheme lazy)
-           (scheme load) (scheme process-context) (scheme read) (scheme repl)
-           (scheme time) (scheme write) (scheme r5rs)))
+  '(import (scheme base) (scheme case-lambda) (scheme char) (scheme complex) (scheme cxr)
+           (scheme eval) (scheme file) (scheme inexact) (scheme lazy) (scheme load)
+           (scheme process-context) (scheme read) (scheme repl) (scheme time) (scheme write)
+           (scheme r5rs)))
 
 (define (program-forms program)
   (let ((forms (read-file-forms program)))
@@ -82,16 +82,14 @@
          (embedded-image (if compressed? (string-append image ".zstd") image)))
     (write-exe-image-source source (path-basename embedded-image) compressed?)
     (sys:FOREIGN_CALL '(int32 "hawk_dump_image_and_make_exe" (gc_obj gc_obj gc_obj gc_obj))
-                      (lambda ()
-                        ((compile (program-forms program) #f #f))
-                        (flush-output-port))
+                      (lambda () ((compile (program-forms program) #f #f)) (flush-output-port))
                       image
                       source
                       output)))
 
 (define main-entry
   (case-lambda
-    (() (repl))
+    (() (apply-command-line-flags) (repl))
     ((program compile-to-exe?)
       (apply-command-line-flags)
       (if compile-to-exe?

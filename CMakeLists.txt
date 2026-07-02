@@ -271,6 +271,7 @@ target_compile_definitions(
   HAWK_CC="${CMAKE_C_COMPILER}"
   HAWK_CORE_LIB="-lhawk_core"
   HAWK_EXE_EXPORT_FLAG="${HAWK_EXE_EXPORT_FLAG}"
+  HAWK_DEFAULT_LIBRARY_PATH="${CMAKE_INSTALL_FULL_DATADIR}/hawk"
 )
 
 target_link_libraries(hawk_core PRIVATE m)
@@ -312,6 +313,8 @@ install(TARGETS hawk_core
 )
 install(TARGETS hawk RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/doc/hawk.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib/srfi2/srfi
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/hawk)
 
 add_subdirectory(test)
 

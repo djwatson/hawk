@@ -37,7 +37,6 @@
                        '(scheme r5rs))))
       env)))
 
-(lib:library-paths '("." "lib/srfi2"))
 (define (library-paths) (lib:library-paths))
 (define (library-paths-set! paths) (lib:library-paths paths))
 
@@ -112,4 +111,3 @@
                     restart
                     name
                     compress-level))
-

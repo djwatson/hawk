@@ -27,6 +27,9 @@
 #ifndef HAWK_EXE_EXPORT_FLAG
 #define HAWK_EXE_EXPORT_FLAG "-rdynamic"
 #endif
+#ifndef HAWK_DEFAULT_LIBRARY_PATH
+#define HAWK_DEFAULT_LIBRARY_PATH ""
+#endif
 
 uint32_t hlog_mask = HLOG_NONE;
 bool profile = false;
@@ -357,6 +360,11 @@ EXPORT gc_obj hawk_command_line_features(void) {
 EXPORT gc_obj hawk_command_line_prepend_paths(void) {
   return make_string_list(command_line_prepend_paths,
                           arrlen(command_line_prepend_paths));
+}
+
+EXPORT gc_obj hawk_default_library_paths(void) {
+  char *paths[] = {HAWK_DEFAULT_LIBRARY_PATH};
+  return HAWK_DEFAULT_LIBRARY_PATH[0] ? make_string_list(paths, 1) : NIL;
 }
 
 EXPORT gc_obj hawk_command_line_append_paths(void) {
