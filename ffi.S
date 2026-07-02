@@ -1,9 +1,17 @@
 #if defined(__aarch64__) || defined(__arm64__)
 
+#if defined(__APPLE__)
+#define FFI_CALL_ASM _ffi_call_asm
+#else
+#define FFI_CALL_ASM ffi_call_asm
+#endif
+
 .text
-.globl  ffi_call_asm
-.hidden ffi_call_asm
-ffi_call_asm:
+.globl FFI_CALL_ASM
+#if !defined(__APPLE__)
+.hidden FFI_CALL_ASM
+#endif
+FFI_CALL_ASM:
   stp x19, x30, [sp, #-16]!
   mov x19, x0
 
@@ -32,10 +40,18 @@ ffi_call_asm:
 
 #else
 
+#if defined(__APPLE__)
+#define FFI_CALL_ASM _ffi_call_asm
+#else
+#define FFI_CALL_ASM ffi_call_asm
+#endif
+
 .text
-.globl  ffi_call_asm
-.hidden ffi_call_asm
-ffi_call_asm:
+.globl FFI_CALL_ASM
+#if !defined(__APPLE__)
+.hidden FFI_CALL_ASM
+#endif
+FFI_CALL_ASM:
   pushq %rbx
   movq  %rdi, %rbx
 
