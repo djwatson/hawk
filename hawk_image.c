@@ -14,3 +14,10 @@ const uint8_t embedded_image[] = {
 };
 const size_t embedded_image_size = sizeof(embedded_image);
 #endif
+const bool embedded_image_compressed =
+#ifdef HAVE_ZSTD
+    true;
+#else
+    false;
+#endif
+const bool embedded_image_is_program = false;

@@ -146,12 +146,18 @@ Useful options include:
 - `-I DIRECTORY`: prepend a directory to the Scheme library search path
 - `-A DIRECTORY`: append a directory to the Scheme library search path
 - `--list`: compile the script and list bytecode without running it
+- `--exe`: build an executable from a `.scm` source file
 - `-m, --max-trace NUMBER`: stop JIT compilation after a trace count
 - `-d, --dump`: emit debugging information for tools such as gdb and perf
 - `-p, --profile`: turn on the sampling profiler
 - `-v, --verbose`: print tracing, IR, machine code, and GC information
 - `--version`: print the version
 - `-h, --help`: show command line help
+
+`--exe` writes `FILE.hawk-image.c` and `FILE.hawk-image.bc` next to
+`FILE.scm`, then links `FILE` against `libhawk_core` using the system linker.
+Install Hawk first, or set the usual compiler and loader search paths such as
+`LIBRARY_PATH` and `LD_LIBRARY_PATH`, so `-lhawk_core` can be found.
 
 ## Platform Notes
 

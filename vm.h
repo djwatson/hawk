@@ -32,7 +32,7 @@ typedef struct vm_state {
   emit_state emit;
 } vm_state;
 
-gc_obj vm(bcfunc *func, gc_obj arg1);
+gc_obj vm(gc_obj func, gc_obj arg1, gc_obj arg2);
 gc_obj vm_memq(gc_obj obj, gc_obj list);
 gc_obj vm_memv(gc_obj obj, gc_obj list);
 gc_obj *expand_stack(vm_state *state, gc_obj *stack);

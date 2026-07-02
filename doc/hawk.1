@@ -39,6 +39,13 @@ May be specified more than once.
 .BI "\-\-list"
 Compile the script and list its bytecode without running it.
 .TP
+.BI "\-\-exe"
+Generate an executable from the Scheme source file.
+The output path is the script path with the trailing \fB.scm\fR suffix removed.
+The generated executable links against \fBlibhawk_core\fR with the system
+linker; install Hawk first or set normal compiler and loader search paths such
+as \fBLIBRARY_PATH\fR and \fBLD_LIBRARY_PATH\fR.
+.TP
 .BI "\-p, \-\-profile"
 Turn on the sampling profiler, showing VM, GC, and JIT time.
 .TP
@@ -48,8 +55,11 @@ Print the program version string and exit.
 .BI "\-h, \-\-help"
 Print the help text and exit.
 .TP
-.BI "\-v, \-\-verbose"
-Turn on verbose JIT mode.
+.BI "\-v, \-\-verbose[=" CATEGORIES ]
+Turn on verbose logging.  Without categories, all logging is enabled.
+Categories are comma-separated and include
+\fBgc\fR, \fBtrace\fR, \fBrecord\fR, \fBjit\fR, \fBregalloc\fR, \fBasm\fR,
+and \fBir\fR.
 
 .SS Debug options
 .TP
@@ -58,6 +68,9 @@ Stop JITting after \fINUMBER\fR traces and then interpret.
 .TP
 .BI "\-d, \-\-dump"
 Dump Linux perf JIT information.
+.TP
+.BI "\-s " SEED
+Set the random schedule seed when Hawk is built with random schedule debugging.
 
 .SH COPYRIGHT
 .B hawk

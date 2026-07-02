@@ -1488,7 +1488,7 @@ static void vm_state_init(vm_state *state) {
   }
 }
 
-gc_obj vm(bcfunc *func, gc_obj arg1) {
+gc_obj vm(gc_obj func, gc_obj arg1, gc_obj arg2) {
   size_t default_size = 1024;
   vm_state *state = calloc(1, sizeof(vm_state));
   vm_state_init(state);
@@ -1507,12 +1507,16 @@ gc_obj vm(bcfunc *func, gc_obj arg1) {
     profiler_start();
   }
 
-  stack[0] = tag_func(func);
+  stack[0] = func;
   bc *pc = vm_entry_stub;
   uint64_t argcnt = 1;
   if (!is_undefined(arg1)) {
     stack[2] = arg1;
     vm_entry_stub[0].data++;
+    if (!is_undefined(arg2)) {
+      stack[3] = arg2;
+      vm_entry_stub[0].data++;
+    }
   }
 
   return state->impls[pc->op](*pc, pc, stack, state, state->impls, 1);

@@ -245,8 +245,7 @@ static void dump_rebase_field(gc_obj *field, void *ctx) {
   *field = (gc_obj){.value = (int64_t)offset + get_tag(*field)};
 }
 
-EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path,
-                                  gc_obj compress_level) {
+void gc_dump_image(gc_obj clo, gc_obj path, gc_obj compress_level) {
   vm_trace_reset();
   if (!is_closure(clo)) {
     fprintf(stderr, "gc_dump_image: not a closure\n");
@@ -366,5 +365,10 @@ EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path,
   free(compressed);
   free(file);
   free(data);
+}
+
+EXPORT void gc_dump_image_and_die(gc_obj clo, gc_obj path,
+                                  gc_obj compress_level) {
+  gc_dump_image(clo, path, compress_level);
   exit(EXIT_SUCCESS);
 }

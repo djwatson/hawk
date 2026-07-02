@@ -261,6 +261,18 @@ if(USE_RANDOM_SCHEDULE)
     target_compile_definitions(hawk_core PRIVATE RANDOM_SCHEDULE)
 endif()
 
+if(APPLE)
+  set(HAWK_EXE_EXPORT_FLAG "-Wl,-export_dynamic")
+else()
+  set(HAWK_EXE_EXPORT_FLAG "-rdynamic")
+endif()
+target_compile_definitions(
+  hawk_core PRIVATE
+  HAWK_CC="${CMAKE_C_COMPILER}"
+  HAWK_CORE_LIB="-lhawk_core"
+  HAWK_EXE_EXPORT_FLAG="${HAWK_EXE_EXPORT_FLAG}"
+)
+
 target_link_libraries(hawk_core PRIVATE m)
 if(HAVE_ZSTD)
   target_link_libraries(hawk_core PRIVATE ${ZSTD_LIBRARY})
