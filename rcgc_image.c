@@ -275,7 +275,7 @@ void gc_dump_image(gc_obj clo, gc_obj path, gc_obj compress_level) {
   dump_ctx dc = {.base = data, .len = 0, .worklist = nullptr};
 
   gc_obj root = clo;
-  gc_obj start = to_closure(clo)->v[0];
+  gc_obj start = clo;
   dump_visit_field(&root, &dc);
   dump_visit_field(&start, &dc);
   dump_visit_field(&loaded_error_symbol, &dc);

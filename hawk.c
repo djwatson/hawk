@@ -329,7 +329,7 @@ EXPORT int main(int argc, char *argv[]) {
       start = gc_read_image_file(image_name);
     }
   }
-  if (!is_func(start)) {
+  if (!is_closure(start)) {
     printf("Error loading %s\n", image_name);
     exit(-1);
   }

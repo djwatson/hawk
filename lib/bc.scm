@@ -2010,17 +2010,17 @@
       (vector (hash-table-ref ids (car roots)) (map fun->runtime roots)))))
 
 (define (serialize-bitcode roots)
-  (let ((main (car roots)))
-    (let*-values (((objects canon) (collect-objects roots))
+  (let* ((main (car roots)) (entry (make-const-closure main)))
+    (let*-values (((objects canon) (collect-objects (cons entry roots)))
                   ((symbol-table) (build-symbol-table objects))
-                  ((objects canon) (collect-objects (cons symbol-table roots)))
+                  ((objects canon) (collect-objects (cons symbol-table (cons entry roots))))
                   ((image offs) (emit-image objects canon symbol-table)))
       (let ((error-root
                (if (hash-table-exists? canon 'error)
                    (+ (hash-table-ref offs (hash-table-ref canon 'error)) symbol-tag)
                    0)))
         (values image
-                (+ (hash-table-ref offs (hash-table-ref canon main)) ptr-tag)
+                (+ (hash-table-ref offs (hash-table-ref canon entry)) closure-tag)
                 error-root)))))
 
 (define (compile-file dump-bc)

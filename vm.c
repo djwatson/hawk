@@ -1445,7 +1445,8 @@ OP(CALLCC_RESUME) {
   auto old_pc = new_pc - 1;
   auto new_stack = restored_top - old_pc->reg - 1;
   if (result_count > 0) {
-    memcpy(&new_stack[old_pc->reg], results, (size_t)result_count * sizeof(gc_obj));
+    memcpy(&new_stack[old_pc->reg], results,
+           (size_t)result_count * sizeof(gc_obj));
   }
   argcnt = result_count;
   pc = new_pc;
@@ -1488,7 +1489,8 @@ static void vm_state_init(vm_state *state) {
   }
 }
 
-gc_obj vm(gc_obj func, gc_obj arg1, gc_obj arg2) {
+gc_obj vm(gc_obj clo, gc_obj arg1, gc_obj arg2) {
+  assert(is_closure(clo));
   size_t default_size = 1024;
   vm_state *state = calloc(1, sizeof(vm_state));
   vm_state_init(state);
@@ -1507,7 +1509,8 @@ gc_obj vm(gc_obj func, gc_obj arg1, gc_obj arg2) {
     profiler_start();
   }
 
-  stack[0] = func;
+  stack[0] = to_closure(clo)->v[0];
+  stack[1] = clo;
   bc *pc = vm_entry_stub;
   uint64_t argcnt = 1;
   if (!is_undefined(arg1)) {
