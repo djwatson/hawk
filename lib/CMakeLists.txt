@@ -1,10 +1,30 @@
-find_program(GOSH_EXECUTABLE NAMES gosh REQUIRED)
+find_program(HAWK_BOOTSTRAP_EXECUTABLE NAMES hawk)
+if(HAWK_BOOTSTRAP_EXECUTABLE)
+  set(SCHEME_BOOTSTRAP_COMMAND ${HAWK_BOOTSTRAP_EXECUTABLE})
+  set(
+    SCHEME_BOOTSTRAP_IMPORTS
+    -I ${CMAKE_CURRENT_SOURCE_DIR}
+    -I ${CMAKE_CURRENT_SOURCE_DIR}/expand
+    -I ${CMAKE_CURRENT_SOURCE_DIR}/srfi2
+  )
+  set(SCHEME_BOOTSTRAP_NAME hawk)
+else()
+  find_program(GOSH_EXECUTABLE NAMES gosh REQUIRED)
+  set(SCHEME_BOOTSTRAP_COMMAND ${GOSH_EXECUTABLE})
+  set(
+    SCHEME_BOOTSTRAP_IMPORTS
+    -I ${CMAKE_CURRENT_SOURCE_DIR}
+    -I ${CMAKE_CURRENT_SOURCE_DIR}/expand
+  )
+  set(SCHEME_BOOTSTRAP_NAME gosh)
+endif()
 
 set(OPCODES_SCHEME ${CMAKE_CURRENT_SOURCE_DIR}/opcodes.scm)
 add_custom_command(
   OUTPUT ${OPCODES_SCHEME}
   COMMAND
-    ${GOSH_EXECUTABLE}
+    ${SCHEME_BOOTSTRAP_COMMAND}
+    ${SCHEME_BOOTSTRAP_IMPORTS}
     ${CMAKE_CURRENT_SOURCE_DIR}/gen_opcodes.scm
     --header
     ${PROJECT_SOURCE_DIR}/bc.h
@@ -15,7 +35,7 @@ add_custom_command(
   DEPENDS
     ${PROJECT_SOURCE_DIR}/bc.h
     ${CMAKE_CURRENT_SOURCE_DIR}/gen_opcodes.scm
-  COMMENT "Generating Scheme opcode definitions"
+  COMMENT "Generating Scheme opcode definitions with ${SCHEME_BOOTSTRAP_NAME}"
   VERBATIM
 )
 
@@ -42,12 +62,13 @@ add_custom_command(
   OUTPUT ${BOOT_IMAGE_BC}
   BYPRODUCTS ${LIB_IMAGE_BC}
   COMMAND ${CMAKE_COMMAND} -E make_directory ${PROJECT_SOURCE_DIR}/boot
-  COMMAND ${GOSH_EXECUTABLE} -I . -I ./expand/ bc.gosh.scm gen-image.scm
+  COMMAND ${SCHEME_BOOTSTRAP_COMMAND} ${SCHEME_BOOTSTRAP_IMPORTS}
+          bc.gosh.scm gen-image.scm
   COMMAND $<TARGET_FILE:hawk_bootstrap>  --image gen-image.scm.bc
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   DEPENDS
     ${LIB_IMAGE_SCHEME_INPUTS}
-  COMMENT "Bootstrapping boot/img.scm.bc${BOOT_IMAGE_EXT}"
+  COMMENT "Bootstrapping boot/img.scm.bc${BOOT_IMAGE_EXT} with ${SCHEME_BOOTSTRAP_NAME}"
   VERBATIM
 )
 

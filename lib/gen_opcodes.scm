@@ -5,13 +5,38 @@
         (scheme write)
         (scheme process-context)
         (srfi 1)
-        (srfi 13)
         (srfi 69))
 
 ;; Generate Scheme opcode definitions from bc.h.
 ;;
 ;; Usage:
 ;;   gen-opcodes.scm --header bc.h --output opcodes.scm
+
+(define (char-ascii-whitespace? ch)
+  (or (char=? ch #\space)
+      (char=? ch #\tab)
+      (char=? ch #\newline)
+      (char=? ch #\return)))
+
+(define (string-trim-both s)
+  (let ((len (string-length s)))
+    (let left ((start 0))
+      (if (and (< start len) (char-ascii-whitespace? (string-ref s start)))
+          (left (+ start 1))
+          (let right ((end len))
+            (if (and (< start end)
+                     (char-ascii-whitespace? (string-ref s (- end 1))))
+                (right (- end 1))
+                (substring s start end)))))))
+
+(define (string-join strings sep)
+  (if (null? strings)
+      ""
+      (let loop ((parts (cdr strings))
+                 (out (car strings)))
+        (if (null? parts)
+            out
+            (loop (cdr parts) (string-append out sep (car parts)))))))
 
 (define (split-on-chars s delims)
   (let loop ((chars (string->list s))
@@ -30,7 +55,7 @@
             fields)))))
 
 (define (nonempty-string? s)
-  (not (string-null? s)))
+  (not (= (string-length s) 0)))
 
 (define (tokenize-op-line line)
   (filter nonempty-string?
