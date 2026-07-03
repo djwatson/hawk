@@ -303,19 +303,24 @@ bool vm_is_callcc_resume_stub_pc(bc *pc) {
   return pc == &callcc_resume_stub[1];
 }
 
-static inline gc_obj capture_stack_closure(vm_state *state, gc_obj *stack) {
+static inline gc_obj capture_continuation_closure(vm_state *state,
+                                                  gc_obj *stack,
+                                                  gc_obj winders,
+                                                  gc_obj reroot_proc) {
   ptrdiff_t saved_len = stack - state->stack_bottom;
   if (saved_len < 0) {
     abort();
   }
   size_t words = (size_t)saved_len;
-  size_t payload_words = words + 1;
+  size_t payload_words = words + 3;
   size_t bytes = sizeof(closure_s) + (sizeof(gc_obj) * payload_words);
   closure_s *captured = gc_alloc(bytes);
   captured->header.type = CLOSURE_TAG;
   captured->len = tag_fixnum((int64_t)payload_words);
   captured->v[0] = vm_callcc_resume_func_obj();
-  memcpy(&captured->v[1], state->stack_bottom, sizeof(gc_obj) * words);
+  captured->v[1] = winders;
+  captured->v[2] = reroot_proc;
+  memcpy(&captured->v[3], state->stack_bottom, sizeof(gc_obj) * words);
   return tag_closure(captured);
 }
 
@@ -344,10 +349,14 @@ static inline void call_with_captured_stack(bc **pc, gc_obj **stack,
 }
 
 vm_callcc_result vm_callcc_slow(vm_state *state, gc_obj *stack,
-                                gc_obj callcc_arg) {
-  gc_add_root((const void *)&callcc_arg, 1, 0);
-  gc_obj captured_stack = capture_stack_closure(state, stack);
-  gc_remove_root((const void *)&callcc_arg, 0);
+                                gc_obj callcc_arg, gc_obj winders,
+                                gc_obj reroot_proc) {
+  gc_obj roots[] = {callcc_arg, winders, reroot_proc};
+  gc_add_root((const void *)roots, 3, 0);
+  gc_obj captured_stack =
+      capture_continuation_closure(state, stack, roots[1], roots[2]);
+  gc_remove_root((const void *)roots, 0);
+  callcc_arg = roots[0];
   bc *pc = nullptr;
   uint64_t argcnt = 0;
   stack = state->stack_bottom;
@@ -357,12 +366,12 @@ vm_callcc_result vm_callcc_slow(vm_state *state, gc_obj *stack,
 
 gc_obj *vm_callcc_resume_slow(vm_state *state, gc_obj captured) {
   auto clo = to_closure(captured);
-  size_t saved_words = (size_t)(to_fixnum(clo->len) - 1);
+  size_t saved_words = (size_t)(to_fixnum(clo->len) - 3);
   gc_obj *restored_top = state->stack_bottom + saved_words;
   while (restored_top >= state->stack_limit) {
     restored_top = expand_stack(state, restored_top);
   }
-  memcpy(state->stack_bottom, &clo->v[1], sizeof(gc_obj) * saved_words);
+  memcpy(state->stack_bottom, &clo->v[3], sizeof(gc_obj) * saved_words);
   return restored_top;
 }
 
@@ -1401,13 +1410,16 @@ OP_AD(INTEGER_CHAR) {
 }
 
 OP_AD(CALLCC) {
-  auto captured_stack = capture_stack_closure(state, stack);
-  // capture_stack_closure may relocate v1.
-  v1 = stack[instr.data];
   if (!is_closure(v1)) {
     stack[2] = make_string("call/cc expected a procedure");
     MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
   }
+  auto winders = stack[instr.data + 1];
+  auto reroot_proc = stack[instr.data + 2];
+  auto captured_stack =
+      capture_continuation_closure(state, stack, winders, reroot_proc);
+  // capture_continuation_closure may relocate operands.
+  v1 = stack[instr.data];
   stack[instr.reg] = captured_stack;
   stack = state->stack_bottom;
   call_with_captured_stack(&pc, &stack, v1, captured_stack, &argcnt);
@@ -1430,7 +1442,7 @@ OP(CALLCC_RESUME) {
   }
   auto clo = to_closure(captured);
   auto len = to_fixnum(clo->len);
-  if (len < 1) {
+  if (len < 3) {
     stack[2] = make_string("call/cc expected a continuation");
     MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
   }
@@ -1444,13 +1456,29 @@ OP(CALLCC_RESUME) {
   auto new_pc = to_return_address(restored_top[-1]);
   auto old_pc = new_pc - 1;
   auto new_stack = restored_top - old_pc->reg - 1;
-  if (result_count > 0) {
-    memcpy(&new_stack[old_pc->reg], results,
-           (size_t)result_count * sizeof(gc_obj));
+  auto reroot_proc = clo->v[2];
+  if (!is_closure(reroot_proc)) {
+    stack[2] = make_string("call/cc reroot helper unavailable");
+    MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
   }
-  argcnt = result_count;
-  pc = new_pc;
-  stack = new_stack;
+
+  gc_obj *callee_stack = new_stack + old_pc->reg + 1;
+  while (callee_stack + result_count + 2 >= state->stack_limit) {
+    ptrdiff_t new_offset = new_stack - state->stack_bottom;
+    ptrdiff_t offset = callee_stack - state->stack_bottom;
+    expand_stack(state, callee_stack + result_count + 2);
+    new_stack = state->stack_bottom + new_offset;
+    callee_stack = state->stack_bottom + offset;
+  }
+  new_stack[old_pc->reg] = tag_return_address(new_pc);
+  callee_stack[0] = reroot_proc;
+  callee_stack[1] = clo->v[1];
+  if (result_count > 0) {
+    memcpy(&callee_stack[2], results, (size_t)result_count * sizeof(gc_obj));
+  }
+  argcnt = result_count + 2;
+  stack = callee_stack;
+  pc = set_new_pc(state, pc, stack, reroot_proc);
   dispatch_next(pc, stack);
   END
 }

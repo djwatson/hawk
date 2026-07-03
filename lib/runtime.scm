@@ -1167,14 +1167,20 @@
 ;;; call/cc
 
 (define *here* (list #f))
-;; Due to the way sys:CALLCC works, sys:CALLCC *must* be in its own function. DOH.
-(define (call-with-current-continuation-internal thunk) (sys:CALLCC thunk))
+(define callcc-reroot
+  (case-lambda
+    ((saved-winders res)
+      (unless (eq? *here* saved-winders) (reroot! saved-winders))
+      res)
+    ((saved-winders res1 res2)
+      (unless (eq? *here* saved-winders) (reroot! saved-winders))
+      (values res1 res2))
+    ((saved-winders . results)
+      (unless (eq? *here* saved-winders) (reroot! saved-winders))
+      (apply values results))))
+
 (define (call-with-current-continuation thunk)
-  (define winds *here*)
-  (call-with-values (lambda () (call-with-current-continuation-internal thunk))
-                    (lambda results
-                      (unless (eq? *here* winds) (reroot! winds))
-                      (apply values results))))
+  (sys:CALLCC thunk *here* callcc-reroot))
 
 (define (call/cc thunk) (call-with-current-continuation thunk))
 
@@ -2247,7 +2253,7 @@
     (call-with-values during
                       (case-lambda
                         ((value) (reroot! here) value)
-                        (values (reroot! here) (apply values results))))))
+                        (results (reroot! here) (apply values results))))))
 
 (define (reroot! there)
   (unless (eq? *here* there)

@@ -42,7 +42,8 @@ gc_obj vm_memq(gc_obj obj, gc_obj list);
 gc_obj vm_memv(gc_obj obj, gc_obj list);
 gc_obj *expand_stack(vm_state *state, gc_obj *stack);
 vm_callcc_result vm_callcc_slow(vm_state *state, gc_obj *stack,
-                                gc_obj callcc_arg);
+                                gc_obj callcc_arg, gc_obj winders,
+                                gc_obj reroot_proc);
 gc_obj vm_callcc_resume_func_obj(void);
 bool vm_is_callcc_resume_stub_pc(bc *pc);
 gc_obj *vm_callcc_resume_slow(vm_state *state, gc_obj captured);
