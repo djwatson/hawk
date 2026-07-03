@@ -2,17 +2,6 @@ diff --git a/record.c b/record.c
 index 4afdf00..4961a97 100644
 --- a/record.c
 +++ b/record.c
-@@ -111,9 +111,7 @@ static void clear_trace_state(trace_state *ts) {
-   arrfree(ts->debug_ops);
-   *ts = (trace_state){};
- }
--static void free_snap(snap *snap) {
--  arrfree(snap->side_exit_jcc_locs);
--}
-+static void free_snap(snap *snap) { arrfree(snap->side_exit_jcc_locs); }
- static void free_trace(trace *trace) {
-   arr_for_each(trace->snaps, snap) { free_snap(&snap); }
-   arrfree(trace->ins);
 @@ -493,6 +491,7 @@ static void set_stack(vm_state *state, uint8_t reg, slot val) {
  
  static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos,

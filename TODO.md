@@ -1,7 +1,10 @@
 ## Release checklist
 
+* should probably fix ctak & fibc, especially after multiple-value-returns fix
+  they're blowing up the benchmarks
+* no-const-globals ablation has crashes
 * some github actions to test build for ubuntu, osx, arch? gcc, clang?
-* paper
+* finish paper polish
 
 ## slow vs Chez
 

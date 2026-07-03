@@ -7,7 +7,7 @@
 ;; serializing its own state, it's much simpler that way).
 
 (define (repl)
-  (display "repl> ")
+  (display "hawk> ")
   (flush-output-port)
   (guard (obj (else
                 (display "Caught error:")
