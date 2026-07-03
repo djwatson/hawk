@@ -505,6 +505,23 @@ static uint8_t emit_collect_ccall_args(trace *t, slot chain,
   return count;
 }
 
+static void collect_callcc_extra_args(trace *t, slot chain, slot args[2]) {
+  for (uint8_t i = 0; i < 2; i++) {
+    if (slot_is_zero(t, chain) || chain.constant) {
+      abort();
+    }
+    auto carg = &t->ins[chain.loc];
+    if (carg->op != IR_CARG) {
+      abort();
+    }
+    args[i] = carg->op1;
+    chain = carg->op2;
+  }
+  if (!slot_is_zero(t, chain)) {
+    abort();
+  }
+}
+
 static void invalidate_live_regs_for_call(trace *t, regalloc_state *ra_state,
                                           uint8_t dst_reg) {
   enum : uint16_t {
@@ -795,17 +812,40 @@ static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
                         uint16_t op_cnt_idx, ir_ins const *op, slot *args,
                         uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg) {
   slot callcc_arg = op->op1;
+  slot extra_args[2];
+  collect_callcc_extra_args(t, op->op2, extra_args);
+  slot winders = extra_args[0];
+  slot reroot_proc = extra_args[1];
   uint8_t arg_src = emit_arg_reg(args, arg_regs, arg_count, callcc_arg);
-  if (!callcc_arg.constant && arg_src == REG_NONE) {
+  uint8_t winders_src = emit_arg_reg(args, arg_regs, arg_count, winders);
+  uint8_t reroot_src = emit_arg_reg(args, arg_regs, arg_count, reroot_proc);
+  if ((!callcc_arg.constant && arg_src == REG_NONE) ||
+      (!winders.constant && winders_src == REG_NONE) ||
+      (!reroot_proc.constant && reroot_src == REG_NONE)) {
     abort();
   }
 
-  if (!callcc_arg.constant && arg_src != RARG2) {
-    emit_mov(s, RARG2, arg_src);
+  par_copy *cpy = nullptr;
+  bool live_regs[MAX_REG];
+  uint64_t live_gpr_mask;
+  collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs, &live_gpr_mask);
+  if (!callcc_arg.constant) {
+    arrput(cpy, ((par_copy){.from = arg_src, .to = RARG2}));
   }
+  if (!winders.constant) {
+    arrput(cpy, ((par_copy){.from = winders_src, .to = RARG3}));
+  }
+  if (!reroot_proc.constant) {
+    arrput(cpy, ((par_copy){.from = reroot_src, .to = RARG4}));
+  }
+  collect_move_source_roots(cpy, live_regs, &live_gpr_mask);
+  emit_serialized_moves(s, cpy, live_regs, live_gpr_mask);
+
   emit_load_jit_state(s, RARG0);
   emit_mov(s, RARG1, RSTACK);
   emit_gcobj_arg(s, t, callcc_arg, RARG2, RARG2);
+  emit_gcobj_arg(s, t, winders, RARG3, RARG3);
+  emit_gcobj_arg(s, t, reroot_proc, RARG4, RARG4);
 
   emit_store_ralloc(s);
   emit_mov64(s, RTMP, (intptr_t)&vm_callcc_slow);

@@ -115,6 +115,13 @@ uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins,
   if (ins->op == IR_CARG) {
     return 0;
   }
+  if (ins->op == IR_CALLCC) {
+    if (!op1.constant) {
+      args[count++] = op1;
+    }
+    return (uint8_t)(count +
+                     regalloc_collect_carg_args(t, op2, args + count));
+  }
   if (ins->op == IR_CCALL) {
     return regalloc_collect_carg_args(t, op2, args);
   }

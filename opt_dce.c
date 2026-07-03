@@ -41,6 +41,9 @@ static void propagate(trace *trace, bool *marks) {
         !ins->op1.constant) {
       marks[ins->op1.loc] = true;
     }
+    if (ins->op == IR_CALLCC && !ins->op2.constant) {
+      marks[ins->op2.loc] = true;
+    }
     if (type == IR_ARG_IR_IR && !ins->op2.constant) {
       marks[ins->op2.loc] = true;
     }

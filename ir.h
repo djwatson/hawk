@@ -87,7 +87,7 @@ typedef enum : uint8_t {
   X(GCLOG, ARG_IR_IR, true)                                                    \
   X(ALLOC, ARG_IR_IR, false)                                                   \
   X(FLUSH, ARG_NONE_NONE, true)                                                \
-  X(CALLCC, ARG_IR_NONE, true)                                                 \
+  X(CALLCC, ARG_IR_IR, true)                                                   \
   X(CALLCC_RESUME, ARG_IR_NONE, true)                                          \
   X(BOX_FLONUM, ARG_IR_NONE, false)                                            \
   X(EXACT, ARG_IR_NONE, false)                                                 \

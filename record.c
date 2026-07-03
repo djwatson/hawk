@@ -1943,6 +1943,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       break;
     }
     auto v1 = stack_load(state, stack, instr.data, true);
+    auto winders = stack_load(state, stack, instr.data + 1, true);
+    auto reroot_proc = stack_load(state, stack, instr.data + 2, true);
     if (!v1.constant) {
       slot code_slot = add_const(state, tag_fixnum(1));
       slot func = add_inst(state, IR(.op = IR_LOAD, .op1 = v1, .op2 = code_slot,
@@ -1952,8 +1954,14 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
     vm_add_snap(state, pc, argcnt); // only for IR_FLUSH use
     add_inst(state, IR(.op = IR_FLUSH, .type = PTR_TAG));
+    slot chain = add_const(state, tag_fixnum(0));
+    chain = add_inst(state, IR(.op = IR_CARG, .op1 = reroot_proc, .op2 = chain,
+                               .type = UNDEFINED_TAG));
+    chain = add_inst(state, IR(.op = IR_CARG, .op1 = winders, .op2 = chain,
+                               .type = UNDEFINED_TAG));
     auto captured_stack =
-        add_inst(state, IR(.op = IR_CALLCC, .op1 = v1, .type = CLOSURE_TAG));
+        add_inst(state, IR(.op = IR_CALLCC, .op1 = v1, .op2 = chain,
+                           .type = CLOSURE_TAG));
 
     arrfree(ts->stack);
     ts->stack = nullptr;
@@ -1993,7 +2001,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
     auto clo = to_closure(stack[0]);
     int64_t len = to_fixnum(clo->len);
-    if (len < 1 || clo->v[0].value != vm_callcc_resume_func_obj().value) {
+    if (len < 3 || clo->v[0].value != vm_callcc_resume_func_obj().value) {
       record_abort(state, &op_table, "CALLCC_RESUME invalid continuation");
       break;
     }
@@ -2013,27 +2021,41 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto expected_ra = add_const(state, resume_ra);
     add_inst(state, IR(.op = IR_EQ, .op1 = dest, .op2 = expected_ra));
 
+    slot winders_off = add_const(state, tag_fixnum(2));
+    slot saved_winders =
+        add_inst(state, IR(.op = IR_LOAD, .op1 = captured, .op2 = winders_off,
+                           .type = (uint8_t)get_type_tag(clo->v[1])));
+    slot reroot_off = add_const(state, tag_fixnum(3));
+    slot reroot_proc =
+        add_inst(state, IR(.op = IR_LOAD, .op1 = captured, .op2 = reroot_off,
+                           .type = CLOSURE_TAG));
+
     add_inst(state,
              IR(.op = IR_CALLCC_RESUME, .op1 = captured, .type = PTR_TAG));
 
-    auto new_pc = to_return_address(resume_ra);
-    auto old_pc = new_pc - 1;
-    auto offset = old_pc->reg + 1;
     ts->depth = 0;
     ts->stack_off = 0;
-    set_stack_len(ts, 0);
-    auto const_ra = add_const(state, resume_ra);
-    auto const_offset = add_const(state, tag_fixnum(offset));
-    add_inst(state, IR(.op = IR_RET, .op1 = const_offset, .op2 = const_ra,
-                       .type = FIXNUM_TAG));
+    set_stack_len(ts, (uint32_t)(result_count + 2));
+    add_inst(state, IR(.op = IR_STACK_STORE, .op1 = reroot_proc,
+                       .op2 = add_const(state, tag_fixnum(0))));
+    add_inst(state, IR(.op = IR_STACK_STORE, .op1 = saved_winders,
+                       .op2 = add_const(state, tag_fixnum(1))));
+    set_stack(state, 0, reroot_proc);
+    set_stack(state, 1, saved_winders);
     for (uint64_t i = 0; i < result_count; i++) {
-      uint8_t slot_idx = (uint8_t)(old_pc->reg + i);
-      auto ret_slot = add_const(state, tag_fixnum(slot_idx));
+      uint8_t slot_idx = (uint8_t)(i + 2);
+      auto helper_slot = add_const(state, tag_fixnum(slot_idx));
       add_inst(state,
-               IR(.op = IR_STACK_STORE, .op1 = results[i], .op2 = ret_slot));
+               IR(.op = IR_STACK_STORE, .op1 = results[i], .op2 = helper_slot));
       set_stack(state, slot_idx, results[i]);
     }
-    vm_add_snap(state, new_pc, result_count);
+    auto helper_func = to_closure(clo->v[2])->v[0];
+    assert(is_func(helper_func));
+    vm_add_snap(
+        state,
+        (bc *)(&to_func(helper_func)->data[to_func(helper_func)->const_cnt *
+                                      sizeof(gc_obj)]),
+        result_count + 2);
     break;
   }
   default:
