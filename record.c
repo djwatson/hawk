@@ -1762,10 +1762,16 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_ALLOC: {
     auto sz = stack_load(state, stack, instr.v1, true);
     auto type = stack_load(state, stack, instr.v2, true);
-    assert(type.constant);
-
     auto t = record_current_trace(state);
-    auto type_const = t->consts[type.loc];
+    auto type_const = stack[instr.v2];
+    assert(is_fixnum(type_const));
+    if (!type.constant) {
+      auto expected = add_const(state, type_const);
+      vm_add_snap(state, pc, argcnt);
+      add_inst(state, IR(.op = IR_EQ, .op1 = type, .op2 = expected,
+                         .type = get_slot_type(t, type)));
+      type = expected;
+    }
     ir_ins ins = IR(.op = IR_ALLOC, .op1 = sz, .op2 = type,
                     .type = (uint8_t)to_fixnum(type_const));
     auto obj = add_inst(state, ins);
