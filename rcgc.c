@@ -627,10 +627,9 @@ NOINLINE void *gc_alloc_slow(uint64_t sz) {
 
 static void *gc_large_alloc(uint64_t sz) {
   if (next_collect < sz) {
-    next_collect = -1;
     gc_collect();
   }
-  next_collect -= sz;
+  next_collect = sz >= next_collect ? 0 : next_collect - sz;
   struct large_alloc *la = malloc(sizeof(*la) + sz);
   if (!la) {
     fprintf(stderr, "gc_large_alloc: out of memory\n");
