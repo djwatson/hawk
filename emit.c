@@ -2107,8 +2107,12 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     }
     case IR_GGET: {
       emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op1));
-      emit_mem_load(s, 16 - SYMBOL_TAG, RTMP, dst_reg);
-      emit_typecheck(s, t, op, cur_snap, dst_reg);
+      uint8_t load_reg = op->type == FLONUM_TAG ? RTMP2 : dst_reg;
+      emit_mem_load(s, 16 - SYMBOL_TAG, RTMP, load_reg);
+      emit_typecheck(s, t, op, cur_snap, load_reg);
+      if (op->type == FLONUM_TAG) {
+        emit_unbox_flonum(s, load_reg, dst_reg);
+      }
       break;
     }
     case IR_GSET: {
