@@ -299,6 +299,10 @@ gc_obj vm_callcc_resume_func_obj(void) {
   return tag_func((bcfunc *)&callcc_resume_func);
 }
 
+gc_obj vm_callcc_resume_stub_ra(void) {
+  return tag_return_address(&callcc_resume_stub[1]);
+}
+
 bool vm_is_callcc_resume_stub_pc(bc *pc) {
   return pc == &callcc_resume_stub[1];
 }

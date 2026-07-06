@@ -373,6 +373,19 @@ static void vm_add_snap(vm_state *state, bc *pc, uint64_t argcnt) {
   arrput(cur_trace->snaps, sn);
 }
 
+static void vm_add_no_side_snap(vm_state *state, bc *pc, uint64_t argcnt) {
+  vm_add_snap(state, pc, argcnt);
+  arrlast(record_current_trace(state)->snaps)->exits = 255;
+}
+
+static uint16_t stack_base_for(vm_state *state, gc_obj *stack,
+                               uint16_t stack_off) {
+  ptrdiff_t pos = stack - state->stack_bottom;
+  assert(pos >= stack_off);
+  assert(pos - stack_off <= UINT16_MAX);
+  return (uint16_t)(pos - stack_off);
+}
+
 static void ensure_stack_len(trace_state *ts, uint32_t need) {
   auto len = arrlen(ts->stack);
   while (len < need) {
@@ -517,6 +530,30 @@ static void set_stack_top(vm_state *state, uint8_t top) {
   trace_state *ts = record_trace_state(state);
   set_stack_len(ts, (uint32_t)top);
 }
+
+enum { CALLCC_INLINE_SAVE_CAP = 128 };
+
+static slot stack_abs_load_boxed(vm_state *state, uint32_t abs_idx) {
+  trace_state *ts = record_trace_state(state);
+  if (abs_idx >= ts->stack_base) {
+    uint32_t rel_idx = abs_idx - ts->stack_base;
+    if (rel_idx < arrlen(ts->stack) && ts->stack[rel_idx].live) {
+      return box_vmcall_arg(state, ts->stack[rel_idx].loc);
+    }
+  }
+  return add_inst(state, IR(.op = IR_STACK_LOAD_RAW, .data = abs_idx,
+                            .type = UNDEFINED_TAG));
+}
+
+static void store_closure_slot(vm_state *state, slot clo, int64_t idx,
+                               slot val) {
+  slot off = add_const(state, tag_fixnum(idx));
+  auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = off,
+                                .type = CLOSURE_TAG));
+  add_inst(state,
+           IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = CLOSURE_TAG));
+}
+
 static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   // We use a non-moving gc, so this is just a runtime constant, always.
   auto c = *(gc_obj *)(pc - offset);
@@ -1296,6 +1333,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       ir_ins ins = IR(.op = IR_RET, .op1 = const_offset, .op2 = const_ra,
                       .type = FIXNUM_TAG);
       add_inst(state, ins);
+      assert(ts->stack_base >= offset);
+      ts->stack_base = (uint16_t)(ts->stack_base - offset);
       for (uint16_t i = 0; i < count; i++) {
         auto res = count == 1 ? ret0 : rets[i];
         set_stack(state, (uint8_t)(old_pc->reg + i), res);
@@ -1942,6 +1981,11 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       record_abort(state, &op_table, "call/cc expected a procedure");
       break;
     }
+    ptrdiff_t saved_len = stack - state->stack_bottom;
+    if (saved_len < 0) {
+      record_abort(state, &op_table, "CALLCC invalid stack");
+      break;
+    }
     auto v1 = stack_load(state, stack, instr.data, true);
     auto winders = stack_load(state, stack, instr.data + 1, true);
     auto reroot_proc = stack_load(state, stack, instr.data + 2, true);
@@ -1952,19 +1996,66 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       slot must_be = add_const(state, to_closure(stack[instr.data])->v[0]);
       add_inst(state, IR(.op = IR_EQ, .op1 = func, .op2 = must_be));
     }
-    vm_add_snap(state, pc, argcnt); // only for IR_FLUSH use
-    add_inst(state, IR(.op = IR_FLUSH, .type = PTR_TAG));
-    slot chain = add_const(state, tag_fixnum(0));
-    chain = add_inst(state, IR(.op = IR_CARG, .op1 = reroot_proc, .op2 = chain,
-                               .type = UNDEFINED_TAG));
-    chain = add_inst(state, IR(.op = IR_CARG, .op1 = winders, .op2 = chain,
-                               .type = UNDEFINED_TAG));
-    auto captured_stack =
-        add_inst(state, IR(.op = IR_CALLCC, .op1 = v1, .op2 = chain,
-                           .type = CLOSURE_TAG));
+    slot captured_stack;
+    if (saved_len > CALLCC_INLINE_SAVE_CAP) {
+      vm_add_snap(state, pc, argcnt); // only for IR_FLUSH use
+      add_inst(state, IR(.op = IR_FLUSH, .type = PTR_TAG));
+      slot chain = add_const(state, tag_fixnum(0));
+      chain = add_inst(state, IR(.op = IR_CARG, .op1 = reroot_proc,
+                                 .op2 = chain, .type = UNDEFINED_TAG));
+      chain = add_inst(state, IR(.op = IR_CARG, .op1 = winders, .op2 = chain,
+                                 .type = UNDEFINED_TAG));
+      captured_stack =
+          add_inst(state, IR(.op = IR_CALLCC, .op1 = v1, .op2 = chain,
+                             .type = CLOSURE_TAG));
+    } else {
+      uint32_t words = (uint32_t)saved_len;
+      vm_add_no_side_snap(state, pc, argcnt);
+      add_inst(state,
+               IR(.op = IR_STACK_LEN_EQ,
+                  .op1 = add_const(state, tag_fixnum(saved_len)),
+                  .op2 = add_const(state, tag_fixnum(ts->stack_off))));
+
+      slot *saved = nullptr;
+      for (uint32_t i = 0; i < words; i++) {
+        arrput(saved, stack_abs_load_boxed(state, i));
+      }
+
+      int64_t payload_words = saved_len + 3;
+      int64_t bytes =
+          (int64_t)(sizeof(closure_s) + sizeof(gc_obj) * payload_words);
+      captured_stack =
+          add_inst(state, IR(.op = IR_ALLOC,
+                             .op1 = add_const(state, tag_fixnum(bytes)),
+                             .op2 = add_const(state, tag_fixnum(CLOSURE_TAG)),
+                             .type = CLOSURE_TAG));
+      store_closure_slot(state, captured_stack, 0,
+                         add_const(state, tag_fixnum(payload_words)));
+      store_closure_slot(state, captured_stack, 1,
+                         add_const(state, vm_callcc_resume_func_obj()));
+      store_closure_slot(state, captured_stack, 2, winders);
+      store_closure_slot(state, captured_stack, 3, reroot_proc);
+      for (uint32_t i = 0; i < words; i++) {
+        store_closure_slot(state, captured_stack, (int64_t)i + 4, saved[i]);
+      }
+      arrfree(saved);
+
+      add_inst(state, IR(.op = IR_STACK_RESET, .type = PTR_TAG));
+      add_inst(state, IR(.op = IR_STACK_STORE, .op1 = captured_stack,
+                         .op2 = add_const(state, tag_fixnum(0))));
+      add_inst(state,
+               IR(.op = IR_STACK_STORE,
+                  .op1 = add_const(state, vm_callcc_resume_stub_ra()),
+                  .op2 = add_const(state, tag_fixnum(1))));
+      add_inst(state, IR(.op = IR_STACK_STORE, .op1 = v1,
+                         .op2 = add_const(state, tag_fixnum(2))));
+      add_inst(state, IR(.op = IR_STACK_STORE, .op1 = captured_stack,
+                         .op2 = add_const(state, tag_fixnum(3))));
+    }
 
     arrfree(ts->stack);
     ts->stack = nullptr;
+    ts->stack_base = 0;
     ts->stack_off = 2;
     ts->depth = 1;
     set_stack(state, 0, v1);
@@ -2005,6 +2096,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       record_abort(state, &op_table, "CALLCC_RESUME invalid continuation");
       break;
     }
+    if (len - 3 > UINT16_MAX) {
+      record_abort(state, &op_table, "CALLCC_RESUME stack too deep");
+      break;
+    }
 
     slot func_off = add_const(state, tag_fixnum(1));
     auto func = add_inst(state, IR(.op = IR_LOAD, .op1 = captured,
@@ -2034,6 +2129,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
              IR(.op = IR_CALLCC_RESUME, .op1 = captured, .type = PTR_TAG));
 
     ts->depth = 0;
+    ts->stack_base = (uint16_t)(len - 3);
     ts->stack_off = 0;
     set_stack_len(ts, (uint32_t)(result_count + 2));
     add_inst(state, IR(.op = IR_STACK_STORE, .op1 = reroot_proc,
@@ -2239,6 +2335,8 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);
   record_current_trace(state)->kind = TRACE_ROOT;
+  record_current_trace(state)->stackpos = stack_base_for(state, stack, 0);
+  ts->stack_base = record_current_trace(state)->stackpos;
   ts->poly_entry = nullptr;
   record_seed_entry_args(state, pc, instr, stack, argcnt);
 }
@@ -2257,7 +2355,9 @@ void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   trace *cur_trace = record_current_trace(state);
   cur_trace->kind = TRACE_POLY;
   cur_trace->parent_snap = side_snap;
+  cur_trace->stackpos = stack_base_for(state, stack, side_snap->offset);
   ts->depth = side_snap->depth;
+  ts->stack_base = cur_trace->stackpos;
   ts->poly_entry = side_snap;
   record_seed_entry_args(state, start_pc, start_ins, stack, argcnt);
 }
@@ -2285,7 +2385,9 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   trace *cur_trace = record_current_trace(state);
   cur_trace->kind = TRACE_SIDE;
   cur_trace->parent_snap = side_snap;
+  cur_trace->stackpos = stack_base_for(state, stack, side_snap->offset);
   ts->depth = side_snap->depth;
+  ts->stack_base = cur_trace->stackpos;
   ts->poly_entry = nullptr;
   snap_entry *typechecks = nullptr;
 

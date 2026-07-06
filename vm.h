@@ -45,6 +45,7 @@ vm_callcc_result vm_callcc_slow(vm_state *state, gc_obj *stack,
                                 gc_obj callcc_arg, gc_obj winders,
                                 gc_obj reroot_proc);
 gc_obj vm_callcc_resume_func_obj(void);
+gc_obj vm_callcc_resume_stub_ra(void);
 bool vm_is_callcc_resume_stub_pc(bc *pc);
 gc_obj *vm_callcc_resume_slow(vm_state *state, gc_obj captured);
 void vm_trace_reset(void);
