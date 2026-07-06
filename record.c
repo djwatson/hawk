@@ -554,6 +554,13 @@ static void store_closure_slot(vm_state *state, slot clo, int64_t idx,
            IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = CLOSURE_TAG));
 }
 
+static slot load_closure_slot(vm_state *state, slot clo, int64_t idx,
+                              uint8_t type) {
+  return add_inst(state, IR(.op = IR_LOAD, .op1 = clo,
+                            .op2 = add_const(state, tag_fixnum(idx)),
+                            .type = type));
+}
+
 static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
   // We use a non-moving gc, so this is just a runtime constant, always.
   auto c = *(gc_obj *)(pc - offset);
@@ -2100,7 +2107,13 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       record_abort(state, &op_table, "CALLCC_RESUME stack too deep");
       break;
     }
+    if (!is_closure(clo->v[2])) {
+      record_abort(state, &op_table, "CALLCC_RESUME invalid reroot helper");
+      break;
+    }
+    uint32_t saved_words = (uint32_t)(len - 3);
 
+    vm_add_snap(state, pc, argcnt);
     slot func_off = add_const(state, tag_fixnum(1));
     auto func = add_inst(state, IR(.op = IR_LOAD, .op1 = captured,
                                    .op2 = func_off, .type = FUNC_TAG));
@@ -2110,26 +2123,41 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     slot len_off = add_const(state, tag_fixnum(0));
     auto dyn_len = add_inst(state, IR(.op = IR_LOAD, .op1 = captured,
                                       .op2 = len_off, .type = FIXNUM_TAG));
+    add_inst(state, IR(.op = IR_EQ, .op1 = dyn_len,
+                       .op2 = add_const(state, tag_fixnum(len))));
     auto dest = add_inst(state, IR(.op = IR_LOAD, .op1 = captured,
                                    .op2 = dyn_len, .type = UNDEFINED_TAG));
     gc_obj resume_ra = clo->v[len - 1];
     auto expected_ra = add_const(state, resume_ra);
     add_inst(state, IR(.op = IR_EQ, .op1 = dest, .op2 = expected_ra));
 
-    slot winders_off = add_const(state, tag_fixnum(2));
     slot saved_winders =
-        add_inst(state, IR(.op = IR_LOAD, .op1 = captured, .op2 = winders_off,
-                           .type = (uint8_t)get_type_tag(clo->v[1])));
-    slot reroot_off = add_const(state, tag_fixnum(3));
-    slot reroot_proc =
-        add_inst(state, IR(.op = IR_LOAD, .op1 = captured, .op2 = reroot_off,
-                           .type = CLOSURE_TAG));
+        load_closure_slot(state, captured, 2, (uint8_t)get_type_tag(clo->v[1]));
+    slot reroot_proc = load_closure_slot(state, captured, 3, CLOSURE_TAG);
 
-    add_inst(state,
-             IR(.op = IR_CALLCC_RESUME, .op1 = captured, .type = PTR_TAG));
+    if (saved_words > CALLCC_INLINE_SAVE_CAP) {
+      add_inst(state,
+               IR(.op = IR_CALLCC_RESUME, .op1 = captured, .type = PTR_TAG));
+    } else {
+      uint32_t needed_words = saved_words + (uint32_t)result_count + 2;
+      add_inst(state, IR(.op = IR_STACK_FITS,
+                         .op1 = add_const(state, tag_fixnum(needed_words))));
+
+      add_inst(state, IR(.op = IR_STACK_RESET, .type = PTR_TAG));
+      for (uint32_t i = 0; i < saved_words; i++) {
+        slot val =
+            load_closure_slot(state, captured, (int64_t)i + 4, UNDEFINED_TAG);
+        add_inst(state,
+                 IR(.op = IR_STACK_STORE, .op1 = val,
+                    .op2 = add_const(state, tag_fixnum((int64_t)i))));
+      }
+      add_inst(state, IR(.op = IR_STACK_SET_TOP,
+                         .op1 = add_const(state, tag_fixnum(saved_words)),
+                         .type = PTR_TAG));
+    }
 
     ts->depth = 0;
-    ts->stack_base = (uint16_t)(len - 3);
+    ts->stack_base = (uint16_t)saved_words;
     ts->stack_off = 0;
     set_stack_len(ts, (uint32_t)(result_count + 2));
     add_inst(state, IR(.op = IR_STACK_STORE, .op1 = reroot_proc,

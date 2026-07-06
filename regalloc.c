@@ -115,7 +115,8 @@ uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins,
   if (ins->op == IR_CARG) {
     return 0;
   }
-  if (ins->op == IR_STACK_LEN_EQ) {
+  if (ins->op == IR_STACK_LEN_EQ || ins->op == IR_STACK_FITS ||
+      ins->op == IR_STACK_SET_TOP) {
     return 0;
   }
   if (ins->op == IR_CALLCC) {

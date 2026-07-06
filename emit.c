@@ -2144,10 +2144,29 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
       break;
     }
+    case IR_STACK_FITS: {
+      assert(cur_snap >= 0);
+      assert(op->op1.constant);
+      emit_load_jit_state(s, RTMP);
+      emit_mem_load(s, (int32_t)offsetof(vm_state, stack_bottom), RTMP, RTMP2);
+      emit_mem_load(s, (int32_t)offsetof(vm_state, stack_limit), RTMP, RTMP);
+      emit_add_constant(s, RTMP2, RTMP2, slot_const(t, op->op1));
+      emit_cmp(s, RTMP2, RTMP);
+      emit_jcc32(s, JGE, &t->snaps[cur_snap].patch_point);
+      break;
+    }
     case IR_STACK_RESET: {
       emit_load_jit_state(s, RTMP);
       emit_mem_load(s, (int32_t)offsetof(vm_state, stack_bottom), RTMP,
                     RSTACK);
+      break;
+    }
+    case IR_STACK_SET_TOP: {
+      assert(op->op1.constant);
+      emit_load_jit_state(s, RTMP);
+      emit_mem_load(s, (int32_t)offsetof(vm_state, stack_bottom), RTMP,
+                    RSTACK);
+      emit_add_constant(s, RSTACK, RSTACK, slot_const(t, op->op1));
       break;
     }
     case IR_STACK_STORE: {

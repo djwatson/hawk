@@ -1,8 +1,5 @@
 ## Release checklist
 
-* should probably fix ctak & fibc, especially after multiple-value-returns fix
-  they're blowing up the benchmarks
-* no-const-globals ablation has crashes
 * some github actions to test build for ubuntu, osx, arch? gcc, clang?
 * finish paper polish
 
@@ -16,7 +13,6 @@
 * compiler.scm is slower
     * GC_ALLOC helps, but hurts other benchmarks
 	* somehow compilation in chez helps - so it's likely tons of inlining
-* fibc, ctak: we copy twice on continuations, so it is unsurprising that ctak is 2x slower.
 
 Every other test is within noise.
 
