@@ -25,7 +25,7 @@ NAV = [
   ("Docs", "/docs/"),
   ("Benchmarks", "/benchmarks/"),
   ("Code", "/code/"),
-  # ("Releases", "/releases/"),
+  ("Releases", "/releases/"),
   # ("Blog", "/blog/"),
 ]
 
@@ -342,8 +342,8 @@ def build():
 
   for file in sorted(CONTENT.glob("*.md")):
     meta, body_md = parse_frontmatter(read(file))
-    # Skip the dormant blog and releases pages for now.
-    if file.name in {"blog.md", "releases.md"}:
+    # Skip the dormant blog page for now.
+    if file.name == "blog.md":
       continue
     body = markdown(body_md)
     if meta.get("benchmarks") == "true":

@@ -26,18 +26,11 @@ To build directly from Git, or to make a release tarball, you also need:
 
 - Gauche Scheme (`gosh`) to bootstrap the Scheme image
 
-To build the paper during `dist`, you also need:
-
-- Python 3
-- matplotlib
-- pandoc
-- pdflatex
-
 ## Release Build
 
-Release tarballs include `boot/img.scm.bc`, the prebuilt Scheme bootstrap
-image. This is the recommended path for users who only want to build and run
-Hawk.
+Release tarballs include the generated Scheme bootstrap image, normally
+`boot/img.scm.bc.zstd` when zstd is available. This is the recommended path for
+users who only want to build and run Hawk.
 
 ```sh
 tar xf hawk-VERSION.tar.gz
@@ -47,28 +40,28 @@ cmake --build build
 ```
 
 No Scheme implementation is needed for this path. The default
-`-DBOOTSTRAP=OFF` build embeds the included `boot/img.scm.bc` into the `hawk`
+`-DBOOTSTRAP=OFF` build embeds the included boot image into the `hawk`
 executable.
 
-Install with:
+You can run Hawk directly from the build tree:
 
 ```sh
-cmake --install build
+./build/hawk --version
 ```
 
-Use `--prefix` at configure time to choose an install prefix:
+Or install to a normal system prefix:
 
 ```sh
-cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr/local
-cmake --build build
-cmake --install build
+sudo cmake --install build --prefix /usr/local
+hawk --version
 ```
 
 ## Git Build
 
-Git checkouts do not include `boot/img.scm.bc`. Build with `-DBOOTSTRAP=ON`
+Git checkouts do not include the generated boot image. Build with `-DBOOTSTRAP=ON`
 so the build first creates a bootstrap-capable `hawk`, uses Gauche to compile
-the Scheme sources, then writes `boot/img.scm.bc`.
+the Scheme sources, then writes `boot/img.scm.bc.zstd` when zstd is available,
+or `boot/img.scm.bc` otherwise.
 
 ```sh
 git clone https://github.com/djwatson/hawk.git
@@ -82,7 +75,8 @@ cmake --build build
 The `dist` target creates a source release tarball from exactly the Git-tracked
 files, plus generated release artifacts:
 
-- `boot/img.scm.bc`
+- `boot/img.scm.bc.zstd` or `boot/img.scm.bc`
+- `HAWK_VERSION`
 
 This is so that bootstrapping is NOT required for release users.
 

@@ -7,7 +7,6 @@ if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(USE_RANDOM_SCHEDULE "Enable random schedule debugging" OFF)
-option(ENABLE_COVERAGE "Enable LLVM source-based coverage instrumentation" OFF)
 option(ENABLE_FUZZ_TARGETS "Build fuzz targets" OFF)
 option(BOOTSTRAP "Self-host the bootstrap image" OFF)
 option(DISASSEMBLE "Use libcapstone for disassembly" ON)
@@ -17,12 +16,32 @@ set(HAWK_DIST_VERSION "" CACHE STRING "Version suffix for the dist tarball")
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-include(CTest)
+set(HAWK_VERSION "${HAWK_DIST_VERSION}")
+if(NOT HAWK_VERSION AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/HAWK_VERSION")
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/HAWK_VERSION" HAWK_VERSION)
+  string(STRIP "${HAWK_VERSION}" HAWK_VERSION)
+endif()
+if(NOT HAWK_VERSION)
+  find_package(Git QUIET)
+  if(GIT_FOUND)
+    execute_process(
+      COMMAND ${GIT_EXECUTABLE} describe --tags --always --dirty
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      OUTPUT_VARIABLE HAWK_VERSION
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_QUIET
+    )
+  endif()
+endif()
+if(NOT HAWK_VERSION)
+  set(HAWK_VERSION "unknown")
+endif()
+
+enable_testing()
 include(GNUInstallDirs)
 include(CheckIPOSupported)
 
 include(CheckIncludeFile)
-include(CheckCSourceCompiles)
 check_include_file("elf.h" HAVE_ELF_H)
 
 check_ipo_supported(RESULT lto_supported OUTPUT lto_error)
@@ -34,11 +53,6 @@ if(lto_supported)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
   endif()
 endif()
-
-#add_compile_options(-fsanitize=address)
-#add_link_options(-fsanitize=address)
-
-#set(CMAKE_C_CLANG_TIDY "clang-tidy")
 
 set(ASM_SOURCE asm_x64.c)
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
@@ -212,40 +226,6 @@ if(BOOTSTRAP)
   add_subdirectory(lib)
 endif()
 
-if(ENABLE_COVERAGE)
-  if(CMAKE_C_COMPILER_ID MATCHES "Clang")
-    set(coverage_compile_flags -O0 -g -fprofile-instr-generate -fcoverage-mapping)
-    set(coverage_link_flags -fprofile-instr-generate -fcoverage-mapping)
-  elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    set(coverage_compile_flags -O0 -g --coverage)
-    set(coverage_link_flags --coverage)
-  else()
-    message(FATAL_ERROR "Coverage is only supported with Clang or GCC compilers.")
-  endif()
-  target_compile_options(hawk_core PRIVATE ${coverage_compile_flags})
-  target_compile_options(hawk_image_embedded PRIVATE ${coverage_compile_flags})
-  if(BOOTSTRAP)
-    target_compile_options(hawk_image_bootstrap PRIVATE ${coverage_compile_flags})
-  endif()
-  if(TARGET gen_fold)
-    target_compile_options(gen_fold PRIVATE ${coverage_compile_flags})
-    target_link_options(gen_fold PRIVATE ${coverage_link_flags})
-  endif()
-endif()
-
-function(configure_hawk_target TARGET)
-  target_link_libraries(${TARGET} PRIVATE hawk_core)
-  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_link_options(${TARGET} PRIVATE -rdynamic)
-  elseif(APPLE)
-    target_link_options(${TARGET} PRIVATE -Wl,-export_dynamic)
-  endif()
-  if(ENABLE_COVERAGE)
-    target_compile_options(${TARGET} PRIVATE ${coverage_compile_flags})
-    target_link_options(${TARGET} PRIVATE ${coverage_link_flags})
-  endif()
-endfunction()
-
 if(HAVE_CAPSTONE)
   target_compile_definitions(hawk_core PRIVATE HAVE_CAPSTONE)
 endif()
@@ -266,12 +246,21 @@ if(APPLE)
 else()
   set(HAWK_EXE_EXPORT_FLAG "-rdynamic")
 endif()
+
+target_link_libraries(hawk PRIVATE hawk_core)
+target_link_options(hawk PRIVATE ${HAWK_EXE_EXPORT_FLAG})
+if(BOOTSTRAP)
+  target_link_libraries(hawk_bootstrap PRIVATE hawk_core)
+  target_link_options(hawk_bootstrap PRIVATE ${HAWK_EXE_EXPORT_FLAG})
+endif()
+
 target_compile_definitions(
   hawk_core PRIVATE
   HAWK_CC="${CMAKE_C_COMPILER}"
   HAWK_CORE_LIB="-lhawk_core"
   HAWK_EXE_EXPORT_FLAG="${HAWK_EXE_EXPORT_FLAG}"
   HAWK_DEFAULT_LIBRARY_PATH="${CMAKE_INSTALL_FULL_DATADIR}/hawk"
+  HAWK_VERSION="${HAWK_VERSION}"
 )
 
 target_link_libraries(hawk_core PRIVATE m)
@@ -283,11 +272,6 @@ if(HAVE_CAPSTONE)
 endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_libraries(hawk_core PRIVATE ${CMAKE_DL_LIBS})
-endif()
-
-configure_hawk_target(hawk)
-if(BOOTSTRAP)
-  configure_hawk_target(hawk_bootstrap)
 endif()
 
 target_include_directories(
@@ -306,7 +290,6 @@ endif()
 set_target_properties(hawk_core PROPERTIES
   INSTALL_NAME_DIR "${CMAKE_INSTALL_FULL_LIBDIR}"
 )
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_FULL_LIBDIR}")
 
 install(TARGETS hawk_core
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

@@ -30,6 +30,9 @@
 #ifndef HAWK_DEFAULT_LIBRARY_PATH
 #define HAWK_DEFAULT_LIBRARY_PATH ""
 #endif
+#ifndef HAWK_VERSION
+#define HAWK_VERSION "unknown"
+#endif
 
 uint32_t hlog_mask = HLOG_NONE;
 bool profile = false;
@@ -194,7 +197,7 @@ static parse_result parse_args(int argc, char *argv[]) {
       break;
     case 0:
       if (strcmp(long_options[option_index].name, "version") == 0) {
-        printf("hawk\n");
+        printf("hawk %s\n", HAWK_VERSION);
         exit(0);
       } else if (strcmp(long_options[option_index].name, "list") == 0) {
         out.list = true;

@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 scripts/build_site.py
+      - run: python3 site/build_site.py
         env:
           SITE_BASE: /${{ github.event.repository.name }}
       - uses: actions/upload-pages-artifact@v3

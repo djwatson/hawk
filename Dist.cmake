@@ -34,7 +34,10 @@ if(HAWK_DIST_BOOTSTRAP_BUILD)
   )
 endif()
 
-set(boot_image "${HAWK_SOURCE_DIR}/boot/img.scm.bc")
+set(boot_image "${HAWK_SOURCE_DIR}/boot/img.scm.bc.zstd")
+if(NOT EXISTS "${boot_image}")
+  set(boot_image "${HAWK_SOURCE_DIR}/boot/img.scm.bc")
+endif()
 if(NOT EXISTS "${boot_image}")
   message(FATAL_ERROR "Missing generated ${boot_image}")
 endif()
@@ -58,12 +61,6 @@ file(REMOVE_RECURSE "${stage_dir}" "${archive}")
 file(MAKE_DIRECTORY "${stage_dir}")
 
 execute_process(
-  COMMAND python3 doc/paper/build_paper.py
-  WORKING_DIRECTORY "${HAWK_SOURCE_DIR}"
-  COMMAND_ERROR_IS_FATAL ANY
-)
-
-execute_process(
   COMMAND ${GIT_EXECUTABLE} ls-files
   WORKING_DIRECTORY "${HAWK_SOURCE_DIR}"
   OUTPUT_VARIABLE tracked_files
@@ -80,8 +77,7 @@ endforeach()
 
 file(MAKE_DIRECTORY "${stage_dir}/boot")
 file(COPY "${boot_image}" DESTINATION "${stage_dir}/boot")
-file(COPY_FILE "${HAWK_SOURCE_DIR}/doc/paper/build/hawk-paper.pdf"
-               "${stage_dir}/hawk-paper.pdf")
+file(WRITE "${stage_dir}/HAWK_VERSION" "${HAWK_DIST_VERSION}\n")
 
 file(
   ARCHIVE_CREATE
