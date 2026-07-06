@@ -1930,6 +1930,7 @@
   (case-lambda
     (() (flush-output-port (current-output-port)))
     ((port)
+      (unless (port? port) (error "Not a port"))
       (cond
         ((port-sbuf port) #t)
         ((not (port-input? port)) (flush-port-write-buffer port))

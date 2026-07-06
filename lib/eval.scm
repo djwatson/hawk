@@ -104,7 +104,7 @@
       (define next (read))
       (if (eof-object? next) (reverse sexps) (read-file-rec (cons next sexps)))))
   (define input (with-input-from-file file read-file))
-  (eval input (interaction-environment)))
+  (eval `(begin ,@input) (interaction-environment)))
 
 (define (save-image-and-die restart name compress-level)
   (sys:FOREIGN_CALL '(int32 "gc_dump_image_and_die" (gc_obj gc_obj gc_obj))

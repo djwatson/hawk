@@ -36,6 +36,7 @@
         buckets)))
 
 (define (string->symbol string)
+  (unless (string? string) (error "string->symbol: not a string"))
   (let* ((buckets (ensure-symbol-hash-table!))
          (size (vector-length buckets))
          (h (string-hash string size))

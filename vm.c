@@ -716,8 +716,8 @@ static PRESERVE_NONE NOINLINE gc_obj handle_arity_error(bc instr, bc *pc,
     snprintf(msg, sizeof(msg), "Bad argcnt in %s expected %i got %" PRIu64,
              func_name_for_pc(pc), instr.reg, argcnt);
   }
-  fprintf(stderr, "%s\n", msg);
-  debug_print_vm_backtrace(state, pc, stack);
+  /* fprintf(stderr, "%s\n", msg); */
+  /* debug_print_vm_backtrace(state, pc, stack); */
   stack[2] = make_string(msg);
   MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
 }
