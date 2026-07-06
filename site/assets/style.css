@@ -119,7 +119,7 @@ nav a:not(:first-child):not(:last-child) {
 }
 
 nav a:last-child {
-  border-right: 1px solid var(--line);
+  border-right: 0;
 }
 
 nav a.active,
@@ -261,6 +261,37 @@ th {
   header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-self: stretch;
+    width: 100%;
+    margin-left: 0;
+    font-size: 1.1rem;
+  }
+
+  nav a {
+    display: block;
+    min-width: 0;
+    padding: 9px 12px 10px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+
+  nav a:nth-child(2n),
+  nav a:last-child {
+    border-right: 0;
+  }
+
+  nav a:last-child,
+  nav a:nth-last-child(2):nth-child(odd) {
+    border-bottom: 0;
+  }
+
+  nav a:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 
   body {
