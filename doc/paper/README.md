@@ -15,7 +15,7 @@ python3 doc/paper/build_paper.py --camera-ready
 
 Outputs:
 
-- `doc/paper/generated/benchmark_percent_x64.pdf`
+- `doc/paper/generated/benchmark_ratio_x64.pdf`
 - `doc/paper/generated/time_breakdown_x64.pdf`
 - `doc/paper/generated/trace_counts_x64.pdf`
 - `doc/paper/generated/ablation_runtime_x64.pdf`
@@ -23,8 +23,9 @@ Outputs:
 
 The benchmark charts are generated from `doc/bench/*/results.*`. Repeated
 `CSVLINE` records keep the last numeric result for each benchmark and
-implementation. Each chart uses Chez as the baseline and includes a `TOTAL` bar
-computed from the geometric mean of Hawk/Chez runtime ratios.
+implementation. The benchmark ratio chart uses Chez as the baseline, plots
+Hawk/Chez runtime ratios on a log2 scale, and includes a `TOTAL` bar computed
+from the geometric mean of those ratios.
 
 The ablation chart compares each `results.Hawk.*` variant against the matching
 `results.Hawk` baseline and plots the mean runtime as a percentage of the

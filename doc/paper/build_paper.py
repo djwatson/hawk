@@ -176,16 +176,23 @@ def comparison_rows_by_arch(data):
       chez = next((v for k, v in results.items() if k.lower().startswith("chez")), None)
       if not hawk or not chez:
         continue
-      # Runtime change relative to Chez. Negative is faster, positive is slower.
-      percent = (hawk / chez - 1.0) * 100.0
+      # Runtime ratio relative to Chez, displayed as positive when Hawk is faster.
+      ratio = hawk / chez
       name = invocation.split(":", 1)[0]
-      rows_by_arch[arch].append((name, percent, hawk / chez))
+      rows_by_arch[arch].append((name, -math.log2(ratio), ratio))
   return rows_by_arch
 
 
-def geomean_percent(rows):
-  ratio = math.prod(row[2] for row in rows) ** (1.0 / len(rows))
-  return (ratio - 1.0) * 100.0
+def geomean_ratio(rows):
+  return math.prod(row[2] for row in rows) ** (1.0 / len(rows))
+
+
+def runtime_ratio_tick_label(value):
+  if value == 0:
+    return "same"
+  factor = 2 ** abs(value)
+  direction = "faster" if value > 0 else "slower"
+  return f"{factor:g}x {direction}"
 
 
 def parse_time_breakdown():
@@ -304,10 +311,11 @@ def write_chart(arch, rows):
   import matplotlib.pyplot as plt
 
   GENERATED.mkdir(parents=True, exist_ok=True)
-  rows = sorted(rows, key=lambda row: row[1])
-  rows.append(("TOTAL", geomean_percent(rows), 1.0))
+  rows = sorted(rows, key=lambda row: row[1], reverse=True)
+  total_ratio = geomean_ratio(rows)
+  rows.append(("TOTAL", -math.log2(total_ratio), total_ratio))
   labels = [name for name, _, _ in rows]
-  values = [percent for _, percent, _ in rows]
+  values = [log_ratio for _, log_ratio, _ in rows]
   colors = ["#4a7ebb" if value < 0 else "#b65b4b" for value in values]
 
   plt.rcParams.update({
@@ -319,8 +327,13 @@ def write_chart(arch, rows):
   fig, ax = plt.subplots(figsize=(7.2, 3.9))
   ax.bar(labels, values, color=colors, width=0.78)
   ax.axhline(0, color="black", linewidth=0.8)
-  ax.set_title(f"{arch}: Hawk Runtime Change Relative to Chez")
-  ax.set_ylabel("Runtime change (%)")
+  tick_min = min(math.floor(min(values)), 0)
+  tick_max = max(math.ceil(max(values)), 0)
+  ticks = list(range(tick_min, tick_max + 1))
+  ax.set_yticks(ticks)
+  ax.set_yticklabels([runtime_ratio_tick_label(tick) for tick in ticks])
+  ax.set_title(f"{arch}: Hawk Runtime Relative to Chez")
+  ax.set_ylabel("Runtime ratio")
   ax.set_xlabel("Benchmark")
   ax.grid(axis="y", color="#dddddd", linewidth=0.5)
   ax.set_axisbelow(True)
@@ -329,7 +342,7 @@ def write_chart(arch, rows):
   for spine in ["top", "right"]:
     ax.spines[spine].set_visible(False)
   fig.tight_layout()
-  fig.savefig(GENERATED / f"benchmark_percent_{arch}.pdf")
+  fig.savefig(GENERATED / f"benchmark_ratio_{arch}.pdf")
   plt.close(fig)
 
 

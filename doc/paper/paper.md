@@ -210,10 +210,10 @@ This is the main downside of tracing that we’ve discovered so far: Since traci
 
 \begin{figure*}
 \centering
-\includegraphics[width=\textwidth]{generated/benchmark_percent_x64.pdf}
-\caption{x64 Hawk runtime change relative to Chez. Negative values indicate that Hawk is faster; positive values indicate that Hawk is slower.}
-\Description{Bar chart of x64 benchmark runtime changes relative to Chez.}
-\label{fig:benchmark_percent}
+\includegraphics[width=\textwidth]{generated/benchmark_ratio_x64.pdf}
+\caption{x64 Hawk runtime relative to Chez on a log2 scale. Faster benchmarks appear above parity, slower benchmarks below, and equal multiplicative speedups and slowdowns are shown at equal distances from parity.}
+\Description{Bar chart of x64 benchmark runtime ratios relative to Chez.}
+\label{fig:benchmark_ratio}
 \end{figure*}
 
 \begin{figure*}
