@@ -91,39 +91,6 @@ enum : uint8_t {
   FRTMP = XMM15,
 };
 
-enum ARITH_CODES {
-  ASM_ARITH_ADD = 0,
-  ASM_ARITH_SUB = 5,
-  ASM_ARITH_CMP = 7,
-  ASM_ARITH_NONE = 255,
-};
-
-enum OPCODES {
-  ASM_ADD = 0x03,
-  ASM_SUB = 0x2b,
-  ASM_XCHG = 0x87,
-  ASM_MOV = 0x89,
-  ASM_MOV_MR = 0x8b,
-  ASM_MOV_RM = 0x89,
-  ASM_MOV8 = 0x88,
-  ASM_MOV8_MR = 0x8a,
-  ASM_MOVZX8 = /* 0x0f */ 0xB6,
-  ASM_NOP = 0x90,
-  ASM_XOR = 0x31,
-  ASM_TEST = 0x85,
-  ASM_TEST_IMM = 0xf7,
-  ASM_AND_IMM = 0x81,
-  ASM_CMP_IMM = 0x81,
-  ASM_CMP = 0x3b,
-  ASM_LEA = 0x8d,
-  ASM_AND = 0x83,
-  ASM_SAR_CONST = 0xC1,
-  ASM_SHL_CONST = 0xC1,
-  ASM_CQO = 0x99,
-  ASM_IDIV = 0xF7,
-  ASM_IMUL = 0xAF,
-};
-
 enum jcc_cond {
   JA = 0x87,
   JAE = 0x83,
