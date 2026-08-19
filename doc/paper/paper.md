@@ -7,6 +7,9 @@ link-citations: true
 header-includes: |
   \usepackage[outputdir=build]{minted2}
   \usemintedstyle{trac}
+  \usepackage{draftwatermark}
+  \SetWatermarkText{DRAFT}
+  \SetWatermarkColor[gray]{.9}
 abstract: |
   In Scheme, iteration, mutual recursion, higher-order calls, and continuations all appear as control flow through function entries and returns, rather than as loops.  This paper presents Hawk, a tracing JIT specialized to control flow around tail recursion and function parameters.  Instead of treating Scheme programs as a special case of loop tracing, Hawk records and links traces at function call boundaries, categorizing traces as root loops, polymorphic, up-recursive, down-recursive, and links these traces together with additional side traces.
 

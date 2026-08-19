@@ -37,3 +37,11 @@ As well as more standard compiler features, like:
 - CSE (constant subexpression elimination)
 - DCE (dead code elimination)
 - turning tailcalled functions back in to loops when appropriate
+
+## Paper
+
+A draft paper describes Hawk's tracing architecture, specialization strategy,
+and evaluation on the R7RS benchmark suite.
+
+Read the current draft, [*Tracing Tail Calls: A JIT for Scheme*
+(PDF)](https://github.com/djwatson/hawk/releases/download/v0.9/tracing-tail-calls.pdf).
