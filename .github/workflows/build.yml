@@ -1,0 +1,38 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake libzstd-dev wget
+      - name: Install Clang 21
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21
+      - name: Install Gauche
+        uses: shirok/setup-gauche@v6
+        with:
+          prebuilt-binary: true
+      - name: Configure
+        run: >-
+          cmake -S . -B build -DBOOTSTRAP=ON
+          -DCMAKE_C_COMPILER=clang-21 -DCMAKE_ASM_COMPILER=clang-21
+          -DHAWK_BOOTSTRAP_EXECUTABLE:FILEPATH=
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        run: cmake --build build --target test
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
