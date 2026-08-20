@@ -197,6 +197,9 @@ gc_obj vm_memq(gc_obj obj, gc_obj list) {
 }
 
 gc_obj vm_memv(gc_obj obj, gc_obj list) {
+  if (!is_number(obj)) {
+    return vm_memq(obj, list);
+  }
   for (auto cur = list; is_cons(cur); cur = to_cons(cur)->b) {
     if (obj_jeqv(obj, to_cons(cur)->a)) {
       return cur;

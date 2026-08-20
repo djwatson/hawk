@@ -161,10 +161,12 @@
 (define (assq obj alist)
   (and (not (null? alist))
        (if (eq? (caar alist) obj) (car alist) (assq obj (cdr alist)))))
-;; (define (assq obj1 alist1)
-;;   (sys:FOREIGN_CALL '(gc_obj "SCM_ASSQ" (gc_obj gc_obj)) obj1 alist1))
 (define (assv obj1 alist1)
-  (sys:FOREIGN_CALL '(gc_obj "SCM_ASSV" (gc_obj gc_obj)) obj1 alist1))
+  (if (number? obj1)
+      (let loop ((obj obj1) (alist alist1))
+        (and (not (null? alist))
+             (if (eqv? (caar alist) obj) (car alist) (loop obj (cdr alist)))))
+      (assq obj1 alist1)))
 
 (define for-each
   (case-lambda
@@ -209,7 +211,9 @@
        ((= i len))
        (apply proc (map (lambda (x) (vector-ref x i)) vecs))))
 
-(define (eqv? a b) (or (eq? a b) (and (flonum? a) (flonum? b) (= a b))))
+(define (eqv? a b)
+  (or (eq? a b)
+      (and (number? a) (number? b) (eq? (exact? a) (exact? b)) (= a b))))
 (define (equal? a b)
   (sys:FOREIGN_CALL '(gc_obj "SCM_EQUAL" (gc_obj gc_obj)) a b))
 

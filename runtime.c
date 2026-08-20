@@ -332,6 +332,11 @@ bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
   return numeric_real_compare(lhs, rhs, &ordered) == 0 && ordered;
 }
 
+static inline bool is_number(gc_obj obj) {
+  return is_fixnum(obj) || is_flonum(obj) || is_bignum(obj) || is_ratnum(obj) ||
+         is_compnum(obj);
+}
+
 bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
   // Object eqv?: identity first, then Chez-style numeric eqv? for numbers.
   if (lhs.value == rhs.value) {
@@ -358,10 +363,7 @@ bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
     }
     return memcmp(&l, &r, sizeof(l)) == 0;
   }
-  if ((is_fixnum(lhs) || is_flonum(lhs) || is_bignum(lhs) || is_ratnum(lhs) ||
-       is_compnum(lhs)) &&
-      (is_fixnum(rhs) || is_flonum(rhs) || is_bignum(rhs) || is_ratnum(rhs) ||
-       is_compnum(rhs))) {
+  if (is_number(lhs) && is_number(rhs)) {
     return numeric_eqv(lhs, rhs);
   }
   return lhs.value == rhs.value;
@@ -622,7 +624,8 @@ gc_obj make_string_list(char **strs, size_t len) {
 
 // GC: may allocate via gc_alloc.
 EXPORT gc_obj scm_double_bytes(double value) {
-  string_s *out = gc_alloc((sizeof(string_s) + sizeof(double) + 7) & ~(size_t)7);
+  string_s *out =
+      gc_alloc((sizeof(string_s) + sizeof(double) + 7) & ~(size_t)7);
   out->header.type = BYTEVECTOR_TAG;
   out->len = tag_fixnum(sizeof(double));
   memcpy(out->str, &value, sizeof(double));
@@ -675,47 +678,6 @@ EXPORT gc_obj SCM_LENGTH(gc_obj list) {
     abort();
   }
   return tag_fixnum((int64_t)len);
-}
-
-static gc_obj runtime_assoc(gc_obj obj, gc_obj alist, bool eqv) {
-  gc_add_root((const void *)&obj, 1, 0);
-  gc_add_root((const void *)&alist, 1, 0);
-  while (alist.value != NIL_TAG) {
-    if (!is_cons(alist)) {
-      abort();
-    }
-    auto list = to_cons(alist);
-    gc_obj entry = list->a;
-    if (!is_cons(entry)) {
-      abort();
-    }
-    gc_obj key = to_cons(entry)->a;
-    bool match;
-    if (eqv) {
-      gc_add_root((const void *)&entry, 1, 0);
-      match = obj_jeqv(key, obj);
-      gc_remove_root((const void *)&entry, 0);
-    } else {
-      match = key.value == obj.value;
-    }
-    if (match) {
-      gc_remove_root((const void *)&alist, 0);
-      gc_remove_root((const void *)&obj, 0);
-      return entry;
-    }
-    alist = to_cons(alist)->b;
-  }
-  gc_remove_root((const void *)&alist, 0);
-  gc_remove_root((const void *)&obj, 0);
-  return FALSE_REP;
-}
-
-EXPORT gc_obj SCM_ASSQ(gc_obj obj, gc_obj alist) {
-  return runtime_assoc(obj, alist, false);
-}
-
-EXPORT gc_obj SCM_ASSV(gc_obj obj, gc_obj alist) {
-  return runtime_assoc(obj, alist, true);
 }
 
 static bool exact_is_negative(gc_obj v) {
@@ -1194,13 +1156,10 @@ gc_obj vm_runtime_math_div_slow(gc_obj v1, gc_obj v2) {
     return res;                                                                \
   }
 
-DEFINE_VM_RUNTIME_DIVMOD_SLOW(quotient,
-                              !fixnum_quotient_overflows(to_fixnum(v1),
-                                                         to_fixnum(v2)),
-                              to_fixnum(v1) / to_fixnum(v2),
-                              trunc(numeric_to_double(v1) /
-                                    numeric_to_double(v2)),
-                              q)
+DEFINE_VM_RUNTIME_DIVMOD_SLOW(
+    quotient, !fixnum_quotient_overflows(to_fixnum(v1), to_fixnum(v2)),
+    to_fixnum(v1) / to_fixnum(v2),
+    trunc(numeric_to_double(v1) / numeric_to_double(v2)), q)
 DEFINE_VM_RUNTIME_DIVMOD_SLOW(mod, true, to_fixnum(v1) % to_fixnum(v2),
                               fmod(numeric_to_double(v1),
                                    numeric_to_double(v2)),

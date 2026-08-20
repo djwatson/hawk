@@ -6,4 +6,4 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_root="$script_dir/.."
 
 sudo perf inject --jit --input "$repo_root/perf.data" --output "$repo_root/perf.jit.data"
-sudo perf report --no-children --input "$repo_root/perf.jit.data" -Mintel
+sudo ~/projects/linux/tools/perf/perf report --no-children --input "$repo_root/perf.jit.data" -Mintel
