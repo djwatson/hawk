@@ -48,7 +48,7 @@
           (cond
             ((and (complex? obj) (not (= 0 (imag-part obj))))
               (exact (modulo (+ (hash (real-part obj) bound) (hash (imag-part obj) bound)) bound)))
-            ((integer? obj) (modulo obj bound))
+            ((and (integer? obj) (exact? obj)) (modulo obj bound))
             ((string? obj) (string-hash obj bound))
             ((symbol? obj) (symbol-hash obj bound))
             ((real? obj) (string-hash (number->string obj) bound))

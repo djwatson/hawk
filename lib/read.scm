@@ -236,12 +236,17 @@
           (let loop ((res 0) (c (peek-char port)))
             (if (eof-object? c)
                 (if (not (= 0 res)) (substring read-buf 0 res) c)
-                (case c
-                  ((#\( #\) #\" #\| #\newline #\return #\space #\tab #\;)
-                    (substring read-buf 0 res))
-                  (else
-                    (string-set! read-buf res (read-char port))
-                    (loop (+ res 1) (peek-char port)))))))
+                (let ((ci (char->integer c)))
+                  (if (<= 65 ci 122)
+                      (begin
+                        (string-set! read-buf res (read-char port))
+                        (loop (+ res 1) (peek-char port)))
+                      (case c
+                        ((#\( #\) #\" #\| #\newline #\return #\space #\tab #\;)
+                          (substring read-buf 0 res))
+                        (else
+                          (string-set! read-buf res (read-char port))
+                          (loop (+ res 1) (peek-char port)))))))))
         (define (skip-whitespace)
           (let loop ()
             (let ((c (peek-char port)))

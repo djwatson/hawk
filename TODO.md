@@ -1,15 +1,16 @@
-## Release checklist
-
-* some github actions to test build for ubuntu, osx, arch? gcc, clang?
-* finish paper polish
 
 ## slow vs Chez
 
+* both of these suffer from bad GC and warmup!!
+ with a warmup run, AND 256 GC, they both are even.
+
 * figure out why dynamic is so much slower than oldhawk
     * again compilation helps, so probably inlining
-	* assv in C vs scheme?
 	* NO NEED TO TYPECHECK for EQ/NE, eq? vs. EQV? in traces.  ugh
 	* 50MB nursery vs 32mb
+	* GET CASE FASTER, reader is somewhat slow
+	* all of READ is slow, including ports, and typechecking, etc
+	* where the fuck do all the mallocs come from?
 * compiler.scm is slower
     * GC_ALLOC helps, but hurts other benchmarks
 	* somehow compilation in chez helps - so it's likely tons of inlining
