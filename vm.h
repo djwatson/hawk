@@ -25,6 +25,7 @@ typedef struct vm_state {
   uint8_t hotmap[VM_HOTMAP_SZ];
   uint16_t max_trace;
   gc_obj *stack_top;
+  gc_obj *stack_end;
   gc_obj *stack_bottom;
   gc_obj *stack_limit;
   op_func record_impls[OP_INS_MAX];

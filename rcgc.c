@@ -85,6 +85,9 @@ static uintptr_t gc_base_cur;
 static gc_block **free_blocks;
 static gc_scan_callback scan_callback;
 static void *scan_data;
+static gc_obj *stack_root_bottom;
+static gc_obj **stack_root_top;
+static gc_obj *stack_root_end;
 uint64_t total_gc_cnt;
 static LIST_HEAD(large_allocs);
 static gc_block **all_blocks;
@@ -268,6 +271,13 @@ static void *decrement_thread_main(void *arg);
 static void *satb_thread_main(void *arg);
 
 static void satb_push_roots(void) {
+  if (stack_root_bottom) {
+    assert(*stack_root_top >= stack_root_bottom &&
+           *stack_root_top <= stack_root_end);
+    for (gc_obj *slot = stack_root_bottom; slot < *stack_root_top; slot++) {
+      satb_push(*slot);
+    }
+  }
   for (size_t i = 0; i < gc_roots_len; i++) {
     gc_root_range root = gc_roots[i];
     if (root.tag != 0) {
@@ -565,6 +575,12 @@ void gc_register_bcfunc(bcfunc *func) {
 void gc_set_scan_callback(gc_scan_callback cb, void *data) {
   scan_callback = cb;
   scan_data = data;
+}
+
+void gc_set_stack_root(gc_obj *bottom, gc_obj **top, gc_obj *end) {
+  stack_root_bottom = bottom;
+  stack_root_top = top;
+  stack_root_end = end;
 }
 
 void *gc_base_ptr(void *p) {
@@ -918,6 +934,18 @@ void gc_collect(void) {
   copy_hp = 0;
   copy_hp_end = 0;
   gc_field_stack *increments = &cur_increments;
+
+  if (stack_root_bottom) {
+    assert(*stack_root_top >= stack_root_bottom &&
+           *stack_root_top <= stack_root_end);
+    for (gc_obj *slot = stack_root_bottom; slot < *stack_root_top; slot++) {
+      (void)visit_root(slot, increments);
+    }
+    process_increments(increments);
+    // Returned frames can contain holes, so clear every unscanned slot.
+    memset(*stack_root_top, 0,
+           (size_t)(stack_root_end - *stack_root_top) * sizeof(gc_obj));
+  }
 
   // 1) walk roots — eagerly drain increments after each batch so
   //    cur_increments never grows large, matching old per-root visit()

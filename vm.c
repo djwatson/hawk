@@ -433,7 +433,7 @@ gc_obj halt(vm_state *state, gc_obj *stack) {
   }
   auto res = stack[0];
   free_traces(state);
-  gc_remove_root((const void *)state->stack_bottom, 0);
+  gc_set_stack_root(nullptr, nullptr, nullptr);
   emit_cleanup(&state->emit);
   gc_free();
   free(state->stack_bottom);
@@ -471,17 +471,15 @@ handle_closure_type_error(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 }
 gc_obj *expand_stack(vm_state *state, gc_obj *stack) {
   // TODO: this should really be a stack *cache*
-  size_t oldsz = (size_t)(state->stack_top - state->stack_bottom);
+  size_t oldsz = (size_t)(state->stack_end - state->stack_bottom);
   size_t newsz = oldsz + (oldsz / 3);
   size_t grow = newsz - oldsz;
   if (newsz <= oldsz) {
     newsz = oldsz + 1;
     grow = 1;
   }
-  gc_obj *old_bottom = state->stack_bottom;
   auto offset = stack - state->stack_bottom;
   LOG(jit, "MUST EXPAND STACK now %li", newsz);
-  gc_remove_root((const void *)old_bottom, 0);
   gc_obj *newstack = realloc(state->stack_bottom, sizeof(gc_obj) * newsz);
   if (!newstack) {
     fprintf(stderr, "Failed to realloc stack\n");
@@ -489,12 +487,10 @@ gc_obj *expand_stack(vm_state *state, gc_obj *stack) {
   }
   memset(&newstack[oldsz], 0, grow * sizeof(gc_obj));
   state->stack_bottom = newstack;
-  state->stack_top = newstack + newsz;
-  state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
-  // Potential improvement: the GC could callback to get the current stack size.
-  // (or rather, stack + 256 redzone).
-  // If the stack grew large but then stayed small, GC time would be improved.
-  gc_add_root((const void *)state->stack_bottom, newsz, 0);
+  state->stack_end = newstack + newsz;
+  state->stack_limit = state->stack_end - STACK_GUARD_SLOTS;
+  state->stack_top = newstack + offset + STACK_GUARD_SLOTS;
+  gc_set_stack_root(state->stack_bottom, &state->stack_top, state->stack_end);
   return &newstack[offset];
 }
 
@@ -648,7 +644,10 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
 #define OP(code)                                                               \
   PRESERVE_NONE gc_obj impl_##code(bc instr, bc *pc, gc_obj *stack,            \
                                    vm_state *state, void *op_table,            \
-                                   uint64_t argcnt) {
+                                   uint64_t argcnt) {                           \
+  state->stack_top = stack < state->stack_limit                               \
+                         ? stack + STACK_GUARD_SLOTS                           \
+                         : state->stack_end;
 #define END }
 #define OP_ABC(code)                                                           \
   OP(code)                                                                     \
@@ -1539,9 +1538,10 @@ gc_obj vm(gc_obj clo, gc_obj arg1, gc_obj arg2) {
     exit(EXIT_FAILURE);
   }
   state->stack_bottom = stack;
-  state->stack_top = stack + default_size;
-  state->stack_limit = state->stack_top - STACK_GUARD_SLOTS;
-  gc_add_root((const void *)state->stack_bottom, default_size, 0);
+  state->stack_end = stack + default_size;
+  state->stack_limit = state->stack_end - STACK_GUARD_SLOTS;
+  state->stack_top = stack + STACK_GUARD_SLOTS;
+  gc_set_stack_root(state->stack_bottom, &state->stack_top, state->stack_end);
   if (profile) {
     profiler_start();
   }

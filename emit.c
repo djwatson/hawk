@@ -63,6 +63,10 @@ static inline int32_t alloc_reg_save_slot_offset(int reg) {
 
 static void *gc_alloc_ir_slowpath(uint64_t tagged_sz, uint8_t *reg_save,
                                   uint64_t gpr_mask) {
+  gc_obj *stack = *(gc_obj **)(reg_save + alloc_reg_save_slot_offset(RSTACK));
+  jit_state->stack_top = stack < jit_state->stack_limit
+                             ? stack + STACK_GUARD_SLOTS
+                             : jit_state->stack_end;
   for (int reg = 0; reg < FPR_REG_START; reg++) {
     if (gpr_mask & (1ULL << reg)) {
       gc_add_root((const void *)(reg_save + alloc_reg_save_slot_offset(reg)), 1,

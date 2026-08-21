@@ -31,6 +31,7 @@ enum : uint8_t {
 extern gc_root_range gc_roots[GC_MAX_ROOTS];
 extern size_t gc_roots_len;
 void gc_set_scan_callback(gc_scan_callback cb, void *data);
+void gc_set_stack_root(gc_obj *bottom, gc_obj **top, gc_obj *end);
 gc_obj gc_error_symbol(void);
 void *gc_base_ptr(void *p);
 void gc_register_bcfunc(struct bcfunc *func);

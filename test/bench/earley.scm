@@ -668,6 +668,8 @@
   (newline)
   (flush-output-port (current-output-port))
   (do ((i (* warmup-iterations count) (- i 1))) ((zero? i)) (thunk))
+  (display "WARMUP done\n")
+  (flush-output-port (current-output-port))
   (let* ((j/s (jiffies-per-second)) (t0 (current-second)) (j0 (current-jiffy)))
     (let loop ((i 0) (result #f))
       (cond
