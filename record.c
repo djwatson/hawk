@@ -526,6 +526,14 @@ static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos,
 static void stack_save(vm_state *state, gc_obj *stack, uint8_t pos, slot res) {
   set_stack(state, pos, res);
 }
+
+static slot materialize_constant_obj(vm_state *state, slot obj) {
+  if (!obj.constant) return obj;
+  auto t = record_current_trace(state);
+  return add_inst(state, IR(.op = IR_CONST, .op1 = obj,
+                            .type = get_slot_type(t, obj)));
+}
+
 static void set_stack_top(vm_state *state, uint8_t top) {
   trace_state *ts = record_trace_state(state);
   set_stack_len(ts, (uint32_t)top);
@@ -1536,6 +1544,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_CLOSURE_SET: {
     auto val = stack_load(state, stack, instr.reg, true);
     auto clo = stack_load(state, stack, instr.v1, false);
+    clo = materialize_constant_obj(state, clo);
     auto clo_slot = instr.v2;
     slot c_pos = add_const(state, tag_fixnum(clo_slot + 1));
     val = box_vmcall_arg(state, val);
@@ -1780,6 +1789,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_CAR: {
     auto obj = stack_load(state, stack, pc->v1, true);
+    obj = materialize_constant_obj(state, obj);
     auto src = stack[pc->v1];
     auto car_off = add_const(state, tag_fixnum(0));
     auto res = add_inst(state, IR(.op = IR_LOAD, .op1 = obj, .op2 = car_off,
@@ -1789,6 +1799,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_CDR: {
     auto obj = stack_load(state, stack, pc->v1, true);
+    obj = materialize_constant_obj(state, obj);
     auto src = stack[pc->v1];
     auto cdr_off = add_const(state, tag_fixnum(1));
     auto res = add_inst(state, IR(.op = IR_LOAD, .op1 = obj, .op2 = cdr_off,
@@ -1847,6 +1858,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_ABC: {
     auto obj = stack_load(state, stack, pc->v1, true);
     auto idx = stack_load(state, stack, pc->v2, true);
+    obj = materialize_constant_obj(state, obj);
     add_inst(state, IR(.op = IR_ABC, .op1 = obj, .op2 = idx,
                        .type = get_tag(stack[pc->v1])));
     break;
@@ -1858,6 +1870,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto val = stack_load(state, stack, pc->v1, true);
     auto offset = stack_load(state, stack, pc->v2, true);
 
+    obj = materialize_constant_obj(state, obj);
     val = box_vmcall_arg(state, val);
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
     if (instr.op == OP_STORE) {
@@ -1880,6 +1893,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto val = stack_load(state, stack, pc->v1, true);
     auto offset = stack_load(state, stack, pc->v2, true);
     auto t = record_current_trace(state);
+    obj = materialize_constant_obj(state, obj);
     if (get_slot_type(t, val) != FLONUM_TAG) {
       record_abort(state, &op_table, "FLVECTOR_SET needs flonum");
       break;
@@ -1917,6 +1931,11 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto offset = stack_load(state, stack, instr.v2, true);
     auto src = stack[instr.v1];
     auto off = stack[instr.v2];
+    if (obj.constant &&
+        (instr.op == OP_LOAD
+             ? !(offset.constant && get_type_tag(src) == CLOSURE_TAG)
+             : !offset.constant))
+      obj = materialize_constant_obj(state, obj);
     ir_ins ins;
     if (instr.op == OP_LOAD) {
       auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
@@ -1944,6 +1963,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_FLVECTOR_REF: {
     auto obj = stack_load(state, stack, pc->v1, true);
     auto offset = stack_load(state, stack, pc->v2, true);
+    obj = materialize_constant_obj(state, obj);
     auto res = add_inst(state, IR(.op = IR_FLVECTOR_REF, .op1 = obj,
                                   .op2 = offset, .type = FLONUM_TAG));
     stack_save(state, stack, instr.reg, res);

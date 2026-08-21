@@ -32,13 +32,11 @@ static bool fits_in_u32(int64_t value) {
 typedef uint64_t x64_op;
 
 #define OP1(a) ((x64_op)(a) | (UINT64_C(1) << 32))
-#define OP2(a, b)                                                            \
-  ((x64_op)(a) | ((x64_op)(b) << 8) | (UINT64_C(2) << 32))
-#define OP3(a, b, c)                                                         \
-  ((x64_op)(a) | ((x64_op)(b) << 8) | ((x64_op)(c) << 16) |                 \
-   (UINT64_C(3) << 32))
-#define OP4(a, b, c, d)                                                       \
-  ((x64_op)(a) | ((x64_op)(b) << 8) | ((x64_op)(c) << 16) |                 \
+#define OP2(a, b) ((x64_op)(a) | ((x64_op)(b) << 8) | (UINT64_C(2) << 32))
+#define OP3(a, b, c)                                                           \
+  ((x64_op)(a) | ((x64_op)(b) << 8) | ((x64_op)(c) << 16) | (UINT64_C(3) << 32))
+#define OP4(a, b, c, d)                                                        \
+  ((x64_op)(a) | ((x64_op)(b) << 8) | ((x64_op)(c) << 16) |                    \
    ((x64_op)(d) << 24) | (UINT64_C(4) << 32))
 #define OP_W(op) ((op) | (UINT64_C(1) << 35))
 
@@ -137,8 +135,8 @@ static uint8_t memory_mode(uint8_t base, int32_t offset) {
   return fits_in_8(offset) ? 1 : 2;
 }
 
-static void emit_rmro_force(emit_state *s, x64_op op, uint8_t reg,
-                            uint8_t base, int32_t offset, bool force_rex) {
+static void emit_rmro_force(emit_state *s, x64_op op, uint8_t reg, uint8_t base,
+                            int32_t offset, bool force_rex) {
   uint8_t mod = memory_mode(base, offset);
   emit_opcode(s, op, reg, 0, base, force_rex);
   emit_modrm(s, mod, low3bits(reg),
@@ -152,6 +150,22 @@ static void emit_rmro_force(emit_state *s, x64_op op, uint8_t reg,
 static void emit_rmro(emit_state *s, x64_op op, uint8_t reg, uint8_t base,
                       int32_t offset) {
   emit_rmro_force(s, op, reg, base, offset, false);
+}
+
+static void emit_rmroi_force(emit_state *s, x64_op op, uint8_t reg,
+                             uint8_t base, uint8_t index, int32_t offset,
+                             bool force_rex) {
+  assert(low3bits(index) != RSP);
+  uint8_t mod = memory_mode(base, offset);
+  emit_opcode(s, op, reg, index, base, force_rex);
+  emit_modrm(s, mod, low3bits(reg), RSP);
+  emit_sib(s, 0, index, base);
+  emit_displacement(s, mod, offset);
+}
+
+static void emit_rmroi(emit_state *s, x64_op op, uint8_t reg, uint8_t base,
+                       uint8_t index, int32_t offset) {
+  emit_rmroi_force(s, op, reg, base, index, offset, false);
 }
 
 static uint8_t *emit_riprel(emit_state *s, x64_op op, uint8_t reg) {
@@ -313,6 +327,13 @@ void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   emit_rmro(s, XO_MOV, dst, base, offset);
 }
 
+void emit_mem_load_indexed(emit_state *s, int32_t offset, uint8_t base,
+                           uint8_t index, uint8_t dst) {
+  assert(base < FPR_REG_START && index < FPR_REG_START);
+  assert(dst < FPR_REG_START);
+  emit_rmroi(s, XO_MOV, dst, base, index, offset);
+}
+
 void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base,
                       uint8_t dst) {
   assert(base < FPR_REG_START);
@@ -320,10 +341,24 @@ void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base,
   emit_rmro(s, XO_MOVZXB, dst, base, offset);
 }
 
+void emit_mem_load_u8_indexed(emit_state *s, int32_t offset, uint8_t base,
+                              uint8_t index, uint8_t dst) {
+  assert(base < FPR_REG_START && index < FPR_REG_START);
+  assert(dst < FPR_REG_START);
+  emit_rmroi(s, XO_MOVZXB, dst, base, index, offset);
+}
+
 void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   assert(dst >= FPR_REG_START && dst < X64_MAX_REG);
   assert(base < FPR_REG_START);
   emit_rmro(s, XO_MOVSD, hw_fpr(dst), base, offset);
+}
+
+void emit_fmem_load_indexed(emit_state *s, int32_t offset, uint8_t base,
+                            uint8_t index, uint8_t dst) {
+  assert(dst >= FPR_REG_START && dst < X64_MAX_REG);
+  assert(base < FPR_REG_START && index < FPR_REG_START);
+  emit_rmroi(s, XO_MOVSD, hw_fpr(dst), base, index, offset);
 }
 
 /////////////////// opcodes
@@ -708,16 +743,38 @@ void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
   emit_rmro(s, XO_MOVTO, src, base, offset);
 }
 
+void emit_store_indexed(emit_state *s, int32_t offset, uint8_t base,
+                        uint8_t index, uint8_t src) {
+  assert(base < FPR_REG_START && index < FPR_REG_START);
+  assert(src < FPR_REG_START);
+  emit_rmroi(s, XO_MOVTO, src, base, index, offset);
+}
+
 void emit_store_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
   assert(base < FPR_REG_START);
   assert(src < FPR_REG_START);
   emit_rmro_force(s, XO_MOVBTO, src, base, offset, low3bits(src) >= RSP);
 }
 
+void emit_store_u8_indexed(emit_state *s, int32_t offset, uint8_t base,
+                           uint8_t index, uint8_t src) {
+  assert(base < FPR_REG_START && index < FPR_REG_START);
+  assert(src < FPR_REG_START);
+  emit_rmroi_force(s, XO_MOVBTO, src, base, index, offset,
+                   low3bits(src) >= RSP);
+}
+
 void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
   assert(src >= FPR_REG_START && src < X64_MAX_REG);
   assert(base < FPR_REG_START);
   emit_rmro(s, XO_MOVSDTO, hw_fpr(src), base, offset);
+}
+
+void emit_fstore_indexed(emit_state *s, int32_t offset, uint8_t base,
+                         uint8_t index, uint8_t src) {
+  assert(src >= FPR_REG_START && src < X64_MAX_REG);
+  assert(base < FPR_REG_START && index < FPR_REG_START);
+  emit_rmroi(s, XO_MOVSDTO, hw_fpr(src), base, index, offset);
 }
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value) {

@@ -47,11 +47,23 @@ void emit_fmov(emit_state *s, uint8_t dst, uint8_t src);
 void emit_push_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi);
 void emit_pop_regs(emit_state *s, uint8_t const *regs, size_t count, bool abi);
 void emit_mem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
+void emit_mem_load_indexed(emit_state *s, int32_t offset, uint8_t base,
+                           uint8_t index, uint8_t dst);
 void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
+void emit_mem_load_u8_indexed(emit_state *s, int32_t offset, uint8_t base,
+                              uint8_t index, uint8_t dst);
 void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
+void emit_fmem_load_indexed(emit_state *s, int32_t offset, uint8_t base,
+                            uint8_t index, uint8_t dst);
 void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
+void emit_store_indexed(emit_state *s, int32_t offset, uint8_t base,
+                        uint8_t index, uint8_t src);
 void emit_store_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
+void emit_store_u8_indexed(emit_state *s, int32_t offset, uint8_t base,
+                           uint8_t index, uint8_t src);
 void emit_fstore(emit_state *s, int32_t offset, uint8_t base, uint8_t src);
+void emit_fstore_indexed(emit_state *s, int32_t offset, uint8_t base,
+                         uint8_t index, uint8_t src);
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value);
 void asm_zero_alloc_payload(emit_state *s, int64_t tagged_size,

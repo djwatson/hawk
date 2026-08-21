@@ -91,10 +91,13 @@ enum a64_ins : uint32_t {
   A64_LDPX_POST = 0xA8C00000U,
   A64_LDPQ_POST = 0xACC00000U,
   A64_LDRB = 0x39400000U,
+  A64_LDRB_INDEXED = 0x38606800U,
   A64_LDRB_UNSCALED = 0x38400000U,
   A64_LDRD = 0xFD400000U,
+  A64_LDRD_INDEXED = 0xFC606800U,
   A64_LDRD_UNSCALED = 0xFC400000U,
   A64_LDRX = 0xF9400000U,
+  A64_LDRX_INDEXED = 0xF8606800U,
   A64_LDRX_UNSCALED = 0xF8400000U,
   A64_LSL = 0xD3400000U,
   A64_MOV = 0xAA0003E0U,
@@ -111,10 +114,13 @@ enum a64_ins : uint32_t {
   A64_STPX = 0xA9000000U,
   A64_STPX_PRE = 0xA9800000U,
   A64_STRB = 0x39000000U,
+  A64_STRB_INDEXED = 0x38206800U,
   A64_STRB_UNSCALED = 0x38000000U,
   A64_STRD = 0xFD000000U,
+  A64_STRD_INDEXED = 0xFC206800U,
   A64_STRD_UNSCALED = 0xFC000000U,
   A64_STRX = 0xF9000000U,
+  A64_STRX_INDEXED = 0xF8206800U,
   A64_STRX_UNSCALED = 0xF8000000U,
   A64_SUB = 0xCB000000U,
   A64_SUBI = 0xD1000000U,
@@ -164,6 +170,14 @@ static uint8_t pick_addr_tmp(uint8_t reg0, uint8_t reg1) {
   if (X17 != reg0 && X17 != reg1) {
     return X17;
   }
+  abort();
+}
+
+static uint8_t pick_addr_tmp3(uint8_t reg0, uint8_t reg1, uint8_t reg2) {
+  if (RTMP != reg0 && RTMP != reg1 && RTMP != reg2) return RTMP;
+  if (RTMP2 != reg0 && RTMP2 != reg1 && RTMP2 != reg2) return RTMP2;
+  if (X16 != reg0 && X16 != reg1 && X16 != reg2) return X16;
+  if (X17 != reg0 && X17 != reg1 && X17 != reg2) return X17;
   abort();
 }
 
@@ -870,6 +884,43 @@ DEFINE_LSO(emit_store_u8, A64_STRB, A64_STRB_UNSCALED, 0, false)
 DEFINE_LSO(emit_fstore, A64_STRD, A64_STRD_UNSCALED, 3, true)
 
 #undef DEFINE_LSO
+
+static void emit_lso_indexed(emit_state *s, uint32_t indexed,
+                             uint32_t scaled, uint32_t unscaled, uint8_t scale,
+                             int32_t offset, uint8_t base, uint8_t index,
+                             uint8_t reg, bool fpr) {
+  uint8_t rt = fpr ? hw_fpr(reg) : hw_gpr(reg);
+  if (offset) {
+    uint8_t addr = pick_addr_tmp3(base, index, fpr ? REG_NONE : reg);
+    emit_add(s, addr, base, index);
+    emit_lso(s, scaled, unscaled, scale, offset, addr, reg, fpr);
+  } else {
+    emit_op(s, indexed | A64_D(rt) | A64_N(hw_gpr(base)) |
+                   A64_M(hw_gpr(index)));
+  }
+}
+
+#define DEFINE_LSO_INDEXED(name, indexed, scaled, unscaled, scale, fpr)        \
+  void name(emit_state *s, int32_t offset, uint8_t base, uint8_t index,        \
+            uint8_t reg) {                                                     \
+    emit_lso_indexed(s, indexed, scaled, unscaled, scale, offset, base, index, \
+                     reg, fpr);                                                \
+  }
+
+DEFINE_LSO_INDEXED(emit_mem_load_indexed, A64_LDRX_INDEXED, A64_LDRX,
+                   A64_LDRX_UNSCALED, 3, false)
+DEFINE_LSO_INDEXED(emit_mem_load_u8_indexed, A64_LDRB_INDEXED, A64_LDRB,
+                   A64_LDRB_UNSCALED, 0, false)
+DEFINE_LSO_INDEXED(emit_fmem_load_indexed, A64_LDRD_INDEXED, A64_LDRD,
+                   A64_LDRD_UNSCALED, 3, true)
+DEFINE_LSO_INDEXED(emit_store_indexed, A64_STRX_INDEXED, A64_STRX,
+                   A64_STRX_UNSCALED, 3, false)
+DEFINE_LSO_INDEXED(emit_store_u8_indexed, A64_STRB_INDEXED, A64_STRB,
+                   A64_STRB_UNSCALED, 0, false)
+DEFINE_LSO_INDEXED(emit_fstore_indexed, A64_STRD_INDEXED, A64_STRD,
+                   A64_STRD_UNSCALED, 3, true)
+
+#undef DEFINE_LSO_INDEXED
 
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value) {

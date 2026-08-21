@@ -1703,15 +1703,14 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
                 t->consts[op->op2.loc].value + (int64_t)sizeof(gc_header);
             emit_mem_load(s, (int32_t)offset_bytes, obj_reg, obj_reg);
           } else {
-            emit_add(s, obj_reg, offset_reg, obj_reg);
-            emit_mem_load(s, (int32_t)sizeof(gc_header), obj_reg, obj_reg);
+            emit_mem_load_indexed(s, (int32_t)sizeof(gc_header), obj_reg,
+                                  offset_reg, obj_reg);
           }
         } else if (op->op2.constant) {
           int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
           emit_mem_load(s, (int32_t)offset_bytes, base_reg, obj_reg);
         } else {
-          emit_add(s, obj_reg, offset_reg, base_reg);
-          emit_mem_load(s, typed_offset, obj_reg, obj_reg);
+          emit_mem_load_indexed(s, typed_offset, base_reg, offset_reg, obj_reg);
         }
         emit_typecheck(s, t, op, cur_snap, obj_reg);
         emit_fmem_load(s, 8 - FLONUM_TAG, obj_reg, dst_reg);
@@ -1723,15 +1722,14 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
                 t->consts[op->op2.loc].value + (int64_t)sizeof(gc_header);
             emit_mem_load(s, (int32_t)offset_bytes, RTMP, dst_reg);
           } else {
-            emit_add(s, RTMP, offset_reg, RTMP);
-            emit_mem_load(s, (int32_t)sizeof(gc_header), RTMP, dst_reg);
+            emit_mem_load_indexed(s, (int32_t)sizeof(gc_header), RTMP,
+                                  offset_reg, dst_reg);
           }
         } else if (op->op2.constant) {
           int64_t offset_bytes = t->consts[op->op2.loc].value + typed_offset;
           emit_mem_load(s, (int32_t)offset_bytes, base_reg, dst_reg);
         } else {
-          emit_add(s, RTMP, offset_reg, base_reg);
-          emit_mem_load(s, typed_offset, RTMP, dst_reg);
+          emit_mem_load_indexed(s, typed_offset, base_reg, offset_reg, dst_reg);
         }
         emit_typecheck(s, t, op, cur_snap, dst_reg);
       }
@@ -1751,8 +1749,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       } else {
         uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
         emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
-        emit_add(s, RTMP, RTMP2, base_reg);
-        emit_mem_load_u8(s, base_offset, RTMP, dst_reg);
+        emit_mem_load_u8_indexed(s, base_offset, base_reg, RTMP2, dst_reg);
       }
       emit_shl_constant(s, dst_reg, dst_reg, 8);
       emit_add_constant(s, dst_reg, dst_reg, CHAR_TAG);
@@ -1772,8 +1769,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       } else {
         uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
         emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
-        emit_add(s, RTMP, RTMP2, base_reg);
-        emit_mem_load_u8(s, base_offset, RTMP, dst_reg);
+        emit_mem_load_u8_indexed(s, base_offset, base_reg, RTMP2, dst_reg);
       }
       emit_shl_constant(s, dst_reg, dst_reg, FIXNUM_SHIFT);
       break;
@@ -1791,9 +1787,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         emit_fmem_load(s, (int32_t)offset, base_reg, dst_reg);
       } else {
         uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
-        emit_mov(s, RTMP2, offset_reg);
-        emit_add(s, RTMP2, RTMP2, base_reg);
-        emit_fmem_load(s, base_offset, RTMP2, dst_reg);
+        emit_fmem_load_indexed(s, base_offset, base_reg, offset_reg, dst_reg);
       }
       break;
     }
@@ -1823,23 +1817,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         assert((int32_t)offset == offset);
         emit_store(s, (int32_t)offset, base_reg, val_reg);
       } else {
-        // We need a tmp reg.
-        // TODO: x64 supports index, base, const addressing, but other arches
-        // don't
-
-        // Offset is NOT a const, need additional offset + typed offset.
         auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
-        uint8_t addr_reg = RTMP2;
-        if (ref->op1.constant) {
-          // base_reg is already RTMP2 here; build address directly from const
-          // base.
-          emit_heap_constant(s, t, addr_reg, slot_gc_obj(t, ref->op1));
-          emit_add(s, addr_reg, addr_reg, offset_reg);
-        } else {
-          emit_mov(s, addr_reg, offset_reg);
-          emit_add(s, addr_reg, addr_reg, base_reg);
-        }
-        emit_store(s, 8 - ref_base_tag(op->type), addr_reg, val_reg);
+        emit_store_indexed(s, 8 - ref_base_tag(op->type), base_reg, offset_reg,
+                           val_reg);
       }
 
       break;
@@ -1859,15 +1839,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         store_offset += (int32_t)idx;
       } else {
         auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
-        uint8_t addr_reg = RTMP2;
-        if (ref->op1.constant) {
-          emit_sar_constant(s, RTMP, offset_reg, FIXNUM_SHIFT);
-          emit_add(s, addr_reg, addr_reg, RTMP);
-        } else {
-          emit_sar_constant(s, addr_reg, offset_reg, FIXNUM_SHIFT);
-          emit_add(s, addr_reg, addr_reg, base_reg);
-        }
-        base_reg = addr_reg;
+        assert(!ref->op1.constant);
+        emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
       }
 
       if (op->op2.constant) {
@@ -1877,7 +1850,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         uint8_t val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
         emit_sar_constant(s, RTMP, val_reg, 8);
       }
-      emit_store_u8(s, store_offset, base_reg, RTMP);
+      if (ref->op2.constant)
+        emit_store_u8(s, store_offset, base_reg, RTMP);
+      else
+        emit_store_u8_indexed(s, store_offset, base_reg, RTMP2, RTMP);
       break;
     }
     case IR_STORE_BYTE: {
@@ -1895,15 +1871,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         store_offset += (int32_t)idx;
       } else {
         auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
-        uint8_t addr_reg = RTMP2;
-        if (ref->op1.constant) {
-          emit_sar_constant(s, RTMP, offset_reg, FIXNUM_SHIFT);
-          emit_add(s, addr_reg, addr_reg, RTMP);
-        } else {
-          emit_sar_constant(s, addr_reg, offset_reg, FIXNUM_SHIFT);
-          emit_add(s, addr_reg, addr_reg, base_reg);
-        }
-        base_reg = addr_reg;
+        assert(!ref->op1.constant);
+        emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
       }
 
       if (op->op2.constant) {
@@ -1913,7 +1882,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         uint8_t val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
         emit_sar_constant(s, RTMP, val_reg, FIXNUM_SHIFT);
       }
-      emit_store_u8(s, store_offset, base_reg, RTMP);
+      if (ref->op2.constant)
+        emit_store_u8(s, store_offset, base_reg, RTMP);
+      else
+        emit_store_u8_indexed(s, store_offset, base_reg, RTMP2, RTMP);
       break;
     }
     case IR_FLVECTOR_SET: {
@@ -1939,14 +1911,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         emit_fstore(s, (int32_t)offset, base_reg, val_reg);
       } else {
         auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
-        uint8_t addr_reg = RTMP2;
-        if (ref->op1.constant) {
-          emit_add(s, addr_reg, addr_reg, offset_reg);
-        } else {
-          emit_mov(s, addr_reg, offset_reg);
-          emit_add(s, addr_reg, addr_reg, base_reg);
-        }
-        emit_fstore(s, base_offset, addr_reg, val_reg);
+        emit_fstore_indexed(s, base_offset, base_reg, offset_reg, val_reg);
       }
       break;
     }

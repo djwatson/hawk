@@ -657,6 +657,7 @@
 ;;; correct results the thunk may return,
 ;;; runs the benchmark for the number of specified iterations.
 
+(define warmup-iterations 1)
 (define (run-r7rs-benchmark name count thunk ok?)
 
   ;; Rounds to thousandths.
@@ -666,6 +667,7 @@
   (display name)
   (newline)
   (flush-output-port (current-output-port))
+  (do ((i (* warmup-iterations count) (- i 1))) ((zero? i)) (thunk))
   (let* ((j/s (jiffies-per-second)) (t0 (current-second)) (j0 (current-jiffy)))
     (let loop ((i 0) (result #f))
       (cond
