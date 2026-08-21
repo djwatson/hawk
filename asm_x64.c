@@ -27,6 +27,12 @@ static bool fits_in_u32(int64_t value) {
   return value >= 0 && value <= (int64_t)UINT32_MAX;
 }
 
+static uint8_t pick_tmp(uint8_t reg0, uint8_t reg1) {
+  if (RTMP != reg0 && RTMP != reg1) return RTMP;
+  if (RTMP2 != reg0 && RTMP2 != reg1) return RTMP2;
+  abort();
+}
+
 /////////////////// instruction encoding
 
 typedef uint64_t x64_op;
@@ -49,13 +55,16 @@ enum : uint64_t {
   XO_MOVZXB = OP_W(OP2(0x0f, 0xb6)),
   XO_ARITHI = OP_W(OP1(0x81)),
   XO_ARITHI8 = OP_W(OP1(0x83)),
+  XO_ARITHBI = OP1(0x80),
   XO_CMP = OP_W(OP1(0x3b)),
+  XO_CMPTO = OP_W(OP1(0x39)),
   XO_GROUP3 = OP_W(OP1(0xf7)),
   XO_SHIFTI = OP_W(OP1(0xc1)),
   XO_IMUL = OP_W(OP2(0x0f, 0xaf)),
   XO_IMULI = OP_W(OP1(0x69)),
   XO_IMULI8 = OP_W(OP1(0x6b)),
   XO_MOVMI = OP_W(OP1(0xc7)),
+  XO_MOVBMI = OP1(0xc6),
   XO_MOVAPD = OP3(0x66, 0x0f, 0x28),
   XO_UCOMISD = OP3(0x66, 0x0f, 0x2e),
   XO_MOVSD = OP3(0xf2, 0x0f, 0x10),
@@ -348,6 +357,30 @@ void emit_mem_load_u8_indexed(emit_state *s, int32_t offset, uint8_t base,
   emit_rmroi(s, XO_MOVZXB, dst, base, index, offset);
 }
 
+void emit_mem_cmp_constant(emit_state *s, int32_t offset, uint8_t base,
+                           int64_t value) {
+  assert(base < FPR_REG_START);
+  if (fits_in_32(value)) {
+    int32_t imm = (int32_t)value;
+    emit_rmro(s, fits_in_8(imm) ? XO_ARITHI8 : XO_ARITHI, 7, base, offset);
+    if (fits_in_8(imm))
+      emit_byte(s, (uint8_t)imm);
+    else
+      emit_imm32(s, (uint32_t)imm);
+    return;
+  }
+  uint8_t tmp = pick_tmp(base, REG_NONE);
+  emit_mov64(s, tmp, value);
+  emit_rmro(s, XO_CMPTO, tmp, base, offset);
+}
+
+void emit_mem_cmp_u8_constant(emit_state *s, int32_t offset, uint8_t base,
+                              uint8_t value) {
+  assert(base < FPR_REG_START);
+  emit_rmro(s, XO_ARITHBI, 7, base, offset);
+  emit_byte(s, value);
+}
+
 void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   assert(dst >= FPR_REG_START && dst < X64_MAX_REG);
   assert(base < FPR_REG_START);
@@ -520,8 +553,9 @@ void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm) {
   if (fits_in_32(imm)) {
     emit_group_imm(s, 7, reg, (int32_t)imm);
   } else {
-    emit_mov64(s, RTMP, imm);
-    emit_cmp(s, reg, RTMP);
+    uint8_t tmp = pick_tmp(reg, REG_NONE);
+    emit_mov64(s, tmp, imm);
+    emit_cmp(s, reg, tmp);
   }
 }
 
@@ -558,8 +592,9 @@ static void emit_add_sub_constant(emit_state *s, x64_op op, uint8_t group,
     return;
   }
 
-  emit_mov64(s, RTMP, imm);
-  emit_binop(s, op, dst, lhs, RTMP, group == 0);
+  uint8_t tmp = pick_tmp(dst, lhs);
+  emit_mov64(s, tmp, imm);
+  emit_binop(s, op, dst, lhs, tmp, group == 0);
 }
 
 void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
@@ -588,8 +623,9 @@ void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
     emit_mul_imm32(s, dst, lhs, (int32_t)imm);
     return;
   }
-  emit_mov64(s, RTMP, imm);
-  emit_mul(s, dst, lhs, RTMP);
+  uint8_t tmp = pick_tmp(dst, lhs);
+  emit_mov64(s, tmp, imm);
+  emit_mul(s, dst, lhs, tmp);
 }
 
 #define DEFINE_FIXNUM_GUARD_OVERFLOW(name)                                     \
@@ -733,6 +769,12 @@ void emit_fadd_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
 void emit_fsub_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
   emit_fop_constant(s, XO_SUBSD, dst, lhs, imm);
 }
+void emit_fmul_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
+  emit_fop_constant(s, XO_MULSD, dst, lhs, imm);
+}
+void emit_fdiv_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
+  emit_fop_constant(s, XO_DIVSD, dst, lhs, imm);
+}
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   emit_add_sub_constant(s, XO_ADD, 0, dst, lhs, imm);
 }
@@ -785,8 +827,34 @@ void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
     emit_imm32(s, (uint32_t)value);
     return;
   }
-  emit_mov64(s, RTMP, value);
-  emit_store(s, offset, base, RTMP);
+  uint8_t tmp = pick_tmp(base, REG_NONE);
+  emit_mov64(s, tmp, value);
+  emit_store(s, offset, base, tmp);
+}
+
+void emit_store_constant_indexed(emit_state *s, int32_t offset, uint8_t base,
+                                 uint8_t index, int64_t value) {
+  if (fits_in_32(value)) {
+    emit_rmroi(s, XO_MOVMI, 0, base, index, offset);
+    emit_imm32(s, (uint32_t)value);
+    return;
+  }
+  uint8_t tmp = pick_tmp(base, index);
+  emit_mov64(s, tmp, value);
+  emit_store_indexed(s, offset, base, index, tmp);
+}
+
+void emit_store_u8_constant(emit_state *s, int32_t offset, uint8_t base,
+                            uint8_t value) {
+  emit_rmro(s, XO_MOVBMI, 0, base, offset);
+  emit_byte(s, value);
+}
+
+void emit_store_u8_constant_indexed(emit_state *s, int32_t offset,
+                                    uint8_t base, uint8_t index,
+                                    uint8_t value) {
+  emit_rmroi(s, XO_MOVBMI, 0, base, index, offset);
+  emit_byte(s, value);
 }
 
 void asm_zero_alloc_payload(emit_state *s, int64_t tagged_size,

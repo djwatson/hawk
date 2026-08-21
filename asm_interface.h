@@ -52,6 +52,10 @@ void emit_mem_load_indexed(emit_state *s, int32_t offset, uint8_t base,
 void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
 void emit_mem_load_u8_indexed(emit_state *s, int32_t offset, uint8_t base,
                               uint8_t index, uint8_t dst);
+void emit_mem_cmp_constant(emit_state *s, int32_t offset, uint8_t base,
+                           int64_t value);
+void emit_mem_cmp_u8_constant(emit_state *s, int32_t offset, uint8_t base,
+                              uint8_t value);
 void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
 void emit_fmem_load_indexed(emit_state *s, int32_t offset, uint8_t base,
                             uint8_t index, uint8_t dst);
@@ -66,6 +70,13 @@ void emit_fstore_indexed(emit_state *s, int32_t offset, uint8_t base,
                          uint8_t index, uint8_t src);
 void emit_store_constant(emit_state *s, int32_t offset, uint8_t base,
                          int64_t value);
+void emit_store_constant_indexed(emit_state *s, int32_t offset, uint8_t base,
+                                 uint8_t index, int64_t value);
+void emit_store_u8_constant(emit_state *s, int32_t offset, uint8_t base,
+                            uint8_t value);
+void emit_store_u8_constant_indexed(emit_state *s, int32_t offset,
+                                    uint8_t base, uint8_t index,
+                                    uint8_t value);
 void asm_zero_alloc_payload(emit_state *s, int64_t tagged_size,
                             uint8_t size_reg);
 void emit_jcc32(emit_state *s, enum jcc_cond cond, label *target);
@@ -109,6 +120,8 @@ void emit_fdiv(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_ftruncate(emit_state *s, uint8_t dst, uint8_t src);
 void emit_fadd_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm);
 void emit_fsub_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm);
+void emit_fmul_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm);
+void emit_fdiv_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm);
 void emit_fcmp(emit_state *s, uint8_t lhs, uint8_t rhs);
 void emit_fcmp_constant(emit_state *s, uint8_t reg, double imm);
 void emit_fmov_constant(emit_state *s, uint8_t dst, double imm);

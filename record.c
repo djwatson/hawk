@@ -111,9 +111,7 @@ static void clear_trace_state(trace_state *ts) {
   arrfree(ts->debug_ops);
   *ts = (trace_state){};
 }
-static void free_snap(snap *snap) {
-  arrfree(snap->side_exit_jcc_locs);
-}
+static void free_snap(snap *snap) { arrfree(snap->side_exit_jcc_locs); }
 static void free_trace(trace *trace) {
   arr_for_each(trace->snaps, snap) { free_snap(&snap); }
   arrfree(trace->ins);
@@ -539,10 +537,11 @@ static void stack_save(vm_state *state, gc_obj *stack, uint8_t pos, slot res) {
 }
 
 static slot materialize_constant_obj(vm_state *state, slot obj) {
-  if (!obj.constant) return obj;
+  if (!obj.constant)
+    return obj;
   auto t = record_current_trace(state);
-  return add_inst(state, IR(.op = IR_CONST, .op1 = obj,
-                            .type = get_slot_type(t, obj)));
+  return add_inst(
+      state, IR(.op = IR_CONST, .op1 = obj, .type = get_slot_type(t, obj)));
 }
 
 static void set_stack_top(vm_state *state, uint8_t top) {
@@ -567,17 +566,17 @@ static slot stack_abs_load_boxed(vm_state *state, uint32_t abs_idx) {
 static void store_closure_slot(vm_state *state, slot clo, int64_t idx,
                                slot val) {
   slot off = add_const(state, tag_fixnum(idx));
-  auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = off,
-                                .type = CLOSURE_TAG));
+  auto ref = add_inst(
+      state, IR(.op = IR_REF, .op1 = clo, .op2 = off, .type = CLOSURE_TAG));
   add_inst(state,
            IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = CLOSURE_TAG));
 }
 
 static slot load_closure_slot(vm_state *state, slot clo, int64_t idx,
                               uint8_t type) {
-  return add_inst(state, IR(.op = IR_LOAD, .op1 = clo,
-                            .op2 = add_const(state, tag_fixnum(idx)),
-                            .type = type));
+  return add_inst(state,
+                  IR(.op = IR_LOAD, .op1 = clo,
+                     .op2 = add_const(state, tag_fixnum(idx)), .type = type));
 }
 
 static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
@@ -2049,16 +2048,14 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                                  .op2 = chain, .type = UNDEFINED_TAG));
       chain = add_inst(state, IR(.op = IR_CARG, .op1 = winders, .op2 = chain,
                                  .type = UNDEFINED_TAG));
-      captured_stack =
-          add_inst(state, IR(.op = IR_CALLCC, .op1 = v1, .op2 = chain,
-                             .type = CLOSURE_TAG));
+      captured_stack = add_inst(state, IR(.op = IR_CALLCC, .op1 = v1,
+                                          .op2 = chain, .type = CLOSURE_TAG));
     } else {
       uint32_t words = (uint32_t)saved_len;
       vm_add_no_side_snap(state, pc, argcnt);
-      add_inst(state,
-               IR(.op = IR_STACK_LEN_EQ,
-                  .op1 = add_const(state, tag_fixnum(saved_len)),
-                  .op2 = add_const(state, tag_fixnum(ts->stack_off))));
+      add_inst(state, IR(.op = IR_STACK_LEN_EQ,
+                         .op1 = add_const(state, tag_fixnum(saved_len)),
+                         .op2 = add_const(state, tag_fixnum(ts->stack_off))));
 
       slot *saved = nullptr;
       for (uint32_t i = 0; i < words; i++) {
@@ -2068,11 +2065,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       int64_t payload_words = saved_len + 3;
       int64_t bytes =
           (int64_t)(sizeof(closure_s) + sizeof(gc_obj) * payload_words);
-      captured_stack =
-          add_inst(state, IR(.op = IR_ALLOC,
-                             .op1 = add_const(state, tag_fixnum(bytes)),
-                             .op2 = add_const(state, tag_fixnum(CLOSURE_TAG)),
-                             .type = CLOSURE_TAG));
+      captured_stack = add_inst(
+          state, IR(.op = IR_ALLOC, .op1 = add_const(state, tag_fixnum(bytes)),
+                    .op2 = add_const(state, tag_fixnum(CLOSURE_TAG)),
+                    .type = CLOSURE_TAG));
       store_closure_slot(state, captured_stack, 0,
                          add_const(state, tag_fixnum(payload_words)));
       store_closure_slot(state, captured_stack, 1,
@@ -2087,10 +2083,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       add_inst(state, IR(.op = IR_STACK_RESET, .type = PTR_TAG));
       add_inst(state, IR(.op = IR_STACK_STORE, .op1 = captured_stack,
                          .op2 = add_const(state, tag_fixnum(0))));
-      add_inst(state,
-               IR(.op = IR_STACK_STORE,
-                  .op1 = add_const(state, vm_callcc_resume_stub_ra()),
-                  .op2 = add_const(state, tag_fixnum(1))));
+      add_inst(state, IR(.op = IR_STACK_STORE,
+                         .op1 = add_const(state, vm_callcc_resume_stub_ra()),
+                         .op2 = add_const(state, tag_fixnum(1))));
       add_inst(state, IR(.op = IR_STACK_STORE, .op1 = v1,
                          .op2 = add_const(state, tag_fixnum(2))));
       add_inst(state, IR(.op = IR_STACK_STORE, .op1 = captured_stack,
@@ -2184,9 +2179,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       for (uint32_t i = 0; i < saved_words; i++) {
         slot val =
             load_closure_slot(state, captured, (int64_t)i + 4, UNDEFINED_TAG);
-        add_inst(state,
-                 IR(.op = IR_STACK_STORE, .op1 = val,
-                    .op2 = add_const(state, tag_fixnum((int64_t)i))));
+        add_inst(state, IR(.op = IR_STACK_STORE, .op1 = val,
+                           .op2 = add_const(state, tag_fixnum((int64_t)i))));
       }
       add_inst(state, IR(.op = IR_STACK_SET_TOP,
                          .op1 = add_const(state, tag_fixnum(saved_words)),
@@ -2214,8 +2208,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     assert(is_func(helper_func));
     vm_add_snap(
         state,
-        (bc *)(&to_func(helper_func)->data[to_func(helper_func)->const_cnt *
-                                      sizeof(gc_obj)]),
+        (bc *)(&to_func(helper_func)
+                    ->data[to_func(helper_func)->const_cnt * sizeof(gc_obj)]),
         result_count + 2);
     break;
   }

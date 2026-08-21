@@ -254,10 +254,6 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     } else if (ins->op != IR_REF && ins->op != IR_CARG) {
       gpr_limit--;
     }
-    // RET requires a tmp reg.
-    if (ins->op == IR_RET) {
-      gpr_limit--;
-    }
     limit_live_values(s, gpr_live, &gpr_live_count, gpr_limit, use_pos);
     limit_live_values(s, fpr_live, &fpr_live_count, fpr_limit, use_pos);
   }
