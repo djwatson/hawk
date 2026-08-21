@@ -118,6 +118,7 @@ static void free_trace(trace *trace) {
   arr_for_each(trace->snaps, snap) { free_snap(&snap); }
   arrfree(trace->ins);
   arrfree(trace->cse_prev);
+  gc_release_roots(trace->consts, trace->rooted_consts);
   arrfree(trace->consts);
   arrfree(trace->snaps);
   arrfree(trace->snapmap);
@@ -178,49 +179,59 @@ static void snapshot_live_slots(trace_state *ts, trace *cur_trace, snap *snap) {
   snap->nent = nent;
 }
 
-static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
+static void record_scan_trace(trace *trace_obj, gc_scan_root_cb add_root,
+                              gc_scan_root_cb acquire_root,
+                              record_state *record) {
+  if (!trace_obj) {
+    return;
+  }
+  if (!acquire_root) {
+    add_root((uint64_t *)trace_obj->consts, arrlen(trace_obj->consts));
+    return;
+  }
+
+  size_t len = arrlen(trace_obj->consts);
+  if (len > trace_obj->rooted_consts) {
+    acquire_root((uint64_t *)trace_obj->consts + trace_obj->rooted_consts,
+                 len - trace_obj->rooted_consts);
+  }
+  trace_obj->rooted_consts = (uint16_t)len;
+
+  bool patched = false;
+  arr_for_each(trace_obj->gc_const_locs, loc) {
+    if (!asm_mov64_patchable_is_live(loc)) {
+      continue;
+    }
+    gc_obj obj = {.value = asm_read_mov64_patchable(loc)};
+    if (!is_heap_object(obj) || !is_forwarded(to_gc_header(obj))) {
+      continue;
+    }
+    if (!patched) {
+      emit_writable_begin(&record->emit_state);
+      patched = true;
+    }
+    auto hdr = forward_ptr(to_gc_header(obj));
+    asm_patch_mov64_patchable(&record->emit_state, loc,
+                              tag_header(hdr, get_tag(obj)).value);
+  }
+  arrlen_set(trace_obj->gc_const_locs, 0);
+  if (patched) {
+    emit_writable_end(&record->emit_state);
+    __builtin___clear_cache((char *)trace_obj->code_start,
+                            (char *)trace_obj->code_end);
+  }
+}
+
+static void record_scan_roots(void *data, gc_scan_root_cb add_root,
+                              gc_scan_root_cb acquire_root) {
   record_state *record = data;
   trace *cur_trace = record->cur_trace;
-  if (cur_trace && arrlen(cur_trace->consts) > 0) {
-    add_root((uint64_t *)cur_trace->consts, arrlen(cur_trace->consts));
-  }
+  record_scan_trace(cur_trace, add_root, acquire_root, record);
   arr_for_each(record->traces, trace_obj) {
     if (trace_obj == cur_trace) {
       continue;
     }
-    if (trace_obj && arrlen(trace_obj->consts) > 0) {
-      add_root((uint64_t *)trace_obj->consts, arrlen(trace_obj->consts));
-    }
-    if (!trace_obj || arrlen(trace_obj->gc_const_locs) == 0) {
-      continue;
-    }
-
-    bool patched = false;
-    arr_for_each(trace_obj->gc_const_locs, loc) {
-      if (!asm_mov64_patchable_is_live(loc)) {
-        continue;
-      }
-      gc_obj obj = {.value = asm_read_mov64_patchable(loc)};
-      if (!is_heap_object(obj)) {
-        continue;
-      }
-
-      gc_obj updated = obj;
-      add_root((uint64_t *)&updated, 1);
-      if (updated.value == obj.value) {
-        continue;
-      }
-      if (!patched) {
-        emit_writable_begin(&record->emit_state);
-        patched = true;
-      }
-      asm_patch_mov64_patchable(&record->emit_state, loc, updated.value);
-    }
-    if (patched) {
-      emit_writable_end(&record->emit_state);
-      __builtin___clear_cache((char *)trace_obj->code_start,
-                              (char *)trace_obj->code_end);
-    }
+    record_scan_trace(trace_obj, add_root, acquire_root, record);
   }
 }
 

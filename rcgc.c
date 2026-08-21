@@ -127,6 +127,7 @@ static inline void inc_reserve_fields(void *ctx, size_t n) {
 static gc_field_stack cur_increments;
 static gc_obj_stack cur_decrements;
 static gc_obj_stack next_decrements;
+static gc_obj_stack pending_releases;
 static gc_obj_stack_stack decrement_batches;
 static gc_obj_stack satb_stack;
 static gc_obj_stack_stack satb_batches;
@@ -298,7 +299,7 @@ static void satb_push_roots(void) {
     satb_push(bcfunc_roots[i]);
   }
   if (scan_callback) {
-    scan_callback(scan_data, satb_add_root);
+    scan_callback(scan_data, satb_add_root, nullptr);
   }
 }
 
@@ -521,6 +522,7 @@ void gc_free(void) {
   free(cur_increments.data);
   free(cur_decrements.data);
   free(next_decrements.data);
+  free(pending_releases.data);
   while (decrement_batches.len) {
     gc_obj_stack batch = gc_obj_stack_stack_pop(&decrement_batches);
     free(batch.data);
@@ -883,12 +885,35 @@ static void start_decrements(void) {
   pthread_mutex_unlock(&decrement_lock);
 }
 
+void gc_release_roots(const gc_obj *roots, size_t len) {
+  for (size_t i = 0; i < len; i++) {
+    if (!is_heap_object(roots[i])) {
+      continue;
+    }
+    if (unlikely(satb_is_active())) {
+      satb_push(roots[i]);
+    }
+    gc_obj_stack_push(&pending_releases, roots[i]);
+  }
+}
+
 static void gc_add_mark_root(const uint64_t *rootp, size_t len) {
   gc_field_stack *increments = &cur_increments;
   uint64_t *slots = (uint64_t *)rootp;
   for (size_t i = 0; i < len; i++) {
     gc_obj v = {.value = (int64_t)slots[i]};
     if (visit_root(&v, increments)) {
+      slots[i] = (uint64_t)v.value;
+    }
+  }
+}
+
+static void gc_acquire_root(const uint64_t *rootp, size_t len) {
+  gc_field_stack *increments = &cur_increments;
+  uint64_t *slots = (uint64_t *)rootp;
+  for (size_t i = 0; i < len; i++) {
+    gc_obj v = {.value = (int64_t)slots[i]};
+    if (is_heap_object(v) && inc_visit_heap(&v, increments)) {
       slots[i] = (uint64_t)v.value;
     }
   }
@@ -925,6 +950,10 @@ void gc_collect(void) {
     cur_decrements = next_decrements;
     next_decrements = tmp;
     next_decrements.len = 0;
+  }
+  while (pending_releases.len) {
+    gc_obj_stack_push(&cur_decrements,
+                      gc_obj_stack_pop(&pending_releases));
   }
 
   double mutator_ms = prev_gc_end.tv_sec ? elapsed_ms(prev_gc_end, t0) : 0.0;
@@ -982,7 +1011,7 @@ void gc_collect(void) {
   process_increments(increments);
 
   if (scan_callback) {
-    scan_callback(scan_data, gc_add_mark_root);
+    scan_callback(scan_data, gc_add_mark_root, gc_acquire_root);
   }
   process_increments(increments);
 

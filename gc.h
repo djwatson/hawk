@@ -10,7 +10,9 @@
 #include "util/util.h"
 
 typedef void (*gc_scan_root_cb)(const uint64_t *rootp, size_t len);
-typedef void (*gc_scan_callback)(void *data, gc_scan_root_cb add_root);
+// acquire_root creates RC edges that the owner must eventually release.
+typedef void (*gc_scan_callback)(void *data, gc_scan_root_cb add_root,
+                                 gc_scan_root_cb acquire_root);
 struct bcfunc;
 typedef struct {
   const void *ptr;
@@ -35,6 +37,7 @@ void gc_set_stack_root(gc_obj *bottom, gc_obj **top, gc_obj *end);
 gc_obj gc_error_symbol(void);
 void *gc_base_ptr(void *p);
 void gc_register_bcfunc(struct bcfunc *func);
+void gc_release_roots(const gc_obj *roots, size_t len);
 gc_obj gc_read_image(uint8_t const *data, size_t len, char const *path,
                      bool compressed);
 gc_obj gc_read_image_file(char const *path);
