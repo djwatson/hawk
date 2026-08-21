@@ -378,12 +378,12 @@ static void vm_add_no_side_snap(vm_state *state, bc *pc, uint64_t argcnt) {
   arrlast(record_current_trace(state)->snaps)->exits = 255;
 }
 
-static uint16_t stack_base_for(vm_state *state, gc_obj *stack,
+static uint32_t stack_base_for(vm_state *state, gc_obj *stack,
                                uint16_t stack_off) {
   ptrdiff_t pos = stack - state->stack_bottom;
   assert(pos >= stack_off);
-  assert(pos - stack_off <= UINT16_MAX);
-  return (uint16_t)(pos - stack_off);
+  assert(pos - stack_off <= UINT32_MAX);
+  return (uint32_t)(pos - stack_off);
 }
 
 static void ensure_stack_len(trace_state *ts, uint32_t need) {
@@ -1349,7 +1349,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                       .type = FIXNUM_TAG);
       add_inst(state, ins);
       assert(ts->stack_base >= offset);
-      ts->stack_base = (uint16_t)(ts->stack_base - offset);
+      ts->stack_base -= offset;
       for (uint16_t i = 0; i < count; i++) {
         auto res = count == 1 ? ret0 : rets[i];
         set_stack(state, (uint8_t)(old_pc->reg + i), res);
@@ -2183,7 +2183,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
 
     ts->depth = 0;
-    ts->stack_base = (uint16_t)saved_words;
+    ts->stack_base = saved_words;
     ts->stack_off = 0;
     set_stack_len(ts, (uint32_t)(result_count + 2));
     add_inst(state, IR(.op = IR_STACK_STORE, .op1 = reroot_proc,
@@ -2389,8 +2389,7 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   record_begin_trace(state, pc, instr);
   trace_state *ts = record_trace_state(state);
   record_current_trace(state)->kind = TRACE_ROOT;
-  record_current_trace(state)->stackpos = stack_base_for(state, stack, 0);
-  ts->stack_base = record_current_trace(state)->stackpos;
+  ts->stack_base = stack_base_for(state, stack, 0);
   ts->poly_entry = nullptr;
   record_seed_entry_args(state, pc, instr, stack, argcnt);
 }
@@ -2409,9 +2408,8 @@ void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   trace *cur_trace = record_current_trace(state);
   cur_trace->kind = TRACE_POLY;
   cur_trace->parent_snap = side_snap;
-  cur_trace->stackpos = stack_base_for(state, stack, side_snap->offset);
   ts->depth = side_snap->depth;
-  ts->stack_base = cur_trace->stackpos;
+  ts->stack_base = stack_base_for(state, stack, side_snap->offset);
   ts->poly_entry = side_snap;
   record_seed_entry_args(state, start_pc, start_ins, stack, argcnt);
 }
@@ -2439,9 +2437,8 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   trace *cur_trace = record_current_trace(state);
   cur_trace->kind = TRACE_SIDE;
   cur_trace->parent_snap = side_snap;
-  cur_trace->stackpos = stack_base_for(state, stack, side_snap->offset);
   ts->depth = side_snap->depth;
-  ts->stack_base = cur_trace->stackpos;
+  ts->stack_base = stack_base_for(state, stack, side_snap->offset);
   ts->poly_entry = nullptr;
   snap_entry *typechecks = nullptr;
 

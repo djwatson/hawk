@@ -23,7 +23,7 @@ typedef struct record_debug_entry record_debug_entry;
 typedef struct trace_state {
   sentry *stack;
   uint16_t stack_off;
-  uint16_t stack_base;
+  uint32_t stack_base;
   bc *start_ins;
   bool start_is_ret;
   uint8_t depth;

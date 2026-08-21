@@ -167,7 +167,6 @@ typedef enum : uint8_t {
 } trace_kind;
 
 typedef struct trace {
-  uint16_t stackpos;
   ir_ins *ins;
   gc_obj *consts;
   snap *snaps;
