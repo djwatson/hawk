@@ -36,6 +36,7 @@
 
 uint32_t hlog_mask = HLOG_NONE;
 bool profile = false;
+bool unsafe = false;
 bool jit_dump_flag = false;
 int64_t max_trace = INT64_MAX;
 int command_line_argc = 0;
@@ -47,6 +48,7 @@ static bool command_line_list;
 
 static struct option long_options[] = {
     {"verbose", optional_argument, nullptr, 'v'},
+    {"unsafe", no_argument, nullptr, 0},
     {"version", no_argument, nullptr, 0},
     {"profile", no_argument, nullptr, 'p'},
     {"joff", no_argument, nullptr, 'o'},
@@ -101,6 +103,7 @@ void print_help() {
   }
   printf("  -h, --help     \tPrint this help\n");
   printf("  -v, --verbose[=cats]\tVerbose logging: gc,trace,record,jit,regalloc,asm,ir\n");
+  printf("      --unsafe    \tDisable array bounds checks\n");
   printf("Debug options are:\n");
   printf("  -m, --max-trace\tStop JITting after # trace\n");
   printf("  -d, --dump     \tDump linux perf jit info\n");
@@ -201,6 +204,8 @@ static parse_result parse_args(int argc, char *argv[]) {
         exit(0);
       } else if (strcmp(long_options[option_index].name, "list") == 0) {
         out.list = true;
+      } else if (strcmp(long_options[option_index].name, "unsafe") == 0) {
+        unsafe = true;
       }
       break;
     default:

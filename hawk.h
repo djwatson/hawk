@@ -46,6 +46,7 @@
 
 // global flags
 extern bool profile;
+extern bool unsafe;
 extern bool jit_dump_flag;
 extern int64_t max_trace;
 extern int command_line_argc;

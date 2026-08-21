@@ -44,6 +44,7 @@ Debugging options:
 - `-v`, `--verbose[=CATEGORIES]`: enable verbose logging. Without categories,
   all logging is enabled. Categories are comma-separated: `gc`, `trace`,
   `record`, `jit`, `regalloc`, `asm`, `ir`.
+- `--unsafe`: disable array bounds checks.
 - `-m NUMBER`, `--max-trace NUMBER`: stop JIT compilation after `NUMBER`
   traces and continue interpreting.
 - `-d`, `--dump`: emit Linux perf JIT dump information.

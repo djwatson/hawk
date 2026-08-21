@@ -1655,25 +1655,27 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       EMIT_CMP_CASE(IR_EQ, JNE, JNE)
       EMIT_CMP_CASE(IR_NE, JE, JE)
     case IR_ABC: {
-      uint8_t obj_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
-      uint8_t idx_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
-      if (op->op2.constant) {
-        assert(is_fixnum(slot_gc_obj(t, op->op2)));
-      } else {
-        assert(slot_ins(t, op->op2)->type == FIXNUM_TAG);
-        assert(!is_fpr_reg(idx_reg));
+      if (!unsafe) {
+        uint8_t obj_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
+        uint8_t idx_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+        if (op->op2.constant) {
+          assert(is_fixnum(slot_gc_obj(t, op->op2)));
+        } else {
+          assert(slot_ins(t, op->op2)->type == FIXNUM_TAG);
+          assert(!is_fpr_reg(idx_reg));
+        }
+        if (op->op1.constant) {
+          obj_reg = RTMP;
+          emit_heap_constant(s, t, obj_reg, slot_gc_obj(t, op->op1));
+        }
+        emit_mem_load(s, 8 - op->type, obj_reg, RTMP);
+        if (op->op2.constant) {
+          emit_cmp_constant(s, RTMP, slot_const(t, op->op2));
+        } else {
+          emit_cmp(s, RTMP, idx_reg);
+        }
+        emit_jcc32(s, JBE, &t->snaps[cur_snap].patch_point);
       }
-      if (op->op1.constant) {
-        obj_reg = RTMP;
-        emit_heap_constant(s, t, obj_reg, slot_gc_obj(t, op->op1));
-      }
-      emit_mem_load(s, 8 - op->type, obj_reg, RTMP);
-      if (op->op2.constant) {
-        emit_cmp_constant(s, RTMP, slot_const(t, op->op2));
-      } else {
-        emit_cmp(s, RTMP, idx_reg);
-      }
-      emit_jcc32(s, JBE, &t->snaps[cur_snap].patch_point);
       break;
     }
     case IR_LOAD: {

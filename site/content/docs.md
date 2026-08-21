@@ -142,6 +142,7 @@ Useful options include:
 - `-d, --dump`: emit debugging information for tools such as gdb and perf
 - `-p, --profile`: turn on the sampling profiler
 - `-v, --verbose`: print tracing, IR, machine code, and GC information
+- `--unsafe`: disable array bounds checks
 - `--version`: print the version
 - `-h, --help`: show command line help
 
