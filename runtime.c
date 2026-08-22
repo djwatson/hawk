@@ -645,41 +645,6 @@ EXPORT gc_obj SCM_COMMAND_LINE() {
   return head;
 }
 
-EXPORT gc_obj SCM_LISTP(gc_obj x) {
-  gc_obj fast = x;
-  gc_obj slow = x;
-
-  while (true) {
-    if (fast.value == NIL_TAG) {
-      return TRUE_REP;
-    }
-    if (!is_cons(fast)) {
-      return FALSE_REP;
-    }
-    fast = to_cons(fast)->b;
-
-    if (fast.value == NIL_TAG) {
-      return TRUE_REP;
-    }
-    if (!is_cons(fast)) {
-      return FALSE_REP;
-    }
-    fast = to_cons(fast)->b;
-    slow = to_cons(slow)->b;
-    if (fast.value == slow.value) {
-      return FALSE_REP;
-    }
-  }
-}
-
-EXPORT gc_obj SCM_LENGTH(gc_obj list) {
-  uint64_t len = runtime_list_length(list);
-  if (len > (uint64_t)FIXNUM_MAX_VALUE) {
-    abort();
-  }
-  return tag_fixnum((int64_t)len);
-}
-
 static bool exact_is_negative(gc_obj v) {
   if (is_fixnum(v)) {
     return to_fixnum(v) < 0;

@@ -132,7 +132,25 @@
 
 (define (eq? a b) (sys:EQ a b))
 
-(define (list? x) (sys:FOREIGN_CALL '(gc_obj "SCM_LISTP" (gc_obj)) x))
+(define (list? x)
+  (let fast ((cnt 0) (lst x))
+    (cond
+      ((= cnt 4000)
+        (let loop ((fast x) (slow x))
+          (cond
+            ((null? fast) #t)
+            ((not (pair? fast)) #f)
+            (else
+              (let ((fast (cdr fast)))
+                (cond
+                  ((null? fast) #t)
+                  ((not (pair? fast)) #f)
+                  (else
+                    (let ((fast (cdr fast)) (slow (cdr slow)))
+                      (and (not (eq? fast slow)) (loop fast slow))))))))))
+      ((null? lst) #t)
+      ((pair? lst) (fast (+ cnt 1) (cdr lst)))
+      (else #f))))
 
 (define (length x)
   (define (err) (error "Not a list"))
@@ -156,7 +174,6 @@
       ((null? lst) cnt)
       ((pair? lst) (fast (+ cnt 1) (cdr lst)))
       (else (err)))))
-;(define (length a) (sys:FOREIGN_CALL '(gc_obj "SCM_LENGTH" (gc_obj)) a))
 
 (define (assq obj alist)
   (and (not (null? alist))
@@ -213,7 +230,7 @@
 
 (define (eqv? a b)
   (or (eq? a b)
-      (and (number? a) (number? b) (eq? (exact? a) (exact? b)) (= a b))))
+     (and (number? a) (number? b) (eq? (exact? a) (exact? b)) (= a b))))
 (define (equal? a b)
   (sys:FOREIGN_CALL '(gc_obj "SCM_EQUAL" (gc_obj gc_obj)) a b))
 
@@ -854,9 +871,7 @@
       ((= remb 0) gt)
       (else
         (let ((ca (sys:LOAD_CHAR a pos)) (cb (sys:LOAD_CHAR b pos)))
-          (if (eq? ca cb)
-              (loop (+ pos 1) (- rema 1) (- remb 1))
-              (f ca cb)))))))
+          (if (eq? ca cb) (loop (+ pos 1) (- rema 1) (- remb 1)) (f ca cb)))))))
 
 (define-syntax define-strcmp
    (syntax-rules (strcmp)
@@ -1557,13 +1572,9 @@
             (cond
               ((not (sys:LOAD port 1)) (error "Port not open"))
               ((sys:LT len 0) (make-eof-object))
-              ((sys:LT (sys:LOAD port 0) 0)
-                (sys:STORE port -1 4)
-                (make-eof-object))
+              ((sys:LT (sys:LOAD port 0) 0) (sys:STORE port -1 4) (make-eof-object))
               ((fill-input-port-buffer port)
-                (let ((c (sys:LOAD_CHAR (sys:LOAD port 6) 0)))
-                  (sys:STORE port 1 3)
-                  c))
+                (let ((c (sys:LOAD_CHAR (sys:LOAD port 6) 0))) (sys:STORE port 1 3) c))
               (else (make-eof-object)))))))
 (define peek-char
   (case-lambda
@@ -1577,11 +1588,8 @@
                 (cond
                   ((not (sys:LOAD port 1)) (error "Port not open"))
                   ((sys:LT len 0) (make-eof-object))
-                  ((sys:LT (sys:LOAD port 0) 0)
-                    (sys:STORE port -1 4)
-                    (make-eof-object))
-                  ((fill-input-port-buffer port)
-                    (sys:LOAD_CHAR (sys:LOAD port 6) 0))
+                  ((sys:LT (sys:LOAD port 0) 0) (sys:STORE port -1 4) (make-eof-object))
+                  ((fill-input-port-buffer port) (sys:LOAD_CHAR (sys:LOAD port 6) 0))
                   (else (make-eof-object)))))))))
 
 (define read-char
