@@ -551,7 +551,8 @@ static void set_stack_top(vm_state *state, uint8_t top) {
 
 enum { CALLCC_INLINE_SAVE_CAP = 128 };
 
-static slot stack_abs_load_boxed(vm_state *state, uint32_t abs_idx) {
+static slot stack_abs_load_boxed(vm_state *state, uint32_t abs_idx,
+                                 uint32_t stack_words) {
   trace_state *ts = record_trace_state(state);
   if (abs_idx >= ts->stack_base) {
     uint32_t rel_idx = abs_idx - ts->stack_base;
@@ -559,7 +560,9 @@ static slot stack_abs_load_boxed(vm_state *state, uint32_t abs_idx) {
       return box_vmcall_arg(state, ts->stack[rel_idx].loc);
     }
   }
-  return add_inst(state, IR(.op = IR_STACK_LOAD_RAW, .data = abs_idx,
+  int32_t rel_idx = (int32_t)ts->stack_off - (int32_t)stack_words +
+                    (int32_t)abs_idx;
+  return add_inst(state, IR(.op = IR_STACK_LOAD_RAW, .data = (uint32_t)rel_idx,
                             .type = UNDEFINED_TAG));
 }
 
@@ -2059,7 +2062,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 
       slot *saved = nullptr;
       for (uint32_t i = 0; i < words; i++) {
-        arrput(saved, stack_abs_load_boxed(state, i));
+        arrput(saved, stack_abs_load_boxed(state, i, words));
       }
 
       int64_t payload_words = saved_len + 3;
@@ -2172,10 +2175,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                IR(.op = IR_CALLCC_RESUME, .op1 = captured, .type = PTR_TAG));
     } else {
       uint32_t needed_words = saved_words + (uint32_t)result_count + 2;
-      add_inst(state, IR(.op = IR_STACK_FITS,
+      add_inst(state, IR(.op = IR_STACK_FITS_RESET,
                          .op1 = add_const(state, tag_fixnum(needed_words))));
 
-      add_inst(state, IR(.op = IR_STACK_RESET, .type = PTR_TAG));
       for (uint32_t i = 0; i < saved_words; i++) {
         slot val =
             load_closure_slot(state, captured, (int64_t)i + 4, UNDEFINED_TAG);

@@ -71,7 +71,7 @@ typedef enum : uint8_t {
   X(STACK_STORE, ARG_IR_IR, true)                                              \
   X(STACK_LOAD_RAW, ARG_STACK, false)                                          \
   X(STACK_LEN_EQ, ARG_IR_IR, true)                                             \
-  X(STACK_FITS, ARG_IR_NONE, true)                                             \
+  X(STACK_FITS_RESET, ARG_IR_NONE, true)                                       \
   X(STACK_RESET, ARG_NONE_NONE, true)                                          \
   X(STACK_SET_TOP, ARG_IR_NONE, true)                                          \
   X(SLOAD, ARG_STACK, false)                                                   \

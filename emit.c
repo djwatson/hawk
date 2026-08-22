@@ -2081,9 +2081,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       break;
     }
     case IR_STACK_LOAD_RAW: {
-      emit_load_jit_state(s, RTMP);
-      emit_mem_load(s, (int32_t)offsetof(vm_state, stack_bottom), RTMP, RTMP);
-      emit_mem_load(s, (int32_t)op->data * 8, RTMP, dst_reg);
+      emit_mem_load(s, (int32_t)op->data * 8, RSTACK, dst_reg);
       break;
     }
     case IR_GGET: {
@@ -2131,7 +2129,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
       break;
     }
-    case IR_STACK_FITS: {
+    case IR_STACK_FITS_RESET: {
       assert(cur_snap >= 0);
       assert(op->op1.constant);
       emit_load_jit_state(s, RTMP);
@@ -2139,6 +2137,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       emit_add_constant(s, RTMP2, RTMP2, slot_const(t, op->op1));
       emit_cmp_mem(s, RTMP2, (int32_t)offsetof(vm_state, stack_limit), RTMP);
       emit_jcc32(s, JGE, &t->snaps[cur_snap].patch_point);
+      emit_mem_load(s, (int32_t)offsetof(vm_state, stack_bottom), RTMP,
+                    RSTACK);
       break;
     }
     case IR_STACK_RESET: {
@@ -2149,9 +2149,6 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     }
     case IR_STACK_SET_TOP: {
       assert(op->op1.constant);
-      emit_load_jit_state(s, RTMP);
-      emit_mem_load(s, (int32_t)offsetof(vm_state, stack_bottom), RTMP,
-                    RSTACK);
       emit_add_constant(s, RSTACK, RSTACK, slot_const(t, op->op1));
       break;
     }
