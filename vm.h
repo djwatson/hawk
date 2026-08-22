@@ -21,6 +21,17 @@ typedef gc_obj PRESERVE_NONE (*op_func)(bc instr, bc *pc, gc_obj *stack,
 enum { VM_HOTMAP_SZ = 1024 };
 enum { STACK_GUARD_SLOTS = 256 };
 
+#ifndef STACK_CHECK_GRANULARITY
+#define STACK_CHECK_GRANULARITY (4 * 4096)
+#endif
+
+static_assert(STACK_CHECK_GRANULARITY > 0 &&
+                  (STACK_CHECK_GRANULARITY &
+                   (STACK_CHECK_GRANULARITY - 1)) == 0,
+              "STACK_CHECK_GRANULARITY must be a power of two");
+static_assert((STACK_CHECK_GRANULARITY % sizeof(gc_obj)) == 0,
+              "STACK_CHECK_GRANULARITY must contain whole stack slots");
+
 typedef struct vm_state {
   uint8_t hotmap[VM_HOTMAP_SZ];
   uint16_t max_trace;

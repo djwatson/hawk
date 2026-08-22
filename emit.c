@@ -1007,8 +1007,14 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
   }
 
   COMMENT("Emit stack guard check");
+  int64_t stack_offset = (int64_t)snap->offset * sizeof(gc_obj);
   label done = {};
-  emit_cmp_jit_stack_limit(s, RSTACK);
+  if (stack_offset < STACK_CHECK_GRANULARITY / 2) {
+    emit_test_constant(s, RSTACK, STACK_CHECK_GRANULARITY / 2);
+    emit_jcc32(s, JE, &done);
+  }
+  emit_add_constant(s, RTMP2, RSTACK, stack_offset);
+  emit_cmp_jit_stack_limit(s, RTMP2);
   emit_jcc32(s, JL, &done);
 
   assert(s->expand_stack_slowpath);
@@ -1018,7 +1024,7 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
   COMMENT("   end stack guard check");
 
   // Advance stack pointer after confirming we have space.
-  emit_add_constant(s, RSTACK, RSTACK, (int64_t)snap->offset * 8);
+  emit_add_constant(s, RSTACK, RSTACK, stack_offset);
 }
 
 static double slot_flonum_constant(trace *t, slot v) {

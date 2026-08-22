@@ -473,19 +473,26 @@ gc_obj *expand_stack(vm_state *state, gc_obj *stack) {
   // TODO: this should really be a stack *cache*
   size_t oldsz = (size_t)(state->stack_end - state->stack_bottom);
   size_t newsz = oldsz + (oldsz / 3);
-  size_t grow = newsz - oldsz;
   if (newsz <= oldsz) {
     newsz = oldsz + 1;
-    grow = 1;
   }
   auto offset = stack - state->stack_bottom;
+  size_t granule_slots = STACK_CHECK_GRANULARITY / sizeof(gc_obj);
+  size_t usable_slots = newsz - STACK_GUARD_SLOTS;
+  usable_slots = (usable_slots + granule_slots - 1) & -granule_slots;
+  newsz = usable_slots + STACK_GUARD_SLOTS;
   LOG(jit, "MUST EXPAND STACK now %li", newsz);
-  gc_obj *newstack = realloc(state->stack_bottom, sizeof(gc_obj) * newsz);
+  size_t alloc_bytes = sizeof(gc_obj) * newsz;
+  alloc_bytes = (alloc_bytes + STACK_CHECK_GRANULARITY - 1) &
+                -STACK_CHECK_GRANULARITY;
+  gc_obj *newstack = aligned_alloc(STACK_CHECK_GRANULARITY, alloc_bytes);
   if (!newstack) {
-    fprintf(stderr, "Failed to realloc stack\n");
+    fprintf(stderr, "Failed to expand stack\n");
     abort();
   }
-  memset(&newstack[oldsz], 0, grow * sizeof(gc_obj));
+  memcpy(newstack, state->stack_bottom, oldsz * sizeof(gc_obj));
+  memset(&newstack[oldsz], 0, alloc_bytes - oldsz * sizeof(gc_obj));
+  free(state->stack_bottom);
   state->stack_bottom = newstack;
   state->stack_end = newstack + newsz;
   state->stack_limit = state->stack_end - STACK_GUARD_SLOTS;
@@ -1527,16 +1534,21 @@ static void vm_state_init(vm_state *state) {
 
 gc_obj vm(gc_obj clo, gc_obj arg1, gc_obj arg2) {
   assert(is_closure(clo));
-  size_t default_size = 1024;
+  size_t granule_slots = STACK_CHECK_GRANULARITY / sizeof(gc_obj);
+  size_t default_size = granule_slots + STACK_GUARD_SLOTS;
   vm_state *state = calloc(1, sizeof(vm_state));
   vm_state_init(state);
   current_vm_state = state;
 
-  gc_obj *stack = calloc(default_size, sizeof(gc_obj));
+  size_t stack_bytes = default_size * sizeof(gc_obj);
+  size_t alloc_bytes = (stack_bytes + STACK_CHECK_GRANULARITY - 1) &
+                       -STACK_CHECK_GRANULARITY;
+  gc_obj *stack = aligned_alloc(STACK_CHECK_GRANULARITY, alloc_bytes);
   if (!stack) {
     fprintf(stderr, "Failed to allocate VM stack\n");
     exit(EXIT_FAILURE);
   }
+  memset(stack, 0, alloc_bytes);
   state->stack_bottom = stack;
   state->stack_end = stack + default_size;
   state->stack_limit = state->stack_end - STACK_GUARD_SLOTS;
