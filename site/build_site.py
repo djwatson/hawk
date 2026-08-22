@@ -202,15 +202,34 @@ def comparison_rows_by_arch(data):
       chez = next((v for k, v in bench["results"].items() if k.lower().startswith("chez")), None)
       if not hawk or not chez:
         continue
-      percent = (hawk / chez - 1.0) * 100.0
+      ratio = hawk / chez
       name, _, args = invocation.partition(":")
-      rows.append((name, args, percent, hawk, chez))
+      rows.append((name, args, -math.log2(ratio), ratio, hawk, chez))
     rows_by_arch[arch] = rows
   return rows_by_arch
 
 
-def svg_percent_chart(arch, rows):
-  rows = sorted(rows, key=lambda row: row[2])
+def ratio_label(value):
+  if value == 0:
+    return "same"
+  factor = 2 ** abs(value)
+  direction = "faster" if value > 0 else "slower"
+  return f"{factor:g}x {direction}"
+
+
+def comparison_label(ratio):
+  if math.isclose(ratio, 1.0):
+    return "same speed"
+  factor = 1 / ratio if ratio < 1 else ratio
+  direction = "faster" if ratio < 1 else "slower"
+  return f"{factor:.2f}x {direction}"
+
+
+def svg_ratio_chart(arch, rows):
+  rows = sorted(rows, key=lambda row: row[2], reverse=True)
+  total_ratio = geomean_ratio(rows)
+  if total_ratio:
+    rows.append(("TOTAL", "", -math.log2(total_ratio), total_ratio, 0, 0))
   height = 420
   left = 92
   right = 24
@@ -219,13 +238,13 @@ def svg_percent_chart(arch, rows):
   width = max(1000, left + right + len(rows) * 18)
   chart_h = height - top - bottom
   zero_y = top + chart_h / 2
-  max_abs = max([abs(percent) for _, _, percent, _, _ in rows] + [1.0])
-  scale = (chart_h / 2 - 16) / max_abs
+  max_abs = max([abs(value) for _, _, value, _, _, _ in rows] + [1.0])
+  axis_limit = max(1, math.ceil(max_abs))
+  scale = (chart_h / 2 - 16) / axis_limit
   bar_slot = max(18, (width - left - right) / max(len(rows), 1))
   bar_w = min(22, bar_slot * 0.72)
-  axis_limit = max(20, int(math.ceil(max_abs / 20.0) * 20))
   body = [
-    f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="{escape(arch)} benchmark runtime change chart" xmlns="http://www.w3.org/2000/svg">',
+    f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="{escape(arch)} benchmark runtime ratio chart" xmlns="http://www.w3.org/2000/svg">',
     '<style>'
     'text{font:14px Georgia,serif;fill:#2c2924}'
     '.small{font-size:12px;fill:#676057}'
@@ -233,25 +252,25 @@ def svg_percent_chart(arch, rows):
     '.axis{font-size:11px;fill:#5f564f}'
     '.bench{font-size:10px;fill:#676057}'
     '</style>',
-    f'<text class="title" x="{left}" y="22">{escape(arch)} Hawk Runtime Change Relative to Chez</text>',
-    f'<text class="small" x="{left}" y="38">Negative values mean Hawk is faster. Positive values mean Hawk is slower.</text>',
+    f'<text class="title" x="{left}" y="22">{escape(arch)} Hawk Runtime Relative to Chez</text>',
+    f'<text class="small" x="{left}" y="38">Faster benchmarks appear above parity; slower benchmarks appear below.</text>',
     f'<line x1="{left}" y1="{zero_y:.1f}" x2="{width - right}" y2="{zero_y:.1f}" stroke="#333" stroke-width="1"/>',
   ]
-  for percent in range(-axis_limit, axis_limit + 1, 20):
-    y = zero_y - percent * scale
+  for value in range(-axis_limit, axis_limit + 1):
+    y = zero_y - value * scale
     if top <= y <= height - bottom:
       body.append(f'<line x1="{left}" y1="{y:.1f}" x2="{width - right}" y2="{y:.1f}" stroke="#ddd" stroke-width="1"/>')
       body.append(f'<line x1="{left - 4}" y1="{y:.1f}" x2="{left}" y2="{y:.1f}" stroke="#333" stroke-width="1"/>')
-      body.append(f'<text class="axis" x="{left - 8}" y="{y + 4:.1f}" text-anchor="end">{percent:+d}%</text>')
-  for i, (name, args, percent, _, _) in enumerate(rows):
+      body.append(f'<text class="axis" x="{left - 8}" y="{y + 4:.1f}" text-anchor="end">{ratio_label(value)}</text>')
+  for i, (name, args, value, _, _, _) in enumerate(rows):
     x = left + i * bar_slot + (bar_slot - bar_w) / 2
-    bar_h = abs(percent) * scale
-    if percent >= 0:
+    bar_h = abs(value) * scale
+    if value >= 0:
       y = zero_y - bar_h
-      fill = "#b65b4b"
+      fill = "#4a7ebb"
     else:
       y = zero_y
-      fill = "#4a7ebb"
+      fill = "#b65b4b"
     body.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{bar_w:.1f}" height="{bar_h:.1f}" fill="{fill}" rx="2"/>')
     label_x = x + bar_w / 2
     label_y = height - 62
@@ -264,7 +283,7 @@ def svg_percent_chart(arch, rows):
 
 
 def geomean_ratio(rows):
-  ratios = [chez / hawk for _, _, _, hawk, chez in rows if hawk and chez]
+  ratios = [ratio for _, _, _, ratio, hawk, chez in rows if hawk and chez]
   if not ratios:
     return None
   return math.exp(sum(math.log(ratio) for ratio in ratios) / len(ratios))
@@ -274,20 +293,20 @@ def benchmark_html(data):
   rows_by_arch = comparison_rows_by_arch(data)
   pieces = []
   for arch in sorted(rows_by_arch, key=lambda name: (name != "x64", name)):
-    rows = sorted(rows_by_arch[arch], key=lambda row: row[2])
+    rows = sorted(rows_by_arch[arch], key=lambda row: row[2], reverse=True)
     ratio = geomean_ratio(rows)
-    pieces.append(f'<section class="bench-arch">\n<h2 id="{slug(arch)}">{escape(arch)} Hawk Runtime Change Relative to Chez</h2>')
+    pieces.append(f'<section class="bench-arch">\n<h2 id="{slug(arch)}">{escape(arch)} Hawk Runtime Relative to Chez</h2>')
     text = f"{len(rows)} matched benchmarks comparing Hawk and Chez."
     if ratio:
-      text += f" Geometric mean: Hawk is {ratio:.2f}x Chez speed on matched benchmarks."
-    pieces.append(f"<p>{text} Lower runtime bars are better.</p>")
-    filename = f"generated/benchmark_percent_{arch}.svg"
-    write(OUT / filename, svg_percent_chart(arch, rows))
-    pieces.append(f'<figure class="chart"><img src="{href(filename)}" alt="{escape(arch)} benchmark runtime change chart"></figure>')
-    pieces.append('<table><thead><tr><th>Benchmark</th><th>Hawk</th><th>Chez</th><th>% Change</th></tr></thead><tbody>')
-    for name, args, percent, hawk, chez in rows:
+      text += f" Geometric mean: Hawk is {comparison_label(ratio)}."
+    pieces.append(f"<p>{text}</p>")
+    filename = f"generated/benchmark_ratio_{arch}.svg"
+    write(OUT / filename, svg_ratio_chart(arch, rows))
+    pieces.append(f'<figure class="chart"><img src="{href(filename)}" alt="{escape(arch)} Hawk runtime relative to Chez chart"></figure>')
+    pieces.append('<table><thead><tr><th>Benchmark</th><th>Hawk</th><th>Chez</th><th>Comparison</th></tr></thead><tbody>')
+    for name, args, value, ratio, hawk, chez in rows:
       pieces.append(
-        f"<tr><td>{escape(name)}</td><td>{hawk:.6f}</td><td>{chez:.6f}</td><td>{percent:+.1f}%</td></tr>"
+        f"<tr><td>{escape(name)}</td><td>{hawk:.6f}</td><td>{chez:.6f}</td><td>{comparison_label(ratio)}</td></tr>"
       )
     pieces.append("</tbody></table>\n</section>")
   return "\n".join(pieces) + "\n"
