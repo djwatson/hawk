@@ -49,7 +49,9 @@ typedef uint64_t x64_op;
 enum : uint64_t {
   XO_ADD = OP_W(OP1(0x03)),
   XO_SUB = OP_W(OP1(0x2b)),
+  XO_LEA = OP_W(OP1(0x8d)),
   XO_MOV = OP_W(OP1(0x8b)),
+  XO_MOVSXD = OP_W(OP1(0x63)),
   XO_MOVTO = OP_W(OP1(0x89)),
   XO_MOVBTO = OP1(0x88),
   XO_MOVZXB = OP_W(OP2(0x0f, 0xb6)),
@@ -381,6 +383,16 @@ void emit_mem_cmp_u8_constant(emit_state *s, int32_t offset, uint8_t base,
   emit_byte(s, value);
 }
 
+void emit_cmp_mem(emit_state *s, uint8_t lhs, int32_t offset, uint8_t base) {
+  assert(lhs < FPR_REG_START && base < FPR_REG_START);
+  emit_rmro(s, XO_CMP, lhs, base, offset);
+}
+
+void emit_mem_cmp(emit_state *s, int32_t offset, uint8_t base, uint8_t rhs) {
+  assert(base < FPR_REG_START && rhs < FPR_REG_START);
+  emit_rmro(s, XO_CMPTO, rhs, base, offset);
+}
+
 void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst) {
   assert(dst >= FPR_REG_START && dst < X64_MAX_REG);
   assert(base < FPR_REG_START);
@@ -510,6 +522,18 @@ void emit_int64_to_double(emit_state *s, uint8_t dst, uint8_t src) {
   assert(src < FPR_REG_START);
   emit_rr(s, XO_CVTSI2SD, hw_fpr(dst), src);
 }
+void emit_int32_to_fixnum(emit_state *s, uint8_t dst, uint8_t src) {
+  emit_rr(s, XO_MOVSXD, dst, src);
+  emit_shl_constant(s, dst, dst, FIXNUM_SHIFT);
+}
+void emit_u8_to_fixnum(emit_state *s, uint8_t dst, uint8_t src) {
+  emit_rr(s, XO_MOVZXB, dst, src);
+  emit_shl_constant(s, dst, dst, FIXNUM_SHIFT);
+}
+void emit_fixnum_to_double(emit_state *s, uint8_t dst, uint8_t src) {
+  emit_sar_constant(s, RTMP, src, FIXNUM_SHIFT);
+  emit_int64_to_double(s, dst, RTMP);
+}
 void emit_double_to_int64_trunc(emit_state *s, uint8_t dst, uint8_t src) {
   assert(dst < FPR_REG_START);
   assert(src >= FPR_REG_START && src < X64_MAX_REG);
@@ -568,6 +592,17 @@ void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm) {
   emit_imm32(s, (uint32_t)imm);
 }
 
+void asm_emit_gclog_check(emit_state *s, uint8_t obj, int64_t logged_mask,
+                          label *done) {
+  assert(fits_in_32(logged_mask));
+  emit_rmro(s, XO_GROUP3, 0, obj, 0);
+  emit_imm32(s, (uint32_t)logged_mask);
+  emit_jcc32(s, JNE, done);
+  emit_rmro(s, OP1(0x83), 7, obj, 4);
+  emit_byte(s, 0);
+  emit_jcc32(s, JE, done);
+}
+
 void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm) {
   assert(dst < FPR_REG_START);
   assert(src < FPR_REG_START);
@@ -581,6 +616,19 @@ void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm) {
 }
 
 void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
+  if (dst == lhs || dst == rhs) {
+    emit_rr(s, XO_ADD, dst, dst == lhs ? rhs : lhs);
+    return;
+  }
+  if (low3bits(rhs) == RSP) {
+    uint8_t tmp = lhs;
+    lhs = rhs;
+    rhs = tmp;
+  }
+  if (low3bits(rhs) != RSP) {
+    emit_rmroi(s, XO_LEA, dst, lhs, rhs, 0);
+    return;
+  }
   emit_binop(s, XO_ADD, dst, lhs, rhs, true);
 }
 
@@ -599,6 +647,13 @@ static void emit_add_sub_constant(emit_state *s, x64_op op, uint8_t group,
 
 void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
   emit_binop(s, XO_SUB, dst, lhs, rhs, false);
+}
+
+void emit_sub_shifted(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs,
+                      uint8_t shift) {
+  uint8_t tmp = pick_tmp(dst, lhs);
+  emit_sar_constant(s, tmp, rhs, shift);
+  emit_sub(s, dst, lhs, tmp);
 }
 
 void emit_mul(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
@@ -628,6 +683,20 @@ void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
   emit_mul(s, dst, lhs, tmp);
 }
 
+void asm_emit_fixnum_add_guard_overflow(emit_state *s, uint8_t dst,
+                                        uint8_t lhs, uint8_t rhs,
+                                        label *overflow_target) {
+  emit_binop(s, XO_ADD, dst, lhs, rhs, true);
+  emit_jcc32(s, JO, overflow_target);
+}
+
+void asm_emit_fixnum_add_constant_guard_overflow(
+    emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm,
+    label *overflow_target) {
+  emit_add_sub_constant(s, XO_ADD, 0, dst, lhs, imm);
+  emit_jcc32(s, JO, overflow_target);
+}
+
 #define DEFINE_FIXNUM_GUARD_OVERFLOW(name)                                     \
   void asm_emit_fixnum_##name##_guard_overflow(emit_state *s, uint8_t dst,     \
                                                uint8_t lhs, uint8_t rhs,       \
@@ -642,7 +711,6 @@ void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
     emit_jcc32(s, JO, overflow_target);                                        \
   }
 
-DEFINE_FIXNUM_GUARD_OVERFLOW(add)
 DEFINE_FIXNUM_GUARD_OVERFLOW(sub)
 DEFINE_FIXNUM_GUARD_OVERFLOW(mul)
 
@@ -651,6 +719,10 @@ DEFINE_FIXNUM_GUARD_OVERFLOW(mul)
 void emit_sar_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm) {
   assert(dst < FPR_REG_START);
   assert(src < FPR_REG_START);
+  if (imm == 0) {
+    emit_mov(s, dst, src);
+    return;
+  }
   emit_mov(s, dst, src);
   emit_rr(s, XO_SHIFTI, 7, dst);
   emit_byte(s, imm);
@@ -659,6 +731,10 @@ void emit_sar_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm) {
 void emit_shl_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm) {
   assert(dst < FPR_REG_START);
   assert(src < FPR_REG_START);
+  if (imm == 0) {
+    emit_mov(s, dst, src);
+    return;
+  }
   emit_mov(s, dst, src);
   emit_rr(s, XO_SHIFTI, 4, dst);
   emit_byte(s, imm);
@@ -776,9 +852,20 @@ void emit_fdiv_constant(emit_state *s, uint8_t dst, uint8_t lhs, double imm) {
   emit_fop_constant(s, XO_DIVSD, dst, lhs, imm);
 }
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
+  if (fits_in_32(imm) && dst != lhs) {
+    emit_rmro(s, XO_LEA, dst, lhs, (int32_t)imm);
+    return;
+  }
+  if (imm == 0) {
+    return;
+  }
   emit_add_sub_constant(s, XO_ADD, 0, dst, lhs, imm);
 }
 void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
+  if (imm == 0) {
+    emit_mov(s, dst, lhs);
+    return;
+  }
   emit_add_sub_constant(s, XO_SUB, 5, dst, lhs, imm);
 }
 void emit_store(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {

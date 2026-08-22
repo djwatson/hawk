@@ -123,9 +123,9 @@ static void emit_update_jit_stack_limit(emit_state *s, uint8_t state_reg,
   emit_store(s, 0, addr_reg, limit_reg);
 }
 
-static void emit_load_jit_stack_limit(emit_state *s, uint8_t dst) {
+static void emit_cmp_jit_stack_limit(emit_state *s, uint8_t reg) {
   emit_mov64(s, RTMP, (intptr_t)&jit_stack_limit);
-  emit_mem_load(s, 0, RTMP, dst);
+  emit_cmp_mem(s, reg, 0, RTMP);
 }
 
 static void build_slowpath_reg_frame(uint8_t regs[FPR_REG_END],
@@ -412,14 +412,12 @@ static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
   if (size_reg == REG_NONE) {
     emit_sub_constant(s, RALLOC, RALLOC, tagged_size >> FIXNUM_SHIFT);
   } else {
-    emit_sar_constant(s, RTMP2, size_reg, FIXNUM_SHIFT);
-    emit_sub(s, RALLOC, RALLOC, RTMP2);
+    emit_sub_shifted(s, RALLOC, RALLOC, size_reg, FIXNUM_SHIFT);
   }
 
   emit_mov(s, RTMP, RALLOC);
   emit_mov64(s, RTMP2, (intptr_t)&gc_hp_end);
-  emit_mem_load(s, 0, RTMP2, RTMP2);
-  emit_cmp(s, RALLOC, RTMP2);
+  emit_cmp_mem(s, RALLOC, 0, RTMP2);
   emit_jcc32(s, JAE, &alloc_done);
 
   if (size_reg == REG_NONE) {
@@ -445,15 +443,10 @@ static void emit_gclog_obj_reg(emit_state *s, uint8_t obj_reg,
   }
 
   emit_mov(s, RTMP, obj_reg);
-  emit_mov(s, RTMP2, RTMP);
-  emit_and_constant(s, RTMP2, RTMP2, ~TAG_MASK);
-  emit_mem_load(s, 0, RTMP2, RTMP2);
-  emit_test_constant(s, RTMP2,
-                     (int64_t)GC_LOGGED << (8 * offsetof(gc_header, flags)));
-  emit_jcc32(s, JNE, &done_gclog);
-  emit_sar_constant(s, RTMP2, RTMP2, 32);
-  emit_cmp_constant(s, RTMP2, 0);
-  emit_jcc32(s, JE, &done_gclog);
+  emit_and_constant(s, RTMP2, RTMP, ~TAG_MASK);
+  int64_t logged_mask =
+      (int64_t)GC_LOGGED << (8 * offsetof(gc_header, flags));
+  asm_emit_gclog_check(s, RTMP2, logged_mask, &done_gclog);
 
   emit_call32(s, (int64_t)s->gclog_slowpath);
   emit_label(s, &done_gclog);
@@ -611,13 +604,10 @@ static void emit_ccall_result(emit_state *s, uint8_t dst_reg,
     }
     return;
   case FOREIGN_TYPE_UINT8:
-    emit_and_constant(s, dst_reg, RET_REG, 0xff);
-    emit_shl_constant(s, dst_reg, dst_reg, FIXNUM_SHIFT);
+    emit_u8_to_fixnum(s, dst_reg, RET_REG);
     return;
   case FOREIGN_TYPE_INT32:
-    emit_shl_constant(s, dst_reg, RET_REG, 32);
-    emit_sar_constant(s, dst_reg, dst_reg, 32);
-    emit_shl_constant(s, dst_reg, dst_reg, FIXNUM_SHIFT);
+    emit_int32_to_fixnum(s, dst_reg, RET_REG);
     return;
   case FOREIGN_TYPE_INT64:
   case FOREIGN_TYPE_UINT64:
@@ -1018,8 +1008,7 @@ static void emit_stack_offset_and_check(emit_state *s, snap const *snap) {
 
   COMMENT("Emit stack guard check");
   label done = {};
-  emit_load_jit_stack_limit(s, RTMP);
-  emit_cmp(s, RSTACK, RTMP);
+  emit_cmp_jit_stack_limit(s, RSTACK);
   emit_jcc32(s, JL, &done);
 
   assert(s->expand_stack_slowpath);
@@ -1197,8 +1186,7 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
       // func loads ONLY happen from closure loads, no need to typecheck.
       return;
     }
-    emit_mov(s, tmp, reg);
-    emit_and_constant(s, tmp, tmp, TAG_MASK);
+    emit_and_constant(s, tmp, reg, TAG_MASK);
     emit_cmp_constant(s, tmp, PTR_TAG);
     emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
     if (op->type == PTR_TAG) {
@@ -1211,8 +1199,7 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
     break;
   }
 
-  emit_mov(s, tmp, reg);
-  emit_and_constant(s, tmp, tmp, mask);
+  emit_and_constant(s, tmp, reg, mask);
   emit_cmp_constant(s, tmp, want);
   emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
 }
@@ -1667,8 +1654,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
           emit_mem_cmp_constant(s, 8 - op->type, obj_reg,
                                 slot_const(t, op->op2));
         } else {
-          emit_mem_load(s, 8 - op->type, obj_reg, RTMP);
-          emit_cmp(s, RTMP, idx_reg);
+          emit_mem_cmp(s, 8 - op->type, obj_reg, idx_reg);
         }
         emit_jcc32(s, JBE, &t->snaps[cur_snap].patch_point);
       }
@@ -2034,8 +2020,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       assert(op->type == FLONUM_TAG);
       assert(!op->op1.constant);
       assert(is_fpr_reg(dst_reg));
-      emit_sar_constant(s, RTMP, arg0_reg, FIXNUM_SHIFT);
-      emit_int64_to_double(s, dst_reg, RTMP);
+      emit_fixnum_to_double(s, dst_reg, arg0_reg);
       break;
     }
     case IR_EXACT: {
@@ -2134,10 +2119,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       assert(cur_snap >= 0);
       assert(op->op1.constant && op->op2.constant);
       emit_load_jit_state(s, RTMP);
-      emit_mem_load(s, (int32_t)offsetof(vm_state, stack_bottom), RTMP, RTMP);
-      emit_add_constant(s, RTMP2, RSTACK, slot_const(t, op->op2));
-      emit_sub(s, RTMP2, RTMP2, RTMP);
-      emit_cmp_constant(s, RTMP2, slot_const(t, op->op1));
+      emit_add_constant(s, RTMP2, RSTACK,
+                        slot_const(t, op->op2) - slot_const(t, op->op1));
+      emit_cmp_mem(s, RTMP2, (int32_t)offsetof(vm_state, stack_bottom), RTMP);
       emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
       break;
     }
@@ -2146,9 +2130,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       assert(op->op1.constant);
       emit_load_jit_state(s, RTMP);
       emit_mem_load(s, (int32_t)offsetof(vm_state, stack_bottom), RTMP, RTMP2);
-      emit_mem_load(s, (int32_t)offsetof(vm_state, stack_limit), RTMP, RTMP);
       emit_add_constant(s, RTMP2, RTMP2, slot_const(t, op->op1));
-      emit_cmp(s, RTMP2, RTMP);
+      emit_cmp_mem(s, RTMP2, (int32_t)offsetof(vm_state, stack_limit), RTMP);
       emit_jcc32(s, JGE, &t->snaps[cur_snap].patch_point);
       break;
     }

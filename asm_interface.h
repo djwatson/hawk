@@ -56,6 +56,8 @@ void emit_mem_cmp_constant(emit_state *s, int32_t offset, uint8_t base,
                            int64_t value);
 void emit_mem_cmp_u8_constant(emit_state *s, int32_t offset, uint8_t base,
                               uint8_t value);
+void emit_cmp_mem(emit_state *s, uint8_t lhs, int32_t offset, uint8_t base);
+void emit_mem_cmp(emit_state *s, int32_t offset, uint8_t base, uint8_t rhs);
 void emit_fmem_load(emit_state *s, int32_t offset, uint8_t base, uint8_t dst);
 void emit_fmem_load_indexed(emit_state *s, int32_t offset, uint8_t base,
                             uint8_t index, uint8_t dst);
@@ -79,6 +81,8 @@ void emit_store_u8_constant_indexed(emit_state *s, int32_t offset,
                                     uint8_t value);
 void asm_zero_alloc_payload(emit_state *s, int64_t tagged_size,
                             uint8_t size_reg);
+void asm_emit_gclog_check(emit_state *s, uint8_t obj, int64_t logged_mask,
+                          label *done);
 void emit_jcc32(emit_state *s, enum jcc_cond cond, label *target);
 void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs);
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm);
@@ -87,6 +91,8 @@ void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm);
 void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
 void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
+void emit_sub_shifted(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs,
+                      uint8_t shift);
 void emit_mul(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs);
 void emit_mul_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm);
 void asm_emit_fixnum_add_guard_overflow(emit_state *s, uint8_t dst, uint8_t lhs,
@@ -128,4 +134,7 @@ void emit_fmov_constant(emit_state *s, uint8_t dst, double imm);
 void emit_fsqrt(emit_state *s, uint8_t dst, uint8_t src);
 void emit_double_to_int64_trunc(emit_state *s, uint8_t dst, uint8_t src);
 void emit_int64_to_double(emit_state *s, uint8_t dst, uint8_t src);
+void emit_int32_to_fixnum(emit_state *s, uint8_t dst, uint8_t src);
+void emit_u8_to_fixnum(emit_state *s, uint8_t dst, uint8_t src);
+void emit_fixnum_to_double(emit_state *s, uint8_t dst, uint8_t src);
 void emit_debugtrap(emit_state *s);
