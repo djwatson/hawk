@@ -237,7 +237,7 @@
             (if (eof-object? c)
                 (if (not (= 0 res)) (substring read-buf 0 res) c)
                 (let ((ci (char->integer c)))
-                  (if (<= 65 ci 122)
+                  (if (<= 65 ci 122) ;; quick fastpath for ascii chars
                       (begin
                         (string-set! read-buf res (read-char port))
                         (loop (+ res 1) (peek-char port)))
