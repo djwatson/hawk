@@ -1877,7 +1877,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_STORE_CHAR:
   case OP_STORE_BYTE: {
     auto obj = stack_load(state, stack, pc->reg, true);
-    auto val = stack_load(state, stack, pc->v1, true);
+    auto val = stack_load(state, stack, pc->v1, instr.op != OP_STORE);
     auto offset = stack_load(state, stack, pc->v2, true);
 
     obj = materialize_constant_obj(state, obj);
