@@ -81,8 +81,8 @@ void emit_store_u8_constant_indexed(emit_state *s, int32_t offset,
                                     uint8_t value);
 void asm_zero_alloc_payload(emit_state *s, int64_t tagged_size,
                             uint8_t size_reg);
-void asm_emit_gclog_check(emit_state *s, uint8_t obj, int64_t logged_mask,
-                          label *done);
+void asm_emit_gclog_check(emit_state *s, uint8_t obj, int32_t header_offset,
+                          int64_t logged_mask, label *done);
 void emit_jcc32(emit_state *s, enum jcc_cond cond, label *target);
 void emit_cmp(emit_state *s, uint8_t lhs, uint8_t rhs);
 void emit_cmp_constant(emit_state *s, uint8_t reg, int64_t imm);

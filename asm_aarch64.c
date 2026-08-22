@@ -582,10 +582,10 @@ void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm) {
   emit_op(s, A64_ANDSI | logical | A64_N(reg) | 31);
 }
 
-void asm_emit_gclog_check(emit_state *s, uint8_t obj, int64_t logged_mask,
-                          label *done) {
+void asm_emit_gclog_check(emit_state *s, uint8_t obj, int32_t header_offset,
+                          int64_t logged_mask, label *done) {
   uint8_t tmp = pick_scratch_tmp(obj, REG_NONE);
-  emit_mem_load(s, 0, obj, tmp);
+  emit_mem_load(s, header_offset, obj, tmp);
   emit_test_constant(s, tmp, logged_mask);
   emit_jcc32(s, JNE, done);
   emit_sar_constant(s, tmp, tmp, 32);

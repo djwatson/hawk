@@ -434,7 +434,7 @@ static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
   emit_label(s, &after_alloc);
 }
 
-static void emit_gclog_obj_reg(emit_state *s, uint8_t obj_reg,
+static void emit_gclog_obj_reg(emit_state *s, uint8_t obj_reg, uint8_t tag,
                                bool preserve_rtmp) {
   label done_gclog = {};
   if (preserve_rtmp) {
@@ -443,10 +443,9 @@ static void emit_gclog_obj_reg(emit_state *s, uint8_t obj_reg,
   }
 
   emit_mov(s, RTMP, obj_reg);
-  emit_and_constant(s, RTMP2, RTMP, ~TAG_MASK);
   int64_t logged_mask =
       (int64_t)GC_LOGGED << (8 * offsetof(gc_header, flags));
-  asm_emit_gclog_check(s, RTMP2, logged_mask, &done_gclog);
+  asm_emit_gclog_check(s, RTMP, -(int32_t)tag, logged_mask, &done_gclog);
 
   emit_call32(s, (int64_t)s->gclog_slowpath);
   emit_label(s, &done_gclog);
@@ -2177,11 +2176,13 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     case IR_GCLOG: {
       // Load obj (op1) into RTMP
       if (op->op1.constant) {
-        emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op1));
-        emit_gclog_obj_reg(s, RTMP, false);
+        gc_obj obj = slot_gc_obj(t, op->op1);
+        emit_heap_constant(s, t, RTMP, obj);
+        emit_gclog_obj_reg(s, RTMP, get_tag(obj), false);
       } else {
         uint8_t obj_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
-        emit_gclog_obj_reg(s, obj_reg, false);
+        uint8_t tag = ref_base_tag(slot_ins(t, op->op1)->type);
+        emit_gclog_obj_reg(s, obj_reg, tag, false);
       }
       break;
     }
