@@ -1,22 +1,3 @@
-
-## slow vs Chez
-
-* both of these suffer from bad GC and warmup!!
- with a warmup run, AND 256 GC, they both are even.
-
-* figure out why dynamic is so much slower than oldhawk
-    * again compilation helps, so probably inlining
-	* NO NEED TO TYPECHECK for EQ/NE, eq? vs. EQV? in traces.  ugh
-	* 50MB nursery vs 32mb
-	* GET CASE FASTER, reader is somewhat slow
-	* all of READ is slow, including ports, and typechecking, etc
-	* where the fuck do all the mallocs come from?
-* compiler.scm is slower
-    * GC_ALLOC helps, but hurts other benchmarks
-	* somehow compilation in chez helps - so it's likely tons of inlining
-
-Every other test is within noise.
-
 ## slow VM
 For the VM specifically, we could speed up these, but it wouldn't really affect JIT.
 
@@ -46,19 +27,15 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 
 * fold.c: Clean folding and memory optimizations in fold.c to use fold engine, same as luajit
 
-* backends could be cleaned up similar to luajit
-
 * Luajit style double ended ir ins / constants???
 
 * we cold fold more EQ NEQ ops - case in particular does a lot of NEQ in a row, followed by a single EQ
   * or lower case more effectively somehow?
+  * I tried this but didn't see much improvement on the benchmark suite.
 
 * int range analysis for loops and add/sub/mul overflow (requires abc & loop opt)
 
 * record APPLY (currently we have fastpaths up to 8 length)
-
-* returning trace handling - currently we allow ANY poly trace to return,
-  while old hawk didn't allow any until blacklist_max/2, then *any* trace could return
 
 * lots of CCALL cleanup - regalloc, live register save/restore, etc
 
@@ -72,6 +49,7 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
   * flonums must be eagerly typechecked, since we need to know if we need FPR vs GPR
   * but everything else is lazy, since we don't want to typecheck
     things like IR_LOAD followed by IR_STORE of the same value! If we don't need to know it's type, don't typecheck.
+  * per the ablation study, lazy typechecking doesn't help much, consider removing.
 
 * we could add a GC_ENSURE.  It wouldn't work for variably sized ALLOC, but it would save having to register save/restore for snapshots *at all*, and we could merge all fixed-size allocs to fastpaths!
   * basically split the *do we have enough memory?* path from the *bump the pointer and allocate* path
@@ -100,7 +78,6 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 * Adding special math case-lambda type can remove need to inline bc at all
 * use destination-driven as in previous??
 * track stack-top
-* missing multi-value callcc returns I think?
 * we store state VM, the only place it is used is to flush traces in the FOREIGN_CALL to dump image and die. ugh.
 * LOOP could just do a memmove instead?
 
@@ -110,6 +87,10 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 
 * bigint could have faster fastpath for div, number->string, etc
 
+* we need to save stack space by choosing order of evaluation for
+  function call arguments! constants don't need to be saved on the
+  stack and can be materialized later.
+
 # GC improvements:
 
 * Add lines to blocks
@@ -118,7 +99,9 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
   (gc_blocks are ok since they are never freed).  
   Probably want to delay frees until satb is done?
   
-# notes:
-
-* using a VM forces us to reserve stack space for args, unlike a compiler. For large stack usage this results in higher memory use.  See sum1.scm
-* ^^ no that's not it, it's that we need to save stack space by choosing order of evaluation for function call arguments! constants don't need to be saved on the stack and can be materialized later.
+* Honestly rc-gc isn't great: it forces more gclog than a normal
+  tracing immix-gc would (because we have to log even if the type we
+  are storing is a non-heap object: the object we are overwritting may
+  have been a heap object, and we need its rc-decrement).  It also forces
+  rc and logged bit in headers.  callcc/or chez way is probably faster.
+  

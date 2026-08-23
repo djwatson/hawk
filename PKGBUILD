@@ -1,3 +1,5 @@
+# Maintainer: Dave Watson <dade.watson at gmail dot com>
+
 pkgname=hawk
 pkgver=0.10
 pkgrel=1
@@ -12,7 +14,6 @@ sha256sums=('19f95b324f6c464d1234333fb60b35aac1e55737cf904c367d1d639149d11829')
 
 build() {
   cmake -S "$pkgname-v$pkgver" -B build \
-    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_INSTALL_LIBDIR=lib
   cmake --build build
