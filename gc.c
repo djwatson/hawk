@@ -40,7 +40,7 @@ typedef struct old_slab {
   region *region;
   size_t slot_size;
   size_t capacity;
-  uint64_t *mark_bits;
+  uint64_t mark_bits[SLAB_MARK_WORDS];
 } old_slab;
 
 typedef struct old_freelist {
@@ -200,9 +200,6 @@ static old_slab *slab_new(size_t slot_size) {
   slab->region->owner = slab;
   slab->slot_size = slot_size;
   slab->capacity = SLAB_SIZE / slot_size;
-  slab->mark_bits = calloc(SLAB_MARK_WORDS, sizeof(uint64_t));
-  if (!slab->mark_bits)
-    abort();
   arrput(old_slabs, slab);
   old_since_collect += SLAB_SIZE;
   return slab;
@@ -376,7 +373,13 @@ static void nursery_collect(void) {
   scan_logged_young();
   while (arrlen(worklist)) {
     gc_header *hdr = arrpop_last(worklist);
-    trace_heap_object(hdr, hdr->type, evacuate_field, nullptr);
+    if (hdr->type == CONS_TAG) {
+      cons_s *cons = (cons_s *)hdr;
+      evacuate_field(&cons->b, nullptr);
+      evacuate_field(&cons->a, nullptr);
+    } else {
+      trace_heap_object(hdr, hdr->type, evacuate_field, nullptr);
+    }
   }
   if (stack_root_bottom)
     memset(*stack_root_top, 0,
@@ -397,9 +400,9 @@ static void mark_field(gc_obj *field, void *ctx) {
   if (r->kind == REGION_SLAB) {
     old_slab *slab = r->owner;
     size_t off = (uint8_t *)hdr - r->start;
-    size_t bit = slab_mark_bit(slab, hdr);
     assert(off < slab->capacity * slab->slot_size &&
            off % slab->slot_size == 0);
+    size_t bit = off / sizeof(gc_obj);
     if (bit_test(slab->mark_bits, bit))
       return;
     bit_set(slab->mark_bits, bit);
@@ -422,7 +425,13 @@ static void mark_roots(uint64_t *roots, size_t len) {
 static void drain_mark_worklist(void) {
   while (arrlen(worklist)) {
     gc_header *hdr = arrpop_last(worklist);
-    trace_heap_object(hdr, hdr->type, mark_field, nullptr);
+    if (hdr->type == CONS_TAG) {
+      cons_s *cons = (cons_s *)hdr;
+      mark_field(&cons->b, nullptr);
+      mark_field(&cons->a, nullptr);
+    } else {
+      trace_heap_object(hdr, hdr->type, mark_field, nullptr);
+    }
   }
 }
 
@@ -435,7 +444,7 @@ static bool old_object_marked(gc_header *hdr) {
     size_t off = (uint8_t *)hdr - r->start;
     return off < slab->capacity * slab->slot_size &&
            off % slab->slot_size == 0 &&
-           bit_test(slab->mark_bits, slab_mark_bit(slab, hdr));
+           bit_test(slab->mark_bits, off / sizeof(gc_obj));
   }
   if (r->kind == REGION_LARGE)
     return ((large_obj *)r->owner)->marked;
@@ -486,7 +495,6 @@ static size_t sweep_old(size_t *freed) {
     }
     *freed += SLAB_SIZE;
     region_free(slab->region);
-    free(slab->mark_bits);
     free(slab);
     old_slabs[i] = arrpop_last(old_slabs);
   }
@@ -654,7 +662,6 @@ void gc_init(void) {
 
 void gc_free(void) {
   arr_for_each(old_slabs, slab) {
-    free(slab->mark_bits);
     free(slab);
   }
   arr_for_each(large_objects, large) {
