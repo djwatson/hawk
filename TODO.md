@@ -93,15 +93,6 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 
 # GC improvements:
 
-* Add lines to blocks
-* fix large object cycle collector - currently freeing large objects
-  can make SATB walk walk to invalid mem.
-  (gc_blocks are ok since they are never freed).  
-  Probably want to delay frees until satb is done?
-  
-* Honestly rc-gc isn't great: it forces more gclog than a normal
-  tracing immix-gc would (because we have to log even if the type we
-  are storing is a non-heap object: the object we are overwritting may
-  have been a heap object, and we need its rc-decrement).  It also forces
-  rc and logged bit in headers.  callcc/or chez way is probably faster.
+* Reduce old-generation mark/sweep overhead and the root set.
+* Make the collector thread-safe.
   

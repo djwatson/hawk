@@ -274,15 +274,9 @@ Figure \ref{fig:sd_variability} shows the runtime variability (standard deviatio
 
 The flonum heavy benchmarks are sum1, sumfp, simplex, ray, pnpoly, fibfp, fft, nucleic, sumfp, quicksort, mbrot.  These average more than 2x faster than the chez implementations.  While it is possible to explicitly optimize these in chez using fl- prefixed procedures and removing checks using optimize-level=3, Hawk is able to do this on generic benchmark code usable in any scheme.
 
-### Non-Numeric Results
+### Recursive results
 
-Only a handful of non-numeric benchmarks stand out.  
-
-Closure capture is not very optimized: `fibc` and `ctak` are almost twice as slow. However, benchmarks that use call-with-current-continuation, such as puzzle, don't show meaningful slowdown.
-
-The `dynamic` benchmark is slower, mostly due to the GC: a tracing GC is much faster than an RC gc for this, since dynamic creates many cycles. 
-
-Other benchmarks show minor regressions.  Since Hawk is quite new, there is still plenty of generic optimization opportunities to be had.
+Notable slowdowns show up in 'tak' and 'ctak' on x86_64, and 'ack' on aarch64.  Side-trace returns unfortunately must emulate hardware 'ret' instructions: the return address is manually loaded from the scheme stack, and guarded against the recorded trace's return address.  This is inefficient, and leads to a chain of return-address locations.  This is not a problem in practice, but the 'tak' microbenchmark has very few instructions, and returns to three different locations, so it shows a slowdown.
 
 ### Ablation Study
 
@@ -323,10 +317,6 @@ There are many optimizations that haven't been added to Hawk yet, or showed only
 
   No benefit was found when applying this to Hawk and the benchmark suite: this is probably much less useful in scheme, due to multiple value returns (which all can stay in stack/register already) and case-lambda calls (so even calls with varying argument count stay in register).  Only a few infrequently called side-traces seemed to hit the optimization path.  We've left this out for now, again due to the large complexity it adds.
   
-* The GC could still use much improvement
-
-  Currently the root set is large, including all traces.  Suboptimal block / line sizes are used, and there is currently no backup SATB tracer, as mentioned in the LXR [@zhao2022lxr] paper.  Some things, like decrements and SATB cycle tracing, could be done in a background thread.  Currently none of the GC is thread-safe, which is the main item preventing Hawk from supporting threads.
-  
 * Integer range analysis
 
   Pypy has this, and would help on some of the sum benchmarks: Currently all fixnum ADD/SUB/MUL operations are checked for overflow in the JIT, while with range analysis we could drop some of overflow checking.  Range analysis could also be used to drop some of the bounds checking, if it can be proven that we can't exceed bounds.  LuaJIT combines this with a loop peeling optimization, so it only happens in loops.
@@ -342,29 +332,6 @@ There are many optimizations that haven't been added to Hawk yet, or showed only
 ## Conclusion
 
 The results for Hawk seem to support the theory that no static loop analysis is needed for languages without explicit loops: a tracing JIT can recover enough loop information only from recursive function calls.   
-
----
-
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.96\columnwidth]{generated/peak_memory_x64.pdf}
-\caption{x64 peak memory usage of Hawk and Chez for GC-heavy benchmarks. Runtime labels (seconds) are shown on each bar.}
-\Description{Grouped bar chart of x64 peak memory usage for Hawk and Chez across GC-heavy benchmarks.}
-\label{fig:peak_memory}
-\end{figure}
-
-## Appendix
-
-### GC
-
-We use a simplified variant of LXR [@zhao2022lxr].  We currently only support blocks, not lines.  All heap objects also currently require an 8-byte header, meaning cons cells are 24 bytes.   With lookaside mark bits, this could be improved in the future.  A single background thread does lazy decrements, and does backup snapshot-at-the-beginning tracing based on a cycle-waste predictor.  However, even with these limitations, our GC is quite performant.  Figure \ref{fig:peak_memory} a small selection of GC-heavy benchmarks, including peak RSS and exection time.
-
-The GC design has significant performance implications across various schemes for the GC heavy benchmarks.  A cheney-style scan breadth-first is better for some benchmarks, and worse than a LIFO depth-first stack for others.   RC significantly outperforms for memory in many benchmarks, but for some, like `earley` the extra 8-byte cons cell header adds overhead.  GC design is hard, and no one design dominates.  particularly for mperm & paraffins, GC design dominates over any JIT or VM design.
-
-The GC supports image dumping & reload, and this is how bootstrapping the expander works: A host scheme is used to generate an initial heap image.  Then using a bootstrap hawk, we run the image, re-initialize the expander (the expander does not support serializing its current state).  Then we dump a final heap image, and build it in to the final executable. The heap image is compressed using ZSTD [@collet2021zstd], and the final binary is around half a MB for a full r7rs system.
-
-
 
 ::: {#refs}
 :::

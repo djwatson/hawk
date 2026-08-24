@@ -118,7 +118,6 @@ GENERATED = HERE / "generated"
 BUILD = HERE / "build"
 PAPER = HERE / "paper.md"
 
-TARGET_PEAK_BENCHMARKS = {"array1", "dynamic", "earley", "gcbench", "mperm", "nboyer", "paraffins"}
 
 
 def parse_csv_line(line):
@@ -434,82 +433,6 @@ def write_trace_counts_chart(arch, rows):
   plt.close(fig)
 
 
-def parse_peak_memory():
-  data = {}
-  arch = "x64"
-  data[arch] = {}
-  for impl_key, fname in [("Hawk", "results.Hawk"), ("Chez", "results.Chez")]:
-    result = BENCH / fname
-    if not result.exists():
-      continue
-    current_name = None
-    current_runtime = None
-    for line in result.read_text(encoding="utf-8").splitlines():
-      match = re.match(r"Testing (\w+) under \w+$", line)
-      if match:
-        current_name = match.group(1)
-        current_runtime = None
-        continue
-      parsed = parse_csv_line(line)
-      if parsed and current_name in TARGET_PEAK_BENCHMARKS:
-        current_runtime = parsed[2]
-        continue
-      if current_name and current_runtime and current_name in TARGET_PEAK_BENCHMARKS:
-        peak_match = re.match(r"PEAK (\d+) KB", line)
-        if peak_match:
-          peak_kb = int(peak_match.group(1))
-          data[arch].setdefault(current_name, {})[impl_key] = (peak_kb, current_runtime)
-          current_name = None
-          current_runtime = None
-  return data
-
-
-def write_memory_chart(arch, rows):
-  import matplotlib
-  matplotlib.use("Agg")
-  import matplotlib.pyplot as plt
-
-  GENERATED.mkdir(parents=True, exist_ok=True)
-  benchmarks = sorted(rows.keys())
-  hawk_peaks = [rows[b]["Hawk"][0] / 1024.0 for b in benchmarks]
-  chez_peaks = [rows[b]["Chez"][0] / 1024.0 for b in benchmarks]
-  hawk_runtimes = [rows[b]["Hawk"][1] for b in benchmarks]
-  chez_runtimes = [rows[b]["Chez"][1] for b in benchmarks]
-  x = range(len(benchmarks))
-  width = 0.35
-
-  plt.rcParams.update({
-    "font.family": "serif",
-    "font.size": 7,
-    "axes.titlesize": 11,
-    "axes.labelsize": 8,
-  })
-  fig, ax = plt.subplots(figsize=(5.5, 4.0))
-  bars1 = ax.bar([i - width / 2 for i in x], hawk_peaks, width,
-                 color="#6a8fbf", label="Hawk")
-  bars2 = ax.bar([i + width / 2 for i in x], chez_peaks, width,
-                 color="#d08c60", label="Chez")
-  for bar, rt in zip(bars1, hawk_runtimes):
-    ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-            f"{rt:.1f}s", ha="center", va="bottom", fontsize=5)
-  for bar, rt in zip(bars2, chez_runtimes):
-    ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
-            f"{rt:.1f}s", ha="center", va="bottom", fontsize=5)
-  ax.set_title(f"{arch}: Peak Memory Usage (Hawk vs Chez)")
-  ax.set_ylabel("Peak RSS (MB)")
-  ax.set_xlabel("Benchmark")
-  ax.set_xticks(list(x))
-  ax.set_xticklabels(benchmarks, fontsize=8)
-  ax.legend(frameon=False)
-  ax.grid(axis="y", color="#dddddd", linewidth=0.5)
-  ax.set_axisbelow(True)
-  for spine in ["top", "right"]:
-    ax.spines[spine].set_visible(False)
-  fig.tight_layout()
-  fig.savefig(GENERATED / f"peak_memory_{arch}.pdf")
-  plt.close(fig)
-
-
 def write_ablation_chart(arch, rows):
   import matplotlib
   matplotlib.use("Agg")
@@ -728,7 +651,6 @@ def main():
   time_rows_by_arch = parse_time_breakdown()
   trace_rows_by_arch = parse_trace_counts()
   ablation_rows_by_arch = parse_ablation_runtimes()
-  peak_memory_by_arch = parse_peak_memory()
   if not rows_by_arch:
     print("no matched Hawk/Chez benchmark results found", file=sys.stderr)
     return 1
@@ -740,8 +662,6 @@ def main():
     write_trace_counts_chart(arch, rows)
   for arch, rows in ablation_rows_by_arch.items():
     write_ablation_chart(arch, rows)
-  for arch, rows in peak_memory_by_arch.items():
-    write_memory_chart(arch, rows)
   sd_rows_by_arch = parse_sd_results()
   for arch, rows in sd_rows_by_arch.items():
     write_variability_chart(arch, rows)
