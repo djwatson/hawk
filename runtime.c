@@ -512,6 +512,7 @@ EXPORT gc_obj scm_emit_bitcode_closure(gc_obj payload) {
     memset(func->data, 0, const_cnt * sizeof(gc_obj));
     func->header.type = FUNC_TAG;
     funcs[id] = tag_func(func);
+    gc_register_bcfunc(func);
     first_cur = to_cons(first_cur)->b;
   }
   gc_remove_root((const void *)&first_cur, 0);
@@ -555,8 +556,6 @@ EXPORT gc_obj scm_emit_bitcode_closure(gc_obj payload) {
       c = to_cons(c)->b;
     }
     gc_remove_root((const void *)&c, 0);
-    gc_register_bcfunc(func);
-
     desc = runtime_expect_vector(to_cons(cur)->a, 4);
     bc *code = (bc *)(func->data + (func->const_cnt * sizeof(gc_obj)));
     uint64_t code_idx = 0;

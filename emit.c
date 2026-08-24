@@ -211,7 +211,7 @@ void emit_init_slowpath(emit_state *s) {
   register_jit_symbol(expand_start, s->expand_stack_slowpath,
                       (uint8_t *)expand_end, "ExpandStackSlowpath");
 
-  // Slowpath for gc_log: RTMP = changed field address
+  // Slowpath for gc_log: RTMP = object
   auto gclog_start = (uint8_t *)emit_offset(s);
 
   emit_writable_begin(s);
@@ -433,25 +433,14 @@ static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
   emit_label(s, &after_alloc);
 }
 
-static void emit_gclog_field(emit_state *s, trace *t, ir_ins *op,
-                             uint8_t base_reg, uint8_t offset_reg) {
-  uint8_t tag;
-  if (op->op1.constant) {
-    gc_obj obj = slot_gc_obj(t, op->op1);
-    tag = get_tag(obj);
-    emit_heap_constant(s, t, RTMP, obj);
-  } else {
-    tag = ref_base_tag(slot_ins(t, op->op1)->type);
-    emit_mov(s, RTMP, base_reg);
-  }
-  if (op->op2.constant) {
-    emit_add_constant(s, RTMP, RTMP,
-                      slot_const(t, op->op2) + 8 - (int64_t)tag);
-  } else {
-    emit_add(s, RTMP, RTMP, offset_reg);
-    emit_add_constant(s, RTMP, RTMP, 8 - (int64_t)tag);
-  }
+static void emit_gclog_obj(emit_state *s, uint8_t obj_reg, uint8_t tag) {
+  label done = {};
+  emit_mov(s, RTMP, obj_reg);
+  int64_t mask = (int64_t)GC_LOGGED << (8 * offsetof(gc_header, flags));
+  asm_emit_gclog_check(s, RTMP, -(int32_t)tag, mask,
+                       gc_nursery_start + gc_nursery_size, &done);
   emit_call32(s, (int64_t)s->gclog_slowpath);
+  emit_label(s, &done);
 }
 
 static value_loc snap_entry_loc(trace const *t, uint16_t snap_idx,
@@ -2172,7 +2161,15 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       break;
     }
     case IR_GCLOG: {
-      emit_gclog_field(s, t, op, arg0_reg, arg1_reg);
+      if (op->op1.constant) {
+        gc_obj obj = slot_gc_obj(t, op->op1);
+        emit_heap_constant(s, t, RTMP, obj);
+        emit_gclog_obj(s, RTMP, get_tag(obj));
+      } else {
+        uint8_t obj_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
+        uint8_t tag = ref_base_tag(slot_ins(t, op->op1)->type);
+        emit_gclog_obj(s, obj_reg, tag);
+      }
       break;
     }
     case IR_ALLOC: {

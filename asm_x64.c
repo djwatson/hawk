@@ -593,14 +593,16 @@ void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm) {
 }
 
 void asm_emit_gclog_check(emit_state *s, uint8_t obj, int32_t header_offset,
-                          int64_t logged_mask, label *done) {
+                          int64_t logged_mask, uintptr_t nursery_end,
+                          label *done) {
   assert(fits_in_32(logged_mask));
   emit_rmro(s, XO_GROUP3, 0, obj, header_offset);
   emit_imm32(s, (uint32_t)logged_mask);
   emit_jcc32(s, JNE, done);
-  emit_rmro(s, OP1(0x83), 7, obj, header_offset + 4);
-  emit_byte(s, 0);
-  emit_jcc32(s, JE, done);
+  uint8_t tmp = pick_tmp(obj, REG_NONE);
+  emit_mov64(s, tmp, nursery_end);
+  emit_cmp(s, obj, tmp);
+  emit_jcc32(s, JB, done);
 }
 
 void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm) {

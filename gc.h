@@ -22,6 +22,8 @@ void gc_init(void);
 enum { GC_MAX_ROOTS = 64 };
 
 enum : uint8_t {
+  GC_LOGGED = 1 << 0,
+  GC_STICKY_LOGGED = 1 << 1,
   GC_FWD_TAG = 1 << 2,
   GC_LARGE = 1 << 3,
 };
@@ -38,9 +40,18 @@ gc_obj gc_read_image(uint8_t const *data, size_t len, char const *path,
 gc_obj gc_read_image_file(char const *path);
 void gc_dump_image(gc_obj clo, gc_obj path, gc_obj compress_level);
 void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress_level);
-NOINLINE void gc_log_slow(gc_obj *field);
+NOINLINE void gc_log_slow(gc_obj obj);
+extern uintptr_t gc_nursery_start;
+extern size_t gc_nursery_size;
 
-static inline void gc_log(gc_obj *field) { MUSTTAIL return gc_log_slow(field); }
+static inline void gc_log(gc_obj obj) {
+  gc_header *hdr = to_gc_header(obj);
+  uintptr_t addr = (uintptr_t)hdr;
+  if (likely((hdr->flags & GC_LOGGED) ||
+             addr < gc_nursery_start + gc_nursery_size))
+    return;
+  MUSTTAIL return gc_log_slow(obj);
+}
 void gc_free(void);
 
 extern uintptr_t gc_hp;

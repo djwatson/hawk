@@ -18,7 +18,6 @@
 
 enum : size_t {
   SLAB_SIZE = 16 * 1024,
-  NURSERY_SIZE = 256 * 1024,
   OLD_SMALL_MAX = 4096,
   SIZE_CLASS_COUNT = OLD_SMALL_MAX / 8 + 1,
   DEFAULT_NURSERY = 32 * 1024 * 1024,
@@ -26,7 +25,7 @@ enum : size_t {
   MAX_PAGE_ORDER = 31,
 };
 
-enum region_kind { REGION_FREE, REGION_NURSERY, REGION_SLAB, REGION_LARGE };
+enum region_kind { REGION_FREE, REGION_SLAB, REGION_LARGE };
 
 typedef struct region {
   uint8_t *start;
@@ -42,19 +41,24 @@ typedef struct old_slab {
   size_t capacity;
   uint64_t *alloc_bits;
   uint64_t *mark_bits;
-  uint64_t dirty_bits[SLAB_SIZE / 8 / 64];
 } old_slab;
+
+typedef struct old_freelist {
+  uint8_t *next;
+  uint8_t *end;
+  old_slab *slab;
+} old_freelist;
 
 typedef struct large_obj {
   region *region;
   size_t size;
-  uint64_t *dirty_bits;
   bool marked;
-  bool young;
 } large_obj;
 
 uintptr_t gc_hp;
 uintptr_t gc_hp_end;
+uintptr_t gc_nursery_start;
+size_t gc_nursery_size;
 gc_root_range gc_roots[GC_MAX_ROOTS];
 size_t gc_roots_len;
 size_t gc_size;
@@ -68,11 +72,13 @@ static size_t heap_cursor;
 static region **page_map;
 static region **regions;
 static region **free_pages[MAX_PAGE_ORDER];
-static region **nursery_blocks;
 static old_slab **old_slabs;
-static old_slab *class_cursor[SIZE_CLASS_COUNT];
+static old_freelist old_freelists[SIZE_CLASS_COUNT];
+static old_slab **partial_slabs[SIZE_CLASS_COUNT];
 static large_obj **large_objects;
 static gc_obj *worklist;
+static gc_obj *logged_objects;
+static gc_obj *sticky_objects;
 static gc_obj *bcfunc_list;
 static gc_obj *bcfunc_roots;
 static bool bcfunc_list_unsorted;
@@ -82,7 +88,6 @@ static gc_obj *stack_root_bottom;
 static gc_obj **stack_root_top;
 static gc_obj *stack_root_end;
 static size_t nursery_limit;
-static size_t nursery_bytes;
 static size_t old_since_collect;
 static size_t next_old_collect = DEFAULT_OLD_COLLECT;
 static unsigned old_collect_count;
@@ -98,6 +103,28 @@ static inline void bit_set(uint64_t *bits, size_t bit) {
 
 static inline void bit_clear(uint64_t *bits, size_t bit) {
   bits[bit / 64] &= ~(UINT64_C(1) << (bit % 64));
+}
+
+static bool find_next_bit(uint64_t const *bits, size_t max, size_t start,
+                          bool set, size_t *result) {
+  if (start >= max)
+    return false;
+  size_t word = start / 64;
+  uint64_t search = set ? bits[word] : ~bits[word];
+  search &= UINT64_MAX << (start % 64);
+  for (;;) {
+    if (search) {
+      size_t bit = word * 64 + (size_t)__builtin_ctzll(search);
+      if (bit < max) {
+        *result = bit;
+        return true;
+      }
+      return false;
+    }
+    if (++word * 64 >= max)
+      return false;
+    search = set ? bits[word] : ~bits[word];
+  }
 }
 
 static uint8_t page_order(size_t bytes) {
@@ -193,107 +220,96 @@ static old_slab *slab_new(size_t slot_size) {
   if (!slab->alloc_bits || !slab->mark_bits)
     abort();
   arrput(old_slabs, slab);
+  old_since_collect += SLAB_SIZE;
   return slab;
 }
 
-static size_t slab_free_slot(old_slab *slab) {
-  for (size_t i = 0; i < slab->capacity; i++) {
-    if (!bit_test(slab->alloc_bits, i))
-      return i;
+static bool refill_old_range(size_t cls) {
+  old_freelist *fl = &old_freelists[cls];
+  for (;;) {
+    old_slab *slab = fl->slab;
+    size_t first = 0;
+    if (slab) {
+      first = (size_t)(fl->end - slab->region->start) / slab->slot_size;
+    } else if (arrlen(partial_slabs[cls])) {
+      slab = arrpop_last(partial_slabs[cls]);
+    } else {
+      return false;
+    }
+    if (!find_next_bit(slab->alloc_bits, slab->capacity, first, false,
+                       &first)) {
+      fl->slab = nullptr;
+      continue;
+    }
+    size_t end;
+    if (!find_next_bit(slab->alloc_bits, slab->capacity, first + 1, true,
+                       &end))
+      end = slab->capacity;
+    fl->slab = slab;
+    fl->next = slab->region->start + first * slab->slot_size;
+    fl->end = slab->region->start + end * slab->slot_size;
+    return true;
   }
-  return SIZE_MAX;
 }
 
-static void *small_old_alloc(size_t size) {
+static void *small_old_alloc(size_t size, bool clear) {
   size_t cls = size / 8;
-  old_slab *slab = class_cursor[cls];
-  size_t slot = slab ? slab_free_slot(slab) : SIZE_MAX;
-  if (slot == SIZE_MAX) {
-    slab = nullptr;
-    arr_for_each(old_slabs, candidate) {
-      if (candidate->slot_size != size)
-        continue;
-      slot = slab_free_slot(candidate);
-      if (slot != SIZE_MAX) {
-        slab = candidate;
-        break;
-      }
-    }
-    if (!slab) {
-      slab = slab_new(size);
-      slot = 0;
-    }
-    class_cursor[cls] = slab;
+  old_freelist *fl = &old_freelists[cls];
+  if (fl->next >= fl->end && !refill_old_range(cls)) {
+    old_slab *slab = slab_new(size);
+    fl->slab = slab;
+    fl->next = slab->region->start;
+    fl->end = slab->region->start + slab->capacity * size;
   }
+  old_slab *slab = fl->slab;
+  uint8_t *p = fl->next;
+  fl->next += size;
+  size_t slot = (size_t)(p - slab->region->start) / size;
+  assert(slot < slab->capacity && !bit_test(slab->alloc_bits, slot));
   bit_set(slab->alloc_bits, slot);
   bit_clear(slab->mark_bits, slot);
-  void *p = slab->region->start + slot * size;
-  memset(p, 0, size);
+  if (clear)
+    memset(p, 0, size);
   return p;
 }
 
-static large_obj *large_new(size_t size, bool young) {
+static large_obj *large_new(size_t size, bool clear) {
   large_obj *large = calloc(1, sizeof(*large));
   if (!large)
     abort();
   large->region = region_alloc(page_order(size), REGION_LARGE);
   large->region->owner = large;
   large->size = size;
-  large->young = young;
-  size_t words = ((size + 7) / 8 + 63) / 64;
-  large->dirty_bits = calloc(words, sizeof(uint64_t));
-  if (!large->dirty_bits)
-    abort();
-  memset(large->region->start, 0, size);
+  old_since_collect += size;
+  if (clear)
+    memset(large->region->start, 0, size);
   ((gc_header *)large->region->start)->flags = GC_LARGE;
   arrput(large_objects, large);
   return large;
 }
 
-static void *old_alloc_raw(size_t size) {
+static void *old_alloc_raw(size_t size, bool clear) {
   assert((size & 7) == 0);
-  old_since_collect += size;
   if (size <= OLD_SMALL_MAX)
-    return small_old_alloc(size);
-  return large_new(size, false)->region->start;
+    return small_old_alloc(size, clear);
+  return large_new(size, clear)->region->start;
 }
 
-void *gc_alloc_old(uint64_t size) { return old_alloc_raw((size_t)size); }
-
-static region *nursery_block_alloc(void) {
-  region *r = region_alloc(page_order(NURSERY_SIZE), REGION_NURSERY);
-  arrput(nursery_blocks, r);
-  nursery_bytes += NURSERY_SIZE;
-  gc_hp_end = (uintptr_t)r->start;
-  gc_hp = gc_hp_end + NURSERY_SIZE;
-  return r;
+void *gc_alloc_old(uint64_t size) {
+  return old_alloc_raw((size_t)size, true);
 }
 
 static bool is_young(gc_header *hdr) {
-  region *r = lookup_region(hdr);
-  if (!r)
-    return false;
-  if (r->kind == REGION_NURSERY)
-    return true;
-  return r->kind == REGION_LARGE && ((large_obj *)r->owner)->young;
+  return (uintptr_t)hdr - gc_nursery_start < gc_nursery_size;
 }
 
 static gc_header *evacuate(gc_header *hdr) {
-  region *r = lookup_region(hdr);
-  assert(r);
-  if (r->kind == REGION_LARGE) {
-    large_obj *large = r->owner;
-    assert(large->young);
-    large->young = false;
-    old_since_collect += large->size;
-    arrput(worklist, tag_header(hdr, hdr->type < 8 ? hdr->type : PTR_TAG));
-    return hdr;
-  }
-  assert(r->kind == REGION_NURSERY && hdr->type != FUNC_TAG);
+  assert((uintptr_t)hdr - gc_nursery_start < gc_nursery_size &&
+         hdr->type != FUNC_TAG);
   if (is_forwarded(hdr))
     return forward_ptr(hdr);
   size_t size = heap_align(heap_object_size(hdr));
-  gc_header *copy = old_alloc_raw(size);
+  gc_header *copy = old_alloc_raw(size, false);
   uint8_t alloc_flags = copy->flags;
   memcpy(copy, hdr, size);
   copy->flags = alloc_flags & GC_LARGE;
@@ -353,58 +369,33 @@ static void visit_callback_roots(gc_scan_root_cb visit) {
   scan_callback(scan_data, visit);
 }
 
-static void scan_dirty_young(void) {
-  size_t slab_count = arrlen(old_slabs);
-  for (size_t s = 0; s < slab_count; s++) {
-    old_slab *slab = old_slabs[s];
-    for (size_t word = 0; word < SLAB_SIZE / 8; word++) {
-      if (!bit_test(slab->dirty_bits, word))
-        continue;
-      size_t slot = word * 8 / slab->slot_size;
-      if (slot < slab->capacity && bit_test(slab->alloc_bits, slot))
-        evacuate_field((gc_obj *)(slab->region->start + word * 8), nullptr);
-    }
+static void scan_logged_young(void) {
+  for (size_t i = 0; i < arrlen(logged_objects); i++) {
+    gc_header *hdr = to_gc_header(logged_objects[i]);
+    trace_heap_object(hdr, hdr->type, evacuate_field, nullptr);
+    hdr->flags &= (uint8_t)~GC_LOGGED;
   }
-  size_t large_count = arrlen(large_objects);
-  for (size_t l = 0; l < large_count; l++) {
-    large_obj *large = large_objects[l];
-    if (large->young)
-      continue;
-    size_t words = (large->size + 7) / 8;
-    for (size_t i = 0; i < words; i++) {
-      if (bit_test(large->dirty_bits, i))
-        evacuate_field((gc_obj *)(large->region->start + i * 8), nullptr);
-    }
-  }
+  arrlen_set(logged_objects, 0);
 }
 
 static void nursery_collect(void) {
   visit_explicit_roots(evacuate_field);
   visit_callback_roots(evacuate_roots);
-  scan_dirty_young();
+  for (size_t i = 0; i < arrlen(bcfunc_roots); i++) {
+    gc_header *hdr = to_gc_header(bcfunc_roots[i]);
+    trace_heap_object(hdr, hdr->type, evacuate_field, nullptr);
+  }
+  scan_logged_young();
   while (arrlen(worklist)) {
     gc_header *hdr = to_gc_header(arrpop_last(worklist));
     trace_heap_object(hdr, hdr->type, evacuate_field, nullptr);
   }
-  for (size_t i = 0; i < arrlen(large_objects);) {
-    large_obj *large = large_objects[i];
-    if (!large->young) {
-      i++;
-      continue;
-    }
-    region_free(large->region);
-    free(large->dirty_bits);
-    free(large);
-    large_objects[i] = arrpop_last(large_objects);
-  }
   if (stack_root_bottom)
     memset(*stack_root_top, 0,
            (size_t)(stack_root_end - *stack_root_top) * sizeof(gc_obj));
-  arr_for_each(nursery_blocks, r) { region_free(r); }
-  arrlen_set(nursery_blocks, 0);
   arrlen_set(bcfunc_roots, 0);
-  nursery_bytes = 0;
-  gc_hp = gc_hp_end = 0;
+  gc_hp_end = gc_nursery_start;
+  gc_hp = gc_nursery_start + gc_nursery_size;
 }
 
 static void mark_field(gc_obj *field, void *ctx) {
@@ -427,13 +418,13 @@ static void mark_field(gc_obj *field, void *ctx) {
     bit_set(slab->mark_bits, slot);
   } else if (r->kind == REGION_LARGE) {
     large_obj *large = r->owner;
-    if (large->young || hdr != (gc_header *)r->start || large->marked)
+    if (hdr != (gc_header *)r->start || large->marked)
       return;
     large->marked = true;
   } else {
     return;
   }
-  trace_heap_object(hdr, hdr->type, mark_field, nullptr);
+  arrput(worklist, tag_header(hdr, hdr->type < 8 ? hdr->type : PTR_TAG));
 }
 
 static void mark_roots(uint64_t *roots, size_t len) {
@@ -441,29 +432,10 @@ static void mark_roots(uint64_t *roots, size_t len) {
     mark_field((gc_obj *)&roots[i], nullptr);
 }
 
-static bool marked_owner(old_slab *slab, size_t word) {
-  size_t slot = word * 8 / slab->slot_size;
-  return slot < slab->capacity && bit_test(slab->alloc_bits, slot) &&
-         bit_test(slab->mark_bits, slot);
-}
-
-static void mark_dirty(void) {
-  arr_for_each(old_slabs, slab) {
-    for (size_t word = 0; word < SLAB_SIZE / 8; word++) {
-      if (bit_test(slab->dirty_bits, word) && marked_owner(slab, word))
-        mark_field((gc_obj *)(slab->region->start + word * 8), nullptr);
-    }
-    memset(slab->dirty_bits, 0, sizeof(slab->dirty_bits));
-  }
-  arr_for_each(large_objects, large) {
-    size_t words = (large->size + 7) / 8;
-    if (large->marked) {
-      for (size_t i = 0; i < words; i++) {
-        if (bit_test(large->dirty_bits, i))
-          mark_field((gc_obj *)(large->region->start + i * 8), nullptr);
-      }
-    }
-    memset(large->dirty_bits, 0, ((words + 63) / 64) * sizeof(uint64_t));
+static void drain_mark_worklist(void) {
+  while (arrlen(worklist)) {
+    gc_header *hdr = to_gc_header(arrpop_last(worklist));
+    trace_heap_object(hdr, hdr->type, mark_field, nullptr);
   }
 }
 
@@ -484,6 +456,16 @@ static bool old_object_marked(gc_header *hdr) {
   return false;
 }
 
+static void consume_sticky_objects(bool full) {
+  for (size_t i = 0; i < arrlen(sticky_objects); i++) {
+    gc_header *hdr = to_gc_header(sticky_objects[i]);
+    if (!full && old_object_marked(hdr))
+      trace_heap_object(hdr, hdr->type, mark_field, nullptr);
+    hdr->flags &= (uint8_t)~GC_STICKY_LOGGED;
+  }
+  arrlen_set(sticky_objects, 0);
+}
+
 static void prune_bcfuncs(void) {
   size_t out = 0;
   for (size_t i = 0; i < arrlen(bcfunc_list); i++) {
@@ -497,6 +479,11 @@ static void prune_bcfuncs(void) {
 
 static size_t sweep_old(void) {
   size_t live = 0;
+  memset(old_freelists, 0, sizeof(old_freelists));
+  for (size_t cls = 0; cls < SIZE_CLASS_COUNT; cls++) {
+    if (partial_slabs[cls])
+      arrlen_set(partial_slabs[cls], 0);
+  }
   for (size_t i = 0; i < arrlen(old_slabs);) {
     old_slab *slab = old_slabs[i];
     size_t count = 0;
@@ -510,11 +497,11 @@ static size_t sweep_old(void) {
     }
     live += count * slab->slot_size;
     if (count) {
+      if (count * slab->slot_size < SLAB_SIZE / 2)
+        arrput(partial_slabs[slab->slot_size / 8], slab);
       i++;
       continue;
     }
-    if (class_cursor[slab->slot_size / 8] == slab)
-      class_cursor[slab->slot_size / 8] = nullptr;
     region_free(slab->region);
     free(slab->alloc_bits);
     free(slab->mark_bits);
@@ -523,14 +510,12 @@ static size_t sweep_old(void) {
   }
   for (size_t i = 0; i < arrlen(large_objects);) {
     large_obj *large = large_objects[i];
-    if (large->young || large->marked) {
-      if (!large->young)
-        live += large->size;
+    if (large->marked) {
+      live += large->size;
       i++;
       continue;
     }
     region_free(large->region);
-    free(large->dirty_bits);
     free(large);
     large_objects[i] = arrpop_last(large_objects);
   }
@@ -553,17 +538,8 @@ static void old_collect(void) {
     clear_marks();
   visit_explicit_roots(mark_field);
   visit_callback_roots(mark_roots);
-  if (!full)
-    mark_dirty();
-  else {
-    arr_for_each(old_slabs, slab) {
-      memset(slab->dirty_bits, 0, sizeof(slab->dirty_bits));
-    }
-    arr_for_each(large_objects, large) {
-      size_t words = ((large->size + 7) / 8 + 63) / 64;
-      memset(large->dirty_bits, 0, words * sizeof(uint64_t));
-    }
-  }
+  consume_sticky_objects(full);
+  drain_mark_worklist();
   prune_bcfuncs();
   size_t before = 0;
   arr_for_each(old_slabs, slab) {
@@ -571,7 +547,7 @@ static void old_collect(void) {
       before += bit_test(slab->alloc_bits, i) ? slab->slot_size : 0;
   }
   arr_for_each(large_objects, large) {
-    before += large->young ? 0 : large->size;
+    before += large->size;
   }
   size_t live = sweep_old();
   size_t freed = before - live;
@@ -589,7 +565,6 @@ void gc_collect(void) {
   nursery_collect();
   if (old_since_collect >= next_old_collect)
     old_collect();
-  nursery_block_alloc();
   profiler_set_in_gc(false);
 }
 
@@ -601,34 +576,29 @@ NOINLINE void *gc_alloc_slow(uint64_t size) {
     *(uint64_t *)gc_hp = 0;
     return (void *)gc_hp;
   }
-  if (size >= NURSERY_SIZE / 2) {
-    if (nursery_bytes >= nursery_limit)
+  if (size > gc_nursery_size) {
+    if (old_since_collect >= next_old_collect)
       gc_collect();
-    large_obj *large = large_new((size_t)size, true);
-    nursery_bytes += size;
-    return large->region->start;
+    return old_alloc_raw((size_t)size, true);
   }
-  if (nursery_bytes >= nursery_limit)
-    gc_collect();
-  else
-    nursery_block_alloc();
+  gc_collect();
   MUSTTAIL return gc_alloc_slow(size);
 }
 
-NOINLINE void gc_log_slow(gc_obj *field) {
-  region *r = lookup_region(field);
+NOINLINE void gc_log_slow(gc_obj obj) {
+  gc_header *hdr = to_gc_header(obj);
+  region *r = lookup_region(hdr);
   if (!r)
     return;
-  if (r->kind == REGION_SLAB) {
-    old_slab *slab = r->owner;
-    size_t off = (uint8_t *)field - r->start;
-    size_t slot = off / slab->slot_size;
-    if (slot < slab->capacity && bit_test(slab->alloc_bits, slot))
-      bit_set(slab->dirty_bits, off / 8);
-  } else if (r->kind == REGION_LARGE) {
-    large_obj *large = r->owner;
-    if (!large->young && (uint8_t *)field < r->start + large->size)
-      bit_set(large->dirty_bits, ((uint8_t *)field - r->start) / 8);
+  if (hdr->flags & GC_LOGGED)
+    return;
+  hdr->flags |= GC_LOGGED;
+  if (r->kind == REGION_SLAB || r->kind == REGION_LARGE) {
+    arrput(logged_objects, obj);
+    if (!(hdr->flags & GC_STICKY_LOGGED)) {
+      hdr->flags |= GC_STICKY_LOGGED;
+      arrput(sticky_objects, obj);
+    }
   }
 }
 
@@ -647,17 +617,12 @@ static int cmp_bcfunc_range(const void *kp, const void *ep) {
   return p >= base + heap_object_size(func) ? 1 : 0;
 }
 
-static void log_func_field(gc_obj *field, void *ctx) {
-  (void)ctx;
-  gc_log_slow(field);
-}
-
 void gc_register_bcfunc(bcfunc *func) {
   gc_obj obj = tag_func(func);
   arrput(bcfunc_list, obj);
   if (lookup_region(func)) {
     arrput(bcfunc_roots, obj);
-    trace_heap_object(&func->header, FUNC_TAG, log_func_field, nullptr);
+    gc_log_slow(obj);
   }
   bcfunc_list_unsorted = true;
 }
@@ -691,15 +656,21 @@ void gc_init(void) {
   gc_size = mb * 1024 * 1024;
   env = getenv("GC_COLLECT");
   nursery_limit = env ? (size_t)atoll(env) * 1024 * 1024 : DEFAULT_NURSERY;
-  gc_mmap_size = gc_size + NURSERY_SIZE;
+  gc_nursery_size = (nursery_limit + SLAB_SIZE - 1) & ~(SLAB_SIZE - 1);
+  if (!gc_nursery_size)
+    gc_nursery_size = SLAB_SIZE;
+  gc_mmap_size = gc_size + gc_nursery_size + SLAB_SIZE;
   gc_mmap_base = mmap(nullptr, gc_mmap_size, PROT_READ | PROT_WRITE,
                       MAP_PRIVATE | MAP_ANON, -1, 0);
   if (gc_mmap_base == MAP_FAILED) {
     perror("mmap gc space");
     abort();
   }
-  heap_base = (uint8_t *)(((uintptr_t)gc_mmap_base + NURSERY_SIZE - 1) &
-                          ~(uintptr_t)(NURSERY_SIZE - 1));
+  gc_nursery_start = ((uintptr_t)gc_mmap_base + SLAB_SIZE - 1) &
+                     ~(uintptr_t)(SLAB_SIZE - 1);
+  gc_hp_end = gc_nursery_start;
+  gc_hp = gc_nursery_start + gc_nursery_size;
+  heap_base = (uint8_t *)(gc_nursery_start + gc_nursery_size);
   heap_units = gc_size / SLAB_SIZE;
   page_map = calloc(heap_units, sizeof(*page_map));
   if (!page_map)
@@ -714,17 +685,19 @@ void gc_free(void) {
     free(slab);
   }
   arr_for_each(large_objects, large) {
-    free(large->dirty_bits);
     free(large);
   }
   arr_for_each(regions, r) { free(r); }
   for (size_t i = 0; i < MAX_PAGE_ORDER; i++)
     arrfree(free_pages[i]);
+  for (size_t i = 0; i < SIZE_CLASS_COUNT; i++)
+    arrfree(partial_slabs[i]);
   arrfree(regions);
-  arrfree(nursery_blocks);
   arrfree(old_slabs);
   arrfree(large_objects);
   arrfree(worklist);
+  arrfree(logged_objects);
+  arrfree(sticky_objects);
   arrfree(bcfunc_list);
   arrfree(bcfunc_roots);
   free(page_map);
