@@ -39,7 +39,6 @@ typedef struct old_slab {
   region *region;
   size_t slot_size;
   size_t capacity;
-  uint64_t *alloc_bits;
   uint64_t *mark_bits;
 } old_slab;
 
@@ -99,10 +98,6 @@ static inline bool bit_test(uint64_t const *bits, size_t bit) {
 
 static inline void bit_set(uint64_t *bits, size_t bit) {
   bits[bit / 64] |= UINT64_C(1) << (bit % 64);
-}
-
-static inline void bit_clear(uint64_t *bits, size_t bit) {
-  bits[bit / 64] &= ~(UINT64_C(1) << (bit % 64));
 }
 
 static bool find_next_bit(uint64_t const *bits, size_t max, size_t start,
@@ -215,9 +210,8 @@ static old_slab *slab_new(size_t slot_size) {
   slab->slot_size = slot_size;
   slab->capacity = SLAB_SIZE / slot_size;
   size_t words = (slab->capacity + 63) / 64;
-  slab->alloc_bits = calloc(words, sizeof(uint64_t));
   slab->mark_bits = calloc(words, sizeof(uint64_t));
-  if (!slab->alloc_bits || !slab->mark_bits)
+  if (!slab->mark_bits)
     abort();
   arrput(old_slabs, slab);
   old_since_collect += SLAB_SIZE;
@@ -236,13 +230,13 @@ static bool refill_old_range(size_t cls) {
     } else {
       return false;
     }
-    if (!find_next_bit(slab->alloc_bits, slab->capacity, first, false,
+    if (!find_next_bit(slab->mark_bits, slab->capacity, first, false,
                        &first)) {
       fl->slab = nullptr;
       continue;
     }
     size_t end;
-    if (!find_next_bit(slab->alloc_bits, slab->capacity, first + 1, true,
+    if (!find_next_bit(slab->mark_bits, slab->capacity, first + 1, true,
                        &end))
       end = slab->capacity;
     fl->slab = slab;
@@ -265,9 +259,7 @@ static void *small_old_alloc(size_t size, bool clear) {
   uint8_t *p = fl->next;
   fl->next += size;
   size_t slot = (size_t)(p - slab->region->start) / size;
-  assert(slot < slab->capacity && !bit_test(slab->alloc_bits, slot));
-  bit_set(slab->alloc_bits, slot);
-  bit_clear(slab->mark_bits, slot);
+  assert(slot < slab->capacity && !bit_test(slab->mark_bits, slot));
   if (clear)
     memset(p, 0, size);
   return p;
@@ -412,8 +404,7 @@ static void mark_field(gc_obj *field, void *ctx) {
     if (off % slab->slot_size)
       return;
     size_t slot = off / slab->slot_size;
-    if (slot >= slab->capacity || !bit_test(slab->alloc_bits, slot) ||
-        bit_test(slab->mark_bits, slot))
+    if (slot >= slab->capacity || bit_test(slab->mark_bits, slot))
       return;
     bit_set(slab->mark_bits, slot);
   } else if (r->kind == REGION_LARGE) {
@@ -448,7 +439,6 @@ static bool old_object_marked(gc_header *hdr) {
     size_t off = (uint8_t *)hdr - r->start;
     size_t slot = off / slab->slot_size;
     return off % slab->slot_size == 0 && slot < slab->capacity &&
-           bit_test(slab->alloc_bits, slot) &&
            bit_test(slab->mark_bits, slot);
   }
   if (r->kind == REGION_LARGE)
@@ -477,8 +467,9 @@ static void prune_bcfuncs(void) {
   bcfunc_list_unsorted = true;
 }
 
-static size_t sweep_old(void) {
+static size_t sweep_old(size_t *freed) {
   size_t live = 0;
+  *freed = 0;
   memset(old_freelists, 0, sizeof(old_freelists));
   for (size_t cls = 0; cls < SIZE_CLASS_COUNT; cls++) {
     if (partial_slabs[cls])
@@ -487,23 +478,19 @@ static size_t sweep_old(void) {
   for (size_t i = 0; i < arrlen(old_slabs);) {
     old_slab *slab = old_slabs[i];
     size_t count = 0;
-    for (size_t slot = 0; slot < slab->capacity; slot++) {
-      if (!bit_test(slab->alloc_bits, slot))
-        continue;
-      if (!bit_test(slab->mark_bits, slot))
-        bit_clear(slab->alloc_bits, slot);
-      else
-        count++;
-    }
-    live += count * slab->slot_size;
-    if (count) {
-      if (count * slab->slot_size < SLAB_SIZE / 2)
+    size_t words = (slab->capacity + 63) / 64;
+    for (size_t word = 0; word < words; word++)
+      count += (size_t)__builtin_popcountll(slab->mark_bits[word]);
+    size_t marked = count * slab->slot_size;
+    live += marked;
+    if (marked) {
+      if (marked < SLAB_SIZE / 2)
         arrput(partial_slabs[slab->slot_size / 8], slab);
       i++;
       continue;
     }
+    *freed += SLAB_SIZE;
     region_free(slab->region);
-    free(slab->alloc_bits);
     free(slab->mark_bits);
     free(slab);
     old_slabs[i] = arrpop_last(old_slabs);
@@ -515,6 +502,7 @@ static size_t sweep_old(void) {
       i++;
       continue;
     }
+    *freed += large->size;
     region_free(large->region);
     free(large);
     large_objects[i] = arrpop_last(large_objects);
@@ -541,16 +529,8 @@ static void old_collect(void) {
   consume_sticky_objects(full);
   drain_mark_worklist();
   prune_bcfuncs();
-  size_t before = 0;
-  arr_for_each(old_slabs, slab) {
-    for (size_t i = 0; i < slab->capacity; i++)
-      before += bit_test(slab->alloc_bits, i) ? slab->slot_size : 0;
-  }
-  arr_for_each(large_objects, large) {
-    before += large->size;
-  }
-  size_t live = sweep_old();
-  size_t freed = before - live;
+  size_t freed = 0;
+  size_t live = sweep_old(&freed);
   if (full && next_old_collect < live)
     next_old_collect = live;
   force_full = !full && freed < next_old_collect / 2;
@@ -680,7 +660,6 @@ void gc_init(void) {
 
 void gc_free(void) {
   arr_for_each(old_slabs, slab) {
-    free(slab->alloc_bits);
     free(slab->mark_bits);
     free(slab);
   }
