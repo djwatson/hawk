@@ -229,8 +229,7 @@ static bool refill_old_range(size_t cls) {
       continue;
     }
     size_t end = first + 1;
-    while (end < slab->capacity &&
-           !bit_test(slab->mark_bits, end * slot_words))
+    while (end < slab->capacity && !bit_test(slab->mark_bits, end * slot_words))
       end++;
     fl->slab = slab;
     fl->next = slab->region->start + first * slab->slot_size;
@@ -288,15 +287,13 @@ static void *old_alloc_raw(size_t size, bool clear) {
   return large_new(size, clear)->region->start;
 }
 
-void *gc_alloc_old(uint64_t size) {
-  return old_alloc_raw((size_t)size, true);
-}
+void *gc_alloc_old(uint64_t size) { return old_alloc_raw((size_t)size, true); }
 
 static bool is_young(gc_header *hdr) {
   return (uintptr_t)hdr - gc_nursery_start < gc_nursery_size;
 }
 
-static gc_header *evacuate_cons(gc_header *hdr) {
+static INLINE inline gc_header *evacuate_cons(gc_header *hdr) {
   cons_s *copy = cons_old_alloc();
   *copy = *(cons_s *)hdr;
   copy->header.flags = 0;
@@ -319,7 +316,7 @@ static gc_header *evacuate_other(gc_header *hdr) {
   return copy;
 }
 
-static void evacuate_field(gc_obj *field, void *ctx) {
+static INLINE inline void evacuate_field(gc_obj *field, void *ctx) {
   (void)ctx;
   if (!is_heap_object(*field))
     return;
@@ -327,7 +324,7 @@ static void evacuate_field(gc_obj *field, void *ctx) {
   if (!is_young(hdr))
     return;
   uint8_t type = hdr->type;
-  gc_header *copy = type == FIXNUM_TAG   ? forward_ptr(hdr)
+  gc_header *copy = type == FIXNUM_TAG ? forward_ptr(hdr)
                     : type == CONS_TAG ? evacuate_cons(hdr)
                                        : evacuate_other(hdr);
   *field = tag_header(copy, get_tag(*field));
@@ -407,7 +404,7 @@ static void nursery_collect(void) {
   gc_hp = gc_nursery_start + gc_nursery_size;
 }
 
-static void mark_field(gc_obj *field, void *ctx) {
+static INLINE inline void mark_field(gc_obj *field, void *ctx) {
   (void)ctx;
   if (!is_heap_object(*field))
     return;
@@ -440,7 +437,7 @@ static void mark_roots(uint64_t *roots, size_t len) {
     mark_field((gc_obj *)&roots[i], nullptr);
 }
 
-static void drain_mark_worklist(void) {
+static INLINE inline void drain_mark_worklist(void) {
   while (worklist.len) {
     gc_header *hdr = gc_header_stack_pop(&worklist);
     if (hdr->type == CONS_TAG) {
@@ -555,8 +552,8 @@ static void old_collect(void) {
     next_old_collect = live;
   force_full = !full && freed < next_old_collect / 2;
   old_since_collect = 0;
-  LOG(gc, "old collect: full %d, live %zu, freed %zu, next %zu", full,
-      live, freed, next_old_collect);
+  LOG(gc, "old collect: full %d, live %zu, freed %zu, next %zu", full, live,
+      freed, next_old_collect);
 }
 
 void gc_collect(void) {
@@ -666,8 +663,8 @@ void gc_init(void) {
     perror("mmap gc space");
     abort();
   }
-  gc_nursery_start = ((uintptr_t)gc_mmap_base + SLAB_SIZE - 1) &
-                     ~(uintptr_t)(SLAB_SIZE - 1);
+  gc_nursery_start =
+      ((uintptr_t)gc_mmap_base + SLAB_SIZE - 1) & ~(uintptr_t)(SLAB_SIZE - 1);
   gc_hp_end = gc_nursery_start;
   gc_hp = gc_nursery_start + gc_nursery_size;
   heap_base = (uint8_t *)(gc_nursery_start + gc_nursery_size);
@@ -679,12 +676,8 @@ void gc_init(void) {
 }
 
 void gc_free(void) {
-  arr_for_each(old_slabs, slab) {
-    free(slab);
-  }
-  arr_for_each(large_objects, large) {
-    free(large);
-  }
+  arr_for_each(old_slabs, slab) { free(slab); }
+  arr_for_each(large_objects, large) { free(large); }
   arr_for_each(regions, r) { free(r); }
   for (size_t i = 0; i < MAX_PAGE_ORDER; i++)
     arrfree(free_pages[i]);
