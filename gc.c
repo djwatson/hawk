@@ -23,6 +23,7 @@ enum : size_t {
   DEFAULT_NURSERY = 32 * 1024 * 1024,
   DEFAULT_OLD_COLLECT = 100000000,
   MAX_PAGE_ORDER = 31,
+  SLAB_MARK_WORDS = SLAB_SIZE / sizeof(gc_obj) / 64,
 };
 
 enum region_kind { REGION_FREE, REGION_SLAB, REGION_LARGE };
@@ -75,7 +76,7 @@ static old_slab **old_slabs;
 static old_freelist old_freelists[SIZE_CLASS_COUNT];
 static old_slab **partial_slabs[SIZE_CLASS_COUNT];
 static large_obj **large_objects;
-static gc_obj *worklist;
+static gc_header **worklist;
 static gc_obj *logged_objects;
 static gc_obj *sticky_objects;
 static gc_obj *bcfunc_list;
@@ -98,28 +99,6 @@ static inline bool bit_test(uint64_t const *bits, size_t bit) {
 
 static inline void bit_set(uint64_t *bits, size_t bit) {
   bits[bit / 64] |= UINT64_C(1) << (bit % 64);
-}
-
-static bool find_next_bit(uint64_t const *bits, size_t max, size_t start,
-                          bool set, size_t *result) {
-  if (start >= max)
-    return false;
-  size_t word = start / 64;
-  uint64_t search = set ? bits[word] : ~bits[word];
-  search &= UINT64_MAX << (start % 64);
-  for (;;) {
-    if (search) {
-      size_t bit = word * 64 + (size_t)__builtin_ctzll(search);
-      if (bit < max) {
-        *result = bit;
-        return true;
-      }
-      return false;
-    }
-    if (++word * 64 >= max)
-      return false;
-    search = set ? bits[word] : ~bits[word];
-  }
 }
 
 static uint8_t page_order(size_t bytes) {
@@ -189,16 +168,28 @@ static void region_free(region *r) {
   arrput(free_pages[r->order], r);
 }
 
-static region *lookup_region(void const *p) {
+static inline region *lookup_region(void const *p) {
   uintptr_t a = (uintptr_t)p;
   uintptr_t base = (uintptr_t)heap_base;
-  if (a < base || a >= base + heap_units * SLAB_SIZE)
+  uintptr_t off = a - base;
+  if (off >= gc_size)
     return nullptr;
-  region *r = page_map[(a - base) / SLAB_SIZE];
+  region *r = page_map[off / SLAB_SIZE];
   if (!r || r->kind == REGION_FREE || a < (uintptr_t)r->start ||
       a >= (uintptr_t)r->start + r->bytes)
     return nullptr;
   return r;
+}
+
+static inline region *lookup_old_region(void const *p) {
+  uintptr_t off = (uintptr_t)p - (uintptr_t)heap_base;
+  if (off >= gc_size)
+    return nullptr;
+  return page_map[off / SLAB_SIZE];
+}
+
+static inline size_t slab_mark_bit(old_slab const *slab, void const *p) {
+  return ((uintptr_t)p - (uintptr_t)slab->region->start) / sizeof(gc_obj);
 }
 
 static old_slab *slab_new(size_t slot_size) {
@@ -209,8 +200,7 @@ static old_slab *slab_new(size_t slot_size) {
   slab->region->owner = slab;
   slab->slot_size = slot_size;
   slab->capacity = SLAB_SIZE / slot_size;
-  size_t words = (slab->capacity + 63) / 64;
-  slab->mark_bits = calloc(words, sizeof(uint64_t));
+  slab->mark_bits = calloc(SLAB_MARK_WORDS, sizeof(uint64_t));
   if (!slab->mark_bits)
     abort();
   arrput(old_slabs, slab);
@@ -230,15 +220,18 @@ static bool refill_old_range(size_t cls) {
     } else {
       return false;
     }
-    if (!find_next_bit(slab->mark_bits, slab->capacity, first, false,
-                       &first)) {
+    size_t slot_words = slab->slot_size / sizeof(gc_obj);
+    while (first < slab->capacity &&
+           bit_test(slab->mark_bits, first * slot_words))
+      first++;
+    if (first == slab->capacity) {
       fl->slab = nullptr;
       continue;
     }
-    size_t end;
-    if (!find_next_bit(slab->mark_bits, slab->capacity, first + 1, true,
-                       &end))
-      end = slab->capacity;
+    size_t end = first + 1;
+    while (end < slab->capacity &&
+           !bit_test(slab->mark_bits, end * slot_words))
+      end++;
     fl->slab = slab;
     fl->next = slab->region->start + first * slab->slot_size;
     fl->end = slab->region->start + end * slab->slot_size;
@@ -258,8 +251,7 @@ static void *small_old_alloc(size_t size, bool clear) {
   old_slab *slab = fl->slab;
   uint8_t *p = fl->next;
   fl->next += size;
-  size_t slot = (size_t)(p - slab->region->start) / size;
-  assert(slot < slab->capacity && !bit_test(slab->mark_bits, slot));
+  assert(!bit_test(slab->mark_bits, slab_mark_bit(slab, p)));
   if (clear)
     memset(p, 0, size);
   return p;
@@ -300,15 +292,19 @@ static gc_header *evacuate(gc_header *hdr) {
          hdr->type != FUNC_TAG);
   if (is_forwarded(hdr))
     return forward_ptr(hdr);
-  size_t size = heap_align(heap_object_size(hdr));
+  uint8_t type = hdr->type;
+  size_t size = type == CONS_TAG ? sizeof(cons_s)
+                                 : heap_align(heap_object_size(hdr));
   gc_header *copy = old_alloc_raw(size, false);
   uint8_t alloc_flags = copy->flags;
-  memcpy(copy, hdr, size);
+  if (type == CONS_TAG)
+    *(cons_s *)copy = *(cons_s *)hdr;
+  else
+    memcpy(copy, hdr, size);
   copy->flags = alloc_flags & GC_LARGE;
   copy->rc = 0;
   set_forward(hdr, copy);
-  arrput(worklist,
-         tag_header(copy, copy->type < 8 ? copy->type : PTR_TAG));
+  arrput(worklist, copy);
   return copy;
 }
 
@@ -379,7 +375,7 @@ static void nursery_collect(void) {
   }
   scan_logged_young();
   while (arrlen(worklist)) {
-    gc_header *hdr = to_gc_header(arrpop_last(worklist));
+    gc_header *hdr = arrpop_last(worklist);
     trace_heap_object(hdr, hdr->type, evacuate_field, nullptr);
   }
   if (stack_root_bottom)
@@ -395,18 +391,18 @@ static void mark_field(gc_obj *field, void *ctx) {
   if (!is_heap_object(*field))
     return;
   gc_header *hdr = to_gc_header(*field);
-  region *r = lookup_region(hdr);
+  region *r = lookup_old_region(hdr);
   if (!r)
     return;
   if (r->kind == REGION_SLAB) {
     old_slab *slab = r->owner;
     size_t off = (uint8_t *)hdr - r->start;
-    if (off % slab->slot_size)
+    size_t bit = slab_mark_bit(slab, hdr);
+    assert(off < slab->capacity * slab->slot_size &&
+           off % slab->slot_size == 0);
+    if (bit_test(slab->mark_bits, bit))
       return;
-    size_t slot = off / slab->slot_size;
-    if (slot >= slab->capacity || bit_test(slab->mark_bits, slot))
-      return;
-    bit_set(slab->mark_bits, slot);
+    bit_set(slab->mark_bits, bit);
   } else if (r->kind == REGION_LARGE) {
     large_obj *large = r->owner;
     if (hdr != (gc_header *)r->start || large->marked)
@@ -415,7 +411,7 @@ static void mark_field(gc_obj *field, void *ctx) {
   } else {
     return;
   }
-  arrput(worklist, tag_header(hdr, hdr->type < 8 ? hdr->type : PTR_TAG));
+  arrput(worklist, hdr);
 }
 
 static void mark_roots(uint64_t *roots, size_t len) {
@@ -425,7 +421,7 @@ static void mark_roots(uint64_t *roots, size_t len) {
 
 static void drain_mark_worklist(void) {
   while (arrlen(worklist)) {
-    gc_header *hdr = to_gc_header(arrpop_last(worklist));
+    gc_header *hdr = arrpop_last(worklist);
     trace_heap_object(hdr, hdr->type, mark_field, nullptr);
   }
 }
@@ -437,9 +433,9 @@ static bool old_object_marked(gc_header *hdr) {
   if (r->kind == REGION_SLAB) {
     old_slab *slab = r->owner;
     size_t off = (uint8_t *)hdr - r->start;
-    size_t slot = off / slab->slot_size;
-    return off % slab->slot_size == 0 && slot < slab->capacity &&
-           bit_test(slab->mark_bits, slot);
+    return off < slab->capacity * slab->slot_size &&
+           off % slab->slot_size == 0 &&
+           bit_test(slab->mark_bits, slab_mark_bit(slab, hdr));
   }
   if (r->kind == REGION_LARGE)
     return ((large_obj *)r->owner)->marked;
@@ -478,8 +474,7 @@ static size_t sweep_old(size_t *freed) {
   for (size_t i = 0; i < arrlen(old_slabs);) {
     old_slab *slab = old_slabs[i];
     size_t count = 0;
-    size_t words = (slab->capacity + 63) / 64;
-    for (size_t word = 0; word < words; word++)
+    for (size_t word = 0; word < SLAB_MARK_WORDS; word++)
       count += (size_t)__builtin_popcountll(slab->mark_bits[word]);
     size_t marked = count * slab->slot_size;
     live += marked;
@@ -512,8 +507,7 @@ static size_t sweep_old(size_t *freed) {
 
 static void clear_marks(void) {
   arr_for_each(old_slabs, slab) {
-    size_t words = (slab->capacity + 63) / 64;
-    memset(slab->mark_bits, 0, words * sizeof(uint64_t));
+    memset(slab->mark_bits, 0, SLAB_MARK_WORDS * sizeof(uint64_t));
   }
   arr_for_each(large_objects, large) { large->marked = false; }
 }
