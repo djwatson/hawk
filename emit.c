@@ -34,6 +34,10 @@ static inline uint8_t ref_base_tag(uint8_t type_tag) {
   return (uint8_t)((type_tag & TAG_MASK) == PTR_TAG ? PTR_TAG : type_tag);
 }
 
+static inline int32_t object_payload_offset(uint8_t type_tag) {
+  return type_tag == CONS_TAG ? 0 : (int32_t)sizeof(gc_header);
+}
+
 enum : uint16_t { spill_slot_count = SPILL_NONE };
 static gc_obj gpr_spills[spill_slot_count];
 static uint64_t fpr_spills[spill_slot_count];
@@ -436,9 +440,14 @@ static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
 static void emit_gclog_obj(emit_state *s, uint8_t obj_reg, uint8_t tag) {
   label done = {};
   emit_mov(s, RTMP, obj_reg);
-  int64_t mask = (int64_t)GC_LOGGED << (8 * offsetof(gc_header, flags));
-  asm_emit_gclog_check(s, RTMP, -(int32_t)tag, mask,
-                       gc_nursery_start + gc_nursery_size, &done);
+  if (tag == CONS_TAG) {
+    asm_emit_cons_gclog_check(s, RTMP,
+                              gc_nursery_start + gc_nursery_size, &done);
+  } else {
+    int64_t mask = (int64_t)GC_LOGGED << (8 * offsetof(gc_header, flags));
+    asm_emit_gclog_check(s, RTMP, -(int32_t)tag, mask,
+                         gc_nursery_start + gc_nursery_size, &done);
+  }
   emit_call32(s, (int64_t)s->gclog_slowpath);
   emit_label(s, &done);
 }
@@ -1664,7 +1673,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
                                            : slot_ins(t, op->op1)->type;
       bool unknown_base = base_type == UNDEFINED_TAG;
       base_type = ref_base_tag(base_type);
-      int32_t typed_offset = (int32_t)((int64_t)sizeof(gc_header) - base_type);
+      int32_t payload_offset = object_payload_offset(base_type);
+      int32_t typed_offset = payload_offset - base_type;
       if (op->type == FLONUM_TAG) {
         // Slot contains a tagged flonum gc_obj; load object first, then
         // payload. Prefer the dedicated secondary scratch register when
@@ -1789,8 +1799,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
       if (ref->op2.constant) {
         // Offset is a constant.
-        auto offset =
-            slot_const(t, ref->op2) + (int64_t)(8 - ref_base_tag(op->type));
+        auto offset = slot_const(t, ref->op2) +
+                      object_payload_offset(op->type) -
+                      ref_base_tag(op->type);
         assert((int32_t)offset == offset);
         if (val_reg == REG_NONE)
           emit_store_constant(s, (int32_t)offset, base_reg, value.value);
@@ -1799,11 +1810,13 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       } else {
         auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
         if (val_reg == REG_NONE)
-          emit_store_constant_indexed(s, 8 - ref_base_tag(op->type), base_reg,
-                                      offset_reg, value.value);
+          emit_store_constant_indexed(
+              s, object_payload_offset(op->type) - ref_base_tag(op->type),
+              base_reg, offset_reg, value.value);
         else
-          emit_store_indexed(s, 8 - ref_base_tag(op->type), base_reg,
-                             offset_reg, val_reg);
+          emit_store_indexed(
+              s, object_payload_offset(op->type) - ref_base_tag(op->type),
+              base_reg, offset_reg, val_reg);
       }
 
       break;
@@ -2191,8 +2204,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
 
       emit_rooted_alloc(s, live_gpr_mask, tagged_size, size_reg);
-      emit_store_u8_constant(s, offsetof(gc_header, type), RTMP,
-                             (uint8_t)type_val);
+      if (type_val != CONS_TAG)
+        emit_store_u8_constant(s, offsetof(gc_header, type), RTMP,
+                               (uint8_t)type_val);
       if (type_val == VECTOR_TAG || type_val == RECORD_TAG) {
         if (size_reg == REG_NONE && tagged_size < TAG_FIXNUM_VALUE(64)) {
           int64_t payload_bytes = (tagged_size >> FIXNUM_SHIFT) - 8;

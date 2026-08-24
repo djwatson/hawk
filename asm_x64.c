@@ -10,6 +10,7 @@
 
 #include "array.h"
 #include "asm.h"
+#include "gc.h"
 #include "hawk.h"
 #include "types.h"
 
@@ -61,6 +62,7 @@ enum : uint64_t {
   XO_CMP = OP_W(OP1(0x3b)),
   XO_CMPTO = OP_W(OP1(0x39)),
   XO_GROUP3 = OP_W(OP1(0xf7)),
+  XO_GROUP3B = OP1(0xf6),
   XO_SHIFTI = OP_W(OP1(0xc1)),
   XO_IMUL = OP_W(OP2(0x0f, 0xaf)),
   XO_IMULI = OP_W(OP1(0x69)),
@@ -603,6 +605,25 @@ void asm_emit_gclog_check(emit_state *s, uint8_t obj, int32_t header_offset,
   emit_mov64(s, tmp, nursery_end);
   emit_cmp(s, obj, tmp);
   emit_jcc32(s, JB, done);
+}
+
+void asm_emit_cons_gclog_check(emit_state *s, uint8_t obj,
+                              uintptr_t nursery_end, label *done) {
+  uint8_t base = pick_tmp(obj, REG_NONE);
+  emit_mov64(s, base, nursery_end);
+  emit_cmp(s, obj, base);
+  emit_jcc32(s, JB, done);
+  emit_mov(s, base, obj);
+  emit_and_constant(s, base, base, -(int64_t)GC_SLAB_SIZE);
+  emit_sub(s, obj, obj, base);
+  emit_sar_constant(s, obj, obj, 4);
+  emit_rmroi(s, XO_GROUP3B, 0, base, obj,
+             -(int32_t)(GC_CONS_FLAGS_SIZE / sizeof(cons_s)));
+  emit_byte(s, GC_LOGGED);
+  emit_jcc32(s, JNE, done);
+  emit_shl_constant(s, obj, obj, 4);
+  emit_add(s, obj, obj, base);
+  emit_add_constant(s, obj, obj, CONS_TAG);
 }
 
 void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm) {

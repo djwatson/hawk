@@ -590,7 +590,6 @@ static gc_obj make_cons(gc_obj a, gc_obj b) {
   gc_add_root((const void *)&a, 1, 0);
   gc_add_root((const void *)&b, 1, 0);
   cons_s *cell = gc_alloc(sizeof(cons_s));
-  cell->header.type = CONS_TAG;
   cell->a = a;
   cell->b = b;
   gc_remove_root((const void *)&b, 0);

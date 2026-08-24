@@ -24,9 +24,19 @@ enum { GC_MAX_ROOTS = 64 };
 enum : uint8_t {
   GC_LOGGED = 1 << 0,
   GC_STICKY_LOGGED = 1 << 1,
-  GC_FWD_TAG = 1 << 2,
   GC_LARGE = 1 << 3,
 };
+
+enum : uint64_t { FORWARD_TAG = UINT64_MAX };
+enum : size_t {
+  GC_SLAB_SIZE = 16 * 1024,
+  GC_CONS_FLAGS_SIZE = 1024,
+};
+
+typedef struct {
+  uint64_t tag;
+  void *ptr;
+} gc_forward;
 
 extern gc_root_range gc_roots[GC_MAX_ROOTS];
 extern size_t gc_roots_len;
@@ -41,10 +51,21 @@ gc_obj gc_read_image_file(char const *path);
 void gc_dump_image(gc_obj clo, gc_obj path, gc_obj compress_level);
 void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress_level);
 NOINLINE void gc_log_slow(gc_obj obj);
+NOINLINE void gc_log_cons_slow(gc_obj obj);
 extern uintptr_t gc_nursery_start;
 extern size_t gc_nursery_size;
 
 static inline void gc_log(gc_obj obj) {
+  if (is_cons(obj)) {
+    uintptr_t addr = (uintptr_t)to_cons(obj);
+    if (likely(addr < gc_nursery_start + gc_nursery_size))
+      return;
+    uintptr_t slab = addr & -(uintptr_t)GC_SLAB_SIZE;
+    size_t idx = (addr - slab - GC_CONS_FLAGS_SIZE) / sizeof(cons_s);
+    if (likely(((uint8_t *)slab)[idx] & GC_LOGGED))
+      return;
+    MUSTTAIL return gc_log_cons_slow(obj);
+  }
   gc_header *hdr = to_gc_header(obj);
   uintptr_t addr = (uintptr_t)hdr;
   if (likely((hdr->flags & GC_LOGGED) ||
@@ -60,14 +81,17 @@ extern size_t gc_size;
 extern uint64_t total_gc_cnt;
 void gc_collect(void);
 
-static inline void set_forward(gc_header *hdr, void *ptr) {
-  hdr->type = FIXNUM_TAG;
-  *(void **)(hdr + 1) = ptr;
+static inline void set_forward(void *obj, void *ptr) {
+  gc_forward *fwd = obj;
+  fwd->ptr = ptr;
+  fwd->tag = FORWARD_TAG;
 }
-static inline bool is_forwarded(gc_header *hdr) {
-  return hdr->type == FIXNUM_TAG;
+static inline bool is_forwarded(void const *obj) {
+  return ((gc_forward const *)obj)->tag == FORWARD_TAG;
 }
-static inline void *forward_ptr(gc_header *hdr) { return *(void **)(hdr + 1); }
+static inline void *forward_ptr(void const *obj) {
+  return ((gc_forward const *)obj)->ptr;
+}
 
 NOINLINE void *gc_alloc_slow(uint64_t sz);
 void *gc_alloc_old(uint64_t sz);

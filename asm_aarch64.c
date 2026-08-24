@@ -594,6 +594,14 @@ void asm_emit_gclog_check(emit_state *s, uint8_t obj, int32_t header_offset,
   emit_jcc32(s, JB, done);
 }
 
+void asm_emit_cons_gclog_check(emit_state *s, uint8_t obj,
+                              uintptr_t nursery_end, label *done) {
+  uint8_t tmp = pick_scratch_tmp(obj, REG_NONE);
+  emit_mov64(s, tmp, nursery_end);
+  emit_cmp(s, obj, tmp);
+  emit_jcc32(s, JB, done);
+}
+
 void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm) {
   assert(dst < FPR_REG_START);
   assert(src < FPR_REG_START);

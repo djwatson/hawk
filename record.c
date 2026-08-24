@@ -189,14 +189,14 @@ static void record_scan_trace(trace *trace_obj, gc_scan_root_cb add_root,
       continue;
     }
     gc_obj obj = {.value = asm_read_mov64_patchable(loc)};
-    if (!is_heap_object(obj) || !is_forwarded(to_gc_header(obj))) {
+    if (!is_heap_object(obj) || !is_forwarded(to_raw_ptr(obj))) {
       continue;
     }
     if (!patched) {
       emit_writable_begin(&record->emit_state);
       patched = true;
     }
-    auto hdr = forward_ptr(to_gc_header(obj));
+    auto hdr = forward_ptr(to_raw_ptr(obj));
     asm_patch_mov64_patchable(&record->emit_state, loc,
                               tag_header(hdr, get_tag(obj)).value);
   }
@@ -1948,7 +1948,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       obj = materialize_constant_obj(state, obj);
     ir_ins ins;
     if (instr.op == OP_LOAD) {
-      auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
+      auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) +
+                             (is_cons(src) ? 0 : sizeof(gc_header)));
       auto type = get_type_tag(base[to_fixnum(off)]);
       ins = IR(.op = IR_LOAD, .op1 = obj, .op2 = offset, .type = type,
                .guard = type == FLONUM_TAG);

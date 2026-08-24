@@ -1767,7 +1767,7 @@
           (w64 dead-tag))
       (w64 0)
       (w64 0))
-    ((pair? o) (w32 cons-tag) (w32 0) (word (car o)) (word (cdr o)))
+    ((pair? o) (word (car o)) (word (cdr o)))
     ((vector? o)
       (if (all-flonum-vector? o)
           (begin
@@ -2038,7 +2038,7 @@
           (roots (compile-ir-to-bitcode (read-ir-from-file file))))
       (let-values (((image entry error) (serialize-bitcode roots)))
         (string-for-each (lambda (c) (write-u8 (char->integer c) out)) "HAWK")
-        (write-uint 2 8 out)
+        (write-uint 3 8 out)
         (write-uint 0 8 out)
         (write-uint (bytevector-length image) 8 out)
         (write-uint entry 8 out)

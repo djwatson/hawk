@@ -515,7 +515,6 @@ static void build_list(uint8_t start, uint8_t len, gc_obj *stack) {
   gc_add_root((const void *)&lst, 1, 0);
   for (int i = (int)start + (int)len - 1; i >= (int)start; i--) {
     cons_s *c = gc_alloc(sizeof(cons_s));
-    c->header.type = CONS_TAG;
     c->a = stack[i];
     c->b = lst;
     lst = tag_cons(c);
@@ -1223,7 +1222,8 @@ OP(ALLOC) {
     memset((uint8_t *)obj + sizeof(gc_header), 0,
            (size_t)sz - sizeof(gc_header));
   }
-  obj->type = type;
+  if (type != CONS_TAG)
+    obj->type = type;
   if (type == SYMBOL_TAG) {
     ((symbol *)obj)->val = DEAD;
   }
@@ -1250,7 +1250,6 @@ OP(CDR) {
 }
 OP(CONS) {
   auto c = (cons_s *)gc_alloc(sizeof(cons_s));
-  c->header.type = CONS_TAG;
   c->a = stack[pc->v1];
   c->b = stack[pc->v2];
   stack[instr.reg] = tag_cons(c);
@@ -1286,7 +1285,8 @@ OP(STORE) {
   assert(is_fixnum(off));
 
   gc_log(dest);
-  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(dest) + sizeof(gc_header));
+  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(dest) +
+                         (is_cons(dest) ? 0 : sizeof(gc_header)));
   base[to_fixnum(off)] = val;
   END_NEXT
 }
@@ -1364,7 +1364,8 @@ OP(LOAD) {
   }
   assert(is_fixnum(off));
 
-  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
+  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) +
+                         (is_cons(src) ? 0 : sizeof(gc_header)));
   auto res = base[to_fixnum(off)];
   stack[instr.reg] = res;
   END_NEXT

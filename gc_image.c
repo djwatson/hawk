@@ -16,7 +16,7 @@
 #include "types.h"
 #include "vm.h"
 
-enum : uint64_t { IMAGE_VERSION = 2 };
+enum : uint64_t { IMAGE_VERSION = 3 };
 enum : size_t { IMAGE_HEADER_SIZE = 44 };
 
 typedef struct {
@@ -24,7 +24,22 @@ typedef struct {
   size_t len;
 } image_ctx;
 
-static gc_header *copy_image_obj(gc_header *obj, image_ctx const *image);
+static gc_obj copy_image_obj(gc_obj obj, image_ctx const *image);
+
+static size_t object_size(gc_obj obj) {
+  return is_cons(obj) ? sizeof(cons_s) : heap_object_size(to_gc_header(obj));
+}
+
+static void trace_object(gc_obj obj, trace_callback visit, void *ctx) {
+  if (is_cons(obj)) {
+    cons_s *cell = to_cons(obj);
+    visit(&cell->b, ctx);
+    visit(&cell->a, ctx);
+  } else {
+    gc_header *hdr = to_gc_header(obj);
+    trace_heap_object(hdr, hdr->type, visit, ctx);
+  }
+}
 
 static void fixup_image_field(gc_obj *field, void *ctx) {
   if (!is_heap_object(*field))
@@ -36,30 +51,36 @@ static void fixup_image_field(gc_obj *field, void *ctx) {
             offset);
     abort();
   }
-  gc_header *copy = copy_image_obj((gc_header *)(image->base + offset), image);
-  *field = tag_header(copy, get_tag(*field));
+  gc_obj obj = tag_header((void *)(image->base + offset), get_tag(*field));
+  *field = copy_image_obj(obj, image);
 }
 
-static gc_header *copy_image_obj(gc_header *obj, image_ctx const *image) {
-  if (is_forwarded(obj)) {
-    return forward_ptr(obj);
-  }
-  size_t sz = heap_align(heap_object_size(obj));
-  if ((uintptr_t)obj + sz > image->base + image->len) {
+static gc_obj copy_image_obj(gc_obj obj, image_ctx const *image) {
+  void *raw = to_raw_ptr(obj);
+  if (is_forwarded(raw))
+    return tag_header(forward_ptr(raw), get_tag(obj));
+  size_t sz = heap_align(object_size(obj));
+  if ((uintptr_t)raw + sz > image->base + image->len) {
     fprintf(stderr, "read_image: object extends beyond image\n");
     abort();
   }
-  gc_header *copy = obj->type == FUNC_TAG ? gc_alloc_old(sz) : gc_alloc_slow(sz);
-  uint8_t alloc_flags = copy->flags;
-  memcpy(copy, obj, sz);
-  copy->rc = 0;
-  copy->flags = alloc_flags & GC_LARGE;
-  set_forward(obj, copy);
-  if (copy->type == FUNC_TAG) {
-    gc_register_bcfunc((bcfunc *)copy);
+  bool func = !is_cons(obj) && to_gc_header(obj)->type == FUNC_TAG;
+  void *copy = func ? gc_alloc_old(sz) : gc_alloc_slow(sz);
+  if (is_cons(obj)) {
+    *(cons_s *)copy = *(cons_s *)raw;
+  } else {
+    gc_header *copy_hdr = copy;
+    uint8_t alloc_flags = copy_hdr->flags;
+    memcpy(copy, raw, sz);
+    copy_hdr->rc = 0;
+    copy_hdr->flags = alloc_flags & GC_LARGE;
   }
-  trace_heap_object(copy, copy->type, fixup_image_field, (void *)image);
-  return copy;
+  set_forward(raw, copy);
+  gc_obj result = tag_header(copy, get_tag(obj));
+  if (func)
+    gc_register_bcfunc(copy);
+  trace_object(result, fixup_image_field, (void *)image);
+  return result;
 }
 
 static gc_obj loaded_error_symbol;
@@ -205,36 +226,41 @@ gc_obj gc_read_image_file(char const *path) {
 typedef struct {
   uint8_t *base;
   size_t len;
-  gc_header **worklist;
+  gc_obj *worklist;
+  gc_obj *objects;
 } dump_ctx;
 
-static gc_header *dump_copy_object(gc_header *obj, dump_ctx *ctx) {
-  if (is_forwarded(obj)) {
-    return (gc_header *)forward_ptr(obj);
+static gc_obj dump_copy_object(gc_obj obj, dump_ctx *ctx) {
+  void *raw = to_raw_ptr(obj);
+  if (is_forwarded(raw))
+    return tag_header(forward_ptr(raw), get_tag(obj));
+  size_t sz = heap_align(object_size(obj));
+  void *copy = ctx->base + ctx->len;
+  memcpy(copy, raw, sz);
+  if (!is_cons(obj)) {
+    gc_header *hdr = copy;
+    hdr->flags = 0;
+    hdr->aux = 0;
+    hdr->rc = 0;
   }
-  size_t sz = heap_align(heap_object_size(obj));
-  gc_header *copy = (gc_header *)(ctx->base + ctx->len);
-  memcpy(copy, obj, sz);
-  copy->flags = 0;
-  copy->aux = 0;
-  copy->rc = 0;
   ctx->len += sz;
-  set_forward(obj, copy);
-  arrput(ctx->worklist, copy);
-  return copy;
+  set_forward(raw, copy);
+  gc_obj result = tag_header(copy, get_tag(obj));
+  arrput(ctx->worklist, result);
+  arrput(ctx->objects, result);
+  return result;
 }
 
 static void dump_visit_field(gc_obj *field, void *ctx) {
   if (!is_heap_object(*field))
     return;
   dump_ctx *dc = ctx;
-  gc_header *obj = to_gc_header(*field);
+  void *obj = to_raw_ptr(*field);
   if (is_forwarded(obj)) {
-    *field = tag_header((gc_header *)forward_ptr(obj), get_tag(*field));
+    *field = tag_header(forward_ptr(obj), get_tag(*field));
     return;
   }
-  gc_header *copy = dump_copy_object(obj, dc);
-  *field = tag_header(copy, get_tag(*field));
+  *field = dump_copy_object(*field, dc);
 }
 
 static void dump_rebase_field(gc_obj *field, void *ctx) {
@@ -272,7 +298,8 @@ void gc_dump_image(gc_obj clo, gc_obj path, gc_obj compress_level) {
     abort();
   }
 
-  dump_ctx dc = {.base = data, .len = 0, .worklist = nullptr};
+  dump_ctx dc = {
+      .base = data, .len = 0, .worklist = nullptr, .objects = nullptr};
 
   gc_obj root = clo;
   gc_obj start = clo;
@@ -281,18 +308,12 @@ void gc_dump_image(gc_obj clo, gc_obj path, gc_obj compress_level) {
   dump_visit_field(&loaded_error_symbol, &dc);
 
   while (arrlen(dc.worklist) > 0) {
-    gc_header *obj = arrpop_last(dc.worklist);
-    trace_heap_object(obj, obj->type, dump_visit_field, &dc);
+    trace_object(arrpop_last(dc.worklist), dump_visit_field, &dc);
   }
 
   // rebase to offsets
-  uintptr_t scan = (uintptr_t)data;
-  uintptr_t end = scan + dc.len;
-  while (scan < end) {
-    gc_header *obj = (gc_header *)scan;
-    trace_heap_object(obj, obj->type, dump_rebase_field, data);
-    scan += heap_align(heap_object_size(obj));
-  }
+  for (size_t i = 0; i < arrlen(dc.objects); i++)
+    trace_object(dc.objects[i], dump_rebase_field, data);
   dump_rebase_field(&root, data);
   dump_rebase_field(&start, data);
   dump_rebase_field(&loaded_error_symbol, data);
@@ -361,6 +382,7 @@ void gc_dump_image(gc_obj clo, gc_obj path, gc_obj compress_level) {
   }
 
   arrfree(dc.worklist);
+  arrfree(dc.objects);
   free(out_filename);
   free(compressed);
   free(file);

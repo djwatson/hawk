@@ -214,10 +214,10 @@ typedef struct port_s {
 } port_s;
 
 typedef struct cons_s {
-  gc_header header;
   gc_obj a;
   gc_obj b;
 } cons_s;
+static_assert(sizeof(cons_s) == 16, "cons cell is 16 bytes");
 
 typedef struct closure_s {
   gc_header header;

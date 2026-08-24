@@ -438,7 +438,8 @@ IRFOLDF(fold_load_const_const) {
   assert(is_heap_object(src));
   assert(is_fixnum(off));
 
-  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) + sizeof(gc_header));
+  auto base = (gc_obj *)((uint8_t *)to_raw_ptr(src) +
+                         (is_cons(src) ? 0 : sizeof(gc_header)));
   return fold_const(base[to_fixnum(off)]);
 }
 

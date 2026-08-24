@@ -18,16 +18,18 @@
 #include "util/stack.h"
 
 enum : size_t {
-  SLAB_SIZE = 16 * 1024,
+  SLAB_SIZE = GC_SLAB_SIZE,
   OLD_SMALL_MAX = 4096,
   SIZE_CLASS_COUNT = OLD_SMALL_MAX / 8 + 1,
   DEFAULT_NURSERY = 32 * 1024 * 1024,
   DEFAULT_OLD_COLLECT = 100000000,
   MAX_PAGE_ORDER = 31,
   SLAB_MARK_WORDS = SLAB_SIZE / sizeof(gc_obj) / 64,
+  CONS_CAPACITY = (SLAB_SIZE - GC_CONS_FLAGS_SIZE) / sizeof(cons_s),
+  CONS_MARK_WORDS = (CONS_CAPACITY + 63) / 64,
 };
 
-enum region_kind { REGION_FREE, REGION_SLAB, REGION_LARGE };
+enum region_kind { REGION_FREE, REGION_SLAB, REGION_CONS, REGION_LARGE };
 
 typedef struct region {
   uint8_t *start;
@@ -50,13 +52,18 @@ typedef struct old_freelist {
   old_slab *slab;
 } old_freelist;
 
+typedef struct cons_slab {
+  region *region;
+  uint64_t mark_bits[CONS_MARK_WORDS];
+} cons_slab;
+
 typedef struct large_obj {
   region *region;
   size_t size;
   bool marked;
 } large_obj;
 
-STACK(gc_header_stack, gc_header *)
+STACK(gc_obj_stack, gc_obj)
 
 uintptr_t gc_hp;
 uintptr_t gc_hp_end;
@@ -76,10 +83,15 @@ static region **page_map;
 static region **regions;
 static region **free_pages[MAX_PAGE_ORDER];
 static old_slab **old_slabs;
+static cons_slab **cons_slabs;
+static cons_slab **partial_cons_slabs;
+static cons_slab *cons_alloc_slab;
+static cons_s *cons_alloc_next;
+static cons_s *cons_alloc_end;
 static old_freelist old_freelists[SIZE_CLASS_COUNT];
 static old_slab **partial_slabs[SIZE_CLASS_COUNT];
 static large_obj **large_objects;
-static gc_header_stack worklist;
+static gc_obj_stack worklist;
 static gc_obj *logged_objects;
 static gc_obj *sticky_objects;
 static gc_obj *bcfunc_list;
@@ -195,6 +207,18 @@ static inline size_t slab_mark_bit(old_slab const *slab, void const *p) {
   return ((uintptr_t)p - (uintptr_t)slab->region->start) / sizeof(gc_obj);
 }
 
+static inline cons_s *cons_slab_start(cons_slab const *slab) {
+  return (cons_s *)(slab->region->start + GC_CONS_FLAGS_SIZE);
+}
+
+static inline size_t cons_slab_index(cons_slab const *slab, void const *p) {
+  return ((cons_s const *)p - cons_slab_start(slab));
+}
+
+static inline uint8_t *cons_slab_flags(cons_slab const *slab) {
+  return slab->region->start;
+}
+
 static old_slab *slab_new(size_t slot_size) {
   old_slab *slab = calloc(1, sizeof(*slab));
   if (!slab)
@@ -256,12 +280,55 @@ static void *small_old_alloc(size_t size, bool clear) {
   return p;
 }
 
-static inline void *cons_old_alloc(void) {
-  old_freelist *fl = &old_freelists[sizeof(cons_s) / sizeof(gc_obj)];
-  if (unlikely(fl->next >= fl->end))
-    return small_old_alloc(sizeof(cons_s), false);
-  void *p = fl->next;
-  fl->next += sizeof(cons_s);
+static cons_slab *cons_slab_new(void) {
+  cons_slab *slab = calloc(1, sizeof(*slab));
+  if (!slab)
+    abort();
+  slab->region = region_alloc(0, REGION_CONS);
+  slab->region->owner = slab;
+  memset(cons_slab_flags(slab), 0, GC_CONS_FLAGS_SIZE);
+  arrput(cons_slabs, slab);
+  old_since_collect += SLAB_SIZE;
+  return slab;
+}
+
+static bool refill_cons_range(void) {
+  for (;;) {
+    cons_slab *slab = cons_alloc_slab;
+    size_t first = 0;
+    if (slab) {
+      first = (size_t)(cons_alloc_end - cons_slab_start(slab));
+    } else if (arrlen(partial_cons_slabs)) {
+      slab = arrpop_last(partial_cons_slabs);
+    } else {
+      return false;
+    }
+    while (first < CONS_CAPACITY && bit_test(slab->mark_bits, first))
+      first++;
+    if (first == CONS_CAPACITY) {
+      cons_alloc_slab = nullptr;
+      continue;
+    }
+    size_t end = first + 1;
+    while (end < CONS_CAPACITY && !bit_test(slab->mark_bits, end))
+      end++;
+    cons_alloc_slab = slab;
+    cons_alloc_next = cons_slab_start(slab) + first;
+    cons_alloc_end = cons_slab_start(slab) + end;
+    return true;
+  }
+}
+
+static inline cons_s *cons_old_alloc(void) {
+  if (unlikely(cons_alloc_next >= cons_alloc_end) && !refill_cons_range()) {
+    cons_alloc_slab = cons_slab_new();
+    cons_alloc_next = cons_slab_start(cons_alloc_slab);
+    cons_alloc_end = cons_alloc_next + CONS_CAPACITY;
+  }
+  cons_s *p = cons_alloc_next++;
+  size_t idx = cons_slab_index(cons_alloc_slab, p);
+  assert(!bit_test(cons_alloc_slab->mark_bits, idx));
+  cons_slab_flags(cons_alloc_slab)[idx] = 0;
   return p;
 }
 
@@ -289,18 +356,28 @@ static void *old_alloc_raw(size_t size, bool clear) {
 
 void *gc_alloc_old(uint64_t size) { return old_alloc_raw((size_t)size, true); }
 
-static bool is_young(gc_header *hdr) {
-  return (uintptr_t)hdr - gc_nursery_start < gc_nursery_size;
+static bool is_young(void const *obj) {
+  return (uintptr_t)obj - gc_nursery_start < gc_nursery_size;
 }
 
-static INLINE inline gc_header *evacuate_cons(gc_header *hdr) {
+static INLINE inline void trace_obj(gc_obj obj, trace_callback visit,
+                                    void *ctx) {
+  if (is_cons(obj)) {
+    cons_s *cons = to_cons(obj);
+    visit(&cons->b, ctx);
+    visit(&cons->a, ctx);
+  } else {
+    gc_header *hdr = to_gc_header(obj);
+    trace_heap_object(hdr, hdr->type, visit, ctx);
+  }
+}
+
+static INLINE inline cons_s *evacuate_cons(cons_s *cell) {
   cons_s *copy = cons_old_alloc();
-  *copy = *(cons_s *)hdr;
-  copy->header.flags = 0;
-  copy->header.rc = 0;
-  set_forward(hdr, copy);
-  gc_header_stack_push(&worklist, &copy->header);
-  return &copy->header;
+  *copy = *cell;
+  set_forward(cell, copy);
+  gc_obj_stack_push(&worklist, tag_cons(copy));
+  return copy;
 }
 
 static gc_header *evacuate_other(gc_header *hdr) {
@@ -312,7 +389,6 @@ static gc_header *evacuate_other(gc_header *hdr) {
   copy->flags = size > OLD_SMALL_MAX ? GC_LARGE : 0;
   copy->rc = 0;
   set_forward(hdr, copy);
-  gc_header_stack_push(&worklist, copy);
   return copy;
 }
 
@@ -320,13 +396,19 @@ static INLINE inline void evacuate_field(gc_obj *field, void *ctx) {
   (void)ctx;
   if (!is_heap_object(*field))
     return;
-  gc_header *hdr = to_gc_header(*field);
-  if (!is_young(hdr))
+  void *obj = to_raw_ptr(*field);
+  if (!is_young(obj))
     return;
-  uint8_t type = hdr->type;
-  gc_header *copy = type == FIXNUM_TAG ? forward_ptr(hdr)
-                    : type == CONS_TAG ? evacuate_cons(hdr)
-                                       : evacuate_other(hdr);
+  void *copy;
+  if (is_forwarded(obj)) {
+    copy = forward_ptr(obj);
+  } else if (is_cons(*field)) {
+    copy = evacuate_cons(obj);
+  } else {
+    gc_header *hdr = obj;
+    copy = evacuate_other(hdr);
+    gc_obj_stack_push(&worklist, tag_header(copy, get_tag(*field)));
+  }
   *field = tag_header(copy, get_tag(*field));
 }
 
@@ -371,9 +453,16 @@ static void visit_callback_roots(gc_scan_root_cb visit) {
 
 static void scan_logged_young(void) {
   for (size_t i = 0; i < arrlen(logged_objects); i++) {
-    gc_header *hdr = to_gc_header(logged_objects[i]);
-    trace_heap_object(hdr, hdr->type, evacuate_field, nullptr);
-    hdr->flags &= (uint8_t)~GC_LOGGED;
+    gc_obj obj = logged_objects[i];
+    trace_obj(obj, evacuate_field, nullptr);
+    if (is_cons(obj)) {
+      region *r = lookup_old_region(to_cons(obj));
+      cons_slab *slab = r->owner;
+      cons_slab_flags(slab)[cons_slab_index(slab, to_cons(obj))] &=
+          (uint8_t)~GC_LOGGED;
+    } else {
+      to_gc_header(obj)->flags &= (uint8_t)~GC_LOGGED;
+    }
   }
   arrlen_set(logged_objects, 0);
 }
@@ -387,14 +476,7 @@ static void nursery_collect(void) {
   }
   scan_logged_young();
   while (worklist.len) {
-    gc_header *hdr = gc_header_stack_pop(&worklist);
-    if (hdr->type == CONS_TAG) {
-      cons_s *cons = (cons_s *)hdr;
-      evacuate_field(&cons->b, nullptr);
-      evacuate_field(&cons->a, nullptr);
-    } else {
-      trace_heap_object(hdr, hdr->type, evacuate_field, nullptr);
-    }
+    trace_obj(gc_obj_stack_pop(&worklist), evacuate_field, nullptr);
   }
   if (stack_root_bottom)
     memset(*stack_root_top, 0,
@@ -408,11 +490,20 @@ static INLINE inline void mark_field(gc_obj *field, void *ctx) {
   (void)ctx;
   if (!is_heap_object(*field))
     return;
-  gc_header *hdr = to_gc_header(*field);
-  region *r = lookup_old_region(hdr);
+  void *obj = to_raw_ptr(*field);
+  region *r = lookup_old_region(obj);
   if (!r)
     return;
-  if (r->kind == REGION_SLAB) {
+  if (r->kind == REGION_CONS) {
+    if (!is_cons(*field))
+      return;
+    cons_slab *slab = r->owner;
+    size_t idx = cons_slab_index(slab, obj);
+    if (idx >= CONS_CAPACITY || bit_test(slab->mark_bits, idx))
+      return;
+    bit_set(slab->mark_bits, idx);
+  } else if (r->kind == REGION_SLAB) {
+    gc_header *hdr = obj;
     old_slab *slab = r->owner;
     size_t off = (uint8_t *)hdr - r->start;
     assert(off < slab->capacity * slab->slot_size &&
@@ -422,6 +513,7 @@ static INLINE inline void mark_field(gc_obj *field, void *ctx) {
       return;
     bit_set(slab->mark_bits, bit);
   } else if (r->kind == REGION_LARGE) {
+    gc_header *hdr = obj;
     large_obj *large = r->owner;
     if (hdr != (gc_header *)r->start || large->marked)
       return;
@@ -429,7 +521,7 @@ static INLINE inline void mark_field(gc_obj *field, void *ctx) {
   } else {
     return;
   }
-  gc_header_stack_push(&worklist, hdr);
+  gc_obj_stack_push(&worklist, *field);
 }
 
 static void mark_roots(uint64_t *roots, size_t len) {
@@ -439,24 +531,25 @@ static void mark_roots(uint64_t *roots, size_t len) {
 
 static INLINE inline void drain_mark_worklist(void) {
   while (worklist.len) {
-    gc_header *hdr = gc_header_stack_pop(&worklist);
-    if (hdr->type == CONS_TAG) {
-      cons_s *cons = (cons_s *)hdr;
-      mark_field(&cons->b, nullptr);
-      mark_field(&cons->a, nullptr);
-    } else {
-      trace_heap_object(hdr, hdr->type, mark_field, nullptr);
-    }
+    trace_obj(gc_obj_stack_pop(&worklist), mark_field, nullptr);
   }
 }
 
-static bool old_object_marked(gc_header *hdr) {
-  region *r = lookup_region(hdr);
+static bool old_object_marked(gc_obj obj) {
+  void *raw = to_raw_ptr(obj);
+  region *r = lookup_region(raw);
   if (!r)
     return true;
+  if (r->kind == REGION_CONS) {
+    if (!is_cons(obj))
+      return false;
+    cons_slab *slab = r->owner;
+    size_t idx = cons_slab_index(slab, raw);
+    return idx < CONS_CAPACITY && bit_test(slab->mark_bits, idx);
+  }
   if (r->kind == REGION_SLAB) {
     old_slab *slab = r->owner;
-    size_t off = (uint8_t *)hdr - r->start;
+    size_t off = (uint8_t *)raw - r->start;
     return off < slab->capacity * slab->slot_size &&
            off % slab->slot_size == 0 &&
            bit_test(slab->mark_bits, off / sizeof(gc_obj));
@@ -468,10 +561,17 @@ static bool old_object_marked(gc_header *hdr) {
 
 static void consume_sticky_objects(bool full) {
   for (size_t i = 0; i < arrlen(sticky_objects); i++) {
-    gc_header *hdr = to_gc_header(sticky_objects[i]);
-    if (!full && old_object_marked(hdr))
-      trace_heap_object(hdr, hdr->type, mark_field, nullptr);
-    hdr->flags &= (uint8_t)~GC_STICKY_LOGGED;
+    gc_obj obj = sticky_objects[i];
+    if (!full && old_object_marked(obj))
+      trace_obj(obj, mark_field, nullptr);
+    if (is_cons(obj)) {
+      region *r = lookup_old_region(to_cons(obj));
+      cons_slab *slab = r->owner;
+      cons_slab_flags(slab)[cons_slab_index(slab, to_cons(obj))] &=
+          (uint8_t)~GC_STICKY_LOGGED;
+    } else {
+      to_gc_header(obj)->flags &= (uint8_t)~GC_STICKY_LOGGED;
+    }
   }
   arrlen_set(sticky_objects, 0);
 }
@@ -479,8 +579,7 @@ static void consume_sticky_objects(bool full) {
 static void prune_bcfuncs(void) {
   size_t out = 0;
   for (size_t i = 0; i < arrlen(bcfunc_list); i++) {
-    gc_header *hdr = to_gc_header(bcfunc_list[i]);
-    if (old_object_marked(hdr))
+    if (old_object_marked(bcfunc_list[i]))
       bcfunc_list[out++] = bcfunc_list[i];
   }
   arrlen_set(bcfunc_list, out);
@@ -495,6 +594,11 @@ static size_t sweep_old(size_t *freed) {
     if (partial_slabs[cls])
       arrlen_set(partial_slabs[cls], 0);
   }
+  cons_alloc_slab = nullptr;
+  cons_alloc_next = nullptr;
+  cons_alloc_end = nullptr;
+  if (partial_cons_slabs)
+    arrlen_set(partial_cons_slabs, 0);
   for (size_t i = 0; i < arrlen(old_slabs);) {
     old_slab *slab = old_slabs[i];
     size_t count = 0;
@@ -512,6 +616,24 @@ static size_t sweep_old(size_t *freed) {
     region_free(slab->region);
     free(slab);
     old_slabs[i] = arrpop_last(old_slabs);
+  }
+  for (size_t i = 0; i < arrlen(cons_slabs);) {
+    cons_slab *slab = cons_slabs[i];
+    size_t count = 0;
+    for (size_t word = 0; word < CONS_MARK_WORDS; word++)
+      count += (size_t)__builtin_popcountll(slab->mark_bits[word]);
+    size_t marked = count * sizeof(cons_s);
+    live += marked;
+    if (marked) {
+      if (count < CONS_CAPACITY)
+        arrput(partial_cons_slabs, slab);
+      i++;
+      continue;
+    }
+    *freed += SLAB_SIZE;
+    region_free(slab->region);
+    free(slab);
+    cons_slabs[i] = arrpop_last(cons_slabs);
   }
   for (size_t i = 0; i < arrlen(large_objects);) {
     large_obj *large = large_objects[i];
@@ -531,6 +653,9 @@ static size_t sweep_old(size_t *freed) {
 static void clear_marks(void) {
   arr_for_each(old_slabs, slab) {
     memset(slab->mark_bits, 0, SLAB_MARK_WORDS * sizeof(uint64_t));
+  }
+  arr_for_each(cons_slabs, slab) {
+    memset(slab->mark_bits, 0, sizeof(slab->mark_bits));
   }
   arr_for_each(large_objects, large) { large->marked = false; }
 }
@@ -583,6 +708,8 @@ NOINLINE void *gc_alloc_slow(uint64_t size) {
 }
 
 NOINLINE void gc_log_slow(gc_obj obj) {
+  if (is_cons(obj))
+    MUSTTAIL return gc_log_cons_slow(obj);
   gc_header *hdr = to_gc_header(obj);
   region *r = lookup_region(hdr);
   if (!r)
@@ -596,6 +723,26 @@ NOINLINE void gc_log_slow(gc_obj obj) {
       hdr->flags |= GC_STICKY_LOGGED;
       arrput(sticky_objects, obj);
     }
+  }
+}
+
+NOINLINE void gc_log_cons_slow(gc_obj obj) {
+  cons_s *cell = to_cons(obj);
+  region *r = lookup_region(cell);
+  if (!r || r->kind != REGION_CONS)
+    return;
+  cons_slab *slab = r->owner;
+  size_t idx = cons_slab_index(slab, cell);
+  if (idx >= CONS_CAPACITY)
+    return;
+  uint8_t *flags = &cons_slab_flags(slab)[idx];
+  if (*flags & GC_LOGGED)
+    return;
+  *flags |= GC_LOGGED;
+  arrput(logged_objects, obj);
+  if (!(*flags & GC_STICKY_LOGGED)) {
+    *flags |= GC_STICKY_LOGGED;
+    arrput(sticky_objects, obj);
   }
 }
 
@@ -677,6 +824,7 @@ void gc_init(void) {
 
 void gc_free(void) {
   arr_for_each(old_slabs, slab) { free(slab); }
+  arr_for_each(cons_slabs, slab) { free(slab); }
   arr_for_each(large_objects, large) { free(large); }
   arr_for_each(regions, r) { free(r); }
   for (size_t i = 0; i < MAX_PAGE_ORDER; i++)
@@ -685,6 +833,8 @@ void gc_free(void) {
     arrfree(partial_slabs[i]);
   arrfree(regions);
   arrfree(old_slabs);
+  arrfree(cons_slabs);
+  arrfree(partial_cons_slabs);
   arrfree(large_objects);
   free(worklist.data);
   arrfree(logged_objects);
