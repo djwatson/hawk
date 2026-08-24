@@ -9,10 +9,8 @@
 #include "types.h"
 #include "util/util.h"
 
-typedef void (*gc_scan_root_cb)(const uint64_t *rootp, size_t len);
-// acquire_root creates RC edges that the owner must eventually release.
-typedef void (*gc_scan_callback)(void *data, gc_scan_root_cb add_root,
-                                 gc_scan_root_cb acquire_root);
+typedef void (*gc_scan_root_cb)(uint64_t *rootp, size_t len);
+typedef void (*gc_scan_callback)(void *data, gc_scan_root_cb add_root);
 struct bcfunc;
 typedef struct {
   const void *ptr;
@@ -24,8 +22,6 @@ void gc_init(void);
 enum { GC_MAX_ROOTS = 64 };
 
 enum : uint8_t {
-  GC_LOGGED = 1 << 0,
-  GC_MARK = 1 << 1,
   GC_FWD_TAG = 1 << 2,
   GC_LARGE = 1 << 3,
 };
@@ -37,15 +33,14 @@ void gc_set_stack_root(gc_obj *bottom, gc_obj **top, gc_obj *end);
 gc_obj gc_error_symbol(void);
 void *gc_base_ptr(void *p);
 void gc_register_bcfunc(struct bcfunc *func);
-void gc_release_roots(const gc_obj *roots, size_t len);
 gc_obj gc_read_image(uint8_t const *data, size_t len, char const *path,
                      bool compressed);
 gc_obj gc_read_image_file(char const *path);
 void gc_dump_image(gc_obj clo, gc_obj path, gc_obj compress_level);
 void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress_level);
-NOINLINE void gc_log_slow(gc_obj obj);
+NOINLINE void gc_log_slow(gc_obj *field);
 
-static inline void gc_log(gc_obj obj) { MUSTTAIL return gc_log_slow(obj); }
+static inline void gc_log(gc_obj *field) { MUSTTAIL return gc_log_slow(field); }
 void gc_free(void);
 
 extern uintptr_t gc_hp;
@@ -64,6 +59,7 @@ static inline bool is_forwarded(gc_header *hdr) {
 static inline void *forward_ptr(gc_header *hdr) { return *(void **)(hdr + 1); }
 
 NOINLINE void *gc_alloc_slow(uint64_t sz);
+void *gc_alloc_old(uint64_t sz);
 
 static inline void gc_add_root(const void *rootp, size_t len, uint8_t tag) {
   assert(gc_roots_len < GC_MAX_ROOTS);

@@ -74,8 +74,8 @@ set(
   ffi.c
   types.c
   record.c
-  rcgc.c
-  rcgc_image.c
+  gc.c
+  gc_image.c
   ir.c
   emit.c
   regalloc.c

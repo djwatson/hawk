@@ -121,9 +121,8 @@ does not return.
 These environment variables tune the runtime:
 
 - `GC_SPACE`: heap space size in MB. Default: `2048`.
-- `GC_COLLECT`: allocation interval before collection in MB. Default: `32`.
-- `GC_SATB`: set to `0` to disable SATB cycle tracing.
-- `GC_SATB_WASTE`: enable SATB tracing and set the SATB waste threshold.
+- `GC_COLLECT`: nursery allocation interval before collection in MB. Default:
+  `32`.
 - `JIT_CACHE_SZ`: JIT code cache size in MB. Default: `4`.
 
 Example:

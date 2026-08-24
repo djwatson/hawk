@@ -291,7 +291,7 @@ static struct {
   uint64_t bc_cnt;
   bc code[1];
 } callcc_resume_func = {
-    .header = {.type = FUNC_TAG, .flags = GC_LARGE},
+    .header = {.type = FUNC_TAG},
     .poly_cnt = 4,
     .name = UNDEFINED,
     .const_cnt = 0,
@@ -964,8 +964,8 @@ OP(DEFINE) {
     // If we've set this more than once, mark it as non-inlinable.
     s->opt = -1;
   }
-  gc_log(sym);
   s->val = val;
+  gc_log(&s->val);
   END_NEXT
 }
 
@@ -1104,8 +1104,8 @@ OP(CLOSURE_SET) {
   auto val = stack[instr.reg];
   auto clo = stack[instr.v1];
   auto idx = instr.v2;
-  gc_log(clo);
   to_closure(clo)->v[idx] = val;
+  gc_log(&to_closure(clo)->v[idx]);
   END_NEXT
 }
 
@@ -1285,9 +1285,9 @@ OP(STORE) {
   assert(is_heap_object(dest));
   assert(is_fixnum(off));
 
-  gc_log(dest);
   auto base = (gc_obj *)((uint8_t *)to_raw_ptr(dest) + sizeof(gc_header));
   base[to_fixnum(off)] = val;
+  gc_log(&base[to_fixnum(off)]);
   END_NEXT
 }
 OP(STORE_CHAR) {

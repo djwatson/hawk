@@ -503,7 +503,7 @@ EXPORT gc_obj scm_emit_bitcode_closure(gc_obj payload) {
     uint64_t bc_cnt = runtime_list_length(desc->v[3]);
     size_t bytes = runtime_align_words(
         sizeof(bcfunc) + (const_cnt * sizeof(gc_obj)) + (bc_cnt * sizeof(bc)));
-    bcfunc *func = gc_alloc(bytes);
+    bcfunc *func = gc_alloc_old(bytes);
     func->poly_cnt = 0;
     func->downrec_ok = 0;
     func->name = NIL;

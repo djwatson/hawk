@@ -49,7 +49,7 @@ static gc_header *copy_image_obj(gc_header *obj, image_ctx const *image) {
     fprintf(stderr, "read_image: object extends beyond image\n");
     abort();
   }
-  gc_header *copy = (gc_header *)gc_alloc_slow(sz);
+  gc_header *copy = obj->type == FUNC_TAG ? gc_alloc_old(sz) : gc_alloc_slow(sz);
   uint8_t alloc_flags = copy->flags;
   memcpy(copy, obj, sz);
   copy->rc = 0;

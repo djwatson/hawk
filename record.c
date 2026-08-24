@@ -116,7 +116,6 @@ static void free_trace(trace *trace) {
   arr_for_each(trace->snaps, snap) { free_snap(&snap); }
   arrfree(trace->ins);
   arrfree(trace->cse_prev);
-  gc_release_roots(trace->consts, trace->rooted_consts);
   arrfree(trace->consts);
   arrfree(trace->snaps);
   arrfree(trace->snapmap);
@@ -178,22 +177,11 @@ static void snapshot_live_slots(trace_state *ts, trace *cur_trace, snap *snap) {
 }
 
 static void record_scan_trace(trace *trace_obj, gc_scan_root_cb add_root,
-                              gc_scan_root_cb acquire_root,
                               record_state *record) {
   if (!trace_obj) {
     return;
   }
-  if (!acquire_root) {
-    add_root((uint64_t *)trace_obj->consts, arrlen(trace_obj->consts));
-    return;
-  }
-
-  size_t len = arrlen(trace_obj->consts);
-  if (len > trace_obj->rooted_consts) {
-    acquire_root((uint64_t *)trace_obj->consts + trace_obj->rooted_consts,
-                 len - trace_obj->rooted_consts);
-  }
-  trace_obj->rooted_consts = (uint16_t)len;
+  add_root((uint64_t *)trace_obj->consts, arrlen(trace_obj->consts));
 
   bool patched = false;
   arr_for_each(trace_obj->gc_const_locs, loc) {
@@ -220,16 +208,15 @@ static void record_scan_trace(trace *trace_obj, gc_scan_root_cb add_root,
   }
 }
 
-static void record_scan_roots(void *data, gc_scan_root_cb add_root,
-                              gc_scan_root_cb acquire_root) {
+static void record_scan_roots(void *data, gc_scan_root_cb add_root) {
   record_state *record = data;
   trace *cur_trace = record->cur_trace;
-  record_scan_trace(cur_trace, add_root, acquire_root, record);
+  record_scan_trace(cur_trace, add_root, record);
   arr_for_each(record->traces, trace_obj) {
     if (trace_obj == cur_trace) {
       continue;
     }
-    record_scan_trace(trace_obj, add_root, acquire_root, record);
+    record_scan_trace(trace_obj, add_root, record);
   }
 }
 
@@ -1417,9 +1404,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto off = add_const(
         state, tag_fixnum((offsetof(symbol, val) - sizeof(gc_header)) /
                           sizeof(gc_obj)));
-    add_inst(state, IR(.op = IR_GCLOG, .op1 = c, .op2 = off));
     ir_ins ins = IR(.op = IR_GSET, .op1 = c, .op2 = val);
     add_inst(state, ins);
+    add_inst(state, IR(.op = IR_GCLOG, .op1 = c, .op2 = off));
     vm_add_snap(state, pc + 1, argcnt);
     break;
   }
@@ -1562,9 +1549,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     slot c_pos = add_const(state, tag_fixnum(clo_slot + 1));
     val = box_vmcall_arg(state, val);
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = clo, .op2 = c_pos));
-    add_inst(state, IR(.op = IR_GCLOG, .op1 = clo, .op2 = c_pos));
     add_inst(state,
              IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = CLOSURE_TAG));
+    add_inst(state, IR(.op = IR_GCLOG, .op1 = clo, .op2 = c_pos));
     break;
   }
   case OP_CLOSURE: {
@@ -1888,9 +1875,9 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
     if (instr.op == OP_STORE) {
       uint8_t obj_type = get_slot_type(record_current_trace(state), obj);
-      add_inst(state, IR(.op = IR_GCLOG, .op1 = obj, .op2 = offset));
       add_inst(state,
                IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = obj_type));
+      add_inst(state, IR(.op = IR_GCLOG, .op1 = obj, .op2 = offset));
     } else if (instr.op == OP_STORE_CHAR) {
       add_inst(state, IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val,
                          .type = STRING_TAG));
