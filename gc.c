@@ -15,6 +15,7 @@
 #include "log.h"
 #include "profiler.h"
 #include "types.h"
+#include "util/stack.h"
 
 enum : size_t {
   SLAB_SIZE = 16 * 1024,
@@ -55,6 +56,8 @@ typedef struct large_obj {
   bool marked;
 } large_obj;
 
+STACK(gc_header_stack, gc_header *)
+
 uintptr_t gc_hp;
 uintptr_t gc_hp_end;
 uintptr_t gc_nursery_start;
@@ -76,7 +79,7 @@ static old_slab **old_slabs;
 static old_freelist old_freelists[SIZE_CLASS_COUNT];
 static old_slab **partial_slabs[SIZE_CLASS_COUNT];
 static large_obj **large_objects;
-static gc_header **worklist;
+static gc_header_stack worklist;
 static gc_obj *logged_objects;
 static gc_obj *sticky_objects;
 static gc_obj *bcfunc_list;
@@ -254,6 +257,15 @@ static void *small_old_alloc(size_t size, bool clear) {
   return p;
 }
 
+static inline void *cons_old_alloc(void) {
+  old_freelist *fl = &old_freelists[sizeof(cons_s) / sizeof(gc_obj)];
+  if (unlikely(fl->next >= fl->end))
+    return small_old_alloc(sizeof(cons_s), false);
+  void *p = fl->next;
+  fl->next += sizeof(cons_s);
+  return p;
+}
+
 static large_obj *large_new(size_t size, bool clear) {
   large_obj *large = calloc(1, sizeof(*large));
   if (!large)
@@ -284,24 +296,26 @@ static bool is_young(gc_header *hdr) {
   return (uintptr_t)hdr - gc_nursery_start < gc_nursery_size;
 }
 
-static gc_header *evacuate(gc_header *hdr) {
+static gc_header *evacuate_cons(gc_header *hdr) {
+  cons_s *copy = cons_old_alloc();
+  *copy = *(cons_s *)hdr;
+  copy->header.flags = 0;
+  copy->header.rc = 0;
+  set_forward(hdr, copy);
+  gc_header_stack_push(&worklist, &copy->header);
+  return &copy->header;
+}
+
+static gc_header *evacuate_other(gc_header *hdr) {
   assert((uintptr_t)hdr - gc_nursery_start < gc_nursery_size &&
-         hdr->type != FUNC_TAG);
-  if (is_forwarded(hdr))
-    return forward_ptr(hdr);
-  uint8_t type = hdr->type;
-  size_t size = type == CONS_TAG ? sizeof(cons_s)
-                                 : heap_align(heap_object_size(hdr));
+         hdr->type != FUNC_TAG && hdr->type != CONS_TAG && !is_forwarded(hdr));
+  size_t size = heap_align(heap_object_size(hdr));
   gc_header *copy = old_alloc_raw(size, false);
-  uint8_t alloc_flags = copy->flags;
-  if (type == CONS_TAG)
-    *(cons_s *)copy = *(cons_s *)hdr;
-  else
-    memcpy(copy, hdr, size);
-  copy->flags = alloc_flags & GC_LARGE;
+  memcpy(copy, hdr, size);
+  copy->flags = size > OLD_SMALL_MAX ? GC_LARGE : 0;
   copy->rc = 0;
   set_forward(hdr, copy);
-  arrput(worklist, copy);
+  gc_header_stack_push(&worklist, copy);
   return copy;
 }
 
@@ -312,7 +326,11 @@ static void evacuate_field(gc_obj *field, void *ctx) {
   gc_header *hdr = to_gc_header(*field);
   if (!is_young(hdr))
     return;
-  *field = tag_header(evacuate(hdr), get_tag(*field));
+  uint8_t type = hdr->type;
+  gc_header *copy = type == FIXNUM_TAG   ? forward_ptr(hdr)
+                    : type == CONS_TAG ? evacuate_cons(hdr)
+                                       : evacuate_other(hdr);
+  *field = tag_header(copy, get_tag(*field));
 }
 
 static void visit_explicit_roots(trace_callback visit) {
@@ -371,8 +389,8 @@ static void nursery_collect(void) {
     trace_heap_object(hdr, hdr->type, evacuate_field, nullptr);
   }
   scan_logged_young();
-  while (arrlen(worklist)) {
-    gc_header *hdr = arrpop_last(worklist);
+  while (worklist.len) {
+    gc_header *hdr = gc_header_stack_pop(&worklist);
     if (hdr->type == CONS_TAG) {
       cons_s *cons = (cons_s *)hdr;
       evacuate_field(&cons->b, nullptr);
@@ -414,7 +432,7 @@ static void mark_field(gc_obj *field, void *ctx) {
   } else {
     return;
   }
-  arrput(worklist, hdr);
+  gc_header_stack_push(&worklist, hdr);
 }
 
 static void mark_roots(uint64_t *roots, size_t len) {
@@ -423,8 +441,8 @@ static void mark_roots(uint64_t *roots, size_t len) {
 }
 
 static void drain_mark_worklist(void) {
-  while (arrlen(worklist)) {
-    gc_header *hdr = arrpop_last(worklist);
+  while (worklist.len) {
+    gc_header *hdr = gc_header_stack_pop(&worklist);
     if (hdr->type == CONS_TAG) {
       cons_s *cons = (cons_s *)hdr;
       mark_field(&cons->b, nullptr);
@@ -675,7 +693,7 @@ void gc_free(void) {
   arrfree(regions);
   arrfree(old_slabs);
   arrfree(large_objects);
-  arrfree(worklist);
+  free(worklist.data);
   arrfree(logged_objects);
   arrfree(sticky_objects);
   arrfree(bcfunc_list);
