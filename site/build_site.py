@@ -237,10 +237,10 @@ def svg_ratio_chart(arch, rows):
   bottom = 82
   width = max(1000, left + right + len(rows) * 18)
   chart_h = height - top - bottom
-  zero_y = top + chart_h / 2
-  max_abs = max([abs(value) for _, _, value, _, _, _ in rows] + [1.0])
-  axis_limit = max(1, math.ceil(max_abs))
-  scale = (chart_h / 2 - 16) / axis_limit
+  lower_limit = -1
+  upper_limit = 4
+  scale = (chart_h - 32) / (upper_limit - lower_limit)
+  zero_y = top + 16 + upper_limit * scale
   bar_slot = max(18, (width - left - right) / max(len(rows), 1))
   bar_w = min(22, bar_slot * 0.72)
   body = [
@@ -256,7 +256,7 @@ def svg_ratio_chart(arch, rows):
     f'<text class="small" x="{left}" y="38">Faster benchmarks appear above parity; slower benchmarks appear below.</text>',
     f'<line x1="{left}" y1="{zero_y:.1f}" x2="{width - right}" y2="{zero_y:.1f}" stroke="#333" stroke-width="1"/>',
   ]
-  for value in range(-axis_limit, axis_limit + 1):
+  for value in range(lower_limit, upper_limit + 1):
     y = zero_y - value * scale
     if top <= y <= height - bottom:
       body.append(f'<line x1="{left}" y1="{y:.1f}" x2="{width - right}" y2="{y:.1f}" stroke="#ddd" stroke-width="1"/>')
