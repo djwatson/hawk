@@ -401,11 +401,8 @@ static void collect_alloc_roots(trace *t, regalloc_state *ra_state,
                                 uint16_t op_cnt_idx, int32_t cur_snap,
                                 bool live_regs[MAX_REG],
                                 uint64_t *live_gpr_mask) {
-  if (cur_snap >= 0) {
-    collect_live_roots(t, nullptr, 0, cur_snap, live_regs, live_gpr_mask);
-  } else {
-    collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs, live_gpr_mask);
-  }
+  (void)cur_snap;
+  collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs, live_gpr_mask);
 }
 
 static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
