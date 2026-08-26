@@ -1864,6 +1864,19 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_ABC: {
+    auto container = stack[pc->v1];
+    auto idx_obj = stack[pc->v2];
+    if (!is_fixnum(idx_obj)) {
+      record_abort(state, &op_table, "invalid index");
+      break;
+    }
+    uint8_t tag = (uint8_t)(container.value & TAG_MASK);
+    gc_obj len = *(gc_obj *)((intptr_t)container.value +
+                             (int32_t)(sizeof(gc_header) - tag));
+    if ((uint64_t)idx_obj.value >= (uint64_t)len.value) {
+      record_abort(state, &op_table, "index out of bounds");
+      break;
+    }
     auto obj = stack_load(state, stack, pc->v1, true);
     auto idx = stack_load(state, stack, pc->v2, true);
     obj = materialize_constant_obj(state, obj);
