@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import socketserver
+import subprocess
 import sys
 from pathlib import Path
 
@@ -193,6 +194,20 @@ def parse_benchmarks():
   return data, warnings
 
 
+def last_benchmark_commit():
+  result = subprocess.run(
+    [
+      "git", "log", "-1", "--format=%h%x09%ad%x09%s", "--date=short", "--", "doc/bench",
+    ],
+    cwd=ROOT, capture_output=True, text=True, check=False,
+  )
+  if result.returncode:
+    return None
+  commit, date, subject = result.stdout.strip().split("\t", 2)
+  link = f'<a href="https://github.com/djwatson/hawk/commit/{escape(commit)}">'
+  return f'{link}<code>{escape(commit)}</code></a> ({escape(date)}): {escape(subject)}'
+
+
 def comparison_rows_by_arch(data):
   rows_by_arch = {}
   for arch, benches in sorted(data.items()):
@@ -292,6 +307,9 @@ def geomean_ratio(rows):
 def benchmark_html(data):
   rows_by_arch = comparison_rows_by_arch(data)
   pieces = []
+  commit = last_benchmark_commit()
+  if commit:
+    pieces.append(f"<p>Last benchmark commit: {commit}</p>")
   for arch in sorted(rows_by_arch, key=lambda name: (name != "x64", name)):
     rows = sorted(rows_by_arch[arch], key=lambda row: row[2], reverse=True)
     ratio = geomean_ratio(rows)
