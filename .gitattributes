@@ -1,0 +1,7 @@
+test/** linguist-vendored
+fuzz/** linguist-vendored
+boot/** linguist-vendored
+tools/** linguist-vendored
+site/** linguist-vendored
+doc/** linguist-vendored
+lib/srfi2/** linguist-vendored
