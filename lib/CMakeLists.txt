@@ -20,8 +20,10 @@ else()
 endif()
 
 set(OPCODES_SCHEME ${CMAKE_CURRENT_SOURCE_DIR}/opcodes.scm)
+set(OPCODES_SCHEME_TMP ${CMAKE_CURRENT_BINARY_DIR}/opcodes.scm.tmp)
 add_custom_command(
   OUTPUT ${OPCODES_SCHEME}
+  COMMAND ${CMAKE_COMMAND} -E rm -f ${OPCODES_SCHEME_TMP}
   COMMAND
     ${SCHEME_BOOTSTRAP_COMMAND}
     ${SCHEME_BOOTSTRAP_IMPORTS}
@@ -29,9 +31,8 @@ add_custom_command(
     --header
     ${PROJECT_SOURCE_DIR}/bc.h
     --output
-    ${OPCODES_SCHEME}
-  COMMAND
-    ${CMAKE_COMMAND} -E touch ${OPCODES_SCHEME}
+    ${OPCODES_SCHEME_TMP}
+  COMMAND ${CMAKE_COMMAND} -E rename ${OPCODES_SCHEME_TMP} ${OPCODES_SCHEME}
   DEPENDS
     ${PROJECT_SOURCE_DIR}/bc.h
     ${CMAKE_CURRENT_SOURCE_DIR}/gen_opcodes.scm
