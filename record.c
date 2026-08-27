@@ -553,8 +553,8 @@ static slot stack_abs_load_boxed(vm_state *state, uint32_t abs_idx,
       return box_vmcall_arg(state, ts->stack[rel_idx].loc);
     }
   }
-  int32_t rel_idx = (int32_t)ts->stack_off - (int32_t)stack_words +
-                    (int32_t)abs_idx;
+  int32_t rel_idx =
+      (int32_t)ts->stack_off - (int32_t)stack_words + (int32_t)abs_idx;
   return add_inst(state, IR(.op = IR_STACK_LOAD_RAW, .data = (uint32_t)rel_idx,
                             .type = UNDEFINED_TAG));
 }

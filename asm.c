@@ -199,6 +199,9 @@ void emit_cleanup(emit_state *s) {
   s->mtop = nullptr;
   s->mend = nullptr;
   s->p = nullptr;
+  s->hot_p = nullptr;
+  s->cold_start = nullptr;
+  s->cold_p = nullptr;
   s->msize = 0;
 }
 
@@ -221,6 +224,10 @@ void emit_init(emit_state *s) {
 #endif
 
   size_t msize = jit_cache_size();
+  if (msize > INT32_MAX) {
+    fprintf(stderr, "Fail: JIT arena must fit in a 32-bit branch\n");
+    exit(EXIT_FAILURE);
+  }
   auto mem = mmap(nullptr, msize, prot, flags, -1, 0);
   if (mem == MAP_FAILED) {
     fprintf(stderr, "Fail: mmap(%zu bytes) for JIT arena: %s\n", msize,
@@ -229,8 +236,11 @@ void emit_init(emit_state *s) {
   }
 
   s->mtop = (uint8_t *)mem;
-  s->mend = s->mtop + msize;
+  s->cold_start = s->mtop + msize / 2;
+  s->mend = s->cold_start;
   s->p = s->mtop;
+  s->hot_p = nullptr;
+  s->cold_p = s->cold_start;
   s->msize = msize;
 
   // Valgrind requires some readahead space.
@@ -253,11 +263,28 @@ void emit_writable_end(emit_state *s) {
 #endif
 }
 
+void emit_cold_begin(emit_state *s) {
+  assert(!s->hot_p);
+  s->hot_p = s->p;
+  s->p = s->cold_p;
+  s->mend = s->mtop + s->msize;
+}
+
+void emit_cold_end(emit_state *s) {
+  assert(s->hot_p);
+  s->cold_p = s->p;
+  s->p = s->hot_p;
+  s->hot_p = nullptr;
+  s->mend = s->cold_start;
+}
+
 size_t jit_space_used(emit_state *s) {
   if (!s->mtop) {
     return 0;
   }
-  return (size_t)(s->p - s->mtop);
+  uint8_t *hot_p = s->hot_p ? s->hot_p : s->p;
+  uint8_t *cold_p = s->hot_p ? s->p : s->cold_p;
+  return (size_t)(hot_p - s->mtop) + (size_t)(cold_p - s->cold_start);
 }
 
 int add_constant(emit_state *s, double value) {

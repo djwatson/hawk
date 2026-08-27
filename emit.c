@@ -2379,16 +2379,24 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // allocator much simpler to write, no state needs to be preserved.
   emit_writable_begin(s);
 
-  // Emit a return-to-c stub.
-  // TODO: could be shared by ALL traces
-  auto start = emit_offset(s);
-  t->code_start = (uint8_t *)start;
-
+  uint8_t *cold_entry_start = nullptr;
+  uint8_t *cold_entry_end = nullptr;
+  uint8_t *entry;
   if (!t->parent_snap) {
+    emit_cold_begin(s);
+    cold_entry_start = (uint8_t *)emit_offset(s);
+    entry = cold_entry_start;
     emit_root_trace_entry(s, t, &reg_state);
+    emit_jmp32(s, &t->trace_start);
+    cold_entry_end = (uint8_t *)emit_offset(s);
+    emit_cold_end(s);
   } else {
+    entry = (uint8_t *)emit_offset(s);
     emit_side_trace_entry(s, t, &reg_state);
   }
+
+  auto start = emit_offset(s);
+  t->code_start = (uint8_t *)start;
 
   arr_for_each_idx(t->snaps, i) {
     t->snaps[i].patch_point.jcc32_locs = &t->snaps[i].side_exit_jcc_locs;
@@ -2404,11 +2412,15 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // trace), or another trace (if a side trace).
   link_to_next_trace(s, t, link_entry_snap);
 
-  // Exist stubs for all but the loopback (last). These restore the scheme
+  // Exit stubs for all but the loopback (last). These restore the scheme
   // stack state, putting any in-register values back on the stack, and boxing
   // flonums.
   auto end_no_snapshots = emit_offset(s);
+  emit_cold_begin(s);
+  auto cold_exits_start = emit_offset(s);
   emit_snapshot_exits(s, t, t->snaps);
+  auto cold_exits_end = emit_offset(s);
+  emit_cold_end(s);
 
   auto end = emit_offset(s);
   t->code_end = (uint8_t *)end;
@@ -2438,7 +2450,24 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   snprintf(funcname, sizeof(funcname), "%s_%i", dumpname, t->num);
   register_jit_symbol((uint8_t *)start, (uint8_t *)start, (uint8_t *)end,
                       funcname);
+  if (cold_entry_start) {
+    char entry_name[256];
+    snprintf(entry_name, sizeof(entry_name), "%s_ENTRY", funcname);
+    register_jit_symbol(cold_entry_start, cold_entry_start, cold_entry_end,
+                        entry_name);
+  }
+  if (cold_exits_end != cold_exits_start) {
+    char exits_name[256];
+    snprintf(exits_name, sizeof(exits_name), "%s_EXITS", funcname);
+    register_jit_symbol((uint8_t *)cold_exits_start,
+                        (uint8_t *)cold_exits_start,
+                        (uint8_t *)cold_exits_end, exits_name);
+  }
   // Call the built-in function to flush the cache for the specific range
   __builtin___clear_cache((char *)start, (char *)emit_offset(s));
-  return (trace_fn)start;
+  if (cold_entry_start) {
+    __builtin___clear_cache((char *)cold_entry_start, (char *)cold_entry_end);
+  }
+  __builtin___clear_cache((char *)cold_exits_start, (char *)cold_exits_end);
+  return (trace_fn)entry;
 }
