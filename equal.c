@@ -112,8 +112,12 @@ void uf_init(uf *ht) {
 }
 
 void uf_free(uf *ht) {
-  arrfree(ht->table);
-  free(ht->map);
+  if (ht->table) {
+    arrfree(ht->table);
+  }
+  if (ht->map) {
+    free(ht->map);
+  }
 }
 
 static uint64_t find(box_vec *b, uint64_t i) {
@@ -201,6 +205,9 @@ static ep_result equalp_interleave(uf *ht, bool fast, gc_obj a, gc_obj b,
   // eq?
   if (a.value == b.value) {
     return (ep_result){true, k};
+  }
+  if (is_fixnum(a) && is_fixnum(b)) {
+    return (ep_result){false, k};
   }
 
   // Check cons, vector, string for equalp?

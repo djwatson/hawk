@@ -103,6 +103,11 @@ gc_obj numeric_to_bignum_obj(gc_obj v) {
 }
 
 int numeric_exact_compare(gc_obj v1, gc_obj v2) {
+  if (is_fixnum(v1) && is_fixnum(v2)) {
+    int64_t i1 = to_fixnum(v1);
+    int64_t i2 = to_fixnum(v2);
+    return (i1 > i2) - (i1 < i2);
+  }
   gc_add_root((const void *)&v2, 1, 0);
   gc_obj b1 = numeric_to_bignum_obj(v1);
   gc_add_root((const void *)&b1, 1, 0);
