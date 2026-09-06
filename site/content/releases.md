@@ -5,6 +5,20 @@ permalink: /releases/
 
 # Releases
 
+## v0.11
+
+Hawk v0.11 is the latest release. It includes an improved garbage collector.
+
+[Download the v0.11 source tarball](https://github.com/djwatson/hawk/releases/download/v0.11/hawk-v0.11.tar.gz).
+
+```sh
+tar xf hawk-v0.11.tar.gz
+cd hawk-v0.11
+cmake -S . -B build
+cmake --build build
+./build/hawk --version
+```
+
 ## v0.10
 
 Hawk v0.10 is the latest release. It includes:
