@@ -1105,6 +1105,26 @@ static void emit_flonum_binop(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
   binop(s, dst, lhs_reg, rhs_reg);
 }
 
+static void emit_flonum_mod(emit_state *s, trace *t, regalloc_state *ra_state,
+                            uint8_t dst, ir_ins *op, uint8_t lhs_reg,
+                            uint8_t rhs_reg) {
+  par_copy *cpy = nullptr;
+  uint8_t arg0 = asm_foreign_call_arg_fpr(0);
+  uint8_t arg1 = asm_foreign_call_arg_fpr(1);
+  arrput(cpy, ((par_copy){.from = lhs_reg, .to = arg0}));
+  if (!op->op2.constant) {
+    arrput(cpy, ((par_copy){.from = rhs_reg, .to = arg1}));
+  }
+  emit_serialized_moves(s, cpy, nullptr, 0);
+  if (op->op2.constant) {
+    emit_fmov_constant(s, arg1, slot_flonum_constant(t, op->op2));
+  }
+  emit_mov64(s, RTMP, (intptr_t)&fmod);
+  emit_call_reg(s, RTMP);
+  emit_fmov(s, dst, asm_foreign_call_ret_fpr());
+  invalidate_live_regs_for_call(t, ra_state, dst);
+}
+
 static void emit_box_flonum(emit_state *s, int32_t stack_offset,
                             uint8_t fpr_reg, bool store_to_stack,
                             bool live_regs[MAX_REG], uint64_t live_gpr_mask) {
@@ -1981,33 +2001,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     case IR_MOD: {
       if (op->type == FLONUM_TAG) {
         assert(!op->op1.constant);
-        bool save_lhs = dst_reg == arg0_reg;
-        if (save_lhs) {
-          // The quotient/product calculation overwrites dst; preserve lhs for
-          // the final lhs - trunc(lhs / rhs) * rhs step when they alias.
-          emit_sub_constant(s, SP, SP, 16);
-          emit_fstore(s, 0, SP, arg0_reg);
-        }
-        uint8_t rhs_reg = arg1_reg;
-        if (op->op2.constant) {
-          rhs_reg = FRTMP;
-          emit_fmov_constant(s, rhs_reg, slot_flonum_constant(t, op->op2));
-        } else if (rhs_reg == dst_reg) {
-          // Preserve the divisor across the quotient calculation when the
-          // allocator reuses the RHS register for the result.
-          rhs_reg = FRTMP;
-          emit_fmov(s, rhs_reg, arg1_reg);
-        }
-        emit_fdiv(s, dst_reg, arg0_reg, rhs_reg);
-        emit_ftruncate(s, dst_reg, dst_reg);
-        emit_fmul(s, dst_reg, dst_reg, rhs_reg);
-        if (save_lhs) {
-          emit_fmem_load(s, 0, SP, FRTMP);
-          emit_fsub(s, dst_reg, FRTMP, dst_reg);
-          emit_add_constant(s, SP, SP, 16);
-        } else {
-          emit_fsub(s, dst_reg, arg0_reg, dst_reg);
-        }
+        emit_flonum_mod(s, t, ra_state, dst_reg, op, arg0_reg, arg1_reg);
       } else {
         emit_fixnum_div_guard(s, t, op, arg0_reg, arg1_reg, cur_snap, false);
         emit_fixnum_binop_const(s, t, op, dst_reg, arg0_reg, arg1_reg, cur_snap,
