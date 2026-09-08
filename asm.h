@@ -44,9 +44,6 @@ typedef struct emit_state {
   uint8_t *mtop;
   uint8_t *mend;
   uint8_t *p;
-  uint8_t *hot_p;
-  uint8_t *cold_start;
-  uint8_t *cold_p;
   size_t msize;
   comment_entry *comments;
   constant_entry *const_pool;
@@ -78,8 +75,6 @@ uint8_t *emit_imm32(emit_state *s, uint32_t imm);
 uint8_t *emit_imm64(emit_state *s, uint64_t imm);
 void emit_writable_begin(emit_state *s);
 void emit_writable_end(emit_state *s);
-void emit_cold_begin(emit_state *s);
-void emit_cold_end(emit_state *s);
 size_t jit_space_used(emit_state *s);
 int add_constant(emit_state *s, double value);
 void load_constant(emit_state *s, int idx, uint8_t dst);
