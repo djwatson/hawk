@@ -661,7 +661,9 @@ static void clear_marks(void) {
 }
 
 static void old_collect(void) {
-  bool full = force_full || ++old_collect_count == 9;
+  // Small heaps cannot retain floating garbage across nine sticky collections.
+  bool full = force_full || next_old_collect >= gc_size / 4 ||
+              ++old_collect_count == 9;
   if (old_collect_count == 9)
     old_collect_count = 0;
   if (full)
@@ -675,6 +677,8 @@ static void old_collect(void) {
   size_t live = sweep_old(&freed);
   if (full && next_old_collect < live)
     next_old_collect = live;
+  if (next_old_collect > gc_size / 4)
+    next_old_collect = gc_size / 4;
   force_full = !full && freed < next_old_collect / 2;
   old_since_collect = 0;
   LOG(gc, "old collect: full %d, live %zu, freed %zu, next %zu", full, live,
@@ -797,9 +801,18 @@ void gc_set_stack_root(gc_obj *bottom, gc_obj **top, gc_obj *end) {
 void gc_init(void) {
   char *env = getenv("GC_SPACE");
   size_t mb = env ? (size_t)atoll(env) : 2048;
+  if (mb < 16 || mb > SIZE_MAX / (1024 * 1024)) {
+    fprintf(stderr, "GC_SPACE must be at least 16 MB and fit in size_t\n");
+    abort();
+  }
   gc_size = mb * 1024 * 1024;
+  next_old_collect = gc_size / 4 < DEFAULT_OLD_COLLECT
+                         ? gc_size / 4 : DEFAULT_OLD_COLLECT;
   env = getenv("GC_COLLECT");
   nursery_limit = env ? (size_t)atoll(env) * 1024 * 1024 : DEFAULT_NURSERY;
+  // Leave room for old objects and evacuation between old collections.
+  if (nursery_limit > gc_size / 8)
+    nursery_limit = gc_size / 8;
   gc_nursery_size = (nursery_limit + SLAB_SIZE - 1) & ~(SLAB_SIZE - 1);
   if (!gc_nursery_size)
     gc_nursery_size = SLAB_SIZE;
