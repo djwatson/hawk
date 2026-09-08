@@ -742,14 +742,18 @@ static gc_obj tag_ratnum(ratnum_s r) {
 // GC: may allocate via gc_alloc through vm_runtime_math_*_slow.
 static ratnum_s ratnum_add(ratnum_s a, ratnum_s b) {
   gc_add_root((const void *)&a.denom, 1, 0);
+  gc_add_root((const void *)&b.num, 1, 0);
   gc_add_root((const void *)&b.denom, 1, 0);
   gc_obj p1 = vm_runtime_math_mul_slow(a.num, b.denom);
   gc_add_root((const void *)&p1, 1, 0);
   gc_obj denom = vm_runtime_math_mul_slow(a.denom, b.denom);
+  gc_add_root((const void *)&denom, 1, 0);
   gc_obj p2 = vm_runtime_math_mul_slow(b.num, a.denom);
   gc_obj num = vm_runtime_math_add_slow(p1, p2);
+  gc_remove_root((const void *)&denom, 0);
   gc_remove_root((const void *)&p1, 0);
   gc_remove_root((const void *)&b.denom, 0);
+  gc_remove_root((const void *)&b.num, 0);
   gc_remove_root((const void *)&a.denom, 0);
   return (ratnum_s){
       .header.type = RATNUM_TAG,
@@ -761,14 +765,18 @@ static ratnum_s ratnum_add(ratnum_s a, ratnum_s b) {
 // GC: may allocate via gc_alloc through vm_runtime_math_*_slow.
 static ratnum_s ratnum_sub(ratnum_s a, ratnum_s b) {
   gc_add_root((const void *)&a.denom, 1, 0);
+  gc_add_root((const void *)&b.num, 1, 0);
   gc_add_root((const void *)&b.denom, 1, 0);
   gc_obj p1 = vm_runtime_math_mul_slow(a.num, b.denom);
   gc_add_root((const void *)&p1, 1, 0);
   gc_obj denom = vm_runtime_math_mul_slow(a.denom, b.denom);
+  gc_add_root((const void *)&denom, 1, 0);
   gc_obj p2 = vm_runtime_math_mul_slow(b.num, a.denom);
   gc_obj num = vm_runtime_math_sub_slow(p1, p2);
+  gc_remove_root((const void *)&denom, 0);
   gc_remove_root((const void *)&p1, 0);
   gc_remove_root((const void *)&b.denom, 0);
+  gc_remove_root((const void *)&b.num, 0);
   gc_remove_root((const void *)&a.denom, 0);
   return (ratnum_s){
       .header.type = RATNUM_TAG,
@@ -779,12 +787,14 @@ static ratnum_s ratnum_sub(ratnum_s a, ratnum_s b) {
 
 // GC: may allocate via gc_alloc through vm_runtime_math_*_slow.
 static ratnum_s ratnum_mul(ratnum_s a, ratnum_s b) {
-  gc_add_root((const void *)&a.denom, 1, 0);
-  gc_add_root((const void *)&b.denom, 1, 0);
+  gc_add_root((const void *)&a.num, 1, 0);
+  gc_add_root((const void *)&b.num, 1, 0);
   gc_obj denom = vm_runtime_math_mul_slow(a.denom, b.denom);
+  gc_add_root((const void *)&denom, 1, 0);
   gc_obj num = vm_runtime_math_mul_slow(a.num, b.num);
-  gc_remove_root((const void *)&b.denom, 0);
-  gc_remove_root((const void *)&a.denom, 0);
+  gc_remove_root((const void *)&denom, 0);
+  gc_remove_root((const void *)&b.num, 0);
+  gc_remove_root((const void *)&a.num, 0);
   return (ratnum_s){
       .header.type = RATNUM_TAG,
       .num = num,
@@ -797,7 +807,9 @@ static ratnum_s ratnum_div(ratnum_s a, ratnum_s b) {
   gc_add_root((const void *)&a.num, 1, 0);
   gc_add_root((const void *)&b.denom, 1, 0);
   gc_obj denom = vm_runtime_math_mul_slow(a.denom, b.num);
+  gc_add_root((const void *)&denom, 1, 0);
   gc_obj num = vm_runtime_math_mul_slow(a.num, b.denom);
+  gc_remove_root((const void *)&denom, 0);
   gc_remove_root((const void *)&b.denom, 0);
   gc_remove_root((const void *)&a.num, 0);
   return (ratnum_s){
