@@ -408,14 +408,6 @@ static void collect_live_roots(trace *t, regalloc_state *ra_state,
   }
 }
 
-static void collect_alloc_roots(trace *t, regalloc_state *ra_state,
-                                uint16_t op_cnt_idx, int32_t cur_snap,
-                                bool live_regs[MAX_REG],
-                                uint64_t *live_gpr_mask) {
-  (void)cur_snap;
-  collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs, live_gpr_mask);
-}
-
 static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
                               int64_t tagged_size, uint8_t size_reg) {
   label alloc_done = {};
@@ -537,10 +529,6 @@ static void collect_callcc_extra_args(trace *t, slot chain, slot args[2]) {
 
 static void invalidate_live_regs_for_call(trace *t, regalloc_state *ra_state,
                                           uint8_t dst_reg) {
-  enum : uint16_t {
-    ALLOC_NONE_LOCAL = UINT16_MAX,
-    ALLOC_UNALLOCATABLE_LOCAL = UINT16_MAX - 1,
-  };
   size_t ins_len = arrlen(t->ins);
   for (size_t i = 0; i < MAX_REG; i++) {
     uint8_t reg = (uint8_t)i;
@@ -548,16 +536,16 @@ static void invalidate_live_regs_for_call(trace *t, regalloc_state *ra_state,
       continue;
     }
     uint16_t value_id = ra_state->regs[reg];
-    if (value_id == ALLOC_UNALLOCATABLE_LOCAL) {
+    if (value_id == ALLOC_UNALLOCATABLE) {
       continue;
     }
-    if (value_id == ALLOC_NONE_LOCAL) {
+    if (value_id == ALLOC_NONE) {
       continue;
     }
     if (value_id >= ins_len) {
       continue;
     }
-    ra_state->regs[reg] = ALLOC_NONE_LOCAL;
+    ra_state->regs[reg] = ALLOC_NONE;
   }
 }
 
@@ -706,7 +694,7 @@ static void collect_move_source_roots(par_copy *cpy, bool live_regs[MAX_REG],
 }
 
 static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
-                       uint16_t op_cnt_idx, ir_ins const *op, slot *args,
+                       ir_ins const *op, slot *args,
                        uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg,
                        int32_t cur_snap) {
   foreign_sig sig;
@@ -880,10 +868,8 @@ static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
 }
 
 static void emit_callcc_resume(emit_state *s, trace *t,
-                               regalloc_state *ra_state, uint16_t op_cnt_idx,
-                               ir_ins const *op, slot *args, uint8_t *arg_regs,
-                               uint8_t arg_count) {
-  (void)op_cnt_idx;
+                               regalloc_state *ra_state, ir_ins const *op,
+                               slot *args, uint8_t *arg_regs, uint8_t arg_count) {
   slot captured = op->op1;
   uint8_t captured_src = emit_arg_reg(args, arg_regs, arg_count, captured);
   if (!captured.constant && captured_src == REG_NONE) {
@@ -1494,7 +1480,7 @@ static struct trace_result restore_snap(jit_exit_state *state) {
   return (struct trace_result){.stack = new_stack, .snap = s};
 }
 
-static void emit_snapshot_exits(emit_state *s, trace *t, snap *snaps) {
+static void emit_snapshot_exits(emit_state *s, snap *snaps) {
   // There will always be at least two snapshots.  Don't write the last, it's
   // the loopback snap.
   for (uint64_t i = 0; i < arrlen(snaps) - 1; i++) {
@@ -1608,6 +1594,74 @@ static inline uint8_t emit_arg_reg(slot *args, uint8_t *arg_regs,
     }
   }
   return REG_NONE;
+}
+
+static void emit_load_char_or_byte(emit_state *s, trace *t, ir_ins const *op,
+                                   slot *args, uint8_t *arg_regs,
+                                   uint8_t arg_count, uint8_t dst_reg) {
+  uint8_t base_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
+  if (op->op1.constant) {
+    base_reg = RTMP;
+    emit_heap_constant(s, t, base_reg, slot_gc_obj(t, op->op1));
+  }
+  int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
+  if (op->op2.constant) {
+    int64_t idx = slot_const(t, op->op2) >> FIXNUM_SHIFT;
+    assert((int32_t)idx == idx);
+    emit_mem_load_u8(s, (int32_t)idx + base_offset, base_reg, dst_reg);
+  } else {
+    uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+    emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
+    emit_mem_load_u8_indexed(s, base_offset, base_reg, RTMP2, dst_reg);
+  }
+  bool character = op->op == IR_LOAD_CHAR;
+  emit_shl_constant(s, dst_reg, dst_reg, character ? 8 : FIXNUM_SHIFT);
+  if (character) {
+    emit_add_constant(s, dst_reg, dst_reg, CHAR_TAG);
+  }
+}
+
+static void emit_store_char_or_byte(emit_state *s, trace *t, ir_ins const *op,
+                                    slot *args, uint8_t *arg_regs,
+                                    uint8_t arg_count) {
+  ir_ins *ref = slot_ins(t, op->op1);
+  auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
+  if (ref->op1.constant) {
+    base_reg = RTMP2;
+    emit_heap_constant(s, t, base_reg, slot_gc_obj(t, ref->op1));
+  }
+  int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
+  int32_t store_offset = base_offset;
+  if (ref->op2.constant) {
+    int64_t idx = slot_const(t, ref->op2) >> FIXNUM_SHIFT;
+    assert((int32_t)idx == idx);
+    store_offset += (int32_t)idx;
+  } else {
+    auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
+    assert(!ref->op1.constant);
+    emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
+  }
+
+  bool character = op->op == IR_STORE_CHAR;
+  bool value_constant = op->op2.constant;
+  uint8_t byte = 0;
+  if (value_constant) {
+    gc_obj value = slot_gc_obj(t, op->op2);
+    byte = (uint8_t)(character ? to_char(value) : to_fixnum(value));
+  } else {
+    uint8_t val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+    emit_sar_constant(s, RTMP, val_reg, character ? 8 : FIXNUM_SHIFT);
+  }
+  if (ref->op2.constant) {
+    if (value_constant)
+      emit_store_u8_constant(s, store_offset, base_reg, byte);
+    else
+      emit_store_u8(s, store_offset, base_reg, RTMP);
+  } else if (value_constant) {
+    emit_store_u8_constant_indexed(s, store_offset, base_reg, RTMP2, byte);
+  } else {
+    emit_store_u8_indexed(s, store_offset, base_reg, RTMP2, RTMP);
+  }
 }
 
 static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
@@ -1771,45 +1825,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
       break;
     }
-    case IR_LOAD_CHAR: {
-      uint8_t base_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
-      if (op->op1.constant) {
-        base_reg = RTMP;
-        emit_heap_constant(s, t, base_reg, slot_gc_obj(t, op->op1));
-      }
-      int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
-      if (op->op2.constant) {
-        int64_t idx = slot_const(t, op->op2) >> FIXNUM_SHIFT;
-        assert((int32_t)idx == idx);
-        emit_mem_load_u8(s, (int32_t)idx + base_offset, base_reg, dst_reg);
-      } else {
-        uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
-        emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
-        emit_mem_load_u8_indexed(s, base_offset, base_reg, RTMP2, dst_reg);
-      }
-      emit_shl_constant(s, dst_reg, dst_reg, 8);
-      emit_add_constant(s, dst_reg, dst_reg, CHAR_TAG);
+    case IR_LOAD_CHAR:
+    case IR_LOAD_BYTE:
+      emit_load_char_or_byte(s, t, op, args, arg_regs, arg_count, dst_reg);
       break;
-    }
-    case IR_LOAD_BYTE: {
-      uint8_t base_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
-      if (op->op1.constant) {
-        base_reg = RTMP;
-        emit_heap_constant(s, t, base_reg, slot_gc_obj(t, op->op1));
-      }
-      int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
-      if (op->op2.constant) {
-        int64_t idx = slot_const(t, op->op2) >> FIXNUM_SHIFT;
-        assert((int32_t)idx == idx);
-        emit_mem_load_u8(s, (int32_t)idx + base_offset, base_reg, dst_reg);
-      } else {
-        uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
-        emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
-        emit_mem_load_u8_indexed(s, base_offset, base_reg, RTMP2, dst_reg);
-      }
-      emit_shl_constant(s, dst_reg, dst_reg, FIXNUM_SHIFT);
-      break;
-    }
     case IR_FLVECTOR_REF: {
       uint8_t base_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
       if (op->op1.constant) {
@@ -1873,84 +1892,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
 
       break;
     }
-    case IR_STORE_CHAR: {
-      ir_ins *ref = slot_ins(t, op->op1);
-      auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
-      if (ref->op1.constant) {
-        base_reg = RTMP2;
-        emit_heap_constant(s, t, base_reg, slot_gc_obj(t, ref->op1));
-      }
-      int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
-      int32_t store_offset = base_offset;
-      if (ref->op2.constant) {
-        int64_t idx = slot_const(t, ref->op2) >> FIXNUM_SHIFT;
-        assert((int32_t)idx == idx);
-        store_offset += (int32_t)idx;
-      } else {
-        auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
-        assert(!ref->op1.constant);
-        emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
-      }
-
-      bool value_constant = op->op2.constant;
-      uint8_t ch = 0;
-      if (value_constant) {
-        ch = (uint8_t)to_char(slot_gc_obj(t, op->op2));
-      } else {
-        uint8_t val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
-        emit_sar_constant(s, RTMP, val_reg, 8);
-      }
-      if (ref->op2.constant) {
-        if (value_constant)
-          emit_store_u8_constant(s, store_offset, base_reg, ch);
-        else
-          emit_store_u8(s, store_offset, base_reg, RTMP);
-      } else if (value_constant) {
-        emit_store_u8_constant_indexed(s, store_offset, base_reg, RTMP2, ch);
-      } else {
-        emit_store_u8_indexed(s, store_offset, base_reg, RTMP2, RTMP);
-      }
+    case IR_STORE_CHAR:
+    case IR_STORE_BYTE:
+      emit_store_char_or_byte(s, t, op, args, arg_regs, arg_count);
       break;
-    }
-    case IR_STORE_BYTE: {
-      ir_ins *ref = slot_ins(t, op->op1);
-      auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
-      if (ref->op1.constant) {
-        base_reg = RTMP2;
-        emit_heap_constant(s, t, base_reg, slot_gc_obj(t, ref->op1));
-      }
-      int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
-      int32_t store_offset = base_offset;
-      if (ref->op2.constant) {
-        int64_t idx = slot_const(t, ref->op2) >> FIXNUM_SHIFT;
-        assert((int32_t)idx == idx);
-        store_offset += (int32_t)idx;
-      } else {
-        auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
-        assert(!ref->op1.constant);
-        emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
-      }
-
-      bool value_constant = op->op2.constant;
-      uint8_t byte = 0;
-      if (value_constant) {
-        byte = (uint8_t)to_fixnum(slot_gc_obj(t, op->op2));
-      } else {
-        uint8_t val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
-        emit_sar_constant(s, RTMP, val_reg, FIXNUM_SHIFT);
-      }
-      if (ref->op2.constant) {
-        if (value_constant)
-          emit_store_u8_constant(s, store_offset, base_reg, byte);
-        else
-          emit_store_u8(s, store_offset, base_reg, RTMP);
-      } else if (value_constant) {
-        emit_store_u8_constant_indexed(s, store_offset, base_reg, RTMP2, byte);
-      } else {
-        emit_store_u8_indexed(s, store_offset, base_reg, RTMP2, RTMP);
-      }
-      break;
-    }
     case IR_FLVECTOR_SET: {
       ir_ins *ref = slot_ins(t, op->op1);
       uint8_t val_reg = REG_NONE;
@@ -2257,7 +2202,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       assert(!is_fpr_reg(dst_reg));
       bool live_regs[MAX_REG];
       uint64_t live_gpr_mask;
-      collect_alloc_roots(t, ra_state, op_cnt_idx, cur_snap, live_regs,
+      collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs,
                           &live_gpr_mask);
       emit_box_flonum(s, 0, arg0_reg, false, live_regs, live_gpr_mask);
       if (dst_reg != RTMP) {
@@ -2266,7 +2211,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       break;
     }
     case IR_CCALL: {
-      emit_ccall(s, t, ra_state, op_cnt_idx, op, args, arg_regs, arg_count,
+      emit_ccall(s, t, ra_state, op, args, arg_regs, arg_count,
                  dst_reg, cur_snap);
       break;
     }
@@ -2284,8 +2229,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       break;
     }
     case IR_CALLCC_RESUME: {
-      emit_callcc_resume(s, t, ra_state, op_cnt_idx, op, args, arg_regs,
-                         arg_count);
+      emit_callcc_resume(s, t, ra_state, op, args, arg_regs, arg_count);
       break;
     }
     case IR_REF:
@@ -2345,8 +2289,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
 // Emit *two* entry points:
 // One that loops back from the current trace
 // One from c.
-static void emit_root_trace_entry(emit_state *s, trace *t,
-                                  regalloc_state *ra_state) {
+static void emit_root_trace_entry(emit_state *s, trace *t) {
   regalloc_state arg_state;
   regalloc_state_init(&arg_state, t);
   // Emit an entry point from C.
@@ -2374,12 +2317,9 @@ static void emit_root_trace_entry(emit_state *s, trace *t,
     }
   }
   regalloc_state_free(&arg_state);
-  (void)ra_state;
 }
 
-static void emit_side_trace_entry(emit_state *s, trace *t,
-                                  regalloc_state *ra_state) {
-  (void)ra_state;
+static void emit_side_trace_entry(emit_state *s, trace *t) {
   // Install the side trace.
   uint8_t *patch_loc = t->parent_snap->patch_point.addr;
   uint8_t *entry = (uint8_t *)emit_offset(s);
@@ -2395,8 +2335,7 @@ static void emit_side_trace_entry(emit_state *s, trace *t,
   }
 }
 
-trace_fn emit(trace *t, emit_state *s, record_state *record,
-              uint8_t link_entry_snap) {
+trace_fn emit(trace *t, emit_state *s, uint8_t link_entry_snap) {
   // Initialize asm emitter memory if not already done (once per process)
   emit_init(s);
 
@@ -2414,9 +2353,9 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   t->code_start = (uint8_t *)start;
 
   if (!t->parent_snap) {
-    emit_root_trace_entry(s, t, &reg_state);
+    emit_root_trace_entry(s, t);
   } else {
-    emit_side_trace_entry(s, t, &reg_state);
+    emit_side_trace_entry(s, t);
   }
 
   arr_for_each_idx(t->snaps, i) {
@@ -2437,7 +2376,7 @@ trace_fn emit(trace *t, emit_state *s, record_state *record,
   // stack state, putting any in-register values back on the stack, and boxing
   // flonums.
   auto end_no_snapshots = emit_offset(s);
-  emit_snapshot_exits(s, t, t->snaps);
+  emit_snapshot_exits(s, t->snaps);
 
   auto end = emit_offset(s);
   t->code_end = (uint8_t *)end;

@@ -10,9 +10,6 @@
 #include "hawk.h"
 #include "ir.h"
 
-#define ALLOC_NONE UINT16_MAX
-#define ALLOC_UNALLOCATABLE (UINT16_MAX - 1)
-
 // A simple two-pass register allocator: The first pass collects
 // next-use chains, and calculates register pressure, and picks spills.
 //

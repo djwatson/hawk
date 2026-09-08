@@ -862,7 +862,7 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
 
   dce(cur_trace);
   cur_trace->fn =
-      emit(cur_trace, &state->emit, &state->record, cur_trace->link_entry_snap);
+      emit(cur_trace, &state->emit, cur_trace->link_entry_snap);
   if (0) {
     int parent_trace_num = -1;
     int parent_snap_num = -1;

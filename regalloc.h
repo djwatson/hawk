@@ -2,6 +2,11 @@
 
 #include "ir.h"
 
+enum : uint16_t {
+  ALLOC_NONE = UINT16_MAX,
+  ALLOC_UNALLOCATABLE = UINT16_MAX - 1,
+};
+
 typedef struct {
   uint16_t ir_idx;
   bool before;
