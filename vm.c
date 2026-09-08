@@ -322,6 +322,8 @@ static inline gc_obj capture_continuation_closure(vm_state *state,
   size_t words = (size_t)saved_len;
   size_t payload_words = words + 3;
   size_t bytes = sizeof(closure_s) + (sizeof(gc_obj) * payload_words);
+  gc_add_root(&winders, 1, 0);
+  gc_add_root(&reroot_proc, 1, 0);
   closure_s *captured = gc_alloc(bytes);
   captured->header.type = CLOSURE_TAG;
   captured->len = tag_fixnum((int64_t)payload_words);
@@ -329,6 +331,8 @@ static inline gc_obj capture_continuation_closure(vm_state *state,
   captured->v[1] = winders;
   captured->v[2] = reroot_proc;
   memcpy(&captured->v[3], state->stack_bottom, sizeof(gc_obj) * words);
+  gc_remove_root(&reroot_proc, 0);
+  gc_remove_root(&winders, 0);
   return tag_closure(captured);
 }
 
