@@ -535,6 +535,7 @@ EXPORT gc_obj scm_emit_bitcode_closure(gc_obj payload) {
     vector_s *desc = runtime_expect_vector(desc_obj, 4);
     uint64_t id = (uint64_t)runtime_expect_fixnum(desc->v[0]);
     bcfunc *func = (bcfunc *)to_gc_header(funcs[id]);
+    gc_log(funcs[id]);
     func->name = desc->v[1];
 
     gc_obj *consts = (gc_obj *)func->data;
@@ -556,6 +557,8 @@ EXPORT gc_obj scm_emit_bitcode_closure(gc_obj payload) {
       } else {
         val = raw;
       }
+      // Closure allocation may have collected and cleared the previous log.
+      gc_log(funcs[id]);
       consts[const_idx] = val;
       const_idx++;
       c = to_cons(c)->b;
@@ -1210,9 +1213,10 @@ EXPORT gc_obj SCM_GET_ENV_VARS() {
       memcpy(s->str, *p, len);
       s->str[len] = '\0';
       gc_obj var = tag_string(s);
-
+      gc_add_root(&var, 1, 0);
       gc_obj val = make_string(split + 1);
       gc_obj pair = make_cons(var, val);
+      gc_remove_root(&var, 0);
       tail = make_cons(pair, tail);
       p++;
     }
