@@ -221,23 +221,24 @@ void asm_patch_mov64_patchable(emit_state *s, uint8_t *loc, int64_t imm) {
 
 void emit_mov64(emit_state *s, uint8_t r, int64_t imm) {
   assert(r < FPR_REG_START);
-  // Note that 'imm' isn't necessarily a number here,
-  // so we can't narrow negative numbers.
 #ifndef VALGRIND
-  if (!fits_in_u32(imm)) {
-#endif
-    emit_rex(s, 1, 0, 0, r >> 3);
-    emit_byte(s, 0xb8 | (0x7 & r));
-    emit_imm64(s, (uint64_t)imm);
-#ifndef VALGRIND
-  } else {
+  if (fits_in_u32(imm)) {
     // Unfortunately valgrind doesn't like this:
     // We do *NOT* want to sign-extend here!
     emit_rex_optional(s, 0, 0, 0, r >> 3);
     emit_byte(s, 0xb8 | (0x7 & r));
     emit_imm32(s, (uint32_t)imm);
+    return;
+  }
+  if (fits_in_32(imm)) {
+    emit_rr(s, XO_MOVMI, 0, r);
+    emit_imm32(s, (uint32_t)imm);
+    return;
   }
 #endif
+  emit_rex(s, 1, 0, 0, r >> 3);
+  emit_byte(s, 0xb8 | (0x7 & r));
+  emit_imm64(s, (uint64_t)imm);
 }
 
 void emit_call_reg(emit_state *s, uint8_t r) {
