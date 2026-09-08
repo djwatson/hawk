@@ -1157,12 +1157,18 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     // Begin opcodes
 #define RECORD_BRANCH(TAKEN, GUARD)                                            \
   do {                                                                         \
-    set_stack_len(ts, instr.reg);                                              \
+    auto guard_ = (GUARD);                                                    \
+    bool retry_ = guard_.type == FLONUM_TAG;                                  \
+    if (!retry_)                                                              \
+      set_stack_len(ts, instr.reg);                                            \
     auto jmp_pc = pc + 1;                                                      \
     bool taken_ = (TAKEN);                                                     \
     bc *next_pc = taken_ ? jmp_pc + 1 : jmp_pc + jmp_pc->data;                 \
-    vm_add_snap(state, taken_ ? jmp_pc + jmp_pc->data : jmp_pc + 1, argcnt);   \
-    add_inst(state, (GUARD));                                                  \
+    /* Unordered exits must re-evaluate the original predicate. */            \
+    vm_add_snap(state, retry_ ? pc :                                          \
+                (taken_ ? jmp_pc + jmp_pc->data : jmp_pc + 1), argcnt);       \
+    add_inst(state, guard_);                                                   \
+    set_stack_len(ts, instr.reg);                                              \
     vm_add_snap(state, next_pc, argcnt);                                       \
   } while (0)
 

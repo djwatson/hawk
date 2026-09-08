@@ -543,6 +543,8 @@ IRFOLDF(fold_self_cmp) {
   }
   if (!same_slot(t, in->op1, in->op2))
     return fold_next();
+  if (in->type == FLONUM_TAG)
+    return fold_next(); // Preserve the unordered guard for NaN.
   switch (in->op) {
   case IR_EQ:
     return fold_drop();

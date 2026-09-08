@@ -1044,6 +1044,8 @@ static inline void emit_guard_cmp(emit_state *s, trace *t, ir_ins const *op,
                                   enum jcc_cond i_fail) {
   if (op->type == FLONUM_TAG) {
     emit_flonum_cmp(s, t, op, lhs_reg, rhs_reg);
+    // Negated predicates in the IR also require ordered inputs.
+    emit_jcc32(s, JP, &t->snaps[cur_snap].patch_point);
     emit_jcc32(s, f_fail, &t->snaps[cur_snap].patch_point);
     return;
   }
