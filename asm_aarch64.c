@@ -950,7 +950,6 @@ static void emit_lso(emit_state *s, uint32_t scaled, uint32_t unscaled,
   uint8_t rt = fpr ? hw_fpr(reg) : hw_gpr(reg);
   int32_t mask = (1 << scale) - 1;
   if (offset >= 0 && !(offset & mask)) {
-    if (scale) assert(offset < (4096 << scale));
     if (offset < (4096 << scale)) {
       emit_op(s, scaled | A64_IMM12(offset >> scale) | A64_N(rn) | A64_D(rt));
       return;
