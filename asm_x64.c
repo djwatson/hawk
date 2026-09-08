@@ -10,7 +10,6 @@
 
 #include "array.h"
 #include "asm.h"
-#include "gc.h"
 #include "hawk.h"
 #include "types.h"
 
@@ -613,36 +612,10 @@ void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm) {
   emit_imm32(s, (uint32_t)imm);
 }
 
-void asm_emit_gclog_check(emit_state *s, uint8_t obj, int32_t header_offset,
-                          int64_t logged_mask, uintptr_t nursery_end,
-                          label *done) {
-  assert(fits_in_32(logged_mask));
-  emit_rmro(s, XO_GROUP3, 0, obj, header_offset);
-  emit_imm32(s, (uint32_t)logged_mask);
-  emit_jcc32(s, JNE, done);
-  uint8_t tmp = pick_tmp(obj, REG_NONE);
-  emit_mov64(s, tmp, nursery_end);
-  emit_cmp(s, obj, tmp);
-  emit_jcc32(s, JB, done);
-}
-
-void asm_emit_cons_gclog_check(emit_state *s, uint8_t obj,
-                              uintptr_t nursery_end, label *done) {
-  uint8_t base = pick_tmp(obj, REG_NONE);
-  emit_mov64(s, base, nursery_end);
-  emit_cmp(s, obj, base);
-  emit_jcc32(s, JB, done);
-  emit_mov(s, base, obj);
-  emit_and_constant(s, base, base, -(int64_t)GC_SLAB_SIZE);
-  emit_sub(s, obj, obj, base);
-  emit_sar_constant(s, obj, obj, 4);
-  emit_rmroi(s, XO_GROUP3B, 0, base, obj,
-             -(int32_t)(GC_CONS_FLAGS_SIZE / sizeof(cons_s)));
-  emit_byte(s, GC_LOGGED);
-  emit_jcc32(s, JNE, done);
-  emit_shl_constant(s, obj, obj, 4);
-  emit_add(s, obj, obj, base);
-  emit_add_constant(s, obj, obj, CONS_TAG);
+void emit_mem_test_u8_indexed(emit_state *s, int32_t offset, uint8_t base,
+                               uint8_t index, uint8_t mask) {
+  emit_rmroi(s, XO_GROUP3B, 0, base, index, offset);
+  emit_byte(s, mask);
 }
 
 void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm) {

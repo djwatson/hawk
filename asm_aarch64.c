@@ -583,24 +583,11 @@ void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm) {
   emit_op(s, A64_ANDSI | logical | A64_N(reg) | 31);
 }
 
-void asm_emit_gclog_check(emit_state *s, uint8_t obj, int32_t header_offset,
-                          int64_t logged_mask, uintptr_t nursery_end,
-                          label *done) {
-  uint8_t tmp = pick_scratch_tmp(obj, REG_NONE);
-  emit_mem_load(s, header_offset, obj, tmp);
-  emit_test_constant(s, tmp, logged_mask);
-  emit_jcc32(s, JNE, done);
-  emit_mov64(s, tmp, nursery_end);
-  emit_cmp(s, obj, tmp);
-  emit_jcc32(s, JB, done);
-}
-
-void asm_emit_cons_gclog_check(emit_state *s, uint8_t obj,
-                              uintptr_t nursery_end, label *done) {
-  uint8_t tmp = pick_scratch_tmp(obj, REG_NONE);
-  emit_mov64(s, tmp, nursery_end);
-  emit_cmp(s, obj, tmp);
-  emit_jcc32(s, JB, done);
+void emit_mem_test_u8_indexed(emit_state *s, int32_t offset, uint8_t base,
+                               uint8_t index, uint8_t mask) {
+  uint8_t tmp = pick_scratch_tmp(base, index);
+  emit_mem_load_u8_indexed(s, offset, base, index, tmp);
+  emit_test_constant(s, tmp, mask);
 }
 
 void emit_and_constant(emit_state *s, uint8_t dst, uint8_t src, int64_t imm) {

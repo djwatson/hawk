@@ -1,5 +1,4 @@
 #include "emit.h"
-
 #include <assert.h>
 #include <inttypes.h>
 #include <math.h>
@@ -437,13 +436,26 @@ static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
 static void emit_gclog_obj(emit_state *s, uint8_t obj_reg, uint8_t tag) {
   label done = {};
   emit_mov(s, RTMP, obj_reg);
+  emit_mov64(s, RTMP2, gc_nursery_start + gc_nursery_size);
+  emit_cmp(s, RTMP, RTMP2);
+  emit_jcc32(s, JB, &done);
   if (tag == CONS_TAG) {
-    asm_emit_cons_gclog_check(s, RTMP,
-                              gc_nursery_start + gc_nursery_size, &done);
+    emit_and_constant(s, RTMP2, RTMP, -(int64_t)GC_SLAB_SIZE);
+    emit_sub(s, RTMP, RTMP, RTMP2);
+    emit_sar_constant(s, RTMP, RTMP, 4);
+    // Slab flags precede the 16-byte cons cells.
+    emit_mem_test_u8_indexed(
+        s, -(int32_t)(GC_CONS_FLAGS_SIZE / sizeof(cons_s)), RTMP2, RTMP,
+        GC_LOGGED);
+    emit_jcc32(s, JNE, &done);
+    emit_shl_constant(s, RTMP, RTMP, 4);
+    emit_add(s, RTMP, RTMP, RTMP2);
+    emit_add_constant(s, RTMP, RTMP, CONS_TAG);
   } else {
-    int64_t mask = (int64_t)GC_LOGGED << (8 * offsetof(gc_header, flags));
-    asm_emit_gclog_check(s, RTMP, -(int32_t)tag, mask,
-                         gc_nursery_start + gc_nursery_size, &done);
+    emit_mem_load_u8(s, (int32_t)offsetof(gc_header, flags) - tag, RTMP,
+                     RTMP2);
+    emit_test_constant(s, RTMP2, GC_LOGGED);
+    emit_jcc32(s, JNE, &done);
   }
   emit_call32(s, (int64_t)s->gclog_slowpath);
   emit_label(s, &done);
