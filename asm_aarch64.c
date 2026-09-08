@@ -533,6 +533,7 @@ void emit_fmov_constant(emit_state *s, uint8_t dst, double imm) {
   load_constant(s, add_constant(s, imm), dst);
 }
 void emit_fmov(emit_state *s, uint8_t dst, uint8_t src) {
+  if (dst == src) return;
   emit_dn(s, A64_FMOV, hw_fpr(dst), hw_fpr(src));
 }
 void emit_int64_to_double(emit_state *s, uint8_t dst, uint8_t src) {
@@ -661,6 +662,10 @@ void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
 }
 
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
+  if (imm == 0) {
+    emit_mov(s, dst, lhs);
+    return;
+  }
   emit_add_sub_constant(s, A64_ADDI, A64_SUBI, A64_ADD, dst, lhs, imm,
                         REG_NONE);
 }
@@ -754,6 +759,10 @@ void emit_sar_constant(emit_state *s, uint8_t dst, uint8_t src, uint8_t imm) {
   assert(dst < FPR_REG_START);
   assert(src < FPR_REG_START);
   assert(imm < 64);
+  if (imm == 0) {
+    emit_mov(s, dst, src);
+    return;
+  }
   uint32_t opcode = A64_ASR | A64_M(imm) | A64_N(src) | A64_D(dst);
   emit_op(s, opcode);
 }
