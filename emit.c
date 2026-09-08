@@ -131,6 +131,18 @@ static void emit_cmp_jit_stack_limit(emit_state *s, uint8_t reg) {
   emit_cmp_mem(s, reg, 0, RTMP);
 }
 
+static void emit_update_stack_top(emit_state *s, uint16_t offset) {
+  label done = {};
+  emit_load_jit_state(s, RTMP);
+  emit_add_constant(s, RTMP2, RSTACK,
+                    ((int64_t)offset + STACK_GUARD_SLOTS) * sizeof(gc_obj));
+  emit_cmp_mem(s, RTMP2, (int32_t)offsetof(vm_state, stack_end), RTMP);
+  emit_jcc32(s, JBE, &done);
+  emit_mem_load(s, (int32_t)offsetof(vm_state, stack_end), RTMP, RTMP2);
+  emit_label(s, &done);
+  emit_store(s, (int32_t)offsetof(vm_state, stack_top), RTMP, RTMP2);
+}
+
 static void build_slowpath_reg_frame(uint8_t regs[FPR_REG_END],
                                      bool for_restore) {
   for (int reg = 0; reg < FPR_REG_END; reg++) {
@@ -695,12 +707,14 @@ static void collect_move_source_roots(par_copy *cpy, bool live_regs[MAX_REG],
 
 static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
                        uint16_t op_cnt_idx, ir_ins const *op, slot *args,
-                       uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg) {
+                       uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg,
+                       int32_t cur_snap) {
   foreign_sig sig;
   foreign_parse_sig(slot_gc_obj(t, op->op1), &sig);
   ccall_arg call_args[UINT8_MAX];
   uint8_t call_arg_count = emit_collect_ccall_args(t, op->op2, &sig, call_args);
   emit_push_regs(s, nullptr, 0, true);
+  emit_update_stack_top(s, t->snaps[cur_snap].offset);
 
   typedef struct {
     ccall_arg arg;
@@ -845,6 +859,8 @@ static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
   emit_gcobj_arg(s, t, winders, RARG3, RARG3);
   emit_gcobj_arg(s, t, reroot_proc, RARG4, RARG4);
 
+  // IR_FLUSH has already advanced RSTACK to the captured frame.
+  emit_update_stack_top(s, 0);
   emit_store_ralloc(s);
   emit_mov64(s, RTMP, (intptr_t)&vm_callcc_slow);
   emit_call_reg(s, RTMP);
@@ -925,6 +941,7 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
     emit_gcobj_arg(s, t, a1, RARG1, RARG1);
   }
 
+  emit_update_stack_top(s, t->snaps[cur_snap].offset);
   emit_store_ralloc(s);
   emit_mov64(s, RTMP, vm_call_target(op->op));
   emit_call_reg(s, RTMP);
@@ -1429,6 +1446,10 @@ static struct trace_result restore_snap(jit_exit_state *state) {
     jit_stack_limit = jit_state->stack_limit;
     stack = new_stack - s->offset;
   }
+  // Boxing can collect before control returns to the interpreter.
+  jit_state->stack_top = new_stack < jit_state->stack_limit
+                             ? new_stack + STACK_GUARD_SLOTS
+                             : jit_state->stack_end;
 
   for (int reg = 0; reg < FPR_REG_START; reg++) {
     if (rooted[reg]) {
@@ -2246,7 +2267,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     }
     case IR_CCALL: {
       emit_ccall(s, t, ra_state, op_cnt_idx, op, args, arg_regs, arg_count,
-                 dst_reg);
+                 dst_reg, cur_snap);
       break;
     }
     case IR_FLUSH: {
