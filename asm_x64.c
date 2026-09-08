@@ -297,7 +297,15 @@ void asm_write_jmp32_at(emit_state *s, uint8_t *loc, uint8_t const *target) {
 }
 
 void asm_emit_jmp32_resolved(emit_state *s, uint8_t const *target) {
-  int32_t delta = relative_32((int64_t)target, emit_offset(s) + 5);
+  int64_t cur = emit_offset(s);
+  int64_t short_delta = (int64_t)target - (cur + 2);
+  if ((int32_t)((int8_t)short_delta) == short_delta) {
+    emit_byte(s, 0xeb);
+    emit_byte(s, (uint8_t)short_delta);
+    return;
+  }
+
+  int32_t delta = relative_32((int64_t)target, cur + 5);
   emit_byte(s, 0xe9);
   emit_imm32(s, (uint32_t)delta);
 }
