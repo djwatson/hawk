@@ -21,6 +21,9 @@ static inline uint8_t hw_fpr(uint8_t reg) {
 
 static uint8_t low3bits(uint8_t r) { return 0x7 & r; }
 static bool fits_in_8(int64_t value) { return value == (int64_t)(int8_t)value; }
+static bool fits_in_u8(int64_t value) {
+  return value >= 0 && value <= (int64_t)UINT8_MAX;
+}
 static bool fits_in_32(int64_t value) {
   return value == (int64_t)(int32_t)value;
 }
@@ -589,6 +592,13 @@ void emit_test_constant(emit_state *s, uint8_t reg, int64_t imm) {
   assert(reg < FPR_REG_START);
   if (!fits_in_32(imm)) {
     abort();
+  }
+  if (fits_in_u8(imm)) {
+    // A REX prefix is required to address SPL, BPL, SIL, and DIL.
+    emit_opcode(s, XO_GROUP3B, 0, 0, reg, reg >= 4);
+    emit_modrm(s, 0x3, 0, low3bits(reg));
+    emit_byte(s, (uint8_t)imm);
+    return;
   }
   emit_rr(s, XO_GROUP3, 0, reg);
   emit_imm32(s, (uint32_t)imm);
