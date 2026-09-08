@@ -3,8 +3,12 @@ set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR aarch64)
 
 # Use Clang frontends.
-set(CMAKE_C_COMPILER clang)
-set(CMAKE_CXX_COMPILER clang++)
+if(NOT DEFINED CMAKE_C_COMPILER)
+  set(CMAKE_C_COMPILER clang)
+endif()
+if(NOT DEFINED CMAKE_CXX_COMPILER)
+  set(CMAKE_CXX_COMPILER clang++)
+endif()
 
 # Target triple and sysroot (adjust if yours differs).
 set(TARGET_TRIPLE aarch64-linux-gnu)
