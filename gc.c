@@ -319,7 +319,7 @@ static bool refill_cons_range(void) {
   }
 }
 
-static inline cons_s *cons_old_alloc(void) {
+cons_s *gc_alloc_old_cons(void) {
   if (unlikely(cons_alloc_next >= cons_alloc_end) && !refill_cons_range()) {
     cons_alloc_slab = cons_slab_new();
     cons_alloc_next = cons_slab_start(cons_alloc_slab);
@@ -373,7 +373,7 @@ static INLINE inline void trace_obj(gc_obj obj, trace_callback visit,
 }
 
 static INLINE inline cons_s *evacuate_cons(cons_s *cell) {
-  cons_s *copy = cons_old_alloc();
+  cons_s *copy = gc_alloc_old_cons();
   *copy = *cell;
   set_forward(cell, copy);
   gc_obj_stack_push(&worklist, tag_cons(copy));

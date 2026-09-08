@@ -94,7 +94,9 @@ static inline void *forward_ptr(void const *obj) {
 }
 
 NOINLINE void *gc_alloc_slow(uint64_t sz);
+// Old-generation allocation never collects; callers collect at safe points.
 void *gc_alloc_old(uint64_t sz);
+cons_s *gc_alloc_old_cons(void);
 
 static inline void gc_add_root(const void *rootp, size_t len, uint8_t tag) {
   assert(gc_roots_len < GC_MAX_ROOTS);

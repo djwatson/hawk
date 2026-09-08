@@ -65,7 +65,9 @@ static gc_obj copy_image_obj(gc_obj obj, image_ctx const *image) {
     abort();
   }
   bool func = !is_cons(obj) && to_gc_header(obj)->type == FUNC_TAG;
-  void *copy = func ? gc_alloc_old(sz) : gc_alloc_slow(sz);
+  // Keep forwarding pointers stable and unfinished fields invisible to GC.
+  // These allocators cannot collect; collect only after both roots are fixed.
+  void *copy = is_cons(obj) ? (void *)gc_alloc_old_cons() : gc_alloc_old(sz);
   if (is_cons(obj)) {
     *(cons_s *)copy = *(cons_s *)raw;
   } else {
@@ -167,7 +169,7 @@ gc_obj gc_read_image(uint8_t const *data, size_t data_len, char const *path,
   gc_obj start = {.value = (int64_t)start_u64};
   loaded_error_symbol = (gc_obj){.value = (int64_t)error_u64};
 
-  // Trace from roots: rc 0→1, trace children, bump live_objects
+  // Construct the entire graph before allowing collection.
   fixup_image_field(&start, &image);
   fixup_image_field(&loaded_error_symbol, &image);
   if (!loaded_error_symbol_rooted) {
