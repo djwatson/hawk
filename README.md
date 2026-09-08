@@ -106,7 +106,7 @@ Build and run the test suite with:
 ```sh
 cmake --build build
 cd build
-ctest -j
+ctest --output-on-failure --parallel 2
 ```
 
 ## Cross Compilation
@@ -119,6 +119,7 @@ cmake --build build_aarch64
 ```
 
 The build creates a small host-side code generator when cross compiling.
+CI runs the AArch64 binary with QEMU against the R5RS and R7RS test suites.
 
 ## Usage
 

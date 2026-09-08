@@ -34,6 +34,48 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
       - name: Test
-        run: cmake --build build --target test
+        run: ctest --test-dir build --output-on-failure --parallel 2
         env:
           CTEST_OUTPUT_ON_FAILURE: 1
+
+  aarch64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake gcc-aarch64-linux-gnu \
+            libc6-dev-arm64-cross lld-21 qemu-user wget
+      - name: Install Clang 21
+        run: |
+          wget -q https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21
+      - name: Install Gauche
+        uses: shirok/setup-gauche@v6
+        with:
+          prebuilt-binary: true
+      - name: Build bootstrap image
+        run: >-
+          cmake -S . -B build -DBOOTSTRAP=ON -DZSTD=OFF -DDISASSEMBLE=OFF
+          -DCMAKE_C_COMPILER=clang-21 -DCMAKE_ASM_COMPILER=clang-21
+          -DHAWK_BOOTSTRAP_EXECUTABLE:FILEPATH=
+      - name: Build host bootstrap
+        run: cmake --build build --parallel 2
+      - name: Configure AArch64 cross build
+        run: >-
+          cmake -S . -B build_aarch64
+          -DCMAKE_TOOLCHAIN_FILE=aarch64.cmake -DBOOTSTRAP=OFF
+          -DZSTD=OFF -DDISASSEMBLE=OFF
+          -DCMAKE_C_COMPILER=clang-21 -DCMAKE_ASM_COMPILER=clang-21
+      - name: Build AArch64
+        run: cmake --build build_aarch64 --parallel 2
+      - name: Test AArch64 with QEMU
+        run: |
+          set -e
+          for test in r5rs-tests.scm r7rs-tests.scm r7rs-tests2.scm; do
+            echo "Running $test"
+            qemu-aarch64 -L /usr/aarch64-linux-gnu \
+              build_aarch64/hawk "test/$test"
+          done
