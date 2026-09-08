@@ -103,8 +103,9 @@ enum a64_ins : uint32_t {
   A64_FSQRT = 0x1E61C000U,
   A64_FSUB = 0x1E603800U,
   A64_LDPX = 0xA9400000U,
+  A64_LDPD = 0x6C400000U,
+  A64_LDPD_POST = 0x6CC00000U,
   A64_LDPX_POST = 0xA8C00000U,
-  A64_LDPQ_POST = 0xACC00000U,
   A64_LDRB = 0x39400000U,
   A64_LDRB_INDEXED = 0x38606800U,
   A64_LDRB_UNSCALED = 0x38400000U,
@@ -125,7 +126,8 @@ enum a64_ins : uint32_t {
   A64_RET = 0xD65F03C0U,
   A64_SDIV = 0x9AC00C00U,
   A64_SMULH = 0x9B407C00U,
-  A64_STPQ_PRE = 0xAD800000U,
+  A64_STPD_PRE = 0x6D800000U,
+  A64_STPD = 0x6C000000U,
   A64_STPX = 0xA9000000U,
   A64_STPX_PRE = 0xA9800000U,
   A64_STRB = 0x39000000U,
@@ -242,12 +244,12 @@ void restore_callee_regs(emit_state *s) {
   emit_pairs(s, callee_saved_pairs, ARRAY_LEN(callee_saved_pairs),
              A64_LDPX_POST, 16, 3, false, true);
   emit_pairs(s, callee_saved_fp_pairs, ARRAY_LEN(callee_saved_fp_pairs),
-             A64_LDPQ_POST, 32, 4, true, true);
+             A64_LDPD_POST, 16, 3, true, true);
 }
 
 void save_callee_regs(emit_state *s) {
   emit_pairs(s, callee_saved_fp_pairs, ARRAY_LEN(callee_saved_fp_pairs),
-             A64_STPQ_PRE, -32, 4, true, false);
+             A64_STPD_PRE, -16, 3, true, false);
   emit_pairs(s, callee_saved_pairs, ARRAY_LEN(callee_saved_pairs), A64_STPX_PRE,
              -16, 3, false, false);
 }
@@ -885,14 +887,18 @@ static void emit_regs(emit_state *s, uint8_t const *regs, size_t count,
   for (size_t i = 0; i < count; i++) {
     uint8_t reg = regs[i];
     if (reg == REG_NONE) continue;
-    if (reg < FPR_REG_START && i + 1 < count) {
+    if (i + 1 < count && regs[i + 1] != REG_NONE &&
+        ((reg < FPR_REG_START && regs[i + 1] < FPR_REG_START) ||
+         (reg >= FPR_REG_START && regs[i + 1] >= FPR_REG_START))) {
       uint8_t reg2 = regs[i + 1];
-      if (reg2 != REG_NONE && reg2 < FPR_REG_START) {
-        uint32_t op = load ? A64_LDPX : A64_STPX;
-        emit_op(s, pair_op(op, reg, reg2, SP, (int32_t)(i * 8), 3));
-        i++;
-        continue;
-      }
+      bool fpr = reg >= FPR_REG_START;
+      uint32_t op = load ? (fpr ? A64_LDPD : A64_LDPX)
+                         : (fpr ? A64_STPD : A64_STPX);
+      emit_op(s, pair_op(op, fpr ? hw_fpr(reg) : hw_gpr(reg),
+                         fpr ? hw_fpr(reg2) : hw_gpr(reg2), SP,
+                         (int32_t)(i * 8), 3));
+      i++;
+      continue;
     }
     int32_t offset = (int32_t)(i * 8);
     if (reg >= FPR_REG_START)
