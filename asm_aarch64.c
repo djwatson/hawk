@@ -441,7 +441,8 @@ static void emit_mov_sequence(emit_state *s, uint8_t rd, const uint16_t *chunks,
       continue;
     }
     if (chunks[i] != 0) {
-      emit_op(s, mov_wide(A64_MOVK, rd, chunks[i], (uint8_t)i));
+      uint16_t chunk = use_movn ? (uint16_t)~chunks[i] : chunks[i];
+      emit_op(s, mov_wide(A64_MOVK, rd, chunk, (uint8_t)i));
     }
   }
 }
@@ -487,7 +488,7 @@ void emit_mov64(emit_state *s, uint8_t rd, int64_t imm) {
   }
 
   int cost_z = nonzero;
-  int cost_n = 1 + nonffff;
+  int cost_n = nonffff;
   if (cost_z <= cost_n) {
     emit_mov_sequence(s, rd, chunks, false);
   } else {
