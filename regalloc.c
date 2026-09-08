@@ -230,7 +230,8 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     }
 
     auto ins = &s->t->ins[value_id];
-    if (ins->op == IR_CCALL || ir_is_vm_call(ins->op)) {
+    if (ins->op == IR_CCALL || ir_is_vm_call(ins->op) ||
+        (ins->op == IR_MOD && ins->type == FLONUM_TAG)) {
       limit_live_values(s, gpr_live, &gpr_live_count, 0, use_pos);
       limit_live_values(s, fpr_live, &fpr_live_count, 0, use_pos);
     }
