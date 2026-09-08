@@ -632,13 +632,14 @@ static void emit_smulh(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
       emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm,                    \
       label *overflow_target) {                                                \
     emit_add_sub_constant(s, imm_opcode, inverse_opcode, reg_base, dst, lhs,   \
-                          imm);                                                \
+                          imm, REG_NONE);                                      \
     emit_jcc32(s, JO, overflow_target);                                        \
   }
 
 static void emit_add_sub_constant(emit_state *s, uint32_t base,
                                   uint32_t inverse_base, uint32_t reg_base,
-                                  uint8_t dst, uint8_t lhs, int64_t imm) {
+                                  uint8_t dst, uint8_t lhs, int64_t imm,
+                                  uint8_t avoid) {
   uint8_t rd = hw_gpr(dst);
   uint8_t rn = hw_gpr(lhs);
   uint32_t shift = 0;
@@ -651,7 +652,7 @@ static void emit_add_sub_constant(emit_state *s, uint32_t base,
     emit_op(s, opcode);
     return;
   }
-  uint8_t tmp = pick_addr_tmp(dst, lhs);
+  uint8_t tmp = pick_addr_tmp3(dst, lhs, avoid);
   emit_mov64(s, tmp, imm);
   emit_add_sub(s, reg_base, dst, lhs, tmp);
 }
@@ -671,7 +672,13 @@ void emit_add(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
 }
 
 void emit_add_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
-  emit_add_sub_constant(s, A64_ADDI, A64_SUBI, A64_ADD, dst, lhs, imm);
+  emit_add_sub_constant(s, A64_ADDI, A64_SUBI, A64_ADD, dst, lhs, imm,
+                        REG_NONE);
+}
+
+static void emit_add_constant_excluding(emit_state *s, uint8_t dst, uint8_t lhs,
+                                        int64_t imm, uint8_t avoid) {
+  emit_add_sub_constant(s, A64_ADDI, A64_SUBI, A64_ADD, dst, lhs, imm, avoid);
 }
 
 void emit_sub(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
@@ -820,7 +827,8 @@ void emit_quotient(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
 }
 
 void emit_sub_constant(emit_state *s, uint8_t dst, uint8_t lhs, int64_t imm) {
-  emit_add_sub_constant(s, A64_SUBI, A64_ADDI, A64_SUB, dst, lhs, imm);
+  emit_add_sub_constant(s, A64_SUBI, A64_ADDI, A64_SUB, dst, lhs, imm,
+                        REG_NONE);
 }
 
 static void emit_fp_binary(emit_state *s, uint32_t op, uint8_t dst,
@@ -954,7 +962,8 @@ static void emit_lso(emit_state *s, uint32_t scaled, uint32_t unscaled,
     return;
   }
   uint8_t addr = pick_addr_tmp(base, fpr ? REG_NONE : reg);
-  emit_add_constant(s, addr, base, offset);
+  emit_add_constant_excluding(s, addr, base, offset,
+                              fpr ? REG_NONE : reg);
   emit_op(s, scaled | A64_N(addr) | A64_D(rt));
 }
 
