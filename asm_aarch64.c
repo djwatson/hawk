@@ -517,7 +517,7 @@ void emit_fcmp_constant(emit_state *s, uint8_t reg, double imm) {
     emit_op(s, A64_FCMP | A64_N(hw_fpr(reg)) | 8);
     return;
   }
-  load_constant(s, add_constant(s, imm), FRTMP);
+  emit_fmov_constant(s, FRTMP, imm);
   emit_fcmp(s, reg, FRTMP);
 }
 
@@ -854,7 +854,7 @@ void emit_fdiv(emit_state *s, uint8_t dst, uint8_t lhs, uint8_t rhs) {
 
 static void emit_fp_constant(emit_state *s, uint32_t op, uint8_t dst,
                              uint8_t lhs, double imm) {
-  load_constant(s, add_constant(s, imm), FRTMP);
+  emit_fmov_constant(s, FRTMP, imm);
   emit_fp_binary(s, op, dst, lhs, FRTMP);
 }
 
