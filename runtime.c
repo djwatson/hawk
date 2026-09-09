@@ -164,11 +164,16 @@ static gc_obj flonum_ratnum(double x) {
   bool sign = bits >> 63;
   int64_t exponent = (int64_t)(bits >> 52 & 0x7ff);
   int64_t mantissa = (int64_t)(bits & 0xFFFFFFFFFFFFF);
-  if (exponent != 0) {
-    mantissa += 0x10000000000000;
+  if (exponent == 0x7ff) {
+    abort();
   }
   gc_obj denom = tag_fixnum(0x10000000000000);
-  exponent -= 1023;
+  if (exponent != 0) {
+    mantissa += 0x10000000000000;
+    exponent -= 1023;
+  } else {
+    exponent = -1022;
+  }
   if (sign) {
     mantissa *= -1;
   }
