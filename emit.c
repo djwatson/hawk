@@ -1114,7 +1114,7 @@ static void emit_flonum_binop(emit_state *s, trace *t, uint8_t dst, ir_ins *op,
                               typeof(&emit_fadd_constant) const_binop,
                               uint8_t lhs_reg, uint8_t rhs_reg) {
   assert(is_fpr_reg(dst));
-  assert(!op->op1.constant); // fold should have already removed these.
+  assert(is_fpr_reg(lhs_reg));
   if (op->op2.constant) {
     const_binop(s, dst, lhs_reg, slot_flonum_constant(t, op->op2));
     return;
@@ -1718,6 +1718,19 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     }
     uint8_t arg0_reg = arg_count > 0 ? arg_regs[0] : REG_NONE;
     uint8_t arg1_reg = arg_count > 1 ? arg_regs[1] : REG_NONE;
+    if (op->op1.constant &&
+        (op->op == IR_SUB || op->op == IR_DIV ||
+         op->op == IR_QUOTIENT || op->op == IR_MOD)) {
+      assert(!op->op2.constant);
+      arg1_reg = arg0_reg;
+      if (op->type == FLONUM_TAG) {
+        arg0_reg = FRTMP;
+        emit_fmov_constant(s, arg0_reg, slot_flonum_constant(t, op->op1));
+      } else {
+        arg0_reg = RTMP2;
+        emit_mov64(s, arg0_reg, slot_const(t, op->op1));
+      }
+    }
     // End regalloc
 
 #define EMIT_CMP_CASE(opname, f_fail, i_fail)                                  \
@@ -1980,7 +1993,6 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     }
     case IR_MOD: {
       if (op->type == FLONUM_TAG) {
-        assert(!op->op1.constant);
         emit_flonum_mod(s, t, ra_state, dst_reg, op, arg0_reg, arg1_reg);
       } else {
         emit_fixnum_div_guard(s, t, op, arg0_reg, arg1_reg, cur_snap, false);

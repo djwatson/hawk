@@ -11,6 +11,7 @@ enum : uint8_t {
 
 typedef enum {
   FOLD_NEXT,
+  FOLD_EMIT,
   FOLD_RETRY,
   FOLD_DROP,
   FOLD_CONST,

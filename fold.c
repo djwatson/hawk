@@ -50,22 +50,6 @@ static bool is_neg_zero(trace *t, slot s, slot *out) {
   return true;
 }
 
-static slot make_fixnum_inst(trace *t, int64_t val) {
-  slot k = trace_add_const(t, tag_fixnum(val));
-  auto ins = (ir_ins){
-      .op = IR_CONST,
-      .type = FIXNUM_TAG,
-      .guard = false,
-      .reg = REG_NONE,
-      .spill = SPILL_NONE,
-      .op1 = k,
-  };
-  uint16_t idx = arrlen(t->ins);
-  arrput(t->cse_prev, UINT16_MAX);
-  arrput(t->ins, ins);
-  return (slot){.constant = false, .loc = idx};
-}
-
 static bool same_slot(trace *t, slot a, slot b) {
   (void)t;
   return memcmp(&a, &b, sizeof(slot)) == 0;
@@ -96,10 +80,6 @@ static bool fold_cse_allowed(trace *t __attribute__((unused)), ir_ins *in) {
   case IR_VMINEXACT:
   case IR_VMEXACT:
   case IR_VMTRUNCATE:
-  case IR_LOAD:
-  case IR_LOAD_CHAR:
-  case IR_LOAD_BYTE:
-  case IR_GGET:
     return true;
   default:
     return false;
@@ -124,8 +104,18 @@ static bool store_invalidates_load(trace *t, ir_ins *load, ir_ins *store,
   return const_slot_eq(t, load->op2, store_ref->op2);
 }
 
-static bool load_cse_allowed(trace *t, uint16_t load_ref, ir_ins_op store_op) {
+static ir_ins_op load_store_op(ir_ins_op op) {
+  switch (op) {
+  case IR_LOAD: return IR_STORE;
+  case IR_LOAD_CHAR: return IR_STORE_CHAR;
+  case IR_LOAD_BYTE: return IR_STORE_BYTE;
+  default: abort();
+  }
+}
+
+static bool load_cse_allowed(trace *t, uint16_t load_ref) {
   ir_ins *load = &t->ins[load_ref];
+  ir_ins_op store_op = load_store_op(load->op);
   uint16_t store_ref = t->cse_head[store_op];
   while (store_ref != UINT16_MAX) {
     if (store_ref > load_ref &&
@@ -241,6 +231,28 @@ static inline ir_ins_op swap_cmp_op(ir_ins_op op) {
   return (ir_ins_op)(op ^ 1);
 }
 
+static fold_result fold_cse(trace *t, ir_ins *in,
+                            bool (*allowed)(trace *, uint16_t)) {
+  for (uint16_t ref = t->cse_head[in->op]; ref != UINT16_MAX;
+       ref = t->cse_prev[ref]) {
+    if (same_cse_operands(t, in, &t->ins[ref]) && (!allowed || allowed(t, ref)))
+      return fold_ref((slot){.constant = false, .loc = ref});
+  }
+  return (fold_result){.action = FOLD_EMIT};
+}
+
+static fold_result fold_canonicalize(ir_ins *in) {
+  if (in->op2.constant ||
+      (!in->op1.constant && in->op1.loc <= in->op2.loc))
+    return fold_next();
+  slot tmp = in->op1;
+  in->op1 = in->op2;
+  in->op2 = tmp;
+  if (in->op >= IR_LT && in->op <= IR_GTE)
+    in->op = swap_cmp_op(in->op);
+  return fold_retry();
+}
+
 static uint8_t fold_arg(trace *t, ir_ins *in, uint8_t idx) {
   auto arg_type = ir_ins_types[in->op];
   if (idx == 0 && (arg_type == IR_ARG_IR_NONE || arg_type == IR_ARG_IR_IR)) {
@@ -266,6 +278,20 @@ static uint32_t fold_key(trace *t, ir_ins *in) {
                           ir_ins *in __attribute__((unused)))
 #define cur_ins (*in)
 
+IRFOLD(LOAD _ _)
+IRFOLD(LOAD_CHAR _ _)
+IRFOLD(LOAD_BYTE _ _)
+IRFOLDF(fold_load) {
+  fold_result res = fold_forward_load(t, in, load_store_op(in->op));
+  return res.action == FOLD_NEXT ? fold_cse(t, in, load_cse_allowed) : res;
+}
+
+IRFOLD(GGET _ _)
+IRFOLDF(fold_gget) {
+  fold_result res = fold_forward_gget(t, in);
+  return res.action == FOLD_NEXT ? fold_cse(t, in, gget_cse_allowed) : res;
+}
+
 // If the inputs are always const, no need to guard anything!
 IRFOLD(NE CONST CONST)
 IRFOLD(EQ CONST CONST)
@@ -275,51 +301,11 @@ IRFOLD(GT CONST CONST)
 IRFOLD(LT CONST CONST)
 IRFOLDF(fold_guard_const_const) { return fold_drop(); }
 
-IRFOLD(NE CONST _)
-IRFOLD(ADD CONST _)
-IRFOLD(EQ CONST _)
-IRFOLD(MUL CONST _)
-IRFOLDF(fold_commutative_const_lhs) {
-  slot tmp = in->op1;
-  in->op1 = in->op2;
-  in->op2 = tmp;
-  return fold_retry();
-}
-
-IRFOLD(LT CONST _)
-IRFOLD(GT CONST _)
-IRFOLD(LTE CONST _)
-IRFOLD(GTE CONST _)
-IRFOLDF(fold_cmp_const_lhs) {
-  slot tmp = in->op1;
-  in->op1 = in->op2;
-  in->op2 = tmp;
-  in->op = swap_cmp_op(in->op);
-  return fold_retry();
-}
-
-IRFOLD(SUB CONST _)
-IRFOLD(DIV CONST _)
-IRFOLD(QUOTIENT CONST _)
 IRFOLD(MOD CONST _)
-IRFOLDF(fold_noncommutative_const_lhs) {
-  if (in->op == IR_MOD && in->type == FIXNUM_TAG &&
-      numeric_is_zero(t->consts[in->op1.loc]))
+IRFOLDF(fold_mod_zero_lhs) {
+  if (in->type == FIXNUM_TAG && numeric_is_zero(t->consts[in->op1.loc]))
     return fold_const(tag_fixnum(0));
-  // Materialize lhs constant to a register so emit can handle lhs as non-const.
-  auto const_op = (ir_ins){
-      .op = IR_CONST,
-      .type = get_type_tag(t->consts[in->op1.loc]),
-      .guard = false,
-      .reg = REG_NONE,
-      .spill = SPILL_NONE,
-      .op1 = in->op1,
-  };
-  uint16_t idx = arrlen(t->ins);
-  arrput(t->cse_prev, UINT16_MAX);
-  arrput(t->ins, const_op);
-  in->op1 = (slot){.constant = false, .loc = idx};
-  return fold_retry();
+  return fold_next();
 }
 
 IRFOLD(NE _ _)
@@ -339,13 +325,7 @@ IRFOLDF(fold_guard_neq_any_const) {
   if (rhs_flonum != lhs_flonum) {
     return fold_drop();
   }
-  if (!in->op1.constant && !in->op2.constant && in->op1.loc > in->op2.loc) {
-    slot tmp = in->op1;
-    in->op1 = in->op2;
-    in->op2 = tmp;
-    return fold_retry();
-  }
-  return fold_next();
+  return fold_canonicalize(in);
 }
 
 IRFOLD(GCLOG _ _)
@@ -476,8 +456,6 @@ IRFOLDF(fold_load_char_const_const) {
 
 IRFOLD(INTEGER_CHAR CONST _)
 IRFOLDF(fold_integer_char_const) {
-  if (!in->op1.constant)
-    return fold_next();
   gc_obj k = t->consts[in->op1.loc];
   if (!is_fixnum(k))
     return fold_next();
@@ -487,8 +465,6 @@ IRFOLDF(fold_integer_char_const) {
 
 IRFOLD(CHAR_INTEGER CONST _)
 IRFOLDF(fold_char_integer_const) {
-  if (!in->op1.constant)
-    return fold_next();
   gc_obj c = t->consts[in->op1.loc];
   if (!is_char(c))
     return fold_next();
@@ -498,14 +474,10 @@ IRFOLDF(fold_char_integer_const) {
 IRFOLD(EQ INTEGER_CHAR CONST)
 IRFOLD(NE INTEGER_CHAR CONST)
 IRFOLDF(fold_cmp_integer_char_const) {
-  if (in->op1.constant || !in->op2.constant)
-    return fold_next();
   gc_obj c = t->consts[in->op2.loc];
   if (!is_char(c))
     return fold_next();
   ir_ins *conv = &t->ins[in->op1.loc];
-  if (conv->op != IR_INTEGER_CHAR)
-    return fold_next();
   in->op1 = conv->op1;
   in->op2 = trace_add_const(t, tag_fixnum(to_char(c)));
   return fold_retry();
@@ -514,15 +486,11 @@ IRFOLDF(fold_cmp_integer_char_const) {
 IRFOLD(EQ SUB CONST)
 IRFOLD(NE SUB CONST)
 IRFOLDF(fold_cmp_sub_zero) {
-  if (in->type != FIXNUM_TAG || in->op2.constant == false)
+  if (in->type != FIXNUM_TAG)
     return fold_next();
   if (!numeric_is_zero(t->consts[in->op2.loc]))
     return fold_next();
-  if (in->op1.constant)
-    return fold_next();
   ir_ins *sub = &t->ins[in->op1.loc];
-  if (sub->op != IR_SUB)
-    return fold_next();
   in->op1 = sub->op1;
   in->op2 = sub->op2;
   return fold_retry();
@@ -535,15 +503,8 @@ IRFOLD(GT _ _)
 IRFOLD(LTE _ _)
 IRFOLD(GTE _ _)
 IRFOLDF(fold_self_cmp) {
-  if (!in->op1.constant && !in->op2.constant && in->op1.loc > in->op2.loc) {
-    slot tmp = in->op1;
-    in->op1 = in->op2;
-    in->op2 = tmp;
-    if (in->op != IR_EQ) {
-      in->op = swap_cmp_op(in->op);
-    }
+  if (fold_canonicalize(in).action == FOLD_RETRY)
     return fold_retry();
-  }
   if (!same_slot(t, in->op1, in->op2))
     return fold_next();
   if (in->type == FLONUM_TAG)
@@ -570,8 +531,6 @@ IRFOLDF(fold_self_cmp) {
 IRFOLD(SUB CONST SUB)
 IRFOLDF(fold_double_neg) {
   if (in->type != FIXNUM_TAG)
-    return fold_next();
-  if (!in->op1.constant)
     return fold_next();
   if (!numeric_is_zero(t->consts[in->op1.loc]))
     return fold_next();
@@ -607,8 +566,6 @@ IRFOLDF(fold_add_neg_rhs) {
 // SUB x, CONST(0) -> x
 IRFOLD(SUB _ CONST)
 IRFOLDF(fold_sub_zero) {
-  if (!in->op2.constant)
-    return fold_next();
   if (!numeric_is_zero(t->consts[in->op2.loc]))
     return fold_next();
   gc_obj k = t->consts[in->op2.loc];
@@ -634,15 +591,14 @@ IRFOLDF(fold_sub_neg_rhs) {
 // (-x) - k -> (-k) - x  (fixnum only)
 IRFOLD(SUB SUB CONST)
 IRFOLDF(fold_sub_neg_lhs_const) {
-  if (!in->op2.constant)
-    return fold_next();
   slot x;
   if (!is_neg_zero(t, in->op1, &x))
     return fold_next();
   gc_obj k = t->consts[in->op2.loc];
-  if (!is_fixnum(k))
+  if (in->type != FIXNUM_TAG || !is_fixnum(k) ||
+      to_fixnum(k) == FIXNUM_MIN_VALUE)
     return fold_next();
-  slot neg_k = make_fixnum_inst(t, -to_fixnum(k));
+  slot neg_k = trace_add_const(t, tag_fixnum(-to_fixnum(k)));
   in->op1 = neg_k;
   in->op2 = x;
   return fold_retry();
@@ -651,15 +607,13 @@ IRFOLDF(fold_sub_neg_lhs_const) {
 // MUL x, CONST -> identity, *(-1), *2, *0
 IRFOLD(MUL _ CONST)
 IRFOLDF(fold_mul_const) {
-  if (!in->op2.constant)
-    return fold_next();
   gc_obj k = t->consts[in->op2.loc];
   if (numeric_is_one(k))
     return fold_ref(in->op1);
   if (numeric_is_zero(k) && in->type == FIXNUM_TAG)
     return fold_const(tag_fixnum(0));
   if (is_fixnum(k) && to_fixnum(k) == -1) {
-    slot zero = make_fixnum_inst(t, 0);
+    slot zero = trace_add_const(t, tag_fixnum(0));
     slot x = in->op1;
     in->op = IR_SUB;
     in->op1 = zero;
@@ -677,32 +631,13 @@ IRFOLDF(fold_mul_const) {
 
 // DIV/QUOTIENT x, CONST(1) -> x
 IRFOLD(DIV _ CONST)
-IRFOLDF(fold_div_const) {
-  if (!in->op2.constant)
-    return fold_next();
-  gc_obj k = t->consts[in->op2.loc];
-  if (numeric_is_one(k))
-    return fold_ref(in->op1);
-  if (in->type == FIXNUM_TAG && is_fixnum(k) && to_fixnum(k) == -1) {
-    slot zero = make_fixnum_inst(t, 0);
-    slot x = in->op1;
-    in->op = IR_SUB;
-    in->op1 = zero;
-    in->op2 = x;
-    return fold_retry();
-  }
-  return fold_next();
-}
-
 IRFOLD(QUOTIENT _ CONST)
-IRFOLDF(fold_quotient_const) {
-  if (!in->op2.constant)
-    return fold_next();
+IRFOLDF(fold_div_const) {
   gc_obj k = t->consts[in->op2.loc];
   if (numeric_is_one(k))
     return fold_ref(in->op1);
   if (in->type == FIXNUM_TAG && is_fixnum(k) && to_fixnum(k) == -1) {
-    slot zero = make_fixnum_inst(t, 0);
+    slot zero = trace_add_const(t, tag_fixnum(0));
     slot x = in->op1;
     in->op = IR_SUB;
     in->op1 = zero;
@@ -713,35 +648,18 @@ IRFOLDF(fold_quotient_const) {
 }
 
 // (-a) * k -> a * (-k)  (fixnum only)
-IRFOLD(MUL SUB _)
-IRFOLDF(fold_mul_neg_lhs) {
+IRFOLD(MUL SUB CONST)
+IRFOLD(DIV SUB CONST)
+IRFOLD(QUOTIENT SUB CONST)
+IRFOLDF(fold_mul_div_neg_lhs) {
   slot a;
   if (!is_neg_zero(t, in->op1, &a))
     return fold_next();
-  if (!in->op2.constant)
-    return fold_next();
   gc_obj k = t->consts[in->op2.loc];
-  if (!is_fixnum(k))
+  if (in->type != FIXNUM_TAG || !is_fixnum(k) ||
+      to_fixnum(k) == FIXNUM_MIN_VALUE)
     return fold_next();
-  slot neg_k = make_fixnum_inst(t, -to_fixnum(k));
-  in->op1 = a;
-  in->op2 = neg_k;
-  return fold_retry();
-}
-
-// (-a) / k -> a / (-k)  (fixnum only)
-IRFOLD(DIV SUB _)
-IRFOLD(QUOTIENT SUB _)
-IRFOLDF(fold_div_neg_lhs) {
-  slot a;
-  if (!is_neg_zero(t, in->op1, &a))
-    return fold_next();
-  if (!in->op2.constant)
-    return fold_next();
-  gc_obj k = t->consts[in->op2.loc];
-  if (!is_fixnum(k))
-    return fold_next();
-  slot neg_k = make_fixnum_inst(t, -to_fixnum(k));
+  slot neg_k = trace_add_const(t, tag_fixnum(-to_fixnum(k)));
   in->op1 = a;
   in->op2 = neg_k;
   return fold_retry();
@@ -764,8 +682,6 @@ IRFOLDF(fold_mul_div_neg_both) {
 // ADD x, CONST(0) -> x  (fixnum only)
 IRFOLD(ADD _ CONST)
 IRFOLDF(fold_add_const) {
-  if (!in->op2.constant)
-    return fold_next();
   if (in->type != FIXNUM_TAG)
     return fold_next();
   if (!numeric_is_zero(t->consts[in->op2.loc]))
@@ -788,11 +704,7 @@ IRFOLD(SUB ADD _)
 IRFOLDF(fold_sub_cancel_add) {
   if (in->type != FIXNUM_TAG)
     return fold_next();
-  if (in->op1.constant)
-    return fold_next();
   ir_ins *add = &t->ins[in->op1.loc];
-  if (add->op != IR_ADD)
-    return fold_next();
   if (!in->op2.constant) {
     if (same_slot(t, in->op2, add->op1))
       return fold_ref(add->op2);
@@ -807,14 +719,10 @@ IRFOLD(SUB SUB _)
 IRFOLDF(fold_sub_cancel_sub_left) {
   if (in->type != FIXNUM_TAG)
     return fold_next();
-  if (in->op1.constant)
-    return fold_next();
   ir_ins *sub = &t->ins[in->op1.loc];
-  if (sub->op != IR_SUB)
-    return fold_next();
   if (!in->op2.constant && same_slot(t, in->op2, sub->op1)) {
     slot rhs = sub->op2;
-    slot zero = make_fixnum_inst(t, 0);
+    slot zero = trace_add_const(t, tag_fixnum(0));
     in->op1 = zero;
     in->op2 = rhs;
     return fold_retry();
@@ -827,22 +735,18 @@ IRFOLD(SUB _ ADD)
 IRFOLDF(fold_sub_cancel_add_right) {
   if (in->type != FIXNUM_TAG)
     return fold_next();
-  if (in->op2.constant)
-    return fold_next();
   ir_ins *add = &t->ins[in->op2.loc];
-  if (add->op != IR_ADD)
-    return fold_next();
   if (!in->op1.constant) {
     if (same_slot(t, in->op1, add->op1)) {
       slot rhs = add->op2;
-      slot zero = make_fixnum_inst(t, 0);
+      slot zero = trace_add_const(t, tag_fixnum(0));
       in->op1 = zero;
       in->op2 = rhs;
       return fold_retry();
     }
     if (same_slot(t, in->op1, add->op2)) {
       slot rhs = add->op1;
-      slot zero = make_fixnum_inst(t, 0);
+      slot zero = trace_add_const(t, tag_fixnum(0));
       in->op1 = zero;
       in->op2 = rhs;
       return fold_retry();
@@ -856,12 +760,8 @@ IRFOLD(SUB ADD ADD)
 IRFOLDF(fold_sub_cancel_add_add) {
   if (in->type != FIXNUM_TAG)
     return fold_next();
-  if (in->op1.constant || in->op2.constant)
-    return fold_next();
   ir_ins *l = &t->ins[in->op1.loc];
   ir_ins *r = &t->ins[in->op2.loc];
-  if (l->op != IR_ADD || r->op != IR_ADD)
-    return fold_next();
   if (same_slot(t, l->op1, r->op1)) {
     in->op1 = l->op2;
     in->op2 = r->op2;
@@ -888,8 +788,6 @@ IRFOLDF(fold_sub_cancel_add_add) {
 // MOD any, CONST(1) -> CONST(0)  (fixnum only)
 IRFOLD(MOD _ CONST)
 IRFOLDF(fold_mod_one_rhs) {
-  if (!in->op2.constant)
-    return fold_next();
   if (in->type != FIXNUM_TAG)
     return fold_next();
   gc_obj k = t->consts[in->op2.loc];
@@ -940,17 +838,11 @@ IRFOLDF(fold_abc_fwd) {
 
 // ========== Category H: Commutative Canonicalization ==========
 
-// H2: ADD/MUL any, any -> swap so lower ref is on the right (for CSE)
+// Put constants on the right; otherwise order by increasing reference.
 IRFOLD(ADD _ _)
 IRFOLD(MUL _ _)
 IRFOLDF(fold_comm_swap) {
-  if (!in->op1.constant && !in->op2.constant && in->op1.loc > in->op2.loc) {
-    slot tmp = in->op1;
-    in->op1 = in->op2;
-    in->op2 = tmp;
-    return fold_retry();
-  }
-  return fold_next();
+  return fold_canonicalize(in);
 }
 
 // ========== Category I: Dead Store Elimination ==========
@@ -1020,51 +912,11 @@ static fold_result fold_one(trace *t, ir_ins *in) {
 }
 
 fold_result fold_instr(trace *trace, ir_ins *in) {
-  for (;;) {
-    fold_result res = fold_one(trace, in);
-    if (res.action == FOLD_RETRY) {
-      continue;
-    }
-    if (res.action != FOLD_NEXT) {
-      return res;
-    }
-    if (!fold_cse_allowed(trace, in)) {
-      return res;
-    }
-    if (in->op == IR_LOAD || in->op == IR_LOAD_CHAR || in->op == IR_LOAD_BYTE) {
-      ir_ins_op store_op = IR_STORE;
-      if (in->op == IR_LOAD_CHAR) {
-        store_op = IR_STORE_CHAR;
-      } else if (in->op == IR_LOAD_BYTE) {
-        store_op = IR_STORE_BYTE;
-      }
-      res = fold_forward_load(trace, in, store_op);
-      if (res.action != FOLD_NEXT) {
-        return res;
-      }
-    }
-    if (in->op == IR_GGET) {
-      res = fold_forward_gget(trace, in);
-      if (res.action != FOLD_NEXT) {
-        return res;
-      }
-    }
-    uint16_t ref = trace->cse_head[in->op];
-    while (ref != UINT16_MAX) {
-      ir_ins *prev = &trace->ins[ref];
-      bool load_op =
-          in->op == IR_LOAD || in->op == IR_LOAD_CHAR || in->op == IR_LOAD_BYTE;
-      if (same_cse_operands(trace, in, prev) &&
-          (!load_op ||
-           load_cse_allowed(trace, ref,
-                            in->op == IR_LOAD        ? IR_STORE
-                            : in->op == IR_LOAD_CHAR ? IR_STORE_CHAR
-                                                     : IR_STORE_BYTE)) &&
-          (in->op != IR_GGET || gget_cse_allowed(trace, ref))) {
-        return fold_ref((slot){.constant = false, .loc = ref});
-      }
-      ref = trace->cse_prev[ref];
-    }
-    return res;
-  }
+  fold_result res;
+  do {
+    res = fold_one(trace, in);
+  } while (res.action == FOLD_RETRY);
+  if (res.action == FOLD_NEXT && fold_cse_allowed(trace, in))
+    res = fold_cse(trace, in, nullptr);
+  return res.action == FOLD_EMIT ? fold_next() : res;
 }
