@@ -2487,8 +2487,9 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   for (size_t j = 0; j < snap_nent(side_snap); j++) {
     auto entry = &side_entries[j];
     if (entry->val.constant) {
-      set_stack(state, entry->slot,
-                add_const(state, side_snap->trace->consts[entry->val.loc]));
+      set_stack_abs(
+          state, entry->slot,
+          add_const(state, side_snap->trace->consts[entry->val.loc]));
     } else {
       uint16_t parent_id = entry->val.loc;
       auto old_ins = &side_snap->trace->ins[parent_id];
@@ -2510,7 +2511,7 @@ void record_start_side(vm_state *state, bc *pc, bc instr, gc_obj *stack,
         pmov = add_inst(state, pmov_ins);
         pmov_by_parent_id[parent_id] = pmov;
       }
-      set_stack(state, entry->slot, pmov);
+      set_stack_abs(state, entry->slot, pmov);
       if (!old_guard && old_ins->type != FLONUM_TAG) {
         arrput(typechecks, *entry);
       }
