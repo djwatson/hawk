@@ -92,6 +92,90 @@ double bignum_to_double(gc_obj v) {
   return d;
 }
 
+static bool integer_scaled_parts(gc_obj value, double *mantissa,
+                                 int64_t *exponent) {
+  bool negative = false;
+  uint64_t magnitude;
+  uint32_t bitlen;
+
+  if (is_fixnum(value)) {
+    int64_t integer = to_fixnum(value);
+    if (integer == 0) {
+      *mantissa = 0.0;
+      *exponent = 0;
+      return true;
+    }
+    negative = integer < 0;
+    magnitude = negative ? (uint64_t)(-(integer + 1)) + 1 : (uint64_t)integer;
+    bitlen = 64 - __builtin_clzll(magnitude);
+  } else if (is_bignum(value)) {
+    bn_t *bn = to_bignum(value);
+    if (bn_is_zero(bn)) {
+      *mantissa = 0.0;
+      *exponent = 0;
+      return true;
+    }
+    negative = bn_is_negative(bn);
+    bitlen = bn_bit_length(bn);
+  } else {
+    return false;
+  }
+
+  uint32_t count = bitlen < 53 ? bitlen : 53;
+  uint64_t top = 0;
+  for (uint32_t i = 0; i < count; i++) {
+    uint32_t bit = bitlen - 1 - i;
+    bool set = is_fixnum(value)
+                   ? ((magnitude >> bit) & 1)
+                   : ((to_bignum(value)->limb[bit / 64] >> (bit % 64)) & 1);
+    top = (top << 1) | set;
+  }
+  if (bitlen > count) {
+    uint32_t bit = bitlen - count - 1;
+    bool guard = is_fixnum(value)
+                     ? ((magnitude >> bit) & 1)
+                     : ((to_bignum(value)->limb[bit / 64] >> (bit % 64)) & 1);
+    bool sticky = false;
+    for (uint32_t i = 0; guard && !sticky && i < bit; i++) {
+      sticky = is_fixnum(value)
+                   ? ((magnitude >> i) & 1)
+                   : ((to_bignum(value)->limb[i / 64] >> (i % 64)) & 1);
+    }
+    top += guard && (sticky || (top & 1));
+  }
+  *mantissa = ldexp((double)top, -(int)count);
+  *exponent = bitlen;
+  if (negative) {
+    *mantissa = -*mantissa;
+  }
+  return true;
+}
+
+static double ratnum_to_double(ratnum_s r) {
+  double numerator_mantissa;
+  double denominator_mantissa;
+  int64_t numerator_exponent;
+  int64_t denominator_exponent;
+  if (!integer_scaled_parts(r.num, &numerator_mantissa,
+                            &numerator_exponent) ||
+      !integer_scaled_parts(r.denom, &denominator_mantissa,
+                            &denominator_exponent)) {
+    abort();
+  }
+  if (numerator_mantissa == 0.0) {
+    return 0.0;
+  }
+  int64_t exponent = numerator_exponent - denominator_exponent;
+  double ratio = numerator_mantissa / denominator_mantissa;
+  if (exponent > INT_MAX) {
+    return copysign(INFINITY, ratio);
+  }
+  if (exponent < INT_MIN) {
+    return copysign(0.0, ratio);
+  }
+  return ldexp(ratio, (int)exponent);
+}
+
 gc_obj numeric_to_bignum_obj(gc_obj v) {
   if (is_bignum(v)) {
     return v;
@@ -130,7 +214,7 @@ double numeric_to_double(gc_obj v) {
   }
   if (is_ratnum(v)) {
     ratnum_s *r = to_ratnum(v);
-    return numeric_to_double(r->num) / numeric_to_double(r->denom);
+    return ratnum_to_double(*r);
   }
   abort();
 }
@@ -206,8 +290,7 @@ gc_obj numeric_inexact_value(gc_obj v) {
   }
   if (is_ratnum(v)) {
     ratnum_s *r = to_ratnum(v);
-    return vm_box_flonum(numeric_to_double(r->num) /
-                         numeric_to_double(r->denom));
+    return vm_box_flonum(ratnum_to_double(*r));
   }
   if (is_compnum(v)) {
     compnum_s *c = to_compnum(v);
