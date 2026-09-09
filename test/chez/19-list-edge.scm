@@ -41,9 +41,10 @@
 (check (raises? (lambda () (list-tail '(a b c) -1))) #t)
 (check (raises? (lambda () (list-tail '(a b . c) 3))) #t)
 
-;; Operations requiring proper finite lists reject improper and cyclic lists.
-(check (raises? (lambda () (list-copy '(a b . c)))) #t)
+;; list-copy accepts improper finite lists but rejects circular lists.
+(check (list-copy '(a b . c)) '(a b . c))
 (check (raises? (lambda () (list-copy (cyclic-list)))) #t)
+;; Operations requiring proper finite lists reject improper and cyclic lists.
 (check (raises? (lambda () (append '(a b . c) '()))) #t)
 (check (raises? (lambda () (append (cyclic-list) '()))) #t)
 (check (raises? (lambda () (reverse '(a b . c)))) #t)
