@@ -682,6 +682,10 @@ static bool normalize_numeric_cmp_inputs(vm_state *state, slot *v1, slot *v2,
     return false;
   }
   if (t1 != t2) {
+    if ((t1 == FLONUM_TAG && !v2->constant) ||
+        (t2 == FLONUM_TAG && !v1->constant)) {
+      return false;
+    }
     if ((t1 == FLONUM_TAG && numeric_fixnum_floatable_wlop(raw_v2)) ||
         (t2 == FLONUM_TAG && numeric_fixnum_floatable_wlop(raw_v1))) {
       *v1 = convert_to_flonum(state, *v1);
