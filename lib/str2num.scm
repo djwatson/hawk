@@ -110,12 +110,13 @@
 	    (cond
 	     ((digit r ch) (num2 str len (+ 1 off) x1 r ex (+ (digit r ch) (* sum r)) sign))
 	     ((eq? #\/ ch) (ratio0 str len (+ 1 off) x1 r ex sign sum))
-	     ((eq? #\. ch) (if (not (eq? r 10)) #f (float1 str len (+ 1 off) x1 ex sum sign 0 10)))
-	     ((eq? #\e ch) (if (not (eq? r 10)) #f (exp0 str len (+ 1 off) x1 ((if sign sign +) sum))))
+	     ((eq? #\. ch) (if (not (eq? r 10)) #f (float1 str len (+ 1 off) x1 ex sum sign 0)))
+	     ((eq? #\e ch) (if (not (eq? r 10)) #f (exp0 str len (+ 1 off) x1 ex sum sign 0)))
 	     (else (complex0 str len off x1 r ex sign (if (eq? ex inexact) (inexact sum) sum)))))
 
 (make-state num3 ch (str len off x1 r ex sum sign)  ;; saw i after sign
-	    (make-rectangular (if x1 x1 0) (sign 1))
+	    (make-rectangular (if x1 x1 (if (eq? ex inexact) 0.0 0))
+                              (sign (if (eq? ex inexact) 1.0 1)))
 	    (cond
 	     ((eq? #\n ch) (inf0 str len (+ 1 off) x1 r ex sum sign))
 	     (else #f)))
@@ -126,14 +127,20 @@
 	     ((digit r ch) (ratio1 str len off x1 r ex sign nom 0))
 	     (else #f)))
   
+(define (ratio-value nom denom ex)
+  (if (zero? denom)
+      (and (eq? ex inexact) (if (zero? nom) +nan.0 +inf.0))
+      (let ((value (/ nom denom)))
+        (if ex (ex value) value))))
+
 (make-state ratio1 ch (str len off x1 r ex sign nom denom)
-	    (if x1 #f (let ((d (if ex (ex denom) denom)))
-		(if (eq? d 0) #f (/ ((if sign sign +) nom) d))))
+	    (and (not x1)
+                 (let ((value (ratio-value nom denom ex)))
+                   (and value ((if sign sign +) value))))
 	    (cond
 	     ((digit r ch) (ratio1 str len (+ 1 off) x1 r ex sign  nom (+ (digit r ch) (* denom r))))
 	     (else (complex0 str len off x1 r ex sign
-			     (let ((d (if ex (ex denom) denom)))
-			       (if (eq? d 0) #f (/ nom d)))))))
+                             (ratio-value nom denom ex)))))
 
 (make-state inf0 ch (str len off x1 r ex sum sign)  ;; saw sign
 	    #f
@@ -187,40 +194,60 @@
 	    (cond
 	     (else (complex0 str len off x1 r ex sign (if (eq? ex exact) #f +nan.0)))))
 
-(make-state float0 ch (str len off x1 ex sign )  
-	    #f
-	    (cond
-	     ((digit 10 ch) (float1 str len off x1 ex 0 sign 0 10))
-	     (else #f)))
+(make-state float0 ch (str len off x1 ex sign)
+  #f
+  (if (digit 10 ch)
+      (float1 str len off x1 ex 0 sign 0)
+      #f))
 
-(make-state float1 ch (str len off x1 ex sum sign frac base)  
-	    (if x1 #f ((if sign sign +) (if ex (ex (+ sum frac)) (inexact (+ sum frac)))))
-	    (cond
-	     ((digit 10 ch) (float1 str len (+ 1 off) x1 ex sum sign (+ (inexact (/ (inexact (digit 10 ch)) base)) frac) (* base 10)))
-	     ((eq? #\e ch) (exp0 str len (+ 1 off) x1 ((if sign sign +) (+ sum frac))))
-	     (else (complex0 str len off x1 10 ex sign (if ex (ex (+ sum frac)) (inexact (+ sum frac)))))))
+;; Accumulate integer digits; defer scaling until the exponent is known.
+(make-state float1 ch (str len off x1 ex sum sign scale)
+  (if x1 #f ((if sign sign +) (decimal-value sum scale ex)))
+  (cond
+    ((digit 10 ch)
+     (float1 str len (+ 1 off) x1 ex (+ (* sum 10) (digit 10 ch))
+             sign (- scale 1)))
+    ((eq? #\e ch) (exp0 str len (+ 1 off) x1 ex sum sign scale))
+    (else (complex0 str len off x1 10 ex sign
+                    (decimal-value sum scale ex)))))
 
-(make-state exp0 ch (str len off x1 sum)
-	    #f
-	    (cond
-	     ((digit 10 ch) (exp2 str len off x1 sum + 0))
-	     ((eq? #\+ ch) (exp1 str len (+ 1 off) x1 sum +))
-	     ((eq? #\- ch) (exp1 str len (+ 1 off) x1 sum -))
-	     (else #f)))
+(define (decimal-value sum exponent ex)
+  (let ((value
+         (if (zero? sum)
+             0
+             (let ((base (expt 10 (abs exponent))))
+               (if (< exponent 0)
+                   ;; Exact double operands need only one rounding at division.
+                   (if (and (not (eq? ex exact))
+                            (<= sum 9007199254740992)
+                            (<= base 9007199254740992))
+                       (/ (inexact sum) (inexact base))
+                       (/ sum base))
+                   (* sum base))))))
+    ((if ex ex inexact) value)))
 
-(make-state exp1 ch (str len off x1 sum sign)
-	    #f
-	    (cond
-	     ((digit 10 ch) (exp2 str len off x1 sum sign 0))
-	     (else #f)))
+(make-state exp0 ch (str len off x1 ex sum sign scale)
+  #f
+  (cond
+    ((digit 10 ch) (exp2 str len off x1 ex sum sign scale + 0))
+    ((eq? #\+ ch) (exp1 str len (+ 1 off) x1 ex sum sign scale +))
+    ((eq? #\- ch) (exp1 str len (+ 1 off) x1 ex sum sign scale -))
+    (else #f)))
 
-;; TODO correct sign fix? test complex?
-(make-state exp2 ch (str len off x1 sum sign exponent)
-	    (if x1 #f (inexact (* sum (expt 10 (sign exponent)))))
-	    (cond
-	     ((digit 10 ch) (if (> exponent 100) +inf.0
-				(exp2 str len (+ 1 off) x1 sum sign  (+ (digit 10 ch) (* 10 exponent)))))
-	     (else (complex0 str len off x1 10 #f sign (inexact (* sum (expt 10 (sign exponent))))))))
+(make-state exp1 ch (str len off x1 ex sum sign scale esign)
+  #f
+  (if (digit 10 ch)
+      (exp2 str len off x1 ex sum sign scale esign 0)
+      #f))
+
+(make-state exp2 ch (str len off x1 ex sum sign scale esign exponent)
+  (if x1 #f
+      ((if sign sign +) (decimal-value sum (+ scale (esign exponent)) ex)))
+  (if (digit 10 ch)
+      (exp2 str len (+ 1 off) x1 ex sum sign scale esign
+            (+ (digit 10 ch) (* 10 exponent)))
+      (complex0 str len off x1 10 ex sign
+                (decimal-value sum (+ scale (esign exponent)) ex))))
 
 (make-state complex0 ch (str len off x1 r ex sign num)
        #f
@@ -232,9 +259,9 @@
 			     (if x1 x1 0)
 			     (make-rectangular (if x1 x1 0) (sign num)))
 			 #f))
-	       ((#\-) (num1 str len (+ 1 off) (sign2 num) r ex 0 -))
-	       ((#\+)  (num1 str len (+ 1 off) (sign2 num) r ex 0 +))
-	       ((#\@) (let ((angle (num1 str len (+ 1 off) #f r ex 0 +)))
+	       ((#\-) (if x1 #f (num1 str len (+ 1 off) (sign2 num) r ex 0 -)))
+	       ((#\+) (if x1 #f (num1 str len (+ 1 off) (sign2 num) r ex 0 +)))
+	       ((#\@) (let ((angle (and (not x1) (num0 str len (+ 1 off) r ex))))
 			(if (and num angle (number? angle))
 			    (if (= 0 (imag-part angle))
 				(make-polar (sign2 num) angle)
