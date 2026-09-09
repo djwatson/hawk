@@ -1084,12 +1084,18 @@
          (num (if fl (inexact num) num))
          (exp (if fl (inexact exp) exp))
          (start (if fl 1.0 1)))
-    (if (> exp 0)
-        (let loop ((ret start) (num num) (exp exp))
-          (if (= exp 0)
-              ret
-              (loop (if (odd? exp) (* ret num) ret) (* num num) (quotient exp 2))))
-        (do ((n start (/ n num)) (cnt exp (+ cnt 1))) ((= cnt 0) n)))))
+    (cond
+      ((= exp 0) start)
+      ((= num 1) start)
+      ((or (nan? exp) (infinite? exp))
+       (sys:FOREIGN_CALL '(double "pow" (double double)) num exp))
+      ((> exp 0)
+       (let loop ((ret start) (num num) (exp exp))
+         (if (= exp 0)
+             ret
+             (loop (if (odd? exp) (* ret num) ret) (* num num) (quotient exp 2)))))
+      (else
+       (do ((n start (/ n num)) (cnt exp (+ cnt 1))) ((= cnt 0) n))))))
 
 (define (odd? x) (= 1 (modulo x 2)))
 

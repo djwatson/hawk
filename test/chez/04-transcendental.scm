@@ -6,12 +6,20 @@
 (define (approx-equal? a b)
   (< (abs (- a b)) 1e-10))
 
+(define (same-real? a b)
+  (or (and (nan? a) (nan? b))
+      (and (infinite? a) (infinite? b) (= a b))
+      (and (not (nan? a)) (not (infinite? a))
+           (not (nan? b)) (not (infinite? b))
+           (approx-equal? a b))))
+
 (define-syntax check
   (syntax-rules ()
     ((_ expr expected)
      (let ((result expr))
-       (if (if (and (inexact? result) (inexact? expected))
-               (approx-equal? result expected)
+       (if (if (and (real? result) (real? expected)
+                    (inexact? result) (inexact? expected))
+               (same-real? result expected)
                (equal? result expected))
            (set! pass-count (+ pass-count 1))
            (begin
@@ -101,8 +109,8 @@
 ;; sqrt edge cases
 (check (sqrt 0.0) 0.0)
 (check (sqrt +inf.0) +inf.0)
-(check-nan (sqrt -inf.0))
-(check-nan (sqrt -1.0))
+(check (sqrt -inf.0) 0.0+inf.0i)
+(check (sqrt -1.0) 0.0+1.0i)
 (check (sqrt 4.0) 2.0)
 
 ;; sqrt of exact squares
@@ -114,7 +122,7 @@
 (check (expt 1.0 +inf.0) 1.0)
 (check (expt 1.0 +nan.0) 1.0)
 (check (expt +inf.0 0.0) 1.0)
-(check-nan (expt +nan.0 0.0))
+(check (expt +nan.0 0.0) 1.0)
 (check (expt 2.0 10.0) 1024.0)
 
 ;; Result
