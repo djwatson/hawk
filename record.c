@@ -553,8 +553,8 @@ static slot stack_abs_load_boxed(vm_state *state, uint32_t abs_idx,
       return box_vmcall_arg(state, ts->stack[rel_idx].loc);
     }
   }
-  int32_t rel_idx = (int32_t)ts->stack_off - (int32_t)stack_words +
-                    (int32_t)abs_idx;
+  int32_t rel_idx =
+      (int32_t)ts->stack_off - (int32_t)stack_words + (int32_t)abs_idx;
   return add_inst(state, IR(.op = IR_STACK_LOAD_RAW, .data = (uint32_t)rel_idx,
                             .type = UNDEFINED_TAG));
 }
@@ -865,8 +865,7 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
   mark_downrec_ok(cur_trace);
 
   dce(cur_trace);
-  cur_trace->fn =
-      emit(cur_trace, &state->emit, cur_trace->link_entry_snap);
+  cur_trace->fn = emit(cur_trace, &state->emit, cur_trace->link_entry_snap);
   if (0) {
     int parent_trace_num = -1;
     int parent_snap_num = -1;
@@ -1161,16 +1160,17 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     // Begin opcodes
 #define RECORD_BRANCH(TAKEN, GUARD)                                            \
   do {                                                                         \
-    auto guard_ = (GUARD);                                                    \
-    bool retry_ = guard_.type == FLONUM_TAG;                                  \
-    if (!retry_)                                                              \
+    auto guard_ = (GUARD);                                                     \
+    bool retry_ = guard_.type == FLONUM_TAG;                                   \
+    if (!retry_)                                                               \
       set_stack_len(ts, instr.reg);                                            \
     auto jmp_pc = pc + 1;                                                      \
     bool taken_ = (TAKEN);                                                     \
     bc *next_pc = taken_ ? jmp_pc + 1 : jmp_pc + jmp_pc->data;                 \
-    /* Unordered exits must re-evaluate the original predicate. */            \
-    vm_add_snap(state, retry_ ? pc :                                          \
-                (taken_ ? jmp_pc + jmp_pc->data : jmp_pc + 1), argcnt);       \
+    /* Unordered exits must re-evaluate the original predicate. */             \
+    vm_add_snap(state,                                                         \
+                retry_ ? pc : (taken_ ? jmp_pc + jmp_pc->data : jmp_pc + 1),   \
+                argcnt);                                                       \
     add_inst(state, guard_);                                                   \
     set_stack_len(ts, instr.reg);                                              \
     vm_add_snap(state, next_pc, argcnt);                                       \
@@ -1898,14 +1898,19 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_STORE_CHAR:
   case OP_STORE_BYTE: {
     auto obj = stack_load(state, stack, pc->reg, true);
-    auto val = stack_load(state, stack, pc->v1, instr.op != OP_STORE);
+    auto val = stack_load(state, stack, pc->v1, false);
+    auto t = record_current_trace(state);
+    // Heap values get a conservative barrier; immediate values need a guard
+    // so a later heap value cannot bypass IR_GCLOG.
+    if (!slot_is_heap_object(t, val)) {
+      guard_input_value(t, val);
+    }
     auto offset = stack_load(state, stack, pc->v2, true);
 
     obj = materialize_constant_obj(state, obj);
     val = box_vmcall_arg(state, val);
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
     if (instr.op == OP_STORE) {
-      auto t = record_current_trace(state);
       uint8_t obj_type = get_slot_type(t, obj);
       if (slot_is_heap_object(t, val))
         add_inst(state, IR(.op = IR_GCLOG, .op1 = obj, .op2 = offset));
