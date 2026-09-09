@@ -1353,8 +1353,8 @@ EXPORT gc_obj SCM_GET_ENV_VARS() {
       gc_obj pair = make_cons(var, val);
       gc_remove_root(&var, 0);
       tail = make_cons(pair, tail);
-      p++;
     }
+    p++;
   }
 
   gc_remove_root((const void *)&tail, 0);
