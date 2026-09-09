@@ -206,8 +206,16 @@ gc_obj numeric_inexact_value(gc_obj v) {
   }
   if (is_compnum(v)) {
     compnum_s *c = to_compnum(v);
-    return SCM_MAKE_RECTANGULAR(numeric_inexact_value(c->real),
-                                numeric_inexact_value(c->imag));
+    gc_obj real = c->real;
+    gc_obj imag = c->imag;
+    gc_add_root((const void *)&imag, 1, 0);
+    real = numeric_inexact_value(real);
+    gc_add_root((const void *)&real, 1, 0);
+    imag = numeric_inexact_value(imag);
+    gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
+    gc_remove_root((const void *)&real, 0);
+    gc_remove_root((const void *)&imag, 0);
+    return out;
   }
   abort();
 }
@@ -224,8 +232,16 @@ gc_obj numeric_exact_value(gc_obj v) {
   }
   if (is_compnum(v)) {
     compnum_s *c = to_compnum(v);
-    return SCM_MAKE_RECTANGULAR(numeric_exact_value(c->real),
-                                numeric_exact_value(c->imag));
+    gc_obj real = c->real;
+    gc_obj imag = c->imag;
+    gc_add_root((const void *)&imag, 1, 0);
+    real = numeric_exact_value(real);
+    gc_add_root((const void *)&real, 1, 0);
+    imag = numeric_exact_value(imag);
+    gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
+    gc_remove_root((const void *)&real, 0);
+    gc_remove_root((const void *)&imag, 0);
+    return out;
   }
   if (is_flonum(v)) {
     return flonum_ratnum(to_flonum(v)->x);
@@ -331,7 +347,13 @@ bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
     gc_obj limag = l ? l->imag : tag_fixnum(0);
     gc_obj rreal = r ? r->real : rhs;
     gc_obj rimag = r ? r->imag : tag_fixnum(0);
-    return numeric_eqv(lreal, rreal) && numeric_eqv(limag, rimag);
+    gc_add_root((const void *)&limag, 1, 0);
+    gc_add_root((const void *)&rimag, 1, 0);
+    bool real_equal = numeric_eqv(lreal, rreal);
+    bool imag_equal = real_equal && numeric_eqv(limag, rimag);
+    gc_remove_root((const void *)&rimag, 0);
+    gc_remove_root((const void *)&limag, 0);
+    return imag_equal;
   }
   bool ordered;
   return numeric_real_compare(lhs, rhs, &ordered) == 0 && ordered;
@@ -357,7 +379,13 @@ bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
     gc_obj limag = l ? l->imag : tag_fixnum(0);
     gc_obj rreal = r ? r->real : rhs;
     gc_obj rimag = r ? r->imag : tag_fixnum(0);
-    return obj_jeqv(lreal, rreal) && obj_jeqv(limag, rimag);
+    gc_add_root((const void *)&limag, 1, 0);
+    gc_add_root((const void *)&rimag, 1, 0);
+    bool real_equal = obj_jeqv(lreal, rreal);
+    bool imag_equal = real_equal && obj_jeqv(limag, rimag);
+    gc_remove_root((const void *)&rimag, 0);
+    gc_remove_root((const void *)&limag, 0);
+    return imag_equal;
   }
   if (is_flonum(lhs) && is_flonum(rhs)) {
     // Scheme eqv? semantics, matching Chez: NaNs are eqv?, otherwise bits.
