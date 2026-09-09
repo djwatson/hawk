@@ -1314,7 +1314,7 @@ EXPORT gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,
                            int fromend) {
   auto tostr = to_string(to);
   auto fromstr = to_string(from);
-  memcpy(&tostr->str[start], &fromstr->str[fromstart], fromend - fromstart);
+  memmove(&tostr->str[start], &fromstr->str[fromstart], fromend - fromstart);
   return to;
 }
 
