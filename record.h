@@ -59,8 +59,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack,
 void record_init(record_state *record);
 void record_start(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
                   uint64_t argcnt);
-void record_start_poly(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                       snap *side_snap, uint64_t argcnt);
+void record_start_poly(struct vm_state *state, gc_obj *stack, snap *side_snap,
+                       uint64_t argcnt);
 void record_start_side(struct vm_state *state, bc *pc, bc instr, gc_obj *stack,
                        snap *side_snap, uint64_t argcnt);
 void record_abort_current(struct vm_state *state, const char *msg);

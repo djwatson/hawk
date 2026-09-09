@@ -132,11 +132,7 @@ static void record_debug_op(trace_state *ts, bc *pc, bc instr) {
     return;
   }
   record_debug_entry entry = {.depth = ts->depth, .pc = pc, .instr = instr};
-  if (0) {
-    print_record_debug_entry(entry);
-  } else {
-    arrput(ts->debug_ops, entry);
-  }
+  arrput(ts->debug_ops, entry);
 }
 
 static void print_record_debug_entry(record_debug_entry entry) {
@@ -525,7 +521,7 @@ static slot stack_load(vm_state *state, gc_obj *stack, uint8_t pos,
   entry->changed = false;
   return entry->loc;
 }
-static void stack_save(vm_state *state, gc_obj *stack, uint8_t pos, slot res) {
+static void stack_save(vm_state *state, uint8_t pos, slot res) {
   set_stack(state, pos, res);
 }
 
@@ -576,7 +572,7 @@ static slot load_closure_slot(vm_state *state, slot clo, int64_t idx,
 }
 
 static slot const_load(vm_state *state, bc *pc, uint16_t offset) {
-  // We use a non-moving gc, so this is just a runtime constant, always.
+  // Constants are scanned as GC roots and may be forwarded by moving GC.
   auto c = *(gc_obj *)(pc - offset);
   return add_const(state, c);
 }
@@ -866,41 +862,6 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
 
   dce(cur_trace);
   cur_trace->fn = emit(cur_trace, &state->emit, cur_trace->link_entry_snap);
-  if (0) {
-    int parent_trace_num = -1;
-    int parent_snap_num = -1;
-    if (cur_trace->parent_snap) {
-      trace *parent = cur_trace->parent_snap->trace;
-      parent_trace_num = parent->num;
-      parent_snap_num = (int)(cur_trace->parent_snap - parent->snaps);
-    }
-    int linked_trace_num = cur_trace->link->num;
-
-    const char *fname = func_name_from_pc(pc);
-    const char *trace_kind = "LOOP";
-    const char *poly_trace_kind = "POLY-LOOP";
-    if (arrlast(cur_trace->snaps)->offset != 0) {
-      trace_kind = "UPREC";
-      poly_trace_kind = "POLY-UPREC";
-    } else if (is_downrec_trace(ts)) {
-      trace_kind = "DOWNREC";
-      poly_trace_kind = "POLY-DOWNREC";
-    }
-
-    if (linked_trace_num == cur_trace->num) {
-      printf("TOOL TRACE FINISH %i %i %i %s %s %i \n", cur_trace->num,
-             parent_trace_num, parent_snap_num, trace_kind, fname,
-             linked_trace_num);
-    } else if (cur_trace->kind == TRACE_POLY) {
-      printf("TOOL TRACE FINISH %i %i %i %s %s %i \n", cur_trace->num,
-             parent_trace_num, parent_snap_num, poly_trace_kind, fname,
-             linked_trace_num);
-    } else {
-      printf("TOOL TRACE FINISH %i %i %i %s %s %i \n", cur_trace->num,
-             parent_trace_num, parent_snap_num, "SIDE", fname,
-             linked_trace_num);
-    }
-  }
 
   state->max_trace--;
   if (cur_trace->kind == TRACE_ROOT) {
@@ -1110,8 +1071,8 @@ static void *check_record_start(bc *pc, bc instr, gc_obj *stack,
   // side trace:
   //  check for up-recursion and abort, restart trying to capture an
   //  up-recursive trace.
-  if (pc == ts->start_ins && !is_downrec_trace(ts) &&
-      (ts->depth == 0 || cnt >= 0)) {
+  // Root loops and up-recursive traces finish when they return to the start.
+  if (pc == ts->start_ins && !is_downrec_trace(ts)) {
     trace_match match =
         ensure_args_match_trace(state, cur_trace, cur_trace, argcnt);
     cur_trace->link = match.trace;
@@ -1186,7 +1147,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto v2 = stack_load(state, stack, instr.v2, true);                        \
     auto res = EMIT_FN(state, v1, v2, stack[instr.v1], stack[instr.v2]);       \
     set_stack_top(state, instr.reg + 1);                                       \
-    stack_save(state, stack, instr.reg, res);                                  \
+    stack_save(state, instr.reg, res);                                         \
     break;                                                                     \
   }
 
@@ -1202,7 +1163,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto v2 = stack_load(state, stack, instr.v2, false);
     auto res = vm_memq(stack[instr.v1], stack[instr.v2]);
     set_stack_top(state, instr.reg + 1);
-    stack_save(state, stack, instr.reg,
+    stack_save(state, instr.reg,
                add_inst(state, IR(.op = IR_VMMEMQ, .op1 = v1, .op2 = v2,
                                   .guard = false, .type = get_type_tag(res))));
     break;
@@ -1212,7 +1173,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto v2 = stack_load(state, stack, instr.v2, false);
     auto res = vm_memv(stack[instr.v1], stack[instr.v2]);
     set_stack_top(state, instr.reg + 1);
-    stack_save(state, stack, instr.reg,
+    stack_save(state, instr.reg,
                add_inst(state, IR(.op = IR_VMMEMV, .op1 = v1, .op2 = v2,
                                   .guard = false, .type = get_type_tag(res))));
     break;
@@ -1225,7 +1186,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto v1 = stack_load(state, stack, instr.data, true);
     auto res = convert_to_flonum(state, v1);
     set_stack_top(state, instr.reg + 1);
-    stack_save(state, stack, instr.reg, res);
+    stack_save(state, instr.reg, res);
     break;
   }
   case OP_EXACT: {
@@ -1236,7 +1197,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto v1 = stack_load(state, stack, instr.data, true);
     auto res = convert_to_fixnum(state, v1, stack[instr.data]);
     set_stack_top(state, instr.reg + 1);
-    stack_save(state, stack, instr.reg, res);
+    stack_save(state, instr.reg, res);
     break;
   }
   case OP_TRUNCATE: {
@@ -1247,7 +1208,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto v1 = stack_load(state, stack, instr.data, true);
     auto res = scm_truncate(state, v1, stack[instr.data]);
     set_stack_top(state, instr.reg + 1);
-    stack_save(state, stack, instr.reg, res);
+    stack_save(state, instr.reg, res);
     break;
   }
 #define RECORD_BIN_CMP(OP_CODE, EMIT_FN, OP_NAME)                              \
@@ -1288,18 +1249,18 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
 #undef RECORD_BIN_CMP
   case OP_CONST: {
     auto c = const_load(state, pc, instr.data);
-    stack_save(state, stack, instr.reg, c);
+    stack_save(state, instr.reg, c);
     break;
   }
   case OP_KSHORT: {
     gc_obj c = (gc_obj){.value = (int16_t)instr.data};
     auto c_slot = add_const(state, c);
-    stack_save(state, stack, instr.reg, c_slot);
+    stack_save(state, instr.reg, c_slot);
     break;
   }
   case OP_MOV: {
     auto c = stack_load(state, stack, instr.data, false);
-    stack_save(state, stack, instr.reg, c);
+    stack_save(state, instr.reg, c);
     break;
   }
   case OP_RET:
@@ -1404,7 +1365,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         v1 = add_inst(state, ins);
       }
     }
-    stack_save(state, stack, instr.reg, v1);
+    stack_save(state, instr.reg, v1);
     break;
   }
   case OP_DEFINE: {
@@ -1542,7 +1503,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         func->poly_cnt |= 1;
         auto clo_c = add_const(state, stack[instr.v1]);
         add_inst(state, IR(.op = IR_EQ, .op1 = clo, .op2 = clo_c));
-        stack_save(state, stack, instr.v1, clo_c);
+        stack_save(state, instr.v1, clo_c);
         res = add_const(state, c->v[clo_slot]);
       } else {
         slot c_pos = add_const(state, tag_fixnum(clo_slot + 1));
@@ -1555,7 +1516,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         res = add_inst(state, ins);
       }
     }
-    stack_save(state, stack, instr.reg, res);
+    stack_save(state, instr.reg, res);
     break;
   }
   case OP_CLOSURE_SET: {
@@ -1616,7 +1577,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     }
     free(captures);
 
-    stack_save(state, stack, instr.reg, clo);
+    stack_save(state, instr.reg, clo);
     break;
   }
   case OP_LOOP: {
@@ -1650,7 +1611,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     if (instr.op == OP_LCALL) {
       auto frame_top = instr.reg;
       auto ra = add_const(state, tag_return_address(pc + 1));
-      stack_save(state, stack, instr.reg, ra);
+      stack_save(state, instr.reg, ra);
       ts->stack_off += frame_top + 1;
       ts->depth++;
     } else {
@@ -1677,7 +1638,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto func = stack_load(state, stack, instr.reg, true);
     if (instr.op == OP_LCALL_N) {
       auto ra = add_const(state, tag_return_address(pc + 1));
-      stack_save(state, stack, instr.reg, ra);
+      stack_save(state, instr.reg, ra);
       ts->stack_off += instr.reg + 1;
       ts->depth++;
     } else {
@@ -1754,7 +1715,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       }
       auto res =
           add_inst(state, IR(.op = IR_SQRT, .op1 = arg, .type = FLONUM_TAG));
-      stack_save(state, stack, instr.reg, res);
+      stack_save(state, instr.reg, res);
       break;
     }
 #endif
@@ -1782,7 +1743,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       ts->pending_ccall_reg = instr.reg;
       ts->pending_ccall_type = true;
     }
-    stack_save(state, stack, instr.reg, res);
+    stack_save(state, instr.reg, res);
     vm_add_snap(state, pc + 1, argcnt);
     break;
   }
@@ -1802,7 +1763,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     ir_ins ins = IR(.op = IR_ALLOC, .op1 = sz, .op2 = type,
                     .type = (uint8_t)to_fixnum(type_const));
     auto obj = add_inst(state, ins);
-    stack_save(state, stack, instr.reg, obj);
+    stack_save(state, instr.reg, obj);
     break;
   }
   case OP_CAR: {
@@ -1812,7 +1773,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto car_off = add_const(state, tag_fixnum(0));
     auto res = add_inst(state, IR(.op = IR_LOAD, .op1 = obj, .op2 = car_off,
                                   .type = get_type_tag(to_cons(src)->a)));
-    stack_save(state, stack, instr.reg, res);
+    stack_save(state, instr.reg, res);
     break;
   }
   case OP_CDR: {
@@ -1822,7 +1783,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto cdr_off = add_const(state, tag_fixnum(1));
     auto res = add_inst(state, IR(.op = IR_LOAD, .op1 = obj, .op2 = cdr_off,
                                   .type = get_type_tag(to_cons(src)->b)));
-    stack_save(state, stack, instr.reg, res);
+    stack_save(state, instr.reg, res);
     break;
   }
   case OP_CONS: {
@@ -1846,7 +1807,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         state, IR(.op = IR_REF, .op1 = cell, .op2 = b_off, .type = CONS_TAG));
     add_inst(state,
              IR(.op = IR_STORE, .op1 = b_ref, .op2 = cdr, .type = CONS_TAG));
-    stack_save(state, stack, instr.reg, cell);
+    stack_save(state, instr.reg, cell);
     break;
   }
   case OP_RECT: {
@@ -1870,7 +1831,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                                     .type = COMPNUM_TAG));
     add_inst(state, IR(.op = IR_STORE, .op1 = b_ref, .op2 = imag,
                        .type = COMPNUM_TAG));
-    stack_save(state, stack, instr.reg, cell);
+    stack_save(state, instr.reg, cell);
     break;
   }
   case OP_ABC: {
@@ -1948,7 +1909,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     assert(stack_load(state, stack, instr.v2, true).constant);
     bool matches = guard_obj_matches(stack[instr.v1], stack[instr.v2]);
     auto res = add_const(state, matches ? TRUE_REP : FALSE_REP);
-    stack_save(state, stack, instr.reg, res);
+    stack_save(state, instr.reg, res);
     break;
   }
   case OP_GUARDMASK: {
@@ -1959,7 +1920,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     bool matches =
         guardmask_obj_matches(stack[instr.v1], packed >> 16, packed & 0xFFFF);
     auto res = add_const(state, matches ? TRUE_REP : FALSE_REP);
-    stack_save(state, stack, instr.reg, res);
+    stack_save(state, instr.reg, res);
     break;
   }
   case OP_LOAD:
@@ -1996,7 +1957,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
           IR(.op = IR_LOAD_BYTE, .op1 = obj, .op2 = offset, .type = FIXNUM_TAG);
     }
     auto res = add_inst(state, ins);
-    stack_save(state, stack, instr.reg, res);
+    stack_save(state, instr.reg, res);
     break;
   }
   case OP_FLVECTOR_REF: {
@@ -2005,7 +1966,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     obj = materialize_constant_obj(state, obj);
     auto res = add_inst(state, IR(.op = IR_FLVECTOR_REF, .op1 = obj,
                                   .op2 = offset, .type = FLONUM_TAG));
-    stack_save(state, stack, instr.reg, res);
+    stack_save(state, instr.reg, res);
     break;
   }
   case OP_CHAR_INTEGER: {
@@ -2020,7 +1981,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         res = add_inst(
             state, IR(.op = IR_CHAR_INTEGER, .op1 = v1, .type = FIXNUM_TAG));
       }
-      stack_save(state, stack, instr.reg, res);
+      stack_save(state, instr.reg, res);
     } else {
       abort();
     }
@@ -2038,7 +1999,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         res = add_inst(state,
                        IR(.op = IR_INTEGER_CHAR, .op1 = v1, .type = CHAR_TAG));
       }
-      stack_save(state, stack, instr.reg, res);
+      stack_save(state, instr.reg, res);
     } else {
       abort();
     }
@@ -2307,107 +2268,50 @@ static void record_seed_entry_args(vm_state *state, bc *pc, bc instr,
   // trace loops at all.
   assert(is_func_entry_op(instr.op) || is_loop_entry_op(instr.op) ||
          instr.op == OP_RET || instr.op == OP_RETN);
+  uint8_t first_slot = 0;
+  uint16_t count = 0;
   switch (instr.op) {
   case OP_FUNC:
   case OP_IFUNC:
-    for (int i = 0; i < MIN(instr.reg, REG_ARG_CNT); i++) {
-      uint8_t type = get_type_tag(stack[i]);
-      set_stack(state, i,
-                add_inst(state, IR(.op = IR_ARG, .data = i,
-                                   .type = type == FLONUM_TAG ? UNDEFINED_TAG
-                                                              : type)));
-    }
+    count = MIN(instr.reg, REG_ARG_CNT);
     break;
-  case OP_RET: {
-    uint8_t type = get_type_tag(stack[instr.reg]);
-    set_stack(
-        state, instr.reg,
-        add_inst(state, IR(.op = IR_ARG, .data = instr.reg,
-                           .type = type == FLONUM_TAG ? UNDEFINED_TAG : type)));
-
+  case OP_RET:
+    first_slot = instr.reg;
+    count = 1;
     break;
-  }
-  case OP_RETN: {
-    for (uint16_t i = 0; i < instr.data; i++) {
-      uint8_t type = get_type_tag(stack[instr.reg + i]);
-      set_stack(state, (uint8_t)(instr.reg + i),
-                add_inst(state, IR(.op = IR_ARG, .data = instr.reg + i,
-                                   .type = type == FLONUM_TAG ? UNDEFINED_TAG
-                                                              : type)));
-    }
+  case OP_RETN:
+    first_slot = instr.reg;
+    count = instr.data;
     break;
-  }
   case OP_LOOP:
   case OP_ILOOP:
-    for (int i = 0; i < MIN(instr.data, REG_ARG_CNT); i++) {
-      uint8_t slot = (uint8_t)(instr.reg + i);
-      uint8_t type = get_type_tag(stack[slot]);
-      set_stack(state, slot,
-                add_inst(state, IR(.op = IR_ARG, .data = slot,
-                                   .type = type == FLONUM_TAG ? UNDEFINED_TAG
-                                                              : type)));
-    }
+    first_slot = instr.reg;
+    count = MIN(instr.data, REG_ARG_CNT);
     break;
   default:
     abort();
+  }
+  for (uint16_t i = 0; i < count; i++) {
+    uint8_t entry = (uint8_t)(first_slot + i);
+    uint8_t type = get_type_tag(stack[entry]);
+    set_stack(state, entry,
+              add_inst(state, IR(.op = IR_ARG, .data = entry,
+                                 .type = type == FLONUM_TAG ? UNDEFINED_TAG
+                                                            : type)));
   }
   vm_add_snap(state, resume_pc, argcnt);
   // Typecheck entry arguments up-front so flonums can target the checked
   // value.
-  switch (instr.op) {
-  case OP_FUNC:
-  case OP_IFUNC:
-    for (int i = 0; i < MIN(instr.reg, REG_ARG_CNT); i++) {
-      auto s = get_sentry(state, i);
-      uint8_t type = get_type_tag(stack[i]);
-      auto checked =
-          add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc, .type = type,
-                             .guard = type == FLONUM_TAG));
-      if (type == FLONUM_TAG) {
-        set_stack(state, i, checked);
-      }
-    }
-    break;
-  case OP_RET: {
-    auto s = get_sentry(state, instr.reg);
-    uint8_t type = get_type_tag(stack[instr.reg]);
+  for (uint16_t i = 0; i < count; i++) {
+    uint8_t entry = (uint8_t)(first_slot + i);
+    auto s = get_sentry(state, entry);
+    uint8_t type = get_type_tag(stack[entry]);
     auto checked =
         add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc, .type = type,
                            .guard = type == FLONUM_TAG));
     if (type == FLONUM_TAG) {
-      set_stack(state, instr.reg, checked);
+      set_stack(state, entry, checked);
     }
-    break;
-  }
-  case OP_RETN: {
-    for (uint16_t i = 0; i < instr.data; i++) {
-      auto s = get_sentry(state, (uint8_t)(instr.reg + i));
-      uint8_t type = get_type_tag(stack[instr.reg + i]);
-      auto checked =
-          add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc, .type = type,
-                             .guard = type == FLONUM_TAG));
-      if (type == FLONUM_TAG) {
-        set_stack(state, (uint8_t)(instr.reg + i), checked);
-      }
-    }
-    break;
-  }
-  case OP_LOOP:
-  case OP_ILOOP:
-    for (int i = 0; i < MIN(instr.data, REG_ARG_CNT); i++) {
-      uint8_t slot = (uint8_t)(instr.reg + i);
-      auto s = get_sentry(state, slot);
-      uint8_t type = get_type_tag(stack[slot]);
-      auto checked =
-          add_inst(state, IR(.op = IR_TYPECHECK, .op1 = s->loc, .type = type,
-                             .guard = type == FLONUM_TAG));
-      if (type == FLONUM_TAG) {
-        set_stack(state, slot, checked);
-      }
-    }
-    break;
-  default:
-    abort();
   }
   vm_add_snap(state, resume_pc, argcnt);
   ts->start_record_size = arrlen(record_current_trace(state)->ins);
@@ -2427,10 +2331,8 @@ void record_start(vm_state *state, bc *pc, bc instr, gc_obj *stack,
   record_seed_entry_args(state, pc, instr, stack, argcnt);
 }
 
-void record_start_poly(vm_state *state, bc *pc, bc instr, gc_obj *stack,
-                       snap *side_snap, uint64_t argcnt) {
-  (void)pc;
-  (void)instr;
+void record_start_poly(vm_state *state, gc_obj *stack, snap *side_snap,
+                       uint64_t argcnt) {
   bc *start_pc = side_snap->trace->start_ins;
   bc start_ins = side_snap->trace->start_pc;
   LOG(record, "Record start poly %i %s", record_trace_count(state),

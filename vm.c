@@ -629,7 +629,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
           res.snap == &parent->snaps[0] && parent->kind != TRACE_SIDE;
       LOG(record, "Try side trace %i %i", res.snap->trace->num, res.snap->ir);
       if (is_poly_trace) {
-        record_start_poly(state, *pc, *instr, *stack, res.snap, *argcnt);
+        record_start_poly(state, *stack, res.snap, *argcnt);
       } else {
         record_start_side(state, *pc, *instr, *stack, res.snap, *argcnt);
       }
