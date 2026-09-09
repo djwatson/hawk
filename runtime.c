@@ -1089,6 +1089,25 @@ static gc_obj compnum_mul(gc_obj a, gc_obj b) {
 
 // GC: may allocate via gc_alloc through get_compnum and vm_runtime_math_*_slow.
 static gc_obj compnum_div(gc_obj a, gc_obj b) {
+  double ar, ai, br, bi;
+  bool inexact = false;
+  if (compnum_double_parts(a, &ar, &ai, &inexact) &&
+      compnum_double_parts(b, &br, &bi, &inexact) && inexact &&
+      isfinite(ar) && isfinite(ai) && isfinite(br) && isfinite(bi) &&
+      bi != 0.0) {
+    // Scale both operands so products stay bounded, then restore the exponent.
+    int ae = 0, be = 0;
+    frexp(fmax(fabs(ar), fabs(ai)), &ae);
+    frexp(fmax(fabs(br), fabs(bi)), &be);
+    ar = scalbn(ar, -ae);
+    ai = scalbn(ai, -ae);
+    br = scalbn(br, -be);
+    bi = scalbn(bi, -be);
+    double denom = br * br + bi * bi;
+    double real = scalbn((ar * br + ai * bi) / denom, ae - be);
+    double imag = scalbn((ai * br - ar * bi) / denom, ae - be);
+    return make_inexact_compnum(real, imag);
+  }
   gc_add_root((const void *)&b, 1, 0);
   gc_obj ca_obj = get_compnum(a);
   gc_add_root((const void *)&ca_obj, 1, 0);
