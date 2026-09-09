@@ -249,7 +249,7 @@ static gc_obj flonum_ratnum(double x) {
   int64_t exponent = (int64_t)(bits >> 52 & 0x7ff);
   int64_t mantissa = (int64_t)(bits & 0xFFFFFFFFFFFFF);
   if (exponent == 0x7ff) {
-    abort();
+    return FALSE_REP;
   }
   gc_obj denom = tag_fixnum(0x10000000000000);
   if (exponent != 0) {
@@ -325,8 +325,11 @@ gc_obj numeric_exact_value(gc_obj v) {
     gc_add_root((const void *)&imag, 1, 0);
     real = numeric_exact_value(real);
     gc_add_root((const void *)&real, 1, 0);
-    imag = numeric_exact_value(imag);
-    gc_obj out = SCM_MAKE_RECTANGULAR(real, imag);
+    if (real.value != FALSE_REP.value) {
+      imag = numeric_exact_value(imag);
+    }
+    gc_obj out = real.value == FALSE_REP.value || imag.value == FALSE_REP.value
+                     ? FALSE_REP : SCM_MAKE_RECTANGULAR(real, imag);
     gc_remove_root((const void *)&real, 0);
     gc_remove_root((const void *)&imag, 0);
     return out;

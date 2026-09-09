@@ -901,6 +901,10 @@ OP_AD(EXACT) {
     MATH_TYPE_ERROR("exact");
   }
   auto res = numeric_exact_value(v1);
+  if (unlikely(res.value == FALSE_REP.value)) {
+    stack[2] = make_string("Cannot convert a non-finite number to exact");
+    MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
+  }
   END_ABC_NEXT
 }
 OP_AD(TRUNCATE) {

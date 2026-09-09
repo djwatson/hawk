@@ -78,6 +78,7 @@ gc_obj numeric_to_bignum_obj(gc_obj v);
 int numeric_exact_compare(gc_obj v1, gc_obj v2);
 double numeric_to_double(gc_obj v);
 gc_obj numeric_inexact_value(gc_obj v);
+// Returns FALSE_REP if a component is non-finite.
 gc_obj numeric_exact_value(gc_obj v);
 gc_obj numeric_truncate_value(gc_obj v);
 bool numeric_fixnum_floatable_wlop(gc_obj v);

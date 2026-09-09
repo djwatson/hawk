@@ -606,7 +606,7 @@ static slot convert_to_fixnum(vm_state *state, slot v1, gc_obj raw_v1) {
       gc_obj exact = numeric_exact_value(t->consts[v1.loc]);
       return add_const(state, exact);
     }
-    ir_ins ins = IR(.op = IR_VMEXACT, .op1 = v1,
+    ir_ins ins = IR(.op = IR_VMEXACT, .op1 = v1, .guard = true,
                     .type = vm_runtime_unary_result_type(IR_VMEXACT, raw_v1));
     return add_inst(state, ins);
   }
@@ -1192,6 +1192,11 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_EXACT: {
     if (!is_number(stack[instr.data])) {
       record_abort(state, &op_table, "Non-number argument to exact");
+      break;
+    }
+    if (numeric_exact_value(stack[instr.data]).value == FALSE_REP.value) {
+      record_abort(state, &op_table,
+                   "Cannot convert a non-finite number to exact");
       break;
     }
     auto v1 = stack_load(state, stack, instr.data, true);
