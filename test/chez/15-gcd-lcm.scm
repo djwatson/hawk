@@ -40,8 +40,8 @@
 (check (gcd 12 8 6) 2)
 
 ;; GCD with exact rationals
-(check (gcd 1/2 1/3) 1/6)
-(check (gcd 3/4 1/2) 1/4)
+(check (guard (exn (#t #t)) (gcd 1/2 1/3) #f) #t)
+(check (guard (exn (#t #t)) (gcd 3/4 1/2) #f) #t)
 
 ;; Basic LCM
 (check (lcm 0 0) 0)
@@ -64,8 +64,8 @@
 (check (lcm 4 6 8) 24)
 
 ;; LCM with exact rationals
-(check (lcm 1/2 1/3) 1)
-(check (lcm 1/4 1/2) 1/2)
+(check (guard (exn (#t #t)) (lcm 1/2 1/3) #f) #t)
+(check (guard (exn (#t #t)) (lcm 1/4 1/2) #f) #t)
 
 ;; GCD and LCM relationship: gcd * lcm = product (for positive ints)
 (check (* (gcd 12 8) (lcm 12 8)) (* 12 8))

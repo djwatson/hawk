@@ -1141,11 +1141,23 @@
                                 m)))))
               (if (nan? i) i (loop (cons i (cddr args))))))))))
 
+(define (gcd-check arg)
+  (unless (integer? arg) (error "gcd: expected integer" arg))
+  arg)
+(define (lcm-check arg)
+  (unless (integer? arg)
+    (error "lcm: expected integer" arg))
+  arg)
 (define gcd
   (case-lambda
     (() 0)
-    ((a) a)
-    ((a b) (if (= b 0) (abs a) (gcd b (remainder a b))))
+    ((a)
+      (gcd-check a)
+      (abs a))
+    ((a b)
+      (gcd-check a)
+      (gcd-check b)
+      (if (= b 0) (abs a) (gcd b (remainder a b))))
     (args
       (let lp ((x (car args)) (ls (cdr args)))
         (if (null? ls) x (lp (gcd x (car ls)) (cdr ls)))))))
@@ -1153,8 +1165,13 @@
 (define lcm
   (case-lambda
     (() 1)
-    ((a) a)
-    ((a b) (abs (quotient (* a b) (gcd a b))))
+    ((a) (abs (lcm-check a)))
+    ((a b)
+      (lcm-check a)
+      (lcm-check b)
+      (if (or (= a 0) (= b 0))
+          (if (or (inexact? a) (inexact? b)) (inexact 0) 0)
+          (abs (quotient (* a b) (gcd a b)))))
     (args
       (let lp ((x (car args)) (ls (cdr args)))
         (if (null? ls) x (lp (lcm x (car ls)) (cdr ls)))))))
