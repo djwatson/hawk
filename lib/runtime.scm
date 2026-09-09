@@ -2017,6 +2017,14 @@
 (define (sqrt x)
   (cond
     ((compnum? x) (make-polar (sqrt (magnitude x)) (/ (angle x) 2)))
+    ((and (exact? x) (real? x) (negative? x))
+      (make-rectangular 0 (sqrt (abs x))))
+    ((and (exact? x) (real? x))
+      (let-values (((nroot nrem) (exact-integer-sqrt (numerator x)))
+                   ((droot drem) (exact-integer-sqrt (denominator x))))
+        (if (and (zero? nrem) (zero? drem))
+            (/ nroot droot)
+            (sys:FOREIGN_CALL '(double "sqrt" (double)) (inexact x)))))
     ((negative? x) (make-rectangular 0.0 (sqrt (abs x))))
     (else (sys:FOREIGN_CALL '(double "sqrt" (double)) (inexact x)))))
 (define atan

@@ -75,7 +75,7 @@
 
 ;; rationalize
 (check (rationalize 1/3 0) 1/3)
-(check (rationalize 0.5 0) 1/2)
+(check (rationalize 0.5 0) 0.5)
 (check (rationalize 1 0) 1)
 
 ;; Bignum division
