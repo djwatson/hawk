@@ -10,7 +10,7 @@
 (check 1e-200+1e-200i 1e-200-1e-200i 0.0+1.0i)
 (check 3.0+4.0i 1.0+2.0i 2.2-0.4i)
 (check 0 1e200+1e200i 0.0+0.0i)
-(check 3+4i 1+2i (make-rectangular 11/5 -2/5))
+(check 3+4i 1+2i 11/5-2/5i)
 (if (not (exact? (/ 3+4i 1+2i)))
     (error "complex division lost exactness"))
 (display "complex-division-ok")

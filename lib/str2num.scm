@@ -133,7 +133,7 @@
 	     ((digit r ch) (ratio1 str len (+ 1 off) x1 r ex sign  nom (+ (digit r ch) (* denom r))))
 	     (else (complex0 str len off x1 r ex sign
 			     (let ((d (if ex (ex denom) denom)))
-			       (if (eq? d 0) #f (/ ((if sign sign +) nom) d)))))))
+			       (if (eq? d 0) #f (/ nom d)))))))
 
 (make-state inf0 ch (str len off x1 r ex sum sign)  ;; saw sign
 	    #f
