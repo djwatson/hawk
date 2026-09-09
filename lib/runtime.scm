@@ -228,9 +228,7 @@
        ((= i len))
        (apply proc (map (lambda (x) (vector-ref x i)) vecs))))
 
-(define (eqv? a b)
-  (or (eq? a b)
-     (and (number? a) (number? b) (eq? (exact? a) (exact? b)) (= a b))))
+(define (eqv? a b) (sys:EQV a b))
 (define (equal? a b)
   (sys:FOREIGN_CALL '(gc_obj "SCM_EQUAL" (gc_obj gc_obj)) a b))
 
@@ -307,7 +305,8 @@
 (define (infinite? x)
   (or (and (flonum? x) (sys:FOREIGN_CALL '(bool "SCM_ISINF" (double)) x))
      (and (compnum? x) (or (infinite? (real-part x)) (infinite? (imag-part x))))))
-(define (finite? num) (or (not (number? num)) (not (infinite? num))))
+(define (finite? num)
+  (and (number? num) (not (infinite? num)) (not (nan? num))))
 (define (exact? x)
   (or (fixnum? x)
      (bignum? x)
@@ -1098,31 +1097,43 @@
 (define min
   (case-lambda
     ((a b)
-      (let ((res (if (< a b) a b)))
-        (if (or (inexact? a) (inexact? b)) (inexact res) res)))
+      (if (or (nan? a) (nan? b))
+          +nan.0
+          (let ((res (if (< a b) a b)))
+            (if (or (inexact? a) (inexact? b)) (inexact res) res))))
     (args
       (let loop ((args args))
         (if (eq? (length args) 1)
             (car args)
             (let* ((a (car args))
                    (b (cadr args))
-                   (m (if (> a b) b a))
-                   (i (if (or (inexact? a) (inexact? b)) (inexact m) m)))
-              (loop (cons i (cddr args)))))))))
+                   (i (if (or (nan? a) (nan? b))
+                          +nan.0
+                          (let ((m (if (> a b) b a)))
+                            (if (or (inexact? a) (inexact? b))
+                                (inexact m)
+                                m)))))
+              (if (nan? i) i (loop (cons i (cddr args))))))))))
 (define max
   (case-lambda
     ((a b)
-      (let ((res (if (> a b) a b)))
-        (if (or (inexact? a) (inexact? b)) (inexact res) res)))
+      (if (or (nan? a) (nan? b))
+          +nan.0
+          (let ((res (if (> a b) a b)))
+            (if (or (inexact? a) (inexact? b)) (inexact res) res))))
     (args
       (let loop ((args args))
         (if (eq? (length args) 1)
             (car args)
             (let* ((a (car args))
                    (b (cadr args))
-                   (m (if (< a b) b a))
-                   (i (if (or (inexact? a) (inexact? b)) (inexact m) m)))
-              (loop (cons i (cddr args)))))))))
+                   (i (if (or (nan? a) (nan? b))
+                          +nan.0
+                          (let ((m (if (< a b) b a)))
+                            (if (or (inexact? a) (inexact? b))
+                                (inexact m)
+                                m)))))
+              (if (nan? i) i (loop (cons i (cddr args))))))))))
 
 (define gcd
   (case-lambda
