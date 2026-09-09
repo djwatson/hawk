@@ -40,7 +40,7 @@ static bool is_neg_zero(trace *t, slot s, slot *out) {
   if (s.constant)
     return false;
   ir_ins *ir = &t->ins[s.loc];
-  if (ir->op != IR_SUB)
+  if (ir->op != IR_SUB || ir->type != FIXNUM_TAG)
     return false;
   if (!ir->op1.constant)
     return false;
@@ -283,7 +283,7 @@ IRFOLDF(fold_commutative_const_lhs) {
   slot tmp = in->op1;
   in->op1 = in->op2;
   in->op2 = tmp;
-  return fold_next();
+  return fold_retry();
 }
 
 IRFOLD(LT CONST _)
@@ -295,7 +295,7 @@ IRFOLDF(fold_cmp_const_lhs) {
   in->op1 = in->op2;
   in->op2 = tmp;
   in->op = swap_cmp_op(in->op);
-  return fold_next();
+  return fold_retry();
 }
 
 IRFOLD(SUB CONST _)
@@ -303,6 +303,9 @@ IRFOLD(DIV CONST _)
 IRFOLD(QUOTIENT CONST _)
 IRFOLD(MOD CONST _)
 IRFOLDF(fold_noncommutative_const_lhs) {
+  if (in->op == IR_MOD && in->type == FIXNUM_TAG &&
+      numeric_is_zero(t->consts[in->op1.loc]))
+    return fold_const(tag_fixnum(0));
   // Materialize lhs constant to a register so emit can handle lhs as non-const.
   auto const_op = (ir_ins){
       .op = IR_CONST,
@@ -566,6 +569,8 @@ IRFOLDF(fold_self_cmp) {
 // Double-negation elimination: SUB(0, SUB(0, x)) -> x
 IRFOLD(SUB CONST SUB)
 IRFOLDF(fold_double_neg) {
+  if (in->type != FIXNUM_TAG)
+    return fold_next();
   if (!in->op1.constant)
     return fold_next();
   if (!numeric_is_zero(t->consts[in->op1.loc]))
@@ -606,12 +611,18 @@ IRFOLDF(fold_sub_zero) {
     return fold_next();
   if (!numeric_is_zero(t->consts[in->op2.loc]))
     return fold_next();
+  gc_obj k = t->consts[in->op2.loc];
+  if (is_flonum(k) && signbit(to_flonum(k)->x))
+    return fold_next();
   return fold_ref(in->op1);
 }
 
 // a - (-b) -> a + b
 IRFOLD(SUB _ SUB)
 IRFOLDF(fold_sub_neg_rhs) {
+  ir_ins *sub = &t->ins[in->op2.loc];
+  if (in->type == FIXNUM_TAG && same_slot(t, in->op1, sub->op1))
+    return fold_ref(sub->op2);
   slot b;
   if (!is_neg_zero(t, in->op2, &b))
     return fold_next();
@@ -802,26 +813,12 @@ IRFOLDF(fold_sub_cancel_sub_left) {
   if (sub->op != IR_SUB)
     return fold_next();
   if (!in->op2.constant && same_slot(t, in->op2, sub->op1)) {
+    slot rhs = sub->op2;
     slot zero = make_fixnum_inst(t, 0);
     in->op1 = zero;
-    in->op2 = sub->op2;
+    in->op2 = rhs;
     return fold_retry();
   }
-  return fold_next();
-}
-
-// i - (i - j) -> j  (fixnum only)
-IRFOLD(SUB _ SUB)
-IRFOLDF(fold_sub_cancel_sub_right) {
-  if (in->type != FIXNUM_TAG)
-    return fold_next();
-  if (in->op2.constant)
-    return fold_next();
-  ir_ins *sub = &t->ins[in->op2.loc];
-  if (sub->op != IR_SUB)
-    return fold_next();
-  if (!in->op1.constant && same_slot(t, in->op1, sub->op1))
-    return fold_ref(sub->op2);
   return fold_next();
 }
 
@@ -837,15 +834,17 @@ IRFOLDF(fold_sub_cancel_add_right) {
     return fold_next();
   if (!in->op1.constant) {
     if (same_slot(t, in->op1, add->op1)) {
+      slot rhs = add->op2;
       slot zero = make_fixnum_inst(t, 0);
       in->op1 = zero;
-      in->op2 = add->op2;
+      in->op2 = rhs;
       return fold_retry();
     }
     if (same_slot(t, in->op1, add->op2)) {
+      slot rhs = add->op1;
       slot zero = make_fixnum_inst(t, 0);
       in->op1 = zero;
-      in->op2 = add->op1;
+      in->op2 = rhs;
       return fold_retry();
     }
   }
@@ -884,18 +883,6 @@ IRFOLDF(fold_sub_cancel_add_add) {
     return fold_retry();
   }
   return fold_next();
-}
-
-// MOD CONST(0), any -> CONST(0)  (fixnum only)
-IRFOLD(MOD CONST _)
-IRFOLDF(fold_mod_zero_lhs) {
-  if (!in->op1.constant)
-    return fold_next();
-  if (in->type != FIXNUM_TAG)
-    return fold_next();
-  if (!numeric_is_zero(t->consts[in->op1.loc]))
-    return fold_next();
-  return fold_const(tag_fixnum(0));
 }
 
 // MOD any, CONST(1) -> CONST(0)  (fixnum only)

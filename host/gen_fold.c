@@ -142,6 +142,12 @@ int main(int argc, char *argv[]) {
       auto left = nexttoken(&c);
       auto right = nexttoken(&c);
       uint32_t rule = cur_func << 24 | op << 16 | left << 8 | right;
+      arr_for_each(rules, prev) {
+        if ((prev & 0xffffff) == (rule & 0xffffff)) {
+          fprintf(stderr, "Error: duplicate fold key 0x%06x\n", rule & 0xffffff);
+          return EXIT_FAILURE;
+        }
+      }
       arrput(rules, rule);
     } else if (0 == strncmp(line, "IRFOLDF(", 8)) {
       auto c = &line[8];
