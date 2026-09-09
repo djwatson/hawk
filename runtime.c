@@ -426,7 +426,7 @@ int numeric_real_compare(gc_obj lhs, gc_obj rhs, bool *ordered) {
   return numeric_exact_real_compare(lhs, rhs);
 }
 
-bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
+bool numeric_equal(gc_obj lhs, gc_obj rhs) {
   // Numeric = semantics: NaNs are unordered and never equal here.
   if (is_compnum(lhs) || is_compnum(rhs)) {
     compnum_s *l = is_compnum(lhs) ? to_compnum(lhs) : nullptr;
@@ -437,8 +437,8 @@ bool numeric_eqv(gc_obj lhs, gc_obj rhs) {
     gc_obj rimag = r ? r->imag : tag_fixnum(0);
     gc_add_root((const void *)&limag, 1, 0);
     gc_add_root((const void *)&rimag, 1, 0);
-    bool real_equal = numeric_eqv(lreal, rreal);
-    bool imag_equal = real_equal && numeric_eqv(limag, rimag);
+    bool real_equal = numeric_equal(lreal, rreal);
+    bool imag_equal = real_equal && numeric_equal(limag, rimag);
     gc_remove_root((const void *)&rimag, 0);
     gc_remove_root((const void *)&limag, 0);
     return imag_equal;
@@ -485,7 +485,7 @@ bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
     return memcmp(&l, &r, sizeof(l)) == 0;
   }
   if (is_number(lhs) && is_number(rhs)) {
-    return numeric_eqv(lhs, rhs);
+    return numeric_equal(lhs, rhs);
   }
   return lhs.value == rhs.value;
 }
@@ -552,31 +552,13 @@ static bool runtime_symbol_eq(gc_obj obj, const char *name) {
   return sym_name && strcmp(sym_name->str, name) == 0;
 }
 
-static bool runtime_decode_fun_ref(gc_obj obj, uint64_t fun_count,
-                                   uint64_t *out_id) {
+static bool runtime_decode_ref(gc_obj obj, uint64_t fun_count,
+                               const char *marker, uint64_t *out_id) {
   if (!is_vector(obj)) {
     return false;
   }
   vector_s *vec = to_vector(obj);
-  if (to_fixnum(vec->len) != 2 || !runtime_symbol_eq(vec->v[0], "fun-ref")) {
-    return false;
-  }
-  int64_t id = runtime_expect_fixnum(vec->v[1]);
-  if (id < 0 || (uint64_t)id >= fun_count) {
-    abort();
-  }
-  *out_id = (uint64_t)id;
-  return true;
-}
-
-static bool runtime_decode_closure_ref(gc_obj obj, uint64_t fun_count,
-                                       uint64_t *out_id) {
-  if (!is_vector(obj)) {
-    return false;
-  }
-  vector_s *vec = to_vector(obj);
-  if (to_fixnum(vec->len) != 2 ||
-      !runtime_symbol_eq(vec->v[0], "closure-ref")) {
+  if (to_fixnum(vec->len) != 2 || !runtime_symbol_eq(vec->v[0], marker)) {
     return false;
   }
   int64_t id = runtime_expect_fixnum(vec->v[1]);
@@ -662,9 +644,9 @@ EXPORT gc_obj scm_emit_bitcode_closure(gc_obj payload) {
       gc_obj raw = to_cons(c)->a;
       uint64_t ref_id;
       gc_obj val;
-      if (runtime_decode_fun_ref(raw, fun_count, &ref_id)) {
+      if (runtime_decode_ref(raw, fun_count, "fun-ref", &ref_id)) {
         val = funcs[ref_id];
-      } else if (runtime_decode_closure_ref(raw, fun_count, &ref_id)) {
+      } else if (runtime_decode_ref(raw, fun_count, "closure-ref", &ref_id)) {
         closure_s *clo = gc_alloc(sizeof(closure_s) + sizeof(gc_obj));
         clo->header.type = CLOSURE_TAG;
         clo->len = tag_fixnum(1);
@@ -859,7 +841,8 @@ static gc_obj tag_ratnum(ratnum_s r) {
 }
 
 // GC: may allocate via gc_alloc through vm_runtime_math_*_slow.
-static ratnum_s ratnum_add(ratnum_s a, ratnum_s b) {
+static ratnum_s ratnum_add_sub(ratnum_s a, ratnum_s b,
+                               gc_obj (*combine)(gc_obj, gc_obj)) {
   gc_add_root((const void *)&a.denom, 1, 0);
   gc_add_root((const void *)&b.num, 1, 0);
   gc_add_root((const void *)&b.denom, 1, 0);
@@ -868,7 +851,7 @@ static ratnum_s ratnum_add(ratnum_s a, ratnum_s b) {
   gc_obj denom = vm_runtime_math_mul_slow(a.denom, b.denom);
   gc_add_root((const void *)&denom, 1, 0);
   gc_obj p2 = vm_runtime_math_mul_slow(b.num, a.denom);
-  gc_obj num = vm_runtime_math_add_slow(p1, p2);
+  gc_obj num = combine(p1, p2);
   gc_remove_root((const void *)&denom, 0);
   gc_remove_root((const void *)&p1, 0);
   gc_remove_root((const void *)&b.denom, 0);
@@ -881,27 +864,12 @@ static ratnum_s ratnum_add(ratnum_s a, ratnum_s b) {
   };
 }
 
-// GC: may allocate via gc_alloc through vm_runtime_math_*_slow.
+static ratnum_s ratnum_add(ratnum_s a, ratnum_s b) {
+  return ratnum_add_sub(a, b, vm_runtime_math_add_slow);
+}
+
 static ratnum_s ratnum_sub(ratnum_s a, ratnum_s b) {
-  gc_add_root((const void *)&a.denom, 1, 0);
-  gc_add_root((const void *)&b.num, 1, 0);
-  gc_add_root((const void *)&b.denom, 1, 0);
-  gc_obj p1 = vm_runtime_math_mul_slow(a.num, b.denom);
-  gc_add_root((const void *)&p1, 1, 0);
-  gc_obj denom = vm_runtime_math_mul_slow(a.denom, b.denom);
-  gc_add_root((const void *)&denom, 1, 0);
-  gc_obj p2 = vm_runtime_math_mul_slow(b.num, a.denom);
-  gc_obj num = vm_runtime_math_sub_slow(p1, p2);
-  gc_remove_root((const void *)&denom, 0);
-  gc_remove_root((const void *)&p1, 0);
-  gc_remove_root((const void *)&b.denom, 0);
-  gc_remove_root((const void *)&b.num, 0);
-  gc_remove_root((const void *)&a.denom, 0);
-  return (ratnum_s){
-      .header.type = RATNUM_TAG,
-      .num = num,
-      .denom = denom,
-  };
+  return ratnum_add_sub(a, b, vm_runtime_math_sub_slow);
 }
 
 // GC: may allocate via gc_alloc through vm_runtime_math_*_slow.
@@ -986,8 +954,8 @@ static gc_obj make_inexact_compnum(double real, double imag) {
   return out;
 }
 
-// GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_add_slow,
-// and normalize_compnum.
+// GC: may allocate via gc_alloc through get_compnum and
+// vm_runtime_math_add_slow.
 static gc_obj compnum_add(gc_obj a, gc_obj b) {
   double ar;
   double ai;
@@ -1016,8 +984,8 @@ static gc_obj compnum_add(gc_obj a, gc_obj b) {
   return out;
 }
 
-// GC: may allocate via gc_alloc through get_compnum, vm_runtime_math_sub_slow,
-// and normalize_compnum.
+// GC: may allocate via gc_alloc through get_compnum and
+// vm_runtime_math_sub_slow.
 static gc_obj compnum_sub(gc_obj a, gc_obj b) {
   double ar;
   double ai;
@@ -1307,7 +1275,7 @@ gc_obj vm_runtime_cmp_jeqv_slow(gc_obj v1, gc_obj v2) {
 }
 
 gc_obj vm_runtime_cmp_numeq_slow(gc_obj v1, gc_obj v2) {
-  return numeric_eqv(v1, v2) ? TRUE_REP : FALSE_REP;
+  return numeric_equal(v1, v2) ? TRUE_REP : FALSE_REP;
 }
 
 EXPORT gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,

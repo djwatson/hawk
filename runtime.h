@@ -124,5 +124,5 @@ static inline uint8_t numeric_obj_result_type(gc_obj lhs, gc_obj rhs) {
     flonum_body                                                                \
   } while (0)
 
-bool numeric_eqv(gc_obj lhs, gc_obj rhs);
+bool numeric_equal(gc_obj lhs, gc_obj rhs);
 bool obj_jeqv(gc_obj lhs, gc_obj rhs);

@@ -802,7 +802,7 @@ static ir_ins emit_math_cmp_eq(vm_state *state, bc instr, gc_obj *stack,
   auto lhs = stack[instr.v1];
   auto rhs = stack[instr.v2];
   auto t = record_current_trace(state);
-  bool res = numeq ? numeric_eqv(lhs, rhs)
+  bool res = numeq ? numeric_equal(lhs, rhs)
                    : (eqv ? obj_jeqv(lhs, rhs) : lhs.value == rhs.value);
   bool fast_numeric =
       normalize_numeric_cmp_inputs(state, &v1, &v2, lhs, rhs, false);
