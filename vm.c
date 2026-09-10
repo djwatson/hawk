@@ -24,6 +24,7 @@
 static inline char const *func_name_for_pc(bc *pc);
 static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack);
 static vm_state *current_vm_state;
+static gc_obj *ensure_stack_space(vm_state *state, gc_obj *stack, size_t words);
 static bool jit_enabled = true;
 static PRESERVE_NONE NOINLINE gc_obj handle_error(bc instr, bc *pc,
                                                   gc_obj *stack,
@@ -36,64 +37,10 @@ static PRESERVE_NONE NOINLINE gc_obj handle_arity_error(bc instr, bc *pc,
                                                         void *op_table,
                                                         uint64_t argcnt);
 
-typedef struct trace_exit_count {
-  uint16_t trace_num;
-  uint16_t snap_ir;
-  uint64_t count;
-} trace_exit_count;
-
-static trace_exit_count *trace_exit_counts;
-
-static trace_exit_count *get_trace_exit_count(uint16_t trace_num,
-                                              uint16_t snap_ir) {
-  arr_for_each_idx(trace_exit_counts, i) {
-    auto entry = &trace_exit_counts[i];
-    if (entry->trace_num == trace_num && entry->snap_ir == snap_ir) {
-      return entry;
-    }
-  }
-  arrput(trace_exit_counts, ((trace_exit_count){
-                                .trace_num = trace_num,
-                                .snap_ir = snap_ir,
-                                .count = 0,
-                            }));
-  return arrlast(trace_exit_counts);
-}
-
-static void record_trace_exit(snap *sn) {
-  uint16_t trace_num = sn->trace->num;
-  get_trace_exit_count(trace_num, sn->ir)->count++;
-}
-
-static int compare_trace_exit_count(void const *a, void const *b) {
-  auto lhs = (trace_exit_count const *)a;
-  auto rhs = (trace_exit_count const *)b;
-  if (lhs->count < rhs->count) {
-    return 1;
-  }
-  if (lhs->count > rhs->count) {
-    return -1;
-  }
-  if (lhs->trace_num < rhs->trace_num) {
-    return -1;
-  }
-  if (lhs->trace_num > rhs->trace_num) {
-    return 1;
-  }
-  if (lhs->snap_ir < rhs->snap_ir) {
-    return -1;
-  }
-  if (lhs->snap_ir > rhs->snap_ir) {
-    return 1;
-  }
-  return 0;
-}
-
 enum : uint16_t {
   hotmap_sz = VM_HOTMAP_SZ,
   hotmap_loop = 3,
   hotmap_mask = (hotmap_sz - 1),
-  hotmap_rec = 1,
   hotmap_cnt = 200,
   func_flag_rest = 1,
 };
@@ -136,7 +83,7 @@ static inline void *check_record_start(bc *pc, gc_obj *stack, vm_state *state,
   return op_table;
 }
 
-static inline gc_obj const_load(bc *pc, uint16_t offset) {
+static inline gc_obj const_load(bc *pc) {
   return *(gc_obj *)(pc - pc->data);
 }
 
@@ -178,7 +125,7 @@ static PRESERVE_NONE NOINLINE gc_obj lookup_error_slowpath(bc instr, bc *pc,
                                                            vm_state *state,
                                                            void *op_table,
                                                            uint64_t argcnt) {
-  auto sym = const_load(pc, instr.data);
+  auto sym = const_load(pc);
   auto name = get_sym_name(to_symbol(sym));
   char msg[256];
   snprintf(msg, sizeof(msg), "Symbol not defined: %.*s",
@@ -214,7 +161,6 @@ static void trace_reset(vm_state *state) {
   if (state->record.cur_trace) {
     record_abort_current(state, "trace reset requested while recording");
   }
-  arrfree(trace_exit_counts);
   arr_for_each(state->record.traces, trace) {
     if (!trace->parent_snap && trace->start_ins &&
         (trace->start_ins->op == OP_JFUNC || trace->start_ins->op == OP_JLOOP ||
@@ -256,10 +202,17 @@ EXPORT bool vm_jit_set_enabled(bool enabled) {
   jit_enabled = enabled;
   return jit_enabled;
 }
-static inline void return_frame(vm_state *state, bc instr, uint16_t count,
-                                bc **pc, gc_obj **stack, void **op_table) {
-  (void)state;
-  (void)op_table;
+static void check_return_count(uint64_t count) {
+  // Leave slots for the continuation reroot closure and saved winders.
+  if (count > STACK_GUARD_SLOTS - 2) {
+    fprintf(stderr, "Too many return values (maximum %d)\n",
+            STACK_GUARD_SLOTS - 2);
+    abort();
+  }
+}
+
+static inline void return_frame(bc instr, uint16_t count, bc **pc,
+                                gc_obj **stack) {
   auto new_pc = to_return_address((*stack)[-1]);
   auto old_pc = new_pc - 1;
   auto new_stack = *stack - old_pc->reg - 1;
@@ -379,12 +332,10 @@ vm_callcc_result vm_callcc_slow(vm_state *state, gc_obj *stack,
 gc_obj *vm_callcc_resume_slow(vm_state *state, gc_obj captured) {
   auto clo = to_closure(captured);
   size_t saved_words = (size_t)(to_fixnum(clo->len) - 3);
-  gc_obj *restored_top = state->stack_bottom + saved_words;
-  while (restored_top >= state->stack_limit) {
-    restored_top = expand_stack(state, restored_top);
-  }
+  ensure_stack_space(state, state->stack_bottom,
+                     saved_words + STACK_GUARD_SLOTS);
   memcpy(state->stack_bottom, &clo->v[3], sizeof(gc_obj) * saved_words);
-  return restored_top;
+  return state->stack_bottom + saved_words;
 }
 
 gc_obj halt(vm_state *state, gc_obj *stack) {
@@ -441,6 +392,7 @@ gc_obj halt(vm_state *state, gc_obj *stack) {
   emit_cleanup(&state->emit);
   gc_free();
   free(state->stack_bottom);
+  current_vm_state = nullptr;
   free(state);
   return res;
 }
@@ -514,12 +466,20 @@ static inline bc *func_body_pc(bc *pc) {
   auto next = next_op(pc);
   return next_op(next);
 }
-static void build_list(uint8_t start, uint8_t len, gc_obj *stack) {
+static gc_obj *ensure_stack_space(vm_state *state, gc_obj *stack,
+                                  size_t words) {
+  while (words > (size_t)(state->stack_end - stack)) {
+    stack = expand_stack(state, stack);
+  }
+  return stack;
+}
+
+static void build_list(uint8_t start, uint64_t len, gc_obj *stack) {
   gc_obj lst = NIL;
   gc_add_root((const void *)&lst, 1, 0);
-  for (int i = (int)start + (int)len - 1; i >= (int)start; i--) {
+  for (uint64_t i = start + len; i > start;) {
     cons_s *c = gc_alloc(sizeof(cons_s));
-    c->a = stack[i];
+    c->a = stack[--i];
     c->b = lst;
     lst = tag_cons(c);
   }
@@ -558,7 +518,8 @@ static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack) {
   }
 }
 
-static inline bool check_arity(gc_obj *stack, bc instr, uint64_t *args) {
+static inline bool check_arity(vm_state *state, gc_obj *stack, bc instr,
+                               uint64_t *args) {
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
   if (likely(!has_rest)) {
     return *args == instr.reg;
@@ -568,15 +529,15 @@ static inline bool check_arity(gc_obj *stack, bc instr, uint64_t *args) {
   if (*args < fixed_cnt) {
     return false;
   }
+  // Rest arguments may extend beyond the bytecode register window.
+  if (*args > STACK_GUARD_SLOTS) {
+    state->stack_top = stack + *args;
+  }
   build_list(fixed_cnt, *args - fixed_cnt, stack);
   *args = instr.reg;
   return true;
 }
-static inline bc *set_new_pc(vm_state *state, bc *pc, gc_obj *stack,
-                             gc_obj func) {
-  (void)state;
-  (void)pc;
-  (void)stack;
+static inline bc *set_new_pc(gc_obj func) {
   if (is_closure(func)) {
     func = to_closure(func)->v[0];
   }
@@ -594,7 +555,6 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
   profiler_set_in_jit(true);
   auto res = fn(state, *stack);
   profiler_set_in_jit(false);
-  // record_trace_exit(res.snap);
   *pc = res.snap->pc;
   *instr = **pc;
   *stack = res.stack;
@@ -699,7 +659,7 @@ static inline void *jit_func(bc *instr, bc **pc, gc_obj **stack,
     stack[1] = (error_msg);                                                    \
     gc_remove_root((const void *)&error_sym, 0);                               \
     argcnt = 2;                                                                \
-    pc = set_new_pc(state, pc, stack, error_clo);                              \
+    pc = set_new_pc(error_clo);                                                \
     dispatch_next(pc, stack);                                                  \
   } while (0)
 
@@ -915,7 +875,7 @@ OP_AD(TRUNCATE) {
   END_ABC_NEXT
 }
 OP(CONST) {
-  auto res = const_load(pc, instr.data);
+  auto res = const_load(pc);
   END_ABC_NEXT
 }
 OP(KSHORT) {
@@ -929,24 +889,23 @@ OP_AD(MOV) {
 OP(RET) {
   argcnt = 1;
 
-  return_frame(state, instr, 1, &pc, &stack, &op_table);
+  return_frame(instr, 1, &pc, &stack);
   dispatch_next(pc, stack);
   END
 }
 OP(IRET) {
-  argcnt = 1;
-  return_frame(state, instr, 1, &pc, &stack, &op_table);
-  dispatch_next(pc, stack);
+  MUSTTAIL return impl_RET(instr, pc, stack, state, op_table, argcnt);
   END
 }
 OP(RETN) {
+  check_return_count(instr.data);
   argcnt = instr.data;
-  return_frame(state, instr, instr.data, &pc, &stack, &op_table);
+  return_frame(instr, instr.data, &pc, &stack);
   dispatch_next(pc, stack);
   END
 }
 OP(LOOKUP) {
-  auto sym = const_load(pc, instr.data);
+  auto sym = const_load(pc);
   // No need to check if c is a symbol, the compiler guarantees it
   auto s = to_symbol(sym);
   auto res = s->val;
@@ -958,7 +917,7 @@ OP(LOOKUP) {
 }
 
 OP(DEFINE) {
-  auto sym = const_load(pc, instr.data);
+  auto sym = const_load(pc);
   auto val = stack[instr.reg];
   auto s = to_symbol(sym);
   if (s->opt > 0) {
@@ -983,12 +942,12 @@ OP(WRITE) {
 }
 
 OP(FUNC) {
-  if (unlikely(!check_arity(stack, instr, &argcnt))) {
+  check_expand_stack(state, &stack);
+  if (unlikely(!check_arity(state, stack, instr, &argcnt))) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
 
-  check_expand_stack(state, &stack);
   op_table = check_record_start(pc, stack, state, op_table, argcnt);
 
   pc = func_body_pc(pc);
@@ -1002,12 +961,12 @@ OP(ARGCNT_ERROR) {
 }
 
 OP(IFUNC) {
-  if (!check_arity(stack, instr, &argcnt)) {
+  check_expand_stack(state, &stack);
+  if (!check_arity(state, stack, instr, &argcnt)) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
 
-  check_expand_stack(state, &stack);
   pc = func_body_pc(pc);
   dispatch_next(pc, stack);
   END
@@ -1016,14 +975,15 @@ OP(IFUNC) {
 OP(ILOOP){END_NEXT}
 
 OP(JFUNC) {
+  check_expand_stack(state, &stack);
   auto t = state->record.traces[instr.data];
   auto start = t->start_pc;
-  if (start.op == OP_FUNC && !check_arity(stack, start, &argcnt)) {
+  if (start.op == OP_FUNC && !check_arity(state, stack, start, &argcnt)) {
     pc = next_op(pc);
     dispatch_next(pc, stack);
   }
   if (start.op == OP_IFUNC) {
-    if (!check_arity(stack, start, &argcnt)) {
+    if (!check_arity(state, stack, start, &argcnt)) {
       MUSTTAIL return handle_arity_error(start, pc, stack, state, op_table,
                                          argcnt);
     }
@@ -1156,7 +1116,7 @@ OP(LCALL) {
   auto frame_top = instr.reg;
   stack[instr.reg] = tag_return_address(pc + 1);
   stack += frame_top + 1;
-  pc = set_new_pc(state, pc, stack, func);
+  pc = set_new_pc(func);
   dispatch_next(pc, stack);
   END
 }
@@ -1165,7 +1125,7 @@ OP(LCALLT) {
   auto func = stack[instr.reg];
   auto frame_top = instr.reg;
   memmove(&stack[0], &stack[frame_top + 1], argcnt * sizeof(gc_obj));
-  pc = set_new_pc(state, pc, stack, func);
+  pc = set_new_pc(func);
   dispatch_next(pc, stack);
   END
 }
@@ -1174,7 +1134,7 @@ OP(LCALL_N) {
   stack[instr.reg] = tag_return_address(pc + 1);
   stack += instr.reg + 1;
   argcnt += 1;
-  pc = set_new_pc(state, pc, stack, func);
+  pc = set_new_pc(func);
   dispatch_next(pc, stack);
   END
 }
@@ -1184,7 +1144,7 @@ OP(LCALLT_N) {
   memmove(&stack[0], &stack[frame_top + 1],
           (size_t)(argcnt + 1) * sizeof(gc_obj));
   argcnt += 1;
-  pc = set_new_pc(state, pc, stack, func);
+  pc = set_new_pc(func);
   dispatch_next(pc, stack);
   END
 }
@@ -1195,6 +1155,7 @@ OP(APPLY) {
 
   uint64_t a = 1;
   for (; is_cons(args); a++) {
+    stack = ensure_stack_space(state, stack, a + 1);
     auto cons = to_cons(args);
     stack[a] = cons->a;
     args = cons->b;
@@ -1455,10 +1416,7 @@ OP(CALLCC_RESUME) {
   uint64_t result_start = 1;
   uint64_t result_count =
       vm_is_callcc_resume_stub_pc(pc) ? argcnt : argcnt - result_start;
-  gc_obj results[UINT8_MAX];
-  for (uint64_t i = 0; i < result_count; i++) {
-    results[i] = stack[result_start + i];
-  }
+  check_return_count(result_count);
   if (!is_closure(captured)) {
     stack[2] = make_string("call/cc expected a continuation");
     MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
@@ -1473,54 +1431,44 @@ OP(CALLCC_RESUME) {
     stack[2] = make_string("call/cc expected a continuation");
     MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
   }
-
-  gc_obj *restored_top = vm_callcc_resume_slow(state, captured);
-
-  auto new_pc = to_return_address(restored_top[-1]);
-  auto old_pc = new_pc - 1;
-  auto new_stack = restored_top - old_pc->reg - 1;
   auto reroot_proc = clo->v[2];
   if (!is_closure(reroot_proc)) {
     stack[2] = make_string("call/cc reroot helper unavailable");
     MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
   }
+  // Stack restoration overwrites the results; stack growth does not run GC.
+  size_t result_bytes = (size_t)result_count * sizeof(gc_obj);
+  gc_obj results[STACK_GUARD_SLOTS - 2];
+  memcpy(results, &stack[result_start], result_bytes);
 
-  gc_obj *callee_stack = new_stack + old_pc->reg + 1;
-  while (callee_stack + result_count + 2 >= state->stack_limit) {
-    ptrdiff_t new_offset = new_stack - state->stack_bottom;
-    ptrdiff_t offset = callee_stack - state->stack_bottom;
-    expand_stack(state, callee_stack + result_count + 2);
-    new_stack = state->stack_bottom + new_offset;
-    callee_stack = state->stack_bottom + offset;
-  }
+  gc_obj *restored_top = vm_callcc_resume_slow(state, captured);
+
+  auto new_pc = to_return_address(restored_top[-1]);
+  auto old_pc = new_pc - 1;
+  gc_obj *callee_stack = ensure_stack_space(state, restored_top,
+                                            result_count + 2 + STACK_GUARD_SLOTS);
+  auto new_stack = callee_stack - old_pc->reg - 1;
   new_stack[old_pc->reg] = tag_return_address(new_pc);
   callee_stack[0] = reroot_proc;
   callee_stack[1] = clo->v[1];
-  if (result_count > 0) {
-    memcpy(&callee_stack[2], results, (size_t)result_count * sizeof(gc_obj));
-  }
+  memcpy(&callee_stack[2], results, result_bytes);
   argcnt = result_count + 2;
   stack = callee_stack;
-  pc = set_new_pc(state, pc, stack, reroot_proc);
+  pc = set_new_pc(reroot_proc);
   dispatch_next(pc, stack);
   END
 }
 
 OP(HALT) {
   return halt(state, stack);
-  exit(0);
   END
 }
 
 // End opcode handlers.
 
 static void vm_state_init(vm_state *state) {
-  static bool callcc_resume_func_registered;
   memset(state, 0, sizeof(*state));
-  if (!callcc_resume_func_registered) {
-    gc_register_bcfunc((bcfunc *)&callcc_resume_func);
-    callcc_resume_func_registered = true;
-  }
+  gc_register_bcfunc((bcfunc *)&callcc_resume_func);
   for (int i = 0; i < VM_HOTMAP_SZ; i++) {
     state->hotmap[i] = hotmap_cnt;
   }
@@ -1569,6 +1517,7 @@ gc_obj vm(gc_obj clo, gc_obj arg1, gc_obj arg2) {
 
   stack[0] = to_closure(clo)->v[0];
   stack[1] = clo;
+  vm_entry_stub[0].data = 2;
   bc *pc = vm_entry_stub;
   uint64_t argcnt = 1;
   if (!is_undefined(arg1)) {

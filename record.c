@@ -1103,6 +1103,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     op_table = state->impls;
     goto done;
   }
+  if (argcnt > UINT8_MAX) {
+    record_abort(state, &op_table, "too many arguments to record");
+    goto done;
+  }
   record_resolve_pending_ccall(state, stack);
   if (ts->depth >= 250) {
     record_abort(state, &op_table, "too deep");
@@ -1272,6 +1276,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_RETN:
   case OP_IRET: {
     uint16_t count = (instr.op == OP_RETN) ? instr.data : 1;
+    if (count > STACK_GUARD_SLOTS - 2) {
+      record_abort(state, &op_table, "too many return values");
+      break;
+    }
     argcnt = count;
 
     bool downrec_trace = is_downrec_trace(ts);
