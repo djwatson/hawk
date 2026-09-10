@@ -86,6 +86,31 @@
 ;; Only horizontal whitespace may follow a string-continuation backslash.
 (check (read-error-input? "\"a\\  garbage\nb\"") #t)
 
+(check (read-input "(#t #f #x10 #\\a #(1) #u8(2))")
+       (list #t #f 16 #\a #(1) #u8(2)))
+(check (read-input "#| outer #|# still inner |# outer |# 42") 42)
+(check (read-error-input? "#|") #t)
+(check (read-error-input? "#u8(1.0)") #t)
+(check (read-error-input? "#u8(a)") #t)
+(check (read-error-input? "#;#0=(a) #0#") #t)
+(check (read-input "(#;#0=(a) #0=(b) #0#)") '((b) (b)))
+(check (read-input "(#0=#f #1=#0#)") '(#f #f))
+(check (read-error-input? "#0=#0#") #t)
+(check (read-error-input? "#0=") #t)
+(check (read-error-input? "`") #t)
+(check (read-error-input? ",@") #t)
+(check (read-error-input? "#;") #t)
+(check (read-input "\"a\\  \n  b\"") "ab")
+(check
+ (let ((x (read-input "(#0=(a . #0#) #0#)")))
+   (and (pair? x) (eq? (car x) (cadr x)) (eq? (car x) (cdar x))))
+ #t)
+(check
+ (let ((x (read-input "(#0=#(#0#) #0#)")))
+   (and (pair? x) (eq? (car x) (cadr x))
+        (eq? (car x) (vector-ref (car x) 0))))
+ #t)
+
 (newline)
 (display "Read regressions: ")
 (write pass-count)
@@ -93,3 +118,5 @@
 (write fail-count)
 (display " failed")
 (newline)
+
+(when (> fail-count 0) (error "Read regressions failed" fail-count))
