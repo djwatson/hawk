@@ -58,8 +58,9 @@ static void limit_live_values(regalloc_state *s, uint16_t *live,
     live[farthest_i] = live[--(*count)];
     auto ins = &s->t->ins[spill_value];
     if (ins->spill == SPILL_NONE) {
-      if (s->next_spill == SPILL_NONE) {
-        abort();
+      if (s->next_spill >= SPILL_NONE) {
+        s->spill_overflow = true;
+        return;
       }
       ins->spill = s->next_spill++;
     }
@@ -369,7 +370,7 @@ void regalloc_assign_output(regalloc_state *s, uint16_t ir_idx, ir_ins *ins) {
   s->regs[ins->reg] = ir_idx;
 }
 
-void regalloc_state_init(regalloc_state *s, trace *t) {
+bool regalloc_state_init(regalloc_state *s, trace *t) {
   memset(s, 0, sizeof(*s));
   s->t = t;
   s->next_spill = 0;
@@ -387,6 +388,7 @@ void regalloc_state_init(regalloc_state *s, trace *t) {
     }
   }
   collect_lifetimes(s);
+  return !s->spill_overflow;
 }
 
 void regalloc_state_free(regalloc_state *s) {

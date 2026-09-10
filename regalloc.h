@@ -21,9 +21,10 @@ typedef struct regalloc_state {
   reg_lifetime_end *ends;
   uint16_t regs[MAX_REG];
   uint16_t next_spill;
+  bool spill_overflow;
 } regalloc_state;
 
-void regalloc_state_init(regalloc_state *s, trace *t);
+bool regalloc_state_init(regalloc_state *s, trace *t);
 void regalloc_state_free(regalloc_state *s);
 uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins, slot *args);
 uint8_t regalloc_find_current_reg_for_value(regalloc_state *s,

@@ -862,6 +862,10 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
 
   dce(cur_trace);
   cur_trace->fn = emit(cur_trace, &state->emit, cur_trace->link_entry_snap);
+  if (!cur_trace->fn) {
+    record_abort(state, op_table, "spill overflow");
+    return;
+  }
 
   state->max_trace--;
   if (cur_trace->kind == TRACE_ROOT) {

@@ -139,7 +139,7 @@ typedef struct {
     uint16_t prev;
     struct {
       uint8_t reg;
-      uint16_t spill; // spill slot.
+      uint8_t spill; // spill slot.
     };
   };
   union {
@@ -156,7 +156,7 @@ typedef struct {
   };
 } ir_ins;
 
-static_assert(sizeof(ir_ins) == 12, "ir_ins instructions must be 12 bytes");
+static_assert(sizeof(ir_ins) == 8, "ir_ins instructions must be 8 bytes");
 
 struct trace_result {
   gc_obj *stack;
@@ -227,8 +227,8 @@ static inline bool ir_get_guard(trace *t, ir_ins *ins) {
   return ins->guard;
 }
 
-enum : uint16_t {
-  SPILL_NONE = UINT16_MAX,
+enum : uint8_t {
+  SPILL_NONE = UINT8_MAX,
 };
 
 void print_ir(trace *t);

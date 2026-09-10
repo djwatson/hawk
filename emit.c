@@ -2290,7 +2290,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
 // One from c.
 static void emit_root_trace_entry(emit_state *s, trace *t) {
   regalloc_state arg_state;
-  regalloc_state_init(&arg_state, t);
+  bool allocated = regalloc_state_init(&arg_state, t);
+  assert(allocated);
   // Emit an entry point from C.
   COMMENT("CENTRY");
   save_callee_regs(s);
@@ -2340,7 +2341,10 @@ trace_fn emit(trace *t, emit_state *s, uint8_t link_entry_snap) {
 
   // Allocate registers, print the IR in verbose mode.
   regalloc_state reg_state;
-  regalloc_state_init(&reg_state, t);
+  if (!regalloc_state_init(&reg_state, t)) {
+    regalloc_state_free(&reg_state);
+    return nullptr;
+  }
 
   // Remember, we're emitting backwards? This makes the register
   // allocator much simpler to write, no state needs to be preserved.
