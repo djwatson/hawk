@@ -1,7 +1,6 @@
 ## codex review
 
 TODO still need
-* bigint.c
 * runtime.scm
 * read.scm
 
@@ -32,8 +31,6 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 
 ## JIT backlog
 
-* fold.c: Clean folding and memory optimizations in fold.c to use fold engine, same as luajit
-
 * Luajit style double ended ir ins / constants???
 
 * we cold fold more EQ NEQ ops - case in particular does a lot of NEQ in a row, followed by a single EQ
@@ -62,17 +59,16 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
   * basically split the *do we have enough memory?* path from the *bump the pointer and allocate* path
 
 * we can do more register targetting of ending snapshot: we're always going here, if it is a side trace, we can target the original registers!
+  * tried this, made traces smaller but no perf change.
 
 * we could keep boxed/unboxed flonum pairs around? we might be
   re-boxing in some cases instead of re-using the unchanged old box
   (only in cases of IR_STORE or taking a snapshot)
+  
 * currently we're flushing everyting live-across a CCALL to spill
   slot - we don't use callee saved.  The reason is to make it easy for
   gc to work across CCALL.  This assumes CCALLs are rare, maybe
   experiment with this if they're not.
-  
-* add some point the ir struct was expanded to support more than >256
-  spill slots, this is probably unnecessary.
   
 * better stack-top tracking: I tried and didn't find much improvment
 * allocation sinking: I tried and didn't find much improvment.  Only happened in small side traces
@@ -98,8 +94,3 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
   function call arguments! constants don't need to be saved on the
   stack and can be materialized later.
 
-# GC improvements:
-
-* Reduce old-generation mark/sweep overhead and the root set.
-* Make the collector thread-safe.
-  

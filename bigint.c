@@ -11,7 +11,6 @@
 // NOLINTBEGIN(clang-analyzer-deadcode.DeadStores)
 
 #define BN_ALLOC(sz) gc_alloc((uint64_t)(((sz) + 7) & ~((size_t)7)))
-#define BN_FREE(ptr) ((void)(ptr))
 #define BN_ROOT(slot) gc_add_root((const void *)(slot), 1, PTR_TAG)
 #define BN_UNROOT(slot) gc_remove_root((const void *)(slot), PTR_TAG)
 
@@ -45,7 +44,6 @@ static bn_t *bn_new(uint32_t alloc) {
 
 bn_t *bn_from_i64(int64_t value) {
   bn_t *bn = bn_new(1);
-  bn->used = 1;
   if (value < 0) {
     bn->negative = true;
     if (value == INT64_MIN) {
@@ -180,6 +178,23 @@ int bn_cmp(const bn_t *a, const bn_t *b) {
   return bn_cmp_unsigned(a, b);
 }
 
+// out needs max(an, bn) + 1 limbs and may alias either input.
+static uint32_t bn_add_limbs(uint64_t *out, const uint64_t *a, uint32_t an,
+                             const uint64_t *b, uint32_t bn) {
+  uint32_t min = an < bn ? an : bn;
+  uint32_t max = an > bn ? an : bn;
+  const uint64_t *tail = an > bn ? a : b;
+  unsigned long long carry = 0;
+  uint32_t i = 0;
+  for (; i < min; i++)
+    out[i] = __builtin_addcll(a[i], b[i], carry, &carry);
+  for (; i < max; i++)
+    out[i] = __builtin_addcll(tail[i], 0, carry, &carry);
+  if (carry)
+    out[i++] = carry;
+  return i;
+}
+
 static bn_t *bn_add_unsigned(const bn_t *a, const bn_t *b) {
   bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
       bn_root_slot((bn_t **)&a);
@@ -189,34 +204,9 @@ static bn_t *bn_add_unsigned(const bn_t *a, const bn_t *b) {
   assert(b != nullptr);
   uint32_t a_used = a->used;
   uint32_t b_used = b->used;
-  uint32_t min_used = (a_used < b_used) ? a_used : b_used;
-  uint32_t max_used = (a_used > b_used) ? a_used : b_used;
+  uint32_t max_used = a_used > b_used ? a_used : b_used;
   bn_t *res = bn_new(max_used + 1);
-
-  const uint64_t *ap = a->limb;
-  const uint64_t *bp = b->limb;
-  uint64_t *rp = res->limb;
-
-  unsigned char carry = 0;
-  uint32_t i = 0;
-  for (; i < min_used; i++) {
-    unsigned long long carry_out = 0;
-    rp[i] = (uint64_t)__builtin_addcll((unsigned long long)ap[i],
-                                       (unsigned long long)bp[i],
-                                       (unsigned long long)carry, &carry_out);
-    carry = (unsigned char)carry_out;
-  }
-
-  const uint64_t *tail = (a_used > b_used) ? ap : bp;
-  for (; i < max_used; i++) {
-    unsigned long long carry_out = 0;
-    rp[i] = (uint64_t)__builtin_addcll((unsigned long long)tail[i], 0,
-                                       (unsigned long long)carry, &carry_out);
-    carry = (unsigned char)carry_out;
-  }
-
-  rp[max_used] = (uint64_t)(carry != 0);
-  res->used = max_used + (carry != 0);
+  res->used = bn_add_limbs(res->limb, a->limb, a_used, b->limb, b_used);
   return res;
 }
 
@@ -225,6 +215,29 @@ static uint32_t bn_trim_limb_len(const uint64_t *a, uint32_t n) {
     n--;
   }
   return n;
+}
+
+// Requires a >= b; out may alias a.
+static void bn_sub_limbs(uint64_t *out, const uint64_t *a, uint32_t an,
+                         const uint64_t *b, uint32_t bn) {
+  assert(an >= bn);
+  unsigned long long borrow = 0;
+  for (uint32_t i = 0; i < an; i++) {
+    out[i] = __builtin_subcll(a[i], i < bn ? b[i] : 0, borrow, &borrow);
+  }
+  assert(borrow == 0);
+}
+
+static void bn_accumulate_limbs(uint64_t *out, uint32_t n,
+                                const uint64_t *a, uint32_t an) {
+  assert(n >= an);
+  unsigned long long carry = 0;
+  uint32_t i = 0;
+  for (; i < an; i++)
+    out[i] = __builtin_addcll(out[i], a[i], carry, &carry);
+  for (; carry && i < n; i++)
+    out[i] = __builtin_addcll(out[i], 0, carry, &carry);
+  assert(carry == 0);
 }
 
 static bn_t *bn_sub_unsigned(const bn_t *a, const bn_t *b) {
@@ -241,28 +254,7 @@ static bn_t *bn_sub_unsigned(const bn_t *a, const bn_t *b) {
   bn_t *res = bn_new(a->used);
   res->used = a_used;
 
-  unsigned long long borrow = 0;
-  uint32_t i = 0;
-  for (; i < b_used; i++) {
-    unsigned long long av = a->limb[i];
-    unsigned long long bv = b->limb[i];
-    unsigned long long borrow1 = 0;
-    unsigned long long t1 = __builtin_subcll(av, bv, 0, &borrow1);
-    unsigned long long borrow2 = 0;
-    unsigned long long t2 = __builtin_subcll(t1, 0, borrow, &borrow2);
-    res->limb[i] = (uint64_t)t2;
-    borrow = borrow1 | borrow2;
-  }
-  if (i < a_used) {
-    for (; i < a_used; i++) {
-      unsigned long long borrow_next = 0;
-      unsigned long long t = __builtin_subcll((unsigned long long)a->limb[i], 0,
-                                              borrow, &borrow_next);
-      res->limb[i] = (uint64_t)t;
-      borrow = borrow_next;
-    }
-  }
-  assert(borrow == 0);
+  bn_sub_limbs(res->limb, a->limb, a_used, b->limb, b_used);
   uint32_t used = bn_trim_limb_len(res->limb, res->used);
   res->used = (used == 0) ? 1 : used;
   return res;
@@ -351,130 +343,44 @@ static void bn_mul_karatsuba_limbs(uint64_t *out, const uint64_t *a,
   uint64_t *z2 = z0 + z0_sz;
   uint64_t *z1_part = z2 + z2_sz;
 
-  /* sum_a = a_lo + a_hi */
-  unsigned long long carry = 0;
-  uint32_t i;
-  for (i = 0; i < m && i < a_hi_len; i++) {
-    sum_a[i] = (uint64_t)__builtin_addcll(a[i], a[m + i], carry, &carry);
-  }
-  for (; i < m; i++) {
-    sum_a[i] = (uint64_t)__builtin_addcll(a[i], 0, carry, &carry);
-  }
-  for (; i < a_hi_len; i++) {
-    sum_a[i] = (uint64_t)__builtin_addcll(a[m + i], 0, carry, &carry);
-  }
-  if (carry)
-    sum_a[i++] = 1;
-  uint32_t sum_a_len = i;
-
-  /* sum_b = b_lo + b_hi */
-  carry = 0;
-  for (i = 0; i < m && i < b_hi_len; i++) {
-    sum_b[i] = (uint64_t)__builtin_addcll(b[i], b[m + i], carry, &carry);
-  }
-  for (; i < m; i++) {
-    sum_b[i] = (uint64_t)__builtin_addcll(b[i], 0, carry, &carry);
-  }
-  for (; i < b_hi_len; i++) {
-    sum_b[i] = (uint64_t)__builtin_addcll(b[m + i], 0, carry, &carry);
-  }
-  if (carry)
-    sum_b[i++] = 1;
-  uint32_t sum_b_len = i;
+  uint32_t sum_a_len =
+      bn_add_limbs(sum_a, a, a_lo_len, a + m, a_hi_len);
+  uint32_t sum_b_len =
+      bn_add_limbs(sum_b, b, b_lo_len, b + m, b_hi_len);
 
   /* z0 = a_lo * b_lo */
   bn_mul_karatsuba_limbs(z0, a, a_lo_len, b, b_lo_len);
-  uint32_t z0_len = z0_sz;
-  while (z0_len > 0 && z0[z0_len - 1] == 0)
-    z0_len--;
+  uint32_t z0_len = bn_trim_limb_len(z0, z0_sz);
 
   /* z2 = a_hi * b_hi */
   uint32_t z2_len = 0;
   if (a_hi_len > 0 && b_hi_len > 0) {
     bn_mul_karatsuba_limbs(z2, a + m, a_hi_len, b + m, b_hi_len);
-    z2_len = z2_sz;
-    while (z2_len > 0 && z2[z2_len - 1] == 0)
-      z2_len--;
+    z2_len = bn_trim_limb_len(z2, z2_sz);
   }
 
   /* z1_part = sum_a * sum_b */
   bn_mul_karatsuba_limbs(z1_part, sum_a, sum_a_len, sum_b, sum_b_len);
-  uint32_t z1p_len = sum_a_len + sum_b_len;
-  while (z1p_len > 0 && z1_part[z1p_len - 1] == 0)
-    z1p_len--;
+  uint32_t z1p_len = bn_trim_limb_len(z1_part, sum_a_len + sum_b_len);
 
   /* z1 = z1_part - z0 - z2 (in-place) */
-  unsigned long long borrow = 0;
-  for (i = 0; i < z0_len; i++) {
-    unsigned long long b1, b2;
-    uint64_t t = (uint64_t)__builtin_subcll(z1_part[i], z0[i], 0, &b1);
-    t = (uint64_t)__builtin_subcll(t, 0, borrow, &b2);
-    z1_part[i] = t;
-    borrow = b1 | b2;
-  }
-  for (; borrow && i < z1p_len; i++) {
-    unsigned long long b;
-    z1_part[i] = (uint64_t)__builtin_subcll(z1_part[i], 0, borrow, &b);
-    borrow = b;
-  }
-
-  borrow = 0;
-  for (i = 0; i < z2_len; i++) {
-    unsigned long long b1, b2;
-    uint64_t t = (uint64_t)__builtin_subcll(z1_part[i], z2[i], 0, &b1);
-    t = (uint64_t)__builtin_subcll(t, 0, borrow, &b2);
-    z1_part[i] = t;
-    borrow = b1 | b2;
-  }
-  for (; borrow && i < z1p_len; i++) {
-    unsigned long long b;
-    z1_part[i] = (uint64_t)__builtin_subcll(z1_part[i], 0, borrow, &b);
-    borrow = b;
-  }
-
-  uint32_t z1_len = z1p_len;
-  while (z1_len > 0 && z1_part[z1_len - 1] == 0)
-    z1_len--;
+  bn_sub_limbs(z1_part, z1_part, z1p_len, z0, z0_len);
+  bn_sub_limbs(z1_part, z1_part, z1p_len, z2, z2_len);
+  uint32_t z1_len = bn_trim_limb_len(z1_part, z1p_len);
 
   /* Assemble: out = z0 + z1*B^m + z2*B^(2m) */
   memset(out, 0, (size_t)(an + bn) * sizeof(uint64_t));
   memcpy(out, z0, (size_t)z0_len * sizeof(uint64_t));
 
-  carry = 0;
-  for (i = 0; i < z1_len; i++) {
-    out[m + i] =
-        (uint64_t)__builtin_addcll(out[m + i], z1_part[i], carry, &carry);
-  }
-  i = m + z1_len;
-  while (carry && i < an + bn) {
-    unsigned long long c;
-    out[i] = (uint64_t)__builtin_addcll(out[i], 0, carry, &c);
-    carry = c;
-    i++;
-  }
-
-  carry = 0;
-  for (i = 0; i < z2_len; i++) {
-    out[2 * m + i] =
-        (uint64_t)__builtin_addcll(out[2 * m + i], z2[i], carry, &carry);
-  }
-  i = 2 * m + z2_len;
-  while (carry && i < an + bn) {
-    unsigned long long c;
-    out[i] = (uint64_t)__builtin_addcll(out[i], 0, carry, &c);
-    carry = c;
-    i++;
-  }
+  bn_accumulate_limbs(out + m, an + bn - m, z1_part, z1_len);
+  bn_accumulate_limbs(out + 2 * m, an + bn - 2 * m, z2, z2_len);
 
   free(temp);
 }
 
 static bn_t *bn_clone_unsigned(const bn_t *a) {
-  bn_root_guard_t rg_a __attribute__((cleanup(bn_root_guard_cleanup))) =
-      bn_root_slot((bn_t **)&a);
-  bn_t *res = bn_new(a->used);
-  res->used = a->used;
-  memcpy(res->limb, a->limb, (size_t)a->used * sizeof(uint64_t));
+  bn_t *res = bn_copy(a);
+  res->negative = false;
   return res;
 }
 
@@ -489,10 +395,7 @@ static bn_t *bn_mul_unsigned(const bn_t *a, const bn_t *b) {
   uint32_t an = bn_trim_limb_len(a->limb, a->used);
   uint32_t bn = bn_trim_limb_len(b->limb, b->used);
   if (an == 0 || bn == 0) {
-    bn_t *z = bn_new(1);
-    z->used = 1;
-    z->limb[0] = 0;
-    return z;
+    return bn_new(1);
   }
 
   uint32_t outn = an + bn;
@@ -761,7 +664,6 @@ static bn_divmod_result_t bn_divmod_knuth_unsigned(const bn_t *num,
     q = bn_new(1);
     r = bn_new(1);
     q->limb[0] = 1;
-    q->used = 1;
     out.q = q;
     out.r = r;
     return out;
@@ -841,6 +743,8 @@ static bn_sqrt_result_t bn_sqrt_unsigned(const bn_t *a) {
     return bn_sqrt_u64(a->limb[0]);
   }
 
+  // This split gives s0 >= 2^(b - 1), bounding the root estimate's
+  // overshoot by one; a negative remainder needs only one correction.
   uint32_t b = (bn_bit_length_unsigned(a) + 1U) / 4U;
 
   bn_t *hi = bn_shr_bits_unsigned(a, b + b);
@@ -924,80 +828,45 @@ static bn_sqrt_result_t bn_sqrt_unsigned(const bn_t *a) {
   return out;
 }
 
-bn_t *bn_add(const bn_t *a, const bn_t *b) {
+static bn_t *bn_add_signed(const bn_t *a, const bn_t *b, bool subtract) {
   assert(a != nullptr);
   assert(b != nullptr);
-
   bool aneg = bn_is_negative(a);
-  bool bneg = bn_is_negative(b);
-
+  bool bneg = bn_is_negative(b) ^ subtract;
+  bool neg = aneg;
+  bn_t *res;
   if (aneg == bneg) {
-    bn_t *res = bn_add_unsigned(a, b);
-    if (aneg && !bn_is_zero(res)) {
-      res->negative = true;
+    res = bn_add_unsigned(a, b);
+  } else {
+    int cmp = bn_cmp_unsigned(a, b);
+    if (cmp == 0)
+      return bn_new(1);
+    if (cmp > 0) {
+      res = bn_sub_unsigned(a, b);
+    } else {
+      neg = bneg;
+      res = bn_sub_unsigned(b, a);
     }
-    return res;
   }
-
-  int cmp = bn_cmp_unsigned(a, b);
-  if (cmp == 0) {
-    return bn_new(1);
-  }
-  if (cmp > 0) {
-    bn_t *res = bn_sub_unsigned(a, b);
-    if (aneg && !bn_is_zero(res)) {
-      res->negative = true;
-    }
-    return res;
-  }
-
-  bn_t *res = bn_sub_unsigned(b, a);
-  if (bneg && !bn_is_zero(res)) {
-    res->negative = true;
-  }
+  res->negative = neg && !bn_is_zero(res);
   return res;
 }
 
+bn_t *bn_add(const bn_t *a, const bn_t *b) {
+  return bn_add_signed(a, b, false);
+}
+
 bn_t *bn_sub(const bn_t *a, const bn_t *b) {
-  assert(a != nullptr);
-  assert(b != nullptr);
-
-  bool aneg = bn_is_negative(a);
-  bool bneg = bn_is_negative(b);
-
-  if (aneg != bneg) {
-    bn_t *res = bn_add_unsigned(a, b);
-    if (aneg && !bn_is_zero(res)) {
-      res->negative = true;
-    }
-    return res;
-  }
-
-  int cmp = bn_cmp_unsigned(a, b);
-  if (cmp == 0) {
-    return bn_new(1);
-  }
-  if (cmp > 0) {
-    bn_t *res = bn_sub_unsigned(a, b);
-    if (aneg && !bn_is_zero(res)) {
-      res->negative = true;
-    }
-    return res;
-  }
-
-  bn_t *res = bn_sub_unsigned(b, a);
-  if (!aneg && !bn_is_zero(res)) {
-    res->negative = true;
-  }
-  return res;
+  return bn_add_signed(a, b, true);
 }
 
 bn_t *bn_mul(const bn_t *a, const bn_t *b) {
   assert(a != nullptr);
   assert(b != nullptr);
 
+  bool neg = bn_is_negative(a) ^ bn_is_negative(b);
   bn_t *res = bn_mul_unsigned(a, b);
-  if ((bn_is_negative(a) ^ bn_is_negative(b)) && !bn_is_zero(res)) {
+  if (neg && !bn_is_zero(res)) {
     res->negative = true;
   }
   return res;
@@ -1026,7 +895,6 @@ bn_t *bn_div(const bn_t *a, const bn_t *b) {
   assert(!bn_is_zero(b));
 
   bn_divmod_result_t qr = bn_divmod_impl(a, b);
-  BN_FREE(qr.r);
   return qr.q;
 }
 
@@ -1065,6 +933,8 @@ char *bn_to_string(const bn_t *a, uint32_t radix) {
 
   if (bn_is_zero(a)) {
     char *s = (char *)malloc(2);
+    if (s == nullptr)
+      return nullptr;
     s[0] = '0';
     s[1] = '\0';
     return s;
@@ -1072,6 +942,8 @@ char *bn_to_string(const bn_t *a, uint32_t radix) {
 
   uint32_t used = a->used;
   uint64_t *tmp = (uint64_t *)malloc((size_t)used * sizeof(uint64_t));
+  if (tmp == nullptr)
+    return nullptr;
   memcpy(tmp, a->limb, (size_t)used * sizeof(uint64_t));
   while (used > 1 && tmp[used - 1] == 0) {
     used--;
@@ -1089,6 +961,10 @@ char *bn_to_string(const bn_t *a, uint32_t radix) {
   }
 
   char *out = (char *)malloc(max_digits + 2);
+  if (out == nullptr) {
+    free(tmp);
+    return nullptr;
+  }
 
   size_t pos = 0;
   while (!limbs_is_zero(tmp, used)) {
@@ -1110,8 +986,7 @@ char *bn_to_string(const bn_t *a, uint32_t radix) {
 }
 
 bn_divmod_result_t bn_divmod(const bn_t *a, const bn_t *b) {
-  bn_divmod_result_t tmp = bn_divmod_impl(a, b);
-  return tmp;
+  return bn_divmod_impl(a, b);
 }
 
 bn_sqrt_result_t bn_sqrt(const bn_t *a) {
