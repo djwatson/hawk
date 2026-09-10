@@ -1,3 +1,11 @@
+## codex review
+
+TODO still need
+* bigint
+* runtime.scm
+* regalloc.c
+* read.scm
+
 ## slow VM
 For the VM specifically, we could speed up these, but it wouldn't really affect JIT.
 
