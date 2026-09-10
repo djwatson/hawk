@@ -10,7 +10,6 @@ enum : uint16_t {
 typedef struct {
   uint16_t ir_idx;
   bool before;
-  bool is_snap;
   uint32_t next;
 } next_use;
 
@@ -34,7 +33,7 @@ void regalloc_maybe_free_reg(regalloc_state *s, uint16_t cur_idx, uint16_t idx,
                              bool keep_current_before);
 void regalloc_maybe_free_snapshot(regalloc_state *s, uint16_t cur_idx,
                                   snap const *sn);
-uint8_t regalloc_materialize_arg_or_ensure_loc(regalloc_state *s,
+uint8_t regalloc_ensure_arg_reg(regalloc_state *s,
                                                uint16_t cur_idx,
                                                ir_ins const *ins,
                                                uint16_t value_id);

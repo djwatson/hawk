@@ -1,9 +1,8 @@
 ## codex review
 
 TODO still need
-* bigint
+* bigint.c
 * runtime.scm
-* regalloc.c
 * read.scm
 
 ## slow VM

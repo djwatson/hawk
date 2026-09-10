@@ -75,8 +75,15 @@ static bool slot_is_zero(trace const *t, slot s) {
          to_fixnum(t->consts[s.loc]) == 0;
 }
 
-static bool ir_is_vm_call(ir_ins_op op) {
-  return op >= IR_VMADD || op == IR_CALLCC || op == IR_CALLCC_RESUME;
+static bool ins_clobbers_regs(ir_ins const *ins) {
+  return ir_is_vm_call(ins->op) || ins->op == IR_CCALL ||
+         ins->op == IR_CALLCC || ins->op == IR_CALLCC_RESUME ||
+         (ins->op == IR_MOD && ins->type == FLONUM_TAG);
+}
+
+static bool needs_output_reg(regalloc_state const *s, uint16_t ir_idx) {
+  auto op = s->t->ins[ir_idx].op;
+  return op != IR_PMOV && op != IR_REF && op != IR_CARG && s->uses[ir_idx];
 }
 
 static uint8_t regalloc_collect_carg_args(trace const *t, slot chain,
@@ -148,10 +155,9 @@ uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins,
 }
 
 static void add_next_use(regalloc_state *s, uint16_t loc, uint16_t ir_idx,
-                         bool before, bool is_snap) {
+                         bool before) {
   auto next = (next_use){.ir_idx = ir_idx,
                          .before = before,
-                         .is_snap = is_snap,
                          .next = s->uses[loc]};
   s->uses[loc] = (uint32_t)arrlen(s->next_uses);
   arrput(s->next_uses, next);
@@ -204,7 +210,7 @@ void regalloc_collect_next_uses(regalloc_state *s) {
         // We ONLY add snapshots as a 'use' if it doesn't already exist:
         // This is so snapshots don't affect 'find next use' spilling heuristic.
         if (!val.constant && !s->uses[val.loc]) {
-          add_next_use(s, val.loc, cur_snap_end_ir, false, true);
+          add_next_use(s, val.loc, cur_snap_end_ir, false);
           bool flonum = s->t->ins[val.loc].type == FLONUM_TAG;
           auto live = flonum ? fpr_live : gpr_live;
           auto live_count = flonum ? &fpr_live_count : &gpr_live_count;
@@ -227,8 +233,7 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     }
 
     auto ins = &s->t->ins[value_id];
-    if (ins->op == IR_CCALL || ir_is_vm_call(ins->op) ||
-        (ins->op == IR_MOD && ins->type == FLONUM_TAG)) {
+    if (ins_clobbers_regs(ins)) {
       limit_live_values(s, gpr_live, &gpr_live_count, 0, use_pos);
       limit_live_values(s, fpr_live, &fpr_live_count, 0, use_pos);
     }
@@ -236,21 +241,23 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     slot args[UINT8_MAX];
     uint8_t arg_count = regalloc_collect_ir_args(s->t, ins, args);
     for (uint8_t arg = 0; arg < arg_count; arg++) {
-      add_next_use(s, args[arg].loc, value_id, true, false);
+      add_next_use(s, args[arg].loc, value_id, true);
       bool flonum = s->t->ins[args[arg].loc].type == FLONUM_TAG;
       auto live = flonum ? fpr_live : gpr_live;
       auto live_count = flonum ? &fpr_live_count : &gpr_live_count;
       live_add(live, live_count, args[arg].loc);
       use_pos[args[arg].loc] = value_id;
     }
-    // In the current regalloc, the output register is live
-    // at the same time as the input registers.
+    // Conservatively reserve output space alongside inputs; emission can
+    // reuse registers of inputs whose last use is this instruction.
     uint16_t gpr_limit = GPR_ALLOCATABLE;
     uint16_t fpr_limit = FPR_ALLOCATABLE;
-    if (s->t->ins[value_id].type == FLONUM_TAG) {
-      fpr_limit--;
-    } else if (ins->op != IR_REF && ins->op != IR_CARG) {
-      gpr_limit--;
+    if (needs_output_reg(s, value_id)) {
+      if (ins->type == FLONUM_TAG) {
+        fpr_limit--;
+      } else {
+        gpr_limit--;
+      }
     }
     limit_live_values(s, gpr_live, &gpr_live_count, gpr_limit, use_pos);
     limit_live_values(s, fpr_live, &fpr_live_count, fpr_limit, use_pos);
@@ -271,10 +278,8 @@ uint8_t regalloc_find_current_reg_for_value(regalloc_state *s,
   return REG_NONE;
 }
 
-static bool value_used_by_ir_ins(trace const *t, ir_ins const *ins,
-                                 uint16_t value_id) {
-  slot args[UINT8_MAX];
-  uint8_t arg_count = regalloc_collect_ir_args(t, ins, args);
+static bool value_used_by_args(slot const *args, uint8_t arg_count,
+                                uint16_t value_id) {
   for (uint8_t arg = 0; arg < arg_count; arg++) {
     if (args[arg].loc == value_id) {
       return true;
@@ -285,6 +290,8 @@ static bool value_used_by_ir_ins(trace const *t, ir_ins const *ins,
 
 uint8_t regalloc_find_free_reg(regalloc_state *s, bool flonum,
                                ir_ins const *cur_ins) {
+  slot args[UINT8_MAX];
+  uint8_t arg_count = cur_ins ? regalloc_collect_ir_args(s->t, cur_ins, args) : 0;
   uint16_t start = flonum ? FPR_REG_START : 0;
   uint16_t end = flonum ? FPR_REG_END : FPR_REG_START;
   uint16_t spill_reg = UINT16_MAX;
@@ -299,7 +306,7 @@ uint8_t regalloc_find_free_reg(regalloc_state *s, bool flonum,
     }
 
     uint16_t value_id = s->regs[i];
-    if (cur_ins && value_used_by_ir_ins(s->t, cur_ins, value_id)) {
+    if (value_used_by_args(args, arg_count, value_id)) {
       continue;
     }
     if (s->t->ins[value_id].spill == SPILL_NONE) {
@@ -358,7 +365,7 @@ void regalloc_maybe_free_snapshot(regalloc_state *s, uint16_t cur_idx,
   }
 }
 
-uint8_t regalloc_materialize_arg_or_ensure_loc(regalloc_state *s,
+uint8_t regalloc_ensure_arg_reg(regalloc_state *s,
                                                uint16_t cur_idx,
                                                ir_ins const *ins,
                                                uint16_t value_id) {
@@ -370,7 +377,7 @@ uint8_t regalloc_materialize_arg_or_ensure_loc(regalloc_state *s,
     reg = regalloc_find_free_reg(s, in->type == FLONUM_TAG, ins);
     s->regs[reg] = value_id;
 
-    LOG(regalloc, "LOAD reg=%u value=%u from_spill=%u ir_idx=%u", reg, value_id,
+    LOG(regalloc, "ASSIGN arg reg=%u value=%u from_spill=%u ir_idx=%u", reg, value_id,
         in->spill, cur_idx);
   }
   return reg;
@@ -383,7 +390,7 @@ void regalloc_assign_output(regalloc_state *s, uint16_t ir_idx, ir_ins *ins) {
     }
     return;
   }
-  if (ins->op == IR_REF || ins->op == IR_CARG || !s->uses[ir_idx]) {
+  if (!needs_output_reg(s, ir_idx)) {
     return;
   }
   if (ins->reg == REG_NONE) {

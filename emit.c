@@ -793,8 +793,6 @@ static vm_call_info vm_call_infos[] = {
     {(intptr_t)&numeric_truncate_value, false, false},
 };
 
-static bool ir_is_vm_call(ir_ins_op op) { return op >= IR_VMADD; }
-
 static vm_call_info vm_call_get(ir_ins_op op) {
   assert(ir_is_vm_call(op));
   return vm_call_infos[op - IR_VMADD];
@@ -1696,7 +1694,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
       uint8_t old_reg =
           regalloc_find_current_reg_for_value(ra_state, args[arg].loc);
-      uint8_t arg_reg = regalloc_materialize_arg_or_ensure_loc(
+      uint8_t arg_reg = regalloc_ensure_arg_reg(
           ra_state, (uint16_t)op_cnt_idx, op, args[arg].loc);
       arg_regs[arg] = arg_reg;
       if (old_reg == REG_NONE) {

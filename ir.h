@@ -100,6 +100,7 @@ typedef enum : uint8_t {
   X(CHAR_INTEGER, ARG_IR_NONE, false)                                          \
   X(TRUNCATE, ARG_IR_NONE, false)                                              \
   X(INEXACT, ARG_IR_NONE, false)                                               \
+  X(SQRT, ARG_IR_NONE, false)                                                  \
   X(VMADD, ARG_IR_IR, true)                                                    \
   X(VMSUB, ARG_IR_IR, true)                                                    \
   X(VMMUL, ARG_IR_IR, true)                                                    \
@@ -118,14 +119,17 @@ typedef enum : uint8_t {
   X(VMJNNUMEQ, ARG_IR_IR, true)                                                \
   X(VMINEXACT, ARG_IR_NONE, true)                                              \
   X(VMEXACT, ARG_IR_NONE, true)                                                \
-  X(VMTRUNCATE, ARG_IR_NONE, true)                                             \
-  X(SQRT, ARG_IR_NONE, false)
+  X(VMTRUNCATE, ARG_IR_NONE, true)
 typedef enum : uint8_t {
 #define X(name, type, sideeff) IR_##name,
   IR_OPS
 #undef X
       IR_INS_MAX,
 } ir_ins_op;
+
+static inline bool ir_is_vm_call(ir_ins_op op) {
+  return op >= IR_VMADD && op < IR_INS_MAX;
+}
 
 typedef struct {
   ir_ins_op op;
