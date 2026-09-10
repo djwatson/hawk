@@ -10,24 +10,19 @@
 #include "hawk.h"
 #include "ir.h"
 
-// A simple two-pass register allocator: The first pass collects
-// next-use chains, and calculates register pressure, and picks spills.
-//
-// The forward pass, that is integrated in to emit.c, then actually
-// chooses registers.  Potential spill candidates are pre-computed,
-// but it still has some freedom to perhaps pick a better spill based
-// on next-use.
+// The backwards pass picks spills and records the ends of register lifetimes.
+// The forward emitter reloads operands on demand and frees registers at those
+// endpoints. Spilled values can have several separate register lifetimes.
 
-// (TODO: investigate if dropping next-use chains entirely, and having the
-// backwards walk emit where some irs are 'spilled', i.e. no longer in register,
-// is worthwhile - unclear if next-use chains pay for themselves or not).
+struct reg_lifetime_end {
+  uint32_t pos;
+  uint16_t value_id;
+};
 
-// This is very similar to 'SSA-based' register allocation, where spilling and
-// register allocation are separate.
-
-// We're slightly more complicated than LuaJIT here, because instead
-// of a single backwards pass, we're emitting code forward (both for
-// clarity, and to make loopback register parallel copies easier).
+static void end_lifetime(regalloc_state *s, uint16_t value_id, uint16_t ir_idx,
+                         regalloc_phase phase) {
+  arrput(s->ends, ((reg_lifetime_end){3u * ir_idx + phase, value_id}));
+}
 
 static bool live_remove(uint16_t *live, uint16_t *count, uint16_t value) {
   for (uint16_t i = 0; i < *count; i++) {
@@ -39,13 +34,14 @@ static bool live_remove(uint16_t *live, uint16_t *count, uint16_t value) {
   return false;
 }
 
-static void live_add(uint16_t *live, uint16_t *count, uint16_t value) {
+static bool live_add(uint16_t *live, uint16_t *count, uint16_t value) {
   for (uint16_t i = 0; i < *count; i++) {
     if (live[i] == value) {
-      return;
+      return false;
     }
   }
   live[(*count)++] = value;
+  return true;
 }
 
 static void limit_live_values(regalloc_state *s, uint16_t *live,
@@ -83,7 +79,7 @@ static bool ins_clobbers_regs(ir_ins const *ins) {
 
 static bool needs_output_reg(regalloc_state const *s, uint16_t ir_idx) {
   auto op = s->t->ins[ir_idx].op;
-  return op != IR_PMOV && op != IR_REF && op != IR_CARG && s->uses[ir_idx];
+  return op != IR_PMOV && op != IR_REF && op != IR_CARG && s->last_use[ir_idx];
 }
 
 static uint8_t regalloc_collect_carg_args(trace const *t, slot chain,
@@ -154,34 +150,31 @@ uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins,
   return count;
 }
 
-static void add_next_use(regalloc_state *s, uint16_t loc, uint16_t ir_idx,
-                         bool before) {
-  auto next = (next_use){.ir_idx = ir_idx,
-                         .before = before,
-                         .next = s->uses[loc]};
-  s->uses[loc] = (uint32_t)arrlen(s->next_uses);
-  arrput(s->next_uses, next);
+static bool value_used_by_args(slot const *args, uint8_t arg_count,
+                                uint16_t value_id) {
+  for (uint8_t arg = 0; arg < arg_count; arg++) {
+    if (args[arg].loc == value_id) {
+      return true;
+    }
+  }
+  return false;
 }
 
-// This is the backwards pass, collecting next use info, and spilling.
-void regalloc_collect_next_uses(regalloc_state *s) {
+static int compare_lifetime_ends(void const *a, void const *b) {
+  auto lhs = (reg_lifetime_end const *)a;
+  auto rhs = (reg_lifetime_end const *)b;
+  return (lhs->pos < rhs->pos) - (lhs->pos > rhs->pos);
+}
+
+static void collect_lifetimes(regalloc_state *s) {
   size_t ins_len = arrlen(s->t->ins);
   if (ins_len == 0) {
     return;
   }
-
-  s->uses = calloc(ins_len, sizeof(uint32_t));
-  if (!s->uses) {
+  s->last_use = calloc(ins_len, sizeof(*s->last_use));
+  if (!s->last_use) {
     abort();
   }
-
-  size_t snap_entry_count = 0;
-  arr_for_each_idx(s->t->snaps, i) { snap_entry_count += s->t->snaps[i].nent; }
-  size_t next_use_cap = 1 + ins_len * 3 + snap_entry_count;
-  arr_arrgrow(s->next_uses, next_use_cap, next_use_cap);
-
-  // Use 0 as the null index in use chains.
-  arrput(s->next_uses, ((next_use){0}));
 
   size_t snap_len = arrlen(s->t->snaps);
   size_t cur_snap = snap_len;
@@ -200,6 +193,9 @@ void regalloc_collect_next_uses(regalloc_state *s) {
   }
   for (size_t i = ins_len; i > 0; i--) {
     uint16_t value_id = (uint16_t)(i - 1);
+    auto ins = &s->t->ins[value_id];
+    slot args[UINT8_MAX];
+    uint8_t arg_count = regalloc_collect_ir_args(s->t, ins, args);
     while (cur_snap != 0 &&
            (cur_snap == snap_len || s->t->snaps[cur_snap].ir >= (i - 1))) {
       cur_snap--;
@@ -207,10 +203,15 @@ void regalloc_collect_next_uses(regalloc_state *s) {
       auto entries = snap_entries_const(s->t, cur);
       for (size_t slot_i = 0; slot_i < snap_nent(cur); slot_i++) {
         auto val = entries[slot_i].val;
-        // We ONLY add snapshots as a 'use' if it doesn't already exist:
-        // This is so snapshots don't affect 'find next use' spilling heuristic.
-        if (!val.constant && !s->uses[val.loc]) {
-          add_next_use(s, val.loc, cur_snap_end_ir, false);
+        // Snapshots extend liveness only beyond the final ordinary use.
+        if (!val.constant && !s->last_use[val.loc]) {
+          // A use at the snapshot boundary must survive operand loading.
+          regalloc_phase phase = cur_snap_end_ir == value_id &&
+                                         value_used_by_args(args, arg_count, val.loc)
+                                     ? REGALLOC_INPUTS
+                                     : REGALLOC_BEFORE;
+          s->last_use[val.loc] = 3u * cur_snap_end_ir + phase;
+          end_lifetime(s, val.loc, cur_snap_end_ir, phase);
           bool flonum = s->t->ins[val.loc].type == FLONUM_TAG;
           auto live = flonum ? fpr_live : gpr_live;
           auto live_count = flonum ? &fpr_live_count : &gpr_live_count;
@@ -226,27 +227,29 @@ void regalloc_collect_next_uses(regalloc_state *s) {
       cur_snap_end_ir = cur->ir;
     }
 
-    if (s->t->ins[value_id].type == FLONUM_TAG) {
-      live_remove(fpr_live, &fpr_live_count, value_id);
-    } else {
-      live_remove(gpr_live, &gpr_live_count, value_id);
+    bool was_live = ins->type == FLONUM_TAG
+                        ? live_remove(fpr_live, &fpr_live_count, value_id)
+                        : live_remove(gpr_live, &gpr_live_count, value_id);
+    if (!was_live && s->last_use[value_id]) {
+      end_lifetime(s, value_id, value_id, REGALLOC_OUTPUT);
     }
-
-    auto ins = &s->t->ins[value_id];
     if (ins_clobbers_regs(ins)) {
       limit_live_values(s, gpr_live, &gpr_live_count, 0, use_pos);
       limit_live_values(s, fpr_live, &fpr_live_count, 0, use_pos);
     }
 
-    slot args[UINT8_MAX];
-    uint8_t arg_count = regalloc_collect_ir_args(s->t, ins, args);
     for (uint8_t arg = 0; arg < arg_count; arg++) {
-      add_next_use(s, args[arg].loc, value_id, true);
-      bool flonum = s->t->ins[args[arg].loc].type == FLONUM_TAG;
+      uint16_t loc = args[arg].loc;
+      if (!s->last_use[loc]) {
+        s->last_use[loc] = 3u * value_id + REGALLOC_INPUTS;
+      }
+      bool flonum = s->t->ins[loc].type == FLONUM_TAG;
       auto live = flonum ? fpr_live : gpr_live;
       auto live_count = flonum ? &fpr_live_count : &gpr_live_count;
-      live_add(live, live_count, args[arg].loc);
-      use_pos[args[arg].loc] = value_id;
+      if (live_add(live, live_count, loc)) {
+        end_lifetime(s, loc, value_id, REGALLOC_INPUTS);
+      }
+      use_pos[loc] = value_id;
     }
     // Conservatively reserve output space alongside inputs; emission can
     // reuse registers of inputs whose last use is this instruction.
@@ -263,6 +266,9 @@ void regalloc_collect_next_uses(regalloc_state *s) {
     limit_live_values(s, fpr_live, &fpr_live_count, fpr_limit, use_pos);
   }
   free(use_pos);
+  if (arrlen(s->ends)) {
+    qsort(s->ends, arrlen(s->ends), sizeof(*s->ends), compare_lifetime_ends);
+  }
 }
 
 uint8_t regalloc_find_current_reg_for_value(regalloc_state *s,
@@ -278,16 +284,6 @@ uint8_t regalloc_find_current_reg_for_value(regalloc_state *s,
   return REG_NONE;
 }
 
-static bool value_used_by_args(slot const *args, uint8_t arg_count,
-                                uint16_t value_id) {
-  for (uint8_t arg = 0; arg < arg_count; arg++) {
-    if (args[arg].loc == value_id) {
-      return true;
-    }
-  }
-  return false;
-}
-
 uint8_t regalloc_find_free_reg(regalloc_state *s, bool flonum,
                                ir_ins const *cur_ins) {
   slot args[UINT8_MAX];
@@ -295,8 +291,7 @@ uint8_t regalloc_find_free_reg(regalloc_state *s, bool flonum,
   uint16_t start = flonum ? FPR_REG_START : 0;
   uint16_t end = flonum ? FPR_REG_END : FPR_REG_START;
   uint16_t spill_reg = UINT16_MAX;
-  uint32_t farthest_use = 0;
-  bool have_candidate = false;
+  uint32_t farthest_last_use = 0;
   for (uint16_t i = start; i < end; i++) {
     if (s->regs[i] == ALLOC_UNALLOCATABLE) {
       continue;
@@ -312,17 +307,16 @@ uint8_t regalloc_find_free_reg(regalloc_state *s, bool flonum,
     if (s->t->ins[value_id].spill == SPILL_NONE) {
       continue;
     }
-    uint32_t next_idx = s->uses[value_id];
-    uint32_t candidate_next_use =
-        next_idx ? s->next_uses[next_idx].ir_idx : UINT32_MAX;
+    // Planned lifetime ends normally provide space. If emission needs more,
+    // prefer a backed value with a distant final use over register order.
+    uint32_t candidate_last_use = s->last_use[value_id];
 
-    if (!have_candidate || candidate_next_use > farthest_use) {
-      farthest_use = candidate_next_use;
+    if (spill_reg == UINT16_MAX || candidate_last_use > farthest_last_use) {
+      farthest_last_use = candidate_last_use;
       spill_reg = (uint8_t)i;
-      have_candidate = true;
     }
   }
-  if (!have_candidate) {
+  if (spill_reg == UINT16_MAX) {
     abort();
   }
 
@@ -330,45 +324,21 @@ uint8_t regalloc_find_free_reg(regalloc_state *s, bool flonum,
   return (uint8_t)spill_reg;
 }
 
-void regalloc_maybe_free_reg(regalloc_state *s, uint16_t cur_idx, uint16_t idx,
-                             bool keep_current_before) {
-  auto next_idx = s->uses[idx];
-  while (next_idx) {
-    auto cur_use = s->next_uses[next_idx];
-    if (cur_use.ir_idx < cur_idx ||
-        (cur_use.ir_idx == cur_idx &&
-         (!keep_current_before || !cur_use.before))) {
-      next_idx = cur_use.next;
-      continue;
-    }
-
-    break;
-  }
-  s->uses[idx] = next_idx;
-  uint8_t reg = regalloc_find_current_reg_for_value(s, idx);
-  if (reg == REG_NONE) {
-    return;
-  }
-  if (!next_idx) {
-    s->regs[reg] = ALLOC_NONE;
-  }
-}
-
-void regalloc_maybe_free_snapshot(regalloc_state *s, uint16_t cur_idx,
-                                  snap const *sn) {
-  auto entries = snap_entries_const(s->t, sn);
-  for (size_t i = 0; i < snap_nent(sn); i++) {
-    auto val = entries[i].val;
-    if (!val.constant) {
-      regalloc_maybe_free_reg(s, cur_idx, val.loc, true);
+void regalloc_free_regs(regalloc_state *s, uint16_t cur_idx,
+                        regalloc_phase phase) {
+  uint32_t pos = 3u * cur_idx + phase;
+  while (arrlen(s->ends) && arrlast(s->ends)->pos <= pos) {
+    uint8_t reg =
+        regalloc_find_current_reg_for_value(s, arrlast(s->ends)->value_id);
+    arrpop(s->ends);
+    if (reg != REG_NONE) {
+      s->regs[reg] = ALLOC_NONE;
     }
   }
 }
 
-uint8_t regalloc_ensure_arg_reg(regalloc_state *s,
-                                               uint16_t cur_idx,
-                                               ir_ins const *ins,
-                                               uint16_t value_id) {
+uint8_t regalloc_ensure_arg_reg(regalloc_state *s, uint16_t cur_idx,
+                                ir_ins const *ins, uint16_t value_id) {
   (void)cur_idx;
   auto in = &s->t->ins[value_id];
   uint8_t reg = regalloc_find_current_reg_for_value(s, value_id);
@@ -385,7 +355,7 @@ uint8_t regalloc_ensure_arg_reg(regalloc_state *s,
 
 void regalloc_assign_output(regalloc_state *s, uint16_t ir_idx, ir_ins *ins) {
   if (ins->op == IR_PMOV) {
-    if (ins->reg != REG_NONE && s->uses[ir_idx]) {
+    if (ins->reg != REG_NONE && s->last_use[ir_idx]) {
       s->regs[ins->prev_reg] = ir_idx;
     }
     return;
@@ -416,11 +386,11 @@ void regalloc_state_init(regalloc_state *s, trace *t) {
       s->regs[reg] = ALLOC_UNALLOCATABLE;
     }
   }
-  regalloc_collect_next_uses(s);
+  collect_lifetimes(s);
 }
 
 void regalloc_state_free(regalloc_state *s) {
-  arrfree(s->next_uses);
-  free(s->uses);
+  arrfree(s->ends);
+  free(s->last_use);
   memset(s, 0, sizeof(*s));
 }

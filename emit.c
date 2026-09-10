@@ -400,8 +400,7 @@ static void collect_live_roots(trace *t, regalloc_state *ra_state,
   size_t ins_len = arrlen(t->ins);
   for (uint8_t reg = 0; reg < MAX_REG; reg++) {
     uint16_t value_id = ra_state->regs[reg];
-    if (value_id >= ins_len || value_id == op_cnt_idx ||
-        !ra_state->uses[value_id]) {
+    if (value_id >= ins_len || value_id == op_cnt_idx) {
       continue;
     }
     mark_live_reg(live_regs, live_gpr_mask, reg);
@@ -1672,13 +1671,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       if (snap_idx == 1) {
         emit_label(s, &t->snap_entry_label);
       }
-      if (snap_idx > 0) {
-        regalloc_maybe_free_snapshot(ra_state, op_cnt_idx,
-                                     &t->snaps[snap_idx - 1]);
-      }
       cur_snap = (int32_t)snap_idx;
       snap_idx++;
     }
+    regalloc_free_regs(ra_state, op_cnt_idx, REGALLOC_BEFORE);
     auto op = &t->ins[op_cnt_idx];
 
     COMMENT("%i %s", op_cnt_idx, ir_names[op->op]);
@@ -1701,12 +1697,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         emit_reload_arg(s, t, args[arg].loc, arg_reg);
       }
     }
-    for (uint8_t arg = 0; arg < arg_count; arg++) {
-      if (!args[arg].constant) {
-        regalloc_maybe_free_reg(ra_state, (uint16_t)op_cnt_idx, args[arg].loc,
-                                false);
-      }
-    }
+    regalloc_free_regs(ra_state, op_cnt_idx, REGALLOC_INPUTS);
 
     regalloc_assign_output(ra_state, op_cnt_idx, op);
     uint8_t out_reg = op->reg;
@@ -2279,6 +2270,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         emit_store(s, spill_offset(op->spill), RTMP, out_reg);
       }
     }
+    regalloc_free_regs(ra_state, op_cnt_idx, REGALLOC_OUTPUT);
   }
 
   // Some traces place entry/exit snapshots immediately after the final IR.
@@ -2287,10 +2279,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     if (snap_idx == 1) {
       emit_label(s, &t->snap_entry_label);
     }
-    if (snap_idx > 0) {
-      regalloc_maybe_free_snapshot(ra_state, op_cnt_idx,
-                                   &t->snaps[snap_idx - 1]);
-    }
+    regalloc_free_regs(ra_state, op_cnt_idx, REGALLOC_BEFORE);
     cur_snap = (int32_t)snap_idx;
     snap_idx++;
   }

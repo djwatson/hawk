@@ -52,8 +52,6 @@ static regalloc_result regalloc(trace *t) {
   uint16_t *ir_id_to_dense_map = nullptr;
   reload_op *reload_ops = nullptr;
   size_t ins_len = arrlen(t->ins);
-  size_t snap_idx = 0;
-  size_t snap_len = arrlen(t->snaps);
 
   if (ins_len > 0) {
     ir_id_to_dense_map = malloc(ins_len * sizeof(*ir_id_to_dense_map));
@@ -63,12 +61,7 @@ static regalloc_result regalloc(trace *t) {
   }
 
   for (size_t i = 0; i < ins_len; i++) {
-    while (snap_idx < snap_len && t->snaps[snap_idx].ir == i) {
-      if (snap_idx > 0) {
-        regalloc_maybe_free_snapshot(&s, (uint16_t)i, &t->snaps[snap_idx - 1]);
-      }
-      snap_idx++;
-    }
+    regalloc_free_regs(&s, (uint16_t)i, REGALLOC_BEFORE);
 
     auto ins = &t->ins[i];
     slot args[UINT8_MAX];
@@ -94,9 +87,7 @@ static regalloc_result regalloc(trace *t) {
              ((dense_loc_entry){
                  .kind = LOC_REG, .reg = reg, .value_id = value_id}));
     }
-    for (uint8_t arg = 0; arg < arg_count; arg++) {
-      regalloc_maybe_free_reg(&s, (uint16_t)i, args[arg].loc, false);
-    }
+    regalloc_free_regs(&s, (uint16_t)i, REGALLOC_INPUTS);
 
     regalloc_assign_output(&s, (uint16_t)i, ins);
     if (ins->op == IR_RET) {
@@ -105,6 +96,7 @@ static regalloc_result regalloc(trace *t) {
              ((dense_loc_entry){
                  .kind = LOC_REG, .reg = tmp, .value_id = (uint16_t)i}));
     }
+    regalloc_free_regs(&s, (uint16_t)i, REGALLOC_OUTPUT);
   }
 
   regalloc_state_free(&s);
