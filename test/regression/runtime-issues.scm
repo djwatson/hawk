@@ -36,8 +36,8 @@
 ;; The integer exponentiation path is only for integer exponents.  In
 ;; particular, this must not reject exact fractional exponents.
 (check (guard (exn (#t #f)) (expt 4 1/2)) 2)
+(check (expt 4 -1/2) 1/2)
 (check (expt 2 -3) 1/8)
-;; (expt 4 -0.5) must terminate and produce 1/2.
 
 ;; A failed read is not EOF.
 (check
@@ -78,9 +78,20 @@
 (check (number->string (expt 2 100) 16)
        "10000000000000000000000000")
 (check (number->string 10/11 16) "A/B")
+(check (number->string (expt 2 400) 2)
+       (string-append "1" (make-string 400 #\0)))
+(check (number->string (- (expt 10 150)))
+       (string-append "-1" (make-string 150 #\0)))
+(check (raises? (lambda () (number->string 1 1))) #t)
 
 (check (string->utf8 (string (integer->char 233))) #u8(195 169))
 (check (utf8->string #u8(195 169)) (string (integer->char 233)))
+(check (raises? (lambda () (utf8->string #u8(192 128)))) #t)
+(check (raises? (lambda () (utf8->string #u8(193 191)))) #t)
+(check (raises? (lambda () (utf8->string #u8(128 128)))) #t)
+(check (raises? (lambda () (utf8->string #u8(195)))) #t)
+(check (utf8->string #u8(194 128 195 191))
+       (string (integer->char 128) (integer->char 255)))
 
 ;; Empty memory ports are already known not to block, and optional port
 ;; arguments use the current port.
@@ -111,6 +122,17 @@
           1e-12)
        #t)
 (check (finite? (magnitude 1e200+1e200i)) #t)
+(check (magnitude -1e200) 1e200)
+(check (magnitude 1e-200) 1e-200)
+(check (magnitude -3/4) 3/4)
+(call-with-input-file "/tmp/newhawk-runtime-issues.out"
+  (lambda (port)
+    (read-char port)
+    (check (char-ready? port) #t)))
+(call-with-port (open-binary-input-file "/tmp/newhawk-runtime-issues.out")
+  (lambda (port)
+    (read-u8 port)
+    (check (u8-ready? port) #t)))
 
 (newline)
 (display "Runtime regressions: ")
@@ -119,3 +141,4 @@
 (write fail-count)
 (display " failed")
 (newline)
+(when (> fail-count 0) (error "Runtime regressions failed" fail-count))

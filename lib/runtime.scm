@@ -38,7 +38,7 @@
 (define (exact->inexact x) (sys:INEXACT x))
 (define (inexact->exact x) (sys:EXACT x))
 
-(define (floor-remainder a b) (- a (* b (floor (quotient a b)))))
+(define (floor-remainder a b) (- a (* b (floor-quotient a b))))
 (define (truncate-quotient a b) (truncate (quotient a b)))
 (define (truncate-remainder a b)
   (let ((div (truncate (quotient a b)))) (- a (* b div))))
@@ -315,7 +315,7 @@
 (define (inexact? x)
   (or (flonum? x)
      (and (compnum? x) (or (inexact? (real-part x)) (inexact? (imag-part x))))))
-(define exact-integer? fixnum?)
+(define (exact-integer? x) (and (exact? x) (integer? x)))
 (define (procedure? a) (sys:GUARD a 5))
 (define (string? a) (sys:GUARD a 9))
 (define (bytevector? a) (sys:GUARD a 73))
@@ -476,6 +476,7 @@
   (case-lambda
     ((len) (make-vector len 0))
     ((len init)
+      (unless (and (fixnum? len) (>= len 0)) (error "bad make-vector len"))
       (if (and (> len 0) (flonum? init))
           (make-flvector len init)
           (let ((vec (sys:ALLOC (+ 16 (sys:MUL len 8)) 7)))
@@ -694,7 +695,7 @@
       (let loop ((obj obj1) (alist alist1))
         (if (null? alist)
             #f
-            (begin (if (compare (caar alist) obj) (car alist) (loop obj (cdr alist)))))))
+            (begin (if (compare obj (caar alist)) (car alist) (loop obj (cdr alist)))))))
     ((obj alist) (assoc obj alist equal?))))
 
 (define (memv obj list)
@@ -1109,13 +1110,18 @@
       ((= num 1) start)
       ((or (nan? exp) (infinite? exp))
        (sys:FOREIGN_CALL '(double "pow" (double double)) num exp))
+      ((not (integer? exp))
+       (if (and (exact? exp) (ratnum? exp)
+                (= (abs (numerator exp)) 1) (= (denominator exp) 2))
+           (if (negative? exp) (/ start (sqrt num)) (sqrt num))
+           (sys:FOREIGN_CALL '(double "pow" (double double))
+                             (inexact num) (inexact exp))))
       ((> exp 0)
        (let loop ((ret start) (num num) (exp exp))
          (if (= exp 0)
              ret
              (loop (if (odd? exp) (* ret num) ret) (* num num) (quotient exp 2)))))
-      (else
-       (do ((n start (/ n num)) (cnt exp (+ cnt 1))) ((= cnt 0) n))))))
+      (else (expt (/ start num) (- exp))))))
 
 (define (odd? x) (= 1 (modulo x 2)))
 
@@ -1201,20 +1207,18 @@
   (case-lambda
     ((num) (number->string num 10))
     ((num base)
-      (unless (and (number? num) (fixnum? base) (<= 1 base 16))
+      (unless (and (number? num) (fixnum? base) (<= 2 base 16))
         (error "bad number->string" num))
-      ;;(unless (and (number? num) (fixnum? base) (<= 1 base 16)) (error "bad number->string" num))
       (let* ((buflen 100) (buffer (make-string buflen)))
         (cond
           ((flonum? num) (sys:FOREIGN_CALL '(string "ftoa_fast" (double)) num))
-          ((bignum? num) (sys:FOREIGN_CALL '(string "bignum_string" (gc_obj)) num))
           ((ratnum? num)
-            (string-append (number->string (numerator num))
+            (string-append (number->string (numerator num) base)
                            "/"
-                           (number->string (denominator num))))
+                           (number->string (denominator num) base)))
           ((compnum? num)
-            (let ((real-str (number->string (real-part num)))
-                  (imag-str (number->string (imag-part num))))
+            (let ((real-str (number->string (real-part num) base))
+                  (imag-str (number->string (imag-part num) base)))
               (string-append real-str
                              (if (or (negative? (imag-part num))
                                     (char=? (string-ref imag-str 0) #\+)
@@ -1227,6 +1231,10 @@
           (else
             (let ((neg (negative? num)))
               (let loop ((p buflen) (n (if neg (- 0 num) num)))
+                (when (= p 0)
+                  (set! buffer (string-append (make-string buflen) buffer))
+                  (set! p buflen)
+                  (set! buflen (* 2 buflen)))
                 (cond
                   ((eq? n 0)
                     (if neg (begin (set! p (- p 1)) (string-set! buffer p #\-)))
@@ -1612,9 +1620,10 @@
 (define (eof-object) (make-eof-object))
 (define (fill-input-port-buffer port)
   (let ((cnt (c-read (sys:LOAD port 0) (sys:LOAD port 6) port-buffer-size)))
-    (if (> cnt 0)
-        (begin (sys:STORE port 0 3) (sys:STORE port cnt 4) #t)
-        (begin (sys:STORE port 0 3) (sys:STORE port -1 4) #f))))
+    (cond
+      ((> cnt 0) (begin (sys:STORE port 0 3) (sys:STORE port cnt 4) #t))
+      ((= cnt 0) (begin (sys:STORE port 0 3) (sys:STORE port -1 4) #f))
+      (else (file-error "read error" cnt)))))
 (define (read-from-port-buffer port)
   (if (not (textual-input-port? port))
       (error "read-char: not an input port" port)
@@ -1658,7 +1667,8 @@
       (ensure-port-open port)
       (unless (textual-input-port? port)
         (error "char-ready?: not an input port" port))
-      (< (port-pos port) (port-len port)))))
+      (or (< (port-pos port) (port-len port))
+          (< (port-len port) 0) (< (port-fd port) 0)))))
 
 (define (read-line-build chunks total buf start end)
   (let ((len (+ total (- end start))))
@@ -1705,29 +1715,32 @@
                 ((fill-input-port-buffer port) (loop chunks total))
                 (else
                   (if (= total 0) (make-eof-object) (read-line-build chunks total "" 0 0))))))))))
-(define (write-char char port)
-  (ensure-port-open port)
-  (cond
-    ((not (textual-output-port? port))
-      (error "write-char: not an output port" port))
-    ((port-sbuf port)
-      (when (= (port-pos port) (port-len port)) (port-grow-sbuf! port))
-      (buffer-set-char! (port-sbuf port) (port-pos port) char)
-      (port-pos-set! port (+ (port-pos port) 1))
-      #t)
-    ((not (port-input? port))
-      (let ((len (port-len port)))
-        (if (= len port-buffer-size)
-            (begin
-              (flush-port-write-buffer port)
-              (buffer-set-char! (port-buf port) 0 char)
-              (port-len-set! port 1)
-              #t)
-            (begin
-              (buffer-set-char! (port-buf port) len char)
-              (port-len-set! port (+ len 1))
-              #t))))
-    (else (error "write-char: not an output port" port))))
+(define write-char
+  (case-lambda
+    ((char) (write-char char (current-output-port)))
+    ((char port)
+      (ensure-port-open port)
+      (cond
+        ((not (textual-output-port? port))
+          (error "write-char: not an output port" port))
+        ((port-sbuf port)
+          (when (= (port-pos port) (port-len port)) (port-grow-sbuf! port))
+          (buffer-set-char! (port-sbuf port) (port-pos port) char)
+          (port-pos-set! port (+ (port-pos port) 1))
+          #t)
+        ((not (port-input? port))
+          (let ((len (port-len port)))
+            (if (= len port-buffer-size)
+                (begin
+                  (flush-port-write-buffer port)
+                  (buffer-set-char! (port-buf port) 0 char)
+                  (port-len-set! port 1)
+                  #t)
+                (begin
+                  (buffer-set-char! (port-buf port) len char)
+                  (port-len-set! port (+ len 1))
+                  #t))))
+        (else (error "write-char: not an output port" port))))))
 (define write-string
   (case-lambda
     ((str) (write-string str (current-output-port)))
@@ -1802,10 +1815,14 @@
           ((fill-input-port-buffer port) (unchecked-buffer-ref-u8 buf 0))
           (else (eof-object)))))))
 
-(define (u8-ready? port)
-  (ensure-port-open port)
-  (unless (binary-input-port? port) (error "u8-ready?: not an input port" port))
-  (< (port-pos port) (port-len port)))
+(define u8-ready?
+  (case-lambda
+    (() (u8-ready? (current-input-port)))
+    ((port)
+      (ensure-port-open port)
+      (unless (binary-input-port? port) (error "u8-ready?: not an input port" port))
+      (or (< (port-pos port) (port-len port))
+          (< (port-len port) 0) (< (port-fd port) 0)))))
 
 (define read-string
   (case-lambda
@@ -1886,11 +1903,17 @@
 (define (with-input-from-file file thunk)
   (let ((p (open-input-file file)))
     (parameterize ((current-input-port p))
-      (let ((res (thunk))) (close-input-port p) res))))
+      (let ((res (call-with-values thunk list)))
+        (close-input-port p)
+        (apply values res)))))
 
 (define (with-output-to-file name thunk)
   (let ((file (open-output-file name)))
-    (parameterize ((current-output-port file)) (thunk) (close-output-port file))))
+    (parameterize ((current-output-port file)
+                   (current-error-port (current-error-port)))
+      (let ((res (call-with-values thunk list)))
+        (close-output-port file)
+        (apply values res)))))
 
 (define (call-with-port port proc)
   (dynamic-wind (lambda () #f)
@@ -1991,12 +2014,16 @@
 (define (call-with-input-file file l)
   (unless (and (string? file) (procedure? l))
     (error "invalid call-with-input-file"))
-  (let* ((p (open-input-file file)) (res (l p))) (close-input-port p) res))
+  (let* ((p (open-input-file file)) (res (call-with-values (lambda () (l p)) list)))
+    (close-input-port p)
+    (apply values res)))
 
 (define (call-with-output-file file l)
   (unless (and (string? file) (procedure? l))
     (error "invalid call-with-input-file"))
-  (let* ((p (open-output-file file)) (res (l p))) (close-output-port p) res))
+  (let* ((p (open-output-file file)) (res (call-with-values (lambda () (l p)) list)))
+    (close-output-port p)
+    (apply values res)))
 
 (define flush-output-port
   (case-lambda
@@ -2038,7 +2065,7 @@
     ((compnum? f)
       (let* ((z (inexact f))) (* 0-1i (log (+ (* 0+1i z) (sqrt (- 1 (expt z 2))))))))
     (else (sys:FOREIGN_CALL '(double "asin" (double)) (inexact f)))))
-(define pi/2 1.5708)
+(define pi/2 1.5707963267948966)
 (define (acos f)
   (cond
     ((compnum? f) (- pi/2 (asin f)))
@@ -2048,7 +2075,10 @@
 (define (make-polar r angle)
   (make-rectangular (* r (cos angle)) (* r (sin angle))))
 (define (magnitude z)
-  (sqrt (+ (square (real-part z)) (square (imag-part z)))))
+  (if (compnum? z)
+      (sys:FOREIGN_CALL '(double "hypot" (double double))
+                        (inexact (real-part z)) (inexact (imag-part z)))
+      (abs z)))
 (define (angle z) (atan (imag-part z) (real-part z)))
 
 (define (sqrt x)
@@ -2168,12 +2198,15 @@
   (sys:LOAD bv 0))
 (define (bytevector-u8-set! bv idx val)
   (unless (bytevector? bv) (error "Invalid bytevector index"))
+  (unless (and (fixnum? val) (<= 0 val 255))
+    (error "Invalid bytevector value" val))
   (sys:ABC bv idx)
   (sys:STORE_BYTE bv val idx))
 (define make-bytevector
   (case-lambda
     ((len) (make-bytevector len #f))
     ((len init)
+      (unless (and (fixnum? len) (>= len 0)) (error "bad make-bytevector len"))
       (let* ((size (+ len 17))
              (q (quotient size 8))
              (r (modulo size 8))
@@ -2257,18 +2290,37 @@
             (and (eq? (bytevector-u8-ref a pos) (bytevector-u8-ref b pos))
                  (loop (+ pos 1)))))))
 
+(define (utf8->string-internal v start end)
+  (let ((res (make-string (- end start))))
+    (let loop ((i start) (j 0))
+      (if (>= i end)
+          (substring res 0 j)
+          (let ((c (bytevector-u8-ref v i)))
+            (if (< c 128)
+                (begin (string-set! res j (integer->char c))
+                       (loop (+ i 1) (+ j 1)))
+                ;; Strings currently support only characters U+0000 through U+00FF.
+                (if (and (<= 194 c 195) (< (+ i 1) end))
+                    (let ((d (bytevector-u8-ref v (+ i 1))))
+                      (if (and (<= 128 d) (< d 192))
+                          (begin
+                            (string-set! res j
+                                         (integer->char (+ (* (- c 192) 64) (- d 128))))
+                            (loop (+ i 2) (+ j 1)))
+                          (error "Invalid UTF-8")))
+                    (error "Invalid UTF-8"))))))))
 (define utf8->string
   (case-lambda
     ((v)
       (unless (bytevector? v) (error "utf8->string: not a bytevector" v))
-      (buffer->string v 0 (bytevector-length v)))
+      (utf8->string-internal v 0 (bytevector-length v)))
     ((v start)
       (unless (bytevector? v) (error "utf8->string: not a bytevector" v))
       (let ((end (bytevector-length v)))
         (unless (fixnum? start) (error "bad start utf8->string" start))
         (unless (or (< -1 start end) (= start end))
           (error "bad start len utf8->string" start))
-        (buffer->string v start end)))
+        (utf8->string-internal v start end)))
     ((v start end)
       (unless (bytevector? v) (error "utf8->string: not a bytevector" v))
       (unless (and (fixnum? start) (fixnum? end))
@@ -2277,19 +2329,38 @@
         (error "bad start len utf8->string" start))
       (unless (<= 0 end (bytevector-length v)) (error "bad end utf8->string" end))
       (when (> start end) (error "bad end start utf8->string" start end))
-      (buffer->string v start end))))
+      (utf8->string-internal v start end))))
+(define (string->utf8-internal v start end)
+  (let* ((len (do ((i start (+ i 1))
+                   (n 0 (+ n (if (< (let ((c (char->integer (string-ref v i))))
+                                      (if (< c 0) (+ c 256) c))
+                                128)
+                            1 2))))
+                  ((= i end) n)))
+         (res (make-bytevector len)))
+    (let loop ((i start) (j 0))
+      (if (= i end)
+          res
+          (let* ((raw (char->integer (string-ref v i)))
+                 (c (if (< raw 0) (+ raw 256) raw)))
+            (if (< c 128)
+                (begin (bytevector-u8-set! res j c) (loop (+ i 1) (+ j 1)))
+                (begin
+                  (bytevector-u8-set! res j (+ 192 (quotient c 64)))
+                  (bytevector-u8-set! res (+ j 1) (+ 128 (modulo c 64)))
+                  (loop (+ i 1) (+ j 2)))))))))
 (define string->utf8
   (case-lambda
     ((v)
       (unless (string? v) (error "string->utf8: not a string" v))
-      (buffer->bytevector v 0 (string-length v)))
+      (string->utf8-internal v 0 (string-length v)))
     ((v start)
       (unless (string? v) (error "string->utf8: not a string" v))
       (let ((end (string-length v)))
         (unless (fixnum? start) (error "bad start string->utf8" start))
         (unless (or (< -1 start end) (= start end))
           (error "bad start len string->utf8" start))
-        (buffer->bytevector v start end)))
+        (string->utf8-internal v start end)))
     ((v start end)
       (unless (string? v) (error "string->utf8: not a string" v))
       (unless (and (fixnum? start) (fixnum? end))
@@ -2298,7 +2369,7 @@
         (error "bad start len string->utf8" start))
       (unless (<= 0 end (string-length v)) (error "bad end string->utf8" end))
       (when (> start end) (error "bad end start string->utf8" start end))
-      (buffer->bytevector v start end))))
+      (string->utf8-internal v start end))))
 
 ;; process-context
 (define (get-environment-variables)
@@ -2306,6 +2377,8 @@
 (define (get-environment-variable var)
   (cond ((assoc var (get-environment-variables)) => cdr) (else #f)))
 
+(define (exit-status code)
+  (if (eq? code #t) 0 (if (eq? code #f) 1 code)))
 (define exit
   (case-lambda
     (() (exit 0))
@@ -2313,8 +2386,11 @@
       ;; Flush the ports.
       (close-output-port (current-output-port))
       (close-output-port (current-error-port))
-      (sys:FOREIGN_CALL '(int32 "exit" (int32)) code))))
-(define emergency-exit exit)
+      (sys:FOREIGN_CALL '(int32 "exit" (int32)) (exit-status code)))))
+(define emergency-exit
+  (case-lambda
+    (() (emergency-exit 0))
+    ((code) (sys:FOREIGN_CALL '(int32 "_exit" (int32)) (exit-status code)))))
 
 (define (command-line) (sys:FOREIGN_CALL '(gc_obj "SCM_COMMAND_LINE" ())))
 
@@ -2372,10 +2448,13 @@
 (define (default-exception-handler e)
   (let ((eport (current-error-port)))
     (display "ERROR:" eport)
-    (write (error-object-type e) eport)
-    (newline eport)
-    (display (error-object-message e) eport)
-    (for-each (lambda (x) (write x eport)) (error-object-irritants e))
+    (if (error-object? e)
+        (begin
+          (write (error-object-type e) eport)
+          (newline eport)
+          (display (error-object-message e) eport)
+          (for-each (lambda (x) (write x eport)) (error-object-irritants e)))
+        (write e eport))
     (newline eport)
     (exit -1)))
 (define *exception-handlers* (make-parameter `(,default-exception-handler)))
