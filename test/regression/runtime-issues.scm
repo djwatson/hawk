@@ -29,6 +29,19 @@
     ((_ expr expected)
      (check (call-with-values (lambda () expr) list) expected))))
 
+;; Character payloads must survive interpreter execution and JIT compilation.
+(for-each
+  (lambda (base)
+    (do ((i 0 (+ i 1))) ((= i 100))
+      (check (char->integer (integer->char (+ base (modulo i 16))))
+             (+ base (modulo i 16)))))
+  '(128 256 2048 65536 1114096))
+(check (char->integer (integer->char #x10ffff)) #x10ffff)
+(check (raises? (lambda () (integer->char -1))) #t)
+(check (raises? (lambda () (integer->char #xd800))) #t)
+(check (raises? (lambda () (integer->char #xdfff))) #t)
+(check (raises? (lambda () (integer->char #x110000))) #t)
+
 ;; Constructors must reject negative lengths.
 (check (raises? (lambda () (make-vector -1))) #t)
 (check (raises? (lambda () (make-bytevector -1))) #t)

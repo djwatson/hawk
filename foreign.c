@@ -20,7 +20,7 @@ static const char *foreign_type_name(gc_obj type_obj) {
   if (!name) {
     abort();
   }
-  return name->str;
+  return string_utf8(name);
 }
 
 static void *foreign_dlsym(const char *name) {
@@ -84,12 +84,13 @@ void foreign_parse_sig(gc_obj sig_obj, foreign_sig *sig) {
   }
   auto name_and_args = to_cons(sig_tail);
   gc_obj sym_obj = name_and_args->a;
+  foreign_strings_begin();
   gc_obj arg_types_list = name_and_args->b;
   if (!is_string(sym_obj) || !is_cons(arg_types_list)) {
     abort();
   }
-  sig->name = to_string(sym_obj)->str;
-  sig->sym = foreign_dlsym(sig->name);
+  sig->name = sym_obj;
+  sig->sym = foreign_dlsym(string_utf8(to_string(sym_obj)));
   arg_types_list = to_cons(arg_types_list)->a;
 
   while (arg_types_list.value != NIL_TAG) {
@@ -115,14 +116,9 @@ gc_obj foreign_owned_string(char *raw) {
   if (!raw) {
     abort();
   }
-  size_t len = strlen(raw);
-  size_t bytes = (sizeof(string_s) + len + 1 + 7) & ~(size_t)7;
-  string_s *str = gc_alloc((uint64_t)bytes);
-  str->header.type = STRING_TAG;
-  str->len = tag_fixnum((int64_t)len);
-  memcpy(str->str, raw, len + 1);
+  gc_obj str = make_string(raw);
   free(raw);
-  return tag_string(str);
+  return str;
 }
 
 static void foreign_fill_arg(foreign_type type, gc_obj value,
@@ -162,9 +158,7 @@ static void foreign_fill_arg(foreign_type type, gc_obj value,
     if (!is_string(value)) {
       abort();
     }
-    /* This raw char* is not GC-stable if the foreign callee can reenter
-     * Scheme or otherwise trigger collection. */
-    tmp->ptr = to_string(value)->str;
+    tmp->ptr = foreign_string_arg(value);
     return;
   case FOREIGN_TYPE_GC_OBJ:
     tmp->u64 = (uint64_t)value.value;
@@ -214,6 +208,7 @@ gc_obj do_foreign_call(gc_obj sig_obj, gc_obj const *args, uint8_t argcnt) {
   foreign_tmp arg_tmps[UINT8_MAX] = {0};
   foreign_tmp ret_tmp = {0};
 
+  foreign_strings_begin();
   gc_obj arg_types_list = to_cons(to_cons(to_cons(sig_obj)->b)->b)->a;
   for (uint8_t i = 0; i < sig.argcnt; i++) {
     auto entry = to_cons(arg_types_list);
@@ -227,6 +222,37 @@ gc_obj do_foreign_call(gc_obj sig_obj, gc_obj const *args, uint8_t argcnt) {
   ffi_call_foreign(sig.sym, &ret_tmp, sig.ret_type, arg_values, arg_types,
                    sig.argcnt);
   gc_obj out = foreign_return_value(to_cons(sig_obj)->a, ret_tmp);
+  foreign_strings_end();
   gc_remove_root((const void *)&sig_obj, 0);
   return out;
+}
+
+// Each call owns its UTF-8 arguments, including across nested foreign calls.
+typedef struct foreign_strings {
+  struct foreign_strings *parent;
+  char *args[UINT8_MAX];
+  unsigned count;
+} foreign_strings;
+static _Thread_local foreign_strings *string_args;
+
+void foreign_strings_begin(void) {
+  foreign_strings *frame = calloc(1, sizeof(*frame));
+  if (!frame)
+    abort();
+  frame->parent = string_args;
+  string_args = frame;
+}
+
+char *foreign_string_arg(gc_obj value) {
+  char *raw = string_to_utf8(to_string(value));
+  string_args->args[string_args->count++] = raw;
+  return raw;
+}
+
+void foreign_strings_end(void) {
+  foreign_strings *frame = string_args;
+  for (unsigned i = 0; i < frame->count; i++)
+    free(frame->args[i]);
+  string_args = frame->parent;
+  free(frame);
 }

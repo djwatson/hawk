@@ -16,7 +16,7 @@
 #include "types.h"
 #include "vm.h"
 
-enum : uint64_t { IMAGE_VERSION = 3 };
+enum : uint64_t { IMAGE_VERSION = 4 };
 enum : size_t { IMAGE_HEADER_SIZE = 44 };
 
 typedef struct {
@@ -284,7 +284,7 @@ void gc_dump_image(gc_obj clo, gc_obj path, gc_obj compress_level) {
     abort();
   }
 
-  char const *filename = to_string(path)->str;
+  char *filename = string_to_utf8(to_string(path));
   bool do_compress = compress_level.value != FALSE_REP.value;
 #ifndef HAVE_ZSTD
   do_compress = false;
@@ -386,6 +386,7 @@ void gc_dump_image(gc_obj clo, gc_obj path, gc_obj compress_level) {
   arrfree(dc.worklist);
   arrfree(dc.objects);
   free(out_filename);
+  free(filename);
   free(compressed);
   free(file);
   free(data);

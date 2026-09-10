@@ -1,0 +1,66 @@
+(import (scheme base) (scheme file) (scheme read) (scheme write)
+        (prefix (hawk sys) sys:))
+
+(define (check got expected)
+  (unless (equal? got expected) (error "Unicode mismatch" got expected)))
+(define (raises? thunk)
+  (guard (exn (else #t)) (thunk) #f))
+
+(define text "aλ€😀\x10ffff;\x0;z")
+(check (string-length text) 7)
+(check (utf8->string (string->utf8 text)) text)
+(check (string->utf8 text)
+       #u8(97 206 187 226 130 172 240 159 152 128 244 143 191 191 0 122))
+(check (equal? "\x0;a" "\x0;b") #f)
+(check (read (open-input-string "#\\λ")) #\λ)
+(check (read (open-input-string "#\\x10ffff")) (integer->char #x10ffff))
+(check (let ((out (open-output-string))) (write text out)
+         (read (open-input-string (get-output-string out)))) text)
+
+;; Exercise both constant and variable string indices and character values.
+(define chars (make-string 8 #\λ))
+(do ((i 0 (+ i 1))) ((= i 200))
+  (let ((c (integer->char (+ #x10000 i))) (j (modulo i 8)))
+    (string-set! chars j c)
+    (check (string-ref chars j) c)
+    (string-set! chars 3 c)
+    (check (string-ref chars 3) c)
+    (string-set! chars j #\😀)
+    (check (string-ref chars j) #\😀)
+    (string-set! chars 3 #\λ)
+    (check (string-ref chars 3) #\λ)
+    (check (string-ref "λ€😀" (modulo i 3))
+           (vector-ref '#(#\λ #\€ #\😀) (modulo i 3)))))
+
+;; C receives UTF-8 bytes; returned owned C strings are decoded again.
+(do ((i 0 (+ i 1))) ((= i 100))
+  (let ((s (string-append "λ😀" (number->string i))))
+    (check (sys:FOREIGN_CALL '(uint64 "strlen" (string)) s)
+           (+ 6 (string-length (number->string i))))
+    (check (sys:FOREIGN_CALL '(string "strdup" (string)) s) s)
+    (check (sys:FOREIGN_CALL '(int32 "strcmp" (string string)) s s) 0)))
+
+;; Split each UTF-8 width across the file buffer boundary, then read to EOF.
+(define path "/tmp/newhawk-unicode-λ.txt")
+(for-each
+  (lambda (c)
+    (let ((s (string-append (make-string 4095 #\a) (string c) text)))
+      (call-with-output-file path (lambda (p) (write-string s p)))
+      (call-with-input-file path
+        (lambda (p)
+          (check (read-string 4095 p) (make-string 4095 #\a))
+          (check (peek-char p) c)
+          (check (peek-char p) c)
+          (check (read-char p) c)
+          (check (read-line p) text)
+          (check (eof-object? (read-char p)) #t)))
+      (call-with-port (open-binary-input-file path)
+        (lambda (p) (check (read-bytevector 20000 p) (string->utf8 s))))))
+  '(#\λ #\€ #\😀))
+(delete-file path)
+
+(for-each
+  (lambda (bv) (check (raises? (lambda () (utf8->string bv))) #t))
+  '(#u8(128) #u8(192 128) #u8(224 128 128) #u8(237 160 128)
+    #u8(244 144 128 128) #u8(245 128 128 128) #u8(240 159 152)))
+(display "Unicode passed\n")

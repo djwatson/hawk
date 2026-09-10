@@ -552,7 +552,7 @@ static bool runtime_symbol_eq(gc_obj obj, const char *name) {
     return false;
   }
   string_s const *sym_name = get_sym_name(to_symbol(obj));
-  return sym_name && strcmp(sym_name->str, name) == 0;
+  return sym_name && strcmp(string_utf8(sym_name), name) == 0;
 }
 
 static bool runtime_decode_ref(gc_obj obj, uint64_t fun_count,
@@ -708,12 +708,16 @@ static gc_obj make_cons(gc_obj a, gc_obj b) {
 
 // GC: may allocate via gc_alloc.
 gc_obj make_string(const char *str) {
-  size_t len = strlen(str);
-  size_t bytes = (sizeof(string_s) + len + 1 + 7) & ~(size_t)7;
-  string_s *out = gc_alloc((uint64_t)bytes);
+  size_t bytes = strlen(str), len = 0;
+  uint32_t c;
+  for (size_t i = 0; i < bytes; len++)
+    i += utf8_decode(str + i, bytes - i, &c) ?: 1;
+  string_s *out = gc_alloc(heap_align(sizeof(string_s) + (len + 1) * 4));
   out->header.type = STRING_TAG;
   out->len = tag_fixnum((int64_t)len);
-  memcpy(out->str, str, len + 1);
+  for (size_t i = 0, j = 0; i < bytes; j++)
+    i += utf8_decode(str + i, bytes - i, &out->str[j]) ?: 1;
+  out->str[len] = 0;
   return tag_string(out);
 }
 
@@ -731,8 +735,8 @@ gc_obj make_string_list(char **strs, size_t len) {
 
 // GC: may allocate via gc_alloc.
 EXPORT gc_obj scm_double_bytes(double value) {
-  string_s *out =
-      gc_alloc((sizeof(string_s) + sizeof(double) + 7) & ~(size_t)7);
+  bytevector_s *out =
+      gc_alloc((sizeof(bytevector_s) + sizeof(double) + 7) & ~(size_t)7);
   out->header.type = BYTEVECTOR_TAG;
   out->len = tag_fixnum(sizeof(double));
   memcpy(out->str, &value, sizeof(double));
@@ -1285,7 +1289,8 @@ EXPORT gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,
                            int fromend) {
   auto tostr = to_string(to);
   auto fromstr = to_string(from);
-  memmove(&tostr->str[start], &fromstr->str[fromstart], fromend - fromstart);
+  memmove(&tostr->str[start], &fromstr->str[fromstart],
+          (fromend - fromstart) * sizeof(uint32_t));
   return to;
 }
 
@@ -1311,14 +1316,9 @@ EXPORT gc_obj SCM_GET_ENV_VARS() {
   while (*p) {
     char *split = strchr(*p, '=');
     if (split) {
-      int64_t len = split - *p;
-      size_t bytes = (sizeof(string_s) + len + 1 + 7) & ~(size_t)7;
-      string_s *s = gc_alloc((uint64_t)bytes);
-      s->header.type = STRING_TAG;
-      s->len = tag_fixnum(len);
-      memcpy(s->str, *p, len);
-      s->str[len] = '\0';
-      gc_obj var = tag_string(s);
+      char *name = strndup(*p, split - *p);
+      gc_obj var = make_string(name);
+      free(name);
       gc_add_root(&var, 1, 0);
       gc_obj val = make_string(split + 1);
       gc_obj pair = make_cons(var, val);
@@ -1330,4 +1330,63 @@ EXPORT gc_obj SCM_GET_ENV_VARS() {
 
   gc_remove_root((const void *)&tail, 0);
   return tail;
+}
+
+EXPORT int64_t scm_read_buffer(int fd, gc_obj buffer, uint64_t count) {
+  if (is_bytevector(buffer))
+    return read(fd, to_bytevector(buffer)->str, count);
+  char *bytes = malloc(count + 3);
+  if (!bytes)
+    abort();
+  int64_t len = read(fd, bytes, count), chars = 0;
+  if (len > 0) {
+    // Complete a codepoint split by the read boundary before decoding.
+    size_t last = len - 1;
+    while (last > 0 && ((uint8_t)bytes[last] & 0xc0) == 0x80)
+      last--;
+    uint8_t first = bytes[last];
+    size_t width = first < 0x80 ? 1 : first < 0xe0 ? 2 : first < 0xf0 ? 3 : 4;
+    if (first >= 0xc2 && first <= 0xf4) {
+      while ((size_t)len < last + width) {
+        int64_t n = read(fd, bytes + len, last + width - len);
+        if (n <= 0) {
+          len = -1;
+          break;
+        }
+        len += n;
+      }
+    }
+    for (int64_t i = 0; i < len;) {
+      size_t n =
+          utf8_decode(bytes + i, len - i, &to_string(buffer)->str[chars++]);
+      if (!n) {
+        len = -1;
+        break;
+      }
+      i += n;
+    }
+  }
+  free(bytes);
+  return len <= 0 ? len : chars;
+}
+
+EXPORT int64_t scm_write_buffer(int fd, gc_obj buffer, uint64_t count) {
+  if (is_bytevector(buffer))
+    return write(fd, to_bytevector(buffer)->str, count);
+  char *bytes = malloc(count * 4);
+  if (!bytes && count)
+    abort();
+  size_t len = 0;
+  for (size_t i = 0; i < count; i++)
+    len += utf8_encode(to_string(buffer)->str[i], bytes + len);
+  for (size_t off = 0; off < len;) {
+    int64_t n = write(fd, bytes + off, len - off);
+    if (n <= 0) {
+      free(bytes);
+      return -1;
+    }
+    off += n;
+  }
+  free(bytes);
+  return count;
 }

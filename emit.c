@@ -559,13 +559,16 @@ static void emit_ccall_arg_value(emit_state *s, trace *t, ccall_arg const *arg,
     }
     return;
   case FOREIGN_TYPE_STRING: {
-    int64_t str_offset = (int64_t)offsetof(string_s, str) - PTR_TAG;
-    if (arg->value.constant) {
-      emit_heap_constant(s, t, dst_reg, slot_gc_obj(t, arg->value));
-      emit_add_constant(s, dst_reg, dst_reg, str_offset);
-    } else {
-      emit_add_constant(s, dst_reg, src_reg, str_offset);
-    }
+    emit_save_slowpath_regs(s);
+    if (arg->value.constant)
+      emit_heap_constant(s, t, RARG0, slot_gc_obj(t, arg->value));
+    else if (src_reg != RARG0)
+      emit_mov(s, RARG0, src_reg);
+    emit_mov64(s, RTMP, (intptr_t)&foreign_string_arg);
+    emit_call_reg(s, RTMP);
+    emit_mov(s, RTMP, RET_REG);
+    emit_restore_slowpath_regs(s);
+    emit_mov(s, dst_reg, RTMP);
     return;
   }
   case FOREIGN_TYPE_UINT8:
@@ -703,6 +706,16 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
   emit_push_regs(s, nullptr, 0, true);
   emit_update_stack_top(s, t->snaps[cur_snap].offset);
 
+  bool strings = false;
+  for (uint8_t i = 0; i < sig.argcnt; i++)
+    strings |= sig.arg_types[i] == FOREIGN_TYPE_STRING;
+  if (strings) {
+    emit_save_slowpath_regs(s);
+    emit_mov64(s, RTMP, (intptr_t)&foreign_strings_begin);
+    emit_call_reg(s, RTMP);
+    emit_restore_slowpath_regs(s);
+  }
+
   typedef struct {
     ccall_arg arg;
     uint8_t src_reg;
@@ -747,6 +760,12 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
   emit_store_ralloc(s);
   emit_mov64(s, RTMP, (intptr_t)sig.sym);
   emit_call_reg(s, RTMP);
+  if (strings) {
+    emit_save_slowpath_regs(s);
+    emit_mov64(s, RTMP, (intptr_t)&foreign_strings_end);
+    emit_call_reg(s, RTMP);
+    emit_restore_slowpath_regs(s);
+  }
   if (sig.ret_type == FOREIGN_TYPE_STRING) {
     if (RARG0 != RET_REG) {
       emit_mov(s, RARG0, RET_REG);
@@ -1596,6 +1615,7 @@ static inline uint8_t emit_arg_reg(slot *args, uint8_t *arg_regs,
 static void emit_load_char_or_byte(emit_state *s, trace *t, ir_ins const *op,
                                    slot *args, uint8_t *arg_regs,
                                    uint8_t arg_count, uint8_t dst_reg) {
+  bool character = op->op == IR_LOAD_CHAR;
   uint8_t base_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
   if (op->op1.constant) {
     base_reg = RTMP;
@@ -1603,15 +1623,17 @@ static void emit_load_char_or_byte(emit_state *s, trace *t, ir_ins const *op,
   }
   int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
   if (op->op2.constant) {
-    int64_t idx = slot_const(t, op->op2) >> FIXNUM_SHIFT;
+    int64_t idx =
+        (slot_const(t, op->op2) >> FIXNUM_SHIFT) * (character ? 4 : 1);
     assert((int32_t)idx == idx);
-    emit_mem_load_u8(s, (int32_t)idx + base_offset, base_reg, dst_reg);
+    (character ? emit_mem_load_u32 : emit_mem_load_u8)(
+        s, (int32_t)idx + base_offset, base_reg, dst_reg);
   } else {
     uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
-    emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
-    emit_mem_load_u8_indexed(s, base_offset, base_reg, RTMP2, dst_reg);
+    emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT - (character ? 2 : 0));
+    (character ? emit_mem_load_u32_indexed : emit_mem_load_u8_indexed)(
+        s, base_offset, base_reg, RTMP2, dst_reg);
   }
-  bool character = op->op == IR_LOAD_CHAR;
   emit_shl_constant(s, dst_reg, dst_reg, character ? 8 : FIXNUM_SHIFT);
   if (character) {
     emit_add_constant(s, dst_reg, dst_reg, CHAR_TAG);
@@ -1621,6 +1643,7 @@ static void emit_load_char_or_byte(emit_state *s, trace *t, ir_ins const *op,
 static void emit_store_char_or_byte(emit_state *s, trace *t, ir_ins const *op,
                                     slot *args, uint8_t *arg_regs,
                                     uint8_t arg_count) {
+  bool character = op->op == IR_STORE_CHAR;
   ir_ins *ref = slot_ins(t, op->op1);
   auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
   if (ref->op1.constant) {
@@ -1630,34 +1653,42 @@ static void emit_store_char_or_byte(emit_state *s, trace *t, ir_ins const *op,
   int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
   int32_t store_offset = base_offset;
   if (ref->op2.constant) {
-    int64_t idx = slot_const(t, ref->op2) >> FIXNUM_SHIFT;
+    int64_t idx =
+        (slot_const(t, ref->op2) >> FIXNUM_SHIFT) * (character ? 4 : 1);
     assert((int32_t)idx == idx);
     store_offset += (int32_t)idx;
   } else {
     auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
     assert(!ref->op1.constant);
-    emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT);
+    emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT - (character ? 2 : 0));
   }
 
-  bool character = op->op == IR_STORE_CHAR;
   bool value_constant = op->op2.constant;
-  uint8_t byte = 0;
+  uint32_t byte = 0;
   if (value_constant) {
     gc_obj value = slot_gc_obj(t, op->op2);
-    byte = (uint8_t)(character ? to_char(value) : to_fixnum(value));
+    byte = (uint32_t)(character ? to_char(value) : to_fixnum(value));
   } else {
     uint8_t val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
     emit_sar_constant(s, RTMP, val_reg, character ? 8 : FIXNUM_SHIFT);
   }
   if (ref->op2.constant) {
-    if (value_constant)
-      emit_store_u8_constant(s, store_offset, base_reg, byte);
-    else
-      emit_store_u8(s, store_offset, base_reg, RTMP);
+    if (value_constant) {
+      if (character)
+        emit_store_u32_constant(s, store_offset, base_reg, byte);
+      else
+        emit_store_u8_constant(s, store_offset, base_reg, byte);
+    } else
+      (character ? emit_store_u32 : emit_store_u8)(s, store_offset, base_reg,
+                                                   RTMP);
   } else if (value_constant) {
-    emit_store_u8_constant_indexed(s, store_offset, base_reg, RTMP2, byte);
+    if (character)
+      emit_store_u32_constant_indexed(s, store_offset, base_reg, RTMP2, byte);
+    else
+      emit_store_u8_constant_indexed(s, store_offset, base_reg, RTMP2, byte);
   } else {
-    emit_store_u8_indexed(s, store_offset, base_reg, RTMP2, RTMP);
+    (character ? emit_store_u32_indexed
+               : emit_store_u8_indexed)(s, store_offset, base_reg, RTMP2, RTMP);
   }
 }
 

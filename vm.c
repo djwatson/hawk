@@ -129,7 +129,7 @@ static PRESERVE_NONE NOINLINE gc_obj lookup_error_slowpath(bc instr, bc *pc,
   auto name = get_sym_name(to_symbol(sym));
   char msg[256];
   snprintf(msg, sizeof(msg), "Symbol not defined: %.*s",
-           (int)to_fixnum(name->len), name->str);
+           (int)to_fixnum(name->len), string_utf8(name));
   stack[2] = make_string(msg);
   MUSTTAIL return handle_error(instr, pc, stack, state, op_table, argcnt);
 }
@@ -491,7 +491,7 @@ static inline char const *func_name_for_pc(bc *pc) {
   if (!func || !is_ptr(func->name) || get_ptr_tag(func->name) != STRING_TAG) {
     return "(unknown func)";
   }
-  return to_string(func->name)->str;
+  return string_utf8(to_string(func->name));
 }
 
 static void debug_print_vm_backtrace(vm_state *state, bc *pc, gc_obj *stack) {
@@ -670,8 +670,9 @@ static PRESERVE_NONE NOINLINE gc_obj handle_error(bc instr, bc *pc,
                                                   uint64_t argcnt) {
   (void)instr;
   gc_obj error_msg = stack[2];
-  char const *fallback_msg =
-      is_string(error_msg) ? to_string(error_msg)->str : "Unhandled VM error";
+  char const *fallback_msg = is_string(error_msg)
+                                 ? string_utf8(to_string(error_msg))
+                                 : "Unhandled VM error";
   DISPATCH_ERROR_MESSAGE(error_msg, fallback_msg);
 }
 
@@ -922,7 +923,7 @@ OP(DEFINE) {
   auto s = to_symbol(sym);
   if (s->opt > 0) {
     LOG(jit, "Clearing trace cache due to optimistic global: %s",
-        to_string(s->name)->str);
+        string_utf8(to_string(s->name)));
     trace_reset(state);
     op_table = state->impls;
   }
@@ -1089,7 +1090,7 @@ OP(CLOSURE) {
   assert(is_func(clo->v[0]));
   auto func = to_func(clo->v[0]);
   if ((func->poly_cnt & 1) == 1) {
-    LOG(jit, "POLY RESET: %s", to_string(func->name)->str);
+    LOG(jit, "POLY RESET: %s", string_utf8(to_string(func->name)));
     func->poly_cnt = 4;
     trace_reset(state);
   }
@@ -1370,7 +1371,7 @@ OP(LOAD_CHAR) {
   auto str = to_string(src);
   auto idx = to_fixnum(off);
   assert(idx >= 0 && idx < to_fixnum(str->len));
-  auto res = tag_char((uint8_t)str->str[idx]);
+  auto res = tag_char(str->str[idx]);
   stack[instr.reg] = res;
   END_NEXT
 }

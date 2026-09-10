@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,7 +88,8 @@ static size_t object_size(gc_header *header) {
     return sizeof(compnum_s);
   case STRING_TAG: {
     auto str = (string_s *)header;
-    return heap_align(sizeof(string_s) + (size_t)to_fixnum(str->len) + 1);
+    return heap_align(sizeof(string_s) +
+                      ((size_t)to_fixnum(str->len) + 1) * sizeof(uint32_t));
   }
   case SYMBOL_TAG:
     return sizeof(symbol);
@@ -119,7 +121,7 @@ static size_t object_size(gc_header *header) {
 }
 
 static uint64_t header_index(gc_header *header) {
-  auto *entry = hm_getp_null(header_to_idx, header);
+  auto entry = hm_getp_null(header_to_idx, header);
   if (!entry) {
     return UINT64_MAX;
   }
@@ -128,7 +130,7 @@ static uint64_t header_index(gc_header *header) {
 
 static bool symbol_has_name(symbol *sym, const char *want) {
   auto name = get_sym_name(sym);
-  return name && strcmp(name->str, want) == 0;
+  return name && strcmp(string_utf8(name), want) == 0;
 }
 
 static bool gc_obj_is_symbol_named(gc_obj obj, char const *want) {
@@ -620,12 +622,13 @@ static bool describe_small_list(gc_obj obj, char *buf, size_t buf_size) {
     if (is_symbol(cell->a)) {
       auto sym = to_symbol(cell->a);
       auto name = get_sym_name(sym);
-      snprintf(item, sizeof(item), "%s", name ? name->str : "(unnamed)");
+      snprintf(item, sizeof(item), "%s",
+               name ? string_utf8(name) : "(unnamed)");
     } else if (is_string(cell->a)) {
       auto str = to_string(cell->a);
       snprintf(item, sizeof(item), "\"%.*s\"",
                (int)((to_fixnum(str->len) > 16) ? 16 : to_fixnum(str->len)),
-               str->str);
+               string_utf8(str));
     } else if (is_fixnum(cell->a)) {
       snprintf(item, sizeof(item), "%ld", to_fixnum(cell->a));
     } else {
@@ -651,13 +654,14 @@ static void describe_header_depth(gc_header *header, char *buf, size_t buf_size,
     auto str = (string_s *)header;
     snprintf(buf, buf_size, "string len=%ld \"%.*s\"", to_fixnum(str->len),
              (int)((to_fixnum(str->len) > 24) ? 24 : to_fixnum(str->len)),
-             str->str);
+             string_utf8(str));
     return;
   }
   case SYMBOL_TAG: {
     auto sym = (symbol *)header;
     auto name = get_sym_name(sym);
-    snprintf(buf, buf_size, "symbol %s", name ? name->str : "(unnamed)");
+    snprintf(buf, buf_size, "symbol %s",
+             name ? string_utf8(name) : "(unnamed)");
     return;
   }
   case BOXED_VECTOR_TAG:
@@ -762,7 +766,7 @@ static void describe_gc_obj_depth(gc_obj obj, char *buf, size_t buf_size,
     return;
   }
   if (is_char(obj)) {
-    snprintf(buf, buf_size, "#\\%c", to_char(obj));
+    snprintf(buf, buf_size, "#\\x%" PRIx32, to_char(obj));
     return;
   }
   if (is_undefined(obj)) {
@@ -891,7 +895,7 @@ static char const *binding_type_name(gc_obj binding_type) {
     return "(non-symbol)";
   }
   auto name = get_sym_name(to_symbol(binding_type));
-  return name ? name->str : "(unnamed)";
+  return name ? string_utf8(name) : "(unnamed)";
 }
 
 static char const *binding_library_name(gc_obj binding) {
@@ -912,7 +916,7 @@ static char const *binding_library_name(gc_obj binding) {
   }
   if (is_symbol(lib)) {
     auto name = get_sym_name(to_symbol(lib));
-    return name ? name->str : "(unnamed)";
+    return name ? string_utf8(name) : "(unnamed)";
   }
   return "(other)";
 }
@@ -1043,7 +1047,7 @@ static void print_focus_analysis(char const *name, gc_obj value) {
     printf("  immediate children:\n");
     print_object_children(value, 0, 2, 4);
 
-    auto *rib_header =
+    auto rib_header =
         find_descendant_header(to_gc_header(value), is_rib_obj, 4);
     if (rib_header) {
       gc_obj rib = tag_header(rib_header, rib_header->type);
@@ -1053,7 +1057,7 @@ static void print_focus_analysis(char const *name, gc_obj value) {
       print_rib_analysis(rib);
     }
 
-    auto *wrap_header =
+    auto wrap_header =
         find_descendant_header(to_gc_header(value), is_wrap_like_obj, 4);
     if (wrap_header) {
       gc_obj wrap = tag_header(wrap_header, wrap_header->type);
@@ -1152,7 +1156,7 @@ static void print_symbol_report(char const *name) {
     if (header->type == SYMBOL_TAG) {
       auto member = (symbol *)header;
       auto member_name = get_sym_name(member);
-      printf("    %s\n", member_name ? member_name->str : "(unnamed)");
+      printf("    %s\n", member_name ? string_utf8(member_name) : "(unnamed)");
     }
   }
   printf("  object count: %lu\n", obj_count);
@@ -1185,8 +1189,8 @@ static void print_symbol_report(char const *name) {
     auto member_name = get_sym_name(member);
     char value_desc[160];
     describe_gc_obj(member->val, value_desc, sizeof(value_desc));
-    printf("    %s -> %s\n", member_name ? member_name->str : "(unnamed)",
-           value_desc);
+    printf("    %s -> %s\n",
+           member_name ? string_utf8(member_name) : "(unnamed)", value_desc);
   }
 
   auto largest = (object_score *)nullptr;
@@ -1284,7 +1288,7 @@ int main(int argc, char **argv) {
     }
     auto sym = (symbol *)h;
     auto sym_name = get_sym_name(sym);
-    auto name = sym_name ? sym_name->str : "(unnamed)";
+    auto name = sym_name ? string_utf8(sym_name) : "(unnamed)";
     uint64_t retained = 0;
 
     if (sym != symbol_table && is_heap_object(sym->val)) {

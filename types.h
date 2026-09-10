@@ -42,7 +42,7 @@ static inline gc_obj tag_fixnum(int64_t n) {
 #define tag_closure(clo)                                                       \
   ((gc_obj){.value = (int64_t)(intptr_t)(clo) + CLOSURE_TAG})
 #define tag_char(ch)                                                           \
-  ((gc_obj){.value = ((int64_t)(uint8_t)(ch) << 8) + CHAR_TAG})
+  ((gc_obj){.value = ((int64_t)(uint32_t)(ch) << 8) + CHAR_TAG})
 #define tag_return_address(pc) ((gc_obj){.raddress = (pc)})
 #define tag_func(func) ((gc_obj){.value = (int64_t)(intptr_t)(func) + PTR_TAG})
 #define tag_ptr(ptrval) ((gc_obj){.ptr = (ptrval)})
@@ -179,8 +179,14 @@ typedef struct compnum_s {
 typedef struct string_s {
   gc_header header;
   gc_obj len;
-  char str[];
+  uint32_t str[];
 } string_s;
+
+typedef struct bytevector_s {
+  gc_header header;
+  gc_obj len;
+  uint8_t str[];
+} bytevector_s;
 
 typedef struct symbol {
   gc_header header;
@@ -269,7 +275,9 @@ static inline flvector_s *to_flvector(gc_obj obj) {
 static inline port_s *to_port(gc_obj obj) {
   return (port_s *)(obj.value - PTR_TAG);
 }
-static inline char to_char(gc_obj obj) { return (char)(obj.value >> 8); }
+static inline uint32_t to_char(gc_obj obj) {
+  return (uint32_t)(obj.value >> 8);
+}
 static inline bc *to_return_address(gc_obj obj) { return obj.raddress; }
 static inline bcfunc *to_func(gc_obj obj) {
   return (bcfunc *)(obj.value - PTR_TAG);
@@ -310,8 +318,8 @@ static inline bool is_string(gc_obj obj) {
 static inline bool is_bytevector(gc_obj obj) {
   return is_ptr(obj) && get_ptr_tag(obj) == BYTEVECTOR_TAG;
 }
-static inline string_s *to_bytevector(gc_obj obj) {
-  return (string_s *)(obj.value - PTR_TAG);
+static inline bytevector_s *to_bytevector(gc_obj obj) {
+  return (bytevector_s *)(obj.value - PTR_TAG);
 }
 static inline bool is_record(gc_obj obj) {
   return is_ptr(obj) && get_ptr_tag(obj) == RECORD_TAG;
@@ -370,6 +378,11 @@ static inline size_t heap_align(size_t size) {
 
 bcfunc const *closure_code_ptr(closure_s const *clo);
 string_s *get_sym_name(symbol *s);
+int utf8_encode(uint32_t c, char out[4]);
+size_t utf8_decode(const char *s, size_t len, uint32_t *c);
+char *string_to_utf8(const string_s *s);
+// Temporary UTF-8 view for diagnostics, valid for the next eight calls.
+const char *string_utf8(const string_s *s);
 typedef void (*trace_callback)(gc_obj *obj, void *ctx);
 typedef void (*trace_reserve_callback)(void *ctx, size_t len);
 const char *type_tag_name(uint8_t tag);
@@ -398,7 +411,9 @@ INLINE static inline size_t heap_object_size(void *obj) {
   case STRING_TAG:
   case BYTEVECTOR_TAG: {
     auto str = (string_s *)obj;
-    return heap_align(sizeof(string_s) + (size_t)to_fixnum(str->len) + 1);
+    return heap_align(sizeof(string_s) +
+                      ((size_t)to_fixnum(str->len) + 1) *
+                          (type == STRING_TAG ? sizeof(uint32_t) : 1));
   }
   case FLVECTOR_TAG: {
     auto vec = (flvector_s *)obj;

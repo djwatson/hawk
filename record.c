@@ -50,7 +50,7 @@ static const char *func_name_from_pc(bc *pc) {
   if (!is_ptr(func->name) || get_ptr_tag(func->name) != STRING_TAG) {
     return "(unknown func)";
   }
-  return to_string(func->name)->str;
+  return string_utf8(to_string(func->name));
 }
 
 static void mark_downrec_ok(trace *trace) {
@@ -659,8 +659,8 @@ static uint8_t foreign_ir_result_type(foreign_type type) {
 
 static bool foreign_is_sqrt(foreign_sig const *sig) {
   return sig->ret_type == FOREIGN_TYPE_DOUBLE && sig->argcnt == 1 &&
-         sig->arg_types[0] == FOREIGN_TYPE_DOUBLE && sig->name &&
-         strcmp(sig->name, "sqrt") == 0;
+         sig->arg_types[0] == FOREIGN_TYPE_DOUBLE &&
+         strcmp(string_utf8(to_string(sig->name)), "sqrt") == 0;
 }
 
 static bool normalize_numeric_cmp_inputs(vm_state *state, slot *v1, slot *v2,
@@ -1377,7 +1377,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         s->opt = 1;
         v1 = add_const(state, s->val);
       } else {
-        // printf("SLOW gget for %s\n", to_string(s->name)->str);
+        // printf("SLOW gget for %s\n", string_utf8(to_string(s->name)));
         ir_ins ins = IR(.op = IR_GGET, .op1 = c, .type = get_type_tag(s->val));
         v1 = add_inst(state, ins);
       }
@@ -1683,7 +1683,7 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       if (is_func(code)) {
         auto func = to_func(code);
         if (is_string(func->name)) {
-          fname = to_string(func->name)->str;
+          fname = string_utf8(to_string(func->name));
         } else {
           fname = "<unnamed>";
         }
@@ -1946,10 +1946,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     auto offset = stack_load(state, stack, instr.v2, true);
     auto src = stack[instr.v1];
     auto off = stack[instr.v2];
-    if (obj.constant &&
-        (instr.op == OP_LOAD
-             ? !(offset.constant && get_type_tag(src) == CLOSURE_TAG)
-             : !offset.constant))
+    if (obj.constant && !(instr.op == OP_LOAD && offset.constant &&
+                          get_type_tag(src) == CLOSURE_TAG))
       obj = materialize_constant_obj(state, obj);
     ir_ins ins;
     if (instr.op == OP_LOAD) {

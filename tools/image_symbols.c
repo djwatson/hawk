@@ -99,21 +99,21 @@ static void maybe_print_obj(gc_header *header) {
   switch (header->type) {
   case STRING_TAG:
     if (options.strings) {
-      puts(((string_s *)header)->str);
+      puts(string_utf8((string_s *)header));
     }
     return;
   case SYMBOL_TAG:
     if (options.symbols) {
       string_s *name = get_sym_name((symbol *)header);
       if (name) {
-        puts(name->str);
+        puts(string_utf8(name));
       }
     }
     return;
   case FUNC_TAG:
     if (options.functions) {
       string_s *name = to_string(((bcfunc *)header)->name);
-      puts(name->str);
+      puts(string_utf8(name));
     }
     return;
   default:
@@ -155,7 +155,8 @@ static void record_type_stats(gc_header *header) {
     case STRING_TAG: {
       type_name = "string";
       auto str = (string_s *)header;
-      size = heap_align(sizeof(string_s) + (size_t)to_fixnum(str->len) + 1);
+      size = heap_align(sizeof(string_s) +
+                        ((size_t)to_fixnum(str->len) + 1) * sizeof(uint32_t));
       break;
     }
     case SYMBOL_TAG:

@@ -112,6 +112,12 @@ enum a64_ins : uint32_t {
   A64_LDRD = 0xFD400000U,
   A64_LDRD_INDEXED = 0xFC606800U,
   A64_LDRD_UNSCALED = 0xFC400000U,
+  A64_LDRW = 0xB9400000U,
+  A64_LDRW_INDEXED = 0xB8606800U,
+  A64_LDRW_UNSCALED = 0xB8400000U,
+  A64_STRW = 0xB9000000U,
+  A64_STRW_INDEXED = 0xB8206800U,
+  A64_STRW_UNSCALED = 0xB8000000U,
   A64_LDRX = 0xF9400000U,
   A64_LDRX_INDEXED = 0xF8606800U,
   A64_LDRX_UNSCALED = 0xF8400000U,
@@ -975,9 +981,11 @@ static void emit_lso(emit_state *s, uint32_t scaled, uint32_t unscaled,
 
 DEFINE_LSO(emit_mem_load, A64_LDRX, A64_LDRX_UNSCALED, 3, false)
 DEFINE_LSO(emit_mem_load_u8, A64_LDRB, A64_LDRB_UNSCALED, 0, false)
+DEFINE_LSO(emit_mem_load_u32, A64_LDRW, A64_LDRW_UNSCALED, 2, false)
 DEFINE_LSO(emit_fmem_load, A64_LDRD, A64_LDRD_UNSCALED, 3, true)
 DEFINE_LSO(emit_store, A64_STRX, A64_STRX_UNSCALED, 3, false)
 DEFINE_LSO(emit_store_u8, A64_STRB, A64_STRB_UNSCALED, 0, false)
+DEFINE_LSO(emit_store_u32, A64_STRW, A64_STRW_UNSCALED, 2, false)
 DEFINE_LSO(emit_fstore, A64_STRD, A64_STRD_UNSCALED, 3, true)
 
 #undef DEFINE_LSO
@@ -1008,12 +1016,16 @@ DEFINE_LSO_INDEXED(emit_mem_load_indexed, A64_LDRX_INDEXED, A64_LDRX,
                    A64_LDRX_UNSCALED, 3, false)
 DEFINE_LSO_INDEXED(emit_mem_load_u8_indexed, A64_LDRB_INDEXED, A64_LDRB,
                    A64_LDRB_UNSCALED, 0, false)
+DEFINE_LSO_INDEXED(emit_mem_load_u32_indexed, A64_LDRW_INDEXED, A64_LDRW,
+                   A64_LDRW_UNSCALED, 2, false)
 DEFINE_LSO_INDEXED(emit_fmem_load_indexed, A64_LDRD_INDEXED, A64_LDRD,
                    A64_LDRD_UNSCALED, 3, true)
 DEFINE_LSO_INDEXED(emit_store_indexed, A64_STRX_INDEXED, A64_STRX,
                    A64_STRX_UNSCALED, 3, false)
 DEFINE_LSO_INDEXED(emit_store_u8_indexed, A64_STRB_INDEXED, A64_STRB,
                    A64_STRB_UNSCALED, 0, false)
+DEFINE_LSO_INDEXED(emit_store_u32_indexed, A64_STRW_INDEXED, A64_STRW,
+                   A64_STRW_UNSCALED, 2, false)
 DEFINE_LSO_INDEXED(emit_fstore_indexed, A64_STRD_INDEXED, A64_STRD,
                    A64_STRD_UNSCALED, 3, true)
 
@@ -1078,6 +1090,16 @@ void emit_store_u8_constant(emit_state *s, int32_t offset, uint8_t base,
   emit_store_u8(s, offset, base, tmp);
 }
 
+void emit_store_u32_constant(emit_state *s, int32_t offset, uint8_t base,
+                             uint32_t value) {
+  uint8_t tmp = XZR;
+  if (value) {
+    tmp = pick_addr_tmp(base, REG_NONE);
+    emit_mov64(s, tmp, value);
+  }
+  emit_store_u32(s, offset, base, tmp);
+}
+
 void emit_store_u8_constant_indexed(emit_state *s, int32_t offset,
                                     uint8_t base, uint8_t index,
                                     uint8_t value) {
@@ -1087,6 +1109,17 @@ void emit_store_u8_constant_indexed(emit_state *s, int32_t offset,
     emit_mov64(s, tmp, value);
   }
   emit_store_u8_indexed(s, offset, base, index, tmp);
+}
+
+void emit_store_u32_constant_indexed(emit_state *s, int32_t offset,
+                                     uint8_t base, uint8_t index,
+                                     uint32_t value) {
+  uint8_t tmp = XZR;
+  if (value) {
+    tmp = pick_addr_tmp(base, index);
+    emit_mov64(s, tmp, value);
+  }
+  emit_store_u32_indexed(s, offset, base, index, tmp);
 }
 
 void asm_zero_alloc_payload(emit_state *s, int64_t tagged_size,

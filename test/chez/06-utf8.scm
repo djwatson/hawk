@@ -50,25 +50,23 @@
 (let ((s "ABCDEF"))
   (check (utf8->string (string->utf8 s 2 4) 0) "CD"))
 
-;; TODO: Re-enable when characters and strings support Unicode code points.
-;; Hawk currently represents characters and strings as 8-bit values.
 ;; 2-byte UTF-8 (U+0080 to U+07FF)
-;; (let ((bv (string->utf8 (string (integer->char #xa3)))))
-;;   (check bv #u8(#xC2 #xA3)))
-;; (check (utf8->string #u8(#xC2 #xA3))
-;;        (string (integer->char #xa3)))
+(let ((bv (string->utf8 (string (integer->char #xa3)))))
+  (check bv #u8(#xC2 #xA3)))
+(check (utf8->string #u8(#xC2 #xA3))
+       (string (integer->char #xa3)))
 
 ;; 3-byte UTF-8 (U+0800 to U+FFFF)
-;; (let ((bv (string->utf8 (string (integer->char #x20ac)))))
-;;   (check bv #u8(#xE2 #x82 #xAC)))
-;; (check (utf8->string #u8(#xE2 #x82 #xAC))
-;;        (string (integer->char #x20ac)))
+(let ((bv (string->utf8 (string (integer->char #x20ac)))))
+  (check bv #u8(#xE2 #x82 #xAC)))
+(check (utf8->string #u8(#xE2 #x82 #xAC))
+       (string (integer->char #x20ac)))
 
 ;; Mix of ASCII and multi-byte
-;; (let ((bv (string->utf8 (string #\A (integer->char #xa3) (integer->char #x20ac)))))
-;;   (check (bytevector-length bv) 5)
-;;   (check (utf8->string bv)
-;;          (string #\A (integer->char #xa3) (integer->char #x20ac))))
+(let ((bv (string->utf8 (string #\A (integer->char #xa3) (integer->char #x20ac)))))
+  (check (bytevector-length bv) 6)
+  (check (utf8->string bv)
+         (string #\A (integer->char #xa3) (integer->char #x20ac))))
 
 ;; string->utf8 returns bytevector
 (check (bytevector? (string->utf8 "test")) #t)
@@ -79,10 +77,10 @@
 ;; Boundary: last 1-byte (U+007F)
 (check (string->utf8 (string (integer->char #x7f))) #u8(#x7f))
 
-;; Unicode UTF-8 boundaries are disabled until Unicode characters are supported.
-;; (check (string->utf8 (string (integer->char #x80))) #u8(#xc2 #x80))
-;; (check (string->utf8 (string (integer->char #x7ff))) #u8(#xdf #xbf))
-;; (check (string->utf8 (string (integer->char #x800))) #u8(#xe0 #xa0 #x80))
+;; Unicode UTF-8 boundaries.
+(check (string->utf8 (string (integer->char #x80))) #u8(#xc2 #x80))
+(check (string->utf8 (string (integer->char #x7ff))) #u8(#xdf #xbf))
+(check (string->utf8 (string (integer->char #x800))) #u8(#xe0 #xa0 #x80))
 
 ;; Result
 (newline)

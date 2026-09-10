@@ -53,6 +53,9 @@ enum : uint64_t {
   XO_ADD = OP_W(OP1(0x03)),
   XO_SUB = OP_W(OP1(0x2b)),
   XO_LEA = OP_W(OP1(0x8d)),
+  XO_MOV32 = OP1(0x8b),
+  XO_MOV32TO = OP1(0x89),
+  XO_MOV32MI = OP1(0xc7),
   XO_MOV = OP_W(OP1(0x8b)),
   XO_MOVSXD = OP_W(OP1(0x63)),
   XO_MOVTO = OP_W(OP1(0x89)),
@@ -365,11 +368,25 @@ void emit_mem_load_u8(emit_state *s, int32_t offset, uint8_t base,
   emit_rmro(s, XO_MOVZXB, dst, base, offset);
 }
 
+void emit_mem_load_u32(emit_state *s, int32_t offset, uint8_t base,
+                       uint8_t dst) {
+  assert(base < FPR_REG_START);
+  assert(dst < FPR_REG_START);
+  emit_rmro(s, XO_MOV32, dst, base, offset);
+}
+
 void emit_mem_load_u8_indexed(emit_state *s, int32_t offset, uint8_t base,
                               uint8_t index, uint8_t dst) {
   assert(base < FPR_REG_START && index < FPR_REG_START);
   assert(dst < FPR_REG_START);
   emit_rmroi(s, XO_MOVZXB, dst, base, index, offset);
+}
+
+void emit_mem_load_u32_indexed(emit_state *s, int32_t offset, uint8_t base,
+                               uint8_t index, uint8_t dst) {
+  assert(base < FPR_REG_START && index < FPR_REG_START);
+  assert(dst < FPR_REG_START);
+  emit_rmroi(s, XO_MOV32, dst, base, index, offset);
 }
 
 void emit_mem_cmp_constant(emit_state *s, int32_t offset, uint8_t base,
@@ -900,11 +917,25 @@ void emit_store_u8(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
   emit_rmro_force(s, XO_MOVBTO, src, base, offset, low3bits(src) >= RSP);
 }
 
+void emit_store_u32(emit_state *s, int32_t offset, uint8_t base, uint8_t src) {
+  assert(base < FPR_REG_START);
+  assert(src < FPR_REG_START);
+  emit_rmro_force(s, XO_MOV32TO, src, base, offset, low3bits(src) >= RSP);
+}
+
 void emit_store_u8_indexed(emit_state *s, int32_t offset, uint8_t base,
                            uint8_t index, uint8_t src) {
   assert(base < FPR_REG_START && index < FPR_REG_START);
   assert(src < FPR_REG_START);
   emit_rmroi_force(s, XO_MOVBTO, src, base, index, offset,
+                   low3bits(src) >= RSP);
+}
+
+void emit_store_u32_indexed(emit_state *s, int32_t offset, uint8_t base,
+                            uint8_t index, uint8_t src) {
+  assert(base < FPR_REG_START && index < FPR_REG_START);
+  assert(src < FPR_REG_START);
+  emit_rmroi_force(s, XO_MOV32TO, src, base, index, offset,
                    low3bits(src) >= RSP);
 }
 
@@ -952,11 +983,24 @@ void emit_store_u8_constant(emit_state *s, int32_t offset, uint8_t base,
   emit_byte(s, value);
 }
 
+void emit_store_u32_constant(emit_state *s, int32_t offset, uint8_t base,
+                             uint32_t value) {
+  emit_rmro(s, XO_MOV32MI, 0, base, offset);
+  emit_imm32(s, value);
+}
+
 void emit_store_u8_constant_indexed(emit_state *s, int32_t offset,
                                     uint8_t base, uint8_t index,
                                     uint8_t value) {
   emit_rmroi(s, XO_MOVBMI, 0, base, index, offset);
   emit_byte(s, value);
+}
+
+void emit_store_u32_constant_indexed(emit_state *s, int32_t offset,
+                                     uint8_t base, uint8_t index,
+                                     uint32_t value) {
+  emit_rmroi(s, XO_MOV32MI, 0, base, index, offset);
+  emit_imm32(s, value);
 }
 
 void asm_zero_alloc_payload(emit_state *s, int64_t tagged_size,

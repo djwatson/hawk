@@ -21,7 +21,10 @@ static inline gc_obj SCM_STRING_CMP(gc_obj a, gc_obj b) {
   if (len_a != len_b) {
     return tag_fixnum(len_a < len_b ? -1 : 1);
   }
-  return tag_fixnum(strncmp(sa->str, sb->str, (size_t)len_a));
+  for (int64_t i = 0; i < len_a; i++)
+    if (sa->str[i] != sb->str[i])
+      return tag_fixnum(sa->str[i] < sb->str[i] ? -1 : 1);
+  return tag_fixnum(0);
 }
 
 typedef struct {

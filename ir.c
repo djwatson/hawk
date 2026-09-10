@@ -10,16 +10,18 @@ static void print_slot(slot s, trace *t) {
     if (is_fixnum(gc)) {
       printf("\e[1;35m%" PRId64 "\e[m", to_fixnum(gc));
     } else if (is_char(gc)) {
-      printf("\e[1;35m'%c'\e[m", to_char(gc));
+      printf("\e[1;35m'");
+      print_obj(gc, stdout);
+      printf("'\e[m");
     } else if (is_string(gc)) {
-      printf("\e[1;35m\"%s\"\e[m", to_string(gc)->str);
+      printf("\e[1;35m\"%s\"\e[m", string_utf8(to_string(gc)));
     } else if (is_record(gc)) {
       printf("\e[1;35m#<record>\e[m");
     } else if (is_flonum(gc)) {
       printf("\e[1;35m%f\e[m", to_flonum(gc)->x);
     } else if (is_symbol(gc)) {
       auto name = get_sym_name(to_symbol(gc));
-      printf("\e[1;35m%s\e[m", name ? name->str : "<symbol>");
+      printf("\e[1;35m%s\e[m", name ? string_utf8(name) : "<symbol>");
     } else if (gc.value == FALSE_REP.value) {
       printf("\e[1;35m#f\e[m");
     } else if (gc.value == TRUE_REP.value) {
@@ -67,7 +69,7 @@ static void print_ccall_sig(slot sig_slot, trace *t) {
     print_slot(sig_slot, t);
     return;
   }
-  printf("\e[1;35m%s\e[m", to_string(name_obj)->str);
+  printf("\e[1;35m%s\e[m", string_utf8(to_string(name_obj)));
 }
 
 char *ir_names[] = {

@@ -395,6 +395,10 @@
                 (cond
                   ((= 1 (string-length token)) (string-ref token 0))
                   ((assoc token named-chars string=?) => cdr)
+                  ((and (> (string-length token) 1)
+                        (char-ci=? (string-ref token 0) #\x))
+                   (integer->char
+                     (string->number (substring token 1 (string-length token)) 16)))
                   (else (read-error "Error invalid char: " token)))))))
       (define (skip-comment)
         (let loop ((depth 1))

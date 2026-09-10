@@ -288,8 +288,8 @@ EXPORT int32_t hawk_dump_image_and_make_exe(gc_obj clo, gc_obj image_obj,
     fprintf(stderr, "hawk --exe: invalid output path\n");
     exit(EXIT_FAILURE);
   }
-  char *source = xstrdup(to_string(source_obj)->str);
-  char *output = xstrdup(to_string(output_obj)->str);
+  char *source = string_to_utf8(to_string(source_obj));
+  char *output = string_to_utf8(to_string(output_obj));
   gc_dump_image(clo, image_obj, tag_fixnum(19));
   link_executable(output, source);
   exit(EXIT_SUCCESS);

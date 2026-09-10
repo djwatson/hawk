@@ -68,7 +68,7 @@ void print_obj(gc_obj obj, FILE *file) {
     auto ptrtype = get_ptr_tag(obj);
     if (ptrtype == STRING_TAG) {
       auto str = to_string(obj);
-      fputs(str->str, file);
+      fputs(string_utf8(str), file);
     } else if (ptrtype == RATNUM_TAG) {
       auto rat = to_ratnum(obj);
       print_obj(rat->num, file);
@@ -95,7 +95,7 @@ void print_obj(gc_obj obj, FILE *file) {
     } else if (ptrtype == RECORD_TAG) {
       fputs("#<record>", file);
     } else if (ptrtype == BYTEVECTOR_TAG) {
-      auto bv = (string_s *)(obj.value - PTR_TAG);
+      auto bv = (bytevector_s *)(obj.value - PTR_TAG);
       fputs("#u8(", file);
       for (uint64_t i = 0; i < to_fixnum(bv->len); i++) {
         if (i != 0)
@@ -150,14 +150,14 @@ void print_obj(gc_obj obj, FILE *file) {
     auto sym = to_symbol(obj);
     string_s const *sym_name = get_sym_name(sym);
     if (sym_name) {
-      fputs(sym_name->str, file);
+      fputs(string_utf8(sym_name), file);
     }
     break;
   }
   case CLOSURE_TAG: {
     closure_s const *clo = to_closure(obj);
     bcfunc const *func = to_func(clo->v[0]);
-    fprintf(file, "#<procedure %s>", to_string(func->name)->str);
+    fprintf(file, "#<procedure %s>", string_utf8(to_string(func->name)));
     break;
   }
   case LITERAL_TAG: {
@@ -172,7 +172,9 @@ void print_obj(gc_obj obj, FILE *file) {
     } else if (is_undefined(obj)) {
       fputs("<undefined>", file);
     } else if (is_char(obj)) {
-      fputc(to_char(obj), file);
+      char bytes[4];
+      int len = utf8_encode(to_char(obj), bytes);
+      fwrite(bytes, 1, len, file);
     } else if (obj.value == DEAD.value) {
       fputs("<dead>", file);
     } else {
@@ -183,4 +185,61 @@ void print_obj(gc_obj obj, FILE *file) {
   default:
     break;
   }
+}
+
+int utf8_encode(uint32_t c, char out[4]) {
+  if (c < 0x80) {
+    out[0] = c;
+    return 1;
+  }
+  int n = c < 0x800 ? 2 : c < 0x10000 ? 3 : 4;
+  out[0] = (n == 2 ? 0xc0 : n == 3 ? 0xe0 : 0xf0) | (c >> (6 * (n - 1)));
+  for (int i = 1; i < n; i++)
+    out[i] = 0x80 | ((c >> (6 * (n - i - 1))) & 0x3f);
+  return n;
+}
+
+size_t utf8_decode(const char *s, size_t len, uint32_t *c) {
+  uint8_t first = s[0];
+  *c = first;
+  if (first < 0x80)
+    return 1;
+  size_t n = first < 0xe0 ? 2 : first < 0xf0 ? 3 : 4;
+  if (first < 0xc2 || first > 0xf4 || n > len)
+    goto invalid;
+  *c = first & (0x7f >> n);
+  for (size_t i = 1; i < n; i++) {
+    uint8_t b = s[i];
+    if ((b & 0xc0) != 0x80)
+      goto invalid;
+    *c = (*c << 6) | (b & 0x3f);
+  }
+  if (*c < (n == 2   ? 0x80
+            : n == 3 ? 0x800
+                     : 0x10000) ||
+      *c > 0x10ffff || (*c >= 0xd800 && *c <= 0xdfff))
+    goto invalid;
+  return n;
+invalid:
+  *c = 0xfffd;
+  return 0;
+}
+
+char *string_to_utf8(const string_s *s) {
+  size_t len = to_fixnum(s->len), pos = 0;
+  char *out = malloc(len * 4 + 1);
+  if (!out)
+    abort();
+  for (size_t i = 0; i < len; i++)
+    pos += utf8_encode(s->str[i], out + pos);
+  out[pos] = 0;
+  return out;
+}
+
+const char *string_utf8(const string_s *s) {
+  static _Thread_local char *buffers[8];
+  static _Thread_local unsigned next;
+  unsigned i = next++ % 8;
+  free(buffers[i]);
+  return buffers[i] = string_to_utf8(s);
 }

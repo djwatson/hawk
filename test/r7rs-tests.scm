@@ -1652,11 +1652,11 @@
 ;; (test "ABC" (utf8->string #u8(#x41 #x42 #x43)))
 ;; (test "ABC" (utf8->string #u8(0 #x41 #x42 #x43) 1))
 ;; (test "ABC" (utf8->string #u8(0 #x41  #x42 #x43 0) 1 4))
-;; ;; (test "λ" (utf8->string #u8(0 #xCE #xBB 0) 1 3))
+(test "λ" (utf8->string #u8(0 #xCE #xBB 0) 1 3))
 ;; (test #u8(#x41 #x42 #x43) (string->utf8 "ABC"))
 ;; (test #u8(#x42 #x43) (string->utf8 "ABC" 1))
 ;; (test #u8(#x42) (string->utf8 "ABC" 1 2))
-;; ;; (test #u8(#xCE #xBB) (string->utf8 "λ"))
+(test #u8(#xCE #xBB) (string->utf8 "λ"))
 
 ;; (test-end)
 
@@ -2038,20 +2038,20 @@
 ;; (test "abc" (read-string 3 (open-input-string "abcd")))
 ;; (test "abc" (read-string 3 (open-input-string "abc\ndef\n")))
 
-;; (let ((in (open-input-string (string #\x10F700 #\x10F701 #\x10F702))))
-;;   (let* ((c0 (peek-char in))
-;;          (c1 (read-char in))
-;;          (c2 (read-char in))
-;;          (c3 (read-char in)))
-;;     (test #\x10F700 c0)
-;;     (test #\x10F700 c1)
-;;     (test #\x10F701 c2)
-;;     (test #\x10F702 c3)))
+(let ((in (open-input-string (string #\x10F700 #\x10F701 #\x10F702))))
+  (let* ((c0 (peek-char in))
+         (c1 (read-char in))
+         (c2 (read-char in))
+         (c3 (read-char in)))
+    (test #\x10F700 c0)
+    (test #\x10F700 c1)
+    (test #\x10F701 c2)
+    (test #\x10F702 c3)))
 
-;; (test (string #\x10F700)
-;;     (let ((out (open-output-string)))
-;;       (write-char #\x10F700 out)
-;;       (get-output-string out)))
+(test (string #\x10F700)
+    (let ((out (open-output-string)))
+      (write-char #\x10F700 out)
+      (get-output-string out)))
 
 ;; (test "abc"
 ;;     (let ((out (open-output-string)))
@@ -2259,8 +2259,8 @@
 ;; (test 13 (char->integer (read (open-input-string "#\\return"))))
 ;; (test #x7F (char->integer (read (open-input-string "#\\delete"))))
 ;; (test #x1B (char->integer (read (open-input-string "#\\escape"))))
-;; ;; (test #x03BB (char->integer (read (open-input-string "#\\λ"))))
-;; ;; (test #x03BB (char->integer (read (open-input-string "#\\x03BB"))))
+(test #x03BB (char->integer (read (open-input-string "#\\λ"))))
+(test #x03BB (char->integer (read (open-input-string "#\\x03BB"))))
 
 ;; (test "abc" (read (open-input-string "\"abc\"")))
 ;; (test "abc" (read (open-input-string "\"abc\" \"def\"")))
@@ -2279,7 +2279,7 @@
 ;; (test "line 1continued\n" (read (open-input-string "\"line 1\\\n continued\n\"")))
 ;; (test "line 1continued\n" (read (open-input-string "\"line 1\\ \t \n \t continued\n\"")))
 ;; (test "line 1\n\nline 3\n" (read (open-input-string "\"line 1\\ \t \n \t \n\nline 3\n\"")))
-;; ;; (test #x03BB (char->integer (string-ref (read (open-input-string "\"\\x03BB;\"")) 0)))
+(test #x03BB (char->integer (string-ref (read (open-input-string "\"\\x03BB;\"")) 0)))
 
 ;; (define-syntax test-write-syntax
 ;;   (syntax-rules ()
