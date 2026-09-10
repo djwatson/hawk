@@ -93,6 +93,7 @@ static size_t object_size(gc_header *header) {
     return sizeof(symbol);
   case BOX_TAG:
     return sizeof(gc_obj);
+  case BOXED_VECTOR_TAG:
   case VECTOR_TAG:
   case CONT_TAG:
   case RECORD_TAG: {
@@ -252,6 +253,7 @@ static bool supported_header(gc_header *header) {
   case BOX_TAG:
   case PORT_TAG:
   case FLVECTOR_TAG:
+  case BOXED_VECTOR_TAG:
   case VECTOR_TAG:
   case CONT_TAG:
   case RECORD_TAG:
@@ -557,6 +559,7 @@ static char const *object_type_name(gc_header *header) {
   case BOX_TAG:
     return "box";
   case VECTOR_TAG:
+  case BOXED_VECTOR_TAG:
     return "vector";
   case FLVECTOR_TAG:
     return "flvector";
@@ -657,6 +660,7 @@ static void describe_header_depth(gc_header *header, char *buf, size_t buf_size,
     snprintf(buf, buf_size, "symbol %s", name ? name->str : "(unnamed)");
     return;
   }
+  case BOXED_VECTOR_TAG:
   case VECTOR_TAG: {
     auto vec = (vector_s *)header;
     snprintf(buf, buf_size, "vector len=%ld", to_fixnum(vec->len));

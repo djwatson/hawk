@@ -62,6 +62,30 @@
 (let ((v (list->vector '(1.0))))
   (check (guard (exn (#t #f)) (vector-set! v 0 'a) #t) #t))
 
+;; Warm up flonum stores, then exit the trace to unpack, preserving aliases.
+(do ((n 0 (+ n 1))) ((= n 100))
+  (let* ((v (vector 1.0 2.0 3.0)) (alias (cons v '())))
+    (do ((i 0 (+ i 1))) ((= i 500))
+      (vector-set! v 1 (if (< i 400) 4.0 alias)))
+    (check (eq? v (car alias)) #t)
+    (check (eq? (vector-ref (car alias) 1) alias) #t)
+    (check (vector-ref v 0) 1.0)
+    (check (vector-ref v 2) 3.0)
+    (vector-set! v 1 5.0)
+    (check v '#(1.0 5.0 3.0))))
+
+;; Boxing spans collections with a small nursery, including old vectors.
+(let* ((v (make-vector 100000 1.25)) (alias (list v)))
+  (vector-set! v 50000 alias)
+  (check (eq? (vector-ref v 50000) alias) #t)
+  (check (eq? (car alias) v) #t)
+  (check (vector-length v) 100000)
+  (check (let loop ((i 0))
+           (or (= i 100000)
+               (and (or (= i 50000) (= (vector-ref v i) 1.25))
+                    (loop (+ i 1)))))
+         #t))
+
 ;; File wrappers return all callback values, not the close result or first value.
 (check (with-output-to-file "/tmp/newhawk-runtime-issues.out"
          (lambda () 42))

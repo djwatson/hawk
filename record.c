@@ -1905,15 +1905,14 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_FLVECTOR_SET: {
-    auto obj = stack_load(state, stack, pc->reg, true);
-    auto val = stack_load(state, stack, pc->v1, true);
-    auto offset = stack_load(state, stack, pc->v2, true);
-    auto t = record_current_trace(state);
-    obj = materialize_constant_obj(state, obj);
-    if (get_slot_type(t, val) != FLONUM_TAG) {
+    if (!is_flonum(stack[pc->v1])) {
       record_abort(state, &op_table, "FLVECTOR_SET needs flonum");
       break;
     }
+    auto obj = stack_load(state, stack, pc->reg, true);
+    auto val = stack_load(state, stack, pc->v1, true);
+    auto offset = stack_load(state, stack, pc->v2, true);
+    obj = materialize_constant_obj(state, obj);
     auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
     add_inst(state, IR(.op = IR_FLVECTOR_SET, .op1 = ref, .op2 = val,
                        .type = FLVECTOR_TAG));

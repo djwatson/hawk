@@ -1295,11 +1295,32 @@ OP(FLVECTOR_SET) {
   auto val = stack[pc->v1];
   auto off = stack[pc->v2];
   assert(is_flvector(dest));
-  assert(is_flonum(val));
   assert(is_fixnum(off));
 
   auto vec = to_flvector(dest);
-  vec->v[to_fixnum(off)] = to_flonum(val)->x;
+  if (is_flonum(val)) {
+    vec->v[to_fixnum(off)] = to_flonum(val)->x;
+  } else {
+    size_t len = (size_t)to_fixnum(vec->len);
+    double *values = malloc(len * sizeof(double));
+    if (!values)
+      abort();
+    memcpy(values, vec->v, len * sizeof(double));
+    // Keep aliases intact and make every slot scannable before allocating.
+    memset(vec->v, 0, len * sizeof(double));
+    vec->header.type = BOXED_VECTOR_TAG;
+    gc_obj roots[] = {dest, val};
+    gc_add_root(roots, 2, 0);
+    for (size_t i = 0; i < len; i++) {
+      auto boxed = i == (size_t)to_fixnum(off) ? roots[1]
+                                             : vm_box_flonum(values[i]);
+      // Boxing can move/promote the vector and clear its remembered bit.
+      gc_log(roots[0]);
+      to_vector(roots[0])->v[i] = boxed;
+    }
+    gc_remove_root(roots, 0);
+    free(values);
+  }
   END_NEXT
 }
 

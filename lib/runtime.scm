@@ -323,7 +323,7 @@
 (define (symbol->string sym)
   (unless (symbol? sym) (error "Not a symbol: " sym))
   (sys:LOAD sym 0))
-(define (vector? a) (or (sys:GUARD a 7) (flvector? a)))
+(define (vector? a) (or (sys:GUARD a 7) (sys:GUARD a 105) (flvector? a)))
 (define (flvector? a) (sys:GUARD a 97))
 (define (undefined? a) (sys:GUARD a 36))
 (define (zero? z) (= z 0))
@@ -519,11 +519,6 @@
   (sys:FLVECTOR_REF vec idx))
 (define (flvector-set! vec idx val)
   (unless (flvector? vec) (error "Invalid flvector index"))
-  ;; TODO: we need some intrinsic to convert flvector back to vector.
-  ;; have to be careful of garbage collector, probably need to copy flonums
-  ;; to lookaside table, change type, zero the vector, gc_log it, THEN start gc_alloc boxing
-  ;; flonums, setting them in the vector, and gc_log before each one. 
-  (unless (flonum? val) (error "Invalid flvector value"))
   (sys:ABC vec idx)
   (sys:FLVECTOR_SET vec val idx))
 (define vector->list

@@ -168,11 +168,13 @@ static void record_type_stats(gc_header *header) {
       size = sizeof(flvector_s) + (size_t)to_fixnum(vec->len) * sizeof(double);
       break;
     }
+    case BOXED_VECTOR_TAG:
     case VECTOR_TAG:
     case CONT_TAG:
     case RECORD_TAG: {
       auto vec = (vector_s *)header;
-      type_name = header->type == VECTOR_TAG ? "vector"
+      type_name = (header->type == VECTOR_TAG ||
+                   header->type == BOXED_VECTOR_TAG) ? "vector"
                   : header->type == CONT_TAG ? "cont"
                                              : "record";
       size = sizeof(vector_s) + (size_t)to_fixnum(vec->len) * sizeof(gc_obj);

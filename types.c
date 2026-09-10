@@ -29,6 +29,7 @@ static const char *type_tag_names[256] = {
     [CHAR_TAG] = "char",   [CLOSURE_TAG] = "clo", [UNDEFINED_TAG] = "",
     [RECORD_TAG] = "rec",  [BIGNUM_TAG] = "big",  [RATNUM_TAG] = "rat",
     [COMPNUM_TAG] = "cmp", [PORT_TAG] = "port",   [FLVECTOR_TAG] = "flvec",
+    [BOXED_VECTOR_TAG] = "vec",
 };
 
 const char *type_tag_name(uint8_t tag) {
@@ -57,7 +58,7 @@ string_s *get_sym_name(symbol *s) {
 // This is mostly a debug aid: The scheme-level printer is defined in
 // scheme base code itself.
 void print_obj(gc_obj obj, FILE *file) {
-  auto type = get_tag(obj);
+  auto type = is_vector(obj) ? VECTOR_TAG : get_tag(obj);
   switch (type) {
   case FIXNUM_TAG: {
     fprintf(file, "%" PRId64, to_fixnum(obj));

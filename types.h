@@ -100,7 +100,8 @@ typedef struct bcfunc {
   X(COMPNUM, 0x41)                                                             \
   X(BYTEVECTOR, 0x49)                                                          \
   X(PORT, 0x51)                                                                \
-  X(FLVECTOR, 0x61)
+  X(FLVECTOR, 0x61)                                                           \
+  X(BOXED_VECTOR, 0x69)
 
 // Immediates.  Bottom three bits must be LITERAL_TAG.
 // Uses bottom byte, and other 7 bytes used for storing literal.
@@ -201,6 +202,10 @@ typedef struct flvector_s {
   double v[];
 } flvector_s;
 
+// Unpacked flvectors retain PTR_TAG so all aliases survive conversion.
+static_assert(sizeof(vector_s) == sizeof(flvector_s));
+static_assert(sizeof(gc_obj) == sizeof(double));
+
 typedef struct port_s {
   gc_header header;
   gc_obj fd;
@@ -256,7 +261,7 @@ static inline cons_s *to_cons(gc_obj obj) {
   return (cons_s *)(obj.value - CONS_TAG);
 }
 static inline vector_s *to_vector(gc_obj obj) {
-  return (vector_s *)(obj.value - VECTOR_TAG);
+  return (vector_s *)(obj.value & ~(int64_t)TAG_MASK);
 }
 static inline flvector_s *to_flvector(gc_obj obj) {
   return (flvector_s *)(obj.value - PTR_TAG);
@@ -318,7 +323,10 @@ static inline bool is_undefined(gc_obj obj) {
 static inline uint8_t get_header_type(gc_obj obj) {
   return *(uint8_t *)(obj.value & ~(int64_t)TAG_MASK);
 }
-static inline bool is_vector(gc_obj obj) { return get_tag(obj) == VECTOR_TAG; }
+static inline bool is_vector(gc_obj obj) {
+  return get_tag(obj) == VECTOR_TAG ||
+         (is_ptr(obj) && get_ptr_tag(obj) == BOXED_VECTOR_TAG);
+}
 static inline bool is_flvector(gc_obj obj) {
   return is_ptr(obj) && get_ptr_tag(obj) == FLVECTOR_TAG;
 }
@@ -400,6 +408,7 @@ INLINE static inline size_t heap_object_size(void *obj) {
     return sizeof(symbol);
   case CONT_TAG:
   case RECORD_TAG:
+  case BOXED_VECTOR_TAG:
   case VECTOR_TAG: {
     auto vec = (vector_s *)obj;
     return sizeof(vector_s) + (size_t)to_fixnum(vec->len) * sizeof(gc_obj);
@@ -494,6 +503,7 @@ trace_heap_object_reserved(gc_header *obj, uint8_t type,
   }
   case CONT_TAG:
   case RECORD_TAG:
+  case BOXED_VECTOR_TAG:
   case VECTOR_TAG: {
     auto vec = (vector_s *)obj;
     trace_gc_obj_array_reserved(vec->v, (uint64_t)to_fixnum(vec->len), reserve,
