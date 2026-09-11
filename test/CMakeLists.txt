@@ -47,7 +47,7 @@ set_tests_properties(hawk_r5rs_pitfall PROPERTIES FAIL_REGULAR_EXPRESSION "Failu
 add_hawk_test(
   hawk_r5rs_tests
   r5rs-tests.scm
-  "188 out of 188 passed \\(100%\\)"
+  "190 out of 190 passed \\(100%\\)"
 )
 set_tests_properties(hawk_r5rs_tests PROPERTIES FAIL_REGULAR_EXPRESSION "Failure")
 

@@ -440,9 +440,9 @@
         (for-each (lambda (i) (vector-set! v i (* i i))) '(0 1 2 3 4))
         v))
 
-;(test 3 (force (delay (+ 1 2))))
+(test 3 (force (delay (+ 1 2))))
 
-;(test '(3 3) (let ((p (delay (+ 1 2)))) (list (force p) (force p))))
+(test '(3 3) (let ((p (delay (+ 1 2)))) (list (force p) (force p))))
 
 (test 'ok (let ((else 1)) (cond (else 'ok) (#t 'bad))))
 
