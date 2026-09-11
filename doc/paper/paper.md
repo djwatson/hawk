@@ -183,7 +183,7 @@ The only exception is the APPLY opcode: we need to record apply, and then record
 
 Many schemes support SRFI 4/160, `flvector` support, where vectors containing only flonums can be implemented more efficiently by keeping the flonums in the vector directly without boxing.  Most schemes will require special annotations to do this, however, since our JIT already has the types of most objects, we can automatically fl-vector vectors we detect contain only flonums.   This optimization doubles the performance of the `fft` benchmark.
 
-While hawk does not currently support unicode, a similar trick could be used for ascii-only strings, and in fact many schemes already do implement fastpaths for ascii-only strings.
+Hawk supports Unicode strings as codepoints.  While hawk already has many ascii-only fastpaths, the same auto-promotion could be used to reduce the size of ascii-only strings.
 
 ### Analysis of trace types and trace stability
 
@@ -300,10 +300,6 @@ Eager typechecking appears to only contribute a small amount to overall runtime.
 As predicted, dropping the LOOP analysis in the bytecode compiler only has a tiny effect - tracing works just as will with or without explicit static loop discovery.  Almost all of this performance is from additional closure allocations.
 
 Making traces polymorphic, and therefore keeping most flonum results in register across traces (of all trace types), has a large effect on performance.  The `no-reg` test *also* disables polymorphic tracing (due to the way polymorphic traces are implemented, we typecheck the argument registers directly), so registers by themselves contribute roughly 10%.  
-
-### Limitations
-
-Hawk currently only supports ascii strings.  Likely only the bv2string benchmark would significantly change performance if unicode support were added. `strings` does heavily benchmark strings, but we would implement a fastpath for ascii-only strings.
 
 ### Future Work
 

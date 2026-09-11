@@ -1,9 +1,3 @@
-## codex review
-
-TODO still need
-* runtime.scm
-* read.scm
-
 ## slow VM
 For the VM specifically, we could speed up these, but it wouldn't really affect JIT.
 
@@ -26,9 +20,6 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 	In fact, the whole thing needs a rewrite for JMP using labels, and a separate pass
 	to reduce WIDE opcodes or something.
 	
-* Auto flvector 
-   * missing fallback conversion. Watch out for GC issues, probably need special gc_log.
-
 ## JIT backlog
 
 * Luajit style double ended ir ins / constants???
@@ -83,8 +74,6 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 * track stack-top
 * we store state VM, the only place it is used is to flush traces in the FOREIGN_CALL to dump image and die. ugh.
 * LOOP could just do a memmove instead?
-
-* unicode support is unimplemented.
 
 * there's a VM only sampling profiler in git commit f4ba0ff, maybe port it and make it permanent?
 

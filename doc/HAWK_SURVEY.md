@@ -137,8 +137,8 @@ This follows the 119 surveys and the groups on the [Scheme Surveys index](https:
 | 94 | `read-line`                 | Line termination and EOF behavior.                           | Line endings are stripped and EOF is reported correctly; the survey test passes.                             |
 | 95 | Readtables                  | Support for programmable Common Lisp-style readers.          | No programmable readtable API is exported.                                                                   |
 | 96 | `string-titlecase`          | Unicode multi-character titlecase behavior.                  | `string-titlecase` is undefined.                                                                             |
-| 97 | Unicode lambda              | Whether `λ` is accepted as an alternative to `lambda`.       | The UTF-8 `λ` reader form fails with Hawk’s 8-bit character limit (`bad integer->char`).                     |
-| 98 | Unicode support             | Character, string, and identifier Unicode ranges.            | Non-ASCII characters work; `integer->char 128` remains one character.                                        |
+| 97 | Unicode lambda              | Whether `λ` is accepted as an alternative to `lambda`.       | The UTF-8 `λ` reader form is accepted as an identifier.                                                        |
+| 98 | Unicode support             | Character, string, and identifier Unicode ranges.            | Unicode characters, strings, and identifiers are supported through the Unicode scalar range; UTF-8 conversion is supported. |
 
 ## Numbers
 

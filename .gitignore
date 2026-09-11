@@ -9,3 +9,4 @@ site/_site/
 __pycache__/
 doc/paper/build/
 doc/paper/generated/
+unicode/cache/
