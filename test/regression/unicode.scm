@@ -11,6 +11,16 @@
 (check (utf8->string (string->utf8 text)) text)
 (check (string->utf8 text)
        #u8(97 206 187 226 130 172 240 159 152 128 244 143 191 191 0 122))
+;; Exercise ASCII fast paths, mixed widths, and slices after tracing the loops.
+(do ((i 0 (+ i 1))) ((= i 100))
+  (for-each
+    (lambda (s)
+      (let ((bv (string->utf8 s)))
+        (check (utf8->string bv) s)
+        (check (string->utf8 (string-append "!" s "?") 1 (+ 1 (string-length s))) bv)
+        (check (utf8->string (bytevector-append #u8(255) bv #u8(255))
+                            1 (+ 1 (bytevector-length bv))) s)))
+    (list "" "abc\x0;xyz" text "λabc😀")))
 (check (equal? "\x0;a" "\x0;b") #f)
 (check (read (open-input-string "#\\λ")) #\λ)
 (check (read (open-input-string "#\\x10ffff")) (integer->char #x10ffff))
