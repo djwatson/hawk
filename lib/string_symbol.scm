@@ -6,7 +6,7 @@
 (define symbol-table symbol-table)
 
 (define (string-hash s bound)
-  (sys:FOREIGN_CALL '(uint64 "SCM_STRING_HASH" (string int32)) s bound))
+  (sys:FOREIGN_CALL '(uint64 "SCM_STRING_HASH" (gc_obj int32)) s bound))
 
 ;; There's a custom hash table here due to bootstrapping issues.
 ;; If we delay upgrade from alist to hashtable until after bootstrap loads the

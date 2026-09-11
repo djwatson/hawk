@@ -1295,11 +1295,11 @@ EXPORT gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,
 }
 
 EXPORT uint64_t SCM_HASH_OBJ(gc_obj obj) { return hashmix(obj.value); }
-EXPORT uint64_t SCM_STRING_HASH(const char *s, int32_t bound) {
+EXPORT uint64_t SCM_STRING_HASH(gc_obj obj, int32_t bound) {
+  auto s = to_string(obj);
   uint64_t hash = 5381;
-  int c;
-  while ((c = *s++))
-    hash = ((hash << 5) + hash) + (unsigned char)c;
+  for (int64_t i = 0, len = to_fixnum(s->len); i < len; i++)
+    hash = ((hash << 5) + hash) + s->str[i];
   return hash % (uint64_t)bound;
 }
 EXPORT bool SCM_ISNAN(double d) { return isnan(d); }
@@ -1335,9 +1335,9 @@ EXPORT gc_obj SCM_GET_ENV_VARS() {
 EXPORT int64_t scm_read_buffer(int fd, gc_obj buffer, uint64_t count) {
   if (is_bytevector(buffer))
     return read(fd, to_bytevector(buffer)->str, count);
-  char *bytes = malloc(count + 3);
-  if (!bytes)
-    abort();
+  char bytes[4096 + 3];
+  if (count > 4096)
+    count = 4096;
   int64_t len = read(fd, bytes, count), chars = 0;
   if (len > 0) {
     // Complete a codepoint split by the read boundary before decoding.
@@ -1356,9 +1356,13 @@ EXPORT int64_t scm_read_buffer(int fd, gc_obj buffer, uint64_t count) {
         len += n;
       }
     }
+    auto out = to_string(buffer)->str;
     for (int64_t i = 0; i < len;) {
-      size_t n =
-          utf8_decode(bytes + i, len - i, &to_string(buffer)->str[chars++]);
+      if ((uint8_t)bytes[i] < 0x80) {
+        out[chars++] = (uint8_t)bytes[i++];
+        continue;
+      }
+      size_t n = utf8_decode(bytes + i, len - i, &out[chars++]);
       if (!n) {
         len = -1;
         break;
@@ -1366,27 +1370,30 @@ EXPORT int64_t scm_read_buffer(int fd, gc_obj buffer, uint64_t count) {
       i += n;
     }
   }
-  free(bytes);
   return len <= 0 ? len : chars;
 }
 
 EXPORT int64_t scm_write_buffer(int fd, gc_obj buffer, uint64_t count) {
   if (is_bytevector(buffer))
     return write(fd, to_bytevector(buffer)->str, count);
-  char *bytes = malloc(count * 4);
-  if (!bytes && count)
-    abort();
-  size_t len = 0;
-  for (size_t i = 0; i < count; i++)
-    len += utf8_encode(to_string(buffer)->str[i], bytes + len);
-  for (size_t off = 0; off < len;) {
-    int64_t n = write(fd, bytes + off, len - off);
-    if (n <= 0) {
-      free(bytes);
-      return -1;
+  char bytes[4096 * 4];
+  auto str = to_string(buffer)->str;
+  for (size_t start = 0; start < count;) {
+    size_t end = count - start > 4096 ? start + 4096 : count;
+    size_t len = 0;
+    while (start < end) {
+      uint32_t c = str[start++];
+      if (c < 0x80)
+        bytes[len++] = c;
+      else
+        len += utf8_encode(c, bytes + len);
     }
-    off += n;
+    for (size_t off = 0; off < len;) {
+      int64_t n = write(fd, bytes + off, len - off);
+      if (n <= 0)
+        return -1;
+      off += n;
+    }
   }
-  free(bytes);
   return count;
 }

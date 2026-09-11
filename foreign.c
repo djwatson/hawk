@@ -12,15 +12,11 @@
 #include "foreign.h"
 #include "runtime.h"
 
-static const char *foreign_type_name(gc_obj type_obj) {
-  if (!is_symbol(type_obj)) {
-    abort();
-  }
-  auto name = get_sym_name(to_symbol(type_obj));
-  if (!name) {
-    abort();
-  }
-  return string_utf8(name);
+static bool foreign_type_is(const string_s *name, const char *type) {
+  size_t i = 0, len = to_fixnum(name->len);
+  while (i < len && type[i] && name->str[i] == (uint8_t)type[i])
+    i++;
+  return i == len && type[i] == 0;
 }
 
 static void *foreign_dlsym(const char *name) {
@@ -41,29 +37,33 @@ static void *foreign_dlsym(const char *name) {
 }
 
 foreign_type foreign_parse_type(gc_obj type_obj) {
-  auto name = foreign_type_name(type_obj);
-  if (strcmp(name, "uint8") == 0) {
+  if (!is_symbol(type_obj))
+    abort();
+  auto name = get_sym_name(to_symbol(type_obj));
+  if (!name)
+    abort();
+  if (foreign_type_is(name, "uint8")) {
     return FOREIGN_TYPE_UINT8;
   }
-  if (strcmp(name, "int32") == 0) {
+  if (foreign_type_is(name, "int32")) {
     return FOREIGN_TYPE_INT32;
   }
-  if (strcmp(name, "int64") == 0) {
+  if (foreign_type_is(name, "int64")) {
     return FOREIGN_TYPE_INT64;
   }
-  if (strcmp(name, "uint64") == 0) {
+  if (foreign_type_is(name, "uint64")) {
     return FOREIGN_TYPE_UINT64;
   }
-  if (strcmp(name, "double") == 0) {
+  if (foreign_type_is(name, "double")) {
     return FOREIGN_TYPE_DOUBLE;
   }
-  if (strcmp(name, "string") == 0) {
+  if (foreign_type_is(name, "string")) {
     return FOREIGN_TYPE_STRING;
   }
-  if (strcmp(name, "gc_obj") == 0) {
+  if (foreign_type_is(name, "gc_obj")) {
     return FOREIGN_TYPE_GC_OBJ;
   }
-  if (strcmp(name, "bool") == 0) {
+  if (foreign_type_is(name, "bool")) {
     return FOREIGN_TYPE_BOOL;
   }
   abort();
@@ -84,7 +84,6 @@ void foreign_parse_sig(gc_obj sig_obj, foreign_sig *sig) {
   }
   auto name_and_args = to_cons(sig_tail);
   gc_obj sym_obj = name_and_args->a;
-  foreign_strings_begin();
   gc_obj arg_types_list = name_and_args->b;
   if (!is_string(sym_obj) || !is_cons(arg_types_list)) {
     abort();
@@ -171,8 +170,8 @@ static void foreign_fill_arg(foreign_type type, gc_obj value,
   }
 }
 
-static gc_obj foreign_return_value(gc_obj type_obj, foreign_tmp raw) {
-  switch (foreign_parse_type(type_obj)) {
+static gc_obj foreign_return_value(foreign_type type, foreign_tmp raw) {
+  switch (type) {
   case FOREIGN_TYPE_UINT8:
     return tag_fixnum(raw.u8);
   case FOREIGN_TYPE_INT32:
@@ -203,26 +202,26 @@ gc_obj do_foreign_call(gc_obj sig_obj, gc_obj const *args, uint8_t argcnt) {
     abort();
   }
 
-  foreign_type arg_types[UINT8_MAX];
-  void *arg_values[UINT8_MAX];
-  foreign_tmp arg_tmps[UINT8_MAX] = {0};
+  void *arg_values[argcnt + 1];
+  foreign_tmp arg_tmps[argcnt + 1];
   foreign_tmp ret_tmp = {0};
 
-  foreign_strings_begin();
-  gc_obj arg_types_list = to_cons(to_cons(to_cons(sig_obj)->b)->b)->a;
+  bool strings = false;
+  for (uint8_t i = 0; i < sig.argcnt; i++)
+    strings |= sig.arg_types[i] == FOREIGN_TYPE_STRING;
+  if (strings)
+    foreign_strings_begin();
   for (uint8_t i = 0; i < sig.argcnt; i++) {
-    auto entry = to_cons(arg_types_list);
-    foreign_type t = foreign_parse_type(entry->a);
-    foreign_fill_arg(t, args[i], &arg_tmps[i]);
-    arg_types[i] = t;
+    arg_tmps[i].u64 = 0;
+    foreign_fill_arg(sig.arg_types[i], args[i], &arg_tmps[i]);
     arg_values[i] = &arg_tmps[i];
-    arg_types_list = entry->b;
   }
 
-  ffi_call_foreign(sig.sym, &ret_tmp, sig.ret_type, arg_values, arg_types,
+  ffi_call_foreign(sig.sym, &ret_tmp, sig.ret_type, arg_values, sig.arg_types,
                    sig.argcnt);
-  gc_obj out = foreign_return_value(to_cons(sig_obj)->a, ret_tmp);
-  foreign_strings_end();
+  gc_obj out = foreign_return_value(sig.ret_type, ret_tmp);
+  if (strings)
+    foreign_strings_end();
   gc_remove_root((const void *)&sig_obj, 0);
   return out;
 }
@@ -236,9 +235,10 @@ typedef struct foreign_strings {
 static _Thread_local foreign_strings *string_args;
 
 void foreign_strings_begin(void) {
-  foreign_strings *frame = calloc(1, sizeof(*frame));
+  foreign_strings *frame = malloc(sizeof(*frame));
   if (!frame)
     abort();
+  frame->count = 0;
   frame->parent = string_args;
   string_args = frame;
 }

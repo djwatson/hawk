@@ -24,7 +24,7 @@
         ((s)
           (string-hash s *default-bound*))
         ((s bound)
-          (sys:FOREIGN_CALL '(uint64 "SCM_STRING_HASH" (string int32)) s bound))))
+          (sys:FOREIGN_CALL '(uint64 "SCM_STRING_HASH" (gc_obj int32)) s bound))))
 
     (define string-ci-hash
       (case-lambda
@@ -38,7 +38,7 @@
         ((s)
           (symbol-hash s *default-bound*))
         ((s bound)
-          (sys:FOREIGN_CALL '(uint64 "SCM_STRING_HASH" (string int32)) (symbol->string s) bound))))
+          (sys:FOREIGN_CALL '(uint64 "SCM_STRING_HASH" (gc_obj int32)) (symbol->string s) bound))))
 
     (define hash
       (case-lambda
