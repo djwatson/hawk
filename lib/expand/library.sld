@@ -121,7 +121,7 @@
         ((import) (for-each library-import (cdr decl)) '())
         ((export) (for-each library-export (cdr decl)) '())
         ((cond-expand) (interpret-cond-expand (cdr decl)))
-        ((include) (list decl))
+        ((include include-ci) (list decl))
         ((include-library-declarations)
           (append-map interpret-library-declarations-file (cdr decl)))))
 
@@ -240,13 +240,21 @@
       (let ((resolved (resolve-path filename)))
         (parameterize ((current-directory (path-directory resolved))) (thunk resolved))))
 
-    (define (read-file-forms filename)
+    (define (read-file-forms filename . fold-case)
       (call-with-input-file filename
         (lambda (port)
+          (let ((port (if (null? fold-case) port
+                          (open-input-string
+                           (string-append "#!fold-case\n"
+                             (let loop ((chunks '()))
+                               (let ((s (read-string 4096 port)))
+                                 (if (eof-object? s)
+                                     (apply string-append (reverse chunks))
+                                     (loop (cons s chunks))))))))))
           (let loop ((form (read port)) (acc '()))
             (if (eof-object? form)
                 (reverse acc)
-                (loop (read port) (cons form acc)))))))
+                (loop (read port) (cons form acc))))))))
 
     (define (interpret-library-declarations-file filename)
       (with-current-directory-from-file filename

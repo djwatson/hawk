@@ -43,7 +43,7 @@
 (for-each add-feature
           '(r7rs exact-closed
                  exact-complex
-                 ieee-float ;;full-unicode
+                 ieee-float full-unicode
                  ratios
                  posix
                  hawk))

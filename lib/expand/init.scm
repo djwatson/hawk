@@ -394,6 +394,19 @@
                                                                            ,resolved
                                                                            ,@(read-file-forms resolved))))
                                                                      (cdr form))))))
+                  (install-builtin! 'include-ci
+                                    (er-macro-transformer (lambda (form rename compare)
+                                                            (unless (every string? (cdr form))
+                                                              (error "malformed include" form))
+                                                            `(,(rename 'begin)
+                                                              ,@(map (lambda (filename)
+                                                                       (let ((resolved
+                                                                                (resolve-path filename)))
+                                                                         `(,(make-identifier 'begin-include
+                                                                                             builtin-env)
+                                                                           ,resolved
+                                                                           ,@(read-file-forms resolved #t))))
+                                                                     (cdr form))))))
                   (let ()
                     (define (expand-lambda-clause clause env)
                       (let ((formals (car clause)) (body (cdr clause)))

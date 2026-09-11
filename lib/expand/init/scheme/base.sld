@@ -9,6 +9,7 @@
     set!
     ;; 4.1.7. Inclusion
     include
+    include-ci
     ;; 4.2.1. Conditionals
     cond
     else
@@ -289,6 +290,7 @@
                         _
                         ...
                         include
+                        include-ci
                         if-expand
                         define-record-type)
                   (define define*)))

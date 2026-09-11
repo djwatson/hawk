@@ -709,23 +709,25 @@
         (and (not (null? list))
              (if (cmp obj (car list)) list (member obj (cdr list) cmp)))))))
 ;;; char
+(include "../unicode/tables.scm")
+(include "../unicode/runtime.scm")
+
 (define (char-downcase c)
   (let ((n (char->integer c)))
-    (if (or (< n 65) ; A
-           (> n 90)) ; Z
-        (integer->char n)
-        (integer->char (+ n 32)))))
-
+    (integer->char (if (< n 128) (if (<= 65 n 90) (+ n 32) n)
+                      (unicode-map n unicode-lower)))))
 (define (char-upcase c)
   (let ((n (char->integer c)))
-    (if (or (< n 97) ; a
-           (> n 122)) ; z
-        (integer->char n)
-        (integer->char (- n 32)))))
-
+    (integer->char (if (< n 128) (if (<= 97 n 122) (- n 32) n)
+                      (unicode-map n unicode-upper)))))
+(define (char-foldcase c)
+  (let ((n (char->integer c)))
+    (integer->char (if (< n 128) (if (<= 65 n 90) (+ n 32) n)
+                      (unicode-map n unicode-fold)))))
 (define (char-whitespace? c)
   (let ((n (char->integer c)))
-    (or (eq? n 32) (eq? n 9) (eq? n 12) (eq? n 10) (eq? n 13))))
+    (if (< n 128) (or (= n 32) (<= 9 n 13))
+        (unicode-property? unicode-white-space n))))
 
 (define char=? (case-lambda ((a b) (eq? a b)) (rest (comparer eq? rest))))
 (define char>?
@@ -748,77 +750,53 @@
   (case-lambda
     ((a b)
       (unless (and (char? a) (char? b)) (error "not chars:" a b))
-      (eq? (char-downcase a) (char-downcase b)))
+      (eq? (char-foldcase a) (char-foldcase b)))
     (rest (comparer (lambda (a b) (char-ci=? a b)) rest))))
 (define char-ci>?
   (case-lambda
     ((a b)
       (unless (and (char? a) (char? b)) (error "not chars:" a b))
-      (char>? (char-downcase a) (char-downcase b)))
+      (char>? (char-foldcase a) (char-foldcase b)))
     (rest (comparer (lambda (a b) (char-ci>? a b)) rest))))
 (define char-ci<?
   (case-lambda
     ((a b)
       (unless (and (char? a) (char? b)) (error "not chars:" a b))
-      (char<? (char-downcase a) (char-downcase b)))
+      (char<? (char-foldcase a) (char-foldcase b)))
     (rest (comparer (lambda (a b) (char-ci<? a b)) rest))))
 (define char-ci>=?
   (case-lambda
     ((a b)
       (unless (and (char? a) (char? b)) (error "not chars:" a b))
-      (char>=? (char-downcase a) (char-downcase b)))
+      (char>=? (char-foldcase a) (char-foldcase b)))
     (rest (comparer (lambda (a b) (char-ci>=? a b)) rest))))
 (define char-ci<=?
   (case-lambda
     ((a b)
       (unless (and (char? a) (char? b)) (error "not chars:" a b))
-      (char<=? (char-downcase a) (char-downcase b)))
+      (char<=? (char-foldcase a) (char-foldcase b)))
     (rest (comparer (lambda (a b) (char-ci<=? a b)) rest))))
 (define (char-alphabetic? c)
   (let ((n (char->integer c)))
-    (cond
-      ((< n 65) #f) ; A
-      ((> n 122) #f) ; z
-      ((> n 96)) ; a-1
-      ((< n 91)) ; Z+1
-      (else #f))))
-(define (char-numeric? c)
-  (let ((n (char->integer c)))
-    (cond
-      ((< n 48) #f) ; 0
-      ((> n 57) #f) ; 9
-      (else #t))))
+    (if (< n 128) (or (<= 65 n 90) (<= 97 n 122))
+        (unicode-property? unicode-alphabetic n))))
 (define (char-upper-case? c)
   (let ((n (char->integer c)))
-    (cond
-      ((< n 65) #f) ; A
-      ((> n 90) #f) ; Z
-      (else #t))))
-
+    (if (< n 128) (<= 65 n 90) (unicode-property? unicode-uppercase n))))
 (define (char-lower-case? c)
   (let ((n (char->integer c)))
-    (cond
-      ((< n 97) #f) ; a
-      ((> n 122) #f) ; z
-      (else #t))))
-
-(define (digit-value ch)
-  (unless (char? ch) (error "not a char: " ch))
-  (let ((n (char->integer ch)))
-    (let lp ((lo 0) (hi (- (vector-length zeros) 1)))
-      (and (<= lo hi)
-           (let* ((mid (+ lo (quotient (- hi lo) 2)))
-                  (mid-zero (char->integer (vector-ref zeros mid))))
-             (cond
-               ((<= mid-zero n (+ mid-zero 9)) (- n mid-zero))
-               ((< n mid-zero) (lp lo (- mid 1)))
-               (else (lp (+ mid 1) hi))))))))
-;; Zeros taken from chibi
-(define zeros
-  #(#\0 ;DIGIT ZERO
-  ))
-
-(define char-foldcase char-downcase)
+    (if (< n 128) (<= 97 n 122) (unicode-property? unicode-lowercase n))))
+(define (digit-value c)
+  (let ((n (char->integer c)))
+    (if (< n 128)
+        (and (<= 48 n 57) (- n 48))
+        (let loop ((lo 0) (hi (- (vector-length unicode-zeros) 1)))
+          (if (> lo hi) #f
+              (let* ((mid (quotient (+ lo hi) 2)) (zero (vector-ref unicode-zeros mid)))
+                (cond ((< n zero) (loop lo (- mid 1)))
+                      ((> n (+ zero 9)) (loop (+ mid 1) hi))
+                      (else (- n zero)))))))))
+(define (char-numeric? c) (if (digit-value c) #t #f))
 
 ;; strings
 (define string-copy
@@ -896,132 +874,14 @@
 (define-strcmp string>? (strcmp char=? char>? #f #f #t))
 (define-strcmp string<=? (strcmp char=? char<=? #t #t #f))
 (define-strcmp string>=? (strcmp char=? char>=? #t #f #t))
-(define-strcmp string-ci<? (strcmp char-ci=? char-ci<? #f #t #f))
-(define-strcmp string-ci>? (strcmp char-ci=? char-ci>? #f #f #t))
-(define-strcmp string-ci<=? (strcmp char-ci=? char-ci<=? #t #t #f))
-(define-strcmp string-ci>=? (strcmp char-ci=? char-ci>=? #t #f #t))
-(define-strcmp string-ci=? (strcmp char-ci=? char-ci=? #t #f #f))
+(define-strcmp string-ci<? (unicode-string-ci #f #t #f))
+(define-strcmp string-ci>? (unicode-string-ci #f #f #t))
+(define-strcmp string-ci<=? (unicode-string-ci #t #t #f))
+(define-strcmp string-ci>=? (unicode-string-ci #t #f #t))
+(define-strcmp string-ci=? (unicode-string-ci #t #f #f))
 (define-strcmp string=? (strcmp char=? char=? #t #f #f))
 
-(define (string-downcase s)
-  (let loop ((out '()) (in (string->list s)))
-    (cond
-      ((null? in) (list->string (reverse out)))
-      ((= (char->integer (car in)) 304)
-        (loop (cons (integer->char 775) (cons (integer->char 105) out)) (cdr in)))
-      (else (loop (cons (char-downcase (car in)) out) (cdr in))))))
-(define (string-upcase s)
-  (let loop ((out '()) (in (string->list s)))
-    (cond
-      ((null? in) (list->string (reverse out)))
-      ((assv (char->integer (car in)) uppercase-special) =>
-         (lambda (x)
-           (loop (append (reverse (map integer->char (cadr x))) out) (cdr in))))
-      (else (loop (cons (char-upcase (car in)) out) (cdr in))))))
-(define uppercase-special
-  '((223 (83 83))
-    (64256 (70 70))
-    (64257 (70 73))
-    (64258 (70 76))
-    (64259 (70 70 73))
-    (64260 (70 70 76))
-    (64261 (83 84))
-    (64262 (83 84))
-    (1415 (1333 1362))
-    (64275 (1348 1350))
-    (64276 (1348 1333))
-    (64277 (1348 1339))
-    (64278 (1358 1350))
-    (64279 (1348 1341))
-    (329 (700 78))
-    (912 (921 776 769))
-    (944 (933 776 769))
-    (496 (74 780))
-    (7830 (72 817))
-    (7831 (84 776))
-    (7832 (87 778))
-    (7833 (89 778))
-    (7834 (65 702))
-    (8016 (933 787))
-    (8018 (933 787 768))
-    (8020 (933 787 769))
-    (8022 (933 787 834))
-    (8118 (913 834))
-    (8134 (919 834))
-    (8146 (921 776 768))
-    (8147 (921 776 769))
-    (8150 (921 834))
-    (8151 (921 776 834))
-    (8162 (933 776 768))
-    (8163 (933 776 769))
-    (8164 (929 787))
-    (8166 (933 834))
-    (8167 (933 776 834))
-    (8182 (937 834))
-    (8064 (7944 921))
-    (8065 (7945 921))
-    (8066 (7946 921))
-    (8067 (7947 921))
-    (8068 (7948 921))
-    (8069 (7949 921))
-    (8070 (7950 921))
-    (8071 (7951 921))
-    (8072 (7944 921))
-    (8073 (7945 921))
-    (8074 (7946 921))
-    (8075 (7947 921))
-    (8076 (7948 921))
-    (8077 (7949 921))
-    (8078 (7950 921))
-    (8079 (7951 921))
-    (8080 (7976 921))
-    (8081 (7977 921))
-    (8082 (7978 921))
-    (8083 (7979 921))
-    (8084 (7980 921))
-    (8085 (7981 921))
-    (8086 (7982 921))
-    (8087 (7983 921))
-    (8088 (7976 921))
-    (8089 (7977 921))
-    (8090 (7978 921))
-    (8091 (7979 921))
-    (8092 (7980 921))
-    (8093 (7981 921))
-    (8094 (7982 921))
-    (8095 (7983 921))
-    (8096 (8040 921))
-    (8097 (8041 921))
-    (8098 (8042 921))
-    (8099 (8043 921))
-    (8100 (8044 921))
-    (8101 (8045 921))
-    (8102 (8046 921))
-    (8103 (8047 921))
-    (8104 (8040 921))
-    (8105 (8041 921))
-    (8106 (8042 921))
-    (8107 (8043 921))
-    (8108 (8044 921))
-    (8109 (8045 921))
-    (8110 (8046 921))
-    (8111 (8047 921))
-    (8115 (913 921))
-    (8124 (913 921))
-    (8131 (919 921))
-    (8140 (919 921))
-    (8179 (937 921))
-    (8188 (937 921))
-    (8114 (8122 921))
-    (8116 (902 921))
-    (8130 (8138 921))
-    (8132 (905 921))
-    (8178 (8186 921))
-    (8180 (911 921))
-    (8119 (913 834 921))
-    (8135 (919 834 921))
-    (8183 (937 834 921))))
-(define string-foldcase string-downcase)
+
 
 ;; VECTOR
 (define vector

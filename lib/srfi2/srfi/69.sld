@@ -31,7 +31,7 @@
         ((s)
           (string-ci-hash s *default-bound*))
         ((s bound)
-          (%string-hash s char-downcase bound))))
+          (string-hash (string-foldcase s) bound))))
 
     (define symbol-hash
       (case-lambda

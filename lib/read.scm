@@ -49,12 +49,18 @@
 
 (define (special-initial? c)
   (memv c '(#\! #\$ #\% #\& #\* #\/ #\: #\< #\= #\> #\? #\@ #\^ #\_ #\~)))
-(define (initial? c) (or (char-alphabetic? c) (special-initial? c)))
-(define (digit? c) (char-numeric? c))
+(define (initial? c)
+  (if (< (char->integer c) 128)
+      (or (char-alphabetic? c) (special-initial? c))
+      (unicode-property? unicode-initial (char->integer c))))
+(define (digit? c) (<= 48 (char->integer c) 57))
 (define (explicit-sign? c) (memv c '(#\+ #\-)))
 (define (special-subsequent? c)
   (or (explicit-sign? c) (eqv? c #\.) (eqv? c #\@)))
-(define (subsequent? c) (or (initial? c) (digit? c) (special-subsequent? c)))
+(define (subsequent? c)
+  (if (< (char->integer c) 128)
+      (or (initial? c) (digit? c) (special-subsequent? c))
+      (unicode-property? unicode-subsequent (char->integer c))))
 (define (sign-subsequent? c)
   (or (initial? c) (explicit-sign? c) (eqv? c #\@)))
 (define (dot-subsequent? c) (or (sign-subsequent? c) (eqv? c #\.)))
@@ -224,12 +230,7 @@
 ;;;;;;;;;;; Reader
 
 (define (maybe-lower-case port s)
-  (if (port-fold-case port)
-      (let ((s (string-copy s)))
-        (do ((i 0 (+ i 1)))
-             ((= i (string-length s)) s)
-             (string-set! s i (char-downcase (string-ref s i)))))
-      s))
+  (if (port-fold-case port) (string-foldcase s) s))
 (define (read-error msg . irritants)
   (raise (make-error-object 'read msg irritants)))
 
@@ -260,7 +261,7 @@
                              (let ((c (sys:LOAD_CHAR buf pos)))
                                (case c
                                  ((#\( #\) #\" #\| #\newline #\return #\space #\tab #\;) #f)
-                                 (else #t))))
+                                 (else (not (char-whitespace? c))))))
                         (scan (+ pos 1) buf end)
                         (begin
                           (port-pos-set! port pos)
@@ -312,7 +313,7 @@
           (let ((c (peek-char port)))
             (cond
               ((eof-object? c) (read-error "Invalid label"))
-              ((char-numeric? c)
+              ((digit? c)
                 (read-char port)
                 (loop (+ (* res 10) (- (char->integer c) (char->integer #\0))) #t))
               ((or (char=? c #\=) (char=? c #\#))
