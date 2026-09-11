@@ -57,6 +57,22 @@
       (call-with-port (open-binary-input-file path)
         (lambda (p) (check (read-bytevector 20000 p) (string->utf8 s))))))
   '(#\λ #\€ #\😀))
+;; Token and whitespace scans must survive refills and leave delimiters unread.
+(for-each
+  (lambda (n)
+    (let* ((token (string-append (make-string n #\a) "xyz"))
+           (source (string-append (make-string 4095 #\space) "\n\t"
+                                  token "(" token ") " token)))
+      (define (check-port p)
+        (check (symbol->string (read p)) token)
+        (check (peek-char p) #\()
+        (check (map symbol->string (read p)) (list token))
+        (check (symbol->string (read p)) token)
+        (check (eof-object? (read p)) #t))
+      (call-with-port (open-input-string source) check-port)
+      (call-with-output-file path (lambda (p) (write-string source p)))
+      (call-with-input-file path check-port)))
+  '(0 4090 4093 4094 4095 4096 12288))
 (delete-file path)
 
 (for-each

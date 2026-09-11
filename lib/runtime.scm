@@ -2202,7 +2202,7 @@
     ((len) (make-bytevector len #f))
     ((len init)
       (unless (and (fixnum? len) (>= len 0)) (error "bad make-bytevector len"))
-      (let* ((size (+ (* len 4) 20))
+      (let* ((size (+ len 17))
              (q (quotient size 8))
              (r (modulo size 8))
              (alloc_size (if (= r 0) (* q 8) (* (+ q 1) 8)))
