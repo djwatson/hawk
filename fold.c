@@ -782,6 +782,62 @@ IRFOLDF(fold_mod_one_rhs) {
   return fold_const(tag_fixnum(0));
 }
 
+static bool guard_range(trace *t, ir_ins *in, slot *value,
+                        int64_t *lo, int64_t *hi) {
+  if (in->type != FIXNUM_TAG || in->op1.constant == in->op2.constant)
+    return false;
+  bool swapped = in->op1.constant;
+  gc_obj k = t->consts[(swapped ? in->op1 : in->op2).loc];
+  if (!is_fixnum(k))
+    return false;
+  *value = swapped ? in->op2 : in->op1;
+  int64_t bound = to_fixnum(k);
+  *lo = FIXNUM_MIN_VALUE;
+  *hi = FIXNUM_MAX_VALUE;
+  switch (in->op) {
+  case IR_LT: if (swapped) *lo = bound + 1; else *hi = bound - 1; break;
+  case IR_LTE: if (swapped) *lo = bound; else *hi = bound; break;
+  case IR_GT: if (swapped) *hi = bound - 1; else *lo = bound + 1; break;
+  case IR_GTE: if (swapped) *hi = bound; else *lo = bound; break;
+  default: return false;
+  }
+  return true;
+}
+
+IRFOLD(LT _ CONST)
+IRFOLD(LTE _ CONST)
+IRFOLD(GT _ CONST)
+IRFOLD(GTE _ CONST)
+IRFOLD(LT CONST _)
+IRFOLD(LTE CONST _)
+IRFOLD(GT CONST _)
+IRFOLD(GTE CONST _)
+IRFOLDF(fold_guard_range) {
+  slot value;
+  int64_t want_lo, want_hi;
+  if (!guard_range(t, in, &value, &want_lo, &want_hi))
+    return fold_next();
+  int64_t lo = FIXNUM_MIN_VALUE, hi = FIXNUM_MAX_VALUE;
+  if (t->ins[value.loc].op == IR_LOAD_BYTE) {
+    lo = 0;
+    hi = 255;
+  }
+  // Guards constrain this SSA value, not later loads from the same address.
+  for (ir_ins_op op = IR_LT; op <= IR_GTE; op++) {
+    for (uint16_t ref = t->cse_head[op]; ref != UINT16_MAX;
+         ref = t->cse_prev[ref]) {
+      slot prior_value;
+      int64_t prior_lo, prior_hi;
+      if (guard_range(t, &t->ins[ref], &prior_value, &prior_lo, &prior_hi) &&
+          same_slot(t, value, prior_value)) {
+        if (prior_lo > lo) lo = prior_lo;
+        if (prior_hi < hi) hi = prior_hi;
+      }
+    }
+  }
+  return lo >= want_lo && hi <= want_hi ? fold_drop() : fold_next();
+}
+
 // ABC obj, CONST(k2) is redundant if we already checked obj, CONST(k1) with
 // k1 >= k2.
 IRFOLD(ABC _ CONST)
