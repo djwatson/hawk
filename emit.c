@@ -1999,6 +1999,23 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
       break;
     }
+    case IR_QUOTIENT_POW2:
+    case IR_MOD_POW2: {
+      int64_t divisor = to_fixnum(slot_gc_obj(t, op->op2));
+      int64_t mask = (divisor - 1) << FIXNUM_SHIFT;
+      // Bias negative inputs so division truncates toward zero.
+      emit_sar_constant(s, RTMP2, arg0_reg, 63);
+      emit_and_constant(s, RTMP2, RTMP2, mask);
+      emit_add(s, dst_reg, arg0_reg, RTMP2);
+      if (op->op == IR_MOD_POW2) {
+        emit_and_constant(s, dst_reg, dst_reg, mask);
+        emit_sub(s, dst_reg, dst_reg, RTMP2);
+      } else {
+        emit_sar_constant(s, dst_reg, dst_reg, __builtin_ctzll(divisor));
+        emit_and_constant(s, dst_reg, dst_reg, -(1LL << FIXNUM_SHIFT));
+      }
+      break;
+    }
     case IR_QUOTIENT: {
       if (op->type == FLONUM_TAG) {
         emit_flonum_binop(s, t, dst_reg, op, emit_fdiv, emit_fdiv_constant,

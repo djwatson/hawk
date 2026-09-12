@@ -71,6 +71,8 @@ static bool fold_cse_allowed(trace *t __attribute__((unused)), ir_ins *in) {
   case IR_DIV:
   case IR_QUOTIENT:
   case IR_MOD:
+  case IR_QUOTIENT_POW2:
+  case IR_MOD_POW2:
   case IR_BOX_FLONUM:
   case IR_EXACT:
   case IR_INTEGER_CHAR:
@@ -600,6 +602,19 @@ IRFOLDF(fold_mul_const) {
   return fold_next();
 }
 
+static fold_result fold_div_pow2(trace *t, ir_ins *in) {
+  gc_obj k = t->consts[in->op2.loc];
+  if (in->type != FIXNUM_TAG || !is_fixnum(k) || in->op1.constant)
+    return fold_next();
+  int64_t divisor = to_fixnum(k);
+  // Keep the tagged mask within the x64 AND immediate range.
+  if (divisor < 2 || divisor > (1LL << 28) || (divisor & (divisor - 1)))
+    return fold_next();
+  in->op = in->op == IR_MOD ? IR_MOD_POW2 : IR_QUOTIENT_POW2;
+  in->guard = false;
+  return fold_retry();
+}
+
 // DIV/QUOTIENT x, CONST(1) -> x
 IRFOLD(DIV _ CONST)
 IRFOLD(QUOTIENT _ CONST)
@@ -615,7 +630,7 @@ IRFOLDF(fold_div_const) {
     in->op2 = x;
     return fold_retry();
   }
-  return fold_next();
+  return in->op == IR_QUOTIENT ? fold_div_pow2(t, in) : fold_next();
 }
 
 // (-a) * k -> a * (-k)  (fixnum only)
@@ -763,7 +778,7 @@ IRFOLDF(fold_mod_one_rhs) {
     return fold_next();
   gc_obj k = t->consts[in->op2.loc];
   if (!is_fixnum(k) || !numeric_is_one(k))
-    return fold_next();
+    return fold_div_pow2(t, in);
   return fold_const(tag_fixnum(0));
 }
 
