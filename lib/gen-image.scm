@@ -79,10 +79,11 @@
          (image (string-append output ".hawk-image.bc"))
          (source (string-append output ".hawk-image.c"))
          (compressed? (sys:FOREIGN_CALL '(bool "hawk_have_zstd" ())))
-         (embedded-image (if compressed? (string-append image ".zstd") image)))
+         (embedded-image (if compressed? (string-append image ".zstd") image))
+         (code (compile (program-forms program) #f #f)))
     (write-exe-image-source source (path-basename embedded-image) compressed?)
     (sys:FOREIGN_CALL '(int32 "hawk_dump_image_and_make_exe" (gc_obj gc_obj gc_obj gc_obj))
-                      (lambda () ((compile (program-forms program) #f #f)) (flush-output-port))
+                      (lambda () (code) (flush-output-port))
                       image
                       source
                       output)))

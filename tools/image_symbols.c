@@ -13,6 +13,7 @@
 #include "util/hashtable.h"
 
 bool profile = false;
+uint32_t hlog_mask = 0;
 bool jit_dump_flag = false;
 int64_t max_trace = 0;
 
@@ -32,7 +33,7 @@ typedef struct {
 } dump_options;
 
 static seen_entry *seen;
-static gc_header **worklist;
+static gc_obj *worklist;
 static dump_options options;
 
 typedef struct {
@@ -50,7 +51,7 @@ static void image_error(char const *path, char const *msg) {
 
 static void print_usage(char const *argv0) {
   fprintf(stderr,
-          "usage: %s [--strings] [--symbols] [--functions] <image.bc>\n",
+          "usage: %s [--strings] [--symbols] [--functions] [--sizes] <image.bc>\n",
           argv0);
 }
 
@@ -121,7 +122,7 @@ static void maybe_print_obj(gc_header *header) {
   }
 }
 
-static void record_type_stats(gc_header *header) {
+static void record_type_stats(gc_header *header, uint8_t type) {
   if (!options.dump_sizes) {
     return;
   }
@@ -129,11 +130,11 @@ static void record_type_stats(gc_header *header) {
   char const *type_name = nullptr;
   uint64_t size = 0;
 
-  if ((header->type & PORT_IDENTITY) == PORT_IDENTITY) {
+  if ((type & PORT_IDENTITY) == PORT_IDENTITY) {
     type_name = "port";
     size = sizeof(port_s);
   } else
-    switch (header->type) {
+    switch (type) {
     case FLONUM_TAG:
       type_name = "flonum";
       size = sizeof(flonum_s);
@@ -152,11 +153,10 @@ static void record_type_stats(gc_header *header) {
       type_name = "compnum";
       size = sizeof(compnum_s);
       break;
-    case STRING_TAG: {
-      type_name = "string";
-      auto str = (string_s *)header;
-      size = heap_align(sizeof(string_s) +
-                        ((size_t)to_fixnum(str->len) + 1) * sizeof(uint32_t));
+    case STRING_TAG:
+    case BYTEVECTOR_TAG: {
+      type_name = type == STRING_TAG ? "string" : "bytevector";
+      size = heap_object_size(header);
       break;
     }
     case SYMBOL_TAG:
@@ -227,14 +227,15 @@ static void enqueue_obj(gc_obj obj) {
   if (!is_heap_object(obj)) {
     return;
   }
-  gc_header *header = to_gc_header(obj);
+  gc_header *header = to_raw_ptr(obj);
   if (hm_contains(seen, header)) {
     return;
   }
   hm_put(seen, header, true);
-  maybe_print_obj(header);
-  record_type_stats(header);
-  arrput(worklist, header);
+  if (!is_cons(obj))
+    maybe_print_obj(header);
+  record_type_stats(header, is_cons(obj) ? CONS_TAG : header->type);
+  arrput(worklist, obj);
 }
 
 static void trace_field(gc_obj *slot, void *ctx) {
@@ -247,9 +248,16 @@ int main(int argc, char **argv) {
   gc_init();
   gc_obj start = gc_read_image_file(path);
   enqueue_obj(start);
+  enqueue_obj(gc_error_symbol());
   while (arrlen(worklist) > 0) {
-    gc_header *obj = arrpop_last(worklist);
-    trace_heap_object(obj, obj->type, trace_field, nullptr);
+    gc_obj obj = arrpop_last(worklist);
+    if (is_cons(obj)) {
+      trace_field(&to_cons(obj)->a, nullptr);
+      trace_field(&to_cons(obj)->b, nullptr);
+    } else {
+      gc_header *header = to_gc_header(obj);
+      trace_heap_object(header, header->type, trace_field, nullptr);
+    }
   }
 
   if (options.dump_sizes) {
