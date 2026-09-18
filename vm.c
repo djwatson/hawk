@@ -474,6 +474,28 @@ static gc_obj *ensure_stack_space(vm_state *state, gc_obj *stack,
   return stack;
 }
 
+gc_obj vm_copy_list(gc_obj list) {
+  gc_obj roots[] = {list, NIL, NIL};
+  gc_add_root(roots, 3, 0);
+  while (is_cons(roots[0])) {
+    auto cell = (cons_s *)gc_alloc(sizeof(cons_s));
+    cell->a = to_cons(roots[0])->a;
+    cell->b = NIL;
+    auto next = tag_cons(cell);
+    if (is_cons(roots[2])) {
+      gc_log(roots[2]);
+      to_cons(roots[2])->b = next;
+    } else {
+      roots[1] = next;
+    }
+    roots[2] = next;
+    roots[0] = to_cons(roots[0])->b;
+  }
+  auto result = roots[1];
+  gc_remove_root(roots, 0);
+  return result;
+}
+
 static void build_list(uint8_t start, uint64_t len, gc_obj *stack) {
   gc_obj lst = NIL;
   gc_add_root((const void *)&lst, 1, 0);
@@ -1152,17 +1174,17 @@ OP(LCALLT_N) {
 OP(APPLY) {
   auto fun = stack[pc->v1];
   auto args = stack[pc->v2];
+  auto len = to_fixnum(stack[instr.reg]);
   auto callee = to_func(to_closure(fun)->v[0]);
 
-  uint64_t a = 1;
-  for (; is_cons(args); a++) {
-    stack = ensure_stack_space(state, stack, a + 1);
+  stack = ensure_stack_space(state, stack, (size_t)len + 1);
+  for (uint64_t a = 1; a <= (uint64_t)len; a++) {
     auto cons = to_cons(args);
     stack[a] = cons->a;
     args = cons->b;
   }
   stack[0] = fun;
-  argcnt = a;
+  argcnt = (uint64_t)len + 1;
   pc = (bc *)(&callee->data[callee->const_cnt * sizeof(gc_obj)]);
   dispatch_next(pc, stack);
   END

@@ -30,8 +30,6 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 
 * int range analysis for loops and add/sub/mul overflow (requires abc & loop opt)
 
-* record APPLY (currently we have fastpaths up to 8 length)
-
 * lots of CCALL cleanup - regalloc, live register save/restore, etc
 
 * cleanup RTMP / RTMP2 usage, it's unclear when there is overlap between backends and

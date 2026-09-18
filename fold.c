@@ -336,11 +336,13 @@ IRFOLDF(fold_gclog_alloc) {
     ir_ins *alloc = &t->ins[in->op1.loc];
     uint16_t alloc_ref = t->cse_head[IR_ALLOC];
     uint16_t box_ref = t->cse_head[IR_BOX_FLONUM];
+    uint16_t copy_ref = t->cse_head[IR_VMCOPY_LIST];
     if (alloc->op1.constant &&
         t->consts[alloc->op1.loc].value <=
             TAG_FIXNUM_VALUE(gc_nursery_size) &&
         (alloc_ref == UINT16_MAX || alloc_ref <= in->op1.loc) &&
-        (box_ref == UINT16_MAX || box_ref <= in->op1.loc)) {
+        (box_ref == UINT16_MAX || box_ref <= in->op1.loc) &&
+        (copy_ref == UINT16_MAX || copy_ref <= in->op1.loc)) {
       *in = (ir_ins){.op = IR_NOP, .reg = REG_NONE, .spill = SPILL_NONE};
     }
   }

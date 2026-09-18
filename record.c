@@ -933,8 +933,47 @@ static slot build_rest_list(vm_state *state, gc_obj *stack, uint8_t start,
   return tail;
 }
 static bool prepare_entry_state(vm_state *state, gc_obj *stack, bc instr,
-                                uint8_t actual_args, uint64_t *entry_argcnt) {
+                                uint64_t actual_args, uint64_t *entry_argcnt) {
+  auto ts = record_trace_state(state);
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
+  if (ts->pending_apply) {
+    uint8_t fixed = instr.reg - (has_rest ? 1 : 0);
+    bool matches = has_rest ? actual_args >= fixed : actual_args == fixed;
+    add_inst(state, IR(.op = has_rest ? (matches ? IR_GTE : IR_LT)
+                                     : (matches ? IR_EQ : IR_NE),
+                       .op1 = ts->apply_len,
+                       .op2 = add_const(state, tag_fixnum((int)fixed - 1)),
+                       .type = FIXNUM_TAG));
+    if (!matches)
+      return false;
+
+    // The VM has expanded the list, but our guards still restore APPLY's frame.
+    slot tail = ts->apply_args;
+    set_stack(state, 0, ts->apply_fun);
+    for (uint8_t i = 1; i < fixed; i++) {
+      tail = materialize_constant_obj(state, tail);
+      auto item = add_inst(
+          state, IR(.op = IR_LOAD, .op1 = tail,
+                    .op2 = add_const(state, tag_fixnum(0)),
+                    .type = get_type_tag(stack[i]),
+                    .guard = is_flonum(stack[i])));
+      set_stack(state, i, item);
+      tail = add_inst(state, IR(.op = IR_LOAD, .op1 = tail,
+                                .op2 = add_const(state, tag_fixnum(1)),
+                                .type = i + 1 < fixed ? CONS_TAG
+                                                     : UNDEFINED_TAG));
+    }
+    if (has_rest) {
+      auto rest = add_inst(state, IR(.op = IR_VMCOPY_LIST, .op1 = tail,
+                                     .type = actual_args > fixed ? CONS_TAG
+                                                                : NIL_TAG));
+      set_stack(state, fixed, rest);
+    }
+    set_stack_top(state, instr.reg);
+    *entry_argcnt = instr.reg;
+    ts->pending_apply = false;
+    return true;
+  }
   if (!has_rest) {
     if (actual_args != instr.reg) {
       return false;
@@ -955,7 +994,7 @@ static bool prepare_entry_state(vm_state *state, gc_obj *stack, bc instr,
   *entry_argcnt = instr.reg;
   return true;
 }
-static bool entry_arity_matches(bc instr, uint8_t actual_args) {
+static bool entry_arity_matches(bc instr, uint64_t actual_args) {
   bool has_rest = (instr.v1 & func_flag_rest) != 0;
   if (!has_rest) {
     return actual_args == instr.reg;
@@ -1107,11 +1146,16 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     op_table = state->impls;
     goto done;
   }
-  if (argcnt > UINT8_MAX) {
+  if (argcnt > UINT8_MAX && !ts->pending_apply) {
     record_abort(state, &op_table, "too many arguments to record");
     goto done;
   }
   record_resolve_pending_ccall(state, stack);
+  if (ts->pending_apply && instr.op != OP_FUNC && instr.op != OP_IFUNC &&
+      instr.op != OP_JFUNC && instr.op != OP_JMP) {
+    record_abort(state, &op_table, "unsupported APPLY entry");
+    goto done;
+  }
   if (ts->depth >= 250) {
     record_abort(state, &op_table, "too deep");
     goto done;
@@ -1413,9 +1457,12 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   case OP_FUNC:
   case OP_IFUNC: {
     uint64_t entry_argcnt = argcnt;
+    bool applied = ts->pending_apply;
     if (!prepare_entry_state(state, stack, instr, argcnt, &entry_argcnt)) {
       break;
     }
+    if (applied)
+      vm_add_snap(state, func_body_pc(pc), entry_argcnt);
 
     if (instr.op == OP_FUNC) {
       op_table =
@@ -1453,6 +1500,28 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     bc target_start = target->start_pc;
     bool target_is_func =
         target_start.op == OP_FUNC || target_start.op == OP_IFUNC;
+    if (ts->pending_apply) {
+      if (!target_is_func) {
+        record_abort(state, &op_table, "unsupported APPLY trace entry");
+        break;
+      }
+      uint64_t entry_argcnt = argcnt;
+      if (!prepare_entry_state(state, stack, target_start, argcnt,
+                               &entry_argcnt))
+        break;
+      vm_add_snap(state, func_body_pc(pc), entry_argcnt);
+      trace_match match =
+          ensure_args_match_trace(state, target, cur_trace, entry_argcnt);
+      if (match.matched) {
+        cur_trace->link = match.trace;
+        cur_trace->link_entry_snap = 1;
+        record_finish(func_body_pc(pc), state, &op_table,
+                      "APPLY linked to root trace", entry_argcnt);
+      }
+      // Execute the original entry so the VM builds its own rest list.
+      instr = target_start;
+      break;
+    }
     if (target_is_func && !entry_arity_matches(target_start, argcnt)) {
       break;
     }
@@ -1676,24 +1745,17 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
     break;
   }
   case OP_APPLY: {
-    auto fun = stack[instr.v1];
-    const char *fname = "<non-closure>";
-    if (is_closure(fun)) {
-      auto code = to_closure(fun)->v[0];
-      if (is_func(code)) {
-        auto func = to_func(code);
-        if (is_string(func->name)) {
-          fname = string_utf8(to_string(func->name));
-        } else {
-          fname = "<unnamed>";
-        }
-      } else {
-        fname = "<invalid-closure-code>";
-      }
-    }
-    char msg[256];
-    snprintf(msg, sizeof(msg), "can't record APPLY (fn=%s)", fname);
-    record_abort(state, &op_table, msg);
+    ts->apply_fun = stack_load(state, stack, instr.v1, true);
+    ts->apply_args = stack_load(state, stack, instr.v2, false);
+    ts->apply_len = stack_load(state, stack, instr.reg, true);
+    vm_add_snap(state, pc, argcnt);
+    auto code = add_inst(state, IR(.op = IR_LOAD, .op1 = ts->apply_fun,
+                                   .op2 = add_const(state, tag_fixnum(1)),
+                                   .type = FUNC_TAG));
+    add_inst(state,
+             IR(.op = IR_EQ, .op1 = code,
+                .op2 = add_const(state, to_closure(stack[instr.v1])->v[0])));
+    ts->pending_apply = true;
     break;
   }
   case OP_FOREIGN_CALL: {

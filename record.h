@@ -35,6 +35,10 @@ typedef struct trace_state {
   uint16_t pending_ccall;
   uint8_t pending_ccall_reg;
   bool pending_ccall_type;
+  bool pending_apply;
+  slot apply_fun;
+  slot apply_args;
+  slot apply_len;
 } trace_state;
 
 typedef struct record_debug_entry {

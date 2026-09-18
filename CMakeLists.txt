@@ -200,7 +200,7 @@ if(CMAKE_CROSSCOMPILING)
       ${gen_fold_include_flags}
       ${gen_fold_source_paths}
       -o ${gen_fold_exe}
-    DEPENDS ${gen_fold_source_paths}
+    DEPENDS ${gen_fold_source_paths} ir.h
     BYPRODUCTS ${gen_fold_exe}
     COMMENT "Building host gen_fold tool for codegen"
     VERBATIM
@@ -214,7 +214,7 @@ add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/fold_gen.h
   COMMAND ${gen_fold_exe} ${CMAKE_CURRENT_SOURCE_DIR}/fold.c >
           ${CMAKE_CURRENT_BINARY_DIR}/fold_gen.h
-  DEPENDS ${gen_fold_target} fold.c
+  DEPENDS ${gen_fold_target} ${gen_fold_exe} fold.c
   COMMENT "Generating fold lookup table"
   VERBATIM)
 add_custom_target(fold_gen DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/fold_gen.h)

@@ -809,6 +809,7 @@ static vm_call_info vm_call_infos[] = {
     {(intptr_t)&numeric_inexact_value, false, false},
     {(intptr_t)&numeric_exact_value, false, false},
     {(intptr_t)&numeric_truncate_value, false, false},
+    {(intptr_t)&vm_copy_list, false, false},
 };
 
 static vm_call_info vm_call_get(ir_ins_op op) {
@@ -916,7 +917,7 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
     abort();
   }
   bool unary = (op->op == IR_VMINEXACT || op->op == IR_VMEXACT ||
-                op->op == IR_VMTRUNCATE);
+                op->op == IR_VMTRUNCATE || op->op == IR_VMCOPY_LIST);
   slot a1 = op->op2;
   uint8_t a1_src = REG_NONE;
   if (!unary) {
