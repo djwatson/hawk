@@ -76,7 +76,4 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 
 * bigint could have faster fastpath for div, number->string, etc
 
-* we need to save stack space by choosing order of evaluation for
-  function call arguments! constants don't need to be saved on the
-  stack and can be materialized later.
 
