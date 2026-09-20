@@ -53,13 +53,11 @@ static INLINE inline bool guard_obj_matches(gc_obj val, gc_obj want_tag_obj) {
 
 static INLINE inline bool guardmask_obj_matches(gc_obj val, uint64_t mask,
                                                 uint64_t expected) {
-  if (!is_fixnum(val) && !is_literal(val)) {
-    auto hdr = *(uint32_t *)(val.value & ~(int64_t)TAG_MASK);
+  if (is_ptr(val)) {
+    auto hdr = *(uint32_t *)(val.value - PTR_TAG);
     return ((hdr & mask) == expected);
   }
-  if (is_fixnum(val))
-    return ((FIXNUM_TAG & mask) == expected);
-  return (((uint64_t)val.value & IMMEDIATE_MASK & mask) == expected);
+  return (get_type_tag(val) & mask) == expected;
 }
 
 #define VM_MATH_ADD(a, b) ((a) + (b))

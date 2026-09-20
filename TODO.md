@@ -66,7 +66,6 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
 
 # VM backlog
 
-* Fix (number?) Type rep to be tower of numbers like ports will be
 * Adding special math case-lambda type can remove need to inline bc at all
 * use destination-driven as in previous??
 * track stack-top

@@ -1992,6 +1992,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
   }
   case OP_GUARDMASK: {
     stack_load(state, stack, instr.v1, true);
+    if (!stack_load(state, stack, instr.v2, true).constant) {
+      record_abort(state, &op_table, "GUARDMASK needs constant mask");
+      break;
+    }
     auto packed_obj = stack[instr.v2];
     assert(is_fixnum(packed_obj));
     uint64_t packed = (uint64_t)to_fixnum(packed_obj);

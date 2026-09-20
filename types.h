@@ -92,16 +92,19 @@ typedef struct bcfunc {
   X(UNUSED1, 0x1)                                                              \
   X(STRING, 0x9)                                                               \
   X(FUNC, 0x11)                                                                \
-  X(RATNUM, 0x19)                                                              \
-  X(BOX, 0x21)                                                                 \
+  X(BOX, 0x19)                                                                 \
+  X(RATNUM, 0x21)                                                              \
   X(CONT, 0x29)                                                                \
   X(RECORD, 0x31)                                                              \
-  X(BIGNUM, 0x39)                                                              \
+  X(FLVECTOR, 0x39)                                                            \
   X(COMPNUM, 0x41)                                                             \
   X(BYTEVECTOR, 0x49)                                                          \
   X(PORT, 0x51)                                                                \
-  X(FLVECTOR, 0x61)                                                           \
+  X(BIGNUM, 0x61)                                                              \
   X(BOXED_VECTOR, 0x69)
+
+// Heap numbers: (tag & 0x9f) == 0x01; heap reals: (tag & 0xbf) == 0x21.
+// 0x01 stays unused so only bignums, ratnums, and compnums match.
 
 // Immediates.  Bottom three bits must be LITERAL_TAG.
 // Uses bottom byte, and other 7 bytes used for storing literal.
