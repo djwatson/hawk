@@ -311,7 +311,8 @@ static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
                            int32_t cur_snap, uint8_t reg);
 static void emit_box_flonum(emit_state *s, int32_t stack_offset,
                             uint8_t fpr_reg, bool store_to_stack,
-                            bool live_regs[MAX_REG], uint64_t live_gpr_mask);
+                            bool live_regs[MAX_REG], uint64_t live_gpr_mask,
+                            trace *t, regalloc_state *ra_state, int32_t snap_idx);
 static void emit_unbox_flonum(emit_state *s, uint8_t gpr_reg, uint8_t fpr_reg);
 static const uint8_t PAR_MOVE_MARKER = UINT8_MAX;
 
@@ -407,8 +408,43 @@ static void collect_live_roots(trace *t, regalloc_state *ra_state,
   }
 }
 
+// Refresh the scanned stack copies without boxing or leaving the trace.
+static void emit_gc_sync(emit_state *s, trace *t, regalloc_state *ra_state,
+                          int32_t snap_idx) {
+  assert(snap_idx >= 0);
+  auto sn = &t->snaps[snap_idx];
+  auto entries = snap_entries_const(t, sn);
+  for (size_t i = 0; i < snap_nent(sn); i++) {
+    auto entry = &entries[i];
+    // The allocation slowpath scans this window from RSTACK.
+    if (entry->slot >= STACK_GUARD_SLOTS)
+      continue;
+    int32_t offset = entry->slot * sizeof(gc_obj);
+    if (entry->val.constant) {
+      emit_heap_constant(s, t, RTMP, slot_gc_obj(t, entry->val));
+      emit_store(s, offset, RSTACK, RTMP);
+      continue;
+    }
+    auto ins = &t->ins[entry->val.loc];
+    if (ins->type == FLONUM_TAG) {
+      // The unboxed value stays in its FPR/spill until normal deoptimization.
+      emit_store_constant(s, offset, RSTACK, 0);
+      continue;
+    }
+    auto reg = regalloc_find_current_reg_for_value(ra_state, entry->val.loc);
+    if (reg == REG_NONE) {
+      assert(ins->spill != SPILL_NONE);
+      emit_mov64(s, RTMP, spill_base(ins->type));
+      emit_mem_load(s, spill_offset(ins->spill), RTMP, RTMP);
+      reg = RTMP;
+    }
+    emit_store(s, offset, RSTACK, reg);
+  }
+}
+
 static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
-                              int64_t tagged_size, uint8_t size_reg) {
+                              int64_t tagged_size, uint8_t size_reg,
+                              trace *t, regalloc_state *ra_state, int32_t snap_idx) {
   label alloc_done = {};
   label after_alloc = {};
   if (size_reg == REG_NONE) {
@@ -422,6 +458,8 @@ static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
   emit_cmp_mem(s, RALLOC, 0, RTMP2);
   emit_jcc32(s, JAE, &alloc_done);
 
+  if (t)
+    emit_gc_sync(s, t, ra_state, snap_idx);
   if (size_reg == REG_NONE) {
     emit_mov64(s, RTMP, tagged_size);
   } else {
@@ -672,7 +710,8 @@ static void emit_serialized_moves(emit_state *s, par_copy *cpy,
         mark_live_reg(live_regs, &live_gpr_mask, to);
       }
     } else if (live_regs && !dst_fpr && src_fpr) {
-      emit_box_flonum(s, 0, from, false, live_regs, live_gpr_mask);
+      emit_box_flonum(s, 0, from, false, live_regs, live_gpr_mask,
+                      nullptr, nullptr, -1);
       emit_mov(s, to, RTMP);
       mark_live_reg(live_regs, &live_gpr_mask, to);
     } else if (live_regs && dst_fpr && !src_fpr) {
@@ -1161,12 +1200,13 @@ static void emit_flonum_mod(emit_state *s, trace *t, regalloc_state *ra_state,
 
 static void emit_box_flonum(emit_state *s, int32_t stack_offset,
                             uint8_t fpr_reg, bool store_to_stack,
-                            bool live_regs[MAX_REG], uint64_t live_gpr_mask) {
+                            bool live_regs[MAX_REG], uint64_t live_gpr_mask,
+                            trace *t, regalloc_state *ra_state, int32_t snap_idx) {
   assert(is_fpr_reg(fpr_reg));
 
   live_regs[fpr_reg] = true;
   emit_rooted_alloc(s, live_gpr_mask, TAG_FIXNUM_VALUE(sizeof(flonum_s)),
-                    REG_NONE);
+                    REG_NONE, t, ra_state, snap_idx);
 
   emit_store_u8_constant(s, offsetof(gc_header, type), RTMP, FLONUM_TAG);
   emit_fstore(s, flonum_payload_offset, RTMP, fpr_reg);
@@ -1401,7 +1441,8 @@ static void emit_snap_store_entry(emit_state *s, trace *t, uint16_t snap_idx,
   if (ins->type == FLONUM_TAG) {
     COMMENT("Snap store flonum reg %s to slot %i", reg_names[val_reg],
             stack_offset / 8);
-    emit_box_flonum(s, stack_offset, val_reg, true, live_regs, live_gpr_mask);
+    emit_box_flonum(s, stack_offset, val_reg, true, live_regs, live_gpr_mask,
+                    nullptr, nullptr, -1);
   } else {
     emit_store(s, stack_offset, RSTACK, val_reg);
   }
@@ -2224,7 +2265,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
         size_reg = arg0_reg;
       }
 
-      emit_rooted_alloc(s, live_gpr_mask, tagged_size, size_reg);
+      emit_rooted_alloc(s, live_gpr_mask, tagged_size, size_reg, t, ra_state, cur_snap);
       if (type_val != CONS_TAG)
         emit_store_u8_constant(s, offsetof(gc_header, type), RTMP,
                                (uint8_t)type_val);
@@ -2254,7 +2295,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       uint64_t live_gpr_mask;
       collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs,
                           &live_gpr_mask);
-      emit_box_flonum(s, 0, arg0_reg, false, live_regs, live_gpr_mask);
+      emit_box_flonum(s, 0, arg0_reg, false, live_regs, live_gpr_mask,
+                      t, ra_state, cur_snap);
       if (dst_reg != RTMP) {
         emit_mov(s, dst_reg, RTMP);
       }
