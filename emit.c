@@ -565,11 +565,11 @@ static void collect_callcc_extra_args(trace *t, slot chain, slot args[2]) {
 }
 
 static void invalidate_live_regs_for_call(trace *t, regalloc_state *ra_state,
-                                          uint8_t dst_reg) {
+                                          uint8_t dst_reg, bool preserved) {
   size_t ins_len = arrlen(t->ins);
   for (size_t i = 0; i < MAX_REG; i++) {
     uint8_t reg = (uint8_t)i;
-    if (reg == dst_reg) {
+    if (reg == dst_reg || (preserved && asm_is_callee_saved(reg))) {
       continue;
     }
     uint16_t value_id = ra_state->regs[reg];
@@ -738,12 +738,14 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
                        ir_ins const *op, slot *args,
                        uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg,
                        int32_t cur_snap) {
+  bool preserved = ir_call_preserves_regs(t, op);
   foreign_sig sig;
   foreign_parse_sig(slot_gc_obj(t, op->op1), &sig);
   ccall_arg call_args[UINT8_MAX];
   uint8_t call_arg_count = emit_collect_ccall_args(t, op->op2, &sig, call_args);
   emit_push_regs(s, nullptr, 0, true);
-  emit_update_stack_top(s, t->snaps[cur_snap].offset);
+  if (!preserved)
+    emit_update_stack_top(s, t->snaps[cur_snap].offset);
 
   bool strings = false;
   for (uint8_t i = 0; i < sig.argcnt; i++)
@@ -796,7 +798,8 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
     }
   }
 
-  emit_store_ralloc(s);
+  if (!preserved)
+    emit_store_ralloc(s);
   emit_mov64(s, RTMP, (intptr_t)sig.sym);
   emit_call_reg(s, RTMP);
   if (strings) {
@@ -817,8 +820,9 @@ static void emit_ccall(emit_state *s, trace *t, regalloc_state *ra_state,
   } else {
     emit_ccall_result(s, dst_reg, sig.ret_type);
   }
-  emit_load_ralloc(s);
-  invalidate_live_regs_for_call(t, ra_state, dst_reg);
+  if (!preserved)
+    emit_load_ralloc(s);
+  invalidate_live_regs_for_call(t, ra_state, dst_reg, preserved);
   emit_pop_regs(s, nullptr, 0, true);
 }
 
@@ -920,7 +924,7 @@ static void emit_callcc(emit_state *s, trace *t, regalloc_state *ra_state,
   if (dst_reg != RET_REG && dst_reg != REG_NONE) {
     emit_mov(s, dst_reg, RET_REG);
   }
-  invalidate_live_regs_for_call(t, ra_state, dst_reg);
+  invalidate_live_regs_for_call(t, ra_state, dst_reg, false);
 }
 
 static void emit_callcc_resume(emit_state *s, trace *t,
@@ -943,13 +947,14 @@ static void emit_callcc_resume(emit_state *s, trace *t,
   emit_mov(s, RSTACK, RET_REG);
   emit_load_jit_state(s, RARG0);
   emit_update_jit_stack_limit(s, RARG0, RTMP, RTMP2);
-  invalidate_live_regs_for_call(t, ra_state, REG_NONE);
+  invalidate_live_regs_for_call(t, ra_state, REG_NONE, false);
 }
 
 static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
                         uint16_t op_cnt_idx, ir_ins const *op, slot *args,
                         uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg,
                         int32_t cur_snap) {
+  bool preserved = ir_call_preserves_regs(t, op);
   slot a0 = op->op1;
   uint8_t a0_src = emit_arg_reg(args, arg_regs, arg_count, a0);
   if (!a0.constant && a0_src == REG_NONE) {
@@ -983,11 +988,14 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
     emit_gcobj_arg(s, t, a1, RARG1, RARG1);
   }
 
-  emit_update_stack_top(s, t->snaps[cur_snap].offset);
-  emit_store_ralloc(s);
+  if (!preserved) {
+    emit_update_stack_top(s, t->snaps[cur_snap].offset);
+    emit_store_ralloc(s);
+  }
   emit_mov64(s, RTMP, vm_call_target(op->op));
   emit_call_reg(s, RTMP);
-  emit_load_ralloc(s);
+  if (!preserved)
+    emit_load_ralloc(s);
 
   if (vm_call_is_cmp(op->op)) {
     assert(cur_snap >= 0);
@@ -1009,7 +1017,7 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
       }
     }
   }
-  invalidate_live_regs_for_call(t, ra_state, dst_reg);
+  invalidate_live_regs_for_call(t, ra_state, dst_reg, preserved);
 }
 
 static void emit_cmp_regs(emit_state *s, trace *t, uint8_t lhs_reg, slot rhs,
@@ -1195,7 +1203,7 @@ static void emit_flonum_mod(emit_state *s, trace *t, regalloc_state *ra_state,
   emit_mov64(s, RTMP, (intptr_t)&fmod);
   emit_call_reg(s, RTMP);
   emit_fmov(s, dst, asm_foreign_call_ret_fpr());
-  invalidate_live_regs_for_call(t, ra_state, dst);
+  invalidate_live_regs_for_call(t, ra_state, dst, true);
 }
 
 static void emit_box_flonum(emit_state *s, int32_t stack_offset,

@@ -125,3 +125,6 @@ static inline uint8_t numeric_obj_result_type(gc_obj lhs, gc_obj rhs) {
 
 bool numeric_equal(gc_obj lhs, gc_obj rhs);
 bool obj_jeqv(gc_obj lhs, gc_obj rhs);
+
+gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,
+                    int fromend);

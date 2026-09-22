@@ -44,6 +44,17 @@ static bool live_add(uint16_t *live, uint16_t *count, uint16_t value) {
   return true;
 }
 
+static void ensure_spill(regalloc_state *s, uint16_t value) {
+  auto ins = &s->t->ins[value];
+  if (ins->spill != SPILL_NONE)
+    return;
+  if (s->next_spill >= SPILL_NONE) {
+    s->spill_overflow = true;
+    return;
+  }
+  ins->spill = s->next_spill++;
+}
+
 static void limit_live_values(regalloc_state *s, uint16_t *live,
                               uint16_t *count, uint16_t max,
                               uint32_t const *use_pos) {
@@ -56,14 +67,7 @@ static void limit_live_values(regalloc_state *s, uint16_t *live,
     }
     uint16_t spill_value = live[farthest_i];
     live[farthest_i] = live[--(*count)];
-    auto ins = &s->t->ins[spill_value];
-    if (ins->spill == SPILL_NONE) {
-      if (s->next_spill >= SPILL_NONE) {
-        s->spill_overflow = true;
-        return;
-      }
-      ins->spill = s->next_spill++;
-    }
+    ensure_spill(s, spill_value);
   }
 }
 
@@ -185,7 +189,7 @@ static void collect_lifetimes(regalloc_state *s) {
   uint16_t fpr_live[ins_len];
   uint16_t gpr_live_count = 0;
   uint16_t fpr_live_count = 0;
-  uint32_t *use_pos = malloc(sizeof(uint32_t) * ins_len);
+  uint32_t *use_pos = malloc(sizeof(uint32_t) * (ins_len + 1));
   if (!use_pos) {
     abort();
   }
@@ -234,7 +238,13 @@ static void collect_lifetimes(regalloc_state *s) {
     if (!was_live && s->last_use[value_id]) {
       end_lifetime(s, value_id, value_id, REGALLOC_OUTPUT);
     }
-    if (ins_clobbers_regs(ins)) {
+    if (ir_call_preserves_regs(s->t, ins)) {
+      // Caller-saved values still need backing, but keep their lifetimes intact.
+      for (uint16_t j = 0; j < gpr_live_count; j++)
+        ensure_spill(s, gpr_live[j]);
+      for (uint16_t j = 0; j < fpr_live_count; j++)
+        ensure_spill(s, fpr_live[j]);
+    } else if (ins_clobbers_regs(ins)) {
       limit_live_values(s, gpr_live, &gpr_live_count, 0, use_pos);
       limit_live_values(s, fpr_live, &fpr_live_count, 0, use_pos);
     }
@@ -266,6 +276,20 @@ static void collect_lifetimes(regalloc_state *s) {
     limit_live_values(s, gpr_live, &gpr_live_count, gpr_limit, use_pos);
     limit_live_values(s, fpr_live, &fpr_live_count, fpr_limit, use_pos);
   }
+  s->last_preserved_call = calloc(ins_len, sizeof(*s->last_preserved_call));
+  if (!s->last_preserved_call)
+    abort();
+  uint32_t last_call = 0;
+  for (size_t i = 0; i < ins_len; i++) {
+    use_pos[i] = last_call;
+    if (ir_call_preserves_regs(s->t, &s->t->ins[i]))
+      last_call = 3u * i + REGALLOC_OUTPUT;
+  }
+  use_pos[ins_len] = last_call;
+  for (size_t i = 0; i < ins_len; i++) {
+    uint32_t call = use_pos[s->last_use[i] / 3];
+    s->last_preserved_call[i] = call > 3u * i + REGALLOC_OUTPUT ? call : 0;
+  }
   free(use_pos);
   if (arrlen(s->ends)) {
     qsort(s->ends, arrlen(s->ends), sizeof(*s->ends), compare_lifetime_ends);
@@ -285,12 +309,13 @@ uint8_t regalloc_find_current_reg_for_value(regalloc_state *s,
   return REG_NONE;
 }
 
-uint8_t regalloc_find_free_reg(regalloc_state *s, bool flonum,
-                               ir_ins const *cur_ins) {
+static uint8_t find_free_reg(regalloc_state *s, bool flonum,
+                             ir_ins const *cur_ins, bool preserved) {
   slot args[UINT8_MAX];
   uint8_t arg_count = cur_ins ? regalloc_collect_ir_args(s->t, cur_ins, args) : 0;
   uint16_t start = flonum ? FPR_REG_START : 0;
   uint16_t end = flonum ? FPR_REG_END : FPR_REG_START;
+  uint16_t free_reg = UINT16_MAX;
   uint16_t spill_reg = UINT16_MAX;
   uint32_t farthest_last_use = 0;
   for (uint16_t i = start; i < end; i++) {
@@ -298,7 +323,12 @@ uint8_t regalloc_find_free_reg(regalloc_state *s, bool flonum,
       continue;
     }
     if (s->regs[i] == ALLOC_NONE) {
-      return (uint8_t)i;
+      // Keep the entry register layout; prefer preserved registers locally.
+      if (!cur_ins || cur_ins->op == IR_ARG || asm_is_callee_saved(i) == preserved)
+        return (uint8_t)i;
+      if (free_reg == UINT16_MAX)
+        free_reg = i;
+      continue;
     }
 
     uint16_t value_id = s->regs[i];
@@ -317,12 +347,19 @@ uint8_t regalloc_find_free_reg(regalloc_state *s, bool flonum,
       spill_reg = (uint8_t)i;
     }
   }
+  if (free_reg != UINT16_MAX)
+    return (uint8_t)free_reg;
   if (spill_reg == UINT16_MAX) {
     abort();
   }
 
   s->regs[spill_reg] = ALLOC_NONE;
   return (uint8_t)spill_reg;
+}
+
+uint8_t regalloc_find_free_reg(regalloc_state *s, bool flonum,
+                               ir_ins const *cur_ins) {
+  return find_free_reg(s, flonum, cur_ins, false);
 }
 
 void regalloc_free_regs(regalloc_state *s, uint16_t cur_idx,
@@ -340,12 +377,12 @@ void regalloc_free_regs(regalloc_state *s, uint16_t cur_idx,
 
 uint8_t regalloc_ensure_arg_reg(regalloc_state *s, uint16_t cur_idx,
                                 ir_ins const *ins, uint16_t value_id) {
-  (void)cur_idx;
   auto in = &s->t->ins[value_id];
   uint8_t reg = regalloc_find_current_reg_for_value(s, value_id);
   if (reg == REG_NONE) {
     assert(in->spill != SPILL_NONE);
-    reg = regalloc_find_free_reg(s, in->type == FLONUM_TAG, ins);
+    reg = find_free_reg(s, in->type == FLONUM_TAG, ins,
+                        s->last_preserved_call[value_id] > 3u * cur_idx);
     s->regs[reg] = value_id;
 
     LOG(regalloc, "ASSIGN arg reg=%u value=%u from_spill=%u ir_idx=%u", reg, value_id,
@@ -365,7 +402,8 @@ void regalloc_assign_output(regalloc_state *s, uint16_t ir_idx, ir_ins *ins) {
     return;
   }
   if (ins->reg == REG_NONE) {
-    ins->reg = regalloc_find_free_reg(s, ins->type == FLONUM_TAG, ins);
+    ins->reg = find_free_reg(s, ins->type == FLONUM_TAG, ins,
+                             s->last_preserved_call[ir_idx] != 0);
   }
   s->regs[ins->reg] = ir_idx;
 }
@@ -394,5 +432,6 @@ bool regalloc_state_init(regalloc_state *s, trace *t) {
 void regalloc_state_free(regalloc_state *s) {
   arrfree(s->ends);
   free(s->last_use);
+  free(s->last_preserved_call);
   memset(s, 0, sizeof(*s));
 }

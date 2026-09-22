@@ -1,5 +1,7 @@
 #include "ir.h"
 #include "asm.h"
+#include "foreign.h"
+#include "runtime.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -192,3 +194,20 @@ void print_ir(trace *t) {
 }
 
 bool ir_sideeff(ir_ins_op op) { return ir_has_side_effects[op]; }
+
+bool ir_call_preserves_regs(trace const *t, ir_ins const *ins) {
+  if (ins->op == IR_VMMEMQ ||
+      (ins->op == IR_MOD && ins->type == FLONUM_TAG))
+    return true;
+  if (ins->op != IR_CCALL || !ins->op1.constant)
+    return false;
+  foreign_sig sig;
+  foreign_parse_sig(t->consts[ins->op1.loc], &sig);
+  return sig.sym == (void *)&SCM_STR_COPY &&
+         sig.ret_type == FOREIGN_TYPE_GC_OBJ && sig.argcnt == 5 &&
+         sig.arg_types[0] == FOREIGN_TYPE_GC_OBJ &&
+         sig.arg_types[1] == FOREIGN_TYPE_INT32 &&
+         sig.arg_types[2] == FOREIGN_TYPE_GC_OBJ &&
+         sig.arg_types[3] == FOREIGN_TYPE_INT32 &&
+         sig.arg_types[4] == FOREIGN_TYPE_INT32;
+}
