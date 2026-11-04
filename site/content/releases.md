@@ -5,9 +5,31 @@ permalink: /releases/
 
 # Releases
 
+## v0.12
+
+Hawk v0.12 is the latest release. It includes:
+
+- Unicode strings, characters, case conversion, and UTF-8 input/output
+- JIT recording for `apply`
+- improved operand scheduling and register allocation
+- faster inexact complex-number allocation
+- numeric, reader, runtime, and garbage-collection fixes
+
+[Download the v0.12 source tarball](https://github.com/djwatson/hawk/releases/download/v0.12/hawk-v0.12.tar.gz),
+[Debian amd64 package](https://github.com/djwatson/hawk/releases/download/v0.12/hawk_0.12_amd64.deb),
+or [Arch Linux PKGBUILD](https://github.com/djwatson/hawk/releases/download/v0.12/PKGBUILD).
+
+```sh
+tar xf hawk-v0.12.tar.gz
+cd hawk-v0.12
+cmake -S . -B build
+cmake --build build
+./build/hawk --version
+```
+
 ## v0.11
 
-Hawk v0.11 is the latest release. It includes an improved garbage collector.
+Hawk v0.11 It includes an improved garbage collector.
 
 [Download the v0.11 source tarball](https://github.com/djwatson/hawk/releases/download/v0.11/hawk-v0.11.tar.gz).
 
@@ -21,7 +43,7 @@ cmake --build build
 
 ## v0.10
 
-Hawk v0.10 is the latest release. It includes:
+Hawk v0.10 It includes:
 
 - faster stack limit checks and VM stack scanning
 - operand and constant fusion for more efficient generated code

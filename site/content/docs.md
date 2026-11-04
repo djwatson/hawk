@@ -12,8 +12,8 @@ emitters for x86-64 and aarch64.
 Hawk is free software released under the MIT license. See the [MIT
 License](https://opensource.org/license/mit) for details.
 
-The latest release is [v0.11](https://github.com/djwatson/hawk/releases/tag/v0.11).
-Download the [v0.11 source tarball](https://github.com/djwatson/hawk/releases/download/v0.11/hawk-v0.11.tar.gz).
+The latest release is [v0.12](https://github.com/djwatson/hawk/releases/tag/v0.12).
+Download the [v0.12 source tarball](https://github.com/djwatson/hawk/releases/download/v0.12/hawk-v0.12.tar.gz).
 
 ## Requirements
 
