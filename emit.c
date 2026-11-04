@@ -1671,74 +1671,84 @@ static void emit_load_char_or_byte(emit_state *s, trace *t, ir_ins const *op,
     base_reg = RTMP;
     emit_heap_constant(s, t, base_reg, slot_gc_obj(t, op->op1));
   }
-  int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
-  if (op->op2.constant) {
-    int64_t idx =
-        (slot_const(t, op->op2) >> FIXNUM_SHIFT) * (character ? 4 : 1);
-    assert((int32_t)idx == idx);
-    (character ? emit_mem_load_u32 : emit_mem_load_u8)(
-        s, (int32_t)idx + base_offset, base_reg, dst_reg);
-  } else {
-    uint8_t offset_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
-    emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT - (character ? 2 : 0));
-    (character ? emit_mem_load_u32_indexed : emit_mem_load_u8_indexed)(
-        s, base_offset, base_reg, RTMP2, dst_reg);
-  }
-  emit_shl_constant(s, dst_reg, dst_reg, character ? 8 : FIXNUM_SHIFT);
   if (character) {
+    label narrow = {}, done = {};
+    emit_mem_load(s, offsetof(string_s, start) - PTR_TAG, base_reg, RTMP2);
+    if (op->op2.constant) {
+      emit_add_constant(s, RTMP2, RTMP2,
+                        slot_const(t, op->op2) >> FIXNUM_SHIFT);
+    } else {
+      uint8_t index = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+      emit_sar_constant(s, RTMP, index, FIXNUM_SHIFT);
+      emit_add(s, RTMP2, RTMP2, RTMP);
+    }
+    // Constants use RTMP as base, so reload after computing the index.
+    if (op->op1.constant)
+      emit_heap_constant(s, t, base_reg, slot_gc_obj(t, op->op1));
+    emit_mem_load(s, offsetof(string_s, buffer) - PTR_TAG, base_reg, RTMP);
+    emit_mem_load_u8(s, -PTR_TAG, RTMP, dst_reg);
+    emit_cmp_constant(s, dst_reg, STRINGBUF_TAG);
+    emit_jcc32(s, JE, &narrow);
+    emit_shl_constant(s, RTMP2, RTMP2, 2);
+    emit_mem_load_u32_indexed(s, offsetof(stringbuf_s, data) - PTR_TAG,
+                              RTMP, RTMP2, dst_reg);
+    emit_jmp32(s, &done);
+    emit_label(s, &narrow);
+    emit_mem_load_u8_indexed(s, offsetof(stringbuf_s, data) - PTR_TAG,
+                             RTMP, RTMP2, dst_reg);
+    emit_label(s, &done);
+    emit_shl_constant(s, dst_reg, dst_reg, 8);
     emit_add_constant(s, dst_reg, dst_reg, CHAR_TAG);
+    return;
   }
+  int32_t offset = offsetof(bytevector_s, str) - PTR_TAG;
+  if (op->op2.constant) {
+    int64_t idx = slot_const(t, op->op2) >> FIXNUM_SHIFT;
+    assert((int32_t)idx == idx);
+    emit_mem_load_u8(s, (int32_t)idx + offset, base_reg, dst_reg);
+  } else {
+    uint8_t index = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+    emit_sar_constant(s, RTMP2, index, FIXNUM_SHIFT);
+    emit_mem_load_u8_indexed(s, offset, base_reg, RTMP2, dst_reg);
+  }
+  emit_shl_constant(s, dst_reg, dst_reg, FIXNUM_SHIFT);
 }
 
-static void emit_store_char_or_byte(emit_state *s, trace *t, ir_ins const *op,
-                                    slot *args, uint8_t *arg_regs,
-                                    uint8_t arg_count) {
-  bool character = op->op == IR_STORE_CHAR;
+static void emit_store_byte(emit_state *s, trace *t, ir_ins const *op,
+                            slot *args, uint8_t *arg_regs, uint8_t arg_count) {
   ir_ins *ref = slot_ins(t, op->op1);
-  auto base_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
+  auto base = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
   if (ref->op1.constant) {
-    base_reg = RTMP2;
-    emit_heap_constant(s, t, base_reg, slot_gc_obj(t, ref->op1));
+    base = RTMP2;
+    emit_heap_constant(s, t, base, slot_gc_obj(t, ref->op1));
   }
-  int32_t base_offset = (int32_t)offsetof(string_s, str) - PTR_TAG;
-  int32_t store_offset = base_offset;
+  int32_t offset = offsetof(bytevector_s, str) - PTR_TAG;
   if (ref->op2.constant) {
-    int64_t idx =
-        (slot_const(t, ref->op2) >> FIXNUM_SHIFT) * (character ? 4 : 1);
+    int64_t idx = slot_const(t, ref->op2) >> FIXNUM_SHIFT;
     assert((int32_t)idx == idx);
-    store_offset += (int32_t)idx;
+    offset += (int32_t)idx;
   } else {
-    auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
+    auto index = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
     assert(!ref->op1.constant);
-    emit_sar_constant(s, RTMP2, offset_reg, FIXNUM_SHIFT - (character ? 2 : 0));
+    emit_sar_constant(s, RTMP2, index, FIXNUM_SHIFT);
   }
 
-  bool value_constant = op->op2.constant;
-  uint32_t byte = 0;
-  if (value_constant) {
-    gc_obj value = slot_gc_obj(t, op->op2);
-    byte = (uint32_t)(character ? to_char(value) : to_fixnum(value));
+  uint8_t byte = 0;
+  if (op->op2.constant) {
+    byte = to_fixnum(slot_gc_obj(t, op->op2));
   } else {
-    uint8_t val_reg = emit_arg_reg(args, arg_regs, arg_count, op->op2);
-    emit_sar_constant(s, RTMP, val_reg, character ? 8 : FIXNUM_SHIFT);
+    uint8_t value = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+    emit_sar_constant(s, RTMP, value, FIXNUM_SHIFT);
   }
   if (ref->op2.constant) {
-    if (value_constant) {
-      if (character)
-        emit_store_u32_constant(s, store_offset, base_reg, byte);
-      else
-        emit_store_u8_constant(s, store_offset, base_reg, byte);
-    } else
-      (character ? emit_store_u32 : emit_store_u8)(s, store_offset, base_reg,
-                                                   RTMP);
-  } else if (value_constant) {
-    if (character)
-      emit_store_u32_constant_indexed(s, store_offset, base_reg, RTMP2, byte);
+    if (op->op2.constant)
+      emit_store_u8_constant(s, offset, base, byte);
     else
-      emit_store_u8_constant_indexed(s, store_offset, base_reg, RTMP2, byte);
+      emit_store_u8(s, offset, base, RTMP);
+  } else if (op->op2.constant) {
+    emit_store_u8_constant_indexed(s, offset, base, RTMP2, byte);
   } else {
-    (character ? emit_store_u32_indexed
-               : emit_store_u8_indexed)(s, store_offset, base_reg, RTMP2, RTMP);
+    emit_store_u8_indexed(s, offset, base, RTMP2, RTMP);
   }
 }
 
@@ -1976,8 +1986,9 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       break;
     }
     case IR_STORE_CHAR:
+      abort(); // String stores use the allocating C helper.
     case IR_STORE_BYTE:
-      emit_store_char_or_byte(s, t, op, args, arg_regs, arg_count);
+      emit_store_byte(s, t, op, args, arg_regs, arg_count);
       break;
     case IR_FLVECTOR_SET: {
       ir_ins *ref = slot_ins(t, op->op1);

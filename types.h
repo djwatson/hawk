@@ -101,6 +101,8 @@ typedef struct bcfunc {
   X(BYTEVECTOR, 0x49)                                                          \
   X(PORT, 0x51)                                                                \
   X(BIGNUM, 0x61)                                                              \
+  X(STRINGBUF, 0x81)                                                           \
+  X(WIDE_STRINGBUF, 0x89)                                                      \
   X(BOXED_VECTOR, 0x69)
 
 // Heap numbers: (tag & 0x9f) == 0x01; heap reals: (tag & 0xbf) == 0x21.
@@ -182,8 +184,16 @@ typedef struct compnum_s {
 typedef struct string_s {
   gc_header header;
   gc_obj len;
-  uint32_t str[];
+  gc_obj buffer;
+  size_t start;
 } string_s;
+
+typedef struct stringbuf_s {
+  gc_header header;
+  gc_obj len;
+  uint64_t shared;
+  uint8_t data[];
+} stringbuf_s;
 
 typedef struct bytevector_s {
   gc_header header;
@@ -379,6 +389,20 @@ static inline size_t heap_align(size_t size) {
   return (size + sizeof(gc_obj) - 1) & ~(sizeof(gc_obj) - 1);
 }
 
+static inline stringbuf_s *string_buffer(const string_s *s) {
+  return (stringbuf_s *)(s->buffer.value - PTR_TAG);
+}
+
+static inline bool string_wide(const string_s *s) {
+  return string_buffer(s)->header.type == WIDE_STRINGBUF_TAG;
+}
+
+static inline uint32_t string_ref(const string_s *s, size_t i) {
+  auto b = string_buffer(s);
+  return string_wide(s) ? ((uint32_t *)b->data)[s->start + i]
+                        : b->data[s->start + i];
+}
+
 bcfunc const *closure_code_ptr(closure_s const *clo);
 string_s *get_sym_name(symbol *s);
 int utf8_encode(uint32_t c, char out[4]);
@@ -412,11 +436,17 @@ INLINE static inline size_t heap_object_size(void *obj) {
   case COMPNUM_TAG:
     return sizeof(compnum_s);
   case STRING_TAG:
+    return sizeof(string_s);
+  case STRINGBUF_TAG:
+  case WIDE_STRINGBUF_TAG: {
+    auto buf = (stringbuf_s *)obj;
+    return heap_align(sizeof(stringbuf_s) +
+                      ((size_t)to_fixnum(buf->len) + 1) *
+                          (type == WIDE_STRINGBUF_TAG ? 4 : 1));
+  }
   case BYTEVECTOR_TAG: {
-    auto str = (string_s *)obj;
-    return heap_align(sizeof(string_s) +
-                      ((size_t)to_fixnum(str->len) + 1) *
-                          (type == STRING_TAG ? sizeof(uint32_t) : 1));
+    auto bv = (bytevector_s *)obj;
+    return heap_align(sizeof(bytevector_s) + (size_t)to_fixnum(bv->len) + 1);
   }
   case FLVECTOR_TAG: {
     auto vec = (flvector_s *)obj;
@@ -492,9 +522,16 @@ trace_heap_object_reserved(gc_header *obj, uint8_t type,
     trace_gc_obj_array_reserved(&p->fd, 8, reserve, visit, ctx);
     return;
   }
+  case STRING_TAG: {
+    auto str = (string_s *)obj;
+    reserve(ctx, 1);
+    visit(&str->buffer, ctx);
+    return;
+  }
   case FLONUM_TAG:
   case BIGNUM_TAG:
-  case STRING_TAG:
+  case STRINGBUF_TAG:
+  case WIDE_STRINGBUF_TAG:
   case BYTEVECTOR_TAG:
   case FLVECTOR_TAG:
     return;

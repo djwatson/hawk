@@ -86,11 +86,10 @@ static size_t object_size(gc_header *header) {
     return sizeof(ratnum_s);
   case COMPNUM_TAG:
     return sizeof(compnum_s);
-  case STRING_TAG: {
-    auto str = (string_s *)header;
-    return heap_align(sizeof(string_s) +
-                      ((size_t)to_fixnum(str->len) + 1) * sizeof(uint32_t));
-  }
+  case STRING_TAG:
+  case STRINGBUF_TAG:
+  case WIDE_STRINGBUF_TAG:
+    return heap_object_size(header);
   case SYMBOL_TAG:
     return sizeof(symbol);
   case BOX_TAG:
@@ -250,6 +249,8 @@ static bool supported_header(gc_header *header) {
   case BIGNUM_TAG:
   case RATNUM_TAG:
   case COMPNUM_TAG:
+  case STRINGBUF_TAG:
+  case WIDE_STRINGBUF_TAG:
   case STRING_TAG:
   case SYMBOL_TAG:
   case BOX_TAG:
@@ -556,6 +557,10 @@ static char const *object_type_name(gc_header *header) {
     return "compnum";
   case STRING_TAG:
     return "string";
+  case STRINGBUF_TAG:
+    return "stringbuf";
+  case WIDE_STRINGBUF_TAG:
+    return "wide-stringbuf";
   case SYMBOL_TAG:
     return "symbol";
   case BOX_TAG:

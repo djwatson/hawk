@@ -22,8 +22,8 @@ static inline gc_obj SCM_STRING_CMP(gc_obj a, gc_obj b) {
     return tag_fixnum(len_a < len_b ? -1 : 1);
   }
   for (int64_t i = 0; i < len_a; i++)
-    if (sa->str[i] != sb->str[i])
-      return tag_fixnum(sa->str[i] < sb->str[i] ? -1 : 1);
+    if (string_ref(sa, i) != string_ref(sb, i))
+      return tag_fixnum(string_ref(sa, i) < string_ref(sb, i) ? -1 : 1);
   return tag_fixnum(0);
 }
 

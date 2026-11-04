@@ -15,6 +15,8 @@
 ;; ptr-tagged objects. First eight bytes store these tags, bottom bits '001'.
 (define ptr-unused1-tag #x01)
 (define string-tag #x09)
+(define stringbuf-tag #x81)
+(define wide-stringbuf-tag #x89)
 (define func-tag #x11)
 (define box-tag #x19)
 (define cont-tag #x29)

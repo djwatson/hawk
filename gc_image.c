@@ -16,7 +16,7 @@
 #include "types.h"
 #include "vm.h"
 
-enum : uint64_t { IMAGE_VERSION = 4 };
+enum : uint64_t { IMAGE_VERSION = 5 };
 enum : size_t { IMAGE_HEADER_SIZE = 44 };
 
 typedef struct {

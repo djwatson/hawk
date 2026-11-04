@@ -29,7 +29,8 @@ static const char *type_tag_names[256] = {
     [CHAR_TAG] = "char",   [CLOSURE_TAG] = "clo", [UNDEFINED_TAG] = "",
     [RECORD_TAG] = "rec",  [BIGNUM_TAG] = "big",  [RATNUM_TAG] = "rat",
     [COMPNUM_TAG] = "cmp", [PORT_TAG] = "port",   [FLVECTOR_TAG] = "flvec",
-    [BOXED_VECTOR_TAG] = "vec",
+    [BOXED_VECTOR_TAG] = "vec", [STRINGBUF_TAG] = "strbuf",
+    [WIDE_STRINGBUF_TAG] = "wstrbuf",
 };
 
 const char *type_tag_name(uint8_t tag) {
@@ -231,7 +232,7 @@ char *string_to_utf8(const string_s *s) {
   if (!out)
     abort();
   for (size_t i = 0; i < len; i++)
-    pos += utf8_encode(s->str[i], out + pos);
+    pos += utf8_encode(string_ref(s, i), out + pos);
   out[pos] = 0;
   return out;
 }

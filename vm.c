@@ -1292,9 +1292,8 @@ OP(STORE_CHAR) {
 
   auto str = to_string(dest);
   auto idx = to_fixnum(off);
-  // TODO <= so we can store NULL-terminator.
-  assert(idx >= 0 && idx <= to_fixnum(str->len));
-  str->str[idx] = to_char(val);
+  assert(idx >= 0 && idx < to_fixnum(str->len));
+  scm_string_set(dest, idx, to_char(val));
   END_NEXT
 }
 
@@ -1393,7 +1392,7 @@ OP(LOAD_CHAR) {
   auto str = to_string(src);
   auto idx = to_fixnum(off);
   assert(idx >= 0 && idx < to_fixnum(str->len));
-  auto res = tag_char(str->str[idx]);
+  auto res = tag_char(string_ref(str, idx));
   stack[instr.reg] = res;
   END_NEXT
 }

@@ -117,6 +117,10 @@ static ir_ins_op load_store_op(ir_ins_op op) {
 
 static bool load_cse_allowed(trace *t, uint16_t load_ref) {
   ir_ins *load = &t->ins[load_ref];
+  // Calls may replace string buffers or mutate their contents.
+  if (t->cse_head[IR_CCALL] != UINT16_MAX &&
+      t->cse_head[IR_CCALL] > load_ref)
+    return false;
   ir_ins_op store_op = load_store_op(load->op);
   uint16_t store_ref = t->cse_head[store_op];
   while (store_ref != UINT16_MAX) {
@@ -137,6 +141,9 @@ static fold_result fold_forward_load(trace *t, ir_ins *load,
 
   uint16_t store_ref = t->cse_head[store_op];
   while (store_ref != UINT16_MAX) {
+    if (t->cse_head[IR_CCALL] != UINT16_MAX &&
+        t->cse_head[IR_CCALL] > store_ref)
+      return fold_next();
     ir_ins *store = &t->ins[store_ref];
     if (store->op1.constant) {
       return fold_next();

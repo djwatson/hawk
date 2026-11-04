@@ -95,6 +95,9 @@ gc_obj vm_runtime_cmp_gte_slow(gc_obj v1, gc_obj v2);
 gc_obj vm_runtime_cmp_jeqv_slow(gc_obj v1, gc_obj v2);
 gc_obj vm_runtime_cmp_numeq_slow(gc_obj v1, gc_obj v2);
 gc_obj make_string(const char *str);
+gc_obj scm_make_string(uint64_t len, uint32_t fill);
+gc_obj scm_substring(gc_obj str, uint64_t start, uint64_t end);
+gc_obj scm_string_set(gc_obj str, uint64_t index, uint32_t c);
 gc_obj make_string_list(char **strs, size_t len);
 
 static inline uint8_t numeric_result_type(uint8_t t1, uint8_t t2) {

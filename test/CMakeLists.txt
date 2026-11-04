@@ -75,4 +75,3 @@ add_hawk_test(hawk_utf8 chez/06-utf8.scm "0 failed")
 set_tests_properties(hawk_utf8 PROPERTIES FAIL_REGULAR_EXPRESSION "FAIL")
 
 add_hawk_test(hawk_unicode regression/unicode.scm "Unicode passed")
-

@@ -706,19 +706,113 @@ static gc_obj make_cons(gc_obj a, gc_obj b) {
   return tag_cons(cell);
 }
 
+static stringbuf_s *alloc_string_buffer(size_t len, bool wide) {
+  if (len > (SIZE_MAX - sizeof(stringbuf_s) - 8) / 4)
+    abort();
+  auto buf = (stringbuf_s *)gc_alloc(
+      heap_align(sizeof(stringbuf_s) + (len + 1) * (wide ? 4 : 1)));
+  buf->header.type = wide ? WIDE_STRINGBUF_TAG : STRINGBUF_TAG;
+  buf->len = tag_fixnum(len);
+  buf->shared = false;
+  if (wide)
+    ((uint32_t *)buf->data)[len] = 0;
+  else
+    buf->data[len] = 0;
+  return buf;
+}
+
+EXPORT gc_obj scm_make_string(uint64_t len, uint32_t fill) {
+  gc_obj buffer = tag_string(alloc_string_buffer(len, fill > 255));
+  gc_add_root(&buffer, 1, 0);
+  auto out = (string_s *)gc_alloc(sizeof(string_s));
+  out->header.type = STRING_TAG;
+  out->len = tag_fixnum(len);
+  out->buffer = buffer;
+  out->start = 0;
+  auto buf = string_buffer(out);
+  if (fill > 255) {
+    for (size_t i = 0; i < len; i++)
+      ((uint32_t *)buf->data)[i] = fill;
+  } else {
+    memset(buf->data, fill, len);
+  }
+  gc_remove_root(&buffer, 0);
+  return tag_string(out);
+}
+
+// The caller roots str; allocation may move both descriptor and buffer.
+static void string_prepare_write(gc_obj *str, bool wide) {
+  auto s = to_string(*str);
+  auto old = string_buffer(s);
+  wide |= string_wide(s);
+  if (!old->shared && wide == string_wide(s))
+    return;
+  size_t len = to_fixnum(s->len);
+  auto buf = alloc_string_buffer(len, wide);
+  s = to_string(*str);
+  old = string_buffer(s);
+  if (wide && !string_wide(s)) {
+    for (size_t i = 0; i < len; i++)
+      ((uint32_t *)buf->data)[i] = old->data[s->start + i];
+  } else {
+    size_t width = wide ? 4 : 1;
+    memcpy(buf->data, old->data + s->start * width, len * width);
+  }
+  gc_log(*str);
+  s->buffer = tag_string(buf);
+  s->start = 0;
+}
+
+EXPORT gc_obj scm_string_set(gc_obj str, uint64_t index, uint32_t c) {
+  gc_add_root(&str, 1, 0);
+  string_prepare_write(&str, c > 255);
+  auto s = to_string(str);
+  assert(index < (uint64_t)to_fixnum(s->len));
+  auto buf = string_buffer(s);
+  if (string_wide(s))
+    ((uint32_t *)buf->data)[s->start + index] = c;
+  else
+    buf->data[s->start + index] = c;
+  gc_remove_root(&str, 0);
+  return str;
+}
+
+EXPORT gc_obj scm_substring(gc_obj str, uint64_t start, uint64_t end) {
+  assert(start <= end && end <= (uint64_t)to_fixnum(to_string(str)->len));
+  if (start == end)
+    return scm_make_string(0, 0);
+  gc_add_root(&str, 1, 0);
+  auto out = (string_s *)gc_alloc(sizeof(string_s));
+  auto src = to_string(str);
+  string_buffer(src)->shared = true;
+  out->header.type = STRING_TAG;
+  out->len = tag_fixnum(end - start);
+  out->buffer = src->buffer;
+  out->start = src->start + start;
+  gc_remove_root(&str, 0);
+  return tag_string(out);
+}
+
 // GC: may allocate via gc_alloc.
 gc_obj make_string(const char *str) {
   size_t bytes = strlen(str), len = 0;
   uint32_t c;
-  for (size_t i = 0; i < bytes; len++)
+  bool wide = false;
+  for (size_t i = 0; i < bytes; len++) {
     i += utf8_decode(str + i, bytes - i, &c) ?: 1;
-  string_s *out = gc_alloc(heap_align(sizeof(string_s) + (len + 1) * 4));
-  out->header.type = STRING_TAG;
-  out->len = tag_fixnum((int64_t)len);
-  for (size_t i = 0, j = 0; i < bytes; j++)
-    i += utf8_decode(str + i, bytes - i, &out->str[j]) ?: 1;
-  out->str[len] = 0;
-  return tag_string(out);
+    wide |= c > 255;
+  }
+  gc_obj obj = scm_make_string(len, wide ? 256 : 0);
+  auto out = to_string(obj);
+  auto buf = string_buffer(out);
+  for (size_t i = 0, j = 0; i < bytes; j++) {
+    i += utf8_decode(str + i, bytes - i, &c) ?: 1;
+    if (wide)
+      ((uint32_t *)buf->data)[j] = c;
+    else
+      buf->data[j] = c;
+  }
+  return obj;
 }
 
 // GC: may allocate via gc_alloc.
@@ -1300,10 +1394,35 @@ gc_obj vm_runtime_cmp_numeq_slow(gc_obj v1, gc_obj v2) {
 
 EXPORT gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,
                            int fromend) {
-  auto tostr = to_string(to);
-  auto fromstr = to_string(from);
-  memmove(&tostr->str[start], &fromstr->str[fromstart],
-          (fromend - fromstart) * sizeof(uint32_t));
+  size_t len = fromend - fromstart;
+  if (!len)
+    return to;
+  bool wide = false;
+  if (string_wide(to_string(from)))
+    for (size_t i = 0; i < len && !wide; i++)
+      wide = string_ref(to_string(from), fromstart + i) > 255;
+  gc_add_root(&to, 1, 0);
+  gc_add_root(&from, 1, 0);
+  string_prepare_write(&to, wide);
+  auto dst = to_string(to);
+  auto src = to_string(from);
+  auto db = string_buffer(dst);
+  auto sb = string_buffer(src);
+  if (string_wide(dst) == string_wide(src)) {
+    size_t width = string_wide(dst) ? 4 : 1;
+    memmove(db->data + (dst->start + start) * width,
+            sb->data + (src->start + fromstart) * width, len * width);
+  } else {
+    for (size_t i = 0; i < len; i++) {
+      uint32_t c = string_ref(src, fromstart + i);
+      if (string_wide(dst))
+        ((uint32_t *)db->data)[dst->start + start + i] = c;
+      else
+        db->data[dst->start + start + i] = c;
+    }
+  }
+  gc_remove_root(&from, 0);
+  gc_remove_root(&to, 0);
   return to;
 }
 
@@ -1312,7 +1431,7 @@ EXPORT uint64_t SCM_STRING_HASH(gc_obj obj, int32_t bound) {
   auto s = to_string(obj);
   uint64_t hash = 5381;
   for (int64_t i = 0, len = to_fixnum(s->len); i < len; i++)
-    hash = ((hash << 5) + hash) + s->str[i];
+    hash = ((hash << 5) + hash) + string_ref(s, i);
   return hash % (uint64_t)bound;
 }
 EXPORT bool SCM_ISNAN(double d) { return isnan(d); }
@@ -1369,18 +1488,33 @@ EXPORT int64_t scm_read_buffer(int fd, gc_obj buffer, uint64_t count) {
         len += n;
       }
     }
-    auto out = to_string(buffer)->str;
+    uint32_t out[4096];
+    bool wide = false;
     for (int64_t i = 0; i < len;) {
       if ((uint8_t)bytes[i] < 0x80) {
         out[chars++] = (uint8_t)bytes[i++];
         continue;
       }
-      size_t n = utf8_decode(bytes + i, len - i, &out[chars++]);
+      size_t n = utf8_decode(bytes + i, len - i, &out[chars]);
       if (!n) {
         len = -1;
         break;
       }
+      wide |= out[chars++] > 255;
       i += n;
+    }
+    if (chars) {
+      gc_add_root(&buffer, 1, 0);
+      string_prepare_write(&buffer, wide);
+      auto s = to_string(buffer);
+      auto buf = string_buffer(s);
+      for (int64_t i = 0; i < chars; i++) {
+        if (string_wide(s))
+          ((uint32_t *)buf->data)[s->start + i] = out[i];
+        else
+          buf->data[s->start + i] = out[i];
+      }
+      gc_remove_root(&buffer, 0);
     }
   }
   return len <= 0 ? len : chars;
@@ -1390,12 +1524,12 @@ EXPORT int64_t scm_write_buffer(int fd, gc_obj buffer, uint64_t count) {
   if (is_bytevector(buffer))
     return write(fd, to_bytevector(buffer)->str, count);
   char bytes[4096 * 4];
-  auto str = to_string(buffer)->str;
+  auto str = to_string(buffer);
   for (size_t start = 0; start < count;) {
     size_t end = count - start > 4096 ? start + 4096 : count;
     size_t len = 0;
     while (start < end) {
-      uint32_t c = str[start++];
+      uint32_t c = string_ref(str, start++);
       if (c < 0x80)
         bytes[len++] = c;
       else

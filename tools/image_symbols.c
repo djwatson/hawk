@@ -153,6 +153,11 @@ static void record_type_stats(gc_header *header, uint8_t type) {
       type_name = "compnum";
       size = sizeof(compnum_s);
       break;
+    case STRINGBUF_TAG:
+    case WIDE_STRINGBUF_TAG:
+      type_name = type == STRINGBUF_TAG ? "stringbuf" : "wide-stringbuf";
+      size = heap_object_size(header);
+      break;
     case STRING_TAG:
     case BYTEVECTOR_TAG: {
       type_name = type == STRING_TAG ? "string" : "bytevector";

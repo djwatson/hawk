@@ -1934,8 +1934,10 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                        .type = get_tag(stack[pc->v1])));
     break;
   }
-  case OP_STORE:
   case OP_STORE_CHAR:
+    record_abort(state, &op_table, "STORE_CHAR requires allocating helper");
+    break;
+  case OP_STORE:
   case OP_STORE_BYTE: {
     auto obj = stack_load(state, stack, pc->reg, true);
     auto val = stack_load(state, stack, pc->v1, false);
@@ -1956,9 +1958,6 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
         add_inst(state, IR(.op = IR_GCLOG, .op1 = obj, .op2 = offset));
       add_inst(state,
                IR(.op = IR_STORE, .op1 = ref, .op2 = val, .type = obj_type));
-    } else if (instr.op == OP_STORE_CHAR) {
-      add_inst(state, IR(.op = IR_STORE_CHAR, .op1 = ref, .op2 = val,
-                         .type = STRING_TAG));
     } else {
       add_inst(state, IR(.op = IR_STORE_BYTE, .op1 = ref, .op2 = val,
                          .type = BYTEVECTOR_TAG));

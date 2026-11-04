@@ -14,7 +14,7 @@
 
 static bool foreign_type_is(const string_s *name, const char *type) {
   size_t i = 0, len = to_fixnum(name->len);
-  while (i < len && type[i] && name->str[i] == (uint8_t)type[i])
+  while (i < len && type[i] && string_ref(name, i) == (uint8_t)type[i])
     i++;
   return i == len && type[i] == 0;
 }
