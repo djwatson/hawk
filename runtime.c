@@ -953,6 +953,19 @@ INLINE inline static bool compnum_double_parts(gc_obj v, double *real,
 
 // GC: may allocate via gc_alloc through vm_box_flonum and SCM_MAKE_RECTANGULAR.
 static gc_obj make_inexact_compnum(double real, double imag) {
+  size_t size = sizeof(compnum_s) + 2 * sizeof(flonum_s);
+  if (likely(gc_hp - gc_hp_end >= size)) {
+    // Reserve all three objects without a collection between initializations.
+    gc_hp -= size;
+    auto c = (compnum_s *)gc_hp;
+    auto r = (flonum_s *)(c + 1);
+    auto i = r + 1;
+    *r = (flonum_s){.header.type = FLONUM_TAG, .x = real};
+    *i = (flonum_s){.header.type = FLONUM_TAG, .x = imag};
+    *c = (compnum_s){.header.type = COMPNUM_TAG,
+                     .real = tag_flonum(r), .imag = tag_flonum(i)};
+    return tag_header(c, PTR_TAG);
+  }
   gc_obj real_obj = vm_box_flonum(real);
   gc_add_root((const void *)&real_obj, 1, 0);
   gc_obj imag_obj = vm_box_flonum(imag);
