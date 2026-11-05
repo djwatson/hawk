@@ -219,6 +219,17 @@ static inline uint8_t *cons_slab_flags(cons_slab const *slab) {
   return slab->region->start;
 }
 
+static_assert(CONS_CAPACITY + sizeof(cons_slab *) <= GC_CONS_FLAGS_SIZE);
+
+static inline cons_slab *cons_owner(void const *obj) {
+  uintptr_t base = (uintptr_t)obj & -(uintptr_t)SLAB_SIZE;
+  assert((uintptr_t)obj - (uintptr_t)heap_base < gc_size);
+  auto slab = *(cons_slab **)(base + GC_CONS_FLAGS_SIZE - sizeof(cons_slab *));
+  assert(lookup_old_region(obj)->kind == REGION_CONS &&
+         lookup_old_region(obj)->owner == slab);
+  return slab;
+}
+
 static old_slab *slab_new(size_t slot_size) {
   old_slab *slab = calloc(1, sizeof(*slab));
   if (!slab)
@@ -287,6 +298,7 @@ static cons_slab *cons_slab_new(void) {
   slab->region = region_alloc(0, REGION_CONS);
   slab->region->owner = slab;
   memset(cons_slab_flags(slab), 0, GC_CONS_FLAGS_SIZE);
+  *(cons_slab **)(slab->region->start + GC_CONS_FLAGS_SIZE - sizeof(slab)) = slab;
   arrput(cons_slabs, slab);
   old_since_collect += SLAB_SIZE;
   return slab;
@@ -456,8 +468,7 @@ static void scan_logged_young(void) {
     gc_obj obj = logged_objects[i];
     trace_obj(obj, evacuate_field, nullptr);
     if (is_cons(obj)) {
-      region *r = lookup_old_region(to_cons(obj));
-      cons_slab *slab = r->owner;
+      cons_slab *slab = cons_owner(to_cons(obj));
       cons_slab_flags(slab)[cons_slab_index(slab, to_cons(obj))] &=
           (uint8_t)~GC_LOGGED;
     } else {
@@ -491,13 +502,16 @@ static INLINE inline void mark_field(gc_obj *field, void *ctx) {
   if (!is_heap_object(*field))
     return;
   void *obj = to_raw_ptr(*field);
-  region *r = lookup_old_region(obj);
-  if (!r)
+  region *r = nullptr;
+  if ((uintptr_t)obj - (uintptr_t)heap_base >= gc_size)
     return;
-  if (r->kind == REGION_CONS) {
-    if (!is_cons(*field))
+  if (!is_cons(*field)) {
+    r = lookup_old_region(obj);
+    if (!r || r->kind == REGION_CONS)
       return;
-    cons_slab *slab = r->owner;
+  }
+  if (is_cons(*field)) {
+    cons_slab *slab = cons_owner(obj);
     size_t idx = cons_slab_index(slab, obj);
     if (idx >= CONS_CAPACITY || bit_test(slab->mark_bits, idx))
       return;
@@ -565,8 +579,7 @@ static void consume_sticky_objects(bool full) {
     if (!full && old_object_marked(obj))
       trace_obj(obj, mark_field, nullptr);
     if (is_cons(obj)) {
-      region *r = lookup_old_region(to_cons(obj));
-      cons_slab *slab = r->owner;
+      cons_slab *slab = cons_owner(to_cons(obj));
       cons_slab_flags(slab)[cons_slab_index(slab, to_cons(obj))] &=
           (uint8_t)~GC_STICKY_LOGGED;
     } else {
@@ -732,10 +745,9 @@ NOINLINE void gc_log_slow(gc_obj obj) {
 
 NOINLINE void gc_log_cons_slow(gc_obj obj) {
   cons_s *cell = to_cons(obj);
-  region *r = lookup_region(cell);
-  if (!r || r->kind != REGION_CONS)
+  if ((uintptr_t)cell - (uintptr_t)heap_base >= gc_size)
     return;
-  cons_slab *slab = r->owner;
+  cons_slab *slab = cons_owner(cell);
   size_t idx = cons_slab_index(slab, cell);
   if (idx >= CONS_CAPACITY)
     return;
