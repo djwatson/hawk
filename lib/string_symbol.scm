@@ -37,14 +37,22 @@
 
 (define (string->symbol string)
   (unless (string? string) (error "string->symbol: not a string"))
+  (string-range->symbol string 0 (string-length string)))
+
+;; Internal: callers validate the string range.
+(define (string-range->symbol string start end)
   (let* ((buckets (ensure-symbol-hash-table!))
          (size (vector-length buckets))
-         (h (string-hash string size))
+         (h (sys:FOREIGN_CALL '(uint64 "SCM_STRING_RANGE_HASH" (gc_obj int64 int64 int32)) string start end size))
          (bucket (vector-ref buckets h))
-         (existing (assoc string bucket string=?)))
+         (existing (let find ((entries bucket))
+                     (cond ((null? entries) #f)
+                           ((sys:FOREIGN_CALL '(bool "SCM_STRING_RANGE_EQUAL" (gc_obj int64 int64 gc_obj))
+                              string start end (caar entries)) (car entries))
+                           (else (find (cdr entries)))))))
     (if existing
         (cdr existing)
-        (let* ((new-name (string-copy string)) (cell (sys:ALLOC (* 8 5) 6)))
+        (let* ((new-name (substring string start end)) (cell (sys:ALLOC (* 8 5) 6)))
           (sys:STORE cell new-name 0)
           (sys:STORE cell 0 2)
           (sys:STORE cell 0 3)

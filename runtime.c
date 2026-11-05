@@ -1460,12 +1460,25 @@ EXPORT gc_obj SCM_STR_COPY(gc_obj to, int start, gc_obj from, int fromstart,
 }
 
 EXPORT uint64_t SCM_HASH_OBJ(gc_obj obj) { return hashmix(obj.value); }
-EXPORT uint64_t SCM_STRING_HASH(gc_obj obj, int32_t bound) {
+EXPORT uint64_t SCM_STRING_RANGE_HASH(gc_obj obj, int64_t start, int64_t end,
+                                      int32_t bound) {
   auto s = to_string(obj);
   uint64_t hash = 5381;
-  for (int64_t i = 0, len = to_fixnum(s->len); i < len; i++)
+  for (int64_t i = start; i < end; i++)
     hash = ((hash << 5) + hash) + string_ref(s, i);
   return hash % (uint64_t)bound;
+}
+EXPORT uint64_t SCM_STRING_HASH(gc_obj obj, int32_t bound) {
+  return SCM_STRING_RANGE_HASH(obj, 0, to_fixnum(to_string(obj)->len), bound);
+}
+EXPORT bool SCM_STRING_RANGE_EQUAL(gc_obj obj, int64_t start, int64_t end,
+                                  gc_obj other) {
+  auto a = to_string(obj);
+  auto b = to_string(other);
+  if (end - start != to_fixnum(b->len)) return false;
+  for (int64_t i = start; i < end; i++)
+    if (string_ref(a, i) != string_ref(b, i - start)) return false;
+  return true;
 }
 EXPORT bool SCM_ISNAN(double d) { return isnan(d); }
 EXPORT bool SCM_ISINF(double d) { return isinf(d); }
