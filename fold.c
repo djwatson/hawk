@@ -110,6 +110,7 @@ static ir_ins_op load_store_op(ir_ins_op op) {
   switch (op) {
   case IR_LOAD: return IR_STORE;
   case IR_LOAD_CHAR: return IR_STORE_CHAR;
+  case IR_LOAD_WIDE_CHAR: return IR_STORE_WIDE_CHAR;
   case IR_LOAD_BYTE: return IR_STORE_BYTE;
   default: abort();
   }
@@ -289,6 +290,7 @@ static uint32_t fold_key(trace *t, ir_ins *in) {
 
 IRFOLD(LOAD _ _)
 IRFOLD(LOAD_CHAR _ _)
+IRFOLD(LOAD_WIDE_CHAR _ _)
 IRFOLD(LOAD_BYTE _ _)
 IRFOLDF(fold_load) {
   fold_result res = fold_forward_load(t, in, load_store_op(in->op));
@@ -899,7 +901,6 @@ IRFOLDF(fold_comm_swap) {
 // ========== Category I: Dead Store Elimination ==========
 
 IRFOLD(STORE _ _)
-IRFOLD(STORE_CHAR _ _)
 IRFOLD(STORE_BYTE _ _)
 IRFOLDF(fold_dse) {
   uint16_t store_ref = t->cse_head[in->op];

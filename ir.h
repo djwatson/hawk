@@ -84,10 +84,12 @@ typedef enum : uint8_t {
   X(CARG, ARG_IR_IR, false)                                                    \
   X(CCALL, ARG_IR_IR, true)                                                    \
   X(LOAD, ARG_IR_IR, false)                                                    \
+  X(LOAD_WIDE_CHAR, ARG_IR_IR, false)                                         \
   X(LOAD_CHAR, ARG_IR_IR, false)                                               \
   X(LOAD_BYTE, ARG_IR_IR, false)                                               \
   X(FLVECTOR_REF, ARG_IR_IR, false)                                            \
   X(STORE, ARG_IR_IR, true)                                                    \
+  X(STORE_WIDE_CHAR, ARG_IR_IR, true)                                         \
   X(STORE_CHAR, ARG_IR_IR, true)                                               \
   X(STORE_BYTE, ARG_IR_IR, true)                                               \
   X(FLVECTOR_SET, ARG_IR_IR, true)                                             \

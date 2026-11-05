@@ -242,8 +242,7 @@
   (unless (char? c) (error "Invalid string index"))
   (unless (string? str) (error "Invalid string index"))
   (sys:ABC str idx)
-  (sys:FOREIGN_CALL '(gc_obj "scm_string_set" (gc_obj uint64 int32))
-                    str idx (char->integer c)))
+  (sys:STORE_CHAR str c idx))
 (define make-string
   (case-lambda
     ((len) (make-string len #f))
@@ -317,9 +316,10 @@
 (define (string? a) (sys:GUARD a 9))
 (define (bytevector? a) (sys:GUARD a 73))
 (define (symbol? a) (sys:GUARD a 6))
-(define (symbol->string sym)
+(define (symbol-name sym)
   (unless (symbol? sym) (error "Not a symbol: " sym))
-  (string-copy (sys:LOAD sym 0)))
+  (sys:LOAD sym 0))
+(define (symbol->string sym) (string-copy (symbol-name sym)))
 (define (vector? a) (or (sys:GUARD a 7) (sys:GUARD a 105) (flvector? a)))
 (define (flvector? a) (sys:GUARD a 57))
 (define (undefined? a) (sys:GUARD a 36))
@@ -2112,6 +2112,9 @@
                  (loop (+ pos 1)))))))
 
 (define (utf8->string-internal v start end)
+  (or (sys:FOREIGN_CALL '(gc_obj "scm_ascii_string" (gc_obj uint64 uint64)) v start end)
+      (utf8->string-slow v start end)))
+(define (utf8->string-slow v start end)
   (let ((res (make-string (- end start))))
     (let loop ((i start) (j 0) (v v) (res res) (end end))
       (if (= i end)

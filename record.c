@@ -1934,9 +1934,23 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
                        .type = get_tag(stack[pc->v1])));
     break;
   }
-  case OP_STORE_CHAR:
-    record_abort(state, &op_table, "STORE_CHAR requires allocating helper");
+  case OP_STORE_CHAR: {
+    auto str = to_string(stack[pc->reg]);
+    if (string_buffer(str)->shared ||
+        (!string_wide(str) && to_char(stack[pc->v1]) > 255)) {
+      record_abort(state, &op_table, "string store needs detach or widening");
+      break;
+    }
+    auto obj = stack_load(state, stack, pc->reg, true);
+    auto val = stack_load(state, stack, pc->v1, true);
+    auto offset = stack_load(state, stack, pc->v2, true);
+    vm_add_snap(state, pc, argcnt);
+    auto ref = add_inst(state, IR(.op = IR_REF, .op1 = obj, .op2 = offset));
+    add_inst(state, IR(.op = string_wide(str) ? IR_STORE_WIDE_CHAR : IR_STORE_CHAR,
+                       .op1 = ref, .op2 = val, .type = STRING_TAG));
+    vm_add_snap(state, pc + 1, argcnt);
     break;
+  }
   case OP_STORE:
   case OP_STORE_BYTE: {
     auto obj = stack_load(state, stack, pc->reg, true);
@@ -2026,7 +2040,8 @@ PRESERVE_NONE gc_obj record(bc instr, bc *pc, gc_obj *stack, vm_state *state,
       assert(is_fixnum(off));
       assert(to_fixnum(off) >= 0 &&
              to_fixnum(off) < to_fixnum(to_string(src)->len));
-      ins = IR(.op = IR_LOAD_CHAR, .op1 = obj, .op2 = offset, .type = CHAR_TAG);
+      ins = IR(.op = string_wide(to_string(src)) ? IR_LOAD_WIDE_CHAR : IR_LOAD_CHAR,
+               .op1 = obj, .op2 = offset, .type = CHAR_TAG, .guard = true);
     } else {
       assert(is_bytevector(src));
       assert(is_fixnum(off));

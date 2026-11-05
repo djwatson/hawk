@@ -706,6 +706,13 @@ static gc_obj make_cons(gc_obj a, gc_obj b) {
   return tag_cons(cell);
 }
 
+static bool bytes_ascii(const uint8_t *bytes, size_t len) {
+  uint8_t high = 0;
+  for (size_t i = 0; i < len; i++)
+    high |= bytes[i];
+  return high < 128;
+}
+
 static stringbuf_s *alloc_string_buffer(size_t len, bool wide) {
   if (len > (SIZE_MAX - sizeof(stringbuf_s) - 8) / 4)
     abort();
@@ -738,6 +745,18 @@ EXPORT gc_obj scm_make_string(uint64_t len, uint32_t fill) {
   }
   gc_remove_root(&buffer, 0);
   return tag_string(out);
+}
+
+EXPORT gc_obj scm_ascii_string(gc_obj bytes, uint64_t start, uint64_t end) {
+  size_t len = end - start;
+  if (!bytes_ascii(to_bytevector(bytes)->str + start, len))
+    return FALSE_REP;
+  gc_add_root(&bytes, 1, 0);
+  gc_obj result = scm_make_string(len, 0);
+  memcpy(string_buffer(to_string(result))->data,
+          to_bytevector(bytes)->str + start, len);
+  gc_remove_root(&bytes, 0);
+  return result;
 }
 
 // The caller roots str; allocation may move both descriptor and buffer.
@@ -782,8 +801,22 @@ EXPORT gc_obj scm_substring(gc_obj str, uint64_t start, uint64_t end) {
   if (start == end)
     return scm_make_string(0, 0);
   gc_add_root(&str, 1, 0);
-  auto out = (string_s *)gc_alloc(sizeof(string_s));
   auto src = to_string(str);
+  size_t len = end - start;
+  // Bound copying while avoiding a full-buffer detach on the next small write.
+  if (!string_buffer(src)->shared && len <= 64 &&
+      len <= (uint64_t)to_fixnum(string_buffer(src)->len) / 8) {
+    bool wide = string_wide(src);
+    gc_obj result = scm_make_string(len, wide ? 256 : 0);
+    src = to_string(str);
+    memcpy(string_buffer(to_string(result))->data,
+            string_buffer(src)->data + (src->start + start) * (wide ? 4 : 1),
+            len * (wide ? 4 : 1));
+    gc_remove_root(&str, 0);
+    return result;
+  }
+  auto out = (string_s *)gc_alloc(sizeof(string_s));
+  src = to_string(str);
   string_buffer(src)->shared = true;
   out->header.type = STRING_TAG;
   out->len = tag_fixnum(end - start);
@@ -1472,6 +1505,20 @@ EXPORT int64_t scm_read_buffer(int fd, gc_obj buffer, uint64_t count) {
     count = 4096;
   int64_t len = read(fd, bytes, count), chars = 0;
   if (len > 0) {
+    if (bytes_ascii((uint8_t *)bytes, len)) {
+      gc_add_root(&buffer, 1, 0);
+      string_prepare_write(&buffer, false);
+      auto str = to_string(buffer);
+      auto buf = string_buffer(str);
+      if (string_wide(str)) {
+        for (int64_t i = 0; i < len; i++)
+          ((uint32_t *)buf->data)[str->start + i] = (uint8_t)bytes[i];
+      } else {
+        memcpy(buf->data + str->start, bytes, len);
+      }
+      gc_remove_root(&buffer, 0);
+      return len;
+    }
     // Complete a codepoint split by the read boundary before decoding.
     size_t last = len - 1;
     while (last > 0 && ((uint8_t)bytes[last] & 0xc0) == 0x80)
@@ -1523,8 +1570,11 @@ EXPORT int64_t scm_read_buffer(int fd, gc_obj buffer, uint64_t count) {
 EXPORT int64_t scm_write_buffer(int fd, gc_obj buffer, uint64_t count) {
   if (is_bytevector(buffer))
     return write(fd, to_bytevector(buffer)->str, count);
-  char bytes[4096 * 4];
   auto str = to_string(buffer);
+  auto data = string_buffer(str)->data + str->start;
+  if (!string_wide(str) && bytes_ascii(data, count))
+    return write(fd, data, count);
+  char bytes[4096 * 4];
   for (size_t start = 0; start < count;) {
     size_t end = count - start > 4096 ? start + 4096 : count;
     size_t len = 0;

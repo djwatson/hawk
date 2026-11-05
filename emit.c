@@ -1664,15 +1664,23 @@ static inline uint8_t emit_arg_reg(slot *args, uint8_t *arg_regs,
 
 static void emit_load_char_or_byte(emit_state *s, trace *t, ir_ins const *op,
                                    slot *args, uint8_t *arg_regs,
-                                   uint8_t arg_count, uint8_t dst_reg) {
-  bool character = op->op == IR_LOAD_CHAR;
+                                   uint8_t arg_count, uint8_t dst_reg,
+                                   int32_t cur_snap) {
+  bool character = op->op == IR_LOAD_CHAR || op->op == IR_LOAD_WIDE_CHAR;
   uint8_t base_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
   if (op->op1.constant) {
     base_reg = RTMP;
     emit_heap_constant(s, t, base_reg, slot_gc_obj(t, op->op1));
   }
   if (character) {
-    label narrow = {}, done = {};
+    bool wide = op->op == IR_LOAD_WIDE_CHAR;
+    if (op->reg == REG_NONE) {
+      emit_mem_load(s, offsetof(string_s, buffer) - PTR_TAG, base_reg, RTMP);
+      emit_mem_cmp_u8_constant(s, -PTR_TAG, RTMP,
+                               wide ? WIDE_STRINGBUF_TAG : STRINGBUF_TAG);
+      emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
+      return;
+    }
     emit_mem_load(s, offsetof(string_s, start) - PTR_TAG, base_reg, RTMP2);
     if (op->op2.constant) {
       emit_add_constant(s, RTMP2, RTMP2,
@@ -1687,16 +1695,12 @@ static void emit_load_char_or_byte(emit_state *s, trace *t, ir_ins const *op,
       emit_heap_constant(s, t, base_reg, slot_gc_obj(t, op->op1));
     emit_mem_load(s, offsetof(string_s, buffer) - PTR_TAG, base_reg, RTMP);
     emit_mem_load_u8(s, -PTR_TAG, RTMP, dst_reg);
-    emit_cmp_constant(s, dst_reg, STRINGBUF_TAG);
-    emit_jcc32(s, JE, &narrow);
-    emit_shl_constant(s, RTMP2, RTMP2, 2);
-    emit_mem_load_u32_indexed(s, offsetof(stringbuf_s, data) - PTR_TAG,
-                              RTMP, RTMP2, dst_reg);
-    emit_jmp32(s, &done);
-    emit_label(s, &narrow);
-    emit_mem_load_u8_indexed(s, offsetof(stringbuf_s, data) - PTR_TAG,
-                             RTMP, RTMP2, dst_reg);
-    emit_label(s, &done);
+    emit_cmp_constant(s, dst_reg, wide ? WIDE_STRINGBUF_TAG : STRINGBUF_TAG);
+    emit_jcc32(s, JNE, &t->snaps[cur_snap].patch_point);
+    if (wide)
+      emit_shl_constant(s, RTMP2, RTMP2, 2);
+    (wide ? emit_mem_load_u32_indexed : emit_mem_load_u8_indexed)(
+        s, offsetof(stringbuf_s, data) - PTR_TAG, RTMP, RTMP2, dst_reg);
     emit_shl_constant(s, dst_reg, dst_reg, 8);
     emit_add_constant(s, dst_reg, dst_reg, CHAR_TAG);
     return;
@@ -1712,6 +1716,55 @@ static void emit_load_char_or_byte(emit_state *s, trace *t, ir_ins const *op,
     emit_mem_load_u8_indexed(s, offset, base_reg, RTMP2, dst_reg);
   }
   emit_shl_constant(s, dst_reg, dst_reg, FIXNUM_SHIFT);
+}
+
+static void emit_store_char(emit_state *s, trace *t, ir_ins const *op,
+                            slot *args, uint8_t *arg_regs, uint8_t arg_count,
+                            int32_t cur_snap) {
+  ir_ins *ref = slot_ins(t, op->op1);
+  auto base = emit_arg_reg(args, arg_regs, arg_count, ref->op1);
+  if (ref->op1.constant) {
+    base = RTMP;
+    emit_heap_constant(s, t, base, slot_gc_obj(t, ref->op1));
+  }
+  emit_mem_load(s, offsetof(string_s, buffer) - PTR_TAG, base, RTMP);
+  assert(cur_snap >= 0);
+  auto exit = &t->snaps[cur_snap].patch_point;
+  // Exclusive buffers always start at zero. Detach and widening run in the VM.
+  emit_mem_cmp_constant(s, offsetof(stringbuf_s, shared) - PTR_TAG, RTMP, 0);
+  emit_jcc32(s, JNE, exit);
+  bool wide = op->op == IR_STORE_WIDE_CHAR;
+  emit_mem_cmp_u8_constant(s, -PTR_TAG, RTMP,
+                           wide ? WIDE_STRINGBUF_TAG : STRINGBUF_TAG);
+  emit_jcc32(s, JNE, exit);
+  if (!wide && op->op2.constant) {
+    if (to_char(slot_gc_obj(t, op->op2)) > 255)
+      emit_jmp32(s, exit);
+  } else if (!wide && slot_ins(t, op->op2)->op != IR_LOAD_CHAR) {
+    auto value = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+    emit_mov64(s, RTMP2, tag_char(255).value);
+    emit_cmp(s, value, RTMP2);
+    emit_jcc32(s, JA, exit);
+  }
+  if (ref->op2.constant) {
+    emit_mov64(s, RTMP2, (slot_const(t, ref->op2) >> FIXNUM_SHIFT) * (wide ? 4 : 1));
+  } else {
+    auto index = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
+    emit_sar_constant(s, RTMP2, index, FIXNUM_SHIFT - (wide ? 2 : 0));
+  }
+  int32_t offset = offsetof(stringbuf_s, data) - PTR_TAG;
+  if (op->op2.constant) {
+    uint32_t value = to_char(slot_gc_obj(t, op->op2));
+    if (wide)
+      emit_store_u32_constant_indexed(s, offset, RTMP, RTMP2, value);
+    else
+      emit_store_u8_constant_indexed(s, offset, RTMP, RTMP2, value);
+  } else {
+    auto value = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+    emit_add(s, RTMP2, RTMP, RTMP2);
+    emit_sar_constant(s, RTMP, value, 8);
+    (wide ? emit_store_u32 : emit_store_u8)(s, offset, RTMP2, RTMP);
+  }
 }
 
 static void emit_store_byte(emit_state *s, trace *t, ir_ins const *op,
@@ -1918,9 +1971,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       }
       break;
     }
+    case IR_LOAD_WIDE_CHAR:
     case IR_LOAD_CHAR:
     case IR_LOAD_BYTE:
-      emit_load_char_or_byte(s, t, op, args, arg_regs, arg_count, dst_reg);
+      emit_load_char_or_byte(s, t, op, args, arg_regs, arg_count, dst_reg, cur_snap);
       break;
     case IR_FLVECTOR_REF: {
       uint8_t base_reg = emit_arg_reg(args, arg_regs, arg_count, op->op1);
@@ -1985,8 +2039,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
 
       break;
     }
+    case IR_STORE_WIDE_CHAR:
     case IR_STORE_CHAR:
-      abort(); // String stores use the allocating C helper.
+      emit_store_char(s, t, op, args, arg_regs, arg_count, cur_snap);
+      break;
     case IR_STORE_BYTE:
       emit_store_byte(s, t, op, args, arg_regs, arg_count);
       break;

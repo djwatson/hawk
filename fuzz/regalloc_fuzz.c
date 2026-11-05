@@ -372,7 +372,8 @@ static uint16_t fill_instruction(fuzz_rng *r, trace *t, uint16_t max_const_loc,
   if (ins.op == IR_CCALL) {
     ins.op2 = (slot){.constant = true, .loc = 0};
   }
-  if (ins.op == IR_STORE_CHAR || ins.op == IR_STORE_BYTE) {
+  if (ins.op == IR_STORE_CHAR || ins.op == IR_STORE_WIDE_CHAR ||
+      ins.op == IR_STORE_BYTE) {
     if (i == 0) {
       ins.op = IR_NOP;
     } else if (ins.op1.constant) {
@@ -529,7 +530,8 @@ static void verify_regalloc(trace const *t, regalloc_result const *r) {
       }
       goto verify_cursor_done;
     }
-    if (ins->op == IR_STORE_CHAR || ins->op == IR_STORE_BYTE) {
+    if (ins->op == IR_STORE_CHAR || ins->op == IR_STORE_WIDE_CHAR ||
+        ins->op == IR_STORE_BYTE) {
       if (ins->op1.constant || ins->op1.loc >= arrlen(t->ins)) {
         abort();
       }

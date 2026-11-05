@@ -96,6 +96,7 @@ gc_obj vm_runtime_cmp_jeqv_slow(gc_obj v1, gc_obj v2);
 gc_obj vm_runtime_cmp_numeq_slow(gc_obj v1, gc_obj v2);
 gc_obj make_string(const char *str);
 gc_obj scm_make_string(uint64_t len, uint32_t fill);
+gc_obj scm_ascii_string(gc_obj bytes, uint64_t start, uint64_t end);
 gc_obj scm_substring(gc_obj str, uint64_t start, uint64_t end);
 gc_obj scm_string_set(gc_obj str, uint64_t index, uint32_t c);
 gc_obj make_string_list(char **strs, size_t len);
