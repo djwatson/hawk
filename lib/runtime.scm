@@ -808,18 +808,31 @@
     (str-copy-internal newstr lena b 0 lenb)
     newstr))
 
+(define (string-append-list strs)
+  (let* ((total (let sum ((p strs) (n 0))
+                  (if (null? p) n (sum (cdr p) (+ n (string-length (car p)))))))
+         (out (make-string total)))
+    (let copy ((p strs) (pos 0))
+      (unless (null? p)
+        (let ((len (string-length (car p))))
+          (str-copy-internal out pos (car p) 0 len)
+          (copy (cdr p) (+ pos len)))))
+    out))
 (define string-append
   (case-lambda
     ((a b) (string-append2 a b))
-    (strs
-      (let* ((totallen (apply + (map string-length strs)))
-             (newstr (make-string totallen)))
-        (let loop ((strs strs) (place 0))
-          (if (not (null? strs))
-              (let* ((cur_str (car strs)) (cur_len (string-length cur_str)))
-                (str-copy-internal newstr place (car strs) 0 cur_len)
-                (loop (cdr strs) (+ place cur_len)))))
-        newstr))))
+    (strs (string-append-list strs))))
+
+;; Capture the procedures so rebinding either operand still uses generic apply.
+(define apply-string-append
+  (let ((builtin-apply apply) (builtin-append string-append))
+    (lambda (apply-proc append-proc strs)
+      (if (and (eq? apply-proc builtin-apply) (eq? append-proc builtin-append))
+          (begin
+            (unless (list? strs) (error "apply: not a proper list" strs))
+            (string-append-list strs))
+          (apply-proc append-proc strs)))))
+
 (define (strcmp eq? f eq lt gt a b)
   (let loop ((pos 0) (rema (string-length a)) (remb (string-length b)))
     (cond

@@ -154,6 +154,14 @@
              (ann (ir-reference-ann fun)))
         (cond
           ((equal? lib '(hawk sys)) (build-primcall name (map simple-pass args) ann))
+          ((and (equal? lib "") (eq? name 'apply) (= (length args) 2)
+                (ir-reference? (car args))
+                (let ((v (ir-reference-var (car args))))
+                  (and (variable? v) (equal? (variable-library-name v) "")
+                       (eq? (variable-name v) 'string-append))))
+            (build-application
+              (build-global-reference (build-variable 'apply-string-append "") #f ann)
+              (cons fun (map simple-pass args)) ann))
           ;; Reading a symbol name does not need a mutable temporary string.
           ((and (equal? lib "") (eq? name 'string-ref) (= (length args) 2)
                 (ir-application? (car args))
