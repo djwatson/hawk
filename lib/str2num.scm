@@ -269,7 +269,13 @@
 			    #f)))
 	       (else #f)))))
 
+;; The states' len argument is the exclusive end, not the range length.
+(define string-range->number
+  (case-lambda
+    ((str start end) (prefix0 str end start))
+    ((str start end base) (prefix2 str end start base #f))))
+
 (define string->number
   (case-lambda
-   ((str) (prefix0 str (string-length str) 0))
-   ((str base) (prefix2 str (string-length str) 0 base #f))))
+    ((str) (string-range->number str 0 (string-length str)))
+    ((str base) (string-range->number str 0 (string-length str) base))))
