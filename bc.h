@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 
 // Things we WANT in bytecode:
 // Things that deal with types or the stack
@@ -133,3 +134,12 @@ typedef struct bc {
 
 static_assert(sizeof(bc) == 4, "bc instructions must be 4 bytes");
 extern char *bc_names[];
+
+typedef struct bc_live {
+  uint64_t bits[4];
+} bc_live;
+
+bc_live *bc_liveness(const bc *code, size_t count);
+static inline bool bc_slot_live(const bc_live *live, unsigned slot) {
+  return slot >= 256 || (live->bits[slot / 64] >> (slot % 64) & 1);
+}

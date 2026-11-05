@@ -54,6 +54,7 @@ typedef struct record_state {
   emit_state emit_state;
   blacklist_entry *blacklist;
   bc **penalty_pcs;
+  struct { bcfunc *key; bc_live *value; } *liveness;
 } record_state;
 
 struct vm_state;

@@ -159,11 +159,69 @@ static uint32_t record_trace_count(vm_state *state) {
   return arrlen(state->record.traces);
 }
 
-static void snapshot_live_slots(trace_state *ts, trace *cur_trace, snap *snap) {
+static const bc_live *record_live_at(record_state *record, bc *pc) {
+  bcfunc *func = gc_base_ptr(pc);
+  if (!func)
+    return nullptr;
+  bc *code = (bc *)(func->data + func->const_cnt * sizeof(gc_obj));
+  ptrdiff_t pos = pc - code;
+  if (pos < 0 || (uint64_t)pos >= func->bc_cnt)
+    return nullptr;
+  auto cached = hm_getp_null(record->liveness, func);
+  if (!cached) {
+    bc *original = malloc(func->bc_cnt * sizeof(bc));
+    if (!original)
+      abort();
+    for (size_t i = 0; i < func->bc_cnt; i++) {
+      original[i] = code[i];
+      if (is_trace_jump_op(original[i].op))
+        original[i] = record->traces[original[i].data]->start_pc;
+    }
+    bc_live *live = bc_liveness(original, func->bc_cnt);
+    free(original);
+    hm_put(record->liveness, func, live);
+    return &live[pos];
+  }
+  return &cached->value[pos];
+}
+
+static void snapshot_live_slots(record_state *record, trace *cur_trace,
+                                 snap *snap) {
+  trace_state *ts = &record->trace_state;
+  size_t len = arrlen(ts->stack);
+  bool keep[len ? len : 1];
+  memset(keep, true, sizeof(keep));
+  // Entry snapshots describe the register calling convention as well as exits.
+  if (arrlen(cur_trace->snaps) >= 2) {
+    size_t base = ts->stack_off, end = len;
+    bc *pc = snap->pc;
+    for (;;) {
+      const bc_live *live = record_live_at(record, pc);
+      if (live)
+        for (size_t i = base; i < end; i++)
+          keep[i] = bc_slot_live(live, i - base);
+      if (!base || base > len)
+        break;
+      // Keep return addresses; only walk caller frames whose PCs are known.
+      auto ra = ts->stack[base - 1];
+      if (!ra.live || !ra.loc.constant)
+        break;
+      pc = to_return_address(cur_trace->consts[ra.loc.loc]);
+      if (!gc_base_ptr(pc - 1))
+        break;
+      bc call = pc[-1];
+      if (call.op != OP_LCALL && call.op != OP_LCALL_N)
+        break;
+      if (base < (size_t)call.reg + 1)
+        break;
+      end = base - 1;
+      base -= call.reg + 1;
+    }
+  }
   uint16_t nent = 0;
   arr_for_each_idx(ts->stack, i) {
     sentry entry = ts->stack[i];
-    if (entry.changed && entry.live) {
+    if (entry.changed && entry.live && keep[i]) {
       snap_entry slot = {.slot = (uint16_t)i, .val = entry.loc};
       arrput(cur_trace->snapmap, slot);
       nent++;
@@ -361,7 +419,7 @@ static void vm_add_snap(vm_state *state, bc *pc, uint64_t argcnt) {
       .exits = 0,
       .trace = cur_trace,
   };
-  snapshot_live_slots(ts, cur_trace, &sn);
+  snapshot_live_slots(&state->record, cur_trace, &sn);
   arrput(cur_trace->snaps, sn);
 }
 
@@ -2546,5 +2604,8 @@ void free_traces(struct vm_state *state) {
   clear_trace_state(&rs->trace_state);
   hm_free(rs->blacklist);
   arrfree(rs->penalty_pcs);
+  for (size_t i = 0; i < hm_len(rs->liveness); i++)
+    free(rs->liveness[i].value);
+  hm_free(rs->liveness);
   rs->cur_trace = nullptr;
 }
