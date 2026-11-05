@@ -2,13 +2,10 @@
 
 import html
 import http.server
-import json
-import math
 import os
 import re
 import shutil
 import socketserver
-import subprocess
 import sys
 from pathlib import Path
 
@@ -18,13 +15,12 @@ SITE = ROOT / "site"
 CONTENT = SITE / "content"
 ASSETS = SITE / "assets"
 OUT = SITE / "_site"
-GENERATED = OUT / "generated"
 BASE = os.environ.get("SITE_BASE", "").rstrip("/")
 
 NAV = [
   ("Intro", "/"),
   ("Docs", "/docs/"),
-  ("Benchmarks", "/benchmarks/"),
+  ("Benchmarks", "https://djwatson.github.io/r7rs-benchmarks/"),
   ("Code", "/code/"),
   ("Releases", "/releases/"),
   # ("Blog", "/blog/"),
@@ -162,174 +158,6 @@ def markdown(text):
   return "\n".join(out) + "\n"
 
 
-def parse_benchmarks():
-  bench_dir = ROOT / "doc" / "bench"
-  data = {}
-  warnings = []
-  if not bench_dir.exists():
-    return data, warnings
-
-  arch = "x64"
-  data[arch] = {}
-  for fname in ("results.Hawk", "results.Chez"):
-    result_file = bench_dir / fname
-    if not result_file.exists():
-      continue
-    for line in read(result_file).splitlines():
-      match = re.search(r"\+!CSVLINE!\+([^,]+),([^,]+),([0-9.]+)", line)
-      if not match:
-        continue
-      implementation, invocation, seconds = match.group(1), match.group(2), float(match.group(3))
-      name, sep, args = invocation.partition(":")
-      key = f"{name}:{args}" if sep else name
-      data[arch].setdefault(key, {"name": name, "args": args, "results": {}})
-      data[arch][key]["results"][implementation] = seconds
-
-  for arch, benches in data.items():
-    impls = {impl for bench in benches.values() for impl in bench["results"]}
-    for bench in benches.values():
-      for impl in impls:
-        if impl not in bench["results"]:
-          warnings.append(f"{arch}: {bench['name']}:{bench['args']} missing {impl}")
-  return data, warnings
-
-
-def last_benchmark_commit():
-  result = subprocess.run(
-    [
-      "git", "log", "-1", "--format=%h%x09%ad%x09%s", "--date=short", "--", "doc/bench",
-    ],
-    cwd=ROOT, capture_output=True, text=True, check=False,
-  )
-  if result.returncode:
-    return None
-  commit, date, subject = result.stdout.strip().split("\t", 2)
-  link = f'<a href="https://github.com/djwatson/hawk/commit/{escape(commit)}">'
-  return f'{link}<code>{escape(commit)}</code></a> ({escape(date)}): {escape(subject)}'
-
-
-def comparison_rows_by_arch(data):
-  rows_by_arch = {}
-  for arch, benches in sorted(data.items()):
-    rows = []
-    for invocation, bench in sorted(benches.items()):
-      hawk = next((v for k, v in bench["results"].items() if k.lower() == "hawk"), None)
-      chez = next((v for k, v in bench["results"].items() if k.lower().startswith("chez")), None)
-      if not hawk or not chez:
-        continue
-      ratio = hawk / chez
-      name, _, args = invocation.partition(":")
-      rows.append((name, args, -math.log2(ratio), ratio, hawk, chez))
-    rows_by_arch[arch] = rows
-  return rows_by_arch
-
-
-def ratio_label(value):
-  if value == 0:
-    return "same"
-  factor = 2 ** abs(value)
-  direction = "faster" if value > 0 else "slower"
-  return f"{factor:g}x {direction}"
-
-
-def comparison_label(ratio):
-  if math.isclose(ratio, 1.0):
-    return "same speed"
-  factor = 1 / ratio if ratio < 1 else ratio
-  direction = "faster" if ratio < 1 else "slower"
-  return f"{factor:.2f}x {direction}"
-
-
-def svg_ratio_chart(arch, rows):
-  rows = sorted(rows, key=lambda row: row[2], reverse=True)
-  total_ratio = geomean_ratio(rows)
-  if total_ratio:
-    rows.append(("TOTAL", "", -math.log2(total_ratio), total_ratio, 0, 0))
-  height = 420
-  left = 92
-  right = 24
-  top = 40
-  bottom = 82
-  width = max(1000, left + right + len(rows) * 18)
-  chart_h = height - top - bottom
-  lower_limit = -1
-  upper_limit = 4
-  scale = (chart_h - 32) / (upper_limit - lower_limit)
-  zero_y = top + 16 + upper_limit * scale
-  bar_slot = max(18, (width - left - right) / max(len(rows), 1))
-  bar_w = min(22, bar_slot * 0.72)
-  body = [
-    f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="{escape(arch)} benchmark runtime ratio chart" xmlns="http://www.w3.org/2000/svg">',
-    '<style>'
-    'text{font:14px Georgia,serif;fill:#2c2924}'
-    '.small{font-size:12px;fill:#676057}'
-    '.title{font-weight:bold;font-size:17px}'
-    '.axis{font-size:11px;fill:#5f564f}'
-    '.bench{font-size:10px;fill:#676057}'
-    '</style>',
-    f'<text class="title" x="{left}" y="22">{escape(arch)} Hawk Runtime Relative to Chez</text>',
-    f'<text class="small" x="{left}" y="38">Faster benchmarks appear above parity; slower benchmarks appear below.</text>',
-    f'<line x1="{left}" y1="{zero_y:.1f}" x2="{width - right}" y2="{zero_y:.1f}" stroke="#333" stroke-width="1"/>',
-  ]
-  for value in range(lower_limit, upper_limit + 1):
-    y = zero_y - value * scale
-    if top <= y <= height - bottom:
-      body.append(f'<line x1="{left}" y1="{y:.1f}" x2="{width - right}" y2="{y:.1f}" stroke="#ddd" stroke-width="1"/>')
-      body.append(f'<line x1="{left - 4}" y1="{y:.1f}" x2="{left}" y2="{y:.1f}" stroke="#333" stroke-width="1"/>')
-      body.append(f'<text class="axis" x="{left - 8}" y="{y + 4:.1f}" text-anchor="end">{ratio_label(value)}</text>')
-  for i, (name, args, value, _, _, _) in enumerate(rows):
-    x = left + i * bar_slot + (bar_slot - bar_w) / 2
-    bar_h = abs(value) * scale
-    if value >= 0:
-      y = zero_y - bar_h
-      fill = "#4a7ebb"
-    else:
-      y = zero_y
-      fill = "#b65b4b"
-    body.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{bar_w:.1f}" height="{bar_h:.1f}" fill="{fill}" rx="2"/>')
-    label_x = x + bar_w / 2
-    label_y = height - 62
-    label = name
-    body.append(
-      f'<text class="bench" x="{label_x:.1f}" y="{label_y}" text-anchor="end" transform="rotate(-90 {label_x:.1f} {label_y})">{escape(label)}</text>'
-    )
-  body.append("</svg>")
-  return "\n".join(body) + "\n"
-
-
-def geomean_ratio(rows):
-  ratios = [ratio for _, _, _, ratio, hawk, chez in rows if hawk and chez]
-  if not ratios:
-    return None
-  return math.exp(sum(math.log(ratio) for ratio in ratios) / len(ratios))
-
-
-def benchmark_html(data):
-  rows_by_arch = comparison_rows_by_arch(data)
-  pieces = []
-  commit = last_benchmark_commit()
-  if commit:
-    pieces.append(f"<p>Last benchmark commit: {commit}</p>")
-  for arch in sorted(rows_by_arch, key=lambda name: (name != "x64", name)):
-    rows = sorted(rows_by_arch[arch], key=lambda row: row[2], reverse=True)
-    ratio = geomean_ratio(rows)
-    pieces.append(f'<section class="bench-arch">\n<h2 id="{slug(arch)}">{escape(arch)} Hawk Runtime Relative to Chez</h2>')
-    text = f"{len(rows)} matched benchmarks comparing Hawk and Chez."
-    if ratio:
-      text += f" Geometric mean: Hawk is {comparison_label(ratio)}."
-    pieces.append(f"<p>{text}</p>")
-    filename = f"generated/benchmark_ratio_{arch}.svg"
-    write(OUT / filename, svg_ratio_chart(arch, rows))
-    pieces.append(f'<figure class="chart"><img src="{href(filename)}" alt="{escape(arch)} Hawk runtime relative to Chez chart"></figure>')
-    pieces.append('<table><thead><tr><th>Benchmark</th><th>Hawk</th><th>Chez</th><th>Comparison</th></tr></thead><tbody>')
-    for name, args, value, ratio, hawk, chez in rows:
-      pieces.append(
-        f"<tr><td>{escape(name)}</td><td>{hawk:.6f}</td><td>{chez:.6f}</td><td>{comparison_label(ratio)}</td></tr>"
-      )
-    pieces.append("</tbody></table>\n</section>")
-  return "\n".join(pieces) + "\n"
-
-
 def layout(page, body, current):
   links = []
   for label, target in NAV:
@@ -373,25 +201,17 @@ def build():
   copy(ASSETS / "noun-hawk.png", OUT / "assets" / "noun-hawk.png")
   copy(ASSETS / "favicon.png", OUT / "assets" / "favicon.png")
 
-  data, warnings = parse_benchmarks()
-  GENERATED.mkdir(parents=True, exist_ok=True)
-  write(GENERATED / "benchmarks.json", json.dumps(data, indent=2))
-
   for file in sorted(CONTENT.glob("*.md")):
     meta, body_md = parse_frontmatter(read(file))
     # Skip the dormant blog page for now.
     if file.name == "blog.md":
       continue
     body = markdown(body_md)
-    if meta.get("benchmarks") == "true":
-      body += benchmark_html(data)
     file_out = output_path(meta, file)
     current = "/" + file_out.parent.relative_to(OUT).as_posix().strip(".") + "/"
     current = current.replace("//", "/")
     write(file_out, layout(meta, body, current))
 
-  for warning in warnings:
-    print(f"benchmark warning: {warning}", file=sys.stderr)
   print(f"built {OUT.relative_to(ROOT)}")
 
 

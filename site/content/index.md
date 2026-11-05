@@ -40,8 +40,7 @@ As well as more standard compiler features, like:
 
 ## Paper
 
-A draft paper describes Hawk's tracing architecture, specialization strategy,
-and evaluation on the R7RS benchmark suite.
+A draft paper describes Hawk's tracing architecture and specialization strategy.
 
 Read the current draft, [*Tracing Tail Calls: A JIT for Scheme*
 (PDF)](https://github.com/djwatson/hawk/releases/download/v0.9/tracing-tail-calls.pdf).

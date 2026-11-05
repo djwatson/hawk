@@ -7,4 +7,4 @@ description: Starting a small generated website for Hawk.
 
 # Project Site
 
-This site is generated from Markdown and benchmark logs. The goal is to keep the public project page as small and hackable as the compiler itself: text first, static output, and benchmark graphs that can be regenerated from raw results.
+This site is generated from Markdown. The goal is to keep the public project page as small and hackable as the compiler itself: text first and static output.

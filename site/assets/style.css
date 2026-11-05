@@ -227,26 +227,6 @@ th {
   font-weight: normal;
 }
 
-.bench-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 20px;
-  max-width: none;
-}
-
-.chart {
-  margin: 0;
-  padding: 14px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.45);
-}
-
-.chart img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
 .date {
   color: var(--muted);
   font-size: 0.9rem;
