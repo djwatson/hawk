@@ -61,8 +61,8 @@ For the VM specifically, we could speed up these, but it wouldn't really affect 
   
 * better stack-top tracking: I tried and didn't find much improvment
 * allocation sinking: I tried and didn't find much improvment.  Only happened in small side traces
-* opt_loop: Tried it, it only really saw a huge win in puzzle: where an inner loop has repeated SLOADS.
-            we could do a static pre-pass to improve this.
+* loop range analysis: opt_loop peels and refolds self loops, but many bounds
+  and overflow checks remain.
 
 # VM backlog
 

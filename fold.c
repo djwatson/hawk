@@ -56,6 +56,15 @@ static bool same_slot(trace *t, slot a, slot b) {
 }
 
 static bool fold_cse_allowed(trace *t __attribute__((unused)), ir_ins *in) {
+  if ((ir_ins_types[in->op] == IR_ARG_IR_NONE ||
+       ir_ins_types[in->op] == IR_ARG_IR_IR) &&
+      !in->op1.constant && t->ins[in->op1.loc].op == IR_PHI) {
+    return false;
+  }
+  if (ir_ins_types[in->op] == IR_ARG_IR_IR && !in->op2.constant &&
+      t->ins[in->op2.loc].op == IR_PHI) {
+    return false;
+  }
   switch (in->op) {
   case IR_EQ:
   case IR_NE:
@@ -83,6 +92,9 @@ static bool fold_cse_allowed(trace *t __attribute__((unused)), ir_ins *in) {
   case IR_VMEXACT:
   case IR_VMTRUNCATE:
     return true;
+  case IR_LOOP:
+  case IR_PHI:
+    return false;
   default:
     return false;
   }
@@ -134,6 +146,15 @@ static bool load_cse_allowed(trace *t, uint16_t load_ref) {
   return true;
 }
 
+static fold_result fold_forward_value(trace *t, ir_ins *load, slot value) {
+  if (load->type == FLONUM_TAG && !value.constant &&
+      t->ins[value.loc].op == IR_BOX_FLONUM)
+    value = t->ins[value.loc].op1;
+  uint8_t type = value.constant ? get_type_tag(t->consts[value.loc])
+                                : t->ins[value.loc].type;
+  return type == load->type ? fold_ref(value) : fold_next();
+}
+
 static fold_result fold_forward_load(trace *t, ir_ins *load,
                                      ir_ins_op store_op) {
   if (!load->op2.constant) {
@@ -159,7 +180,7 @@ static fold_result fold_forward_load(trace *t, ir_ins *load,
       continue;
     }
     if (same_slot(t, load->op1, ref->op1)) {
-      return fold_ref(store->op2);
+      return fold_forward_value(t, load, store->op2);
     }
     return fold_next();
   }
@@ -187,6 +208,18 @@ static bool gget_cse_allowed(trace *t, uint16_t gget_ref) {
   return true;
 }
 
+static bool sload_cse_allowed(trace *t, uint16_t sload_ref) {
+  static const ir_ins_op barriers[] = {
+      IR_STACK_STORE, IR_RET, IR_FLUSH, IR_STACK_RESET, IR_STACK_SET_TOP,
+      IR_STACK_FITS_RESET, IR_CALLCC, IR_CALLCC_RESUME};
+  for (size_t i = 0; i < ARRAY_LEN(barriers); i++) {
+    uint16_t ref = t->cse_head[barriers[i]];
+    if (ref != UINT16_MAX && ref > sload_ref)
+      return false;
+  }
+  return true;
+}
+
 static fold_result fold_forward_gget(trace *t, ir_ins *gget) {
   uint16_t gset_ref = t->cse_head[IR_GSET];
   while (gset_ref != UINT16_MAX) {
@@ -195,7 +228,7 @@ static fold_result fold_forward_gget(trace *t, ir_ins *gget) {
       return fold_next();
     }
     if (const_slot_eq(t, gget->op1, gset->op1)) {
-      return fold_ref(gset->op2);
+      return fold_forward_value(t, gget, gset->op2);
     }
     gset_ref = t->cse_prev[gset_ref];
   }
@@ -295,6 +328,14 @@ IRFOLD(LOAD_BYTE _ _)
 IRFOLDF(fold_load) {
   fold_result res = fold_forward_load(t, in, load_store_op(in->op));
   return res.action == FOLD_NEXT ? fold_cse(t, in, load_cse_allowed) : res;
+}
+
+IRFOLD(SLOAD _ _)
+IRFOLDF(fold_sload) {
+  fold_result res = fold_cse(t, in, sload_cse_allowed);
+  if (res.action == FOLD_REF && in->guard && !t->ins[res.ref.loc].guard)
+    return fold_next();
+  return res;
 }
 
 IRFOLD(GGET _ _)

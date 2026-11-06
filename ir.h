@@ -57,6 +57,8 @@ typedef enum : uint8_t {
   X(LTE, ARG_IR_IR, true)                                                      \
   X(GTE, ARG_IR_IR, true)                                                      \
   X(ABC, ARG_IR_IR, true)                                                      \
+  X(LOOP, ARG_NONE_NONE, true)                                                 \
+  X(PHI, ARG_IR_IR, false)                                                     \
   X(NOP, ARG_NONE_NONE, false)                                                 \
   X(CONST, ARG_IR_NONE, false)                                                 \
   X(ADD, ARG_IR_IR, false)                                                     \
@@ -190,6 +192,8 @@ typedef struct trace {
   snap *parent_snap;
   uint8_t link_entry_snap;
   trace *link;
+  uint16_t loop_body_ir;
+  label loop_body_label;
   label trace_start;
   label snap_entry_label;
   bc start_pc;

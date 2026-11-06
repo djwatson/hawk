@@ -305,6 +305,11 @@ typedef struct {
   uint16_t spill;
 } value_loc;
 
+typedef struct {
+  uint16_t value_id;
+  uint8_t reg;
+} loop_live_in;
+
 static value_loc snap_entry_loc(trace const *t, uint16_t snap_idx,
                                 size_t entry_idx);
 static void emit_typecheck(emit_state *s, trace *t, ir_ins const *op,
@@ -1638,6 +1643,104 @@ static void link_to_next_trace(emit_state *s, trace *t,
   emit_jmp32(s, target);
 }
 
+static bool trace_has_loop_phis(trace *t) {
+  return t->loop_body_ir != UINT16_MAX && t->link == t;
+}
+
+static void collect_loop_live_ins(trace *t, regalloc_state *ra_state,
+                                  loop_live_in **live_ins) {
+  for (uint8_t reg = 0; reg < MAX_REG; reg++) {
+    uint16_t value = ra_state->regs[reg];
+    if (value < t->loop_body_ir &&
+        ra_state->last_use[value] >= 3u * t->loop_body_ir + REGALLOC_INPUTS)
+      arrput(*live_ins, ((loop_live_in){.value_id = value, .reg = reg}));
+  }
+}
+
+// Parallel-copy locations: registers, spill slots, then constants.
+enum { LOOP_CONST = MAX_REG + SPILL_NONE };
+
+static uint64_t loop_value_loc(regalloc_state *ra, slot value) {
+  if (value.constant)
+    return LOOP_CONST + value.loc;
+  uint8_t reg = regalloc_find_current_reg_for_value(ra, value.loc);
+  if (reg != REG_NONE)
+    return reg;
+  auto ins = &ra->t->ins[value.loc];
+  assert(ins->spill != SPILL_NONE);
+  return MAX_REG + ins->spill;
+}
+
+static void emit_loop_copies(emit_state *s, trace *t, par_copy *copies,
+                             bool flonum) {
+  auto moves = serialize_parallel_copy(copies, UINT64_MAX);
+  bool cycle = false;
+  arr_for_each(moves, move) {
+    if (move.to == UINT64_MAX)
+      cycle = true;
+  }
+  if (cycle)
+    emit_sub_constant(s, SP, SP, 16);
+  arr_for_each(moves, move) {
+    uint8_t reg = move.to < MAX_REG ? move.to : flonum ? FRTMP : RTMP2;
+    if (move.from < MAX_REG) {
+      reg = move.from;
+    } else if (move.from == UINT64_MAX) {
+      (flonum ? emit_fmem_load : emit_mem_load)(s, 0, SP, reg);
+    } else if (move.from >= LOOP_CONST) {
+      slot value = {.constant = true, .loc = move.from - LOOP_CONST};
+      if (flonum)
+        emit_fmov_constant(s, reg, slot_flonum_constant(t, value));
+      else
+        emit_heap_constant(s, t, reg, slot_gc_obj(t, value));
+    } else {
+      emit_mov64(s, RTMP, spill_base(flonum ? FLONUM_TAG : FIXNUM_TAG));
+      (flonum ? emit_fmem_load : emit_mem_load)(
+          s, spill_offset(move.from - MAX_REG), RTMP, reg);
+    }
+    if (move.to == UINT64_MAX) {
+      (flonum ? emit_fstore : emit_store)(s, 0, SP, reg);
+    } else if (move.to < MAX_REG) {
+      if (reg != move.to)
+        (flonum ? emit_fmov : emit_mov)(s, move.to, reg);
+    } else {
+      emit_mov64(s, RTMP, spill_base(flonum ? FLONUM_TAG : FIXNUM_TAG));
+      (flonum ? emit_fstore : emit_store)(
+          s, spill_offset(move.to - MAX_REG), RTMP, reg);
+    }
+  }
+  if (cycle)
+    emit_add_constant(s, SP, SP, 16);
+  arrfree(moves);
+  arrfree(copies);
+}
+
+static void link_optimized_loop(emit_state *s, trace *t, ir_ins **phis,
+                                loop_live_in *live_ins, regalloc_state *ra) {
+  COMMENT("Optimized loopback");
+  par_copy *copies[2] = {};
+  arr_for_each(live_ins, live_in) {
+    slot value = {.loc = live_in.value_id};
+    arr_for_each(phis, phi) {
+      if (phi->op1.loc == value.loc) {
+        value = phi->op2;
+        break;
+      }
+    }
+    bool flonum = t->ins[live_in.value_id].type == FLONUM_TAG;
+    arrput(copies[flonum], ((par_copy){loop_value_loc(ra, value), live_in.reg}));
+  }
+  arr_for_each(phis, phi) {
+    auto dst = &t->ins[phi->op1.loc];
+    if (dst->spill != SPILL_NONE)
+      arrput(copies[dst->type == FLONUM_TAG],
+             ((par_copy){loop_value_loc(ra, phi->op2), MAX_REG + dst->spill}));
+  }
+  emit_loop_copies(s, t, copies[0], false);
+  emit_loop_copies(s, t, copies[1], true);
+  emit_jmp32(s, &t->loop_body_label);
+}
+
 static void emit_reload_arg(emit_state *s, trace *t, uint16_t value_id,
                             uint8_t reg) {
   auto in = &t->ins[value_id];
@@ -1805,12 +1908,17 @@ static void emit_store_byte(emit_state *s, trace *t, ir_ins const *op,
   }
 }
 
-static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
+static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state,
+                    ir_ins ***loop_phis, loop_live_in **loop_live_ins) {
   int32_t cur_snap = -1;
   size_t snap_idx = 0;
   size_t op_cnt_idx = 0;
 
   for (; op_cnt_idx < arrlen(t->ins); op_cnt_idx++) {
+    if (op_cnt_idx == t->loop_body_ir) {
+      collect_loop_live_ins(t, ra_state, loop_live_ins);
+      emit_label(s, &t->loop_body_label);
+    }
     while (snap_idx < arrlen(t->snaps) && t->snaps[snap_idx].ir == op_cnt_idx) {
       if (snap_idx == 1) {
         emit_label(s, &t->snap_entry_label);
@@ -1820,6 +1928,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     }
     regalloc_free_regs(ra_state, op_cnt_idx, REGALLOC_BEFORE);
     auto op = &t->ins[op_cnt_idx];
+    if (op->op == IR_PHI) {
+      arrput(*loop_phis, op);
+      continue;
+    }
 
     COMMENT("%i %s", op_cnt_idx, ir_names[op->op]);
     // Begin regalloc
@@ -2220,6 +2332,8 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
       emit_mem_load(s, (int32_t)op->data * 8, RSTACK, dst_reg);
       break;
     }
+    case IR_LOOP:
+      break;
     case IR_GGET: {
       emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op1));
       uint8_t load_reg = op->type == FLONUM_TAG ? RTMP2 : dst_reg;
@@ -2449,6 +2563,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state) {
     cur_snap = (int32_t)snap_idx;
     snap_idx++;
   }
+  if (op_cnt_idx == t->loop_body_ir) {
+    collect_loop_live_ins(t, ra_state, loop_live_ins);
+    emit_label(s, &t->loop_body_label);
+  }
 }
 
 // Emit *two* entry points:
@@ -2535,11 +2653,19 @@ trace_fn emit(trace *t, emit_state *s, uint8_t link_entry_snap) {
   // (without typechecking).
   emit_label(s, &t->trace_start);
 
-  emit_ir(s, t, &reg_state);
+  ir_ins **loop_phis = nullptr;
+  loop_live_in *loop_live_ins = nullptr;
+  emit_ir(s, t, &reg_state, &loop_phis, &loop_live_ins);
 
   // Link to the next trace: Which is either ourselves (if a looping parent
   // trace), or another trace (if a side trace).
-  link_to_next_trace(s, t, link_entry_snap);
+  if (trace_has_loop_phis(t)) {
+    link_optimized_loop(s, t, loop_phis, loop_live_ins, &reg_state);
+  } else {
+    link_to_next_trace(s, t, link_entry_snap);
+  }
+  arrfree(loop_phis);
+  arrfree(loop_live_ins);
 
   // Exist stubs for all but the loopback (last). These restore the scheme
   // stack state, putting any in-register values back on the stack, and boxing

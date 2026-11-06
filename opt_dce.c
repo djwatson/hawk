@@ -26,7 +26,8 @@ static void propagate(trace *trace, bool *marks) {
   for (uint64_t i = arrlen(trace->ins); i > 0; i--) {
     auto ins = &trace->ins[i - 1];
 
-    if (ir_sideeff(ins->op) || ins->guard) {
+    if (ir_sideeff(ins->op) || ins->guard ||
+        (trace->loop_body_ir != UINT16_MAX && ins->op == IR_PHI)) {
       marks[i - 1] = true;
     }
     if (!marks[i - 1]) {

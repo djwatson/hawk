@@ -84,7 +84,8 @@ static bool ins_clobbers_regs(ir_ins const *ins) {
 
 static bool needs_output_reg(regalloc_state const *s, uint16_t ir_idx) {
   auto op = s->t->ins[ir_idx].op;
-  return op != IR_PMOV && op != IR_REF && op != IR_CARG && s->last_use[ir_idx];
+  return op != IR_PMOV && op != IR_REF && op != IR_CARG &&
+         op != IR_PHI && s->last_use[ir_idx];
 }
 
 static uint8_t regalloc_collect_carg_args(trace const *t, slot chain,
@@ -132,6 +133,15 @@ uint8_t regalloc_collect_ir_args(trace const *t, ir_ins const *ins,
     return (uint8_t)(count +
                      regalloc_collect_carg_args(t, op2, args + count));
   }
+  if (ins->op == IR_PHI) {
+    if (!op1.constant) {
+      args[count++] = op1;
+    }
+    if (!op2.constant) {
+      args[count++] = op2;
+    }
+    return count;
+  }
   if (ins->op == IR_CCALL) {
     return regalloc_collect_carg_args(t, op2, args);
   }
@@ -166,6 +176,28 @@ static bool value_used_by_args(slot const *args, uint8_t arg_count,
   return false;
 }
 
+static void mark_loop_liveins(trace *t, bool *live) {
+  if (t->loop_body_ir == UINT16_MAX)
+    return;
+  for (size_t i = t->loop_body_ir; i < arrlen(t->ins); i++) {
+    slot args[UINT8_MAX];
+    uint8_t count = regalloc_collect_ir_args(t, &t->ins[i], args);
+    for (uint8_t j = 0; j < count; j++) {
+      if (args[j].loc < t->loop_body_ir || t->ins[i].op == IR_PHI)
+        live[args[j].loc] = true;
+    }
+  }
+  arr_for_each(t->snaps, sn) {
+    if (sn.ir < t->loop_body_ir)
+      continue;
+    auto entries = snap_entries_const(t, &sn);
+    for (size_t i = 0; i < snap_nent(&sn); i++) {
+      if (!entries[i].val.constant && entries[i].val.loc < t->loop_body_ir)
+        live[entries[i].val.loc] = true;
+    }
+  }
+}
+
 static int compare_lifetime_ends(void const *a, void const *b) {
   auto lhs = (reg_lifetime_end const *)a;
   auto rhs = (reg_lifetime_end const *)b;
@@ -197,6 +229,22 @@ static void collect_lifetimes(regalloc_state *s) {
   for (size_t i = 0; i < ins_len; i++) {
     use_pos[i] = UINT32_MAX;
   }
+  // Values crossing the backedge survive until the parallel loopback copy.
+  bool loop_live[ins_len];
+  memset(loop_live, 0, sizeof(loop_live));
+  mark_loop_liveins(s->t, loop_live);
+  for (size_t i = 0; i < ins_len; i++) {
+    if (!loop_live[i])
+      continue;
+    s->last_use[i] = 3u * ins_len + REGALLOC_INPUTS;
+    end_lifetime(s, i, ins_len, REGALLOC_INPUTS);
+    bool flonum = s->t->ins[i].type == FLONUM_TAG;
+    live_add(flonum ? fpr_live : gpr_live,
+             flonum ? &fpr_live_count : &gpr_live_count, i);
+    use_pos[i] = ins_len;
+  }
+  limit_live_values(s, gpr_live, &gpr_live_count, GPR_ALLOCATABLE, use_pos);
+  limit_live_values(s, fpr_live, &fpr_live_count, FPR_ALLOCATABLE, use_pos);
   for (size_t i = ins_len; i > 0; i--) {
     uint16_t value_id = (uint16_t)(i - 1);
     auto ins = &s->t->ins[value_id];

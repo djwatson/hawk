@@ -15,6 +15,7 @@
 #include "hawk.h"
 #include "ir.h"
 #include "opt_dce.h"
+#include "opt_loop.h"
 #include "record.h"
 #include "runtime.h"
 #include "string.h"
@@ -918,6 +919,9 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
   vm_add_snap(state, pc, argcnt);
   mark_downrec_ok(cur_trace);
 
+  if (!is_downrec_trace(ts)) {
+    opt_loop(cur_trace);
+  }
   dce(cur_trace);
   cur_trace->fn = emit(cur_trace, &state->emit, cur_trace->link_entry_snap);
   if (!cur_trace->fn) {
@@ -2387,6 +2391,7 @@ static trace *record_begin_trace(vm_state *state, bc *pc, bc instr) {
   cur_trace->start_ins = pc;
   cur_trace->start_pc = instr;
   cur_trace->num = trace_cnt;
+  cur_trace->loop_body_ir = UINT16_MAX;
   trace_state *ts = record_trace_state(state);
   memset(ts, 0, sizeof(trace_state));
   ts->start_ins = pc;
