@@ -189,6 +189,8 @@ void print_ir(trace *t) {
       printf(" +%i", ins->data);
       break;
     }
+    int32_t offset = ir_address_offset(t, ins);
+    if (offset) printf(" [offset %+" PRId32 "]", offset);
     printf("\n");
   }
 }

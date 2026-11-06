@@ -2038,7 +2038,7 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state,
       bool unknown_base = base_type == UNDEFINED_TAG;
       base_type = ref_base_tag(base_type);
       int32_t payload_offset = object_payload_offset(base_type);
-      int32_t typed_offset = payload_offset - base_type;
+      int32_t typed_offset = payload_offset - base_type + ir_address_offset(t, op);
       if (op->type == FLONUM_TAG) {
         // Slot contains a tagged flonum gc_obj; load object first, then
         // payload. Prefer the dedicated secondary scratch register when
@@ -2141,11 +2141,13 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state,
         auto offset_reg = emit_arg_reg(args, arg_regs, arg_count, ref->op2);
         if (val_reg == REG_NONE)
           emit_store_constant_indexed(
-              s, object_payload_offset(op->type) - ref_base_tag(op->type),
+              s, object_payload_offset(op->type) - ref_base_tag(op->type) +
+                  ir_address_offset(t, ref),
               base_reg, offset_reg, value.value);
         else
           emit_store_indexed(
-              s, object_payload_offset(op->type) - ref_base_tag(op->type),
+              s, object_payload_offset(op->type) - ref_base_tag(op->type) +
+                  ir_address_offset(t, ref),
               base_reg, offset_reg, val_reg);
       }
 

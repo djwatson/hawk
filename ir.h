@@ -195,6 +195,7 @@ typedef struct trace {
   snap *parent_snap;
   uint8_t link_entry_snap;
   trace *link;
+  int32_t *address_offsets;
   uint16_t loop_body_ir;
   label loop_body_label;
   label trace_start;
@@ -253,3 +254,7 @@ slot trace_add_const(trace *t, gc_obj value);
 
 // Audited calls that neither collect nor reenter Scheme.
 bool ir_call_preserves_regs(trace const *t, ir_ins const *ins);
+
+static inline int32_t ir_address_offset(trace const *t, ir_ins const *in) {
+  return t->address_offsets ? t->address_offsets[in - t->ins] : 0;
+}

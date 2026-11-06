@@ -511,9 +511,46 @@ void opt_ranges(trace *t) {
     } else continue;
     if (a.lo <= a.hi && b.lo <= b.hi && r.lo >= full.lo && r.hi <= full.hi)
       in->op = unchecked;
+    if (in->op == unchecked) in->guard = false;
     if (r.lo < full.lo) r.lo = full.lo;
     if (r.hi > full.hi) r.hi = full.hi;
     ranges[i] = r;
   }
   free(ranges);
+}
+
+// Normalize word-vector addresses before DCE and register allocation.
+void opt_addresses(trace *t) {
+  size_t n = arrlen(t->ins);
+  bool *phi = calloc(n, sizeof(*phi));
+  if (!phi && n) abort();
+  arr_for_each(t->ins, in) {
+    if (in.op == IR_PHI) phi[in.op1.loc] = true;
+  }
+  for (size_t i = 0; i < n; i++) {
+    auto in = &t->ins[i];
+    if ((in->op != IR_LOAD && in->op != IR_REF) || in->op2.constant)
+      continue;
+    uint8_t type = in->op1.constant ? get_tag(t->consts[in->op1.loc])
+                                    : t->ins[in->op1.loc].type;
+    if (type != VECTOR_TAG || phi[in->op2.loc]) continue;
+    auto index = &t->ins[in->op2.loc];
+    if ((index->op != IR_ADD_UNCHECKED && index->op != IR_SUB_UNCHECKED) ||
+        index->op1.constant || !index->op2.constant)
+      continue;
+    __int128 offset = t->consts[index->op2.loc].value;
+    if (index->op == IR_SUB_UNCHECKED) offset = -offset;
+    // Ordinary vectors use header size minus tag as their base displacement.
+    if (offset < INT32_MIN || offset > INT32_MAX ||
+        offset + sizeof(gc_header) - VECTOR_TAG < INT32_MIN ||
+        offset + sizeof(gc_header) - VECTOR_TAG > INT32_MAX)
+      continue;
+    if (!t->address_offsets) {
+      t->address_offsets = calloc(n, sizeof(*t->address_offsets));
+      if (!t->address_offsets) abort();
+    }
+    t->address_offsets[i] = (int32_t)offset;
+    in->op2 = index->op1;
+  }
+  free(phi);
 }

@@ -115,6 +115,7 @@ static void clear_trace_state(trace_state *ts) {
 static void free_snap(snap *snap) { arrfree(snap->side_exit_jcc_locs); }
 static void free_trace(trace *trace) {
   arr_for_each(trace->snaps, snap) { free_snap(&snap); }
+  free(trace->address_offsets);
   arrfree(trace->ins);
   arrfree(trace->cse_prev);
   arrfree(trace->consts);
@@ -923,6 +924,7 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
     opt_loop(cur_trace);
   }
   opt_ranges(cur_trace);
+  opt_addresses(cur_trace);
   dce(cur_trace);
   cur_trace->fn = emit(cur_trace, &state->emit, cur_trace->link_entry_snap);
   if (!cur_trace->fn) {
