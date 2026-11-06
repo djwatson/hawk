@@ -438,87 +438,6 @@ out:
   arrfree(exit_entries);
 }
 
-// Ranges describe mathematical, untagged values on the successful path.
-typedef struct { __int128 lo, hi; } int_range;
-
-static int_range value_range(trace *t, int_range *ranges, slot v) {
-  if (!v.constant)
-    return ranges[v.loc];
-  if (is_fixnum(t->consts[v.loc])) {
-    int64_t k = to_fixnum(t->consts[v.loc]);
-    return (int_range){k, k};
-  }
-  return (int_range){FIXNUM_MIN_VALUE, FIXNUM_MAX_VALUE};
-}
-
-static void constrain(int_range *ranges, slot v, int_range r) {
-  if (!v.constant) {
-    if (r.lo > ranges[v.loc].lo) ranges[v.loc].lo = r.lo;
-    if (r.hi < ranges[v.loc].hi) ranges[v.loc].hi = r.hi;
-  }
-}
-
-void opt_ranges(trace *t) {
-  size_t n = arrlen(t->ins);
-  int_range full = {FIXNUM_MIN_VALUE, FIXNUM_MAX_VALUE};
-  int_range *ranges = malloc(n * sizeof(*ranges));
-  if (!ranges && n) abort();
-  for (size_t i = 0; i < n; i++) ranges[i] = full;
-  for (size_t i = 0; i < n; i++) {
-    if (i == t->loop_body_ir) {
-      arr_for_each(t->ins, phi) {
-        if (phi.op == IR_PHI) ranges[phi.op1.loc] = full;
-      }
-    }
-    ir_ins *in = &t->ins[i];
-    if (in->op == IR_LOAD_BYTE) ranges[i] = (int_range){0, 255};
-    if (in->op == IR_ABC) {
-      constrain(ranges, in->op2, (int_range){0, FIXNUM_MAX_VALUE - 1});
-      continue;
-    }
-    if (in->type != FIXNUM_TAG) continue;
-    if (ir_ins_types[in->op] != IR_ARG_IR_IR) continue;
-    int_range a = value_range(t, ranges, in->op1);
-    int_range b = value_range(t, ranges, in->op2);
-    if (a.lo > a.hi || b.lo > b.hi) continue;
-    if (in->op >= IR_LT && in->op <= IR_GTE) {
-      if (in->op == IR_GT || in->op == IR_GTE) {
-        int_range tmp = a; a = b; b = tmp;
-      }
-      int strict = in->op == IR_LT || in->op == IR_GT;
-      slot lhs = in->op == IR_GT || in->op == IR_GTE ? in->op2 : in->op1;
-      slot rhs = in->op == IR_GT || in->op == IR_GTE ? in->op1 : in->op2;
-      constrain(ranges, lhs, (int_range){full.lo, b.hi - strict});
-      constrain(ranges, rhs, (int_range){a.lo + strict, full.hi});
-      continue;
-    }
-    int_range r;
-    ir_ins_op unchecked;
-    if (in->op == IR_ADD) {
-      r = (int_range){a.lo + b.lo, a.hi + b.hi};
-      unchecked = IR_ADD_UNCHECKED;
-    } else if (in->op == IR_SUB) {
-      r = (int_range){a.lo - b.hi, a.hi - b.lo};
-      unchecked = IR_SUB_UNCHECKED;
-    } else if (in->op == IR_MUL) {
-      __int128 products[] = {a.lo*b.lo, a.lo*b.hi, a.hi*b.lo, a.hi*b.hi};
-      r = (int_range){products[0], products[0]};
-      for (size_t j = 1; j < 4; j++) {
-        if (products[j] < r.lo) r.lo = products[j];
-        if (products[j] > r.hi) r.hi = products[j];
-      }
-      unchecked = IR_MUL_UNCHECKED;
-    } else continue;
-    if (a.lo <= a.hi && b.lo <= b.hi && r.lo >= full.lo && r.hi <= full.hi)
-      in->op = unchecked;
-    if (in->op == unchecked) in->guard = false;
-    if (r.lo < full.lo) r.lo = full.lo;
-    if (r.hi > full.hi) r.hi = full.hi;
-    ranges[i] = r;
-  }
-  free(ranges);
-}
-
 // Normalize word-vector addresses before DCE and register allocation.
 void opt_addresses(trace *t) {
   size_t n = arrlen(t->ins);
@@ -538,6 +457,8 @@ void opt_addresses(trace *t) {
     if ((index->op != IR_ADD_UNCHECKED && index->op != IR_SUB_UNCHECKED) ||
         index->op1.constant || !index->op2.constant)
       continue;
+    if (i >= t->loop_body_ir && in->op2.loc < t->loop_body_ir &&
+        phi[index->op1.loc]) continue;
     __int128 offset = t->consts[index->op2.loc].value;
     if (index->op == IR_SUB_UNCHECKED) offset = -offset;
     // Ordinary vectors use header size minus tag as their base displacement.

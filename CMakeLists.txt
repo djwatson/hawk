@@ -89,6 +89,7 @@ set(
   util/list.c
   fold.c
   opt_loop.c
+  opt_range.c
   opt_dce.c
   bc.c
 )
