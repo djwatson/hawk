@@ -74,6 +74,9 @@ static bool fold_cse_allowed(trace *t __attribute__((unused)), ir_ins *in) {
   case IR_GTE:
   case IR_ABC:
   case IR_CONST:
+  case IR_ADD_UNCHECKED:
+  case IR_SUB_UNCHECKED:
+  case IR_MUL_UNCHECKED:
   case IR_ADD:
   case IR_SUB:
   case IR_MUL:
@@ -428,6 +431,25 @@ IRFOLDF(fold_sub_const_const) {
   auto lhs = t->consts[in->op1.loc];
   auto rhs = t->consts[in->op2.loc];
   return fold_const(vm_runtime_math_sub_slow(lhs, rhs));
+}
+
+IRFOLD(ADD_UNCHECKED _ _)
+IRFOLD(SUB_UNCHECKED _ _)
+IRFOLD(MUL_UNCHECKED _ _)
+IRFOLDF(fold_unchecked) {
+  if (!in->op2.constant) return fold_next();
+  int64_t b = to_fixnum(t->consts[in->op2.loc]);
+  if (in->op1.constant) {
+    __int128 a = to_fixnum(t->consts[in->op1.loc]);
+    __int128 value = in->op == IR_ADD_UNCHECKED ? a + b
+                     : in->op == IR_SUB_UNCHECKED ? a - b : a * b;
+    if (value >= FIXNUM_MIN_VALUE && value <= FIXNUM_MAX_VALUE)
+      return fold_const(tag_fixnum((int64_t)value));
+  } else if (in->op == IR_MUL_UNCHECKED) {
+    if (b == 0) return fold_const(tag_fixnum(0));
+    if (b == 1) return fold_ref(in->op1);
+  } else if (b == 0) return fold_ref(in->op1);
+  return fold_next();
 }
 
 IRFOLD(ADD CONST CONST)

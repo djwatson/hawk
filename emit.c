@@ -2189,6 +2189,33 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state,
       EMIT_CMP_CASE(IR_GT, JBE, JLE)
       EMIT_CMP_CASE(IR_GTE, JB, JL)
       EMIT_CMP_CASE(IR_LTE, JA, JG)
+    case IR_ADD_UNCHECKED:
+    case IR_SUB_UNCHECKED:
+    case IR_MUL_UNCHECKED: {
+      assert(op->type == FIXNUM_TAG);
+      uint8_t lhs = arg0_reg, rhs = arg1_reg;
+      if (op->op1.constant) {
+        rhs = arg0_reg;
+        lhs = RTMP;
+        emit_mov64(s, lhs, slot_const(t, op->op1));
+      }
+      if (op->op2.constant) {
+        int64_t k = slot_const(t, op->op2);
+        if (op->op == IR_MUL_UNCHECKED)
+          emit_mul_constant(s, dst_reg, lhs, k >> FIXNUM_SHIFT);
+        else
+          (op->op == IR_ADD_UNCHECKED ? emit_add_constant : emit_sub_constant)(
+              s, dst_reg, lhs, k);
+        break;
+      }
+      if (op->op == IR_MUL_UNCHECKED) {
+        emit_sar_constant(s, RTMP2, rhs, FIXNUM_SHIFT);
+        emit_mul(s, dst_reg, lhs, RTMP2);
+      } else {
+        (op->op == IR_ADD_UNCHECKED ? emit_add : emit_sub)(s, dst_reg, lhs, rhs);
+      }
+      break;
+    }
     case IR_CONST: {
       assert(op->op1.constant);
       if (op->type == FLONUM_TAG) {

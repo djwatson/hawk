@@ -922,6 +922,7 @@ static void record_finish(bc *pc, vm_state *state, void **op_table,
   if (!is_downrec_trace(ts)) {
     opt_loop(cur_trace);
   }
+  opt_ranges(cur_trace);
   dce(cur_trace);
   cur_trace->fn = emit(cur_trace, &state->emit, cur_trace->link_entry_snap);
   if (!cur_trace->fn) {

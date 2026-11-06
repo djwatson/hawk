@@ -22,31 +22,74 @@ static void mark_snaps(trace *trace, bool *marks) {
   }
 }
 
-static void propagate(trace *trace, bool *marks) {
-  for (uint64_t i = arrlen(trace->ins); i > 0; i--) {
-    auto ins = &trace->ins[i - 1];
+static bool mark_value(bool *marks, slot value) {
+  if (value.constant || marks[value.loc]) return false;
+  marks[value.loc] = true;
+  return true;
+}
 
-    if (ir_sideeff(ins->op) || ins->guard ||
-        (trace->loop_body_ir != UINT16_MAX && ins->op == IR_PHI)) {
-      marks[i - 1] = true;
+static bool *live_phis(trace *t) {
+  size_t n = arrlen(t->ins);
+  bool *live = calloc(n, sizeof(bool));
+  if (t->loop_body_ir == UINT16_MAX) return live;
+  for (size_t i = 0; i < arrlen(t->snaps); i++) {
+    auto sn = &t->snaps[i];
+    if (sn->ir < t->loop_body_ir) continue;
+    auto entries = snap_entries(t, sn);
+    for (size_t j = 0; j < snap_nent(sn); j++)
+      mark_value(live, entries[j].val);
+  }
+  bool changed;
+  do {
+    changed = false;
+    for (size_t i = n; i > t->loop_body_ir; i--) {
+      auto in = &t->ins[i - 1];
+      if (in->op == IR_PHI) {
+        if (live[in->op1.loc]) {
+          live[i - 1] = true;
+          changed |= mark_value(live, in->op2);
+        }
+      } else if (live[i - 1] || ir_sideeff(in->op) || in->guard) {
+        auto type = ir_ins_types[in->op];
+        if (type == IR_ARG_IR_NONE || type == IR_ARG_IR_IR)
+          changed |= mark_value(live, in->op1);
+        if (type == IR_ARG_IR_IR)
+          changed |= mark_value(live, in->op2);
+      }
     }
-    if (!marks[i - 1]) {
-      // We could have dropped something like a function closure,
-      // where we've optimistically guarded the whole trace.
-      ins->op = IR_NOP;
-      ins->guard = false;
-      continue;
+  } while (changed);
+  return live;
+}
+
+static void propagate(trace *t, bool *marks) {
+  bool *phis = live_phis(t);
+  bool changed;
+  do {
+    changed = false;
+    for (size_t i = arrlen(t->ins); i > 0; i--) {
+      auto in = &t->ins[i - 1];
+      if (in->op == IR_PHI) {
+        if (phis[i - 1]) {
+          marks[i - 1] = true;
+          changed |= mark_value(marks, in->op1);
+          changed |= mark_value(marks, in->op2);
+        }
+        continue;
+      }
+      if (ir_sideeff(in->op) || in->guard) marks[i - 1] = true;
+      if (!marks[i - 1]) continue;
+      auto type = ir_ins_types[in->op];
+      if (type == IR_ARG_IR_NONE || type == IR_ARG_IR_IR)
+        changed |= mark_value(marks, in->op1);
+      if (type == IR_ARG_IR_IR)
+        changed |= mark_value(marks, in->op2);
     }
-    auto type = ir_ins_types[ins->op];
-    if ((type == IR_ARG_IR_NONE || type == IR_ARG_IR_IR) &&
-        !ins->op1.constant) {
-      marks[ins->op1.loc] = true;
-    }
-    if (ins->op == IR_CALLCC && !ins->op2.constant) {
-      marks[ins->op2.loc] = true;
-    }
-    if (type == IR_ARG_IR_IR && !ins->op2.constant) {
-      marks[ins->op2.loc] = true;
+  } while (changed);
+  free(phis);
+  for (size_t i = 0; i < arrlen(t->ins); i++) {
+    if (!marks[i]) {
+      t->ins[i].op = IR_NOP;
+      t->ins[i].guard = false;
     }
   }
 }
