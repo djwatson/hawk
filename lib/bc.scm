@@ -1306,7 +1306,7 @@
   (let ((fun (make-fun "values")))
     (let loop ((argc 1))
       (add-op fun `(IFUNC ,argc 0))
-      (if (= argc values-entry-max-argc)
+      (if (>= argc values-entry-max-argc)
           (begin (add-op fun `(ARGCNT_ERROR ,argc)) (add-op fun `(RETN 1 ,(- argc 1))))
           (let* ((offset (fun-code-len fun)) (jop (list 'JMP 0 0)))
             (add-op fun jop)
@@ -1774,7 +1774,7 @@
     (if (= 0 len)
         #f
         (let loop ((i 0))
-          (or (= i len) (and (bc-flonum? (vector-ref v i)) (loop (+ i 1))))))))
+          (or (>= i len) (and (bc-flonum? (vector-ref v i)) (loop (+ i 1))))))))
 
 (define (obj-tag o)
   (cond
@@ -2077,7 +2077,7 @@
                           (let* ((len (vector-length c)) (res (make-vector len)))
                             (hash-table-set! seen c res)
                             (do ((i 0 (+ i 1)))
-                                 ((= i len) res)
+                                 ((>= i len) res)
                                  (vector-set! res i (const->runtime (vector-ref c i))))))))
                     (else c))))
              (fun->runtime

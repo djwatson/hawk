@@ -137,7 +137,7 @@
 (define (list? x)
   (let fast ((cnt 0) (lst x))
     (cond
-      ((= cnt 4000)
+      ((>= cnt 4000)
         (let loop ((fast x) (slow x))
           (cond
             ((null? fast) #t)
@@ -158,7 +158,7 @@
   (define (err) (error "Not a list"))
   (let fast ((cnt 0) (lst x))
     (cond
-      ((= cnt 4000)
+      ((>= cnt 4000)
         ;; Run slow check, rabbit+hare
         (let loop ((fast x) (slow x) (cnt 0))
           (if (null? fast)
@@ -218,16 +218,16 @@
   (case-lambda
     ((proc str)
       (do ((len (string-length str)) (i 0 (+ i 1)) (pos 0 (+ pos 1)))
-           ((= i len))
+           ((>= i len))
            (proc (string-ref str pos))))
     ((proc . strs)
       (do ((len (apply min (map string-length strs))) (i 0 (+ i 1)))
-           ((= i len))
+           ((>= i len))
            (apply proc (map (lambda (x) (string-ref x i)) strs))))))
 
 (define (vector-for-each proc . vecs)
   (do ((len (apply min (map vector-length vecs))) (i 0 (+ i 1)))
-       ((= i len))
+       ((>= i len))
        (apply proc (map (lambda (x) (vector-ref x i)) vecs))))
 
 (define (eqv? a b) (sys:EQV a b))
@@ -348,7 +348,7 @@
 (define (string-map proc . strs)
   (let* ((len (apply min (map string-length strs))) (str (make-string len)))
     (do ((i 0 (+ i 1)))
-         ((= i len) str)
+         ((>= i len) str)
          (string-set! str i (apply proc (map (lambda (x) (string-ref x i)) strs))))))
 (define (car a) (unless (pair? a) (error "CAR: bad load:" a)) (sys:CAR a))
 (define (cdr a) (unless (pair? a) (error "CDR: bad load:" a)) (sys:CDR a))
@@ -437,7 +437,7 @@
 (define (list-ref lst n)
   (unless (and (fixnum? n) (not (negative? n)))
     (error "list-ref: expected nonnegative exact integer" n))
-  (let loop ((lst lst) (n n)) (if (zero? n) (car lst) (loop (cdr lst) (- n 1)))))
+  (let loop ((lst lst) (n n)) (if (<= n 0) (car lst) (loop (cdr lst) (- n 1)))))
 (define (list-set! list k obj)
   (do ((list list (cdr list)) (k k (- k 1)) (obj obj))
        ((= k 0) (set-car! list obj))))
@@ -543,7 +543,7 @@
         (error "Bad end string->vector" end))
       (when (> start end) (error "Bad end string->vector" end))
       (do ((v (make-vector (- end start))) (i start (+ i 1)) (vpos 0 (+ vpos 1)))
-           ((= i end) v)
+           ((>= i end) v)
            (vector-set! v vpos (string-ref string i))))))
 
 (define vector->string
@@ -557,7 +557,7 @@
       (unless (<= 0 end (vector-length vec)) (error "Bad end vector->string" end))
       (when (> start end) (error "Bad end vector->string" end))
       (do ((str (make-string (- end start))) (i start (+ i 1)) (spos 0 (+ spos 1)))
-           ((= i end) str)
+           ((>= i end) str)
            (string-set! str spos (vector-ref vec i))))))
 (define vector-copy
   (case-lambda
@@ -570,7 +570,7 @@
       (unless (<= 0 end (vector-length vec)) (error "Bad end vector-copy" end))
       (when (> start end) (error "Bad end vector-copy" end))
       (do ((v (make-vector (- end start))) (from start (+ from 1)) (to 0 (+ to 1)))
-           ((= from end) v)
+           ((>= from end) v)
            (vector-set! v to (vector-ref vec from))))))
 (define (vector-append . vecs)
   (let ((v (make-vector (apply + (map vector-length vecs)))))
@@ -593,10 +593,10 @@
       (when (> start end) (error "Bad end vector-copy!" end))
       (if (>= start at)
           (do ((i start (+ i 1)) (out at (+ out 1)))
-               ((= i end) to)
+               ((>= i end) to)
                (vector-set! to out (vector-ref from i)))
           (do ((in end (- in 1)) (out (+ at (- end start)) (- out 1)))
-               ((= in start) to)
+               ((<= in start) to)
                (vector-set! to (- out 1) (vector-ref from (- in 1))))))))
 
 (define vector-fill!
@@ -629,7 +629,7 @@
 (define (vector-map proc . vecs)
   (let* ((len (apply min (map vector-length vecs))) (vec (make-vector len)))
     (do ((i 0 (+ i 1)))
-         ((= i len) vec)
+         ((>= i len) vec)
          (vector-set! vec i (apply proc (map (lambda (x) (vector-ref x i)) vecs))))))
 
 (define apply
@@ -1250,7 +1250,7 @@
     ((string? buf) (str-copy-internal buf dst src start end))
     ((bytevector? buf)
       (do ((i start (+ i 1)) (j dst (+ j 1)))
-           ((= i end))
+           ((>= i end))
            (bytevector-u8-set! buf j (char->integer (string-ref src i)))))
     (else (error "Invalid port buffer" buf))))
 
@@ -1258,7 +1258,7 @@
   (cond
     ((string? buf)
       (do ((i start (+ i 1)) (j dst (+ j 1)))
-           ((= i end))
+           ((>= i end))
            (string-set! buf j (integer->char (bytevector-u8-ref src i)))))
     ((bytevector? buf) (bytevector-copy! buf dst src start end))
     (else (error "Invalid port buffer" buf))))
@@ -1269,7 +1269,7 @@
     ((bytevector? buf)
       (let ((res (make-string (- end start))))
         (do ((i start (+ i 1)) (j 0 (+ j 1)))
-             ((= i end) res)
+             ((>= i end) res)
              (string-set! res j (integer->char (bytevector-u8-ref buf i))))))
     (else (error "Invalid port buffer" buf))))
 
@@ -1279,7 +1279,7 @@
     ((string? buf)
       (let ((res (make-bytevector (- end start))))
         (do ((i start (+ i 1)) (j 0 (+ j 1)))
-             ((= i end) res)
+             ((>= i end) res)
              (bytevector-u8-set! res j (char->integer (string-ref buf i))))))
     (else (error "Invalid port buffer" buf))))
 
@@ -1530,7 +1530,7 @@
                 ((< pos len)
                   (let scan ((i pos))
                     (cond
-                      ((= i len)
+                      ((>= i len)
                         (port-pos-set! port len)
                         (loop (cons (substring buf pos len) chunks) (+ total (- len pos))))
                       ((char=? (unchecked-buffer-ref-char buf i) #\newline)
@@ -1701,7 +1701,7 @@
         (error "bad end read-bytevector!" end))
       (when (> start end) (error "bad end start read-bytevector!" end))
       (let loop ((pos start) (read 0))
-        (if (= pos end)
+        (if (>= pos end)
             read
             (let ((c (read-u8 port)))
               (if (eof-object? c)
@@ -1770,7 +1770,7 @@
       (unless (<= 0 end (bytevector-length bv))
         (error "bad end write-bytevector" end))
       (when (> start end) (error "bad end start write-bytevector" end))
-      (do ((i start (+ i 1))) ((= end i)) (write-u8 (bytevector-u8-ref bv i) port)))))
+      (do ((i start (+ i 1))) ((>= i end)) (write-u8 (bytevector-u8-ref bv i) port)))))
 
 (define string->list
   (case-lambda
@@ -1783,7 +1783,7 @@
       (unless (<= 0 end (string-length str)) (error "Bad end string->list" end))
       (when (> start end) (error "Bad end string->list" end))
       (let string->list-loop ((pos start) (buf '()))
-        (if (= pos end)
+        (if (>= pos end)
             (reverse buf)
             (string->list-loop (+ pos 1) (cons (string-ref str pos) buf)))))))
 
@@ -2047,11 +2047,11 @@
              (alloc_size (if (= r 0) (* q 8) (* (+ q 1) 8)))
              (bv (sys:ALLOC alloc_size 73)))
         (sys:STORE bv len 0)
-        (when init (do ((i 0 (+ i 1))) ((= i len)) (bytevector-u8-set! bv i init)))
+        (when init (do ((i 0 (+ i 1))) ((>= i len)) (bytevector-u8-set! bv i init)))
         bv))))
 (define (bytevector . rest)
   (do ((res (make-bytevector (length rest))) (i 0 (+ i 1)) (v rest (cdr v)))
-       ((= i (length rest)) res)
+       ((>= i (length rest)) res)
        (unless (fixnum? (car v)) (error "Bad bytevector set:"))
        (bytevector-u8-set! res i (car v))))
 
@@ -2063,7 +2063,7 @@
     ((bytevector start end)
       (let ((bv (make-bytevector (- end start))))
         (do ((in start (+ in 1)) (out 0 (+ out 1)))
-             ((= in end) bv)
+             ((>= in end) bv)
              (bytevector-u8-set! bv out (bytevector-u8-ref bytevector in)))))))
 (define bytevector-copy
   (case-lambda
@@ -2087,10 +2087,10 @@
     ((to at from start end)
       (if (>= start at)
           (do ((in start (+ in 1)) (out at (+ out 1)))
-               ((= in end) to)
+               ((>= in end) to)
                (bytevector-u8-set! to out (bytevector-u8-ref from in)))
           (do ((in end (- in 1)) (out (+ at (- end start)) (- out 1)))
-               ((= in start) to)
+               ((<= in start) to)
                (bytevector-u8-set! to (- out 1) (bytevector-u8-ref from (- in 1))))))))
 (define bytevector-copy!
   (case-lambda
@@ -2120,7 +2120,7 @@
 (define (bytevector=? a b)
   (and (= (bytevector-length a) (bytevector-length b))
        (let loop ((pos 0))
-         (or (= pos (bytevector-length a))
+         (or (>= pos (bytevector-length a))
             (and (eq? (bytevector-u8-ref a pos) (bytevector-u8-ref b pos))
                  (loop (+ pos 1)))))))
 
@@ -2130,7 +2130,7 @@
 (define (utf8->string-slow v start end)
   (let ((res (make-string (- end start))))
     (let loop ((i start) (j 0) (v v) (res res) (end end))
-      (if (= i end)
+      (if (>= i end)
           (if (= j (- end start)) res (substring res 0 j))
           (let ((b (bytevector-u8-ref v i)))
             (if (< b 128)
@@ -2142,7 +2142,7 @@
                                (else (error "Invalid UTF-8")))))
                   (when (> (+ i n) end) (error "Incomplete UTF-8"))
                   (let decode ((k 1) (c (modulo b (case n ((2) 32) ((3) 16) (else 8)))))
-                    (if (= k n)
+                    (if (>= k n)
                         (begin
                           (when (< c (case n ((2) 128) ((3) 2048) (else 65536)))
                             (error "Overlong UTF-8"))
@@ -2174,7 +2174,7 @@
       (utf8->string-internal v start end))))
 (define (string->utf8-internal v start end)
   (let* ((len (let loop ((i start) (len 0))
-                (if (= i end)
+                (if (>= i end)
                     len
                     (let ((c (char->integer (string-ref v i))))
                       (loop (+ i 1)
@@ -2182,7 +2182,7 @@
                                          ((< c 65536) 3) (else 4))))))))
          (res (make-bytevector len)))
     (let loop ((i start) (j 0))
-      (if (= i end)
+      (if (>= i end)
           res
           (let* ((c (char->integer (string-ref v i)))
                  (n (cond ((< c 128) 1) ((< c 2048) 2)
@@ -2191,7 +2191,7 @@
                 (bytevector-u8-set! res j c)
                 (begin
                   (let encode ((k (- n 1)) (c c))
-                    (if (= k 0)
+                    (if (<= k 0)
                         (bytevector-u8-set! res j
                           (+ (case n ((2) 192) ((3) 224) (else 240)) c))
                         (begin

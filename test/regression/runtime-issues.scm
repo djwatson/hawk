@@ -29,6 +29,23 @@
     ((_ expr expected)
      (check (call-with-values (lambda () expr) list) expected))))
 
+;; Exercise both sides of the fast list walk's cycle-check cutoff.
+(for-each
+  (lambda (n)
+    (let ((xs (make-list n 'x)))
+      (do ((i 0 (+ i 1))) ((>= i 40))
+        (check (length xs) n)
+        (check (list? xs) #t))
+      (when (> n 0)
+        (let ((last (list-tail xs (- n 1))))
+          (set-cdr! last 'improper)
+          (check (list? xs) #f)
+          (check (raises? (lambda () (length xs))) #t)
+          (set-cdr! last xs)
+          (check (list? xs) #f)
+          (check (raises? (lambda () (length xs))) #t)))))
+  '(0 1 3999 4000 4001 5001))
+
 ;; Character payloads must survive interpreter execution and JIT compilation.
 (for-each
   (lambda (base)
