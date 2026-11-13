@@ -13,6 +13,12 @@
 #include "hawk.h"
 #include "types.h"
 
+void emit_align(emit_state *s, size_t alignment) {
+  assert(alignment && !(alignment & (alignment - 1)));
+  while ((uintptr_t)s->p & (alignment - 1))
+    emit_byte(s, 0x90);
+}
+
 static inline uint8_t hw_fpr(uint8_t reg) {
   assert(reg >= FPR_REG_START && reg < X64_MAX_REG);
   return reg - FPR_REG_START;

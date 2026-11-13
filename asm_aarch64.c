@@ -76,6 +76,12 @@ static uint8_t *emit_op(emit_state *s, uint32_t code) {
   return emit_imm32(s, code);
 }
 
+void emit_align(emit_state *s, size_t alignment) {
+  assert(alignment >= 4 && !(alignment & (alignment - 1)));
+  while ((uintptr_t)s->p & (alignment - 1))
+    emit_op(s, 0xD503201FU); // NOP
+}
+
 enum a64_ins : uint32_t {
   A64_ADD = 0x8B000000U,
   A64_ADDI = 0x91000000U,

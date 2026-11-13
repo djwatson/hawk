@@ -956,6 +956,45 @@ static void emit_callcc_resume(emit_state *s, trace *t,
   invalidate_live_regs_for_call(t, ra_state, REG_NONE, false);
 }
 
+static void emit_memq(emit_state *s, trace *t, ir_ins const *op, slot *args,
+                       uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg,
+                       int32_t cur_snap) {
+  uint8_t cur = dst_reg == RTMP ? RTMP2 : dst_reg;
+  uint8_t obj = emit_arg_reg(args, arg_regs, arg_count, op->op1);
+  uint8_t list = emit_arg_reg(args, arg_regs, arg_count, op->op2);
+  if (!op->op1.constant && obj == cur) {
+    emit_mov(s, RTMP2, obj);
+    obj = RTMP2;
+  }
+  if (op->op2.constant)
+    emit_heap_constant(s, t, cur, slot_gc_obj(t, op->op2));
+  else
+    emit_mov(s, cur, list);
+  if (op->op1.constant && cur != RTMP2) {
+    emit_heap_constant(s, t, RTMP2, slot_gc_obj(t, op->op1));
+    obj = RTMP2;
+  }
+  label loop = {}, check = {}, done = {};
+  emit_jmp32(s, &check);
+  emit_align(s, 32);
+  emit_label(s, &loop);
+  if (op->op1.constant && cur == RTMP2) {
+    emit_heap_constant(s, t, RTMP, slot_gc_obj(t, op->op1));
+    obj = RTMP;
+  }
+  emit_mem_cmp(s, -CONS_TAG, cur, obj);
+  emit_jcc32(s, JE, &done);
+  emit_mem_load(s, sizeof(gc_obj) - CONS_TAG, cur, cur);
+  emit_label(s, &check);
+  emit_and_constant(s, RTMP, cur, TAG_MASK);
+  emit_cmp_constant(s, RTMP, CONS_TAG);
+  emit_jcc32(s, JE, &loop);
+  emit_mov64(s, cur, FALSE_REP.value);
+  emit_label(s, &done);
+  if (cur_snap >= 0)
+    emit_typecheck(s, t, op, cur_snap, cur);
+}
+
 static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
                         uint16_t op_cnt_idx, ir_ins const *op, slot *args,
                         uint8_t *arg_regs, uint8_t arg_count, uint8_t dst_reg,
@@ -977,28 +1016,39 @@ static void emit_vmcall(emit_state *s, trace *t, regalloc_state *ra_state,
     }
   }
 
+  bool flonum = op->op == IR_VMMEMV &&
+                 (a0.constant ? is_flonum(slot_gc_obj(t, a0))
+                              : t->ins[a0.loc].type == FLONUM_TAG);
+  uint8_t dst0 = flonum ? asm_foreign_call_arg_fpr(0) : RARG0;
+  uint8_t dst1 = flonum ? RARG0 : RARG1;
   par_copy *cpy = nullptr;
   bool live_regs[MAX_REG];
   uint64_t live_gpr_mask;
   collect_live_roots(t, ra_state, op_cnt_idx, -1, live_regs, &live_gpr_mask);
   if (!a0.constant) {
-    arrput(cpy, ((par_copy){.from = a0_src, .to = RARG0}));
+    arrput(cpy, ((par_copy){.from = a0_src, .to = dst0}));
   }
   if (!unary && !a1.constant) {
-    arrput(cpy, ((par_copy){.from = a1_src, .to = RARG1}));
+    arrput(cpy, ((par_copy){.from = a1_src, .to = dst1}));
   }
   collect_move_source_roots(cpy, live_regs, &live_gpr_mask);
   emit_serialized_moves(s, cpy, live_regs, live_gpr_mask);
-  emit_gcobj_arg(s, t, a0, RARG0, RARG0);
+  if (flonum) {
+    if (a0.constant)
+      emit_fmov_constant(s, dst0, slot_flonum_constant(t, a0));
+  } else {
+    emit_gcobj_arg(s, t, a0, dst0, dst0);
+  }
   if (!unary) {
-    emit_gcobj_arg(s, t, a1, RARG1, RARG1);
+    emit_gcobj_arg(s, t, a1, dst1, dst1);
   }
 
   if (!preserved) {
     emit_update_stack_top(s, t->snaps[cur_snap].offset);
     emit_store_ralloc(s);
   }
-  emit_mov64(s, RTMP, vm_call_target(op->op));
+  emit_mov64(s, RTMP, flonum ? (intptr_t)&vm_memv_flonum
+                             : vm_call_target(op->op));
   emit_call_reg(s, RTMP);
   if (!preserved)
     emit_load_ralloc(s);
@@ -2558,6 +2608,10 @@ static void emit_ir(emit_state *s, trace *t, regalloc_state *ra_state,
       break;
     }
     default: {
+      if (ir_inline_memq(t, op)) {
+        emit_memq(s, t, op, args, arg_regs, arg_count, dst_reg, cur_snap);
+        break;
+      }
       if (ir_is_vm_call(op->op)) {
         emit_vmcall(s, t, ra_state, op_cnt_idx, op, args, arg_regs, arg_count,
                     dst_reg, cur_snap);

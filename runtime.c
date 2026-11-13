@@ -455,42 +455,45 @@ static inline bool is_number(gc_obj obj) {
          is_compnum(obj);
 }
 
-bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
-  // Object eqv?: identity first, then Chez-style numeric eqv? for numbers.
-  if (lhs.value == rhs.value) {
+static bool exact_integer_equal(gc_obj lhs, gc_obj rhs) {
+  if (lhs.value == rhs.value)
     return true;
+  if (is_bignum(lhs) && is_bignum(rhs))
+    return bn_cmp(to_bignum(lhs), to_bignum(rhs)) == 0;
+  if (is_fixnum(lhs) && is_bignum(rhs)) {
+    auto r = bn_to_i64(to_bignum(rhs));
+    return r.ok && to_fixnum(lhs) == r.value;
   }
-  if (get_type_tag(lhs) != get_type_tag(rhs)) {
+  if (is_bignum(lhs) && is_fixnum(rhs))
+    return exact_integer_equal(rhs, lhs);
+  return false;
+}
+
+bool obj_jeqv(gc_obj lhs, gc_obj rhs) {
+  // Allocation-free: callers may keep unrooted values in callee-saved registers.
+  if (lhs.value == rhs.value)
+    return true;
+  if (get_type_tag(lhs) != get_type_tag(rhs))
     return false;
+  if (is_compnum(lhs)) {
+    auto l = to_compnum(lhs);
+    auto r = to_compnum(rhs);
+    return obj_jeqv(l->real, r->real) && obj_jeqv(l->imag, r->imag);
   }
-  if (is_compnum(lhs) || is_compnum(rhs)) {
-    compnum_s *l = is_compnum(lhs) ? to_compnum(lhs) : nullptr;
-    compnum_s *r = is_compnum(rhs) ? to_compnum(rhs) : nullptr;
-    gc_obj lreal = l ? l->real : lhs;
-    gc_obj limag = l ? l->imag : tag_fixnum(0);
-    gc_obj rreal = r ? r->real : rhs;
-    gc_obj rimag = r ? r->imag : tag_fixnum(0);
-    gc_add_root((const void *)&limag, 1, 0);
-    gc_add_root((const void *)&rimag, 1, 0);
-    bool real_equal = obj_jeqv(lreal, rreal);
-    bool imag_equal = real_equal && obj_jeqv(limag, rimag);
-    gc_remove_root((const void *)&rimag, 0);
-    gc_remove_root((const void *)&limag, 0);
-    return imag_equal;
+  if (is_flonum(lhs)) {
+    double l = to_flonum(lhs)->x, r = to_flonum(rhs)->x;
+    return (isnan(l) && isnan(r)) || memcmp(&l, &r, sizeof(l)) == 0;
   }
-  if (is_flonum(lhs) && is_flonum(rhs)) {
-    // Scheme eqv? semantics, matching Chez: NaNs are eqv?, otherwise bits.
-    double l = to_flonum(lhs)->x;
-    double r = to_flonum(rhs)->x;
-    if (isnan(l) || isnan(r)) {
-      return isnan(l) && isnan(r);
-    }
-    return memcmp(&l, &r, sizeof(l)) == 0;
+  if (is_bignum(lhs))
+    return bn_cmp(to_bignum(lhs), to_bignum(rhs)) == 0;
+  if (is_ratnum(lhs)) {
+    // Rationals are reduced, with positive denominators, by tag_ratnum.
+    auto l = to_ratnum(lhs);
+    auto r = to_ratnum(rhs);
+    return exact_integer_equal(l->num, r->num) &&
+           exact_integer_equal(l->denom, r->denom);
   }
-  if (is_number(lhs) && is_number(rhs)) {
-    return numeric_equal(lhs, rhs);
-  }
-  return lhs.value == rhs.value;
+  return false;
 }
 
 static size_t runtime_align_words(size_t bytes) {

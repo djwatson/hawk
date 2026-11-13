@@ -50,6 +50,8 @@ typedef struct vm_state {
 } vm_state;
 
 gc_obj vm(gc_obj clo, gc_obj arg1, gc_obj arg2);
+// Membership helpers never allocate or trigger GC.
+gc_obj vm_memv_flonum(gc_obj list, double x);
 gc_obj vm_memq(gc_obj obj, gc_obj list);
 gc_obj vm_memv(gc_obj obj, gc_obj list);
 gc_obj vm_copy_list(gc_obj list);

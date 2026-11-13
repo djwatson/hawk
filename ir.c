@@ -197,8 +197,15 @@ void print_ir(trace *t) {
 
 bool ir_sideeff(ir_ins_op op) { return ir_has_side_effects[op]; }
 
-bool ir_call_preserves_regs(trace const *t __attribute__((unused)),
-                            ir_ins const *ins) {
-  return ins->op == IR_VMMEMQ ||
+bool ir_inline_memq(trace const *t, ir_ins const *ins) {
+  // Keep the call path when an input needs boxing.
+  return ins->op == IR_VMMEMQ &&
+         (ins->op1.constant || t->ins[ins->op1.loc].type != FLONUM_TAG) &&
+         (ins->op2.constant || t->ins[ins->op2.loc].type != FLONUM_TAG);
+}
+
+bool ir_call_preserves_regs(trace const *t, ir_ins const *ins) {
+  return (ins->op == IR_VMMEMQ && !ir_inline_memq(t, ins)) ||
+         ins->op == IR_VMMEMV ||
          (ins->op == IR_MOD && ins->type == FLONUM_TAG);
 }

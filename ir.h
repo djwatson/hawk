@@ -252,6 +252,7 @@ extern ir_arg_type ir_ins_types[];
 bool ir_sideeff(ir_ins_op op);
 slot trace_add_const(trace *t, gc_obj value);
 
+bool ir_inline_memq(trace const *t, ir_ins const *ins);
 // Audited calls that neither collect nor reenter Scheme.
 bool ir_call_preserves_regs(trace const *t, ir_ins const *ins);
 

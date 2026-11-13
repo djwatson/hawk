@@ -143,11 +143,26 @@ gc_obj vm_memq(gc_obj obj, gc_obj list) {
   return FALSE_REP;
 }
 
+gc_obj vm_memv_flonum(gc_obj list, double x) {
+  bool nan = isnan(x);
+  for (auto cur = list; is_cons(cur); cur = to_cons(cur)->b) {
+    auto item = to_cons(cur)->a;
+    if (is_flonum(item)) {
+      double y = to_flonum(item)->x;
+      if (memcmp(&x, &y, sizeof(x)) == 0 || (nan && isnan(y)))
+        return cur;
+    }
+  }
+  return FALSE_REP;
+}
+
 gc_obj vm_memv(gc_obj obj, gc_obj list) {
   if (!(is_flonum(obj) || is_bignum(obj) || is_ratnum(obj) ||
         is_compnum(obj))) {
     return vm_memq(obj, list);
   }
+  if (is_flonum(obj))
+    return vm_memv_flonum(list, to_flonum(obj)->x);
   for (auto cur = list; is_cons(cur); cur = to_cons(cur)->b) {
     if (obj_jeqv(obj, to_cons(cur)->a)) {
       return cur;

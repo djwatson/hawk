@@ -45,6 +45,7 @@ static bool live_add(uint16_t *live, uint16_t *count, uint16_t value) {
 }
 
 static void ensure_spill(regalloc_state *s, uint16_t value) {
+  s->call_spills[value] = false;
   auto ins = &s->t->ins[value];
   if (ins->spill != SPILL_NONE)
     return;
@@ -53,6 +54,13 @@ static void ensure_spill(regalloc_state *s, uint16_t value) {
     return;
   }
   ins->spill = s->next_spill++;
+}
+
+static void ensure_call_spill(regalloc_state *s, uint16_t value) {
+  if (s->t->ins[value].spill != SPILL_NONE)
+    return;
+  ensure_spill(s, value);
+  s->call_spills[value] = true;
 }
 
 static void limit_live_values(regalloc_state *s, uint16_t *live,
@@ -76,8 +84,9 @@ static bool slot_is_zero(trace const *t, slot s) {
          to_fixnum(t->consts[s.loc]) == 0;
 }
 
-static bool ins_clobbers_regs(ir_ins const *ins) {
-  return ir_is_vm_call(ins->op) || ins->op == IR_CCALL ||
+static bool ins_clobbers_regs(trace const *t, ir_ins const *ins) {
+  return (ir_is_vm_call(ins->op) && !ir_inline_memq(t, ins)) ||
+         ins->op == IR_CCALL ||
          ins->op == IR_CALLCC || ins->op == IR_CALLCC_RESUME ||
          (ins->op == IR_MOD && ins->type == FLONUM_TAG);
 }
@@ -290,10 +299,10 @@ static void collect_lifetimes(regalloc_state *s) {
     if (ir_call_preserves_regs(s->t, ins)) {
       // Caller-saved values still need backing, but keep their lifetimes intact.
       for (uint16_t j = 0; j < gpr_live_count; j++)
-        ensure_spill(s, gpr_live[j]);
+        ensure_call_spill(s, gpr_live[j]);
       for (uint16_t j = 0; j < fpr_live_count; j++)
-        ensure_spill(s, fpr_live[j]);
-    } else if (ins_clobbers_regs(ins)) {
+        ensure_call_spill(s, fpr_live[j]);
+    } else if (ins_clobbers_regs(s->t, ins)) {
       limit_live_values(s, gpr_live, &gpr_live_count, 0, use_pos);
       limit_live_values(s, fpr_live, &fpr_live_count, 0, use_pos);
     }
@@ -454,12 +463,17 @@ void regalloc_assign_output(regalloc_state *s, uint16_t ir_idx, ir_ins *ins) {
     ins->reg = find_free_reg(s, ins->type == FLONUM_TAG, ins,
                              s->last_preserved_call[ir_idx] != 0);
   }
+  if (s->call_spills[ir_idx] && asm_is_callee_saved(ins->reg))
+    ins->spill = SPILL_NONE;
   s->regs[ins->reg] = ir_idx;
 }
 
 bool regalloc_state_init(regalloc_state *s, trace *t) {
   memset(s, 0, sizeof(*s));
   s->t = t;
+  s->call_spills = calloc(arrlen(t->ins) + 1, sizeof(*s->call_spills));
+  if (!s->call_spills)
+    abort();
   s->next_spill = 0;
   arr_for_each_idx(t->ins, i) {
     if (t->ins[i].spill != SPILL_NONE && t->ins[i].spill >= s->next_spill) {
@@ -481,6 +495,7 @@ bool regalloc_state_init(regalloc_state *s, trace *t) {
 void regalloc_state_free(regalloc_state *s) {
   arrfree(s->ends);
   free(s->last_use);
+  free(s->call_spills);
   free(s->last_preserved_call);
   memset(s, 0, sizeof(*s));
 }

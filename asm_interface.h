@@ -37,6 +37,7 @@ void save_callee_regs(emit_state *s);
 
 void emit_ret(emit_state *s);
 void emit_label(emit_state *s, label *label);
+void emit_align(emit_state *s, size_t alignment);
 void emit_jmp32(emit_state *s, label *target);
 void emit_mov64(emit_state *s, uint8_t r, int64_t imm);
 void emit_call_reg(emit_state *s, uint8_t r);

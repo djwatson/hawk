@@ -18,6 +18,7 @@ typedef struct reg_lifetime_end reg_lifetime_end;
 typedef struct regalloc_state {
   trace *t;
   uint32_t *last_use;
+  bool *call_spills; // Backing needed only if assigned a caller-saved register.
   uint32_t *last_preserved_call;
   reg_lifetime_end *ends;
   uint16_t regs[MAX_REG];
