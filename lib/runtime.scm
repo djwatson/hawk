@@ -891,6 +891,16 @@
             (vector-set! v 2 c)
             (vector-set! v 3 d)
             v)))
+    ((a b c d e)
+      (if (and (flonum? a) (flonum? b) (flonum? c) (flonum? d) (flonum? e))
+          (flvector a b c d e)
+          (let ((v (make-vector 5)))
+            (vector-set! v 0 a)
+            (vector-set! v 1 b)
+            (vector-set! v 2 c)
+            (vector-set! v 3 d)
+            (vector-set! v 4 e)
+            v)))
     ;; list->vector checks for flvector.
     (vals (list->vector vals))))
 (define flvector
