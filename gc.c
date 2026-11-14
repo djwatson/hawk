@@ -69,7 +69,7 @@ STACK(gc_obj_stack, gc_obj)
 uintptr_t gc_hp;
 uintptr_t gc_hp_end;
 uintptr_t gc_nursery_start, gc_nursery_end;
-size_t gc_nursery_size;
+size_t gc_nursery_size, gc_nursery_min;
 gc_root_range gc_roots[GC_MAX_ROOTS];
 size_t gc_roots_len;
 size_t gc_size;
@@ -761,13 +761,17 @@ void gc_collect(void) {
     force_full = true;
   if (pressure || old_since_collect >= next_old_collect)
     old_collect(nullptr);
-  if (adaptive_nursery && nursery_survived > gc_nursery_size / 2 &&
+  if (adaptive_nursery && nursery_survived > gc_nursery_size / 4 &&
       gc_nursery_size < nursery_limit) {
     size_t next = gc_nursery_size * 2;
     if (next > nursery_limit)
       next = nursery_limit;
     if (next <= old_free_bytes())
       gc_nursery_size = next;
+  } else if (adaptive_nursery && nursery_survived < gc_nursery_size / 32 &&
+             gc_nursery_size > gc_nursery_min) {
+    size_t next = gc_nursery_size / 2;
+    gc_nursery_size = next < gc_nursery_min ? gc_nursery_min : next;
   }
   gc_nursery_start = gc_nursery_end - gc_nursery_size;
   gc_hp_end = gc_nursery_start;
@@ -906,6 +910,7 @@ void gc_init(void) {
   gc_nursery_size = (initial + SLAB_SIZE - 1) & ~(SLAB_SIZE - 1);
   if (!gc_nursery_size)
     gc_nursery_size = SLAB_SIZE;
+  gc_nursery_min = gc_nursery_size;
   if (!adaptive_nursery)
     nursery_limit = gc_nursery_size;
   gc_mmap_size = gc_size + nursery_limit + SLAB_SIZE;

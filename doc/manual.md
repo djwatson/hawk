@@ -123,9 +123,10 @@ These environment variables tune the runtime:
 - `GC_SPACE`: old-generation capacity in MB. Default: `2048`.
 - `GC_COLLECT`: fix the nursery size in MB (zero selects one 16 KiB slab).
   When unset, the nursery starts at 32 MiB and doubles after collections where
-  more than half survives, subject to old-generation headroom. Its maximum is
+  more than a quarter survives, subject to old-generation headroom. It halves
+  when less than 1/32 survives, stopping at its initial size. Its maximum is
   half `GC_SPACE`, capped at 1024 MiB. The maximum nursery and old generation
-  share one reserved mapping; growth changes the allocation limit.
+  share one reserved mapping; resizing changes only the allocation limit.
 - `JIT_CACHE_SZ`: JIT code cache size in MB. Default: `4`.
 
 Example:

@@ -53,7 +53,7 @@ void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress_level);
 NOINLINE void gc_log_slow(gc_obj obj);
 NOINLINE void gc_log_cons_slow(gc_obj obj);
 extern uintptr_t gc_nursery_start, gc_nursery_end;
-extern size_t gc_nursery_size;
+extern size_t gc_nursery_size, gc_nursery_min;
 
 static inline void gc_log(gc_obj obj) {
   if (is_cons(obj)) {

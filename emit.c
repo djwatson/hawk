@@ -482,6 +482,7 @@ static void emit_rooted_alloc(emit_state *s, uint64_t live_gpr_mask,
 static void emit_gclog_obj(emit_state *s, uint8_t obj_reg, uint8_t tag) {
   label done = {};
   emit_mov(s, RTMP, obj_reg);
+  // Growth and shrinkage only move the nursery's lower boundary.
   emit_mov64(s, RTMP2, gc_nursery_end);
   emit_cmp(s, RTMP, RTMP2);
   emit_jcc32(s, JB, &done);
