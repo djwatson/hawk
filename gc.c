@@ -22,6 +22,7 @@ enum : size_t {
   OLD_SMALL_MAX = 4096,
   SIZE_CLASS_COUNT = OLD_SMALL_MAX / 8 + 1,
   DEFAULT_NURSERY = 32 * 1024 * 1024,
+  MAX_NURSERY = 1024 * 1024 * 1024,
   DEFAULT_OLD_COLLECT = 100000000,
   MAX_PAGE_ORDER = 31,
   SLAB_MARK_WORDS = SLAB_SIZE / sizeof(gc_obj) / 64,
@@ -67,7 +68,7 @@ STACK(gc_obj_stack, gc_obj)
 
 uintptr_t gc_hp;
 uintptr_t gc_hp_end;
-uintptr_t gc_nursery_start;
+uintptr_t gc_nursery_start, gc_nursery_end;
 size_t gc_nursery_size;
 gc_root_range gc_roots[GC_MAX_ROOTS];
 size_t gc_roots_len;
@@ -102,7 +103,18 @@ static void *scan_data;
 static gc_obj *stack_root_bottom;
 static gc_obj **stack_root_top;
 static gc_obj *stack_root_end;
-static size_t nursery_limit;
+static size_t nursery_limit, nursery_survived;
+static bool adaptive_nursery, nursery_collecting, mark_young;
+static uint64_t *young_marks;
+
+static void collect_old_with_young(void);
+
+static size_t old_free_bytes(void) {
+  size_t bytes = (heap_units - heap_cursor) * SLAB_SIZE;
+  for (unsigned i = 0; i < MAX_PAGE_ORDER; i++)
+    bytes += arrlen(free_pages[i]) * ((size_t)SLAB_SIZE << i);
+  return bytes;
+}
 static size_t old_since_collect;
 static size_t next_old_collect = DEFAULT_OLD_COLLECT;
 static unsigned old_collect_count;
@@ -125,6 +137,8 @@ static uint8_t page_order(size_t bytes) {
 }
 
 static region *region_alloc(uint8_t order, enum region_kind kind) {
+  bool retried = false;
+retry:;
   region *r;
   size_t units = (size_t)1 << order;
   if (arrlen(free_pages[order])) {
@@ -155,6 +169,11 @@ static region *region_alloc(uint8_t order, enum region_kind kind) {
     }
     size_t start = (heap_cursor + units - 1) & ~(units - 1);
     if (start > heap_units || units > heap_units - start) {
+      if (nursery_collecting && !retried) {
+        collect_old_with_young();
+        retried = true;
+        goto retry;
+      }
       fprintf(stderr, "out of GC space: used %zu MB, request %zu KB\n",
               heap_cursor * SLAB_SIZE / (1024 * 1024),
               units * SLAB_SIZE / 1024);
@@ -385,6 +404,7 @@ static INLINE inline void trace_obj(gc_obj obj, trace_callback visit,
 }
 
 static INLINE inline cons_s *evacuate_cons(cons_s *cell) {
+  nursery_survived += sizeof(cons_s);
   cons_s *copy = gc_alloc_old_cons();
   *copy = *cell;
   set_forward(cell, copy);
@@ -396,6 +416,7 @@ static gc_header *evacuate_other(gc_header *hdr) {
   assert((uintptr_t)hdr - gc_nursery_start < gc_nursery_size &&
          hdr->type != FUNC_TAG && hdr->type != CONS_TAG && !is_forwarded(hdr));
   size_t size = heap_align(heap_object_size(hdr));
+  nursery_survived += size;
   gc_header *copy = old_alloc_raw(size, false);
   memcpy(copy, hdr, size);
   copy->flags = size > OLD_SMALL_MAX ? GC_LARGE : 0;
@@ -479,6 +500,8 @@ static void scan_logged_young(void) {
 }
 
 static void nursery_collect(void) {
+  nursery_survived = 0;
+  nursery_collecting = true;
   visit_explicit_roots(evacuate_field);
   visit_callback_roots(evacuate_roots);
   for (size_t i = 0; i < arrlen(bcfunc_roots); i++) {
@@ -493,8 +516,7 @@ static void nursery_collect(void) {
     memset(*stack_root_top, 0,
            (size_t)(stack_root_end - *stack_root_top) * sizeof(gc_obj));
   arrlen_set(bcfunc_roots, 0);
-  gc_hp_end = gc_nursery_start;
-  gc_hp = gc_nursery_start + gc_nursery_size;
+  nursery_collecting = false;
 }
 
 static INLINE inline void mark_field(gc_obj *field, void *ctx) {
@@ -502,6 +524,19 @@ static INLINE inline void mark_field(gc_obj *field, void *ctx) {
   if (!is_heap_object(*field))
     return;
   void *obj = to_raw_ptr(*field);
+  if (mark_young && is_young(obj)) {
+    if (is_forwarded(obj)) {
+      *field = tag_header(forward_ptr(obj), get_tag(*field));
+      obj = to_raw_ptr(*field);
+    } else {
+      size_t bit = ((uintptr_t)obj - (gc_nursery_end - nursery_limit)) / 8;
+      if (!bit_test(young_marks, bit)) {
+        bit_set(young_marks, bit);
+        gc_obj_stack_push(&worklist, *field);
+      }
+      return;
+    }
+  }
   region *r = nullptr;
   if ((uintptr_t)obj - (uintptr_t)heap_base >= gc_size)
     return;
@@ -673,9 +708,9 @@ static void clear_marks(void) {
   arr_for_each(large_objects, large) { large->marked = false; }
 }
 
-static void old_collect(void) {
+static void old_collect(gc_obj_stack *pending) {
   // Small heaps cannot retain floating garbage across nine sticky collections.
-  bool full = force_full || next_old_collect >= gc_size / 4 ||
+  bool full = pending || force_full || next_old_collect >= gc_size / 4 ||
               ++old_collect_count == 9;
   if (old_collect_count == 9)
     old_collect_count = 0;
@@ -683,6 +718,12 @@ static void old_collect(void) {
     clear_marks();
   visit_explicit_roots(mark_field);
   visit_callback_roots(mark_roots);
+  if (pending) {
+    for (size_t i = 0; i < pending->len; i++)
+      mark_field(&pending->data[i], nullptr);
+    for (size_t i = 0; i < arrlen(logged_objects); i++)
+      mark_field(&logged_objects[i], nullptr);
+  }
   consume_sticky_objects(full);
   drain_mark_worklist();
   prune_bcfuncs();
@@ -698,12 +739,41 @@ static void old_collect(void) {
       freed, next_old_collect);
 }
 
+// Promotion can exhaust old space before the normal major-GC safe point.
+static void collect_old_with_young(void) {
+  assert(!mark_young);
+  gc_obj_stack pending = worklist;
+  worklist = (gc_obj_stack){};
+  memset(young_marks, 0, nursery_limit / sizeof(gc_obj) / 8);
+  mark_young = true;
+  old_collect(&pending);
+  mark_young = false;
+  free(worklist.data);
+  worklist = pending;
+}
+
 void gc_collect(void) {
   total_gc_cnt++;
   profiler_set_in_gc(true);
   nursery_collect();
-  if (old_since_collect >= next_old_collect)
-    old_collect();
+  bool pressure = old_free_bytes() < gc_nursery_size;
+  if (pressure)
+    force_full = true;
+  if (pressure || old_since_collect >= next_old_collect)
+    old_collect(nullptr);
+  if (adaptive_nursery && nursery_survived > gc_nursery_size / 2 &&
+      gc_nursery_size < nursery_limit) {
+    size_t next = gc_nursery_size * 2;
+    if (next > nursery_limit)
+      next = nursery_limit;
+    if (next <= old_free_bytes())
+      gc_nursery_size = next;
+  }
+  gc_nursery_start = gc_nursery_end - gc_nursery_size;
+  gc_hp_end = gc_nursery_start;
+  gc_hp = gc_nursery_end;
+  LOG(gc, "nursery: survived %zu bytes, active %zu bytes, reserved %zu bytes",
+      nursery_survived, gc_nursery_size, nursery_limit);
   profiler_set_in_gc(false);
 }
 
@@ -718,6 +788,8 @@ NOINLINE void *gc_alloc_slow(uint64_t size) {
   if (size > gc_nursery_size) {
     if (old_since_collect >= next_old_collect)
       gc_collect();
+    if (old_free_bytes() < ((size_t)SLAB_SIZE << page_order(size)))
+      collect_old_with_young();
     return old_alloc_raw((size_t)size, true);
   }
   gc_collect();
@@ -813,7 +885,7 @@ void gc_set_stack_root(gc_obj *bottom, gc_obj **top, gc_obj *end) {
 void gc_init(void) {
   char *env = getenv("GC_SPACE");
   size_t mb = env ? (size_t)atoll(env) : 2048;
-  if (mb < 16 || mb > SIZE_MAX / (1024 * 1024)) {
+  if (mb < 16 || mb > (SIZE_MAX - SLAB_SIZE) / (2 * 1024 * 1024)) {
     fprintf(stderr, "GC_SPACE must be at least 16 MB and fit in size_t\n");
     abort();
   }
@@ -821,28 +893,41 @@ void gc_init(void) {
   next_old_collect = gc_size / 4 < DEFAULT_OLD_COLLECT
                          ? gc_size / 4 : DEFAULT_OLD_COLLECT;
   env = getenv("GC_COLLECT");
-  nursery_limit = env ? (size_t)atoll(env) * 1024 * 1024 : DEFAULT_NURSERY;
-  // Leave room for old objects and evacuation between old collections.
-  if (nursery_limit > gc_size / 8)
-    nursery_limit = gc_size / 8;
-  gc_nursery_size = (nursery_limit + SLAB_SIZE - 1) & ~(SLAB_SIZE - 1);
+  adaptive_nursery = !env;
+  nursery_limit = gc_size / 2 < MAX_NURSERY ? gc_size / 2 : MAX_NURSERY;
+  size_t initial = DEFAULT_NURSERY;
+  if (env) {
+    size_t requested = (size_t)atoll(env);
+    initial = requested > nursery_limit / (1024 * 1024)
+                  ? nursery_limit : requested * 1024 * 1024;
+  }
+  if (initial > nursery_limit)
+    initial = nursery_limit;
+  gc_nursery_size = (initial + SLAB_SIZE - 1) & ~(SLAB_SIZE - 1);
   if (!gc_nursery_size)
     gc_nursery_size = SLAB_SIZE;
-  gc_mmap_size = gc_size + gc_nursery_size + SLAB_SIZE;
+  if (!adaptive_nursery)
+    nursery_limit = gc_nursery_size;
+  gc_mmap_size = gc_size + nursery_limit + SLAB_SIZE;
   gc_mmap_base = mmap(nullptr, gc_mmap_size, PROT_READ | PROT_WRITE,
                       MAP_PRIVATE | MAP_ANON, -1, 0);
   if (gc_mmap_base == MAP_FAILED) {
     perror("mmap gc space");
     abort();
   }
-  gc_nursery_start =
+  uintptr_t nursery_base =
       ((uintptr_t)gc_mmap_base + SLAB_SIZE - 1) & ~(uintptr_t)(SLAB_SIZE - 1);
+  gc_nursery_end = nursery_base + nursery_limit;
+  gc_nursery_start = gc_nursery_end - gc_nursery_size;
   gc_hp_end = gc_nursery_start;
-  gc_hp = gc_nursery_start + gc_nursery_size;
-  heap_base = (uint8_t *)(gc_nursery_start + gc_nursery_size);
+  gc_hp = gc_nursery_end;
+  heap_base = (uint8_t *)gc_nursery_end;
   heap_units = gc_size / SLAB_SIZE;
   page_map = calloc(heap_units, sizeof(*page_map));
   if (!page_map)
+    abort();
+  young_marks = calloc(nursery_limit / sizeof(gc_obj) / 64, sizeof(uint64_t));
+  if (!young_marks)
     abort();
   LOG(gc, "GC_SPACE: %zu MB", mb);
 }
@@ -867,6 +952,7 @@ void gc_free(void) {
   arrfree(bcfunc_list);
   arrfree(bcfunc_roots);
   free(page_map);
+  free(young_marks);
   if (gc_mmap_base && gc_mmap_base != MAP_FAILED)
     munmap(gc_mmap_base, gc_mmap_size);
 }

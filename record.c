@@ -240,12 +240,18 @@ static void record_scan_trace(trace *trace_obj, gc_scan_root_cb add_root,
   add_root((uint64_t *)trace_obj->consts, arrlen(trace_obj->consts));
 
   bool patched = false;
+  size_t pending = 0;
   arr_for_each(trace_obj->gc_const_locs, loc) {
     if (!asm_mov64_patchable_is_live(loc)) {
       continue;
     }
     gc_obj obj = {.value = asm_read_mov64_patchable(loc)};
-    if (!is_heap_object(obj) || !is_forwarded(to_raw_ptr(obj))) {
+    if (!is_heap_object(obj))
+      continue;
+    if (!is_forwarded(to_raw_ptr(obj))) {
+      // A pressure-triggered major GC may leave nursery constants unmoved.
+      if ((uintptr_t)to_raw_ptr(obj) - gc_nursery_start < gc_nursery_size)
+        trace_obj->gc_const_locs[pending++] = loc;
       continue;
     }
     if (!patched) {
@@ -256,7 +262,7 @@ static void record_scan_trace(trace *trace_obj, gc_scan_root_cb add_root,
     asm_patch_mov64_patchable(&record->emit_state, loc,
                               tag_header(hdr, get_tag(obj)).value);
   }
-  arrlen_set(trace_obj->gc_const_locs, 0);
+  arrlen_set(trace_obj->gc_const_locs, pending);
   if (patched) {
     emit_writable_end(&record->emit_state);
     __builtin___clear_cache((char *)trace_obj->code_start,

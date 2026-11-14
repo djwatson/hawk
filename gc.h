@@ -52,13 +52,13 @@ void gc_dump_image(gc_obj clo, gc_obj path, gc_obj compress_level);
 void gc_dump_image_and_die(gc_obj clo, gc_obj path, gc_obj compress_level);
 NOINLINE void gc_log_slow(gc_obj obj);
 NOINLINE void gc_log_cons_slow(gc_obj obj);
-extern uintptr_t gc_nursery_start;
+extern uintptr_t gc_nursery_start, gc_nursery_end;
 extern size_t gc_nursery_size;
 
 static inline void gc_log(gc_obj obj) {
   if (is_cons(obj)) {
     uintptr_t addr = (uintptr_t)to_cons(obj);
-    if (likely(addr < gc_nursery_start + gc_nursery_size))
+    if (likely(addr < gc_nursery_end))
       return;
     uintptr_t slab = addr & -(uintptr_t)GC_SLAB_SIZE;
     size_t idx = (addr - slab - GC_CONS_FLAGS_SIZE) / sizeof(cons_s);
@@ -69,7 +69,7 @@ static inline void gc_log(gc_obj obj) {
   gc_header *hdr = to_gc_header(obj);
   uintptr_t addr = (uintptr_t)hdr;
   if (likely((hdr->flags & GC_LOGGED) ||
-             addr < gc_nursery_start + gc_nursery_size))
+             addr < gc_nursery_end))
     return;
   MUSTTAIL return gc_log_slow(obj);
 }
