@@ -5,9 +5,31 @@ permalink: /releases/
 
 # Releases
 
+## v0.13
+
+Hawk v0.13 is the latest release. It includes:
+
+- JIT loop and integer range optimizations
+- bytecode liveness analysis and improved address indexing
+- variable nursery sizing and faster allocation
+- faster ASCII strings, symbol reading, and number parsing
+- specialized `string-append`, vector construction, and `memq` paths
+
+[Download the v0.13 source tarball](https://github.com/djwatson/hawk/releases/download/v0.13/hawk-v0.13.tar.gz),
+[Debian amd64 package](https://github.com/djwatson/hawk/releases/download/v0.13/hawk_0.13_amd64.deb),
+or [Arch Linux PKGBUILD](https://github.com/djwatson/hawk/releases/download/v0.13/PKGBUILD).
+
+```sh
+tar xf hawk-v0.13.tar.gz
+cd hawk-v0.13
+cmake -S . -B build
+cmake --build build
+./build/hawk --version
+```
+
 ## v0.12
 
-Hawk v0.12 is the latest release. It includes:
+Hawk v0.12 includes:
 
 - Unicode strings, characters, case conversion, and UTF-8 input/output
 - JIT recording for `apply`
